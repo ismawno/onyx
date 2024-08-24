@@ -31,6 +31,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glfw)
 
 # It is set to required for now even though there is a fallback mechanism with FetchContent (the latter seems to provide very few extensions and I am not sure if it will work well for now)
+# TODO: Check if the fallback mechanism works well
 find_package(Vulkan REQUIRED)
 
 if (NOT Vulkan_FOUND)
@@ -54,6 +55,8 @@ if (NOT Vulkan_FOUND)
 else()
     message(STATUS "Vulkan SDK found")
 endif()
+
+# TODO: Links against vulkan and glfw should be private
 
 if (ONYX_LOCAL_VULKAN_SDK)
     target_include_directories(onyx PUBLIC ${Vulkan_INCLUDE_DIRS})
