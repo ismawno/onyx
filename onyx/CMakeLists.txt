@@ -3,6 +3,10 @@ project(onyx)
 
 set(SOURCES
     src/core/pch.cpp
+    src/core/core.cpp
+    src/app/app.cpp
+    src/app/window.cpp
+    src/app/input.cpp
 )
 
 add_library(onyx STATIC ${SOURCES})

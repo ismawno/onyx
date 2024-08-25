@@ -28,3 +28,10 @@
     namespace ONYX_NAMESPACE_NAME                                                                                      \
     {
 #define ONYX_NAMESPACE_END }
+
+ONYX_NAMESPACE_BEGIN
+
+void Initialize() KIT_NOEXCEPT;
+void Terminate() KIT_NOEXCEPT;
+
+ONYX_NAMESPACE_END
