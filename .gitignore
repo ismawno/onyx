@@ -2,6 +2,7 @@
 .vscode/
 *build*/
 build*.ini
+onyx/shaders/bin/
 .venv/
 .DS_Store
 

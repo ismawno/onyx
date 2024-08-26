@@ -11,7 +11,7 @@ ONYX_DIMENSION_TEMPLATE void Input<N>::PollEvents()
     glfwPollEvents();
 }
 
-template class Input<2>;
-template class Input<3>;
+template struct Input<2>;
+template struct Input<3>;
 
 ONYX_NAMESPACE_END

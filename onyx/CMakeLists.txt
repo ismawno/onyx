@@ -39,7 +39,7 @@ FetchContent_MakeAvailable(glfw)
 find_package(Vulkan REQUIRED)
 
 if (NOT Vulkan_FOUND)
-    message(STATUS "A global Vulkan installation was not found. Fetching the Vulkan SDK...")
+    message(STATUS "ONYX: A global Vulkan installation was not found. Fetching the Vulkan SDK...")
     set(ONYX_LOCAL_VULKAN_SDK ON CACHE BOOL "Use the local Vulkan SDK" FORCE)
 
     FetchContent_Declare(
@@ -57,8 +57,35 @@ if (NOT Vulkan_FOUND)
     )
     FetchContent_MakeAvailable(VulkanLoader)
 else()
-    message(STATUS "Vulkan SDK found")
+    message(STATUS "ONYX: Vulkan SDK found")
 endif()
+
+find_program(GLSLC_EXECUTABLE glslc REQUIRED)
+message(STATUS "ONYX: Found glslc: ${GLSLC_EXECUTABLE}")
+
+function(compile_shader shader)
+    set(SHADER "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${shader}")
+    set(SPIRV "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin/${shader}.spv")
+    
+    add_custom_command(
+        TARGET onyx
+        PRE_BUILD
+        COMMAND ${GLSLC_EXECUTABLE} ${SHADER} -o ${SPIRV}
+        COMMENT "Compiling ${shader} to SPIR-V"
+        VERBATIM
+    )
+endfunction()
+
+set(SHADERS
+    "shader2D.frag"
+    "shader2D.vert"
+    "shader3D.frag"
+    "shader3D.vert"
+)
+
+foreach(SHADER ${SHADERS})
+    compile_shader(${SHADER})
+endforeach()
 
 # TODO: Links against vulkan and glfw should be private
 
@@ -71,5 +98,11 @@ target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVA
 target_link_libraries(onyx PUBLIC toolkit glm glfw Vulkan::Vulkan)
 
 target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/core/pch.hpp)
+
+if (MSVC)
+    configure_compile_link_options(onyx "/W4 /WX")
+else()
+    configure_compile_link_options(onyx "-Wall -Wextra -Wpedantic -Werror")
+endif()
 
 # No need for more: toolkit handles the rest. As it is a library I develop, I will be reusing its macros/configurations
