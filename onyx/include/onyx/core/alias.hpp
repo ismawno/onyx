@@ -3,8 +3,8 @@
 #include "onyx/core/core.hpp"
 #include "kit/core/alias.hpp"
 
-ONYX_NAMESPACE_BEGIN
-
+namespace ONYX
+{
 using namespace KIT::Aliases;
 
-ONYX_NAMESPACE_END
+}

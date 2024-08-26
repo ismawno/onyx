@@ -2,8 +2,8 @@
 
 #include "onyx/core/dimension.hpp"
 
-ONYX_NAMESPACE_BEGIN
-
+namespace ONYX
+{
 ONYX_DIMENSION_TEMPLATE struct Input
 {
     static void PollEvents();
@@ -11,5 +11,4 @@ ONYX_DIMENSION_TEMPLATE struct Input
 
 using Input2 = Input<2>;
 using Input3 = Input<3>;
-
-ONYX_NAMESPACE_END
+} // namespace ONYX

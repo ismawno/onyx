@@ -4,8 +4,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-ONYX_NAMESPACE_BEGIN
-
+namespace ONYX
+{
 ONYX_DIMENSION_TEMPLATE void Input<N>::PollEvents()
 {
     glfwPollEvents();
@@ -13,5 +13,4 @@ ONYX_DIMENSION_TEMPLATE void Input<N>::PollEvents()
 
 template struct Input<2>;
 template struct Input<3>;
-
-ONYX_NAMESPACE_END
+} // namespace ONYX

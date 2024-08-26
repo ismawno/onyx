@@ -2,17 +2,17 @@
 #include "onyx/app/app.hpp"
 #include "onyx/app/input.hpp"
 
-ONYX_NAMESPACE_BEGIN
-
-ONYX_DIMENSION_TEMPLATE Application<N>::Application() KIT_NOEXCEPT
+namespace ONYX
+{
+ONYX_DIMENSION_TEMPLATE Application<N>::Application() noexcept
 {
 }
 
-ONYX_DIMENSION_TEMPLATE Application<N>::Application(const Window<N>::Specs &specs) KIT_NOEXCEPT : m_Window(specs)
+ONYX_DIMENSION_TEMPLATE Application<N>::Application(const Window<N>::Specs &specs) noexcept : m_Window(specs)
 {
 }
 
-ONYX_DIMENSION_TEMPLATE void Application<N>::Run() KIT_NOEXCEPT
+ONYX_DIMENSION_TEMPLATE void Application<N>::Run() noexcept
 {
     while (!m_Window.ShouldClose())
         Input<N>::PollEvents();
@@ -20,5 +20,4 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::Run() KIT_NOEXCEPT
 
 template class Application<2>;
 template class Application<3>;
-
-ONYX_NAMESPACE_END
+} // namespace ONYX

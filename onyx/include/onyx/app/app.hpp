@@ -2,16 +2,16 @@
 
 #include "onyx/app/window.hpp"
 
-ONYX_NAMESPACE_BEGIN
-
+namespace ONYX
+{
 ONYX_DIMENSION_TEMPLATE class Application
 {
     KIT_NON_COPYABLE(Application)
   public:
-    Application() KIT_NOEXCEPT;
-    explicit Application(const Window<N>::Specs &specs) KIT_NOEXCEPT;
+    Application() noexcept;
+    explicit Application(const Window<N>::Specs &specs) noexcept;
 
-    void Run() KIT_NOEXCEPT;
+    void Run() noexcept;
 
   private:
     Window<N> m_Window;
@@ -19,5 +19,4 @@ ONYX_DIMENSION_TEMPLATE class Application
 
 using Application2D = Application<2>;
 using Application3D = Application<3>;
-
-ONYX_NAMESPACE_END
+} // namespace ONYX

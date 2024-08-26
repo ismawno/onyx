@@ -5,16 +5,15 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-ONYX_NAMESPACE_BEGIN
-
-void Initialize() KIT_NOEXCEPT
+namespace ONYX
+{
+void Initialize() noexcept
 {
     KIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "Failed to initialize GLFW");
 }
 
-void Terminate() KIT_NOEXCEPT
+void Terminate() noexcept
 {
     glfwTerminate();
 }
-
-ONYX_NAMESPACE_END
+} // namespace ONYX

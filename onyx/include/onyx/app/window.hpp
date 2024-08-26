@@ -7,8 +7,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-ONYX_NAMESPACE_BEGIN
-
+namespace ONYX
+{
 ONYX_DIMENSION_TEMPLATE class ONYX_API Window
 {
     KIT_NON_COPYABLE(Window)
@@ -20,15 +20,15 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
         u32 height = 600;
     };
 
-    Window() KIT_NOEXCEPT;
-    explicit Window(const Specs &specs) KIT_NOEXCEPT;
+    Window() noexcept;
+    explicit Window(const Specs &specs) noexcept;
 
-    ~Window() KIT_NOEXCEPT;
+    ~Window() noexcept;
 
-    bool ShouldClose() const KIT_NOEXCEPT;
+    bool ShouldClose() const noexcept;
 
   private:
-    void InitializeWindow() KIT_NOEXCEPT;
+    void InitializeWindow() noexcept;
 
     GLFWwindow *m_Window;
     Specs m_Specs;
@@ -36,5 +36,4 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
 
 using Window2D = Window<2>;
 using Window3D = Window<3>;
-
-ONYX_NAMESPACE_END
+} // namespace ONYX

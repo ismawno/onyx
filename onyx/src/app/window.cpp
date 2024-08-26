@@ -2,23 +2,23 @@
 #include "onyx/app/window.hpp"
 #include "kit/core/logging.hpp"
 
-ONYX_NAMESPACE_BEGIN
-
-ONYX_DIMENSION_TEMPLATE Window<N>::Window() KIT_NOEXCEPT
+namespace ONYX
+{
+ONYX_DIMENSION_TEMPLATE Window<N>::Window() noexcept
 {
     InitializeWindow();
 }
-ONYX_DIMENSION_TEMPLATE Window<N>::Window(const Specs &specs) KIT_NOEXCEPT : m_Specs(specs)
+ONYX_DIMENSION_TEMPLATE Window<N>::Window(const Specs &specs) noexcept : m_Specs(specs)
 {
     InitializeWindow();
 }
 
-ONYX_DIMENSION_TEMPLATE Window<N>::~Window() KIT_NOEXCEPT
+ONYX_DIMENSION_TEMPLATE Window<N>::~Window() noexcept
 {
     glfwDestroyWindow(m_Window);
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::InitializeWindow() KIT_NOEXCEPT
+ONYX_DIMENSION_TEMPLATE void Window<N>::InitializeWindow() noexcept
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
@@ -27,12 +27,11 @@ ONYX_DIMENSION_TEMPLATE void Window<N>::InitializeWindow() KIT_NOEXCEPT
     KIT_ASSERT(m_Window, "Failed to create a GLFW window");
 }
 
-ONYX_DIMENSION_TEMPLATE bool Window<N>::ShouldClose() const KIT_NOEXCEPT
+ONYX_DIMENSION_TEMPLATE bool Window<N>::ShouldClose() const noexcept
 {
     return glfwWindowShouldClose(m_Window);
 }
 
 template class Window<2>;
 template class Window<3>;
-
-ONYX_NAMESPACE_END
+} // namespace ONYX
