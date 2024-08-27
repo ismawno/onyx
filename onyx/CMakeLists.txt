@@ -4,6 +4,8 @@ project(onyx)
 set(SOURCES
     src/core/pch.cpp
     src/core/core.cpp
+    src/core/device.cpp
+    src/core/instance.cpp
     src/app/app.cpp
     src/app/window.cpp
     src/app/input.cpp

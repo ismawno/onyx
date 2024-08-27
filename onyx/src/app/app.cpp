@@ -8,7 +8,7 @@ ONYX_DIMENSION_TEMPLATE Application<N>::Application() noexcept
 {
 }
 
-ONYX_DIMENSION_TEMPLATE Application<N>::Application(const Window<N>::Specs &specs) noexcept : m_Window(specs)
+ONYX_DIMENSION_TEMPLATE Application<N>::Application(const Window<N>::Specs &p_Specs) noexcept : m_Window(p_Specs)
 {
 }
 

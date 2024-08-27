@@ -4,9 +4,11 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE struct Input
+ONYX_DIMENSION_TEMPLATE struct ONYX_API Input
 {
     static void PollEvents();
+
+    Input() = delete;
 };
 
 using Input2 = Input<2>;

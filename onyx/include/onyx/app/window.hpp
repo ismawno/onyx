@@ -1,8 +1,7 @@
 #pragma once
 
-#include "onyx/core/alias.hpp"
 #include "onyx/core/dimension.hpp"
-#include "kit/core/non_copyable.hpp"
+#include "onyx/core/device.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -21,16 +20,26 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
     };
 
     Window() noexcept;
-    explicit Window(const Specs &specs) noexcept;
+    explicit Window(const Specs &p_Specs) noexcept;
 
     ~Window() noexcept;
 
     bool ShouldClose() const noexcept;
+    GLFWwindow *GetGLFWWindow() const noexcept;
+
+    const char *Name() const noexcept;
+    u32 Width() const noexcept;
+    u32 Height() const noexcept;
+
+    VkSurfaceKHR Surface() const noexcept;
 
   private:
-    void InitializeWindow() noexcept;
+    void initializeWindow() noexcept;
 
+    KIT::Ref<Instance> m_Instance;
+    KIT::Ref<Device> m_Device;
     GLFWwindow *m_Window;
+    VkSurfaceKHR m_Surface;
     Specs m_Specs;
 };
 

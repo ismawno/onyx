@@ -4,12 +4,12 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE class Application
+ONYX_DIMENSION_TEMPLATE class ONYX_API Application
 {
     KIT_NON_COPYABLE(Application)
   public:
     Application() noexcept;
-    explicit Application(const Window<N>::Specs &specs) noexcept;
+    explicit Application(const Window<N>::Specs &p_Specs) noexcept;
 
     void Run() noexcept;
 

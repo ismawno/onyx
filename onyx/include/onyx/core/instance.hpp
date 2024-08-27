@@ -1,0 +1,30 @@
+#pragma once
+
+#include "onyx/core/api.hpp"
+#include "kit/memory/ptr.hpp"
+#include <vulkan/vulkan.hpp>
+
+namespace ONYX
+{
+class ONYX_API Instance : public KIT::RefCounted<Instance>
+{
+    KIT_NON_COPYABLE(Instance)
+  public:
+    ~Instance() noexcept;
+
+#ifdef KIT_ENABLE_ASSERTS
+    static const char *ValidationLayer();
+#endif
+
+    VkInstance VulkanInstance() const noexcept;
+
+  private:
+    Instance() noexcept;
+
+    void initializeInstance() noexcept;
+
+    VkInstance m_Instance;
+
+    friend struct Core;
+};
+} // namespace ONYX
