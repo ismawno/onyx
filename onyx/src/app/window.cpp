@@ -35,6 +35,11 @@ ONYX_DIMENSION_TEMPLATE void Window<N>::initializeWindow() noexcept
     m_Device = Core::getOrCreateDevice(m_Surface);
 }
 
+ONYX_DIMENSION_TEMPLATE void Window<N>::MakeContextCurrent() const noexcept
+{
+    glfwMakeContextCurrent(m_Window);
+}
+
 ONYX_DIMENSION_TEMPLATE bool Window<N>::ShouldClose() const noexcept
 {
     return glfwWindowShouldClose(m_Window);

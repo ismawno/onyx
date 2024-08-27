@@ -1,6 +1,5 @@
 #include "core/pch.hpp"
 #include "onyx/app/app.hpp"
-#include "onyx/app/input.hpp"
 
 namespace ONYX
 {
@@ -15,7 +14,7 @@ ONYX_DIMENSION_TEMPLATE Application<N>::Application(const Window<N>::Specs &p_Sp
 ONYX_DIMENSION_TEMPLATE void Application<N>::Run() noexcept
 {
     while (!m_Window.ShouldClose())
-        Input<N>::PollEvents();
+        m_Window.MakeContextCurrent();
 }
 
 template class Application<2>;

@@ -6,11 +6,8 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE void Input<N>::PollEvents()
+void Input::PollEvents()
 {
     glfwPollEvents();
 }
-
-template struct Input<2>;
-template struct Input<3>;
 } // namespace ONYX
