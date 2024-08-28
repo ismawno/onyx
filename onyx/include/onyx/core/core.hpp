@@ -3,9 +3,12 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/instance.hpp"
 #include "onyx/core/device.hpp"
-#include "kit/container/buffered_array.hpp"
-#include "kit/memory/stack_allocator.hpp"
-#include "kit/multiprocessing/task_manager.hpp"
+
+namespace KIT
+{
+class StackAllocator;
+class TaskManager;
+} // namespace KIT
 
 namespace ONYX
 {
@@ -27,31 +30,6 @@ struct ONYX_API Core
 
     friend class Window<2>;
     friend class Window<3>;
-};
-
-struct ONYX_API Allocator
-{
-    // using Allocate/Deallocate pair instead of Push/Pop so that when passing the pointer when deallocating, the
-    // allocator
-    // can ensure that the order of deallocation is correct (only in assert mode)
-
-    template <typename T> static T *Push() noexcept
-    {
-        return Core::StackAllocator()->Allocate<T>();
-    }
-    template <typename T, typename... Args>
-    static KIT::BufferedArray<T> Push(const usize p_Capacity, Args &&...args) noexcept
-    {
-        return KIT::BufferedArray<T>(Core::StackAllocator()->Allocate<T>(p_Capacity), p_Capacity,
-                                     std::forward<Args>(args)...);
-    }
-
-    static void Pop(const void *p_Ptr) noexcept;
-
-    template <typename T> static void Pop(const KIT::BufferedArray<T> &p_BufferedArray) noexcept
-    {
-        Core::StackAllocator()->Deallocate(p_BufferedArray.data());
-    }
 };
 
 } // namespace ONYX

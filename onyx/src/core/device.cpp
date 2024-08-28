@@ -110,6 +110,7 @@ SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice p_Device, c
 
 Device::Device(const VkSurfaceKHR p_Surface) noexcept
 {
+    KIT_LOG_INFO("Attempting to create a new device...");
     m_Instance = Core::GetInstance();
     pickPhysicalDevice(p_Surface);
     createLogicalDevice(p_Surface);
@@ -144,6 +145,11 @@ bool Device::IsDeviceSuitable(const VkPhysicalDevice p_Device, const VkSurfaceKH
 bool Device::IsSuitable(const VkSurfaceKHR p_Surface) const noexcept
 {
     return IsDeviceSuitable(m_PhysicalDevice, p_Surface);
+}
+
+VkDevice Device::VulkanDevice() const noexcept
+{
+    return m_Device;
 }
 
 void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept

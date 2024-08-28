@@ -58,9 +58,4 @@ KIT::TaskManager *Core::TaskManager() noexcept
     return s_Manager;
 }
 
-void Allocator::Pop(const void *p_Ptr) noexcept
-{
-    s_Allocator->Deallocate(p_Ptr);
-}
-
 } // namespace ONYX

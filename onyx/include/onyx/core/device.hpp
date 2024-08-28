@@ -15,6 +15,8 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     static bool IsDeviceSuitable(VkPhysicalDevice p_Device, VkSurfaceKHR p_Surface) noexcept;
     bool IsSuitable(VkSurfaceKHR p_Surface) const noexcept;
 
+    VkDevice VulkanDevice() const noexcept;
+
   private:
     void pickPhysicalDevice(VkSurfaceKHR p_Surface) noexcept;
     void createLogicalDevice(VkSurfaceKHR p_Surface) noexcept;

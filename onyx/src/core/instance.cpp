@@ -150,6 +150,7 @@ VkInstance Instance::VulkanInstance() const noexcept
 
 void Instance::initializeInstance() noexcept
 {
+    KIT_LOG_INFO("Creating a vulkan instance...");
     KIT_ASSERT(checkValidationLayerSupport(), "Validation layers requested, but not available!");
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;

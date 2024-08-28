@@ -2,6 +2,7 @@
 #include "onyx/core/core.hpp"
 #include "onyx/app/input.hpp"
 #include "kit/core/literals.hpp"
+#include "kit/memory/stack_allocator.hpp"
 #include "kit/multiprocessing/thread_pool.hpp"
 
 using namespace KIT::Literals;
