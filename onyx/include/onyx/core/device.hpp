@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/core/instance.hpp"
+#include "onyx/core/alias.hpp"
 #include <vulkan/vulkan.hpp>
 
 namespace ONYX
@@ -43,12 +44,12 @@ class ONYX_API Device : public KIT::RefCounted<Device>
 
   private:
     void pickPhysicalDevice(VkSurfaceKHR p_Surface) noexcept;
-    void createLogicalDevice(VkSurfaceKHR p_Surface) noexcept;
-    void createCommandPool(VkSurfaceKHR p_Surface) noexcept;
+    void createLogicalDevice() noexcept;
+    void createCommandPool() noexcept;
 
     static bool isDeviceSuitable(VkPhysicalDevice p_Device, VkSurfaceKHR p_Surface,
                                  SwapChainSupportDetails *p_SwapChainSupport = nullptr,
-                                 QueueFamilyIndices *p_QueueFamilies) noexcept;
+                                 QueueFamilyIndices *p_QueueFamilies = nullptr) noexcept;
 
     KIT::Ref<Instance> m_Instance;
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;

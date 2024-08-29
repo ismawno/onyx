@@ -29,7 +29,6 @@ class Pipeline
         DynamicArray<VkDynamicState> DynamicStateEnables;
         VkPipelineDynamicStateCreateInfo DynamicStateInfo;
 
-        VkPipelineLayout PipelineLayout = nullptr;
         VkRenderPass RenderPass = nullptr;
         u32 Subpass = 0;
 
@@ -48,10 +47,14 @@ class Pipeline
 
   private:
     void initialize(const Specs &p_Specs) noexcept;
+    void createPipelineLayout() noexcept;
+
     VkShaderModule createShaderModule(const char *p_Path) noexcept;
 
     KIT::Ref<Device> m_Device;
     VkPipeline m_Pipeline;
+    VkPipelineLayout m_PipelineLayout;
+
     VkShaderModule m_VertexShader;
     VkShaderModule m_FragmentShader;
 };

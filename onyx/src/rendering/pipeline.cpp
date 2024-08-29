@@ -16,19 +16,20 @@ Pipeline::~Pipeline()
 {
     vkDestroyShaderModule(m_Device->VulkanDevice(), m_VertexShader, nullptr);
     vkDestroyShaderModule(m_Device->VulkanDevice(), m_FragmentShader, nullptr);
+    vkDestroyPipelineLayout(m_Device->VulkanDevice(), m_PipelineLayout, nullptr);
     vkDestroyPipeline(m_Device->VulkanDevice(), m_Pipeline, nullptr);
 }
 
 void Pipeline::initialize(const Specs &p_Specs) noexcept
 {
     KIT_LOG_INFO("Creating new pipeline...");
-    KIT_ASSERT(p_Specs.PipelineLayout, "Pipeline layout must be provided to create graphics pipeline");
     KIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");
 
     m_Device = Core::GetDevice();
-
     m_VertexShader = createShaderModule(p_Specs.VertexShaderPath);
     m_FragmentShader = createShaderModule(p_Specs.FragmentShaderPath);
+
+    createPipelineLayout();
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
     for (auto &shaderStage : shaderStages)
@@ -64,7 +65,7 @@ void Pipeline::initialize(const Specs &p_Specs) noexcept
     pipelineInfo.pDepthStencilState = &p_Specs.DepthStencilInfo;
     pipelineInfo.pDynamicState = &p_Specs.DynamicStateInfo;
 
-    pipelineInfo.layout = p_Specs.PipelineLayout;
+    pipelineInfo.layout = m_PipelineLayout;
     pipelineInfo.renderPass = p_Specs.RenderPass;
     pipelineInfo.subpass = p_Specs.Subpass;
 
@@ -73,6 +74,20 @@ void Pipeline::initialize(const Specs &p_Specs) noexcept
     KIT_ASSERT_RETURNS(
         vkCreateGraphicsPipelines(m_Device->VulkanDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_Pipeline),
         VK_SUCCESS, "Failed to create graphics pipeline");
+}
+
+void Pipeline::createPipelineLayout() noexcept
+{
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 0;
+    pipelineLayoutInfo.pSetLayouts = nullptr;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = nullptr;
+
+    KIT_ASSERT_RETURNS(
+        vkCreatePipelineLayout(m_Device->VulkanDevice(), &pipelineLayoutInfo, nullptr, &m_PipelineLayout), VK_SUCCESS,
+        "Failed to create pipeline layout");
 }
 
 VkShaderModule Pipeline::createShaderModule(const char *p_Path) noexcept

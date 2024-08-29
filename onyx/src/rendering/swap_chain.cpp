@@ -55,7 +55,7 @@ SwapChain::SwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surfa
     initialize(p_WindowExtent, p_Surface, p_OldSwapChain);
 }
 
-SwapChain::~SwapChain()
+SwapChain::~SwapChain() noexcept
 {
     for (VkImageView imageView : m_ImageViews)
         vkDestroyImageView(m_Device->VulkanDevice(), imageView, nullptr);
@@ -302,7 +302,7 @@ void SwapChain::createFramebuffers() noexcept
     }
 }
 
-void SwapChain::createSyncObjects()
+void SwapChain::createSyncObjects() noexcept
 {
     m_InFlightImages.resize(m_Images.size(), VK_NULL_HANDLE);
 

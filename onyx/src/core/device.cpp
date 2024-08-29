@@ -108,8 +108,8 @@ Device::Device(const VkSurfaceKHR p_Surface) noexcept
     KIT_LOG_INFO("Attempting to create a new device...");
     m_Instance = Core::GetInstance();
     pickPhysicalDevice(p_Surface);
-    createLogicalDevice(p_Surface);
-    createCommandPool(p_Surface);
+    createLogicalDevice();
+    createCommandPool();
 }
 
 Device::~Device() noexcept
@@ -197,7 +197,7 @@ void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
     KIT_LOG_INFO("Physical device: {}", properties.deviceName);
 }
 
-void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
+void Device::createLogicalDevice() noexcept
 {
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     const std::unordered_set<std::uint32_t> uniqueQueueFamily = {m_QueueFamilies.GraphicsFamily,
@@ -244,7 +244,7 @@ void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
     vkGetDeviceQueue(m_Device, m_QueueFamilies.PresentFamily, 0, &m_PresentQueue);
 }
 
-void Device::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
+void Device::createCommandPool() noexcept
 {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -291,6 +291,8 @@ std::pair<VkImage, VkDeviceMemory> Device::CreateImage(const VkImageCreateInfo &
     KIT_ASSERT_RETURNS(vkAllocateMemory(m_Device, &allocInfo, nullptr, &memory), VK_SUCCESS,
                        "Failed to allocate image memory");
     KIT_ASSERT_RETURNS(vkBindImageMemory(m_Device, image, memory, 0), VK_SUCCESS, "Failed to bind image memory");
+
+    return {image, memory};
 }
 
 } // namespace ONYX
