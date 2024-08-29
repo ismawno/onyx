@@ -35,7 +35,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
     VkSurfaceKHR Surface() const noexcept;
 
   private:
-    void initializeWindow() noexcept;
+    void initialize() noexcept;
 
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;

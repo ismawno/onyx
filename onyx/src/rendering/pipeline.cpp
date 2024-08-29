@@ -9,7 +9,7 @@ namespace ONYX
 {
 Pipeline::Pipeline(const Specs &p_Specs) noexcept
 {
-    initializePipeline(p_Specs);
+    initialize(p_Specs);
 }
 
 Pipeline::~Pipeline()
@@ -19,7 +19,7 @@ Pipeline::~Pipeline()
     vkDestroyPipeline(m_Device->VulkanDevice(), m_Pipeline, nullptr);
 }
 
-void Pipeline::initializePipeline(const Specs &p_Specs) noexcept
+void Pipeline::initialize(const Specs &p_Specs) noexcept
 {
     KIT_LOG_INFO("Creating new pipeline...");
     KIT_ASSERT(p_Specs.PipelineLayout, "Pipeline layout must be provided to create graphics pipeline");

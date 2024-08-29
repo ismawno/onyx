@@ -7,11 +7,11 @@ namespace ONYX
 {
 ONYX_DIMENSION_TEMPLATE Window<N>::Window() noexcept
 {
-    initializeWindow();
+    initialize();
 }
 ONYX_DIMENSION_TEMPLATE Window<N>::Window(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
 {
-    initializeWindow();
+    initialize();
 }
 
 ONYX_DIMENSION_TEMPLATE Window<N>::~Window() noexcept
@@ -20,7 +20,7 @@ ONYX_DIMENSION_TEMPLATE Window<N>::~Window() noexcept
     glfwDestroyWindow(m_Window);
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::initializeWindow() noexcept
+ONYX_DIMENSION_TEMPLATE void Window<N>::initialize() noexcept
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);

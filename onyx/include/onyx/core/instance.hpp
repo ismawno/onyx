@@ -21,7 +21,7 @@ class ONYX_API Instance : public KIT::RefCounted<Instance>
   private:
     Instance() noexcept;
 
-    void initializeInstance() noexcept;
+    void initialize() noexcept;
 
     VkInstance m_Instance;
 
