@@ -98,21 +98,21 @@ u8 Color::Alpha() const noexcept
     return toInt(RGBA.a);
 }
 
-void Color::Red(u8 r) noexcept
+void Color::Red(const u8 p_Red) noexcept
 {
-    RGBA.r = toFloat(r);
+    RGBA.r = toFloat(p_Red);
 }
-void Color::Green(u8 g) noexcept
+void Color::Green(const u8 p_Green) noexcept
 {
-    RGBA.g = toFloat(g);
+    RGBA.g = toFloat(p_Green);
 }
-void Color::Blue(u8 b) noexcept
+void Color::Blue(const u8 p_Blue) noexcept
 {
-    RGBA.b = toFloat(b);
+    RGBA.b = toFloat(p_Blue);
 }
-void Color::Alpha(u8 a) noexcept
+void Color::Alpha(const u8 p_Alpha) noexcept
 {
-    RGBA.a = toFloat(a);
+    RGBA.a = toFloat(p_Alpha);
 }
 
 template <> u32 Color::ToHexadecimal<u32>(const bool p_Alpha) const noexcept

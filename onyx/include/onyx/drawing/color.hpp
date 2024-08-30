@@ -51,54 +51,56 @@ struct Color
     explicit(false) operator const vec4 &() const noexcept;
     explicit(false) operator const vec3 &() const noexcept;
 
-    Color &operator+=(const Color &p_Rhs) noexcept;
-    Color &operator-=(const Color &p_Rhs) noexcept;
-    Color &operator*=(const Color &p_Rhs) noexcept;
-    Color &operator/=(const Color &p_Rhs) noexcept;
-    template <typename T> Color &operator*=(const T &p_Rhs) noexcept
+    Color &operator+=(const Color &p_Right) noexcept;
+    Color &operator-=(const Color &p_Right) noexcept;
+    Color &operator*=(const Color &p_Right) noexcept;
+    Color &operator/=(const Color &p_Right) noexcept;
+    template <typename T> Color &operator*=(const T &p_Right) noexcept
     {
-        RGB = glm::clamp(RGB * p_Rhs, 0.f, 1.f);
+        RGB = glm::clamp(RGB * p_Right, 0.f, 1.f);
         return *this;
     }
-    template <typename T> Color &operator/=(const T &p_Rhs) noexcept
+    template <typename T> Color &operator/=(const T &p_Right) noexcept
     {
-        RGB = glm::clamp(RGB / p_Rhs, 0.f, 1.f);
+        RGB = glm::clamp(RGB / p_Right, 0.f, 1.f);
         return *this;
     }
 
-    friend Color operator+(const Color &lhs, const Color &rhs)
+    friend Color operator+(const Color &p_Left, const Color &p_Right) noexcept
     {
-        Color result = lhs;
-        result += rhs;
+        Color result = p_Left;
+        result += p_Right;
         return result;
     }
 
-    friend Color operator-(const Color &lhs, const Color &rhs)
+    friend Color operator-(const Color &p_Left, const Color &p_Right) noexcept
     {
-        Color result = lhs;
-        result -= rhs;
+        Color result = p_Left;
+        result -= p_Right;
         return result;
     }
 
-    friend Color operator*(const Color &lhs, const Color &rhs)
+    friend Color operator*(const Color &p_Left, const Color &p_Right) noexcept
     {
-        Color result = lhs;
-        result *= rhs;
+        Color result = p_Left;
+        result *= p_Right;
         return result;
     }
 
-    friend Color operator/(const Color &lhs, const Color &rhs)
+    friend Color operator/(const Color &p_Left, const Color &p_Right) noexcept
     {
-        Color result = lhs;
-        result /= rhs;
+        Color result = p_Left;
+        result /= p_Right;
         return result;
     }
 
-    friend bool operator==(const Color &lhs, const Color &rhs)
+    // Sonarlint yells lol but this is a union like class and no default equality operator is provided
+    friend bool operator==(const Color &lhs, const Color &rhs) noexcept
     {
         return lhs.RGBA == rhs.RGBA;
     }
-    friend bool operator!=(const Color &lhs, const Color &rhs)
+    // Sonarlint yells lol but this is a union like class and no default equality operator is provided
+    friend bool operator!=(const Color &lhs, const Color &rhs) noexcept
     {
         return lhs.RGBA != rhs.RGBA;
     }
