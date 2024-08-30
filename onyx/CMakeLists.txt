@@ -8,6 +8,7 @@ set(SOURCES
     src/core/instance.cpp
     src/rendering/pipeline.cpp
     src/rendering/swap_chain.cpp
+    src/drawing/color.cpp
     src/app/app.cpp
     src/app/window.cpp
     src/app/input.cpp
