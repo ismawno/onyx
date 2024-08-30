@@ -5,6 +5,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+// This file includes all necessary glm headers and defines some useful aliases
+
 namespace ONYX
 {
 namespace Aliases
