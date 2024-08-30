@@ -42,6 +42,8 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     VkQueue GraphicsQueue() const noexcept;
     VkQueue PresentQueue() const noexcept;
 
+    VkCommandPool CommandPool() const noexcept;
+
   private:
     void pickPhysicalDevice(VkSurfaceKHR p_Surface) noexcept;
     void createLogicalDevice() noexcept;

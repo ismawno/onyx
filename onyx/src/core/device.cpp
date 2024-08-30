@@ -172,6 +172,11 @@ VkQueue Device::PresentQueue() const noexcept
     return m_PresentQueue;
 }
 
+VkCommandPool Device::CommandPool() const noexcept
+{
+    return m_CommandPool;
+}
+
 void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
 {
     u32 deviceCount = 0;
@@ -258,15 +263,15 @@ void Device::createCommandPool() noexcept
 VkFormat Device::FindSupportedFormat(const std::span<const VkFormat> p_Candidates, const VkImageTiling p_Tiling,
                                      const VkFormatFeatureFlags p_Features) const noexcept
 {
-    for (usize i = 0; i < std::size(p_Candidates); ++i)
+    for (const VkFormat candidate : p_Candidates)
     {
         VkFormatProperties props;
-        vkGetPhysicalDeviceFormatProperties(m_PhysicalDevice, p_Candidates[i], &props);
+        vkGetPhysicalDeviceFormatProperties(m_PhysicalDevice, candidate, &props);
 
         if (p_Tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & p_Features) == p_Features)
-            return p_Candidates[i];
+            return candidate;
         if (p_Tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & p_Features) == p_Features)
-            return p_Candidates[i];
+            return candidate;
     }
 
     KIT_ASSERT(false, "Failed to find a supported format");
