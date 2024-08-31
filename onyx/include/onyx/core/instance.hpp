@@ -10,6 +10,7 @@ class ONYX_API Instance : public KIT::RefCounted<Instance>
 {
     KIT_NON_COPYABLE(Instance)
   public:
+    Instance() noexcept;
     ~Instance() noexcept;
 
 #ifdef KIT_ENABLE_ASSERTS
@@ -19,8 +20,6 @@ class ONYX_API Instance : public KIT::RefCounted<Instance>
     VkInstance VulkanInstance() const noexcept;
 
   private:
-    Instance() noexcept;
-
     void initialize() noexcept;
 
     VkInstance m_Instance;
