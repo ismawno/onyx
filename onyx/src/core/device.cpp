@@ -18,6 +18,22 @@ static const std::array<const char *, 1> s_DeviceExtensions = {VK_KHR_SWAPCHAIN_
 // I could use a stack-allocated buffer for the majority of the dynamic allocations there are. But this is a one-time
 // initialization setup. It is not worth the effort
 
+static bool checkDeviceExtensionSupport(const VkPhysicalDevice p_Device)
+{
+    u32 extensionCount;
+    vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, nullptr);
+
+    DynamicArray<VkExtensionProperties> availableExtensions(extensionCount);
+    vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, availableExtensions.data());
+
+    HashSet<std::string> requiredExtensions(s_DeviceExtensions.begin(), s_DeviceExtensions.end());
+
+    for (const auto &extension : availableExtensions)
+        requiredExtensions.erase(extension.extensionName);
+
+    return requiredExtensions.empty();
+}
+
 static Device::QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice p_Device, const VkSurfaceKHR p_Surface)
 {
     Device::QueueFamilyIndices indices;
@@ -49,22 +65,6 @@ static Device::QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice p_Dev
     return indices;
 }
 
-static bool checkDeviceExtensionSupport(const VkPhysicalDevice p_Device)
-{
-    u32 extensionCount;
-    vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, nullptr);
-
-    DynamicArray<VkExtensionProperties> availableExtensions(extensionCount);
-    vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, availableExtensions.data());
-
-    HashSet<std::string> requiredExtensions(s_DeviceExtensions.begin(), s_DeviceExtensions.end());
-
-    for (const auto &extension : availableExtensions)
-        requiredExtensions.erase(extension.extensionName);
-
-    return requiredExtensions.empty();
-}
-
 static Device::SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice p_Device,
                                                              const VkSurfaceKHR p_Surface)
 {
@@ -90,6 +90,25 @@ static Device::SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDev
     return details;
 }
 
+static bool isDeviceSuitable(const VkPhysicalDevice p_Device, const VkSurfaceKHR p_Surface) noexcept
+{
+    const Device::QueueFamilyIndices indices = findQueueFamilies(p_Device, p_Surface);
+    const bool extensionsSupported = checkDeviceExtensionSupport(p_Device);
+
+    bool swapChainAdequate = false;
+    if (extensionsSupported)
+    {
+        const Device::SwapChainSupportDetails swapChainSupport = querySwapChainSupport(p_Device, p_Surface);
+        swapChainAdequate = !swapChainSupport.Formats.empty() && !swapChainSupport.PresentModes.empty();
+    }
+
+    VkPhysicalDeviceFeatures supportedFeatures;
+    vkGetPhysicalDeviceFeatures(p_Device, &supportedFeatures);
+
+    return indices.PresentFamilyHasValue && indices.GraphicsFamilyHasValue && extensionsSupported &&
+           swapChainAdequate && supportedFeatures.samplerAnisotropy;
+}
+
 static u32 findMemoryType(const VkPhysicalDevice p_Device, const u32 typeFilter, const VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memProperties;
@@ -108,8 +127,8 @@ Device::Device(const VkSurfaceKHR p_Surface) noexcept
     KIT_LOG_INFO("Attempting to create a new device...");
     m_Instance = Core::GetInstance();
     pickPhysicalDevice(p_Surface);
-    createLogicalDevice();
-    createCommandPool();
+    createLogicalDevice(p_Surface);
+    createCommandPool(p_Surface);
 }
 
 Device::~Device() noexcept
@@ -117,31 +136,6 @@ Device::~Device() noexcept
     vkDeviceWaitIdle(m_Device);
     vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
     vkDestroyDevice(m_Device, nullptr);
-}
-
-bool Device::isDeviceSuitable(const VkPhysicalDevice p_Device, const VkSurfaceKHR p_Surface,
-                              SwapChainSupportDetails *p_SwapChainSupport, QueueFamilyIndices *p_QueueFamilies) noexcept
-{
-    const QueueFamilyIndices indices = findQueueFamilies(p_Device, p_Surface);
-    if (p_QueueFamilies)
-        *p_QueueFamilies = indices;
-
-    const bool extensionsSupported = checkDeviceExtensionSupport(p_Device);
-
-    bool swapChainAdequate = false;
-    if (extensionsSupported)
-    {
-        const SwapChainSupportDetails swapChainSupport = querySwapChainSupport(p_Device, p_Surface);
-        swapChainAdequate = !swapChainSupport.Formats.empty() && !swapChainSupport.PresentModes.empty();
-        if (p_SwapChainSupport)
-            *p_SwapChainSupport = swapChainSupport;
-    }
-
-    VkPhysicalDeviceFeatures supportedFeatures;
-    vkGetPhysicalDeviceFeatures(p_Device, &supportedFeatures);
-
-    return indices.PresentFamilyHasValue && indices.GraphicsFamilyHasValue && extensionsSupported &&
-           swapChainAdequate && supportedFeatures.samplerAnisotropy;
 }
 
 bool Device::IsSuitable(const VkSurfaceKHR p_Surface) const noexcept
@@ -154,13 +148,13 @@ VkDevice Device::VulkanDevice() const noexcept
     return m_Device;
 }
 
-const Device::SwapChainSupportDetails &Device::SwapChainSupport() const noexcept
+Device::QueueFamilyIndices Device::FindQueueFamilies(const VkSurfaceKHR p_Surface) const noexcept
 {
-    return m_SwapChainSupport;
+    return findQueueFamilies(m_PhysicalDevice, p_Surface);
 }
-const Device::QueueFamilyIndices &Device::QueueFamilies() const noexcept
+Device::SwapChainSupportDetails Device::QuerySwapChainSupport(const VkSurfaceKHR p_Surface) const noexcept
 {
-    return m_QueueFamilies;
+    return querySwapChainSupport(m_PhysicalDevice, p_Surface);
 }
 
 VkQueue Device::GraphicsQueue() const noexcept
@@ -189,7 +183,7 @@ void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
     vkEnumeratePhysicalDevices(m_Instance->VulkanInstance(), &deviceCount, devices.data());
 
     for (const auto &device : devices)
-        if (isDeviceSuitable(device, p_Surface, &m_SwapChainSupport, &m_QueueFamilies))
+        if (isDeviceSuitable(device, p_Surface))
         {
             m_PhysicalDevice = device;
             break;
@@ -202,11 +196,11 @@ void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
     KIT_LOG_INFO("Physical device: {}", properties.deviceName);
 }
 
-void Device::createLogicalDevice() noexcept
+void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
 {
+    const QueueFamilyIndices indices = FindQueueFamilies(p_Surface);
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    const std::unordered_set<std::uint32_t> uniqueQueueFamily = {m_QueueFamilies.GraphicsFamily,
-                                                                 m_QueueFamilies.PresentFamily};
+    const std::unordered_set<std::uint32_t> uniqueQueueFamily = {indices.GraphicsFamily, indices.PresentFamily};
 
     const float queuePriority = 1.0f;
     for (std::uint32_t queue_family : uniqueQueueFamily)
@@ -245,15 +239,17 @@ void Device::createLogicalDevice() noexcept
     KIT_ASSERT_RETURNS(vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device), VK_SUCCESS,
                        "Failed to create logical device");
 
-    vkGetDeviceQueue(m_Device, m_QueueFamilies.GraphicsFamily, 0, &m_GraphicsQueue);
-    vkGetDeviceQueue(m_Device, m_QueueFamilies.PresentFamily, 0, &m_PresentQueue);
+    vkGetDeviceQueue(m_Device, indices.GraphicsFamily, 0, &m_GraphicsQueue);
+    vkGetDeviceQueue(m_Device, indices.PresentFamily, 0, &m_PresentQueue);
 }
 
-void Device::createCommandPool() noexcept
+void Device::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
 {
+    const QueueFamilyIndices indices = FindQueueFamilies(p_Surface);
+
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = m_QueueFamilies.GraphicsFamily;
+    poolInfo.queueFamilyIndex = indices.GraphicsFamily;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
     KIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device, &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,

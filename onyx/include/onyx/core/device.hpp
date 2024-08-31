@@ -33,11 +33,11 @@ class ONYX_API Device : public KIT::RefCounted<Device>
 
     std::pair<VkImage, VkDeviceMemory> CreateImage(const VkImageCreateInfo &p_Info, VkMemoryPropertyFlags p_Properties);
 
+    SwapChainSupportDetails QuerySwapChainSupport(VkSurfaceKHR p_Surface) const noexcept;
+    QueueFamilyIndices FindQueueFamilies(VkSurfaceKHR p_Surface) const noexcept;
+
     bool IsSuitable(VkSurfaceKHR p_Surface) const noexcept;
     VkDevice VulkanDevice() const noexcept;
-
-    const SwapChainSupportDetails &SwapChainSupport() const noexcept;
-    const QueueFamilyIndices &QueueFamilies() const noexcept;
 
     VkQueue GraphicsQueue() const noexcept;
     VkQueue PresentQueue() const noexcept;
@@ -46,20 +46,13 @@ class ONYX_API Device : public KIT::RefCounted<Device>
 
   private:
     void pickPhysicalDevice(VkSurfaceKHR p_Surface) noexcept;
-    void createLogicalDevice() noexcept;
-    void createCommandPool() noexcept;
-
-    static bool isDeviceSuitable(VkPhysicalDevice p_Device, VkSurfaceKHR p_Surface,
-                                 SwapChainSupportDetails *p_SwapChainSupport = nullptr,
-                                 QueueFamilyIndices *p_QueueFamilies = nullptr) noexcept;
+    void createLogicalDevice(VkSurfaceKHR p_Surface) noexcept;
+    void createCommandPool(VkSurfaceKHR p_Surface) noexcept;
 
     KIT::Ref<Instance> m_Instance;
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
     VkDevice m_Device;
     VkCommandPool m_CommandPool;
-
-    SwapChainSupportDetails m_SwapChainSupport;
-    QueueFamilyIndices m_QueueFamilies;
 
     VkQueue m_GraphicsQueue;
     VkQueue m_PresentQueue;

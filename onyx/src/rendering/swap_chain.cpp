@@ -167,7 +167,7 @@ bool SwapChain::AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_
 void SwapChain::initialize(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surface,
                            const SwapChain *p_OldSwapChain) noexcept
 {
-    const Device::SwapChainSupportDetails &support = m_Device->SwapChainSupport();
+    const Device::SwapChainSupportDetails support = m_Device->QuerySwapChainSupport(p_Surface);
 
     const VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(support.Formats);
     const VkPresentModeKHR presentMode = chooseSwapPresentMode(support.PresentModes);
@@ -188,7 +188,7 @@ void SwapChain::initialize(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p
     createInfo.imageArrayLayers = 1;
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    const Device::QueueFamilyIndices &indices = m_Device->QueueFamilies();
+    const Device::QueueFamilyIndices indices = m_Device->FindQueueFamilies(p_Surface);
     std::array<u32, 2> families = {indices.GraphicsFamily, indices.PresentFamily};
 
     if (indices.GraphicsFamily != indices.PresentFamily)
