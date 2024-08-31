@@ -18,7 +18,7 @@ ONYX_DIMENSION_TEMPLATE Window<N>::Window(const Specs &p_Specs) noexcept : m_Spe
 
 ONYX_DIMENSION_TEMPLATE Window<N>::~Window() noexcept
 {
-    m_Renderer.reset();
+    m_Renderer.Release();
     vkDestroySurfaceKHR(m_Instance->VulkanInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
@@ -37,7 +37,7 @@ ONYX_DIMENSION_TEMPLATE void Window<N>::initialize() noexcept
     glfwSetWindowUserPointer(m_Window, this);
 
     m_Device = Core::getOrCreateDevice(m_Surface);
-    m_Renderer = KIT::Scope<Renderer>(new Renderer(*this));
+    m_Renderer = KIT::Scope<Renderer>::Create(*this);
     Input::InstallCallbacks(*this);
 }
 

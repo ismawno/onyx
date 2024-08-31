@@ -17,7 +17,7 @@ void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::TaskManager *p_Mana
 {
     KIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "Failed to initialize GLFW");
 
-    s_Instance = new Instance;
+    s_Instance = KIT::Ref<Instance>::Create();
     s_Allocator = p_Allocator;
     s_Manager = p_Manager;
 }
@@ -44,7 +44,7 @@ const KIT::Ref<Device> &Core::GetDevice() noexcept
 const KIT::Ref<Device> &Core::getOrCreateDevice(VkSurfaceKHR p_Surface) noexcept
 {
     if (!s_Device)
-        s_Device = new Device(p_Surface);
+        s_Device = KIT::Ref<Device>::Create(p_Surface);
     KIT_ASSERT(s_Device->IsSuitable(p_Surface), "The current device is not suitable for the given surface");
     return s_Device;
 }

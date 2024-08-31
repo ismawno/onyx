@@ -127,7 +127,7 @@ ONYX_DIMENSION_TEMPLATE void Renderer::createSwapChain(Window<N> &p_Window) noex
         glfwWaitEvents();
     }
     vkDeviceWaitIdle(m_Device->VulkanDevice());
-    m_SwapChain = KIT::Scope<SwapChain>(new SwapChain(windowExtent, p_Window.Surface(), m_SwapChain.get()));
+    m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.Surface(), m_SwapChain.Get());
 }
 
 void Renderer::createCommandBuffers() noexcept
