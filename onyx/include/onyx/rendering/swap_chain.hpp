@@ -19,12 +19,18 @@ class SwapChain
     VkResult SubmitCommandBuffers(std::span<const VkCommandBuffer> p_CommandBuffers, u32 p_ImageIndex) noexcept;
     VkResult Present(const u32 *p_ImageIndex) noexcept;
 
+    VkRenderPass RenderPass() const noexcept;
+    VkFramebuffer FrameBuffer(u32 p_Index) const noexcept;
+    VkExtent2D Extent() const noexcept;
+
+    static bool AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_SwapChain2) noexcept;
+
   private:
     void initialize(VkExtent2D p_WindowExtent, VkSurfaceKHR p_Surface, const SwapChain *p_OldSwapChain) noexcept;
     void createImageViews() noexcept;
     void createRenderPass() noexcept;
     void createDepthResources() noexcept;
-    void createFramebuffers() noexcept;
+    void createFrameBuffers() noexcept;
     void createSyncObjects() noexcept;
 
     KIT::Ref<Device> m_Device;

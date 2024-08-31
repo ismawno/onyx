@@ -1,10 +1,10 @@
 #pragma once
-
 #include "onyx/rendering/swap_chain.hpp"
 #include "onyx/core/dimension.hpp"
 
 namespace ONYX
 {
+struct Color;
 ONYX_DIMENSION_TEMPLATE class Window;
 
 class Renderer
@@ -15,6 +15,11 @@ class Renderer
 
     ONYX_DIMENSION_TEMPLATE VkCommandBuffer BeginFrame(Window<N> &p_Window) noexcept;
     ONYX_DIMENSION_TEMPLATE void EndFrame(Window<N> &p_Window) noexcept;
+
+    void BeginRenderPass(const Color &p_ClearColor) noexcept;
+    void EndRenderPass() noexcept;
+
+    VkCommandBuffer CurrentCommandBuffer() const noexcept;
 
   private:
     ONYX_DIMENSION_TEMPLATE void createSwapChain(Window<N> &p_Window) noexcept;

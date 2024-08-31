@@ -1,6 +1,8 @@
 #include "core/pch.hpp"
 #include "onyx/app/window.hpp"
+#include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
+#include "onyx/drawing/color.hpp"
 #include "kit/core/logging.hpp"
 
 namespace ONYX
@@ -16,6 +18,7 @@ ONYX_DIMENSION_TEMPLATE Window<N>::Window(const Specs &p_Specs) noexcept : m_Spe
 
 ONYX_DIMENSION_TEMPLATE Window<N>::~Window() noexcept
 {
+    m_Renderer.reset();
     vkDestroySurfaceKHR(m_Instance->VulkanInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
@@ -23,16 +26,29 @@ ONYX_DIMENSION_TEMPLATE Window<N>::~Window() noexcept
 ONYX_DIMENSION_TEMPLATE void Window<N>::initialize() noexcept
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    m_Window = glfwCreateWindow(static_cast<int>(m_Specs.width), static_cast<int>(m_Specs.height), m_Specs.name,
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    m_Window = glfwCreateWindow(static_cast<int>(m_Specs.Width), static_cast<int>(m_Specs.Height), m_Specs.Name,
                                 nullptr, nullptr);
     KIT_ASSERT(m_Window, "Failed to create a GLFW window");
 
     m_Instance = Core::GetInstance();
     KIT_ASSERT_RETURNS(glfwCreateWindowSurface(m_Instance->VulkanInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
                        "Failed to create a window surface");
+    glfwSetWindowUserPointer(m_Window, this);
 
     m_Device = Core::getOrCreateDevice(m_Surface);
+    m_Renderer = KIT::Scope<Renderer>(new Renderer(*this));
+    Input::InstallCallbacks(*this);
+}
+
+ONYX_DIMENSION_TEMPLATE void Window<N>::Render() noexcept
+{
+    if (m_Renderer->BeginFrame(*this))
+    {
+        m_Renderer->BeginRenderPass(Color::BLACK);
+        m_Renderer->EndRenderPass();
+        m_Renderer->EndFrame(*this);
+    }
 }
 
 ONYX_DIMENSION_TEMPLATE void Window<N>::MakeContextCurrent() const noexcept
@@ -52,15 +68,31 @@ ONYX_DIMENSION_TEMPLATE GLFWwindow *Window<N>::GetGLFWWindow() const noexcept
 
 ONYX_DIMENSION_TEMPLATE const char *Window<N>::Name() const noexcept
 {
-    return m_Specs.name;
+    return m_Specs.Name;
 }
 ONYX_DIMENSION_TEMPLATE u32 Window<N>::Width() const noexcept
 {
-    return m_Specs.width;
+    return m_Specs.Width;
 }
 ONYX_DIMENSION_TEMPLATE u32 Window<N>::Height() const noexcept
 {
-    return m_Specs.height;
+    return m_Specs.Height;
+}
+
+ONYX_DIMENSION_TEMPLATE bool Window<N>::WasResized() const noexcept
+{
+    return m_Resized;
+}
+
+ONYX_DIMENSION_TEMPLATE void Window<N>::FlagResize(const u32 p_Width, const u32 p_Height) noexcept
+{
+    m_Specs.Width = p_Width;
+    m_Specs.Height = p_Height;
+    m_Resized = true;
+}
+ONYX_DIMENSION_TEMPLATE void Window<N>::FlagResizeDone() noexcept
+{
+    m_Resized = false;
 }
 
 ONYX_DIMENSION_TEMPLATE VkSurfaceKHR Window<N>::Surface() const noexcept

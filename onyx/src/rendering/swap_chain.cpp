@@ -53,6 +53,13 @@ SwapChain::SwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surfa
 {
     m_Device = Core::GetDevice();
     initialize(p_WindowExtent, p_Surface, p_OldSwapChain);
+    createImageViews();
+    createRenderPass();
+    createDepthResources();
+    createFrameBuffers();
+    createSyncObjects();
+
+    KIT_ASSERT(!p_OldSwapChain || AreCompatible(*this, *p_OldSwapChain), "Swap chain image (or depth) has changed");
 }
 
 SwapChain::~SwapChain() noexcept
@@ -136,6 +143,25 @@ VkResult SwapChain::Present(const u32 *p_ImageIndex) noexcept
     m_CurrentFrame = (m_CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 
     return vkQueuePresentKHR(m_Device->PresentQueue(), &presentInfo);
+}
+
+VkRenderPass SwapChain::RenderPass() const noexcept
+{
+    return m_RenderPass;
+}
+VkFramebuffer SwapChain::FrameBuffer(const u32 p_Index) const noexcept
+{
+    return m_Framebuffers[p_Index];
+}
+VkExtent2D SwapChain::Extent() const noexcept
+{
+    return m_Extent;
+}
+
+bool SwapChain::AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_SwapChain2) noexcept
+{
+    return p_SwapChain1.m_ImageFormat == p_SwapChain2.m_ImageFormat &&
+           p_SwapChain1.m_DepthFormat == p_SwapChain2.m_DepthFormat;
 }
 
 void SwapChain::initialize(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surface,
@@ -331,7 +357,7 @@ void SwapChain::createDepthResources() noexcept
     }
 }
 
-void SwapChain::createFramebuffers() noexcept
+void SwapChain::createFrameBuffers() noexcept
 {
     m_Framebuffers.resize(m_Images.size());
     for (usize i = 0; i < m_Images.size(); ++i)
