@@ -118,12 +118,17 @@ VkCommandBuffer Renderer::CurrentCommandBuffer() const noexcept
     return m_CommandBuffers[m_FrameIndex];
 }
 
+const SwapChain &Renderer::GetSwapChain() const noexcept
+{
+    return *m_SwapChain;
+}
+
 ONYX_DIMENSION_TEMPLATE void Renderer::createSwapChain(Window<N> &p_Window) noexcept
 {
-    VkExtent2D windowExtent = {p_Window.Width(), p_Window.Height()};
+    VkExtent2D windowExtent = {p_Window.ScreenWidth(), p_Window.ScreenHeight()};
     while (windowExtent.width == 0 || windowExtent.height == 0)
     {
-        windowExtent = {p_Window.Width(), p_Window.Height()};
+        windowExtent = {p_Window.ScreenWidth(), p_Window.ScreenHeight()};
         glfwWaitEvents();
     }
     vkDeviceWaitIdle(m_Device->VulkanDevice());

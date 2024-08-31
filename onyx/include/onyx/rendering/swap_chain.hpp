@@ -23,6 +23,11 @@ class SwapChain
     VkFramebuffer FrameBuffer(u32 p_Index) const noexcept;
     VkExtent2D Extent() const noexcept;
 
+    u32 Width() const noexcept;
+    u32 Height() const noexcept;
+
+    f32 AspectRatio() const noexcept;
+
     static bool AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_SwapChain2) noexcept;
 
   private:

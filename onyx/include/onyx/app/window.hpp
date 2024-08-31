@@ -32,8 +32,14 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
     GLFWwindow *GetGLFWWindow() const noexcept;
 
     const char *Name() const noexcept;
-    u32 Width() const noexcept;
-    u32 Height() const noexcept;
+    u32 ScreenWidth() const noexcept;
+    u32 ScreenHeight() const noexcept;
+
+    u32 PixelWidth() const noexcept;
+    u32 PixelHeight() const noexcept;
+
+    f32 ScreenAspect() const noexcept;
+    f32 PixelAspect() const noexcept;
 
     bool WasResized() const noexcept;
     void FlagResize(u32 p_Width, u32 p_Height) noexcept;

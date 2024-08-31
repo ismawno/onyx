@@ -21,6 +21,8 @@ class Renderer
 
     VkCommandBuffer CurrentCommandBuffer() const noexcept;
 
+    const SwapChain &GetSwapChain() const noexcept;
+
   private:
     ONYX_DIMENSION_TEMPLATE void createSwapChain(Window<N> &p_Window) noexcept;
     void createCommandBuffers() noexcept;

@@ -158,6 +158,20 @@ VkExtent2D SwapChain::Extent() const noexcept
     return m_Extent;
 }
 
+u32 SwapChain::Width() const noexcept
+{
+    return m_Extent.width;
+}
+u32 SwapChain::Height() const noexcept
+{
+    return m_Extent.height;
+}
+
+f32 SwapChain::AspectRatio() const noexcept
+{
+    return static_cast<f32>(m_Extent.width) / static_cast<f32>(m_Extent.height);
+}
+
 bool SwapChain::AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_SwapChain2) noexcept
 {
     return p_SwapChain1.m_ImageFormat == p_SwapChain2.m_ImageFormat &&

@@ -70,13 +70,33 @@ ONYX_DIMENSION_TEMPLATE const char *Window<N>::Name() const noexcept
 {
     return m_Specs.Name;
 }
-ONYX_DIMENSION_TEMPLATE u32 Window<N>::Width() const noexcept
+
+ONYX_DIMENSION_TEMPLATE u32 Window<N>::ScreenWidth() const noexcept
 {
     return m_Specs.Width;
 }
-ONYX_DIMENSION_TEMPLATE u32 Window<N>::Height() const noexcept
+ONYX_DIMENSION_TEMPLATE u32 Window<N>::ScreenHeight() const noexcept
 {
     return m_Specs.Height;
+}
+
+ONYX_DIMENSION_TEMPLATE u32 Window<N>::PixelWidth() const noexcept
+{
+    return m_Renderer->GetSwapChain().Width();
+}
+ONYX_DIMENSION_TEMPLATE u32 Window<N>::PixelHeight() const noexcept
+{
+    return m_Renderer->GetSwapChain().Height();
+}
+
+ONYX_DIMENSION_TEMPLATE f32 Window<N>::ScreenAspect() const noexcept
+{
+    return static_cast<f32>(m_Specs.Width) / static_cast<f32>(m_Specs.Height);
+}
+
+ONYX_DIMENSION_TEMPLATE f32 Window<N>::PixelAspect() const noexcept
+{
+    return m_Renderer->GetSwapChain().AspectRatio();
 }
 
 ONYX_DIMENSION_TEMPLATE bool Window<N>::WasResized() const noexcept
