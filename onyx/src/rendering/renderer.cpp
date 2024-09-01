@@ -13,14 +13,15 @@ ONYX_DIMENSION_TEMPLATE Renderer::Renderer(Window<N> &p_Window) noexcept
 {
     m_Device = Core::GetDevice();
     createSwapChain(p_Window);
+    createCommandPool(p_Window.Surface());
     createCommandBuffers();
 }
 
 Renderer::~Renderer() noexcept
 {
-    vkDeviceWaitIdle(m_Device->VulkanDevice());
-    vkFreeCommandBuffers(m_Device->VulkanDevice(), m_Device->CommandPool(), SwapChain::MAX_FRAMES_IN_FLIGHT,
+    vkFreeCommandBuffers(m_Device->VulkanDevice(), m_CommandPool, SwapChain::MAX_FRAMES_IN_FLIGHT,
                          m_CommandBuffers.data());
+    vkDestroyCommandPool(m_Device->VulkanDevice(), m_CommandPool, nullptr);
 }
 
 ONYX_DIMENSION_TEMPLATE VkCommandBuffer Renderer::BeginFrame(Window<N> &p_Window) noexcept
@@ -131,8 +132,21 @@ ONYX_DIMENSION_TEMPLATE void Renderer::createSwapChain(Window<N> &p_Window) noex
         windowExtent = {p_Window.ScreenWidth(), p_Window.ScreenHeight()};
         glfwWaitEvents();
     }
-    vkDeviceWaitIdle(m_Device->VulkanDevice());
+    m_Device->WaitIdle();
     m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.Surface(), m_SwapChain.Get());
+}
+
+void Renderer::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
+{
+    const Device::QueueFamilyIndices indices = m_Device->FindQueueFamilies(p_Surface);
+
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = indices.GraphicsFamily;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+    KIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device->VulkanDevice(), &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,
+                       "Failed to create command pool");
 }
 
 void Renderer::createCommandBuffers() noexcept
@@ -140,7 +154,7 @@ void Renderer::createCommandBuffers() noexcept
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = m_Device->CommandPool();
+    allocInfo.commandPool = m_CommandPool;
     allocInfo.commandBufferCount = SwapChain::MAX_FRAMES_IN_FLIGHT;
 
     KIT_ASSERT_RETURNS(vkAllocateCommandBuffers(m_Device->VulkanDevice(), &allocInfo, m_CommandBuffers.data()),

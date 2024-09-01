@@ -16,7 +16,7 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::Run() noexcept
 {
     while (!m_Window.ShouldClose())
     {
-        Input::PollEvents();
+        // Input::PollEvents();
         m_Window.MakeContextCurrent();
         m_Window.Render();
     }

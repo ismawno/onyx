@@ -14,15 +14,15 @@ int main()
     ONYX::Core::Initialize(&stackAllocator, &threadPool);
 
     ONYX::Application2D app1;
-    // ONYX::Application2D app2;
+    ONYX::Application2D app2;
 
-    // const auto task1 = threadPool.CreateAndSubmit([&app1](const KIT::usize) { app1.Run(); });
-    // const auto task2 = threadPool.CreateAndSubmit([&app2](const KIT::usize) { app2.Run(); });
+    const auto task1 = threadPool.CreateAndSubmit([&app1](const KIT::usize) { app1.Run(); });
+    const auto task2 = threadPool.CreateAndSubmit([&app2](const KIT::usize) { app2.Run(); });
 
-    // while (!task1->Finished() || !task2->Finished())
-    //     ONYX::Input::PollEvents();
+    while (!task1->Finished() || !task2->Finished())
+        ONYX::Input::PollEvents();
 
-    app1.Run();
+    // app1.Run();
 
     ONYX::Core::Terminate();
 }

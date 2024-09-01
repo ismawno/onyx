@@ -125,6 +125,11 @@ VkResult SwapChain::SubmitCommandBuffers(const std::span<const VkCommandBuffer> 
     submitInfo.pSignalSemaphores = &m_RenderFinishedSemaphores[m_CurrentFrame];
 
     vkResetFences(m_Device->VulkanDevice(), 1, &m_InFlightFences[m_CurrentFrame]);
+
+    // A nice mutex here to prevent race conditions if user is rendering concurrently to multiple windows, each with its
+    // own renderer, swap chain etcetera
+    static std::mutex mutex;
+    std::scoped_lock lock(mutex);
     return vkQueueSubmit(m_Device->GraphicsQueue(), 1, &submitInfo, m_InFlightFences[m_CurrentFrame]);
 }
 

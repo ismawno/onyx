@@ -128,14 +128,16 @@ Device::Device(const VkSurfaceKHR p_Surface) noexcept
     m_Instance = Core::GetInstance();
     pickPhysicalDevice(p_Surface);
     createLogicalDevice(p_Surface);
-    createCommandPool(p_Surface);
 }
 
 Device::~Device() noexcept
 {
-    vkDeviceWaitIdle(m_Device);
-    vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
     vkDestroyDevice(m_Device, nullptr);
+}
+
+void Device::WaitIdle() const noexcept
+{
+    vkDeviceWaitIdle(m_Device);
 }
 
 bool Device::IsSuitable(const VkSurfaceKHR p_Surface) const noexcept
@@ -164,11 +166,6 @@ VkQueue Device::GraphicsQueue() const noexcept
 VkQueue Device::PresentQueue() const noexcept
 {
     return m_PresentQueue;
-}
-
-VkCommandPool Device::CommandPool() const noexcept
-{
-    return m_CommandPool;
 }
 
 void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
@@ -241,19 +238,6 @@ void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
 
     vkGetDeviceQueue(m_Device, indices.GraphicsFamily, 0, &m_GraphicsQueue);
     vkGetDeviceQueue(m_Device, indices.PresentFamily, 0, &m_PresentQueue);
-}
-
-void Device::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
-{
-    const QueueFamilyIndices indices = FindQueueFamilies(p_Surface);
-
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = indices.GraphicsFamily;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-
-    KIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device, &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,
-                       "Failed to create command pool");
 }
 
 VkFormat Device::FindSupportedFormat(const std::span<const VkFormat> p_Candidates, const VkImageTiling p_Tiling,

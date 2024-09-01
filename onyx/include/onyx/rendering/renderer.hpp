@@ -25,7 +25,10 @@ class Renderer
 
   private:
     ONYX_DIMENSION_TEMPLATE void createSwapChain(Window<N> &p_Window) noexcept;
+    void createCommandPool(VkSurfaceKHR p_Surface) noexcept;
     void createCommandBuffers() noexcept;
+
+    VkCommandPool m_CommandPool;
 
     KIT::Ref<Device> m_Device;
     KIT::Scope<SwapChain> m_SwapChain;
