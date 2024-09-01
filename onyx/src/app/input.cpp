@@ -40,21 +40,21 @@ const char *Input::KeyName(const Key p_Key) noexcept
     return glfwGetKeyName(static_cast<int>(p_Key), 0);
 }
 
-ONYX_DIMENSION_TEMPLATE static void window_resize_callback(GLFWwindow *p_Window, const int width, const int height)
+ONYX_DIMENSION_TEMPLATE static void windowResizeCallback(GLFWwindow *p_Window, const int p_Width, const int p_Height)
 {
     Event event;
     event.Type = Event::WINDOW_RESIZED;
 
-    ;
+    Window<N> *window = windowFromGLFW<N>(p_Window);
 
-    event.Window.OldWidth = win->ScreenWidth();
-    event.Window.OldHeight = win->ScreenHeight();
+    event.Window.OldWidth = window->ScreenWidth();
+    event.Window.OldHeight = window->ScreenHeight();
 
-    event.Window.NewWidth = (std::uint32_t)width;
-    event.Window.NewHeight = (std::uint32_t)height;
+    event.Window.NewWidth = static_cast<u32>(p_Width);
+    event.Window.NewHeight = static_cast<u32>(p_Height);
 
-    win->resize(event.Window.NewWidth, event.Window.NewHeight);
-    win->push_event(event);
+    window->FlagResize(event.Window.NewWidth, event.Window.NewHeight);
+    window->PushEvent(event);
 }
 
 ONYX_DIMENSION_TEMPLATE static void keyCallback(GLFWwindow *p_Window, const int p_Key, const int, const int p_Action,
@@ -75,45 +75,46 @@ ONYX_DIMENSION_TEMPLATE static void keyCallback(GLFWwindow *p_Window, const int 
     default:
         break;
     }
-    event.Key = static_cast<Input::Key>(key);
-    from_glfw<window<Dim>>(p_Window)->push_event(event);
+    event.Key = static_cast<Input::Key>(p_Key);
+    windowFromGLFW<N>(p_Window)->PushEvent(event);
 }
 
-ONYX_DIMENSION_TEMPLATE static void cursor_position_callback(GLFWwindow *p_Window, const double xpos, const double ypos)
+ONYX_DIMENSION_TEMPLATE static void cursorPositionCallback(GLFWwindow *p_Window, const double p_XPos,
+                                                           const double p_YPos)
 {
     Event event;
     event.Type = Event::MOUSE_MOVED;
-    event.Mouse.position = {(float)xpos, (float)ypos};
-    from_glfw<window<Dim>>(p_Window)->push_event(event);
+    event.Mouse.Position = {static_cast<f32>(p_XPos), static_cast<f32>(p_YPos)};
+    windowFromGLFW<N>(p_Window)->PushEvent(event);
 }
 
-ONYX_DIMENSION_TEMPLATE static void mouse_button_callback(GLFWwindow *p_Window, const int button, const int action,
-                                                          const int mods)
+ONYX_DIMENSION_TEMPLATE static void mouseButtonCallback(GLFWwindow *p_Window, const int p_Button, const int p_Action,
+                                                        const int)
 {
     Event event;
-    event.Type = action == GLFW_PRESS ? Event::MOUSE_PRESSED : Event::MOUSE_RELEASED;
-    event.Mouse.button = (typename input<Dim>::mouse)button;
-    from_glfw<window<Dim>>(p_Window)->push_event(event);
+    event.Type = p_Action == GLFW_PRESS ? Event::MOUSE_PRESSED : Event::MOUSE_RELEASED;
+    event.Mouse.Button = static_cast<Input::Mouse>(p_Button);
+    windowFromGLFW<N>(p_Window)->PushEvent(event);
 }
 
-ONYX_DIMENSION_TEMPLATE static void scroll_callback(GLFWwindow *p_Window, double xoffset, double yoffset)
+ONYX_DIMENSION_TEMPLATE static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOffset)
 {
     Event event;
     event.Type = Event::SCROLLED;
-    event.ScrollOffset = {(float)xoffset, (float)yoffset};
-    from_glfw<window<Dim>>(p_Window)->push_event(event);
+    event.ScrollOffset = {static_cast<f32>(p_XOffset), static_cast<f32>(p_YOffset)};
+    windowFromGLFW<N>(p_Window)->PushEvent(event);
 }
 
-void input<Dim>::install_callbacks(window_t *win)
+ONYX_DIMENSION_TEMPLATE void Input::InstallCallbacks(Window<N> &p_Window) noexcept
 {
-    glfwSetWindowSizeCallback(win->glfw_window(), window_resize_callback<Dim>);
-    glfwSetKeyCallback(win->glfw_window(), key_callback<Dim>);
-    glfwSetCursorPosCallback(win->glfw_window(), cursor_position_callback<Dim>);
-    glfwSetMouseButtonCallback(win->glfw_window(), mouse_button_callback<Dim>);
-    glfwSetScrollCallback(win->glfw_window(), scroll_callback<Dim>);
+    glfwSetWindowSizeCallback(p_Window.GetGLFWWindow(), windowResizeCallback<N>);
+    glfwSetKeyCallback(p_Window.GetGLFWWindow(), keyCallback<N>);
+    glfwSetCursorPosCallback(p_Window.GetGLFWWindow(), cursorPositionCallback<N>);
+    glfwSetMouseButtonCallback(p_Window.GetGLFWWindow(), mouseButtonCallback<N>);
+    glfwSetScrollCallback(p_Window.GetGLFWWindow(), scrollCallback<N>);
 }
 
-template void Input::InstallCallbacks<2>(const Window<2> &p_Window) noexcept;
-template void Input::InstallCallbacks<3>(const Window<3> &p_Window) noexcept;
+template void Input::InstallCallbacks<2>(Window<2> &p_Window) noexcept;
+template void Input::InstallCallbacks<3>(Window<3> &p_Window) noexcept;
 
 } // namespace ONYX

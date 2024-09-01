@@ -13,7 +13,7 @@ struct ONYX_API Input
 {
     static void PollEvents();
 
-    ONYX_DIMENSION_TEMPLATE static void InstallCallbacks(const Window<N> &p_Window) noexcept;
+    ONYX_DIMENSION_TEMPLATE static void InstallCallbacks(Window<N> &p_Window) noexcept;
     static vec2 MousePosition() noexcept;
 
     Input() = delete;
@@ -190,8 +190,8 @@ struct Event
 
     struct MouseState
     {
-        vec2 position{0.f};
-        Input::Mouse button;
+        vec2 Position{0.f};
+        Input::Mouse Button;
     };
 
     bool Empty = false;

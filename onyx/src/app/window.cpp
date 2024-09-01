@@ -45,7 +45,7 @@ ONYX_DIMENSION_TEMPLATE void Window<N>::Render() noexcept
 {
     if (m_Renderer->BeginFrame(*this))
     {
-        m_Renderer->BeginRenderPass(Color::BLACK);
+        m_Renderer->BeginRenderPass(BackgroundColor);
         m_Renderer->EndRenderPass();
         m_Renderer->EndFrame(*this);
     }
@@ -61,7 +61,11 @@ ONYX_DIMENSION_TEMPLATE bool Window<N>::ShouldClose() const noexcept
     return glfwWindowShouldClose(m_Window);
 }
 
-ONYX_DIMENSION_TEMPLATE GLFWwindow *Window<N>::GetGLFWWindow() const noexcept
+ONYX_DIMENSION_TEMPLATE const GLFWwindow *Window<N>::GetGLFWWindow() const noexcept
+{
+    return m_Window;
+}
+ONYX_DIMENSION_TEMPLATE GLFWwindow *Window<N>::GetGLFWWindow() noexcept
 {
     return m_Window;
 }
@@ -118,6 +122,24 @@ ONYX_DIMENSION_TEMPLATE void Window<N>::FlagResizeDone() noexcept
 ONYX_DIMENSION_TEMPLATE VkSurfaceKHR Window<N>::Surface() const noexcept
 {
     return m_Surface;
+}
+
+ONYX_DIMENSION_TEMPLATE void Window<N>::PushEvent(const Event &p_Event) noexcept
+{
+    m_Events.push_back(p_Event);
+}
+
+ONYX_DIMENSION_TEMPLATE Event Window<N>::PopEvent() noexcept
+{
+    Event event;
+    if (m_Events.empty())
+    {
+        event.Empty = true;
+        return event;
+    }
+    event = m_Events.front();
+    m_Events.pop_front();
+    return event;
 }
 
 template class Window<2>;

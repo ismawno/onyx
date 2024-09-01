@@ -3,6 +3,8 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/device.hpp"
 #include "onyx/rendering/renderer.hpp"
+#include "onyx/app/input.hpp"
+#include "onyx/drawing/color.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -29,7 +31,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
 
     void MakeContextCurrent() const noexcept;
     bool ShouldClose() const noexcept;
-    GLFWwindow *GetGLFWWindow() const noexcept;
+
+    const GLFWwindow *GetGLFWWindow() const noexcept;
+    GLFWwindow *GetGLFWWindow() noexcept;
 
     const char *Name() const noexcept;
     u32 ScreenWidth() const noexcept;
@@ -47,6 +51,11 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
 
     VkSurfaceKHR Surface() const noexcept;
 
+    void PushEvent(const Event &p_Event) noexcept;
+    Event PopEvent() noexcept;
+
+    Color BackgroundColor = Color::BLACK;
+
   private:
     void initialize() noexcept;
 
@@ -55,6 +64,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
     KIT::Scope<Renderer> m_Renderer;
     GLFWwindow *m_Window;
 
+    Deque<Event> m_Events;
     VkSurfaceKHR m_Surface;
     Specs m_Specs;
 
