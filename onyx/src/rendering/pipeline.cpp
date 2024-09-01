@@ -20,6 +20,11 @@ Pipeline::~Pipeline()
     vkDestroyPipeline(m_Device->VulkanDevice(), m_Pipeline, nullptr);
 }
 
+void Pipeline::Bind(VkCommandBuffer p_CommandBuffer) const noexcept
+{
+    vkCmdBindPipeline(p_CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+}
+
 void Pipeline::initialize(const Specs &p_Specs) noexcept
 {
     KIT_LOG_INFO("Creating new pipeline...");

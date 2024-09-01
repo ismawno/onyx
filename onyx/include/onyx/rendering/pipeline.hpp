@@ -45,6 +45,8 @@ class Pipeline
     explicit Pipeline(const Specs &p_Specs) noexcept;
     ~Pipeline();
 
+    void Bind(VkCommandBuffer p_CommandBuffer) const noexcept;
+
   private:
     void initialize(const Specs &p_Specs) noexcept;
     void createPipelineLayout() noexcept;
