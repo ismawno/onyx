@@ -9,6 +9,7 @@ set(SOURCES
     src/rendering/pipeline.cpp
     src/rendering/swap_chain.cpp
     src/rendering/renderer.cpp
+    src/drawing/vertex.cpp
     src/drawing/color.cpp
     src/app/app.cpp
     src/app/window.cpp

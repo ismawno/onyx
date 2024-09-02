@@ -10,7 +10,7 @@ using namespace KIT::Literals;
 int main()
 {
     KIT::StackAllocator stackAllocator(1_kb);
-    KIT::ThreadPool<KIT::SpinMutex> threadPool(4);
+    KIT::ThreadPool<KIT::SpinLock> threadPool(4);
     ONYX::Core::Initialize(&stackAllocator, &threadPool);
 
     ONYX::Application2D app1;
