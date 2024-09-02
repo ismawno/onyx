@@ -14,7 +14,7 @@ class ONYX_API Instance : public KIT::RefCounted<Instance>
     ~Instance() noexcept;
 
 #ifdef KIT_ENABLE_ASSERTS
-    static const char *ValidationLayer();
+    static const char *ValidationLayer() noexcept;
 #endif
 
     VkInstance VulkanInstance() const noexcept;

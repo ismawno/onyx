@@ -356,7 +356,7 @@ void SwapChain::createDepthResources() noexcept
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imageInfo.flags = 0;
 
-        const auto [image, memory] = m_Device->CreateImage(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        const auto [image, memory] = createImage(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
         m_DepthImages[i] = image;
         m_DepthImageMemories[i] = memory;
 
@@ -419,6 +419,30 @@ void SwapChain::createSyncObjects() noexcept
         KIT_ASSERT_RETURNS(vkCreateFence(m_Device->VulkanDevice(), &fenceInfo, nullptr, &m_InFlightFences[i]),
                            VK_SUCCESS, "Failed to create synchronization objects for a frame");
     }
+}
+
+std::pair<VkImage, VkDeviceMemory> SwapChain::createImage(const VkImageCreateInfo &p_Info,
+                                                          const VkMemoryPropertyFlags p_Properties)
+{
+    VkImage image;
+    VkDeviceMemory memory;
+    KIT_ASSERT_RETURNS(vkCreateImage(m_Device->VulkanDevice(), &p_Info, nullptr, &image), VK_SUCCESS,
+                       "Failed to create image");
+
+    VkMemoryRequirements memReqs;
+    vkGetImageMemoryRequirements(m_Device->VulkanDevice(), image, &memReqs);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memReqs.size;
+    allocInfo.memoryTypeIndex = m_Device->FindMemoryType(memReqs.memoryTypeBits, p_Properties);
+
+    KIT_ASSERT_RETURNS(vkAllocateMemory(m_Device->VulkanDevice(), &allocInfo, nullptr, &memory), VK_SUCCESS,
+                       "Failed to allocate image memory");
+    KIT_ASSERT_RETURNS(vkBindImageMemory(m_Device->VulkanDevice(), image, memory, 0), VK_SUCCESS,
+                       "Failed to bind image memory");
+
+    return {image, memory};
 }
 
 } // namespace ONYX

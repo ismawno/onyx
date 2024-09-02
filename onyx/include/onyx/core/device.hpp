@@ -33,10 +33,10 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     VkFormat FindSupportedFormat(std::span<const VkFormat> p_Candidates, VkImageTiling p_Tiling,
                                  VkFormatFeatureFlags p_Features) const noexcept;
 
-    std::pair<VkImage, VkDeviceMemory> CreateImage(const VkImageCreateInfo &p_Info, VkMemoryPropertyFlags p_Properties);
-
     SwapChainSupportDetails QuerySwapChainSupport(VkSurfaceKHR p_Surface) const noexcept;
     QueueFamilyIndices FindQueueFamilies(VkSurfaceKHR p_Surface) const noexcept;
+
+    VkMemoryPropertyFlags FindMemoryType(u32 p_TypeFilter, VkMemoryPropertyFlags p_Properties) const noexcept;
 
     bool IsSuitable(VkSurfaceKHR p_Surface) const noexcept;
     VkDevice VulkanDevice() const noexcept;

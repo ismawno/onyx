@@ -5,17 +5,17 @@
 
 namespace ONYX
 {
-static u8 toInt(const f32 p_Val)
+static u8 toInt(const f32 p_Val) noexcept
 {
     return static_cast<u8>(p_Val * 255.f);
 }
 
-static f32 toFloat(const u8 p_Val)
+static f32 toFloat(const u8 p_Val) noexcept
 {
     constexpr f32 oneOver255 = 1.f / 255.f;
     return static_cast<f32>(p_Val) * oneOver255;
 }
-static f32 toFloat(const u32 p_Val)
+static f32 toFloat(const u32 p_Val) noexcept
 {
     constexpr f32 oneOver255 = 1.f / 255.f;
     return static_cast<f32>(p_Val) * oneOver255;

@@ -38,6 +38,9 @@ class SwapChain
     void createFrameBuffers() noexcept;
     void createSyncObjects() noexcept;
 
+    std::pair<VkImage, VkDeviceMemory> createImage(const VkImageCreateInfo &p_Info,
+                                                   const VkMemoryPropertyFlags p_Properties);
+
     KIT::Ref<Device> m_Device;
     VkSwapchainKHR m_SwapChain;
     VkRenderPass m_RenderPass;

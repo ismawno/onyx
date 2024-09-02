@@ -42,7 +42,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
 static VkResult createDebugUtilsMessengerEXT(const VkInstance p_Instance,
                                              const VkDebugUtilsMessengerCreateInfoEXT *p_CreateInfo,
                                              const VkAllocationCallbacks *p_Allocator,
-                                             VkDebugUtilsMessengerEXT *p_DebugMessenger)
+                                             VkDebugUtilsMessengerEXT *p_DebugMessenger) noexcept
 {
     auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(p_Instance, "vkCreateDebugUtilsMessengerEXT");
     if (func)
@@ -50,7 +50,7 @@ static VkResult createDebugUtilsMessengerEXT(const VkInstance p_Instance,
     return VK_ERROR_EXTENSION_NOT_PRESENT;
 }
 
-static void destroyDebugUtilsMessengerEXT(VkInstance p_Instance, const VkAllocationCallbacks *p_Allocator)
+static void destroyDebugUtilsMessengerEXT(VkInstance p_Instance, const VkAllocationCallbacks *p_Allocator) noexcept
 {
     auto func =
         (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(p_Instance, "vkDestroyDebugUtilsMessengerEXT");
@@ -58,7 +58,7 @@ static void destroyDebugUtilsMessengerEXT(VkInstance p_Instance, const VkAllocat
         func(p_Instance, s_DebugMessenger, p_Allocator);
 }
 
-static VkDebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo()
+static VkDebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo() noexcept
 {
     VkDebugUtilsMessengerCreateInfoEXT createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -72,7 +72,7 @@ static VkDebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo()
     return createInfo;
 }
 
-static bool checkValidationLayerSupport()
+static bool checkValidationLayerSupport() noexcept
 {
     u32 layerCount;
     vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
@@ -87,7 +87,7 @@ static bool checkValidationLayerSupport()
     return false;
 }
 
-static void hasGLFWRequiredInstanceExtensions()
+static void hasGLFWRequiredInstanceExtensions() noexcept
 {
     u32 extensionCount = 0;
     vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
@@ -113,14 +113,14 @@ static void hasGLFWRequiredInstanceExtensions()
     }
 }
 
-static void setupDebugMessenger(const VkInstance p_Instance)
+static void setupDebugMessenger(const VkInstance p_Instance) noexcept
 {
     VkDebugUtilsMessengerCreateInfoEXT createInfo = createDebugMessengerCreateInfo();
     KIT_ASSERT_RETURNS(createDebugUtilsMessengerEXT(p_Instance, &createInfo, nullptr, &s_DebugMessenger), VK_SUCCESS,
                        "Failed to set up debug messenger");
 }
 
-const char *Instance::ValidationLayer()
+const char *Instance::ValidationLayer() noexcept
 {
     return s_ValidationLayer;
 }

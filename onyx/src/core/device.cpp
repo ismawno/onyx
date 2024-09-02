@@ -18,7 +18,7 @@ static const std::array<const char *, 1> s_DeviceExtensions = {VK_KHR_SWAPCHAIN_
 // I could use a stack-allocated buffer for the majority of the dynamic allocations there are. But this is a one-time
 // initialization setup. It is not worth the effort
 
-static bool checkDeviceExtensionSupport(const VkPhysicalDevice p_Device)
+static bool checkDeviceExtensionSupport(const VkPhysicalDevice p_Device) noexcept
 {
     u32 extensionCount;
     vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, nullptr);
@@ -34,7 +34,8 @@ static bool checkDeviceExtensionSupport(const VkPhysicalDevice p_Device)
     return requiredExtensions.empty();
 }
 
-static Device::QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice p_Device, const VkSurfaceKHR p_Surface)
+static Device::QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice p_Device,
+                                                    const VkSurfaceKHR p_Surface) noexcept
 {
     Device::QueueFamilyIndices indices;
 
@@ -66,7 +67,7 @@ static Device::QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice p_Dev
 }
 
 static Device::SwapChainSupportDetails querySwapChainSupport(const VkPhysicalDevice p_Device,
-                                                             const VkSurfaceKHR p_Surface)
+                                                             const VkSurfaceKHR p_Surface) noexcept
 {
     Device::SwapChainSupportDetails details;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(p_Device, p_Surface, &details.Capabilities);
@@ -109,19 +110,6 @@ static bool isDeviceSuitable(const VkPhysicalDevice p_Device, const VkSurfaceKHR
            swapChainAdequate && supportedFeatures.samplerAnisotropy;
 }
 
-static u32 findMemoryType(const VkPhysicalDevice p_Device, const u32 typeFilter, const VkMemoryPropertyFlags properties)
-{
-    VkPhysicalDeviceMemoryProperties memProperties;
-    vkGetPhysicalDeviceMemoryProperties(p_Device, &memProperties);
-
-    for (u32 i = 0; i < memProperties.memoryTypeCount; i++)
-        if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-            return i;
-
-    KIT_ERROR("Failed to find suitable memory type");
-    return UINT32_MAX;
-}
-
 Device::Device(const VkSurfaceKHR p_Surface) noexcept
 {
     KIT_LOG_INFO("Attempting to create a new device...");
@@ -157,6 +145,19 @@ Device::QueueFamilyIndices Device::FindQueueFamilies(const VkSurfaceKHR p_Surfac
 Device::SwapChainSupportDetails Device::QuerySwapChainSupport(const VkSurfaceKHR p_Surface) const noexcept
 {
     return querySwapChainSupport(m_PhysicalDevice, p_Surface);
+}
+
+u32 Device::FindMemoryType(const u32 p_TypeFilter, const VkMemoryPropertyFlags p_Properties) const noexcept
+{
+    VkPhysicalDeviceMemoryProperties memProperties;
+    vkGetPhysicalDeviceMemoryProperties(m_PhysicalDevice, &memProperties);
+
+    for (u32 i = 0; i < memProperties.memoryTypeCount; i++)
+        if ((p_TypeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & p_Properties) == p_Properties)
+            return i;
+
+    KIT_ERROR("Failed to find suitable memory type");
+    return UINT32_MAX;
 }
 
 VkQueue Device::GraphicsQueue() const noexcept
@@ -256,28 +257,6 @@ VkFormat Device::FindSupportedFormat(const std::span<const VkFormat> p_Candidate
 
     KIT_ASSERT(false, "Failed to find a supported format");
     return VK_FORMAT_UNDEFINED;
-}
-
-std::pair<VkImage, VkDeviceMemory> Device::CreateImage(const VkImageCreateInfo &p_Info,
-                                                       const VkMemoryPropertyFlags p_Properties)
-{
-    VkImage image;
-    VkDeviceMemory memory;
-    KIT_ASSERT_RETURNS(vkCreateImage(m_Device, &p_Info, nullptr, &image), VK_SUCCESS, "Failed to create image");
-
-    VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(m_Device, image, &memReqs);
-
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memReqs.size;
-    allocInfo.memoryTypeIndex = findMemoryType(m_PhysicalDevice, memReqs.memoryTypeBits, p_Properties);
-
-    KIT_ASSERT_RETURNS(vkAllocateMemory(m_Device, &allocInfo, nullptr, &memory), VK_SUCCESS,
-                       "Failed to allocate image memory");
-    KIT_ASSERT_RETURNS(vkBindImageMemory(m_Device, image, memory, 0), VK_SUCCESS, "Failed to bind image memory");
-
-    return {image, memory};
 }
 
 } // namespace ONYX

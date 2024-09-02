@@ -6,6 +6,7 @@ set(SOURCES
     src/core/core.cpp
     src/core/device.cpp
     src/core/instance.cpp
+    src/rendering/buffer.cpp
     src/rendering/pipeline.cpp
     src/rendering/swap_chain.cpp
     src/rendering/renderer.cpp
