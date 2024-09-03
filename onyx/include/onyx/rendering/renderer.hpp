@@ -7,7 +7,7 @@ namespace ONYX
 struct Color;
 ONYX_DIMENSION_TEMPLATE class Window;
 
-class Renderer
+class ONYX_API Renderer
 {
   public:
     ONYX_DIMENSION_TEMPLATE explicit Renderer(Window<N> &p_Window) noexcept;

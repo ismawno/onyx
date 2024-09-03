@@ -32,7 +32,7 @@ namespace ONYX
 
 using Index = u32;
 
-ONYX_DIMENSION_TEMPLATE class Model
+ONYX_DIMENSION_TEMPLATE class ONYX_API Model
 {
     KIT_NON_COPYABLE(Model)
   public:

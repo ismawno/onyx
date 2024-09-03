@@ -9,7 +9,7 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE struct Vertex
+ONYX_DIMENSION_TEMPLATE struct ONYX_API Vertex
 {
     Vertex() noexcept = default;
     Vertex(const vec<N> &p_Position, const Color &p_Color) noexcept;
@@ -20,4 +20,8 @@ ONYX_DIMENSION_TEMPLATE struct Vertex
     vec<N> Position;
     ONYX::Color Color;
 };
+
+using Vertex2D = Vertex<2>;
+using Vertex3D = Vertex<3>;
+
 } // namespace ONYX

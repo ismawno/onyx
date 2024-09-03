@@ -6,7 +6,7 @@
 
 namespace ONYX
 {
-struct Color
+struct ONYX_API Color
 {
     explicit Color(f32 p_Val = 1.f) noexcept;
     explicit Color(u32 p_Val) noexcept;

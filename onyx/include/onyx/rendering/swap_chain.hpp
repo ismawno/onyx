@@ -6,7 +6,7 @@
 
 namespace ONYX
 {
-class SwapChain
+class ONYX_API SwapChain
 {
     KIT_NON_COPYABLE(SwapChain)
   public:

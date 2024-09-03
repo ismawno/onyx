@@ -8,7 +8,7 @@
 
 namespace ONYX
 {
-class Pipeline
+class ONYX_API Pipeline
 {
     KIT_NON_COPYABLE(Pipeline)
   public:

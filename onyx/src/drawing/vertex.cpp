@@ -24,7 +24,12 @@ ONYX_DIMENSION_TEMPLATE KIT::StaticArray<VkVertexInputAttributeDescription, 2> V
     VkVertexInputAttributeDescription position{};
     position.binding = 0;
     position.location = 0;
-    position.format = VK_FORMAT_R32G32_SFLOAT;
+
+    if constexpr (N == 2)
+        position.format = VK_FORMAT_R32G32_SFLOAT;
+    else
+        position.format = VK_FORMAT_R32G32B32_SFLOAT;
+
     position.offset = offsetof(Vertex, Position);
 
     VkVertexInputAttributeDescription color{};
@@ -36,4 +41,6 @@ ONYX_DIMENSION_TEMPLATE KIT::StaticArray<VkVertexInputAttributeDescription, 2> V
     return {position, color};
 }
 
+template struct Vertex<2>;
+template struct Vertex<3>;
 } // namespace ONYX

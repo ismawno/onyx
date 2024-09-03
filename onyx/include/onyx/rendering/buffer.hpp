@@ -10,7 +10,7 @@
 
 namespace ONYX
 {
-class Buffer
+class ONYX_API Buffer
 {
     KIT_NON_COPYABLE(Buffer)
   public:
