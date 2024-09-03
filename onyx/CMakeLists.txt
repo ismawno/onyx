@@ -10,10 +10,10 @@ set(SOURCES
     src/rendering/pipeline.cpp
     src/rendering/swap_chain.cpp
     src/rendering/renderer.cpp
-    src/drawing/vertex.cpp
-    src/drawing/color.cpp
-    src/drawing/transform.cpp
-    src/drawing/model.cpp
+    src/model/vertex.cpp
+    src/model/color.cpp
+    src/model/transform.cpp
+    src/model/model.cpp
     src/app/app.cpp
     src/app/window.cpp
     src/app/input.cpp

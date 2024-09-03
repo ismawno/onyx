@@ -44,23 +44,23 @@ template <> struct ONYX_API Transform<3>
 
     mat3 InverseRotation() const noexcept;
 
-    static mat3 RotXYZ(const vec3 &p_Rotation);
-    static mat3 RotXZY(const vec3 &p_Rotation);
-    static mat3 RotYXZ(const vec3 &p_Rotation);
-    static mat3 RotYZX(const vec3 &p_Rotation);
-    static mat3 RotZXY(const vec3 &p_Rotation);
-    static mat3 RotZYX(const vec3 &p_Rotation);
+    static mat3 RotXYZ(const vec3 &p_Rotation) noexcept;
+    static mat3 RotXZY(const vec3 &p_Rotation) noexcept;
+    static mat3 RotYXZ(const vec3 &p_Rotation) noexcept;
+    static mat3 RotYZX(const vec3 &p_Rotation) noexcept;
+    static mat3 RotZXY(const vec3 &p_Rotation) noexcept;
+    static mat3 RotZYX(const vec3 &p_Rotation) noexcept;
 
-    static mat3 RotXY(f32 p_RotX, f32 p_RotY);
-    static mat3 RotXZ(f32 p_RotX, f32 p_RotZ);
-    static mat3 RotYX(f32 p_RotY, f32 p_RotX);
-    static mat3 RotYZ(f32 p_RotY, f32 p_RotZ);
-    static mat3 RotZX(f32 p_RotZ, f32 p_RotX);
-    static mat3 RotZY(f32 p_RotZ, f32 p_RotY);
+    static mat3 RotXY(f32 p_RotX, f32 p_RotY) noexcept;
+    static mat3 RotXZ(f32 p_RotX, f32 p_RotZ) noexcept;
+    static mat3 RotYX(f32 p_RotY, f32 p_RotX) noexcept;
+    static mat3 RotYZ(f32 p_RotY, f32 p_RotZ) noexcept;
+    static mat3 RotZX(f32 p_RotZ, f32 p_RotX) noexcept;
+    static mat3 RotZY(f32 p_RotZ, f32 p_RotY) noexcept;
 
-    static mat3 RotX(f32 p_RotX);
-    static mat3 RotY(f32 p_RotY);
-    static mat3 RotZ(f32 p_RotZ);
+    static mat3 RotX(f32 p_RotX) noexcept;
+    static mat3 RotY(f32 p_RotY) noexcept;
+    static mat3 RotZ(f32 p_RotZ) noexcept;
 
     vec3 Position{0.f};
     vec3 Scale{1.f};

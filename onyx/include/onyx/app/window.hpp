@@ -4,7 +4,7 @@
 #include "onyx/core/device.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/app/input.hpp"
-#include "onyx/drawing/color.hpp"
+#include "onyx/model/color.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>

@@ -1,5 +1,5 @@
 #include "core/pch.hpp"
-#include "onyx/drawing/model.hpp"
+#include "onyx/model/model.hpp"
 #include "onyx/core/core.hpp"
 
 namespace ONYX

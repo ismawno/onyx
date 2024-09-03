@@ -2,7 +2,7 @@
 #include "onyx/app/window.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/drawing/color.hpp"
+#include "onyx/model/color.hpp"
 #include "kit/core/logging.hpp"
 
 namespace ONYX

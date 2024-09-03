@@ -2,7 +2,7 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/drawing/color.hpp"
+#include "onyx/model/color.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>

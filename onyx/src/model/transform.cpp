@@ -1,5 +1,5 @@
 #include "core/pch.hpp"
-#include "onyx/drawing/transform.hpp"
+#include "onyx/model/transform.hpp"
 
 namespace ONYX
 {
@@ -167,7 +167,7 @@ mat3 Transform<3>::InverseRotation() const noexcept
     return glm::transpose(Rotation);
 }
 
-mat3 Transform<3>::RotXYZ(const vec3 &p_Rotation)
+mat3 Transform<3>::RotXYZ(const vec3 &p_Rotation) noexcept
 {
     const auto [c1, s1, c2, s2, c3, s3] = Trigonometry<3>(p_Rotation);
     return {{(c2 * c3), (c1 * s3 + c3 * s1 * s2), (s1 * s3 - c1 * c3 * s2)},
@@ -175,7 +175,7 @@ mat3 Transform<3>::RotXYZ(const vec3 &p_Rotation)
             {(s2), (-c2 * s1), (c1 * c2)}};
 }
 
-mat3 Transform<3>::RotXZY(const vec3 &p_Rotation)
+mat3 Transform<3>::RotXZY(const vec3 &p_Rotation) noexcept
 {
     const auto [c1, s1, c3, s3, c2, s2] = Trigonometry<3>(p_Rotation);
     return {{(c2 * c3), (s1 * s3 + c1 * c3 * s2), (c3 * s1 * s2 - c1 * s3)},
@@ -183,7 +183,7 @@ mat3 Transform<3>::RotXZY(const vec3 &p_Rotation)
             {(c2 * s3), (c1 * s2 * s3 - c3 * s1), (c1 * c3 + s1 * s2 * s3)}};
 }
 
-mat3 Transform<3>::RotYXZ(const vec3 &p_Rotation)
+mat3 Transform<3>::RotYXZ(const vec3 &p_Rotation) noexcept
 {
     const auto [c2, s2, c1, s1, c3, s3] = Trigonometry<3>(p_Rotation);
     return {{(c1 * c3 + s1 * s2 * s3), (c2 * s3), (c1 * s2 * s3 - c3 * s1)},
@@ -191,7 +191,7 @@ mat3 Transform<3>::RotYXZ(const vec3 &p_Rotation)
             {(c2 * s1), (-s2), (c1 * c2)}};
 }
 
-mat3 Transform<3>::RotYZX(const vec3 &p_Rotation)
+mat3 Transform<3>::RotYZX(const vec3 &p_Rotation) noexcept
 {
     const auto [c3, s3, c1, s1, c2, s2] = Trigonometry<3>(p_Rotation);
     return {{(c1 * c2), (s2), (-c2 * s1)},
@@ -199,7 +199,7 @@ mat3 Transform<3>::RotYZX(const vec3 &p_Rotation)
             {(c3 * s1 + c1 * s2 * s3), (-c2 * s3), (c1 * c3 - s1 * s2 * s3)}};
 }
 
-mat3 Transform<3>::RotZXY(const vec3 &p_Rotation)
+mat3 Transform<3>::RotZXY(const vec3 &p_Rotation) noexcept
 {
     const auto [c2, s2, c3, s3, c1, s1] = Trigonometry<3>(p_Rotation);
     return {{(c1 * c3 - s1 * s2 * s3), (c3 * s1 + c1 * s2 * s3), (-c2 * s3)},
@@ -207,7 +207,7 @@ mat3 Transform<3>::RotZXY(const vec3 &p_Rotation)
             {(c1 * s3 + c3 * s1 * s2), (s1 * s3 - c1 * c3 * s2), (c2 * c3)}};
 }
 
-mat3 Transform<3>::RotZYX(const vec3 &p_Rotation)
+mat3 Transform<3>::RotZYX(const vec3 &p_Rotation) noexcept
 {
     const auto [c3, s3, c2, s2, c1, s1] = Trigonometry<3>(p_Rotation);
     return {{(c1 * c2), (c2 * s1), (-s2)},
@@ -215,61 +215,61 @@ mat3 Transform<3>::RotZYX(const vec3 &p_Rotation)
             {(s1 * s3 + c1 * c3 * s2), (c3 * s1 * s2 - c1 * s3), (c2 * c3)}};
 }
 
-mat3 Transform<3>::RotXY(const f32 p_RotX, const f32 p_RotY)
+mat3 Transform<3>::RotXY(const f32 p_RotX, const f32 p_RotY) noexcept
 {
     const auto [c1, s1] = Trigonometry<2>(p_RotX);
     const auto [c2, s2] = Trigonometry<2>(p_RotY);
     return {{c2, s1 * s2, -c1 * s2}, {0.f, c1, s1}, {s2, -c2 * s1, c1 * c2}};
 }
 
-mat3 Transform<3>::RotXZ(const f32 p_RotX, const f32 p_RotZ)
+mat3 Transform<3>::RotXZ(const f32 p_RotX, const f32 p_RotZ) noexcept
 {
     const auto [c1, s1] = Trigonometry<2>(p_RotX);
     const auto [c3, s3] = Trigonometry<2>(p_RotZ);
     return {{c3, c1 * s3, s1 * s3}, {-s3, c1 * c3, c3 * s1}, {0.f, -s1, c1}};
 }
 
-mat3 Transform<3>::RotYX(const f32 p_RotY, const f32 p_RotX)
+mat3 Transform<3>::RotYX(const f32 p_RotY, const f32 p_RotX) noexcept
 {
     const auto [c1, s1] = Trigonometry<2>(p_RotX);
     const auto [c2, s2] = Trigonometry<2>(p_RotY);
     return {{c2, 0.f, -s2}, {s1 * s2, c1, c2 * s1}, {c1 * s2, -s1, c1 * c2}};
 }
 
-mat3 Transform<3>::RotYZ(f32 p_RotY, f32 p_RotZ)
+mat3 Transform<3>::RotYZ(f32 p_RotY, f32 p_RotZ) noexcept
 {
     const auto [c2, s2] = Trigonometry<2>(p_RotY);
     const auto [c3, s3] = Trigonometry<2>(p_RotZ);
     return {{c2 * c3, s3, -c3 * s2}, {-c2 * s3, c3, s2 * s3}, {s2, 0.f, c2}};
 }
 
-mat3 Transform<3>::RotZX(const f32 p_RotZ, const f32 p_RotX)
+mat3 Transform<3>::RotZX(const f32 p_RotZ, const f32 p_RotX) noexcept
 {
     const auto [c1, s1] = Trigonometry<2>(p_RotX);
     const auto [c3, s3] = Trigonometry<2>(p_RotZ);
     return {{c3, s3, 0.f}, {-c1 * s3, c1 * c3, s1}, {s1 * s3, -c3 * s1, c1}};
 }
 
-mat3 Transform<3>::RotZY(f32 p_RotZ, f32 p_RotY)
+mat3 Transform<3>::RotZY(f32 p_RotZ, f32 p_RotY) noexcept
 {
     const auto [c2, s2] = Trigonometry<2>(p_RotY);
     const auto [c3, s3] = Trigonometry<2>(p_RotZ);
     return {{c2 * c3, c2 * s3, -s2}, {-s3, c3, 0.f}, {c3 * s2, s2 * s3, c2}};
 }
 
-mat3 Transform<3>::RotX(const f32 p_RotX)
+mat3 Transform<3>::RotX(const f32 p_RotX) noexcept
 {
     const auto [c, s] = Trigonometry<2>(p_RotX);
     return {{1.f, 0.f, 0.f}, {0.f, c, s}, {0.f, -s, c}};
 }
 
-mat3 Transform<3>::RotY(const f32 p_RotY)
+mat3 Transform<3>::RotY(const f32 p_RotY) noexcept
 {
     const auto [c, s] = Trigonometry<2>(p_RotY);
     return {{c, 0.f, -s}, {0.f, 1.f, 0.f}, {s, 0.f, c}};
 }
 
-mat3 Transform<3>::RotZ(const f32 p_RotZ)
+mat3 Transform<3>::RotZ(const f32 p_RotZ) noexcept
 {
     const auto [c, s] = Trigonometry<2>(p_RotZ);
     return {{c, s, 0.f}, {-s, c, 0.f}, {0.f, 0.f, 1.f}};
