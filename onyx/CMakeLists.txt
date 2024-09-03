@@ -12,6 +12,7 @@ set(SOURCES
     src/rendering/renderer.cpp
     src/drawing/vertex.cpp
     src/drawing/color.cpp
+    src/drawing/transform.cpp
     src/drawing/model.cpp
     src/app/app.cpp
     src/app/window.cpp
