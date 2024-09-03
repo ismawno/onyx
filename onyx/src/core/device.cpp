@@ -116,10 +116,12 @@ Device::Device(const VkSurfaceKHR p_Surface) noexcept
     m_Instance = Core::GetInstance();
     pickPhysicalDevice(p_Surface);
     createLogicalDevice(p_Surface);
+    createCommandPool(p_Surface);
 }
 
 Device::~Device() noexcept
 {
+    vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
     vkDestroyDevice(m_Device, nullptr);
 }
 
@@ -167,6 +169,41 @@ VkQueue Device::GraphicsQueue() const noexcept
 VkQueue Device::PresentQueue() const noexcept
 {
     return m_PresentQueue;
+}
+
+VkCommandBuffer Device::BeginSingleTimeCommands() const noexcept
+{
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = m_CommandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(m_Device, &allocInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    return commandBuffer;
+}
+
+void Device::EndSingleTimeCommands(const VkCommandBuffer p_CommandBuffer) const noexcept
+{
+    vkEndCommandBuffer(p_CommandBuffer);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &p_CommandBuffer;
+
+    vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_GraphicsQueue);
+
+    vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &p_CommandBuffer);
 }
 
 void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
@@ -239,6 +276,19 @@ void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
 
     vkGetDeviceQueue(m_Device, indices.GraphicsFamily, 0, &m_GraphicsQueue);
     vkGetDeviceQueue(m_Device, indices.PresentFamily, 0, &m_PresentQueue);
+}
+
+void Device::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
+{
+    const Device::QueueFamilyIndices indices = FindQueueFamilies(p_Surface);
+
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = indices.GraphicsFamily;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+    KIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device, &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,
+                       "Failed to create command pool");
 }
 
 VkFormat Device::FindSupportedFormat(const std::span<const VkFormat> p_Candidates, const VkImageTiling p_Tiling,

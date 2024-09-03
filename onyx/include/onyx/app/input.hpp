@@ -18,7 +18,7 @@ struct ONYX_API Input
 
     Input() = delete;
 
-    enum class Key
+    enum class Key : u16
     {
         SPACE = GLFW_KEY_SPACE,
         APOSTROPHE = GLFW_KEY_APOSTROPHE,
@@ -143,7 +143,7 @@ struct ONYX_API Input
         LAST = GLFW_KEY_MENU
     };
 
-    enum class Mouse
+    enum class Mouse : u8
     {
         BUTTON_1 = GLFW_MOUSE_BUTTON_1,
         BUTTON_2 = GLFW_MOUSE_BUTTON_2,
@@ -168,7 +168,7 @@ struct ONYX_API Input
 
 struct Event
 {
-    enum ActionType
+    enum ActionType : u8
     {
         KEY_PRESSED,
         KEY_RELEASED,

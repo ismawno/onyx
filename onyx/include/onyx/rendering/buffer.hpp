@@ -4,6 +4,7 @@
 #include "onyx/core/device.hpp"
 
 #include "kit/core/non_copyable.hpp"
+#include "kit/memory/block_allocator.hpp"
 
 #include <vulkan/vulkan.hpp>
 
@@ -13,8 +14,12 @@ class Buffer
 {
     KIT_NON_COPYABLE(Buffer)
   public:
+    KIT_BLOCK_ALLOCATED_UNSAFE(Buffer, 32)
+
     Buffer(VkDeviceSize p_InstanceCount, VkDeviceSize p_InstanceSize, VkBufferUsageFlags p_usage,
            VkMemoryPropertyFlags p_Properties, VkDeviceSize p_MinimumAlignment = 1) noexcept;
+
+    ~Buffer() noexcept;
 
     void Map(VkDeviceSize p_Offset = 0, VkDeviceSize p_Size = VK_WHOLE_SIZE, VkMemoryMapFlags p_Flags = 0) noexcept;
     void Unmap() noexcept;
@@ -34,6 +39,11 @@ class Buffer
 
     void *Data() const noexcept;
     void *ReadAt(usize p_Index) const noexcept;
+
+    void CopyFrom(const Buffer &p_Source) noexcept;
+
+    VkBuffer VulkanBuffer() const noexcept;
+    VkDeviceSize Size() const noexcept;
 
   private:
     void createBuffer(VkBufferUsageFlags p_Usage, VkMemoryPropertyFlags p_Properties) noexcept;

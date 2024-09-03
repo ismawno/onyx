@@ -28,6 +28,14 @@ Buffer::Buffer(const VkDeviceSize p_InstanceCount, const VkDeviceSize p_Instance
     createBuffer(p_usage, p_Properties);
 }
 
+Buffer::~Buffer() noexcept
+{
+    if (m_Data)
+        Unmap();
+    vkDestroyBuffer(m_Device->VulkanDevice(), m_Buffer, nullptr);
+    vkFreeMemory(m_Device->VulkanDevice(), m_BufferMemory, nullptr);
+}
+
 void Buffer::Map(const VkDeviceSize p_Offset, const VkDeviceSize p_Size, const VkMemoryMapFlags p_Flags) noexcept
 {
     if (m_Data)
@@ -106,6 +114,31 @@ void *Buffer::Data() const noexcept
 void *Buffer::ReadAt(const usize p_Index) const noexcept
 {
     return static_cast<std::byte *>(m_Data) + m_InstanceSize * p_Index;
+}
+
+void Buffer::CopyFrom(const Buffer &p_Source) noexcept
+{
+    KIT_ASSERT(m_Size == p_Source.m_Size, "Cannot copy buffers of different sizes");
+
+    VkCommandBuffer commandBuffer = m_Device->BeginSingleTimeCommands();
+
+    VkBufferCopy copyRegion{};
+    copyRegion.srcOffset = 0;
+    copyRegion.dstOffset = 0;
+    copyRegion.size = m_Size;
+    vkCmdCopyBuffer(commandBuffer, p_Source.m_Buffer, m_Buffer, 1, &copyRegion);
+
+    m_Device->EndSingleTimeCommands(commandBuffer);
+}
+
+VkBuffer Buffer::VulkanBuffer() const noexcept
+{
+    return m_Buffer;
+}
+
+VkDeviceSize Buffer::Size() const noexcept
+{
+    return m_Size;
 }
 
 void Buffer::createBuffer(const VkBufferUsageFlags p_Usage, const VkMemoryPropertyFlags p_Properties) noexcept
