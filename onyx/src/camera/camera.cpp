@@ -18,7 +18,7 @@ ONYX_DIMENSION_TEMPLATE vec<N> Camera<N>::ScreenToWorld(const vec2 &p_Screen) co
 
 ONYX_DIMENSION_TEMPLATE vec2 Camera<N>::WorldToScreen(const vec<N> &p_World) const noexcept
 {
-    if constexpr (std::is_same_v<Dim, dimension::two>)
+    if constexpr (N == 2)
     {
         const vec4 pos = m_Projection * vec4(p_World, 0.5f, 1.f);
         return vec2(pos) / pos.w;

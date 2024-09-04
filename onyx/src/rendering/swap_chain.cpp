@@ -1,8 +1,8 @@
 #include "core/pch.hpp"
 #include "onyx/rendering/swap_chain.hpp"
 #include "onyx/core/core.hpp"
-
 #include "onyx/core/glm.hpp"
+#include "kit/memory/stack_allocator.hpp"
 
 namespace ONYX
 {
@@ -38,6 +38,7 @@ static VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &p_Capabilitie
     if (p_Capabilities.currentExtent.width != UINT32_MAX)
         return p_Capabilities.currentExtent;
 
+    // TODO: Change this to use glfwGetFramebufferSize
     VkExtent2D actualExtent = {p_WindowExtent.width, p_WindowExtent.height};
     actualExtent.width =
         glm::clamp(actualExtent.width, p_Capabilities.minImageExtent.width, p_Capabilities.maxImageExtent.width);
@@ -102,8 +103,7 @@ VkResult SwapChain::AcquireNextImage(u32 *p_ImageIndex) const noexcept
                                  m_ImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, p_ImageIndex);
 }
 
-VkResult SwapChain::SubmitCommandBuffers(const std::span<const VkCommandBuffer> p_CommandBuffers,
-                                         const u32 p_ImageIndex) noexcept
+VkResult SwapChain::SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffer, const u32 p_ImageIndex) noexcept
 {
     if (m_InFlightImages[p_ImageIndex] != VK_NULL_HANDLE)
         vkWaitForFences(m_Device->VulkanDevice(), 1, &m_InFlightImages[p_ImageIndex], VK_TRUE, UINT64_MAX);
@@ -118,8 +118,8 @@ VkResult SwapChain::SubmitCommandBuffers(const std::span<const VkCommandBuffer> 
     submitInfo.pWaitSemaphores = &m_ImageAvailableSemaphores[m_CurrentFrame];
     submitInfo.pWaitDstStageMask = &waitStage;
 
-    submitInfo.commandBufferCount = static_cast<u32>(p_CommandBuffers.size());
-    submitInfo.pCommandBuffers = p_CommandBuffers.data();
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &p_CommandBuffer;
 
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_RenderFinishedSemaphores[m_CurrentFrame];
@@ -128,6 +128,7 @@ VkResult SwapChain::SubmitCommandBuffers(const std::span<const VkCommandBuffer> 
 
     // A nice mutex here to prevent race conditions if user is rendering concurrently to multiple windows, each with its
     // own renderer, swap chain etcetera
+    // TODO: Change this so that a global task is always in charge of submitting to a queue
     static std::mutex mutex;
     std::scoped_lock lock(mutex);
     return vkQueueSubmit(m_Device->GraphicsQueue(), 1, &submitInfo, m_InFlightFences[m_CurrentFrame]);

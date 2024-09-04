@@ -6,6 +6,9 @@ set(SOURCES
     src/core/core.cpp
     src/core/device.cpp
     src/core/instance.cpp
+    src/camera/camera.cpp
+    src/camera/orthographic.cpp
+    src/camera/perspective.cpp
     src/rendering/buffer.cpp
     src/rendering/pipeline.cpp
     src/rendering/swap_chain.cpp

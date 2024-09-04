@@ -54,8 +54,7 @@ ONYX_DIMENSION_TEMPLATE void Renderer::EndFrame(Window<N> &p_Window) noexcept
     KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
     KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
 
-    const std::span<const VkCommandBuffer> buffers = {&m_CommandBuffers[m_FrameIndex], 1};
-    KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffers(buffers, m_ImageIndex), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex), VK_SUCCESS,
                        "Failed to submit command buffers");
 
     const VkResult result = m_SwapChain->Present(&m_ImageIndex);
