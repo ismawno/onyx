@@ -31,11 +31,46 @@ static DynamicArray<const char *> requiredExtensions() noexcept
 static const char *s_ValidationLayer = "VK_LAYER_KHRONOS_validation";
 static VkDebugUtilsMessengerEXT s_DebugMessenger;
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT,
-                                                    VkDebugUtilsMessageTypeFlagsEXT,
+static const char *toString(VkDebugUtilsMessageSeverityFlagBitsEXT p_Severity)
+{
+    switch (p_Severity)
+    {
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+        return "VERBOSE";
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+        return "ERROR";
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+        return "WARNING";
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+        return "INFO";
+    default:
+        return "UNKNOWN";
+    }
+}
+static const char *toString(VkDebugUtilsMessageTypeFlagsEXT p_MessageType)
+{
+    if (p_MessageType == 7)
+        return "General | Validation | Performance";
+    if (p_MessageType == 6)
+        return "Validation | Performance";
+    if (p_MessageType == 5)
+        return "General | Performance";
+    if (p_MessageType == 4)
+        return "Performance";
+    if (p_MessageType == 3)
+        return "General | Validation";
+    if (p_MessageType == 2)
+        return "Validation";
+    if (p_MessageType == 1)
+        return "General";
+    return "Unknown";
+}
+
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT p_Severity,
+                                                    VkDebugUtilsMessageTypeFlagsEXT p_MessageType,
                                                     const VkDebugUtilsMessengerCallbackDataEXT *p_CallbackData, void *)
 {
-    KIT_ERROR("{}", p_CallbackData->pMessage);
+    KIT_ERROR("<{}: {}> {}", toString(p_Severity), toString(p_MessageType), p_CallbackData->pMessage);
     return VK_FALSE;
 }
 
