@@ -23,7 +23,7 @@ ONYX_DIMENSION_TEMPLATE class Camera
 
     ONYX::Transform<N> Transform;
 
-  private:
+  protected:
     mat4 m_Projection{1.f};
     mat4 m_InverseProjection{1.f};
     bool m_YFlipped = false;
