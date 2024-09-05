@@ -29,7 +29,7 @@ class ONYX_API Pipeline
         DynamicArray<VkDynamicState> DynamicStateEnables;
         VkPipelineDynamicStateCreateInfo DynamicStateInfo;
 
-        VkRenderPass RenderPass = nullptr;
+        VkRenderPass RenderPass = VK_NULL_HANDLE;
         u32 Subpass = 0;
 
         const char *VertexShaderPath = nullptr;

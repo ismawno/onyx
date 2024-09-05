@@ -32,7 +32,7 @@ ONYX_DIMENSION_TEMPLATE VkCommandBuffer Renderer::BeginFrame(Window<N> &p_Window
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
         createSwapChain(p_Window);
-        return nullptr;
+        return VK_NULL_HANDLE;
     }
 
     KIT_ASSERT(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "Failed to acquire swap chain image");
