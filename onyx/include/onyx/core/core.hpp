@@ -26,12 +26,12 @@ struct ONYX_API Core
     static KIT::StackAllocator *StackAllocator() noexcept;
     static KIT::TaskManager *TaskManager() noexcept;
 
-    static const KIT::Ref<Instance> &GetInstance() noexcept;
-    static const KIT::Ref<Device> &GetDevice() noexcept;
+    static const KIT::Ref<ONYX::Instance> &Instance() noexcept;
+    static const KIT::Ref<ONYX::Device> &Device() noexcept;
 
   private:
     // Should ony be called by window constructor (I should look for a way to better hide this)
-    static const KIT::Ref<Device> &getOrCreateDevice(VkSurfaceKHR p_Surface) noexcept;
+    static const KIT::Ref<ONYX::Device> &tryCreateDevice(VkSurfaceKHR p_Surface) noexcept;
 
     friend class Window<2>;
     friend class Window<3>;

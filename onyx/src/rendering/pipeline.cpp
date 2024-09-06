@@ -30,7 +30,7 @@ void Pipeline::initialize(const Specs &p_Specs) noexcept
     KIT_LOG_INFO("Creating new pipeline...");
     KIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");
 
-    m_Device = Core::GetDevice();
+    m_Device = Core::Device();
     m_VertexShader = createShaderModule(p_Specs.VertexShaderPath);
     m_FragmentShader = createShaderModule(p_Specs.FragmentShaderPath);
 

@@ -7,7 +7,7 @@ namespace ONYX
 DescriptorPool::DescriptorPool(const u32 p_MaxSets, const std::span<const VkDescriptorPoolSize> p_PoolSizes,
                                const VkDescriptorPoolCreateFlags p_PoolFlags) noexcept
 {
-    m_Device = Core::GetDevice();
+    m_Device = Core::Device();
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<u32>(p_PoolSizes.size());

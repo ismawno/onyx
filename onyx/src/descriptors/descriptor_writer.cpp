@@ -7,7 +7,7 @@ namespace ONYX
 DescriptorWriter::DescriptorWriter(const DescriptorSetLayout *p_Layout, const DescriptorPool *p_Pool) noexcept
     : m_Layout(p_Layout), m_Pool(p_Pool)
 {
-    m_Device = Core::GetDevice();
+    m_Device = Core::Device();
     m_Writes.reserve(m_Layout->BindingCount());
 }
 

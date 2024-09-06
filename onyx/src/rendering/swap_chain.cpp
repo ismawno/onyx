@@ -52,7 +52,7 @@ static VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &p_Capabilitie
 SwapChain::SwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surface,
                      const SwapChain *p_OldSwapChain) noexcept
 {
-    m_Device = Core::GetDevice();
+    m_Device = Core::Device();
     initialize(p_WindowExtent, p_Surface, p_OldSwapChain);
     createImageViews();
     createRenderPass();

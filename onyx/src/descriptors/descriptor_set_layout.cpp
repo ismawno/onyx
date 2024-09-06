@@ -7,7 +7,7 @@ namespace ONYX
 DescriptorSetLayout::DescriptorSetLayout(const std::span<const VkDescriptorSetLayoutBinding> p_Bindings) noexcept
     : m_Bindings{p_Bindings.begin(), p_Bindings.end()}
 {
-    m_Device = Core::GetDevice();
+    m_Device = Core::Device();
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<u32>(m_Bindings.size());

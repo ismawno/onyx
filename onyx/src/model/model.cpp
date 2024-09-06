@@ -8,7 +8,7 @@ namespace ONYX
 ONYX_DIMENSION_TEMPLATE Model<N>::Model(const std::span<const Vertex<N>> p_Vertices,
                                         const Properties p_VertexBufferProperties) noexcept
 {
-    m_Device = Core::GetDevice();
+    m_Device = Core::Device();
     createVertexBuffer(p_Vertices, p_VertexBufferProperties);
 }
 
@@ -16,7 +16,7 @@ ONYX_DIMENSION_TEMPLATE Model<N>::Model(const std::span<const Vertex<N>> p_Verti
                                         const std::span<const Index> p_Indices,
                                         const Properties p_VertexBufferProperties) noexcept
 {
-    m_Device = Core::GetDevice();
+    m_Device = Core::Device();
     createVertexBuffer(p_Vertices, p_VertexBufferProperties);
     createIndexBuffer(p_Indices);
 }

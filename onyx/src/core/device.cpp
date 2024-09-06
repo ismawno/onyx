@@ -113,7 +113,7 @@ static bool isDeviceSuitable(const VkPhysicalDevice p_Device, const VkSurfaceKHR
 Device::Device(const VkSurfaceKHR p_Surface) noexcept
 {
     KIT_LOG_INFO("Attempting to create a new device...");
-    m_Instance = Core::GetInstance();
+    m_Instance = Core::Instance();
     pickPhysicalDevice(p_Surface);
     createLogicalDevice(p_Surface);
     createCommandPool(p_Surface);

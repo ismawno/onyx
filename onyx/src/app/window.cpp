@@ -31,12 +31,12 @@ ONYX_DIMENSION_TEMPLATE void Window<N>::initialize() noexcept
                                 nullptr, nullptr);
     KIT_ASSERT(m_Window, "Failed to create a GLFW window");
 
-    m_Instance = Core::GetInstance();
+    m_Instance = Core::Instance();
     KIT_ASSERT_RETURNS(glfwCreateWindowSurface(m_Instance->VulkanInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
                        "Failed to create a window surface");
     glfwSetWindowUserPointer(m_Window, this);
 
-    m_Device = Core::getOrCreateDevice(m_Surface);
+    m_Device = Core::tryCreateDevice(m_Surface);
     m_Renderer = KIT::Scope<Renderer>::Create(*this);
     Input::InstallCallbacks(*this);
 }

@@ -24,7 +24,7 @@ Buffer::Buffer(const VkDeviceSize p_InstanceCount, const VkDeviceSize p_Instance
                const VkMemoryPropertyFlags p_Properties, const VkDeviceSize p_MinimumAlignment) noexcept
     : m_InstanceSize(alignedSize(p_InstanceSize, p_MinimumAlignment)), m_Size(m_InstanceSize * p_InstanceCount)
 {
-    m_Device = Core::GetDevice();
+    m_Device = Core::Device();
     createBuffer(p_usage, p_Properties);
 }
 

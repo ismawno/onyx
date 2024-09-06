@@ -11,7 +11,7 @@ namespace ONYX
 {
 ONYX_DIMENSION_TEMPLATE Renderer::Renderer(Window<N> &p_Window) noexcept
 {
-    m_Device = Core::GetDevice();
+    m_Device = Core::Device();
     createSwapChain(p_Window);
     createCommandPool(p_Window.Surface());
     createCommandBuffers();
