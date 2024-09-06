@@ -128,7 +128,6 @@ VkResult SwapChain::SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffer, c
 
     // A nice mutex here to prevent race conditions if user is rendering concurrently to multiple windows, each with its
     // own renderer, swap chain etcetera
-    // TODO: Change this so that a global task is always in charge of submitting to a queue
     static std::mutex mutex;
     std::scoped_lock lock(mutex);
     return vkQueueSubmit(m_Device->GraphicsQueue(), 1, &submitInfo, m_InFlightFences[m_CurrentFrame]);

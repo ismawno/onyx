@@ -41,7 +41,7 @@ ONYX_DIMENSION_TEMPLATE void Window<N>::initialize() noexcept
     Input::InstallCallbacks(*this);
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::Render() noexcept
+ONYX_DIMENSION_TEMPLATE void Window<N>::Display() noexcept
 {
     if (m_Renderer->BeginFrame(*this))
     {

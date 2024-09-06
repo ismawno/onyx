@@ -27,7 +27,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
 
     ~Window() noexcept;
 
-    void Render() noexcept;
+    void Display() noexcept;
 
     void MakeContextCurrent() const noexcept;
     bool ShouldClose() const noexcept;

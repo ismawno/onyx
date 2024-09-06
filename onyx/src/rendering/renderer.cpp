@@ -3,6 +3,7 @@
 #include "onyx/app/window.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/model/color.hpp"
+#include "kit/multiprocessing/task_manager.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -19,6 +20,7 @@ ONYX_DIMENSION_TEMPLATE Renderer::Renderer(Window<N> &p_Window) noexcept
 
 Renderer::~Renderer() noexcept
 {
+    m_QueueSubmitTask->WaitUntilFinished();
     vkFreeCommandBuffers(m_Device->VulkanDevice(), m_CommandPool, SwapChain::MAX_FRAMES_IN_FLIGHT,
                          m_CommandBuffers.data());
     vkDestroyCommandPool(m_Device->VulkanDevice(), m_CommandPool, nullptr);
@@ -27,6 +29,19 @@ Renderer::~Renderer() noexcept
 ONYX_DIMENSION_TEMPLATE VkCommandBuffer Renderer::BeginFrame(Window<N> &p_Window) noexcept
 {
     KIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
+
+    if (m_QueueSubmitTask)
+    {
+        const VkResult result = m_QueueSubmitTask->WaitForResult();
+        const bool resizeFixes =
+            result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || p_Window.WasResized();
+        if (resizeFixes)
+        {
+            createSwapChain(p_Window);
+            p_Window.FlagResizeDone();
+        }
+        KIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
+    }
 
     const VkResult result = m_SwapChain->AcquireNextImage(&m_ImageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -49,25 +64,26 @@ ONYX_DIMENSION_TEMPLATE VkCommandBuffer Renderer::BeginFrame(Window<N> &p_Window
     return m_CommandBuffers[m_FrameIndex];
 }
 
-ONYX_DIMENSION_TEMPLATE void Renderer::EndFrame(Window<N> &p_Window) noexcept
+ONYX_DIMENSION_TEMPLATE void Renderer::EndFrame(Window<N> &) noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
     KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
 
-    KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex), VK_SUCCESS,
-                       "Failed to submit command buffers");
+    KIT::TaskManager *taskManager = Core::TaskManager();
 
-    const VkResult result = m_SwapChain->Present(&m_ImageIndex);
-    const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || p_Window.WasResized();
-    if (resizeFixes)
+    if (!m_QueueSubmitTask)
+        m_QueueSubmitTask = taskManager->CreateAndSubmit([this](usize) {
+            KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex),
+                               VK_SUCCESS, "Failed to submit command buffers");
+            m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MAX_FRAMES_IN_FLIGHT;
+            return m_SwapChain->Present(&m_ImageIndex);
+        });
+    else
     {
-        createSwapChain(p_Window);
-        p_Window.FlagResizeDone();
+        m_QueueSubmitTask->Reset();
+        taskManager->SubmitTask(m_QueueSubmitTask);
     }
-
-    KIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
     m_FrameStarted = false;
-    m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MAX_FRAMES_IN_FLIGHT;
 }
 
 void Renderer::BeginRenderPass(const Color &p_ClearColor) noexcept

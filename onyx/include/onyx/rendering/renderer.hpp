@@ -1,6 +1,7 @@
 #pragma once
 #include "onyx/rendering/swap_chain.hpp"
 #include "onyx/core/dimension.hpp"
+#include "kit/multiprocessing/task.hpp"
 
 namespace ONYX
 {
@@ -37,5 +38,7 @@ class ONYX_API Renderer
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;
     bool m_FrameStarted = false;
+
+    KIT::Ref<KIT::Task<VkResult>> m_QueueSubmitTask;
 };
 } // namespace ONYX
