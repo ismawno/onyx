@@ -71,6 +71,7 @@ ONYX_DIMENSION_TEMPLATE void Renderer::EndFrame(Window<N> &) noexcept
 
     KIT::TaskManager *taskManager = Core::TaskManager();
 
+    // TODO: Profile this task usage
     if (!m_QueueSubmitTask)
         m_QueueSubmitTask = taskManager->CreateAndSubmit([this](usize) {
             KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex),
