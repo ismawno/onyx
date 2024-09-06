@@ -41,14 +41,9 @@ ONYX_DIMENSION_TEMPLATE void Window<N>::initialize() noexcept
     Input::InstallCallbacks(*this);
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::Display() noexcept
+ONYX_DIMENSION_TEMPLATE bool Window<N>::Display() noexcept
 {
-    if (m_Renderer->BeginFrame(*this))
-    {
-        m_Renderer->BeginRenderPass(BackgroundColor);
-        m_Renderer->EndRenderPass();
-        m_Renderer->EndFrame(*this);
-    }
+    return Display([](const VkCommandBuffer) {});
 }
 
 ONYX_DIMENSION_TEMPLATE void Window<N>::MakeContextCurrent() const noexcept

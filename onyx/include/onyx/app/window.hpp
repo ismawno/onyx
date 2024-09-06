@@ -27,7 +27,19 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
 
     ~Window() noexcept;
 
-    void Display() noexcept;
+    template <typename F> bool Display(F &&p_Submission) noexcept
+    {
+        if (const VkCommandBuffer cmd = m_Renderer->BeginFrame(*this))
+        {
+            m_Renderer->BeginRenderPass(BackgroundColor);
+            p_Submission(cmd);
+            m_Renderer->EndRenderPass();
+            m_Renderer->EndFrame(*this);
+            return true;
+        }
+        return false;
+    }
+    bool Display() noexcept;
 
     void MakeContextCurrent() const noexcept;
     bool ShouldClose() const noexcept;

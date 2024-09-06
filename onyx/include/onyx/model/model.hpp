@@ -36,7 +36,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Model
 {
     KIT_NON_COPYABLE(Model)
   public:
-    KIT_BLOCK_ALLOCATED_UNSAFE(Model, 32)
+    KIT_BLOCK_ALLOCATED_SERIAL(Model, 32)
 
     enum Properties : u8
     {

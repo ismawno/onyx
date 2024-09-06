@@ -14,7 +14,7 @@ class ONYX_API Buffer
 {
     KIT_NON_COPYABLE(Buffer)
   public:
-    KIT_BLOCK_ALLOCATED_UNSAFE(Buffer, 32)
+    KIT_BLOCK_ALLOCATED_SERIAL(Buffer, 32)
 
     Buffer(VkDeviceSize p_InstanceCount, VkDeviceSize p_InstanceSize, VkBufferUsageFlags p_usage,
            VkMemoryPropertyFlags p_Properties, VkDeviceSize p_MinimumAlignment = 1) noexcept;
