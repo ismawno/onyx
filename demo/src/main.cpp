@@ -13,16 +13,11 @@ int main()
     KIT::ThreadPool<KIT::SpinLock> threadPool(4);
     ONYX::Core::Initialize(&stackAllocator, &threadPool);
 
-    ONYX::Application2D app1;
-    ONYX::Application2D app2;
+    ONYX::Application2D app;
+    app.OpenWindow();
+    app.OpenWindow();
 
-    const auto task1 = threadPool.CreateAndSubmit([&app1](const KIT::usize) { app1.Run(); });
-    const auto task2 = threadPool.CreateAndSubmit([&app2](const KIT::usize) { app2.Run(); });
-
-    while (!task1->Finished() || !task2->Finished())
-        ONYX::Input::PollEvents();
-
-    // app1.Run();
+    app.RunSerial();
 
     ONYX::Core::Terminate();
 }

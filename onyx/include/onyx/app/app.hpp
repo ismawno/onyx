@@ -9,16 +9,22 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Application
     KIT_NON_COPYABLE(Application)
   public:
     Application() noexcept = default;
-    explicit Application(const Window<N>::Specs &p_Specs) noexcept;
     ~Application() noexcept;
+
+    Window<N> *OpenWindow(const Window<N>::Specs &p_Specs) noexcept;
+    Window<N> *OpenWindow() noexcept;
+
+    void CloseWindow(usize p_Index) noexcept;
+    void CloseWindow(const Window<N> *p_Window) noexcept;
 
     void Start() noexcept;
     void Shutdown() noexcept;
+    bool NextFrameSerial() noexcept;
 
-    void Run() noexcept;
+    void RunSerial() noexcept;
 
   private:
-    Window<N> m_Window;
+    DynamicArray<KIT::Scope<Window<N>>> m_Windows;
     bool m_Started = false;
     bool m_Terminated = false;
 };

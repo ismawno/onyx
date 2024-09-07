@@ -25,7 +25,8 @@ void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::TaskManager *p_Mana
 void Core::Terminate() noexcept
 {
     glfwTerminate();
-    s_Device->WaitIdle();
+    if (s_Device)
+        s_Device->WaitIdle();
     // Release both the instance and the device. After this call, these two are no longer guaranteed to be valid
     s_Device = nullptr;
     s_Instance = nullptr;

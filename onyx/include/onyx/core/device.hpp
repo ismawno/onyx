@@ -44,6 +44,12 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     VkQueue GraphicsQueue() const noexcept;
     VkQueue PresentQueue() const noexcept;
 
+    std::mutex &GraphicsMutex() noexcept;
+    std::mutex &PresentMutex() noexcept;
+
+    void LockQueues() noexcept;
+    void UnlockQueues() noexcept;
+
     VkCommandBuffer BeginSingleTimeCommands() const noexcept;
     void EndSingleTimeCommands(VkCommandBuffer p_CommandBuffer) const noexcept;
 
@@ -59,5 +65,8 @@ class ONYX_API Device : public KIT::RefCounted<Device>
 
     VkQueue m_GraphicsQueue;
     VkQueue m_PresentQueue;
+
+    std::mutex m_GraphicsMutex;
+    std::mutex m_PresentMutex;
 };
 } // namespace ONYX

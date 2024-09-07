@@ -128,8 +128,7 @@ VkResult SwapChain::SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffer, c
 
     // A nice mutex here to prevent race conditions if user is rendering concurrently to multiple windows, each with its
     // own renderer, swap chain etcetera
-    static std::mutex mutex;
-    std::scoped_lock lock(mutex);
+    std::scoped_lock lock(m_Device->GraphicsMutex());
     return vkQueueSubmit(m_Device->GraphicsQueue(), 1, &submitInfo, m_InFlightFences[m_CurrentFrame]);
 }
 
@@ -146,7 +145,7 @@ VkResult SwapChain::Present(const u32 *p_ImageIndex) noexcept
     presentInfo.pImageIndices = p_ImageIndex;
 
     m_CurrentFrame = (m_CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-
+    std::scoped_lock lock(m_Device->PresentMutex());
     return vkQueuePresentKHR(m_Device->PresentQueue(), &presentInfo);
 }
 

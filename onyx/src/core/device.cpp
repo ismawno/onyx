@@ -171,6 +171,35 @@ VkQueue Device::PresentQueue() const noexcept
     return m_PresentQueue;
 }
 
+std::mutex &Device::GraphicsMutex() noexcept
+{
+    return m_GraphicsMutex;
+}
+
+std::mutex &Device::PresentMutex() noexcept
+{
+    return m_GraphicsQueue == m_PresentQueue ? m_GraphicsMutex : m_PresentMutex;
+}
+
+void Device::LockQueues() noexcept
+{
+    if (m_GraphicsQueue != m_PresentQueue)
+        std::lock(m_GraphicsMutex, m_PresentMutex);
+    else
+        m_GraphicsMutex.lock();
+}
+
+void Device::UnlockQueues() noexcept
+{
+    if (m_GraphicsQueue != m_PresentQueue)
+    {
+        m_GraphicsMutex.unlock();
+        m_PresentMutex.unlock();
+    }
+    else
+        m_GraphicsMutex.unlock();
+}
+
 VkCommandBuffer Device::BeginSingleTimeCommands() const noexcept
 {
     VkCommandBufferAllocateInfo allocInfo{};

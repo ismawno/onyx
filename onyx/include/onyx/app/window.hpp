@@ -11,10 +11,12 @@
 
 namespace ONYX
 {
+// TODO: Align window to the cache line in case a multi window app is used?
 ONYX_DIMENSION_TEMPLATE class ONYX_API Window
 {
     KIT_NON_COPYABLE(Window)
   public:
+    KIT_BLOCK_ALLOCATED_SERIAL(Window<N>, 8)
     struct Specs
     {
         const char *Name = "Onyx window";
