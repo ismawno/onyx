@@ -17,7 +17,7 @@ int main()
     app.OpenWindow();
     app.OpenWindow();
 
-    app.RunSerial();
+    app.Run();
 
     ONYX::Core::Terminate();
 }

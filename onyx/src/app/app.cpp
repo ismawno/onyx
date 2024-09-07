@@ -2,6 +2,7 @@
 #include "onyx/app/app.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
+#include "kit/multiprocessing/task_manager.hpp"
 
 namespace ONYX
 {
@@ -14,19 +15,28 @@ ONYX_DIMENSION_TEMPLATE Application<N>::~Application() noexcept
 ONYX_DIMENSION_TEMPLATE Window<N> *Application<N>::OpenWindow(const Window<N>::Specs &p_Specs) noexcept
 {
     m_Windows.push_back(KIT::Scope<Window<N>>::Create(p_Specs));
+    m_Tasks.emplace_back();
     return m_Windows.back().Get();
 }
 
 ONYX_DIMENSION_TEMPLATE Window<N> *Application<N>::OpenWindow() noexcept
 {
-    m_Windows.push_back(KIT::Scope<Window<N>>::Create());
-    return m_Windows.back().Get();
+    return OpenWindow(typename Window<N>::Specs{});
 }
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    if (m_Tasks[p_Index])
+        m_Tasks[p_Index]->WaitUntilFinished();
+
     m_Windows.erase(m_Windows.begin() + p_Index);
+    m_Tasks.erase(m_Tasks.begin() + p_Index);
+    if (p_Index == 0 && !m_Tasks.empty())
+    {
+        m_Tasks[0]->WaitUntilFinished();
+        m_Tasks[0] = nullptr;
+    }
 }
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(const Window<N> *p_Window) noexcept
@@ -34,7 +44,7 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(const Window<N> *p_Wind
     for (usize i = 0; i < m_Windows.size(); ++i)
         if (m_Windows[i].Get() == p_Window)
         {
-            m_Windows.erase(m_Windows.begin() + i);
+            CloseWindow(i);
             return;
         }
     KIT_ERROR("Window was not found");
@@ -52,28 +62,49 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::Shutdown() noexcept
     m_Terminated = true;
 }
 
-ONYX_DIMENSION_TEMPLATE bool Application<N>::NextFrameSerial() noexcept
+ONYX_DIMENSION_TEMPLATE bool Application<N>::NextFrame() noexcept
 {
+    if (m_Windows.empty())
+        return false;
+
+    KIT::TaskManager *taskManager = Core::TaskManager();
     Input::PollEvents();
-    for (const auto &window : m_Windows)
+    for (usize i = 1; i < m_Windows.size(); ++i)
     {
-        window->MakeContextCurrent();
-        KIT_ASSERT_RETURNS(
-            window->Display(), true,
-            "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
+        auto &task = m_Tasks[i];
+        if (!task)
+        {
+            Window<N> *window = m_Windows[i].Get();
+            task = taskManager->CreateAndSubmit([this, window](usize) { runFrame(*window); });
+        }
+        else
+        {
+            task->WaitUntilFinished();
+            task->Reset();
+            taskManager->SubmitTask(task);
+        }
     }
+    runFrame(*m_Windows[0]);
+
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
             CloseWindow(i);
     return !m_Windows.empty();
 }
 
-ONYX_DIMENSION_TEMPLATE void Application<N>::RunSerial() noexcept
+ONYX_DIMENSION_TEMPLATE void Application<N>::Run() noexcept
 {
     Start();
-    while (NextFrameSerial())
+    while (NextFrame())
         ;
     Shutdown();
+}
+
+ONYX_DIMENSION_TEMPLATE void Application<N>::runFrame(Window<N> &p_Window) noexcept
+{
+    p_Window.MakeContextCurrent();
+    KIT_ASSERT_RETURNS(p_Window.Display(), true,
+                       "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
 }
 
 template class Application<2>;
