@@ -24,7 +24,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Application
     void Run() noexcept;
 
   private:
-    void runFrame(Window<N> &p_Window) noexcept;
+    void runAndManageWindows() noexcept;
+    static void runFrame(Window<N> &p_Window) noexcept;
 
     DynamicArray<KIT::Scope<Window<N>>> m_Windows;
     DynamicArray<KIT::Ref<KIT::Task<void>>> m_Tasks;

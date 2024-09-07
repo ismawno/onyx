@@ -32,6 +32,8 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(usize p_Index) noexcept
 
     m_Windows.erase(m_Windows.begin() + p_Index);
     m_Tasks.erase(m_Tasks.begin() + p_Index);
+
+    // Check if the main window got removed. If so, the main thread will handle the next window
     if (p_Index == 0 && !m_Tasks.empty())
     {
         m_Tasks[0]->WaitUntilFinished();
@@ -67,28 +69,8 @@ ONYX_DIMENSION_TEMPLATE bool Application<N>::NextFrame() noexcept
     if (m_Windows.empty())
         return false;
 
-    KIT::TaskManager *taskManager = Core::TaskManager();
     Input::PollEvents();
-    for (usize i = 1; i < m_Windows.size(); ++i)
-    {
-        auto &task = m_Tasks[i];
-        if (!task)
-        {
-            Window<N> *window = m_Windows[i].Get();
-            task = taskManager->CreateAndSubmit([this, window](usize) { runFrame(*window); });
-        }
-        else
-        {
-            task->WaitUntilFinished();
-            task->Reset();
-            taskManager->SubmitTask(task);
-        }
-    }
-    runFrame(*m_Windows[0]);
-
-    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
-        if (m_Windows[i]->ShouldClose())
-            CloseWindow(i);
+    runAndManageWindows();
     return !m_Windows.empty();
 }
 
@@ -98,6 +80,32 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::Run() noexcept
     while (NextFrame())
         ;
     Shutdown();
+}
+
+ONYX_DIMENSION_TEMPLATE void Application<N>::runAndManageWindows() noexcept
+{
+    KIT::TaskManager *taskManager = Core::TaskManager();
+    for (usize i = 1; i < m_Windows.size(); ++i)
+    {
+        auto &task = m_Tasks[i];
+        if (!task)
+        {
+            Window<N> *window = m_Windows[i].Get();
+            task = taskManager->CreateAndSubmit([window](usize) { runFrame(*window); });
+        }
+        else
+        {
+            task->WaitUntilFinished();
+            task->Reset();
+            taskManager->SubmitTask(task);
+        }
+    }
+    // Main thread always handles the first window. First element of tasks is always nullptr
+    runFrame(*m_Windows[0]);
+
+    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+        if (m_Windows[i]->ShouldClose())
+            CloseWindow(i);
 }
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::runFrame(Window<N> &p_Window) noexcept
