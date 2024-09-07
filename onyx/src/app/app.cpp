@@ -84,9 +84,9 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::Run() noexcept
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::runAndManageWindows() noexcept
 {
-    KIT::TaskManager *taskManager = Core::TaskManager();
     for (usize i = 1; i < m_Windows.size(); ++i)
     {
+        KIT::TaskManager *taskManager = Core::TaskManager();
         auto &task = m_Tasks[i];
         if (!task)
         {
