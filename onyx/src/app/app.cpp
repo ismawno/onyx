@@ -38,6 +38,8 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(usize p_Index) noexcept
     {
         m_Tasks[0]->WaitUntilFinished();
         m_Tasks[0] = nullptr;
+        shutdownImGui();
+        initializeImGui();
     }
 }
 
@@ -129,12 +131,13 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::beginRenderImGui() noexcept
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
 {
+
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
-    ImGui::UpdatePlatformWindows();
 
-    // Lock the queues, imgui docking will call vkQueueSubmit
+    // Lock the queues, as imgui requires them
     m_Device->LockQueues();
+    ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault();
     m_Device->UnlockQueues();
 }
@@ -161,7 +164,6 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::initializeImGui() noexcept
     poolInfo.poolSizeCount = 11;
     poolInfo.pPoolSizes = poolSizes;
 
-    const auto &instance = Core::Instance();
     KIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->VulkanDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
                        "Failed to create descriptor pool");
 
@@ -176,6 +178,7 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::initializeImGui() noexcept
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForVulkan(window->GLFWWindow(), true);
 
+    const auto &instance = Core::Instance();
     ImGui_ImplVulkan_InitInfo initInfo{};
     initInfo.Instance = instance->VulkanInstance();
     initInfo.PhysicalDevice = m_Device->PhysicalDevice();
