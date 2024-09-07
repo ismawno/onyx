@@ -20,8 +20,14 @@ class ONYX_API Renderer
     void BeginRenderPass(const Color &p_ClearColor) noexcept;
     void EndRenderPass() noexcept;
 
-    VkCommandBuffer CurrentCommandBuffer() const noexcept;
+    template <typename F> void ImmediateSubmission(F &&p_Submission) const noexcept
+    {
+        const VkCommandBuffer cmd = m_Device->BeginSingleTimeCommands();
+        std::forward<F>(p_Submission)(cmd);
+        m_Device->EndSingleTimeCommands(cmd);
+    }
 
+    VkCommandBuffer CurrentCommandBuffer() const noexcept;
     const SwapChain &GetSwapChain() const noexcept;
 
   private:

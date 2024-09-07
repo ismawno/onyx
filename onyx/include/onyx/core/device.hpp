@@ -40,6 +40,7 @@ class ONYX_API Device : public KIT::RefCounted<Device>
 
     bool IsSuitable(VkSurfaceKHR p_Surface) const noexcept;
     VkDevice VulkanDevice() const noexcept;
+    VkPhysicalDevice PhysicalDevice() const noexcept;
 
     VkQueue GraphicsQueue() const noexcept;
     VkQueue PresentQueue() const noexcept;

@@ -34,7 +34,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
         if (const VkCommandBuffer cmd = m_Renderer->BeginFrame(*this))
         {
             m_Renderer->BeginRenderPass(BackgroundColor);
-            p_Submission(cmd);
+            std::forward<F>(p_Submission)(cmd);
             m_Renderer->EndRenderPass();
             m_Renderer->EndFrame(*this);
             return true;
@@ -46,8 +46,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
     void MakeContextCurrent() const noexcept;
     bool ShouldClose() const noexcept;
 
-    const GLFWwindow *GetGLFWWindow() const noexcept;
-    GLFWwindow *GetGLFWWindow() noexcept;
+    const GLFWwindow *GLFWWindow() const noexcept;
+    GLFWwindow *GLFWWindow() noexcept;
 
     const char *Name() const noexcept;
     u32 ScreenWidth() const noexcept;
@@ -67,6 +67,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
 
     void PushEvent(const Event &p_Event) noexcept;
     Event PopEvent() noexcept;
+
+    const Renderer &GetRenderer() const noexcept;
 
     Color BackgroundColor = Color::BLACK;
 

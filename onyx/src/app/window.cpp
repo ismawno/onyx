@@ -56,11 +56,11 @@ ONYX_DIMENSION_TEMPLATE bool Window<N>::ShouldClose() const noexcept
     return glfwWindowShouldClose(m_Window);
 }
 
-ONYX_DIMENSION_TEMPLATE const GLFWwindow *Window<N>::GetGLFWWindow() const noexcept
+ONYX_DIMENSION_TEMPLATE const GLFWwindow *Window<N>::GLFWWindow() const noexcept
 {
     return m_Window;
 }
-ONYX_DIMENSION_TEMPLATE GLFWwindow *Window<N>::GetGLFWWindow() noexcept
+ONYX_DIMENSION_TEMPLATE GLFWwindow *Window<N>::GLFWWindow() noexcept
 {
     return m_Window;
 }
@@ -135,6 +135,11 @@ ONYX_DIMENSION_TEMPLATE Event Window<N>::PopEvent() noexcept
     event = m_Events.front();
     m_Events.pop_front();
     return event;
+}
+
+ONYX_DIMENSION_TEMPLATE const Renderer &Window<N>::GetRenderer() const noexcept
+{
+    return *m_Renderer;
 }
 
 template class Window<2>;

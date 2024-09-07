@@ -9,7 +9,7 @@ namespace ONYX
 static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const DynamicArray<VkSurfaceFormatKHR> &p_Formats) noexcept
 {
     for (const VkSurfaceFormatKHR &format : p_Formats)
-        if (format.format == VK_FORMAT_B8G8R8A8_SRGB)
+        if (format.format == VK_FORMAT_B8G8R8A8_UNORM)
             return format;
     return p_Formats[0];
 }

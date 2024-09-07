@@ -107,11 +107,11 @@ ONYX_DIMENSION_TEMPLATE static void scrollCallback(GLFWwindow *p_Window, double 
 
 ONYX_DIMENSION_TEMPLATE void Input::InstallCallbacks(Window<N> &p_Window) noexcept
 {
-    glfwSetWindowSizeCallback(p_Window.GetGLFWWindow(), windowResizeCallback<N>);
-    glfwSetKeyCallback(p_Window.GetGLFWWindow(), keyCallback<N>);
-    glfwSetCursorPosCallback(p_Window.GetGLFWWindow(), cursorPositionCallback<N>);
-    glfwSetMouseButtonCallback(p_Window.GetGLFWWindow(), mouseButtonCallback<N>);
-    glfwSetScrollCallback(p_Window.GetGLFWWindow(), scrollCallback<N>);
+    glfwSetWindowSizeCallback(p_Window.GLFWWindow(), windowResizeCallback<N>);
+    glfwSetKeyCallback(p_Window.GLFWWindow(), keyCallback<N>);
+    glfwSetCursorPosCallback(p_Window.GLFWWindow(), cursorPositionCallback<N>);
+    glfwSetMouseButtonCallback(p_Window.GLFWWindow(), mouseButtonCallback<N>);
+    glfwSetScrollCallback(p_Window.GLFWWindow(), scrollCallback<N>);
 }
 
 template void Input::InstallCallbacks<2>(Window<2> &p_Window) noexcept;

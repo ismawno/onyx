@@ -139,6 +139,10 @@ VkDevice Device::VulkanDevice() const noexcept
 {
     return m_Device;
 }
+VkPhysicalDevice Device::PhysicalDevice() const noexcept
+{
+    return m_PhysicalDevice;
+}
 
 Device::QueueFamilyIndices Device::FindQueueFamilies(const VkSurfaceKHR p_Surface) const noexcept
 {
