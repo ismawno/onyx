@@ -28,7 +28,7 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     explicit Device(VkSurfaceKHR p_Surface) noexcept;
     ~Device() noexcept;
 
-    void WaitIdle() const noexcept;
+    void WaitIdle() noexcept;
 
     VkFormat FindSupportedFormat(std::span<const VkFormat> p_Candidates, VkImageTiling p_Tiling,
                                  VkFormatFeatureFlags p_Features) const noexcept;

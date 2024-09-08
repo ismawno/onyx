@@ -25,13 +25,10 @@ Renderer::~Renderer() noexcept
     // finished
 
     // Lock the queues to prevent any other command buffers from being submitted
-    m_Device->LockQueues();
     m_Device->WaitIdle();
-
     vkFreeCommandBuffers(m_Device->VulkanDevice(), m_CommandPool, SwapChain::MAX_FRAMES_IN_FLIGHT,
                          m_CommandBuffers.data());
     vkDestroyCommandPool(m_Device->VulkanDevice(), m_CommandPool, nullptr);
-    m_Device->UnlockQueues();
 }
 
 ONYX_DIMENSION_TEMPLATE VkCommandBuffer Renderer::BeginFrame(Window<N> &p_Window) noexcept
@@ -156,12 +153,8 @@ ONYX_DIMENSION_TEMPLATE void Renderer::createSwapChain(Window<N> &p_Window) noex
         windowExtent = {p_Window.ScreenWidth(), p_Window.ScreenHeight()};
         glfwWaitEvents();
     }
-    // When having multiple windows, the await operation must be protected by locks so that other windows do not
-    // interfere by submitting more commands to the queue
-    m_Device->LockQueues();
     m_Device->WaitIdle();
     m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.Surface(), m_SwapChain.Get());
-    m_Device->UnlockQueues();
 }
 
 void Renderer::createCommandPool(const VkSurfaceKHR p_Surface) noexcept

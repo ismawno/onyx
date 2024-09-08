@@ -125,9 +125,11 @@ Device::~Device() noexcept
     vkDestroyDevice(m_Device, nullptr);
 }
 
-void Device::WaitIdle() const noexcept
+void Device::WaitIdle() noexcept
 {
+    LockQueues();
     vkDeviceWaitIdle(m_Device);
+    UnlockQueues();
 }
 
 bool Device::IsSuitable(const VkSurfaceKHR p_Surface) const noexcept

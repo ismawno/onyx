@@ -6,7 +6,6 @@
 
 namespace ONYX
 {
-
 ONYX_DIMENSION_TEMPLATE Application<N>::~Application() noexcept
 {
     if (!m_Terminated && m_Started)
@@ -45,10 +44,8 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(const usize p_Index) no
 
         m_Tasks[0]->WaitUntilFinished();
         m_Tasks[0] = nullptr;
-        m_Device->LockQueues();
         shutdownImGui();
         initializeImGui(*m_Windows[0]);
-        m_Device->UnlockQueues();
     }
     else
         m_Windows.erase(m_Windows.begin() + p_Index);
@@ -150,7 +147,6 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::beginRenderImGui() noexcept
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
 {
-
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
 
