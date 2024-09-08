@@ -45,6 +45,6 @@ class ONYX_API Renderer
     u32 m_FrameIndex = 0;
     bool m_FrameStarted = false;
 
-    KIT::Ref<KIT::Task<VkResult>> m_QueueSubmitTask;
+    KIT::Ref<KIT::Task<VkResult>> m_PresentTask;
 };
 } // namespace ONYX

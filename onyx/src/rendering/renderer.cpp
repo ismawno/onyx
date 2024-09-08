@@ -20,23 +20,27 @@ ONYX_DIMENSION_TEMPLATE Renderer::Renderer(Window<N> &p_Window) noexcept
 
 Renderer::~Renderer() noexcept
 {
-    m_QueueSubmitTask->WaitUntilFinished();
+    m_PresentTask->WaitUntilFinished();
     // Must wait for the device. Windows/Renderers may be destroyed at runtime, and all its command buffers must have
     // finished
+
+    // Lock the queues to prevent any other command buffers from being submitted
+    m_Device->LockQueues();
     m_Device->WaitIdle();
 
     vkFreeCommandBuffers(m_Device->VulkanDevice(), m_CommandPool, SwapChain::MAX_FRAMES_IN_FLIGHT,
                          m_CommandBuffers.data());
     vkDestroyCommandPool(m_Device->VulkanDevice(), m_CommandPool, nullptr);
+    m_Device->UnlockQueues();
 }
 
 ONYX_DIMENSION_TEMPLATE VkCommandBuffer Renderer::BeginFrame(Window<N> &p_Window) noexcept
 {
     KIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
 
-    if (m_QueueSubmitTask)
+    if (m_PresentTask)
     {
-        const VkResult result = m_QueueSubmitTask->WaitForResult();
+        const VkResult result = m_PresentTask->WaitForResult();
         const bool resizeFixes =
             result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || p_Window.WasResized();
         if (resizeFixes)
@@ -76,8 +80,8 @@ ONYX_DIMENSION_TEMPLATE void Renderer::EndFrame(Window<N> &) noexcept
     KIT::TaskManager *taskManager = Core::TaskManager();
 
     // TODO: Profile this task usage
-    if (!m_QueueSubmitTask)
-        m_QueueSubmitTask = taskManager->CreateAndSubmit([this](usize) {
+    if (!m_PresentTask)
+        m_PresentTask = taskManager->CreateAndSubmit([this](usize) {
             KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex),
                                VK_SUCCESS, "Failed to submit command buffers");
             m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MAX_FRAMES_IN_FLIGHT;
@@ -85,8 +89,8 @@ ONYX_DIMENSION_TEMPLATE void Renderer::EndFrame(Window<N> &) noexcept
         });
     else
     {
-        m_QueueSubmitTask->Reset();
-        taskManager->SubmitTask(m_QueueSubmitTask);
+        m_PresentTask->Reset();
+        taskManager->SubmitTask(m_PresentTask);
     }
     m_FrameStarted = false;
 }

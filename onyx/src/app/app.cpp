@@ -6,6 +6,7 @@
 
 namespace ONYX
 {
+
 ONYX_DIMENSION_TEMPLATE Application<N>::~Application() noexcept
 {
     if (!m_Terminated && m_Started)
@@ -15,6 +16,9 @@ ONYX_DIMENSION_TEMPLATE Application<N>::~Application() noexcept
 ONYX_DIMENSION_TEMPLATE Window<N> *Application<N>::OpenWindow(const Window<N>::Specs &p_Specs) noexcept
 {
     m_Windows.push_back(KIT::Scope<Window<N>>::Create(p_Specs));
+    if (m_Windows.size() == 1)
+        m_Device = Core::Device();
+
     m_Tasks.emplace_back();
     return m_Windows.back().Get();
 }
@@ -24,23 +28,30 @@ ONYX_DIMENSION_TEMPLATE Window<N> *Application<N>::OpenWindow() noexcept
     return OpenWindow(typename Window<N>::Specs{});
 }
 
-ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(usize p_Index) noexcept
+ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
     if (m_Tasks[p_Index])
         m_Tasks[p_Index]->WaitUntilFinished();
 
-    m_Windows.erase(m_Windows.begin() + p_Index);
     m_Tasks.erase(m_Tasks.begin() + p_Index);
 
     // Check if the main window got removed. If so, the main thread will handle the next window
-    if (p_Index == 0 && !m_Tasks.empty())
+    if (p_Index == 0)
     {
+        m_Windows.erase(m_Windows.begin() + p_Index);
+        if (m_Tasks.empty())
+            return;
+
         m_Tasks[0]->WaitUntilFinished();
         m_Tasks[0] = nullptr;
+        m_Device->LockQueues();
         shutdownImGui();
-        initializeImGui();
+        initializeImGui(*m_Windows[0]);
+        m_Device->UnlockQueues();
     }
+    else
+        m_Windows.erase(m_Windows.begin() + p_Index);
 }
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(const Window<N> *p_Window) noexcept
@@ -58,8 +69,7 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::Start() noexcept
 {
     KIT_ASSERT(!m_Terminated && !m_Started, "Application already started");
     KIT_ASSERT(!m_Windows.empty(), "Must first open a window");
-    m_Device = Core::Device();
-    initializeImGui();
+    initializeImGui(*m_Windows[0]);
     m_Started = true;
 }
 
@@ -106,8 +116,17 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::runAndManageWindows() noexcept
             taskManager->SubmitTask(task);
         }
     }
+    static bool openWindow = false;
+    if (openWindow)
+    {
+        OpenWindow();
+        openWindow = false;
+    }
+
     beginRenderImGui();
     ImGui::Begin("Windows");
+    openWindow = ImGui::Button("Open window");
+    ImGui::Text("Number of windows: %zu", m_Windows.size());
     ImGui::End();
     // Main thread always handles the first window. First element of tasks is always nullptr
     runFrame(*m_Windows[0], [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
@@ -142,9 +161,9 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::endRenderImGui(VkCommandBuffer p_Co
     m_Device->UnlockQueues();
 }
 
-ONYX_DIMENSION_TEMPLATE void Application<N>::initializeImGui() noexcept
+ONYX_DIMENSION_TEMPLATE void Application<N>::initializeImGui(Window<N> &p_Window) noexcept
 {
-    constexpr std::uint32_t poolSize = 1000;
+    constexpr std::uint32_t poolSize = 100;
     VkDescriptorPoolSize poolSizes[11] = {{VK_DESCRIPTOR_TYPE_SAMPLER, poolSize},
                                           {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, poolSize},
                                           {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, poolSize},
@@ -174,9 +193,8 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::initializeImGui() noexcept
     io.ConfigFlags |=
         ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
 
-    auto &window = m_Windows[0];
     ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForVulkan(window->GLFWWindow(), true);
+    ImGui_ImplGlfw_InitForVulkan(p_Window.GLFWWindow(), true);
 
     const auto &instance = Core::Instance();
     ImGui_ImplVulkan_InitInfo initInfo{};
@@ -188,15 +206,16 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::initializeImGui() noexcept
     initInfo.MinImageCount = 3;
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    initInfo.RenderPass = window->GetRenderer().GetSwapChain().RenderPass();
+    initInfo.RenderPass = p_Window.GetRenderer().GetSwapChain().RenderPass();
 
     ImGui_ImplVulkan_Init(&initInfo);
     ImGui_ImplVulkan_CreateFontsTexture();
-    // ImGui_ImplVulkan_DestroyFontsTexture();
 }
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::shutdownImGui() noexcept
 {
+    m_Device->WaitIdle();
+    ImGui_ImplVulkan_DestroyFontsTexture();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();

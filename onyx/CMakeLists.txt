@@ -60,6 +60,7 @@ find_package(Vulkan REQUIRED)
 
 if (NOT Vulkan_FOUND)
     message(STATUS "ONYX: A global Vulkan installation was not found. Fetching the Vulkan SDK...")
+    message(STATUS "ONYX: Manually fetching the Vulkan SDK may not provide the necessary extensions. A global installation is recommended")
     set(ONYX_LOCAL_VULKAN_SDK ON CACHE BOOL "Use the local Vulkan SDK" FORCE)
 
     FetchContent_Declare(
@@ -107,12 +108,12 @@ foreach(SHADER ${SHADERS})
     compile_shader(${SHADER})
 endforeach()
 
-# TODO: Links against vulkan and glfw should be private
-
 if (ONYX_LOCAL_VULKAN_SDK)
     target_include_directories(onyx PUBLIC ${Vulkan_INCLUDE_DIRS})
     target_link_libraries(onyx PUBLIC ${Vulkan_LIBRARIES} Vulkan::Headers Vulkan::Vulkan)
 endif()
+
+### IMGUI ###
 
 set(IMGUI_DIR ${CMAKE_BINARY_DIR}/_deps/imgui-src)
 
@@ -129,6 +130,8 @@ set(IMGUI_SOURCES
 add_library(imgui STATIC ${IMGUI_SOURCES})
 target_include_directories(imgui PUBLIC ${IMGUI_DIR})
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
+
+### /IMGUI ###
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(onyx PUBLIC toolkit glm imgui)

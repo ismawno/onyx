@@ -38,7 +38,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Application
     static void beginRenderImGui() noexcept;
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
 
-    void initializeImGui() noexcept;
+    void initializeImGui(Window<N> &p_Window) noexcept;
     void shutdownImGui() noexcept;
 
     DynamicArray<KIT::Scope<Window<N>>> m_Windows;
