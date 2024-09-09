@@ -182,7 +182,7 @@ void Application::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
     // Lock the queues, as imgui requires them
     m_Device->LockQueues();
     ImGui::UpdatePlatformWindows();
-    ImGui::RenderPlatformWindowsDefault();
+    ImGui::RenderPlatformWindowsDefault(nullptr, p_CommandBuffer);
     m_Device->UnlockQueues();
 }
 
@@ -204,7 +204,7 @@ void Application::createImGuiPool() noexcept
     VkDescriptorPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    poolInfo.maxSets = 1000;
+    poolInfo.maxSets = poolSize;
     poolInfo.poolSizeCount = 11;
     poolInfo.pPoolSizes = poolSizes;
 
@@ -248,6 +248,7 @@ void Application::shutdownImGui() noexcept
     ImGui_ImplVulkan_DestroyFontsTexture();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyPlatformWindows();
     ImGui::DestroyContext();
 }
 } // namespace ONYX

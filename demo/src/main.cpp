@@ -15,7 +15,6 @@ int main()
 
     ONYX::Application app;
     app.OpenWindow2D();
-    app.OpenWindow3D();
 
     app.Run();
 
