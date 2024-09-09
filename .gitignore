@@ -5,6 +5,7 @@ build*.ini
 onyx/shaders/bin/
 .venv/
 .DS_Store
+imgui.ini
 
 # Prerequisites
 *.d
