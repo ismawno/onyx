@@ -6,6 +6,17 @@
 
 namespace ONYX
 {
+ONYX_DIMENSION_TEMPLATE static void runFrame(Window<N> &p_Window) noexcept
+{
+    runFrame(p_Window, [](const VkCommandBuffer) {});
+}
+template <u32 N, typename F> static void runFrame(Window<N> &p_Window, F &&p_Submission) noexcept
+{
+    p_Window.MakeContextCurrent();
+    KIT_ASSERT_RETURNS(p_Window.Display(std::forward<F>(p_Submission)), true,
+                       "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
+}
+
 ONYX_DIMENSION_TEMPLATE Application<N>::~Application() noexcept
 {
     if (!m_Terminated && m_Started)
@@ -14,12 +25,17 @@ ONYX_DIMENSION_TEMPLATE Application<N>::~Application() noexcept
 
 ONYX_DIMENSION_TEMPLATE Window<N> *Application<N>::OpenWindow(const Window<N>::Specs &p_Specs) noexcept
 {
-    m_Windows.push_back(KIT::Scope<Window<N>>::Create(p_Specs));
-    if (m_Windows.size() == 1)
+    WindowData windowData;
+    windowData.Window = KIT::Scope<Window<N>>::Create(p_Specs);
+    windowData.Task = nullptr;
+    if (m_WindowData.empty())
+    {
         m_Device = Core::Device();
+        initializeImGui(*windowData.Window);
+    }
 
-    m_Tasks.emplace_back();
-    return m_Windows.back().Get();
+    m_WindowData.push_back(std::move(windowData));
+    return m_WindowData.back().Window.Get();
 }
 
 ONYX_DIMENSION_TEMPLATE Window<N> *Application<N>::OpenWindow() noexcept
@@ -29,32 +45,27 @@ ONYX_DIMENSION_TEMPLATE Window<N> *Application<N>::OpenWindow() noexcept
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(const usize p_Index) noexcept
 {
-    KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
-    if (m_Tasks[p_Index])
-        m_Tasks[p_Index]->WaitUntilFinished();
+    KIT_ASSERT(p_Index < m_WindowData.size(), "Index out of bounds");
+    if (m_WindowData[p_Index].Task)
+        m_WindowData[p_Index].Task->WaitUntilFinished();
 
-    m_Tasks.erase(m_Tasks.begin() + p_Index);
-
+    m_WindowData.erase(m_WindowData.begin() + p_Index);
     // Check if the main window got removed. If so, the main thread will handle the next window
     if (p_Index == 0)
     {
-        m_Windows.erase(m_Windows.begin() + p_Index);
-        if (m_Tasks.empty())
-            return;
-
-        m_Tasks[0]->WaitUntilFinished();
-        m_Tasks[0] = nullptr;
         shutdownImGui();
-        initializeImGui(*m_Windows[0]);
+        if (m_WindowData.empty())
+            return;
+        m_WindowData[0].Task->WaitUntilFinished();
+        m_WindowData[0].Task = nullptr;
+        initializeImGui(*m_WindowData[0].Window);
     }
-    else
-        m_Windows.erase(m_Windows.begin() + p_Index);
 }
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(const Window<N> *p_Window) noexcept
 {
-    for (usize i = 0; i < m_Windows.size(); ++i)
-        if (m_Windows[i].Get() == p_Window)
+    for (usize i = 0; i < m_WindowData.size(); ++i)
+        if (m_WindowData[i].Window.Get() == p_Window)
         {
             CloseWindow(i);
             return;
@@ -65,26 +76,28 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::CloseWindow(const Window<N> *p_Wind
 ONYX_DIMENSION_TEMPLATE void Application<N>::Start() noexcept
 {
     KIT_ASSERT(!m_Terminated && !m_Started, "Application already started");
-    KIT_ASSERT(!m_Windows.empty(), "Must first open a window");
-    initializeImGui(*m_Windows[0]);
     m_Started = true;
 }
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::Shutdown() noexcept
 {
     KIT_ASSERT(!m_Terminated && m_Started, "Application not started");
-    shutdownImGui();
+    for (usize i = m_WindowData.size() - 1; i < m_WindowData.size(); --i)
+        if (m_WindowData[i].Window->ShouldClose())
+            CloseWindow(i);
+    if (m_Device)
+        vkDestroyDescriptorPool(m_Device->VulkanDevice(), m_ImGuiPool, nullptr);
     m_Terminated = true;
 }
 
 ONYX_DIMENSION_TEMPLATE bool Application<N>::NextFrame() noexcept
 {
-    if (m_Windows.empty())
+    if (m_WindowData.empty())
         return false;
 
     Input::PollEvents();
     runAndManageWindows();
-    return !m_Windows.empty();
+    return !m_WindowData.empty();
 }
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::Run() noexcept
@@ -97,20 +110,20 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::Run() noexcept
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::runAndManageWindows() noexcept
 {
-    for (usize i = 1; i < m_Windows.size(); ++i)
+    for (usize i = 1; i < m_WindowData.size(); ++i)
     {
         KIT::TaskManager *taskManager = Core::TaskManager();
-        auto &task = m_Tasks[i];
-        if (!task)
+        WindowData &windowData = m_WindowData[i];
+        if (!windowData.Task)
         {
-            Window<N> *window = m_Windows[i].Get();
-            task = taskManager->CreateAndSubmit([window](usize) { runFrame(*window); });
+            Window<N> *window = windowData.Window.Get();
+            windowData.Task = taskManager->CreateAndSubmit([window](usize) { runFrame(*window); });
         }
         else
         {
-            task->WaitUntilFinished();
-            task->Reset();
-            taskManager->SubmitTask(task);
+            windowData.Task->WaitUntilFinished();
+            windowData.Task->Reset();
+            taskManager->SubmitTask(windowData.Task);
         }
     }
     static bool openWindow = false;
@@ -123,19 +136,15 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::runAndManageWindows() noexcept
     beginRenderImGui();
     ImGui::Begin("Windows");
     openWindow = ImGui::Button("Open window");
-    ImGui::Text("Number of windows: %zu", m_Windows.size());
+    ImGui::Text("Number of windows: %zu", m_WindowData.size());
     ImGui::End();
     // Main thread always handles the first window. First element of tasks is always nullptr
-    runFrame(*m_Windows[0], [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+    runFrame(*m_WindowData[0].Window,
+             [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
 
-    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
-        if (m_Windows[i]->ShouldClose())
+    for (usize i = m_WindowData.size() - 1; i < m_WindowData.size(); --i)
+        if (m_WindowData[i].Window->ShouldClose())
             CloseWindow(i);
-}
-
-ONYX_DIMENSION_TEMPLATE void Application<N>::runFrame(Window<N> &p_Window) noexcept
-{
-    runFrame(p_Window, [](const VkCommandBuffer) {});
 }
 
 ONYX_DIMENSION_TEMPLATE void Application<N>::beginRenderImGui() noexcept
@@ -157,7 +166,7 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::endRenderImGui(VkCommandBuffer p_Co
     m_Device->UnlockQueues();
 }
 
-ONYX_DIMENSION_TEMPLATE void Application<N>::initializeImGui(Window<N> &p_Window) noexcept
+ONYX_DIMENSION_TEMPLATE void Application<N>::createImGuiPool() noexcept
 {
     constexpr std::uint32_t poolSize = 100;
     VkDescriptorPoolSize poolSizes[11] = {{VK_DESCRIPTOR_TYPE_SAMPLER, poolSize},
@@ -181,7 +190,12 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::initializeImGui(Window<N> &p_Window
 
     KIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->VulkanDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
                        "Failed to create descriptor pool");
+}
 
+ONYX_DIMENSION_TEMPLATE void Application<N>::initializeImGui(Window<N> &p_Window) noexcept
+{
+    if (!m_ImGuiPool)
+        createImGuiPool();
     ImGui::CreateContext();
 
     IMGUI_CHECKVERSION();
@@ -215,7 +229,6 @@ ONYX_DIMENSION_TEMPLATE void Application<N>::shutdownImGui() noexcept
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-    vkDestroyDescriptorPool(m_Device->VulkanDevice(), m_ImGuiPool, nullptr);
 }
 
 template class Application<2>;

@@ -24,16 +24,14 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Application
     void Run() noexcept;
 
   private:
-    void runAndManageWindows() noexcept;
-
-    static void runFrame(Window<N> &p_Window) noexcept;
-    template <typename F> static void runFrame(Window<N> &p_Window, F &&p_Submission) noexcept
+    struct WindowData
     {
-        p_Window.MakeContextCurrent();
-        KIT_ASSERT_RETURNS(
-            p_Window.Display(std::forward<F>(p_Submission)), true,
-            "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
-    }
+        KIT::Scope<Window<N>> Window;
+        KIT::Ref<KIT::Task<void>> Task;
+    };
+
+    void createImGuiPool() noexcept;
+    void runAndManageWindows() noexcept;
 
     static void beginRenderImGui() noexcept;
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
@@ -41,8 +39,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Application
     void initializeImGui(Window<N> &p_Window) noexcept;
     void shutdownImGui() noexcept;
 
-    DynamicArray<KIT::Scope<Window<N>>> m_Windows;
-    DynamicArray<KIT::Ref<KIT::Task<void>>> m_Tasks;
+    DynamicArray<WindowData> m_WindowData;
     KIT::Ref<Device> m_Device;
 
     bool m_Started = false;
