@@ -89,10 +89,17 @@ function(compile_shader shader)
     set(SPIRV "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin/${shader}.spv")
     
     add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin
+        COMMENT "Creating bin directory for shaders"
+    )
+
+    add_custom_command(
         TARGET onyx
         PRE_BUILD
         COMMAND ${GLSLC_EXECUTABLE} ${SHADER} -o ${SPIRV}
         COMMENT "Compiling ${shader} to SPIR-V"
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin
         VERBATIM
     )
 endfunction()

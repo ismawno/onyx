@@ -95,6 +95,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window final : public IWindow
     KIT_NON_COPYABLE(Window)
   public:
     KIT_BLOCK_ALLOCATED_SERIAL(IWindow, 8)
+    using Specs = typename IWindow::Specs;
     using IWindow::IWindow;
 
   private:
