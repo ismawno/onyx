@@ -4,18 +4,24 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE class ONYX_API Application
+class ONYX_API Application
 {
     KIT_NON_COPYABLE(Application)
   public:
     Application() noexcept = default;
     ~Application() noexcept;
 
-    Window<N> *OpenWindow(const Window<N>::Specs &p_Specs) noexcept;
-    Window<N> *OpenWindow() noexcept;
+    ONYX_DIMENSION_TEMPLATE Window<N> *OpenWindow(const Window<N>::Specs &p_Specs) noexcept;
+    ONYX_DIMENSION_TEMPLATE Window<N> *OpenWindow() noexcept;
+
+    Window2D *OpenWindow2D(const Window2D::Specs &p_Specs) noexcept;
+    Window2D *OpenWindow2D() noexcept;
+
+    Window3D *OpenWindow3D(const Window3D::Specs &p_Specs) noexcept;
+    Window3D *OpenWindow3D() noexcept;
 
     void CloseWindow(usize p_Index) noexcept;
-    void CloseWindow(const Window<N> *p_Window) noexcept;
+    void CloseWindow(const IWindow *p_Window) noexcept;
 
     void Start() noexcept;
     void Shutdown() noexcept;
@@ -26,7 +32,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Application
   private:
     struct WindowData
     {
-        KIT::Scope<Window<N>> Window;
+        KIT::Scope<IWindow> Window;
         KIT::Ref<KIT::Task<void>> Task;
     };
 
@@ -36,7 +42,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Application
     static void beginRenderImGui() noexcept;
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
 
-    void initializeImGui(Window<N> &p_Window) noexcept;
+    void initializeImGui(IWindow &p_Window) noexcept;
     void shutdownImGui() noexcept;
 
     DynamicArray<WindowData> m_WindowData;
@@ -47,7 +53,4 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Application
 
     VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
 };
-
-using Application2D = Application<2>;
-using Application3D = Application<3>;
 } // namespace ONYX

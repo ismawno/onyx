@@ -12,11 +12,10 @@
 namespace ONYX
 {
 // TODO: Align window to the cache line in case a multi window app is used?
-ONYX_DIMENSION_TEMPLATE class ONYX_API Window
+class ONYX_API IWindow
 {
-    KIT_NON_COPYABLE(Window)
+    KIT_NON_COPYABLE(IWindow)
   public:
-    KIT_BLOCK_ALLOCATED_SERIAL(Window<N>, 8)
     struct Specs
     {
         const char *Name = "Onyx window";
@@ -24,10 +23,10 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
         u32 Height = 600;
     };
 
-    Window() noexcept;
-    explicit Window(const Specs &p_Specs) noexcept;
+    IWindow() noexcept;
+    explicit IWindow(const Specs &p_Specs) noexcept;
 
-    ~Window() noexcept;
+    virtual ~IWindow() noexcept;
 
     template <typename F> bool Display(F &&p_Submission) noexcept
     {
@@ -35,6 +34,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
         {
             m_Renderer->BeginRenderPass(BackgroundColor);
             std::forward<F>(p_Submission)(cmd);
+            runRenderSystems();
             m_Renderer->EndRenderPass();
             m_Renderer->EndFrame(*this);
             return true;
@@ -72,6 +72,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
 
     Color BackgroundColor = Color::BLACK;
 
+  protected:
+    virtual void runRenderSystems() noexcept = 0;
+
   private:
     void initialize() noexcept;
 
@@ -85,6 +88,17 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window
     Specs m_Specs;
 
     bool m_Resized = false;
+};
+
+ONYX_DIMENSION_TEMPLATE class ONYX_API Window final : public IWindow
+{
+    KIT_NON_COPYABLE(Window)
+  public:
+    KIT_BLOCK_ALLOCATED_SERIAL(IWindow, 8)
+    using IWindow::IWindow;
+
+  private:
+    void runRenderSystems() noexcept override;
 };
 
 using Window2D = Window<2>;

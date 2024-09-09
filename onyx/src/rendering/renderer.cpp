@@ -10,7 +10,7 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE Renderer::Renderer(Window<N> &p_Window) noexcept
+Renderer::Renderer(IWindow &p_Window) noexcept
 {
     m_Device = Core::Device();
     createSwapChain(p_Window);
@@ -31,7 +31,7 @@ Renderer::~Renderer() noexcept
     vkDestroyCommandPool(m_Device->VulkanDevice(), m_CommandPool, nullptr);
 }
 
-ONYX_DIMENSION_TEMPLATE VkCommandBuffer Renderer::BeginFrame(Window<N> &p_Window) noexcept
+VkCommandBuffer Renderer::BeginFrame(IWindow &p_Window) noexcept
 {
     KIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
 
@@ -69,7 +69,7 @@ ONYX_DIMENSION_TEMPLATE VkCommandBuffer Renderer::BeginFrame(Window<N> &p_Window
     return m_CommandBuffers[m_FrameIndex];
 }
 
-ONYX_DIMENSION_TEMPLATE void Renderer::EndFrame(Window<N> &) noexcept
+void Renderer::EndFrame(IWindow &) noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
     KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
@@ -145,7 +145,7 @@ const SwapChain &Renderer::GetSwapChain() const noexcept
     return *m_SwapChain;
 }
 
-ONYX_DIMENSION_TEMPLATE void Renderer::createSwapChain(Window<N> &p_Window) noexcept
+void Renderer::createSwapChain(IWindow &p_Window) noexcept
 {
     VkExtent2D windowExtent = {p_Window.ScreenWidth(), p_Window.ScreenHeight()};
     while (windowExtent.width == 0 || windowExtent.height == 0)
@@ -181,14 +181,5 @@ void Renderer::createCommandBuffers() noexcept
     KIT_ASSERT_RETURNS(vkAllocateCommandBuffers(m_Device->VulkanDevice(), &allocInfo, m_CommandBuffers.data()),
                        VK_SUCCESS, "Failed to create command buffers");
 }
-
-template Renderer::Renderer(Window<2> &) noexcept;
-template Renderer::Renderer(Window<3> &) noexcept;
-
-template VkCommandBuffer Renderer::BeginFrame<2>(Window<2> &) noexcept;
-template VkCommandBuffer Renderer::BeginFrame<3>(Window<3> &) noexcept;
-
-template void Renderer::EndFrame<2>(Window<2> &) noexcept;
-template void Renderer::EndFrame<3>(Window<3> &) noexcept;
 
 } // namespace ONYX

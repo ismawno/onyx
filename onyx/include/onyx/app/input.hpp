@@ -8,12 +8,12 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE class Window;
+class IWindow;
 struct ONYX_API Input
 {
     static void PollEvents();
 
-    ONYX_DIMENSION_TEMPLATE static void InstallCallbacks(Window<N> &p_Window) noexcept;
+    static void InstallCallbacks(IWindow &p_Window) noexcept;
     static vec2 MousePosition() noexcept;
 
     Input() = delete;

@@ -7,23 +7,23 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE Window<N>::Window() noexcept
+IWindow::IWindow() noexcept
 {
     initialize();
 }
-ONYX_DIMENSION_TEMPLATE Window<N>::Window(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
+IWindow::IWindow(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
 {
     initialize();
 }
 
-ONYX_DIMENSION_TEMPLATE Window<N>::~Window() noexcept
+IWindow::~IWindow() noexcept
 {
     m_Renderer.Release();
     vkDestroySurfaceKHR(m_Instance->VulkanInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::initialize() noexcept
+void IWindow::initialize() noexcept
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -41,90 +41,90 @@ ONYX_DIMENSION_TEMPLATE void Window<N>::initialize() noexcept
     Input::InstallCallbacks(*this);
 }
 
-ONYX_DIMENSION_TEMPLATE bool Window<N>::Display() noexcept
+bool IWindow::Display() noexcept
 {
     return Display([](const VkCommandBuffer) {});
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::MakeContextCurrent() const noexcept
+void IWindow::MakeContextCurrent() const noexcept
 {
     glfwMakeContextCurrent(m_Window);
 }
 
-ONYX_DIMENSION_TEMPLATE bool Window<N>::ShouldClose() const noexcept
+bool IWindow::ShouldClose() const noexcept
 {
     return glfwWindowShouldClose(m_Window);
 }
 
-ONYX_DIMENSION_TEMPLATE const GLFWwindow *Window<N>::GLFWWindow() const noexcept
+const GLFWwindow *IWindow::GLFWWindow() const noexcept
 {
     return m_Window;
 }
-ONYX_DIMENSION_TEMPLATE GLFWwindow *Window<N>::GLFWWindow() noexcept
+GLFWwindow *IWindow::GLFWWindow() noexcept
 {
     return m_Window;
 }
 
-ONYX_DIMENSION_TEMPLATE const char *Window<N>::Name() const noexcept
+const char *IWindow::Name() const noexcept
 {
     return m_Specs.Name;
 }
 
-ONYX_DIMENSION_TEMPLATE u32 Window<N>::ScreenWidth() const noexcept
+u32 IWindow::ScreenWidth() const noexcept
 {
     return m_Specs.Width;
 }
-ONYX_DIMENSION_TEMPLATE u32 Window<N>::ScreenHeight() const noexcept
+u32 IWindow::ScreenHeight() const noexcept
 {
     return m_Specs.Height;
 }
 
-ONYX_DIMENSION_TEMPLATE u32 Window<N>::PixelWidth() const noexcept
+u32 IWindow::PixelWidth() const noexcept
 {
     return m_Renderer->GetSwapChain().Width();
 }
-ONYX_DIMENSION_TEMPLATE u32 Window<N>::PixelHeight() const noexcept
+u32 IWindow::PixelHeight() const noexcept
 {
     return m_Renderer->GetSwapChain().Height();
 }
 
-ONYX_DIMENSION_TEMPLATE f32 Window<N>::ScreenAspect() const noexcept
+f32 IWindow::ScreenAspect() const noexcept
 {
     return static_cast<f32>(m_Specs.Width) / static_cast<f32>(m_Specs.Height);
 }
 
-ONYX_DIMENSION_TEMPLATE f32 Window<N>::PixelAspect() const noexcept
+f32 IWindow::PixelAspect() const noexcept
 {
     return m_Renderer->GetSwapChain().AspectRatio();
 }
 
-ONYX_DIMENSION_TEMPLATE bool Window<N>::WasResized() const noexcept
+bool IWindow::WasResized() const noexcept
 {
     return m_Resized;
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::FlagResize(const u32 p_Width, const u32 p_Height) noexcept
+void IWindow::FlagResize(const u32 p_Width, const u32 p_Height) noexcept
 {
     m_Specs.Width = p_Width;
     m_Specs.Height = p_Height;
     m_Resized = true;
 }
-ONYX_DIMENSION_TEMPLATE void Window<N>::FlagResizeDone() noexcept
+void IWindow::FlagResizeDone() noexcept
 {
     m_Resized = false;
 }
 
-ONYX_DIMENSION_TEMPLATE VkSurfaceKHR Window<N>::Surface() const noexcept
+VkSurfaceKHR IWindow::Surface() const noexcept
 {
     return m_Surface;
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::PushEvent(const Event &p_Event) noexcept
+void IWindow::PushEvent(const Event &p_Event) noexcept
 {
     m_Events.push_back(p_Event);
 }
 
-ONYX_DIMENSION_TEMPLATE Event Window<N>::PopEvent() noexcept
+Event IWindow::PopEvent() noexcept
 {
     Event event;
     if (m_Events.empty())
@@ -137,9 +137,13 @@ ONYX_DIMENSION_TEMPLATE Event Window<N>::PopEvent() noexcept
     return event;
 }
 
-ONYX_DIMENSION_TEMPLATE const Renderer &Window<N>::GetRenderer() const noexcept
+const Renderer &IWindow::GetRenderer() const noexcept
 {
     return *m_Renderer;
+}
+
+ONYX_DIMENSION_TEMPLATE void Window<N>::runRenderSystems() noexcept
+{
 }
 
 template class Window<2>;

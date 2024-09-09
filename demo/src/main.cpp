@@ -13,9 +13,9 @@ int main()
     KIT::ThreadPool<KIT::SpinLock> threadPool(4);
     ONYX::Core::Initialize(&stackAllocator, &threadPool);
 
-    ONYX::Application2D app;
-    app.OpenWindow();
-    // app.OpenWindow();
+    ONYX::Application app;
+    app.OpenWindow2D();
+    app.OpenWindow3D();
 
     app.Run();
 
