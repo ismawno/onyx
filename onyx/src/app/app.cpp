@@ -22,7 +22,7 @@ Application::~Application() noexcept
     if (!m_Terminated && m_Started)
         Shutdown();
 }
-ONYX_DIMENSION_TEMPLATE Window<N> *Application::OpenWindow(const Window<N>::Specs &p_Specs) noexcept
+ONYX_DIMENSION_TEMPLATE Window<N> *Application::OpenWindow(const typename Window<N>::Specs &p_Specs) noexcept
 {
     auto window = KIT::Scope<Window<N>>::Create(p_Specs);
     if (m_WindowData.empty())

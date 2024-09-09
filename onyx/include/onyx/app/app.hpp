@@ -11,7 +11,7 @@ class ONYX_API Application
     Application() noexcept = default;
     ~Application() noexcept;
 
-    ONYX_DIMENSION_TEMPLATE Window<N> *OpenWindow(const Window<N>::Specs &p_Specs) noexcept;
+    ONYX_DIMENSION_TEMPLATE Window<N> *OpenWindow(const typename Window<N>::Specs &p_Specs) noexcept;
     ONYX_DIMENSION_TEMPLATE Window<N> *OpenWindow() noexcept;
 
     Window2D *OpenWindow2D(const Window2D::Specs &p_Specs) noexcept;
