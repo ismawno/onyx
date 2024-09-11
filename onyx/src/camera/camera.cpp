@@ -44,17 +44,7 @@ ONYX_DIMENSION_TEMPLATE const mat4 &Camera<N>::InverseProjection() const noexcep
     return m_InverseProjection;
 }
 
-void Camera3D::PointTowards(const vec3 &p_Direction) noexcept
-{
-    const float roty = glm::atan(p_Direction.x, p_Direction.z);
-    const float rotx = -glm::atan(p_Direction.y, p_Direction.z * cosf(roty) + p_Direction.x * sinf(roty));
-    Transform.Rotation = ONYX::Transform3D::RotYX(roty, rotx);
-}
-void Camera3D::PointTo(const vec3 &p_Location) noexcept
-{
-    PointTowards(p_Location - Transform.Position);
-}
-
 template class Camera<2>;
+template class Camera<3>;
 
 } // namespace ONYX

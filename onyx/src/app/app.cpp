@@ -25,6 +25,9 @@ Application::~Application() noexcept
 ONYX_DIMENSION_TEMPLATE Window<N> *Application::OpenWindow(const typename Window<N>::Specs &p_Specs) noexcept
 {
     auto window = KIT::Scope<Window<N>>::Create(p_Specs);
+
+    // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
+    // the GLFW ImGui backend limitations
     if (m_WindowData.empty())
     {
         m_Device = Core::Device();

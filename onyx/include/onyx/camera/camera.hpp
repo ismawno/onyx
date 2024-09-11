@@ -30,11 +30,6 @@ ONYX_DIMENSION_TEMPLATE class Camera
 };
 
 using Camera2D = Camera<2>;
-class Camera3D : public Camera<3>
-{
-  public:
-    void PointTowards(const vec3 &p_Direction) noexcept;
-    void PointTo(const vec3 &p_Location) noexcept;
-};
+using Camera3D = Camera<3>;
 
 } // namespace ONYX

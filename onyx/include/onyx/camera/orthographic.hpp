@@ -4,14 +4,16 @@
 
 namespace ONYX
 {
-class Orthographic2D : public Camera2D
+ONYX_DIMENSION_TEMPLATE class Orthographic;
+
+template <> class Orthographic<2> final : public Camera<2>
 {
   public:
-    Orthographic2D() noexcept = default;
-    Orthographic2D(f32 p_Aspect, f32 p_Size, f32 p_Rotation = 0.f);
-    Orthographic2D(const vec2 &p_Position, f32 p_Aspect, f32 p_Size, f32 p_Rotation = 0.f);
-    Orthographic2D(const vec2 &p_Size, f32 p_Rotation = 0.f);
-    Orthographic2D(const vec2 &p_Position, const vec2 &p_Size, f32 p_Rotation = 0.f);
+    Orthographic() noexcept = default;
+    Orthographic(f32 p_Aspect, f32 p_Size, f32 p_Rotation = 0.f);
+    Orthographic(const vec2 &p_Position, f32 p_Aspect, f32 p_Size, f32 p_Rotation = 0.f);
+    Orthographic(const vec2 &p_Size, f32 p_Rotation = 0.f);
+    Orthographic(const vec2 &p_Position, const vec2 &p_Size, f32 p_Rotation = 0.f);
 
     void UpdateMatrices() noexcept override;
 
@@ -19,16 +21,16 @@ class Orthographic2D : public Camera2D
     void Size(f32 p_Size) noexcept;
 };
 
-class Orthographic3D final : public Camera3D
+template <> class Orthographic<3> final : public Camera<3>
 {
   public:
-    Orthographic3D() noexcept = default;
-    Orthographic3D(f32 p_Aspect, f32 p_XYSize, f32 p_Depth, const mat3 &p_Rotation = mat3(1.f)) noexcept;
-    Orthographic3D(const vec3 &p_Position, f32 p_Aspect, f32 p_XYSize, f32 p_Depth,
-                   const mat3 &p_Rotation = mat3(1.f)) noexcept;
+    Orthographic() noexcept = default;
+    Orthographic(f32 p_Aspect, f32 p_XYSize, f32 p_Depth, const mat3 &p_Rotation = mat3(1.f)) noexcept;
+    Orthographic(const vec3 &p_Position, f32 p_Aspect, f32 p_XYSize, f32 p_Depth,
+                 const mat3 &p_Rotation = mat3(1.f)) noexcept;
 
-    Orthographic3D(const vec3 &p_Size, const mat3 &p_Rotation = mat3(1.f)) noexcept;
-    Orthographic3D(const vec3 &p_Position, const vec3 &p_Size, const mat3 &p_Rotation = mat3(1.f)) noexcept;
+    Orthographic(const vec3 &p_Size, const mat3 &p_Rotation = mat3(1.f)) noexcept;
+    Orthographic(const vec3 &p_Position, const vec3 &p_Size, const mat3 &p_Rotation = mat3(1.f)) noexcept;
 
     void UpdateMatrices() noexcept override;
 

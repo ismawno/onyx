@@ -9,16 +9,14 @@
 
 namespace ONYX
 {
+// Vertices have no color because they limit my ability to re use a model. I plan to have a single color per rendered
+// object, so I dont need to store it in the vertex
 ONYX_DIMENSION_TEMPLATE struct ONYX_API Vertex
 {
-    Vertex() noexcept = default;
-    Vertex(const vec<N> &p_Position, const Color &p_Color) noexcept;
-
     static KIT::StaticArray<VkVertexInputBindingDescription, 1> BindingDescriptions() noexcept;
-    static KIT::StaticArray<VkVertexInputAttributeDescription, 2> AttributeDescriptions() noexcept;
+    static KIT::StaticArray<VkVertexInputAttributeDescription, 1> AttributeDescriptions() noexcept;
 
     vec<N> Position;
-    ONYX::Color Color;
 };
 
 using Vertex2D = Vertex<2>;

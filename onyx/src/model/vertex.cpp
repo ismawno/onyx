@@ -3,11 +3,6 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE Vertex<N>::Vertex(const vec<N> &p_Position, const ONYX::Color &p_Color) noexcept
-    : Position(p_Position), Color(p_Color)
-{
-}
-
 ONYX_DIMENSION_TEMPLATE KIT::StaticArray<VkVertexInputBindingDescription, 1> Vertex<N>::BindingDescriptions() noexcept
 {
     VkVertexInputBindingDescription description{};
@@ -18,7 +13,7 @@ ONYX_DIMENSION_TEMPLATE KIT::StaticArray<VkVertexInputBindingDescription, 1> Ver
     return {description};
 }
 
-ONYX_DIMENSION_TEMPLATE KIT::StaticArray<VkVertexInputAttributeDescription, 2> Vertex<
+ONYX_DIMENSION_TEMPLATE KIT::StaticArray<VkVertexInputAttributeDescription, 1> Vertex<
     N>::AttributeDescriptions() noexcept
 {
     VkVertexInputAttributeDescription position{};
@@ -31,14 +26,7 @@ ONYX_DIMENSION_TEMPLATE KIT::StaticArray<VkVertexInputAttributeDescription, 2> V
         position.format = VK_FORMAT_R32G32B32_SFLOAT;
 
     position.offset = offsetof(Vertex, Position);
-
-    VkVertexInputAttributeDescription color{};
-    color.binding = 0;
-    color.location = 1;
-    color.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    color.offset = offsetof(Vertex, Color);
-
-    return {position, color};
+    return {position};
 }
 
 template struct Vertex<2>;
