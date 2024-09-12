@@ -13,6 +13,7 @@ set(SOURCES
     src/rendering/pipeline.cpp
     src/rendering/swap_chain.cpp
     src/rendering/renderer.cpp
+    src/rendering/render_system.cpp
     src/model/vertex.cpp
     src/model/color.cpp
     src/model/transform.cpp

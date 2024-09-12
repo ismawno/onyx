@@ -46,6 +46,7 @@ class ONYX_API Pipeline
     ~Pipeline();
 
     void Bind(VkCommandBuffer p_CommandBuffer) const noexcept;
+    VkPipelineLayout Layout() const noexcept;
 
   private:
     void initialize(const Specs &p_Specs) noexcept;

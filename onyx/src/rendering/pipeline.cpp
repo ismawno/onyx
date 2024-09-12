@@ -26,6 +26,11 @@ void Pipeline::Bind(VkCommandBuffer p_CommandBuffer) const noexcept
     vkCmdBindPipeline(p_CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
 }
 
+VkPipelineLayout Pipeline::Layout() const noexcept
+{
+    return m_PipelineLayout;
+}
+
 void Pipeline::initialize(const Specs &p_Specs) noexcept
 {
     KIT_LOG_INFO("Creating new pipeline...");
