@@ -45,6 +45,10 @@ void IWindow::initialize() noexcept
     Input::InstallCallbacks(*this);
 }
 
+void IWindow::drawRenderSystems() noexcept
+{
+}
+
 bool IWindow::Display() noexcept
 {
     return Display([](const VkCommandBuffer) {});
@@ -146,10 +150,4 @@ const Renderer &IWindow::GetRenderer() const noexcept
     return *m_Renderer;
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::drawRenderSystems() noexcept
-{
-}
-
-template class Window<2>;
-template class Window<3>;
 } // namespace ONYX

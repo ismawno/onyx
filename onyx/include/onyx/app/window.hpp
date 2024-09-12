@@ -26,8 +26,6 @@ class ONYX_API IWindow
     IWindow() noexcept;
     explicit IWindow(const Specs &p_Specs) noexcept;
 
-    virtual ~IWindow() noexcept;
-
     template <typename F> bool Display(F &&p_Submission) noexcept
     {
         if (const VkCommandBuffer cmd = m_Renderer->BeginFrame(*this))
@@ -72,11 +70,9 @@ class ONYX_API IWindow
 
     Color BackgroundColor = Color::BLACK;
 
-  protected:
-    virtual void drawRenderSystems() noexcept = 0;
-
   private:
     void initialize() noexcept;
+    void drawRenderSystems() noexcept;
 
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;
@@ -89,19 +85,4 @@ class ONYX_API IWindow
 
     bool m_Resized = false;
 };
-
-ONYX_DIMENSION_TEMPLATE class ONYX_API Window final : public IWindow
-{
-    KIT_NON_COPYABLE(Window)
-  public:
-    KIT_BLOCK_ALLOCATED_SERIAL(IWindow, 8)
-    using Specs = typename IWindow::Specs;
-    using IWindow::IWindow;
-
-  private:
-    void drawRenderSystems() noexcept override;
-};
-
-using Window2D = Window<2>;
-using Window3D = Window<3>;
 } // namespace ONYX
