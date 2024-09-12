@@ -29,6 +29,9 @@ struct ONYX_API Core
     static const KIT::Ref<ONYX::Instance> &Instance() noexcept;
     static const KIT::Ref<ONYX::Device> &Device() noexcept;
 
+    ONYX_DIMENSION_TEMPLATE static const char *VertexShaderPath() noexcept;
+    ONYX_DIMENSION_TEMPLATE static const char *FragmentShaderPath() noexcept;
+
   private:
     // Should ony be called by window constructor (I should look for a way to better hide this)
     static const KIT::Ref<ONYX::Device> &tryCreateDevice(VkSurfaceKHR p_Surface) noexcept;

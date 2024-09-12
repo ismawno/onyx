@@ -3,6 +3,7 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/device.hpp"
 #include "kit/core/non_copyable.hpp"
+#include "kit/container/static_array.hpp"
 
 #include <vulkan/vulkan.hpp>
 
@@ -18,16 +19,18 @@ class ONYX_API Pipeline
         Specs() noexcept;
         void Populate() noexcept;
 
-        VkPipelineViewportStateCreateInfo ViewportInfo;
-        VkPipelineInputAssemblyStateCreateInfo InputAssemblyInfo;
-        VkPipelineRasterizationStateCreateInfo RasterizationInfo;
-        VkPipelineMultisampleStateCreateInfo MultisampleInfo;
-        VkPipelineColorBlendAttachmentState ColorBlendAttachment;
-        VkPipelineColorBlendStateCreateInfo ColorBlendInfo;
-        VkPipelineDepthStencilStateCreateInfo DepthStencilInfo;
+        VkPipelineViewportStateCreateInfo ViewportInfo{};
+        VkPipelineInputAssemblyStateCreateInfo InputAssemblyInfo{};
+        VkPipelineRasterizationStateCreateInfo RasterizationInfo{};
+        VkPipelineMultisampleStateCreateInfo MultisampleInfo{};
+        VkPipelineColorBlendAttachmentState ColorBlendAttachment{};
+        VkPipelineColorBlendStateCreateInfo ColorBlendInfo{};
+        VkPipelineDepthStencilStateCreateInfo DepthStencilInfo{};
+        VkPipelineLayoutCreateInfo PipelineLayoutInfo{};
+        VkPushConstantRange PushConstantRange{};
 
-        DynamicArray<VkDynamicState> DynamicStateEnables;
-        VkPipelineDynamicStateCreateInfo DynamicStateInfo;
+        std::array<VkDynamicState, 2> DynamicStateEnables;
+        VkPipelineDynamicStateCreateInfo DynamicStateInfo{};
 
         VkRenderPass RenderPass = VK_NULL_HANDLE;
         u32 Subpass = 0;
@@ -35,9 +38,8 @@ class ONYX_API Pipeline
         const char *VertexShaderPath = nullptr;
         const char *FragmentShaderPath = nullptr;
 
-        DynamicArray<VkVertexInputBindingDescription> BindingDescriptions;
-        DynamicArray<VkVertexInputAttributeDescription> AttributeDescriptions;
-        u32 ConstantRangeSize = 0;
+        KIT::StaticArray<VkVertexInputBindingDescription, 4> BindingDescriptions;
+        KIT::StaticArray<VkVertexInputAttributeDescription, 4> AttributeDescriptions;
     };
 
     explicit Pipeline(Specs p_Specs) noexcept;
@@ -47,7 +49,6 @@ class ONYX_API Pipeline
 
   private:
     void initialize(const Specs &p_Specs) noexcept;
-    void createPipelineLayout() noexcept;
 
     VkShaderModule createShaderModule(const char *p_Path) noexcept;
 

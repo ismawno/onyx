@@ -45,6 +45,21 @@ const KIT::Ref<ONYX::Device> &Core::Device() noexcept
     return s_Device;
 }
 
+ONYX_DIMENSION_TEMPLATE const char *Core::VertexShaderPath() noexcept
+{
+    if constexpr (N == 3)
+        return KIT_ROOT_PATH "shaders/bin/shader3D.vert.spv";
+    else
+        return KIT_ROOT_PATH "shaders/bin/shader2D.vert.spv";
+}
+ONYX_DIMENSION_TEMPLATE const char *Core::FragmentShaderPath() noexcept
+{
+    if constexpr (N == 3)
+        return KIT_ROOT_PATH "shaders/bin/shader3D.frag.spv";
+    else
+        return KIT_ROOT_PATH "shaders/bin/shader2D.frag.spv";
+}
+
 const KIT::Ref<ONYX::Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
 {
     if (!s_Device)

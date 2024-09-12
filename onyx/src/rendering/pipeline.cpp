@@ -35,7 +35,9 @@ void Pipeline::initialize(const Specs &p_Specs) noexcept
     m_VertexShader = createShaderModule(p_Specs.VertexShaderPath);
     m_FragmentShader = createShaderModule(p_Specs.FragmentShaderPath);
 
-    createPipelineLayout();
+    KIT_ASSERT_RETURNS(
+        vkCreatePipelineLayout(m_Device->VulkanDevice(), &p_Specs.PipelineLayoutInfo, nullptr, &m_PipelineLayout),
+        VK_SUCCESS, "Failed to create pipeline layout");
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
     for (auto &shaderStage : shaderStages)
@@ -80,20 +82,6 @@ void Pipeline::initialize(const Specs &p_Specs) noexcept
     KIT_ASSERT_RETURNS(
         vkCreateGraphicsPipelines(m_Device->VulkanDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_Pipeline),
         VK_SUCCESS, "Failed to create graphics pipeline");
-}
-
-void Pipeline::createPipelineLayout() noexcept
-{
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0;
-    pipelineLayoutInfo.pSetLayouts = nullptr;
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
-    pipelineLayoutInfo.pPushConstantRanges = nullptr;
-
-    KIT_ASSERT_RETURNS(
-        vkCreatePipelineLayout(m_Device->VulkanDevice(), &pipelineLayoutInfo, nullptr, &m_PipelineLayout), VK_SUCCESS,
-        "Failed to create pipeline layout");
 }
 
 VkShaderModule Pipeline::createShaderModule(const char *p_Path) noexcept
@@ -185,6 +173,15 @@ Pipeline::Specs::Specs() noexcept
     DepthStencilInfo.front = {}; // Optional
     DepthStencilInfo.back = {};  // Optional
 
+    PushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    PushConstantRange.offset = 0;
+    PushConstantRange.size = 0;
+
+    PipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    PipelineLayoutInfo.setLayoutCount = 0;
+    PipelineLayoutInfo.pSetLayouts = nullptr;
+    PipelineLayoutInfo.pushConstantRangeCount = 1;
+
     DynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     DynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 }
@@ -194,5 +191,6 @@ void Pipeline::Specs::Populate() noexcept
     ColorBlendInfo.pAttachments = &ColorBlendAttachment;
     DynamicStateInfo.pDynamicStates = DynamicStateEnables.data();
     DynamicStateInfo.dynamicStateCount = static_cast<u32>(DynamicStateEnables.size());
+    PipelineLayoutInfo.pPushConstantRanges = &PushConstantRange;
 }
 } // namespace ONYX
