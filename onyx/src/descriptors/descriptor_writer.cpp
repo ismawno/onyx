@@ -49,6 +49,7 @@ VkDescriptorSet DescriptorWriter::Build() noexcept
     if (!set)
         return VK_NULL_HANDLE;
     Overwrite(set);
+    return set;
 }
 
 void DescriptorWriter::Overwrite(const VkDescriptorSet p_Set) noexcept

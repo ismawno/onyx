@@ -20,12 +20,12 @@ static VkMappedMemoryRange mappedMemoryRange(const VkDeviceMemory p_Memory, cons
     return range;
 }
 
-Buffer::Buffer(const VkDeviceSize p_InstanceCount, const VkDeviceSize p_InstanceSize, const VkBufferUsageFlags p_usage,
-               const VkMemoryPropertyFlags p_Properties, const VkDeviceSize p_MinimumAlignment) noexcept
-    : m_InstanceSize(alignedSize(p_InstanceSize, p_MinimumAlignment)), m_Size(m_InstanceSize * p_InstanceCount)
+Buffer::Buffer(const Specs &p_Specs) noexcept
+    : m_InstanceSize(alignedSize(p_Specs.InstanceSize, p_Specs.MinimumAlignment)),
+      m_Size(m_InstanceSize * p_Specs.InstanceCount)
 {
     m_Device = Core::Device();
-    createBuffer(p_usage, p_Properties);
+    createBuffer(p_Specs.Usage, p_Specs.Properties);
 }
 
 Buffer::~Buffer() noexcept

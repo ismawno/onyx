@@ -20,7 +20,7 @@ class ONYX_API Instance : public KIT::RefCounted<Instance>
     VkInstance VulkanInstance() const noexcept;
 
   private:
-    void initialize() noexcept;
+    void createInstance() noexcept;
 
     VkInstance m_Instance;
 

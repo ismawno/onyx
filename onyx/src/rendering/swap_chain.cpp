@@ -53,7 +53,7 @@ SwapChain::SwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surfa
                      const SwapChain *p_OldSwapChain) noexcept
 {
     m_Device = Core::Device();
-    initialize(p_WindowExtent, p_Surface, p_OldSwapChain);
+    createSwapChain(p_WindowExtent, p_Surface, p_OldSwapChain);
     createImageViews();
     createRenderPass();
     createDepthResources();
@@ -182,8 +182,8 @@ bool SwapChain::AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_
            p_SwapChain1.m_DepthFormat == p_SwapChain2.m_DepthFormat;
 }
 
-void SwapChain::initialize(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surface,
-                           const SwapChain *p_OldSwapChain) noexcept
+void SwapChain::createSwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surface,
+                                const SwapChain *p_OldSwapChain) noexcept
 {
     const Device::SwapChainSupportDetails support = m_Device->QuerySwapChainSupport(p_Surface);
 

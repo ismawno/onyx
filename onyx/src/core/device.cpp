@@ -177,6 +177,11 @@ VkQueue Device::PresentQueue() const noexcept
     return m_PresentQueue;
 }
 
+const VkPhysicalDeviceProperties &Device::Properties() const noexcept
+{
+    return m_Properties;
+}
+
 std::mutex &Device::GraphicsMutex() noexcept
 {
     return m_GraphicsMutex;
@@ -261,9 +266,8 @@ void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
 
     KIT_ASSERT(m_PhysicalDevice != VK_NULL_HANDLE, "Failed to find a suitable GPU");
 
-    VkPhysicalDeviceProperties properties;
-    vkGetPhysicalDeviceProperties(m_PhysicalDevice, &properties);
-    KIT_LOG_INFO("Physical device: {}", properties.deviceName);
+    vkGetPhysicalDeviceProperties(m_PhysicalDevice, &m_Properties);
+    KIT_LOG_INFO("Physical device: {}", m_Properties.deviceName);
 }
 
 void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept

@@ -31,6 +31,7 @@ class ONYX_API RenderSystem
     struct DrawInfo
     {
         VkCommandBuffer CommandBuffer;
+        VkDescriptorSet DescriptorSet;
         mat4 Projection;
     };
 

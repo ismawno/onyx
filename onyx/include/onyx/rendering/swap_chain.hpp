@@ -33,7 +33,7 @@ class ONYX_API SwapChain
     static bool AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_SwapChain2) noexcept;
 
   private:
-    void initialize(VkExtent2D p_WindowExtent, VkSurfaceKHR p_Surface, const SwapChain *p_OldSwapChain) noexcept;
+    void createSwapChain(VkExtent2D p_WindowExtent, VkSurfaceKHR p_Surface, const SwapChain *p_OldSwapChain) noexcept;
     void createImageViews() noexcept;
     void createRenderPass() noexcept;
     void createDepthResources() noexcept;

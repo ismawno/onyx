@@ -4,6 +4,7 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/device.hpp"
 #include "kit/core/non_copyable.hpp"
+#include "kit/container/static_array.hpp"
 
 #include <vulkan/vulkan.hpp>
 #include <span>
@@ -14,8 +15,14 @@ class ONYX_API DescriptorPool
 {
     KIT_NON_COPYABLE(DescriptorPool)
   public:
-    DescriptorPool(u32 p_MaxSets, std::span<const VkDescriptorPoolSize> p_PoolSizes,
-                   VkDescriptorPoolCreateFlags p_PoolFlags) noexcept;
+    struct Specs
+    {
+        u32 MaxSets;
+        KIT::StaticArray<VkDescriptorPoolSize, 8> PoolSizes;
+        VkDescriptorPoolCreateFlags PoolFlags = 0;
+    };
+
+    DescriptorPool(const Specs &p_Specs) noexcept;
     ~DescriptorPool() noexcept;
 
     VkDescriptorSet Allocate(VkDescriptorSetLayout p_Layout) const noexcept;

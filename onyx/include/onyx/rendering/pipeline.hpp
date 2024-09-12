@@ -49,8 +49,7 @@ class ONYX_API Pipeline
     VkPipelineLayout Layout() const noexcept;
 
   private:
-    void initialize(const Specs &p_Specs) noexcept;
-
+    void createPipeline(const Specs &p_Specs) noexcept;
     VkShaderModule createShaderModule(const char *p_Path) noexcept;
 
     KIT::Ref<Device> m_Device;

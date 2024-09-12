@@ -10,7 +10,7 @@ namespace ONYX
 Pipeline::Pipeline(Specs p_Specs) noexcept
 {
     p_Specs.Populate();
-    initialize(p_Specs);
+    createPipeline(p_Specs);
 }
 
 Pipeline::~Pipeline()
@@ -31,7 +31,7 @@ VkPipelineLayout Pipeline::Layout() const noexcept
     return m_PipelineLayout;
 }
 
-void Pipeline::initialize(const Specs &p_Specs) noexcept
+void Pipeline::createPipeline(const Specs &p_Specs) noexcept
 {
     KIT_LOG_INFO("Creating new pipeline...");
     KIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");

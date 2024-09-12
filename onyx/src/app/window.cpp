@@ -3,17 +3,25 @@
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/model/color.hpp"
+#include "onyx/descriptors/descriptor_writer.hpp"
 #include "kit/core/logging.hpp"
 
 namespace ONYX
 {
+struct GlobalUBO
+{
+    glm::mat4 Projection;
+};
+
 Window::Window() noexcept
 {
-    initialize();
+    createWindow();
+    createGlobalUniformHelper();
 }
 Window::Window(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
 {
-    initialize();
+    createWindow();
+    createGlobalUniformHelper();
 }
 
 Window::~Window() noexcept
@@ -23,7 +31,7 @@ Window::~Window() noexcept
     glfwDestroyWindow(m_Window);
 }
 
-void Window::initialize() noexcept
+void Window::createWindow() noexcept
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -45,8 +53,44 @@ void Window::initialize() noexcept
     Input::InstallCallbacks(*this);
 }
 
+void Window::createGlobalUniformHelper() noexcept
+{
+    DescriptorPool::Specs poolSpecs{};
+    poolSpecs.MaxSets = SwapChain::MAX_FRAMES_IN_FLIGHT;
+    poolSpecs.PoolSizes.push_back(
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT});
+
+    static constexpr std::array<VkDescriptorSetLayoutBinding, 1> bindings = {
+        {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr}}};
+
+    const auto &props = m_Device->Properties();
+    Buffer::Specs bufferSpecs{};
+    bufferSpecs.InstanceCount = SwapChain::MAX_FRAMES_IN_FLIGHT;
+    bufferSpecs.InstanceSize = sizeof(GlobalUBO);
+    bufferSpecs.Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    bufferSpecs.Properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    bufferSpecs.MinimumAlignment =
+        glm::max(props.limits.minUniformBufferOffsetAlignment, props.limits.nonCoherentAtomSize);
+
+    m_GlobalUniformHelper = KIT::Scope<GlobalUniformHelper>::Create(poolSpecs, bindings, bufferSpecs);
+    m_GlobalUniformHelper->UniformBuffer.Map();
+
+    for (usize i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; ++i)
+    {
+        const auto info = m_GlobalUniformHelper->UniformBuffer.DescriptorInfoAt(i);
+        DescriptorWriter writer{&m_GlobalUniformHelper->Layouts, &m_GlobalUniformHelper->Pool};
+        writer.WriteBuffer(0, &info);
+        m_GlobalDescriptorSets[i] = writer.Build();
+    }
+}
+
 void Window::drawRenderSystems() noexcept
 {
+    const u32 frameIndex = m_Renderer->FrameIndex();
+    GlobalUBO ubo{};
+
+    m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);
+    m_GlobalUniformHelper->UniformBuffer.FlushAt(frameIndex);
 }
 
 bool Window::Display() noexcept

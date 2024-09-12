@@ -135,6 +135,11 @@ void Renderer::EndRenderPass() noexcept
     vkCmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
 }
 
+u32 Renderer::FrameIndex() const noexcept
+{
+    return m_FrameIndex;
+}
+
 VkCommandBuffer Renderer::CurrentCommandBuffer() const noexcept
 {
     return m_CommandBuffers[m_FrameIndex];

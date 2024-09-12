@@ -14,6 +14,9 @@ set(SOURCES
     src/rendering/swap_chain.cpp
     src/rendering/renderer.cpp
     src/rendering/render_system.cpp
+    src/descriptors/descriptor_pool.cpp
+    src/descriptors/descriptor_set_layout.cpp
+    src/descriptors/descriptor_writer.cpp
     src/model/vertex.cpp
     src/model/color.cpp
     src/model/transform.cpp

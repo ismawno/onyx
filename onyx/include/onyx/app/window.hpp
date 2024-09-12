@@ -5,6 +5,10 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/model/color.hpp"
+#include "onyx/descriptors/descriptor_pool.hpp"
+#include "onyx/descriptors/descriptor_set_layout.hpp"
+#include "onyx/rendering/buffer.hpp"
+#include "onyx/rendering/render_system.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -72,12 +76,30 @@ class ONYX_API Window
     Color BackgroundColor = Color::BLACK;
 
   private:
-    void initialize() noexcept;
+    struct GlobalUniformHelper
+    {
+        GlobalUniformHelper(const DescriptorPool::Specs &p_PoolSpecs,
+                            const std::span<const VkDescriptorSetLayoutBinding> p_Bindings,
+                            const Buffer::Specs &p_BufferSpecs) noexcept
+            : Pool(p_PoolSpecs), Layouts(p_Bindings), UniformBuffer(p_BufferSpecs)
+        {
+        }
+        DescriptorPool Pool;
+        DescriptorSetLayout Layouts;
+        Buffer UniformBuffer;
+    };
+    void createWindow() noexcept;
+    void createGlobalUniformHelper() noexcept;
+
     void drawRenderSystems() noexcept;
 
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;
     KIT::Scope<Renderer> m_Renderer;
+
+    KIT::Scope<GlobalUniformHelper> m_GlobalUniformHelper;
+    std::array<VkDescriptorSet, SwapChain::MAX_FRAMES_IN_FLIGHT> m_GlobalDescriptorSets;
+
     GLFWwindow *m_Window;
 
     Deque<Event> m_Events;

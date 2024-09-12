@@ -16,8 +16,16 @@ class ONYX_API Buffer
   public:
     KIT_BLOCK_ALLOCATED_SERIAL(Buffer, 32)
 
-    Buffer(VkDeviceSize p_InstanceCount, VkDeviceSize p_InstanceSize, VkBufferUsageFlags p_usage,
-           VkMemoryPropertyFlags p_Properties, VkDeviceSize p_MinimumAlignment = 1) noexcept;
+    struct Specs
+    {
+        VkDeviceSize InstanceCount;
+        VkDeviceSize InstanceSize;
+        VkBufferUsageFlags Usage;
+        VkMemoryPropertyFlags Properties;
+        VkDeviceSize MinimumAlignment = 1;
+    };
+
+    Buffer(const Specs &p_Specs) noexcept;
 
     ~Buffer() noexcept;
 

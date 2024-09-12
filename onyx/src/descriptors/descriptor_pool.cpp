@@ -4,16 +4,15 @@
 
 namespace ONYX
 {
-DescriptorPool::DescriptorPool(const u32 p_MaxSets, const std::span<const VkDescriptorPoolSize> p_PoolSizes,
-                               const VkDescriptorPoolCreateFlags p_PoolFlags) noexcept
+DescriptorPool::DescriptorPool(const Specs &p_Specs) noexcept
 {
     m_Device = Core::Device();
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.poolSizeCount = static_cast<u32>(p_PoolSizes.size());
-    poolInfo.pPoolSizes = p_PoolSizes.data();
-    poolInfo.maxSets = p_MaxSets;
-    poolInfo.flags = p_PoolFlags;
+    poolInfo.poolSizeCount = static_cast<u32>(p_Specs.PoolSizes.size());
+    poolInfo.pPoolSizes = p_Specs.PoolSizes.data();
+    poolInfo.maxSets = p_Specs.MaxSets;
+    poolInfo.flags = p_Specs.PoolFlags;
 
     KIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->VulkanDevice(), &poolInfo, nullptr, &m_Pool), VK_SUCCESS,
                        "Failed to create descriptor pool");

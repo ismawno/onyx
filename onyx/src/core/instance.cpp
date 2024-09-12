@@ -166,7 +166,7 @@ const char *Instance::ValidationLayer() noexcept
 
 Instance::Instance() noexcept
 {
-    initialize();
+    createInstance();
 #ifdef KIT_ENABLE_ASSERTS
     setupDebugMessenger(m_Instance);
 #endif
@@ -183,7 +183,7 @@ VkInstance Instance::VulkanInstance() const noexcept
     return m_Instance;
 }
 
-void Instance::initialize() noexcept
+void Instance::createInstance() noexcept
 {
     KIT_LOG_INFO("Creating a vulkan instance...");
     KIT_ASSERT(checkValidationLayerSupport(), "Validation layers requested, but not available!");

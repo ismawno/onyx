@@ -37,10 +37,14 @@ ONYX_DIMENSION_TEMPLATE void Model::createVertexBuffer(const std::span<const Ver
 {
     KIT_ASSERT(!p_Vertices.empty(), "Cannot create model with no vertices");
 
+    Buffer::Specs specs{};
+    specs.InstanceCount = p_Vertices.size();
+    specs.InstanceSize = sizeof(Vertex<N>);
+    specs.Properties = p_VertexBufferProperties;
     if (p_VertexBufferProperties & HOST_VISIBLE)
     {
-        m_VertexBuffer = KIT::Scope<Buffer>::Create(p_Vertices.size(), sizeof(Vertex<N>),
-                                                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, p_VertexBufferProperties);
+        specs.Usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        m_VertexBuffer = KIT::Scope<Buffer>::Create(specs);
 
         m_VertexBuffer->Map();
         m_VertexBuffer->Write(p_Vertices.data());
@@ -52,12 +56,14 @@ ONYX_DIMENSION_TEMPLATE void Model::createVertexBuffer(const std::span<const Ver
     }
     else
     {
-        m_VertexBuffer = KIT::Scope<Buffer>::Create(
-            p_Vertices.size(), sizeof(Vertex<N>), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            p_VertexBufferProperties);
+        specs.Usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        m_VertexBuffer = KIT::Scope<Buffer>::Create(specs);
 
-        Buffer stagingBuffer(p_Vertices.size(), sizeof(Vertex<N>), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+        Buffer::Specs stagingSpecs = specs;
+        stagingSpecs.Properties = HOST_VISIBLE;
+        stagingSpecs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+        Buffer stagingBuffer(stagingSpecs);
         stagingBuffer.Map();
         stagingBuffer.Write(p_Vertices.data());
         stagingBuffer.Flush();
@@ -70,12 +76,19 @@ ONYX_DIMENSION_TEMPLATE void Model::createVertexBuffer(const std::span<const Ver
 void Model::createIndexBuffer(const std::span<const Index> p_Indices) noexcept
 {
     KIT_ASSERT(!p_Indices.empty(), "If specified, indices must not be empty");
-    m_IndexBuffer = KIT::Scope<Buffer>::Create(p_Indices.size(), sizeof(Index),
-                                               VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    Buffer::Specs specs{};
+    specs.InstanceCount = p_Indices.size();
+    specs.InstanceSize = sizeof(Index);
+    specs.Properties = DEVICE_LOCAL;
+    specs.Usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 
-    Buffer stagingBuffer(p_Indices.size(), sizeof(Index), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    m_IndexBuffer = KIT::Scope<Buffer>::Create(specs);
+
+    Buffer::Specs stagingSpecs = specs;
+    stagingSpecs.Properties = HOST_VISIBLE;
+    stagingSpecs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
+    Buffer stagingBuffer(stagingSpecs);
     stagingBuffer.Map();
     stagingBuffer.Write(p_Indices.data());
     stagingBuffer.Flush();

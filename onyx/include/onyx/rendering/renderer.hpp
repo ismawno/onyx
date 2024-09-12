@@ -20,6 +20,8 @@ class ONYX_API Renderer
     void BeginRenderPass(const Color &p_ClearColor) noexcept;
     void EndRenderPass() noexcept;
 
+    u32 FrameIndex() const noexcept;
+
     template <typename F> void ImmediateSubmission(F &&p_Submission) const noexcept
     {
         const VkCommandBuffer cmd = m_Device->BeginSingleTimeCommands();

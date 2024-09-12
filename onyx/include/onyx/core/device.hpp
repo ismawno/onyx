@@ -45,6 +45,8 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     VkQueue GraphicsQueue() const noexcept;
     VkQueue PresentQueue() const noexcept;
 
+    const VkPhysicalDeviceProperties &Properties() const noexcept;
+
     std::mutex &GraphicsMutex() noexcept;
     std::mutex &PresentMutex() noexcept;
 
@@ -61,6 +63,8 @@ class ONYX_API Device : public KIT::RefCounted<Device>
 
     KIT::Ref<Instance> m_Instance;
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
+    VkPhysicalDeviceProperties m_Properties;
+
     VkDevice m_Device;
     VkCommandPool m_CommandPool;
 
