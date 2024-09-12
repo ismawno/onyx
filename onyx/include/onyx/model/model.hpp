@@ -32,7 +32,7 @@ namespace ONYX
 
 using Index = u32;
 
-ONYX_DIMENSION_TEMPLATE class ONYX_API Model
+class ONYX_API Model
 {
     KIT_NON_COPYABLE(Model)
   public:
@@ -45,10 +45,11 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Model
         HOST_COHERENT = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
     };
 
-    Model(std::span<const Vertex<N>> p_Vertices, Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+    ONYX_DIMENSION_TEMPLATE Model(std::span<const Vertex<N>> p_Vertices,
+                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
 
-    Model(std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices,
-          Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+    ONYX_DIMENSION_TEMPLATE Model(std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices,
+                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
 
     // TODO: Make sure no redundant bind calls are made
     // These bind and draw commands operate with a single vertex and index buffer. Not ideal when instancing could be
@@ -61,8 +62,31 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Model
     const Buffer &VertexBuffer() const noexcept;
     Buffer &VertexBuffer() noexcept;
 
+    static void CreatePrimitiveModels() noexcept;
+    static void DestroyPrimitiveModels() noexcept;
+
+    ONYX_DIMENSION_TEMPLATE static const Model *Rectangle() noexcept;
+    ONYX_DIMENSION_TEMPLATE static const Model *Line() noexcept;
+    ONYX_DIMENSION_TEMPLATE static const Model *Circle() noexcept;
+    ONYX_DIMENSION_TEMPLATE static KIT::Scope<Model> CreatePolygon(std::span<const Vertex<N>> p_Vertices) noexcept;
+
+    static const Model *Rectangle2D() noexcept;
+    static const Model *Line2D() noexcept;
+    static const Model *Circle2D() noexcept;
+    static KIT::Scope<Model> CreatePolygon2D(std::span<const Vertex2D> p_Vertices) noexcept;
+
+    static const Model *Rectangle3D() noexcept;
+    static const Model *Line3D() noexcept;
+    static const Model *Circle3D() noexcept;
+    static KIT::Scope<Model> CreatePolygon3D(std::span<const Vertex3D> p_Vertices) noexcept;
+
+    static const Model *Cube() noexcept;
+    static const Model *Sphere() noexcept;
+    static KIT::Ref<Model> CreatePolyhedron(std::span<const Vertex3D> p_Vertices) noexcept;
+
   private:
-    void createVertexBuffer(std::span<const Vertex<N>> p_Vertices, Properties p_VertexBufferProperties) noexcept;
+    ONYX_DIMENSION_TEMPLATE void createVertexBuffer(std::span<const Vertex<N>> p_Vertices,
+                                                    Properties p_VertexBufferProperties) noexcept;
     void createIndexBuffer(std::span<const Index> p_Indices) noexcept;
 
     KIT::Ref<Device> m_Device;
@@ -70,7 +94,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Model
     KIT::Scope<Buffer> m_IndexBuffer = nullptr;
 };
 
-using Model2D = Model<2>;
-using Model3D = Model<3>;
+namespace ModelWarehouse
+{
+
+} // namespace ModelWarehouse
 
 } // namespace ONYX

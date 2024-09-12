@@ -34,7 +34,7 @@ class ONYX_API IWindow
         {
             m_Renderer->BeginRenderPass(BackgroundColor);
             std::forward<F>(p_Submission)(cmd);
-            runRenderSystems();
+            drawRenderSystems();
             m_Renderer->EndRenderPass();
             m_Renderer->EndFrame(*this);
             return true;
@@ -73,7 +73,7 @@ class ONYX_API IWindow
     Color BackgroundColor = Color::BLACK;
 
   protected:
-    virtual void runRenderSystems() noexcept = 0;
+    virtual void drawRenderSystems() noexcept = 0;
 
   private:
     void initialize() noexcept;
@@ -99,7 +99,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Window final : public IWindow
     using IWindow::IWindow;
 
   private:
-    void runRenderSystems() noexcept override;
+    void drawRenderSystems() noexcept override;
 };
 
 using Window2D = Window<2>;

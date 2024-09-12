@@ -15,8 +15,8 @@ class ONYX_API Pipeline
     // TODO: Reconsider the use of DynamicArray
     struct Specs
     {
-        KIT_NON_COPYABLE(Specs)
-        Specs() noexcept = default;
+        Specs() noexcept;
+        void Populate() noexcept;
 
         VkPipelineViewportStateCreateInfo ViewportInfo;
         VkPipelineInputAssemblyStateCreateInfo InputAssemblyInfo;
@@ -38,11 +38,9 @@ class ONYX_API Pipeline
         DynamicArray<VkVertexInputBindingDescription> BindingDescriptions;
         DynamicArray<VkVertexInputAttributeDescription> AttributeDescriptions;
         u32 ConstantRangeSize = 0;
-
-        static void PopulateWithDefault(Specs &p_Specs) noexcept;
     };
 
-    explicit Pipeline(const Specs &p_Specs) noexcept;
+    explicit Pipeline(Specs p_Specs) noexcept;
     ~Pipeline();
 
     void Bind(VkCommandBuffer p_CommandBuffer) const noexcept;

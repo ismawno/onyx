@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/core/api.hpp"
+#include "onyx/core/alias.hpp"
 
 // This utility is used to provide 2 different APIs (2D and 3D) with as little code duplication as possible
 

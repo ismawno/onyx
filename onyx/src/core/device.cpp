@@ -160,7 +160,7 @@ u32 Device::FindMemoryType(const u32 p_TypeFilter, const VkMemoryPropertyFlags p
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(m_PhysicalDevice, &memProperties);
 
-    for (u32 i = 0; i < memProperties.memoryTypeCount; i++)
+    for (u32 i = 0; i < memProperties.memoryTypeCount; ++i)
         if ((p_TypeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & p_Properties) == p_Properties)
             return i;
 
@@ -272,7 +272,7 @@ void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     const std::unordered_set<std::uint32_t> uniqueQueueFamily = {indices.GraphicsFamily, indices.PresentFamily};
 
-    const float queuePriority = 1.0f;
+    const f32 queuePriority = 1.0f;
     for (std::uint32_t queue_family : uniqueQueueFamily)
     {
         VkDeviceQueueCreateInfo queueCreateInfo{};

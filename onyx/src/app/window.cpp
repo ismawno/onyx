@@ -146,7 +146,7 @@ const Renderer &IWindow::GetRenderer() const noexcept
     return *m_Renderer;
 }
 
-ONYX_DIMENSION_TEMPLATE void Window<N>::runRenderSystems() noexcept
+ONYX_DIMENSION_TEMPLATE void Window<N>::drawRenderSystems() noexcept
 {
 }
 

@@ -7,8 +7,9 @@
 
 namespace ONYX
 {
-Pipeline::Pipeline(const Specs &p_Specs) noexcept
+Pipeline::Pipeline(Specs p_Specs) noexcept
 {
+    p_Specs.Populate();
     initialize(p_Specs);
 }
 
@@ -122,72 +123,76 @@ VkShaderModule Pipeline::createShaderModule(const char *p_Path) noexcept
     return shaderModule;
 }
 
-void Pipeline::Specs::PopulateWithDefault(Specs &p_Specs) noexcept
+Pipeline::Specs::Specs() noexcept
 {
-    p_Specs.InputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    p_Specs.InputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    p_Specs.InputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+    InputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    InputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    InputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
 
-    p_Specs.ViewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    p_Specs.ViewportInfo.viewportCount = 1;
-    p_Specs.ViewportInfo.pViewports = nullptr;
-    p_Specs.ViewportInfo.scissorCount = 1;
-    p_Specs.ViewportInfo.pScissors = nullptr;
+    ViewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    ViewportInfo.viewportCount = 1;
+    ViewportInfo.pViewports = nullptr;
+    ViewportInfo.scissorCount = 1;
+    ViewportInfo.pScissors = nullptr;
 
-    p_Specs.RasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    p_Specs.RasterizationInfo.depthClampEnable = VK_FALSE;
-    p_Specs.RasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-    p_Specs.RasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-    p_Specs.RasterizationInfo.lineWidth = 1.0f;
-    p_Specs.RasterizationInfo.cullMode = VK_CULL_MODE_NONE;
-    p_Specs.RasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    p_Specs.RasterizationInfo.depthBiasEnable = VK_FALSE;
-    p_Specs.RasterizationInfo.depthBiasConstantFactor = 0.0f; // Optional
-    p_Specs.RasterizationInfo.depthBiasClamp = 0.0f;          // Optional
-    p_Specs.RasterizationInfo.depthBiasSlopeFactor = 0.0f;    // Optional
+    RasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    RasterizationInfo.depthClampEnable = VK_FALSE;
+    RasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
+    RasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+    RasterizationInfo.lineWidth = 1.0f;
+    RasterizationInfo.cullMode = VK_CULL_MODE_NONE;
+    RasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    RasterizationInfo.depthBiasEnable = VK_FALSE;
+    RasterizationInfo.depthBiasConstantFactor = 0.0f; // Optional
+    RasterizationInfo.depthBiasClamp = 0.0f;          // Optional
+    RasterizationInfo.depthBiasSlopeFactor = 0.0f;    // Optional
 
-    p_Specs.MultisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    p_Specs.MultisampleInfo.sampleShadingEnable = VK_FALSE;
-    p_Specs.MultisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    p_Specs.MultisampleInfo.minSampleShading = 1.0f;          // Optional
-    p_Specs.MultisampleInfo.pSampleMask = nullptr;            // Optional
-    p_Specs.MultisampleInfo.alphaToCoverageEnable = VK_FALSE; // Optional
-    p_Specs.MultisampleInfo.alphaToOneEnable = VK_FALSE;      // Optional
+    MultisampleInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    MultisampleInfo.sampleShadingEnable = VK_FALSE;
+    MultisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    MultisampleInfo.minSampleShading = 1.0f;          // Optional
+    MultisampleInfo.pSampleMask = nullptr;            // Optional
+    MultisampleInfo.alphaToCoverageEnable = VK_FALSE; // Optional
+    MultisampleInfo.alphaToOneEnable = VK_FALSE;      // Optional
 
-    p_Specs.ColorBlendAttachment.colorWriteMask =
+    ColorBlendAttachment.colorWriteMask =
         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    p_Specs.ColorBlendAttachment.blendEnable = VK_TRUE;
-    p_Specs.ColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;           // Optional
-    p_Specs.ColorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Optional
-    p_Specs.ColorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;                            // Optional
-    p_Specs.ColorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;                 // Optional
-    p_Specs.ColorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Optional
-    p_Specs.ColorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;                            // Optional
+    ColorBlendAttachment.blendEnable = VK_TRUE;
+    ColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;           // Optional
+    ColorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Optional
+    ColorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;                            // Optional
+    ColorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;                 // Optional
+    ColorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; // Optional
+    ColorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;                            // Optional
 
-    p_Specs.ColorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    p_Specs.ColorBlendInfo.logicOpEnable = VK_FALSE;
-    p_Specs.ColorBlendInfo.logicOp = VK_LOGIC_OP_COPY; // Optional
-    p_Specs.ColorBlendInfo.attachmentCount = 1;
-    p_Specs.ColorBlendInfo.pAttachments = &p_Specs.ColorBlendAttachment;
-    p_Specs.ColorBlendInfo.blendConstants[0] = 0.0f; // Optional
-    p_Specs.ColorBlendInfo.blendConstants[1] = 0.0f; // Optional
-    p_Specs.ColorBlendInfo.blendConstants[2] = 0.0f; // Optional
-    p_Specs.ColorBlendInfo.blendConstants[3] = 0.0f; // Optional
+    ColorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    ColorBlendInfo.logicOpEnable = VK_FALSE;
+    ColorBlendInfo.logicOp = VK_LOGIC_OP_COPY; // Optional
+    ColorBlendInfo.attachmentCount = 1;
+    ColorBlendInfo.blendConstants[0] = 0.0f; // Optional
+    ColorBlendInfo.blendConstants[1] = 0.0f; // Optional
+    ColorBlendInfo.blendConstants[2] = 0.0f; // Optional
+    ColorBlendInfo.blendConstants[3] = 0.0f; // Optional
 
-    p_Specs.DepthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    p_Specs.DepthStencilInfo.depthTestEnable = VK_TRUE;
-    p_Specs.DepthStencilInfo.depthWriteEnable = VK_TRUE;
-    p_Specs.DepthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS;
-    p_Specs.DepthStencilInfo.depthBoundsTestEnable = VK_FALSE;
-    p_Specs.DepthStencilInfo.minDepthBounds = 0.0f; // Optional
-    p_Specs.DepthStencilInfo.maxDepthBounds = 1.0f; // Optional
-    p_Specs.DepthStencilInfo.stencilTestEnable = VK_FALSE;
-    p_Specs.DepthStencilInfo.front = {}; // Optional
-    p_Specs.DepthStencilInfo.back = {};  // Optional
+    DepthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    DepthStencilInfo.depthTestEnable = VK_TRUE;
+    DepthStencilInfo.depthWriteEnable = VK_TRUE;
+    DepthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+    DepthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+    DepthStencilInfo.minDepthBounds = 0.0f; // Optional
+    DepthStencilInfo.maxDepthBounds = 1.0f; // Optional
+    DepthStencilInfo.stencilTestEnable = VK_FALSE;
+    DepthStencilInfo.front = {}; // Optional
+    DepthStencilInfo.back = {};  // Optional
 
-    p_Specs.DynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-    p_Specs.DynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    p_Specs.DynamicStateInfo.pDynamicStates = p_Specs.DynamicStateEnables.data();
-    p_Specs.DynamicStateInfo.dynamicStateCount = static_cast<u32>(p_Specs.DynamicStateEnables.size());
+    DynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    DynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+}
+
+void Pipeline::Specs::Populate() noexcept
+{
+    ColorBlendInfo.pAttachments = &ColorBlendAttachment;
+    DynamicStateInfo.pDynamicStates = DynamicStateEnables.data();
+    DynamicStateInfo.dynamicStateCount = static_cast<u32>(DynamicStateEnables.size());
 }
 } // namespace ONYX

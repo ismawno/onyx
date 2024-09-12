@@ -21,7 +21,7 @@ void Perspective::UpdateMatrices() noexcept
 {
     if (m_YFlipped)
         Transform.Scale.y = -Transform.Scale.y;
-    const float halfPov = glm::tan(0.5f * FieldOfView);
+    const f32 halfPov = glm::tan(0.5f * FieldOfView);
 
     glm::mat4 perspective = glm::mat4{0.0f};
     perspective[0][0] = 1.f / (m_Aspect * halfPov);

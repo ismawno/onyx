@@ -3,7 +3,7 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE void Camera<N>::KeepAspectRatio(const float p_Aspect) noexcept
+ONYX_DIMENSION_TEMPLATE void Camera<N>::KeepAspectRatio(const f32 p_Aspect) noexcept
 {
     Transform.Scale.x = p_Aspect * Transform.Scale.y;
 }
