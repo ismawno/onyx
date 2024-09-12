@@ -4,7 +4,7 @@
 
 namespace ONYX
 {
-class Perspective final : public Camera<3>
+class ONYX_API Perspective final : public Camera<3>
 {
   public:
     Perspective() = default;

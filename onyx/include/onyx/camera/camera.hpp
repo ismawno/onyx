@@ -5,12 +5,17 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE class Camera
+class ICamera ONYX_API
 {
-  public:
-    virtual ~Camera() = default;
+    virtual ~ICamera() = default;
 
     virtual void UpdateMatrices() noexcept = 0;
+    virtual void KeepAspectRatio(f32 p_Aspect) noexcept = 0;
+};
+
+ONYX_DIMENSION_TEMPLATE class ONYX_API Camera : public ICamera
+{
+  public:
     virtual void KeepAspectRatio(f32 p_Aspect) noexcept;
 
     vec<N> ScreenToWorld(const vec2 &p_Screen) const noexcept;

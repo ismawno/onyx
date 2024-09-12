@@ -1,5 +1,6 @@
 #include "core/pch.hpp"
 #include "onyx/core/core.hpp"
+#include "onyx/model/model.hpp"
 #include "kit/core/logging.hpp"
 
 #define GLFW_INCLUDE_VULKAN
@@ -20,10 +21,12 @@ void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::TaskManager *p_Mana
     s_Instance = KIT::Ref<ONYX::Instance>::Create();
     s_Allocator = p_Allocator;
     s_Manager = p_Manager;
+    Model::CreatePrimitiveModels();
 }
 
 void Core::Terminate() noexcept
 {
+    Model::DestroyPrimitiveModels();
     glfwTerminate();
     if (s_Device)
         s_Device->WaitIdle();

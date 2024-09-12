@@ -6,7 +6,7 @@ namespace ONYX
 {
 ONYX_DIMENSION_TEMPLATE class Orthographic;
 
-template <> class Orthographic<2> final : public Camera<2>
+template <> class ONYX_API Orthographic<2> final : public Camera<2>
 {
   public:
     Orthographic() noexcept = default;
@@ -21,7 +21,7 @@ template <> class Orthographic<2> final : public Camera<2>
     void Size(f32 p_Size) noexcept;
 };
 
-template <> class Orthographic<3> final : public Camera<3>
+template <> class ONYX_API Orthographic<3> final : public Camera<3>
 {
   public:
     Orthographic() noexcept = default;
