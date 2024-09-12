@@ -21,12 +21,12 @@ void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::TaskManager *p_Mana
     s_Instance = KIT::Ref<ONYX::Instance>::Create();
     s_Allocator = p_Allocator;
     s_Manager = p_Manager;
-    Model::CreatePrimitiveModels();
 }
 
 void Core::Terminate() noexcept
 {
-    Model::DestroyPrimitiveModels();
+    if (s_Device)
+        Model::DestroyPrimitiveModels();
     glfwTerminate();
     if (s_Device)
         s_Device->WaitIdle();
@@ -48,7 +48,10 @@ const KIT::Ref<ONYX::Device> &Core::Device() noexcept
 const KIT::Ref<ONYX::Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
 {
     if (!s_Device)
+    {
         s_Device = KIT::Ref<ONYX::Device>::Create(p_Surface);
+        Model::CreatePrimitiveModels();
+    }
     KIT_ASSERT(s_Device->IsSuitable(p_Surface), "The current device is not suitable for the given surface");
     return s_Device;
 }

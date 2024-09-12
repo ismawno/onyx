@@ -17,7 +17,7 @@ class TaskManager;
 
 namespace ONYX
 {
-class IWindow;
+class Window;
 struct ONYX_API Core
 {
     static void Initialize(KIT::StackAllocator *p_Allocator, KIT::TaskManager *p_Manager) noexcept;
@@ -33,7 +33,7 @@ struct ONYX_API Core
     // Should ony be called by window constructor (I should look for a way to better hide this)
     static const KIT::Ref<ONYX::Device> &tryCreateDevice(VkSurfaceKHR p_Surface) noexcept;
 
-    friend class IWindow;
+    friend class Window;
 };
 
 } // namespace ONYX

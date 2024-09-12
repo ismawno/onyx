@@ -10,7 +10,7 @@
 
 namespace ONYX
 {
-Renderer::Renderer(IWindow &p_Window) noexcept
+Renderer::Renderer(Window &p_Window) noexcept
 {
     m_Device = Core::Device();
     createSwapChain(p_Window);
@@ -31,7 +31,7 @@ Renderer::~Renderer() noexcept
     vkDestroyCommandPool(m_Device->VulkanDevice(), m_CommandPool, nullptr);
 }
 
-VkCommandBuffer Renderer::BeginFrame(IWindow &p_Window) noexcept
+VkCommandBuffer Renderer::BeginFrame(Window &p_Window) noexcept
 {
     KIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
 
@@ -69,7 +69,7 @@ VkCommandBuffer Renderer::BeginFrame(IWindow &p_Window) noexcept
     return m_CommandBuffers[m_FrameIndex];
 }
 
-void Renderer::EndFrame(IWindow &) noexcept
+void Renderer::EndFrame(Window &) noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
     KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
@@ -145,7 +145,7 @@ const SwapChain &Renderer::GetSwapChain() const noexcept
     return *m_SwapChain;
 }
 
-void Renderer::createSwapChain(IWindow &p_Window) noexcept
+void Renderer::createSwapChain(Window &p_Window) noexcept
 {
     VkExtent2D windowExtent = {p_Window.ScreenWidth(), p_Window.ScreenHeight()};
     while (windowExtent.width == 0 || windowExtent.height == 0)

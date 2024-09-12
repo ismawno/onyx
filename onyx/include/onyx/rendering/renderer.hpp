@@ -6,16 +6,16 @@
 namespace ONYX
 {
 struct Color;
-class IWindow;
+class Window;
 
 class ONYX_API Renderer
 {
   public:
-    explicit Renderer(IWindow &p_Window) noexcept;
+    explicit Renderer(Window &p_Window) noexcept;
     ~Renderer() noexcept;
 
-    VkCommandBuffer BeginFrame(IWindow &p_Window) noexcept;
-    void EndFrame(IWindow &p_Window) noexcept;
+    VkCommandBuffer BeginFrame(Window &p_Window) noexcept;
+    void EndFrame(Window &p_Window) noexcept;
 
     void BeginRenderPass(const Color &p_ClearColor) noexcept;
     void EndRenderPass() noexcept;
@@ -31,7 +31,7 @@ class ONYX_API Renderer
     const SwapChain &GetSwapChain() const noexcept;
 
   private:
-    void createSwapChain(IWindow &p_Window) noexcept;
+    void createSwapChain(Window &p_Window) noexcept;
     void createCommandPool(VkSurfaceKHR p_Surface) noexcept;
     void createCommandBuffers() noexcept;
 

@@ -11,17 +11,11 @@ class ONYX_API Application
     Application() noexcept = default;
     ~Application() noexcept;
 
-    ONYX_DIMENSION_TEMPLATE Window<N> *OpenWindow(const typename Window<N>::Specs &p_Specs) noexcept;
-    ONYX_DIMENSION_TEMPLATE Window<N> *OpenWindow() noexcept;
-
-    Window2D *OpenWindow2D(const Window2D::Specs &p_Specs) noexcept;
-    Window2D *OpenWindow2D() noexcept;
-
-    Window3D *OpenWindow3D(const Window3D::Specs &p_Specs) noexcept;
-    Window3D *OpenWindow3D() noexcept;
+    Window *OpenWindow(const Window::Specs &p_Specs) noexcept;
+    Window *OpenWindow() noexcept;
 
     void CloseWindow(usize p_Index) noexcept;
-    void CloseWindow(const IWindow *p_Window) noexcept;
+    void CloseWindow(const Window *p_Window) noexcept;
 
     void Start() noexcept;
     void Shutdown() noexcept;
@@ -32,7 +26,7 @@ class ONYX_API Application
   private:
     struct WindowData
     {
-        KIT::Scope<IWindow> Window;
+        KIT::Scope<Window> Window;
         KIT::Ref<KIT::Task<void>> Task;
     };
 
@@ -42,7 +36,7 @@ class ONYX_API Application
     static void beginRenderImGui() noexcept;
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
 
-    void initializeImGui(IWindow &p_Window) noexcept;
+    void initializeImGui(Window &p_Window) noexcept;
     void shutdownImGui() noexcept;
 
     DynamicArray<WindowData> m_WindowData;

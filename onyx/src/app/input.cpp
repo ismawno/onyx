@@ -7,9 +7,9 @@
 
 namespace ONYX
 {
-static IWindow *windowFromGLFW(GLFWwindow *p_Window)
+static Window *windowFromGLFW(GLFWwindow *p_Window)
 {
-    return static_cast<IWindow *>(glfwGetWindowUserPointer(p_Window));
+    return static_cast<Window *>(glfwGetWindowUserPointer(p_Window));
 }
 
 void Input::PollEvents()
@@ -45,7 +45,7 @@ static void windowResizeCallback(GLFWwindow *p_Window, const int p_Width, const 
     Event event;
     event.Type = Event::WINDOW_RESIZED;
 
-    IWindow *window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
 
     event.Window.OldWidth = window->ScreenWidth();
     event.Window.OldHeight = window->ScreenHeight();
@@ -102,7 +102,7 @@ static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOff
     windowFromGLFW(p_Window)->PushEvent(event);
 }
 
-void Input::InstallCallbacks(IWindow &p_Window) noexcept
+void Input::InstallCallbacks(Window &p_Window) noexcept
 {
     glfwSetWindowSizeCallback(p_Window.GLFWWindow(), windowResizeCallback);
     glfwSetKeyCallback(p_Window.GLFWWindow(), keyCallback);

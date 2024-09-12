@@ -14,7 +14,7 @@ int main()
     ONYX::Core::Initialize(&stackAllocator, &threadPool);
 
     ONYX::Application app;
-    app.OpenWindow2D();
+    app.OpenWindow();
 
     app.Run();
 

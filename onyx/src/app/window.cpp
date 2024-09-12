@@ -7,23 +7,23 @@
 
 namespace ONYX
 {
-IWindow::IWindow() noexcept
+Window::Window() noexcept
 {
     initialize();
 }
-IWindow::IWindow(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
+Window::Window(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
 {
     initialize();
 }
 
-IWindow::~IWindow() noexcept
+Window::~Window() noexcept
 {
     m_Renderer.Release();
     vkDestroySurfaceKHR(m_Instance->VulkanInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
 
-void IWindow::initialize() noexcept
+void Window::initialize() noexcept
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
@@ -45,94 +45,94 @@ void IWindow::initialize() noexcept
     Input::InstallCallbacks(*this);
 }
 
-void IWindow::drawRenderSystems() noexcept
+void Window::drawRenderSystems() noexcept
 {
 }
 
-bool IWindow::Display() noexcept
+bool Window::Display() noexcept
 {
     return Display([](const VkCommandBuffer) {});
 }
 
-void IWindow::MakeContextCurrent() const noexcept
+void Window::MakeContextCurrent() const noexcept
 {
     glfwMakeContextCurrent(m_Window);
 }
 
-bool IWindow::ShouldClose() const noexcept
+bool Window::ShouldClose() const noexcept
 {
     return glfwWindowShouldClose(m_Window);
 }
 
-const GLFWwindow *IWindow::GLFWWindow() const noexcept
+const GLFWwindow *Window::GLFWWindow() const noexcept
 {
     return m_Window;
 }
-GLFWwindow *IWindow::GLFWWindow() noexcept
+GLFWwindow *Window::GLFWWindow() noexcept
 {
     return m_Window;
 }
 
-const char *IWindow::Name() const noexcept
+const char *Window::Name() const noexcept
 {
     return m_Specs.Name;
 }
 
-u32 IWindow::ScreenWidth() const noexcept
+u32 Window::ScreenWidth() const noexcept
 {
     return m_Specs.Width;
 }
-u32 IWindow::ScreenHeight() const noexcept
+u32 Window::ScreenHeight() const noexcept
 {
     return m_Specs.Height;
 }
 
-u32 IWindow::PixelWidth() const noexcept
+u32 Window::PixelWidth() const noexcept
 {
     return m_Renderer->GetSwapChain().Width();
 }
-u32 IWindow::PixelHeight() const noexcept
+u32 Window::PixelHeight() const noexcept
 {
     return m_Renderer->GetSwapChain().Height();
 }
 
-f32 IWindow::ScreenAspect() const noexcept
+f32 Window::ScreenAspect() const noexcept
 {
     return static_cast<f32>(m_Specs.Width) / static_cast<f32>(m_Specs.Height);
 }
 
-f32 IWindow::PixelAspect() const noexcept
+f32 Window::PixelAspect() const noexcept
 {
     return m_Renderer->GetSwapChain().AspectRatio();
 }
 
-bool IWindow::WasResized() const noexcept
+bool Window::WasResized() const noexcept
 {
     return m_Resized;
 }
 
-void IWindow::FlagResize(const u32 p_Width, const u32 p_Height) noexcept
+void Window::FlagResize(const u32 p_Width, const u32 p_Height) noexcept
 {
     m_Specs.Width = p_Width;
     m_Specs.Height = p_Height;
     m_Resized = true;
 }
-void IWindow::FlagResizeDone() noexcept
+void Window::FlagResizeDone() noexcept
 {
     m_Resized = false;
 }
 
-VkSurfaceKHR IWindow::Surface() const noexcept
+VkSurfaceKHR Window::Surface() const noexcept
 {
     return m_Surface;
 }
 
-void IWindow::PushEvent(const Event &p_Event) noexcept
+void Window::PushEvent(const Event &p_Event) noexcept
 {
     m_Events.push_back(p_Event);
 }
 
-Event IWindow::PopEvent() noexcept
+Event Window::PopEvent() noexcept
 {
     Event event;
     if (m_Events.empty())
@@ -145,7 +145,7 @@ Event IWindow::PopEvent() noexcept
     return event;
 }
 
-const Renderer &IWindow::GetRenderer() const noexcept
+const Renderer &Window::GetRenderer() const noexcept
 {
     return *m_Renderer;
 }

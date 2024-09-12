@@ -12,9 +12,9 @@
 namespace ONYX
 {
 // TODO: Align window to the cache line in case a multi window app is used?
-class ONYX_API IWindow
+class ONYX_API Window
 {
-    KIT_NON_COPYABLE(IWindow)
+    KIT_NON_COPYABLE(Window)
   public:
     struct Specs
     {
@@ -23,8 +23,9 @@ class ONYX_API IWindow
         u32 Height = 600;
     };
 
-    IWindow() noexcept;
-    explicit IWindow(const Specs &p_Specs) noexcept;
+    Window() noexcept;
+    explicit Window(const Specs &p_Specs) noexcept;
+    ~Window() noexcept;
 
     template <typename F> bool Display(F &&p_Submission) noexcept
     {

@@ -7,6 +7,7 @@ namespace ONYX
 {
 class ICamera ONYX_API
 {
+  public:
     virtual ~ICamera() = default;
 
     virtual void UpdateMatrices() noexcept = 0;

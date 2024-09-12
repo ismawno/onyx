@@ -6,13 +6,13 @@
 
 namespace ONYX
 {
-template <typename F> static void runFrame(IWindow &p_Window, F &&p_Submission) noexcept
+template <typename F> static void runFrame(Window &p_Window, F &&p_Submission) noexcept
 {
     p_Window.MakeContextCurrent();
     KIT_ASSERT_RETURNS(p_Window.Display(std::forward<F>(p_Submission)), true,
                        "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
 }
-static void runFrame(IWindow &p_Window) noexcept
+static void runFrame(Window &p_Window) noexcept
 {
     runFrame(p_Window, [](const VkCommandBuffer) {});
 }
@@ -22,9 +22,9 @@ Application::~Application() noexcept
     if (!m_Terminated && m_Started)
         Shutdown();
 }
-ONYX_DIMENSION_TEMPLATE Window<N> *Application::OpenWindow(const typename Window<N>::Specs &p_Specs) noexcept
+Window *Application::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
-    auto window = KIT::Scope<Window<N>>::Create(p_Specs);
+    auto window = KIT::Scope<Window>::Create(p_Specs);
 
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
@@ -33,7 +33,7 @@ ONYX_DIMENSION_TEMPLATE Window<N> *Application::OpenWindow(const typename Window
         m_Device = Core::Device();
         initializeImGui(*window);
     }
-    Window<N> *windowPtr = window.Get();
+    Window *windowPtr = window.Get();
 
     WindowData windowData;
     windowData.Window = std::move(window);
@@ -43,27 +43,9 @@ ONYX_DIMENSION_TEMPLATE Window<N> *Application::OpenWindow(const typename Window
     return windowPtr;
 }
 
-ONYX_DIMENSION_TEMPLATE Window<N> *Application::OpenWindow() noexcept
+Window *Application::OpenWindow() noexcept
 {
-    return OpenWindow<N>(typename Window<N>::Specs{});
-}
-
-Window2D *Application::OpenWindow2D(const Window2D::Specs &p_Specs) noexcept
-{
-    return OpenWindow<2>(p_Specs);
-}
-Window2D *Application::OpenWindow2D() noexcept
-{
-    return OpenWindow<2>();
-}
-
-Window3D *Application::OpenWindow3D(const Window3D::Specs &p_Specs) noexcept
-{
-    return OpenWindow<3>(p_Specs);
-}
-Window3D *Application::OpenWindow3D() noexcept
-{
-    return OpenWindow<3>();
+    return OpenWindow(Window::Specs{});
 }
 
 void Application::CloseWindow(const usize p_Index) noexcept
@@ -85,7 +67,7 @@ void Application::CloseWindow(const usize p_Index) noexcept
     }
 }
 
-void Application::CloseWindow(const IWindow *p_Window) noexcept
+void Application::CloseWindow(const Window *p_Window) noexcept
 {
     for (usize i = 0; i < m_WindowData.size(); ++i)
         if (m_WindowData[i].Window.Get() == p_Window)
@@ -139,7 +121,7 @@ void Application::runAndManageWindows() noexcept
         WindowData &windowData = m_WindowData[i];
         if (!windowData.Task)
         {
-            IWindow *window = windowData.Window.Get();
+            Window *window = windowData.Window.Get();
             windowData.Task = taskManager->CreateAndSubmit([window](usize) { runFrame(*window); });
         }
         else
@@ -152,7 +134,7 @@ void Application::runAndManageWindows() noexcept
     static bool openWindow = false;
     if (openWindow)
     {
-        OpenWindow2D();
+        OpenWindow();
         openWindow = false;
     }
 
@@ -215,7 +197,7 @@ void Application::createImGuiPool() noexcept
                        "Failed to create descriptor pool");
 }
 
-void Application::initializeImGui(IWindow &p_Window) noexcept
+void Application::initializeImGui(Window &p_Window) noexcept
 {
     if (!m_ImGuiPool)
         createImGuiPool();
