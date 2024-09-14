@@ -1,6 +1,6 @@
 #include "core/pch.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/drawing/model.hpp"
+#include "onyx/draw/model.hpp"
 #include "kit/core/logging.hpp"
 
 #define GLFW_INCLUDE_VULKAN

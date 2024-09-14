@@ -2,9 +2,9 @@
 #include "onyx/app/window.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/drawing/color.hpp"
+#include "onyx/draw/color.hpp"
 #include "onyx/descriptors/descriptor_writer.hpp"
-#include "onyx/drawing/drawable.hpp"
+#include "onyx/draw/drawable.hpp"
 #include "kit/core/logging.hpp"
 
 namespace ONYX

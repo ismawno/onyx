@@ -3,7 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/camera/camera.hpp"
 #include "onyx/rendering/pipeline.hpp"
-#include "onyx/drawing/model.hpp"
+#include "onyx/draw/model.hpp"
 #include "onyx/core/core.hpp"
 
 #include <vulkan/vulkan.hpp>

@@ -1,5 +1,5 @@
 #include "core/pch.hpp"
-#include "onyx/drawing/model.hpp"
+#include "onyx/draw/model.hpp"
 #include "onyx/core/core.hpp"
 
 #ifndef ONYX_CIRCLE_VERTICES

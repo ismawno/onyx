@@ -4,7 +4,7 @@
 #include "onyx/core/device.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/app/input.hpp"
-#include "onyx/drawing/color.hpp"
+#include "onyx/draw/color.hpp"
 #include "onyx/descriptors/descriptor_pool.hpp"
 #include "onyx/descriptors/descriptor_set_layout.hpp"
 #include "onyx/rendering/buffer.hpp"
