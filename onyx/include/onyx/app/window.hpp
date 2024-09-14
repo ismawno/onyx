@@ -4,7 +4,7 @@
 #include "onyx/core/device.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/app/input.hpp"
-#include "onyx/model/color.hpp"
+#include "onyx/drawing/color.hpp"
 #include "onyx/descriptors/descriptor_pool.hpp"
 #include "onyx/descriptors/descriptor_set_layout.hpp"
 #include "onyx/rendering/buffer.hpp"
@@ -37,7 +37,7 @@ class ONYX_API Window
         {
             m_Renderer->BeginRenderPass(BackgroundColor);
             std::forward<F>(p_Submission)(cmd);
-            drawRenderSystems();
+            drawRenderSystems(cmd);
             m_Renderer->EndRenderPass();
             m_Renderer->EndFrame(*this);
             return true;
@@ -91,7 +91,7 @@ class ONYX_API Window
     void createWindow() noexcept;
     void createGlobalUniformHelper() noexcept;
 
-    void drawRenderSystems() noexcept;
+    void drawRenderSystems(VkCommandBuffer p_CommandBuffer) noexcept;
 
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;

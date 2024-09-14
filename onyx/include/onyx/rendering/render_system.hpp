@@ -3,7 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/camera/camera.hpp"
 #include "onyx/rendering/pipeline.hpp"
-#include "onyx/model/model.hpp"
+#include "onyx/drawing/model.hpp"
 #include "onyx/core/core.hpp"
 
 #include <vulkan/vulkan.hpp>
@@ -26,6 +26,7 @@ class ONYX_API RenderSystem
             Vertex<N>::AttributeDescriptions();
         VkPrimitiveTopology Topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         VkPolygonMode PolygonMode = VK_POLYGON_MODE_FILL;
+        VkRenderPass RenderPass = VK_NULL_HANDLE;
     };
 
     struct DrawInfo
@@ -43,7 +44,7 @@ class ONYX_API RenderSystem
 
     struct DrawData
     {
-        Model *Model;
+        const Model *Model;
         PushConstantData Data;
     };
 

@@ -1,5 +1,5 @@
 #include "core/pch.hpp"
-#include "onyx/model/model.hpp"
+#include "onyx/drawing/model.hpp"
 #include "onyx/core/core.hpp"
 
 #ifndef ONYX_CIRCLE_VERTICES
@@ -333,6 +333,63 @@ void Model::DestroyPrimitiveModels() noexcept
 
     delete s_Cube3D;
     delete s_Sphere3D;
+}
+
+ONYX_DIMENSION_TEMPLATE const Model *Model::Rectangle() noexcept
+{
+    if constexpr (N == 2)
+        return s_Rectangle2D;
+    else
+        return s_Rectangle3D;
+}
+ONYX_DIMENSION_TEMPLATE const Model *Model::Line() noexcept
+{
+    if constexpr (N == 2)
+        return s_Line2D;
+    else
+        return s_Line3D;
+}
+ONYX_DIMENSION_TEMPLATE const Model *Model::Circle() noexcept
+{
+    if constexpr (N == 2)
+        return s_Circle2D;
+    else
+        return s_Circle3D;
+}
+
+const Model *Model::Rectangle2D() noexcept
+{
+    return s_Rectangle2D;
+}
+const Model *Model::Line2D() noexcept
+{
+    return s_Line2D;
+}
+const Model *Model::Circle2D() noexcept
+{
+    return s_Circle2D;
+}
+
+const Model *Model::Rectangle3D() noexcept
+{
+    return s_Rectangle3D;
+}
+const Model *Model::Line3D() noexcept
+{
+    return s_Line3D;
+}
+const Model *Model::Circle3D() noexcept
+{
+    return s_Circle3D;
+}
+
+const Model *Model::Cube() noexcept
+{
+    return s_Cube3D;
+}
+const Model *Model::Sphere() noexcept
+{
+    return s_Sphere3D;
 }
 
 // template Model::Model(const std::span<const Vertex<2>>, const Properties) noexcept;

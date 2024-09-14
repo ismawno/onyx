@@ -2,7 +2,7 @@
 #include "onyx/app/window.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/model/color.hpp"
+#include "onyx/drawing/color.hpp"
 #include "onyx/descriptors/descriptor_writer.hpp"
 #include "kit/core/logging.hpp"
 
@@ -84,13 +84,24 @@ void Window::createGlobalUniformHelper() noexcept
     }
 }
 
-void Window::drawRenderSystems() noexcept
+void Window::drawRenderSystems(const VkCommandBuffer) noexcept
 {
-    const u32 frameIndex = m_Renderer->FrameIndex();
-    GlobalUBO ubo{};
+    // const u32 frameIndex = m_Renderer->FrameIndex();
+    // GlobalUBO ubo{};
 
-    m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);
-    m_GlobalUniformHelper->UniformBuffer.FlushAt(frameIndex);
+    // m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);
+    // m_GlobalUniformHelper->UniformBuffer.FlushAt(frameIndex);
+
+    // RenderSystem::Specs<2> specs{};
+    // specs.RenderPass = m_Renderer->GetSwapChain().RenderPass();
+    // RenderSystem rs{specs};
+
+    // RenderSystem::DrawInfo info{};
+    // info.CommandBuffer = p_CommandBuffer;
+    // const Model *model = Model::Rectangle2D();
+    // rs.SubmitRenderData({model, {}});
+    // rs.Display(info);
+    // rs.ClearRenderData();
 }
 
 bool Window::Display() noexcept

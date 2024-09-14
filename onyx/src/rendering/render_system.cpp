@@ -17,6 +17,7 @@ ONYX_DIMENSION_TEMPLATE static Pipeline::Specs toPipelineSpecs(const RenderSyste
 
     specs.InputAssemblyInfo.topology = p_Specs.Topology;
     specs.RasterizationInfo.polygonMode = p_Specs.PolygonMode;
+    specs.RenderPass = p_Specs.RenderPass;
     return specs;
 }
 
@@ -30,14 +31,22 @@ void RenderSystem::Display(const DrawInfo &p_Info) noexcept
     m_Pipeline.Bind(p_Info.CommandBuffer);
     for (const DrawData &data : m_DrawData)
     {
-        const PushConstantData push = data.Data;
         vkCmdPushConstants(p_Info.CommandBuffer, m_Pipeline.Layout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
-                           sizeof(PushConstantData), &push);
+                           sizeof(PushConstantData), &data.Data);
 
         // TODO: Avoid this if model is already bound
         data.Model->Bind(p_Info.CommandBuffer);
         data.Model->Draw(p_Info.CommandBuffer);
     }
+}
+
+void RenderSystem::ClearRenderData() noexcept
+{
+    m_DrawData.clear();
+}
+void RenderSystem::SubmitRenderData(const DrawData &p_Data) noexcept
+{
+    m_DrawData.push_back(p_Data);
 }
 
 template RenderSystem::RenderSystem(const Specs<2> &p_Specs) noexcept;

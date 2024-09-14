@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/core/device.hpp"
-#include "onyx/model/vertex.hpp"
+#include "onyx/drawing/vertex.hpp"
 #include "onyx/rendering/buffer.hpp"
 
 namespace ONYX

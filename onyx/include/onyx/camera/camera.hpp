@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/model/transform.hpp"
+#include "onyx/drawing/transform.hpp"
 
 namespace ONYX
 {

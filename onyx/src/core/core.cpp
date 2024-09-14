@@ -1,6 +1,6 @@
 #include "core/pch.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/model/model.hpp"
+#include "onyx/drawing/model.hpp"
 #include "kit/core/logging.hpp"
 
 #define GLFW_INCLUDE_VULKAN
@@ -48,16 +48,16 @@ const KIT::Ref<ONYX::Device> &Core::Device() noexcept
 ONYX_DIMENSION_TEMPLATE const char *Core::VertexShaderPath() noexcept
 {
     if constexpr (N == 3)
-        return KIT_ROOT_PATH "shaders/bin/shader3D.vert.spv";
+        return KIT_ROOT_PATH "/onyx/shaders/bin/shader3D.vert.spv";
     else
-        return KIT_ROOT_PATH "shaders/bin/shader2D.vert.spv";
+        return KIT_ROOT_PATH "/onyx/shaders/bin/shader2D.vert.spv";
 }
 ONYX_DIMENSION_TEMPLATE const char *Core::FragmentShaderPath() noexcept
 {
     if constexpr (N == 3)
-        return KIT_ROOT_PATH "shaders/bin/shader3D.frag.spv";
+        return KIT_ROOT_PATH "/onyx/shaders/bin/shader3D.frag.spv";
     else
-        return KIT_ROOT_PATH "shaders/bin/shader2D.frag.spv";
+        return KIT_ROOT_PATH "/onyx/shaders/bin/shader2D.frag.spv";
 }
 
 const KIT::Ref<ONYX::Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
@@ -79,5 +79,11 @@ KIT::TaskManager *Core::TaskManager() noexcept
 {
     return s_Manager;
 }
+
+template const char *Core::VertexShaderPath<2>() noexcept;
+template const char *Core::VertexShaderPath<3>() noexcept;
+
+template const char *Core::FragmentShaderPath<2>() noexcept;
+template const char *Core::FragmentShaderPath<3>() noexcept;
 
 } // namespace ONYX

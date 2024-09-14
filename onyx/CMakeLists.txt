@@ -17,10 +17,10 @@ set(SOURCES
     src/descriptors/descriptor_pool.cpp
     src/descriptors/descriptor_set_layout.cpp
     src/descriptors/descriptor_writer.cpp
-    src/model/vertex.cpp
-    src/model/color.cpp
-    src/model/transform.cpp
-    src/model/model.cpp
+    src/drawing/vertex.cpp
+    src/drawing/color.cpp
+    src/drawing/transform.cpp
+    src/drawing/model.cpp
     src/app/app.cpp
     src/app/window.cpp
     src/app/input.cpp
