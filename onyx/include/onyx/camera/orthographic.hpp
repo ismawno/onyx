@@ -38,4 +38,7 @@ template <> class ONYX_API Orthographic<3> final : public Camera<3>
     void GetSize(f32 p_Size);
 };
 
+using Orthographic2D = Orthographic<2>;
+using Orthographic3D = Orthographic<3>;
+
 } // namespace ONYX

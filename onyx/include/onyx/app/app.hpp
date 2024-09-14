@@ -4,6 +4,7 @@
 
 namespace ONYX
 {
+class Drawable;
 class ONYX_API Application
 {
     KIT_NON_COPYABLE(Application)
@@ -11,8 +12,20 @@ class ONYX_API Application
     Application() noexcept = default;
     ~Application() noexcept;
 
-    Window *OpenWindow(const Window::Specs &p_Specs) noexcept;
-    Window *OpenWindow() noexcept;
+    template <std::derived_from<ICamera> T, typename... CameraArgs>
+    Window *OpenWindow(const Window::Specs &p_Specs, CameraArgs &&...p_Args) noexcept
+    {
+        Window *window = openWindow(p_Specs);
+        window->SetCamera<T>(std::forward<CameraArgs>(p_Args)...);
+        return window;
+    }
+    template <std::derived_from<ICamera> T, typename... CameraArgs> Window *OpenWindow(CameraArgs &&...p_Args) noexcept
+    {
+        const Window::Specs specs{};
+        return OpenWindow<T>(specs, std::forward<CameraArgs>(p_Args)...);
+    }
+
+    void Draw(Drawable &p_Drawable, usize p_WindowIndex = 0) noexcept;
 
     void CloseWindow(usize p_Index) noexcept;
     void CloseWindow(const Window *p_Window) noexcept;
@@ -30,6 +43,7 @@ class ONYX_API Application
         KIT::Ref<KIT::Task<void>> Task;
     };
 
+    Window *openWindow(const Window::Specs &p_Specs) noexcept;
     void createImGuiPool() noexcept;
     void runAndManageWindows() noexcept;
 

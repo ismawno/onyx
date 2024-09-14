@@ -28,6 +28,8 @@ class ONYX_API RenderSystem
         VkPolygonMode PolygonMode = VK_POLYGON_MODE_FILL;
         VkRenderPass RenderPass = VK_NULL_HANDLE;
     };
+    using Specs2D = Specs<2>;
+    using Specs3D = Specs<3>;
 
     struct DrawInfo
     {
@@ -51,12 +53,15 @@ class ONYX_API RenderSystem
     ONYX_DIMENSION_TEMPLATE RenderSystem(const Specs<N> &p_Specs) noexcept;
 
     void Display(const DrawInfo &p_Info) noexcept;
-
-    void ClearRenderData() noexcept;
     void SubmitRenderData(const DrawData &p_Data) noexcept;
 
   private:
     Pipeline m_Pipeline;
     DynamicArray<DrawData> m_DrawData;
+    mutable const Model *m_BoundModel = nullptr;
+
+    // Protectes access to m_DrawData (you may draw to a secondary window in the main thread, which will trigger
+    // m_DrawData update)
+    mutable std::mutex m_Mutex;
 };
 } // namespace ONYX

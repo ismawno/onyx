@@ -11,12 +11,9 @@ namespace ONYX
 class Window;
 struct ONYX_API Input
 {
-    static void PollEvents();
-
-    static void InstallCallbacks(Window &p_Window) noexcept;
-    static vec2 GetMousePosition() noexcept;
-
     Input() = delete;
+    static void PollEvents();
+    static void InstallCallbacks(Window &p_Window) noexcept;
 
     enum class Key : u16
     {
@@ -159,6 +156,7 @@ struct ONYX_API Input
         BUTTON_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE
     };
 
+    static vec2 GetMousePosition(Window *p_Window = nullptr) noexcept;
     static bool IsKeyPressed(Key p_Key) noexcept;
     static bool IsKeyReleased(Key p_Key) noexcept;
     static bool IsMouseButtonPressed(Mouse p_Button) noexcept;

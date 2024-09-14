@@ -17,6 +17,15 @@ void Input::PollEvents()
     glfwPollEvents();
 }
 
+vec2 Input::GetMousePosition(Window *p_Window) noexcept
+{
+    GLFWwindow *window = p_Window ? p_Window->GetWindow() : glfwGetCurrentContext();
+    double xPos, yPos;
+    glfwGetCursorPos(window, &xPos, &yPos);
+    return {2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,
+            2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight() - 1.f};
+}
+
 bool Input::IsKeyPressed(const Key p_Key) noexcept
 {
     return glfwGetKey(glfwGetCurrentContext(), static_cast<int>(p_Key)) == GLFW_PRESS;

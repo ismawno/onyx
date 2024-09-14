@@ -1,6 +1,7 @@
 #include "onyx/app/app.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/app/input.hpp"
+#include "onyx/camera/orthographic.hpp"
 #include "kit/core/literals.hpp"
 #include "kit/memory/stack_allocator.hpp"
 #include "kit/multiprocessing/thread_pool.hpp"
@@ -14,9 +15,12 @@ int main()
     ONYX::Core::Initialize(&stackAllocator, &threadPool);
 
     ONYX::Application app;
-    app.OpenWindow();
+    app.OpenWindow<ONYX::Orthographic2D>();
 
-    app.Run();
+    app.Start();
+    while (app.NextFrame())
+        ;
+    app.Shutdown();
 
     ONYX::Core::Terminate();
 }

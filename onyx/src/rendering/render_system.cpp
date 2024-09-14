@@ -29,23 +29,28 @@ ONYX_DIMENSION_TEMPLATE RenderSystem::RenderSystem(const Specs<N> &p_Specs) noex
 void RenderSystem::Display(const DrawInfo &p_Info) noexcept
 {
     m_Pipeline.Bind(p_Info.CommandBuffer);
+    vkCmdBindDescriptorSets(p_Info.CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline.GetLayout(), 0, 1,
+                            &p_Info.DescriptorSet, 0, nullptr);
+
+    std::scoped_lock lock(m_Mutex);
     for (const DrawData &data : m_DrawData)
     {
         vkCmdPushConstants(p_Info.CommandBuffer, m_Pipeline.GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
                            sizeof(PushConstantData), &data.Data);
 
-        // TODO: Avoid this if model is already bound
-        data.Model->Bind(p_Info.CommandBuffer);
+        if (m_BoundModel != data.Model)
+        {
+            data.Model->Bind(p_Info.CommandBuffer);
+            m_BoundModel = data.Model;
+        }
         data.Model->Draw(p_Info.CommandBuffer);
     }
-}
-
-void RenderSystem::ClearRenderData() noexcept
-{
     m_DrawData.clear();
 }
+
 void RenderSystem::SubmitRenderData(const DrawData &p_Data) noexcept
 {
+    std::scoped_lock lock(m_Mutex);
     m_DrawData.push_back(p_Data);
 }
 

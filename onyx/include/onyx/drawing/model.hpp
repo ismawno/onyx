@@ -65,24 +65,33 @@ class ONYX_API Model
     static void CreatePrimitiveModels() noexcept;
     static void DestroyPrimitiveModels() noexcept;
 
+    // These functions create a model owned by Onyx itself, which will get deleted automatically when calling
+    // Core::Terminate(). These are not thread safe
+    ONYX_DIMENSION_TEMPLATE static Model *Create(std::span<const Vertex<N>> p_Vertices,
+                                                 Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+
+    ONYX_DIMENSION_TEMPLATE static Model *Create(std::span<const Vertex<N>> p_Vertices,
+                                                 std::span<const Index> p_Indices,
+                                                 Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+
     ONYX_DIMENSION_TEMPLATE static const Model *GetRectangle() noexcept;
     ONYX_DIMENSION_TEMPLATE static const Model *GetLine() noexcept;
     ONYX_DIMENSION_TEMPLATE static const Model *GetCircle() noexcept;
-    ONYX_DIMENSION_TEMPLATE static KIT::Scope<Model> CreatePolygon(std::span<const Vertex<N>> p_Vertices) noexcept;
+    ONYX_DIMENSION_TEMPLATE static Model *CreatePolygon(std::span<const Vertex<N>> p_Vertices) noexcept;
 
     static const Model *GetRectangle2D() noexcept;
     static const Model *GetLine2D() noexcept;
     static const Model *GetCircle2D() noexcept;
-    static KIT::Scope<Model> CreatePolygon2D(std::span<const Vertex2D> p_Vertices) noexcept;
+    static Model *CreatePolygon2D(std::span<const Vertex2D> p_Vertices) noexcept;
 
     static const Model *GetRectangle3D() noexcept;
     static const Model *GetLine3D() noexcept;
     static const Model *GetCircle3D() noexcept;
-    static KIT::Scope<Model> CreatePolygon3D(std::span<const Vertex3D> p_Vertices) noexcept;
+    static Model *CreatePolygon3D(std::span<const Vertex3D> p_Vertices) noexcept;
 
     static const Model *GetCube() noexcept;
     static const Model *GetSphere() noexcept;
-    static KIT::Ref<Model> CreatePolyhedron(std::span<const Vertex3D> p_Vertices) noexcept;
+    static Model *CreatePolyhedron(std::span<const Vertex3D> p_Vertices) noexcept;
 
   private:
     ONYX_DIMENSION_TEMPLATE void createVertexBuffer(std::span<const Vertex<N>> p_Vertices,

@@ -9,12 +9,18 @@
 #include "onyx/descriptors/descriptor_set_layout.hpp"
 #include "onyx/rendering/buffer.hpp"
 #include "onyx/rendering/render_system.hpp"
+#include "onyx/camera/camera.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#ifndef ONYX_MAX_RENDER_SYSTEMS
+#    define ONYX_MAX_RENDER_SYSTEMS 16
+#endif
+
 namespace ONYX
 {
+class Drawable;
 // TODO: Align window to the cache line in case a multi window app is used?
 class ONYX_API Window
 {
@@ -45,9 +51,33 @@ class ONYX_API Window
         return false;
     }
     bool Display() noexcept;
+    void Draw(Drawable &p_Drawable) noexcept;
 
     void MakeContextCurrent() const noexcept;
     bool ShouldClose() const noexcept;
+
+    template <std::derived_from<ICamera> T> const T *GetCamera() const noexcept
+    {
+        return static_cast<T *>(m_Camera.Get());
+    }
+    template <std::derived_from<ICamera> T> T *GetCamera() noexcept
+    {
+        return static_cast<T *>(m_Camera.Get());
+    }
+
+    template <std::derived_from<ICamera> T, typename... CameraArgs> T *SetCamera(CameraArgs &&...p_Args) noexcept
+    {
+        m_Camera = KIT::Scope<T>::Create(std::forward<CameraArgs>(p_Args)...);
+        return static_cast<T *>(m_Camera.Get());
+    }
+
+    ONYX_DIMENSION_TEMPLATE RenderSystem &AddRenderSystem(RenderSystem::Specs<N> p_Specs) noexcept;
+
+    RenderSystem &AddRenderSystem2D(const RenderSystem::Specs2D &p_Specs) noexcept;
+    RenderSystem &AddRenderSystem3D(const RenderSystem::Specs3D &p_Specs) noexcept;
+
+    const RenderSystem &GetRenderSystem(const usize p_Index) const noexcept;
+    RenderSystem &GetRenderSystem(const usize p_Index) noexcept;
 
     const GLFWwindow *GetWindow() const noexcept;
     GLFWwindow *GetWindow() noexcept;
@@ -98,11 +128,12 @@ class ONYX_API Window
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;
     KIT::Scope<Renderer> m_Renderer;
+    KIT::Scope<ICamera> m_Camera;
 
     KIT::Scope<GlobalUniformHelper> m_GlobalUniformHelper;
     std::array<VkDescriptorSet, SwapChain::MAX_FRAMES_IN_FLIGHT> m_GlobalDescriptorSets;
 
-    DynamicArray<RenderSystem> m_RenderSystems;
+    KIT::StaticArray<RenderSystem, ONYX_MAX_RENDER_SYSTEMS> m_RenderSystems;
 
     Deque<Event> m_Events;
     VkSurfaceKHR m_Surface;

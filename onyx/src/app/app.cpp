@@ -22,7 +22,7 @@ Application::~Application() noexcept
     if (!m_Terminated && m_Started)
         Shutdown();
 }
-Window *Application::OpenWindow(const Window::Specs &p_Specs) noexcept
+Window *Application::openWindow(const Window::Specs &p_Specs) noexcept
 {
     auto window = KIT::Scope<Window>::Create(p_Specs);
 
@@ -43,9 +43,10 @@ Window *Application::OpenWindow(const Window::Specs &p_Specs) noexcept
     return windowPtr;
 }
 
-Window *Application::OpenWindow() noexcept
+void Application::Draw(Drawable &p_Drawable, usize p_WindowIndex) noexcept
 {
-    return OpenWindow(Window::Specs{});
+    KIT_ASSERT(p_WindowIndex < m_WindowData.size(), "Index out of bounds");
+    m_WindowData[p_WindowIndex].Window->Draw(p_Drawable);
 }
 
 void Application::CloseWindow(const usize p_Index) noexcept
@@ -131,18 +132,8 @@ void Application::runAndManageWindows() noexcept
             taskManager->SubmitTask(windowData.Task);
         }
     }
-    static bool openWindow = false;
-    if (openWindow)
-    {
-        OpenWindow();
-        openWindow = false;
-    }
 
     beginRenderImGui();
-    ImGui::Begin("Windows");
-    openWindow = ImGui::Button("Open window");
-    ImGui::Text("Number of windows: %zu", m_WindowData.size());
-    ImGui::End();
     // Main thread always handles the first window. First element of tasks is always nullptr
     runFrame(*m_WindowData[0].Window,
              [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });

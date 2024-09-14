@@ -4,6 +4,7 @@
 #include "onyx/core/core.hpp"
 #include "onyx/drawing/color.hpp"
 #include "onyx/descriptors/descriptor_writer.hpp"
+#include "onyx/drawing/drawable.hpp"
 #include "kit/core/logging.hpp"
 
 namespace ONYX
@@ -84,24 +85,53 @@ void Window::createGlobalUniformHelper() noexcept
     }
 }
 
-void Window::drawRenderSystems(const VkCommandBuffer) noexcept
+void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    // const u32 frameIndex = m_Renderer->FrameIndex();
-    // GlobalUBO ubo{};
+    const u32 frameIndex = m_Renderer->GetFrameIndex();
+    GlobalUBO ubo{};
 
-    // m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);
-    // m_GlobalUniformHelper->UniformBuffer.FlushAt(frameIndex);
+    m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);
+    m_GlobalUniformHelper->UniformBuffer.FlushAt(frameIndex);
 
     // RenderSystem::Specs<2> specs{};
     // specs.RenderPass = m_Renderer->GetSwapChain().RenderPass();
     // RenderSystem rs{specs};
 
-    // RenderSystem::DrawInfo info{};
-    // info.CommandBuffer = p_CommandBuffer;
-    // const Model *model = Model::Rectangle2D();
-    // rs.SubmitRenderData({model, {}});
-    // rs.Display(info);
-    // rs.ClearRenderData();
+    RenderSystem::DrawInfo info{};
+    info.CommandBuffer = p_CommandBuffer;
+    info.DescriptorSet = m_GlobalDescriptorSets[frameIndex];
+    for (RenderSystem &rs : m_RenderSystems)
+        rs.Display(info);
+}
+
+void Window::Draw(Drawable &p_Drawable) noexcept
+{
+    p_Drawable.Draw(*this);
+}
+
+ONYX_DIMENSION_TEMPLATE RenderSystem &Window::AddRenderSystem(RenderSystem::Specs<N> p_Specs) noexcept
+{
+    if (!p_Specs.RenderPass)
+        p_Specs.RenderPass = m_Renderer->GetSwapChain().GetRenderPass();
+    return m_RenderSystems.emplace_back(p_Specs);
+}
+
+RenderSystem &Window::AddRenderSystem2D(const RenderSystem::Specs2D &p_Specs) noexcept
+{
+    return AddRenderSystem<2>(p_Specs);
+}
+RenderSystem &Window::AddRenderSystem3D(const RenderSystem::Specs3D &p_Specs) noexcept
+{
+    return AddRenderSystem<3>(p_Specs);
+}
+
+const RenderSystem &Window::GetRenderSystem(const usize p_Index) const noexcept
+{
+    return m_RenderSystems[p_Index];
+}
+RenderSystem &Window::GetRenderSystem(const usize p_Index) noexcept
+{
+    return m_RenderSystems[p_Index];
 }
 
 bool Window::Display() noexcept
