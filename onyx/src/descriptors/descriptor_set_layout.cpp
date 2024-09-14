@@ -7,19 +7,19 @@ namespace ONYX
 DescriptorSetLayout::DescriptorSetLayout(const std::span<const VkDescriptorSetLayoutBinding> p_Bindings) noexcept
     : m_Bindings{p_Bindings.begin(), p_Bindings.end()}
 {
-    m_Device = Core::Device();
+    m_Device = Core::GetDevice();
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<u32>(m_Bindings.size());
     layoutInfo.pBindings = m_Bindings.data();
 
-    KIT_ASSERT_RETURNS(vkCreateDescriptorSetLayout(m_Device->VulkanDevice(), &layoutInfo, nullptr, &m_Layout),
-                       VK_SUCCESS, "Failed to create descriptor set layout");
+    KIT_ASSERT_RETURNS(vkCreateDescriptorSetLayout(m_Device->GetDevice(), &layoutInfo, nullptr, &m_Layout), VK_SUCCESS,
+                       "Failed to create descriptor set layout");
 }
 
 DescriptorSetLayout::~DescriptorSetLayout() noexcept
 {
-    vkDestroyDescriptorSetLayout(m_Device->VulkanDevice(), m_Layout, nullptr);
+    vkDestroyDescriptorSetLayout(m_Device->GetDevice(), m_Layout, nullptr);
 }
 
 VkDescriptorSetLayoutBinding DescriptorSetLayout::CreateBinding(const u32 p_Binding,
@@ -35,17 +35,17 @@ VkDescriptorSetLayoutBinding DescriptorSetLayout::CreateBinding(const u32 p_Bind
     return binding;
 }
 
-const VkDescriptorSetLayoutBinding &DescriptorSetLayout::Binding(const usize p_Index) const noexcept
+const VkDescriptorSetLayoutBinding &DescriptorSetLayout::GetBinding(const usize p_Index) const noexcept
 {
     return m_Bindings[p_Index];
 }
 
-VkDescriptorSetLayout DescriptorSetLayout::Layout() const noexcept
+VkDescriptorSetLayout DescriptorSetLayout::GetLayout() const noexcept
 {
     return m_Layout;
 }
 
-usize DescriptorSetLayout::BindingCount() const noexcept
+usize DescriptorSetLayout::GetBindingCount() const noexcept
 {
     return m_Bindings.size();
 }

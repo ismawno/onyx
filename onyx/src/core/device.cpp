@@ -113,7 +113,7 @@ static bool isDeviceSuitable(const VkPhysicalDevice p_Device, const VkSurfaceKHR
 Device::Device(const VkSurfaceKHR p_Surface) noexcept
 {
     KIT_LOG_INFO("Attempting to create a new device...");
-    m_Instance = Core::Instance();
+    m_Instance = Core::GetInstance();
     pickPhysicalDevice(p_Surface);
     createLogicalDevice(p_Surface);
     createCommandPool(p_Surface);
@@ -137,11 +137,11 @@ bool Device::IsSuitable(const VkSurfaceKHR p_Surface) const noexcept
     return isDeviceSuitable(m_PhysicalDevice, p_Surface);
 }
 
-VkDevice Device::VulkanDevice() const noexcept
+VkDevice Device::GetDevice() const noexcept
 {
     return m_Device;
 }
-VkPhysicalDevice Device::PhysicalDevice() const noexcept
+VkPhysicalDevice Device::GetPhysicalDevice() const noexcept
 {
     return m_PhysicalDevice;
 }
@@ -168,16 +168,16 @@ u32 Device::FindMemoryType(const u32 p_TypeFilter, const VkMemoryPropertyFlags p
     return UINT32_MAX;
 }
 
-VkQueue Device::GraphicsQueue() const noexcept
+VkQueue Device::GetGraphicsQueue() const noexcept
 {
     return m_GraphicsQueue;
 }
-VkQueue Device::PresentQueue() const noexcept
+VkQueue Device::GetPresentQueue() const noexcept
 {
     return m_PresentQueue;
 }
 
-const VkPhysicalDeviceProperties &Device::Properties() const noexcept
+const VkPhysicalDeviceProperties &Device::GetProperties() const noexcept
 {
     return m_Properties;
 }
@@ -249,13 +249,13 @@ void Device::EndSingleTimeCommands(const VkCommandBuffer p_CommandBuffer) const 
 void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
 {
     u32 deviceCount = 0;
-    vkEnumeratePhysicalDevices(m_Instance->VulkanInstance(), &deviceCount, nullptr);
+    vkEnumeratePhysicalDevices(m_Instance->GetInstance(), &deviceCount, nullptr);
     KIT_ASSERT(deviceCount != 0, "Failed to find GPUs with Vulkan support");
 
     KIT_LOG_INFO("Device count: {}", deviceCount);
     DynamicArray<VkPhysicalDevice> devices(deviceCount);
 
-    vkEnumeratePhysicalDevices(m_Instance->VulkanInstance(), &deviceCount, devices.data());
+    vkEnumeratePhysicalDevices(m_Instance->GetInstance(), &deviceCount, devices.data());
 
     for (const auto &device : devices)
         if (isDeviceSuitable(device, p_Surface))
@@ -302,7 +302,7 @@ void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
 
     // might not really be necessary anymore because device specific validation layers
     // have been deprecated
-    const char *vLayer = Instance::ValidationLayer();
+    const char *vLayer = Instance::GetValidationLayer();
 #ifdef KIT_ENABLE_ASSERTS
     createInfo.enabledLayerCount = 1;
     createInfo.ppEnabledLayerNames = &vLayer;

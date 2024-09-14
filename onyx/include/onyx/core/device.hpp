@@ -39,13 +39,14 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     VkMemoryPropertyFlags FindMemoryType(u32 p_TypeFilter, VkMemoryPropertyFlags p_Properties) const noexcept;
 
     bool IsSuitable(VkSurfaceKHR p_Surface) const noexcept;
-    VkDevice VulkanDevice() const noexcept;
-    VkPhysicalDevice PhysicalDevice() const noexcept;
 
-    VkQueue GraphicsQueue() const noexcept;
-    VkQueue PresentQueue() const noexcept;
+    VkDevice GetDevice() const noexcept;
+    VkPhysicalDevice GetPhysicalDevice() const noexcept;
 
-    const VkPhysicalDeviceProperties &Properties() const noexcept;
+    VkQueue GetGraphicsQueue() const noexcept;
+    VkQueue GetPresentQueue() const noexcept;
+
+    const VkPhysicalDeviceProperties &GetProperties() const noexcept;
 
     std::mutex &GraphicsMutex() noexcept;
     std::mutex &PresentMutex() noexcept;

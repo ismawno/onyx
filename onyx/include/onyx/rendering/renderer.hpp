@@ -20,7 +20,7 @@ class ONYX_API Renderer
     void BeginRenderPass(const Color &p_ClearColor) noexcept;
     void EndRenderPass() noexcept;
 
-    u32 FrameIndex() const noexcept;
+    u32 GetFrameIndex() const noexcept;
 
     template <typename F> void ImmediateSubmission(F &&p_Submission) const noexcept
     {
@@ -29,7 +29,7 @@ class ONYX_API Renderer
         m_Device->EndSingleTimeCommands(cmd);
     }
 
-    VkCommandBuffer CurrentCommandBuffer() const noexcept;
+    VkCommandBuffer GetCurrentCommandBuffer() const noexcept;
     const SwapChain &GetSwapChain() const noexcept;
 
   private:

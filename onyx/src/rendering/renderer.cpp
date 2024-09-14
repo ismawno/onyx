@@ -12,9 +12,9 @@ namespace ONYX
 {
 Renderer::Renderer(Window &p_Window) noexcept
 {
-    m_Device = Core::Device();
+    m_Device = Core::GetDevice();
     createSwapChain(p_Window);
-    createCommandPool(p_Window.Surface());
+    createCommandPool(p_Window.GetSurface());
     createCommandBuffers();
 }
 
@@ -26,9 +26,9 @@ Renderer::~Renderer() noexcept
 
     // Lock the queues to prevent any other command buffers from being submitted
     m_Device->WaitIdle();
-    vkFreeCommandBuffers(m_Device->VulkanDevice(), m_CommandPool, SwapChain::MAX_FRAMES_IN_FLIGHT,
+    vkFreeCommandBuffers(m_Device->GetDevice(), m_CommandPool, SwapChain::MAX_FRAMES_IN_FLIGHT,
                          m_CommandBuffers.data());
-    vkDestroyCommandPool(m_Device->VulkanDevice(), m_CommandPool, nullptr);
+    vkDestroyCommandPool(m_Device->GetDevice(), m_CommandPool, nullptr);
 }
 
 VkCommandBuffer Renderer::BeginFrame(Window &p_Window) noexcept
@@ -74,7 +74,7 @@ void Renderer::EndFrame(Window &) noexcept
     KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
     KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
 
-    KIT::TaskManager *taskManager = Core::TaskManager();
+    KIT::TaskManager *taskManager = Core::GetTaskManager();
 
     // TODO: Profile this task usage
     if (!m_PresentTask)
@@ -95,12 +95,12 @@ void Renderer::EndFrame(Window &) noexcept
 void Renderer::BeginRenderPass(const Color &p_ClearColor) noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot begin render pass if a frame is not in progress");
-    const VkExtent2D extent = m_SwapChain->Extent();
+    const VkExtent2D extent = m_SwapChain->GetExtent();
 
     VkRenderPassBeginInfo passInfo{};
     passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    passInfo.renderPass = m_SwapChain->RenderPass();
-    passInfo.framebuffer = m_SwapChain->FrameBuffer(m_ImageIndex);
+    passInfo.renderPass = m_SwapChain->GetRenderPass();
+    passInfo.framebuffer = m_SwapChain->GetFrameBuffer(m_ImageIndex);
     passInfo.renderArea.offset = {0, 0};
     passInfo.renderArea.extent = extent;
 
@@ -135,12 +135,12 @@ void Renderer::EndRenderPass() noexcept
     vkCmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
 }
 
-u32 Renderer::FrameIndex() const noexcept
+u32 Renderer::GetFrameIndex() const noexcept
 {
     return m_FrameIndex;
 }
 
-VkCommandBuffer Renderer::CurrentCommandBuffer() const noexcept
+VkCommandBuffer Renderer::GetCurrentCommandBuffer() const noexcept
 {
     return m_CommandBuffers[m_FrameIndex];
 }
@@ -152,14 +152,14 @@ const SwapChain &Renderer::GetSwapChain() const noexcept
 
 void Renderer::createSwapChain(Window &p_Window) noexcept
 {
-    VkExtent2D windowExtent = {p_Window.ScreenWidth(), p_Window.ScreenHeight()};
+    VkExtent2D windowExtent = {p_Window.GetScreenWidth(), p_Window.GetScreenHeight()};
     while (windowExtent.width == 0 || windowExtent.height == 0)
     {
-        windowExtent = {p_Window.ScreenWidth(), p_Window.ScreenHeight()};
+        windowExtent = {p_Window.GetScreenWidth(), p_Window.GetScreenHeight()};
         glfwWaitEvents();
     }
     m_Device->WaitIdle();
-    m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.Surface(), m_SwapChain.Get());
+    m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.GetSurface(), m_SwapChain.Get());
 }
 
 void Renderer::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
@@ -171,7 +171,7 @@ void Renderer::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
     poolInfo.queueFamilyIndex = indices.GraphicsFamily;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    KIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device->VulkanDevice(), &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,
                        "Failed to create command pool");
 }
 
@@ -183,8 +183,8 @@ void Renderer::createCommandBuffers() noexcept
     allocInfo.commandPool = m_CommandPool;
     allocInfo.commandBufferCount = SwapChain::MAX_FRAMES_IN_FLIGHT;
 
-    KIT_ASSERT_RETURNS(vkAllocateCommandBuffers(m_Device->VulkanDevice(), &allocInfo, m_CommandBuffers.data()),
-                       VK_SUCCESS, "Failed to create command buffers");
+    KIT_ASSERT_RETURNS(vkAllocateCommandBuffers(m_Device->GetDevice(), &allocInfo, m_CommandBuffers.data()), VK_SUCCESS,
+                       "Failed to create command buffers");
 }
 
 } // namespace ONYX

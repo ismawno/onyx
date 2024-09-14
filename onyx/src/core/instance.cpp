@@ -155,7 +155,7 @@ static void setupDebugMessenger(const VkInstance p_Instance) noexcept
                        "Failed to set up debug messenger");
 }
 
-const char *Instance::ValidationLayer() noexcept
+const char *Instance::GetValidationLayer() noexcept
 {
     return s_ValidationLayer;
 }
@@ -178,7 +178,7 @@ Instance::~Instance() noexcept
     vkDestroyInstance(m_Instance, nullptr);
 }
 
-VkInstance Instance::VulkanInstance() const noexcept
+VkInstance Instance::GetInstance() const noexcept
 {
     return m_Instance;
 }

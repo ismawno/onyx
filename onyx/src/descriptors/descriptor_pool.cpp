@@ -6,7 +6,7 @@ namespace ONYX
 {
 DescriptorPool::DescriptorPool(const Specs &p_Specs) noexcept
 {
-    m_Device = Core::Device();
+    m_Device = Core::GetDevice();
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<u32>(p_Specs.PoolSizes.size());
@@ -14,13 +14,13 @@ DescriptorPool::DescriptorPool(const Specs &p_Specs) noexcept
     poolInfo.maxSets = p_Specs.MaxSets;
     poolInfo.flags = p_Specs.PoolFlags;
 
-    KIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->VulkanDevice(), &poolInfo, nullptr, &m_Pool), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_Pool), VK_SUCCESS,
                        "Failed to create descriptor pool");
 }
 
 DescriptorPool::~DescriptorPool() noexcept
 {
-    vkDestroyDescriptorPool(m_Device->VulkanDevice(), m_Pool, nullptr);
+    vkDestroyDescriptorPool(m_Device->GetDevice(), m_Pool, nullptr);
 }
 
 VkDescriptorSet DescriptorPool::Allocate(const VkDescriptorSetLayout p_Layout) const noexcept
@@ -32,7 +32,7 @@ VkDescriptorSet DescriptorPool::Allocate(const VkDescriptorSetLayout p_Layout) c
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &p_Layout;
 
-    if (vkAllocateDescriptorSets(m_Device->VulkanDevice(), &allocInfo, &set) != VK_SUCCESS)
+    if (vkAllocateDescriptorSets(m_Device->GetDevice(), &allocInfo, &set) != VK_SUCCESS)
         return VK_NULL_HANDLE;
 
     return set;
@@ -40,17 +40,17 @@ VkDescriptorSet DescriptorPool::Allocate(const VkDescriptorSetLayout p_Layout) c
 
 void DescriptorPool::Deallocate(const std::span<const VkDescriptorSet> p_Sets) const noexcept
 {
-    vkFreeDescriptorSets(m_Device->VulkanDevice(), m_Pool, static_cast<u32>(p_Sets.size()), p_Sets.data());
+    vkFreeDescriptorSets(m_Device->GetDevice(), m_Pool, static_cast<u32>(p_Sets.size()), p_Sets.data());
 }
 
 void DescriptorPool::Deallocate(const VkDescriptorSet p_Set) const noexcept
 {
-    vkFreeDescriptorSets(m_Device->VulkanDevice(), m_Pool, 1, &p_Set);
+    vkFreeDescriptorSets(m_Device->GetDevice(), m_Pool, 1, &p_Set);
 }
 
 void DescriptorPool::Reset() noexcept
 {
-    vkResetDescriptorPool(m_Device->VulkanDevice(), m_Pool, 0);
+    vkResetDescriptorPool(m_Device->GetDevice(), m_Pool, 0);
 }
 
 } // namespace ONYX

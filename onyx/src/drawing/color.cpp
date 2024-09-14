@@ -159,11 +159,11 @@ Color Color::FromString(const std::string_view p_Color) noexcept
     return Color::WHITE;
 }
 
-const f32 *Color::Pointer() const noexcept
+const f32 *Color::AsPointer() const noexcept
 {
     return glm::value_ptr(RGBA);
 }
-f32 *Color::Pointer() noexcept
+f32 *Color::AsPointer() noexcept
 {
     return glm::value_ptr(RGBA);
 }

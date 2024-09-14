@@ -37,12 +37,12 @@ void Orthographic<2>::UpdateMatrices() noexcept
         Transform.Scale.y = -Transform.Scale.y;
 }
 
-f32 Orthographic<2>::Size() const noexcept
+f32 Orthographic<2>::GetSize() const noexcept
 {
     return Transform.Scale.y;
 }
 
-void Orthographic<2>::Size(const f32 p_Size) noexcept
+void Orthographic<2>::GetSize(const f32 p_Size) noexcept
 {
     const f32 aspect = Transform.Scale.x / Transform.Scale.y;
     Transform.Scale = {aspect * p_Size, p_Size};
@@ -84,12 +84,12 @@ void Orthographic<3>::UpdateMatrices() noexcept
         Transform.Scale.y = -Transform.Scale.y;
 }
 
-f32 Orthographic<3>::Size() const
+f32 Orthographic<3>::GetSize() const
 {
     return Transform.Scale.y;
 }
 
-void Orthographic<3>::Size(const f32 p_Size)
+void Orthographic<3>::GetSize(const f32 p_Size)
 {
     const f32 aspect = Transform.Scale.x / Transform.Scale.y;
     Transform.Scale.x = aspect * p_Size;

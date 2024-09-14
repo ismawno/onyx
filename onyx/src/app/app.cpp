@@ -30,7 +30,7 @@ Window *Application::OpenWindow(const Window::Specs &p_Specs) noexcept
     // the GLFW ImGui backend limitations
     if (m_WindowData.empty())
     {
-        m_Device = Core::Device();
+        m_Device = Core::GetDevice();
         initializeImGui(*window);
     }
     Window *windowPtr = window.Get();
@@ -91,7 +91,7 @@ void Application::Shutdown() noexcept
         if (m_WindowData[i].Window->ShouldClose())
             CloseWindow(i);
     if (m_Device)
-        vkDestroyDescriptorPool(m_Device->VulkanDevice(), m_ImGuiPool, nullptr);
+        vkDestroyDescriptorPool(m_Device->GetDevice(), m_ImGuiPool, nullptr);
     m_Terminated = true;
 }
 
@@ -117,7 +117,7 @@ void Application::runAndManageWindows() noexcept
 {
     for (usize i = 1; i < m_WindowData.size(); ++i)
     {
-        KIT::TaskManager *taskManager = Core::TaskManager();
+        KIT::TaskManager *taskManager = Core::GetTaskManager();
         WindowData &windowData = m_WindowData[i];
         if (!windowData.Task)
         {
@@ -193,7 +193,7 @@ void Application::createImGuiPool() noexcept
     poolInfo.poolSizeCount = 11;
     poolInfo.pPoolSizes = poolSizes;
 
-    KIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->VulkanDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
                        "Failed to create descriptor pool");
 }
 
@@ -209,19 +209,19 @@ void Application::initializeImGui(Window &p_Window) noexcept
         ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
 
     ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForVulkan(p_Window.GLFWWindow(), true);
+    ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindow(), true);
 
-    const auto &instance = Core::Instance();
+    const auto &instance = Core::GetInstance();
     ImGui_ImplVulkan_InitInfo initInfo{};
-    initInfo.Instance = instance->VulkanInstance();
-    initInfo.PhysicalDevice = m_Device->PhysicalDevice();
-    initInfo.Device = m_Device->VulkanDevice();
-    initInfo.Queue = m_Device->GraphicsQueue();
+    initInfo.Instance = instance->GetInstance();
+    initInfo.PhysicalDevice = m_Device->GetPhysicalDevice();
+    initInfo.Device = m_Device->GetDevice();
+    initInfo.Queue = m_Device->GetGraphicsQueue();
     initInfo.DescriptorPool = m_ImGuiPool;
     initInfo.MinImageCount = 3;
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    initInfo.RenderPass = p_Window.GetRenderer().GetSwapChain().RenderPass();
+    initInfo.RenderPass = p_Window.GetRenderer().GetSwapChain().GetRenderPass();
 
     ImGui_ImplVulkan_Init(&initInfo);
     ImGui_ImplVulkan_CreateFontsTexture();

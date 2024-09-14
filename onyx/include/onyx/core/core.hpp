@@ -23,14 +23,14 @@ struct ONYX_API Core
     static void Initialize(KIT::StackAllocator *p_Allocator, KIT::TaskManager *p_Manager) noexcept;
     static void Terminate() noexcept;
 
-    static KIT::StackAllocator *StackAllocator() noexcept;
-    static KIT::TaskManager *TaskManager() noexcept;
+    static KIT::StackAllocator *GetStackAllocator() noexcept;
+    static KIT::TaskManager *GetTaskManager() noexcept;
 
-    static const KIT::Ref<ONYX::Instance> &Instance() noexcept;
-    static const KIT::Ref<ONYX::Device> &Device() noexcept;
+    static const KIT::Ref<ONYX::Instance> &GetInstance() noexcept;
+    static const KIT::Ref<ONYX::Device> &GetDevice() noexcept;
 
-    ONYX_DIMENSION_TEMPLATE static const char *VertexShaderPath() noexcept;
-    ONYX_DIMENSION_TEMPLATE static const char *FragmentShaderPath() noexcept;
+    ONYX_DIMENSION_TEMPLATE static const char *GetVertexShaderPath() noexcept;
+    ONYX_DIMENSION_TEMPLATE static const char *GetFragmentShaderPath() noexcept;
 
   private:
     // Should ony be called by window constructor (I should look for a way to better hide this)

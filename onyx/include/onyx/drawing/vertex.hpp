@@ -17,8 +17,8 @@ template <> struct ONYX_API Vertex<2>
 {
     static constexpr u32 BINDINGS = 1;
     static constexpr u32 ATTRIBUTES = 1;
-    static std::array<VkVertexInputBindingDescription, BINDINGS> BindingDescriptions() noexcept;
-    static std::array<VkVertexInputAttributeDescription, ATTRIBUTES> AttributeDescriptions() noexcept;
+    static std::array<VkVertexInputBindingDescription, BINDINGS> GetBindingDescriptions() noexcept;
+    static std::array<VkVertexInputAttributeDescription, ATTRIBUTES> GetAttributeDescriptions() noexcept;
 
     vec2 Position;
 };
@@ -27,8 +27,8 @@ template <> struct ONYX_API Vertex<3>
 {
     static constexpr u32 BINDINGS = 1;
     static constexpr u32 ATTRIBUTES = 1;
-    static std::array<VkVertexInputBindingDescription, BINDINGS> BindingDescriptions() noexcept;
-    static std::array<VkVertexInputAttributeDescription, ATTRIBUTES> AttributeDescriptions() noexcept;
+    static std::array<VkVertexInputBindingDescription, BINDINGS> GetBindingDescriptions() noexcept;
+    static std::array<VkVertexInputAttributeDescription, ATTRIBUTES> GetAttributeDescriptions() noexcept;
 
     vec3 Position;
 };

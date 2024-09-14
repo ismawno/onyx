@@ -65,6 +65,8 @@ template <> struct ONYX_API Transform<3>
     vec3 Position{0.f};
     vec3 Scale{1.f};
     vec3 Origin{0.f};
+
+    // TODO: Change to quaternion/euler angles
     mat3 Rotation{1.f};
     Transform *Parent{nullptr};
 };

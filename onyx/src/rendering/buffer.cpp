@@ -24,7 +24,7 @@ Buffer::Buffer(const Specs &p_Specs) noexcept
     : m_InstanceSize(alignedSize(p_Specs.InstanceSize, p_Specs.MinimumAlignment)),
       m_Size(m_InstanceSize * p_Specs.InstanceCount)
 {
-    m_Device = Core::Device();
+    m_Device = Core::GetDevice();
     createBuffer(p_Specs.Usage, p_Specs.Properties);
 }
 
@@ -32,15 +32,15 @@ Buffer::~Buffer() noexcept
 {
     if (m_Data)
         Unmap();
-    vkDestroyBuffer(m_Device->VulkanDevice(), m_Buffer, nullptr);
-    vkFreeMemory(m_Device->VulkanDevice(), m_BufferMemory, nullptr);
+    vkDestroyBuffer(m_Device->GetDevice(), m_Buffer, nullptr);
+    vkFreeMemory(m_Device->GetDevice(), m_BufferMemory, nullptr);
 }
 
 void Buffer::Map(const VkDeviceSize p_Offset, const VkDeviceSize p_Size, const VkMemoryMapFlags p_Flags) noexcept
 {
     if (m_Data)
         Unmap();
-    KIT_ASSERT_RETURNS(vkMapMemory(m_Device->VulkanDevice(), m_BufferMemory, p_Offset, p_Size, p_Flags, &m_Data),
+    KIT_ASSERT_RETURNS(vkMapMemory(m_Device->GetDevice(), m_BufferMemory, p_Offset, p_Size, p_Flags, &m_Data),
                        VK_SUCCESS, "Failed to map buffer memory");
 }
 
@@ -48,7 +48,7 @@ void Buffer::Unmap() noexcept
 {
     if (!m_Data)
         return;
-    vkUnmapMemory(m_Device->VulkanDevice(), m_BufferMemory);
+    vkUnmapMemory(m_Device->GetDevice(), m_BufferMemory);
     m_Data = nullptr;
 }
 
@@ -74,7 +74,7 @@ void Buffer::Flush(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) noexc
 {
     KIT_ASSERT(m_Data, "Cannot flush unmapped buffer");
     const VkMappedMemoryRange range = mappedMemoryRange(m_BufferMemory, p_Offset, p_Size);
-    KIT_ASSERT_RETURNS(vkFlushMappedMemoryRanges(m_Device->VulkanDevice(), 1, &range), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkFlushMappedMemoryRanges(m_Device->GetDevice(), 1, &range), VK_SUCCESS,
                        "Failed to flush buffer memory");
 }
 void Buffer::FlushAt(const usize p_Index) noexcept
@@ -86,7 +86,7 @@ void Buffer::Invalidate(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) 
 {
     KIT_ASSERT(m_Data, "Cannot invalidate unmapped buffer");
     const VkMappedMemoryRange range = mappedMemoryRange(m_BufferMemory, p_Offset, p_Size);
-    KIT_ASSERT_RETURNS(vkInvalidateMappedMemoryRanges(m_Device->VulkanDevice(), 1, &range), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkInvalidateMappedMemoryRanges(m_Device->GetDevice(), 1, &range), VK_SUCCESS,
                        "Failed to invalidate buffer memory");
 }
 void Buffer::InvalidateAt(const usize p_Index) noexcept
@@ -107,7 +107,7 @@ VkDescriptorBufferInfo Buffer::DescriptorInfoAt(const usize p_Index) const noexc
     return DescriptorInfo(m_InstanceSize, m_InstanceSize * p_Index);
 }
 
-void *Buffer::Data() const noexcept
+void *Buffer::GetData() const noexcept
 {
     return m_Data;
 }
@@ -131,12 +131,12 @@ void Buffer::CopyFrom(const Buffer &p_Source) noexcept
     m_Device->EndSingleTimeCommands(commandBuffer);
 }
 
-VkBuffer Buffer::VulkanBuffer() const noexcept
+VkBuffer Buffer::GetBuffer() const noexcept
 {
     return m_Buffer;
 }
 
-VkDeviceSize Buffer::Size() const noexcept
+VkDeviceSize Buffer::GetSize() const noexcept
 {
     return m_Size;
 }
@@ -149,20 +149,20 @@ void Buffer::createBuffer(const VkBufferUsageFlags p_Usage, const VkMemoryProper
     bufferInfo.usage = p_Usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    KIT_ASSERT_RETURNS(vkCreateBuffer(m_Device->VulkanDevice(), &bufferInfo, nullptr, &m_Buffer), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkCreateBuffer(m_Device->GetDevice(), &bufferInfo, nullptr, &m_Buffer), VK_SUCCESS,
                        "Failed to create buffer");
 
     VkMemoryRequirements requirements;
-    vkGetBufferMemoryRequirements(m_Device->VulkanDevice(), m_Buffer, &requirements);
+    vkGetBufferMemoryRequirements(m_Device->GetDevice(), m_Buffer, &requirements);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = requirements.size;
     allocInfo.memoryTypeIndex = m_Device->FindMemoryType(requirements.memoryTypeBits, p_Properties);
 
-    KIT_ASSERT_RETURNS(vkAllocateMemory(m_Device->VulkanDevice(), &allocInfo, nullptr, &m_BufferMemory), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkAllocateMemory(m_Device->GetDevice(), &allocInfo, nullptr, &m_BufferMemory), VK_SUCCESS,
                        "Failed to allocate buffer memory");
-    vkBindBufferMemory(m_Device->VulkanDevice(), m_Buffer, m_BufferMemory, 0);
+    vkBindBufferMemory(m_Device->GetDevice(), m_Buffer, m_BufferMemory, 0);
 }
 
 } // namespace ONYX

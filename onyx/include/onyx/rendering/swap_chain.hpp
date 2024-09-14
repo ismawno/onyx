@@ -21,14 +21,14 @@ class ONYX_API SwapChain
     VkResult SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffers, u32 p_ImageIndex) noexcept;
     VkResult Present(const u32 *p_ImageIndex) noexcept;
 
-    VkRenderPass RenderPass() const noexcept;
-    VkFramebuffer FrameBuffer(u32 p_Index) const noexcept;
-    VkExtent2D Extent() const noexcept;
+    VkRenderPass GetRenderPass() const noexcept;
+    VkFramebuffer GetFrameBuffer(u32 p_Index) const noexcept;
+    VkExtent2D GetExtent() const noexcept;
 
-    u32 Width() const noexcept;
-    u32 Height() const noexcept;
+    u32 GetWidth() const noexcept;
+    u32 GetHeight() const noexcept;
 
-    f32 AspectRatio() const noexcept;
+    f32 GetAspectRatio() const noexcept;
 
     static bool AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_SwapChain2) noexcept;
 

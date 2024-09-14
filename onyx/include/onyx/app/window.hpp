@@ -49,24 +49,24 @@ class ONYX_API Window
     void MakeContextCurrent() const noexcept;
     bool ShouldClose() const noexcept;
 
-    const GLFWwindow *GLFWWindow() const noexcept;
-    GLFWwindow *GLFWWindow() noexcept;
+    const GLFWwindow *GetWindow() const noexcept;
+    GLFWwindow *GetWindow() noexcept;
 
-    const char *Name() const noexcept;
-    u32 ScreenWidth() const noexcept;
-    u32 ScreenHeight() const noexcept;
+    const char *GetName() const noexcept;
+    u32 GetScreenWidth() const noexcept;
+    u32 GetScreenHeight() const noexcept;
 
-    u32 PixelWidth() const noexcept;
-    u32 PixelHeight() const noexcept;
+    u32 GetPixelWidth() const noexcept;
+    u32 GetPixelHeight() const noexcept;
 
-    f32 ScreenAspect() const noexcept;
-    f32 PixelAspect() const noexcept;
+    f32 GetScreenAspect() const noexcept;
+    f32 GetPixelAspect() const noexcept;
 
     bool WasResized() const noexcept;
     void FlagResize(u32 p_Width, u32 p_Height) noexcept;
     void FlagResizeDone() noexcept;
 
-    VkSurfaceKHR Surface() const noexcept;
+    VkSurfaceKHR GetSurface() const noexcept;
 
     void PushEvent(const Event &p_Event) noexcept;
     Event PopEvent() noexcept;
@@ -93,6 +93,8 @@ class ONYX_API Window
 
     void drawRenderSystems(VkCommandBuffer p_CommandBuffer) noexcept;
 
+    GLFWwindow *m_Window;
+
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;
     KIT::Scope<Renderer> m_Renderer;
@@ -100,7 +102,7 @@ class ONYX_API Window
     KIT::Scope<GlobalUniformHelper> m_GlobalUniformHelper;
     std::array<VkDescriptorSet, SwapChain::MAX_FRAMES_IN_FLIGHT> m_GlobalDescriptorSets;
 
-    GLFWwindow *m_Window;
+    DynamicArray<RenderSystem> m_RenderSystems;
 
     Deque<Event> m_Events;
     VkSurfaceKHR m_Surface;

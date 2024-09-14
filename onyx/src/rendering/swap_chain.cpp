@@ -52,7 +52,7 @@ static VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &p_Capabilitie
 SwapChain::SwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surface,
                      const SwapChain *p_OldSwapChain) noexcept
 {
-    m_Device = Core::Device();
+    m_Device = Core::GetDevice();
     createSwapChain(p_WindowExtent, p_Surface, p_OldSwapChain);
     createImageViews();
     createRenderPass();
@@ -66,47 +66,47 @@ SwapChain::SwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surfa
 SwapChain::~SwapChain() noexcept
 {
     for (VkImageView imageView : m_ImageViews)
-        vkDestroyImageView(m_Device->VulkanDevice(), imageView, nullptr);
+        vkDestroyImageView(m_Device->GetDevice(), imageView, nullptr);
     m_ImageViews.clear();
 
     if (m_SwapChain)
     {
-        vkDestroySwapchainKHR(m_Device->VulkanDevice(), m_SwapChain, nullptr);
+        vkDestroySwapchainKHR(m_Device->GetDevice(), m_SwapChain, nullptr);
         m_SwapChain = nullptr;
     }
 
     for (usize i = 0; i < m_DepthImages.size(); ++i)
     {
-        vkDestroyImageView(m_Device->VulkanDevice(), m_DepthImageViews[i], nullptr);
-        vkDestroyImage(m_Device->VulkanDevice(), m_DepthImages[i], nullptr);
-        vkFreeMemory(m_Device->VulkanDevice(), m_DepthImageMemories[i], nullptr);
+        vkDestroyImageView(m_Device->GetDevice(), m_DepthImageViews[i], nullptr);
+        vkDestroyImage(m_Device->GetDevice(), m_DepthImages[i], nullptr);
+        vkFreeMemory(m_Device->GetDevice(), m_DepthImageMemories[i], nullptr);
     }
 
     for (auto frameBuffer : m_Framebuffers)
-        vkDestroyFramebuffer(m_Device->VulkanDevice(), frameBuffer, nullptr);
+        vkDestroyFramebuffer(m_Device->GetDevice(), frameBuffer, nullptr);
 
-    vkDestroyRenderPass(m_Device->VulkanDevice(), m_RenderPass, nullptr);
+    vkDestroyRenderPass(m_Device->GetDevice(), m_RenderPass, nullptr);
 
     // cleanup synchronization objects
     for (usize i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        vkDestroySemaphore(m_Device->VulkanDevice(), m_RenderFinishedSemaphores[i], nullptr);
-        vkDestroySemaphore(m_Device->VulkanDevice(), m_ImageAvailableSemaphores[i], nullptr);
-        vkDestroyFence(m_Device->VulkanDevice(), m_InFlightFences[i], nullptr);
+        vkDestroySemaphore(m_Device->GetDevice(), m_RenderFinishedSemaphores[i], nullptr);
+        vkDestroySemaphore(m_Device->GetDevice(), m_ImageAvailableSemaphores[i], nullptr);
+        vkDestroyFence(m_Device->GetDevice(), m_InFlightFences[i], nullptr);
     }
 }
 
 VkResult SwapChain::AcquireNextImage(u32 *p_ImageIndex) const noexcept
 {
-    vkWaitForFences(m_Device->VulkanDevice(), 1, &m_InFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
-    return vkAcquireNextImageKHR(m_Device->VulkanDevice(), m_SwapChain, UINT64_MAX,
+    vkWaitForFences(m_Device->GetDevice(), 1, &m_InFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
+    return vkAcquireNextImageKHR(m_Device->GetDevice(), m_SwapChain, UINT64_MAX,
                                  m_ImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, p_ImageIndex);
 }
 
 VkResult SwapChain::SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffer, const u32 p_ImageIndex) noexcept
 {
     if (m_InFlightImages[p_ImageIndex] != VK_NULL_HANDLE)
-        vkWaitForFences(m_Device->VulkanDevice(), 1, &m_InFlightImages[p_ImageIndex], VK_TRUE, UINT64_MAX);
+        vkWaitForFences(m_Device->GetDevice(), 1, &m_InFlightImages[p_ImageIndex], VK_TRUE, UINT64_MAX);
 
     m_InFlightImages[p_ImageIndex] = m_InFlightFences[m_CurrentFrame];
 
@@ -124,12 +124,12 @@ VkResult SwapChain::SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffer, c
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_RenderFinishedSemaphores[m_CurrentFrame];
 
-    vkResetFences(m_Device->VulkanDevice(), 1, &m_InFlightFences[m_CurrentFrame]);
+    vkResetFences(m_Device->GetDevice(), 1, &m_InFlightFences[m_CurrentFrame]);
 
     // A nice mutex here to prevent race conditions if user is rendering concurrently to multiple windows, each with its
     // own renderer, swap chain etcetera
     std::scoped_lock lock(m_Device->GraphicsMutex());
-    return vkQueueSubmit(m_Device->GraphicsQueue(), 1, &submitInfo, m_InFlightFences[m_CurrentFrame]);
+    return vkQueueSubmit(m_Device->GetGraphicsQueue(), 1, &submitInfo, m_InFlightFences[m_CurrentFrame]);
 }
 
 VkResult SwapChain::Present(const u32 *p_ImageIndex) noexcept
@@ -146,32 +146,32 @@ VkResult SwapChain::Present(const u32 *p_ImageIndex) noexcept
 
     m_CurrentFrame = (m_CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     std::scoped_lock lock(m_Device->PresentMutex());
-    return vkQueuePresentKHR(m_Device->PresentQueue(), &presentInfo);
+    return vkQueuePresentKHR(m_Device->GetPresentQueue(), &presentInfo);
 }
 
-VkRenderPass SwapChain::RenderPass() const noexcept
+VkRenderPass SwapChain::GetRenderPass() const noexcept
 {
     return m_RenderPass;
 }
-VkFramebuffer SwapChain::FrameBuffer(const u32 p_Index) const noexcept
+VkFramebuffer SwapChain::GetFrameBuffer(const u32 p_Index) const noexcept
 {
     return m_Framebuffers[p_Index];
 }
-VkExtent2D SwapChain::Extent() const noexcept
+VkExtent2D SwapChain::GetExtent() const noexcept
 {
     return m_Extent;
 }
 
-u32 SwapChain::Width() const noexcept
+u32 SwapChain::GetWidth() const noexcept
 {
     return m_Extent.width;
 }
-u32 SwapChain::Height() const noexcept
+u32 SwapChain::GetHeight() const noexcept
 {
     return m_Extent.height;
 }
 
-f32 SwapChain::AspectRatio() const noexcept
+f32 SwapChain::GetAspectRatio() const noexcept
 {
     return static_cast<f32>(m_Extent.width) / static_cast<f32>(m_Extent.height);
 }
@@ -230,16 +230,16 @@ void SwapChain::createSwapChain(const VkExtent2D p_WindowExtent, const VkSurface
 
     createInfo.oldSwapchain = p_OldSwapChain ? p_OldSwapChain->m_SwapChain : VK_NULL_HANDLE;
 
-    KIT_ASSERT_RETURNS(vkCreateSwapchainKHR(m_Device->VulkanDevice(), &createInfo, nullptr, &m_SwapChain), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkCreateSwapchainKHR(m_Device->GetDevice(), &createInfo, nullptr, &m_SwapChain), VK_SUCCESS,
                        "Failed to create swap chain");
 
     // We only specified a minimum number of images in the swap chain, so the implementation is
     // allowed to create a swap chain with more. That's why we'll first query the final number of
     // images with vkGetSwapchainImagesKHR, then resize the container and finally call it again to
     // retrieve the handles.
-    vkGetSwapchainImagesKHR(m_Device->VulkanDevice(), m_SwapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(m_Device->GetDevice(), m_SwapChain, &imageCount, nullptr);
     m_Images.resize(imageCount);
-    vkGetSwapchainImagesKHR(m_Device->VulkanDevice(), m_SwapChain, &imageCount, m_Images.data());
+    vkGetSwapchainImagesKHR(m_Device->GetDevice(), m_SwapChain, &imageCount, m_Images.data());
 
     m_ImageFormat = surfaceFormat.format;
     m_Extent = extent;
@@ -262,8 +262,8 @@ void SwapChain::createImageViews() noexcept
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
-        KIT_ASSERT_RETURNS(vkCreateImageView(m_Device->VulkanDevice(), &viewInfo, nullptr, &m_ImageViews[i]),
-                           VK_SUCCESS, "Failed to create image views");
+        KIT_ASSERT_RETURNS(vkCreateImageView(m_Device->GetDevice(), &viewInfo, nullptr, &m_ImageViews[i]), VK_SUCCESS,
+                           "Failed to create image views");
     }
 }
 
@@ -327,8 +327,8 @@ void SwapChain::createRenderPass() noexcept
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    KIT_ASSERT_RETURNS(vkCreateRenderPass(m_Device->VulkanDevice(), &renderPassInfo, nullptr, &m_RenderPass),
-                       VK_SUCCESS, "Failed to create render pass");
+    KIT_ASSERT_RETURNS(vkCreateRenderPass(m_Device->GetDevice(), &renderPassInfo, nullptr, &m_RenderPass), VK_SUCCESS,
+                       "Failed to create render pass");
 }
 
 void SwapChain::createDepthResources() noexcept
@@ -370,7 +370,7 @@ void SwapChain::createDepthResources() noexcept
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
-        KIT_ASSERT_RETURNS(vkCreateImageView(m_Device->VulkanDevice(), &viewInfo, nullptr, &m_DepthImageViews[i]),
+        KIT_ASSERT_RETURNS(vkCreateImageView(m_Device->GetDevice(), &viewInfo, nullptr, &m_DepthImageViews[i]),
                            VK_SUCCESS, "Failed to create texture image view");
     }
 }
@@ -391,7 +391,7 @@ void SwapChain::createFrameBuffers() noexcept
         frameBufferInfo.height = m_Extent.height;
         frameBufferInfo.layers = 1;
 
-        KIT_ASSERT_RETURNS(vkCreateFramebuffer(m_Device->VulkanDevice(), &frameBufferInfo, nullptr, &m_Framebuffers[i]),
+        KIT_ASSERT_RETURNS(vkCreateFramebuffer(m_Device->GetDevice(), &frameBufferInfo, nullptr, &m_Framebuffers[i]),
                            VK_SUCCESS, "Failed to create frame buffer");
     }
 }
@@ -410,13 +410,13 @@ void SwapChain::createSyncObjects() noexcept
     for (usize i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
     {
         KIT_ASSERT_RETURNS(
-            vkCreateSemaphore(m_Device->VulkanDevice(), &semaphoreInfo, nullptr, &m_ImageAvailableSemaphores[i]),
+            vkCreateSemaphore(m_Device->GetDevice(), &semaphoreInfo, nullptr, &m_ImageAvailableSemaphores[i]),
             VK_SUCCESS, "Failed to create synchronization objects for a frame");
         KIT_ASSERT_RETURNS(
-            vkCreateSemaphore(m_Device->VulkanDevice(), &semaphoreInfo, nullptr, &m_RenderFinishedSemaphores[i]),
+            vkCreateSemaphore(m_Device->GetDevice(), &semaphoreInfo, nullptr, &m_RenderFinishedSemaphores[i]),
             VK_SUCCESS, "Failed to create synchronization objects for a frame");
-        KIT_ASSERT_RETURNS(vkCreateFence(m_Device->VulkanDevice(), &fenceInfo, nullptr, &m_InFlightFences[i]),
-                           VK_SUCCESS, "Failed to create synchronization objects for a frame");
+        KIT_ASSERT_RETURNS(vkCreateFence(m_Device->GetDevice(), &fenceInfo, nullptr, &m_InFlightFences[i]), VK_SUCCESS,
+                           "Failed to create synchronization objects for a frame");
     }
 }
 
@@ -425,20 +425,20 @@ std::pair<VkImage, VkDeviceMemory> SwapChain::createImage(const VkImageCreateInf
 {
     VkImage image;
     VkDeviceMemory memory;
-    KIT_ASSERT_RETURNS(vkCreateImage(m_Device->VulkanDevice(), &p_Info, nullptr, &image), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkCreateImage(m_Device->GetDevice(), &p_Info, nullptr, &image), VK_SUCCESS,
                        "Failed to create image");
 
     VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(m_Device->VulkanDevice(), image, &memReqs);
+    vkGetImageMemoryRequirements(m_Device->GetDevice(), image, &memReqs);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memReqs.size;
     allocInfo.memoryTypeIndex = m_Device->FindMemoryType(memReqs.memoryTypeBits, p_Properties);
 
-    KIT_ASSERT_RETURNS(vkAllocateMemory(m_Device->VulkanDevice(), &allocInfo, nullptr, &memory), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkAllocateMemory(m_Device->GetDevice(), &allocInfo, nullptr, &memory), VK_SUCCESS,
                        "Failed to allocate image memory");
-    KIT_ASSERT_RETURNS(vkBindImageMemory(m_Device->VulkanDevice(), image, memory, 0), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkBindImageMemory(m_Device->GetDevice(), image, memory, 0), VK_SUCCESS,
                        "Failed to bind image memory");
 
     return {image, memory};

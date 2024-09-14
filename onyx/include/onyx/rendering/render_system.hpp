@@ -17,8 +17,8 @@ class ONYX_API RenderSystem
   public:
     ONYX_DIMENSION_TEMPLATE struct Specs
     {
-        const char *VertexShaderPath = Core::VertexShaderPath<N>();
-        const char *FragmentShaderPath = Core::FragmentShaderPath<N>();
+        const char *VertexShaderPath = Core::GetVertexShaderPath<N>();
+        const char *FragmentShaderPath = Core::GetFragmentShaderPath<N>();
 
         std::array<VkVertexInputBindingDescription, Vertex<N>::BINDINGS> BindingDescriptions =
             Vertex<N>::BindingDescriptions();

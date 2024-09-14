@@ -19,7 +19,7 @@ namespace ONYX
 ONYX_DIMENSION_TEMPLATE Model::Model(const std::span<const Vertex<N>> p_Vertices,
                                      const Properties p_VertexBufferProperties) noexcept
 {
-    m_Device = Core::Device();
+    m_Device = Core::GetDevice();
     createVertexBuffer(p_Vertices, p_VertexBufferProperties);
 }
 
@@ -27,7 +27,7 @@ ONYX_DIMENSION_TEMPLATE Model::Model(const std::span<const Vertex<N>> p_Vertices
                                      const std::span<const Index> p_Indices,
                                      const Properties p_VertexBufferProperties) noexcept
 {
-    m_Device = Core::Device();
+    m_Device = Core::GetDevice();
     createVertexBuffer(p_Vertices, p_VertexBufferProperties);
     createIndexBuffer(p_Indices);
 }
@@ -99,14 +99,14 @@ void Model::createIndexBuffer(const std::span<const Index> p_Indices) noexcept
 
 void Model::Bind(const VkCommandBuffer p_CommandBuffer) const noexcept
 {
-    const VkBuffer buffer = m_VertexBuffer->VulkanBuffer();
+    const VkBuffer buffer = m_VertexBuffer->GetBuffer();
     const VkDeviceSize offset = 0;
 
     // This actually takes an array of buffers, but I am only using one
     vkCmdBindVertexBuffers(p_CommandBuffer, 0, 1, &buffer, &offset);
 
     if (m_IndexBuffer)
-        vkCmdBindIndexBuffer(p_CommandBuffer, m_IndexBuffer->VulkanBuffer(), 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(p_CommandBuffer, m_IndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
 }
 
 bool Model::HasIndices() const noexcept
@@ -117,16 +117,16 @@ bool Model::HasIndices() const noexcept
 void Model::Draw(const VkCommandBuffer p_CommandBuffer) const noexcept
 {
     if (m_IndexBuffer)
-        vkCmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer->Size()), 1, 0, 0, 0);
+        vkCmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer->GetSize()), 1, 0, 0, 0);
     else
-        vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer->Size()), 1, 0, 0);
+        vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer->GetSize()), 1, 0, 0);
 }
 
-const Buffer &Model::VertexBuffer() const noexcept
+const Buffer &Model::GetVertexBuffer() const noexcept
 {
     return *m_VertexBuffer;
 }
-Buffer &Model::VertexBuffer() noexcept
+Buffer &Model::GetVertexBuffer() noexcept
 {
     return *m_VertexBuffer;
 }
@@ -335,21 +335,21 @@ void Model::DestroyPrimitiveModels() noexcept
     delete s_Sphere3D;
 }
 
-ONYX_DIMENSION_TEMPLATE const Model *Model::Rectangle() noexcept
+ONYX_DIMENSION_TEMPLATE const Model *Model::GetRectangle() noexcept
 {
     if constexpr (N == 2)
         return s_Rectangle2D;
     else
         return s_Rectangle3D;
 }
-ONYX_DIMENSION_TEMPLATE const Model *Model::Line() noexcept
+ONYX_DIMENSION_TEMPLATE const Model *Model::GetLine() noexcept
 {
     if constexpr (N == 2)
         return s_Line2D;
     else
         return s_Line3D;
 }
-ONYX_DIMENSION_TEMPLATE const Model *Model::Circle() noexcept
+ONYX_DIMENSION_TEMPLATE const Model *Model::GetCircle() noexcept
 {
     if constexpr (N == 2)
         return s_Circle2D;
@@ -357,37 +357,37 @@ ONYX_DIMENSION_TEMPLATE const Model *Model::Circle() noexcept
         return s_Circle3D;
 }
 
-const Model *Model::Rectangle2D() noexcept
+const Model *Model::GetRectangle2D() noexcept
 {
     return s_Rectangle2D;
 }
-const Model *Model::Line2D() noexcept
+const Model *Model::GetLine2D() noexcept
 {
     return s_Line2D;
 }
-const Model *Model::Circle2D() noexcept
+const Model *Model::GetCircle2D() noexcept
 {
     return s_Circle2D;
 }
 
-const Model *Model::Rectangle3D() noexcept
+const Model *Model::GetRectangle3D() noexcept
 {
     return s_Rectangle3D;
 }
-const Model *Model::Line3D() noexcept
+const Model *Model::GetLine3D() noexcept
 {
     return s_Line3D;
 }
-const Model *Model::Circle3D() noexcept
+const Model *Model::GetCircle3D() noexcept
 {
     return s_Circle3D;
 }
 
-const Model *Model::Cube() noexcept
+const Model *Model::GetCube() noexcept
 {
     return s_Cube3D;
 }
-const Model *Model::Sphere() noexcept
+const Model *Model::GetSphere() noexcept
 {
     return s_Sphere3D;
 }

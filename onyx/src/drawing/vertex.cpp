@@ -30,20 +30,20 @@ attributeDescriptions() noexcept
     return {position};
 }
 
-std::array<VkVertexInputBindingDescription, Vertex2D::BINDINGS> Vertex<2>::BindingDescriptions() noexcept
+std::array<VkVertexInputBindingDescription, Vertex2D::BINDINGS> Vertex<2>::GetBindingDescriptions() noexcept
 {
     return bindingDescriptions<2>();
 }
-std::array<VkVertexInputAttributeDescription, Vertex2D::ATTRIBUTES> Vertex<2>::AttributeDescriptions() noexcept
+std::array<VkVertexInputAttributeDescription, Vertex2D::ATTRIBUTES> Vertex<2>::GetAttributeDescriptions() noexcept
 {
     return attributeDescriptions<2>();
 }
 
-std::array<VkVertexInputBindingDescription, Vertex3D::BINDINGS> Vertex<3>::BindingDescriptions() noexcept
+std::array<VkVertexInputBindingDescription, Vertex3D::BINDINGS> Vertex<3>::GetBindingDescriptions() noexcept
 {
     return bindingDescriptions<3>();
 }
-std::array<VkVertexInputAttributeDescription, Vertex3D::ATTRIBUTES> Vertex<3>::AttributeDescriptions() noexcept
+std::array<VkVertexInputAttributeDescription, Vertex3D::ATTRIBUTES> Vertex<3>::GetAttributeDescriptions() noexcept
 {
     return attributeDescriptions<3>();
 }

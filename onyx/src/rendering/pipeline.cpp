@@ -15,10 +15,10 @@ Pipeline::Pipeline(Specs p_Specs) noexcept
 
 Pipeline::~Pipeline()
 {
-    vkDestroyShaderModule(m_Device->VulkanDevice(), m_VertexShader, nullptr);
-    vkDestroyShaderModule(m_Device->VulkanDevice(), m_FragmentShader, nullptr);
-    vkDestroyPipelineLayout(m_Device->VulkanDevice(), m_PipelineLayout, nullptr);
-    vkDestroyPipeline(m_Device->VulkanDevice(), m_Pipeline, nullptr);
+    vkDestroyShaderModule(m_Device->GetDevice(), m_VertexShader, nullptr);
+    vkDestroyShaderModule(m_Device->GetDevice(), m_FragmentShader, nullptr);
+    vkDestroyPipelineLayout(m_Device->GetDevice(), m_PipelineLayout, nullptr);
+    vkDestroyPipeline(m_Device->GetDevice(), m_Pipeline, nullptr);
 }
 
 void Pipeline::Bind(VkCommandBuffer p_CommandBuffer) const noexcept
@@ -26,7 +26,7 @@ void Pipeline::Bind(VkCommandBuffer p_CommandBuffer) const noexcept
     vkCmdBindPipeline(p_CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
 }
 
-VkPipelineLayout Pipeline::Layout() const noexcept
+VkPipelineLayout Pipeline::GetLayout() const noexcept
 {
     return m_PipelineLayout;
 }
@@ -36,12 +36,12 @@ void Pipeline::createPipeline(const Specs &p_Specs) noexcept
     KIT_LOG_INFO("Creating new pipeline...");
     KIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");
 
-    m_Device = Core::Device();
+    m_Device = Core::GetDevice();
     m_VertexShader = createShaderModule(p_Specs.VertexShaderPath);
     m_FragmentShader = createShaderModule(p_Specs.FragmentShaderPath);
 
     KIT_ASSERT_RETURNS(
-        vkCreatePipelineLayout(m_Device->VulkanDevice(), &p_Specs.PipelineLayoutInfo, nullptr, &m_PipelineLayout),
+        vkCreatePipelineLayout(m_Device->GetDevice(), &p_Specs.PipelineLayoutInfo, nullptr, &m_PipelineLayout),
         VK_SUCCESS, "Failed to create pipeline layout");
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
@@ -85,7 +85,7 @@ void Pipeline::createPipeline(const Specs &p_Specs) noexcept
     pipelineInfo.basePipelineIndex = -1;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     KIT_ASSERT_RETURNS(
-        vkCreateGraphicsPipelines(m_Device->VulkanDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_Pipeline),
+        vkCreateGraphicsPipelines(m_Device->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_Pipeline),
         VK_SUCCESS, "Failed to create graphics pipeline");
 }
 
@@ -95,7 +95,7 @@ VkShaderModule Pipeline::createShaderModule(const char *p_Path) noexcept
     KIT_ASSERT(file.is_open(), "File at path {} not found", p_Path);
     const auto fileSize = file.tellg();
 
-    KIT::StackAllocator *allocator = Core::StackAllocator();
+    KIT::StackAllocator *allocator = Core::GetStackAllocator();
 
     char *code = static_cast<char *>(allocator->Push(fileSize * sizeof(char), alignof(u32)));
     file.seekg(0);
@@ -109,7 +109,7 @@ VkShaderModule Pipeline::createShaderModule(const char *p_Path) noexcept
     createInfo.pCode = reinterpret_cast<const u32 *>(code);
 
     VkShaderModule shaderModule;
-    KIT_ASSERT_RETURNS(vkCreateShaderModule(m_Device->VulkanDevice(), &createInfo, nullptr, &shaderModule), VK_SUCCESS,
+    KIT_ASSERT_RETURNS(vkCreateShaderModule(m_Device->GetDevice(), &createInfo, nullptr, &shaderModule), VK_SUCCESS,
                        "Failed to create shader module");
 
     allocator->Pop();

@@ -59,29 +59,29 @@ class ONYX_API Model
 
     bool HasIndices() const noexcept;
 
-    const Buffer &VertexBuffer() const noexcept;
-    Buffer &VertexBuffer() noexcept;
+    const Buffer &GetVertexBuffer() const noexcept;
+    Buffer &GetVertexBuffer() noexcept;
 
     static void CreatePrimitiveModels() noexcept;
     static void DestroyPrimitiveModels() noexcept;
 
-    ONYX_DIMENSION_TEMPLATE static const Model *Rectangle() noexcept;
-    ONYX_DIMENSION_TEMPLATE static const Model *Line() noexcept;
-    ONYX_DIMENSION_TEMPLATE static const Model *Circle() noexcept;
+    ONYX_DIMENSION_TEMPLATE static const Model *GetRectangle() noexcept;
+    ONYX_DIMENSION_TEMPLATE static const Model *GetLine() noexcept;
+    ONYX_DIMENSION_TEMPLATE static const Model *GetCircle() noexcept;
     ONYX_DIMENSION_TEMPLATE static KIT::Scope<Model> CreatePolygon(std::span<const Vertex<N>> p_Vertices) noexcept;
 
-    static const Model *Rectangle2D() noexcept;
-    static const Model *Line2D() noexcept;
-    static const Model *Circle2D() noexcept;
+    static const Model *GetRectangle2D() noexcept;
+    static const Model *GetLine2D() noexcept;
+    static const Model *GetCircle2D() noexcept;
     static KIT::Scope<Model> CreatePolygon2D(std::span<const Vertex2D> p_Vertices) noexcept;
 
-    static const Model *Rectangle3D() noexcept;
-    static const Model *Line3D() noexcept;
-    static const Model *Circle3D() noexcept;
+    static const Model *GetRectangle3D() noexcept;
+    static const Model *GetLine3D() noexcept;
+    static const Model *GetCircle3D() noexcept;
     static KIT::Scope<Model> CreatePolygon3D(std::span<const Vertex3D> p_Vertices) noexcept;
 
-    static const Model *Cube() noexcept;
-    static const Model *Sphere() noexcept;
+    static const Model *GetCube() noexcept;
+    static const Model *GetSphere() noexcept;
     static KIT::Ref<Model> CreatePolyhedron(std::span<const Vertex3D> p_Vertices) noexcept;
 
   private:

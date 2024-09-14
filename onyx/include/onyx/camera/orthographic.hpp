@@ -17,8 +17,8 @@ template <> class ONYX_API Orthographic<2> final : public Camera<2>
 
     void UpdateMatrices() noexcept override;
 
-    f32 Size() const noexcept;
-    void Size(f32 p_Size) noexcept;
+    f32 GetSize() const noexcept;
+    void GetSize(f32 p_Size) noexcept;
 };
 
 template <> class ONYX_API Orthographic<3> final : public Camera<3>
@@ -34,8 +34,8 @@ template <> class ONYX_API Orthographic<3> final : public Camera<3>
 
     void UpdateMatrices() noexcept override;
 
-    f32 Size() const;
-    void Size(f32 p_Size);
+    f32 GetSize() const;
+    void GetSize(f32 p_Size);
 };
 
 } // namespace ONYX

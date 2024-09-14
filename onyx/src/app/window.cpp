@@ -27,7 +27,7 @@ Window::Window(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
 Window::~Window() noexcept
 {
     m_Renderer.Release();
-    vkDestroySurfaceKHR(m_Instance->VulkanInstance(), m_Surface, nullptr);
+    vkDestroySurfaceKHR(m_Instance->GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
 
@@ -43,8 +43,8 @@ void Window::createWindow() noexcept
                                 nullptr, nullptr);
     KIT_ASSERT(m_Window, "Failed to create a GLFW window");
 
-    m_Instance = Core::Instance();
-    KIT_ASSERT_RETURNS(glfwCreateWindowSurface(m_Instance->VulkanInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
+    m_Instance = Core::GetInstance();
+    KIT_ASSERT_RETURNS(glfwCreateWindowSurface(m_Instance->GetInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
                        "Failed to create a window surface");
     glfwSetWindowUserPointer(m_Window, this);
 
@@ -63,7 +63,7 @@ void Window::createGlobalUniformHelper() noexcept
     static constexpr std::array<VkDescriptorSetLayoutBinding, 1> bindings = {
         {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr}}};
 
-    const auto &props = m_Device->Properties();
+    const auto &props = m_Device->GetProperties();
     Buffer::Specs bufferSpecs{};
     bufferSpecs.InstanceCount = SwapChain::MAX_FRAMES_IN_FLIGHT;
     bufferSpecs.InstanceSize = sizeof(GlobalUBO);
@@ -119,46 +119,46 @@ bool Window::ShouldClose() const noexcept
     return glfwWindowShouldClose(m_Window);
 }
 
-const GLFWwindow *Window::GLFWWindow() const noexcept
+const GLFWwindow *Window::GetWindow() const noexcept
 {
     return m_Window;
 }
-GLFWwindow *Window::GLFWWindow() noexcept
+GLFWwindow *Window::GetWindow() noexcept
 {
     return m_Window;
 }
 
-const char *Window::Name() const noexcept
+const char *Window::GetName() const noexcept
 {
     return m_Specs.Name;
 }
 
-u32 Window::ScreenWidth() const noexcept
+u32 Window::GetScreenWidth() const noexcept
 {
     return m_Specs.Width;
 }
-u32 Window::ScreenHeight() const noexcept
+u32 Window::GetScreenHeight() const noexcept
 {
     return m_Specs.Height;
 }
 
-u32 Window::PixelWidth() const noexcept
+u32 Window::GetPixelWidth() const noexcept
 {
-    return m_Renderer->GetSwapChain().Width();
+    return m_Renderer->GetSwapChain().GetWidth();
 }
-u32 Window::PixelHeight() const noexcept
+u32 Window::GetPixelHeight() const noexcept
 {
-    return m_Renderer->GetSwapChain().Height();
+    return m_Renderer->GetSwapChain().GetHeight();
 }
 
-f32 Window::ScreenAspect() const noexcept
+f32 Window::GetScreenAspect() const noexcept
 {
     return static_cast<f32>(m_Specs.Width) / static_cast<f32>(m_Specs.Height);
 }
 
-f32 Window::PixelAspect() const noexcept
+f32 Window::GetPixelAspect() const noexcept
 {
-    return m_Renderer->GetSwapChain().AspectRatio();
+    return m_Renderer->GetSwapChain().GetAspectRatio();
 }
 
 bool Window::WasResized() const noexcept
@@ -177,7 +177,7 @@ void Window::FlagResizeDone() noexcept
     m_Resized = false;
 }
 
-VkSurfaceKHR Window::Surface() const noexcept
+VkSurfaceKHR Window::GetSurface() const noexcept
 {
     return m_Surface;
 }

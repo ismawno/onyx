@@ -35,29 +35,38 @@ void Core::Terminate() noexcept
     s_Instance = nullptr;
 }
 
-const KIT::Ref<ONYX::Instance> &Core::Instance() noexcept
+const KIT::Ref<ONYX::Instance> &Core::GetInstance() noexcept
 {
     KIT_ASSERT(s_Instance, "Vulkan instance is not initialize! Forgot to call ONYX::Core::Initialize?");
     return s_Instance;
 }
-const KIT::Ref<ONYX::Device> &Core::Device() noexcept
+const KIT::Ref<ONYX::Device> &Core::GetDevice() noexcept
 {
     return s_Device;
 }
 
-ONYX_DIMENSION_TEMPLATE const char *Core::VertexShaderPath() noexcept
+ONYX_DIMENSION_TEMPLATE const char *Core::GetVertexShaderPath() noexcept
 {
     if constexpr (N == 3)
         return KIT_ROOT_PATH "/onyx/shaders/bin/shader3D.vert.spv";
     else
         return KIT_ROOT_PATH "/onyx/shaders/bin/shader2D.vert.spv";
 }
-ONYX_DIMENSION_TEMPLATE const char *Core::FragmentShaderPath() noexcept
+ONYX_DIMENSION_TEMPLATE const char *Core::GetFragmentShaderPath() noexcept
 {
     if constexpr (N == 3)
         return KIT_ROOT_PATH "/onyx/shaders/bin/shader3D.frag.spv";
     else
         return KIT_ROOT_PATH "/onyx/shaders/bin/shader2D.frag.spv";
+}
+
+KIT::StackAllocator *Core::GetStackAllocator() noexcept
+{
+    return s_Allocator;
+}
+KIT::TaskManager *Core::GetTaskManager() noexcept
+{
+    return s_Manager;
 }
 
 const KIT::Ref<ONYX::Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
@@ -71,19 +80,10 @@ const KIT::Ref<ONYX::Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noex
     return s_Device;
 }
 
-KIT::StackAllocator *Core::StackAllocator() noexcept
-{
-    return s_Allocator;
-}
-KIT::TaskManager *Core::TaskManager() noexcept
-{
-    return s_Manager;
-}
+template const char *Core::GetVertexShaderPath<2>() noexcept;
+template const char *Core::GetVertexShaderPath<3>() noexcept;
 
-template const char *Core::VertexShaderPath<2>() noexcept;
-template const char *Core::VertexShaderPath<3>() noexcept;
-
-template const char *Core::FragmentShaderPath<2>() noexcept;
-template const char *Core::FragmentShaderPath<3>() noexcept;
+template const char *Core::GetFragmentShaderPath<2>() noexcept;
+template const char *Core::GetFragmentShaderPath<3>() noexcept;
 
 } // namespace ONYX

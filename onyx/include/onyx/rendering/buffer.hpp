@@ -45,13 +45,13 @@ class ONYX_API Buffer
                                           VkDeviceSize p_Offset = 0) const noexcept;
     VkDescriptorBufferInfo DescriptorInfoAt(usize p_Index) const noexcept;
 
-    void *Data() const noexcept;
+    void *GetData() const noexcept;
     void *ReadAt(usize p_Index) const noexcept;
 
     void CopyFrom(const Buffer &p_Source) noexcept;
 
-    VkBuffer VulkanBuffer() const noexcept;
-    VkDeviceSize Size() const noexcept;
+    VkBuffer GetBuffer() const noexcept;
+    VkDeviceSize GetSize() const noexcept;
 
   private:
     void createBuffer(VkBufferUsageFlags p_Usage, VkMemoryPropertyFlags p_Properties) noexcept;

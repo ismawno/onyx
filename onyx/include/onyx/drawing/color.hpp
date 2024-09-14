@@ -46,8 +46,8 @@ struct ONYX_API Color
 
     static Color FromString(std::string_view p_Color) noexcept;
 
-    const f32 *Pointer() const noexcept;
-    f32 *Pointer() noexcept;
+    const f32 *AsPointer() const noexcept;
+    f32 *AsPointer() noexcept;
 
     explicit(false) operator const vec4 &() const noexcept;
     explicit(false) operator const vec3 &() const noexcept;

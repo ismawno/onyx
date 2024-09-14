@@ -14,7 +14,7 @@ struct ONYX_API Input
     static void PollEvents();
 
     static void InstallCallbacks(Window &p_Window) noexcept;
-    static vec2 MousePosition() noexcept;
+    static vec2 GetMousePosition() noexcept;
 
     Input() = delete;
 
@@ -163,7 +163,7 @@ struct ONYX_API Input
     static bool IsKeyReleased(Key p_Key) noexcept;
     static bool IsMouseButtonPressed(Mouse p_Button) noexcept;
     static bool IsMouseButtonReleased(Mouse p_Button) noexcept;
-    static const char *KeyName(Key p_Key) noexcept;
+    static const char *GetKeyName(Key p_Key) noexcept;
 };
 
 struct Event

@@ -31,7 +31,7 @@ void RenderSystem::Display(const DrawInfo &p_Info) noexcept
     m_Pipeline.Bind(p_Info.CommandBuffer);
     for (const DrawData &data : m_DrawData)
     {
-        vkCmdPushConstants(p_Info.CommandBuffer, m_Pipeline.Layout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
+        vkCmdPushConstants(p_Info.CommandBuffer, m_Pipeline.GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
                            sizeof(PushConstantData), &data.Data);
 
         // TODO: Avoid this if model is already bound

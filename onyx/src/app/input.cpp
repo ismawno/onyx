@@ -35,7 +35,7 @@ bool Input::IsMouseButtonReleased(const Mouse p_Button) noexcept
     return glfwGetMouseButton(glfwGetCurrentContext(), static_cast<int>(p_Button)) == GLFW_RELEASE;
 }
 
-const char *Input::KeyName(const Key p_Key) noexcept
+const char *Input::GetKeyName(const Key p_Key) noexcept
 {
     return glfwGetKeyName(static_cast<int>(p_Key), 0);
 }
@@ -47,8 +47,8 @@ static void windowResizeCallback(GLFWwindow *p_Window, const int p_Width, const 
 
     Window *window = windowFromGLFW(p_Window);
 
-    event.Window.OldWidth = window->ScreenWidth();
-    event.Window.OldHeight = window->ScreenHeight();
+    event.Window.OldWidth = window->GetScreenWidth();
+    event.Window.OldHeight = window->GetScreenHeight();
 
     event.Window.NewWidth = static_cast<u32>(p_Width);
     event.Window.NewHeight = static_cast<u32>(p_Height);
@@ -104,11 +104,11 @@ static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOff
 
 void Input::InstallCallbacks(Window &p_Window) noexcept
 {
-    glfwSetWindowSizeCallback(p_Window.GLFWWindow(), windowResizeCallback);
-    glfwSetKeyCallback(p_Window.GLFWWindow(), keyCallback);
-    glfwSetCursorPosCallback(p_Window.GLFWWindow(), cursorPositionCallback);
-    glfwSetMouseButtonCallback(p_Window.GLFWWindow(), mouseButtonCallback);
-    glfwSetScrollCallback(p_Window.GLFWWindow(), scrollCallback);
+    glfwSetWindowSizeCallback(p_Window.GetWindow(), windowResizeCallback);
+    glfwSetKeyCallback(p_Window.GetWindow(), keyCallback);
+    glfwSetCursorPosCallback(p_Window.GetWindow(), cursorPositionCallback);
+    glfwSetMouseButtonCallback(p_Window.GetWindow(), mouseButtonCallback);
+    glfwSetScrollCallback(p_Window.GetWindow(), scrollCallback);
 }
 
 } // namespace ONYX

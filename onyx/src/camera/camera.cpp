@@ -35,11 +35,11 @@ ONYX_DIMENSION_TEMPLATE void Camera<N>::FlipY() noexcept
     m_YFlipped = !m_YFlipped;
 }
 
-ONYX_DIMENSION_TEMPLATE const mat4 &Camera<N>::Projection() const noexcept
+ONYX_DIMENSION_TEMPLATE const mat4 &Camera<N>::GetProjection() const noexcept
 {
     return m_Projection;
 }
-ONYX_DIMENSION_TEMPLATE const mat4 &Camera<N>::InverseProjection() const noexcept
+ONYX_DIMENSION_TEMPLATE const mat4 &Camera<N>::GetInverseProjection() const noexcept
 {
     return m_InverseProjection;
 }

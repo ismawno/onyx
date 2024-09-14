@@ -22,8 +22,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Camera : public ICamera
     vec<N> ScreenToWorld(const vec2 &p_Screen) const noexcept;
     vec2 WorldToScreen(const vec<N> &p_World) const noexcept;
 
-    const mat4 &Projection() const noexcept;
-    const mat4 &InverseProjection() const noexcept;
+    const mat4 &GetProjection() const noexcept;
+    const mat4 &GetInverseProjection() const noexcept;
 
     void FlipY() noexcept;
 
