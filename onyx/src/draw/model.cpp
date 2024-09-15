@@ -200,7 +200,7 @@ ONYX_DIMENSION_TEMPLATE static const Model *createCircleModel()
     std::array<Index, ONYX_CIRCLE_VERTICES * 3> indices;
 
     const f32 angle = 2.f * glm::pi<f32>() / (ONYX_CIRCLE_VERTICES - 1);
-    for (usize i = 0; i < ONYX_CIRCLE_VERTICES; ++i)
+    for (Index i = 0; i < ONYX_CIRCLE_VERTICES; ++i)
     {
         const f32 x = glm::cos(angle * i);
         const f32 y = glm::sin(angle * i);
@@ -238,9 +238,8 @@ static const Model *createCubeModel() noexcept
 
 static const Model *createSphereModel() noexcept
 {
-
-    static constexpr usize latPartitions = ONYX_SPHERE_LATITUDE_PARTITIONS;
-    static constexpr usize lonPartitions = ONYX_SPHERE_LONGITUDE_PARTITIONS;
+    static constexpr Index latPartitions = ONYX_SPHERE_LATITUDE_PARTITIONS;
+    static constexpr Index lonPartitions = ONYX_SPHERE_LONGITUDE_PARTITIONS;
 
     static_assert(latPartitions >= 3, "Latitude partitions must be at least 3");
     static_assert(lonPartitions >= 3, "Longitude partitions must be at least 3");
@@ -251,16 +250,16 @@ static const Model *createSphereModel() noexcept
     const f32 latAngle = glm::pi<f32>() / (latPartitions - 1);
     const f32 lonAngle = glm::two_pi<f32>() / (lonPartitions - 1);
 
-    usize vindex = 0;
-    usize iindex = 0;
+    Index vindex = 0;
+    Index iindex = 0;
 
     vertices[vindex++] = Vertex<3>{{0.f, 0.f, 1.f}};
-    for (usize i = 1; i < lonPartitions - 1; ++i)
+    for (Index i = 1; i < lonPartitions - 1; ++i)
     {
         const f32 lon = lonAngle * i;
         const f32 xy = glm::sin(lon);
         const f32 z = glm::cos(lon);
-        for (usize j = 0; j < latPartitions; ++j)
+        for (Index j = 0; j < latPartitions; ++j)
         {
             const f32 lat = latAngle * j;
             const f32 x = xy * glm::sin(lat);
@@ -270,20 +269,20 @@ static const Model *createSphereModel() noexcept
     }
     vertices[vindex++] = Vertex<3>{{0.f, 0.f, -1.f}};
 
-    for (usize j = 0; j < latPartitions; ++j)
+    for (Index j = 0; j < latPartitions; ++j)
     {
         indices[iindex++] = 0;
         indices[iindex++] = j + 1;
         indices[iindex++] = (j + 2) % (latPartitions + 1);
     }
 
-    for (usize i = 0; i < lonPartitions - 3; ++i)
-        for (usize j = 0; j < latPartitions; ++j)
+    for (Index i = 0; i < lonPartitions - 3; ++i)
+        for (Index j = 0; j < latPartitions; ++j)
         {
-            const usize idx1 = latPartitions * i + j + 1;
-            const usize idx21 = latPartitions * (i + 1) + j + 1;
-            const usize idx12 = latPartitions * i + (j + 2) % (latPartitions + 1);
-            const usize idx2 = latPartitions * (i + 1) + (j + 2) % (latPartitions + 1);
+            const Index idx1 = latPartitions * i + j + 1;
+            const Index idx21 = latPartitions * (i + 1) + j + 1;
+            const Index idx12 = latPartitions * i + (j + 2) % (latPartitions + 1);
+            const Index idx2 = latPartitions * (i + 1) + (j + 2) % (latPartitions + 1);
 
             indices[iindex++] = idx1;
             indices[iindex++] = idx21;
@@ -293,7 +292,7 @@ static const Model *createSphereModel() noexcept
             indices[iindex++] = idx12;
             indices[iindex++] = idx2;
         }
-    for (usize j = 0; j < latPartitions; ++j)
+    for (Index j = 0; j < latPartitions; ++j)
     {
         indices[iindex++] = vindex - 1;
         indices[iindex++] = latPartitions * (lonPartitions - 3) + (j + 1);

@@ -56,7 +56,7 @@ void DescriptorWriter::Overwrite(const VkDescriptorSet p_Set) noexcept
 {
     for (VkWriteDescriptorSet &write : m_Writes)
         write.dstSet = p_Set;
-    vkUpdateDescriptorSets(m_Device->GetDevice(), m_Writes.size(), m_Writes.data(), 0, nullptr);
+    vkUpdateDescriptorSets(m_Device->GetDevice(), static_cast<u32>(m_Writes.size()), m_Writes.data(), 0, nullptr);
 }
 
 } // namespace ONYX
