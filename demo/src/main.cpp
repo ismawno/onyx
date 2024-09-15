@@ -16,17 +16,21 @@ int main()
     ONYX::Core::Initialize(&stackAllocator, &threadPool);
 
     ONYX::Application app;
-    auto window = app.OpenWindow<ONYX::Orthographic2D>();
-    auto cam = window->GetCamera<ONYX::Orthographic2D>();
+    auto window1 = app.OpenWindow<ONYX::Orthographic2D>();
+    auto window2 = app.OpenWindow<ONYX::Orthographic2D>();
+
+    auto cam = window1->GetCamera<ONYX::Orthographic2D>();
     cam->FlipY();
+    cam->SetSize(5.f);
 
     ONYX::Rectangle2D rect(ONYX::Color::RED);
 
     app.Start();
     while (app.NextFrame())
     {
-        app.Draw(rect);
-        cam->Transform.Position += glm::vec2(0.001f);
+        window1->Draw(rect);
+        window2->Draw(rect);
+        // cam->Transform.Position += glm::vec2(0.001f);
     }
     app.Shutdown();
 
