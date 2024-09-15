@@ -244,11 +244,11 @@ static const Model *createSphereModel() noexcept
     static_assert(latPartitions >= 3, "Latitude partitions must be at least 3");
     static_assert(lonPartitions >= 3, "Longitude partitions must be at least 3");
 
-    std::array<Vertex<3>, latPartitions * lonPartitions> vertices;
-    std::array<Index, latPartitions * lonPartitions * 3 + 2> indices;
+    std::array<Vertex<3>, latPartitions *(lonPartitions - 2) + 2> vertices;
+    std::array<Index, 6 * latPartitions *(lonPartitions - 2)> indices;
 
-    const f32 latAngle = glm::pi<f32>() / (latPartitions - 1);
-    const f32 lonAngle = glm::two_pi<f32>() / (lonPartitions - 1);
+    static constexpr f32 latAngle = glm::pi<f32>() / (latPartitions - 1);
+    static constexpr f32 lonAngle = glm::two_pi<f32>() / (lonPartitions - 1);
 
     Index vindex = 0;
     Index iindex = 0;
