@@ -26,17 +26,20 @@ class ONYX_API Window
 {
     KIT_NON_COPYABLE(Window)
   public:
+    enum Flags : u8
+    {
+        RESIZABLE = 1 << 0,
+        VISIBLE = 1 << 1,
+        DECORATED = 1 << 2,
+        FOCUSED = 1 << 3,
+        FLOATING = 1 << 4
+    };
     struct Specs
     {
         const char *Name = "Onyx window";
         u32 Width = 800;
         u32 Height = 600;
-
-        bool Resizable = true;
-        bool Visible = true;
-        bool Decorated = true;
-        bool Focused = true;
-        bool Floating = false;
+        u8 Flags = RESIZABLE | VISIBLE | DECORATED | FOCUSED;
     };
 
     Window() noexcept;

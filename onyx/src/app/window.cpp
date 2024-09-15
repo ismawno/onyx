@@ -36,11 +36,11 @@ Window::~Window() noexcept
 void Window::createWindow(const Specs &p_Specs) noexcept
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, p_Specs.Resizable);
-    glfwWindowHint(GLFW_VISIBLE, p_Specs.Visible);
-    glfwWindowHint(GLFW_DECORATED, p_Specs.Decorated);
-    glfwWindowHint(GLFW_FOCUSED, p_Specs.Focused);
-    glfwWindowHint(GLFW_FLOATING, p_Specs.Floating);
+    glfwWindowHint(GLFW_RESIZABLE, p_Specs.Flags & Flags::RESIZABLE);
+    glfwWindowHint(GLFW_VISIBLE, p_Specs.Flags & Flags::VISIBLE);
+    glfwWindowHint(GLFW_DECORATED, p_Specs.Flags & Flags::DECORATED);
+    glfwWindowHint(GLFW_FOCUSED, p_Specs.Flags & Flags::FOCUSED);
+    glfwWindowHint(GLFW_FLOATING, p_Specs.Flags & Flags::FLOATING);
 
     m_Window = glfwCreateWindow(static_cast<int>(p_Specs.Width), static_cast<int>(p_Specs.Height), p_Specs.Name,
                                 nullptr, nullptr);
