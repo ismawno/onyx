@@ -22,6 +22,8 @@ set(SOURCES
     src/draw/transform.cpp
     src/draw/model.cpp
     src/draw/drawable.cpp
+    src/draw/primitives/shape.cpp
+    src/draw/primitives/rectangle.cpp
     src/app/app.cpp
     src/app/window.cpp
     src/app/input.cpp

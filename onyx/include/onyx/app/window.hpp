@@ -56,11 +56,11 @@ class ONYX_API Window
     void MakeContextCurrent() const noexcept;
     bool ShouldClose() const noexcept;
 
-    template <std::derived_from<ICamera> T> const T *GetCamera() const noexcept
+    template <std::derived_from<ICamera> T = ICamera> const T *GetCamera() const noexcept
     {
         return static_cast<T *>(m_Camera.Get());
     }
-    template <std::derived_from<ICamera> T> T *GetCamera() noexcept
+    template <std::derived_from<ICamera> T = ICamera> T *GetCamera() noexcept
     {
         return static_cast<T *>(m_Camera.Get());
     }
@@ -111,15 +111,16 @@ class ONYX_API Window
         GlobalUniformHelper(const DescriptorPool::Specs &p_PoolSpecs,
                             const std::span<const VkDescriptorSetLayoutBinding> p_Bindings,
                             const Buffer::Specs &p_BufferSpecs) noexcept
-            : Pool(p_PoolSpecs), Layouts(p_Bindings), UniformBuffer(p_BufferSpecs)
+            : Pool(p_PoolSpecs), Layout(p_Bindings), UniformBuffer(p_BufferSpecs)
         {
         }
         DescriptorPool Pool;
-        DescriptorSetLayout Layouts;
+        DescriptorSetLayout Layout;
         Buffer UniformBuffer;
     };
     void createWindow() noexcept;
     void createGlobalUniformHelper() noexcept;
+    ONYX_DIMENSION_TEMPLATE void addDefaultRenderSystems() noexcept;
 
     void drawRenderSystems(VkCommandBuffer p_CommandBuffer) noexcept;
 

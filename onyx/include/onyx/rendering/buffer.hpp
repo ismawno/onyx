@@ -51,7 +51,10 @@ class ONYX_API Buffer
     void CopyFrom(const Buffer &p_Source) noexcept;
 
     VkBuffer GetBuffer() const noexcept;
+
     VkDeviceSize GetSize() const noexcept;
+    VkDeviceSize GetInstanceSize() const noexcept;
+    VkDeviceSize GetInstanceCount() const noexcept;
 
   private:
     void createBuffer(VkBufferUsageFlags p_Usage, VkMemoryPropertyFlags p_Properties) noexcept;

@@ -3,6 +3,20 @@
 
 namespace ONYX
 {
+void ICamera::FlipY() noexcept
+{
+    m_YFlipped = !m_YFlipped;
+}
+
+const mat4 &ICamera::GetProjection() const noexcept
+{
+    return m_Projection;
+}
+const mat4 &ICamera::GetInverseProjection() const noexcept
+{
+    return m_InverseProjection;
+}
+
 ONYX_DIMENSION_TEMPLATE void Camera<N>::KeepAspectRatio(const f32 p_Aspect) noexcept
 {
     Transform.Scale.x = p_Aspect * Transform.Scale.y;
@@ -28,20 +42,6 @@ ONYX_DIMENSION_TEMPLATE vec2 Camera<N>::WorldToScreen(const vec<N> &p_World) con
         const vec4 pos = m_Projection * vec4(p_World, 1.f);
         return vec2(pos) / pos.w;
     }
-}
-
-ONYX_DIMENSION_TEMPLATE void Camera<N>::FlipY() noexcept
-{
-    m_YFlipped = !m_YFlipped;
-}
-
-ONYX_DIMENSION_TEMPLATE const mat4 &Camera<N>::GetProjection() const noexcept
-{
-    return m_Projection;
-}
-ONYX_DIMENSION_TEMPLATE const mat4 &Camera<N>::GetInverseProjection() const noexcept
-{
-    return m_InverseProjection;
 }
 
 template class Camera<2>;

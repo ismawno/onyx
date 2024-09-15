@@ -33,7 +33,7 @@ VkPipelineLayout Pipeline::GetLayout() const noexcept
 
 void Pipeline::createPipeline(const Specs &p_Specs) noexcept
 {
-    KIT_LOG_INFO("Creating new pipeline...");
+    // KIT_LOG_INFO("Creating new pipeline...");
     KIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");
 
     m_Device = Core::GetDevice();
@@ -101,7 +101,7 @@ VkShaderModule Pipeline::createShaderModule(const char *p_Path) noexcept
     file.seekg(0);
     file.read(code, fileSize);
 
-    KIT_LOG_INFO("Creating shader module from file: {} with size: {}", p_Path, static_cast<usize>(fileSize));
+    // KIT_LOG_INFO("Creating shader module from file: {} with size: {}", p_Path, static_cast<usize>(fileSize));
 
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;

@@ -6,10 +6,10 @@
 #include "onyx/draw/color.hpp"
 #include "onyx/draw/transform.hpp"
 #include "onyx/draw/drawable.hpp"
-#include "onyx/draw/model.hpp"
 
 namespace ONYX
 {
+class Model;
 ONYX_DIMENSION_TEMPLATE class ONYX_API Shape : public Drawable
 {
   public:

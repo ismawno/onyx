@@ -117,9 +117,9 @@ bool Model::HasIndices() const noexcept
 void Model::Draw(const VkCommandBuffer p_CommandBuffer) const noexcept
 {
     if (m_IndexBuffer)
-        vkCmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer->GetSize()), 1, 0, 0, 0);
+        vkCmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer->GetInstanceCount()), 1, 0, 0, 0);
     else
-        vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer->GetSize()), 1, 0, 0);
+        vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer->GetInstanceCount()), 1, 0, 0);
 }
 
 const Buffer &Model::GetVertexBuffer() const noexcept
@@ -359,28 +359,28 @@ ONYX_DIMENSION_TEMPLATE const Model *Model::GetCircle() noexcept
 
 const Model *Model::GetRectangle2D() noexcept
 {
-    return s_Rectangle2D;
+    return GetRectangle<2>();
 }
 const Model *Model::GetLine2D() noexcept
 {
-    return s_Line2D;
+    return GetLine<2>();
 }
 const Model *Model::GetCircle2D() noexcept
 {
-    return s_Circle2D;
+    return GetCircle<2>();
 }
 
 const Model *Model::GetRectangle3D() noexcept
 {
-    return s_Rectangle3D;
+    return GetRectangle<3>();
 }
 const Model *Model::GetLine3D() noexcept
 {
-    return s_Line3D;
+    return GetLine<3>();
 }
 const Model *Model::GetCircle3D() noexcept
 {
-    return s_Circle3D;
+    return GetCircle<3>();
 }
 
 const Model *Model::GetCube() noexcept

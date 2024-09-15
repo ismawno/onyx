@@ -18,11 +18,15 @@ Window::Window() noexcept
 {
     createWindow();
     createGlobalUniformHelper();
+    addDefaultRenderSystems<2>();
+    addDefaultRenderSystems<3>();
 }
 Window::Window(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
 {
     createWindow();
     createGlobalUniformHelper();
+    addDefaultRenderSystems<2>();
+    addDefaultRenderSystems<3>();
 }
 
 Window::~Window() noexcept
@@ -79,23 +83,49 @@ void Window::createGlobalUniformHelper() noexcept
     for (usize i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; ++i)
     {
         const auto info = m_GlobalUniformHelper->UniformBuffer.DescriptorInfoAt(i);
-        DescriptorWriter writer{&m_GlobalUniformHelper->Layouts, &m_GlobalUniformHelper->Pool};
+        DescriptorWriter writer{&m_GlobalUniformHelper->Layout, &m_GlobalUniformHelper->Pool};
         writer.WriteBuffer(0, &info);
         m_GlobalDescriptorSets[i] = writer.Build();
     }
+}
+
+ONYX_DIMENSION_TEMPLATE void Window::addDefaultRenderSystems() noexcept
+{
+    RenderSystem::Specs<N> specs{};
+    specs.RenderPass = m_Renderer->GetSwapChain().GetRenderPass();
+    specs.DescriptorSetLayout = m_GlobalUniformHelper->Layout.GetLayout();
+
+    // Triangle list
+    specs.Topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    m_RenderSystems.emplace_back(specs);
+
+    // Triangle strip
+    specs.Topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+    m_RenderSystems.emplace_back(specs);
+
+    // Line list
+    specs.Topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+    m_RenderSystems.emplace_back(specs);
+
+    // Line strip
+    specs.Topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
+    m_RenderSystems.emplace_back(specs);
+
+    // Point list
+    specs.Topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+    m_RenderSystems.emplace_back(specs);
 }
 
 void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
 {
     const u32 frameIndex = m_Renderer->GetFrameIndex();
     GlobalUBO ubo{};
+    m_Camera->UpdateMatrices();
+    m_Camera->KeepAspectRatio(GetScreenAspect());
+    ubo.Projection = m_Camera->GetProjection();
 
     m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);
     m_GlobalUniformHelper->UniformBuffer.FlushAt(frameIndex);
-
-    // RenderSystem::Specs<2> specs{};
-    // specs.RenderPass = m_Renderer->GetSwapChain().RenderPass();
-    // RenderSystem rs{specs};
 
     RenderSystem::DrawInfo info{};
     info.CommandBuffer = p_CommandBuffer;

@@ -21,12 +21,15 @@ class ONYX_API RenderSystem
         const char *FragmentShaderPath = Core::GetFragmentShaderPath<N>();
 
         std::array<VkVertexInputBindingDescription, Vertex<N>::BINDINGS> BindingDescriptions =
-            Vertex<N>::BindingDescriptions();
+            Vertex<N>::GetBindingDescriptions();
         std::array<VkVertexInputAttributeDescription, Vertex<N>::ATTRIBUTES> AttributeDescriptions =
-            Vertex<N>::AttributeDescriptions();
+            Vertex<N>::GetAttributeDescriptions();
         VkPrimitiveTopology Topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         VkPolygonMode PolygonMode = VK_POLYGON_MODE_FILL;
         VkRenderPass RenderPass = VK_NULL_HANDLE;
+
+        // Could be changed to be multiple
+        VkDescriptorSetLayout DescriptorSetLayout = VK_NULL_HANDLE;
     };
     using Specs2D = Specs<2>;
     using Specs3D = Specs<3>;

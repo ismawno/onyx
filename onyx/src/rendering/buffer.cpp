@@ -135,10 +135,17 @@ VkBuffer Buffer::GetBuffer() const noexcept
 {
     return m_Buffer;
 }
-
 VkDeviceSize Buffer::GetSize() const noexcept
 {
     return m_Size;
+}
+VkDeviceSize Buffer::GetInstanceSize() const noexcept
+{
+    return m_InstanceSize;
+}
+VkDeviceSize Buffer::GetInstanceCount() const noexcept
+{
+    return m_Size / m_InstanceSize;
 }
 
 void Buffer::createBuffer(const VkBufferUsageFlags p_Usage, const VkMemoryPropertyFlags p_Properties) noexcept

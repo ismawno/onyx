@@ -18,6 +18,11 @@ ONYX_DIMENSION_TEMPLATE static Pipeline::Specs toPipelineSpecs(const RenderSyste
     specs.InputAssemblyInfo.topology = p_Specs.Topology;
     specs.RasterizationInfo.polygonMode = p_Specs.PolygonMode;
     specs.RenderPass = p_Specs.RenderPass;
+
+    // WARNING!! This info points to a 'unstable' memory location. Fortunately, p_Specs still lives when the pipeline is
+    // constructed (see Pipeline ctor below)
+    specs.PipelineLayoutInfo.pSetLayouts = p_Specs.DescriptorSetLayout ? &p_Specs.DescriptorSetLayout : nullptr;
+    specs.PipelineLayoutInfo.setLayoutCount = p_Specs.DescriptorSetLayout ? 1 : 0;
     return specs;
 }
 
@@ -35,6 +40,8 @@ void RenderSystem::Display(const DrawInfo &p_Info) noexcept
     std::scoped_lock lock(m_Mutex);
     for (const DrawData &data : m_DrawData)
     {
+        KIT_ASSERT(data.Model,
+                   "Model cannot be NULL! No drawables can be created before the creation of the first window");
         vkCmdPushConstants(p_Info.CommandBuffer, m_Pipeline.GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
                            sizeof(PushConstantData), &data.Data);
 
@@ -46,6 +53,7 @@ void RenderSystem::Display(const DrawInfo &p_Info) noexcept
         data.Model->Draw(p_Info.CommandBuffer);
     }
     m_DrawData.clear();
+    m_BoundModel = nullptr;
 }
 
 void RenderSystem::SubmitRenderData(const DrawData &p_Data) noexcept
