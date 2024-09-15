@@ -143,7 +143,10 @@ class ONYX_API Window
 
     Deque<Event> m_Events;
     VkSurfaceKHR m_Surface;
-    Specs m_Specs;
+
+    const char *m_Name;
+    u32 m_Width;
+    u32 m_Height;
 
     bool m_Resized = false;
 };

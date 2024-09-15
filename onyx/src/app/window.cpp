@@ -14,7 +14,7 @@ struct GlobalUBO
     glm::mat4 Projection;
 };
 
-Window::Window(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
+Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height)
 {
     createWindow(p_Specs);
     createGlobalUniformHelper();
@@ -37,7 +37,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
     glfwWindowHint(GLFW_DECORATED, p_Specs.Decorated);
     glfwWindowHint(GLFW_FOCUSED, p_Specs.Focused);
     glfwWindowHint(GLFW_FLOATING, p_Specs.Floating);
-    m_Window = glfwCreateWindow(static_cast<int>(m_Specs.Width), static_cast<int>(m_Specs.Height), m_Specs.Name,
+    m_Window = glfwCreateWindow(static_cast<int>(p_Specs.Width), static_cast<int>(p_Specs.Height), p_Specs.Name,
                                 nullptr, nullptr);
     KIT_ASSERT(m_Window, "Failed to create a GLFW window");
 
@@ -183,16 +183,16 @@ GLFWwindow *Window::GetWindow() noexcept
 
 const char *Window::GetName() const noexcept
 {
-    return m_Specs.Name;
+    return m_Name;
 }
 
 u32 Window::GetScreenWidth() const noexcept
 {
-    return m_Specs.Width;
+    return m_Width;
 }
 u32 Window::GetScreenHeight() const noexcept
 {
-    return m_Specs.Height;
+    return m_Height;
 }
 
 u32 Window::GetPixelWidth() const noexcept
@@ -206,7 +206,7 @@ u32 Window::GetPixelHeight() const noexcept
 
 f32 Window::GetScreenAspect() const noexcept
 {
-    return static_cast<f32>(m_Specs.Width) / static_cast<f32>(m_Specs.Height);
+    return static_cast<f32>(m_Width) / static_cast<f32>(m_Height);
 }
 
 f32 Window::GetPixelAspect() const noexcept
@@ -221,8 +221,8 @@ bool Window::WasResized() const noexcept
 
 void Window::FlagResize(const u32 p_Width, const u32 p_Height) noexcept
 {
-    m_Specs.Width = p_Width;
-    m_Specs.Height = p_Height;
+    m_Width = p_Width;
+    m_Height = p_Height;
     m_Resized = true;
 }
 void Window::FlagResizeDone() noexcept
