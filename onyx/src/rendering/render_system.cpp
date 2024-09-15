@@ -31,13 +31,14 @@ ONYX_DIMENSION_TEMPLATE RenderSystem::RenderSystem(const Specs<N> &p_Specs) noex
 {
 }
 
-void RenderSystem::Display(const DrawInfo &p_Info) noexcept
+void RenderSystem::Display(const DrawInfo &p_Info) const noexcept
 {
+    if (m_DrawData.empty())
+        return;
     m_Pipeline.Bind(p_Info.CommandBuffer);
     vkCmdBindDescriptorSets(p_Info.CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline.GetLayout(), 0, 1,
                             &p_Info.DescriptorSet, 0, nullptr);
 
-    std::scoped_lock lock(m_Mutex);
     for (const DrawData &data : m_DrawData)
     {
         KIT_ASSERT(data.Model,
@@ -52,14 +53,21 @@ void RenderSystem::Display(const DrawInfo &p_Info) noexcept
         }
         data.Model->Draw(p_Info.CommandBuffer);
     }
-    m_DrawData.clear();
-    m_BoundModel = nullptr;
 }
 
+void RenderSystem::SubmitRenderData(const RenderSystem &p_RenderSystem) noexcept
+{
+    m_DrawData.insert(m_DrawData.end(), p_RenderSystem.m_DrawData.begin(), p_RenderSystem.m_DrawData.end());
+}
 void RenderSystem::SubmitRenderData(const DrawData &p_Data) noexcept
 {
-    std::scoped_lock lock(m_Mutex);
     m_DrawData.push_back(p_Data);
+}
+
+void RenderSystem::ClearRenderData() noexcept
+{
+    m_DrawData.clear();
+    m_BoundModel = nullptr;
 }
 
 template RenderSystem::RenderSystem(const Specs<2> &p_Specs) noexcept;

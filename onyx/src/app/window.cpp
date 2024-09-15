@@ -129,12 +129,26 @@ void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
     info.CommandBuffer = p_CommandBuffer;
     info.DescriptorSet = m_GlobalDescriptorSets[frameIndex];
     for (RenderSystem &rs : m_RenderSystems)
+    {
         rs.Display(info);
+        rs.ClearRenderData();
+    }
 }
 
 void Window::Draw(Drawable &p_Drawable) noexcept
 {
     p_Drawable.Draw(*this);
+}
+
+void Window::Draw(Window &p_Window) noexcept
+{
+    KIT_ASSERT(this != &p_Window, "Cannot draw a window to itself");
+    KIT_ASSERT(p_Window.m_RenderSystems.size() >= m_RenderSystems.size(),
+               "The window to draw must have at least the same amount of render systems as the current window");
+
+    // A render system cannot be deleted, so we can safely assume that the render systems are in the same order
+    for (usize i = 0; i < m_RenderSystems.size(); ++i)
+        m_RenderSystems[i].SubmitRenderData(p_Window.m_RenderSystems[i]);
 }
 
 ONYX_DIMENSION_TEMPLATE RenderSystem &Window::AddRenderSystem(RenderSystem::Specs<N> p_Specs) noexcept

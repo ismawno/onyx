@@ -55,16 +55,18 @@ class ONYX_API RenderSystem
 
     ONYX_DIMENSION_TEMPLATE RenderSystem(const Specs<N> &p_Specs) noexcept;
 
-    void Display(const DrawInfo &p_Info) noexcept;
+    void Display(const DrawInfo &p_Info) const noexcept;
+
+    // These two methods will cause issues (races and inconsistencies) in concurrent mode if they are called from a
+    // thread that does not own the window execution. Even by protecting them by mutexes, calling them from a different
+    // thread will cause flickering (that is why I havent even bothered to protect them with mutexes)
+    void SubmitRenderData(const RenderSystem &p_RenderSystem) noexcept;
     void SubmitRenderData(const DrawData &p_Data) noexcept;
+    void ClearRenderData() noexcept;
 
   private:
     Pipeline m_Pipeline;
     DynamicArray<DrawData> m_DrawData;
     mutable const Model *m_BoundModel = nullptr;
-
-    // Protectes access to m_DrawData (you may draw to a secondary window in the main thread, which will trigger
-    // m_DrawData update)
-    mutable std::mutex m_Mutex;
 };
 } // namespace ONYX

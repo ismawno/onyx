@@ -58,6 +58,7 @@ class ONYX_API Window
     }
     bool Display() noexcept;
     void Draw(Drawable &p_Drawable) noexcept;
+    void Draw(Window &p_Window) noexcept;
 
     void MakeContextCurrent() const noexcept;
     bool ShouldClose() const noexcept;

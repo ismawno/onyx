@@ -6,6 +6,14 @@ namespace ONYX
 {
 class Drawable;
 
+// There are two ways available to manage multiple windows in an ONYX application:
+// - SERIAL: The windows are managed in a serial way, meaning that the windows are drawn one after the other in the main
+// thread. This is the default and most forgiving mode, allowing submission of draw calls to multiple windows from the
+// main thread (even another window itself)
+// - CONCURRENT: The windows are managed in a concurrent way, meaning that the windows are drawn in parallel. This mode
+//  *can* be more efficient but requires the user to submit draw calls to a window from the same thread that created
+// the window
+
 enum class MultiWindowFlow
 {
     SERIAL = 0,
@@ -33,6 +41,7 @@ template <MultiWindowFlow Flow = MultiWindowFlow::SERIAL> class ONYX_API Applica
     }
 
     void Draw(Drawable &p_Drawable, usize p_WindowIndex = 0) noexcept;
+    void Draw(Window &p_Window, usize p_WindowIndex = 0) noexcept;
 
     void CloseWindow(usize p_Index) noexcept;
     void CloseWindow(const Window *p_Window) noexcept;

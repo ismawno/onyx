@@ -29,7 +29,7 @@ int main()
     while (app.NextFrame())
     {
         window1->Draw(rect);
-        window2->Draw(rect);
+        window2->Draw(*window1);
         // cam->Transform.Position += glm::vec2(0.001f);
     }
     app.Shutdown();

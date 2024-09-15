@@ -46,8 +46,15 @@ template <MultiWindowFlow Flow> Window *Application<Flow>::openWindow(const Wind
 
 template <MultiWindowFlow Flow> void Application<Flow>::Draw(Drawable &p_Drawable, usize p_WindowIndex) noexcept
 {
-    KIT_ASSERT(p_WindowIndex < m_WindowData.size(), "Index out of bounds");
+    KIT_ASSERT(p_WindowIndex < m_WindowData.size(), "Window index out of bounds");
     m_WindowData[p_WindowIndex].Window->Draw(p_Drawable);
+}
+
+template <MultiWindowFlow Flow> void Application<Flow>::Draw(Window &p_Window, usize p_WindowIndex) noexcept
+{
+    KIT_ASSERT(Flow == MultiWindowFlow::SERIAL, "Cannot draw a window into another window in concurrent mode");
+    KIT_ASSERT(p_WindowIndex < m_WindowData.size(), "Window index out of bounds");
+    m_WindowData[p_WindowIndex].Window->Draw(p_Window);
 }
 
 template <MultiWindowFlow Flow> void Application<Flow>::CloseWindow(const usize p_Index) noexcept
