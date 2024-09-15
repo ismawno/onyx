@@ -119,7 +119,7 @@ void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
     const u32 frameIndex = m_Renderer->GetFrameIndex();
     GlobalUBO ubo{};
     m_Camera->UpdateMatrices();
-    m_Camera->KeepAspectRatio(GetScreenAspect());
+    m_Camera->SetAspectRatio(GetScreenAspect());
     ubo.Projection = m_Camera->GetProjection();
 
     m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);

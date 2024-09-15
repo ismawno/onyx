@@ -44,7 +44,7 @@ void Perspective::UpdateMatrices() noexcept
         Transform.Scale.y = -Transform.Scale.y;
 }
 
-void Perspective::KeepAspectRatio(const f32 p_Aspect) noexcept
+void Perspective::SetAspectRatio(const f32 p_Aspect) noexcept
 {
     m_Aspect = p_Aspect;
 }

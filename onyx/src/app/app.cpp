@@ -17,12 +17,12 @@ static void runFrame(Window &p_Window) noexcept
     runFrame(p_Window, [](const VkCommandBuffer) {});
 }
 
-Application::~Application() noexcept
+template <MultiWindowFlow Flow> Application<Flow>::~Application() noexcept
 {
     if (!m_Terminated && m_Started)
         Shutdown();
 }
-Window *Application::openWindow(const Window::Specs &p_Specs) noexcept
+template <MultiWindowFlow Flow> Window *Application<Flow>::openWindow(const Window::Specs &p_Specs) noexcept
 {
     auto window = KIT::Scope<Window>::Create(p_Specs);
 
@@ -35,25 +35,29 @@ Window *Application::openWindow(const Window::Specs &p_Specs) noexcept
     }
     Window *windowPtr = window.Get();
 
-    WindowData windowData;
+    WindowData<Flow> windowData;
     windowData.Window = std::move(window);
-    windowData.Task = nullptr;
+    if constexpr (Flow == MultiWindowFlow::CONCURRENT)
+        windowData.Task = nullptr;
     m_WindowData.push_back(std::move(windowData));
 
     return windowPtr;
 }
 
-void Application::Draw(Drawable &p_Drawable, usize p_WindowIndex) noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::Draw(Drawable &p_Drawable, usize p_WindowIndex) noexcept
 {
     KIT_ASSERT(p_WindowIndex < m_WindowData.size(), "Index out of bounds");
     m_WindowData[p_WindowIndex].Window->Draw(p_Drawable);
 }
 
-void Application::CloseWindow(const usize p_Index) noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_WindowData.size(), "Index out of bounds");
-    if (m_WindowData[p_Index].Task)
-        m_WindowData[p_Index].Task->WaitUntilFinished();
+    if constexpr (Flow == MultiWindowFlow::CONCURRENT)
+    {
+        if (m_WindowData[p_Index].Task)
+            m_WindowData[p_Index].Task->WaitUntilFinished();
+    }
 
     m_WindowData.erase(m_WindowData.begin() + p_Index);
     // Check if the main window got removed. If so, the main thread will handle the next window
@@ -62,13 +66,16 @@ void Application::CloseWindow(const usize p_Index) noexcept
         shutdownImGui();
         if (m_WindowData.empty())
             return;
-        m_WindowData[0].Task->WaitUntilFinished();
-        m_WindowData[0].Task = nullptr;
+        if constexpr (Flow == MultiWindowFlow::CONCURRENT)
+        {
+            m_WindowData[0].Task->WaitUntilFinished();
+            m_WindowData[0].Task = nullptr;
+        }
         initializeImGui(*m_WindowData[0].Window);
     }
 }
 
-void Application::CloseWindow(const Window *p_Window) noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::CloseWindow(const Window *p_Window) noexcept
 {
     for (usize i = 0; i < m_WindowData.size(); ++i)
         if (m_WindowData[i].Window.Get() == p_Window)
@@ -79,13 +86,13 @@ void Application::CloseWindow(const Window *p_Window) noexcept
     KIT_ERROR("Window was not found");
 }
 
-void Application::Start() noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::Start() noexcept
 {
     KIT_ASSERT(!m_Terminated && !m_Started, "Application already started");
     m_Started = true;
 }
 
-void Application::Shutdown() noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::Shutdown() noexcept
 {
     KIT_ASSERT(!m_Terminated && m_Started, "Application not started");
     for (usize i = m_WindowData.size() - 1; i < m_WindowData.size(); --i)
@@ -96,7 +103,7 @@ void Application::Shutdown() noexcept
     m_Terminated = true;
 }
 
-bool Application::NextFrame() noexcept
+template <MultiWindowFlow Flow> bool Application<Flow>::NextFrame() noexcept
 {
     if (m_WindowData.empty())
         return false;
@@ -106,7 +113,7 @@ bool Application::NextFrame() noexcept
     return !m_WindowData.empty();
 }
 
-void Application::Run() noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::Run() noexcept
 {
     Start();
     while (NextFrame())
@@ -114,43 +121,54 @@ void Application::Run() noexcept
     Shutdown();
 }
 
-void Application::runAndManageWindows() noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::runAndManageWindows() noexcept
 {
-    for (usize i = 1; i < m_WindowData.size(); ++i)
+    if constexpr (Flow == MultiWindowFlow::CONCURRENT)
     {
-        KIT::TaskManager *taskManager = Core::GetTaskManager();
-        WindowData &windowData = m_WindowData[i];
-        if (!windowData.Task)
+        for (usize i = 1; i < m_WindowData.size(); ++i)
         {
-            Window *window = windowData.Window.Get();
-            windowData.Task = taskManager->CreateAndSubmit([window](usize) { runFrame(*window); });
+            WindowData<Flow> &windowData = m_WindowData[i];
+            KIT::TaskManager *taskManager = Core::GetTaskManager();
+            if (!windowData.Task)
+            {
+                Window *window = windowData.Window.Get();
+                windowData.Task = taskManager->CreateAndSubmit([window](usize) { runFrame(*window); });
+            }
+            else
+            {
+                windowData.Task->WaitUntilFinished();
+                windowData.Task->Reset();
+                taskManager->SubmitTask(windowData.Task);
+            }
         }
-        else
-        {
-            windowData.Task->WaitUntilFinished();
-            windowData.Task->Reset();
-            taskManager->SubmitTask(windowData.Task);
-        }
-    }
 
-    beginRenderImGui();
-    // Main thread always handles the first window. First element of tasks is always nullptr
-    runFrame(*m_WindowData[0].Window,
-             [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+        beginRenderImGui();
+        // Main thread always handles the first window. First element of tasks is always nullptr
+        runFrame(*m_WindowData[0].Window,
+                 [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+    }
+    else
+    {
+        beginRenderImGui();
+        runFrame(*m_WindowData[0].Window,
+                 [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+        for (usize i = 1; i < m_WindowData.size(); ++i)
+            runFrame(*m_WindowData[i].Window);
+    }
 
     for (usize i = m_WindowData.size() - 1; i < m_WindowData.size(); --i)
         if (m_WindowData[i].Window->ShouldClose())
             CloseWindow(i);
 }
 
-void Application::beginRenderImGui() noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::beginRenderImGui() noexcept
 {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
 
-void Application::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
 {
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
@@ -162,7 +180,7 @@ void Application::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
     m_Device->UnlockQueues();
 }
 
-void Application::createImGuiPool() noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::createImGuiPool() noexcept
 {
     constexpr std::uint32_t poolSize = 100;
     VkDescriptorPoolSize poolSizes[11] = {{VK_DESCRIPTOR_TYPE_SAMPLER, poolSize},
@@ -188,7 +206,7 @@ void Application::createImGuiPool() noexcept
                        "Failed to create descriptor pool");
 }
 
-void Application::initializeImGui(Window &p_Window) noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::initializeImGui(Window &p_Window) noexcept
 {
     if (!m_ImGuiPool)
         createImGuiPool();
@@ -218,7 +236,7 @@ void Application::initializeImGui(Window &p_Window) noexcept
     ImGui_ImplVulkan_CreateFontsTexture();
 }
 
-void Application::shutdownImGui() noexcept
+template <MultiWindowFlow Flow> void Application<Flow>::shutdownImGui() noexcept
 {
     m_Device->WaitIdle();
     ImGui_ImplVulkan_DestroyFontsTexture();
@@ -227,4 +245,7 @@ void Application::shutdownImGui() noexcept
     ImGui::DestroyPlatformWindows();
     ImGui::DestroyContext();
 }
+
+template class Application<MultiWindowFlow::SERIAL>;
+template class Application<MultiWindowFlow::CONCURRENT>;
 } // namespace ONYX

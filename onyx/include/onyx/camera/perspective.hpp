@@ -18,7 +18,7 @@ class ONYX_API Perspective final : public Camera<3>
     f32 FieldOfView;
 
     void UpdateMatrices() noexcept override;
-    void KeepAspectRatio(f32 p_Aspect) noexcept override;
+    void SetAspectRatio(f32 p_Aspect) noexcept override;
 
   private:
     f32 m_Aspect;

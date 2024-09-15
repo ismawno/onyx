@@ -5,7 +5,14 @@
 namespace ONYX
 {
 class Drawable;
-class ONYX_API Application
+
+enum class MultiWindowFlow
+{
+    SERIAL = 0,
+    CONCURRENT = 1
+};
+
+template <MultiWindowFlow Flow = MultiWindowFlow::SERIAL> class ONYX_API Application
 {
     KIT_NON_COPYABLE(Application)
   public:
@@ -37,7 +44,12 @@ class ONYX_API Application
     void Run() noexcept;
 
   private:
-    struct WindowData
+    template <MultiWindowFlow WFlow> struct WindowData;
+    template <> struct WindowData<MultiWindowFlow::SERIAL>
+    {
+        KIT::Scope<Window> Window;
+    };
+    template <> struct WindowData<MultiWindowFlow::CONCURRENT>
     {
         KIT::Scope<Window> Window;
         KIT::Ref<KIT::Task<void>> Task;
@@ -53,7 +65,7 @@ class ONYX_API Application
     void initializeImGui(Window &p_Window) noexcept;
     void shutdownImGui() noexcept;
 
-    DynamicArray<WindowData> m_WindowData;
+    DynamicArray<WindowData<Flow>> m_WindowData;
     KIT::Ref<Device> m_Device;
 
     bool m_Started = false;

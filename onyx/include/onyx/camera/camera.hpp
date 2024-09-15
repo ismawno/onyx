@@ -11,7 +11,7 @@ class ICamera ONYX_API
     virtual ~ICamera() = default;
 
     virtual void UpdateMatrices() noexcept = 0;
-    virtual void KeepAspectRatio(f32 p_Aspect) noexcept = 0;
+    virtual void SetAspectRatio(f32 p_Aspect) noexcept = 0;
 
     const mat4 &GetProjection() const noexcept;
     const mat4 &GetInverseProjection() const noexcept;
@@ -27,7 +27,7 @@ class ICamera ONYX_API
 ONYX_DIMENSION_TEMPLATE class ONYX_API Camera : public ICamera
 {
   public:
-    virtual void KeepAspectRatio(f32 p_Aspect) noexcept;
+    virtual void SetAspectRatio(f32 p_Aspect) noexcept;
 
     vec<N> ScreenToWorld(const vec2 &p_Screen) const noexcept;
     vec2 WorldToScreen(const vec<N> &p_World) const noexcept;
