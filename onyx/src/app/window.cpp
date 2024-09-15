@@ -14,16 +14,9 @@ struct GlobalUBO
     glm::mat4 Projection;
 };
 
-Window::Window() noexcept
-{
-    createWindow();
-    createGlobalUniformHelper();
-    addDefaultRenderSystems<2>();
-    addDefaultRenderSystems<3>();
-}
 Window::Window(const Specs &p_Specs) noexcept : m_Specs(p_Specs)
 {
-    createWindow();
+    createWindow(p_Specs);
     createGlobalUniformHelper();
     addDefaultRenderSystems<2>();
     addDefaultRenderSystems<3>();
@@ -36,14 +29,14 @@ Window::~Window() noexcept
     glfwDestroyWindow(m_Window);
 }
 
-void Window::createWindow() noexcept
+void Window::createWindow(const Specs &p_Specs) noexcept
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-    glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
-    glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
-    glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
-    glfwWindowHint(GLFW_FLOATING, GLFW_FALSE);
+    glfwWindowHint(GLFW_RESIZABLE, p_Specs.Resizable);
+    glfwWindowHint(GLFW_VISIBLE, p_Specs.Visible);
+    glfwWindowHint(GLFW_DECORATED, p_Specs.Decorated);
+    glfwWindowHint(GLFW_FOCUSED, p_Specs.Focused);
+    glfwWindowHint(GLFW_FLOATING, p_Specs.Floating);
     m_Window = glfwCreateWindow(static_cast<int>(m_Specs.Width), static_cast<int>(m_Specs.Height), m_Specs.Name,
                                 nullptr, nullptr);
     KIT_ASSERT(m_Window, "Failed to create a GLFW window");

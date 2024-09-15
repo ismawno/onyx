@@ -31,10 +31,15 @@ class ONYX_API Window
         const char *Name = "Onyx window";
         u32 Width = 800;
         u32 Height = 600;
+
+        bool Resizable = true;
+        bool Visible = true;
+        bool Decorated = true;
+        bool Focused = true;
+        bool Floating = false;
     };
 
-    Window() noexcept;
-    explicit Window(const Specs &p_Specs) noexcept;
+    explicit Window(const Specs &p_Specs = {}) noexcept;
     ~Window() noexcept;
 
     template <typename F> bool Display(F &&p_Submission) noexcept
@@ -118,7 +123,7 @@ class ONYX_API Window
         DescriptorSetLayout Layout;
         Buffer UniformBuffer;
     };
-    void createWindow() noexcept;
+    void createWindow(const Specs &p_Specs) noexcept;
     void createGlobalUniformHelper() noexcept;
     ONYX_DIMENSION_TEMPLATE void addDefaultRenderSystems() noexcept;
 
