@@ -14,6 +14,10 @@ struct GlobalUBO
     glm::mat4 Projection;
 };
 
+Window::Window() noexcept : Window(Specs{})
+{
+}
+
 Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height)
 {
     createWindow(p_Specs);
@@ -37,6 +41,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
     glfwWindowHint(GLFW_DECORATED, p_Specs.Decorated);
     glfwWindowHint(GLFW_FOCUSED, p_Specs.Focused);
     glfwWindowHint(GLFW_FLOATING, p_Specs.Floating);
+
     m_Window = glfwCreateWindow(static_cast<int>(p_Specs.Width), static_cast<int>(p_Specs.Height), p_Specs.Name,
                                 nullptr, nullptr);
     KIT_ASSERT(m_Window, "Failed to create a GLFW window");

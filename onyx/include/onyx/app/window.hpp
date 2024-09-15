@@ -39,7 +39,8 @@ class ONYX_API Window
         bool Floating = false;
     };
 
-    explicit Window(const Specs &p_Specs = {}) noexcept;
+    Window() noexcept;
+    explicit Window(const Specs &p_Specs) noexcept;
     ~Window() noexcept;
 
     template <typename F> bool Display(F &&p_Submission) noexcept

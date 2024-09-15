@@ -17,7 +17,7 @@ int main()
 
     ONYX::Application app;
     auto window1 = app.OpenWindow<ONYX::Orthographic2D>();
-    auto window2 = app.OpenWindow<ONYX::Orthographic2D>();
+    // auto window2 = app.OpenWindow<ONYX::Orthographic2D>();
 
     auto cam = window1->GetCamera<ONYX::Orthographic2D>();
     cam->FlipY();
@@ -29,7 +29,7 @@ int main()
     while (app.NextFrame())
     {
         window1->Draw(rect);
-        window2->Draw(rect);
+        // window2->Draw(rect);
         // cam->Transform.Position += glm::vec2(0.001f);
     }
     app.Shutdown();
