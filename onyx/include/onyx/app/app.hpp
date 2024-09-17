@@ -1,10 +1,70 @@
 #pragma once
 
+#include "onyx/app/layer.hpp"
 #include "onyx/app/window.hpp"
 
 namespace ONYX
 {
 class Drawable;
+
+class IApplication
+{
+    KIT_NON_COPYABLE(IApplication)
+  public:
+    IApplication() = default;
+    virtual ~IApplication() noexcept;
+
+    template <std::derived_from<ICamera> T, typename... CameraArgs>
+    Window *OpenWindow(const Window::Specs &p_Specs, CameraArgs &&...p_Args) noexcept
+    {
+        Window *window = openWindow(p_Specs);
+        window->SetCamera<T>(std::forward<CameraArgs>(p_Args)...);
+        return window;
+    }
+    template <std::derived_from<ICamera> T, typename... CameraArgs> Window *OpenWindow(CameraArgs &&...p_Args) noexcept
+    {
+        const Window::Specs specs{};
+        return OpenWindow<T>(specs, std::forward<CameraArgs>(p_Args)...);
+    }
+
+    virtual void CloseWindow(usize p_Index) noexcept = 0;
+    void CloseWindow(const Window *p_Window) noexcept;
+    void CloseAllWindows() noexcept;
+
+    const Window *GetWindow(usize p_Index) const noexcept;
+    Window *GetWindow(usize p_Index) noexcept;
+
+    void Start() noexcept;
+    void Shutdown() noexcept;
+    bool NextFrame() noexcept;
+
+    void Run() noexcept;
+
+    void Draw(Drawable &p_Drawable, usize p_WindowIndex = 0) noexcept;
+
+    LayerSystem Layers;
+
+  protected:
+    void initializeImGui(Window &p_Window) noexcept;
+    void shutdownImGui() noexcept;
+
+    static void beginRenderImGui() noexcept;
+    void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
+
+    KIT::Ref<Device> m_Device;
+    DynamicArray<KIT::Scope<Window>> m_Windows;
+
+  private:
+    virtual Window *openWindow(const Window::Specs &p_Specs) noexcept = 0;
+    virtual void processWindows() noexcept = 0;
+
+    void createImGuiPool() noexcept;
+
+    bool m_Started = false;
+    bool m_Terminated = false;
+
+    VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
+};
 
 // There are two ways available to manage multiple windows in an ONYX application:
 // - SERIAL: The windows are managed in a serial way, meaning that the windows are drawn one after the other in the main
@@ -20,66 +80,32 @@ enum class MultiWindowFlow
     CONCURRENT = 1
 };
 
-template <MultiWindowFlow Flow = MultiWindowFlow::SERIAL> class ONYX_API Application
+template <MultiWindowFlow Flow = MultiWindowFlow::SERIAL> class ONYX_API Application;
+
+template <> class ONYX_API Application<MultiWindowFlow::SERIAL> final : public IApplication
 {
     KIT_NON_COPYABLE(Application)
   public:
-    Application() noexcept = default;
-    ~Application() noexcept;
-
-    template <std::derived_from<ICamera> T, typename... CameraArgs>
-    Window *OpenWindow(const Window::Specs &p_Specs, CameraArgs &&...p_Args) noexcept
-    {
-        Window *window = openWindow(p_Specs);
-        window->SetCamera<T>(std::forward<CameraArgs>(p_Args)...);
-        return window;
-    }
-    template <std::derived_from<ICamera> T, typename... CameraArgs> Window *OpenWindow(CameraArgs &&...p_Args) noexcept
-    {
-        const Window::Specs specs{};
-        return OpenWindow<T>(specs, std::forward<CameraArgs>(p_Args)...);
-    }
-
-    void Draw(Drawable &p_Drawable, usize p_WindowIndex = 0) noexcept;
+    using IApplication::IApplication;
     void Draw(Window &p_Window, usize p_WindowIndex = 0) noexcept;
-
-    void CloseWindow(usize p_Index) noexcept;
-    void CloseWindow(const Window *p_Window) noexcept;
-
-    void Start() noexcept;
-    void Shutdown() noexcept;
-    bool NextFrame() noexcept;
-
-    void Run() noexcept;
+    void CloseWindow(usize p_Index) noexcept override;
 
   private:
-    template <MultiWindowFlow WFlow> struct WindowData;
-    template <> struct WindowData<MultiWindowFlow::SERIAL>
-    {
-        KIT::Scope<Window> Window;
-    };
-    template <> struct WindowData<MultiWindowFlow::CONCURRENT>
-    {
-        KIT::Scope<Window> Window;
-        KIT::Ref<KIT::Task<void>> Task;
-    };
+    Window *openWindow(const Window::Specs &p_Specs) noexcept override;
+    void processWindows() noexcept override;
+};
 
-    Window *openWindow(const Window::Specs &p_Specs) noexcept;
-    void createImGuiPool() noexcept;
-    void runAndManageWindows() noexcept;
+template <> class ONYX_API Application<MultiWindowFlow::CONCURRENT> final : public IApplication
+{
+    KIT_NON_COPYABLE(Application)
+  public:
+    using IApplication::IApplication;
+    void CloseWindow(usize p_Index) noexcept override;
 
-    static void beginRenderImGui() noexcept;
-    void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
+  private:
+    Window *openWindow(const Window::Specs &p_Specs) noexcept override;
+    void processWindows() noexcept override;
 
-    void initializeImGui(Window &p_Window) noexcept;
-    void shutdownImGui() noexcept;
-
-    DynamicArray<WindowData<Flow>> m_WindowData;
-    KIT::Ref<Device> m_Device;
-
-    bool m_Started = false;
-    bool m_Terminated = false;
-
-    VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
+    DynamicArray<KIT::Ref<KIT::Task<void>>> m_Tasks;
 };
 } // namespace ONYX

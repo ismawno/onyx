@@ -6,86 +6,39 @@
 
 namespace ONYX
 {
-template <typename F> static void runFrame(Window &p_Window, F &&p_Submission) noexcept
+template <typename F> static void processFrame(Window &p_Window, F &&p_Submission) noexcept
 {
     p_Window.MakeContextCurrent();
     KIT_ASSERT_RETURNS(p_Window.Display(std::forward<F>(p_Submission)), true,
                        "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
 }
-static void runFrame(Window &p_Window) noexcept
+static void processFrame(Window &p_Window) noexcept
 {
-    runFrame(p_Window, [](const VkCommandBuffer) {});
+    processFrame(p_Window, [](const VkCommandBuffer) {});
 }
 
-template <MultiWindowFlow Flow> Application<Flow>::~Application() noexcept
+IApplication::~IApplication() noexcept
 {
     if (!m_Terminated && m_Started)
         Shutdown();
 }
-template <MultiWindowFlow Flow> Window *Application<Flow>::openWindow(const Window::Specs &p_Specs) noexcept
+
+void IApplication::Draw(Drawable &p_Drawable, usize p_WindowIndex) noexcept
 {
-    auto window = KIT::Scope<Window>::Create(p_Specs);
-
-    // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
-    // the GLFW ImGui backend limitations
-    if (m_WindowData.empty())
-    {
-        m_Device = Core::GetDevice();
-        initializeImGui(*window);
-    }
-    Window *windowPtr = window.Get();
-
-    WindowData<Flow> windowData;
-    windowData.Window = std::move(window);
-    if constexpr (Flow == MultiWindowFlow::CONCURRENT)
-        windowData.Task = nullptr;
-    m_WindowData.push_back(std::move(windowData));
-
-    return windowPtr;
+    KIT_ASSERT(p_WindowIndex < m_Windows.size(), "Window index out of bounds");
+    m_Windows[p_WindowIndex]->Draw(p_Drawable);
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::Draw(Drawable &p_Drawable, usize p_WindowIndex) noexcept
+void IApplication::CloseAllWindows() noexcept
 {
-    KIT_ASSERT(p_WindowIndex < m_WindowData.size(), "Window index out of bounds");
-    m_WindowData[p_WindowIndex].Window->Draw(p_Drawable);
+    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+        CloseWindow(i);
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::Draw(Window &p_Window, usize p_WindowIndex) noexcept
+void IApplication::CloseWindow(const Window *p_Window) noexcept
 {
-    KIT_ASSERT(Flow == MultiWindowFlow::SERIAL, "Cannot draw a window into another window in concurrent mode");
-    KIT_ASSERT(p_WindowIndex < m_WindowData.size(), "Window index out of bounds");
-    m_WindowData[p_WindowIndex].Window->Draw(p_Window);
-}
-
-template <MultiWindowFlow Flow> void Application<Flow>::CloseWindow(const usize p_Index) noexcept
-{
-    KIT_ASSERT(p_Index < m_WindowData.size(), "Index out of bounds");
-    if constexpr (Flow == MultiWindowFlow::CONCURRENT)
-    {
-        if (m_WindowData[p_Index].Task)
-            m_WindowData[p_Index].Task->WaitUntilFinished();
-    }
-
-    m_WindowData.erase(m_WindowData.begin() + p_Index);
-    // Check if the main window got removed. If so, the main thread will handle the next window
-    if (p_Index == 0)
-    {
-        shutdownImGui();
-        if (m_WindowData.empty())
-            return;
-        if constexpr (Flow == MultiWindowFlow::CONCURRENT)
-        {
-            m_WindowData[0].Task->WaitUntilFinished();
-            m_WindowData[0].Task = nullptr;
-        }
-        initializeImGui(*m_WindowData[0].Window);
-    }
-}
-
-template <MultiWindowFlow Flow> void Application<Flow>::CloseWindow(const Window *p_Window) noexcept
-{
-    for (usize i = 0; i < m_WindowData.size(); ++i)
-        if (m_WindowData[i].Window.Get() == p_Window)
+    for (usize i = 0; i < m_Windows.size(); ++i)
+        if (m_Windows[i].Get() == p_Window)
         {
             CloseWindow(i);
             return;
@@ -93,34 +46,45 @@ template <MultiWindowFlow Flow> void Application<Flow>::CloseWindow(const Window
     KIT_ERROR("Window was not found");
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::Start() noexcept
+const Window *IApplication::GetWindow(const usize p_Index) const noexcept
+{
+    KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    return m_Windows[p_Index].Get();
+}
+Window *IApplication::GetWindow(const usize p_Index) noexcept
+{
+    KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    return m_Windows[p_Index].Get();
+}
+
+void IApplication::Start() noexcept
 {
     KIT_ASSERT(!m_Terminated && !m_Started, "Application already started");
     m_Started = true;
+    Layers.OnStart();
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::Shutdown() noexcept
+void IApplication::Shutdown() noexcept
 {
     KIT_ASSERT(!m_Terminated && m_Started, "Application not started");
-    for (usize i = m_WindowData.size() - 1; i < m_WindowData.size(); --i)
-        if (m_WindowData[i].Window->ShouldClose())
-            CloseWindow(i);
+    Layers.OnShutdown();
+    CloseAllWindows(); // Should not be that necessary
     if (m_Device)
         vkDestroyDescriptorPool(m_Device->GetDevice(), m_ImGuiPool, nullptr);
     m_Terminated = true;
 }
 
-template <MultiWindowFlow Flow> bool Application<Flow>::NextFrame() noexcept
+bool IApplication::NextFrame() noexcept
 {
-    if (m_WindowData.empty())
+    if (m_Windows.empty())
         return false;
 
     Input::PollEvents();
-    runAndManageWindows();
-    return !m_WindowData.empty();
+    processWindows();
+    return !m_Windows.empty();
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::Run() noexcept
+void IApplication::Run() noexcept
 {
     Start();
     while (NextFrame())
@@ -128,54 +92,14 @@ template <MultiWindowFlow Flow> void Application<Flow>::Run() noexcept
     Shutdown();
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::runAndManageWindows() noexcept
-{
-    if constexpr (Flow == MultiWindowFlow::CONCURRENT)
-    {
-        for (usize i = 1; i < m_WindowData.size(); ++i)
-        {
-            WindowData<Flow> &windowData = m_WindowData[i];
-            KIT::TaskManager *taskManager = Core::GetTaskManager();
-            if (!windowData.Task)
-            {
-                Window *window = windowData.Window.Get();
-                windowData.Task = taskManager->CreateAndSubmit([window](usize) { runFrame(*window); });
-            }
-            else
-            {
-                windowData.Task->WaitUntilFinished();
-                windowData.Task->Reset();
-                taskManager->SubmitTask(windowData.Task);
-            }
-        }
-
-        beginRenderImGui();
-        // Main thread always handles the first window. First element of tasks is always nullptr
-        runFrame(*m_WindowData[0].Window,
-                 [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
-    }
-    else
-    {
-        beginRenderImGui();
-        runFrame(*m_WindowData[0].Window,
-                 [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
-        for (usize i = 1; i < m_WindowData.size(); ++i)
-            runFrame(*m_WindowData[i].Window);
-    }
-
-    for (usize i = m_WindowData.size() - 1; i < m_WindowData.size(); --i)
-        if (m_WindowData[i].Window->ShouldClose())
-            CloseWindow(i);
-}
-
-template <MultiWindowFlow Flow> void Application<Flow>::beginRenderImGui() noexcept
+void IApplication::beginRenderImGui() noexcept
 {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
 {
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
@@ -187,7 +111,7 @@ template <MultiWindowFlow Flow> void Application<Flow>::endRenderImGui(VkCommand
     m_Device->UnlockQueues();
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::createImGuiPool() noexcept
+void IApplication::createImGuiPool() noexcept
 {
     constexpr std::uint32_t poolSize = 100;
     VkDescriptorPoolSize poolSizes[11] = {{VK_DESCRIPTOR_TYPE_SAMPLER, poolSize},
@@ -213,7 +137,7 @@ template <MultiWindowFlow Flow> void Application<Flow>::createImGuiPool() noexce
                        "Failed to create descriptor pool");
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::initializeImGui(Window &p_Window) noexcept
+void IApplication::initializeImGui(Window &p_Window) noexcept
 {
     if (!m_ImGuiPool)
         createImGuiPool();
@@ -243,7 +167,7 @@ template <MultiWindowFlow Flow> void Application<Flow>::initializeImGui(Window &
     ImGui_ImplVulkan_CreateFontsTexture();
 }
 
-template <MultiWindowFlow Flow> void Application<Flow>::shutdownImGui() noexcept
+void IApplication::shutdownImGui() noexcept
 {
     m_Device->WaitIdle();
     ImGui_ImplVulkan_DestroyFontsTexture();
@@ -253,6 +177,121 @@ template <MultiWindowFlow Flow> void Application<Flow>::shutdownImGui() noexcept
     ImGui::DestroyContext();
 }
 
-template class Application<MultiWindowFlow::SERIAL>;
-template class Application<MultiWindowFlow::CONCURRENT>;
+void Application<MultiWindowFlow::SERIAL>::Draw(Window &p_Window, usize p_WindowIndex) noexcept
+{
+    KIT_ASSERT(p_WindowIndex < m_Windows.size(), "Window index out of bounds");
+    m_Windows[p_WindowIndex]->Draw(p_Window);
+}
+
+void Application<MultiWindowFlow::SERIAL>::CloseWindow(const usize p_Index) noexcept
+{
+    KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    m_Windows.erase(m_Windows.begin() + p_Index);
+    // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
+    if (p_Index == 0)
+    {
+        shutdownImGui();
+        if (m_Windows.empty())
+            return;
+        initializeImGui(*m_Windows[0]);
+    }
+}
+
+Window *Application<MultiWindowFlow::SERIAL>::openWindow(const Window::Specs &p_Specs) noexcept
+{
+    auto window = KIT::Scope<Window>::Create(p_Specs);
+
+    // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
+    // the GLFW ImGui backend limitations
+    if (m_Windows.empty())
+    {
+        m_Device = Core::GetDevice();
+        initializeImGui(*window);
+    }
+    m_Windows.push_back(std::move(window));
+    return m_Windows.back().Get();
+}
+
+void Application<MultiWindowFlow::SERIAL>::processWindows() noexcept
+{
+    beginRenderImGui();
+    processFrame(*m_Windows[0], [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+    for (usize i = 1; i < m_Windows.size(); ++i)
+        processFrame(*m_Windows[i]);
+
+    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+        if (m_Windows[i]->ShouldClose())
+            CloseWindow(i);
+}
+
+void Application<MultiWindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) noexcept
+{
+    KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    m_Windows.erase(m_Windows.begin() + p_Index);
+    m_Tasks.erase(m_Tasks.begin() + p_Index);
+    // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
+    if (p_Index == 0)
+    {
+        shutdownImGui();
+        if (m_Windows.empty())
+            return;
+
+        m_Tasks[0]->WaitUntilFinished();
+        m_Tasks[0] = nullptr;
+        initializeImGui(*m_Windows[0]);
+    }
+}
+
+Window *Application<MultiWindowFlow::CONCURRENT>::openWindow(const Window::Specs &p_Specs) noexcept
+{
+    auto window = KIT::Scope<Window>::Create(p_Specs);
+    Window *windowPtr = window.Get();
+
+    if (!m_Windows.empty())
+    {
+        KIT::TaskManager *taskManager = Core::GetTaskManager();
+        auto task = taskManager->CreateTask([windowPtr](usize) { processFrame(*windowPtr); });
+        m_Tasks.push_back(std::move(task));
+    }
+    else
+    {
+        // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due
+        // to the GLFW ImGui backend limitations
+
+        m_Device = Core::GetDevice();
+        initializeImGui(*window);
+        m_Tasks.push_back(nullptr);
+    }
+
+    m_Windows.push_back(std::move(window));
+    return windowPtr;
+}
+
+void Application<MultiWindowFlow::CONCURRENT>::processWindows() noexcept
+{
+    for (usize i = 1; i < m_Windows.size(); ++i)
+    {
+        auto &task = m_Tasks[i];
+        KIT::TaskManager *taskManager = Core::GetTaskManager();
+        if (!task)
+        {
+            Window *windowPtr = m_Windows[i].Get();
+            task = taskManager->CreateAndSubmit([windowPtr](usize) { processFrame(*windowPtr); });
+        }
+        else
+        {
+            task->WaitUntilFinished();
+            task->Reset();
+            taskManager->SubmitTask(task);
+        }
+    }
+
+    beginRenderImGui();
+    // Main thread always handles the first window. First element of tasks is always nullptr
+    processFrame(*m_Windows[0], [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+
+    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+        if (m_Windows[i]->ShouldClose())
+            CloseWindow(i);
+}
 } // namespace ONYX

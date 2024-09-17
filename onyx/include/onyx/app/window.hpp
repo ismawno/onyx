@@ -26,6 +26,7 @@ class ONYX_API Window
 {
     KIT_NON_COPYABLE(Window)
   public:
+    // Could use a bitset, but I cant directly initialize it with the flags as I do with the u8
     enum Flags : u8
     {
         RESIZABLE = 1 << 0,
