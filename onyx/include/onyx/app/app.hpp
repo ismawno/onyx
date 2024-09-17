@@ -2,6 +2,7 @@
 
 #include "onyx/app/layer.hpp"
 #include "onyx/app/window.hpp"
+#include "kit/profiling/clock.hpp"
 
 namespace ONYX
 {
@@ -34,15 +35,20 @@ class IApplication
     const Window *GetWindow(usize p_Index) const noexcept;
     Window *GetWindow(usize p_Index) noexcept;
 
-    void Start() noexcept;
+    f32 GetDeltaTime() const noexcept;
+
+    virtual void Startup() noexcept;
     void Shutdown() noexcept;
-    bool NextFrame() noexcept;
+    bool NextFrame(KIT::Clock &p_Clock) noexcept;
 
     void Run() noexcept;
 
     void Draw(Drawable &p_Drawable, usize p_WindowIndex = 0) noexcept;
 
-    LayerSystem Layers;
+    bool Started() const noexcept;
+    bool Terminated() const noexcept;
+
+    LayerSystem Layers{this};
 
   protected:
     void initializeImGui(Window &p_Window) noexcept;
@@ -62,6 +68,7 @@ class IApplication
 
     bool m_Started = false;
     bool m_Terminated = false;
+    f32 m_DeltaTime = 0.f;
 
     VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
 };
@@ -102,9 +109,12 @@ template <> class ONYX_API Application<MultiWindowFlow::CONCURRENT> final : publ
     using IApplication::IApplication;
     void CloseWindow(usize p_Index) noexcept override;
 
+    void Startup() noexcept override;
+
   private:
     Window *openWindow(const Window::Specs &p_Specs) noexcept override;
     void processWindows() noexcept override;
+    KIT::Ref<KIT::Task<void>> createWindowTask(usize p_WindowIndex) noexcept;
 
     DynamicArray<KIT::Ref<KIT::Task<void>>> m_Tasks;
 };

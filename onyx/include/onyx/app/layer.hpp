@@ -13,6 +13,7 @@ struct Event;
 class Layer
 {
   public:
+    Layer(const char *p_Name) noexcept;
     virtual ~Layer() noexcept = default;
 
     virtual void OnStart() noexcept
@@ -22,10 +23,13 @@ class Layer
     {
     }
 
-    virtual void OnUpdate(f32, Window *) noexcept
+    virtual void OnUpdate(usize) noexcept
     {
     }
-    virtual void OnRender(f32, Window *) noexcept
+    virtual void OnRender(usize) noexcept
+    {
+    }
+    virtual void OnImGuiRender() noexcept
     {
     }
 
@@ -45,27 +49,29 @@ class Layer
     const char *m_Name = nullptr;
     IApplication *m_Application = nullptr;
 
-    friend class IApplication;
+    friend class LayerSystem;
 };
 
 class LayerSystem
 {
     KIT_NON_COPYABLE(LayerSystem)
   public:
-    LayerSystem() noexcept = default;
+    LayerSystem(IApplication *p_Application) noexcept;
 
     void OnStart() noexcept;
     void OnShutdown() noexcept;
 
     // Window is also passed in update because it also acts as an identifier for the current window thread
-    void OnUpdate(f32 p_TS, Window *p_Window) noexcept;
-    void OnRender(f32 p_TS, Window *p_Window) noexcept;
+    void OnUpdate(usize p_WindowIndex) noexcept;
+    void OnRender(usize p_WindowIndex) noexcept;
+    void OnImGuiRender() noexcept;
 
     void OnEvent(const Event &p_Event) noexcept;
 
     template <std::derived_from<Layer> T, typename... LayerArgs> T *Push(LayerArgs &&...p_Args) noexcept
     {
         auto layer = KIT::Scope<T>::Create(std::forward<LayerArgs>(p_Args)...);
+        layer->m_Application = m_Application;
         T *ptr = layer.Get();
         m_Layers.push_back(std::move(layer));
         return ptr;
@@ -96,7 +102,9 @@ class LayerSystem
     }
 
   private:
+    IApplication *m_Application;
     DynamicArray<KIT::Scope<Layer>> m_Layers;
+    friend class IApplication;
 };
 
 } // namespace ONYX

@@ -6,15 +6,20 @@
 
 namespace ONYX
 {
-template <typename F> static void processFrame(Window &p_Window, F &&p_Submission) noexcept
+// this function smells like shit
+template <typename F>
+static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSystem &p_Layers, F &&p_Submission) noexcept
 {
     p_Window.MakeContextCurrent();
+    // These are called in exactly the same context, but it is nice to have update/render separated
+    p_Layers.OnUpdate(p_WindowIndex);
+    p_Layers.OnRender(p_WindowIndex);
     KIT_ASSERT_RETURNS(p_Window.Display(std::forward<F>(p_Submission)), true,
                        "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
 }
-static void processFrame(Window &p_Window) noexcept
+static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSystem &p_Layers) noexcept
 {
-    processFrame(p_Window, [](const VkCommandBuffer) {});
+    processFrame(p_WindowIndex, p_Window, p_Layers, [](const VkCommandBuffer) {});
 }
 
 IApplication::~IApplication() noexcept
@@ -27,6 +32,15 @@ void IApplication::Draw(Drawable &p_Drawable, usize p_WindowIndex) noexcept
 {
     KIT_ASSERT(p_WindowIndex < m_Windows.size(), "Window index out of bounds");
     m_Windows[p_WindowIndex]->Draw(p_Drawable);
+}
+
+bool IApplication::Started() const noexcept
+{
+    return m_Started;
+}
+bool IApplication::Terminated() const noexcept
+{
+    return m_Terminated;
 }
 
 void IApplication::CloseAllWindows() noexcept
@@ -57,7 +71,12 @@ Window *IApplication::GetWindow(const usize p_Index) noexcept
     return m_Windows[p_Index].Get();
 }
 
-void IApplication::Start() noexcept
+f32 IApplication::GetDeltaTime() const noexcept
+{
+    return m_DeltaTime;
+}
+
+void IApplication::Startup() noexcept
 {
     KIT_ASSERT(!m_Terminated && !m_Started, "Application already started");
     m_Started = true;
@@ -74,8 +93,9 @@ void IApplication::Shutdown() noexcept
     m_Terminated = true;
 }
 
-bool IApplication::NextFrame() noexcept
+bool IApplication::NextFrame(KIT::Clock &p_Clock) noexcept
 {
+    m_DeltaTime = p_Clock.Restart().AsSeconds();
     if (m_Windows.empty())
         return false;
 
@@ -86,8 +106,9 @@ bool IApplication::NextFrame() noexcept
 
 void IApplication::Run() noexcept
 {
-    Start();
-    while (NextFrame())
+    Startup();
+    KIT::Clock clock;
+    while (NextFrame(clock))
         ;
     Shutdown();
 }
@@ -215,9 +236,12 @@ Window *Application<MultiWindowFlow::SERIAL>::openWindow(const Window::Specs &p_
 void Application<MultiWindowFlow::SERIAL>::processWindows() noexcept
 {
     beginRenderImGui();
-    processFrame(*m_Windows[0], [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+    Layers.OnImGuiRender();
+    processFrame(0, *m_Windows[0], Layers,
+                 [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+
     for (usize i = 1; i < m_Windows.size(); ++i)
-        processFrame(*m_Windows[i]);
+        processFrame(i, *m_Windows[i], Layers);
 
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
@@ -227,19 +251,45 @@ void Application<MultiWindowFlow::SERIAL>::processWindows() noexcept
 void Application<MultiWindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    if (Started())
+        for (auto &task : m_Tasks)
+            task->WaitUntilFinished();
+    // It is now safe to resubmit all tasks
+
     m_Windows.erase(m_Windows.begin() + p_Index);
-    m_Tasks.erase(m_Tasks.begin() + p_Index);
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
     if (p_Index == 0)
     {
         shutdownImGui();
         if (m_Windows.empty())
             return;
-
-        m_Tasks[0]->WaitUntilFinished();
-        m_Tasks[0] = nullptr;
         initializeImGui(*m_Windows[0]);
     }
+    m_Tasks.erase(m_Tasks.begin() + p_Index - 1);
+
+    KIT::TaskManager *taskManager = Core::GetTaskManager();
+    for (usize i = 0; i < m_Tasks.size(); ++i)
+    {
+        m_Tasks[i] = createWindowTask(i);
+        if (Started())
+            taskManager->SubmitTask(m_Tasks[i]);
+    }
+}
+
+void Application<MultiWindowFlow::CONCURRENT>::Startup() noexcept
+{
+    IApplication::Startup();
+
+    KIT::TaskManager *taskManager = Core::GetTaskManager();
+    for (auto &task : m_Tasks)
+        taskManager->SubmitTask(task);
+}
+
+KIT::Ref<KIT::Task<void>> Application<MultiWindowFlow::CONCURRENT>::createWindowTask(const usize p_WindowIndex) noexcept
+{
+    const KIT::TaskManager *taskManager = Core::GetTaskManager();
+    return taskManager->CreateTask(
+        [this, p_WindowIndex](usize) { processFrame(p_WindowIndex, *m_Windows[p_WindowIndex], Layers); });
 }
 
 Window *Application<MultiWindowFlow::CONCURRENT>::openWindow(const Window::Specs &p_Specs) noexcept
@@ -250,17 +300,16 @@ Window *Application<MultiWindowFlow::CONCURRENT>::openWindow(const Window::Specs
     if (!m_Windows.empty())
     {
         KIT::TaskManager *taskManager = Core::GetTaskManager();
-        auto task = taskManager->CreateTask([windowPtr](usize) { processFrame(*windowPtr); });
-        m_Tasks.push_back(std::move(task));
+        auto &task = m_Tasks.emplace_back(createWindowTask(m_Windows.size()));
+        if (Started())
+            taskManager->SubmitTask(task);
     }
     else
     {
         // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due
         // to the GLFW ImGui backend limitations
-
         m_Device = Core::GetDevice();
         initializeImGui(*window);
-        m_Tasks.push_back(nullptr);
     }
 
     m_Windows.push_back(std::move(window));
@@ -269,29 +318,22 @@ Window *Application<MultiWindowFlow::CONCURRENT>::openWindow(const Window::Specs
 
 void Application<MultiWindowFlow::CONCURRENT>::processWindows() noexcept
 {
-    for (usize i = 1; i < m_Windows.size(); ++i)
+    KIT::TaskManager *taskManager = Core::GetTaskManager();
+    for (auto &task : m_Tasks)
     {
-        auto &task = m_Tasks[i];
-        KIT::TaskManager *taskManager = Core::GetTaskManager();
-        if (!task)
-        {
-            Window *windowPtr = m_Windows[i].Get();
-            task = taskManager->CreateAndSubmit([windowPtr](usize) { processFrame(*windowPtr); });
-        }
-        else
-        {
-            task->WaitUntilFinished();
-            task->Reset();
-            taskManager->SubmitTask(task);
-        }
+        task->WaitUntilFinished();
+        task->Reset();
+        taskManager->SubmitTask(task);
     }
 
     beginRenderImGui();
     // Main thread always handles the first window. First element of tasks is always nullptr
-    processFrame(*m_Windows[0], [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+    processFrame(0, *m_Windows[0], Layers,
+                 [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
 
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
             CloseWindow(i);
 }
+
 } // namespace ONYX

@@ -3,6 +3,10 @@
 
 namespace ONYX
 {
+Layer::Layer(const char *p_Name) noexcept : m_Name(p_Name)
+{
+}
+
 const char *Layer::GetName() const noexcept
 {
     return m_Name;
@@ -15,6 +19,10 @@ const IApplication *Layer::GetApplication() const noexcept
 IApplication *Layer::GetApplication() noexcept
 {
     return m_Application;
+}
+
+LayerSystem::LayerSystem(IApplication *p_Application) noexcept : m_Application(p_Application)
+{
 }
 
 void LayerSystem::OnStart() noexcept
@@ -30,17 +38,23 @@ void LayerSystem::OnShutdown() noexcept
             layer->OnShutdown();
 }
 
-void LayerSystem::OnUpdate(const f32 p_TS, Window *p_Window) noexcept
+void LayerSystem::OnUpdate(const usize p_WindowIndex) noexcept
 {
     for (auto &layer : m_Layers)
         if (layer->Enabled)
-            layer->OnUpdate(p_TS, p_Window);
+            layer->OnUpdate(p_WindowIndex);
 }
-void LayerSystem::OnRender(const f32 p_TS, Window *p_Window) noexcept
+void LayerSystem::OnRender(const usize p_WindowIndex) noexcept
 {
     for (auto &layer : m_Layers)
         if (layer->Enabled)
-            layer->OnRender(p_TS, p_Window);
+            layer->OnRender(p_WindowIndex);
+}
+void LayerSystem::OnImGuiRender() noexcept
+{
+    for (auto &layer : m_Layers)
+        if (layer->Enabled)
+            layer->OnImGuiRender();
 }
 
 void LayerSystem::OnEvent(const Event &p_Event) noexcept
