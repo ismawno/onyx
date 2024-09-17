@@ -3,6 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/instance.hpp"
 #include "onyx/core/device.hpp"
+#include "onyx/core/vma.hpp"
 
 namespace KIT
 {
@@ -31,6 +32,8 @@ struct ONYX_API Core
 
     ONYX_DIMENSION_TEMPLATE static const char *GetVertexShaderPath() noexcept;
     ONYX_DIMENSION_TEMPLATE static const char *GetFragmentShaderPath() noexcept;
+
+    VmaAllocator GetVulkanAllocator() const noexcept;
 
   private:
     // Should ony be called by window constructor (I should look for a way to better hide this)

@@ -26,6 +26,5 @@
 #include <implot.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
-#define VMA_NULLABLE
-#include <vk_mem_alloc.h>
+#include "onyx/core/vma.hpp"
 #include "onyx/core/glm.hpp"
