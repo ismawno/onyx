@@ -163,11 +163,13 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     if (!m_ImGuiPool)
         createImGuiPool();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
 
     IMGUI_CHECKVERSION();
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |=
         ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindow(), true);
@@ -196,6 +198,7 @@ void IApplication::shutdownImGui() noexcept
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyPlatformWindows();
     ImGui::DestroyContext();
+    ImPlot::DestroyContext();
 }
 
 void Application<MultiWindowFlow::SERIAL>::Draw(Window &p_Window, usize p_WindowIndex) noexcept

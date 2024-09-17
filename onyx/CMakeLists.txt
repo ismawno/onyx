@@ -62,6 +62,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+FetchContent_Declare(
+    implot
+    GIT_REPOSITORY https://github.com/epezent/implot.git
+    GIT_TAG v0.16
+)
+FetchContent_MakeAvailable(implot)
+
 # It is set to required for now even though there is a fallback mechanism with FetchContent (the latter seems to provide very few extensions and I am not sure if it will work well for now)
 # TODO: Check if the fallback mechanism works well
 find_package(Vulkan REQUIRED)
@@ -128,9 +135,10 @@ if (ONYX_LOCAL_VULKAN_SDK)
     target_link_libraries(onyx PUBLIC ${Vulkan_LIBRARIES} Vulkan::Headers Vulkan::Vulkan)
 endif()
 
-### IMGUI ###
+### IMGUI & IMPLOT ###
 
 set(IMGUI_DIR ${CMAKE_BINARY_DIR}/_deps/imgui-src)
+set(IMPLOT_DIR ${CMAKE_BINARY_DIR}/_deps/implot-src)
 
 set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui.cpp
@@ -142,14 +150,24 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
+set(IMPLOT_SOURCES
+    ${IMPLOT_DIR}/implot.cpp
+    ${IMPLOT_DIR}/implot_items.cpp
+)
+
 add_library(imgui STATIC ${IMGUI_SOURCES})
+add_library(implot STATIC ${IMPLOT_SOURCES})
+
 target_include_directories(imgui PUBLIC ${IMGUI_DIR})
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
-### /IMGUI ###
+target_include_directories(implot PUBLIC ${IMPLOT_DIR})
+target_link_libraries(implot PUBLIC imgui)
+
+### /IMGUI & IMPLOT ###
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(onyx PUBLIC toolkit glm imgui)
+target_link_libraries(onyx PUBLIC toolkit glm imgui implot)
 
 target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/core/pch.hpp)
 
