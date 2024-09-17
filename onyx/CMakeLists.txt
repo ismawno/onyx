@@ -56,6 +56,13 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glfw)
 
 FetchContent_Declare(
+    vma
+    GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+    GIT_TAG v3.1.0
+)
+FetchContent_MakeAvailable(vma)
+
+FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG v1.91.1-docking
@@ -167,7 +174,7 @@ target_link_libraries(implot PUBLIC imgui)
 ### /IMGUI & IMPLOT ###
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(onyx PUBLIC toolkit glm imgui implot)
+target_link_libraries(onyx PUBLIC toolkit glm imgui implot VulkanMemoryAllocator)
 
 target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/core/pch.hpp)
 
