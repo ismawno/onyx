@@ -23,15 +23,26 @@ static bool checkDeviceExtensionSupport(const VkPhysicalDevice p_Device) noexcep
     u32 extensionCount;
     vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, nullptr);
 
-    DynamicArray<VkExtensionProperties> availableExtensions(extensionCount);
-    vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, availableExtensions.data());
+    DynamicArray<VkExtensionProperties> extensions(extensionCount);
+    vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, extensions.data());
 
-    HashSet<std::string> requiredExtensions(s_DeviceExtensions.begin(), s_DeviceExtensions.end());
+    KIT_LOG_INFO("Available device extensions:");
+    HashSet<std::string> availableExtensions;
+    for (const auto &extension : extensions)
+    {
+        KIT_LOG_INFO("  {}", extension.extensionName);
+        availableExtensions.insert(extension.extensionName);
+    }
 
-    for (const auto &extension : availableExtensions)
-        requiredExtensions.erase(extension.extensionName);
+    KIT_LOG_INFO("Required device extensions:");
+    bool contained = true;
+    for (const auto &extension : s_DeviceExtensions)
+    {
+        KIT_LOG_INFO("  {}", extension);
+        contained &= availableExtensions.contains(extension);
+    }
 
-    return requiredExtensions.empty();
+    return contained;
 }
 
 static Device::QueueFamilyIndices findQueueFamilies(const VkPhysicalDevice p_Device,

@@ -40,10 +40,11 @@ ONYX_DIMENSION_TEMPLATE void Model::createVertexBuffer(const std::span<const Ver
     Buffer::Specs specs{};
     specs.InstanceCount = p_Vertices.size();
     specs.InstanceSize = sizeof(Vertex<N>);
-    specs.Properties = p_VertexBufferProperties;
+    specs.Usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     if (p_VertexBufferProperties & HOST_VISIBLE)
     {
-        specs.Usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        specs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        specs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
         m_VertexBuffer = KIT::Scope<Buffer>::Create(specs);
 
         m_VertexBuffer->Map();
@@ -56,12 +57,14 @@ ONYX_DIMENSION_TEMPLATE void Model::createVertexBuffer(const std::span<const Ver
     }
     else
     {
-        specs.Usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        specs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+        specs.Usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         m_VertexBuffer = KIT::Scope<Buffer>::Create(specs);
 
         Buffer::Specs stagingSpecs = specs;
-        stagingSpecs.Properties = HOST_VISIBLE;
         stagingSpecs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        stagingSpecs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+        stagingSpecs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
         Buffer stagingBuffer(stagingSpecs);
         stagingBuffer.Map();
@@ -79,14 +82,15 @@ void Model::createIndexBuffer(const std::span<const Index> p_Indices) noexcept
     Buffer::Specs specs{};
     specs.InstanceCount = p_Indices.size();
     specs.InstanceSize = sizeof(Index);
-    specs.Properties = DEVICE_LOCAL;
     specs.Usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+    specs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
     m_IndexBuffer = KIT::Scope<Buffer>::Create(specs);
 
     Buffer::Specs stagingSpecs = specs;
-    stagingSpecs.Properties = HOST_VISIBLE;
     stagingSpecs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    stagingSpecs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    stagingSpecs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
     Buffer stagingBuffer(stagingSpecs);
     stagingBuffer.Map();

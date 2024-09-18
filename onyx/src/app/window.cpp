@@ -71,7 +71,8 @@ void Window::createGlobalUniformHelper() noexcept
     bufferSpecs.InstanceCount = SwapChain::MAX_FRAMES_IN_FLIGHT;
     bufferSpecs.InstanceSize = sizeof(GlobalUBO);
     bufferSpecs.Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    bufferSpecs.Properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+    bufferSpecs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    bufferSpecs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
     bufferSpecs.MinimumAlignment =
         glm::max(props.limits.minUniformBufferOffsetAlignment, props.limits.nonCoherentAtomSize);
 

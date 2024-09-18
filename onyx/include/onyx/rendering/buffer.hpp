@@ -2,6 +2,7 @@
 
 #include "onyx/core/alias.hpp"
 #include "onyx/core/device.hpp"
+#include "onyx/core/vma.hpp"
 
 #include "kit/core/non_copyable.hpp"
 #include "kit/memory/block_allocator.hpp"
@@ -21,7 +22,7 @@ class ONYX_API Buffer
         VkDeviceSize InstanceCount;
         VkDeviceSize InstanceSize;
         VkBufferUsageFlags Usage;
-        VkMemoryPropertyFlags Properties;
+        VmaAllocationCreateInfo AllocationInfo;
         VkDeviceSize MinimumAlignment = 1;
     };
 
@@ -29,7 +30,7 @@ class ONYX_API Buffer
 
     ~Buffer() noexcept;
 
-    void Map(VkDeviceSize p_Offset = 0, VkDeviceSize p_Size = VK_WHOLE_SIZE, VkMemoryMapFlags p_Flags = 0) noexcept;
+    void Map() noexcept;
     void Unmap() noexcept;
 
     void Write(const void *p_Data, VkDeviceSize p_Size = VK_WHOLE_SIZE, VkDeviceSize p_Offset = 0) noexcept;
@@ -57,13 +58,13 @@ class ONYX_API Buffer
     VkDeviceSize GetInstanceCount() const noexcept;
 
   private:
-    void createBuffer(VkBufferUsageFlags p_Usage, VkMemoryPropertyFlags p_Properties) noexcept;
+    void createBuffer(VkBufferUsageFlags p_Usage, const VmaAllocationCreateInfo &p_AllocationInfo) noexcept;
 
     KIT::Ref<Device> m_Device;
     void *m_Data = nullptr;
 
     VkBuffer m_Buffer = VK_NULL_HANDLE;
-    VkDeviceMemory m_BufferMemory = VK_NULL_HANDLE;
+    VmaAllocation m_Allocation = VK_NULL_HANDLE;
 
     VkDeviceSize m_InstanceSize;
     VkDeviceSize m_Size;

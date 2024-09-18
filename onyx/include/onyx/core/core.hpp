@@ -33,7 +33,7 @@ struct ONYX_API Core
     ONYX_DIMENSION_TEMPLATE static const char *GetVertexShaderPath() noexcept;
     ONYX_DIMENSION_TEMPLATE static const char *GetFragmentShaderPath() noexcept;
 
-    VmaAllocator GetVulkanAllocator() const noexcept;
+    static VmaAllocator GetVulkanAllocator() noexcept;
 
   private:
     // Should ony be called by window constructor (I should look for a way to better hide this)

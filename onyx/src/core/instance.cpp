@@ -130,7 +130,7 @@ static void hasGLFWRequiredInstanceExtensions() noexcept
     DynamicArray<VkExtensionProperties> extensions(extensionCount);
     vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
-    KIT_LOG_INFO("Available extensions:");
+    KIT_LOG_INFO("Available instance extensions:");
     HashSet<std::string> available;
 
     for (const auto &extension : extensions)
@@ -139,7 +139,7 @@ static void hasGLFWRequiredInstanceExtensions() noexcept
         available.emplace(extension.extensionName);
     }
 
-    KIT_LOG_INFO("Required extensions:");
+    KIT_LOG_INFO("Required instance extensions:");
     const auto reqExtensions = requiredExtensions();
     for (const auto &required : reqExtensions)
     {

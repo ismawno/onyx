@@ -23,10 +23,15 @@ static void createVulkanAllocator() noexcept
     allocatorInfo.physicalDevice = s_Device->GetPhysicalDevice();
     allocatorInfo.device = s_Device->GetDevice();
     allocatorInfo.instance = s_Instance->GetInstance();
+#ifdef KIT_OS_APPLE
+    allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_0;
+#else
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+#endif
     allocatorInfo.flags = 0;
     allocatorInfo.pVulkanFunctions = nullptr;
-    vmaCreateAllocator(&allocatorInfo, &s_VulkanAllocator);
+    KIT_ASSERT_RETURNS(vmaCreateAllocator(&allocatorInfo, &s_VulkanAllocator), VK_SUCCESS,
+                       "Failed to create vulkan allocator");
 }
 
 void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::TaskManager *p_Manager) noexcept
@@ -76,7 +81,7 @@ ONYX_DIMENSION_TEMPLATE const char *Core::GetFragmentShaderPath() noexcept
         return KIT_ROOT_PATH "/onyx/shaders/bin/shader2D.frag.spv";
 }
 
-VmaAllocator Core::GetVulkanAllocator() const noexcept
+VmaAllocator Core::GetVulkanAllocator() noexcept
 {
     return s_VulkanAllocator;
 }
@@ -95,8 +100,8 @@ const KIT::Ref<ONYX::Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noex
     if (!s_Device)
     {
         s_Device = KIT::Ref<ONYX::Device>::Create(p_Surface);
-        Model::CreatePrimitiveModels();
         createVulkanAllocator();
+        Model::CreatePrimitiveModels();
     }
     KIT_ASSERT(s_Device->IsSuitable(p_Surface), "The current device is not suitable for the given surface");
     return s_Device;
