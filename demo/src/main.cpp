@@ -7,8 +7,11 @@
 #include "kit/memory/stack_allocator.hpp"
 #include "kit/multiprocessing/thread_pool.hpp"
 
+#include <imgui.h>
+
 using namespace KIT::Literals;
 using namespace KIT::Aliases;
+using namespace ONYX::Aliases;
 
 class ExampleLayer final : public ONYX::Layer
 {
@@ -20,6 +23,18 @@ class ExampleLayer final : public ONYX::Layer
         ONYX::Rectangle2D rect(ONYX::Color::RED);
         auto window = GetApplication()->GetWindow(p_WindowIndex);
         window->Draw(rect);
+        rect.Color = ONYX::Color::GREEN;
+        rect.Transform.Position += vec2(0.3f);
+        window->Draw(rect);
+
+        window->GetCamera<ONYX::Orthographic2D>()->Transform.Rotation += GetApplication()->GetDeltaTime();
+    }
+
+    void OnImGuiRender() noexcept override
+    {
+        ImGui::Begin("Example Layer");
+        ImGui::Text("Hello, World!");
+        ImGui::End();
     }
 };
 

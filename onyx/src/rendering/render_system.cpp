@@ -19,10 +19,20 @@ ONYX_DIMENSION_TEMPLATE static Pipeline::Specs toPipelineSpecs(const RenderSyste
     specs.RasterizationInfo.polygonMode = p_Specs.PolygonMode;
     specs.RenderPass = p_Specs.RenderPass;
 
+    if (p_Specs.Topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP ||
+        p_Specs.Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)
+        specs.InputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
+
     // WARNING!! This info points to a 'unstable' memory location. Fortunately, p_Specs still lives when the pipeline is
     // constructed (see Pipeline ctor below)
     specs.PipelineLayoutInfo.pSetLayouts = p_Specs.DescriptorSetLayout ? &p_Specs.DescriptorSetLayout : nullptr;
     specs.PipelineLayoutInfo.setLayoutCount = p_Specs.DescriptorSetLayout ? 1 : 0;
+    if constexpr (N == 2)
+    {
+        specs.DepthStencilInfo.depthTestEnable = VK_FALSE;
+        specs.DepthStencilInfo.depthWriteEnable = VK_FALSE;
+        specs.DepthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+    }
     return specs;
 }
 

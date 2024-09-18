@@ -4,6 +4,8 @@
 #include "onyx/app/window.hpp"
 #include "kit/profiling/clock.hpp"
 
+#include <atomic>
+
 namespace ONYX
 {
 class Drawable;
@@ -68,7 +70,7 @@ class IApplication
 
     bool m_Started = false;
     bool m_Terminated = false;
-    f32 m_DeltaTime = 0.f;
+    std::atomic<f32> m_DeltaTime = 0.f;
 
     VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
 };

@@ -73,7 +73,7 @@ Window *IApplication::GetWindow(const usize p_Index) noexcept
 
 f32 IApplication::GetDeltaTime() const noexcept
 {
-    return m_DeltaTime;
+    return m_DeltaTime.load(std::memory_order_relaxed);
 }
 
 void IApplication::Startup() noexcept
@@ -95,7 +95,7 @@ void IApplication::Shutdown() noexcept
 
 bool IApplication::NextFrame(KIT::Clock &p_Clock) noexcept
 {
-    m_DeltaTime = p_Clock.Restart().AsSeconds();
+    m_DeltaTime.store(p_Clock.Restart().AsSeconds(), std::memory_order_relaxed);
     if (m_Windows.empty())
         return false;
 
@@ -331,10 +331,12 @@ void Application<MultiWindowFlow::CONCURRENT>::processWindows() noexcept
         taskManager->SubmitTask(task);
     }
 
-    beginRenderImGui();
     // Main thread always handles the first window. First element of tasks is always nullptr
-    processFrame(0, *m_Windows[0], Layers,
-                 [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+    processFrame(0, *m_Windows[0], Layers, [this](const VkCommandBuffer p_CommandBuffer) {
+        beginRenderImGui();
+        Layers.OnImGuiRender();
+        endRenderImGui(p_CommandBuffer);
+    });
 
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())

@@ -54,8 +54,8 @@ class ONYX_API Window
         if (const VkCommandBuffer cmd = m_Renderer->BeginFrame(*this))
         {
             m_Renderer->BeginRenderPass(BackgroundColor);
-            std::forward<F>(p_Submission)(cmd);
             drawRenderSystems(cmd);
+            std::forward<F>(p_Submission)(cmd);
             m_Renderer->EndRenderPass();
             m_Renderer->EndFrame(*this);
             return true;
