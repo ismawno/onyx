@@ -267,13 +267,15 @@ void Application<MultiWindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) 
         if (m_Windows.empty())
             return;
         initializeImGui(*m_Windows[0]);
+        m_Tasks.erase(m_Tasks.begin());
     }
-    m_Tasks.erase(m_Tasks.begin() + p_Index - 1);
+    else
+        m_Tasks.erase(m_Tasks.begin() + p_Index - 1);
 
     KIT::TaskManager *taskManager = Core::GetTaskManager();
     for (usize i = 0; i < m_Tasks.size(); ++i)
     {
-        m_Tasks[i] = createWindowTask(i);
+        m_Tasks[i] = createWindowTask(i + 1);
         if (Started())
             taskManager->SubmitTask(m_Tasks[i]);
     }
@@ -299,11 +301,12 @@ Window *Application<MultiWindowFlow::CONCURRENT>::openWindow(const Window::Specs
 {
     auto window = KIT::Scope<Window>::Create(p_Specs);
     Window *windowPtr = window.Get();
+    m_Windows.push_back(std::move(window));
 
-    if (!m_Windows.empty())
+    if (m_Windows.size() > 1)
     {
         KIT::TaskManager *taskManager = Core::GetTaskManager();
-        auto &task = m_Tasks.emplace_back(createWindowTask(m_Windows.size()));
+        auto &task = m_Tasks.emplace_back(createWindowTask(m_Windows.size() - 1));
         if (Started())
             taskManager->SubmitTask(task);
     }
@@ -312,10 +315,9 @@ Window *Application<MultiWindowFlow::CONCURRENT>::openWindow(const Window::Specs
         // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due
         // to the GLFW ImGui backend limitations
         m_Device = Core::GetDevice();
-        initializeImGui(*window);
+        initializeImGui(*windowPtr);
     }
 
-    m_Windows.push_back(std::move(window));
     return windowPtr;
 }
 

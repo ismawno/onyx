@@ -20,7 +20,8 @@ Renderer::Renderer(Window &p_Window) noexcept
 
 Renderer::~Renderer() noexcept
 {
-    m_PresentTask->WaitUntilFinished();
+    if (m_PresentTask)
+        m_PresentTask->WaitUntilFinished();
     // Must wait for the device. Windows/Renderers may be destroyed at runtime, and all its command buffers must have
     // finished
 
