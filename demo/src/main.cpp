@@ -27,13 +27,19 @@ class ExampleLayer final : public ONYX::Layer
         rect.Transform.Position += vec2(0.3f);
         window->Draw(rect);
 
-        window->GetCamera<ONYX::Orthographic2D>()->Transform.Rotation += GetApplication()->GetDeltaTime();
+        const float ts = GetApplication()->GetDeltaTime();
+        window->GetCamera<ONYX::Orthographic2D>()->Transform.Rotation += ts;
     }
 
     void OnImGuiRender() noexcept override
     {
+        const float ts = GetApplication()->GetDeltaTime();
         ImGui::Begin("Example Layer");
         ImGui::Text("Hello, World!");
+        ImGui::Text("Time: %.2f ms", ts * 1000.f);
+        if (ImGui::Button("Open Window"))
+            GetApplication()->OpenWindow<ONYX::Orthographic2D>();
+
         ImGui::End();
     }
 };

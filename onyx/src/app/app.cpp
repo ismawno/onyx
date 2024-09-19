@@ -238,10 +238,11 @@ Window *Application<MultiWindowFlow::SERIAL>::openWindow(const Window::Specs &p_
 
 void Application<MultiWindowFlow::SERIAL>::processWindows() noexcept
 {
-    beginRenderImGui();
-    Layers.OnImGuiRender();
-    processFrame(0, *m_Windows[0], Layers,
-                 [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); });
+    processFrame(0, *m_Windows[0], Layers, [this](const VkCommandBuffer p_CommandBuffer) {
+        beginRenderImGui();
+        Layers.OnImGuiRender();
+        endRenderImGui(p_CommandBuffer);
+    });
 
     for (usize i = 1; i < m_Windows.size(); ++i)
         processFrame(i, *m_Windows[i], Layers);
