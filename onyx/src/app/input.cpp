@@ -66,6 +66,20 @@ static void windowResizeCallback(GLFWwindow *p_Window, const int p_Width, const 
     window->PushEvent(event);
 }
 
+static void windowCloseCallback(GLFWwindow *p_Window)
+{
+    Event event;
+    event.Type = Event::WINDOW_CLOSED;
+    windowFromGLFW(p_Window)->PushEvent(event);
+}
+
+static void windowFocusCallback(GLFWwindow *p_Window, const int p_Focused)
+{
+    Event event;
+    event.Type = p_Focused ? Event::WINDOW_FOCUSED : Event::WINDOW_UNFOCUSED;
+    windowFromGLFW(p_Window)->PushEvent(event);
+}
+
 static void keyCallback(GLFWwindow *p_Window, const int p_Key, const int, const int p_Action, const int)
 {
     Event event;
@@ -95,6 +109,13 @@ static void cursorPositionCallback(GLFWwindow *p_Window, const double p_XPos, co
     windowFromGLFW(p_Window)->PushEvent(event);
 }
 
+static void cursorEnterCallback(GLFWwindow *p_Window, const int p_Entered)
+{
+    Event event;
+    event.Type = p_Entered ? Event::MOUSE_ENTERED : Event::MOUSE_LEFT;
+    windowFromGLFW(p_Window)->PushEvent(event);
+}
+
 static void mouseButtonCallback(GLFWwindow *p_Window, const int p_Button, const int p_Action, const int)
 {
     Event event;
@@ -114,8 +135,11 @@ static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOff
 void Input::InstallCallbacks(Window &p_Window) noexcept
 {
     glfwSetWindowSizeCallback(p_Window.GetWindow(), windowResizeCallback);
+    glfwSetWindowCloseCallback(p_Window.GetWindow(), windowCloseCallback);
+    glfwSetWindowFocusCallback(p_Window.GetWindow(), windowFocusCallback);
     glfwSetKeyCallback(p_Window.GetWindow(), keyCallback);
     glfwSetCursorPosCallback(p_Window.GetWindow(), cursorPositionCallback);
+    glfwSetCursorEnterCallback(p_Window.GetWindow(), cursorEnterCallback);
     glfwSetMouseButtonCallback(p_Window.GetWindow(), mouseButtonCallback);
     glfwSetScrollCallback(p_Window.GetWindow(), scrollCallback);
 }

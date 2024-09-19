@@ -174,8 +174,13 @@ struct Event
         MOUSE_MOVED,
         MOUSE_PRESSED,
         MOUSE_RELEASED,
+        MOUSE_ENTERED,
+        MOUSE_LEFT,
         SCROLLED,
-        WINDOW_RESIZED
+        WINDOW_RESIZED,
+        WINDOW_CLOSED,
+        WINDOW_FOCUSED,
+        WINDOW_UNFOCUSED
     };
 
     struct WindowResize
