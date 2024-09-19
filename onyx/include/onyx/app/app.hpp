@@ -61,6 +61,7 @@ class IApplication
 
     KIT::Ref<Device> m_Device;
     DynamicArray<KIT::Scope<Window>> m_Windows;
+    bool m_MainThreadProcessing = false;
 
   private:
     virtual Window *openWindow(const Window::Specs &p_Specs) noexcept = 0;
@@ -119,5 +120,6 @@ template <> class ONYX_API Application<MultiWindowFlow::CONCURRENT> final : publ
     KIT::Ref<KIT::Task<void>> createWindowTask(usize p_WindowIndex) noexcept;
 
     DynamicArray<KIT::Ref<KIT::Task<void>>> m_Tasks;
+    const std::thread::id m_MainThreadID = std::this_thread::get_id();
 };
 } // namespace ONYX

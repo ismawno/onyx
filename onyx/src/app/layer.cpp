@@ -57,11 +57,11 @@ void LayerSystem::OnImGuiRender() noexcept
             layer->OnImGuiRender();
 }
 
-void LayerSystem::OnEvent(const Event &p_Event) noexcept
+void LayerSystem::OnEvent(const usize p_WindowIndex, const Event &p_Event) noexcept
 {
     for (auto it = m_Layers.rbegin(); it != m_Layers.rend(); ++it)
-        if ((*it)->Enabled && (*it)->OnEvent(p_Event))
-            break;
+        if ((*it)->Enabled && (*it)->OnEvent(p_WindowIndex, p_Event))
+            return;
 }
 
 } // namespace ONYX

@@ -250,6 +250,11 @@ void Window::FlagResizeDone() noexcept
     m_Resized = false;
 }
 
+void Window::FlagShouldClose() noexcept
+{
+    glfwSetWindowShouldClose(m_Window, GLFW_TRUE);
+}
+
 VkSurfaceKHR Window::GetSurface() const noexcept
 {
     return m_Surface;
@@ -260,17 +265,13 @@ void Window::PushEvent(const Event &p_Event) noexcept
     m_Events.push_back(p_Event);
 }
 
-Event Window::PopEvent() noexcept
+const DynamicArray<Event> &Window::GetNewEvents() const noexcept
 {
-    Event event;
-    if (m_Events.empty())
-    {
-        event.Empty = true;
-        return event;
-    }
-    event = m_Events.front();
-    m_Events.pop_front();
-    return event;
+    return m_Events;
+}
+void Window::FlushEvents() noexcept
+{
+    m_Events.clear();
 }
 
 const Renderer &Window::GetRenderer() const noexcept

@@ -33,7 +33,7 @@ class Layer
     {
     }
 
-    virtual bool OnEvent(const Event &) noexcept
+    virtual bool OnEvent(usize, const Event &) noexcept
     {
         return false;
     }
@@ -66,7 +66,7 @@ class LayerSystem
     void OnRender(usize p_WindowIndex) noexcept;
     void OnImGuiRender() noexcept;
 
-    void OnEvent(const Event &p_Event) noexcept;
+    void OnEvent(usize p_WindowIndex, const Event &p_Event) noexcept;
 
     template <std::derived_from<Layer> T, typename... LayerArgs> T *Push(LayerArgs &&...p_Args) noexcept
     {

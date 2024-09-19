@@ -108,11 +108,13 @@ class ONYX_API Window
     bool WasResized() const noexcept;
     void FlagResize(u32 p_Width, u32 p_Height) noexcept;
     void FlagResizeDone() noexcept;
+    void FlagShouldClose() noexcept;
 
     VkSurfaceKHR GetSurface() const noexcept;
 
     void PushEvent(const Event &p_Event) noexcept;
-    Event PopEvent() noexcept;
+    const DynamicArray<Event> &GetNewEvents() const noexcept;
+    void FlushEvents() noexcept;
 
     const Renderer &GetRenderer() const noexcept;
 
@@ -149,7 +151,7 @@ class ONYX_API Window
 
     KIT::StaticArray<RenderSystem, ONYX_MAX_RENDER_SYSTEMS> m_RenderSystems;
 
-    Deque<Event> m_Events;
+    DynamicArray<Event> m_Events;
     VkSurfaceKHR m_Surface;
 
     const char *m_Name;

@@ -42,6 +42,13 @@ class ExampleLayer final : public ONYX::Layer
 
         ImGui::End();
     }
+
+    bool OnEvent(const usize p_WindowIndex, const ONYX::Event &p_Event) noexcept override
+    {
+        if (p_Event.Type == ONYX::Event::MOUSE_PRESSED)
+            GetApplication()->CloseWindow(p_WindowIndex);
+        return false;
+    }
 };
 
 int main()

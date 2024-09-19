@@ -11,6 +11,11 @@ template <typename F>
 static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSystem &p_Layers, F &&p_Submission) noexcept
 {
     p_Window.MakeContextCurrent();
+    for (const Event &event : p_Window.GetNewEvents())
+        p_Layers.OnEvent(p_WindowIndex, event);
+    p_Window.FlushEvents();
+    if (p_Window.ShouldClose())
+        return;
     // These are called in exactly the same context, but it is nice to have update/render separated
     p_Layers.OnUpdate(p_WindowIndex);
     p_Layers.OnRender(p_WindowIndex);
@@ -210,6 +215,11 @@ void Application<MultiWindowFlow::SERIAL>::Draw(Window &p_Window, usize p_Window
 void Application<MultiWindowFlow::SERIAL>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    if (m_MainThreadProcessing)
+    {
+        m_Windows[p_Index]->FlagShouldClose();
+        return;
+    }
     m_Windows.erase(m_Windows.begin() + p_Index);
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
     if (p_Index == 0)
@@ -238,6 +248,7 @@ Window *Application<MultiWindowFlow::SERIAL>::openWindow(const Window::Specs &p_
 
 void Application<MultiWindowFlow::SERIAL>::processWindows() noexcept
 {
+    m_MainThreadProcessing = true;
     processFrame(0, *m_Windows[0], Layers, [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
         Layers.OnImGuiRender();
@@ -247,6 +258,7 @@ void Application<MultiWindowFlow::SERIAL>::processWindows() noexcept
     for (usize i = 1; i < m_Windows.size(); ++i)
         processFrame(i, *m_Windows[i], Layers);
 
+    m_MainThreadProcessing = false;
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
             CloseWindow(i);
@@ -255,6 +267,11 @@ void Application<MultiWindowFlow::SERIAL>::processWindows() noexcept
 void Application<MultiWindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    if (m_MainThreadID != std::this_thread::get_id() || (p_Index == 0 && m_MainThreadProcessing))
+    {
+        m_Windows[p_Index]->FlagShouldClose();
+        return;
+    }
     if (Started())
         for (auto &task : m_Tasks)
             task->WaitUntilFinished();
@@ -332,12 +349,14 @@ void Application<MultiWindowFlow::CONCURRENT>::processWindows() noexcept
         taskManager->SubmitTask(task);
     }
 
+    m_MainThreadProcessing = true;
     // Main thread always handles the first window. First element of tasks is always nullptr
     processFrame(0, *m_Windows[0], Layers, [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
         Layers.OnImGuiRender();
         endRenderImGui(p_CommandBuffer);
     });
+    m_MainThreadProcessing = false;
 
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
