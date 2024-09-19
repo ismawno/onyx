@@ -20,9 +20,9 @@ class IApplication
     template <std::derived_from<ICamera> T, typename... CameraArgs>
     Window *OpenWindow(const Window::Specs &p_Specs, CameraArgs &&...p_Args) noexcept
     {
-        Window *window = openWindow(p_Specs);
+        auto window = KIT::Scope<Window>::Create(p_Specs);
         window->SetCamera<T>(std::forward<CameraArgs>(p_Args)...);
-        return window;
+        return handleWindowAddition(std::move(window));
     }
     template <std::derived_from<ICamera> T, typename... CameraArgs> Window *OpenWindow(CameraArgs &&...p_Args) noexcept
     {
@@ -64,7 +64,7 @@ class IApplication
     bool m_MainThreadProcessing = false;
 
   private:
-    virtual Window *openWindow(const Window::Specs &p_Specs) noexcept = 0;
+    virtual Window *handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept = 0;
     virtual void processWindows() noexcept = 0;
 
     void createImGuiPool() noexcept;
@@ -101,7 +101,7 @@ template <> class ONYX_API Application<MultiWindowFlow::SERIAL> final : public I
     void CloseWindow(usize p_Index) noexcept override;
 
   private:
-    Window *openWindow(const Window::Specs &p_Specs) noexcept override;
+    Window *handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept override;
     void processWindows() noexcept override;
 };
 
@@ -115,7 +115,7 @@ template <> class ONYX_API Application<MultiWindowFlow::CONCURRENT> final : publ
     void Startup() noexcept override;
 
   private:
-    Window *openWindow(const Window::Specs &p_Specs) noexcept override;
+    Window *handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept override;
     void processWindows() noexcept override;
     KIT::Ref<KIT::Task<void>> createWindowTask(usize p_WindowIndex) noexcept;
 

@@ -179,6 +179,7 @@ struct Event
         SCROLLED,
         WINDOW_RESIZED,
         WINDOW_CLOSED,
+        WINDOW_OPENED,
         WINDOW_FOCUSED,
         WINDOW_UNFOCUSED
     };

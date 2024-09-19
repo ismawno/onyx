@@ -231,18 +231,19 @@ void Application<MultiWindowFlow::SERIAL>::CloseWindow(const usize p_Index) noex
     }
 }
 
-Window *Application<MultiWindowFlow::SERIAL>::openWindow(const Window::Specs &p_Specs) noexcept
+Window *Application<MultiWindowFlow::SERIAL>::handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept
 {
-    auto window = KIT::Scope<Window>::Create(p_Specs);
-
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
+    Event event;
+    event.Type = Event::WINDOW_OPENED;
+    p_Window->PushEvent(event);
     if (m_Windows.empty())
     {
         m_Device = Core::GetDevice();
-        initializeImGui(*window);
+        initializeImGui(*p_Window);
     }
-    m_Windows.push_back(std::move(window));
+    m_Windows.push_back(std::move(p_Window));
     return m_Windows.back().Get();
 }
 
@@ -315,11 +316,18 @@ KIT::Ref<KIT::Task<void>> Application<MultiWindowFlow::CONCURRENT>::createWindow
         [this, p_WindowIndex](usize) { processFrame(p_WindowIndex, *m_Windows[p_WindowIndex], Layers); });
 }
 
-Window *Application<MultiWindowFlow::CONCURRENT>::openWindow(const Window::Specs &p_Specs) noexcept
+Window *Application<MultiWindowFlow::CONCURRENT>::handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept
 {
-    auto window = KIT::Scope<Window>::Create(p_Specs);
-    Window *windowPtr = window.Get();
-    m_Windows.push_back(std::move(window));
+    Window *windowPtr = p_Window.Get();
+    m_Windows.push_back(std::move(p_Window));
+
+    Event event;
+    event.Type = Event::WINDOW_OPENED;
+
+    // Dispatch immediately. In concurrent scenarios, layers may depend on the window index. If two windows are
+    // opened before the start of te application, the window index 1 may OnEvent before window index 0, causing a
+    // mismatch or a crash
+    Layers.OnEvent(m_Windows.size() - 1, event);
 
     if (m_Windows.size() > 1)
     {

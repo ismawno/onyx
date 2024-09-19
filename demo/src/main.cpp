@@ -22,12 +22,11 @@ class ExampleLayer final : public ONYX::Layer
     void OnRender(const usize p_WindowIndex) noexcept override
     {
         const float ts = GetApplication()->GetDeltaTime();
-        static ONYX::Rectangle3D rect(ONYX::Color::RED);
-        rect.Transform.Position.z = 5.f;
-        rect.Transform.RotateLocal(ONYX::Transform3D::RotY(ts));
+        m_Rectangles[p_WindowIndex].Transform.Position.z = 5.f;
+        m_Rectangles[p_WindowIndex].Transform.RotateLocal(ONYX::Transform3D::RotY(ts));
 
         auto window = GetApplication()->GetWindow(p_WindowIndex);
-        window->Draw(rect);
+        window->Draw(m_Rectangles[p_WindowIndex]);
         window->GetCamera<ONYX::Perspective3D>()->Transform.Scale += vec3(ts);
 
         // window->GetCamera<ONYX::Perspective3D>()->Transform.Rotation += ts;
@@ -39,11 +38,24 @@ class ExampleLayer final : public ONYX::Layer
         ImGui::Begin("Example Layer");
         ImGui::Text("Hello, World!");
         ImGui::Text("Time: %.2f ms", ts * 1000.f);
-        // if (ImGui::Button("Open Window"))
-        //     GetApplication()->OpenWindow<ONYX::Perspective3D>();
+        if (ImGui::Button("Open Window"))
+            GetApplication()->OpenWindow<ONYX::Orthographic3D>();
 
         ImGui::End();
     }
+
+    bool OnEvent(const usize, const ONYX::Event &p_Event) noexcept override
+    {
+        if (p_Event.Type == ONYX::Event::WINDOW_OPENED)
+        {
+            m_Rectangles.emplace_back(ONYX::Color::GREEN);
+            return true;
+        }
+        return false;
+    }
+
+  private:
+    KIT::StaticArray<ONYX::Rectangle3D, 12> m_Rectangles;
 };
 
 int main()
@@ -52,7 +64,7 @@ int main()
     KIT::ThreadPool<KIT::SpinLock> threadPool(4);
     ONYX::Core::Initialize(&stackAllocator, &threadPool);
 
-    ONYX::Application<ONYX::MultiWindowFlow::SERIAL> app;
+    ONYX::Application<ONYX::MultiWindowFlow::CONCURRENT> app;
     app.Layers.Push<ExampleLayer>("Example Layer");
 
     // app.OpenWindow<ONYX::Perspective3D>();
