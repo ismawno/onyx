@@ -177,6 +177,36 @@ RenderSystem &Window::GetRenderSystem(const usize p_Index) noexcept
     return m_RenderSystems[p_Index];
 }
 
+ONYX_DIMENSION_TEMPLATE const RenderSystem *Window::GetRenderSystem(VkPrimitiveTopology p_Topology) const noexcept
+{
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+        return &m_RenderSystems[0 + (N - 2) * 5];
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)
+        return &m_RenderSystems[1 + (N - 2) * 5];
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_LIST)
+        return &m_RenderSystems[2 + (N - 2) * 5];
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP)
+        return &m_RenderSystems[3 + (N - 2) * 5];
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+        return &m_RenderSystems[4 + (N - 2) * 5];
+    return nullptr;
+}
+
+ONYX_DIMENSION_TEMPLATE RenderSystem *Window::GetRenderSystem(VkPrimitiveTopology p_Topology) noexcept
+{
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+        return &m_RenderSystems[0 + (N - 2) * 5];
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)
+        return &m_RenderSystems[1 + (N - 2) * 5];
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_LIST)
+        return &m_RenderSystems[2 + (N - 2) * 5];
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP)
+        return &m_RenderSystems[3 + (N - 2) * 5];
+    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
+        return &m_RenderSystems[4 + (N - 2) * 5];
+    return nullptr;
+}
+
 bool Window::Display() noexcept
 {
     return Display([](const VkCommandBuffer) {});
@@ -278,5 +308,11 @@ const Renderer &Window::GetRenderer() const noexcept
 {
     return *m_Renderer;
 }
+
+template const RenderSystem *Window::GetRenderSystem<2>(VkPrimitiveTopology) const noexcept;
+template const RenderSystem *Window::GetRenderSystem<3>(VkPrimitiveTopology) const noexcept;
+
+template RenderSystem *Window::GetRenderSystem<2>(VkPrimitiveTopology) noexcept;
+template RenderSystem *Window::GetRenderSystem<3>(VkPrimitiveTopology) noexcept;
 
 } // namespace ONYX

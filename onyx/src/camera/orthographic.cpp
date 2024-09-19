@@ -92,8 +92,7 @@ f32 Orthographic<3>::GetSize() const
 void Orthographic<3>::SetSize(const f32 p_Size)
 {
     const f32 aspect = Transform.Scale.x / Transform.Scale.y;
-    Transform.Scale.x = aspect * p_Size;
-    Transform.Scale.y = p_Size;
+    Transform.Scale = {aspect * p_Size, p_Size, p_Size};
 }
 
 } // namespace ONYX

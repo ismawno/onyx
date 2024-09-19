@@ -4,13 +4,15 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE Shape<N>::Shape(const Model *p_Model) noexcept : m_Model(p_Model)
+ONYX_DIMENSION_TEMPLATE Shape<N>::Shape(const Model *p_Model, const VkPrimitiveTopology p_Topology) noexcept
+    : m_Model(p_Model), m_Topology(p_Topology)
 {
 }
 
 ONYX_DIMENSION_TEMPLATE void Shape<N>::Draw(Window &p_Window) noexcept
 {
-    DefaultDraw(p_Window.GetRenderSystem(0), m_Model, Color, Transform.ModelTransform());
+    RenderSystem *rs = p_Window.GetRenderSystem<N>(m_Topology);
+    DefaultDraw(*rs, m_Model, Color, Transform.ModelTransform());
 }
 
 template class Shape<2>;

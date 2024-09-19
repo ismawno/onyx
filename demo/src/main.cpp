@@ -2,6 +2,7 @@
 #include "onyx/core/core.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/camera/orthographic.hpp"
+#include "onyx/camera/perspective.hpp"
 #include "onyx/draw/primitives/rectangle.hpp"
 #include "kit/core/literals.hpp"
 #include "kit/memory/stack_allocator.hpp"
@@ -20,15 +21,16 @@ class ExampleLayer final : public ONYX::Layer
 
     void OnRender(const usize p_WindowIndex) noexcept override
     {
-        ONYX::Rectangle2D rect(ONYX::Color::RED);
+        const float ts = GetApplication()->GetDeltaTime();
+        static ONYX::Rectangle3D rect(ONYX::Color::RED);
+        rect.Transform.Position.z = 5.f;
+        rect.Transform.RotateLocal(ONYX::Transform3D::RotY(ts));
+
         auto window = GetApplication()->GetWindow(p_WindowIndex);
         window->Draw(rect);
-        rect.Color = ONYX::Color::GREEN;
-        rect.Transform.Position += vec2(0.3f);
-        window->Draw(rect);
+        window->GetCamera<ONYX::Perspective3D>()->Transform.Scale += vec3(ts);
 
-        const float ts = GetApplication()->GetDeltaTime();
-        window->GetCamera<ONYX::Orthographic2D>()->Transform.Rotation += ts;
+        // window->GetCamera<ONYX::Perspective3D>()->Transform.Rotation += ts;
     }
 
     void OnImGuiRender() noexcept override
@@ -37,17 +39,10 @@ class ExampleLayer final : public ONYX::Layer
         ImGui::Begin("Example Layer");
         ImGui::Text("Hello, World!");
         ImGui::Text("Time: %.2f ms", ts * 1000.f);
-        if (ImGui::Button("Open Window"))
-            GetApplication()->OpenWindow<ONYX::Orthographic2D>();
+        // if (ImGui::Button("Open Window"))
+        //     GetApplication()->OpenWindow<ONYX::Perspective3D>();
 
         ImGui::End();
-    }
-
-    bool OnEvent(const usize p_WindowIndex, const ONYX::Event &p_Event) noexcept override
-    {
-        if (p_Event.Type == ONYX::Event::MOUSE_PRESSED)
-            GetApplication()->CloseWindow(p_WindowIndex);
-        return false;
     }
 };
 
@@ -57,15 +52,13 @@ int main()
     KIT::ThreadPool<KIT::SpinLock> threadPool(4);
     ONYX::Core::Initialize(&stackAllocator, &threadPool);
 
-    ONYX::Application<ONYX::MultiWindowFlow::CONCURRENT> app;
+    ONYX::Application<ONYX::MultiWindowFlow::SERIAL> app;
     app.Layers.Push<ExampleLayer>("Example Layer");
 
-    auto window1 = app.OpenWindow<ONYX::Orthographic2D>();
-    app.OpenWindow<ONYX::Orthographic2D>();
-
-    auto cam = window1->GetCamera<ONYX::Orthographic2D>();
-    cam->FlipY();
-    cam->SetSize(5.f);
+    // app.OpenWindow<ONYX::Perspective3D>();
+    app.OpenWindow<ONYX::Perspective3D>(16.f / 9.f);
+    auto win = app.OpenWindow<ONYX::Orthographic3D>();
+    win->GetCamera<ONYX::Orthographic3D>()->SetSize(10.f);
 
     app.Run();
 

@@ -13,7 +13,7 @@ class Model;
 ONYX_DIMENSION_TEMPLATE class ONYX_API Shape : public Drawable
 {
   public:
-    Shape(const Model *p_Model) noexcept;
+    Shape(const Model *p_Model, VkPrimitiveTopology p_Topology) noexcept;
     virtual ~Shape() noexcept = default;
 
     Color Color;
@@ -23,6 +23,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Shape : public Drawable
 
   protected:
     const Model *m_Model;
+    VkPrimitiveTopology m_Topology;
 };
 
 using Shape2D = Shape<2>;

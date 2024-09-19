@@ -92,6 +92,9 @@ class ONYX_API Window
     const RenderSystem &GetRenderSystem(const usize p_Index) const noexcept;
     RenderSystem &GetRenderSystem(const usize p_Index) noexcept;
 
+    ONYX_DIMENSION_TEMPLATE const RenderSystem *GetRenderSystem(VkPrimitiveTopology p_Topology) const noexcept;
+    ONYX_DIMENSION_TEMPLATE RenderSystem *GetRenderSystem(VkPrimitiveTopology p_Topology) noexcept;
+
     const GLFWwindow *GetWindow() const noexcept;
     GLFWwindow *GetWindow() noexcept;
 
