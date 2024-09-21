@@ -73,7 +73,7 @@ int main()
     app.Layers.Push<ExampleLayer>("Example Layer");
 
     // app.OpenWindow<ONYX::Perspective3D>();
-    app.OpenWindow<ONYX::Perspective3D>(16.f / 9.f);
+    app.OpenWindow<ONYX::Perspective3D>();
     // auto win = app.OpenWindow<ONYX::Orthographic3D>();
     // win->GetCamera<ONYX::Orthographic3D>()->SetSize(10.f);
 

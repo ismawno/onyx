@@ -3,96 +3,41 @@
 
 namespace ONYX
 {
-
-Orthographic<2>::Orthographic(const f32 p_Aspect, const f32 p_Size, const f32 p_Rotation)
-    : Orthographic(vec2{0.f}, p_Aspect, p_Size, p_Rotation)
+ONYX_DIMENSION_TEMPLATE Orthographic<N>::Orthographic(const f32 p_Size, const f32 p_Aspect) noexcept
 {
+    if constexpr (N == 2)
+        this->Transform.Scale = {p_Aspect * p_Size, p_Size};
+    else
+        this->Transform.Scale = {p_Aspect * p_Size, p_Size, p_Size};
 }
 
-Orthographic<2>::Orthographic(const vec2 &p_Position, const f32 p_Aspect, const f32 p_Size, const f32 p_Rotation)
-    : Orthographic(p_Position, {p_Aspect * p_Size, p_Size}, p_Rotation)
+ONYX_DIMENSION_TEMPLATE void Orthographic<N>::UpdateMatrices() noexcept
 {
+    if (this->m_YFlipped)
+        this->Transform.Scale.y = -this->Transform.Scale.y;
+
+    this->m_Projection = this->Transform.CameraTransform();
+    this->m_InverseProjection = this->Transform.InverseCameraTransform();
+
+    if (this->m_YFlipped)
+        this->Transform.Scale.y = -this->Transform.Scale.y;
 }
 
-Orthographic<2>::Orthographic(const vec2 &p_Size, const f32 p_Rotation) : Orthographic(vec2{0.f}, p_Size, p_Rotation)
+ONYX_DIMENSION_TEMPLATE f32 Orthographic<N>::GetSize() const noexcept
 {
+    return this->Transform.Scale.y;
 }
 
-Orthographic<2>::Orthographic(const vec2 &p_Position, const vec2 &p_Size, const f32 p_Rotation)
+ONYX_DIMENSION_TEMPLATE void Orthographic<N>::SetSize(const f32 p_Size) noexcept
 {
-    Transform.Position = p_Position;
-    Transform.Scale = p_Size;
-    Transform.Rotation = p_Rotation;
+    const f32 aspect = this->Transform.Scale.x / this->Transform.Scale.y;
+    if constexpr (N == 2)
+        this->Transform.Scale = {aspect * p_Size, p_Size};
+    else
+        this->Transform.Scale = {aspect * p_Size, p_Size, p_Size};
 }
 
-void Orthographic<2>::UpdateMatrices() noexcept
-{
-    if (m_YFlipped)
-        Transform.Scale.y = -Transform.Scale.y;
-
-    m_Projection = Transform.CameraTransform();
-    m_InverseProjection = Transform.InverseCameraTransform();
-
-    if (m_YFlipped)
-        Transform.Scale.y = -Transform.Scale.y;
-}
-
-f32 Orthographic<2>::GetSize() const noexcept
-{
-    return Transform.Scale.y;
-}
-
-void Orthographic<2>::SetSize(const f32 p_Size) noexcept
-{
-    const f32 aspect = Transform.Scale.x / Transform.Scale.y;
-    Transform.Scale = {aspect * p_Size, p_Size};
-}
-
-Orthographic<3>::Orthographic(const f32 p_Aspect, const f32 p_XYSize, const f32 p_Depth,
-                              const mat3 &p_Rotation) noexcept
-    : Orthographic(vec3{0.f}, p_Aspect, p_XYSize, p_Depth, p_Rotation)
-{
-}
-
-Orthographic<3>::Orthographic(const vec3 &p_Position, const f32 p_Aspect, const f32 p_XYSize, const f32 p_Depth,
-                              const mat3 &p_Rotation) noexcept
-    : Orthographic(p_Position, {p_Aspect * p_XYSize, p_XYSize, p_Depth}, p_Rotation)
-{
-}
-
-Orthographic<3>::Orthographic(const vec3 &p_Size, const mat3 &p_Rotation) noexcept
-    : Orthographic(vec3{0.f}, p_Size, p_Rotation)
-{
-}
-
-Orthographic<3>::Orthographic(const vec3 &p_Position, const vec3 &p_Size, const mat3 &p_Rotation) noexcept
-{
-    Transform.Position = p_Position;
-    Transform.Scale = p_Size;
-    Transform.Rotation = p_Rotation;
-}
-
-void Orthographic<3>::UpdateMatrices() noexcept
-{
-    if (m_YFlipped)
-        Transform.Scale.y = -Transform.Scale.y;
-
-    m_Projection = Transform.CameraTransform();
-    m_InverseProjection = Transform.InverseCameraTransform();
-
-    if (m_YFlipped)
-        Transform.Scale.y = -Transform.Scale.y;
-}
-
-f32 Orthographic<3>::GetSize() const
-{
-    return Transform.Scale.y;
-}
-
-void Orthographic<3>::SetSize(const f32 p_Size)
-{
-    const f32 aspect = Transform.Scale.x / Transform.Scale.y;
-    Transform.Scale = {aspect * p_Size, p_Size, p_Size};
-}
+template class Orthographic<2>;
+template class Orthographic<3>;
 
 } // namespace ONYX

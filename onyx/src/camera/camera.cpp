@@ -17,6 +17,10 @@ const mat4 &ICamera::GetInverseProjection() const noexcept
     return m_InverseProjection;
 }
 
+ONYX_DIMENSION_TEMPLATE Camera<N>::Camera(const ONYX::Transform<N> &p_Transform) noexcept : Transform(p_Transform)
+{
+}
+
 ONYX_DIMENSION_TEMPLATE void Camera<N>::SetAspectRatio(const f32 p_Aspect) noexcept
 {
     Transform.Scale.x = p_Aspect * Transform.Scale.y;

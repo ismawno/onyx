@@ -3,18 +3,9 @@
 
 namespace ONYX
 {
-Perspective::Perspective(const f32 p_Aspect, const f32 p_FieldOfView, const glm::mat3 &p_Rotation, const f32 p_Near,
-                         const f32 p_Far)
-    : Perspective(vec3{0.f}, p_Aspect, p_FieldOfView, p_Rotation, p_Near, p_Far)
-{
-}
-
-Perspective::Perspective(const vec3 &p_Position, const f32 p_Aspect, const f32 p_FieldOfView, const mat3 &p_Rotation,
-                         const f32 p_Near, const f32 p_Far)
+Perspective::Perspective(const f32 p_Aspect, const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far)
     : Near(p_Near), Far(p_Far), FieldOfView(p_FieldOfView), m_Aspect(p_Aspect)
 {
-    Transform.Position = p_Position;
-    Transform.Rotation = p_Rotation;
 }
 
 void Perspective::UpdateMatrices() noexcept
