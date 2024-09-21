@@ -39,35 +39,26 @@ template <> struct ONYX_API Transform<3>
     vec3 LocalOffsetY(f32 p_Offset) const noexcept;
     vec3 LocalOffsetZ(f32 p_Offset) const noexcept;
 
-    void RotateLocal(const mat3 &p_Rotation) noexcept;
-    void RotateGlobal(const mat3 &p_Rotation) noexcept;
+    void RotateLocal(const quat &p_Rotation) noexcept;
+    void RotateLocal(const vec3 &p_Angles) noexcept;
 
-    mat3 InverseRotation() const noexcept;
+    void RotateLocalX(f32 p_Angle) noexcept;
+    void RotateLocalY(f32 p_Angle) noexcept;
+    void RotateLocalZ(f32 p_Angle) noexcept;
 
-    static mat3 RotXYZ(const vec3 &p_Rotation) noexcept;
-    static mat3 RotXZY(const vec3 &p_Rotation) noexcept;
-    static mat3 RotYXZ(const vec3 &p_Rotation) noexcept;
-    static mat3 RotYZX(const vec3 &p_Rotation) noexcept;
-    static mat3 RotZXY(const vec3 &p_Rotation) noexcept;
-    static mat3 RotZYX(const vec3 &p_Rotation) noexcept;
+    void RotateGlobal(const quat &p_Rotation) noexcept;
+    void RotateGlobal(const vec3 &p_Angles) noexcept;
 
-    static mat3 RotXY(f32 p_RotX, f32 p_RotY) noexcept;
-    static mat3 RotXZ(f32 p_RotX, f32 p_RotZ) noexcept;
-    static mat3 RotYX(f32 p_RotY, f32 p_RotX) noexcept;
-    static mat3 RotYZ(f32 p_RotY, f32 p_RotZ) noexcept;
-    static mat3 RotZX(f32 p_RotZ, f32 p_RotX) noexcept;
-    static mat3 RotZY(f32 p_RotZ, f32 p_RotY) noexcept;
-
-    static mat3 RotX(f32 p_RotX) noexcept;
-    static mat3 RotY(f32 p_RotY) noexcept;
-    static mat3 RotZ(f32 p_RotZ) noexcept;
+    void RotateGlobalX(f32 p_Angle) noexcept;
+    void RotateGlobalY(f32 p_Angle) noexcept;
+    void RotateGlobalZ(f32 p_Angle) noexcept;
 
     vec3 Position{0.f};
     vec3 Scale{1.f};
     vec3 Origin{0.f};
 
-    // TODO: Change to quaternion/euler angles
-    mat3 Rotation{1.f};
+    // Up to the user to keep this normalized if it modifies it directly!
+    quat Rotation{1.f, 0.f, 0.f, 0.f};
     Transform *Parent{nullptr};
 };
 

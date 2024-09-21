@@ -21,13 +21,15 @@ class ExampleLayer final : public ONYX::Layer
 
     void OnRender(const usize p_WindowIndex) noexcept override
     {
+        static float time = 0.f;
         const float ts = GetApplication()->GetDeltaTime();
-        m_Rectangles[p_WindowIndex].Transform.Position.z = 5.f;
-        m_Rectangles[p_WindowIndex].Transform.RotateLocal(ONYX::Transform3D::RotY(ts));
+        time += ts;
+        if (time < 1.f)
+            m_Rectangles[p_WindowIndex].Transform.RotateLocalY(ts);
+        else
+            m_Rectangles[p_WindowIndex].Transform.RotateLocalZ(ts);
 
-        auto window = GetApplication()->GetWindow(p_WindowIndex);
-        window->Draw(m_Rectangles[p_WindowIndex]);
-        window->GetCamera<ONYX::Perspective3D>()->Transform.Scale += vec3(ts);
+        GetApplication()->Draw(m_Rectangles[p_WindowIndex], p_WindowIndex);
 
         // window->GetCamera<ONYX::Perspective3D>()->Transform.Rotation += ts;
     }
@@ -48,7 +50,10 @@ class ExampleLayer final : public ONYX::Layer
     {
         if (p_Event.Type == ONYX::Event::WINDOW_OPENED)
         {
-            m_Rectangles.emplace_back(ONYX::Color::GREEN);
+            auto &rect = m_Rectangles.emplace_back(ONYX::Color::GREEN);
+            // rect.Transform.RotateLocalZ(1.2f);
+            // rect.Transform.RotateLocalY(1.2f);
+            rect.Transform.Position.z = 5.f;
             return true;
         }
         return false;
@@ -69,8 +74,8 @@ int main()
 
     // app.OpenWindow<ONYX::Perspective3D>();
     app.OpenWindow<ONYX::Perspective3D>(16.f / 9.f);
-    auto win = app.OpenWindow<ONYX::Orthographic3D>();
-    win->GetCamera<ONYX::Orthographic3D>()->SetSize(10.f);
+    // auto win = app.OpenWindow<ONYX::Orthographic3D>();
+    // win->GetCamera<ONYX::Orthographic3D>()->SetSize(10.f);
 
     app.Run();
 

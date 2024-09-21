@@ -6,6 +6,9 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/quaternion.hpp>
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/quaternion.hpp>
 
 // This file includes all necessary glm headers and defines some useful aliases
 
@@ -24,6 +27,8 @@ using mat3 = glm::mat3;
 using mat4 = glm::mat4;
 
 template <u32 N> using mat = glm::mat<N, N, f32>;
+
+using quat = glm::quat;
 }; // namespace Aliases
 
 // Directly use the Aliases namespace when in the ONYX namespace
