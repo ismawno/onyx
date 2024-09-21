@@ -18,6 +18,7 @@ namespace ONYX
 {
 ONYX_DIMENSION_TEMPLATE Model::Model(const std::span<const Vertex<N>> p_Vertices,
                                      const Properties p_VertexBufferProperties) noexcept
+    : m_HasIndices(false)
 {
     m_Device = Core::GetDevice();
     createVertexBuffer(p_Vertices, p_VertexBufferProperties);
@@ -26,10 +27,18 @@ ONYX_DIMENSION_TEMPLATE Model::Model(const std::span<const Vertex<N>> p_Vertices
 ONYX_DIMENSION_TEMPLATE Model::Model(const std::span<const Vertex<N>> p_Vertices,
                                      const std::span<const Index> p_Indices,
                                      const Properties p_VertexBufferProperties) noexcept
+    : m_HasIndices(true)
 {
     m_Device = Core::GetDevice();
     createVertexBuffer(p_Vertices, p_VertexBufferProperties);
     createIndexBuffer(p_Indices);
+}
+
+Model::~Model() noexcept
+{
+    if (m_HasIndices)
+        m_IndexBuffer.Destroy();
+    m_VertexBuffer.Destroy();
 }
 
 ONYX_DIMENSION_TEMPLATE void Model::createVertexBuffer(const std::span<const Vertex<N>> p_Vertices,
@@ -45,7 +54,7 @@ ONYX_DIMENSION_TEMPLATE void Model::createVertexBuffer(const std::span<const Ver
     {
         specs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
         specs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-        m_VertexBuffer = KIT::Scope<Buffer>::Create(specs);
+        m_VertexBuffer.Create(specs);
 
         m_VertexBuffer->Map();
         m_VertexBuffer->Write(p_Vertices.data());
@@ -59,7 +68,7 @@ ONYX_DIMENSION_TEMPLATE void Model::createVertexBuffer(const std::span<const Ver
     {
         specs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
         specs.Usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-        m_VertexBuffer = KIT::Scope<Buffer>::Create(specs);
+        m_VertexBuffer.Create(specs);
 
         Buffer::Specs stagingSpecs = specs;
         stagingSpecs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -85,7 +94,7 @@ void Model::createIndexBuffer(const std::span<const Index> p_Indices) noexcept
     specs.Usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
     specs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-    m_IndexBuffer = KIT::Scope<Buffer>::Create(specs);
+    m_IndexBuffer.Create(specs);
 
     Buffer::Specs stagingSpecs = specs;
     stagingSpecs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -109,18 +118,18 @@ void Model::Bind(const VkCommandBuffer p_CommandBuffer) const noexcept
     // This actually takes an array of buffers, but I am only using one
     vkCmdBindVertexBuffers(p_CommandBuffer, 0, 1, &buffer, &offset);
 
-    if (m_IndexBuffer)
+    if (m_HasIndices)
         vkCmdBindIndexBuffer(p_CommandBuffer, m_IndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT32);
 }
 
 bool Model::HasIndices() const noexcept
 {
-    return m_IndexBuffer != nullptr;
+    return m_HasIndices;
 }
 
 void Model::Draw(const VkCommandBuffer p_CommandBuffer) const noexcept
 {
-    if (m_IndexBuffer)
+    if (m_HasIndices)
         vkCmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer->GetInstanceCount()), 1, 0, 0, 0);
     else
         vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer->GetInstanceCount()), 1, 0, 0);

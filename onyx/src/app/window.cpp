@@ -28,7 +28,8 @@ Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_
 
 Window::~Window() noexcept
 {
-    m_Renderer.Release();
+    m_Renderer.Destroy();
+    m_GlobalUniformHelper.Destroy();
     vkDestroySurfaceKHR(m_Instance->GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
@@ -52,7 +53,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
     glfwSetWindowUserPointer(m_Window, this);
 
     m_Device = Core::tryCreateDevice(m_Surface);
-    m_Renderer = KIT::Scope<Renderer>::Create(*this);
+    m_Renderer.Create(*this);
     Input::InstallCallbacks(*this);
 }
 
@@ -76,7 +77,7 @@ void Window::createGlobalUniformHelper() noexcept
     bufferSpecs.MinimumAlignment =
         glm::max(props.limits.minUniformBufferOffsetAlignment, props.limits.nonCoherentAtomSize);
 
-    m_GlobalUniformHelper = KIT::Scope<GlobalUniformHelper>::Create(poolSpecs, bindings, bufferSpecs);
+    m_GlobalUniformHelper.Create(poolSpecs, bindings, bufferSpecs);
     m_GlobalUniformHelper->UniformBuffer.Map();
 
     for (usize i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; ++i)

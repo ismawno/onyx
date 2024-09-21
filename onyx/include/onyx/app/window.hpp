@@ -11,6 +11,8 @@
 #include "onyx/rendering/render_system.hpp"
 #include "onyx/camera/camera.hpp"
 
+#include "kit/container/storage.hpp"
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -146,10 +148,10 @@ class ONYX_API Window
 
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;
-    KIT::Scope<Renderer> m_Renderer;
+    KIT::Storage<Renderer> m_Renderer;
     KIT::Scope<ICamera> m_Camera;
 
-    KIT::Scope<GlobalUniformHelper> m_GlobalUniformHelper;
+    KIT::Storage<GlobalUniformHelper> m_GlobalUniformHelper;
     std::array<VkDescriptorSet, SwapChain::MAX_FRAMES_IN_FLIGHT> m_GlobalDescriptorSets;
 
     KIT::StaticArray<RenderSystem, ONYX_MAX_RENDER_SYSTEMS> m_RenderSystems;

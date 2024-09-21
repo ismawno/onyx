@@ -4,6 +4,8 @@
 #include "onyx/draw/vertex.hpp"
 #include "onyx/rendering/buffer.hpp"
 
+#include "kit/container/storage.hpp"
+
 namespace ONYX
 {
 // I have been struggling a bit with the design of the model class
@@ -50,6 +52,8 @@ class ONYX_API Model
 
     ONYX_DIMENSION_TEMPLATE Model(std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices,
                                   Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+
+    ~Model() noexcept;
 
     // TODO: Make sure no redundant bind calls are made
     // These bind and draw commands operate with a single vertex and index buffer. Not ideal when instancing could be
@@ -99,13 +103,10 @@ class ONYX_API Model
     void createIndexBuffer(std::span<const Index> p_Indices) noexcept;
 
     KIT::Ref<Device> m_Device;
-    KIT::Scope<Buffer> m_VertexBuffer;
-    KIT::Scope<Buffer> m_IndexBuffer = nullptr;
+    KIT::Storage<Buffer> m_VertexBuffer;
+    KIT::Storage<Buffer> m_IndexBuffer;
+
+    bool m_HasIndices;
 };
-
-namespace ModelWarehouse
-{
-
-} // namespace ModelWarehouse
 
 } // namespace ONYX
