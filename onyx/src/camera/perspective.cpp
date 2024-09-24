@@ -3,12 +3,12 @@
 
 namespace ONYX
 {
-Perspective::Perspective(const f32 p_Aspect, const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far)
+Perspective3D::Perspective3D(const f32 p_Aspect, const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far)
     : Near(p_Near), Far(p_Far), FieldOfView(p_FieldOfView), m_Aspect(p_Aspect)
 {
 }
 
-void Perspective::UpdateMatrices() noexcept
+void Perspective3D::UpdateMatrices() noexcept
 {
     if (m_YFlipped)
         Transform.Scale.y = -Transform.Scale.y;
@@ -35,7 +35,7 @@ void Perspective::UpdateMatrices() noexcept
         Transform.Scale.y = -Transform.Scale.y;
 }
 
-void Perspective::SetAspectRatio(const f32 p_Aspect) noexcept
+void Perspective3D::SetAspectRatio(const f32 p_Aspect) noexcept
 {
     m_Aspect = p_Aspect;
 }

@@ -55,6 +55,7 @@ void Buffer::Write(const void *p_Data, const VkDeviceSize p_Size, const VkDevice
 }
 void Buffer::WriteAt(const usize p_Index, const void *p_Data) noexcept
 {
+    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     Write(p_Data, m_InstanceSize, m_InstanceSize * p_Index);
 }
 
@@ -66,6 +67,7 @@ void Buffer::Flush(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) noexc
 }
 void Buffer::FlushAt(const usize p_Index) noexcept
 {
+    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     Flush(m_InstanceSize, m_InstanceSize * p_Index);
 }
 
@@ -77,6 +79,7 @@ void Buffer::Invalidate(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) 
 }
 void Buffer::InvalidateAt(const usize p_Index) noexcept
 {
+    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     Invalidate(m_InstanceSize, m_InstanceSize * p_Index);
 }
 
@@ -90,6 +93,7 @@ VkDescriptorBufferInfo Buffer::DescriptorInfo(const VkDeviceSize p_Size, const V
 }
 VkDescriptorBufferInfo Buffer::DescriptorInfoAt(const usize p_Index) const noexcept
 {
+    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     return DescriptorInfo(m_InstanceSize, m_InstanceSize * p_Index);
 }
 
@@ -99,6 +103,7 @@ void *Buffer::GetData() const noexcept
 }
 void *Buffer::ReadAt(const usize p_Index) const noexcept
 {
+    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     return static_cast<std::byte *>(m_Data) + m_InstanceSize * p_Index;
 }
 

@@ -66,6 +66,9 @@ class ONYX_API Model
     const Buffer &GetVertexBuffer() const noexcept;
     Buffer &GetVertexBuffer() noexcept;
 
+    bool IsMutable() const noexcept;
+    bool MustFlush() const noexcept;
+
     static void CreatePrimitiveModels() noexcept;
     static void DestroyPrimitiveModels() noexcept;
 
@@ -78,33 +81,45 @@ class ONYX_API Model
                                                  std::span<const Index> p_Indices,
                                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
 
+    ONYX_DIMENSION_TEMPLATE static const Model *GetRegularPolygon(u32 p_Sides) noexcept;
+    ONYX_DIMENSION_TEMPLATE static const Model *GetTriangle() noexcept;
     ONYX_DIMENSION_TEMPLATE static const Model *GetRectangle() noexcept;
     ONYX_DIMENSION_TEMPLATE static const Model *GetLine() noexcept;
     ONYX_DIMENSION_TEMPLATE static const Model *GetCircle() noexcept;
-    ONYX_DIMENSION_TEMPLATE static Model *CreatePolygon(std::span<const Vertex<N>> p_Vertices) noexcept;
+    ONYX_DIMENSION_TEMPLATE static Model *CreatePolygon(std::span<const vec<N>> p_Vertices,
+                                                        Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
 
+    static const Model *GetRegularPolygon2D(u32 p_Sides) noexcept;
+    static const Model *GetTriangle2D() noexcept;
     static const Model *GetRectangle2D() noexcept;
     static const Model *GetLine2D() noexcept;
     static const Model *GetCircle2D() noexcept;
-    static Model *CreatePolygon2D(std::span<const Vertex2D> p_Vertices) noexcept;
+    static Model *CreatePolygon2D(std::span<const vec2> p_Vertices,
+                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
 
+    static const Model *GetRegularPolygon3D(u32 p_Sides) noexcept;
+    static const Model *GetTriangle3D() noexcept;
     static const Model *GetRectangle3D() noexcept;
     static const Model *GetLine3D() noexcept;
     static const Model *GetCircle3D() noexcept;
-    static Model *CreatePolygon3D(std::span<const Vertex3D> p_Vertices) noexcept;
+    static Model *CreatePolygon3D(std::span<const vec3> p_Vertices,
+                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
 
-    static const Model *GetCube() noexcept;
+    static const Model *GetRectangularPrism() noexcept;
     static const Model *GetSphere() noexcept;
-    static Model *CreatePolyhedron(std::span<const Vertex3D> p_Vertices) noexcept;
+
+    // Commented for now, I dont think I will need this
+    // static Model *CreatePolyhedron(std::span<const Vertex3D> p_Vertices) noexcept;
 
   private:
-    ONYX_DIMENSION_TEMPLATE void createVertexBuffer(std::span<const Vertex<N>> p_Vertices,
-                                                    Properties p_VertexBufferProperties) noexcept;
+    ONYX_DIMENSION_TEMPLATE void createVertexBuffer(std::span<const Vertex<N>> p_Vertices) noexcept;
     void createIndexBuffer(std::span<const Index> p_Indices) noexcept;
 
     KIT::Ref<Device> m_Device;
     KIT::Storage<Buffer> m_VertexBuffer;
     KIT::Storage<Buffer> m_IndexBuffer;
+
+    Properties m_VertexBufferProperties;
 
     bool m_HasIndices;
 };

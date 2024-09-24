@@ -24,6 +24,11 @@ set(SOURCES
     src/draw/drawable.cpp
     src/draw/primitives/shape.cpp
     src/draw/primitives/rectangle.cpp
+    src/draw/primitives/ellipse.cpp
+    src/draw/primitives/line.cpp
+    src/draw/primitives/polygon.cpp
+    src/draw/primitives/rectangular_prism.cpp
+    src/draw/primitives/triangle.cpp
     src/app/app.cpp
     src/app/window.cpp
     src/app/input.cpp

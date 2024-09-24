@@ -4,11 +4,11 @@
 
 namespace ONYX
 {
-class ONYX_API Perspective final : public Camera<3>
+class ONYX_API Perspective3D final : public Camera<3>
 {
   public:
-    Perspective(f32 p_Aspect = ONYX_DEFAULT_ASPECT, f32 p_FieldOfView = glm::radians(75.f), f32 p_Near = 0.1f,
-                f32 p_Far = 10.f);
+    Perspective3D(f32 p_Aspect = ONYX_DEFAULT_ASPECT, f32 p_FieldOfView = glm::radians(75.f), f32 p_Near = 0.1f,
+                  f32 p_Far = 10.f);
 
     f32 Near;
     f32 Far;
@@ -21,5 +21,4 @@ class ONYX_API Perspective final : public Camera<3>
     f32 m_Aspect;
 };
 
-using Perspective3D = Perspective;
 } // namespace ONYX
