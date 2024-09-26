@@ -7,10 +7,12 @@
 #include "onyx/draw/transform.hpp"
 #include "onyx/draw/drawable.hpp"
 
+#include <vulkan/vulkan.h>
+
 namespace ONYX
 {
 class Model;
-ONYX_DIMENSION_TEMPLATE class ONYX_API IShape : public Drawable
+ONYX_DIMENSION_TEMPLATE class ONYX_API IShape : public IDrawable
 {
   public:
     virtual ~IShape() noexcept = default;

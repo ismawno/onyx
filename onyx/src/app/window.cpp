@@ -137,7 +137,7 @@ void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
     }
 }
 
-void Window::Draw(Drawable &p_Drawable) noexcept
+void Window::Draw(IDrawable &p_Drawable) noexcept
 {
     p_Drawable.Draw(*this);
 }

@@ -8,7 +8,19 @@
 
 namespace ONYX
 {
-class Drawable;
+class IDrawable;
+enum class MultiWindowFlow
+{
+    SERIAL = 0,
+    CONCURRENT = 1
+};
+
+// Notes (to be added to docs later)
+// OnEvent: in window opened events, concurrent mode executes it once, through the thread (window) that issued the
+// OpenWindow call
+
+// serial mode process the event as any other for the corresponding window (for each layer. mark it as processed by
+// returning true)
 
 class IApplication
 {
@@ -24,11 +36,6 @@ class IApplication
         window->SetCamera<T>(std::forward<CameraArgs>(p_Args)...);
         return handleWindowAddition(std::move(window));
     }
-    template <std::derived_from<ICamera> T, typename... CameraArgs> Window *OpenWindow(CameraArgs &&...p_Args) noexcept
-    {
-        const Window::Specs specs{};
-        return OpenWindow<T>(specs, std::forward<CameraArgs>(p_Args)...);
-    }
 
     virtual void CloseWindow(usize p_Index) noexcept = 0;
     void CloseWindow(const Window *p_Window) noexcept;
@@ -36,8 +43,10 @@ class IApplication
 
     const Window *GetWindow(usize p_Index) const noexcept;
     Window *GetWindow(usize p_Index) noexcept;
+    usize GetWindowCount() const noexcept;
 
     f32 GetDeltaTime() const noexcept;
+    virtual MultiWindowFlow GetMultiWindowFlow() const noexcept = 0;
 
     virtual void Startup() noexcept;
     void Shutdown() noexcept;
@@ -45,7 +54,7 @@ class IApplication
 
     void Run() noexcept;
 
-    void Draw(Drawable &p_Drawable, usize p_WindowIndex = 0) noexcept;
+    void Draw(IDrawable &p_Drawable, usize p_WindowIndex = 0) noexcept;
 
     bool Started() const noexcept;
     bool Terminated() const noexcept;
@@ -84,12 +93,6 @@ class IApplication
 //  *can* be more efficient but requires the user to submit draw calls to a window from the same thread that created
 // the window
 
-enum class MultiWindowFlow
-{
-    SERIAL = 0,
-    CONCURRENT = 1
-};
-
 template <MultiWindowFlow Flow = MultiWindowFlow::SERIAL> class ONYX_API Application;
 
 template <> class ONYX_API Application<MultiWindowFlow::SERIAL> final : public IApplication
@@ -99,6 +102,7 @@ template <> class ONYX_API Application<MultiWindowFlow::SERIAL> final : public I
     using IApplication::IApplication;
     void Draw(Window &p_Window, usize p_WindowIndex = 0) noexcept;
     void CloseWindow(usize p_Index) noexcept override;
+    MultiWindowFlow GetMultiWindowFlow() const noexcept override;
 
   private:
     Window *handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept override;
@@ -111,6 +115,7 @@ template <> class ONYX_API Application<MultiWindowFlow::CONCURRENT> final : publ
   public:
     using IApplication::IApplication;
     void CloseWindow(usize p_Index) noexcept override;
+    MultiWindowFlow GetMultiWindowFlow() const noexcept override;
 
     void Startup() noexcept override;
 

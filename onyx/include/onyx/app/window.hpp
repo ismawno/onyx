@@ -22,7 +22,7 @@
 
 namespace ONYX
 {
-class Drawable;
+class IDrawable;
 // TODO: Align window to the cache line in case a multi window app is used?
 class ONYX_API Window
 {
@@ -65,7 +65,7 @@ class ONYX_API Window
         return false;
     }
     bool Display() noexcept;
-    void Draw(Drawable &p_Drawable) noexcept;
+    void Draw(IDrawable &p_Drawable) noexcept;
     void Draw(Window &p_Window) noexcept;
 
     void MakeContextCurrent() const noexcept;

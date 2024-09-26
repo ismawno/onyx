@@ -33,7 +33,7 @@ IApplication::~IApplication() noexcept
         Shutdown();
 }
 
-void IApplication::Draw(Drawable &p_Drawable, usize p_WindowIndex) noexcept
+void IApplication::Draw(IDrawable &p_Drawable, usize p_WindowIndex) noexcept
 {
     KIT_ASSERT(p_WindowIndex < m_Windows.size(), "Window index out of bounds");
     m_Windows[p_WindowIndex]->Draw(p_Drawable);
@@ -74,6 +74,10 @@ Window *IApplication::GetWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
     return m_Windows[p_Index].Get();
+}
+usize IApplication::GetWindowCount() const noexcept
+{
+    return m_Windows.size();
 }
 
 f32 IApplication::GetDeltaTime() const noexcept
@@ -231,6 +235,11 @@ void Application<MultiWindowFlow::SERIAL>::CloseWindow(const usize p_Index) noex
     }
 }
 
+MultiWindowFlow Application<MultiWindowFlow::SERIAL>::GetMultiWindowFlow() const noexcept
+{
+    return MultiWindowFlow::SERIAL;
+}
+
 Window *Application<MultiWindowFlow::SERIAL>::handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
@@ -298,6 +307,11 @@ void Application<MultiWindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) 
         if (Started())
             taskManager->SubmitTask(m_Tasks[i]);
     }
+}
+
+MultiWindowFlow Application<MultiWindowFlow::CONCURRENT>::GetMultiWindowFlow() const noexcept
+{
+    return MultiWindowFlow::CONCURRENT;
 }
 
 void Application<MultiWindowFlow::CONCURRENT>::Startup() noexcept

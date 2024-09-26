@@ -10,7 +10,7 @@
 namespace ONYX
 {
 class Model;
-ONYX_DIMENSION_TEMPLATE class ILine ONYX_API : public Drawable
+ONYX_DIMENSION_TEMPLATE class ILine ONYX_API : public IDrawable
 {
   public:
     virtual ~ILine() noexcept = default;

@@ -4,8 +4,8 @@
 
 namespace ONYX
 {
-void Drawable::DefaultDraw(RenderSystem &p_RenderSystem, const Model *p_Model, const vec4 &p_Color,
-                           const mat4 &p_Transform) noexcept
+void IDrawable::DefaultDraw(RenderSystem &p_RenderSystem, const Model *p_Model, const vec4 &p_Color,
+                            const mat4 &p_Transform) noexcept
 {
     RenderSystem::DrawData data{};
     data.Model = p_Model;
