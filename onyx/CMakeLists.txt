@@ -74,13 +74,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
-FetchContent_Declare(
-    implot
-    GIT_REPOSITORY https://github.com/epezent/implot.git
-    GIT_TAG v0.16
-)
-FetchContent_MakeAvailable(implot)
-
 # It is set to required for now even though there is a fallback mechanism with FetchContent (the latter seems to provide very few extensions and I am not sure if it will work well for now)
 # TODO: Check if the fallback mechanism works well
 find_package(Vulkan REQUIRED)
@@ -147,10 +140,9 @@ if (ONYX_LOCAL_VULKAN_SDK)
     target_link_libraries(onyx PUBLIC ${Vulkan_LIBRARIES} Vulkan::Headers Vulkan::Vulkan)
 endif()
 
-### IMGUI & IMPLOT ###
+### IMGUI ###
 
 set(IMGUI_DIR ${CMAKE_BINARY_DIR}/_deps/imgui-src)
-set(IMPLOT_DIR ${CMAKE_BINARY_DIR}/_deps/implot-src)
 
 set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui.cpp
@@ -162,21 +154,63 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
-set(IMPLOT_SOURCES
-    ${IMPLOT_DIR}/implot.cpp
-    ${IMPLOT_DIR}/implot_items.cpp
-)
-
 add_library(imgui STATIC ${IMGUI_SOURCES})
-add_library(implot STATIC ${IMPLOT_SOURCES})
 
 target_include_directories(imgui PUBLIC ${IMGUI_DIR})
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
-target_include_directories(implot PUBLIC ${IMPLOT_DIR})
-target_link_libraries(implot PUBLIC imgui)
+### IMPLOT ###
 
-### /IMGUI & IMPLOT ###
+if (ONYX_USE_IMPLOT)
+    FetchContent_Declare(
+        implot
+        GIT_REPOSITORY https://github.com/epezent/implot.git
+        GIT_TAG v0.16
+    )
+    FetchContent_MakeAvailable(implot)
+
+    set(IMPLOT_DIR ${CMAKE_BINARY_DIR}/_deps/implot-src)
+
+    set(IMPLOT_SOURCES
+        ${IMPLOT_DIR}/implot.cpp
+        ${IMPLOT_DIR}/implot_items.cpp
+    )
+
+    add_library(implot STATIC ${IMPLOT_SOURCES})
+
+    target_compile_definitions(implot PUBLIC ONYX_ENABLE_IMPLOT)
+    target_include_directories(implot PUBLIC ${IMPLOT_DIR})
+    target_link_libraries(implot PUBLIC imgui)
+
+endif()
+
+### IMGUIZMO ###
+
+if (ONYX_USE_IMGUIZMO)
+    FetchContent_Declare(
+        imguizmo
+        GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
+        GIT_TAG 1.83
+    )
+    FetchContent_MakeAvailable(imguizmo)
+
+    set(IMGUIZMO_DIR ${CMAKE_BINARY_DIR}/_deps/imguizmo-src)
+
+    set(IMGUIZMO_SOURCES
+        ${IMGUIZMO_DIR}/GraphEditor.cpp
+        ${IMGUIZMO_DIR}/ImCurveEdit.cpp
+        ${IMGUIZMO_DIR}/ImGradient.cpp
+        ${IMGUIZMO_DIR}/ImSequencer.cpp
+        ${IMGUIZMO_DIR}/ImGuizmo.cpp
+    )
+
+    add_library(imguizmo STATIC ${IMGUIZMO_SOURCES})
+
+    target_compile_definitions(imguizmo PUBLIC ONYX_ENABLE_IMGUIZMO)
+    target_include_directories(imguizmo PUBLIC ${IMGUIZMO_DIR})
+    target_link_libraries(imguizmo PUBLIC imgui)
+
+endif()
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(onyx PUBLIC toolkit glm imgui implot VulkanMemoryAllocator)

@@ -172,7 +172,9 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     if (!m_ImGuiPool)
         createImGuiPool();
     ImGui::CreateContext();
+#ifdef ONYX_ENABLE_IMPLOT
     ImPlot::CreateContext();
+#endif
 
     IMGUI_CHECKVERSION();
     ImGuiIO &io = ImGui::GetIO();
@@ -207,7 +209,9 @@ void IApplication::shutdownImGui() noexcept
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyPlatformWindows();
     ImGui::DestroyContext();
+#ifdef ONYX_ENABLE_IMPLOT
     ImPlot::DestroyContext();
+#endif
 }
 
 void Application<MultiWindowFlow::SERIAL>::Draw(Window &p_Window, usize p_WindowIndex) noexcept
