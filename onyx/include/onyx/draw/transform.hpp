@@ -39,8 +39,13 @@ ONYX_DIMENSION_TEMPLATE class ITransform
     void SetOriginX(f32 p_Origin) noexcept;
     void SetOriginY(f32 p_Origin) noexcept;
 
+    void SetLocalTransform(const mat4 &p_LocalTransform) noexcept;
+    void SetParentTransform(const mat4 &p_ParentTransform) noexcept;
+
     void UpdateMatricesAsModel() noexcept;
     void UpdateMatricesAsCamera() noexcept;
+
+    // The origins do have to match for consistency
     void UpdateComponents() noexcept;
 
     vec<N> LocalOffset(const vec<N> &p_Offset) const noexcept;
