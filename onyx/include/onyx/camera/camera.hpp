@@ -18,12 +18,9 @@ class ICamera ONYX_API
     const mat4 &GetProjection() const noexcept;
     const mat4 &GetInverseProjection() const noexcept;
 
-    void FlipY() noexcept;
-
   protected:
     mat4 m_Projection{1.f};
     mat4 m_InverseProjection{1.f};
-    bool m_YFlipped = true;
 };
 
 ONYX_DIMENSION_TEMPLATE class ONYX_API Camera : public ICamera

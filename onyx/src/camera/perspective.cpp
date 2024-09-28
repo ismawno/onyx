@@ -10,8 +10,6 @@ Perspective3D::Perspective3D(const f32 p_Aspect, const f32 p_FieldOfView, const 
 
 void Perspective3D::UpdateMatrices() noexcept
 {
-    if (m_YFlipped)
-        Transform.Scale.y = -Transform.Scale.y;
     const f32 halfPov = glm::tan(0.5f * FieldOfView);
 
     glm::mat4 perspective = glm::mat4{0.0f};
@@ -21,18 +19,17 @@ void Perspective3D::UpdateMatrices() noexcept
     perspective[2][3] = 1.f;
     perspective[3][2] = Far * Near / (Near - Far);
 
-    glm::mat4 inv_perspective = glm::mat4{0.0f};
-    inv_perspective[0][0] = m_Aspect * halfPov;
-    inv_perspective[1][1] = halfPov;
-    inv_perspective[3][3] = 1.f / Near;
-    inv_perspective[3][2] = 1.f;
-    inv_perspective[2][3] = (Near - Far) / (Far * Near);
+    glm::mat4 invPerspective = glm::mat4{0.0f};
+    invPerspective[0][0] = m_Aspect * halfPov;
+    invPerspective[1][1] = halfPov;
+    invPerspective[3][3] = 1.f / Near;
+    invPerspective[3][2] = 1.f;
+    invPerspective[2][3] = (Near - Far) / (Far * Near);
 
-    m_Projection = perspective * Transform.CameraTransform();
-    m_InverseProjection = Transform.InverseCameraTransform() * inv_perspective;
-
-    if (m_YFlipped)
-        Transform.Scale.y = -Transform.Scale.y;
+    if (Transform.NeedsMatrixUpdate())
+        Transform.UpdateMatricesAsCamera();
+    m_Projection = perspective * Transform.GetGlobalTransform();
+    m_InverseProjection = Transform.ComputeInverseGlobalCameraTransform() * invPerspective;
 }
 
 void Perspective3D::SetAspectRatio(const f32 p_Aspect) noexcept

@@ -47,19 +47,19 @@ ONYX_DIMENSION_TEMPLATE void Line<N>::SetColor(const Color &p_Color) noexcept
 ONYX_DIMENSION_TEMPLATE void Line<N>::Draw(Window &p_Window) noexcept
 {
     RenderSystem *rs = p_Window.GetRenderSystem<N>(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-    ILine<N>::DefaultDraw(*rs, m_Model, m_Color, m_Transform.ModelTransform());
+    ILine<N>::DefaultDraw(*rs, m_Model, m_Color, m_Transform.GetGlobalTransform());
 }
 
 ONYX_DIMENSION_TEMPLATE void Line<N>::adaptTransform() noexcept
 {
-    m_Transform.Position = 0.5f * (m_P1 + m_P2);
+    m_Transform.SetPosition(0.5f * (m_P1 + m_P2));
 
     const vec<N> dir = m_P2 - m_P1;
     if constexpr (N == 2)
-        m_Transform.Rotation = glm::atan(dir.y, dir.x);
+        m_Transform.SetRotation(glm::atan(dir.y, dir.x));
     else // TODO: Check if this is correct
-        m_Transform.Rotation = quat{{0.f, glm::atan(dir.y, dir.x), glm::atan(dir.z, dir.x)}};
-    m_Transform.Scale.x = glm::length(dir);
+        m_Transform.SetRotation(quat{{0.f, glm::atan(dir.y, dir.x), glm::atan(dir.z, dir.x)}});
+    m_Transform.SetScaleX(glm::length(dir));
 }
 
 template class Line<2>;

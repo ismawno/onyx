@@ -7,7 +7,7 @@ namespace ONYX
 ONYX_DIMENSION_TEMPLATE Triangle<N>::Triangle(const vec<N> &p_Position, const Color &p_Color) noexcept
     : ModelShape<N>(Model::GetTriangle<N>(), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, p_Color)
 {
-    this->Transform.Position = p_Position;
+    this->Transform.SetPosition(p_Position);
 }
 
 ONYX_DIMENSION_TEMPLATE Triangle<N>::Triangle(const Color &p_Color) noexcept

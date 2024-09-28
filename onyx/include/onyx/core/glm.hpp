@@ -36,10 +36,12 @@ ONYX_DIMENSION_TEMPLATE struct RotType;
 template <> struct RotType<2>
 {
     using Type = f32;
+    static constexpr f32 Identity = 0.f;
 };
 template <> struct RotType<3>
 {
     using Type = quat;
+    static constexpr quat Identity = quat{1.f, 0.f, 0.f, 0.f};
 };
 
 ONYX_DIMENSION_TEMPLATE using rot = typename RotType<N>::Type;

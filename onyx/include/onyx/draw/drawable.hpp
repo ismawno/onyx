@@ -14,7 +14,7 @@ class ONYX_API IDrawable
     virtual ~IDrawable() = default;
     virtual void Draw(Window &p_Window) = 0;
 
-    static void DefaultDraw(RenderSystem &p_RenderSystem, const Model *p_Model, const vec4 &p_Color = vec4{1.f},
-                            const mat4 &p_Transform = mat4{1.f}) noexcept;
+    static void DefaultDraw(RenderSystem &p_RenderSystem, const Model *p_Model, const vec4 &p_Color,
+                            const mat4 &p_Transform) noexcept;
 };
 } // namespace ONYX
