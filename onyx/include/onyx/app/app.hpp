@@ -9,7 +9,7 @@
 namespace ONYX
 {
 class IDrawable;
-enum class MultiWindowFlow
+enum class WindowFlow
 {
     SERIAL = 0,
     CONCURRENT = 1
@@ -22,12 +22,12 @@ enum class MultiWindowFlow
 // serial mode process the event as any other for the corresponding window (for each layer. mark it as processed by
 // returning true)
 
-class IApplication
+class IMultiWindowApplication
 {
-    KIT_NON_COPYABLE(IApplication)
+    KIT_NON_COPYABLE(IMultiWindowApplication)
   public:
-    IApplication() = default;
-    virtual ~IApplication() noexcept;
+    IMultiWindowApplication() = default;
+    virtual ~IMultiWindowApplication() noexcept;
 
     template <std::derived_from<ICamera> T, typename... CameraArgs>
     Window *OpenWindow(const Window::Specs &p_Specs, CameraArgs &&...p_Args) noexcept
@@ -46,7 +46,7 @@ class IApplication
     usize GetWindowCount() const noexcept;
 
     f32 GetDeltaTime() const noexcept;
-    virtual MultiWindowFlow GetMultiWindowFlow() const noexcept = 0;
+    virtual WindowFlow GetWindowFlow() const noexcept = 0;
 
     virtual void Startup() noexcept;
     void Shutdown() noexcept;
@@ -93,29 +93,29 @@ class IApplication
 //  *can* be more efficient but requires the user to submit draw calls to a window from the same thread that created
 // the window
 
-template <MultiWindowFlow Flow = MultiWindowFlow::SERIAL> class ONYX_API Application;
+template <WindowFlow Flow = WindowFlow::SERIAL> class ONYX_API MultiWindowApplication;
 
-template <> class ONYX_API Application<MultiWindowFlow::SERIAL> final : public IApplication
+template <> class ONYX_API MultiWindowApplication<WindowFlow::SERIAL> final : public IMultiWindowApplication
 {
-    KIT_NON_COPYABLE(Application)
+    KIT_NON_COPYABLE(MultiWindowApplication)
   public:
-    using IApplication::IApplication;
+    using IMultiWindowApplication::IMultiWindowApplication;
     void Draw(Window &p_Window, usize p_WindowIndex = 0) noexcept;
     void CloseWindow(usize p_Index) noexcept override;
-    MultiWindowFlow GetMultiWindowFlow() const noexcept override;
+    WindowFlow GetWindowFlow() const noexcept override;
 
   private:
     Window *handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept override;
     void processWindows() noexcept override;
 };
 
-template <> class ONYX_API Application<MultiWindowFlow::CONCURRENT> final : public IApplication
+template <> class ONYX_API MultiWindowApplication<WindowFlow::CONCURRENT> final : public IMultiWindowApplication
 {
-    KIT_NON_COPYABLE(Application)
+    KIT_NON_COPYABLE(MultiWindowApplication)
   public:
-    using IApplication::IApplication;
+    using IMultiWindowApplication::IMultiWindowApplication;
     void CloseWindow(usize p_Index) noexcept override;
-    MultiWindowFlow GetMultiWindowFlow() const noexcept override;
+    WindowFlow GetWindowFlow() const noexcept override;
 
     void Startup() noexcept override;
 

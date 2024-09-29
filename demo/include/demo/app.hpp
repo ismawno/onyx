@@ -21,8 +21,8 @@ class DemoApplication
     void RunConcurrent() noexcept;
 
   private:
-    ONYX::Application<ONYX::MultiWindowFlow::SERIAL> m_SerialApplication;
-    ONYX::Application<ONYX::MultiWindowFlow::CONCURRENT> m_ConcurrentApplication;
+    ONYX::MultiWindowApplication<ONYX::WindowFlow::SERIAL> m_SerialApplication;
+    ONYX::MultiWindowApplication<ONYX::WindowFlow::CONCURRENT> m_ConcurrentApplication;
 
     KIT::ThreadPool<std::mutex> m_ThreadPool{7};
     KIT::StackAllocator m_Allocator{10_kb};

@@ -18,7 +18,7 @@ ExampleLayer::ExampleLayer() noexcept : Layer("Example")
 
 void ExampleLayer::OnRender(const usize p_WindowIndex) noexcept
 {
-    IApplication *app = GetApplication();
+    IMultiWindowApplication *app = GetApplication();
     for (const auto &drawable : m_WindowData[p_WindowIndex].Drawables)
         app->Draw(*drawable, p_WindowIndex);
 }
@@ -48,7 +48,7 @@ bool ExampleLayer::OnEvent(const usize, const Event &p_Event) noexcept
 
 void ExampleLayer::renderWindowSpawner() noexcept
 {
-    IApplication *app = GetApplication();
+    IMultiWindowApplication *app = GetApplication();
     static Window::Specs specs;
     static CameraType camera = ORTHOGRAPHIC2D;
     static f32 orthSize = 5.f;
@@ -112,7 +112,7 @@ ONYX_DIMENSION_TEMPLATE void ExampleLayer::renderObjectProperties(const usize p_
 
 void ExampleLayer::renderWindowController() noexcept
 {
-    IApplication *app = GetApplication();
+    IMultiWindowApplication *app = GetApplication();
     for (usize i = 0; i < app->GetWindowCount(); ++i)
     {
         const Window *window = app->GetWindow(i);

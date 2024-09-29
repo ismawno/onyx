@@ -7,7 +7,7 @@
 
 namespace ONYX
 {
-class IApplication;
+class IMultiWindowApplication;
 class Window;
 struct Event;
 class Layer
@@ -40,14 +40,14 @@ class Layer
 
     const char *GetName() const noexcept;
 
-    const IApplication *GetApplication() const noexcept;
-    IApplication *GetApplication() noexcept;
+    const IMultiWindowApplication *GetApplication() const noexcept;
+    IMultiWindowApplication *GetApplication() noexcept;
 
     bool Enabled = true;
 
   private:
     const char *m_Name = nullptr;
-    IApplication *m_Application = nullptr;
+    IMultiWindowApplication *m_Application = nullptr;
 
     friend class LayerSystem;
 };
@@ -56,7 +56,7 @@ class LayerSystem
 {
     KIT_NON_COPYABLE(LayerSystem)
   public:
-    LayerSystem(IApplication *p_Application) noexcept;
+    LayerSystem(IMultiWindowApplication *p_Application) noexcept;
 
     void OnStart() noexcept;
     void OnShutdown() noexcept;
@@ -102,9 +102,9 @@ class LayerSystem
     }
 
   private:
-    IApplication *m_Application;
+    IMultiWindowApplication *m_Application;
     DynamicArray<KIT::Scope<Layer>> m_Layers;
-    friend class IApplication;
+    friend class IMultiWindowApplication;
 };
 
 } // namespace ONYX

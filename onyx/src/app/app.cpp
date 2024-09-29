@@ -27,34 +27,34 @@ static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSyste
     processFrame(p_WindowIndex, p_Window, p_Layers, [](const VkCommandBuffer) {});
 }
 
-IApplication::~IApplication() noexcept
+IMultiWindowApplication::~IMultiWindowApplication() noexcept
 {
     if (!m_Terminated && m_Started)
         Shutdown();
 }
 
-void IApplication::Draw(IDrawable &p_Drawable, usize p_WindowIndex) noexcept
+void IMultiWindowApplication::Draw(IDrawable &p_Drawable, usize p_WindowIndex) noexcept
 {
     KIT_ASSERT(p_WindowIndex < m_Windows.size(), "Window index out of bounds");
     m_Windows[p_WindowIndex]->Draw(p_Drawable);
 }
 
-bool IApplication::Started() const noexcept
+bool IMultiWindowApplication::Started() const noexcept
 {
     return m_Started;
 }
-bool IApplication::Terminated() const noexcept
+bool IMultiWindowApplication::Terminated() const noexcept
 {
     return m_Terminated;
 }
 
-void IApplication::CloseAllWindows() noexcept
+void IMultiWindowApplication::CloseAllWindows() noexcept
 {
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         CloseWindow(i);
 }
 
-void IApplication::CloseWindow(const Window *p_Window) noexcept
+void IMultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
 {
     for (usize i = 0; i < m_Windows.size(); ++i)
         if (m_Windows[i].Get() == p_Window)
@@ -65,36 +65,36 @@ void IApplication::CloseWindow(const Window *p_Window) noexcept
     KIT_ERROR("Window was not found");
 }
 
-const Window *IApplication::GetWindow(const usize p_Index) const noexcept
+const Window *IMultiWindowApplication::GetWindow(const usize p_Index) const noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
     return m_Windows[p_Index].Get();
 }
-Window *IApplication::GetWindow(const usize p_Index) noexcept
+Window *IMultiWindowApplication::GetWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
     return m_Windows[p_Index].Get();
 }
-usize IApplication::GetWindowCount() const noexcept
+usize IMultiWindowApplication::GetWindowCount() const noexcept
 {
     return m_Windows.size();
 }
 
-f32 IApplication::GetDeltaTime() const noexcept
+f32 IMultiWindowApplication::GetDeltaTime() const noexcept
 {
     return m_DeltaTime.load(std::memory_order_relaxed);
 }
 
-void IApplication::Startup() noexcept
+void IMultiWindowApplication::Startup() noexcept
 {
-    KIT_ASSERT(!m_Terminated && !m_Started, "Application already started");
+    KIT_ASSERT(!m_Terminated && !m_Started, "MultiWindowApplication already started");
     m_Started = true;
     Layers.OnStart();
 }
 
-void IApplication::Shutdown() noexcept
+void IMultiWindowApplication::Shutdown() noexcept
 {
-    KIT_ASSERT(!m_Terminated && m_Started, "Application not started");
+    KIT_ASSERT(!m_Terminated && m_Started, "MultiWindowApplication not started");
     Layers.OnShutdown();
     CloseAllWindows(); // Should not be that necessary
     if (m_Device)
@@ -102,7 +102,7 @@ void IApplication::Shutdown() noexcept
     m_Terminated = true;
 }
 
-bool IApplication::NextFrame(KIT::Clock &p_Clock) noexcept
+bool IMultiWindowApplication::NextFrame(KIT::Clock &p_Clock) noexcept
 {
     m_DeltaTime.store(p_Clock.Restart().AsSeconds(), std::memory_order_relaxed);
     if (m_Windows.empty())
@@ -113,7 +113,7 @@ bool IApplication::NextFrame(KIT::Clock &p_Clock) noexcept
     return !m_Windows.empty();
 }
 
-void IApplication::Run() noexcept
+void IMultiWindowApplication::Run() noexcept
 {
     Startup();
     KIT::Clock clock;
@@ -122,14 +122,14 @@ void IApplication::Run() noexcept
     Shutdown();
 }
 
-void IApplication::beginRenderImGui() noexcept
+void IMultiWindowApplication::beginRenderImGui() noexcept
 {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
 
-void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
+void IMultiWindowApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
 {
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
@@ -141,7 +141,7 @@ void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
     m_Device->UnlockQueues();
 }
 
-void IApplication::createImGuiPool() noexcept
+void IMultiWindowApplication::createImGuiPool() noexcept
 {
     constexpr std::uint32_t poolSize = 100;
     VkDescriptorPoolSize poolSizes[11] = {{VK_DESCRIPTOR_TYPE_SAMPLER, poolSize},
@@ -167,7 +167,7 @@ void IApplication::createImGuiPool() noexcept
                        "Failed to create descriptor pool");
 }
 
-void IApplication::initializeImGui(Window &p_Window) noexcept
+void IMultiWindowApplication::initializeImGui(Window &p_Window) noexcept
 {
     if (!m_ImGuiPool)
         createImGuiPool();
@@ -201,7 +201,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     ImGui_ImplVulkan_CreateFontsTexture();
 }
 
-void IApplication::shutdownImGui() noexcept
+void IMultiWindowApplication::shutdownImGui() noexcept
 {
     m_Device->WaitIdle();
     ImGui_ImplVulkan_DestroyFontsTexture();
@@ -214,13 +214,13 @@ void IApplication::shutdownImGui() noexcept
 #endif
 }
 
-void Application<MultiWindowFlow::SERIAL>::Draw(Window &p_Window, usize p_WindowIndex) noexcept
+void MultiWindowApplication<WindowFlow::SERIAL>::Draw(Window &p_Window, usize p_WindowIndex) noexcept
 {
     KIT_ASSERT(p_WindowIndex < m_Windows.size(), "Window index out of bounds");
     m_Windows[p_WindowIndex]->Draw(p_Window);
 }
 
-void Application<MultiWindowFlow::SERIAL>::CloseWindow(const usize p_Index) noexcept
+void MultiWindowApplication<WindowFlow::SERIAL>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
     if (m_MainThreadProcessing)
@@ -239,12 +239,12 @@ void Application<MultiWindowFlow::SERIAL>::CloseWindow(const usize p_Index) noex
     }
 }
 
-MultiWindowFlow Application<MultiWindowFlow::SERIAL>::GetMultiWindowFlow() const noexcept
+WindowFlow MultiWindowApplication<WindowFlow::SERIAL>::GetWindowFlow() const noexcept
 {
-    return MultiWindowFlow::SERIAL;
+    return WindowFlow::SERIAL;
 }
 
-Window *Application<MultiWindowFlow::SERIAL>::handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept
+Window *MultiWindowApplication<WindowFlow::SERIAL>::handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
@@ -260,7 +260,7 @@ Window *Application<MultiWindowFlow::SERIAL>::handleWindowAddition(KIT::Scope<Wi
     return m_Windows.back().Get();
 }
 
-void Application<MultiWindowFlow::SERIAL>::processWindows() noexcept
+void MultiWindowApplication<WindowFlow::SERIAL>::processWindows() noexcept
 {
     m_MainThreadProcessing = true;
     processFrame(0, *m_Windows[0], Layers, [this](const VkCommandBuffer p_CommandBuffer) {
@@ -278,7 +278,7 @@ void Application<MultiWindowFlow::SERIAL>::processWindows() noexcept
             CloseWindow(i);
 }
 
-void Application<MultiWindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) noexcept
+void MultiWindowApplication<WindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
     if (m_MainThreadID != std::this_thread::get_id() || (p_Index == 0 && m_MainThreadProcessing))
@@ -313,28 +313,29 @@ void Application<MultiWindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) 
     }
 }
 
-MultiWindowFlow Application<MultiWindowFlow::CONCURRENT>::GetMultiWindowFlow() const noexcept
+WindowFlow MultiWindowApplication<WindowFlow::CONCURRENT>::GetWindowFlow() const noexcept
 {
-    return MultiWindowFlow::CONCURRENT;
+    return WindowFlow::CONCURRENT;
 }
 
-void Application<MultiWindowFlow::CONCURRENT>::Startup() noexcept
+void MultiWindowApplication<WindowFlow::CONCURRENT>::Startup() noexcept
 {
-    IApplication::Startup();
+    IMultiWindowApplication::Startup();
 
     KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (auto &task : m_Tasks)
         taskManager->SubmitTask(task);
 }
 
-KIT::Ref<KIT::Task<void>> Application<MultiWindowFlow::CONCURRENT>::createWindowTask(const usize p_WindowIndex) noexcept
+KIT::Ref<KIT::Task<void>> MultiWindowApplication<WindowFlow::CONCURRENT>::createWindowTask(
+    const usize p_WindowIndex) noexcept
 {
     const KIT::ITaskManager *taskManager = Core::GetTaskManager();
     return taskManager->CreateTask(
         [this, p_WindowIndex](usize) { processFrame(p_WindowIndex, *m_Windows[p_WindowIndex], Layers); });
 }
 
-Window *Application<MultiWindowFlow::CONCURRENT>::handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept
+Window *MultiWindowApplication<WindowFlow::CONCURRENT>::handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept
 {
     Window *windowPtr = p_Window.Get();
     m_Windows.push_back(std::move(p_Window));
@@ -365,7 +366,7 @@ Window *Application<MultiWindowFlow::CONCURRENT>::handleWindowAddition(KIT::Scop
     return windowPtr;
 }
 
-void Application<MultiWindowFlow::CONCURRENT>::processWindows() noexcept
+void MultiWindowApplication<WindowFlow::CONCURRENT>::processWindows() noexcept
 {
     KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (auto &task : m_Tasks)

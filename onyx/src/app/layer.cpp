@@ -12,16 +12,16 @@ const char *Layer::GetName() const noexcept
     return m_Name;
 }
 
-const IApplication *Layer::GetApplication() const noexcept
+const IMultiWindowApplication *Layer::GetApplication() const noexcept
 {
     return m_Application;
 }
-IApplication *Layer::GetApplication() noexcept
+IMultiWindowApplication *Layer::GetApplication() noexcept
 {
     return m_Application;
 }
 
-LayerSystem::LayerSystem(IApplication *p_Application) noexcept : m_Application(p_Application)
+LayerSystem::LayerSystem(IMultiWindowApplication *p_Application) noexcept : m_Application(p_Application)
 {
 }
 
