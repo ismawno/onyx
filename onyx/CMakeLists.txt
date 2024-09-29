@@ -30,6 +30,7 @@ set(SOURCES
     src/draw/primitives/rectangular_prism.cpp
     src/draw/primitives/triangle.cpp
     src/app/app.cpp
+    src/app/mwapp.cpp
     src/app/window.cpp
     src/app/input.cpp
     src/app/layer.cpp

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "onyx/app/mwapp.hpp"
 #include "onyx/app/layer.hpp"
 #include "onyx/draw/primitives/primitives.hpp"
 
@@ -22,7 +23,7 @@ struct WindowData
 class ExampleLayer final : public Layer
 {
   public:
-    ExampleLayer() noexcept;
+    ExampleLayer(IMultiWindowApplication *p_Application) noexcept;
 
     void OnRender(usize p_WindowIndex) noexcept override;
     void OnImGuiRender() noexcept override;
@@ -34,5 +35,6 @@ class ExampleLayer final : public Layer
     ONYX_DIMENSION_TEMPLATE void renderObjectProperties(usize p_WindowIndex) noexcept;
 
     DynamicArray<WindowData> m_WindowData;
+    IMultiWindowApplication *m_Application = nullptr;
 };
 } // namespace ONYX

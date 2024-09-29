@@ -7,8 +7,6 @@
 
 namespace ONYX
 {
-class IMultiWindowApplication;
-class Window;
 struct Event;
 class Layer
 {
@@ -23,6 +21,13 @@ class Layer
     {
     }
 
+    virtual void OnUpdate() noexcept
+    {
+    }
+    virtual void OnRender() noexcept
+    {
+    }
+
     virtual void OnUpdate(usize) noexcept
     {
     }
@@ -33,45 +38,45 @@ class Layer
     {
     }
 
+    virtual bool OnEvent(const Event &) noexcept
+    {
+        return false;
+    }
     virtual bool OnEvent(usize, const Event &) noexcept
     {
         return false;
     }
 
     const char *GetName() const noexcept;
-
-    const IMultiWindowApplication *GetApplication() const noexcept;
-    IMultiWindowApplication *GetApplication() noexcept;
-
     bool Enabled = true;
 
   private:
     const char *m_Name = nullptr;
-    IMultiWindowApplication *m_Application = nullptr;
-
-    friend class LayerSystem;
 };
 
 class LayerSystem
 {
     KIT_NON_COPYABLE(LayerSystem)
   public:
-    LayerSystem(IMultiWindowApplication *p_Application) noexcept;
+    LayerSystem() noexcept = default;
 
     void OnStart() noexcept;
     void OnShutdown() noexcept;
+
+    void OnUpdate() noexcept;
+    void OnRender() noexcept;
 
     // Window is also passed in update because it also acts as an identifier for the current window thread
     void OnUpdate(usize p_WindowIndex) noexcept;
     void OnRender(usize p_WindowIndex) noexcept;
     void OnImGuiRender() noexcept;
 
+    void OnEvent(const Event &p_Event) noexcept;
     void OnEvent(usize p_WindowIndex, const Event &p_Event) noexcept;
 
     template <std::derived_from<Layer> T, typename... LayerArgs> T *Push(LayerArgs &&...p_Args) noexcept
     {
         auto layer = KIT::Scope<T>::Create(std::forward<LayerArgs>(p_Args)...);
-        layer->m_Application = m_Application;
         T *ptr = layer.Get();
         m_Layers.push_back(std::move(layer));
         return ptr;
@@ -102,9 +107,7 @@ class LayerSystem
     }
 
   private:
-    IMultiWindowApplication *m_Application;
     DynamicArray<KIT::Scope<Layer>> m_Layers;
-    friend class IMultiWindowApplication;
 };
 
 } // namespace ONYX

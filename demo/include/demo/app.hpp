@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/app/app.hpp"
+#include "onyx/app/mwapp.hpp"
 #include "kit/memory/stack_allocator.hpp"
 #include "kit/multiprocessing/thread_pool.hpp"
 #include "kit/core/literals.hpp"

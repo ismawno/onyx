@@ -1,5 +1,5 @@
 #include "demo/layer.hpp"
-#include "onyx/app/app.hpp"
+#include "onyx/app/mwapp.hpp"
 #include "onyx/camera/orthographic.hpp"
 #include "onyx/camera/perspective.hpp"
 #include <imgui.h>
@@ -12,15 +12,15 @@ enum PrimitiveType : int
     RECTANGLE = 0
 };
 
-ExampleLayer::ExampleLayer() noexcept : Layer("Example")
+ExampleLayer::ExampleLayer(IMultiWindowApplication *p_Application) noexcept
+    : Layer("Example"), m_Application(p_Application)
 {
 }
 
 void ExampleLayer::OnRender(const usize p_WindowIndex) noexcept
 {
-    IMultiWindowApplication *app = GetApplication();
     for (const auto &drawable : m_WindowData[p_WindowIndex].Drawables)
-        app->Draw(*drawable, p_WindowIndex);
+        m_Application->Draw(*drawable, p_WindowIndex);
 }
 
 void ExampleLayer::OnImGuiRender() noexcept
@@ -48,7 +48,6 @@ bool ExampleLayer::OnEvent(const usize, const Event &p_Event) noexcept
 
 void ExampleLayer::renderWindowSpawner() noexcept
 {
-    IMultiWindowApplication *app = GetApplication();
     static Window::Specs specs;
     static CameraType camera = ORTHOGRAPHIC2D;
     static f32 orthSize = 5.f;
@@ -56,11 +55,11 @@ void ExampleLayer::renderWindowSpawner() noexcept
     if (ImGui::Button("Open GLFW window"))
     {
         if (camera == ORTHOGRAPHIC2D)
-            app->OpenWindow<Orthographic2D>(specs, orthSize);
+            m_Application->OpenWindow<Orthographic2D>(specs, orthSize);
         else if (camera == ORTHOGRAPHIC3D)
-            app->OpenWindow<Orthographic3D>(specs, orthSize);
+            m_Application->OpenWindow<Orthographic3D>(specs, orthSize);
         else if (camera == PERSPECTIVE3D)
-            app->OpenWindow<Perspective3D>(specs);
+            m_Application->OpenWindow<Perspective3D>(specs);
     }
 
     ImGui::Combo("Camera", (int *)&camera, "Orthographic2D\0Orthographic3D\0Perspective3D\0\0");
@@ -112,10 +111,9 @@ ONYX_DIMENSION_TEMPLATE void ExampleLayer::renderObjectProperties(const usize p_
 
 void ExampleLayer::renderWindowController() noexcept
 {
-    IMultiWindowApplication *app = GetApplication();
-    for (usize i = 0; i < app->GetWindowCount(); ++i)
+    for (usize i = 0; i < m_Application->GetWindowCount(); ++i)
     {
-        const Window *window = app->GetWindow(i);
+        const Window *window = m_Application->GetWindow(i);
         if (ImGui::TreeNode(window, "Window %zu", i))
         {
             ImGui::Text("2D Primitives");

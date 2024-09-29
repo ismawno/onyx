@@ -12,19 +12,6 @@ const char *Layer::GetName() const noexcept
     return m_Name;
 }
 
-const IMultiWindowApplication *Layer::GetApplication() const noexcept
-{
-    return m_Application;
-}
-IMultiWindowApplication *Layer::GetApplication() noexcept
-{
-    return m_Application;
-}
-
-LayerSystem::LayerSystem(IMultiWindowApplication *p_Application) noexcept : m_Application(p_Application)
-{
-}
-
 void LayerSystem::OnStart() noexcept
 {
     for (auto &layer : m_Layers)
@@ -36,6 +23,19 @@ void LayerSystem::OnShutdown() noexcept
     for (auto &layer : m_Layers)
         if (layer->Enabled)
             layer->OnShutdown();
+}
+
+void LayerSystem::OnUpdate() noexcept
+{
+    for (auto &layer : m_Layers)
+        if (layer->Enabled)
+            layer->OnUpdate();
+}
+void LayerSystem::OnRender() noexcept
+{
+    for (auto &layer : m_Layers)
+        if (layer->Enabled)
+            layer->OnRender();
 }
 
 void LayerSystem::OnUpdate(const usize p_WindowIndex) noexcept
@@ -55,6 +55,13 @@ void LayerSystem::OnImGuiRender() noexcept
     for (auto &layer : m_Layers)
         if (layer->Enabled)
             layer->OnImGuiRender();
+}
+
+void LayerSystem::OnEvent(const Event &p_Event) noexcept
+{
+    for (auto it = m_Layers.rbegin(); it != m_Layers.rend(); ++it)
+        if ((*it)->Enabled && (*it)->OnEvent(p_Event))
+            return;
 }
 
 void LayerSystem::OnEvent(const usize p_WindowIndex, const Event &p_Event) noexcept
