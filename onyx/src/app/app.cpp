@@ -304,7 +304,7 @@ void Application<MultiWindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) 
     else
         m_Tasks.erase(m_Tasks.begin() + p_Index - 1);
 
-    KIT::TaskManager *taskManager = Core::GetTaskManager();
+    KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (usize i = 0; i < m_Tasks.size(); ++i)
     {
         m_Tasks[i] = createWindowTask(i + 1);
@@ -322,14 +322,14 @@ void Application<MultiWindowFlow::CONCURRENT>::Startup() noexcept
 {
     IApplication::Startup();
 
-    KIT::TaskManager *taskManager = Core::GetTaskManager();
+    KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (auto &task : m_Tasks)
         taskManager->SubmitTask(task);
 }
 
 KIT::Ref<KIT::Task<void>> Application<MultiWindowFlow::CONCURRENT>::createWindowTask(const usize p_WindowIndex) noexcept
 {
-    const KIT::TaskManager *taskManager = Core::GetTaskManager();
+    const KIT::ITaskManager *taskManager = Core::GetTaskManager();
     return taskManager->CreateTask(
         [this, p_WindowIndex](usize) { processFrame(p_WindowIndex, *m_Windows[p_WindowIndex], Layers); });
 }
@@ -349,7 +349,7 @@ Window *Application<MultiWindowFlow::CONCURRENT>::handleWindowAddition(KIT::Scop
 
     if (m_Windows.size() > 1)
     {
-        KIT::TaskManager *taskManager = Core::GetTaskManager();
+        KIT::ITaskManager *taskManager = Core::GetTaskManager();
         auto &task = m_Tasks.emplace_back(createWindowTask(m_Windows.size() - 1));
         if (Started())
             taskManager->SubmitTask(task);
@@ -367,7 +367,7 @@ Window *Application<MultiWindowFlow::CONCURRENT>::handleWindowAddition(KIT::Scop
 
 void Application<MultiWindowFlow::CONCURRENT>::processWindows() noexcept
 {
-    KIT::TaskManager *taskManager = Core::GetTaskManager();
+    KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (auto &task : m_Tasks)
     {
         task->WaitUntilFinished();

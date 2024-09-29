@@ -8,7 +8,7 @@
 namespace KIT
 {
 class StackAllocator;
-class TaskManager;
+class ITaskManager;
 } // namespace KIT
 
 // This file handles the lifetime of global data the ONYX library needs, such as the Vulkan instance and device. To
@@ -21,11 +21,11 @@ namespace ONYX
 class Window;
 struct ONYX_API Core
 {
-    static void Initialize(KIT::StackAllocator *p_Allocator, KIT::TaskManager *p_Manager) noexcept;
+    static void Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept;
     static void Terminate() noexcept;
 
     static KIT::StackAllocator *GetStackAllocator() noexcept;
-    static KIT::TaskManager *GetTaskManager() noexcept;
+    static KIT::ITaskManager *GetTaskManager() noexcept;
 
     static const KIT::Ref<ONYX::Instance> &GetInstance() noexcept;
     static const KIT::Ref<ONYX::Device> &GetDevice() noexcept;

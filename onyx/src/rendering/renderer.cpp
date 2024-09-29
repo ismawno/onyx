@@ -75,7 +75,7 @@ void Renderer::EndFrame(Window &) noexcept
     KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
     KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
 
-    KIT::TaskManager *taskManager = Core::GetTaskManager();
+    KIT::ITaskManager *taskManager = Core::GetTaskManager();
 
     // TODO: Profile this task usage
     if (!m_PresentTask)

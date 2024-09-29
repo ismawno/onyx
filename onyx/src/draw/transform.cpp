@@ -134,6 +134,19 @@ ONYX_DIMENSION_TEMPLATE const vec<N> &ITransform<N>::GetOrigin() const noexcept
     return m_Origin;
 }
 
+ONYX_DIMENSION_TEMPLATE f32 *ITransform<N>::GetPositionPtr() noexcept
+{
+    return glm::value_ptr(m_Position);
+}
+ONYX_DIMENSION_TEMPLATE f32 *ITransform<N>::GetScalePtr() noexcept
+{
+    return glm::value_ptr(m_Scale);
+}
+ONYX_DIMENSION_TEMPLATE f32 *ITransform<N>::GetOriginPtr() noexcept
+{
+    return glm::value_ptr(m_Origin);
+}
+
 ONYX_DIMENSION_TEMPLATE const mat4 &ITransform<N>::GetLocalTransform() const noexcept
 {
     return m_LocalTransform;
@@ -265,9 +278,29 @@ ONYX_DIMENSION_TEMPLATE void ITransform<N>::UpdateMatricesAsCamera() noexcept
     m_GlobalTransform = m_LocalTransform * m_Parent->GetGlobalTransform();
 }
 
+ONYX_DIMENSION_TEMPLATE void ITransform<N>::UpdateMatricesAsModelForced() noexcept
+{
+    m_LocalTransform = computeModelTransform(m_Position, m_Scale, m_Origin, m_Rotation);
+    m_NeedsMatrixUpdate = false;
+    if (!m_Parent)
+        return;
+
+    m_Parent->UpdateMatricesAsModelForced();
+    m_GlobalTransform = m_Parent->GetGlobalTransform() * m_LocalTransform;
+}
+ONYX_DIMENSION_TEMPLATE void ITransform<N>::UpdateMatricesAsCameraForced() noexcept
+{
+    m_LocalTransform = computeCameraTransform(m_Position, m_Scale, m_Origin, m_Rotation);
+    m_NeedsMatrixUpdate = false;
+    if (!m_Parent)
+        return;
+
+    m_Parent->UpdateMatricesAsCameraForced();
+    m_GlobalTransform = m_Parent->GetGlobalTransform() * m_LocalTransform;
+}
+
 ONYX_DIMENSION_TEMPLATE void ITransform<N>::UpdateComponents() noexcept
 {
-    KIT_LOG_WARNING_IF(!m_NeedsComponentsUpdate, "Transform components are already up to date");
     m_NeedsComponentsUpdate = false;
     if constexpr (N == 2)
     {
@@ -292,140 +325,146 @@ ONYX_DIMENSION_TEMPLATE void ITransform<N>::UpdateComponents() noexcept
         m_Rotation = quat{angles};
         m_Position = vec3{m_LocalTransform[3]} + rotScale * m_Origin;
     }
+}
 
-    ONYX_DIMENSION_TEMPLATE bool ITransform<N>::NeedsMatrixUpdate() const noexcept
-    {
-        return m_NeedsMatrixUpdate || (m_Parent && m_Parent->NeedsMatrixUpdate());
-    }
-    ONYX_DIMENSION_TEMPLATE bool ITransform<N>::NeedsComponentsUpdate() const noexcept
-    {
-        return m_NeedsComponentsUpdate;
-    }
+ONYX_DIMENSION_TEMPLATE bool ITransform<N>::NeedsMatrixUpdate() const noexcept
+{
+    return m_NeedsMatrixUpdate || (m_Parent && m_Parent->NeedsMatrixUpdate());
+}
+ONYX_DIMENSION_TEMPLATE bool ITransform<N>::NeedsComponentsUpdate() const noexcept
+{
+    return m_NeedsComponentsUpdate;
+}
 
-    ONYX_DIMENSION_TEMPLATE vec<N> ITransform<N>::LocalOffset(const vec<N> &p_Offset) const noexcept
-    {
-        if constexpr (N == 2)
-            return Trigonometry<2>(m_Rotation).RotationMatrix() * p_Offset;
-        else
-            return m_Rotation * p_Offset;
-    }
+ONYX_DIMENSION_TEMPLATE vec<N> ITransform<N>::LocalOffset(const vec<N> &p_Offset) const noexcept
+{
+    if constexpr (N == 2)
+        return Trigonometry<2>(m_Rotation).RotationMatrix() * p_Offset;
+    else
+        return m_Rotation * p_Offset;
+}
 
-    ONYX_DIMENSION_TEMPLATE vec<N> ITransform<N>::LocalOffsetX(const f32 p_Offset) const noexcept
+ONYX_DIMENSION_TEMPLATE vec<N> ITransform<N>::LocalOffsetX(const f32 p_Offset) const noexcept
+{
+    if constexpr (N == 2)
     {
-        if constexpr (N == 2)
-        {
-            const auto [c, s] = Trigonometry<2>(m_Rotation);
-            return vec<N>(c * p_Offset, s * p_Offset);
-        }
-        else
-            return LocalOffset(vec3{p_Offset, 0.f, 0.f});
+        const auto [c, s] = Trigonometry<2>(m_Rotation);
+        return vec<N>(c * p_Offset, s * p_Offset);
     }
+    else
+        return LocalOffset(vec3{p_Offset, 0.f, 0.f});
+}
 
-    ONYX_DIMENSION_TEMPLATE vec<N> ITransform<N>::LocalOffsetY(const f32 p_Offset) const noexcept
+ONYX_DIMENSION_TEMPLATE vec<N> ITransform<N>::LocalOffsetY(const f32 p_Offset) const noexcept
+{
+    if constexpr (N == 2)
     {
-        if constexpr (N == 2)
-        {
-            const auto [c, s] = Trigonometry<2>(m_Rotation);
-            return vec<N>(-s * p_Offset, c * p_Offset);
-        }
-        else
-            return LocalOffset(vec3{0.f, p_Offset, 0.f});
+        const auto [c, s] = Trigonometry<2>(m_Rotation);
+        return vec<N>(-s * p_Offset, c * p_Offset);
     }
+    else
+        return LocalOffset(vec3{0.f, p_Offset, 0.f});
+}
 
-    f32 Transform<2>::GetRotation() const noexcept
-    {
-        return m_Rotation;
-    }
-    void Transform<2>::SetRotation(const f32 p_Rotation) noexcept
-    {
-        m_NeedsMatrixUpdate = true;
-        m_Rotation = p_Rotation;
-    }
+f32 Transform<2>::GetRotation() const noexcept
+{
+    return m_Rotation;
+}
+f32 *Transform<2>::GetRotationPtr() noexcept
+{
+    return &m_Rotation;
+}
 
-    const quat &Transform<3>::GetQuaternion() const noexcept
-    {
-        return m_Rotation;
-    }
-    vec3 Transform<3>::GetEulerAngles() const noexcept
-    {
-        return glm::eulerAngles(m_Rotation);
-    }
+void Transform<2>::SetRotation(const f32 p_Rotation) noexcept
+{
+    m_NeedsMatrixUpdate = true;
+    m_Rotation = p_Rotation;
+}
 
-    void Transform<3>::SetPositionZ(const f32 p_Position) noexcept
-    {
-        m_NeedsMatrixUpdate = true;
-        m_Position.z = p_Position;
-    }
-    void Transform<3>::SetScaleZ(const f32 p_Scale) noexcept
-    {
-        m_NeedsMatrixUpdate = true;
-        m_Scale.z = p_Scale;
-    }
-    void Transform<3>::SetOriginZ(const f32 p_Origin) noexcept
-    {
-        m_NeedsMatrixUpdate = true;
-        m_Origin.z = p_Origin;
-    }
+const quat &Transform<3>::GetQuaternion() const noexcept
+{
+    return m_Rotation;
+}
+vec3 Transform<3>::GetEulerAngles() const noexcept
+{
+    return glm::eulerAngles(m_Rotation);
+}
 
-    void Transform<3>::SetRotation(const quat &p_Rotation) noexcept
-    {
-        m_NeedsMatrixUpdate = true;
-        m_Rotation = p_Rotation;
-    }
-    void Transform<3>::SetRotation(const vec3 &p_Angles) noexcept
-    {
-        m_NeedsMatrixUpdate = true;
-        m_Rotation = glm::quat(p_Angles);
-    }
+void Transform<3>::SetPositionZ(const f32 p_Position) noexcept
+{
+    m_NeedsMatrixUpdate = true;
+    m_Position.z = p_Position;
+}
+void Transform<3>::SetScaleZ(const f32 p_Scale) noexcept
+{
+    m_NeedsMatrixUpdate = true;
+    m_Scale.z = p_Scale;
+}
+void Transform<3>::SetOriginZ(const f32 p_Origin) noexcept
+{
+    m_NeedsMatrixUpdate = true;
+    m_Origin.z = p_Origin;
+}
 
-    vec3 Transform<3>::LocalOffsetZ(const f32 p_Offset) const noexcept
-    {
-        return LocalOffset(vec3{0.f, 0.f, p_Offset});
-    }
+void Transform<3>::SetRotation(const quat &p_Rotation) noexcept
+{
+    m_NeedsMatrixUpdate = true;
+    m_Rotation = p_Rotation;
+}
+void Transform<3>::SetRotation(const vec3 &p_Angles) noexcept
+{
+    m_NeedsMatrixUpdate = true;
+    m_Rotation = glm::quat(p_Angles);
+}
 
-    void Transform<3>::RotateLocalAxis(const quat &p_Rotation) noexcept
-    {
-        m_Rotation = glm::normalize(m_Rotation * p_Rotation);
-    }
-    void Transform<3>::RotateLocalAxis(const vec3 &p_Angles) noexcept
-    {
-        RotateLocalAxis(glm::quat(p_Angles));
-    }
-    void Transform<3>::RotateLocalAxisX(const f32 p_Angle) noexcept
-    {
-        RotateLocalAxis(glm::angleAxis(p_Angle, vec3{1.f, 0.f, 0.f}));
-    }
-    void Transform<3>::RotateLocalAxisY(const f32 p_Angle) noexcept
-    {
-        RotateLocalAxis(glm::angleAxis(p_Angle, vec3{0.f, 1.f, 0.f}));
-    }
-    void Transform<3>::RotateLocalAxisZ(const f32 p_Angle) noexcept
-    {
-        RotateLocalAxis(glm::angleAxis(p_Angle, vec3{0.f, 0.f, 1.f}));
-    }
+vec3 Transform<3>::LocalOffsetZ(const f32 p_Offset) const noexcept
+{
+    return LocalOffset(vec3{0.f, 0.f, p_Offset});
+}
 
-    void Transform<3>::RotateGlobalAxis(const quat &p_Rotation) noexcept
-    {
-        m_Rotation = glm::normalize(p_Rotation * m_Rotation);
-    }
-    void Transform<3>::RotateGlobalAxis(const vec3 &p_Angles) noexcept
-    {
-        RotateGlobalAxis(glm::quat(p_Angles));
-    }
-    void Transform<3>::RotateGlobalAxisX(const f32 p_Angle) noexcept
-    {
-        RotateGlobalAxis(glm::angleAxis(p_Angle, vec3{1.f, 0.f, 0.f}));
-    }
-    void Transform<3>::RotateGlobalAxisY(const f32 p_Angle) noexcept
-    {
-        RotateGlobalAxis(glm::angleAxis(p_Angle, vec3{0.f, 1.f, 0.f}));
-    }
-    void Transform<3>::RotateGlobalAxisZ(const f32 p_Angle) noexcept
-    {
-        RotateGlobalAxis(glm::angleAxis(p_Angle, vec3{0.f, 0.f, 1.f}));
-    }
+void Transform<3>::RotateLocalAxis(const quat &p_Rotation) noexcept
+{
+    m_Rotation = glm::normalize(m_Rotation * p_Rotation);
+}
+void Transform<3>::RotateLocalAxis(const vec3 &p_Angles) noexcept
+{
+    RotateLocalAxis(glm::quat(p_Angles));
+}
+void Transform<3>::RotateLocalAxisX(const f32 p_Angle) noexcept
+{
+    RotateLocalAxis(glm::angleAxis(p_Angle, vec3{1.f, 0.f, 0.f}));
+}
+void Transform<3>::RotateLocalAxisY(const f32 p_Angle) noexcept
+{
+    RotateLocalAxis(glm::angleAxis(p_Angle, vec3{0.f, 1.f, 0.f}));
+}
+void Transform<3>::RotateLocalAxisZ(const f32 p_Angle) noexcept
+{
+    RotateLocalAxis(glm::angleAxis(p_Angle, vec3{0.f, 0.f, 1.f}));
+}
 
-    template class ITransform<2>;
-    template class ITransform<3>;
+void Transform<3>::RotateGlobalAxis(const quat &p_Rotation) noexcept
+{
+    m_Rotation = glm::normalize(p_Rotation * m_Rotation);
+}
+void Transform<3>::RotateGlobalAxis(const vec3 &p_Angles) noexcept
+{
+    RotateGlobalAxis(glm::quat(p_Angles));
+}
+void Transform<3>::RotateGlobalAxisX(const f32 p_Angle) noexcept
+{
+    RotateGlobalAxis(glm::angleAxis(p_Angle, vec3{1.f, 0.f, 0.f}));
+}
+void Transform<3>::RotateGlobalAxisY(const f32 p_Angle) noexcept
+{
+    RotateGlobalAxis(glm::angleAxis(p_Angle, vec3{0.f, 1.f, 0.f}));
+}
+void Transform<3>::RotateGlobalAxisZ(const f32 p_Angle) noexcept
+{
+    RotateGlobalAxis(glm::angleAxis(p_Angle, vec3{0.f, 0.f, 1.f}));
+}
+
+template class ITransform<2>;
+template class ITransform<3>;
 
 } // namespace ONYX

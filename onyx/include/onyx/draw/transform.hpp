@@ -13,6 +13,10 @@ ONYX_DIMENSION_TEMPLATE class ITransform
     const vec<N> &GetScale() const noexcept;
     const vec<N> &GetOrigin() const noexcept;
 
+    f32 *GetPositionPtr() noexcept;
+    f32 *GetScalePtr() noexcept;
+    f32 *GetOriginPtr() noexcept;
+
     const mat4 &GetLocalTransform() const noexcept;
     const mat4 &GetGlobalTransform() const noexcept;
 
@@ -45,6 +49,9 @@ ONYX_DIMENSION_TEMPLATE class ITransform
     void UpdateMatricesAsModel() noexcept;
     void UpdateMatricesAsCamera() noexcept;
 
+    void UpdateMatricesAsModelForced() noexcept;
+    void UpdateMatricesAsCameraForced() noexcept;
+
     // The origins do have to match for consistency
     void UpdateComponents() noexcept;
 
@@ -76,6 +83,8 @@ template <> class ONYX_API Transform<2> final : public ITransform<2>
 {
   public:
     f32 GetRotation() const noexcept;
+    f32 *GetRotationPtr() noexcept;
+
     void SetRotation(f32 p_Rotation) noexcept;
 };
 

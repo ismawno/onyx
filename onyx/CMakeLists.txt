@@ -181,6 +181,7 @@ if (ONYX_USE_IMPLOT)
     target_compile_definitions(implot PUBLIC ONYX_ENABLE_IMPLOT)
     target_include_directories(implot PUBLIC ${IMPLOT_DIR})
     target_link_libraries(implot PUBLIC imgui)
+    target_link_libraries(onyx PUBLIC implot)
 
 endif()
 
@@ -209,11 +210,12 @@ if (ONYX_USE_IMGUIZMO)
     target_compile_definitions(imguizmo PUBLIC ONYX_ENABLE_IMGUIZMO)
     target_include_directories(imguizmo PUBLIC ${IMGUIZMO_DIR})
     target_link_libraries(imguizmo PUBLIC imgui)
+    target_link_libraries(onyx PUBLIC imguizmo)
 
 endif()
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(onyx PUBLIC toolkit glm imgui implot VulkanMemoryAllocator)
+target_link_libraries(onyx PUBLIC toolkit glm imgui VulkanMemoryAllocator)
 
 target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/core/pch.hpp)
 

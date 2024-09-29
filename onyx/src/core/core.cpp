@@ -10,7 +10,7 @@
 namespace ONYX
 {
 static KIT::StackAllocator *s_StackAllocator;
-static KIT::TaskManager *s_Manager;
+static KIT::ITaskManager *s_Manager;
 
 static KIT::Ref<ONYX::Instance> s_Instance;
 static KIT::Ref<ONYX::Device> s_Device;
@@ -34,7 +34,7 @@ static void createVulkanAllocator() noexcept
                        "Failed to create vulkan allocator");
 }
 
-void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::TaskManager *p_Manager) noexcept
+void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept
 {
     KIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "Failed to initialize GLFW");
 
@@ -90,7 +90,7 @@ KIT::StackAllocator *Core::GetStackAllocator() noexcept
 {
     return s_StackAllocator;
 }
-KIT::TaskManager *Core::GetTaskManager() noexcept
+KIT::ITaskManager *Core::GetTaskManager() noexcept
 {
     return s_Manager;
 }
