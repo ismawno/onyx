@@ -1,5 +1,5 @@
-#include "demo/app.hpp"
-#include "demo/layer.hpp"
+#include "mwdemo/app.hpp"
+#include "mwdemo/layer.hpp"
 #include "onyx/camera/orthographic.hpp"
 
 namespace ONYX

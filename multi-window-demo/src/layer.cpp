@@ -1,4 +1,4 @@
-#include "demo/layer.hpp"
+#include "mwdemo/layer.hpp"
 #include "onyx/app/mwapp.hpp"
 #include "onyx/camera/orthographic.hpp"
 #include "onyx/camera/perspective.hpp"

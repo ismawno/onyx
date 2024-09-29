@@ -1,4 +1,4 @@
-#include "demo/app.hpp"
+#include "mwdemo/app.hpp"
 
 int main()
 {
