@@ -10,7 +10,6 @@ namespace ONYX
 template <typename F>
 static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSystem &p_Layers, F &&p_Submission) noexcept
 {
-    p_Window.MakeContextCurrent();
     for (const Event &event : p_Window.GetNewEvents())
         p_Layers.OnEvent(p_WindowIndex, event);
     p_Window.FlushEvents();

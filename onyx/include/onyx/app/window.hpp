@@ -68,7 +68,6 @@ class ONYX_API Window
     void Draw(IDrawable &p_Drawable) noexcept;
     void Draw(Window &p_Window) noexcept;
 
-    void MakeContextCurrent() const noexcept;
     bool ShouldClose() const noexcept;
 
     template <std::derived_from<ICamera> T = ICamera> const T *GetCamera() const noexcept

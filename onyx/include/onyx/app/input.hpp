@@ -156,7 +156,7 @@ struct ONYX_API Input
         BUTTON_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE
     };
 
-    static vec2 GetMousePosition(Window *p_Window = nullptr) noexcept;
+    static vec2 GetMousePosition(Window *p_Window) noexcept;
     static bool IsKeyPressed(Key p_Key) noexcept;
     static bool IsKeyReleased(Key p_Key) noexcept;
     static bool IsMouseButtonPressed(Mouse p_Button) noexcept;

@@ -19,7 +19,7 @@ void Input::PollEvents()
 
 vec2 Input::GetMousePosition(Window *p_Window) noexcept
 {
-    GLFWwindow *window = p_Window ? p_Window->GetWindow() : glfwGetCurrentContext();
+    GLFWwindow *window = p_Window->GetWindow();
     double xPos, yPos;
     glfwGetCursorPos(window, &xPos, &yPos);
     return {2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,

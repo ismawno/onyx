@@ -213,11 +213,6 @@ bool Window::Display() noexcept
     return Display([](const VkCommandBuffer) {});
 }
 
-void Window::MakeContextCurrent() const noexcept
-{
-    glfwMakeContextCurrent(m_Window);
-}
-
 bool Window::ShouldClose() const noexcept
 {
     return glfwWindowShouldClose(m_Window);

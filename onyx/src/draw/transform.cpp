@@ -208,6 +208,7 @@ vec3 Transform<3>::GetEulerAngles() const noexcept
 void Transform<3>::SetEulerAngles(const vec3 &p_Angles) noexcept
 {
     Rotation = glm::quat(p_Angles);
+    Rotation = glm::normalize(Rotation);
 }
 
 vec3 Transform<3>::LocalOffsetZ(const f32 p_Offset) const noexcept
