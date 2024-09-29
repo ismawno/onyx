@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 project(onyx-demo)
 
 set(SOURCES
+    src/layer.cpp
+    src/app.cpp
     src/main.cpp
 )
 

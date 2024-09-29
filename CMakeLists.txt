@@ -24,6 +24,9 @@ else()
     option(ONYX_BUILD_DEMO "Build the demo" ON)
 endif()
 
+option(ONYX_USE_IMPLOT "Use ImPlot for plotting" OFF)
+option(ONYX_USE_IMGUIZMO "Use ImGuizmo for gizmos" OFF)
+
 # Compiler flags, linker flags etcetera, those should all be handled when making available the toolkit library through the global CMAKE flag variables
 add_subdirectory(onyx)
 
