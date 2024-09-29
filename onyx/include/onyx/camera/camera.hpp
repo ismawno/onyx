@@ -12,15 +12,10 @@ class ICamera ONYX_API
   public:
     virtual ~ICamera() = default;
 
-    virtual void UpdateMatrices() noexcept = 0;
     virtual void SetAspectRatio(f32 p_Aspect) noexcept = 0;
 
-    const mat4 &GetProjection() const noexcept;
-    const mat4 &GetInverseProjection() const noexcept;
-
-  protected:
-    mat4 m_Projection{1.f};
-    mat4 m_InverseProjection{1.f};
+    virtual mat4 ComputeProjectionView() const noexcept = 0;
+    virtual mat4 ComputeInverseProjectionView() const noexcept = 0;
 };
 
 ONYX_DIMENSION_TEMPLATE class ONYX_API Camera : public ICamera

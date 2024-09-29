@@ -23,9 +23,7 @@ ONYX_DIMENSION_TEMPLATE void ModelShape<N>::SetColor(const ONYX::Color &p_Color)
 ONYX_DIMENSION_TEMPLATE void ModelShape<N>::Draw(Window &p_Window) noexcept
 {
     RenderSystem *rs = p_Window.GetRenderSystem<N>(m_Topology);
-    if (this->Transform.NeedsMatrixUpdate())
-        this->Transform.UpdateMatricesAsModel();
-    IShape<N>::DefaultDraw(*rs, m_Model, GetColor(), this->Transform.GetGlobalTransform());
+    IShape<N>::DefaultDraw(*rs, m_Model, GetColor(), this->Transform.ComputeModelTransform());
 }
 
 template class ModelShape<2>;

@@ -10,7 +10,8 @@ ONYX_DIMENSION_TEMPLATE class Orthographic final : public Camera<N>
     using Camera<N>::Camera;
     Orthographic(f32 p_Size, f32 p_Aspect = ONYX_DEFAULT_ASPECT) noexcept;
 
-    void UpdateMatrices() noexcept override;
+    mat4 ComputeProjectionView() const noexcept override;
+    mat4 ComputeInverseProjectionView() const noexcept override;
 
     f32 GetSize() const noexcept;
     void SetSize(f32 p_Size) noexcept;

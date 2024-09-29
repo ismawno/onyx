@@ -8,28 +8,30 @@ Perspective3D::Perspective3D(const f32 p_Aspect, const f32 p_FieldOfView, const 
 {
 }
 
-void Perspective3D::UpdateMatrices() noexcept
+mat4 Perspective3D::ComputeProjectionView() const noexcept
 {
     const f32 halfPov = glm::tan(0.5f * FieldOfView);
 
-    glm::mat4 perspective = glm::mat4{0.0f};
+    mat4 perspective{0.f};
     perspective[0][0] = 1.f / (m_Aspect * halfPov);
     perspective[1][1] = 1.f / halfPov;
     perspective[2][2] = Far / (Far - Near);
     perspective[2][3] = 1.f;
     perspective[3][2] = Far * Near / (Near - Far);
+    return perspective * Transform.ComputeViewTransform();
+}
 
-    glm::mat4 invPerspective = glm::mat4{0.0f};
+mat4 Perspective3D::ComputeInverseProjectionView() const noexcept
+{
+    const f32 halfPov = glm::tan(0.5f * FieldOfView);
+
+    mat4 invPerspective{0.f};
     invPerspective[0][0] = m_Aspect * halfPov;
     invPerspective[1][1] = halfPov;
     invPerspective[3][3] = 1.f / Near;
     invPerspective[3][2] = 1.f;
     invPerspective[2][3] = (Near - Far) / (Far * Near);
-
-    if (Transform.NeedsMatrixUpdate())
-        Transform.UpdateMatricesAsCamera();
-    m_Projection = perspective * Transform.GetGlobalTransform();
-    m_InverseProjection = Transform.ComputeInverseGlobalCameraTransform() * invPerspective;
+    return Transform.ComputeInverseViewTransform() * invPerspective;
 }
 
 void Perspective3D::SetAspectRatio(const f32 p_Aspect) noexcept

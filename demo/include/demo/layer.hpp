@@ -5,6 +5,20 @@
 
 namespace ONYX
 {
+enum CameraType : int
+{
+    ORTHOGRAPHIC2D = 0,
+    ORTHOGRAPHIC3D,
+    PERSPECTIVE3D
+};
+
+struct WindowData
+{
+    WindowData() noexcept = default;
+    DynamicArray<KIT::Scope<ONYX::IDrawable>> Drawables;
+    CameraType Camera;
+};
+
 class ExampleLayer final : public Layer
 {
   public:
@@ -19,7 +33,6 @@ class ExampleLayer final : public Layer
     void renderWindowController() noexcept;
     ONYX_DIMENSION_TEMPLATE void renderObjectProperties(usize p_WindowIndex) noexcept;
 
-    // This is awful. But its also a demo
-    DynamicArray<DynamicArray<KIT::Scope<ONYX::IDrawable>>> m_DrawObjects;
+    DynamicArray<WindowData> m_WindowData;
 };
 } // namespace ONYX

@@ -9,7 +9,7 @@ ONYX_DIMENSION_TEMPLATE RegularPolygon<N>::RegularPolygon(u32 p_Sides, const vec
                                                           const Color &p_Color) noexcept
     : ModelShape<N>(Model::GetRegularPolygon<N>(p_Sides), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, p_Color)
 {
-    this->Transform.SetPosition(p_Position);
+    this->Transform.Position = p_Position;
 }
 
 ONYX_DIMENSION_TEMPLATE RegularPolygon<N>::RegularPolygon(u32 p_Sides, const Color &p_Color) noexcept
@@ -49,8 +49,7 @@ ONYX_DIMENSION_TEMPLATE void MutablePolygon<N>::SetColor(const Color &p_Color) n
 ONYX_DIMENSION_TEMPLATE void MutablePolygon<N>::Draw(Window &p_Window) noexcept
 {
     RenderSystem *renderSystem = p_Window.GetRenderSystem<N>(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    if (this->Transform.NeedsMatrixUpdate())
-        this->Transform.UpdateMatricesAsModel();
+    this->Transform.UpdateMatricesAsModelIfNeeded();
     IShape<N>::DefaultDraw(*renderSystem, m_Model, m_Color, this->Transform.GetGlobalTransform());
 }
 

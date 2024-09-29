@@ -14,7 +14,9 @@ class ONYX_API Perspective3D final : public Camera<3>
     f32 Far;
     f32 FieldOfView;
 
-    void UpdateMatrices() noexcept override;
+    mat4 ComputeProjectionView() const noexcept override;
+    mat4 ComputeInverseProjectionView() const noexcept override;
+
     void SetAspectRatio(f32 p_Aspect) noexcept override;
 
   private:

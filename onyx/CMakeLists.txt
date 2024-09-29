@@ -161,7 +161,7 @@ target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 ### IMPLOT ###
 
-if (ONYX_USE_IMPLOT)
+if (ONYX_USE_IMPLOT OR ONYX_BUILD_DEMO)
     FetchContent_Declare(
         implot
         GIT_REPOSITORY https://github.com/epezent/implot.git
@@ -174,6 +174,7 @@ if (ONYX_USE_IMPLOT)
     set(IMPLOT_SOURCES
         ${IMPLOT_DIR}/implot.cpp
         ${IMPLOT_DIR}/implot_items.cpp
+        ${IMPLOT_DIR}/implot_demo.cpp
     )
 
     add_library(implot STATIC ${IMPLOT_SOURCES})
@@ -187,11 +188,11 @@ endif()
 
 ### IMGUIZMO ###
 
-if (ONYX_USE_IMGUIZMO)
+if (ONYX_USE_IMGUIZMO OR ONYX_BUILD_DEMO)
     FetchContent_Declare(
         imguizmo
         GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
-        GIT_TAG 1.83
+        GIT_TAG master
     )
     FetchContent_MakeAvailable(imguizmo)
 

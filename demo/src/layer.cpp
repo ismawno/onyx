@@ -3,16 +3,10 @@
 #include "onyx/camera/orthographic.hpp"
 #include "onyx/camera/perspective.hpp"
 #include <imgui.h>
+#include <implot.h>
 
 namespace ONYX
 {
-enum CameraType : int
-{
-    ORTHOGRAPHIC2D = 0,
-    ORTHOGRAPHIC3D,
-    PERSPECTIVE3D
-};
-
 enum PrimitiveType : int
 {
     RECTANGLE = 0
@@ -25,12 +19,14 @@ ExampleLayer::ExampleLayer() noexcept : Layer("Example")
 void ExampleLayer::OnRender(const usize p_WindowIndex) noexcept
 {
     IApplication *app = GetApplication();
-    for (const auto &drawable : m_DrawObjects[p_WindowIndex])
+    for (const auto &drawable : m_WindowData[p_WindowIndex].Drawables)
         app->Draw(*drawable, p_WindowIndex);
 }
 
 void ExampleLayer::OnImGuiRender() noexcept
 {
+    ImGui::ShowDemoWindow();
+    ImPlot::ShowDemoWindow();
     if (ImGui::Begin("Window spawner"))
         renderWindowSpawner();
     ImGui::End();
@@ -44,7 +40,7 @@ bool ExampleLayer::OnEvent(const usize, const Event &p_Event) noexcept
 {
     if (p_Event.Type == Event::WINDOW_OPENED)
     {
-        m_DrawObjects.emplace_back();
+        m_WindowData.emplace_back();
         return true;
     }
     return false;
@@ -76,43 +72,33 @@ void ExampleLayer::renderWindowSpawner() noexcept
 
 ONYX_DIMENSION_TEMPLATE static void renderTransform(Transform<N> &p_Transform) noexcept
 {
-    bool modified = false;
     if constexpr (N == 2)
     {
-        modified |= ImGui::DragFloat2("Position", p_Transform.GetPositionPtr(), 0.1f);
-        modified |= ImGui::DragFloat2("Scale", p_Transform.GetScalePtr(), 0.1f);
-        modified |= ImGui::DragFloat2("Origin", p_Transform.GetOriginPtr(), 0.1f);
-        modified |= ImGui::DragFloat("Rotation", p_Transform.GetRotationPtr(), 0.1f);
+        ImGui::DragFloat2("Position", glm::value_ptr(p_Transform.Position), 0.1f);
+        ImGui::DragFloat2("Scale", glm::value_ptr(p_Transform.Scale), 0.1f);
+        ImGui::DragFloat2("Origin", glm::value_ptr(p_Transform.Origin), 0.1f);
+        ImGui::DragFloat("Rotation", &p_Transform.Rotation, 0.1f);
     }
     else
     {
-        modified |= ImGui::DragFloat3("Position", p_Transform.GetPositionPtr());
-        modified |= ImGui::DragFloat3("Scale", p_Transform.GetScalePtr());
-        modified |= ImGui::DragFloat3("Origin", p_Transform.GetOriginPtr());
+        ImGui::DragFloat3("Position", glm::value_ptr(p_Transform.Position));
+        ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale));
+        ImGui::DragFloat3("Origin", glm::value_ptr(p_Transform.Origin));
     }
-    if (modified)
-        p_Transform.UpdateMatricesAsModelForced();
 }
 
 ONYX_DIMENSION_TEMPLATE void ExampleLayer::renderObjectProperties(const usize p_WindowIndex) noexcept
 {
-    static Transform<N> transform;
     static PrimitiveType ptype = RECTANGLE;
     if (ImGui::Button("Spawn"))
     {
         if (ptype == RECTANGLE)
-        {
-            auto rect = KIT::Scope<ONYX::Rectangle<N>>::Create();
-            rect->Transform = transform;
-            m_DrawObjects[p_WindowIndex].emplace_back(std::move(rect));
-        }
+            m_WindowData[p_WindowIndex].Drawables.emplace_back(KIT::Scope<ONYX::Rectangle<N>>::Create());
     }
     ImGui::Combo("Primitive", (int *)&ptype, "Rectangle\0\0");
-    ImGui::Text("Transform: ");
-    renderTransform(transform);
     if (ImGui::TreeNode("Active primitives"))
     {
-        for (const auto &drawable : m_DrawObjects[p_WindowIndex])
+        for (const auto &drawable : m_WindowData[p_WindowIndex].Drawables)
         {
             // This is awful. It is also a demo
             IShape<N> *shape = dynamic_cast<IShape<N> *>(drawable.Get());
