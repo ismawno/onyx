@@ -19,6 +19,8 @@ class ONYX_API Perspective3D final : public Camera<3>
 
     void SetAspectRatio(f32 p_Aspect) noexcept override;
 
+    bool IsOrthographic() const noexcept override;
+
   private:
     f32 m_Aspect;
 };

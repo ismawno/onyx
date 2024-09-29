@@ -16,6 +16,9 @@ class ICamera ONYX_API
 
     virtual mat4 ComputeProjectionView() const noexcept = 0;
     virtual mat4 ComputeInverseProjectionView() const noexcept = 0;
+
+    // This is a very unfortunate virtual method
+    virtual bool IsOrthographic() const noexcept = 0;
 };
 
 ONYX_DIMENSION_TEMPLATE class ONYX_API Camera : public ICamera

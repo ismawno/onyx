@@ -15,6 +15,8 @@ ONYX_DIMENSION_TEMPLATE class Orthographic final : public Camera<N>
 
     f32 GetSize() const noexcept;
     void SetSize(f32 p_Size) noexcept;
+
+    bool IsOrthographic() const noexcept override;
 };
 
 using Orthographic2D = Orthographic<2>;

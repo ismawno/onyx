@@ -26,19 +26,19 @@ static bool checkDeviceExtensionSupport(const VkPhysicalDevice p_Device) noexcep
     DynamicArray<VkExtensionProperties> extensions(extensionCount);
     vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, extensions.data());
 
-    KIT_LOG_INFO("Available device extensions:");
+    // KIT_LOG_INFO("Available device extensions:");
     HashSet<std::string> availableExtensions;
     for (const auto &extension : extensions)
     {
-        KIT_LOG_INFO("  {}", extension.extensionName);
+        // KIT_LOG_INFO("  {}", extension.extensionName);
         availableExtensions.insert(extension.extensionName);
     }
 
-    KIT_LOG_INFO("Required device extensions:");
+    // KIT_LOG_INFO("Required device extensions:");
     bool contained = true;
     for (const auto &extension : s_DeviceExtensions)
     {
-        KIT_LOG_INFO("  {}", extension);
+        // KIT_LOG_INFO("  {}", extension);
         contained &= availableExtensions.contains(extension);
     }
 

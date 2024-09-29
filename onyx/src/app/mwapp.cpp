@@ -65,6 +65,16 @@ Window *IMultiWindowApplication::GetWindow(const usize p_Index) noexcept
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
     return m_Windows[p_Index].Get();
 }
+
+const Window *IMultiWindowApplication::GetMainWindow() const noexcept
+{
+    return GetWindow(0);
+}
+Window *IMultiWindowApplication::GetMainWindow() noexcept
+{
+    return GetWindow(0);
+}
+
 usize IMultiWindowApplication::GetWindowCount() const noexcept
 {
     return m_Windows.size();
@@ -73,12 +83,6 @@ usize IMultiWindowApplication::GetWindowCount() const noexcept
 f32 IMultiWindowApplication::GetDeltaTime() const noexcept
 {
     return m_DeltaTime.load(std::memory_order_relaxed);
-}
-
-void IMultiWindowApplication::Shutdown() noexcept
-{
-    IApplication::Shutdown();
-    CloseAllWindows(); // Should not be that necessary
 }
 
 bool IMultiWindowApplication::NextFrame(KIT::Clock &p_Clock) noexcept
@@ -180,7 +184,7 @@ void MultiWindowApplication<WindowFlow::CONCURRENT>::CloseWindow(const usize p_I
     for (usize i = 0; i < m_Tasks.size(); ++i)
     {
         m_Tasks[i] = createWindowTask(i + 1);
-        if (IsStarted())
+        if (IsRunning())
             taskManager->SubmitTask(m_Tasks[i]);
     }
 }
@@ -224,7 +228,7 @@ Window *MultiWindowApplication<WindowFlow::CONCURRENT>::handleWindowAddition(KIT
     {
         KIT::ITaskManager *taskManager = Core::GetTaskManager();
         auto &task = m_Tasks.emplace_back(createWindowTask(m_Windows.size() - 1));
-        if (IsStarted())
+        if (IsRunning())
             taskManager->SubmitTask(task);
     }
     else

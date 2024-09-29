@@ -1,30 +1,24 @@
 #pragma once
 
 #include "onyx/app/mwapp.hpp"
-#include "kit/memory/stack_allocator.hpp"
-#include "kit/multiprocessing/thread_pool.hpp"
 #include "kit/core/literals.hpp"
 
 namespace ONYX
 {
 using namespace KIT::Literals;
 
-class DemoApplication
+class MWDemoApplication
 {
   public:
-    KIT_NON_COPYABLE(DemoApplication)
+    KIT_NON_COPYABLE(MWDemoApplication)
 
-    DemoApplication() noexcept;
-    ~DemoApplication() noexcept;
+    MWDemoApplication() noexcept = default;
 
     void RunSerial() noexcept;
     void RunConcurrent() noexcept;
 
   private:
-    ONYX::MultiWindowApplication<ONYX::WindowFlow::SERIAL> m_SerialApplication;
-    ONYX::MultiWindowApplication<ONYX::WindowFlow::CONCURRENT> m_ConcurrentApplication;
-
-    KIT::ThreadPool<std::mutex> m_ThreadPool{7};
-    KIT::StackAllocator m_Allocator{10_kb};
+    MultiWindowApplication<WindowFlow::SERIAL> m_SerialApplication;
+    MultiWindowApplication<WindowFlow::CONCURRENT> m_ConcurrentApplication;
 };
 } // namespace ONYX

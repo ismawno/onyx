@@ -34,6 +34,11 @@ ONYX_DIMENSION_TEMPLATE void Orthographic<N>::SetSize(const f32 p_Size) noexcept
         this->Transform.Scale = {aspect * p_Size, p_Size, p_Size};
 }
 
+ONYX_DIMENSION_TEMPLATE bool Orthographic<N>::IsOrthographic() const noexcept
+{
+    return true;
+}
+
 template class Orthographic<2>;
 template class Orthographic<3>;
 

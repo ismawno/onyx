@@ -118,6 +118,7 @@ ONYX_DIMENSION_TEMPLATE void Window::addDefaultRenderSystems() noexcept
 
 void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
 {
+    KIT_ASSERT(m_Camera, "No camera set for the window. Use the SetCamera method to set one");
     const u32 frameIndex = m_Renderer->GetFrameIndex();
     GlobalUBO ubo{};
     m_Camera->SetAspectRatio(GetScreenAspect());

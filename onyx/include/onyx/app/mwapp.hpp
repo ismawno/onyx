@@ -20,6 +20,13 @@ enum class WindowFlow
 // serial mode process the event as any other for the corresponding window (for each layer. mark it as processed by
 // returning true)
 
+// an app can only be started and terminated ONCE
+
+// shutdown can only be called one all windows have been closed and OUTSIDE the nextframe loop. It is only public bc of
+// versatility
+
+// in OnShutdown, it is not valid to reference any window any longer
+
 class IMultiWindowApplication : public IApplication
 {
     KIT_NON_COPYABLE(IMultiWindowApplication)
@@ -40,12 +47,15 @@ class IMultiWindowApplication : public IApplication
 
     const Window *GetWindow(usize p_Index) const noexcept;
     Window *GetWindow(usize p_Index) noexcept;
+
+    const Window *GetMainWindow() const noexcept override;
+    Window *GetMainWindow() noexcept override;
+
     usize GetWindowCount() const noexcept;
 
     f32 GetDeltaTime() const noexcept override;
     virtual WindowFlow GetWindowFlow() const noexcept = 0;
 
-    void Shutdown() noexcept override;
     bool NextFrame(KIT::Clock &p_Clock) noexcept override;
 
     void Draw(IDrawable &p_Drawable) noexcept override;

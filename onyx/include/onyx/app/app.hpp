@@ -6,6 +6,7 @@
 
 namespace ONYX
 {
+// provides a simple interface for a single or multi-window application
 class IApplication
 {
   public:
@@ -13,16 +14,20 @@ class IApplication
     virtual ~IApplication() noexcept;
 
     virtual void Startup() noexcept;
-    virtual void Shutdown() noexcept;
+    void Shutdown() noexcept;
 
     virtual bool NextFrame(KIT::Clock &p_Clock) noexcept = 0;
     virtual void Draw(IDrawable &p_Drawable) noexcept = 0;
 
     virtual f32 GetDeltaTime() const noexcept = 0;
 
+    virtual const Window *GetMainWindow() const noexcept = 0;
+    virtual Window *GetMainWindow() noexcept = 0;
+
     void Run() noexcept;
     bool IsStarted() const noexcept;
     bool IsTerminated() const noexcept;
+    bool IsRunning() const noexcept;
 
     LayerSystem Layers;
 
@@ -50,12 +55,11 @@ class Application final : public IApplication
   public:
     Application(const Window::Specs &p_WindowSpecs = {}) noexcept;
 
-    void Shutdown() noexcept override;
     void Draw(IDrawable &p_Drawable) noexcept override;
     bool NextFrame(KIT::Clock &p_Clock) noexcept override;
 
-    const Window *GetWindow() const noexcept;
-    Window *GetWindow() noexcept;
+    const Window *GetMainWindow() const noexcept override;
+    Window *GetMainWindow() noexcept override;
 
     f32 GetDeltaTime() const noexcept override;
 

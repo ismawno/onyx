@@ -39,4 +39,9 @@ void Perspective3D::SetAspectRatio(const f32 p_Aspect) noexcept
     m_Aspect = p_Aspect;
 }
 
+bool Perspective3D::IsOrthographic() const noexcept
+{
+    return false;
+}
+
 } // namespace ONYX

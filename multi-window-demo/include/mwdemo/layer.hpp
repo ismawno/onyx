@@ -20,10 +20,10 @@ struct WindowData
     CameraType Camera;
 };
 
-class ExampleLayer final : public Layer
+class MWExampleLayer final : public Layer
 {
   public:
-    ExampleLayer(IMultiWindowApplication *p_Application) noexcept;
+    MWExampleLayer(IMultiWindowApplication *p_Application) noexcept;
 
     void OnRender(usize p_WindowIndex) noexcept override;
     void OnImGuiRender() noexcept override;

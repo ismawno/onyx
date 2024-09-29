@@ -1,31 +1,33 @@
 #include "mwdemo/app.hpp"
 #include "mwdemo/layer.hpp"
 #include "onyx/camera/orthographic.hpp"
+#include "kit/memory/stack_allocator.hpp"
+#include "kit/multiprocessing/thread_pool.hpp"
 
 namespace ONYX
 {
-DemoApplication::DemoApplication() noexcept
+void MWDemoApplication::RunSerial() noexcept
 {
-    ONYX::Core::Initialize(&m_Allocator, &m_ThreadPool);
-}
+    static KIT::ThreadPool<std::mutex> threadPool{7};
+    static KIT::StackAllocator allocator{10_kb};
+    ONYX::Core::Initialize(&allocator, &threadPool);
 
-DemoApplication::~DemoApplication() noexcept
-{
+    m_SerialApplication.Layers.Push<MWExampleLayer>(&m_SerialApplication);
+    m_SerialApplication.OpenWindow<ONYX::Orthographic2D>(Window::Specs{}, 5.f);
+    m_SerialApplication.Run();
     ONYX::Core::Terminate();
 }
 
-void DemoApplication::RunSerial() noexcept
+void MWDemoApplication::RunConcurrent() noexcept
 {
-    m_SerialApplication.Layers.Push<ExampleLayer>(&m_SerialApplication);
-    m_SerialApplication.OpenWindow<ONYX::Orthographic2D>(Window::Specs{}, 5.f);
-    m_SerialApplication.Run();
-}
+    static KIT::ThreadPool<std::mutex> threadPool{7};
+    static KIT::StackAllocator allocator{10_kb};
+    ONYX::Core::Initialize(&allocator, &threadPool);
 
-void DemoApplication::RunConcurrent() noexcept
-{
-    m_ConcurrentApplication.Layers.Push<ExampleLayer>(&m_ConcurrentApplication);
+    m_ConcurrentApplication.Layers.Push<MWExampleLayer>(&m_ConcurrentApplication);
     m_ConcurrentApplication.OpenWindow<ONYX::Orthographic2D>(Window::Specs{}, 5.f);
     m_ConcurrentApplication.Run();
+    ONYX::Core::Terminate();
 }
 
 } // namespace ONYX

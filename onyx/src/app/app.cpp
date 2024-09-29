@@ -19,17 +19,21 @@ bool IApplication::IsTerminated() const noexcept
 {
     return m_Terminated;
 }
+bool IApplication::IsRunning() const noexcept
+{
+    return m_Started && !m_Terminated;
+}
 
 void IApplication::Startup() noexcept
 {
-    KIT_ASSERT(!m_Terminated && !m_Started, "Application already started");
+    KIT_ASSERT(!m_Terminated && !m_Started, "Application cannot be started more than once");
     m_Started = true;
     Layers.OnStart();
 }
 
 void IApplication::Shutdown() noexcept
 {
-    KIT_ASSERT(!m_Terminated && m_Started, "Application not started");
+    KIT_ASSERT(!m_Terminated && m_Started, "Application cannot be terminated before it is started");
     Layers.OnShutdown();
     if (m_Device)
         vkDestroyDescriptorPool(m_Device->GetDevice(), m_ImGuiPool, nullptr);
@@ -50,6 +54,10 @@ void IApplication::beginRenderImGui() noexcept
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+#ifdef ONYX_ENABLE_IMGUIZMO
+    ImGuizmo::BeginFrame();
+#endif
 }
 
 void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
@@ -141,13 +149,9 @@ Application::Application(const Window::Specs &p_WindowSpecs) noexcept
 {
     m_Window.Create(p_WindowSpecs);
     m_Device = Core::GetDevice();
+    initializeImGui(*m_Window);
 }
 
-void Application::Shutdown() noexcept
-{
-    IApplication::Shutdown();
-    m_Window.Destroy();
-}
 void Application::Draw(IDrawable &p_Drawable) noexcept
 {
     m_Window->Draw(p_Drawable);
@@ -173,14 +177,20 @@ bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
     }),
                        true,
                        "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
-    return m_Window->ShouldClose();
+    if (m_Window->ShouldClose())
+    {
+        m_Window.Destroy();
+        shutdownImGui();
+        return false;
+    }
+    return true;
 }
 
-const Window *Application::GetWindow() const noexcept
+const Window *Application::GetMainWindow() const noexcept
 {
     return m_Window.Get();
 }
-Window *Application::GetWindow() noexcept
+Window *Application::GetMainWindow() noexcept
 {
     return m_Window.Get();
 }

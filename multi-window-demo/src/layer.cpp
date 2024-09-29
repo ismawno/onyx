@@ -12,18 +12,18 @@ enum PrimitiveType : int
     RECTANGLE = 0
 };
 
-ExampleLayer::ExampleLayer(IMultiWindowApplication *p_Application) noexcept
+MWExampleLayer::MWExampleLayer(IMultiWindowApplication *p_Application) noexcept
     : Layer("Example"), m_Application(p_Application)
 {
 }
 
-void ExampleLayer::OnRender(const usize p_WindowIndex) noexcept
+void MWExampleLayer::OnRender(const usize p_WindowIndex) noexcept
 {
     for (const auto &drawable : m_WindowData[p_WindowIndex].Drawables)
         m_Application->Draw(*drawable, p_WindowIndex);
 }
 
-void ExampleLayer::OnImGuiRender() noexcept
+void MWExampleLayer::OnImGuiRender() noexcept
 {
     ImGui::ShowDemoWindow();
     ImPlot::ShowDemoWindow();
@@ -36,7 +36,7 @@ void ExampleLayer::OnImGuiRender() noexcept
     ImGui::End();
 }
 
-bool ExampleLayer::OnEvent(const usize, const Event &p_Event) noexcept
+bool MWExampleLayer::OnEvent(const usize, const Event &p_Event) noexcept
 {
     if (p_Event.Type == Event::WINDOW_OPENED)
     {
@@ -46,7 +46,7 @@ bool ExampleLayer::OnEvent(const usize, const Event &p_Event) noexcept
     return false;
 }
 
-void ExampleLayer::renderWindowSpawner() noexcept
+void MWExampleLayer::renderWindowSpawner() noexcept
 {
     static Window::Specs specs;
     static CameraType camera = ORTHOGRAPHIC2D;
@@ -86,7 +86,7 @@ ONYX_DIMENSION_TEMPLATE static void renderTransform(Transform<N> &p_Transform) n
     }
 }
 
-ONYX_DIMENSION_TEMPLATE void ExampleLayer::renderObjectProperties(const usize p_WindowIndex) noexcept
+ONYX_DIMENSION_TEMPLATE void MWExampleLayer::renderObjectProperties(const usize p_WindowIndex) noexcept
 {
     static PrimitiveType ptype = RECTANGLE;
     if (ImGui::Button("Spawn"))
@@ -109,7 +109,7 @@ ONYX_DIMENSION_TEMPLATE void ExampleLayer::renderObjectProperties(const usize p_
     }
 }
 
-void ExampleLayer::renderWindowController() noexcept
+void MWExampleLayer::renderWindowController() noexcept
 {
     for (usize i = 0; i < m_Application->GetWindowCount(); ++i)
     {
