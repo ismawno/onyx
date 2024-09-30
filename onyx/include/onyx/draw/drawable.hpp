@@ -6,15 +6,15 @@
 namespace ONYX
 {
 class Window;
-class RenderSystem;
 class Model;
+ONYX_DIMENSION_TEMPLATE class RenderSystem;
 class ONYX_API IDrawable
 {
   public:
     virtual ~IDrawable() = default;
     virtual void Draw(Window &p_Window) = 0;
 
-    static void DefaultDraw(RenderSystem &p_RenderSystem, const Model *p_Model, const vec4 &p_Color,
-                            const mat4 &p_Transform) noexcept;
+    ONYX_DIMENSION_TEMPLATE static void DefaultModelDraw(RenderSystem<N> &p_RenderSystem, const Model *p_Model,
+                                                         const vec4 &p_Color, const mat4 &p_Transform) noexcept;
 };
 } // namespace ONYX

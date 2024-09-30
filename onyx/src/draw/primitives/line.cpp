@@ -46,8 +46,8 @@ ONYX_DIMENSION_TEMPLATE void Line<N>::SetColor(const Color &p_Color) noexcept
 
 ONYX_DIMENSION_TEMPLATE void Line<N>::Draw(Window &p_Window) noexcept
 {
-    RenderSystem *rs = p_Window.GetRenderSystem<N>(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-    ILine<N>::DefaultDraw(*rs, m_Model, m_Color, m_Transform.ComputeModelTransform());
+    RenderSystem<N> *rs = p_Window.GetRenderSystem<N>(VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+    ILine<N>::DefaultModelDraw(*rs, m_Model, m_Color, m_Transform.ComputeModelTransform());
 }
 
 ONYX_DIMENSION_TEMPLATE void Line<N>::adaptTransform() noexcept

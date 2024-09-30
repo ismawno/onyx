@@ -16,14 +16,18 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#ifndef ONYX_MAX_RENDER_SYSTEMS
-#    define ONYX_MAX_RENDER_SYSTEMS 16
-#endif
-
 namespace ONYX
 {
 class IDrawable;
 // TODO: Align window to the cache line in case a multi window app is used?
+
+// For now, render systems are fixed, and only ONYX systems are used. In the future, user defined render systems will
+// be allowed
+// NOTE: When supporting user defined render systems, the render pass must be supplied if the user failed to do so:
+// if (!p_Specs.RenderPass)
+//         p_Specs.RenderPass = m_Renderer->GetSwapChain().GetRenderPass();
+//     return m_RenderSystems.emplace_back(p_Specs);
+
 class ONYX_API Window
 {
     KIT_NON_COPYABLE(Window)
@@ -85,16 +89,8 @@ class ONYX_API Window
         return static_cast<T *>(m_Camera.Get());
     }
 
-    ONYX_DIMENSION_TEMPLATE RenderSystem &AddRenderSystem(RenderSystem::Specs<N> p_Specs) noexcept;
-
-    RenderSystem &AddRenderSystem2D(const RenderSystem::Specs2D &p_Specs) noexcept;
-    RenderSystem &AddRenderSystem3D(const RenderSystem::Specs3D &p_Specs) noexcept;
-
-    const RenderSystem &GetRenderSystem(const usize p_Index) const noexcept;
-    RenderSystem &GetRenderSystem(const usize p_Index) noexcept;
-
-    ONYX_DIMENSION_TEMPLATE const RenderSystem *GetRenderSystem(VkPrimitiveTopology p_Topology) const noexcept;
-    ONYX_DIMENSION_TEMPLATE RenderSystem *GetRenderSystem(VkPrimitiveTopology p_Topology) noexcept;
+    ONYX_DIMENSION_TEMPLATE const RenderSystem<N> *GetRenderSystem(VkPrimitiveTopology p_Topology) const noexcept;
+    ONYX_DIMENSION_TEMPLATE RenderSystem<N> *GetRenderSystem(VkPrimitiveTopology p_Topology) noexcept;
 
     const GLFWwindow *GetWindow() const noexcept;
     GLFWwindow *GetWindow() noexcept;
@@ -142,6 +138,7 @@ class ONYX_API Window
     };
     void createWindow(const Specs &p_Specs) noexcept;
     void createGlobalUniformHelper() noexcept;
+
     ONYX_DIMENSION_TEMPLATE void addDefaultRenderSystems() noexcept;
 
     void drawRenderSystems(VkCommandBuffer p_CommandBuffer) noexcept;
@@ -156,7 +153,8 @@ class ONYX_API Window
     KIT::Storage<GlobalUniformHelper> m_GlobalUniformHelper;
     std::array<VkDescriptorSet, SwapChain::MAX_FRAMES_IN_FLIGHT> m_GlobalDescriptorSets;
 
-    KIT::StaticArray<RenderSystem, ONYX_MAX_RENDER_SYSTEMS> m_RenderSystems;
+    KIT::StaticArray<RenderSystem2D, 4> m_RenderSystems2D;
+    KIT::StaticArray<RenderSystem3D, 4> m_RenderSystems3D;
 
     DynamicArray<Event> m_Events;
     VkSurfaceKHR m_Surface;

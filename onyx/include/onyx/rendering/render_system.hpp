@@ -10,12 +10,33 @@
 
 namespace ONYX
 {
-class ONYX_API RenderSystem
+struct ONYX_API DrawInfo
+{
+    VkCommandBuffer CommandBuffer;
+    VkDescriptorSet DescriptorSet;
+    mat4 Projection;
+};
+
+ONYX_DIMENSION_TEMPLATE struct PushConstantData;
+
+template <> struct ONYX_API PushConstantData<2>
+{
+    mat4 ModelTransform;
+    vec4 Color;
+};
+
+template <> struct ONYX_API PushConstantData<3>
+{
+    mat4 ModelTransform;
+    mat4 ColorAndNormalMatrix;
+};
+
+ONYX_DIMENSION_TEMPLATE class ONYX_API RenderSystem
 {
     KIT_NON_COPYABLE(RenderSystem)
 
   public:
-    ONYX_DIMENSION_TEMPLATE struct Specs
+    struct Specs
     {
         const char *VertexShaderPath = Core::GetPrimitiveVertexShaderPath<N>();
         const char *FragmentShaderPath = Core::GetPrimitiveFragmentShaderPath<N>();
@@ -31,22 +52,8 @@ class ONYX_API RenderSystem
         // Could be changed to be multiple
         VkDescriptorSetLayout DescriptorSetLayout = VK_NULL_HANDLE;
     };
-    using Specs2D = Specs<2>;
-    using Specs3D = Specs<3>;
 
-    struct DrawInfo
-    {
-        VkCommandBuffer CommandBuffer;
-        VkDescriptorSet DescriptorSet;
-        mat4 Projection;
-    };
-
-    struct PushConstantData
-    {
-        mat4 ModelTransform;
-        mat4 ColorAndNormalMatrix;
-    };
-
+    // Could use directly PushConstantData<N> but I want to keep DrawData clean because its more exposed
     struct DrawData
     {
         const Model *Model;
@@ -54,13 +61,13 @@ class ONYX_API RenderSystem
         vec4 Color;
     };
 
-    ONYX_DIMENSION_TEMPLATE RenderSystem(const Specs<N> &p_Specs) noexcept;
-
+    RenderSystem(const Specs &p_Specs) noexcept;
     void Display(const DrawInfo &p_Info) const noexcept;
 
     // These two methods will cause issues (races and inconsistencies) in concurrent mode if they are called from a
     // thread that does not own the window execution. Even by protecting them by mutexes, calling them from a different
     // thread will cause flickering (that is why I havent even bothered to protect them with mutexes)
+    // Every render system should submit from the thread owning the window
     void SubmitRenderData(const RenderSystem &p_RenderSystem) noexcept;
     void SubmitRenderData(const DrawData &p_Data) noexcept;
     void ClearRenderData() noexcept;
@@ -69,6 +76,8 @@ class ONYX_API RenderSystem
     Pipeline m_Pipeline;
     DynamicArray<DrawData> m_DrawData;
     mutable const Model *m_BoundModel = nullptr;
-    bool m_Is3D;
 };
+
+using RenderSystem2D = RenderSystem<2>;
+using RenderSystem3D = RenderSystem<3>;
 } // namespace ONYX

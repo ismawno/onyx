@@ -48,9 +48,9 @@ ONYX_DIMENSION_TEMPLATE void MutablePolygon<N>::SetColor(const Color &p_Color) n
 
 ONYX_DIMENSION_TEMPLATE void MutablePolygon<N>::Draw(Window &p_Window) noexcept
 {
-    RenderSystem *renderSystem = p_Window.GetRenderSystem<N>(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    RenderSystem<N> *rs = p_Window.GetRenderSystem<N>(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     this->Transform.UpdateMatricesAsModelIfNeeded();
-    IShape<N>::DefaultDraw(*renderSystem, m_Model, m_Color, this->Transform.GetGlobalTransform());
+    IShape<N>::DefaultModelDraw(*rs, m_Model, m_Color, this->Transform.GetGlobalTransform());
 }
 
 ONYX_DIMENSION_TEMPLATE const vec<N> &MutablePolygon<N>::operator[](const usize p_Index) const noexcept

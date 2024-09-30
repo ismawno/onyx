@@ -94,29 +94,32 @@ void Window::createGlobalUniformHelper() noexcept
 
 ONYX_DIMENSION_TEMPLATE void Window::addDefaultRenderSystems() noexcept
 {
-    RenderSystem::Specs<N> specs{};
+    typename RenderSystem<N>::Specs specs{};
     specs.RenderPass = m_Renderer->GetSwapChain().GetRenderPass();
     specs.DescriptorSetLayout = m_GlobalUniformHelper->Layout.GetLayout();
+    const auto getSystem = [this]() {
+        if constexpr (N == 2)
+            return &m_RenderSystems2D;
+        else
+            return &m_RenderSystems3D;
+    };
+    auto &systems = *getSystem();
 
     // Triangle list
     specs.Topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    m_RenderSystems.emplace_back(specs);
+    systems.emplace_back(specs);
 
     // Triangle strip
     specs.Topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-    m_RenderSystems.emplace_back(specs);
+    systems.emplace_back(specs);
 
     // Line list
     specs.Topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-    m_RenderSystems.emplace_back(specs);
+    systems.emplace_back(specs);
 
     // Line strip
     specs.Topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
-    m_RenderSystems.emplace_back(specs);
-
-    // Point list
-    specs.Topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-    m_RenderSystems.emplace_back(specs);
+    systems.emplace_back(specs);
 }
 
 void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
@@ -133,10 +136,15 @@ void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
     m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);
     m_GlobalUniformHelper->UniformBuffer.FlushAt(frameIndex);
 
-    RenderSystem::DrawInfo info{};
+    DrawInfo info{};
     info.CommandBuffer = p_CommandBuffer;
     info.DescriptorSet = m_GlobalDescriptorSets[frameIndex];
-    for (RenderSystem &rs : m_RenderSystems)
+    for (RenderSystem2D &rs : m_RenderSystems2D)
+    {
+        rs.Display(info);
+        rs.ClearRenderData();
+    }
+    for (RenderSystem3D &rs : m_RenderSystems3D)
     {
         rs.Display(info);
         rs.ClearRenderData();
@@ -151,66 +159,56 @@ void Window::Draw(IDrawable &p_Drawable) noexcept
 void Window::Draw(Window &p_Window) noexcept
 {
     KIT_ASSERT(this != &p_Window, "Cannot draw a window to itself");
-    KIT_ASSERT(p_Window.m_RenderSystems.size() >= m_RenderSystems.size(),
+    KIT_ASSERT(p_Window.m_RenderSystems2D.size() >= m_RenderSystems2D.size(),
+               "The window to draw must have at least the same amount of render systems as the current window");
+    KIT_ASSERT(p_Window.m_RenderSystems3D.size() >= m_RenderSystems3D.size(),
                "The window to draw must have at least the same amount of render systems as the current window");
 
     // A render system cannot be deleted, so we can safely assume that the render systems are in the same order
-    for (usize i = 0; i < m_RenderSystems.size(); ++i)
-        m_RenderSystems[i].SubmitRenderData(p_Window.m_RenderSystems[i]);
+    for (usize i = 0; i < m_RenderSystems2D.size(); ++i)
+        m_RenderSystems2D[i].SubmitRenderData(p_Window.m_RenderSystems2D[i]);
+    for (usize i = 0; i < m_RenderSystems3D.size(); ++i)
+        m_RenderSystems3D[i].SubmitRenderData(p_Window.m_RenderSystems3D[i]);
 }
 
-ONYX_DIMENSION_TEMPLATE RenderSystem &Window::AddRenderSystem(RenderSystem::Specs<N> p_Specs) noexcept
+// I could define my own topology enum and use it here as the index... but i didnt
+ONYX_DIMENSION_TEMPLATE const RenderSystem<N> *Window::GetRenderSystem(VkPrimitiveTopology p_Topology) const noexcept
 {
-    if (!p_Specs.RenderPass)
-        p_Specs.RenderPass = m_Renderer->GetSwapChain().GetRenderPass();
-    return m_RenderSystems.emplace_back(p_Specs);
-}
-
-RenderSystem &Window::AddRenderSystem2D(const RenderSystem::Specs2D &p_Specs) noexcept
-{
-    return AddRenderSystem<2>(p_Specs);
-}
-RenderSystem &Window::AddRenderSystem3D(const RenderSystem::Specs3D &p_Specs) noexcept
-{
-    return AddRenderSystem<3>(p_Specs);
-}
-
-const RenderSystem &Window::GetRenderSystem(const usize p_Index) const noexcept
-{
-    return m_RenderSystems[p_Index];
-}
-RenderSystem &Window::GetRenderSystem(const usize p_Index) noexcept
-{
-    return m_RenderSystems[p_Index];
-}
-
-ONYX_DIMENSION_TEMPLATE const RenderSystem *Window::GetRenderSystem(VkPrimitiveTopology p_Topology) const noexcept
-{
+    const auto getSystem = [this]() {
+        if constexpr (N == 2)
+            return &m_RenderSystems2D;
+        else
+            return &m_RenderSystems3D;
+    };
+    auto &systems = *getSystem();
     if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
-        return &m_RenderSystems[0 + (N - 2) * 5];
+        return &systems[0];
     if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)
-        return &m_RenderSystems[1 + (N - 2) * 5];
+        return &systems[1];
     if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_LIST)
-        return &m_RenderSystems[2 + (N - 2) * 5];
+        return &systems[2];
     if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP)
-        return &m_RenderSystems[3 + (N - 2) * 5];
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
-        return &m_RenderSystems[4 + (N - 2) * 5];
+        return &systems[3];
     return nullptr;
 }
 
-ONYX_DIMENSION_TEMPLATE RenderSystem *Window::GetRenderSystem(VkPrimitiveTopology p_Topology) noexcept
+ONYX_DIMENSION_TEMPLATE RenderSystem<N> *Window::GetRenderSystem(VkPrimitiveTopology p_Topology) noexcept
 {
+    const auto getSystem = [this]() {
+        if constexpr (N == 2)
+            return &m_RenderSystems2D;
+        else
+            return &m_RenderSystems3D;
+    };
+    auto &systems = *getSystem();
     if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
-        return &m_RenderSystems[0 + (N - 2) * 5];
+        return &systems[0];
     if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)
-        return &m_RenderSystems[1 + (N - 2) * 5];
+        return &systems[1];
     if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_LIST)
-        return &m_RenderSystems[2 + (N - 2) * 5];
+        return &systems[2];
     if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP)
-        return &m_RenderSystems[3 + (N - 2) * 5];
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_POINT_LIST)
-        return &m_RenderSystems[4 + (N - 2) * 5];
+        return &systems[3];
     return nullptr;
 }
 
@@ -311,10 +309,10 @@ const Renderer &Window::GetRenderer() const noexcept
     return *m_Renderer;
 }
 
-template const RenderSystem *Window::GetRenderSystem<2>(VkPrimitiveTopology) const noexcept;
-template const RenderSystem *Window::GetRenderSystem<3>(VkPrimitiveTopology) const noexcept;
+template const RenderSystem<2> *Window::GetRenderSystem<2>(VkPrimitiveTopology) const noexcept;
+template const RenderSystem<3> *Window::GetRenderSystem<3>(VkPrimitiveTopology) const noexcept;
 
-template RenderSystem *Window::GetRenderSystem<2>(VkPrimitiveTopology) noexcept;
-template RenderSystem *Window::GetRenderSystem<3>(VkPrimitiveTopology) noexcept;
+template RenderSystem<2> *Window::GetRenderSystem<2>(VkPrimitiveTopology) noexcept;
+template RenderSystem<3> *Window::GetRenderSystem<3>(VkPrimitiveTopology) noexcept;
 
 } // namespace ONYX

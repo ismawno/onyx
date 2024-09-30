@@ -3,13 +3,13 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE static Pipeline::Specs toPipelineSpecs(const RenderSystem::Specs<N> &p_Specs) noexcept
+ONYX_DIMENSION_TEMPLATE static Pipeline::Specs toPipelineSpecs(const typename RenderSystem<N>::Specs &p_Specs) noexcept
 {
     Pipeline::Specs specs{};
     specs.VertexShaderPath = p_Specs.VertexShaderPath;
     specs.FragmentShaderPath = p_Specs.FragmentShaderPath;
 
-    specs.PushConstantRange.size = sizeof(RenderSystem::PushConstantData);
+    specs.PushConstantRange.size = sizeof(PushConstantData<N>);
     specs.BindingDescriptions.insert(specs.BindingDescriptions.end(), p_Specs.BindingDescriptions.begin(),
                                      p_Specs.BindingDescriptions.end());
     specs.AttributeDescriptions.insert(specs.AttributeDescriptions.end(), p_Specs.AttributeDescriptions.begin(),
@@ -38,12 +38,12 @@ ONYX_DIMENSION_TEMPLATE static Pipeline::Specs toPipelineSpecs(const RenderSyste
     return specs;
 }
 
-ONYX_DIMENSION_TEMPLATE RenderSystem::RenderSystem(const Specs<N> &p_Specs) noexcept
-    : m_Pipeline(toPipelineSpecs(p_Specs)), m_Is3D(N == 3)
+ONYX_DIMENSION_TEMPLATE RenderSystem<N>::RenderSystem(const Specs &p_Specs) noexcept
+    : m_Pipeline(toPipelineSpecs<N>(p_Specs))
 {
 }
 
-void RenderSystem::Display(const DrawInfo &p_Info) const noexcept
+ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::Display(const DrawInfo &p_Info) const noexcept
 {
     if (m_DrawData.empty())
         return;
@@ -55,14 +55,17 @@ void RenderSystem::Display(const DrawInfo &p_Info) const noexcept
     {
         KIT_ASSERT(data.Model,
                    "Model cannot be NULL! No drawables can be created before the creation of the first window");
-        PushConstantData pushConstantData{};
+        PushConstantData<N> pushConstantData{};
         pushConstantData.ModelTransform = data.ModelTransform;
-        if (m_Is3D)
+        if constexpr (N == 3)
+        {
             pushConstantData.ColorAndNormalMatrix = mat4(glm::transpose(mat3(glm::inverse(data.ModelTransform))));
-
-        pushConstantData.ColorAndNormalMatrix[3] = data.Color;
+            pushConstantData.ColorAndNormalMatrix[3] = data.Color;
+        }
+        else
+            pushConstantData.Color = data.Color;
         vkCmdPushConstants(p_Info.CommandBuffer, m_Pipeline.GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
-                           sizeof(PushConstantData), &pushConstantData);
+                           sizeof(PushConstantData<N>), &pushConstantData);
 
         if (m_BoundModel != data.Model)
         {
@@ -73,22 +76,22 @@ void RenderSystem::Display(const DrawInfo &p_Info) const noexcept
     }
 }
 
-void RenderSystem::SubmitRenderData(const RenderSystem &p_RenderSystem) noexcept
+ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::SubmitRenderData(const RenderSystem &p_RenderSystem) noexcept
 {
     m_DrawData.insert(m_DrawData.end(), p_RenderSystem.m_DrawData.begin(), p_RenderSystem.m_DrawData.end());
 }
-void RenderSystem::SubmitRenderData(const DrawData &p_Data) noexcept
+ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::SubmitRenderData(const DrawData &p_Data) noexcept
 {
     m_DrawData.push_back(p_Data);
 }
 
-void RenderSystem::ClearRenderData() noexcept
+ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::ClearRenderData() noexcept
 {
     m_DrawData.clear();
     m_BoundModel = nullptr;
 }
 
-template RenderSystem::RenderSystem(const Specs<2> &p_Specs) noexcept;
-template RenderSystem::RenderSystem(const Specs<3> &p_Specs) noexcept;
+template class RenderSystem<2>;
+template class RenderSystem<3>;
 
 } // namespace ONYX
