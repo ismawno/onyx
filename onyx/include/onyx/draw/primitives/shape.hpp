@@ -26,7 +26,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IShape : public IDrawable
 using IShape2D = IShape<2>;
 using IShape3D = IShape<3>;
 
-// Not meant to be used often by the user. It is a base class used when the underlying model is well defined and
+// Can also be used directly by the user. It is a base class used when the underlying model is well defined and
 // immutable. It makes all the other basic shape classes easier to implement (just need to create some constructors and
 // voila).
 ONYX_DIMENSION_TEMPLATE class ONYX_API ModelShape : public IShape<N>

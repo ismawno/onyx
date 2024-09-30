@@ -1,6 +1,7 @@
 #include "core/pch.hpp"
 #include "onyx/draw/model.hpp"
 #include "onyx/core/core.hpp"
+#include <tiny_obj_loader.h>
 
 #ifndef ONYX_MAX_REGULAR_POLYGON_SIDES
 #    define ONYX_MAX_REGULAR_POLYGON_SIDES 32
@@ -169,6 +170,38 @@ bool Model::MustFlush() const noexcept
 static std::array<const Model *, 2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 6> s_Models;
 static DynamicArray<const Model *> s_UserModels;
 
+// this just loads and allocates the model, it does not store it in the user models
+ONYX_DIMENSION_TEMPLATE static Model *load(const std::string_view p_Path)
+{
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+    KIT_ASSERT_RETURNS(tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, p_Path.data()), true,
+                       "Failed to load model: {}", err + warn);
+
+    HashMap<Vertex<N>, Index> uniqueVertices;
+    DynamicArray<Vertex<N>> vertices;
+    DynamicArray<Index> indices;
+    for (const auto &shape : shapes)
+        for (const auto &index : shape.mesh.indices)
+        {
+            Vertex<N> vertex{};
+            for (Index i = 0; i < N; ++i)
+                vertex.Position[i] = attrib.vertices[3 * index.vertex_index + i];
+            if (!uniqueVertices.contains(vertex))
+            {
+                uniqueVertices[vertex] = static_cast<Index>(uniqueVertices.size());
+                vertices.push_back(vertex);
+            }
+            indices.push_back(uniqueVertices[vertex]);
+        }
+    const std::span<const Vertex<N>> verticesSpan{vertices};
+    const std::span<const Index> indicesSpan{indices};
+    return new Model(verticesSpan, indicesSpan);
+}
+
 ONYX_DIMENSION_TEMPLATE static const Model *createTriangleModel() noexcept
 {
     if constexpr (N == 2)
@@ -296,21 +329,23 @@ ONYX_DIMENSION_TEMPLATE static const Model *createCircleModel() noexcept
     return createRegularPolygonModel<N, ONYX_CIRCLE_VERTICES>();
 }
 
-static const Model *createRectangularPrismModel() noexcept
+static const Model *createCubeModel() noexcept
 {
-    static constexpr std::array<Vertex<3>, 8> vertices{
-        Vertex<3>{{-.5f, -.5f, -.5f}}, Vertex<3>{{-.5f, .5f, .5f}},
-        Vertex<3>{{-.5f, -.5f, .5f}},  Vertex<3>{{-.5f, .5f, -.5f}},
+    // static constexpr std::array<Vertex<3>, 8> vertices{
+    //     Vertex<3>{{-.5f, -.5f, -.5f}}, Vertex<3>{{-.5f, .5f, .5f}},
+    //     Vertex<3>{{-.5f, -.5f, .5f}},  Vertex<3>{{-.5f, .5f, -.5f}},
 
-        Vertex<3>{{.5f, -.5f, -.5f}},  Vertex<3>{{.5f, .5f, .5f}},
-        Vertex<3>{{.5f, -.5f, .5f}},   Vertex<3>{{.5f, .5f, -.5f}},
+    //     Vertex<3>{{.5f, -.5f, -.5f}},  Vertex<3>{{.5f, .5f, .5f}},
+    //     Vertex<3>{{.5f, -.5f, .5f}},   Vertex<3>{{.5f, .5f, -.5f}},
 
-    };
-    static constexpr std::array<Index, 36> indices{0, 1, 2, 0, 3, 1, 4, 5, 6, 4, 7, 5, 0, 6, 2, 0, 4, 6,
-                                                   3, 5, 1, 3, 7, 5, 2, 5, 1, 2, 6, 5, 0, 7, 3, 0, 4, 7};
-    static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
-    static constexpr std::span<const Index> indicesSpan{indices};
-    return new Model(verticesSpan, indicesSpan);
+    // };
+    // static constexpr std::array<Index, 36> indices{0, 1, 2, 0, 3, 1, 4, 5, 6, 4, 7, 5, 0, 6, 2, 0, 4, 6,
+    //                                                3, 5, 1, 3, 7, 5, 2, 5, 1, 2, 6, 5, 0, 7, 3, 0, 4, 7};
+    // static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
+    // static constexpr std::span<const Index> indicesSpan{indices};
+    // return new Model(verticesSpan, indicesSpan);
+    const char *path = ONYX_ROOT_PATH "/onyx/models/cube.obj";
+    return load<3>(path);
 }
 
 static const Model *createSphereModel() noexcept
@@ -398,6 +433,22 @@ ONYX_DIMENSION_TEMPLATE Model *Model::Create(const std::span<const Vertex<N>> p_
     return model;
 }
 
+// this loads and stores the model in the user models
+ONYX_DIMENSION_TEMPLATE Model *Model::Load(const std::string_view p_Path) noexcept
+{
+    Model *model = load<N>(p_Path);
+    s_UserModels.push_back(model);
+    return model;
+}
+Model *Model::Load2D(const std::string_view p_Path) noexcept
+{
+    return Load<2>(p_Path);
+}
+Model *Model::Load3D(const std::string_view p_Path) noexcept
+{
+    return Load<3>(p_Path);
+}
+
 void Model::CreatePrimitiveModels() noexcept
 {
     createAllRegularPolygonModels<2, ONYX_MAX_REGULAR_POLYGON_SIDES>();
@@ -409,7 +460,7 @@ void Model::CreatePrimitiveModels() noexcept
     s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 2] = createCircleModel<2>();
     s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 3] = createCircleModel<3>();
 
-    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 4] = createRectangularPrismModel();
+    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 4] = createCubeModel();
     s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 5] = createSphereModel();
 }
 
@@ -522,7 +573,7 @@ Model *Model::CreatePolygon3D(const std::span<const vec3> p_Vertices,
     return CreatePolygon<3>(p_Vertices, p_VertexBufferProperties);
 }
 
-const Model *Model::GetRectangularPrism() noexcept
+const Model *Model::GetCube() noexcept
 {
     return s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 4];
 }

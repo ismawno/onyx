@@ -76,10 +76,12 @@ class ONYX_API Model
     // Core::Terminate(). These are not thread safe
     ONYX_DIMENSION_TEMPLATE static Model *Create(std::span<const Vertex<N>> p_Vertices,
                                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
-
     ONYX_DIMENSION_TEMPLATE static Model *Create(std::span<const Vertex<N>> p_Vertices,
                                                  std::span<const Index> p_Indices,
                                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+    ONYX_DIMENSION_TEMPLATE static Model *Load(std::string_view p_Path) noexcept;
+    static Model *Load2D(std::string_view p_Path) noexcept;
+    static Model *Load3D(std::string_view p_Path) noexcept;
 
     ONYX_DIMENSION_TEMPLATE static const Model *GetRegularPolygon(u32 p_Sides) noexcept;
     ONYX_DIMENSION_TEMPLATE static const Model *GetTriangle() noexcept;
@@ -105,7 +107,7 @@ class ONYX_API Model
     static Model *CreatePolygon3D(std::span<const vec3> p_Vertices,
                                   Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
 
-    static const Model *GetRectangularPrism() noexcept;
+    static const Model *GetCube() noexcept;
     static const Model *GetSphere() noexcept;
 
     // Commented for now, I dont think I will need this

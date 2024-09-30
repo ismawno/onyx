@@ -75,6 +75,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
+FetchContent_Declare(
+    tobjl
+    GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
+    GIT_TAG v2.0.0rc13
+)
+FetchContent_MakeAvailable(tobjl)
+
 # It is set to required for now even though there is a fallback mechanism with FetchContent (the latter seems to provide very few extensions and I am not sure if it will work well for now)
 # TODO: Check if the fallback mechanism works well
 find_package(Vulkan REQUIRED)
@@ -217,9 +224,11 @@ if (ONYX_USE_IMGUIZMO OR ONYX_BUILD_DEMO)
 endif()
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(onyx PUBLIC toolkit glm imgui VulkanMemoryAllocator)
+# Vulkan and GLFW are already linked with imgui
+target_link_libraries(onyx PUBLIC toolkit glm imgui VulkanMemoryAllocator PRIVATE tinyobjloader)
 
 target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/core/pch.hpp)
+target_compile_definitions(onyx PUBLIC KIT_ROOT_LOG_PATH="${ONYX_ROOT_PATH}" ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 if (MSVC)
     configure_compile_link_options(onyx "/W4 /WX")

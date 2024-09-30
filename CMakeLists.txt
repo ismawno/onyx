@@ -12,9 +12,9 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build" FORCE)
 endif()
 
-set(TOOLKIT_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "Root path to be used" FORCE) # Override the root path
 set(TOOLKIT_BUILD_TESTS OFF CACHE BOOL "Build toolkit tests" FORCE)
 set(TOOLKIT_BUILD_PERFORMANCE OFF CACHE BOOL "Build toolkit performance tests" FORCE)
+set(ONYX_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 if (CMAKE_BUILD_TYPE STREQUAL "Dist")
     option(ONYX_BUILD_TESTS "Build the tests" OFF)

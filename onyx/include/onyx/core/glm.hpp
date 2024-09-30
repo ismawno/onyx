@@ -10,6 +10,7 @@
 #include <glm/gtc/quaternion.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/hash.hpp>
 
 // This file includes all necessary glm headers and defines some useful aliases
 
