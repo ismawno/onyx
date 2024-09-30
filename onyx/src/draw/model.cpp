@@ -188,8 +188,9 @@ ONYX_DIMENSION_TEMPLATE static Model *load(const std::string_view p_Path)
         for (const auto &index : shape.mesh.indices)
         {
             Vertex<N> vertex{};
+            // Blender models go from -1 to 1, so I need to divide by 2
             for (Index i = 0; i < N; ++i)
-                vertex.Position[i] = attrib.vertices[3 * index.vertex_index + i];
+                vertex.Position[i] = 0.5f * attrib.vertices[3 * index.vertex_index + i];
             if constexpr (N == 3)
                 for (Index i = 0; i < 3; ++i)
                     vertex.Normal[i] = attrib.normals[3 * index.normal_index + i];
