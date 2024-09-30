@@ -12,9 +12,9 @@ namespace ONYX
 struct GlobalUBO
 {
     glm::mat4 Projection;
-    glm::vec4 LightDirection{0.f, 0.f, 1.f, 0.f};
-    f32 LightIntensity = 1.f;
-    f32 AmbientIntensity = 0.1f;
+    glm::vec4 LightDirection;
+    f32 LightIntensity;
+    f32 AmbientIntensity;
 };
 
 Window::Window() noexcept : Window(Specs{})
@@ -68,7 +68,8 @@ void Window::createGlobalUniformHelper() noexcept
         VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT});
 
     static constexpr std::array<VkDescriptorSetLayoutBinding, 1> bindings = {
-        {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr}}};
+        {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+          nullptr}}};
 
     const auto &props = m_Device->GetProperties();
     Buffer::Specs bufferSpecs{};

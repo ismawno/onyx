@@ -222,9 +222,9 @@ ONYX_DIMENSION_TEMPLATE static const Model *createTriangleModel() noexcept
     else
     {
         static constexpr std::array<Vertex<3>, 6> vertices{
-            Vertex<3>{{0.f, -.5f, 0.f}, {0.f, 0.f, -1.f}}, Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, -1.f}},
-            Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, -1.f}}, Vertex<3>{{0.f, -.5f, 0.f}, {0.f, 0.f, 1.f}},
-            Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},   Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
+            Vertex<3>{{0.f, -.5f, 0.f}, {0.f, 0.f, 1.f}}, Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
+            Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, 1.f}}, Vertex<3>{{0.f, -.5f, 0.f}, {0.f, 0.f, 1.f}},
+            Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},  Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
         };
         static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
         return new Model(verticesSpan);
@@ -249,10 +249,10 @@ ONYX_DIMENSION_TEMPLATE static const Model *createRectangleModel() noexcept
     else
     {
         static constexpr std::array<Vertex<3>, 4> vertices{
-            Vertex<3>{{-.5f, -.5f, 0.f}, {0.f, 0.f, -1.f}},
-            Vertex<3>{{.5f, -.5f, 0.f}, {0.f, 0.f, -1.f}},
-            Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, -1.f}},
-            Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, -1.f}},
+            Vertex<3>{{-.5f, -.5f, 0.f}, {0.f, 0.f, 1.f}},
+            Vertex<3>{{.5f, -.5f, 0.f}, {0.f, 0.f, 1.f}},
+            Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
+            Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
         };
         static constexpr std::array<Index, 6> indices{0, 1, 2, 2, 3, 0};
         static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
@@ -286,7 +286,7 @@ static const Model *createRegularPolygonModel()
             if constexpr (N == 2)
                 vertices[i] = Vertex<N>{vec<N>{x, y}};
             else
-                vertices[i] = Vertex<N>{vec<N>{x, y, 0.f}, vec<N>{0.f, 0.f, -1.f}};
+                vertices[i] = Vertex<N>{vec<N>{x, y, 0.f}, vec<N>{0.f, 0.f, 1.f}};
         }
 
         const std::span<const Vertex<N>> verticesSpan{vertices};
@@ -321,8 +321,8 @@ ONYX_DIMENSION_TEMPLATE static const Model *createLineModel() noexcept
     else
     {
         static constexpr std::array<Vertex<3>, 2> vertices{
-            Vertex<3>{{-.5f, 0.f, 0.f}, {0.f, 0.f, -1.f}},
-            Vertex<3>{{.5f, 0.f, 0.f}, {0.f, 0.f, -1.f}},
+            Vertex<3>{{-.5f, 0.f, 0.f}, {0.f, 0.f, 1.f}},
+            Vertex<3>{{.5f, 0.f, 0.f}, {0.f, 0.f, 1.f}},
         };
         static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
         return new Model(verticesSpan);
@@ -336,89 +336,14 @@ ONYX_DIMENSION_TEMPLATE static const Model *createCircleModel() noexcept
 
 static const Model *createCubeModel() noexcept
 {
-    // static constexpr std::array<Vertex<3>, 8> vertices{
-    //     Vertex<3>{{-.5f, -.5f, -.5f}}, Vertex<3>{{-.5f, .5f, .5f}},
-    //     Vertex<3>{{-.5f, -.5f, .5f}},  Vertex<3>{{-.5f, .5f, -.5f}},
-
-    //     Vertex<3>{{.5f, -.5f, -.5f}},  Vertex<3>{{.5f, .5f, .5f}},
-    //     Vertex<3>{{.5f, -.5f, .5f}},   Vertex<3>{{.5f, .5f, -.5f}},
-
-    // };
-    // static constexpr std::array<Index, 36> indices{0, 1, 2, 0, 3, 1, 4, 5, 6, 4, 7, 5, 0, 6, 2, 0, 4, 6,
-    //                                                3, 5, 1, 3, 7, 5, 2, 5, 1, 2, 6, 5, 0, 7, 3, 0, 4, 7};
-    // static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
-    // static constexpr std::span<const Index> indicesSpan{indices};
-    // return new Model(verticesSpan, indicesSpan);
     const char *path = ONYX_ROOT_PATH "/onyx/models/cube.obj";
     return load<3>(path);
 }
 
 static const Model *createSphereModel() noexcept
 {
-    static constexpr Index latPartitions = ONYX_SPHERE_LATITUDE_PARTITIONS;
-    static constexpr Index lonPartitions = ONYX_SPHERE_LONGITUDE_PARTITIONS;
-
-    static_assert(latPartitions >= 3, "Latitude partitions must be at least 3");
-    static_assert(lonPartitions >= 3, "Longitude partitions must be at least 3");
-
-    std::array<Vertex<3>, latPartitions *(lonPartitions - 2) + 2> vertices;
-    std::array<Index, 6 * latPartitions *(lonPartitions - 2)> indices;
-
-    static constexpr f32 latAngle = glm::pi<f32>() / (latPartitions - 1);
-    static constexpr f32 lonAngle = glm::two_pi<f32>() / (lonPartitions - 1);
-
-    Index vindex = 0;
-    Index iindex = 0;
-
-    vertices[vindex++] = Vertex<3>{{0.f, 0.f, 1.f}, {0.f, 0.f, 1.f}};
-    for (Index i = 1; i < lonPartitions - 1; ++i)
-    {
-        const f32 lon = lonAngle * i;
-        const f32 xy = glm::sin(lon);
-        const f32 z = glm::cos(lon);
-        for (Index j = 0; j < latPartitions; ++j)
-        {
-            const f32 lat = latAngle * j;
-            const f32 x = xy * glm::sin(lat);
-            const f32 y = xy * glm::cos(lat);
-            vertices[vindex++] = Vertex<3>{{x, y, z}, {x, y, z}};
-        }
-    }
-    vertices[vindex++] = Vertex<3>{{0.f, 0.f, -1.f}, {0.f, 0.f, -1.f}};
-
-    for (Index j = 0; j < latPartitions; ++j)
-    {
-        indices[iindex++] = 0;
-        indices[iindex++] = j + 1;
-        indices[iindex++] = (j + 2) % (latPartitions + 1);
-    }
-
-    for (Index i = 0; i < lonPartitions - 3; ++i)
-        for (Index j = 0; j < latPartitions; ++j)
-        {
-            const Index idx1 = latPartitions * i + j + 1;
-            const Index idx21 = latPartitions * (i + 1) + j + 1;
-            const Index idx12 = latPartitions * i + (j + 2) % (latPartitions + 1);
-            const Index idx2 = latPartitions * (i + 1) + (j + 2) % (latPartitions + 1);
-
-            indices[iindex++] = idx1;
-            indices[iindex++] = idx21;
-            indices[iindex++] = idx2;
-
-            indices[iindex++] = idx1;
-            indices[iindex++] = idx12;
-            indices[iindex++] = idx2;
-        }
-    for (Index j = 0; j < latPartitions; ++j)
-    {
-        indices[iindex++] = vindex - 1;
-        indices[iindex++] = latPartitions * (lonPartitions - 3) + (j + 1);
-        indices[iindex++] = latPartitions * (lonPartitions - 3) + (j + 2) % (latPartitions + 1);
-    }
-
-    const std::span<const Vertex<3>> verticesSpan{vertices};
-    const std::span<const Index> indicesSpan{indices};
-    return new Model(verticesSpan, indicesSpan);
+    const char *path = ONYX_ROOT_PATH "/onyx/models/quad-sphere.obj";
+    return load<3>(path);
 }
 
 ONYX_DIMENSION_TEMPLATE Model *Model::Create(const std::span<const Vertex<N>> p_Vertices,
@@ -512,13 +437,13 @@ ONYX_DIMENSION_TEMPLATE Model *Model::CreatePolygon(const std::span<const vec<N>
     if constexpr (N == 2)
         vertices.push_back(Vertex<N>{vec<N>{0.f}});
     else
-        vertices.push_back(Vertex<N>{vec<N>{0.f}, {0.f, 0.f, -1.f}});
+        vertices.push_back(Vertex<N>{vec<N>{0.f}, {0.f, 0.f, 1.f}});
     for (Index i = 0; i < p_Vertices.size(); ++i)
     {
         if constexpr (N == 2)
             vertices.push_back(Vertex<N>{p_Vertices[i]});
         else
-            vertices.push_back(Vertex<N>{p_Vertices[i], {0.f, 0.f, -1.f}});
+            vertices.push_back(Vertex<N>{p_Vertices[i], {0.f, 0.f, 1.f}});
 
         indices[i * 3] = 0;
         indices[i * 3 + 1] = i + 1;

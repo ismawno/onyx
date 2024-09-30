@@ -3,6 +3,20 @@
 
 namespace ONYX
 {
+ONYX_DIMENSION_TEMPLATE struct PushConstantData;
+
+template <> struct ONYX_API PushConstantData<2>
+{
+    mat4 ModelTransform;
+    vec4 Color;
+};
+
+template <> struct ONYX_API PushConstantData<3>
+{
+    mat4 ModelTransform;
+    mat4 ColorAndNormalMatrix;
+};
+
 ONYX_DIMENSION_TEMPLATE static Pipeline::Specs toPipelineSpecs(const typename RenderSystem<N>::Specs &p_Specs) noexcept
 {
     Pipeline::Specs specs{};

@@ -119,7 +119,7 @@ class ONYX_API Window
     const Renderer &GetRenderer() const noexcept;
 
     Color BackgroundColor = Color::BLACK;
-    vec3 LightDirection = vec3(0.f, 1.f, 0.f);
+    vec3 LightDirection{0.f, -1.f, 0.f};
     f32 LightIntensity = 0.9f;
     f32 AmbientIntensity = 0.1f;
 

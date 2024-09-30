@@ -17,20 +17,8 @@ struct ONYX_API DrawInfo
     mat4 Projection;
 };
 
-ONYX_DIMENSION_TEMPLATE struct PushConstantData;
-
-template <> struct ONYX_API PushConstantData<2>
-{
-    mat4 ModelTransform;
-    vec4 Color;
-};
-
-template <> struct ONYX_API PushConstantData<3>
-{
-    mat4 ModelTransform;
-    mat4 ColorAndNormalMatrix;
-};
-
+// If, in the future, user defined render systems are allowed, some of the following code could serve as a base class.
+// Some things should be removed (many of the pipeline specifications, for example)
 ONYX_DIMENSION_TEMPLATE class ONYX_API RenderSystem
 {
     KIT_NON_COPYABLE(RenderSystem)
