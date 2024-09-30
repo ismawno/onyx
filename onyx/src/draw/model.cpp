@@ -190,6 +190,10 @@ ONYX_DIMENSION_TEMPLATE static Model *load(const std::string_view p_Path)
             Vertex<N> vertex{};
             for (Index i = 0; i < N; ++i)
                 vertex.Position[i] = attrib.vertices[3 * index.vertex_index + i];
+            if constexpr (N == 3)
+                for (Index i = 0; i < 3; ++i)
+                    vertex.Normal[i] = attrib.normals[3 * index.normal_index + i];
+
             if (!uniqueVertices.contains(vertex))
             {
                 uniqueVertices[vertex] = static_cast<Index>(uniqueVertices.size());
@@ -216,10 +220,10 @@ ONYX_DIMENSION_TEMPLATE static const Model *createTriangleModel() noexcept
     }
     else
     {
-        static constexpr std::array<Vertex<3>, 3> vertices{
-            Vertex<3>{{0.f, -.5f, 0.f}},
-            Vertex<3>{{.5f, .5f, 0.f}},
-            Vertex<3>{{-.5f, .5f, 0.f}},
+        static constexpr std::array<Vertex<3>, 6> vertices{
+            Vertex<3>{{0.f, -.5f, 0.f}, {0.f, 0.f, -1.f}}, Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, -1.f}},
+            Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, -1.f}}, Vertex<3>{{0.f, -.5f, 0.f}, {0.f, 0.f, 1.f}},
+            Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},   Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
         };
         static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
         return new Model(verticesSpan);
@@ -244,10 +248,10 @@ ONYX_DIMENSION_TEMPLATE static const Model *createRectangleModel() noexcept
     else
     {
         static constexpr std::array<Vertex<3>, 4> vertices{
-            Vertex<3>{{-.5f, -.5f, 0.f}},
-            Vertex<3>{{.5f, -.5f, 0.f}},
-            Vertex<3>{{.5f, .5f, 0.f}},
-            Vertex<3>{{-.5f, .5f, 0.f}},
+            Vertex<3>{{-.5f, -.5f, 0.f}, {0.f, 0.f, -1.f}},
+            Vertex<3>{{.5f, -.5f, 0.f}, {0.f, 0.f, -1.f}},
+            Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, -1.f}},
+            Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, -1.f}},
         };
         static constexpr std::array<Index, 6> indices{0, 1, 2, 2, 3, 0};
         static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
@@ -274,14 +278,14 @@ static const Model *createRegularPolygonModel()
         {
             const f32 x = glm::cos(angle * i);
             const f32 y = glm::sin(angle * i);
-            if constexpr (N == 2)
-                vertices[i] = Vertex<N>{vec<N>{x, y}};
-            else
-                vertices[i] = Vertex<N>{vec<N>{x, y, 0.f}};
-
             indices[i * 3] = 0;
             indices[i * 3 + 1] = i;
             indices[i * 3 + 2] = i + 1;
+
+            if constexpr (N == 2)
+                vertices[i] = Vertex<N>{vec<N>{x, y}};
+            else
+                vertices[i] = Vertex<N>{vec<N>{x, y, 0.f}, vec<N>{0.f, 0.f, -1.f}};
         }
 
         const std::span<const Vertex<N>> verticesSpan{vertices};
@@ -316,8 +320,8 @@ ONYX_DIMENSION_TEMPLATE static const Model *createLineModel() noexcept
     else
     {
         static constexpr std::array<Vertex<3>, 2> vertices{
-            Vertex<3>{{-.5f, 0.f, 0.f}},
-            Vertex<3>{{.5f, 0.f, 0.f}},
+            Vertex<3>{{-.5f, 0.f, 0.f}, {0.f, 0.f, -1.f}},
+            Vertex<3>{{.5f, 0.f, 0.f}, {0.f, 0.f, -1.f}},
         };
         static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
         return new Model(verticesSpan);
@@ -365,7 +369,7 @@ static const Model *createSphereModel() noexcept
     Index vindex = 0;
     Index iindex = 0;
 
-    vertices[vindex++] = Vertex<3>{{0.f, 0.f, 1.f}};
+    vertices[vindex++] = Vertex<3>{{0.f, 0.f, 1.f}, {0.f, 0.f, 1.f}};
     for (Index i = 1; i < lonPartitions - 1; ++i)
     {
         const f32 lon = lonAngle * i;
@@ -376,10 +380,10 @@ static const Model *createSphereModel() noexcept
             const f32 lat = latAngle * j;
             const f32 x = xy * glm::sin(lat);
             const f32 y = xy * glm::cos(lat);
-            vertices[vindex++] = Vertex<3>{{x, y, z}};
+            vertices[vindex++] = Vertex<3>{{x, y, z}, {x, y, z}};
         }
     }
-    vertices[vindex++] = Vertex<3>{{0.f, 0.f, -1.f}};
+    vertices[vindex++] = Vertex<3>{{0.f, 0.f, -1.f}, {0.f, 0.f, -1.f}};
 
     for (Index j = 0; j < latPartitions; ++j)
     {
@@ -504,10 +508,17 @@ ONYX_DIMENSION_TEMPLATE Model *Model::CreatePolygon(const std::span<const vec<N>
 
     vertices.reserve(p_Vertices.size() + 1);
 
-    vertices.push_back(Vertex<N>{vec<N>{0.f}});
+    if constexpr (N == 2)
+        vertices.push_back(Vertex<N>{vec<N>{0.f}});
+    else
+        vertices.push_back(Vertex<N>{vec<N>{0.f}, {0.f, 0.f, -1.f}});
     for (Index i = 0; i < p_Vertices.size(); ++i)
     {
-        vertices.push_back(Vertex<N>{p_Vertices[i]});
+        if constexpr (N == 2)
+            vertices.push_back(Vertex<N>{p_Vertices[i]});
+        else
+            vertices.push_back(Vertex<N>{p_Vertices[i], {0.f, 0.f, -1.f}});
+
         indices[i * 3] = 0;
         indices[i * 3 + 1] = i + 1;
         indices[i * 3 + 2] = i + 2;

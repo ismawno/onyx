@@ -27,6 +27,9 @@ enum class WindowFlow
 
 // in OnShutdown, it is not valid to reference any window any longer
 
+// you are supposed to draw only 2D or 3D objects in a window, not both. you can still do it, but results may be weird
+// (light behaves differently, etc)
+
 class IMultiWindowApplication : public IApplication
 {
     KIT_NON_COPYABLE(IMultiWindowApplication)

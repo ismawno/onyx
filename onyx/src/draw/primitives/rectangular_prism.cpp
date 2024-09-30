@@ -7,8 +7,8 @@ namespace ONYX
 RectangularPrism3D::RectangularPrism3D(const vec3 &p_Position, const vec3 &p_Dimension, const Color &p_Color) noexcept
     : ModelShape(Model::GetCube(), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, p_Color)
 {
-    this->Transform.Position = p_Position;
-    this->Transform.Scale = p_Dimension;
+    Transform.Position = p_Position;
+    Transform.Scale = p_Dimension;
 }
 
 RectangularPrism3D::RectangularPrism3D(const Color &p_Color) noexcept

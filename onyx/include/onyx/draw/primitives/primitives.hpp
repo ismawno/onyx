@@ -6,3 +6,4 @@
 #include "onyx/draw/primitives/polygon.hpp"
 #include "onyx/draw/primitives/rectangular_prism.hpp"
 #include "onyx/draw/primitives/ellipse.hpp"
+#include "onyx/draw/primitives/ellipsoid.hpp"

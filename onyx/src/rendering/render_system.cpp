@@ -33,6 +33,8 @@ ONYX_DIMENSION_TEMPLATE static Pipeline::Specs toPipelineSpecs(const RenderSyste
         specs.DepthStencilInfo.depthWriteEnable = VK_FALSE;
         specs.DepthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
     }
+    else
+        specs.ColorBlendAttachment.blendEnable = VK_FALSE;
     return specs;
 }
 

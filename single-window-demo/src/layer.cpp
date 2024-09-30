@@ -11,7 +11,9 @@ enum PrimitiveType : int
 {
     TRIANGLE = 0,
     RECTANGLE,
-    CIRCLE
+    CIRCLE,
+    CUBE,
+    SPHERE
 };
 
 SWExampleLayer::SWExampleLayer(Application *p_Application) noexcept : Layer("Example"), m_Application(p_Application)
@@ -116,8 +118,16 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderPrimitiveSpawnUI(const Color 
             m_Drawables.emplace_back(KIT::Scope<Rectangle<N>>::Create(p_Color));
         if (ptype == CIRCLE)
             m_Drawables.emplace_back(KIT::Scope<Ellipse<N>>::Create(p_Color));
+        if (ptype == CUBE)
+            m_Drawables.emplace_back(KIT::Scope<RectangularPrism3D>::Create(p_Color));
+        if (ptype == SPHERE)
+            m_Drawables.emplace_back(KIT::Scope<Ellipsoid3D>::Create(p_Color));
     }
-    ImGui::Combo("Primitive", (int *)&ptype, "Triangle\0Rectangle\0Circle\0\0");
+    if constexpr (N == 2)
+        ImGui::Combo("Primitive", (int *)&ptype, "Triangle\0Rectangle\0Circle\0\0");
+    else
+        ImGui::Combo("Primitive", (int *)&ptype, "Triangle\0Rectangle\0Circle\0Cube\0Sphere\0\0");
+
     if (ImGui::TreeNode("Active primitives"))
     {
         for (const auto &drawable : m_Drawables)

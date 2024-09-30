@@ -25,6 +25,7 @@ set(SOURCES
     src/draw/primitives/shape.cpp
     src/draw/primitives/rectangle.cpp
     src/draw/primitives/ellipse.cpp
+    src/draw/primitives/ellipsoid.cpp
     src/draw/primitives/line.cpp
     src/draw/primitives/polygon.cpp
     src/draw/primitives/rectangular_prism.cpp

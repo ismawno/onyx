@@ -20,14 +20,23 @@ attributeDescriptions() noexcept
     VkVertexInputAttributeDescription position{};
     position.binding = 0;
     position.location = 0;
+    position.offset = offsetof(Vertex<N>, Position);
 
     if constexpr (N == 2)
+    {
         position.format = VK_FORMAT_R32G32_SFLOAT;
+        return {position};
+    }
     else
+    {
         position.format = VK_FORMAT_R32G32B32_SFLOAT;
-
-    position.offset = offsetof(Vertex<N>, Position);
-    return {position};
+        VkVertexInputAttributeDescription normal{};
+        normal.binding = 0;
+        normal.location = 1;
+        normal.offset = offsetof(Vertex<N>, Normal);
+        normal.format = VK_FORMAT_R32G32B32_SFLOAT;
+        return {position, normal};
+    }
 }
 
 std::array<VkVertexInputBindingDescription, Vertex2D::BINDINGS> Vertex<2>::GetBindingDescriptions() noexcept

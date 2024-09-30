@@ -4,6 +4,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/draw/color.hpp"
 #include "kit/container/static_array.hpp"
+#include "kit/container/hashable_tuple.hpp"
 
 #include <vulkan/vulkan.hpp>
 
@@ -31,15 +32,16 @@ template <> struct ONYX_API Vertex<2>
 template <> struct ONYX_API Vertex<3>
 {
     static constexpr u32 BINDINGS = 1;
-    static constexpr u32 ATTRIBUTES = 1;
+    static constexpr u32 ATTRIBUTES = 2;
     static std::array<VkVertexInputBindingDescription, BINDINGS> GetBindingDescriptions() noexcept;
     static std::array<VkVertexInputAttributeDescription, ATTRIBUTES> GetAttributeDescriptions() noexcept;
 
     vec3 Position;
+    vec3 Normal;
 
     friend bool operator==(const Vertex<3> &p_Left, const Vertex<3> &p_Right) noexcept
     {
-        return p_Left.Position == p_Right.Position;
+        return p_Left.Position == p_Right.Position && p_Left.Normal == p_Right.Normal;
     }
 };
 
@@ -60,6 +62,7 @@ template <> struct std::hash<ONYX::Vertex<3>>
 {
     std::size_t operator()(const ONYX::Vertex<3> &p_Vertex) const
     {
-        return std::hash<glm::vec3>()(p_Vertex.Position);
+        KIT::HashableTuple<glm::vec3, glm::vec3> tuple{p_Vertex.Position, p_Vertex.Normal};
+        return tuple();
     }
 };
