@@ -113,31 +113,22 @@ find_program(GLSLC_EXECUTABLE glslc REQUIRED)
 message(STATUS "ONYX: Found glslc: ${GLSLC_EXECUTABLE}")
 
 function(compile_shader shader)
-    set(SHADER "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${shader}")
-    set(SPIRV "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin/${shader}.spv")
+    get_filename_component(SHADER_NAME ${shader} NAME)
+    set(SPIRV "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin/${SHADER_NAME}.spv")
     
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin
-        COMMENT "Creating bin directory for shaders"
-    )
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin)
 
     add_custom_command(
         TARGET onyx
         PRE_BUILD
-        COMMAND ${GLSLC_EXECUTABLE} ${SHADER} -o ${SPIRV}
+        COMMAND ${GLSLC_EXECUTABLE} ${shader} -o ${SPIRV}
         COMMENT "Compiling ${shader} to SPIR-V"
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin
         VERBATIM
     )
 endfunction()
 
-set(SHADERS
-    "shader2D.frag"
-    "shader2D.vert"
-    "shader3D.frag"
-    "shader3D.vert"
-)
+file(GLOB SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag")
 
 foreach(SHADER ${SHADERS})
     compile_shader(${SHADER})

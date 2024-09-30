@@ -37,7 +37,7 @@ ONYX_DIMENSION_TEMPLATE static Pipeline::Specs toPipelineSpecs(const RenderSyste
 }
 
 ONYX_DIMENSION_TEMPLATE RenderSystem::RenderSystem(const Specs<N> &p_Specs) noexcept
-    : m_Pipeline(toPipelineSpecs(p_Specs))
+    : m_Pipeline(toPipelineSpecs(p_Specs)), m_Is3D(N == 3)
 {
 }
 
@@ -53,8 +53,14 @@ void RenderSystem::Display(const DrawInfo &p_Info) const noexcept
     {
         KIT_ASSERT(data.Model,
                    "Model cannot be NULL! No drawables can be created before the creation of the first window");
+        PushConstantData pushConstantData{};
+        pushConstantData.ModelTransform = data.ModelTransform;
+        if (m_Is3D)
+            pushConstantData.ColorAndNormalMatrix = mat4(glm::transpose(mat3(glm::inverse(data.ModelTransform))));
+
+        pushConstantData.ColorAndNormalMatrix[3] = data.Color;
         vkCmdPushConstants(p_Info.CommandBuffer, m_Pipeline.GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
-                           sizeof(PushConstantData), &data.Data);
+                           sizeof(PushConstantData), &pushConstantData);
 
         if (m_BoundModel != data.Model)
         {

@@ -9,8 +9,8 @@ void IDrawable::DefaultDraw(RenderSystem &p_RenderSystem, const Model *p_Model, 
 {
     RenderSystem::DrawData data{};
     data.Model = p_Model;
-    data.Data.ModelTransform = p_Transform;
-    data.Data.Color = p_Color;
+    data.ModelTransform = p_Transform;
+    data.Color = p_Color;
     p_RenderSystem.SubmitRenderData(data);
 }
 } // namespace ONYX

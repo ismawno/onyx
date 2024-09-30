@@ -38,6 +38,10 @@ void SWExampleLayer::OnImGuiRender() noexcept
         if (m_CameraType < PERSPECTIVE3D)
             ImGui::DragFloat("Orthographic size", &orthSize, 0.5f, 0.f, FLT_MAX, "%.1f");
 
+        ImGui::SliderFloat3("Light direction", glm::value_ptr(window->LightDirection), -1.f, 1.f);
+        ImGui::SliderFloat("Light intensity", &window->LightIntensity, 0.f, 1.f);
+        ImGui::SliderFloat("Ambient intensity", &window->AmbientIntensity, 0.f, 1.f);
+
         if (ImGui::Combo("Camera type", (int *)&m_CameraType, "Orthographic 2D\0Orthographic 3D\0Perspective 3D\0\0"))
         {
             switch (m_CameraType)

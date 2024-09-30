@@ -12,6 +12,9 @@ namespace ONYX
 struct GlobalUBO
 {
     glm::mat4 Projection;
+    glm::vec4 LightDirection{0.f, 0.f, 1.f, 0.f};
+    f32 LightIntensity = 1.f;
+    f32 AmbientIntensity = 0.1f;
 };
 
 Window::Window() noexcept : Window(Specs{})
@@ -123,6 +126,9 @@ void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
     GlobalUBO ubo{};
     m_Camera->SetAspectRatio(GetScreenAspect());
     ubo.Projection = m_Camera->ComputeProjectionView();
+    ubo.LightDirection = vec4{LightDirection, 0.f};
+    ubo.LightIntensity = LightIntensity;
+    ubo.AmbientIntensity = AmbientIntensity;
 
     m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);
     m_GlobalUniformHelper->UniformBuffer.FlushAt(frameIndex);

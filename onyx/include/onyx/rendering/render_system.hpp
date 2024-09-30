@@ -17,8 +17,8 @@ class ONYX_API RenderSystem
   public:
     ONYX_DIMENSION_TEMPLATE struct Specs
     {
-        const char *VertexShaderPath = Core::GetVertexShaderPath<N>();
-        const char *FragmentShaderPath = Core::GetFragmentShaderPath<N>();
+        const char *VertexShaderPath = Core::GetPrimitiveVertexShaderPath<N>();
+        const char *FragmentShaderPath = Core::GetPrimitiveFragmentShaderPath<N>();
 
         std::array<VkVertexInputBindingDescription, Vertex<N>::BINDINGS> BindingDescriptions =
             Vertex<N>::GetBindingDescriptions();
@@ -44,13 +44,14 @@ class ONYX_API RenderSystem
     struct PushConstantData
     {
         mat4 ModelTransform;
-        vec4 Color;
+        mat4 ColorAndNormalMatrix;
     };
 
     struct DrawData
     {
         const Model *Model;
-        PushConstantData Data;
+        mat4 ModelTransform;
+        vec4 Color;
     };
 
     ONYX_DIMENSION_TEMPLATE RenderSystem(const Specs<N> &p_Specs) noexcept;
@@ -68,5 +69,6 @@ class ONYX_API RenderSystem
     Pipeline m_Pipeline;
     DynamicArray<DrawData> m_DrawData;
     mutable const Model *m_BoundModel = nullptr;
+    bool m_Is3D;
 };
 } // namespace ONYX
