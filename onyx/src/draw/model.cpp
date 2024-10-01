@@ -4,19 +4,7 @@
 #include <tiny_obj_loader.h>
 
 #ifndef ONYX_MAX_REGULAR_POLYGON_SIDES
-#    define ONYX_MAX_REGULAR_POLYGON_SIDES 32
-#endif
-
-#ifndef ONYX_CIRCLE_VERTICES
-#    define ONYX_CIRCLE_VERTICES 32
-#endif
-
-#ifndef ONYX_SPHERE_LATITUDE_PARTITIONS
-#    define ONYX_SPHERE_LATITUDE_PARTITIONS 32
-#endif
-
-#ifndef ONYX_SPHERE_LONGITUDE_PARTITIONS
-#    define ONYX_SPHERE_LONGITUDE_PARTITIONS 32
+#    define ONYX_MAX_REGULAR_POLYGON_SIDES 8
 #endif
 
 namespace ONYX
@@ -188,9 +176,8 @@ ONYX_DIMENSION_TEMPLATE static Model *load(const std::string_view p_Path)
         for (const auto &index : shape.mesh.indices)
         {
             Vertex<N> vertex{};
-            // Blender models go from -1 to 1, so I need to divide by 2
             for (Index i = 0; i < N; ++i)
-                vertex.Position[i] = 0.5f * attrib.vertices[3 * index.vertex_index + i];
+                vertex.Position[i] = attrib.vertices[3 * index.vertex_index + i];
             if constexpr (N == 3)
                 for (Index i = 0; i < 3; ++i)
                     vertex.Normal[i] = attrib.normals[3 * index.normal_index + i];
@@ -207,58 +194,34 @@ ONYX_DIMENSION_TEMPLATE static Model *load(const std::string_view p_Path)
     return new Model(verticesSpan, indicesSpan);
 }
 
-ONYX_DIMENSION_TEMPLATE static const Model *createTriangleModel() noexcept
+ONYX_DIMENSION_TEMPLATE static const Model *loadTriangleModel() noexcept
 {
-    if constexpr (N == 2)
-    {
-        static constexpr std::array<Vertex<2>, 3> vertices{
-            Vertex<2>{{0.f, -.5f}},
-            Vertex<2>{{.5f, .5f}},
-            Vertex<2>{{-.5f, .5f}},
-        };
-        static constexpr std::span<const Vertex<2>> verticesSpan{vertices};
-        return new Model(verticesSpan);
-    }
-    else
-    {
-        static constexpr std::array<Vertex<3>, 6> vertices{
-            Vertex<3>{{0.f, -.5f, 0.f}, {0.f, 0.f, 1.f}}, Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
-            Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, 1.f}}, Vertex<3>{{0.f, -.5f, 0.f}, {0.f, 0.f, 1.f}},
-            Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},  Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
-        };
-        static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
-        return new Model(verticesSpan);
-    }
+    const char *path = ONYX_ROOT_PATH "/onyx/models/triangle.obj";
+    return load<N>(path);
 }
 
-ONYX_DIMENSION_TEMPLATE static const Model *createRectangleModel() noexcept
+ONYX_DIMENSION_TEMPLATE static const Model *loadSquareModel() noexcept
 {
-    if constexpr (N == 2)
-    {
-        static constexpr std::array<Vertex<2>, 4> vertices{
-            Vertex<2>{{-.5f, -.5f}},
-            Vertex<2>{{.5f, -.5f}},
-            Vertex<2>{{.5f, .5f}},
-            Vertex<2>{{-.5f, .5f}},
-        };
-        static constexpr std::array<Index, 6> indices{0, 1, 2, 2, 3, 0};
-        static constexpr std::span<const Vertex<2>> verticesSpan{vertices};
-        static constexpr std::span<const Index> indicesSpan{indices};
-        return new Model(verticesSpan, indicesSpan);
-    }
-    else
-    {
-        static constexpr std::array<Vertex<3>, 4> vertices{
-            Vertex<3>{{-.5f, -.5f, 0.f}, {0.f, 0.f, 1.f}},
-            Vertex<3>{{.5f, -.5f, 0.f}, {0.f, 0.f, 1.f}},
-            Vertex<3>{{.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
-            Vertex<3>{{-.5f, .5f, 0.f}, {0.f, 0.f, 1.f}},
-        };
-        static constexpr std::array<Index, 6> indices{0, 1, 2, 2, 3, 0};
-        static constexpr std::span<const Vertex<3>> verticesSpan{vertices};
-        static constexpr std::span<const Index> indicesSpan{indices};
-        return new Model(verticesSpan, indicesSpan);
-    }
+    const char *path = ONYX_ROOT_PATH "/onyx/models/square.obj";
+    return load<N>(path);
+}
+
+ONYX_DIMENSION_TEMPLATE static const Model *loadCircleModel() noexcept
+{
+    const char *path = ONYX_ROOT_PATH "/onyx/models/circle.obj";
+    return load<N>(path);
+}
+
+static const Model *loadCubeModel() noexcept
+{
+    const char *path = ONYX_ROOT_PATH "/onyx/models/cube.obj";
+    return load<3>(path);
+}
+
+static const Model *loadSphereModel() noexcept
+{
+    const char *path = ONYX_ROOT_PATH "/onyx/models/sphere.obj";
+    return load<3>(path);
 }
 
 template <u32 N, usize Sides>
@@ -266,9 +229,9 @@ template <u32 N, usize Sides>
 static const Model *createRegularPolygonModel()
 {
     if constexpr (Sides == 3)
-        return createTriangleModel<N>();
+        return loadTriangleModel<N>();
     else if constexpr (Sides == 4)
-        return createRectangleModel<N>();
+        return loadSquareModel<N>();
     else
     {
         std::array<Vertex<N>, Sides> vertices;
@@ -329,23 +292,6 @@ ONYX_DIMENSION_TEMPLATE static const Model *createLineModel() noexcept
     }
 }
 
-ONYX_DIMENSION_TEMPLATE static const Model *createCircleModel() noexcept
-{
-    return createRegularPolygonModel<N, ONYX_CIRCLE_VERTICES>();
-}
-
-static const Model *createCubeModel() noexcept
-{
-    const char *path = ONYX_ROOT_PATH "/onyx/models/cube.obj";
-    return load<3>(path);
-}
-
-static const Model *createSphereModel() noexcept
-{
-    const char *path = ONYX_ROOT_PATH "/onyx/models/quad-sphere.obj";
-    return load<3>(path);
-}
-
 ONYX_DIMENSION_TEMPLATE Model *Model::Create(const std::span<const Vertex<N>> p_Vertices,
                                              const Properties p_VertexBufferProperties) noexcept
 {
@@ -387,11 +333,11 @@ void Model::CreatePrimitiveModels() noexcept
     s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES] = createLineModel<2>();
     s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 1] = createLineModel<3>();
 
-    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 2] = createCircleModel<2>();
-    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 3] = createCircleModel<3>();
+    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 2] = loadCircleModel<2>();
+    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 3] = loadCircleModel<3>();
 
-    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 4] = createCubeModel();
-    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 5] = createSphereModel();
+    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 4] = loadCubeModel();
+    s_Models[2 * ONYX_MAX_REGULAR_POLYGON_SIDES + 5] = loadSphereModel();
 }
 
 void Model::DestroyPrimitiveModels() noexcept
@@ -413,7 +359,7 @@ ONYX_DIMENSION_TEMPLATE const Model *Model::GetTriangle() noexcept
 {
     return s_Models[(N - 2) * ONYX_MAX_REGULAR_POLYGON_SIDES];
 }
-ONYX_DIMENSION_TEMPLATE const Model *Model::GetRectangle() noexcept
+ONYX_DIMENSION_TEMPLATE const Model *Model::GetSquare() noexcept
 {
     return s_Models[1 + (N - 2) * ONYX_MAX_REGULAR_POLYGON_SIDES];
 }
@@ -466,9 +412,9 @@ const Model *Model::GetTriangle2D() noexcept
 {
     return GetTriangle<2>();
 }
-const Model *Model::GetRectangle2D() noexcept
+const Model *Model::GetSquare2D() noexcept
 {
-    return GetRectangle<2>();
+    return GetSquare<2>();
 }
 const Model *Model::GetLine2D() noexcept
 {
@@ -492,9 +438,9 @@ const Model *Model::GetTriangle3D() noexcept
 {
     return GetTriangle<3>();
 }
-const Model *Model::GetRectangle3D() noexcept
+const Model *Model::GetSquare3D() noexcept
 {
-    return GetRectangle<3>();
+    return GetSquare<3>();
 }
 const Model *Model::GetLine3D() noexcept
 {

@@ -6,7 +6,7 @@ namespace ONYX
 {
 ONYX_DIMENSION_TEMPLATE Rectangle<N>::Rectangle(const vec<N> &p_Position, const vec2 &p_Dimension,
                                                 const Color &p_Color) noexcept
-    : ModelShape<N>(Model::GetRectangle<N>(), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, p_Color)
+    : ModelShape<N>(Model::GetSquare<N>(), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, p_Color)
 {
     this->Transform.Position = p_Position;
     if constexpr (N == 2)
@@ -16,7 +16,7 @@ ONYX_DIMENSION_TEMPLATE Rectangle<N>::Rectangle(const vec<N> &p_Position, const 
 }
 
 ONYX_DIMENSION_TEMPLATE Rectangle<N>::Rectangle(const Color &p_Color) noexcept
-    : ModelShape<N>(Model::GetRectangle<N>(), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, p_Color)
+    : ModelShape<N>(Model::GetSquare<N>(), VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, p_Color)
 {
 }
 

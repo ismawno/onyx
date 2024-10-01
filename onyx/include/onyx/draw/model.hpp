@@ -85,7 +85,7 @@ class ONYX_API Model
 
     ONYX_DIMENSION_TEMPLATE static const Model *GetRegularPolygon(u32 p_Sides) noexcept;
     ONYX_DIMENSION_TEMPLATE static const Model *GetTriangle() noexcept;
-    ONYX_DIMENSION_TEMPLATE static const Model *GetRectangle() noexcept;
+    ONYX_DIMENSION_TEMPLATE static const Model *GetSquare() noexcept;
     ONYX_DIMENSION_TEMPLATE static const Model *GetLine() noexcept;
     ONYX_DIMENSION_TEMPLATE static const Model *GetCircle() noexcept;
     ONYX_DIMENSION_TEMPLATE static Model *CreatePolygon(std::span<const vec<N>> p_Vertices,
@@ -93,7 +93,7 @@ class ONYX_API Model
 
     static const Model *GetRegularPolygon2D(u32 p_Sides) noexcept;
     static const Model *GetTriangle2D() noexcept;
-    static const Model *GetRectangle2D() noexcept;
+    static const Model *GetSquare2D() noexcept;
     static const Model *GetLine2D() noexcept;
     static const Model *GetCircle2D() noexcept;
     static Model *CreatePolygon2D(std::span<const vec2> p_Vertices,
@@ -101,7 +101,7 @@ class ONYX_API Model
 
     static const Model *GetRegularPolygon3D(u32 p_Sides) noexcept;
     static const Model *GetTriangle3D() noexcept;
-    static const Model *GetRectangle3D() noexcept;
+    static const Model *GetSquare3D() noexcept;
     static const Model *GetLine3D() noexcept;
     static const Model *GetCircle3D() noexcept;
     static Model *CreatePolygon3D(std::span<const vec3> p_Vertices,
