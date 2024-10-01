@@ -90,16 +90,16 @@ ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::Display(const DrawInfo &p_Info) co
     }
 }
 
-ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::SubmitRenderData(const RenderSystem &p_RenderSystem) noexcept
+ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::SubmitDrawData(const RenderSystem &p_RenderSystem) noexcept
 {
     m_DrawData.insert(m_DrawData.end(), p_RenderSystem.m_DrawData.begin(), p_RenderSystem.m_DrawData.end());
 }
-ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::SubmitRenderData(const DrawData &p_Data) noexcept
+ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::SubmitDrawData(const DrawData &p_Data) noexcept
 {
     m_DrawData.push_back(p_Data);
 }
 
-ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::ClearRenderData() noexcept
+ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::ClearDrawData() noexcept
 {
     m_DrawData.clear();
     m_BoundModel = nullptr;

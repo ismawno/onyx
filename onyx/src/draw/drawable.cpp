@@ -11,7 +11,7 @@ ONYX_DIMENSION_TEMPLATE void IDrawable::DefaultModelDraw(RenderSystem<N> &p_Rend
     data.Model = p_Model;
     data.ModelTransform = p_Transform;
     data.Color = p_Color;
-    p_RenderSystem.SubmitRenderData(data);
+    p_RenderSystem.SubmitDrawData(data);
 }
 
 template void IDrawable::DefaultModelDraw(RenderSystem<2> &p_RenderSystem, const Model *p_Model, const vec4 &p_Color,

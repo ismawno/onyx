@@ -119,7 +119,7 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderPrimitiveSpawnUI(const Color 
         if (ptype == CIRCLE)
             m_Drawables.emplace_back(KIT::Scope<Ellipse<N>>::Create(p_Color));
         if (ptype == CUBE)
-            m_Drawables.emplace_back(KIT::Scope<RectangularPrism3D>::Create(p_Color));
+            m_Drawables.emplace_back(KIT::Scope<Cuboid3D>::Create(p_Color));
         if (ptype == SPHERE)
             m_Drawables.emplace_back(KIT::Scope<Ellipsoid3D>::Create(p_Color));
     }

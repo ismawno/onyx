@@ -28,7 +28,7 @@ set(SOURCES
     src/draw/primitives/ellipsoid.cpp
     src/draw/primitives/line.cpp
     src/draw/primitives/polygon.cpp
-    src/draw/primitives/rectangular_prism.cpp
+    src/draw/primitives/cuboid.cpp
     src/draw/primitives/triangle.cpp
     src/app/app.cpp
     src/app/mwapp.cpp

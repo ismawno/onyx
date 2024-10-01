@@ -143,12 +143,12 @@ void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
     for (RenderSystem2D &rs : m_RenderSystems2D)
     {
         rs.Display(info);
-        rs.ClearRenderData();
+        rs.ClearDrawData();
     }
     for (RenderSystem3D &rs : m_RenderSystems3D)
     {
         rs.Display(info);
-        rs.ClearRenderData();
+        rs.ClearDrawData();
     }
 }
 
@@ -167,9 +167,9 @@ void Window::Draw(Window &p_Window) noexcept
 
     // A render system cannot be deleted, so we can safely assume that the render systems are in the same order
     for (usize i = 0; i < m_RenderSystems2D.size(); ++i)
-        m_RenderSystems2D[i].SubmitRenderData(p_Window.m_RenderSystems2D[i]);
+        m_RenderSystems2D[i].SubmitDrawData(p_Window.m_RenderSystems2D[i]);
     for (usize i = 0; i < m_RenderSystems3D.size(); ++i)
-        m_RenderSystems3D[i].SubmitRenderData(p_Window.m_RenderSystems3D[i]);
+        m_RenderSystems3D[i].SubmitDrawData(p_Window.m_RenderSystems3D[i]);
 }
 
 // I could define my own topology enum and use it here as the index... but i didnt

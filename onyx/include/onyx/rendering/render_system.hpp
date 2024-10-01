@@ -56,9 +56,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API RenderSystem
     // thread that does not own the window execution. Even by protecting them by mutexes, calling them from a different
     // thread will cause flickering (that is why I havent even bothered to protect them with mutexes)
     // Every render system should submit from the thread owning the window
-    void SubmitRenderData(const RenderSystem &p_RenderSystem) noexcept;
-    void SubmitRenderData(const DrawData &p_Data) noexcept;
-    void ClearRenderData() noexcept;
+    void SubmitDrawData(const RenderSystem &p_RenderSystem) noexcept;
+    void SubmitDrawData(const DrawData &p_Data) noexcept;
+    void ClearDrawData() noexcept;
 
   private:
     Pipeline m_Pipeline;
