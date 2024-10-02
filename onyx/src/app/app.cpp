@@ -126,7 +126,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     initInfo.MinImageCount = 3;
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    initInfo.RenderPass = p_Window.GetRenderer().GetSwapChain().GetRenderPass();
+    initInfo.RenderPass = p_Window.GetRenderContext().GetSwapChain().GetRenderPass();
 
     ImGui_ImplVulkan_Init(&initInfo);
     ImGui_ImplVulkan_CreateFontsTexture();
@@ -170,13 +170,13 @@ bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
     Layers.OnUpdate();
     Layers.OnRender();
 
-    KIT_ASSERT_RETURNS(m_Window->Display([this](const VkCommandBuffer p_CommandBuffer) {
+    KIT_ASSERT_RETURNS(m_Window->Render([this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
         Layers.OnImGuiRender();
         endRenderImGui(p_CommandBuffer);
     }),
                        true,
-                       "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
+                       "Failed to render to the window. Failed to acquire a command buffer when beginning a new frame");
     if (m_Window->ShouldClose())
     {
         m_Window.Destroy();

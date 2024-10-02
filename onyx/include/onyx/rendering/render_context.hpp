@@ -8,11 +8,11 @@ namespace ONYX
 struct Color;
 class Window;
 
-class ONYX_API Renderer
+class ONYX_API RenderContext
 {
   public:
-    explicit Renderer(Window &p_Window) noexcept;
-    ~Renderer() noexcept;
+    explicit RenderContext(Window &p_Window) noexcept;
+    ~RenderContext() noexcept;
 
     VkCommandBuffer BeginFrame(Window &p_Window) noexcept;
     void EndFrame(Window &p_Window) noexcept;

@@ -50,7 +50,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API RenderSystem
     };
 
     RenderSystem(const Specs &p_Specs) noexcept;
-    void Display(const DrawInfo &p_Info) const noexcept;
+    void Render(const DrawInfo &p_Info) const noexcept;
 
     // These two methods will cause issues (races and inconsistencies) in concurrent mode if they are called from a
     // thread that does not own the window execution. Even by protecting them by mutexes, calling them from a different

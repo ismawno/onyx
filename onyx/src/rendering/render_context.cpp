@@ -1,5 +1,5 @@
 #include "core/pch.hpp"
-#include "onyx/rendering/renderer.hpp"
+#include "onyx/rendering/render_context.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/draw/color.hpp"
@@ -10,7 +10,7 @@
 
 namespace ONYX
 {
-Renderer::Renderer(Window &p_Window) noexcept
+RenderContext::RenderContext(Window &p_Window) noexcept
 {
     m_Device = Core::GetDevice();
     createSwapChain(p_Window);
@@ -18,12 +18,12 @@ Renderer::Renderer(Window &p_Window) noexcept
     createCommandBuffers();
 }
 
-Renderer::~Renderer() noexcept
+RenderContext::~RenderContext() noexcept
 {
     if (m_PresentTask)
         m_PresentTask->WaitUntilFinished();
-    // Must wait for the device. Windows/Renderers may be destroyed at runtime, and all its command buffers must have
-    // finished
+    // Must wait for the device. Windows/RenderContexts may be destroyed at runtime, and all its command buffers must
+    // have finished
 
     // Lock the queues to prevent any other command buffers from being submitted
     m_Device->WaitIdle();
@@ -32,7 +32,7 @@ Renderer::~Renderer() noexcept
     vkDestroyCommandPool(m_Device->GetDevice(), m_CommandPool, nullptr);
 }
 
-VkCommandBuffer Renderer::BeginFrame(Window &p_Window) noexcept
+VkCommandBuffer RenderContext::BeginFrame(Window &p_Window) noexcept
 {
     KIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
 
@@ -70,7 +70,7 @@ VkCommandBuffer Renderer::BeginFrame(Window &p_Window) noexcept
     return m_CommandBuffers[m_FrameIndex];
 }
 
-void Renderer::EndFrame(Window &) noexcept
+void RenderContext::EndFrame(Window &) noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
     KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
@@ -93,7 +93,7 @@ void Renderer::EndFrame(Window &) noexcept
     m_FrameStarted = false;
 }
 
-void Renderer::BeginRenderPass(const Color &p_ClearColor) noexcept
+void RenderContext::BeginRenderPass(const Color &p_ClearColor) noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot begin render pass if a frame is not in progress");
     const VkExtent2D extent = m_SwapChain->GetExtent();
@@ -130,28 +130,28 @@ void Renderer::BeginRenderPass(const Color &p_ClearColor) noexcept
     vkCmdSetScissor(m_CommandBuffers[m_FrameIndex], 0, 1, &scissor);
 }
 
-void Renderer::EndRenderPass() noexcept
+void RenderContext::EndRenderPass() noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot end render pass if a frame is not in progress");
     vkCmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
 }
 
-u32 Renderer::GetFrameIndex() const noexcept
+u32 RenderContext::GetFrameIndex() const noexcept
 {
     return m_FrameIndex;
 }
 
-VkCommandBuffer Renderer::GetCurrentCommandBuffer() const noexcept
+VkCommandBuffer RenderContext::GetCurrentCommandBuffer() const noexcept
 {
     return m_CommandBuffers[m_FrameIndex];
 }
 
-const SwapChain &Renderer::GetSwapChain() const noexcept
+const SwapChain &RenderContext::GetSwapChain() const noexcept
 {
     return *m_SwapChain;
 }
 
-void Renderer::createSwapChain(Window &p_Window) noexcept
+void RenderContext::createSwapChain(Window &p_Window) noexcept
 {
     VkExtent2D windowExtent = {p_Window.GetScreenWidth(), p_Window.GetScreenHeight()};
     while (windowExtent.width == 0 || windowExtent.height == 0)
@@ -163,7 +163,7 @@ void Renderer::createSwapChain(Window &p_Window) noexcept
     m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.GetSurface(), m_SwapChain.Get());
 }
 
-void Renderer::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
+void RenderContext::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
 {
     const Device::QueueFamilyIndices indices = m_Device->FindQueueFamilies(p_Surface);
 
@@ -176,7 +176,7 @@ void Renderer::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
                        "Failed to create command pool");
 }
 
-void Renderer::createCommandBuffers() noexcept
+void RenderContext::createCommandBuffers() noexcept
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;

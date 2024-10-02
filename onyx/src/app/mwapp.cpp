@@ -18,8 +18,8 @@ static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSyste
     // These are called in exactly the same context, but it is nice to have update/render separated
     p_Layers.OnUpdate(p_WindowIndex);
     p_Layers.OnRender(p_WindowIndex);
-    KIT_ASSERT_RETURNS(p_Window.Display(std::forward<F>(p_Submission)), true,
-                       "Failed to display the window. Failed to acquire a command buffer when beginning a new frame");
+    KIT_ASSERT_RETURNS(p_Window.Render(std::forward<F>(p_Submission)), true,
+                       "Failed to render to the window. Failed to acquire a command buffer when beginning a new frame");
 }
 static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSystem &p_Layers) noexcept
 {

@@ -57,7 +57,7 @@ ONYX_DIMENSION_TEMPLATE RenderSystem<N>::RenderSystem(const Specs &p_Specs) noex
 {
 }
 
-ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::Display(const DrawInfo &p_Info) const noexcept
+ONYX_DIMENSION_TEMPLATE void RenderSystem<N>::Render(const DrawInfo &p_Info) const noexcept
 {
     if (m_DrawData.empty())
         return;

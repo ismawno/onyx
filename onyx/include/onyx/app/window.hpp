@@ -2,7 +2,7 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/device.hpp"
-#include "onyx/rendering/renderer.hpp"
+#include "onyx/rendering/render_context.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/draw/color.hpp"
 #include "onyx/descriptors/descriptor_pool.hpp"
@@ -25,7 +25,7 @@ class IDrawable;
 // be allowed
 // NOTE: When supporting user defined render systems, the render pass must be supplied if the user failed to do so:
 // if (!p_Specs.RenderPass)
-//         p_Specs.RenderPass = m_Renderer->GetSwapChain().GetRenderPass();
+//         p_Specs.RenderPass = m_RenderContext->GetSwapChain().GetRenderPass();
 //     return m_RenderSystems.emplace_back(p_Specs);
 
 class ONYX_API Window
@@ -55,20 +55,20 @@ class ONYX_API Window
     explicit Window(const Specs &p_Specs) noexcept;
     ~Window() noexcept;
 
-    template <typename F> bool Display(F &&p_Submission) noexcept
+    template <typename F> bool Render(F &&p_Submission) noexcept
     {
-        if (const VkCommandBuffer cmd = m_Renderer->BeginFrame(*this))
+        if (const VkCommandBuffer cmd = m_RenderContext->BeginFrame(*this))
         {
-            m_Renderer->BeginRenderPass(BackgroundColor);
+            m_RenderContext->BeginRenderPass(BackgroundColor);
             drawRenderSystems(cmd);
             std::forward<F>(p_Submission)(cmd);
-            m_Renderer->EndRenderPass();
-            m_Renderer->EndFrame(*this);
+            m_RenderContext->EndRenderPass();
+            m_RenderContext->EndFrame(*this);
             return true;
         }
         return false;
     }
-    bool Display() noexcept;
+    bool Render() noexcept;
     void Draw(IDrawable &p_Drawable) noexcept;
     void Draw(Window &p_Window) noexcept;
 
@@ -116,7 +116,7 @@ class ONYX_API Window
     const DynamicArray<Event> &GetNewEvents() const noexcept;
     void FlushEvents() noexcept;
 
-    const Renderer &GetRenderer() const noexcept;
+    const RenderContext &GetRenderContext() const noexcept;
 
     Color BackgroundColor = Color::BLACK;
     vec3 LightDirection{0.f, -1.f, 0.f};
@@ -147,7 +147,7 @@ class ONYX_API Window
 
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;
-    KIT::Storage<Renderer> m_Renderer;
+    KIT::Storage<RenderContext> m_RenderContext;
     KIT::Scope<ICamera> m_Camera;
 
     KIT::Storage<GlobalUniformHelper> m_GlobalUniformHelper;

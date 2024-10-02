@@ -31,7 +31,7 @@ Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_
 
 Window::~Window() noexcept
 {
-    m_Renderer.Destroy();
+    m_RenderContext.Destroy();
     m_GlobalUniformHelper.Destroy();
     vkDestroySurfaceKHR(m_Instance->GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
@@ -56,7 +56,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
     glfwSetWindowUserPointer(m_Window, this);
 
     m_Device = Core::tryCreateDevice(m_Surface);
-    m_Renderer.Create(*this);
+    m_RenderContext.Create(*this);
     Input::InstallCallbacks(*this);
 }
 
@@ -96,7 +96,7 @@ void Window::createGlobalUniformHelper() noexcept
 ONYX_DIMENSION_TEMPLATE void Window::addDefaultRenderSystems() noexcept
 {
     typename RenderSystem<N>::Specs specs{};
-    specs.RenderPass = m_Renderer->GetSwapChain().GetRenderPass();
+    specs.RenderPass = m_RenderContext->GetSwapChain().GetRenderPass();
     specs.DescriptorSetLayout = m_GlobalUniformHelper->Layout.GetLayout();
     const auto getSystem = [this]() {
         if constexpr (N == 2)
@@ -126,7 +126,7 @@ ONYX_DIMENSION_TEMPLATE void Window::addDefaultRenderSystems() noexcept
 void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
 {
     KIT_ASSERT(m_Camera, "No camera set for the window. Use the SetCamera method to set one");
-    const u32 frameIndex = m_Renderer->GetFrameIndex();
+    const u32 frameIndex = m_RenderContext->GetFrameIndex();
     GlobalUBO ubo{};
     m_Camera->SetAspectRatio(GetScreenAspect());
     ubo.Projection = m_Camera->ComputeProjectionView();
@@ -142,12 +142,12 @@ void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
     info.DescriptorSet = m_GlobalDescriptorSets[frameIndex];
     for (RenderSystem2D &rs : m_RenderSystems2D)
     {
-        rs.Display(info);
+        rs.Render(info);
         rs.ClearDrawData();
     }
     for (RenderSystem3D &rs : m_RenderSystems3D)
     {
-        rs.Display(info);
+        rs.Render(info);
         rs.ClearDrawData();
     }
 }
@@ -213,9 +213,9 @@ ONYX_DIMENSION_TEMPLATE RenderSystem<N> *Window::GetRenderSystem(VkPrimitiveTopo
     return nullptr;
 }
 
-bool Window::Display() noexcept
+bool Window::Render() noexcept
 {
-    return Display([](const VkCommandBuffer) {});
+    return Render([](const VkCommandBuffer) {});
 }
 
 bool Window::ShouldClose() const noexcept
@@ -248,11 +248,11 @@ u32 Window::GetScreenHeight() const noexcept
 
 u32 Window::GetPixelWidth() const noexcept
 {
-    return m_Renderer->GetSwapChain().GetWidth();
+    return m_RenderContext->GetSwapChain().GetWidth();
 }
 u32 Window::GetPixelHeight() const noexcept
 {
-    return m_Renderer->GetSwapChain().GetHeight();
+    return m_RenderContext->GetSwapChain().GetHeight();
 }
 
 f32 Window::GetScreenAspect() const noexcept
@@ -262,7 +262,7 @@ f32 Window::GetScreenAspect() const noexcept
 
 f32 Window::GetPixelAspect() const noexcept
 {
-    return m_Renderer->GetSwapChain().GetAspectRatio();
+    return m_RenderContext->GetSwapChain().GetAspectRatio();
 }
 
 bool Window::WasResized() const noexcept
@@ -305,9 +305,9 @@ void Window::FlushEvents() noexcept
     m_Events.clear();
 }
 
-const Renderer &Window::GetRenderer() const noexcept
+const RenderContext &Window::GetRenderContext() const noexcept
 {
-    return *m_Renderer;
+    return *m_RenderContext;
 }
 
 template const RenderSystem<2> *Window::GetRenderSystem<2>(VkPrimitiveTopology) const noexcept;
