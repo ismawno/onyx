@@ -17,39 +17,67 @@ template <> struct MeshPushConstantData<3>
     mat4 ColorAndNormalMatrix;
 };
 
-ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::MeshRenderer(const VkRenderPass p_RenderPass,
-                                                      const VkDescriptorSetLayout p_Layout) noexcept
+ONYX_DIMENSION_TEMPLATE struct ShaderPaths;
+
+template <> struct ShaderPaths<2>
+{
+    static constexpr const char *MeshVertex = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh2D.vert.spv";
+    static constexpr const char *MeshFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh2D.frag.spv";
+
+    static constexpr const char *CircleVertex = ONYX_ROOT_PATH "/onyx/shaders/bin/circle2D.vert.spv";
+    static constexpr const char *CircleFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/circle2D.frag.spv";
+};
+
+template <> struct ShaderPaths<3>
+{
+    static constexpr const char *MeshVertex = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh3D.vert.spv";
+    static constexpr const char *MeshFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh3D.frag.spv";
+
+    static constexpr const char *CircleVertex = ONYX_ROOT_PATH "/onyx/shaders/bin/circle3D.vert.spv";
+    static constexpr const char *CircleFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/circle3D.frag.spv";
+};
+
+ONYX_DIMENSION_TEMPLATE static Pipeline::Specs defaultMeshPipelineSpecs(const char *vpath, const char *fpath,
+                                                                        const VkRenderPass p_RenderPass,
+                                                                        const VkDescriptorSetLayout *p_Layout) noexcept
 {
     Pipeline::Specs specs{};
     if constexpr (N == 2)
     {
         KIT_ASSERT(!p_Layout, "The 2D renderer does not require a descriptor set layout");
-        specs.VertexShaderPath = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh2D.vert.spv";
-        specs.FragmentShaderPath = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh2D.frag.spv";
     }
     else
     {
         KIT_ASSERT(p_Layout, "The 3D renderer requires a descriptor set layout");
-        specs.VertexShaderPath = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh3D.vert.spv";
-        specs.FragmentShaderPath = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh3D.frag.spv";
     }
+    specs.VertexShaderPath = vpath;
+    specs.FragmentShaderPath = fpath;
     specs.PushConstantRange.size = sizeof(MeshPushConstantData<N>);
-    const auto &bdesc = Vertex<N>::GetBindingDescriptions();
-    const auto &attdesc = Vertex<N>::GetAttributeDescriptions();
-    specs.BindingDescriptions.insert(specs.BindingDescriptions.end(), bdesc.begin(), bdesc.end());
-    specs.AttributeDescriptions.insert(specs.AttributeDescriptions.end(), attdesc.begin(), attdesc.end());
 
     specs.InputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     specs.RenderPass = p_RenderPass;
 
-    // WARNING!! This info points to a 'unstable' memory location. Fortunately, p_Layout still lives when the pipeline
-    // is constructed (see Pipeline ctor below)
-    specs.PipelineLayoutInfo.pSetLayouts = p_Layout ? &p_Layout : nullptr;
+    specs.PipelineLayoutInfo.pSetLayouts = p_Layout;
     specs.PipelineLayoutInfo.setLayoutCount = p_Layout ? 1 : 0;
     if constexpr (N == 2)
         specs.DepthStencilInfo.depthTestEnable = VK_FALSE;
     else
         specs.ColorBlendAttachment.blendEnable = VK_FALSE;
+
+    return specs;
+}
+
+ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::MeshRenderer(const VkRenderPass p_RenderPass,
+                                                      const VkDescriptorSetLayout p_Layout) noexcept
+{
+    Pipeline::Specs specs = defaultMeshPipelineSpecs<N>(ShaderPaths<N>::MeshVertex, ShaderPaths<N>::MeshFragment,
+                                                        p_RenderPass, p_Layout ? &p_Layout : nullptr);
+
+    const auto &bdesc = Vertex<N>::GetBindingDescriptions();
+    const auto &attdesc = Vertex<N>::GetAttributeDescriptions();
+    specs.BindingDescriptions.insert(specs.BindingDescriptions.end(), bdesc.begin(), bdesc.end());
+    specs.AttributeDescriptions.insert(specs.AttributeDescriptions.end(), attdesc.begin(), attdesc.end());
+
     m_Pipeline.Create(specs);
 }
 
@@ -62,6 +90,26 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const Model *p_Model, const m
                                                    const vec4 &p_Color) noexcept
 {
     m_DrawData.emplace_back(p_Model, p_ModelTransform, p_Color);
+}
+
+template <u32 N, typename DData>
+static void pushMeshConstantData(const RenderInfo<N> &p_Info, const DData &p_Data, const Pipeline *p_Pipeline) noexcept
+{
+    MeshPushConstantData<N> pdata{};
+    if constexpr (N == 3)
+    {
+        pdata.ColorAndNormalMatrix = mat4(glm::transpose(mat3(glm::inverse(p_Data.Transform))));
+        pdata.ColorAndNormalMatrix[3] = p_Data.Color;
+        pdata.Transform = p_Info.Projection ? *p_Info.Projection * p_Data.Transform : p_Data.Transform;
+    }
+    else
+    {
+        pdata.Color = p_Data.Color;
+        pdata.Transform = p_Data.Transform;
+    }
+
+    vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline->GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
+                       sizeof(MeshPushConstantData<N>), &pdata);
 }
 
 ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept
@@ -79,17 +127,7 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info
         KIT_ASSERT(data.Model,
                    "Model cannot be NULL! No drawables can be created before the creation of the first window");
 
-        MeshPushConstantData<N> pushConstantData{};
-        if constexpr (N == 3)
-        {
-            pushConstantData.ColorAndNormalMatrix = mat4(glm::transpose(mat3(glm::inverse(data.Transform))));
-            pushConstantData.ColorAndNormalMatrix[3] = data.Color;
-        }
-        else
-            pushConstantData.Color = data.Color;
-
-        vkCmdPushConstants(p_Info.CommandBuffer, m_Pipeline->GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
-                           sizeof(MeshPushConstantData<N>), &pushConstantData);
+        pushMeshConstantData<N>(p_Info, data, m_Pipeline.Get());
         data.Model->Bind(p_Info.CommandBuffer);
         data.Model->Draw(p_Info.CommandBuffer);
     }
@@ -107,32 +145,8 @@ template class MeshRenderer<3>;
 ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::CircleRenderer(const VkRenderPass p_RenderPass,
                                                           const VkDescriptorSetLayout p_Layout) noexcept
 {
-    Pipeline::Specs specs{};
-    if constexpr (N == 2)
-    {
-        KIT_ASSERT(!p_Layout, "The 2D renderer does not require a descriptor set layout");
-        specs.VertexShaderPath = ONYX_ROOT_PATH "/onyx/shaders/bin/circle2D.vert.spv";
-        specs.FragmentShaderPath = ONYX_ROOT_PATH "/onyx/shaders/bin/circle2D.frag.spv";
-    }
-    else
-    {
-        KIT_ASSERT(p_Layout, "The 3D renderer requires a descriptor set layout");
-        specs.VertexShaderPath = ONYX_ROOT_PATH "/onyx/shaders/bin/circle3D.vert.spv";
-        specs.FragmentShaderPath = ONYX_ROOT_PATH "/onyx/shaders/bin/circle3D.frag.spv";
-    }
-    specs.PushConstantRange.size = sizeof(MeshPushConstantData<N>);
-
-    specs.InputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    specs.RenderPass = p_RenderPass;
-
-    // WARNING!! This info points to a 'unstable' memory location. Fortunately, p_Layout still lives when the pipeline
-    // is constructed (see Pipeline ctor below)
-    specs.PipelineLayoutInfo.pSetLayouts = p_Layout ? &p_Layout : nullptr;
-    specs.PipelineLayoutInfo.setLayoutCount = p_Layout ? 1 : 0;
-    if constexpr (N == 2)
-        specs.DepthStencilInfo.depthTestEnable = VK_FALSE;
-    else
-        specs.ColorBlendAttachment.blendEnable = VK_FALSE;
+    const Pipeline::Specs specs = defaultMeshPipelineSpecs<N>(
+        ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment, p_RenderPass, p_Layout ? &p_Layout : nullptr);
     m_Pipeline.Create(specs);
 }
 
@@ -159,17 +173,7 @@ ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Render(const RenderInfo<N> &p_In
 
     for (const DrawData &data : m_DrawData)
     {
-        MeshPushConstantData<N> pushConstantData{};
-        if constexpr (N == 3)
-        {
-            pushConstantData.ColorAndNormalMatrix = mat4(glm::transpose(mat3(glm::inverse(data.Transform))));
-            pushConstantData.ColorAndNormalMatrix[3] = data.Color;
-        }
-        else
-            pushConstantData.Color = data.Color;
-
-        vkCmdPushConstants(p_Info.CommandBuffer, m_Pipeline->GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
-                           sizeof(MeshPushConstantData<N>), &pushConstantData);
+        pushMeshConstantData<N>(p_Info, data, m_Pipeline.Get());
         vkCmdDraw(p_Info.CommandBuffer, 4, 1, 0, 0);
     }
     m_DrawData.clear();

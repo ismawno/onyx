@@ -21,6 +21,7 @@ template <> struct ONYX_API RenderInfo<3>
 {
     VkCommandBuffer CommandBuffer;
     VkDescriptorSet GlobalDescriptorSet;
+    mat4 *Projection;
 };
 
 ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
