@@ -15,7 +15,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::initializeRenderers(const VkRend
                                                                     const VkDescriptorSetLayout p_Layout) noexcept
 {
     m_MeshRenderer.Create(p_RenderPass, p_Layout);
-    m_CircleRenderer.Create(p_RenderPass, p_Layout);
+    // m_CircleRenderer.Create(p_RenderPass, p_Layout);
 }
 
 RenderContext<2>::RenderContext(const VkRenderPass p_RenderPass) noexcept
@@ -70,8 +70,7 @@ void RenderContext<3>::createGlobalUniformHelper() noexcept
         VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT});
 
     static constexpr std::array<VkDescriptorSetLayoutBinding, 1> bindings = {
-        {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-          nullptr}}};
+        {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}}};
 
     const auto &props = m_Device->GetProperties();
     Buffer::Specs bufferSpecs{};

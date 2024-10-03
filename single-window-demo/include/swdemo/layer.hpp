@@ -2,11 +2,10 @@
 
 #include "onyx/app/app.hpp"
 #include "onyx/app/layer.hpp"
-#include "onyx/draw/primitives/primitives.hpp"
 
 namespace ONYX
 {
-enum CameraType : int
+enum ProjectionType : int
 {
     ORTHOGRAPHIC2D = 0,
     ORTHOGRAPHIC3D,
@@ -25,7 +24,6 @@ class SWExampleLayer final : public Layer
     ONYX_DIMENSION_TEMPLATE void renderPrimitiveSpawnUI(const Color &p_Color) noexcept;
 
     Application *m_Application = nullptr;
-    CameraType m_CameraType = CameraType::ORTHOGRAPHIC2D;
-    DynamicArray<KIT::Scope<IDrawable>> m_Drawables;
+    ProjectionType m_ProjectionType = ProjectionType::ORTHOGRAPHIC2D;
 };
 } // namespace ONYX

@@ -10,7 +10,6 @@ void SWDemoApplication::Run() noexcept
     static KIT::StackAllocator allocator{10_kb};
     ONYX::Core::Initialize(&allocator, &threadPool);
     m_Application.Create();
-    m_Application->GetMainWindow()->SetCamera<ONYX::Orthographic2D>(5.0f);
 
     m_Application->Layers.Push<SWExampleLayer>(m_Application.Get());
     m_Application->Run();

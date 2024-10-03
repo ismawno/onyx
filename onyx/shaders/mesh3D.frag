@@ -7,7 +7,6 @@ layout(location = 0) out vec4 outColor;
 
 layout(binding = 0, set = 0) uniform UBO
 {
-    mat4 projection;
     vec4 lightDirection;
     float lightIntensity;
     float ambientIntensity;

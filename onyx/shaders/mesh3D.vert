@@ -13,18 +13,9 @@ layout(push_constant) uniform Push
 }
 push;
 
-layout(binding = 0, set = 0) uniform UBO
-{
-    mat4 projection;
-    vec4 lightDirection;
-    float lightIntensity;
-    float ambientIntensity;
-}
-ubo;
-
 void main()
 {
-    gl_Position = ubo.projection * push.transform * vec4(position, 1.0);
+    gl_Position = push.transform * vec4(position, 1.0);
 
     const mat3 normalMatrix = mat3(push.colorAndNormalMatrix);
     fragNormal = normalize(normalMatrix * normal);
