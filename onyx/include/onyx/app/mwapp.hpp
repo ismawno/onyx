@@ -6,7 +6,6 @@
 
 namespace ONYX
 {
-class IDrawable;
 enum class WindowFlow
 {
     SERIAL = 0,
@@ -36,13 +35,7 @@ class IMultiWindowApplication : public IApplication
   public:
     IMultiWindowApplication() = default;
 
-    template <std::derived_from<ICamera> T, typename... CameraArgs>
-    Window *OpenWindow(const Window::Specs &p_Specs, CameraArgs &&...p_Args) noexcept
-    {
-        auto window = KIT::Scope<Window>::Create(p_Specs);
-        window->SetCamera<T>(std::forward<CameraArgs>(p_Args)...);
-        return handleWindowAddition(std::move(window));
-    }
+    virtual Window *OpenWindow(const Window::Specs &p_Specs = {}) noexcept = 0;
 
     virtual void CloseWindow(usize p_Index) noexcept = 0;
     void CloseWindow(const Window *p_Window) noexcept;
@@ -61,15 +54,11 @@ class IMultiWindowApplication : public IApplication
 
     bool NextFrame(KIT::Clock &p_Clock) noexcept override;
 
-    void Draw(IDrawable &p_Drawable) noexcept override;
-    void Draw(IDrawable &p_Drawable, usize p_WindowIndex) noexcept;
-
   protected:
     DynamicArray<KIT::Scope<Window>> m_Windows;
     bool m_MainThreadProcessing = false;
 
   private:
-    virtual Window *handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept = 0;
     virtual void processWindows() noexcept = 0;
 
     std::atomic<f32> m_DeltaTime = 0.f;
@@ -91,11 +80,11 @@ template <> class ONYX_API MultiWindowApplication<WindowFlow::SERIAL> final : pu
   public:
     MultiWindowApplication() = default;
 
+    Window *OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
     void CloseWindow(usize p_Index) noexcept override;
     WindowFlow GetWindowFlow() const noexcept override;
 
   private:
-    Window *handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept override;
     void processWindows() noexcept override;
 };
 
@@ -104,13 +93,14 @@ template <> class ONYX_API MultiWindowApplication<WindowFlow::CONCURRENT> final 
     KIT_NON_COPYABLE(MultiWindowApplication)
   public:
     using IMultiWindowApplication::IMultiWindowApplication;
+
+    Window *OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
     void CloseWindow(usize p_Index) noexcept override;
     WindowFlow GetWindowFlow() const noexcept override;
 
     void Startup() noexcept override;
 
   private:
-    Window *handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept override;
     void processWindows() noexcept override;
     KIT::Ref<KIT::Task<void>> createWindowTask(usize p_WindowIndex) noexcept;
 

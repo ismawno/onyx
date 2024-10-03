@@ -66,21 +66,6 @@ const KIT::Ref<ONYX::Device> &Core::GetDevice() noexcept
     return s_Device;
 }
 
-ONYX_DIMENSION_TEMPLATE const char *Core::GetPrimitiveVertexShaderPath() noexcept
-{
-    if constexpr (N == 3)
-        return KIT_ROOT_PATH "/onyx/shaders/bin/primitive3D.vert.spv";
-    else
-        return KIT_ROOT_PATH "/onyx/shaders/bin/primitive2D.vert.spv";
-}
-ONYX_DIMENSION_TEMPLATE const char *Core::GetPrimitiveFragmentShaderPath() noexcept
-{
-    if constexpr (N == 3)
-        return KIT_ROOT_PATH "/onyx/shaders/bin/primitive3D.frag.spv";
-    else
-        return KIT_ROOT_PATH "/onyx/shaders/bin/primitive2D.frag.spv";
-}
-
 VmaAllocator Core::GetVulkanAllocator() noexcept
 {
     return s_VulkanAllocator;
@@ -106,11 +91,5 @@ const KIT::Ref<ONYX::Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noex
     KIT_ASSERT(s_Device->IsSuitable(p_Surface), "The current device is not suitable for the given surface");
     return s_Device;
 }
-
-template const char *Core::GetPrimitiveVertexShaderPath<2>() noexcept;
-template const char *Core::GetPrimitiveVertexShaderPath<3>() noexcept;
-
-template const char *Core::GetPrimitiveFragmentShaderPath<2>() noexcept;
-template const char *Core::GetPrimitiveFragmentShaderPath<3>() noexcept;
 
 } // namespace ONYX

@@ -5,8 +5,6 @@
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/draw/color.hpp"
-#include "onyx/descriptors/descriptor_pool.hpp"
-#include "onyx/descriptors/descriptor_set_layout.hpp"
 #include "onyx/rendering/buffer.hpp"
 #include "onyx/rendering/render_system.hpp"
 #include "onyx/camera/camera.hpp"
@@ -18,7 +16,6 @@
 
 namespace ONYX
 {
-class IDrawable;
 // TODO: Align window to the cache line in case a multi window app is used?
 
 // For now, render systems are fixed, and only ONYX systems are used. In the future, user defined render systems will
@@ -57,43 +54,23 @@ class ONYX_API Window
 
     template <typename F> bool Render(F &&p_Submission) noexcept
     {
-        if (const VkCommandBuffer cmd = m_RenderContext->BeginFrame(*this))
+        if (const VkCommandBuffer cmd = m_RenderSystem->BeginFrame(*this))
         {
-            m_RenderContext->BeginRenderPass(BackgroundColor);
-            drawRenderSystems(cmd);
+            m_RenderSystem->BeginRenderPass(BackgroundColor);
+            m_RenderContext2D->Render(cmd);
+            m_RenderContext3D->Render(m_RenderSystem->GetFrameIndex(), cmd);
             std::forward<F>(p_Submission)(cmd);
-            m_RenderContext->EndRenderPass();
-            m_RenderContext->EndFrame(*this);
+            m_RenderSystem->EndRenderPass();
+            m_RenderSystem->EndFrame(*this);
             return true;
         }
         return false;
     }
     bool Render() noexcept;
-    void Draw(IDrawable &p_Drawable) noexcept;
-    void Draw(Window &p_Window) noexcept;
-
     bool ShouldClose() const noexcept;
 
-    template <std::derived_from<ICamera> T = ICamera> const T *GetCamera() const noexcept
-    {
-        return static_cast<T *>(m_Camera.Get());
-    }
-    template <std::derived_from<ICamera> T = ICamera> T *GetCamera() noexcept
-    {
-        return static_cast<T *>(m_Camera.Get());
-    }
-
-    template <std::derived_from<ICamera> T, typename... CameraArgs> T *SetCamera(CameraArgs &&...p_Args) noexcept
-    {
-        m_Camera = KIT::Scope<T>::Create(std::forward<CameraArgs>(p_Args)...);
-        return static_cast<T *>(m_Camera.Get());
-    }
-
-    ONYX_DIMENSION_TEMPLATE const RenderSystem<N> *GetRenderSystem(VkPrimitiveTopology p_Topology) const noexcept;
-    ONYX_DIMENSION_TEMPLATE RenderSystem<N> *GetRenderSystem(VkPrimitiveTopology p_Topology) noexcept;
-
-    const GLFWwindow *GetWindow() const noexcept;
-    GLFWwindow *GetWindow() noexcept;
+    const GLFWwindow *GetWindowHandle() const noexcept;
+    GLFWwindow *GetWindowHandle() noexcept;
 
     const char *GetName() const noexcept;
     u32 GetScreenWidth() const noexcept;
@@ -116,45 +93,21 @@ class ONYX_API Window
     const DynamicArray<Event> &GetNewEvents() const noexcept;
     void FlushEvents() noexcept;
 
-    const RenderContext &GetRenderContext() const noexcept;
+    const RenderSystem &GetRenderSystem() const noexcept;
 
     Color BackgroundColor = Color::BLACK;
-    vec3 LightDirection{0.f, -1.f, 0.f};
-    f32 LightIntensity = 0.9f;
-    f32 AmbientIntensity = 0.1f;
 
   private:
-    struct GlobalUniformHelper
-    {
-        GlobalUniformHelper(const DescriptorPool::Specs &p_PoolSpecs,
-                            const std::span<const VkDescriptorSetLayoutBinding> p_Bindings,
-                            const Buffer::Specs &p_BufferSpecs) noexcept
-            : Pool(p_PoolSpecs), Layout(p_Bindings), UniformBuffer(p_BufferSpecs)
-        {
-        }
-        DescriptorPool Pool;
-        DescriptorSetLayout Layout;
-        Buffer UniformBuffer;
-    };
     void createWindow(const Specs &p_Specs) noexcept;
-    void createGlobalUniformHelper() noexcept;
-
-    ONYX_DIMENSION_TEMPLATE void addDefaultRenderSystems() noexcept;
-
-    void drawRenderSystems(VkCommandBuffer p_CommandBuffer) noexcept;
 
     GLFWwindow *m_Window;
 
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;
-    KIT::Storage<RenderContext> m_RenderContext;
-    KIT::Scope<ICamera> m_Camera;
 
-    KIT::Storage<GlobalUniformHelper> m_GlobalUniformHelper;
-    std::array<VkDescriptorSet, SwapChain::MAX_FRAMES_IN_FLIGHT> m_GlobalDescriptorSets;
-
-    KIT::StaticArray<RenderSystem2D, 4> m_RenderSystems2D;
-    KIT::StaticArray<RenderSystem3D, 4> m_RenderSystems3D;
+    KIT::Storage<RenderSystem> m_RenderSystem;
+    KIT::Storage<RenderContext2D> m_RenderContext2D;
+    KIT::Storage<RenderContext3D> m_RenderContext3D;
 
     DynamicArray<Event> m_Events;
     VkSurfaceKHR m_Surface;

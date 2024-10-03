@@ -19,7 +19,7 @@ void Input::PollEvents()
 
 vec2 Input::GetMousePosition(Window *p_Window) noexcept
 {
-    GLFWwindow *window = p_Window->GetWindow();
+    GLFWwindow *window = p_Window->GetWindowHandle();
     double xPos, yPos;
     glfwGetCursorPos(window, &xPos, &yPos);
     return {2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,
@@ -134,14 +134,14 @@ static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOff
 
 void Input::InstallCallbacks(Window &p_Window) noexcept
 {
-    glfwSetWindowSizeCallback(p_Window.GetWindow(), windowResizeCallback);
-    glfwSetWindowCloseCallback(p_Window.GetWindow(), windowCloseCallback);
-    glfwSetWindowFocusCallback(p_Window.GetWindow(), windowFocusCallback);
-    glfwSetKeyCallback(p_Window.GetWindow(), keyCallback);
-    glfwSetCursorPosCallback(p_Window.GetWindow(), cursorPositionCallback);
-    glfwSetCursorEnterCallback(p_Window.GetWindow(), cursorEnterCallback);
-    glfwSetMouseButtonCallback(p_Window.GetWindow(), mouseButtonCallback);
-    glfwSetScrollCallback(p_Window.GetWindow(), scrollCallback);
+    glfwSetWindowSizeCallback(p_Window.GetWindowHandle(), windowResizeCallback);
+    glfwSetWindowCloseCallback(p_Window.GetWindowHandle(), windowCloseCallback);
+    glfwSetWindowFocusCallback(p_Window.GetWindowHandle(), windowFocusCallback);
+    glfwSetKeyCallback(p_Window.GetWindowHandle(), keyCallback);
+    glfwSetCursorPosCallback(p_Window.GetWindowHandle(), cursorPositionCallback);
+    glfwSetCursorEnterCallback(p_Window.GetWindowHandle(), cursorEnterCallback);
+    glfwSetMouseButtonCallback(p_Window.GetWindowHandle(), mouseButtonCallback);
+    glfwSetScrollCallback(p_Window.GetWindowHandle(), scrollCallback);
 }
 
 } // namespace ONYX

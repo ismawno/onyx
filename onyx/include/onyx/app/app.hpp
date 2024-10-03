@@ -17,7 +17,6 @@ class IApplication
     void Shutdown() noexcept;
 
     virtual bool NextFrame(KIT::Clock &p_Clock) noexcept = 0;
-    virtual void Draw(IDrawable &p_Drawable) noexcept = 0;
 
     virtual f32 GetDeltaTime() const noexcept = 0;
 
@@ -55,7 +54,6 @@ class Application final : public IApplication
   public:
     Application(const Window::Specs &p_WindowSpecs = {}) noexcept;
 
-    void Draw(IDrawable &p_Drawable) noexcept override;
     bool NextFrame(KIT::Clock &p_Clock) noexcept override;
 
     const Window *GetMainWindow() const noexcept override;

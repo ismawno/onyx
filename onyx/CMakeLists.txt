@@ -14,6 +14,7 @@ set(SOURCES
     src/rendering/swap_chain.cpp
     src/rendering/render_context.cpp
     src/rendering/render_system.cpp
+    src/rendering/renderer.cpp
     src/descriptors/descriptor_pool.cpp
     src/descriptors/descriptor_set_layout.cpp
     src/descriptors/descriptor_writer.cpp
@@ -21,15 +22,6 @@ set(SOURCES
     src/draw/color.cpp
     src/draw/transform.cpp
     src/draw/model.cpp
-    src/draw/drawable.cpp
-    src/draw/primitives/shape.cpp
-    src/draw/primitives/rectangle.cpp
-    src/draw/primitives/ellipse.cpp
-    src/draw/primitives/ellipsoid.cpp
-    src/draw/primitives/line.cpp
-    src/draw/primitives/polygon.cpp
-    src/draw/primitives/cuboid.cpp
-    src/draw/primitives/triangle.cpp
     src/app/app.cpp
     src/app/mwapp.cpp
     src/app/window.cpp

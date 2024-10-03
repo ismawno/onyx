@@ -30,9 +30,6 @@ struct ONYX_API Core
     static const KIT::Ref<ONYX::Instance> &GetInstance() noexcept;
     static const KIT::Ref<ONYX::Device> &GetDevice() noexcept;
 
-    ONYX_DIMENSION_TEMPLATE static const char *GetPrimitiveVertexShaderPath() noexcept;
-    ONYX_DIMENSION_TEMPLATE static const char *GetPrimitiveFragmentShaderPath() noexcept;
-
     static VmaAllocator GetVulkanAllocator() noexcept;
 
   private:

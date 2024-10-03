@@ -114,7 +114,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
     ImGui::StyleColorsDark();
-    ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindow(), true);
+    ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindowHandle(), true);
 
     const auto &instance = Core::GetInstance();
     ImGui_ImplVulkan_InitInfo initInfo{};
@@ -126,7 +126,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     initInfo.MinImageCount = 3;
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    initInfo.RenderPass = p_Window.GetRenderContext().GetSwapChain().GetRenderPass();
+    initInfo.RenderPass = p_Window.GetRenderSystem().GetSwapChain().GetRenderPass();
 
     ImGui_ImplVulkan_Init(&initInfo);
     ImGui_ImplVulkan_CreateFontsTexture();
@@ -150,11 +150,6 @@ Application::Application(const Window::Specs &p_WindowSpecs) noexcept
     m_Window.Create(p_WindowSpecs);
     m_Device = Core::GetDevice();
     initializeImGui(*m_Window);
-}
-
-void Application::Draw(IDrawable &p_Drawable) noexcept
-{
-    m_Window->Draw(p_Drawable);
 }
 
 bool Application::NextFrame(KIT::Clock &p_Clock) noexcept

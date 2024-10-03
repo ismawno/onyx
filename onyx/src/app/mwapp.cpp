@@ -26,17 +26,6 @@ static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSyste
     processFrame(p_WindowIndex, p_Window, p_Layers, [](const VkCommandBuffer) {});
 }
 
-void IMultiWindowApplication::Draw(IDrawable &p_Drawable) noexcept
-{
-    Draw(p_Drawable, 0);
-}
-
-void IMultiWindowApplication::Draw(IDrawable &p_Drawable, const usize p_WindowIndex) noexcept
-{
-    KIT_ASSERT(p_WindowIndex < m_Windows.size(), "Window index out of bounds");
-    m_Windows[p_WindowIndex]->Draw(p_Drawable);
-}
-
 void IMultiWindowApplication::CloseAllWindows() noexcept
 {
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
@@ -119,19 +108,21 @@ WindowFlow MultiWindowApplication<WindowFlow::SERIAL>::GetWindowFlow() const noe
     return WindowFlow::SERIAL;
 }
 
-Window *MultiWindowApplication<WindowFlow::SERIAL>::handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept
+Window *MultiWindowApplication<WindowFlow::SERIAL>::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
     Event event;
     event.Type = Event::WINDOW_OPENED;
-    p_Window->PushEvent(event);
+
+    auto window = KIT::Scope<Window>::Create(p_Specs);
+    window->PushEvent(event);
     if (m_Windows.empty())
     {
         m_Device = Core::GetDevice();
-        initializeImGui(*p_Window);
+        initializeImGui(*window);
     }
-    m_Windows.push_back(std::move(p_Window));
+    m_Windows.push_back(std::move(window));
     return m_Windows.back().Get();
 }
 
@@ -210,10 +201,11 @@ KIT::Ref<KIT::Task<void>> MultiWindowApplication<WindowFlow::CONCURRENT>::create
         [this, p_WindowIndex](usize) { processFrame(p_WindowIndex, *m_Windows[p_WindowIndex], Layers); });
 }
 
-Window *MultiWindowApplication<WindowFlow::CONCURRENT>::handleWindowAddition(KIT::Scope<Window> &&p_Window) noexcept
+Window *MultiWindowApplication<WindowFlow::CONCURRENT>::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
-    Window *windowPtr = p_Window.Get();
-    m_Windows.push_back(std::move(p_Window));
+    auto window = KIT::Scope<Window>::Create(p_Specs);
+    Window *windowPtr = window.Get();
+    m_Windows.push_back(std::move(window));
 
     Event event;
     event.Type = Event::WINDOW_OPENED;

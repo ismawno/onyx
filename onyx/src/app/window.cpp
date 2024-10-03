@@ -3,19 +3,10 @@
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/draw/color.hpp"
-#include "onyx/descriptors/descriptor_writer.hpp"
-#include "onyx/draw/drawable.hpp"
 #include "kit/core/logging.hpp"
 
 namespace ONYX
 {
-struct GlobalUBO
-{
-    glm::mat4 Projection;
-    glm::vec4 LightDirection;
-    f32 LightIntensity;
-    f32 AmbientIntensity;
-};
 
 Window::Window() noexcept : Window(Specs{})
 {
@@ -24,15 +15,16 @@ Window::Window() noexcept : Window(Specs{})
 Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height)
 {
     createWindow(p_Specs);
-    createGlobalUniformHelper();
-    addDefaultRenderSystems<2>();
-    addDefaultRenderSystems<3>();
+
+    m_RenderContext2D.Create(m_RenderSystem->GetSwapChain().GetRenderPass());
+    m_RenderContext3D.Create(m_RenderSystem->GetSwapChain().GetRenderPass());
 }
 
 Window::~Window() noexcept
 {
-    m_RenderContext.Destroy();
-    m_GlobalUniformHelper.Destroy();
+    m_RenderSystem.Destroy();
+    m_RenderContext2D.Destroy();
+    m_RenderContext3D.Destroy();
     vkDestroySurfaceKHR(m_Instance->GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
@@ -56,162 +48,11 @@ void Window::createWindow(const Specs &p_Specs) noexcept
     glfwSetWindowUserPointer(m_Window, this);
 
     m_Device = Core::tryCreateDevice(m_Surface);
-    m_RenderContext.Create(*this);
+    m_RenderSystem.Create(*this);
     Input::InstallCallbacks(*this);
 }
 
-void Window::createGlobalUniformHelper() noexcept
-{
-    DescriptorPool::Specs poolSpecs{};
-    poolSpecs.MaxSets = SwapChain::MAX_FRAMES_IN_FLIGHT;
-    poolSpecs.PoolSizes.push_back(
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT});
-
-    static constexpr std::array<VkDescriptorSetLayoutBinding, 1> bindings = {
-        {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-          nullptr}}};
-
-    const auto &props = m_Device->GetProperties();
-    Buffer::Specs bufferSpecs{};
-    bufferSpecs.InstanceCount = SwapChain::MAX_FRAMES_IN_FLIGHT;
-    bufferSpecs.InstanceSize = sizeof(GlobalUBO);
-    bufferSpecs.Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    bufferSpecs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    bufferSpecs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-    bufferSpecs.MinimumAlignment =
-        glm::max(props.limits.minUniformBufferOffsetAlignment, props.limits.nonCoherentAtomSize);
-
-    m_GlobalUniformHelper.Create(poolSpecs, bindings, bufferSpecs);
-    m_GlobalUniformHelper->UniformBuffer.Map();
-
-    for (usize i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; ++i)
-    {
-        const auto info = m_GlobalUniformHelper->UniformBuffer.DescriptorInfoAt(i);
-        DescriptorWriter writer{&m_GlobalUniformHelper->Layout, &m_GlobalUniformHelper->Pool};
-        writer.WriteBuffer(0, &info);
-        m_GlobalDescriptorSets[i] = writer.Build();
-    }
-}
-
-ONYX_DIMENSION_TEMPLATE void Window::addDefaultRenderSystems() noexcept
-{
-    typename RenderSystem<N>::Specs specs{};
-    specs.RenderPass = m_RenderContext->GetSwapChain().GetRenderPass();
-    specs.DescriptorSetLayout = m_GlobalUniformHelper->Layout.GetLayout();
-    const auto getSystem = [this]() {
-        if constexpr (N == 2)
-            return &m_RenderSystems2D;
-        else
-            return &m_RenderSystems3D;
-    };
-    auto &systems = *getSystem();
-
-    // Triangle list
-    specs.Topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    systems.emplace_back(specs);
-
-    // Triangle strip
-    specs.Topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-    systems.emplace_back(specs);
-
-    // Line list
-    specs.Topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-    systems.emplace_back(specs);
-
-    // Line strip
-    specs.Topology = VK_PRIMITIVE_TOPOLOGY_LINE_STRIP;
-    systems.emplace_back(specs);
-}
-
-void Window::drawRenderSystems(const VkCommandBuffer p_CommandBuffer) noexcept
-{
-    KIT_ASSERT(m_Camera, "No camera set for the window. Use the SetCamera method to set one");
-    const u32 frameIndex = m_RenderContext->GetFrameIndex();
-    GlobalUBO ubo{};
-    m_Camera->SetAspectRatio(GetScreenAspect());
-    ubo.Projection = m_Camera->ComputeProjectionView();
-    ubo.LightDirection = vec4{glm::normalize(LightDirection), 0.f};
-    ubo.LightIntensity = LightIntensity;
-    ubo.AmbientIntensity = AmbientIntensity;
-
-    m_GlobalUniformHelper->UniformBuffer.WriteAt(frameIndex, &ubo);
-    m_GlobalUniformHelper->UniformBuffer.FlushAt(frameIndex);
-
-    DrawInfo info{};
-    info.CommandBuffer = p_CommandBuffer;
-    info.DescriptorSet = m_GlobalDescriptorSets[frameIndex];
-    for (RenderSystem2D &rs : m_RenderSystems2D)
-    {
-        rs.Render(info);
-        rs.ClearDrawData();
-    }
-    for (RenderSystem3D &rs : m_RenderSystems3D)
-    {
-        rs.Render(info);
-        rs.ClearDrawData();
-    }
-}
-
-void Window::Draw(IDrawable &p_Drawable) noexcept
-{
-    p_Drawable.Draw(*this);
-}
-
-void Window::Draw(Window &p_Window) noexcept
-{
-    KIT_ASSERT(this != &p_Window, "Cannot draw a window to itself");
-    KIT_ASSERT(p_Window.m_RenderSystems2D.size() >= m_RenderSystems2D.size(),
-               "The window to draw must have at least the same amount of render systems as the current window");
-    KIT_ASSERT(p_Window.m_RenderSystems3D.size() >= m_RenderSystems3D.size(),
-               "The window to draw must have at least the same amount of render systems as the current window");
-
-    // A render system cannot be deleted, so we can safely assume that the render systems are in the same order
-    for (usize i = 0; i < m_RenderSystems2D.size(); ++i)
-        m_RenderSystems2D[i].SubmitDrawData(p_Window.m_RenderSystems2D[i]);
-    for (usize i = 0; i < m_RenderSystems3D.size(); ++i)
-        m_RenderSystems3D[i].SubmitDrawData(p_Window.m_RenderSystems3D[i]);
-}
-
 // I could define my own topology enum and use it here as the index... but i didnt
-ONYX_DIMENSION_TEMPLATE const RenderSystem<N> *Window::GetRenderSystem(VkPrimitiveTopology p_Topology) const noexcept
-{
-    const auto getSystem = [this]() {
-        if constexpr (N == 2)
-            return &m_RenderSystems2D;
-        else
-            return &m_RenderSystems3D;
-    };
-    auto &systems = *getSystem();
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
-        return &systems[0];
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)
-        return &systems[1];
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_LIST)
-        return &systems[2];
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP)
-        return &systems[3];
-    return nullptr;
-}
-
-ONYX_DIMENSION_TEMPLATE RenderSystem<N> *Window::GetRenderSystem(VkPrimitiveTopology p_Topology) noexcept
-{
-    const auto getSystem = [this]() {
-        if constexpr (N == 2)
-            return &m_RenderSystems2D;
-        else
-            return &m_RenderSystems3D;
-    };
-    auto &systems = *getSystem();
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
-        return &systems[0];
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP)
-        return &systems[1];
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_LIST)
-        return &systems[2];
-    if (p_Topology == VK_PRIMITIVE_TOPOLOGY_LINE_STRIP)
-        return &systems[3];
-    return nullptr;
-}
 
 bool Window::Render() noexcept
 {
@@ -223,11 +64,11 @@ bool Window::ShouldClose() const noexcept
     return glfwWindowShouldClose(m_Window);
 }
 
-const GLFWwindow *Window::GetWindow() const noexcept
+const GLFWwindow *Window::GetWindowHandle() const noexcept
 {
     return m_Window;
 }
-GLFWwindow *Window::GetWindow() noexcept
+GLFWwindow *Window::GetWindowHandle() noexcept
 {
     return m_Window;
 }
@@ -248,11 +89,11 @@ u32 Window::GetScreenHeight() const noexcept
 
 u32 Window::GetPixelWidth() const noexcept
 {
-    return m_RenderContext->GetSwapChain().GetWidth();
+    return m_RenderSystem->GetSwapChain().GetWidth();
 }
 u32 Window::GetPixelHeight() const noexcept
 {
-    return m_RenderContext->GetSwapChain().GetHeight();
+    return m_RenderSystem->GetSwapChain().GetHeight();
 }
 
 f32 Window::GetScreenAspect() const noexcept
@@ -262,7 +103,7 @@ f32 Window::GetScreenAspect() const noexcept
 
 f32 Window::GetPixelAspect() const noexcept
 {
-    return m_RenderContext->GetSwapChain().GetAspectRatio();
+    return m_RenderSystem->GetSwapChain().GetAspectRatio();
 }
 
 bool Window::WasResized() const noexcept
@@ -305,15 +146,9 @@ void Window::FlushEvents() noexcept
     m_Events.clear();
 }
 
-const RenderContext &Window::GetRenderContext() const noexcept
+const RenderSystem &Window::GetRenderSystem() const noexcept
 {
-    return *m_RenderContext;
+    return *m_RenderSystem;
 }
-
-template const RenderSystem<2> *Window::GetRenderSystem<2>(VkPrimitiveTopology) const noexcept;
-template const RenderSystem<3> *Window::GetRenderSystem<3>(VkPrimitiveTopology) const noexcept;
-
-template RenderSystem<2> *Window::GetRenderSystem<2>(VkPrimitiveTopology) noexcept;
-template RenderSystem<3> *Window::GetRenderSystem<3>(VkPrimitiveTopology) noexcept;
 
 } // namespace ONYX
