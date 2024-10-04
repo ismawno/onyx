@@ -113,6 +113,9 @@ static void pushMeshConstantData(const RenderInfo<N> &p_Info, const DData &p_Dat
     {
         pdata.ColorAndNormalMatrix = mat4(glm::transpose(mat3(glm::inverse(p_Data.Transform))));
         pdata.ColorAndNormalMatrix[3] = p_Data.Color;
+
+        // Consider sending the projection matrix to the shader to be combined with the model matrix there (although
+        // I think this is the better way to do it)
         pdata.Transform = p_Info.Projection ? *p_Info.Projection * p_Data.Transform : p_Data.Transform;
     }
     else

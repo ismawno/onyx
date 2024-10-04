@@ -4,12 +4,6 @@
 
 namespace ONYX
 {
-struct GlobalUBO
-{
-    vec4 LightDirection;
-    f32 LightIntensity;
-    f32 AmbientIntensity;
-};
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::initializeRenderers(const VkRenderPass p_RenderPass,
                                                                     const VkDescriptorSetLayout p_Layout) noexcept
@@ -43,6 +37,13 @@ RenderContext<3>::~RenderContext() noexcept
 {
     m_GlobalUniformHelper.Destroy();
 }
+
+struct GlobalUBO
+{
+    vec4 LightDirection;
+    f32 LightIntensity;
+    f32 AmbientIntensity;
+};
 
 void RenderContext<3>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {

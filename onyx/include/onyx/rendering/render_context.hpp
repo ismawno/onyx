@@ -15,12 +15,80 @@ namespace ONYX
 {
 ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
 {
+  public:
+    void Translate(const vec<N> &p_Translation) noexcept;
+    void Scale(const vec<N> &p_Scale) noexcept;
+    void Scale(f32 p_Scale) noexcept;
+
+    void TranslateView(const vec<N> &p_Translation) noexcept;
+    void ScaleView(const vec<N> &p_Scale) noexcept;
+    void ScaleView(f32 p_Scale) noexcept;
+
+    void Square() noexcept;
+    void Square(const vec<N> &p_Position) noexcept;
+    void Square(const vec<N> &p_Position, f32 p_Size) noexcept;
+
+    void Rect(f32 p_XDim, f32 p_YDim) noexcept;
+    void Rect(const vec2 &p_Dimension) noexcept;
+    void Rect(const vec<N> &p_Position, const vec2 &p_Dimension) noexcept;
+
+    void NGon(u32 p_Sides) noexcept;
+    void NGon(u32 p_Sides, const vec<N> &p_Position) noexcept;
+    void NGon(u32 p_Sides, const vec<N> &p_Position, f32 p_Radius) noexcept;
+
+    void Circle() noexcept;
+    void Circle(const vec<N> &p_Position) noexcept;
+    void Circle(const vec<N> &p_Position, f32 p_Radius) noexcept;
+
+    void Ellipse(const vec<N> &p_Dimensions) noexcept;
+    void Ellipse(const vec<N> &p_Position, const vec<N> &p_Dimensions) noexcept;
+
+    void Line(const vec<N> &p_Start, const vec<N> &p_End) noexcept;
+    void LineStrip(std::span<const vec<N>> p_Points) noexcept;
+
+    void Push() noexcept;
+    void PushAndClear() noexcept;
+
+    void Pop() noexcept;
+
+    void Fill(const Color &p_Color) noexcept;
+    template <typename... ColorArgs>
+        requires std::constructible_from<Color, ColorArgs...>
+    void Fill(ColorArgs &&...p_ColorArgs) noexcept
+    {
+        Fill(Color(std::forward<ColorArgs>(p_ColorArgs)...));
+    }
+
+    void Stroke() noexcept; // just enable stroke
+    void Stroke(const Color &p_Color) noexcept;
+    template <typename... ColorArgs>
+        requires std::constructible_from<Color, ColorArgs...>
+    void Stroke(ColorArgs &&...p_ColorArgs) noexcept
+    {
+        Stroke(Color(std::forward<ColorArgs>(p_ColorArgs)...));
+    }
+
+    void StrokeWidth(f32 p_Width) noexcept;
+    void NoStroke() noexcept;
+
   protected:
+    struct RenderState
+    {
+        mat<N> Transform;
+        mat<N> View;
+        Color FillColor;
+        Color StrokeColor;
+        f32 StrokeWidth = 0.f;
+        bool NoStroke = false;
+    };
+
     // this method MUST be called externally (ie by a derived class). it wont be called automatically
     void initializeRenderers(VkRenderPass p_RenderPass, VkDescriptorSetLayout p_Layout) noexcept;
 
     KIT::Storage<MeshRenderer<N>> m_MeshRenderer;
     KIT::Storage<CircleRenderer<N>> m_CircleRenderer;
+
+    DynamicArray<RenderState> m_RenderState;
 };
 
 ONYX_DIMENSION_TEMPLATE class RenderContext;
@@ -30,6 +98,30 @@ template <> class ONYX_API RenderContext<2> final : IRenderContext<2>
   public:
     RenderContext(VkRenderPass p_RenderPass) noexcept;
 
+    void Translate(f32 p_X, f32 p_Y) noexcept;
+    void Scale(f32 p_X, f32 p_Y) noexcept;
+    void Rotate(f32 p_Angle) noexcept;
+
+    void TranslateView(f32 p_X, f32 p_Y) noexcept;
+    void ScaleView(f32 p_X, f32 p_Y) noexcept;
+    void RotateView(f32 p_Angle) noexcept;
+
+    void Square(f32 p_X, f32 p_Y) noexcept;
+    void Square(f32 p_X, f32 p_Y, f32 p_Size) noexcept;
+
+    void Rect(f32 p_X, f32 p_Y, f32 p_XDim, f32 p_YDim) noexcept;
+
+    void NGon(u32 p_Sides, f32 p_X, f32 p_Y) noexcept;
+    void NGon(u32 p_Sides, f32 p_X, f32 p_Y, f32 p_Radius) noexcept;
+
+    void Circle(f32 p_X, f32 p_Y) noexcept;
+    void Circle(f32 p_X, f32 p_Y, f32 p_Radius) noexcept;
+
+    void Ellipse(f32 p_XDim, f32 p_YDim) noexcept;
+    void Ellipse(f32 p_X, f32 p_Y, f32 p_XDim, f32 p_YDim) noexcept;
+
+    void Line(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY) noexcept;
+
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 };
 template <> class ONYX_API RenderContext<3> final : IRenderContext<3>
@@ -37,6 +129,47 @@ template <> class ONYX_API RenderContext<3> final : IRenderContext<3>
   public:
     RenderContext(VkRenderPass p_RenderPass) noexcept;
     ~RenderContext() noexcept;
+
+    void Translate(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void Scale(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void Rotate(f32 p_Angle, const vec3 &p_Axis) noexcept;
+    void Rotate(const vec3 &p_Angles) noexcept; // Add axis as well?
+    void Rotate(const quat &p_Quaternion) noexcept;
+
+    void TranslateView(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void ScaleView(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void RotateView(f32 p_Angle, const vec3 &p_Axis) noexcept;
+    void RotateView(const vec3 &p_Angles) noexcept; // Add axis as well?
+    void RotateView(const quat &p_Quaternion) noexcept;
+
+    void Square(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void Square(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Size) noexcept;
+
+    void Rect(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim) noexcept;
+
+    void NGon(u32 p_Sides, f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void NGon(u32 p_Sides, f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius) noexcept;
+
+    void Circle(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void Circle(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius) noexcept;
+
+    void Ellipse(f32 p_XDim, f32 p_YDim, f32 p_ZDim) noexcept;
+    void Ellipse(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim) noexcept;
+
+    void Cube() noexcept;
+    void Cube(f32 p_Size) noexcept;
+
+    void Cube(const vec3 &p_Position) noexcept;
+    void Cube(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+
+    void Cube(const vec3 &p_Position, f32 p_Size) noexcept;
+    void Cube(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Size) noexcept;
+
+    void Cuboid(const vec3 &p_Dimensions) noexcept;
+    void Cuboid(f32 p_XDim, f32 p_YDim, f32 p_ZDim) noexcept;
+
+    void Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept;
+    void Cuboid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim) noexcept;
 
     void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
 
