@@ -86,10 +86,23 @@ ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::~MeshRenderer() noexcept
     m_Pipeline.Destroy();
 }
 
-ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const Model *p_Model, const mat4 &p_ModelTransform,
+ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const Model *p_Model, const mat<N> &p_ModelTransform,
                                                    const vec4 &p_Color) noexcept
 {
     m_DrawData.emplace_back(p_Model, p_ModelTransform, p_Color);
+}
+
+static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
+{
+    mat4 t4{1.f};
+    t4[0][0] = p_Transform[0][0];
+    t4[0][1] = p_Transform[0][1];
+    t4[1][0] = p_Transform[1][0];
+    t4[1][1] = p_Transform[1][1];
+
+    t4[3][0] = p_Transform[2][0];
+    t4[3][1] = p_Transform[2][1];
+    return t4;
 }
 
 template <u32 N, typename DData>
@@ -105,7 +118,7 @@ static void pushMeshConstantData(const RenderInfo<N> &p_Info, const DData &p_Dat
     else
     {
         pdata.Color = p_Data.Color;
-        pdata.Transform = p_Data.Transform;
+        pdata.Transform = transform3ToTransform4(p_Data.Transform);
     }
 
     vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline->GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
@@ -155,7 +168,7 @@ ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::~CircleRenderer() noexcept
     m_Pipeline.Destroy();
 }
 
-ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Draw(const mat4 &p_ModelTransform, const vec4 &p_Color) noexcept
+ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Draw(const mat<N> &p_ModelTransform, const vec4 &p_Color) noexcept
 {
     m_DrawData.emplace_back(p_ModelTransform, p_Color);
 }

@@ -31,7 +31,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
     MeshRenderer(VkRenderPass p_RenderPass, VkDescriptorSetLayout p_Layout) noexcept;
     ~MeshRenderer() noexcept;
 
-    void Draw(const Model *p_Model, const mat4 &p_Transform, const vec4 &p_Color) noexcept;
+    void Draw(const Model *p_Model, const mat<N> &p_Transform, const vec4 &p_Color) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
@@ -39,12 +39,12 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
   private:
     struct DrawData
     {
-        DrawData(const ONYX::Model *p_Model, const mat4 &p_Transform, const vec4 &p_Color) noexcept
+        DrawData(const ONYX::Model *p_Model, const mat<N> &p_Transform, const vec4 &p_Color) noexcept
             : Model(p_Model), Transform(p_Transform), Color(p_Color)
         {
         }
         const Model *Model;
-        mat4 Transform;
+        mat<N> Transform;
         vec4 Color;
     };
 
@@ -62,7 +62,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
     CircleRenderer(VkRenderPass p_RenderPass, VkDescriptorSetLayout p_Layout) noexcept;
     ~CircleRenderer() noexcept;
 
-    void Draw(const mat4 &p_Transform, const vec4 &p_Color) noexcept;
+    void Draw(const mat<N> &p_Transform, const vec4 &p_Color) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
@@ -70,10 +70,10 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
   private:
     struct DrawData
     {
-        DrawData(const mat4 &p_Transform, const vec4 &p_Color) noexcept : Transform(p_Transform), Color(p_Color)
+        DrawData(const mat<N> &p_Transform, const vec4 &p_Color) noexcept : Transform(p_Transform), Color(p_Color)
         {
         }
-        mat4 Transform;
+        mat<N> Transform;
         vec4 Color;
     };
 

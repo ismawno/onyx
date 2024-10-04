@@ -28,7 +28,7 @@ using mat2 = glm::mat2;
 using mat3 = glm::mat3;
 using mat4 = glm::mat4;
 
-template <u32 N> using mat = glm::mat<N, N, f32>;
+template <u32 N> using mat = glm::mat<N + 1, N + 1, f32>;
 
 using quat = glm::quat;
 
