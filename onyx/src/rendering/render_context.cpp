@@ -9,7 +9,14 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::initializeRenderers(const VkRend
                                                                     const VkDescriptorSetLayout p_Layout) noexcept
 {
     m_MeshRenderer.Create(p_RenderPass, p_Layout);
-    // m_CircleRenderer.Create(p_RenderPass, p_Layout);
+    m_CircleRenderer.Create(p_RenderPass, p_Layout);
+    m_RenderState.push_back(RenderState{});
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::resetRenderState() noexcept
+{
+    KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
+    m_RenderState[0] = RenderState{};
 }
 
 RenderContext<2>::RenderContext(const VkRenderPass p_RenderPass) noexcept

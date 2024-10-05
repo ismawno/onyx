@@ -74,16 +74,17 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
   protected:
     struct RenderState
     {
-        mat<N> Transform;
-        mat<N> View;
-        Color FillColor;
-        Color StrokeColor;
+        mat<N> Transform{1.f};
+        mat<N> View{1.f};
+        Color FillColor = Color::WHITE;
+        Color StrokeColor = Color::WHITE;
         f32 StrokeWidth = 0.f;
-        bool NoStroke = false;
+        bool NoStroke = true;
     };
 
     // this method MUST be called externally (ie by a derived class). it wont be called automatically
     void initializeRenderers(VkRenderPass p_RenderPass, VkDescriptorSetLayout p_Layout) noexcept;
+    void resetRenderState() noexcept;
 
     KIT::Storage<MeshRenderer<N>> m_MeshRenderer;
     KIT::Storage<CircleRenderer<N>> m_CircleRenderer;
@@ -170,6 +171,9 @@ template <> class ONYX_API RenderContext<3> final : IRenderContext<3>
 
     void Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept;
     void Cuboid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim) noexcept;
+
+    void SetPerspectiveProjection(f32 p_FOV, f32 p_AspectRatio, f32 p_Near, f32 p_Far) noexcept;
+    void SetOrthographicProjection() noexcept;
 
     void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
 

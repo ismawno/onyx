@@ -109,7 +109,7 @@ function(compile_shader shader)
     get_filename_component(SHADER_NAME ${shader} NAME)
     set(SPIRV "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin/${SHADER_NAME}.spv")
     
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin)
+    make_directory(${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin)
 
     add_custom_command(
         TARGET onyx

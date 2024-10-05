@@ -161,8 +161,8 @@ template class MeshRenderer<3>;
 ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::CircleRenderer(const VkRenderPass p_RenderPass,
                                                           const VkDescriptorSetLayout p_Layout) noexcept
 {
-    const Pipeline::Specs specs = defaultMeshPipelineSpecs<N>(
-        ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment, p_RenderPass, p_Layout ? &p_Layout : nullptr);
+    Pipeline::Specs specs = defaultMeshPipelineSpecs<N>(ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment,
+                                                        p_RenderPass, p_Layout ? &p_Layout : nullptr);
     m_Pipeline.Create(specs);
 }
 

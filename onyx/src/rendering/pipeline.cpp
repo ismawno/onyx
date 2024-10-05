@@ -33,7 +33,6 @@ VkPipelineLayout Pipeline::GetLayout() const noexcept
 
 void Pipeline::createPipeline(const Specs &p_Specs) noexcept
 {
-    // KIT_LOG_INFO("Creating new pipeline...");
     KIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");
 
     m_Device = Core::GetDevice();
@@ -43,6 +42,9 @@ void Pipeline::createPipeline(const Specs &p_Specs) noexcept
     KIT_ASSERT_RETURNS(
         vkCreatePipelineLayout(m_Device->GetDevice(), &p_Specs.PipelineLayoutInfo, nullptr, &m_PipelineLayout),
         VK_SUCCESS, "Failed to create pipeline layout");
+
+    const bool hasAttributes = !p_Specs.AttributeDescriptions.empty();
+    const bool hasBindings = !p_Specs.BindingDescriptions.empty();
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages;
     for (auto &shaderStage : shaderStages)
@@ -60,10 +62,14 @@ void Pipeline::createPipeline(const Specs &p_Specs) noexcept
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<u32>(p_Specs.AttributeDescriptions.size());
-    vertexInputInfo.vertexBindingDescriptionCount = static_cast<u32>(p_Specs.BindingDescriptions.size());
-    vertexInputInfo.pVertexAttributeDescriptions = p_Specs.AttributeDescriptions.data();
-    vertexInputInfo.pVertexBindingDescriptions = p_Specs.BindingDescriptions.data();
+
+    if (hasAttributes || hasBindings)
+    {
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<u32>(p_Specs.AttributeDescriptions.size());
+        vertexInputInfo.vertexBindingDescriptionCount = static_cast<u32>(p_Specs.BindingDescriptions.size());
+        vertexInputInfo.pVertexAttributeDescriptions = hasAttributes ? p_Specs.AttributeDescriptions.data() : nullptr;
+        vertexInputInfo.pVertexBindingDescriptions = hasBindings ? p_Specs.BindingDescriptions.data() : nullptr;
+    }
 
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
