@@ -25,24 +25,27 @@ void SWExampleLayer::OnRender() noexcept
     t += m_Application->GetDeltaTime();
     (void)t;
     context->Background(Color::BLACK);
-    context->ScaleAxes(0.1f);
+    context->ScaleAxes(0.3f);
     context->KeepWindowAspect();
+
+    context->Fill(Color::CYAN);
+    context->RoundedLine(0.f, 0.f, 4.f, 4.f);
 
     // context->TranslateAxes(0.2f, 0.f);
     // context->ScaleAxes(t);
     // context->Rotate(t);
     // context->Scale(0.4f);
-    context->Square(3.f, 0.f);
+    // context->Square(3.f, 0.f);
 
-    context->Push();
-    context->TranslateAxes(3.f, 0.f);
-    context->RotateAxes(t);
-    context->Square(0.f, 3.f);
-    context->Pop();
+    // context->Push();
+    // context->TranslateAxes(3.f, 0.f);
+    // context->RotateAxes(t);
+    // context->Square(0.f, 3.f);
+    // context->Pop();
 
-    context->TranslateAxes(3.f, 5.f);
-    context->RotateAxes(t);
-    context->Square();
+    // context->TranslateAxes(3.f, 5.f);
+    // context->RotateAxes(t);
+    // context->Square();
 
     // context->RotateView(t);
     // context->Square(0.f, 5.f);

@@ -329,6 +329,70 @@ void RenderContext<3>::Ellipse(const f32 p_X, const f32 p_Y, const f32 p_Z, cons
     Ellipse(vec3{p_X, p_Y, p_Z}, vec2{p_XDim, p_YDim});
 }
 
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Line(const vec<N> &p_Start, const vec<N> &p_End,
+                                                     const f32 p_Thickness) noexcept
+{
+    Transform<N> t;
+    t.Translation = 0.5f * (p_Start + p_End);
+    const vec<N> delta = p_End - p_Start;
+    if constexpr (N == 2)
+        t.Rotation = glm::atan(delta.y, delta.x);
+    else
+        t.Rotation = quat{{0.f, glm::atan(delta.y, delta.x), glm::atan(delta.z, delta.x)}};
+    t.Scale.x = glm::length(delta);
+    t.Scale.y = p_Thickness;
+
+    const mat<N> transform = m_RenderState.back().Axes * t.ComputeTransform() * m_RenderState.back().Transform;
+    const Model *model = Model::GetSquare<N>();
+    m_MeshRenderer->Draw(model, transform, m_RenderState.back().FillColor);
+}
+
+void RenderContext<2>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
+                            const f32 p_Thickness) noexcept
+{
+    Line(vec2{p_X1, p_Y1}, vec2{p_X2, p_Y2}, p_Thickness);
+}
+void RenderContext<3>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_Z1, const f32 p_X2, const f32 p_Y2,
+                            const f32 p_Z2, const f32 p_Thickness) noexcept
+{
+    Line(vec3{p_X1, p_Y1, p_Z1}, vec3{p_X2, p_Y2, p_Z2}, p_Thickness);
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::LineStrip(std::span<const vec<N>> p_Points,
+                                                          const f32 p_Thickness) noexcept
+{
+    KIT_ASSERT(p_Points.size() > 1, "A line strip must have at least two points");
+    for (u32 i = 0; i < p_Points.size() - 1; ++i)
+        Line(p_Points[i], p_Points[i + 1], p_Thickness);
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::RoundedLine(const vec<N> &p_Start, const vec<N> &p_End,
+                                                            const f32 p_Thickness) noexcept
+{
+    Line(p_Start, p_End, p_Thickness);
+    Circle(p_Start, p_Thickness);
+    Circle(p_End, p_Thickness);
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::RoundedLineStrip(std::span<const vec<N>> p_Points,
+                                                                 const f32 p_Thickness) noexcept
+{
+    LineStrip(p_Points, p_Thickness);
+    for (const vec<N> &point : p_Points)
+        Circle(point, p_Thickness);
+}
+
+void RenderContext<2>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
+                                   const f32 p_Thickness) noexcept
+{
+    RoundedLine(vec2{p_X1, p_Y1}, vec2{p_X2, p_Y2}, p_Thickness);
+}
+void RenderContext<3>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_Z1, const f32 p_X2, const f32 p_Y2,
+                                   const f32 p_Z2, const f32 p_Thickness) noexcept
+{
+    RoundedLine(vec3{p_X1, p_Y1, p_Z1}, vec3{p_X2, p_Y2, p_Z2}, p_Thickness);
+}
+
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const Model *p_Model, const mat<N> &p_Transform) noexcept
 {
     const RenderState<N> &state = m_RenderState.back();

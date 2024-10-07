@@ -77,8 +77,11 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void Ellipse(const vec2 &p_Dimensions) noexcept;
     void Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept;
 
-    void Line(const vec<N> &p_Start, const vec<N> &p_End) noexcept;
-    void LineStrip(std::span<const vec<N>> p_Points) noexcept;
+    void Line(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.1f) noexcept;
+    void LineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.1f) noexcept;
+
+    void RoundedLine(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.1f) noexcept;
+    void RoundedLineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.1f) noexcept;
 
     void Mesh(const Model *p_Model, const mat<N> &p_Transform) noexcept;
     void Mesh(const Model *p_Model) noexcept;
@@ -135,6 +138,7 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     using IRenderContext<2>::Circle;
     using IRenderContext<2>::Ellipse;
     using IRenderContext<2>::Line;
+    using IRenderContext<2>::RoundedLine;
 
     void Translate(f32 p_X, f32 p_Y) noexcept;
     void Scale(f32 p_X, f32 p_Y) noexcept;
@@ -157,7 +161,8 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 
     void Ellipse(f32 p_X, f32 p_Y, f32 p_XDim, f32 p_YDim) noexcept;
 
-    void Line(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY) noexcept;
+    void Line(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
+    void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
 
     void Stroke() noexcept; // just enable stroke
     void Stroke(const Color &p_Color) noexcept;
@@ -192,6 +197,7 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     using IRenderContext<3>::Circle;
     using IRenderContext<3>::Ellipse;
     using IRenderContext<3>::Line;
+    using IRenderContext<3>::RoundedLine;
 
     void Translate(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
     void Scale(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
@@ -222,7 +228,10 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 
     void Ellipse(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim) noexcept;
 
-    void Line(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ) noexcept;
+    void Line(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
+              f32 p_Thickness = 0.1f) noexcept;
+    void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
+                     f32 p_Thickness = 0.1f) noexcept;
 
     void Cube() noexcept;
     void Cube(f32 p_Size) noexcept;
