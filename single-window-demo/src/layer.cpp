@@ -25,12 +25,23 @@ void SWExampleLayer::OnRender() noexcept
     t += m_Application->GetDeltaTime();
     (void)t;
     context->Background(Color::BLACK);
-    context->ScaleView(10.f);
+    context->ScaleAxes(0.1f);
     context->KeepWindowAspect();
 
-    context->Translate(0.f, 10.f);
+    // context->TranslateAxes(0.2f, 0.f);
+    // context->ScaleAxes(t);
+    // context->Rotate(t);
     // context->Scale(0.4f);
-    // context->RotateView(t);
+    context->Square(3.f, 0.f);
+
+    context->Push();
+    context->TranslateAxes(3.f, 0.f);
+    context->RotateAxes(t);
+    context->Square(0.f, 3.f);
+    context->Pop();
+
+    context->TranslateAxes(3.f, 5.f);
+    context->RotateAxes(t);
     context->Square();
 
     // context->RotateView(t);
@@ -42,8 +53,9 @@ void SWExampleLayer::OnImGuiRender() noexcept
     if (ImGui::Begin("Window"))
     {
         RenderContext2D *context = m_Application->GetMainWindow()->GetRenderContext2D();
-        const vec2 mpos = context->GetViewMousePosition();
-        ImGui::Text("Mouse Position: (%.1f, %.1f)", mpos.x, mpos.y);
+        const vec2 mpos = context->GetMouseCoordinates();
+        // const vec2 mpos = Input::GetMousePosition(m_Application->GetMainWindow());
+        ImGui::Text("Mouse Position: (%.2f, %.2f)", mpos.x, mpos.y);
     }
     ImGui::End();
 }

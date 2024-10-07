@@ -39,6 +39,17 @@ template <> struct Trigonometry<3>
     f32 s3;
 };
 
+ONYX_DIMENSION_TEMPLATE static vec<N + 1> adaptTranslation(const vec<N> &p_Translation)
+{
+#if ONYX_COORDINATE_SYSTEM == ONYX_CS_CENTERED_CARTESIAN
+    vec<N + 1> translation{p_Translation, 1.f};
+    translation.y = -translation.y;
+    return translation;
+#else
+    return vec<N + 1>{p_Translation, 1.f};
+#endif
+}
+
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
                                                               const rot<N> &p_Rotation) noexcept
 {
@@ -47,14 +58,15 @@ ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeTransform(const vec<N> &p_Tr
         const mat2 scale = mat2({p_Scale.x, 0.f}, {0.f, p_Scale.y});
         const mat2 rotScale = Trigonometry<2>(p_Rotation).RotationMatrix() * scale;
 
-        return mat3{vec3(rotScale[0], 0.f), vec3(rotScale[1], 0.f), vec3(p_Translation, 1.f)};
+        return mat3{vec3(rotScale[0], 0.f), vec3(rotScale[1], 0.f), adaptTranslation<N>(p_Translation)};
     }
     else
     {
         const mat3 scale = mat3({p_Scale.x, 0.f, 0.f}, {0.f, p_Scale.y, 0.f}, {0.f, 0.f, p_Scale.z});
         const mat3 rotScale = glm::toMat3(p_Rotation) * scale;
 
-        return mat4{vec4(rotScale[0], 0.f), vec4(rotScale[1], 0.f), vec4(rotScale[2], 0.f), vec4(p_Translation, 1.f)};
+        return mat4{vec4(rotScale[0], 0.f), vec4(rotScale[1], 0.f), vec4(rotScale[2], 0.f),
+                    adaptTranslation<N>(p_Translation)};
     }
 }
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeInverseTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
@@ -64,47 +76,9 @@ ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeInverseTransform(const vec<N
     {
         const mat2 scale = mat2({1.f / p_Scale.x, 0.f}, {0.f, 1.f / p_Scale.y});
         const mat2 rotScale = scale * Trigonometry<2>(-p_Rotation).RotationMatrix();
-
-        return mat3{vec3(rotScale[0], 0.f), vec3(rotScale[1], 0.f), vec3(p_Translation, 1.f)};
-    }
-    else
-    {
-        const mat3 scale = mat3({1.f / p_Scale.x, 0.f, 0.f}, {0.f, 1.f / p_Scale.y, 0.f}, {0.f, 0.f, 1.f / p_Scale.z});
-        const mat3 rotScale = scale * glm::toMat3(glm::conjugate(p_Rotation));
-
-        return mat4{vec4(rotScale[0], 0.f), vec4(rotScale[1], 0.f), vec4(rotScale[2], 0.f), vec4(p_Translation, 1.f)};
-    }
-}
-
-ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeView(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                                         const rot<N> &p_Rotation) noexcept
-{
-    if constexpr (N == 2)
-    {
-        const mat2 rotation = Trigonometry<2>(-p_Rotation).RotationMatrix();
-        const vec2 translation = -p_Translation / p_Scale;
-
-        return mat3{vec3(rotation[0] / p_Scale, 0.f), vec3(rotation[1] / p_Scale, 0.f), vec3(translation, 1.f)};
-    }
-    else
-    {
-        const mat3 rotation = glm::toMat3(glm::conjugate(p_Rotation));
-        const vec3 translation = -p_Translation / p_Scale;
-
-        return mat4{vec4(rotation[0] / p_Scale, 0.f), vec4(rotation[1] / p_Scale, 0.f),
-                    vec4(rotation[2] / p_Scale, 0.f), vec4(translation, 1.f)};
-    }
-}
-ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeInverseView(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                                                const rot<N> &p_Rotation) noexcept
-{
-    if constexpr (N == 2)
-    {
-        const mat2 scale = mat2({1.f / p_Scale.x, 0.f}, {0.f, 1.f / p_Scale.y});
-        const mat2 rotScale = scale * Trigonometry<2>(-p_Rotation).RotationMatrix();
         const vec2 translation = -rotScale * p_Translation;
 
-        return mat3{vec3(rotScale[0], 0.f), vec3(rotScale[1], 0.f), vec3(translation, 1.f)};
+        return mat3{vec3(rotScale[0], 0.f), vec3(rotScale[1], 0.f), adaptTranslation<N>(translation)};
     }
     else
     {
@@ -112,7 +86,8 @@ ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeInverseView(const vec<N> &p_
         const mat3 rotScale = scale * glm::toMat3(glm::conjugate(p_Rotation));
         const vec3 translation = -rotScale * p_Translation;
 
-        return mat4{vec4(rotScale[0], 0.f), vec4(rotScale[1], 0.f), vec4(rotScale[2], 0.f), vec4(translation, 1.f)};
+        return mat4{vec4(rotScale[0], 0.f), vec4(rotScale[1], 0.f), vec4(rotScale[2], 0.f),
+                    adaptTranslation<N>(translation)};
     }
 }
 
@@ -124,22 +99,14 @@ ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeInverseTransform() const noe
 {
     return ComputeInverseTransform(Translation, Scale, Rotation);
 }
-ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeView() const noexcept
-{
-    return ComputeView(Translation, Scale, Rotation);
-}
-ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeInverseView() const noexcept
-{
-    return ComputeInverseView(Translation, Scale, Rotation);
-}
 
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeTranslationMatrix(const vec<N> &p_Translation) noexcept
 {
     if constexpr (N == 2)
-        return mat3{vec3(1.f, 0.f, 0.f), vec3(0.f, 1.f, 0.f), vec3(p_Translation, 1.f)};
+        return mat3{vec3(1.f, 0.f, 0.f), vec3(0.f, 1.f, 0.f), adaptTranslation<N>(p_Translation)};
     else
         return mat4{vec4(1.f, 0.f, 0.f, 0.f), vec4(0.f, 1.f, 0.f, 0.f), vec4(0.f, 0.f, 1.f, 0.f),
-                    vec4(p_Translation, 1.f)};
+                    adaptTranslation<N>(p_Translation)};
 }
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeScaleMatrix(const vec<N> &p_Scale) noexcept
 {
@@ -171,19 +138,19 @@ ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeTranslationScaleMatrix(const
                                                                            const vec<N> &p_Scale) noexcept
 {
     if constexpr (N == 2)
-        return mat3{vec3(p_Scale.x, 0.f, 0.f), vec3(0.f, p_Scale.y, 0.f), vec3(p_Translation, 1.f)};
+        return mat3{vec3(p_Scale.x, 0.f, 0.f), vec3(0.f, p_Scale.y, 0.f), adaptTranslation<N>(p_Translation)};
     else
         return mat4{vec4(p_Scale.x, 0.f, 0.f, 0.f), vec4(0.f, p_Scale.y, 0.f, 0.f), vec4(0.f, 0.f, p_Scale.z, 0.f),
-                    vec4(p_Translation, 1.f)};
+                    adaptTranslation<N>(p_Translation)};
 }
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeTranslationScaleMatrix(const vec<N> &p_Translation,
                                                                            const f32 p_Scale) noexcept
 {
     if constexpr (N == 2)
-        return mat3{vec3(p_Scale, 0.f, 0.f), vec3(0.f, p_Scale, 0.f), vec3(p_Translation, 1.f)};
+        return mat3{vec3(p_Scale, 0.f, 0.f), vec3(0.f, p_Scale, 0.f), adaptTranslation<N>(p_Translation)};
     else
         return mat4{vec4(p_Scale, 0.f, 0.f, 0.f), vec4(0.f, p_Scale, 0.f, 0.f), vec4(0.f, 0.f, p_Scale, 0.f),
-                    vec4(p_Translation, 1.f)};
+                    adaptTranslation<N>(p_Translation)};
 }
 
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeTranslationMatrix() const noexcept
@@ -220,7 +187,13 @@ ONYX_DIMENSION_TEMPLATE Transform<N> Transform<N>::ExtractTransform(const mat<N>
 
 ONYX_DIMENSION_TEMPLATE vec<N> Transform<N>::ExtractTranslationTransform(const mat<N> &p_Transform) noexcept
 {
+#if ONYX_COORDINATE_SYSTEM == ONYX_CS_CENTERED_CARTESIAN
+    vec<N> translation{p_Transform[N]};
+    translation.y = -translation.y;
+    return translation;
+#else
     return vec<N>{p_Transform[N]};
+#endif
 }
 ONYX_DIMENSION_TEMPLATE vec<N> Transform<N>::ExtractScaleTransform(const mat<N> &p_Transform) noexcept
 {
@@ -233,7 +206,7 @@ ONYX_DIMENSION_TEMPLATE vec<N> Transform<N>::ExtractScaleTransform(const mat<N> 
 ONYX_DIMENSION_TEMPLATE rot<N> Transform<N>::ExtractRotationTransform(const mat<N> &p_Transform) noexcept
 {
     if constexpr (N == 2)
-        return glm::atan(p_Transform[0][1], p_Transform[0][2]);
+        return glm::atan(p_Transform[0][1], p_Transform[0][0]);
     else
     {
         vec3 angles;
@@ -243,37 +216,6 @@ ONYX_DIMENSION_TEMPLATE rot<N> Transform<N>::ExtractRotationTransform(const mat<
         angles.z = glm::atan(p_Transform[0][1], p_Transform[0][0]);
         return quat{angles};
     }
-}
-
-ONYX_DIMENSION_TEMPLATE void Transform<N>::ExtractView(const mat<N> &p_View, vec<N> *p_Translation, vec<N> *p_Scale,
-                                                       rot<N> *p_Rotation) noexcept
-{
-    *p_Translation = ExtractTranslationView(p_View);
-    *p_Scale = ExtractScaleView(p_View);
-    *p_Rotation = ExtractRotationView(p_View);
-}
-
-ONYX_DIMENSION_TEMPLATE Transform<N> Transform<N>::ExtractView(const mat<N> &p_View) noexcept
-{
-    Transform<N> view;
-    ExtractView(p_View, &view.Translation, &view.Scale, &view.Rotation);
-    return view;
-}
-
-ONYX_DIMENSION_TEMPLATE vec<N> Transform<N>::ExtractTranslationView(const mat<N> &p_View) noexcept
-{
-    return -ExtractTranslationTransform(p_View);
-}
-ONYX_DIMENSION_TEMPLATE vec<N> Transform<N>::ExtractScaleView(const mat<N> &p_View) noexcept
-{
-    return 1.f / ExtractScaleTransform(p_View);
-}
-ONYX_DIMENSION_TEMPLATE rot<N> Transform<N>::ExtractRotationView(const mat<N> &p_View) noexcept
-{
-    if constexpr (N == 2)
-        return -ExtractRotationTransform(p_View);
-    else
-        return glm::conjugate(ExtractRotationTransform(p_View));
 }
 
 template struct Transform<2>;

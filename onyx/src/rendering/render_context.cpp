@@ -64,45 +64,46 @@ void RenderContext<3>::Scale(const f32 p_X, const f32 p_Y, const f32 p_Z) noexce
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::KeepWindowAspect() noexcept
 {
+    // Scaling down the axes means "enlarging" their extent, that is why the inverse is used
     const f32 aspect = 1.f / m_Window->GetScreenAspect();
-    mat<N> &view = m_RenderState.back().View;
+    mat<N> &axes = m_RenderState.back().Axes;
     if constexpr (N == 2)
-        view *= Transform2D::ComputeScaleMatrix(vec2{aspect, 1.f});
+        axes *= Transform2D::ComputeScaleMatrix(vec2{aspect, 1.f});
     else
-        view *= Transform3D::ComputeScaleMatrix(vec3{aspect, 1.f, aspect});
+        axes *= Transform3D::ComputeScaleMatrix(vec3{aspect, 1.f, aspect});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TranslateView(const vec<N> &p_Translation) noexcept
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TranslateAxes(const vec<N> &p_Translation) noexcept
 {
-    mat<N> &view = m_RenderState.back().View;
-    view *= Transform<N>::ComputeTranslationMatrix(-p_Translation);
+    mat<N> &axes = m_RenderState.back().Axes;
+    axes *= Transform<N>::ComputeTranslationMatrix(p_Translation);
 }
-void RenderContext<2>::TranslateView(const f32 p_X, const f32 p_Y) noexcept
+void RenderContext<2>::TranslateAxes(const f32 p_X, const f32 p_Y) noexcept
 {
-    TranslateView(vec2{p_X, p_Y});
+    TranslateAxes(vec2{p_X, p_Y});
 }
-void RenderContext<3>::TranslateView(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
+void RenderContext<3>::TranslateAxes(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
-    TranslateView(vec3{p_X, p_Y, p_Z});
+    TranslateAxes(vec3{p_X, p_Y, p_Z});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::ScaleView(const vec<N> &p_Scale) noexcept
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::ScaleAxes(const vec<N> &p_Scale) noexcept
 {
-    mat<N> &view = m_RenderState.back().View;
-    view = Transform<N>::ComputeScaleMatrix(1.f / p_Scale) * view;
+    mat<N> &axes = m_RenderState.back().Axes;
+    axes *= Transform<N>::ComputeScaleMatrix(p_Scale);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::ScaleView(const f32 p_Scale) noexcept
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::ScaleAxes(const f32 p_Scale) noexcept
 {
-    mat<N> &view = m_RenderState.back().View;
-    view = Transform<N>::ComputeScaleMatrix(1.f / p_Scale) * view;
+    mat<N> &axes = m_RenderState.back().Axes;
+    axes *= Transform<N>::ComputeScaleMatrix(p_Scale);
 }
-void RenderContext<2>::ScaleView(const f32 p_X, const f32 p_Y) noexcept
+void RenderContext<2>::ScaleAxes(const f32 p_X, const f32 p_Y) noexcept
 {
-    ScaleView(vec2{p_X, p_Y});
+    ScaleAxes(vec2{p_X, p_Y});
 }
-void RenderContext<3>::ScaleView(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
+void RenderContext<3>::ScaleAxes(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
-    ScaleView(vec3{p_X, p_Y, p_Z});
+    ScaleAxes(vec3{p_X, p_Y, p_Z});
 }
 
 void RenderContext<2>::Rotate(const f32 p_Angle) noexcept
@@ -127,26 +128,26 @@ void RenderContext<3>::Rotate(const vec3 &p_Angles) noexcept
     Rotate(glm::quat(p_Angles));
 }
 
-void RenderContext<2>::RotateView(const f32 p_Angle) noexcept
+void RenderContext<2>::RotateAxes(const f32 p_Angle) noexcept
 {
-    mat3 &view = m_RenderState.back().View;
-    view *= Transform2D::ComputeRotationMatrix(-p_Angle);
+    mat3 &axes = m_RenderState.back().Axes;
+    axes *= Transform2D::ComputeRotationMatrix(p_Angle);
 }
 
-void RenderContext<3>::RotateView(const quat &p_Quaternion) noexcept
+void RenderContext<3>::RotateAxes(const quat &p_Quaternion) noexcept
 {
-    mat4 &view = m_RenderState.back().View;
-    view *= Transform3D::ComputeRotationMatrix(glm::conjugate(p_Quaternion));
+    mat4 &axes = m_RenderState.back().Axes;
+    axes *= Transform3D::ComputeRotationMatrix(glm::conjugate(p_Quaternion));
 }
 
-void RenderContext<3>::RotateView(const f32 p_Angle, const vec3 &p_Axis) noexcept
+void RenderContext<3>::RotateAxes(const f32 p_Angle, const vec3 &p_Axis) noexcept
 {
-    RotateView(glm::angleAxis(p_Angle, p_Axis));
+    RotateAxes(glm::angleAxis(p_Angle, p_Axis));
 }
 
-void RenderContext<3>::RotateView(const vec3 &p_Angles) noexcept
+void RenderContext<3>::RotateAxes(const vec3 &p_Angles) noexcept
 {
-    RotateView(glm::quat(p_Angles));
+    RotateAxes(glm::quat(p_Angles));
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square() noexcept
@@ -337,11 +338,11 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const Model *p_Model, const
         {
             const vec2 scale = Transform2D::ExtractScaleTransform(p_Transform);
             const vec2 stroke = (scale + state.StrokeWidth) / scale;
-            const mat<N> transform = state.View * Transform2D::ComputeScaleMatrix(stroke) * p_Transform;
+            const mat<N> transform = state.Axes * Transform2D::ComputeScaleMatrix(stroke) * p_Transform;
             m_MeshRenderer->Draw(p_Model, transform, state.StrokeColor);
         }
     }
-    m_MeshRenderer->Draw(p_Model, state.View * p_Transform, state.FillColor);
+    m_MeshRenderer->Draw(p_Model, state.Axes * p_Transform, state.FillColor);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const Model *p_Model) noexcept
 {
@@ -385,15 +386,27 @@ void RenderContext<2>::NoStroke() noexcept
     m_RenderState.back().NoStroke = true;
 }
 
-vec2 RenderContext<2>::GetViewMousePosition() const noexcept
+vec2 RenderContext<2>::GetMouseCoordinates() const noexcept
 {
     const vec2 mpos = Input::GetMousePosition(m_Window);
-    return glm::inverse(m_RenderState.back().View) * vec3{mpos, 1.f};
+#if ONYX_COORDINATE_SYSTEM == ONYX_CS_CENTERED_CARTESIAN
+    mat3 axes = m_RenderState.back().Axes;
+    axes[2][1] = -axes[2][1];
+#else
+    const mat3 &axes = m_RenderState.back().Axes;
+#endif
+    return glm::inverse(axes) * vec3{mpos, 1.f};
 }
-vec3 RenderContext<3>::GetViewMousePosition(const f32 p_Depth) const noexcept
+vec3 RenderContext<3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
 {
     const vec2 mpos = Input::GetMousePosition(m_Window);
-    return glm::inverse(m_RenderState.back().View) * vec4{mpos, p_Depth, 1.f};
+#if ONYX_COORDINATE_SYSTEM == ONYX_CS_CENTERED_CARTESIAN
+    mat4 axes = m_RenderState.back().Axes;
+    axes[2][1] = -axes[2][1];
+#else
+    const mat4 &axes = m_RenderState.back().Axes;
+#endif
+    return glm::inverse(axes) * vec4{mpos, p_Depth, 1.f};
 }
 
 void RenderContext<3>::SetPerspectiveProjection(const f32 p_FieldOfView, const f32 p_Aspect, const f32 p_Near,
@@ -410,7 +423,7 @@ void RenderContext<3>::SetPerspectiveProjection(const f32 p_FieldOfView, const f
 }
 void RenderContext<3>::SetOrthographicProjection() noexcept
 {
-    // Already included in the view matrix
+    // Already included in the axes matrix
     m_Projection = mat4{1.f};
 }
 
@@ -423,11 +436,11 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::circleMesh(const mat<N> &p_Trans
         {
             const vec2 scale = Transform2D::ExtractScaleTransform(p_Transform);
             const vec2 stroke = (scale + state.StrokeWidth) / scale;
-            const mat<N> transform = state.View * Transform2D::ComputeScaleMatrix(stroke) * p_Transform;
+            const mat<N> transform = state.Axes * Transform2D::ComputeScaleMatrix(stroke) * p_Transform;
             m_CircleRenderer->Draw(transform, state.StrokeColor);
         }
     }
-    m_CircleRenderer->Draw(state.View * p_Transform, state.FillColor);
+    m_CircleRenderer->Draw(state.Axes * p_Transform, state.FillColor);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::resetRenderState() noexcept

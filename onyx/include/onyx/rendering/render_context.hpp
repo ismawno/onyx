@@ -10,7 +10,7 @@
 
 #include <vulkan/vulkan.hpp>
 
-// GetViewMousePosition depends on the view!!
+// GetMouseCoordinates depends on the Axes!!
 
 namespace ONYX
 {
@@ -20,7 +20,7 @@ class Window;
 template <> struct RenderState<2>
 {
     mat3 Transform{1.f};
-    mat3 View{1.f, 0.f, 0.f, 0.f, -1.f, 0.f, 0.f, 0.f, 1.f};
+    mat3 Axes{1.f};
     Color FillColor = Color::WHITE;
     Color StrokeColor = Color::WHITE;
     f32 StrokeWidth = 0.f;
@@ -30,7 +30,7 @@ template <> struct RenderState<2>
 template <> struct RenderState<3>
 {
     mat4 Transform{1.f};
-    mat4 View{1.f, 0.f, 0.f, 0.f, 0.f, -1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f};
+    mat4 Axes{1.f};
     Color FillColor = Color::WHITE;
 };
 
@@ -50,11 +50,11 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void Translate(const vec<N> &p_Translation) noexcept;
     void Scale(const vec<N> &p_Scale) noexcept;
     void Scale(f32 p_Scale) noexcept;
-    void KeepWindowAspect() noexcept;
 
-    void TranslateView(const vec<N> &p_Translation) noexcept;
-    void ScaleView(const vec<N> &p_Scale) noexcept;
-    void ScaleView(f32 p_Scale) noexcept;
+    void KeepWindowAspect() noexcept;
+    void TranslateAxes(const vec<N> &p_Translation) noexcept;
+    void ScaleAxes(const vec<N> &p_Scale) noexcept;
+    void ScaleAxes(f32 p_Scale) noexcept;
 
     void Square() noexcept;
     void Square(f32 p_Size) noexcept;
@@ -97,13 +97,13 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     }
 
     const mat<N> &GetCurrentTransform() const noexcept;
-    const mat<N> &GetCurrentView() const noexcept;
+    const mat<N> &GetCurrentAxes() const noexcept;
 
     mat<N> &GetCurrentTransform() noexcept;
-    mat<N> &GetCurrentView() noexcept;
+    mat<N> &GetCurrentAxes() noexcept;
 
     void SetCurrentTransform(const mat<N> &p_Transform) noexcept;
-    void SetCurrentView(const mat<N> &p_View) noexcept;
+    void SetCurrentAxes(const mat<N> &p_Axes) noexcept;
 
   protected:
     // this method MUST be called externally (ie by a derived class). it wont be called automatically
@@ -127,8 +127,8 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 
     using IRenderContext<2>::Translate;
     using IRenderContext<2>::Scale;
-    using IRenderContext<2>::TranslateView;
-    using IRenderContext<2>::ScaleView;
+    using IRenderContext<2>::TranslateAxes;
+    using IRenderContext<2>::ScaleAxes;
     using IRenderContext<2>::Square;
     using IRenderContext<2>::Rect;
     using IRenderContext<2>::NGon;
@@ -140,9 +140,9 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     void Scale(f32 p_X, f32 p_Y) noexcept;
     void Rotate(f32 p_Angle) noexcept;
 
-    void TranslateView(f32 p_X, f32 p_Y) noexcept;
-    void ScaleView(f32 p_X, f32 p_Y) noexcept;
-    void RotateView(f32 p_Angle) noexcept;
+    void TranslateAxes(f32 p_X, f32 p_Y) noexcept;
+    void ScaleAxes(f32 p_X, f32 p_Y) noexcept;
+    void RotateAxes(f32 p_Angle) noexcept;
 
     void Square(f32 p_X, f32 p_Y) noexcept;
     void Square(f32 p_X, f32 p_Y, f32 p_Size) noexcept;
@@ -172,7 +172,7 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     void StrokeWidth(f32 p_Width) noexcept;
     void NoStroke() noexcept;
 
-    vec2 GetViewMousePosition() const noexcept;
+    vec2 GetMouseCoordinates() const noexcept;
 
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 };
@@ -184,8 +184,8 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 
     using IRenderContext<3>::Translate;
     using IRenderContext<3>::Scale;
-    using IRenderContext<3>::TranslateView;
-    using IRenderContext<3>::ScaleView;
+    using IRenderContext<3>::TranslateAxes;
+    using IRenderContext<3>::ScaleAxes;
     using IRenderContext<3>::Square;
     using IRenderContext<3>::Rect;
     using IRenderContext<3>::NGon;
@@ -202,12 +202,12 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void Rotate(const vec3 &p_Angles) noexcept;
     void Rotate(f32 p_Angle, const vec3 &p_Axis) noexcept;
 
-    void TranslateView(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
-    void ScaleView(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void TranslateAxes(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void ScaleAxes(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
 
-    void RotateView(const quat &p_Quaternion) noexcept;
-    void RotateView(const vec3 &p_Angles) noexcept;
-    void RotateView(f32 p_Angle, const vec3 &p_Axis) noexcept;
+    void RotateAxes(const quat &p_Quaternion) noexcept;
+    void RotateAxes(const vec3 &p_Angles) noexcept;
+    void RotateAxes(f32 p_Angle, const vec3 &p_Axis) noexcept;
 
     void Square(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
     void Square(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Size) noexcept;
@@ -239,10 +239,10 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept;
     void Cuboid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim) noexcept;
 
-    void SetPerspectiveProjection(f32 p_FieldOfView, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
+    void SetPerspectiveProjection(f32 p_FieldOfAxes, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
     void SetOrthographicProjection() noexcept;
 
-    vec3 GetViewMousePosition(f32 p_Depth) const noexcept;
+    vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
 
     void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
 

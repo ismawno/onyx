@@ -12,15 +12,8 @@ ONYX_DIMENSION_TEMPLATE struct ONYX_API Transform
     static mat<N> ComputeInverseTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
                                           const rot<N> &p_Rotation) noexcept;
 
-    static mat<N> ComputeView(const vec<N> &p_Translation, const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept;
-    static mat<N> ComputeInverseView(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                     const rot<N> &p_Rotation) noexcept;
-
     mat<N> ComputeTransform() const noexcept;
     mat<N> ComputeInverseTransform() const noexcept;
-
-    mat<N> ComputeView() const noexcept;
-    mat<N> ComputeInverseView() const noexcept;
 
     static mat<N> ComputeTranslationMatrix(const vec<N> &p_Translation) noexcept;
     static mat<N> ComputeScaleMatrix(const vec<N> &p_Scale) noexcept;
@@ -42,13 +35,6 @@ ONYX_DIMENSION_TEMPLATE struct ONYX_API Transform
     static vec<N> ExtractTranslationTransform(const mat<N> &p_Transform) noexcept;
     static vec<N> ExtractScaleTransform(const mat<N> &p_Transform) noexcept;
     static rot<N> ExtractRotationTransform(const mat<N> &p_Transform) noexcept;
-
-    static void ExtractView(const mat<N> &p_View, vec<N> *p_Translation, vec<N> *p_Scale, rot<N> *p_Rotation) noexcept;
-    static Transform ExtractView(const mat<N> &p_View) noexcept;
-
-    static vec<N> ExtractTranslationView(const mat<N> &p_View) noexcept;
-    static vec<N> ExtractScaleView(const mat<N> &p_View) noexcept;
-    static rot<N> ExtractRotationView(const mat<N> &p_View) noexcept;
 
     vec<N> Translation{0.f};
     vec<N> Scale{1.f};
