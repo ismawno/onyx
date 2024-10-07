@@ -11,6 +11,8 @@
 #include <vulkan/vulkan.hpp>
 
 // GetMouseCoordinates depends on the Axes!!
+// NoFill is an illusion. I could implement Stroke by drawing lines across the edges of the shape, then Implement NoFill
+// by using a transparent color
 
 namespace ONYX
 {
@@ -25,6 +27,7 @@ template <> struct RenderState<2>
     Color StrokeColor = Color::WHITE;
     f32 StrokeWidth = 0.f;
     bool NoStroke = true;
+    bool NoFill = false;
 };
 
 template <> struct RenderState<3>
@@ -70,6 +73,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void NGon(u32 p_Sides, const vec<N> &p_Position, f32 p_Radius) noexcept;
 
     void Circle() noexcept;
+    void Circle(f32 p_Radius) noexcept;
     void Circle(const vec<N> &p_Position) noexcept;
     void Circle(const vec<N> &p_Position, f32 p_Radius) noexcept;
 
@@ -139,6 +143,7 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     using IRenderContext<2>::Ellipse;
     using IRenderContext<2>::Line;
     using IRenderContext<2>::RoundedLine;
+    using IRenderContext<2>::Fill;
 
     void Translate(f32 p_X, f32 p_Y) noexcept;
     void Scale(f32 p_X, f32 p_Y) noexcept;
@@ -164,7 +169,10 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     void Line(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
     void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
 
-    void Stroke() noexcept; // just enable stroke
+    void Fill() noexcept;
+    void NoFill() noexcept;
+
+    void Stroke() noexcept;
     void Stroke(const Color &p_Color) noexcept;
 
     template <typename... ColorArgs>
@@ -247,6 +255,19 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 
     void Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept;
     void Cuboid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim) noexcept;
+
+    void Sphere() noexcept;
+    void Sphere(f32 p_Radius) noexcept;
+    void Sphere(const vec3 &p_Position) noexcept;
+    void Sphere(const vec3 &p_Position, f32 p_Radius) noexcept;
+
+    void Sphere(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void Sphere(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius) noexcept;
+
+    void Ellipsoid(f32 p_XDim, f32 p_YDim, f32 p_ZDim) noexcept;
+    void Ellipsoid(const vec3 &p_Dimensions) noexcept;
+    void Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept;
+    void Ellipsoid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim) noexcept;
 
     void SetPerspectiveProjection(f32 p_FieldOfAxes, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
     void SetOrthographicProjection() noexcept;

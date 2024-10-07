@@ -29,7 +29,10 @@ void SWExampleLayer::OnRender() noexcept
     context->KeepWindowAspect();
 
     context->Fill(Color::CYAN);
-    context->RoundedLine(0.f, 0.f, 4.f, 4.f);
+    context->Stroke(Color::MAGENTA);
+    context->StrokeWidth(0.1f);
+    context->NoFill();
+    context->Square(3.f);
 
     // context->TranslateAxes(0.2f, 0.f);
     // context->ScaleAxes(t);

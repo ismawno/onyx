@@ -268,6 +268,11 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle() noexcept
 {
     circleMesh(m_RenderState.back().Transform);
 }
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const f32 p_Radius) noexcept
+{
+    const mat<N> transform = Transform<N>::ComputeScaleMatrix(p_Radius) * m_RenderState.back().Transform;
+    circleMesh(transform);
+}
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const vec<N> &p_Position) noexcept
 {
     const mat<N> transform = Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
@@ -393,20 +398,160 @@ void RenderContext<3>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_Z
     RoundedLine(vec3{p_X1, p_Y1, p_Z1}, vec3{p_X2, p_Y2, p_Z2}, p_Thickness);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const Model *p_Model, const mat<N> &p_Transform) noexcept
+void RenderContext<3>::Cube() noexcept
 {
-    const RenderState<N> &state = m_RenderState.back();
+    const Model *model = Model::GetCube();
+    Mesh(model);
+}
+void RenderContext<3>::Cube(const f32 p_Size) noexcept
+{
+    const mat4 transform = Transform3D::ComputeScaleMatrix(p_Size) * m_RenderState.back().Transform;
+    const Model *model = Model::GetCube();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Cube(const vec3 &p_Position) noexcept
+{
+    const mat4 transform = Transform3D::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
+    const Model *model = Model::GetCube();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Cube(const vec3 &p_Position, const f32 p_Size) noexcept
+{
+    const mat4 transform =
+        Transform3D::ComputeTranslationScaleMatrix(p_Position, p_Size) * m_RenderState.back().Transform;
+    const Model *model = Model::GetCube();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
+{
+    Cube(vec3{p_X, p_Y, p_Z});
+}
+void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size) noexcept
+{
+    Cube(vec3{p_X, p_Y, p_Z}, p_Size);
+}
+
+void RenderContext<3>::Cuboid(const vec3 &p_Dimensions) noexcept
+{
+    const mat4 transform = Transform3D::ComputeScaleMatrix(p_Dimensions) * m_RenderState.back().Transform;
+    const Model *model = Model::GetCube();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept
+{
+    const mat4 transform =
+        Transform3D::ComputeTranslationScaleMatrix(p_Position, p_Dimensions) * m_RenderState.back().Transform;
+    const Model *model = Model::GetCube();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Cuboid(const f32 p_XDim, const f32 p_YDim, const f32 p_ZDim) noexcept
+{
+    Cuboid(vec3{p_XDim, p_YDim, p_ZDim});
+}
+void RenderContext<3>::Cuboid(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
+                              const f32 p_ZDim) noexcept
+{
+    Cuboid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim});
+}
+
+void RenderContext<3>::Sphere() noexcept
+{
+    const Model *model = Model::GetSphere();
+    Mesh(model);
+}
+void RenderContext<3>::Sphere(const f32 p_Radius) noexcept
+{
+    const mat4 transform = Transform3D::ComputeScaleMatrix(p_Radius) * m_RenderState.back().Transform;
+    const Model *model = Model::GetSphere();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Sphere(const vec3 &p_Position) noexcept
+{
+    const mat4 transform = Transform3D::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
+    const Model *model = Model::GetSphere();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Sphere(const vec3 &p_Position, const f32 p_Radius) noexcept
+{
+    const mat4 transform =
+        Transform3D::ComputeTranslationScaleMatrix(p_Position, p_Radius) * m_RenderState.back().Transform;
+    const Model *model = Model::GetSphere();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Sphere(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
+{
+    Sphere(vec3{p_X, p_Y, p_Z});
+}
+void RenderContext<3>::Sphere(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius) noexcept
+{
+    Sphere(vec3{p_X, p_Y, p_Z}, p_Radius);
+}
+
+void RenderContext<3>::Ellipsoid(const vec3 &p_Dimensions) noexcept
+{
+    const mat4 transform = Transform3D::ComputeScaleMatrix(p_Dimensions) * m_RenderState.back().Transform;
+    const Model *model = Model::GetSphere();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept
+{
+    const mat4 transform =
+        Transform3D::ComputeTranslationScaleMatrix(p_Position, p_Dimensions) * m_RenderState.back().Transform;
+    const Model *model = Model::GetSphere();
+    Mesh(model, transform);
+}
+void RenderContext<3>::Ellipsoid(const f32 p_XDim, const f32 p_YDim, const f32 p_ZDim) noexcept
+{
+    Ellipsoid(vec3{p_XDim, p_YDim, p_ZDim});
+}
+void RenderContext<3>::Ellipsoid(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
+                                 const f32 p_ZDim) noexcept
+{
+    Ellipsoid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim});
+}
+
+void RenderContext<2>::Fill() noexcept
+{
+    m_RenderState.back().NoFill = false;
+}
+void RenderContext<2>::NoFill() noexcept
+{
+    m_RenderState.back().NoFill = true;
+}
+
+// this is a sorry function
+template <u32 N, typename Renderer>
+static void drawMesh(Renderer *p_Renderer, const RenderState<N> &p_State, const Window *p_Window,
+                     const mat<N> &p_Transform, const Model *p_Model = nullptr)
+{
     if constexpr (N == 2)
     {
-        if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
+        if (!p_State.NoStroke && !KIT::ApproachesZero(p_State.StrokeWidth))
         {
             const vec2 scale = Transform2D::ExtractScaleTransform(p_Transform);
-            const vec2 stroke = (scale + state.StrokeWidth) / scale;
-            const mat<N> transform = state.Axes * Transform2D::ComputeScaleMatrix(stroke) * p_Transform;
-            m_MeshRenderer->Draw(p_Model, transform, state.StrokeColor);
+            const vec2 stroke = (scale + p_State.StrokeWidth) / scale;
+            const mat<N> transform = p_State.Axes * Transform2D::ComputeScaleMatrix(stroke) * p_Transform;
+            if constexpr (std::is_same_v<Renderer, MeshRenderer>)
+                p_Renderer->Draw(p_Model, transform, p_State.StrokeColor);
+            else
+                p_Renderer->Draw(transform, p_State.StrokeColor);
         }
+        if constexpr (std::is_same_v<Renderer, MeshRenderer>)
+            p_Renderer->Draw(p_Model, p_State.Axes * p_Transform,
+                             p_State.NoFill ? p_Window->BackgroundColor : p_State.FillColor);
+        else
+            p_Renderer->Draw(p_State.Axes * p_Transform,
+                             p_State.NoFill ? p_Window->BackgroundColor : p_State.FillColor);
     }
-    m_MeshRenderer->Draw(p_Model, state.Axes * p_Transform, state.FillColor);
+    else if constexpr (std::is_same_v<Renderer, MeshRenderer>)
+        p_Renderer->Draw(p_Model, p_State.Axes * p_Transform, p_State.FillColor);
+    else
+        p_Renderer->Draw(p_State.Axes * p_Transform, p_State.FillColor);
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const Model *p_Model, const mat<N> &p_Transform) noexcept
+{
+    drawMesh(m_MeshRenderer.get(), m_RenderState.back(), m_Window, p_Transform, p_Model);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const Model *p_Model) noexcept
 {
@@ -448,6 +593,33 @@ void RenderContext<2>::StrokeWidth(const f32 p_Width) noexcept
 void RenderContext<2>::NoStroke() noexcept
 {
     m_RenderState.back().NoStroke = true;
+}
+
+ONYX_DIMENSION_TEMPLATE const mat<N> &IRenderContext<N>::GetCurrentTransform() const noexcept
+{
+    return m_RenderState.back().Transform;
+}
+ONYX_DIMENSION_TEMPLATE const mat<N> &IRenderContext<N>::GetCurrentAxes() const noexcept
+{
+    return m_RenderState.back().Axes;
+}
+
+ONYX_DIMENSION_TEMPLATE mat<N> &IRenderContext<N>::GetCurrentTransform() noexcept
+{
+    return m_RenderState.back().Transform;
+}
+ONYX_DIMENSION_TEMPLATE mat<N> &IRenderContext<N>::GetCurrentAxes() noexcept
+{
+    return m_RenderState.back().Axes;
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentTransform(const mat<N> &p_Transform) noexcept
+{
+    m_RenderState.back().Transform = p_Transform;
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentAxes(const mat<N> &p_Axes) noexcept
+{
+    m_RenderState.back().Axes = p_Axes;
 }
 
 vec2 RenderContext<2>::GetMouseCoordinates() const noexcept
@@ -493,18 +665,7 @@ void RenderContext<3>::SetOrthographicProjection() noexcept
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::circleMesh(const mat<N> &p_Transform) noexcept
 {
-    const RenderState<N> &state = m_RenderState.back();
-    if constexpr (N == 2)
-    {
-        if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
-        {
-            const vec2 scale = Transform2D::ExtractScaleTransform(p_Transform);
-            const vec2 stroke = (scale + state.StrokeWidth) / scale;
-            const mat<N> transform = state.Axes * Transform2D::ComputeScaleMatrix(stroke) * p_Transform;
-            m_CircleRenderer->Draw(transform, state.StrokeColor);
-        }
-    }
-    m_CircleRenderer->Draw(state.Axes * p_Transform, state.FillColor);
+    drawMesh(m_CircleRenderer.get(), m_RenderState.back(), m_Window, p_Transform);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::resetRenderState() noexcept
