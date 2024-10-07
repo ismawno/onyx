@@ -531,19 +531,19 @@ static void drawMesh(Renderer *p_Renderer, const RenderState<N> &p_State, const 
             const vec2 scale = Transform2D::ExtractScaleTransform(p_Transform);
             const vec2 stroke = (scale + p_State.StrokeWidth) / scale;
             const mat<N> transform = p_State.Axes * Transform2D::ComputeScaleMatrix(stroke) * p_Transform;
-            if constexpr (std::is_same_v<Renderer, MeshRenderer>)
+            if constexpr (std::is_same_v<Renderer, MeshRenderer<N>>)
                 p_Renderer->Draw(p_Model, transform, p_State.StrokeColor);
             else
                 p_Renderer->Draw(transform, p_State.StrokeColor);
         }
-        if constexpr (std::is_same_v<Renderer, MeshRenderer>)
+        if constexpr (std::is_same_v<Renderer, MeshRenderer<N>>)
             p_Renderer->Draw(p_Model, p_State.Axes * p_Transform,
                              p_State.NoFill ? p_Window->BackgroundColor : p_State.FillColor);
         else
             p_Renderer->Draw(p_State.Axes * p_Transform,
                              p_State.NoFill ? p_Window->BackgroundColor : p_State.FillColor);
     }
-    else if constexpr (std::is_same_v<Renderer, MeshRenderer>)
+    else if constexpr (std::is_same_v<Renderer, MeshRenderer<N>>)
         p_Renderer->Draw(p_Model, p_State.Axes * p_Transform, p_State.FillColor);
     else
         p_Renderer->Draw(p_State.Axes * p_Transform, p_State.FillColor);
@@ -551,7 +551,7 @@ static void drawMesh(Renderer *p_Renderer, const RenderState<N> &p_State, const 
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const Model *p_Model, const mat<N> &p_Transform) noexcept
 {
-    drawMesh(m_MeshRenderer.get(), m_RenderState.back(), m_Window, p_Transform, p_Model);
+    drawMesh(m_MeshRenderer.Get(), m_RenderState.back(), m_Window, p_Transform, p_Model);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const Model *p_Model) noexcept
 {
@@ -665,7 +665,7 @@ void RenderContext<3>::SetOrthographicProjection() noexcept
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::circleMesh(const mat<N> &p_Transform) noexcept
 {
-    drawMesh(m_CircleRenderer.get(), m_RenderState.back(), m_Window, p_Transform);
+    drawMesh(m_CircleRenderer.Get(), m_RenderState.back(), m_Window, p_Transform);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::resetRenderState() noexcept
