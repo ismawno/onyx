@@ -128,7 +128,7 @@ static void pushMeshConstantData(const RenderInfo<N> &p_Info, const DData &p_Dat
                        sizeof(MeshPushConstantData<N>), &pdata);
 }
 
-ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept
+ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info) const noexcept
 {
     if (m_DrawData.empty())
         return;
@@ -147,7 +147,6 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info
         data.Model->Bind(p_Info.CommandBuffer);
         data.Model->Draw(p_Info.CommandBuffer);
     }
-    m_DrawData.clear();
 }
 
 ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Flush() noexcept
@@ -161,8 +160,8 @@ template class MeshRenderer<3>;
 ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::CircleRenderer(const VkRenderPass p_RenderPass,
                                                           const VkDescriptorSetLayout p_Layout) noexcept
 {
-    Pipeline::Specs specs = defaultMeshPipelineSpecs<N>(ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment,
-                                                        p_RenderPass, p_Layout ? &p_Layout : nullptr);
+    const Pipeline::Specs specs = defaultMeshPipelineSpecs<N>(
+        ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment, p_RenderPass, p_Layout ? &p_Layout : nullptr);
     m_Pipeline.Create(specs);
 }
 
@@ -176,7 +175,7 @@ ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Draw(const mat<N> &p_ModelTransf
     m_DrawData.emplace_back(p_ModelTransform, p_Color);
 }
 
-ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept
+ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Render(const RenderInfo<N> &p_Info) const noexcept
 {
     if (m_DrawData.empty())
         return;
@@ -190,9 +189,8 @@ ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Render(const RenderInfo<N> &p_In
     for (const DrawData &data : m_DrawData)
     {
         pushMeshConstantData<N>(p_Info, data, m_Pipeline.Get());
-        vkCmdDraw(p_Info.CommandBuffer, 4, 1, 0, 0);
+        vkCmdDraw(p_Info.CommandBuffer, 6, 1, 0, 0);
     }
-    m_DrawData.clear();
 }
 
 ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Flush() noexcept

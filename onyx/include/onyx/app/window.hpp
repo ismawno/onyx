@@ -7,7 +7,6 @@
 #include "onyx/draw/color.hpp"
 #include "onyx/rendering/buffer.hpp"
 #include "onyx/rendering/render_system.hpp"
-#include "onyx/camera/camera.hpp"
 
 #include "kit/container/storage.hpp"
 
@@ -57,9 +56,9 @@ class ONYX_API Window
         if (const VkCommandBuffer cmd = m_RenderSystem->BeginFrame(*this))
         {
             m_RenderSystem->BeginRenderPass(BackgroundColor);
+            std::forward<F>(p_Submission)(cmd);
             m_RenderContext2D->Render(cmd);
             m_RenderContext3D->Render(m_RenderSystem->GetFrameIndex(), cmd);
-            std::forward<F>(p_Submission)(cmd);
             m_RenderSystem->EndRenderPass();
             m_RenderSystem->EndFrame(*this);
             return true;
@@ -92,6 +91,15 @@ class ONYX_API Window
     void PushEvent(const Event &p_Event) noexcept;
     const DynamicArray<Event> &GetNewEvents() const noexcept;
     void FlushEvents() noexcept;
+
+    ONYX_DIMENSION_TEMPLATE const RenderContext<N> *GetRenderContext() const noexcept;
+    ONYX_DIMENSION_TEMPLATE RenderContext<N> *GetRenderContext() noexcept;
+
+    const RenderContext2D *GetRenderContext2D() const noexcept;
+    RenderContext2D *GetRenderContext2D() noexcept;
+
+    const RenderContext3D *GetRenderContext3D() const noexcept;
+    RenderContext3D *GetRenderContext3D() noexcept;
 
     const RenderSystem &GetRenderSystem() const noexcept;
 

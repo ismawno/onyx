@@ -16,7 +16,7 @@ ubo;
 
 void main()
 {
-    if (dot(i_LocalPosition, i_LocalPosition) > 1.0)
+    if (abs(dot(i_LocalPosition, i_LocalPosition)) > 1.0)
         discard;
 
     vec3 normal = normalize(i_FragNormal);

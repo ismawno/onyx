@@ -1,6 +1,5 @@
 #include "swdemo/app.hpp"
 #include "swdemo/layer.hpp"
-#include "onyx/camera/orthographic.hpp"
 
 namespace ONYX
 {

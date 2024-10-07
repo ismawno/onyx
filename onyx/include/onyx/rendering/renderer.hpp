@@ -1,7 +1,6 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/camera/camera.hpp"
 #include "onyx/rendering/pipeline.hpp"
 #include "onyx/draw/model.hpp"
 #include "onyx/core/core.hpp"
@@ -32,7 +31,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
     ~MeshRenderer() noexcept;
 
     void Draw(const Model *p_Model, const mat<N> &p_Transform, const vec4 &p_Color) noexcept;
-    void Render(const RenderInfo<N> &p_Info) noexcept;
+    void Render(const RenderInfo<N> &p_Info) const noexcept;
 
     void Flush() noexcept;
 
@@ -63,7 +62,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
     ~CircleRenderer() noexcept;
 
     void Draw(const mat<N> &p_Transform, const vec4 &p_Color) noexcept;
-    void Render(const RenderInfo<N> &p_Info) noexcept;
+    void Render(const RenderInfo<N> &p_Info) const noexcept;
 
     void Flush() noexcept;
 

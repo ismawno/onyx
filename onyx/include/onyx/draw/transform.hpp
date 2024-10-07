@@ -5,53 +5,54 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE struct Transform;
-ONYX_DIMENSION_TEMPLATE struct ITransform
+ONYX_DIMENSION_TEMPLATE struct ONYX_API Transform
 {
-    mat4 ComputeModelTransform() const noexcept;
-    mat4 ComputeViewTransform() const noexcept;
+    static mat<N> ComputeTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
+                                   const rot<N> &p_Rotation) noexcept;
+    static mat<N> ComputeInverseTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
+                                          const rot<N> &p_Rotation) noexcept;
 
-    mat4 ComputeInverseModelTransform() const noexcept;
-    mat4 ComputeInverseViewTransform() const noexcept;
+    static mat<N> ComputeView(const vec<N> &p_Translation, const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept;
+    static mat<N> ComputeInverseView(const vec<N> &p_Translation, const vec<N> &p_Scale,
+                                     const rot<N> &p_Rotation) noexcept;
 
-    void UpdateFromModelTransform(const mat4 &p_ModelTransform) noexcept;
+    mat<N> ComputeTransform() const noexcept;
+    mat<N> ComputeInverseTransform() const noexcept;
 
-    vec<N> LocalOffset(const vec<N> &p_Offset) const noexcept;
-    vec<N> LocalOffsetX(f32 p_Offset) const noexcept;
-    vec<N> LocalOffsetY(f32 p_Offset) const noexcept;
+    mat<N> ComputeView() const noexcept;
+    mat<N> ComputeInverseView() const noexcept;
 
-    vec<N> Position{0.f};
+    static mat<N> ComputeTranslationMatrix(const vec<N> &p_Translation) noexcept;
+    static mat<N> ComputeScaleMatrix(const vec<N> &p_Scale) noexcept;
+    static mat<N> ComputeScaleMatrix(f32 p_Scale) noexcept;
+    static mat<N> ComputeRotationMatrix(const rot<N> &p_Rotation) noexcept;
+
+    static mat<N> ComputeTranslationScaleMatrix(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept;
+    static mat<N> ComputeTranslationScaleMatrix(const vec<N> &p_Translation, f32 p_Scale) noexcept;
+
+    mat<N> ComputeTranslationMatrix() const noexcept;
+    mat<N> ComputeScaleMatrix() const noexcept;
+    mat<N> ComputeRotationMatrix() const noexcept;
+    mat<N> ComputeTranslationScaleMatrix() const noexcept;
+
+    static void ExtractTransform(const mat<N> &p_Transform, vec<N> *p_Translation, vec<N> *p_Scale,
+                                 rot<N> *p_Rotation) noexcept;
+    static Transform ExtractTransform(const mat<N> &p_Transform) noexcept;
+
+    static vec<N> ExtractTranslationTransform(const mat<N> &p_Transform) noexcept;
+    static vec<N> ExtractScaleTransform(const mat<N> &p_Transform) noexcept;
+    static rot<N> ExtractRotationTransform(const mat<N> &p_Transform) noexcept;
+
+    static void ExtractView(const mat<N> &p_View, vec<N> *p_Translation, vec<N> *p_Scale, rot<N> *p_Rotation) noexcept;
+    static Transform ExtractView(const mat<N> &p_View) noexcept;
+
+    static vec<N> ExtractTranslationView(const mat<N> &p_View) noexcept;
+    static vec<N> ExtractScaleView(const mat<N> &p_View) noexcept;
+    static rot<N> ExtractRotationView(const mat<N> &p_View) noexcept;
+
+    vec<N> Translation{0.f};
     vec<N> Scale{1.f};
-    vec<N> Origin{0.f};
     rot<N> Rotation = RotType<N>::Identity;
-    Transform<N> *Parent = nullptr;
-};
-
-template <> struct ONYX_API Transform<2> final : public ITransform<2>
-{
-    static Transform FromModelTransform(const mat4 &p_ModelTransform) noexcept;
-};
-
-template <> struct ONYX_API Transform<3> : public ITransform<3>
-{
-    vec3 GetEulerAngles() const noexcept;
-    void SetEulerAngles(const vec3 &p_Angles) noexcept;
-
-    vec3 LocalOffsetZ(f32 p_Offset) const noexcept;
-
-    void RotateLocalAxis(const quat &p_Rotation) noexcept;
-    void RotateLocalAxis(const vec3 &p_Angles) noexcept;
-    void RotateLocalAxisX(f32 p_Angle) noexcept;
-    void RotateLocalAxisY(f32 p_Angle) noexcept;
-    void RotateLocalAxisZ(f32 p_Angle) noexcept;
-
-    void RotateGlobalAxis(const quat &p_Rotation) noexcept;
-    void RotateGlobalAxis(const vec3 &p_Angles) noexcept;
-    void RotateGlobalAxisX(f32 p_Angle) noexcept;
-    void RotateGlobalAxisY(f32 p_Angle) noexcept;
-    void RotateGlobalAxisZ(f32 p_Angle) noexcept;
-
-    static Transform FromModelTransform(const mat4 &p_ModelTransform) noexcept;
 };
 
 using Transform2D = Transform<2>;

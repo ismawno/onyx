@@ -16,8 +16,8 @@ Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_
 {
     createWindow(p_Specs);
 
-    m_RenderContext2D.Create(m_RenderSystem->GetSwapChain().GetRenderPass());
-    m_RenderContext3D.Create(m_RenderSystem->GetSwapChain().GetRenderPass());
+    m_RenderContext2D.Create(this, m_RenderSystem->GetSwapChain().GetRenderPass());
+    m_RenderContext3D.Create(this, m_RenderSystem->GetSwapChain().GetRenderPass());
 }
 
 Window::~Window() noexcept
@@ -144,6 +144,39 @@ const DynamicArray<Event> &Window::GetNewEvents() const noexcept
 void Window::FlushEvents() noexcept
 {
     m_Events.clear();
+}
+
+ONYX_DIMENSION_TEMPLATE const RenderContext<N> *Window::GetRenderContext() const noexcept
+{
+    if constexpr (N == 2)
+        return m_RenderContext2D.Get();
+    else
+        return m_RenderContext3D.Get();
+}
+ONYX_DIMENSION_TEMPLATE RenderContext<N> *Window::GetRenderContext() noexcept
+{
+    if constexpr (N == 2)
+        return m_RenderContext2D.Get();
+    else
+        return m_RenderContext3D.Get();
+}
+
+const RenderContext2D *Window::GetRenderContext2D() const noexcept
+{
+    return GetRenderContext<2>();
+}
+RenderContext2D *Window::GetRenderContext2D() noexcept
+{
+    return GetRenderContext<2>();
+}
+
+const RenderContext3D *Window::GetRenderContext3D() const noexcept
+{
+    return GetRenderContext<3>();
+}
+RenderContext3D *Window::GetRenderContext3D() noexcept
+{
+    return GetRenderContext<3>();
 }
 
 const RenderSystem &Window::GetRenderSystem() const noexcept
