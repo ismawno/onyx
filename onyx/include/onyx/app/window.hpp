@@ -28,8 +28,6 @@ class ONYX_API Window
 {
     KIT_NON_COPYABLE(Window)
   public:
-    KIT_BLOCK_ALLOCATED_SERIAL(Window, 4)
-
     // Could use a bitset, but I cant directly initialize it with the flags as I do with the u8
     enum Flags : u8
     {

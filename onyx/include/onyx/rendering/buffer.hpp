@@ -15,8 +15,6 @@ class ONYX_API Buffer
 {
     KIT_NON_COPYABLE(Buffer)
   public:
-    KIT_BLOCK_ALLOCATED_SERIAL(Buffer, 32)
-
     struct Specs
     {
         VkDeviceSize InstanceCount;
