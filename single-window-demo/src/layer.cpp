@@ -32,7 +32,6 @@ void SWExampleLayer::OnRender() noexcept
     context->Stroke(Color::MAGENTA);
     context->StrokeWidth(0.1f);
     context->NoFill();
-    context->Square(3.f);
 
     // context->TranslateAxes(0.2f, 0.f);
     // context->ScaleAxes(t);
