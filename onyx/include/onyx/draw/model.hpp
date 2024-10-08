@@ -32,7 +32,7 @@ namespace ONYX
 // by my imaginary users, so I should not be thinking much about this design. I kind of new from the beginning this was
 // the approach that would best work for me, but I have a difficult time sacrificing design for simplicity or viceversa
 
-using Index = u32;
+// Consider removing the ability to create a model with host visible memory
 
 class ONYX_API Model
 {
@@ -72,46 +72,17 @@ class ONYX_API Model
     static void CreatePrimitiveModels() noexcept;
     static void DestroyPrimitiveModels() noexcept;
 
-    // These functions create a model owned by Onyx itself, which will get deleted automatically when calling
-    // Core::Terminate(). These are not thread safe
-    ONYX_DIMENSION_TEMPLATE static Model *Create(std::span<const Vertex<N>> p_Vertices,
-                                                 Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
-    ONYX_DIMENSION_TEMPLATE static Model *Create(std::span<const Vertex<N>> p_Vertices,
-                                                 std::span<const Index> p_Indices,
-                                                 Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
-    ONYX_DIMENSION_TEMPLATE static Model *Load(std::string_view p_Path) noexcept;
-    static Model *Load2D(std::string_view p_Path) noexcept;
-    static Model *Load3D(std::string_view p_Path) noexcept;
+    ONYX_DIMENSION_TEMPLATE static KIT::Scope<const Model> Create(
+        std::span<const Vertex<N>> p_Vertices, Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
 
-    ONYX_DIMENSION_TEMPLATE static const Model *GetRegularPolygon(u32 p_Sides) noexcept;
-    ONYX_DIMENSION_TEMPLATE static const Model *GetTriangle() noexcept;
-    ONYX_DIMENSION_TEMPLATE static const Model *GetSquare() noexcept;
-    ONYX_DIMENSION_TEMPLATE static const Model *GetLine() noexcept;
-    ONYX_DIMENSION_TEMPLATE static const Model *GetCircle() noexcept;
-    ONYX_DIMENSION_TEMPLATE static Model *CreatePolygon(std::span<const vec<N>> p_Vertices,
-                                                        Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+    ONYX_DIMENSION_TEMPLATE static KIT::Scope<const Model> Create(
+        std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices,
+        Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
 
-    static const Model *GetRegularPolygon2D(u32 p_Sides) noexcept;
-    static const Model *GetTriangle2D() noexcept;
-    static const Model *GetSquare2D() noexcept;
-    static const Model *GetLine2D() noexcept;
-    static const Model *GetCircle2D() noexcept;
-    static Model *CreatePolygon2D(std::span<const vec2> p_Vertices,
-                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+    ONYX_DIMENSION_TEMPLATE static KIT::Scope<const Model> Load(std::string_view p_Path) noexcept;
 
-    static const Model *GetRegularPolygon3D(u32 p_Sides) noexcept;
-    static const Model *GetTriangle3D() noexcept;
-    static const Model *GetSquare3D() noexcept;
-    static const Model *GetLine3D() noexcept;
-    static const Model *GetCircle3D() noexcept;
-    static Model *CreatePolygon3D(std::span<const vec3> p_Vertices,
-                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
-
-    static const Model *GetCube() noexcept;
-    static const Model *GetSphere() noexcept;
-
-    // Commented for now, I dont think I will need this
-    // static Model *CreatePolyhedron(std::span<const Vertex3D> p_Vertices) noexcept;
+    static KIT::Scope<const Model> Load2D(std::string_view p_Path) noexcept;
+    static KIT::Scope<const Model> Load3D(std::string_view p_Path) noexcept;
 
   private:
     ONYX_DIMENSION_TEMPLATE void createVertexBuffer(std::span<const Vertex<N>> p_Vertices) noexcept;
