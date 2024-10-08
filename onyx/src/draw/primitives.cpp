@@ -42,30 +42,6 @@ ONYX_DIMENSION_TEMPLATE const PrimitiveDataLayout &IPrimitives<N>::GetDataLayout
     return getBuffers<N>()->Layout[p_PrimitiveIndex];
 }
 
-ONYX_DIMENSION_TEMPLATE usize IPrimitives<N>::GetTriangleIndex() noexcept
-{
-    return 0;
-}
-ONYX_DIMENSION_TEMPLATE usize IPrimitives<N>::GetSquareIndex() noexcept
-{
-    return 1;
-}
-ONYX_DIMENSION_TEMPLATE usize IPrimitives<N>::GetNGonIndex(const u32 p_Sides) noexcept
-{
-    KIT_ASSERT(p_Sides < ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3, "NGon sides must be between 3 and {}",
-               ONYX_MAX_REGULAR_POLYGON_SIDES);
-    return (N - 1) * 2 + p_Sides - 3;
-}
-
-usize Primitives<3>::GetCubeIndex() noexcept
-{
-    return 2;
-}
-usize Primitives<3>::GetSphereIndex() noexcept
-{
-    return 3;
-}
-
 ONYX_DIMENSION_TEMPLATE static void createBuffers(const std::span<const char *const> p_Paths) noexcept
 {
     BufferLayout layout;

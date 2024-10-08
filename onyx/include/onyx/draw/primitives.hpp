@@ -24,9 +24,20 @@ ONYX_DIMENSION_TEMPLATE struct IPrimitives
     static const Buffer *GetIndexBuffer() noexcept;
     static const PrimitiveDataLayout &GetDataLayout(usize p_PrimitiveIndex) noexcept;
 
-    static usize GetTriangleIndex() noexcept;
-    static usize GetSquareIndex() noexcept;
-    static usize GetNGonIndex(u32 p_Sides) noexcept;
+    static KIT_CONSTEVAL usize GetTriangleIndex() noexcept
+    {
+        return 0;
+    }
+    static KIT_CONSTEVAL usize GetSquareIndex() noexcept
+    {
+        return 1;
+    }
+    static constexpr usize GetNGonIndex(u32 p_Sides) noexcept
+    {
+        KIT_ASSERT(p_Sides < ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3, "NGon sides must be between 3 and {}",
+                   ONYX_MAX_REGULAR_POLYGON_SIDES);
+        return (N - 1) * 2 + p_Sides - 3;
+    }
 };
 
 ONYX_DIMENSION_TEMPLATE struct Primitives;
@@ -42,8 +53,14 @@ template <> struct Primitives<3> : Primitives<2>
 {
     static constexpr usize AMOUNT = 4 + ONYX_MAX_REGULAR_POLYGON_SIDES;
 
-    static usize GetCubeIndex() noexcept;
-    static usize GetSphereIndex() noexcept;
+    static KIT_CONSTEVAL usize GetCubeIndex() noexcept
+    {
+        return 2;
+    }
+    static KIT_CONSTEVAL usize GetSphereIndex() noexcept
+    {
+        return 3;
+    }
 };
 
 using Primitives2D = Primitives<2>;

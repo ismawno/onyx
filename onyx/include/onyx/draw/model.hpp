@@ -8,31 +8,8 @@
 
 namespace ONYX
 {
-// I have been struggling a bit with the design of the model class
-
-// A model may (and in the majority of cases will) have an index buffer to save vertex memory data, but some times (for
-// line strips for example) this extra buffer wont be needed. This "forces" me to have the buffers dynamically
-// allocated, so that I can nullify the index buffer in case it is not needed. This extra indirection annoys me. I could
-// make the buffer class default constructible and set the vulkan properties to null handles. But that just renders
-// the API more confusing and unsafe. I could fix all of this with inheritance
-
-// A model may be stored in device local memory, when it is not expected to be modified once created and thus
-// cannot be mapped to a cpu memory region, or stored in a way that allows this mapping. The first option creates an
-// immutable model, and the second a mutable one. All of this is handled with flags under the hood, so I can just have
-// those flags be passed through the constructor and thats it. But I dont want to expose a write API when in some cases
-// the model cant just be written to. I could fix all of this with inheritance
-
-// But then what...? Have a base class Model that is immutable and only uses a vertex buffer? Thats a bland name, it
-// doesnt specify a lot of the properties of the model. Should I call it then ImmutableModel? How do I specify that an
-// index buffer is not used with its name? Do I even need to? (probably not). And what about the derived classes? Three
-// more derived classes for the three remaining cases? Thats annoying. And now the Model class has to be virtual. I just
-// dont like any of the options
-
-// I have ended up implementing a simple basic Model class and thats it. This class is not intended to be used directly
-// by my imaginary users, so I should not be thinking much about this design. I kind of new from the beginning this was
-// the approach that would best work for me, but I have a difficult time sacrificing design for simplicity or viceversa
-
-// Consider removing the ability to create a model with host visible memory
+// Consider removing the ability to create a model with host visible memory (DONE)
+// This model represents an immutable set of data that is meant to be used for rendering. It is not meant to be modified
 
 class ONYX_API Model
 {
@@ -40,18 +17,8 @@ class ONYX_API Model
   public:
     KIT_BLOCK_ALLOCATED_SERIAL(Model, 32)
 
-    enum Properties : u8
-    {
-        DEVICE_LOCAL = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        HOST_VISIBLE = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-        HOST_COHERENT = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-    };
-
-    ONYX_DIMENSION_TEMPLATE Model(std::span<const Vertex<N>> p_Vertices,
-                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
-
-    ONYX_DIMENSION_TEMPLATE Model(std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices,
-                                  Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+    ONYX_DIMENSION_TEMPLATE Model(std::span<const Vertex<N>> p_Vertices) noexcept;
+    ONYX_DIMENSION_TEMPLATE Model(std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices) noexcept;
 
     ~Model() noexcept;
 
@@ -64,20 +31,7 @@ class ONYX_API Model
     bool HasIndices() const noexcept;
 
     const Buffer &GetVertexBuffer() const noexcept;
-    Buffer &GetVertexBuffer() noexcept;
-
-    bool IsMutable() const noexcept;
-    bool MustFlush() const noexcept;
-
-    static void CreatePrimitiveModels() noexcept;
-    static void DestroyPrimitiveModels() noexcept;
-
-    ONYX_DIMENSION_TEMPLATE static KIT::Scope<const Model> Create(
-        std::span<const Vertex<N>> p_Vertices, Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
-
-    ONYX_DIMENSION_TEMPLATE static KIT::Scope<const Model> Create(
-        std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices,
-        Properties p_VertexBufferProperties = DEVICE_LOCAL) noexcept;
+    const Buffer &GetIndexBuffer() const noexcept; // This is UB if HasIndices returns false
 
     ONYX_DIMENSION_TEMPLATE static KIT::Scope<const Model> Load(std::string_view p_Path) noexcept;
 
@@ -91,8 +45,6 @@ class ONYX_API Model
     KIT::Ref<Device> m_Device;
     KIT::Storage<Buffer> m_VertexBuffer;
     KIT::Storage<Buffer> m_IndexBuffer;
-
-    Properties m_VertexBufferProperties;
 
     bool m_HasIndices;
 };
