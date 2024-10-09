@@ -118,8 +118,10 @@ ONYX_DIMENSION_TEMPLATE KIT::Scope<const Model> Model::Load(const std::string_vi
     const IndexVertexData<N> data = Load<N>(p_Path);
     const std::span<const Vertex<N>> vertices{data.Vertices};
     const std::span<const Index> indices{data.Indices};
-    return indices.empty() ? KIT::Scope<const Model>::Create(vertices)
-                           : KIT::Scope<const Model>::Create(vertices, indices);
+
+    const bool needsIndices = !indices.empty() && indices.size() != vertices.size();
+    return needsIndices ? KIT::Scope<const Model>::Create(vertices, indices)
+                        : KIT::Scope<const Model>::Create(vertices);
 }
 KIT::Scope<const Model> Model::Load2D(const std::string_view p_Path) noexcept
 {

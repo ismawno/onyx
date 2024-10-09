@@ -30,7 +30,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
     MeshRenderer(VkRenderPass p_RenderPass, VkDescriptorSetLayout p_Layout) noexcept;
     ~MeshRenderer() noexcept;
 
-    void Draw(const Model *p_Model, const mat<N> &p_Transform, const vec4 &p_Color) noexcept;
+    void Draw(const KIT::Ref<const Model> &p_Model, const mat<N> &p_Transform, const vec4 &p_Color) noexcept;
     void Render(const RenderInfo<N> &p_Info) const noexcept;
 
     void Flush() noexcept;
@@ -38,11 +38,11 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
   private:
     struct DrawData
     {
-        DrawData(const ONYX::Model *p_Model, const mat<N> &p_Transform, const vec4 &p_Color) noexcept
+        DrawData(const KIT::Ref<const ONYX::Model> &p_Model, const mat<N> &p_Transform, const vec4 &p_Color) noexcept
             : Model(p_Model), Transform(p_Transform), Color(p_Color)
         {
         }
-        const Model *Model;
+        KIT::Ref<const Model> Model;
         mat<N> Transform;
         vec4 Color;
     };

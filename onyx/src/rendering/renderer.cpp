@@ -86,7 +86,7 @@ ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::~MeshRenderer() noexcept
     m_Pipeline.Destroy();
 }
 
-ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const Model *p_Model, const mat<N> &p_ModelTransform,
+ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const KIT::Ref<const Model> &p_Model, const mat<N> &p_ModelTransform,
                                                    const vec4 &p_Color) noexcept
 {
     m_DrawData.emplace_back(p_Model, p_ModelTransform, p_Color);

@@ -7,9 +7,10 @@
 #    define ONYX_MAX_REGULAR_POLYGON_SIDES 8
 #endif
 
+// Important: index buffers must always be provided for primitives so that they can be batch rendered nicely
+
 namespace ONYX
 {
-
 struct PrimitiveDataLayout
 {
     usize VerticesStart;
