@@ -19,6 +19,7 @@ class ITaskManager;
 namespace ONYX
 {
 class Window;
+class DescriptorPool;
 struct ONYX_API Core
 {
     static void Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept;
@@ -31,6 +32,8 @@ struct ONYX_API Core
     static const KIT::Ref<Device> &GetDevice() noexcept;
 
     static VmaAllocator GetVulkanAllocator() noexcept;
+
+    const KIT::Ref<DescriptorPool> &GetDescriptorPool() noexcept;
 
   private:
     // Should ony be called by window constructor (I should look for a way to better hide this)

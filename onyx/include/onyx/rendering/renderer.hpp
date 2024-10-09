@@ -38,6 +38,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
   private:
     struct DrawData
     {
+        // Could actually use a pointer to the model instead of a reference and take extra care the model still lives
+        // while drawing
         DrawData(const KIT::Ref<const ONYX::Model> &p_Model, const mat<N> &p_Transform, const vec4 &p_Color) noexcept
             : Model(p_Model), Transform(p_Transform), Color(p_Color)
         {
@@ -58,7 +60,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
 {
     KIT_NON_COPYABLE(CircleRenderer)
   public:
-    CircleRenderer(VkRenderPass p_RenderPass, VkDescriptorSetLayout p_Layout) noexcept;
+    CircleRenderer(VkRenderPass p_RenderPass) noexcept;
     ~CircleRenderer() noexcept;
 
     void Draw(const mat<N> &p_Transform, const vec4 &p_Color) noexcept;
@@ -77,9 +79,11 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
     };
 
     KIT::Storage<Pipeline> m_Pipeline;
-    DynamicArray<DrawData> m_DrawData;
+    KIT::Storage<Buffer> m_StorageBuffer;
+    KIT::Ref<DescriptorPool> m_DescriptorPool;
 };
 
 using CircleRenderer2D = CircleRenderer<2>;
 using CircleRenderer3D = CircleRenderer<3>;
+
 } // namespace ONYX

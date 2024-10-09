@@ -37,9 +37,9 @@ template <> struct ShaderPaths<3>
     static constexpr const char *CircleFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/circle3D.frag.spv";
 };
 
-ONYX_DIMENSION_TEMPLATE static Pipeline::Specs defaultMeshPipelineSpecs(const char *vpath, const char *fpath,
-                                                                        const VkRenderPass p_RenderPass,
-                                                                        const VkDescriptorSetLayout *p_Layout) noexcept
+ONYX_DIMENSION_TEMPLATE static Pipeline::Specs defaultPipelineSpecs(const char *vpath, const char *fpath,
+                                                                    const VkRenderPass p_RenderPass,
+                                                                    const VkDescriptorSetLayout *p_Layout) noexcept
 {
     Pipeline::Specs specs{};
     if constexpr (N == 2)
@@ -52,7 +52,6 @@ ONYX_DIMENSION_TEMPLATE static Pipeline::Specs defaultMeshPipelineSpecs(const ch
     }
     specs.VertexShaderPath = vpath;
     specs.FragmentShaderPath = fpath;
-    specs.PushConstantRange.size = sizeof(MeshPushConstantData<N>);
 
     specs.InputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     specs.RenderPass = p_RenderPass;
@@ -70,13 +69,16 @@ ONYX_DIMENSION_TEMPLATE static Pipeline::Specs defaultMeshPipelineSpecs(const ch
 ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::MeshRenderer(const VkRenderPass p_RenderPass,
                                                       const VkDescriptorSetLayout p_Layout) noexcept
 {
-    Pipeline::Specs specs = defaultMeshPipelineSpecs<N>(ShaderPaths<N>::MeshVertex, ShaderPaths<N>::MeshFragment,
-                                                        p_RenderPass, p_Layout ? &p_Layout : nullptr);
+    Pipeline::Specs specs = defaultPipelineSpecs<N>(ShaderPaths<N>::MeshVertex, ShaderPaths<N>::MeshFragment,
+                                                    p_RenderPass, p_Layout ? &p_Layout : nullptr);
+
+    specs.PushConstantRange.size = sizeof(MeshPushConstantData<N>);
+    specs.PushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     const auto &bdesc = Vertex<N>::GetBindingDescriptions();
     const auto &attdesc = Vertex<N>::GetAttributeDescriptions();
-    specs.BindingDescriptions.insert(specs.BindingDescriptions.end(), bdesc.begin(), bdesc.end());
-    specs.AttributeDescriptions.insert(specs.AttributeDescriptions.end(), attdesc.begin(), attdesc.end());
+    specs.BindingDescriptions = std::span<const VkVertexInputBindingDescription>(bdesc);
+    specs.AttributeDescriptions = std::span<const VkVertexInputAttributeDescription>(attdesc);
 
     m_Pipeline.Create(specs);
 }
@@ -157,17 +159,17 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Flush() noexcept
 template class MeshRenderer<2>;
 template class MeshRenderer<3>;
 
-ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::CircleRenderer(const VkRenderPass p_RenderPass,
-                                                          const VkDescriptorSetLayout p_Layout) noexcept
+ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::CircleRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    const Pipeline::Specs specs = defaultMeshPipelineSpecs<N>(
-        ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment, p_RenderPass, p_Layout ? &p_Layout : nullptr);
+    m_DescriptorPool = Core::GetDescriptorPool();
+    const Pipeline::Specs specs = defaultPipelineSpecs<N>(ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment);
     m_Pipeline.Create(specs);
 }
 
 ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::~CircleRenderer() noexcept
 {
     m_Pipeline.Destroy();
+    m_StorageBuffer.Destroy();
 }
 
 ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Draw(const mat<N> &p_ModelTransform, const vec4 &p_Color) noexcept

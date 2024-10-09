@@ -1,7 +1,9 @@
 #define VMA_IMPLEMENTATION
 #include "core/pch.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/draw/model.hpp"
+#include "onyx/draw/primitives.hpp"
+#include "onyx/descriptors/descriptor_pool.hpp"
+#include "onyx/rendering/swap_chain.hpp"
 #include "kit/core/logging.hpp"
 
 #define GLFW_INCLUDE_VULKAN
@@ -14,6 +16,7 @@ static KIT::ITaskManager *s_Manager;
 
 static KIT::Ref<Instance> s_Instance;
 static KIT::Ref<Device> s_Device;
+static KIT::Ref<DescriptorPool> s_DescriptorPool;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
@@ -34,6 +37,19 @@ static void createVulkanAllocator() noexcept
                        "Failed to create vulkan allocator");
 }
 
+static void createDescriptorPool() noexcept
+{
+    DescriptorPool::Specs poolSpecs{};
+    poolSpecs.MaxSets = 8;
+
+    VkDescriptorPoolSize poolSize{};
+    poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSize.descriptorCount = 8;
+    poolSpecs.PoolSizes = std::span<const VkDescriptorPoolSize>(&poolSize, 1);
+
+    s_DescriptorPool = KIT::Ref<DescriptorPool>::Create(poolSpecs);
+}
+
 void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept
 {
     KIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "Failed to initialize GLFW");
@@ -46,7 +62,7 @@ void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Man
 void Core::Terminate() noexcept
 {
     if (s_Device)
-        Model::DestroyPrimitiveModels();
+        DestroyCombinedPrimitiveBuffers();
     glfwTerminate();
     if (s_Device)
         s_Device->WaitIdle();
@@ -54,6 +70,7 @@ void Core::Terminate() noexcept
     // Release both the instance and the device. After this call, these two are no longer guaranteed to be valid
     s_Device = nullptr;
     s_Instance = nullptr;
+    s_DescriptorPool = nullptr;
 }
 
 const KIT::Ref<Instance> &Core::GetInstance() noexcept
@@ -71,6 +88,11 @@ VmaAllocator Core::GetVulkanAllocator() noexcept
     return s_VulkanAllocator;
 }
 
+const KIT::Ref<DescriptorPool> &Core::GetDescriptorPool() noexcept
+{
+    return s_DescriptorPool;
+}
+
 KIT::StackAllocator *Core::GetStackAllocator() noexcept
 {
     return s_StackAllocator;
@@ -86,7 +108,8 @@ const KIT::Ref<Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
     {
         s_Device = KIT::Ref<Device>::Create(p_Surface);
         createVulkanAllocator();
-        Model::CreatePrimitiveModels();
+        createDescriptorPool();
+        CreateCombinedPrimitiveBuffers();
     }
     KIT_ASSERT(s_Device->IsSuitable(p_Surface), "The current device is not suitable for the given surface");
     return s_Device;

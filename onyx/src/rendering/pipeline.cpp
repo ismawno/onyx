@@ -184,7 +184,7 @@ Pipeline::Specs::Specs() noexcept
     DepthStencilInfo.front = {}; // Optional
     DepthStencilInfo.back = {};  // Optional
 
-    PushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    PushConstantRange.stageFlags = 0;
     PushConstantRange.offset = 0;
     PushConstantRange.size = 0;
 

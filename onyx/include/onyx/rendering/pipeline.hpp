@@ -38,8 +38,8 @@ class ONYX_API Pipeline
         const char *VertexShaderPath = nullptr;
         const char *FragmentShaderPath = nullptr;
 
-        KIT::StaticArray<VkVertexInputBindingDescription, 4> BindingDescriptions;
-        KIT::StaticArray<VkVertexInputAttributeDescription, 4> AttributeDescriptions;
+        std::span<const VkVertexInputBindingDescription> BindingDescriptions;
+        std::span<const VkVertexInputAttributeDescription> AttributeDescriptions;
     };
 
     explicit Pipeline(Specs p_Specs) noexcept;

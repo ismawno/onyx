@@ -18,7 +18,7 @@ class ONYX_API DescriptorPool
     struct Specs
     {
         u32 MaxSets;
-        KIT::StaticArray<VkDescriptorPoolSize, 8> PoolSizes;
+        std::span<const VkDescriptorPoolSize> PoolSizes;
         VkDescriptorPoolCreateFlags PoolFlags = 0;
     };
 
