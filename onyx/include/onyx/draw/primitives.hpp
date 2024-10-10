@@ -1,7 +1,8 @@
 #pragma once
 
 #include "onyx/draw/data.hpp"
-#include "onyx/rendering/buffer.hpp"
+#include "onyx/buffer/vertex_buffer.hpp" // could actually forward declare this
+#include "onyx/buffer/index_buffer.hpp"
 
 #ifndef ONYX_MAX_REGULAR_POLYGON_SIDES
 #    define ONYX_MAX_REGULAR_POLYGON_SIDES 8
@@ -21,8 +22,8 @@ struct PrimitiveDataLayout
 
 ONYX_DIMENSION_TEMPLATE struct IPrimitives
 {
-    static const Buffer *GetVertexBuffer() noexcept;
-    static const Buffer *GetIndexBuffer() noexcept;
+    static const VertexBuffer<N> *GetVertexBuffer() noexcept;
+    static const IndexBuffer *GetIndexBuffer() noexcept;
     static const PrimitiveDataLayout &GetDataLayout(usize p_PrimitiveIndex) noexcept;
 
     static KIT_CONSTEVAL usize GetTriangleIndex() noexcept

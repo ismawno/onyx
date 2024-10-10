@@ -2,7 +2,8 @@
 
 #include "onyx/core/device.hpp"
 #include "onyx/draw/vertex.hpp"
-#include "onyx/rendering/buffer.hpp"
+#include "onyx/buffer/index_buffer.hpp"
+#include "onyx/buffer/vertex_buffer.hpp"
 
 #include "kit/container/storage.hpp"
 
@@ -11,14 +12,14 @@ namespace ONYX
 // Consider removing the ability to create a model with host visible memory (DONE)
 // This model represents an immutable set of data that is meant to be used for rendering. It is not meant to be modified
 
-class ONYX_API Model
+ONYX_DIMENSION_TEMPLATE class ONYX_API Model
 {
     KIT_NON_COPYABLE(Model)
   public:
-    KIT_BLOCK_ALLOCATED_SERIAL(Model, 32)
+    KIT_BLOCK_ALLOCATED_SERIAL(Model<N>, 32)
 
-    ONYX_DIMENSION_TEMPLATE Model(std::span<const Vertex<N>> p_Vertices) noexcept;
-    ONYX_DIMENSION_TEMPLATE Model(std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices) noexcept;
+    Model(std::span<const Vertex<N>> p_Vertices) noexcept;
+    Model(std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices) noexcept;
 
     ~Model() noexcept;
 
@@ -30,23 +31,20 @@ class ONYX_API Model
 
     bool HasIndices() const noexcept;
 
-    const Buffer &GetVertexBuffer() const noexcept;
-    const Buffer &GetIndexBuffer() const noexcept; // This is UB if HasIndices returns false
+    const VertexBuffer<N> &GetVertexBuffer() const noexcept;
+    const IndexBuffer &GetIndexBuffer() const noexcept; // This is UB if HasIndices returns false
 
-    ONYX_DIMENSION_TEMPLATE static KIT::Scope<const Model> Load(std::string_view p_Path) noexcept;
-
-    static KIT::Scope<const Model> Load2D(std::string_view p_Path) noexcept;
-    static KIT::Scope<const Model> Load3D(std::string_view p_Path) noexcept;
+    static KIT::Scope<const Model> Load(std::string_view p_Path) noexcept;
 
   private:
-    ONYX_DIMENSION_TEMPLATE void createVertexBuffer(std::span<const Vertex<N>> p_Vertices) noexcept;
-    void createIndexBuffer(std::span<const Index> p_Indices) noexcept;
-
     KIT::Ref<Device> m_Device;
-    KIT::Storage<Buffer> m_VertexBuffer;
-    KIT::Storage<Buffer> m_IndexBuffer;
+    VertexBuffer<N> m_VertexBuffer;
+    KIT::Storage<IndexBuffer> m_IndexBuffer;
 
     bool m_HasIndices;
 };
+
+using Model2D = Model<2>;
+using Model3D = Model<3>;
 
 } // namespace ONYX

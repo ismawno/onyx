@@ -7,14 +7,14 @@ namespace ONYX
 ONYX_DIMENSION_TEMPLATE using BufferLayout = std::array<PrimitiveDataLayout, Primitives<N>::AMOUNT>;
 ONYX_DIMENSION_TEMPLATE struct IndexVertexBuffers
 {
-    IndexVertexBuffers(const Buffer::Specs &p_VertexSpecs, const Buffer::Specs &p_IndexSpecs,
+    IndexVertexBuffers(const std::span<const Vertex<N>> p_Vertices, const std::span<const Index> p_Indices,
                        const BufferLayout &p_Layout) noexcept
-        : Vertices{p_VertexSpecs}, Indices{p_IndexSpecs}, Layout{p_Layout}
+        : Vertices{p_Vertices}, Indices{p_Indices}, Layout{p_Layout}
     {
     }
 
-    Buffer Vertices;
-    Buffer Indices;
+    VertexBuffer<N> Vertices;
+    IndexBuffer Indices;
     BufferLayout Layout;
 };
 
@@ -29,11 +29,11 @@ ONYX_DIMENSION_TEMPLATE static KIT::Storage<IndexVertexBuffers<N>> &getBuffers()
         return s_Buffers3D;
 }
 
-ONYX_DIMENSION_TEMPLATE const Buffer *IPrimitives<N>::GetVertexBuffer() noexcept
+ONYX_DIMENSION_TEMPLATE const VertexBuffer<N> *IPrimitives<N>::GetVertexBuffer() noexcept
 {
     return &getBuffers<N>()->Vertices;
 }
-ONYX_DIMENSION_TEMPLATE const Buffer *IPrimitives<N>::GetIndexBuffer() noexcept
+ONYX_DIMENSION_TEMPLATE const IndexBuffer *IPrimitives<N>::GetIndexBuffer() noexcept
 {
     return &getBuffers<N>()->Indices;
 }
@@ -60,46 +60,10 @@ ONYX_DIMENSION_TEMPLATE static void createBuffers(const std::span<const char *co
         data.Indices.insert(data.Indices.end(), buffers.Indices.begin(), buffers.Indices.end());
     }
     auto &buffers = getBuffers<N>();
+    const std::span<const Vertex<N>> vertices{data.Vertices};
+    const std::span<const Index> indices{data.Indices};
 
-    Buffer::Specs vertexSpecs{};
-    vertexSpecs.InstanceCount = data.Vertices.size();
-    vertexSpecs.InstanceSize = sizeof(Vertex<N>);
-    vertexSpecs.Usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    vertexSpecs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-    Buffer::Specs indexSpecs{};
-    indexSpecs.InstanceCount = data.Indices.size();
-    indexSpecs.InstanceSize = sizeof(Index);
-    indexSpecs.Usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    indexSpecs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-    buffers.Create(vertexSpecs, indexSpecs, layout);
-
-    Buffer::Specs stagingSpecs = vertexSpecs;
-    stagingSpecs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    stagingSpecs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    stagingSpecs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-    Buffer vertexStaging(stagingSpecs);
-    vertexStaging.Map();
-    vertexStaging.Write(data.Vertices);
-    vertexStaging.Flush();
-    vertexStaging.Unmap();
-
-    buffers->Vertices.CopyFrom(vertexStaging);
-
-    stagingSpecs = indexSpecs;
-    stagingSpecs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    stagingSpecs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    stagingSpecs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-    Buffer indexStaging(stagingSpecs);
-    indexStaging.Map();
-    indexStaging.Write(data.Indices);
-    indexStaging.Flush();
-    indexStaging.Unmap();
-
-    buffers->Indices.CopyFrom(indexStaging);
+    buffers.Create(vertices, indices, layout);
 }
 
 void CreateCombinedPrimitiveBuffers() noexcept
