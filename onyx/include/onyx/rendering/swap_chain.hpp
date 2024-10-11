@@ -10,7 +10,8 @@ class ONYX_API SwapChain
 {
     KIT_NON_COPYABLE(SwapChain)
   public:
-    static constexpr u32 MAX_FRAMES_IN_FLIGHT = 2;
+    // Maximum frames in flight
+    static constexpr u32 MFIF = 2;
 
     SwapChain(VkExtent2D p_WindowExtent, VkSurfaceKHR p_Surface, const SwapChain *p_OldSwapChain = nullptr) noexcept;
     ~SwapChain() noexcept;
@@ -58,9 +59,9 @@ class ONYX_API SwapChain
     KIT::StaticArray<VkDeviceMemory, 3> m_DepthImageMemories;
     KIT::StaticArray<VkFence, 3> m_InFlightImages;
 
-    std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_ImageAvailableSemaphores;
-    std::array<VkSemaphore, MAX_FRAMES_IN_FLIGHT> m_RenderFinishedSemaphores;
-    std::array<VkFence, MAX_FRAMES_IN_FLIGHT> m_InFlightFences;
+    std::array<VkSemaphore, MFIF> m_ImageAvailableSemaphores;
+    std::array<VkSemaphore, MFIF> m_RenderFinishedSemaphores;
+    std::array<VkFence, MFIF> m_InFlightFences;
 
     KIT::StaticArray<VkFramebuffer, 3> m_Framebuffers;
     usize m_CurrentFrame = 0;

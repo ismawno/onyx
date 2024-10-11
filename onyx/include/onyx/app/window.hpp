@@ -5,7 +5,6 @@
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/draw/color.hpp"
-#include "onyx/rendering/buffer.hpp"
 #include "onyx/rendering/render_system.hpp"
 
 #include "kit/container/storage.hpp"

@@ -1,5 +1,5 @@
 #include "core/pch.hpp"
-#include "onyx/rendering/buffer.hpp"
+#include "onyx/buffer/buffer.hpp"
 #include "onyx/core/core.hpp"
 
 namespace ONYX
@@ -83,7 +83,7 @@ void Buffer::InvalidateAt(const usize p_Index) noexcept
     Invalidate(m_InstanceSize, m_InstanceSize * p_Index);
 }
 
-VkDescriptorBufferInfo Buffer::DescriptorInfo(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) const noexcept
+VkDescriptorBufferInfo Buffer::GetDescriptorInfo(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) const noexcept
 {
     VkDescriptorBufferInfo info{};
     info.buffer = m_Buffer;
@@ -91,10 +91,10 @@ VkDescriptorBufferInfo Buffer::DescriptorInfo(const VkDeviceSize p_Size, const V
     info.range = p_Size;
     return info;
 }
-VkDescriptorBufferInfo Buffer::DescriptorInfoAt(const usize p_Index) const noexcept
+VkDescriptorBufferInfo Buffer::GetDescriptorInfoAt(const usize p_Index) const noexcept
 {
     KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
-    return DescriptorInfo(m_InstanceSize, m_InstanceSize * p_Index);
+    return GetDescriptorInfo(m_InstanceSize, m_InstanceSize * p_Index);
 }
 
 void *Buffer::GetData() const noexcept

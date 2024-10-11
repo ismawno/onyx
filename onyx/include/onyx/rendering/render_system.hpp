@@ -41,7 +41,7 @@ class ONYX_API RenderSystem
 
     KIT::Ref<Device> m_Device;
     KIT::Scope<SwapChain> m_SwapChain;
-    std::array<VkCommandBuffer, SwapChain::MAX_FRAMES_IN_FLIGHT> m_CommandBuffers;
+    std::array<VkCommandBuffer, SwapChain::MFIF> m_CommandBuffers;
 
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;

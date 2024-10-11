@@ -88,7 +88,7 @@ SwapChain::~SwapChain() noexcept
     vkDestroyRenderPass(m_Device->GetDevice(), m_RenderPass, nullptr);
 
     // cleanup synchronization objects
-    for (usize i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < MFIF; ++i)
     {
         vkDestroySemaphore(m_Device->GetDevice(), m_RenderFinishedSemaphores[i], nullptr);
         vkDestroySemaphore(m_Device->GetDevice(), m_ImageAvailableSemaphores[i], nullptr);
@@ -144,7 +144,7 @@ VkResult SwapChain::Present(const u32 *p_ImageIndex) noexcept
     presentInfo.pSwapchains = &m_SwapChain;
     presentInfo.pImageIndices = p_ImageIndex;
 
-    m_CurrentFrame = (m_CurrentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    m_CurrentFrame = (m_CurrentFrame + 1) % MFIF;
     std::scoped_lock lock(m_Device->PresentMutex());
     return vkQueuePresentKHR(m_Device->GetPresentQueue(), &presentInfo);
 }
@@ -407,7 +407,7 @@ void SwapChain::createSyncObjects() noexcept
     fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for (usize i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < MFIF; ++i)
     {
         KIT_ASSERT_RETURNS(
             vkCreateSemaphore(m_Device->GetDevice(), &semaphoreInfo, nullptr, &m_ImageAvailableSemaphores[i]),

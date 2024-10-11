@@ -349,7 +349,7 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
         DescriptorPool Pool;
         DescriptorSetLayout Layout;
         Buffer UniformBuffer;
-        std::array<VkDescriptorSet, SwapChain::MAX_FRAMES_IN_FLIGHT> DescriptorSets;
+        std::array<VkDescriptorSet, SwapChain::MFIF> DescriptorSets;
     };
 
     void createGlobalUniformHelper() noexcept;

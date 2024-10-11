@@ -37,12 +37,21 @@ ONYX_DIMENSION_TEMPLATE bool Model<N>::HasIndices() const noexcept
     return m_HasIndices;
 }
 
-ONYX_DIMENSION_TEMPLATE void Model<N>::Draw(const VkCommandBuffer p_CommandBuffer) const noexcept
+ONYX_DIMENSION_TEMPLATE void Model<N>::Draw(const VkCommandBuffer p_CommandBuffer, const u32 p_InstanceCount,
+                                            const u32 p_FirstInstance, const u32 p_FirstVertex) const noexcept
 {
-    if (m_HasIndices)
-        vkCmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer->GetSize()), 1, 0, 0, 0);
-    else
-        vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer->GetSize()), 1, 0, 0);
+    KIT_ASSERT(!m_HasIndices, "Model does not have indices, use Draw instead");
+    vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer->GetInstanceCount()), p_InstanceCount, p_FirstVertex,
+              p_FirstInstance);
+}
+
+ONYX_DIMENSION_TEMPLATE void Model<N>::DrawIndexed(const VkCommandBuffer p_CommandBuffer, const u32 p_InstanceCount,
+                                                   const u32 p_FirstInstance, const u32 p_FirstIndex,
+                                                   const u32 p_VertexOffset) const noexcept
+{
+    KIT_ASSERT(m_HasIndices, "Model has indices, use DrawIndexed instead");
+    vkCmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer->GetInstanceCount()), p_InstanceCount,
+                     p_FirstIndex, p_VertexOffset, p_FirstInstance);
 }
 
 ONYX_DIMENSION_TEMPLATE const VertexBuffer<N> &Model<N>::GetVertexBuffer() const noexcept

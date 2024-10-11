@@ -27,8 +27,7 @@ RenderSystem::~RenderSystem() noexcept
 
     // Lock the queues to prevent any other command buffers from being submitted
     m_Device->WaitIdle();
-    vkFreeCommandBuffers(m_Device->GetDevice(), m_CommandPool, SwapChain::MAX_FRAMES_IN_FLIGHT,
-                         m_CommandBuffers.data());
+    vkFreeCommandBuffers(m_Device->GetDevice(), m_CommandPool, SwapChain::MFIF, m_CommandBuffers.data());
     vkDestroyCommandPool(m_Device->GetDevice(), m_CommandPool, nullptr);
 }
 
@@ -82,7 +81,7 @@ void RenderSystem::EndFrame(Window &) noexcept
         m_PresentTask = taskManager->CreateAndSubmit([this](usize) {
             KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex),
                                VK_SUCCESS, "Failed to submit command buffers");
-            m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MAX_FRAMES_IN_FLIGHT;
+            m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
             return m_SwapChain->Present(&m_ImageIndex);
         });
     else
@@ -182,7 +181,7 @@ void RenderSystem::createCommandBuffers() noexcept
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandPool = m_CommandPool;
-    allocInfo.commandBufferCount = SwapChain::MAX_FRAMES_IN_FLIGHT;
+    allocInfo.commandBufferCount = SwapChain::MFIF;
 
     KIT_ASSERT_RETURNS(vkAllocateCommandBuffers(m_Device->GetDevice(), &allocInfo, m_CommandBuffers.data()), VK_SUCCESS,
                        "Failed to create command buffers");

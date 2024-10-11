@@ -8,16 +8,17 @@
 #    define ONYX_MAX_REGULAR_POLYGON_SIDES 8
 #endif
 
+#define ONYX_REGULAR_POLYGON_COUNT (ONYX_MAX_REGULAR_POLYGON_SIDES - 2)
+
 // Important: index buffers must always be provided for primitives so that they can be batch rendered nicely
 
 namespace ONYX
 {
 struct PrimitiveDataLayout
 {
-    usize VerticesStart;
-    usize VerticesSize;
-    usize IndicesStart;
-    usize IndicesSize;
+    u32 VerticesStart;
+    u32 IndicesStart;
+    u32 IndicesSize;
 };
 
 ONYX_DIMENSION_TEMPLATE struct IPrimitives
@@ -48,12 +49,12 @@ ONYX_DIMENSION_TEMPLATE struct Primitives;
 // 2D and 3D overloads
 template <> struct Primitives<2> : IPrimitives<2>
 {
-    static constexpr usize AMOUNT = 2 + ONYX_MAX_REGULAR_POLYGON_SIDES;
+    static constexpr usize AMOUNT = 2 + ONYX_REGULAR_POLYGON_COUNT;
 };
 
 template <> struct Primitives<3> : Primitives<2>
 {
-    static constexpr usize AMOUNT = 4 + ONYX_MAX_REGULAR_POLYGON_SIDES;
+    static constexpr usize AMOUNT = 4 + ONYX_REGULAR_POLYGON_COUNT;
 
     static KIT_CONSTEVAL usize GetCubeIndex() noexcept
     {

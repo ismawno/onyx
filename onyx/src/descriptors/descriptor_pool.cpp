@@ -32,19 +32,24 @@ VkDescriptorSet DescriptorPool::Allocate(const VkDescriptorSetLayout p_Layout) c
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &p_Layout;
 
-    if (vkAllocateDescriptorSets(m_Device->GetDevice(), &allocInfo, &set) != VK_SUCCESS)
-        return VK_NULL_HANDLE;
+    {
+        std::scoped_lock lock(m_Mutex);
+        if (vkAllocateDescriptorSets(m_Device->GetDevice(), &allocInfo, &set) != VK_SUCCESS)
+            return VK_NULL_HANDLE;
+    }
 
     return set;
 }
 
 void DescriptorPool::Deallocate(const std::span<const VkDescriptorSet> p_Sets) const noexcept
 {
+    std::scoped_lock lock(m_Mutex);
     vkFreeDescriptorSets(m_Device->GetDevice(), m_Pool, static_cast<u32>(p_Sets.size()), p_Sets.data());
 }
 
 void DescriptorPool::Deallocate(const VkDescriptorSet p_Set) const noexcept
 {
+    std::scoped_lock lock(m_Mutex);
     vkFreeDescriptorSets(m_Device->GetDevice(), m_Pool, 1, &p_Set);
 }
 

@@ -732,16 +732,15 @@ void RenderContext<3>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Co
 void RenderContext<3>::createGlobalUniformHelper() noexcept
 {
     DescriptorPool::Specs poolSpecs{};
-    poolSpecs.MaxSets = SwapChain::MAX_FRAMES_IN_FLIGHT;
-    poolSpecs.PoolSizes.push_back(
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT});
+    poolSpecs.MaxSets = SwapChain::MFIF;
+    poolSpecs.PoolSizes.push_back(VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MFIF});
 
     static constexpr std::array<VkDescriptorSetLayoutBinding, 1> bindings = {
         {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}}};
 
     const auto &props = m_Device->GetProperties();
     Buffer::Specs bufferSpecs{};
-    bufferSpecs.InstanceCount = SwapChain::MAX_FRAMES_IN_FLIGHT;
+    bufferSpecs.InstanceCount = SwapChain::MFIF;
     bufferSpecs.InstanceSize = sizeof(GlobalUBO);
     bufferSpecs.Usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     bufferSpecs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -752,7 +751,7 @@ void RenderContext<3>::createGlobalUniformHelper() noexcept
     m_GlobalUniformHelper.Create(poolSpecs, bindings, bufferSpecs);
     m_GlobalUniformHelper->UniformBuffer.Map();
 
-    for (usize i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < SwapChain::MFIF; ++i)
     {
         const auto info = m_GlobalUniformHelper->UniformBuffer.DescriptorInfoAt(i);
         DescriptorWriter writer{&m_GlobalUniformHelper->Layout, &m_GlobalUniformHelper->Pool};

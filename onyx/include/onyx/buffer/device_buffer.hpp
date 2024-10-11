@@ -41,7 +41,7 @@ template <typename T> class DeviceBuffer
     {
         return m_Buffer->GetBuffer();
     }
-    VkDeviceSize GetSize() const noexcept
+    VkDeviceSize GetInstanceCount() const noexcept
     {
         return m_Buffer->GetInstanceCount();
     }

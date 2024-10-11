@@ -27,7 +27,12 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API Model
     // These bind and draw commands operate with a single vertex and index buffer. Not ideal when instancing could be
     // used. Plus, the same buffer may be bound multiple times if this is not handled with care
     void Bind(VkCommandBuffer p_CommandBuffer) const noexcept;
-    void Draw(VkCommandBuffer p_CommandBuffer) const noexcept;
+
+    void Draw(VkCommandBuffer p_CommandBuffer, u32 p_InstanceCount = 0, u32 p_FirstInstance = 0,
+              u32 p_FirstVertex = 0) const noexcept;
+
+    void DrawIndexed(VkCommandBuffer p_CommandBuffer, u32 p_InstanceCount = 0, u32 p_FirstInstance = 0,
+                     u32 p_FirstIndex = 0, u32 p_VertexOffset = 0) const noexcept;
 
     bool HasIndices() const noexcept;
 

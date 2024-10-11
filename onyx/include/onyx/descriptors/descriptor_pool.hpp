@@ -34,5 +34,8 @@ class ONYX_API DescriptorPool
   private:
     KIT::Ref<Device> m_Device;
     VkDescriptorPool m_Pool;
+
+    // consider a pool per thread?
+    mutable std::mutex m_Mutex;
 };
 } // namespace ONYX

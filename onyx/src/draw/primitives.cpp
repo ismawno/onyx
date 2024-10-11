@@ -42,23 +42,50 @@ ONYX_DIMENSION_TEMPLATE const PrimitiveDataLayout &IPrimitives<N>::GetDataLayout
     return getBuffers<N>()->Layout[p_PrimitiveIndex];
 }
 
+ONYX_DIMENSION_TEMPLATE static IndexVertexData<N> createRegularPolygonBuffers(const usize p_Sides) noexcept
+{
+    IndexVertexData<N> data{};
+    data.Vertices.resize(p_Sides);
+    data.Indices.resize(p_Sides * 3);
+
+    const f32 angle = 2.f * glm::pi<f32>() / (Sides - 1);
+    for (Index i = 0; i < Sides; ++i)
+    {
+        const f32 x = glm::cos(angle * i);
+        const f32 y = glm::sin(angle * i);
+        data.Indices[i * 3] = 0;
+        data.Indices[i * 3 + 1] = i;
+        data.Indices[i * 3 + 2] = i + 1;
+
+        if constexpr (N == 2)
+            data.Vertices[i] = Vertex<N>{vec<N>{x, y}};
+        else
+            data.Vertices[i] = Vertex<N>{vec<N>{x, y, 0.f}, vec<N>{0.f, 0.f, 1.f}};
+    }
+
+    return data;
+}
+
 ONYX_DIMENSION_TEMPLATE static void createBuffers(const std::span<const char *const> p_Paths) noexcept
 {
     BufferLayout layout;
     IndexVertexData<N> data{};
 
+    static constexpr usize toLoad = Primitives<N>::AMOUNT - ONYX_REGULAR_POLYGON_COUNT;
+    static constexpr usize toCreate = ONYX_REGULAR_POLYGON_COUNT;
     for (usize i = 0; i < Primitives<N>::AMOUNT; ++i)
     {
-        const IndexVertexData<N> buffers = Load<N>(p_Paths[i]);
+        const IndexVertexData<N> buffers =
+            i < toLoad ? Load<N>(p_Paths[i]) : createRegularPolygonBuffers<N>(i - toLoad + 3);
 
-        layout[i].VerticesStart = data.Vertices.size();
-        layout[i].VerticesSize = buffers.Vertices.size();
-        layout[i].IndicesStart = data.Indices.size();
-        layout[i].IndicesSize = buffers.Indices.size();
+        layout[i].VerticesStart = static_cast<u32>(data.Vertices.size());
+        layout[i].IndicesStart = static_cast<u32>(data.Indices.size());
+        layout[i].IndicesSize = static_cast<u32>(buffers.Indices.size());
 
         data.Vertices.insert(data.Vertices.end(), buffers.Vertices.begin(), buffers.Vertices.end());
         data.Indices.insert(data.Indices.end(), buffers.Indices.begin(), buffers.Indices.end());
     }
+
     auto &buffers = getBuffers<N>();
     const std::span<const Vertex<N>> vertices{data.Vertices};
     const std::span<const Index> indices{data.Indices};
@@ -83,52 +110,6 @@ void DestroyCombinedPrimitiveBuffers() noexcept
 {
     s_Buffers2D.Destroy();
     s_Buffers3D.Destroy();
-}
-
-template <u32 N, usize Sides>
-    requires(Sides > 2)
-static IndexVertexData<N> createRegularPolygonBuffers() noexcept
-{
-    if constexpr (Sides == 3)
-        return loadTriangleModel<N>();
-    else if constexpr (Sides == 4)
-        return loadSquareModel<N>();
-    else
-    {
-        std::array<Vertex<N>, Sides> vertices;
-        std::array<Index, Sides * 3> indices;
-
-        const f32 angle = 2.f * glm::pi<f32>() / (Sides - 1);
-        for (Index i = 0; i < Sides; ++i)
-        {
-            const f32 x = glm::cos(angle * i);
-            const f32 y = glm::sin(angle * i);
-            indices[i * 3] = 0;
-            indices[i * 3 + 1] = i;
-            indices[i * 3 + 2] = i + 1;
-
-            if constexpr (N == 2)
-                vertices[i] = Vertex<N>{vec<N>{x, y}};
-            else
-                vertices[i] = Vertex<N>{vec<N>{x, y, 0.f}, vec<N>{0.f, 0.f, 1.f}};
-        }
-
-        const std::span<const Vertex<N>> verticesSpan{vertices};
-        const std::span<const Index> indicesSpan{indices};
-        return new Model(verticesSpan, indicesSpan);
-    }
-}
-
-template <u32 N, usize MaxSides> static void createAllRegularPolygonBuffers() noexcept
-{
-    if constexpr (MaxSides < 3)
-        return;
-    else
-    {
-        static constexpr usize index = MaxSides - 3 + (N - 2) * ONYX_MAX_REGULAR_POLYGON_SIDES;
-        s_Models[index] = createRegularPolygonModel<N, MaxSides>();
-        createAllRegularPolygonModels<N, MaxSides - 1>();
-    }
 }
 
 template struct Primitives<2>;

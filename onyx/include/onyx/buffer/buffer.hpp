@@ -40,9 +40,9 @@ class ONYX_API Buffer
     void Invalidate(VkDeviceSize p_Size = VK_WHOLE_SIZE, VkDeviceSize p_Offset = 0) noexcept;
     void InvalidateAt(usize p_Index) noexcept;
 
-    VkDescriptorBufferInfo DescriptorInfo(VkDeviceSize p_Size = VK_WHOLE_SIZE,
-                                          VkDeviceSize p_Offset = 0) const noexcept;
-    VkDescriptorBufferInfo DescriptorInfoAt(usize p_Index) const noexcept;
+    VkDescriptorBufferInfo GetDescriptorInfo(VkDeviceSize p_Size = VK_WHOLE_SIZE,
+                                             VkDeviceSize p_Offset = 0) const noexcept;
+    VkDescriptorBufferInfo GetDescriptorInfoAt(usize p_Index) const noexcept;
 
     void *GetData() const noexcept;
     void *ReadAt(usize p_Index) const noexcept;

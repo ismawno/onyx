@@ -3,6 +3,7 @@
 #include "onyx/core/core.hpp"
 #include "onyx/draw/primitives.hpp"
 #include "onyx/descriptors/descriptor_pool.hpp"
+#include "onyx/descriptors/descriptor_set_layout.hpp"
 #include "onyx/rendering/swap_chain.hpp"
 #include "kit/core/logging.hpp"
 
@@ -16,7 +17,9 @@ static KIT::ITaskManager *s_Manager;
 
 static KIT::Ref<Instance> s_Instance;
 static KIT::Ref<Device> s_Device;
+
 static KIT::Ref<DescriptorPool> s_DescriptorPool;
+static KIT::Ref<DescriptorSetLayout> s_DescriptorSetLayout;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
@@ -37,7 +40,7 @@ static void createVulkanAllocator() noexcept
                        "Failed to create vulkan allocator");
 }
 
-static void createDescriptorPool() noexcept
+static void createDescriptorData() noexcept
 {
     DescriptorPool::Specs poolSpecs{};
     poolSpecs.MaxSets = 8;
@@ -48,6 +51,15 @@ static void createDescriptorPool() noexcept
     poolSpecs.PoolSizes = std::span<const VkDescriptorPoolSize>(&poolSize, 1);
 
     s_DescriptorPool = KIT::Ref<DescriptorPool>::Create(poolSpecs);
+
+    VkDescriptorSetLayoutBinding binding{};
+    binding.binding = 0;
+    binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    binding.descriptorCount = 1;
+    binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    const std::span<const VkDescriptorSetLayoutBinding> bindings(&binding, 1);
+    s_DescriptorSetLayout = KIT::Ref<DescriptorSetLayout>::Create(bindings);
 }
 
 void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept
@@ -92,6 +104,10 @@ const KIT::Ref<DescriptorPool> &Core::GetDescriptorPool() noexcept
 {
     return s_DescriptorPool;
 }
+const KIT::Ref<DescriptorSetLayout> &Core::GetStorageBufferDescriptorSetLayout() noexcept
+{
+    return s_DescriptorSetLayout;
+}
 
 KIT::StackAllocator *Core::GetStackAllocator() noexcept
 {
@@ -108,7 +124,7 @@ const KIT::Ref<Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
     {
         s_Device = KIT::Ref<Device>::Create(p_Surface);
         createVulkanAllocator();
-        createDescriptorPool();
+        createDescriptorData();
         CreateCombinedPrimitiveBuffers();
     }
     KIT_ASSERT(s_Device->IsSuitable(p_Surface), "The current device is not suitable for the given surface");
