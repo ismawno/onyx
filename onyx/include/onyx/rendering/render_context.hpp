@@ -14,6 +14,9 @@
 // NoFill is an illusion. I could implement Stroke by drawing lines across the edges of the shape, then Implement NoFill
 // by using a transparent color
 
+// Many of the overloads could be specifically implmented to make some operations a bit more efficient, but for now they
+// just rely on the general implementation
+
 namespace ONYX
 {
 ONYX_DIMENSION_TEMPLATE struct RenderState;
@@ -34,13 +37,21 @@ template <> struct RenderState<3>
 {
     mat4 Transform{1.f};
     mat4 Axes{1.f};
+    mat4 Projection{1.f};
     Color FillColor = Color::WHITE;
+    bool HasProjection = false;
+    vec3 LightDirection{0.f, -1.f, 0.f};
+    f32 LightIntensity = 0.9f;
+    f32 AmbientIntensity = 0.1f;
 };
+
+using RenderState2D = RenderState<2>;
+using RenderState3D = RenderState<3>;
 
 ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
 {
   public:
-    IRenderContext(Window *p_Window) noexcept;
+    IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
 
     void Background(const Color &p_Color) noexcept;
     template <typename... ColorArgs>
@@ -49,6 +60,18 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     {
         Background(Color(std::forward<ColorArgs>(p_ColorArgs)...));
     }
+
+    void Transform(const mat<N> &p_Transform) noexcept;
+    void Transform(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept;
+    void Transform(const vec<N> &p_Translation, const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept;
+    void Transform(const vec<N> &p_Translation, f32 p_Scale) noexcept;
+    void Transform(const vec<N> &p_Translation, f32 p_Scale, const rot<N> &p_Rotation) noexcept;
+
+    void TransformAxes(const mat<N> &p_Transform) noexcept;
+    void TransformAxes(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept;
+    void TransformAxes(const vec<N> &p_Translation, const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept;
+    void TransformAxes(const vec<N> &p_Translation, f32 p_Scale) noexcept;
+    void TransformAxes(const vec<N> &p_Translation, f32 p_Scale, const rot<N> &p_Rotation) noexcept;
 
     void Translate(const vec<N> &p_Translation) noexcept;
     void Scale(const vec<N> &p_Scale) noexcept;
@@ -95,12 +118,12 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void RoundedLine(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.1f) noexcept;
     void RoundedLineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.1f) noexcept;
 
-    void Mesh(const Model *p_Model, const mat<N> &p_Transform) noexcept;
-    void Mesh(const Model *p_Model, const vec<N> &p_Translation) noexcept;
-    void Mesh(const Model *p_Model, const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept;
-    void Mesh(const Model *p_Model, const vec<N> &p_Translation, const vec<N> &p_Scale,
+    void Mesh(const KIT::Ref<const Model<N>> &p_Model) noexcept;
+    void Mesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
+    void Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation) noexcept;
+    void Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept;
+    void Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation, const vec<N> &p_Scale,
               const rot<N> &p_Rotation) noexcept;
-    void Mesh(const Model *p_Model) noexcept;
 
     void Push() noexcept;
     void PushAndClear() noexcept;
@@ -125,16 +148,18 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void SetCurrentAxes(const mat<N> &p_Axes) noexcept;
 
   protected:
-    // this method MUST be called externally (ie by a derived class). it wont be called automatically
-    void initializeRenderers(VkRenderPass p_RenderPass, VkDescriptorSetLayout p_Layout) noexcept;
+    void drawMesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
+    void drawPrimitive(usize p_PrimitiveIndex, const mat<N> &p_Transform) noexcept;
+    void drawCircle(const mat<N> &p_Transform) noexcept;
     void resetRenderState() noexcept;
-    void circleMesh(const mat<N> &p_Transform) noexcept;
 
     KIT::Storage<MeshRenderer<N>> m_MeshRenderer;
+    KIT::Storage<PrimitiveRenderer<N>> m_PrimitiveRenderer;
     KIT::Storage<CircleRenderer<N>> m_CircleRenderer;
 
     DynamicArray<RenderState<N>> m_RenderState;
     Window *m_Window;
+    u32 m_FrameIndex = 0;
 };
 
 ONYX_DIMENSION_TEMPLATE class RenderContext;
@@ -142,8 +167,9 @@ ONYX_DIMENSION_TEMPLATE class RenderContext;
 template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 {
   public:
-    RenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
-
+    using IRenderContext<2>::IRenderContext;
+    using IRenderContext<2>::Transform;
+    using IRenderContext<2>::TransformAxes;
     using IRenderContext<2>::Translate;
     using IRenderContext<2>::Scale;
     using IRenderContext<2>::TranslateAxes;
@@ -156,6 +182,15 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     using IRenderContext<2>::Line;
     using IRenderContext<2>::RoundedLine;
     using IRenderContext<2>::Fill;
+    using IRenderContext<2>::Mesh;
+
+    void Transform(f32 p_X, f32 p_Y, f32 p_Scale) noexcept;
+    void Transform(f32 p_X, f32 p_Y, f32 p_XS, f32 p_YS) noexcept;
+    void Transform(f32 p_X, f32 p_Y, f32 p_XS, f32 p_YS, f32 p_Rotation) noexcept;
+
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_Scale) noexcept;
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_XS, f32 p_YS) noexcept;
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_XS, f32 p_YS, f32 p_Rotation) noexcept;
 
     void Translate(f32 p_X, f32 p_Y) noexcept;
     void Scale(f32 p_X, f32 p_Y) noexcept;
@@ -185,6 +220,11 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     void Line(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
     void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
 
+    void Mesh(const KIT::Ref<const Model2D> &p_Model, f32 p_X, f32 p_Y) noexcept;
+    void Mesh(const KIT::Ref<const Model2D> &p_Model, f32 p_X, f32 p_Y, f32 p_Scale) noexcept;
+    void Mesh(const KIT::Ref<const Model2D> &p_Model, f32 p_X, f32 p_Y, f32 p_XS, f32 p_YS) noexcept;
+    void Mesh(const KIT::Ref<const Model2D> &p_Model, f32 p_X, f32 p_Y, f32 p_XS, f32 p_YS, f32 p_Rotation) noexcept;
+
     void Fill() noexcept;
     void NoFill() noexcept;
 
@@ -208,9 +248,9 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 {
   public:
-    RenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
-    ~RenderContext() noexcept;
-
+    using IRenderContext<3>::IRenderContext;
+    using IRenderContext<3>::Transform;
+    using IRenderContext<3>::TransformAxes;
     using IRenderContext<3>::Translate;
     using IRenderContext<3>::Scale;
     using IRenderContext<3>::TranslateAxes;
@@ -222,6 +262,29 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     using IRenderContext<3>::Ellipse;
     using IRenderContext<3>::Line;
     using IRenderContext<3>::RoundedLine;
+    using IRenderContext<3>::Mesh;
+
+    void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale) noexcept;
+    void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS) noexcept;
+
+    void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale, const quat &p_Quaternion) noexcept;
+    void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS, const quat &p_Quaternion) noexcept;
+
+    void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale, const vec3 &p_Angles) noexcept;
+    void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS, const vec3 &p_Angles) noexcept;
+    void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS, f32 p_XRot, f32 p_YRot,
+                   f32 p_ZRot) noexcept;
+
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale) noexcept;
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS) noexcept;
+
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale, const quat &p_Quaternion) noexcept;
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS, const quat &p_Quaternion) noexcept;
+
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale, const vec3 &p_Angles) noexcept;
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS, const vec3 &p_Angles) noexcept;
+    void TransformAxes(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS, f32 p_XRot, f32 p_YRot,
+                       f32 p_ZRot) noexcept;
 
     void Translate(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
     void Scale(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
@@ -245,9 +308,9 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void RotateAxes(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
     void RotateAxes(f32 p_Angle, const vec3 &p_Axis) noexcept;
 
-    void RotateAxesX(f32 p_X) noexcept;
-    void RotateAxesY(f32 p_Y) noexcept;
-    void RotateAxesZ(f32 p_Z) noexcept;
+    void RotateXAxes(f32 p_X) noexcept;
+    void RotateYAxes(f32 p_Y) noexcept;
+    void RotateZAxes(f32 p_Z) noexcept;
 
     void Square(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
     void Square(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Size) noexcept;
@@ -279,6 +342,16 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
                      f32 p_Thickness = 0.1f) noexcept;
 
+    void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale) noexcept;
+    void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS) noexcept;
+    void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS,
+              const quat &p_Quaternion) noexcept;
+    void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS,
+              const vec3 &p_Angles) noexcept;
+    void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS,
+              f32 p_XRot, f32 p_YRot, f32 p_ZRot) noexcept;
+
     void Cube() noexcept;
     void Cube(f32 p_Size) noexcept;
 
@@ -302,8 +375,9 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 
     void Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions, const quat &p_Quaternion) noexcept;
     void Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions, const vec3 &p_Angles) noexcept;
-    void Cuboid(f32 p_X, f32 p_Y, f32 p_Z, const vec3 &p_Dimensions, const quat &p_Quaternion) noexcept;
-    void Cuboid(f32 p_X, f32 p_Y, f32 p_Z, const vec3 &p_Dimensions, f32 p_XRot, f32 p_YRot, f32 p_ZRot) noexcept;
+    void Cuboid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim, const quat &p_Quaternion) noexcept;
+    void Cuboid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim, f32 p_XRot, f32 p_YRot,
+                f32 p_ZRot) noexcept;
 
     void Sphere() noexcept;
     void Sphere(f32 p_Radius) noexcept;
@@ -322,41 +396,21 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 
     void Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimensions, const quat &p_Quaternion) noexcept;
     void Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimensions, const vec3 &p_Angles) noexcept;
-    void Ellipsoid(f32 p_X, f32 p_Y, f32 p_Z, const vec3 &p_Dimensions, const quat &p_Quaternion) noexcept;
-    void Ellipsoid(f32 p_X, f32 p_Y, f32 p_Z, const vec3 &p_Dimensions, f32 p_XRot, f32 p_YRot, f32 p_ZRot) noexcept;
+    void Ellipsoid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim, const quat &p_Quaternion) noexcept;
+    void Ellipsoid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim, f32 p_XRot, f32 p_YRot,
+                   f32 p_ZRot) noexcept;
 
-    void SetPerspectiveProjection(f32 p_FieldOfAxes, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
-    void SetOrthographicProjection() noexcept;
+    void Projection(const mat4 &p_Projection) noexcept;
+    void Perspective(f32 p_FieldOfAxes, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
+    void Orthographic() noexcept;
 
     vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
 
-    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
-    // TODO: Handle this in a better way
     vec3 LightDirection{0.f, -1.f, 0.f};
     f32 LightIntensity = 0.9f;
     f32 AmbientIntensity = 0.1f;
-
-  private:
-    struct GlobalUniformHelper
-    {
-        GlobalUniformHelper(const DescriptorPool::Specs &p_PoolSpecs,
-                            const std::span<const VkDescriptorSetLayoutBinding> p_Bindings,
-                            const Buffer::Specs &p_BufferSpecs) noexcept
-            : Pool(p_PoolSpecs), Layout(p_Bindings), UniformBuffer(p_BufferSpecs)
-        {
-        }
-        DescriptorPool Pool;
-        DescriptorSetLayout Layout;
-        Buffer UniformBuffer;
-        std::array<VkDescriptorSet, SwapChain::MFIF> DescriptorSets;
-    };
-
-    void createGlobalUniformHelper() noexcept;
-
-    KIT::Storage<GlobalUniformHelper> m_GlobalUniformHelper;
-    KIT::Ref<Device> m_Device;
-    mat4 m_Projection{1.f};
 };
 
 using RenderContext2D = RenderContext<2>;

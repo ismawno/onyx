@@ -28,7 +28,6 @@ template <> struct ONYX_API RenderInfo<3>
 {
     VkCommandBuffer CommandBuffer;
     u32 FrameIndex;
-    mat4 *Projection;
 
     vec3 LightDirection;
     f32 LightIntensity;
