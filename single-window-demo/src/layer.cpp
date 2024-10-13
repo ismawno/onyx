@@ -25,11 +25,16 @@ void SWExampleLayer::OnRender() noexcept
     t += m_Application->GetDeltaTime();
     (void)t;
     context->Background(Color::BLACK);
-    context->ScaleAxes(0.3f);
     context->KeepWindowAspect();
+    context->ScaleAxes(0.1f);
+    context->TranslateAxes(0.f, 2.f);
 
+    context->Stroke(Color::RED);
+    context->StrokeWidth(0.3f);
+    context->Fill(Color::MAGENTA);
+    context->Circle(0.f, -2.f, 3.f);
     context->Fill(Color::CYAN);
-    context->Stroke(Color::MAGENTA);
+
     context->StrokeWidth(0.1f);
     context->NoFill();
 

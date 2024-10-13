@@ -5,6 +5,14 @@
 #include "onyx/core/device.hpp"
 #include "onyx/core/vma.hpp"
 
+#ifndef ONYX_MAX_DESCRIPTOR_SETS
+#    define ONYX_MAX_DESCRIPTOR_SETS 100
+#endif
+
+#ifndef ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS
+#    define ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS 100
+#endif
+
 namespace KIT
 {
 class StackAllocator;

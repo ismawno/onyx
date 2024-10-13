@@ -43,11 +43,12 @@ static void createVulkanAllocator() noexcept
 static void createDescriptorData() noexcept
 {
     DescriptorPool::Specs poolSpecs{};
-    poolSpecs.MaxSets = 8;
+    poolSpecs.MaxSets = ONYX_MAX_DESCRIPTOR_SETS;
+    poolSpecs.PoolFlags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSize.descriptorCount = 8;
+    poolSize.descriptorCount = ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS;
     poolSpecs.PoolSizes = std::span<const VkDescriptorPoolSize>(&poolSize, 1);
 
     s_DescriptorPool = KIT::Ref<DescriptorPool>::Create(poolSpecs);
@@ -79,10 +80,11 @@ void Core::Terminate() noexcept
     if (s_Device)
         s_Device->WaitIdle();
     vmaDestroyAllocator(s_VulkanAllocator);
-    // Release both the instance and the device. After this call, these two are no longer guaranteed to be valid
+    // Release all refcounted objects. After this call, none guaranteed to be valid
     s_Device = nullptr;
     s_Instance = nullptr;
     s_DescriptorPool = nullptr;
+    s_DescriptorSetLayout = nullptr;
 }
 
 const KIT::Ref<Instance> &Core::GetInstance() noexcept

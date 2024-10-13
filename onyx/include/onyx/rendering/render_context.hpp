@@ -153,9 +153,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void drawCircle(const mat<N> &p_Transform) noexcept;
     void resetRenderState() noexcept;
 
-    KIT::Storage<MeshRenderer<N>> m_MeshRenderer;
-    KIT::Storage<PrimitiveRenderer<N>> m_PrimitiveRenderer;
-    KIT::Storage<CircleRenderer<N>> m_CircleRenderer;
+    MeshRenderer<N> m_MeshRenderer;
+    PrimitiveRenderer<N> m_PrimitiveRenderer;
+    CircleRenderer<N> m_CircleRenderer;
 
     DynamicArray<RenderState<N>> m_RenderState;
     Window *m_Window;

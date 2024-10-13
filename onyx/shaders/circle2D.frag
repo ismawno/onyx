@@ -1,4 +1,4 @@
-#version 450
+#version 460
 
 layout(location = 0) in vec4 i_FragColor;
 layout(location = 1) in vec2 i_LocalPosition;

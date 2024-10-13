@@ -11,19 +11,17 @@ namespace ONYX
 {
 
 ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
-    : m_Window(p_Window)
+    : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_CircleRenderer(p_RenderPass),
+      m_Window(p_Window)
 {
-    m_MeshRenderer.Create(p_RenderPass);
-    m_PrimitiveRenderer.Create(p_RenderPass);
-    m_CircleRenderer.Create(p_RenderPass);
     m_RenderState.push_back(RenderState<N>{});
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Background(const Color &p_Color) noexcept
 {
-    m_MeshRenderer->Flush();
-    m_PrimitiveRenderer->Flush();
-    m_CircleRenderer->Flush();
+    m_MeshRenderer.Flush();
+    m_PrimitiveRenderer.Flush();
+    m_CircleRenderer.Flush();
     m_Window->BackgroundColor = p_Color;
 }
 
@@ -309,7 +307,7 @@ static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWi
 {
     const vec2 scale = Transform2D::ExtractScaleTransform(p_Transform);
     const vec2 stroke = (scale + p_StrokeWidth) / scale;
-    return Transform2D::ComputeScaleMatrix(stroke) * p_Transform;
+    return p_Transform * Transform2D::ComputeScaleMatrix(stroke);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawMesh(const KIT::Ref<const Model<N>> &p_Model,
@@ -321,16 +319,16 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawMesh(const KIT::Ref<const Mo
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
             const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            m_MeshRenderer->Draw(p_Model, strokeTransform, state.StrokeColor, m_FrameIndex);
+            m_MeshRenderer.Draw(p_Model, strokeTransform, state.StrokeColor, m_FrameIndex);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        m_MeshRenderer->Draw(p_Model, state.Axes * p_Transform, color, m_FrameIndex);
+        m_MeshRenderer.Draw(p_Model, state.Axes * p_Transform, color, m_FrameIndex);
     }
     else
     {
         const mat4 transform =
             state.HasProjection ? state.Projection * state.Axes * p_Transform : state.Axes * p_Transform;
-        m_MeshRenderer->Draw(p_Model, transform, state.FillColor, m_FrameIndex);
+        m_MeshRenderer.Draw(p_Model, transform, state.FillColor, m_FrameIndex);
     }
 }
 
@@ -343,16 +341,16 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawPrimitive(const usize p_Prim
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
             const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            m_PrimitiveRenderer->Draw(p_PrimitiveIndex, strokeTransform, state.StrokeColor, m_FrameIndex);
+            m_PrimitiveRenderer.Draw(p_PrimitiveIndex, strokeTransform, state.StrokeColor, m_FrameIndex);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        m_PrimitiveRenderer->Draw(p_PrimitiveIndex, state.Axes * p_Transform, color, m_FrameIndex);
+        m_PrimitiveRenderer.Draw(p_PrimitiveIndex, state.Axes * p_Transform, color, m_FrameIndex);
     }
     else
     {
         const mat4 transform =
             state.HasProjection ? state.Projection * state.Axes * p_Transform : state.Axes * p_Transform;
-        m_PrimitiveRenderer->Draw(p_PrimitiveIndex, transform, state.FillColor, m_FrameIndex);
+        m_PrimitiveRenderer.Draw(p_PrimitiveIndex, transform, state.FillColor, m_FrameIndex);
     }
 }
 
@@ -364,16 +362,16 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawCircle(const mat<N> &p_Trans
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
             const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            m_CircleRenderer->Draw(strokeTransform, state.StrokeColor, m_FrameIndex);
+            m_CircleRenderer.Draw(strokeTransform, state.StrokeColor, m_FrameIndex);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        m_CircleRenderer->Draw(state.Axes * p_Transform, color, m_FrameIndex);
+        m_CircleRenderer.Draw(state.Axes * p_Transform, color, m_FrameIndex);
     }
     else
     {
         const mat4 transform =
             state.HasProjection ? state.Projection * state.Axes * p_Transform : state.Axes * p_Transform;
-        m_CircleRenderer->Draw(transform, state.FillColor, m_FrameIndex);
+        m_CircleRenderer.Draw(transform, state.FillColor, m_FrameIndex);
     }
 }
 
@@ -411,6 +409,10 @@ void RenderContext<2>::Square(const f32 p_X, const f32 p_Y) noexcept
 void RenderContext<2>::Square(const f32 p_X, const f32 p_Y, const f32 p_Size) noexcept
 {
     Square(vec2{p_X, p_Y}, p_Size);
+}
+void RenderContext<2>::Square(const f32 p_X, const f32 p_Y, const f32 p_Size, const f32 p_Rotation) noexcept
+{
+    Square(vec2{p_X, p_Y}, p_Size, p_Rotation);
 }
 void RenderContext<3>::Square(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
@@ -685,7 +687,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Line(const vec<N> &p_Start, cons
     t.Scale.y = p_Thickness;
 
     const mat<N> transform = m_RenderState.back().Axes * t.ComputeTransform() * m_RenderState.back().Transform;
-    m_PrimitiveRenderer->Draw(Primitives<N>::GetSquareIndex(), transform, m_RenderState.back().FillColor, m_FrameIndex);
+    m_PrimitiveRenderer.Draw(Primitives<N>::GetSquareIndex(), transform, m_RenderState.back().FillColor, m_FrameIndex);
 }
 
 void RenderContext<2>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
@@ -1065,9 +1067,9 @@ void RenderContext<2>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
     renderInfo.CommandBuffer = p_Commandbuffer;
     renderInfo.FrameIndex = m_FrameIndex;
 
-    m_MeshRenderer->Render(renderInfo);
-    m_PrimitiveRenderer->Render(renderInfo);
-    m_CircleRenderer->Render(renderInfo);
+    m_MeshRenderer.Render(renderInfo);
+    m_PrimitiveRenderer.Render(renderInfo);
+    m_CircleRenderer.Render(renderInfo);
 
     resetRenderState();
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
@@ -1083,9 +1085,9 @@ void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
     renderInfo.LightIntensity = LightIntensity;
     renderInfo.AmbientIntensity = AmbientIntensity;
 
-    m_MeshRenderer->Render(renderInfo);
-    m_PrimitiveRenderer->Render(renderInfo);
-    m_CircleRenderer->Render(renderInfo);
+    m_MeshRenderer.Render(renderInfo);
+    m_PrimitiveRenderer.Render(renderInfo);
+    m_CircleRenderer.Render(renderInfo);
 
     resetRenderState();
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;

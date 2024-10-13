@@ -191,7 +191,7 @@ Pipeline::Specs::Specs() noexcept
     PipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     PipelineLayoutInfo.setLayoutCount = 0;
     PipelineLayoutInfo.pSetLayouts = nullptr;
-    PipelineLayoutInfo.pushConstantRangeCount = 1;
+    PipelineLayoutInfo.pushConstantRangeCount = 0;
 
     DynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     DynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -202,6 +202,6 @@ void Pipeline::Specs::Populate() noexcept
     ColorBlendInfo.pAttachments = &ColorBlendAttachment;
     DynamicStateInfo.pDynamicStates = DynamicStateEnables.data();
     DynamicStateInfo.dynamicStateCount = static_cast<u32>(DynamicStateEnables.size());
-    PipelineLayoutInfo.pPushConstantRanges = &PushConstantRange;
+    PipelineLayoutInfo.pPushConstantRanges = PushConstantRange.stageFlags != 0 ? &PushConstantRange : nullptr;
 }
 } // namespace ONYX

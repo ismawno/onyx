@@ -33,13 +33,14 @@ template <> struct ShaderPaths<3>
 
 ONYX_DIMENSION_TEMPLATE static Pipeline::Specs defaultPipelineSpecs(const char *vpath, const char *fpath,
                                                                     const VkRenderPass p_RenderPass,
-                                                                    const VkDescriptorSetLayout p_Layout) noexcept
+                                                                    const VkDescriptorSetLayout *p_Layout) noexcept
 {
     Pipeline::Specs specs{};
     if constexpr (N == 3)
     {
         specs.PushConstantRange.size = sizeof(PushConstantData3D);
         specs.PushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        specs.PipelineLayoutInfo.pushConstantRangeCount = 1;
         specs.ColorBlendAttachment.blendEnable = VK_FALSE;
     }
     else
@@ -51,7 +52,7 @@ ONYX_DIMENSION_TEMPLATE static Pipeline::Specs defaultPipelineSpecs(const char *
     specs.InputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     specs.RenderPass = p_RenderPass;
 
-    specs.PipelineLayoutInfo.pSetLayouts = &p_Layout;
+    specs.PipelineLayoutInfo.pSetLayouts = p_Layout;
     specs.PipelineLayoutInfo.setLayoutCount = 1;
 
     return specs;
@@ -75,8 +76,9 @@ ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::MeshRenderer(const VkRenderPass p_Rende
     m_DescriptorPool = Core::GetDescriptorPool();
     m_DescriptorSetLayout = Core::GetStorageBufferDescriptorSetLayout();
 
-    Pipeline::Specs specs = defaultPipelineSpecs<N>(ShaderPaths<N>::MeshVertex, ShaderPaths<N>::MeshFragment,
-                                                    p_RenderPass, m_DescriptorSetLayout->GetLayout());
+    const VkDescriptorSetLayout layout = m_DescriptorSetLayout->GetLayout();
+    Pipeline::Specs specs =
+        defaultPipelineSpecs<N>(ShaderPaths<N>::MeshVertex, ShaderPaths<N>::MeshFragment, p_RenderPass, &layout);
 
     const auto &bdesc = Vertex<N>::GetBindingDescriptions();
     const auto &attdesc = Vertex<N>::GetAttributeDescriptions();
@@ -155,7 +157,7 @@ static void pushConstantData(const RenderInfo<3> &p_Info, const Pipeline *p_Pipe
     pdata.LightIntensity = p_Info.LightIntensity;
     pdata.AmbientIntensity = p_Info.AmbientIntensity;
 
-    vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline->GetLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0,
+    vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline->GetLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                        sizeof(PushConstantData3D), &pdata);
 }
 
@@ -196,6 +198,8 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info
 ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Flush() noexcept
 {
     m_BatchData.clear();
+    for (usize i = 0; i < SwapChain::MFIF; ++i)
+        m_PerFrameData.Sizes[i] = 0;
 }
 
 template class MeshRenderer<2>;
@@ -206,8 +210,15 @@ ONYX_DIMENSION_TEMPLATE PrimitiveRenderer<N>::PrimitiveRenderer(const VkRenderPa
     m_DescriptorPool = Core::GetDescriptorPool();
     m_DescriptorSetLayout = Core::GetStorageBufferDescriptorSetLayout();
 
-    const Pipeline::Specs specs = defaultPipelineSpecs<N>(ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment,
-                                                          p_RenderPass, m_DescriptorSetLayout->GetLayout());
+    const VkDescriptorSetLayout layout = m_DescriptorSetLayout->GetLayout();
+    Pipeline::Specs specs =
+        defaultPipelineSpecs<N>(ShaderPaths<N>::MeshVertex, ShaderPaths<N>::MeshFragment, p_RenderPass, &layout);
+
+    const auto &bdesc = Vertex<N>::GetBindingDescriptions();
+    const auto &attdesc = Vertex<N>::GetAttributeDescriptions();
+    specs.BindingDescriptions = std::span<const VkVertexInputBindingDescription>(bdesc);
+    specs.AttributeDescriptions = std::span<const VkVertexInputAttributeDescription>(attdesc);
+
     m_Pipeline.Create(specs);
 
     for (usize i = 0; i < SwapChain::MFIF; ++i)
@@ -284,6 +295,8 @@ ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Flush() noexcept
 {
     for (auto &data : m_BatchData)
         data.clear();
+    for (usize i = 0; i < SwapChain::MFIF; ++i)
+        m_PerFrameData.Sizes[i] = 0;
 }
 
 template class PrimitiveRenderer<2>;
@@ -294,8 +307,9 @@ ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::CircleRenderer(const VkRenderPass p_R
     m_DescriptorPool = Core::GetDescriptorPool();
     m_DescriptorSetLayout = Core::GetStorageBufferDescriptorSetLayout();
 
-    const Pipeline::Specs specs = defaultPipelineSpecs<N>(ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment,
-                                                          p_RenderPass, m_DescriptorSetLayout->GetLayout());
+    const VkDescriptorSetLayout layout = m_DescriptorSetLayout->GetLayout();
+    const Pipeline::Specs specs =
+        defaultPipelineSpecs<N>(ShaderPaths<N>::CircleVertex, ShaderPaths<N>::CircleFragment, p_RenderPass, &layout);
     m_Pipeline.Create(specs);
 
     for (usize i = 0; i < SwapChain::MFIF; ++i)
@@ -356,6 +370,8 @@ ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Render(const RenderInfo<N> &p_In
 ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Flush() noexcept
 {
     m_BatchData.clear();
+    for (usize i = 0; i < SwapChain::MFIF; ++i)
+        m_PerFrameData.Sizes[i] = 0;
 }
 
 template class CircleRenderer<2>;
