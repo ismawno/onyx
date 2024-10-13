@@ -26,7 +26,7 @@ template <typename T> class DeviceBuffer
 
         Buffer stagingBuffer(stagingSpecs);
         stagingBuffer.Map();
-        stagingBuffer.Write(p_Indices.data());
+        stagingBuffer.Write(p_Data.data());
         stagingBuffer.Flush();
         stagingBuffer.Unmap();
 

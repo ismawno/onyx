@@ -41,7 +41,7 @@ ONYX_DIMENSION_TEMPLATE void Model<N>::Draw(const VkCommandBuffer p_CommandBuffe
                                             const u32 p_FirstInstance, const u32 p_FirstVertex) const noexcept
 {
     KIT_ASSERT(!m_HasIndices, "Model does not have indices, use Draw instead");
-    vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer->GetInstanceCount()), p_InstanceCount, p_FirstVertex,
+    vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer.GetInstanceCount()), p_InstanceCount, p_FirstVertex,
               p_FirstInstance);
 }
 
@@ -66,7 +66,7 @@ ONYX_DIMENSION_TEMPLATE const IndexBuffer &Model<N>::GetIndexBuffer() const noex
 // this loads and stores the model in the user models
 ONYX_DIMENSION_TEMPLATE KIT::Scope<const Model<N>> Model<N>::Load(const std::string_view p_Path) noexcept
 {
-    const IndexVertexData<N> data = Load<N>(p_Path);
+    const IndexVertexData<N> data = ONYX::Load<N>(p_Path);
     const std::span<const Vertex<N>> vertices{data.Vertices};
     const std::span<const Index> indices{data.Indices};
 
@@ -74,5 +74,8 @@ ONYX_DIMENSION_TEMPLATE KIT::Scope<const Model<N>> Model<N>::Load(const std::str
     return needsIndices ? KIT::Scope<const Model<N>>::Create(vertices, indices)
                         : KIT::Scope<const Model<N>>::Create(vertices);
 }
+
+template class Model<2>;
+template class Model<3>;
 
 } // namespace ONYX

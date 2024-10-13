@@ -43,4 +43,7 @@ ONYX_DIMENSION_TEMPLATE IndexVertexData<N> Load(const std::string_view p_Path) n
 template IndexVertexData<2> Load(const std::string_view p_Path) noexcept;
 template IndexVertexData<3> Load(const std::string_view p_Path) noexcept;
 
+template struct IndexVertexData<2>;
+template struct IndexVertexData<3>;
+
 } // namespace ONYX

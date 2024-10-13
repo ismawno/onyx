@@ -78,7 +78,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
 
     void Draw(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform, const vec4 &p_Color,
               u32 p_FrameIndex) noexcept;
-    void Render(const RenderInfo<N> &p_Info) const noexcept;
+    void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
 
@@ -87,7 +87,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
     // Could actually use a pointer to the model instead of a reference and take extra care the model still lives
     // while drawing
     HashMap<KIT::Ref<const Model<N>>, DynamicArray<DrawData<N>>> m_BatchData;
-    PerFrameData m_PerFrameData{ONYX_STORAGE_BUFFER_INITIAL_CAPACITY};
+    PerFrameData<N> m_PerFrameData{ONYX_STORAGE_BUFFER_INITIAL_CAPACITY};
 
     KIT::Ref<DescriptorPool> m_DescriptorPool;
     KIT::Ref<DescriptorSetLayout> m_DescriptorSetLayout;
@@ -104,7 +104,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PrimitiveRenderer
     ~PrimitiveRenderer() noexcept;
 
     void Draw(usize p_PrimitiveIndex, const mat<N> &p_Transform, const vec4 &p_Color, u32 p_FrameIndex) noexcept;
-    void Render(const RenderInfo<N> &p_Info) const noexcept;
+    void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
 
@@ -112,7 +112,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PrimitiveRenderer
     KIT::Storage<Pipeline> m_Pipeline;
 
     std::array<DynamicArray<DrawData<N>>, Primitives<N>::AMOUNT> m_BatchData;
-    PerFrameData m_PerFrameData{ONYX_STORAGE_BUFFER_INITIAL_CAPACITY};
+    PerFrameData<N> m_PerFrameData{ONYX_STORAGE_BUFFER_INITIAL_CAPACITY};
 
     KIT::Ref<DescriptorPool> m_DescriptorPool;
     KIT::Ref<DescriptorSetLayout> m_DescriptorSetLayout;
@@ -129,7 +129,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
     ~CircleRenderer() noexcept;
 
     void Draw(const mat<N> &p_Transform, const vec4 &p_Color, u32 p_FrameIndex) noexcept;
-    void Render(const RenderInfo<N> &p_Info) const noexcept;
+    void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
 
@@ -137,7 +137,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
     KIT::Storage<Pipeline> m_Pipeline;
 
     DynamicArray<DrawData<N>> m_BatchData;
-    PerFrameData m_PerFrameData{ONYX_STORAGE_BUFFER_INITIAL_CAPACITY};
+    PerFrameData<N> m_PerFrameData{ONYX_STORAGE_BUFFER_INITIAL_CAPACITY};
 
     KIT::Ref<DescriptorPool> m_DescriptorPool;
     KIT::Ref<DescriptorSetLayout> m_DescriptorSetLayout;

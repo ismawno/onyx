@@ -55,7 +55,7 @@ class ONYX_API Window
             m_RenderSystem->BeginRenderPass(BackgroundColor);
             std::forward<F>(p_Submission)(cmd);
             m_RenderContext2D->Render(cmd);
-            m_RenderContext3D->Render(m_RenderSystem->GetFrameIndex(), cmd);
+            m_RenderContext3D->Render(cmd);
             m_RenderSystem->EndRenderPass();
             m_RenderSystem->EndFrame(*this);
             return true;

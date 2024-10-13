@@ -99,7 +99,7 @@ void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, co
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TransformAxes(const mat<N> &p_Axes) noexcept
 {
-    m_RenderState.back().Axes *= m_RenderState.back().Axes;
+    m_RenderState.back().Axes *= p_Axes;
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation,
                                                               const vec<N> &p_Scale) noexcept
@@ -280,10 +280,6 @@ void RenderContext<3>::RotateAxes(const quat &p_Quaternion) noexcept
 {
     TransformAxes(Transform3D::ComputeRotationMatrix(p_Quaternion));
 }
-void RenderContext<3>::RotateAxes(const vec3 &p_Angles) noexcept
-{
-    TransformAxes(Transform3D::ComputeRotationMatrix(p_Angles));
-}
 void RenderContext<3>::RotateAxes(const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
 {
     RotateAxes(vec3{p_XRot, p_YRot, p_ZRot});
@@ -383,7 +379,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawCircle(const mat<N> &p_Trans
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square() noexcept
 {
-    drawPrimitive(Primitves<N>::GetSquareIndex(), m_RenderState.back().Transform);
+    drawPrimitive(Primitives<N>::GetSquareIndex(), m_RenderState.back().Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square(const f32 p_Size) noexcept
 {
@@ -424,16 +420,17 @@ void RenderContext<3>::Square(const f32 p_X, const f32 p_Y, const f32 p_Z, const
 {
     Square(vec3{p_X, p_Y, p_Z}, p_Size);
 }
-void RenderContext<3>::Square(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size, const quat &p_Quaternion)
+void RenderContext<3>::Square(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size,
+                              const quat &p_Quaternion) noexcept
 {
     Square(vec3{p_X, p_Y, p_Z}, p_Size, p_Quaternion);
 }
 void RenderContext<3>::Square(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size, const f32 p_XRot,
-                              const f32 p_YRot, const f32 p_ZRot)
+                              const f32 p_YRot, const f32 p_ZRot) noexcept
 {
     Square(vec3{p_X, p_Y, p_Z}, p_Size, quat{{p_XRot, p_YRot, p_ZRot}});
 }
-void RenderContext<3>::Square(const vec3 &p_Position, const f32 p_Size, const vec3 &p_Angles)
+void RenderContext<3>::Square(const vec3 &p_Position, const f32 p_Size, const vec3 &p_Angles) noexcept
 {
     Square(p_Position, p_Size, quat{p_Angles});
 }
@@ -585,8 +582,8 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const vec<N> &p_Position)
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const vec<N> &p_Position, const f32 p_Radius) noexcept
 {
-    const mat<N> transform =
-        ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, p_Radius) * m_RenderState.back().Transform;
+    const mat<N> transform = ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{p_Radius}) *
+                             m_RenderState.back().Transform;
     drawCircle(transform);
 }
 void RenderContext<2>::Circle(const f32 p_X, const f32 p_Y) noexcept
@@ -677,17 +674,17 @@ void RenderContext<3>::Ellipse(const vec3 &p_Position, const vec2 &p_Dimensions,
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Line(const vec<N> &p_Start, const vec<N> &p_End,
                                                      const f32 p_Thickness) noexcept
 {
-    ONYX::Transform<N> transform;
-    transform.Translation = 0.5f * (p_Start + p_End);
+    ONYX::Transform<N> t;
+    t.Translation = 0.5f * (p_Start + p_End);
     const vec<N> delta = p_End - p_Start;
     if constexpr (N == 2)
-        transform.Rotation = glm::atan(delta.y, delta.x);
+        t.Rotation = glm::atan(delta.y, delta.x);
     else
-        transform.Rotation = quat{{0.f, glm::atan(delta.y, delta.x), glm::atan(delta.z, delta.x)}};
-    transform.Scale.x = glm::length(delta);
-    transform.Scale.y = p_Thickness;
+        t.Rotation = quat{{0.f, glm::atan(delta.y, delta.x), glm::atan(delta.z, delta.x)}};
+    t.Scale.x = glm::length(delta);
+    t.Scale.y = p_Thickness;
 
-    const mat<N> transform = m_RenderState.back().Axes * transform.ComputeTransform() * m_RenderState.back().Transform;
+    const mat<N> transform = m_RenderState.back().Axes * t.ComputeTransform() * m_RenderState.back().Transform;
     m_PrimitiveRenderer->Draw(Primitives<N>::GetSquareIndex(), transform, m_RenderState.back().FillColor, m_FrameIndex);
 }
 
@@ -771,7 +768,8 @@ void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z, const f
 {
     Cube(vec3{p_X, p_Y, p_Z}, p_Size);
 }
-void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size, const quat &p_Quaternion)
+void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size,
+                            const quat &p_Quaternion) noexcept
 {
     Cube(vec3{p_X, p_Y, p_Z}, p_Size, p_Quaternion);
 }
@@ -1072,6 +1070,7 @@ void RenderContext<2>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
     m_CircleRenderer->Render(renderInfo);
 
     resetRenderState();
+    m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
 }
 
 void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
@@ -1089,6 +1088,7 @@ void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
     m_CircleRenderer->Render(renderInfo);
 
     resetRenderState();
+    m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
 }
 
 vec2 RenderContext<2>::GetMouseCoordinates() const noexcept

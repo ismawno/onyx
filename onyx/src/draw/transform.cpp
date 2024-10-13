@@ -46,7 +46,7 @@ template <> struct Trigonometry<3>
 };
 
 #if ONYX_COORDINATE_SYSTEM == ONYX_CS_CENTERED_CARTESIAN
-ONYX_DIMENSION_TEMPLATE static vec<N + 1> flipTranslation(const vec<N> p_Translation)
+template <typename Vec> static Vec flipTranslation(Vec p_Translation)
 {
     p_Translation.y = -p_Translation.y;
     return p_Translation;
@@ -95,7 +95,10 @@ ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeReverseTransform(const vec<N
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeInverseTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
                                                                      const rot<N> &p_Rotation) noexcept
 {
-    return ComputeReverseTransform(-p_Translation, 1.f / p_Scale, glm::conjugate(p_Rotation));
+    if constexpr (N == 2)
+        return ComputeReverseTransform(-p_Translation, 1.f / p_Scale, -p_Rotation);
+    else
+        return ComputeReverseTransform(-p_Translation, 1.f / p_Scale, glm::conjugate(p_Rotation));
 }
 
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeTransform() const noexcept
@@ -115,10 +118,10 @@ ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeTranslationScaleMatrix(const
                                                                            const vec<N> &p_Scale) noexcept
 {
     if constexpr (N == 2)
-        return mat3{vec3(p_Scale.x, 0.f, 0.f), vec3(0.f, p_Scale.y, 0.f), ADAPT_TRANSLATION(p_Translation)};
+        return mat3{vec3(p_Scale.x, 0.f, 0.f), vec3(0.f, p_Scale.y, 0.f), vec3{ADAPT_TRANSLATION(p_Translation), 1.f}};
     else
         return mat4{vec4(p_Scale.x, 0.f, 0.f, 0.f), vec4(0.f, p_Scale.y, 0.f, 0.f), vec4(0.f, 0.f, p_Scale.z, 0.f),
-                    ADAPT_TRANSLATION(p_Translation)};
+                    vec4{ADAPT_TRANSLATION(p_Translation), 1.f}};
 }
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeReverseTranslationScaleMatrix(const vec<N> &p_Translation,
                                                                                   const vec<N> &p_Scale) noexcept
@@ -157,10 +160,10 @@ ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeInverseTranslationScaleMatri
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeTranslationMatrix(const vec<N> &p_Translation) noexcept
 {
     if constexpr (N == 2)
-        return mat3{vec3(1.f, 0.f, 0.f), vec3(0.f, 1.f, 0.f), ADAPT_TRANSLATION(p_Translation)};
+        return mat3{vec3(1.f, 0.f, 0.f), vec3(0.f, 1.f, 0.f), vec3{ADAPT_TRANSLATION(p_Translation), 1.f}};
     else
         return mat4{vec4(1.f, 0.f, 0.f, 0.f), vec4(0.f, 1.f, 0.f, 0.f), vec4(0.f, 0.f, 1.f, 0.f),
-                    ADAPT_TRANSLATION(p_Translation)};
+                    vec4{ADAPT_TRANSLATION(p_Translation), 1.f}};
 }
 ONYX_DIMENSION_TEMPLATE mat<N> Transform<N>::ComputeScaleMatrix(const vec<N> &p_Scale) noexcept
 {

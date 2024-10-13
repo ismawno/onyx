@@ -10,7 +10,7 @@
 
 namespace ONYX
 {
-class ONYX_API DescriptorSetLayout
+class ONYX_API DescriptorSetLayout : public KIT::RefCounted<DescriptorSetLayout>
 {
     KIT_NON_COPYABLE(DescriptorSetLayout)
   public:

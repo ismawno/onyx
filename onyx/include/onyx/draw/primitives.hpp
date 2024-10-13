@@ -52,7 +52,7 @@ template <> struct Primitives<2> : IPrimitives<2>
     static constexpr usize AMOUNT = 2 + ONYX_REGULAR_POLYGON_COUNT;
 };
 
-template <> struct Primitives<3> : Primitives<2>
+template <> struct Primitives<3> : IPrimitives<3>
 {
     static constexpr usize AMOUNT = 4 + ONYX_REGULAR_POLYGON_COUNT;
 

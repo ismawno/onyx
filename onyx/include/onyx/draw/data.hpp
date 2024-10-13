@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/draw/vertex.hpp"
+#include "onyx/buffer/index_buffer.hpp"
 
 namespace ONYX
 {

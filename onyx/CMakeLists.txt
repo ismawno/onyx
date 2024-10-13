@@ -6,7 +6,9 @@ set(SOURCES
     src/core/core.cpp
     src/core/device.cpp
     src/core/instance.cpp
-    src/rendering/buffer.cpp
+    src/buffer/buffer.cpp
+    src/buffer/vertex_buffer.cpp
+    src/buffer/index_buffer.cpp
     src/rendering/pipeline.cpp
     src/rendering/swap_chain.cpp
     src/rendering/render_context.cpp
@@ -18,6 +20,8 @@ set(SOURCES
     src/draw/vertex.cpp
     src/draw/color.cpp
     src/draw/transform.cpp
+    src/draw/primitives.cpp
+    src/draw/data.cpp
     src/draw/model.cpp
     src/app/app.cpp
     src/app/mwapp.cpp

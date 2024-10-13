@@ -11,7 +11,7 @@
 
 namespace ONYX
 {
-class ONYX_API DescriptorPool
+class ONYX_API DescriptorPool : public KIT::RefCounted<DescriptorPool>
 {
     KIT_NON_COPYABLE(DescriptorPool)
   public:

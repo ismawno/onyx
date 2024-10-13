@@ -14,4 +14,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API VertexBuffer : public DeviceBuffer<Vertex
 
     void Bind(VkCommandBuffer p_CommandBuffer, VkDeviceSize p_Offset = 0) const noexcept;
 };
+
+using VertexBuffer2D = VertexBuffer<2>;
+using VertexBuffer3D = VertexBuffer<3>;
 } // namespace ONYX

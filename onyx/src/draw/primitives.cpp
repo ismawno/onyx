@@ -8,14 +8,14 @@ ONYX_DIMENSION_TEMPLATE using BufferLayout = std::array<PrimitiveDataLayout, Pri
 ONYX_DIMENSION_TEMPLATE struct IndexVertexBuffers
 {
     IndexVertexBuffers(const std::span<const Vertex<N>> p_Vertices, const std::span<const Index> p_Indices,
-                       const BufferLayout &p_Layout) noexcept
+                       const BufferLayout<N> &p_Layout) noexcept
         : Vertices{p_Vertices}, Indices{p_Indices}, Layout{p_Layout}
     {
     }
 
     VertexBuffer<N> Vertices;
     IndexBuffer Indices;
-    BufferLayout Layout;
+    BufferLayout<N> Layout;
 };
 
 static KIT::Storage<IndexVertexBuffers<2>> s_Buffers2D;
@@ -48,8 +48,8 @@ ONYX_DIMENSION_TEMPLATE static IndexVertexData<N> createRegularPolygonBuffers(co
     data.Vertices.resize(p_Sides);
     data.Indices.resize(p_Sides * 3);
 
-    const f32 angle = 2.f * glm::pi<f32>() / (Sides - 1);
-    for (Index i = 0; i < Sides; ++i)
+    const f32 angle = 2.f * glm::pi<f32>() / (p_Sides - 1);
+    for (Index i = 0; i < p_Sides; ++i)
     {
         const f32 x = glm::cos(angle * i);
         const f32 y = glm::sin(angle * i);
@@ -68,11 +68,10 @@ ONYX_DIMENSION_TEMPLATE static IndexVertexData<N> createRegularPolygonBuffers(co
 
 ONYX_DIMENSION_TEMPLATE static void createBuffers(const std::span<const char *const> p_Paths) noexcept
 {
-    BufferLayout layout;
+    BufferLayout<N> layout;
     IndexVertexData<N> data{};
 
     static constexpr usize toLoad = Primitives<N>::AMOUNT - ONYX_REGULAR_POLYGON_COUNT;
-    static constexpr usize toCreate = ONYX_REGULAR_POLYGON_COUNT;
     for (usize i = 0; i < Primitives<N>::AMOUNT; ++i)
     {
         const IndexVertexData<N> buffers =
@@ -112,7 +111,7 @@ void DestroyCombinedPrimitiveBuffers() noexcept
     s_Buffers3D.Destroy();
 }
 
-template struct Primitives<2>;
-template struct Primitives<3>;
+template struct IPrimitives<2>;
+template struct IPrimitives<3>;
 
 } // namespace ONYX
