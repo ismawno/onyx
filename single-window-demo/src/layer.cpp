@@ -20,52 +20,29 @@ SWExampleLayer::SWExampleLayer(Application *p_Application) noexcept : Layer("Exa
 
 void SWExampleLayer::OnRender() noexcept
 {
-    RenderContext2D *context = m_Application->GetMainWindow()->GetRenderContext2D();
+    RenderContext3D *context = m_Application->GetMainWindow()->GetRenderContext3D();
     static f32 t = 0.f;
     t += m_Application->GetDeltaTime();
     (void)t;
     context->Background(Color::BLACK);
     context->KeepWindowAspect();
-    context->ScaleAxes(0.1f);
-    context->TranslateAxes(0.f, 2.f);
+    context->Fill(Color::WHITE);
+    // context->ScaleAxes(0.1f);
+    // context->Perspective(glm::radians(45.f), 1.f, 0.1f, 100.f);
 
-    context->Stroke(Color::RED);
-    context->StrokeWidth(0.3f);
-    context->Fill(Color::MAGENTA);
-    context->Circle(0.f, -2.f, 3.f);
-    context->Fill(Color::CYAN);
-
-    context->StrokeWidth(0.1f);
-    context->NoFill();
-
-    // context->TranslateAxes(0.2f, 0.f);
-    // context->ScaleAxes(t);
-    // context->Rotate(t);
-    // context->Scale(0.4f);
-    // context->Square(3.f, 0.f);
-
-    // context->Push();
-    // context->TranslateAxes(3.f, 0.f);
-    // context->RotateAxes(t);
-    // context->Square(0.f, 3.f);
-    // context->Pop();
-
-    // context->TranslateAxes(3.f, 5.f);
-    // context->RotateAxes(t);
-    // context->Square();
-
-    // context->RotateView(t);
-    // context->Square(0.f, 5.f);
+    context->RotateX(0.5f);
+    context->RotateY(0.5f);
+    context->Cube(0.f, 0.f, 8.f);
 }
 
 void SWExampleLayer::OnImGuiRender() noexcept
 {
     if (ImGui::Begin("Window"))
     {
-        RenderContext2D *context = m_Application->GetMainWindow()->GetRenderContext2D();
-        const vec2 mpos = context->GetMouseCoordinates();
+        RenderContext3D *context = m_Application->GetMainWindow()->GetRenderContext3D();
+        const vec3 mpos = context->GetMouseCoordinates(0.0f);
         // const vec2 mpos = Input::GetMousePosition(m_Application->GetMainWindow());
-        ImGui::Text("Mouse Position: (%.2f, %.2f)", mpos.x, mpos.y);
+        ImGui::Text("Mouse Position: (%.2f, %.2f, %.2f)", mpos.x, mpos.y, mpos.z);
     }
     ImGui::End();
 }

@@ -40,9 +40,6 @@ template <> struct RenderState<3>
     mat4 Projection{1.f};
     Color FillColor = Color::WHITE;
     bool HasProjection = false;
-    vec3 LightDirection{0.f, -1.f, 0.f};
-    f32 LightIntensity = 0.9f;
-    f32 AmbientIntensity = 0.1f;
 };
 
 using RenderState2D = RenderState<2>;
@@ -401,7 +398,7 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
                    f32 p_ZRot) noexcept;
 
     void Projection(const mat4 &p_Projection) noexcept;
-    void Perspective(f32 p_FieldOfAxes, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
+    void Perspective(f32 p_FieldOfView, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
     void Orthographic() noexcept;
 
     vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
@@ -409,8 +406,8 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
     vec3 LightDirection{0.f, -1.f, 0.f};
-    f32 LightIntensity = 0.9f;
-    f32 AmbientIntensity = 0.1f;
+    f32 LightIntensity = 1.f;
+    f32 AmbientIntensity = 0.4f;
 };
 
 using RenderContext2D = RenderContext<2>;

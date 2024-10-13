@@ -44,7 +44,8 @@ template <> struct ONYX_API DrawData<2>
 template <> struct ONYX_API DrawData<3>
 {
     mat4 Transform;
-    mat4 ColorAndNormalMatrix;
+    mat4 NormalMatrix;
+    vec4 Color;
 };
 
 ONYX_DIMENSION_TEMPLATE struct ONYX_API PerFrameData

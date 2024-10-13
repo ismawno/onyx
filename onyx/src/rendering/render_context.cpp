@@ -1113,7 +1113,9 @@ vec3 RenderContext<3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
 #else
     const mat4 &axes = m_RenderState.back().Axes;
 #endif
-    return glm::inverse(axes) * vec4{mpos, p_Depth, 1.f};
+    if (!m_RenderState.back().HasProjection)
+        return glm::inverse(axes) * vec4{mpos, p_Depth, 1.f};
+    return glm::inverse(m_RenderState.back().Projection * axes) * vec4{mpos, p_Depth, 1.f};
 }
 
 void RenderContext<3>::Projection(const mat4 &p_Projection) noexcept

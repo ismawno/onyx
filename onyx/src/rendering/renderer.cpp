@@ -119,7 +119,8 @@ ONYX_DIMENSION_TEMPLATE DrawData<N> createDrawData(const mat<N> &p_Transform, co
     if constexpr (N == 3)
     {
         drawData.Transform = p_Transform;
-        drawData.ColorAndNormalMatrix = mat4(glm::transpose(mat3(glm::inverse(p_Transform))));
+        drawData.NormalMatrix = mat4(glm::transpose(mat3(glm::inverse(p_Transform))));
+        drawData.Color = p_Color;
     }
     else
     {

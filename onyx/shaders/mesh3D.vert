@@ -9,7 +9,8 @@ layout(location = 1) out vec3 o_FragNormal;
 struct ObjectData
 {
     mat4 Transform;
-    mat4 ColorAndNormalMatrix;
+    mat4 NormalMatrix;
+    vec4 Color;
 };
 
 layout(set = 0, binding = 0) readonly buffer ObjectBuffer
@@ -23,7 +24,7 @@ void main()
     gl_Position = objectBuffer.Objects[gl_InstanceIndex].Transform * vec4(i_Position, 1.0);
     gl_PointSize = 1.0;
 
-    const mat3 normalMatrix = mat3(objectBuffer.Objects[gl_InstanceIndex].ColorAndNormalMatrix);
+    const mat3 normalMatrix = mat3(objectBuffer.Objects[gl_InstanceIndex].NormalMatrix);
     o_FragNormal = normalize(normalMatrix * i_Normal);
-    o_FragColor = objectBuffer.Objects[gl_InstanceIndex].ColorAndNormalMatrix[3];
+    o_FragColor = objectBuffer.Objects[gl_InstanceIndex].Color;
 }
