@@ -112,9 +112,6 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void Line(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.1f) noexcept;
     void LineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.1f) noexcept;
 
-    void RoundedLine(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.1f) noexcept;
-    void RoundedLineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.1f) noexcept;
-
     void Mesh(const KIT::Ref<const Model<N>> &p_Model) noexcept;
     void Mesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
     void Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation) noexcept;
@@ -177,7 +174,6 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     using IRenderContext<2>::Circle;
     using IRenderContext<2>::Ellipse;
     using IRenderContext<2>::Line;
-    using IRenderContext<2>::RoundedLine;
     using IRenderContext<2>::Fill;
     using IRenderContext<2>::Mesh;
 
@@ -215,7 +211,11 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     void Ellipse(f32 p_X, f32 p_Y, f32 p_XDim, f32 p_YDim, f32 p_Rotation) noexcept;
 
     void Line(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
+
+    void RoundedLine(const vec2 &p_Start, const vec2 &p_End, f32 p_Thickness = 0.1f) noexcept;
     void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
+
+    void RoundedLineStrip(std::span<const vec2> p_Points, f32 p_Thickness = 0.1f) noexcept;
 
     void Mesh(const KIT::Ref<const Model2D> &p_Model, f32 p_X, f32 p_Y) noexcept;
     void Mesh(const KIT::Ref<const Model2D> &p_Model, f32 p_X, f32 p_Y, f32 p_Scale) noexcept;
@@ -245,7 +245,6 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 {
   public:
-    using IRenderContext<3>::IRenderContext;
     using IRenderContext<3>::Transform;
     using IRenderContext<3>::TransformAxes;
     using IRenderContext<3>::Translate;
@@ -258,8 +257,9 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     using IRenderContext<3>::Circle;
     using IRenderContext<3>::Ellipse;
     using IRenderContext<3>::Line;
-    using IRenderContext<3>::RoundedLine;
     using IRenderContext<3>::Mesh;
+
+    RenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
 
     void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale) noexcept;
     void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS) noexcept;
@@ -336,8 +336,12 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 
     void Line(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
               f32 p_Thickness = 0.1f) noexcept;
+
+    void RoundedLine(const vec3 &p_Start, const vec3 &p_End, f32 p_Thickness = 0.1f) noexcept;
     void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
                      f32 p_Thickness = 0.1f) noexcept;
+
+    void RoundedLineStrip(std::span<const vec3> p_Points, f32 p_Thickness = 0.1f) noexcept;
 
     void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z) noexcept;
     void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale) noexcept;
@@ -401,13 +405,22 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void Perspective(f32 p_FieldOfView, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
     void Orthographic() noexcept;
 
+    void AddDirectionalLight(const vec3 &p_Direction, f32 p_Intensity) noexcept;
+    void RemoveDirectionalLight(usize p_Index) noexcept;
+
+    const vec4 &GetDirectionalLight(usize p_Index) const noexcept;
+    vec4 &GetDirectionalLight(usize p_Index) noexcept;
+
+    usize GetDirectionalLightCount() const noexcept;
+
     vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
 
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
-    vec3 LightDirection{0.f, -1.f, 0.f};
-    f32 LightIntensity = 1.f;
     f32 AmbientIntensity = 0.4f;
+
+  private:
+    KIT::StaticArray<vec4, ONYX_MAX_DIRECTIONAL_LIGHTS> m_DirectionalLights;
 };
 
 using RenderContext2D = RenderContext<2>;

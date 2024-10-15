@@ -6,9 +6,10 @@ namespace ONYX
 {
 struct PushConstantData3D
 {
-    vec4 LightDirection;
-    f32 LightIntensity;
+    vec4 DirectionalLights[ONYX_MAX_DIRECTIONAL_LIGHTS];
     f32 AmbientIntensity;
+    u32 LightCount;
+    u32 _Padding[2];
 };
 
 ONYX_DIMENSION_TEMPLATE struct ShaderPaths;
@@ -100,42 +101,10 @@ ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::~MeshRenderer() noexcept
     m_Pipeline.Destroy();
 }
 
-static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
+ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const u32 p_FrameIndex, const KIT::Ref<const Model<N>> &p_Model,
+                                                   const DrawData<N> &p_DrawData) noexcept
 {
-    mat4 t4{1.f};
-    t4[0][0] = p_Transform[0][0];
-    t4[0][1] = p_Transform[0][1];
-    t4[1][0] = p_Transform[1][0];
-    t4[1][1] = p_Transform[1][1];
-
-    t4[3][0] = p_Transform[2][0];
-    t4[3][1] = p_Transform[2][1];
-    return t4;
-}
-
-ONYX_DIMENSION_TEMPLATE DrawData<N> createDrawData(const mat<N> &p_Transform, const vec4 &p_Color) noexcept
-{
-    DrawData<N> drawData;
-    if constexpr (N == 3)
-    {
-        drawData.Transform = p_Transform;
-        drawData.NormalMatrix = mat4(glm::transpose(mat3(glm::inverse(p_Transform))));
-        drawData.Color = p_Color;
-    }
-    else
-    {
-        drawData.Transform = transform3ToTransform4(p_Transform);
-        drawData.Color = p_Color;
-    }
-    return drawData;
-}
-
-ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform,
-                                                   const vec4 &p_Color, const u32 p_FrameIndex) noexcept
-{
-    const DrawData<N> drawData = createDrawData<N>(p_Transform, p_Color);
-
-    m_BatchData[p_Model].push_back(drawData);
+    m_BatchData[p_Model].push_back(p_DrawData);
     const usize size = m_PerFrameData.Sizes[p_FrameIndex];
     auto &buffer = m_PerFrameData.Buffers[p_FrameIndex];
 
@@ -154,9 +123,10 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const KIT::Ref<const Model<N>
 static void pushConstantData(const RenderInfo<3> &p_Info, const Pipeline *p_Pipeline) noexcept
 {
     PushConstantData3D pdata{};
-    pdata.LightDirection = vec4{p_Info.LightDirection, 0.f};
-    pdata.LightIntensity = p_Info.LightIntensity;
+    pdata.LightCount = p_Info.DirectionalLights.size();
     pdata.AmbientIntensity = p_Info.AmbientIntensity;
+    for (usize i = 0; i < pdata.LightCount; ++i)
+        pdata.DirectionalLights[i] = p_Info.DirectionalLights[i];
 
     vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline->GetLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                        sizeof(PushConstantData3D), &pdata);
@@ -235,8 +205,8 @@ ONYX_DIMENSION_TEMPLATE PrimitiveRenderer<N>::~PrimitiveRenderer() noexcept
     m_Pipeline.Destroy();
 }
 
-ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Draw(const usize p_PrimitiveIndex, const mat<N> &p_Transform,
-                                                        const vec4 &p_Color, const u32 p_FrameIndex) noexcept
+ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Draw(const u32 p_FrameIndex, const usize p_PrimitiveIndex,
+                                                        const DrawData<N> &p_DrawData) noexcept
 {
     const usize size = m_PerFrameData.Sizes[p_FrameIndex];
     auto &buffer = m_PerFrameData.Buffers[p_FrameIndex];
@@ -250,8 +220,7 @@ ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Draw(const usize p_PrimitiveI
             info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(), m_PerFrameData.DescriptorSets[p_FrameIndex]);
     }
 
-    const DrawData<N> drawData = createDrawData<N>(p_Transform, p_Color);
-    m_BatchData[p_PrimitiveIndex].push_back(drawData);
+    m_BatchData[p_PrimitiveIndex].push_back(p_DrawData);
     m_PerFrameData.Sizes[p_FrameIndex] = size + 1;
 }
 
@@ -283,12 +252,15 @@ ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Render(const RenderInfo<N> &p
     vbuffer->Bind(p_Info.CommandBuffer);
     ibuffer->Bind(p_Info.CommandBuffer);
 
+    u32 firstInstance = 0;
     for (usize i = 0; i < m_BatchData.size(); ++i)
     {
         const PrimitiveDataLayout &layout = Primitives<N>::GetDataLayout(i);
         const u32 size = static_cast<u32>(m_BatchData[i].size());
 
-        vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart, 0);
+        vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart,
+                         firstInstance);
+        firstInstance += size;
     }
 }
 
@@ -326,8 +298,7 @@ ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::~CircleRenderer() noexcept
     m_Pipeline.Destroy();
 }
 
-ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Draw(const mat<N> &p_Transform, const vec4 &p_Color,
-                                                     const u32 p_FrameIndex) noexcept
+ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Draw(const u32 p_FrameIndex, const DrawData<N> &p_DrawData) noexcept
 {
     const usize size = m_BatchData.size();
     auto &buffer = m_PerFrameData.Buffers[p_FrameIndex];
@@ -341,8 +312,7 @@ ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Draw(const mat<N> &p_Transform, 
             info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(), m_PerFrameData.DescriptorSets[p_FrameIndex]);
     }
 
-    const DrawData<N> drawData = createDrawData<N>(p_Transform, p_Color);
-    m_BatchData.push_back(drawData);
+    m_BatchData.push_back(p_DrawData);
 }
 
 ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept

@@ -17,6 +17,13 @@ ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, cons
     m_RenderState.push_back(RenderState<N>{});
 }
 
+RenderContext<3>::RenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
+    : IRenderContext<3>(p_Window, p_RenderPass)
+{
+    const vec4 light{0.f, -1.f, 0.f, 1.f};
+    m_DirectionalLights.push_back(light);
+}
+
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Background(const Color &p_Color) noexcept
 {
     m_MeshRenderer.Flush();
@@ -303,6 +310,37 @@ void RenderContext<3>::RotateZAxes(const f32 p_Angle) noexcept
     RotateAxes(vec3{0.f, 0.f, p_Angle});
 }
 
+static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
+{
+    mat4 t4{1.f};
+    t4[0][0] = p_Transform[0][0];
+    t4[0][1] = p_Transform[0][1];
+    t4[1][0] = p_Transform[1][0];
+    t4[1][1] = p_Transform[1][1];
+
+    t4[3][0] = p_Transform[2][0];
+    t4[3][1] = p_Transform[2][1];
+    return t4;
+}
+
+ONYX_DIMENSION_TEMPLATE DrawData<N> createDrawData(const mat<N> &p_Transform, const mat<N> &p_ProjView,
+                                                   const vec4 &p_Color) noexcept
+{
+    DrawData<N> drawData;
+    if constexpr (N == 3)
+    {
+        drawData.Transform = p_ProjView * p_Transform;
+        drawData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
+        drawData.Color = p_Color;
+    }
+    else
+    {
+        drawData.Transform = transform3ToTransform4(p_ProjView * p_Transform);
+        drawData.Color = p_Color;
+    }
+    return drawData;
+}
+
 static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWidth) noexcept
 {
     const vec2 scale = Transform2D::ExtractScaleTransform(p_Transform);
@@ -318,17 +356,20 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawMesh(const KIT::Ref<const Mo
     {
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
-            const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            m_MeshRenderer.Draw(p_Model, strokeTransform, state.StrokeColor, m_FrameIndex);
+            const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
+            const DrawData2D strokeData = createDrawData<2>(strokeTransform, state.Axes, state.StrokeColor);
+            m_MeshRenderer.Draw(m_FrameIndex, p_Model, strokeData);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        m_MeshRenderer.Draw(p_Model, state.Axes * p_Transform, color, m_FrameIndex);
+        const DrawData2D data = createDrawData<2>(p_Transform, state.Axes, color);
+        m_MeshRenderer.Draw(m_FrameIndex, p_Model, data);
     }
     else
     {
-        const mat4 transform =
-            state.HasProjection ? state.Projection * state.Axes * p_Transform : state.Axes * p_Transform;
-        m_MeshRenderer.Draw(p_Model, transform, state.FillColor, m_FrameIndex);
+        const DrawData3D data = state.HasProjection
+                                    ? createDrawData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
+                                    : createDrawData<3>(p_Transform, state.Axes, state.FillColor);
+        m_MeshRenderer.Draw(m_FrameIndex, p_Model, data);
     }
 }
 
@@ -340,17 +381,20 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawPrimitive(const usize p_Prim
     {
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
-            const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            m_PrimitiveRenderer.Draw(p_PrimitiveIndex, strokeTransform, state.StrokeColor, m_FrameIndex);
+            const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
+            const DrawData2D strokeData = createDrawData<2>(strokeTransform, state.Axes, state.StrokeColor);
+            m_PrimitiveRenderer.Draw(m_FrameIndex, p_PrimitiveIndex, strokeData);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        m_PrimitiveRenderer.Draw(p_PrimitiveIndex, state.Axes * p_Transform, color, m_FrameIndex);
+        const DrawData2D data = createDrawData<2>(p_Transform, state.Axes, color);
+        m_PrimitiveRenderer.Draw(m_FrameIndex, p_PrimitiveIndex, data);
     }
     else
     {
-        const mat4 transform =
-            state.HasProjection ? state.Projection * state.Axes * p_Transform : state.Axes * p_Transform;
-        m_PrimitiveRenderer.Draw(p_PrimitiveIndex, transform, state.FillColor, m_FrameIndex);
+        const DrawData3D data = state.HasProjection
+                                    ? createDrawData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
+                                    : createDrawData<3>(p_Transform, state.Axes, state.FillColor);
+        m_PrimitiveRenderer.Draw(m_FrameIndex, p_PrimitiveIndex, data);
     }
 }
 
@@ -361,17 +405,20 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawCircle(const mat<N> &p_Trans
     {
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
-            const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            m_CircleRenderer.Draw(strokeTransform, state.StrokeColor, m_FrameIndex);
+            const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
+            const DrawData2D strokeData = createDrawData<2>(strokeTransform, state.Axes, state.StrokeColor);
+            m_CircleRenderer.Draw(m_FrameIndex, strokeData);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        m_CircleRenderer.Draw(state.Axes * p_Transform, color, m_FrameIndex);
+        const DrawData2D data = createDrawData<2>(p_Transform, state.Axes, color);
+        m_CircleRenderer.Draw(m_FrameIndex, data);
     }
     else
     {
-        const mat4 transform =
-            state.HasProjection ? state.Projection * state.Axes * p_Transform : state.Axes * p_Transform;
-        m_CircleRenderer.Draw(transform, state.FillColor, m_FrameIndex);
+        const DrawData3D data = state.HasProjection
+                                    ? createDrawData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
+                                    : createDrawData<3>(p_Transform, state.Axes, state.FillColor);
+        m_CircleRenderer.Draw(m_FrameIndex, data);
     }
 }
 
@@ -686,8 +733,11 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Line(const vec<N> &p_Start, cons
     t.Scale.x = glm::length(delta);
     t.Scale.y = p_Thickness;
 
-    const mat<N> transform = m_RenderState.back().Axes * t.ComputeTransform() * m_RenderState.back().Transform;
-    m_PrimitiveRenderer.Draw(Primitives<N>::GetSquareIndex(), transform, m_RenderState.back().FillColor, m_FrameIndex);
+    const mat<N> transform = t.ComputeTransform() * m_RenderState.back().Transform;
+    if constexpr (N == 2)
+        drawPrimitive(Primitives2D::GetSquareIndex(), transform);
+    else
+        drawPrimitive(Primitives3D::GetCubeIndex(), transform);
 }
 
 void RenderContext<2>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
@@ -709,20 +759,30 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::LineStrip(std::span<const vec<N>
         Line(p_Points[i], p_Points[i + 1], p_Thickness);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::RoundedLine(const vec<N> &p_Start, const vec<N> &p_End,
-                                                            const f32 p_Thickness) noexcept
+void RenderContext<2>::RoundedLine(const vec2 &p_Start, const vec2 &p_End, const f32 p_Thickness) noexcept
 {
     Line(p_Start, p_End, p_Thickness);
     Circle(p_Start, p_Thickness);
     Circle(p_End, p_Thickness);
 }
+void RenderContext<3>::RoundedLine(const vec3 &p_Start, const vec3 &p_End, const f32 p_Thickness) noexcept
+{
+    Line(p_Start, p_End, p_Thickness);
+    Sphere(p_Start, p_Thickness);
+    Sphere(p_End, p_Thickness);
+}
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::RoundedLineStrip(std::span<const vec<N>> p_Points,
-                                                                 const f32 p_Thickness) noexcept
+void RenderContext<2>::RoundedLineStrip(std::span<const vec2> p_Points, const f32 p_Thickness) noexcept
 {
     LineStrip(p_Points, p_Thickness);
-    for (const vec<N> &point : p_Points)
+    for (const vec2 &point : p_Points)
         Circle(point, p_Thickness);
+}
+void RenderContext<3>::RoundedLineStrip(std::span<const vec3> p_Points, const f32 p_Thickness) noexcept
+{
+    LineStrip(p_Points, p_Thickness);
+    for (const vec3 &point : p_Points)
+        Sphere(point, p_Thickness);
 }
 
 void RenderContext<2>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
@@ -1081,8 +1141,7 @@ void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
     renderInfo.CommandBuffer = p_Commandbuffer;
     renderInfo.FrameIndex = m_FrameIndex;
 
-    renderInfo.LightDirection = LightDirection;
-    renderInfo.LightIntensity = LightIntensity;
+    renderInfo.DirectionalLights = m_DirectionalLights;
     renderInfo.AmbientIntensity = AmbientIntensity;
 
     m_MeshRenderer.Render(renderInfo);
@@ -1140,6 +1199,29 @@ void RenderContext<3>::Perspective(const f32 p_FieldOfView, const f32 p_Aspect, 
 void RenderContext<3>::Orthographic() noexcept
 {
     m_RenderState.back().HasProjection = false;
+}
+
+void RenderContext<3>::AddDirectionalLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
+{
+    m_DirectionalLights.push_back(vec4{p_Direction, p_Intensity});
+}
+void RenderContext<3>::RemoveDirectionalLight(const usize p_Index) noexcept
+{
+    m_DirectionalLights.erase(m_DirectionalLights.begin() + p_Index);
+}
+
+const vec4 &RenderContext<3>::GetDirectionalLight(const usize p_Index) const noexcept
+{
+    return m_DirectionalLights[p_Index];
+}
+vec4 &RenderContext<3>::GetDirectionalLight(const usize p_Index) noexcept
+{
+    return m_DirectionalLights[p_Index];
+}
+
+usize RenderContext<3>::GetDirectionalLightCount() const noexcept
+{
+    return m_DirectionalLights.size();
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::resetRenderState() noexcept

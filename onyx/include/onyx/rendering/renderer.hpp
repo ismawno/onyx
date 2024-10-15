@@ -14,6 +14,9 @@
 #    define ONYX_STORAGE_BUFFER_INITIAL_CAPACITY 4
 #endif
 
+// This is a hard limit. Cannot be changed without changing the shaders
+#define ONYX_MAX_DIRECTIONAL_LIGHTS 7
+
 namespace ONYX
 {
 ONYX_DIMENSION_TEMPLATE struct RenderInfo;
@@ -29,8 +32,7 @@ template <> struct ONYX_API RenderInfo<3>
     VkCommandBuffer CommandBuffer;
     u32 FrameIndex;
 
-    vec3 LightDirection;
-    f32 LightIntensity;
+    KIT::StaticArray<vec4, ONYX_MAX_DIRECTIONAL_LIGHTS> DirectionalLights;
     f32 AmbientIntensity;
 };
 
@@ -47,6 +49,9 @@ template <> struct ONYX_API DrawData<3>
     mat4 NormalMatrix;
     vec4 Color;
 };
+
+using DrawData2D = DrawData<2>;
+using DrawData3D = DrawData<3>;
 
 ONYX_DIMENSION_TEMPLATE struct ONYX_API PerFrameData
 {
@@ -77,8 +82,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
     MeshRenderer(VkRenderPass p_RenderPass) noexcept;
     ~MeshRenderer() noexcept;
 
-    void Draw(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform, const vec4 &p_Color,
-              u32 p_FrameIndex) noexcept;
+    void Draw(u32 p_FrameIndex, const KIT::Ref<const Model<N>> &p_Model, const DrawData<N> &p_DrawData) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
@@ -104,7 +108,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PrimitiveRenderer
     PrimitiveRenderer(VkRenderPass p_RenderPass) noexcept;
     ~PrimitiveRenderer() noexcept;
 
-    void Draw(usize p_PrimitiveIndex, const mat<N> &p_Transform, const vec4 &p_Color, u32 p_FrameIndex) noexcept;
+    void Draw(u32 p_FrameIndex, usize p_PrimitiveIndex, const DrawData<N> &p_DrawData) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
@@ -129,7 +133,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
     CircleRenderer(VkRenderPass p_RenderPass) noexcept;
     ~CircleRenderer() noexcept;
 
-    void Draw(const mat<N> &p_Transform, const vec4 &p_Color, u32 p_FrameIndex) noexcept;
+    void Draw(u32 p_FrameIndex, const DrawData<N> &p_DrawData) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;

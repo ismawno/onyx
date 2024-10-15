@@ -28,10 +28,11 @@ void SWExampleLayer::OnRender() noexcept
     context->KeepWindowAspect();
     context->Fill(Color::WHITE);
     // context->ScaleAxes(0.1f);
-    // context->Perspective(glm::radians(45.f), 1.f, 0.1f, 100.f);
+    context->Perspective(glm::radians(45.f), 1.f, 0.1f, 100.f);
 
     context->RotateX(0.5f);
     context->RotateY(0.5f);
+    context->Sphere(-2.f, 0.f, 8.f);
     context->Cube(0.f, 0.f, 8.f);
 }
 

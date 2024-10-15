@@ -7,9 +7,10 @@ layout(location = 0) out vec4 o_Color;
 
 layout(push_constant) uniform Light
 {
-    vec4 Direction;
-    float Intensity;
+    vec4 Directionals[7];
     float AmbientIntensity;
+    uint LightCount;
+    uint _Padding[2];
 }
 light;
 
@@ -19,6 +20,9 @@ void main()
     if (!gl_FrontFacing)
         normal = -normal;
 
-    const float light = max(dot(normal, light.Direction.xyz) * light.Intensity, 0.0) + light.AmbientIntensity;
-    o_Color = i_FragColor * light;
+    float finalLight = light.AmbientIntensity;
+    for (uint i = 0; i < light.LightCount; ++i)
+        finalLight += max(dot(normal, light.Directionals[i].xyz) * light.Directionals[i].w, 0.0);
+
+    o_Color = i_FragColor * finalLight;
 }
