@@ -17,6 +17,7 @@ class SWExampleLayer final : public Layer
   public:
     SWExampleLayer(Application *p_Application) noexcept;
 
+    void OnStart() noexcept override;
     void OnRender() noexcept override;
     void OnImGuiRender() noexcept override;
 

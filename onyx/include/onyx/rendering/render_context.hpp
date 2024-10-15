@@ -245,6 +245,7 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 {
   public:
+    using IRenderContext<3>::IRenderContext;
     using IRenderContext<3>::Transform;
     using IRenderContext<3>::TransformAxes;
     using IRenderContext<3>::Translate;
@@ -258,8 +259,6 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     using IRenderContext<3>::Ellipse;
     using IRenderContext<3>::Line;
     using IRenderContext<3>::Mesh;
-
-    RenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
 
     void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale) noexcept;
     void Transform(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XS, f32 p_YS, f32 p_ZS) noexcept;
@@ -405,19 +404,25 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void Perspective(f32 p_FieldOfView, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
     void Orthographic() noexcept;
 
-    void AddDirectionalLight(const vec3 &p_Direction, f32 p_Intensity) noexcept;
-    void RemoveDirectionalLight(usize p_Index) noexcept;
+    void AddLight(const vec3 &p_Direction, f32 p_Intensity) noexcept;
+    void RemoveLight(usize p_Index) noexcept;
 
-    const vec4 &GetDirectionalLight(usize p_Index) const noexcept;
-    vec4 &GetDirectionalLight(usize p_Index) noexcept;
+    const vec4 &GetLight(usize p_Index) const noexcept;
+    vec4 &GetLight(usize p_Index) noexcept;
 
-    usize GetDirectionalLightCount() const noexcept;
+    const vec3 &GetLightDirection(usize p_Index) const noexcept;
+    vec3 &GetLightDirection(usize p_Index) noexcept;
+
+    f32 GetLightIntensity(usize p_Index) const noexcept;
+    f32 &GetLightIntensity(usize p_Index) noexcept;
+
+    usize GetLightCount() const noexcept;
 
     vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
 
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
-    f32 AmbientIntensity = 0.4f;
+    f32 AmbientIntensity = 0.15f;
 
   private:
     KIT::StaticArray<vec4, ONYX_MAX_DIRECTIONAL_LIGHTS> m_DirectionalLights;

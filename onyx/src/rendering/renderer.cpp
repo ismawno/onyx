@@ -126,7 +126,10 @@ static void pushConstantData(const RenderInfo<3> &p_Info, const Pipeline *p_Pipe
     pdata.LightCount = p_Info.DirectionalLights.size();
     pdata.AmbientIntensity = p_Info.AmbientIntensity;
     for (usize i = 0; i < pdata.LightCount; ++i)
-        pdata.DirectionalLights[i] = p_Info.DirectionalLights[i];
+    {
+        const vec3 dir = p_Info.DirectionalLights[i];
+        pdata.DirectionalLights[i] = vec4{glm::normalize(dir), p_Info.DirectionalLights[i].w};
+    }
 
     vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline->GetLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                        sizeof(PushConstantData3D), &pdata);

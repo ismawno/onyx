@@ -18,12 +18,19 @@ SWExampleLayer::SWExampleLayer(Application *p_Application) noexcept : Layer("Exa
 {
 }
 
+void SWExampleLayer::OnStart() noexcept
+{
+    RenderContext3D *context = m_Application->GetMainWindow()->GetRenderContext3D();
+    context->AddDirectionalLight({1.f, 0.f, 0.f}, 0.5f);
+}
+
 void SWExampleLayer::OnRender() noexcept
 {
     RenderContext3D *context = m_Application->GetMainWindow()->GetRenderContext3D();
     static f32 t = 0.f;
     t += m_Application->GetDeltaTime();
     (void)t;
+    context->GetDirectionalLight(0).z = -t;
     context->Background(Color::BLACK);
     context->KeepWindowAspect();
     context->Fill(Color::WHITE);

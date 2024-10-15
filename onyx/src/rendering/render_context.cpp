@@ -17,13 +17,6 @@ ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, cons
     m_RenderState.push_back(RenderState<N>{});
 }
 
-RenderContext<3>::RenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
-    : IRenderContext<3>(p_Window, p_RenderPass)
-{
-    const vec4 light{0.f, -1.f, 0.f, 1.f};
-    m_DirectionalLights.push_back(light);
-}
-
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Background(const Color &p_Color) noexcept
 {
     m_MeshRenderer.Flush();
@@ -1201,25 +1194,43 @@ void RenderContext<3>::Orthographic() noexcept
     m_RenderState.back().HasProjection = false;
 }
 
-void RenderContext<3>::AddDirectionalLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
+void RenderContext<3>::AddLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
 {
     m_DirectionalLights.push_back(vec4{p_Direction, p_Intensity});
 }
-void RenderContext<3>::RemoveDirectionalLight(const usize p_Index) noexcept
+void RenderContext<3>::RemoveLight(const usize p_Index) noexcept
 {
     m_DirectionalLights.erase(m_DirectionalLights.begin() + p_Index);
 }
 
-const vec4 &RenderContext<3>::GetDirectionalLight(const usize p_Index) const noexcept
+const vec4 &RenderContext<3>::GetLight(const usize p_Index) const noexcept
 {
     return m_DirectionalLights[p_Index];
 }
-vec4 &RenderContext<3>::GetDirectionalLight(const usize p_Index) noexcept
+vec4 &RenderContext<3>::GetLight(const usize p_Index) noexcept
 {
     return m_DirectionalLights[p_Index];
 }
 
-usize RenderContext<3>::GetDirectionalLightCount() const noexcept
+const vec3 &RenderContext<3>::GetLightDirection(const usize p_Index) const noexcept
+{
+    return *(vec3 *)&m_DirectionalLights[p_Index].x;
+}
+vec3 &RenderContext<3>::GetLightDirection(const usize p_Index) noexcept
+{
+    return *(vec3 *)&m_DirectionalLights[p_Index].x;
+}
+
+f32 RenderContext<3>::GetLightIntensity(const usize p_Index) const noexcept
+{
+    return m_DirectionalLights[p_Index].w;
+}
+f32 &RenderContext<3>::GetLightIntensity(const usize p_Index) noexcept
+{
+    return m_DirectionalLights[p_Index].w;
+}
+
+usize RenderContext<3>::GetLightCount() const noexcept
 {
     return m_DirectionalLights.size();
 }
