@@ -229,7 +229,7 @@ ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Draw(const u32 p_FrameIndex, 
 
 ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept
 {
-    if (m_BatchData.empty())
+    if (m_PerFrameData.Sizes[p_Info.FrameIndex] == 0)
         return;
 
     auto &storageBuffer = m_PerFrameData.Buffers[p_Info.FrameIndex];
@@ -258,8 +258,10 @@ ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Render(const RenderInfo<N> &p
     u32 firstInstance = 0;
     for (usize i = 0; i < m_BatchData.size(); ++i)
     {
-        const PrimitiveDataLayout &layout = Primitives<N>::GetDataLayout(i);
+        if (m_BatchData[i].empty())
+            continue;
         const u32 size = static_cast<u32>(m_BatchData[i].size());
+        const PrimitiveDataLayout &layout = Primitives<N>::GetDataLayout(i);
 
         vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart,
                          firstInstance);

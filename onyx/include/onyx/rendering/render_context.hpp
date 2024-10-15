@@ -11,6 +11,7 @@
 #include <vulkan/vulkan.hpp>
 
 // GetMouseCoordinates depends on the Axes!!
+
 // NoFill is an illusion. I could implement Stroke by drawing lines across the edges of the shape, then Implement NoFill
 // by using a transparent color
 
