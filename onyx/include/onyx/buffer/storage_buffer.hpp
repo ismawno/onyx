@@ -14,7 +14,9 @@ template <typename T> class StorageBuffer : public Buffer
     StorageBuffer(const std::span<const T> p_Data) noexcept : Buffer(createBufferSpecs(p_Data.size()))
     {
         Map();
-        Write(p_Data.data());
+        // Cant use a plain write because of alignment issues
+        for (usize i = 0; i < p_Data.size(); ++i)
+            WriteAt(i, &p_Data[i]);
         Flush();
     }
 

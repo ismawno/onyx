@@ -19,4 +19,15 @@ class ONYX_API IndexBuffer : public DeviceBuffer<Index>
 
     void Bind(VkCommandBuffer p_CommandBuffer, VkDeviceSize p_Offset = 0) const noexcept;
 };
+
+class ONYX_API MutableIndexBuffer : public Buffer
+{
+    KIT_NON_COPYABLE(MutableIndexBuffer)
+  public:
+    MutableIndexBuffer(const std::span<const Index> p_Vertices) noexcept;
+    MutableIndexBuffer(usize p_Size) noexcept;
+
+    void Bind(VkCommandBuffer p_CommandBuffer, VkDeviceSize p_Offset = 0) const noexcept;
+};
+
 } // namespace ONYX
