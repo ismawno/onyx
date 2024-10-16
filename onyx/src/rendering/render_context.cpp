@@ -344,7 +344,7 @@ static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWi
 
 ONYX_DIMENSION_TEMPLATE
 template <typename Renderer, typename... DrawArgs>
-void IRenderContext<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...args) noexcept
+void IRenderContext<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept
 {
     auto &state = m_RenderState.back();
     if constexpr (N == 2)
@@ -353,18 +353,18 @@ void IRenderContext<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, Dr
         {
             const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
             const DrawData2D strokeData = createDrawData<2>(strokeTransform, state.Axes, state.StrokeColor);
-            p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(args)..., strokeData);
+            p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., strokeData);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
         const DrawData2D data = createDrawData<2>(p_Transform, state.Axes, color);
-        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(args)..., data);
+        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
     else
     {
         const DrawData3D data = state.HasProjection
                                     ? createDrawData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
                                     : createDrawData<3>(p_Transform, state.Axes, state.FillColor);
-        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(args)..., data);
+        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
 }
 
@@ -389,6 +389,72 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawPolygon(const std::span<cons
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawCircle(const mat<N> &p_Transform) noexcept
 {
     draw(m_CircleRenderer, p_Transform);
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle() noexcept
+{
+    drawPrimitive(Primitives<N>::GetTriangleIndex(), m_RenderState.back().Transform);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const mat<N> &p_Transform) noexcept
+{
+    drawPrimitive(Primitives<N>::GetTriangleIndex(), p_Transform);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const f32 p_Size) noexcept
+{
+    const mat<N> transform = ONYX::Transform<N>::ComputeScaleMatrix(vec<N>{p_Size}) * m_RenderState.back().Transform;
+    drawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const vec<N> &p_Position) noexcept
+{
+    const mat<N> transform = ONYX::Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
+    drawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const vec<N> &p_Position, const f32 p_Size) noexcept
+{
+    const mat<N> transform =
+        ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{p_Size}) * m_RenderState.back().Transform;
+    drawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const vec<N> &p_Position, f32 p_Size,
+                                                         const rot<N> &p_Rotation) noexcept
+{
+    const mat<N> transform =
+        ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{p_Size}, p_Rotation) * m_RenderState.back().Transform;
+    drawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
+}
+void RenderContext<2>::Triangle(const f32 p_X, const f32 p_Y) noexcept
+{
+    Triangle(vec2{p_X, p_Y});
+}
+void RenderContext<2>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Size) noexcept
+{
+    Triangle(vec2{p_X, p_Y}, p_Size);
+}
+void RenderContext<2>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Size, const f32 p_Rotation) noexcept
+{
+    Triangle(vec2{p_X, p_Y}, p_Size, p_Rotation);
+}
+void RenderContext<3>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
+{
+    Triangle(vec3{p_X, p_Y, p_Z});
+}
+void RenderContext<3>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size) noexcept
+{
+    Triangle(vec3{p_X, p_Y, p_Z}, p_Size);
+}
+void RenderContext<3>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size,
+                                const quat &p_Quaternion) noexcept
+{
+    Triangle(vec3{p_X, p_Y, p_Z}, p_Size, p_Quaternion);
+}
+void RenderContext<3>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size, const f32 p_XRot,
+                                const f32 p_YRot, const f32 p_ZRot) noexcept
+{
+    Triangle(vec3{p_X, p_Y, p_Z}, p_Size, quat{{p_XRot, p_YRot, p_ZRot}});
+}
+void RenderContext<3>::Triangle(const vec3 &p_Position, const f32 p_Size, const vec3 &p_Angles) noexcept
+{
+    Triangle(p_Position, p_Size, quat{p_Angles});
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square() noexcept
@@ -582,6 +648,67 @@ void RenderContext<3>::NGon(const u32 p_Sides, const vec3 &p_Position, const f32
                             const vec3 &p_Angles) noexcept
 {
     NGon(p_Sides, p_Position, p_Radius, quat{p_Angles});
+}
+
+ONYX_DIMENSION_TEMPLATE
+template <typename... Vertices>
+    requires(sizeof...(Vertices) >= 3 && (std::is_same_v<Vertices, vec<N>> && ...))
+void IRenderContext<N>::Polygon(Vertices &&...p_Vertices) noexcept
+{
+    drawPolygon({std::forward<Vertices>(p_Vertices)...}, m_RenderState.back().Transform);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices) noexcept
+{
+    drawPolygon(p_Vertices, m_RenderState.back().Transform);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices,
+                                                        const mat<N> &p_Transform) noexcept
+{
+    drawPolygon(p_Vertices, p_Transform);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices,
+                                                        const vec<N> &p_Translation) noexcept
+{
+    const mat<N> transform =
+        ONYX::Transform<N>::ComputeTranslationMatrix(p_Translation) * m_RenderState.back().Transform;
+    drawPolygon(p_Vertices, transform);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices,
+                                                        const vec<N> &p_Translation, const rot<N> &p_Rotation) noexcept
+{
+    // TODO: Remove the need of this vec<N>{1.f} at some point
+    const mat<N> transform =
+        ONYX::Transform<N>::ComputeTransform(p_Translation, vec<N>{1.f}, p_Rotation) * m_RenderState.back().Transform;
+    drawPolygon(p_Vertices, transform);
+}
+void RenderContext<2>::Polygon(const std::span<const vec2> p_Vertices, const f32 p_X, const f32 p_Y) noexcept
+{
+    Polygon(p_Vertices, vec2{p_X, p_Y});
+}
+void RenderContext<2>::Polygon(const std::span<const vec2> p_Vertices, const f32 p_X, const f32 p_Y,
+                               const f32 p_Rotation) noexcept
+{
+    Polygon(p_Vertices, vec2{p_X, p_Y}, p_Rotation);
+}
+void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const f32 p_X, const f32 p_Y,
+                               const f32 p_Z) noexcept
+{
+    Polygon(p_Vertices, vec3{p_X, p_Y, p_Z});
+}
+void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const f32 p_X, const f32 p_Y, const f32 p_Z,
+                               const quat &p_Quaternion) noexcept
+{
+    Polygon(p_Vertices, vec3{p_X, p_Y, p_Z}, p_Quaternion);
+}
+void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const f32 p_X, const f32 p_Y, const f32 p_Z,
+                               const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
+{
+    Polygon(p_Vertices, vec3{p_X, p_Y, p_Z}, quat{{p_XRot, p_YRot, p_ZRot}});
+}
+void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const vec3 &p_Position,
+                               const vec3 &p_Angles) noexcept
+{
+    Polygon(p_Vertices, p_Position, quat{p_Angles});
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle() noexcept

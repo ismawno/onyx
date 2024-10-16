@@ -80,6 +80,13 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void ScaleAxes(const vec<N> &p_Scale) noexcept;
     void ScaleAxes(f32 p_Scale) noexcept;
 
+    void Triangle() noexcept;
+    void Triangle(const mat<N> &p_Transform) noexcept;
+    void Triangle(f32 p_Size) noexcept;
+    void Triangle(const vec<N> &p_Position) noexcept;
+    void Triangle(const vec<N> &p_Position, f32 p_Size) noexcept;
+    void Triangle(const vec<N> &p_Position, f32 p_Size, const rot<N> &p_Rotation) noexcept;
+
     void Square() noexcept;
     void Square(f32 p_Size) noexcept;
     void Square(const vec<N> &p_Position) noexcept;
@@ -98,6 +105,14 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void NGon(u32 p_Sides, const vec<N> &p_Position) noexcept;
     void NGon(u32 p_Sides, const vec<N> &p_Position, f32 p_Radius) noexcept;
     void NGon(u32 p_Sides, const vec<N> &p_Position, f32 p_Radius, const rot<N> &p_Rotation) noexcept;
+
+    template <typename... Vertices>
+        requires(sizeof...(Vertices) >= 3 && (std::is_same_v<Vertices, vec<N>> && ...))
+    void Polygon(Vertices &&...p_Vertices) noexcept;
+    void Polygon(std::span<const vec<N>> p_Vertices) noexcept;
+    void Polygon(std::span<const vec<N>> p_Vertices, const mat<N> &p_Transform) noexcept;
+    void Polygon(std::span<const vec<N>> p_Vertices, const vec<N> &p_Translation) noexcept;
+    void Polygon(std::span<const vec<N>> p_Vertices, const vec<N> &p_Translation, const rot<N> &p_Rotation) noexcept;
 
     void Circle() noexcept;
     void Circle(f32 p_Radius) noexcept;
@@ -144,7 +159,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
 
   protected:
     template <typename Renderer, typename... DrawArgs>
-    void draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...args) noexcept;
+    void draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept;
     void drawMesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
     void drawPrimitive(usize p_PrimitiveIndex, const mat<N> &p_Transform) noexcept;
     void drawPolygon(std::span<const vec<N>> p_Vertices, const mat<N> &p_Transform) noexcept;
@@ -173,9 +188,11 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     using IRenderContext<2>::Scale;
     using IRenderContext<2>::TranslateAxes;
     using IRenderContext<2>::ScaleAxes;
+    using IRenderContext<2>::Triangle;
     using IRenderContext<2>::Square;
     using IRenderContext<2>::Rect;
     using IRenderContext<2>::NGon;
+    using IRenderContext<2>::Polygon;
     using IRenderContext<2>::Circle;
     using IRenderContext<2>::Ellipse;
     using IRenderContext<2>::Line;
@@ -198,6 +215,10 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     void ScaleAxes(f32 p_X, f32 p_Y) noexcept;
     void RotateAxes(f32 p_Angle) noexcept;
 
+    void Triangle(f32 p_X, f32 p_Y) noexcept;
+    void Triangle(f32 p_X, f32 p_Y, f32 p_Size) noexcept;
+    void Triangle(f32 p_X, f32 p_Y, f32 p_Size, f32 p_Rotation) noexcept;
+
     void Square(f32 p_X, f32 p_Y) noexcept;
     void Square(f32 p_X, f32 p_Y, f32 p_Size) noexcept;
     void Square(f32 p_X, f32 p_Y, f32 p_Size, f32 p_Rotation) noexcept;
@@ -208,6 +229,9 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     void NGon(u32 p_Sides, f32 p_X, f32 p_Y) noexcept;
     void NGon(u32 p_Sides, f32 p_X, f32 p_Y, f32 p_Radius) noexcept;
     void NGon(u32 p_Sides, f32 p_X, f32 p_Y, f32 p_Radius, f32 p_Rotation) noexcept;
+
+    void Polygon(std::span<const vec2> p_Vertices, f32 p_X, f32 p_Y) noexcept;
+    void Polygon(std::span<const vec2> p_Vertices, f32 p_X, f32 p_Y, f32 p_Rotation) noexcept;
 
     void Circle(f32 p_X, f32 p_Y) noexcept;
     void Circle(f32 p_X, f32 p_Y, f32 p_Radius) noexcept;
@@ -257,9 +281,11 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     using IRenderContext<3>::Scale;
     using IRenderContext<3>::TranslateAxes;
     using IRenderContext<3>::ScaleAxes;
+    using IRenderContext<3>::Triangle;
     using IRenderContext<3>::Square;
     using IRenderContext<3>::Rect;
     using IRenderContext<3>::NGon;
+    using IRenderContext<3>::Polygon;
     using IRenderContext<3>::Circle;
     using IRenderContext<3>::Ellipse;
     using IRenderContext<3>::Line;
@@ -313,6 +339,12 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void RotateYAxes(f32 p_Y) noexcept;
     void RotateZAxes(f32 p_Z) noexcept;
 
+    void Triangle(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void Triangle(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Size) noexcept;
+    void Triangle(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Size, const quat &p_Quaternion) noexcept;
+    void Triangle(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Size, f32 p_XRot, f32 p_YRot, f32 p_ZRot) noexcept;
+    void Triangle(const vec3 &p_Position, f32 p_Size, const vec3 &p_Angles) noexcept;
+
     void Square(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
     void Square(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Size) noexcept;
     void Square(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Size, const quat &p_Quaternion) noexcept;
@@ -329,6 +361,12 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void NGon(u32 p_Sides, f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, const quat &p_Quaternion) noexcept;
     void NGon(u32 p_Sides, f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_XRot, f32 p_YRot, f32 p_ZRot) noexcept;
     void NGon(u32 p_Sides, const vec3 &p_Position, f32 p_Radius, const vec3 &p_Angles) noexcept;
+
+    void Polygon(std::span<const vec3> p_Vertices, f32 p_X, f32 p_Y, f32 p_Z) noexcept;
+    void Polygon(std::span<const vec3> p_Vertices, f32 p_X, f32 p_Y, f32 p_Z, const quat &p_Quaternion) noexcept;
+    void Polygon(std::span<const vec3> p_Vertices, f32 p_X, f32 p_Y, f32 p_Z, f32 p_XRot, f32 p_YRot,
+                 f32 p_ZRot) noexcept;
+    void Polygon(std::span<const vec3> p_Vertices, const vec3 &p_Position, const vec3 &p_Angles) noexcept;
 
     void Circle(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
     void Circle(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius) noexcept;
