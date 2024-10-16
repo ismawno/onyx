@@ -56,7 +56,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
         requires std::constructible_from<Color, ColorArgs...>
     void Background(ColorArgs &&...p_ColorArgs) noexcept
     {
-        Background(Color(std::forward<ColorArgs>(p_ColorArgs)...));
+        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        Background(color);
     }
 
     void Transform(const mat<N> &p_Transform) noexcept;
@@ -145,7 +146,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
         requires std::constructible_from<Color, ColorArgs...>
     void Fill(ColorArgs &&...p_ColorArgs) noexcept
     {
-        Fill(Color(std::forward<ColorArgs>(p_ColorArgs)...));
+        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        Fill(color);
     }
 
     const mat<N> &GetCurrentTransform() const noexcept;
@@ -261,7 +263,8 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
         requires std::constructible_from<Color, ColorArgs...>
     void Stroke(ColorArgs &&...p_ColorArgs) noexcept
     {
-        Stroke(Color(std::forward<ColorArgs>(p_ColorArgs)...));
+        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        Stroke(color);
     }
 
     void StrokeWidth(f32 p_Width) noexcept;
@@ -445,6 +448,7 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 
     void Projection(const mat4 &p_Projection) noexcept;
     void Perspective(f32 p_FieldOfView, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
+    void Perspective(f32 p_FieldOfView, f32 p_Near, f32 p_Far) noexcept;
     void Orthographic() noexcept;
 
     void AddLight(const vec3 &p_Direction, f32 p_Intensity) noexcept;

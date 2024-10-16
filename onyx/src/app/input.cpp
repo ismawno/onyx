@@ -33,28 +33,28 @@ vec2 Input::GetMousePosition(Window *p_Window) noexcept
 
 bool Input::IsKeyPressed(const Key p_Key) noexcept
 {
-    return glfwGetKey(glfwGetCurrentContext(), static_cast<int>(p_Key)) == GLFW_PRESS;
+    return glfwGetKey(glfwGetCurrentContext(), static_cast<i32>(p_Key)) == GLFW_PRESS;
 }
 bool Input::IsKeyReleased(const Key p_Key) noexcept
 {
-    return glfwGetKey(glfwGetCurrentContext(), static_cast<int>(p_Key)) == GLFW_RELEASE;
+    return glfwGetKey(glfwGetCurrentContext(), static_cast<i32>(p_Key)) == GLFW_RELEASE;
 }
 
 bool Input::IsMouseButtonPressed(const Mouse p_Button) noexcept
 {
-    return glfwGetMouseButton(glfwGetCurrentContext(), static_cast<int>(p_Button)) == GLFW_PRESS;
+    return glfwGetMouseButton(glfwGetCurrentContext(), static_cast<i32>(p_Button)) == GLFW_PRESS;
 }
 bool Input::IsMouseButtonReleased(const Mouse p_Button) noexcept
 {
-    return glfwGetMouseButton(glfwGetCurrentContext(), static_cast<int>(p_Button)) == GLFW_RELEASE;
+    return glfwGetMouseButton(glfwGetCurrentContext(), static_cast<i32>(p_Button)) == GLFW_RELEASE;
 }
 
 const char *Input::GetKeyName(const Key p_Key) noexcept
 {
-    return glfwGetKeyName(static_cast<int>(p_Key), 0);
+    return glfwGetKeyName(static_cast<i32>(p_Key), 0);
 }
 
-static void windowResizeCallback(GLFWwindow *p_Window, const int p_Width, const int p_Height)
+static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_Height)
 {
     Event event;
     event.Type = Event::WINDOW_RESIZED;
@@ -78,14 +78,14 @@ static void windowCloseCallback(GLFWwindow *p_Window)
     windowFromGLFW(p_Window)->PushEvent(event);
 }
 
-static void windowFocusCallback(GLFWwindow *p_Window, const int p_Focused)
+static void windowFocusCallback(GLFWwindow *p_Window, const i32 p_Focused)
 {
     Event event;
     event.Type = p_Focused ? Event::WINDOW_FOCUSED : Event::WINDOW_UNFOCUSED;
     windowFromGLFW(p_Window)->PushEvent(event);
 }
 
-static void keyCallback(GLFWwindow *p_Window, const int p_Key, const int, const int p_Action, const int)
+static void keyCallback(GLFWwindow *p_Window, const i32 p_Key, const i32, const i32 p_Action, const i32)
 {
     Event event;
     switch (p_Action)
@@ -114,14 +114,14 @@ static void cursorPositionCallback(GLFWwindow *p_Window, const double p_XPos, co
     windowFromGLFW(p_Window)->PushEvent(event);
 }
 
-static void cursorEnterCallback(GLFWwindow *p_Window, const int p_Entered)
+static void cursorEnterCallback(GLFWwindow *p_Window, const i32 p_Entered)
 {
     Event event;
     event.Type = p_Entered ? Event::MOUSE_ENTERED : Event::MOUSE_LEFT;
     windowFromGLFW(p_Window)->PushEvent(event);
 }
 
-static void mouseButtonCallback(GLFWwindow *p_Window, const int p_Button, const int p_Action, const int)
+static void mouseButtonCallback(GLFWwindow *p_Window, const i32 p_Button, const i32 p_Action, const i32)
 {
     Event event;
     event.Type = p_Action == GLFW_PRESS ? Event::MOUSE_PRESSED : Event::MOUSE_RELEASED;

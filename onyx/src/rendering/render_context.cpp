@@ -1225,6 +1225,7 @@ void RenderContext<2>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
 
     m_MeshRenderer.Render(renderInfo);
     m_PrimitiveRenderer.Render(renderInfo);
+    m_PolygonRenderer.Render(renderInfo);
     m_CircleRenderer.Render(renderInfo);
 
     resetRenderState();
@@ -1242,6 +1243,7 @@ void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
 
     m_MeshRenderer.Render(renderInfo);
     m_PrimitiveRenderer.Render(renderInfo);
+    m_PolygonRenderer.Render(renderInfo);
     m_CircleRenderer.Render(renderInfo);
 
     resetRenderState();
@@ -1291,6 +1293,10 @@ void RenderContext<3>::Perspective(const f32 p_FieldOfView, const f32 p_Aspect, 
     projection[2][3] = 1.f;
     projection[3][2] = p_Far * p_Near / (p_Near - p_Far);
     m_RenderState.back().HasProjection = true;
+}
+void RenderContext<3>::Perspective(const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far) noexcept
+{
+    Perspective(p_FieldOfView, m_Window->GetPixelAspect(), p_Near, p_Far);
 }
 void RenderContext<3>::Orthographic() noexcept
 {

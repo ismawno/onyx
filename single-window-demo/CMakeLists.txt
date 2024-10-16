@@ -4,6 +4,7 @@ project(onyx-sw-demo)
 set(SOURCES
     src/layer.cpp
     src/app.cpp
+    src/shapes.cpp
     src/main.cpp
 )
 

@@ -38,7 +38,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
     glfwWindowHint(GLFW_FOCUSED, p_Specs.Flags & Flags::FOCUSED);
     glfwWindowHint(GLFW_FLOATING, p_Specs.Flags & Flags::FLOATING);
 
-    m_Window = glfwCreateWindow(static_cast<int>(p_Specs.Width), static_cast<int>(p_Specs.Height), p_Specs.Name,
+    m_Window = glfwCreateWindow(static_cast<i32>(p_Specs.Width), static_cast<i32>(p_Specs.Height), p_Specs.Name,
                                 nullptr, nullptr);
     KIT_ASSERT(m_Window, "Failed to create a GLFW window");
 
