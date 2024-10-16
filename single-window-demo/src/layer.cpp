@@ -21,7 +21,7 @@ SWExampleLayer::SWExampleLayer(Application *p_Application) noexcept : Layer("Exa
 void SWExampleLayer::OnStart() noexcept
 {
     RenderContext3D *context = m_Application->GetMainWindow()->GetRenderContext3D();
-    context->AddDirectionalLight({1.f, 0.f, 0.f}, 0.5f);
+    context->AddLight({1.f, 0.f, 0.f}, 0.5f);
 }
 
 void SWExampleLayer::OnRender() noexcept
@@ -30,15 +30,15 @@ void SWExampleLayer::OnRender() noexcept
     static f32 t = 0.f;
     t += m_Application->GetDeltaTime();
     (void)t;
-    context->GetDirectionalLight(0).z = -t;
+    context->GetLightDirection(0).z = -t;
     context->Background(Color::BLACK);
     context->KeepWindowAspect();
     context->Fill(Color::WHITE);
     // context->ScaleAxes(0.1f);
     context->Perspective(glm::radians(45.f), 1.f, 0.1f, 100.f);
 
-    context->RotateX(0.5f);
-    context->RotateY(0.5f);
+    context->RotateX(t);
+    context->RotateY(t);
     context->Sphere(-2.f, 0.f, 8.f);
     context->Cube(0.f, 0.f, 8.f);
 }

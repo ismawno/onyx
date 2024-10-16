@@ -11,8 +11,8 @@ namespace ONYX
 {
 
 ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
-    : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_CircleRenderer(p_RenderPass),
-      m_Window(p_Window)
+    : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
+      m_CircleRenderer(p_RenderPass), m_Window(p_Window)
 {
     m_RenderState.push_back(RenderState<N>{});
 }
@@ -21,6 +21,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Background(const Color &p_Color)
 {
     m_MeshRenderer.Flush();
     m_PrimitiveRenderer.Flush();
+    m_PolygonRenderer.Flush();
     m_CircleRenderer.Flush();
     m_Window->BackgroundColor = p_Color;
 }
@@ -341,8 +342,9 @@ static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWi
     return p_Transform * Transform2D::ComputeScaleMatrix(stroke);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawMesh(const KIT::Ref<const Model<N>> &p_Model,
-                                                         const mat<N> &p_Transform) noexcept
+ONYX_DIMENSION_TEMPLATE
+template <typename Renderer, typename... DrawArgs>
+void IRenderContext<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...args) noexcept
 {
     auto &state = m_RenderState.back();
     if constexpr (N == 2)
@@ -351,68 +353,42 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawMesh(const KIT::Ref<const Mo
         {
             const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
             const DrawData2D strokeData = createDrawData<2>(strokeTransform, state.Axes, state.StrokeColor);
-            m_MeshRenderer.Draw(m_FrameIndex, p_Model, strokeData);
+            p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(args)..., strokeData);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
         const DrawData2D data = createDrawData<2>(p_Transform, state.Axes, color);
-        m_MeshRenderer.Draw(m_FrameIndex, p_Model, data);
+        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(args)..., data);
     }
     else
     {
         const DrawData3D data = state.HasProjection
                                     ? createDrawData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
                                     : createDrawData<3>(p_Transform, state.Axes, state.FillColor);
-        m_MeshRenderer.Draw(m_FrameIndex, p_Model, data);
+        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(args)..., data);
     }
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawMesh(const KIT::Ref<const Model<N>> &p_Model,
+                                                         const mat<N> &p_Transform) noexcept
+{
+    draw(m_MeshRenderer, p_Transform, p_Model);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawPrimitive(const usize p_PrimitiveIndex,
                                                               const mat<N> &p_Transform) noexcept
 {
-    auto &state = m_RenderState.back();
-    if constexpr (N == 2)
-    {
-        if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
-        {
-            const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
-            const DrawData2D strokeData = createDrawData<2>(strokeTransform, state.Axes, state.StrokeColor);
-            m_PrimitiveRenderer.Draw(m_FrameIndex, p_PrimitiveIndex, strokeData);
-        }
-        const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        const DrawData2D data = createDrawData<2>(p_Transform, state.Axes, color);
-        m_PrimitiveRenderer.Draw(m_FrameIndex, p_PrimitiveIndex, data);
-    }
-    else
-    {
-        const DrawData3D data = state.HasProjection
-                                    ? createDrawData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
-                                    : createDrawData<3>(p_Transform, state.Axes, state.FillColor);
-        m_PrimitiveRenderer.Draw(m_FrameIndex, p_PrimitiveIndex, data);
-    }
+    draw(m_PrimitiveRenderer, p_Transform, p_PrimitiveIndex);
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawPolygon(const std::span<const vec<N>> p_Vertices,
+                                                            const mat<N> &p_Transform) noexcept
+{
+    draw(m_PolygonRenderer, p_Transform, p_Vertices);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawCircle(const mat<N> &p_Transform) noexcept
 {
-    auto &state = m_RenderState.back();
-    if constexpr (N == 2)
-    {
-        if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
-        {
-            const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
-            const DrawData2D strokeData = createDrawData<2>(strokeTransform, state.Axes, state.StrokeColor);
-            m_CircleRenderer.Draw(m_FrameIndex, strokeData);
-        }
-        const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        const DrawData2D data = createDrawData<2>(p_Transform, state.Axes, color);
-        m_CircleRenderer.Draw(m_FrameIndex, data);
-    }
-    else
-    {
-        const DrawData3D data = state.HasProjection
-                                    ? createDrawData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
-                                    : createDrawData<3>(p_Transform, state.Axes, state.FillColor);
-        m_CircleRenderer.Draw(m_FrameIndex, data);
-    }
+    draw(m_CircleRenderer, p_Transform);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square() noexcept
