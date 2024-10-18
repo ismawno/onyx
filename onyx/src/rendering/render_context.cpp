@@ -1242,22 +1242,17 @@ void RenderContext<2>::NoStroke() noexcept
     m_RenderState.back().NoStroke = true;
 }
 
-ONYX_DIMENSION_TEMPLATE const mat<N> &IRenderContext<N>::GetCurrentTransform() const noexcept
+ONYX_DIMENSION_TEMPLATE const RenderState<N> &IRenderContext<N>::GetState() const noexcept
 {
-    return m_RenderState.back().Transform;
+    return m_RenderState.back();
 }
-ONYX_DIMENSION_TEMPLATE const mat<N> &IRenderContext<N>::GetCurrentAxes() const noexcept
+ONYX_DIMENSION_TEMPLATE RenderState<N> &IRenderContext<N>::GetState() noexcept
 {
-    return m_RenderState.back().Axes;
+    return m_RenderState.back();
 }
-
-ONYX_DIMENSION_TEMPLATE mat<N> &IRenderContext<N>::GetCurrentTransform() noexcept
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetState(const RenderState<N> &p_State) noexcept
 {
-    return m_RenderState.back().Transform;
-}
-ONYX_DIMENSION_TEMPLATE mat<N> &IRenderContext<N>::GetCurrentAxes() noexcept
-{
-    return m_RenderState.back().Axes;
+    m_RenderState.back() = p_State;
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentTransform(const mat<N> &p_Transform) noexcept

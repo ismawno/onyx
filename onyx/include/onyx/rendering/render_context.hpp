@@ -150,11 +150,10 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
         Fill(color);
     }
 
-    const mat<N> &GetCurrentTransform() const noexcept;
-    const mat<N> &GetCurrentAxes() const noexcept;
+    const RenderState<N> &GetState() const noexcept;
+    RenderState<N> &GetState() noexcept;
 
-    mat<N> &GetCurrentTransform() noexcept;
-    mat<N> &GetCurrentAxes() noexcept;
+    void SetState(const RenderState<N> &p_State) noexcept;
 
     void SetCurrentTransform(const mat<N> &p_Transform) noexcept;
     void SetCurrentAxes(const mat<N> &p_Axes) noexcept;
