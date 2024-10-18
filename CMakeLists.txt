@@ -24,6 +24,7 @@ else()
     option(ONYX_BUILD_DEMO "Build the demo" ON)
 endif()
 
+# If demos are built, implot and imguizmo will always be used
 option(ONYX_USE_IMPLOT "Use ImPlot for plotting" OFF)
 option(ONYX_USE_IMGUIZMO "Use ImGuizmo for gizmos" OFF)
 
@@ -35,7 +36,7 @@ add_subdirectory(onyx)
 #     add_subdirectory(tests)
 # endif()
 
-# if (ONYX_BUILD_DEMO)
+if (ONYX_BUILD_DEMO)
 #     add_subdirectory(multi-window-demo)
     add_subdirectory(single-window-demo)
-# endif()
+endif()

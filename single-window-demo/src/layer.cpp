@@ -223,7 +223,8 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderUI(LayerData<N> &p_Data) noex
 
 void SWExampleLayer::OnRender() noexcept
 {
-
+    ImGui::ShowDemoWindow();
+    ImPlot::ShowDemoWindow();
     if (ImGui::Begin("Global settings"))
     {
         if (ImGui::CollapsingHeader("Background color"))
