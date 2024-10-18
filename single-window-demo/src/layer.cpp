@@ -71,7 +71,8 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
     if constexpr (N == 2)
         ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Rectangle\0Ellipse\0NGon\0Polygon\0\0");
     else
-        ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Rectangle\0Ellipse\0NGon\0Polygon\0Cuboid\0Sphere\0\0");
+        ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+                     "Triangle\0Rectangle\0Ellipse\0NGon\0Polygon\0Cuboid\0Sphere\0Cylinder\0\0");
 
     if (p_Data.ShapeToSpawn == 3)
         ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
@@ -133,6 +134,8 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
                 p_Data.Shapes.push_back(KIT::Scope<Cuboid>::Create());
             else if (p_Data.ShapeToSpawn == 6)
                 p_Data.Shapes.push_back(KIT::Scope<Ellipsoid>::Create());
+            else if (p_Data.ShapeToSpawn == 7)
+                p_Data.Shapes.push_back(KIT::Scope<Cylinder>::Create());
         }
     }
 

@@ -111,7 +111,8 @@ void CreateCombinedPrimitiveBuffers() noexcept
 
     const std::array<const char *, Primitives3D::AMOUNT> paths3D = {
         ONYX_ROOT_PATH "/onyx/models/triangle.obj", ONYX_ROOT_PATH "/onyx/models/square.obj",
-        ONYX_ROOT_PATH "/onyx/models/cube.obj", ONYX_ROOT_PATH "/onyx/models/sphere.obj"};
+        ONYX_ROOT_PATH "/onyx/models/cube.obj", ONYX_ROOT_PATH "/onyx/models/sphere.obj",
+        ONYX_ROOT_PATH "/onyx/models/cylinder.obj"};
 
     createBuffers<2>(paths2D);
     createBuffers<3>(paths3D);

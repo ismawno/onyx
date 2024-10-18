@@ -71,4 +71,10 @@ class Ellipsoid final : public Shape3D
     void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
 };
 
+class Cylinder final : public Shape3D
+{
+    const char *GetName() const noexcept override;
+    void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
+};
+
 } // namespace ONYX

@@ -39,7 +39,7 @@ ONYX_DIMENSION_TEMPLATE struct IPrimitives
     {
         KIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3, "NGon sides must be between 3 and {}",
                    ONYX_MAX_REGULAR_POLYGON_SIDES);
-        return (N - 1) * 2 + p_Sides - 3;
+        return (N - 1) * 2 + p_Sides - 3 + (N - 2);
     }
 };
 
@@ -54,7 +54,7 @@ template <> struct Primitives<2> : IPrimitives<2>
 
 template <> struct Primitives<3> : IPrimitives<3>
 {
-    static constexpr usize AMOUNT = 4 + ONYX_REGULAR_POLYGON_COUNT;
+    static constexpr usize AMOUNT = 5 + ONYX_REGULAR_POLYGON_COUNT;
 
     static KIT_CONSTEVAL usize GetCubeIndex() noexcept
     {
@@ -63,6 +63,10 @@ template <> struct Primitives<3> : IPrimitives<3>
     static KIT_CONSTEVAL usize GetSphereIndex() noexcept
     {
         return 3;
+    }
+    static KIT_CONSTEVAL usize GetCylinderIndex() noexcept
+    {
+        return 4;
     }
 };
 

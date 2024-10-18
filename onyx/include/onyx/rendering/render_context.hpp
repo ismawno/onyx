@@ -426,6 +426,20 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void Cuboid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim, f32 p_XRot, f32 p_YRot,
                 f32 p_ZRot) noexcept;
 
+    void Cylinder() noexcept;
+    void Cylinder(f32 p_Radius, f32 p_Height) noexcept;
+
+    void Cylinder(const mat4 &p_Transform) noexcept;
+    void Cylinder(const vec2 &p_Dimensions) noexcept;
+
+    void Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions) noexcept;
+    void Cylinder(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_Height) noexcept;
+
+    void Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const quat &p_Quaternion) noexcept;
+    void Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const vec3 &p_Angles) noexcept;
+    void Cylinder(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_Height, const quat &p_Quaternion) noexcept;
+    void Cylinder(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_Height, f32 p_XRot, f32 p_YRot, f32 p_ZRot) noexcept;
+
     void Sphere() noexcept;
     void Sphere(f32 p_Radius) noexcept;
     void Sphere(const vec3 &p_Position) noexcept;

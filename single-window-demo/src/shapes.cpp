@@ -77,6 +77,16 @@ void Ellipsoid::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexce
     p_Context->Ellipsoid(p_Transform);
 }
 
+const char *Cylinder::GetName() const noexcept
+{
+    return "Cylinder";
+}
+
+void Cylinder::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
+{
+    p_Context->Cylinder(p_Transform);
+}
+
 template class Shape<2>;
 template class Shape<3>;
 

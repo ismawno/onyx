@@ -986,6 +986,58 @@ void RenderContext<3>::Cuboid(const f32 p_X, const f32 p_Y, const f32 p_Z, const
     Cuboid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim}, quat{{p_XRot, p_YRot, p_ZRot}});
 }
 
+void RenderContext<3>::Cylinder() noexcept
+{
+    drawPrimitive(Primitives3D::GetCylinderIndex(), m_RenderState.back().Transform);
+}
+void RenderContext<3>::Cylinder(const vec2 &p_Dimensions) noexcept
+{
+    const mat4 transform = Transform3D::ComputeScaleMatrix(vec3{p_Dimensions.x, p_Dimensions.y, p_Dimensions.x}) *
+                           m_RenderState.back().Transform;
+    drawPrimitive(Primitives3D::GetCylinderIndex(), transform);
+}
+void RenderContext<3>::Cylinder(const mat4 &p_Transform) noexcept
+{
+    drawPrimitive(Primitives3D::GetCylinderIndex(), p_Transform);
+}
+void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions) noexcept
+{
+    const mat4 transform =
+        Transform3D::ComputeTranslationScaleMatrix(p_Position, vec3{p_Dimensions.x, p_Dimensions.y, p_Dimensions.x}) *
+        m_RenderState.back().Transform;
+    drawPrimitive(Primitives3D::GetCylinderIndex(), transform);
+}
+void RenderContext<3>::Cylinder(const f32 p_Radius, const f32 p_Height) noexcept
+{
+    Cylinder(vec2{p_Radius, p_Height});
+}
+void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius,
+                                const f32 p_Height) noexcept
+{
+    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Height});
+}
+void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const quat &p_Quaternion) noexcept
+{
+    const mat4 transform =
+        Transform3D::ComputeTransform(p_Position, vec3{p_Dimensions.x, p_Dimensions.y, p_Dimensions.x}, p_Quaternion) *
+        m_RenderState.back().Transform;
+    drawPrimitive(Primitives3D::GetCylinderIndex(), transform);
+}
+void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const vec3 &p_Angles) noexcept
+{
+    Cylinder(p_Position, p_Dimensions, quat{p_Angles});
+}
+void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius, const f32 p_Height,
+                                const quat &p_Quaternion) noexcept
+{
+    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Height}, p_Quaternion);
+}
+void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius, const f32 p_Height,
+                                const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
+{
+    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Height}, quat{{p_XRot, p_YRot, p_ZRot}});
+}
+
 void RenderContext<3>::Sphere() noexcept
 {
     drawPrimitive(Primitives3D::GetSphereIndex(), m_RenderState.back().Transform);
