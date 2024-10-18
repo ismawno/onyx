@@ -204,7 +204,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::KeepWindowAspect() noexcept
     if constexpr (N == 2)
         ScaleAxes(vec2{aspect, 1.f});
     else
-        ScaleAxes(vec3{aspect, 1.f, aspect});
+        ScaleAxes(vec3{aspect, 1.f, 1.f});
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TranslateAxes(const vec<N> &p_Translation) noexcept
@@ -1322,7 +1322,9 @@ vec3 RenderContext<3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
 #endif
     if (!m_RenderState.back().HasProjection)
         return glm::inverse(axes) * vec4{mpos, p_Depth, 1.f};
-    return glm::inverse(m_RenderState.back().Projection * axes) * vec4{mpos, p_Depth, 1.f};
+
+    const vec4 clip = glm::inverse(axes) * vec4{mpos, p_Depth, 1.f};
+    return vec3{clip} / clip.w;
 }
 
 void RenderContext<3>::Projection(const mat4 &p_Projection) noexcept
@@ -1330,24 +1332,20 @@ void RenderContext<3>::Projection(const mat4 &p_Projection) noexcept
     m_RenderState.back().Projection = p_Projection;
     m_RenderState.back().HasProjection = true;
 }
-void RenderContext<3>::Perspective(const f32 p_FieldOfView, const f32 p_Aspect, const f32 p_Near,
-                                   const f32 p_Far) noexcept
+void RenderContext<3>::Perspective(const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far) noexcept
 {
     auto &projection = m_RenderState.back().Projection;
-    const f32 halfPov = glm::tan(0.5f * p_FieldOfView);
+    const f32 invHalfPov = 1.f / glm::tan(0.5f * p_FieldOfView);
 
     projection = mat4{0.f};
-    projection[0][0] = 1.f / (p_Aspect * halfPov);
-    projection[1][1] = 1.f / halfPov;
+    projection[0][0] = invHalfPov; // Aspect applied in view
+    projection[1][1] = invHalfPov;
     projection[2][2] = p_Far / (p_Far - p_Near);
     projection[2][3] = 1.f;
     projection[3][2] = p_Far * p_Near / (p_Near - p_Far);
     m_RenderState.back().HasProjection = true;
 }
-void RenderContext<3>::Perspective(const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far) noexcept
-{
-    Perspective(p_FieldOfView, m_Window->GetPixelAspect(), p_Near, p_Far);
-}
+
 void RenderContext<3>::Orthographic() noexcept
 {
     m_RenderState.back().HasProjection = false;

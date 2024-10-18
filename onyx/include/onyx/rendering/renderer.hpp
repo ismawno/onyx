@@ -46,6 +46,9 @@ template <> struct ONYX_API RenderInfo<3>
 
 ONYX_DIMENSION_TEMPLATE struct DrawData;
 
+// Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
+// 0 1 but i dont want to deal with the alignment management tbh
+
 template <> struct ONYX_API DrawData<2>
 {
     mat4 Transform;

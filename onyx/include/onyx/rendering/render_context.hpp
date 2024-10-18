@@ -462,7 +462,6 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
                    f32 p_ZRot) noexcept;
 
     void Projection(const mat4 &p_Projection) noexcept;
-    void Perspective(f32 p_FieldOfView, f32 p_Aspect, f32 p_Near, f32 p_Far) noexcept;
     void Perspective(f32 p_FieldOfView, f32 p_Near, f32 p_Far) noexcept;
     void Orthographic() noexcept;
 
