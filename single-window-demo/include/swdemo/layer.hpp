@@ -7,6 +7,21 @@
 
 namespace ONYX
 {
+ONYX_DIMENSION_TEMPLATE struct LayerData
+{
+    RenderContext<N> *Context;
+    DynamicArray<KIT::Scope<Shape<N>>> Shapes;
+    Transform<N> Axes;
+    usize Selected;
+
+    DynamicArray<vec<N>> PolygonVertices;
+    i32 ShapeToSpawn = 0;
+    i32 NGonSides = 3;
+};
+
+using LayerData2D = LayerData<2>;
+using LayerData3D = LayerData<3>;
+
 class SWExampleLayer final : public Layer
 {
   public:
@@ -14,34 +29,24 @@ class SWExampleLayer final : public Layer
 
     void OnStart() noexcept override;
     void OnRender() noexcept override;
+    bool OnEvent(const Event &p_Event) noexcept override;
 
   private:
-    ONYX_DIMENSION_TEMPLATE void drawShapes(RenderContext<N> *p_Context,
-                                            const DynamicArray<KIT::Scope<Shape<N>>> &p_Shapes,
-                                            const Transform<N> &p_Axes) noexcept;
-
-    ONYX_DIMENSION_TEMPLATE void renderShapeSpawn(DynamicArray<KIT::Scope<Shape<N>>> &p_Shapes) noexcept;
+    ONYX_DIMENSION_TEMPLATE void drawShapes(const LayerData<N> &p_Data) noexcept;
+    ONYX_DIMENSION_TEMPLATE void renderUI(LayerData<N> &p_Data) noexcept;
 
     Application *m_Application = nullptr;
 
-    RenderContext2D *m_Context2;
-    RenderContext3D *m_Context3;
-
-    DynamicArray<KIT::Scope<Shape2D>> m_Shapes2;
-    DynamicArray<KIT::Scope<Shape3D>> m_Shapes3;
-
-    Transform2D m_Axes2;
-    Transform3D m_Axes3;
+    LayerData2D m_LayerData2;
+    LayerData3D m_LayerData3;
 
     Color m_BackgroundColor = Color::BLACK;
     Color m_ShapeColor = Color::WHITE;
-
-    usize m_Selected2;
-    usize m_Selected3;
 
     bool m_Perspective = false;
     f32 m_FieldOfView = glm::radians(75.f);
     f32 m_Near = 0.1f;
     f32 m_Far = 100.f;
+    f32 m_ZOffset = 0.f;
 };
 } // namespace ONYX

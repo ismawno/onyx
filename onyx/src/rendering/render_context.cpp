@@ -1228,7 +1228,6 @@ void RenderContext<2>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
     m_PolygonRenderer.Render(renderInfo);
     m_CircleRenderer.Render(renderInfo);
 
-    resetRenderState();
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
 }
 
@@ -1246,7 +1245,6 @@ void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
     m_PolygonRenderer.Render(renderInfo);
     m_CircleRenderer.Render(renderInfo);
 
-    resetRenderState();
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
 }
 
@@ -1344,7 +1342,7 @@ usize RenderContext<3>::GetLightCount() const noexcept
     return m_DirectionalLights.size();
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::resetRenderState() noexcept
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Reset() noexcept
 {
     KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
     m_RenderState[0] = RenderState<N>{};

@@ -17,7 +17,7 @@ light;
 
 void main()
 {
-    if (dot(i_LocalPosition, i_LocalPosition) > 1.0)
+    if (dot(i_LocalPosition, i_LocalPosition) > 0.25)
         discard;
 
     vec3 normal = normalize(i_FragNormal);

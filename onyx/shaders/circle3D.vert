@@ -17,10 +17,8 @@ layout(set = 0, binding = 0) readonly buffer ObjectBuffer
 }
 objectBuffer;
 
-// A 3D CUBE
-const vec3 g_Positions[8] =
-    vec3[](vec3(-1.0, -1.0, -1.0), vec3(1.0, -1.0, -1.0), vec3(1.0, 1.0, -1.0), vec3(-1.0, 1.0, -1.0),
-           vec3(-1.0, -1.0, 1.0), vec3(1.0, -1.0, 1.0), vec3(1.0, 1.0, 1.0), vec3(-1.0, 1.0, 1.0));
+const vec3 g_Positions[6] = vec3[](vec3(-0.5, -0.5, 0.0), vec3(0.5, 0.5, 0.0), vec3(-0.5, 0.5, 0.0),
+                                   vec3(-0.5, -0.5, 0.0), vec3(0.5, -0.5, 0.0), vec3(0.5, 0.5, 0.0));
 
 void main()
 {
@@ -28,7 +26,7 @@ void main()
     gl_PointSize = 1.0;
 
     const mat3 normalMatrix = mat3(objectBuffer.Objects[gl_InstanceIndex].NormalMatrix);
-    o_FragNormal = normalize(normalMatrix * g_Positions[gl_VertexIndex]);
+    o_FragNormal = normalize(normalMatrix * vec3(0.0, 0.0, 1.0)); // Because normal is (0, 0, 1) for all vertices
     o_FragColor = objectBuffer.Objects[gl_InstanceIndex].Color;
     o_LocalPosition = g_Positions[gl_VertexIndex];
 }

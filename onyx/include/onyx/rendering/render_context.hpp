@@ -159,6 +159,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void SetCurrentTransform(const mat<N> &p_Transform) noexcept;
     void SetCurrentAxes(const mat<N> &p_Axes) noexcept;
 
+    void Reset() noexcept;
+
   protected:
     template <typename Renderer, typename... DrawArgs>
     void draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept;
@@ -166,7 +168,6 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void drawPrimitive(usize p_PrimitiveIndex, const mat<N> &p_Transform) noexcept;
     void drawPolygon(std::span<const vec<N>> p_Vertices, const mat<N> &p_Transform) noexcept;
     void drawCircle(const mat<N> &p_Transform) noexcept;
-    void resetRenderState() noexcept;
 
     MeshRenderer<N> m_MeshRenderer;
     PrimitiveRenderer<N> m_PrimitiveRenderer;
