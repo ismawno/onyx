@@ -37,7 +37,7 @@ ONYX_DIMENSION_TEMPLATE struct IPrimitives
     }
     static constexpr usize GetNGonIndex(u32 p_Sides) noexcept
     {
-        KIT_ASSERT(p_Sides < ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3, "NGon sides must be between 3 and {}",
+        KIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3, "NGon sides must be between 3 and {}",
                    ONYX_MAX_REGULAR_POLYGON_SIDES);
         return (N - 1) * 2 + p_Sides - 3;
     }

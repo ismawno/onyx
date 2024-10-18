@@ -15,15 +15,9 @@ static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSyste
     p_Window.FlushEvents();
     // Should maybe exit if window is closed at this point (triggered by event)
 
-    // These are called in exactly the same context, but it is nice to have update/render separated
     p_Layers.OnUpdate(p_WindowIndex);
-    p_Layers.OnRender(p_WindowIndex);
     KIT_ASSERT_RETURNS(p_Window.Render(std::forward<F>(p_Submission)), true,
                        "Failed to render to the window. Failed to acquire a command buffer when beginning a new frame");
-}
-static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSystem &p_Layers) noexcept
-{
-    processFrame(p_WindowIndex, p_Window, p_Layers, [](const VkCommandBuffer) {});
 }
 
 void IMultiWindowApplication::CloseAllWindows() noexcept
@@ -131,12 +125,13 @@ void MultiWindowApplication<WindowFlow::SERIAL>::processWindows() noexcept
     m_MainThreadProcessing = true;
     processFrame(0, *m_Windows[0], Layers, [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
+        Layers.OnRender(0);
         Layers.OnImGuiRender();
         endRenderImGui(p_CommandBuffer);
     });
 
     for (usize i = 1; i < m_Windows.size(); ++i)
-        processFrame(i, *m_Windows[i], Layers);
+        processFrame(i, *m_Windows[i], Layers, [this, i](const VkCommandBuffer) { Layers.OnRender(i); });
 
     m_MainThreadProcessing = false;
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
@@ -197,8 +192,10 @@ KIT::Ref<KIT::Task<void>> MultiWindowApplication<WindowFlow::CONCURRENT>::create
     const usize p_WindowIndex) noexcept
 {
     const KIT::ITaskManager *taskManager = Core::GetTaskManager();
-    return taskManager->CreateTask(
-        [this, p_WindowIndex](usize) { processFrame(p_WindowIndex, *m_Windows[p_WindowIndex], Layers); });
+    return taskManager->CreateTask([this, p_WindowIndex](usize) {
+        processFrame(p_WindowIndex, *m_Windows[p_WindowIndex], Layers,
+                     [this, p_WindowIndex](const VkCommandBuffer) { Layers.OnRender(p_WindowIndex); });
+    });
 }
 
 Window *MultiWindowApplication<WindowFlow::CONCURRENT>::OpenWindow(const Window::Specs &p_Specs) noexcept
@@ -247,6 +244,7 @@ void MultiWindowApplication<WindowFlow::CONCURRENT>::processWindows() noexcept
     // Main thread always handles the first window. First element of tasks is always nullptr
     processFrame(0, *m_Windows[0], Layers, [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
+        Layers.OnRender(0);
         Layers.OnImGuiRender();
         endRenderImGui(p_CommandBuffer);
     });

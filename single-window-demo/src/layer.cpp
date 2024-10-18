@@ -39,12 +39,6 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::drawShapes(RenderContext<N> *p_Cont
         shape->Draw(p_Context);
 }
 
-void SWExampleLayer::OnRender() noexcept
-{
-    drawShapes(m_Context2, m_Shapes2, m_Axes2);
-    drawShapes(m_Context3, m_Shapes3, m_Axes3);
-}
-
 ONYX_DIMENSION_TEMPLATE static void editTransform(Transform<N> &p_Transform) noexcept
 {
     ImGui::PushID(&p_Transform);
@@ -157,16 +151,21 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderShapeSpawn(DynamicArray<KIT::
             return;
         }
         ImGui::SameLine();
+        ImGui::PushID(&p_Shapes[i]);
         if (ImGui::Selectable(p_Shapes[i]->GetName(), selected == i))
             selected = i;
+        ImGui::PopID();
     }
     ImGui::Text("Selected transform");
     if (selected < size)
         editTransform(p_Shapes[selected]->Transform);
 }
 
-void SWExampleLayer::OnImGuiRender() noexcept
+void SWExampleLayer::OnRender() noexcept
 {
+    drawShapes(m_Context2, m_Shapes2, m_Axes2);
+    drawShapes(m_Context3, m_Shapes3, m_Axes3);
+
     if (ImGui::Begin("Shapes"))
     {
         const vec2 mpos2 = m_Context2->GetMouseCoordinates();

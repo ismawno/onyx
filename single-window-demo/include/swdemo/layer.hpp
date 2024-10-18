@@ -14,7 +14,6 @@ class SWExampleLayer final : public Layer
 
     void OnStart() noexcept override;
     void OnRender() noexcept override;
-    void OnImGuiRender() noexcept override;
 
   private:
     ONYX_DIMENSION_TEMPLATE void drawShapes(RenderContext<N> *p_Context,

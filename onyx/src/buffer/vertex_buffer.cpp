@@ -36,7 +36,7 @@ ONYX_DIMENSION_TEMPLATE MutableVertexBuffer<N>::MutableVertexBuffer(
     : Buffer(createBufferSpecs<N>(p_Vertices.size()))
 {
     Map();
-    Write(p_Vertices.data());
+    Write(p_Vertices);
     Flush();
 }
 ONYX_DIMENSION_TEMPLATE MutableVertexBuffer<N>::MutableVertexBuffer(const usize p_Size) noexcept
@@ -50,6 +50,11 @@ ONYX_DIMENSION_TEMPLATE void MutableVertexBuffer<N>::Bind(const VkCommandBuffer 
 {
     const VkBuffer buffer = this->GetBuffer();
     vkCmdBindVertexBuffers(p_CommandBuffer, 0, 1, &buffer, &p_Offset);
+}
+
+ONYX_DIMENSION_TEMPLATE void MutableVertexBuffer<N>::Write(const std::span<const Vertex<N>> p_Vertices)
+{
+    Buffer::Write(p_Vertices.data(), p_Vertices.size() * sizeof(Vertex<N>));
 }
 
 template class MutableVertexBuffer<2>;

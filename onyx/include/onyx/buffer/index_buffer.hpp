@@ -28,6 +28,8 @@ class ONYX_API MutableIndexBuffer : public Buffer
     MutableIndexBuffer(usize p_Size) noexcept;
 
     void Bind(VkCommandBuffer p_CommandBuffer, VkDeviceSize p_Offset = 0) const noexcept;
+
+    void Write(std::span<const Index> p_Vertices);
 };
 
 } // namespace ONYX

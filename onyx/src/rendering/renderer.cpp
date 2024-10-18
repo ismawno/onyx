@@ -342,6 +342,9 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, co
     const auto pushVertex = [this](const vec<N> &v) {
         Vertex<N> vertex{};
         vertex.Position = v;
+#if ONYX_COORDINATE_SYSTEM == ONYX_CS_CENTERED_CARTESIAN
+        vertex.Position.y = -vertex.Position.y;
+#endif
         if constexpr (N == 3)
             vertex.Normal = vec3{0.0f, 0.0f, 1.0f};
         m_Vertices.push_back(vertex);
@@ -367,12 +370,12 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, co
     auto &vertexBuffer = m_PerFrameData.VertexBuffers[p_FrameIndex];
     auto &indexBuffer = m_PerFrameData.IndexBuffers[p_FrameIndex];
 
-    if (vertexSize == vertexBuffer->GetInstanceCount())
+    if (vertexSize >= vertexBuffer->GetInstanceCount())
     {
         vertexBuffer.Destroy();
         vertexBuffer.Create(vertexSize * 2);
     }
-    if (indexSize == indexBuffer->GetInstanceCount())
+    if (indexSize >= indexBuffer->GetInstanceCount())
     {
         indexBuffer.Destroy();
         indexBuffer.Create(indexSize * 2);
@@ -381,7 +384,7 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, co
 
 ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept
 {
-    if (m_PerFrameData.StorageSizes[p_Info.FrameIndex] == 0)
+    if (m_BatchData.empty())
         return;
 
     auto &storageBuffer = m_PerFrameData.StorageBuffers[p_Info.FrameIndex];
@@ -396,8 +399,8 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Render(const RenderInfo<N> &p_I
     }
     storageBuffer->Flush();
 
-    vertexBuffer->Write(m_Vertices.data());
-    indexBuffer->Write(m_Indices.data());
+    vertexBuffer->Write(m_Vertices);
+    indexBuffer->Write(m_Indices);
     vertexBuffer->Flush();
     indexBuffer->Flush();
 

@@ -69,6 +69,8 @@ class LayerSystem
     // Window is also passed in update because it also acts as an identifier for the current window thread
     void OnUpdate(usize p_WindowIndex) noexcept;
     void OnRender(usize p_WindowIndex) noexcept;
+
+    // To be used only in multi window apps (in single window, OnRender does fine)
     void OnImGuiRender() noexcept;
 
     void OnEvent(const Event &p_Event) noexcept;

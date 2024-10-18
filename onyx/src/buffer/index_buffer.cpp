@@ -29,7 +29,7 @@ MutableIndexBuffer::MutableIndexBuffer(const std::span<const Index> p_Indices) n
     : Buffer(createBufferSpecs(p_Indices.size()))
 {
     Map();
-    Write(p_Indices.data());
+    Write(p_Indices);
     Flush();
 }
 
@@ -41,6 +41,11 @@ MutableIndexBuffer::MutableIndexBuffer(const usize p_Size) noexcept : Buffer(cre
 void MutableIndexBuffer::Bind(const VkCommandBuffer p_CommandBuffer, const VkDeviceSize p_Offset) const noexcept
 {
     vkCmdBindIndexBuffer(p_CommandBuffer, GetBuffer(), p_Offset, VK_INDEX_TYPE_UINT32);
+}
+
+void MutableIndexBuffer::Write(const std::span<const Index> p_Indices)
+{
+    Buffer::Write(p_Indices.data(), p_Indices.size() * sizeof(Index));
 }
 
 } // namespace ONYX

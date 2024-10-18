@@ -45,22 +45,34 @@ ONYX_DIMENSION_TEMPLATE const PrimitiveDataLayout &IPrimitives<N>::GetDataLayout
 ONYX_DIMENSION_TEMPLATE static IndexVertexData<N> createRegularPolygonBuffers(const usize p_Sides) noexcept
 {
     IndexVertexData<N> data{};
-    data.Vertices.resize(p_Sides);
-    data.Indices.resize(p_Sides * 3);
+    data.Vertices.reserve(p_Sides);
+    data.Indices.reserve(p_Sides * 3 - 6);
 
-    const f32 angle = 2.f * glm::pi<f32>() / (p_Sides - 1);
-    for (Index i = 0; i < p_Sides; ++i)
+    const f32 angle = 2.f * glm::pi<f32>() / p_Sides;
+    for (Index i = 0; i < 3; ++i)
     {
         const f32 x = glm::cos(angle * i);
         const f32 y = glm::sin(angle * i);
-        data.Indices[i * 3] = 0;
-        data.Indices[i * 3 + 1] = i;
-        data.Indices[i * 3 + 2] = i + 1;
+
+        data.Indices.push_back(i);
+        if constexpr (N == 2)
+            data.Vertices.push_back(Vertex<N>{vec<N>{x, y}});
+        else
+            data.Vertices.push_back(Vertex<N>{vec<N>{x, y, 0.f}, vec<N>{0.f, 0.f, 1.f}});
+    }
+
+    for (Index i = 3; i < p_Sides; ++i)
+    {
+        const f32 x = glm::cos(angle * i);
+        const f32 y = glm::sin(angle * i);
+        data.Indices.push_back(0);
+        data.Indices.push_back(i - 1);
+        data.Indices.push_back(i);
 
         if constexpr (N == 2)
-            data.Vertices[i] = Vertex<N>{vec<N>{x, y}};
+            data.Vertices.push_back(Vertex<N>{vec<N>{x, y}});
         else
-            data.Vertices[i] = Vertex<N>{vec<N>{x, y, 0.f}, vec<N>{0.f, 0.f, 1.f}};
+            data.Vertices.push_back(Vertex<N>{vec<N>{x, y, 0.f}, vec<N>{0.f, 0.f, 1.f}});
     }
 
     return data;

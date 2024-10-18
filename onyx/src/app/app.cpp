@@ -163,11 +163,10 @@ bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
     // Should maybe exit if window is closed at this point (triggered by event)
 
     Layers.OnUpdate();
-    Layers.OnRender();
 
     KIT_ASSERT_RETURNS(m_Window->Render([this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        Layers.OnImGuiRender();
+        Layers.OnRender();
         endRenderImGui(p_CommandBuffer);
     }),
                        true,

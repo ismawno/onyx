@@ -29,6 +29,8 @@ enum class WindowFlow
 // you are supposed to draw only 2D or 3D objects in a window, not both. you can still do it, but results may be weird
 // (light behaves differently, etc)
 
+// MUST ONLY RENDER IN OnRender, NOT ON UPDATE (will cause crashes)
+
 class IMultiWindowApplication : public IApplication
 {
     KIT_NON_COPYABLE(IMultiWindowApplication)
