@@ -23,15 +23,10 @@ namespace ONYX
 ONYX_DIMENSION_TEMPLATE struct RenderState;
 class Window;
 
-// This method computes an "offset" for the axes to support different coordinate systems
-ONYX_DIMENSION_TEMPLATE mat<N> CoordinateSystemAxesOffset() noexcept;
-
-// All axes transformation come "from the right", and axes offset must come "from the left", so it is actually fine to
-// have the axes starting as the current offset
 template <> struct RenderState<2>
 {
     mat3 Transform{1.f};
-    mat3 Axes = CoordinateSystemAxesOffset<2>();
+    mat3 Axes{1.f};
     Color FillColor = Color::WHITE;
     Color StrokeColor = Color::WHITE;
     f32 StrokeWidth = 0.f;
@@ -42,7 +37,7 @@ template <> struct RenderState<2>
 template <> struct RenderState<3>
 {
     mat4 Transform{1.f};
-    mat4 Axes = CoordinateSystemAxesOffset<3>();
+    mat4 Axes{1.f};
     mat4 Projection{1.f};
     Color FillColor = Color::WHITE;
     bool HasProjection = false;

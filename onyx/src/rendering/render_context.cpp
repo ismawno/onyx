@@ -9,20 +9,27 @@
 
 namespace ONYX
 {
-
-ONYX_DIMENSION_TEMPLATE mat<N> CoordinateSystemAxesOffset() noexcept
+// This function provides an "offset" for the axes to support different coordinate systems
+static mat4 coordinateSystemAxesOffset() noexcept
 {
-    if constexpr (N == 2)
-        return Transform2D::ComputeRotationMatrix(glm::pi<f32>());
-    else
-        return Transform3D::ComputeRotationMatrix(quat{vec3{glm::pi<f32>(), 0.f, 0.f}});
+    // Essentially, a rotation around the x axis
+    mat4 offset = mat4(1.f);
+    offset[1][1] = -1.f;
+    offset[2][2] = -1.f;
+    return offset;
 }
 
 ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
       m_CircleRenderer(p_RenderPass), m_Window(p_Window)
 {
+
     m_RenderState.push_back(RenderState<N>{});
+    // All axes transformation come "from the right", and axes offset must come "from the left", so it is actually fine
+    // to have the axes starting as the current offset. Can only be done in 3D, because transformations may involve some
+    // axis that dont exist in 2D. This offset is apply later for 2D cases, when eventually the mat3's become mat4's
+    if constexpr (N == 3)
+        m_RenderState.back().Axes = coordinateSystemAxesOffset();
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Background(const Color &p_Color) noexcept
@@ -337,7 +344,9 @@ ONYX_DIMENSION_TEMPLATE DrawData<N> createDrawData(const mat<N> &p_Transform, co
     }
     else
     {
-        drawData.Transform = transform3ToTransform4(p_ProjView * p_Transform);
+        // And now, we apply axes offset for 2D cases, which may seem that it is applied after the projection, but it is
+        // cool because I use no projection for 2D
+        drawData.Transform = coordinateSystemAxesOffset() * transform3ToTransform4(p_ProjView * p_Transform);
         drawData.Color = p_Color;
     }
     return drawData;
@@ -1269,7 +1278,10 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentTransform(const mat<N>
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentAxes(const mat<N> &p_Axes) noexcept
 {
-    m_RenderState.back().Axes = CoordinateSystemAxesOffset<N>() * p_Axes;
+    if constexpr (N == 3)
+        m_RenderState.back().Axes = coordinateSystemAxesOffset() * p_Axes;
+    else
+        m_RenderState.back().Axes = p_Axes;
 }
 
 void RenderContext<2>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
