@@ -342,7 +342,7 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, co
     const auto pushVertex = [this](const vec<N> &v) {
         Vertex<N> vertex{};
         vertex.Position = v;
-#if ONYX_COORDINATE_SYSTEM == ONYX_CS_CENTERED_CARTESIAN
+#if ONYX_COORDINATE_SYSTEM == ONYX_CS_RIGHT_HANDED_CARTESIAN
         vertex.Position.y = -vertex.Position.y;
 #endif
         if constexpr (N == 3)

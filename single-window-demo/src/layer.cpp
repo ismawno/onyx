@@ -2,6 +2,7 @@
 #include "onyx/app/mwapp.hpp"
 #include <imgui.h>
 #include <implot.h>
+#include <ImGuizmo.h>
 
 namespace ONYX
 {
@@ -142,7 +143,6 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
     if (ImGui::Button("Clear"))
         p_Data.Shapes.clear();
 
-    static usize selected = 0;
     const usize size = static_cast<usize>(p_Data.Shapes.size());
     for (usize i = 0; i < size; ++i)
     {
@@ -153,13 +153,13 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
         }
         ImGui::SameLine();
         ImGui::PushID(&p_Data.Shapes[i]);
-        if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), selected == i))
-            selected = i;
+        if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), p_Data.Selected == i))
+            p_Data.Selected = i;
         ImGui::PopID();
     }
     ImGui::Text("Selected transform");
-    if (selected < size)
-        editTransform(p_Data.Shapes[selected]->Transform);
+    if (p_Data.Selected < size)
+        editTransform(p_Data.Shapes[p_Data.Selected]->Transform);
 }
 
 ONYX_DIMENSION_TEMPLATE static bool processPolygonEvent(LayerData<N> &p_Data, const Event &p_Event,
@@ -225,6 +225,7 @@ void SWExampleLayer::OnRender() noexcept
 {
     ImGui::ShowDemoWindow();
     ImPlot::ShowDemoWindow();
+
     if (ImGui::Begin("Global settings"))
     {
         if (ImGui::CollapsingHeader("Background color"))
@@ -236,6 +237,77 @@ void SWExampleLayer::OnRender() noexcept
 
     renderUI(m_LayerData2);
     renderUI(m_LayerData3);
+    // static f32 t = 0.f;
+    // t += 0.01f;
+    // m_LayerData2.Context->Rotate(t);
+    // m_LayerData2.Context->Square();
+}
+
+void SWExampleLayer::renderGuizmos() noexcept
+{
+    if (m_LayerData3.Shapes.empty())
+        return;
+    static ImGuizmo::OPERATION currentOperation = ImGuizmo::OPERATION::TRANSLATE;
+    static ImGuizmo::MODE currentMode = ImGuizmo::MODE::LOCAL;
+
+    if (ImGui::Begin("3D"))
+    {
+        if (ImGui::RadioButton("Translate", currentOperation == ImGuizmo::OPERATION::TRANSLATE))
+            currentOperation = ImGuizmo::OPERATION::TRANSLATE;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Rotate", currentOperation == ImGuizmo::OPERATION::ROTATE))
+            currentOperation = ImGuizmo::OPERATION::ROTATE;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Scale", currentOperation == ImGuizmo::OPERATION::SCALE))
+            currentOperation = ImGuizmo::OPERATION::SCALE;
+
+        if (currentOperation != ImGuizmo::OPERATION::SCALE)
+        {
+            if (ImGui::RadioButton("Local", currentMode == ImGuizmo::MODE::LOCAL))
+                currentMode = ImGuizmo::MODE::LOCAL;
+            ImGui::SameLine();
+            if (ImGui::RadioButton("World", currentMode == ImGuizmo::MODE::WORLD))
+                currentMode = ImGuizmo::MODE::WORLD;
+        }
+    }
+    ImGui::End();
+
+    const Window *window = m_Application->GetMainWindow();
+
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
+                                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                                   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                                   ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoSavedSettings |
+                                   ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
+
+    const auto [x, y] = window->GetPosition();
+    const u32 width = window->GetScreenWidth();
+    const u32 height = window->GetScreenHeight();
+
+    ImGui::SetNextWindowSize(ImVec2(width, height));
+    ImGui::SetNextWindowPos(ImVec2(x, y));
+    if (ImGui::Begin("Screen", nullptr, flags))
+    {
+        ImGuizmo::SetOrthographic(!m_Perspective);
+        ImGuizmo::SetDrawlist();
+
+        ImGuizmo::SetRect(x, y, width, height);
+
+        RenderState3D &state = m_LayerData3.Context->GetState();
+        Transform3D &transform = m_LayerData3.Shapes[m_LayerData3.Selected]->Transform;
+        mat4 matrix = transform.ComputeTransform();
+
+        matrix[3][1] = -matrix[3][1];
+
+        ImGuizmo::Manipulate(glm::value_ptr(state.Axes), glm::value_ptr(state.Projection), currentOperation,
+                             currentMode, glm::value_ptr(matrix));
+
+        matrix[3][1] = -matrix[3][1];
+
+        if (ImGuizmo::IsUsing())
+            transform = Transform3D::Extract(matrix);
+    }
+    ImGui::End();
 }
 
 } // namespace ONYX

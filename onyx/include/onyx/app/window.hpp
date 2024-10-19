@@ -53,9 +53,9 @@ class ONYX_API Window
         if (const VkCommandBuffer cmd = m_RenderSystem->BeginFrame(*this))
         {
             m_RenderSystem->BeginRenderPass(BackgroundColor);
-            std::forward<F>(p_Submission)(cmd);
             m_RenderContext2D->Render(cmd);
             m_RenderContext3D->Render(cmd);
+            std::forward<F>(p_Submission)(cmd);
             m_RenderSystem->EndRenderPass();
             m_RenderSystem->EndFrame(*this);
             return true;
@@ -77,6 +77,8 @@ class ONYX_API Window
 
     f32 GetScreenAspect() const noexcept;
     f32 GetPixelAspect() const noexcept;
+
+    std::pair<u32, u32> GetPosition() const noexcept;
 
     bool WasResized() const noexcept;
     void FlagResize(u32 p_Width, u32 p_Height) noexcept;

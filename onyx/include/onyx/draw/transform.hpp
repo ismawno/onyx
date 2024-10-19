@@ -34,13 +34,12 @@ ONYX_DIMENSION_TEMPLATE struct ONYX_API Transform
     mat<N> ComputeScaleMatrix() const noexcept;
     mat<N> ComputeRotationMatrix() const noexcept;
 
-    static void ExtractTransform(const mat<N> &p_Transform, vec<N> *p_Translation, vec<N> *p_Scale,
-                                 rot<N> *p_Rotation) noexcept;
-    static Transform ExtractTransform(const mat<N> &p_Transform) noexcept;
+    static void Extract(const mat<N> &p_Transform, vec<N> *p_Translation, vec<N> *p_Scale, rot<N> *p_Rotation) noexcept;
+    static Transform Extract(const mat<N> &p_Transform) noexcept;
 
-    static vec<N> ExtractTranslationTransform(const mat<N> &p_Transform) noexcept;
-    static vec<N> ExtractScaleTransform(const mat<N> &p_Transform) noexcept;
-    static rot<N> ExtractRotationTransform(const mat<N> &p_Transform) noexcept;
+    static vec<N> ExtractTranslation(const mat<N> &p_Transform) noexcept;
+    static vec<N> ExtractScale(const mat<N> &p_Transform) noexcept;
+    static rot<N> ExtractRotation(const mat<N> &p_Transform) noexcept;
 
     vec<N> Translation{0.f};
     vec<N> Scale{1.f};

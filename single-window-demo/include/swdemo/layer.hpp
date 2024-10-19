@@ -12,7 +12,7 @@ ONYX_DIMENSION_TEMPLATE struct LayerData
     RenderContext<N> *Context;
     DynamicArray<KIT::Scope<Shape<N>>> Shapes;
     Transform<N> Axes;
-    usize Selected;
+    usize Selected = 0;
 
     DynamicArray<vec<N>> PolygonVertices;
     i32 ShapeToSpawn = 0;
@@ -34,6 +34,8 @@ class SWExampleLayer final : public Layer
   private:
     ONYX_DIMENSION_TEMPLATE void drawShapes(const LayerData<N> &p_Data) noexcept;
     ONYX_DIMENSION_TEMPLATE void renderUI(LayerData<N> &p_Data) noexcept;
+
+    void renderGuizmos() noexcept;
 
     Application *m_Application = nullptr;
 

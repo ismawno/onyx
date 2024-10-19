@@ -10,6 +10,14 @@
 namespace ONYX
 {
 
+ONYX_DIMENSION_TEMPLATE mat<N> CoordinateSystemAxesOffset() noexcept
+{
+    if constexpr (N == 2)
+        return Transform2D::ComputeRotationMatrix(glm::pi<f32>());
+    else
+        return Transform3D::ComputeRotationMatrix(quat{vec3{glm::pi<f32>(), 0.f, 0.f}});
+}
+
 ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
       m_CircleRenderer(p_RenderPass), m_Window(p_Window)
@@ -337,7 +345,7 @@ ONYX_DIMENSION_TEMPLATE DrawData<N> createDrawData(const mat<N> &p_Transform, co
 
 static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWidth) noexcept
 {
-    const vec2 scale = Transform2D::ExtractScaleTransform(p_Transform);
+    const vec2 scale = Transform2D::ExtractScale(p_Transform);
     const vec2 stroke = (scale + p_StrokeWidth) / scale;
     return p_Transform * Transform2D::ComputeScaleMatrix(stroke);
 }
@@ -1261,7 +1269,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentTransform(const mat<N>
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentAxes(const mat<N> &p_Axes) noexcept
 {
-    m_RenderState.back().Axes = p_Axes;
+    m_RenderState.back().Axes = CoordinateSystemAxesOffset<N>() * p_Axes;
 }
 
 void RenderContext<2>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
@@ -1298,7 +1306,7 @@ void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
 vec2 RenderContext<2>::GetMouseCoordinates() const noexcept
 {
     const vec2 mpos = Input::GetMousePosition(m_Window);
-#if ONYX_COORDINATE_SYSTEM == ONYX_CS_CENTERED_CARTESIAN
+#if ONYX_COORDINATE_SYSTEM == ONYX_CS_RIGHT_HANDED_CARTESIAN
     mat3 axes = m_RenderState.back().Axes;
     axes[2][1] = -axes[2][1];
 #else
@@ -1309,7 +1317,7 @@ vec2 RenderContext<2>::GetMouseCoordinates() const noexcept
 vec3 RenderContext<3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
 {
     const vec2 mpos = Input::GetMousePosition(m_Window);
-#if ONYX_COORDINATE_SYSTEM == ONYX_CS_CENTERED_CARTESIAN
+#if ONYX_COORDINATE_SYSTEM == ONYX_CS_RIGHT_HANDED_CARTESIAN
     mat4 axes = m_RenderState.back().Axes;
     axes[2][1] = -axes[2][1];
 #else
@@ -1343,6 +1351,7 @@ void RenderContext<3>::Perspective(const f32 p_FieldOfView, const f32 p_Near, co
 
 void RenderContext<3>::Orthographic() noexcept
 {
+    m_RenderState.back().Projection = mat4{1.f};
     m_RenderState.back().HasProjection = false;
 }
 

@@ -106,6 +106,13 @@ f32 Window::GetPixelAspect() const noexcept
     return m_RenderSystem->GetSwapChain().GetAspectRatio();
 }
 
+std::pair<u32, u32> Window::GetPosition() const noexcept
+{
+    i32 x, y;
+    glfwGetWindowPos(m_Window, &x, &y);
+    return {static_cast<u32>(x), static_cast<u32>(y)};
+}
+
 bool Window::WasResized() const noexcept
 {
     return m_Resized;
