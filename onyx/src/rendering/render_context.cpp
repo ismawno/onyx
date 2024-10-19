@@ -23,7 +23,6 @@ ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, cons
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
       m_CircleRenderer(p_RenderPass), m_Window(p_Window)
 {
-
     m_RenderState.push_back(RenderState<N>{});
     // All axes transformation come "from the right", and axes offset must come "from the left", so it is actually fine
     // to have the axes starting as the current offset. Can only be done in 3D, because transformations may involve some
@@ -1229,6 +1228,8 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Push() noexcept
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::PushAndClear() noexcept
 {
     m_RenderState.push_back(RenderState<N>{});
+    if constexpr (N == 3)
+        m_RenderState.back().Axes = coordinateSystemAxesOffset();
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Pop() noexcept
 {
@@ -1318,27 +1319,17 @@ void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
 vec2 RenderContext<2>::GetMouseCoordinates() const noexcept
 {
     const vec2 mpos = Input::GetMousePosition(m_Window);
-#if ONYX_COORDINATE_SYSTEM == ONYX_CS_RIGHT_HANDED_CARTESIAN
-    mat3 axes = m_RenderState.back().Axes;
-    axes[2][1] = -axes[2][1];
-#else
-    const mat3 &axes = m_RenderState.back().Axes;
-#endif
-    return glm::inverse(axes) * vec3{mpos, 1.f};
+    const mat4 axes = coordinateSystemAxesOffset() * transform3ToTransform4(m_RenderState.back().Axes);
+    return glm::inverse(axes) * vec4{mpos, 1.f, 1.f};
 }
 vec3 RenderContext<3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
 {
     const vec2 mpos = Input::GetMousePosition(m_Window);
-#if ONYX_COORDINATE_SYSTEM == ONYX_CS_RIGHT_HANDED_CARTESIAN
-    mat4 axes = m_RenderState.back().Axes;
-    axes[2][1] = -axes[2][1];
-#else
     const mat4 &axes = m_RenderState.back().Axes;
-#endif
     if (!m_RenderState.back().HasProjection)
         return glm::inverse(axes) * vec4{mpos, p_Depth, 1.f};
 
-    const vec4 clip = glm::inverse(axes) * vec4{mpos, p_Depth, 1.f};
+    const vec4 clip = glm::inverse(m_RenderState.back().Projection * axes) * vec4{mpos, p_Depth, 1.f};
     return vec3{clip} / clip.w;
 }
 
@@ -1412,6 +1403,8 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Reset() noexcept
 {
     KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
     m_RenderState[0] = RenderState<N>{};
+    if constexpr (N == 3)
+        m_RenderState[0].Axes = coordinateSystemAxesOffset();
 }
 
 struct GlobalUBO

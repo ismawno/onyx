@@ -22,13 +22,8 @@ vec2 Input::GetMousePosition(Window *p_Window) noexcept
     GLFWwindow *window = p_Window->GetWindowHandle();
     double xPos, yPos;
     glfwGetCursorPos(window, &xPos, &yPos);
-#if ONYX_COORDINATE_SYSTEM == ONYX_CS_RIGHT_HANDED_CARTESIAN
-    return {2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,
-            1.f - 2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight()};
-#else
     return {2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,
             2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight() - 1.f};
-#endif
 }
 
 bool Input::IsKeyPressed(const Key p_Key) noexcept
