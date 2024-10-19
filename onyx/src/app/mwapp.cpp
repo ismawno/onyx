@@ -7,8 +7,9 @@
 namespace ONYX
 {
 // this function smells like shit
-template <typename F>
-static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSystem &p_Layers, F &&p_Submission) noexcept
+template <typename F1, typename F2>
+static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSystem &p_Layers, F1 &&p_DrawCalls,
+                         F2 &&p_UICalls) noexcept
 {
     for (const Event &event : p_Window.GetNewEvents())
         p_Layers.OnEvent(p_WindowIndex, event);
@@ -16,7 +17,7 @@ static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSyste
     // Should maybe exit if window is closed at this point (triggered by event)
 
     p_Layers.OnUpdate(p_WindowIndex);
-    KIT_ASSERT_RETURNS(p_Window.Render(std::forward<F>(p_Submission)), true,
+    KIT_ASSERT_RETURNS(p_Window.Render(std::forward<F1>(p_DrawCalls), std::forward<F2>(p_UICalls)), true,
                        "Failed to render to the window. Failed to acquire a command buffer when beginning a new frame");
 }
 
@@ -123,15 +124,18 @@ Window *MultiWindowApplication<WindowFlow::SERIAL>::OpenWindow(const Window::Spe
 void MultiWindowApplication<WindowFlow::SERIAL>::processWindows() noexcept
 {
     m_MainThreadProcessing = true;
-    processFrame(0, *m_Windows[0], Layers, [this](const VkCommandBuffer p_CommandBuffer) {
+    const auto drawCalls = [this](const VkCommandBuffer) {
         beginRenderImGui();
         Layers.OnRender(0);
         Layers.OnImGuiRender();
-        endRenderImGui(p_CommandBuffer);
-    });
+    };
+    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
+    processFrame(0, *m_Windows[0], Layers, drawCalls, uiSubmission);
 
     for (usize i = 1; i < m_Windows.size(); ++i)
-        processFrame(i, *m_Windows[i], Layers, [this, i](const VkCommandBuffer) { Layers.OnRender(i); });
+        processFrame(
+            i, *m_Windows[i], Layers, [this, i](const VkCommandBuffer) { Layers.OnRender(i); },
+            [](const VkCommandBuffer) {});
 
     m_MainThreadProcessing = false;
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
@@ -193,8 +197,10 @@ KIT::Ref<KIT::Task<void>> MultiWindowApplication<WindowFlow::CONCURRENT>::create
 {
     const KIT::ITaskManager *taskManager = Core::GetTaskManager();
     return taskManager->CreateTask([this, p_WindowIndex](usize) {
-        processFrame(p_WindowIndex, *m_Windows[p_WindowIndex], Layers,
-                     [this, p_WindowIndex](const VkCommandBuffer) { Layers.OnRender(p_WindowIndex); });
+        processFrame(
+            p_WindowIndex, *m_Windows[p_WindowIndex], Layers,
+            [this, p_WindowIndex](const VkCommandBuffer) { Layers.OnRender(p_WindowIndex); },
+            [](const VkCommandBuffer) {});
     });
 }
 
@@ -240,14 +246,16 @@ void MultiWindowApplication<WindowFlow::CONCURRENT>::processWindows() noexcept
         taskManager->SubmitTask(task);
     }
 
-    m_MainThreadProcessing = true;
-    // Main thread always handles the first window. First element of tasks is always nullptr
-    processFrame(0, *m_Windows[0], Layers, [this](const VkCommandBuffer p_CommandBuffer) {
+    const auto drawCalls = [this](const VkCommandBuffer) {
         beginRenderImGui();
         Layers.OnRender(0);
         Layers.OnImGuiRender();
-        endRenderImGui(p_CommandBuffer);
-    });
+    };
+    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
+
+    m_MainThreadProcessing = true;
+    // Main thread always handles the first window. First element of tasks is always nullptr
+    processFrame(0, *m_Windows[0], Layers, drawCalls, uiSubmission);
     m_MainThreadProcessing = false;
 
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)

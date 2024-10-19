@@ -164,12 +164,13 @@ bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
 
     Layers.OnUpdate();
 
-    KIT_ASSERT_RETURNS(m_Window->Render([this](const VkCommandBuffer p_CommandBuffer) {
+    const auto drawCalls = [this](const VkCommandBuffer) {
         beginRenderImGui();
         Layers.OnRender();
-        endRenderImGui(p_CommandBuffer);
-    }),
-                       true,
+    };
+    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
+
+    KIT_ASSERT_RETURNS(m_Window->Render(drawCalls, uiSubmission), true,
                        "Failed to render to the window. Failed to acquire a command buffer when beginning a new frame");
     if (m_Window->ShouldClose())
     {

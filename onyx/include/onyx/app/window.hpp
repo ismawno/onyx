@@ -48,14 +48,15 @@ class ONYX_API Window
     explicit Window(const Specs &p_Specs) noexcept;
     ~Window() noexcept;
 
-    template <typename F> bool Render(F &&p_Submission) noexcept
+    template <typename F1, typename F2> bool Render(F1 &&p_DrawCalls, F2 &&p_UICalls) noexcept
     {
         if (const VkCommandBuffer cmd = m_RenderSystem->BeginFrame(*this))
         {
             m_RenderSystem->BeginRenderPass(BackgroundColor);
+            std::forward<F1>(p_DrawCalls)(cmd);
             m_RenderContext2D->Render(cmd);
             m_RenderContext3D->Render(cmd);
-            std::forward<F>(p_Submission)(cmd);
+            std::forward<F2>(p_UICalls)(cmd);
             m_RenderSystem->EndRenderPass();
             m_RenderSystem->EndFrame(*this);
             return true;

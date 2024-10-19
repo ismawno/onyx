@@ -56,7 +56,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
 
 bool Window::Render() noexcept
 {
-    return Render([](const VkCommandBuffer) {});
+    return Render([](const VkCommandBuffer) {}, [](const VkCommandBuffer) {});
 }
 
 bool Window::ShouldClose() const noexcept

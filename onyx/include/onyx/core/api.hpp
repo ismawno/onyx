@@ -19,10 +19,3 @@
 #        define ONYX_API
 #    endif
 #endif
-
-#define ONYX_CS_RIGHT_HANDED_CARTESIAN 0
-#define ONYX_CS_VULKAN_DEFAULT 1
-
-#ifndef ONYX_COORDINATE_SYSTEM
-#    define ONYX_COORDINATE_SYSTEM ONYX_CS_VULKAN_DEFAULT
-#endif
