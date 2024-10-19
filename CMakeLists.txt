@@ -24,9 +24,8 @@ else()
     option(ONYX_BUILD_DEMO "Build the demo" ON)
 endif()
 
-# If demos are built, implot and imguizmo will always be used
+# If demos are built, implot will always be used
 option(ONYX_USE_IMPLOT "Use ImPlot for plotting" OFF)
-option(ONYX_USE_IMGUIZMO "Use ImGuizmo for gizmos" OFF)
 
 # Compiler flags, linker flags etcetera, those should all be handled when making available the toolkit library through the global CMAKE flag variables
 add_subdirectory(onyx)

@@ -54,10 +54,6 @@ void IApplication::beginRenderImGui() noexcept
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
-#ifdef ONYX_ENABLE_IMGUIZMO
-    ImGuizmo::BeginFrame();
-#endif
 }
 
 void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept

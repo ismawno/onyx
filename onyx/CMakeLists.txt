@@ -179,35 +179,6 @@ if (ONYX_USE_IMPLOT OR ONYX_BUILD_DEMO)
 
 endif()
 
-### IMGUIZMO ###
-
-if (ONYX_USE_IMGUIZMO OR ONYX_BUILD_DEMO)
-    FetchContent_Declare(
-        imguizmo
-        GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
-        GIT_TAG master
-    )
-    FetchContent_MakeAvailable(imguizmo)
-
-    set(IMGUIZMO_DIR ${CMAKE_BINARY_DIR}/_deps/imguizmo-src)
-
-    set(IMGUIZMO_SOURCES
-        ${IMGUIZMO_DIR}/GraphEditor.cpp
-        ${IMGUIZMO_DIR}/ImCurveEdit.cpp
-        ${IMGUIZMO_DIR}/ImGradient.cpp
-        ${IMGUIZMO_DIR}/ImSequencer.cpp
-        ${IMGUIZMO_DIR}/ImGuizmo.cpp
-    )
-
-    add_library(imguizmo STATIC ${IMGUIZMO_SOURCES})
-
-    target_compile_definitions(imguizmo PUBLIC ONYX_ENABLE_IMGUIZMO)
-    target_include_directories(imguizmo PUBLIC ${IMGUIZMO_DIR})
-    target_link_libraries(imguizmo PUBLIC imgui)
-    target_link_libraries(onyx PUBLIC imguizmo)
-
-endif()
-
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Vulkan and GLFW are already linked with imgui
 target_link_libraries(onyx PUBLIC toolkit glm imgui VulkanMemoryAllocator PRIVATE tinyobjloader)

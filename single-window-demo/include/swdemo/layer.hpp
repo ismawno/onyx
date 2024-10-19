@@ -35,8 +35,6 @@ class SWExampleLayer final : public Layer
     ONYX_DIMENSION_TEMPLATE void drawShapes(const LayerData<N> &p_Data) noexcept;
     ONYX_DIMENSION_TEMPLATE void renderUI(LayerData<N> &p_Data) noexcept;
 
-    void renderGuizmos() noexcept;
-
     Application *m_Application = nullptr;
 
     LayerData2D m_LayerData2;

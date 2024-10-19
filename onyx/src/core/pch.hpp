@@ -26,9 +26,6 @@
 #ifdef ONYX_ENABLE_IMPLOT
 #    include <implot.h>
 #endif
-#ifdef ONYX_ENABLE_IMGUIZMO
-#    include <ImGuizmo.h>
-#endif
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
 #include "onyx/core/vma.hpp"

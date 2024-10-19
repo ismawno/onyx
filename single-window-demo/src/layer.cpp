@@ -2,7 +2,6 @@
 #include "onyx/app/mwapp.hpp"
 #include <imgui.h>
 #include <implot.h>
-#include <ImGuizmo.h>
 
 namespace ONYX
 {
@@ -237,77 +236,6 @@ void SWExampleLayer::OnRender() noexcept
 
     renderUI(m_LayerData2);
     renderUI(m_LayerData3);
-    // static f32 t = 0.f;
-    // t += 0.01f;
-    // m_LayerData2.Context->Rotate(t);
-    // m_LayerData2.Context->Square();
-}
-
-void SWExampleLayer::renderGuizmos() noexcept
-{
-    if (m_LayerData3.Shapes.empty())
-        return;
-    static ImGuizmo::OPERATION currentOperation = ImGuizmo::OPERATION::TRANSLATE;
-    static ImGuizmo::MODE currentMode = ImGuizmo::MODE::LOCAL;
-
-    if (ImGui::Begin("3D"))
-    {
-        if (ImGui::RadioButton("Translate", currentOperation == ImGuizmo::OPERATION::TRANSLATE))
-            currentOperation = ImGuizmo::OPERATION::TRANSLATE;
-        ImGui::SameLine();
-        if (ImGui::RadioButton("Rotate", currentOperation == ImGuizmo::OPERATION::ROTATE))
-            currentOperation = ImGuizmo::OPERATION::ROTATE;
-        ImGui::SameLine();
-        if (ImGui::RadioButton("Scale", currentOperation == ImGuizmo::OPERATION::SCALE))
-            currentOperation = ImGuizmo::OPERATION::SCALE;
-
-        if (currentOperation != ImGuizmo::OPERATION::SCALE)
-        {
-            if (ImGui::RadioButton("Local", currentMode == ImGuizmo::MODE::LOCAL))
-                currentMode = ImGuizmo::MODE::LOCAL;
-            ImGui::SameLine();
-            if (ImGui::RadioButton("World", currentMode == ImGuizmo::MODE::WORLD))
-                currentMode = ImGuizmo::MODE::WORLD;
-        }
-    }
-    ImGui::End();
-
-    const Window *window = m_Application->GetMainWindow();
-
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
-                                   ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
-                                   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBringToFrontOnFocus |
-                                   ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoSavedSettings |
-                                   ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
-
-    const auto [x, y] = window->GetPosition();
-    const u32 width = window->GetScreenWidth();
-    const u32 height = window->GetScreenHeight();
-
-    ImGui::SetNextWindowSize(ImVec2(width, height));
-    ImGui::SetNextWindowPos(ImVec2(x, y));
-    if (ImGui::Begin("Screen", nullptr, flags))
-    {
-        ImGuizmo::SetOrthographic(!m_Perspective);
-        ImGuizmo::SetDrawlist();
-
-        ImGuizmo::SetRect(x, y, width, height);
-
-        RenderState3D &state = m_LayerData3.Context->GetState();
-        Transform3D &transform = m_LayerData3.Shapes[m_LayerData3.Selected]->Transform;
-        mat4 matrix = transform.ComputeTransform();
-
-        matrix[3][1] = -matrix[3][1];
-
-        ImGuizmo::Manipulate(glm::value_ptr(state.Axes), glm::value_ptr(state.Projection), currentOperation,
-                             currentMode, glm::value_ptr(matrix));
-
-        matrix[3][1] = -matrix[3][1];
-
-        if (ImGuizmo::IsUsing())
-            transform = Transform3D::Extract(matrix);
-    }
-    ImGui::End();
 }
 
 } // namespace ONYX
