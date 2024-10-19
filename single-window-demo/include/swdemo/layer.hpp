@@ -11,12 +11,16 @@ ONYX_DIMENSION_TEMPLATE struct LayerData
 {
     RenderContext<N> *Context;
     DynamicArray<KIT::Scope<Shape<N>>> Shapes;
-    Transform<N> Axes;
+    mat<N> Axes{1.f};
     usize Selected = 0;
 
     DynamicArray<vec<N>> PolygonVertices;
     i32 ShapeToSpawn = 0;
     i32 NGonSides = 3;
+    f32 AxesThickness = 0.01f;
+    bool DrawAxes = false;
+    bool ControlAxes = false;
+    bool ControlAsCamera = true;
 };
 
 using LayerData2D = LayerData<2>;
@@ -34,6 +38,7 @@ class SWExampleLayer final : public Layer
   private:
     ONYX_DIMENSION_TEMPLATE void drawShapes(const LayerData<N> &p_Data) noexcept;
     ONYX_DIMENSION_TEMPLATE void renderUI(LayerData<N> &p_Data) noexcept;
+    ONYX_DIMENSION_TEMPLATE void controlAxes(LayerData<N> &p_Data) noexcept;
 
     Application *m_Application = nullptr;
 

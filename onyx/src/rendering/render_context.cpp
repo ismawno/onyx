@@ -844,12 +844,14 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Line(const vec<N> &p_Start, cons
         t.Rotation = quat{{0.f, glm::atan(delta.y, delta.x), glm::atan(delta.z, delta.x)}};
     t.Scale.x = glm::length(delta);
     t.Scale.y = p_Thickness;
+    if constexpr (N == 3)
+        t.Scale.z = p_Thickness;
 
     const mat<N> transform = t.ComputeTransform() * m_RenderState.back().Transform;
     if constexpr (N == 2)
         drawPrimitive(Primitives2D::GetSquareIndex(), transform);
     else
-        drawPrimitive(Primitives3D::GetCubeIndex(), transform);
+        drawPrimitive(Primitives3D::GetCylinderIndex(), transform);
 }
 
 void RenderContext<2>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
@@ -1023,14 +1025,14 @@ void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions
         m_RenderState.back().Transform;
     drawPrimitive(Primitives3D::GetCylinderIndex(), transform);
 }
-void RenderContext<3>::Cylinder(const f32 p_Radius, const f32 p_Height) noexcept
+void RenderContext<3>::Cylinder(const f32 p_Radius, const f32 p_Length) noexcept
 {
-    Cylinder(vec2{p_Radius, p_Height});
+    Cylinder(vec2{p_Radius, p_Length});
 }
 void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius,
-                                const f32 p_Height) noexcept
+                                const f32 p_Length) noexcept
 {
-    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Height});
+    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Length});
 }
 void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const quat &p_Quaternion) noexcept
 {
@@ -1043,15 +1045,15 @@ void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions
 {
     Cylinder(p_Position, p_Dimensions, quat{p_Angles});
 }
-void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius, const f32 p_Height,
+void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius, const f32 p_Length,
                                 const quat &p_Quaternion) noexcept
 {
-    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Height}, p_Quaternion);
+    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Length}, p_Quaternion);
 }
-void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius, const f32 p_Height,
+void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius, const f32 p_Length,
                                 const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
 {
-    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Height}, quat{{p_XRot, p_YRot, p_ZRot}});
+    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Length}, quat{{p_XRot, p_YRot, p_ZRot}});
 }
 
 void RenderContext<3>::Sphere() noexcept
@@ -1237,6 +1239,11 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Pop() noexcept
     m_RenderState.pop_back();
 }
 
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Alpha(const f32 p_Alpha) noexcept
+{
+    m_RenderState.back().FillColor.RGBA.a = p_Alpha;
+}
+
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Fill(const Color &p_Color) noexcept
 {
     m_RenderState.back().FillColor = p_Color;
@@ -1314,6 +1321,36 @@ void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
     m_CircleRenderer.Render(renderInfo);
 
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Axes(const f32 p_Thickness, const f32 p_Size) noexcept
+{
+    if constexpr (N == 2)
+    {
+        const vec2 xLeft = vec2{-p_Size, 0.f};
+        const vec2 xRight = vec2{p_Size, 0.f};
+
+        const vec2 yDown = vec2{0.f, -p_Size};
+        const vec2 yUp = vec2{0.f, p_Size};
+
+        Line(xLeft, xRight, p_Thickness);
+        Line(yDown, yUp, p_Thickness);
+    }
+    else
+    {
+        const vec3 xLeft = vec3{-p_Size, 0.f, 0.f};
+        const vec3 xRight = vec3{p_Size, 0.f, 0.f};
+
+        const vec3 yDown = vec3{0.f, -p_Size, 0.f};
+        const vec3 yUp = vec3{0.f, p_Size, 0.f};
+
+        const vec3 zBack = vec3{0.f, 0.f, -p_Size};
+        const vec3 zFront = vec3{0.f, 0.f, p_Size};
+
+        Line(xLeft, xRight, p_Thickness);
+        Line(yDown, yUp, p_Thickness);
+        Line(zBack, zFront, p_Thickness);
+    }
 }
 
 vec2 RenderContext<2>::GetMouseCoordinates() const noexcept

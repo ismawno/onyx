@@ -31,11 +31,13 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::drawShapes(const LayerData<N> &p_Da
             p_Data.Context->Orthographic();
     }
 
-    p_Data.Context->TransformAxes(p_Data.Axes.Translation, p_Data.Axes.Scale, p_Data.Axes.Rotation);
+    p_Data.Context->TransformAxes(p_Data.Axes);
 
     p_Data.Context->Fill(m_ShapeColor);
     for (const auto &shape : p_Data.Shapes)
         shape->Draw(p_Data.Context);
+    if (p_Data.DrawAxes)
+        p_Data.Context->Axes(p_Data.AxesThickness);
 }
 
 ONYX_DIMENSION_TEMPLATE static void editTransform(Transform<N> &p_Transform) noexcept
@@ -107,7 +109,7 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
         }
     }
 
-    if (ImGui::Button(N == 2 ? "Spawn2D" : "Spawn3D"))
+    if (ImGui::Button("Spawn"))
     {
         if (p_Data.ShapeToSpawn == 0)
             p_Data.Shapes.push_back(KIT::Scope<Triangle<N>>::Create());
@@ -180,6 +182,59 @@ bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
            processPolygonEvent(m_LayerData3, p_Event, m_ZOffset);
 }
 
+ONYX_DIMENSION_TEMPLATE void SWExampleLayer::controlAxes(LayerData<N> &p_Data) noexcept
+{
+    Transform<N> t{};
+    const f32 step = m_Application->GetDeltaTime();
+
+    Window *window = m_Application->GetMainWindow();
+    if (Input::IsKeyPressed(window, Input::Key::A))
+        t.Translation.x -= step;
+    if (Input::IsKeyPressed(window, Input::Key::D))
+        t.Translation.x += step;
+
+    if constexpr (N == 2)
+    {
+        if (Input::IsKeyPressed(window, Input::Key::W))
+            t.Translation.y += step;
+        if (Input::IsKeyPressed(window, Input::Key::S))
+            t.Translation.y -= step;
+
+        if (Input::IsKeyPressed(window, Input::Key::Q))
+            t.Rotation += step;
+        if (Input::IsKeyPressed(window, Input::Key::E))
+            t.Rotation -= step;
+    }
+    else
+    {
+        if (Input::IsKeyPressed(window, Input::Key::W))
+            t.Translation.z -= step;
+        if (Input::IsKeyPressed(window, Input::Key::S))
+            t.Translation.z += step;
+        static vec2 prevMpos = Input::GetMousePosition(window);
+        const vec2 mpos = Input::GetMousePosition(window);
+        const vec2 delta = Input::IsKeyPressed(window, Input::Key::LEFT_SHIFT) ? 3.f * (mpos - prevMpos) : vec2{0.f};
+
+        prevMpos = mpos;
+
+        vec3 angles{delta.y, delta.x, 0.f};
+        if (Input::IsKeyPressed(window, Input::Key::Q))
+            angles.z += step;
+        if (Input::IsKeyPressed(window, Input::Key::E))
+            angles.z -= step;
+
+        t.Rotation = quat{angles};
+    }
+
+    if (p_Data.ControlAsCamera)
+    {
+        t.Translation = -t.Translation;
+        p_Data.Axes = t.ComputeTransform() * p_Data.Axes;
+    }
+    else
+        p_Data.Axes *= t.ComputeTransform();
+}
+
 ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
 {
     drawShapes(p_Data);
@@ -199,7 +254,12 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderUI(LayerData<N> &p_Data) noex
 
         if (ImGui::CollapsingHeader("Axes"))
         {
-            editTransform(p_Data.Axes);
+            ImGui::Checkbox("Control", &p_Data.ControlAxes);
+            if (p_Data.ControlAxes)
+            {
+                ImGui::Checkbox("Control as camera", &p_Data.ControlAsCamera);
+                controlAxes<N>(p_Data);
+            }
 
             if constexpr (N == 3)
             {
@@ -213,6 +273,10 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderUI(LayerData<N> &p_Data) noex
                     ImGui::SliderFloat("Far", &m_Far, 10.f, 100.f);
                 }
             }
+
+            ImGui::Checkbox("Draw", &p_Data.DrawAxes);
+            if (p_Data.DrawAxes)
+                ImGui::SliderFloat("Axes thickness", &p_Data.AxesThickness, 0.001f, 0.1f);
         }
         if (ImGui::CollapsingHeader("Shapes"))
             renderShapeSpawn(p_Data);

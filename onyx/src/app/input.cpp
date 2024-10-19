@@ -26,22 +26,22 @@ vec2 Input::GetMousePosition(Window *p_Window) noexcept
             2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight() - 1.f};
 }
 
-bool Input::IsKeyPressed(const Key p_Key) noexcept
+bool Input::IsKeyPressed(Window *p_Window, const Key p_Key) noexcept
 {
-    return glfwGetKey(glfwGetCurrentContext(), static_cast<i32>(p_Key)) == GLFW_PRESS;
+    return glfwGetKey(p_Window->GetWindowHandle(), static_cast<i32>(p_Key)) == GLFW_PRESS;
 }
-bool Input::IsKeyReleased(const Key p_Key) noexcept
+bool Input::IsKeyReleased(Window *p_Window, const Key p_Key) noexcept
 {
-    return glfwGetKey(glfwGetCurrentContext(), static_cast<i32>(p_Key)) == GLFW_RELEASE;
+    return glfwGetKey(p_Window->GetWindowHandle(), static_cast<i32>(p_Key)) == GLFW_RELEASE;
 }
 
-bool Input::IsMouseButtonPressed(const Mouse p_Button) noexcept
+bool Input::IsMouseButtonPressed(Window *p_Window, const Mouse p_Button) noexcept
 {
-    return glfwGetMouseButton(glfwGetCurrentContext(), static_cast<i32>(p_Button)) == GLFW_PRESS;
+    return glfwGetMouseButton(p_Window->GetWindowHandle(), static_cast<i32>(p_Button)) == GLFW_PRESS;
 }
-bool Input::IsMouseButtonReleased(const Mouse p_Button) noexcept
+bool Input::IsMouseButtonReleased(Window *p_Window, const Mouse p_Button) noexcept
 {
-    return glfwGetMouseButton(glfwGetCurrentContext(), static_cast<i32>(p_Button)) == GLFW_RELEASE;
+    return glfwGetMouseButton(p_Window->GetWindowHandle(), static_cast<i32>(p_Button)) == GLFW_RELEASE;
 }
 
 const char *Input::GetKeyName(const Key p_Key) noexcept

@@ -157,10 +157,10 @@ struct ONYX_API Input
     };
 
     static vec2 GetMousePosition(Window *p_Window) noexcept;
-    static bool IsKeyPressed(Key p_Key) noexcept;
-    static bool IsKeyReleased(Key p_Key) noexcept;
-    static bool IsMouseButtonPressed(Mouse p_Button) noexcept;
-    static bool IsMouseButtonReleased(Mouse p_Button) noexcept;
+    static bool IsKeyPressed(Window *p_Window, Key p_Key) noexcept;
+    static bool IsKeyReleased(Window *p_Window, Key p_Key) noexcept;
+    static bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button) noexcept;
+    static bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button) noexcept;
     static const char *GetKeyName(Key p_Key) noexcept;
 };
 

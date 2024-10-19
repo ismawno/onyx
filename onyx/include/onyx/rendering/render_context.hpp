@@ -81,6 +81,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void ScaleAxes(const vec<N> &p_Scale) noexcept;
     void ScaleAxes(f32 p_Scale) noexcept;
 
+    void Axes(f32 p_Thickness = 0.1f, f32 p_Size = 50.f) noexcept;
+
     void Triangle() noexcept;
     void Triangle(const mat<N> &p_Transform) noexcept;
     void Triangle(f32 p_Size) noexcept;
@@ -126,7 +128,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept;
     void Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions, const rot<N> &p_Rotation) noexcept;
 
-    void Line(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.1f) noexcept;
+    void Line(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.01f) noexcept;
     void LineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.1f) noexcept;
 
     void Mesh(const KIT::Ref<const Model<N>> &p_Model) noexcept;
@@ -140,6 +142,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void PushAndClear() noexcept;
 
     void Pop() noexcept;
+
+    void Alpha(f32 p_Alpha) noexcept;
 
     void Fill(const Color &p_Color) noexcept;
     template <typename... ColorArgs>
@@ -426,18 +430,18 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
                 f32 p_ZRot) noexcept;
 
     void Cylinder() noexcept;
-    void Cylinder(f32 p_Radius, f32 p_Height) noexcept;
+    void Cylinder(f32 p_Radius, f32 p_Length) noexcept;
 
     void Cylinder(const mat4 &p_Transform) noexcept;
     void Cylinder(const vec2 &p_Dimensions) noexcept;
 
     void Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions) noexcept;
-    void Cylinder(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_Height) noexcept;
+    void Cylinder(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_Length) noexcept;
 
     void Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const quat &p_Quaternion) noexcept;
     void Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const vec3 &p_Angles) noexcept;
-    void Cylinder(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_Height, const quat &p_Quaternion) noexcept;
-    void Cylinder(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_Height, f32 p_XRot, f32 p_YRot, f32 p_ZRot) noexcept;
+    void Cylinder(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_Length, const quat &p_Quaternion) noexcept;
+    void Cylinder(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius, f32 p_Length, f32 p_XRot, f32 p_YRot, f32 p_ZRot) noexcept;
 
     void Sphere() noexcept;
     void Sphere(f32 p_Radius) noexcept;
