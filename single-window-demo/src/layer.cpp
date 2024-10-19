@@ -223,6 +223,25 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::controlAxes(LayerData<N> &p_Data) n
         if (Input::IsKeyPressed(window, Input::Key::E))
             angles.z -= step;
 
+        if (angles.x > 0.f)
+            ImGui::Text("X Rotation: +");
+        else if (angles.x < 0.f)
+            ImGui::Text("X Rotation: -");
+        else
+            ImGui::Text("X Rotation: ");
+        if (angles.y > 0.f)
+            ImGui::Text("Y Rotation: +");
+        else if (angles.y < 0.f)
+            ImGui::Text("Y Rotation: -");
+        else
+            ImGui::Text("Y Rotation: ");
+        if (angles.z > 0.f)
+            ImGui::Text("Z Rotation: +");
+        else if (angles.z < 0.f)
+            ImGui::Text("Z Rotation: -");
+        else
+            ImGui::Text("Z Rotation: ");
+
         t.Rotation = quat{angles};
     }
 
