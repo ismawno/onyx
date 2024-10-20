@@ -81,7 +81,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void ScaleAxes(const vec<N> &p_Scale) noexcept;
     void ScaleAxes(f32 p_Scale) noexcept;
 
-    void Axes(f32 p_Thickness = 0.1f, f32 p_Size = 50.f) noexcept;
+    void Axes(f32 p_Thickness = 0.01f, f32 p_Size = 50.f) noexcept;
 
     void Triangle() noexcept;
     void Triangle(const mat<N> &p_Transform) noexcept;
@@ -129,7 +129,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions, const rot<N> &p_Rotation) noexcept;
 
     void Line(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.01f) noexcept;
-    void LineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.1f) noexcept;
+    void LineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
     void Mesh(const KIT::Ref<const Model<N>> &p_Model) noexcept;
     void Mesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
@@ -243,12 +243,12 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     void Ellipse(f32 p_X, f32 p_Y, f32 p_XDim, f32 p_YDim) noexcept;
     void Ellipse(f32 p_X, f32 p_Y, f32 p_XDim, f32 p_YDim, f32 p_Rotation) noexcept;
 
-    void Line(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
+    void Line(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.01f) noexcept;
 
-    void RoundedLine(const vec2 &p_Start, const vec2 &p_End, f32 p_Thickness = 0.1f) noexcept;
-    void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.1f) noexcept;
+    void RoundedLine(const vec2 &p_Start, const vec2 &p_End, f32 p_Thickness = 0.01f) noexcept;
+    void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.01f) noexcept;
 
-    void RoundedLineStrip(std::span<const vec2> p_Points, f32 p_Thickness = 0.1f) noexcept;
+    void RoundedLineStrip(std::span<const vec2> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
     void Mesh(const KIT::Ref<const Model2D> &p_Model, f32 p_X, f32 p_Y) noexcept;
     void Mesh(const KIT::Ref<const Model2D> &p_Model, f32 p_X, f32 p_Y, f32 p_Scale) noexcept;
@@ -386,13 +386,13 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void Ellipse(const vec3 &p_Position, const vec2 &p_Dimensions, const vec3 &p_Angles) noexcept;
 
     void Line(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
-              f32 p_Thickness = 0.1f) noexcept;
+              f32 p_Thickness = 0.01f) noexcept;
 
-    void RoundedLine(const vec3 &p_Start, const vec3 &p_End, f32 p_Thickness = 0.1f) noexcept;
+    void RoundedLine(const vec3 &p_Start, const vec3 &p_End, f32 p_Thickness = 0.01f) noexcept;
     void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
-                     f32 p_Thickness = 0.1f) noexcept;
+                     f32 p_Thickness = 0.01f) noexcept;
 
-    void RoundedLineStrip(std::span<const vec3> p_Points, f32 p_Thickness = 0.1f) noexcept;
+    void RoundedLineStrip(std::span<const vec3> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
     void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z) noexcept;
     void Mesh(const KIT::Ref<const Model3D> &p_Model, f32 p_X, f32 p_Y, f32 p_Z, f32 p_Scale) noexcept;
