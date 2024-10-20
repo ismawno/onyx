@@ -143,8 +143,6 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
 
     void Pop() noexcept;
 
-    void Alpha(f32 p_Alpha) noexcept;
-
     void Fill(const Color &p_Color) noexcept;
     template <typename... ColorArgs>
         requires std::constructible_from<Color, ColorArgs...>
@@ -259,6 +257,10 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 
     void Fill() noexcept;
     void NoFill() noexcept;
+
+    void Alpha(f32 p_Alpha) noexcept;
+    void Alpha(u8 p_Alpha) noexcept;
+    void Alpha(u32 p_Alpha) noexcept;
 
     void Stroke() noexcept;
     void Stroke(const Color &p_Color) noexcept;

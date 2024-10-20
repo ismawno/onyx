@@ -1239,9 +1239,17 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Pop() noexcept
     m_RenderState.pop_back();
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Alpha(const f32 p_Alpha) noexcept
+void RenderContext<2>::Alpha(const f32 p_Alpha) noexcept
 {
     m_RenderState.back().FillColor.RGBA.a = p_Alpha;
+}
+void RenderContext<2>::Alpha(const u8 p_Alpha) noexcept
+{
+    m_RenderState.back().FillColor.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
+}
+void RenderContext<2>::Alpha(const u32 p_Alpha) noexcept
+{
+    m_RenderState.back().FillColor.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Fill(const Color &p_Color) noexcept

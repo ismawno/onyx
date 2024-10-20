@@ -94,11 +94,14 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
         }
         for (usize i = 0; i < p_Data.PolygonVertices.size(); ++i)
         {
+            ImGui::PushID(&p_Data.PolygonVertices[i]);
             if (ImGui::Button("X"))
             {
                 p_Data.PolygonVertices.erase(p_Data.PolygonVertices.begin() + i);
+                ImGui::PopID();
                 break;
             }
+            ImGui::PopID();
             p_Data.Context->Circle(p_Data.PolygonVertices[i], 0.02f);
             ImGui::SameLine();
             if constexpr (N == 2)
@@ -147,11 +150,14 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
     const usize size = static_cast<usize>(p_Data.Shapes.size());
     for (usize i = 0; i < size; ++i)
     {
+        ImGui::PushID(&p_Data.Shapes[i]);
         if (ImGui::Button("X"))
         {
             p_Data.Shapes.erase(p_Data.Shapes.begin() + i);
+            ImGui::PopID();
             return;
         }
+        ImGui::PopID();
         ImGui::SameLine();
         ImGui::PushID(&p_Data.Shapes[i]);
         if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), p_Data.Selected == i))
@@ -219,9 +225,9 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::controlAxes(LayerData<N> &p_Data) n
 
         vec3 angles{delta.y, delta.x, 0.f};
         if (Input::IsKeyPressed(window, Input::Key::Q))
-            angles.z += step;
-        if (Input::IsKeyPressed(window, Input::Key::E))
             angles.z -= step;
+        if (Input::IsKeyPressed(window, Input::Key::E))
+            angles.z += step;
 
         if (angles.x > 0.f)
             ImGui::Text("X Rotation: +");
