@@ -9,14 +9,13 @@
 
 namespace ONYX
 {
-// This function provides an "offset" for the axes to support different coordinate systems
-static mat4 coordinateSystemAxesOffset() noexcept
+// This function modifies the axes to support different coordinate systems
+static void applyCoordinateSystem(mat4 &p_Axes) noexcept
 {
     // Essentially, a rotation around the x axis
-    mat4 offset = mat4(1.f);
-    offset[1][1] = -1.f;
-    offset[2][2] = -1.f;
-    return offset;
+    for (glm::length_t i = 0; i < 4; ++i)
+        for (glm::length_t j = 1; j <= 2; ++j)
+            p_Axes[i][j] = -p_Axes[i][j];
 }
 
 ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
@@ -28,7 +27,7 @@ ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, cons
     // to have the axes starting as the current offset. Can only be done in 3D, because transformations may involve some
     // axis that dont exist in 2D. This offset is apply later for 2D cases, when eventually the mat3's become mat4's
     if constexpr (N == 3)
-        m_RenderState.back().Axes = coordinateSystemAxesOffset();
+        applyCoordinateSystem(m_RenderState.back().Axes);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Background(const Color &p_Color) noexcept
@@ -345,7 +344,8 @@ ONYX_DIMENSION_TEMPLATE DrawData<N> createDrawData(const mat<N> &p_Transform, co
     {
         // And now, we apply axes offset for 2D cases, which may seem that it is applied after the projection, but it is
         // cool because I use no projection for 2D
-        drawData.Transform = coordinateSystemAxesOffset() * transform3ToTransform4(p_ProjView * p_Transform);
+        drawData.Transform = transform3ToTransform4(p_ProjView * p_Transform);
+        applyCoordinateSystem(drawData.Transform);
         drawData.Color = p_Color;
     }
     return drawData;
@@ -1231,7 +1231,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::PushAndClear() noexcept
 {
     m_RenderState.push_back(RenderState<N>{});
     if constexpr (N == 3)
-        m_RenderState.back().Axes = coordinateSystemAxesOffset();
+        applyCoordinateSystem(m_RenderState.back().Axes);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Pop() noexcept
 {
@@ -1294,10 +1294,9 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentTransform(const mat<N>
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentAxes(const mat<N> &p_Axes) noexcept
 {
+    m_RenderState.back().Axes = p_Axes;
     if constexpr (N == 3)
-        m_RenderState.back().Axes = coordinateSystemAxesOffset() * p_Axes;
-    else
-        m_RenderState.back().Axes = p_Axes;
+        applyCoordinateSystem(m_RenderState.back().Axes);
 }
 
 void RenderContext<2>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
@@ -1364,7 +1363,8 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Axes(const f32 p_Thickness, cons
 vec2 RenderContext<2>::GetMouseCoordinates() const noexcept
 {
     const vec2 mpos = Input::GetMousePosition(m_Window);
-    const mat4 axes = coordinateSystemAxesOffset() * transform3ToTransform4(m_RenderState.back().Axes);
+    mat4 axes = transform3ToTransform4(m_RenderState.back().Axes);
+    applyCoordinateSystem(axes);
     return glm::inverse(axes) * vec4{mpos, 1.f, 1.f};
 }
 vec3 RenderContext<3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
@@ -1449,7 +1449,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Reset() noexcept
     KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
     m_RenderState[0] = RenderState<N>{};
     if constexpr (N == 3)
-        m_RenderState[0].Axes = coordinateSystemAxesOffset();
+        applyCoordinateSystem(m_RenderState[0].Axes);
 }
 
 struct GlobalUBO
