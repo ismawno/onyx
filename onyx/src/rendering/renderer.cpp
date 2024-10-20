@@ -90,8 +90,8 @@ ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::MeshRenderer(const VkRenderPass p_Rende
 
     for (usize i = 0; i < SwapChain::MFIF; ++i)
     {
-        const VkDescriptorBufferInfo info = m_PerFrameData.StorageBuffers[i]->GetDescriptorInfo();
-        m_PerFrameData.DescriptorSets[i] =
+        const VkDescriptorBufferInfo info = m_DeviceTransformData.StorageBuffers[i]->GetDescriptorInfo();
+        m_DeviceTransformData.DescriptorSets[i] =
             resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get());
     }
 }
@@ -102,11 +102,11 @@ ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::~MeshRenderer() noexcept
 }
 
 ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const u32 p_FrameIndex, const KIT::Ref<const Model<N>> &p_Model,
-                                                   const DrawData<N> &p_DrawData) noexcept
+                                                   const TransformData<N> &p_TransformData) noexcept
 {
-    m_BatchData[p_Model].push_back(p_DrawData);
-    const usize size = m_PerFrameData.StorageSizes[p_FrameIndex];
-    auto &buffer = m_PerFrameData.StorageBuffers[p_FrameIndex];
+    m_HostTransformData[p_Model].push_back(p_TransformData);
+    const usize size = m_DeviceTransformData.StorageSizes[p_FrameIndex];
+    auto &buffer = m_DeviceTransformData.StorageBuffers[p_FrameIndex];
 
     if (size == buffer->GetInstanceCount())
     {
@@ -114,10 +114,11 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Draw(const u32 p_FrameIndex, const
         buffer.Create(size * 2);
         const VkDescriptorBufferInfo info = buffer->GetDescriptorInfo();
 
-        m_PerFrameData.DescriptorSets[p_FrameIndex] = resetStorageBufferDescriptorSet(
-            info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(), m_PerFrameData.DescriptorSets[p_FrameIndex]);
+        m_DeviceTransformData.DescriptorSets[p_FrameIndex] =
+            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
+                                            m_DeviceTransformData.DescriptorSets[p_FrameIndex]);
     }
-    m_PerFrameData.StorageSizes[p_FrameIndex] = size + 1;
+    m_DeviceTransformData.StorageSizes[p_FrameIndex] = size + 1;
 }
 
 static void pushConstantData(const RenderInfo<3> &p_Info, const Pipeline *p_Pipeline) noexcept
@@ -137,13 +138,13 @@ static void pushConstantData(const RenderInfo<3> &p_Info, const Pipeline *p_Pipe
 
 ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept
 {
-    if (m_BatchData.empty())
+    if (m_HostTransformData.empty())
         return;
 
-    auto &storageBuffer = m_PerFrameData.StorageBuffers[p_Info.FrameIndex];
+    auto &storageBuffer = m_DeviceTransformData.StorageBuffers[p_Info.FrameIndex];
     usize index = 0;
-    for (const auto &[model, data] : m_BatchData)
-        for (const DrawData<N> &drawData : data)
+    for (const auto &[model, data] : m_HostTransformData)
+        for (const TransformData<N> &drawData : data)
             storageBuffer->WriteAt(index++, &drawData);
     storageBuffer->Flush();
 
@@ -151,12 +152,12 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info
     if constexpr (N == 3)
         pushConstantData(p_Info, m_Pipeline.Get());
 
-    const VkDescriptorSet set = m_PerFrameData.DescriptorSets[p_Info.FrameIndex];
+    const VkDescriptorSet set = m_DeviceTransformData.DescriptorSets[p_Info.FrameIndex];
     vkCmdBindDescriptorSets(p_Info.CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline->GetLayout(), 0, 1, &set,
                             0, nullptr);
 
     u32 firstInstance = 0;
-    for (const auto &[model, data] : m_BatchData)
+    for (const auto &[model, data] : m_HostTransformData)
     {
         const u32 size = static_cast<u32>(data.size());
 
@@ -171,9 +172,9 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info
 
 ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Flush() noexcept
 {
-    m_BatchData.clear();
+    m_HostTransformData.clear();
     for (usize i = 0; i < SwapChain::MFIF; ++i)
-        m_PerFrameData.StorageSizes[i] = 0;
+        m_DeviceTransformData.StorageSizes[i] = 0;
 }
 
 template class MeshRenderer<2>;
@@ -197,8 +198,8 @@ ONYX_DIMENSION_TEMPLATE PrimitiveRenderer<N>::PrimitiveRenderer(const VkRenderPa
 
     for (usize i = 0; i < SwapChain::MFIF; ++i)
     {
-        const VkDescriptorBufferInfo info = m_PerFrameData.StorageBuffers[i]->GetDescriptorInfo();
-        m_PerFrameData.DescriptorSets[i] =
+        const VkDescriptorBufferInfo info = m_DeviceTransformData.StorageBuffers[i]->GetDescriptorInfo();
+        m_DeviceTransformData.DescriptorSets[i] =
             resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get());
     }
 }
@@ -209,35 +210,36 @@ ONYX_DIMENSION_TEMPLATE PrimitiveRenderer<N>::~PrimitiveRenderer() noexcept
 }
 
 ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Draw(const u32 p_FrameIndex, const usize p_PrimitiveIndex,
-                                                        const DrawData<N> &p_DrawData) noexcept
+                                                        const TransformData<N> &p_TransformData) noexcept
 {
-    const usize size = m_PerFrameData.StorageSizes[p_FrameIndex];
-    auto &buffer = m_PerFrameData.StorageBuffers[p_FrameIndex];
+    const usize size = m_DeviceTransformData.StorageSizes[p_FrameIndex];
+    auto &buffer = m_DeviceTransformData.StorageBuffers[p_FrameIndex];
     if (size == buffer->GetInstanceCount())
     {
         buffer.Destroy();
         buffer.Create(size * 2);
         const VkDescriptorBufferInfo info = buffer->GetDescriptorInfo();
 
-        m_PerFrameData.DescriptorSets[p_FrameIndex] = resetStorageBufferDescriptorSet(
-            info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(), m_PerFrameData.DescriptorSets[p_FrameIndex]);
+        m_DeviceTransformData.DescriptorSets[p_FrameIndex] =
+            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
+                                            m_DeviceTransformData.DescriptorSets[p_FrameIndex]);
     }
 
-    m_BatchData[p_PrimitiveIndex].push_back(p_DrawData);
-    m_PerFrameData.StorageSizes[p_FrameIndex] = size + 1;
+    m_HostTransformData[p_PrimitiveIndex].push_back(p_TransformData);
+    m_DeviceTransformData.StorageSizes[p_FrameIndex] = size + 1;
 }
 
 ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept
 {
-    if (m_PerFrameData.StorageSizes[p_Info.FrameIndex] == 0)
+    if (m_DeviceTransformData.StorageSizes[p_Info.FrameIndex] == 0)
         return;
 
-    auto &storageBuffer = m_PerFrameData.StorageBuffers[p_Info.FrameIndex];
+    auto &storageBuffer = m_DeviceTransformData.StorageBuffers[p_Info.FrameIndex];
 
     // Cant just memcpy this because of alignment
     usize index = 0;
-    for (const auto &drawData : m_BatchData)
-        for (const DrawData<N> &data : drawData)
+    for (const auto &drawData : m_HostTransformData)
+        for (const TransformData<N> &data : drawData)
             storageBuffer->WriteAt(index++, &data);
     storageBuffer->Flush();
 
@@ -245,7 +247,7 @@ ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Render(const RenderInfo<N> &p
     if constexpr (N == 3)
         pushConstantData(p_Info, m_Pipeline.Get());
 
-    const VkDescriptorSet set = m_PerFrameData.DescriptorSets[p_Info.FrameIndex];
+    const VkDescriptorSet set = m_DeviceTransformData.DescriptorSets[p_Info.FrameIndex];
     vkCmdBindDescriptorSets(p_Info.CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline->GetLayout(), 0, 1, &set,
                             0, nullptr);
 
@@ -256,11 +258,11 @@ ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Render(const RenderInfo<N> &p
     ibuffer->Bind(p_Info.CommandBuffer);
 
     u32 firstInstance = 0;
-    for (usize i = 0; i < m_BatchData.size(); ++i)
+    for (usize i = 0; i < m_HostTransformData.size(); ++i)
     {
-        if (m_BatchData[i].empty())
+        if (m_HostTransformData[i].empty())
             continue;
-        const u32 size = static_cast<u32>(m_BatchData[i].size());
+        const u32 size = static_cast<u32>(m_HostTransformData[i].size());
         const PrimitiveDataLayout &layout = Primitives<N>::GetDataLayout(i);
 
         vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart,
@@ -271,10 +273,10 @@ ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Render(const RenderInfo<N> &p
 
 ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Flush() noexcept
 {
-    for (auto &data : m_BatchData)
+    for (auto &data : m_HostTransformData)
         data.clear();
     for (usize i = 0; i < SwapChain::MFIF; ++i)
-        m_PerFrameData.StorageSizes[i] = 0;
+        m_DeviceTransformData.StorageSizes[i] = 0;
 }
 
 template class PrimitiveRenderer<2>;
@@ -298,8 +300,8 @@ ONYX_DIMENSION_TEMPLATE PolygonRenderer<N>::PolygonRenderer(const VkRenderPass p
 
     for (usize i = 0; i < SwapChain::MFIF; ++i)
     {
-        const VkDescriptorBufferInfo info = m_PerFrameData.StorageBuffers[i]->GetDescriptorInfo();
-        m_PerFrameData.DescriptorSets[i] =
+        const VkDescriptorBufferInfo info = m_DeviceTransformData.StorageBuffers[i]->GetDescriptorInfo();
+        m_DeviceTransformData.DescriptorSets[i] =
             resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get());
     }
 }
@@ -310,26 +312,27 @@ ONYX_DIMENSION_TEMPLATE PolygonRenderer<N>::~PolygonRenderer() noexcept
 }
 
 ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, const std::span<const vec<N>> p_Vertices,
-                                                      const DrawData<N> &p_DrawData) noexcept
+                                                      const TransformData<N> &p_TransformData) noexcept
 {
     KIT_ASSERT(p_Vertices.size() >= 3, "A polygon must have at least 3 sides");
-    const usize storageSize = m_BatchData.size();
-    auto &storageBuffer = m_PerFrameData.StorageBuffers[p_FrameIndex];
+    const usize storageSize = m_HostTransformData.size();
+    auto &storageBuffer = m_DeviceTransformData.StorageBuffers[p_FrameIndex];
     if (storageSize == storageBuffer->GetInstanceCount())
     {
         storageBuffer.Destroy();
         storageBuffer.Create(storageSize * 2);
         const VkDescriptorBufferInfo info = storageBuffer->GetDescriptorInfo();
 
-        m_PerFrameData.DescriptorSets[p_FrameIndex] = resetStorageBufferDescriptorSet(
-            info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(), m_PerFrameData.DescriptorSets[p_FrameIndex]);
+        m_DeviceTransformData.DescriptorSets[p_FrameIndex] =
+            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
+                                            m_DeviceTransformData.DescriptorSets[p_FrameIndex]);
     }
 
-    PolygonDrawData drawData{};
-    drawData.Transform = p_DrawData.Transform;
-    drawData.Color = p_DrawData.Color;
+    PolygonTransformData drawData{};
+    drawData.Transform = p_TransformData.Transform;
+    drawData.Color = p_TransformData.Color;
     if constexpr (N == 3)
-        drawData.NormalMatrix = p_DrawData.NormalMatrix;
+        drawData.NormalMatrix = p_TransformData.NormalMatrix;
 
     PrimitiveDataLayout layout;
     layout.VerticesStart = m_Vertices.size();
@@ -337,7 +340,7 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, co
     layout.IndicesSize = p_Vertices.size() * 3 - 6;
     drawData.Layout = layout;
 
-    m_BatchData.push_back(drawData);
+    m_HostTransformData.push_back(drawData);
 
     const auto pushVertex = [this](const vec<N> &v) {
         Vertex<N> vertex{};
@@ -364,8 +367,8 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, co
 
     const usize vertexSize = m_Vertices.size();
     const usize indexSize = m_Indices.size();
-    auto &vertexBuffer = m_PerFrameData.VertexBuffers[p_FrameIndex];
-    auto &indexBuffer = m_PerFrameData.IndexBuffers[p_FrameIndex];
+    auto &vertexBuffer = m_DeviceTransformData.VertexBuffers[p_FrameIndex];
+    auto &indexBuffer = m_DeviceTransformData.IndexBuffers[p_FrameIndex];
 
     if (vertexSize >= vertexBuffer->GetInstanceCount())
     {
@@ -381,17 +384,17 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, co
 
 ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept
 {
-    if (m_BatchData.empty())
+    if (m_HostTransformData.empty())
         return;
 
-    auto &storageBuffer = m_PerFrameData.StorageBuffers[p_Info.FrameIndex];
-    auto &vertexBuffer = m_PerFrameData.VertexBuffers[p_Info.FrameIndex];
-    auto &indexBuffer = m_PerFrameData.IndexBuffers[p_Info.FrameIndex];
+    auto &storageBuffer = m_DeviceTransformData.StorageBuffers[p_Info.FrameIndex];
+    auto &vertexBuffer = m_DeviceTransformData.VertexBuffers[p_Info.FrameIndex];
+    auto &indexBuffer = m_DeviceTransformData.IndexBuffers[p_Info.FrameIndex];
 
     // Cant just memcpy this because of alignment
-    for (usize i = 0; i < m_BatchData.size(); ++i)
+    for (usize i = 0; i < m_HostTransformData.size(); ++i)
     {
-        const DrawData<N> &data = m_BatchData[i]; // scary
+        const TransformData<N> &data = m_HostTransformData[i]; // scary
         storageBuffer->WriteAt(i, &data);
     }
     storageBuffer->Flush();
@@ -405,21 +408,21 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Render(const RenderInfo<N> &p_I
     if constexpr (N == 3)
         pushConstantData(p_Info, m_Pipeline.Get());
 
-    const VkDescriptorSet set = m_PerFrameData.DescriptorSets[p_Info.FrameIndex];
+    const VkDescriptorSet set = m_DeviceTransformData.DescriptorSets[p_Info.FrameIndex];
     vkCmdBindDescriptorSets(p_Info.CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline->GetLayout(), 0, 1, &set,
                             0, nullptr);
 
     vertexBuffer->Bind(p_Info.CommandBuffer);
     indexBuffer->Bind(p_Info.CommandBuffer);
 
-    for (const PolygonDrawData &data : m_BatchData)
+    for (const PolygonTransformData &data : m_HostTransformData)
         vkCmdDrawIndexed(p_Info.CommandBuffer, data.Layout.IndicesSize, 1, data.Layout.IndicesStart,
                          data.Layout.VerticesStart, 0);
 }
 
 ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Flush() noexcept
 {
-    m_BatchData.clear();
+    m_HostTransformData.clear();
 }
 
 template class PolygonRenderer<2>;
@@ -437,8 +440,8 @@ ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::CircleRenderer(const VkRenderPass p_R
 
     for (usize i = 0; i < SwapChain::MFIF; ++i)
     {
-        const VkDescriptorBufferInfo info = m_PerFrameData.StorageBuffers[i]->GetDescriptorInfo();
-        m_PerFrameData.DescriptorSets[i] =
+        const VkDescriptorBufferInfo info = m_DeviceTransformData.StorageBuffers[i]->GetDescriptorInfo();
+        m_DeviceTransformData.DescriptorSets[i] =
             resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get());
     }
 }
@@ -448,51 +451,53 @@ ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::~CircleRenderer() noexcept
     m_Pipeline.Destroy();
 }
 
-ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Draw(const u32 p_FrameIndex, const DrawData<N> &p_DrawData) noexcept
+ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Draw(const u32 p_FrameIndex,
+                                                     const TransformData<N> &p_TransformData) noexcept
 {
-    const usize size = m_BatchData.size();
-    auto &buffer = m_PerFrameData.StorageBuffers[p_FrameIndex];
+    const usize size = m_HostTransformData.size();
+    auto &buffer = m_DeviceTransformData.StorageBuffers[p_FrameIndex];
     if (size == buffer->GetInstanceCount())
     {
         buffer.Destroy();
         buffer.Create(size * 2);
         const VkDescriptorBufferInfo info = buffer->GetDescriptorInfo();
 
-        m_PerFrameData.DescriptorSets[p_FrameIndex] = resetStorageBufferDescriptorSet(
-            info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(), m_PerFrameData.DescriptorSets[p_FrameIndex]);
+        m_DeviceTransformData.DescriptorSets[p_FrameIndex] =
+            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
+                                            m_DeviceTransformData.DescriptorSets[p_FrameIndex]);
     }
 
-    m_BatchData.push_back(p_DrawData);
+    m_HostTransformData.push_back(p_TransformData);
 }
 
 ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Render(const RenderInfo<N> &p_Info) noexcept
 {
-    if (m_BatchData.empty())
+    if (m_HostTransformData.empty())
         return;
 
-    auto &storageBuffer = m_PerFrameData.StorageBuffers[p_Info.FrameIndex];
+    auto &storageBuffer = m_DeviceTransformData.StorageBuffers[p_Info.FrameIndex];
 
     // Cant just memcpy this because of alignment
-    for (usize i = 0; i < m_BatchData.size(); ++i)
-        storageBuffer->WriteAt(i, &m_BatchData[i]);
+    for (usize i = 0; i < m_HostTransformData.size(); ++i)
+        storageBuffer->WriteAt(i, &m_HostTransformData[i]);
 
     m_Pipeline->Bind(p_Info.CommandBuffer);
     if constexpr (N == 3)
         pushConstantData(p_Info, m_Pipeline.Get());
 
-    const VkDescriptorSet set = m_PerFrameData.DescriptorSets[p_Info.FrameIndex];
+    const VkDescriptorSet set = m_DeviceTransformData.DescriptorSets[p_Info.FrameIndex];
     vkCmdBindDescriptorSets(p_Info.CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline->GetLayout(), 0, 1, &set,
                             0, nullptr);
 
-    const u32 size = static_cast<u32>(m_BatchData.size());
+    const u32 size = static_cast<u32>(m_HostTransformData.size());
     vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);
 }
 
 ONYX_DIMENSION_TEMPLATE void CircleRenderer<N>::Flush() noexcept
 {
-    m_BatchData.clear();
+    m_HostTransformData.clear();
     for (usize i = 0; i < SwapChain::MFIF; ++i)
-        m_PerFrameData.StorageSizes[i] = 0;
+        m_DeviceTransformData.StorageSizes[i] = 0;
 }
 
 template class CircleRenderer<2>;

@@ -330,10 +330,10 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
     return t4;
 }
 
-ONYX_DIMENSION_TEMPLATE DrawData<N> createDrawData(const mat<N> &p_Transform, const mat<N> &p_ProjView,
-                                                   const vec4 &p_Color) noexcept
+ONYX_DIMENSION_TEMPLATE TransformData<N> createTransformData(const mat<N> &p_Transform, const mat<N> &p_ProjView,
+                                                             const vec4 &p_Color) noexcept
 {
-    DrawData<N> drawData;
+    TransformData<N> drawData;
     if constexpr (N == 3)
     {
         drawData.Transform = p_ProjView * p_Transform;
@@ -368,18 +368,18 @@ void IRenderContext<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, Dr
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
             const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
-            const DrawData2D strokeData = createDrawData<2>(strokeTransform, state.Axes, state.StrokeColor);
+            const TransformData2D strokeData = createTransformData<2>(strokeTransform, state.Axes, state.StrokeColor);
             p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., strokeData);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        const DrawData2D data = createDrawData<2>(p_Transform, state.Axes, color);
+        const TransformData2D data = createTransformData<2>(p_Transform, state.Axes, color);
         p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
     else
     {
-        const DrawData3D data = state.HasProjection
-                                    ? createDrawData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
-                                    : createDrawData<3>(p_Transform, state.Axes, state.FillColor);
+        const TransformData3D data =
+            state.HasProjection ? createTransformData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
+                                : createTransformData<3>(p_Transform, state.Axes, state.FillColor);
         p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
 }

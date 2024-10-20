@@ -44,30 +44,30 @@ template <> struct ONYX_API RenderInfo<3>
     f32 AmbientIntensity;
 };
 
-ONYX_DIMENSION_TEMPLATE struct DrawData;
+ONYX_DIMENSION_TEMPLATE struct TransformData;
 
 // Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
 // 0 1 but i dont want to deal with the alignment management tbh
 
-template <> struct ONYX_API DrawData<2>
+template <> struct ONYX_API TransformData<2>
 {
     mat4 Transform;
     vec4 Color;
 };
-template <> struct ONYX_API DrawData<3>
+template <> struct ONYX_API TransformData<3>
 {
     mat4 Transform;
     mat4 NormalMatrix;
     vec4 Color;
 };
 
-using DrawData2D = DrawData<2>;
-using DrawData3D = DrawData<3>;
+using TransformData2D = TransformData<2>;
+using TransformData3D = TransformData<3>;
 
-ONYX_DIMENSION_TEMPLATE struct ONYX_API PerFrameData
+ONYX_DIMENSION_TEMPLATE struct ONYX_API DeviceTransformData
 {
-    KIT_NON_COPYABLE(PerFrameData)
-    PerFrameData(const usize p_Capacity)
+    KIT_NON_COPYABLE(DeviceTransformData)
+    DeviceTransformData(const usize p_Capacity)
     {
         for (usize i = 0; i < SwapChain::MFIF; ++i)
         {
@@ -75,13 +75,13 @@ ONYX_DIMENSION_TEMPLATE struct ONYX_API PerFrameData
             StorageSizes[i] = 0;
         }
     }
-    ~PerFrameData() noexcept
+    ~DeviceTransformData() noexcept
     {
         for (usize i = 0; i < SwapChain::MFIF; ++i)
             StorageBuffers[i].Destroy();
     }
 
-    std::array<KIT::Storage<StorageBuffer<DrawData<N>>>, SwapChain::MFIF> StorageBuffers;
+    std::array<KIT::Storage<StorageBuffer<TransformData<N>>>, SwapChain::MFIF> StorageBuffers;
     std::array<VkDescriptorSet, SwapChain::MFIF> DescriptorSets;
     std::array<usize, SwapChain::MFIF> StorageSizes;
 };
@@ -93,7 +93,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
     MeshRenderer(VkRenderPass p_RenderPass) noexcept;
     ~MeshRenderer() noexcept;
 
-    void Draw(u32 p_FrameIndex, const KIT::Ref<const Model<N>> &p_Model, const DrawData<N> &p_DrawData) noexcept;
+    void Draw(u32 p_FrameIndex, const KIT::Ref<const Model<N>> &p_Model,
+              const TransformData<N> &p_TransformData) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
@@ -102,8 +103,10 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
     KIT::Storage<Pipeline> m_Pipeline;
     // Could actually use a pointer to the model instead of a reference and take extra care the model still lives
     // while drawing
-    HashMap<KIT::Ref<const Model<N>>, DynamicArray<DrawData<N>>> m_BatchData;
-    PerFrameData<N> m_PerFrameData{ONYX_BUFFER_INITIAL_CAPACITY};
+    using HostTransformData = HashMap<KIT::Ref<const Model<N>>, DynamicArray<TransformData<N>>>;
+
+    HostTransformData m_HostTransformData;
+    DeviceTransformData<N> m_DeviceTransformData{ONYX_BUFFER_INITIAL_CAPACITY};
 
     KIT::Ref<DescriptorPool> m_DescriptorPool;
     KIT::Ref<DescriptorSetLayout> m_DescriptorSetLayout;
@@ -119,7 +122,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PrimitiveRenderer
     PrimitiveRenderer(VkRenderPass p_RenderPass) noexcept;
     ~PrimitiveRenderer() noexcept;
 
-    void Draw(u32 p_FrameIndex, usize p_PrimitiveIndex, const DrawData<N> &p_DrawData) noexcept;
+    void Draw(u32 p_FrameIndex, usize p_PrimitiveIndex, const TransformData<N> &p_TransformData) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
@@ -127,8 +130,10 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PrimitiveRenderer
   private:
     KIT::Storage<Pipeline> m_Pipeline;
 
-    std::array<DynamicArray<DrawData<N>>, Primitives<N>::AMOUNT> m_BatchData;
-    PerFrameData<N> m_PerFrameData{ONYX_BUFFER_INITIAL_CAPACITY};
+    using HostTransformData = std::array<DynamicArray<TransformData<N>>, Primitives<N>::AMOUNT>;
+
+    HostTransformData m_HostTransformData;
+    DeviceTransformData<N> m_DeviceTransformData{ONYX_BUFFER_INITIAL_CAPACITY};
 
     KIT::Ref<DescriptorPool> m_DescriptorPool;
     KIT::Ref<DescriptorSetLayout> m_DescriptorSetLayout;
@@ -144,15 +149,15 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PolygonRenderer
     PolygonRenderer(VkRenderPass p_RenderPass) noexcept;
     ~PolygonRenderer() noexcept;
 
-    void Draw(u32 p_FrameIndex, std::span<const vec<N>> p_Vertices, const DrawData<N> &p_DrawData) noexcept;
+    void Draw(u32 p_FrameIndex, std::span<const vec<N>> p_Vertices, const TransformData<N> &p_TransformData) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
 
   private:
-    struct PolygonPerFrameData : PerFrameData<N>
+    struct PolygonDeviceTransformData : DeviceTransformData<N>
     {
-        PolygonPerFrameData(const usize p_Capacity) : PerFrameData<N>(p_Capacity)
+        PolygonDeviceTransformData(const usize p_Capacity) : DeviceTransformData<N>(p_Capacity)
         {
             for (usize i = 0; i < SwapChain::MFIF; ++i)
             {
@@ -161,7 +166,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PolygonRenderer
             }
         }
 
-        ~PolygonPerFrameData() noexcept
+        ~PolygonDeviceTransformData() noexcept
         {
             for (usize i = 0; i < SwapChain::MFIF; ++i)
             {
@@ -174,7 +179,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PolygonRenderer
         std::array<KIT::Storage<MutableIndexBuffer>, SwapChain::MFIF> IndexBuffers;
     };
 
-    struct PolygonDrawData : DrawData<N>
+    struct PolygonTransformData : TransformData<N>
     {
         PrimitiveDataLayout Layout;
     };
@@ -183,10 +188,10 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PolygonRenderer
 
     // Batch data maps perfectly to the number of polygons to be drawn i.e number of entries in storage buffer.
     // StorageSizes is not needed
-    DynamicArray<PolygonDrawData> m_BatchData;
+    DynamicArray<PolygonTransformData> m_HostTransformData;
+    PolygonDeviceTransformData m_DeviceTransformData{ONYX_BUFFER_INITIAL_CAPACITY};
     DynamicArray<Vertex<N>> m_Vertices;
     DynamicArray<Index> m_Indices;
-    PolygonPerFrameData m_PerFrameData{ONYX_BUFFER_INITIAL_CAPACITY};
 
     KIT::Ref<DescriptorPool> m_DescriptorPool;
     KIT::Ref<DescriptorSetLayout> m_DescriptorSetLayout;
@@ -202,7 +207,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
     CircleRenderer(VkRenderPass p_RenderPass) noexcept;
     ~CircleRenderer() noexcept;
 
-    void Draw(u32 p_FrameIndex, const DrawData<N> &p_DrawData) noexcept;
+    void Draw(u32 p_FrameIndex, const TransformData<N> &p_TransformData) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
@@ -212,8 +217,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
 
     // Batch data maps perfectly to the number of circles to be drawn i.e number of entries in storage buffer.
     // StorageSizes is not needed
-    DynamicArray<DrawData<N>> m_BatchData;
-    PerFrameData<N> m_PerFrameData{ONYX_BUFFER_INITIAL_CAPACITY};
+    DynamicArray<TransformData<N>> m_HostTransformData;
+    DeviceTransformData<N> m_DeviceTransformData{ONYX_BUFFER_INITIAL_CAPACITY};
 
     KIT::Ref<DescriptorPool> m_DescriptorPool;
     KIT::Ref<DescriptorSetLayout> m_DescriptorSetLayout;
