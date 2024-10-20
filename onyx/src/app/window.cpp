@@ -16,13 +16,13 @@ Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_
 {
     createWindow(p_Specs);
 
-    m_RenderContext2D.Create(this, m_RenderSystem->GetSwapChain().GetRenderPass());
-    m_RenderContext3D.Create(this, m_RenderSystem->GetSwapChain().GetRenderPass());
+    m_RenderContext2D.Create(this, m_FrameScheduler->GetSwapChain().GetRenderPass());
+    m_RenderContext3D.Create(this, m_FrameScheduler->GetSwapChain().GetRenderPass());
 }
 
 Window::~Window() noexcept
 {
-    m_RenderSystem.Destroy();
+    m_FrameScheduler.Destroy();
     m_RenderContext2D.Destroy();
     m_RenderContext3D.Destroy();
     vkDestroySurfaceKHR(m_Instance->GetInstance(), m_Surface, nullptr);
@@ -48,7 +48,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
     glfwSetWindowUserPointer(m_Window, this);
 
     m_Device = Core::tryCreateDevice(m_Surface);
-    m_RenderSystem.Create(*this);
+    m_FrameScheduler.Create(*this);
     Input::InstallCallbacks(*this);
 }
 
@@ -89,11 +89,11 @@ u32 Window::GetScreenHeight() const noexcept
 
 u32 Window::GetPixelWidth() const noexcept
 {
-    return m_RenderSystem->GetSwapChain().GetWidth();
+    return m_FrameScheduler->GetSwapChain().GetWidth();
 }
 u32 Window::GetPixelHeight() const noexcept
 {
-    return m_RenderSystem->GetSwapChain().GetHeight();
+    return m_FrameScheduler->GetSwapChain().GetHeight();
 }
 
 f32 Window::GetScreenAspect() const noexcept
@@ -103,7 +103,7 @@ f32 Window::GetScreenAspect() const noexcept
 
 f32 Window::GetPixelAspect() const noexcept
 {
-    return m_RenderSystem->GetSwapChain().GetAspectRatio();
+    return m_FrameScheduler->GetSwapChain().GetAspectRatio();
 }
 
 std::pair<u32, u32> Window::GetPosition() const noexcept
@@ -186,9 +186,9 @@ RenderContext3D *Window::GetRenderContext3D() noexcept
     return GetRenderContext<3>();
 }
 
-const RenderSystem &Window::GetRenderSystem() const noexcept
+const FrameScheduler &Window::GetFrameScheduler() const noexcept
 {
-    return *m_RenderSystem;
+    return *m_FrameScheduler;
 }
 
 } // namespace ONYX

@@ -5,7 +5,7 @@
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/draw/color.hpp"
-#include "onyx/rendering/render_system.hpp"
+#include "onyx/rendering/frame_scheduler.hpp"
 
 #include "kit/container/storage.hpp"
 
@@ -18,10 +18,6 @@ namespace ONYX
 
 // For now, render systems are fixed, and only ONYX systems are used. In the future, user defined render systems will
 // be allowed
-// NOTE: When supporting user defined render systems, the render pass must be supplied if the user failed to do so:
-// if (!p_Specs.RenderPass)
-//         p_Specs.RenderPass = m_RenderContext->GetSwapChain().GetRenderPass();
-//     return m_RenderSystems.emplace_back(p_Specs);
 
 class ONYX_API Window
 {
@@ -50,15 +46,15 @@ class ONYX_API Window
 
     template <typename F1, typename F2> bool Render(F1 &&p_DrawCalls, F2 &&p_UICalls) noexcept
     {
-        if (const VkCommandBuffer cmd = m_RenderSystem->BeginFrame(*this))
+        if (const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this))
         {
-            m_RenderSystem->BeginRenderPass(BackgroundColor);
+            m_FrameScheduler->BeginRenderPass(BackgroundColor);
             std::forward<F1>(p_DrawCalls)(cmd);
             m_RenderContext2D->Render(cmd);
             m_RenderContext3D->Render(cmd);
             std::forward<F2>(p_UICalls)(cmd);
-            m_RenderSystem->EndRenderPass();
-            m_RenderSystem->EndFrame(*this);
+            m_FrameScheduler->EndRenderPass();
+            m_FrameScheduler->EndFrame(*this);
             return true;
         }
         return false;
@@ -101,7 +97,7 @@ class ONYX_API Window
     const RenderContext3D *GetRenderContext3D() const noexcept;
     RenderContext3D *GetRenderContext3D() noexcept;
 
-    const RenderSystem &GetRenderSystem() const noexcept;
+    const FrameScheduler &GetFrameScheduler() const noexcept;
 
     Color BackgroundColor = Color::BLACK;
 
@@ -113,7 +109,7 @@ class ONYX_API Window
     KIT::Ref<Instance> m_Instance;
     KIT::Ref<Device> m_Device;
 
-    KIT::Storage<RenderSystem> m_RenderSystem;
+    KIT::Storage<FrameScheduler> m_FrameScheduler;
     KIT::Storage<RenderContext2D> m_RenderContext2D;
     KIT::Storage<RenderContext3D> m_RenderContext3D;
 

@@ -19,7 +19,8 @@ static KIT::Ref<Instance> s_Instance;
 static KIT::Ref<Device> s_Device;
 
 static KIT::Ref<DescriptorPool> s_DescriptorPool;
-static KIT::Ref<DescriptorSetLayout> s_DescriptorSetLayout;
+static KIT::Ref<DescriptorSetLayout> s_TransformStorageLayout;
+static KIT::Ref<DescriptorSetLayout> s_LightStorageLayout;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
@@ -53,14 +54,24 @@ static void createDescriptorData() noexcept
 
     s_DescriptorPool = KIT::Ref<DescriptorPool>::Create(poolSpecs);
 
-    VkDescriptorSetLayoutBinding binding{};
-    binding.binding = 0;
-    binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    binding.descriptorCount = 1;
-    binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    VkDescriptorSetLayoutBinding transformBinding{};
+    transformBinding.binding = 0;
+    transformBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    transformBinding.descriptorCount = 1;
+    transformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    const std::span<const VkDescriptorSetLayoutBinding> bindings(&binding, 1);
-    s_DescriptorSetLayout = KIT::Ref<DescriptorSetLayout>::Create(bindings);
+    const std::span<const VkDescriptorSetLayoutBinding> bindings(&transformBinding, 1);
+    s_TransformStorageLayout = KIT::Ref<DescriptorSetLayout>::Create(bindings);
+
+    std::array<VkDescriptorSetLayoutBinding, 2> lightBindings{};
+    for (u32 i = 0; i < 2; i++)
+    {
+        lightBindings[i].binding = i;
+        lightBindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        lightBindings[i].descriptorCount = 1;
+        lightBindings[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+    s_LightStorageLayout = KIT::Ref<DescriptorSetLayout>::Create(lightBindings);
 }
 
 void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept
@@ -84,7 +95,8 @@ void Core::Terminate() noexcept
     s_Device = nullptr;
     s_Instance = nullptr;
     s_DescriptorPool = nullptr;
-    s_DescriptorSetLayout = nullptr;
+    s_TransformStorageLayout = nullptr;
+    s_LightStorageLayout = nullptr;
 }
 
 const KIT::Ref<Instance> &Core::GetInstance() noexcept
@@ -106,9 +118,13 @@ const KIT::Ref<DescriptorPool> &Core::GetDescriptorPool() noexcept
 {
     return s_DescriptorPool;
 }
-const KIT::Ref<DescriptorSetLayout> &Core::GetStorageBufferDescriptorSetLayout() noexcept
+const KIT::Ref<DescriptorSetLayout> &Core::GetTransformStorageDescriptorSetLayout() noexcept
 {
-    return s_DescriptorSetLayout;
+    return s_TransformStorageLayout;
+}
+const KIT::Ref<DescriptorSetLayout> &Core::GetLightStorageDescriptorSetLayout() noexcept
+{
+    return s_LightStorageLayout;
 }
 
 KIT::StackAllocator *Core::GetStackAllocator() noexcept

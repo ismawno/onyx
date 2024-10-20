@@ -1,5 +1,5 @@
 #include "core/pch.hpp"
-#include "onyx/rendering/render_system.hpp"
+#include "onyx/rendering/frame_scheduler.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/draw/color.hpp"
@@ -10,7 +10,7 @@
 
 namespace ONYX
 {
-RenderSystem::RenderSystem(Window &p_Window) noexcept
+FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 {
     m_Device = Core::GetDevice();
     createSwapChain(p_Window);
@@ -18,7 +18,7 @@ RenderSystem::RenderSystem(Window &p_Window) noexcept
     createCommandBuffers();
 }
 
-RenderSystem::~RenderSystem() noexcept
+FrameScheduler::~FrameScheduler() noexcept
 {
     if (m_PresentTask)
         m_PresentTask->WaitUntilFinished();
@@ -31,7 +31,7 @@ RenderSystem::~RenderSystem() noexcept
     vkDestroyCommandPool(m_Device->GetDevice(), m_CommandPool, nullptr);
 }
 
-VkCommandBuffer RenderSystem::BeginFrame(Window &p_Window) noexcept
+VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 {
     KIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
 
@@ -69,7 +69,7 @@ VkCommandBuffer RenderSystem::BeginFrame(Window &p_Window) noexcept
     return m_CommandBuffers[m_FrameIndex];
 }
 
-void RenderSystem::EndFrame(Window &) noexcept
+void FrameScheduler::EndFrame(Window &) noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
     KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
@@ -92,7 +92,7 @@ void RenderSystem::EndFrame(Window &) noexcept
     m_FrameStarted = false;
 }
 
-void RenderSystem::BeginRenderPass(const Color &p_ClearColor) noexcept
+void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot begin render pass if a frame is not in progress");
     const VkExtent2D extent = m_SwapChain->GetExtent();
@@ -129,28 +129,28 @@ void RenderSystem::BeginRenderPass(const Color &p_ClearColor) noexcept
     vkCmdSetScissor(m_CommandBuffers[m_FrameIndex], 0, 1, &scissor);
 }
 
-void RenderSystem::EndRenderPass() noexcept
+void FrameScheduler::EndRenderPass() noexcept
 {
     KIT_ASSERT(m_FrameStarted, "Cannot end render pass if a frame is not in progress");
     vkCmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
 }
 
-u32 RenderSystem::GetFrameIndex() const noexcept
+u32 FrameScheduler::GetFrameIndex() const noexcept
 {
     return m_FrameIndex;
 }
 
-VkCommandBuffer RenderSystem::GetCurrentCommandBuffer() const noexcept
+VkCommandBuffer FrameScheduler::GetCurrentCommandBuffer() const noexcept
 {
     return m_CommandBuffers[m_FrameIndex];
 }
 
-const SwapChain &RenderSystem::GetSwapChain() const noexcept
+const SwapChain &FrameScheduler::GetSwapChain() const noexcept
 {
     return *m_SwapChain;
 }
 
-void RenderSystem::createSwapChain(Window &p_Window) noexcept
+void FrameScheduler::createSwapChain(Window &p_Window) noexcept
 {
     VkExtent2D windowExtent = {p_Window.GetScreenWidth(), p_Window.GetScreenHeight()};
     while (windowExtent.width == 0 || windowExtent.height == 0)
@@ -162,7 +162,7 @@ void RenderSystem::createSwapChain(Window &p_Window) noexcept
     m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.GetSurface(), m_SwapChain.Get());
 }
 
-void RenderSystem::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
+void FrameScheduler::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
 {
     const Device::QueueFamilyIndices indices = m_Device->FindQueueFamilies(p_Surface);
 
@@ -175,7 +175,7 @@ void RenderSystem::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
                        "Failed to create command pool");
 }
 
-void RenderSystem::createCommandBuffers() noexcept
+void FrameScheduler::createCommandBuffers() noexcept
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;

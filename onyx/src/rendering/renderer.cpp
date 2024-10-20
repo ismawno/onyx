@@ -75,7 +75,7 @@ static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferI
 ONYX_DIMENSION_TEMPLATE MeshRenderer<N>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_DescriptorPool = Core::GetDescriptorPool();
-    m_DescriptorSetLayout = Core::GetStorageBufferDescriptorSetLayout();
+    m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
 
     const VkDescriptorSetLayout layout = m_DescriptorSetLayout->GetLayout();
     Pipeline::Specs specs =
@@ -182,7 +182,7 @@ template class MeshRenderer<3>;
 ONYX_DIMENSION_TEMPLATE PrimitiveRenderer<N>::PrimitiveRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_DescriptorPool = Core::GetDescriptorPool();
-    m_DescriptorSetLayout = Core::GetStorageBufferDescriptorSetLayout();
+    m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
 
     const VkDescriptorSetLayout layout = m_DescriptorSetLayout->GetLayout();
     Pipeline::Specs specs =
@@ -283,7 +283,7 @@ template class PrimitiveRenderer<3>;
 ONYX_DIMENSION_TEMPLATE PolygonRenderer<N>::PolygonRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_DescriptorPool = Core::GetDescriptorPool();
-    m_DescriptorSetLayout = Core::GetStorageBufferDescriptorSetLayout();
+    m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
 
     const VkDescriptorSetLayout layout = m_DescriptorSetLayout->GetLayout();
     Pipeline::Specs specs =
@@ -428,7 +428,7 @@ template class PolygonRenderer<3>;
 ONYX_DIMENSION_TEMPLATE CircleRenderer<N>::CircleRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_DescriptorPool = Core::GetDescriptorPool();
-    m_DescriptorSetLayout = Core::GetStorageBufferDescriptorSetLayout();
+    m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
 
     const VkDescriptorSetLayout layout = m_DescriptorSetLayout->GetLayout();
     const Pipeline::Specs specs =

@@ -12,7 +12,7 @@ set(SOURCES
     src/rendering/pipeline.cpp
     src/rendering/swap_chain.cpp
     src/rendering/render_context.cpp
-    src/rendering/render_system.cpp
+    src/rendering/frame_scheduler.cpp
     src/rendering/renderer.cpp
     src/descriptors/descriptor_pool.cpp
     src/descriptors/descriptor_set_layout.cpp

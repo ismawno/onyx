@@ -122,7 +122,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     initInfo.MinImageCount = 3;
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    initInfo.RenderPass = p_Window.GetRenderSystem().GetSwapChain().GetRenderPass();
+    initInfo.RenderPass = p_Window.GetFrameScheduler().GetSwapChain().GetRenderPass();
 
     ImGui_ImplVulkan_Init(&initInfo);
     ImGui_ImplVulkan_CreateFontsTexture();
