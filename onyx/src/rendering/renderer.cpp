@@ -2,6 +2,8 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/draw/transform.hpp"
 #include "onyx/descriptors/descriptor_writer.hpp"
+#include "onyx/app/window.hpp"
+#include "kit/utilities/math.hpp"
 
 namespace ONYX
 {
@@ -27,13 +29,16 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
     return writer.Build();
 }
 
-ONYX_DIMENSION_TEMPLATE IRenderer<N>::IRenderer(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
+ONYX_DIMENSION_TEMPLATE IRenderer<N>::IRenderer(Window *p_Window, const VkRenderPass p_RenderPass,
+                                                const DynamicArray<RenderState<N>> *p_State) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
-      m_CircleRenderer(p_RenderPass), m_Window(p_Window)
+      m_CircleRenderer(p_RenderPass), m_Window(p_Window), m_State(p_State)
 {
 }
 
-Renderer<3>::Renderer(Window *p_Window, const VkRenderPass p_RenderPass) : IRenderer<3>(p_Window, p_RenderPass)
+Renderer<3>::Renderer(Window *p_Window, const VkRenderPass p_RenderPass,
+                      const DynamicArray<RenderState3D> *p_State) noexcept
+    : IRenderer<3>(p_Window, p_RenderPass, p_State)
 {
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
     {
@@ -61,26 +66,39 @@ DeviceLightData::~DeviceLightData() noexcept
     }
 }
 
+static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
+{
+    mat4 t4{1.f};
+    t4[0][0] = p_Transform[0][0];
+    t4[0][1] = p_Transform[0][1];
+    t4[1][0] = p_Transform[1][0];
+    t4[1][1] = p_Transform[1][1];
+
+    t4[3][0] = p_Transform[2][0];
+    t4[3][1] = p_Transform[2][1];
+    return t4;
+}
+
 ONYX_DIMENSION_TEMPLATE TransformData<N> createTransformData(const mat<N> &p_Transform, const mat<N> &p_ProjView,
                                                              const vec4 &p_Color) noexcept
 {
-    TransformData<N> drawData;
+    TransformData<N> transformData;
     if constexpr (N == 3)
     {
-        drawData.Transform = p_Transform;
-        drawData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
-        drawData.PorjectionView = p_ProjView;
-        drawData.Color = p_Color;
+        transformData.Transform = p_Transform;
+        transformData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
+        transformData.ProjectionView = p_ProjView;
+        transformData.Color = p_Color;
     }
     else
     {
         // And now, we apply axes offset for 2D cases, which may seem that it is applied after the projection, but it is
         // cool because I use no projection for 2D
-        drawData.Transform = transform3ToTransform4(p_ProjView * p_Transform);
-        ApplyCoordinateSystem(drawData.Transform);
-        drawData.Color = p_Color;
+        transformData.Transform = transform3ToTransform4(p_ProjView * p_Transform);
+        ApplyCoordinateSystem(transformData.Transform);
+        transformData.Color = p_Color;
     }
-    return drawData;
+    return transformData;
 }
 
 static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWidth) noexcept
@@ -94,7 +112,7 @@ ONYX_DIMENSION_TEMPLATE
 template <typename Renderer, typename... DrawArgs>
 void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept
 {
-    auto &state = m_RenderState.back();
+    auto &state = m_State->back();
     if constexpr (N == 2)
     {
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
@@ -179,7 +197,6 @@ void Renderer<3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
     renderInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
     renderInfo.DirectionalLightCount = static_cast<u32>(m_DirectionalLights.size());
     renderInfo.PointLightCount = static_cast<u32>(m_PointLights.size());
-    renderInfo.AmbientIntensity = AmbientIntensity;
     renderInfo.AmbientColor = AmbientColor;
 
     for (usize i = 0; i < m_DirectionalLights.size(); ++i)
@@ -233,5 +250,8 @@ void Renderer<3>::AddPointLight(const PointLight &p_Light) noexcept
 
     m_PointLights.push_back(p_Light);
 }
+
+template class IRenderer<2>;
+template class IRenderer<3>;
 
 } // namespace ONYX

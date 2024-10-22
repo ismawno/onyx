@@ -7,9 +7,9 @@ namespace ONYX
 struct PushConstantData3D
 {
     vec4 AmbientColor;
-    f32 AmbientIntensity;
     u32 DirectionalLightCount;
     u32 PointLightCount;
+    u32 _Padding[2];
 };
 
 ONYX_DIMENSION_TEMPLATE struct ShaderPaths;
@@ -147,7 +147,6 @@ static void pushConstantData(const RenderInfo<3> &p_Info, const Pipeline *p_Pipe
     pdata.AmbientColor = p_Info.AmbientColor;
     pdata.DirectionalLightCount = p_Info.DirectionalLightCount;
     pdata.PointLightCount = p_Info.PointLightCount;
-    pdata.AmbientIntensity = p_Info.AmbientIntensity;
 
     vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline->GetLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                        sizeof(PushConstantData3D), &pdata);
@@ -176,8 +175,8 @@ ONYX_DIMENSION_TEMPLATE void MeshRenderer<N>::Render(const RenderInfo<N> &p_Info
     auto &storageBuffer = m_DeviceTransformData.StorageBuffers[p_Info.FrameIndex];
     usize index = 0;
     for (const auto &[model, data] : m_HostTransformData)
-        for (const TransformData<N> &drawData : data)
-            storageBuffer->WriteAt(index++, &drawData);
+        for (const TransformData<N> &transformData : data)
+            storageBuffer->WriteAt(index++, &transformData);
     storageBuffer->Flush();
 
     m_Pipeline->Bind(p_Info.CommandBuffer);
@@ -269,8 +268,8 @@ ONYX_DIMENSION_TEMPLATE void PrimitiveRenderer<N>::Render(const RenderInfo<N> &p
 
     // Cant just memcpy this because of alignment
     usize index = 0;
-    for (const auto &drawData : m_HostTransformData)
-        for (const TransformData<N> &data : drawData)
+    for (const auto &transformData : m_HostTransformData)
+        for (const TransformData<N> &data : transformData)
             storageBuffer->WriteAt(index++, &data);
     storageBuffer->Flush();
 
@@ -367,19 +366,19 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, co
                                             m_DeviceTransformData.DescriptorSets[p_FrameIndex]);
     }
 
-    PolygonTransformData drawData{};
-    drawData.Transform = p_TransformData.Transform;
-    drawData.Color = p_TransformData.Color;
+    PolygonTransformData transformData{};
+    transformData.Transform = p_TransformData.Transform;
+    transformData.Color = p_TransformData.Color;
     if constexpr (N == 3)
-        drawData.NormalMatrix = p_TransformData.NormalMatrix;
+        transformData.NormalMatrix = p_TransformData.NormalMatrix;
 
     PrimitiveDataLayout layout;
     layout.VerticesStart = m_Vertices.size();
     layout.IndicesStart = m_Indices.size();
     layout.IndicesSize = p_Vertices.size() * 3 - 6;
-    drawData.Layout = layout;
+    transformData.Layout = layout;
 
-    m_HostTransformData.push_back(drawData);
+    m_HostTransformData.push_back(transformData);
 
     const auto pushVertex = [this](const vec<N> &v) {
         Vertex<N> vertex{};

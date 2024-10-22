@@ -2,8 +2,8 @@
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/descriptors/descriptor_writer.hpp"
 #include "onyx/app/input.hpp"
-#include "onyx/app/window.hpp"
 #include "onyx/draw/transform.hpp"
+#include "onyx/app/window.hpp"
 
 #include "kit/utilities/math.hpp"
 
@@ -11,7 +11,7 @@ namespace ONYX
 {
 
 ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
-    : m_Renderer(p_Window, p_RenderPass), m_Window(p_Window)
+    : m_Renderer(p_Window, p_RenderPass, &m_RenderState), m_Window(p_Window)
 {
     m_RenderState.push_back(RenderState<N>{});
     // All axes transformation come "from the right", and axes offset must come "from the left", so it is actually fine
@@ -27,7 +27,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush() noexcept
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush(const Color &p_Color) noexcept
 {
-    m_Renderer.Flush(p_Color);
+    m_Renderer.Flush();
     m_Window->BackgroundColor = p_Color;
 }
 
@@ -1045,6 +1045,49 @@ void RenderContext<3>::Ellipsoid(const f32 p_X, const f32 p_Y, const f32 p_Z, co
     Ellipsoid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim}, quat{{p_XRot, p_YRot, p_ZRot}});
 }
 
+void RenderContext<3>::LightColor(const Color &p_Color) noexcept
+{
+    m_RenderState.back().LightColor = p_Color;
+}
+void RenderContext<3>::AmbientColor(const Color &p_Color) noexcept
+{
+    m_RenderState.back().AmbientColor = p_Color;
+}
+void RenderContext<3>::AmbientIntensity(const f32 p_Intensity) noexcept
+{
+    m_RenderState.back().AmbientColor.RGBA.a = p_Intensity;
+}
+
+void RenderContext<3>::DirectionalLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
+{
+    ONYX::DirectionalLight light;
+    light.DirectionAndIntensity = vec4{p_Direction, p_Intensity};
+    light.Color = m_RenderState.back().LightColor;
+    m_Renderer.AddDirectionalLight(light);
+}
+void RenderContext<3>::DirectionalLight(const f32 p_DX, const f32 p_DY, const f32 p_DZ, const f32 p_Intensity) noexcept
+{
+    DirectionalLight(vec3{p_DX, p_DY, p_DZ}, p_Intensity);
+}
+
+void RenderContext<3>::PointLight(const vec3 &p_Position, const f32 p_Radius, const f32 p_Intensity) noexcept
+{
+    ONYX::PointLight light;
+    light.PositionAndIntensity = vec4{p_Position, p_Intensity};
+    light.Radius = p_Radius;
+    light.Color = m_RenderState.back().LightColor;
+    m_Renderer.AddPointLight(light);
+}
+void RenderContext<3>::PointLight(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius,
+                                  const f32 p_Intensity) noexcept
+{
+    PointLight(vec3{p_X, p_Y, p_Z}, p_Radius, p_Intensity);
+}
+void RenderContext<3>::PointLight(const f32 p_Radius, const f32 p_Intensity) noexcept
+{
+    PointLight(vec3{0.f}, p_Radius, p_Intensity);
+}
+
 void RenderContext<2>::Fill() noexcept
 {
     m_RenderState.back().NoFill = false;
@@ -1292,47 +1335,6 @@ void RenderContext<3>::Orthographic() noexcept
     m_RenderState.back().HasProjection = false;
 }
 
-void RenderContext<3>::AddLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
-{
-    m_DirectionalLights.push_back(vec4{p_Direction, p_Intensity});
-}
-void RenderContext<3>::RemoveLight(const usize p_Index) noexcept
-{
-    m_DirectionalLights.erase(m_DirectionalLights.begin() + p_Index);
-}
-
-const vec4 &RenderContext<3>::GetLight(const usize p_Index) const noexcept
-{
-    return m_DirectionalLights[p_Index];
-}
-vec4 &RenderContext<3>::GetLight(const usize p_Index) noexcept
-{
-    return m_DirectionalLights[p_Index];
-}
-
-const vec3 &RenderContext<3>::GetLightDirection(const usize p_Index) const noexcept
-{
-    return *(vec3 *)&m_DirectionalLights[p_Index].x;
-}
-vec3 &RenderContext<3>::GetLightDirection(const usize p_Index) noexcept
-{
-    return *(vec3 *)&m_DirectionalLights[p_Index].x;
-}
-
-f32 RenderContext<3>::GetLightIntensity(const usize p_Index) const noexcept
-{
-    return m_DirectionalLights[p_Index].w;
-}
-f32 &RenderContext<3>::GetLightIntensity(const usize p_Index) noexcept
-{
-    return m_DirectionalLights[p_Index].w;
-}
-
-usize RenderContext<3>::GetLightCount() const noexcept
-{
-    return m_DirectionalLights.size();
-}
-
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Reset() noexcept
 {
     KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
@@ -1340,13 +1342,6 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Reset() noexcept
     if constexpr (N == 3)
         ApplyCoordinateSystem(m_RenderState[0].Axes);
 }
-
-struct GlobalUBO
-{
-    vec4 LightDirection;
-    f32 LightIntensity;
-    f32 AmbientIntensity;
-};
 
 template class IRenderContext<2>;
 template class IRenderContext<3>;

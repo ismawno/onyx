@@ -42,7 +42,6 @@ template <> struct ONYX_API RenderInfo<3>
     u32 FrameIndex;
     u32 DirectionalLightCount;
     u32 PointLightCount;
-    f32 AmbientIntensity;
     vec4 AmbientColor;
 };
 

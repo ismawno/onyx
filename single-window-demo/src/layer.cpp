@@ -14,13 +14,12 @@ void SWExampleLayer::OnStart() noexcept
 {
     m_LayerData2.Context = m_Application->GetMainWindow()->GetRenderContext2D();
     m_LayerData3.Context = m_Application->GetMainWindow()->GetRenderContext3D();
-    m_LayerData3.Context->AddLight({1.f, 0.f, 0.f}, 0.5f);
 }
 
 ONYX_DIMENSION_TEMPLATE void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
 {
     p_Data.Context->Reset();
-    p_Data.Context->Background(m_BackgroundColor);
+    p_Data.Context->Flush(m_BackgroundColor);
     p_Data.Context->KeepWindowAspect();
 
     if constexpr (N == 3)
@@ -29,6 +28,7 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::drawShapes(const LayerData<N> &p_Da
             p_Data.Context->Perspective(m_FieldOfView, m_Near, m_Far);
         else
             p_Data.Context->Orthographic();
+        p_Data.Context->DirectionalLight(1.f, 1.f, 1.f);
     }
 
     p_Data.Context->TransformAxes(p_Data.Axes);

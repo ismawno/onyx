@@ -13,33 +13,11 @@
 // Many of the overloads could be specifically implmented to make some operations a bit more efficient, but for now they
 // just rely on the general implementation. SPECIALLY RotateX, RotateY etcetera
 
+// Translate() Rotate() etc is only valid for primitives, not lights
+
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE struct RenderState;
 class Window;
-
-template <> struct RenderState<2>
-{
-    mat3 Transform{1.f};
-    mat3 Axes{1.f};
-    Color FillColor = Color::WHITE;
-    Color StrokeColor = Color::WHITE;
-    f32 StrokeWidth = 0.f;
-    bool NoStroke = true;
-    bool NoFill = false;
-};
-
-template <> struct RenderState<3>
-{
-    mat4 Transform{1.f};
-    mat4 Axes{1.f};
-    mat4 Projection{1.f};
-    Color FillColor = Color::WHITE;
-    bool HasProjection = false;
-};
-
-using RenderState2D = RenderState<2>;
-using RenderState3D = RenderState<3>;
 
 ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
 {
@@ -449,30 +427,37 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     void Ellipsoid(f32 p_X, f32 p_Y, f32 p_Z, f32 p_XDim, f32 p_YDim, f32 p_ZDim, f32 p_XRot, f32 p_YRot,
                    f32 p_ZRot) noexcept;
 
+    void LightColor(const Color &p_Color) noexcept;
+    template <typename... ColorArgs>
+        requires std::constructible_from<Color, ColorArgs...>
+    void LightColor(ColorArgs &&...p_ColorArgs) noexcept
+    {
+        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        LightColor(color);
+    }
+
+    void AmbientColor(const Color &p_Color) noexcept;
+    template <typename... ColorArgs>
+        requires std::constructible_from<Color, ColorArgs...>
+    void AmbientColor(ColorArgs &&...p_ColorArgs) noexcept
+    {
+        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        AmbientColor(color);
+    }
+    void AmbientIntensity(f32 p_Intensity) noexcept;
+
+    void DirectionalLight(const vec3 &p_Direction, f32 p_Intensity = 1.f) noexcept;
+    void DirectionalLight(f32 p_DX, f32 p_DY, f32 p_DZ, f32 p_Intensity = 1.f) noexcept;
+
+    void PointLight(f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
+    void PointLight(const vec3 &p_Position, f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
+    void PointLight(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
+
     void Projection(const mat4 &p_Projection) noexcept;
     void Perspective(f32 p_FieldOfView, f32 p_Near, f32 p_Far) noexcept;
     void Orthographic() noexcept;
 
-    void AddLight(const vec3 &p_Direction, f32 p_Intensity) noexcept;
-    void RemoveLight(usize p_Index) noexcept;
-
-    const vec4 &GetLight(usize p_Index) const noexcept;
-    vec4 &GetLight(usize p_Index) noexcept;
-
-    const vec3 &GetLightDirection(usize p_Index) const noexcept;
-    vec3 &GetLightDirection(usize p_Index) noexcept;
-
-    f32 GetLightIntensity(usize p_Index) const noexcept;
-    f32 &GetLightIntensity(usize p_Index) noexcept;
-
-    usize GetLightCount() const noexcept;
-
     vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
-
-    f32 AmbientIntensity = 0.15f;
-
-  private:
-    KIT::StaticArray<vec4, ONYX_MAX_DIRECTIONAL_LIGHTS> m_DirectionalLights;
 };
 
 using RenderContext2D = RenderContext<2>;

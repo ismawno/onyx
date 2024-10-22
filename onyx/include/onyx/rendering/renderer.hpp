@@ -1,17 +1,45 @@
 #pragma once
 
 #include "onyx/rendering/render_systems.hpp"
+#include "onyx/descriptors/descriptor_set_layout.hpp"
+#include "onyx/descriptors/descriptor_pool.hpp"
 
 namespace ONYX
 {
 // This function modifies the axes to support different coordinate systems
 ONYX_API void ApplyCoordinateSystem(mat4 &p_Axes) noexcept;
 
+ONYX_DIMENSION_TEMPLATE struct RenderState;
+template <> struct RenderState<2>
+{
+    mat3 Transform{1.f};
+    mat3 Axes{1.f};
+    Color FillColor = Color::WHITE;
+    Color StrokeColor = Color::WHITE;
+    f32 StrokeWidth = 0.f;
+    bool NoStroke = true;
+    bool NoFill = false;
+};
+
+template <> struct RenderState<3>
+{
+    mat4 Transform{1.f};
+    mat4 Axes{1.f};
+    mat4 Projection{1.f};
+    Color FillColor = Color::WHITE;
+    Color LightColor = Color::WHITE;
+    Color AmbientColor = Color::WHITE;
+    bool HasProjection = false;
+};
+
+using RenderState2D = RenderState<2>;
+using RenderState3D = RenderState<3>;
+
 ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderer
 {
     KIT_NON_COPYABLE(IRenderer)
   public:
-    IRenderer(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
+    IRenderer(Window *p_Window, VkRenderPass p_RenderPass, const DynamicArray<RenderState<N>> *p_State) noexcept;
 
     void DrawMesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
     void DrawPrimitive(usize p_PrimitiveIndex, const mat<N> &p_Transform) noexcept;
@@ -30,6 +58,7 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderer
     void draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept;
 
     Window *m_Window;
+    const DynamicArray<RenderState<N>> *m_State;
 };
 
 ONYX_DIMENSION_TEMPLATE class Renderer;
@@ -71,7 +100,7 @@ struct ONYX_API DeviceLightData
 template <> class Renderer<3> final : public IRenderer<3>
 {
   public:
-    Renderer(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
+    Renderer(Window *p_Window, VkRenderPass p_RenderPass, const DynamicArray<RenderState3D> *p_State) noexcept;
 
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
@@ -79,8 +108,7 @@ template <> class Renderer<3> final : public IRenderer<3>
     void AddPointLight(const PointLight &p_Light) noexcept;
     void Flush() noexcept;
 
-    f32 AmbientIntensity = 0.4f;
-    Color AmbientColor = Color::WHITE;
+    Color AmbientColor = Color{Color::WHITE, 0.4f};
 
   private:
     KIT::Ref<DescriptorPool> m_DescriptorPool; // A bit dodgy bc these go out of scope before pipelines
