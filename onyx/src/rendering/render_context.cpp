@@ -1061,7 +1061,7 @@ void RenderContext<3>::AmbientIntensity(const f32 p_Intensity) noexcept
 void RenderContext<3>::DirectionalLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
 {
     ONYX::DirectionalLight light;
-    light.DirectionAndIntensity = vec4{p_Direction, p_Intensity};
+    light.DirectionAndIntensity = vec4{glm::normalize(p_Direction), p_Intensity};
     light.Color = m_RenderState.back().LightColor;
     m_Renderer.AddDirectionalLight(light);
 }

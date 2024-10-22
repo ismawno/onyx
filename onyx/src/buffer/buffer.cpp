@@ -10,8 +10,9 @@ static VkDeviceSize alignedSize(const VkDeviceSize p_Size, const VkDeviceSize p_
 }
 
 Buffer::Buffer(const Specs &p_Specs) noexcept
-    : m_InstanceSize(alignedSize(p_Specs.InstanceSize, p_Specs.MinimumAlignment)),
-      m_Size(m_InstanceSize * p_Specs.InstanceCount)
+    : m_InstanceSize(p_Specs.InstanceSize),
+      m_AlignedInstanceSize(alignedSize(p_Specs.InstanceSize, p_Specs.MinimumAlignment)),
+      m_Size(m_AlignedInstanceSize * p_Specs.InstanceCount)
 {
     m_Device = Core::GetDevice();
     createBuffer(p_Specs.Usage, p_Specs.AllocationInfo);
@@ -56,7 +57,7 @@ void Buffer::Write(const void *p_Data, const VkDeviceSize p_Size, const VkDevice
 void Buffer::WriteAt(const usize p_Index, const void *p_Data) noexcept
 {
     KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
-    Write(p_Data, m_InstanceSize, m_InstanceSize * p_Index);
+    Write(p_Data, m_InstanceSize, m_AlignedInstanceSize * p_Index);
 }
 
 void Buffer::Flush(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) noexcept
@@ -68,7 +69,7 @@ void Buffer::Flush(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) noexc
 void Buffer::FlushAt(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
-    Flush(m_InstanceSize, m_InstanceSize * p_Index);
+    Flush(m_InstanceSize, m_AlignedInstanceSize * p_Index);
 }
 
 void Buffer::Invalidate(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) noexcept
@@ -80,7 +81,7 @@ void Buffer::Invalidate(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) 
 void Buffer::InvalidateAt(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
-    Invalidate(m_InstanceSize, m_InstanceSize * p_Index);
+    Invalidate(m_InstanceSize, m_AlignedInstanceSize * p_Index);
 }
 
 VkDescriptorBufferInfo Buffer::GetDescriptorInfo(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) const noexcept
@@ -94,7 +95,7 @@ VkDescriptorBufferInfo Buffer::GetDescriptorInfo(const VkDeviceSize p_Size, cons
 VkDescriptorBufferInfo Buffer::GetDescriptorInfoAt(const usize p_Index) const noexcept
 {
     KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
-    return GetDescriptorInfo(m_InstanceSize, m_InstanceSize * p_Index);
+    return GetDescriptorInfo(m_InstanceSize, m_AlignedInstanceSize * p_Index);
 }
 
 void *Buffer::GetData() const noexcept
@@ -104,7 +105,7 @@ void *Buffer::GetData() const noexcept
 void *Buffer::ReadAt(const usize p_Index) const noexcept
 {
     KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
-    return static_cast<std::byte *>(m_Data) + m_InstanceSize * p_Index;
+    return static_cast<std::byte *>(m_Data) + m_AlignedInstanceSize * p_Index;
 }
 
 void Buffer::CopyFrom(const Buffer &p_Source) noexcept
@@ -136,7 +137,7 @@ VkDeviceSize Buffer::GetInstanceSize() const noexcept
 }
 VkDeviceSize Buffer::GetInstanceCount() const noexcept
 {
-    return m_Size / m_InstanceSize;
+    return m_Size / m_AlignedInstanceSize;
 }
 
 void Buffer::createBuffer(const VkBufferUsageFlags p_Usage, const VmaAllocationCreateInfo &p_AllocationInfo) noexcept

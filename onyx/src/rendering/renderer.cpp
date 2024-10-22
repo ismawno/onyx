@@ -40,6 +40,8 @@ Renderer<3>::Renderer(Window *p_Window, const VkRenderPass p_RenderPass,
                       const DynamicArray<RenderState3D> *p_State) noexcept
     : IRenderer<3>(p_Window, p_RenderPass, p_State)
 {
+    m_DescriptorPool = Core::GetDescriptorPool();
+    m_DescriptorSetLayout = Core::GetLightStorageDescriptorSetLayout();
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
     {
         const VkDescriptorBufferInfo dirInfo = m_DeviceLightData.DirectionalLightBuffers[i]->GetDescriptorInfo();
@@ -49,12 +51,12 @@ Renderer<3>::Renderer(Window *p_Window, const VkRenderPass p_RenderPass,
     }
 }
 
-DeviceLightData::DeviceLightData() noexcept
+DeviceLightData::DeviceLightData(const usize p_Capacity) noexcept
 {
     for (usize i = 0; i < SwapChain::MFIF; ++i)
     {
-        DirectionalLightBuffers[i].Create(ONYX_BUFFER_INITIAL_CAPACITY);
-        PointLightBuffers[i].Create(ONYX_BUFFER_INITIAL_CAPACITY);
+        DirectionalLightBuffers[i].Create(p_Capacity);
+        PointLightBuffers[i].Create(p_Capacity);
     }
 }
 DeviceLightData::~DeviceLightData() noexcept

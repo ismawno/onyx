@@ -65,6 +65,7 @@ class ONYX_API Buffer
     VmaAllocation m_Allocation = VK_NULL_HANDLE;
 
     VkDeviceSize m_InstanceSize;
+    VkDeviceSize m_AlignedInstanceSize;
     VkDeviceSize m_Size;
 };
 } // namespace ONYX

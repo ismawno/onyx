@@ -89,7 +89,7 @@ struct ONYX_API DeviceLightData
 {
     KIT_NON_COPYABLE(DeviceLightData)
 
-    DeviceLightData() noexcept;
+    DeviceLightData(usize p_Capacity) noexcept;
     ~DeviceLightData() noexcept;
 
     std::array<KIT::Storage<StorageBuffer<DirectionalLight>>, SwapChain::MFIF> DirectionalLightBuffers;
@@ -116,7 +116,7 @@ template <> class Renderer<3> final : public IRenderer<3>
 
     DynamicArray<DirectionalLight> m_DirectionalLights;
     DynamicArray<PointLight> m_PointLights;
-    DeviceLightData m_DeviceLightData;
+    DeviceLightData m_DeviceLightData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
 
 using Renderer2D = Renderer<2>;

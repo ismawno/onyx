@@ -28,7 +28,8 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::drawShapes(const LayerData<N> &p_Da
             p_Data.Context->Perspective(m_FieldOfView, m_Near, m_Far);
         else
             p_Data.Context->Orthographic();
-        p_Data.Context->DirectionalLight(1.f, 1.f, 1.f);
+        // p_Data.Context->DirectionalLight(1.f, 1.f, 1.f, 0.8f);
+        p_Data.Context->PointLight(1.f, 1.f, 1.f, 4.f, 0.6f);
     }
 
     p_Data.Context->TransformAxes(p_Data.Axes);

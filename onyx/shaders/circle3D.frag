@@ -65,10 +65,10 @@ void main()
         const vec3 lightColor = pointLights.Lights[i].Color.xyz;
         const float intensity = pointLights.Lights[i].PositionAndIntensity.w;
         const float radius = pointLights.Lights[i].Radius;
-        const float attenuation = 1.0 - dot(direction, direction) / (radius * radius);
+        const float attenuation = clamp(1.0 - dot(direction, direction) / (radius * radius), 0.0, 1.0);
 
-        color += intensity * attenuation * lightColor * max(dot(normal, direction), 0.0);
+        color += intensity * attenuation * lightColor * max(dot(normal, normalize(direction)), 0.0);
     }
 
-    o_Color = i_FragColor * vec4(color, 1.0);
+    o_Color = min(i_FragColor * vec4(color, 1.0), 1.0);
 }
