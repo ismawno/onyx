@@ -2,11 +2,6 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/draw/model.hpp"
-#include "onyx/core/core.hpp"
-#include "onyx/descriptors/descriptor_pool.hpp"
-#include "onyx/descriptors/descriptor_set_layout.hpp"
-#include "onyx/rendering/swap_chain.hpp"
 
 #include <vulkan/vulkan.hpp>
 
@@ -51,13 +46,14 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
   public:
     IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
 
-    void Background(const Color &p_Color) noexcept;
+    void Flush() noexcept;
+    void Flush(const Color &p_Color) noexcept;
     template <typename... ColorArgs>
         requires std::constructible_from<Color, ColorArgs...>
-    void Background(ColorArgs &&...p_ColorArgs) noexcept
+    void Flush(ColorArgs &&...p_ColorArgs) noexcept
     {
         const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
-        Background(color);
+        Flush(color);
     }
 
     void Transform(const mat<N> &p_Transform) noexcept;
@@ -161,23 +157,12 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void SetCurrentAxes(const mat<N> &p_Axes) noexcept;
 
     void Reset() noexcept;
+    void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
   protected:
-    template <typename Renderer, typename... DrawArgs>
-    void draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept;
-    void drawMesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
-    void drawPrimitive(usize p_PrimitiveIndex, const mat<N> &p_Transform) noexcept;
-    void drawPolygon(std::span<const vec<N>> p_Vertices, const mat<N> &p_Transform) noexcept;
-    void drawCircle(const mat<N> &p_Transform) noexcept;
-
-    MeshRenderer<N> m_MeshRenderer;
-    PrimitiveRenderer<N> m_PrimitiveRenderer;
-    PolygonRenderer<N> m_PolygonRenderer;
-    CircleRenderer<N> m_CircleRenderer;
-
     DynamicArray<RenderState<N>> m_RenderState;
+    Renderer<N> m_Renderer;
     Window *m_Window;
-    u32 m_FrameIndex = 0;
 };
 
 ONYX_DIMENSION_TEMPLATE class RenderContext;
@@ -277,8 +262,6 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
     void NoStroke() noexcept;
 
     vec2 GetMouseCoordinates() const noexcept;
-
-    void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 };
 template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 {
@@ -485,8 +468,6 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     usize GetLightCount() const noexcept;
 
     vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
-
-    void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
     f32 AmbientIntensity = 0.15f;
 

@@ -9,33 +9,25 @@
 
 namespace ONYX
 {
-// This function modifies the axes to support different coordinate systems
-static void applyCoordinateSystem(mat4 &p_Axes) noexcept
-{
-    // Essentially, a rotation around the x axis
-    for (glm::length_t i = 0; i < 4; ++i)
-        for (glm::length_t j = 1; j <= 2; ++j)
-            p_Axes[i][j] = -p_Axes[i][j];
-}
 
 ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
-    : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
-      m_CircleRenderer(p_RenderPass), m_Window(p_Window)
+    : m_Renderer(p_Window, p_RenderPass), m_Window(p_Window)
 {
     m_RenderState.push_back(RenderState<N>{});
     // All axes transformation come "from the right", and axes offset must come "from the left", so it is actually fine
     // to have the axes starting as the current offset. Can only be done in 3D, because transformations may involve some
     // axis that dont exist in 2D. This offset is apply later for 2D cases, when eventually the mat3's become mat4's
     if constexpr (N == 3)
-        applyCoordinateSystem(m_RenderState.back().Axes);
+        ApplyCoordinateSystem(m_RenderState.back().Axes);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Background(const Color &p_Color) noexcept
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush() noexcept
 {
-    m_MeshRenderer.Flush();
-    m_PrimitiveRenderer.Flush();
-    m_PolygonRenderer.Flush();
-    m_CircleRenderer.Flush();
+    m_Renderer.Flush();
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush(const Color &p_Color) noexcept
+{
+    m_Renderer.Flush(p_Color);
     m_Window->BackgroundColor = p_Color;
 }
 
@@ -330,113 +322,36 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
     return t4;
 }
 
-ONYX_DIMENSION_TEMPLATE TransformData<N> createTransformData(const mat<N> &p_Transform, const mat<N> &p_ProjView,
-                                                             const vec4 &p_Color) noexcept
-{
-    TransformData<N> drawData;
-    if constexpr (N == 3)
-    {
-        drawData.Transform = p_ProjView * p_Transform;
-        drawData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
-        drawData.Color = p_Color;
-    }
-    else
-    {
-        // And now, we apply axes offset for 2D cases, which may seem that it is applied after the projection, but it is
-        // cool because I use no projection for 2D
-        drawData.Transform = transform3ToTransform4(p_ProjView * p_Transform);
-        applyCoordinateSystem(drawData.Transform);
-        drawData.Color = p_Color;
-    }
-    return drawData;
-}
-
-static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWidth) noexcept
-{
-    const vec2 scale = Transform2D::ExtractScale(p_Transform);
-    const vec2 stroke = (scale + p_StrokeWidth) / scale;
-    return p_Transform * Transform2D::ComputeScaleMatrix(stroke);
-}
-
-ONYX_DIMENSION_TEMPLATE
-template <typename Renderer, typename... DrawArgs>
-void IRenderContext<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept
-{
-    auto &state = m_RenderState.back();
-    if constexpr (N == 2)
-    {
-        if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
-        {
-            const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
-            const TransformData2D strokeData = createTransformData<2>(strokeTransform, state.Axes, state.StrokeColor);
-            p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., strokeData);
-        }
-        const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        const TransformData2D data = createTransformData<2>(p_Transform, state.Axes, color);
-        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
-    }
-    else
-    {
-        const TransformData3D data =
-            state.HasProjection ? createTransformData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
-                                : createTransformData<3>(p_Transform, state.Axes, state.FillColor);
-        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
-    }
-}
-
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawMesh(const KIT::Ref<const Model<N>> &p_Model,
-                                                         const mat<N> &p_Transform) noexcept
-{
-    draw(m_MeshRenderer, p_Transform, p_Model);
-}
-
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawPrimitive(const usize p_PrimitiveIndex,
-                                                              const mat<N> &p_Transform) noexcept
-{
-    draw(m_PrimitiveRenderer, p_Transform, p_PrimitiveIndex);
-}
-
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawPolygon(const std::span<const vec<N>> p_Vertices,
-                                                            const mat<N> &p_Transform) noexcept
-{
-    draw(m_PolygonRenderer, p_Transform, p_Vertices);
-}
-
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::drawCircle(const mat<N> &p_Transform) noexcept
-{
-    draw(m_CircleRenderer, p_Transform);
-}
-
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle() noexcept
 {
-    drawPrimitive(Primitives<N>::GetTriangleIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), m_RenderState.back().Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const mat<N> &p_Transform) noexcept
 {
-    drawPrimitive(Primitives<N>::GetTriangleIndex(), p_Transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), p_Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const f32 p_Size) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeScaleMatrix(vec<N>{p_Size}) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const vec<N> &p_Position) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const vec<N> &p_Position, const f32 p_Size) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{p_Size}) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const vec<N> &p_Position, f32 p_Size,
                                                          const rot<N> &p_Rotation) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{p_Size}, p_Rotation) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
 }
 void RenderContext<2>::Triangle(const f32 p_X, const f32 p_Y) noexcept
 {
@@ -475,30 +390,30 @@ void RenderContext<3>::Triangle(const vec3 &p_Position, const f32 p_Size, const 
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square() noexcept
 {
-    drawPrimitive(Primitives<N>::GetSquareIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), m_RenderState.back().Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square(const f32 p_Size) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeScaleMatrix(vec<N>{p_Size}) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetSquareIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square(const vec<N> &p_Position) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetSquareIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square(const vec<N> &p_Position, const f32 p_Size) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{p_Size}) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetSquareIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square(const vec<N> &p_Position, f32 p_Size,
                                                        const rot<N> &p_Rotation) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{p_Size}, p_Rotation) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetSquareIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
 void RenderContext<2>::Square(const f32 p_X, const f32 p_Y) noexcept
 {
@@ -543,7 +458,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec2 &p_Dimensions) n
     else
         transform = Transform3D::ComputeScaleMatrix(vec3{p_Dimensions, 1.f}) * m_RenderState.back().Transform;
 
-    drawPrimitive(Primitives<N>::GetSquareIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept
 {
@@ -555,7 +470,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec<N> &p_Position, c
         transform = Transform3D::ComputeTranslationScaleMatrix(p_Position, vec3{p_Dimensions, 1.f}) *
                     m_RenderState.back().Transform;
 
-    drawPrimitive(Primitives<N>::GetSquareIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec<N> &p_Position, const vec2 &p_Dimensions,
                                                      const rot<N> &p_Rotation) noexcept
@@ -568,11 +483,11 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec<N> &p_Position, c
         transform = Transform3D::ComputeTransform(p_Position, vec<N>{p_Dimensions, 1.f}, p_Rotation) *
                     m_RenderState.back().Transform;
 
-    drawPrimitive(Primitives<N>::GetSquareIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const mat<N> &p_Trasform) noexcept
 {
-    drawPrimitive(Primitives<N>::GetSquareIndex(), p_Trasform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), p_Trasform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const f32 p_XDim, const f32 p_YDim) noexcept
 {
@@ -603,36 +518,36 @@ void RenderContext<3>::Rect(const vec3 &p_Position, const vec2 &p_Dimensions, co
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides) noexcept
 {
-    drawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), m_RenderState.back().Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const f32 p_Radius) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeScaleMatrix(vec<N>{2.f * p_Radius}) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const mat<N> &p_Transform) noexcept
 {
-    drawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), p_Transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), p_Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position,
                                                      const f32 p_Radius) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{2.f * p_Radius}) *
                              m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position, const f32 p_Radius,
                                                      const rot<N> &p_Rotation) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{2.f * p_Radius}, p_Rotation) *
                              m_RenderState.back().Transform;
-    drawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
+    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
 }
 void RenderContext<2>::NGon(const u32 p_Sides, const f32 p_X, const f32 p_Y) noexcept
 {
@@ -671,23 +586,23 @@ template <typename... Vertices>
     requires(sizeof...(Vertices) >= 3 && (std::is_same_v<Vertices, vec<N>> && ...))
 void IRenderContext<N>::Polygon(Vertices &&...p_Vertices) noexcept
 {
-    drawPolygon({std::forward<Vertices>(p_Vertices)...}, m_RenderState.back().Transform);
+    m_Renderer.DrawPolygon({std::forward<Vertices>(p_Vertices)...}, m_RenderState.back().Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices) noexcept
 {
-    drawPolygon(p_Vertices, m_RenderState.back().Transform);
+    m_Renderer.DrawPolygon(p_Vertices, m_RenderState.back().Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices,
                                                         const mat<N> &p_Transform) noexcept
 {
-    drawPolygon(p_Vertices, p_Transform);
+    m_Renderer.DrawPolygon(p_Vertices, p_Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices,
                                                         const vec<N> &p_Translation) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationMatrix(p_Translation) * m_RenderState.back().Transform;
-    drawPolygon(p_Vertices, transform);
+    m_Renderer.DrawPolygon(p_Vertices, transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices,
                                                         const vec<N> &p_Translation, const rot<N> &p_Rotation) noexcept
@@ -695,7 +610,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const ve
     // TODO: Remove the need of this vec<N>{1.f} at some point
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTransform(p_Translation, vec<N>{1.f}, p_Rotation) * m_RenderState.back().Transform;
-    drawPolygon(p_Vertices, transform);
+    m_Renderer.DrawPolygon(p_Vertices, transform);
 }
 void RenderContext<2>::Polygon(const std::span<const vec2> p_Vertices, const f32 p_X, const f32 p_Y) noexcept
 {
@@ -729,23 +644,23 @@ void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const vec
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle() noexcept
 {
-    drawCircle(m_RenderState.back().Transform);
+    m_Renderer.DrawCircle(m_RenderState.back().Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const f32 p_Radius) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeScaleMatrix(vec<N>{p_Radius}) * m_RenderState.back().Transform;
-    drawCircle(transform);
+    m_Renderer.DrawCircle(transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const vec<N> &p_Position) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
-    drawCircle(transform);
+    m_Renderer.DrawCircle(transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const vec<N> &p_Position, const f32 p_Radius) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{p_Radius}) *
                              m_RenderState.back().Transform;
-    drawCircle(transform);
+    m_Renderer.DrawCircle(transform);
 }
 void RenderContext<2>::Circle(const f32 p_X, const f32 p_Y) noexcept
 {
@@ -771,7 +686,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec2 &p_Dimensions
         transform = Transform2D::ComputeScaleMatrix(p_Dimensions) * m_RenderState.back().Transform;
     else
         transform = Transform3D::ComputeScaleMatrix(vec3{p_Dimensions, 1.f}) * m_RenderState.back().Transform;
-    drawCircle(transform);
+    m_Renderer.DrawCircle(transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept
 {
@@ -782,7 +697,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec<N> &p_Position
     else
         transform = Transform3D::ComputeTranslationScaleMatrix(p_Position, vec3{p_Dimensions, 1.f}) *
                     m_RenderState.back().Transform;
-    drawCircle(transform);
+    m_Renderer.DrawCircle(transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions,
                                                         const rot<N> &p_Rotation) noexcept
@@ -794,7 +709,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec<N> &p_Position
     else
         transform = Transform3D::ComputeTransform(p_Position, vec<N>{p_Dimensions, 1.f}, p_Rotation) *
                     m_RenderState.back().Transform;
-    drawCircle(transform);
+    m_Renderer.DrawCircle(transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const f32 p_XDim, const f32 p_YDim) noexcept
 {
@@ -802,7 +717,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const f32 p_XDim, const 
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const mat<N> &p_Transform) noexcept
 {
-    drawCircle(p_Transform);
+    m_Renderer.DrawCircle(p_Transform);
 }
 void RenderContext<2>::Ellipse(const f32 p_X, const f32 p_Y, const f32 p_XDim, const f32 p_YDim) noexcept
 {
@@ -849,9 +764,9 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Line(const vec<N> &p_Start, cons
 
     const mat<N> transform = t.ComputeTransform() * m_RenderState.back().Transform;
     if constexpr (N == 2)
-        drawPrimitive(Primitives2D::GetSquareIndex(), transform);
+        m_Renderer.DrawPrimitive(Primitives2D::GetSquareIndex(), transform);
     else
-        drawPrimitive(Primitives3D::GetCylinderIndex(), transform);
+        m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), transform);
 }
 
 void RenderContext<2>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
@@ -912,29 +827,29 @@ void RenderContext<3>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_Z
 
 void RenderContext<3>::Cube() noexcept
 {
-    drawPrimitive(Primitives3D::GetCubeIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), m_RenderState.back().Transform);
 }
 void RenderContext<3>::Cube(const f32 p_Size) noexcept
 {
     const mat4 transform = Transform3D::ComputeScaleMatrix(vec3{p_Size}) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCubeIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
 }
 void RenderContext<3>::Cube(const vec3 &p_Position) noexcept
 {
     const mat4 transform = Transform3D::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCubeIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
 }
 void RenderContext<3>::Cube(const vec3 &p_Position, const f32 p_Size) noexcept
 {
     const mat4 transform =
         Transform3D::ComputeTranslationScaleMatrix(p_Position, vec3{p_Size}) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCubeIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
 }
 void RenderContext<3>::Cube(const vec3 &p_Position, const f32 p_Size, const quat &p_Quaternion) noexcept
 {
     const mat4 transform =
         Transform3D::ComputeTransform(p_Position, vec3{p_Size}, p_Quaternion) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCubeIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
 }
 void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
@@ -961,18 +876,18 @@ void RenderContext<3>::Cube(const vec3 &p_Position, const f32 p_Size, const vec3
 
 void RenderContext<3>::Cuboid(const mat4 &p_Transform) noexcept
 {
-    drawPrimitive(Primitives3D::GetCubeIndex(), p_Transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), p_Transform);
 }
 void RenderContext<3>::Cuboid(const vec3 &p_Dimensions) noexcept
 {
     const mat4 transform = Transform3D::ComputeScaleMatrix(p_Dimensions) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCubeIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
 }
 void RenderContext<3>::Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept
 {
     const mat4 transform =
         Transform3D::ComputeTranslationScaleMatrix(p_Position, p_Dimensions) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCubeIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
 }
 void RenderContext<3>::Cuboid(const f32 p_XDim, const f32 p_YDim, const f32 p_ZDim) noexcept
 {
@@ -987,7 +902,7 @@ void RenderContext<3>::Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions, 
 {
     const mat4 transform =
         Transform3D::ComputeTransform(p_Position, p_Dimensions, p_Quaternion) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCubeIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
 }
 void RenderContext<3>::Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions, const vec3 &p_Angles) noexcept
 {
@@ -1006,24 +921,24 @@ void RenderContext<3>::Cuboid(const f32 p_X, const f32 p_Y, const f32 p_Z, const
 
 void RenderContext<3>::Cylinder() noexcept
 {
-    drawPrimitive(Primitives3D::GetCylinderIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), m_RenderState.back().Transform);
 }
 void RenderContext<3>::Cylinder(const vec2 &p_Dimensions) noexcept
 {
     const mat4 transform = Transform3D::ComputeScaleMatrix(vec3{p_Dimensions.x, p_Dimensions.y, p_Dimensions.x}) *
                            m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCylinderIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), transform);
 }
 void RenderContext<3>::Cylinder(const mat4 &p_Transform) noexcept
 {
-    drawPrimitive(Primitives3D::GetCylinderIndex(), p_Transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), p_Transform);
 }
 void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions) noexcept
 {
     const mat4 transform =
         Transform3D::ComputeTranslationScaleMatrix(p_Position, vec3{p_Dimensions.x, p_Dimensions.y, p_Dimensions.x}) *
         m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCylinderIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), transform);
 }
 void RenderContext<3>::Cylinder(const f32 p_Radius, const f32 p_Length) noexcept
 {
@@ -1039,7 +954,7 @@ void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions
     const mat4 transform =
         Transform3D::ComputeTransform(p_Position, vec3{p_Dimensions.x, p_Dimensions.y, p_Dimensions.x}, p_Quaternion) *
         m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetCylinderIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), transform);
 }
 void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const vec3 &p_Angles) noexcept
 {
@@ -1058,23 +973,23 @@ void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, con
 
 void RenderContext<3>::Sphere() noexcept
 {
-    drawPrimitive(Primitives3D::GetSphereIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), m_RenderState.back().Transform);
 }
 void RenderContext<3>::Sphere(const f32 p_Radius) noexcept
 {
     const mat4 transform = Transform3D::ComputeScaleMatrix(vec3{p_Radius}) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
 }
 void RenderContext<3>::Sphere(const vec3 &p_Position) noexcept
 {
     const mat4 transform = Transform3D::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
 }
 void RenderContext<3>::Sphere(const vec3 &p_Position, const f32 p_Radius) noexcept
 {
     const mat4 transform =
         Transform3D::ComputeTranslationScaleMatrix(p_Position, vec3{p_Radius}) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
 }
 void RenderContext<3>::Sphere(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
@@ -1087,18 +1002,18 @@ void RenderContext<3>::Sphere(const f32 p_X, const f32 p_Y, const f32 p_Z, const
 
 void RenderContext<3>::Ellipsoid(const mat4 &p_Transform) noexcept
 {
-    drawPrimitive(Primitives3D::GetSphereIndex(), p_Transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), p_Transform);
 }
 void RenderContext<3>::Ellipsoid(const vec3 &p_Dimensions) noexcept
 {
     const mat4 transform = Transform3D::ComputeScaleMatrix(p_Dimensions) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
 }
 void RenderContext<3>::Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept
 {
     const mat4 transform =
         Transform3D::ComputeTranslationScaleMatrix(p_Position, p_Dimensions) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
 }
 void RenderContext<3>::Ellipsoid(const f32 p_XDim, const f32 p_YDim, const f32 p_ZDim) noexcept
 {
@@ -1113,7 +1028,7 @@ void RenderContext<3>::Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimension
 {
     const mat4 transform =
         Transform3D::ComputeTransform(p_Position, p_Dimensions, p_Quaternion) * m_RenderState.back().Transform;
-    drawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
 }
 void RenderContext<3>::Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimensions, const vec3 &p_Angles) noexcept
 {
@@ -1141,26 +1056,26 @@ void RenderContext<2>::NoFill() noexcept
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model) noexcept
 {
-    drawMesh(p_Model, m_RenderState.back().Transform);
+    m_Renderer.DrawMesh(p_Model, m_RenderState.back().Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model,
                                                      const mat<N> &p_Transform) noexcept
 {
-    drawMesh(p_Model, p_Transform);
+    m_Renderer.DrawMesh(p_Model, p_Transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model,
                                                      const vec<N> &p_Translation) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationMatrix(p_Translation) * m_RenderState.back().Transform;
-    drawMesh(p_Model, transform);
+    m_Renderer.DrawMesh(p_Model, transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model,
                                                      const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Translation, p_Scale) * m_RenderState.back().Transform;
-    drawMesh(p_Model, transform);
+    m_Renderer.DrawMesh(p_Model, transform);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model,
                                                      const vec<N> &p_Translation, const vec<N> &p_Scale,
@@ -1168,7 +1083,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTransform(p_Translation, p_Scale, p_Rotation) * m_RenderState.back().Transform;
-    drawMesh(p_Model, transform);
+    m_Renderer.DrawMesh(p_Model, transform);
 }
 
 void RenderContext<2>::Mesh(const KIT::Ref<const Model<2>> &p_Model, const f32 p_X, const f32 p_Y) noexcept
@@ -1231,7 +1146,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::PushAndClear() noexcept
 {
     m_RenderState.push_back(RenderState<N>{});
     if constexpr (N == 3)
-        applyCoordinateSystem(m_RenderState.back().Axes);
+        ApplyCoordinateSystem(m_RenderState.back().Axes);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Pop() noexcept
 {
@@ -1296,38 +1211,12 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentAxes(const mat<N> &p_A
 {
     m_RenderState.back().Axes = p_Axes;
     if constexpr (N == 3)
-        applyCoordinateSystem(m_RenderState.back().Axes);
+        ApplyCoordinateSystem(m_RenderState.back().Axes);
 }
 
-void RenderContext<2>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
 {
-    RenderInfo<2> renderInfo;
-    renderInfo.CommandBuffer = p_Commandbuffer;
-    renderInfo.FrameIndex = m_FrameIndex;
-
-    m_MeshRenderer.Render(renderInfo);
-    m_PrimitiveRenderer.Render(renderInfo);
-    m_PolygonRenderer.Render(renderInfo);
-    m_CircleRenderer.Render(renderInfo);
-
-    m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
-}
-
-void RenderContext<3>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
-{
-    RenderInfo<3> renderInfo;
-    renderInfo.CommandBuffer = p_Commandbuffer;
-    renderInfo.FrameIndex = m_FrameIndex;
-
-    renderInfo.DirectionalLights = m_DirectionalLights;
-    renderInfo.AmbientIntensity = AmbientIntensity;
-
-    m_MeshRenderer.Render(renderInfo);
-    m_PrimitiveRenderer.Render(renderInfo);
-    m_PolygonRenderer.Render(renderInfo);
-    m_CircleRenderer.Render(renderInfo);
-
-    m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
+    m_Renderer.Render(p_Commandbuffer);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Axes(const f32 p_Thickness, const f32 p_Size) noexcept
@@ -1364,7 +1253,7 @@ vec2 RenderContext<2>::GetMouseCoordinates() const noexcept
 {
     const vec2 mpos = Input::GetMousePosition(m_Window);
     mat4 axes = transform3ToTransform4(m_RenderState.back().Axes);
-    applyCoordinateSystem(axes);
+    ApplyCoordinateSystem(axes);
     return glm::inverse(axes) * vec4{mpos, 1.f, 1.f};
 }
 vec3 RenderContext<3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
@@ -1449,7 +1338,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Reset() noexcept
     KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
     m_RenderState[0] = RenderState<N>{};
     if constexpr (N == 3)
-        applyCoordinateSystem(m_RenderState[0].Axes);
+        ApplyCoordinateSystem(m_RenderState[0].Axes);
 }
 
 struct GlobalUBO
