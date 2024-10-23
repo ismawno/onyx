@@ -1311,6 +1311,9 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Render(const VkCommandBuffer p_C
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Axes(const f32 p_Thickness, const f32 p_Size) noexcept
 {
+    // TODO: Parametrize this
+    Color &color = m_RenderState.back().Material.Color;
+    const Color oldColor = color; // A cheap filthy push
     if constexpr (N == 2)
     {
         const vec2 xLeft = vec2{-p_Size, 0.f};
@@ -1319,7 +1322,9 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Axes(const f32 p_Thickness, cons
         const vec2 yDown = vec2{0.f, -p_Size};
         const vec2 yUp = vec2{0.f, p_Size};
 
+        color = Color{245u, 64u, 90u};
         Line(xLeft, xRight, p_Thickness);
+        color = Color{65u, 135u, 245u};
         Line(yDown, yUp, p_Thickness);
     }
     else
@@ -1333,10 +1338,14 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Axes(const f32 p_Thickness, cons
         const vec3 zBack = vec3{0.f, 0.f, -p_Size};
         const vec3 zFront = vec3{0.f, 0.f, p_Size};
 
+        color = Color{245u, 64u, 90u};
         Line(xLeft, xRight, p_Thickness);
+        color = Color{65u, 135u, 245u};
         Line(yDown, yUp, p_Thickness);
+        color = Color{180u, 245u, 65u};
         Line(zBack, zFront, p_Thickness);
     }
+    color = oldColor; // A cheap filthy pop
 }
 
 vec2 RenderContext<2>::GetMouseCoordinates() const noexcept

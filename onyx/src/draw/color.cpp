@@ -142,7 +142,7 @@ Color Color::FromHexadecimal(const u32 p_Hex, const bool p_Alpha) noexcept
         return {p_Hex >> 24, (p_Hex >> 16) & 0xFF, (p_Hex >> 8) & 0xFF, p_Hex & 0xFF};
     return {p_Hex >> 16, (p_Hex >> 8) & 0xFF, p_Hex & 0xFF};
 }
-Color Color::FromHexadecimal(const std::string &p_Hex, const bool p_Alpha) noexcept
+Color Color::FromHexadecimal(const std::string_view p_Hex, const bool p_Alpha) noexcept
 {
     u32 val;
     std::stringstream ss;

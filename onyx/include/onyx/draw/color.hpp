@@ -42,7 +42,7 @@ struct ONYX_API Color
     template <typename T> T ToHexadecimal(bool p_Alpha = true) const noexcept;
 
     static Color FromHexadecimal(u32 p_Hex, bool p_Alpha = true) noexcept;
-    static Color FromHexadecimal(const std::string &p_Hex, bool p_Alpha = true) noexcept;
+    static Color FromHexadecimal(std::string_view p_Hex, bool p_Alpha = true) noexcept;
 
     static Color FromString(std::string_view p_Color) noexcept;
 
