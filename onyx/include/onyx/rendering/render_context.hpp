@@ -15,6 +15,8 @@
 
 // Translate() Rotate() etc is only valid for primitives, not lights
 
+// Explain why TransformData3D has view data for each instance (it's because of the immediate mode)
+
 namespace ONYX
 {
 class Window;

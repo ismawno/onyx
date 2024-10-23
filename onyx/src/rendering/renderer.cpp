@@ -7,12 +7,18 @@
 
 namespace ONYX
 {
-void ApplyCoordinateSystem(mat4 &p_Axes) noexcept
+void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes) noexcept
 {
     // Essentially, a rotation around the x axis
     for (glm::length_t i = 0; i < 4; ++i)
         for (glm::length_t j = 1; j <= 2; ++j)
             p_Axes[i][j] = -p_Axes[i][j];
+    if (p_InverseAxes)
+    {
+        mat4 &iaxes = *p_InverseAxes;
+        iaxes[1] = -iaxes[1];
+        iaxes[2] = -iaxes[2];
+    }
 }
 
 static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInfo &p_DirectionalInfo,
@@ -81,25 +87,29 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
     return t4;
 }
 
-ONYX_DIMENSION_TEMPLATE TransformData<N> createTransformData(const mat<N> &p_Transform, const mat<N> &p_ProjView,
-                                                             const vec4 &p_Color) noexcept
+TransformData2D createTransformData2D(const mat3 &p_Transform, const vec4 &p_Color) noexcept
 {
-    TransformData<N> transformData;
-    if constexpr (N == 3)
-    {
-        transformData.Transform = p_Transform;
-        transformData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
-        transformData.ProjectionView = p_ProjView;
-        transformData.Color = p_Color;
-    }
-    else
-    {
-        // And now, we apply axes offset for 2D cases, which may seem that it is applied after the projection, but it is
-        // cool because I use no projection for 2D
-        transformData.Transform = transform3ToTransform4(p_ProjView * p_Transform);
-        ApplyCoordinateSystem(transformData.Transform);
-        transformData.Color = p_Color;
-    }
+    TransformData2D transformData;
+    transformData.Transform = transform3ToTransform4(p_Transform);
+    // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the projection,
+    // but it is cool because I use no projection for 2D
+    ApplyCoordinateSystem(transformData.Transform);
+    transformData.Color = p_Color;
+    return transformData;
+}
+
+TransformData3D createTransformData3D(const mat4 &p_Transform, const RenderState3D &p_State) noexcept
+{
+    TransformData3D transformData;
+    transformData.Transform = p_Transform;
+    transformData.ProjectionView = p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes;
+    transformData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
+
+    transformData.ViewPosition = p_State.InverseAxes[3];
+    transformData.Color = p_State.FillColor;
+    transformData.DiffuseContribution = p_State.DiffuseContribution;
+    transformData.SpecularContribution = p_State.SpecularContribution;
+    transformData.SpecularSharpness = p_State.SpecularSharpness;
     return transformData;
 }
 
@@ -119,19 +129,17 @@ void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArg
     {
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
-            const mat3 strokeTransform = computeStrokeTransform(p_Transform, state.StrokeWidth);
-            const TransformData2D strokeData = createTransformData<2>(strokeTransform, state.Axes, state.StrokeColor);
+            const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
+            const TransformData2D strokeData = createTransformData2D(strokeTransform, state.StrokeColor);
             p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., strokeData);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        const TransformData2D data = createTransformData<2>(p_Transform, state.Axes, color);
+        const TransformData2D data = createTransformData2D(state.Axes * p_Transform, color);
         p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
     else
     {
-        const TransformData3D data =
-            state.HasProjection ? createTransformData<3>(p_Transform, state.Projection * state.Axes, state.FillColor)
-                                : createTransformData<3>(p_Transform, state.Axes, state.FillColor);
+        const TransformData3D data = createTransformData3D(p_Transform, state);
         p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
 }

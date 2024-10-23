@@ -1,7 +1,7 @@
 #version 460
 
 layout(location = 0) in vec2 i_Position;
-layout(location = 0) out vec4 o_FragColor;
+layout(location = 0) out flat vec4 o_FragColor;
 
 struct ObjectData
 {

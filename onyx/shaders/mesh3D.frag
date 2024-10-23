@@ -1,8 +1,18 @@
 #version 460
 
-layout(location = 0) in vec4 i_FragColor;
+layout(location = 0) in flat vec4 i_FragColor;
 layout(location = 1) in vec3 i_FragNormal;
 layout(location = 2) in vec3 i_WorldPosition;
+layout(location = 3) in flat vec3 i_ViewPosition;
+
+struct MaterialData
+{
+    float DiffuseContribution;
+    float SpecularContribution;
+    float SpecularSharpness;
+};
+
+layout(location = 4) in flat MaterialData i_Material;
 
 layout(location = 0) out vec4 o_Color;
 
@@ -45,14 +55,21 @@ void main()
     if (!gl_FrontFacing)
         normal = -normal;
 
-    vec3 color = lightData.AmbientColor.xyz * lightData.AmbientColor.w;
+    const vec3 specularDirection = normalize(i_ViewPosition - i_WorldPosition);
+
+    vec3 diffuseColor = lightData.AmbientColor.xyz * lightData.AmbientColor.w;
+    vec3 specularColor = vec3(0.0);
     for (uint i = 0; i < lightData.DirectionalLightCount; ++i)
     {
         const float intensity = directionalLights.Lights[i].DirectionAndIntensity.w;
         const vec3 direction = directionalLights.Lights[i].DirectionAndIntensity.xyz;
         const vec3 lightColor = directionalLights.Lights[i].Color.xyz;
 
-        color += intensity * lightColor * max(dot(normal, direction), 0.0);
+        diffuseColor += intensity * lightColor * max(dot(normal, direction), 0.0);
+
+        const vec3 halfVector = normalize(direction + specularDirection);
+        const float specular = pow(max(dot(normal, halfVector), 0.0), i_Material.SpecularSharpness);
+        specularColor += intensity * specular * lightColor;
     }
 
     for (uint i = 0; i < lightData.PointLightCount; ++i)
@@ -63,8 +80,13 @@ void main()
         const float radius = pointLights.Lights[i].Radius;
         const float attenuation = clamp(1.0 - dot(direction, direction) / (radius * radius), 0.0, 1.0);
 
-        color += intensity * attenuation * lightColor * max(dot(normal, normalize(direction)), 0.0);
+        diffuseColor += intensity * attenuation * lightColor * max(dot(normal, normalize(direction)), 0.0);
+
+        const vec3 halfVector = normalize(direction + specularDirection);
+        const float specular = pow(max(dot(normal, halfVector), 0.0), i_Material.SpecularSharpness);
+        specularColor += intensity * attenuation * specular * lightColor;
     }
 
+    const vec3 color = i_Material.DiffuseContribution * diffuseColor + i_Material.SpecularContribution * specularColor;
     o_Color = min(i_FragColor * vec4(color, 1.0), 1.0);
 }

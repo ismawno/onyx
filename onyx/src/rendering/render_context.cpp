@@ -18,7 +18,7 @@ ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, cons
     // to have the axes starting as the current offset. Can only be done in 3D, because transformations may involve some
     // axis that dont exist in 2D. This offset is apply later for 2D cases, when eventually the mat3's become mat4's
     if constexpr (N == 3)
-        ApplyCoordinateSystem(m_RenderState.back().Axes);
+        ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush() noexcept
@@ -104,6 +104,8 @@ void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, co
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TransformAxes(const mat<N> &p_Axes) noexcept
 {
     m_RenderState.back().Axes *= p_Axes;
+    if constexpr (N == 3)
+        m_RenderState.back().InverseAxes = glm::inverse(m_RenderState.back().Axes);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation,
                                                               const vec<N> &p_Scale) noexcept
@@ -1051,11 +1053,11 @@ void RenderContext<3>::LightColor(const Color &p_Color) noexcept
 }
 void RenderContext<3>::AmbientColor(const Color &p_Color) noexcept
 {
-    m_RenderState.back().AmbientColor = p_Color;
+    m_Renderer.AmbientColor = p_Color;
 }
 void RenderContext<3>::AmbientIntensity(const f32 p_Intensity) noexcept
 {
-    m_RenderState.back().AmbientColor.RGBA.a = p_Intensity;
+    m_Renderer.AmbientColor.RGBA.a = p_Intensity;
 }
 
 void RenderContext<3>::DirectionalLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
@@ -1189,7 +1191,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::PushAndClear() noexcept
 {
     m_RenderState.push_back(RenderState<N>{});
     if constexpr (N == 3)
-        ApplyCoordinateSystem(m_RenderState.back().Axes);
+        ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Pop() noexcept
 {
@@ -1254,7 +1256,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentAxes(const mat<N> &p_A
 {
     m_RenderState.back().Axes = p_Axes;
     if constexpr (N == 3)
-        ApplyCoordinateSystem(m_RenderState.back().Axes);
+        ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
@@ -1304,7 +1306,7 @@ vec3 RenderContext<3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
     const vec2 mpos = Input::GetMousePosition(m_Window);
     const mat4 &axes = m_RenderState.back().Axes;
     if (!m_RenderState.back().HasProjection)
-        return glm::inverse(axes) * vec4{mpos, p_Depth, 1.f};
+        return m_RenderState.back().InverseAxes * vec4{mpos, p_Depth, 1.f};
 
     const vec4 clip = glm::inverse(m_RenderState.back().Projection * axes) * vec4{mpos, p_Depth, 1.f};
     return vec3{clip} / clip.w;
@@ -1340,7 +1342,7 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Reset() noexcept
     KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
     m_RenderState[0] = RenderState<N>{};
     if constexpr (N == 3)
-        ApplyCoordinateSystem(m_RenderState[0].Axes);
+        ApplyCoordinateSystem(m_RenderState[0].Axes, &m_RenderState[0].InverseAxes);
 }
 
 template class IRenderContext<2>;

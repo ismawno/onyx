@@ -60,7 +60,11 @@ template <> struct ONYX_API TransformData<3>
     mat4 Transform;
     mat4 NormalMatrix;
     mat4 ProjectionView; // The projection view may vary between shapes
+    vec4 ViewPosition;
     vec4 Color;
+    f32 DiffuseContribution;
+    f32 SpecularContribution;
+    f32 SpecularSharpness;
 };
 
 using TransformData2D = TransformData<2>;

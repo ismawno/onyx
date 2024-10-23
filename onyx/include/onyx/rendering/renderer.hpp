@@ -7,7 +7,7 @@
 namespace ONYX
 {
 // This function modifies the axes to support different coordinate systems
-ONYX_API void ApplyCoordinateSystem(mat4 &p_Axes) noexcept;
+ONYX_API void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes = nullptr) noexcept;
 
 ONYX_DIMENSION_TEMPLATE struct RenderState;
 template <> struct RenderState<2>
@@ -25,10 +25,13 @@ template <> struct RenderState<3>
 {
     mat4 Transform{1.f};
     mat4 Axes{1.f};
+    mat4 InverseAxes{1.f}; // Just for caching
     mat4 Projection{1.f};
     Color FillColor = Color::WHITE;
     Color LightColor = Color::WHITE;
-    Color AmbientColor = Color::WHITE;
+    f32 DiffuseContribution = 0.8f;
+    f32 SpecularContribution = 0.2f;
+    f32 SpecularSharpness = 32.f;
     bool HasProjection = false;
 };
 
