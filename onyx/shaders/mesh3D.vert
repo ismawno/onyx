@@ -3,19 +3,19 @@
 layout(location = 0) in vec3 i_Position;
 layout(location = 1) in vec3 i_Normal;
 
-layout(location = 0) out flat vec4 o_FragColor;
-layout(location = 1) out vec3 o_FragNormal;
-layout(location = 2) out vec3 o_WorldPosition;
-layout(location = 3) out flat vec3 o_ViewPosition;
+layout(location = 0) out vec3 o_FragNormal;
+layout(location = 1) out vec3 o_WorldPosition;
+layout(location = 2) out flat vec3 o_ViewPosition;
 
 struct MaterialData
 {
+    vec4 Color;
     float DiffuseContribution;
     float SpecularContribution;
     float SpecularSharpness;
 };
 
-layout(location = 4) out flat MaterialData o_Material;
+layout(location = 3) out flat MaterialData o_Material;
 
 struct InstanceData
 {
@@ -23,7 +23,6 @@ struct InstanceData
     mat4 NormalMatrix;
     mat4 ProjectionView;
     vec4 ViewPosition;
-    vec4 Color;
     MaterialData Material;
 };
 
@@ -41,7 +40,6 @@ void main()
 
     const mat3 normalMatrix = mat3(instanceBuffer.Instances[gl_InstanceIndex].NormalMatrix);
     o_FragNormal = normalize(normalMatrix * i_Normal);
-    o_FragColor = instanceBuffer.Instances[gl_InstanceIndex].Color;
     o_WorldPosition = worldPos.xyz;
     o_ViewPosition = instanceBuffer.Instances[gl_InstanceIndex].ViewPosition.xyz;
     o_Material = instanceBuffer.Instances[gl_InstanceIndex].Material;

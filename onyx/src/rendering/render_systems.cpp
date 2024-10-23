@@ -373,9 +373,9 @@ ONYX_DIMENSION_TEMPLATE void PolygonRenderer<N>::Draw(const u32 p_FrameIndex, co
                                             m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
     }
 
-    PolygonInstanceData instanceData{};
+    PolygonInstanceData instanceData;
     instanceData.Transform = p_InstanceData.Transform;
-    instanceData.Color = p_InstanceData.Color;
+    instanceData.Material = p_InstanceData.Material;
     if constexpr (N == 3)
         instanceData.NormalMatrix = p_InstanceData.NormalMatrix;
 

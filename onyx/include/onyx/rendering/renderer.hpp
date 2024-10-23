@@ -14,9 +14,9 @@ template <> struct RenderState<2>
 {
     mat3 Transform{1.f};
     mat3 Axes{1.f};
-    Color FillColor = Color::WHITE;
     Color StrokeColor = Color::WHITE;
     f32 StrokeWidth = 0.f;
+    MaterialData2D Material{};
     bool NoStroke = true;
     bool NoFill = false;
 };
@@ -27,11 +27,8 @@ template <> struct RenderState<3>
     mat4 Axes{1.f};
     mat4 InverseAxes{1.f}; // Just for caching
     mat4 Projection{1.f};
-    Color FillColor = Color::WHITE;
     Color LightColor = Color::WHITE;
-    f32 DiffuseContribution = 0.8f;
-    f32 SpecularContribution = 0.2f;
-    f32 SpecularSharpness = 32.f;
+    MaterialData3D Material{};
     bool HasProjection = false;
 };
 
@@ -78,13 +75,13 @@ template <> class Renderer<2> final : public IRenderer<2>
 struct ONYX_API DirectionalLight
 {
     vec4 DirectionAndIntensity;
-    vec4 Color;
+    Color Color;
 };
 
 struct ONYX_API PointLight
 {
     vec4 PositionAndIntensity;
-    vec4 Color;
+    Color Color;
     f32 Radius;
 };
 

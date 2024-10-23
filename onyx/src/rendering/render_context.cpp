@@ -21,14 +21,33 @@ ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, cons
         ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush() noexcept
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::FlushState() noexcept
+{
+    KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
+    m_RenderState[0] = RenderState<N>{};
+    if constexpr (N == 3)
+        ApplyCoordinateSystem(m_RenderState[0].Axes, &m_RenderState[0].InverseAxes);
+}
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::FlushState(const Color &p_Color) noexcept
+{
+    FlushState();
+    m_Window->BackgroundColor = p_Color;
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::FlushRenderData() noexcept
 {
     m_Renderer.Flush();
 }
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush() noexcept
+{
+    FlushRenderData();
+    FlushState();
+}
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush(const Color &p_Color) noexcept
 {
-    m_Renderer.Flush();
-    m_Window->BackgroundColor = p_Color;
+    FlushRenderData();
+    FlushState(p_Color);
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Transform(const mat<N> &p_Transform) noexcept
@@ -1060,6 +1079,10 @@ void RenderContext<3>::AmbientIntensity(const f32 p_Intensity) noexcept
     m_Renderer.AmbientColor.RGBA.a = p_Intensity;
 }
 
+void RenderContext<3>::DirectionalLight(const ONYX::DirectionalLight &p_Light) noexcept
+{
+    m_Renderer.AddDirectionalLight(p_Light);
+}
 void RenderContext<3>::DirectionalLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
 {
     ONYX::DirectionalLight light;
@@ -1072,6 +1095,10 @@ void RenderContext<3>::DirectionalLight(const f32 p_DX, const f32 p_DY, const f3
     DirectionalLight(vec3{p_DX, p_DY, p_DZ}, p_Intensity);
 }
 
+void RenderContext<3>::PointLight(const ONYX::PointLight &p_Light) noexcept
+{
+    m_Renderer.AddPointLight(p_Light);
+}
 void RenderContext<3>::PointLight(const vec3 &p_Position, const f32 p_Radius, const f32 p_Intensity) noexcept
 {
     ONYX::PointLight light;
@@ -1088,6 +1115,19 @@ void RenderContext<3>::PointLight(const f32 p_X, const f32 p_Y, const f32 p_Z, c
 void RenderContext<3>::PointLight(const f32 p_Radius, const f32 p_Intensity) noexcept
 {
     PointLight(vec3{0.f}, p_Radius, p_Intensity);
+}
+
+void RenderContext<3>::DiffuseContribution(const f32 p_Contribution) noexcept
+{
+    m_RenderState.back().Material.DiffuseContribution = p_Contribution;
+}
+void RenderContext<3>::SpecularContribution(const f32 p_Contribution) noexcept
+{
+    m_RenderState.back().Material.SpecularContribution = p_Contribution;
+}
+void RenderContext<3>::SpecularSharpness(const f32 p_Sharpness) noexcept
+{
+    m_RenderState.back().Material.SpecularSharpness = p_Sharpness;
 }
 
 void RenderContext<2>::Fill() noexcept
@@ -1201,20 +1241,20 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Pop() noexcept
 
 void RenderContext<2>::Alpha(const f32 p_Alpha) noexcept
 {
-    m_RenderState.back().FillColor.RGBA.a = p_Alpha;
+    m_RenderState.back().Material.Color.RGBA.a = p_Alpha;
 }
 void RenderContext<2>::Alpha(const u8 p_Alpha) noexcept
 {
-    m_RenderState.back().FillColor.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
+    m_RenderState.back().Material.Color.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
 }
 void RenderContext<2>::Alpha(const u32 p_Alpha) noexcept
 {
-    m_RenderState.back().FillColor.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
+    m_RenderState.back().Material.Color.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
 }
 
 ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Fill(const Color &p_Color) noexcept
 {
-    m_RenderState.back().FillColor = p_Color;
+    m_RenderState.back().Material.Color = p_Color;
 }
 void RenderContext<2>::Stroke() noexcept
 {
@@ -1233,6 +1273,11 @@ void RenderContext<2>::StrokeWidth(const f32 p_Width) noexcept
 void RenderContext<2>::NoStroke() noexcept
 {
     m_RenderState.back().NoStroke = true;
+}
+
+ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Material(const MaterialData<N> &p_Material) noexcept
+{
+    m_RenderState.back().Material = p_Material;
 }
 
 ONYX_DIMENSION_TEMPLATE const RenderState<N> &IRenderContext<N>::GetState() const noexcept
@@ -1335,14 +1380,6 @@ void RenderContext<3>::Orthographic() noexcept
 {
     m_RenderState.back().Projection = mat4{1.f};
     m_RenderState.back().HasProjection = false;
-}
-
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Reset() noexcept
-{
-    KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
-    m_RenderState[0] = RenderState<N>{};
-    if constexpr (N == 3)
-        ApplyCoordinateSystem(m_RenderState[0].Axes, &m_RenderState[0].InverseAxes);
 }
 
 template class IRenderContext<2>;

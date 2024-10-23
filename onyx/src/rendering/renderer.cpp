@@ -94,7 +94,7 @@ InstanceData2D createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color
     // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the projection,
     // but it is cool because I use no projection for 2D
     ApplyCoordinateSystem(instanceData.Transform);
-    instanceData.Color = p_Color;
+    instanceData.Material.Color = p_Color;
     return instanceData;
 }
 
@@ -106,10 +106,7 @@ InstanceData3D createInstanceData3D(const mat4 &p_Transform, const RenderState3D
     instanceData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
 
     instanceData.ViewPosition = p_State.InverseAxes[3];
-    instanceData.Color = p_State.FillColor;
-    instanceData.DiffuseContribution = p_State.DiffuseContribution;
-    instanceData.SpecularContribution = p_State.SpecularContribution;
-    instanceData.SpecularSharpness = p_State.SpecularSharpness;
+    instanceData.Material = p_State.Material;
     return instanceData;
 }
 
@@ -133,7 +130,7 @@ void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArg
             const InstanceData2D strokeData = createInstanceData2D(strokeTransform, state.StrokeColor);
             p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., strokeData);
         }
-        const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
+        const Color &color = state.NoFill ? m_Window->BackgroundColor : state.Material.Color;
         const InstanceData2D data = createInstanceData2D(state.Axes * p_Transform, color);
         p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }

@@ -15,6 +15,7 @@ ONYX_DIMENSION_TEMPLATE class Shape
     void Draw(RenderContext<N> *p_Context) noexcept;
 
     Transform<N> Transform;
+    MaterialData<N> Material;
 };
 
 using Shape2D = Shape<2>;

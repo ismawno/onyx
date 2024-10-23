@@ -16,9 +16,34 @@ void SWExampleLayer::OnStart() noexcept
     m_LayerData3.Context = m_Application->GetMainWindow()->GetRenderContext3D();
 }
 
+ONYX_DIMENSION_TEMPLATE static void editMaterial(MaterialData<N> &p_Material) noexcept
+{
+    if constexpr (N == 2)
+    {
+        if (ImGui::TreeNode("Color"))
+        {
+            ImGui::ColorPicker4("Color", p_Material.Color.AsPointer());
+            ImGui::TreePop();
+        }
+    }
+    else
+    {
+        if (ImGui::SliderFloat("Diffuse contribution", &p_Material.DiffuseContribution, 0.f, 1.f))
+            p_Material.SpecularContribution = 1.f - p_Material.DiffuseContribution;
+        if (ImGui::SliderFloat("Specular contribution", &p_Material.SpecularContribution, 0.f, 1.f))
+            p_Material.DiffuseContribution = 1.f - p_Material.SpecularContribution;
+        ImGui::SliderFloat("Specular sharpness", &p_Material.SpecularSharpness, 0.f, 512.f, "%.2f",
+                           ImGuiSliderFlags_Logarithmic);
+        if (ImGui::TreeNode("Color"))
+        {
+            ImGui::ColorPicker3("Color", p_Material.Color.AsPointer());
+            ImGui::TreePop();
+        }
+    }
+}
+
 ONYX_DIMENSION_TEMPLATE void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
 {
-    p_Data.Context->Reset();
     p_Data.Context->Flush(m_BackgroundColor);
     p_Data.Context->KeepWindowAspect();
 
@@ -28,17 +53,37 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::drawShapes(const LayerData<N> &p_Da
             p_Data.Context->Perspective(m_FieldOfView, m_Near, m_Far);
         else
             p_Data.Context->Orthographic();
-        // p_Data.Context->DirectionalLight(1.f, 1.f, 1.f, 0.8f);
-        p_Data.Context->PointLight(1.f, 1.f, 1.f, 4.f, 0.6f);
     }
 
-    p_Data.Context->TransformAxes(p_Data.Axes);
+    p_Data.Context->TransformAxes(p_Data.AxesTransform);
 
-    p_Data.Context->Fill(m_ShapeColor);
     for (const auto &shape : p_Data.Shapes)
         shape->Draw(p_Data.Context);
     if (p_Data.DrawAxes)
+    {
+        p_Data.Context->Material(p_Data.AxesMaterial);
         p_Data.Context->Axes(p_Data.AxesThickness);
+    }
+
+    if constexpr (N == 3)
+    {
+        p_Data.Context->AmbientColor(m_Ambient);
+        for (const auto &light : m_DirectionalLights)
+        {
+            p_Data.Context->LightColor(light.Color);
+            p_Data.Context->DirectionalLight(light);
+        }
+        for (const auto &light : m_PointLights)
+        {
+            if (m_DrawLights)
+            {
+                p_Data.Context->Fill(light.Color);
+                p_Data.Context->Sphere(light.PositionAndIntensity, 0.01f);
+            }
+            p_Data.Context->LightColor(light.Color);
+            p_Data.Context->PointLight(light);
+        }
+    }
 }
 
 ONYX_DIMENSION_TEMPLATE static void editTransform(Transform<N> &p_Transform) noexcept
@@ -67,6 +112,97 @@ ONYX_DIMENSION_TEMPLATE static void editTransform(Transform<N> &p_Transform) noe
             p_Transform.Rotation = quat{1.f, 0.f, 0.f, 0.f};
     }
     ImGui::PopID();
+}
+
+static void editDirectionalLight(DirectionalLight &p_Light) noexcept
+{
+    ImGui::PushID(&p_Light);
+    ImGui::SliderFloat("Intensity", &p_Light.DirectionAndIntensity.w, 0.f, 1.f);
+    ImGui::SliderFloat3("Direction", glm::value_ptr(p_Light.DirectionAndIntensity), 0.f, 1.f);
+    if (ImGui::TreeNode("Color"))
+    {
+        ImGui::ColorPicker3("Color", p_Light.Color.AsPointer());
+        ImGui::TreePop();
+    }
+    ImGui::PopID();
+}
+
+static void editPointLight(PointLight &p_Light) noexcept
+{
+    ImGui::PushID(&p_Light);
+    ImGui::SliderFloat("Intensity", &p_Light.PositionAndIntensity.w, 0.f, 1.f);
+    ImGui::DragFloat3("Position", glm::value_ptr(p_Light.PositionAndIntensity), 0.01f);
+    ImGui::SliderFloat("Radius", &p_Light.Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    if (ImGui::TreeNode("Color"))
+    {
+        ImGui::ColorPicker3("Color", p_Light.Color.AsPointer());
+        ImGui::TreePop();
+    }
+    ImGui::PopID();
+}
+
+void SWExampleLayer::renderLightSpawn() noexcept
+{
+    static int lightToSpawn = 0;
+    static DirectionalLight dirLightToAdd{vec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE};
+    static PointLight pointLightToAdd{vec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f};
+    static usize selectedDirLight = 0;
+    static usize selectedPointLight = 0;
+
+    ImGui::SliderFloat("Ambient intensity", &m_Ambient.w, 0.f, 1.f);
+    if (ImGui::TreeNode("Ambient color"))
+    {
+        ImGui::ColorPicker3("Color", glm::value_ptr(m_Ambient));
+        ImGui::TreePop();
+    }
+
+    ImGui::Combo("Light", &lightToSpawn, "Directional\0Point\0\0");
+    if (lightToSpawn == 1)
+        ImGui::Checkbox("Draw##Light", &m_DrawLights);
+
+    if (ImGui::Button("Spawn##Light"))
+    {
+        if (lightToSpawn == 0)
+            m_DirectionalLights.push_back(dirLightToAdd);
+        else
+            m_PointLights.push_back(pointLightToAdd);
+    }
+
+    const usize dsize = static_cast<usize>(m_DirectionalLights.size());
+    for (usize i = 0; i < dsize; ++i)
+    {
+        ImGui::PushID(&m_DirectionalLights[i]);
+        if (ImGui::Button("X"))
+        {
+            m_DirectionalLights.erase(m_DirectionalLights.begin() + i);
+            ImGui::PopID();
+            return;
+        }
+        ImGui::SameLine();
+        if (ImGui::Selectable("Directional", selectedDirLight == i))
+            selectedDirLight = i;
+        ImGui::PopID();
+    }
+    if (selectedDirLight < dsize)
+        editDirectionalLight(m_DirectionalLights[selectedDirLight]);
+
+    const usize psize = static_cast<usize>(m_PointLights.size());
+    for (usize i = 0; i < psize; ++i)
+    {
+        ImGui::PushID(&m_PointLights[i]);
+        if (ImGui::Button("X"))
+        {
+            m_PointLights.erase(m_PointLights.begin() + i);
+            ImGui::PopID();
+            return;
+        }
+        ImGui::SameLine();
+        if (ImGui::Selectable("Point", selectedPointLight == i))
+            selectedPointLight = i;
+        ImGui::PopID();
+    }
+    if (selectedPointLight < psize)
+        editPointLight(m_PointLights[selectedPointLight]);
 }
 
 ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
@@ -113,7 +249,7 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
         }
     }
 
-    if (ImGui::Button("Spawn"))
+    if (ImGui::Button("Spawn##Shape"))
     {
         if (p_Data.ShapeToSpawn == 0)
             p_Data.Shapes.push_back(KIT::Scope<Triangle<N>>::Create());
@@ -158,16 +294,18 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
             ImGui::PopID();
             return;
         }
-        ImGui::PopID();
         ImGui::SameLine();
-        ImGui::PushID(&p_Data.Shapes[i]);
         if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), p_Data.Selected == i))
             p_Data.Selected = i;
         ImGui::PopID();
     }
-    ImGui::Text("Selected transform");
     if (p_Data.Selected < size)
+    {
+        ImGui::Text("Transform");
         editTransform(p_Data.Shapes[p_Data.Selected]->Transform);
+        ImGui::Text("Material");
+        editMaterial(p_Data.Shapes[p_Data.Selected]->Material);
+    }
 }
 
 ONYX_DIMENSION_TEMPLATE static bool processPolygonEvent(LayerData<N> &p_Data, const Event &p_Event,
@@ -255,10 +393,10 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::controlAxes(LayerData<N> &p_Data) n
     if (p_Data.ControlAsCamera)
     {
         t.Translation = -t.Translation;
-        p_Data.Axes = t.ComputeTransform() * p_Data.Axes;
+        p_Data.AxesTransform = t.ComputeTransform() * p_Data.AxesTransform;
     }
     else
-        p_Data.Axes *= t.ComputeTransform();
+        p_Data.AxesTransform *= t.ComputeTransform();
 }
 
 ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
@@ -300,12 +438,15 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderUI(LayerData<N> &p_Data) noex
                 }
             }
 
-            ImGui::Checkbox("Draw", &p_Data.DrawAxes);
+            ImGui::Checkbox("Draw##Axes", &p_Data.DrawAxes);
             if (p_Data.DrawAxes)
                 ImGui::SliderFloat("Axes thickness", &p_Data.AxesThickness, 0.001f, 0.1f);
         }
         if (ImGui::CollapsingHeader("Shapes"))
             renderShapeSpawn(p_Data);
+        if constexpr (N == 3)
+            if (ImGui::CollapsingHeader("Lights"))
+                renderLightSpawn();
     }
     ImGui::End();
 }
@@ -319,8 +460,6 @@ void SWExampleLayer::OnRender() noexcept
     {
         if (ImGui::CollapsingHeader("Background color"))
             ImGui::ColorPicker3("Background", m_BackgroundColor.AsPointer());
-        if (ImGui::CollapsingHeader("Shape color"))
-            ImGui::ColorPicker3("Shape", m_ShapeColor.AsPointer());
     }
     ImGui::End();
 

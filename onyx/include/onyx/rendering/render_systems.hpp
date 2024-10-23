@@ -45,6 +45,24 @@ template <> struct ONYX_API RenderInfo<3>
     vec4 AmbientColor;
 };
 
+ONYX_DIMENSION_TEMPLATE struct MaterialData;
+
+template <> struct MaterialData<2>
+{
+    Color Color = ONYX::Color::WHITE;
+};
+
+template <> struct MaterialData<3>
+{
+    Color Color = ONYX::Color::WHITE;
+    f32 DiffuseContribution = 0.8f;
+    f32 SpecularContribution = 0.2f;
+    f32 SpecularSharpness = 32.f;
+};
+
+using MaterialData2D = MaterialData<2>;
+using MaterialData3D = MaterialData<3>;
+
 ONYX_DIMENSION_TEMPLATE struct InstanceData;
 
 // Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
@@ -53,7 +71,7 @@ ONYX_DIMENSION_TEMPLATE struct InstanceData;
 template <> struct ONYX_API InstanceData<2>
 {
     mat4 Transform;
-    vec4 Color;
+    MaterialData2D Material;
 };
 template <> struct ONYX_API InstanceData<3>
 {
@@ -61,10 +79,7 @@ template <> struct ONYX_API InstanceData<3>
     mat4 NormalMatrix;
     mat4 ProjectionView; // The projection view may vary between shapes
     vec4 ViewPosition;
-    vec4 Color;
-    f32 DiffuseContribution;
-    f32 SpecularContribution;
-    f32 SpecularSharpness;
+    MaterialData3D Material;
 };
 
 using InstanceData2D = InstanceData<2>;

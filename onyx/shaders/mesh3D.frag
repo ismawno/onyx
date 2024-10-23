@@ -1,18 +1,18 @@
 #version 460
 
-layout(location = 0) in flat vec4 i_FragColor;
-layout(location = 1) in vec3 i_FragNormal;
-layout(location = 2) in vec3 i_WorldPosition;
-layout(location = 3) in flat vec3 i_ViewPosition;
+layout(location = 0) in vec3 i_FragNormal;
+layout(location = 1) in vec3 i_WorldPosition;
+layout(location = 2) in flat vec3 i_ViewPosition;
 
 struct MaterialData
 {
+    vec4 Color;
     float DiffuseContribution;
     float SpecularContribution;
     float SpecularSharpness;
 };
 
-layout(location = 4) in flat MaterialData i_Material;
+layout(location = 3) in flat MaterialData i_Material;
 
 layout(location = 0) out vec4 o_Color;
 
@@ -57,7 +57,7 @@ void main()
 
     const vec3 specularDirection = normalize(i_ViewPosition - i_WorldPosition);
 
-    vec3 diffuseColor = lightData.AmbientColor.xyz * lightData.AmbientColor.w;
+    vec3 diffuseColor = vec3(0.0);
     vec3 specularColor = vec3(0.0);
     for (uint i = 0; i < lightData.DirectionalLightCount; ++i)
     {
@@ -78,7 +78,7 @@ void main()
         const vec3 lightColor = pointLights.Lights[i].Color.xyz;
         const float intensity = pointLights.Lights[i].PositionAndIntensity.w;
         const float radius = pointLights.Lights[i].Radius;
-        const float attenuation = clamp(1.0 - dot(direction, direction) / (radius * radius), 0.0, 1.0);
+        const float attenuation = clamp(1.0 - length(direction) / radius, 0.0, 1.0);
 
         diffuseColor += intensity * attenuation * lightColor * max(dot(normal, normalize(direction)), 0.0);
 
@@ -87,6 +87,7 @@ void main()
         specularColor += intensity * attenuation * specular * lightColor;
     }
 
-    const vec3 color = i_Material.DiffuseContribution * diffuseColor + i_Material.SpecularContribution * specularColor;
-    o_Color = min(i_FragColor * vec4(color, 1.0), 1.0);
+    const vec3 color = lightData.AmbientColor.xyz * lightData.AmbientColor.w +
+                       i_Material.DiffuseContribution * diffuseColor + i_Material.SpecularContribution * specularColor;
+    o_Color = min(i_Material.Color * vec4(color, 1.0), 1.0);
 }

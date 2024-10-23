@@ -14,6 +14,7 @@ ONYX_DIMENSION_TEMPLATE const char *Triangle<N>::GetName() const noexcept
 
 ONYX_DIMENSION_TEMPLATE void Triangle<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
+    p_Context->Material(this->Material);
     p_Context->Triangle(p_Transform);
 }
 
@@ -24,6 +25,7 @@ ONYX_DIMENSION_TEMPLATE const char *Rect<N>::GetName() const noexcept
 
 ONYX_DIMENSION_TEMPLATE void Rect<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
+    p_Context->Material(this->Material);
     p_Context->Rect(p_Transform);
 }
 
@@ -34,6 +36,7 @@ ONYX_DIMENSION_TEMPLATE const char *Ellipse<N>::GetName() const noexcept
 
 ONYX_DIMENSION_TEMPLATE void Ellipse<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
+    p_Context->Material(this->Material);
     p_Context->Ellipse(p_Transform);
 }
 
@@ -44,6 +47,7 @@ ONYX_DIMENSION_TEMPLATE const char *NGon<N>::GetName() const noexcept
 
 ONYX_DIMENSION_TEMPLATE void NGon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
+    p_Context->Material(this->Material);
     p_Context->NGon(Sides, p_Transform);
 }
 
@@ -54,6 +58,7 @@ ONYX_DIMENSION_TEMPLATE const char *Polygon<N>::GetName() const noexcept
 
 ONYX_DIMENSION_TEMPLATE void Polygon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
+    p_Context->Material(this->Material);
     p_Context->Polygon(Vertices, p_Transform);
 }
 
@@ -64,6 +69,7 @@ const char *Cuboid::GetName() const noexcept
 
 void Cuboid::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
 {
+    p_Context->Material(Material);
     p_Context->Cuboid(p_Transform);
 }
 
@@ -74,6 +80,7 @@ const char *Ellipsoid::GetName() const noexcept
 
 void Ellipsoid::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
 {
+    p_Context->Material(Material);
     p_Context->Ellipsoid(p_Transform);
 }
 
@@ -84,6 +91,7 @@ const char *Cylinder::GetName() const noexcept
 
 void Cylinder::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
 {
+    p_Context->Material(Material);
     p_Context->Cylinder(p_Transform);
 }
 

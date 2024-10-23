@@ -11,7 +11,8 @@ ONYX_DIMENSION_TEMPLATE struct LayerData
 {
     RenderContext<N> *Context;
     DynamicArray<KIT::Scope<Shape<N>>> Shapes;
-    mat<N> Axes{1.f};
+    mat<N> AxesTransform{1.f};
+    MaterialData<N> AxesMaterial{};
     usize Selected = 0;
 
     DynamicArray<vec<N>> PolygonVertices;
@@ -39,6 +40,7 @@ class SWExampleLayer final : public Layer
     ONYX_DIMENSION_TEMPLATE void drawShapes(const LayerData<N> &p_Data) noexcept;
     ONYX_DIMENSION_TEMPLATE void renderUI(LayerData<N> &p_Data) noexcept;
     ONYX_DIMENSION_TEMPLATE void controlAxes(LayerData<N> &p_Data) noexcept;
+    void renderLightSpawn() noexcept;
 
     Application *m_Application = nullptr;
 
@@ -46,12 +48,16 @@ class SWExampleLayer final : public Layer
     LayerData3D m_LayerData3;
 
     Color m_BackgroundColor = Color::BLACK;
-    Color m_ShapeColor = Color::WHITE;
 
     bool m_Perspective = false;
     f32 m_FieldOfView = glm::radians(75.f);
     f32 m_Near = 0.1f;
     f32 m_Far = 100.f;
     f32 m_ZOffset = 0.f;
+
+    DynamicArray<DirectionalLight> m_DirectionalLights;
+    DynamicArray<PointLight> m_PointLights;
+    vec4 m_Ambient = vec4{1.f, 1.f, 1.f, 0.4f};
+    bool m_DrawLights = false;
 };
 } // namespace ONYX

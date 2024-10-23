@@ -17,6 +17,8 @@
 
 // Explain why InstanceData3D has view data for each instance (it's because of the immediate mode)
 
+// Ambient intensity must be called AFTER ambient color
+
 namespace ONYX
 {
 class Window;
@@ -25,6 +27,18 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
 {
   public:
     IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
+
+    void FlushRenderData() noexcept;
+
+    void FlushState() noexcept;
+    void FlushState(const Color &p_Color) noexcept;
+    template <typename... ColorArgs>
+        requires std::constructible_from<Color, ColorArgs...>
+    void FlushState(ColorArgs &&...p_ColorArgs) noexcept
+    {
+        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        FlushState(color);
+    }
 
     void Flush() noexcept;
     void Flush(const Color &p_Color) noexcept;
@@ -128,6 +142,8 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
         Fill(color);
     }
 
+    void Material(const MaterialData<N> &p_Material) noexcept;
+
     const RenderState<N> &GetState() const noexcept;
     RenderState<N> &GetState() noexcept;
 
@@ -136,7 +152,6 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     void SetCurrentTransform(const mat<N> &p_Transform) noexcept;
     void SetCurrentAxes(const mat<N> &p_Axes) noexcept;
 
-    void Reset() noexcept;
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
   protected:
@@ -448,12 +463,18 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     }
     void AmbientIntensity(f32 p_Intensity) noexcept;
 
+    void DirectionalLight(const ONYX::DirectionalLight &p_Light) noexcept;
     void DirectionalLight(const vec3 &p_Direction, f32 p_Intensity = 1.f) noexcept;
     void DirectionalLight(f32 p_DX, f32 p_DY, f32 p_DZ, f32 p_Intensity = 1.f) noexcept;
 
+    void PointLight(const ONYX::PointLight &p_Light) noexcept;
     void PointLight(f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
     void PointLight(const vec3 &p_Position, f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
     void PointLight(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
+
+    void DiffuseContribution(f32 p_Contribution) noexcept;
+    void SpecularContribution(f32 p_Contribution) noexcept;
+    void SpecularSharpness(f32 p_Sharpness) noexcept;
 
     void Projection(const mat4 &p_Projection) noexcept;
     void Perspective(f32 p_FieldOfView, f32 p_Near, f32 p_Far) noexcept;
