@@ -87,30 +87,30 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
     return t4;
 }
 
-TransformData2D createTransformData2D(const mat3 &p_Transform, const vec4 &p_Color) noexcept
+InstanceData2D createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color) noexcept
 {
-    TransformData2D transformData;
-    transformData.Transform = transform3ToTransform4(p_Transform);
+    InstanceData2D instanceData;
+    instanceData.Transform = transform3ToTransform4(p_Transform);
     // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the projection,
     // but it is cool because I use no projection for 2D
-    ApplyCoordinateSystem(transformData.Transform);
-    transformData.Color = p_Color;
-    return transformData;
+    ApplyCoordinateSystem(instanceData.Transform);
+    instanceData.Color = p_Color;
+    return instanceData;
 }
 
-TransformData3D createTransformData3D(const mat4 &p_Transform, const RenderState3D &p_State) noexcept
+InstanceData3D createInstanceData3D(const mat4 &p_Transform, const RenderState3D &p_State) noexcept
 {
-    TransformData3D transformData;
-    transformData.Transform = p_Transform;
-    transformData.ProjectionView = p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes;
-    transformData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
+    InstanceData3D instanceData;
+    instanceData.Transform = p_Transform;
+    instanceData.ProjectionView = p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes;
+    instanceData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
 
-    transformData.ViewPosition = p_State.InverseAxes[3];
-    transformData.Color = p_State.FillColor;
-    transformData.DiffuseContribution = p_State.DiffuseContribution;
-    transformData.SpecularContribution = p_State.SpecularContribution;
-    transformData.SpecularSharpness = p_State.SpecularSharpness;
-    return transformData;
+    instanceData.ViewPosition = p_State.InverseAxes[3];
+    instanceData.Color = p_State.FillColor;
+    instanceData.DiffuseContribution = p_State.DiffuseContribution;
+    instanceData.SpecularContribution = p_State.SpecularContribution;
+    instanceData.SpecularSharpness = p_State.SpecularSharpness;
+    return instanceData;
 }
 
 static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWidth) noexcept
@@ -130,16 +130,16 @@ void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArg
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
             const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            const TransformData2D strokeData = createTransformData2D(strokeTransform, state.StrokeColor);
+            const InstanceData2D strokeData = createInstanceData2D(strokeTransform, state.StrokeColor);
             p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., strokeData);
         }
         const Color color = state.NoFill ? m_Window->BackgroundColor : state.FillColor;
-        const TransformData2D data = createTransformData2D(state.Axes * p_Transform, color);
+        const InstanceData2D data = createInstanceData2D(state.Axes * p_Transform, color);
         p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
     else
     {
-        const TransformData3D data = createTransformData3D(p_Transform, state);
+        const InstanceData3D data = createInstanceData3D(p_Transform, state);
         p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
 }

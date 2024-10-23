@@ -15,7 +15,7 @@ struct MaterialData
 
 layout(location = 5) out flat MaterialData o_Material;
 
-struct ObjectData
+struct InstanceData
 {
     mat4 Transform;
     mat4 NormalMatrix;
@@ -25,27 +25,27 @@ struct ObjectData
     MaterialData Material;
 };
 
-layout(set = 0, binding = 0) readonly buffer ObjectBuffer
+layout(set = 0, binding = 0) readonly buffer InstanceBuffer
 {
-    ObjectData Objects[];
+    InstanceData Instances[];
 }
-objectBuffer;
+instanceBuffer;
 
 const vec3 g_Positions[6] = vec3[](vec3(-0.5, -0.5, 0.0), vec3(0.5, 0.5, 0.0), vec3(-0.5, 0.5, 0.0),
                                    vec3(-0.5, -0.5, 0.0), vec3(0.5, -0.5, 0.0), vec3(0.5, 0.5, 0.0));
 
 void main()
 {
-    const vec4 worldPos = objectBuffer.Objects[gl_InstanceIndex].Transform * vec4(g_Positions[gl_VertexIndex], 1.0);
-    gl_Position = objectBuffer.Objects[gl_InstanceIndex].ProjectionView * worldPos;
+    const vec4 worldPos = instanceBuffer.Instances[gl_InstanceIndex].Transform * vec4(g_Positions[gl_VertexIndex], 1.0);
+    gl_Position = instanceBuffer.Instances[gl_InstanceIndex].ProjectionView * worldPos;
     gl_PointSize = 1.0;
 
-    const mat3 normalMatrix = mat3(objectBuffer.Objects[gl_InstanceIndex].NormalMatrix);
+    const mat3 normalMatrix = mat3(instanceBuffer.Instances[gl_InstanceIndex].NormalMatrix);
 
     o_FragNormal = normalize(normalMatrix[2]); // Because normal is (0, 0, 1) for all vertices
-    o_FragColor = objectBuffer.Objects[gl_InstanceIndex].Color;
+    o_FragColor = instanceBuffer.Instances[gl_InstanceIndex].Color;
     o_LocalPosition = g_Positions[gl_VertexIndex];
     o_WorldPosition = worldPos.xyz;
-    o_ViewPosition = objectBuffer.Objects[gl_InstanceIndex].ViewPosition.xyz;
-    o_Material = objectBuffer.Objects[gl_InstanceIndex].Material;
+    o_ViewPosition = instanceBuffer.Instances[gl_InstanceIndex].ViewPosition.xyz;
+    o_Material = instanceBuffer.Instances[gl_InstanceIndex].Material;
 }
