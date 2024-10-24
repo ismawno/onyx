@@ -32,7 +32,9 @@ template <u32 N> using mat = glm::mat<N + 1, N + 1, f32>;
 
 using quat = glm::quat;
 
-ONYX_DIMENSION_TEMPLATE struct RotType;
+template <u32 N>
+    requires(IsDim<N>())
+struct RotType;
 
 template <> struct RotType<2>
 {
@@ -45,7 +47,9 @@ template <> struct RotType<3>
     static constexpr quat Identity = quat{1.f, 0.f, 0.f, 0.f};
 };
 
-ONYX_DIMENSION_TEMPLATE using rot = typename RotType<N>::Type;
+template <u32 N>
+    requires(IsDim<N>())
+using rot = typename RotType<N>::Type;
 
 }; // namespace Aliases
 

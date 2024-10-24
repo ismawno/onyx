@@ -2,61 +2,83 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE void Shape<N>::Draw(RenderContext<N> *p_Context) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void Shape<N>::Draw(RenderContext<N> *p_Context) noexcept
 {
     Draw(p_Context, Transform.ComputeTransform());
 }
 
-ONYX_DIMENSION_TEMPLATE const char *Triangle<N>::GetName() const noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const char *Triangle<N>::GetName() const noexcept
 {
     return "Triangle";
 }
 
-ONYX_DIMENSION_TEMPLATE void Triangle<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void Triangle<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
     p_Context->Material(this->Material);
     p_Context->Triangle(p_Transform);
 }
 
-ONYX_DIMENSION_TEMPLATE const char *Rect<N>::GetName() const noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const char *Rect<N>::GetName() const noexcept
 {
     return "Rect";
 }
 
-ONYX_DIMENSION_TEMPLATE void Rect<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void Rect<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
     p_Context->Material(this->Material);
     p_Context->Rect(p_Transform);
 }
 
-ONYX_DIMENSION_TEMPLATE const char *Ellipse<N>::GetName() const noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const char *Ellipse<N>::GetName() const noexcept
 {
     return "Ellipse";
 }
 
-ONYX_DIMENSION_TEMPLATE void Ellipse<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void Ellipse<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
     p_Context->Material(this->Material);
     p_Context->Ellipse(p_Transform);
 }
 
-ONYX_DIMENSION_TEMPLATE const char *NGon<N>::GetName() const noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const char *NGon<N>::GetName() const noexcept
 {
     return "NGon";
 }
 
-ONYX_DIMENSION_TEMPLATE void NGon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void NGon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
     p_Context->Material(this->Material);
     p_Context->NGon(Sides, p_Transform);
 }
 
-ONYX_DIMENSION_TEMPLATE const char *Polygon<N>::GetName() const noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const char *Polygon<N>::GetName() const noexcept
 {
     return "Polygon";
 }
 
-ONYX_DIMENSION_TEMPLATE void Polygon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void Polygon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
     p_Context->Material(this->Material);
     p_Context->Polygon(Vertices, p_Transform);

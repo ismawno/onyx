@@ -21,7 +21,9 @@ struct PrimitiveDataLayout
     u32 IndicesSize;
 };
 
-ONYX_DIMENSION_TEMPLATE struct IPrimitives
+template <u32 N>
+    requires(IsDim<N>())
+struct IPrimitives
 {
     static const VertexBuffer<N> *GetVertexBuffer() noexcept;
     static const IndexBuffer *GetIndexBuffer() noexcept;
@@ -43,7 +45,9 @@ ONYX_DIMENSION_TEMPLATE struct IPrimitives
     }
 };
 
-ONYX_DIMENSION_TEMPLATE struct Primitives;
+template <u32 N>
+    requires(IsDim<N>())
+struct Primitives;
 
 // These are not really meant to be used by user, although there is no problem in doing so, but I wont be providing
 // 2D and 3D overloads

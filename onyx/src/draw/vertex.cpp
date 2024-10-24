@@ -3,8 +3,9 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE static std::array<VkVertexInputBindingDescription, Vertex<N>::BINDINGS>
-bindingDescriptions() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static std::array<VkVertexInputBindingDescription, Vertex<N>::BINDINGS> bindingDescriptions() noexcept
 {
     VkVertexInputBindingDescription description{};
     description.binding = 0;
@@ -14,8 +15,9 @@ bindingDescriptions() noexcept
     return {description};
 }
 
-ONYX_DIMENSION_TEMPLATE static std::array<VkVertexInputAttributeDescription, Vertex<N>::ATTRIBUTES>
-attributeDescriptions() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static std::array<VkVertexInputAttributeDescription, Vertex<N>::ATTRIBUTES> attributeDescriptions() noexcept
 {
     VkVertexInputAttributeDescription position{};
     position.binding = 0;

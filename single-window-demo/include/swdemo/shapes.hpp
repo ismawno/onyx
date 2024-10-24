@@ -5,7 +5,9 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE class Shape
+template <u32 N>
+    requires(IsDim<N>())
+class Shape
 {
   public:
     virtual ~Shape() = default;
@@ -21,28 +23,36 @@ ONYX_DIMENSION_TEMPLATE class Shape
 using Shape2D = Shape<2>;
 using Shape3D = Shape<3>;
 
-ONYX_DIMENSION_TEMPLATE class Triangle final : public Shape<N>
+template <u32 N>
+    requires(IsDim<N>())
+class Triangle final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
     void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
 };
 
-ONYX_DIMENSION_TEMPLATE class Rect final : public Shape<N>
+template <u32 N>
+    requires(IsDim<N>())
+class Rect final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
     void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
 };
 
-ONYX_DIMENSION_TEMPLATE class Ellipse final : public Shape<N>
+template <u32 N>
+    requires(IsDim<N>())
+class Ellipse final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
     void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
 };
 
-ONYX_DIMENSION_TEMPLATE class NGon final : public Shape<N>
+template <u32 N>
+    requires(IsDim<N>())
+class NGon final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
@@ -51,7 +61,9 @@ ONYX_DIMENSION_TEMPLATE class NGon final : public Shape<N>
     u32 Sides;
 };
 
-ONYX_DIMENSION_TEMPLATE class Polygon final : public Shape<N>
+template <u32 N>
+    requires(IsDim<N>())
+class Polygon final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;

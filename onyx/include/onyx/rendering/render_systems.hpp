@@ -27,7 +27,9 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE struct RenderInfo;
+template <u32 N>
+    requires(IsDim<N>())
+struct RenderInfo;
 
 template <> struct ONYX_API RenderInfo<2>
 {
@@ -45,7 +47,9 @@ template <> struct ONYX_API RenderInfo<3>
     vec4 AmbientColor;
 };
 
-ONYX_DIMENSION_TEMPLATE struct MaterialData;
+template <u32 N>
+    requires(IsDim<N>())
+struct MaterialData;
 
 template <> struct MaterialData<2>
 {
@@ -63,7 +67,9 @@ template <> struct MaterialData<3>
 using MaterialData2D = MaterialData<2>;
 using MaterialData3D = MaterialData<3>;
 
-ONYX_DIMENSION_TEMPLATE struct InstanceData;
+template <u32 N>
+    requires(IsDim<N>())
+struct InstanceData;
 
 // Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
 // 0 1 but i dont want to deal with the alignment management tbh
@@ -85,7 +91,9 @@ template <> struct ONYX_API InstanceData<3>
 using InstanceData2D = InstanceData<2>;
 using InstanceData3D = InstanceData<3>;
 
-ONYX_DIMENSION_TEMPLATE struct ONYX_API DeviceInstanceData
+template <u32 N>
+    requires(IsDim<N>())
+struct ONYX_API DeviceInstanceData
 {
     KIT_NON_COPYABLE(DeviceInstanceData)
     DeviceInstanceData(usize p_Capacity) noexcept;
@@ -96,7 +104,9 @@ ONYX_DIMENSION_TEMPLATE struct ONYX_API DeviceInstanceData
     std::array<usize, SwapChain::MFIF> StorageSizes;
 };
 
-ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
+template <u32 N>
+    requires(IsDim<N>())
+class ONYX_API MeshRenderer
 {
     KIT_NON_COPYABLE(MeshRenderer)
   public:
@@ -124,7 +134,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API MeshRenderer
 using MeshRenderer2D = MeshRenderer<2>;
 using MeshRenderer3D = MeshRenderer<3>;
 
-ONYX_DIMENSION_TEMPLATE class ONYX_API PrimitiveRenderer
+template <u32 N>
+    requires(IsDim<N>())
+class ONYX_API PrimitiveRenderer
 {
     KIT_NON_COPYABLE(PrimitiveRenderer)
   public:
@@ -150,7 +162,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PrimitiveRenderer
 using PrimitiveRenderer2D = PrimitiveRenderer<2>;
 using PrimitiveRenderer3D = PrimitiveRenderer<3>;
 
-ONYX_DIMENSION_TEMPLATE class ONYX_API PolygonRenderer
+template <u32 N>
+    requires(IsDim<N>())
+class ONYX_API PolygonRenderer
 {
     KIT_NON_COPYABLE(PolygonRenderer)
   public:
@@ -207,7 +221,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API PolygonRenderer
 using PolygonRenderer2D = PolygonRenderer<2>;
 using PolygonRenderer3D = PolygonRenderer<3>;
 
-ONYX_DIMENSION_TEMPLATE class ONYX_API CircleRenderer
+template <u32 N>
+    requires(IsDim<N>())
+class ONYX_API CircleRenderer
 {
     KIT_NON_COPYABLE(CircleRenderer)
   public:

@@ -10,7 +10,9 @@
 namespace ONYX
 {
 
-ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
     : m_Renderer(p_Window, p_RenderPass, &m_RenderState), m_Window(p_Window)
 {
     m_RenderState.push_back(RenderState<N>{});
@@ -21,54 +23,72 @@ ONYX_DIMENSION_TEMPLATE IRenderContext<N>::IRenderContext(Window *p_Window, cons
         ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::FlushState() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::FlushState() noexcept
 {
     KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
     m_RenderState[0] = RenderState<N>{};
     if constexpr (N == 3)
         ApplyCoordinateSystem(m_RenderState[0].Axes, &m_RenderState[0].InverseAxes);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::FlushState(const Color &p_Color) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::FlushState(const Color &p_Color) noexcept
 {
     FlushState();
     m_Window->BackgroundColor = p_Color;
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::FlushRenderData() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::FlushRenderData() noexcept
 {
     m_Renderer.Flush();
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Flush() noexcept
 {
     FlushRenderData();
     FlushState();
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Flush(const Color &p_Color) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Flush(const Color &p_Color) noexcept
 {
     FlushRenderData();
     FlushState(p_Color);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Transform(const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Transform(const mat<N> &p_Transform) noexcept
 {
     m_RenderState.back().Transform = p_Transform * m_RenderState.back().Transform;
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Transform(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Transform(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
 {
     this->Transform(ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Translation, p_Scale));
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Transform(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                                          const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Transform(const vec<N> &p_Translation, const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept
 {
     this->Transform(ONYX::Transform<N>::ComputeTransform(p_Translation, p_Scale, p_Rotation));
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Transform(const vec<N> &p_Translation, const f32 p_Scale) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Transform(const vec<N> &p_Translation, const f32 p_Scale) noexcept
 {
     this->Transform(ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Translation, vec<N>{p_Scale}));
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Transform(const vec<N> &p_Translation, const f32 p_Scale,
-                                                          const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Transform(const vec<N> &p_Translation, const f32 p_Scale, const rot<N> &p_Rotation) noexcept
 {
     this->Transform(ONYX::Transform<N>::ComputeTransform(p_Translation, vec<N>{p_Scale}, p_Rotation));
 }
@@ -120,28 +140,36 @@ void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, co
     this->Transform(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, quat{{p_XRot, p_YRot, p_ZRot}});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TransformAxes(const mat<N> &p_Axes) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TransformAxes(const mat<N> &p_Axes) noexcept
 {
     m_RenderState.back().Axes *= p_Axes;
     if constexpr (N == 3)
         m_RenderState.back().InverseAxes = glm::inverse(m_RenderState.back().Axes);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation,
-                                                              const vec<N> &p_Scale) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
 {
     TransformAxes(ONYX::Transform<N>::ComputeReverseTranslationScaleMatrix(p_Translation, p_Scale));
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                                              const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const vec<N> &p_Scale,
+                                      const rot<N> &p_Rotation) noexcept
 {
     TransformAxes(ONYX::Transform<N>::ComputeReverseTransform(p_Translation, p_Scale, p_Rotation));
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const f32 p_Scale) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const f32 p_Scale) noexcept
 {
     TransformAxes(ONYX::Transform<N>::ComputeReverseTranslationScaleMatrix(p_Translation, vec<N>{p_Scale}));
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const f32 p_Scale,
-                                                              const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const f32 p_Scale, const rot<N> &p_Rotation) noexcept
 {
     TransformAxes(ONYX::Transform<N>::ComputeReverseTransform(p_Translation, vec<N>{p_Scale}, p_Rotation));
 }
@@ -193,7 +221,9 @@ void RenderContext<3>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_Z
     TransformAxes(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, vec3{p_XRot, p_YRot, p_ZRot});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Translate(const vec<N> &p_Translation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Translate(const vec<N> &p_Translation) noexcept
 {
     this->Transform(ONYX::Transform<N>::ComputeTranslationMatrix(p_Translation));
 }
@@ -206,11 +236,15 @@ void RenderContext<3>::Translate(const f32 p_X, const f32 p_Y, const f32 p_Z) no
     Translate(vec3{p_X, p_Y, p_Z});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Scale(const vec<N> &p_Scale) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Scale(const vec<N> &p_Scale) noexcept
 {
     this->Transform(ONYX::Transform<N>::ComputeScaleMatrix(p_Scale));
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Scale(const f32 p_Scale) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Scale(const f32 p_Scale) noexcept
 {
     Scale(vec<N>{p_Scale});
 }
@@ -223,7 +257,9 @@ void RenderContext<3>::Scale(const f32 p_X, const f32 p_Y, const f32 p_Z) noexce
     Scale(vec3{p_X, p_Y, p_Z});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::KeepWindowAspect() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::KeepWindowAspect() noexcept
 {
     // Scaling down the axes means "enlarging" their extent, that is why the inverse is used
     const f32 aspect = 1.f / m_Window->GetScreenAspect();
@@ -233,7 +269,9 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::KeepWindowAspect() noexcept
         ScaleAxes(vec3{aspect, 1.f, 1.f});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::TranslateAxes(const vec<N> &p_Translation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TranslateAxes(const vec<N> &p_Translation) noexcept
 {
     TransformAxes(ONYX::Transform<N>::ComputeTranslationMatrix(p_Translation));
 }
@@ -246,11 +284,15 @@ void RenderContext<3>::TranslateAxes(const f32 p_X, const f32 p_Y, const f32 p_Z
     TranslateAxes(vec3{p_X, p_Y, p_Z});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::ScaleAxes(const vec<N> &p_Scale) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::ScaleAxes(const vec<N> &p_Scale) noexcept
 {
     TransformAxes(ONYX::Transform<N>::ComputeScaleMatrix(p_Scale));
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::ScaleAxes(const f32 p_Scale) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::ScaleAxes(const f32 p_Scale) noexcept
 {
     ScaleAxes(vec<N>{p_Scale});
 }
@@ -343,32 +385,43 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
     return t4;
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Triangle() noexcept
 {
     m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), m_RenderState.back().Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Triangle(const mat<N> &p_Transform) noexcept
 {
     m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), p_Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const f32 p_Size) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Triangle(const f32 p_Size) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeScaleMatrix(vec<N>{p_Size}) * m_RenderState.back().Transform;
     m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const vec<N> &p_Position) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Triangle(const vec<N> &p_Position) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
     m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const vec<N> &p_Position, const f32 p_Size) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Triangle(const vec<N> &p_Position, const f32 p_Size) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{p_Size}) * m_RenderState.back().Transform;
     m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Triangle(const vec<N> &p_Position, f32 p_Size,
-                                                         const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Triangle(const vec<N> &p_Position, f32 p_Size, const rot<N> &p_Rotation) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{p_Size}, p_Rotation) * m_RenderState.back().Transform;
@@ -409,28 +462,37 @@ void RenderContext<3>::Triangle(const vec3 &p_Position, const f32 p_Size, const 
     Triangle(p_Position, p_Size, quat{p_Angles});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Square() noexcept
 {
     m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), m_RenderState.back().Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square(const f32 p_Size) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Square(const f32 p_Size) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeScaleMatrix(vec<N>{p_Size}) * m_RenderState.back().Transform;
     m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square(const vec<N> &p_Position) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Square(const vec<N> &p_Position) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
     m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square(const vec<N> &p_Position, const f32 p_Size) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Square(const vec<N> &p_Position, const f32 p_Size) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{p_Size}) * m_RenderState.back().Transform;
     m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Square(const vec<N> &p_Position, f32 p_Size,
-                                                       const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Square(const vec<N> &p_Position, f32 p_Size, const rot<N> &p_Rotation) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{p_Size}, p_Rotation) * m_RenderState.back().Transform;
@@ -471,7 +533,9 @@ void RenderContext<3>::Square(const vec3 &p_Position, const f32 p_Size, const ve
     Square(p_Position, p_Size, quat{p_Angles});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec2 &p_Dimensions) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Rect(const vec2 &p_Dimensions) noexcept
 {
     mat<N> transform;
     if constexpr (N == 2)
@@ -481,7 +545,9 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec2 &p_Dimensions) n
 
     m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Rect(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept
 {
     mat<N> transform;
     if constexpr (N == 2)
@@ -493,8 +559,9 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec<N> &p_Position, c
 
     m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec<N> &p_Position, const vec2 &p_Dimensions,
-                                                     const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Rect(const vec<N> &p_Position, const vec2 &p_Dimensions, const rot<N> &p_Rotation) noexcept
 {
     mat<N> transform;
     if constexpr (N == 2)
@@ -506,11 +573,15 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const vec<N> &p_Position, c
 
     m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const mat<N> &p_Trasform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Rect(const mat<N> &p_Trasform) noexcept
 {
     m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), p_Trasform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Rect(const f32 p_XDim, const f32 p_YDim) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Rect(const f32 p_XDim, const f32 p_YDim) noexcept
 {
     Rect(vec2{p_XDim, p_YDim});
 }
@@ -537,34 +608,45 @@ void RenderContext<3>::Rect(const vec3 &p_Position, const vec2 &p_Dimensions, co
     Rect(p_Position, p_Dimensions, quat{p_Angles});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::NGon(const u32 p_Sides) noexcept
 {
     m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), m_RenderState.back().Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const f32 p_Radius) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::NGon(const u32 p_Sides, const f32 p_Radius) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeScaleMatrix(vec<N>{2.f * p_Radius}) * m_RenderState.back().Transform;
     m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::NGon(const u32 p_Sides, const mat<N> &p_Transform) noexcept
 {
     m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), p_Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
     m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position,
-                                                     const f32 p_Radius) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position, const f32 p_Radius) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{2.f * p_Radius}) *
                              m_RenderState.back().Transform;
     m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position, const f32 p_Radius,
-                                                     const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position, const f32 p_Radius,
+                             const rot<N> &p_Rotation) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{2.f * p_Radius}, p_Rotation) *
                              m_RenderState.back().Transform;
@@ -602,31 +684,38 @@ void RenderContext<3>::NGon(const u32 p_Sides, const vec3 &p_Position, const f32
     NGon(p_Sides, p_Position, p_Radius, quat{p_Angles});
 }
 
-ONYX_DIMENSION_TEMPLATE
+template <u32 N>
+    requires(IsDim<N>())
 template <typename... Vertices>
     requires(sizeof...(Vertices) >= 3 && (std::is_same_v<Vertices, vec<N>> && ...))
 void IRenderContext<N>::Polygon(Vertices &&...p_Vertices) noexcept
 {
     m_Renderer.DrawPolygon({std::forward<Vertices>(p_Vertices)...}, m_RenderState.back().Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices) noexcept
 {
     m_Renderer.DrawPolygon(p_Vertices, m_RenderState.back().Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices,
-                                                        const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices, const mat<N> &p_Transform) noexcept
 {
     m_Renderer.DrawPolygon(p_Vertices, p_Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices,
-                                                        const vec<N> &p_Translation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices, const vec<N> &p_Translation) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationMatrix(p_Translation) * m_RenderState.back().Transform;
     m_Renderer.DrawPolygon(p_Vertices, transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices,
-                                                        const vec<N> &p_Translation, const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices, const vec<N> &p_Translation,
+                                const rot<N> &p_Rotation) noexcept
 {
     // TODO: Remove the need of this vec<N>{1.f} at some point
     const mat<N> transform =
@@ -663,21 +752,29 @@ void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const vec
     Polygon(p_Vertices, p_Position, quat{p_Angles});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Circle() noexcept
 {
     m_Renderer.DrawCircle(m_RenderState.back().Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const f32 p_Radius) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Circle(const f32 p_Radius) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeScaleMatrix(vec<N>{p_Radius}) * m_RenderState.back().Transform;
     m_Renderer.DrawCircle(transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const vec<N> &p_Position) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Circle(const vec<N> &p_Position) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationMatrix(p_Position) * m_RenderState.back().Transform;
     m_Renderer.DrawCircle(transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Circle(const vec<N> &p_Position, const f32 p_Radius) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Circle(const vec<N> &p_Position, const f32 p_Radius) noexcept
 {
     const mat<N> transform = ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Position, vec<N>{p_Radius}) *
                              m_RenderState.back().Transform;
@@ -700,7 +797,9 @@ void RenderContext<3>::Circle(const f32 p_X, const f32 p_Y, const f32 p_Z, const
     Circle(vec3{p_X, p_Y, p_Z}, p_Radius);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec2 &p_Dimensions) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Ellipse(const vec2 &p_Dimensions) noexcept
 {
     mat<N> transform;
     if constexpr (N == 2)
@@ -709,7 +808,9 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec2 &p_Dimensions
         transform = Transform3D::ComputeScaleMatrix(vec3{p_Dimensions, 1.f}) * m_RenderState.back().Transform;
     m_Renderer.DrawCircle(transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept
 {
     mat<N> transform;
     if constexpr (N == 2)
@@ -720,8 +821,9 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec<N> &p_Position
                     m_RenderState.back().Transform;
     m_Renderer.DrawCircle(transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions,
-                                                        const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions, const rot<N> &p_Rotation) noexcept
 {
     mat<N> transform;
     if constexpr (N == 2)
@@ -732,11 +834,15 @@ ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const vec<N> &p_Position
                     m_RenderState.back().Transform;
     m_Renderer.DrawCircle(transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const f32 p_XDim, const f32 p_YDim) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Ellipse(const f32 p_XDim, const f32 p_YDim) noexcept
 {
     Ellipse(vec2{p_XDim, p_YDim});
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Ellipse(const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Ellipse(const mat<N> &p_Transform) noexcept
 {
     m_Renderer.DrawCircle(p_Transform);
 }
@@ -768,8 +874,9 @@ void RenderContext<3>::Ellipse(const vec3 &p_Position, const vec2 &p_Dimensions,
     Ellipse(p_Position, p_Dimensions, quat{p_Angles});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Line(const vec<N> &p_Start, const vec<N> &p_End,
-                                                     const f32 p_Thickness) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Line(const vec<N> &p_Start, const vec<N> &p_End, const f32 p_Thickness) noexcept
 {
     ONYX::Transform<N> t;
     t.Translation = 0.5f * (p_Start + p_End);
@@ -801,8 +908,9 @@ void RenderContext<3>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_Z1, cons
     Line(vec3{p_X1, p_Y1, p_Z1}, vec3{p_X2, p_Y2, p_Z2}, p_Thickness);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::LineStrip(std::span<const vec<N>> p_Points,
-                                                          const f32 p_Thickness) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::LineStrip(std::span<const vec<N>> p_Points, const f32 p_Thickness) noexcept
 {
     KIT_ASSERT(p_Points.size() > 1, "A line strip must have at least two points");
     for (u32 i = 0; i < p_Points.size() - 1; ++i)
@@ -1139,32 +1247,39 @@ void RenderContext<2>::NoFill() noexcept
     m_RenderState.back().NoFill = true;
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model) noexcept
 {
     m_Renderer.DrawMesh(p_Model, m_RenderState.back().Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model,
-                                                     const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept
 {
     m_Renderer.DrawMesh(p_Model, p_Transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model,
-                                                     const vec<N> &p_Translation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationMatrix(p_Translation) * m_RenderState.back().Transform;
     m_Renderer.DrawMesh(p_Model, transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model,
-                                                     const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation,
+                             const vec<N> &p_Scale) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Translation, p_Scale) * m_RenderState.back().Transform;
     m_Renderer.DrawMesh(p_Model, transform);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model,
-                                                     const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                                     const rot<N> &p_Rotation) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation,
+                             const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept
 {
     const mat<N> transform =
         ONYX::Transform<N>::ComputeTransform(p_Translation, p_Scale, p_Rotation) * m_RenderState.back().Transform;
@@ -1223,17 +1338,23 @@ void RenderContext<3>::Mesh(const KIT::Ref<const Model<3>> &p_Model, const f32 p
     Mesh(p_Model, vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, quat{{p_XRot, p_YRot, p_ZRot}});
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Push() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Push() noexcept
 {
     m_RenderState.push_back(m_RenderState.back());
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::PushAndClear() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::PushAndClear() noexcept
 {
     m_RenderState.push_back(RenderState<N>{});
     if constexpr (N == 3)
         ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Pop() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Pop() noexcept
 {
     KIT_ASSERT(m_RenderState.size() > 1, "For every push, there must be a pop");
     m_RenderState.pop_back();
@@ -1252,7 +1373,9 @@ void RenderContext<2>::Alpha(const u32 p_Alpha) noexcept
     m_RenderState.back().Material.Color.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Fill(const Color &p_Color) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Fill(const Color &p_Color) noexcept
 {
     m_RenderState.back().Material.Color = p_Color;
 }
@@ -1275,41 +1398,57 @@ void RenderContext<2>::NoStroke() noexcept
     m_RenderState.back().NoStroke = true;
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Material(const MaterialData<N> &p_Material) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Material(const MaterialData<N> &p_Material) noexcept
 {
     m_RenderState.back().Material = p_Material;
 }
 
-ONYX_DIMENSION_TEMPLATE const RenderState<N> &IRenderContext<N>::GetState() const noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const RenderState<N> &IRenderContext<N>::GetState() const noexcept
 {
     return m_RenderState.back();
 }
-ONYX_DIMENSION_TEMPLATE RenderState<N> &IRenderContext<N>::GetState() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+RenderState<N> &IRenderContext<N>::GetState() noexcept
 {
     return m_RenderState.back();
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetState(const RenderState<N> &p_State) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::SetState(const RenderState<N> &p_State) noexcept
 {
     m_RenderState.back() = p_State;
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentTransform(const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::SetCurrentTransform(const mat<N> &p_Transform) noexcept
 {
     m_RenderState.back().Transform = p_Transform;
 }
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::SetCurrentAxes(const mat<N> &p_Axes) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::SetCurrentAxes(const mat<N> &p_Axes) noexcept
 {
     m_RenderState.back().Axes = p_Axes;
     if constexpr (N == 3)
         ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
 {
     m_Renderer.Render(p_Commandbuffer);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderContext<N>::Axes(const f32 p_Thickness, const f32 p_Size) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Axes(const f32 p_Thickness, const f32 p_Size) noexcept
 {
     // TODO: Parametrize this
     Color &color = m_RenderState.back().Material.Color;

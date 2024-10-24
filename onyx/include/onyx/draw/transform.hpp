@@ -5,7 +5,9 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE struct ONYX_API Transform
+template <u32 N>
+    requires(IsDim<N>())
+struct ONYX_API Transform
 {
     static mat<N> ComputeTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
                                    const rot<N> &p_Rotation) noexcept;

@@ -153,14 +153,18 @@ void Window::FlushEvents() noexcept
     m_Events.clear();
 }
 
-ONYX_DIMENSION_TEMPLATE const RenderContext<N> *Window::GetRenderContext() const noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const RenderContext<N> *Window::GetRenderContext() const noexcept
 {
     if constexpr (N == 2)
         return m_RenderContext2D.Get();
     else
         return m_RenderContext3D.Get();
 }
-ONYX_DIMENSION_TEMPLATE RenderContext<N> *Window::GetRenderContext() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+RenderContext<N> *Window::GetRenderContext() noexcept
 {
     if constexpr (N == 2)
         return m_RenderContext2D.Get();

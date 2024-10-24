@@ -88,8 +88,12 @@ class ONYX_API Window
     const DynamicArray<Event> &GetNewEvents() const noexcept;
     void FlushEvents() noexcept;
 
-    ONYX_DIMENSION_TEMPLATE const RenderContext<N> *GetRenderContext() const noexcept;
-    ONYX_DIMENSION_TEMPLATE RenderContext<N> *GetRenderContext() noexcept;
+    template <u32 N>
+        requires(IsDim<N>())
+    const RenderContext<N> *GetRenderContext() const noexcept;
+    template <u32 N>
+        requires(IsDim<N>())
+    RenderContext<N> *GetRenderContext() noexcept;
 
     const RenderContext2D *GetRenderContext2D() const noexcept;
     RenderContext2D *GetRenderContext2D() noexcept;

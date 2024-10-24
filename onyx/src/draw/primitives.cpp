@@ -4,8 +4,12 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE using BufferLayout = std::array<PrimitiveDataLayout, Primitives<N>::AMOUNT>;
-ONYX_DIMENSION_TEMPLATE struct IndexVertexBuffers
+template <u32 N>
+    requires(IsDim<N>())
+using BufferLayout = std::array<PrimitiveDataLayout, Primitives<N>::AMOUNT>;
+template <u32 N>
+    requires(IsDim<N>())
+struct IndexVertexBuffers
 {
     IndexVertexBuffers(const std::span<const Vertex<N>> p_Vertices, const std::span<const Index> p_Indices,
                        const BufferLayout<N> &p_Layout) noexcept
@@ -21,7 +25,9 @@ ONYX_DIMENSION_TEMPLATE struct IndexVertexBuffers
 static KIT::Storage<IndexVertexBuffers<2>> s_Buffers2D;
 static KIT::Storage<IndexVertexBuffers<3>> s_Buffers3D;
 
-ONYX_DIMENSION_TEMPLATE static KIT::Storage<IndexVertexBuffers<N>> &getBuffers() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static KIT::Storage<IndexVertexBuffers<N>> &getBuffers() noexcept
 {
     if constexpr (N == 2)
         return s_Buffers2D;
@@ -29,20 +35,28 @@ ONYX_DIMENSION_TEMPLATE static KIT::Storage<IndexVertexBuffers<N>> &getBuffers()
         return s_Buffers3D;
 }
 
-ONYX_DIMENSION_TEMPLATE const VertexBuffer<N> *IPrimitives<N>::GetVertexBuffer() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const VertexBuffer<N> *IPrimitives<N>::GetVertexBuffer() noexcept
 {
     return &getBuffers<N>()->Vertices;
 }
-ONYX_DIMENSION_TEMPLATE const IndexBuffer *IPrimitives<N>::GetIndexBuffer() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const IndexBuffer *IPrimitives<N>::GetIndexBuffer() noexcept
 {
     return &getBuffers<N>()->Indices;
 }
-ONYX_DIMENSION_TEMPLATE const PrimitiveDataLayout &IPrimitives<N>::GetDataLayout(const usize p_PrimitiveIndex) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+const PrimitiveDataLayout &IPrimitives<N>::GetDataLayout(const usize p_PrimitiveIndex) noexcept
 {
     return getBuffers<N>()->Layout[p_PrimitiveIndex];
 }
 
-ONYX_DIMENSION_TEMPLATE static IndexVertexData<N> createRegularPolygonBuffers(const usize p_Sides) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static IndexVertexData<N> createRegularPolygonBuffers(const usize p_Sides) noexcept
 {
     IndexVertexData<N> data{};
     data.Vertices.reserve(p_Sides);
@@ -78,7 +92,9 @@ ONYX_DIMENSION_TEMPLATE static IndexVertexData<N> createRegularPolygonBuffers(co
     return data;
 }
 
-ONYX_DIMENSION_TEMPLATE static void createBuffers(const std::span<const char *const> p_Paths) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static void createBuffers(const std::span<const char *const> p_Paths) noexcept
 {
     BufferLayout<N> layout;
     IndexVertexData<N> data{};

@@ -16,7 +16,9 @@ void SWExampleLayer::OnStart() noexcept
     m_LayerData3.Context = m_Application->GetMainWindow()->GetRenderContext3D();
 }
 
-ONYX_DIMENSION_TEMPLATE static void editMaterial(MaterialData<N> &p_Material) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static void editMaterial(MaterialData<N> &p_Material) noexcept
 {
     if constexpr (N == 2)
     {
@@ -42,7 +44,9 @@ ONYX_DIMENSION_TEMPLATE static void editMaterial(MaterialData<N> &p_Material) no
     }
 }
 
-ONYX_DIMENSION_TEMPLATE void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
 {
     p_Data.Context->Flush(m_BackgroundColor);
     p_Data.Context->KeepWindowAspect();
@@ -86,7 +90,9 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::drawShapes(const LayerData<N> &p_Da
     }
 }
 
-ONYX_DIMENSION_TEMPLATE static void editTransform(Transform<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static void editTransform(Transform<N> &p_Transform) noexcept
 {
     ImGui::PushID(&p_Transform);
     if constexpr (N == 2)
@@ -205,7 +211,9 @@ void SWExampleLayer::renderLightSpawn() noexcept
         editPointLight(m_PointLights[selectedPointLight]);
 }
 
-ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
 {
     if constexpr (N == 2)
         ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Rectangle\0Ellipse\0NGon\0Polygon\0\0");
@@ -308,8 +316,9 @@ ONYX_DIMENSION_TEMPLATE static void renderShapeSpawn(LayerData<N> &p_Data) noexc
     }
 }
 
-ONYX_DIMENSION_TEMPLATE static bool processPolygonEvent(LayerData<N> &p_Data, const Event &p_Event,
-                                                        [[maybe_unused]] const f32 p_ZOffset)
+template <u32 N>
+    requires(IsDim<N>())
+static bool processPolygonEvent(LayerData<N> &p_Data, const Event &p_Event, [[maybe_unused]] const f32 p_ZOffset)
 {
     if (p_Event.Type != Event::MOUSE_PRESSED || p_Data.ShapeToSpawn != 4)
         return false;
@@ -327,7 +336,9 @@ bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
            processPolygonEvent(m_LayerData3, p_Event, m_ZOffset);
 }
 
-ONYX_DIMENSION_TEMPLATE void SWExampleLayer::controlAxes(LayerData<N> &p_Data) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void SWExampleLayer::controlAxes(LayerData<N> &p_Data) noexcept
 {
     Transform<N> t{};
     const f32 step = m_Application->GetDeltaTime();
@@ -399,7 +410,9 @@ ONYX_DIMENSION_TEMPLATE void SWExampleLayer::controlAxes(LayerData<N> &p_Data) n
         p_Data.AxesTransform *= t.ComputeTransform();
 }
 
-ONYX_DIMENSION_TEMPLATE void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
 {
     drawShapes(p_Data);
     if (ImGui::Begin(N == 2 ? "2D" : "3D"))

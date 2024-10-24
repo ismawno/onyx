@@ -9,7 +9,9 @@ namespace ONYX
 // This function modifies the axes to support different coordinate systems
 ONYX_API void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes = nullptr) noexcept;
 
-ONYX_DIMENSION_TEMPLATE struct RenderState;
+template <u32 N>
+    requires(IsDim<N>())
+struct RenderState;
 template <> struct RenderState<2>
 {
     mat3 Transform{1.f};
@@ -35,7 +37,9 @@ template <> struct RenderState<3>
 using RenderState2D = RenderState<2>;
 using RenderState3D = RenderState<3>;
 
-ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderer
+template <u32 N>
+    requires(IsDim<N>())
+class ONYX_API IRenderer
 {
     KIT_NON_COPYABLE(IRenderer)
   public:
@@ -61,7 +65,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderer
     const DynamicArray<RenderState<N>> *m_State;
 };
 
-ONYX_DIMENSION_TEMPLATE class Renderer;
+template <u32 N>
+    requires(IsDim<N>())
+class Renderer;
 
 template <> class Renderer<2> final : public IRenderer<2>
 {

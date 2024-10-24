@@ -6,7 +6,9 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE class ONYX_API VertexBuffer : public DeviceBuffer<Vertex<N>>
+template <u32 N>
+    requires(IsDim<N>())
+class ONYX_API VertexBuffer : public DeviceBuffer<Vertex<N>>
 {
     KIT_NON_COPYABLE(VertexBuffer)
   public:
@@ -15,7 +17,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API VertexBuffer : public DeviceBuffer<Vertex
     void Bind(VkCommandBuffer p_CommandBuffer, VkDeviceSize p_Offset = 0) const noexcept;
 };
 
-ONYX_DIMENSION_TEMPLATE class ONYX_API MutableVertexBuffer : public Buffer
+template <u32 N>
+    requires(IsDim<N>())
+class ONYX_API MutableVertexBuffer : public Buffer
 {
     KIT_NON_COPYABLE(MutableVertexBuffer)
   public:

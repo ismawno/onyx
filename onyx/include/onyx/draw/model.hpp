@@ -12,7 +12,9 @@ namespace ONYX
 // Consider removing the ability to create a model with host visible memory (DONE)
 // This model represents an immutable set of data that is meant to be used for rendering. It is not meant to be modified
 
-ONYX_DIMENSION_TEMPLATE class ONYX_API Model : public KIT::RefCounted<Model<N>>
+template <u32 N>
+    requires(IsDim<N>())
+class ONYX_API Model : public KIT::RefCounted<Model<N>>
 {
     KIT_NON_COPYABLE(Model)
   public:

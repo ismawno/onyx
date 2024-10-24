@@ -35,8 +35,10 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
     return writer.Build();
 }
 
-ONYX_DIMENSION_TEMPLATE IRenderer<N>::IRenderer(Window *p_Window, const VkRenderPass p_RenderPass,
-                                                const DynamicArray<RenderState<N>> *p_State) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+IRenderer<N>::IRenderer(Window *p_Window, const VkRenderPass p_RenderPass,
+                        const DynamicArray<RenderState<N>> *p_State) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
       m_CircleRenderer(p_RenderPass), m_Window(p_Window), m_State(p_State)
 {
@@ -117,7 +119,8 @@ static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWi
     return p_Transform * Transform2D::ComputeScaleMatrix(stroke);
 }
 
-ONYX_DIMENSION_TEMPLATE
+template <u32 N>
+    requires(IsDim<N>())
 template <typename Renderer, typename... DrawArgs>
 void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept
 {
@@ -141,25 +144,30 @@ void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArg
     }
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderer<N>::DrawMesh(const KIT::Ref<const Model<N>> &p_Model,
-                                                    const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderer<N>::DrawMesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept
 {
     draw(m_MeshRenderer, p_Transform, p_Model);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderer<N>::DrawPrimitive(const usize p_PrimitiveIndex,
-                                                         const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderer<N>::DrawPrimitive(const usize p_PrimitiveIndex, const mat<N> &p_Transform) noexcept
 {
     draw(m_PrimitiveRenderer, p_Transform, p_PrimitiveIndex);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderer<N>::DrawPolygon(const std::span<const vec<N>> p_Vertices,
-                                                       const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderer<N>::DrawPolygon(const std::span<const vec<N>> p_Vertices, const mat<N> &p_Transform) noexcept
 {
     draw(m_PolygonRenderer, p_Transform, p_Vertices);
 }
 
-ONYX_DIMENSION_TEMPLATE void IRenderer<N>::DrawCircle(const mat<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderer<N>::DrawCircle(const mat<N> &p_Transform) noexcept
 {
     draw(m_CircleRenderer, p_Transform);
 }

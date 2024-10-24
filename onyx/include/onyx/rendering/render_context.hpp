@@ -23,7 +23,9 @@ namespace ONYX
 {
 class Window;
 
-ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
+template <u32 N>
+    requires(IsDim<N>())
+class ONYX_API IRenderContext
 {
   public:
     IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
@@ -160,7 +162,9 @@ ONYX_DIMENSION_TEMPLATE class ONYX_API IRenderContext
     Window *m_Window;
 };
 
-ONYX_DIMENSION_TEMPLATE class RenderContext;
+template <u32 N>
+    requires(IsDim<N>())
+class RenderContext;
 
 template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 {

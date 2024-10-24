@@ -13,7 +13,9 @@ namespace ONYX
 
 // Vertices have no color because they limit my ability to re use a model. I plan to have a single color per rendered
 // object, so I dont need to store it in the vertex
-ONYX_DIMENSION_TEMPLATE struct Vertex;
+template <u32 N>
+    requires(IsDim<N>())
+struct Vertex;
 
 template <> struct ONYX_API Vertex<2>
 {

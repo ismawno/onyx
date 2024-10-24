@@ -4,7 +4,9 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE IndexVertexData<N> Load(const std::string_view p_Path) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+IndexVertexData<N> Load(const std::string_view p_Path) noexcept
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;

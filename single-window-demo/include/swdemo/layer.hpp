@@ -7,7 +7,9 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE struct LayerData
+template <u32 N>
+    requires(IsDim<N>())
+struct LayerData
 {
     RenderContext<N> *Context;
     DynamicArray<KIT::Scope<Shape<N>>> Shapes;
@@ -37,9 +39,15 @@ class SWExampleLayer final : public Layer
     bool OnEvent(const Event &p_Event) noexcept override;
 
   private:
-    ONYX_DIMENSION_TEMPLATE void drawShapes(const LayerData<N> &p_Data) noexcept;
-    ONYX_DIMENSION_TEMPLATE void renderUI(LayerData<N> &p_Data) noexcept;
-    ONYX_DIMENSION_TEMPLATE void controlAxes(LayerData<N> &p_Data) noexcept;
+    template <u32 N>
+        requires(IsDim<N>())
+    void drawShapes(const LayerData<N> &p_Data) noexcept;
+    template <u32 N>
+        requires(IsDim<N>())
+    void renderUI(LayerData<N> &p_Data) noexcept;
+    template <u32 N>
+        requires(IsDim<N>())
+    void controlAxes(LayerData<N> &p_Data) noexcept;
     void renderLightSpawn() noexcept;
 
     Application *m_Application = nullptr;

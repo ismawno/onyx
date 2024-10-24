@@ -69,7 +69,9 @@ void MWExampleLayer::renderWindowSpawner() noexcept
     ImGui::SliderInt2("Dimensions", (int *)&specs.Width, 120, 1080);
 }
 
-ONYX_DIMENSION_TEMPLATE static void renderTransform(Transform<N> &p_Transform) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static void renderTransform(Transform<N> &p_Transform) noexcept
 {
     if constexpr (N == 2)
     {
@@ -86,7 +88,9 @@ ONYX_DIMENSION_TEMPLATE static void renderTransform(Transform<N> &p_Transform) n
     }
 }
 
-ONYX_DIMENSION_TEMPLATE void MWExampleLayer::renderObjectProperties(const usize p_WindowIndex) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void MWExampleLayer::renderObjectProperties(const usize p_WindowIndex) noexcept
 {
     static PrimitiveType ptype = RECTANGLE;
     if (ImGui::Button("Spawn"))

@@ -3,13 +3,16 @@
 
 namespace ONYX
 {
-ONYX_DIMENSION_TEMPLATE VertexBuffer<N>::VertexBuffer(const std::span<const Vertex<N>> p_Vertices) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+VertexBuffer<N>::VertexBuffer(const std::span<const Vertex<N>> p_Vertices) noexcept
     : DeviceBuffer<Vertex<N>>(p_Vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
 {
 }
 
-ONYX_DIMENSION_TEMPLATE void VertexBuffer<N>::Bind(const VkCommandBuffer p_CommandBuffer,
-                                                   const VkDeviceSize p_Offset) const noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void VertexBuffer<N>::Bind(const VkCommandBuffer p_CommandBuffer, const VkDeviceSize p_Offset) const noexcept
 {
     const VkBuffer buffer = this->GetBuffer();
     vkCmdBindVertexBuffers(p_CommandBuffer, 0, 1, &buffer, &p_Offset);
@@ -18,7 +21,9 @@ ONYX_DIMENSION_TEMPLATE void VertexBuffer<N>::Bind(const VkCommandBuffer p_Comma
 template class VertexBuffer<2>;
 template class VertexBuffer<3>;
 
-ONYX_DIMENSION_TEMPLATE static Buffer::Specs createBufferSpecs(const usize p_Size)
+template <u32 N>
+    requires(IsDim<N>())
+static Buffer::Specs createBufferSpecs(const usize p_Size)
 {
     Buffer::Specs specs{};
     specs.InstanceCount = p_Size;
@@ -31,28 +36,33 @@ ONYX_DIMENSION_TEMPLATE static Buffer::Specs createBufferSpecs(const usize p_Siz
     return specs;
 }
 
-ONYX_DIMENSION_TEMPLATE MutableVertexBuffer<N>::MutableVertexBuffer(
-    const std::span<const Vertex<N>> p_Vertices) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+MutableVertexBuffer<N>::MutableVertexBuffer(const std::span<const Vertex<N>> p_Vertices) noexcept
     : Buffer(createBufferSpecs<N>(p_Vertices.size()))
 {
     Map();
     Write(p_Vertices);
     Flush();
 }
-ONYX_DIMENSION_TEMPLATE MutableVertexBuffer<N>::MutableVertexBuffer(const usize p_Size) noexcept
-    : Buffer(createBufferSpecs<N>(p_Size))
+template <u32 N>
+    requires(IsDim<N>())
+MutableVertexBuffer<N>::MutableVertexBuffer(const usize p_Size) noexcept : Buffer(createBufferSpecs<N>(p_Size))
 {
     Map();
 }
 
-ONYX_DIMENSION_TEMPLATE void MutableVertexBuffer<N>::Bind(const VkCommandBuffer p_CommandBuffer,
-                                                          const VkDeviceSize p_Offset) const noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void MutableVertexBuffer<N>::Bind(const VkCommandBuffer p_CommandBuffer, const VkDeviceSize p_Offset) const noexcept
 {
     const VkBuffer buffer = this->GetBuffer();
     vkCmdBindVertexBuffers(p_CommandBuffer, 0, 1, &buffer, &p_Offset);
 }
 
-ONYX_DIMENSION_TEMPLATE void MutableVertexBuffer<N>::Write(const std::span<const Vertex<N>> p_Vertices)
+template <u32 N>
+    requires(IsDim<N>())
+void MutableVertexBuffer<N>::Write(const std::span<const Vertex<N>> p_Vertices)
 {
     Buffer::Write(p_Vertices.data(), p_Vertices.size() * sizeof(Vertex<N>));
 }
