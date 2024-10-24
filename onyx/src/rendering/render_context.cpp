@@ -979,27 +979,59 @@ void IRenderContext<N>::LineStrip(std::span<const vec<N>> p_Points, const f32 p_
 void RenderContext<2>::RoundedLine(const vec2 &p_Start, const vec2 &p_End, const f32 p_Thickness) noexcept
 {
     Line(p_Start, p_End, p_Thickness);
-    Circle(p_Start, p_Thickness);
-    Circle(p_End, p_Thickness);
+
+    const vec2 thickness = vec2{p_Thickness};
+    mat3 transform = m_RenderState.back().Transform;
+    translateIntrinsic<2>(transform, p_Start);
+    scaleIntrinsic<2>(transform, thickness);
+    m_Renderer.DrawCircle(transform);
+
+    transform = m_RenderState.back().Transform;
+    translateIntrinsic<2>(transform, p_End);
+    scaleIntrinsic<2>(transform, thickness);
+    m_Renderer.DrawCircle(transform);
 }
 void RenderContext<3>::RoundedLine(const vec3 &p_Start, const vec3 &p_End, const f32 p_Thickness) noexcept
 {
     Line(p_Start, p_End, p_Thickness);
-    Sphere(p_Start, p_Thickness);
-    Sphere(p_End, p_Thickness);
+
+    const vec3 thickness = vec3{p_Thickness};
+    mat4 transform = m_RenderState.back().Transform;
+    translateIntrinsic<3>(transform, p_Start);
+    scaleIntrinsic<3>(transform, thickness);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
+
+    transform = m_RenderState.back().Transform;
+    translateIntrinsic<3>(transform, p_End);
+    scaleIntrinsic<3>(transform, thickness);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
 }
 
 void RenderContext<2>::RoundedLineStrip(std::span<const vec2> p_Points, const f32 p_Thickness) noexcept
 {
     LineStrip(p_Points, p_Thickness);
+
+    const vec2 thickness = vec2{p_Thickness};
     for (const vec2 &point : p_Points)
-        Circle(point, p_Thickness);
+    {
+        mat3 transform = m_RenderState.back().Transform;
+        translateIntrinsic<2>(transform, point);
+        scaleIntrinsic<2>(transform, thickness);
+        m_Renderer.DrawCircle(transform);
+    }
 }
 void RenderContext<3>::RoundedLineStrip(std::span<const vec3> p_Points, const f32 p_Thickness) noexcept
 {
     LineStrip(p_Points, p_Thickness);
+
+    const vec3 thickness = vec3{p_Thickness};
     for (const vec3 &point : p_Points)
-        Sphere(point, p_Thickness);
+    {
+        mat4 transform = m_RenderState.back().Transform;
+        translateIntrinsic<3>(transform, point);
+        scaleIntrinsic<3>(transform, thickness);
+        m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    }
 }
 
 void RenderContext<2>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
