@@ -108,6 +108,15 @@ class ONYX_API IRenderContext
     void Stadium(f32 p_Length, f32 p_Radius) noexcept;
     void Stadium(f32 p_Length, f32 p_Radius, const mat<N> &p_Transform) noexcept;
 
+    void RoundedSquare() noexcept;
+    void RoundedSquare(const mat<N> &p_Transform) noexcept;
+
+    void RoundedSquare(const vec2 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedSquare(const vec2 &p_Dimensions, f32 p_Radius, const mat<N> &p_Transform) noexcept;
+
+    void RoundedSquare(f32 p_Width, f32 p_Height, f32 p_Radius) noexcept;
+    void RoundedSquare(f32 p_Width, f32 p_Height, f32 p_Radius, const mat<N> &p_Transform) noexcept;
+
     void Line(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.01f) noexcept;
     void LineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
@@ -273,6 +282,15 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 
     void Capsule(f32 p_Length, f32 p_Radius) noexcept;
     void Capsule(f32 p_Length, f32 p_Radius, const mat4 &p_Transform) noexcept;
+
+    void RoundedCube() noexcept;
+    void RoundedCube(const mat4 &p_Transform) noexcept;
+
+    void RoundedCube(const vec3 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedCube(const vec3 &p_Dimensions, f32 p_Radius, const mat4 &p_Transform) noexcept;
+
+    void RoundedCube(f32 p_Width, f32 p_Height, f32 p_Depth, f32 p_Radius) noexcept;
+    void RoundedCube(f32 p_Width, f32 p_Height, f32 p_Depth, f32 p_Radius, const mat4 &p_Transform) noexcept;
 
     void LightColor(const Color &p_Color) noexcept;
     template <typename... ColorArgs>

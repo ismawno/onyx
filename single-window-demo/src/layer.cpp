@@ -234,10 +234,10 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
     static f32 capsuleRadius = 0.5f;
 
     if constexpr (N == 2)
-        ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Rectangle\0Circle\0NGon\0Polygon\0Stadium\0\0");
+        ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0\0");
     else
         ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                     "Triangle\0Rectangle\0Circle\0NGon\0Polygon\0Stadium\0Cube\0Sphere\0Cylinder\0Capsule\0\0");
+                     "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Cube\0Sphere\0Cylinder\0Capsule\0\0");
 
     if (p_Data.ShapeToSpawn == 3)
         ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
