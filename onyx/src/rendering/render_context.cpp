@@ -9,7 +9,6 @@
 
 namespace ONYX
 {
-
 template <u32 N>
     requires(IsDim<N>())
 IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
@@ -23,11 +22,22 @@ IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderP
         ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
 
+template <glm::length_t N>
+static void translateIntrinsic(mat<N> &p_Transform, const glm::length_t index, const f32 p_Translation) noexcept
+{
+    for (glm::length_t i = 0; i < N; ++i)
+        p_Transform[N][i] += p_Transform[index][i] * p_Translation;
+}
 template <glm::length_t N> static void translateIntrinsic(mat<N> &p_Transform, const vec<N> &p_Translation) noexcept
 {
-    const vec<N> translation = mat<N - 1>{p_Transform} * p_Translation;
     for (glm::length_t i = 0; i < N; ++i)
-        p_Transform[N][i] += translation[i];
+        translateIntrinsic<N>(p_Transform, i, p_Translation[i]);
+}
+
+template <glm::length_t N>
+static void translateExtrinsic(mat<N> &p_Transform, const glm::length_t index, const f32 p_Translation) noexcept
+{
+    p_Transform[N][index] += p_Translation;
 }
 template <glm::length_t N> static void translateExtrinsic(mat<N> &p_Transform, const vec<N> &p_Translation) noexcept
 {
@@ -35,11 +45,23 @@ template <glm::length_t N> static void translateExtrinsic(mat<N> &p_Transform, c
         p_Transform[N][i] += p_Translation[i];
 }
 
+template <glm::length_t N>
+static void scaleIntrinsic(mat<N> &p_Transform, const glm::length_t index, const f32 p_Scale) noexcept
+{
+    for (glm::length_t i = 0; i < N; ++i)
+        p_Transform[index][i] *= p_Scale;
+}
 template <glm::length_t N> static void scaleIntrinsic(mat<N> &p_Transform, const vec<N> &p_Scale) noexcept
 {
     for (glm::length_t i = 0; i < N; ++i)
         for (glm::length_t j = 0; j < N; ++j)
             p_Transform[i][j] *= p_Scale[i];
+}
+template <glm::length_t N>
+static void scaleExtrinsic(mat<N> &p_Transform, const glm::length_t index, const f32 p_Scale) noexcept
+{
+    for (glm::length_t i = 0; i < N + 1; ++i)
+        p_Transform[i][index] *= p_Scale;
 }
 template <glm::length_t N> static void scaleExtrinsic(mat<N> &p_Transform, const vec<N> &p_Scale) noexcept
 {
@@ -95,23 +117,9 @@ void IRenderContext<N>::Transform(const mat<N> &p_Transform) noexcept
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::Transform(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
-{
-    scaleExtrinsic<N>(m_RenderState.back().Transform, p_Scale);
-    translateExtrinsic<N>(m_RenderState.back().Transform, p_Translation);
-}
-template <u32 N>
-    requires(IsDim<N>())
 void IRenderContext<N>::Transform(const vec<N> &p_Translation, const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept
 {
     this->Transform(ONYX::Transform<N>::ComputeTransform(p_Translation, p_Scale, p_Rotation));
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Transform(const vec<N> &p_Translation, const f32 p_Scale) noexcept
-{
-    scaleExtrinsic<N>(m_RenderState.back().Transform, vec<N>{p_Scale});
-    translateExtrinsic<N>(m_RenderState.back().Transform, p_Translation);
 }
 template <u32 N>
     requires(IsDim<N>())
@@ -119,52 +127,13 @@ void IRenderContext<N>::Transform(const vec<N> &p_Translation, const f32 p_Scale
 {
     this->Transform(ONYX::Transform<N>::ComputeTransform(p_Translation, vec<N>{p_Scale}, p_Rotation));
 }
-void RenderContext<2>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Scale) noexcept
+void RenderContext<3>::Transform(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept
 {
-    this->Transform(vec2{p_X, p_Y}, p_Scale);
+    this->Transform(ONYX::Transform3D::ComputeTransform(p_Translation, p_Scale, p_Rotation));
 }
-void RenderContext<2>::Transform(const f32 p_X, const f32 p_Y, const f32 p_XS, const f32 p_YS) noexcept
+void RenderContext<3>::Transform(const vec3 &p_Translation, const f32 p_Scale, const vec3 &p_Rotation) noexcept
 {
-    this->Transform(vec2{p_X, p_Y}, vec2{p_XS, p_YS});
-}
-void RenderContext<2>::Transform(const f32 p_X, const f32 p_Y, const f32 p_XS, const f32 p_YS,
-                                 const f32 p_Rotation) noexcept
-{
-    this->Transform(vec2{p_X, p_Y}, vec2{p_XS, p_YS}, p_Rotation);
-}
-void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Scale) noexcept
-{
-    this->Transform(vec3{p_X, p_Y, p_Z}, p_Scale);
-}
-void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Scale,
-                                 const quat &p_Quaternion) noexcept
-{
-    this->Transform(vec3{p_X, p_Y, p_Z}, p_Scale, p_Quaternion);
-}
-void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XS, const f32 p_YS,
-                                 const f32 p_ZS) noexcept
-{
-    this->Transform(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS});
-}
-void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XS, const f32 p_YS,
-                                 const f32 p_ZS, const quat &p_Quaternion) noexcept
-{
-    this->Transform(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, p_Quaternion);
-}
-void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Scale,
-                                 const vec3 &p_Angles) noexcept
-{
-    this->Transform(vec3{p_X, p_Y, p_Z}, p_Scale, quat{p_Angles});
-}
-void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XS, const f32 p_YS,
-                                 const f32 p_ZS, const vec3 &p_Angles) noexcept
-{
-    this->Transform(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, quat{p_Angles});
-}
-void RenderContext<3>::Transform(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XS, const f32 p_YS,
-                                 const f32 p_ZS, const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    this->Transform(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, quat{{p_XRot, p_YRot, p_ZRot}});
+    this->Transform(ONYX::Transform3D::ComputeTransform(p_Translation, vec3{p_Scale}, p_Rotation));
 }
 
 template <u32 N>
@@ -174,18 +143,6 @@ void IRenderContext<N>::TransformAxes(const mat<N> &p_Axes) noexcept
     m_RenderState.back().Axes *= p_Axes;
     if constexpr (N == 3)
         m_RenderState.back().InverseAxes = glm::inverse(m_RenderState.back().Axes);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
-{
-    translateIntrinsic<N>(m_RenderState.back().Axes, p_Translation);
-    scaleIntrinsic<N>(m_RenderState.back().Axes, p_Scale);
-    if constexpr (N == 3)
-    {
-        scaleExtrinsic<N>(m_RenderState.back().InverseAxes, 1.f / p_Scale);
-        translateExtrinsic<N>(m_RenderState.back().InverseAxes, -p_Translation);
-    }
 }
 template <u32 N>
     requires(IsDim<N>())
@@ -200,68 +157,17 @@ void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const vec<N> 
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const f32 p_Scale) noexcept
-{
-    translateIntrinsic<N>(m_RenderState.back().Axes, p_Translation);
-    scaleIntrinsic<N>(m_RenderState.back().Axes, vec<N>{p_Scale});
-    if constexpr (N == 3)
-    {
-        scaleExtrinsic<N>(m_RenderState.back().InverseAxes, vec<N>{1.f / p_Scale});
-        translateExtrinsic<N>(m_RenderState.back().InverseAxes, -p_Translation);
-    }
-}
-template <u32 N>
-    requires(IsDim<N>())
 void IRenderContext<N>::TransformAxes(const vec<N> &p_Translation, const f32 p_Scale, const rot<N> &p_Rotation) noexcept
 {
     TransformAxes(p_Translation, vec<N>{p_Scale}, p_Rotation);
 }
-void RenderContext<2>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_Scale) noexcept
+void RenderContext<3>::TransformAxes(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept
 {
-    TransformAxes(vec2{p_X, p_Y}, p_Scale);
+    TransformAxes(ONYX::Transform3D::ComputeReverseTransform(p_Translation, p_Scale, p_Rotation));
 }
-void RenderContext<2>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_XS, const f32 p_YS) noexcept
+void RenderContext<3>::TransformAxes(const vec3 &p_Translation, const f32 p_Scale, const vec3 &p_Rotation) noexcept
 {
-    TransformAxes(vec2{p_X, p_Y}, vec2{p_XS, p_YS});
-}
-void RenderContext<2>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_XS, const f32 p_YS,
-                                     const f32 p_Rotation) noexcept
-{
-    TransformAxes(vec2{p_X, p_Y}, vec2{p_XS, p_YS}, p_Rotation);
-}
-void RenderContext<3>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Scale) noexcept
-{
-    TransformAxes(vec3{p_X, p_Y, p_Z}, p_Scale);
-}
-void RenderContext<3>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Scale,
-                                     const quat &p_Quaternion) noexcept
-{
-    TransformAxes(vec3{p_X, p_Y, p_Z}, p_Scale, p_Quaternion);
-}
-void RenderContext<3>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XS, const f32 p_YS,
-                                     const f32 p_ZS) noexcept
-{
-    TransformAxes(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS});
-}
-void RenderContext<3>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XS, const f32 p_YS,
-                                     const f32 p_ZS, const quat &p_Quaternion) noexcept
-{
-    TransformAxes(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, p_Quaternion);
-}
-void RenderContext<3>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Scale,
-                                     const vec3 &p_Angles) noexcept
-{
-    TransformAxes(vec3{p_X, p_Y, p_Z}, p_Scale, quat{p_Angles});
-}
-void RenderContext<3>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XS, const f32 p_YS,
-                                     const f32 p_ZS, const vec3 &p_Angles) noexcept
-{
-    TransformAxes(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, quat{p_Angles});
-}
-void RenderContext<3>::TransformAxes(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XS, const f32 p_YS,
-                                     const f32 p_ZS, const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    TransformAxes(vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, vec3{p_XRot, p_YRot, p_ZRot});
+    TransformAxes(ONYX::Transform3D::ComputeReverseTransform(p_Translation, vec3{p_Scale}, p_Rotation));
 }
 
 template <u32 N>
@@ -298,6 +204,84 @@ void RenderContext<2>::Scale(const f32 p_X, const f32 p_Y) noexcept
 void RenderContext<3>::Scale(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
     Scale(vec3{p_X, p_Y, p_Z});
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TranslateX(const f32 p_X) noexcept
+{
+    translateExtrinsic<N>(m_RenderState.back().Transform, 0, p_X);
+}
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TranslateY(const f32 p_Y) noexcept
+{
+    translateExtrinsic<N>(m_RenderState.back().Transform, 1, p_Y);
+}
+void RenderContext<3>::TranslateZ(const f32 p_Z) noexcept
+{
+    translateExtrinsic<3>(m_RenderState.back().Transform, 2, p_Z);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::ScaleX(const f32 p_X) noexcept
+{
+    scaleExtrinsic<N>(m_RenderState.back().Transform, 0, p_X);
+}
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::ScaleY(const f32 p_Y) noexcept
+{
+    scaleExtrinsic<N>(m_RenderState.back().Transform, 1, p_Y);
+}
+void RenderContext<3>::ScaleZ(const f32 p_Z) noexcept
+{
+    scaleExtrinsic<3>(m_RenderState.back().Transform, 2, p_Z);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TranslateXAxis(const f32 p_X) noexcept
+{
+    translateIntrinsic<N>(m_RenderState.back().Axes, 0, p_X);
+    if constexpr (N == 3)
+        translateExtrinsic<N>(m_RenderState.back().InverseAxes, 0, -p_X);
+}
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::TranslateYAxis(const f32 p_Y) noexcept
+{
+    translateIntrinsic<N>(m_RenderState.back().Axes, 1, p_Y);
+    if constexpr (N == 3)
+        translateExtrinsic<N>(m_RenderState.back().InverseAxes, 1, -p_Y);
+}
+void RenderContext<3>::TranslateZAxis(const f32 p_Z) noexcept
+{
+    translateIntrinsic<3>(m_RenderState.back().Axes, 2, p_Z);
+    translateExtrinsic<3>(m_RenderState.back().InverseAxes, 2, -p_Z);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::ScaleXAxis(const f32 p_X) noexcept
+{
+    scaleIntrinsic<N>(m_RenderState.back().Axes, 0, p_X);
+    if constexpr (N == 3)
+        scaleExtrinsic<N>(m_RenderState.back().InverseAxes, 0, 1.f / p_X);
+}
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::ScaleYAxis(const f32 p_Y) noexcept
+{
+    scaleIntrinsic<N>(m_RenderState.back().Axes, 1, p_Y);
+    if constexpr (N == 3)
+        scaleExtrinsic<N>(m_RenderState.back().InverseAxes, 1, 1.f / p_Y);
+}
+void RenderContext<3>::ScaleZAxis(const f32 p_Z) noexcept
+{
+    scaleIntrinsic<3>(m_RenderState.back().Axes, 2, p_Z);
+    scaleExtrinsic<3>(m_RenderState.back().InverseAxes, 2, 1.f / p_Z);
 }
 
 template <u32 N>
@@ -410,15 +394,15 @@ void RenderContext<3>::RotateAxes(const vec3 &p_Angles) noexcept
 }
 
 // This could be optimized a bit
-void RenderContext<3>::RotateXAxes(const f32 p_Angle) noexcept
+void RenderContext<3>::RotateXAxis(const f32 p_Angle) noexcept
 {
     RotateAxes(vec3{p_Angle, 0.f, 0.f});
 }
-void RenderContext<3>::RotateYAxes(const f32 p_Angle) noexcept
+void RenderContext<3>::RotateYAxis(const f32 p_Angle) noexcept
 {
     RotateAxes(vec3{0.f, p_Angle, 0.f});
 }
-void RenderContext<3>::RotateZAxes(const f32 p_Angle) noexcept
+void RenderContext<3>::RotateZAxis(const f32 p_Angle) noexcept
 {
     RotateAxes(vec3{0.f, 0.f, p_Angle});
 }
@@ -446,74 +430,7 @@ template <u32 N>
     requires(IsDim<N>())
 void IRenderContext<N>::Triangle(const mat<N> &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), p_Transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Triangle(const f32 p_Size) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    scaleExtrinsic<N>(transform, vec<N>{p_Size});
-    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Triangle(const vec<N> &p_Position) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Triangle(const vec<N> &p_Position, const f32 p_Size) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    scaleExtrinsic<N>(transform, vec<N>{p_Size});
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Triangle(const vec<N> &p_Position, f32 p_Size, const rot<N> &p_Rotation) noexcept
-{
-    const mat<N> transform =
-        ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{p_Size}, p_Rotation) * m_RenderState.back().Transform;
-    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), transform);
-}
-void RenderContext<2>::Triangle(const f32 p_X, const f32 p_Y) noexcept
-{
-    Triangle(vec2{p_X, p_Y});
-}
-void RenderContext<2>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Size) noexcept
-{
-    Triangle(vec2{p_X, p_Y}, p_Size);
-}
-void RenderContext<2>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Size, const f32 p_Rotation) noexcept
-{
-    Triangle(vec2{p_X, p_Y}, p_Size, p_Rotation);
-}
-void RenderContext<3>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
-{
-    Triangle(vec3{p_X, p_Y, p_Z});
-}
-void RenderContext<3>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size) noexcept
-{
-    Triangle(vec3{p_X, p_Y, p_Z}, p_Size);
-}
-void RenderContext<3>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size,
-                                const quat &p_Quaternion) noexcept
-{
-    Triangle(vec3{p_X, p_Y, p_Z}, p_Size, p_Quaternion);
-}
-void RenderContext<3>::Triangle(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size, const f32 p_XRot,
-                                const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    Triangle(vec3{p_X, p_Y, p_Z}, p_Size, quat{{p_XRot, p_YRot, p_ZRot}});
-}
-void RenderContext<3>::Triangle(const vec3 &p_Position, const f32 p_Size, const vec3 &p_Angles) noexcept
-{
-    Triangle(p_Position, p_Size, quat{p_Angles});
+    m_Renderer.DrawPrimitive(Primitives<N>::GetTriangleIndex(), p_Transform * m_RenderState.back().Transform);
 }
 
 template <u32 N>
@@ -524,143 +441,9 @@ void IRenderContext<N>::Square() noexcept
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::Square(const f32 p_Size) noexcept
+void IRenderContext<N>::Square(const mat<N> &p_Transform) noexcept
 {
-    mat<N> transform = m_RenderState.back().Transform;
-    scaleExtrinsic<N>(transform, vec<N>{p_Size});
-    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Square(const vec<N> &p_Position) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Square(const vec<N> &p_Position, const f32 p_Size) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    scaleExtrinsic<N>(transform, vec<N>{p_Size});
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Square(const vec<N> &p_Position, f32 p_Size, const rot<N> &p_Rotation) noexcept
-{
-    const mat<N> transform =
-        ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{p_Size}, p_Rotation) * m_RenderState.back().Transform;
-    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
-}
-void RenderContext<2>::Square(const f32 p_X, const f32 p_Y) noexcept
-{
-    Square(vec2{p_X, p_Y});
-}
-void RenderContext<2>::Square(const f32 p_X, const f32 p_Y, const f32 p_Size) noexcept
-{
-    Square(vec2{p_X, p_Y}, p_Size);
-}
-void RenderContext<2>::Square(const f32 p_X, const f32 p_Y, const f32 p_Size, const f32 p_Rotation) noexcept
-{
-    Square(vec2{p_X, p_Y}, p_Size, p_Rotation);
-}
-void RenderContext<3>::Square(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
-{
-    Square(vec3{p_X, p_Y, p_Z});
-}
-void RenderContext<3>::Square(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size) noexcept
-{
-    Square(vec3{p_X, p_Y, p_Z}, p_Size);
-}
-void RenderContext<3>::Square(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size,
-                              const quat &p_Quaternion) noexcept
-{
-    Square(vec3{p_X, p_Y, p_Z}, p_Size, p_Quaternion);
-}
-void RenderContext<3>::Square(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size, const f32 p_XRot,
-                              const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    Square(vec3{p_X, p_Y, p_Z}, p_Size, quat{{p_XRot, p_YRot, p_ZRot}});
-}
-void RenderContext<3>::Square(const vec3 &p_Position, const f32 p_Size, const vec3 &p_Angles) noexcept
-{
-    Square(p_Position, p_Size, quat{p_Angles});
-}
-
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Rect(const vec2 &p_Dimensions) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    if constexpr (N == 2)
-        scaleExtrinsic<N>(transform, p_Dimensions);
-    else
-        scaleExtrinsic<N>(transform, vec3{p_Dimensions, 1.f});
-    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Rect(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    if constexpr (N == 2)
-        scaleExtrinsic<N>(transform, p_Dimensions);
-    else
-        scaleExtrinsic<N>(transform, vec<N>{p_Dimensions, 1.f});
-
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Rect(const vec<N> &p_Position, const vec2 &p_Dimensions, const rot<N> &p_Rotation) noexcept
-{
-    mat<N> transform;
-    if constexpr (N == 2)
-        transform =
-            Transform2D::ComputeTransform(p_Position, p_Dimensions, p_Rotation) * m_RenderState.back().Transform;
-    else
-        transform = Transform3D::ComputeTransform(p_Position, vec<N>{p_Dimensions, 1.f}, p_Rotation) *
-                    m_RenderState.back().Transform;
-
-    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Rect(const mat<N> &p_Trasform) noexcept
-{
-    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), p_Trasform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Rect(const f32 p_XDim, const f32 p_YDim) noexcept
-{
-    Rect(vec2{p_XDim, p_YDim});
-}
-void RenderContext<2>::Rect(const f32 p_X, const f32 p_Y, const f32 p_XDim, const f32 p_YDim) noexcept
-{
-    Rect(vec2{p_X, p_Y}, vec2{p_XDim, p_YDim});
-}
-void RenderContext<3>::Rect(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim) noexcept
-{
-    Rect(vec3{p_X, p_Y, p_Z}, vec2{p_XDim, p_YDim});
-}
-void RenderContext<3>::Rect(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                            const quat &p_Quaternion) noexcept
-{
-    Rect(vec3{p_X, p_Y, p_Z}, vec2{p_XDim, p_YDim}, p_Quaternion);
-}
-void RenderContext<3>::Rect(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                            const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    Rect(vec3{p_X, p_Y, p_Z}, vec2{p_XDim, p_YDim}, vec3{p_XRot, p_YRot, p_ZRot});
-}
-void RenderContext<3>::Rect(const vec3 &p_Position, const vec2 &p_Dimensions, const vec3 &p_Angles) noexcept
-{
-    Rect(p_Position, p_Dimensions, quat{p_Angles});
+    m_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), p_Transform * m_RenderState.back().Transform);
 }
 
 template <u32 N>
@@ -671,74 +454,9 @@ void IRenderContext<N>::NGon(const u32 p_Sides) noexcept
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::NGon(const u32 p_Sides, const f32 p_Radius) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    scaleExtrinsic<N>(transform, vec<N>{2.f * p_Radius});
-    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
 void IRenderContext<N>::NGon(const u32 p_Sides, const mat<N> &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), p_Transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position, const f32 p_Radius) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    scaleExtrinsic<N>(transform, vec<N>{2.f * p_Radius});
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::NGon(const u32 p_Sides, const vec<N> &p_Position, const f32 p_Radius,
-                             const rot<N> &p_Rotation) noexcept
-{
-    const mat<N> transform = ONYX::Transform<N>::ComputeTransform(p_Position, vec<N>{2.f * p_Radius}, p_Rotation) *
-                             m_RenderState.back().Transform;
-    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), transform);
-}
-void RenderContext<2>::NGon(const u32 p_Sides, const f32 p_X, const f32 p_Y) noexcept
-{
-    NGon(p_Sides, vec2{p_X, p_Y});
-}
-void RenderContext<2>::NGon(const u32 p_Sides, const f32 p_X, const f32 p_Y, const f32 p_Radius) noexcept
-{
-    NGon(p_Sides, vec2{p_X, p_Y}, p_Radius);
-}
-void RenderContext<3>::NGon(const u32 p_Sides, const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
-{
-    NGon(p_Sides, vec3{p_X, p_Y, p_Z});
-}
-void RenderContext<3>::NGon(const u32 p_Sides, const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius) noexcept
-{
-    NGon(p_Sides, vec3{p_X, p_Y, p_Z}, p_Radius);
-}
-void RenderContext<3>::NGon(const u32 p_Sides, const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius,
-                            const quat &p_Quaternion) noexcept
-{
-    NGon(p_Sides, vec3{p_X, p_Y, p_Z}, p_Radius, p_Quaternion);
-}
-void RenderContext<3>::NGon(const u32 p_Sides, const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius,
-                            const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    NGon(p_Sides, vec3{p_X, p_Y, p_Z}, p_Radius, vec3{p_XRot, p_YRot, p_ZRot});
-}
-void RenderContext<3>::NGon(const u32 p_Sides, const vec3 &p_Position, const f32 p_Radius,
-                            const vec3 &p_Angles) noexcept
-{
-    NGon(p_Sides, p_Position, p_Radius, quat{p_Angles});
+    m_Renderer.DrawPrimitive(Primitives<N>::GetNGonIndex(p_Sides), p_Transform * m_RenderState.back().Transform);
 }
 
 template <u32 N>
@@ -761,53 +479,6 @@ void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices, const 
 {
     m_Renderer.DrawPolygon(p_Vertices, p_Transform);
 }
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices, const vec<N> &p_Translation) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    translateExtrinsic<N>(transform, p_Translation);
-    m_Renderer.DrawPolygon(p_Vertices, transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Polygon(const std::span<const vec<N>> p_Vertices, const vec<N> &p_Translation,
-                                const rot<N> &p_Rotation) noexcept
-{
-    // TODO: Remove the need of this vec<N>{1.f} at some point
-    const mat<N> transform =
-        ONYX::Transform<N>::ComputeTransform(p_Translation, vec<N>{1.f}, p_Rotation) * m_RenderState.back().Transform;
-    m_Renderer.DrawPolygon(p_Vertices, transform);
-}
-void RenderContext<2>::Polygon(const std::span<const vec2> p_Vertices, const f32 p_X, const f32 p_Y) noexcept
-{
-    Polygon(p_Vertices, vec2{p_X, p_Y});
-}
-void RenderContext<2>::Polygon(const std::span<const vec2> p_Vertices, const f32 p_X, const f32 p_Y,
-                               const f32 p_Rotation) noexcept
-{
-    Polygon(p_Vertices, vec2{p_X, p_Y}, p_Rotation);
-}
-void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const f32 p_X, const f32 p_Y,
-                               const f32 p_Z) noexcept
-{
-    Polygon(p_Vertices, vec3{p_X, p_Y, p_Z});
-}
-void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const f32 p_X, const f32 p_Y, const f32 p_Z,
-                               const quat &p_Quaternion) noexcept
-{
-    Polygon(p_Vertices, vec3{p_X, p_Y, p_Z}, p_Quaternion);
-}
-void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const f32 p_X, const f32 p_Y, const f32 p_Z,
-                               const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    Polygon(p_Vertices, vec3{p_X, p_Y, p_Z}, quat{{p_XRot, p_YRot, p_ZRot}});
-}
-void RenderContext<3>::Polygon(const std::span<const vec3> p_Vertices, const vec3 &p_Position,
-                               const vec3 &p_Angles) noexcept
-{
-    Polygon(p_Vertices, p_Position, quat{p_Angles});
-}
 
 template <u32 N>
     requires(IsDim<N>())
@@ -817,120 +488,94 @@ void IRenderContext<N>::Circle() noexcept
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::Circle(const f32 p_Radius) noexcept
+void IRenderContext<N>::Circle(const mat<N> &p_Transform) noexcept
 {
-    mat<N> transform = m_RenderState.back().Transform;
-    scaleExtrinsic<N>(transform, vec<N>{p_Radius});
-    m_Renderer.DrawCircle(transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Circle(const vec<N> &p_Position) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawCircle(transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Circle(const vec<N> &p_Position, const f32 p_Radius) noexcept
-{
-    mat<N> transform = m_RenderState.back().Transform;
-    scaleExtrinsic<N>(transform, vec<N>{p_Radius});
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawCircle(transform);
-}
-void RenderContext<2>::Circle(const f32 p_X, const f32 p_Y) noexcept
-{
-    Circle(vec2{p_X, p_Y});
-}
-void RenderContext<2>::Circle(const f32 p_X, const f32 p_Y, const f32 p_Radius) noexcept
-{
-    Circle(vec2{p_X, p_Y}, p_Radius);
-}
-void RenderContext<3>::Circle(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
-{
-    Circle(vec3{p_X, p_Y, p_Z});
-}
-void RenderContext<3>::Circle(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius) noexcept
-{
-    Circle(vec3{p_X, p_Y, p_Z}, p_Radius);
+    m_Renderer.DrawCircle(p_Transform * m_RenderState.back().Transform);
 }
 
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::Ellipse(const vec2 &p_Dimensions) noexcept
+static void drawIntrinsicCircle(Renderer<N> &p_Renderer, mat<N> p_Transform, const vec<N> &p_Position,
+                                const f32 p_Diameter) noexcept
 {
-    mat<N> transform = m_RenderState.back().Transform;
+    translateIntrinsic<N>(p_Transform, p_Position);
     if constexpr (N == 2)
-        scaleExtrinsic<N>(transform, p_Dimensions);
+        scaleIntrinsic<N>(p_Transform, vec<N>{p_Diameter});
     else
-        scaleExtrinsic<N>(transform, vec3{p_Dimensions, 1.f});
-    m_Renderer.DrawCircle(transform);
+        scaleIntrinsic<N>(p_Transform, vec<N>{p_Diameter, p_Diameter, 1.f});
+    p_Renderer.DrawCircle(p_Transform);
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions) noexcept
+static void drawIntrinsicCircle(Renderer<N> &p_Renderer, mat<N> p_Transform, const vec<N> &p_Position) noexcept
 {
-    mat<N> transform = m_RenderState.back().Transform;
-    if constexpr (N == 2)
-        scaleExtrinsic<N>(transform, p_Dimensions);
-    else
-        scaleExtrinsic<N>(transform, vec<N>{p_Dimensions, 1.f});
-    translateExtrinsic<N>(transform, p_Position);
-    m_Renderer.DrawCircle(transform);
+    translateIntrinsic<N>(p_Transform, p_Position);
+    p_Renderer.DrawCircle(p_Transform);
+}
+
+static void drawIntrinsicSphere(Renderer3D &p_Renderer, mat4 p_Transform, const vec3 &p_Position,
+                                const f32 p_Diameter) noexcept
+{
+    translateIntrinsic<3>(p_Transform, p_Position);
+    scaleIntrinsic<3>(p_Transform, vec3{p_Diameter});
+    p_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), p_Transform);
+}
+static void drawIntrinsicSphere(Renderer3D &p_Renderer, mat4 p_Transform, const vec3 &p_Position) noexcept
+{
+    translateIntrinsic<3>(p_Transform, p_Position);
+    p_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), p_Transform);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+static void drawStadium(Renderer<N> &p_Renderer, const mat<N> &p_Transform) noexcept
+{
+    p_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), p_Transform);
+
+    vec<N> pos{0.f};
+    pos.x = -0.5f;
+    drawIntrinsicCircle<N>(p_Renderer, p_Transform, pos);
+    pos.x = 0.5f;
+    drawIntrinsicCircle<N>(p_Renderer, p_Transform, pos);
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::Ellipse(const vec<N> &p_Position, const vec2 &p_Dimensions, const rot<N> &p_Rotation) noexcept
+static void drawStadium(Renderer<N> &p_Renderer, const mat<N> &p_Transform, const f32 p_Length,
+                        const f32 p_Diameter) noexcept
 {
-    mat<N> transform;
-    if constexpr (N == 2)
-        transform =
-            Transform2D::ComputeTransform(p_Position, p_Dimensions, p_Rotation) * m_RenderState.back().Transform;
-    else
-        transform = Transform3D::ComputeTransform(p_Position, vec<N>{p_Dimensions, 1.f}, p_Rotation) *
-                    m_RenderState.back().Transform;
-    m_Renderer.DrawCircle(transform);
+    p_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), p_Transform);
+
+    vec<N> pos{0.f};
+    pos.x = -0.5f * p_Length;
+    drawIntrinsicCircle<N>(p_Renderer, p_Transform, pos, p_Diameter);
+    pos.x = -pos.x;
+    drawIntrinsicCircle<N>(p_Renderer, p_Transform, pos, p_Diameter);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Stadium() noexcept
+{
+    drawStadium(m_Renderer, m_RenderState.back().Transform);
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::Ellipse(const f32 p_XDim, const f32 p_YDim) noexcept
+void IRenderContext<N>::Stadium(const mat<N> &p_Transform) noexcept
 {
-    Ellipse(vec2{p_XDim, p_YDim});
+    drawStadium(m_Renderer, p_Transform * m_RenderState.back().Transform);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Stadium(const f32 p_Length, const f32 p_Radius) noexcept
+{
+    drawStadium(m_Renderer, m_RenderState.back().Transform, p_Length, 2.f * p_Radius);
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::Ellipse(const mat<N> &p_Transform) noexcept
+void IRenderContext<N>::Stadium(const f32 p_Length, const f32 p_Radius, const mat<N> &p_Transform) noexcept
 {
-    m_Renderer.DrawCircle(p_Transform);
-}
-void RenderContext<2>::Ellipse(const f32 p_X, const f32 p_Y, const f32 p_XDim, const f32 p_YDim) noexcept
-{
-    Ellipse(vec2{p_X, p_Y}, vec2{p_XDim, p_YDim});
-}
-void RenderContext<2>::Ellipse(const f32 p_X, const f32 p_Y, const f32 p_XDim, const f32 p_YDim,
-                               const f32 p_Rotation) noexcept
-{
-    Ellipse(vec2{p_X, p_Y}, vec2{p_XDim, p_YDim}, p_Rotation);
-}
-void RenderContext<3>::Ellipse(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim) noexcept
-{
-    Ellipse(vec3{p_X, p_Y, p_Z}, vec2{p_XDim, p_YDim});
-}
-void RenderContext<3>::Ellipse(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                               const quat &p_Quaternion) noexcept
-{
-    Ellipse(vec3{p_X, p_Y, p_Z}, vec2{p_XDim, p_YDim}, p_Quaternion);
-}
-void RenderContext<3>::Ellipse(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                               const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    Ellipse(vec3{p_X, p_Y, p_Z}, vec2{p_XDim, p_YDim}, quat{{p_XRot, p_YRot, p_ZRot}});
-}
-void RenderContext<3>::Ellipse(const vec3 &p_Position, const vec2 &p_Dimensions, const vec3 &p_Angles) noexcept
-{
-    Ellipse(p_Position, p_Dimensions, quat{p_Angles});
+    drawStadium(m_Renderer, p_Transform * m_RenderState.back().Transform, p_Length, 2.f * p_Radius);
 }
 
 template <u32 N>
@@ -980,58 +625,30 @@ void RenderContext<2>::RoundedLine(const vec2 &p_Start, const vec2 &p_End, const
 {
     Line(p_Start, p_End, p_Thickness);
 
-    const vec2 thickness = vec2{p_Thickness};
-    mat3 transform = m_RenderState.back().Transform;
-    translateIntrinsic<2>(transform, p_Start);
-    scaleIntrinsic<2>(transform, thickness);
-    m_Renderer.DrawCircle(transform);
-
-    transform = m_RenderState.back().Transform;
-    translateIntrinsic<2>(transform, p_End);
-    scaleIntrinsic<2>(transform, thickness);
-    m_Renderer.DrawCircle(transform);
+    drawIntrinsicCircle<2>(m_Renderer, m_RenderState.back().Transform, p_Start, p_Thickness);
+    drawIntrinsicCircle<2>(m_Renderer, m_RenderState.back().Transform, p_End, p_Thickness);
 }
 void RenderContext<3>::RoundedLine(const vec3 &p_Start, const vec3 &p_End, const f32 p_Thickness) noexcept
 {
     Line(p_Start, p_End, p_Thickness);
 
-    const vec3 thickness = vec3{p_Thickness};
-    mat4 transform = m_RenderState.back().Transform;
-    translateIntrinsic<3>(transform, p_Start);
-    scaleIntrinsic<3>(transform, thickness);
-    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
-
-    transform = m_RenderState.back().Transform;
-    translateIntrinsic<3>(transform, p_End);
-    scaleIntrinsic<3>(transform, thickness);
-    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    drawIntrinsicSphere(m_Renderer, m_RenderState.back().Transform, p_Start, p_Thickness);
+    drawIntrinsicSphere(m_Renderer, m_RenderState.back().Transform, p_End, p_Thickness);
 }
 
 void RenderContext<2>::RoundedLineStrip(std::span<const vec2> p_Points, const f32 p_Thickness) noexcept
 {
     LineStrip(p_Points, p_Thickness);
 
-    const vec2 thickness = vec2{p_Thickness};
     for (const vec2 &point : p_Points)
-    {
-        mat3 transform = m_RenderState.back().Transform;
-        translateIntrinsic<2>(transform, point);
-        scaleIntrinsic<2>(transform, thickness);
-        m_Renderer.DrawCircle(transform);
-    }
+        drawIntrinsicCircle<2>(m_Renderer, m_RenderState.back().Transform, point, p_Thickness);
 }
 void RenderContext<3>::RoundedLineStrip(std::span<const vec3> p_Points, const f32 p_Thickness) noexcept
 {
     LineStrip(p_Points, p_Thickness);
 
-    const vec3 thickness = vec3{p_Thickness};
     for (const vec3 &point : p_Points)
-    {
-        mat4 transform = m_RenderState.back().Transform;
-        translateIntrinsic<3>(transform, point);
-        scaleIntrinsic<3>(transform, thickness);
-        m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
-    }
+        drawIntrinsicSphere(m_Renderer, m_RenderState.back().Transform, point, p_Thickness);
 }
 
 void RenderContext<2>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
@@ -1049,230 +666,67 @@ void RenderContext<3>::Cube() noexcept
 {
     m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), m_RenderState.back().Transform);
 }
-void RenderContext<3>::Cube(const f32 p_Size) noexcept
+void RenderContext<3>::Cube(const mat4 &p_Transform) noexcept
 {
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, vec3{p_Size});
-    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
-}
-void RenderContext<3>::Cube(const vec3 &p_Position) noexcept
-{
-    mat4 transform = m_RenderState.back().Transform;
-    translateExtrinsic<3>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
-}
-void RenderContext<3>::Cube(const vec3 &p_Position, const f32 p_Size) noexcept
-{
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, vec3{p_Size});
-    translateExtrinsic<3>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
-}
-void RenderContext<3>::Cube(const vec3 &p_Position, const f32 p_Size, const quat &p_Quaternion) noexcept
-{
-    const mat4 transform =
-        Transform3D::ComputeTransform(p_Position, vec3{p_Size}, p_Quaternion) * m_RenderState.back().Transform;
-    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
-}
-void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
-{
-    Cube(vec3{p_X, p_Y, p_Z});
-}
-void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size) noexcept
-{
-    Cube(vec3{p_X, p_Y, p_Z}, p_Size);
-}
-void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size,
-                            const quat &p_Quaternion) noexcept
-{
-    Cube(vec3{p_X, p_Y, p_Z}, p_Size, p_Quaternion);
-}
-void RenderContext<3>::Cube(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Size, const f32 p_XRot,
-                            const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    Cube(vec3{p_X, p_Y, p_Z}, p_Size, vec3{p_XRot, p_YRot, p_ZRot});
-}
-void RenderContext<3>::Cube(const vec3 &p_Position, const f32 p_Size, const vec3 &p_Angles) noexcept
-{
-    Cube(p_Position, p_Size, quat{p_Angles});
-}
-
-void RenderContext<3>::Cuboid(const mat4 &p_Transform) noexcept
-{
-    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), p_Transform);
-}
-void RenderContext<3>::Cuboid(const vec3 &p_Dimensions) noexcept
-{
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, p_Dimensions);
-    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
-}
-void RenderContext<3>::Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept
-{
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, p_Dimensions);
-    translateExtrinsic<3>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
-}
-void RenderContext<3>::Cuboid(const f32 p_XDim, const f32 p_YDim, const f32 p_ZDim) noexcept
-{
-    Cuboid(vec3{p_XDim, p_YDim, p_ZDim});
-}
-void RenderContext<3>::Cuboid(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                              const f32 p_ZDim) noexcept
-{
-    Cuboid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim});
-}
-void RenderContext<3>::Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions, const quat &p_Quaternion) noexcept
-{
-    const mat4 transform =
-        Transform3D::ComputeTransform(p_Position, p_Dimensions, p_Quaternion) * m_RenderState.back().Transform;
-    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), transform);
-}
-void RenderContext<3>::Cuboid(const vec3 &p_Position, const vec3 &p_Dimensions, const vec3 &p_Angles) noexcept
-{
-    Cuboid(p_Position, p_Dimensions, quat{p_Angles});
-}
-void RenderContext<3>::Cuboid(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                              const f32 p_ZDim, const quat &p_Quaternion) noexcept
-{
-    Cuboid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim}, p_Quaternion);
-}
-void RenderContext<3>::Cuboid(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                              const f32 p_ZDim, const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    Cuboid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim}, quat{{p_XRot, p_YRot, p_ZRot}});
+    m_Renderer.DrawPrimitive(Primitives3D::GetCubeIndex(), p_Transform * m_RenderState.back().Transform);
 }
 
 void RenderContext<3>::Cylinder() noexcept
 {
     m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), m_RenderState.back().Transform);
 }
-void RenderContext<3>::Cylinder(const vec2 &p_Dimensions) noexcept
-{
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, vec3{p_Dimensions.y, p_Dimensions.x, p_Dimensions.x});
-    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), transform);
-}
 void RenderContext<3>::Cylinder(const mat4 &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), p_Transform);
-}
-void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions) noexcept
-{
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, vec3{p_Dimensions.y, p_Dimensions.x, p_Dimensions.x});
-    translateExtrinsic<3>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), transform);
-}
-void RenderContext<3>::Cylinder(const f32 p_Radius, const f32 p_Length) noexcept
-{
-    Cylinder(vec2{p_Radius, p_Length});
-}
-void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius,
-                                const f32 p_Length) noexcept
-{
-    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Length});
-}
-void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const quat &p_Quaternion) noexcept
-{
-    const mat4 transform =
-        Transform3D::ComputeTransform(p_Position, vec3{p_Dimensions.y, p_Dimensions.x, p_Dimensions.x}, p_Quaternion) *
-        m_RenderState.back().Transform;
-    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), transform);
-}
-void RenderContext<3>::Cylinder(const vec3 &p_Position, const vec2 &p_Dimensions, const vec3 &p_Angles) noexcept
-{
-    Cylinder(p_Position, p_Dimensions, quat{p_Angles});
-}
-void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius, const f32 p_Length,
-                                const quat &p_Quaternion) noexcept
-{
-    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Length}, p_Quaternion);
-}
-void RenderContext<3>::Cylinder(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius, const f32 p_Length,
-                                const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    Cylinder(vec3{p_X, p_Y, p_Z}, vec2{p_Radius, p_Length}, quat{{p_XRot, p_YRot, p_ZRot}});
+    m_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), p_Transform * m_RenderState.back().Transform);
 }
 
 void RenderContext<3>::Sphere() noexcept
 {
     m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), m_RenderState.back().Transform);
 }
-void RenderContext<3>::Sphere(const f32 p_Radius) noexcept
+void RenderContext<3>::Sphere(const mat4 &p_Transform) noexcept
 {
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, vec3{p_Radius});
-    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
-}
-void RenderContext<3>::Sphere(const vec3 &p_Position) noexcept
-{
-    mat4 transform = m_RenderState.back().Transform;
-    translateExtrinsic<3>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
-}
-void RenderContext<3>::Sphere(const vec3 &p_Position, const f32 p_Radius) noexcept
-{
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, vec3{p_Radius});
-    translateExtrinsic<3>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
-}
-void RenderContext<3>::Sphere(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
-{
-    Sphere(vec3{p_X, p_Y, p_Z});
-}
-void RenderContext<3>::Sphere(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius) noexcept
-{
-    Sphere(vec3{p_X, p_Y, p_Z}, p_Radius);
+    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), p_Transform * m_RenderState.back().Transform);
 }
 
-void RenderContext<3>::Ellipsoid(const mat4 &p_Transform) noexcept
+static void drawCapsule(Renderer3D &p_Renderer, const mat4 &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), p_Transform);
+    p_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), p_Transform);
+
+    vec3 pos{0.f};
+    pos.x = -0.5f;
+    drawIntrinsicSphere(p_Renderer, p_Transform, pos);
+    pos.x = 0.5f;
+    drawIntrinsicSphere(p_Renderer, p_Transform, pos);
 }
-void RenderContext<3>::Ellipsoid(const vec3 &p_Dimensions) noexcept
+static void drawCapsule(Renderer3D &p_Renderer, const mat4 &p_Transform, const f32 p_Length,
+                        const f32 p_Diameter) noexcept
 {
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, p_Dimensions);
-    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    p_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), p_Transform);
+
+    vec3 pos{0.f};
+    pos.x = -0.5f * p_Length;
+    drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Diameter);
+    pos.x = -pos.x;
+    drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Diameter);
 }
-void RenderContext<3>::Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimensions) noexcept
+
+void RenderContext<3>::Capsule() noexcept
 {
-    mat4 transform = m_RenderState.back().Transform;
-    scaleExtrinsic<3>(transform, p_Dimensions);
-    translateExtrinsic<3>(transform, p_Position);
-    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
+    drawCapsule(m_Renderer, m_RenderState.back().Transform);
 }
-void RenderContext<3>::Ellipsoid(const f32 p_XDim, const f32 p_YDim, const f32 p_ZDim) noexcept
+void RenderContext<3>::Capsule(const mat4 &p_Transform) noexcept
 {
-    Ellipsoid(vec3{p_XDim, p_YDim, p_ZDim});
+    drawCapsule(m_Renderer, p_Transform * m_RenderState.back().Transform);
 }
-void RenderContext<3>::Ellipsoid(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                                 const f32 p_ZDim) noexcept
+
+void RenderContext<3>::Capsule(const f32 p_Length, const f32 p_Radius) noexcept
 {
-    Ellipsoid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim});
+    drawCapsule(m_Renderer, m_RenderState.back().Transform, p_Length, 2.f * p_Radius);
 }
-void RenderContext<3>::Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimensions, const quat &p_Quaternion) noexcept
+void RenderContext<3>::Capsule(const f32 p_Length, const f32 p_Radius, const mat4 &p_Transform) noexcept
 {
-    const mat4 transform =
-        Transform3D::ComputeTransform(p_Position, p_Dimensions, p_Quaternion) * m_RenderState.back().Transform;
-    m_Renderer.DrawPrimitive(Primitives3D::GetSphereIndex(), transform);
-}
-void RenderContext<3>::Ellipsoid(const vec3 &p_Position, const vec3 &p_Dimensions, const vec3 &p_Angles) noexcept
-{
-    Ellipsoid(p_Position, p_Dimensions, quat{p_Angles});
-}
-void RenderContext<3>::Ellipsoid(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                                 const f32 p_ZDim, const quat &p_Quaternion) noexcept
-{
-    Ellipsoid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim}, p_Quaternion);
-}
-void RenderContext<3>::Ellipsoid(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_XDim, const f32 p_YDim,
-                                 const f32 p_ZDim, const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
-{
-    Ellipsoid(vec3{p_X, p_Y, p_Z}, vec3{p_XDim, p_YDim, p_ZDim}, quat{{p_XRot, p_YRot, p_ZRot}});
+    drawCapsule(m_Renderer, p_Transform * m_RenderState.back().Transform, p_Length, 2.f * p_Radius);
 }
 
 void RenderContext<3>::LightColor(const Color &p_Color) noexcept
@@ -1358,85 +812,7 @@ template <u32 N>
     requires(IsDim<N>())
 void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept
 {
-    m_Renderer.DrawMesh(p_Model, p_Transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation) noexcept
-{
-    const mat<N> transform =
-        ONYX::Transform<N>::ComputeTranslationMatrix(p_Translation) * m_RenderState.back().Transform;
-    m_Renderer.DrawMesh(p_Model, transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation,
-                             const vec<N> &p_Scale) noexcept
-{
-    const mat<N> transform =
-        ONYX::Transform<N>::ComputeTranslationScaleMatrix(p_Translation, p_Scale) * m_RenderState.back().Transform;
-    m_Renderer.DrawMesh(p_Model, transform);
-}
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderContext<N>::Mesh(const KIT::Ref<const Model<N>> &p_Model, const vec<N> &p_Translation,
-                             const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept
-{
-    const mat<N> transform =
-        ONYX::Transform<N>::ComputeTransform(p_Translation, p_Scale, p_Rotation) * m_RenderState.back().Transform;
-    m_Renderer.DrawMesh(p_Model, transform);
-}
-
-void RenderContext<2>::Mesh(const KIT::Ref<const Model<2>> &p_Model, const f32 p_X, const f32 p_Y) noexcept
-{
-    Mesh(p_Model, vec2{p_X, p_Y});
-}
-void RenderContext<2>::Mesh(const KIT::Ref<const Model<2>> &p_Model, const f32 p_X, const f32 p_Y,
-                            const f32 p_Scale) noexcept
-{
-    Mesh(p_Model, vec2{p_X, p_Y}, vec2{p_Scale});
-}
-void RenderContext<2>::Mesh(const KIT::Ref<const Model<2>> &p_Model, const f32 p_X, const f32 p_Y, const f32 p_XS,
-                            const f32 p_YS) noexcept
-{
-    Mesh(p_Model, vec2{p_X, p_Y}, vec2{p_XS, p_YS});
-}
-void RenderContext<2>::Mesh(const KIT::Ref<const Model<2>> &p_Model, const f32 p_X, const f32 p_Y, const f32 p_XS,
-                            const f32 p_YS, const f32 p_Angle) noexcept
-{
-    Mesh(p_Model, vec2{p_X, p_Y}, vec2{p_XS, p_YS}, p_Angle);
-}
-
-void RenderContext<3>::Mesh(const KIT::Ref<const Model<3>> &p_Model, const f32 p_X, const f32 p_Y,
-                            const f32 p_Z) noexcept
-{
-    Mesh(p_Model, vec3{p_X, p_Y, p_Z});
-}
-void RenderContext<3>::Mesh(const KIT::Ref<const Model<3>> &p_Model, const f32 p_X, const f32 p_Y, const f32 p_Z,
-                            const f32 p_Scale) noexcept
-{
-    Mesh(p_Model, vec3{p_X, p_Y, p_Z}, vec3{p_Scale});
-}
-void RenderContext<3>::Mesh(const KIT::Ref<const Model<3>> &p_Model, const f32 p_X, const f32 p_Y, const f32 p_Z,
-                            const f32 p_XS, const f32 p_YS, const f32 p_ZS) noexcept
-{
-    Mesh(p_Model, vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS});
-}
-void RenderContext<3>::Mesh(const KIT::Ref<const Model<3>> &p_Model, const f32 p_X, const f32 p_Y, const f32 p_Z,
-                            const f32 p_XS, const f32 p_YS, const f32 p_ZS, const quat &p_Quatetnion) noexcept
-{
-    Mesh(p_Model, vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, p_Quatetnion);
-}
-void RenderContext<3>::Mesh(const KIT::Ref<const Model<3>> &p_Model, const f32 p_X, const f32 p_Y, const f32 p_Z,
-                            const f32 p_XS, const f32 p_YS, const f32 p_ZS, const vec3 &p_Angles) noexcept
-{
-    Mesh(p_Model, vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, quat{p_Angles});
-}
-void RenderContext<3>::Mesh(const KIT::Ref<const Model<3>> &p_Model, const f32 p_X, const f32 p_Y, const f32 p_Z,
-                            const f32 p_XS, const f32 p_YS, const f32 p_ZS, const f32 p_XRot, const f32 p_YRot,
-                            const f32 p_ZRot) noexcept
-{
-    Mesh(p_Model, vec3{p_X, p_Y, p_Z}, vec3{p_XS, p_YS, p_ZS}, quat{{p_XRot, p_YRot, p_ZRot}});
+    m_Renderer.DrawMesh(p_Model, p_Transform * m_RenderState.back().Transform);
 }
 
 template <u32 N>

@@ -34,7 +34,7 @@ class Triangle final : public Shape<N>
 
 template <u32 N>
     requires(IsDim<N>())
-class Rect final : public Shape<N>
+class Square final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
@@ -43,7 +43,7 @@ class Rect final : public Shape<N>
 
 template <u32 N>
     requires(IsDim<N>())
-class Ellipse final : public Shape<N>
+class Circle final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
@@ -72,13 +72,13 @@ class Polygon final : public Shape<N>
     DynamicArray<vec<N>> Vertices;
 };
 
-class Cuboid final : public Shape3D
+class Cube final : public Shape3D
 {
     const char *GetName() const noexcept override;
     void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
 };
 
-class Ellipsoid final : public Shape3D
+class Sphere final : public Shape3D
 {
     const char *GetName() const noexcept override;
     void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;

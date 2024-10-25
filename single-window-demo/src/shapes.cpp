@@ -26,32 +26,32 @@ void Triangle<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) n
 
 template <u32 N>
     requires(IsDim<N>())
-const char *Rect<N>::GetName() const noexcept
+const char *Square<N>::GetName() const noexcept
 {
-    return "Rect";
+    return "Square";
 }
 
 template <u32 N>
     requires(IsDim<N>())
-void Rect<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+void Square<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
     p_Context->Material(this->Material);
-    p_Context->Rect(p_Transform);
+    p_Context->Square(p_Transform);
 }
 
 template <u32 N>
     requires(IsDim<N>())
-const char *Ellipse<N>::GetName() const noexcept
+const char *Circle<N>::GetName() const noexcept
 {
-    return "Ellipse";
+    return "Circle";
 }
 
 template <u32 N>
     requires(IsDim<N>())
-void Ellipse<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+void Circle<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
     p_Context->Material(this->Material);
-    p_Context->Ellipse(p_Transform);
+    p_Context->Circle(p_Transform);
 }
 
 template <u32 N>
@@ -84,26 +84,26 @@ void Polygon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) no
     p_Context->Polygon(Vertices, p_Transform);
 }
 
-const char *Cuboid::GetName() const noexcept
+const char *Cube::GetName() const noexcept
 {
-    return "Cuboid";
+    return "Cube";
 }
 
-void Cuboid::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
+void Cube::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
 {
     p_Context->Material(Material);
-    p_Context->Cuboid(p_Transform);
+    p_Context->Cube(p_Transform);
 }
 
-const char *Ellipsoid::GetName() const noexcept
+const char *Sphere::GetName() const noexcept
 {
-    return "Ellipsoid";
+    return "Sphere";
 }
 
-void Ellipsoid::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
+void Sphere::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
 {
     p_Context->Material(Material);
-    p_Context->Ellipsoid(p_Transform);
+    p_Context->Sphere(p_Transform);
 }
 
 const char *Cylinder::GetName() const noexcept
@@ -123,11 +123,11 @@ template class Shape<3>;
 template class Triangle<2>;
 template class Triangle<3>;
 
-template class Rect<2>;
-template class Rect<3>;
+template class Square<2>;
+template class Square<3>;
 
-template class Ellipse<2>;
-template class Ellipse<3>;
+template class Circle<2>;
+template class Circle<3>;
 
 template class NGon<2>;
 template class NGon<3>;

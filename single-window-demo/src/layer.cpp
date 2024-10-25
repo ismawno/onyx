@@ -5,7 +5,6 @@
 
 namespace ONYX
 {
-
 SWExampleLayer::SWExampleLayer(Application *p_Application) noexcept : Layer("Example"), m_Application(p_Application)
 {
 }
@@ -81,8 +80,12 @@ void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
         {
             if (m_DrawLights)
             {
+                p_Data.Context->Push();
                 p_Data.Context->Fill(light.Color);
-                p_Data.Context->Sphere(light.PositionAndIntensity, 0.01f);
+                p_Data.Context->Scale(0.01f);
+                p_Data.Context->Translate(light.PositionAndIntensity);
+                p_Data.Context->Sphere();
+                p_Data.Context->Pop();
             }
             p_Data.Context->LightColor(light.Color);
             p_Data.Context->PointLight(light);
@@ -216,10 +219,10 @@ template <u32 N>
 static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
 {
     if constexpr (N == 2)
-        ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Rectangle\0Ellipse\0NGon\0Polygon\0\0");
+        ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Rectangle\0Circle\0NGon\0Polygon\0\0");
     else
         ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                     "Triangle\0Rectangle\0Ellipse\0NGon\0Polygon\0Cuboid\0Sphere\0Cylinder\0\0");
+                     "Triangle\0Rectangle\0Circle\0NGon\0Polygon\0Cube\0Sphere\0Cylinder\0\0");
 
     if (p_Data.ShapeToSpawn == 3)
         ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
@@ -247,7 +250,13 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
                 break;
             }
             ImGui::PopID();
-            p_Data.Context->Circle(p_Data.PolygonVertices[i], 0.02f);
+
+            p_Data.Context->Push();
+            p_Data.Context->Scale(0.02f);
+            p_Data.Context->Translate(p_Data.PolygonVertices[i]);
+            p_Data.Context->Circle();
+            p_Data.Context->Pop();
+
             ImGui::SameLine();
             if constexpr (N == 2)
                 ImGui::Text("Vertex %zu: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
@@ -262,9 +271,9 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
         if (p_Data.ShapeToSpawn == 0)
             p_Data.Shapes.push_back(KIT::Scope<Triangle<N>>::Create());
         else if (p_Data.ShapeToSpawn == 1)
-            p_Data.Shapes.push_back(KIT::Scope<Rect<N>>::Create());
+            p_Data.Shapes.push_back(KIT::Scope<Square<N>>::Create());
         else if (p_Data.ShapeToSpawn == 2)
-            p_Data.Shapes.push_back(KIT::Scope<Ellipse<N>>::Create());
+            p_Data.Shapes.push_back(KIT::Scope<Circle<N>>::Create());
         else if (p_Data.ShapeToSpawn == 3)
         {
             auto ngon = KIT::Scope<NGon<N>>::Create();
@@ -281,9 +290,9 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
         else if constexpr (N == 3)
         {
             if (p_Data.ShapeToSpawn == 5)
-                p_Data.Shapes.push_back(KIT::Scope<Cuboid>::Create());
+                p_Data.Shapes.push_back(KIT::Scope<Cube>::Create());
             else if (p_Data.ShapeToSpawn == 6)
-                p_Data.Shapes.push_back(KIT::Scope<Ellipsoid>::Create());
+                p_Data.Shapes.push_back(KIT::Scope<Sphere>::Create());
             else if (p_Data.ShapeToSpawn == 7)
                 p_Data.Shapes.push_back(KIT::Scope<Cylinder>::Create());
         }

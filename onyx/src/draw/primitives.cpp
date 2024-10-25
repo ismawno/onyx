@@ -65,8 +65,8 @@ static IndexVertexData<N> createRegularPolygonBuffers(const usize p_Sides) noexc
     const f32 angle = 2.f * glm::pi<f32>() / p_Sides;
     for (Index i = 0; i < 3; ++i)
     {
-        const f32 x = glm::cos(angle * i);
-        const f32 y = glm::sin(angle * i);
+        const f32 x = 0.5f * glm::cos(angle * i);
+        const f32 y = 0.5f * glm::sin(angle * i);
 
         data.Indices.push_back(i);
         if constexpr (N == 2)
@@ -77,8 +77,8 @@ static IndexVertexData<N> createRegularPolygonBuffers(const usize p_Sides) noexc
 
     for (Index i = 3; i < p_Sides; ++i)
     {
-        const f32 x = glm::cos(angle * i);
-        const f32 y = glm::sin(angle * i);
+        const f32 x = 0.5f * glm::cos(angle * i);
+        const f32 y = 0.5f * glm::sin(angle * i);
         data.Indices.push_back(0);
         data.Indices.push_back(i - 1);
         data.Indices.push_back(i);
