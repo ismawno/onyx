@@ -15,14 +15,11 @@ struct LayerData
     DynamicArray<KIT::Scope<Shape<N>>> Shapes;
     mat<N> AxesTransform{1.f};
     MaterialData<N> AxesMaterial{};
-    usize Selected = 0;
 
     DynamicArray<vec<N>> PolygonVertices;
     i32 ShapeToSpawn = 0;
-    i32 NGonSides = 3;
     f32 AxesThickness = 0.01f;
     bool DrawAxes = false;
-    bool ControlAxes = false;
     bool ControlAsCamera = true;
 };
 

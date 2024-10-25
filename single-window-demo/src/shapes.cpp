@@ -1,4 +1,5 @@
 #include "swdemo/shapes.hpp"
+#include <imgui.h>
 
 namespace ONYX
 {
@@ -84,6 +85,31 @@ void Polygon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) no
     p_Context->Polygon(Vertices, p_Transform);
 }
 
+template <u32 N>
+    requires(IsDim<N>())
+const char *Stadium<N>::GetName() const noexcept
+{
+    return "Stadium";
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void Stadium<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+{
+    p_Context->Material(this->Material);
+    p_Context->Stadium(Length, Radius, p_Transform);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void Stadium<N>::Edit() noexcept
+{
+    ImGui::PushID(this);
+    ImGui::SliderFloat("Length", &Length, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    ImGui::SliderFloat("Radius", &Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    ImGui::PopID();
+}
+
 const char *Cube::GetName() const noexcept
 {
     return "Cube";
@@ -117,6 +143,25 @@ void Cylinder::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcep
     p_Context->Cylinder(p_Transform);
 }
 
+const char *Capsule::GetName() const noexcept
+{
+    return "Capsule";
+}
+
+void Capsule::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
+{
+    p_Context->Material(Material);
+    p_Context->Capsule(Length, Radius, p_Transform);
+}
+
+void Capsule::Edit() noexcept
+{
+    ImGui::PushID(this);
+    ImGui::SliderFloat("Length", &Length, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    ImGui::SliderFloat("Radius", &Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    ImGui::PopID();
+}
+
 template class Shape<2>;
 template class Shape<3>;
 
@@ -134,5 +179,8 @@ template class NGon<3>;
 
 template class Polygon<2>;
 template class Polygon<3>;
+
+template class Stadium<2>;
+template class Stadium<3>;
 
 } // namespace ONYX

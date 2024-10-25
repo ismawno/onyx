@@ -68,6 +68,15 @@ void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
         p_Data.Context->Axes(p_Data.AxesThickness);
     }
 
+    for (const auto &vertex : p_Data.PolygonVertices)
+    {
+        p_Data.Context->Push();
+        p_Data.Context->Scale(0.02f);
+        p_Data.Context->Translate(vertex);
+        p_Data.Context->Circle();
+        p_Data.Context->Pop();
+    }
+
     if constexpr (N == 3)
     {
         p_Data.Context->AmbientColor(m_Ambient);
@@ -218,16 +227,21 @@ template <u32 N>
     requires(IsDim<N>())
 static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
 {
+    static i32 ngonSides = 3;
+    static f32 stadiumLength = 1.f;
+    static f32 stadiumRadius = 0.5f;
+    static f32 capsuleLength = 1.f;
+    static f32 capsuleRadius = 0.5f;
+
     if constexpr (N == 2)
-        ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Rectangle\0Circle\0NGon\0Polygon\0\0");
+        ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Rectangle\0Circle\0NGon\0Polygon\0Stadium\0\0");
     else
         ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                     "Triangle\0Rectangle\0Circle\0NGon\0Polygon\0Cube\0Sphere\0Cylinder\0\0");
+                     "Triangle\0Rectangle\0Circle\0NGon\0Polygon\0Stadium\0Cube\0Sphere\0Cylinder\0Capsule\0\0");
 
     if (p_Data.ShapeToSpawn == 3)
-        ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
-
-    if (p_Data.ShapeToSpawn == 4)
+        ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
+    else if (p_Data.ShapeToSpawn == 4)
     {
         static vec<N> toAdd{0.f};
         if constexpr (N == 2)
@@ -249,13 +263,6 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
                 ImGui::PopID();
                 break;
             }
-            ImGui::PopID();
-
-            p_Data.Context->Push();
-            p_Data.Context->Scale(0.02f);
-            p_Data.Context->Translate(p_Data.PolygonVertices[i]);
-            p_Data.Context->Circle();
-            p_Data.Context->Pop();
 
             ImGui::SameLine();
             if constexpr (N == 2)
@@ -263,7 +270,18 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
             else
                 ImGui::Text("Vertex %zu: (%.2f, %.2f, %.2f)", i, p_Data.PolygonVertices[i].x,
                             p_Data.PolygonVertices[i].y, p_Data.PolygonVertices[i].z);
+            ImGui::PopID();
         }
+    }
+    else if (p_Data.ShapeToSpawn == 5)
+    {
+        ImGui::SliderFloat("Length", &stadiumLength, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+        ImGui::SliderFloat("Radius", &stadiumRadius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    }
+    else if (p_Data.ShapeToSpawn == 9)
+    {
+        ImGui::SliderFloat("Length", &capsuleLength, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+        ImGui::SliderFloat("Radius", &capsuleRadius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
     }
 
     if (ImGui::Button("Spawn##Shape"))
@@ -277,7 +295,7 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
         else if (p_Data.ShapeToSpawn == 3)
         {
             auto ngon = KIT::Scope<NGon<N>>::Create();
-            ngon->Sides = static_cast<u32>(p_Data.NGonSides);
+            ngon->Sides = static_cast<u32>(ngonSides);
             p_Data.Shapes.push_back(std::move(ngon));
         }
         else if (p_Data.ShapeToSpawn == 4)
@@ -287,14 +305,28 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
             p_Data.Shapes.push_back(std::move(polygon));
             p_Data.PolygonVertices.clear();
         }
+        else if (p_Data.ShapeToSpawn == 5)
+        {
+            auto stadium = KIT::Scope<Stadium<N>>::Create();
+            stadium->Length = stadiumLength;
+            stadium->Radius = stadiumRadius;
+            p_Data.Shapes.push_back(std::move(stadium));
+        }
         else if constexpr (N == 3)
         {
-            if (p_Data.ShapeToSpawn == 5)
+            if (p_Data.ShapeToSpawn == 6)
                 p_Data.Shapes.push_back(KIT::Scope<Cube>::Create());
-            else if (p_Data.ShapeToSpawn == 6)
-                p_Data.Shapes.push_back(KIT::Scope<Sphere>::Create());
             else if (p_Data.ShapeToSpawn == 7)
+                p_Data.Shapes.push_back(KIT::Scope<Sphere>::Create());
+            else if (p_Data.ShapeToSpawn == 8)
                 p_Data.Shapes.push_back(KIT::Scope<Cylinder>::Create());
+            else if (p_Data.ShapeToSpawn == 9)
+            {
+                auto capsule = KIT::Scope<Capsule>::Create();
+                capsule->Length = capsuleLength;
+                capsule->Radius = capsuleRadius;
+                p_Data.Shapes.push_back(std::move(capsule));
+            }
         }
     }
 
@@ -302,6 +334,7 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
         p_Data.Shapes.clear();
 
     const usize size = static_cast<usize>(p_Data.Shapes.size());
+    static usize selected = 0;
     for (usize i = 0; i < size; ++i)
     {
         ImGui::PushID(&p_Data.Shapes[i]);
@@ -312,16 +345,17 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
             return;
         }
         ImGui::SameLine();
-        if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), p_Data.Selected == i))
-            p_Data.Selected = i;
+        if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), selected == i))
+            selected = i;
         ImGui::PopID();
     }
-    if (p_Data.Selected < size)
+    if (selected < size)
     {
         ImGui::Text("Transform");
-        editTransform(p_Data.Shapes[p_Data.Selected]->Transform);
+        editTransform(p_Data.Shapes[selected]->Transform);
         ImGui::Text("Material");
-        editMaterial(p_Data.Shapes[p_Data.Selected]->Material);
+        editMaterial(p_Data.Shapes[selected]->Material);
+        p_Data.Shapes[selected]->Edit();
     }
 }
 
@@ -423,7 +457,6 @@ template <u32 N>
     requires(IsDim<N>())
 void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
 {
-    drawShapes(p_Data);
     if (ImGui::Begin(N == 2 ? "2D" : "3D"))
     {
         if constexpr (N == 2)
@@ -440,8 +473,9 @@ void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
 
         if (ImGui::CollapsingHeader("Axes"))
         {
-            ImGui::Checkbox("Control", &p_Data.ControlAxes);
-            if (p_Data.ControlAxes)
+            static bool control = false;
+            ImGui::Checkbox("Control", &control);
+            if (control)
             {
                 ImGui::Checkbox("Control as camera", &p_Data.ControlAsCamera);
                 controlAxes<N>(p_Data);
@@ -463,6 +497,12 @@ void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
             ImGui::Checkbox("Draw##Axes", &p_Data.DrawAxes);
             if (p_Data.DrawAxes)
                 ImGui::SliderFloat("Axes thickness", &p_Data.AxesThickness, 0.001f, 0.1f);
+
+            if (ImGui::TreeNode("Material"))
+            {
+                editMaterial(p_Data.AxesMaterial);
+                ImGui::TreePop();
+            }
         }
         if (ImGui::CollapsingHeader("Shapes"))
             renderShapeSpawn(p_Data);
@@ -475,6 +515,9 @@ void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
 
 void SWExampleLayer::OnRender() noexcept
 {
+    drawShapes(m_LayerData2);
+    drawShapes(m_LayerData3);
+
     ImGui::ShowDemoWindow();
     ImPlot::ShowDemoWindow();
 

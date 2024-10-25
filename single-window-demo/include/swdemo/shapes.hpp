@@ -16,6 +16,10 @@ class Shape
     virtual void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept = 0;
     void Draw(RenderContext<N> *p_Context) noexcept;
 
+    virtual void Edit() noexcept
+    {
+    }
+
     Transform<N> Transform;
     MaterialData<N> Material;
 };
@@ -72,22 +76,51 @@ class Polygon final : public Shape<N>
     DynamicArray<vec<N>> Vertices;
 };
 
+template <u32 N>
+    requires(IsDim<N>())
+class Stadium final : public Shape<N>
+{
+  public:
+    const char *GetName() const noexcept override;
+    void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
+
+    void Edit() noexcept override;
+
+    f32 Length;
+    f32 Radius;
+};
+
 class Cube final : public Shape3D
 {
+  public:
     const char *GetName() const noexcept override;
     void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
 };
 
 class Sphere final : public Shape3D
 {
+  public:
     const char *GetName() const noexcept override;
     void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
 };
 
 class Cylinder final : public Shape3D
 {
+  public:
     const char *GetName() const noexcept override;
     void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
+};
+
+class Capsule final : public Shape3D
+{
+  public:
+    const char *GetName() const noexcept override;
+    void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
+
+    void Edit() noexcept override;
+
+    f32 Length;
+    f32 Radius;
 };
 
 } // namespace ONYX
