@@ -293,7 +293,7 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
     }
     void AmbientIntensity(f32 p_Intensity) noexcept;
 
-    void DirectionalLight(const ONYX::DirectionalLight &p_Light) noexcept;
+    void DirectionalLight(ONYX::DirectionalLight p_Light) noexcept;
     void DirectionalLight(const vec3 &p_Direction, f32 p_Intensity = 1.f) noexcept;
     void DirectionalLight(f32 p_DX, f32 p_DY, f32 p_DZ, f32 p_Intensity = 1.f) noexcept;
 
