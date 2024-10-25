@@ -543,7 +543,10 @@ template <u32 N>
 static void drawStadium(Renderer<N> &p_Renderer, const mat<N> &p_Transform, const f32 p_Length,
                         const f32 p_Diameter) noexcept
 {
-    p_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), p_Transform);
+    mat<N> transform = p_Transform;
+    scaleIntrinsic<N>(transform, 0, p_Length);
+    scaleIntrinsic<N>(transform, 1, p_Diameter);
+    p_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
 
     vec<N> pos{0.f};
     pos.x = -0.5f * p_Length;
@@ -702,7 +705,9 @@ static void drawCapsule(Renderer3D &p_Renderer, const mat4 &p_Transform) noexcep
 static void drawCapsule(Renderer3D &p_Renderer, const mat4 &p_Transform, const f32 p_Length,
                         const f32 p_Diameter) noexcept
 {
-    p_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), p_Transform);
+    mat4 transform = p_Transform;
+    scaleIntrinsic<3>(transform, {p_Length, p_Diameter, p_Diameter});
+    p_Renderer.DrawPrimitive(Primitives3D::GetCylinderIndex(), transform);
 
     vec3 pos{0.f};
     pos.x = -0.5f * p_Length;
