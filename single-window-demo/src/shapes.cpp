@@ -52,7 +52,17 @@ template <u32 N>
 void Circle<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
 {
     p_Context->Material(this->Material);
-    p_Context->Circle(p_Transform);
+    p_Context->Circle(LowerAngle, UpperAngle, p_Transform);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void Circle<N>::Edit() noexcept
+{
+    ImGui::PushID(this);
+    ImGui::SliderAngle("Lower Angle", &LowerAngle, 0.f, 360.f);
+    ImGui::SliderAngle("Upper Angle", &UpperAngle, 0.f, 360.f);
+    ImGui::PopID();
 }
 
 template <u32 N>

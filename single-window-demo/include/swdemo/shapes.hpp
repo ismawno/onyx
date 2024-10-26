@@ -52,6 +52,11 @@ class Circle final : public Shape<N>
   public:
     const char *GetName() const noexcept override;
     void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
+
+    void Edit() noexcept override;
+
+    f32 LowerAngle = 0.f;
+    f32 UpperAngle = glm::two_pi<f32>();
 };
 
 template <u32 N>

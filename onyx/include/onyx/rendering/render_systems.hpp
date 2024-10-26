@@ -91,15 +91,13 @@ template <> struct ONYX_API InstanceData<3>
 using InstanceData2D = InstanceData<2>;
 using InstanceData3D = InstanceData<3>;
 
-template <u32 N>
-    requires(IsDim<N>())
-struct ONYX_API DeviceInstanceData
+template <typename T> struct ONYX_API DeviceInstanceData
 {
     KIT_NON_COPYABLE(DeviceInstanceData)
     DeviceInstanceData(usize p_Capacity) noexcept;
     ~DeviceInstanceData() noexcept;
 
-    std::array<KIT::Storage<StorageBuffer<InstanceData<N>>>, SwapChain::MFIF> StorageBuffers;
+    std::array<KIT::Storage<StorageBuffer<T>>, SwapChain::MFIF> StorageBuffers;
     std::array<VkDescriptorSet, SwapChain::MFIF> DescriptorSets;
     std::array<usize, SwapChain::MFIF> StorageSizes;
 };
@@ -128,7 +126,7 @@ class ONYX_API MeshRenderer
     using HostInstanceData = HashMap<KIT::Ref<const Model<N>>, DynamicArray<InstanceData<N>>>;
 
     HostInstanceData m_HostInstanceData;
-    DeviceInstanceData<N> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
+    DeviceInstanceData<InstanceData<N>> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
 
 using MeshRenderer2D = MeshRenderer<2>;
@@ -156,7 +154,7 @@ class ONYX_API PrimitiveRenderer
     using HostInstanceData = std::array<DynamicArray<InstanceData<N>>, Primitives<N>::AMOUNT>;
 
     HostInstanceData m_HostInstanceData;
-    DeviceInstanceData<N> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
+    DeviceInstanceData<InstanceData<N>> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
 
 using PrimitiveRenderer2D = PrimitiveRenderer<2>;
@@ -177,9 +175,9 @@ class ONYX_API PolygonRenderer
     void Flush() noexcept;
 
   private:
-    struct PolygonDeviceInstanceData : DeviceInstanceData<N>
+    struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<N>>
     {
-        PolygonDeviceInstanceData(const usize p_Capacity) : DeviceInstanceData<N>(p_Capacity)
+        PolygonDeviceInstanceData(const usize p_Capacity) : DeviceInstanceData<InstanceData<N>>(p_Capacity)
         {
             for (usize i = 0; i < SwapChain::MFIF; ++i)
             {
@@ -226,11 +224,17 @@ template <u32 N>
 class ONYX_API CircleRenderer
 {
     KIT_NON_COPYABLE(CircleRenderer)
+
   public:
+    struct CircleInstanceData : InstanceData<N>
+    {
+        alignas(16) vec4 ArcInfo;
+        u32 AngleOverflow;
+    };
     CircleRenderer(VkRenderPass p_RenderPass) noexcept;
     ~CircleRenderer() noexcept;
 
-    void Draw(u32 p_FrameIndex, const InstanceData<N> &p_InstanceData) noexcept;
+    void Draw(u32 p_FrameIndex, const CircleInstanceData &p_InstanceData) noexcept;
     void Render(const RenderInfo<N> &p_Info) noexcept;
 
     void Flush() noexcept;
@@ -242,8 +246,8 @@ class ONYX_API CircleRenderer
 
     // Batch data maps perfectly to the number of circles to be drawn i.e number of entries in storage buffer.
     // StorageSizes is not needed
-    DynamicArray<InstanceData<N>> m_HostInstanceData;
-    DeviceInstanceData<N> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
+    DynamicArray<CircleInstanceData> m_HostInstanceData;
+    DeviceInstanceData<CircleInstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
 
 using CircleRenderer2D = CircleRenderer<2>;

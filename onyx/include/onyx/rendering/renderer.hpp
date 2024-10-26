@@ -48,7 +48,7 @@ class ONYX_API IRenderer
     void DrawMesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
     void DrawPrimitive(usize p_PrimitiveIndex, const mat<N> &p_Transform) noexcept;
     void DrawPolygon(std::span<const vec<N>> p_Vertices, const mat<N> &p_Transform) noexcept;
-    void DrawCircle(const mat<N> &p_Transform) noexcept;
+    void DrawCircle(const mat<N> &p_Transform, f32 p_LowerAngle = 0.f, f32 p_UpperAngle = glm::two_pi<f32>()) noexcept;
 
   protected:
     u32 m_FrameIndex = 0;

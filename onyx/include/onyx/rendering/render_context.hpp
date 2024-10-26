@@ -102,6 +102,9 @@ class ONYX_API IRenderContext
     void Circle() noexcept;
     void Circle(const mat<N> &p_Transform) noexcept;
 
+    void Circle(f32 p_LowerAngle, f32 p_UpperAngle) noexcept;
+    void Circle(f32 p_LowerAngle, f32 p_UpperAngle, const mat<N> &p_Transform) noexcept;
+
     void Stadium() noexcept;
     void Stadium(const mat<N> &p_Transform) noexcept;
 

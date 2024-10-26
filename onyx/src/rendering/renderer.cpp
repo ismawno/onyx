@@ -89,9 +89,10 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
     return t4;
 }
 
-InstanceData2D createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color) noexcept
+template <typename T = InstanceData2D>
+static T createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color) noexcept
 {
-    InstanceData2D instanceData;
+    T instanceData;
     instanceData.Transform = transform3ToTransform4(p_Transform);
     // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the projection,
     // but it is cool because I use no projection for 2D
@@ -100,9 +101,10 @@ InstanceData2D createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color
     return instanceData;
 }
 
-InstanceData3D createInstanceData3D(const mat4 &p_Transform, const RenderState3D &p_State) noexcept
+template <typename T = InstanceData3D>
+static T createInstanceData3D(const mat4 &p_Transform, const RenderState3D &p_State) noexcept
 {
-    InstanceData3D instanceData;
+    T instanceData;
     instanceData.Transform = p_Transform;
     instanceData.ProjectionView = p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes;
     instanceData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
@@ -165,11 +167,39 @@ void IRenderer<N>::DrawPolygon(const std::span<const vec<N>> p_Vertices, const m
     draw(m_PolygonRenderer, p_Transform, p_Vertices);
 }
 
+// This is a kind of annoying exception
 template <u32 N>
     requires(IsDim<N>())
-void IRenderer<N>::DrawCircle(const mat<N> &p_Transform) noexcept
+void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle) noexcept
 {
-    draw(m_CircleRenderer, p_Transform);
+    using IData = typename CircleRenderer<N>::CircleInstanceData;
+    auto &state = m_State->back();
+    const vec4 arcInfo =
+        vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
+    const u32 angleOverflow = p_UpperAngle - p_LowerAngle > glm::pi<f32>() ? 1 : 0;
+    if constexpr (N == 2)
+    {
+        if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
+        {
+            const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
+            IData strokeData = createInstanceData2D<IData>(strokeTransform, state.StrokeColor);
+            strokeData.ArcInfo = arcInfo;
+            strokeData.AngleOverflow = angleOverflow;
+            m_CircleRenderer.Draw(m_FrameIndex, strokeData);
+        }
+        const Color &color = state.NoFill ? m_Window->BackgroundColor : state.Material.Color;
+        IData data = createInstanceData2D<IData>(state.Axes * p_Transform, color);
+        data.ArcInfo = arcInfo;
+        data.AngleOverflow = angleOverflow;
+        m_CircleRenderer.Draw(m_FrameIndex, data);
+    }
+    else
+    {
+        IData data = createInstanceData3D<IData>(p_Transform, state);
+        data.ArcInfo = arcInfo;
+        data.AngleOverflow = angleOverflow;
+        m_CircleRenderer.Draw(m_FrameIndex, data);
+    }
 }
 
 void Renderer<2>::Flush() noexcept

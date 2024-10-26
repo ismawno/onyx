@@ -34,9 +34,7 @@ template <> struct ShaderPaths<3>
     static constexpr const char *CircleFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/circle3D.frag.spv";
 };
 
-template <u32 N>
-    requires(IsDim<N>())
-DeviceInstanceData<N>::DeviceInstanceData(const usize p_Capacity) noexcept
+template <typename T> DeviceInstanceData<T>::DeviceInstanceData(const usize p_Capacity) noexcept
 {
     for (usize i = 0; i < SwapChain::MFIF; ++i)
     {
@@ -44,9 +42,7 @@ DeviceInstanceData<N>::DeviceInstanceData(const usize p_Capacity) noexcept
         StorageSizes[i] = 0;
     }
 }
-template <u32 N>
-    requires(IsDim<N>())
-DeviceInstanceData<N>::~DeviceInstanceData() noexcept
+template <typename T> DeviceInstanceData<T>::~DeviceInstanceData() noexcept
 {
     for (usize i = 0; i < SwapChain::MFIF; ++i)
         StorageBuffers[i].Destroy();
@@ -552,7 +548,7 @@ CircleRenderer<N>::~CircleRenderer() noexcept
 
 template <u32 N>
     requires(IsDim<N>())
-void CircleRenderer<N>::Draw(const u32 p_FrameIndex, const InstanceData<N> &p_InstanceData) noexcept
+void CircleRenderer<N>::Draw(const u32 p_FrameIndex, const CircleInstanceData &p_InstanceData) noexcept
 {
     const usize size = m_HostInstanceData.size();
     auto &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];

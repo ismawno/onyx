@@ -492,6 +492,18 @@ void IRenderContext<N>::Circle(const mat<N> &p_Transform) noexcept
 {
     m_Renderer.DrawCircle(p_Transform * m_RenderState.back().Transform);
 }
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle) noexcept
+{
+    m_Renderer.DrawCircle(m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle);
+}
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle, const mat<N> &p_Transform) noexcept
+{
+    m_Renderer.DrawCircle(p_Transform * m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle);
+}
 
 template <u32 N>
     requires(IsDim<N>())
