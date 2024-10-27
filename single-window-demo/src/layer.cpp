@@ -20,13 +20,7 @@ template <u32 N>
 static void editMaterial(MaterialData<N> &p_Material) noexcept
 {
     if constexpr (N == 2)
-    {
-        if (ImGui::TreeNode("Color"))
-        {
-            ImGui::ColorPicker4("Color", p_Material.Color.AsPointer());
-            ImGui::TreePop();
-        }
-    }
+        ImGui::ColorEdit4("Color", p_Material.Color.AsPointer());
     else
     {
         if (ImGui::SliderFloat("Diffuse contribution", &p_Material.DiffuseContribution, 0.f, 1.f))
@@ -35,11 +29,8 @@ static void editMaterial(MaterialData<N> &p_Material) noexcept
             p_Material.DiffuseContribution = 1.f - p_Material.SpecularContribution;
         ImGui::SliderFloat("Specular sharpness", &p_Material.SpecularSharpness, 0.f, 512.f, "%.2f",
                            ImGuiSliderFlags_Logarithmic);
-        if (ImGui::TreeNode("Color"))
-        {
-            ImGui::ColorPicker3("Color", p_Material.Color.AsPointer());
-            ImGui::TreePop();
-        }
+
+        ImGui::ColorEdit3("Color", p_Material.Color.AsPointer());
     }
 }
 
@@ -137,11 +128,7 @@ static void editDirectionalLight(DirectionalLight &p_Light) noexcept
     ImGui::PushID(&p_Light);
     ImGui::SliderFloat("Intensity", &p_Light.DirectionAndIntensity.w, 0.f, 1.f);
     ImGui::SliderFloat3("Direction", glm::value_ptr(p_Light.DirectionAndIntensity), 0.f, 1.f);
-    if (ImGui::TreeNode("Color"))
-    {
-        ImGui::ColorPicker3("Color", p_Light.Color.AsPointer());
-        ImGui::TreePop();
-    }
+    ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
     ImGui::PopID();
 }
 
@@ -151,11 +138,7 @@ static void editPointLight(PointLight &p_Light) noexcept
     ImGui::SliderFloat("Intensity", &p_Light.PositionAndIntensity.w, 0.f, 1.f);
     ImGui::DragFloat3("Position", glm::value_ptr(p_Light.PositionAndIntensity), 0.01f);
     ImGui::SliderFloat("Radius", &p_Light.Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    if (ImGui::TreeNode("Color"))
-    {
-        ImGui::ColorPicker3("Color", p_Light.Color.AsPointer());
-        ImGui::TreePop();
-    }
+    ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
     ImGui::PopID();
 }
 
@@ -168,11 +151,7 @@ void SWExampleLayer::renderLightSpawn() noexcept
     static usize selectedPointLight = 0;
 
     ImGui::SliderFloat("Ambient intensity", &m_Ambient.w, 0.f, 1.f);
-    if (ImGui::TreeNode("Ambient color"))
-    {
-        ImGui::ColorPicker3("Color", glm::value_ptr(m_Ambient));
-        ImGui::TreePop();
-    }
+    ImGui::ColorEdit3("Color", glm::value_ptr(m_Ambient));
 
     ImGui::Combo("Light", &lightToSpawn, "Directional\0Point\0\0");
     if (lightToSpawn == 1)
@@ -539,10 +518,7 @@ void SWExampleLayer::OnRender() noexcept
     ImPlot::ShowDemoWindow();
 
     if (ImGui::Begin("Global settings"))
-    {
-        if (ImGui::CollapsingHeader("Background color"))
-            ImGui::ColorPicker3("Background", m_BackgroundColor.AsPointer());
-    }
+        ImGui::ColorEdit3("Background", m_BackgroundColor.AsPointer());
     ImGui::End();
 
     renderUI(m_LayerData2);

@@ -98,6 +98,9 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
 {
     if (!m_ImGuiPool)
         createImGuiPool();
+    if (!m_Theme)
+        SetTheme<DefaultTheme>();
+
     ImGui::CreateContext();
 #ifdef ONYX_ENABLE_IMPLOT
     ImPlot::CreateContext();
@@ -109,7 +112,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
         ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
-    ImGui::StyleColorsDark();
+    m_Theme->Apply();
     ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindowHandle(), true);
 
     const auto &instance = Core::GetInstance();

@@ -29,6 +29,7 @@ set(SOURCES
     src/app/window.cpp
     src/app/input.cpp
     src/app/layer.cpp
+    src/app/theme.cpp
 )
 
 add_library(onyx STATIC ${SOURCES})

@@ -2,6 +2,7 @@
 
 #include "onyx/app/layer.hpp"
 #include "onyx/app/window.hpp"
+#include "onyx/app/theme.hpp"
 #include "kit/profiling/clock.hpp"
 
 namespace ONYX
@@ -22,6 +23,14 @@ class IApplication
 
     virtual const Window *GetMainWindow() const noexcept = 0;
     virtual Window *GetMainWindow() noexcept = 0;
+
+    template <typename T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args) noexcept
+    {
+        auto theme = KIT::Scope<T>::Create(std::forward<ThemeArgs>(p_Args)...);
+        T *result = theme.Get();
+        m_Theme = std::move(theme);
+        return result;
+    }
 
     void Run() noexcept;
     bool IsStarted() const noexcept;
@@ -47,6 +56,7 @@ class IApplication
     bool m_Terminated = false;
 
     VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
+    KIT::Scope<Theme> m_Theme;
 };
 
 class Application final : public IApplication
