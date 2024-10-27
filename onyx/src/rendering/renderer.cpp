@@ -118,7 +118,9 @@ static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWi
 {
     const vec2 scale = Transform2D::ExtractScale(p_Transform);
     const vec2 stroke = (scale + p_StrokeWidth) / scale;
-    return p_Transform * Transform2D::ComputeScaleMatrix(stroke);
+    mat3 transform = p_Transform;
+    Transform2D::ScaleIntrinsic(transform, stroke);
+    return transform;
 }
 
 template <u32 N>
@@ -176,7 +178,7 @@ void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle,
     auto &state = m_State->back();
     const vec4 arcInfo =
         vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
-    const u32 angleOverflow = p_UpperAngle - p_LowerAngle > glm::pi<f32>() ? 1 : 0;
+    const u32 angleOverflow = glm::abs(p_UpperAngle - p_LowerAngle) > glm::pi<f32>() ? 1 : 0;
     if constexpr (N == 2)
     {
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))

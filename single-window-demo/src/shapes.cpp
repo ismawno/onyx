@@ -60,8 +60,8 @@ template <u32 N>
 void Circle<N>::Edit() noexcept
 {
     ImGui::PushID(this);
-    ImGui::SliderAngle("Lower Angle", &LowerAngle, 0.f, 360.f);
-    ImGui::SliderAngle("Upper Angle", &UpperAngle, 0.f, 360.f);
+    ImGui::SliderAngle("Lower Angle", &LowerAngle);
+    ImGui::SliderAngle("Upper Angle", &UpperAngle);
     ImGui::PopID();
 }
 

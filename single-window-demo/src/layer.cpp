@@ -361,22 +361,39 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
 
 template <u32 N>
     requires(IsDim<N>())
-static bool processPolygonEvent(LayerData<N> &p_Data, const Event &p_Event, [[maybe_unused]] const f32 p_ZOffset)
+static void processPolygonEvent(LayerData<N> &p_Data, const Event &p_Event, [[maybe_unused]] const f32 p_ZOffset)
 {
     if (p_Event.Type != Event::MOUSE_PRESSED || p_Data.ShapeToSpawn != 4)
-        return false;
+        return;
     if constexpr (N == 2)
         p_Data.PolygonVertices.push_back(p_Data.Context->GetMouseCoordinates());
     else
         p_Data.PolygonVertices.push_back(p_Data.Context->GetMouseCoordinates(p_ZOffset));
+}
 
-    return true;
+template <u32 N>
+    requires(IsDim<N>())
+static void processScrollEvent(LayerData<N> &p_Data, const Event &p_Event, Window *p_Window) noexcept
+{
+    if (p_Event.Type != Event::SCROLLED || !Input::IsKeyPressed(p_Window, Input::Key::LEFT_SHIFT))
+        return;
+
+    if (p_Data.ControlAsCamera)
+        Transform<N>::ScaleExtrinsic(p_Data.AxesTransform, vec<N>{1.f + 0.005f * p_Event.ScrollOffset.y});
+    else
+        Transform<N>::ScaleIntrinsic(p_Data.AxesTransform, vec<N>{1.f + 0.005f * p_Event.ScrollOffset.y});
 }
 
 bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
 {
-    return processPolygonEvent(m_LayerData2, p_Event, m_ZOffset) ||
-           processPolygonEvent(m_LayerData3, p_Event, m_ZOffset);
+    Window *window = m_Application->GetMainWindow();
+    processPolygonEvent(m_LayerData2, p_Event, m_ZOffset);
+    processPolygonEvent(m_LayerData3, p_Event, m_ZOffset);
+
+    processScrollEvent(m_LayerData2, p_Event, window);
+    processScrollEvent(m_LayerData3, p_Event, window);
+
+    return true;
 }
 
 template <u32 N>

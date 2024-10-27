@@ -5,54 +5,46 @@
 
 namespace ONYX
 {
-template <u32 N>
-    requires(IsDim<N>())
-mat<N - 1> rotationMatrix(const rot<N> &p_Rotation) noexcept
+static mat2 rotationMatrix2(const f32 p_Angle) noexcept
 {
-    if constexpr (N == 2)
-    {
-        const f32 c = glm::cos(p_Rotation);
-        const f32 s = glm::sin(p_Rotation);
-        return mat2{c, s, -s, c};
-    }
-    else
-        return glm::toMat3(p_Rotation);
+    const f32 c = glm::cos(p_Angle);
+    const f32 s = glm::sin(p_Angle);
+    return mat2{c, s, -s, c};
 }
-
-mat4 rotationMatrix4(const quat &p_Quaternion) noexcept
+static mat3 rotationMatrix3(const quat &p_Quaternion) noexcept
 {
-    return glm::toMat4(p_Quaternion);
+    return glm::toMat3(p_Quaternion);
 }
 
 template <u32 N>
     requires(IsDim<N>())
-mat<N> Transform<N>::ComputeTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                      const rot<N> &p_Rotation) noexcept
+mat<N> ITransform<N>::ComputeTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
+                                       const rot<N> &p_Rotation) noexcept
 {
     if constexpr (N == 2)
     {
         const mat2 scale = mat2({p_Scale.x, 0.f}, {0.f, p_Scale.y});
-        const mat2 rotScale = rotationMatrix<N>(p_Rotation) * scale;
+        const mat2 rotScale = rotationMatrix2(p_Rotation) * scale;
 
         return mat3{vec3(rotScale[0], 0.f), vec3(rotScale[1], 0.f), vec3{p_Translation, 1.f}};
     }
     else
     {
         const mat3 scale = mat3({p_Scale.x, 0.f, 0.f}, {0.f, p_Scale.y, 0.f}, {0.f, 0.f, p_Scale.z});
-        const mat3 rotScale = rotationMatrix<N>(p_Rotation) * scale;
+        const mat3 rotScale = rotationMatrix3(p_Rotation) * scale;
 
         return mat4{vec4(rotScale[0], 0.f), vec4(rotScale[1], 0.f), vec4(rotScale[2], 0.f), vec4{p_Translation, 1.f}};
     }
 }
 template <u32 N>
     requires(IsDim<N>())
-mat<N> Transform<N>::ComputeReverseTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                             const rot<N> &p_Rotation) noexcept
+mat<N> ITransform<N>::ComputeAxesTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
+                                           const rot<N> &p_Rotation) noexcept
 {
     if constexpr (N == 2)
     {
         const mat2 scale = mat2({p_Scale.x, 0.f}, {0.f, p_Scale.y});
-        const mat2 rotScale = scale * rotationMatrix<N>(p_Rotation);
+        const mat2 rotScale = scale * rotationMatrix2(p_Rotation);
         const vec2 translation = rotScale * p_Translation;
 
         return mat3{vec3(rotScale[0], 0.f), vec3(rotScale[1], 0.f), vec3{translation, 1.f}};
@@ -60,7 +52,7 @@ mat<N> Transform<N>::ComputeReverseTransform(const vec<N> &p_Translation, const 
     else
     {
         const mat3 scale = mat3({p_Scale.x, 0.f, 0.f}, {0.f, p_Scale.y, 0.f}, {0.f, 0.f, p_Scale.z});
-        const mat3 rotScale = scale * rotationMatrix<N>(p_Rotation);
+        const mat3 rotScale = scale * rotationMatrix3(p_Rotation);
         const vec3 translation = rotScale * p_Translation;
 
         return mat4{vec4(rotScale[0], 0.f), vec4(rotScale[1], 0.f), vec4(rotScale[2], 0.f), vec4{translation, 1.f}};
@@ -68,167 +60,236 @@ mat<N> Transform<N>::ComputeReverseTransform(const vec<N> &p_Translation, const 
 }
 template <u32 N>
     requires(IsDim<N>())
-mat<N> Transform<N>::ComputeInverseTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                             const rot<N> &p_Rotation) noexcept
+mat<N> ITransform<N>::ComputeInverseTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
+                                              const rot<N> &p_Rotation) noexcept
 {
     if constexpr (N == 2)
-        return ComputeReverseTransform(-p_Translation, 1.f / p_Scale, -p_Rotation);
+        return ComputeAxesTransform(-p_Translation, 1.f / p_Scale, -p_Rotation);
     else
-        return ComputeReverseTransform(-p_Translation, 1.f / p_Scale, glm::conjugate(p_Rotation));
+        return ComputeAxesTransform(-p_Translation, 1.f / p_Scale, glm::conjugate(p_Rotation));
+}
+template <u32 N>
+    requires(IsDim<N>())
+mat<N> ITransform<N>::ComputeInverseAxesTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
+                                                  const rot<N> &p_Rotation) noexcept
+{
+    if constexpr (N == 2)
+        return ComputeTransform(-p_Translation, 1.f / p_Scale, -p_Rotation);
+    else
+        return ComputeTransform(-p_Translation, 1.f / p_Scale, glm::conjugate(p_Rotation));
 }
 
 template <u32 N>
     requires(IsDim<N>())
-mat<N> Transform<N>::ComputeTransform() const noexcept
+mat<N> ITransform<N>::ComputeTransform() const noexcept
 {
     return ComputeTransform(Translation, Scale, Rotation);
 }
 template <u32 N>
     requires(IsDim<N>())
-mat<N> Transform<N>::ComputeReverseTransform() const noexcept
+mat<N> ITransform<N>::ComputeAxesTransform() const noexcept
 {
-    return ComputeReverseTransform(Translation, Scale, Rotation);
+    return ComputeAxesTransform(Translation, Scale, Rotation);
 }
 template <u32 N>
     requires(IsDim<N>())
-mat<N> Transform<N>::ComputeInverseTransform() const noexcept
+mat<N> ITransform<N>::ComputeInverseTransform() const noexcept
 {
     return ComputeInverseTransform(Translation, Scale, Rotation);
 }
+template <u32 N>
+    requires(IsDim<N>())
+mat<N> ITransform<N>::ComputeInverseAxesTransform() const noexcept
+{
+    return ComputeInverseAxesTransform(Translation, Scale, Rotation);
+}
 
 template <u32 N>
     requires(IsDim<N>())
-mat<N> Transform<N>::ComputeTranslationScaleMatrix(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
+void ITransform<N>::TranslateIntrinsic(mat<N> &p_Transform, const u32 p_Axis, const f32 p_Translation) noexcept
 {
-    if constexpr (N == 2)
-        return mat3{vec3(p_Scale.x, 0.f, 0.f), vec3(0.f, p_Scale.y, 0.f), vec3{p_Translation, 1.f}};
-    else
-        return mat4{vec4(p_Scale.x, 0.f, 0.f, 0.f), vec4(0.f, p_Scale.y, 0.f, 0.f), vec4(0.f, 0.f, p_Scale.z, 0.f),
-                    vec4{p_Translation, 1.f}};
+    for (u32 i = 0; i < N; ++i)
+        p_Transform[N][i] += p_Transform[p_Axis][i] * p_Translation;
 }
 template <u32 N>
     requires(IsDim<N>())
-mat<N> Transform<N>::ComputeReverseTranslationScaleMatrix(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
+void ITransform<N>::TranslateIntrinsic(mat<N> &p_Transform, const vec<N> &p_Translation) noexcept
 {
-    if constexpr (N == 2)
+    for (u32 i = 0; i < N; ++i)
+        TranslateIntrinsic(p_Transform, i, p_Translation[i]);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void ITransform<N>::TranslateExtrinsic(mat<N> &p_Transform, const u32 p_Axis, const f32 p_Translation) noexcept
+{
+    p_Transform[N][p_Axis] += p_Translation;
+}
+template <u32 N>
+    requires(IsDim<N>())
+void ITransform<N>::TranslateExtrinsic(mat<N> &p_Transform, const vec<N> &p_Translation) noexcept
+{
+    for (u32 i = 0; i < N; ++i)
+        p_Transform[N][i] += p_Translation[i];
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void ITransform<N>::ScaleIntrinsic(mat<N> &p_Transform, const u32 p_Axis, const f32 p_Scale) noexcept
+{
+    for (u32 i = 0; i < N; ++i)
+        p_Transform[p_Axis][i] *= p_Scale;
+}
+template <u32 N>
+    requires(IsDim<N>())
+void ITransform<N>::ScaleIntrinsic(mat<N> &p_Transform, const vec<N> &p_Scale) noexcept
+{
+    for (u32 i = 0; i < N; ++i)
+        for (u32 j = 0; j < N; ++j)
+            p_Transform[i][j] *= p_Scale[i];
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void ITransform<N>::ScaleExtrinsic(mat<N> &p_Transform, const u32 p_Axis, const f32 p_Scale) noexcept
+{
+    for (u32 i = 0; i < N + 1; ++i)
+        p_Transform[i][p_Axis] *= p_Scale;
+}
+template <u32 N>
+    requires(IsDim<N>())
+void ITransform<N>::ScaleExtrinsic(mat<N> &p_Transform, const vec<N> &p_Scale) noexcept
+{
+    for (u32 i = 0; i < N + 1; ++i)
+        for (u32 j = 0; j < N; ++j)
+            p_Transform[i][j] *= p_Scale[j];
+}
+
+using mat3x2 = glm::mat<3, 2, f32>;
+using mat4x2 = glm::mat<4, 2, f32>;
+using mat2x3 = glm::mat<2, 3, f32>;
+using mat4x3 = glm::mat<4, 3, f32>;
+
+void Transform<2>::RotateIntrinsic(mat3 &p_Transform, const f32 p_Angle) noexcept
+{
+    const mat2 rot = rotationMatrix2(p_Angle);
+    const mat2 submat = mat2{p_Transform} * rot;
+    p_Transform[0] = vec3{submat[0], 0.f};
+    p_Transform[1] = vec3{submat[1], 0.f};
+}
+void Transform<2>::RotateExtrinsic(mat3 &p_Transform, const f32 p_Angle) noexcept
+{
+    const mat2 rot = rotationMatrix2(p_Angle);
+    const mat3x2 submat = rot * mat3x2{p_Transform};
+    p_Transform = mat3{vec3{submat[0], 0.f}, vec3{submat[1], 0.f}, vec3{submat[2], 1.f}};
+}
+
+void Transform<3>::RotateXIntrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
+{
+    const mat2 rot = rotationMatrix2(p_Angle);
+    const mat2x3 submat = mat2x3{vec3{p_Transform[1]}, vec3{p_Transform[2]}} * rot;
+    p_Transform[1] = vec4{submat[0], 0.f};
+    p_Transform[2] = vec4{submat[1], 0.f};
+}
+void Transform<3>::RotateYIntrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
+{
+    const mat2 rot = rotationMatrix2(-p_Angle);
+    const mat2x3 submat = mat2x3{vec3{p_Transform[0]}, vec3{p_Transform[2]}} * rot;
+    p_Transform[0] = vec4{submat[0], 0.f};
+    p_Transform[2] = vec4{submat[1], 0.f};
+}
+void Transform<3>::RotateZIntrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
+{
+    const mat2 rot = rotationMatrix2(p_Angle);
+    const mat2x3 submat = mat2x3{vec3{p_Transform[0]}, vec3{p_Transform[1]}} * rot;
+    p_Transform[0] = vec4{submat[0], 0.f};
+    p_Transform[1] = vec4{submat[1], 0.f};
+}
+
+void Transform<3>::RotateXExtrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
+{
+    const mat2 rot = rotationMatrix2(p_Angle);
+    const mat4x2 submat = rot * mat4x2{{p_Transform[0][1], p_Transform[0][2]},
+                                       {p_Transform[1][1], p_Transform[1][2]},
+                                       {p_Transform[2][1], p_Transform[2][2]},
+                                       {p_Transform[3][1], p_Transform[3][2]}};
+    for (u32 i = 0; i < 4; ++i)
     {
-        const vec2 translation = p_Scale * p_Translation;
-        return mat3{vec3(p_Scale.x, 0.f, 0.f), vec3(0.f, p_Scale.y, 0.f), vec3{translation, 1.f}};
+        p_Transform[i][1] = submat[i][0];
+        p_Transform[i][2] = submat[i][1];
     }
-    else
+}
+void Transform<3>::RotateYExtrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
+{
+    const mat2 rot = rotationMatrix2(-p_Angle);
+    const mat4x2 submat = rot * mat4x2{{p_Transform[0][0], p_Transform[0][2]},
+                                       {p_Transform[1][0], p_Transform[1][2]},
+                                       {p_Transform[2][0], p_Transform[2][2]},
+                                       {p_Transform[3][0], p_Transform[3][2]}};
+    for (u32 i = 0; i < 4; ++i)
     {
-        const vec3 translation = p_Scale * p_Translation;
-        return mat4{vec4(p_Scale.x, 0.f, 0.f, 0.f), vec4(0.f, p_Scale.y, 0.f, 0.f), vec4(0.f, 0.f, p_Scale.z, 0.f),
-                    vec4{translation, 1.f}};
+        p_Transform[i][0] = submat[i][0];
+        p_Transform[i][2] = submat[i][1];
     }
 }
-template <u32 N>
-    requires(IsDim<N>())
-mat<N> Transform<N>::ComputeInverseTranslationScaleMatrix(const vec<N> &p_Translation, const vec<N> &p_Scale) noexcept
+void Transform<3>::RotateZExtrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
 {
-    return ComputeReverseTranslationScaleMatrix(-p_Translation, 1.f / p_Scale);
-}
-
-template <u32 N>
-    requires(IsDim<N>())
-mat<N> Transform<N>::ComputeTranslationScaleMatrix() const noexcept
-{
-    return ComputeTranslationScaleMatrix(Translation, Scale);
-}
-template <u32 N>
-    requires(IsDim<N>())
-mat<N> Transform<N>::ComputeReverseTranslationScaleMatrix() const noexcept
-{
-    return ComputeReverseTranslationScaleMatrix(Translation, Scale);
-}
-template <u32 N>
-    requires(IsDim<N>())
-mat<N> Transform<N>::ComputeInverseTranslationScaleMatrix() const noexcept
-{
-    return ComputeInverseTranslationScaleMatrix(Translation, Scale);
-}
-
-template <u32 N>
-    requires(IsDim<N>())
-mat<N> Transform<N>::ComputeTranslationMatrix(const vec<N> &p_Translation) noexcept
-{
-    if constexpr (N == 2)
-        return mat3{vec3(1.f, 0.f, 0.f), vec3(0.f, 1.f, 0.f), vec3{p_Translation, 1.f}};
-    else
-        return mat4{vec4(1.f, 0.f, 0.f, 0.f), vec4(0.f, 1.f, 0.f, 0.f), vec4(0.f, 0.f, 1.f, 0.f),
-                    vec4{p_Translation, 1.f}};
-}
-template <u32 N>
-    requires(IsDim<N>())
-mat<N> Transform<N>::ComputeScaleMatrix(const vec<N> &p_Scale) noexcept
-{
-    if constexpr (N == 2)
-        return mat3{vec3(p_Scale.x, 0.f, 0.f), vec3(0.f, p_Scale.y, 0.f), vec3(0.f, 0.f, 1.f)};
-    else
-        return mat4{vec4(p_Scale.x, 0.f, 0.f, 0.f), vec4(0.f, p_Scale.y, 0.f, 0.f), vec4(0.f, 0.f, p_Scale.z, 0.f),
-                    vec4(0.f, 0.f, 0.f, 1.f)};
-}
-
-template <u32 N>
-    requires(IsDim<N>())
-mat<N> Transform<N>::ComputeRotationMatrix(const rot<N> &p_Rotation) noexcept
-{
-    if constexpr (N == 2)
+    const mat2 rot = rotationMatrix2(p_Angle);
+    const mat4x2 submat = rot * mat4x2{p_Transform};
+    for (u32 i = 0; i < 4; ++i)
     {
-        const mat2 rot = rotationMatrix<N>(p_Rotation);
-        return mat3{vec3(rot[0], 0.f), vec3(rot[1], 0.f), vec3(0.f, 0.f, 1.f)};
+        p_Transform[i][0] = submat[i][0];
+        p_Transform[i][1] = submat[i][1];
     }
-    else
-        return rotationMatrix4(p_Rotation);
+}
+
+void Transform<3>::RotateIntrinsic(mat4 &p_Transform, const quat &p_Quaternion) noexcept
+{
+    const mat3 rot = rotationMatrix3(p_Quaternion);
+    const mat3 submat = mat3{p_Transform} * rot;
+    p_Transform[0] = vec4{submat[0], 0.f};
+    p_Transform[1] = vec4{submat[1], 0.f};
+    p_Transform[2] = vec4{submat[2], 0.f};
+}
+void Transform<3>::RotateExtrinsic(mat4 &p_Transform, const quat &p_Quaternion) noexcept
+{
+    const mat3 rot = rotationMatrix3(p_Quaternion);
+    const mat4x3 submat = rot * mat4x3{p_Transform};
+    p_Transform = mat4{vec4{submat[0], 0.f}, vec4{submat[1], 0.f}, vec4{submat[2], 0.f}, vec4{submat[3], 1.f}};
 }
 
 template <u32 N>
     requires(IsDim<N>())
-mat<N> Transform<N>::ComputeTranslationMatrix() const noexcept
-{
-    return ComputeTranslationMatrix(Translation);
-}
-template <u32 N>
-    requires(IsDim<N>())
-mat<N> Transform<N>::ComputeScaleMatrix() const noexcept
-{
-    return ComputeScaleMatrix(Scale);
-}
-template <u32 N>
-    requires(IsDim<N>())
-mat<N> Transform<N>::ComputeRotationMatrix() const noexcept
-{
-    return ComputeRotationMatrix(Rotation);
-}
-
-template <u32 N>
-    requires(IsDim<N>())
-void Transform<N>::Extract(const mat<N> &p_Transform, vec<N> *p_Translation, vec<N> *p_Scale,
-                           rot<N> *p_Rotation) noexcept
+void ITransform<N>::Extract(const mat<N> &p_Transform, vec<N> *p_Translation, vec<N> *p_Scale,
+                            rot<N> *p_Rotation) noexcept
 {
     *p_Translation = ExtractTranslation(p_Transform);
     *p_Scale = ExtractScale(p_Transform);
     *p_Rotation = ExtractRotation(p_Transform);
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-Transform<N> Transform<N>::Extract(const mat<N> &p_Transform) noexcept
+Transform<2> Transform<2>::Extract(const mat3 &p_Transform) noexcept
 {
-    Transform<N> transform;
+    Transform2D transform;
+    Extract(p_Transform, &transform.Translation, &transform.Scale, &transform.Rotation);
+    return transform;
+}
+Transform<3> Transform<3>::Extract(const mat4 &p_Transform) noexcept
+{
+    Transform3D transform;
     Extract(p_Transform, &transform.Translation, &transform.Scale, &transform.Rotation);
     return transform;
 }
 
 template <u32 N>
     requires(IsDim<N>())
-vec<N> Transform<N>::ExtractTranslation(const mat<N> &p_Transform) noexcept
+vec<N> ITransform<N>::ExtractTranslation(const mat<N> &p_Transform) noexcept
 {
     return vec<N>{p_Transform[N]};
 }
 template <u32 N>
     requires(IsDim<N>())
-vec<N> Transform<N>::ExtractScale(const mat<N> &p_Transform) noexcept
+vec<N> ITransform<N>::ExtractScale(const mat<N> &p_Transform) noexcept
 {
     if constexpr (N == 2)
         return vec2{glm::length(vec2{p_Transform[0]}), glm::length(vec2{p_Transform[1]})};
@@ -238,7 +299,7 @@ vec<N> Transform<N>::ExtractScale(const mat<N> &p_Transform) noexcept
 }
 template <u32 N>
     requires(IsDim<N>())
-rot<N> Transform<N>::ExtractRotation(const mat<N> &p_Transform) noexcept
+rot<N> ITransform<N>::ExtractRotation(const mat<N> &p_Transform) noexcept
 {
     if constexpr (N == 2)
         return glm::atan(p_Transform[0][1], p_Transform[0][0]);
@@ -253,7 +314,7 @@ rot<N> Transform<N>::ExtractRotation(const mat<N> &p_Transform) noexcept
     }
 }
 
-template struct Transform<2>;
-template struct Transform<3>;
+template struct ITransform<2>;
+template struct ITransform<3>;
 
 } // namespace ONYX
