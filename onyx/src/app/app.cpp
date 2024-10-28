@@ -40,6 +40,12 @@ void IApplication::Shutdown() noexcept
     m_Terminated = true;
 }
 
+void IApplication::ApplyTheme() noexcept
+{
+    KIT_ASSERT(m_Theme, "No theme has been set. Set one with SetTheme");
+    m_Theme->Apply();
+}
+
 void IApplication::Run() noexcept
 {
     Startup();
@@ -99,7 +105,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     if (!m_ImGuiPool)
         createImGuiPool();
     if (!m_Theme)
-        SetTheme<DefaultTheme>();
+        m_Theme = KIT::Scope<DefaultTheme>::Create();
 
     ImGui::CreateContext();
 #ifdef ONYX_ENABLE_IMPLOT

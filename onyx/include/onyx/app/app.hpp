@@ -24,13 +24,15 @@ class IApplication
     virtual const Window *GetMainWindow() const noexcept = 0;
     virtual Window *GetMainWindow() noexcept = 0;
 
-    template <typename T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args) noexcept
+    template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args) noexcept
     {
         auto theme = KIT::Scope<T>::Create(std::forward<ThemeArgs>(p_Args)...);
         T *result = theme.Get();
         m_Theme = std::move(theme);
+        m_Theme->Apply();
         return result;
     }
+    void ApplyTheme() noexcept;
 
     void Run() noexcept;
     bool IsStarted() const noexcept;

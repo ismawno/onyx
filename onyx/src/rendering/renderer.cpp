@@ -90,7 +90,7 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
 }
 
 template <typename T = InstanceData2D>
-static T createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color) noexcept
+static T createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color, u32 &p_ZOffset) noexcept
 {
     T instanceData;
     instanceData.Transform = transform3ToTransform4(p_Transform);
@@ -98,6 +98,7 @@ static T createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color) noex
     // but it is cool because I use no projection for 2D
     ApplyCoordinateSystem(instanceData.Transform);
     instanceData.Material.Color = p_Color;
+    instanceData.Transform[3][2] = p_ZOffset++ * glm::epsilon<f32>();
     return instanceData;
 }
 
@@ -134,11 +135,11 @@ void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArg
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
             const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            const InstanceData2D strokeData = createInstanceData2D(strokeTransform, state.StrokeColor);
+            const InstanceData2D strokeData = createInstanceData2D(strokeTransform, state.StrokeColor, m_ZOffset);
             p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., strokeData);
         }
         const Color &color = state.NoFill ? m_Window->BackgroundColor : state.Material.Color;
-        const InstanceData2D data = createInstanceData2D(state.Axes * p_Transform, color);
+        const InstanceData2D data = createInstanceData2D(state.Axes * p_Transform, color, m_ZOffset);
         p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
     else
@@ -184,13 +185,13 @@ void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle,
         if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
         {
             const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            IData strokeData = createInstanceData2D<IData>(strokeTransform, state.StrokeColor);
+            IData strokeData = createInstanceData2D<IData>(strokeTransform, state.StrokeColor, m_ZOffset);
             strokeData.ArcInfo = arcInfo;
             strokeData.AngleOverflow = angleOverflow;
             m_CircleRenderer.Draw(m_FrameIndex, strokeData);
         }
         const Color &color = state.NoFill ? m_Window->BackgroundColor : state.Material.Color;
-        IData data = createInstanceData2D<IData>(state.Axes * p_Transform, color);
+        IData data = createInstanceData2D<IData>(state.Axes * p_Transform, color, m_ZOffset);
         data.ArcInfo = arcInfo;
         data.AngleOverflow = angleOverflow;
         m_CircleRenderer.Draw(m_FrameIndex, data);
@@ -234,6 +235,7 @@ void Renderer<2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
     m_CircleRenderer.Render(renderInfo);
 
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
+    m_ZOffset = 0;
 }
 
 void Renderer<3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept

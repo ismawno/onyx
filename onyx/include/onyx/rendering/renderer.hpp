@@ -43,7 +43,8 @@ class ONYX_API IRenderer
 {
     KIT_NON_COPYABLE(IRenderer)
   public:
-    IRenderer(Window *p_Window, VkRenderPass p_RenderPass, const DynamicArray<RenderState<N>> *p_State) noexcept;
+    IRenderer(Window *p_Window, VkRenderPass p_RenderPass,
+              const DynamicArray<RenderState<N>> *p_State) noexcept; // Passing the state like this is a bit dodgy
 
     void DrawMesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
     void DrawPrimitive(usize p_PrimitiveIndex, const mat<N> &p_Transform) noexcept;
@@ -56,6 +57,8 @@ class ONYX_API IRenderer
     PrimitiveRenderer<N> m_PrimitiveRenderer;
     PolygonRenderer<N> m_PolygonRenderer;
     CircleRenderer<N> m_CircleRenderer;
+    // Only used for 2D, but it's easier to just have it here
+    u32 m_ZOffset = 0;
 
   private:
     template <typename Renderer, typename... DrawArgs>

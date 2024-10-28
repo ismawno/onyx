@@ -545,6 +545,35 @@ void IRenderContext<N>::Stadium(const f32 p_Length, const f32 p_Radius, const ma
     drawStadium(m_Renderer, p_Transform * m_RenderState.back().Transform, p_Length, 2.f * p_Radius);
 }
 
+// template <u32 N>
+//     requires(IsDim<N>())
+// static void drawRoundedSquare(Renderer<N> &p_Renderer, const mat<N> &p_Transform) noexcept
+// {
+//     p_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), p_Transform);
+
+//     vec<N> pos{0.f};
+//     pos.x = -0.5f;
+//     drawIntrinsicCircle<N>(p_Renderer, p_Transform, pos, glm::radians(90.f), glm::radians(270.f));
+//     pos.x = 0.5f;
+//     drawIntrinsicCircle<N>(p_Renderer, p_Transform, pos, glm::radians(-90.f), glm::radians(90.f));
+// }
+// template <u32 N>
+//     requires(IsDim<N>())
+// static void drawRoundedSquare(Renderer<N> &p_Renderer, const mat<N> &p_Transform, const vec2 &p_Dimensions,
+//                               const f32 p_Diameter) noexcept
+// {
+//     mat<N> transform = p_Transform;
+//     ONYX::Transform<N>::ScaleIntrinsic(transform, 0, p_Width);
+//     ONYX::Transform<N>::ScaleIntrinsic(transform, 1, p_Height);
+//     p_Renderer.DrawPrimitive(Primitives<N>::GetSquareIndex(), transform);
+
+//     vec<N> pos{0.f};
+//     pos.x = -0.5f * p_Length;
+//     drawIntrinsicCircle<N>(p_Renderer, p_Transform, pos, p_Diameter, glm::radians(90.f), glm::radians(270.f));
+//     pos.x = -pos.x;
+//     drawIntrinsicCircle<N>(p_Renderer, p_Transform, pos, p_Diameter, glm::radians(-90.f), glm::radians(90.f));
+// }
+
 template <u32 N>
     requires(IsDim<N>())
 void IRenderContext<N>::Line(const vec<N> &p_Start, const vec<N> &p_End, const f32 p_Thickness) noexcept

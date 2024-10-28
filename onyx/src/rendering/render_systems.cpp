@@ -61,8 +61,6 @@ static Pipeline::Specs defaultPipelineSpecs(const char *vpath, const char *fpath
         specs.PipelineLayoutInfo.pushConstantRangeCount = 1;
         specs.ColorBlendAttachment.blendEnable = VK_FALSE;
     }
-    else
-        specs.DepthStencilInfo.depthTestEnable = VK_FALSE;
 
     specs.PipelineLayoutInfo.pSetLayouts = p_Layouts;
     specs.PipelineLayoutInfo.setLayoutCount = p_LayoutCount;
