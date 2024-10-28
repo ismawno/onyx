@@ -98,7 +98,7 @@ static T createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color, u32 
     // but it is cool because I use no projection for 2D
     ApplyCoordinateSystem(instanceData.Transform);
     instanceData.Material.Color = p_Color;
-    instanceData.Transform[3][2] = p_ZOffset++ * glm::epsilon<f32>();
+    instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
     return instanceData;
 }
 
