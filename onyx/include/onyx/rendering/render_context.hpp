@@ -19,6 +19,9 @@
 
 // Ambient intensity must be called AFTER ambient color
 
+// 2D objects that are drawn later will always be on top of earlier ones. HOWEVER, blending will only work expectedly
+// between objects of the same primitive
+
 namespace ONYX
 {
 class Window;
