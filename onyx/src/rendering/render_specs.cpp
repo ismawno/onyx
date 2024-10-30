@@ -76,7 +76,8 @@ static Pipeline::Specs defaultPipelineSpecs(const char *vpath, const char *fpath
         specs.DepthStencilInfo.front.compareMask = 0xFF;
         specs.DepthStencilInfo.front.writeMask = 0;
         specs.DepthStencilInfo.back = specs.DepthStencilInfo.front;
-        specs.DepthStencilInfo.depthTestEnable = VK_FALSE;
+        if constexpr (N == 3)
+            specs.DepthStencilInfo.depthTestEnable = VK_FALSE;
     }
     if constexpr (Mode == StencilMode::StencilWriteNoFill)
         specs.ColorBlendAttachment.colorWriteMask = 0;
