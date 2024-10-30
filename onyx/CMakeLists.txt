@@ -14,6 +14,7 @@ set(SOURCES
     src/rendering/render_context.cpp
     src/rendering/render_systems.cpp
     src/rendering/renderer.cpp
+    src/rendering/render_specs.cpp
     src/rendering/frame_scheduler.cpp
     src/descriptors/descriptor_pool.cpp
     src/descriptors/descriptor_set_layout.cpp

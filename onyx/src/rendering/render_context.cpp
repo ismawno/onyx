@@ -12,7 +12,7 @@ namespace ONYX
 template <u32 N>
     requires(IsDim<N>())
 IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
-    : m_Renderer(p_Window, p_RenderPass, &m_RenderState), m_Window(p_Window)
+    : m_Renderer(p_RenderPass, &m_RenderState), m_Window(p_Window)
 {
     m_RenderState.push_back(RenderState<N>{});
     // All axes transformation come "from the right", and axes offset must come "from the left", so it is actually fine
@@ -41,7 +41,7 @@ void IRenderContext<N>::FlushState(const Color &p_Color) noexcept
 
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::FlushRenderData() noexcept
+void IRenderContext<N>::FlushDrawData() noexcept
 {
     m_Renderer.Flush();
 }
@@ -50,14 +50,14 @@ template <u32 N>
     requires(IsDim<N>())
 void IRenderContext<N>::Flush() noexcept
 {
-    FlushRenderData();
+    FlushDrawData();
     FlushState();
 }
 template <u32 N>
     requires(IsDim<N>())
 void IRenderContext<N>::Flush(const Color &p_Color) noexcept
 {
-    FlushRenderData();
+    FlushDrawData();
     FlushState(p_Color);
 }
 
@@ -795,13 +795,11 @@ void RenderContext<3>::SpecularSharpness(const f32 p_Sharpness) noexcept
     m_RenderState.back().Material.SpecularSharpness = p_Sharpness;
 }
 
-void RenderContext<2>::Fill() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Fill(const bool p_Enabled) noexcept
 {
-    m_RenderState.back().NoFill = false;
-}
-void RenderContext<2>::NoFill() noexcept
-{
-    m_RenderState.back().NoFill = true;
+    m_RenderState.back().Fill = p_Enabled;
 }
 
 template <u32 N>
@@ -858,23 +856,25 @@ void IRenderContext<N>::Fill(const Color &p_Color) noexcept
 {
     m_RenderState.back().Material.Color = p_Color;
 }
-void RenderContext<2>::Stroke() noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Outline(const bool p_Enabled) noexcept
 {
-    m_RenderState.back().NoStroke = false;
+    m_RenderState.back().Outline = p_Enabled;
 }
-void RenderContext<2>::Stroke(const Color &p_Color) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Outline(const Color &p_Color) noexcept
 {
-    m_RenderState.back().StrokeColor = p_Color;
-    m_RenderState.back().NoStroke = false;
+    m_RenderState.back().OutlineColor = p_Color;
+    m_RenderState.back().Outline = true;
 }
-void RenderContext<2>::StrokeWidth(const f32 p_Width) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::OutlineWidth(const f32 p_Width) noexcept
 {
-    m_RenderState.back().StrokeWidth = p_Width;
-    m_RenderState.back().NoStroke = false;
-}
-void RenderContext<2>::NoStroke() noexcept
-{
-    m_RenderState.back().NoStroke = true;
+    m_RenderState.back().OutlineWidth = p_Width;
+    m_RenderState.back().Outline = true;
 }
 
 template <u32 N>

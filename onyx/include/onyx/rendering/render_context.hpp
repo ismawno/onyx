@@ -22,6 +22,8 @@
 // 2D objects that are drawn later will always be on top of earlier ones. HOWEVER, blending will only work expectedly
 // between objects of the same primitive
 
+// Because of batch rendering, draw order is not guaranteed
+
 namespace ONYX
 {
 class Window;
@@ -33,7 +35,7 @@ class ONYX_API IRenderContext
   public:
     IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
 
-    void FlushRenderData() noexcept;
+    void FlushDrawData() noexcept;
 
     void FlushState() noexcept;
     void FlushState(const Color &p_Color) noexcept;
@@ -134,6 +136,7 @@ class ONYX_API IRenderContext
 
     void Pop() noexcept;
 
+    void Fill(bool p_Enable = true) noexcept;
     void Fill(const Color &p_Color) noexcept;
     template <typename... ColorArgs>
         requires std::constructible_from<Color, ColorArgs...>
@@ -143,6 +146,18 @@ class ONYX_API IRenderContext
         Fill(color);
     }
 
+    void Outline(bool p_Enable = true) noexcept;
+    void Outline(const Color &p_Color) noexcept;
+
+    template <typename... ColorArgs>
+        requires std::constructible_from<Color, ColorArgs...>
+    void Outline(ColorArgs &&...p_ColorArgs) noexcept
+    {
+        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        Outline(color);
+    }
+
+    void OutlineWidth(f32 p_Width) noexcept;
     void Material(const MaterialData<N> &p_Material) noexcept;
 
     const RenderState<N> &GetState() const noexcept;
@@ -192,26 +207,9 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 
     void RoundedLineStrip(std::span<const vec2> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
-    void Fill() noexcept;
-    void NoFill() noexcept;
-
     void Alpha(f32 p_Alpha) noexcept;
     void Alpha(u8 p_Alpha) noexcept;
     void Alpha(u32 p_Alpha) noexcept;
-
-    void Stroke() noexcept;
-    void Stroke(const Color &p_Color) noexcept;
-
-    template <typename... ColorArgs>
-        requires std::constructible_from<Color, ColorArgs...>
-    void Stroke(ColorArgs &&...p_ColorArgs) noexcept
-    {
-        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
-        Stroke(color);
-    }
-
-    void StrokeWidth(f32 p_Width) noexcept;
-    void NoStroke() noexcept;
 
     vec2 GetMouseCoordinates() const noexcept;
 };

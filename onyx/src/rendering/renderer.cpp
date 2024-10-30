@@ -21,6 +21,22 @@ void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes) noexcept
     }
 }
 
+template <template <typename> typename R, template <u32, StencilMode> typename Specs, u32 N>
+RenderSystem<R, Specs, N>::RenderSystem(const VkRenderPass p_RenderPass) noexcept
+    : NoStencilWriteFill(p_RenderPass), StencilWriteFill(p_RenderPass), StencilWriteNoFill(p_RenderPass),
+      StencilTest(p_RenderPass)
+{
+}
+
+template <template <typename> typename R, template <u32, StencilMode> typename Specs, u32 N>
+void RenderSystem<R, Specs, N>::Flush() noexcept
+{
+    NoStencilWriteFill.Flush();
+    StencilWriteFill.Flush();
+    StencilWriteNoFill.Flush();
+    StencilTest.Flush();
+}
+
 static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInfo &p_DirectionalInfo,
                                                      const VkDescriptorBufferInfo &p_PointInfo,
                                                      const DescriptorSetLayout *p_Layout, const DescriptorPool *p_Pool,
@@ -37,16 +53,14 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
 
 template <u32 N>
     requires(IsDim<N>())
-IRenderer<N>::IRenderer(Window *p_Window, const VkRenderPass p_RenderPass,
-                        const DynamicArray<RenderState<N>> *p_State) noexcept
+IRenderer<N>::IRenderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<N>> *p_State) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
-      m_CircleRenderer(p_RenderPass), m_Window(p_Window), m_State(p_State)
+      m_CircleRenderer(p_RenderPass), m_State(p_State)
 {
 }
 
-Renderer<3>::Renderer(Window *p_Window, const VkRenderPass p_RenderPass,
-                      const DynamicArray<RenderState3D> *p_State) noexcept
-    : IRenderer<3>(p_Window, p_RenderPass, p_State)
+Renderer<3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState3D> *p_State) noexcept
+    : IRenderer<3>(p_RenderPass, p_State)
 {
     m_DescriptorPool = Core::GetDescriptorPool();
     m_DescriptorSetLayout = Core::GetLightStorageDescriptorSetLayout();
@@ -89,39 +103,67 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
     return t4;
 }
 
-template <typename T = InstanceData2D>
-static T createInstanceData2D(const mat3 &p_Transform, const vec4 &p_Color, u32 &p_ZOffset) noexcept
+template <u32 N, typename IData>
+    requires(IsDim<N>())
+static IData createFullDrawInstanceData(const mat<N> &p_Transform, const RenderState<N> &p_State,
+                                        [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
-    T instanceData;
-    instanceData.Transform = transform3ToTransform4(p_Transform);
-    // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the projection,
-    // but it is cool because I use no projection for 2D
-    ApplyCoordinateSystem(instanceData.Transform);
-    instanceData.Material.Color = p_Color;
-    instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
-    return instanceData;
-}
-
-template <typename T = InstanceData3D>
-static T createInstanceData3D(const mat4 &p_Transform, const RenderState3D &p_State) noexcept
-{
-    T instanceData;
-    instanceData.Transform = p_Transform;
-    instanceData.ProjectionView = p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes;
-    instanceData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
-
-    instanceData.ViewPosition = p_State.InverseAxes[3];
+    IData instanceData;
+    if constexpr (N == 2)
+    {
+        instanceData.Transform = transform3ToTransform4(p_Transform);
+        // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
+        // projection, but it is cool because I use no projection for 2D
+        ApplyCoordinateSystem(instanceData.Transform);
+        instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
+    }
+    else
+    {
+        instanceData.Transform = p_Transform;
+        instanceData.ProjectionView = p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes;
+        instanceData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
+        instanceData.ViewPosition = p_State.InverseAxes[3];
+    }
     instanceData.Material = p_State.Material;
+
     return instanceData;
 }
 
-static mat3 computeStrokeTransform(const mat3 &p_Transform, const f32 p_StrokeWidth) noexcept
+template <u32 N>
+    requires(IsDim<N>())
+static mat3 computeScaledTransform(const mat3 &p_Transform, const f32 p_Scale) noexcept
 {
     const vec2 scale = Transform2D::ExtractScale(p_Transform);
-    const vec2 stroke = (scale + p_StrokeWidth) / scale;
+    const vec2 stroke = (scale + p_Scale) / scale;
     mat3 transform = p_Transform;
     Transform2D::ScaleIntrinsic(transform, stroke);
     return transform;
+}
+
+template <u32 N, typename IData, bool Scaled = true>
+static IData createStencilInstanceData(const mat<N> &p_Transform, const RenderState<N> &p_State,
+                                       [[maybe_unused]] u32 &p_ZOffset) noexcept
+{
+    IData instanceData;
+    if constexpr (N == 2)
+    {
+        if constexpr (Scaled)
+            instanceData.Transform =
+                computeScaledTransform<2>(transform3ToTransform4(p_Transform), p_State.OutlineWidth);
+        else
+            instanceData.Transform = transform3ToTransform4(p_Transform);
+        // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
+        // projection, but it is cool because I use no projection for 2D
+        ApplyCoordinateSystem(instanceData.Transform);
+        instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
+    }
+    else if constexpr (Scaled)
+        instanceData.Transform = computeScaledTransform<3>(p_Transform, p_State.OutlineWidth);
+    else
+        instanceData.Transform = p_Transform;
+
+    instanceData.Material.Color = p_State.OutlineColor;
+    return instanceData;
 }
 
 template <u32 N>
@@ -129,23 +171,31 @@ template <u32 N>
 template <typename Renderer, typename... DrawArgs>
 void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept
 {
-    auto &state = m_State->back();
-    if constexpr (N == 2)
+    const RenderState<N> &state = m_State->back();
+    if (!state.Fill && !state.Outline)
+        return;
+
+    using FullIData = InstanceData<N, true>;
+    using StencilIData = InstanceData<N, false>;
+    if (state.Fill)
     {
-        if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
+        const FullIData instanceData = createFullDrawInstanceData<N, FullIData>(p_Transform, state, m_ZOffset);
+        if (!state.Outline)
+            p_Renderer.NoStencilWriteFill.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., instanceData);
+        else
         {
-            const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            const InstanceData2D strokeData = createInstanceData2D(strokeTransform, state.StrokeColor, m_ZOffset);
-            p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., strokeData);
+            p_Renderer.StencilWriteFill.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., instanceData);
+
+            const StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
+            p_Renderer.StencilTest.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., stencilData);
         }
-        const Color &color = state.NoFill ? m_Window->BackgroundColor : state.Material.Color;
-        const InstanceData2D data = createInstanceData2D(state.Axes * p_Transform, color, m_ZOffset);
-        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
     }
     else
     {
-        const InstanceData3D data = createInstanceData3D(p_Transform, state);
-        p_Renderer.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., data);
+        const StencilIData ghostData = createStencilInstanceData<N, StencilIData, false>(p_Transform, state, m_ZOffset);
+        const StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
+        p_Renderer.StencilWriteNoFill.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., ghostData);
+        p_Renderer.StencilTest.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., stencilData);
     }
 }
 
@@ -175,33 +225,43 @@ template <u32 N>
     requires(IsDim<N>())
 void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle) noexcept
 {
-    using IData = typename CircleRenderer<N>::CircleInstanceData;
-    auto &state = m_State->back();
     const vec4 arcInfo =
         vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
     const u32 angleOverflow = glm::abs(p_UpperAngle - p_LowerAngle) > glm::pi<f32>() ? 1 : 0;
-    if constexpr (N == 2)
+
+    const RenderState<N> &state = m_State->back();
+    if (!state.Fill && !state.Outline)
+        return;
+
+    using FullIData = CircleInstanceData<N, true>;
+    using StencilIData = CircleInstanceData<N, false>;
+    if (state.Fill)
     {
-        if (!state.NoStroke && !KIT::ApproachesZero(state.StrokeWidth))
+        FullIData instanceData = createFullDrawInstanceData<N, FullIData>(p_Transform, state, m_ZOffset);
+        instanceData.ArcInfo = arcInfo;
+        instanceData.AngleOverflow = angleOverflow;
+        if (!state.Outline)
+            m_CircleRenderer.NoStencilWriteFill.Draw(m_FrameIndex, instanceData);
+        else
         {
-            const mat3 strokeTransform = state.Axes * computeStrokeTransform(p_Transform, state.StrokeWidth);
-            IData strokeData = createInstanceData2D<IData>(strokeTransform, state.StrokeColor, m_ZOffset);
-            strokeData.ArcInfo = arcInfo;
-            strokeData.AngleOverflow = angleOverflow;
-            m_CircleRenderer.Draw(m_FrameIndex, strokeData);
+            m_CircleRenderer.StencilWriteFill.Draw(m_FrameIndex, instanceData);
+
+            StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
+            stencilData.ArcInfo = arcInfo;
+            stencilData.AngleOverflow = angleOverflow;
+            m_CircleRenderer.StencilTest.Draw(m_FrameIndex, stencilData);
         }
-        const Color &color = state.NoFill ? m_Window->BackgroundColor : state.Material.Color;
-        IData data = createInstanceData2D<IData>(state.Axes * p_Transform, color, m_ZOffset);
-        data.ArcInfo = arcInfo;
-        data.AngleOverflow = angleOverflow;
-        m_CircleRenderer.Draw(m_FrameIndex, data);
     }
     else
     {
-        IData data = createInstanceData3D<IData>(p_Transform, state);
-        data.ArcInfo = arcInfo;
-        data.AngleOverflow = angleOverflow;
-        m_CircleRenderer.Draw(m_FrameIndex, data);
+        StencilIData ghostData = createStencilInstanceData<N, StencilIData, false>(p_Transform, state, m_ZOffset);
+        ghostData.ArcInfo = arcInfo;
+        ghostData.AngleOverflow = angleOverflow;
+        StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
+        stencilData.ArcInfo = arcInfo;
+        stencilData.AngleOverflow = angleOverflow;
+        m_CircleRenderer.StencilWriteNoFill.Draw(m_FrameIndex, ghostData);
+        m_CircleRenderer.StencilTest.Draw(m_FrameIndex, stencilData);
     }
 }
 
@@ -225,14 +285,33 @@ void Renderer<3>::Flush() noexcept
 
 void Renderer<2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    RenderInfo<2> renderInfo;
-    renderInfo.CommandBuffer = p_CommandBuffer;
-    renderInfo.FrameIndex = m_FrameIndex;
+    RenderInfo<2, true> fullDrawInfo;
+    fullDrawInfo.CommandBuffer = p_CommandBuffer;
+    fullDrawInfo.FrameIndex = m_FrameIndex;
 
-    m_MeshRenderer.Render(renderInfo);
-    m_PrimitiveRenderer.Render(renderInfo);
-    m_PolygonRenderer.Render(renderInfo);
-    m_CircleRenderer.Render(renderInfo);
+    m_MeshRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+    m_PrimitiveRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+    m_PolygonRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+    m_CircleRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+
+    m_MeshRenderer.StencilWriteFill.Render(fullDrawInfo);
+    m_PrimitiveRenderer.StencilWriteFill.Render(fullDrawInfo);
+    m_PolygonRenderer.StencilWriteFill.Render(fullDrawInfo);
+    m_CircleRenderer.StencilWriteFill.Render(fullDrawInfo);
+
+    RenderInfo<2, false> stencilInfo;
+    stencilInfo.CommandBuffer = p_CommandBuffer;
+    stencilInfo.FrameIndex = m_FrameIndex;
+
+    m_MeshRenderer.StencilWriteNoFill.Render(stencilInfo);
+    m_PrimitiveRenderer.StencilWriteNoFill.Render(stencilInfo);
+    m_PolygonRenderer.StencilWriteNoFill.Render(stencilInfo);
+    m_CircleRenderer.StencilWriteNoFill.Render(stencilInfo);
+
+    m_MeshRenderer.StencilTest.Render(stencilInfo);
+    m_PrimitiveRenderer.StencilTest.Render(stencilInfo);
+    m_PolygonRenderer.StencilTest.Render(stencilInfo);
+    m_CircleRenderer.StencilTest.Render(stencilInfo);
 
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
     m_ZOffset = 0;
@@ -240,23 +319,42 @@ void Renderer<2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 
 void Renderer<3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    RenderInfo<3> renderInfo;
-    renderInfo.CommandBuffer = p_CommandBuffer;
-    renderInfo.FrameIndex = m_FrameIndex;
-    renderInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
-    renderInfo.DirectionalLightCount = static_cast<u32>(m_DirectionalLights.size());
-    renderInfo.PointLightCount = static_cast<u32>(m_PointLights.size());
-    renderInfo.AmbientColor = AmbientColor;
+    RenderInfo<3, true> fullDrawInfo;
+    fullDrawInfo.CommandBuffer = p_CommandBuffer;
+    fullDrawInfo.FrameIndex = m_FrameIndex;
+    fullDrawInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
+    fullDrawInfo.DirectionalLightCount = static_cast<u32>(m_DirectionalLights.size());
+    fullDrawInfo.PointLightCount = static_cast<u32>(m_PointLights.size());
+    fullDrawInfo.AmbientColor = AmbientColor;
 
     for (usize i = 0; i < m_DirectionalLights.size(); ++i)
         m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex]->WriteAt(i, &m_DirectionalLights[i]);
     for (usize i = 0; i < m_PointLights.size(); ++i)
         m_DeviceLightData.PointLightBuffers[m_FrameIndex]->WriteAt(i, &m_PointLights[i]);
 
-    m_MeshRenderer.Render(renderInfo);
-    m_PrimitiveRenderer.Render(renderInfo);
-    m_PolygonRenderer.Render(renderInfo);
-    m_CircleRenderer.Render(renderInfo);
+    m_MeshRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+    m_PrimitiveRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+    m_PolygonRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+    m_CircleRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+
+    m_MeshRenderer.StencilWriteFill.Render(fullDrawInfo);
+    m_PrimitiveRenderer.StencilWriteFill.Render(fullDrawInfo);
+    m_PolygonRenderer.StencilWriteFill.Render(fullDrawInfo);
+    m_CircleRenderer.StencilWriteFill.Render(fullDrawInfo);
+
+    RenderInfo<3, false> stencilInfo;
+    stencilInfo.CommandBuffer = p_CommandBuffer;
+    stencilInfo.FrameIndex = m_FrameIndex;
+
+    m_MeshRenderer.StencilWriteNoFill.Render(stencilInfo);
+    m_PrimitiveRenderer.StencilWriteNoFill.Render(stencilInfo);
+    m_PolygonRenderer.StencilWriteNoFill.Render(stencilInfo);
+    m_CircleRenderer.StencilWriteNoFill.Render(stencilInfo);
+
+    m_MeshRenderer.StencilTest.Render(stencilInfo);
+    m_PrimitiveRenderer.StencilTest.Render(stencilInfo);
+    m_PolygonRenderer.StencilTest.Render(stencilInfo);
+    m_CircleRenderer.StencilTest.Render(stencilInfo);
 
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
 }

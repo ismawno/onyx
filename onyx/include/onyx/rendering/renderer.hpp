@@ -16,11 +16,11 @@ template <> struct RenderState<2>
 {
     mat3 Transform{1.f};
     mat3 Axes{1.f};
-    Color StrokeColor = Color::WHITE;
-    f32 StrokeWidth = 0.f;
+    Color OutlineColor = Color::WHITE;
+    f32 OutlineWidth = 0.f;
     MaterialData2D Material{};
-    bool NoStroke = true;
-    bool NoFill = false;
+    bool Fill = true;
+    bool Outline = false;
 };
 
 template <> struct RenderState<3>
@@ -30,12 +30,29 @@ template <> struct RenderState<3>
     mat4 InverseAxes{1.f}; // Just for caching
     mat4 Projection{1.f};
     Color LightColor = Color::WHITE;
+    Color OutlineColor = Color::WHITE;
+    f32 OutlineWidth = 0.f;
     MaterialData3D Material{};
+    bool Fill = true;
+    bool Outline = false;
     bool HasProjection = false;
 };
 
 using RenderState2D = RenderState<2>;
 using RenderState3D = RenderState<3>;
+
+template <template <typename> typename R, template <u32, StencilMode> typename RSpecs, u32 N> struct RenderSystem
+{
+    template <StencilMode Mode> using Specs = RSpecs<N, Mode>;
+
+    RenderSystem(VkRenderPass p_RenderPass) noexcept;
+    void Flush() noexcept;
+
+    R<RSpecs<N, StencilMode::NoStencilWriteFill>> NoStencilWriteFill;
+    R<RSpecs<N, StencilMode::StencilWriteFill>> StencilWriteFill;
+    R<RSpecs<N, StencilMode::StencilWriteNoFill>> StencilWriteNoFill;
+    R<RSpecs<N, StencilMode::StencilTest>> StencilTest;
+};
 
 template <u32 N>
     requires(IsDim<N>())
@@ -43,7 +60,7 @@ class ONYX_API IRenderer
 {
     KIT_NON_COPYABLE(IRenderer)
   public:
-    IRenderer(Window *p_Window, VkRenderPass p_RenderPass,
+    IRenderer(VkRenderPass p_RenderPass,
               const DynamicArray<RenderState<N>> *p_State) noexcept; // Passing the state like this is a bit dodgy
 
     void DrawMesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
@@ -53,18 +70,18 @@ class ONYX_API IRenderer
 
   protected:
     u32 m_FrameIndex = 0;
-    MeshRenderer<N> m_MeshRenderer;
-    PrimitiveRenderer<N> m_PrimitiveRenderer;
-    PolygonRenderer<N> m_PolygonRenderer;
-    CircleRenderer<N> m_CircleRenderer;
     // Only used for 2D, but it's easier to just have it here
     u32 m_ZOffset = 0;
+
+    RenderSystem<MeshRenderer, MeshRendererSpecs, N> m_MeshRenderer;
+    RenderSystem<PrimitiveRenderer, PrimitiveRendererSpecs, N> m_PrimitiveRenderer;
+    RenderSystem<PolygonRenderer, PolygonRendererSpecs, N> m_PolygonRenderer;
+    RenderSystem<CircleRenderer, CircleRendererSpecs, N> m_CircleRenderer;
 
   private:
     template <typename Renderer, typename... DrawArgs>
     void draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept;
 
-    Window *m_Window;
     const DynamicArray<RenderState<N>> *m_State;
 };
 
@@ -109,7 +126,7 @@ struct ONYX_API DeviceLightData
 template <> class Renderer<3> final : public IRenderer<3>
 {
   public:
-    Renderer(Window *p_Window, VkRenderPass p_RenderPass, const DynamicArray<RenderState3D> *p_State) noexcept;
+    Renderer(VkRenderPass p_RenderPass, const DynamicArray<RenderState3D> *p_State) noexcept;
 
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
