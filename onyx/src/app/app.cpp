@@ -159,7 +159,7 @@ Application::Application(const Window::Specs &p_WindowSpecs) noexcept
 
 bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
 {
-    m_DeltaTime = p_Clock.Restart().AsSeconds();
+    m_DeltaTime = p_Clock.Restart();
     Input::PollEvents();
     for (const Event &event : m_Window->GetNewEvents())
         Layers.OnEvent(event);
@@ -195,7 +195,7 @@ Window *Application::GetMainWindow() noexcept
     return m_Window.Get();
 }
 
-f32 Application::GetDeltaTime() const noexcept
+KIT::Timespan Application::GetDeltaTime() const noexcept
 {
     return m_DeltaTime;
 }

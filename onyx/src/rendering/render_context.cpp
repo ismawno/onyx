@@ -15,9 +15,10 @@ IRenderContext<N>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderP
     : m_Renderer(p_RenderPass, &m_RenderState), m_Window(p_Window)
 {
     m_RenderState.push_back(RenderState<N>{});
-    // All axes transformation come "from the right", and axes offset must come "from the left", so it is actually fine
-    // to have the axes starting as the current offset. Can only be done in 3D, because transformations may involve some
-    // axis that dont exist in 2D. This offset is apply later for 2D cases, when eventually the mat3's become mat4's
+    // All axes transformation come "from the right", and axes coordinate system adjustements must come "from the left",
+    // so it is actually fine to have the axes starting as the current coordinate system adjustements. Can only be done
+    // in 3D, because transformations may involve some axis that dont exist in 2D. This coordinate system adjustements
+    // is apply later for 2D cases, when eventually the mat3's become mat4's
     if constexpr (N == 3)
         ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
@@ -867,14 +868,12 @@ template <u32 N>
 void IRenderContext<N>::Outline(const Color &p_Color) noexcept
 {
     m_RenderState.back().OutlineColor = p_Color;
-    m_RenderState.back().Outline = true;
 }
 template <u32 N>
     requires(IsDim<N>())
 void IRenderContext<N>::OutlineWidth(const f32 p_Width) noexcept
 {
     m_RenderState.back().OutlineWidth = p_Width;
-    m_RenderState.back().Outline = true;
 }
 
 template <u32 N>

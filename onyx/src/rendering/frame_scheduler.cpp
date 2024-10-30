@@ -106,7 +106,8 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 
     std::array<VkClearValue, 2> clear_values;
     clear_values[0].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
-    clear_values[1].depthStencil = {1, 0};
+    clear_values[1].depthStencil.depth = 1.f;
+    clear_values[1].depthStencil.stencil = 0;
 
     passInfo.clearValueCount = 2;
     passInfo.pClearValues = clear_values.data();

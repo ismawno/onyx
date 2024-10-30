@@ -51,7 +51,7 @@ class IMultiWindowApplication : public IApplication
 
     usize GetWindowCount() const noexcept;
 
-    f32 GetDeltaTime() const noexcept override;
+    KIT::Timespan GetDeltaTime() const noexcept override;
     virtual WindowFlow GetWindowFlow() const noexcept = 0;
 
     bool NextFrame(KIT::Clock &p_Clock) noexcept override;
@@ -63,7 +63,7 @@ class IMultiWindowApplication : public IApplication
   private:
     virtual void processWindows() noexcept = 0;
 
-    std::atomic<f32> m_DeltaTime = 0.f;
+    std::atomic<KIT::Timespan> m_DeltaTime;
 };
 
 // There are two ways available to manage multiple windows in an ONYX application:

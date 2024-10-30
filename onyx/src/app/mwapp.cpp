@@ -63,14 +63,14 @@ usize IMultiWindowApplication::GetWindowCount() const noexcept
     return m_Windows.size();
 }
 
-f32 IMultiWindowApplication::GetDeltaTime() const noexcept
+KIT::Timespan IMultiWindowApplication::GetDeltaTime() const noexcept
 {
     return m_DeltaTime.load(std::memory_order_relaxed);
 }
 
 bool IMultiWindowApplication::NextFrame(KIT::Clock &p_Clock) noexcept
 {
-    m_DeltaTime.store(p_Clock.Restart().AsSeconds(), std::memory_order_relaxed); // In case concurrent mode is used
+    m_DeltaTime.store(p_Clock.Restart(), std::memory_order_relaxed); // In case concurrent mode is used
     if (m_Windows.empty())
         return false;
 

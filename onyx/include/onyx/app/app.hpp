@@ -19,7 +19,7 @@ class IApplication
 
     virtual bool NextFrame(KIT::Clock &p_Clock) noexcept = 0;
 
-    virtual f32 GetDeltaTime() const noexcept = 0;
+    virtual KIT::Timespan GetDeltaTime() const noexcept = 0;
 
     virtual const Window *GetMainWindow() const noexcept = 0;
     virtual Window *GetMainWindow() noexcept = 0;
@@ -71,11 +71,11 @@ class Application final : public IApplication
     const Window *GetMainWindow() const noexcept override;
     Window *GetMainWindow() noexcept override;
 
-    f32 GetDeltaTime() const noexcept override;
+    KIT::Timespan GetDeltaTime() const noexcept override;
 
   private:
     KIT::Storage<Window> m_Window;
-    f32 m_DeltaTime = 0.0f;
+    KIT::Timespan m_DeltaTime;
 };
 
 } // namespace ONYX

@@ -53,9 +53,9 @@ static Pipeline::Specs defaultPipelineSpecs(const char *vpath, const char *fpath
     if constexpr (Mode == StencilMode::StencilWriteFill || Mode == StencilMode::StencilWriteNoFill)
     {
         specs.DepthStencilInfo.stencilTestEnable = VK_TRUE;
-        specs.DepthStencilInfo.front.failOp = VK_STENCIL_OP_KEEP;
+        specs.DepthStencilInfo.front.failOp = VK_STENCIL_OP_REPLACE;
         specs.DepthStencilInfo.front.passOp = VK_STENCIL_OP_REPLACE;
-        specs.DepthStencilInfo.front.depthFailOp = VK_STENCIL_OP_KEEP;
+        specs.DepthStencilInfo.front.depthFailOp = VK_STENCIL_OP_REPLACE;
         specs.DepthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
         specs.DepthStencilInfo.front.compareMask = 0xFF;
         specs.DepthStencilInfo.front.writeMask = 0xFF;
@@ -67,11 +67,16 @@ static Pipeline::Specs defaultPipelineSpecs(const char *vpath, const char *fpath
         specs.DepthStencilInfo.stencilTestEnable = VK_TRUE;
         specs.DepthStencilInfo.depthWriteEnable = VK_FALSE;
         specs.DepthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-        specs.DepthStencilInfo.front.compareOp = VK_COMPARE_OP_EQUAL;
+        specs.DepthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+        specs.DepthStencilInfo.front.failOp = VK_STENCIL_OP_KEEP;
+        specs.DepthStencilInfo.front.passOp = VK_STENCIL_OP_REPLACE;
+        specs.DepthStencilInfo.front.depthFailOp = VK_STENCIL_OP_KEEP;
+        specs.DepthStencilInfo.front.compareOp = VK_COMPARE_OP_NOT_EQUAL;
         specs.DepthStencilInfo.front.reference = 1;
         specs.DepthStencilInfo.front.compareMask = 0xFF;
         specs.DepthStencilInfo.front.writeMask = 0;
         specs.DepthStencilInfo.back = specs.DepthStencilInfo.front;
+        specs.DepthStencilInfo.depthTestEnable = VK_FALSE;
     }
     if constexpr (Mode == StencilMode::StencilWriteNoFill)
         specs.ColorBlendAttachment.colorWriteMask = 0;

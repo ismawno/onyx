@@ -53,6 +53,8 @@ void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
 
     for (const auto &shape : p_Data.Shapes)
         shape->Draw(p_Data.Context);
+
+    p_Data.Context->Outline(false);
     if (p_Data.DrawAxes)
     {
         p_Data.Context->Material(p_Data.AxesMaterial);
@@ -380,7 +382,7 @@ template <u32 N>
 void SWExampleLayer::controlAxes(LayerData<N> &p_Data) noexcept
 {
     Transform<N> t{};
-    const f32 step = m_Application->GetDeltaTime();
+    const f32 step = m_Application->GetDeltaTime().AsSeconds();
 
     Window *window = m_Application->GetMainWindow();
     if (Input::IsKeyPressed(window, Input::Key::A))
@@ -518,7 +520,21 @@ void SWExampleLayer::OnRender() noexcept
     ImPlot::ShowDemoWindow();
 
     if (ImGui::Begin("Global settings"))
+    {
+        static f32 maxTS = 0.f;
+        static f32 smoothTS = 0.f;
+        static f32 smoothFactor = 0.f;
+        const f32 ts = m_Application->GetDeltaTime().AsMilliseconds();
+        if (ts > maxTS)
+            maxTS = ts;
+        smoothTS = smoothFactor * smoothFactor + (1.f - smoothFactor) * ts;
+
+        ImGui::Text("Time step: %.2f ms (max: %.2f ms)", smoothTS, maxTS);
+        ImGui::SliderFloat("Smoothing factor", &smoothFactor, 0.f, 0.999f);
+        if (ImGui::Button("Reset maximum"))
+            maxTS = 0.f;
         ImGui::ColorEdit3("Background", m_BackgroundColor.AsPointer());
+    }
     ImGui::End();
 
     renderUI(m_LayerData2);

@@ -13,15 +13,20 @@ class Shape
     virtual ~Shape() = default;
     virtual const char *GetName() const noexcept = 0;
 
-    virtual void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept = 0;
     void Draw(RenderContext<N> *p_Context) noexcept;
 
-    virtual void Edit() noexcept
-    {
-    }
+    virtual void Edit() noexcept;
 
     Transform<N> Transform;
     MaterialData<N> Material;
+
+    bool Fill = true;
+    bool Outline = false;
+    f32 OutlineWidth = 0.01f;
+    Color OutlineColor = Color::MAGENTA;
+
+  private:
+    virtual void draw(RenderContext<N> *p_Context) noexcept = 0;
 };
 
 using Shape2D = Shape<2>;
@@ -33,7 +38,7 @@ class Triangle final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
+    void draw(RenderContext<N> *p_Context) noexcept override;
 };
 
 template <u32 N>
@@ -42,7 +47,7 @@ class Square final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
+    void draw(RenderContext<N> *p_Context) noexcept override;
 };
 
 template <u32 N>
@@ -51,7 +56,7 @@ class Circle final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
+    void draw(RenderContext<N> *p_Context) noexcept override;
 
     void Edit() noexcept override;
 
@@ -65,7 +70,7 @@ class NGon final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
+    void draw(RenderContext<N> *p_Context) noexcept override;
 
     u32 Sides;
 };
@@ -76,7 +81,7 @@ class Polygon final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
+    void draw(RenderContext<N> *p_Context) noexcept override;
 
     DynamicArray<vec<N>> Vertices;
 };
@@ -87,7 +92,7 @@ class Stadium final : public Shape<N>
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept override;
+    void draw(RenderContext<N> *p_Context) noexcept override;
 
     void Edit() noexcept override;
 
@@ -99,28 +104,28 @@ class Cube final : public Shape3D
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
+    void draw(RenderContext3D *p_Context) noexcept override;
 };
 
 class Sphere final : public Shape3D
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
+    void draw(RenderContext3D *p_Context) noexcept override;
 };
 
 class Cylinder final : public Shape3D
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
+    void draw(RenderContext3D *p_Context) noexcept override;
 };
 
 class Capsule final : public Shape3D
 {
   public:
     const char *GetName() const noexcept override;
-    void Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept override;
+    void draw(RenderContext3D *p_Context) noexcept override;
 
     void Edit() noexcept override;
 

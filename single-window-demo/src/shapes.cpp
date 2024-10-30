@@ -7,7 +7,27 @@ template <u32 N>
     requires(IsDim<N>())
 void Shape<N>::Draw(RenderContext<N> *p_Context) noexcept
 {
-    Draw(p_Context, Transform.ComputeTransform());
+    p_Context->Material(Material);
+    p_Context->Fill(Fill);
+    p_Context->Outline(Outline);
+    p_Context->OutlineWidth(OutlineWidth);
+    p_Context->Outline(OutlineColor);
+    draw(p_Context);
+}
+
+template <u32 N>
+    requires(IsDim<N>())
+void Shape<N>::Edit() noexcept
+{
+    ImGui::PushID(this);
+    ImGui::Checkbox("Fill", &Fill);
+    ImGui::Checkbox("Outline", &Outline);
+    ImGui::SliderFloat("Outline Width", &OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    if constexpr (N == 2)
+        ImGui::ColorEdit4("Outline Color", OutlineColor.AsPointer());
+    else
+        ImGui::ColorEdit3("Outline Color", OutlineColor.AsPointer());
+    ImGui::PopID();
 }
 
 template <u32 N>
@@ -19,10 +39,9 @@ const char *Triangle<N>::GetName() const noexcept
 
 template <u32 N>
     requires(IsDim<N>())
-void Triangle<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+void Triangle<N>::draw(RenderContext<N> *p_Context) noexcept
 {
-    p_Context->Material(this->Material);
-    p_Context->Triangle(p_Transform);
+    p_Context->Triangle(this->Transform.ComputeTransform());
 }
 
 template <u32 N>
@@ -34,10 +53,9 @@ const char *Square<N>::GetName() const noexcept
 
 template <u32 N>
     requires(IsDim<N>())
-void Square<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+void Square<N>::draw(RenderContext<N> *p_Context) noexcept
 {
-    p_Context->Material(this->Material);
-    p_Context->Square(p_Transform);
+    p_Context->Square(this->Transform.ComputeTransform());
 }
 
 template <u32 N>
@@ -49,16 +67,16 @@ const char *Circle<N>::GetName() const noexcept
 
 template <u32 N>
     requires(IsDim<N>())
-void Circle<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+void Circle<N>::draw(RenderContext<N> *p_Context) noexcept
 {
-    p_Context->Material(this->Material);
-    p_Context->Circle(LowerAngle, UpperAngle, p_Transform);
+    p_Context->Circle(LowerAngle, UpperAngle, this->Transform.ComputeTransform());
 }
 
 template <u32 N>
     requires(IsDim<N>())
 void Circle<N>::Edit() noexcept
 {
+    Shape<N>::Edit();
     ImGui::PushID(this);
     ImGui::SliderAngle("Lower Angle", &LowerAngle);
     ImGui::SliderAngle("Upper Angle", &UpperAngle);
@@ -74,10 +92,9 @@ const char *NGon<N>::GetName() const noexcept
 
 template <u32 N>
     requires(IsDim<N>())
-void NGon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+void NGon<N>::draw(RenderContext<N> *p_Context) noexcept
 {
-    p_Context->Material(this->Material);
-    p_Context->NGon(Sides, p_Transform);
+    p_Context->NGon(Sides, this->Transform.ComputeTransform());
 }
 
 template <u32 N>
@@ -89,10 +106,9 @@ const char *Polygon<N>::GetName() const noexcept
 
 template <u32 N>
     requires(IsDim<N>())
-void Polygon<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+void Polygon<N>::draw(RenderContext<N> *p_Context) noexcept
 {
-    p_Context->Material(this->Material);
-    p_Context->Polygon(Vertices, p_Transform);
+    p_Context->Polygon(Vertices, this->Transform.ComputeTransform());
 }
 
 template <u32 N>
@@ -104,16 +120,16 @@ const char *Stadium<N>::GetName() const noexcept
 
 template <u32 N>
     requires(IsDim<N>())
-void Stadium<N>::Draw(RenderContext<N> *p_Context, const mat<N> &p_Transform) noexcept
+void Stadium<N>::draw(RenderContext<N> *p_Context) noexcept
 {
-    p_Context->Material(this->Material);
-    p_Context->Stadium(Length, Radius, p_Transform);
+    p_Context->Stadium(Length, Radius, this->Transform.ComputeTransform());
 }
 
 template <u32 N>
     requires(IsDim<N>())
 void Stadium<N>::Edit() noexcept
 {
+    Shape<N>::Edit();
     ImGui::PushID(this);
     ImGui::SliderFloat("Length", &Length, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
     ImGui::SliderFloat("Radius", &Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
@@ -125,10 +141,9 @@ const char *Cube::GetName() const noexcept
     return "Cube";
 }
 
-void Cube::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
+void Cube::draw(RenderContext3D *p_Context) noexcept
 {
-    p_Context->Material(Material);
-    p_Context->Cube(p_Transform);
+    p_Context->Cube(this->Transform.ComputeTransform());
 }
 
 const char *Sphere::GetName() const noexcept
@@ -136,10 +151,9 @@ const char *Sphere::GetName() const noexcept
     return "Sphere";
 }
 
-void Sphere::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
+void Sphere::draw(RenderContext3D *p_Context) noexcept
 {
-    p_Context->Material(Material);
-    p_Context->Sphere(p_Transform);
+    p_Context->Sphere(this->Transform.ComputeTransform());
 }
 
 const char *Cylinder::GetName() const noexcept
@@ -147,10 +161,9 @@ const char *Cylinder::GetName() const noexcept
     return "Cylinder";
 }
 
-void Cylinder::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
+void Cylinder::draw(RenderContext3D *p_Context) noexcept
 {
-    p_Context->Material(Material);
-    p_Context->Cylinder(p_Transform);
+    p_Context->Cylinder(this->Transform.ComputeTransform());
 }
 
 const char *Capsule::GetName() const noexcept
@@ -158,14 +171,14 @@ const char *Capsule::GetName() const noexcept
     return "Capsule";
 }
 
-void Capsule::Draw(RenderContext3D *p_Context, const mat4 &p_Transform) noexcept
+void Capsule::draw(RenderContext3D *p_Context) noexcept
 {
-    p_Context->Material(Material);
-    p_Context->Capsule(Length, Radius, p_Transform);
+    p_Context->Capsule(Length, Radius, Transform.ComputeTransform());
 }
 
 void Capsule::Edit() noexcept
 {
+    Shape3D::Edit();
     ImGui::PushID(this);
     ImGui::SliderFloat("Length", &Length, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
     ImGui::SliderFloat("Radius", &Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);

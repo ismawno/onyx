@@ -108,10 +108,10 @@ template <u32 N, typename IData>
 static IData createFullDrawInstanceData(const mat<N> &p_Transform, const RenderState<N> &p_State,
                                         [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
-    IData instanceData;
+    IData instanceData{};
     if constexpr (N == 2)
     {
-        instanceData.Transform = transform3ToTransform4(p_Transform);
+        instanceData.Transform = transform3ToTransform4(p_State.Axes * p_Transform);
         // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
         // projection, but it is cool because I use no projection for 2D
         ApplyCoordinateSystem(instanceData.Transform);
@@ -131,12 +131,12 @@ static IData createFullDrawInstanceData(const mat<N> &p_Transform, const RenderS
 
 template <u32 N>
     requires(IsDim<N>())
-static mat3 computeScaledTransform(const mat3 &p_Transform, const f32 p_Scale) noexcept
+static mat<N> computeScaledTransform(const mat<N> &p_Transform, const f32 p_Scale) noexcept
 {
-    const vec2 scale = Transform2D::ExtractScale(p_Transform);
-    const vec2 stroke = (scale + p_Scale) / scale;
-    mat3 transform = p_Transform;
-    Transform2D::ScaleIntrinsic(transform, stroke);
+    const vec<N> scale = Transform<N>::ExtractScale(p_Transform);
+    const vec<N> width = (scale + p_Scale) / scale;
+    mat<N> transform = p_Transform;
+    Transform<N>::ScaleIntrinsic(transform, width);
     return transform;
 }
 
@@ -144,23 +144,26 @@ template <u32 N, typename IData, bool Scaled = true>
 static IData createStencilInstanceData(const mat<N> &p_Transform, const RenderState<N> &p_State,
                                        [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
-    IData instanceData;
+    IData instanceData{};
     if constexpr (N == 2)
     {
         if constexpr (Scaled)
             instanceData.Transform =
-                computeScaledTransform<2>(transform3ToTransform4(p_Transform), p_State.OutlineWidth);
+                transform3ToTransform4(computeScaledTransform<2>(p_State.Axes * p_Transform, p_State.OutlineWidth));
         else
-            instanceData.Transform = transform3ToTransform4(p_Transform);
+            instanceData.Transform = transform3ToTransform4(p_State.Axes * p_Transform);
         // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
         // projection, but it is cool because I use no projection for 2D
         ApplyCoordinateSystem(instanceData.Transform);
         instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
     }
     else if constexpr (Scaled)
-        instanceData.Transform = computeScaledTransform<3>(p_Transform, p_State.OutlineWidth);
+        instanceData.Transform = computeScaledTransform<3>(
+            (p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes) * p_Transform,
+            p_State.OutlineWidth);
     else
-        instanceData.Transform = p_Transform;
+        instanceData.Transform =
+            (p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes) * p_Transform;
 
     instanceData.Material.Color = p_State.OutlineColor;
     return instanceData;
@@ -172,7 +175,10 @@ template <typename Renderer, typename... DrawArgs>
 void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept
 {
     const RenderState<N> &state = m_State->back();
-    if (!state.Fill && !state.Outline)
+    KIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
+    const bool hasOutline = state.Outline && !KIT::ApproachesZero(state.OutlineWidth);
+
+    if (!state.Fill && !hasOutline)
         return;
 
     using FullIData = InstanceData<N, true>;
@@ -180,7 +186,7 @@ void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArg
     if (state.Fill)
     {
         const FullIData instanceData = createFullDrawInstanceData<N, FullIData>(p_Transform, state, m_ZOffset);
-        if (!state.Outline)
+        if (!hasOutline)
             p_Renderer.NoStencilWriteFill.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., instanceData);
         else
         {
@@ -225,13 +231,15 @@ template <u32 N>
     requires(IsDim<N>())
 void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle) noexcept
 {
+    const RenderState<N> &state = m_State->back();
+    KIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
+    const bool hasOutline = state.Outline && !KIT::ApproachesZero(state.OutlineWidth);
+    if (!state.Fill && !hasOutline)
+        return;
+
     const vec4 arcInfo =
         vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
     const u32 angleOverflow = glm::abs(p_UpperAngle - p_LowerAngle) > glm::pi<f32>() ? 1 : 0;
-
-    const RenderState<N> &state = m_State->back();
-    if (!state.Fill && !state.Outline)
-        return;
 
     using FullIData = CircleInstanceData<N, true>;
     using StencilIData = CircleInstanceData<N, false>;
@@ -240,7 +248,7 @@ void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle,
         FullIData instanceData = createFullDrawInstanceData<N, FullIData>(p_Transform, state, m_ZOffset);
         instanceData.ArcInfo = arcInfo;
         instanceData.AngleOverflow = angleOverflow;
-        if (!state.Outline)
+        if (!hasOutline)
             m_CircleRenderer.NoStencilWriteFill.Draw(m_FrameIndex, instanceData);
         else
         {
