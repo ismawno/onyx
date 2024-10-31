@@ -152,6 +152,7 @@ struct CircleInstanceData : InstanceData<N, FullDrawPass>
 {
     alignas(16) vec4 ArcInfo;
     u32 AngleOverflow;
+    f32 Hollowness;
 };
 
 struct PushConstantData3D

@@ -28,10 +28,10 @@ template <> struct ShaderPaths<3, true>
 template <> struct ShaderPaths<3, false>
 {
     static constexpr const char *MeshVertex = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh-outline3D.vert.spv";
-    static constexpr const char *MeshFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh-outline3D.frag.spv";
+    static constexpr const char *MeshFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/mesh2D.frag.spv";
 
-    static constexpr const char *CircleVertex = ONYX_ROOT_PATH "/onyx/shaders/bin/circle-outline3D.vert.spv";
-    static constexpr const char *CircleFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/circle-outline3D.frag.spv";
+    static constexpr const char *CircleVertex = ONYX_ROOT_PATH "/onyx/shaders/bin/circle2D.vert.spv";
+    static constexpr const char *CircleFragment = ONYX_ROOT_PATH "/onyx/shaders/bin/circle2D.frag.spv";
 };
 
 template <u32 N, StencilMode Mode>

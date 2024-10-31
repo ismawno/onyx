@@ -4,6 +4,7 @@ layout(location = 0) out flat vec4 o_FragColor;
 layout(location = 1) out vec2 o_LocalPosition;
 layout(location = 2) out flat vec4 o_ArcInfo;
 layout(location = 3) out flat uint o_AngleOverflow;
+layout(location = 4) out flat float o_Hollowness;
 
 struct InstanceData
 {
@@ -11,6 +12,7 @@ struct InstanceData
     vec4 Color;
     vec4 ArcInfo;
     uint AngleOverflow;
+    float Hollowness;
 };
 
 layout(set = 0, binding = 0) readonly buffer InstanceBuffer
@@ -31,4 +33,5 @@ void main()
     o_LocalPosition = g_Positions[gl_VertexIndex];
     o_ArcInfo = instanceBuffer.Instances[gl_InstanceIndex].ArcInfo;
     o_AngleOverflow = instanceBuffer.Instances[gl_InstanceIndex].AngleOverflow;
+    o_Hollowness = instanceBuffer.Instances[gl_InstanceIndex].Hollowness;
 }

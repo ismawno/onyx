@@ -69,7 +69,7 @@ template <u32 N>
     requires(IsDim<N>())
 void Circle<N>::draw(RenderContext<N> *p_Context) noexcept
 {
-    p_Context->Circle(LowerAngle, UpperAngle, this->Transform.ComputeTransform());
+    p_Context->Circle(LowerAngle, UpperAngle, Hollowness, this->Transform.ComputeTransform());
 }
 
 template <u32 N>
@@ -80,6 +80,7 @@ void Circle<N>::Edit() noexcept
     ImGui::PushID(this);
     ImGui::SliderAngle("Lower Angle", &LowerAngle);
     ImGui::SliderAngle("Upper Angle", &UpperAngle);
+    ImGui::SliderFloat("Hollowness", &Hollowness, 0.f, 1.f, "%.2f");
     ImGui::PopID();
 }
 

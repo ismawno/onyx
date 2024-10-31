@@ -6,6 +6,7 @@ layout(location = 2) out vec3 o_WorldPosition;
 layout(location = 3) out flat vec3 o_ViewPosition;
 layout(location = 4) out flat vec4 o_ArcInfo;
 layout(location = 5) out flat uint o_AngleOverflow;
+layout(location = 6) out flat float o_Hollowness;
 
 struct MaterialData
 {
@@ -15,7 +16,7 @@ struct MaterialData
     float SpecularSharpness;
 };
 
-layout(location = 6) out flat MaterialData o_Material;
+layout(location = 7) out flat MaterialData o_Material;
 
 struct InstanceData
 {
@@ -26,6 +27,7 @@ struct InstanceData
     MaterialData Material;
     vec4 ArcInfo;
     uint AngleOverflow;
+    float Hollowness;
 };
 
 layout(set = 0, binding = 0) readonly buffer InstanceBuffer
@@ -52,5 +54,6 @@ void main()
     o_ViewPosition = instanceBuffer.Instances[gl_InstanceIndex].ViewPosition.xyz;
     o_ArcInfo = instanceBuffer.Instances[gl_InstanceIndex].ArcInfo;
     o_AngleOverflow = instanceBuffer.Instances[gl_InstanceIndex].AngleOverflow;
+    o_Hollowness = instanceBuffer.Instances[gl_InstanceIndex].Hollowness;
     o_Material = instanceBuffer.Instances[gl_InstanceIndex].Material;
 }

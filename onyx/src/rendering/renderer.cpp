@@ -224,7 +224,8 @@ void IRenderer<N>::DrawPolygon(const std::span<const vec<N>> p_Vertices, const m
 // This is a kind of annoying exception
 template <u32 N>
     requires(IsDim<N>())
-void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle) noexcept
+void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
+                              const f32 p_Hollowness) noexcept
 {
     const RenderState<N> &state = m_State->back();
     KIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
@@ -243,6 +244,7 @@ void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle,
         FullIData instanceData = createFullDrawInstanceData<N, FullIData>(p_Transform, state, m_ZOffset);
         instanceData.ArcInfo = arcInfo;
         instanceData.AngleOverflow = angleOverflow;
+        instanceData.Hollowness = p_Hollowness;
         if (!hasOutline)
             m_CircleRenderer.NoStencilWriteFill.Draw(m_FrameIndex, instanceData);
         else
@@ -252,6 +254,7 @@ void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle,
             StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
             stencilData.ArcInfo = arcInfo;
             stencilData.AngleOverflow = angleOverflow;
+            stencilData.Hollowness = p_Hollowness;
             m_CircleRenderer.StencilTest.Draw(m_FrameIndex, stencilData);
         }
     }
@@ -260,9 +263,11 @@ void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle,
         StencilIData ghostData = createStencilInstanceData<N, StencilIData, false>(p_Transform, state, m_ZOffset);
         ghostData.ArcInfo = arcInfo;
         ghostData.AngleOverflow = angleOverflow;
+        ghostData.Hollowness = p_Hollowness;
         StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
         stencilData.ArcInfo = arcInfo;
         stencilData.AngleOverflow = angleOverflow;
+        stencilData.Hollowness = p_Hollowness;
         m_CircleRenderer.StencilWriteNoFill.Draw(m_FrameIndex, ghostData);
         m_CircleRenderer.StencilTest.Draw(m_FrameIndex, stencilData);
     }

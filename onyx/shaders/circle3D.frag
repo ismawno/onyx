@@ -6,6 +6,7 @@ layout(location = 2) in vec3 i_WorldPosition;
 layout(location = 3) in flat vec3 i_ViewPosition;
 layout(location = 4) in flat vec4 i_ArcInfo;
 layout(location = 5) in flat uint i_AngleOverflow;
+layout(location = 6) in flat float i_Hollowness;
 
 struct MaterialData
 {
@@ -15,7 +16,7 @@ struct MaterialData
     float SpecularSharpness;
 };
 
-layout(location = 6) in flat MaterialData i_Material;
+layout(location = 7) in flat MaterialData i_Material;
 
 layout(location = 0) out vec4 o_Color;
 
@@ -54,7 +55,8 @@ lightData;
 
 void main()
 {
-    if (dot(i_LocalPosition, i_LocalPosition) > 0.25)
+    const float len = dot(i_LocalPosition, i_LocalPosition);
+    if (len > 0.25 || len < 0.25 * i_Hollowness * i_Hollowness)
         discard;
 
     const vec2 lowerArc = i_ArcInfo.xy;

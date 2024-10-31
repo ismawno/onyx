@@ -62,6 +62,7 @@ class Circle final : public Shape<N>
 
     f32 LowerAngle = 0.f;
     f32 UpperAngle = glm::two_pi<f32>();
+    f32 Hollowness = 0.f;
 };
 
 template <u32 N>

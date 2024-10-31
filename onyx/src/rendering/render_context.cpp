@@ -446,15 +446,22 @@ void IRenderContext<N>::Circle(const mat<N> &p_Transform) noexcept
 }
 template <u32 N>
     requires(IsDim<N>())
-void IRenderContext<N>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle) noexcept
+void IRenderContext<N>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
 {
-    m_Renderer.DrawCircle(m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle);
+    m_Renderer.DrawCircle(m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle, p_Hollowness);
 }
 template <u32 N>
     requires(IsDim<N>())
 void IRenderContext<N>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle, const mat<N> &p_Transform) noexcept
 {
     m_Renderer.DrawCircle(p_Transform * m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle);
+}
+template <u32 N>
+    requires(IsDim<N>())
+void IRenderContext<N>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle, const f32 p_Hollowness,
+                               const mat<N> &p_Transform) noexcept
+{
+    m_Renderer.DrawCircle(p_Transform * m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle, p_Hollowness);
 }
 
 template <u32 N>
