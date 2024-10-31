@@ -73,16 +73,15 @@ template <> struct ONYX_API RenderInfo<3, false>
 
 template <u32 N, bool FullDrawPass>
     requires(IsDim<N>())
-struct InstanceData;
-
-// Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
-// 0 1 but i dont want to deal with the alignment management tbh
-
-template <bool FullDrawPass> struct ONYX_API InstanceData<2, FullDrawPass>
+struct InstanceData
 {
     mat4 Transform;
     MaterialData2D Material;
 };
+
+// Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
+// 0 1 but i dont want to deal with the alignment management tbh
+
 template <> struct ONYX_API InstanceData<3, true>
 {
     mat4 Transform;
@@ -90,11 +89,6 @@ template <> struct ONYX_API InstanceData<3, true>
     mat4 ProjectionView; // The projection view may vary between shapes
     vec4 ViewPosition;
     MaterialData3D Material;
-};
-template <> struct ONYX_API InstanceData<3, false>
-{
-    mat4 Transform;
-    MaterialData2D Material;
 };
 
 template <typename T> struct ONYX_API DeviceInstanceData

@@ -131,13 +131,9 @@ static IData createFullDrawInstanceData(const mat<N> &p_Transform, const RenderS
 
 template <u32 N>
     requires(IsDim<N>())
-static mat<N> computeScaledTransform(const mat<N> &p_Transform, const f32 p_Scale) noexcept
+static void computeOutlineScale(mat<N> &p_Transform, const f32 p_OutlineWidth) noexcept
 {
-    const vec<N> scale = Transform<N>::ExtractScale(p_Transform);
-    const vec<N> width = (scale + p_Scale) / scale;
-    mat<N> transform = p_Transform;
-    Transform<N>::ScaleIntrinsic(transform, width);
-    return transform;
+    Transform<N>::ScaleIntrinsic(p_Transform, vec<N>{1.f + p_OutlineWidth});
 }
 
 template <u32 N, typename IData, bool Scaled = true>
@@ -147,23 +143,22 @@ static IData createStencilInstanceData(const mat<N> &p_Transform, const RenderSt
     IData instanceData{};
     if constexpr (N == 2)
     {
+        mat3 transform = p_State.Axes * p_Transform;
         if constexpr (Scaled)
-            instanceData.Transform =
-                transform3ToTransform4(computeScaledTransform<2>(p_State.Axes * p_Transform, p_State.OutlineWidth));
-        else
-            instanceData.Transform = transform3ToTransform4(p_State.Axes * p_Transform);
+            Transform2D::ScaleIntrinsic(transform, vec2{1.f + p_State.OutlineWidth});
+        instanceData.Transform = transform3ToTransform4(transform);
         // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
         // projection, but it is cool because I use no projection for 2D
         ApplyCoordinateSystem(instanceData.Transform);
         instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
     }
-    else if constexpr (Scaled)
-        instanceData.Transform = computeScaledTransform<3>(
-            (p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes) * p_Transform,
-            p_State.OutlineWidth);
     else
-        instanceData.Transform =
-            (p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes) * p_Transform;
+    {
+        mat4 transform = (p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes) * p_Transform;
+        if constexpr (Scaled)
+            Transform3D::ScaleIntrinsic(transform, vec3{1.f + p_State.OutlineWidth});
+        instanceData.Transform = transform;
+    }
 
     instanceData.Material.Color = p_State.OutlineColor;
     return instanceData;
