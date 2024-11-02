@@ -21,11 +21,9 @@ struct PrimitiveDataLayout
     u32 IndicesSize;
 };
 
-template <u32 N>
-    requires(IsDim<N>())
-struct IPrimitives
+template <Dimension D> struct IPrimitives
 {
-    static const VertexBuffer<N> *GetVertexBuffer() noexcept;
+    static const VertexBuffer<D> *GetVertexBuffer() noexcept;
     static const IndexBuffer *GetIndexBuffer() noexcept;
     static const PrimitiveDataLayout &GetDataLayout(usize p_PrimitiveIndex) noexcept;
 
@@ -41,22 +39,20 @@ struct IPrimitives
     {
         KIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3, "NGon sides must be between 3 and {}",
                    ONYX_MAX_REGULAR_POLYGON_SIDES);
-        return (N - 1) * 2 + p_Sides - 3 + (N - 2);
+        return (D - 1) * 2 + p_Sides - 3 + (D - 2);
     }
 };
 
-template <u32 N>
-    requires(IsDim<N>())
-struct Primitives;
+template <Dimension D> struct Primitives;
 
 // These are not really meant to be used by user, although there is no problem in doing so, but I wont be providing
 // 2D and 3D overloads
-template <> struct Primitives<2> : IPrimitives<2>
+template <> struct Primitives<D2> : IPrimitives<D2>
 {
     static constexpr usize AMOUNT = 2 + ONYX_REGULAR_POLYGON_COUNT;
 };
 
-template <> struct Primitives<3> : IPrimitives<3>
+template <> struct Primitives<D3> : IPrimitives<D3>
 {
     static constexpr usize AMOUNT = 5 + ONYX_REGULAR_POLYGON_COUNT;
 
@@ -73,9 +69,6 @@ template <> struct Primitives<3> : IPrimitives<3>
         return 4;
     }
 };
-
-using Primitives2D = Primitives<2>;
-using Primitives3D = Primitives<3>;
 
 // Called automatically, user must not call this
 void CreateCombinedPrimitiveBuffers() noexcept;

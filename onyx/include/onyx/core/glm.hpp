@@ -22,34 +22,30 @@ using vec2 = glm::vec2;
 using vec3 = glm::vec3;
 using vec4 = glm::vec4;
 
-template <u32 N> using vec = glm::vec<N, f32>;
+template <Dimension D> using vec = glm::vec<D, f32>;
 
 using mat2 = glm::mat2;
 using mat3 = glm::mat3;
 using mat4 = glm::mat4;
 
-template <u32 N> using mat = glm::mat<N + 1, N + 1, f32>;
+template <Dimension D> using mat = glm::mat<D + 1, D + 1, f32>;
 
 using quat = glm::quat;
 
-template <u32 N>
-    requires(IsDim<N>())
-struct RotType;
+template <Dimension D> struct RotType;
 
-template <> struct RotType<2>
+template <> struct RotType<D2>
 {
     using Type = f32;
     static constexpr f32 Identity = 0.f;
 };
-template <> struct RotType<3>
+template <> struct RotType<D3>
 {
     using Type = quat;
     static constexpr quat Identity = quat{1.f, 0.f, 0.f, 0.f};
 };
 
-template <u32 N>
-    requires(IsDim<N>())
-using rot = typename RotType<N>::Type;
+template <Dimension D> using rot = typename RotType<D>::Type;
 
 }; // namespace Aliases
 

@@ -11,15 +11,13 @@ SWExampleLayer::SWExampleLayer(Application *p_Application) noexcept : Layer("Exa
 
 void SWExampleLayer::OnStart() noexcept
 {
-    m_LayerData2.Context = m_Application->GetMainWindow()->GetRenderContext2D();
-    m_LayerData3.Context = m_Application->GetMainWindow()->GetRenderContext3D();
+    m_LayerData2.Context = m_Application->GetMainWindow()->GetRenderContext<D2>();
+    m_LayerData3.Context = m_Application->GetMainWindow()->GetRenderContext<D3>();
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-static void editMaterial(MaterialData<N> &p_Material) noexcept
+template <Dimension D> static void editMaterial(MaterialData<D> &p_Material) noexcept
 {
-    if constexpr (N == 2)
+    if constexpr (D == D2)
         ImGui::ColorEdit4("Color", p_Material.Color.AsPointer());
     else
     {
@@ -34,14 +32,12 @@ static void editMaterial(MaterialData<N> &p_Material) noexcept
     }
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
+template <Dimension D> void SWExampleLayer::drawShapes(const LayerData<D> &p_Data) noexcept
 {
     p_Data.Context->Flush(m_BackgroundColor);
     p_Data.Context->KeepWindowAspect();
 
-    if constexpr (N == 3)
+    if constexpr (D == D3)
     {
         if (m_Perspective)
             p_Data.Context->Perspective(m_FieldOfView, m_Near, m_Far);
@@ -70,7 +66,7 @@ void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
         p_Data.Context->Pop();
     }
 
-    if constexpr (N == 3)
+    if constexpr (D == D3)
     {
         p_Data.Context->AmbientColor(m_Ambient);
         for (const auto &light : m_DirectionalLights)
@@ -95,12 +91,10 @@ void SWExampleLayer::drawShapes(const LayerData<N> &p_Data) noexcept
     }
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-static void editTransform(Transform<N> &p_Transform) noexcept
+template <Dimension D> static void editTransform(Transform<D> &p_Transform) noexcept
 {
     ImGui::PushID(&p_Transform);
-    if constexpr (N == 2)
+    if constexpr (D == D2)
     {
         ImGui::DragFloat2("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
         ImGui::DragFloat2("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
@@ -204,9 +198,7 @@ void SWExampleLayer::renderLightSpawn() noexcept
         editPointLight(m_PointLights[selectedPointLight]);
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
+template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexcept
 {
     static i32 ngonSides = 3;
     static f32 stadiumLength = 1.f;
@@ -214,7 +206,7 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
     static f32 capsuleLength = 1.f;
     static f32 capsuleRadius = 0.5f;
 
-    if constexpr (N == 2)
+    if constexpr (D == D2)
         ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0\0");
     else
         ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
@@ -224,8 +216,8 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
         ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
     else if (p_Data.ShapeToSpawn == 4)
     {
-        static vec<N> toAdd{0.f};
-        if constexpr (N == 2)
+        static vec<D> toAdd{0.f};
+        if constexpr (D == D2)
             ImGui::DragFloat2("Vertex", glm::value_ptr(toAdd), 0.1f);
         else
             ImGui::DragFloat3("Vertex", glm::value_ptr(toAdd), 0.1f);
@@ -233,7 +225,7 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
         if (ImGui::Button("Add"))
         {
             p_Data.PolygonVertices.push_back(toAdd);
-            toAdd = vec<N>{0.f};
+            toAdd = vec<D>{0.f};
         }
         for (usize i = 0; i < p_Data.PolygonVertices.size(); ++i)
         {
@@ -246,7 +238,7 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
             }
 
             ImGui::SameLine();
-            if constexpr (N == 2)
+            if constexpr (D == D2)
                 ImGui::Text("Vertex %zu: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
             else
                 ImGui::Text("Vertex %zu: (%.2f, %.2f, %.2f)", i, p_Data.PolygonVertices[i].x,
@@ -268,32 +260,32 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
     if (ImGui::Button("Spawn##Shape"))
     {
         if (p_Data.ShapeToSpawn == 0)
-            p_Data.Shapes.push_back(KIT::Scope<Triangle<N>>::Create());
+            p_Data.Shapes.push_back(KIT::Scope<Triangle<D>>::Create());
         else if (p_Data.ShapeToSpawn == 1)
-            p_Data.Shapes.push_back(KIT::Scope<Square<N>>::Create());
+            p_Data.Shapes.push_back(KIT::Scope<Square<D>>::Create());
         else if (p_Data.ShapeToSpawn == 2)
-            p_Data.Shapes.push_back(KIT::Scope<Circle<N>>::Create());
+            p_Data.Shapes.push_back(KIT::Scope<Circle<D>>::Create());
         else if (p_Data.ShapeToSpawn == 3)
         {
-            auto ngon = KIT::Scope<NGon<N>>::Create();
+            auto ngon = KIT::Scope<NGon<D>>::Create();
             ngon->Sides = static_cast<u32>(ngonSides);
             p_Data.Shapes.push_back(std::move(ngon));
         }
         else if (p_Data.ShapeToSpawn == 4)
         {
-            auto polygon = KIT::Scope<Polygon<N>>::Create();
+            auto polygon = KIT::Scope<Polygon<D>>::Create();
             polygon->Vertices = p_Data.PolygonVertices;
             p_Data.Shapes.push_back(std::move(polygon));
             p_Data.PolygonVertices.clear();
         }
         else if (p_Data.ShapeToSpawn == 5)
         {
-            auto stadium = KIT::Scope<Stadium<N>>::Create();
+            auto stadium = KIT::Scope<Stadium<D>>::Create();
             stadium->Length = stadiumLength;
             stadium->Radius = stadiumRadius;
             p_Data.Shapes.push_back(std::move(stadium));
         }
-        else if constexpr (N == 3)
+        else if constexpr (D == D3)
         {
             if (p_Data.ShapeToSpawn == 6)
                 p_Data.Shapes.push_back(KIT::Scope<Cube>::Create());
@@ -340,29 +332,27 @@ static void renderShapeSpawn(LayerData<N> &p_Data) noexcept
     }
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-static void processPolygonEvent(LayerData<N> &p_Data, const Event &p_Event, [[maybe_unused]] const f32 p_ZOffset)
+template <Dimension D>
+static void processPolygonEvent(LayerData<D> &p_Data, const Event &p_Event, [[maybe_unused]] const f32 p_ZOffset)
 {
-    if (p_Event.Type != Event::MOUSE_PRESSED || p_Data.ShapeToSpawn != 4)
+    if (p_Event.Type != Event::MousePressed || p_Data.ShapeToSpawn != 4)
         return;
-    if constexpr (N == 2)
+    if constexpr (D == D2)
         p_Data.PolygonVertices.push_back(p_Data.Context->GetMouseCoordinates());
     else
         p_Data.PolygonVertices.push_back(p_Data.Context->GetMouseCoordinates(p_ZOffset));
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-static void processScrollEvent(LayerData<N> &p_Data, const Event &p_Event, Window *p_Window) noexcept
+template <Dimension D>
+static void processScrollEvent(LayerData<D> &p_Data, const Event &p_Event, Window *p_Window) noexcept
 {
-    if (p_Event.Type != Event::SCROLLED || !Input::IsKeyPressed(p_Window, Input::Key::LEFT_SHIFT))
+    if (p_Event.Type != Event::Scrolled || !Input::IsKeyPressed(p_Window, Input::Key::LeftShift))
         return;
 
     if (p_Data.ControlAsCamera)
-        Transform<N>::ScaleExtrinsic(p_Data.AxesTransform, vec<N>{1.f + 0.005f * p_Event.ScrollOffset.y});
+        Transform<D>::ScaleExtrinsic(p_Data.AxesTransform, vec<D>{1.f + 0.005f * p_Event.ScrollOffset.y});
     else
-        Transform<N>::ScaleIntrinsic(p_Data.AxesTransform, vec<N>{1.f + 0.005f * p_Event.ScrollOffset.y});
+        Transform<D>::ScaleIntrinsic(p_Data.AxesTransform, vec<D>{1.f + 0.005f * p_Event.ScrollOffset.y});
 }
 
 bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
@@ -377,11 +367,9 @@ bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
     return true;
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void SWExampleLayer::controlAxes(LayerData<N> &p_Data) noexcept
+template <Dimension D> void SWExampleLayer::controlAxes(LayerData<D> &p_Data) noexcept
 {
-    Transform<N> t{};
+    Transform<D> t{};
     const f32 step = m_Application->GetDeltaTime().AsSeconds();
 
     Window *window = m_Application->GetMainWindow();
@@ -390,7 +378,7 @@ void SWExampleLayer::controlAxes(LayerData<N> &p_Data) noexcept
     if (Input::IsKeyPressed(window, Input::Key::D))
         t.Translation.x += step;
 
-    if constexpr (N == 2)
+    if constexpr (D == D2)
     {
         if (Input::IsKeyPressed(window, Input::Key::W))
             t.Translation.y += step;
@@ -410,7 +398,7 @@ void SWExampleLayer::controlAxes(LayerData<N> &p_Data) noexcept
             t.Translation.z += step;
         static vec2 prevMpos = Input::GetMousePosition(window);
         const vec2 mpos = Input::GetMousePosition(window);
-        const vec2 delta = Input::IsKeyPressed(window, Input::Key::LEFT_SHIFT) ? 3.f * (mpos - prevMpos) : vec2{0.f};
+        const vec2 delta = Input::IsKeyPressed(window, Input::Key::LeftShift) ? 3.f * (mpos - prevMpos) : vec2{0.f};
 
         prevMpos = mpos;
 
@@ -451,13 +439,11 @@ void SWExampleLayer::controlAxes(LayerData<N> &p_Data) noexcept
         p_Data.AxesTransform *= t.ComputeTransform();
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
+template <Dimension D> void SWExampleLayer::renderUI(LayerData<D> &p_Data) noexcept
 {
-    if (ImGui::Begin(N == 2 ? "2D" : "3D"))
+    if (ImGui::Begin(D == D2 ? "2D" : "3D"))
     {
-        if constexpr (N == 2)
+        if constexpr (D == D2)
         {
             const vec2 mpos2 = m_LayerData2.Context->GetMouseCoordinates();
             ImGui::Text("Mouse Position: (%.2f, %.2f)", mpos2.x, mpos2.y);
@@ -476,10 +462,10 @@ void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
             if (control)
             {
                 ImGui::Checkbox("Control as camera", &p_Data.ControlAsCamera);
-                controlAxes<N>(p_Data);
+                controlAxes<D>(p_Data);
             }
 
-            if constexpr (N == 3)
+            if constexpr (D == D3)
             {
                 ImGui::Checkbox("Perspective", &m_Perspective);
                 if (m_Perspective)
@@ -504,7 +490,7 @@ void SWExampleLayer::renderUI(LayerData<N> &p_Data) noexcept
         }
         if (ImGui::CollapsingHeader("Shapes"))
             renderShapeSpawn(p_Data);
-        if constexpr (N == 3)
+        if constexpr (D == D3)
             if (ImGui::CollapsingHeader("Lights"))
                 renderLightSpawn();
     }

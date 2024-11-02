@@ -5,56 +5,52 @@
 
 namespace ONYX
 {
-template <u32 N>
-    requires(IsDim<N>())
-struct ONYX_API ITransform
+template <Dimension D> struct ONYX_API ITransform
 {
-    static mat<N> ComputeTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                   const rot<N> &p_Rotation) noexcept;
-    static mat<N> ComputeAxesTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                       const rot<N> &p_Rotation) noexcept;
+    static mat<D> ComputeTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
+                                   const rot<D> &p_Rotation) noexcept;
+    static mat<D> ComputeAxesTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
+                                       const rot<D> &p_Rotation) noexcept;
 
-    static mat<N> ComputeInverseTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                          const rot<N> &p_Rotation) noexcept;
-    static mat<N> ComputeInverseAxesTransform(const vec<N> &p_Translation, const vec<N> &p_Scale,
-                                              const rot<N> &p_Rotation) noexcept;
+    static mat<D> ComputeInverseTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
+                                          const rot<D> &p_Rotation) noexcept;
+    static mat<D> ComputeInverseAxesTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
+                                              const rot<D> &p_Rotation) noexcept;
 
-    mat<N> ComputeTransform() const noexcept;
-    mat<N> ComputeAxesTransform() const noexcept;
+    mat<D> ComputeTransform() const noexcept;
+    mat<D> ComputeAxesTransform() const noexcept;
 
-    mat<N> ComputeInverseTransform() const noexcept;
-    mat<N> ComputeInverseAxesTransform() const noexcept;
+    mat<D> ComputeInverseTransform() const noexcept;
+    mat<D> ComputeInverseAxesTransform() const noexcept;
 
-    static void TranslateIntrinsic(mat<N> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
-    static void TranslateIntrinsic(mat<N> &p_Transform, const vec<N> &p_Translation) noexcept;
+    static void TranslateIntrinsic(mat<D> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
+    static void TranslateIntrinsic(mat<D> &p_Transform, const vec<D> &p_Translation) noexcept;
 
-    static void TranslateExtrinsic(mat<N> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
-    static void TranslateExtrinsic(mat<N> &p_Transform, const vec<N> &p_Translation) noexcept;
+    static void TranslateExtrinsic(mat<D> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
+    static void TranslateExtrinsic(mat<D> &p_Transform, const vec<D> &p_Translation) noexcept;
 
-    static void ScaleIntrinsic(mat<N> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
-    static void ScaleIntrinsic(mat<N> &p_Transform, const vec<N> &p_Scale) noexcept;
+    static void ScaleIntrinsic(mat<D> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
+    static void ScaleIntrinsic(mat<D> &p_Transform, const vec<D> &p_Scale) noexcept;
 
-    static void ScaleExtrinsic(mat<N> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
-    static void ScaleExtrinsic(mat<N> &p_Transform, const vec<N> &p_Scale) noexcept;
+    static void ScaleExtrinsic(mat<D> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
+    static void ScaleExtrinsic(mat<D> &p_Transform, const vec<D> &p_Scale) noexcept;
 
-    static void Extract(const mat<N> &p_Transform, vec<N> *p_Translation, vec<N> *p_Scale, rot<N> *p_Rotation) noexcept;
+    static void Extract(const mat<D> &p_Transform, vec<D> *p_Translation, vec<D> *p_Scale, rot<D> *p_Rotation) noexcept;
 
-    static vec<N> ExtractTranslation(const mat<N> &p_Transform) noexcept;
-    static vec<N> ExtractScale(const mat<N> &p_Transform) noexcept;
-    static rot<N> ExtractRotation(const mat<N> &p_Transform) noexcept;
+    static vec<D> ExtractTranslation(const mat<D> &p_Transform) noexcept;
+    static vec<D> ExtractScale(const mat<D> &p_Transform) noexcept;
+    static rot<D> ExtractRotation(const mat<D> &p_Transform) noexcept;
 
-    vec<N> Translation{0.f};
-    vec<N> Scale{1.f};
-    rot<N> Rotation = RotType<N>::Identity;
+    vec<D> Translation{0.f};
+    vec<D> Scale{1.f};
+    rot<D> Rotation = RotType<D>::Identity;
 };
 
-template <u32 N>
-    requires(IsDim<N>())
-struct Transform;
+template <Dimension D> struct Transform;
 
-template <> struct ONYX_API Transform<2> : ITransform<2>
+template <> struct ONYX_API Transform<D2> : ITransform<D2>
 {
-    using ITransform<2>::Extract;
+    using ITransform<D2>::Extract;
 
     static void RotateIntrinsic(mat3 &p_Transform, f32 p_Angle) noexcept;
     static void RotateExtrinsic(mat3 &p_Transform, f32 p_Angle) noexcept;
@@ -62,9 +58,9 @@ template <> struct ONYX_API Transform<2> : ITransform<2>
     static Transform Extract(const mat3 &p_Transform) noexcept;
 };
 
-template <> struct ONYX_API Transform<3> : ITransform<3>
+template <> struct ONYX_API Transform<D3> : ITransform<D3>
 {
-    using ITransform<3>::Extract;
+    using ITransform<D3>::Extract;
 
     static void RotateXIntrinsic(mat4 &p_Transform, f32 p_Angle) noexcept;
     static void RotateYIntrinsic(mat4 &p_Transform, f32 p_Angle) noexcept;
@@ -79,8 +75,5 @@ template <> struct ONYX_API Transform<3> : ITransform<3>
 
     static Transform Extract(const mat4 &p_Transform) noexcept;
 };
-
-using Transform2D = Transform<2>;
-using Transform3D = Transform<3>;
 
 } // namespace ONYX

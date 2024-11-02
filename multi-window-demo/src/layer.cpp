@@ -69,11 +69,9 @@ void MWExampleLayer::renderWindowSpawner() noexcept
     ImGui::SliderInt2("Dimensions", (int *)&specs.Width, 120, 1080);
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-static void renderTransform(Transform<N> &p_Transform) noexcept
+template <Dimension D> static void renderTransform(Transform<D> &p_Transform) noexcept
 {
-    if constexpr (N == 2)
+    if constexpr (D == D2)
     {
         ImGui::DragFloat2("Position", glm::value_ptr(p_Transform.Position), 0.1f);
         ImGui::DragFloat2("Scale", glm::value_ptr(p_Transform.Scale), 0.1f);
@@ -88,15 +86,13 @@ static void renderTransform(Transform<N> &p_Transform) noexcept
     }
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void MWExampleLayer::renderObjectProperties(const usize p_WindowIndex) noexcept
+template <Dimension D> void MWExampleLayer::renderObjectProperties(const usize p_WindowIndex) noexcept
 {
     static PrimitiveType ptype = RECTANGLE;
     if (ImGui::Button("Spawn"))
     {
         if (ptype == RECTANGLE)
-            m_WindowData[p_WindowIndex].Drawables.emplace_back(KIT::Scope<ONYX::Rectangle<N>>::Create());
+            m_WindowData[p_WindowIndex].Drawables.emplace_back(KIT::Scope<ONYX::Rectangle<D>>::Create());
     }
     ImGui::Combo("Primitive", (int *)&ptype, "Rectangle\0\0");
     if (ImGui::TreeNode("Active primitives"))
@@ -104,7 +100,7 @@ void MWExampleLayer::renderObjectProperties(const usize p_WindowIndex) noexcept
         for (const auto &drawable : m_WindowData[p_WindowIndex].Drawables)
         {
             // This is awful. It is also a demo
-            IShape<N> *shape = dynamic_cast<IShape<N> *>(drawable.Get());
+            IShape<D> *shape = dynamic_cast<IShape<D> *>(drawable.Get());
             if (!shape)
                 continue;
             renderTransform(shape->Transform);
@@ -121,10 +117,10 @@ void MWExampleLayer::renderWindowController() noexcept
         if (ImGui::TreeNode(window, "Window %zu", i))
         {
             ImGui::Text("2D Primitives");
-            renderObjectProperties<2>(i);
+            renderObjectProperties<D2>(i);
 
             ImGui::Text("3D Primitives");
-            renderObjectProperties<3>(i);
+            renderObjectProperties<D3>(i);
             ImGui::TreePop();
         }
     }

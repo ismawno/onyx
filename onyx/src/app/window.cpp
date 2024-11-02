@@ -153,43 +153,6 @@ void Window::FlushEvents() noexcept
     m_Events.clear();
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-const RenderContext<N> *Window::GetRenderContext() const noexcept
-{
-    if constexpr (N == 2)
-        return m_RenderContext2D.Get();
-    else
-        return m_RenderContext3D.Get();
-}
-template <u32 N>
-    requires(IsDim<N>())
-RenderContext<N> *Window::GetRenderContext() noexcept
-{
-    if constexpr (N == 2)
-        return m_RenderContext2D.Get();
-    else
-        return m_RenderContext3D.Get();
-}
-
-const RenderContext2D *Window::GetRenderContext2D() const noexcept
-{
-    return GetRenderContext<2>();
-}
-RenderContext2D *Window::GetRenderContext2D() noexcept
-{
-    return GetRenderContext<2>();
-}
-
-const RenderContext3D *Window::GetRenderContext3D() const noexcept
-{
-    return GetRenderContext<3>();
-}
-RenderContext3D *Window::GetRenderContext3D() noexcept
-{
-    return GetRenderContext<3>();
-}
-
 const FrameScheduler &Window::GetFrameScheduler() const noexcept
 {
     return *m_FrameScheduler;

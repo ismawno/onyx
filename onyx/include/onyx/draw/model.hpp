@@ -12,16 +12,14 @@ namespace ONYX
 // Consider removing the ability to create a model with host visible memory (DONE)
 // This model represents an immutable set of data that is meant to be used for rendering. It is not meant to be modified
 
-template <u32 N>
-    requires(IsDim<N>())
-class ONYX_API Model : public KIT::RefCounted<Model<N>>
+template <Dimension D> class ONYX_API Model : public KIT::RefCounted<Model<D>>
 {
     KIT_NON_COPYABLE(Model)
   public:
-    KIT_BLOCK_ALLOCATED_SERIAL(Model<N>, 32)
+    KIT_BLOCK_ALLOCATED_SERIAL(Model<D>, 32)
 
-    Model(std::span<const Vertex<N>> p_Vertices) noexcept;
-    Model(std::span<const Vertex<N>> p_Vertices, std::span<const Index> p_Indices) noexcept;
+    Model(std::span<const Vertex<D>> p_Vertices) noexcept;
+    Model(std::span<const Vertex<D>> p_Vertices, std::span<const Index> p_Indices) noexcept;
 
     ~Model() noexcept;
 
@@ -38,20 +36,17 @@ class ONYX_API Model : public KIT::RefCounted<Model<N>>
 
     bool HasIndices() const noexcept;
 
-    const VertexBuffer<N> &GetVertexBuffer() const noexcept;
+    const VertexBuffer<D> &GetVertexBuffer() const noexcept;
     const IndexBuffer &GetIndexBuffer() const noexcept; // This is UB if HasIndices returns false
 
     static KIT::Scope<const Model> Load(std::string_view p_Path) noexcept;
 
   private:
     KIT::Ref<Device> m_Device;
-    VertexBuffer<N> m_VertexBuffer;
+    VertexBuffer<D> m_VertexBuffer;
     KIT::Storage<IndexBuffer> m_IndexBuffer;
 
     bool m_HasIndices;
 };
-
-using Model2D = Model<2>;
-using Model3D = Model<3>;
 
 } // namespace ONYX

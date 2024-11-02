@@ -13,11 +13,9 @@ namespace ONYX
 
 // Vertices have no color because they limit my ability to re use a model. I plan to have a single color per rendered
 // object, so I dont need to store it in the vertex
-template <u32 N>
-    requires(IsDim<N>())
-struct Vertex;
+template <Dimension D> struct Vertex;
 
-template <> struct ONYX_API Vertex<2>
+template <> struct ONYX_API Vertex<D2>
 {
     static constexpr u32 BINDINGS = 1;
     static constexpr u32 ATTRIBUTES = 1;
@@ -26,13 +24,13 @@ template <> struct ONYX_API Vertex<2>
 
     vec2 Position;
 
-    friend bool operator==(const Vertex<2> &p_Left, const Vertex<2> &p_Right) noexcept
+    friend bool operator==(const Vertex<D2> &p_Left, const Vertex<D2> &p_Right) noexcept
     {
         return p_Left.Position == p_Right.Position;
     }
 };
 
-template <> struct ONYX_API Vertex<3>
+template <> struct ONYX_API Vertex<D3>
 {
     static constexpr u32 BINDINGS = 1;
     static constexpr u32 ATTRIBUTES = 2;
@@ -42,28 +40,25 @@ template <> struct ONYX_API Vertex<3>
     vec3 Position;
     vec3 Normal;
 
-    friend bool operator==(const Vertex<3> &p_Left, const Vertex<3> &p_Right) noexcept
+    friend bool operator==(const Vertex<D3> &p_Left, const Vertex<D3> &p_Right) noexcept
     {
         return p_Left.Position == p_Right.Position && p_Left.Normal == p_Right.Normal;
     }
 };
 
-using Vertex2D = Vertex<2>;
-using Vertex3D = Vertex<3>;
-
 } // namespace ONYX
 
-template <> struct std::hash<ONYX::Vertex<2>>
+template <> struct std::hash<ONYX::Vertex<ONYX::D2>>
 {
-    std::size_t operator()(const ONYX::Vertex<2> &p_Vertex) const
+    std::size_t operator()(const ONYX::Vertex<ONYX::D2> &p_Vertex) const
     {
         return std::hash<glm::vec2>()(p_Vertex.Position);
     }
 };
 
-template <> struct std::hash<ONYX::Vertex<3>>
+template <> struct std::hash<ONYX::Vertex<ONYX::D3>>
 {
-    std::size_t operator()(const ONYX::Vertex<3> &p_Vertex) const
+    std::size_t operator()(const ONYX::Vertex<ONYX::D3> &p_Vertex) const
     {
         KIT::HashableTuple<glm::vec3, glm::vec3> tuple{p_Vertex.Position, p_Vertex.Normal};
         return tuple();

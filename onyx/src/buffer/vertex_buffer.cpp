@@ -3,31 +3,27 @@
 
 namespace ONYX
 {
-template <u32 N>
-    requires(IsDim<N>())
-VertexBuffer<N>::VertexBuffer(const std::span<const Vertex<N>> p_Vertices) noexcept
-    : DeviceBuffer<Vertex<N>>(p_Vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
+template <Dimension D>
+VertexBuffer<D>::VertexBuffer(const std::span<const Vertex<D>> p_Vertices) noexcept
+    : DeviceBuffer<Vertex<D>>(p_Vertices, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
 {
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void VertexBuffer<N>::Bind(const VkCommandBuffer p_CommandBuffer, const VkDeviceSize p_Offset) const noexcept
+template <Dimension D>
+void VertexBuffer<D>::Bind(const VkCommandBuffer p_CommandBuffer, const VkDeviceSize p_Offset) const noexcept
 {
     const VkBuffer buffer = this->GetBuffer();
     vkCmdBindVertexBuffers(p_CommandBuffer, 0, 1, &buffer, &p_Offset);
 }
 
-template class VertexBuffer<2>;
-template class VertexBuffer<3>;
+template class VertexBuffer<D2>;
+template class VertexBuffer<D3>;
 
-template <u32 N>
-    requires(IsDim<N>())
-static Buffer::Specs createBufferSpecs(const usize p_Size)
+template <Dimension D> static Buffer::Specs createBufferSpecs(const usize p_Size)
 {
     Buffer::Specs specs{};
     specs.InstanceCount = p_Size;
-    specs.InstanceSize = sizeof(Vertex<N>);
+    specs.InstanceSize = sizeof(Vertex<D>);
     specs.Usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     specs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
     specs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
@@ -36,38 +32,33 @@ static Buffer::Specs createBufferSpecs(const usize p_Size)
     return specs;
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-MutableVertexBuffer<N>::MutableVertexBuffer(const std::span<const Vertex<N>> p_Vertices) noexcept
-    : Buffer(createBufferSpecs<N>(p_Vertices.size()))
+template <Dimension D>
+MutableVertexBuffer<D>::MutableVertexBuffer(const std::span<const Vertex<D>> p_Vertices) noexcept
+    : Buffer(createBufferSpecs<D>(p_Vertices.size()))
 {
     Map();
     Write(p_Vertices);
     Flush();
 }
-template <u32 N>
-    requires(IsDim<N>())
-MutableVertexBuffer<N>::MutableVertexBuffer(const usize p_Size) noexcept : Buffer(createBufferSpecs<N>(p_Size))
+template <Dimension D>
+MutableVertexBuffer<D>::MutableVertexBuffer(const usize p_Size) noexcept : Buffer(createBufferSpecs<D>(p_Size))
 {
     Map();
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void MutableVertexBuffer<N>::Bind(const VkCommandBuffer p_CommandBuffer, const VkDeviceSize p_Offset) const noexcept
+template <Dimension D>
+void MutableVertexBuffer<D>::Bind(const VkCommandBuffer p_CommandBuffer, const VkDeviceSize p_Offset) const noexcept
 {
     const VkBuffer buffer = this->GetBuffer();
     vkCmdBindVertexBuffers(p_CommandBuffer, 0, 1, &buffer, &p_Offset);
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void MutableVertexBuffer<N>::Write(const std::span<const Vertex<N>> p_Vertices)
+template <Dimension D> void MutableVertexBuffer<D>::Write(const std::span<const Vertex<D>> p_Vertices)
 {
-    Buffer::Write(p_Vertices.data(), p_Vertices.size() * sizeof(Vertex<N>));
+    Buffer::Write(p_Vertices.data(), p_Vertices.size() * sizeof(Vertex<D>));
 }
 
-template class MutableVertexBuffer<2>;
-template class MutableVertexBuffer<3>;
+template class MutableVertexBuffer<D2>;
+template class MutableVertexBuffer<D3>;
 
 } // namespace ONYX

@@ -7,24 +7,19 @@
 
 namespace ONYX
 {
-template <u32 N>
-    requires(IsDim<N>())
-struct LayerData
+template <Dimension D> struct LayerData
 {
-    RenderContext<N> *Context;
-    DynamicArray<KIT::Scope<Shape<N>>> Shapes;
-    mat<N> AxesTransform{1.f};
-    MaterialData<N> AxesMaterial{};
+    RenderContext<D> *Context;
+    DynamicArray<KIT::Scope<Shape<D>>> Shapes;
+    mat<D> AxesTransform{1.f};
+    MaterialData<D> AxesMaterial{};
 
-    DynamicArray<vec<N>> PolygonVertices;
+    DynamicArray<vec<D>> PolygonVertices;
     i32 ShapeToSpawn = 0;
     f32 AxesThickness = 0.01f;
     bool DrawAxes = false;
     bool ControlAsCamera = true;
 };
-
-using LayerData2D = LayerData<2>;
-using LayerData3D = LayerData<3>;
 
 class SWExampleLayer final : public Layer
 {
@@ -36,21 +31,15 @@ class SWExampleLayer final : public Layer
     bool OnEvent(const Event &p_Event) noexcept override;
 
   private:
-    template <u32 N>
-        requires(IsDim<N>())
-    void drawShapes(const LayerData<N> &p_Data) noexcept;
-    template <u32 N>
-        requires(IsDim<N>())
-    void renderUI(LayerData<N> &p_Data) noexcept;
-    template <u32 N>
-        requires(IsDim<N>())
-    void controlAxes(LayerData<N> &p_Data) noexcept;
+    template <Dimension D> void drawShapes(const LayerData<D> &p_Data) noexcept;
+    template <Dimension D> void renderUI(LayerData<D> &p_Data) noexcept;
+    template <Dimension D> void controlAxes(LayerData<D> &p_Data) noexcept;
     void renderLightSpawn() noexcept;
 
     Application *m_Application = nullptr;
 
-    LayerData2D m_LayerData2;
-    LayerData3D m_LayerData3;
+    LayerData<D2> m_LayerData2;
+    LayerData<D3> m_LayerData3;
 
     Color m_BackgroundColor = Color::BLACK;
 

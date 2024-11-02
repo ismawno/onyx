@@ -88,18 +88,20 @@ class ONYX_API Window
     const DynamicArray<Event> &GetNewEvents() const noexcept;
     void FlushEvents() noexcept;
 
-    template <u32 N>
-        requires(IsDim<N>())
-    const RenderContext<N> *GetRenderContext() const noexcept;
-    template <u32 N>
-        requires(IsDim<N>())
-    RenderContext<N> *GetRenderContext() noexcept;
-
-    const RenderContext2D *GetRenderContext2D() const noexcept;
-    RenderContext2D *GetRenderContext2D() noexcept;
-
-    const RenderContext3D *GetRenderContext3D() const noexcept;
-    RenderContext3D *GetRenderContext3D() noexcept;
+    template <Dimension D> const RenderContext<D> *GetRenderContext() const noexcept
+    {
+        if constexpr (D == D2)
+            return m_RenderContext2D.Get();
+        else
+            return m_RenderContext3D.Get();
+    }
+    template <Dimension D> RenderContext<D> *GetRenderContext() noexcept
+    {
+        if constexpr (D == D2)
+            return m_RenderContext2D.Get();
+        else
+            return m_RenderContext3D.Get();
+    }
 
     const FrameScheduler &GetFrameScheduler() const noexcept;
 
@@ -114,8 +116,8 @@ class ONYX_API Window
     KIT::Ref<Device> m_Device;
 
     KIT::Storage<FrameScheduler> m_FrameScheduler;
-    KIT::Storage<RenderContext2D> m_RenderContext2D;
-    KIT::Storage<RenderContext3D> m_RenderContext3D;
+    KIT::Storage<RenderContext<D2>> m_RenderContext2D;
+    KIT::Storage<RenderContext<D3>> m_RenderContext3D;
 
     DynamicArray<Event> m_Events;
     VkSurfaceKHR m_Surface;

@@ -7,8 +7,9 @@
 
 namespace ONYX
 {
-template <u32 N> constexpr bool IsDim() noexcept
+enum Dimension : u8
 {
-    return N == 2 || N == 3;
-}
+    D2 = 2,
+    D3 = 3
+};
 } // namespace ONYX

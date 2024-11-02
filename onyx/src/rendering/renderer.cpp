@@ -7,34 +7,20 @@
 
 namespace ONYX
 {
-void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes) noexcept
-{
-    // Essentially, a rotation around the x axis
-    for (glm::length_t i = 0; i < 4; ++i)
-        for (glm::length_t j = 1; j <= 2; ++j)
-            p_Axes[i][j] = -p_Axes[i][j];
-    if (p_InverseAxes)
-    {
-        mat4 &iaxes = *p_InverseAxes;
-        iaxes[1] = -iaxes[1];
-        iaxes[2] = -iaxes[2];
-    }
-}
 
-template <template <typename> typename R, template <u32, StencilMode> typename Specs, u32 N>
-RenderSystem<R, Specs, N>::RenderSystem(const VkRenderPass p_RenderPass) noexcept
-    : NoStencilWriteFill(p_RenderPass), StencilWriteFill(p_RenderPass), StencilWriteNoFill(p_RenderPass),
-      StencilTest(p_RenderPass)
+template <Dimension D, template <Dimension, PipelineMode> typename R>
+RenderSystem<D, R>::RenderSystem(const VkRenderPass p_RenderPass) noexcept
+    : NoStencilWriteDoFill(p_RenderPass), DoStencilWriteDoFill(p_RenderPass), DoStencilWriteNoFill(p_RenderPass),
+      DoStencilTestNoFill(p_RenderPass)
 {
 }
 
-template <template <typename> typename R, template <u32, StencilMode> typename Specs, u32 N>
-void RenderSystem<R, Specs, N>::Flush() noexcept
+template <Dimension D, template <Dimension, PipelineMode> typename R> void RenderSystem<D, R>::Flush() noexcept
 {
-    NoStencilWriteFill.Flush();
-    StencilWriteFill.Flush();
-    StencilWriteNoFill.Flush();
-    StencilTest.Flush();
+    NoStencilWriteDoFill.Flush();
+    DoStencilWriteDoFill.Flush();
+    DoStencilWriteNoFill.Flush();
+    DoStencilTestNoFill.Flush();
 }
 
 static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInfo &p_DirectionalInfo,
@@ -51,16 +37,15 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
     return writer.Build();
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-IRenderer<N>::IRenderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<N>> *p_State) noexcept
+template <Dimension D>
+IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<D>> *p_State) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
       m_CircleRenderer(p_RenderPass), m_State(p_State)
 {
 }
 
-Renderer<3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState3D> *p_State) noexcept
-    : IRenderer<3>(p_RenderPass, p_State)
+Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<D3>> *p_State) noexcept
+    : IRenderer<D3>(p_RenderPass, p_State)
 {
     m_DescriptorPool = Core::GetDescriptorPool();
     m_DescriptorSetLayout = Core::GetLightStorageDescriptorSetLayout();
@@ -103,13 +88,13 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
     return t4;
 }
 
-template <u32 N, typename IData>
-    requires(IsDim<N>())
-static IData createFullDrawInstanceData(const mat<N> &p_Transform, const RenderState<N> &p_State,
+template <Dimension D, typename IData>
+
+static IData createFullDrawInstanceData(const mat<D> &p_Transform, const RenderState<D> &p_State,
                                         [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
     IData instanceData{};
-    if constexpr (N == 2)
+    if constexpr (D == D2)
     {
         instanceData.Transform = transform3ToTransform4(p_State.Axes * p_Transform);
         // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
@@ -129,23 +114,21 @@ static IData createFullDrawInstanceData(const mat<N> &p_Transform, const RenderS
     return instanceData;
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-static void computeOutlineScale(mat<N> &p_Transform, const f32 p_OutlineWidth) noexcept
+template <Dimension D> static void computeOutlineScale(mat<D> &p_Transform, const f32 p_OutlineWidth) noexcept
 {
-    Transform<N>::ScaleIntrinsic(p_Transform, vec<N>{1.f + p_OutlineWidth});
+    Transform<D>::ScaleIntrinsic(p_Transform, vec<D>{1.f + p_OutlineWidth});
 }
 
-template <u32 N, typename IData, bool Scaled = true>
-static IData createStencilInstanceData(const mat<N> &p_Transform, const RenderState<N> &p_State,
+template <Dimension D, typename IData, bool Scaled = true>
+static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderState<D> &p_State,
                                        [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
     IData instanceData{};
-    if constexpr (N == 2)
+    if constexpr (D == D2)
     {
         mat3 transform = p_State.Axes * p_Transform;
         if constexpr (Scaled)
-            Transform2D::ScaleIntrinsic(transform, vec2{1.f + p_State.OutlineWidth});
+            Transform<D2>::ScaleIntrinsic(transform, vec2{1.f + p_State.OutlineWidth});
         instanceData.Transform = transform3ToTransform4(transform);
         // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
         // projection, but it is cool because I use no projection for 2D
@@ -156,7 +139,7 @@ static IData createStencilInstanceData(const mat<N> &p_Transform, const RenderSt
     {
         mat4 transform = (p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes) * p_Transform;
         if constexpr (Scaled)
-            Transform3D::ScaleIntrinsic(transform, vec3{1.f + p_State.OutlineWidth});
+            Transform<D3>::ScaleIntrinsic(transform, vec3{1.f + p_State.OutlineWidth});
         instanceData.Transform = transform;
     }
 
@@ -164,70 +147,65 @@ static IData createStencilInstanceData(const mat<N> &p_Transform, const RenderSt
     return instanceData;
 }
 
-template <u32 N>
-    requires(IsDim<N>())
+template <Dimension D>
 template <typename Renderer, typename... DrawArgs>
-void IRenderer<N>::draw(Renderer &p_Renderer, const mat<N> &p_Transform, DrawArgs &&...p_Args) noexcept
+void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, DrawArgs &&...p_Args) noexcept
 {
-    const RenderState<N> &state = m_State->back();
+    const RenderState<D> &state = m_State->back();
     KIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
     const bool hasOutline = state.Outline && !KIT::ApproachesZero(state.OutlineWidth);
 
     if (!state.Fill && !hasOutline)
         return;
 
-    using FullIData = InstanceData<N, true>;
-    using StencilIData = InstanceData<N, false>;
+    using FillIData = InstanceData<D, DrawMode::Fill>;
+    using StencilIData = InstanceData<D, DrawMode::Stencil>;
     if (state.Fill)
     {
-        const FullIData instanceData = createFullDrawInstanceData<N, FullIData>(p_Transform, state, m_ZOffset);
+        const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
         if (!hasOutline)
-            p_Renderer.NoStencilWriteFill.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., instanceData);
+            p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
         else
         {
-            p_Renderer.StencilWriteFill.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., instanceData);
+            p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
 
-            const StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
-            p_Renderer.StencilTest.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., stencilData);
+            const StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
+            p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData, std::forward<DrawArgs>(p_Args)...);
         }
     }
     else
     {
-        const StencilIData ghostData = createStencilInstanceData<N, StencilIData, false>(p_Transform, state, m_ZOffset);
-        const StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
-        p_Renderer.StencilWriteNoFill.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., ghostData);
-        p_Renderer.StencilTest.Draw(m_FrameIndex, std::forward<DrawArgs>(p_Args)..., stencilData);
+        const StencilIData ghostData = createStencilInstanceData<D, StencilIData, false>(p_Transform, state, m_ZOffset);
+        const StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
+        p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, ghostData, std::forward<DrawArgs>(p_Args)...);
+        p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData, std::forward<DrawArgs>(p_Args)...);
     }
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderer<N>::DrawMesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept
+template <Dimension D>
+void IRenderer<D>::DrawMesh(const KIT::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept
 {
     draw(m_MeshRenderer, p_Transform, p_Model);
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderer<N>::DrawPrimitive(const usize p_PrimitiveIndex, const mat<N> &p_Transform) noexcept
+template <Dimension D>
+void IRenderer<D>::DrawPrimitive(const usize p_PrimitiveIndex, const mat<D> &p_Transform) noexcept
 {
     draw(m_PrimitiveRenderer, p_Transform, p_PrimitiveIndex);
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderer<N>::DrawPolygon(const std::span<const vec<N>> p_Vertices, const mat<N> &p_Transform) noexcept
+template <Dimension D>
+void IRenderer<D>::DrawPolygon(const std::span<const vec<D>> p_Vertices, const mat<D> &p_Transform) noexcept
 {
     draw(m_PolygonRenderer, p_Transform, p_Vertices);
 }
 
 // This is a kind of annoying exception
-template <u32 N>
-    requires(IsDim<N>())
-void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
+template <Dimension D>
+void IRenderer<D>::DrawCircle(const mat<D> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
                               const f32 p_Hollowness) noexcept
 {
-    const RenderState<N> &state = m_State->back();
+    const RenderState<D> &state = m_State->back();
     KIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
     const bool hasOutline = state.Outline && !KIT::ApproachesZero(state.OutlineWidth);
     if (!state.Fill && !hasOutline)
@@ -237,50 +215,50 @@ void IRenderer<N>::DrawCircle(const mat<N> &p_Transform, const f32 p_LowerAngle,
         vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
     const u32 angleOverflow = glm::abs(p_UpperAngle - p_LowerAngle) > glm::pi<f32>() ? 1 : 0;
 
-    using FullIData = CircleInstanceData<N, true>;
-    using StencilIData = CircleInstanceData<N, false>;
+    using FillIData = CircleInstanceData<D, DrawMode::Fill>;
+    using StencilIData = CircleInstanceData<D, DrawMode::Stencil>;
     if (state.Fill)
     {
-        FullIData instanceData = createFullDrawInstanceData<N, FullIData>(p_Transform, state, m_ZOffset);
+        FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
         instanceData.ArcInfo = arcInfo;
         instanceData.AngleOverflow = angleOverflow;
         instanceData.Hollowness = p_Hollowness;
         if (!hasOutline)
-            m_CircleRenderer.NoStencilWriteFill.Draw(m_FrameIndex, instanceData);
+            m_CircleRenderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData);
         else
         {
-            m_CircleRenderer.StencilWriteFill.Draw(m_FrameIndex, instanceData);
+            m_CircleRenderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData);
 
-            StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
+            StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
             stencilData.ArcInfo = arcInfo;
             stencilData.AngleOverflow = angleOverflow;
             stencilData.Hollowness = p_Hollowness;
-            m_CircleRenderer.StencilTest.Draw(m_FrameIndex, stencilData);
+            m_CircleRenderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData);
         }
     }
     else
     {
-        StencilIData ghostData = createStencilInstanceData<N, StencilIData, false>(p_Transform, state, m_ZOffset);
+        StencilIData ghostData = createStencilInstanceData<D, StencilIData, false>(p_Transform, state, m_ZOffset);
         ghostData.ArcInfo = arcInfo;
         ghostData.AngleOverflow = angleOverflow;
         ghostData.Hollowness = p_Hollowness;
-        StencilIData stencilData = createStencilInstanceData<N, StencilIData>(p_Transform, state, m_ZOffset);
+        StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
         stencilData.ArcInfo = arcInfo;
         stencilData.AngleOverflow = angleOverflow;
         stencilData.Hollowness = p_Hollowness;
-        m_CircleRenderer.StencilWriteNoFill.Draw(m_FrameIndex, ghostData);
-        m_CircleRenderer.StencilTest.Draw(m_FrameIndex, stencilData);
+        m_CircleRenderer.DoStencilWriteNoFill.Draw(m_FrameIndex, ghostData);
+        m_CircleRenderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData);
     }
 }
 
-void Renderer<2>::Flush() noexcept
+void Renderer<D2>::Flush() noexcept
 {
     m_MeshRenderer.Flush();
     m_PrimitiveRenderer.Flush();
     m_PolygonRenderer.Flush();
     m_CircleRenderer.Flush();
 }
-void Renderer<3>::Flush() noexcept
+void Renderer<D3>::Flush() noexcept
 {
     m_MeshRenderer.Flush();
     m_PrimitiveRenderer.Flush();
@@ -291,83 +269,83 @@ void Renderer<3>::Flush() noexcept
     m_PointLights.clear();
 }
 
-void Renderer<2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
+void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    RenderInfo<2, true> fullDrawInfo;
-    fullDrawInfo.CommandBuffer = p_CommandBuffer;
-    fullDrawInfo.FrameIndex = m_FrameIndex;
+    RenderInfo<D2, DrawMode::Fill> fillDrawInfo;
+    fillDrawInfo.CommandBuffer = p_CommandBuffer;
+    fillDrawInfo.FrameIndex = m_FrameIndex;
 
-    m_MeshRenderer.NoStencilWriteFill.Render(fullDrawInfo);
-    m_PrimitiveRenderer.NoStencilWriteFill.Render(fullDrawInfo);
-    m_PolygonRenderer.NoStencilWriteFill.Render(fullDrawInfo);
-    m_CircleRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+    m_MeshRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
+    m_PrimitiveRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
+    m_PolygonRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
+    m_CircleRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
 
-    m_MeshRenderer.StencilWriteFill.Render(fullDrawInfo);
-    m_PrimitiveRenderer.StencilWriteFill.Render(fullDrawInfo);
-    m_PolygonRenderer.StencilWriteFill.Render(fullDrawInfo);
-    m_CircleRenderer.StencilWriteFill.Render(fullDrawInfo);
+    m_MeshRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
+    m_PrimitiveRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
+    m_PolygonRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
+    m_CircleRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
 
-    RenderInfo<2, false> stencilInfo;
+    RenderInfo<D2, DrawMode::Stencil> stencilInfo;
     stencilInfo.CommandBuffer = p_CommandBuffer;
     stencilInfo.FrameIndex = m_FrameIndex;
 
-    m_MeshRenderer.StencilWriteNoFill.Render(stencilInfo);
-    m_PrimitiveRenderer.StencilWriteNoFill.Render(stencilInfo);
-    m_PolygonRenderer.StencilWriteNoFill.Render(stencilInfo);
-    m_CircleRenderer.StencilWriteNoFill.Render(stencilInfo);
+    m_MeshRenderer.DoStencilWriteNoFill.Render(stencilInfo);
+    m_PrimitiveRenderer.DoStencilWriteNoFill.Render(stencilInfo);
+    m_PolygonRenderer.DoStencilWriteNoFill.Render(stencilInfo);
+    m_CircleRenderer.DoStencilWriteNoFill.Render(stencilInfo);
 
-    m_MeshRenderer.StencilTest.Render(stencilInfo);
-    m_PrimitiveRenderer.StencilTest.Render(stencilInfo);
-    m_PolygonRenderer.StencilTest.Render(stencilInfo);
-    m_CircleRenderer.StencilTest.Render(stencilInfo);
+    m_MeshRenderer.DoStencilTestNoFill.Render(stencilInfo);
+    m_PrimitiveRenderer.DoStencilTestNoFill.Render(stencilInfo);
+    m_PolygonRenderer.DoStencilTestNoFill.Render(stencilInfo);
+    m_CircleRenderer.DoStencilTestNoFill.Render(stencilInfo);
 
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
     m_ZOffset = 0;
 }
 
-void Renderer<3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
+void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    RenderInfo<3, true> fullDrawInfo;
-    fullDrawInfo.CommandBuffer = p_CommandBuffer;
-    fullDrawInfo.FrameIndex = m_FrameIndex;
-    fullDrawInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
-    fullDrawInfo.DirectionalLightCount = static_cast<u32>(m_DirectionalLights.size());
-    fullDrawInfo.PointLightCount = static_cast<u32>(m_PointLights.size());
-    fullDrawInfo.AmbientColor = AmbientColor;
+    RenderInfo<D3, DrawMode::Fill> fillDrawInfo;
+    fillDrawInfo.CommandBuffer = p_CommandBuffer;
+    fillDrawInfo.FrameIndex = m_FrameIndex;
+    fillDrawInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
+    fillDrawInfo.DirectionalLightCount = static_cast<u32>(m_DirectionalLights.size());
+    fillDrawInfo.PointLightCount = static_cast<u32>(m_PointLights.size());
+    fillDrawInfo.AmbientColor = AmbientColor;
 
     for (usize i = 0; i < m_DirectionalLights.size(); ++i)
         m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex]->WriteAt(i, &m_DirectionalLights[i]);
     for (usize i = 0; i < m_PointLights.size(); ++i)
         m_DeviceLightData.PointLightBuffers[m_FrameIndex]->WriteAt(i, &m_PointLights[i]);
 
-    m_MeshRenderer.NoStencilWriteFill.Render(fullDrawInfo);
-    m_PrimitiveRenderer.NoStencilWriteFill.Render(fullDrawInfo);
-    m_PolygonRenderer.NoStencilWriteFill.Render(fullDrawInfo);
-    m_CircleRenderer.NoStencilWriteFill.Render(fullDrawInfo);
+    m_MeshRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
+    m_PrimitiveRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
+    m_PolygonRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
+    m_CircleRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
 
-    m_MeshRenderer.StencilWriteFill.Render(fullDrawInfo);
-    m_PrimitiveRenderer.StencilWriteFill.Render(fullDrawInfo);
-    m_PolygonRenderer.StencilWriteFill.Render(fullDrawInfo);
-    m_CircleRenderer.StencilWriteFill.Render(fullDrawInfo);
+    m_MeshRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
+    m_PrimitiveRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
+    m_PolygonRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
+    m_CircleRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
 
-    RenderInfo<3, false> stencilInfo;
+    RenderInfo<D3, DrawMode::Stencil> stencilInfo;
     stencilInfo.CommandBuffer = p_CommandBuffer;
     stencilInfo.FrameIndex = m_FrameIndex;
 
-    m_MeshRenderer.StencilWriteNoFill.Render(stencilInfo);
-    m_PrimitiveRenderer.StencilWriteNoFill.Render(stencilInfo);
-    m_PolygonRenderer.StencilWriteNoFill.Render(stencilInfo);
-    m_CircleRenderer.StencilWriteNoFill.Render(stencilInfo);
+    m_MeshRenderer.DoStencilWriteNoFill.Render(stencilInfo);
+    m_PrimitiveRenderer.DoStencilWriteNoFill.Render(stencilInfo);
+    m_PolygonRenderer.DoStencilWriteNoFill.Render(stencilInfo);
+    m_CircleRenderer.DoStencilWriteNoFill.Render(stencilInfo);
 
-    m_MeshRenderer.StencilTest.Render(stencilInfo);
-    m_PrimitiveRenderer.StencilTest.Render(stencilInfo);
-    m_PolygonRenderer.StencilTest.Render(stencilInfo);
-    m_CircleRenderer.StencilTest.Render(stencilInfo);
+    m_MeshRenderer.DoStencilTestNoFill.Render(stencilInfo);
+    m_PrimitiveRenderer.DoStencilTestNoFill.Render(stencilInfo);
+    m_PolygonRenderer.DoStencilTestNoFill.Render(stencilInfo);
+    m_CircleRenderer.DoStencilTestNoFill.Render(stencilInfo);
 
     m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
 }
 
-void Renderer<3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
+void Renderer<D3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
 {
     const usize size = m_DirectionalLights.size();
     auto &buffer = m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex];
@@ -386,7 +364,7 @@ void Renderer<3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
     m_DirectionalLights.push_back(p_Light);
 }
 
-void Renderer<3>::AddPointLight(const PointLight &p_Light) noexcept
+void Renderer<D3>::AddPointLight(const PointLight &p_Light) noexcept
 {
     const usize size = m_PointLights.size();
     auto &buffer = m_DeviceLightData.PointLightBuffers[m_FrameIndex];
@@ -406,7 +384,7 @@ void Renderer<3>::AddPointLight(const PointLight &p_Light) noexcept
     m_PointLights.push_back(p_Light);
 }
 
-template class IRenderer<2>;
-template class IRenderer<3>;
+template class IRenderer<D2>;
+template class IRenderer<D3>;
 
 } // namespace ONYX

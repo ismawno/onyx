@@ -5,16 +5,12 @@
 
 namespace ONYX
 {
-template <u32 N>
-    requires(IsDim<N>())
-struct ONYX_API IndexVertexData
+template <Dimension D> struct ONYX_API IndexVertexData
 {
-    DynamicArray<Vertex<N>> Vertices;
+    DynamicArray<Vertex<D>> Vertices;
     DynamicArray<Index> Indices;
 };
 
-template <u32 N>
-    requires(IsDim<N>())
-IndexVertexData<N> Load(std::string_view p_Path) noexcept;
+template <Dimension D> IndexVertexData<D> Load(std::string_view p_Path) noexcept;
 
 } // namespace ONYX

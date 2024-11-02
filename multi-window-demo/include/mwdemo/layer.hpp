@@ -32,9 +32,7 @@ class MWExampleLayer final : public Layer
   private:
     void renderWindowSpawner() noexcept;
     void renderWindowController() noexcept;
-    template <u32 N>
-        requires(IsDim<N>())
-    void renderObjectProperties(usize p_WindowIndex) noexcept;
+    template <Dimension D> void renderObjectProperties(usize p_WindowIndex) noexcept;
 
     DynamicArray<WindowData> m_WindowData;
     IMultiWindowApplication *m_Application = nullptr;

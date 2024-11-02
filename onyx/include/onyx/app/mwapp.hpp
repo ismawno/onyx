@@ -8,8 +8,8 @@ namespace ONYX
 {
 enum class WindowFlow
 {
-    SERIAL = 0,
-    CONCURRENT = 1
+    Serial = 0,
+    Concurrent = 1
 };
 
 // Notes (to be added to docs later)
@@ -67,16 +67,16 @@ class IMultiWindowApplication : public IApplication
 };
 
 // There are two ways available to manage multiple windows in an ONYX application:
-// - SERIAL: The windows are managed in a serial way, meaning that the windows are drawn one after the other in the main
+// - Serial: The windows are managed in a serial way, meaning that the windows are drawn one after the other in the main
 // thread. This is the default and most forgiving mode, allowing submission of draw calls to multiple windows from the
 // main thread (even another window itself)
-// - CONCURRENT: The windows are managed in a concurrent way, meaning that the windows are drawn in parallel. This mode
+// - Concurrent: The windows are managed in a concurrent way, meaning that the windows are drawn in parallel. This mode
 //  *can* be more efficient but requires the user to submit draw calls to a window from the same thread that created
 // the window
 
-template <WindowFlow Flow = WindowFlow::SERIAL> class ONYX_API MultiWindowApplication;
+template <WindowFlow Flow = WindowFlow::Serial> class ONYX_API MultiWindowApplication;
 
-template <> class ONYX_API MultiWindowApplication<WindowFlow::SERIAL> final : public IMultiWindowApplication
+template <> class ONYX_API MultiWindowApplication<WindowFlow::Serial> final : public IMultiWindowApplication
 {
     KIT_NON_COPYABLE(MultiWindowApplication)
   public:
@@ -90,7 +90,7 @@ template <> class ONYX_API MultiWindowApplication<WindowFlow::SERIAL> final : pu
     void processWindows() noexcept override;
 };
 
-template <> class ONYX_API MultiWindowApplication<WindowFlow::CONCURRENT> final : public IMultiWindowApplication
+template <> class ONYX_API MultiWindowApplication<WindowFlow::Concurrent> final : public IMultiWindowApplication
 {
     KIT_NON_COPYABLE(MultiWindowApplication)
   public:

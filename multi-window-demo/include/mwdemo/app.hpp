@@ -18,7 +18,7 @@ class MWDemoApplication
     void RunConcurrent() noexcept;
 
   private:
-    MultiWindowApplication<WindowFlow::SERIAL> m_SerialApplication;
-    MultiWindowApplication<WindowFlow::CONCURRENT> m_ConcurrentApplication;
+    MultiWindowApplication<WindowFlow::Serial> m_SerialApplication;
+    MultiWindowApplication<WindowFlow::Concurrent> m_ConcurrentApplication;
 };
 } // namespace ONYX

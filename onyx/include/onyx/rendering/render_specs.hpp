@@ -6,6 +6,7 @@
 #include "onyx/rendering/swap_chain.hpp"
 #include "onyx/rendering/pipeline.hpp"
 #include "onyx/draw/primitives.hpp"
+#include "onyx/draw/model.hpp"
 #include <vulkan/vulkan.hpp>
 
 namespace ONYX
@@ -13,16 +14,14 @@ namespace ONYX
 
 // VERY CLUNKY: 3 out of 4 possible instantiations of MaterialData and RenderInfo are identical
 
-template <u32 N>
-    requires(IsDim<N>())
-struct MaterialData;
+template <Dimension D> struct MaterialData;
 
-template <> struct MaterialData<2>
+template <> struct MaterialData<D2>
 {
     Color Color = ONYX::Color::WHITE;
 };
 
-template <> struct MaterialData<3>
+template <> struct MaterialData<D3>
 {
     Color Color = ONYX::Color::WHITE;
     f32 DiffuseContribution = 0.8f;
@@ -30,33 +29,37 @@ template <> struct MaterialData<3>
     f32 SpecularSharpness = 32.f;
 };
 
-using MaterialData2D = MaterialData<2>;
-using MaterialData3D = MaterialData<3>;
-
-enum class ONYX_API StencilMode
+enum class ONYX_API PipelineMode : u8
 {
-    NoStencilWriteFill,
-    StencilWriteFill,
-    StencilWriteNoFill,
-    StencilTest
+    NoStencilWriteDoFill,
+    DoStencilWriteDoFill,
+    DoStencilWriteNoFill,
+    DoStencilTestNoFill
 };
 
-template <StencilMode Mode> constexpr bool IsFullDrawPass() noexcept
+enum class ONYX_API DrawMode : u8
 {
-    return Mode != StencilMode::StencilTest && Mode != StencilMode::StencilWriteNoFill;
+    Fill,
+    Stencil
+};
+
+template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
+{
+    if constexpr (PMode == PipelineMode::NoStencilWriteDoFill || PMode == PipelineMode::DoStencilWriteDoFill)
+        return DrawMode::Fill;
+    else
+        return DrawMode::Stencil;
 }
 
-template <u32 N, bool FullDrawPass>
-    requires(IsDim<N>())
-struct RenderInfo;
+template <Dimension D, DrawMode DMode> struct RenderInfo;
 
-template <bool FullDrawPass> struct ONYX_API RenderInfo<2, FullDrawPass>
+template <DrawMode DMode> struct ONYX_API RenderInfo<D2, DMode>
 {
     VkCommandBuffer CommandBuffer;
     u32 FrameIndex;
 };
 
-template <> struct ONYX_API RenderInfo<3, true>
+template <> struct ONYX_API RenderInfo<D3, DrawMode::Fill>
 {
     VkCommandBuffer CommandBuffer;
     VkDescriptorSet LightStorageBuffers;
@@ -65,30 +68,28 @@ template <> struct ONYX_API RenderInfo<3, true>
     u32 PointLightCount;
     vec4 AmbientColor;
 };
-template <> struct ONYX_API RenderInfo<3, false>
+template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
 {
     VkCommandBuffer CommandBuffer;
     u32 FrameIndex;
 };
 
-template <u32 N, bool FullDrawPass>
-    requires(IsDim<N>())
-struct InstanceData
+template <Dimension D, DrawMode DMode> struct InstanceData
 {
     mat4 Transform;
-    MaterialData2D Material;
+    MaterialData<D2> Material;
 };
 
 // Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
 // 0 1 but i dont want to deal with the alignment management tbh
 
-template <> struct ONYX_API InstanceData<3, true>
+template <> struct ONYX_API InstanceData<D3, DrawMode::Fill>
 {
     mat4 Transform;
     mat4 NormalMatrix;
     mat4 ProjectionView; // The projection view may vary between shapes
     vec4 ViewPosition;
-    MaterialData3D Material;
+    MaterialData<D3> Material;
 };
 
 template <typename T> struct ONYX_API DeviceInstanceData
@@ -113,12 +114,9 @@ template <typename T> struct ONYX_API DeviceInstanceData
     std::array<usize, SwapChain::MFIF> StorageSizes;
 };
 
-template <u32 N, bool FullDrawPass>
-    requires(IsDim<N>())
-struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<N, FullDrawPass>>
+template <Dimension D, DrawMode DMode> struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
 {
-    PolygonDeviceInstanceData(const usize p_Capacity) noexcept
-        : DeviceInstanceData<InstanceData<N, FullDrawPass>>(p_Capacity)
+    PolygonDeviceInstanceData(const usize p_Capacity) noexcept : DeviceInstanceData<InstanceData<D, DMode>>(p_Capacity)
     {
         for (usize i = 0; i < SwapChain::MFIF; ++i)
         {
@@ -135,24 +133,27 @@ struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<N, FullDrawPa
         }
     }
 
-    std::array<KIT::Storage<MutableVertexBuffer<N>>, SwapChain::MFIF> VertexBuffers;
+    std::array<KIT::Storage<MutableVertexBuffer<D>>, SwapChain::MFIF> VertexBuffers;
     std::array<KIT::Storage<MutableIndexBuffer>, SwapChain::MFIF> IndexBuffers;
 };
 
-template <u32 N, bool FullDrawPass>
-    requires(IsDim<N>())
-struct PolygonInstanceData : InstanceData<N, FullDrawPass>
+template <Dimension D, DrawMode DMode> struct PolygonInstanceData : InstanceData<D, DMode>
 {
     PrimitiveDataLayout Layout;
 };
 
-template <u32 N, bool FullDrawPass>
-    requires(IsDim<N>())
-struct CircleInstanceData : InstanceData<N, FullDrawPass>
+template <Dimension D, DrawMode DMode> struct CircleInstanceData : InstanceData<D, DMode>
 {
     alignas(16) vec4 ArcInfo;
     u32 AngleOverflow;
     f32 Hollowness;
+};
+
+struct CircleRendererArgs
+{
+    f32 LowerAngle = 0.f;
+    f32 UpperAngle = glm::two_pi<f32>();
+    f32 Hollowness = 0.f;
 };
 
 struct PushConstantData3D
@@ -163,59 +164,66 @@ struct PushConstantData3D
     u32 _Padding[2];
 };
 
-template <u32 N, StencilMode Mode>
-    requires(IsDim<N>())
-struct ONYX_API MeshRendererSpecs
-{
-    static constexpr u32 Dimension = N;
-    static constexpr StencilMode STMode = Mode;
-    using InstanceData = ONYX::InstanceData<N, IsFullDrawPass<Mode>()>;
-    using RenderInfo = ONYX::RenderInfo<N, IsFullDrawPass<Mode>()>;
+template <Dimension D, PipelineMode PMode>
+ONYX_API Pipeline::Specs CreateMeshedPipelineSpecs(VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
+                                                   u32 p_LayoutCount) noexcept;
 
-    static Pipeline::Specs CreatePipelineSpecs(VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
-                                               u32 p_LayoutCount) noexcept;
+template <Dimension D, PipelineMode PMode>
+ONYX_API Pipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
+                                                   u32 p_LayoutCount) noexcept;
+
+template <Dimension D, DrawMode DMode> struct ONYX_API MeshRendererSpecs
+{
+    using InstanceData = ONYX::InstanceData<D, DMode>;
+    using RenderInfo = ONYX::RenderInfo<D, DMode>;
+};
+template <Dimension D, DrawMode DMode> struct ONYX_API PrimitiveRendererSpecs
+{
+    using InstanceData = ONYX::InstanceData<D, DMode>;
+    using RenderInfo = ONYX::RenderInfo<D, DMode>;
+};
+template <Dimension D, DrawMode DMode> struct ONYX_API PolygonRendererSpecs
+{
+    using InstanceData = ONYX::InstanceData<D, DMode>;
+    using RenderInfo = ONYX::RenderInfo<D, DMode>;
+    using DeviceInstanceData = PolygonDeviceInstanceData<D, DMode>;
+    using HostInstanceData = PolygonInstanceData<D, DMode>;
+};
+template <Dimension D, DrawMode DMode> struct ONYX_API CircleRendererSpecs
+{
+    using InstanceData = CircleInstanceData<D, DMode>;
+    using RenderInfo = ONYX::RenderInfo<D, DMode>;
 };
 
-template <u32 N, StencilMode Mode>
-    requires(IsDim<N>())
-struct ONYX_API PrimitiveRendererSpecs
-{
-    static constexpr u32 Dimension = N;
-    static constexpr StencilMode STMode = Mode;
-    using InstanceData = ONYX::InstanceData<N, IsFullDrawPass<Mode>()>;
-    using RenderInfo = ONYX::RenderInfo<N, IsFullDrawPass<Mode>()>;
+// This function modifies the axes to support different coordinate systems
+ONYX_API void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes = nullptr) noexcept;
 
-    static Pipeline::Specs CreatePipelineSpecs(VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
-                                               u32 p_LayoutCount) noexcept;
+template <Dimension D> struct RenderState;
+
+template <> struct RenderState<D2>
+{
+    mat3 Transform{1.f};
+    mat3 Axes{1.f};
+    Color OutlineColor = Color::WHITE;
+    f32 OutlineWidth = 0.f;
+    MaterialData<D2> Material{};
+    bool Fill = true;
+    bool Outline = false;
 };
 
-template <u32 N, StencilMode Mode>
-    requires(IsDim<N>())
-struct ONYX_API PolygonRendererSpecs
+template <> struct RenderState<D3>
 {
-    static constexpr u32 Dimension = N;
-    static constexpr StencilMode STMode = Mode;
-    using InstanceData = ONYX::InstanceData<N, IsFullDrawPass<Mode>()>;
-    using DeviceInstanceData = PolygonDeviceInstanceData<N, IsFullDrawPass<Mode>()>;
-    using HostInstanceData = PolygonInstanceData<N, IsFullDrawPass<Mode>()>;
-
-    using RenderInfo = ONYX::RenderInfo<N, IsFullDrawPass<Mode>()>;
-
-    static Pipeline::Specs CreatePipelineSpecs(VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
-                                               u32 p_LayoutCount) noexcept;
-};
-
-template <u32 N, StencilMode Mode>
-    requires(IsDim<N>())
-struct ONYX_API CircleRendererSpecs
-{
-    static constexpr u32 Dimension = N;
-    static constexpr StencilMode STMode = Mode;
-    using InstanceData = CircleInstanceData<N, IsFullDrawPass<Mode>()>;
-    using RenderInfo = ONYX::RenderInfo<N, IsFullDrawPass<Mode>()>;
-
-    static Pipeline::Specs CreatePipelineSpecs(VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
-                                               u32 p_LayoutCount) noexcept;
+    mat4 Transform{1.f};
+    mat4 Axes{1.f};
+    mat4 InverseAxes{1.f}; // Just for caching
+    mat4 Projection{1.f};
+    Color LightColor = Color::WHITE;
+    Color OutlineColor = Color::WHITE;
+    f32 OutlineWidth = 0.f;
+    MaterialData<D3> Material{};
+    bool Fill = true;
+    bool Outline = false;
+    bool HasProjection = false;
 };
 
 } // namespace ONYX

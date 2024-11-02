@@ -28,9 +28,7 @@ namespace ONYX
 {
 class Window;
 
-template <u32 N>
-    requires(IsDim<N>())
-class ONYX_API IRenderContext
+template <Dimension D> class ONYX_API IRenderContext
 {
   public:
     IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
@@ -57,16 +55,16 @@ class ONYX_API IRenderContext
         Flush(color);
     }
 
-    void Transform(const mat<N> &p_Transform) noexcept;
-    void Transform(const vec<N> &p_Translation, const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept;
-    void Transform(const vec<N> &p_Translation, f32 p_Scale, const rot<N> &p_Rotation) noexcept;
+    void Transform(const mat<D> &p_Transform) noexcept;
+    void Transform(const vec<D> &p_Translation, const vec<D> &p_Scale, const rot<D> &p_Rotation) noexcept;
+    void Transform(const vec<D> &p_Translation, f32 p_Scale, const rot<D> &p_Rotation) noexcept;
 
-    void TransformAxes(const mat<N> &p_Transform) noexcept;
-    void TransformAxes(const vec<N> &p_Translation, const vec<N> &p_Scale, const rot<N> &p_Rotation) noexcept;
-    void TransformAxes(const vec<N> &p_Translation, f32 p_Scale, const rot<N> &p_Rotation) noexcept;
+    void TransformAxes(const mat<D> &p_Transform) noexcept;
+    void TransformAxes(const vec<D> &p_Translation, const vec<D> &p_Scale, const rot<D> &p_Rotation) noexcept;
+    void TransformAxes(const vec<D> &p_Translation, f32 p_Scale, const rot<D> &p_Rotation) noexcept;
 
-    void Translate(const vec<N> &p_Translation) noexcept;
-    void Scale(const vec<N> &p_Scale) noexcept;
+    void Translate(const vec<D> &p_Translation) noexcept;
+    void Scale(const vec<D> &p_Scale) noexcept;
     void Scale(f32 p_Scale) noexcept;
 
     void TranslateX(f32 p_X) noexcept;
@@ -75,8 +73,8 @@ class ONYX_API IRenderContext
     void ScaleX(f32 p_X) noexcept;
     void ScaleY(f32 p_Y) noexcept;
 
-    void TranslateAxes(const vec<N> &p_Translation) noexcept;
-    void ScaleAxes(const vec<N> &p_Scale) noexcept;
+    void TranslateAxes(const vec<D> &p_Translation) noexcept;
+    void ScaleAxes(const vec<D> &p_Scale) noexcept;
     void ScaleAxes(f32 p_Scale) noexcept;
 
     void TranslateXAxis(f32 p_X) noexcept;
@@ -90,47 +88,47 @@ class ONYX_API IRenderContext
     void Axes(f32 p_Thickness = 0.01f, f32 p_Size = 50.f) noexcept;
 
     void Triangle() noexcept;
-    void Triangle(const mat<N> &p_Transform) noexcept;
+    void Triangle(const mat<D> &p_Transform) noexcept;
 
     void Square() noexcept;
-    void Square(const mat<N> &p_Transform) noexcept;
+    void Square(const mat<D> &p_Transform) noexcept;
 
     void NGon(u32 p_Sides) noexcept;
-    void NGon(u32 p_Sides, const mat<N> &p_Transform) noexcept;
+    void NGon(u32 p_Sides, const mat<D> &p_Transform) noexcept;
 
     template <typename... Vertices>
-        requires(sizeof...(Vertices) >= 3 && (std::is_same_v<Vertices, vec<N>> && ...))
+        requires(sizeof...(Vertices) >= 3 && (std::is_same_v<Vertices, vec<D>> && ...))
     void Polygon(Vertices &&...p_Vertices) noexcept;
-    void Polygon(std::span<const vec<N>> p_Vertices) noexcept;
-    void Polygon(std::span<const vec<N>> p_Vertices, const mat<N> &p_Transform) noexcept;
+    void Polygon(std::span<const vec<D>> p_Vertices) noexcept;
+    void Polygon(std::span<const vec<D>> p_Vertices, const mat<D> &p_Transform) noexcept;
 
     void Circle() noexcept;
-    void Circle(const mat<N> &p_Transform) noexcept;
+    void Circle(const mat<D> &p_Transform) noexcept;
 
     void Circle(f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
-    void Circle(f32 p_LowerAngle, f32 p_UpperAngle, const mat<N> &p_Transform) noexcept;
-    void Circle(f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness, const mat<N> &p_Transform) noexcept;
+    void Circle(f32 p_LowerAngle, f32 p_UpperAngle, const mat<D> &p_Transform) noexcept;
+    void Circle(f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness, const mat<D> &p_Transform) noexcept;
 
     void Stadium() noexcept;
-    void Stadium(const mat<N> &p_Transform) noexcept;
+    void Stadium(const mat<D> &p_Transform) noexcept;
 
     void Stadium(f32 p_Length, f32 p_Radius) noexcept;
-    void Stadium(f32 p_Length, f32 p_Radius, const mat<N> &p_Transform) noexcept;
+    void Stadium(f32 p_Length, f32 p_Radius, const mat<D> &p_Transform) noexcept;
 
     void RoundedSquare() noexcept;
-    void RoundedSquare(const mat<N> &p_Transform) noexcept;
+    void RoundedSquare(const mat<D> &p_Transform) noexcept;
 
     void RoundedSquare(const vec2 &p_Dimensions, f32 p_Radius) noexcept;
-    void RoundedSquare(const vec2 &p_Dimensions, f32 p_Radius, const mat<N> &p_Transform) noexcept;
+    void RoundedSquare(const vec2 &p_Dimensions, f32 p_Radius, const mat<D> &p_Transform) noexcept;
 
     void RoundedSquare(f32 p_Width, f32 p_Height, f32 p_Radius) noexcept;
-    void RoundedSquare(f32 p_Width, f32 p_Height, f32 p_Radius, const mat<N> &p_Transform) noexcept;
+    void RoundedSquare(f32 p_Width, f32 p_Height, f32 p_Radius, const mat<D> &p_Transform) noexcept;
 
-    void Line(const vec<N> &p_Start, const vec<N> &p_End, f32 p_Thickness = 0.01f) noexcept;
-    void LineStrip(std::span<const vec<N>> p_Points, f32 p_Thickness = 0.01f) noexcept;
+    void Line(const vec<D> &p_Start, const vec<D> &p_End, f32 p_Thickness = 0.01f) noexcept;
+    void LineStrip(std::span<const vec<D>> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
-    void Mesh(const KIT::Ref<const Model<N>> &p_Model) noexcept;
-    void Mesh(const KIT::Ref<const Model<N>> &p_Model, const mat<N> &p_Transform) noexcept;
+    void Mesh(const KIT::Ref<const Model<D>> &p_Model) noexcept;
+    void Mesh(const KIT::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept;
 
     void Push() noexcept;
     void PushAndClear() noexcept;
@@ -159,39 +157,37 @@ class ONYX_API IRenderContext
     }
 
     void OutlineWidth(f32 p_Width) noexcept;
-    void Material(const MaterialData<N> &p_Material) noexcept;
+    void Material(const MaterialData<D> &p_Material) noexcept;
 
-    const RenderState<N> &GetState() const noexcept;
-    RenderState<N> &GetState() noexcept;
+    const RenderState<D> &GetState() const noexcept;
+    RenderState<D> &GetState() noexcept;
 
-    void SetState(const RenderState<N> &p_State) noexcept;
+    void SetState(const RenderState<D> &p_State) noexcept;
 
-    void SetCurrentTransform(const mat<N> &p_Transform) noexcept;
-    void SetCurrentAxes(const mat<N> &p_Axes) noexcept;
+    void SetCurrentTransform(const mat<D> &p_Transform) noexcept;
+    void SetCurrentAxes(const mat<D> &p_Axes) noexcept;
 
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
   protected:
-    DynamicArray<RenderState<N>> m_RenderState;
-    Renderer<N> m_Renderer;
+    DynamicArray<RenderState<D>> m_RenderState;
+    Renderer<D> m_Renderer;
     Window *m_Window;
 };
 
-template <u32 N>
-    requires(IsDim<N>())
-class RenderContext;
+template <Dimension D> class RenderContext;
 
-template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
+template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
 {
   public:
-    using IRenderContext<2>::IRenderContext;
-    using IRenderContext<2>::Transform;
-    using IRenderContext<2>::TransformAxes;
-    using IRenderContext<2>::Translate;
-    using IRenderContext<2>::Scale;
-    using IRenderContext<2>::TranslateAxes;
-    using IRenderContext<2>::ScaleAxes;
-    using IRenderContext<2>::Line;
+    using IRenderContext<D2>::IRenderContext;
+    using IRenderContext<D2>::Transform;
+    using IRenderContext<D2>::TransformAxes;
+    using IRenderContext<D2>::Translate;
+    using IRenderContext<D2>::Scale;
+    using IRenderContext<D2>::TranslateAxes;
+    using IRenderContext<D2>::ScaleAxes;
+    using IRenderContext<D2>::Line;
 
     void Translate(f32 p_X, f32 p_Y) noexcept;
     void Scale(f32 p_X, f32 p_Y) noexcept;
@@ -214,17 +210,17 @@ template <> class ONYX_API RenderContext<2> final : public IRenderContext<2>
 
     vec2 GetMouseCoordinates() const noexcept;
 };
-template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
+template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
 {
   public:
-    using IRenderContext<3>::IRenderContext;
-    using IRenderContext<3>::Transform;
-    using IRenderContext<3>::TransformAxes;
-    using IRenderContext<3>::Translate;
-    using IRenderContext<3>::Scale;
-    using IRenderContext<3>::TranslateAxes;
-    using IRenderContext<3>::ScaleAxes;
-    using IRenderContext<3>::Line;
+    using IRenderContext<D3>::IRenderContext;
+    using IRenderContext<D3>::Transform;
+    using IRenderContext<D3>::TransformAxes;
+    using IRenderContext<D3>::Translate;
+    using IRenderContext<D3>::Scale;
+    using IRenderContext<D3>::TranslateAxes;
+    using IRenderContext<D3>::ScaleAxes;
+    using IRenderContext<D3>::Line;
 
     void Transform(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept;
     void Transform(const vec3 &p_Translation, f32 p_Scale, const vec3 &p_Rotation) noexcept;
@@ -335,7 +331,4 @@ template <> class ONYX_API RenderContext<3> final : public IRenderContext<3>
 
     vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
 };
-
-using RenderContext2D = RenderContext<2>;
-using RenderContext3D = RenderContext<3>;
 } // namespace ONYX

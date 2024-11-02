@@ -79,7 +79,7 @@ bool IMultiWindowApplication::NextFrame(KIT::Clock &p_Clock) noexcept
     return !m_Windows.empty();
 }
 
-void MultiWindowApplication<WindowFlow::SERIAL>::CloseWindow(const usize p_Index) noexcept
+void MultiWindowApplication<WindowFlow::Serial>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
     if (m_MainThreadProcessing)
@@ -98,17 +98,17 @@ void MultiWindowApplication<WindowFlow::SERIAL>::CloseWindow(const usize p_Index
     }
 }
 
-WindowFlow MultiWindowApplication<WindowFlow::SERIAL>::GetWindowFlow() const noexcept
+WindowFlow MultiWindowApplication<WindowFlow::Serial>::GetWindowFlow() const noexcept
 {
-    return WindowFlow::SERIAL;
+    return WindowFlow::Serial;
 }
 
-Window *MultiWindowApplication<WindowFlow::SERIAL>::OpenWindow(const Window::Specs &p_Specs) noexcept
+Window *MultiWindowApplication<WindowFlow::Serial>::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
     Event event;
-    event.Type = Event::WINDOW_OPENED;
+    event.Type = Event::WindowOpened;
 
     auto window = KIT::Scope<Window>::Create(p_Specs);
     window->PushEvent(event);
@@ -121,7 +121,7 @@ Window *MultiWindowApplication<WindowFlow::SERIAL>::OpenWindow(const Window::Spe
     return m_Windows.back().Get();
 }
 
-void MultiWindowApplication<WindowFlow::SERIAL>::processWindows() noexcept
+void MultiWindowApplication<WindowFlow::Serial>::processWindows() noexcept
 {
     m_MainThreadProcessing = true;
     const auto drawCalls = [this](const VkCommandBuffer) {
@@ -143,7 +143,7 @@ void MultiWindowApplication<WindowFlow::SERIAL>::processWindows() noexcept
             CloseWindow(i);
 }
 
-void MultiWindowApplication<WindowFlow::CONCURRENT>::CloseWindow(const usize p_Index) noexcept
+void MultiWindowApplication<WindowFlow::Concurrent>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
     if (m_MainThreadID != std::this_thread::get_id() || (p_Index == 0 && m_MainThreadProcessing))
@@ -178,12 +178,12 @@ void MultiWindowApplication<WindowFlow::CONCURRENT>::CloseWindow(const usize p_I
     }
 }
 
-WindowFlow MultiWindowApplication<WindowFlow::CONCURRENT>::GetWindowFlow() const noexcept
+WindowFlow MultiWindowApplication<WindowFlow::Concurrent>::GetWindowFlow() const noexcept
 {
-    return WindowFlow::CONCURRENT;
+    return WindowFlow::Concurrent;
 }
 
-void MultiWindowApplication<WindowFlow::CONCURRENT>::Startup() noexcept
+void MultiWindowApplication<WindowFlow::Concurrent>::Startup() noexcept
 {
     IMultiWindowApplication::Startup();
 
@@ -192,7 +192,7 @@ void MultiWindowApplication<WindowFlow::CONCURRENT>::Startup() noexcept
         taskManager->SubmitTask(task);
 }
 
-KIT::Ref<KIT::Task<void>> MultiWindowApplication<WindowFlow::CONCURRENT>::createWindowTask(
+KIT::Ref<KIT::Task<void>> MultiWindowApplication<WindowFlow::Concurrent>::createWindowTask(
     const usize p_WindowIndex) noexcept
 {
     const KIT::ITaskManager *taskManager = Core::GetTaskManager();
@@ -204,14 +204,14 @@ KIT::Ref<KIT::Task<void>> MultiWindowApplication<WindowFlow::CONCURRENT>::create
     });
 }
 
-Window *MultiWindowApplication<WindowFlow::CONCURRENT>::OpenWindow(const Window::Specs &p_Specs) noexcept
+Window *MultiWindowApplication<WindowFlow::Concurrent>::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
     auto window = KIT::Scope<Window>::Create(p_Specs);
     Window *windowPtr = window.Get();
     m_Windows.push_back(std::move(window));
 
     Event event;
-    event.Type = Event::WINDOW_OPENED;
+    event.Type = Event::WindowOpened;
 
     // Dispatch immediately. In concurrent scenarios, layers may depend on the window index. If two windows are
     // opened before the start of te application, the window index 1 may OnEvent before window index 0, causing a
@@ -236,7 +236,7 @@ Window *MultiWindowApplication<WindowFlow::CONCURRENT>::OpenWindow(const Window:
     return windowPtr;
 }
 
-void MultiWindowApplication<WindowFlow::CONCURRENT>::processWindows() noexcept
+void MultiWindowApplication<WindowFlow::Concurrent>::processWindows() noexcept
 {
     KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (auto &task : m_Tasks)

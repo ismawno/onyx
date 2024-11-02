@@ -3,32 +3,30 @@
 
 namespace ONYX
 {
-template <u32 N>
-    requires(IsDim<N>())
-static const std::array<VkVertexInputBindingDescription, Vertex<N>::BINDINGS> &bindingDescriptions() noexcept
+template <Dimension D>
+static const std::array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> &bindingDescriptions() noexcept
 {
-    static std::array<VkVertexInputBindingDescription, Vertex<N>::BINDINGS> bindingDescriptions{};
+    static std::array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> bindingDescriptions{};
     VkVertexInputBindingDescription description{};
     description.binding = 0;
-    description.stride = sizeof(Vertex<N>);
+    description.stride = sizeof(Vertex<D>);
     description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
     bindingDescriptions[0] = description;
 
     return bindingDescriptions;
 }
 
-template <u32 N>
-    requires(IsDim<N>())
-static const std::array<VkVertexInputAttributeDescription, Vertex<N>::ATTRIBUTES> &attributeDescriptions() noexcept
+template <Dimension D>
+static const std::array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTES> &attributeDescriptions() noexcept
 {
-    static std::array<VkVertexInputAttributeDescription, Vertex<N>::ATTRIBUTES> attributeDescriptions{};
+    static std::array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTES> attributeDescriptions{};
 
     VkVertexInputAttributeDescription position{};
     position.binding = 0;
     position.location = 0;
-    position.offset = offsetof(Vertex<N>, Position);
+    position.offset = offsetof(Vertex<D>, Position);
 
-    if constexpr (N == 2)
+    if constexpr (D == D2)
         position.format = VK_FORMAT_R32G32_SFLOAT;
     else
     {
@@ -36,7 +34,7 @@ static const std::array<VkVertexInputAttributeDescription, Vertex<N>::ATTRIBUTES
         VkVertexInputAttributeDescription normal{};
         normal.binding = 0;
         normal.location = 1;
-        normal.offset = offsetof(Vertex<N>, Normal);
+        normal.offset = offsetof(Vertex<D>, Normal);
         normal.format = VK_FORMAT_R32G32B32_SFLOAT;
         attributeDescriptions[1] = normal;
     }
@@ -45,23 +43,23 @@ static const std::array<VkVertexInputAttributeDescription, Vertex<N>::ATTRIBUTES
     return attributeDescriptions;
 }
 
-const std::array<VkVertexInputBindingDescription, Vertex2D::BINDINGS> &Vertex<2>::GetBindingDescriptions() noexcept
+const std::array<VkVertexInputBindingDescription, Vertex<D2>::BINDINGS> &Vertex<D2>::GetBindingDescriptions() noexcept
 {
-    return bindingDescriptions<2>();
+    return bindingDescriptions<D2>();
 }
-const std::array<VkVertexInputAttributeDescription, Vertex2D::ATTRIBUTES> &Vertex<
-    2>::GetAttributeDescriptions() noexcept
+const std::array<VkVertexInputAttributeDescription, Vertex<D2>::ATTRIBUTES> &Vertex<
+    D2>::GetAttributeDescriptions() noexcept
 {
-    return attributeDescriptions<2>();
+    return attributeDescriptions<D2>();
 }
 
-const std::array<VkVertexInputBindingDescription, Vertex3D::BINDINGS> &Vertex<3>::GetBindingDescriptions() noexcept
+const std::array<VkVertexInputBindingDescription, Vertex<D3>::BINDINGS> &Vertex<D3>::GetBindingDescriptions() noexcept
 {
-    return bindingDescriptions<3>();
+    return bindingDescriptions<D3>();
 }
-const std::array<VkVertexInputAttributeDescription, Vertex3D::ATTRIBUTES> &Vertex<
-    3>::GetAttributeDescriptions() noexcept
+const std::array<VkVertexInputAttributeDescription, Vertex<D3>::ATTRIBUTES> &Vertex<
+    D3>::GetAttributeDescriptions() noexcept
 {
-    return attributeDescriptions<3>();
+    return attributeDescriptions<D3>();
 }
 } // namespace ONYX
