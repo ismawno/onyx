@@ -127,7 +127,7 @@ static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderSt
     if constexpr (D == D2)
     {
         mat3 transform = p_State.Axes * p_Transform;
-        if (p_Flags & DrawFlags_StencilScale)
+        if (p_Flags & DrawFlags_DoStencilScale)
             Transform<D2>::ScaleIntrinsic(transform, vec2{1.f + p_State.OutlineWidth});
         instanceData.Transform = transform3ToTransform4(transform);
         // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
@@ -138,7 +138,7 @@ static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderSt
     else
     {
         mat4 transform = (p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes) * p_Transform;
-        if (p_Flags & DrawFlags_StencilScale)
+        if (p_Flags & DrawFlags_DoStencilScale)
             Transform<D3>::ScaleIntrinsic(transform, vec3{1.f + p_State.OutlineWidth});
         instanceData.Transform = transform;
     }
@@ -156,41 +156,40 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Fl
 
     if (p_Flags & DrawFlags_Auto)
     {
-        p_Flags = DrawFlags_StencilScale;
+        p_Flags = DrawFlags_DoStencilScale;
         if (state.Fill)
-            p_Flags |= DrawFlags_Fill;
-        if (state.Outline)
-            p_Flags |= DrawFlags_Stencil;
+        {
+            if (state.Outline)
+                p_Flags |= DrawFlags_DoStencilWriteDoFill | DrawFlags_DoStencilTestNoFill;
+            else
+                p_Flags |= DrawFlags_NoStencilWriteDoFill;
+        }
+        else if (state.Outline)
+            p_Flags |= DrawFlags_DoStencilWriteNoFill | DrawFlags_DoStencilTestNoFill;
     }
-    if ((p_Flags & DrawFlags_Stencil) && KIT::ApproachesZero(state.OutlineWidth))
-        p_Flags &= ~DrawFlags_Stencil;
-
-    if (!(p_Flags & DrawFlags_Fill) && !(p_Flags & DrawFlags_Stencil))
-        return;
 
     using FillIData = InstanceData<D, DrawMode::Fill>;
     using StencilIData = InstanceData<D, DrawMode::Stencil>;
-    if (p_Flags & DrawFlags_Fill)
+    if (p_Flags & DrawFlags_NoStencilWriteDoFill)
     {
         const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
-
-        if (p_Flags & DrawFlags_Stencil)
-        {
-            p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
-
-            StencilIData stencilData =
-                createStencilInstanceData<D, StencilIData>(p_Transform, state, p_Flags, m_ZOffset);
-            p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData, std::forward<DrawArgs>(p_Args)...);
-        }
-        else
-            p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
     }
-    else
+    if (p_Flags & DrawFlags_DoStencilWriteDoFill)
     {
-        StencilIData ghostData = createStencilInstanceData<D, StencilIData>(p_Transform, state, 0, m_ZOffset);
-        StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, p_Flags, m_ZOffset);
-        p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, ghostData, std::forward<DrawArgs>(p_Args)...);
-        p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData, std::forward<DrawArgs>(p_Args)...);
+        const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
+        p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+    }
+    if (p_Flags & DrawFlags_DoStencilWriteNoFill)
+    {
+        const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(p_Transform, state, 0, m_ZOffset);
+        p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+    }
+    if (p_Flags & DrawFlags_DoStencilTestNoFill)
+    {
+        const StencilIData instanceData =
+            createStencilInstanceData<D, StencilIData>(p_Transform, state, p_Flags, m_ZOffset);
+        p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
     }
 }
 

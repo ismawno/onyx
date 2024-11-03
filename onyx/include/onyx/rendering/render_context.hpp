@@ -200,8 +200,6 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
     void RoundedLine(const vec2 &p_Start, const vec2 &p_End, f32 p_Thickness = 0.01f) noexcept;
     void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.01f) noexcept;
 
-    void RoundedLineStrip(std::span<const vec2> p_Points, f32 p_Thickness = 0.01f) noexcept;
-
     void Alpha(f32 p_Alpha) noexcept;
     void Alpha(u8 p_Alpha) noexcept;
     void Alpha(u32 p_Alpha) noexcept;
@@ -264,8 +262,6 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
     void RoundedLine(const vec3 &p_Start, const vec3 &p_End, f32 p_Thickness = 0.01f) noexcept;
     void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
                      f32 p_Thickness = 0.01f) noexcept;
-
-    void RoundedLineStrip(std::span<const vec3> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
     void Cube() noexcept;
     void Cube(const mat4 &p_Transform) noexcept;

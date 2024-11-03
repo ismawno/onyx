@@ -20,9 +20,11 @@ template <Dimension D, template <Dimension, PipelineMode> typename R> struct Ren
 enum DrawFlags : u8
 {
     DrawFlags_Auto = 1 << 0,
-    DrawFlags_Fill = 1 << 1,
-    DrawFlags_Stencil = 1 << 2,
-    DrawFlags_StencilScale = 1 << 3,
+    DrawFlags_NoStencilWriteDoFill = 1 << 1,
+    DrawFlags_DoStencilWriteDoFill = 1 << 2,
+    DrawFlags_DoStencilWriteNoFill = 1 << 3,
+    DrawFlags_DoStencilTestNoFill = 1 << 4,
+    DrawFlags_DoStencilScale = 1 << 5,
 };
 
 template <Dimension D> class ONYX_API IRenderer
