@@ -21,7 +21,7 @@ template <Dimension D> class Shape
     bool Fill = true;
     bool Outline = false;
     f32 OutlineWidth = 0.01f;
-    Color OutlineColor = Color::MAGENTA;
+    Color OutlineColor = Color::ORANGE;
 
   private:
     virtual void draw(RenderContext<D> *p_Context) noexcept = 0;

@@ -96,9 +96,7 @@ template <Dimension D> class ONYX_API IRenderContext
     void NGon(u32 p_Sides) noexcept;
     void NGon(u32 p_Sides, const mat<D> &p_Transform) noexcept;
 
-    template <typename... Vertices>
-        requires(sizeof...(Vertices) >= 3 && (std::is_same_v<Vertices, vec<D>> && ...))
-    void Polygon(Vertices &&...p_Vertices) noexcept;
+    // Polygon vertices are expected to be centered around zero
     void Polygon(std::span<const vec<D>> p_Vertices) noexcept;
     void Polygon(std::span<const vec<D>> p_Vertices, const mat<D> &p_Transform) noexcept;
 

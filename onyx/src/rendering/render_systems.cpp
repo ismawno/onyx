@@ -279,15 +279,11 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
                                             m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
     }
 
-    HostInstanceData instanceData;
+    PolygonInstanceData instanceData;
     instanceData.Transform = p_InstanceData.Transform;
-
-    if constexpr (GetDrawMode<PMode>() == DrawMode::Fill)
-    {
-        instanceData.Material = p_InstanceData.Material;
-        if constexpr (D == D3)
-            instanceData.NormalMatrix = p_InstanceData.NormalMatrix;
-    }
+    instanceData.Material = p_InstanceData.Material;
+    if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
+        instanceData.NormalMatrix = p_InstanceData.NormalMatrix;
 
     PrimitiveDataLayout layout;
     layout.VerticesStart = m_Vertices.size();
@@ -403,10 +399,23 @@ template <Dimension D, PipelineMode PMode> CircleRenderer<D, PMode>::~CircleRend
 }
 
 template <Dimension D, PipelineMode PMode>
-void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData) noexcept
+void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData, const f32 p_LowerAngle,
+                                    const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
 {
     const usize size = m_HostInstanceData.size();
     auto &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+
+    CircleInstanceData instanceData;
+    instanceData.Transform = p_InstanceData.Transform;
+    instanceData.Material = p_InstanceData.Material;
+    if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
+        instanceData.NormalMatrix = p_InstanceData.NormalMatrix;
+
+    instanceData.ArcInfo =
+        vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
+    instanceData.AngleOverflow = glm::abs(p_UpperAngle - p_LowerAngle) > glm::pi<f32>() ? 1 : 0;
+    instanceData.Hollowness = p_Hollowness;
+
     if (size == buffer->GetInstanceCount())
     {
         buffer.Destroy();
@@ -418,7 +427,7 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
                                             m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
     }
 
-    m_HostInstanceData.push_back(p_InstanceData);
+    m_HostInstanceData.push_back(instanceData);
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept

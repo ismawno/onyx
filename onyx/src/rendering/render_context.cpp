@@ -325,46 +325,39 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
 
 template <Dimension D> void IRenderContext<D>::Triangle() noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D>::GetTriangleIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D>::GetTriangleIndex());
 }
 template <Dimension D> void IRenderContext<D>::Triangle(const mat<D> &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D>::GetTriangleIndex(), p_Transform * m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D>::GetTriangleIndex());
 }
 
 template <Dimension D> void IRenderContext<D>::Square() noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D>::GetSquareIndex());
 }
 template <Dimension D> void IRenderContext<D>::Square(const mat<D> &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), p_Transform * m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D>::GetSquareIndex());
 }
 
 template <Dimension D> void IRenderContext<D>::NGon(const u32 p_Sides) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D>::GetNGonIndex(p_Sides), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D>::GetNGonIndex(p_Sides));
 }
 template <Dimension D> void IRenderContext<D>::NGon(const u32 p_Sides, const mat<D> &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D>::GetNGonIndex(p_Sides), p_Transform * m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D>::GetNGonIndex(p_Sides));
 }
 
-template <Dimension D>
-template <typename... Vertices>
-    requires(sizeof...(Vertices) >= 3 && (std::is_same_v<Vertices, vec<D>> && ...))
-void IRenderContext<D>::Polygon(Vertices &&...p_Vertices) noexcept
-{
-    m_Renderer.DrawPolygon({std::forward<Vertices>(p_Vertices)...}, m_RenderState.back().Transform);
-}
 template <Dimension D> void IRenderContext<D>::Polygon(const std::span<const vec<D>> p_Vertices) noexcept
 {
-    m_Renderer.DrawPolygon(p_Vertices, m_RenderState.back().Transform);
+    m_Renderer.DrawPolygon(m_RenderState.back().Transform, p_Vertices);
 }
 template <Dimension D>
 void IRenderContext<D>::Polygon(const std::span<const vec<D>> p_Vertices, const mat<D> &p_Transform) noexcept
 {
-    m_Renderer.DrawPolygon(p_Vertices, p_Transform);
+    m_Renderer.DrawPolygon(p_Transform * m_RenderState.back().Transform, p_Vertices);
 }
 
 template <Dimension D> void IRenderContext<D>::Circle() noexcept
@@ -416,12 +409,12 @@ static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, mat4 p_Transform, cons
 {
     ONYX::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
     ONYX::Transform<D3>::ScaleIntrinsic(p_Transform, vec3{p_Diameter});
-    p_Renderer.DrawPrimitive(Primitives<D3>::GetSphereIndex(), p_Transform);
+    p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetSphereIndex());
 }
 static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, mat4 p_Transform, const vec3 &p_Position) noexcept
 {
     ONYX::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
-    p_Renderer.DrawPrimitive(Primitives<D3>::GetSphereIndex(), p_Transform);
+    p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetSphereIndex());
 }
 
 template <Dimension D>
@@ -437,7 +430,7 @@ static void drawStadiumMoons(Renderer<D> &p_Renderer, const mat<D> &p_Transform,
 
 template <Dimension D> static void drawStadium(Renderer<D> &p_Renderer, const mat<D> &p_Transform) noexcept
 {
-    p_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), p_Transform);
+    p_Renderer.DrawPrimitive(p_Transform, Primitives<D>::GetSquareIndex());
     drawStadiumMoons<D>(p_Renderer, p_Transform);
 }
 template <Dimension D>
@@ -447,7 +440,7 @@ static void drawStadium(Renderer<D> &p_Renderer, const mat<D> &p_Transform, cons
     mat<D> transform = p_Transform;
     ONYX::Transform<D>::ScaleIntrinsic(transform, 0, p_Length);
     ONYX::Transform<D>::ScaleIntrinsic(transform, 1, p_Diameter);
-    p_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), transform);
+    p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex());
 
     drawStadiumMoons<D>(p_Renderer, p_Transform, p_Length, p_Diameter);
 }
@@ -480,22 +473,22 @@ void IRenderContext<D>::Stadium(const f32 p_Length, const f32 p_Radius, const ma
 //     mat<D> transform = p_Transform;
 //     ONYX::Transform<D>::TranslateIntrinsic(transform, 0, paddedDims.x);
 //     ONYX::Transform<D>::ScaleIntrinsic(transform, 0, p_Radius);
-//     p_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), transform);
+//     p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex());
 
 //     transform = p_Transform;
 //     ONYX::Transform<D>::TranslateIntrinsic(transform, 1, paddedDims.y);
 //     ONYX::Transform<D>::ScaleIntrinsic(transform, 1, p_Radius);
-//     p_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), transform);
+//     p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex());
 
 //     transform = p_Transform;
 //     ONYX::Transform<D>::TranslateIntrinsic(transform, 0, -paddedDims.x);
 //     ONYX::Transform<D>::ScaleIntrinsic(transform, 0, p_Radius);
-//     p_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), transform);
+//     p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex());
 
 //     transform = p_Transform;
 //     ONYX::Transform<D>::TranslateIntrinsic(transform, 1, -paddedDims.y);
 //     ONYX::Transform<D>::ScaleIntrinsic(transform, 1, p_Radius);
-//     p_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), transform);
+//     p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex());
 
 //     vec<D> pos = p_Dimensions;
 //     drawIntrinsicCircle<D>(p_Renderer, p_Transform, pos, 0.f, glm::radians(90.f));
@@ -509,7 +502,7 @@ void IRenderContext<D>::Stadium(const f32 p_Length, const f32 p_Radius, const ma
 
 // template <Dimension D> static void drawRoundedSquare(Renderer<D> &p_Renderer, const mat<D> &p_Transform) noexcept
 // {
-//     p_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), p_Transform);
+//     p_Renderer.DrawPrimitive(p_Transform, Primitives<D>::GetSquareIndex());
 //     drawRoundedSquareEdges<D>(p_Renderer, p_Transform);
 // }
 // template <Dimension D>
@@ -519,7 +512,7 @@ void IRenderContext<D>::Stadium(const f32 p_Length, const f32 p_Radius, const ma
 //     mat<D> transform = p_Transform;
 //     ONYX::Transform<D>::ScaleIntrinsic(transform, 0, p_Width);
 //     ONYX::Transform<D>::ScaleIntrinsic(transform, 1, p_Height);
-//     p_Renderer.DrawPrimitive(Primitives<D>::GetSquareIndex(), transform);
+//     p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex());
 
 //     vec<D> pos{0.f};
 //     pos.x = -0.5f * p_Length;
@@ -545,9 +538,9 @@ void IRenderContext<D>::Line(const vec<D> &p_Start, const vec<D> &p_End, const f
 
     const mat<D> transform = m_RenderState.back().Transform * t.ComputeTransform();
     if constexpr (D == D2)
-        m_Renderer.DrawPrimitive(Primitives<D2>::GetSquareIndex(), transform);
+        m_Renderer.DrawPrimitive(transform, Primitives<D2>::GetSquareIndex());
     else
-        m_Renderer.DrawPrimitive(Primitives<D3>::GetCylinderIndex(), transform);
+        m_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCylinderIndex());
 }
 
 void RenderContext<D2>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
@@ -615,34 +608,34 @@ void RenderContext<D3>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_
 
 void RenderContext<D3>::Cube() noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D3>::GetCubeIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D3>::GetCubeIndex());
 }
 void RenderContext<D3>::Cube(const mat4 &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D3>::GetCubeIndex(), p_Transform * m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D3>::GetCubeIndex());
 }
 
 void RenderContext<D3>::Cylinder() noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D3>::GetCylinderIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D3>::GetCylinderIndex());
 }
 void RenderContext<D3>::Cylinder(const mat4 &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D3>::GetCylinderIndex(), p_Transform * m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D3>::GetCylinderIndex());
 }
 
 void RenderContext<D3>::Sphere() noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D3>::GetSphereIndex(), m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D3>::GetSphereIndex());
 }
 void RenderContext<D3>::Sphere(const mat4 &p_Transform) noexcept
 {
-    m_Renderer.DrawPrimitive(Primitives<D3>::GetSphereIndex(), p_Transform * m_RenderState.back().Transform);
+    m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D3>::GetSphereIndex());
 }
 
 static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform) noexcept
 {
-    p_Renderer.DrawPrimitive(Primitives<D3>::GetCylinderIndex(), p_Transform);
+    p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetCylinderIndex());
 
     vec3 pos{0.f};
     pos.x = -0.5f;
@@ -655,7 +648,7 @@ static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const
 {
     mat4 transform = p_Transform;
     ONYX::Transform<D3>::ScaleIntrinsic(transform, {p_Length, p_Diameter, p_Diameter});
-    p_Renderer.DrawPrimitive(Primitives<D3>::GetCylinderIndex(), transform);
+    p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCylinderIndex());
 
     vec3 pos{0.f};
     pos.x = -0.5f * p_Length;
@@ -755,12 +748,12 @@ template <Dimension D> void IRenderContext<D>::Fill(const bool p_Enabled) noexce
 
 template <Dimension D> void IRenderContext<D>::Mesh(const KIT::Ref<const Model<D>> &p_Model) noexcept
 {
-    m_Renderer.DrawMesh(p_Model, m_RenderState.back().Transform);
+    m_Renderer.DrawMesh(m_RenderState.back().Transform, p_Model);
 }
 template <Dimension D>
 void IRenderContext<D>::Mesh(const KIT::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept
 {
-    m_Renderer.DrawMesh(p_Model, p_Transform * m_RenderState.back().Transform);
+    m_Renderer.DrawMesh(p_Transform * m_RenderState.back().Transform, p_Model);
 }
 
 template <Dimension D> void IRenderContext<D>::Push() noexcept

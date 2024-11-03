@@ -163,39 +163,40 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, DrawArg
     if (state.Fill)
     {
         const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
+
         if (!hasOutline)
             p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
         else
         {
             p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
 
-            const StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
+            StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
             p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData, std::forward<DrawArgs>(p_Args)...);
         }
     }
     else
     {
-        const StencilIData ghostData = createStencilInstanceData<D, StencilIData, false>(p_Transform, state, m_ZOffset);
-        const StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
+        StencilIData ghostData = createStencilInstanceData<D, StencilIData, false>(p_Transform, state, m_ZOffset);
+        StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
         p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, ghostData, std::forward<DrawArgs>(p_Args)...);
         p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData, std::forward<DrawArgs>(p_Args)...);
     }
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const KIT::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept
+void IRenderer<D>::DrawMesh(const mat<D> &p_Transform, const KIT::Ref<const Model<D>> &p_Model) noexcept
 {
     draw(m_MeshRenderer, p_Transform, p_Model);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPrimitive(const usize p_PrimitiveIndex, const mat<D> &p_Transform) noexcept
+void IRenderer<D>::DrawPrimitive(const mat<D> &p_Transform, const usize p_PrimitiveIndex) noexcept
 {
     draw(m_PrimitiveRenderer, p_Transform, p_PrimitiveIndex);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPolygon(const std::span<const vec<D>> p_Vertices, const mat<D> &p_Transform) noexcept
+void IRenderer<D>::DrawPolygon(const mat<D> &p_Transform, const std::span<const vec<D>> p_Vertices) noexcept
 {
     draw(m_PolygonRenderer, p_Transform, p_Vertices);
 }
@@ -205,50 +206,7 @@ template <Dimension D>
 void IRenderer<D>::DrawCircle(const mat<D> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
                               const f32 p_Hollowness) noexcept
 {
-    const RenderState<D> &state = m_State->back();
-    KIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
-    const bool hasOutline = state.Outline && !KIT::ApproachesZero(state.OutlineWidth);
-    if (!state.Fill && !hasOutline)
-        return;
-
-    const vec4 arcInfo =
-        vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
-    const u32 angleOverflow = glm::abs(p_UpperAngle - p_LowerAngle) > glm::pi<f32>() ? 1 : 0;
-
-    using FillIData = CircleInstanceData<D, DrawMode::Fill>;
-    using StencilIData = CircleInstanceData<D, DrawMode::Stencil>;
-    if (state.Fill)
-    {
-        FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
-        instanceData.ArcInfo = arcInfo;
-        instanceData.AngleOverflow = angleOverflow;
-        instanceData.Hollowness = p_Hollowness;
-        if (!hasOutline)
-            m_CircleRenderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData);
-        else
-        {
-            m_CircleRenderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData);
-
-            StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
-            stencilData.ArcInfo = arcInfo;
-            stencilData.AngleOverflow = angleOverflow;
-            stencilData.Hollowness = p_Hollowness;
-            m_CircleRenderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData);
-        }
-    }
-    else
-    {
-        StencilIData ghostData = createStencilInstanceData<D, StencilIData, false>(p_Transform, state, m_ZOffset);
-        ghostData.ArcInfo = arcInfo;
-        ghostData.AngleOverflow = angleOverflow;
-        ghostData.Hollowness = p_Hollowness;
-        StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
-        stencilData.ArcInfo = arcInfo;
-        stencilData.AngleOverflow = angleOverflow;
-        stencilData.Hollowness = p_Hollowness;
-        m_CircleRenderer.DoStencilWriteNoFill.Draw(m_FrameIndex, ghostData);
-        m_CircleRenderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData);
-    }
+    draw(m_CircleRenderer, p_Transform, p_LowerAngle, p_UpperAngle, p_Hollowness);
 }
 
 void Renderer<D2>::Flush() noexcept

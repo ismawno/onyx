@@ -149,13 +149,6 @@ template <Dimension D, DrawMode DMode> struct CircleInstanceData : InstanceData<
     f32 Hollowness;
 };
 
-struct CircleRendererArgs
-{
-    f32 LowerAngle = 0.f;
-    f32 UpperAngle = glm::two_pi<f32>();
-    f32 Hollowness = 0.f;
-};
-
 struct PushConstantData3D
 {
     vec4 AmbientColor;

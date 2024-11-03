@@ -25,9 +25,9 @@ template <Dimension D> class ONYX_API IRenderer
     IRenderer(VkRenderPass p_RenderPass,
               const DynamicArray<RenderState<D>> *p_State) noexcept; // Passing the state like this is a bit dodgy
 
-    void DrawMesh(const KIT::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept;
-    void DrawPrimitive(usize p_PrimitiveIndex, const mat<D> &p_Transform) noexcept;
-    void DrawPolygon(std::span<const vec<D>> p_Vertices, const mat<D> &p_Transform) noexcept;
+    void DrawMesh(const mat<D> &p_Transform, const KIT::Ref<const Model<D>> &p_Model) noexcept;
+    void DrawPrimitive(const mat<D> &p_Transform, usize p_PrimitiveIndex) noexcept;
+    void DrawPolygon(const mat<D> &p_Transform, std::span<const vec<D>> p_Vertices) noexcept;
     void DrawCircle(const mat<D> &p_Transform, f32 p_LowerAngle = 0.f, f32 p_UpperAngle = glm::two_pi<f32>(),
                     f32 p_Hollowness = 0.f) noexcept;
 
