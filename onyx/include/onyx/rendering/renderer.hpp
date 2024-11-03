@@ -6,7 +6,6 @@
 
 namespace ONYX
 {
-
 template <Dimension D, template <Dimension, PipelineMode> typename R> struct RenderSystem
 {
     RenderSystem(VkRenderPass p_RenderPass) noexcept;
@@ -18,6 +17,14 @@ template <Dimension D, template <Dimension, PipelineMode> typename R> struct Ren
     R<D, PipelineMode::DoStencilTestNoFill> DoStencilTestNoFill;
 };
 
+enum DrawFlags : u8
+{
+    DrawFlags_Auto = 1 << 0,
+    DrawFlags_Fill = 1 << 1,
+    DrawFlags_Stencil = 1 << 2,
+    DrawFlags_StencilScale = 1 << 3,
+};
+
 template <Dimension D> class ONYX_API IRenderer
 {
     KIT_NON_COPYABLE(IRenderer)
@@ -25,11 +32,15 @@ template <Dimension D> class ONYX_API IRenderer
     IRenderer(VkRenderPass p_RenderPass,
               const DynamicArray<RenderState<D>> *p_State) noexcept; // Passing the state like this is a bit dodgy
 
-    void DrawMesh(const mat<D> &p_Transform, const KIT::Ref<const Model<D>> &p_Model) noexcept;
-    void DrawPrimitive(const mat<D> &p_Transform, usize p_PrimitiveIndex) noexcept;
-    void DrawPolygon(const mat<D> &p_Transform, std::span<const vec<D>> p_Vertices) noexcept;
+    void DrawMesh(const mat<D> &p_Transform, const KIT::Ref<const Model<D>> &p_Model,
+                  u8 p_Flags = DrawFlags_Auto) noexcept;
+    void DrawPrimitive(const mat<D> &p_Transform, usize p_PrimitiveIndex, u8 p_Flags = DrawFlags_Auto) noexcept;
+    void DrawPolygon(const mat<D> &p_Transform, std::span<const vec<D>> p_Vertices,
+                     u8 p_Flags = DrawFlags_Auto) noexcept;
     void DrawCircle(const mat<D> &p_Transform, f32 p_LowerAngle = 0.f, f32 p_UpperAngle = glm::two_pi<f32>(),
-                    f32 p_Hollowness = 0.f) noexcept;
+                    f32 p_Hollowness = 0.f, u8 p_Flags = DrawFlags_Auto) noexcept;
+    void DrawCircle(const mat<D> &p_Transform, u8 p_Flags, f32 p_LowerAngle = 0.f,
+                    f32 p_UpperAngle = glm::two_pi<f32>(), f32 p_Hollowness = 0.f) noexcept;
 
   protected:
     u32 m_FrameIndex = 0;
@@ -43,7 +54,7 @@ template <Dimension D> class ONYX_API IRenderer
 
   private:
     template <typename Renderer, typename... DrawArgs>
-    void draw(Renderer &p_Renderer, const mat<D> &p_Transform, DrawArgs &&...p_Args) noexcept;
+    void draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Flags, DrawArgs &&...p_Args) noexcept;
 
     const DynamicArray<RenderState<D>> *m_State;
 };

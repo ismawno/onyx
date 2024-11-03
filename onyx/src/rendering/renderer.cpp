@@ -119,15 +119,15 @@ template <Dimension D> static void computeOutlineScale(mat<D> &p_Transform, cons
     Transform<D>::ScaleIntrinsic(p_Transform, vec<D>{1.f + p_OutlineWidth});
 }
 
-template <Dimension D, typename IData, bool Scaled = true>
-static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderState<D> &p_State,
+template <Dimension D, typename IData>
+static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderState<D> &p_State, const u8 p_Flags,
                                        [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
     IData instanceData{};
     if constexpr (D == D2)
     {
         mat3 transform = p_State.Axes * p_Transform;
-        if constexpr (Scaled)
+        if (p_Flags & DrawFlags_StencilScale)
             Transform<D2>::ScaleIntrinsic(transform, vec2{1.f + p_State.OutlineWidth});
         instanceData.Transform = transform3ToTransform4(transform);
         // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
@@ -138,7 +138,7 @@ static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderSt
     else
     {
         mat4 transform = (p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes) * p_Transform;
-        if constexpr (Scaled)
+        if (p_Flags & DrawFlags_StencilScale)
             Transform<D3>::ScaleIntrinsic(transform, vec3{1.f + p_State.OutlineWidth});
         instanceData.Transform = transform;
     }
@@ -149,64 +149,82 @@ static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderSt
 
 template <Dimension D>
 template <typename Renderer, typename... DrawArgs>
-void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, DrawArgs &&...p_Args) noexcept
+void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Flags, DrawArgs &&...p_Args) noexcept
 {
     const RenderState<D> &state = m_State->back();
     KIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
-    const bool hasOutline = state.Outline && !KIT::ApproachesZero(state.OutlineWidth);
 
-    if (!state.Fill && !hasOutline)
+    if (p_Flags & DrawFlags_Auto)
+    {
+        p_Flags = DrawFlags_StencilScale;
+        if (state.Fill)
+            p_Flags |= DrawFlags_Fill;
+        if (state.Outline)
+            p_Flags |= DrawFlags_Stencil;
+    }
+    if ((p_Flags & DrawFlags_Stencil) && KIT::ApproachesZero(state.OutlineWidth))
+        p_Flags &= ~DrawFlags_Stencil;
+
+    if (!(p_Flags & DrawFlags_Fill) && !(p_Flags & DrawFlags_Stencil))
         return;
 
     using FillIData = InstanceData<D, DrawMode::Fill>;
     using StencilIData = InstanceData<D, DrawMode::Stencil>;
-    if (state.Fill)
+    if (p_Flags & DrawFlags_Fill)
     {
         const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
 
-        if (!hasOutline)
-            p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
-        else
+        if (p_Flags & DrawFlags_Stencil)
         {
             p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
 
-            StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
+            StencilIData stencilData =
+                createStencilInstanceData<D, StencilIData>(p_Transform, state, p_Flags, m_ZOffset);
             p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData, std::forward<DrawArgs>(p_Args)...);
         }
+        else
+            p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
     }
     else
     {
-        StencilIData ghostData = createStencilInstanceData<D, StencilIData, false>(p_Transform, state, m_ZOffset);
-        StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, m_ZOffset);
+        StencilIData ghostData = createStencilInstanceData<D, StencilIData>(p_Transform, state, 0, m_ZOffset);
+        StencilIData stencilData = createStencilInstanceData<D, StencilIData>(p_Transform, state, p_Flags, m_ZOffset);
         p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, ghostData, std::forward<DrawArgs>(p_Args)...);
         p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, stencilData, std::forward<DrawArgs>(p_Args)...);
     }
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const mat<D> &p_Transform, const KIT::Ref<const Model<D>> &p_Model) noexcept
+void IRenderer<D>::DrawMesh(const mat<D> &p_Transform, const KIT::Ref<const Model<D>> &p_Model,
+                            const u8 p_Flags) noexcept
 {
-    draw(m_MeshRenderer, p_Transform, p_Model);
+    draw(m_MeshRenderer, p_Transform, p_Flags, p_Model);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPrimitive(const mat<D> &p_Transform, const usize p_PrimitiveIndex) noexcept
+void IRenderer<D>::DrawPrimitive(const mat<D> &p_Transform, const usize p_PrimitiveIndex, const u8 p_Flags) noexcept
 {
-    draw(m_PrimitiveRenderer, p_Transform, p_PrimitiveIndex);
+    draw(m_PrimitiveRenderer, p_Transform, p_Flags, p_PrimitiveIndex);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPolygon(const mat<D> &p_Transform, const std::span<const vec<D>> p_Vertices) noexcept
+void IRenderer<D>::DrawPolygon(const mat<D> &p_Transform, const std::span<const vec<D>> p_Vertices,
+                               const u8 p_Flags) noexcept
 {
-    draw(m_PolygonRenderer, p_Transform, p_Vertices);
+    draw(m_PolygonRenderer, p_Transform, p_Flags, p_Vertices);
 }
 
-// This is a kind of annoying exception
 template <Dimension D>
 void IRenderer<D>::DrawCircle(const mat<D> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
-                              const f32 p_Hollowness) noexcept
+                              const f32 p_Hollowness, const u8 p_Flags) noexcept
 {
-    draw(m_CircleRenderer, p_Transform, p_LowerAngle, p_UpperAngle, p_Hollowness);
+    draw(m_CircleRenderer, p_Transform, p_Flags, p_LowerAngle, p_UpperAngle, p_Hollowness);
+}
+template <Dimension D>
+void IRenderer<D>::DrawCircle(const mat<D> &p_Transform, const u8 p_Flags, const f32 p_LowerAngle,
+                              const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
+{
+    draw(m_CircleRenderer, p_Transform, p_Flags, p_LowerAngle, p_UpperAngle, p_Hollowness);
 }
 
 void Renderer<D2>::Flush() noexcept
