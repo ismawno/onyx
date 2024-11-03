@@ -54,6 +54,7 @@ template <Dimension D> void SWExampleLayer::drawShapes(const LayerData<D> &p_Dat
     if (p_Data.DrawAxes)
     {
         p_Data.Context->Material(p_Data.AxesMaterial);
+        p_Data.Context->Fill();
         p_Data.Context->Axes(p_Data.AxesThickness);
     }
 

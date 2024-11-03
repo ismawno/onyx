@@ -669,46 +669,70 @@ void RenderContext<D3>::Sphere(const mat4 &p_Transform) noexcept
     m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D3>::GetSphereIndex());
 }
 
-static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform) noexcept
+static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const u8 p_Flags = DrawFlags_Auto) noexcept
 {
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetCylinderIndex());
 
     vec3 pos{0.f};
     pos.x = -0.5f;
-    drawIntrinsicSphere(p_Renderer, p_Transform, pos);
+    drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Flags);
     pos.x = 0.5f;
-    drawIntrinsicSphere(p_Renderer, p_Transform, pos);
+    drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Flags);
 }
-static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const f32 p_Length,
-                        const f32 p_Diameter) noexcept
+static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const f32 p_Length, const f32 p_Diameter,
+                        const u8 p_Flags = DrawFlags_Auto) noexcept
 {
     mat4 transform = p_Transform;
     ONYX::Transform<D3>::ScaleIntrinsic(transform, {p_Length, p_Diameter, p_Diameter});
-    p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCylinderIndex());
+    p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCylinderIndex(), p_Flags);
 
     vec3 pos{0.f};
     pos.x = -0.5f * p_Length;
-    drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Diameter);
+    drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Diameter, p_Flags);
     pos.x = -pos.x;
-    drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Diameter);
+    drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Diameter, p_Flags);
 }
 
 void RenderContext<D3>::Capsule() noexcept
 {
-    drawCapsule(m_Renderer, m_RenderState.back().Transform);
+    const mat4 &transform = m_RenderState.back().Transform;
+    const auto fill = [this, &transform](const u8 p_Flags) { drawCapsule(m_Renderer, transform, p_Flags); };
+    const auto outline = [this, &transform](const u8 p_Flags) {
+        drawCapsule(m_Renderer, transform, 1.f, 1.f + m_RenderState.back().OutlineWidth, p_Flags);
+    };
+    resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 void RenderContext<D3>::Capsule(const mat4 &p_Transform) noexcept
 {
-    drawCapsule(m_Renderer, p_Transform * m_RenderState.back().Transform);
+    const mat4 transform = p_Transform * m_RenderState.back().Transform;
+    const auto fill = [this, &transform](const u8 p_Flags) { drawCapsule(m_Renderer, transform, p_Flags); };
+    const auto outline = [this, &transform](const u8 p_Flags) {
+        drawCapsule(m_Renderer, transform, 1.f, 1.f + m_RenderState.back().OutlineWidth, p_Flags);
+    };
+    resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 
 void RenderContext<D3>::Capsule(const f32 p_Length, const f32 p_Radius) noexcept
 {
-    drawCapsule(m_Renderer, m_RenderState.back().Transform, p_Length, 2.f * p_Radius);
+    const mat4 &transform = m_RenderState.back().Transform;
+    const auto fill = [this, &transform, p_Length, p_Radius](const u8 p_Flags) {
+        drawCapsule(m_Renderer, transform, p_Length, 2.f * p_Radius, p_Flags);
+    };
+    const auto outline = [this, &transform, p_Length, p_Radius](const u8 p_Flags) {
+        drawCapsule(m_Renderer, transform, p_Length, 2.f * p_Radius + m_RenderState.back().OutlineWidth, p_Flags);
+    };
+    resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 void RenderContext<D3>::Capsule(const f32 p_Length, const f32 p_Radius, const mat4 &p_Transform) noexcept
 {
-    drawCapsule(m_Renderer, p_Transform * m_RenderState.back().Transform, p_Length, 2.f * p_Radius);
+    const mat4 transform = p_Transform * m_RenderState.back().Transform;
+    const auto fill = [this, &transform, p_Length, p_Radius](const u8 p_Flags) {
+        drawCapsule(m_Renderer, transform, p_Length, 2.f * p_Radius, p_Flags);
+    };
+    const auto outline = [this, &transform, p_Length, p_Radius](const u8 p_Flags) {
+        drawCapsule(m_Renderer, transform, p_Length, 2.f * p_Radius + m_RenderState.back().OutlineWidth, p_Flags);
+    };
+    resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 
 void RenderContext<D3>::LightColor(const Color &p_Color) noexcept
