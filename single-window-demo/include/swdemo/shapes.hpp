@@ -80,8 +80,20 @@ template <Dimension D> class Stadium final : public Shape<D>
 
     void Edit() noexcept override;
 
-    f32 Length;
-    f32 Radius;
+    f32 Length = 1.f;
+    f32 Radius = 0.5f;
+};
+
+template <Dimension D> class RoundedSquare final : public Shape<D>
+{
+  public:
+    const char *GetName() const noexcept override;
+    void draw(RenderContext<D> *p_Context) noexcept override;
+
+    void Edit() noexcept override;
+
+    vec2 Dimensions{1.f};
+    f32 Radius = 0.5f;
 };
 
 class Cube final : public Shape<D3>
@@ -115,6 +127,18 @@ class Capsule final : public Shape<D3>
 
     f32 Length;
     f32 Radius;
+};
+
+class RoundedCube final : public Shape<D3>
+{
+  public:
+    const char *GetName() const noexcept override;
+    void draw(RenderContext<D3> *p_Context) noexcept override;
+
+    void Edit() noexcept override;
+
+    vec3 Dimensions{1.f};
+    f32 Radius = 0.5f;
 };
 
 } // namespace ONYX

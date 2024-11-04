@@ -100,8 +100,27 @@ template <Dimension D> void Stadium<D>::Edit() noexcept
 {
     Shape<D>::Edit();
     ImGui::PushID(this);
-    ImGui::SliderFloat("Length", &Length, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    ImGui::SliderFloat("Radius", &Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    ImGui::DragFloat("Length", &Length, 0.01f, 0.f, FLT_MAX);
+    ImGui::DragFloat("Radius", &Radius, 0.01f, 0.f, FLT_MAX);
+    ImGui::PopID();
+}
+
+template <Dimension D> void RoundedSquare<D>::draw(RenderContext<D> *p_Context) noexcept
+{
+    p_Context->RoundedSquare(Dimensions, Radius, this->Transform.ComputeTransform());
+}
+
+template <Dimension D> const char *RoundedSquare<D>::GetName() const noexcept
+{
+    return "Rounded Square";
+}
+
+template <Dimension D> void RoundedSquare<D>::Edit() noexcept
+{
+    Shape<D>::Edit();
+    ImGui::PushID(this);
+    ImGui::DragFloat2("Dimensions", glm::value_ptr(Dimensions), 0.01f, 0.f, FLT_MAX);
+    ImGui::DragFloat("Radius", &Radius, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
 }
 
@@ -149,8 +168,27 @@ void Capsule::Edit() noexcept
 {
     Shape<D3>::Edit();
     ImGui::PushID(this);
-    ImGui::SliderFloat("Length", &Length, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    ImGui::SliderFloat("Radius", &Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    ImGui::DragFloat("Length", &Length, 0.01f, 0.f, FLT_MAX);
+    ImGui::DragFloat("Radius", &Radius, 0.01f, 0.f, FLT_MAX);
+    ImGui::PopID();
+}
+
+void RoundedCube::draw(RenderContext<D3> *p_Context) noexcept
+{
+    p_Context->RoundedCube(Dimensions, Radius, Transform.ComputeTransform());
+}
+
+const char *RoundedCube::GetName() const noexcept
+{
+    return "Rounded Cube";
+}
+
+void RoundedCube::Edit() noexcept
+{
+    Shape<D3>::Edit();
+    ImGui::PushID(this);
+    ImGui::DragFloat3("Dimensions", glm::value_ptr(Dimensions), 0.01f, 0.f, FLT_MAX);
+    ImGui::DragFloat("Radius", &Radius, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
 }
 
@@ -174,5 +212,8 @@ template class Polygon<D3>;
 
 template class Stadium<D2>;
 template class Stadium<D3>;
+
+template class RoundedSquare<D2>;
+template class RoundedSquare<D3>;
 
 } // namespace ONYX

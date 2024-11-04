@@ -202,16 +202,14 @@ void SWExampleLayer::renderLightSpawn() noexcept
 template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexcept
 {
     static i32 ngonSides = 3;
-    static f32 stadiumLength = 1.f;
-    static f32 stadiumRadius = 0.5f;
-    static f32 capsuleLength = 1.f;
-    static f32 capsuleRadius = 0.5f;
 
     if constexpr (D == D2)
-        ImGui::Combo("Shape", &p_Data.ShapeToSpawn, "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0\0");
+        ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+                     "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded Square\0\0");
     else
         ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                     "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Cube\0Sphere\0Cylinder\0Capsule\0\0");
+                     "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded "
+                     "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
 
     if (p_Data.ShapeToSpawn == 3)
         ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
@@ -247,16 +245,6 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             ImGui::PopID();
         }
     }
-    else if (p_Data.ShapeToSpawn == 5)
-    {
-        ImGui::SliderFloat("Length", &stadiumLength, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-        ImGui::SliderFloat("Radius", &stadiumRadius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    }
-    else if (p_Data.ShapeToSpawn == 9)
-    {
-        ImGui::SliderFloat("Length", &capsuleLength, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-        ImGui::SliderFloat("Radius", &capsuleRadius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    }
 
     if (ImGui::Button("Spawn##Shape"))
     {
@@ -280,27 +268,22 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             p_Data.PolygonVertices.clear();
         }
         else if (p_Data.ShapeToSpawn == 5)
-        {
-            auto stadium = KIT::Scope<Stadium<D>>::Create();
-            stadium->Length = stadiumLength;
-            stadium->Radius = stadiumRadius;
-            p_Data.Shapes.push_back(std::move(stadium));
-        }
+            p_Data.Shapes.push_back(KIT::Scope<Stadium<D>>::Create());
+        else if (p_Data.ShapeToSpawn == 6)
+            p_Data.Shapes.push_back(KIT::Scope<RoundedSquare<D>>::Create());
+
         else if constexpr (D == D3)
         {
-            if (p_Data.ShapeToSpawn == 6)
+            if (p_Data.ShapeToSpawn == 7)
                 p_Data.Shapes.push_back(KIT::Scope<Cube>::Create());
-            else if (p_Data.ShapeToSpawn == 7)
-                p_Data.Shapes.push_back(KIT::Scope<Sphere>::Create());
             else if (p_Data.ShapeToSpawn == 8)
-                p_Data.Shapes.push_back(KIT::Scope<Cylinder>::Create());
+                p_Data.Shapes.push_back(KIT::Scope<Sphere>::Create());
             else if (p_Data.ShapeToSpawn == 9)
-            {
-                auto capsule = KIT::Scope<Capsule>::Create();
-                capsule->Length = capsuleLength;
-                capsule->Radius = capsuleRadius;
-                p_Data.Shapes.push_back(std::move(capsule));
-            }
+                p_Data.Shapes.push_back(KIT::Scope<Cylinder>::Create());
+            else if (p_Data.ShapeToSpawn == 10)
+                p_Data.Shapes.push_back(KIT::Scope<Capsule>::Create());
+            else if (p_Data.ShapeToSpawn == 11)
+                p_Data.Shapes.push_back(KIT::Scope<RoundedCube>::Create());
         }
     }
 
