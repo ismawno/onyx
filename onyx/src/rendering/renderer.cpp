@@ -7,7 +7,6 @@
 
 namespace ONYX
 {
-
 template <Dimension D, template <Dimension, PipelineMode> typename R>
 RenderSystem<D, R>::RenderSystem(const VkRenderPass p_RenderPass) noexcept
     : NoStencilWriteDoFill(p_RenderPass), DoStencilWriteDoFill(p_RenderPass), DoStencilWriteNoFill(p_RenderPass),

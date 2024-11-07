@@ -280,10 +280,7 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
     }
 
     PolygonInstanceData instanceData;
-    instanceData.Transform = p_InstanceData.Transform;
-    instanceData.Material = p_InstanceData.Material;
-    if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        instanceData.NormalMatrix = p_InstanceData.NormalMatrix;
+    instanceData.BaseData = p_InstanceData;
 
     PrimitiveDataLayout layout;
     layout.VerticesStart = m_Vertices.size();
@@ -342,14 +339,6 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
     auto &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_Info.FrameIndex];
     auto &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_Info.FrameIndex];
 
-    // Cant just memcpy this because of alignment
-    for (usize i = 0; i < m_HostInstanceData.size(); ++i)
-    {
-        const InstanceData &data = m_HostInstanceData[i]; // scary
-        storageBuffer->WriteAt(i, &data);
-    }
-    storageBuffer->Flush();
-
     vertexBuffer->Write(m_Vertices);
     indexBuffer->Write(m_Indices);
     vertexBuffer->Flush();
@@ -365,9 +354,14 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
     vertexBuffer->Bind(p_Info.CommandBuffer);
     indexBuffer->Bind(p_Info.CommandBuffer);
 
-    for (const auto &data : m_HostInstanceData)
+    for (usize i = 0; i < m_HostInstanceData.size(); ++i)
+    {
+        const auto &data = m_HostInstanceData[i];
+        storageBuffer->WriteAt(i, &data.BaseData);
         vkCmdDrawIndexed(p_Info.CommandBuffer, data.Layout.IndicesSize, 1, data.Layout.IndicesStart,
                          data.Layout.VerticesStart, 0);
+    }
+    storageBuffer->Flush();
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush() noexcept
@@ -406,10 +400,7 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
     auto &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
 
     CircleInstanceData instanceData;
-    instanceData.Transform = p_InstanceData.Transform;
-    instanceData.Material = p_InstanceData.Material;
-    if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        instanceData.NormalMatrix = p_InstanceData.NormalMatrix;
+    instanceData.BaseData = p_InstanceData;
 
     instanceData.ArcInfo =
         vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
@@ -442,6 +433,9 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
         storageBuffer->WriteAt(i, &m_HostInstanceData[i]);
 
     m_Pipeline->Bind(p_Info.CommandBuffer);
+    if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
+        pushConstantData(p_Info, m_Pipeline.Get());
+
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
     bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, m_Pipeline.Get(), transforms);
 

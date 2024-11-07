@@ -30,14 +30,14 @@ struct InstanceData
     float Hollowness;
 };
 
-layout(set = 0, binding = 0) readonly buffer InstanceBuffer
+layout(std140, set = 0, binding = 0) readonly buffer InstanceBuffer
 {
     InstanceData Instances[];
 }
 instanceBuffer;
 
 const vec2 g_Positions[6] =
-    vec2[](vec2(-0.5, -0.5), vec2(0.5, 0.5), vec2(-0.5, 0.5), vec2(-0.5, -0.5), vec2(0.5, 0.5), vec2(0.5, -0.5));
+    vec2[](vec2(-0.5, -0.5), vec2(0.5, 0.5), vec2(-0.5, 0.5), vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5));
 
 void main()
 {

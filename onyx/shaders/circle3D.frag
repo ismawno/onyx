@@ -32,7 +32,7 @@ struct PointLight
     float Radius;
 };
 
-layout(set = 1, binding = 0) readonly buffer DirectionalLights
+layout(std140, set = 1, binding = 0) readonly buffer DirectionalLights
 {
     DirectionalLight Lights[];
 }

@@ -60,7 +60,7 @@ template <Dimension D> class NGon final : public Shape<D>
     const char *GetName() const noexcept override;
     void draw(RenderContext<D> *p_Context) noexcept override;
 
-    u32 Sides;
+    u32 Sides = 3;
 };
 
 template <Dimension D> class Polygon final : public Shape<D>
@@ -125,8 +125,8 @@ class Capsule final : public Shape<D3>
 
     void Edit() noexcept override;
 
-    f32 Length;
-    f32 Radius;
+    f32 Length = 1.f;
+    f32 Radius = 0.5f;
 };
 
 class RoundedCube final : public Shape<D3>

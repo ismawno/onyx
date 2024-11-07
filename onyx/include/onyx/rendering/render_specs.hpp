@@ -137,13 +137,15 @@ template <Dimension D, DrawMode DMode> struct PolygonDeviceInstanceData : Device
     std::array<KIT::Storage<MutableIndexBuffer>, SwapChain::MFIF> IndexBuffers;
 };
 
-template <Dimension D, DrawMode DMode> struct PolygonInstanceData : InstanceData<D, DMode>
+template <Dimension D, DrawMode DMode> struct PolygonInstanceData
 {
+    InstanceData<D, DMode> BaseData;
     PrimitiveDataLayout Layout;
 };
 
-template <Dimension D, DrawMode DMode> struct CircleInstanceData : InstanceData<D, DMode>
+template <Dimension D, DrawMode DMode> struct CircleInstanceData
 {
+    InstanceData<D, DMode> BaseData;
     alignas(16) vec4 ArcInfo;
     u32 AngleOverflow;
     f32 Hollowness;
