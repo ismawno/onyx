@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.16)
 project(onyx-sw-demo)
 
 set(SOURCES
-    src/layer.cpp
-    src/app.cpp
-    src/shapes.cpp
-    src/main.cpp
+    swdemo/layer.cpp
+    swdemo/app.cpp
+    swdemo/shapes.cpp
+    swdemo/main.cpp
 )
 
 add_executable(onyx-sw-demo ${SOURCES})
@@ -16,4 +16,4 @@ else()
 endif()
 
 target_link_libraries(onyx-sw-demo PRIVATE onyx)
-target_include_directories(onyx-sw-demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(onyx-sw-demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

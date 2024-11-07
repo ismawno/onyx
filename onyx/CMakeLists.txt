@@ -2,35 +2,35 @@ cmake_minimum_required(VERSION 3.16)
 project(onyx)
 
 set(SOURCES
-    src/core/pch.cpp
-    src/core/core.cpp
-    src/core/device.cpp
-    src/core/instance.cpp
-    src/buffer/buffer.cpp
-    src/buffer/vertex_buffer.cpp
-    src/buffer/index_buffer.cpp
-    src/rendering/pipeline.cpp
-    src/rendering/swap_chain.cpp
-    src/rendering/render_context.cpp
-    src/rendering/render_systems.cpp
-    src/rendering/renderer.cpp
-    src/rendering/render_specs.cpp
-    src/rendering/frame_scheduler.cpp
-    src/descriptors/descriptor_pool.cpp
-    src/descriptors/descriptor_set_layout.cpp
-    src/descriptors/descriptor_writer.cpp
-    src/draw/vertex.cpp
-    src/draw/color.cpp
-    src/draw/transform.cpp
-    src/draw/primitives.cpp
-    src/draw/data.cpp
-    src/draw/model.cpp
-    src/app/app.cpp
-    src/app/mwapp.cpp
-    src/app/window.cpp
-    src/app/input.cpp
-    src/app/layer.cpp
-    src/app/theme.cpp
+    onyx/core/pch.cpp
+    onyx/core/core.cpp
+    onyx/core/device.cpp
+    onyx/core/instance.cpp
+    onyx/buffer/buffer.cpp
+    onyx/buffer/vertex_buffer.cpp
+    onyx/buffer/index_buffer.cpp
+    onyx/rendering/pipeline.cpp
+    onyx/rendering/swap_chain.cpp
+    onyx/rendering/render_context.cpp
+    onyx/rendering/render_systems.cpp
+    onyx/rendering/renderer.cpp
+    onyx/rendering/render_specs.cpp
+    onyx/rendering/frame_scheduler.cpp
+    onyx/descriptors/descriptor_pool.cpp
+    onyx/descriptors/descriptor_set_layout.cpp
+    onyx/descriptors/descriptor_writer.cpp
+    onyx/draw/vertex.cpp
+    onyx/draw/color.cpp
+    onyx/draw/transform.cpp
+    onyx/draw/primitives.cpp
+    onyx/draw/data.cpp
+    onyx/draw/model.cpp
+    onyx/app/app.cpp
+    onyx/app/mwapp.cpp
+    onyx/app/window.cpp
+    onyx/app/input.cpp
+    onyx/app/layer.cpp
+    onyx/app/theme.cpp
 )
 
 add_library(onyx STATIC ${SOURCES})
@@ -182,11 +182,11 @@ if (ONYX_USE_IMPLOT OR ONYX_BUILD_DEMO)
 
 endif()
 
-target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Vulkan and GLFW are already linked with imgui
 target_link_libraries(onyx PUBLIC toolkit glm imgui VulkanMemoryAllocator PRIVATE tinyobjloader)
 
-target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/core/pch.hpp)
+target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/onyx/core/pch.hpp)
 target_compile_definitions(onyx PUBLIC KIT_ROOT_LOG_PATH="${ONYX_ROOT_PATH}" ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 if (MSVC)
