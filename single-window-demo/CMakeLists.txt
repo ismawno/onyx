@@ -4,7 +4,6 @@ project(onyx-sw-demo)
 set(SOURCES
     swdemo/layer.cpp
     swdemo/app.cpp
-    swdemo/shapes.cpp
     swdemo/main.cpp
 )
 
@@ -15,5 +14,5 @@ else()
     configure_compile_link_options(onyx-sw-demo "-Wall -Wextra -Wpedantic -Werror")
 endif()
 
-target_link_libraries(onyx-sw-demo PRIVATE onyx)
+target_link_libraries(onyx-sw-demo PRIVATE onyx-demo-utils)
 target_include_directories(onyx-sw-demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})

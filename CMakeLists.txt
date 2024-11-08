@@ -36,6 +36,7 @@ add_subdirectory(onyx)
 # endif()
 
 if (ONYX_BUILD_DEMO)
+    add_subdirectory(demo-utils)
 #     add_subdirectory(multi-window-demo)
     add_subdirectory(single-window-demo)
 endif()
