@@ -8,27 +8,30 @@ void WindowData::OnStart(Window *p_Window) noexcept
 {
     m_LayerData2.Context = p_Window->GetRenderContext<D2>();
     m_LayerData3.Context = p_Window->GetRenderContext<D3>();
+    m_Window = p_Window;
+
     m_PrevMPos = Input::GetMousePosition(p_Window);
 }
 
 void WindowData::OnRender() noexcept
 {
+    std::scoped_lock lock(*m_Mutex);
     drawShapes(m_LayerData2);
     drawShapes(m_LayerData3);
 }
 
-void WindowData::OnImGuiRender(const KIT::Timespan p_Timestep, Window *p_Window) noexcept
+void WindowData::OnImGuiRender(const KIT::Timespan p_Timestep) noexcept
 {
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
     ImGui::BeginTabBar("Dimension");
     if (ImGui::BeginTabItem("2D"))
     {
-        renderUI(m_LayerData2, p_Timestep, p_Window);
+        renderUI(m_LayerData2, p_Timestep);
         ImGui::EndTabItem();
     }
     if (ImGui::BeginTabItem("3D"))
     {
-        renderUI(m_LayerData3, p_Timestep, p_Window);
+        renderUI(m_LayerData3, p_Timestep);
         ImGui::EndTabItem();
     }
     ImGui::EndTabBar();
@@ -56,13 +59,13 @@ static void processScrollEvent(LayerData<D> &p_Data, const Event &p_Event, Windo
         Transform<D>::ScaleIntrinsic(p_Data.AxesTransform, vec<D>{1.f + 0.005f * p_Event.ScrollOffset.y});
 }
 
-void WindowData::OnEvent(const Event &p_Event, Window *p_Window) noexcept
+void WindowData::OnEvent(const Event &p_Event) noexcept
 {
     processPolygonEvent(m_LayerData2, p_Event);
     processPolygonEvent(m_LayerData3, p_Event);
 
-    processScrollEvent(m_LayerData2, p_Event, p_Window);
-    processScrollEvent(m_LayerData3, p_Event, p_Window);
+    processScrollEvent(m_LayerData2, p_Event, m_Window);
+    processScrollEvent(m_LayerData3, p_Event, m_Window);
 }
 
 void WindowData::OnImGuiRenderGlobal(const KIT::Timespan p_Timestep) noexcept
@@ -310,18 +313,22 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     }
 }
 
-template <Dimension D>
-void WindowData::renderUI(LayerData<D> &p_Data, const KIT::Timespan p_Timestep, Window *p_Window) noexcept
+template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data, const KIT::Timespan p_Timestep) noexcept
 {
     if constexpr (D == D2)
     {
+
+        std::scoped_lock lock(*m_Mutex);
         const vec2 mpos2 = m_LayerData2.Context->GetMouseCoordinates();
         ImGui::Text("Mouse Position: (%.2f, %.2f)", mpos2.x, mpos2.y);
     }
     else
     {
         ImGui::SliderFloat("Mouse Z offset", &p_Data.ZOffset, -1.f, 1.f);
+
+        std::scoped_lock lock(*m_Mutex);
         const vec3 mpos3 = m_LayerData3.Context->GetMouseCoordinates(p_Data.ZOffset);
+
         ImGui::Text("Mouse Position 3D: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
     }
 
@@ -331,7 +338,7 @@ void WindowData::renderUI(LayerData<D> &p_Data, const KIT::Timespan p_Timestep, 
         if (p_Data.ControlAxes)
         {
             ImGui::Checkbox("Control as camera", &p_Data.ControlAsCamera);
-            controlAxes<D>(p_Data, p_Timestep, p_Window);
+            controlAxes<D>(p_Data, p_Timestep);
         }
 
         if constexpr (D == D3)
@@ -364,44 +371,44 @@ void WindowData::renderUI(LayerData<D> &p_Data, const KIT::Timespan p_Timestep, 
             renderLightSpawn();
 }
 
-template <Dimension D>
-void WindowData::controlAxes(LayerData<D> &p_Data, const KIT::Timespan p_Timestep, Window *p_Window) noexcept
+template <Dimension D> void WindowData::controlAxes(LayerData<D> &p_Data, const KIT::Timespan p_Timestep) noexcept
 {
     Transform<D> t{};
     const f32 step = p_Timestep.AsSeconds();
 
-    if (Input::IsKeyPressed(p_Window, Input::Key::A))
+    if (Input::IsKeyPressed(m_Window, Input::Key::A))
         t.Translation.x -= step;
-    if (Input::IsKeyPressed(p_Window, Input::Key::D))
+    if (Input::IsKeyPressed(m_Window, Input::Key::D))
         t.Translation.x += step;
 
     if constexpr (D == D2)
     {
-        if (Input::IsKeyPressed(p_Window, Input::Key::W))
+        if (Input::IsKeyPressed(m_Window, Input::Key::W))
             t.Translation.y += step;
-        if (Input::IsKeyPressed(p_Window, Input::Key::S))
+        if (Input::IsKeyPressed(m_Window, Input::Key::S))
             t.Translation.y -= step;
 
-        if (Input::IsKeyPressed(p_Window, Input::Key::Q))
+        if (Input::IsKeyPressed(m_Window, Input::Key::Q))
             t.Rotation += step;
-        if (Input::IsKeyPressed(p_Window, Input::Key::E))
+        if (Input::IsKeyPressed(m_Window, Input::Key::E))
             t.Rotation -= step;
     }
     else
     {
-        if (Input::IsKeyPressed(p_Window, Input::Key::W))
+        if (Input::IsKeyPressed(m_Window, Input::Key::W))
             t.Translation.z -= step;
-        if (Input::IsKeyPressed(p_Window, Input::Key::S))
+        if (Input::IsKeyPressed(m_Window, Input::Key::S))
             t.Translation.z += step;
-        const vec2 mpos = Input::GetMousePosition(p_Window);
-        const vec2 delta = Input::IsKeyPressed(p_Window, Input::Key::LeftShift) ? 3.f * (mpos - m_PrevMPos) : vec2{0.f};
+
+        const vec2 mpos = Input::GetMousePosition(m_Window);
+        const vec2 delta = Input::IsKeyPressed(m_Window, Input::Key::LeftShift) ? 3.f * (mpos - m_PrevMPos) : vec2{0.f};
 
         m_PrevMPos = mpos;
 
         vec3 angles{delta.y, delta.x, 0.f};
-        if (Input::IsKeyPressed(p_Window, Input::Key::Q))
+        if (Input::IsKeyPressed(m_Window, Input::Key::Q))
             angles.z -= step;
-        if (Input::IsKeyPressed(p_Window, Input::Key::E))
+        if (Input::IsKeyPressed(m_Window, Input::Key::E))
             angles.z += step;
 
         if (angles.x > 0.f)

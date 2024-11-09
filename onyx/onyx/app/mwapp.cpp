@@ -14,7 +14,7 @@ static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSyste
     for (const Event &event : p_Window.GetNewEvents())
         p_Layers.OnEvent(p_WindowIndex, event);
     p_Window.FlushEvents();
-    // Should maybe exit if window is closed at this point (triggered by event)
+    // Should maybe exit if window is closed at this point? (triggered by event)
 
     p_Layers.OnUpdate(p_WindowIndex);
     KIT_ASSERT_RETURNS(p_Window.Render(std::forward<F1>(p_DrawCalls), std::forward<F2>(p_UICalls)), true,
@@ -63,14 +63,9 @@ usize IMultiWindowApplication::GetWindowCount() const noexcept
     return m_Windows.size();
 }
 
-KIT::Timespan IMultiWindowApplication::GetDeltaTime() const noexcept
-{
-    return m_DeltaTime.load(std::memory_order_relaxed);
-}
-
 bool IMultiWindowApplication::NextFrame(KIT::Clock &p_Clock) noexcept
 {
-    m_DeltaTime.store(p_Clock.Restart(), std::memory_order_relaxed); // In case concurrent mode is used
+    setDeltaTime(p_Clock.Restart());
     if (m_Windows.empty())
         return false;
 
@@ -82,11 +77,16 @@ bool IMultiWindowApplication::NextFrame(KIT::Clock &p_Clock) noexcept
 void MultiWindowApplication<Serial>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
-    if (m_MainThreadProcessing)
+    if (m_MustDeferWindowManagement)
     {
         m_Windows[p_Index]->FlagShouldClose();
         return;
     }
+    Event event;
+    event.Type = Event::WindowClosed;
+    event.Window = m_Windows[p_Index].Get();
+    Layers.OnEvent(p_Index, event);
+
     m_Windows.erase(m_Windows.begin() + p_Index);
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
     if (p_Index == 0)
@@ -103,29 +103,32 @@ WindowThreading MultiWindowApplication<Serial>::GetWindowThreading() const noexc
     return Serial;
 }
 
-Window *MultiWindowApplication<Serial>::OpenWindow(const Window::Specs &p_Specs) noexcept
+void MultiWindowApplication<Serial>::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
+    if (m_MustDeferWindowManagement)
+    {
+        m_WindowsToAdd.push_back(p_Specs);
+        return;
+    }
 
     auto window = KIT::Scope<Window>::Create(p_Specs);
-
-    Event event;
-    event.Type = Event::WindowOpened;
-    event.Window = window.Get();
-    window->PushEvent(event);
     if (m_Windows.empty())
     {
         m_Device = Core::GetDevice();
         initializeImGui(*window);
     }
     m_Windows.push_back(std::move(window));
-    return m_Windows.back().Get();
+    Event event;
+    event.Type = Event::WindowOpened;
+    event.Window = m_Windows.back().Get();
+    Layers.OnEvent(m_Windows.size() - 1, event);
 }
 
 void MultiWindowApplication<Serial>::processWindows() noexcept
 {
-    m_MainThreadProcessing = true;
+    m_MustDeferWindowManagement = true;
     const auto drawCalls = [this](const VkCommandBuffer) {
         beginRenderImGui();
         Layers.OnRender(0);
@@ -139,24 +142,44 @@ void MultiWindowApplication<Serial>::processWindows() noexcept
             i, *m_Windows[i], Layers, [this, i](const VkCommandBuffer) { Layers.OnRender(i); },
             [](const VkCommandBuffer) {});
 
-    m_MainThreadProcessing = false;
+    m_MustDeferWindowManagement = false;
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
             CloseWindow(i);
+    for (const auto &specs : m_WindowsToAdd)
+        OpenWindow(specs);
+    m_WindowsToAdd.clear();
+}
+
+KIT::Timespan MultiWindowApplication<Serial>::GetDeltaTime() const noexcept
+{
+    return m_DeltaTime;
+}
+
+void MultiWindowApplication<Serial>::setDeltaTime(const KIT::Timespan p_DeltaTime) noexcept
+{
+    m_DeltaTime = p_DeltaTime;
 }
 
 void MultiWindowApplication<Concurrent>::CloseWindow(const usize p_Index) noexcept
 {
     KIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
-    if (m_MainThreadID != std::this_thread::get_id() || (p_Index == 0 && m_MainThreadProcessing))
+
+    // m_MustDeferWindowManagement does not need to be atomic because only way to get to the second part is by being the
+    // main thread
+
+    if (m_MainThreadID != std::this_thread::get_id() || m_MustDeferWindowManagement)
     {
         m_Windows[p_Index]->FlagShouldClose();
         return;
     }
-    if (IsStarted())
-        for (auto &task : m_Tasks)
-            task->WaitUntilFinished();
-    // It is now safe to resubmit all tasks
+
+    // No tasks are running at this point, so we can safely remove the window
+
+    Event event;
+    event.Type = Event::WindowClosed;
+    event.Window = m_Windows[p_Index].Get();
+    Layers.OnEvent(p_Index, event);
 
     m_Windows.erase(m_Windows.begin() + p_Index);
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
@@ -171,13 +194,8 @@ void MultiWindowApplication<Concurrent>::CloseWindow(const usize p_Index) noexce
     else
         m_Tasks.erase(m_Tasks.begin() + p_Index - 1);
 
-    KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (usize i = 0; i < m_Tasks.size(); ++i)
-    {
         m_Tasks[i] = createWindowTask(i + 1);
-        if (IsRunning())
-            taskManager->SubmitTask(m_Tasks[i]);
-    }
 }
 
 WindowThreading MultiWindowApplication<Concurrent>::GetWindowThreading() const noexcept
@@ -188,7 +206,6 @@ WindowThreading MultiWindowApplication<Concurrent>::GetWindowThreading() const n
 void MultiWindowApplication<Concurrent>::Startup() noexcept
 {
     IMultiWindowApplication::Startup();
-
     KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (auto &task : m_Tasks)
         taskManager->SubmitTask(task);
@@ -205,28 +222,20 @@ KIT::Ref<KIT::Task<void>> MultiWindowApplication<Concurrent>::createWindowTask(c
     });
 }
 
-Window *MultiWindowApplication<Concurrent>::OpenWindow(const Window::Specs &p_Specs) noexcept
+void MultiWindowApplication<Concurrent>::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
+    if (m_MainThreadID != std::this_thread::get_id() || m_MustDeferWindowManagement)
+    {
+        std::scoped_lock lock(m_WindowsToAddMutex);
+        m_WindowsToAdd.push_back(p_Specs);
+        return;
+    }
     auto window = KIT::Scope<Window>::Create(p_Specs);
     Window *windowPtr = window.Get();
     m_Windows.push_back(std::move(window));
 
-    Event event;
-    event.Type = Event::WindowOpened;
-    event.Window = windowPtr;
-
-    // Dispatch immediately. In concurrent scenarios, layers may depend on the window index. If two windows are
-    // opened before the start of te application, the window index 1 may OnEvent before window index 0, causing a
-    // mismatch or a crash
-    Layers.OnEvent(m_Windows.size() - 1, event);
-
     if (m_Windows.size() > 1)
-    {
-        KIT::ITaskManager *taskManager = Core::GetTaskManager();
-        auto &task = m_Tasks.emplace_back(createWindowTask(m_Windows.size() - 1));
-        if (IsRunning())
-            taskManager->SubmitTask(task);
-    }
+        m_Tasks.push_back(createWindowTask(m_Windows.size() - 1));
     else
     {
         // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due
@@ -235,18 +244,34 @@ Window *MultiWindowApplication<Concurrent>::OpenWindow(const Window::Specs &p_Sp
         initializeImGui(*windowPtr);
     }
 
-    return windowPtr;
+    Event event;
+    event.Type = Event::WindowOpened;
+    event.Window = windowPtr;
+    Layers.OnEvent(m_Windows.size() - 1, event);
 }
 
 void MultiWindowApplication<Concurrent>::processWindows() noexcept
 {
-    KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (auto &task : m_Tasks)
     {
         task->WaitUntilFinished();
         task->Reset();
-        taskManager->SubmitTask(task);
     }
+
+    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+        if (m_Windows[i]->ShouldClose())
+            CloseWindow(i);
+    for (const auto &specs : m_WindowsToAdd)
+        OpenWindow(specs);
+    m_WindowsToAdd.clear();
+
+    if (m_Windows.empty())
+        return;
+
+    m_MustDeferWindowManagement = true;
+    KIT::ITaskManager *taskManager = Core::GetTaskManager();
+    for (auto &task : m_Tasks)
+        taskManager->SubmitTask(task);
 
     const auto drawCalls = [this](const VkCommandBuffer) {
         beginRenderImGui();
@@ -255,14 +280,19 @@ void MultiWindowApplication<Concurrent>::processWindows() noexcept
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
 
-    m_MainThreadProcessing = true;
     // Main thread always handles the first window. First element of tasks is always nullptr
     processFrame(0, *m_Windows[0], Layers, drawCalls, uiSubmission);
-    m_MainThreadProcessing = false;
+    m_MustDeferWindowManagement = false;
+}
 
-    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
-        if (m_Windows[i]->ShouldClose())
-            CloseWindow(i);
+KIT::Timespan MultiWindowApplication<Concurrent>::GetDeltaTime() const noexcept
+{
+    return m_DeltaTime;
+}
+
+void MultiWindowApplication<Concurrent>::setDeltaTime(const KIT::Timespan p_DeltaTime) noexcept
+{
+    m_DeltaTime = p_DeltaTime;
 }
 
 } // namespace ONYX

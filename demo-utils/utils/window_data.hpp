@@ -53,21 +53,24 @@ class WindowData
   public:
     void OnStart(Window *p_Window) noexcept;
     void OnRender() noexcept;
-    void OnImGuiRender(KIT::Timespan p_Timestep, Window *p_Window) noexcept;
-    void OnEvent(const Event &p_Event, Window *p_Window) noexcept;
+    void OnImGuiRender(KIT::Timespan p_Timestep) noexcept;
+    void OnEvent(const Event &p_Event) noexcept;
 
     static void OnImGuiRenderGlobal(KIT::Timespan p_Timestep) noexcept;
 
   private:
     template <Dimension D> void drawShapes(const LayerData<D> &p_Data) noexcept;
-    template <Dimension D> void renderUI(LayerData<D> &p_Data, KIT::Timespan p_Timestep, Window *p_Window) noexcept;
-    template <Dimension D> void controlAxes(LayerData<D> &p_Data, KIT::Timespan p_Timestep, Window *p_Window) noexcept;
+    template <Dimension D> void renderUI(LayerData<D> &p_Data, KIT::Timespan p_Timestep) noexcept;
+    template <Dimension D> void controlAxes(LayerData<D> &p_Data, KIT::Timespan p_Timestep) noexcept;
     void renderLightSpawn() noexcept;
 
+    Window *m_Window = nullptr;
     LayerData<D2> m_LayerData2{};
     LayerData<D3> m_LayerData3{};
     Color m_BackgroundColor = Color::BLACK;
+
     vec2 m_PrevMPos{0.f};
+    KIT::Scope<std::mutex> m_Mutex = KIT::Scope<std::mutex>::Create();
 };
 
 } // namespace ONYX

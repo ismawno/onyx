@@ -67,14 +67,6 @@ static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const 
     window->PushEvent(event);
 }
 
-static void windowCloseCallback(GLFWwindow *p_Window)
-{
-    Event event;
-    event.Window = windowFromGLFW(p_Window);
-    event.Type = Event::WindowClosed;
-    event.Window->PushEvent(event);
-}
-
 static void windowFocusCallback(GLFWwindow *p_Window, const i32 p_Focused)
 {
     Event event;
@@ -143,7 +135,6 @@ static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOff
 void Input::InstallCallbacks(Window &p_Window) noexcept
 {
     glfwSetWindowSizeCallback(p_Window.GetWindowHandle(), windowResizeCallback);
-    glfwSetWindowCloseCallback(p_Window.GetWindowHandle(), windowCloseCallback);
     glfwSetWindowFocusCallback(p_Window.GetWindowHandle(), windowFocusCallback);
     glfwSetKeyCallback(p_Window.GetWindowHandle(), keyCallback);
     glfwSetCursorPosCallback(p_Window.GetWindowHandle(), cursorPositionCallback);

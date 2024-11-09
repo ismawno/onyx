@@ -13,18 +13,18 @@ MWExampleLayer::MWExampleLayer(IMultiWindowApplication *p_Application) noexcept
 void MWExampleLayer::OnStart() noexcept
 {
     for (usize i = 0; i < m_Application->GetWindowCount(); ++i)
-        if (i < m_Data.size())
-            m_Data[i].OnStart(m_Application->GetWindow(i));
+        m_Data[i].OnStart(m_Application->GetWindow(i));
 }
 
-bool MWExampleLayer::OnEvent(usize p_WindowIndex, const Event &p_Event) noexcept
+bool MWExampleLayer::OnEvent(const usize p_WindowIndex, const Event &p_Event) noexcept
 {
+    KIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.size(), "Index out of bounds");
     if (p_Event.Type == Event::WindowOpened)
         m_Data.emplace_back().OnStart(p_Event.Window);
     else if (p_Event.Type == Event::WindowClosed)
         m_Data.erase(m_Data.begin() + p_WindowIndex);
     else
-        m_Data[p_WindowIndex].OnEvent(p_Event, m_Application->GetWindow(p_WindowIndex));
+        m_Data[p_WindowIndex].OnEvent(p_Event);
     return true;
 }
 
@@ -47,7 +47,7 @@ void MWExampleLayer::OnImGuiRender() noexcept
             Window *window = m_Application->GetWindow(i);
             if (ImGui::TreeNode(window, window->GetName(), i))
             {
-                m_Data[i].OnImGuiRender(ts, window);
+                m_Data[i].OnImGuiRender(ts);
                 ImGui::TreePop();
             }
         }

@@ -16,8 +16,7 @@ void SWExampleLayer::OnStart() noexcept
 
 bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
 {
-    Window *window = m_Application->GetMainWindow();
-    m_Data.OnEvent(p_Event, window);
+    m_Data.OnEvent(p_Event);
     return true;
 }
 
@@ -27,7 +26,7 @@ void SWExampleLayer::OnRender() noexcept
     const auto ts = m_Application->GetDeltaTime();
     WindowData::OnImGuiRenderGlobal(ts);
     if (ImGui::Begin("Editor"))
-        m_Data.OnImGuiRender(ts, m_Application->GetMainWindow());
+        m_Data.OnImGuiRender(ts);
     ImGui::End();
 }
 

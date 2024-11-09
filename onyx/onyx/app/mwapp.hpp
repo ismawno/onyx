@@ -13,11 +13,8 @@ enum WindowThreading
 };
 
 // Notes (to be added to docs later)
-// OnEvent: in window opened events, concurrent mode executes it once, through the thread (window) that issued the
-// OpenWindow call
-
-// serial mode process the event as any other for the corresponding window (for each layer. mark it as processed by
-// returning true)
+// When opening/closing a window, the corresponding event is sent as soon as the action takes place, to ensure
+// synchronization between the API and the user
 
 // an app can only be started and terminated ONCE
 
@@ -31,13 +28,16 @@ enum WindowThreading
 
 // MUST ONLY RENDER IN OnRender, NOT ON UPDATE (will cause crashes)
 
+// OnImGuiRender always runs in the main thread, and thus parallel to all other threads. If you want to display data
+// from window #4 with imgui, you may want to use some kind of synchronization mechanism if using concurrent mode
+
 class IMultiWindowApplication : public IApplication
 {
     KIT_NON_COPYABLE(IMultiWindowApplication)
   public:
     IMultiWindowApplication() = default;
 
-    virtual Window *OpenWindow(const Window::Specs &p_Specs = {}) noexcept = 0;
+    virtual void OpenWindow(const Window::Specs &p_Specs = {}) noexcept = 0;
 
     virtual void CloseWindow(usize p_Index) noexcept = 0;
     void CloseWindow(const Window *p_Window) noexcept;
@@ -51,19 +51,16 @@ class IMultiWindowApplication : public IApplication
 
     usize GetWindowCount() const noexcept;
 
-    KIT::Timespan GetDeltaTime() const noexcept override;
     virtual WindowThreading GetWindowThreading() const noexcept = 0;
 
     bool NextFrame(KIT::Clock &p_Clock) noexcept override;
 
   protected:
     DynamicArray<KIT::Scope<Window>> m_Windows;
-    bool m_MainThreadProcessing = false;
 
   private:
     virtual void processWindows() noexcept = 0;
-
-    std::atomic<KIT::Timespan> m_DeltaTime;
+    virtual void setDeltaTime(KIT::Timespan p_DeltaTime) noexcept = 0;
 };
 
 // There are two ways available to manage multiple windows in an ONYX application:
@@ -82,12 +79,18 @@ template <> class ONYX_API MultiWindowApplication<Serial> final : public IMultiW
   public:
     MultiWindowApplication() = default;
 
-    Window *OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
+    void OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
     void CloseWindow(usize p_Index) noexcept override;
     WindowThreading GetWindowThreading() const noexcept override;
+    KIT::Timespan GetDeltaTime() const noexcept override;
 
   private:
     void processWindows() noexcept override;
+    void setDeltaTime(KIT::Timespan p_DeltaTime) noexcept override;
+
+    KIT::Timespan m_DeltaTime;
+    DynamicArray<Window::Specs> m_WindowsToAdd;
+    bool m_MustDeferWindowManagement = false;
 };
 
 template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMultiWindowApplication
@@ -96,17 +99,25 @@ template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMu
   public:
     using IMultiWindowApplication::IMultiWindowApplication;
 
-    Window *OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
+    void OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
     void CloseWindow(usize p_Index) noexcept override;
     WindowThreading GetWindowThreading() const noexcept override;
+    KIT::Timespan GetDeltaTime() const noexcept override;
 
     void Startup() noexcept override;
 
   private:
     void processWindows() noexcept override;
     KIT::Ref<KIT::Task<void>> createWindowTask(usize p_WindowIndex) noexcept;
+    void setDeltaTime(KIT::Timespan p_DeltaTime) noexcept override;
 
     DynamicArray<KIT::Ref<KIT::Task<void>>> m_Tasks;
+
+    std::atomic<KIT::Timespan> m_DeltaTime;
+    DynamicArray<Window::Specs> m_WindowsToAdd;
+    bool m_MustDeferWindowManagement = false;
     const std::thread::id m_MainThreadID = std::this_thread::get_id();
+
+    mutable std::mutex m_WindowsToAddMutex;
 };
 } // namespace ONYX
