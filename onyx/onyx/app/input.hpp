@@ -184,7 +184,7 @@ struct Event
         WindowUnfocused
     };
 
-    struct WindowResize
+    struct WindowResizedDimensions
     {
         u32 OldWidth = 0;
         u32 OldHeight = 0;
@@ -202,9 +202,10 @@ struct Event
     ActionType Type;
     Input::Key Key;
 
-    WindowResize Window;
+    WindowResizedDimensions WindowResize;
     MouseState Mouse;
     vec2 ScrollOffset{0.f};
+    Window *Window = nullptr;
 
     explicit(false) operator bool() const
     {

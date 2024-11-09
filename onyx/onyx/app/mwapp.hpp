@@ -6,7 +6,7 @@
 
 namespace ONYX
 {
-enum class WindowFlow
+enum WindowThreading
 {
     Serial = 0,
     Concurrent = 1
@@ -52,7 +52,7 @@ class IMultiWindowApplication : public IApplication
     usize GetWindowCount() const noexcept;
 
     KIT::Timespan GetDeltaTime() const noexcept override;
-    virtual WindowFlow GetWindowFlow() const noexcept = 0;
+    virtual WindowThreading GetWindowThreading() const noexcept = 0;
 
     bool NextFrame(KIT::Clock &p_Clock) noexcept override;
 
@@ -74,9 +74,9 @@ class IMultiWindowApplication : public IApplication
 //  *can* be more efficient but requires the user to submit draw calls to a window from the same thread that created
 // the window
 
-template <WindowFlow Flow = WindowFlow::Serial> class ONYX_API MultiWindowApplication;
+template <WindowThreading Threading = Serial> class ONYX_API MultiWindowApplication;
 
-template <> class ONYX_API MultiWindowApplication<WindowFlow::Serial> final : public IMultiWindowApplication
+template <> class ONYX_API MultiWindowApplication<Serial> final : public IMultiWindowApplication
 {
     KIT_NON_COPYABLE(MultiWindowApplication)
   public:
@@ -84,13 +84,13 @@ template <> class ONYX_API MultiWindowApplication<WindowFlow::Serial> final : pu
 
     Window *OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
     void CloseWindow(usize p_Index) noexcept override;
-    WindowFlow GetWindowFlow() const noexcept override;
+    WindowThreading GetWindowThreading() const noexcept override;
 
   private:
     void processWindows() noexcept override;
 };
 
-template <> class ONYX_API MultiWindowApplication<WindowFlow::Concurrent> final : public IMultiWindowApplication
+template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMultiWindowApplication
 {
     KIT_NON_COPYABLE(MultiWindowApplication)
   public:
@@ -98,7 +98,7 @@ template <> class ONYX_API MultiWindowApplication<WindowFlow::Concurrent> final 
 
     Window *OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
     void CloseWindow(usize p_Index) noexcept override;
-    WindowFlow GetWindowFlow() const noexcept override;
+    WindowThreading GetWindowThreading() const noexcept override;
 
     void Startup() noexcept override;
 

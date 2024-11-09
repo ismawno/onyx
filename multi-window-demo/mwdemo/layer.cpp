@@ -1,129 +1,59 @@
 #include "mwdemo/layer.hpp"
 #include "onyx/app/mwapp.hpp"
-#include "onyx/camera/orthographic.hpp"
-#include "onyx/camera/perspective.hpp"
 #include <imgui.h>
 #include <implot.h>
 
 namespace ONYX
 {
-enum PrimitiveType : int
-{
-    RECTANGLE = 0
-};
-
 MWExampleLayer::MWExampleLayer(IMultiWindowApplication *p_Application) noexcept
     : Layer("Example"), m_Application(p_Application)
 {
 }
 
+void MWExampleLayer::OnStart() noexcept
+{
+    for (usize i = 0; i < m_Application->GetWindowCount(); ++i)
+        if (i < m_Data.size())
+            m_Data[i].OnStart(m_Application->GetWindow(i));
+}
+
+bool MWExampleLayer::OnEvent(usize p_WindowIndex, const Event &p_Event) noexcept
+{
+    if (p_Event.Type == Event::WindowOpened)
+        m_Data.emplace_back().OnStart(p_Event.Window);
+    else if (p_Event.Type == Event::WindowClosed)
+        m_Data.erase(m_Data.begin() + p_WindowIndex);
+    else
+        m_Data[p_WindowIndex].OnEvent(p_Event, m_Application->GetWindow(p_WindowIndex));
+    return true;
+}
+
 void MWExampleLayer::OnRender(const usize p_WindowIndex) noexcept
 {
-    for (const auto &drawable : m_WindowData[p_WindowIndex].Drawables)
-        m_Application->Draw(*drawable, p_WindowIndex);
+    m_Data[p_WindowIndex].OnRender();
 }
 
 void MWExampleLayer::OnImGuiRender() noexcept
 {
-    ImGui::ShowDemoWindow();
-    ImPlot::ShowDemoWindow();
-    if (ImGui::Begin("Window spawner"))
-        renderWindowSpawner();
-    ImGui::End();
-
-    if (ImGui::Begin("Window controller"))
-        renderWindowController();
-    ImGui::End();
-}
-
-bool MWExampleLayer::OnEvent(const usize, const Event &p_Event) noexcept
-{
-    if (p_Event.Type == Event::WINDOW_OPENED)
+    const auto ts = m_Application->GetDeltaTime();
+    WindowData::OnImGuiRenderGlobal(ts);
+    if (ImGui::Begin("Editor"))
     {
-        m_WindowData.emplace_back();
-        return true;
-    }
-    return false;
-}
+        if (ImGui::Button("Open Window"))
+            m_Application->OpenWindow();
 
-void MWExampleLayer::renderWindowSpawner() noexcept
-{
-    static Window::Specs specs;
-    static CameraType camera = ORTHOGRAPHIC2D;
-    static f32 orthSize = 5.f;
-
-    if (ImGui::Button("Open GLFW window"))
-    {
-        if (camera == ORTHOGRAPHIC2D)
-            m_Application->OpenWindow<Orthographic2D>(specs, orthSize);
-        else if (camera == ORTHOGRAPHIC3D)
-            m_Application->OpenWindow<Orthographic3D>(specs, orthSize);
-        else if (camera == PERSPECTIVE3D)
-            m_Application->OpenWindow<Perspective3D>(specs);
-    }
-
-    ImGui::Combo("Camera", (int *)&camera, "Orthographic2D\0Orthographic3D\0Perspective3D\0\0");
-    if (camera < PERSPECTIVE3D)
-        ImGui::DragFloat("Orthographic size", &orthSize, 0.5f, 0.f, FLT_MAX, "%.1f");
-
-    ImGui::SliderInt2("Dimensions", (int *)&specs.Width, 120, 1080);
-}
-
-template <Dimension D> static void renderTransform(Transform<D> &p_Transform) noexcept
-{
-    if constexpr (D == D2)
-    {
-        ImGui::DragFloat2("Position", glm::value_ptr(p_Transform.Position), 0.1f);
-        ImGui::DragFloat2("Scale", glm::value_ptr(p_Transform.Scale), 0.1f);
-        ImGui::DragFloat2("Origin", glm::value_ptr(p_Transform.Origin), 0.1f);
-        ImGui::DragFloat("Rotation", &p_Transform.Rotation, 0.1f);
-    }
-    else
-    {
-        ImGui::DragFloat3("Position", glm::value_ptr(p_Transform.Position));
-        ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale));
-        ImGui::DragFloat3("Origin", glm::value_ptr(p_Transform.Origin));
-    }
-}
-
-template <Dimension D> void MWExampleLayer::renderObjectProperties(const usize p_WindowIndex) noexcept
-{
-    static PrimitiveType ptype = RECTANGLE;
-    if (ImGui::Button("Spawn"))
-    {
-        if (ptype == RECTANGLE)
-            m_WindowData[p_WindowIndex].Drawables.emplace_back(KIT::Scope<ONYX::Rectangle<D>>::Create());
-    }
-    ImGui::Combo("Primitive", (int *)&ptype, "Rectangle\0\0");
-    if (ImGui::TreeNode("Active primitives"))
-    {
-        for (const auto &drawable : m_WindowData[p_WindowIndex].Drawables)
+        for (usize i = 0; i < m_Application->GetWindowCount(); ++i)
         {
-            // This is awful. It is also a demo
-            IShape<D> *shape = dynamic_cast<IShape<D> *>(drawable.Get());
-            if (!shape)
-                continue;
-            renderTransform(shape->Transform);
-        }
-        ImGui::TreePop();
-    }
-}
-
-void MWExampleLayer::renderWindowController() noexcept
-{
-    for (usize i = 0; i < m_Application->GetWindowCount(); ++i)
-    {
-        const Window *window = m_Application->GetWindow(i);
-        if (ImGui::TreeNode(window, "Window %zu", i))
-        {
-            ImGui::Text("2D Primitives");
-            renderObjectProperties<D2>(i);
-
-            ImGui::Text("3D Primitives");
-            renderObjectProperties<D3>(i);
-            ImGui::TreePop();
+            Window *window = m_Application->GetWindow(i);
+            if (ImGui::TreeNode(window, window->GetName(), i))
+            {
+                m_Data[i].OnImGuiRender(ts, window);
+                ImGui::TreePop();
+            }
         }
     }
+
+    ImGui::End();
 }
 
 } // namespace ONYX

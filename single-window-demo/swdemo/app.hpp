@@ -7,8 +7,6 @@
 
 namespace ONYX
 {
-using namespace KIT::Literals;
-
 class SWDemoApplication
 {
   public:
@@ -19,8 +17,5 @@ class SWDemoApplication
 
   private:
     KIT::Storage<Application> m_Application;
-
-    KIT::ThreadPool<std::mutex> m_ThreadPool{7};
-    KIT::StackAllocator m_Allocator{10_kb};
 };
 } // namespace ONYX

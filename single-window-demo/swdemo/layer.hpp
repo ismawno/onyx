@@ -1,12 +1,11 @@
 #pragma once
 
 #include "onyx/app/layer.hpp"
-#include "onyx/app/app.hpp"
 #include "utils/window_data.hpp"
 
 namespace ONYX
 {
-
+class Application;
 class SWExampleLayer final : public Layer
 {
   public:

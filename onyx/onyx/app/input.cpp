@@ -52,37 +52,41 @@ const char *Input::GetKeyName(const Key p_Key) noexcept
 static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_Height)
 {
     Event event;
+    event.Window = windowFromGLFW(p_Window);
     event.Type = Event::WindowResized;
 
-    Window *window = windowFromGLFW(p_Window);
+    Window *window = event.Window;
 
-    event.Window.OldWidth = window->GetScreenWidth();
-    event.Window.OldHeight = window->GetScreenHeight();
+    event.WindowResize.OldWidth = window->GetScreenWidth();
+    event.WindowResize.OldHeight = window->GetScreenHeight();
 
-    event.Window.NewWidth = static_cast<u32>(p_Width);
-    event.Window.NewHeight = static_cast<u32>(p_Height);
+    event.WindowResize.NewWidth = static_cast<u32>(p_Width);
+    event.WindowResize.NewHeight = static_cast<u32>(p_Height);
 
-    window->FlagResize(event.Window.NewWidth, event.Window.NewHeight);
+    window->FlagResize(event.WindowResize.NewWidth, event.WindowResize.NewHeight);
     window->PushEvent(event);
 }
 
 static void windowCloseCallback(GLFWwindow *p_Window)
 {
     Event event;
+    event.Window = windowFromGLFW(p_Window);
     event.Type = Event::WindowClosed;
-    windowFromGLFW(p_Window)->PushEvent(event);
+    event.Window->PushEvent(event);
 }
 
 static void windowFocusCallback(GLFWwindow *p_Window, const i32 p_Focused)
 {
     Event event;
+    event.Window = windowFromGLFW(p_Window);
     event.Type = p_Focused ? Event::WindowFocused : Event::WindowUnfocused;
-    windowFromGLFW(p_Window)->PushEvent(event);
+    event.Window->PushEvent(event);
 }
 
 static void keyCallback(GLFWwindow *p_Window, const i32 p_Key, const i32, const i32 p_Action, const i32)
 {
     Event event;
+    event.Window = windowFromGLFW(p_Window);
     switch (p_Action)
     {
     case GLFW_PRESS:
@@ -98,38 +102,42 @@ static void keyCallback(GLFWwindow *p_Window, const i32 p_Key, const i32, const 
         break;
     }
     event.Key = static_cast<Input::Key>(p_Key);
-    windowFromGLFW(p_Window)->PushEvent(event);
+    event.Window->PushEvent(event);
 }
 
 static void cursorPositionCallback(GLFWwindow *p_Window, const double p_XPos, const double p_YPos)
 {
     Event event;
+    event.Window = windowFromGLFW(p_Window);
     event.Type = Event::MouseMoved;
     event.Mouse.Position = {static_cast<f32>(p_XPos), static_cast<f32>(p_YPos)};
-    windowFromGLFW(p_Window)->PushEvent(event);
+    event.Window->PushEvent(event);
 }
 
 static void cursorEnterCallback(GLFWwindow *p_Window, const i32 p_Entered)
 {
     Event event;
+    event.Window = windowFromGLFW(p_Window);
     event.Type = p_Entered ? Event::MouseEntered : Event::MouseLeft;
-    windowFromGLFW(p_Window)->PushEvent(event);
+    event.Window->PushEvent(event);
 }
 
 static void mouseButtonCallback(GLFWwindow *p_Window, const i32 p_Button, const i32 p_Action, const i32)
 {
     Event event;
+    event.Window = windowFromGLFW(p_Window);
     event.Type = p_Action == GLFW_PRESS ? Event::MousePressed : Event::MouseReleased;
     event.Mouse.Button = static_cast<Input::Mouse>(p_Button);
-    windowFromGLFW(p_Window)->PushEvent(event);
+    event.Window->PushEvent(event);
 }
 
 static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOffset)
 {
     Event event;
+    event.Window = windowFromGLFW(p_Window);
     event.Type = Event::Scrolled;
     event.ScrollOffset = {static_cast<f32>(p_XOffset), static_cast<f32>(p_YOffset)};
-    windowFromGLFW(p_Window)->PushEvent(event);
+    event.Window->PushEvent(event);
 }
 
 void Input::InstallCallbacks(Window &p_Window) noexcept

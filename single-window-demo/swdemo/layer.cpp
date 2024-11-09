@@ -1,5 +1,5 @@
 #include "swdemo/layer.hpp"
-#include "onyx/app/mwapp.hpp"
+#include "onyx/app/app.hpp"
 #include <imgui.h>
 #include <implot.h>
 
@@ -23,8 +23,8 @@ bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
 
 void SWExampleLayer::OnRender() noexcept
 {
-    const auto ts = m_Application->GetDeltaTime();
     m_Data.OnRender();
+    const auto ts = m_Application->GetDeltaTime();
     WindowData::OnImGuiRenderGlobal(ts);
     if (ImGui::Begin("Editor"))
         m_Data.OnImGuiRender(ts, m_Application->GetMainWindow());

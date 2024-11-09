@@ -3,5 +3,5 @@
 int main()
 {
     ONYX::MWDemoApplication app;
-    app.RunConcurrent();
+    app.RunSerial();
 }

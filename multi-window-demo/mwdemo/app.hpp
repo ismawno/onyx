@@ -1,12 +1,9 @@
 #pragma once
 
 #include "onyx/app/mwapp.hpp"
-#include "kit/core/literals.hpp"
 
 namespace ONYX
 {
-using namespace KIT::Literals;
-
 class MWDemoApplication
 {
   public:
@@ -18,7 +15,7 @@ class MWDemoApplication
     void RunConcurrent() noexcept;
 
   private:
-    MultiWindowApplication<WindowFlow::Serial> m_SerialApplication;
-    MultiWindowApplication<WindowFlow::Concurrent> m_ConcurrentApplication;
+    MultiWindowApplication<Serial> m_SerialApplication;
+    MultiWindowApplication<Concurrent> m_ConcurrentApplication;
 };
 } // namespace ONYX

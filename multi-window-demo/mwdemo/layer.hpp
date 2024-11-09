@@ -1,40 +1,23 @@
 #pragma once
 
-#include "onyx/app/mwapp.hpp"
 #include "onyx/app/layer.hpp"
-#include "onyx/draw/primitives/primitives.hpp"
+#include "utils/window_data.hpp"
 
 namespace ONYX
 {
-enum CameraType : int
-{
-    ORTHOGRAPHIC2D = 0,
-    ORTHOGRAPHIC3D,
-    PERSPECTIVE3D
-};
-
-struct WindowData
-{
-    WindowData() noexcept = default;
-    DynamicArray<KIT::Scope<ONYX::IDrawable>> Drawables;
-    CameraType Camera;
-};
-
+class IMultiWindowApplication;
 class MWExampleLayer final : public Layer
 {
   public:
     MWExampleLayer(IMultiWindowApplication *p_Application) noexcept;
 
+    void OnStart() noexcept override;
     void OnRender(usize p_WindowIndex) noexcept override;
     void OnImGuiRender() noexcept override;
     bool OnEvent(usize p_WindowIndex, const Event &p_Event) noexcept override;
 
   private:
-    void renderWindowSpawner() noexcept;
-    void renderWindowController() noexcept;
-    template <Dimension D> void renderObjectProperties(usize p_WindowIndex) noexcept;
-
-    DynamicArray<WindowData> m_WindowData;
     IMultiWindowApplication *m_Application = nullptr;
+    DynamicArray<WindowData> m_Data;
 };
 } // namespace ONYX
