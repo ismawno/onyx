@@ -321,7 +321,6 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data, const KIT
 {
     if constexpr (D == D2)
     {
-
         std::scoped_lock lock(*m_Mutex);
         const vec2 mpos2 = m_LayerData2.Context->GetMouseCoordinates();
         ImGui::Text("Mouse Position: (%.2f, %.2f)", mpos2.x, mpos2.y);
@@ -361,12 +360,6 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data, const KIT
         ImGui::Checkbox("Draw##Axes", &p_Data.DrawAxes);
         if (p_Data.DrawAxes)
             ImGui::SliderFloat("Axes thickness", &p_Data.AxesThickness, 0.001f, 0.1f);
-
-        if (ImGui::TreeNode("Material"))
-        {
-            editMaterial(p_Data.AxesMaterial);
-            ImGui::TreePop();
-        }
     }
     if (ImGui::CollapsingHeader("Shapes"))
         renderShapeSpawn(p_Data);

@@ -13,7 +13,6 @@ template <Dimension D> struct ILayerData
     RenderContext<D> *Context;
     DynamicArray<KIT::Scope<Shape<D>>> Shapes;
     mat<D> AxesTransform{1.f};
-    MaterialData<D> AxesMaterial{};
 
     DynamicArray<vec<D>> PolygonVertices;
     i32 ShapeToSpawn = 0;

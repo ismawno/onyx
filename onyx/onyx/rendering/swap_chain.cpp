@@ -249,7 +249,7 @@ void SwapChain::createImageViews() noexcept
 
 void SwapChain::createRenderPass() noexcept
 {
-    std::array<VkFormat, 3> formats = {VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D24_UNORM_S8_UINT};
+    std::array<VkFormat, 3> formats = {VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT};
     m_DepthFormat =
         m_Device->FindSupportedFormat(formats, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
