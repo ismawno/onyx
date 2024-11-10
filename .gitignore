@@ -6,6 +6,8 @@ onyx/shaders/bin/
 .venv/
 .DS_Store
 imgui.ini
+docs/html/
+docs/latex/
 
 # Prerequisites
 *.d
