@@ -36,8 +36,7 @@ template <typename T> class StorageBuffer : public Buffer
         specs.AllocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
         specs.AllocationInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
         specs.AllocationInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-        specs.MinimumAlignment =
-            glm::max(props.limits.minStorageBufferOffsetAlignment, props.limits.nonCoherentAtomSize);
+        specs.MinimumAlignment = props.limits.minStorageBufferOffsetAlignment;
         return specs;
     }
 };
