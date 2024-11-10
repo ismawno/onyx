@@ -143,6 +143,8 @@ template <Dimension D, DrawMode DMode> struct PolygonInstanceData
     PrimitiveDataLayout Layout;
 };
 
+KIT_WARNING_IGNORE_PUSH
+KIT_MSVC_WARNING_IGNORE(4324)
 template <Dimension D, DrawMode DMode> struct CircleInstanceData
 {
     InstanceData<D, DMode> BaseData;
@@ -150,6 +152,7 @@ template <Dimension D, DrawMode DMode> struct CircleInstanceData
     u32 AngleOverflow;
     f32 Hollowness;
 };
+KIT_WARNING_IGNORE_POP
 
 struct PushConstantData3D
 {
