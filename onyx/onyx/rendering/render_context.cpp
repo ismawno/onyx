@@ -824,7 +824,7 @@ static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const mat4 &p_Transfo
         for (u32 i = 0; i < 2; ++i)
             for (u32 j = 0; j < 2; ++j)
             {
-                vec3 pos{0.f};
+                pos = vec3{0.f};
                 pos[dimIndex1] = relevantDims[i];
                 pos[dimIndex2] = relevantDims[2 + j];
 

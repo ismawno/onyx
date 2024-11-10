@@ -41,7 +41,8 @@ MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
     m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
 
     const auto layouts = getLayouts<D, PMode>();
-    const Pipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), layouts.size());
+    const Pipeline::Specs specs =
+        CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), static_cast<u32>(layouts.size()));
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
@@ -152,7 +153,8 @@ PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) 
     m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
 
     const auto layouts = getLayouts<D, PMode>();
-    const Pipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), layouts.size());
+    const Pipeline::Specs specs =
+        CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), static_cast<u32>(layouts.size()));
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
@@ -245,7 +247,8 @@ PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noex
     m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
 
     const auto layouts = getLayouts<D, PMode>();
-    const Pipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), layouts.size());
+    const Pipeline::Specs specs =
+        CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), static_cast<u32>(layouts.size()));
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
@@ -283,9 +286,9 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
     instanceData.BaseData = p_InstanceData;
 
     PrimitiveDataLayout layout;
-    layout.VerticesStart = m_Vertices.size();
-    layout.IndicesStart = m_Indices.size();
-    layout.IndicesSize = p_Vertices.size() * 3 - 6;
+    layout.VerticesStart = static_cast<u32>(m_Vertices.size());
+    layout.IndicesStart = static_cast<u32>(m_Indices.size());
+    layout.IndicesSize = static_cast<u32>(p_Vertices.size() * 3 - 6);
     instanceData.Layout = layout;
 
     m_HostInstanceData.push_back(instanceData);
@@ -376,7 +379,8 @@ CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexce
     m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
 
     const auto layouts = getLayouts<D, PMode>();
-    const Pipeline::Specs specs = CreateCirclePipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), layouts.size());
+    const Pipeline::Specs specs =
+        CreateCirclePipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), static_cast<u32>(layouts.size()));
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
