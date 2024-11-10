@@ -157,5 +157,9 @@ const FrameScheduler &Window::GetFrameScheduler() const noexcept
 {
     return *m_FrameScheduler;
 }
+FrameScheduler &Window::GetFrameScheduler() noexcept
+{
+    return *m_FrameScheduler;
+}
 
 } // namespace ONYX

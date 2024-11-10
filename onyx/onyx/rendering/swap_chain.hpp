@@ -4,6 +4,10 @@
 #include "onyx/core/device.hpp"
 #include "kit/container/static_array.hpp"
 
+#ifndef ONYX_MAX_FRAMES_IN_FLIGHT
+#    define ONYX_MAX_FRAMES_IN_FLIGHT 2
+#endif
+
 namespace ONYX
 {
 class ONYX_API SwapChain
@@ -11,9 +15,10 @@ class ONYX_API SwapChain
     KIT_NON_COPYABLE(SwapChain)
   public:
     // Maximum frames in flight
-    static constexpr u32 MFIF = 2;
+    static constexpr u32 MFIF = ONYX_MAX_FRAMES_IN_FLIGHT;
 
-    SwapChain(VkExtent2D p_WindowExtent, VkSurfaceKHR p_Surface, const SwapChain *p_OldSwapChain = nullptr) noexcept;
+    SwapChain(VkExtent2D p_WindowExtent, VkSurfaceKHR p_Surface, VkPresentModeKHR p_PresentMode,
+              const SwapChain *p_OldSwapChain = nullptr) noexcept;
     ~SwapChain() noexcept;
 
     VkResult AcquireNextImage(u32 *p_ImageIndex) const noexcept;
@@ -34,7 +39,8 @@ class ONYX_API SwapChain
     static bool AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_SwapChain2) noexcept;
 
   private:
-    void createSwapChain(VkExtent2D p_WindowExtent, VkSurfaceKHR p_Surface, const SwapChain *p_OldSwapChain) noexcept;
+    void createSwapChain(VkExtent2D p_WindowExtent, VkSurfaceKHR p_Surface, VkPresentModeKHR p_PresentMode,
+                         const SwapChain *p_OldSwapChain) noexcept;
     void createImageViews() noexcept;
     void createRenderPass() noexcept;
     void createDepthResources() noexcept;

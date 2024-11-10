@@ -13,6 +13,7 @@ namespace ONYX
 FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 {
     m_Device = Core::GetDevice();
+    m_SupportedPresentModes = m_Device->QuerySwapChainSupport(p_Window.GetSurface()).PresentModes;
     createSwapChain(p_Window);
     createCommandPool(p_Window.GetSurface());
     createCommandBuffers();
@@ -38,12 +39,13 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     if (m_PresentTask)
     {
         const VkResult result = m_PresentTask->WaitForResult();
-        const bool resizeFixes =
-            result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || p_Window.WasResized();
+        const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
+                                 p_Window.WasResized() || m_PresentModeChanged;
         if (resizeFixes)
         {
             createSwapChain(p_Window);
             p_Window.FlagResizeDone();
+            m_PresentModeChanged = false;
         }
         KIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
     }
@@ -151,6 +153,24 @@ const SwapChain &FrameScheduler::GetSwapChain() const noexcept
     return *m_SwapChain;
 }
 
+VkPresentModeKHR FrameScheduler::GetPresentMode() const noexcept
+{
+    return m_PresentMode;
+}
+void FrameScheduler::SetPresentMode(const VkPresentModeKHR p_PresentMode) noexcept
+{
+    KIT_ASSERT(std::find(m_SupportedPresentModes.begin(), m_SupportedPresentModes.end(), p_PresentMode) !=
+                   m_SupportedPresentModes.end(),
+               "Present mode not supported");
+    m_PresentModeChanged = m_PresentMode != p_PresentMode;
+    m_PresentMode = p_PresentMode;
+}
+
+const DynamicArray<VkPresentModeKHR> &FrameScheduler::GetSupportedPresentModes() const noexcept
+{
+    return m_SupportedPresentModes;
+}
+
 void FrameScheduler::createSwapChain(Window &p_Window) noexcept
 {
     VkExtent2D windowExtent = {p_Window.GetScreenWidth(), p_Window.GetScreenHeight()};
@@ -160,7 +180,7 @@ void FrameScheduler::createSwapChain(Window &p_Window) noexcept
         glfwWaitEvents();
     }
     m_Device->WaitIdle();
-    m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.GetSurface(), m_SwapChain.Get());
+    m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.GetSurface(), m_PresentMode, m_SwapChain.Get());
 }
 
 void FrameScheduler::createCommandPool(const VkSurfaceKHR p_Surface) noexcept

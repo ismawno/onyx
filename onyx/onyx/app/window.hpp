@@ -104,6 +104,7 @@ class ONYX_API Window
     }
 
     const FrameScheduler &GetFrameScheduler() const noexcept;
+    FrameScheduler &GetFrameScheduler() noexcept;
 
     Color BackgroundColor = Color::BLACK;
 

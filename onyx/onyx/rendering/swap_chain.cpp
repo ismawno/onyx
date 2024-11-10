@@ -14,25 +14,6 @@ static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const DynamicArray<VkSurfaceFo
     return p_Formats[0];
 }
 
-static VkPresentModeKHR chooseSwapPresentMode(const DynamicArray<VkPresentModeKHR> &p_Modes) noexcept
-{
-    for (const VkPresentModeKHR &mode : p_Modes)
-        if (mode == VK_PRESENT_MODE_MAILBOX_KHR)
-        {
-            KIT_LOG_INFO("Present mode: Mailbox");
-            return mode;
-        }
-
-    for (const VkPresentModeKHR &mode : p_Modes)
-        if (mode == VK_PRESENT_MODE_IMMEDIATE_KHR)
-        {
-            KIT_LOG_INFO("Present mode: Immediate");
-            return mode;
-        }
-    KIT_LOG_INFO("Present mode: V-Sync");
-    return VK_PRESENT_MODE_FIFO_KHR;
-}
-
 static VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &p_Capabilities, VkExtent2D p_WindowExtent) noexcept
 {
     if (p_Capabilities.currentExtent.width != UINT32_MAX)
@@ -50,10 +31,10 @@ static VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR &p_Capabilitie
 }
 
 SwapChain::SwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surface,
-                     const SwapChain *p_OldSwapChain) noexcept
+                     const VkPresentModeKHR p_PresentMode, const SwapChain *p_OldSwapChain) noexcept
 {
     m_Device = Core::GetDevice();
-    createSwapChain(p_WindowExtent, p_Surface, p_OldSwapChain);
+    createSwapChain(p_WindowExtent, p_Surface, p_PresentMode, p_OldSwapChain);
     createImageViews();
     createRenderPass();
     createDepthResources();
@@ -183,12 +164,11 @@ bool SwapChain::AreCompatible(const SwapChain &p_SwapChain1, const SwapChain &p_
 }
 
 void SwapChain::createSwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surface,
-                                const SwapChain *p_OldSwapChain) noexcept
+                                const VkPresentModeKHR p_PresentMode, const SwapChain *p_OldSwapChain) noexcept
 {
     const Device::SwapChainSupportDetails support = m_Device->QuerySwapChainSupport(p_Surface);
 
     const VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(support.Formats);
-    const VkPresentModeKHR presentMode = chooseSwapPresentMode(support.PresentModes);
     const VkExtent2D extent = chooseSwapExtent(support.Capabilities, p_WindowExtent);
 
     u32 imageCount = support.Capabilities.minImageCount + 1;
@@ -225,7 +205,7 @@ void SwapChain::createSwapChain(const VkExtent2D p_WindowExtent, const VkSurface
     createInfo.preTransform = support.Capabilities.currentTransform;
     createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
-    createInfo.presentMode = presentMode;
+    createInfo.presentMode = p_PresentMode;
     createInfo.clipped = VK_TRUE;
 
     createInfo.oldSwapchain = p_OldSwapChain ? p_OldSwapChain->m_SwapChain : VK_NULL_HANDLE;

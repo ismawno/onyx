@@ -23,6 +23,11 @@ void WindowData::OnRender() noexcept
 void WindowData::OnImGuiRender(const KIT::Timespan p_Timestep) noexcept
 {
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
+    const VkPresentModeKHR currentMode = m_Window->GetFrameScheduler().GetPresentMode();
+    bool vsync = currentMode == VK_PRESENT_MODE_FIFO_KHR;
+    if (ImGui::Checkbox("VSync", &vsync))
+        m_Window->GetFrameScheduler().SetPresentMode(vsync ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR);
+
     ImGui::BeginTabBar("Dimension");
     if (ImGui::BeginTabItem("2D"))
     {
@@ -47,10 +52,9 @@ template <Dimension D> static void processPolygonEvent(LayerData<D> &p_Data, con
         p_Data.PolygonVertices.push_back(p_Data.Context->GetMouseCoordinates(p_Data.ZOffset));
 }
 
-template <Dimension D>
-static void processScrollEvent(LayerData<D> &p_Data, const Event &p_Event, Window *p_Window) noexcept
+template <Dimension D> static void processScrollEvent(LayerData<D> &p_Data, const Event &p_Event) noexcept
 {
-    if (p_Event.Type != Event::Scrolled || !Input::IsKeyPressed(p_Window, Input::Key::LeftShift))
+    if (p_Event.Type != Event::Scrolled || !Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift))
         return;
 
     if (p_Data.ControlAsCamera)
@@ -64,8 +68,8 @@ void WindowData::OnEvent(const Event &p_Event) noexcept
     processPolygonEvent(m_LayerData2, p_Event);
     processPolygonEvent(m_LayerData3, p_Event);
 
-    processScrollEvent(m_LayerData2, p_Event, m_Window);
-    processScrollEvent(m_LayerData3, p_Event, m_Window);
+    processScrollEvent(m_LayerData2, p_Event);
+    processScrollEvent(m_LayerData3, p_Event);
 }
 
 void WindowData::OnImGuiRenderGlobal(const KIT::Timespan p_Timestep) noexcept
