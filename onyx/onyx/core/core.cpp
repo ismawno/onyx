@@ -23,8 +23,8 @@ static KIT::Storage<DescriptorPool> s_DescriptorPool;
 static KIT::Storage<DescriptorSetLayout> s_TransformStorageLayout;
 static KIT::Storage<DescriptorSetLayout> s_LightStorageLayout;
 
-VkPipelineLayout s_RenderingPipelineLayout2D = VK_NULL_HANDLE;
-VkPipelineLayout s_RenderingPipelineLayout3D = VK_NULL_HANDLE;
+static VkPipelineLayout s_RenderingPipelineLayout2D = VK_NULL_HANDLE;
+static VkPipelineLayout s_RenderingPipelineLayout3D = VK_NULL_HANDLE;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
