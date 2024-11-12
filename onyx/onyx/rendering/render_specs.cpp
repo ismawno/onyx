@@ -144,28 +144,4 @@ template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilWr
 template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilWriteNoFill>(VkRenderPass) noexcept;
 template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilTestNoFill>(VkRenderPass) noexcept;
 
-template struct MeshRendererSpecs<D2, DrawMode::Fill>;
-template struct MeshRendererSpecs<D2, DrawMode::Stencil>;
-
-template struct PrimitiveRendererSpecs<D2, DrawMode::Fill>;
-template struct PrimitiveRendererSpecs<D2, DrawMode::Stencil>;
-
-template struct PolygonRendererSpecs<D2, DrawMode::Fill>;
-template struct PolygonRendererSpecs<D2, DrawMode::Stencil>;
-
-template struct CircleRendererSpecs<D2, DrawMode::Fill>;
-template struct CircleRendererSpecs<D2, DrawMode::Stencil>;
-
-template struct MeshRendererSpecs<D3, DrawMode::Fill>;
-template struct MeshRendererSpecs<D3, DrawMode::Stencil>;
-
-template struct PrimitiveRendererSpecs<D3, DrawMode::Fill>;
-template struct PrimitiveRendererSpecs<D3, DrawMode::Stencil>;
-
-template struct PolygonRendererSpecs<D3, DrawMode::Fill>;
-template struct PolygonRendererSpecs<D3, DrawMode::Stencil>;
-
-template struct CircleRendererSpecs<D3, DrawMode::Fill>;
-template struct CircleRendererSpecs<D3, DrawMode::Stencil>;
-
 } // namespace ONYX
