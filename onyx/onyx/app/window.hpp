@@ -14,11 +14,6 @@
 
 namespace ONYX
 {
-// TODO: Align window to the cache line in case a multi window app is used?
-
-// For now, render systems are fixed, and only ONYX systems are used. In the future, user defined render systems will
-// be allowed
-
 class ONYX_API Window
 {
     KIT_NON_COPYABLE(Window)

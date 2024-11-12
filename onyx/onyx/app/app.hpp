@@ -145,6 +145,12 @@ class IApplication
     KIT::Scope<Theme> m_Theme;
 };
 
+/**
+ * @brief A standard, single window application.
+ *
+ * It is the simplest form of an application available, and works as one would expect.
+ *
+ */
 class Application final : public IApplication
 {
   public:

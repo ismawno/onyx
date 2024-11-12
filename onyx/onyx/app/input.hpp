@@ -9,12 +9,38 @@
 namespace ONYX
 {
 class Window;
+
+/**
+ * @brief The Input class handles all input events for the application.
+ *
+ * It is completely static, serving more as a namespace than a class. It is not meant to be instantiated.
+ *
+ */
 struct ONYX_API Input
 {
     Input() = delete;
+
+    /**
+     * @brief Poll events.
+     *
+     * Calls glfwPollEvents() under the hood.
+     *
+     */
     static void PollEvents();
+
+    /**
+     * @brief Install the input callbacks for the given window.
+     *
+     * This method is called automatically by the Window class. It is not meant to be called by the user.
+     *
+     * @param p_Window The window to install the callbacks to.
+     */
     static void InstallCallbacks(Window &p_Window) noexcept;
 
+    /**
+     * @brief An enum listing all the keys that can be used in the application.
+     *
+     */
     enum class Key : u16
     {
         Space = GLFW_KEY_SPACE,
@@ -140,6 +166,10 @@ struct ONYX_API Input
         Last = GLFW_KEY_MENU
     };
 
+    /**
+     * @brief An enum listing all the mouse buttons that can be used in the application.
+     *
+     */
     enum class Mouse : u8
     {
         Button1 = GLFW_MOUSE_BUTTON_1,
@@ -156,14 +186,65 @@ struct ONYX_API Input
         ButtonMiddle = GLFW_MOUSE_BUTTON_MIDDLE
     };
 
+    /**
+     * @brief Get the current mouse position, normalized between -1 and 1 with the screen dimensions.
+     *
+     * The position follows a centered coordinate system, with the y axis pointing downwards. This coordinate system is
+     * constant and is retrieved directly from the GLFW API. To get the mouse position according to the render context
+     * axes', call its GetMouseCoordinates() method instead.
+     *
+     * @param p_Window The window to get the mouse position from.
+     * @return The mouse position.
+     */
     static vec2 GetMousePosition(Window *p_Window) noexcept;
+
+    /**
+     * @brief Check if a key is currently pressed.
+     *
+     * @param p_Window The window to check the key for.
+     * @param p_Key The key to check.
+     */
     static bool IsKeyPressed(Window *p_Window, Key p_Key) noexcept;
+
+    /**
+     * @brief Check if a key was pressed in the current frame.
+     *
+     * @param p_Window The window to check the key for.
+     * @param p_Key The key to check.
+     */
     static bool IsKeyReleased(Window *p_Window, Key p_Key) noexcept;
+
+    /**
+     * @brief Check if a mouse button is currently pressed.
+     *
+     * @param p_Window The window to check the button for.
+     * @param p_Button The button to check.
+     */
     static bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button) noexcept;
+
+    /**
+     * @brief Check if a mouse button was pressed in the current frame.
+     *
+     * @param p_Window The window to check the button for.
+     * @param p_Button The button to check.
+     */
     static bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button) noexcept;
+
+    /**
+     * @brief Get the key enum value as a string.
+     *
+     */
     static const char *GetKeyName(Key p_Key) noexcept;
 };
 
+/**
+ * @brief A struct that represents an event that can be processed by the application.
+ *
+ * The event type is stored in the Type field, and the event data is stored in the corresponding fields.
+ * Accessing the fields of the event should be done according to the Type field. Failure to do so may result in
+ * undefined behaviour.
+ *
+ */
 struct Event
 {
     enum ActionType : u8
