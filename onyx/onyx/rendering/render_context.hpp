@@ -28,11 +28,21 @@ namespace ONYX
 {
 class Window;
 
+/**
+ * @brief The RenderContext class handles all primitive draw calls and allows the user to interact with most of the ONYX
+ * API.
+ *
+ */
 template <Dimension D> class ONYX_API IRenderContext
 {
   public:
     IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
 
+    /**
+     * @brief Clears all of the recorded draw data until this point. It is meant to be called at the beginning of the
+     * frame, but it is not required to do so in case you want to persist draw calls made in older frames.
+     *
+     */
     void FlushDrawData() noexcept;
 
     void FlushState() noexcept;
@@ -175,6 +185,11 @@ template <Dimension D> class ONYX_API IRenderContext
 
 template <Dimension D> class RenderContext;
 
+/**
+ * @brief The RenderContext class handles all primitive draw calls and allows the user to interact with most of the ONYX
+ * API.
+ *
+ */
 template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
 {
   public:
@@ -206,6 +221,11 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
 
     vec2 GetMouseCoordinates() const noexcept;
 };
+/**
+ * @brief The RenderContext class handles all primitive draw calls and allows the user to interact with most of the ONYX
+ * API.
+ *
+ */
 template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
 {
   public:
