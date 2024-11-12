@@ -85,7 +85,7 @@ void WindowData::OnImGuiRenderGlobal(const KIT::Timespan p_Timestep) noexcept
         const f32 ts = p_Timestep.AsMilliseconds();
         if (ts > maxTS)
             maxTS = ts;
-        smoothTS = smoothFactor * smoothFactor + (1.f - smoothFactor) * ts;
+        smoothTS = smoothFactor * smoothTS + (1.f - smoothFactor) * ts;
 
         ImGui::Text("Time step: %.2f ms (max: %.2f ms)", smoothTS, maxTS);
         ImGui::SliderFloat("Smoothing factor", &smoothFactor, 0.f, 0.999f);

@@ -47,19 +47,20 @@ template <> struct ShaderPaths<D3, DrawMode::Stencil>
 };
 
 template <Dimension D, PipelineMode PMode>
-static Pipeline::Specs defaultPipelineSpecs(const char *p_VPath, const char *p_FPath, const VkRenderPass p_RenderPass,
-                                            const VkDescriptorSetLayout *p_Layouts, const u32 p_LayoutCount) noexcept
+static Pipeline::Specs defaultPipelineSpecs(const char *p_VPath, const char *p_FPath,
+                                            const VkRenderPass p_RenderPass) noexcept
 {
     Pipeline::Specs specs{};
     if constexpr (D == D3)
     {
         specs.PushConstantRange.size = sizeof(PushConstantData3D);
         specs.PushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        specs.PipelineLayoutInfo.pushConstantRangeCount = 1;
         specs.ColorBlendAttachment.blendEnable = VK_FALSE;
     }
     else if constexpr (GetDrawMode<PMode>() == DrawMode::Stencil)
         specs.ColorBlendAttachment.blendEnable = VK_FALSE;
+
+    specs.Layout = Core::GetRenderingPipelineLayout<D>();
 
     if constexpr (PMode == PipelineMode::DoStencilWriteDoFill || PMode == PipelineMode::DoStencilWriteNoFill)
     {
@@ -93,9 +94,6 @@ static Pipeline::Specs defaultPipelineSpecs(const char *p_VPath, const char *p_F
     if constexpr (PMode == PipelineMode::DoStencilWriteNoFill)
         specs.ColorBlendAttachment.colorWriteMask = 0;
 
-    specs.PipelineLayoutInfo.pSetLayouts = p_Layouts;
-    specs.PipelineLayoutInfo.setLayoutCount = p_LayoutCount;
-
     specs.VertexShaderPath = p_VPath;
     specs.FragmentShaderPath = p_FPath;
 
@@ -106,12 +104,11 @@ static Pipeline::Specs defaultPipelineSpecs(const char *p_VPath, const char *p_F
 }
 
 template <Dimension D, PipelineMode PMode>
-Pipeline::Specs CreateMeshedPipelineSpecs(const VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
-                                          const u32 p_LayoutCount) noexcept
+Pipeline::Specs CreateMeshedPipelineSpecs(const VkRenderPass p_RenderPass) noexcept
 {
-    Pipeline::Specs specs = defaultPipelineSpecs<D, PMode>(ShaderPaths<D, GetDrawMode<PMode>()>::MeshVertex,
-                                                           ShaderPaths<D, GetDrawMode<PMode>()>::MeshFragment,
-                                                           p_RenderPass, p_Layouts, p_LayoutCount);
+    Pipeline::Specs specs =
+        defaultPipelineSpecs<D, PMode>(ShaderPaths<D, GetDrawMode<PMode>()>::MeshVertex,
+                                       ShaderPaths<D, GetDrawMode<PMode>()>::MeshFragment, p_RenderPass);
 
     const auto &bdesc = Vertex<D>::GetBindingDescriptions();
     const auto &attdesc = Vertex<D>::GetAttributeDescriptions();
@@ -121,53 +118,31 @@ Pipeline::Specs CreateMeshedPipelineSpecs(const VkRenderPass p_RenderPass, const
 }
 
 template <Dimension D, PipelineMode PMode>
-Pipeline::Specs CreateCirclePipelineSpecs(const VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
-                                          const u32 p_LayoutCount) noexcept
+Pipeline::Specs CreateCirclePipelineSpecs(const VkRenderPass p_RenderPass) noexcept
 {
     return defaultPipelineSpecs<D, PMode>(ShaderPaths<D, GetDrawMode<PMode>()>::CircleVertex,
-                                          ShaderPaths<D, GetDrawMode<PMode>()>::CircleFragment, p_RenderPass, p_Layouts,
-                                          p_LayoutCount);
+                                          ShaderPaths<D, GetDrawMode<PMode>()>::CircleFragment, p_RenderPass);
 }
 
-template Pipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::NoStencilWriteDoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::DoStencilWriteDoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::DoStencilWriteNoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::DoStencilTestNoFill>(VkRenderPass,
-                                                                                          const VkDescriptorSetLayout *,
-                                                                                          u32) noexcept;
+template Pipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::NoStencilWriteDoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::DoStencilWriteDoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::DoStencilWriteNoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::DoStencilTestNoFill>(VkRenderPass) noexcept;
 
-template Pipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::NoStencilWriteDoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::DoStencilWriteDoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::DoStencilWriteNoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::DoStencilTestNoFill>(VkRenderPass,
-                                                                                          const VkDescriptorSetLayout *,
-                                                                                          u32) noexcept;
+template Pipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::NoStencilWriteDoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::DoStencilWriteDoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::DoStencilWriteNoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::DoStencilTestNoFill>(VkRenderPass) noexcept;
 
-template Pipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::NoStencilWriteDoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::DoStencilWriteDoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::DoStencilWriteNoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::DoStencilTestNoFill>(VkRenderPass,
-                                                                                          const VkDescriptorSetLayout *,
-                                                                                          u32) noexcept;
+template Pipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::NoStencilWriteDoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::DoStencilWriteDoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::DoStencilWriteNoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::DoStencilTestNoFill>(VkRenderPass) noexcept;
 
-template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::NoStencilWriteDoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilWriteDoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilWriteNoFill>(
-    VkRenderPass, const VkDescriptorSetLayout *, u32) noexcept;
-template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilTestNoFill>(VkRenderPass,
-                                                                                          const VkDescriptorSetLayout *,
-                                                                                          u32) noexcept;
+template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::NoStencilWriteDoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilWriteDoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilWriteNoFill>(VkRenderPass) noexcept;
+template Pipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilTestNoFill>(VkRenderPass) noexcept;
 
 template struct MeshRendererSpecs<D2, DrawMode::Fill>;
 template struct MeshRendererSpecs<D2, DrawMode::Stencil>;

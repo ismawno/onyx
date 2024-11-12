@@ -26,8 +26,8 @@ class ONYX_API Pipeline
         VkPipelineColorBlendAttachmentState ColorBlendAttachment{};
         VkPipelineColorBlendStateCreateInfo ColorBlendInfo{};
         VkPipelineDepthStencilStateCreateInfo DepthStencilInfo{};
-        VkPipelineLayoutCreateInfo PipelineLayoutInfo{};
         VkPushConstantRange PushConstantRange{};
+        VkPipelineLayout Layout = VK_NULL_HANDLE;
 
         std::array<VkDynamicState, 2> DynamicStateEnables;
         VkPipelineDynamicStateCreateInfo DynamicStateInfo{};
@@ -54,7 +54,7 @@ class ONYX_API Pipeline
 
     KIT::Ref<Device> m_Device;
     VkPipeline m_Pipeline;
-    VkPipelineLayout m_PipelineLayout;
+    VkPipelineLayout m_Layout;
 
     VkShaderModule m_VertexShader;
     VkShaderModule m_FragmentShader;

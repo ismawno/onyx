@@ -5,6 +5,7 @@
 #include "onyx/descriptors/descriptor_pool.hpp"
 #include "onyx/descriptors/descriptor_set_layout.hpp"
 #include "onyx/rendering/swap_chain.hpp"
+#include "onyx/rendering/render_specs.hpp"
 #include "kit/core/logging.hpp"
 
 #define GLFW_INCLUDE_VULKAN
@@ -18,9 +19,12 @@ static KIT::ITaskManager *s_Manager;
 static KIT::Ref<Instance> s_Instance;
 static KIT::Ref<Device> s_Device;
 
-static KIT::Ref<DescriptorPool> s_DescriptorPool;
-static KIT::Ref<DescriptorSetLayout> s_TransformStorageLayout;
-static KIT::Ref<DescriptorSetLayout> s_LightStorageLayout;
+static KIT::Storage<DescriptorPool> s_DescriptorPool;
+static KIT::Storage<DescriptorSetLayout> s_TransformStorageLayout;
+static KIT::Storage<DescriptorSetLayout> s_LightStorageLayout;
+
+VkPipelineLayout s_RenderingPipelineLayout2D = VK_NULL_HANDLE;
+VkPipelineLayout s_RenderingPipelineLayout3D = VK_NULL_HANDLE;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
@@ -52,7 +56,7 @@ static void createDescriptorData() noexcept
     poolSize.descriptorCount = ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS;
     poolSpecs.PoolSizes = std::span<const VkDescriptorPoolSize>(&poolSize, 1);
 
-    s_DescriptorPool = KIT::Ref<DescriptorPool>::Create(poolSpecs);
+    s_DescriptorPool.Create(poolSpecs);
 
     VkDescriptorSetLayoutBinding transformBinding{};
     transformBinding.binding = 0;
@@ -61,7 +65,7 @@ static void createDescriptorData() noexcept
     transformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     const std::span<const VkDescriptorSetLayoutBinding> bindings(&transformBinding, 1);
-    s_TransformStorageLayout = KIT::Ref<DescriptorSetLayout>::Create(bindings);
+    s_TransformStorageLayout.Create(bindings);
 
     std::array<VkDescriptorSetLayoutBinding, 2> lightBindings{};
     for (u32 i = 0; i < 2; i++)
@@ -71,7 +75,42 @@ static void createDescriptorData() noexcept
         lightBindings[i].descriptorCount = 1;
         lightBindings[i].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     }
-    s_LightStorageLayout = KIT::Ref<DescriptorSetLayout>::Create(lightBindings);
+    s_LightStorageLayout.Create(lightBindings);
+}
+
+static void createPipelineLayouts() noexcept
+{
+    VkPipelineLayoutCreateInfo layoutInfo{};
+
+    layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+    const VkDescriptorSetLayout layout = s_TransformStorageLayout->GetLayout();
+    layoutInfo.pSetLayouts = &layout;
+    layoutInfo.setLayoutCount = 1;
+
+    layoutInfo.pPushConstantRanges = nullptr;
+    layoutInfo.pushConstantRangeCount = 0;
+
+    KIT_ASSERT_RETURNS(
+        vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_RenderingPipelineLayout2D), VK_SUCCESS,
+        "Failed to create pipeline layout");
+
+    const std::array<VkDescriptorSetLayout, 2> setLayouts = {s_TransformStorageLayout->GetLayout(),
+                                                             s_LightStorageLayout->GetLayout()};
+    layoutInfo.pSetLayouts = setLayouts.data();
+    layoutInfo.setLayoutCount = static_cast<u32>(setLayouts.size());
+
+    VkPushConstantRange pushConstantRange{};
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(PushConstantData3D);
+
+    layoutInfo.pPushConstantRanges = &pushConstantRange;
+    layoutInfo.pushConstantRangeCount = 1;
+
+    KIT_ASSERT_RETURNS(
+        vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_RenderingPipelineLayout3D), VK_SUCCESS,
+        "Failed to create pipeline layout");
 }
 
 void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept
@@ -91,12 +130,16 @@ void Core::Terminate() noexcept
     if (s_Device)
         s_Device->WaitIdle();
     vmaDestroyAllocator(s_VulkanAllocator);
-    // Release all refcounted objects. After this call, none guaranteed to be valid
+    // Release all refcounted objects. After this call, none are guaranteed to be valid
+    s_TransformStorageLayout.Destroy();
+    s_LightStorageLayout.Destroy();
+
+    vkDestroyPipelineLayout(s_Device->GetDevice(), s_RenderingPipelineLayout2D, nullptr);
+    vkDestroyPipelineLayout(s_Device->GetDevice(), s_RenderingPipelineLayout3D, nullptr);
+
+    s_DescriptorPool.Destroy();
     s_Device = nullptr;
     s_Instance = nullptr;
-    s_DescriptorPool = nullptr;
-    s_TransformStorageLayout = nullptr;
-    s_LightStorageLayout = nullptr;
 }
 
 const KIT::Ref<Instance> &Core::GetInstance() noexcept
@@ -114,17 +157,25 @@ VmaAllocator Core::GetVulkanAllocator() noexcept
     return s_VulkanAllocator;
 }
 
-const KIT::Ref<DescriptorPool> &Core::GetDescriptorPool() noexcept
+const DescriptorPool *Core::GetDescriptorPool() noexcept
 {
-    return s_DescriptorPool;
+    return s_DescriptorPool.Get();
 }
-const KIT::Ref<DescriptorSetLayout> &Core::GetTransformStorageDescriptorSetLayout() noexcept
+const DescriptorSetLayout *Core::GetTransformStorageDescriptorSetLayout() noexcept
 {
-    return s_TransformStorageLayout;
+    return s_TransformStorageLayout.Get();
 }
-const KIT::Ref<DescriptorSetLayout> &Core::GetLightStorageDescriptorSetLayout() noexcept
+const DescriptorSetLayout *Core::GetLightStorageDescriptorSetLayout() noexcept
 {
-    return s_LightStorageLayout;
+    return s_LightStorageLayout.Get();
+}
+
+template <Dimension D> VkPipelineLayout Core::GetRenderingPipelineLayout() noexcept
+{
+    if constexpr (D == D2)
+        return s_RenderingPipelineLayout2D;
+    else
+        return s_RenderingPipelineLayout3D;
 }
 
 KIT::StackAllocator *Core::GetStackAllocator() noexcept
@@ -143,10 +194,14 @@ const KIT::Ref<Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
         s_Device = KIT::Ref<Device>::Create(p_Surface);
         createVulkanAllocator();
         createDescriptorData();
+        createPipelineLayouts();
         CreateCombinedPrimitiveBuffers();
     }
     KIT_ASSERT(s_Device->IsSuitable(p_Surface), "The current device is not suitable for the given surface");
     return s_Device;
 }
+
+template VkPipelineLayout Core::GetRenderingPipelineLayout<D2>() noexcept;
+template VkPipelineLayout Core::GetRenderingPipelineLayout<D3>() noexcept;
 
 } // namespace ONYX

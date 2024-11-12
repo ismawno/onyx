@@ -111,9 +111,6 @@ template <> class Renderer<D3> final : public IRenderer<D3>
     Color AmbientColor = Color{Color::WHITE, 0.4f};
 
   private:
-    KIT::Ref<DescriptorPool> m_DescriptorPool; // A bit dodgy bc these go out of scope before pipelines
-    KIT::Ref<DescriptorSetLayout> m_DescriptorSetLayout;
-
     DynamicArray<DirectionalLight> m_DirectionalLights;
     DynamicArray<PointLight> m_PointLights;
     DeviceLightData m_DeviceLightData{ONYX_BUFFER_INITIAL_CAPACITY};

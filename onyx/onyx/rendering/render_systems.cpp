@@ -5,51 +5,28 @@
 namespace ONYX
 {
 static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
-                                                       const DescriptorSetLayout *p_Layout,
-                                                       const DescriptorPool *p_Pool,
                                                        const VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
 {
+    const DescriptorSetLayout *layout = Core::GetTransformStorageDescriptorSetLayout();
+    const DescriptorPool *pool = Core::GetDescriptorPool();
     if (p_OldSet)
-        p_Pool->Deallocate(p_OldSet);
+        pool->Deallocate(p_OldSet);
 
-    DescriptorWriter writer(p_Layout, p_Pool);
+    DescriptorWriter writer(layout, pool);
     writer.WriteBuffer(0, &p_Info);
     return writer.Build();
-}
-
-template <Dimension D, PipelineMode PMode> static auto getLayouts() noexcept
-{
-    if constexpr (GetDrawMode<PMode>() == DrawMode::Fill)
-    {
-        std::array<VkDescriptorSetLayout, D - 1> layouts;
-        layouts[0] = Core::GetTransformStorageDescriptorSetLayout()->GetLayout();
-        if constexpr (D == D3)
-            layouts[1] = Core::GetLightStorageDescriptorSetLayout()->GetLayout();
-        return layouts;
-    }
-    else
-    {
-        std::array<VkDescriptorSetLayout, 1> layouts{Core::GetTransformStorageDescriptorSetLayout()->GetLayout()};
-        return layouts;
-    }
 }
 
 template <Dimension D, PipelineMode PMode>
 MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    m_DescriptorPool = Core::GetDescriptorPool();
-    m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
-
-    const auto layouts = getLayouts<D, PMode>();
-    const Pipeline::Specs specs =
-        CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), static_cast<u32>(layouts.size()));
+    const Pipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass);
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i]->GetDescriptorInfo();
-        m_DeviceInstanceData.DescriptorSets[i] =
-            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get());
+        m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
     }
 }
 
@@ -73,8 +50,7 @@ void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_
         const VkDescriptorBufferInfo info = buffer->GetDescriptorInfo();
 
         m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
-            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
-                                            m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
+            resetStorageBufferDescriptorSet(info, m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
     }
     m_DeviceInstanceData.StorageSizes[p_FrameIndex] = size + 1;
 }
@@ -149,19 +125,13 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() 
 template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    m_DescriptorPool = Core::GetDescriptorPool();
-    m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
-
-    const auto layouts = getLayouts<D, PMode>();
-    const Pipeline::Specs specs =
-        CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), static_cast<u32>(layouts.size()));
+    const Pipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass);
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i]->GetDescriptorInfo();
-        m_DeviceInstanceData.DescriptorSets[i] =
-            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get());
+        m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
     }
 }
 
@@ -183,8 +153,7 @@ void PrimitiveRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceDat
         const VkDescriptorBufferInfo info = buffer->GetDescriptorInfo();
 
         m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
-            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
-                                            m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
+            resetStorageBufferDescriptorSet(info, m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
     }
 
     m_HostInstanceData[p_PrimitiveIndex].push_back(p_InstanceData);
@@ -243,19 +212,13 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 template <Dimension D, PipelineMode PMode>
 PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    m_DescriptorPool = Core::GetDescriptorPool();
-    m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
-
-    const auto layouts = getLayouts<D, PMode>();
-    const Pipeline::Specs specs =
-        CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), static_cast<u32>(layouts.size()));
+    const Pipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass);
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i]->GetDescriptorInfo();
-        m_DeviceInstanceData.DescriptorSets[i] =
-            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get());
+        m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
     }
 }
 
@@ -278,8 +241,7 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
         const VkDescriptorBufferInfo info = storageBuffer->GetDescriptorInfo();
 
         m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
-            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
-                                            m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
+            resetStorageBufferDescriptorSet(info, m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
     }
 
     PolygonInstanceData instanceData;
@@ -375,19 +337,13 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush
 template <Dimension D, PipelineMode PMode>
 CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    m_DescriptorPool = Core::GetDescriptorPool();
-    m_DescriptorSetLayout = Core::GetTransformStorageDescriptorSetLayout();
-
-    const auto layouts = getLayouts<D, PMode>();
-    const Pipeline::Specs specs =
-        CreateCirclePipelineSpecs<D, PMode>(p_RenderPass, layouts.data(), static_cast<u32>(layouts.size()));
+    const Pipeline::Specs specs = CreateCirclePipelineSpecs<D, PMode>(p_RenderPass);
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i]->GetDescriptorInfo();
-        m_DeviceInstanceData.DescriptorSets[i] =
-            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get());
+        m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
     }
 }
 
@@ -418,8 +374,7 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
         const VkDescriptorBufferInfo info = buffer->GetDescriptorInfo();
 
         m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
-            resetStorageBufferDescriptorSet(info, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
-                                            m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
+            resetStorageBufferDescriptorSet(info, m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
     }
 
     m_HostInstanceData.push_back(instanceData);

@@ -43,9 +43,11 @@ struct ONYX_API Core
 
     static VmaAllocator GetVulkanAllocator() noexcept;
 
-    static const KIT::Ref<DescriptorPool> &GetDescriptorPool() noexcept;
-    static const KIT::Ref<DescriptorSetLayout> &GetTransformStorageDescriptorSetLayout() noexcept;
-    static const KIT::Ref<DescriptorSetLayout> &GetLightStorageDescriptorSetLayout() noexcept;
+    static const DescriptorPool *GetDescriptorPool() noexcept;
+    static const DescriptorSetLayout *GetTransformStorageDescriptorSetLayout() noexcept;
+    static const DescriptorSetLayout *GetLightStorageDescriptorSetLayout() noexcept;
+
+    template <Dimension D> static VkPipelineLayout GetRenderingPipelineLayout() noexcept;
 
   private:
     // Should ony be called by window constructor (I should look for a way to better hide this)

@@ -163,12 +163,10 @@ struct PushConstantData3D
 };
 
 template <Dimension D, PipelineMode PMode>
-ONYX_API Pipeline::Specs CreateMeshedPipelineSpecs(VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
-                                                   u32 p_LayoutCount) noexcept;
+ONYX_API Pipeline::Specs CreateMeshedPipelineSpecs(VkRenderPass p_RenderPass) noexcept;
 
 template <Dimension D, PipelineMode PMode>
-ONYX_API Pipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass, const VkDescriptorSetLayout *p_Layouts,
-                                                   u32 p_LayoutCount) noexcept;
+ONYX_API Pipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass) noexcept;
 
 template <Dimension D, DrawMode DMode> struct ONYX_API MeshRendererSpecs
 {

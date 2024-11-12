@@ -24,13 +24,14 @@ template <Dimension D, template <Dimension, PipelineMode> typename R> void Rende
 
 static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInfo &p_DirectionalInfo,
                                                      const VkDescriptorBufferInfo &p_PointInfo,
-                                                     const DescriptorSetLayout *p_Layout, const DescriptorPool *p_Pool,
                                                      const VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
 {
+    const DescriptorSetLayout *layout = Core::GetLightStorageDescriptorSetLayout();
+    const DescriptorPool *pool = Core::GetDescriptorPool();
     if (p_OldSet)
-        p_Pool->Deallocate(p_OldSet);
+        pool->Deallocate(p_OldSet);
 
-    DescriptorWriter writer(p_Layout, p_Pool);
+    DescriptorWriter writer(layout, pool);
     writer.WriteBuffer(0, &p_DirectionalInfo);
     writer.WriteBuffer(1, &p_PointInfo);
     return writer.Build();
@@ -46,14 +47,12 @@ IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass, const DynamicArray<Rend
 Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<D3>> *p_State) noexcept
     : IRenderer<D3>(p_RenderPass, p_State)
 {
-    m_DescriptorPool = Core::GetDescriptorPool();
-    m_DescriptorSetLayout = Core::GetLightStorageDescriptorSetLayout();
+
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
     {
         const VkDescriptorBufferInfo dirInfo = m_DeviceLightData.DirectionalLightBuffers[i]->GetDescriptorInfo();
         const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.PointLightBuffers[i]->GetDescriptorInfo();
-        m_DeviceLightData.DescriptorSets[i] =
-            resetLightBufferDescriptorSet(dirInfo, pointInfo, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get());
+        m_DeviceLightData.DescriptorSets[i] = resetLightBufferDescriptorSet(dirInfo, pointInfo);
     }
 }
 
@@ -331,8 +330,7 @@ void Renderer<D3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
         const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.PointLightBuffers[m_FrameIndex]->GetDescriptorInfo();
 
         m_DeviceLightData.DescriptorSets[m_FrameIndex] =
-            resetLightBufferDescriptorSet(dirInfo, pointInfo, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
-                                          m_DeviceLightData.DescriptorSets[m_FrameIndex]);
+            resetLightBufferDescriptorSet(dirInfo, pointInfo, m_DeviceLightData.DescriptorSets[m_FrameIndex]);
     }
 
     m_DirectionalLights.push_back(p_Light);
@@ -351,8 +349,7 @@ void Renderer<D3>::AddPointLight(const PointLight &p_Light) noexcept
         const VkDescriptorBufferInfo pointInfo = buffer->GetDescriptorInfo();
 
         m_DeviceLightData.DescriptorSets[m_FrameIndex] =
-            resetLightBufferDescriptorSet(dirInfo, pointInfo, m_DescriptorSetLayout.Get(), m_DescriptorPool.Get(),
-                                          m_DeviceLightData.DescriptorSets[m_FrameIndex]);
+            resetLightBufferDescriptorSet(dirInfo, pointInfo, m_DeviceLightData.DescriptorSets[m_FrameIndex]);
     }
 
     m_PointLights.push_back(p_Light);
