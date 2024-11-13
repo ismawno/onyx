@@ -203,14 +203,16 @@ struct ONYX_API Input
      *
      * @param p_Window The window to check the key for.
      * @param p_Key The key to check.
+     * @return True if the key is currently pressed, false otherwise.
      */
     static bool IsKeyPressed(Window *p_Window, Key p_Key) noexcept;
 
     /**
-     * @brief Check if a key was pressed in the current frame.
+     * @brief Check if a key was released in the current frame.
      *
      * @param p_Window The window to check the key for.
      * @param p_Key The key to check.
+     * @return True if the key was released in the current frame, false otherwise.
      */
     static bool IsKeyReleased(Window *p_Window, Key p_Key) noexcept;
 
@@ -219,20 +221,24 @@ struct ONYX_API Input
      *
      * @param p_Window The window to check the button for.
      * @param p_Button The button to check.
+     * @return True if the mouse button is currently pressed, false otherwise.
      */
     static bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button) noexcept;
 
     /**
-     * @brief Check if a mouse button was pressed in the current frame.
+     * @brief Check if a mouse button was released in the current frame.
      *
      * @param p_Window The window to check the button for.
      * @param p_Button The button to check.
+     * @return True if the mouse button was released in the current frame, false otherwise.
      */
     static bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button) noexcept;
 
     /**
      * @brief Get the key enum value as a string.
      *
+     * @param p_Key The key to get the name for.
+     * @return The name of the key as a string.
      */
     static const char *GetKeyName(Key p_Key) noexcept;
 };
@@ -247,6 +253,9 @@ struct ONYX_API Input
  */
 struct Event
 {
+    /**
+     * @brief An enum representing different action types for events.
+     */
     enum ActionType : u8
     {
         KeyPressed,
@@ -265,29 +274,47 @@ struct Event
         WindowUnfocused
     };
 
+    /**
+     * @brief Structure representing old and new dimensions when a window is resized.
+     */
     struct WindowResizedDimensions
     {
-        u32 OldWidth = 0;
-        u32 OldHeight = 0;
-        u32 NewWidth = 0;
-        u32 NewHeight = 0;
+        u32 OldWidth = 0;  ///< Old width of the window.
+        u32 OldHeight = 0; ///< Old height of the window.
+        u32 NewWidth = 0;  ///< New width of the window.
+        u32 NewHeight = 0; ///< New height of the window.
     };
 
+    /**
+     * @brief Structure representing the mouse state including position and button pressed.
+     */
     struct MouseState
     {
-        vec2 Position{0.f};
-        Input::Mouse Button;
+        vec2 Position{0.f};  ///< Current position of the mouse.
+        Input::Mouse Button; ///< Button related to the mouse state.
     };
 
+    /// Indicates whether the event is empty.
     bool Empty = false;
+    /// Type of action associated with the event.
     ActionType Type;
+    /// Key value associated with the event.
     Input::Key Key;
 
+    /// Dimensions associated with a window resize event.
     WindowResizedDimensions WindowResize;
+    /// State of the mouse associated with the event.
     MouseState Mouse;
+    /// Offset related to scroll action.
     vec2 ScrollOffset{0.f};
+    /// Pointer to the window associated with the event.
     Window *Window = nullptr;
 
+    /**
+     * @brief Check if the event is not empty.
+     *
+     * @return True if the event is not empty, false otherwise.
+     */
     explicit(false) operator bool() const
     {
         return !Empty;

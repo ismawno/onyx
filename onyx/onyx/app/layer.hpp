@@ -60,9 +60,9 @@ class Layer
     /**
      * @brief Called every frame before the OnRender() method.
      *
-     * This method is called outside the the render loop, so you cannot issue any draw calls here. Its purpose is to
-     * update the user's state as they see fit. Doing so in OnRender() callbacks is not recommended, as some rendering
-     * operations can be performed at the same time OnUpdate() runs, but not at the same time OnRender() runs.
+     * This method is called outside the the render loop, so you cannot issue any onyx draw calls here. Its purpose is
+     * to update the user's state as they see fit. Doing so in OnRender() callbacks is not recommended, as some
+     * rendering operations can be performed at the same time OnUpdate() runs, but not at the same time OnRender() runs.
      *
      * @note This variant of the method is not called in multi window applications. Use the OnUpdate(usize) method
      * instead.
@@ -75,8 +75,9 @@ class Layer
     /**
      * @brief Called every frame after the OnUpdate() method.
      *
-     * Its purpose is to contain all of the user draw calls, as it is called inside the render loop. Having update code
-     * in this method is not recommended. If you need to update some state, you should do so in the OnUpdate() method.
+     * Its purpose is to contain all of the user draw calls, as it is called inside the render loop. Having update
+     * code in this method is not recommended. If you need to update some state, you should do so in the OnUpdate()
+     * method.
      *
      * This method can (and must) be used to issue ImGui draw calls.
      *

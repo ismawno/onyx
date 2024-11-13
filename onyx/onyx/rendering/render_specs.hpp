@@ -15,12 +15,12 @@ namespace ONYX
 // VERY CLUNKY: 3 out of 4 possible instantiations of MaterialData and RenderInfo are identical
 
 /**
- * @brief The MaterialData struct is a very simple collection of data that represents the material of a shape.
+ * @brief The MaterialData struct is a simple collection of data that represents the material of a shape.
  *
- * The material is a simple color in 2D, and a color with some properties in 3D, mostly used for lighting. The simple 2D
- * material data is also used for stencil passes in 3D.
+ * The material is a simple color in 2D, and a color with additional properties in 3D, mostly used for lighting. The
+ * simple 2D material data is also used for stencil passes in 3D.
  *
- * @tparam D
+ * @tparam D The dimension (D2 or D3).
  */
 template <Dimension D> struct MaterialData;
 
@@ -41,8 +41,8 @@ template <> struct MaterialData<D3>
  * @brief The PipelineMode enum represents a grouping of pipelines with slightly different settings that all renderers
  * use.
  *
- * To be able to support nice outlines, specially in 3D, the stencil buffer can be used to re-render the same shape
- * again slightly scaled only in places where the stencil buffer has not been set. Generally, only two passes would be
+ * To support nice outlines, especially in 3D, the stencil buffer can be used to re-render the same shape
+ * slightly scaled only in places where the stencil buffer has not been set. Generally, only two passes would be
  * necessary, but in this implementation four are used.
  *
  * - NoStencilWriteDoFill: This pass will render the shape normally and corresponds to a shape being rendered without
@@ -53,7 +53,7 @@ template <> struct MaterialData<D3>
  * - DoStencilWriteDoFill: This pass will render the shape normally and write to the stencil buffer, which corresponds
  * to a shape being rendered both filled and with an outline. The corresponding DrawMode is Fill.
  *
- * - DoStencilWriteNoFill: This pass will only write to the stencil buffer, and will not render the shape. This step is
+ * - DoStencilWriteNoFill: This pass will only write to the stencil buffer and will not render the shape. This step is
  * necessary in case the user wants to render an outline only, without the shape being filled. The corresponding
  * DrawMode is Stencil.
  *
@@ -72,8 +72,8 @@ enum class ONYX_API PipelineMode : u8
 /**
  * @brief The DrawMode is related to the data each PipelineMode needs to render correctly.
  *
- * To render a filled shape in, say 3D, the renderer must know information about the lights in the environment, have
- * access to normals etcetera. When writing/testing to the stencil buffer however, the renderer only needs the shape's
+ * To render a filled shape in, say, 3D, the renderer must know information about the lights in the environment, have
+ * access to normals, etc. When writing/testing to the stencil buffer, however, the renderer only needs the shape's
  * geometry and an outline color.
  *
  * The first two modes are used for rendering filled shapes (DrawMode::Fill), and the last two are used for rendering
@@ -89,6 +89,8 @@ enum class ONYX_API DrawMode : u8
 /**
  * @brief Get the DrawMode corresponding to a PipelineMode.
  *
+ * @tparam PMode The pipeline mode.
+ * @return The corresponding DrawMode.
  */
 template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
 {
@@ -102,8 +104,10 @@ template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
  * @brief The RenderInfo is a small struct containing information the renderers need to draw their shapes.
  *
  * It contains the current command buffer, the current frame index, different descriptor sets to bind to (storage
- * buffers containing light information in the 3D case, for example) and some other global information.
+ * buffers containing light information in the 3D case, for example), and some other global information.
  *
+ * @tparam D The dimension (D2 or D3).
+ * @tparam DMode The draw mode (Fill or Stencil).
  */
 template <Dimension D, DrawMode DMode> struct RenderInfo;
 
@@ -122,6 +126,7 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Fill>
     u32 PointLightCount;
     vec4 AmbientColor;
 };
+
 template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
 {
     VkCommandBuffer CommandBuffer;
@@ -129,22 +134,28 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
 };
 
 /**
- * @brief The InstanceData struct is the collection of all the data that is needed to render a shape.
+ * @brief The InstanceData struct is the collection of all the data needed to render a shape.
  *
  * It is stored and sent to the GPU in a storage buffer, and the renderer will use this data to render the shape.
- * The IstanceData varies between dimensions and draw modes, as the data needed to render a 2D shape is different from
+ * The InstanceData varies between dimensions and draw modes, as the data needed to render a 2D shape is different from
  * the data needed to render a 3D shape, and the data needed to render a filled shape is different from the data needed
  * to render an outline.
  *
+ * The most notable data this struct contains is the transform matrix, responsible for positioning, rotating, and
+ * scaling the shape; the material data, which contains the color of the shape and some other properties; and the view
+ * matrix, which in this library is used as the transform of the coordinate system.
+ *
+ * @tparam D The dimension (D2 or D3).
+ * @tparam DMode The draw mode (Fill or Stencil).
  */
 template <Dimension D, DrawMode DMode> struct InstanceData
 {
     mat4 Transform;
-    MaterialData<D2> Material;
+    MaterialData<D> Material;
 };
 
 // Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
-// 0 1 but i dont want to deal with the alignment management tbh
+// 0 1 but I don't want to deal with the alignment management, to be honest.
 
 template <> struct ONYX_API InstanceData<D3, DrawMode::Fill>
 {
@@ -184,11 +195,13 @@ template <typename T> struct ONYX_API DeviceInstanceData
 };
 
 /**
- * @brief An extension of the DeviceInstanceData.
+ * @brief An extension of the DeviceInstanceData for polygons.
  *
  * This struct contains additional mutable vertex and index buffers that are used to store the geometry of arbitrary
  * polygons.
  *
+ * @tparam D The dimension (D2 or D3).
+ * @tparam DMode The draw mode (Fill or Stencil).
  */
 template <Dimension D, DrawMode DMode> struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
 {
@@ -216,9 +229,11 @@ template <Dimension D, DrawMode DMode> struct PolygonDeviceInstanceData : Device
 /**
  * @brief Specific InstanceData for polygons.
  *
- * The Layout field is actually not sent to the GPU. It is used in the CPU side to know which parts of the index and
- * vertex buffers to use when issuing vulkan draw commands.
+ * The Layout field is actually not sent to the GPU. It is used on the CPU side to know which parts of the index and
+ * vertex buffers to use when issuing Vulkan draw commands.
  *
+ * @tparam D The dimension (D2 or D3).
+ * @tparam DMode The draw mode (Fill or Stencil).
  */
 template <Dimension D, DrawMode DMode> struct PolygonInstanceData
 {
@@ -235,6 +250,8 @@ KIT_MSVC_WARNING_IGNORE(4324)
  * The additional data is used in the fragment shaders to discard fragments that are outside the circle or the
  * user-defined arc.
  *
+ * @tparam D The dimension (D2 or D3).
+ * @tparam DMode The draw mode (Fill or Stencil).
  */
 template <Dimension D, DrawMode DMode> struct CircleInstanceData
 {
@@ -246,7 +263,7 @@ template <Dimension D, DrawMode DMode> struct CircleInstanceData
 KIT_WARNING_IGNORE_POP
 
 /**
- * @brief Some push constant data that is used in the 3D case containing the ambient color and the number of lights.
+ * @brief Some push constant data that is used in the 3D case, containing the ambient color and the number of lights.
  *
  */
 struct PushConstantData3D
@@ -260,7 +277,10 @@ struct PushConstantData3D
 /**
  * @brief Create the pipeline specifications for a meshed shape.
  *
+ * @tparam D The dimension (D2 or D3).
+ * @tparam PMode The pipeline mode.
  * @param p_RenderPass The render pass to use.
+ * @return The pipeline specifications.
  */
 template <Dimension D, PipelineMode PMode>
 ONYX_API Pipeline::Specs CreateMeshedPipelineSpecs(VkRenderPass p_RenderPass) noexcept;
@@ -268,17 +288,20 @@ ONYX_API Pipeline::Specs CreateMeshedPipelineSpecs(VkRenderPass p_RenderPass) no
 /**
  * @brief Create the pipeline specifications for a circle shape.
  *
+ * @tparam D The dimension (D2 or D3).
+ * @tparam PMode The pipeline mode.
  * @param p_RenderPass The render pass to use.
+ * @return The pipeline specifications.
  */
 template <Dimension D, PipelineMode PMode>
 ONYX_API Pipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass) noexcept;
 
 /**
- * @brief This standalone function applies modifies the axes transform (which corresponds to a view matrix, but with
+ * @brief Modifies the axes transform (which corresponds to a view matrix, but with
  * scaling included as well) to comply with a specific coordinate system.
  *
- * The current coordinate system used by this library is right handed, with the center of the screen being at the
- * middle. The x axis points to the right, the y axis points upwards and the z axis points out of the screen.
+ * The current coordinate system used by this library is right-handed, with the center of the screen being at the
+ * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
  *
  * @param p_Axes The axes to modify.
  * @param p_InverseAxes The inverse axes to modify. If nullptr, the inverse axes will not be modified.
@@ -286,13 +309,13 @@ ONYX_API Pipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass) no
 ONYX_API void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes = nullptr) noexcept;
 
 /**
- * @brief The RenderState is a struct used by the RenderContext class to track down the current object and axes
+ * @brief The RenderState struct is used by the RenderContext class to track the current object and axes
  * transformations, the current material, outline color and width, and some other rendering settings.
  *
- * It holds all of the state RenderContext's immediate mode API needs, and allows it to easily push/pop states to
+ * It holds all of the state that RenderContext's immediate mode API needs and allows it to easily push/pop states to
  * quickly modify and restore the rendering state.
  *
- * @tparam D
+ * @tparam D The dimension (D2 or D3).
  */
 template <Dimension D> struct RenderState;
 

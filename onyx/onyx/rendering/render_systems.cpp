@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_systems.hpp"
 #include "onyx/descriptors/descriptor_writer.hpp"
+#include "kit/utilities/math.hpp"
 
 namespace ONYX
 {
@@ -356,6 +357,8 @@ template <Dimension D, PipelineMode PMode>
 void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData, const f32 p_LowerAngle,
                                     const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
 {
+    if (KIT::Approximately(p_LowerAngle, p_UpperAngle) || KIT::Approximately(p_Hollowness, 1.f))
+        return;
     const usize size = m_HostInstanceData.size();
     auto &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
 

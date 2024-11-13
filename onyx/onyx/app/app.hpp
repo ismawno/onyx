@@ -16,7 +16,16 @@ namespace ONYX
 class IApplication
 {
   public:
+    /**
+     * @brief Construct a new IApplication object.
+     *
+     */
     IApplication() = default;
+
+    /**
+     * @brief Destroy the IApplication object.
+     *
+     */
     virtual ~IApplication() noexcept;
 
     /**
@@ -52,6 +61,7 @@ class IApplication
     /**
      * @brief Get the time it took the last frame to process.
      *
+     * @return KIT::Timespan The delta time of the last frame.
      */
     virtual KIT::Timespan GetDeltaTime() const noexcept = 0;
 
@@ -60,7 +70,7 @@ class IApplication
      *
      * In concurrent mode, that window is always handled by the main thread.
      *
-     * @return Window at index 0
+     * @return const Window* The main window at index 0.
      */
     virtual const Window *GetMainWindow() const noexcept = 0;
 
@@ -69,7 +79,7 @@ class IApplication
      *
      * In concurrent mode, that window is always handled by the main thread.
      *
-     * @return Window at index 0
+     * @return Window* The main window at index 0.
      */
     virtual Window *GetMainWindow() noexcept = 0;
 
@@ -108,40 +118,74 @@ class IApplication
     /**
      * @brief Check if the Startup method has been called.
      *
+     * @return true if Startup() has been called.
      */
     bool IsStarted() const noexcept;
 
     /**
      * @brief Check if the Shutdown method has been called.
      *
+     * @return true if Shutdown() has been called.
      */
     bool IsTerminated() const noexcept;
 
     /**
      * @brief Check if the Startup method has been called and the Shutdown method has not been called.
      *
+     * @return true if the application is running.
      */
     bool IsRunning() const noexcept;
 
+    /// The layer system managing application layers.
     LayerSystem Layers;
 
   protected:
+    /**
+     * @brief Initialize ImGui for the given window.
+     *
+     * @param p_Window The window to initialize ImGui for.
+     */
     void initializeImGui(Window &p_Window) noexcept;
+
+    /**
+     * @brief Shutdown ImGui and release its resources.
+     *
+     */
     void shutdownImGui() noexcept;
 
+    /**
+     * @brief Begin rendering ImGui frame.
+     *
+     */
     static void beginRenderImGui() noexcept;
+
+    /**
+     * @brief End rendering ImGui frame and submit commands.
+     *
+     * @param p_CommandBuffer The command buffer to record commands into.
+     */
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
 
-    // Up to the user to get the device once a window is created
+    /// Reference to the Vulkan device.
     KIT::Ref<Device> m_Device;
 
   private:
+    /**
+     * @brief Create the ImGui descriptor pool.
+     *
+     */
     void createImGuiPool() noexcept;
 
+    /// Indicates whether Startup() has been called.
     bool m_Started = false;
+
+    /// Indicates whether Shutdown() has been called.
     bool m_Terminated = false;
 
+    /// Vulkan descriptor pool used by ImGui.
     VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
+
+    /// Current theme applied to ImGui.
     KIT::Scope<Theme> m_Theme;
 };
 
@@ -154,17 +198,47 @@ class IApplication
 class Application final : public IApplication
 {
   public:
+    /**
+     * @brief Construct a new Application object with the given window specifications.
+     *
+     * @param p_WindowSpecs Specifications for the main window.
+     */
     Application(const Window::Specs &p_WindowSpecs = {}) noexcept;
 
+    /**
+     * @brief Process and present the next frame for the application.
+     *
+     * @param p_Clock A clock to keep track of frame time.
+     * @return true if the application should continue running.
+     */
     bool NextFrame(KIT::Clock &p_Clock) noexcept override;
 
+    /**
+     * @brief Get the main window.
+     *
+     * @return const Window* Pointer to the main window.
+     */
     const Window *GetMainWindow() const noexcept override;
+
+    /**
+     * @brief Get the main window.
+     *
+     * @return Window* Pointer to the main window.
+     */
     Window *GetMainWindow() noexcept override;
 
+    /**
+     * @brief Get the time it took the last frame to process.
+     *
+     * @return KIT::Timespan The delta time of the last frame.
+     */
     KIT::Timespan GetDeltaTime() const noexcept override;
 
   private:
+    /// Storage for the main window.
     KIT::Storage<Window> m_Window;
+
+    /// The time elapsed between frames.
     KIT::Timespan m_DeltaTime;
 };
 
