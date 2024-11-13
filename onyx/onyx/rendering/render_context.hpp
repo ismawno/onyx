@@ -31,6 +31,8 @@ class Window;
  * It is a high-level API that allows the user to draw shapes and meshes in a simple immediate mode
  * fashion.
  *
+ * @note Operations such as Transform(), Translate(), Rotate(), etc. will not affect the lights in the scene.
+ *
  */
 template <Dimension D> class ONYX_API IRenderContext
 {

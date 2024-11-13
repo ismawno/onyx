@@ -145,6 +145,9 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
  * scaling the shape; the material data, which contains the color of the shape and some other properties; and the view
  * matrix, which in this library is used as the transform of the coordinate system.
  *
+ * The view (or axes) matrix is still stored per instance because of the immediate mode. This way, the user can change
+ * the view matrix between shapes, and the renderer will use the correct one.
+ *
  * @tparam D The dimension (D2 or D3).
  * @tparam DMode The draw mode (Fill or Stencil).
  */
@@ -297,7 +300,7 @@ template <Dimension D, PipelineMode PMode>
 ONYX_API Pipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass) noexcept;
 
 /**
- * @brief Modifies the axes transform (which corresponds to a view matrix, but with
+ * @brief Modify the axes transform (which corresponds to a view matrix, but with
  * scaling included as well) to comply with a specific coordinate system.
  *
  * The current coordinate system used by this library is right-handed, with the center of the screen being at the

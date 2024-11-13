@@ -279,10 +279,10 @@ struct Event
      */
     struct WindowResizedDimensions
     {
-        u32 OldWidth = 0;  ///< Old width of the window.
-        u32 OldHeight = 0; ///< Old height of the window.
-        u32 NewWidth = 0;  ///< New width of the window.
-        u32 NewHeight = 0; ///< New height of the window.
+        u32 OldWidth = 0;
+        u32 OldHeight = 0;
+        u32 NewWidth = 0;
+        u32 NewHeight = 0;
     };
 
     /**
@@ -290,31 +290,19 @@ struct Event
      */
     struct MouseState
     {
-        vec2 Position{0.f};  ///< Current position of the mouse.
-        Input::Mouse Button; ///< Button related to the mouse state.
+        vec2 Position{0.f};
+        Input::Mouse Button;
     };
 
-    /// Indicates whether the event is empty.
     bool Empty = false;
-    /// Type of action associated with the event.
     ActionType Type;
-    /// Key value associated with the event.
     Input::Key Key;
 
-    /// Dimensions associated with a window resize event.
     WindowResizedDimensions WindowResize;
-    /// State of the mouse associated with the event.
     MouseState Mouse;
-    /// Offset related to scroll action.
     vec2 ScrollOffset{0.f};
-    /// Pointer to the window associated with the event.
     Window *Window = nullptr;
 
-    /**
-     * @brief Check if the event is not empty.
-     *
-     * @return True if the event is not empty, false otherwise.
-     */
     explicit(false) operator bool() const
     {
         return !Empty;

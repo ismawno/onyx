@@ -29,7 +29,7 @@ class IApplication
     virtual ~IApplication() noexcept;
 
     /**
-     * @brief Startup the application and calls the OnStart() method of all layers.
+     * @brief Startup the application and call the OnStart() method of all layers.
      *
      * This method must be called before calling NextFrame().
      * Calling this method more than once will result in undefined behaviour or a crash.
@@ -38,7 +38,7 @@ class IApplication
     virtual void Startup() noexcept;
 
     /**
-     * @brief Shutdown the application, cleans up some resources and calls the OnShutdown() method of all layers.
+     * @brief Shutdown the application, clean up some resources and call the OnShutdown() method of all layers.
      *
      * This method must be called after the Startup() call, after the last call to NextFrame(), once all windows have
      * been closed. Failing to do so, or calling this method more than once will result in undefined behaviour or a

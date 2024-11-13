@@ -14,19 +14,34 @@
 
 namespace ONYX
 {
+/**
+ * @brief Represents a window in the ONYX application.
+ *
+ * This class encapsulates the functionality of a window, including rendering, input handling,
+ * and window properties like size, position, and visibility.
+ */
 class ONYX_API Window
 {
     KIT_NON_COPYABLE(Window)
   public:
-    // Could use a bitset, but I cant directly initialize it with the flags as I do with the u8
+    /**
+     * @brief Flags representing window properties.
+     *
+     * These flags can be used to specify window attributes such as resizable, visible, decorated, etc.
+     */
     enum Flags : u8
     {
-        RESIZABLE = 1 << 0,
-        VISIBLE = 1 << 1,
-        DECORATED = 1 << 2,
-        FOCUSED = 1 << 3,
-        FLOATING = 1 << 4
+        RESIZABLE = 1 << 0, ///< The window can be resized.
+        VISIBLE = 1 << 1,   ///< The window is visible upon creation.
+        DECORATED = 1 << 2, ///< The window has decorations such as a border, close button, etc.
+        FOCUSED = 1 << 3,   ///< The window is focused upon creation.
+        FLOATING = 1 << 4   ///< The window is always on top of other windows.
     };
+    /**
+     * @brief Specifications for creating a window.
+     *
+     * Contains parameters like name, dimensions, and flags.
+     */
     struct Specs
     {
         const char *Name = "Onyx window";
@@ -35,10 +50,35 @@ class ONYX_API Window
         u8 Flags = RESIZABLE | VISIBLE | DECORATED | FOCUSED;
     };
 
+    /**
+     * @brief Constructs a window with default specifications.
+     */
     Window() noexcept;
+    /**
+     * @brief Constructs a window with the given specifications.
+     *
+     * @param p_Specs Specifications for the window.
+     */
     explicit Window(const Specs &p_Specs) noexcept;
+    /**
+     * @brief Destructor.
+     *
+     * Cleans up resources associated with the window.
+     */
     ~Window() noexcept;
 
+    /**
+     * @brief Renders the window using the provided draw and UI callables.
+     *
+     * This method begins a new frame, starts the render pass with the specified background color,
+     * executes the provided draw and UI callables, and ends the render pass and frame.
+     *
+     * @tparam F1 Type of the draw calls callable.
+     * @tparam F2 Type of the UI calls callable.
+     * @param p_DrawCalls Callable for custom draw calls.
+     * @param p_UICalls Callable for custom UI calls.
+     * @return true if rendering was successful, false otherwise.
+     */
     template <typename F1, typename F2> bool Render(F1 &&p_DrawCalls, F2 &&p_UICalls) noexcept
     {
         if (const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this))
@@ -54,35 +94,136 @@ class ONYX_API Window
         }
         return false;
     }
+    /**
+     * @brief Renders the window without any custom draw or UI calls.
+     *
+     * @return true if rendering was successful, false otherwise.
+     */
     bool Render() noexcept;
+    /**
+     * @brief Checks if the window should close.
+     *
+     * @return true if the window should close, false otherwise.
+     */
     bool ShouldClose() const noexcept;
 
+    /**
+     * @brief Gets the GLFW window handle.
+     *
+     * @return const GLFWwindow* Pointer to the GLFW window.
+     */
     const GLFWwindow *GetWindowHandle() const noexcept;
+    /**
+     * @brief Gets the GLFW window handle.
+     *
+     * @return GLFWwindow* Pointer to the GLFW window.
+     */
     GLFWwindow *GetWindowHandle() noexcept;
 
+    /**
+     * @brief Gets the window's name.
+     *
+     * @return const char* The window's name.
+     */
     const char *GetName() const noexcept;
+    /**
+     * @brief Gets the window's width in screen coordinates.
+     *
+     * @return u32 The window's width.
+     */
     u32 GetScreenWidth() const noexcept;
+    /**
+     * @brief Gets the window's height in screen coordinates.
+     *
+     * @return u32 The window's height.
+     */
     u32 GetScreenHeight() const noexcept;
 
+    /**
+     * @brief Gets the window's width in pixels.
+     *
+     * @return u32 The window's width in pixels.
+     */
     u32 GetPixelWidth() const noexcept;
+    /**
+     * @brief Gets the window's height in pixels.
+     *
+     * @return u32 The window's height in pixels.
+     */
     u32 GetPixelHeight() const noexcept;
 
+    /**
+     * @brief Gets the aspect ratio of the window in screen coordinates.
+     *
+     * @return f32 The screen aspect ratio.
+     */
     f32 GetScreenAspect() const noexcept;
+    /**
+     * @brief Gets the aspect ratio of the window in pixels.
+     *
+     * @return f32 The pixel aspect ratio.
+     */
     f32 GetPixelAspect() const noexcept;
 
+    /**
+     * @brief Gets the position of the window on the screen.
+     *
+     * @return std::pair<u32, u32> The (x, y) position of the window.
+     */
     std::pair<u32, u32> GetPosition() const noexcept;
 
+    /**
+     * @brief Checks if the window was resized.
+     *
+     * @return true if the window was resized since the last call to FlagResizeDone().
+     */
     bool WasResized() const noexcept;
+    /**
+     * @brief Flags the window as resized with the new dimensions.
+     *
+     * @param p_Width New width of the window.
+     * @param p_Height New height of the window.
+     */
     void FlagResize(u32 p_Width, u32 p_Height) noexcept;
+    /**
+     * @brief Resets the resized flag after handling a resize event.
+     */
     void FlagResizeDone() noexcept;
+    /**
+     * @brief Flags the window to be closed.
+     */
     void FlagShouldClose() noexcept;
 
+    /**
+     * @brief Gets the Vulkan surface associated with the window.
+     *
+     * @return VkSurfaceKHR The Vulkan surface.
+     */
     VkSurfaceKHR GetSurface() const noexcept;
 
+    /**
+     * @brief Pushes a new event to the window's event queue.
+     *
+     * @param p_Event The event to push.
+     */
     void PushEvent(const Event &p_Event) noexcept;
+    /**
+     * @brief Gets the new events since the last call to FlushEvents().
+     *
+     * @return const DynamicArray<Event>& The array of new events.
+     */
     const DynamicArray<Event> &GetNewEvents() const noexcept;
+    /**
+     * @brief Clears the window's event queue.
+     */
     void FlushEvents() noexcept;
 
+    /**
+     * @brief Gets the render context for the specified dimension.
+     *
+     * @tparam D The dimension (D2 or D3).
+     * @return const RenderContext<D>* Pointer to the render context.
+     */
     template <Dimension D> const RenderContext<D> *GetRenderContext() const noexcept
     {
         if constexpr (D == D2)
@@ -90,6 +231,12 @@ class ONYX_API Window
         else
             return m_RenderContext3D.Get();
     }
+    /**
+     * @brief Gets the render context for the specified dimension.
+     *
+     * @tparam D The dimension (D2 or D3).
+     * @return RenderContext<D>* Pointer to the render context.
+     */
     template <Dimension D> RenderContext<D> *GetRenderContext() noexcept
     {
         if constexpr (D == D2)
@@ -98,12 +245,28 @@ class ONYX_API Window
             return m_RenderContext3D.Get();
     }
 
+    /**
+     * @brief Gets the frame scheduler.
+     *
+     * @return const FrameScheduler& Reference to the frame scheduler.
+     */
     const FrameScheduler &GetFrameScheduler() const noexcept;
+    /**
+     * @brief Gets the frame scheduler.
+     *
+     * @return FrameScheduler& Reference to the frame scheduler.
+     */
     FrameScheduler &GetFrameScheduler() noexcept;
 
+    /// The background color used when clearing the window.
     Color BackgroundColor = Color::BLACK;
 
   private:
+    /**
+     * @brief Creates the window with the given specifications.
+     *
+     * @param p_Specs The specifications for the window.
+     */
     void createWindow(const Specs &p_Specs) noexcept;
 
     GLFWwindow *m_Window;

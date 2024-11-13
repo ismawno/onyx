@@ -8,7 +8,7 @@ class Theme
     virtual ~Theme() = default;
 
     /**
-     * @brief Applies the ImGui theme.
+     * @brief Apply an ImGui theme.
      *
      * Modify the ImGui theme by grabbing the style with ImGui::GetStyle() and changing the colors and other properties.
      *

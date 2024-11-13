@@ -18,14 +18,14 @@ namespace ONYX
 template <Dimension D, template <Dimension, PipelineMode> typename R> struct RenderSystem
 {
     /**
-     * @brief Constructs a RenderSystem with the specified render pass.
+     * @brief Construct a RenderSystem with the specified render pass.
      *
      * @param p_RenderPass The Vulkan render pass to be used by the renderers.
      */
     RenderSystem(VkRenderPass p_RenderPass) noexcept;
 
     /**
-     * @brief Clears all stored draw calls in each renderer.
+     * @brief Clear all stored draw calls in each renderer.
      *
      * This method should be called to reset the renderers' state, typically at the beginning or end of a frame.
      */
@@ -84,7 +84,7 @@ template <Dimension D> class ONYX_API IRenderer
 
   public:
     /**
-     * @brief Constructs an IRenderer with the specified render pass and render state.
+     * @brief Construct an IRenderer with the specified render pass and render state.
      *
      * @param p_RenderPass The Vulkan render pass to be used.
      * @param p_State Pointer to the current render state stack.
@@ -93,7 +93,7 @@ template <Dimension D> class ONYX_API IRenderer
               const DynamicArray<RenderState<D>> *p_State) noexcept; // Passing the state like this is a bit dodgy
 
     /**
-     * @brief Records a draw call for a mesh model.
+     * @brief Record a draw call for a mesh model.
      *
      * @param p_Transform The transformation matrix to apply to the mesh.
      * @param p_Model Reference to the mesh model to draw.
@@ -103,7 +103,7 @@ template <Dimension D> class ONYX_API IRenderer
                   u8 p_Flags = DrawFlags_Auto) noexcept;
 
     /**
-     * @brief Records a draw call for a primitive shape.
+     * @brief Record a draw call for a primitive shape.
      *
      * @param p_Transform The transformation matrix to apply to the primitive.
      * @param p_PrimitiveIndex Index of the primitive shape to draw.
@@ -112,7 +112,7 @@ template <Dimension D> class ONYX_API IRenderer
     void DrawPrimitive(const mat<D> &p_Transform, usize p_PrimitiveIndex, u8 p_Flags = DrawFlags_Auto) noexcept;
 
     /**
-     * @brief Records a draw call for a polygon defined by a set of vertices.
+     * @brief Record a draw call for a polygon defined by a set of vertices.
      *
      * @param p_Transform The transformation matrix to apply to the polygon.
      * @param p_Vertices Span of vertices defining the polygon.
@@ -122,7 +122,7 @@ template <Dimension D> class ONYX_API IRenderer
                      u8 p_Flags = DrawFlags_Auto) noexcept;
 
     /**
-     * @brief Records a draw call for a circle or arc.
+     * @brief Record a draw call for a circle or arc.
      *
      * @param p_Transform The transformation matrix to apply to the circle.
      * @param p_LowerAngle Starting angle of the arc in radians.
@@ -134,7 +134,7 @@ template <Dimension D> class ONYX_API IRenderer
                     f32 p_Hollowness = 0.f, u8 p_Flags = DrawFlags_Auto) noexcept;
 
     /**
-     * @brief Records a draw call for a circle or arc with flags specified before angles.
+     * @brief Record a draw call for a circle or arc with flags specified before angles.
      *
      * @param p_Transform The transformation matrix to apply to the circle.
      * @param p_Flags Drawing flags to control rendering behavior.
@@ -202,14 +202,14 @@ template <> class Renderer<D2> final : public IRenderer<D2>
     using IRenderer<D2>::IRenderer;
 
     /**
-     * @brief Records all stored draw calls into the command buffer for execution.
+     * @brief Record all stored draw calls into the command buffer for execution.
      *
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
      */
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
     /**
-     * @brief Clears all stored draw calls and resets the renderer's state.
+     * @brief Clear all stored draw calls and resets the renderer's state.
      *
      * Should be called to prepare the renderer for a new frame.
      */
@@ -257,14 +257,14 @@ struct ONYX_API DeviceLightData
     KIT_NON_COPYABLE(DeviceLightData)
 
     /**
-     * @brief Constructs DeviceLightData with a specified initial capacity.
+     * @brief Construct DeviceLightData with a specified initial capacity.
      *
      * @param p_Capacity The initial capacity for the light buffers.
      */
     DeviceLightData(usize p_Capacity) noexcept;
 
     /**
-     * @brief Destroys the DeviceLightData, releasing resources.
+     * @brief Destroy the DeviceLightData, releasing resources.
      */
     ~DeviceLightData() noexcept;
 
@@ -287,7 +287,7 @@ template <> class Renderer<D3> final : public IRenderer<D3>
 {
   public:
     /**
-     * @brief Constructs a Renderer for 3D rendering with the specified render pass and render state.
+     * @brief Construct a Renderer for 3D rendering with the specified render pass and render state.
      *
      * @param p_RenderPass The Vulkan render pass to be used.
      * @param p_State Pointer to the current render state stack.
@@ -295,28 +295,28 @@ template <> class Renderer<D3> final : public IRenderer<D3>
     Renderer(VkRenderPass p_RenderPass, const DynamicArray<RenderState<D3>> *p_State) noexcept;
 
     /**
-     * @brief Records all stored draw calls into the command buffer for execution.
+     * @brief Record all stored draw calls into the command buffer for execution.
      *
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
      */
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
     /**
-     * @brief Adds a directional light to the scene.
+     * @brief Add a directional light to the scene.
      *
      * @param p_Light The directional light to add.
      */
     void AddDirectionalLight(const DirectionalLight &p_Light) noexcept;
 
     /**
-     * @brief Adds a point light to the scene.
+     * @brief Add a point light to the scene.
      *
      * @param p_Light The point light to add.
      */
     void AddPointLight(const PointLight &p_Light) noexcept;
 
     /**
-     * @brief Clears all stored draw calls, lights, and resets the renderer's state.
+     * @brief Clear all stored draw calls, lights, and resets the renderer's state.
      *
      * Should be called to prepare the renderer for a new frame.
      */
