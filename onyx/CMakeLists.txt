@@ -138,21 +138,20 @@ endif()
 
 ### IMGUI ###
 
-set(IMGUI_DIR ${CMAKE_BINARY_DIR}/_deps/imgui-src)
 
 set(IMGUI_SOURCES
-    ${IMGUI_DIR}/imgui.cpp
-    ${IMGUI_DIR}/imgui_demo.cpp
-    ${IMGUI_DIR}/imgui_draw.cpp
-    ${IMGUI_DIR}/imgui_tables.cpp
-    ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
 add_library(imgui STATIC ${IMGUI_SOURCES})
 
-target_include_directories(imgui PUBLIC ${IMGUI_DIR})
+target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR})
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 ### IMPLOT ###
@@ -165,18 +164,16 @@ if (ONYX_USE_IMPLOT OR ONYX_BUILD_DEMO)
     )
     FetchContent_MakeAvailable(implot)
 
-    set(IMPLOT_DIR ${CMAKE_BINARY_DIR}/_deps/implot-src)
-
     set(IMPLOT_SOURCES
-        ${IMPLOT_DIR}/implot.cpp
-        ${IMPLOT_DIR}/implot_items.cpp
-        ${IMPLOT_DIR}/implot_demo.cpp
+        ${implot_SOURCE_DIR}/implot.cpp
+        ${implot_SOURCE_DIR}/implot_items.cpp
+        ${implot_SOURCE_DIR}/implot_demo.cpp
     )
 
     add_library(implot STATIC ${IMPLOT_SOURCES})
 
     target_compile_definitions(implot PUBLIC ONYX_ENABLE_IMPLOT)
-    target_include_directories(implot PUBLIC ${IMPLOT_DIR})
+    target_include_directories(implot PUBLIC ${implot_SOURCE_DIR})
     target_link_libraries(implot PUBLIC imgui)
     target_link_libraries(onyx PUBLIC implot)
 
