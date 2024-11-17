@@ -174,7 +174,9 @@ Instance::Instance() noexcept
 
 Instance::~Instance() noexcept
 {
+#ifdef KIT_ENABLE_ASSERTS
     destroyDebugUtilsMessengerEXT(m_Instance, nullptr);
+#endif
     vkDestroyInstance(m_Instance, nullptr);
 }
 

@@ -329,8 +329,8 @@ void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
 
     // might not really be necessary anymore because device specific validation layers
     // have been deprecated
-    const char *vLayer = Instance::GetValidationLayer();
 #ifdef KIT_ENABLE_ASSERTS
+    const char *vLayer = Instance::GetValidationLayer();
     createInfo.enabledLayerCount = 1;
     createInfo.ppEnabledLayerNames = &vLayer;
 #else

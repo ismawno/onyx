@@ -156,7 +156,7 @@ target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 ### IMPLOT ###
 
-if (ONYX_USE_IMPLOT OR ONYX_BUILD_DEMO)
+if (ONYX_USE_IMPLOT OR ONYX_BUILD_DEMOS)
     FetchContent_Declare(
         implot
         GIT_REPOSITORY https://github.com/epezent/implot.git
