@@ -128,10 +128,26 @@ Device::Device(const VkSurfaceKHR p_Surface) noexcept
     pickPhysicalDevice(p_Surface);
     createLogicalDevice(p_Surface);
     createCommandPool(p_Surface);
+
+#ifdef KIT_ENABLE_VULKAN_PROFILING
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = m_CommandPool;
+    allocInfo.commandBufferCount = 1;
+
+    vkAllocateCommandBuffers(m_Device, &allocInfo, &m_ProfilingCommandBuffer);
+    m_ProfilingContext =
+        KIT_PROFILE_CREATE_VULKAN_CONTEXT(m_PhysicalDevice, m_Device, m_GraphicsQueue, m_ProfilingCommandBuffer);
+#endif
 }
 
 Device::~Device() noexcept
 {
+#ifdef KIT_ENABLE_VULKAN_PROFILING
+    KIT_PROFILE_DESTROY_VULKAN_CONTEXT(m_ProfilingContext);
+    vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &m_ProfilingCommandBuffer);
+#endif
     vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
     vkDestroyDevice(m_Device, nullptr);
 }
@@ -222,12 +238,12 @@ void Device::UnlockQueues() noexcept
         m_GraphicsMutex.unlock();
 }
 
-VkCommandBuffer Device::BeginSingleTimeCommands() const noexcept
+VkCommandBuffer Device::BeginSingleTimeCommands(const VkCommandPool p_Pool) const noexcept
 {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = m_CommandPool;
+    allocInfo.commandPool = p_Pool ? p_Pool : m_CommandPool;
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
@@ -242,7 +258,7 @@ VkCommandBuffer Device::BeginSingleTimeCommands() const noexcept
     return commandBuffer;
 }
 
-void Device::EndSingleTimeCommands(const VkCommandBuffer p_CommandBuffer) const noexcept
+void Device::EndSingleTimeCommands(const VkCommandBuffer p_CommandBuffer, const VkCommandPool p_Pool) const noexcept
 {
     vkEndCommandBuffer(p_CommandBuffer);
 
@@ -254,7 +270,7 @@ void Device::EndSingleTimeCommands(const VkCommandBuffer p_CommandBuffer) const 
     vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(m_GraphicsQueue);
 
-    vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &p_CommandBuffer);
+    vkFreeCommandBuffers(m_Device, p_Pool ? p_Pool : m_CommandPool, 1, &p_CommandBuffer);
 }
 
 void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
@@ -358,5 +374,12 @@ VkFormat Device::FindSupportedFormat(const std::span<const VkFormat> p_Candidate
     KIT_ASSERT(false, "Failed to find a supported format");
     return VK_FORMAT_UNDEFINED;
 }
+
+#ifdef KIT_ENABLE_VULKAN_PROFILING
+KIT::VkProfilingContext Device::GetProfilingContext() const noexcept
+{
+    return m_ProfilingContext;
+}
+#endif
 
 } // namespace ONYX

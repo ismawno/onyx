@@ -28,7 +28,7 @@ bool MWExampleLayer::OnEvent(const usize p_WindowIndex, const Event &p_Event) no
     return true;
 }
 
-void MWExampleLayer::OnRender(const usize p_WindowIndex) noexcept
+void MWExampleLayer::OnRender(const usize p_WindowIndex, const VkCommandBuffer) noexcept
 {
     m_Data[p_WindowIndex].OnRender();
 }

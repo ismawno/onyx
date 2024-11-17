@@ -4,6 +4,7 @@
 #include "kit/core/non_copyable.hpp"
 #include "kit/memory/ptr.hpp"
 #include <concepts>
+#include <vulkan/vulkan.hpp>
 
 namespace ONYX
 {
@@ -81,11 +82,13 @@ class Layer
      *
      * This method can (and must) be used to issue ImGui draw calls.
      *
-     * @note This variant of the method is not called in multi window applications. Use the OnRender(usize) method
-     * instead.
+     * @note This variant of the method is not called in multi window applications. Use the OnRender(usize,
+     * VkCommandBuffer) method instead.
+     *
+     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRender() noexcept
+    virtual void OnRender(VkCommandBuffer) noexcept
     {
     }
 
@@ -115,9 +118,10 @@ class Layer
      * @note This method is not called in single window applications. Use the OnRender() method instead.
      *
      * @param p_WindowIndex The index of the window that is currently being processed.
+     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRender(usize) noexcept
+    virtual void OnRender(usize, VkCommandBuffer) noexcept
     {
     }
 
@@ -187,11 +191,11 @@ class LayerSystem
     void OnShutdown() noexcept;
 
     void OnUpdate() noexcept;
-    void OnRender() noexcept;
+    void OnRender(VkCommandBuffer p_CommandBuffer) noexcept;
 
     // Window is also passed in update because it also acts as an identifier for the current window thread
     void OnUpdate(usize p_WindowIndex) noexcept;
-    void OnRender(usize p_WindowIndex) noexcept;
+    void OnRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
 
     // To be used only in multi window apps (in single window, OnRender does fine)
     void OnImGuiRender() noexcept;

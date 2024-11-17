@@ -129,9 +129,9 @@ void MultiWindowApplication<Serial>::OpenWindow(const Window::Specs &p_Specs) no
 void MultiWindowApplication<Serial>::processWindows() noexcept
 {
     m_MustDeferWindowManagement = true;
-    const auto drawCalls = [this](const VkCommandBuffer) {
+    const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        Layers.OnRender(0);
+        Layers.OnRender(0, p_CommandBuffer);
         Layers.OnImGuiRender();
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
@@ -139,7 +139,8 @@ void MultiWindowApplication<Serial>::processWindows() noexcept
 
     for (usize i = 1; i < m_Windows.size(); ++i)
         processFrame(
-            i, *m_Windows[i], Layers, [this, i](const VkCommandBuffer) { Layers.OnRender(i); },
+            i, *m_Windows[i], Layers,
+            [this, i](const VkCommandBuffer p_CommandBuffer) { Layers.OnRender(i, p_CommandBuffer); },
             [](const VkCommandBuffer) {});
 
     m_MustDeferWindowManagement = false;
@@ -217,7 +218,9 @@ KIT::Ref<KIT::Task<void>> MultiWindowApplication<Concurrent>::createWindowTask(c
     return taskManager->CreateTask([this, p_WindowIndex](usize) {
         processFrame(
             p_WindowIndex, *m_Windows[p_WindowIndex], Layers,
-            [this, p_WindowIndex](const VkCommandBuffer) { Layers.OnRender(p_WindowIndex); },
+            [this, p_WindowIndex](const VkCommandBuffer p_CommandBuffer) {
+                Layers.OnRender(p_WindowIndex, p_CommandBuffer);
+            },
             [](const VkCommandBuffer) {});
     });
 }

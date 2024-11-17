@@ -5,6 +5,8 @@
 #include "onyx/core/device.hpp"
 #include "kit/core/non_copyable.hpp"
 #include "kit/container/static_array.hpp"
+#include "kit/profiling/macros.hpp"
+#include "kit/profiling/vulkan.hpp"
 
 #include <vulkan/vulkan.hpp>
 #include <span>
@@ -36,6 +38,6 @@ class ONYX_API DescriptorPool : public KIT::RefCounted<DescriptorPool>
     VkDescriptorPool m_Pool;
 
     // consider a pool per thread?
-    mutable std::mutex m_Mutex;
+    mutable KIT_PROFILE_DECLARE_MUTEX(std::mutex, m_Mutex);
 };
 } // namespace ONYX

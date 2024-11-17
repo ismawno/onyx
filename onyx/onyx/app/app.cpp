@@ -3,6 +3,9 @@
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
 
+#include "kit/profiling/macros.hpp"
+#include "kit/profiling/vulkan.hpp"
+
 namespace ONYX
 {
 IApplication::~IApplication() noexcept
@@ -159,6 +162,7 @@ Application::Application(const Window::Specs &p_WindowSpecs) noexcept
 
 bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::Application::NextFrame");
     m_DeltaTime = p_Clock.Restart();
     Input::PollEvents();
     for (const Event &event : m_Window->GetNewEvents())
@@ -169,9 +173,9 @@ bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
 
     Layers.OnUpdate();
 
-    const auto drawCalls = [this](const VkCommandBuffer) {
+    const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        Layers.OnRender();
+        Layers.OnRender(p_CommandBuffer);
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
 
@@ -181,8 +185,10 @@ bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
     {
         m_Window.Destroy();
         shutdownImGui();
+        KIT_PROFILE_MARK_FRAME;
         return false;
     }
+    KIT_PROFILE_MARK_FRAME;
     return true;
 }
 

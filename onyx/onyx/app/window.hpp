@@ -81,14 +81,33 @@ class ONYX_API Window
      */
     template <typename F1, typename F2> bool Render(F1 &&p_DrawCalls, F2 &&p_UICalls) noexcept
     {
+        KIT_PROFILE_NSCOPE("ONYX::Window::Render");
         if (const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this))
         {
-            m_FrameScheduler->BeginRenderPass(BackgroundColor);
-            std::forward<F1>(p_DrawCalls)(cmd);
-            m_RenderContext2D->Render(cmd);
-            m_RenderContext3D->Render(cmd);
-            std::forward<F2>(p_UICalls)(cmd);
-            m_FrameScheduler->EndRenderPass();
+            {
+                KIT_PROFILE_VULKAN_SCOPE("ONYX::Window::Render", m_Device->GetProfilingContext(), cmd);
+                m_FrameScheduler->BeginRenderPass(BackgroundColor);
+                {
+                    KIT_PROFILE_VULKAN_NAMED_SCOPE(vkDrawCalls, "ONYX::DrawCalls", m_Device->GetProfilingContext(), cmd,
+                                                   true);
+                    KIT_PROFILE_NAMED_NSCOPE(drawCalls, "ONYX::DrawCalls", true);
+                    std::forward<F1>(p_DrawCalls)(cmd);
+                }
+
+                // This bit is profiled inside the renderer methods.
+                m_RenderContext2D->Render(cmd);
+                m_RenderContext3D->Render(cmd);
+
+                {
+                    KIT_PROFILE_VULKAN_NAMED_SCOPE(vkUiCalls, "ONYX::ImGui", m_Device->GetProfilingContext(), cmd,
+                                                   true);
+                    KIT_PROFILE_NAMED_NSCOPE(uiCalls, "ONYX::ImGui", true);
+                    std::forward<F2>(p_UICalls)(cmd);
+                }
+                m_FrameScheduler->EndRenderPass();
+            }
+
+            KIT_PROFILE_VULKAN_COLLECT(m_Device->GetProfilingContext(), cmd);
             m_FrameScheduler->EndFrame(*this);
             return true;
         }

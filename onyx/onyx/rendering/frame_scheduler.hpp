@@ -24,10 +24,12 @@ class ONYX_API FrameScheduler
 
     template <typename F> void ImmediateSubmission(F &&p_Submission) const noexcept
     {
-        const VkCommandBuffer cmd = m_Device->BeginSingleTimeCommands();
+        const VkCommandBuffer cmd = m_Device->BeginSingleTimeCommands(m_CommandPool);
         std::forward<F>(p_Submission)(cmd);
-        m_Device->EndSingleTimeCommands(cmd);
+        m_Device->EndSingleTimeCommands(cmd, m_CommandPool);
     }
+
+    VkCommandPool GetCommandPool() const noexcept;
 
     VkCommandBuffer GetCurrentCommandBuffer() const noexcept;
     const SwapChain &GetSwapChain() const noexcept;

@@ -3,6 +3,7 @@
 #include "onyx/core/instance.hpp"
 #include "onyx/core/alias.hpp"
 #include <vulkan/vulkan.hpp>
+#include "kit/profiling/vulkan.hpp"
 
 namespace ONYX
 {
@@ -54,8 +55,8 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     void LockQueues() noexcept;
     void UnlockQueues() noexcept;
 
-    VkCommandBuffer BeginSingleTimeCommands() const noexcept;
-    void EndSingleTimeCommands(VkCommandBuffer p_CommandBuffer) const noexcept;
+    VkCommandBuffer BeginSingleTimeCommands(VkCommandPool p_Pool = VK_NULL_HANDLE) const noexcept;
+    void EndSingleTimeCommands(VkCommandBuffer p_CommandBuffer, VkCommandPool p_Pool = VK_NULL_HANDLE) const noexcept;
 
   private:
     void pickPhysicalDevice(VkSurfaceKHR p_Surface) noexcept;
@@ -74,5 +75,13 @@ class ONYX_API Device : public KIT::RefCounted<Device>
 
     std::mutex m_GraphicsMutex;
     std::mutex m_PresentMutex;
+
+#ifdef KIT_ENABLE_VULKAN_PROFILING
+    KIT::VkProfilingContext m_ProfilingContext;
+    VkCommandBuffer m_ProfilingCommandBuffer;
+
+  public:
+    KIT::VkProfilingContext GetProfilingContext() const noexcept;
+#endif
 };
 } // namespace ONYX

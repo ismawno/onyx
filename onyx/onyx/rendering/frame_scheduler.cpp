@@ -34,6 +34,7 @@ FrameScheduler::~FrameScheduler() noexcept
 
 VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::FrameScheduler::BeginFrame");
     KIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
 
     if (m_PresentTask)
@@ -73,6 +74,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 
 void FrameScheduler::EndFrame(Window &) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::FrameScheduler::EndFrame");
     KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
     KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
 
@@ -96,6 +98,7 @@ void FrameScheduler::EndFrame(Window &) noexcept
 
 void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::FrameScheduler::BeginRenderPass");
     KIT_ASSERT(m_FrameStarted, "Cannot begin render pass if a frame is not in progress");
     const VkExtent2D extent = m_SwapChain->GetExtent();
 
@@ -134,6 +137,7 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 
 void FrameScheduler::EndRenderPass() noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::FrameScheduler::EndRenderPass");
     KIT_ASSERT(m_FrameStarted, "Cannot end render pass if a frame is not in progress");
     vkCmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
 }
@@ -141,6 +145,11 @@ void FrameScheduler::EndRenderPass() noexcept
 u32 FrameScheduler::GetFrameIndex() const noexcept
 {
     return m_FrameIndex;
+}
+
+VkCommandPool FrameScheduler::GetCommandPool() const noexcept
+{
+    return m_CommandPool;
 }
 
 VkCommandBuffer FrameScheduler::GetCurrentCommandBuffer() const noexcept

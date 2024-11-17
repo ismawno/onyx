@@ -30,27 +30,32 @@ void LayerSystem::OnShutdown() noexcept
 
 void LayerSystem::OnUpdate() noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnUpdate");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnUpdate();
 }
-void LayerSystem::OnRender() noexcept
+void LayerSystem::OnRender(const VkCommandBuffer p_CommandBuffer) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnRender");
     for (auto &layer : enabledLayers(m_Layers))
-        layer->OnRender();
+        layer->OnRender(p_CommandBuffer);
 }
 
 void LayerSystem::OnUpdate(const usize p_WindowIndex) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnUpdate");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnUpdate(p_WindowIndex);
 }
-void LayerSystem::OnRender(const usize p_WindowIndex) noexcept
+void LayerSystem::OnRender(const usize p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnRender");
     for (auto &layer : enabledLayers(m_Layers))
-        layer->OnRender(p_WindowIndex);
+        layer->OnRender(p_WindowIndex, p_CommandBuffer);
 }
 void LayerSystem::OnImGuiRender() noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnImGuiRender");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnImGuiRender();
 }

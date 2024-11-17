@@ -79,6 +79,7 @@ SwapChain::~SwapChain() noexcept
 
 VkResult SwapChain::AcquireNextImage(u32 *p_ImageIndex) const noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::SwapChain::AcquireNextImage");
     vkWaitForFences(m_Device->GetDevice(), 1, &m_InFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
     return vkAcquireNextImageKHR(m_Device->GetDevice(), m_SwapChain, UINT64_MAX,
                                  m_ImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, p_ImageIndex);
@@ -86,6 +87,7 @@ VkResult SwapChain::AcquireNextImage(u32 *p_ImageIndex) const noexcept
 
 VkResult SwapChain::SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffer, const u32 p_ImageIndex) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::SwapChain::SubmitCommandBuffer");
     if (m_InFlightImages[p_ImageIndex] != VK_NULL_HANDLE)
         vkWaitForFences(m_Device->GetDevice(), 1, &m_InFlightImages[p_ImageIndex], VK_TRUE, UINT64_MAX);
 
@@ -115,6 +117,7 @@ VkResult SwapChain::SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffer, c
 
 VkResult SwapChain::Present(const u32 *p_ImageIndex) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::SwapChain::Present");
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 

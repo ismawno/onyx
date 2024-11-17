@@ -12,7 +12,7 @@ class MWExampleLayer final : public Layer
     MWExampleLayer(IMultiWindowApplication *p_Application) noexcept;
 
     void OnStart() noexcept override;
-    void OnRender(usize p_WindowIndex) noexcept override;
+    void OnRender(usize p_WindowIndex, VkCommandBuffer) noexcept override;
     void OnImGuiRender() noexcept override;
     bool OnEvent(usize p_WindowIndex, const Event &p_Event) noexcept override;
 

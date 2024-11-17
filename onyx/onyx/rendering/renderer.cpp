@@ -244,6 +244,7 @@ void Renderer<D3>::Flush() noexcept
 
 void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::Renderer<D2>::Render");
     RenderInfo<D2, DrawMode::Fill> fillDrawInfo;
     fillDrawInfo.CommandBuffer = p_CommandBuffer;
     fillDrawInfo.FrameIndex = m_FrameIndex;
@@ -278,6 +279,7 @@ void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 
 void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
+    KIT_PROFILE_NSCOPE("ONYX::Renderer<D3>::Render");
     RenderInfo<D3, DrawMode::Fill> fillDrawInfo;
     fillDrawInfo.CommandBuffer = p_CommandBuffer;
     fillDrawInfo.FrameIndex = m_FrameIndex;
