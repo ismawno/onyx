@@ -107,7 +107,14 @@ class ONYX_API Window
                 m_FrameScheduler->EndRenderPass();
             }
 
-            KIT_PROFILE_VULKAN_COLLECT(m_Device->GetProfilingContext(), cmd);
+            {
+#ifdef KIT_ENABLE_VULKAN_PROFILING
+                static KIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
+                std::scoped_lock lock(mutex);
+                KIT_PROFILE_MARK_LOCK(mutex);
+#endif
+                KIT_PROFILE_VULKAN_COLLECT(m_Device->GetProfilingContext(), cmd);
+            }
             m_FrameScheduler->EndFrame(*this);
             return true;
         }

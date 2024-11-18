@@ -187,9 +187,14 @@ target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/onyx/core/pch
 target_compile_definitions(onyx PUBLIC KIT_ROOT_LOG_PATH="${ONYX_ROOT_PATH}" ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 if (MSVC)
-    configure_compile_link_options(onyx "/W4 /WX")
+    configure_compile_link_options(onyx FLAGS /W4 /WX)
 else()
-    configure_compile_link_options(onyx "-Wall -Wextra -Wpedantic -Werror")
+    configure_compile_link_options(onyx FLAGS -Wall -Wextra -Wpedantic -Werror)
 endif()
+
+configure_compile_link_options(glm FORBID_SANITIZERS)
+configure_compile_link_options(glfw FORBID_SANITIZERS)
+configure_compile_link_options(imgui FORBID_SANITIZERS)
+configure_compile_link_options(tinyobjloader FORBID_SANITIZERS)
 
 # No need for more: toolkit handles the rest. As it is a library I develop, I will be reusing its macros/configurations
