@@ -87,6 +87,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 {
     if (m_HostInstanceData.empty())
         return;
+    KIT_PROFILE_NSCOPE("MeshRenderer::Render");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
     usize index = 0;
@@ -165,6 +166,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
 {
     if (m_DeviceInstanceData.StorageSizes[p_Info.FrameIndex] == 0)
         return;
+    KIT_PROFILE_NSCOPE("PrimitiveRenderer::Render");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
 
@@ -300,6 +302,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
 {
     if (m_HostInstanceData.empty())
         return;
+    KIT_PROFILE_NSCOPE("PolygonRenderer::Render");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
     auto &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_Info.FrameIndex];
@@ -387,6 +390,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 {
     if (m_HostInstanceData.empty())
         return;
+    KIT_PROFILE_NSCOPE("CircleRenderer::Render");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
 

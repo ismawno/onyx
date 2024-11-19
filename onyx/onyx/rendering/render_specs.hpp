@@ -169,6 +169,12 @@ template <> struct ONYX_API InstanceData<D3, DrawMode::Fill>
     MaterialData<D3> Material;
 };
 
+template <> struct ONYX_API InstanceData<D3, DrawMode::Stencil>
+{
+    mat4 Transform;
+    MaterialData<D2> Material;
+};
+
 /**
  * @brief The DeviceInstanceData is a convenience struct that helps organize the data that is sent to the GPU so that
  * each frame contains a dedicated set of storage buffers and descriptors.
