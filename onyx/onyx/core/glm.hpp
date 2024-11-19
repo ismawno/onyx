@@ -44,7 +44,7 @@ template <> struct RotType<D2>
 template <> struct RotType<D3>
 {
     using Type = quat;
-    static constexpr quat Identity = quat{1.f, 0.f, 0.f, 0.f};
+    static inline const quat Identity = quat{1.f, 0.f, 0.f, 0.f};
 };
 
 template <Dimension D> using rot = typename RotType<D>::Type;
