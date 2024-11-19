@@ -152,6 +152,9 @@ template <Dimension D> class ONYX_API IRenderer
     /// Z-offset used in 2D rendering to manage draw order; only used in 2D.
     u32 m_ZOffset = 0;
 
+    /// Number of draw calls recorded in the current frame.
+    u32 m_DrawCount = 0;
+
     /// Render system for mesh models.
     RenderSystem<D, MeshRenderer> m_MeshRenderer;
 

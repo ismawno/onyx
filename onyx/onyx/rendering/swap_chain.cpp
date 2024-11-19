@@ -79,7 +79,6 @@ SwapChain::~SwapChain() noexcept
 
 VkResult SwapChain::AcquireNextImage(u32 *p_ImageIndex) const noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::SwapChain::AcquireNextImage");
     vkWaitForFences(m_Device->GetDevice(), 1, &m_InFlightFences[m_CurrentFrame], VK_TRUE, UINT64_MAX);
     return vkAcquireNextImageKHR(m_Device->GetDevice(), m_SwapChain, UINT64_MAX,
                                  m_ImageAvailableSemaphores[m_CurrentFrame], VK_NULL_HANDLE, p_ImageIndex);

@@ -98,7 +98,6 @@ void FrameScheduler::EndFrame(Window &) noexcept
 
 void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::FrameScheduler::BeginRenderPass");
     KIT_ASSERT(m_FrameStarted, "Cannot begin render pass if a frame is not in progress");
     const VkExtent2D extent = m_SwapChain->GetExtent();
 
@@ -137,7 +136,6 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 
 void FrameScheduler::EndRenderPass() noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::FrameScheduler::EndRenderPass");
     KIT_ASSERT(m_FrameStarted, "Cannot end render pass if a frame is not in progress");
     vkCmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
 }

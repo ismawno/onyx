@@ -172,22 +172,26 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Fl
     {
         const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
         p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        ++m_DrawCount;
     }
     if (p_Flags & DrawFlags_DoStencilWriteDoFill)
     {
         const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
         p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        ++m_DrawCount;
     }
     if (p_Flags & DrawFlags_DoStencilWriteNoFill)
     {
         const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(p_Transform, state, 0, m_ZOffset);
         p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        ++m_DrawCount;
     }
     if (p_Flags & DrawFlags_DoStencilTestNoFill)
     {
         const StencilIData instanceData =
             createStencilInstanceData<D, StencilIData>(p_Transform, state, p_Flags, m_ZOffset);
         p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        ++m_DrawCount;
     }
 }
 
@@ -230,6 +234,7 @@ void Renderer<D2>::Flush() noexcept
     m_PrimitiveRenderer.Flush();
     m_PolygonRenderer.Flush();
     m_CircleRenderer.Flush();
+    m_DrawCount = 0;
 }
 void Renderer<D3>::Flush() noexcept
 {
@@ -240,10 +245,13 @@ void Renderer<D3>::Flush() noexcept
 
     m_DirectionalLights.clear();
     m_PointLights.clear();
+    m_DrawCount = 0;
 }
 
 void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
+    if (m_DrawCount == 0)
+        return;
     KIT_PROFILE_NSCOPE("ONYX::Renderer<D2>::Render");
     RenderInfo<D2, DrawMode::Fill> fillDrawInfo;
     fillDrawInfo.CommandBuffer = p_CommandBuffer;
@@ -279,6 +287,8 @@ void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 
 void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
+    if (m_DrawCount == 0)
+        return;
     KIT_PROFILE_NSCOPE("ONYX::Renderer<D3>::Render");
     RenderInfo<D3, DrawMode::Fill> fillDrawInfo;
     fillDrawInfo.CommandBuffer = p_CommandBuffer;
