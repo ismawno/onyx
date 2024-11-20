@@ -46,7 +46,7 @@ while (!window.ShouldClose())
 }
 ```
 
-The full code with examples can be found at [hello-world](https://github.com/ismawno/onyx/onyx/onyx/hello-world/main.cpp).
+The full code with examples can be found at [hello-world](https://github.com/ismawno/onyx/blob/main/hello-world/main.cpp).
 
 ### Application API
 
@@ -119,7 +119,7 @@ app.Layers.Push<MyLayer>();
 app.Run();
 ```
 
-There is more to this system, such as additional layer callbacks like `OnEvent()` and `OnUpdate()`. All user-relevant parts of this library are documented in the source code. The documentation can also be built with Doxygen. As mentioned earlier, the full working example can be found at [hello-world](https://github.com/ismawno/onyx/onyx/onyx/hello-world/main.cpp).
+There is more to this system, such as additional layer callbacks like `OnEvent()` and `OnUpdate()`. All user-relevant parts of this library are documented in the source code. The documentation can also be built with Doxygen. As mentioned earlier, the full working example can be found at [hello-world](https://github.com/ismawno/onyx/blob/main/hello-world/main.cpp).
 
 #### Multi-Window Application
 
@@ -127,7 +127,7 @@ There is more to this system, such as additional layer callbacks like `OnEvent()
 1. **Serial**: All windows run on the main thread.
 2. **Concurrent**: Each window runs on its own dedicated thread.
 
-For more details, refer to the documentation and the [onyx/app/mwapp.hpp](https://github.com/ismawno/onyx/onyx/onyx/app/mwapp.hpp) and [onyx/app/layer.hpp](https://github.com/ismawno/onyx/onyx/onyx/app/layer.hpp) files.
+For more details, refer to the documentation and the [onyx/app/mwapp.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/mwapp.hpp) and [onyx/app/layer.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/layer.hpp) files.
 
 The serial implementation is more forgiving and easier to use than the concurrent one. The latter requires careful synchronization on the user’s end to avoid issues. I have minimized locking to preserve parallelism, but I have not measured its performance, so use it at your own risk.
 
@@ -139,7 +139,7 @@ The *onyx* framework includes two basic renderers for drawing simple geometry:
 
 The API uses an immediate mode approach, inspired by the [Processing](https://processing.org) API. Features like `Push()`/`Pop()` are implemented for state management. Examples can be found in the previous sections, where the `RenderContext<D>` class is used (`D` being either `D2` or `D3`).
 
-*Onyx* also supports model rendering through the [Model](https://github.com/ismawno/onyx/onyx/onyx/draw/model.hpp) class. When possible, it uses instance rendering to minimize draw calls.
+*Onyx* also supports model rendering through the [Model](https://github.com/ismawno/onyx/blob/main/onyx/onyx/draw/model.hpp) class. When possible, it uses instance rendering to minimize draw calls.
 
 ### ImGui Usage
 
@@ -162,4 +162,4 @@ ImGui support is built-in when using the application interface, as shown in the 
 
 The building process is straightforward. Create a `build` folder, `cd` into it, and run `cmake ..`. All available *onyx* options will be displayed.
 
-Then compile the project with your editor/IDE of choice, and test the [hello-world](https://github.com/ismawno/onyx/onyx/onyx/hello-world/main.cpp) example along with the demos ([single-window](https://github.com/ismawno/onyx/onyx/single-window-demo) and [multi-window](https://github.com/ismawno/onyx/onyx/multi-window-demo)).
+Then compile the project with your editor/IDE of choice, and test the [hello-world](https://github.com/ismawno/onyx/blob/main/hello-world/main.cpp) example along with the demos ([single-window](https://github.com/ismawno/onyx/blob/main/single-window-demo) and [multi-window](https://github.com/ismawno/onyx/blob/main/multi-window-demo)).
