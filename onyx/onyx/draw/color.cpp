@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/draw/color.hpp"
 #include "kit/core/logging.hpp"
+#include "kit/utilities/math.hpp"
 #include <sstream>
 
 namespace ONYX
@@ -217,5 +218,30 @@ const HashMap<std::string, Color> Color::s_ColorMap{
     {"red", RED},   {"green", GREEN},   {"blue", BLUE},     {"magenta", MAGENTA},
     {"cyan", CYAN}, {"orange", ORANGE}, {"yellow", YELLOW}, {"black", BLACK},
     {"pink", PINK}, {"purple", PURPLE}, {"white", WHITE},   {"transparent", TRANSPARENT}};
+
+Gradient::Gradient(const std::span<const Color> p_Span) noexcept : m_Colors(p_Span)
+{
+    KIT_ASSERT(p_Span.size() >= 2, "Gradient must have at least two colors");
+}
+
+Color Gradient::Evaluate(const f32 p_T) const noexcept
+{
+    KIT_ASSERT(p_T >= 0.f && p_T <= 1.f, "Gradient evaluation parameter must be in the range [0, 1]");
+
+    if (KIT::ApproachesZero(p_T))
+        return m_Colors.front();
+    if (KIT::Approximately(p_T, 1.f))
+        return m_Colors.back();
+
+    const f32 loc = p_T * (m_Colors.size() - 1);
+    const u32 index1 = static_cast<u32>(loc);
+    const u32 index2 = index1 + 1;
+
+    const f32 t1 = static_cast<f32>(index1);
+    const f32 t2 = static_cast<f32>(index2);
+
+    const f32 t = (loc - t1) / (t2 - t1);
+    return Color{m_Colors[index1].RGBA * (1.f - t) + m_Colors[index1 + 1].RGBA * t};
+}
 
 } // namespace ONYX

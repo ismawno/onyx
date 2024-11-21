@@ -123,4 +123,16 @@ struct ONYX_API Color
     // This will be useful for serialization (not implemented yet)
     static const HashMap<std::string, Color> s_ColorMap;
 };
+
+class Gradient
+{
+  public:
+    Gradient(std::span<const Color> p_Colors) noexcept;
+
+    Color Evaluate(f32 p_T) const noexcept;
+
+  private:
+    std::span<const Color> m_Colors;
+};
+
 } // namespace ONYX
