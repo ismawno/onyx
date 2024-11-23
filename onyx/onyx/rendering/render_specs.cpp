@@ -3,18 +3,18 @@
 
 namespace ONYX
 {
-void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes) noexcept
+void ApplyCoordinateSystemExtrinsic(mat4 &p_Transform) noexcept
 {
     // Essentially, a rotation around the x axis
     for (glm::length_t i = 0; i < 4; ++i)
         for (glm::length_t j = 1; j <= 2; ++j)
-            p_Axes[i][j] = -p_Axes[i][j];
-    if (p_InverseAxes)
-    {
-        mat4 &iaxes = *p_InverseAxes;
-        iaxes[1] = -iaxes[1];
-        iaxes[2] = -iaxes[2];
-    }
+            p_Transform[i][j] = -p_Transform[i][j];
+}
+void ApplyCoordinateSystemIntrinsic(mat4 &p_Transform) noexcept
+{
+    // Essentially, a rotation around the x axis
+    p_Transform[1] = -p_Transform[1];
+    p_Transform[2] = -p_Transform[2];
 }
 
 template <Dimension D, DrawMode DMode> struct ShaderPaths;
@@ -52,11 +52,7 @@ static Pipeline::Specs defaultPipelineSpecs(const char *p_VPath, const char *p_F
 {
     Pipeline::Specs specs{};
     if constexpr (D == D3)
-    {
-        specs.PushConstantRange.size = sizeof(PushConstantData3D);
-        specs.PushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         specs.ColorBlendAttachment.blendEnable = VK_FALSE;
-    }
     else if constexpr (GetDrawMode<PMode>() == DrawMode::Stencil)
         specs.ColorBlendAttachment.blendEnable = VK_FALSE;
 

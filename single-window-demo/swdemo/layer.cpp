@@ -22,11 +22,11 @@ bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
 
 void SWExampleLayer::OnRender(const VkCommandBuffer) noexcept
 {
-    m_Data.OnRender();
     const auto ts = m_Application->GetDeltaTime();
+    m_Data.OnRender(ts);
     WindowData::OnImGuiRenderGlobal(ts);
     if (ImGui::Begin("Editor"))
-        m_Data.OnImGuiRender(ts);
+        m_Data.OnImGuiRender();
     ImGui::End();
 }
 

@@ -65,6 +65,10 @@ static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const 
 
     window->FlagResize(event.WindowResize.NewWidth, event.WindowResize.NewHeight);
     window->PushEvent(event);
+
+    const f32 aspect = window->GetScreenAspect();
+    window->GetRenderContext<D2>()->UpdateViewAspect(aspect);
+    window->GetRenderContext<D3>()->UpdateViewAspect(aspect);
 }
 
 static void windowFocusCallback(GLFWwindow *p_Window, const i32 p_Focused)

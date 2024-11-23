@@ -23,8 +23,6 @@ static void RunStandaloneWindow() noexcept
         ONYX::RenderContext<D2> *context = window.GetRenderContext<D2>();
         context->Flush(ONYX::Color::BLACK);
 
-        context->KeepWindowAspect();
-
         context->Fill(ONYX::Color::RED);
         context->Square();
 
@@ -59,8 +57,6 @@ static void RunAppExample2() noexcept
     {
         ONYX::RenderContext<D2> *context = app.GetMainWindow()->GetRenderContext<D2>();
         context->Flush(ONYX::Color::BLACK);
-
-        context->KeepWindowAspect();
 
         context->Fill(ONYX::Color::RED);
         context->Square();

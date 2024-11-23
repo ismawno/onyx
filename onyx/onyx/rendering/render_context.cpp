@@ -2,7 +2,6 @@
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/descriptors/descriptor_writer.hpp"
 #include "onyx/app/input.hpp"
-#include "onyx/draw/transform.hpp"
 #include "onyx/app/window.hpp"
 
 #include "kit/utilities/math.hpp"
@@ -11,23 +10,16 @@ namespace ONYX
 {
 template <Dimension D>
 IRenderContext<D>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
-    : m_Renderer(p_RenderPass, &m_RenderState), m_Window(p_Window)
+    : m_Renderer(p_RenderPass, &m_RenderState, &m_ProjectionView), m_Window(p_Window)
 {
     m_RenderState.push_back(RenderState<D>{});
-    // All axes transformation come "from the right", and axes coordinate system adjustements must come "from the left",
-    // so it is actually fine to have the axes starting as the current coordinate system adjustements. Can only be done
-    // in 3D, because transformations may involve some axis that dont exist in 2D. This coordinate system adjustements
-    // is apply later for 2D cases, when eventually the mat3's become mat4's
-    if constexpr (D == D3)
-        ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
+    UpdateViewAspect(p_Window->GetScreenAspect());
 }
 
 template <Dimension D> void IRenderContext<D>::FlushState() noexcept
 {
     KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
     m_RenderState[0] = RenderState<D>{};
-    if constexpr (D == D3)
-        ApplyCoordinateSystem(m_RenderState[0].Axes, &m_RenderState[0].InverseAxes);
 }
 template <Dimension D> void IRenderContext<D>::FlushState(const Color &p_Color) noexcept
 {
@@ -77,18 +69,12 @@ void RenderContext<D3>::Transform(const vec3 &p_Translation, const f32 p_Scale, 
 template <Dimension D> void IRenderContext<D>::TransformAxes(const mat<D> &p_Axes) noexcept
 {
     m_RenderState.back().Axes *= p_Axes;
-    if constexpr (D == D3)
-        m_RenderState.back().InverseAxes = glm::inverse(m_RenderState.back().Axes);
 }
 template <Dimension D>
 void IRenderContext<D>::TransformAxes(const vec<D> &p_Translation, const vec<D> &p_Scale,
                                       const rot<D> &p_Rotation) noexcept
 {
-    m_RenderState.back().Axes *= ONYX::Transform<D>::ComputeAxesTransform(p_Translation, p_Scale, p_Rotation);
-    if constexpr (D == D3)
-        m_RenderState.back().InverseAxes =
-            ONYX::Transform<D>::ComputeTransform(-p_Translation, 1.f / p_Scale, glm::conjugate(p_Rotation)) *
-            m_RenderState.back().InverseAxes;
+    m_RenderState.back().Axes *= ONYX::Transform<D>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation);
 }
 template <Dimension D>
 void IRenderContext<D>::TransformAxes(const vec<D> &p_Translation, const f32 p_Scale, const rot<D> &p_Rotation) noexcept
@@ -97,11 +83,11 @@ void IRenderContext<D>::TransformAxes(const vec<D> &p_Translation, const f32 p_S
 }
 void RenderContext<D3>::TransformAxes(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept
 {
-    TransformAxes(ONYX::Transform<D3>::ComputeAxesTransform(p_Translation, p_Scale, p_Rotation));
+    TransformAxes(ONYX::Transform<D3>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation));
 }
 void RenderContext<D3>::TransformAxes(const vec3 &p_Translation, const f32 p_Scale, const vec3 &p_Rotation) noexcept
 {
-    TransformAxes(ONYX::Transform<D3>::ComputeAxesTransform(p_Translation, vec3{p_Scale}, p_Rotation));
+    TransformAxes(ONYX::Transform<D3>::ComputeReversedTransform(p_Translation, vec3{p_Scale}, p_Rotation));
 }
 
 template <Dimension D> void IRenderContext<D>::Translate(const vec<D> &p_Translation) noexcept
@@ -163,54 +149,41 @@ void RenderContext<D3>::ScaleZ(const f32 p_Z) noexcept
 template <Dimension D> void IRenderContext<D>::TranslateXAxis(const f32 p_X) noexcept
 {
     ONYX::Transform<D>::TranslateIntrinsic(m_RenderState.back().Axes, 0, p_X);
-    if constexpr (D == D3)
-        ONYX::Transform<D>::TranslateExtrinsic(m_RenderState.back().InverseAxes, 0, -p_X);
 }
 template <Dimension D> void IRenderContext<D>::TranslateYAxis(const f32 p_Y) noexcept
 {
     ONYX::Transform<D>::TranslateIntrinsic(m_RenderState.back().Axes, 1, p_Y);
-    if constexpr (D == D3)
-        ONYX::Transform<D>::TranslateExtrinsic(m_RenderState.back().InverseAxes, 1, -p_Y);
 }
 void RenderContext<D3>::TranslateZAxis(const f32 p_Z) noexcept
 {
     ONYX::Transform<D3>::TranslateIntrinsic(m_RenderState.back().Axes, 2, p_Z);
-    ONYX::Transform<D3>::TranslateExtrinsic(m_RenderState.back().InverseAxes, 2, -p_Z);
 }
 
 template <Dimension D> void IRenderContext<D>::ScaleXAxis(const f32 p_X) noexcept
 {
     ONYX::Transform<D>::ScaleIntrinsic(m_RenderState.back().Axes, 0, p_X);
-    if constexpr (D == D3)
-        ONYX::Transform<D>::ScaleExtrinsic(m_RenderState.back().InverseAxes, 0, 1.f / p_X);
 }
 template <Dimension D> void IRenderContext<D>::ScaleYAxis(const f32 p_Y) noexcept
 {
     ONYX::Transform<D>::ScaleIntrinsic(m_RenderState.back().Axes, 1, p_Y);
-    if constexpr (D == D3)
-        ONYX::Transform<D>::ScaleExtrinsic(m_RenderState.back().InverseAxes, 1, 1.f / p_Y);
 }
 void RenderContext<D3>::ScaleZAxis(const f32 p_Z) noexcept
 {
     ONYX::Transform<D3>::ScaleIntrinsic(m_RenderState.back().Axes, 2, p_Z);
-    ONYX::Transform<D3>::ScaleExtrinsic(m_RenderState.back().InverseAxes, 2, 1.f / p_Z);
 }
 
-template <Dimension D> void IRenderContext<D>::KeepWindowAspect() noexcept
+template <Dimension D> void IRenderContext<D>::UpdateViewAspect(const f32 p_Aspect) noexcept
 {
-    // Scaling down the axes means "enlarging" their extent, that is why the inverse is used
-    const f32 aspect = 1.f / m_Window->GetScreenAspect();
+    m_ProjectionView.View.Scale.x = m_ProjectionView.View.Scale.y * p_Aspect;
     if constexpr (D == D2)
-        ScaleAxes(vec2{aspect, 1.f});
+        m_ProjectionView.ProjectionView = m_ProjectionView.View.ComputeViewTransform();
     else
-        ScaleAxes(vec3{aspect, 1.f, 1.f});
+        m_ProjectionView.ProjectionView = m_ProjectionView.Projection * m_ProjectionView.View.ComputeViewTransform();
 }
 
 template <Dimension D> void IRenderContext<D>::TranslateAxes(const vec<D> &p_Translation) noexcept
 {
     ONYX::Transform<D>::TranslateIntrinsic(m_RenderState.back().Axes, p_Translation);
-    if constexpr (D == D3)
-        ONYX::Transform<D>::TranslateExtrinsic(m_RenderState.back().InverseAxes, -p_Translation);
 }
 void RenderContext<D2>::TranslateAxes(const f32 p_X, const f32 p_Y) noexcept
 {
@@ -224,8 +197,6 @@ void RenderContext<D3>::TranslateAxes(const f32 p_X, const f32 p_Y, const f32 p_
 template <Dimension D> void IRenderContext<D>::ScaleAxes(const vec<D> &p_Scale) noexcept
 {
     ONYX::Transform<D>::ScaleIntrinsic(m_RenderState.back().Axes, p_Scale);
-    if constexpr (D == D3)
-        ONYX::Transform<D>::ScaleExtrinsic(m_RenderState.back().InverseAxes, 1.f / p_Scale);
 }
 template <Dimension D> void IRenderContext<D>::ScaleAxes(const f32 p_Scale) noexcept
 {
@@ -281,7 +252,6 @@ void RenderContext<D2>::RotateAxes(const f32 p_Angle) noexcept
 void RenderContext<D3>::RotateAxes(const quat &p_Quaternion) noexcept
 {
     ONYX::Transform<D3>::RotateIntrinsic(m_RenderState.back().Axes, p_Quaternion);
-    ONYX::Transform<D3>::RotateExtrinsic(m_RenderState.back().InverseAxes, glm::conjugate(p_Quaternion));
 }
 void RenderContext<D3>::RotateAxes(const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
 {
@@ -998,8 +968,6 @@ template <Dimension D> void IRenderContext<D>::Push() noexcept
 template <Dimension D> void IRenderContext<D>::PushAndClear() noexcept
 {
     m_RenderState.push_back(RenderState<D>{});
-    if constexpr (D == D3)
-        ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
 }
 template <Dimension D> void IRenderContext<D>::Pop() noexcept
 {
@@ -1042,28 +1010,18 @@ template <Dimension D> void IRenderContext<D>::Material(const MaterialData<D> &p
     m_RenderState.back().Material = p_Material;
 }
 
-template <Dimension D> const RenderState<D> &IRenderContext<D>::GetState() const noexcept
+template <Dimension D> const RenderState<D> &IRenderContext<D>::GetCurrentState() const noexcept
 {
     return m_RenderState.back();
 }
-template <Dimension D> RenderState<D> &IRenderContext<D>::GetState() noexcept
+template <Dimension D> RenderState<D> &IRenderContext<D>::GetCurrentState() noexcept
 {
     return m_RenderState.back();
-}
-template <Dimension D> void IRenderContext<D>::SetState(const RenderState<D> &p_State) noexcept
-{
-    m_RenderState.back() = p_State;
 }
 
-template <Dimension D> void IRenderContext<D>::SetCurrentTransform(const mat<D> &p_Transform) noexcept
+template <Dimension D> const ProjectionViewData<D> &IRenderContext<D>::GetProjectionViewData() const noexcept
 {
-    m_RenderState.back().Transform = p_Transform;
-}
-template <Dimension D> void IRenderContext<D>::SetCurrentAxes(const mat<D> &p_Axes) noexcept
-{
-    m_RenderState.back().Axes = p_Axes;
-    if constexpr (D == D3)
-        ApplyCoordinateSystem(m_RenderState.back().Axes, &m_RenderState.back().InverseAxes);
+    return m_ProjectionView;
 }
 
 template <Dimension D> void IRenderContext<D>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
@@ -1110,47 +1068,111 @@ template <Dimension D> void IRenderContext<D>::Axes(const f32 p_Thickness, const
     color = oldColor; // A cheap filthy pop
 }
 
+template <Dimension D>
+void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationStep, const f32 p_RotationStep) noexcept
+{
+    ONYX::Transform<D> &view = m_ProjectionView.View;
+    if (Input::IsKeyPressed(m_Window, Input::Key::A))
+        view.Translation.x -= p_TranslationStep;
+    if (Input::IsKeyPressed(m_Window, Input::Key::D))
+        view.Translation.x += p_TranslationStep;
+
+    if constexpr (D == D2)
+    {
+        if (Input::IsKeyPressed(m_Window, Input::Key::W))
+            view.Translation.y += p_TranslationStep;
+        if (Input::IsKeyPressed(m_Window, Input::Key::S))
+            view.Translation.y -= p_TranslationStep;
+
+        if (Input::IsKeyPressed(m_Window, Input::Key::Q))
+            view.Rotation += p_RotationStep;
+        if (Input::IsKeyPressed(m_Window, Input::Key::E))
+            view.Rotation -= p_RotationStep;
+    }
+    else
+    {
+        if (Input::IsKeyPressed(m_Window, Input::Key::W))
+            view.Translation.z -= p_TranslationStep;
+        if (Input::IsKeyPressed(m_Window, Input::Key::S))
+            view.Translation.z += p_TranslationStep;
+
+        static vec2 pmpos = Input::GetMousePosition(m_Window);
+        const vec2 mpos = Input::GetMousePosition(m_Window);
+
+        const f32 step = 180.f * p_RotationStep;
+        const vec2 delta = Input::IsKeyPressed(m_Window, Input::Key::LeftShift) ? step * (pmpos - mpos) : vec2{0.f};
+        pmpos = mpos;
+
+        vec3 angles{delta.y, delta.x, 0.f};
+        if (Input::IsKeyPressed(m_Window, Input::Key::Q))
+            angles.z += p_RotationStep;
+        if (Input::IsKeyPressed(m_Window, Input::Key::E))
+            angles.z -= p_RotationStep;
+
+        view.Rotation = quat{angles};
+    }
+    if constexpr (D == D2)
+        m_ProjectionView.ProjectionView = view.ComputeViewTransform();
+    else
+        m_ProjectionView.ProjectionView = m_ProjectionView.Projection * view.ComputeViewTransform();
+}
+void RenderContext<D2>::ApplyCameraLikeScalingControls(const f32 p_ScaleStep) noexcept
+{
+    const vec2 mpos = GetMouseCoordinates();
+    const vec2 dpos = p_ScaleStep * (mpos - m_ProjectionView.View.Translation);
+    m_ProjectionView.View.Translation += dpos;
+    m_ProjectionView.View.Scale *= 1.f - p_ScaleStep;
+
+    m_ProjectionView.ProjectionView = m_ProjectionView.View.ComputeViewTransform();
+}
+
+template <Dimension D> vec<D> IRenderContext<D>::GetCoordinates(const vec<D> &p_NormalizedPos) const noexcept
+{
+    if constexpr (D == D2)
+    {
+        const mat3 itransform3 = glm::inverse(m_ProjectionView.ProjectionView * m_RenderState.back().Axes);
+        mat4 itransform = transform3ToTransform4(itransform3);
+        ApplyCoordinateSystemIntrinsic(itransform);
+        return itransform * vec4{p_NormalizedPos, 0.f, 1.f};
+    }
+    else
+    {
+        mat4 transform = m_ProjectionView.ProjectionView * m_RenderState.back().Axes;
+        ApplyCoordinateSystemExtrinsic(transform);
+        const vec4 clip = glm::inverse(transform) * vec4{p_NormalizedPos, 1.f};
+        return vec3{clip} / clip.w;
+    }
+}
 vec2 RenderContext<D2>::GetMouseCoordinates() const noexcept
 {
-    const vec2 mpos = Input::GetMousePosition(m_Window);
-    mat4 axes = transform3ToTransform4(m_RenderState.back().Axes);
-    ApplyCoordinateSystem(axes);
-    return glm::inverse(axes) * vec4{mpos, 1.f, 1.f};
+    return GetCoordinates(Input::GetMousePosition(m_Window));
 }
 vec3 RenderContext<D3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
 {
-    const vec2 mpos = Input::GetMousePosition(m_Window);
-    const mat4 &axes = m_RenderState.back().Axes;
-    if (!m_RenderState.back().HasProjection)
-        return m_RenderState.back().InverseAxes * vec4{mpos, p_Depth, 1.f};
-
-    const vec4 clip = glm::inverse(m_RenderState.back().Projection * axes) * vec4{mpos, p_Depth, 1.f};
-    return vec3{clip} / clip.w;
+    return GetCoordinates(vec3{Input::GetMousePosition(m_Window), p_Depth});
 }
 
-void RenderContext<D3>::Projection(const mat4 &p_Projection) noexcept
+void RenderContext<D3>::SetProjection(const mat4 &p_Projection) noexcept
 {
-    m_RenderState.back().Projection = p_Projection;
-    m_RenderState.back().HasProjection = true;
+    m_ProjectionView.Projection = p_Projection;
+    m_ProjectionView.ProjectionView = p_Projection * m_ProjectionView.View.ComputeViewTransform();
 }
-void RenderContext<D3>::Perspective(const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far) noexcept
+void RenderContext<D3>::SetPerspectiveProjection(const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far) noexcept
 {
-    auto &projection = m_RenderState.back().Projection;
+    mat4 projection{0.f};
     const f32 invHalfPov = 1.f / glm::tan(0.5f * p_FieldOfView);
 
-    projection = mat4{0.f};
     projection[0][0] = invHalfPov; // Aspect applied in view
     projection[1][1] = invHalfPov;
     projection[2][2] = p_Far / (p_Far - p_Near);
     projection[2][3] = 1.f;
     projection[3][2] = p_Far * p_Near / (p_Near - p_Far);
-    m_RenderState.back().HasProjection = true;
+    SetProjection(projection);
 }
 
-void RenderContext<D3>::Orthographic() noexcept
+void RenderContext<D3>::SetOrthographicProjection() noexcept
 {
-    m_RenderState.back().Projection = mat4{1.f};
-    m_RenderState.back().HasProjection = false;
+    SetProjection(mat4{1.f});
 }
 
 template class IRenderContext<D2>;

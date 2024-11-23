@@ -180,10 +180,6 @@ Pipeline::Specs::Specs() noexcept
     DepthStencilInfo.front = {}; // Optional
     DepthStencilInfo.back = {};  // Optional
 
-    PushConstantRange.stageFlags = 0;
-    PushConstantRange.offset = 0;
-    PushConstantRange.size = 0;
-
     DynamicStateEnables = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
     DynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 }

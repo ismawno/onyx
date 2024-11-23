@@ -59,7 +59,9 @@ void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_
 static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info, const Pipeline *p_Pipeline) noexcept
 {
     PushConstantData3D pdata{};
-    pdata.AmbientColor = p_Info.AmbientColor;
+    pdata.ProjectionView = *p_Info.ProjectionView;
+    pdata.ViewPosition = vec4(*p_Info.ViewPosition, 1.f);
+    pdata.AmbientColor = p_Info.AmbientColor->RGBA;
     pdata.DirectionalLightCount = p_Info.DirectionalLightCount;
     pdata.PointLightCount = p_Info.PointLightCount;
 

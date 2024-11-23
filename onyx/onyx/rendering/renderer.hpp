@@ -89,8 +89,8 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_RenderPass The Vulkan render pass to be used.
      * @param p_State Pointer to the current render state stack.
      */
-    IRenderer(VkRenderPass p_RenderPass,
-              const DynamicArray<RenderState<D>> *p_State) noexcept; // Passing the state like this is a bit dodgy
+    IRenderer(VkRenderPass p_RenderPass, const DynamicArray<RenderState<D>> *p_State,
+              const ProjectionViewData<D> *p_ProjectionView) noexcept; // Passing the state like this is a bit dodgy
 
     /**
      * @brief Record a draw call for a mesh model.
@@ -166,6 +166,9 @@ template <Dimension D> class ONYX_API IRenderer
 
     /// Render system for circles and arcs.
     RenderSystem<D, CircleRenderer> m_CircleRenderer;
+
+    /// Pointer to the global projection view data.
+    const ProjectionViewData<D> *m_ProjectionView;
 
   private:
     /**
@@ -295,7 +298,8 @@ template <> class Renderer<D3> final : public IRenderer<D3>
      * @param p_RenderPass The Vulkan render pass to be used.
      * @param p_State Pointer to the current render state stack.
      */
-    Renderer(VkRenderPass p_RenderPass, const DynamicArray<RenderState<D3>> *p_State) noexcept;
+    Renderer(VkRenderPass p_RenderPass, const DynamicArray<RenderState<D3>> *p_State,
+             const ProjectionViewData<D3> *p_ProjectionView) noexcept;
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.

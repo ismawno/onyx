@@ -2,7 +2,6 @@
 
 layout(location = 0) in vec3 i_FragNormal;
 layout(location = 1) in vec3 i_WorldPosition;
-layout(location = 2) in flat vec3 i_ViewPosition;
 
 struct MaterialData
 {
@@ -12,7 +11,7 @@ struct MaterialData
     float SpecularSharpness;
 };
 
-layout(location = 3) in flat MaterialData i_Material;
+layout(location = 2) in flat MaterialData i_Material;
 
 layout(location = 0) out vec4 o_Color;
 
@@ -42,6 +41,8 @@ pointLights;
 
 layout(push_constant) uniform LightData
 {
+    mat4 ProjectionView;
+    vec4 ViewPosition;
     vec4 AmbientColor;
     uint DirectionalLightCount;
     uint PointLightCount;
@@ -55,7 +56,7 @@ void main()
     if (!gl_FrontFacing)
         normal = -normal;
 
-    const vec3 specularDirection = normalize(i_ViewPosition - i_WorldPosition);
+    const vec3 specularDirection = normalize(lightData.ViewPosition.xyz - i_WorldPosition);
 
     vec3 diffuseColor = vec3(0.0);
     vec3 specularColor = vec3(0.0);

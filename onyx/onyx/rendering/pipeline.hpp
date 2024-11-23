@@ -48,7 +48,6 @@ class ONYX_API Pipeline
         VkPipelineColorBlendAttachmentState ColorBlendAttachment{};
         VkPipelineColorBlendStateCreateInfo ColorBlendInfo{};
         VkPipelineDepthStencilStateCreateInfo DepthStencilInfo{};
-        VkPushConstantRange PushConstantRange{};
 
         VkPipelineLayout Layout = VK_NULL_HANDLE;
         std::array<VkDynamicState, 2> DynamicStateEnables;

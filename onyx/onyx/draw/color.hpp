@@ -4,6 +4,7 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/glm.hpp"
 #include "kit/core/concepts.hpp"
+#include <span>
 
 namespace ONYX
 {

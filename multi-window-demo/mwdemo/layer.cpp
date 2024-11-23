@@ -30,7 +30,8 @@ bool MWExampleLayer::OnEvent(const usize p_WindowIndex, const Event &p_Event) no
 
 void MWExampleLayer::OnRender(const usize p_WindowIndex, const VkCommandBuffer) noexcept
 {
-    m_Data[p_WindowIndex].OnRender();
+    const auto ts = m_Application->GetDeltaTime();
+    m_Data[p_WindowIndex].OnRender(ts);
 }
 
 void MWExampleLayer::OnImGuiRender() noexcept
@@ -47,7 +48,7 @@ void MWExampleLayer::OnImGuiRender() noexcept
             Window *window = m_Application->GetWindow(i);
             if (ImGui::TreeNode(window, window->GetName(), i))
             {
-                m_Data[i].OnImGuiRender(ts);
+                m_Data[i].OnImGuiRender();
                 ImGui::TreePop();
             }
         }

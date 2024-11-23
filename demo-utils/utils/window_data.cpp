@@ -13,14 +13,14 @@ void WindowData::OnStart(Window *p_Window) noexcept
     m_PrevMPos = Input::GetMousePosition(p_Window);
 }
 
-void WindowData::OnRender() noexcept
+void WindowData::OnRender(const KIT::Timespan p_Timestep) noexcept
 {
     std::scoped_lock lock(*m_Mutex);
-    drawShapes(m_LayerData2);
-    drawShapes(m_LayerData3);
+    drawShapes(m_LayerData2, p_Timestep);
+    drawShapes(m_LayerData3, p_Timestep);
 }
 
-void WindowData::OnImGuiRender(const KIT::Timespan p_Timestep) noexcept
+void WindowData::OnImGuiRender() noexcept
 {
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
     const VkPresentModeKHR currentMode = m_Window->GetFrameScheduler().GetPresentMode();
@@ -31,12 +31,12 @@ void WindowData::OnImGuiRender(const KIT::Timespan p_Timestep) noexcept
     ImGui::BeginTabBar("Dimension");
     if (ImGui::BeginTabItem("2D"))
     {
-        renderUI(m_LayerData2, p_Timestep);
+        renderUI(m_LayerData2);
         ImGui::EndTabItem();
     }
     if (ImGui::BeginTabItem("3D"))
     {
-        renderUI(m_LayerData3, p_Timestep);
+        renderUI(m_LayerData3);
         ImGui::EndTabItem();
     }
     ImGui::EndTabBar();
@@ -52,24 +52,12 @@ template <Dimension D> static void processPolygonEvent(LayerData<D> &p_Data, con
         p_Data.PolygonVertices.push_back(p_Data.Context->GetMouseCoordinates(p_Data.ZOffset));
 }
 
-template <Dimension D> static void processScrollEvent(LayerData<D> &p_Data, const Event &p_Event) noexcept
-{
-    if (p_Event.Type != Event::Scrolled || !Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift))
-        return;
-
-    if (p_Data.ControlAsCamera)
-        Transform<D>::ScaleExtrinsic(p_Data.AxesTransform, vec<D>{1.f + 0.005f * p_Event.ScrollOffset.y});
-    else
-        Transform<D>::ScaleIntrinsic(p_Data.AxesTransform, vec<D>{1.f + 0.005f * p_Event.ScrollOffset.y});
-}
-
 void WindowData::OnEvent(const Event &p_Event) noexcept
 {
     processPolygonEvent(m_LayerData2, p_Event);
     processPolygonEvent(m_LayerData3, p_Event);
-
-    processScrollEvent(m_LayerData2, p_Event);
-    processScrollEvent(m_LayerData3, p_Event);
+    if (p_Event.Type == Event::Scrolled && Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift))
+        m_LayerData2.Context->ApplyCameraLikeScalingControls(0.005f * p_Event.ScrollOffset.y);
 }
 
 void WindowData::OnImGuiRenderGlobal(const KIT::Timespan p_Timestep) noexcept
@@ -95,20 +83,14 @@ void WindowData::OnImGuiRenderGlobal(const KIT::Timespan p_Timestep) noexcept
     ImGui::End();
 }
 
-template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data) noexcept
+template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, const KIT::Timespan p_Timestep) noexcept
 {
     p_Data.Context->Flush(m_BackgroundColor);
-    p_Data.Context->KeepWindowAspect();
 
-    if constexpr (D == D3)
-    {
-        if (p_Data.Perspective)
-            p_Data.Context->Perspective(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
-        else
-            p_Data.Context->Orthographic();
-    }
+    const f32 step = p_Timestep.AsSeconds();
+    p_Data.Context->ApplyCameraLikeMovementControls(step, step);
 
-    p_Data.Context->TransformAxes(p_Data.AxesTransform);
+    p_Data.Context->TransformAxes(p_Data.AxesTransform.ComputeTransform());
 
     for (const auto &shape : p_Data.Shapes)
         shape->Draw(p_Data.Context);
@@ -317,7 +299,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     }
 }
 
-template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data, const KIT::Timespan p_Timestep) noexcept
+template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 {
     if constexpr (D == D2)
     {
@@ -337,17 +319,20 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data, const KIT
 
     if (ImGui::CollapsingHeader("Axes"))
     {
-        ImGui::Checkbox("Control", &p_Data.ControlAxes);
-        if (p_Data.ControlAxes)
-        {
-            ImGui::Checkbox("Control as camera", &p_Data.ControlAsCamera);
-            controlAxes<D>(p_Data, p_Timestep);
-        }
-
+        ImGui::Text("Transform");
+        editTransform<D>(p_Data.AxesTransform);
         if constexpr (D == D3)
         {
-            ImGui::Checkbox("Perspective", &p_Data.Perspective);
-            if (p_Data.Perspective)
+            static bool perspective = true;
+            if (ImGui::Checkbox("Perspective", &perspective))
+            {
+                if (perspective)
+                    p_Data.Context->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
+                else
+                    p_Data.Context->SetOrthographicProjection();
+            }
+
+            if (perspective)
             {
                 f32 degs = glm::degrees(p_Data.FieldOfView);
                 if (ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f))
@@ -372,77 +357,6 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data, const KIT
     if constexpr (D == D3)
         if (ImGui::CollapsingHeader("Lights"))
             renderLightSpawn();
-}
-
-template <Dimension D> void WindowData::controlAxes(LayerData<D> &p_Data, const KIT::Timespan p_Timestep) noexcept
-{
-    Transform<D> t{};
-    const f32 step = p_Timestep.AsSeconds();
-
-    if (Input::IsKeyPressed(m_Window, Input::Key::A))
-        t.Translation.x -= step;
-    if (Input::IsKeyPressed(m_Window, Input::Key::D))
-        t.Translation.x += step;
-
-    if constexpr (D == D2)
-    {
-        if (Input::IsKeyPressed(m_Window, Input::Key::W))
-            t.Translation.y += step;
-        if (Input::IsKeyPressed(m_Window, Input::Key::S))
-            t.Translation.y -= step;
-
-        if (Input::IsKeyPressed(m_Window, Input::Key::Q))
-            t.Rotation += step;
-        if (Input::IsKeyPressed(m_Window, Input::Key::E))
-            t.Rotation -= step;
-    }
-    else
-    {
-        if (Input::IsKeyPressed(m_Window, Input::Key::W))
-            t.Translation.z -= step;
-        if (Input::IsKeyPressed(m_Window, Input::Key::S))
-            t.Translation.z += step;
-
-        const vec2 mpos = Input::GetMousePosition(m_Window);
-        const vec2 delta = Input::IsKeyPressed(m_Window, Input::Key::LeftShift) ? 3.f * (mpos - m_PrevMPos) : vec2{0.f};
-
-        m_PrevMPos = mpos;
-
-        vec3 angles{delta.y, delta.x, 0.f};
-        if (Input::IsKeyPressed(m_Window, Input::Key::Q))
-            angles.z -= step;
-        if (Input::IsKeyPressed(m_Window, Input::Key::E))
-            angles.z += step;
-
-        if (angles.x > 0.f)
-            ImGui::Text("X Rotation: +");
-        else if (angles.x < 0.f)
-            ImGui::Text("X Rotation: -");
-        else
-            ImGui::Text("X Rotation: ");
-        if (angles.y > 0.f)
-            ImGui::Text("Y Rotation: +");
-        else if (angles.y < 0.f)
-            ImGui::Text("Y Rotation: -");
-        else
-            ImGui::Text("Y Rotation: ");
-        if (angles.z > 0.f)
-            ImGui::Text("Z Rotation: +");
-        else if (angles.z < 0.f)
-            ImGui::Text("Z Rotation: -");
-        else
-            ImGui::Text("Z Rotation: ");
-
-        t.Rotation = quat{angles};
-    }
-
-    if (p_Data.ControlAsCamera)
-    {
-        t.Translation = -t.Translation;
-        p_Data.AxesTransform = t.ComputeTransform() * p_Data.AxesTransform;
-    }
-    else
-        p_Data.AxesTransform *= t.ComputeTransform();
 }
 
 static void editDirectionalLight(DirectionalLight &p_Light) noexcept

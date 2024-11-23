@@ -2,13 +2,8 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
-
+#include "onyx/draw/transform.hpp"
 #include <vulkan/vulkan.hpp>
-
-// GetMouseCoordinates depends on the Axes!!
-
-// Many of the overloads could be specifically implemented to make some operations a bit more efficient, but for now
-// they just rely on the general implementation. SPECIALLY RotateX, RotateY etcetera
 
 // Translate() Rotate() etc is only valid for primitives, not lights
 
@@ -24,7 +19,6 @@
 namespace ONYX
 {
 class Window;
-
 /**
  * @brief The RenderContext class is the primary way of communicating with the ONYX API.
  *
@@ -36,6 +30,7 @@ class Window;
  */
 template <Dimension D> class ONYX_API IRenderContext
 {
+    KIT_NON_COPYABLE(IRenderContext)
   public:
     IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
 
@@ -293,11 +288,11 @@ template <Dimension D> class ONYX_API IRenderContext
     void ScaleYAxis(f32 p_Y) noexcept;
 
     /**
-     * @brief Adjusts the coordinate system to maintain the window's aspect ratio.
+     * @brief Update the view aspect ratio.
      *
-     * Useful when you want your drawings to scale appropriately with window size changes.
+     * @param p_Aspect The new aspect ratio.
      */
-    void KeepWindowAspect() noexcept;
+    void UpdateViewAspect(f32 p_Aspect) noexcept;
 
     /**
      * @brief Render the coordinate axes for visualization.
@@ -624,39 +619,48 @@ template <Dimension D> class ONYX_API IRenderContext
     void Material(const MaterialData<D> &p_Material) noexcept;
 
     /**
+     * @brief Control the global view's movement of the rendering context with user input.
+     *
+     * @param p_TranslationStep The step size for translation.
+     * @param p_RotationStep The step size for rotation.
+     */
+    void ApplyCameraLikeMovementControls(const f32 p_TranslationStep, const f32 p_RotationStep) noexcept;
+
+    /**
+     * @brief Retrieve the coordinates of a point in the rendering context from a normalized position.
+     *
+     * @param p_NormalizedPos The normalized position to convert. Should be in the range [-1, 1]. If in 3D, the Z
+     * axis must be between [0, 1].
+     * @return The coordinates of the point in the rendering context.
+     */
+    vec<D> GetCoordinates(const vec<D> &p_NormalizedPos) const noexcept;
+
+    /**
      * @brief Get the current rendering state.
      *
      * @return A constant reference to the current RenderState.
      */
-    const RenderState<D> &GetState() const noexcept;
+    const RenderState<D> &GetCurrentState() const noexcept;
 
     /**
      * @brief Get the current rendering state.
      *
      * @return A reference to the current RenderState.
      */
-    RenderState<D> &GetState() noexcept;
+    RenderState<D> &GetCurrentState() noexcept;
 
     /**
-     * @brief Set the current rendering state.
+     * @brief Get the global context's projection view data.
      *
-     * @param p_State The RenderState to set.
+     * @return A constant reference to the global context's projection view data.
      */
-    void SetState(const RenderState<D> &p_State) noexcept;
+    const ProjectionViewData<D> &GetProjectionViewData() const noexcept;
 
     /**
-     * @brief Set the current transformation matrix.
+     * @brief Set the global context's view.
      *
-     * @param p_Transform The transformation matrix to set.
      */
-    void SetCurrentTransform(const mat<D> &p_Transform) noexcept;
-
-    /**
-     * @brief Set the current axes transformation matrix.
-     *
-     * @param p_Axes The axes transformation matrix to set.
-     */
-    void SetCurrentAxes(const mat<D> &p_Axes) noexcept;
+    void SetView(const ONYX::Transform<D> &p_View) noexcept;
 
     /**
      * @brief Render the recorded draw data using the provided command buffer.
@@ -667,6 +671,7 @@ template <Dimension D> class ONYX_API IRenderContext
 
   protected:
     DynamicArray<RenderState<D>> m_RenderState;
+    ProjectionViewData<D> m_ProjectionView;
     Renderer<D> m_Renderer;
     Window *m_Window;
 };
@@ -794,6 +799,13 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
      * @return The mouse coordinates as a 2D vector.
      */
     vec2 GetMouseCoordinates() const noexcept;
+
+    /**
+     * @brief Control the global view's scale of the rendering context with user input.
+     *
+     * @param p_ScaleStep The step size for scaling.
+     */
+    void ApplyCameraLikeScalingControls(const f32 p_ScaleStep) noexcept;
 };
 
 /**
@@ -1306,26 +1318,26 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
     void SpecularSharpness(f32 p_Sharpness) noexcept;
 
     /**
-     * @brief Set the projection matrix for the rendering context.
+     * @brief Set the global projection matrix for the rendering context.
      *
      * @param p_Projection The projection matrix to set.
      */
-    void Projection(const mat4 &p_Projection) noexcept;
+    void SetProjection(const mat4 &p_Projection) noexcept;
 
     /**
-     * @brief Set a perspective projection with the given field of view and near/far planes.
+     * @brief Set a global perspective projection with the given field of view and near/far planes.
      *
      * @param p_FieldOfView The field of view in radians.
      * @param p_Near The near clipping plane.
      * @param p_Far The far clipping plane.
      */
-    void Perspective(f32 p_FieldOfView, f32 p_Near, f32 p_Far) noexcept;
+    void SetPerspectiveProjection(f32 p_FieldOfView, f32 p_Near, f32 p_Far) noexcept;
 
     /**
-     * @brief Set an orthographic projection for the rendering context.
+     * @brief Set a global orthographic projection for the rendering context.
      *
      */
-    void Orthographic() noexcept;
+    void SetOrthographicProjection() noexcept;
 
     /**
      * @brief Retrieve the mouse coordinates at the specified depth in the rendering context.

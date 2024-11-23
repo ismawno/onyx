@@ -7,6 +7,7 @@
 #include "onyx/rendering/pipeline.hpp"
 #include "onyx/draw/primitives.hpp"
 #include "onyx/draw/model.hpp"
+#include "onyx/draw/transform.hpp"
 #include <vulkan/vulkan.hpp>
 
 namespace ONYX
@@ -24,12 +25,12 @@ namespace ONYX
  */
 template <Dimension D> struct MaterialData;
 
-template <> struct MaterialData<D2>
+template <> struct ONYX_API MaterialData<D2>
 {
     Color Color = ONYX::Color::WHITE;
 };
 
-template <> struct MaterialData<D3>
+template <> struct ONYX_API MaterialData<D3>
 {
     Color Color = ONYX::Color::WHITE;
     f32 DiffuseContribution = 0.8f;
@@ -121,10 +122,12 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Fill>
 {
     VkCommandBuffer CommandBuffer;
     VkDescriptorSet LightStorageBuffers;
+    const mat4 *ProjectionView;
+    const Color *AmbientColor;
+    const vec3 *ViewPosition;
     u32 FrameIndex;
     u32 DirectionalLightCount;
     u32 PointLightCount;
-    vec4 AmbientColor;
 };
 
 template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
@@ -151,7 +154,7 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
  * @tparam D The dimension (D2 or D3).
  * @tparam DMode The draw mode (Fill or Stencil).
  */
-template <Dimension D, DrawMode DMode> struct InstanceData
+template <Dimension D, DrawMode DMode> struct ONYX_API InstanceData
 {
     mat4 Transform;
     MaterialData<D> Material;
@@ -164,8 +167,6 @@ template <> struct ONYX_API InstanceData<D3, DrawMode::Fill>
 {
     mat4 Transform;
     mat4 NormalMatrix;
-    mat4 ProjectionView; // The projection view may vary between shapes
-    vec4 ViewPosition;
     MaterialData<D3> Material;
 };
 
@@ -212,7 +213,8 @@ template <typename T> struct ONYX_API DeviceInstanceData
  * @tparam D The dimension (D2 or D3).
  * @tparam DMode The draw mode (Fill or Stencil).
  */
-template <Dimension D, DrawMode DMode> struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
+template <Dimension D, DrawMode DMode>
+struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
 {
     PolygonDeviceInstanceData(const usize p_Capacity) noexcept : DeviceInstanceData<InstanceData<D, DMode>>(p_Capacity)
     {
@@ -244,7 +246,7 @@ template <Dimension D, DrawMode DMode> struct PolygonDeviceInstanceData : Device
  * @tparam D The dimension (D2 or D3).
  * @tparam DMode The draw mode (Fill or Stencil).
  */
-template <Dimension D, DrawMode DMode> struct PolygonInstanceData
+template <Dimension D, DrawMode DMode> struct ONYX_API PolygonInstanceData
 {
     InstanceData<D, DMode> BaseData;
     PrimitiveDataLayout Layout;
@@ -262,7 +264,7 @@ KIT_MSVC_WARNING_IGNORE(4324)
  * @tparam D The dimension (D2 or D3).
  * @tparam DMode The draw mode (Fill or Stencil).
  */
-template <Dimension D, DrawMode DMode> struct CircleInstanceData
+template <Dimension D, DrawMode DMode> struct ONYX_API CircleInstanceData
 {
     InstanceData<D, DMode> BaseData;
     alignas(16) vec4 ArcInfo;
@@ -275,8 +277,10 @@ KIT_WARNING_IGNORE_POP
  * @brief Some push constant data that is used in the 3D case, containing the ambient color and the number of lights.
  *
  */
-struct PushConstantData3D
+struct ONYX_API PushConstantData3D
 {
+    mat4 ProjectionView;
+    vec4 ViewPosition;
     vec4 AmbientColor;
     u32 DirectionalLightCount;
     u32 PointLightCount;
@@ -306,16 +310,26 @@ template <Dimension D, PipelineMode PMode>
 ONYX_API Pipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass) noexcept;
 
 /**
- * @brief Modify the axes transform (which corresponds to a view matrix, but with
- * scaling included as well) to comply with a specific coordinate system.
+ * @brief Modify the transform to comply with a specific coordinate system extrinsically.
  *
  * The current coordinate system used by this library is right-handed, with the center of the screen being at the
  * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
  *
- * @param p_Axes The axes to modify.
- * @param p_InverseAxes The inverse axes to modify. If nullptr, the inverse axes will not be modified.
+ * @param p_Transform The transform to modify.
  */
-ONYX_API void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes = nullptr) noexcept;
+ONYX_API void ApplyCoordinateSystemExtrinsic(mat4 &p_Transform) noexcept;
+
+/**
+ * @brief Modify the transform to comply with a specific coordinate system intrinsically.
+ *
+ * The current coordinate system used by this library is right-handed, with the center of the screen being at the
+ * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
+ *
+ * This version of the function is used to apply such coordinate system to the corresponding inverse transform.
+ *
+ * @param p_Transform The transform to modify.
+ */
+ONYX_API void ApplyCoordinateSystemIntrinsic(mat4 &p_Transform) noexcept;
 
 /**
  * @brief The RenderState struct is used by the RenderContext class to track the current object and axes
@@ -328,30 +342,41 @@ ONYX_API void ApplyCoordinateSystem(mat4 &p_Axes, mat4 *p_InverseAxes = nullptr)
  */
 template <Dimension D> struct RenderState;
 
-template <> struct RenderState<D2>
+template <> struct ONYX_API RenderState<D2>
 {
     mat3 Transform{1.f};
     mat3 Axes{1.f};
     Color OutlineColor = Color::WHITE;
-    f32 OutlineWidth = 0.f;
     MaterialData<D2> Material{};
+    f32 OutlineWidth = 0.f;
     bool Fill = true;
     bool Outline = false;
 };
 
-template <> struct RenderState<D3>
+template <> struct ONYX_API RenderState<D3>
 {
     mat4 Transform{1.f};
     mat4 Axes{1.f};
-    mat4 InverseAxes{1.f}; // Just for caching
-    mat4 Projection{1.f};
-    Color LightColor = Color::WHITE;
     Color OutlineColor = Color::WHITE;
-    f32 OutlineWidth = 0.f;
+    Color LightColor = Color::WHITE;
     MaterialData<D3> Material{};
+    f32 OutlineWidth = 0.f;
     bool Fill = true;
     bool Outline = false;
-    bool HasProjection = false;
+};
+
+template <Dimension D> struct ProjectionViewData;
+
+template <> struct ONYX_API ProjectionViewData<D2>
+{
+    Transform<D2> View;
+    mat3 ProjectionView;
+};
+template <> struct ONYX_API ProjectionViewData<D3>
+{
+    Transform<D3> View;
+    mat4 Projection;
+    mat4 ProjectionView;
 };
 
 } // namespace ONYX

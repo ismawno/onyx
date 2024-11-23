@@ -12,15 +12,13 @@ template <Dimension D> struct ILayerData
 {
     RenderContext<D> *Context;
     DynamicArray<KIT::Scope<Shape<D>>> Shapes;
-    mat<D> AxesTransform{1.f};
+    Transform<D> AxesTransform{};
     MaterialData<D> AxesMaterial{};
 
     DynamicArray<vec<D>> PolygonVertices;
     i32 ShapeToSpawn = 0;
     f32 AxesThickness = 0.01f;
     bool DrawAxes = false;
-    bool ControlAsCamera = true;
-    bool ControlAxes = false;
 };
 
 template <Dimension D> struct LayerData : ILayerData<D>
@@ -39,7 +37,6 @@ template <> struct LayerData<D3> : ILayerData<D3>
     f32 ZOffset = 0.f;
 
     bool DrawLights = false;
-    bool Perspective = false;
 
     int LightToSpawn = 0;
     DirectionalLight DirLightToAdd{vec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE};
@@ -52,16 +49,15 @@ class WindowData
 {
   public:
     void OnStart(Window *p_Window) noexcept;
-    void OnRender() noexcept;
-    void OnImGuiRender(KIT::Timespan p_Timestep) noexcept;
+    void OnRender(KIT::Timespan p_Timestep) noexcept;
+    void OnImGuiRender() noexcept;
     void OnEvent(const Event &p_Event) noexcept;
 
     static void OnImGuiRenderGlobal(KIT::Timespan p_Timestep) noexcept;
 
   private:
-    template <Dimension D> void drawShapes(const LayerData<D> &p_Data) noexcept;
-    template <Dimension D> void renderUI(LayerData<D> &p_Data, KIT::Timespan p_Timestep) noexcept;
-    template <Dimension D> void controlAxes(LayerData<D> &p_Data, KIT::Timespan p_Timestep) noexcept;
+    template <Dimension D> void drawShapes(const LayerData<D> &p_Data, KIT::Timespan p_Timestep) noexcept;
+    template <Dimension D> void renderUI(LayerData<D> &p_Data) noexcept;
     void renderLightSpawn() noexcept;
 
     Window *m_Window = nullptr;

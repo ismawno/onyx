@@ -38,16 +38,17 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
 }
 
 template <Dimension D>
-IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<D>> *p_State) noexcept
+IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<D>> *p_State,
+                        const ProjectionViewData<D> *p_ProjectionView) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
-      m_CircleRenderer(p_RenderPass), m_State(p_State)
+      m_CircleRenderer(p_RenderPass), m_ProjectionView(p_ProjectionView), m_State(p_State)
 {
 }
 
-Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<D3>> *p_State) noexcept
-    : IRenderer<D3>(p_RenderPass, p_State)
+Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<D3>> *p_State,
+                       const ProjectionViewData<D3> *p_ProjectionView) noexcept
+    : IRenderer<D3>(p_RenderPass, p_State, p_ProjectionView)
 {
-
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
     {
         const VkDescriptorBufferInfo dirInfo = m_DeviceLightData.DirectionalLightBuffers[i]->GetDescriptorInfo();
@@ -87,34 +88,24 @@ static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
 }
 
 template <Dimension D, typename IData>
-
-static IData createFullDrawInstanceData(const mat<D> &p_Transform, const RenderState<D> &p_State,
+static IData createFullDrawInstanceData(const mat<D> &p_Transform, const MaterialData<D> &p_Material,
                                         [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
     IData instanceData{};
     if constexpr (D == D2)
     {
-        instanceData.Transform = transform3ToTransform4(p_State.Axes * p_Transform);
-        // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
-        // projection, but it is cool because I use no projection for 2D
-        ApplyCoordinateSystem(instanceData.Transform);
+        instanceData.Transform = transform3ToTransform4(p_Transform);
+        ApplyCoordinateSystemExtrinsic(instanceData.Transform);
         instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
     }
     else
     {
         instanceData.Transform = p_Transform;
-        instanceData.ProjectionView = p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes;
-        instanceData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(p_Transform))));
-        instanceData.ViewPosition = p_State.InverseAxes[3];
+        instanceData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(instanceData.Transform))));
     }
-    instanceData.Material = p_State.Material;
+    instanceData.Material = p_Material;
 
     return instanceData;
-}
-
-template <Dimension D> static void computeOutlineScale(mat<D> &p_Transform, const f32 p_OutlineWidth) noexcept
-{
-    Transform<D>::ScaleIntrinsic(p_Transform, vec<D>{1.f + p_OutlineWidth});
 }
 
 template <Dimension D, typename IData>
@@ -124,21 +115,18 @@ static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderSt
     IData instanceData{};
     if constexpr (D == D2)
     {
-        mat3 transform = p_State.Axes * p_Transform;
+        mat3 transform = p_Transform;
         if (p_Flags & DrawFlags_DoStencilScale)
             Transform<D2>::ScaleIntrinsic(transform, vec2{1.f + p_State.OutlineWidth});
         instanceData.Transform = transform3ToTransform4(transform);
-        // And now, we apply the coordinate system for 2D cases, which might seem that it is applied after the
-        // projection, but it is cool because I use no projection for 2D
-        ApplyCoordinateSystem(instanceData.Transform);
+        ApplyCoordinateSystemExtrinsic(instanceData.Transform);
         instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
     }
     else
     {
-        mat4 transform = (p_State.HasProjection ? p_State.Projection * p_State.Axes : p_State.Axes) * p_Transform;
+        instanceData.Transform = p_Transform;
         if (p_Flags & DrawFlags_DoStencilScale)
-            Transform<D3>::ScaleIntrinsic(transform, vec3{1.f + p_State.OutlineWidth});
-        instanceData.Transform = transform;
+            Transform<D3>::ScaleIntrinsic(instanceData.Transform, vec3{1.f + p_State.OutlineWidth});
     }
 
     instanceData.Material.Color = p_State.OutlineColor;
@@ -170,13 +158,13 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Fl
     using StencilIData = InstanceData<D, DrawMode::Stencil>;
     if (p_Flags & DrawFlags_NoStencilWriteDoFill)
     {
-        const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
+        const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state.Material, m_ZOffset);
         p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
         ++m_DrawCount;
     }
     if (p_Flags & DrawFlags_DoStencilWriteDoFill)
     {
-        const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state, m_ZOffset);
+        const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state.Material, m_ZOffset);
         p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
         ++m_DrawCount;
     }
@@ -196,36 +184,51 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Fl
 }
 
 template <Dimension D>
+static mat<D> finalTransform(const mat<D> &p_Transform, const RenderState<D> &p_State,
+                             [[maybe_unused]] const mat<D> &p_ProjectionView) noexcept
+{
+    if constexpr (D == D2)
+        return p_ProjectionView * p_State.Axes * p_Transform;
+    else
+        return p_State.Axes * p_Transform;
+}
+
+template <Dimension D>
 void IRenderer<D>::DrawMesh(const mat<D> &p_Transform, const KIT::Ref<const Model<D>> &p_Model,
                             const u8 p_Flags) noexcept
 {
-    draw(m_MeshRenderer, p_Transform, p_Flags, p_Model);
+    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    draw(m_MeshRenderer, transform, p_Flags, p_Model);
 }
 
 template <Dimension D>
 void IRenderer<D>::DrawPrimitive(const mat<D> &p_Transform, const usize p_PrimitiveIndex, const u8 p_Flags) noexcept
 {
-    draw(m_PrimitiveRenderer, p_Transform, p_Flags, p_PrimitiveIndex);
+    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    draw(m_PrimitiveRenderer, transform, p_Flags, p_PrimitiveIndex);
 }
 
 template <Dimension D>
 void IRenderer<D>::DrawPolygon(const mat<D> &p_Transform, const std::span<const vec<D>> p_Vertices,
                                const u8 p_Flags) noexcept
 {
-    draw(m_PolygonRenderer, p_Transform, p_Flags, p_Vertices);
+    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    draw(m_PolygonRenderer, transform, p_Flags, p_Vertices);
 }
 
 template <Dimension D>
 void IRenderer<D>::DrawCircle(const mat<D> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
                               const f32 p_Hollowness, const u8 p_Flags) noexcept
 {
-    draw(m_CircleRenderer, p_Transform, p_Flags, p_LowerAngle, p_UpperAngle, p_Hollowness);
+    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    draw(m_CircleRenderer, transform, p_Flags, p_LowerAngle, p_UpperAngle, p_Hollowness);
 }
 template <Dimension D>
 void IRenderer<D>::DrawCircle(const mat<D> &p_Transform, const u8 p_Flags, const f32 p_LowerAngle,
                               const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
 {
-    draw(m_CircleRenderer, p_Transform, p_Flags, p_LowerAngle, p_UpperAngle, p_Hollowness);
+    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    draw(m_CircleRenderer, transform, p_Flags, p_LowerAngle, p_UpperAngle, p_Hollowness);
 }
 
 void Renderer<D2>::Flush() noexcept
@@ -296,7 +299,9 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
     fillDrawInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
     fillDrawInfo.DirectionalLightCount = static_cast<u32>(m_DirectionalLights.size());
     fillDrawInfo.PointLightCount = static_cast<u32>(m_PointLights.size());
-    fillDrawInfo.AmbientColor = AmbientColor;
+    fillDrawInfo.ProjectionView = &m_ProjectionView->ProjectionView;
+    fillDrawInfo.ViewPosition = &m_ProjectionView->View.Translation;
+    fillDrawInfo.AmbientColor = &AmbientColor;
 
     for (usize i = 0; i < m_DirectionalLights.size(); ++i)
         m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex]->WriteAt(i, &m_DirectionalLights[i]);

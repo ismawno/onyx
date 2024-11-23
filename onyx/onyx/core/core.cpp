@@ -101,7 +101,7 @@ static void createPipelineLayouts() noexcept
     layoutInfo.setLayoutCount = static_cast<u32>(setLayouts.size());
 
     VkPushConstantRange pushConstantRange{};
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(PushConstantData3D);
 
