@@ -2,6 +2,8 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/glm.hpp"
+#include "onyx/core/alias.hpp"
+#include "onyx/core/api.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>

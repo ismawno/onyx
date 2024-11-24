@@ -5,6 +5,6 @@
 namespace ONYX
 {
 // Basically inherit all aliases from Toolkit
-using namespace KIT::Aliases;
+using namespace KIT::Alias;
 
 } // namespace ONYX

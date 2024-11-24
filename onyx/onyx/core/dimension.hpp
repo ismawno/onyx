@@ -1,15 +1,12 @@
 #pragma once
 
-#include "onyx/core/api.hpp"
-#include "onyx/core/alias.hpp"
+#include "kit/utilities/dimension.hpp"
 
 // This utility is used to provide 2 different APIs (2D and 3D) with as little code duplication as possible
 
 namespace ONYX
 {
-enum Dimension : u8
-{
-    D2 = 2,
-    D3 = 3
-};
+using KIT::D2;
+using KIT::D3;
+using KIT::Dimension;
 } // namespace ONYX

@@ -2,6 +2,7 @@
 
 #include "onyx/core/glm.hpp"
 #include "onyx/core/dimension.hpp"
+#include "onyx/core/alias.hpp"
 
 namespace ONYX
 {
