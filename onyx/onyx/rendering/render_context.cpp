@@ -899,10 +899,10 @@ void RenderContext<D3>::AmbientIntensity(const f32 p_Intensity) noexcept
 
 void RenderContext<D3>::DirectionalLight(ONYX::DirectionalLight p_Light) noexcept
 {
-    const mat4 &axes = m_RenderState.back().Axes;
+    const mat4 transform = m_RenderState.back().Axes * m_RenderState.back().Transform;
     vec4 direction = p_Light.DirectionAndIntensity;
     direction.w = 0.f;
-    direction = axes * direction;
+    direction = transform * direction;
 
     p_Light.DirectionAndIntensity = vec4{glm::normalize(vec3{direction}), p_Light.DirectionAndIntensity.w};
     m_Renderer.AddDirectionalLight(p_Light);
@@ -921,10 +921,10 @@ void RenderContext<D3>::DirectionalLight(const f32 p_DX, const f32 p_DY, const f
 
 void RenderContext<D3>::PointLight(ONYX::PointLight p_Light) noexcept
 {
-    const mat4 &axes = m_RenderState.back().Axes;
+    const mat4 transform = m_RenderState.back().Axes * m_RenderState.back().Transform;
     vec4 position = p_Light.PositionAndIntensity;
     position.w = 1.f;
-    position = axes * position;
+    position = transform * position;
     position.w = p_Light.PositionAndIntensity.w;
     p_Light.PositionAndIntensity = position;
     m_Renderer.AddPointLight(p_Light);

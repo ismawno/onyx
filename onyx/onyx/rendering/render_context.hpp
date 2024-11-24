@@ -23,9 +23,16 @@ class Window;
  * @brief The RenderContext class is the primary way of communicating with the ONYX API.
  *
  * It is a high-level API that allows the user to draw shapes and meshes in a simple immediate mode
- * fashion.
+ * fashion. The following is a set of properties of the RenderContext you must take into account when using it:
  *
- * @note Operations such as Transform(), Translate(), Rotate(), etc. will not affect the lights in the scene.
+ * - The RenderContext is mostly immediate mode. Almost all mutations to its state can be reset with the Flush()
+ * methods, which is recommended to be called at the beginning of each frame.
+ *
+ * - The view and projection matrices are not reset by the Flush() methods. The view can be controlled by user input
+ * using the appropiate methods.
+ *
+ * - All entities that can be added to the scene (shapes, meshes, lights) will always have their position, scale and
+ * rotation relative to the current axes transform, which can be modified as well.
  *
  */
 template <Dimension D> class ONYX_API IRenderContext
