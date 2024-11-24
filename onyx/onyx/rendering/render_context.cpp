@@ -1004,6 +1004,7 @@ void RenderContext<D2>::Alpha(const u32 p_Alpha) noexcept
 
 template <Dimension D> void IRenderContext<D>::Fill(const Color &p_Color) noexcept
 {
+    Fill(true);
     m_RenderState.back().Material.Color = p_Color;
 }
 template <Dimension D> void IRenderContext<D>::Outline(const bool p_Enabled) noexcept
@@ -1012,10 +1013,12 @@ template <Dimension D> void IRenderContext<D>::Outline(const bool p_Enabled) noe
 }
 template <Dimension D> void IRenderContext<D>::Outline(const Color &p_Color) noexcept
 {
+    Outline(true);
     m_RenderState.back().OutlineColor = p_Color;
 }
 template <Dimension D> void IRenderContext<D>::OutlineWidth(const f32 p_Width) noexcept
 {
+    Outline(true);
     m_RenderState.back().OutlineWidth = p_Width;
 }
 
