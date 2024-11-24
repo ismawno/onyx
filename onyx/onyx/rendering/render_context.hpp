@@ -674,6 +674,9 @@ template <Dimension D> class ONYX_API IRenderContext
     ProjectionViewData<D> m_ProjectionView{};
     Renderer<D> m_Renderer;
     Window *m_Window;
+
+  private:
+    vec2 m_PrevMousePos{0.f};
 };
 
 template <Dimension D> class RenderContext;

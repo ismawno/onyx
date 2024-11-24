@@ -36,6 +36,7 @@ template <> struct LayerData<D3> : ILayerData<D3>
     f32 Far = 100.f;
     f32 ZOffset = 0.f;
 
+    bool Perspective = false;
     bool DrawLights = false;
 
     int LightToSpawn = 0;
@@ -65,7 +66,6 @@ class WindowData
     LayerData<D3> m_LayerData3{};
     Color m_BackgroundColor = Color::BLACK;
 
-    vec2 m_PrevMPos{0.f};
     KIT::Scope<std::mutex> m_Mutex = KIT::Scope<std::mutex>::Create();
 };
 

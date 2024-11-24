@@ -9,8 +9,6 @@ void WindowData::OnStart(Window *p_Window) noexcept
     m_LayerData2.Context = p_Window->GetRenderContext<D2>();
     m_LayerData3.Context = p_Window->GetRenderContext<D3>();
     m_Window = p_Window;
-
-    m_PrevMPos = Input::GetMousePosition(p_Window);
 }
 
 void WindowData::OnRender(const KIT::Timespan p_Timestep) noexcept
@@ -323,22 +321,27 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
         editTransform<D>(p_Data.AxesTransform);
         if constexpr (D == D3)
         {
-            static bool perspective = false;
-            if (ImGui::Checkbox("Perspective", &perspective))
+            if (ImGui::Checkbox("Perspective", &p_Data.Perspective))
             {
-                if (perspective)
+                if (p_Data.Perspective)
                     p_Data.Context->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
                 else
                     p_Data.Context->SetOrthographicProjection();
             }
 
-            if (perspective)
+            if (p_Data.Perspective)
             {
+                bool changed = false;
                 f32 degs = glm::degrees(p_Data.FieldOfView);
-                if (ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f))
+
+                changed |= ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
+                changed |= ImGui::SliderFloat("Near", &p_Data.Near, 0.1f, 10.f);
+                changed |= ImGui::SliderFloat("Far", &p_Data.Far, 10.f, 100.f);
+                if (changed)
+                {
                     p_Data.FieldOfView = glm::radians(degs);
-                ImGui::SliderFloat("Near", &p_Data.Near, 0.1f, 10.f);
-                ImGui::SliderFloat("Far", &p_Data.Far, 10.f, 100.f);
+                    p_Data.Context->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
+                }
             }
         }
 

@@ -207,6 +207,7 @@ WindowThreading MultiWindowApplication<Concurrent>::GetWindowThreading() const n
 void MultiWindowApplication<Concurrent>::Startup() noexcept
 {
     IMultiWindowApplication::Startup();
+    m_MustDeferWindowManagement = true;
     KIT::ITaskManager *taskManager = Core::GetTaskManager();
     for (auto &task : m_Tasks)
         taskManager->SubmitTask(task);
@@ -260,6 +261,7 @@ void MultiWindowApplication<Concurrent>::processWindows() noexcept
         task->WaitUntilFinished();
         task->Reset();
     }
+    m_MustDeferWindowManagement = false;
 
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
@@ -276,16 +278,15 @@ void MultiWindowApplication<Concurrent>::processWindows() noexcept
     for (auto &task : m_Tasks)
         taskManager->SubmitTask(task);
 
-    const auto drawCalls = [this](const VkCommandBuffer) {
+    const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        Layers.OnRender(0);
+        Layers.OnRender(0, p_CommandBuffer);
         Layers.OnImGuiRender();
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
 
     // Main thread always handles the first window. First element of tasks is always nullptr
     processFrame(0, *m_Windows[0], Layers, drawCalls, uiSubmission);
-    m_MustDeferWindowManagement = false;
 }
 
 KIT::Timespan MultiWindowApplication<Concurrent>::GetDeltaTime() const noexcept
