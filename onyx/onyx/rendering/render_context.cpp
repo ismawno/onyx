@@ -1144,7 +1144,10 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
 }
 void RenderContext<D2>::ApplyCameraLikeScalingControls(const f32 p_ScaleStep) noexcept
 {
-    const vec2 mpos = GetMouseCoordinates();
+    mat4 transform = transform3ToTransform4(m_ProjectionView.View.ComputeTransform());
+    ApplyCoordinateSystemIntrinsic(transform);
+    const vec2 mpos = transform * vec4{Input::GetMousePosition(m_Window), 0.f, 1.f};
+
     const vec2 dpos = p_ScaleStep * (mpos - m_ProjectionView.View.Translation);
     m_ProjectionView.View.Translation += dpos;
     m_ProjectionView.View.Scale *= 1.f - p_ScaleStep;

@@ -6,10 +6,10 @@ namespace ONYX
 template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context) noexcept
 {
     p_Context->Material(Material);
-    p_Context->Fill(Fill);
-    p_Context->Outline(Outline);
     p_Context->OutlineWidth(OutlineWidth);
     p_Context->Outline(OutlineColor);
+    p_Context->Fill(Fill);
+    p_Context->Outline(Outline);
     draw(p_Context);
 }
 
