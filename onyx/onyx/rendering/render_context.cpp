@@ -1073,16 +1073,16 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
 {
     ONYX::Transform<D> &view = m_ProjectionView.View;
     if (Input::IsKeyPressed(m_Window, Input::Key::A))
-        view.Translation.x -= p_TranslationStep;
+        view.Translation.x -= view.Scale.x * p_TranslationStep;
     if (Input::IsKeyPressed(m_Window, Input::Key::D))
-        view.Translation.x += p_TranslationStep;
+        view.Translation.x += view.Scale.x * p_TranslationStep;
 
     if constexpr (D == D2)
     {
         if (Input::IsKeyPressed(m_Window, Input::Key::W))
-            view.Translation.y += p_TranslationStep;
+            view.Translation.y += view.Scale.y * p_TranslationStep;
         if (Input::IsKeyPressed(m_Window, Input::Key::S))
-            view.Translation.y -= p_TranslationStep;
+            view.Translation.y -= view.Scale.y * p_TranslationStep;
 
         if (Input::IsKeyPressed(m_Window, Input::Key::Q))
             view.Rotation += p_RotationStep;
@@ -1092,9 +1092,9 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
     else
     {
         if (Input::IsKeyPressed(m_Window, Input::Key::W))
-            view.Translation.z -= p_TranslationStep;
+            view.Translation.z -= view.Scale.z * p_TranslationStep;
         if (Input::IsKeyPressed(m_Window, Input::Key::S))
-            view.Translation.z += p_TranslationStep;
+            view.Translation.z += view.Scale.z * p_TranslationStep;
 
         static vec2 pmpos = Input::GetMousePosition(m_Window);
         const vec2 mpos = Input::GetMousePosition(m_Window);
