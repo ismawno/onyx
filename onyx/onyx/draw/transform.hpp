@@ -79,6 +79,18 @@ template <Dimension D> struct ONYX_API ITransform
     static mat<D> ComputeInverseReversedTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
                                                   const rot<D> &p_Rotation) noexcept;
 
+    static auto ComputeRotationMatrix(const rot<D> &p_Rotation) noexcept
+    {
+        if constexpr (D == D2)
+        {
+            const f32 c = glm::cos(p_Rotation);
+            const f32 s = glm::sin(p_Rotation);
+            return mat2{c, s, -s, c};
+        }
+        else
+            return glm::toMat3(p_Rotation);
+    }
+
     /**
      * @brief Computes the transformation matrix using the current object's translation, scale, and rotation.
      *
