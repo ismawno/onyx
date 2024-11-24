@@ -1266,7 +1266,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      *
      * @param p_Light The point light object.
      */
-    void PointLight(const ONYX::PointLight &p_Light) noexcept;
+    void PointLight(ONYX::PointLight p_Light) noexcept;
 
     /**
      * @brief Adds a point light to the scene at the current position.

@@ -176,10 +176,10 @@ template <Dimension D> void IRenderContext<D>::UpdateViewAspect(const f32 p_Aspe
 {
     m_ProjectionView.View.Scale.x = m_ProjectionView.View.Scale.y * p_Aspect;
     if constexpr (D == D2)
-        m_ProjectionView.ProjectionView = m_ProjectionView.View.ComputeViewTransform();
+        m_ProjectionView.ProjectionView = m_ProjectionView.View.ComputeInverseTransform();
     else
     {
-        mat4 vmat = m_ProjectionView.View.ComputeViewTransform();
+        mat4 vmat = m_ProjectionView.View.ComputeInverseTransform();
         ApplyCoordinateSystemExtrinsic(vmat);
         m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
     }
@@ -899,24 +899,34 @@ void RenderContext<D3>::AmbientIntensity(const f32 p_Intensity) noexcept
 
 void RenderContext<D3>::DirectionalLight(ONYX::DirectionalLight p_Light) noexcept
 {
-    p_Light.DirectionAndIntensity =
-        vec4{glm::normalize(vec3{p_Light.DirectionAndIntensity}), p_Light.DirectionAndIntensity.w};
+    const mat4 &axes = m_RenderState.back().Axes;
+    vec4 direction = p_Light.DirectionAndIntensity;
+    direction.w = 0.f;
+    direction = axes * direction;
+
+    p_Light.DirectionAndIntensity = vec4{glm::normalize(vec3{direction}), p_Light.DirectionAndIntensity.w};
     m_Renderer.AddDirectionalLight(p_Light);
 }
 void RenderContext<D3>::DirectionalLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
 {
     ONYX::DirectionalLight light;
-    light.DirectionAndIntensity = vec4{glm::normalize(p_Direction), p_Intensity};
+    light.DirectionAndIntensity = vec4{p_Direction, p_Intensity};
     light.Color = m_RenderState.back().LightColor;
-    m_Renderer.AddDirectionalLight(light);
+    DirectionalLight(light);
 }
 void RenderContext<D3>::DirectionalLight(const f32 p_DX, const f32 p_DY, const f32 p_DZ, const f32 p_Intensity) noexcept
 {
     DirectionalLight(vec3{p_DX, p_DY, p_DZ}, p_Intensity);
 }
 
-void RenderContext<D3>::PointLight(const ONYX::PointLight &p_Light) noexcept
+void RenderContext<D3>::PointLight(ONYX::PointLight p_Light) noexcept
 {
+    const mat4 &axes = m_RenderState.back().Axes;
+    vec4 position = p_Light.PositionAndIntensity;
+    position.w = 1.f;
+    position = axes * position;
+    position.w = p_Light.PositionAndIntensity.w;
+    p_Light.PositionAndIntensity = position;
     m_Renderer.AddPointLight(p_Light);
 }
 void RenderContext<D3>::PointLight(const vec3 &p_Position, const f32 p_Radius, const f32 p_Intensity) noexcept
@@ -925,7 +935,7 @@ void RenderContext<D3>::PointLight(const vec3 &p_Position, const f32 p_Radius, c
     light.PositionAndIntensity = vec4{p_Position, p_Intensity};
     light.Radius = p_Radius;
     light.Color = m_RenderState.back().LightColor;
-    m_Renderer.AddPointLight(light);
+    PointLight(light);
 }
 void RenderContext<D3>::PointLight(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius,
                                    const f32 p_Intensity) noexcept
@@ -1076,17 +1086,18 @@ template <Dimension D>
 void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationStep, const f32 p_RotationStep) noexcept
 {
     ONYX::Transform<D> &view = m_ProjectionView.View;
+    vec<D> translation{0.f};
     if (Input::IsKeyPressed(m_Window, Input::Key::A))
-        view.Translation.x -= view.Scale.x * p_TranslationStep;
+        translation.x -= view.Scale.x * p_TranslationStep;
     if (Input::IsKeyPressed(m_Window, Input::Key::D))
-        view.Translation.x += view.Scale.x * p_TranslationStep;
+        translation.x += view.Scale.x * p_TranslationStep;
 
     if constexpr (D == D2)
     {
         if (Input::IsKeyPressed(m_Window, Input::Key::W))
-            view.Translation.y += view.Scale.y * p_TranslationStep;
+            translation.y += view.Scale.y * p_TranslationStep;
         if (Input::IsKeyPressed(m_Window, Input::Key::S))
-            view.Translation.y -= view.Scale.y * p_TranslationStep;
+            translation.y -= view.Scale.y * p_TranslationStep;
 
         if (Input::IsKeyPressed(m_Window, Input::Key::Q))
             view.Rotation += p_RotationStep;
@@ -1096,9 +1107,9 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
     else
     {
         if (Input::IsKeyPressed(m_Window, Input::Key::W))
-            view.Translation.z -= view.Scale.z * p_TranslationStep;
+            translation.z -= view.Scale.z * p_TranslationStep;
         if (Input::IsKeyPressed(m_Window, Input::Key::S))
-            view.Translation.z += view.Scale.z * p_TranslationStep;
+            translation.z += view.Scale.z * p_TranslationStep;
 
         static vec2 pmpos = Input::GetMousePosition(m_Window);
         const vec2 mpos = Input::GetMousePosition(m_Window);
@@ -1115,11 +1126,15 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
 
         view.Rotation *= quat{angles};
     }
+
+    const auto rmat = ONYX::Transform<D>::ComputeRotationMatrix(view.Rotation);
+    view.Translation += rmat * translation;
+
     if constexpr (D == D2)
-        m_ProjectionView.ProjectionView = view.ComputeViewTransform();
+        m_ProjectionView.ProjectionView = view.ComputeInverseTransform();
     else
     {
-        mat4 vmat = view.ComputeViewTransform();
+        mat4 vmat = view.ComputeInverseTransform();
         ApplyCoordinateSystemExtrinsic(vmat);
         m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
     }
@@ -1127,12 +1142,11 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
 void RenderContext<D2>::ApplyCameraLikeScalingControls(const f32 p_ScaleStep) noexcept
 {
     const vec2 mpos = GetMouseCoordinates();
-    const mat2 rmat = ONYX::Transform<D2>::ComputeRotationMatrix(-m_ProjectionView.View.Rotation);
-    const vec2 dpos = p_ScaleStep * (rmat * mpos - m_ProjectionView.View.Translation);
+    const vec2 dpos = p_ScaleStep * (mpos - m_ProjectionView.View.Translation);
     m_ProjectionView.View.Translation += dpos;
     m_ProjectionView.View.Scale *= 1.f - p_ScaleStep;
 
-    m_ProjectionView.ProjectionView = m_ProjectionView.View.ComputeViewTransform();
+    m_ProjectionView.ProjectionView = m_ProjectionView.View.ComputeInverseTransform();
 }
 
 template <Dimension D> vec<D> IRenderContext<D>::GetCoordinates(const vec<D> &p_NormalizedPos) const noexcept
@@ -1164,7 +1178,7 @@ void RenderContext<D3>::SetProjection(const mat4 &p_Projection) noexcept
 {
     m_ProjectionView.Projection = p_Projection;
 
-    mat4 vmat = m_ProjectionView.View.ComputeViewTransform();
+    mat4 vmat = m_ProjectionView.View.ComputeInverseTransform();
     ApplyCoordinateSystemExtrinsic(vmat);
     m_ProjectionView.ProjectionView = p_Projection * vmat;
 }

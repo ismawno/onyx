@@ -21,28 +21,7 @@ mat<D> ITransform<D>::ComputeTransform(const vec<D> &p_Translation, const vec<D>
                     vec4{p_Translation, 1.f}};
     }
 }
-template <Dimension D>
-mat<D> ITransform<D>::ComputeViewTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
-                                           const rot<D> &p_Rotation) noexcept
-{
-    if constexpr (D == D2)
-    {
-        const vec2 iscale = 1.f / p_Scale;
-        const mat2 rmat = ComputeRotationMatrix(-p_Rotation);
-        const vec2 translation = -p_Translation * iscale;
 
-        return mat3{vec3(rmat[0] * iscale, 0.f), vec3(rmat[1] * iscale, 0.f), vec3{translation, 1.f}};
-    }
-    else
-    {
-        const vec3 iscale = 1.f / p_Scale;
-        const mat3 rmat = ComputeRotationMatrix(p_Rotation);
-        const vec3 translation = -p_Translation * iscale;
-
-        return mat4{vec4(rmat[0] * iscale, 0.f), vec4(rmat[1] * iscale, 0.f), vec4(rmat[2], 0.f),
-                    vec4{translation, 1.f}};
-    }
-}
 template <Dimension D>
 mat<D> ITransform<D>::ComputeReversedTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
                                                const rot<D> &p_Rotation) noexcept
@@ -77,24 +56,6 @@ mat<D> ITransform<D>::ComputeInverseTransform(const vec<D> &p_Translation, const
         return ComputeReversedTransform(-p_Translation, 1.f / p_Scale, glm::conjugate(p_Rotation));
 }
 template <Dimension D>
-mat<D> ITransform<D>::ComputeInverseViewTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
-                                                  const rot<D> &p_Rotation) noexcept
-{
-    if constexpr (D == D2)
-    {
-        const mat2 rmat = ComputeRotationMatrix(p_Rotation);
-        const vec2 translation = rmat * p_Translation;
-        return mat3{vec3{rmat[0] * p_Scale.x, 0.f}, vec3{rmat[1] * p_Scale.y, 0.f}, vec3{translation, 1.f}};
-    }
-    else
-    {
-        const mat3 rmat = ComputeRotationMatrix(p_Rotation);
-        const vec3 translation = rmat * p_Translation;
-        return mat4{vec4{rmat[0] * p_Scale.x, 0.f}, vec4{rmat[1] * p_Scale.y, 0.f}, vec4{rmat[2] * p_Scale.z, 0.f},
-                    vec4{translation, 1.f}};
-    }
-}
-template <Dimension D>
 mat<D> ITransform<D>::ComputeInverseReversedTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
                                                       const rot<D> &p_Rotation) noexcept
 {
@@ -108,10 +69,6 @@ template <Dimension D> mat<D> ITransform<D>::ComputeTransform() const noexcept
 {
     return ComputeTransform(Translation, Scale, Rotation);
 }
-template <Dimension D> mat<D> ITransform<D>::ComputeViewTransform() const noexcept
-{
-    return ComputeViewTransform(Translation, Scale, Rotation);
-}
 template <Dimension D> mat<D> ITransform<D>::ComputeReversedTransform() const noexcept
 {
     return ComputeReversedTransform(Translation, Scale, Rotation);
@@ -119,10 +76,6 @@ template <Dimension D> mat<D> ITransform<D>::ComputeReversedTransform() const no
 template <Dimension D> mat<D> ITransform<D>::ComputeInverseTransform() const noexcept
 {
     return ComputeInverseTransform(Translation, Scale, Rotation);
-}
-template <Dimension D> mat<D> ITransform<D>::ComputeInverseViewTransform() const noexcept
-{
-    return ComputeInverseViewTransform(Translation, Scale, Rotation);
 }
 template <Dimension D> mat<D> ITransform<D>::ComputeInverseReversedTransform() const noexcept
 {

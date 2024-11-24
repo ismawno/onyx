@@ -14,7 +14,9 @@ namespace ONYX
 template <Dimension D> struct ONYX_API ITransform
 {
     /**
-     * @brief Computes a transformation matrix from translation, scale, and rotation.
+     * @brief Compute a transformation matrix from translation, scale, and rotation.
+     *
+     * The order of transformations is scale -> rotate -> translate.
      *
      * @param p_Translation The translation vector.
      * @param p_Scale The scale vector.
@@ -25,18 +27,9 @@ template <Dimension D> struct ONYX_API ITransform
                                    const rot<D> &p_Rotation) noexcept;
 
     /**
-     * @brief Computes a view transformation matrix from translation, scale, and rotation.
+     * @brief Compute a reversed transformation matrix from translation, scale, and rotation.
      *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The scale vector.
-     * @param p_Rotation The rotation object.
-     * @return The resulting transformation matrix.
-     */
-    static mat<D> ComputeViewTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
-                                       const rot<D> &p_Rotation) noexcept;
-
-    /**
-     * @brief Computes a reversed transformation matrix from translation, scale, and rotation.
+     * The order of transformations is translate -> rotate -> scale, hence the reverse.
      *
      * @param p_Translation The translation vector.
      * @param p_Scale The scale vector.
@@ -47,7 +40,7 @@ template <Dimension D> struct ONYX_API ITransform
                                            const rot<D> &p_Rotation) noexcept;
 
     /**
-     * @brief Computes an inversed transformation matrix.
+     * @brief Compute an inversed transformation matrix.
      *
      * @param p_Translation The translation vector.
      * @param p_Scale The scale vector.
@@ -58,18 +51,7 @@ template <Dimension D> struct ONYX_API ITransform
                                           const rot<D> &p_Rotation) noexcept;
 
     /**
-     * @brief Computes an inversed view transformation matrix.
-     *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The scale vector.
-     * @param p_Rotation The rotation object.
-     * @return The inverse transformation matrix.
-     */
-    static mat<D> ComputeInverseViewTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
-                                              const rot<D> &p_Rotation) noexcept;
-
-    /**
-     * @brief Computes an inversed reversed transformation matrix.
+     * @brief Compute an inversed and reversed transformation matrix.
      *
      * @param p_Translation The translation vector.
      * @param p_Scale The scale vector.
@@ -79,6 +61,10 @@ template <Dimension D> struct ONYX_API ITransform
     static mat<D> ComputeInverseReversedTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
                                                   const rot<D> &p_Rotation) noexcept;
 
+    /**
+     * @brief Compute a rotation matrix.
+     *
+     */
     static auto ComputeRotationMatrix(const rot<D> &p_Rotation) noexcept
     {
         if constexpr (D == D2)
@@ -92,42 +78,44 @@ template <Dimension D> struct ONYX_API ITransform
     }
 
     /**
-     * @brief Computes the transformation matrix using the current object's translation, scale, and rotation.
+     * @brief Compute an inversed rotation matrix.
+     *
+     */
+    static auto ComputeInverseRotationMatrix(const rot<D> &p_Rotation) noexcept
+    {
+        if constexpr (D == D2)
+            return ComputeRotationMatrix(-p_Rotation);
+        else
+            return glm::toMat3(glm::conjugate(p_Rotation));
+    }
+
+    /**
+     * @brief Compute the transformation matrix using the current object's translation, scale, and rotation.
+     *
+     * The order of transformations is scale -> rotate -> translate.
      *
      * @return The transformation matrix.
      */
     mat<D> ComputeTransform() const noexcept;
 
     /**
-     * @brief Computes the view transformation matrix using the current object's translation, scale, and rotation.
+     * @brief Compute the reversed transformation matrix using the current object's translation, scale, and rotation.
      *
-     * @return The view transformation matrix.
-     */
-    mat<D> ComputeViewTransform() const noexcept;
-
-    /**
-     * @brief Computes the reversed transformation matrix using the current object's translation, scale, and rotation.
+     * The order of transformations is translate -> rotate -> scale, hence the reverse.
      *
      * @return The transformation matrix.
      */
     mat<D> ComputeReversedTransform() const noexcept;
 
     /**
-     * @brief Computes the inverse of the transformation matrix using the current object's parameters.
+     * @brief Compute the inverse of the transformation matrix using the current object's parameters.
      *
      * @return The inverse transformation matrix.
      */
     mat<D> ComputeInverseTransform() const noexcept;
 
     /**
-     * @brief Computes the inverse of the view transformation matrix using the current object's parameters.
-     *
-     * @return The inverse transformation matrix.
-     */
-    mat<D> ComputeInverseViewTransform() const noexcept;
-
-    /**
-     * @brief Computes the inverse of the axes transformation matrix using the current object's parameters.
+     * @brief Compute the inverse of the axes transformation matrix using the current object's parameters.
      *
      * @return The inverse transformation matrix.
      */

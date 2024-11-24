@@ -107,9 +107,10 @@ static IData createFullDrawInstanceData(const mat<D> &p_Transform, const Materia
 
     return instanceData;
 }
-
+// ProjectionView is needed here, because stencil uses 2D shaders, where they require the transform to be complete.
 template <Dimension D, typename IData>
 static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderState<D> &p_State, const u8 p_Flags,
+                                       [[maybe_unused]] const mat<D> &p_ProjectionView,
                                        [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
     IData instanceData{};
@@ -124,7 +125,7 @@ static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderSt
     }
     else
     {
-        instanceData.Transform = p_Transform;
+        instanceData.Transform = p_ProjectionView * p_Transform;
         if (p_Flags & DrawFlags_DoStencilScale)
             Transform<D3>::ScaleIntrinsic(instanceData.Transform, vec3{1.f + p_State.OutlineWidth});
     }
@@ -170,14 +171,15 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Fl
     }
     if (p_Flags & DrawFlags_DoStencilWriteNoFill)
     {
-        const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(p_Transform, state, 0, m_ZOffset);
+        const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(
+            p_Transform, state, 0, m_ProjectionView->ProjectionView, m_ZOffset);
         p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
         ++m_DrawCount;
     }
     if (p_Flags & DrawFlags_DoStencilTestNoFill)
     {
-        const StencilIData instanceData =
-            createStencilInstanceData<D, StencilIData>(p_Transform, state, p_Flags, m_ZOffset);
+        const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(
+            p_Transform, state, p_Flags, m_ProjectionView->ProjectionView, m_ZOffset);
         p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
         ++m_DrawCount;
     }
