@@ -65,8 +65,9 @@ static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info, const
     pdata.DirectionalLightCount = p_Info.DirectionalLightCount;
     pdata.PointLightCount = p_Info.PointLightCount;
 
-    vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline->GetLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                       sizeof(PushConstantData3D), &pdata);
+    vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline->GetLayout(),
+                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData3D),
+                       &pdata);
 }
 
 template <Dimension D, DrawMode DMode>

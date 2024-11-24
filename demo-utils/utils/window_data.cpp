@@ -323,7 +323,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
         editTransform<D>(p_Data.AxesTransform);
         if constexpr (D == D3)
         {
-            static bool perspective = true;
+            static bool perspective = false;
             if (ImGui::Checkbox("Perspective", &perspective))
             {
                 if (perspective)

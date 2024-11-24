@@ -369,14 +369,14 @@ template <Dimension D> struct ProjectionViewData;
 
 template <> struct ONYX_API ProjectionViewData<D2>
 {
-    Transform<D2> View;
-    mat3 ProjectionView;
+    Transform<D2> View{};
+    mat3 ProjectionView{1.f};
 };
 template <> struct ONYX_API ProjectionViewData<D3>
 {
-    Transform<D3> View;
-    mat4 Projection;
-    mat4 ProjectionView;
+    Transform<D3> View{};
+    mat4 Projection{1.f};
+    mat4 ProjectionView{1.f};
 };
 
 } // namespace ONYX

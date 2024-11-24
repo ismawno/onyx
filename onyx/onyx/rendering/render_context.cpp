@@ -178,7 +178,11 @@ template <Dimension D> void IRenderContext<D>::UpdateViewAspect(const f32 p_Aspe
     if constexpr (D == D2)
         m_ProjectionView.ProjectionView = m_ProjectionView.View.ComputeViewTransform();
     else
-        m_ProjectionView.ProjectionView = m_ProjectionView.Projection * m_ProjectionView.View.ComputeViewTransform();
+    {
+        mat4 vmat = m_ProjectionView.View.ComputeViewTransform();
+        ApplyCoordinateSystemExtrinsic(vmat);
+        m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
+    }
 }
 
 template <Dimension D> void IRenderContext<D>::TranslateAxes(const vec<D> &p_Translation) noexcept
@@ -1109,12 +1113,16 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
         if (Input::IsKeyPressed(m_Window, Input::Key::E))
             angles.z -= p_RotationStep;
 
-        view.Rotation = quat{angles};
+        view.Rotation *= quat{angles};
     }
     if constexpr (D == D2)
         m_ProjectionView.ProjectionView = view.ComputeViewTransform();
     else
-        m_ProjectionView.ProjectionView = m_ProjectionView.Projection * view.ComputeViewTransform();
+    {
+        mat4 vmat = view.ComputeViewTransform();
+        ApplyCoordinateSystemExtrinsic(vmat);
+        m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
+    }
 }
 void RenderContext<D2>::ApplyCameraLikeScalingControls(const f32 p_ScaleStep) noexcept
 {
@@ -1138,8 +1146,7 @@ template <Dimension D> vec<D> IRenderContext<D>::GetCoordinates(const vec<D> &p_
     }
     else
     {
-        mat4 transform = m_ProjectionView.ProjectionView * m_RenderState.back().Axes;
-        ApplyCoordinateSystemExtrinsic(transform);
+        const mat4 transform = m_ProjectionView.ProjectionView * m_RenderState.back().Axes;
         const vec4 clip = glm::inverse(transform) * vec4{p_NormalizedPos, 1.f};
         return vec3{clip} / clip.w;
     }
@@ -1156,7 +1163,10 @@ vec3 RenderContext<D3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
 void RenderContext<D3>::SetProjection(const mat4 &p_Projection) noexcept
 {
     m_ProjectionView.Projection = p_Projection;
-    m_ProjectionView.ProjectionView = p_Projection * m_ProjectionView.View.ComputeViewTransform();
+
+    mat4 vmat = m_ProjectionView.View.ComputeViewTransform();
+    ApplyCoordinateSystemExtrinsic(vmat);
+    m_ProjectionView.ProjectionView = p_Projection * vmat;
 }
 void RenderContext<D3>::SetPerspectiveProjection(const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far) noexcept
 {

@@ -671,7 +671,7 @@ template <Dimension D> class ONYX_API IRenderContext
 
   protected:
     DynamicArray<RenderState<D>> m_RenderState;
-    ProjectionViewData<D> m_ProjectionView;
+    ProjectionViewData<D> m_ProjectionView{};
     Renderer<D> m_Renderer;
     Window *m_Window;
 };
