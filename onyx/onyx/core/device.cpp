@@ -253,7 +253,7 @@ VkCommandBuffer Device::BeginSingleTimeCommands(const VkCommandPool p_Pool) cons
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    KIT_ASSERT_RETURNS(vkBeginCommandBuffer(commandBuffer, &beginInfo), VK_SUCCESS, "Failed to begin command buffer");
 
     return commandBuffer;
 }

@@ -58,5 +58,6 @@ class ONYX_API FrameScheduler
     bool m_PresentModeChanged = false;
 
     KIT::Ref<KIT::Task<VkResult>> m_PresentTask;
+    bool m_PresentRunning = false;
 };
 } // namespace ONYX

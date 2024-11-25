@@ -17,6 +17,14 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
     createSwapChain(p_Window);
     createCommandPool(p_Window.GetSurface());
     createCommandBuffers();
+
+    KIT::ITaskManager *taskManager = Core::GetTaskManager();
+    m_PresentTask = taskManager->CreateTask([this](usize) {
+        KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex), VK_SUCCESS,
+                           "Failed to submit command buffers");
+        m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
+        return m_SwapChain->Present(&m_ImageIndex);
+    });
 }
 
 FrameScheduler::~FrameScheduler() noexcept
@@ -37,7 +45,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     KIT_PROFILE_NSCOPE("ONYX::FrameScheduler::BeginFrame");
     KIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
 
-    if (m_PresentTask)
+    if (m_PresentRunning) [[likely]]
     {
         const VkResult result = m_PresentTask->WaitForResult();
         const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
@@ -50,6 +58,8 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
         }
         KIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
     }
+    else
+        m_PresentRunning = true;
 
     const VkResult result = m_SwapChain->AcquireNextImage(&m_ImageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -80,19 +90,8 @@ void FrameScheduler::EndFrame(Window &) noexcept
 
     KIT::ITaskManager *taskManager = Core::GetTaskManager();
 
-    // TODO: Profile this task usage
-    if (!m_PresentTask)
-        m_PresentTask = taskManager->CreateAndSubmit([this](usize) {
-            KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex),
-                               VK_SUCCESS, "Failed to submit command buffers");
-            m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
-            return m_SwapChain->Present(&m_ImageIndex);
-        });
-    else
-    {
-        m_PresentTask->Reset();
-        taskManager->SubmitTask(m_PresentTask);
-    }
+    m_PresentTask->Reset();
+    taskManager->SubmitTask(m_PresentTask);
     m_FrameStarted = false;
 }
 
