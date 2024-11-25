@@ -235,7 +235,6 @@ Color Gradient::Evaluate(const f32 p_T) const noexcept
 
     const f32 loc = p_T * (m_Colors.size() - 1);
     const u32 index1 = static_cast<u32>(loc);
-    const u32 index2 = index1 + 1;
 
     const f32 t = loc - static_cast<f32>(index1);
     return Color{m_Colors[index1].RGBA * (1.f - t) + m_Colors[index1 + 1].RGBA * t};

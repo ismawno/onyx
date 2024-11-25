@@ -23,8 +23,8 @@ static KIT::Storage<DescriptorPool> s_DescriptorPool;
 static KIT::Storage<DescriptorSetLayout> s_TransformStorageLayout;
 static KIT::Storage<DescriptorSetLayout> s_LightStorageLayout;
 
-static VkPipelineLayout s_RenderingPipelineLayout2D = VK_NULL_HANDLE;
-static VkPipelineLayout s_RenderingPipelineLayout3D = VK_NULL_HANDLE;
+static VkPipelineLayout s_GraphicsPipelineLayout2D = VK_NULL_HANDLE;
+static VkPipelineLayout s_GraphicsPipelineLayout3D = VK_NULL_HANDLE;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
@@ -91,9 +91,8 @@ static void createPipelineLayouts() noexcept
     layoutInfo.pPushConstantRanges = nullptr;
     layoutInfo.pushConstantRangeCount = 0;
 
-    KIT_ASSERT_RETURNS(
-        vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_RenderingPipelineLayout2D), VK_SUCCESS,
-        "Failed to create pipeline layout");
+    KIT_ASSERT_RETURNS(vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_GraphicsPipelineLayout2D),
+                       VK_SUCCESS, "Failed to create pipeline layout");
 
     const std::array<VkDescriptorSetLayout, 2> setLayouts = {s_TransformStorageLayout->GetLayout(),
                                                              s_LightStorageLayout->GetLayout()};
@@ -108,9 +107,8 @@ static void createPipelineLayouts() noexcept
     layoutInfo.pPushConstantRanges = &pushConstantRange;
     layoutInfo.pushConstantRangeCount = 1;
 
-    KIT_ASSERT_RETURNS(
-        vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_RenderingPipelineLayout3D), VK_SUCCESS,
-        "Failed to create pipeline layout");
+    KIT_ASSERT_RETURNS(vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_GraphicsPipelineLayout3D),
+                       VK_SUCCESS, "Failed to create pipeline layout");
 }
 
 void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept
@@ -134,8 +132,8 @@ void Core::Terminate() noexcept
     s_TransformStorageLayout.Destroy();
     s_LightStorageLayout.Destroy();
 
-    vkDestroyPipelineLayout(s_Device->GetDevice(), s_RenderingPipelineLayout2D, nullptr);
-    vkDestroyPipelineLayout(s_Device->GetDevice(), s_RenderingPipelineLayout3D, nullptr);
+    vkDestroyPipelineLayout(s_Device->GetDevice(), s_GraphicsPipelineLayout2D, nullptr);
+    vkDestroyPipelineLayout(s_Device->GetDevice(), s_GraphicsPipelineLayout3D, nullptr);
 
     s_DescriptorPool.Destroy();
     s_Device = nullptr;
@@ -170,12 +168,12 @@ const DescriptorSetLayout *Core::GetLightStorageDescriptorSetLayout() noexcept
     return s_LightStorageLayout.Get();
 }
 
-template <Dimension D> VkPipelineLayout Core::GetRenderingPipelineLayout() noexcept
+template <Dimension D> VkPipelineLayout Core::GetGraphicsPipelineLayout() noexcept
 {
     if constexpr (D == D2)
-        return s_RenderingPipelineLayout2D;
+        return s_GraphicsPipelineLayout2D;
     else
-        return s_RenderingPipelineLayout3D;
+        return s_GraphicsPipelineLayout3D;
 }
 
 KIT::StackAllocator *Core::GetStackAllocator() noexcept
@@ -201,7 +199,7 @@ const KIT::Ref<Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
     return s_Device;
 }
 
-template VkPipelineLayout Core::GetRenderingPipelineLayout<D2>() noexcept;
-template VkPipelineLayout Core::GetRenderingPipelineLayout<D3>() noexcept;
+template VkPipelineLayout Core::GetGraphicsPipelineLayout<D2>() noexcept;
+template VkPipelineLayout Core::GetGraphicsPipelineLayout<D3>() noexcept;
 
 } // namespace ONYX

@@ -4,7 +4,7 @@
 #include "onyx/draw/color.hpp"
 #include "onyx/buffer/storage_buffer.hpp"
 #include "onyx/rendering/swap_chain.hpp"
-#include "onyx/rendering/pipeline.hpp"
+#include "onyx/pipeline/graphics_pipeline.hpp"
 #include "onyx/draw/primitives.hpp"
 #include "onyx/draw/model.hpp"
 #include "onyx/draw/transform.hpp"
@@ -296,7 +296,7 @@ struct ONYX_API PushConstantData3D
  * @return The pipeline specifications.
  */
 template <Dimension D, PipelineMode PMode>
-ONYX_API Pipeline::Specs CreateMeshedPipelineSpecs(VkRenderPass p_RenderPass) noexcept;
+ONYX_API GraphicsPipeline::Specs CreateMeshedPipelineSpecs(VkRenderPass p_RenderPass) noexcept;
 
 /**
  * @brief Create the pipeline specifications for a circle shape.
@@ -307,7 +307,7 @@ ONYX_API Pipeline::Specs CreateMeshedPipelineSpecs(VkRenderPass p_RenderPass) no
  * @return The pipeline specifications.
  */
 template <Dimension D, PipelineMode PMode>
-ONYX_API Pipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass) noexcept;
+ONYX_API GraphicsPipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass) noexcept;
 
 /**
  * @brief Modify the transform to comply with a specific coordinate system extrinsically.

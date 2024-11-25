@@ -47,7 +47,7 @@ struct ONYX_API Core
     static const DescriptorSetLayout *GetTransformStorageDescriptorSetLayout() noexcept;
     static const DescriptorSetLayout *GetLightStorageDescriptorSetLayout() noexcept;
 
-    template <Dimension D> static VkPipelineLayout GetRenderingPipelineLayout() noexcept;
+    template <Dimension D> static VkPipelineLayout GetGraphicsPipelineLayout() noexcept;
 
   private:
     // Should ony be called by window constructor (I should look for a way to better hide this)

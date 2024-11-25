@@ -1,43 +1,44 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/rendering/pipeline.hpp"
+#include "onyx/pipeline/graphics_pipeline.hpp"
 #include "onyx/core/core.hpp"
 #include "kit/core/logging.hpp"
 #include "kit/memory/stack_allocator.hpp"
-#include <fstream>
+
+#include <filesystem>
 
 namespace ONYX
 {
-Pipeline::Pipeline(Specs p_Specs) noexcept
+GraphicsPipeline::GraphicsPipeline(Specs p_Specs) noexcept
 {
     p_Specs.Populate();
     createPipeline(p_Specs);
 }
 
-Pipeline::~Pipeline()
+GraphicsPipeline::~GraphicsPipeline()
 {
-    vkDestroyShaderModule(m_Device->GetDevice(), m_VertexShader, nullptr);
-    vkDestroyShaderModule(m_Device->GetDevice(), m_FragmentShader, nullptr);
+    m_VertexShader.Destroy();
+    m_FragmentShader.Destroy();
     vkDestroyPipeline(m_Device->GetDevice(), m_Pipeline, nullptr);
 }
 
-void Pipeline::Bind(VkCommandBuffer p_CommandBuffer) const noexcept
+void GraphicsPipeline::Bind(VkCommandBuffer p_CommandBuffer) const noexcept
 {
     vkCmdBindPipeline(p_CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
 }
 
-VkPipelineLayout Pipeline::GetLayout() const noexcept
+VkPipelineLayout GraphicsPipeline::GetLayout() const noexcept
 {
     return m_Layout;
 }
 
-void Pipeline::createPipeline(const Specs &p_Specs) noexcept
+void GraphicsPipeline::createPipeline(const Specs &p_Specs) noexcept
 {
     KIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");
 
     m_Device = Core::GetDevice();
     m_Layout = p_Specs.Layout;
-    m_VertexShader = createShaderModule(p_Specs.VertexShaderPath);
-    m_FragmentShader = createShaderModule(p_Specs.FragmentShaderPath);
+
+    createShaders(p_Specs.VertexShaderPath, p_Specs.FragmentShaderPath);
 
     const bool hasAttributes = !p_Specs.AttributeDescriptions.empty();
     const bool hasBindings = !p_Specs.BindingDescriptions.empty();
@@ -52,9 +53,9 @@ void Pipeline::createPipeline(const Specs &p_Specs) noexcept
         shaderStage.pSpecializationInfo = nullptr;
     }
     shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shaderStages[0].module = m_VertexShader;
+    shaderStages[0].module = m_VertexShader->GetModule();
     shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shaderStages[1].module = m_FragmentShader;
+    shaderStages[1].module = m_FragmentShader->GetModule();
 
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -91,34 +92,25 @@ void Pipeline::createPipeline(const Specs &p_Specs) noexcept
         VK_SUCCESS, "Failed to create graphics pipeline");
 }
 
-VkShaderModule Pipeline::createShaderModule(const char *p_Path) noexcept
+void GraphicsPipeline::createShaders(const char *p_VertexPath, const char *p_FragmentPath) noexcept
 {
-    std::ifstream file{p_Path, std::ios::ate | std::ios::binary};
-    KIT_ASSERT(file.is_open(), "File at path {} not found", p_Path);
-    const auto fileSize = file.tellg();
+    namespace fs = std::filesystem;
 
-    KIT::StackAllocator *allocator = Core::GetStackAllocator();
+    const auto createBinaryPath = [](const char *p_Path) {
+        fs::path binaryPath = p_Path;
+        binaryPath = binaryPath.parent_path() / "bin" / binaryPath.filename();
+        binaryPath += ".spv";
+        return binaryPath;
+    };
 
-    char *code = static_cast<char *>(allocator->Push(fileSize * sizeof(char), alignof(u32)));
-    file.seekg(0);
-    file.read(code, fileSize);
+    const fs::path vertexBinaryPath = createBinaryPath(p_VertexPath);
+    const fs::path fragmentBinaryPath = createBinaryPath(p_FragmentPath);
 
-    // KIT_LOG_INFO("Creating shader module from file: {} with size: {}", p_Path, static_cast<usize>(fileSize));
-
-    VkShaderModuleCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = fileSize;
-    createInfo.pCode = reinterpret_cast<const u32 *>(code);
-
-    VkShaderModule shaderModule;
-    KIT_ASSERT_RETURNS(vkCreateShaderModule(m_Device->GetDevice(), &createInfo, nullptr, &shaderModule), VK_SUCCESS,
-                       "Failed to create shader module");
-
-    allocator->Pop();
-    return shaderModule;
+    m_VertexShader.Create(p_VertexPath, vertexBinaryPath.c_str());
+    m_FragmentShader.Create(p_FragmentPath, fragmentBinaryPath.c_str());
 }
 
-Pipeline::Specs::Specs() noexcept
+GraphicsPipeline::Specs::Specs() noexcept
 {
     InputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     InputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -184,7 +176,7 @@ Pipeline::Specs::Specs() noexcept
     DynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 }
 
-void Pipeline::Specs::Populate() noexcept
+void GraphicsPipeline::Specs::Populate() noexcept
 {
     ColorBlendInfo.pAttachments = &ColorBlendAttachment;
     DynamicStateInfo.pDynamicStates = DynamicStateEnables.data();

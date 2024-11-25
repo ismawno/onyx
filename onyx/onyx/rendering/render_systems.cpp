@@ -21,7 +21,7 @@ static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferI
 template <Dimension D, PipelineMode PMode>
 MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    const Pipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass);
+    const GraphicsPipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass);
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
@@ -56,7 +56,7 @@ void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_
     m_DeviceInstanceData.StorageSizes[p_FrameIndex] = size + 1;
 }
 
-static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info, const Pipeline *p_Pipeline) noexcept
+static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info, const GraphicsPipeline *p_Pipeline) noexcept
 {
     PushConstantData3D pdata{};
     pdata.ProjectionView = *p_Info.ProjectionView;
@@ -71,7 +71,7 @@ static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info, const
 }
 
 template <Dimension D, DrawMode DMode>
-static void bindDescriptorSets(const RenderInfo<D, DMode> &p_Info, const Pipeline *p_Pipeline,
+static void bindDescriptorSets(const RenderInfo<D, DMode> &p_Info, const GraphicsPipeline *p_Pipeline,
                                const VkDescriptorSet p_Transforms) noexcept
 {
     if constexpr (D == D2 || DMode == DrawMode::Stencil)
@@ -130,7 +130,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() 
 template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    const Pipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass);
+    const GraphicsPipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass);
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
@@ -218,7 +218,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 template <Dimension D, PipelineMode PMode>
 PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    const Pipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass);
+    const GraphicsPipeline::Specs specs = CreateMeshedPipelineSpecs<D, PMode>(p_RenderPass);
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)
@@ -344,7 +344,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush
 template <Dimension D, PipelineMode PMode>
 CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    const Pipeline::Specs specs = CreateCirclePipelineSpecs<D, PMode>(p_RenderPass);
+    const GraphicsPipeline::Specs specs = CreateCirclePipelineSpecs<D, PMode>(p_RenderPass);
     m_Pipeline.Create(specs);
 
     for (u32 i = 0; i < SwapChain::MFIF; ++i)

@@ -2,26 +2,26 @@
 
 #include "onyx/core/alias.hpp"
 #include "onyx/core/device.hpp"
+#include "onyx/pipeline/shader.hpp"
 #include "kit/core/non_copyable.hpp"
 #include "kit/container/static_array.hpp"
+#include "kit/container/storage.hpp"
 
 #include <vulkan/vulkan.hpp>
 
 namespace ONYX
 {
 /**
- * @brief The Pipeline class encapsulates Vulkan pipeline creation and management.
+ * @brief The GraphicsPipeline class encapsulates Vulkan pipeline creation and management.
  *
  * Responsible for creating graphics pipelines based on provided specifications,
  * and provides methods to bind the pipeline for rendering.
  */
-class ONYX_API Pipeline
+class ONYX_API GraphicsPipeline
 {
-    KIT_NON_COPYABLE(Pipeline)
+    KIT_NON_COPYABLE(GraphicsPipeline)
 
   public:
-    // TODO: Reconsider the use of DynamicArray
-
     /**
      * @brief Struct containing specifications for creating a Vulkan pipeline.
      */
@@ -62,8 +62,8 @@ class ONYX_API Pipeline
         std::span<const VkVertexInputAttributeDescription> AttributeDescriptions;
     };
 
-    explicit Pipeline(Specs p_Specs) noexcept;
-    ~Pipeline();
+    explicit GraphicsPipeline(Specs p_Specs) noexcept;
+    ~GraphicsPipeline();
 
     /**
      * @brief Binds the pipeline to the specified command buffer.
@@ -81,12 +81,12 @@ class ONYX_API Pipeline
 
   private:
     void createPipeline(const Specs &p_Specs) noexcept;
-    VkShaderModule createShaderModule(const char *p_Path) noexcept;
+    void createShaders(const char *p_VertexPath, const char *p_FragmentPath) noexcept;
 
     KIT::Ref<Device> m_Device;
     VkPipeline m_Pipeline;
     VkPipelineLayout m_Layout;
-    VkShaderModule m_VertexShader;
-    VkShaderModule m_FragmentShader;
+    KIT::Storage<Shader> m_VertexShader;
+    KIT::Storage<Shader> m_FragmentShader;
 };
 } // namespace ONYX

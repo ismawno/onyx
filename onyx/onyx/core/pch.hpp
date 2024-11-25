@@ -24,6 +24,9 @@
 #include <deque>
 #include <ranges>
 #include <span>
+#include <fstream>
+#include <cstdlib>
+#include <filesystem>
 #include <imgui.h>
 #ifdef ONYX_ENABLE_IMPLOT
 #    include <implot.h>

@@ -9,13 +9,14 @@ set(SOURCES
     onyx/buffer/buffer.cpp
     onyx/buffer/vertex_buffer.cpp
     onyx/buffer/index_buffer.cpp
-    onyx/rendering/pipeline.cpp
     onyx/rendering/swap_chain.cpp
     onyx/rendering/render_context.cpp
     onyx/rendering/render_systems.cpp
     onyx/rendering/renderer.cpp
     onyx/rendering/render_specs.cpp
     onyx/rendering/frame_scheduler.cpp
+    onyx/pipeline/graphics_pipeline.cpp
+    onyx/pipeline/shader.cpp
     onyx/descriptors/descriptor_pool.cpp
     onyx/descriptors/descriptor_set_layout.cpp
     onyx/descriptors/descriptor_writer.cpp
@@ -109,28 +110,6 @@ endif()
 find_program(GLSLC_EXECUTABLE glslc REQUIRED)
 message(STATUS "ONYX: Found glslc: ${GLSLC_EXECUTABLE}")
 
-function(compile_shader shader)
-    get_filename_component(SHADER_NAME ${shader} NAME)
-    set(SPIRV "${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin/${SHADER_NAME}.spv")
-    
-    make_directory(${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin)
-
-    add_custom_command(
-        TARGET onyx
-        PRE_BUILD
-        COMMAND ${GLSLC_EXECUTABLE} ${shader} -o ${SPIRV}
-        COMMENT "Compiling ${shader} to SPIR-V"
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/bin
-        VERBATIM
-    )
-endfunction()
-
-file(GLOB SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert" "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag")
-
-foreach(SHADER ${SHADERS})
-    compile_shader(${SHADER})
-endforeach()
-
 if (ONYX_LOCAL_VULKAN_SDK)
     target_include_directories(onyx PUBLIC ${Vulkan_INCLUDE_DIRS})
     target_link_libraries(onyx PUBLIC ${Vulkan_LIBRARIES} Vulkan::Headers Vulkan::Vulkan)
@@ -184,7 +163,7 @@ target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(onyx PUBLIC toolkit glm imgui VulkanMemoryAllocator PRIVATE tinyobjloader)
 
 target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/onyx/core/pch.hpp)
-target_compile_definitions(onyx PUBLIC KIT_ROOT_LOG_PATH="${ONYX_ROOT_PATH}" ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
+target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}" ONYX_GLSL_BINARY="${GLSLC_EXECUTABLE}")
 
 if (MSVC)
     configure_compile_link_options(onyx FLAGS /W4 /WX)
