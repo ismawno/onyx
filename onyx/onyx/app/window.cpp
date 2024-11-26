@@ -5,7 +5,7 @@
 #include "onyx/draw/color.hpp"
 #include "kit/core/logging.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 
 Window::Window() noexcept : Window(Specs{})
@@ -40,11 +40,11 @@ void Window::createWindow(const Specs &p_Specs) noexcept
 
     m_Window = glfwCreateWindow(static_cast<i32>(p_Specs.Width), static_cast<i32>(p_Specs.Height), p_Specs.Name,
                                 nullptr, nullptr);
-    KIT_ASSERT(m_Window, "Failed to create a GLFW window");
+    TKIT_ASSERT(m_Window, "Failed to create a GLFW window");
 
     m_Instance = Core::GetInstance();
-    KIT_ASSERT_RETURNS(glfwCreateWindowSurface(m_Instance->GetInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
-                       "Failed to create a window surface");
+    TKIT_ASSERT_RETURNS(glfwCreateWindowSurface(m_Instance->GetInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
+                        "Failed to create a window surface");
     glfwSetWindowUserPointer(m_Window, this);
 
     m_Device = Core::tryCreateDevice(m_Surface);
@@ -162,4 +162,4 @@ FrameScheduler &Window::GetFrameScheduler() noexcept
     return *m_FrameScheduler;
 }
 
-} // namespace ONYX
+} // namespace Onyx

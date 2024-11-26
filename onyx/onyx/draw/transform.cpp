@@ -3,7 +3,7 @@
 
 #include "kit/core/logging.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 template <Dimension D>
 mat<D> ITransform<D>::ComputeTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
@@ -276,4 +276,4 @@ template <Dimension D> rot<D> ITransform<D>::ExtractRotation(const mat<D> &p_Tra
 template struct ITransform<D2>;
 template struct ITransform<D3>;
 
-} // namespace ONYX
+} // namespace Onyx

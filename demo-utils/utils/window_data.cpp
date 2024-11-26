@@ -2,7 +2,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-namespace ONYX
+namespace Onyx
 {
 void WindowData::OnStart(Window *p_Window) noexcept
 {
@@ -11,7 +11,7 @@ void WindowData::OnStart(Window *p_Window) noexcept
     m_Window = p_Window;
 }
 
-void WindowData::OnRender(const KIT::Timespan p_Timestep) noexcept
+void WindowData::OnRender(const TKit::Timespan p_Timestep) noexcept
 {
     std::scoped_lock lock(*m_Mutex);
     drawShapes(m_LayerData2, p_Timestep);
@@ -58,7 +58,7 @@ void WindowData::OnEvent(const Event &p_Event) noexcept
         m_LayerData2.Context->ApplyCameraLikeScalingControls(0.005f * p_Event.ScrollOffset.y);
 }
 
-void WindowData::OnImGuiRenderGlobal(const KIT::Timespan p_Timestep) noexcept
+void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
 {
     ImGui::ShowDemoWindow();
     ImPlot::ShowDemoWindow();
@@ -81,7 +81,7 @@ void WindowData::OnImGuiRenderGlobal(const KIT::Timespan p_Timestep) noexcept
     ImGui::End();
 }
 
-template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, const KIT::Timespan p_Timestep) noexcept
+template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, const TKit::Timespan p_Timestep) noexcept
 {
     p_Data.Context->Flush(m_BackgroundColor);
 
@@ -230,41 +230,41 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     if (ImGui::Button("Spawn##Shape"))
     {
         if (p_Data.ShapeToSpawn == 0)
-            p_Data.Shapes.push_back(KIT::Scope<Triangle<D>>::Create());
+            p_Data.Shapes.push_back(TKit::Scope<Triangle<D>>::Create());
         else if (p_Data.ShapeToSpawn == 1)
-            p_Data.Shapes.push_back(KIT::Scope<Square<D>>::Create());
+            p_Data.Shapes.push_back(TKit::Scope<Square<D>>::Create());
         else if (p_Data.ShapeToSpawn == 2)
-            p_Data.Shapes.push_back(KIT::Scope<Circle<D>>::Create());
+            p_Data.Shapes.push_back(TKit::Scope<Circle<D>>::Create());
         else if (p_Data.ShapeToSpawn == 3)
         {
-            auto ngon = KIT::Scope<NGon<D>>::Create();
+            auto ngon = TKit::Scope<NGon<D>>::Create();
             ngon->Sides = static_cast<u32>(ngonSides);
             p_Data.Shapes.push_back(std::move(ngon));
         }
         else if (p_Data.ShapeToSpawn == 4)
         {
-            auto polygon = KIT::Scope<Polygon<D>>::Create();
+            auto polygon = TKit::Scope<Polygon<D>>::Create();
             polygon->Vertices = p_Data.PolygonVertices;
             p_Data.Shapes.push_back(std::move(polygon));
             p_Data.PolygonVertices.clear();
         }
         else if (p_Data.ShapeToSpawn == 5)
-            p_Data.Shapes.push_back(KIT::Scope<Stadium<D>>::Create());
+            p_Data.Shapes.push_back(TKit::Scope<Stadium<D>>::Create());
         else if (p_Data.ShapeToSpawn == 6)
-            p_Data.Shapes.push_back(KIT::Scope<RoundedSquare<D>>::Create());
+            p_Data.Shapes.push_back(TKit::Scope<RoundedSquare<D>>::Create());
 
         else if constexpr (D == D3)
         {
             if (p_Data.ShapeToSpawn == 7)
-                p_Data.Shapes.push_back(KIT::Scope<Cube>::Create());
+                p_Data.Shapes.push_back(TKit::Scope<Cube>::Create());
             else if (p_Data.ShapeToSpawn == 8)
-                p_Data.Shapes.push_back(KIT::Scope<Sphere>::Create());
+                p_Data.Shapes.push_back(TKit::Scope<Sphere>::Create());
             else if (p_Data.ShapeToSpawn == 9)
-                p_Data.Shapes.push_back(KIT::Scope<Cylinder>::Create());
+                p_Data.Shapes.push_back(TKit::Scope<Cylinder>::Create());
             else if (p_Data.ShapeToSpawn == 10)
-                p_Data.Shapes.push_back(KIT::Scope<Capsule>::Create());
+                p_Data.Shapes.push_back(TKit::Scope<Capsule>::Create());
             else if (p_Data.ShapeToSpawn == 11)
-                p_Data.Shapes.push_back(KIT::Scope<RoundedCube>::Create());
+                p_Data.Shapes.push_back(TKit::Scope<RoundedCube>::Create());
         }
     }
 
@@ -435,4 +435,4 @@ void WindowData::renderLightSpawn() noexcept
         editPointLight(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight]);
 }
 
-} // namespace ONYX
+} // namespace Onyx

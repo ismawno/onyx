@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/buffer/vertex_buffer.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 template <Dimension D>
 VertexBuffer<D>::VertexBuffer(const std::span<const Vertex<D>> p_Vertices) noexcept
@@ -61,4 +61,4 @@ template <Dimension D> void MutableVertexBuffer<D>::Write(const std::span<const 
 template class MutableVertexBuffer<D2>;
 template class MutableVertexBuffer<D3>;
 
-} // namespace ONYX
+} // namespace Onyx

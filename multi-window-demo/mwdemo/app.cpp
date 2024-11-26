@@ -4,15 +4,15 @@
 #include "kit/multiprocessing/thread_pool.hpp"
 #include "kit/core/literals.hpp"
 
-namespace ONYX
+namespace Onyx
 {
-using namespace KIT::Literals;
+using namespace TKit::Literals;
 
 void MWDemoApplication::RunSerial() noexcept
 {
-    static KIT::ThreadPool<std::mutex> threadPool{7};
-    static KIT::StackAllocator allocator{10_kb};
-    ONYX::Core::Initialize(&allocator, &threadPool);
+    static TKit::ThreadPool<std::mutex> threadPool{7};
+    static TKit::StackAllocator allocator{10_kb};
+    Onyx::Core::Initialize(&allocator, &threadPool);
 
     m_SerialApplication.Layers.Push<MWExampleLayer>(&m_SerialApplication);
 
@@ -20,14 +20,14 @@ void MWDemoApplication::RunSerial() noexcept
     spc.Name = "Main window";
     m_SerialApplication.OpenWindow(spc);
     m_SerialApplication.Run();
-    ONYX::Core::Terminate();
+    Onyx::Core::Terminate();
 }
 
 void MWDemoApplication::RunConcurrent() noexcept
 {
-    static KIT::ThreadPool<std::mutex> threadPool{7};
-    static KIT::StackAllocator allocator{10_kb};
-    ONYX::Core::Initialize(&allocator, &threadPool);
+    static TKit::ThreadPool<std::mutex> threadPool{7};
+    static TKit::StackAllocator allocator{10_kb};
+    Onyx::Core::Initialize(&allocator, &threadPool);
 
     m_ConcurrentApplication.Layers.Push<MWExampleLayer>(&m_ConcurrentApplication);
 
@@ -35,7 +35,7 @@ void MWDemoApplication::RunConcurrent() noexcept
     spc.Name = "Main window";
     m_ConcurrentApplication.OpenWindow(spc);
     m_ConcurrentApplication.Run();
-    ONYX::Core::Terminate();
+    Onyx::Core::Terminate();
 }
 
-} // namespace ONYX
+} // namespace Onyx

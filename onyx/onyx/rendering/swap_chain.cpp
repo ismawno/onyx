@@ -4,7 +4,7 @@
 #include "onyx/core/glm.hpp"
 #include "kit/memory/stack_allocator.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 static VkSurfaceFormatKHR chooseSwapSurfaceFormat(const DynamicArray<VkSurfaceFormatKHR> &p_Formats) noexcept
 {
@@ -41,7 +41,7 @@ SwapChain::SwapChain(const VkExtent2D p_WindowExtent, const VkSurfaceKHR p_Surfa
     createFrameBuffers();
     createSyncObjects();
 
-    KIT_ASSERT(!p_OldSwapChain || AreCompatible(*this, *p_OldSwapChain), "Swap chain image (or depth) has changed");
+    TKIT_ASSERT(!p_OldSwapChain || AreCompatible(*this, *p_OldSwapChain), "Swap chain image (or depth) has changed");
 }
 
 SwapChain::~SwapChain() noexcept
@@ -86,7 +86,7 @@ VkResult SwapChain::AcquireNextImage(u32 *p_ImageIndex) const noexcept
 
 VkResult SwapChain::SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffer, const u32 p_ImageIndex) noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::SwapChain::SubmitCommandBuffer");
+    TKIT_PROFILE_NSCOPE("Onyx::SwapChain::SubmitCommandBuffer");
     if (m_InFlightImages[p_ImageIndex] != VK_NULL_HANDLE)
         vkWaitForFences(m_Device->GetDevice(), 1, &m_InFlightImages[p_ImageIndex], VK_TRUE, UINT64_MAX);
 
@@ -116,7 +116,7 @@ VkResult SwapChain::SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffer, c
 
 VkResult SwapChain::Present(const u32 *p_ImageIndex) noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::SwapChain::Present");
+    TKIT_PROFILE_NSCOPE("Onyx::SwapChain::Present");
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
@@ -212,8 +212,8 @@ void SwapChain::createSwapChain(const VkExtent2D p_WindowExtent, const VkSurface
 
     createInfo.oldSwapchain = p_OldSwapChain ? p_OldSwapChain->m_SwapChain : VK_NULL_HANDLE;
 
-    KIT_ASSERT_RETURNS(vkCreateSwapchainKHR(m_Device->GetDevice(), &createInfo, nullptr, &m_SwapChain), VK_SUCCESS,
-                       "Failed to create swap chain");
+    TKIT_ASSERT_RETURNS(vkCreateSwapchainKHR(m_Device->GetDevice(), &createInfo, nullptr, &m_SwapChain), VK_SUCCESS,
+                        "Failed to create swap chain");
 
     // We only specified a minimum number of images in the swap chain, so the implementation is
     // allowed to create a swap chain with more. That's why we'll first query the final number of
@@ -244,8 +244,8 @@ void SwapChain::createImageViews() noexcept
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
-        KIT_ASSERT_RETURNS(vkCreateImageView(m_Device->GetDevice(), &viewInfo, nullptr, &m_ImageViews[i]), VK_SUCCESS,
-                           "Failed to create image views");
+        TKIT_ASSERT_RETURNS(vkCreateImageView(m_Device->GetDevice(), &viewInfo, nullptr, &m_ImageViews[i]), VK_SUCCESS,
+                            "Failed to create image views");
     }
 }
 
@@ -309,8 +309,8 @@ void SwapChain::createRenderPass() noexcept
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    KIT_ASSERT_RETURNS(vkCreateRenderPass(m_Device->GetDevice(), &renderPassInfo, nullptr, &m_RenderPass), VK_SUCCESS,
-                       "Failed to create render pass");
+    TKIT_ASSERT_RETURNS(vkCreateRenderPass(m_Device->GetDevice(), &renderPassInfo, nullptr, &m_RenderPass), VK_SUCCESS,
+                        "Failed to create render pass");
 }
 
 void SwapChain::createDepthResources() noexcept
@@ -352,8 +352,8 @@ void SwapChain::createDepthResources() noexcept
         viewInfo.subresourceRange.baseArrayLayer = 0;
         viewInfo.subresourceRange.layerCount = 1;
 
-        KIT_ASSERT_RETURNS(vkCreateImageView(m_Device->GetDevice(), &viewInfo, nullptr, &m_DepthImageViews[i]),
-                           VK_SUCCESS, "Failed to create texture image view");
+        TKIT_ASSERT_RETURNS(vkCreateImageView(m_Device->GetDevice(), &viewInfo, nullptr, &m_DepthImageViews[i]),
+                            VK_SUCCESS, "Failed to create texture image view");
     }
 }
 
@@ -373,8 +373,8 @@ void SwapChain::createFrameBuffers() noexcept
         frameBufferInfo.height = m_Extent.height;
         frameBufferInfo.layers = 1;
 
-        KIT_ASSERT_RETURNS(vkCreateFramebuffer(m_Device->GetDevice(), &frameBufferInfo, nullptr, &m_Framebuffers[i]),
-                           VK_SUCCESS, "Failed to create frame buffer");
+        TKIT_ASSERT_RETURNS(vkCreateFramebuffer(m_Device->GetDevice(), &frameBufferInfo, nullptr, &m_Framebuffers[i]),
+                            VK_SUCCESS, "Failed to create frame buffer");
     }
 }
 
@@ -391,14 +391,14 @@ void SwapChain::createSyncObjects() noexcept
 
     for (usize i = 0; i < MFIF; ++i)
     {
-        KIT_ASSERT_RETURNS(
+        TKIT_ASSERT_RETURNS(
             vkCreateSemaphore(m_Device->GetDevice(), &semaphoreInfo, nullptr, &m_ImageAvailableSemaphores[i]),
             VK_SUCCESS, "Failed to create synchronization objects for a frame");
-        KIT_ASSERT_RETURNS(
+        TKIT_ASSERT_RETURNS(
             vkCreateSemaphore(m_Device->GetDevice(), &semaphoreInfo, nullptr, &m_RenderFinishedSemaphores[i]),
             VK_SUCCESS, "Failed to create synchronization objects for a frame");
-        KIT_ASSERT_RETURNS(vkCreateFence(m_Device->GetDevice(), &fenceInfo, nullptr, &m_InFlightFences[i]), VK_SUCCESS,
-                           "Failed to create synchronization objects for a frame");
+        TKIT_ASSERT_RETURNS(vkCreateFence(m_Device->GetDevice(), &fenceInfo, nullptr, &m_InFlightFences[i]), VK_SUCCESS,
+                            "Failed to create synchronization objects for a frame");
     }
 }
 
@@ -407,8 +407,8 @@ std::pair<VkImage, VkDeviceMemory> SwapChain::createImage(const VkImageCreateInf
 {
     VkImage image;
     VkDeviceMemory memory;
-    KIT_ASSERT_RETURNS(vkCreateImage(m_Device->GetDevice(), &p_Info, nullptr, &image), VK_SUCCESS,
-                       "Failed to create image");
+    TKIT_ASSERT_RETURNS(vkCreateImage(m_Device->GetDevice(), &p_Info, nullptr, &image), VK_SUCCESS,
+                        "Failed to create image");
 
     VkMemoryRequirements memReqs;
     vkGetImageMemoryRequirements(m_Device->GetDevice(), image, &memReqs);
@@ -418,12 +418,12 @@ std::pair<VkImage, VkDeviceMemory> SwapChain::createImage(const VkImageCreateInf
     allocInfo.allocationSize = memReqs.size;
     allocInfo.memoryTypeIndex = m_Device->FindMemoryType(memReqs.memoryTypeBits, p_Properties);
 
-    KIT_ASSERT_RETURNS(vkAllocateMemory(m_Device->GetDevice(), &allocInfo, nullptr, &memory), VK_SUCCESS,
-                       "Failed to allocate image memory");
-    KIT_ASSERT_RETURNS(vkBindImageMemory(m_Device->GetDevice(), image, memory, 0), VK_SUCCESS,
-                       "Failed to bind image memory");
+    TKIT_ASSERT_RETURNS(vkAllocateMemory(m_Device->GetDevice(), &allocInfo, nullptr, &memory), VK_SUCCESS,
+                        "Failed to allocate image memory");
+    TKIT_ASSERT_RETURNS(vkBindImageMemory(m_Device->GetDevice(), image, memory, 0), VK_SUCCESS,
+                        "Failed to bind image memory");
 
     return {image, memory};
 }
 
-} // namespace ONYX
+} // namespace Onyx

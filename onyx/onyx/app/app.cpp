@@ -6,7 +6,7 @@
 #include "kit/profiling/macros.hpp"
 #include "kit/profiling/vulkan.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 IApplication::~IApplication() noexcept
 {
@@ -29,14 +29,14 @@ bool IApplication::IsRunning() const noexcept
 
 void IApplication::Startup() noexcept
 {
-    KIT_ASSERT(!m_Terminated && !m_Started, "Application cannot be started more than once");
+    TKIT_ASSERT(!m_Terminated && !m_Started, "Application cannot be started more than once");
     m_Started = true;
     Layers.OnStart();
 }
 
 void IApplication::Shutdown() noexcept
 {
-    KIT_ASSERT(!m_Terminated && m_Started, "Application cannot be terminated before it is started");
+    TKIT_ASSERT(!m_Terminated && m_Started, "Application cannot be terminated before it is started");
     Layers.OnShutdown();
     if (m_Device)
         vkDestroyDescriptorPool(m_Device->GetDevice(), m_ImGuiPool, nullptr);
@@ -45,14 +45,14 @@ void IApplication::Shutdown() noexcept
 
 void IApplication::ApplyTheme() noexcept
 {
-    KIT_ASSERT(m_Theme, "No theme has been set. Set one with SetTheme");
+    TKIT_ASSERT(m_Theme, "No theme has been set. Set one with SetTheme");
     m_Theme->Apply();
 }
 
 void IApplication::Run() noexcept
 {
     Startup();
-    KIT::Clock clock;
+    TKit::Clock clock;
     while (NextFrame(clock))
         ;
     Shutdown();
@@ -99,8 +99,8 @@ void IApplication::createImGuiPool() noexcept
     poolInfo.poolSizeCount = 11;
     poolInfo.pPoolSizes = poolSizes;
 
-    KIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
-                       "Failed to create descriptor pool");
+    TKIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
+                        "Failed to create descriptor pool");
 }
 
 void IApplication::initializeImGui(Window &p_Window) noexcept
@@ -108,7 +108,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     if (!m_ImGuiPool)
         createImGuiPool();
     if (!m_Theme)
-        m_Theme = KIT::Scope<DefaultTheme>::Create();
+        m_Theme = TKit::Scope<DefaultTheme>::Create();
 
     ImGui::CreateContext();
 #ifdef ONYX_ENABLE_IMPLOT
@@ -160,9 +160,9 @@ Application::Application(const Window::Specs &p_WindowSpecs) noexcept
     initializeImGui(*m_Window);
 }
 
-bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
+bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::Application::NextFrame");
+    TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
     m_DeltaTime = p_Clock.Restart();
     Input::PollEvents();
     for (const Event &event : m_Window->GetNewEvents())
@@ -179,16 +179,17 @@ bool Application::NextFrame(KIT::Clock &p_Clock) noexcept
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
 
-    KIT_ASSERT_RETURNS(m_Window->Render(drawCalls, uiSubmission), true,
-                       "Failed to render to the window. Failed to acquire a command buffer when beginning a new frame");
+    TKIT_ASSERT_RETURNS(
+        m_Window->Render(drawCalls, uiSubmission), true,
+        "Failed to render to the window. Failed to acquire a command buffer when beginning a new frame");
     if (m_Window->ShouldClose())
     {
         m_Window.Destroy();
         shutdownImGui();
-        KIT_PROFILE_MARK_FRAME;
+        TKIT_PROFILE_MARK_FRAME;
         return false;
     }
-    KIT_PROFILE_MARK_FRAME;
+    TKIT_PROFILE_MARK_FRAME;
     return true;
 }
 
@@ -201,9 +202,9 @@ Window *Application::GetMainWindow() noexcept
     return m_Window.Get();
 }
 
-KIT::Timespan Application::GetDeltaTime() const noexcept
+TKit::Timespan Application::GetDeltaTime() const noexcept
 {
     return m_DeltaTime;
 }
 
-} // namespace ONYX
+} // namespace Onyx

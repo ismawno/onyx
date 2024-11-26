@@ -9,7 +9,7 @@
 
 #include <vulkan/vulkan.hpp>
 
-namespace ONYX
+namespace Onyx
 {
 /**
  * @brief The GraphicsPipeline class encapsulates Vulkan pipeline creation and management.
@@ -19,7 +19,7 @@ namespace ONYX
  */
 class ONYX_API GraphicsPipeline
 {
-    KIT_NON_COPYABLE(GraphicsPipeline)
+    TKIT_NON_COPYABLE(GraphicsPipeline)
 
   public:
     /**
@@ -83,10 +83,10 @@ class ONYX_API GraphicsPipeline
     void createPipeline(const Specs &p_Specs) noexcept;
     void createShaders(const char *p_VertexPath, const char *p_FragmentPath) noexcept;
 
-    KIT::Ref<Device> m_Device;
+    TKit::Ref<Device> m_Device;
     VkPipeline m_Pipeline;
     VkPipelineLayout m_Layout;
-    KIT::Storage<Shader> m_VertexShader;
-    KIT::Storage<Shader> m_FragmentShader;
+    TKit::Storage<Shader> m_VertexShader;
+    TKit::Storage<Shader> m_FragmentShader;
 };
-} // namespace ONYX
+} // namespace Onyx

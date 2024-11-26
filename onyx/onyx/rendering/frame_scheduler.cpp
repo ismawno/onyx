@@ -8,7 +8,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-namespace ONYX
+namespace Onyx
 {
 FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 {
@@ -18,10 +18,10 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
     createCommandPool(p_Window.GetSurface());
     createCommandBuffers();
 
-    KIT::ITaskManager *taskManager = Core::GetTaskManager();
+    TKit::ITaskManager *taskManager = Core::GetTaskManager();
     m_PresentTask = taskManager->CreateTask([this](usize) {
-        KIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex), VK_SUCCESS,
-                           "Failed to submit command buffers");
+        TKIT_ASSERT_RETURNS(m_SwapChain->SubmitCommandBuffer(m_CommandBuffers[m_FrameIndex], m_ImageIndex), VK_SUCCESS,
+                            "Failed to submit command buffers");
         m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
         return m_SwapChain->Present(&m_ImageIndex);
     });
@@ -42,8 +42,8 @@ FrameScheduler::~FrameScheduler() noexcept
 
 VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::FrameScheduler::BeginFrame");
-    KIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
+    TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::BeginFrame");
+    TKIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
 
     if (m_PresentRunning) [[likely]]
     {
@@ -56,7 +56,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
             p_Window.FlagResizeDone();
             m_PresentModeChanged = false;
         }
-        KIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
+        TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
     }
     else
         m_PresentRunning = true;
@@ -68,27 +68,27 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
         return VK_NULL_HANDLE;
     }
 
-    KIT_ASSERT(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "Failed to acquire swap chain image");
+    TKIT_ASSERT(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "Failed to acquire swap chain image");
     m_FrameStarted = true;
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    KIT_ASSERT_RETURNS(vkResetCommandBuffer(m_CommandBuffers[m_FrameIndex], 0), VK_SUCCESS,
-                       "Failed to reset command buffer");
-    KIT_ASSERT_RETURNS(vkBeginCommandBuffer(m_CommandBuffers[m_FrameIndex], &beginInfo), VK_SUCCESS,
-                       "Failed to begin command buffer");
+    TKIT_ASSERT_RETURNS(vkResetCommandBuffer(m_CommandBuffers[m_FrameIndex], 0), VK_SUCCESS,
+                        "Failed to reset command buffer");
+    TKIT_ASSERT_RETURNS(vkBeginCommandBuffer(m_CommandBuffers[m_FrameIndex], &beginInfo), VK_SUCCESS,
+                        "Failed to begin command buffer");
 
     return m_CommandBuffers[m_FrameIndex];
 }
 
 void FrameScheduler::EndFrame(Window &) noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::FrameScheduler::EndFrame");
-    KIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
-    KIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
+    TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
+    TKIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
+    TKIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
 
-    KIT::ITaskManager *taskManager = Core::GetTaskManager();
+    TKit::ITaskManager *taskManager = Core::GetTaskManager();
 
     m_PresentTask->Reset();
     taskManager->SubmitTask(m_PresentTask);
@@ -97,7 +97,7 @@ void FrameScheduler::EndFrame(Window &) noexcept
 
 void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 {
-    KIT_ASSERT(m_FrameStarted, "Cannot begin render pass if a frame is not in progress");
+    TKIT_ASSERT(m_FrameStarted, "Cannot begin render pass if a frame is not in progress");
     const VkExtent2D extent = m_SwapChain->GetExtent();
 
     VkRenderPassBeginInfo passInfo{};
@@ -135,7 +135,7 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 
 void FrameScheduler::EndRenderPass() noexcept
 {
-    KIT_ASSERT(m_FrameStarted, "Cannot end render pass if a frame is not in progress");
+    TKIT_ASSERT(m_FrameStarted, "Cannot end render pass if a frame is not in progress");
     vkCmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
 }
 
@@ -165,9 +165,9 @@ VkPresentModeKHR FrameScheduler::GetPresentMode() const noexcept
 }
 void FrameScheduler::SetPresentMode(const VkPresentModeKHR p_PresentMode) noexcept
 {
-    KIT_ASSERT(std::find(m_SupportedPresentModes.begin(), m_SupportedPresentModes.end(), p_PresentMode) !=
-                   m_SupportedPresentModes.end(),
-               "Present mode not supported");
+    TKIT_ASSERT(std::find(m_SupportedPresentModes.begin(), m_SupportedPresentModes.end(), p_PresentMode) !=
+                    m_SupportedPresentModes.end(),
+                "Present mode not supported");
     m_PresentModeChanged = m_PresentMode != p_PresentMode;
     m_PresentMode = p_PresentMode;
 }
@@ -186,7 +186,7 @@ void FrameScheduler::createSwapChain(Window &p_Window) noexcept
         glfwWaitEvents();
     }
     m_Device->WaitIdle();
-    m_SwapChain = KIT::Scope<SwapChain>::Create(windowExtent, p_Window.GetSurface(), m_PresentMode, m_SwapChain.Get());
+    m_SwapChain = TKit::Scope<SwapChain>::Create(windowExtent, p_Window.GetSurface(), m_PresentMode, m_SwapChain.Get());
 }
 
 void FrameScheduler::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
@@ -198,8 +198,8 @@ void FrameScheduler::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
     poolInfo.queueFamilyIndex = indices.GraphicsFamily;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    KIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,
-                       "Failed to create command pool");
+    TKIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,
+                        "Failed to create command pool");
 }
 
 void FrameScheduler::createCommandBuffers() noexcept
@@ -210,8 +210,8 @@ void FrameScheduler::createCommandBuffers() noexcept
     allocInfo.commandPool = m_CommandPool;
     allocInfo.commandBufferCount = SwapChain::MFIF;
 
-    KIT_ASSERT_RETURNS(vkAllocateCommandBuffers(m_Device->GetDevice(), &allocInfo, m_CommandBuffers.data()), VK_SUCCESS,
-                       "Failed to create command buffers");
+    TKIT_ASSERT_RETURNS(vkAllocateCommandBuffers(m_Device->GetDevice(), &allocInfo, m_CommandBuffers.data()),
+                        VK_SUCCESS, "Failed to create command buffers");
 }
 
-} // namespace ONYX
+} // namespace Onyx

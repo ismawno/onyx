@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/buffer/index_buffer.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 IndexBuffer::IndexBuffer(const std::span<const Index> p_Indices) noexcept
     : DeviceBuffer<Index>(p_Indices, VK_BUFFER_USAGE_INDEX_BUFFER_BIT)
@@ -48,4 +48,4 @@ void MutableIndexBuffer::Write(const std::span<const Index> p_Indices)
     Buffer::Write(p_Indices.data(), p_Indices.size() * sizeof(Index));
 }
 
-} // namespace ONYX
+} // namespace Onyx

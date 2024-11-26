@@ -6,7 +6,7 @@
 #include "kit/core/concepts.hpp"
 #include <span>
 
-namespace ONYX
+namespace Onyx
 {
 struct ONYX_API Color
 {
@@ -136,4 +136,4 @@ class Gradient
     std::span<const Color> m_Colors;
 };
 
-} // namespace ONYX
+} // namespace Onyx

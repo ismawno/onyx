@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/draw/vertex.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 template <Dimension D>
 static const std::array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> &bindingDescriptions() noexcept
@@ -62,4 +62,4 @@ const std::array<VkVertexInputAttributeDescription, Vertex<D3>::ATTRIBUTES> &Ver
 {
     return attributeDescriptions<D3>();
 }
-} // namespace ONYX
+} // namespace Onyx

@@ -4,7 +4,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/alias.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 /**
  * @brief Interface for transformation operations in D-dimensional space.
@@ -388,4 +388,4 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
     static Transform Extract(const mat4 &p_Transform) noexcept;
 };
 
-} // namespace ONYX
+} // namespace Onyx

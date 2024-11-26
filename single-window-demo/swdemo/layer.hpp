@@ -3,7 +3,7 @@
 #include "onyx/app/layer.hpp"
 #include "utils/window_data.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 class Application;
 class SWExampleLayer final : public Layer
@@ -19,4 +19,4 @@ class SWExampleLayer final : public Layer
     Application *m_Application = nullptr;
     WindowData m_Data;
 };
-} // namespace ONYX
+} // namespace Onyx

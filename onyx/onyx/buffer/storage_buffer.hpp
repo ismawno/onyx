@@ -5,11 +5,11 @@
 #include "onyx/core/glm.hpp"
 #include "kit/container/storage.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 template <typename T> class StorageBuffer : public Buffer
 {
-    KIT_NON_COPYABLE(StorageBuffer)
+    TKIT_NON_COPYABLE(StorageBuffer)
   public:
     StorageBuffer(const std::span<const T> p_Data) noexcept : Buffer(createBufferSpecs(p_Data.size()))
     {
@@ -40,4 +40,4 @@ template <typename T> class StorageBuffer : public Buffer
         return specs;
     }
 };
-} // namespace ONYX
+} // namespace Onyx

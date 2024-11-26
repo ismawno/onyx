@@ -8,7 +8,7 @@
 
 #include <vulkan/vulkan.hpp>
 
-namespace ONYX
+namespace Onyx
 {
 
 // Vertices have no color because they limit my ability to re use a model. I plan to have a single color per rendered
@@ -46,21 +46,21 @@ template <> struct ONYX_API Vertex<D3>
     }
 };
 
-} // namespace ONYX
+} // namespace Onyx
 
-template <> struct std::hash<ONYX::Vertex<ONYX::D2>>
+template <> struct std::hash<Onyx::Vertex<Onyx::D2>>
 {
-    std::size_t operator()(const ONYX::Vertex<ONYX::D2> &p_Vertex) const
+    std::size_t operator()(const Onyx::Vertex<Onyx::D2> &p_Vertex) const
     {
         return std::hash<glm::vec2>()(p_Vertex.Position);
     }
 };
 
-template <> struct std::hash<ONYX::Vertex<ONYX::D3>>
+template <> struct std::hash<Onyx::Vertex<Onyx::D3>>
 {
-    std::size_t operator()(const ONYX::Vertex<ONYX::D3> &p_Vertex) const
+    std::size_t operator()(const Onyx::Vertex<Onyx::D3> &p_Vertex) const
     {
-        KIT::HashableTuple<glm::vec3, glm::vec3> tuple{p_Vertex.Position, p_Vertex.Normal};
+        TKit::HashableTuple<glm::vec3, glm::vec3> tuple{p_Vertex.Position, p_Vertex.Normal};
         return tuple();
     }
 };

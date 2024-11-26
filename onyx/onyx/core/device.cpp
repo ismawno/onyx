@@ -6,9 +6,9 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-namespace ONYX
+namespace Onyx
 {
-#ifdef KIT_OS_APPLE
+#ifdef TKIT_OS_APPLE
 static const std::array<const char *, 2> s_DeviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME,
                                                                "VK_KHR_portability_subset"};
 #else
@@ -26,19 +26,19 @@ static bool checkDeviceExtensionSupport(const VkPhysicalDevice p_Device) noexcep
     DynamicArray<VkExtensionProperties> extensions(extensionCount);
     vkEnumerateDeviceExtensionProperties(p_Device, nullptr, &extensionCount, extensions.data());
 
-    // KIT_LOG_INFO("Available device extensions:");
+    // TKIT_LOG_INFO("Available device extensions:");
     HashSet<std::string> availableExtensions;
     for (const auto &extension : extensions)
     {
-        // KIT_LOG_INFO("  {}", extension.extensionName);
+        // TKIT_LOG_INFO("  {}", extension.extensionName);
         availableExtensions.insert(extension.extensionName);
     }
 
-    // KIT_LOG_INFO("Required device extensions:");
+    // TKIT_LOG_INFO("Required device extensions:");
     bool contained = true;
     for (const auto &extension : s_DeviceExtensions)
     {
-        // KIT_LOG_INFO("  {}", extension);
+        // TKIT_LOG_INFO("  {}", extension);
         contained &= availableExtensions.contains(extension);
     }
 
@@ -123,13 +123,13 @@ static bool isDeviceSuitable(const VkPhysicalDevice p_Device, const VkSurfaceKHR
 
 Device::Device(const VkSurfaceKHR p_Surface) noexcept
 {
-    KIT_LOG_INFO("Attempting to create a new device...");
+    TKIT_LOG_INFO("Attempting to create a new device...");
     m_Instance = Core::GetInstance();
     pickPhysicalDevice(p_Surface);
     createLogicalDevice(p_Surface);
     createCommandPool(p_Surface);
 
-#ifdef KIT_ENABLE_VULKAN_PROFILING
+#ifdef TKIT_ENABLE_VULKAN_PROFILING
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -138,14 +138,14 @@ Device::Device(const VkSurfaceKHR p_Surface) noexcept
 
     vkAllocateCommandBuffers(m_Device, &allocInfo, &m_ProfilingCommandBuffer);
     m_ProfilingContext =
-        KIT_PROFILE_CREATE_VULKAN_CONTEXT(m_PhysicalDevice, m_Device, m_GraphicsQueue, m_ProfilingCommandBuffer);
+        TKIT_PROFILE_CREATE_VULKAN_CONTEXT(m_PhysicalDevice, m_Device, m_GraphicsQueue, m_ProfilingCommandBuffer);
 #endif
 }
 
 Device::~Device() noexcept
 {
-#ifdef KIT_ENABLE_VULKAN_PROFILING
-    KIT_PROFILE_DESTROY_VULKAN_CONTEXT(m_ProfilingContext);
+#ifdef TKIT_ENABLE_VULKAN_PROFILING
+    TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(m_ProfilingContext);
     vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &m_ProfilingCommandBuffer);
 #endif
     vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
@@ -191,7 +191,7 @@ u32 Device::FindMemoryType(const u32 p_TypeFilter, const VkMemoryPropertyFlags p
         if ((p_TypeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & p_Properties) == p_Properties)
             return i;
 
-    KIT_ERROR("Failed to find suitable memory type");
+    TKIT_ERROR("Failed to find suitable memory type");
     return UINT32_MAX;
 }
 
@@ -253,7 +253,7 @@ VkCommandBuffer Device::BeginSingleTimeCommands(const VkCommandPool p_Pool) cons
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    KIT_ASSERT_RETURNS(vkBeginCommandBuffer(commandBuffer, &beginInfo), VK_SUCCESS, "Failed to begin command buffer");
+    TKIT_ASSERT_RETURNS(vkBeginCommandBuffer(commandBuffer, &beginInfo), VK_SUCCESS, "Failed to begin command buffer");
 
     return commandBuffer;
 }
@@ -277,9 +277,9 @@ void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
 {
     u32 deviceCount = 0;
     vkEnumeratePhysicalDevices(m_Instance->GetInstance(), &deviceCount, nullptr);
-    KIT_ASSERT(deviceCount != 0, "Failed to find GPUs with Vulkan support");
+    TKIT_ASSERT(deviceCount != 0, "Failed to find GPUs with Vulkan support");
 
-    KIT_LOG_INFO("Device count: {}", deviceCount);
+    TKIT_LOG_INFO("Device count: {}", deviceCount);
     DynamicArray<VkPhysicalDevice> devices(deviceCount);
 
     vkEnumeratePhysicalDevices(m_Instance->GetInstance(), &deviceCount, devices.data());
@@ -291,10 +291,10 @@ void Device::pickPhysicalDevice(const VkSurfaceKHR p_Surface) noexcept
             break;
         }
 
-    KIT_ASSERT(m_PhysicalDevice != VK_NULL_HANDLE, "Failed to find a suitable GPU");
+    TKIT_ASSERT(m_PhysicalDevice != VK_NULL_HANDLE, "Failed to find a suitable GPU");
 
     vkGetPhysicalDeviceProperties(m_PhysicalDevice, &m_Properties);
-    KIT_LOG_INFO("Physical device: {}", m_Properties.deviceName);
+    TKIT_LOG_INFO("Physical device: {}", m_Properties.deviceName);
 }
 
 void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
@@ -329,7 +329,7 @@ void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
 
     // might not really be necessary anymore because device specific validation layers
     // have been deprecated
-#ifdef KIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ASSERTS
     const char *vLayer = Instance::GetValidationLayer();
     createInfo.enabledLayerCount = 1;
     createInfo.ppEnabledLayerNames = &vLayer;
@@ -337,8 +337,8 @@ void Device::createLogicalDevice(const VkSurfaceKHR p_Surface) noexcept
     createInfo.enabledLayerCount = 0;
 #endif
 
-    KIT_ASSERT_RETURNS(vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device), VK_SUCCESS,
-                       "Failed to create logical device");
+    TKIT_ASSERT_RETURNS(vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device), VK_SUCCESS,
+                        "Failed to create logical device");
 
     vkGetDeviceQueue(m_Device, indices.GraphicsFamily, 0, &m_GraphicsQueue);
     vkGetDeviceQueue(m_Device, indices.PresentFamily, 0, &m_PresentQueue);
@@ -353,8 +353,8 @@ void Device::createCommandPool(const VkSurfaceKHR p_Surface) noexcept
     poolInfo.queueFamilyIndex = indices.GraphicsFamily;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    KIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device, &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,
-                       "Failed to create command pool");
+    TKIT_ASSERT_RETURNS(vkCreateCommandPool(m_Device, &poolInfo, nullptr, &m_CommandPool), VK_SUCCESS,
+                        "Failed to create command pool");
 }
 
 VkFormat Device::FindSupportedFormat(const std::span<const VkFormat> p_Candidates, const VkImageTiling p_Tiling,
@@ -371,15 +371,15 @@ VkFormat Device::FindSupportedFormat(const std::span<const VkFormat> p_Candidate
             return candidate;
     }
 
-    KIT_ASSERT(false, "Failed to find a supported format");
+    TKIT_ASSERT(false, "Failed to find a supported format");
     return VK_FORMAT_UNDEFINED;
 }
 
-#ifdef KIT_ENABLE_VULKAN_PROFILING
-KIT::VkProfilingContext Device::GetProfilingContext() const noexcept
+#ifdef TKIT_ENABLE_VULKAN_PROFILING
+TKit::VkProfilingContext Device::GetProfilingContext() const noexcept
 {
     return m_ProfilingContext;
 }
 #endif
 
-} // namespace ONYX
+} // namespace Onyx

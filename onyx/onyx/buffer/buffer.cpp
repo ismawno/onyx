@@ -2,7 +2,7 @@
 #include "onyx/buffer/buffer.hpp"
 #include "onyx/core/core.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 static VkDeviceSize alignedSize(const VkDeviceSize p_Size, const VkDeviceSize p_Alignment) noexcept
 {
@@ -29,8 +29,8 @@ void Buffer::Map() noexcept
 {
     if (m_Data)
         Unmap();
-    KIT_ASSERT_RETURNS(vmaMapMemory(Core::GetVulkanAllocator(), m_Allocation, &m_Data), VK_SUCCESS,
-                       "Failed to map buffer memory");
+    TKIT_ASSERT_RETURNS(vmaMapMemory(Core::GetVulkanAllocator(), m_Allocation, &m_Data), VK_SUCCESS,
+                        "Failed to map buffer memory");
 }
 
 void Buffer::Unmap() noexcept
@@ -43,9 +43,10 @@ void Buffer::Unmap() noexcept
 
 void Buffer::Write(const void *p_Data, const VkDeviceSize p_Size, const VkDeviceSize p_Offset) noexcept
 {
-    KIT_ASSERT(m_Data, "Cannot copy to unmapped buffer");
-    KIT_ASSERT((p_Size == VK_WHOLE_SIZE && p_Offset == 0) || (p_Size != VK_WHOLE_SIZE && (p_Offset + p_Size) <= m_Size),
-               "Size + offset must be lower than the buffer size");
+    TKIT_ASSERT(m_Data, "Cannot copy to unmapped buffer");
+    TKIT_ASSERT((p_Size == VK_WHOLE_SIZE && p_Offset == 0) ||
+                    (p_Size != VK_WHOLE_SIZE && (p_Offset + p_Size) <= m_Size),
+                "Size + offset must be lower than the buffer size");
     if (p_Size == VK_WHOLE_SIZE)
         std::memcpy(m_Data, p_Data, m_Size);
     else
@@ -56,31 +57,31 @@ void Buffer::Write(const void *p_Data, const VkDeviceSize p_Size, const VkDevice
 }
 void Buffer::WriteAt(const usize p_Index, const void *p_Data) noexcept
 {
-    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
+    TKIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     Write(p_Data, m_InstanceSize, m_AlignedInstanceSize * p_Index);
 }
 
 void Buffer::Flush(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) noexcept
 {
-    KIT_ASSERT(m_Data, "Cannot flush unmapped buffer");
-    KIT_ASSERT_RETURNS(vmaFlushAllocation(Core::GetVulkanAllocator(), m_Allocation, p_Offset, p_Size), VK_SUCCESS,
-                       "Failed to flush buffer memory");
+    TKIT_ASSERT(m_Data, "Cannot flush unmapped buffer");
+    TKIT_ASSERT_RETURNS(vmaFlushAllocation(Core::GetVulkanAllocator(), m_Allocation, p_Offset, p_Size), VK_SUCCESS,
+                        "Failed to flush buffer memory");
 }
 void Buffer::FlushAt(const usize p_Index) noexcept
 {
-    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
+    TKIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     Flush(m_InstanceSize, m_AlignedInstanceSize * p_Index);
 }
 
 void Buffer::Invalidate(const VkDeviceSize p_Size, const VkDeviceSize p_Offset) noexcept
 {
-    KIT_ASSERT(m_Data, "Cannot invalidate unmapped buffer");
-    KIT_ASSERT_RETURNS(vmaInvalidateAllocation(Core::GetVulkanAllocator(), m_Allocation, p_Offset, p_Size), VK_SUCCESS,
-                       "Failed to invalidate buffer memory");
+    TKIT_ASSERT(m_Data, "Cannot invalidate unmapped buffer");
+    TKIT_ASSERT_RETURNS(vmaInvalidateAllocation(Core::GetVulkanAllocator(), m_Allocation, p_Offset, p_Size), VK_SUCCESS,
+                        "Failed to invalidate buffer memory");
 }
 void Buffer::InvalidateAt(const usize p_Index) noexcept
 {
-    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
+    TKIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     Invalidate(m_InstanceSize, m_AlignedInstanceSize * p_Index);
 }
 
@@ -94,7 +95,7 @@ VkDescriptorBufferInfo Buffer::GetDescriptorInfo(const VkDeviceSize p_Size, cons
 }
 VkDescriptorBufferInfo Buffer::GetDescriptorInfoAt(const usize p_Index) const noexcept
 {
-    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
+    TKIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     return GetDescriptorInfo(m_InstanceSize, m_AlignedInstanceSize * p_Index);
 }
 
@@ -104,13 +105,13 @@ void *Buffer::GetData() const noexcept
 }
 void *Buffer::ReadAt(const usize p_Index) const noexcept
 {
-    KIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
+    TKIT_ASSERT(p_Index < GetInstanceCount(), "Index out of bounds");
     return static_cast<std::byte *>(m_Data) + m_AlignedInstanceSize * p_Index;
 }
 
 void Buffer::CopyFrom(const Buffer &p_Source) noexcept
 {
-    KIT_ASSERT(m_Size == p_Source.m_Size, "Cannot copy buffers of different sizes");
+    TKIT_ASSERT(m_Size == p_Source.m_Size, "Cannot copy buffers of different sizes");
 
     VkCommandBuffer commandBuffer = m_Device->BeginSingleTimeCommands();
 
@@ -148,9 +149,9 @@ void Buffer::createBuffer(const VkBufferUsageFlags p_Usage, const VmaAllocationC
     bufferInfo.usage = p_Usage;
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    KIT_ASSERT_RETURNS(
+    TKIT_ASSERT_RETURNS(
         vmaCreateBuffer(Core::GetVulkanAllocator(), &bufferInfo, &p_AllocationInfo, &m_Buffer, &m_Allocation, nullptr),
         VK_SUCCESS, "Failed to create buffer");
 }
 
-} // namespace ONYX
+} // namespace Onyx

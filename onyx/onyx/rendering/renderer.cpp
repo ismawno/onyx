@@ -5,7 +5,7 @@
 #include "onyx/app/window.hpp"
 #include "kit/utilities/math.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 template <Dimension D, template <Dimension, PipelineMode> typename R>
 RenderSystem<D, R>::RenderSystem(const VkRenderPass p_RenderPass) noexcept
@@ -139,7 +139,7 @@ template <typename Renderer, typename... DrawArgs>
 void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Flags, DrawArgs &&...p_Args) noexcept
 {
     const RenderState<D> &state = m_State->back();
-    KIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
+    TKIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
 
     if (p_Flags & DrawFlags_Auto)
     {
@@ -196,7 +196,7 @@ static mat<D> finalTransform(const mat<D> &p_Transform, const RenderState<D> &p_
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const mat<D> &p_Transform, const KIT::Ref<const Model<D>> &p_Model,
+void IRenderer<D>::DrawMesh(const mat<D> &p_Transform, const TKit::Ref<const Model<D>> &p_Model,
                             const u8 p_Flags) noexcept
 {
     const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
@@ -257,7 +257,7 @@ void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
     if (m_DrawCount == 0)
         return;
-    KIT_PROFILE_NSCOPE("ONYX::Renderer<D2>::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer<D2>::Render");
     RenderInfo<D2, DrawMode::Fill> fillDrawInfo;
     fillDrawInfo.CommandBuffer = p_CommandBuffer;
     fillDrawInfo.FrameIndex = m_FrameIndex;
@@ -294,7 +294,7 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
     if (m_DrawCount == 0)
         return;
-    KIT_PROFILE_NSCOPE("ONYX::Renderer<D3>::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer<D3>::Render");
     RenderInfo<D3, DrawMode::Fill> fillDrawInfo;
     fillDrawInfo.CommandBuffer = p_CommandBuffer;
     fillDrawInfo.FrameIndex = m_FrameIndex;
@@ -377,4 +377,4 @@ void Renderer<D3>::AddPointLight(const PointLight &p_Light) noexcept
 template class IRenderer<D2>;
 template class IRenderer<D3>;
 
-} // namespace ONYX
+} // namespace Onyx

@@ -12,7 +12,7 @@
 
 // Important: index buffers must always be provided for primitives so that they can be batch rendered nicely
 
-namespace ONYX
+namespace Onyx
 {
 /**
  * @brief Layout information for primitive data.
@@ -65,7 +65,7 @@ template <Dimension D> struct IPrimitives
      *
      * @return usize Index of the triangle primitive.
      */
-    static KIT_CONSTEVAL usize GetTriangleIndex() noexcept
+    static TKIT_CONSTEVAL usize GetTriangleIndex() noexcept
     {
         return 0;
     }
@@ -75,7 +75,7 @@ template <Dimension D> struct IPrimitives
      *
      * @return usize Index of the square primitive.
      */
-    static KIT_CONSTEVAL usize GetSquareIndex() noexcept
+    static TKIT_CONSTEVAL usize GetSquareIndex() noexcept
     {
         return 1;
     }
@@ -88,8 +88,8 @@ template <Dimension D> struct IPrimitives
      */
     static constexpr usize GetNGonIndex(u32 p_Sides) noexcept
     {
-        KIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3, "NGon sides must be between 3 and {}",
-                   ONYX_MAX_REGULAR_POLYGON_SIDES);
+        TKIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3, "NGon sides must be between 3 and {}",
+                    ONYX_MAX_REGULAR_POLYGON_SIDES);
         return (D - 1) * 2 + p_Sides - 3 + (D - 2);
     }
 };
@@ -120,7 +120,7 @@ template <> struct Primitives<D3> : IPrimitives<D3>
      *
      * @return usize Index of the cube primitive.
      */
-    static KIT_CONSTEVAL usize GetCubeIndex() noexcept
+    static TKIT_CONSTEVAL usize GetCubeIndex() noexcept
     {
         return 2;
     }
@@ -130,7 +130,7 @@ template <> struct Primitives<D3> : IPrimitives<D3>
      *
      * @return usize Index of the sphere primitive.
      */
-    static KIT_CONSTEVAL usize GetSphereIndex() noexcept
+    static TKIT_CONSTEVAL usize GetSphereIndex() noexcept
     {
         return 3;
     }
@@ -140,7 +140,7 @@ template <> struct Primitives<D3> : IPrimitives<D3>
      *
      * @return usize Index of the cylinder primitive.
      */
-    static KIT_CONSTEVAL usize GetCylinderIndex() noexcept
+    static TKIT_CONSTEVAL usize GetCylinderIndex() noexcept
     {
         return 4;
     }
@@ -164,4 +164,4 @@ void CreateCombinedPrimitiveBuffers() noexcept;
  */
 void DestroyCombinedPrimitiveBuffers() noexcept;
 
-} // namespace ONYX
+} // namespace Onyx

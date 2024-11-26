@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/app/layer.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 Layer::Layer(const char *p_Name) noexcept : m_Name(p_Name)
 {
@@ -30,32 +30,32 @@ void LayerSystem::OnShutdown() noexcept
 
 void LayerSystem::OnUpdate() noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnUpdate");
+    TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnUpdate");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnUpdate();
 }
 void LayerSystem::OnRender(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnRender");
+    TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnRender");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnRender(p_CommandBuffer);
 }
 
 void LayerSystem::OnUpdate(const usize p_WindowIndex) noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnUpdate");
+    TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnUpdate");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnUpdate(p_WindowIndex);
 }
 void LayerSystem::OnRender(const usize p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnRender");
+    TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnRender");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnRender(p_WindowIndex, p_CommandBuffer);
 }
 void LayerSystem::OnImGuiRender() noexcept
 {
-    KIT_PROFILE_NSCOPE("ONYX::LayerSystem::OnImGuiRender");
+    TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnImGuiRender");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnImGuiRender();
 }
@@ -74,4 +74,4 @@ void LayerSystem::OnEvent(const usize p_WindowIndex, const Event &p_Event) noexc
             return;
 }
 
-} // namespace ONYX
+} // namespace Onyx

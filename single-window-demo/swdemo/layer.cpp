@@ -3,7 +3,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-namespace ONYX
+namespace Onyx
 {
 SWExampleLayer::SWExampleLayer(Application *p_Application) noexcept : Layer("Example"), m_Application(p_Application)
 {
@@ -30,4 +30,4 @@ void SWExampleLayer::OnRender(const VkCommandBuffer) noexcept
     ImGui::End();
 }
 
-} // namespace ONYX
+} // namespace Onyx

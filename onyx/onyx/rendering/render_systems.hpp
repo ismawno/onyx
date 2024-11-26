@@ -8,7 +8,7 @@
 #    define ONYX_BUFFER_INITIAL_CAPACITY 4
 #endif
 
-namespace ONYX
+namespace Onyx
 {
 /**
  * @brief Responsible for handling all user draw calls that involve meshes built from a Model instance.
@@ -19,10 +19,10 @@ namespace ONYX
  */
 template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
 {
-    KIT_NON_COPYABLE(MeshRenderer)
+    TKIT_NON_COPYABLE(MeshRenderer)
 
-    using InstanceData = ONYX::InstanceData<D, GetDrawMode<PMode>()>;
-    using RenderInfo = ONYX::RenderInfo<D, GetDrawMode<PMode>()>;
+    using InstanceData = Onyx::InstanceData<D, GetDrawMode<PMode>()>;
+    using RenderInfo = Onyx::RenderInfo<D, GetDrawMode<PMode>()>;
 
   public:
     MeshRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -37,7 +37,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_Model The model to draw.
      */
-    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, const KIT::Ref<const Model<D>> &p_Model) noexcept;
+    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, const TKit::Ref<const Model<D>> &p_Model) noexcept;
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.
@@ -58,11 +58,11 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
     void Flush() noexcept;
 
   private:
-    KIT::Storage<GraphicsPipeline> m_Pipeline;
+    TKit::Storage<GraphicsPipeline> m_Pipeline;
 
     // Could actually use a pointer to the model instead of a reference and take extra care the model still lives
     // while drawing
-    using HostInstanceData = HashMap<KIT::Ref<const Model<D>>, DynamicArray<InstanceData>>;
+    using HostInstanceData = HashMap<TKit::Ref<const Model<D>>, DynamicArray<InstanceData>>;
 
     HostInstanceData m_HostInstanceData;
     DeviceInstanceData<InstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
@@ -80,10 +80,10 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
  */
 template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
 {
-    KIT_NON_COPYABLE(PrimitiveRenderer)
+    TKIT_NON_COPYABLE(PrimitiveRenderer)
 
-    using InstanceData = ONYX::InstanceData<D, GetDrawMode<PMode>()>;
-    using RenderInfo = ONYX::RenderInfo<D, GetDrawMode<PMode>()>;
+    using InstanceData = Onyx::InstanceData<D, GetDrawMode<PMode>()>;
+    using RenderInfo = Onyx::RenderInfo<D, GetDrawMode<PMode>()>;
 
   public:
     PrimitiveRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -119,7 +119,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
     void Flush() noexcept;
 
   private:
-    KIT::Storage<GraphicsPipeline> m_Pipeline;
+    TKit::Storage<GraphicsPipeline> m_Pipeline;
 
     using HostInstanceData = std::array<DynamicArray<InstanceData>, Primitives<D>::AMOUNT>;
 
@@ -141,13 +141,13 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
  */
 template <Dimension D, PipelineMode PMode> class ONYX_API PolygonRenderer
 {
-    KIT_NON_COPYABLE(PolygonRenderer)
+    TKIT_NON_COPYABLE(PolygonRenderer)
 
-    using InstanceData = ONYX::InstanceData<D, GetDrawMode<PMode>()>;
-    using RenderInfo = ONYX::RenderInfo<D, GetDrawMode<PMode>()>;
+    using InstanceData = Onyx::InstanceData<D, GetDrawMode<PMode>()>;
+    using RenderInfo = Onyx::RenderInfo<D, GetDrawMode<PMode>()>;
 
-    using PolygonInstanceData = ONYX::PolygonInstanceData<D, GetDrawMode<PMode>()>;
-    using PolygonDeviceInstanceData = ONYX::PolygonDeviceInstanceData<D, GetDrawMode<PMode>()>;
+    using PolygonInstanceData = Onyx::PolygonInstanceData<D, GetDrawMode<PMode>()>;
+    using PolygonDeviceInstanceData = Onyx::PolygonDeviceInstanceData<D, GetDrawMode<PMode>()>;
 
   public:
     PolygonRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -183,7 +183,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PolygonRenderer
     void Flush() noexcept;
 
   private:
-    KIT::Storage<GraphicsPipeline> m_Pipeline;
+    TKit::Storage<GraphicsPipeline> m_Pipeline;
 
     // Batch data maps perfectly to the number of polygons to be drawn i.e number of entries in storage buffer.
     // StorageSizes is not needed
@@ -205,12 +205,12 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PolygonRenderer
  */
 template <Dimension D, PipelineMode PMode> class ONYX_API CircleRenderer
 {
-    KIT_NON_COPYABLE(CircleRenderer)
+    TKIT_NON_COPYABLE(CircleRenderer)
 
-    using InstanceData = ONYX::InstanceData<D, GetDrawMode<PMode>()>;
-    using RenderInfo = ONYX::RenderInfo<D, GetDrawMode<PMode>()>;
+    using InstanceData = Onyx::InstanceData<D, GetDrawMode<PMode>()>;
+    using RenderInfo = Onyx::RenderInfo<D, GetDrawMode<PMode>()>;
 
-    using CircleInstanceData = ONYX::CircleInstanceData<D, GetDrawMode<PMode>()>;
+    using CircleInstanceData = Onyx::CircleInstanceData<D, GetDrawMode<PMode>()>;
 
   public:
     CircleRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -256,7 +256,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API CircleRenderer
     void Flush() noexcept;
 
   private:
-    KIT::Storage<GraphicsPipeline> m_Pipeline;
+    TKit::Storage<GraphicsPipeline> m_Pipeline;
 
     // Batch data maps perfectly to the number of circles to be drawn i.e number of entries in storage buffer.
     // StorageSizes is not needed
@@ -264,4 +264,4 @@ template <Dimension D, PipelineMode PMode> class ONYX_API CircleRenderer
     DeviceInstanceData<CircleInstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
 
-} // namespace ONYX
+} // namespace Onyx

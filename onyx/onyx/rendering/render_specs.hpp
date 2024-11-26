@@ -10,7 +10,7 @@
 #include "onyx/draw/transform.hpp"
 #include <vulkan/vulkan.hpp>
 
-namespace ONYX
+namespace Onyx
 {
 
 // VERY CLUNKY: 3 out of 4 possible instantiations of MaterialData and RenderInfo are identical
@@ -27,12 +27,12 @@ template <Dimension D> struct MaterialData;
 
 template <> struct ONYX_API MaterialData<D2>
 {
-    Color Color = ONYX::Color::WHITE;
+    Color Color = Onyx::Color::WHITE;
 };
 
 template <> struct ONYX_API MaterialData<D3>
 {
-    Color Color = ONYX::Color::WHITE;
+    Color Color = Onyx::Color::WHITE;
     f32 DiffuseContribution = 0.8f;
     f32 SpecularContribution = 0.2f;
     f32 SpecularSharpness = 32.f;
@@ -184,7 +184,7 @@ template <> struct ONYX_API InstanceData<D3, DrawMode::Stencil>
  */
 template <typename T> struct ONYX_API DeviceInstanceData
 {
-    KIT_NON_COPYABLE(DeviceInstanceData)
+    TKIT_NON_COPYABLE(DeviceInstanceData)
     DeviceInstanceData(usize p_Capacity) noexcept
     {
         for (usize i = 0; i < SwapChain::MFIF; ++i)
@@ -199,7 +199,7 @@ template <typename T> struct ONYX_API DeviceInstanceData
             StorageBuffers[i].Destroy();
     }
 
-    std::array<KIT::Storage<StorageBuffer<T>>, SwapChain::MFIF> StorageBuffers;
+    std::array<TKit::Storage<StorageBuffer<T>>, SwapChain::MFIF> StorageBuffers;
     std::array<VkDescriptorSet, SwapChain::MFIF> DescriptorSets;
     std::array<usize, SwapChain::MFIF> StorageSizes;
 };
@@ -233,8 +233,8 @@ struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, D
         }
     }
 
-    std::array<KIT::Storage<MutableVertexBuffer<D>>, SwapChain::MFIF> VertexBuffers;
-    std::array<KIT::Storage<MutableIndexBuffer>, SwapChain::MFIF> IndexBuffers;
+    std::array<TKit::Storage<MutableVertexBuffer<D>>, SwapChain::MFIF> VertexBuffers;
+    std::array<TKit::Storage<MutableIndexBuffer>, SwapChain::MFIF> IndexBuffers;
 };
 
 /**
@@ -252,8 +252,8 @@ template <Dimension D, DrawMode DMode> struct ONYX_API PolygonInstanceData
     PrimitiveDataLayout Layout;
 };
 
-KIT_WARNING_IGNORE_PUSH
-KIT_MSVC_WARNING_IGNORE(4324)
+TKIT_WARNING_IGNORE_PUSH
+TKIT_MSVC_WARNING_IGNORE(4324)
 
 /**
  * @brief Specific InstanceData for circles.
@@ -271,7 +271,7 @@ template <Dimension D, DrawMode DMode> struct ONYX_API CircleInstanceData
     u32 AngleOverflow;
     f32 Hollowness;
 };
-KIT_WARNING_IGNORE_POP
+TKIT_WARNING_IGNORE_POP
 
 /**
  * @brief Some push constant data that is used in the 3D case, containing the ambient color and the number of lights.
@@ -379,4 +379,4 @@ template <> struct ONYX_API ProjectionViewData<D3>
     mat4 ProjectionView{1.f};
 };
 
-} // namespace ONYX
+} // namespace Onyx

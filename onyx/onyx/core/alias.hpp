@@ -2,9 +2,9 @@
 
 #include "kit/core/alias.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 // Basically inherit all aliases from Toolkit
-using namespace KIT::Alias;
+using namespace TKit::Alias;
 
-} // namespace ONYX
+} // namespace Onyx

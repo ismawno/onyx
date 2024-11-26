@@ -16,7 +16,7 @@
 
 // Because of batch rendering, draw order is not guaranteed
 
-namespace ONYX
+namespace Onyx
 {
 class Window;
 /**
@@ -37,7 +37,7 @@ class Window;
  */
 template <Dimension D> class ONYX_API IRenderContext
 {
-    KIT_NON_COPYABLE(IRenderContext)
+    TKIT_NON_COPYABLE(IRenderContext)
   public:
     IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
 
@@ -526,7 +526,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * @param p_Model A reference to the mesh model to draw.
      */
-    void Mesh(const KIT::Ref<const Model<D>> &p_Model) noexcept;
+    void Mesh(const TKit::Ref<const Model<D>> &p_Model) noexcept;
 
     /**
      * @brief Draw a mesh model with the specified transformation.
@@ -535,7 +535,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Transform The transformation matrix to apply to the model. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Mesh(const KIT::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept;
+    void Mesh(const TKit::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept;
 
     /**
      * @brief Pushes the current transformation state onto the stack.
@@ -667,7 +667,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @brief Set the global context's view.
      *
      */
-    void SetView(const ONYX::Transform<D> &p_View) noexcept;
+    void SetView(const Onyx::Transform<D> &p_View) noexcept;
 
     /**
      * @brief Render the recorded draw data using the provided command buffer.
@@ -1251,7 +1251,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      *
      * @param p_Light The directional light object.
      */
-    void DirectionalLight(ONYX::DirectionalLight p_Light) noexcept;
+    void DirectionalLight(Onyx::DirectionalLight p_Light) noexcept;
 
     /**
      * @brief Adds a directional light to the scene with the specified direction and intensity.
@@ -1276,7 +1276,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      *
      * @param p_Light The point light object.
      */
-    void PointLight(ONYX::PointLight p_Light) noexcept;
+    void PointLight(Onyx::PointLight p_Light) noexcept;
 
     /**
      * @brief Adds a point light to the scene at the current position.
@@ -1357,4 +1357,4 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      */
     vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
 };
-} // namespace ONYX
+} // namespace Onyx

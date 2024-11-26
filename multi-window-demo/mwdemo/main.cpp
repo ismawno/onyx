@@ -2,6 +2,6 @@
 
 int main()
 {
-    ONYX::MWDemoApplication app;
+    Onyx::MWDemoApplication app;
     app.RunConcurrent();
 }

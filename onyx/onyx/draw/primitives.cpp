@@ -2,7 +2,7 @@
 #include "onyx/draw/primitives.hpp"
 #include "kit/container/storage.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 template <Dimension D> using BufferLayout = std::array<PrimitiveDataLayout, Primitives<D>::AMOUNT>;
 template <Dimension D> struct IndexVertexBuffers
@@ -18,10 +18,10 @@ template <Dimension D> struct IndexVertexBuffers
     BufferLayout<D> Layout;
 };
 
-static KIT::Storage<IndexVertexBuffers<D2>> s_Buffers2D;
-static KIT::Storage<IndexVertexBuffers<D3>> s_Buffers3D;
+static TKit::Storage<IndexVertexBuffers<D2>> s_Buffers2D;
+static TKit::Storage<IndexVertexBuffers<D3>> s_Buffers3D;
 
-template <Dimension D> static KIT::Storage<IndexVertexBuffers<D>> &getBuffers() noexcept
+template <Dimension D> static TKit::Storage<IndexVertexBuffers<D>> &getBuffers() noexcept
 {
     if constexpr (D == D2)
         return s_Buffers2D;
@@ -127,4 +127,4 @@ void DestroyCombinedPrimitiveBuffers() noexcept
 template struct IPrimitives<D2>;
 template struct IPrimitives<D3>;
 
-} // namespace ONYX
+} // namespace Onyx

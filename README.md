@@ -23,21 +23,21 @@ This is the simplest use case of the *onyx* framework, allowing you to get a win
 Creating and using an *onyx* window looks like this:
 
 ```cpp
-ONYX::Window::Specs specs;
+Onyx::Window::Specs specs;
 specs.Name = "Standalone Hello, World!";
 specs.Width = 800;
 specs.Height = 600;
 
-ONYX::Window window(specs);
+Onyx::Window window(specs);
 
 while (!window.ShouldClose())
 {
-    ONYX::Input::PollEvents();
+    Onyx::Input::PollEvents();
 
-    ONYX::RenderContext<D2> *context = window.GetRenderContext<D2>();
-    context->Flush(ONYX::Color::BLACK);
+    Onyx::RenderContext<D2> *context = window.GetRenderContext<D2>();
+    context->Flush(Onyx::Color::BLACK);
 
-    context->Fill(ONYX::Color::RED);
+    context->Fill(Onyx::Color::RED);
     context->Square();
 
     window.Render();
@@ -52,12 +52,12 @@ This feature allows the user to control the flow of their application. One of th
 
 
 ```cpp
-ONYX::Window::Specs specs;
+Onyx::Window::Specs specs;
 specs.Name = "App1 Hello, World!";
 specs.Width = 800;
 specs.Height = 600;
 
-ONYX::Application app(specs);
+Onyx::Application app(specs);
 
 app.Run();
 ```
@@ -65,21 +65,21 @@ app.Run();
 Note that this setup won’t do anything beyond opening a pitch-black window, which may not be very useful. You can break down the `Application::Run()` method to insert your own logic into the frame loop:
 
 ```cpp
-ONYX::Window::Specs specs;
+Onyx::Window::Specs specs;
 specs.Name = "App2 Hello, World!";
 specs.Width = 800;
 specs.Height = 600;
 
-ONYX::Application app(specs);
+Onyx::Application app(specs);
 
-KIT::Clock clock;
+TKit::Clock clock;
 app.Startup();
 while (app.NextFrame(clock))
 {
-    ONYX::RenderContext<D2> *context = app.GetMainWindow()->GetRenderContext<D2>();
-    context->Flush(ONYX::Color::BLACK);
+    Onyx::RenderContext<D2> *context = app.GetMainWindow()->GetRenderContext<D2>();
+    context->Flush(Onyx::Color::BLACK);
 
-    context->Fill(ONYX::Color::RED);
+    context->Fill(Onyx::Color::RED);
     context->Square();
 }
 app.Shutdown();
@@ -89,12 +89,12 @@ This setup is more flexible than the previous one but still similar to the examp
 
 
 ```cpp
-ONYX::Window::Specs specs;
+Onyx::Window::Specs specs;
 specs.Name = "App3 Hello, World!";
 specs.Width = 800;
 specs.Height = 600;
 
-class MyLayer : public ONYX::Layer
+class MyLayer : public Onyx::Layer
 {
     public:
     MyLayer() noexcept : Layer("MyLayer")
@@ -109,7 +109,7 @@ class MyLayer : public ONYX::Layer
     }
 };
 
-ONYX::Application app(specs);
+Onyx::Application app(specs);
 app.Layers.Push<MyLayer>();
 
 app.Run();

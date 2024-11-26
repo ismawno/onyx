@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_specs.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 void ApplyCoordinateSystemExtrinsic(mat4 &p_Transform) noexcept
 {
@@ -156,4 +156,4 @@ template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoS
 template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilTestNoFill>(
     VkRenderPass) noexcept;
 
-} // namespace ONYX
+} // namespace Onyx

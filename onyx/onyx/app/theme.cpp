@@ -4,7 +4,7 @@
 
 #include <imgui.h>
 
-namespace ONYX
+namespace Onyx
 {
 static void applyOpenSansFont() noexcept
 {
@@ -308,4 +308,4 @@ void DefaultTheme::Apply() const noexcept
     ImGui::StyleColorsDark();
 }
 
-} // namespace ONYX
+} // namespace Onyx

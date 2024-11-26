@@ -3,11 +3,11 @@
 #include "onyx/buffer/buffer.hpp"
 #include "kit/container/storage.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 template <typename T> class DeviceBuffer
 {
-    KIT_NON_COPYABLE(DeviceBuffer)
+    TKIT_NON_COPYABLE(DeviceBuffer)
   public:
     DeviceBuffer(const std::span<const T> p_Data, const VkBufferUsageFlags p_Usage) noexcept
     {
@@ -47,6 +47,6 @@ template <typename T> class DeviceBuffer
     }
 
   private:
-    KIT::Storage<Buffer> m_Buffer;
+    TKit::Storage<Buffer> m_Buffer;
 };
-} // namespace ONYX
+} // namespace Onyx

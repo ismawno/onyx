@@ -3,7 +3,7 @@
 #include "onyx/descriptors/descriptor_writer.hpp"
 #include "kit/utilities/math.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
                                                        const VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
@@ -38,7 +38,7 @@ template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer
 
 template <Dimension D, PipelineMode PMode>
 void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
-                                  const KIT::Ref<const Model<D>> &p_Model) noexcept
+                                  const TKit::Ref<const Model<D>> &p_Model) noexcept
 {
     m_HostInstanceData[p_Model].push_back(p_InstanceData);
     const usize size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
@@ -90,7 +90,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 {
     if (m_HostInstanceData.empty())
         return;
-    KIT_PROFILE_NSCOPE("MeshRenderer::Render");
+    TKIT_PROFILE_NSCOPE("MeshRenderer::Render");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
     usize index = 0;
@@ -169,7 +169,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
 {
     if (m_DeviceInstanceData.StorageSizes[p_Info.FrameIndex] == 0)
         return;
-    KIT_PROFILE_NSCOPE("PrimitiveRenderer::Render");
+    TKIT_PROFILE_NSCOPE("PrimitiveRenderer::Render");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
 
@@ -237,7 +237,7 @@ template <Dimension D, PipelineMode PMode>
 void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
                                      const std::span<const vec<D>> p_Vertices) noexcept
 {
-    KIT_ASSERT(p_Vertices.size() >= 3, "A polygon must have at least 3 sides");
+    TKIT_ASSERT(p_Vertices.size() >= 3, "A polygon must have at least 3 sides");
     const usize storageSize = m_HostInstanceData.size();
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     if (storageSize == storageBuffer->GetInstanceCount())
@@ -305,7 +305,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
 {
     if (m_HostInstanceData.empty())
         return;
-    KIT_PROFILE_NSCOPE("PolygonRenderer::Render");
+    TKIT_PROFILE_NSCOPE("PolygonRenderer::Render");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
     auto &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_Info.FrameIndex];
@@ -363,7 +363,7 @@ template <Dimension D, PipelineMode PMode>
 void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData, const f32 p_LowerAngle,
                                     const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
 {
-    if (KIT::Approximately(p_LowerAngle, p_UpperAngle) || KIT::Approximately(p_Hollowness, 1.f))
+    if (TKit::Approximately(p_LowerAngle, p_UpperAngle) || TKit::Approximately(p_Hollowness, 1.f))
         return;
     const usize size = m_HostInstanceData.size();
     auto &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
@@ -393,7 +393,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 {
     if (m_HostInstanceData.empty())
         return;
-    KIT_PROFILE_NSCOPE("CircleRenderer::Render");
+    TKIT_PROFILE_NSCOPE("CircleRenderer::Render");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
 
@@ -461,4 +461,4 @@ template class CircleRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
 template class CircleRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
 template class CircleRenderer<D3, PipelineMode::DoStencilTestNoFill>;
 
-} // namespace ONYX
+} // namespace Onyx

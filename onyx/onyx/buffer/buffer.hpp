@@ -9,11 +9,11 @@
 
 #include <vulkan/vulkan.hpp>
 
-namespace ONYX
+namespace Onyx
 {
 class ONYX_API Buffer
 {
-    KIT_NON_COPYABLE(Buffer)
+    TKIT_NON_COPYABLE(Buffer)
   public:
     struct Specs
     {
@@ -58,7 +58,7 @@ class ONYX_API Buffer
   private:
     void createBuffer(VkBufferUsageFlags p_Usage, const VmaAllocationCreateInfo &p_AllocationInfo) noexcept;
 
-    KIT::Ref<Device> m_Device;
+    TKit::Ref<Device> m_Device;
     void *m_Data = nullptr;
 
     VkBuffer m_Buffer = VK_NULL_HANDLE;
@@ -68,4 +68,4 @@ class ONYX_API Buffer
     VkDeviceSize m_AlignedInstanceSize;
     VkDeviceSize m_Size;
 };
-} // namespace ONYX
+} // namespace Onyx

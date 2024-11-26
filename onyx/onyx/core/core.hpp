@@ -13,18 +13,18 @@
 #    define ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS 1000
 #endif
 
-namespace KIT
+namespace TKit
 {
 class StackAllocator;
 class ITaskManager;
-} // namespace KIT
+} // namespace TKit
 
 // This file handles the lifetime of global data the ONYX library needs, such as the Vulkan instance and device. To
 // properly cleanup resources, ensure proper destruction ordering and avoid the extremely annoting static memory
 // deallocation randomness, I use reference counting. In the terminate method, I just set the global references to
 // nullptr to ensure the reference count goes to 0 just before the program ends, avoiding static mess
 
-namespace ONYX
+namespace Onyx
 {
 class Window;
 class DescriptorPool;
@@ -32,14 +32,14 @@ class DescriptorSetLayout;
 
 struct ONYX_API Core
 {
-    static void Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept;
+    static void Initialize(TKit::StackAllocator *p_Allocator, TKit::ITaskManager *p_Manager) noexcept;
     static void Terminate() noexcept;
 
-    static KIT::StackAllocator *GetStackAllocator() noexcept;
-    static KIT::ITaskManager *GetTaskManager() noexcept;
+    static TKit::StackAllocator *GetStackAllocator() noexcept;
+    static TKit::ITaskManager *GetTaskManager() noexcept;
 
-    static const KIT::Ref<Instance> &GetInstance() noexcept;
-    static const KIT::Ref<Device> &GetDevice() noexcept;
+    static const TKit::Ref<Instance> &GetInstance() noexcept;
+    static const TKit::Ref<Device> &GetDevice() noexcept;
 
     static VmaAllocator GetVulkanAllocator() noexcept;
 
@@ -51,9 +51,9 @@ struct ONYX_API Core
 
   private:
     // Should ony be called by window constructor (I should look for a way to better hide this)
-    static const KIT::Ref<Device> &tryCreateDevice(VkSurfaceKHR p_Surface) noexcept;
+    static const TKit::Ref<Device> &tryCreateDevice(VkSurfaceKHR p_Surface) noexcept;
 
     friend class Window;
 };
 
-} // namespace ONYX
+} // namespace Onyx

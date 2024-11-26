@@ -6,12 +6,12 @@
 #include "utils/shapes.hpp"
 #include "kit/profiling/timespan.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 template <Dimension D> struct ILayerData
 {
     RenderContext<D> *Context;
-    DynamicArray<KIT::Scope<Shape<D>>> Shapes;
+    DynamicArray<TKit::Scope<Shape<D>>> Shapes;
     Transform<D> AxesTransform{};
     MaterialData<D> AxesMaterial{};
 
@@ -50,14 +50,14 @@ class WindowData
 {
   public:
     void OnStart(Window *p_Window) noexcept;
-    void OnRender(KIT::Timespan p_Timestep) noexcept;
+    void OnRender(TKit::Timespan p_Timestep) noexcept;
     void OnImGuiRender() noexcept;
     void OnEvent(const Event &p_Event) noexcept;
 
-    static void OnImGuiRenderGlobal(KIT::Timespan p_Timestep) noexcept;
+    static void OnImGuiRenderGlobal(TKit::Timespan p_Timestep) noexcept;
 
   private:
-    template <Dimension D> void drawShapes(const LayerData<D> &p_Data, KIT::Timespan p_Timestep) noexcept;
+    template <Dimension D> void drawShapes(const LayerData<D> &p_Data, TKit::Timespan p_Timestep) noexcept;
     template <Dimension D> void renderUI(LayerData<D> &p_Data) noexcept;
     void renderLightSpawn() noexcept;
 
@@ -66,7 +66,7 @@ class WindowData
     LayerData<D3> m_LayerData3{};
     Color m_BackgroundColor = Color::BLACK;
 
-    KIT::Scope<std::mutex> m_Mutex = KIT::Scope<std::mutex>::Create();
+    TKit::Scope<std::mutex> m_Mutex = TKit::Scope<std::mutex>::Create();
 };
 
-} // namespace ONYX
+} // namespace Onyx

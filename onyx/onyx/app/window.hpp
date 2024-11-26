@@ -12,7 +12,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-namespace ONYX
+namespace Onyx
 {
 /**
  * @brief Represents a window in the ONYX application.
@@ -22,7 +22,7 @@ namespace ONYX
  */
 class ONYX_API Window
 {
-    KIT_NON_COPYABLE(Window)
+    TKIT_NON_COPYABLE(Window)
   public:
     /**
      * @brief Flags representing window properties.
@@ -81,16 +81,16 @@ class ONYX_API Window
      */
     template <typename F1, typename F2> bool Render(F1 &&p_DrawCalls, F2 &&p_UICalls) noexcept
     {
-        KIT_PROFILE_NSCOPE("ONYX::Window::Render");
+        TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
         if (const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this))
         {
             {
-                KIT_PROFILE_VULKAN_SCOPE("ONYX::Window::Render", m_Device->GetProfilingContext(), cmd);
+                TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Render", m_Device->GetProfilingContext(), cmd);
                 m_FrameScheduler->BeginRenderPass(BackgroundColor);
                 {
-                    KIT_PROFILE_VULKAN_NAMED_SCOPE(vkDrawCalls, "ONYX::DrawCalls", m_Device->GetProfilingContext(), cmd,
-                                                   true);
-                    KIT_PROFILE_NAMED_NSCOPE(drawCalls, "ONYX::DrawCalls", true);
+                    TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkDrawCalls, "Onyx::DrawCalls", m_Device->GetProfilingContext(),
+                                                    cmd, true);
+                    TKIT_PROFILE_NAMED_NSCOPE(drawCalls, "Onyx::DrawCalls", true);
                     std::forward<F1>(p_DrawCalls)(cmd);
                 }
 
@@ -99,21 +99,21 @@ class ONYX_API Window
                 m_RenderContext3D->Render(cmd);
 
                 {
-                    KIT_PROFILE_VULKAN_NAMED_SCOPE(vkUiCalls, "ONYX::ImGui", m_Device->GetProfilingContext(), cmd,
-                                                   true);
-                    KIT_PROFILE_NAMED_NSCOPE(uiCalls, "ONYX::ImGui", true);
+                    TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkUiCalls, "Onyx::ImGui", m_Device->GetProfilingContext(), cmd,
+                                                    true);
+                    TKIT_PROFILE_NAMED_NSCOPE(uiCalls, "Onyx::ImGui", true);
                     std::forward<F2>(p_UICalls)(cmd);
                 }
                 m_FrameScheduler->EndRenderPass();
             }
 
             {
-#ifdef KIT_ENABLE_VULKAN_PROFILING
-                static KIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
+#ifdef TKIT_ENABLE_VULKAN_PROFILING
+                static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
                 std::scoped_lock lock(mutex);
-                KIT_PROFILE_MARK_LOCK(mutex);
+                TKIT_PROFILE_MARK_LOCK(mutex);
 #endif
-                KIT_PROFILE_VULKAN_COLLECT(m_Device->GetProfilingContext(), cmd);
+                TKIT_PROFILE_VULKAN_COLLECT(m_Device->GetProfilingContext(), cmd);
             }
             m_FrameScheduler->EndFrame(*this);
             return true;
@@ -297,12 +297,12 @@ class ONYX_API Window
 
     GLFWwindow *m_Window;
 
-    KIT::Ref<Instance> m_Instance;
-    KIT::Ref<Device> m_Device;
+    TKit::Ref<Instance> m_Instance;
+    TKit::Ref<Device> m_Device;
 
-    KIT::Storage<FrameScheduler> m_FrameScheduler;
-    KIT::Storage<RenderContext<D2>> m_RenderContext2D;
-    KIT::Storage<RenderContext<D3>> m_RenderContext3D;
+    TKit::Storage<FrameScheduler> m_FrameScheduler;
+    TKit::Storage<RenderContext<D2>> m_RenderContext2D;
+    TKit::Storage<RenderContext<D3>> m_RenderContext3D;
 
     DynamicArray<Event> m_Events;
     VkSurfaceKHR m_Surface;
@@ -313,4 +313,4 @@ class ONYX_API Window
 
     bool m_Resized = false;
 };
-} // namespace ONYX
+} // namespace Onyx

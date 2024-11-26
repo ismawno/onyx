@@ -7,12 +7,12 @@
 #include <filesystem>
 #include <cstdlib>
 
-namespace ONYX
+namespace Onyx
 {
 Shader::Shader(const std::string_view p_BinaryPath) noexcept
 {
     m_Device = Core::GetDevice();
-    KIT_ASSERT(
+    TKIT_ASSERT(
         m_Device,
         "A shader requires an already initialized device, which in turns needs a first window to be already created.");
 
@@ -22,7 +22,7 @@ Shader::Shader(const std::string_view p_BinaryPath) noexcept
 Shader::Shader(const std::string_view p_SourcePath, const std::string_view p_BinaryPath) noexcept
 {
     m_Device = Core::GetDevice();
-    KIT_ASSERT(
+    TKIT_ASSERT(
         m_Device,
         "A shader requires an already initialized device, which in turns needs a first window to be already created.");
 
@@ -51,36 +51,36 @@ void Shader::compileShader(const std::string_view p_SourcePath, const std::strin
     const std::string compileCommand = ONYX_GLSL_BINARY " " + std::string(p_SourcePath) + " -o " + binaryPath.string();
 
     const int result = std::system(compileCommand.c_str());
-    KIT_ASSERT(result == 0, "Failed to compile shader at path: {}", p_SourcePath);
+    TKIT_ASSERT(result == 0, "Failed to compile shader at path: {}", p_SourcePath);
     if (result != 0)
         std::terminate();
 
-    KIT_LOG_INFO("Compiled shader at: {}", p_SourcePath);
+    TKIT_LOG_INFO("Compiled shader at: {}", p_SourcePath);
 }
 
 void Shader::createShaderModule(const std::string_view p_Path) noexcept
 {
     std::ifstream file{p_Path, std::ios::ate | std::ios::binary};
-    KIT_ASSERT(file.is_open(), "File at path {} not found", p_Path);
+    TKIT_ASSERT(file.is_open(), "File at path {} not found", p_Path);
     const auto fileSize = file.tellg();
 
-    KIT::StackAllocator *allocator = Core::GetStackAllocator();
+    TKit::StackAllocator *allocator = Core::GetStackAllocator();
 
     char *code = static_cast<char *>(allocator->Push(fileSize * sizeof(char), alignof(u32)));
     file.seekg(0);
     file.read(code, fileSize);
 
-    // KIT_LOG_INFO("Creating shader module from file: {} with size: {}", p_Path, static_cast<usize>(fileSize));
+    // TKIT_LOG_INFO("Creating shader module from file: {} with size: {}", p_Path, static_cast<usize>(fileSize));
 
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = fileSize;
     createInfo.pCode = reinterpret_cast<const u32 *>(code);
 
-    KIT_ASSERT_RETURNS(vkCreateShaderModule(m_Device->GetDevice(), &createInfo, nullptr, &m_Module), VK_SUCCESS,
-                       "Failed to create shader module");
+    TKIT_ASSERT_RETURNS(vkCreateShaderModule(m_Device->GetDevice(), &createInfo, nullptr, &m_Module), VK_SUCCESS,
+                        "Failed to create shader module");
 
     allocator->Pop();
 }
 
-} // namespace ONYX
+} // namespace Onyx

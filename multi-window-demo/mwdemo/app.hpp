@@ -2,12 +2,12 @@
 
 #include "onyx/app/mwapp.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 class MWDemoApplication
 {
   public:
-    KIT_NON_COPYABLE(MWDemoApplication)
+    TKIT_NON_COPYABLE(MWDemoApplication)
 
     MWDemoApplication() noexcept = default;
 
@@ -18,4 +18,4 @@ class MWDemoApplication
     MultiWindowApplication<Serial> m_SerialApplication;
     MultiWindowApplication<Concurrent> m_ConcurrentApplication;
 };
-} // namespace ONYX
+} // namespace Onyx

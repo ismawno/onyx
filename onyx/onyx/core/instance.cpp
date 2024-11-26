@@ -6,17 +6,17 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-namespace ONYX
+namespace Onyx
 {
 static DynamicArray<const char *> requiredExtensions() noexcept
 {
     u32 glfwExtensionCount = 0;
     const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-    KIT_ASSERT(glfwExtensions, "Failed to get required GLFW extensions");
+    TKIT_ASSERT(glfwExtensions, "Failed to get required GLFW extensions");
 
     DynamicArray<const char *> extensions{glfwExtensions, glfwExtensions + glfwExtensionCount};
 
-#ifdef KIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ASSERTS
     extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
 
@@ -26,7 +26,7 @@ static DynamicArray<const char *> requiredExtensions() noexcept
     return extensions;
 }
 
-#ifdef KIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ASSERTS
 
 static const char *s_ValidationLayer = "VK_LAYER_KHRONOS_validation";
 static VkDebugUtilsMessengerEXT s_DebugMessenger;
@@ -70,7 +70,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
                                                     VkDebugUtilsMessageTypeFlagsEXT p_MessageType,
                                                     const VkDebugUtilsMessengerCallbackDataEXT *p_CallbackData, void *)
 {
-    KIT_ERROR("<{}: {}> {}", toString(p_Severity), toString(p_MessageType), p_CallbackData->pMessage);
+    TKIT_ERROR("<{}: {}> {}", toString(p_Severity), toString(p_MessageType), p_CallbackData->pMessage);
     return VK_FALSE;
 }
 
@@ -130,29 +130,29 @@ static void hasGLFWRequiredInstanceExtensions() noexcept
     DynamicArray<VkExtensionProperties> extensions(extensionCount);
     vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
-    KIT_LOG_INFO("Available instance extensions:");
+    TKIT_LOG_INFO("Available instance extensions:");
     HashSet<std::string> available;
 
     for (const auto &extension : extensions)
     {
-        KIT_LOG_INFO("  {}", extension.extensionName);
+        TKIT_LOG_INFO("  {}", extension.extensionName);
         available.emplace(extension.extensionName);
     }
 
-    KIT_LOG_INFO("Required instance extensions:");
+    TKIT_LOG_INFO("Required instance extensions:");
     const auto reqExtensions = requiredExtensions();
     for (const auto &required : reqExtensions)
     {
-        KIT_LOG_INFO("  {}", required);
-        KIT_ASSERT(available.contains(required), "Missing required glfw extension");
+        TKIT_LOG_INFO("  {}", required);
+        TKIT_ASSERT(available.contains(required), "Missing required glfw extension");
     }
 }
 
 static void setupDebugMessenger(const VkInstance p_Instance) noexcept
 {
     VkDebugUtilsMessengerCreateInfoEXT createInfo = createDebugMessengerCreateInfo();
-    KIT_ASSERT_RETURNS(createDebugUtilsMessengerEXT(p_Instance, &createInfo, nullptr, &s_DebugMessenger), VK_SUCCESS,
-                       "Failed to set up debug messenger");
+    TKIT_ASSERT_RETURNS(createDebugUtilsMessengerEXT(p_Instance, &createInfo, nullptr, &s_DebugMessenger), VK_SUCCESS,
+                        "Failed to set up debug messenger");
 }
 
 const char *Instance::GetValidationLayer() noexcept
@@ -167,14 +167,14 @@ const char *Instance::GetValidationLayer() noexcept
 Instance::Instance() noexcept
 {
     createInstance();
-#ifdef KIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ASSERTS
     setupDebugMessenger(m_Instance);
 #endif
 }
 
 Instance::~Instance() noexcept
 {
-#ifdef KIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ASSERTS
     destroyDebugUtilsMessengerEXT(m_Instance, nullptr);
 #endif
     vkDestroyInstance(m_Instance, nullptr);
@@ -187,8 +187,8 @@ VkInstance Instance::GetInstance() const noexcept
 
 void Instance::createInstance() noexcept
 {
-    KIT_LOG_INFO("Creating a vulkan instance...");
-    KIT_ASSERT(checkValidationLayerSupport(), "Validation layers requested, but not available!");
+    TKIT_LOG_INFO("Creating a vulkan instance...");
+    TKIT_ASSERT(checkValidationLayerSupport(), "Validation layers requested, but not available!");
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "ONYX App";
@@ -206,7 +206,7 @@ void Instance::createInstance() noexcept
     createInfo.ppEnabledExtensionNames = extensions.data();
     createInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
 
-#ifdef KIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ASSERTS
     createInfo.enabledLayerCount = 1;
     createInfo.ppEnabledLayerNames = &s_ValidationLayer;
 
@@ -217,11 +217,11 @@ void Instance::createInstance() noexcept
     createInfo.pNext = nullptr;
 #endif
 
-    KIT_ASSERT_RETURNS(vkCreateInstance(&createInfo, nullptr, &m_Instance), VK_SUCCESS,
-                       "Failed to create vulkan instance");
-#ifdef KIT_ENABLE_ASSERTS
+    TKIT_ASSERT_RETURNS(vkCreateInstance(&createInfo, nullptr, &m_Instance), VK_SUCCESS,
+                        "Failed to create vulkan instance");
+#ifdef TKIT_ENABLE_ASSERTS
     hasGLFWRequiredInstanceExtensions();
 #endif
 }
 
-} // namespace ONYX
+} // namespace Onyx

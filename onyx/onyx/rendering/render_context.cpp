@@ -6,7 +6,7 @@
 
 #include "kit/utilities/math.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 template <Dimension D>
 IRenderContext<D>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
@@ -18,7 +18,7 @@ IRenderContext<D>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderP
 
 template <Dimension D> void IRenderContext<D>::FlushState() noexcept
 {
-    KIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
+    TKIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
     m_RenderState[0] = RenderState<D>{};
 }
 template <Dimension D> void IRenderContext<D>::FlushState(const Color &p_Color) noexcept
@@ -50,20 +50,20 @@ template <Dimension D> void IRenderContext<D>::Transform(const mat<D> &p_Transfo
 template <Dimension D>
 void IRenderContext<D>::Transform(const vec<D> &p_Translation, const vec<D> &p_Scale, const rot<D> &p_Rotation) noexcept
 {
-    this->Transform(ONYX::Transform<D>::ComputeTransform(p_Translation, p_Scale, p_Rotation));
+    this->Transform(Onyx::Transform<D>::ComputeTransform(p_Translation, p_Scale, p_Rotation));
 }
 template <Dimension D>
 void IRenderContext<D>::Transform(const vec<D> &p_Translation, const f32 p_Scale, const rot<D> &p_Rotation) noexcept
 {
-    this->Transform(ONYX::Transform<D>::ComputeTransform(p_Translation, vec<D>{p_Scale}, p_Rotation));
+    this->Transform(Onyx::Transform<D>::ComputeTransform(p_Translation, vec<D>{p_Scale}, p_Rotation));
 }
 void RenderContext<D3>::Transform(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept
 {
-    this->Transform(ONYX::Transform<D3>::ComputeTransform(p_Translation, p_Scale, p_Rotation));
+    this->Transform(Onyx::Transform<D3>::ComputeTransform(p_Translation, p_Scale, p_Rotation));
 }
 void RenderContext<D3>::Transform(const vec3 &p_Translation, const f32 p_Scale, const vec3 &p_Rotation) noexcept
 {
-    this->Transform(ONYX::Transform<D3>::ComputeTransform(p_Translation, vec3{p_Scale}, p_Rotation));
+    this->Transform(Onyx::Transform<D3>::ComputeTransform(p_Translation, vec3{p_Scale}, p_Rotation));
 }
 
 template <Dimension D> void IRenderContext<D>::TransformAxes(const mat<D> &p_Axes) noexcept
@@ -74,7 +74,7 @@ template <Dimension D>
 void IRenderContext<D>::TransformAxes(const vec<D> &p_Translation, const vec<D> &p_Scale,
                                       const rot<D> &p_Rotation) noexcept
 {
-    m_RenderState.back().Axes *= ONYX::Transform<D>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation);
+    m_RenderState.back().Axes *= Onyx::Transform<D>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation);
 }
 template <Dimension D>
 void IRenderContext<D>::TransformAxes(const vec<D> &p_Translation, const f32 p_Scale, const rot<D> &p_Rotation) noexcept
@@ -83,16 +83,16 @@ void IRenderContext<D>::TransformAxes(const vec<D> &p_Translation, const f32 p_S
 }
 void RenderContext<D3>::TransformAxes(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept
 {
-    TransformAxes(ONYX::Transform<D3>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation));
+    TransformAxes(Onyx::Transform<D3>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation));
 }
 void RenderContext<D3>::TransformAxes(const vec3 &p_Translation, const f32 p_Scale, const vec3 &p_Rotation) noexcept
 {
-    TransformAxes(ONYX::Transform<D3>::ComputeReversedTransform(p_Translation, vec3{p_Scale}, p_Rotation));
+    TransformAxes(Onyx::Transform<D3>::ComputeReversedTransform(p_Translation, vec3{p_Scale}, p_Rotation));
 }
 
 template <Dimension D> void IRenderContext<D>::Translate(const vec<D> &p_Translation) noexcept
 {
-    ONYX::Transform<D>::TranslateExtrinsic(m_RenderState.back().Transform, p_Translation);
+    Onyx::Transform<D>::TranslateExtrinsic(m_RenderState.back().Transform, p_Translation);
 }
 void RenderContext<D2>::Translate(const f32 p_X, const f32 p_Y) noexcept
 {
@@ -105,7 +105,7 @@ void RenderContext<D3>::Translate(const f32 p_X, const f32 p_Y, const f32 p_Z) n
 
 template <Dimension D> void IRenderContext<D>::Scale(const vec<D> &p_Scale) noexcept
 {
-    ONYX::Transform<D>::ScaleExtrinsic(m_RenderState.back().Transform, p_Scale);
+    Onyx::Transform<D>::ScaleExtrinsic(m_RenderState.back().Transform, p_Scale);
 }
 template <Dimension D> void IRenderContext<D>::Scale(const f32 p_Scale) noexcept
 {
@@ -122,54 +122,54 @@ void RenderContext<D3>::Scale(const f32 p_X, const f32 p_Y, const f32 p_Z) noexc
 
 template <Dimension D> void IRenderContext<D>::TranslateX(const f32 p_X) noexcept
 {
-    ONYX::Transform<D>::TranslateExtrinsic(m_RenderState.back().Transform, 0, p_X);
+    Onyx::Transform<D>::TranslateExtrinsic(m_RenderState.back().Transform, 0, p_X);
 }
 template <Dimension D> void IRenderContext<D>::TranslateY(const f32 p_Y) noexcept
 {
-    ONYX::Transform<D>::TranslateExtrinsic(m_RenderState.back().Transform, 1, p_Y);
+    Onyx::Transform<D>::TranslateExtrinsic(m_RenderState.back().Transform, 1, p_Y);
 }
 void RenderContext<D3>::TranslateZ(const f32 p_Z) noexcept
 {
-    ONYX::Transform<D3>::TranslateExtrinsic(m_RenderState.back().Transform, 2, p_Z);
+    Onyx::Transform<D3>::TranslateExtrinsic(m_RenderState.back().Transform, 2, p_Z);
 }
 
 template <Dimension D> void IRenderContext<D>::ScaleX(const f32 p_X) noexcept
 {
-    ONYX::Transform<D>::ScaleExtrinsic(m_RenderState.back().Transform, 0, p_X);
+    Onyx::Transform<D>::ScaleExtrinsic(m_RenderState.back().Transform, 0, p_X);
 }
 template <Dimension D> void IRenderContext<D>::ScaleY(const f32 p_Y) noexcept
 {
-    ONYX::Transform<D>::ScaleExtrinsic(m_RenderState.back().Transform, 1, p_Y);
+    Onyx::Transform<D>::ScaleExtrinsic(m_RenderState.back().Transform, 1, p_Y);
 }
 void RenderContext<D3>::ScaleZ(const f32 p_Z) noexcept
 {
-    ONYX::Transform<D3>::ScaleExtrinsic(m_RenderState.back().Transform, 2, p_Z);
+    Onyx::Transform<D3>::ScaleExtrinsic(m_RenderState.back().Transform, 2, p_Z);
 }
 
 template <Dimension D> void IRenderContext<D>::TranslateXAxis(const f32 p_X) noexcept
 {
-    ONYX::Transform<D>::TranslateIntrinsic(m_RenderState.back().Axes, 0, p_X);
+    Onyx::Transform<D>::TranslateIntrinsic(m_RenderState.back().Axes, 0, p_X);
 }
 template <Dimension D> void IRenderContext<D>::TranslateYAxis(const f32 p_Y) noexcept
 {
-    ONYX::Transform<D>::TranslateIntrinsic(m_RenderState.back().Axes, 1, p_Y);
+    Onyx::Transform<D>::TranslateIntrinsic(m_RenderState.back().Axes, 1, p_Y);
 }
 void RenderContext<D3>::TranslateZAxis(const f32 p_Z) noexcept
 {
-    ONYX::Transform<D3>::TranslateIntrinsic(m_RenderState.back().Axes, 2, p_Z);
+    Onyx::Transform<D3>::TranslateIntrinsic(m_RenderState.back().Axes, 2, p_Z);
 }
 
 template <Dimension D> void IRenderContext<D>::ScaleXAxis(const f32 p_X) noexcept
 {
-    ONYX::Transform<D>::ScaleIntrinsic(m_RenderState.back().Axes, 0, p_X);
+    Onyx::Transform<D>::ScaleIntrinsic(m_RenderState.back().Axes, 0, p_X);
 }
 template <Dimension D> void IRenderContext<D>::ScaleYAxis(const f32 p_Y) noexcept
 {
-    ONYX::Transform<D>::ScaleIntrinsic(m_RenderState.back().Axes, 1, p_Y);
+    Onyx::Transform<D>::ScaleIntrinsic(m_RenderState.back().Axes, 1, p_Y);
 }
 void RenderContext<D3>::ScaleZAxis(const f32 p_Z) noexcept
 {
-    ONYX::Transform<D3>::ScaleIntrinsic(m_RenderState.back().Axes, 2, p_Z);
+    Onyx::Transform<D3>::ScaleIntrinsic(m_RenderState.back().Axes, 2, p_Z);
 }
 
 template <Dimension D> void IRenderContext<D>::UpdateViewAspect(const f32 p_Aspect) noexcept
@@ -187,7 +187,7 @@ template <Dimension D> void IRenderContext<D>::UpdateViewAspect(const f32 p_Aspe
 
 template <Dimension D> void IRenderContext<D>::TranslateAxes(const vec<D> &p_Translation) noexcept
 {
-    ONYX::Transform<D>::TranslateIntrinsic(m_RenderState.back().Axes, p_Translation);
+    Onyx::Transform<D>::TranslateIntrinsic(m_RenderState.back().Axes, p_Translation);
 }
 void RenderContext<D2>::TranslateAxes(const f32 p_X, const f32 p_Y) noexcept
 {
@@ -200,7 +200,7 @@ void RenderContext<D3>::TranslateAxes(const f32 p_X, const f32 p_Y, const f32 p_
 
 template <Dimension D> void IRenderContext<D>::ScaleAxes(const vec<D> &p_Scale) noexcept
 {
-    ONYX::Transform<D>::ScaleIntrinsic(m_RenderState.back().Axes, p_Scale);
+    Onyx::Transform<D>::ScaleIntrinsic(m_RenderState.back().Axes, p_Scale);
 }
 template <Dimension D> void IRenderContext<D>::ScaleAxes(const f32 p_Scale) noexcept
 {
@@ -217,12 +217,12 @@ void RenderContext<D3>::ScaleAxes(const f32 p_X, const f32 p_Y, const f32 p_Z) n
 
 void RenderContext<D2>::Rotate(const f32 p_Angle) noexcept
 {
-    ONYX::Transform<D2>::RotateExtrinsic(m_RenderState.back().Transform, p_Angle);
+    Onyx::Transform<D2>::RotateExtrinsic(m_RenderState.back().Transform, p_Angle);
 }
 
 void RenderContext<D3>::Rotate(const quat &p_Quaternion) noexcept
 {
-    ONYX::Transform<D3>::RotateExtrinsic(m_RenderState.back().Transform, p_Quaternion);
+    Onyx::Transform<D3>::RotateExtrinsic(m_RenderState.back().Transform, p_Quaternion);
 }
 void RenderContext<D3>::Rotate(const f32 p_Angle, const vec3 &p_Axis) noexcept
 {
@@ -251,11 +251,11 @@ void RenderContext<D3>::RotateZ(const f32 p_Angle) noexcept
 
 void RenderContext<D2>::RotateAxes(const f32 p_Angle) noexcept
 {
-    ONYX::Transform<D2>::RotateIntrinsic(m_RenderState.back().Axes, p_Angle);
+    Onyx::Transform<D2>::RotateIntrinsic(m_RenderState.back().Axes, p_Angle);
 }
 void RenderContext<D3>::RotateAxes(const quat &p_Quaternion) noexcept
 {
-    ONYX::Transform<D3>::RotateIntrinsic(m_RenderState.back().Axes, p_Quaternion);
+    Onyx::Transform<D3>::RotateIntrinsic(m_RenderState.back().Axes, p_Quaternion);
 }
 void RenderContext<D3>::RotateAxes(const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
 {
@@ -364,32 +364,32 @@ static void drawIntrinsicCircle(Renderer<D> &p_Renderer, mat<D> p_Transform, con
                                 const f32 p_Diameter, const f32 p_LowerAngle, const f32 p_UpperAngle,
                                 const u8 p_Flags) noexcept
 {
-    ONYX::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
+    Onyx::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
     if constexpr (D == D2)
-        ONYX::Transform<D>::ScaleIntrinsic(p_Transform, vec<D>{p_Diameter});
+        Onyx::Transform<D>::ScaleIntrinsic(p_Transform, vec<D>{p_Diameter});
     else
-        ONYX::Transform<D>::ScaleIntrinsic(p_Transform, vec<D>{p_Diameter, p_Diameter, 1.f});
+        Onyx::Transform<D>::ScaleIntrinsic(p_Transform, vec<D>{p_Diameter, p_Diameter, 1.f});
     p_Renderer.DrawCircle(p_Transform, p_LowerAngle, p_UpperAngle, 0.f, p_Flags);
 }
 template <Dimension D>
 static void drawIntrinsicCircle(Renderer<D> &p_Renderer, mat<D> p_Transform, const vec<D> &p_Position,
                                 const f32 p_LowerAngle, const f32 p_UpperAngle, const u8 p_Flags) noexcept
 {
-    ONYX::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
+    Onyx::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
     p_Renderer.DrawCircle(p_Transform, p_LowerAngle, p_UpperAngle, 0.f, p_Flags);
 }
 
 static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, mat4 p_Transform, const vec3 &p_Position,
                                 const f32 p_Diameter, const u8 p_Flags) noexcept
 {
-    ONYX::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
-    ONYX::Transform<D3>::ScaleIntrinsic(p_Transform, vec3{p_Diameter});
+    Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
+    Onyx::Transform<D3>::ScaleIntrinsic(p_Transform, vec3{p_Diameter});
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetSphereIndex(), p_Flags);
 }
 static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, mat4 p_Transform, const vec3 &p_Position,
                                 const u8 p_Flags) noexcept
 {
-    ONYX::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
+    Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetSphereIndex(), p_Flags);
 }
 
@@ -415,8 +415,8 @@ static void drawStadium(Renderer<D> &p_Renderer, const mat<D> &p_Transform, cons
                         const u8 p_Flags) noexcept
 {
     mat<D> transform = p_Transform;
-    ONYX::Transform<D>::ScaleIntrinsic(transform, 0, p_Length);
-    ONYX::Transform<D>::ScaleIntrinsic(transform, 1, p_Diameter);
+    Onyx::Transform<D>::ScaleIntrinsic(transform, 0, p_Length);
+    Onyx::Transform<D>::ScaleIntrinsic(transform, 1, p_Diameter);
     p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex(), p_Flags);
 
     drawStadiumMoons<D>(p_Renderer, p_Transform, p_Flags, p_Length, p_Diameter);
@@ -510,9 +510,9 @@ static void drawRoundedSquareEdges(Renderer<D> &p_Renderer, const mat<D> &p_Tran
         const u32 index1 = i % 2;
         const u32 index2 = 1 - index1;
         const f32 dim = i < 2 ? paddedDims[index1] : -paddedDims[index1];
-        ONYX::Transform<D>::TranslateIntrinsic(transform, index1, dim);
-        ONYX::Transform<D>::ScaleIntrinsic(transform, index1, p_Radius);
-        ONYX::Transform<D>::ScaleIntrinsic(transform, index2, p_Dimensions[index2]);
+        Onyx::Transform<D>::TranslateIntrinsic(transform, index1, dim);
+        Onyx::Transform<D>::ScaleIntrinsic(transform, index1, p_Radius);
+        Onyx::Transform<D>::ScaleIntrinsic(transform, index2, p_Dimensions[index2]);
         p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex(), p_Flags);
 
         const f32 angle = i * glm::half_pi<f32>();
@@ -532,8 +532,8 @@ static void drawRoundedSquare(Renderer<D> &p_Renderer, const mat<D> &p_Transform
                               const f32 p_Radius, const u8 p_Flags) noexcept
 {
     mat<D> transform = p_Transform;
-    ONYX::Transform<D>::ScaleIntrinsic(transform, 0, p_Dimensions.x);
-    ONYX::Transform<D>::ScaleIntrinsic(transform, 1, p_Dimensions.y);
+    Onyx::Transform<D>::ScaleIntrinsic(transform, 0, p_Dimensions.x);
+    Onyx::Transform<D>::ScaleIntrinsic(transform, 1, p_Dimensions.y);
     p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex(), p_Flags);
 
     drawRoundedSquareEdges<D>(p_Renderer, p_Transform, p_Flags, p_Dimensions, p_Radius);
@@ -599,7 +599,7 @@ void IRenderContext<D>::RoundedSquare(const f32 p_Width, const f32 p_Height, con
 template <Dimension D>
 void IRenderContext<D>::Line(const vec<D> &p_Start, const vec<D> &p_End, const f32 p_Thickness) noexcept
 {
-    ONYX::Transform<D> t;
+    Onyx::Transform<D> t;
     t.Translation = 0.5f * (p_Start + p_End);
     const vec<D> delta = p_End - p_Start;
     if constexpr (D == D2)
@@ -632,7 +632,7 @@ void RenderContext<D3>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_Z1, con
 template <Dimension D>
 void IRenderContext<D>::LineStrip(std::span<const vec<D>> p_Points, const f32 p_Thickness) noexcept
 {
-    KIT_ASSERT(p_Points.size() > 1, "A line strip must have at least two points");
+    TKIT_ASSERT(p_Points.size() > 1, "A line strip must have at least two points");
     for (u32 i = 0; i < p_Points.size() - 1; ++i)
         Line(p_Points[i], p_Points[i + 1], p_Thickness);
 }
@@ -641,8 +641,8 @@ void RenderContext<D2>::RoundedLine(const vec2 &p_Start, const vec2 &p_End, cons
 {
     const vec2 delta = p_End - p_Start;
     mat3 transform = m_RenderState.back().Transform;
-    ONYX::Transform<D2>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
-    ONYX::Transform<D2>::RotateIntrinsic(transform, glm::atan(delta.y, delta.x));
+    Onyx::Transform<D2>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
+    Onyx::Transform<D2>::RotateIntrinsic(transform, glm::atan(delta.y, delta.x));
 
     Stadium(glm::length(delta), p_Thickness, transform);
 }
@@ -650,8 +650,8 @@ void RenderContext<D3>::RoundedLine(const vec3 &p_Start, const vec3 &p_End, cons
 {
     const vec3 delta = p_End - p_Start;
     mat4 transform = m_RenderState.back().Transform;
-    ONYX::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
-    ONYX::Transform<D3>::RotateIntrinsic(transform,
+    Onyx::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
+    Onyx::Transform<D3>::RotateIntrinsic(transform,
                                          quat{{0.f, glm::atan(delta.y, delta.x), glm::atan(delta.z, delta.x)}});
     Capsule(glm::length(delta), p_Thickness, transform);
 }
@@ -708,7 +708,7 @@ static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const
                         const u8 p_Flags) noexcept
 {
     mat4 transform = p_Transform;
-    ONYX::Transform<D3>::ScaleIntrinsic(transform, {p_Length, p_Diameter, p_Diameter});
+    Onyx::Transform<D3>::ScaleIntrinsic(transform, {p_Length, p_Diameter, p_Diameter});
     p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCylinderIndex(), p_Flags);
 
     vec3 pos{0.f};
@@ -772,10 +772,10 @@ static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const mat4 &p_Transfo
         const u32 index2 = (i + 1) % 3;
         const u32 index3 = (i + 2) % 3;
         const f32 dim = i < 3 ? paddedDims[index1] : -paddedDims[index1];
-        ONYX::Transform<D3>::TranslateIntrinsic(transform, index1, dim);
-        ONYX::Transform<D3>::ScaleIntrinsic(transform, index1, p_Radius);
-        ONYX::Transform<D3>::ScaleIntrinsic(transform, index2, p_Dimensions[index2]);
-        ONYX::Transform<D3>::ScaleIntrinsic(transform, index3, p_Dimensions[index3]);
+        Onyx::Transform<D3>::TranslateIntrinsic(transform, index1, dim);
+        Onyx::Transform<D3>::ScaleIntrinsic(transform, index1, p_Radius);
+        Onyx::Transform<D3>::ScaleIntrinsic(transform, index2, p_Dimensions[index2]);
+        Onyx::Transform<D3>::ScaleIntrinsic(transform, index3, p_Dimensions[index3]);
         p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCubeIndex(), p_Flags);
     }
     const f32 diameter = 2.f * p_Radius;
@@ -803,12 +803,12 @@ static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const mat4 &p_Transfo
                 pos[dimIndex2] = relevantDims[2 + j];
 
                 mat4 transform = p_Transform;
-                ONYX::Transform<D3>::TranslateIntrinsic(transform, pos);
+                Onyx::Transform<D3>::TranslateIntrinsic(transform, pos);
                 if (axis > 0)
-                    ONYX::Transform<D3>::RotateZIntrinsic(transform, glm::half_pi<f32>());
+                    Onyx::Transform<D3>::RotateZIntrinsic(transform, glm::half_pi<f32>());
                 if (axis > 1)
-                    ONYX::Transform<D3>::RotateYIntrinsic(transform, glm::half_pi<f32>());
-                ONYX::Transform<D3>::ScaleIntrinsic(transform, {p_Dimensions[axis], diameter, diameter});
+                    Onyx::Transform<D3>::RotateYIntrinsic(transform, glm::half_pi<f32>());
+                Onyx::Transform<D3>::ScaleIntrinsic(transform, {p_Dimensions[axis], diameter, diameter});
                 p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCylinderIndex(), p_Flags);
             }
     }
@@ -823,7 +823,7 @@ static void drawRoundedCube(Renderer<D3> &p_Renderer, const mat4 &p_Transform, c
                             const f32 p_Radius, const u8 p_Flags) noexcept
 {
     mat4 transform = p_Transform;
-    ONYX::Transform<D3>::ScaleIntrinsic(transform, p_Dimensions);
+    Onyx::Transform<D3>::ScaleIntrinsic(transform, p_Dimensions);
     p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCubeIndex(), p_Flags);
 
     drawRoundedCubeEdges(p_Renderer, p_Transform, p_Flags, p_Dimensions, p_Radius);
@@ -897,7 +897,7 @@ void RenderContext<D3>::AmbientIntensity(const f32 p_Intensity) noexcept
     m_Renderer.AmbientColor.RGBA.a = p_Intensity;
 }
 
-void RenderContext<D3>::DirectionalLight(ONYX::DirectionalLight p_Light) noexcept
+void RenderContext<D3>::DirectionalLight(Onyx::DirectionalLight p_Light) noexcept
 {
     const mat4 transform = m_RenderState.back().Axes * m_RenderState.back().Transform;
     vec4 direction = p_Light.DirectionAndIntensity;
@@ -909,7 +909,7 @@ void RenderContext<D3>::DirectionalLight(ONYX::DirectionalLight p_Light) noexcep
 }
 void RenderContext<D3>::DirectionalLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
 {
-    ONYX::DirectionalLight light;
+    Onyx::DirectionalLight light;
     light.DirectionAndIntensity = vec4{p_Direction, p_Intensity};
     light.Color = m_RenderState.back().LightColor;
     DirectionalLight(light);
@@ -919,7 +919,7 @@ void RenderContext<D3>::DirectionalLight(const f32 p_DX, const f32 p_DY, const f
     DirectionalLight(vec3{p_DX, p_DY, p_DZ}, p_Intensity);
 }
 
-void RenderContext<D3>::PointLight(ONYX::PointLight p_Light) noexcept
+void RenderContext<D3>::PointLight(Onyx::PointLight p_Light) noexcept
 {
     const mat4 transform = m_RenderState.back().Axes * m_RenderState.back().Transform;
     vec4 position = p_Light.PositionAndIntensity;
@@ -931,7 +931,7 @@ void RenderContext<D3>::PointLight(ONYX::PointLight p_Light) noexcept
 }
 void RenderContext<D3>::PointLight(const vec3 &p_Position, const f32 p_Radius, const f32 p_Intensity) noexcept
 {
-    ONYX::PointLight light;
+    Onyx::PointLight light;
     light.PositionAndIntensity = vec4{p_Position, p_Intensity};
     light.Radius = p_Radius;
     light.Color = m_RenderState.back().LightColor;
@@ -965,12 +965,12 @@ template <Dimension D> void IRenderContext<D>::Fill(const bool p_Enabled) noexce
     m_RenderState.back().Fill = p_Enabled;
 }
 
-template <Dimension D> void IRenderContext<D>::Mesh(const KIT::Ref<const Model<D>> &p_Model) noexcept
+template <Dimension D> void IRenderContext<D>::Mesh(const TKit::Ref<const Model<D>> &p_Model) noexcept
 {
     m_Renderer.DrawMesh(m_RenderState.back().Transform, p_Model);
 }
 template <Dimension D>
-void IRenderContext<D>::Mesh(const KIT::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept
+void IRenderContext<D>::Mesh(const TKit::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept
 {
     m_Renderer.DrawMesh(p_Transform * m_RenderState.back().Transform, p_Model);
 }
@@ -985,7 +985,7 @@ template <Dimension D> void IRenderContext<D>::PushAndClear() noexcept
 }
 template <Dimension D> void IRenderContext<D>::Pop() noexcept
 {
-    KIT_ASSERT(m_RenderState.size() > 1, "For every push, there must be a pop");
+    TKIT_ASSERT(m_RenderState.size() > 1, "For every push, there must be a pop");
     m_RenderState.pop_back();
 }
 
@@ -1088,7 +1088,7 @@ template <Dimension D> void IRenderContext<D>::Axes(const f32 p_Thickness, const
 template <Dimension D>
 void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationStep, const f32 p_RotationStep) noexcept
 {
-    ONYX::Transform<D> &view = m_ProjectionView.View;
+    Onyx::Transform<D> &view = m_ProjectionView.View;
     vec<D> translation{0.f};
     if (Input::IsKeyPressed(m_Window, Input::Key::A))
         translation.x -= view.Scale.x * p_TranslationStep;
@@ -1130,7 +1130,7 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
         view.Rotation *= quat{angles};
     }
 
-    const auto rmat = ONYX::Transform<D>::ComputeRotationMatrix(view.Rotation);
+    const auto rmat = Onyx::Transform<D>::ComputeRotationMatrix(view.Rotation);
     view.Translation += rmat * translation;
 
     if constexpr (D == D2)
@@ -1209,4 +1209,4 @@ void RenderContext<D3>::SetOrthographicProjection() noexcept
 template class IRenderContext<D2>;
 template class IRenderContext<D3>;
 
-} // namespace ONYX
+} // namespace Onyx

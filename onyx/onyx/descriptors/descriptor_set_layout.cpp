@@ -2,7 +2,7 @@
 #include "onyx/descriptors/descriptor_set_layout.hpp"
 #include "onyx/core/core.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 DescriptorSetLayout::DescriptorSetLayout(const std::span<const VkDescriptorSetLayoutBinding> p_Bindings) noexcept
     : m_Bindings{p_Bindings.begin(), p_Bindings.end()}
@@ -13,8 +13,8 @@ DescriptorSetLayout::DescriptorSetLayout(const std::span<const VkDescriptorSetLa
     layoutInfo.bindingCount = static_cast<u32>(m_Bindings.size());
     layoutInfo.pBindings = m_Bindings.data();
 
-    KIT_ASSERT_RETURNS(vkCreateDescriptorSetLayout(m_Device->GetDevice(), &layoutInfo, nullptr, &m_Layout), VK_SUCCESS,
-                       "Failed to create descriptor set layout");
+    TKIT_ASSERT_RETURNS(vkCreateDescriptorSetLayout(m_Device->GetDevice(), &layoutInfo, nullptr, &m_Layout), VK_SUCCESS,
+                        "Failed to create descriptor set layout");
 }
 
 DescriptorSetLayout::~DescriptorSetLayout() noexcept
@@ -50,4 +50,4 @@ usize DescriptorSetLayout::GetBindingCount() const noexcept
     return m_Bindings.size();
 }
 
-} // namespace ONYX
+} // namespace Onyx

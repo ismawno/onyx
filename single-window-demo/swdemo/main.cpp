@@ -2,6 +2,6 @@
 
 int main()
 {
-    ONYX::SWDemoApplication app;
+    Onyx::SWDemoApplication app;
     app.Run();
 }

@@ -6,7 +6,7 @@
 
 #include <filesystem>
 
-namespace ONYX
+namespace Onyx
 {
 GraphicsPipeline::GraphicsPipeline(Specs p_Specs) noexcept
 {
@@ -33,7 +33,7 @@ VkPipelineLayout GraphicsPipeline::GetLayout() const noexcept
 
 void GraphicsPipeline::createPipeline(const Specs &p_Specs) noexcept
 {
-    KIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");
+    TKIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");
 
     m_Device = Core::GetDevice();
     m_Layout = p_Specs.Layout;
@@ -87,7 +87,7 @@ void GraphicsPipeline::createPipeline(const Specs &p_Specs) noexcept
 
     pipelineInfo.basePipelineIndex = -1;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
-    KIT_ASSERT_RETURNS(
+    TKIT_ASSERT_RETURNS(
         vkCreateGraphicsPipelines(m_Device->GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_Pipeline),
         VK_SUCCESS, "Failed to create graphics pipeline");
 }
@@ -182,4 +182,4 @@ void GraphicsPipeline::Specs::Populate() noexcept
     DynamicStateInfo.pDynamicStates = DynamicStateEnables.data();
     DynamicStateInfo.dynamicStateCount = static_cast<u32>(DynamicStateEnables.size());
 }
-} // namespace ONYX
+} // namespace Onyx

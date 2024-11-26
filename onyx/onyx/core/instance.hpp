@@ -4,16 +4,16 @@
 #include "kit/memory/ptr.hpp"
 #include <vulkan/vulkan.hpp>
 
-namespace ONYX
+namespace Onyx
 {
-class ONYX_API Instance : public KIT::RefCounted<Instance>
+class ONYX_API Instance : public TKit::RefCounted<Instance>
 {
-    KIT_NON_COPYABLE(Instance)
+    TKIT_NON_COPYABLE(Instance)
   public:
     Instance() noexcept;
     ~Instance() noexcept;
 
-#ifdef KIT_ENABLE_ASSERTS
+#ifdef TKIT_ENABLE_ASSERTS
     static const char *GetValidationLayer() noexcept;
 #endif
 
@@ -26,4 +26,4 @@ class ONYX_API Instance : public KIT::RefCounted<Instance>
 
     friend struct Core;
 };
-} // namespace ONYX
+} // namespace Onyx

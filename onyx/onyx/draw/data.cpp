@@ -2,7 +2,7 @@
 #include "onyx/draw/data.hpp"
 #include <tiny_obj_loader.h>
 
-namespace ONYX
+namespace Onyx
 {
 template <Dimension D> IndexVertexData<D> Load(const std::string_view p_Path) noexcept
 {
@@ -11,8 +11,8 @@ template <Dimension D> IndexVertexData<D> Load(const std::string_view p_Path) no
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    KIT_ASSERT_RETURNS(tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, p_Path.data()), true,
-                       "Failed to load model: {}", err + warn);
+    TKIT_ASSERT_RETURNS(tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, p_Path.data()), true,
+                        "Failed to load model: {}", err + warn);
 
     HashMap<Vertex<D>, Index> uniqueVertices;
     IndexVertexData<D> buffers;
@@ -46,4 +46,4 @@ template IndexVertexData<D3> Load(const std::string_view p_Path) noexcept;
 template struct IndexVertexData<D2>;
 template struct IndexVertexData<D3>;
 
-} // namespace ONYX
+} // namespace Onyx

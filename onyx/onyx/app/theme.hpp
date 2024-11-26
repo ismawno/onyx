@@ -1,6 +1,6 @@
 #pragma once
 
-namespace ONYX
+namespace Onyx
 {
 class Theme
 {
@@ -46,4 +46,4 @@ class DefaultTheme final : public Theme
     void Apply() const noexcept override;
 };
 
-} // namespace ONYX
+} // namespace Onyx

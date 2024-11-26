@@ -8,11 +8,11 @@
 #include <vulkan/vulkan.hpp>
 #include <span>
 
-namespace ONYX
+namespace Onyx
 {
-class ONYX_API DescriptorSetLayout : public KIT::RefCounted<DescriptorSetLayout>
+class ONYX_API DescriptorSetLayout : public TKit::RefCounted<DescriptorSetLayout>
 {
-    KIT_NON_COPYABLE(DescriptorSetLayout)
+    TKIT_NON_COPYABLE(DescriptorSetLayout)
   public:
     DescriptorSetLayout(std::span<const VkDescriptorSetLayoutBinding> p_Bindings) noexcept;
     ~DescriptorSetLayout() noexcept;
@@ -26,8 +26,8 @@ class ONYX_API DescriptorSetLayout : public KIT::RefCounted<DescriptorSetLayout>
     usize GetBindingCount() const noexcept;
 
   private:
-    KIT::Ref<Device> m_Device;
+    TKit::Ref<Device> m_Device;
     VkDescriptorSetLayout m_Layout;
     DynamicArray<VkDescriptorSetLayoutBinding> m_Bindings;
 };
-} // namespace ONYX
+} // namespace Onyx

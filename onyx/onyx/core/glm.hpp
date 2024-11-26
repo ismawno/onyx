@@ -2,7 +2,7 @@
 
 #include "kit/utilities/glm.hpp"
 
-namespace ONYX
+namespace Onyx
 {
-using namespace KIT::GLM;
-} // namespace ONYX
+using namespace TKit::GLM;
+} // namespace Onyx

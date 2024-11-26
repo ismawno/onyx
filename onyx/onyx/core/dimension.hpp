@@ -4,9 +4,9 @@
 
 // This utility is used to provide 2 different APIs (2D and 3D) with as little code duplication as possible
 
-namespace ONYX
+namespace Onyx
 {
-using KIT::D2;
-using KIT::D3;
-using KIT::Dimension;
-} // namespace ONYX
+using TKit::D2;
+using TKit::D3;
+using TKit::Dimension;
+} // namespace Onyx

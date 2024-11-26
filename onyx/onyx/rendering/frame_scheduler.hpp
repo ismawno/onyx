@@ -3,7 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "kit/multiprocessing/task.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 struct Color;
 class Window;
@@ -48,8 +48,8 @@ class ONYX_API FrameScheduler
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
     DynamicArray<VkPresentModeKHR> m_SupportedPresentModes;
 
-    KIT::Ref<Device> m_Device;
-    KIT::Scope<SwapChain> m_SwapChain;
+    TKit::Ref<Device> m_Device;
+    TKit::Scope<SwapChain> m_SwapChain;
     std::array<VkCommandBuffer, SwapChain::MFIF> m_CommandBuffers;
 
     u32 m_ImageIndex;
@@ -57,7 +57,7 @@ class ONYX_API FrameScheduler
     bool m_FrameStarted = false;
     bool m_PresentModeChanged = false;
 
-    KIT::Ref<KIT::Task<VkResult>> m_PresentTask;
+    TKit::Ref<TKit::Task<VkResult>> m_PresentTask;
     bool m_PresentRunning = false;
 };
-} // namespace ONYX
+} // namespace Onyx

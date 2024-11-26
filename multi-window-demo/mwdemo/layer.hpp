@@ -3,7 +3,7 @@
 #include "onyx/app/layer.hpp"
 #include "utils/window_data.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 class IMultiWindowApplication;
 class MWExampleLayer final : public Layer
@@ -20,4 +20,4 @@ class MWExampleLayer final : public Layer
     IMultiWindowApplication *m_Application = nullptr;
     DynamicArray<WindowData> m_Data;
 };
-} // namespace ONYX
+} // namespace Onyx

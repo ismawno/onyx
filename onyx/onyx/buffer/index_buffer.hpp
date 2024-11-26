@@ -8,12 +8,12 @@
 #    define ONYX_INDEX_TYPE u32
 #endif
 
-namespace ONYX
+namespace Onyx
 {
 using Index = ONYX_INDEX_TYPE;
 class ONYX_API IndexBuffer : public DeviceBuffer<Index>
 {
-    KIT_NON_COPYABLE(IndexBuffer)
+    TKIT_NON_COPYABLE(IndexBuffer)
   public:
     IndexBuffer(const std::span<const Index> p_Vertices) noexcept;
 
@@ -22,7 +22,7 @@ class ONYX_API IndexBuffer : public DeviceBuffer<Index>
 
 class ONYX_API MutableIndexBuffer : public Buffer
 {
-    KIT_NON_COPYABLE(MutableIndexBuffer)
+    TKIT_NON_COPYABLE(MutableIndexBuffer)
   public:
     MutableIndexBuffer(const std::span<const Index> p_Vertices) noexcept;
     MutableIndexBuffer(usize p_Size) noexcept;
@@ -32,4 +32,4 @@ class ONYX_API MutableIndexBuffer : public Buffer
     void Write(std::span<const Index> p_Vertices);
 };
 
-} // namespace ONYX
+} // namespace Onyx

@@ -8,11 +8,11 @@
 #    define ONYX_MAX_FRAMES_IN_FLIGHT 2
 #endif
 
-namespace ONYX
+namespace Onyx
 {
 class ONYX_API SwapChain
 {
-    KIT_NON_COPYABLE(SwapChain)
+    TKIT_NON_COPYABLE(SwapChain)
   public:
     // Maximum frames in flight
     static constexpr u32 MFIF = ONYX_MAX_FRAMES_IN_FLIGHT;
@@ -50,7 +50,7 @@ class ONYX_API SwapChain
     std::pair<VkImage, VkDeviceMemory> createImage(const VkImageCreateInfo &p_Info,
                                                    const VkMemoryPropertyFlags p_Properties);
 
-    KIT::Ref<Device> m_Device;
+    TKit::Ref<Device> m_Device;
     VkSwapchainKHR m_SwapChain;
     VkRenderPass m_RenderPass;
     VkExtent2D m_Extent;
@@ -58,18 +58,18 @@ class ONYX_API SwapChain
     VkFormat m_DepthFormat;
     VkFormat m_ImageFormat;
 
-    KIT::StaticArray<VkImage, 3> m_Images;         // Swap chain images
-    KIT::StaticArray<VkImageView, 3> m_ImageViews; // Swap chain image views
-    KIT::StaticArray<VkImage, 3> m_DepthImages;
-    KIT::StaticArray<VkImageView, 3> m_DepthImageViews;
-    KIT::StaticArray<VkDeviceMemory, 3> m_DepthImageMemories;
-    KIT::StaticArray<VkFence, 3> m_InFlightImages;
+    TKit::StaticArray<VkImage, 3> m_Images;         // Swap chain images
+    TKit::StaticArray<VkImageView, 3> m_ImageViews; // Swap chain image views
+    TKit::StaticArray<VkImage, 3> m_DepthImages;
+    TKit::StaticArray<VkImageView, 3> m_DepthImageViews;
+    TKit::StaticArray<VkDeviceMemory, 3> m_DepthImageMemories;
+    TKit::StaticArray<VkFence, 3> m_InFlightImages;
 
     std::array<VkSemaphore, MFIF> m_ImageAvailableSemaphores;
     std::array<VkSemaphore, MFIF> m_RenderFinishedSemaphores;
     std::array<VkFence, MFIF> m_InFlightFences;
 
-    KIT::StaticArray<VkFramebuffer, 3> m_Framebuffers;
+    TKit::StaticArray<VkFramebuffer, 3> m_Framebuffers;
     usize m_CurrentFrame = 0;
 };
-} // namespace ONYX
+} // namespace Onyx

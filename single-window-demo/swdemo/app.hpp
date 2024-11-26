@@ -5,17 +5,17 @@
 #include "kit/multiprocessing/thread_pool.hpp"
 #include "kit/core/literals.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 class SWDemoApplication
 {
   public:
-    KIT_NON_COPYABLE(SWDemoApplication)
+    TKIT_NON_COPYABLE(SWDemoApplication)
 
     SWDemoApplication() noexcept = default;
     void Run() noexcept;
 
   private:
-    KIT::Storage<Application> m_Application;
+    TKit::Storage<Application> m_Application;
 };
-} // namespace ONYX
+} // namespace Onyx

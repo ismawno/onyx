@@ -5,7 +5,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-namespace ONYX
+namespace Onyx
 {
 static Window *windowFromGLFW(GLFWwindow *p_Window)
 {
@@ -147,4 +147,4 @@ void Input::InstallCallbacks(Window &p_Window) noexcept
     glfwSetScrollCallback(p_Window.GetWindowHandle(), scrollCallback);
 }
 
-} // namespace ONYX
+} // namespace Onyx

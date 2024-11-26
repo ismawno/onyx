@@ -4,7 +4,7 @@
 
 #include <atomic>
 
-namespace ONYX
+namespace Onyx
 {
 /**
  * @brief The window threading scheme a multi-window application can use. Serial mode is the default and most
@@ -40,7 +40,7 @@ enum WindowThreading
  */
 class IMultiWindowApplication : public IApplication
 {
-    KIT_NON_COPYABLE(IMultiWindowApplication)
+    TKIT_NON_COPYABLE(IMultiWindowApplication)
   public:
     IMultiWindowApplication() = default;
 
@@ -137,11 +137,11 @@ class IMultiWindowApplication : public IApplication
      * @param p_Clock The clock used to measure frame time.
      * @return true if the application should continue running, false otherwise.
      */
-    bool NextFrame(KIT::Clock &p_Clock) noexcept override;
+    bool NextFrame(TKit::Clock &p_Clock) noexcept override;
 
   protected:
     /// The list of currently open windows.
-    DynamicArray<KIT::Scope<Window>> m_Windows;
+    DynamicArray<TKit::Scope<Window>> m_Windows;
 
   private:
     /**
@@ -155,7 +155,7 @@ class IMultiWindowApplication : public IApplication
      *
      * @param p_DeltaTime The delta time to set.
      */
-    virtual void setDeltaTime(KIT::Timespan p_DeltaTime) noexcept = 0;
+    virtual void setDeltaTime(TKit::Timespan p_DeltaTime) noexcept = 0;
 };
 
 // There are two ways available to manage multiple windows in an ONYX application:
@@ -175,7 +175,7 @@ template <WindowThreading Threading = Serial> class ONYX_API MultiWindowApplicat
  */
 template <> class ONYX_API MultiWindowApplication<Serial> final : public IMultiWindowApplication
 {
-    KIT_NON_COPYABLE(MultiWindowApplication)
+    TKIT_NON_COPYABLE(MultiWindowApplication)
   public:
     MultiWindowApplication() = default;
 
@@ -192,9 +192,9 @@ template <> class ONYX_API MultiWindowApplication<Serial> final : public IMultiW
     /**
      * @brief Get the time elapsed between the current and previous frame.
      *
-     * @return KIT::Timespan The delta time.
+     * @return TKit::Timespan The delta time.
      */
-    KIT::Timespan GetDeltaTime() const noexcept override;
+    TKit::Timespan GetDeltaTime() const noexcept override;
 
   private:
     /**
@@ -208,10 +208,10 @@ template <> class ONYX_API MultiWindowApplication<Serial> final : public IMultiW
      *
      * @param p_DeltaTime The delta time to set.
      */
-    void setDeltaTime(KIT::Timespan p_DeltaTime) noexcept override;
+    void setDeltaTime(TKit::Timespan p_DeltaTime) noexcept override;
 
     /// The time elapsed between frames.
-    KIT::Timespan m_DeltaTime;
+    TKit::Timespan m_DeltaTime;
 
     /// Specifications of windows to add in the next frame.
     DynamicArray<Window::Specs> m_WindowsToAdd;
@@ -229,7 +229,7 @@ template <> class ONYX_API MultiWindowApplication<Serial> final : public IMultiW
  */
 template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMultiWindowApplication
 {
-    KIT_NON_COPYABLE(MultiWindowApplication)
+    TKIT_NON_COPYABLE(MultiWindowApplication)
   public:
     using IMultiWindowApplication::IMultiWindowApplication;
 
@@ -246,9 +246,9 @@ template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMu
     /**
      * @brief Get the time elapsed between the current and previous frame.
      *
-     * @return KIT::Timespan The delta time.
+     * @return TKit::Timespan The delta time.
      */
-    KIT::Timespan GetDeltaTime() const noexcept override;
+    TKit::Timespan GetDeltaTime() const noexcept override;
 
     /**
      * @brief Perform startup tasks for the application.
@@ -267,22 +267,22 @@ template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMu
      * @brief Create a task for processing a window in concurrent mode.
      *
      * @param p_WindowIndex The index of the window to process.
-     * @return KIT::Ref<KIT::Task<void>> A reference to the created task.
+     * @return TKit::Ref<TKit::Task<void>> A reference to the created task.
      */
-    KIT::Ref<KIT::Task<void>> createWindowTask(usize p_WindowIndex) noexcept;
+    TKit::Ref<TKit::Task<void>> createWindowTask(usize p_WindowIndex) noexcept;
 
     /**
      * @brief Set the delta time between frames.
      *
      * @param p_DeltaTime The delta time to set.
      */
-    void setDeltaTime(KIT::Timespan p_DeltaTime) noexcept override;
+    void setDeltaTime(TKit::Timespan p_DeltaTime) noexcept override;
 
     /// Tasks for processing windows in concurrent mode.
-    DynamicArray<KIT::Ref<KIT::Task<void>>> m_Tasks;
+    DynamicArray<TKit::Ref<TKit::Task<void>>> m_Tasks;
 
     /// The time elapsed between frames, shared between threads.
-    std::atomic<KIT::Timespan> m_DeltaTime;
+    std::atomic<TKit::Timespan> m_DeltaTime;
 
     /// Specifications of windows to add in the next frame.
     DynamicArray<Window::Specs> m_WindowsToAdd;
@@ -296,4 +296,4 @@ template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMu
     /// Mutex for synchronizing access to m_WindowsToAdd.
     mutable std::mutex m_WindowsToAddMutex;
 };
-} // namespace ONYX
+} // namespace Onyx

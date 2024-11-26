@@ -5,11 +5,11 @@
 #include <vulkan/vulkan.hpp>
 #include "kit/profiling/vulkan.hpp"
 
-namespace ONYX
+namespace Onyx
 {
-class ONYX_API Device : public KIT::RefCounted<Device>
+class ONYX_API Device : public TKit::RefCounted<Device>
 {
-    KIT_NON_COPYABLE(Device)
+    TKIT_NON_COPYABLE(Device)
   public:
     struct SwapChainSupportDetails
     {
@@ -63,7 +63,7 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     void createLogicalDevice(VkSurfaceKHR p_Surface) noexcept;
     void createCommandPool(VkSurfaceKHR p_Surface) noexcept;
 
-    KIT::Ref<Instance> m_Instance;
+    TKit::Ref<Instance> m_Instance;
     VkPhysicalDevice m_PhysicalDevice = VK_NULL_HANDLE;
     VkPhysicalDeviceProperties m_Properties;
 
@@ -76,12 +76,12 @@ class ONYX_API Device : public KIT::RefCounted<Device>
     std::mutex m_GraphicsMutex;
     std::mutex m_PresentMutex;
 
-#ifdef KIT_ENABLE_VULKAN_PROFILING
-    KIT::VkProfilingContext m_ProfilingContext;
+#ifdef TKIT_ENABLE_VULKAN_PROFILING
+    TKit::VkProfilingContext m_ProfilingContext;
     VkCommandBuffer m_ProfilingCommandBuffer;
 
   public:
-    KIT::VkProfilingContext GetProfilingContext() const noexcept;
+    TKit::VkProfilingContext GetProfilingContext() const noexcept;
 #endif
 };
-} // namespace ONYX
+} // namespace Onyx

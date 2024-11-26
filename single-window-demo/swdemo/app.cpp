@@ -2,15 +2,15 @@
 #include "swdemo/layer.hpp"
 #include "kit/core/literals.hpp"
 
-namespace ONYX
+namespace Onyx
 {
-using namespace KIT::Literals;
+using namespace TKit::Literals;
 
 void SWDemoApplication::Run() noexcept
 {
-    static KIT::ThreadPool<std::mutex> threadPool{7};
-    static KIT::StackAllocator allocator{10_kb};
-    ONYX::Core::Initialize(&allocator, &threadPool);
+    static TKit::ThreadPool<std::mutex> threadPool{7};
+    static TKit::StackAllocator allocator{10_kb};
+    Onyx::Core::Initialize(&allocator, &threadPool);
 
     Window::Specs spc;
     spc.Name = "Single window demo app";
@@ -20,7 +20,7 @@ void SWDemoApplication::Run() noexcept
     m_Application->Run();
     m_Application.Destroy();
 
-    ONYX::Core::Terminate();
+    Onyx::Core::Terminate();
 }
 
-} // namespace ONYX
+} // namespace Onyx

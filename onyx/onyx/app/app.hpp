@@ -5,7 +5,7 @@
 #include "onyx/app/theme.hpp"
 #include "kit/profiling/clock.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 /**
  * @brief This class provides a simple application interface, with some common functionality.
@@ -56,14 +56,14 @@ class IApplication
      * @param p_Clock A clock that lets both the API and the user to keep track of the frame time.
      * @return Whether the application still contains opened windows.
      */
-    virtual bool NextFrame(KIT::Clock &p_Clock) noexcept = 0;
+    virtual bool NextFrame(TKit::Clock &p_Clock) noexcept = 0;
 
     /**
      * @brief Get the time it took the last frame to process.
      *
-     * @return KIT::Timespan The delta time of the last frame.
+     * @return TKit::Timespan The delta time of the last frame.
      */
-    virtual KIT::Timespan GetDeltaTime() const noexcept = 0;
+    virtual TKit::Timespan GetDeltaTime() const noexcept = 0;
 
     /**
      * @brief Get the main window, which is always the window at index 0.
@@ -93,7 +93,7 @@ class IApplication
      */
     template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args) noexcept
     {
-        auto theme = KIT::Scope<T>::Create(std::forward<ThemeArgs>(p_Args)...);
+        auto theme = TKit::Scope<T>::Create(std::forward<ThemeArgs>(p_Args)...);
         T *result = theme.Get();
         m_Theme = std::move(theme);
         m_Theme->Apply();
@@ -167,7 +167,7 @@ class IApplication
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
 
     /// Reference to the Vulkan device.
-    KIT::Ref<Device> m_Device;
+    TKit::Ref<Device> m_Device;
 
   private:
     /**
@@ -186,7 +186,7 @@ class IApplication
     VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
 
     /// Current theme applied to ImGui.
-    KIT::Scope<Theme> m_Theme;
+    TKit::Scope<Theme> m_Theme;
 };
 
 /**
@@ -211,7 +211,7 @@ class Application final : public IApplication
      * @param p_Clock A clock to keep track of frame time.
      * @return true if the application should continue running.
      */
-    bool NextFrame(KIT::Clock &p_Clock) noexcept override;
+    bool NextFrame(TKit::Clock &p_Clock) noexcept override;
 
     /**
      * @brief Get the main window.
@@ -230,16 +230,16 @@ class Application final : public IApplication
     /**
      * @brief Get the time it took the last frame to process.
      *
-     * @return KIT::Timespan The delta time of the last frame.
+     * @return TKit::Timespan The delta time of the last frame.
      */
-    KIT::Timespan GetDeltaTime() const noexcept override;
+    TKit::Timespan GetDeltaTime() const noexcept override;
 
   private:
     /// Storage for the main window.
-    KIT::Storage<Window> m_Window;
+    TKit::Storage<Window> m_Window;
 
     /// The time elapsed between frames.
-    KIT::Timespan m_DeltaTime;
+    TKit::Timespan m_DeltaTime;
 };
 
-} // namespace ONYX
+} // namespace Onyx

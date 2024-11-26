@@ -3,7 +3,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-namespace ONYX
+namespace Onyx
 {
 MWExampleLayer::MWExampleLayer(IMultiWindowApplication *p_Application) noexcept
     : Layer("Example"), m_Application(p_Application)
@@ -18,7 +18,7 @@ void MWExampleLayer::OnStart() noexcept
 
 bool MWExampleLayer::OnEvent(const usize p_WindowIndex, const Event &p_Event) noexcept
 {
-    KIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.size(), "Index out of bounds");
+    TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.size(), "Index out of bounds");
     if (p_Event.Type == Event::WindowOpened)
         m_Data.emplace_back().OnStart(p_Event.Window);
     else if (p_Event.Type == Event::WindowClosed)
@@ -57,4 +57,4 @@ void MWExampleLayer::OnImGuiRender() noexcept
     ImGui::End();
 }
 
-} // namespace ONYX
+} // namespace Onyx

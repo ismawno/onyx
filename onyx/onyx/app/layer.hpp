@@ -6,7 +6,7 @@
 #include <concepts>
 #include <vulkan/vulkan.hpp>
 
-namespace ONYX
+namespace Onyx
 {
 struct Event;
 
@@ -183,7 +183,7 @@ class Layer
 
 class LayerSystem
 {
-    KIT_NON_COPYABLE(LayerSystem)
+    TKIT_NON_COPYABLE(LayerSystem)
   public:
     LayerSystem() noexcept = default;
 
@@ -215,7 +215,7 @@ class LayerSystem
      */
     template <std::derived_from<Layer> T, typename... LayerArgs> T *Push(LayerArgs &&...p_Args) noexcept
     {
-        auto layer = KIT::Scope<T>::Create(std::forward<LayerArgs>(p_Args)...);
+        auto layer = TKit::Scope<T>::Create(std::forward<LayerArgs>(p_Args)...);
         T *ptr = layer.Get();
         m_Layers.push_back(std::move(layer));
         return ptr;
@@ -271,7 +271,7 @@ class LayerSystem
     }
 
   private:
-    DynamicArray<KIT::Scope<Layer>> m_Layers;
+    DynamicArray<TKit::Scope<Layer>> m_Layers;
 };
 
-} // namespace ONYX
+} // namespace Onyx

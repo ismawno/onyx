@@ -11,11 +11,11 @@
 #include <vulkan/vulkan.hpp>
 #include <span>
 
-namespace ONYX
+namespace Onyx
 {
-class ONYX_API DescriptorPool : public KIT::RefCounted<DescriptorPool>
+class ONYX_API DescriptorPool : public TKit::RefCounted<DescriptorPool>
 {
-    KIT_NON_COPYABLE(DescriptorPool)
+    TKIT_NON_COPYABLE(DescriptorPool)
   public:
     struct Specs
     {
@@ -34,10 +34,10 @@ class ONYX_API DescriptorPool : public KIT::RefCounted<DescriptorPool>
     void Reset() noexcept;
 
   private:
-    KIT::Ref<Device> m_Device;
+    TKit::Ref<Device> m_Device;
     VkDescriptorPool m_Pool;
 
     // consider a pool per thread?
-    mutable KIT_PROFILE_DECLARE_MUTEX(std::mutex, m_Mutex);
+    mutable TKIT_PROFILE_DECLARE_MUTEX(std::mutex, m_Mutex);
 };
-} // namespace ONYX
+} // namespace Onyx

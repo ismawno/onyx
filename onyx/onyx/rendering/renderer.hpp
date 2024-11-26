@@ -4,7 +4,7 @@
 #include "onyx/descriptors/descriptor_set_layout.hpp"
 #include "onyx/descriptors/descriptor_pool.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 /**
  * @brief The RenderSystem struct manages multiple renderers with different pipeline modes.
@@ -80,7 +80,7 @@ enum DrawFlags : u8
  */
 template <Dimension D> class ONYX_API IRenderer
 {
-    KIT_NON_COPYABLE(IRenderer)
+    TKIT_NON_COPYABLE(IRenderer)
 
   public:
     /**
@@ -99,7 +99,7 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_Model Reference to the mesh model to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawMesh(const mat<D> &p_Transform, const KIT::Ref<const Model<D>> &p_Model,
+    void DrawMesh(const mat<D> &p_Transform, const TKit::Ref<const Model<D>> &p_Model,
                   u8 p_Flags = DrawFlags_Auto) noexcept;
 
     /**
@@ -260,7 +260,7 @@ struct ONYX_API PointLight
  */
 struct ONYX_API DeviceLightData
 {
-    KIT_NON_COPYABLE(DeviceLightData)
+    TKIT_NON_COPYABLE(DeviceLightData)
 
     /**
      * @brief Construct DeviceLightData with a specified initial capacity.
@@ -275,10 +275,10 @@ struct ONYX_API DeviceLightData
     ~DeviceLightData() noexcept;
 
     /// Storage buffers for directional lights, one per frame in flight.
-    std::array<KIT::Storage<StorageBuffer<DirectionalLight>>, SwapChain::MFIF> DirectionalLightBuffers;
+    std::array<TKit::Storage<StorageBuffer<DirectionalLight>>, SwapChain::MFIF> DirectionalLightBuffers;
 
     /// Storage buffers for point lights, one per frame in flight.
-    std::array<KIT::Storage<StorageBuffer<PointLight>>, SwapChain::MFIF> PointLightBuffers;
+    std::array<TKit::Storage<StorageBuffer<PointLight>>, SwapChain::MFIF> PointLightBuffers;
 
     /// Descriptor sets associated with the light buffers, one per frame in flight.
     std::array<VkDescriptorSet, SwapChain::MFIF> DescriptorSets;
@@ -343,4 +343,4 @@ template <> class Renderer<D3> final : public IRenderer<D3>
     DeviceLightData m_DeviceLightData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
 
-} // namespace ONYX
+} // namespace Onyx

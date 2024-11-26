@@ -7,7 +7,7 @@
 
 #include "kit/container/storage.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 // Consider removing the ability to create a model with host visible memory (DONE)
 // This model represents an immutable set of data that is meant to be used for rendering. It is not meant to be modified
@@ -21,11 +21,11 @@ namespace ONYX
  *
  * @tparam D The dimensionality of the model (D2 or D3).
  */
-template <Dimension D> class ONYX_API Model : public KIT::RefCounted<Model<D>>
+template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
 {
-    KIT_NON_COPYABLE(Model)
+    TKIT_NON_COPYABLE(Model)
   public:
-    KIT_BLOCK_ALLOCATED_SERIAL(Model<D>, 32)
+    TKIT_BLOCK_ALLOCATED_SERIAL(Model<D>, 32)
 
     /**
      * @brief Constructs a model with the given vertices.
@@ -108,16 +108,16 @@ template <Dimension D> class ONYX_API Model : public KIT::RefCounted<Model<D>>
      * @brief Loads a model from a file.
      *
      * @param p_Path The file path to load the model from.
-     * @return KIT::Scope<const Model> A scoped pointer to the loaded model.
+     * @return TKit::Scope<const Model> A scoped pointer to the loaded model.
      */
-    static KIT::Scope<const Model> Load(std::string_view p_Path) noexcept;
+    static TKit::Scope<const Model> Load(std::string_view p_Path) noexcept;
 
   private:
-    KIT::Ref<Device> m_Device;
+    TKit::Ref<Device> m_Device;
     VertexBuffer<D> m_VertexBuffer;
-    KIT::Storage<IndexBuffer> m_IndexBuffer;
+    TKit::Storage<IndexBuffer> m_IndexBuffer;
 
     bool m_HasIndices;
 };
 
-} // namespace ONYX
+} // namespace Onyx

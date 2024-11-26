@@ -11,17 +11,17 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-namespace ONYX
+namespace Onyx
 {
-static KIT::StackAllocator *s_StackAllocator;
-static KIT::ITaskManager *s_Manager;
+static TKit::StackAllocator *s_StackAllocator;
+static TKit::ITaskManager *s_Manager;
 
-static KIT::Ref<Instance> s_Instance;
-static KIT::Ref<Device> s_Device;
+static TKit::Ref<Instance> s_Instance;
+static TKit::Ref<Device> s_Device;
 
-static KIT::Storage<DescriptorPool> s_DescriptorPool;
-static KIT::Storage<DescriptorSetLayout> s_TransformStorageLayout;
-static KIT::Storage<DescriptorSetLayout> s_LightStorageLayout;
+static TKit::Storage<DescriptorPool> s_DescriptorPool;
+static TKit::Storage<DescriptorSetLayout> s_TransformStorageLayout;
+static TKit::Storage<DescriptorSetLayout> s_LightStorageLayout;
 
 static VkPipelineLayout s_GraphicsPipelineLayout2D = VK_NULL_HANDLE;
 static VkPipelineLayout s_GraphicsPipelineLayout3D = VK_NULL_HANDLE;
@@ -34,15 +34,15 @@ static void createVulkanAllocator() noexcept
     allocatorInfo.physicalDevice = s_Device->GetPhysicalDevice();
     allocatorInfo.device = s_Device->GetDevice();
     allocatorInfo.instance = s_Instance->GetInstance();
-#ifdef KIT_OS_APPLE
+#ifdef TKIT_OS_APPLE
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_0;
 #else
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
 #endif
     allocatorInfo.flags = 0;
     allocatorInfo.pVulkanFunctions = nullptr;
-    KIT_ASSERT_RETURNS(vmaCreateAllocator(&allocatorInfo, &s_VulkanAllocator), VK_SUCCESS,
-                       "Failed to create vulkan allocator");
+    TKIT_ASSERT_RETURNS(vmaCreateAllocator(&allocatorInfo, &s_VulkanAllocator), VK_SUCCESS,
+                        "Failed to create vulkan allocator");
 }
 
 static void createDescriptorData() noexcept
@@ -91,8 +91,9 @@ static void createPipelineLayouts() noexcept
     layoutInfo.pPushConstantRanges = nullptr;
     layoutInfo.pushConstantRangeCount = 0;
 
-    KIT_ASSERT_RETURNS(vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_GraphicsPipelineLayout2D),
-                       VK_SUCCESS, "Failed to create pipeline layout");
+    TKIT_ASSERT_RETURNS(
+        vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_GraphicsPipelineLayout2D), VK_SUCCESS,
+        "Failed to create pipeline layout");
 
     const std::array<VkDescriptorSetLayout, 2> setLayouts = {s_TransformStorageLayout->GetLayout(),
                                                              s_LightStorageLayout->GetLayout()};
@@ -107,15 +108,16 @@ static void createPipelineLayouts() noexcept
     layoutInfo.pPushConstantRanges = &pushConstantRange;
     layoutInfo.pushConstantRangeCount = 1;
 
-    KIT_ASSERT_RETURNS(vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_GraphicsPipelineLayout3D),
-                       VK_SUCCESS, "Failed to create pipeline layout");
+    TKIT_ASSERT_RETURNS(
+        vkCreatePipelineLayout(s_Device->GetDevice(), &layoutInfo, nullptr, &s_GraphicsPipelineLayout3D), VK_SUCCESS,
+        "Failed to create pipeline layout");
 }
 
-void Core::Initialize(KIT::StackAllocator *p_Allocator, KIT::ITaskManager *p_Manager) noexcept
+void Core::Initialize(TKit::StackAllocator *p_Allocator, TKit::ITaskManager *p_Manager) noexcept
 {
-    KIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "Failed to initialize GLFW");
+    TKIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "Failed to initialize GLFW");
 
-    s_Instance = KIT::Ref<Instance>::Create();
+    s_Instance = TKit::Ref<Instance>::Create();
     s_StackAllocator = p_Allocator;
     s_Manager = p_Manager;
 }
@@ -140,12 +142,12 @@ void Core::Terminate() noexcept
     s_Instance = nullptr;
 }
 
-const KIT::Ref<Instance> &Core::GetInstance() noexcept
+const TKit::Ref<Instance> &Core::GetInstance() noexcept
 {
-    KIT_ASSERT(s_Instance, "Vulkan instance is not initialize! Forgot to call ONYX::Core::Initialize?");
+    TKIT_ASSERT(s_Instance, "Vulkan instance is not initialize! Forgot to call Onyx::Core::Initialize?");
     return s_Instance;
 }
-const KIT::Ref<Device> &Core::GetDevice() noexcept
+const TKit::Ref<Device> &Core::GetDevice() noexcept
 {
     return s_Device;
 }
@@ -176,30 +178,30 @@ template <Dimension D> VkPipelineLayout Core::GetGraphicsPipelineLayout() noexce
         return s_GraphicsPipelineLayout3D;
 }
 
-KIT::StackAllocator *Core::GetStackAllocator() noexcept
+TKit::StackAllocator *Core::GetStackAllocator() noexcept
 {
     return s_StackAllocator;
 }
-KIT::ITaskManager *Core::GetTaskManager() noexcept
+TKit::ITaskManager *Core::GetTaskManager() noexcept
 {
     return s_Manager;
 }
 
-const KIT::Ref<Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
+const TKit::Ref<Device> &Core::tryCreateDevice(VkSurfaceKHR p_Surface) noexcept
 {
     if (!s_Device)
     {
-        s_Device = KIT::Ref<Device>::Create(p_Surface);
+        s_Device = TKit::Ref<Device>::Create(p_Surface);
         createVulkanAllocator();
         createDescriptorData();
         createPipelineLayouts();
         CreateCombinedPrimitiveBuffers();
     }
-    KIT_ASSERT(s_Device->IsSuitable(p_Surface), "The current device is not suitable for the given surface");
+    TKIT_ASSERT(s_Device->IsSuitable(p_Surface), "The current device is not suitable for the given surface");
     return s_Device;
 }
 
 template VkPipelineLayout Core::GetGraphicsPipelineLayout<D2>() noexcept;
 template VkPipelineLayout Core::GetGraphicsPipelineLayout<D3>() noexcept;
 
-} // namespace ONYX
+} // namespace Onyx

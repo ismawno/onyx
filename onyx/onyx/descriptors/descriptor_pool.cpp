@@ -2,7 +2,7 @@
 #include "onyx/descriptors/descriptor_pool.hpp"
 #include "onyx/core/core.hpp"
 
-namespace ONYX
+namespace Onyx
 {
 DescriptorPool::DescriptorPool(const Specs &p_Specs) noexcept
 {
@@ -14,8 +14,8 @@ DescriptorPool::DescriptorPool(const Specs &p_Specs) noexcept
     poolInfo.maxSets = p_Specs.MaxSets;
     poolInfo.flags = p_Specs.PoolFlags;
 
-    KIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_Pool), VK_SUCCESS,
-                       "Failed to create descriptor pool");
+    TKIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_Pool), VK_SUCCESS,
+                        "Failed to create descriptor pool");
 }
 
 DescriptorPool::~DescriptorPool() noexcept
@@ -34,7 +34,7 @@ VkDescriptorSet DescriptorPool::Allocate(const VkDescriptorSetLayout p_Layout) c
 
     {
         std::scoped_lock lock(m_Mutex);
-        KIT_PROFILE_MARK_LOCK(m_Mutex);
+        TKIT_PROFILE_MARK_LOCK(m_Mutex);
         if (vkAllocateDescriptorSets(m_Device->GetDevice(), &allocInfo, &set) != VK_SUCCESS)
             return VK_NULL_HANDLE;
     }
@@ -45,14 +45,14 @@ VkDescriptorSet DescriptorPool::Allocate(const VkDescriptorSetLayout p_Layout) c
 void DescriptorPool::Deallocate(const std::span<const VkDescriptorSet> p_Sets) const noexcept
 {
     std::scoped_lock lock(m_Mutex);
-    KIT_PROFILE_MARK_LOCK(m_Mutex);
+    TKIT_PROFILE_MARK_LOCK(m_Mutex);
     vkFreeDescriptorSets(m_Device->GetDevice(), m_Pool, static_cast<u32>(p_Sets.size()), p_Sets.data());
 }
 
 void DescriptorPool::Deallocate(const VkDescriptorSet p_Set) const noexcept
 {
     std::scoped_lock lock(m_Mutex);
-    KIT_PROFILE_MARK_LOCK(m_Mutex);
+    TKIT_PROFILE_MARK_LOCK(m_Mutex);
     vkFreeDescriptorSets(m_Device->GetDevice(), m_Pool, 1, &p_Set);
 }
 
@@ -61,4 +61,4 @@ void DescriptorPool::Reset() noexcept
     vkResetDescriptorPool(m_Device->GetDevice(), m_Pool, 0);
 }
 
-} // namespace ONYX
+} // namespace Onyx
