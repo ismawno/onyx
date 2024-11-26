@@ -3,7 +3,7 @@
 #include "onyx/draw/transform.hpp"
 #include "onyx/descriptors/descriptor_writer.hpp"
 #include "onyx/app/window.hpp"
-#include "kit/utilities/math.hpp"
+#include "tkit/utilities/math.hpp"
 
 namespace Onyx
 {

@@ -3,7 +3,7 @@
 #include "onyx/core/api.hpp"
 #include "onyx/core/alias.hpp"
 #include "onyx/core/device.hpp"
-#include "kit/core/non_copyable.hpp"
+#include "tkit/core/non_copyable.hpp"
 
 #include <vulkan/vulkan.hpp>
 #include <span>

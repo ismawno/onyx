@@ -3,9 +3,9 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/device.hpp"
 #include "onyx/pipeline/shader.hpp"
-#include "kit/core/non_copyable.hpp"
-#include "kit/container/static_array.hpp"
-#include "kit/container/storage.hpp"
+#include "tkit/core/non_copyable.hpp"
+#include "tkit/container/static_array.hpp"
+#include "tkit/container/storage.hpp"
 
 #include <vulkan/vulkan.hpp>
 

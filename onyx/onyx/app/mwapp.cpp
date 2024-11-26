@@ -2,7 +2,7 @@
 #include "onyx/app/mwapp.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
-#include "kit/multiprocessing/task_manager.hpp"
+#include "tkit/multiprocessing/task_manager.hpp"
 
 namespace Onyx
 {

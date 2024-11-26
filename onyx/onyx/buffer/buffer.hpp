@@ -4,8 +4,8 @@
 #include "onyx/core/device.hpp"
 #include "onyx/core/vma.hpp"
 
-#include "kit/core/non_copyable.hpp"
-#include "kit/memory/block_allocator.hpp"
+#include "tkit/core/non_copyable.hpp"
+#include "tkit/memory/block_allocator.hpp"
 
 #include <vulkan/vulkan.hpp>
 

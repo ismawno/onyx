@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/core/api.hpp"
-#include "kit/memory/ptr.hpp"
+#include "tkit/memory/ptr.hpp"
 #include <vulkan/vulkan.hpp>
 
 namespace Onyx

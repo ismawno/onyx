@@ -3,8 +3,8 @@
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
 
-#include "kit/profiling/macros.hpp"
-#include "kit/profiling/vulkan.hpp"
+#include "tkit/profiling/macros.hpp"
+#include "tkit/profiling/vulkan.hpp"
 
 namespace Onyx
 {

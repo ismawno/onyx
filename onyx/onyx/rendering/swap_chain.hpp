@@ -2,7 +2,7 @@
 
 #include "onyx/core/alias.hpp"
 #include "onyx/core/device.hpp"
-#include "kit/container/static_array.hpp"
+#include "tkit/container/static_array.hpp"
 
 #ifndef ONYX_MAX_FRAMES_IN_FLIGHT
 #    define ONYX_MAX_FRAMES_IN_FLIGHT 2

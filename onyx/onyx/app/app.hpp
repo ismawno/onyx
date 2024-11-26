@@ -3,7 +3,7 @@
 #include "onyx/app/layer.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/app/theme.hpp"
-#include "kit/profiling/clock.hpp"
+#include "tkit/profiling/clock.hpp"
 
 namespace Onyx
 {

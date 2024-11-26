@@ -4,7 +4,7 @@
 #include "onyx/app/input.hpp"
 #include "onyx/app/window.hpp"
 #include "utils/shapes.hpp"
-#include "kit/profiling/timespan.hpp"
+#include "tkit/profiling/timespan.hpp"
 
 namespace Onyx
 {

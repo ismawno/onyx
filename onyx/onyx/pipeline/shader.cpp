@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/pipeline/shader.hpp"
 #include "onyx/core/core.hpp"
-#include "kit/memory/stack_allocator.hpp"
+#include "tkit/memory/stack_allocator.hpp"
 
 #include <fstream>
 #include <filesystem>

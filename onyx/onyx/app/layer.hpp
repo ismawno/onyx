@@ -1,8 +1,8 @@
 #pragma once
 
 #include "onyx/core/alias.hpp"
-#include "kit/core/non_copyable.hpp"
-#include "kit/memory/ptr.hpp"
+#include "tkit/core/non_copyable.hpp"
+#include "tkit/memory/ptr.hpp"
 #include <concepts>
 #include <vulkan/vulkan.hpp>
 

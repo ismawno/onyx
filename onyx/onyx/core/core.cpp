@@ -6,7 +6,7 @@
 #include "onyx/descriptors/descriptor_set_layout.hpp"
 #include "onyx/rendering/swap_chain.hpp"
 #include "onyx/rendering/render_specs.hpp"
-#include "kit/core/logging.hpp"
+#include "tkit/core/logging.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>

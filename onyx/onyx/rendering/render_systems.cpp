@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_systems.hpp"
 #include "onyx/descriptors/descriptor_writer.hpp"
-#include "kit/utilities/math.hpp"
+#include "tkit/utilities/math.hpp"
 
 namespace Onyx
 {

@@ -2,7 +2,7 @@
 #include "onyx/rendering/swap_chain.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/core/glm.hpp"
-#include "kit/memory/stack_allocator.hpp"
+#include "tkit/memory/stack_allocator.hpp"
 
 namespace Onyx
 {

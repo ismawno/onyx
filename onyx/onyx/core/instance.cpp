@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/core/instance.hpp"
 #include "onyx/core/alias.hpp"
-#include "kit/core/logging.hpp"
+#include "tkit/core/logging.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>

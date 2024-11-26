@@ -1,8 +1,8 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/pipeline/graphics_pipeline.hpp"
 #include "onyx/core/core.hpp"
-#include "kit/core/logging.hpp"
-#include "kit/memory/stack_allocator.hpp"
+#include "tkit/core/logging.hpp"
+#include "tkit/memory/stack_allocator.hpp"
 
 #include <filesystem>
 

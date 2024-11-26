@@ -3,10 +3,10 @@
 #include "onyx/core/api.hpp"
 #include "onyx/core/alias.hpp"
 #include "onyx/core/device.hpp"
-#include "kit/core/non_copyable.hpp"
-#include "kit/container/static_array.hpp"
-#include "kit/profiling/macros.hpp"
-#include "kit/profiling/vulkan.hpp"
+#include "tkit/core/non_copyable.hpp"
+#include "tkit/container/static_array.hpp"
+#include "tkit/profiling/macros.hpp"
+#include "tkit/profiling/vulkan.hpp"
 
 #include <vulkan/vulkan.hpp>
 #include <span>
