@@ -20,7 +20,7 @@ class ITaskManager;
 } // namespace TKit
 
 // This file handles the lifetime of global data the ONYX library needs, such as the Vulkan instance and device. To
-// properly cleanup resources, ensure proper destruction ordering and avoid the extremely annoting static memory
+// properly cleanup resources, ensure proper destruction ordering and avoid the extremely annoying static memory
 // deallocation randomness, I use reference counting. In the terminate method, I just set the global references to
 // nullptr to ensure the reference count goes to 0 just before the program ends, avoiding static mess
 
