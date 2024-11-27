@@ -5,19 +5,19 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-namespace Onyx
+namespace Onyx::Input
 {
 static Window *windowFromGLFW(GLFWwindow *p_Window)
 {
     return static_cast<Window *>(glfwGetWindowUserPointer(p_Window));
 }
 
-void Input::PollEvents()
+void PollEvents()
 {
     glfwPollEvents();
 }
 
-vec2 Input::GetMousePosition(Window *p_Window) noexcept
+vec2 GetMousePosition(Window *p_Window) noexcept
 {
     GLFWwindow *window = p_Window->GetWindowHandle();
     double xPos, yPos;
@@ -26,25 +26,25 @@ vec2 Input::GetMousePosition(Window *p_Window) noexcept
             2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight() - 1.f};
 }
 
-bool Input::IsKeyPressed(Window *p_Window, const Key p_Key) noexcept
+bool IsKeyPressed(Window *p_Window, const Key p_Key) noexcept
 {
     return glfwGetKey(p_Window->GetWindowHandle(), static_cast<i32>(p_Key)) == GLFW_PRESS;
 }
-bool Input::IsKeyReleased(Window *p_Window, const Key p_Key) noexcept
+bool IsKeyReleased(Window *p_Window, const Key p_Key) noexcept
 {
     return glfwGetKey(p_Window->GetWindowHandle(), static_cast<i32>(p_Key)) == GLFW_RELEASE;
 }
 
-bool Input::IsMouseButtonPressed(Window *p_Window, const Mouse p_Button) noexcept
+bool IsMouseButtonPressed(Window *p_Window, const Mouse p_Button) noexcept
 {
     return glfwGetMouseButton(p_Window->GetWindowHandle(), static_cast<i32>(p_Button)) == GLFW_PRESS;
 }
-bool Input::IsMouseButtonReleased(Window *p_Window, const Mouse p_Button) noexcept
+bool IsMouseButtonReleased(Window *p_Window, const Mouse p_Button) noexcept
 {
     return glfwGetMouseButton(p_Window->GetWindowHandle(), static_cast<i32>(p_Button)) == GLFW_RELEASE;
 }
 
-const char *Input::GetKeyName(const Key p_Key) noexcept
+const char *GetKeyName(const Key p_Key) noexcept
 {
     return glfwGetKeyName(static_cast<i32>(p_Key), 0);
 }
@@ -97,7 +97,7 @@ static void keyCallback(GLFWwindow *p_Window, const i32 p_Key, const i32, const 
     default:
         break;
     }
-    event.Key = static_cast<Input::Key>(p_Key);
+    event.Key = static_cast<Key>(p_Key);
     event.Window->PushEvent(event);
 }
 
@@ -123,7 +123,7 @@ static void mouseButtonCallback(GLFWwindow *p_Window, const i32 p_Button, const 
     Event event;
     event.Window = windowFromGLFW(p_Window);
     event.Type = p_Action == GLFW_PRESS ? Event::MousePressed : Event::MouseReleased;
-    event.Mouse.Button = static_cast<Input::Mouse>(p_Button);
+    event.Mouse.Button = static_cast<Mouse>(p_Button);
     event.Window->PushEvent(event);
 }
 
@@ -136,7 +136,7 @@ static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOff
     event.Window->PushEvent(event);
 }
 
-void Input::InstallCallbacks(Window &p_Window) noexcept
+void InstallCallbacks(Window &p_Window) noexcept
 {
     glfwSetWindowSizeCallback(p_Window.GetWindowHandle(), windowResizeCallback);
     glfwSetWindowFocusCallback(p_Window.GetWindowHandle(), windowFocusCallback);
@@ -147,4 +147,4 @@ void Input::InstallCallbacks(Window &p_Window) noexcept
     glfwSetScrollCallback(p_Window.GetWindowHandle(), scrollCallback);
 }
 
-} // namespace Onyx
+} // namespace Onyx::Input
