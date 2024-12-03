@@ -3,7 +3,6 @@ project(onyx-mw-demo)
 
 set(SOURCES
     mwdemo/layer.cpp
-    mwdemo/app.cpp
     mwdemo/main.cpp
 )
 

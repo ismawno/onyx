@@ -25,8 +25,6 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
 {
     TKIT_NON_COPYABLE(Model)
   public:
-    TKIT_BLOCK_ALLOCATED_SERIAL(Model<D>, 32)
-
     /**
      * @brief Constructs a model with the given vertices.
      *
@@ -42,9 +40,6 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
      */
     Model(std::span<const Vertex<D>> p_Vertices, std::span<const Index> p_Indices) noexcept;
 
-    /**
-     * @brief Destructor.
-     */
     ~Model() noexcept;
 
     // TODO: Make sure no redundant bind calls are made

@@ -34,6 +34,7 @@ VkPipelineLayout GraphicsPipeline::GetLayout() const noexcept
 void GraphicsPipeline::createPipeline(const Specs &p_Specs) noexcept
 {
     TKIT_ASSERT(p_Specs.RenderPass, "Render pass must be provided to create graphics pipeline");
+    TKIT_ASSERT(p_Specs.Layout, "Pipeline layout must be provided to create graphics pipeline");
 
     m_Device = Core::GetDevice();
     m_Layout = p_Specs.Layout;

@@ -10,6 +10,7 @@ class Window;
 
 class ONYX_API FrameScheduler
 {
+    TKIT_NON_COPYABLE(FrameScheduler)
   public:
     explicit FrameScheduler(Window &p_Window) noexcept;
     ~FrameScheduler() noexcept;

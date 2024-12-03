@@ -3,7 +3,6 @@ project(onyx-sw-demo)
 
 set(SOURCES
     swdemo/layer.cpp
-    swdemo/app.cpp
     swdemo/main.cpp
 )
 
