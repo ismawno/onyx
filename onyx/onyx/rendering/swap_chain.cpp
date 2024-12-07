@@ -367,7 +367,7 @@ void SwapChain::createFrameBuffers() noexcept
         VkFramebufferCreateInfo frameBufferInfo{};
         frameBufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         frameBufferInfo.renderPass = m_RenderPass;
-        frameBufferInfo.attachmentCount = static_cast<std::uint32_t>(attachments.size());
+        frameBufferInfo.attachmentCount = static_cast<u32>(attachments.size());
         frameBufferInfo.pAttachments = attachments.data();
         frameBufferInfo.width = m_Extent.width;
         frameBufferInfo.height = m_Extent.height;

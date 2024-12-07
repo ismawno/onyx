@@ -371,7 +371,7 @@ VkFormat Device::FindSupportedFormat(const std::span<const VkFormat> p_Candidate
             return candidate;
     }
 
-    TKIT_ASSERT(false, "Failed to find a supported format");
+    TKIT_ERROR("Failed to find a supported format");
     return VK_FORMAT_UNDEFINED;
 }
 

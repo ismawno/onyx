@@ -83,37 +83,10 @@ FetchContent_MakeAvailable(tobjl)
 # It is set to required for now even though there is a fallback mechanism with FetchContent (the latter seems to provide very few extensions and I am not sure if it will work well for now)
 # TODO: Check if the fallback mechanism works well
 find_package(Vulkan REQUIRED)
-
-if (NOT Vulkan_FOUND)
-    message(STATUS "ONYX: A global Vulkan installation was not found. Fetching the Vulkan SDK...")
-    message(STATUS "ONYX: Manually fetching the Vulkan SDK may not provide the necessary extensions. A global installation is recommended")
-    set(ONYX_LOCAL_VULKAN_SDK ON CACHE BOOL "Use the local Vulkan SDK" FORCE)
-
-    FetchContent_Declare(
-        VulkanHeaders
-        GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
-        GIT_TAG        sdk-1.3.250.1  # Use the appropriate version tag
-    )
-    FetchContent_MakeAvailable(VulkanHeaders)
-
-    # Fetch Vulkan-Loader
-    FetchContent_Declare(
-        VulkanLoader
-        GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Loader.git
-        GIT_TAG        sdk-1.3.250.1  # Use the appropriate version tag
-    )
-    FetchContent_MakeAvailable(VulkanLoader)
-else()
-    message(STATUS "ONYX: Vulkan SDK found")
-endif()
+message(STATUS "ONYX: Vulkan SDK found")
 
 find_program(GLSLC_EXECUTABLE glslc REQUIRED)
 message(STATUS "ONYX: Found glslc: ${GLSLC_EXECUTABLE}")
-
-if (ONYX_LOCAL_VULKAN_SDK)
-    target_include_directories(onyx PUBLIC ${Vulkan_INCLUDE_DIRS})
-    target_link_libraries(onyx PUBLIC ${Vulkan_LIBRARIES} Vulkan::Headers Vulkan::Vulkan)
-endif()
 
 ### IMGUI ###
 

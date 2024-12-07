@@ -24,7 +24,7 @@ class ONYX_API SwapChain
     VkResult AcquireNextImage(u32 *p_ImageIndex) const noexcept;
 
     // This method could actually submit more than one command buffer at a time, but for now only one is needed
-    VkResult SubmitCommandBuffer(const VkCommandBuffer p_CommandBuffers, u32 p_ImageIndex) noexcept;
+    VkResult SubmitCommandBuffer(VkCommandBuffer p_CommandBuffers, u32 p_ImageIndex) noexcept;
     VkResult Present(const u32 *p_ImageIndex) noexcept;
 
     VkRenderPass GetRenderPass() const noexcept;
