@@ -2,9 +2,6 @@
 #include "onyx/app/input.hpp"
 #include "onyx/app/window.hpp"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
 namespace Onyx::Input
 {
 static Window *windowFromGLFW(GLFWwindow *p_Window)

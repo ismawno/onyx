@@ -2,12 +2,12 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/draw/color.hpp"
-#include "onyx/buffer/storage_buffer.hpp"
-#include "onyx/rendering/swap_chain.hpp"
-#include "onyx/pipeline/graphics_pipeline.hpp"
 #include "onyx/draw/primitives.hpp"
 #include "onyx/draw/model.hpp"
 #include "onyx/draw/transform.hpp"
+#include "onyx/core/core.hpp"
+#include "vkit/pipeline/graphics_pipeline.hpp"
+#include "vkit/backend/swap_chain.hpp"
 #include <vulkan/vulkan.hpp>
 
 namespace Onyx
@@ -187,21 +187,21 @@ template <typename T> struct ONYX_API DeviceInstanceData
     TKIT_NON_COPYABLE(DeviceInstanceData)
     DeviceInstanceData(usize p_Capacity) noexcept
     {
-        for (usize i = 0; i < SwapChain::MFIF; ++i)
+        for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
         {
-            StorageBuffers[i].Create(p_Capacity);
+            StorageBuffers[i] = Core::CreateMutableStorageBuffer<T>(p_Capacity);
             StorageSizes[i] = 0;
         }
     }
     ~DeviceInstanceData() noexcept
     {
-        for (usize i = 0; i < SwapChain::MFIF; ++i)
+        for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
             StorageBuffers[i].Destroy();
     }
 
-    std::array<TKit::Storage<StorageBuffer<T>>, SwapChain::MFIF> StorageBuffers;
-    std::array<VkDescriptorSet, SwapChain::MFIF> DescriptorSets;
-    std::array<usize, SwapChain::MFIF> StorageSizes;
+    std::array<MutableStorageBuffer<T>, VKIT_MAX_FRAMES_IN_FLIGHT> StorageBuffers;
+    std::array<VkDescriptorSet, VKIT_MAX_FRAMES_IN_FLIGHT> DescriptorSets;
+    std::array<usize, VKIT_MAX_FRAMES_IN_FLIGHT> StorageSizes;
 };
 
 /**
@@ -216,25 +216,11 @@ template <typename T> struct ONYX_API DeviceInstanceData
 template <Dimension D, DrawMode DMode>
 struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
 {
-    PolygonDeviceInstanceData(const usize p_Capacity) noexcept : DeviceInstanceData<InstanceData<D, DMode>>(p_Capacity)
-    {
-        for (usize i = 0; i < SwapChain::MFIF; ++i)
-        {
-            VertexBuffers[i].Create(p_Capacity);
-            IndexBuffers[i].Create(p_Capacity);
-        }
-    }
-    ~PolygonDeviceInstanceData() noexcept
-    {
-        for (usize i = 0; i < SwapChain::MFIF; ++i)
-        {
-            VertexBuffers[i].Destroy();
-            IndexBuffers[i].Destroy();
-        }
-    }
+    PolygonDeviceInstanceData(const usize p_Capacity) noexcept;
+    ~PolygonDeviceInstanceData() noexcept;
 
-    std::array<TKit::Storage<MutableVertexBuffer<D>>, SwapChain::MFIF> VertexBuffers;
-    std::array<TKit::Storage<MutableIndexBuffer>, SwapChain::MFIF> IndexBuffers;
+    std::array<MutableVertexBuffer<D>, VKIT_MAX_FRAMES_IN_FLIGHT> VertexBuffers;
+    std::array<MutableIndexBuffer, VKIT_MAX_FRAMES_IN_FLIGHT> IndexBuffers;
 };
 
 /**
@@ -287,27 +273,28 @@ struct ONYX_API PushConstantData3D
     u32 _Padding[2];
 };
 
-/**
- * @brief Create the pipeline specifications for a meshed shape.
- *
- * @tparam D The dimension (D2 or D3).
- * @tparam PMode The pipeline mode.
- * @param p_RenderPass The render pass to use.
- * @return The pipeline specifications.
- */
-template <Dimension D, PipelineMode PMode>
-ONYX_API GraphicsPipeline::Specs CreateMeshedPipelineSpecs(VkRenderPass p_RenderPass) noexcept;
+template <Dimension D, PipelineMode PMode> struct ONYX_API Pipeline
+{
+    /**
+     * @brief Create the pipeline specifications for a meshed shape.
+     *
+     * @tparam D The dimension (D2 or D3).
+     * @tparam PMode The pipeline mode.
+     * @param p_RenderPass The render pass to use.
+     * @return The pipeline specifications.
+     */
+    static VKit::GraphicsPipeline::Specs CreateMeshSpecs(VkRenderPass p_RenderPass) noexcept;
 
-/**
- * @brief Create the pipeline specifications for a circle shape.
- *
- * @tparam D The dimension (D2 or D3).
- * @tparam PMode The pipeline mode.
- * @param p_RenderPass The render pass to use.
- * @return The pipeline specifications.
- */
-template <Dimension D, PipelineMode PMode>
-ONYX_API GraphicsPipeline::Specs CreateCirclePipelineSpecs(VkRenderPass p_RenderPass) noexcept;
+    /**
+     * @brief Create the pipeline specifications for a circle shape.
+     *
+     * @tparam D The dimension (D2 or D3).
+     * @tparam PMode The pipeline mode.
+     * @param p_RenderPass The render pass to use.
+     * @return The pipeline specifications.
+     */
+    static VKit::GraphicsPipeline::Specs CreateCircleSpecs(VkRenderPass p_RenderPass) noexcept;
+};
 
 /**
  * @brief Modify the transform to comply with a specific coordinate system extrinsically.

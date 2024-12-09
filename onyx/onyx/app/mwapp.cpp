@@ -116,10 +116,8 @@ void MultiWindowApplication<Serial>::OpenWindow(const Window::Specs &p_Specs) no
 
     auto window = TKit::Scope<Window>::Create(p_Specs);
     if (m_Windows.empty())
-    {
-        m_Device = Core::GetDevice();
         initializeImGui(*window);
-    }
+
     m_Windows.push_back(std::move(window));
     Event event;
     event.Type = Event::WindowOpened;
@@ -242,12 +240,9 @@ void MultiWindowApplication<Concurrent>::OpenWindow(const Window::Specs &p_Specs
     if (m_Windows.size() > 1)
         m_Tasks.push_back(createWindowTask(m_Windows.size() - 1));
     else
-    {
         // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due
         // to the GLFW ImGui backend limitations
-        m_Device = Core::GetDevice();
         initializeImGui(*windowPtr);
-    }
 
     Event event;
     event.Type = Event::WindowOpened;

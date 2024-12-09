@@ -4,22 +4,12 @@ project(onyx)
 set(SOURCES
     onyx/core/pch.cpp
     onyx/core/core.cpp
-    onyx/core/device.cpp
-    onyx/core/instance.cpp
-    onyx/buffer/buffer.cpp
-    onyx/buffer/vertex_buffer.cpp
-    onyx/buffer/index_buffer.cpp
-    onyx/rendering/swap_chain.cpp
+    onyx/core/shaders.cpp
     onyx/rendering/render_context.cpp
     onyx/rendering/render_systems.cpp
     onyx/rendering/renderer.cpp
     onyx/rendering/render_specs.cpp
     onyx/rendering/frame_scheduler.cpp
-    onyx/pipeline/graphics_pipeline.cpp
-    onyx/pipeline/shader.cpp
-    onyx/descriptors/descriptor_pool.cpp
-    onyx/descriptors/descriptor_set_layout.cpp
-    onyx/descriptors/descriptor_writer.cpp
     onyx/draw/vertex.cpp
     onyx/draw/color.cpp
     onyx/draw/transform.cpp
@@ -38,11 +28,11 @@ add_library(onyx STATIC ${SOURCES})
 
 include(FetchContent)
 FetchContent_Declare(
-    toolkit
-    GIT_REPOSITORY https://github.com/ismawno/toolkit.git
+    vulkit
+    GIT_REPOSITORY https://github.com/ismawno/vulkit.git
     GIT_TAG main
 )
-FetchContent_MakeAvailable(toolkit)
+FetchContent_MakeAvailable(vulkit)
 
 FetchContent_Declare(
     glm
@@ -60,13 +50,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glfw)
 
 FetchContent_Declare(
-    vma
-    GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
-    GIT_TAG v3.1.0
-)
-FetchContent_MakeAvailable(vma)
-
-FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
     GIT_TAG v1.91.1-docking
@@ -80,16 +63,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tobjl)
 
-# It is set to required for now even though there is a fallback mechanism with FetchContent (the latter seems to provide very few extensions and I am not sure if it will work well for now)
-# TODO: Check if the fallback mechanism works well
-find_package(Vulkan REQUIRED)
-message(STATUS "ONYX: Vulkan SDK found")
-
-find_program(GLSLC_EXECUTABLE glslc REQUIRED)
-message(STATUS "ONYX: Found glslc: ${GLSLC_EXECUTABLE}")
-
 ### IMGUI ###
-
 
 set(IMGUI_SOURCES
     ${imgui_SOURCE_DIR}/imgui.cpp
@@ -101,6 +75,7 @@ set(IMGUI_SOURCES
     ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
+find_package(Vulkan REQUIRED)
 add_library(imgui STATIC ${IMGUI_SOURCES})
 
 target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR})
@@ -133,10 +108,10 @@ endif()
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Vulkan and GLFW are already linked with imgui
-target_link_libraries(onyx PUBLIC toolkit glm imgui VulkanMemoryAllocator PRIVATE tinyobjloader)
+target_link_libraries(onyx PUBLIC toolkit vulkit glm imgui PRIVATE tinyobjloader)
 
 target_precompile_headers(onyx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/onyx/core/pch.hpp)
-target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}" ONYX_GLSL_BINARY="${GLSLC_EXECUTABLE}")
+target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 if (MSVC)
     configure_compile_link_options(onyx FLAGS /W4 /WX)

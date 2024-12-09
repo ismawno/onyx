@@ -1,9 +1,7 @@
 #pragma once
 
-#include "onyx/core/device.hpp"
 #include "onyx/draw/vertex.hpp"
-#include "onyx/buffer/index_buffer.hpp"
-#include "onyx/buffer/vertex_buffer.hpp"
+#include "onyx/draw/data.hpp"
 
 #include "tkit/container/storage.hpp"
 
@@ -108,11 +106,8 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
     static TKit::Scope<const Model> Load(std::string_view p_Path) noexcept;
 
   private:
-    TKit::Ref<Device> m_Device;
-    VertexBuffer<D> m_VertexBuffer;
-    TKit::Storage<IndexBuffer> m_IndexBuffer;
-
-    bool m_HasIndices;
+    VertexBuffer<D> m_VertexBuffer{};
+    IndexBuffer m_IndexBuffer{};
 };
 
 } // namespace Onyx

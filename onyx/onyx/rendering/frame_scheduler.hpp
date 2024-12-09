@@ -1,6 +1,10 @@
 #pragma once
-#include "onyx/rendering/swap_chain.hpp"
+
+#include "onyx/core/alias.hpp"
 #include "onyx/core/dimension.hpp"
+#include "onyx/core/core.hpp"
+#include "vkit/backend/swap_chain.hpp"
+#include "vkit/backend/command_pool.hpp"
 #include "tkit/multiprocessing/task.hpp"
 
 namespace Onyx
@@ -23,35 +27,45 @@ class ONYX_API FrameScheduler
 
     u32 GetFrameIndex() const noexcept;
 
+    VkResult AcquireNextImage() noexcept;
+    VkResult SubmitCurrentCommandBuffer() noexcept;
+    VkResult Present() noexcept;
+
     template <typename F> void ImmediateSubmission(F &&p_Submission) const noexcept
     {
-        const VkCommandBuffer cmd = m_Device->BeginSingleTimeCommands(m_CommandPool);
+        const auto cmdresult = m_CommandPool.BeginSingleTimeCommands();
+        VKIT_ASSERT_RESULT(cmdresult);
+
+        const VkCommandBuffer cmd = cmdresult.GetValue();
         std::forward<F>(p_Submission)(cmd);
-        m_Device->EndSingleTimeCommands(cmd, m_CommandPool);
+        const auto result =
+            m_CommandPool.EndSingleTimeCommands(cmd, Core::GetDevice().GetQueue(VKit::QueueType::Graphics));
+
+        VKIT_ASSERT_VULKAN_RESULT(result);
     }
 
-    VkCommandPool GetCommandPool() const noexcept;
+    VkRenderPass GetRenderPass() const noexcept;
 
     VkCommandBuffer GetCurrentCommandBuffer() const noexcept;
-    const SwapChain &GetSwapChain() const noexcept;
+    const VKit::SwapChain &GetSwapChain() const noexcept;
 
     VkPresentModeKHR GetPresentMode() const noexcept;
     void SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept;
 
-    const DynamicArray<VkPresentModeKHR> &GetSupportedPresentModes() const noexcept;
-
   private:
     void createSwapChain(Window &p_Window) noexcept;
-    void createCommandPool(VkSurfaceKHR p_Surface) noexcept;
+    void createRenderPass() noexcept;
+    void createCommandPool() noexcept;
     void createCommandBuffers() noexcept;
 
-    VkCommandPool m_CommandPool;
-    VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
-    DynamicArray<VkPresentModeKHR> m_SupportedPresentModes;
+    VKit::CommandPool m_CommandPool;
+    VKit::SwapChain m_SwapChain;
+    TKit::StaticArray<VkFence, VKIT_MAX_IMAGE_COUNT> m_InFlightImages;
 
-    TKit::Ref<Device> m_Device;
-    TKit::Scope<SwapChain> m_SwapChain;
-    std::array<VkCommandBuffer, SwapChain::MFIF> m_CommandBuffers;
+    VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
+
+    VkRenderPass m_RenderPass = VK_NULL_HANDLE;
+    std::array<VkCommandBuffer, VKIT_MAX_FRAMES_IN_FLIGHT> m_CommandBuffers;
 
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;
@@ -59,6 +73,5 @@ class ONYX_API FrameScheduler
     bool m_PresentModeChanged = false;
 
     TKit::Ref<TKit::Task<VkResult>> m_PresentTask;
-    bool m_PresentRunning = false;
 };
 } // namespace Onyx

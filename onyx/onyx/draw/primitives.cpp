@@ -1,5 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/draw/primitives.hpp"
+#include "onyx/core/core.hpp"
 #include "tkit/container/storage.hpp"
 
 namespace Onyx
@@ -9,8 +10,15 @@ template <Dimension D> struct IndexVertexBuffers
 {
     IndexVertexBuffers(const std::span<const Vertex<D>> p_Vertices, const std::span<const Index> p_Indices,
                        const BufferLayout<D> &p_Layout) noexcept
-        : Vertices{p_Vertices}, Indices{p_Indices}, Layout{p_Layout}
+        : Layout{p_Layout}
     {
+        Vertices = Core::CreateVertexBuffer(p_Vertices);
+        Indices = Core::CreateIndexBuffer(p_Indices);
+    }
+    ~IndexVertexBuffers() noexcept
+    {
+        Vertices.Destroy();
+        Indices.Destroy();
     }
 
     VertexBuffer<D> Vertices;
@@ -29,13 +37,13 @@ template <Dimension D> static TKit::Storage<IndexVertexBuffers<D>> &getBuffers()
         return s_Buffers3D;
 }
 
-template <Dimension D> const VertexBuffer<D> *IPrimitives<D>::GetVertexBuffer() noexcept
+template <Dimension D> const VertexBuffer<D> &IPrimitives<D>::GetVertexBuffer() noexcept
 {
-    return &getBuffers<D>()->Vertices;
+    return getBuffers<D>()->Vertices;
 }
-template <Dimension D> const IndexBuffer *IPrimitives<D>::GetIndexBuffer() noexcept
+template <Dimension D> const IndexBuffer &IPrimitives<D>::GetIndexBuffer() noexcept
 {
-    return &getBuffers<D>()->Indices;
+    return getBuffers<D>()->Indices;
 }
 template <Dimension D> const PrimitiveDataLayout &IPrimitives<D>::GetDataLayout(const usize p_PrimitiveIndex) noexcept
 {

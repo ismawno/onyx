@@ -1,8 +1,8 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/draw/transform.hpp"
-#include "onyx/descriptors/descriptor_writer.hpp"
 #include "onyx/app/window.hpp"
+#include "vkit/descriptors/descriptor_writer.hpp"
 #include "tkit/utilities/math.hpp"
 
 namespace Onyx
@@ -26,15 +26,18 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
                                                      const VkDescriptorBufferInfo &p_PointInfo,
                                                      const VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
 {
-    const DescriptorSetLayout *layout = Core::GetLightStorageDescriptorSetLayout();
-    const DescriptorPool *pool = Core::GetDescriptorPool();
+    const VKit::DescriptorSetLayout &layout = Core::GetLightStorageDescriptorSetLayout();
+    const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
     if (p_OldSet)
-        pool->Deallocate(p_OldSet);
+        pool.Deallocate(p_OldSet);
 
-    DescriptorWriter writer(layout, pool);
+    VKit::DescriptorWriter writer(Core::GetDevice(), &layout, &pool);
     writer.WriteBuffer(0, &p_DirectionalInfo);
     writer.WriteBuffer(1, &p_PointInfo);
-    return writer.Build();
+
+    const auto result = writer.Build();
+    VKIT_ASSERT_RESULT(result);
+    return result.GetValue();
 }
 
 template <Dimension D>
@@ -49,25 +52,25 @@ Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<Rende
                        const ProjectionViewData<D3> *p_ProjectionView) noexcept
     : IRenderer<D3>(p_RenderPass, p_State, p_ProjectionView)
 {
-    for (u32 i = 0; i < SwapChain::MFIF; ++i)
+    for (u32 i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        const VkDescriptorBufferInfo dirInfo = m_DeviceLightData.DirectionalLightBuffers[i]->GetDescriptorInfo();
-        const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.PointLightBuffers[i]->GetDescriptorInfo();
+        const VkDescriptorBufferInfo dirInfo = m_DeviceLightData.DirectionalLightBuffers[i].GetDescriptorInfo();
+        const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.PointLightBuffers[i].GetDescriptorInfo();
         m_DeviceLightData.DescriptorSets[i] = resetLightBufferDescriptorSet(dirInfo, pointInfo);
     }
 }
 
 DeviceLightData::DeviceLightData(const usize p_Capacity) noexcept
 {
-    for (usize i = 0; i < SwapChain::MFIF; ++i)
+    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        DirectionalLightBuffers[i].Create(p_Capacity);
-        PointLightBuffers[i].Create(p_Capacity);
+        DirectionalLightBuffers[i] = Core::CreateMutableStorageBuffer<DirectionalLight>(p_Capacity);
+        PointLightBuffers[i] = Core::CreateMutableStorageBuffer<PointLight>(p_Capacity);
     }
 }
 DeviceLightData::~DeviceLightData() noexcept
 {
-    for (usize i = 0; i < SwapChain::MFIF; ++i)
+    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         DirectionalLightBuffers[i].Destroy();
         PointLightBuffers[i].Destroy();
@@ -286,7 +289,7 @@ void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
     m_PolygonRenderer.DoStencilTestNoFill.Render(stencilInfo);
     m_CircleRenderer.DoStencilTestNoFill.Render(stencilInfo);
 
-    m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
+    m_FrameIndex = (m_FrameIndex + 1) % VKIT_MAX_FRAMES_IN_FLIGHT;
     m_ZOffset = 0;
 }
 
@@ -306,9 +309,9 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
     fillDrawInfo.AmbientColor = &AmbientColor;
 
     for (usize i = 0; i < m_DirectionalLights.size(); ++i)
-        m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex]->WriteAt(i, &m_DirectionalLights[i]);
+        m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].WriteAt(i, &m_DirectionalLights[i]);
     for (usize i = 0; i < m_PointLights.size(); ++i)
-        m_DeviceLightData.PointLightBuffers[m_FrameIndex]->WriteAt(i, &m_PointLights[i]);
+        m_DeviceLightData.PointLightBuffers[m_FrameIndex].WriteAt(i, &m_PointLights[i]);
 
     m_MeshRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
     m_PrimitiveRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
@@ -334,19 +337,19 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
     m_PolygonRenderer.DoStencilTestNoFill.Render(stencilInfo);
     m_CircleRenderer.DoStencilTestNoFill.Render(stencilInfo);
 
-    m_FrameIndex = (m_FrameIndex + 1) % SwapChain::MFIF;
+    m_FrameIndex = (m_FrameIndex + 1) % VKIT_MAX_FRAMES_IN_FLIGHT;
 }
 
 void Renderer<D3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
 {
     const usize size = m_DirectionalLights.size();
     auto &buffer = m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex];
-    if (buffer->GetInstanceCount() == size)
+    if (buffer.GetInfo().InstanceCount == size)
     {
         buffer.Destroy();
-        buffer.Create(size * 2);
-        const VkDescriptorBufferInfo dirInfo = buffer->GetDescriptorInfo();
-        const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.PointLightBuffers[m_FrameIndex]->GetDescriptorInfo();
+        buffer = Core::CreateMutableStorageBuffer<DirectionalLight>(size * 2);
+        const VkDescriptorBufferInfo dirInfo = buffer.GetDescriptorInfo();
+        const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.PointLightBuffers[m_FrameIndex].GetDescriptorInfo();
 
         m_DeviceLightData.DescriptorSets[m_FrameIndex] =
             resetLightBufferDescriptorSet(dirInfo, pointInfo, m_DeviceLightData.DescriptorSets[m_FrameIndex]);
@@ -358,14 +361,14 @@ void Renderer<D3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
 void Renderer<D3>::AddPointLight(const PointLight &p_Light) noexcept
 {
     const usize size = m_PointLights.size();
-    auto &buffer = m_DeviceLightData.PointLightBuffers[m_FrameIndex];
-    if (buffer->GetInstanceCount() == size)
+    MutableStorageBuffer<PointLight> &buffer = m_DeviceLightData.PointLightBuffers[m_FrameIndex];
+    if (buffer.GetInfo().InstanceCount == size)
     {
         buffer.Destroy();
-        buffer.Create(size * 2);
+        buffer = Core::CreateMutableStorageBuffer<PointLight>(size * 2);
         const VkDescriptorBufferInfo dirInfo =
-            m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex]->GetDescriptorInfo();
-        const VkDescriptorBufferInfo pointInfo = buffer->GetDescriptorInfo();
+            m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].GetDescriptorInfo();
+        const VkDescriptorBufferInfo pointInfo = buffer.GetDescriptorInfo();
 
         m_DeviceLightData.DescriptorSets[m_FrameIndex] =
             resetLightBufferDescriptorSet(dirInfo, pointInfo, m_DeviceLightData.DescriptorSets[m_FrameIndex]);

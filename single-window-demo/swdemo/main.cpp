@@ -1,10 +1,7 @@
 #include "swdemo/layer.hpp"
 #include "onyx/app/app.hpp"
-#include "tkit/memory/stack_allocator.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "tkit/core/literals.hpp"
-
-using namespace TKit::Literals;
 
 void RunApp() noexcept
 {
@@ -19,8 +16,7 @@ void RunApp() noexcept
 int main()
 {
     TKit::ThreadPool<std::mutex> threadPool{7};
-    TKit::StackAllocator allocator{10_kb};
-    Onyx::Core::Initialize(&allocator, &threadPool);
+    Onyx::Core::Initialize(&threadPool);
     RunApp();
     Onyx::Core::Terminate();
 }

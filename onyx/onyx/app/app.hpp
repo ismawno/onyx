@@ -166,9 +166,6 @@ class IApplication
      */
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
 
-    /// Reference to the Vulkan device.
-    TKit::Ref<Device> m_Device;
-
   private:
     /**
      * @brief Create the ImGui descriptor pool.

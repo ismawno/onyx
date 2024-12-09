@@ -5,8 +5,7 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/api.hpp"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "onyx/core/glfw.hpp"
 
 namespace Onyx
 {

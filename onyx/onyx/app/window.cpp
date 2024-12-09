@@ -16,8 +16,8 @@ Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_
 {
     createWindow(p_Specs);
 
-    m_RenderContext2D.Create(this, m_FrameScheduler->GetSwapChain().GetRenderPass());
-    m_RenderContext3D.Create(this, m_FrameScheduler->GetSwapChain().GetRenderPass());
+    m_RenderContext2D.Create(this, m_FrameScheduler->GetRenderPass());
+    m_RenderContext3D.Create(this, m_FrameScheduler->GetRenderPass());
 }
 
 Window::~Window() noexcept
@@ -25,7 +25,7 @@ Window::~Window() noexcept
     m_FrameScheduler.Destroy();
     m_RenderContext2D.Destroy();
     m_RenderContext3D.Destroy();
-    vkDestroySurfaceKHR(m_Instance->GetInstance(), m_Surface, nullptr);
+    vkDestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
 
@@ -42,12 +42,12 @@ void Window::createWindow(const Specs &p_Specs) noexcept
                                 nullptr, nullptr);
     TKIT_ASSERT(m_Window, "Failed to create a GLFW window");
 
-    m_Instance = Core::GetInstance();
-    TKIT_ASSERT_RETURNS(glfwCreateWindowSurface(m_Instance->GetInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
+    TKIT_ASSERT_RETURNS(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
                         "Failed to create a window surface");
     glfwSetWindowUserPointer(m_Window, this);
 
-    m_Device = Core::tryCreateDevice(m_Surface);
+    if (!Core::IsDeviceCreated())
+        Core::CreateDevice(m_Surface);
     m_FrameScheduler.Create(*this);
     Input::InstallCallbacks(*this);
 }
@@ -89,11 +89,11 @@ u32 Window::GetScreenHeight() const noexcept
 
 u32 Window::GetPixelWidth() const noexcept
 {
-    return m_FrameScheduler->GetSwapChain().GetWidth();
+    return m_FrameScheduler->GetSwapChain().GetInfo().Extent.width;
 }
 u32 Window::GetPixelHeight() const noexcept
 {
-    return m_FrameScheduler->GetSwapChain().GetHeight();
+    return m_FrameScheduler->GetSwapChain().GetInfo().Extent.height;
 }
 
 f32 Window::GetScreenAspect() const noexcept
@@ -103,7 +103,7 @@ f32 Window::GetScreenAspect() const noexcept
 
 f32 Window::GetPixelAspect() const noexcept
 {
-    return m_FrameScheduler->GetSwapChain().GetAspectRatio();
+    return static_cast<f32>(GetPixelWidth()) / static_cast<f32>(GetPixelHeight());
 }
 
 std::pair<u32, u32> Window::GetPosition() const noexcept

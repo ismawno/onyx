@@ -1,7 +1,6 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/core/device.hpp"
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/draw/color.hpp"
@@ -9,8 +8,7 @@
 
 #include "tkit/container/storage.hpp"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include "onyx/core/glfw.hpp"
 
 namespace Onyx
 {
@@ -85,11 +83,11 @@ class ONYX_API Window
         if (const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this))
         {
             {
-                TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Render", m_Device->GetProfilingContext(), cmd);
+                TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Render", Core::GetProfilingContext(), cmd);
                 m_FrameScheduler->BeginRenderPass(BackgroundColor);
                 {
-                    TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkDrawCalls, "Onyx::DrawCalls", m_Device->GetProfilingContext(),
-                                                    cmd, true);
+                    TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkDrawCalls, "Onyx::DrawCalls", Core::GetProfilingContext(), cmd,
+                                                    true);
                     TKIT_PROFILE_NAMED_NSCOPE(drawCalls, "Onyx::DrawCalls", true);
                     std::forward<F1>(p_DrawCalls)(cmd);
                 }
@@ -99,8 +97,7 @@ class ONYX_API Window
                 m_RenderContext3D->Render(cmd);
 
                 {
-                    TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkUiCalls, "Onyx::ImGui", m_Device->GetProfilingContext(), cmd,
-                                                    true);
+                    TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkUiCalls, "Onyx::ImGui", Core::GetProfilingContext(), cmd, true);
                     TKIT_PROFILE_NAMED_NSCOPE(uiCalls, "Onyx::ImGui", true);
                     std::forward<F2>(p_UICalls)(cmd);
                 }
@@ -113,7 +110,7 @@ class ONYX_API Window
                 std::scoped_lock lock(mutex);
                 TKIT_PROFILE_MARK_LOCK(mutex);
 #endif
-                TKIT_PROFILE_VULKAN_COLLECT(m_Device->GetProfilingContext(), cmd);
+                TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);
             }
             m_FrameScheduler->EndFrame(*this);
             return true;
@@ -296,9 +293,6 @@ class ONYX_API Window
     void createWindow(const Specs &p_Specs) noexcept;
 
     GLFWwindow *m_Window;
-
-    TKit::Ref<Instance> m_Instance;
-    TKit::Ref<Device> m_Device;
 
     TKit::Storage<FrameScheduler> m_FrameScheduler;
     TKit::Storage<RenderContext<D2>> m_RenderContext2D;

@@ -58,7 +58,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
     void Flush() noexcept;
 
   private:
-    TKit::Storage<GraphicsPipeline> m_Pipeline;
+    VKit::GraphicsPipeline m_Pipeline{};
 
     // Could actually use a pointer to the model instead of a reference and take extra care the model still lives
     // while drawing
@@ -119,7 +119,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
     void Flush() noexcept;
 
   private:
-    TKit::Storage<GraphicsPipeline> m_Pipeline;
+    VKit::GraphicsPipeline m_Pipeline{};
 
     using HostInstanceData = std::array<DynamicArray<InstanceData>, Primitives<D>::AMOUNT>;
 
@@ -183,7 +183,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PolygonRenderer
     void Flush() noexcept;
 
   private:
-    TKit::Storage<GraphicsPipeline> m_Pipeline;
+    VKit::GraphicsPipeline m_Pipeline{};
 
     // Batch data maps perfectly to the number of polygons to be drawn i.e number of entries in storage buffer.
     // StorageSizes is not needed
@@ -256,7 +256,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API CircleRenderer
     void Flush() noexcept;
 
   private:
-    TKit::Storage<GraphicsPipeline> m_Pipeline;
+    VKit::GraphicsPipeline m_Pipeline{};
 
     // Batch data maps perfectly to the number of circles to be drawn i.e number of entries in storage buffer.
     // StorageSizes is not needed

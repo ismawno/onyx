@@ -1,8 +1,8 @@
 #pragma once
 
 #include "onyx/rendering/render_systems.hpp"
-#include "onyx/descriptors/descriptor_set_layout.hpp"
-#include "onyx/descriptors/descriptor_pool.hpp"
+#include "vkit/descriptors/descriptor_set_layout.hpp"
+#include "vkit/descriptors/descriptor_pool.hpp"
 
 namespace Onyx
 {
@@ -275,13 +275,13 @@ struct ONYX_API DeviceLightData
     ~DeviceLightData() noexcept;
 
     /// Storage buffers for directional lights, one per frame in flight.
-    std::array<TKit::Storage<StorageBuffer<DirectionalLight>>, SwapChain::MFIF> DirectionalLightBuffers;
+    std::array<MutableStorageBuffer<DirectionalLight>, VKIT_MAX_FRAMES_IN_FLIGHT> DirectionalLightBuffers;
 
     /// Storage buffers for point lights, one per frame in flight.
-    std::array<TKit::Storage<StorageBuffer<PointLight>>, SwapChain::MFIF> PointLightBuffers;
+    std::array<MutableStorageBuffer<PointLight>, VKIT_MAX_FRAMES_IN_FLIGHT> PointLightBuffers;
 
     /// Descriptor sets associated with the light buffers, one per frame in flight.
-    std::array<VkDescriptorSet, SwapChain::MFIF> DescriptorSets;
+    std::array<VkDescriptorSet, VKIT_MAX_FRAMES_IN_FLIGHT> DescriptorSets;
 };
 
 /**

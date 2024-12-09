@@ -1,8 +1,10 @@
 #pragma once
 
-#include "onyx/core/dimension.hpp"
-#include "onyx/core/instance.hpp"
-#include "onyx/core/device.hpp"
+#include "vkit/backend/physical_device.hpp"
+#include "vkit/descriptors/descriptor_pool.hpp"
+#include "vkit/descriptors/descriptor_set_layout.hpp"
+#include "vkit/backend/command_pool.hpp"
+#include "onyx/draw/data.hpp"
 #include "onyx/core/vma.hpp"
 
 #ifndef ONYX_MAX_DESCRIPTOR_SETS
@@ -20,40 +22,79 @@ class ITaskManager;
 } // namespace TKit
 
 // This file handles the lifetime of global data the ONYX library needs, such as the Vulkan instance and device. To
-// properly cleanup resources, ensure proper destruction ordering and avoid the extremely annoying static memory
-// deallocation randomness, I use reference counting. In the terminate method, I just set the global references to
-// nullptr to ensure the reference count goes to 0 just before the program ends, avoiding static mess
+// properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX
+// objects are alive at that point.
 
 namespace Onyx
 {
-class Window;
-class DescriptorPool;
-class DescriptorSetLayout;
-
 struct ONYX_API Core
 {
-    static void Initialize(TKit::StackAllocator *p_Allocator, TKit::ITaskManager *p_Manager) noexcept;
+    static void Initialize(TKit::ITaskManager *p_TaskManager) noexcept;
     static void Terminate() noexcept;
 
-    static TKit::StackAllocator *GetStackAllocator() noexcept;
     static TKit::ITaskManager *GetTaskManager() noexcept;
 
-    static const TKit::Ref<Instance> &GetInstance() noexcept;
-    static const TKit::Ref<Device> &GetDevice() noexcept;
+    static const VKit::Instance &GetInstance() noexcept;
+    static const VKit::LogicalDevice &GetDevice() noexcept;
+    static void CreateDevice(VkSurfaceKHR p_Surface) noexcept;
 
+    static bool IsDeviceCreated() noexcept;
+    static void DeviceWaitIdle() noexcept;
+
+    static VKit::CommandPool &GetCommandPool() noexcept;
     static VmaAllocator GetVulkanAllocator() noexcept;
 
-    static const DescriptorPool *GetDescriptorPool() noexcept;
-    static const DescriptorSetLayout *GetTransformStorageDescriptorSetLayout() noexcept;
-    static const DescriptorSetLayout *GetLightStorageDescriptorSetLayout() noexcept;
+    static const VKit::DescriptorPool &GetDescriptorPool() noexcept;
+    static const VKit::DescriptorSetLayout &GetTransformStorageDescriptorSetLayout() noexcept;
+    static const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout() noexcept;
+
+    template <Dimension D> static VertexBuffer<D> CreateVertexBuffer(std::span<const Vertex<D>> p_Vertices) noexcept;
+    static IndexBuffer CreateIndexBuffer(std::span<const Index> p_Indices) noexcept;
+    template <typename T> static StorageBuffer<T> CreateStorageBuffer(const std::span<const T> p_Data) noexcept
+    {
+        typename VKit::DeviceLocalBuffer<T>::StorageSpecs specs{};
+        specs.Allocator = GetVulkanAllocator();
+        specs.Data = p_Data;
+        specs.CommandPool = &GetCommandPool();
+        specs.Queue = GetGraphicsQueue();
+
+        const VKit::PhysicalDevice &device = GetDevice().GetPhysicalDevice();
+        const VkDeviceSize alignment = device.GetInfo().Properties.Core.limits.minStorageBufferOffsetAlignment;
+        const auto result = VKit::DeviceLocalBuffer<T>::CreateStorageBuffer(specs, alignment);
+        VKIT_ASSERT_RESULT(result);
+        return result.GetValue();
+    }
+
+    template <Dimension D> static MutableVertexBuffer<D> CreateMutableVertexBuffer(VkDeviceSize p_Capacity) noexcept;
+    static MutableIndexBuffer CreateMutableIndexBuffer(VkDeviceSize p_Capacity) noexcept;
+    template <typename T>
+    static MutableStorageBuffer<T> CreateMutableStorageBuffer(const VkDeviceSize p_Capacity) noexcept
+    {
+        typename VKit::HostVisibleBuffer<T>::StorageSpecs specs{};
+        specs.Allocator = GetVulkanAllocator();
+        specs.Capacity = p_Capacity;
+
+        const VKit::PhysicalDevice &device = GetDevice().GetPhysicalDevice();
+        const VkDeviceSize alignment = device.GetInfo().Properties.Core.limits.minStorageBufferOffsetAlignment;
+        const auto result = VKit::HostVisibleBuffer<T>::CreateStorageBuffer(specs, alignment);
+        VKIT_ASSERT_RESULT(result);
+        return result.GetValue();
+    }
+
+    static VkQueue GetGraphicsQueue() noexcept;
+    static VkQueue GetPresentQueue() noexcept;
+
+    static std::mutex &GetGraphicsMutex() noexcept;
+    static std::mutex &GetPresentMutex() noexcept;
+
+    static void LockGraphicsAndPresentQueues() noexcept;
+    static void UnlockGraphicsAndPresentQueues() noexcept;
 
     template <Dimension D> static VkPipelineLayout GetGraphicsPipelineLayout() noexcept;
 
-  private:
-    // Should ony be called by window constructor (I should look for a way to better hide this)
-    static const TKit::Ref<Device> &tryCreateDevice(VkSurfaceKHR p_Surface) noexcept;
-
-    friend class Window;
+#ifdef TKIT_ENABLE_VULKAN_PROFILING
+    TKit::VkProfilingContext GetProfilingContext() noexcept;
+#endif
 };
 
 } // namespace Onyx

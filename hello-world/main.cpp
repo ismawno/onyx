@@ -1,11 +1,9 @@
 #include "onyx/app/app.hpp"
 #include "tkit/core/literals.hpp"
-#include "tkit/memory/stack_allocator.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include <imgui.h>
 
 using Onyx::D2;
-using namespace TKit::Literals;
 
 static void RunStandaloneWindow() noexcept
 {
@@ -94,10 +92,9 @@ static void RunAppExample3() noexcept
 
 int main()
 {
-    TKit::StackAllocator allocator(10_kb);
     TKit::ThreadPool<std::mutex> threadPool(7);
 
-    Onyx::Core::Initialize(&allocator, &threadPool);
+    Onyx::Core::Initialize(&threadPool);
     RunStandaloneWindow();
     RunAppExample1();
     RunAppExample2();

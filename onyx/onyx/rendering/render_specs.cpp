@@ -1,5 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_specs.hpp"
+#include "onyx/core/shaders.hpp"
 
 namespace Onyx
 {
@@ -17,40 +18,31 @@ void ApplyCoordinateSystemIntrinsic(mat4 &p_Transform) noexcept
     p_Transform[2] = -p_Transform[2];
 }
 
-template <Dimension D, DrawMode DMode> struct ShaderPaths;
-
-template <DrawMode DMode> struct ShaderPaths<D2, DMode>
+template <Dimension D, DrawMode DMode>
+PolygonDeviceInstanceData<D, DMode>::PolygonDeviceInstanceData(const usize p_Capacity) noexcept
+    : DeviceInstanceData<InstanceData<D, DMode>>(p_Capacity)
 {
-    static constexpr const char *MeshVertex = ONYX_ROOT_PATH "/onyx/shaders/mesh2D.vert";
-    static constexpr const char *MeshFragment = ONYX_ROOT_PATH "/onyx/shaders/mesh2D.frag";
-
-    static constexpr const char *CircleVertex = ONYX_ROOT_PATH "/onyx/shaders/circle2D.vert";
-    static constexpr const char *CircleFragment = ONYX_ROOT_PATH "/onyx/shaders/circle2D.frag";
-};
-
-template <> struct ShaderPaths<D3, DrawMode::Fill>
+    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    {
+        VertexBuffers[i] = Core::CreateMutableVertexBuffer<D>(p_Capacity);
+        IndexBuffers[i] = Core::CreateMutableIndexBuffer(p_Capacity);
+    }
+}
+template <Dimension D, DrawMode DMode> PolygonDeviceInstanceData<D, DMode>::~PolygonDeviceInstanceData() noexcept
 {
-    static constexpr const char *MeshVertex = ONYX_ROOT_PATH "/onyx/shaders/mesh3D.vert";
-    static constexpr const char *MeshFragment = ONYX_ROOT_PATH "/onyx/shaders/mesh3D.frag";
-
-    static constexpr const char *CircleVertex = ONYX_ROOT_PATH "/onyx/shaders/circle3D.vert";
-    static constexpr const char *CircleFragment = ONYX_ROOT_PATH "/onyx/shaders/circle3D.frag";
-};
-
-template <> struct ShaderPaths<D3, DrawMode::Stencil>
-{
-    static constexpr const char *MeshVertex = ONYX_ROOT_PATH "/onyx/shaders/mesh-outline3D.vert";
-    static constexpr const char *MeshFragment = ONYX_ROOT_PATH "/onyx/shaders/mesh2D.frag";
-
-    static constexpr const char *CircleVertex = ONYX_ROOT_PATH "/onyx/shaders/circle2D.vert";
-    static constexpr const char *CircleFragment = ONYX_ROOT_PATH "/onyx/shaders/circle2D.frag";
-};
+    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    {
+        VertexBuffers[i].Destroy();
+        IndexBuffers[i].Destroy();
+    }
+}
 
 template <Dimension D, PipelineMode PMode>
-static GraphicsPipeline::Specs defaultPipelineSpecs(const char *p_VPath, const char *p_FPath,
-                                                    const VkRenderPass p_RenderPass) noexcept
+static VKit::GraphicsPipeline::Specs defaultPipelineSpecs(const VKit::Shader &p_VertexShader,
+                                                          const VKit::Shader &p_FragmentShader,
+                                                          const VkRenderPass p_RenderPass) noexcept
 {
-    GraphicsPipeline::Specs specs{};
+    VKit::GraphicsPipeline::Specs specs{};
     if constexpr (D == D3)
         specs.ColorBlendAttachment.blendEnable = VK_FALSE;
     else if constexpr (GetDrawMode<PMode>() == DrawMode::Stencil)
@@ -90,8 +82,8 @@ static GraphicsPipeline::Specs defaultPipelineSpecs(const char *p_VPath, const c
     if constexpr (PMode == PipelineMode::DoStencilWriteNoFill)
         specs.ColorBlendAttachment.colorWriteMask = 0;
 
-    specs.VertexShaderPath = p_VPath;
-    specs.FragmentShaderPath = p_FPath;
+    specs.VertexShader = p_VertexShader;
+    specs.FragmentShader = p_FragmentShader;
 
     specs.InputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     specs.RenderPass = p_RenderPass;
@@ -100,60 +92,37 @@ static GraphicsPipeline::Specs defaultPipelineSpecs(const char *p_VPath, const c
 }
 
 template <Dimension D, PipelineMode PMode>
-GraphicsPipeline::Specs CreateMeshedPipelineSpecs(const VkRenderPass p_RenderPass) noexcept
+VKit::GraphicsPipeline::Specs Pipeline<D, PMode>::CreateMeshSpecs(const VkRenderPass p_RenderPass) noexcept
 {
-    GraphicsPipeline::Specs specs =
-        defaultPipelineSpecs<D, PMode>(ShaderPaths<D, GetDrawMode<PMode>()>::MeshVertex,
-                                       ShaderPaths<D, GetDrawMode<PMode>()>::MeshFragment, p_RenderPass);
+    VKit::GraphicsPipeline::Specs specs =
+        defaultPipelineSpecs<D, PMode>(Shaders<D, GetDrawMode<PMode>()>::GetMeshVertexShader(),
+                                       Shaders<D, GetDrawMode<PMode>()>::GetMeshFragmentShader(), p_RenderPass);
 
-    const auto &bdesc = Vertex<D>::GetBindingDescriptions();
-    const auto &attdesc = Vertex<D>::GetAttributeDescriptions();
-    specs.BindingDescriptions = std::span<const VkVertexInputBindingDescription>(bdesc);
-    specs.AttributeDescriptions = std::span<const VkVertexInputAttributeDescription>(attdesc);
+    specs.BindingDescriptions = Vertex<D>::GetBindingDescriptions();
+    specs.AttributeDescriptions = Vertex<D>::GetAttributeDescriptions();
     return specs;
 }
 
 template <Dimension D, PipelineMode PMode>
-GraphicsPipeline::Specs CreateCirclePipelineSpecs(const VkRenderPass p_RenderPass) noexcept
+VKit::GraphicsPipeline::Specs Pipeline<D, PMode>::CreateCircleSpecs(const VkRenderPass p_RenderPass) noexcept
 {
-    return defaultPipelineSpecs<D, PMode>(ShaderPaths<D, GetDrawMode<PMode>()>::CircleVertex,
-                                          ShaderPaths<D, GetDrawMode<PMode>()>::CircleFragment, p_RenderPass);
+    return defaultPipelineSpecs<D, PMode>(Shaders<D, GetDrawMode<PMode>()>::GetCircleVertexShader(),
+                                          Shaders<D, GetDrawMode<PMode>()>::GetCircleFragmentShader(), p_RenderPass);
 }
 
-template GraphicsPipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::NoStencilWriteDoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::DoStencilWriteDoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::DoStencilWriteNoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateMeshedPipelineSpecs<D2, PipelineMode::DoStencilTestNoFill>(
-    VkRenderPass) noexcept;
+template struct PolygonDeviceInstanceData<D2, DrawMode::Fill>;
+template struct PolygonDeviceInstanceData<D2, DrawMode::Stencil>;
+template struct PolygonDeviceInstanceData<D3, DrawMode::Fill>;
+template struct PolygonDeviceInstanceData<D3, DrawMode::Stencil>;
 
-template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::NoStencilWriteDoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::DoStencilWriteDoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::DoStencilWriteNoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D2, PipelineMode::DoStencilTestNoFill>(
-    VkRenderPass) noexcept;
+template struct Pipeline<D2, PipelineMode::NoStencilWriteDoFill>;
+template struct Pipeline<D2, PipelineMode::DoStencilWriteDoFill>;
+template struct Pipeline<D2, PipelineMode::DoStencilWriteNoFill>;
+template struct Pipeline<D2, PipelineMode::DoStencilTestNoFill>;
 
-template GraphicsPipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::NoStencilWriteDoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::DoStencilWriteDoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::DoStencilWriteNoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateMeshedPipelineSpecs<D3, PipelineMode::DoStencilTestNoFill>(
-    VkRenderPass) noexcept;
-
-template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::NoStencilWriteDoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilWriteDoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilWriteNoFill>(
-    VkRenderPass) noexcept;
-template GraphicsPipeline::Specs CreateCirclePipelineSpecs<D3, PipelineMode::DoStencilTestNoFill>(
-    VkRenderPass) noexcept;
+template struct Pipeline<D3, PipelineMode::NoStencilWriteDoFill>;
+template struct Pipeline<D3, PipelineMode::DoStencilWriteDoFill>;
+template struct Pipeline<D3, PipelineMode::DoStencilWriteNoFill>;
+template struct Pipeline<D3, PipelineMode::DoStencilTestNoFill>;
 
 } // namespace Onyx

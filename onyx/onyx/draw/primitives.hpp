@@ -1,8 +1,6 @@
 #pragma once
 
 #include "onyx/draw/data.hpp"
-#include "onyx/buffer/vertex_buffer.hpp" // could actually forward declare this
-#include "onyx/buffer/index_buffer.hpp"
 
 #ifndef ONYX_MAX_REGULAR_POLYGON_SIDES
 #    define ONYX_MAX_REGULAR_POLYGON_SIDES 8
@@ -41,29 +39,29 @@ template <Dimension D> struct IPrimitives
     /**
      * @brief Get the combined vertex buffer for the primitives.
      *
-     * @return const VertexBuffer<D>* Pointer to the vertex buffer.
+     * @return The vertex buffer.
      */
-    static const VertexBuffer<D> *GetVertexBuffer() noexcept;
+    static const VertexBuffer<D> &GetVertexBuffer() noexcept;
 
     /**
      * @brief Get the combined index buffer for the primitives.
      *
-     * @return const IndexBuffer* Pointer to the index buffer.
+     * @return The index buffer.
      */
-    static const IndexBuffer *GetIndexBuffer() noexcept;
+    static const IndexBuffer &GetIndexBuffer() noexcept;
 
     /**
      * @brief Get the data layout for a specific primitive.
      *
      * @param p_PrimitiveIndex The index of the primitive.
-     * @return const PrimitiveDataLayout& Reference to the data layout of the primitive.
+     * @return The data layout of the primitive.
      */
     static const PrimitiveDataLayout &GetDataLayout(usize p_PrimitiveIndex) noexcept;
 
     /**
      * @brief Get the index of the triangle primitive.
      *
-     * @return usize Index of the triangle primitive.
+     * @return Index of the triangle primitive.
      */
     static TKIT_CONSTEVAL usize GetTriangleIndex() noexcept
     {
@@ -73,7 +71,7 @@ template <Dimension D> struct IPrimitives
     /**
      * @brief Get the index of the square primitive.
      *
-     * @return usize Index of the square primitive.
+     * @return Index of the square primitive.
      */
     static TKIT_CONSTEVAL usize GetSquareIndex() noexcept
     {
@@ -84,7 +82,7 @@ template <Dimension D> struct IPrimitives
      * @brief Get the index of an n-gon primitive with the specified number of sides.
      *
      * @param p_Sides Number of sides of the n-gon.
-     * @return constexpr usize Index of the n-gon primitive.
+     * @return Index of the n-gon primitive.
      */
     static constexpr usize GetNGonIndex(u32 p_Sides) noexcept
     {

@@ -38,8 +38,8 @@ void IApplication::Shutdown() noexcept
 {
     TKIT_ASSERT(!m_Terminated && m_Started, "Application cannot be terminated before it is started");
     Layers.OnShutdown();
-    if (m_Device)
-        vkDestroyDescriptorPool(m_Device->GetDevice(), m_ImGuiPool, nullptr);
+    if (Core::IsDeviceCreated())
+        vkDestroyDescriptorPool(Core::GetDevice(), m_ImGuiPool, nullptr);
     m_Terminated = true;
 }
 
@@ -71,10 +71,10 @@ void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
 
     // Lock the queues, as imgui requires them
-    m_Device->LockQueues();
+    Core::LockGraphicsAndPresentQueues();
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault(nullptr, p_CommandBuffer);
-    m_Device->UnlockQueues();
+    Core::UnlockGraphicsAndPresentQueues();
 }
 
 void IApplication::createImGuiPool() noexcept
@@ -99,7 +99,7 @@ void IApplication::createImGuiPool() noexcept
     poolInfo.poolSizeCount = 11;
     poolInfo.pPoolSizes = poolSizes;
 
-    TKIT_ASSERT_RETURNS(vkCreateDescriptorPool(m_Device->GetDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
+    TKIT_ASSERT_RETURNS(vkCreateDescriptorPool(Core::GetDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
                         "Failed to create descriptor pool");
 }
 
@@ -124,17 +124,16 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     m_Theme->Apply();
     ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindowHandle(), true);
 
-    const auto &instance = Core::GetInstance();
     ImGui_ImplVulkan_InitInfo initInfo{};
-    initInfo.Instance = instance->GetInstance();
-    initInfo.PhysicalDevice = m_Device->GetPhysicalDevice();
-    initInfo.Device = m_Device->GetDevice();
-    initInfo.Queue = m_Device->GetGraphicsQueue();
+    initInfo.Instance = Core::GetInstance();
+    initInfo.PhysicalDevice = Core::GetDevice().GetPhysicalDevice();
+    initInfo.Device = Core::GetDevice();
+    initInfo.Queue = Core::GetGraphicsQueue();
     initInfo.DescriptorPool = m_ImGuiPool;
     initInfo.MinImageCount = 3;
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    initInfo.RenderPass = p_Window.GetFrameScheduler().GetSwapChain().GetRenderPass();
+    initInfo.RenderPass = p_Window.GetFrameScheduler().GetRenderPass();
 
     ImGui_ImplVulkan_Init(&initInfo);
     ImGui_ImplVulkan_CreateFontsTexture();
@@ -142,7 +141,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
 
 void IApplication::shutdownImGui() noexcept
 {
-    m_Device->WaitIdle();
+    Core::DeviceWaitIdle();
     ImGui_ImplVulkan_DestroyFontsTexture();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -156,7 +155,6 @@ void IApplication::shutdownImGui() noexcept
 Application::Application(const Window::Specs &p_WindowSpecs) noexcept
 {
     m_Window.Create(p_WindowSpecs);
-    m_Device = Core::GetDevice();
     initializeImGui(*m_Window);
 }
 
