@@ -238,7 +238,9 @@ bool Core::IsDeviceCreated() noexcept
 }
 void Core::DeviceWaitIdle() noexcept
 {
+    LockGraphicsAndPresentQueues();
     s_Device.WaitIdle();
+    UnlockGraphicsAndPresentQueues();
 }
 
 VKit::CommandPool &Core::GetCommandPool() noexcept

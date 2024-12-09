@@ -25,7 +25,10 @@ FrameScheduler::~FrameScheduler() noexcept
     // have finished
 
     // Lock the queues to prevent any other command buffers from being submitted
-    vkQueueWaitIdle(Core::GetGraphicsQueue());
+    {
+        std::scoped_lock lock{Core::GetGraphicsMutex()};
+        vkQueueWaitIdle(Core::GetGraphicsQueue());
+    }
     vkFreeCommandBuffers(Core::GetDevice(), m_CommandPool, VKIT_MAX_FRAMES_IN_FLIGHT, m_CommandBuffers.data());
     vkDestroyCommandPool(Core::GetDevice(), m_CommandPool, nullptr);
     vkDestroyRenderPass(Core::GetDevice(), m_RenderPass, nullptr);
