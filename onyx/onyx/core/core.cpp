@@ -46,6 +46,7 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
     const auto physres =
         VKit::PhysicalDevice::Selector(&s_Instance)
             .SetSurface(p_Surface)
+            .PreferType(VKit::PhysicalDevice::Discrete)
             .AddFlags(VKit::PhysicalDeviceSelectorFlags_AnyType | VKit::PhysicalDeviceSelectorFlags_PortabilitySubset |
                       VKit::PhysicalDeviceSelectorFlags_RequireGraphicsQueue)
             .Select();

@@ -1,6 +1,6 @@
-# onyx
+# Onyx
 
-*Onyx* is a C++ application framework implemented with Vulkan and ImGui that I plan to use for any project requiring geometry visualization or a GUI. It is meant for personal use only, although I have tried my best to make it as user-friendly as possible.
+Onyx is a C++ application framework implemented with Vulkan and ImGui that I plan to use for any project requiring geometry visualization or a GUI. It is meant for personal use only, although I have tried my best to make it as user-friendly as possible.
 
 I have very little experience with graphics programming. This project represents my first serious "deep dive" into the Vulkan API, which is also the first graphics API I have ever used. I am sure there is a lot of room for improvement.
 
@@ -18,9 +18,9 @@ The three main features I consider the most valuable are:
 
 ### Window API
 
-This is the simplest use case of the *onyx* framework, allowing you to get a window up and running very quickly. It is also highly customizable, as it doesn’t require the application interface to work. However, some higher-level features, such as ImGui, are not included by default (you will have to manually set up the ImGui backend, which I highly discourage. If you want to use ImGui, refer to the [Application API](#application-api) section).
+This is the simplest use case of the Onyx framework, allowing you to get a window up and running very quickly. It is also highly customizable, as it doesn’t require the application interface to work. However, some higher-level features, such as ImGui, are not included by default (you will have to manually set up the ImGui backend, which I highly discourage. If you want to use ImGui, refer to the [Application API](#application-api) section).
 
-Creating and using an *onyx* window looks like this:
+Creating and using an Onyx window looks like this:
 
 ```cpp
 Onyx::Window::Specs specs;
@@ -119,7 +119,7 @@ There is more to this system, such as additional layer callbacks like `OnEvent()
 
 #### Multi-Window Application
 
-*Onyx* also supports a multi-window application interface, allowing many windows per application. This interface offers two implementations:
+Onyx also supports a multi-window application interface, allowing many windows per application. This interface offers two implementations:
 1. **Serial**: All windows run on the main thread.
 2. **Concurrent**: Each window runs on its own dedicated thread.
 
@@ -129,13 +129,13 @@ The serial implementation is more forgiving and easier to use than the concurren
 
 ### Render API
 
-The *onyx* framework includes two basic renderers for drawing simple geometry:
+The Onyx framework includes two basic renderers for drawing simple geometry:
 - **2D Renderer**: For drawing 2D shapes.
 - **3D Renderer**: For rendering 3D objects, with additional features.
 
 The API uses an immediate mode approach, inspired by the [Processing](https://processing.org) API. Features like `Push()`/`Pop()` are implemented for state management. Examples can be found in the previous sections, where the `RenderContext<D>` class is used (`D` being either `D2` or `D3`).
 
-*Onyx* also supports model rendering through the [Model](https://github.com/ismawno/onyx/blob/main/onyx/onyx/draw/model.hpp) class. When possible, it uses instance rendering to minimize draw calls.
+Onyx also supports model rendering through the [Model](https://github.com/ismawno/onyx/blob/main/onyx/onyx/draw/model.hpp) class. When possible, it uses instance rendering to minimize draw calls.
 
 ### ImGui Usage
 
@@ -143,19 +143,17 @@ ImGui support is built-in when using the application interface, as shown in the 
 
 ## Dependencies and Third-Party Libraries
 
-*Onyx* relies on several dependencies for platform-independent windowing, graphics APIs, and ImGui support:
+Onyx relies on several dependencies for platform-independent windowing, graphics APIs, and ImGui support:
 
 - [glfw](https://github.com/glfw/glfw): Platform-agnostic window API.
 - [glm](https://github.com/g-truc/glm): Math library for transformations and algebra.
 - [imgui](https://github.com/ocornut/imgui): ImGui library.
 - [implot](https://github.com/epezent/implot): ImPlot library (optional, can be enabled via CMake).
 - [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader): Library for loading `.obj` models.
-- [toolkit](https://github.com/ismawno/toolkit): A utilities library I have developed.
-- [vma](https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator): Vulkan Memory Allocator.
-- [vulkan](https://github.com/KhronosGroup/Vulkan-Loader): Vulkan API.
+- [vulkit](https://github.com/ismawno/vulkit): A Vulkan library I have developed.
 
 ## Building
 
-The building process is straightforward. Create a `build` folder, `cd` into it, and run `cmake ..`. All available *onyx* options will be displayed.
+The building process is straightforward. Create a `build` folder, `cd` into it, and run `cmake ..`. All available Onyx options will be displayed.
 
 Then compile the project with your editor/IDE of choice, and test the [hello-world](https://github.com/ismawno/onyx/blob/main/hello-world/main.cpp) example along with the demos ([single-window](https://github.com/ismawno/onyx/blob/main/single-window-demo) and [multi-window](https://github.com/ismawno/onyx/blob/main/multi-window-demo)).
