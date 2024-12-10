@@ -29,7 +29,7 @@ class Window;
  * methods, which is recommended to be called at the beginning of each frame.
  *
  * - The view and projection matrices are not reset by the Flush() methods. The view can be controlled by user input
- * using the appropiate methods.
+ * using the appropriate methods.
  *
  * - All entities that can be added to the scene (shapes, meshes, lights) will always have their position, scale and
  * rotation relative to the current axes transform, which can be modified as well.
