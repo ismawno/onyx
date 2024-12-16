@@ -7,7 +7,6 @@
 #include "onyx/draw/transform.hpp"
 #include "onyx/core/core.hpp"
 #include "vkit/pipeline/graphics_pipeline.hpp"
-#include "vkit/backend/swap_chain.hpp"
 #include <vulkan/vulkan.hpp>
 
 namespace Onyx
@@ -187,7 +186,7 @@ template <typename T> struct ONYX_API DeviceInstanceData
     TKIT_NON_COPYABLE(DeviceInstanceData)
     DeviceInstanceData(usize p_Capacity) noexcept
     {
-        for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+        for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         {
             StorageBuffers[i] = Core::CreateMutableStorageBuffer<T>(p_Capacity);
             StorageSizes[i] = 0;
@@ -195,13 +194,13 @@ template <typename T> struct ONYX_API DeviceInstanceData
     }
     ~DeviceInstanceData() noexcept
     {
-        for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+        for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
             StorageBuffers[i].Destroy();
     }
 
-    std::array<MutableStorageBuffer<T>, VKIT_MAX_FRAMES_IN_FLIGHT> StorageBuffers;
-    std::array<VkDescriptorSet, VKIT_MAX_FRAMES_IN_FLIGHT> DescriptorSets;
-    std::array<usize, VKIT_MAX_FRAMES_IN_FLIGHT> StorageSizes;
+    std::array<MutableStorageBuffer<T>, ONYX_MAX_FRAMES_IN_FLIGHT> StorageBuffers;
+    std::array<VkDescriptorSet, ONYX_MAX_FRAMES_IN_FLIGHT> DescriptorSets;
+    std::array<usize, ONYX_MAX_FRAMES_IN_FLIGHT> StorageSizes;
 };
 
 /**
@@ -219,8 +218,8 @@ struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, D
     PolygonDeviceInstanceData(const usize p_Capacity) noexcept;
     ~PolygonDeviceInstanceData() noexcept;
 
-    std::array<MutableVertexBuffer<D>, VKIT_MAX_FRAMES_IN_FLIGHT> VertexBuffers;
-    std::array<MutableIndexBuffer, VKIT_MAX_FRAMES_IN_FLIGHT> IndexBuffers;
+    std::array<MutableVertexBuffer<D>, ONYX_MAX_FRAMES_IN_FLIGHT> VertexBuffers;
+    std::array<MutableIndexBuffer, ONYX_MAX_FRAMES_IN_FLIGHT> IndexBuffers;
 };
 
 /**

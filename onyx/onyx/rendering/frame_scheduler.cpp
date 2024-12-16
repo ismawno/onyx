@@ -15,6 +15,8 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
     createRenderPass();
     createCommandPool();
     createCommandBuffers();
+    const auto result = VKit::CreateSynchronizationObjects(Core::GetDevice(), m_SyncData);
+    VKIT_ASSERT_VULKAN_RESULT(result);
 }
 
 FrameScheduler::~FrameScheduler() noexcept
@@ -26,7 +28,9 @@ FrameScheduler::~FrameScheduler() noexcept
 
     // Lock the queues to prevent any other command buffers from being submitted
     Core::DeviceWaitIdle();
-    vkFreeCommandBuffers(Core::GetDevice(), m_CommandPool, VKIT_MAX_FRAMES_IN_FLIGHT, m_CommandBuffers.data());
+    m_Resources.Destroy();
+    VKit::DestroySynchronizationObjects(Core::GetDevice(), m_SyncData);
+    vkFreeCommandBuffers(Core::GetDevice(), m_CommandPool, ONYX_MAX_FRAMES_IN_FLIGHT, m_CommandBuffers.data());
     vkDestroyCommandPool(Core::GetDevice(), m_CommandPool, nullptr);
     vkDestroyRenderPass(Core::GetDevice(), m_RenderPass, nullptr);
     m_SwapChain.Destroy();
@@ -44,7 +48,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
                                  p_Window.WasResized() || m_PresentModeChanged;
         if (resizeFixes)
         {
-            createSwapChain(p_Window);
+            recreateSwapChain(p_Window);
             p_Window.FlagResizeDone();
             m_PresentModeChanged = false;
         }
@@ -62,7 +66,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     const VkResult result = AcquireNextImage();
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        createSwapChain(p_Window);
+        recreateSwapChain(p_Window);
         return VK_NULL_HANDLE;
     }
 
@@ -103,7 +107,7 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
     VkRenderPassBeginInfo passInfo{};
     passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     passInfo.renderPass = m_RenderPass;
-    passInfo.framebuffer = info.ImageData[m_ImageIndex].FrameBuffer;
+    passInfo.framebuffer = m_Resources.GetFrameBuffer(m_ImageIndex);
     passInfo.renderArea.offset = {0, 0};
     passInfo.renderArea.extent = extent;
 
@@ -141,53 +145,50 @@ void FrameScheduler::EndRenderPass() noexcept
 
 VkResult FrameScheduler::AcquireNextImage() noexcept
 {
-    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-    vkWaitForFences(Core::GetDevice(), 1, &info.SyncData[m_FrameIndex].InFlightFence, VK_TRUE, UINT64_MAX);
+    vkWaitForFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence, VK_TRUE, UINT64_MAX);
     return vkAcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX,
-                                 info.SyncData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
+                                 m_SyncData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
 }
 VkResult FrameScheduler::SubmitCurrentCommandBuffer() noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::SubmitCurrentCommandBuffer");
-    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
     const VkCommandBuffer cmd = m_CommandBuffers[m_FrameIndex];
 
     if (m_InFlightImages[m_ImageIndex] != VK_NULL_HANDLE)
         vkWaitForFences(Core::GetDevice(), 1, &m_InFlightImages[m_ImageIndex], VK_TRUE, UINT64_MAX);
 
-    m_InFlightImages[m_ImageIndex] = info.SyncData[m_FrameIndex].InFlightFence;
+    m_InFlightImages[m_ImageIndex] = m_SyncData[m_FrameIndex].InFlightFence;
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
     const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &info.SyncData[m_FrameIndex].ImageAvailableSemaphore;
+    submitInfo.pWaitSemaphores = &m_SyncData[m_FrameIndex].ImageAvailableSemaphore;
     submitInfo.pWaitDstStageMask = &waitStage;
 
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
 
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &info.SyncData[m_FrameIndex].RenderFinishedSemaphore;
+    submitInfo.pSignalSemaphores = &m_SyncData[m_FrameIndex].RenderFinishedSemaphore;
 
-    vkResetFences(Core::GetDevice(), 1, &info.SyncData[m_FrameIndex].InFlightFence);
+    vkResetFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence);
 
     // A nice mutex here to prevent race conditions if user is rendering concurrently to multiple windows, each with its
     // own renderer, swap chain etcetera
     std::scoped_lock lock(Core::GetGraphicsMutex());
-    return vkQueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, info.SyncData[m_FrameIndex].InFlightFence);
+    return vkQueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, m_SyncData[m_FrameIndex].InFlightFence);
 }
 VkResult FrameScheduler::Present() noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FramwScheduler::Present");
 
-    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &info.SyncData[m_FrameIndex].RenderFinishedSemaphore;
+    presentInfo.pWaitSemaphores = &m_SyncData[m_FrameIndex].RenderFinishedSemaphore;
 
     const VkSwapchainKHR swapChain = m_SwapChain;
 
@@ -195,7 +196,7 @@ VkResult FrameScheduler::Present() noexcept
     presentInfo.pSwapchains = &swapChain;
     presentInfo.pImageIndices = &m_ImageIndex;
 
-    m_FrameIndex = (m_FrameIndex + 1) % VKIT_MAX_FRAMES_IN_FLIGHT;
+    m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
     std::scoped_lock lock(Core::GetPresentMutex());
     return vkQueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
 }
@@ -246,86 +247,69 @@ void FrameScheduler::createSwapChain(Window &p_Window) noexcept
             .RequestSurfaceFormat({VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
             .RequestPresentMode(m_PresentMode)
             .RequestExtent(windowExtent)
-            .RequestDepthFormat(VK_FORMAT_D32_SFLOAT_S8_UINT)
             .SetOldSwapChain(m_SwapChain)
-            .SetAllocator(Core::GetVulkanAllocator())
-            .AddFlags(VKit::SwapChainBuilderFlags_Clipped | VKit::SwapChainBuilderFlags_CreateDefaultDepthResources |
-                      VKit::SwapChainBuilderFlags_CreateImageViews |
-                      VKit::SwapChainBuilderFlags_CreateDefaultSyncObjects)
+            .AddFlags(VKit::SwapChain::Builder::Flag_Clipped | VKit::SwapChain::Builder::Flag_CreateImageViews)
             .Build();
 
     VKIT_ASSERT_RESULT(result);
-
-    VKit::SwapChain old = m_SwapChain;
     m_SwapChain = result.GetValue();
-    if (m_RenderPass)
-        m_SwapChain.CreateDefaultFrameBuffers(m_RenderPass);
-    if (old)
-        old.Destroy();
+}
+
+void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
+{
+    VKit::SwapChain old = m_SwapChain;
+    createSwapChain(p_Window);
+    old.Destroy();
+
+    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
+    const auto result =
+        m_RenderPass.CreateResources(info.Extent, [this, &info](const u32 p_ImageIndex, const u32 p_AttachmentIndex) {
+            return p_AttachmentIndex == 0 ? m_RenderPass.CreateImageData(info.ImageData[p_ImageIndex].ImageView)
+                                          : m_RenderPass.CreateImageData(p_AttachmentIndex, info.Extent);
+        });
+    VKIT_ASSERT_RESULT(result);
+    m_Resources.Destroy();
+    m_Resources = result.GetValue();
 }
 
 void FrameScheduler::createRenderPass() noexcept
 {
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
+    const u32 imageCount = static_cast<u32>(info.ImageData.size());
 
-    VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = info.DepthFormat;
-    depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    const VKit::LogicalDevice &device = Core::GetDevice();
+    const auto result =
+        VKit::RenderPass::Builder(&device, imageCount)
+            .SetAllocator(Core::GetVulkanAllocator())
+            .BeginAttachment(VKit::Attachment::Flag_Color)
+            .RequestFormat(info.SurfaceFormat.format)
+            .SetFinalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+            .EndAttachment()
+            .BeginAttachment(VKit::Attachment::Flag_Depth | VKit::Attachment::Flag_Stencil)
+            .RequestFormat(VK_FORMAT_D32_SFLOAT_S8_UINT)
+            .SetFinalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            .EndAttachment()
+            .BeginSubpass(VK_PIPELINE_BIND_POINT_GRAPHICS)
+            .AddColorAttachment(0)
+            .SetDepthStencilAttachment(1)
+            .EndSubpass()
+            .BeginDependency(VK_SUBPASS_EXTERNAL, 0)
+            .SetAccessMask(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)
+            .SetStageMask(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT)
+            .EndDependency()
+            .Build();
 
-    VkAttachmentReference depthAttachmentRef{};
-    depthAttachmentRef.attachment = 1;
-    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    VKIT_ASSERT_RESULT(result);
+    m_RenderPass = result.GetValue();
+    const auto resresult =
+        m_RenderPass.CreateResources(info.Extent, [this, &info](const u32 p_ImageIndex, const u32 p_AttachmentIndex) {
+            return p_AttachmentIndex == 0 ? m_RenderPass.CreateImageData(info.ImageData[p_ImageIndex].ImageView)
+                                          : m_RenderPass.CreateImageData(p_AttachmentIndex, info.Extent);
+        });
+    VKIT_ASSERT_RESULT(resresult);
 
-    VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = info.SurfaceFormat.format;
-    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-    VkAttachmentReference colorAttachmentRef{};
-    colorAttachmentRef.attachment = 0;
-    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-    VkSubpassDescription subpass{};
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &colorAttachmentRef;
-    subpass.pDepthStencilAttachment = &depthAttachmentRef;
-
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.srcAccessMask = 0;
-    dependency.srcStageMask =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.dstSubpass = 0;
-    dependency.dstStageMask =
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-    std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
-    VkRenderPassCreateInfo renderPassInfo{};
-    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = static_cast<u32>(attachments.size());
-    renderPassInfo.pAttachments = attachments.data();
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
-
-    TKIT_ASSERT_RETURNS(vkCreateRenderPass(Core::GetDevice(), &renderPassInfo, nullptr, &m_RenderPass), VK_SUCCESS,
-                        "Failed to create render pass");
-
-    m_SwapChain.CreateDefaultFrameBuffers(m_RenderPass);
+    m_Resources = resresult.GetValue();
 }
 
 void FrameScheduler::createCommandPool() noexcept
@@ -345,7 +329,7 @@ void FrameScheduler::createCommandBuffers() noexcept
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandPool = m_CommandPool;
-    allocInfo.commandBufferCount = VKIT_MAX_FRAMES_IN_FLIGHT;
+    allocInfo.commandBufferCount = ONYX_MAX_FRAMES_IN_FLIGHT;
 
     TKIT_ASSERT_RETURNS(vkAllocateCommandBuffers(Core::GetDevice(), &allocInfo, m_CommandBuffers.data()), VK_SUCCESS,
                         "Failed to create command buffers");

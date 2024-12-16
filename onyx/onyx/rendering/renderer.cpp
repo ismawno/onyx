@@ -52,7 +52,7 @@ Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<Rende
                        const ProjectionViewData<D3> *p_ProjectionView) noexcept
     : IRenderer<D3>(p_RenderPass, p_State, p_ProjectionView)
 {
-    for (u32 i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         const VkDescriptorBufferInfo dirInfo = m_DeviceLightData.DirectionalLightBuffers[i].GetDescriptorInfo();
         const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.PointLightBuffers[i].GetDescriptorInfo();
@@ -62,7 +62,7 @@ Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<Rende
 
 DeviceLightData::DeviceLightData(const usize p_Capacity) noexcept
 {
-    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         DirectionalLightBuffers[i] = Core::CreateMutableStorageBuffer<DirectionalLight>(p_Capacity);
         PointLightBuffers[i] = Core::CreateMutableStorageBuffer<PointLight>(p_Capacity);
@@ -70,7 +70,7 @@ DeviceLightData::DeviceLightData(const usize p_Capacity) noexcept
 }
 DeviceLightData::~DeviceLightData() noexcept
 {
-    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         DirectionalLightBuffers[i].Destroy();
         PointLightBuffers[i].Destroy();
@@ -289,7 +289,7 @@ void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
     m_PolygonRenderer.DoStencilTestNoFill.Render(stencilInfo);
     m_CircleRenderer.DoStencilTestNoFill.Render(stencilInfo);
 
-    m_FrameIndex = (m_FrameIndex + 1) % VKIT_MAX_FRAMES_IN_FLIGHT;
+    m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
     m_ZOffset = 0;
 }
 
@@ -337,7 +337,7 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
     m_PolygonRenderer.DoStencilTestNoFill.Render(stencilInfo);
     m_CircleRenderer.DoStencilTestNoFill.Render(stencilInfo);
 
-    m_FrameIndex = (m_FrameIndex + 1) % VKIT_MAX_FRAMES_IN_FLIGHT;
+    m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
 }
 
 void Renderer<D3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept

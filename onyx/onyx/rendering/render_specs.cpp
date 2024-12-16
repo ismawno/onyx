@@ -22,7 +22,7 @@ template <Dimension D, DrawMode DMode>
 PolygonDeviceInstanceData<D, DMode>::PolygonDeviceInstanceData(const usize p_Capacity) noexcept
     : DeviceInstanceData<InstanceData<D, DMode>>(p_Capacity)
 {
-    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         VertexBuffers[i] = Core::CreateMutableVertexBuffer<D>(p_Capacity);
         IndexBuffers[i] = Core::CreateMutableIndexBuffer(p_Capacity);
@@ -30,7 +30,7 @@ PolygonDeviceInstanceData<D, DMode>::PolygonDeviceInstanceData(const usize p_Cap
 }
 template <Dimension D, DrawMode DMode> PolygonDeviceInstanceData<D, DMode>::~PolygonDeviceInstanceData() noexcept
 {
-    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         VertexBuffers[i].Destroy();
         IndexBuffers[i].Destroy();

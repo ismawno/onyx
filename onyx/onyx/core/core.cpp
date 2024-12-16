@@ -1,7 +1,6 @@
 #define VMA_IMPLEMENTATION
 #include "onyx/core/pch.hpp"
 #include "onyx/core/core.hpp"
-#include "vkit/backend/swap_chain.hpp"
 #include "vkit/pipeline/pipeline_layout.hpp"
 #include "onyx/draw/primitives.hpp"
 #include "onyx/rendering/render_specs.hpp"
@@ -43,13 +42,13 @@ static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
 static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 {
-    const auto physres =
-        VKit::PhysicalDevice::Selector(&s_Instance)
-            .SetSurface(p_Surface)
-            .PreferType(VKit::PhysicalDevice::Discrete)
-            .AddFlags(VKit::PhysicalDeviceSelectorFlags_AnyType | VKit::PhysicalDeviceSelectorFlags_PortabilitySubset |
-                      VKit::PhysicalDeviceSelectorFlags_RequireGraphicsQueue)
-            .Select();
+    const auto physres = VKit::PhysicalDevice::Selector(&s_Instance)
+                             .SetSurface(p_Surface)
+                             .PreferType(VKit::PhysicalDevice::Discrete)
+                             .AddFlags(VKit::PhysicalDevice::Selector::Flag_AnyType |
+                                       VKit::PhysicalDevice::Selector::Flag_PortabilitySubset |
+                                       VKit::PhysicalDevice::Selector::Flag_RequireGraphicsQueue)
+                             .Select();
     VKIT_ASSERT_RESULT(physres);
     const VKit::PhysicalDevice &phys = physres.GetValue();
 

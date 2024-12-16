@@ -3,7 +3,8 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/core.hpp"
-#include "vkit/backend/swap_chain.hpp"
+#include "vkit/rendering/swap_chain.hpp"
+#include "vkit/rendering/render_pass.hpp"
 #include "vkit/backend/command_pool.hpp"
 #include "tkit/multiprocessing/task.hpp"
 
@@ -54,18 +55,21 @@ class ONYX_API FrameScheduler
 
   private:
     void createSwapChain(Window &p_Window) noexcept;
+    void recreateSwapChain(Window &p_Window) noexcept;
     void createRenderPass() noexcept;
     void createCommandPool() noexcept;
     void createCommandBuffers() noexcept;
 
     VKit::CommandPool m_CommandPool;
     VKit::SwapChain m_SwapChain;
-    TKit::StaticArray<VkFence, VKIT_MAX_IMAGE_COUNT> m_InFlightImages;
+    VKit::RenderPass m_RenderPass;
+    VKit::RenderPass::Resources m_Resources;
+    DynamicArray<VkFence> m_InFlightImages;
 
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
-    VkRenderPass m_RenderPass = VK_NULL_HANDLE;
-    std::array<VkCommandBuffer, VKIT_MAX_FRAMES_IN_FLIGHT> m_CommandBuffers;
+    std::array<VkCommandBuffer, ONYX_MAX_FRAMES_IN_FLIGHT> m_CommandBuffers;
+    std::array<VKit::SyncData, ONYX_MAX_FRAMES_IN_FLIGHT> m_SyncData{};
 
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;

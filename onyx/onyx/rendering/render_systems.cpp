@@ -29,7 +29,7 @@ MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
     VKIT_ASSERT_RESULT(result);
     m_Pipeline = result.GetValue();
 
-    for (u32 i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
         m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
@@ -129,7 +129,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
 {
     m_HostInstanceData.clear();
-    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         m_DeviceInstanceData.StorageSizes[i] = 0;
 }
 
@@ -141,7 +141,7 @@ PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) 
     VKIT_ASSERT_RESULT(result);
     m_Pipeline = result.GetValue();
 
-    for (u32 i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
         m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
@@ -219,7 +219,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 {
     for (auto &data : m_HostInstanceData)
         data.clear();
-    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         m_DeviceInstanceData.StorageSizes[i] = 0;
 }
 
@@ -231,7 +231,7 @@ PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noex
     VKIT_ASSERT_RESULT(result);
     m_Pipeline = result.GetValue();
 
-    for (u32 i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
         m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
@@ -359,7 +359,7 @@ CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexce
     VKIT_ASSERT_RESULT(result);
     m_Pipeline = result.GetValue();
 
-    for (u32 i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
         m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
@@ -427,7 +427,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush() noexcept
 {
     m_HostInstanceData.clear();
-    for (usize i = 0; i < VKIT_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         m_DeviceInstanceData.StorageSizes[i] = 0;
 }
 

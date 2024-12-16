@@ -275,13 +275,13 @@ struct ONYX_API DeviceLightData
     ~DeviceLightData() noexcept;
 
     /// Storage buffers for directional lights, one per frame in flight.
-    std::array<MutableStorageBuffer<DirectionalLight>, VKIT_MAX_FRAMES_IN_FLIGHT> DirectionalLightBuffers;
+    std::array<MutableStorageBuffer<DirectionalLight>, ONYX_MAX_FRAMES_IN_FLIGHT> DirectionalLightBuffers;
 
     /// Storage buffers for point lights, one per frame in flight.
-    std::array<MutableStorageBuffer<PointLight>, VKIT_MAX_FRAMES_IN_FLIGHT> PointLightBuffers;
+    std::array<MutableStorageBuffer<PointLight>, ONYX_MAX_FRAMES_IN_FLIGHT> PointLightBuffers;
 
     /// Descriptor sets associated with the light buffers, one per frame in flight.
-    std::array<VkDescriptorSet, VKIT_MAX_FRAMES_IN_FLIGHT> DescriptorSets;
+    std::array<VkDescriptorSet, ONYX_MAX_FRAMES_IN_FLIGHT> DescriptorSets;
 };
 
 /**

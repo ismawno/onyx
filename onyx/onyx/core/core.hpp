@@ -15,6 +15,10 @@
 #    define ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS 1000
 #endif
 
+#ifndef ONYX_MAX_FRAMES_IN_FLIGHT
+#    define ONYX_MAX_FRAMES_IN_FLIGHT 2
+#endif
+
 namespace TKit
 {
 class StackAllocator;
