@@ -265,7 +265,7 @@ const VKit::DescriptorSetLayout &Core::GetLightStorageDescriptorSetLayout() noex
     return s_LightStorageLayout;
 }
 
-template <Dimension D> VertexBuffer<D> Core::CreateVertexBuffer(std::span<const Vertex<D>> p_Vertices) noexcept
+template <Dimension D> VertexBuffer<D> Core::CreateVertexBuffer(const std::span<const Vertex<D>> p_Vertices) noexcept
 {
     typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs specs{};
     specs.Allocator = s_VulkanAllocator;

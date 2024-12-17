@@ -4,15 +4,16 @@
 
 namespace Onyx
 {
-template <Dimension D> IndexVertexData<D> Load(const std::string_view p_Path) noexcept
+template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(const std::string_view p_Path) noexcept
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    TKIT_ASSERT_RETURNS(tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, p_Path.data()), true,
-                        "Failed to load model: {}", err + warn);
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, p_Path.data()))
+        return VKit::FormattedResult<IndexVertexData<D>>::Error(
+            VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load model: {}", err + warn));
 
     HashMap<Vertex<D>, Index> uniqueVertices;
     IndexVertexData<D> buffers;
@@ -37,11 +38,11 @@ template <Dimension D> IndexVertexData<D> Load(const std::string_view p_Path) no
             }
             buffers.Indices.push_back(uniqueVertices[vertex]);
         }
-    return buffers;
+    return VKit::FormattedResult<IndexVertexData<D>>::Ok(buffers);
 }
 
-template IndexVertexData<D2> Load(const std::string_view p_Path) noexcept;
-template IndexVertexData<D3> Load(const std::string_view p_Path) noexcept;
+template VKit::FormattedResult<IndexVertexData<D2>> Load(const std::string_view p_Path) noexcept;
+template VKit::FormattedResult<IndexVertexData<D3>> Load(const std::string_view p_Path) noexcept;
 
 template struct IndexVertexData<D2>;
 template struct IndexVertexData<D3>;

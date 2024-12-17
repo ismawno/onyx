@@ -96,11 +96,10 @@ template <Dimension D> class ONYX_API IRenderer
      * @brief Record a draw call for a mesh model.
      *
      * @param p_Transform The transformation matrix to apply to the mesh.
-     * @param p_Model Reference to the mesh model to draw.
+     * @param p_Model The mesh model to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawMesh(const mat<D> &p_Transform, const TKit::Ref<const Model<D>> &p_Model,
-                  u8 p_Flags = DrawFlags_Auto) noexcept;
+    void DrawMesh(const mat<D> &p_Transform, const Model<D> &p_Model, u8 p_Flags = DrawFlags_Auto) noexcept;
 
     /**
      * @brief Record a draw call for a primitive shape.

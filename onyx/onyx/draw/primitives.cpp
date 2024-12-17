@@ -86,6 +86,13 @@ template <Dimension D> static IndexVertexData<D> createRegularPolygonBuffers(con
     return data;
 }
 
+template <Dimension D> static IndexVertexData<D> load(const std::string_view p_Path) noexcept
+{
+    const auto result = Load<D>(p_Path);
+    VKIT_ASSERT_RESULT(result);
+    return result.GetValue();
+}
+
 template <Dimension D> static void createBuffers(const std::span<const char *const> p_Paths) noexcept
 {
     BufferLayout<D> layout;
@@ -95,7 +102,7 @@ template <Dimension D> static void createBuffers(const std::span<const char *con
     for (usize i = 0; i < Primitives<D>::AMOUNT; ++i)
     {
         const IndexVertexData<D> buffers =
-            i < toLoad ? Load<D>(p_Paths[i]) : createRegularPolygonBuffers<D>(i - toLoad + 3);
+            i < toLoad ? load<D>(p_Paths[i]) : createRegularPolygonBuffers<D>(i - toLoad + 3);
 
         layout[i].VerticesStart = static_cast<u32>(data.Vertices.size());
         layout[i].IndicesStart = static_cast<u32>(data.Indices.size());

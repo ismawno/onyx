@@ -21,24 +21,25 @@ namespace Onyx
  */
 template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
 {
-    TKIT_NON_COPYABLE(Model)
   public:
     /**
-     * @brief Constructs a model with the given vertices.
+     * @brief Creates a model with the given vertices.
      *
      * @param p_Vertices A span of vertices to initialize the model.
      */
-    Model(std::span<const Vertex<D>> p_Vertices) noexcept;
+    static VKit::Result<Model> Create(std::span<const Vertex<D>> p_Vertices) noexcept;
 
     /**
-     * @brief Constructs a model with the given vertices and indices.
+     * @brief Creates a model with the given vertices and indices.
      *
      * @param p_Vertices A span of vertices to initialize the model.
      * @param p_Indices A span of indices for indexed drawing.
      */
-    Model(std::span<const Vertex<D>> p_Vertices, std::span<const Index> p_Indices) noexcept;
+    static VKit::Result<Model> Create(std::span<const Vertex<D>> p_Vertices, std::span<const Index> p_Indices) noexcept;
 
-    ~Model() noexcept;
+    Model() noexcept = default;
+    Model(const VertexBuffer<D> &p_VertexBuffer) noexcept;
+    Model(const VertexBuffer<D> &p_VertexBuffer, const IndexBuffer &p_IndexBuffer) noexcept;
 
     // TODO: Make sure no redundant bind calls are made
     // These bind and draw commands operate with a single vertex and index buffer. Not ideal when instancing could be
@@ -101,9 +102,15 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
      * @brief Loads a model from a file.
      *
      * @param p_Path The file path to load the model from.
-     * @return TKit::Scope<const Model> A scoped pointer to the loaded model.
+     * @return A result containing the loaded model or an error.
      */
-    static TKit::Scope<const Model> Load(std::string_view p_Path) noexcept;
+    static VKit::FormattedResult<Model> Load(std::string_view p_Path) noexcept;
+
+    friend bool operator==(const Model &p_Lhs, const Model &p_Rhs) noexcept
+    {
+        return p_Lhs.m_VertexBuffer.GetBuffer() == p_Rhs.m_VertexBuffer.GetBuffer() &&
+               p_Lhs.m_IndexBuffer.GetBuffer() == p_Rhs.m_IndexBuffer.GetBuffer();
+    }
 
   private:
     VertexBuffer<D> m_VertexBuffer{};
@@ -111,3 +118,11 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
 };
 
 } // namespace Onyx
+
+namespace std
+{
+template <Onyx::Dimension D> struct hash<Onyx::Model<D>>
+{
+    std::size_t operator()(const Onyx::Model<D> &p_Model) const noexcept;
+};
+} // namespace std

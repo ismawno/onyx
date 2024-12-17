@@ -524,18 +524,18 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Draw a mesh model.
      *
-     * @param p_Model A reference to the mesh model to draw.
+     * @param p_Model The mesh model to draw.
      */
-    void Mesh(const TKit::Ref<const Model<D>> &p_Model) noexcept;
+    void Mesh(const Model<D> &p_Model) noexcept;
 
     /**
      * @brief Draw a mesh model with the specified transformation.
      *
-     * @param p_Model A reference to the mesh model to draw.
+     * @param p_Model The mesh model to draw.
      * @param p_Transform The transformation matrix to apply to the model. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Mesh(const TKit::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept;
+    void Mesh(const Model<D> &p_Model, const mat<D> &p_Transform) noexcept;
 
     /**
      * @brief Pushes the current transformation state onto the stack.

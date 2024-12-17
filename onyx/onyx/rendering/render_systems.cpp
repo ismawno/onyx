@@ -43,7 +43,7 @@ template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer
 
 template <Dimension D, PipelineMode PMode>
 void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
-                                  const TKit::Ref<const Model<D>> &p_Model) noexcept
+                                  const Model<D> &p_Model) noexcept
 {
     m_HostInstanceData[p_Model].push_back(p_InstanceData);
     const usize size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
@@ -117,11 +117,11 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     {
         const u32 size = static_cast<u32>(data.size());
 
-        model->Bind(p_Info.CommandBuffer);
-        if (model->HasIndices())
-            model->DrawIndexed(p_Info.CommandBuffer, firstInstance + size, firstInstance);
+        model.Bind(p_Info.CommandBuffer);
+        if (model.HasIndices())
+            model.DrawIndexed(p_Info.CommandBuffer, firstInstance + size, firstInstance);
         else
-            model->Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
+            model.Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
         firstInstance += size;
     }
 }

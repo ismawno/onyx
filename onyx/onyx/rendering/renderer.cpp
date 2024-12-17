@@ -199,8 +199,7 @@ static mat<D> finalTransform(const mat<D> &p_Transform, const RenderState<D> &p_
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const mat<D> &p_Transform, const TKit::Ref<const Model<D>> &p_Model,
-                            const u8 p_Flags) noexcept
+void IRenderer<D>::DrawMesh(const mat<D> &p_Transform, const Model<D> &p_Model, const u8 p_Flags) noexcept
 {
     const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
     draw(m_MeshRenderer, transform, p_Flags, p_Model);

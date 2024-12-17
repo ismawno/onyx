@@ -2,26 +2,60 @@
 #include "onyx/draw/model.hpp"
 #include "onyx/draw/data.hpp"
 #include "onyx/core/core.hpp"
+#include "tkit/container/hashable_tuple.hpp"
 
 namespace Onyx
 {
-template <Dimension D> Model<D>::Model(const std::span<const Vertex<D>> p_Vertices) noexcept
+template <Dimension D> VKit::Result<Model<D>> Model<D>::Create(const std::span<const Vertex<D>> p_Vertices) noexcept
 {
-    m_VertexBuffer = Core::CreateVertexBuffer<D>(p_Vertices);
+    typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs specs{};
+    specs.Allocator = Core::GetVulkanAllocator();
+    specs.Data = p_Vertices;
+    specs.CommandPool = &Core::GetCommandPool();
+    specs.Queue = Core::GetGraphicsQueue();
+    const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(specs);
+    if (!result)
+        return VKit::Result<Model<D>>::Error(result.GetError());
+
+    return VKit::Result<Model<D>>::Ok(result.GetValue());
 }
 
 template <Dimension D>
-Model<D>::Model(const std::span<const Vertex<D>> p_Vertices, const std::span<const Index> p_Indices) noexcept
-
+VKit::Result<Model<D>> Model<D>::Create(std::span<const Vertex<D>> p_Vertices,
+                                        std::span<const Index> p_Indices) noexcept
 {
-    m_VertexBuffer = Core::CreateVertexBuffer<D>(p_Vertices);
-    m_IndexBuffer = Core::CreateIndexBuffer(p_Indices);
+    typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs vspecs{};
+    vspecs.Allocator = Core::GetVulkanAllocator();
+    vspecs.Data = p_Vertices;
+    vspecs.CommandPool = &Core::GetCommandPool();
+    vspecs.Queue = Core::GetGraphicsQueue();
+    auto vresult = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(vspecs);
+    if (!vresult)
+        return VKit::Result<Model<D>>::Error(vresult.GetError());
+
+    typename VKit::DeviceLocalBuffer<Index>::IndexSpecs ispecs{};
+    ispecs.Allocator = Core::GetVulkanAllocator();
+    ispecs.Data = p_Indices;
+    ispecs.CommandPool = &Core::GetCommandPool();
+    ispecs.Queue = Core::GetGraphicsQueue();
+    const auto iresult = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(ispecs);
+
+    if (!iresult)
+    {
+        vresult.GetValue().Destroy();
+        return VKit::Result<Model<D>>::Error(iresult.GetError());
+    }
+
+    return VKit::Result<Model<D>>::Ok(vresult.GetValue(), iresult.GetValue());
 }
 
-template <Dimension D> Model<D>::~Model() noexcept
+template <Dimension D> Model<D>::Model(const VertexBuffer<D> &p_VertexBuffer) noexcept : m_VertexBuffer(p_VertexBuffer)
 {
-    if (m_IndexBuffer)
-        m_IndexBuffer.Destroy();
+}
+template <Dimension D>
+Model<D>::Model(const VertexBuffer<D> &p_VertexBuffer, const IndexBuffer &p_IndexBuffer) noexcept
+    : m_VertexBuffer(p_VertexBuffer), m_IndexBuffer(p_IndexBuffer)
+{
 }
 
 template <Dimension D> void Model<D>::Bind(const VkCommandBuffer p_CommandBuffer) const noexcept
@@ -64,18 +98,33 @@ template <Dimension D> const IndexBuffer &Model<D>::GetIndexBuffer() const noexc
 }
 
 // this loads and stores the model in the user models
-template <Dimension D> TKit::Scope<const Model<D>> Model<D>::Load(const std::string_view p_Path) noexcept
+template <Dimension D> VKit::FormattedResult<Model<D>> Model<D>::Load(const std::string_view p_Path) noexcept
 {
-    const IndexVertexData<D> data = Onyx::Load<D>(p_Path);
+    const auto result = Onyx::Load<D>(p_Path);
+    if (!result)
+        return VKit::FormattedResult<Model>::Error(result.GetError());
+
+    const IndexVertexData<D> &data = result.GetValue();
     const std::span<const Vertex<D>> vertices{data.Vertices};
     const std::span<const Index> indices{data.Indices};
 
     const bool needsIndices = !indices.empty() && indices.size() != vertices.size();
-    return needsIndices ? TKit::Scope<const Model<D>>::Create(vertices, indices)
-                        : TKit::Scope<const Model<D>>::Create(vertices);
+    return VKit::ToFormatted(needsIndices ? Model<D>::Create(vertices, indices) : Model<D>::Create(vertices));
 }
 
 template class Model<D2>;
 template class Model<D3>;
-
 } // namespace Onyx
+
+namespace std
+{
+template <Onyx::Dimension D> std::size_t hash<Onyx::Model<D>>::operator()(const Onyx::Model<D> &p_Model) const noexcept
+{
+    const TKit::HashableTuple tuple(p_Model.GetVertexBuffer().GetBuffer(), p_Model.GetIndexBuffer().GetBuffer());
+    return tuple();
+}
+
+template struct hash<Onyx::Model<Onyx::D2>>;
+template struct hash<Onyx::Model<Onyx::D3>>;
+
+} // namespace std

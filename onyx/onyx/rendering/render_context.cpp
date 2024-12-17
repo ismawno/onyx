@@ -965,12 +965,11 @@ template <Dimension D> void IRenderContext<D>::Fill(const bool p_Enabled) noexce
     m_RenderState.back().Fill = p_Enabled;
 }
 
-template <Dimension D> void IRenderContext<D>::Mesh(const TKit::Ref<const Model<D>> &p_Model) noexcept
+template <Dimension D> void IRenderContext<D>::Mesh(const Model<D> &p_Model) noexcept
 {
     m_Renderer.DrawMesh(m_RenderState.back().Transform, p_Model);
 }
-template <Dimension D>
-void IRenderContext<D>::Mesh(const TKit::Ref<const Model<D>> &p_Model, const mat<D> &p_Transform) noexcept
+template <Dimension D> void IRenderContext<D>::Mesh(const Model<D> &p_Model, const mat<D> &p_Transform) noexcept
 {
     m_Renderer.DrawMesh(p_Transform * m_RenderState.back().Transform, p_Model);
 }

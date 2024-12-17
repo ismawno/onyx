@@ -18,7 +18,7 @@ template <Dimension D> struct ONYX_API IndexVertexData
     DynamicArray<Index> Indices;
 };
 
-template <Dimension D> IndexVertexData<D> Load(std::string_view p_Path) noexcept;
+template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(std::string_view p_Path) noexcept;
 
 template <Dimension D> using VertexBuffer = VKit::DeviceLocalBuffer<Vertex<D>>;
 using IndexBuffer = VKit::DeviceLocalBuffer<Index>;

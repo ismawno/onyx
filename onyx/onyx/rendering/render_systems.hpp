@@ -37,7 +37,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_Model The model to draw.
      */
-    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, const TKit::Ref<const Model<D>> &p_Model) noexcept;
+    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, const Model<D> &p_Model) noexcept;
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.
@@ -60,9 +60,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
   private:
     VKit::GraphicsPipeline m_Pipeline{};
 
-    // Could actually use a pointer to the model instead of a reference and take extra care the model still lives
-    // while drawing
-    using HostInstanceData = HashMap<TKit::Ref<const Model<D>>, DynamicArray<InstanceData>>;
+    using HostInstanceData = HashMap<Model<D>, DynamicArray<InstanceData>>;
 
     HostInstanceData m_HostInstanceData;
     DeviceInstanceData<InstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
