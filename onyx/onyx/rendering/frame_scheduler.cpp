@@ -281,12 +281,12 @@ void FrameScheduler::createRenderPass() noexcept
     const auto result =
         VKit::RenderPass::Builder(&device, imageCount)
             .SetAllocator(Core::GetVulkanAllocator())
-            // Color attachment 0
+            // Attachment 0: Color
             .BeginAttachment(VKit::Attachment::Flag_Color)
             .RequestFormat(info.SurfaceFormat.format)
             .SetFinalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
             .EndAttachment()
-            // DepthStencil attachment 1
+            // Attachment 1: Depth/Stencil
             .BeginAttachment(VKit::Attachment::Flag_Depth | VKit::Attachment::Flag_Stencil)
             .RequestFormat(VK_FORMAT_D32_SFLOAT_S8_UINT)
             .SetFinalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
@@ -296,7 +296,7 @@ void FrameScheduler::createRenderPass() noexcept
             .AddColorAttachment(0)
             .SetDepthStencilAttachment(1)
             .EndSubpass()
-            // Dependency
+            // Dependency 0
             .BeginDependency(VK_SUBPASS_EXTERNAL, 0)
             .SetAccessMask(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)
             .SetStageMask(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
