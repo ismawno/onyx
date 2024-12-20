@@ -89,7 +89,7 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_RenderPass The Vulkan render pass to be used.
      * @param p_State Pointer to the current render state stack.
      */
-    IRenderer(VkRenderPass p_RenderPass, const DynamicArray<RenderState<D>> *p_State,
+    IRenderer(VkRenderPass p_RenderPass, const TKit::StaticArray8<RenderState<D>> *p_State,
               const ProjectionViewData<D> *p_ProjectionView) noexcept; // Passing the state like this is a bit dodgy
 
     /**
@@ -184,7 +184,7 @@ template <Dimension D> class ONYX_API IRenderer
     void draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Flags, DrawArgs &&...p_Args) noexcept;
 
     /// Pointer to the current render state stack.
-    const DynamicArray<RenderState<D>> *m_State;
+    const TKit::StaticArray8<RenderState<D>> *m_State;
 };
 
 /**
@@ -297,7 +297,7 @@ template <> class Renderer<D3> final : public IRenderer<D3>
      * @param p_RenderPass The Vulkan render pass to be used.
      * @param p_State Pointer to the current render state stack.
      */
-    Renderer(VkRenderPass p_RenderPass, const DynamicArray<RenderState<D3>> *p_State,
+    Renderer(VkRenderPass p_RenderPass, const TKit::StaticArray8<RenderState<D3>> *p_State,
              const ProjectionViewData<D3> *p_ProjectionView) noexcept;
 
     /**
@@ -333,10 +333,10 @@ template <> class Renderer<D3> final : public IRenderer<D3>
 
   private:
     /// Collection of directional lights in the scene.
-    DynamicArray<DirectionalLight> m_DirectionalLights;
+    TKit::StaticArray64<DirectionalLight> m_DirectionalLights;
 
     /// Collection of point lights in the scene.
-    DynamicArray<PointLight> m_PointLights;
+    TKit::StaticArray512<PointLight> m_PointLights;
 
     /// Device-side storage and descriptors for light data.
     DeviceLightData m_DeviceLightData{ONYX_BUFFER_INITIAL_CAPACITY};

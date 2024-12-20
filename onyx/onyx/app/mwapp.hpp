@@ -141,7 +141,7 @@ class IMultiWindowApplication : public IApplication
 
   protected:
     /// The list of currently open windows.
-    DynamicArray<TKit::Scope<Window>> m_Windows;
+    TKit::StaticArray8<TKit::Scope<Window>> m_Windows;
 
   private:
     /**
@@ -214,7 +214,7 @@ template <> class ONYX_API MultiWindowApplication<Serial> final : public IMultiW
     TKit::Timespan m_DeltaTime;
 
     /// Specifications of windows to add in the next frame.
-    DynamicArray<Window::Specs> m_WindowsToAdd;
+    TKit::StaticArray4<Window::Specs> m_WindowsToAdd;
 
     /// Indicates whether window management should be deferred.
     bool m_MustDeferWindowManagement = false;
@@ -279,13 +279,13 @@ template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMu
     void setDeltaTime(TKit::Timespan p_DeltaTime) noexcept override;
 
     /// Tasks for processing windows in concurrent mode.
-    DynamicArray<TKit::Ref<TKit::Task<void>>> m_Tasks;
+    TKit::StaticArray8<TKit::Ref<TKit::Task<void>>> m_Tasks;
+
+    /// Specifications of windows to add in the next frame.
+    TKit::StaticArray4<Window::Specs> m_WindowsToAdd;
 
     /// The time elapsed between frames, shared between threads.
     std::atomic<TKit::Timespan> m_DeltaTime;
-
-    /// Specifications of windows to add in the next frame.
-    DynamicArray<Window::Specs> m_WindowsToAdd;
 
     /// Indicates whether window management should be deferred.
     bool m_MustDeferWindowManagement = false;

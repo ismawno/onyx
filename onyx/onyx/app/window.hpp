@@ -233,9 +233,9 @@ class ONYX_API Window
     /**
      * @brief Gets the new events since the last call to FlushEvents().
      *
-     * @return const DynamicArray<Event>& The array of new events.
+     * @return The array of new events.
      */
-    const DynamicArray<Event> &GetNewEvents() const noexcept;
+    const TKit::StaticArray16<Event> &GetNewEvents() const noexcept;
     /**
      * @brief Clears the window's event queue.
      */
@@ -298,7 +298,7 @@ class ONYX_API Window
     TKit::Storage<RenderContext<D2>> m_RenderContext2D;
     TKit::Storage<RenderContext<D3>> m_RenderContext3D;
 
-    DynamicArray<Event> m_Events;
+    TKit::StaticArray16<Event> m_Events;
     VkSurfaceKHR m_Surface;
 
     const char *m_Name;

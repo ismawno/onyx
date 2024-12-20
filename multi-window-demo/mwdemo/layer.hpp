@@ -18,6 +18,6 @@ class MWExampleLayer final : public Layer
 
   private:
     IMultiWindowApplication *m_Application = nullptr;
-    DynamicArray<WindowData> m_Data;
+    TKit::StaticArray8<WindowData> m_Data;
 };
 } // namespace Onyx

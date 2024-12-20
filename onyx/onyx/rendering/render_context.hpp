@@ -677,7 +677,7 @@ template <Dimension D> class ONYX_API IRenderContext
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
   protected:
-    DynamicArray<RenderState<D>> m_RenderState;
+    TKit::StaticArray8<RenderState<D>> m_RenderState;
     ProjectionViewData<D> m_ProjectionView{};
     Renderer<D> m_Renderer;
     Window *m_Window;

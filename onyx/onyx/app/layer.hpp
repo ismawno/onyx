@@ -3,6 +3,7 @@
 #include "onyx/core/alias.hpp"
 #include "tkit/core/non_copyable.hpp"
 #include "tkit/memory/ptr.hpp"
+#include "tkit/container/static_array.hpp"
 #include <concepts>
 #include <vulkan/vulkan.hpp>
 
@@ -271,7 +272,7 @@ class LayerSystem
     }
 
   private:
-    DynamicArray<TKit::Scope<Layer>> m_Layers;
+    TKit::StaticArray16<TKit::Scope<Layer>> m_Layers;
 };
 
 } // namespace Onyx

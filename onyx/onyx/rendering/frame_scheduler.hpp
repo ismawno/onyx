@@ -64,7 +64,7 @@ class ONYX_API FrameScheduler
     VKit::SwapChain m_SwapChain;
     VKit::RenderPass m_RenderPass;
     VKit::RenderPass::Resources m_Resources;
-    DynamicArray<VkFence> m_InFlightImages;
+    TKit::StaticArray4<VkFence> m_InFlightImages;
 
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
 

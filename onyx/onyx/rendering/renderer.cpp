@@ -44,14 +44,14 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
 }
 
 template <Dimension D>
-IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<D>> *p_State,
+IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass, const TKit::StaticArray8<RenderState<D>> *p_State,
                         const ProjectionViewData<D> *p_ProjectionView) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
       m_CircleRenderer(p_RenderPass), m_ProjectionView(p_ProjectionView), m_State(p_State)
 {
 }
 
-Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const DynamicArray<RenderState<D3>> *p_State,
+Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const TKit::StaticArray8<RenderState<D3>> *p_State,
                        const ProjectionViewData<D3> *p_ProjectionView) noexcept
     : IRenderer<D3>(p_RenderPass, p_State, p_ProjectionView)
 {
