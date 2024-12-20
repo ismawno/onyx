@@ -1,24 +1,27 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_systems.hpp"
-#include "vkit/descriptors/descriptor_writer.hpp"
+#include "vkit/descriptors/descriptor_set.hpp"
 #include "tkit/utilities/math.hpp"
 
 namespace Onyx
 {
 static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
-                                                       const VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
+                                                       VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
 {
     const VKit::DescriptorSetLayout &layout = Core::GetTransformStorageDescriptorSetLayout();
     const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
-    if (p_OldSet)
-        pool.Deallocate(p_OldSet);
 
-    VKit::DescriptorWriter writer(Core::GetDevice(), &layout, &pool);
-    writer.WriteBuffer(0, &p_Info);
+    VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
+    writer.WriteBuffer(0, p_Info);
 
-    const auto result = writer.Build();
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
+    if (!p_OldSet)
+    {
+        const auto result = pool.Allocate(layout);
+        VKIT_ASSERT_RESULT(result);
+        p_OldSet = result.GetValue();
+    }
+    writer.Overwrite(p_OldSet);
+    return p_OldSet;
 }
 
 template <Dimension D, PipelineMode PMode>
