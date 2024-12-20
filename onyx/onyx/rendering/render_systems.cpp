@@ -84,14 +84,13 @@ static void bindDescriptorSets(const RenderInfo<D, DMode> &p_Info, const VKit::G
                                const VkDescriptorSet p_Transforms) noexcept
 {
     if constexpr (D == D2 || DMode == DrawMode::Stencil)
-        vkCmdBindDescriptorSets(p_Info.CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, p_Pipeline.GetLayout(), 0, 1,
-                                &p_Transforms, 0, nullptr);
+        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_Transforms, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  p_Pipeline.GetLayout());
 
     else
     {
         const std::array<VkDescriptorSet, 2> sets = {p_Transforms, p_Info.LightStorageBuffers};
-        vkCmdBindDescriptorSets(p_Info.CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, p_Pipeline.GetLayout(), 0,
-                                static_cast<u32>(sets.size()), sets.data(), 0, nullptr);
+        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, sets, VK_PIPELINE_BIND_POINT_GRAPHICS, p_Pipeline.GetLayout());
     }
 }
 
