@@ -4,6 +4,14 @@
 #include "vkit/descriptors/descriptor_set_layout.hpp"
 #include "vkit/descriptors/descriptor_pool.hpp"
 
+#ifndef ONYX_MAX_DIRECTIONAL_LIGHTS
+#    define ONYX_MAX_DIRECTIONAL_LIGHTS 8
+#endif
+
+#ifndef ONYX_MAX_POINT_LIGHTS
+#    define ONYX_MAX_POINT_LIGHTS 64
+#endif
+
 namespace Onyx
 {
 /**
@@ -333,10 +341,10 @@ template <> class Renderer<D3> final : public IRenderer<D3>
 
   private:
     /// Collection of directional lights in the scene.
-    TKit::StaticArray64<DirectionalLight> m_DirectionalLights;
+    TKit::StaticArray<DirectionalLight, ONYX_MAX_DIRECTIONAL_LIGHTS> m_DirectionalLights;
 
     /// Collection of point lights in the scene.
-    TKit::StaticArray512<PointLight> m_PointLights;
+    TKit::StaticArray<PointLight, ONYX_MAX_POINT_LIGHTS> m_PointLights;
 
     /// Device-side storage and descriptors for light data.
     DeviceLightData m_DeviceLightData{ONYX_BUFFER_INITIAL_CAPACITY};
