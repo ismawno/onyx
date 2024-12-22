@@ -17,6 +17,7 @@ VKit::Shader CreateAndCompileShader(const char *p_SourcePath) noexcept
     const fs::path binaryPath = createBinaryPath(p_SourcePath);
     if (!fs::exists(binaryPath))
     {
+        TKIT_LOG_INFO("Compiling shader: {}", p_SourcePath);
         TKIT_ASSERT_RETURNS(VKit::Shader::Compile(p_SourcePath, binaryPath.c_str()), 0,
                             "Failed to compile shader at {}", p_SourcePath);
     }

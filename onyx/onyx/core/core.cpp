@@ -42,6 +42,7 @@ static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
 static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 {
+    TKIT_LOG_INFO("Creating Vulkan device...");
     const auto physres = VKit::PhysicalDevice::Selector(&s_Instance)
                              .SetSurface(p_Surface)
                              .PreferType(VKit::PhysicalDevice::Discrete)
@@ -62,6 +63,7 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 
 static void createVulkanAllocator() noexcept
 {
+    TKIT_LOG_INFO("Creating Vulkan allocator...");
     VmaAllocatorCreateInfo allocatorInfo = {};
     allocatorInfo.physicalDevice = s_Device.GetPhysicalDevice();
     allocatorInfo.device = s_Device.GetDevice();
@@ -75,6 +77,7 @@ static void createVulkanAllocator() noexcept
 
 static void createCommandPool() noexcept
 {
+    TKIT_LOG_INFO("Creating global command pool...");
     VKit::CommandPool::Specs specs{};
     specs.QueueFamilyIndex = s_Device.GetPhysicalDevice().GetInfo().GraphicsIndex;
     specs.Flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
@@ -86,6 +89,7 @@ static void createCommandPool() noexcept
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
 static void createProfilingContext() noexcept
 {
+    TKIT_LOG_INFO("Creating Vulkan profiling context...");
     const auto cmdres = s_CommandPool.Allocate();
     VKIT_ASSERT_RESULT(cmdres);
     s_ProfilingCommandBuffer = cmdres.GetValue();
@@ -97,6 +101,7 @@ static void createProfilingContext() noexcept
 
 static void createDescriptorData() noexcept
 {
+    TKIT_LOG_INFO("Creating global descriptor data...");
     const auto poolResult = VKit::DescriptorPool::Builder(s_Device)
                                 .SetMaxSets(ONYX_MAX_DESCRIPTOR_SETS)
                                 .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS)
@@ -123,6 +128,7 @@ static void createDescriptorData() noexcept
 
 static void createPipelineLayouts() noexcept
 {
+    TKIT_LOG_INFO("Creating global pipeline layouts...");
     auto layoutResult =
         VKit::PipelineLayout::Builder(s_Device).AddDescriptorSetLayout(s_TransformStorageLayout).Build();
 
@@ -142,6 +148,7 @@ static void createPipelineLayouts() noexcept
 
 static void createShaders() noexcept
 {
+    TKIT_LOG_INFO("Creating global shaders...");
     Shaders<D2, DrawMode::Fill>::Initialize();
     Shaders<D2, DrawMode::Stencil>::Initialize();
     Shaders<D3, DrawMode::Fill>::Initialize();
@@ -150,6 +157,7 @@ static void createShaders() noexcept
 
 void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
 {
+    TKIT_LOG_INFO("Initializing Onyx...");
     const auto sysres = VKit::System::Initialize();
     VKIT_ASSERT_VULKAN_RESULT(sysres);
 
@@ -158,6 +166,7 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
     const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
     const std::span<const char *> extensionSpan(extensions, extensionCount);
 
+    TKIT_LOG_INFO("Creating Vulkan instance...");
     VKit::Instance::Builder builder{};
     builder.SetApplicationName("Onyx").RequireApiVersion(1, 1, 0).RequireExtensions(extensionSpan);
 #ifdef TKIT_ENABLE_ASSERTS

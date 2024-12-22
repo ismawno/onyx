@@ -121,6 +121,7 @@ template <Dimension D> static void createBuffers(const std::span<const char *con
 
 void CreateCombinedPrimitiveBuffers() noexcept
 {
+    TKIT_LOG_INFO("Creating primitives vertex and index buffers...");
     const std::array<const char *, Primitives<D2>::AMOUNT> paths2D = {ONYX_ROOT_PATH "/onyx/models/triangle.obj",
                                                                       ONYX_ROOT_PATH "/onyx/models/square.obj"};
 
