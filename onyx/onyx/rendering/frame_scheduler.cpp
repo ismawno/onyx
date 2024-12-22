@@ -40,7 +40,6 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::BeginFrame");
     TKIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
-
     if (m_PresentTask) [[likely]]
     {
         const VkResult result = m_PresentTask->WaitForResult();

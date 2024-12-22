@@ -1,11 +1,12 @@
 #pragma once
 
+#include "onyx/draw/data.hpp"
+#include "onyx/core/vma.hpp"
 #include "vkit/backend/physical_device.hpp"
 #include "vkit/descriptors/descriptor_pool.hpp"
 #include "vkit/descriptors/descriptor_set_layout.hpp"
 #include "vkit/backend/command_pool.hpp"
-#include "onyx/draw/data.hpp"
-#include "onyx/core/vma.hpp"
+#include "tkit/profiling/vulkan.hpp"
 
 #ifndef ONYX_MAX_DESCRIPTOR_SETS
 #    define ONYX_MAX_DESCRIPTOR_SETS 1000

@@ -44,11 +44,11 @@ layout(push_constant) uniform ProjectionViewData
 }
 projectionView;
 
-const vec2 g_Positions[6] =
-    vec2[](vec2(-0.5, -0.5), vec2(0.5, 0.5), vec2(-0.5, 0.5), vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5));
-
 void main()
 {
+    const vec2 g_Positions[6] =
+        vec2[](vec2(-0.5, -0.5), vec2(0.5, 0.5), vec2(-0.5, 0.5), vec2(-0.5, -0.5), vec2(0.5, -0.5), vec2(0.5, 0.5));
+
     const vec4 worldPos =
         instanceBuffer.Instances[gl_InstanceIndex].Transform * vec4(g_Positions[gl_VertexIndex], 0.0, 1.0);
     gl_Position = projectionView.ProjectionView * worldPos;

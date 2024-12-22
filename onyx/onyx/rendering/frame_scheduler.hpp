@@ -2,7 +2,7 @@
 
 #include "onyx/core/alias.hpp"
 #include "onyx/core/dimension.hpp"
-#include "onyx/core/core.hpp"
+#include "onyx/rendering/processing_effect.hpp"
 #include "vkit/rendering/swap_chain.hpp"
 #include "vkit/rendering/render_pass.hpp"
 #include "vkit/backend/command_pool.hpp"

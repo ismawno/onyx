@@ -84,8 +84,6 @@ static VKit::GraphicsPipeline::Specs defaultPipelineSpecs(const VKit::Shader &p_
 
     specs.VertexShader = p_VertexShader;
     specs.FragmentShader = p_FragmentShader;
-
-    specs.InputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     specs.RenderPass = p_RenderPass;
 
     return specs;
