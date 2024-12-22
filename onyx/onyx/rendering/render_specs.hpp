@@ -7,7 +7,7 @@
 #include "onyx/draw/transform.hpp"
 #include "onyx/core/core.hpp"
 #include "vkit/pipeline/graphics_pipeline.hpp"
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 
 namespace Onyx
 {

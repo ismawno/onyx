@@ -6,7 +6,7 @@
 #include "tkit/container/static_array.hpp"
 #include "tkit/container/hashable_tuple.hpp"
 
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 
 namespace Onyx
 {

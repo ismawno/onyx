@@ -3,7 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/draw/transform.hpp"
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 
 // Translate() Rotate() etc is only valid for primitives, not lights
 

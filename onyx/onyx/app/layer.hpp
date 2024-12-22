@@ -5,7 +5,7 @@
 #include "tkit/memory/ptr.hpp"
 #include "tkit/container/static_array.hpp"
 #include <concepts>
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 
 namespace Onyx
 {

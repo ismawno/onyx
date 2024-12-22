@@ -27,7 +27,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <filesystem>
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 #include <imgui.h>
 #ifdef ONYX_ENABLE_IMPLOT
 #    include <implot.h>
