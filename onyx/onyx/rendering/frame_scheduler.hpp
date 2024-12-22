@@ -2,7 +2,7 @@
 
 #include "onyx/core/alias.hpp"
 #include "onyx/core/dimension.hpp"
-#include "onyx/rendering/processing_effect.hpp"
+#include "onyx/rendering/processing_effects.hpp"
 #include "vkit/rendering/swap_chain.hpp"
 #include "vkit/rendering/render_pass.hpp"
 #include "vkit/backend/command_pool.hpp"
@@ -32,6 +32,9 @@ class ONYX_API FrameScheduler
     VkResult SubmitCurrentCommandBuffer() noexcept;
     VkResult Present() noexcept;
 
+    void RemovePreProcessing() noexcept;
+    void RemovePostProcessing() noexcept;
+
     template <typename F> void ImmediateSubmission(F &&p_Submission) const noexcept
     {
         const auto cmdresult = m_CommandPool.BeginSingleTimeCommands();
@@ -60,16 +63,28 @@ class ONYX_API FrameScheduler
     void createCommandPool() noexcept;
     void createCommandBuffers() noexcept;
 
+    void setupNaivePostProcessing() noexcept;
+    TKit::StaticArray4<VkImageView> getIntermediateAttachmentImageViews() const noexcept;
+
     VKit::CommandPool m_CommandPool;
     VKit::SwapChain m_SwapChain;
     VKit::RenderPass m_RenderPass;
     VKit::RenderPass::Resources m_Resources;
     TKit::StaticArray4<VkFence> m_InFlightImages;
 
+    TKit::Storage<PreProcessing> m_PreProcessing;
+    TKit::Storage<PostProcessing> m_PostProcessing;
+
+    VKit::Shader m_PreProcessingVertexShader;
+    VKit::Shader m_PostProcessingVertexShader;
+    VKit::Shader m_NaivePostProcessingFragmentShader;
+
+    VKit::PipelineLayout m_NaivePostProcessingLayout;
+
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
-    std::array<VkCommandBuffer, ONYX_MAX_FRAMES_IN_FLIGHT> m_CommandBuffers;
-    std::array<VKit::SyncData, ONYX_MAX_FRAMES_IN_FLIGHT> m_SyncData{};
+    PerFrameData<VkCommandBuffer> m_CommandBuffers;
+    PerFrameData<VKit::SyncData> m_SyncData{};
 
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;

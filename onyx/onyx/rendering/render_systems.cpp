@@ -86,7 +86,6 @@ static void bindDescriptorSets(const RenderInfo<D, DMode> &p_Info, const VKit::G
     if constexpr (D == D2 || DMode == DrawMode::Stencil)
         VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_Transforms, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   p_Pipeline.GetLayout());
-
     else
     {
         const std::array<VkDescriptorSet, 2> sets = {p_Transforms, p_Info.LightStorageBuffers};

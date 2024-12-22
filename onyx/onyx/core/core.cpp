@@ -104,7 +104,8 @@ static void createDescriptorData() noexcept
     TKIT_LOG_INFO("Creating global descriptor data...");
     const auto poolResult = VKit::DescriptorPool::Builder(s_Device)
                                 .SetMaxSets(ONYX_MAX_DESCRIPTOR_SETS)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS)
+                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, ONYX_MAX_DESCRIPTORS)
+                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8)
                                 .Build();
 
     VKIT_ASSERT_RESULT(poolResult);

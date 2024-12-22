@@ -10,6 +10,7 @@ set(SOURCES
     onyx/rendering/renderer.cpp
     onyx/rendering/render_specs.cpp
     onyx/rendering/frame_scheduler.cpp
+    onyx/rendering/processing_effects.cpp
     onyx/draw/vertex.cpp
     onyx/draw/color.cpp
     onyx/draw/transform.cpp

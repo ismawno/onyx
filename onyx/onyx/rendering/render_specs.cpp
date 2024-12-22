@@ -85,6 +85,7 @@ static VKit::GraphicsPipeline::Specs defaultPipelineSpecs(const VKit::Shader &p_
     specs.VertexShader = p_VertexShader;
     specs.FragmentShader = p_FragmentShader;
     specs.RenderPass = p_RenderPass;
+    specs.Subpass = 1;
 
     return specs;
 }

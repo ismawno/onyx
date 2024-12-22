@@ -9,11 +9,11 @@
 #include "tkit/profiling/vulkan.hpp"
 
 #ifndef ONYX_MAX_DESCRIPTOR_SETS
-#    define ONYX_MAX_DESCRIPTOR_SETS 1000
+#    define ONYX_MAX_DESCRIPTOR_SETS 1024
 #endif
 
-#ifndef ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS
-#    define ONYX_MAX_STORAGE_BUFFER_DESCRIPTORS 1000
+#ifndef ONYX_MAX_DESCRIPTORS
+#    define ONYX_MAX_DESCRIPTORS 1024
 #endif
 
 #ifndef ONYX_MAX_FRAMES_IN_FLIGHT
@@ -32,6 +32,7 @@ class ITaskManager;
 
 namespace Onyx
 {
+template <typename T> using PerFrameData = std::array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
 struct ONYX_API Core
 {
     static void Initialize(TKit::ITaskManager *p_TaskManager) noexcept;

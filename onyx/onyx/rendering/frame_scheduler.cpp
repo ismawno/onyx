@@ -2,6 +2,7 @@
 #include "onyx/rendering/frame_scheduler.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/draw/color.hpp"
+#include "onyx/core/shaders.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 
 #include "onyx/core/glfw.hpp"
@@ -13,10 +14,27 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
     createSwapChain(p_Window);
     m_InFlightImages.resize(m_SwapChain.GetInfo().ImageData.size(), VK_NULL_HANDLE);
     createRenderPass();
+
+    m_PreProcessingVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass.vert");
+    m_PostProcessingVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass-uvs.vert");
+    m_NaivePostProcessingFragmentShader =
+        CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/naive-post-processing.frag");
+
+    const TKit::StaticArray4<VkImageView> imageviews = getIntermediateAttachmentImageViews();
+    m_PreProcessing.Create(m_RenderPass, m_PreProcessingVertexShader);
+    m_PostProcessing.Create(m_RenderPass, m_PostProcessingVertexShader, imageviews);
+
+    const VKit::PipelineLayout::Builder builder = m_PostProcessing->CreatePipelineLayoutBuilder();
+    const auto layoutResult = builder.Build();
+    VKIT_ASSERT_RESULT(layoutResult);
+    m_NaivePostProcessingLayout = layoutResult.GetValue();
+
+    setupNaivePostProcessing();
+
     createCommandPool();
     createCommandBuffers();
-    const auto result = VKit::CreateSynchronizationObjects(Core::GetDevice(), m_SyncData);
-    VKIT_ASSERT_VULKAN_RESULT(result);
+    const auto syncResult = VKit::CreateSynchronizationObjects(Core::GetDevice(), m_SyncData);
+    VKIT_ASSERT_VULKAN_RESULT(syncResult);
 }
 
 FrameScheduler::~FrameScheduler() noexcept
@@ -29,6 +47,12 @@ FrameScheduler::~FrameScheduler() noexcept
     // Lock the queues to prevent any other command buffers from being submitted
     Core::DeviceWaitIdle();
     m_Resources.Destroy();
+    m_PreProcessing.Destroy();
+    m_PostProcessing.Destroy();
+    m_PreProcessingVertexShader.Destroy();
+    m_PostProcessingVertexShader.Destroy();
+    m_NaivePostProcessingFragmentShader.Destroy();
+    m_NaivePostProcessingLayout.Destroy();
     VKit::DestroySynchronizationObjects(Core::GetDevice(), m_SyncData);
     vkFreeCommandBuffers(Core::GetDevice(), m_CommandPool, ONYX_MAX_FRAMES_IN_FLIGHT, m_CommandBuffers.data());
     vkDestroyCommandPool(Core::GetDevice(), m_CommandPool, nullptr);
@@ -45,13 +69,15 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
         const VkResult result = m_PresentTask->WaitForResult();
         const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
                                  p_Window.WasResized() || m_PresentModeChanged;
+
+        TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
         if (resizeFixes)
         {
             recreateSwapChain(p_Window);
             p_Window.FlagResizeDone();
             m_PresentModeChanged = false;
+            return VK_NULL_HANDLE;
         }
-        TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
     }
     else
     {
@@ -110,12 +136,13 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
     passInfo.renderArea.offset = {0, 0};
     passInfo.renderArea.extent = extent;
 
-    std::array<VkClearValue, 2> clear_values;
+    std::array<VkClearValue, 3> clear_values;
     clear_values[0].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
     clear_values[1].depthStencil.depth = 1.f;
     clear_values[1].depthStencil.stencil = 0;
+    clear_values[2].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
 
-    passInfo.clearValueCount = 2;
+    passInfo.clearValueCount = static_cast<u32>(clear_values.size());
     passInfo.pClearValues = clear_values.data();
 
     vkCmdBeginRenderPass(m_CommandBuffers[m_FrameIndex], &passInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -134,11 +161,22 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 
     vkCmdSetViewport(m_CommandBuffers[m_FrameIndex], 0, 1, &viewport);
     vkCmdSetScissor(m_CommandBuffers[m_FrameIndex], 0, 1, &scissor);
+
+    if (*m_PreProcessing)
+    {
+        m_PreProcessing->Bind(m_FrameIndex, m_CommandBuffers[m_FrameIndex]);
+        m_PreProcessing->Draw(m_CommandBuffers[m_FrameIndex]);
+    }
+    vkCmdNextSubpass(m_CommandBuffers[m_FrameIndex], VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void FrameScheduler::EndRenderPass() noexcept
 {
     TKIT_ASSERT(m_FrameStarted, "Cannot end render pass if a frame is not in progress");
+    vkCmdNextSubpass(m_CommandBuffers[m_FrameIndex], VK_SUBPASS_CONTENTS_INLINE);
+    m_PostProcessing->Bind(m_FrameIndex, m_ImageIndex, m_CommandBuffers[m_FrameIndex]);
+    m_PostProcessing->Draw(m_CommandBuffers[m_FrameIndex]);
+
     vkCmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
 }
 
@@ -198,6 +236,16 @@ VkResult FrameScheduler::Present() noexcept
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
     std::scoped_lock lock(Core::GetPresentMutex());
     return vkQueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
+}
+
+void FrameScheduler::RemovePreProcessing() noexcept
+{
+    m_PreProcessing.Destroy();
+    m_PreProcessing.Create(m_RenderPass, m_PreProcessingVertexShader);
+}
+void FrameScheduler::RemovePostProcessing() noexcept
+{
+    setupNaivePostProcessing();
 }
 
 u32 FrameScheduler::GetFrameIndex() const noexcept
@@ -269,6 +317,9 @@ void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
     VKIT_ASSERT_RESULT(result);
     m_Resources.Destroy();
     m_Resources = result.GetValue();
+
+    const TKit::StaticArray4<VkImageView> imageViews = getIntermediateAttachmentImageViews();
+    m_PostProcessing->UpdateImageViews(imageViews);
 }
 
 void FrameScheduler::createRenderPass() noexcept
@@ -280,7 +331,7 @@ void FrameScheduler::createRenderPass() noexcept
     const auto result =
         VKit::RenderPass::Builder(&device, imageCount)
             .SetAllocator(Core::GetVulkanAllocator())
-            // Attachment 0: Color
+            // Attachment 0: Final presentation color, post processing result
             .BeginAttachment(VKit::Attachment::Flag_Color)
             .RequestFormat(info.SurfaceFormat.format)
             .SetFinalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
@@ -290,16 +341,40 @@ void FrameScheduler::createRenderPass() noexcept
             .RequestFormat(VK_FORMAT_D32_SFLOAT_S8_UINT)
             .SetFinalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .EndAttachment()
-            // Subpass 0
+            // Attachment 2: Intermediate A, for pre-processing and scene rendering
+            .BeginAttachment(VKit::Attachment::Flag_Color | VKit::Attachment::Flag_Sampled |
+                             VKit::Attachment::Flag_Input)
+            .RequestFormat(info.SurfaceFormat.format)
+            .SetFinalLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            .EndAttachment()
+            // Subpass 0 - pre-processing
             .BeginSubpass(VK_PIPELINE_BIND_POINT_GRAPHICS)
-            .AddColorAttachment(0)
+            .AddColorAttachment(2)
+            .EndSubpass()
+            // Subpass 1 - scene rendering
+            .BeginSubpass(VK_PIPELINE_BIND_POINT_GRAPHICS)
+            .AddColorAttachment(2)
             .SetDepthStencilAttachment(1)
             .EndSubpass()
-            // Dependency 0
+            // Subpass 2 - post-processing
+            .BeginSubpass(VK_PIPELINE_BIND_POINT_GRAPHICS)
+            .AddColorAttachment(0)
+            .AddInputAttachment(2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+            .EndSubpass()
+            // Dependency 0 - External to pre-processing
             .BeginDependency(VK_SUBPASS_EXTERNAL, 0)
-            .SetAccessMask(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)
-            .SetStageMask(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT)
+            .SetStageMask(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+            .SetAccessMask(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+            .EndDependency()
+            // Dependency 1 - Pre-processing to scene rendering
+            .BeginDependency(0, 1)
+            .SetStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+            .SetAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+            .EndDependency()
+            // Dependency 2 - Scene rendering to post-processing
+            .BeginDependency(1, 2)
+            .SetStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+            .SetAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT)
             .EndDependency()
             .Build();
 
@@ -336,6 +411,20 @@ void FrameScheduler::createCommandBuffers() noexcept
 
     TKIT_ASSERT_RETURNS(vkAllocateCommandBuffers(Core::GetDevice(), &allocInfo, m_CommandBuffers.data()), VK_SUCCESS,
                         "Failed to create command buffers");
+}
+
+void FrameScheduler::setupNaivePostProcessing() noexcept
+{
+    m_PostProcessing->Setup(m_NaivePostProcessingLayout, m_NaivePostProcessingFragmentShader);
+}
+
+TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateAttachmentImageViews() const noexcept
+{
+    TKit::StaticArray4<VkImageView> imageViews;
+    const u32 imageCount = static_cast<u32>(m_SwapChain.GetInfo().ImageData.size());
+    for (u32 i = 0; i < imageCount; ++i)
+        imageViews.push_back(m_Resources.GetImageView(i, 2));
+    return imageViews;
 }
 
 } // namespace Onyx

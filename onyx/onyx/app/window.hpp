@@ -80,42 +80,41 @@ class ONYX_API Window
     template <typename F1, typename F2> bool Render(F1 &&p_DrawCalls, F2 &&p_UICalls) noexcept
     {
         TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
-        if (const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this))
+        const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this);
+        if (!cmd)
+            return false;
+
         {
+            TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Render", Core::GetProfilingContext(), cmd);
+            m_FrameScheduler->BeginRenderPass(BackgroundColor);
             {
-                TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Render", Core::GetProfilingContext(), cmd);
-                m_FrameScheduler->BeginRenderPass(BackgroundColor);
-                {
-                    TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkDrawCalls, "Onyx::DrawCalls", Core::GetProfilingContext(), cmd,
-                                                    true);
-                    TKIT_PROFILE_NAMED_NSCOPE(drawCalls, "Onyx::DrawCalls", true);
-                    std::forward<F1>(p_DrawCalls)(cmd);
-                }
-
-                // This bit is profiled inside the renderer methods.
-                m_RenderContext2D->Render(cmd);
-                m_RenderContext3D->Render(cmd);
-
-                {
-                    TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkUiCalls, "Onyx::ImGui", Core::GetProfilingContext(), cmd, true);
-                    TKIT_PROFILE_NAMED_NSCOPE(uiCalls, "Onyx::ImGui", true);
-                    std::forward<F2>(p_UICalls)(cmd);
-                }
-                m_FrameScheduler->EndRenderPass();
+                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkDrawCalls, "Onyx::DrawCalls", Core::GetProfilingContext(), cmd, true);
+                TKIT_PROFILE_NAMED_NSCOPE(drawCalls, "Onyx::DrawCalls", true);
+                std::forward<F1>(p_DrawCalls)(cmd);
             }
 
+            // This bit is profiled inside the renderer methods.
+            m_RenderContext2D->Render(cmd);
+            m_RenderContext3D->Render(cmd);
+
             {
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
-                static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
-                std::scoped_lock lock(mutex);
-                TKIT_PROFILE_MARK_LOCK(mutex);
-#endif
-                TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);
+                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkUiCalls, "Onyx::ImGui", Core::GetProfilingContext(), cmd, true);
+                TKIT_PROFILE_NAMED_NSCOPE(uiCalls, "Onyx::ImGui", true);
+                std::forward<F2>(p_UICalls)(cmd);
             }
-            m_FrameScheduler->EndFrame(*this);
-            return true;
+            m_FrameScheduler->EndRenderPass();
         }
-        return false;
+
+        {
+#ifdef TKIT_ENABLE_VULKAN_PROFILING
+            static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
+            std::scoped_lock lock(mutex);
+            TKIT_PROFILE_MARK_LOCK(mutex);
+#endif
+            TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);
+        }
+        m_FrameScheduler->EndFrame(*this);
+        return true;
     }
     /**
      * @brief Renders the window without any custom draw or UI calls.
@@ -235,7 +234,7 @@ class ONYX_API Window
      *
      * @return The array of new events.
      */
-    const TKit::StaticArray16<Event> &GetNewEvents() const noexcept;
+    const TKit::StaticArray128<Event> &GetNewEvents() const noexcept;
     /**
      * @brief Clears the window's event queue.
      */
@@ -298,7 +297,7 @@ class ONYX_API Window
     TKit::Storage<RenderContext<D2>> m_RenderContext2D;
     TKit::Storage<RenderContext<D3>> m_RenderContext3D;
 
-    TKit::StaticArray16<Event> m_Events;
+    TKit::StaticArray128<Event> m_Events;
     VkSurfaceKHR m_Surface;
 
     const char *m_Name;

@@ -198,9 +198,9 @@ template <typename T> struct ONYX_API DeviceInstanceData
             StorageBuffers[i].Destroy();
     }
 
-    std::array<MutableStorageBuffer<T>, ONYX_MAX_FRAMES_IN_FLIGHT> StorageBuffers;
-    std::array<VkDescriptorSet, ONYX_MAX_FRAMES_IN_FLIGHT> DescriptorSets;
-    std::array<usize, ONYX_MAX_FRAMES_IN_FLIGHT> StorageSizes;
+    PerFrameData<MutableStorageBuffer<T>> StorageBuffers;
+    PerFrameData<VkDescriptorSet> DescriptorSets;
+    PerFrameData<usize> StorageSizes;
 };
 
 /**
@@ -218,8 +218,8 @@ struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, D
     PolygonDeviceInstanceData(const usize p_Capacity) noexcept;
     ~PolygonDeviceInstanceData() noexcept;
 
-    std::array<MutableVertexBuffer<D>, ONYX_MAX_FRAMES_IN_FLIGHT> VertexBuffers;
-    std::array<MutableIndexBuffer, ONYX_MAX_FRAMES_IN_FLIGHT> IndexBuffers;
+    PerFrameData<MutableVertexBuffer<D>> VertexBuffers;
+    PerFrameData<MutableIndexBuffer> IndexBuffers;
 };
 
 /**

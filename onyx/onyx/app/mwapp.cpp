@@ -17,9 +17,8 @@ static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSyste
     // Should maybe exit if window is closed at this point? (triggered by event)
 
     p_Layers.OnUpdate(p_WindowIndex);
-    TKIT_ASSERT_RETURNS(
-        p_Window.Render(std::forward<F1>(p_DrawCalls), std::forward<F2>(p_UICalls)), true,
-        "Failed to render to the window. Failed to acquire a command buffer when beginning a new frame");
+
+    p_Window.Render(std::forward<F1>(p_DrawCalls), std::forward<F2>(p_UICalls));
 }
 
 void IMultiWindowApplication::CloseAllWindows() noexcept

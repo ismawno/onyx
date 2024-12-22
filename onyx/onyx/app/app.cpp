@@ -177,9 +177,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
 
-    TKIT_ASSERT_RETURNS(
-        m_Window->Render(drawCalls, uiSubmission), true,
-        "Failed to render to the window. Failed to acquire a command buffer when beginning a new frame");
+    m_Window->Render(drawCalls, uiSubmission);
     if (m_Window->ShouldClose())
     {
         m_Window.Destroy();
