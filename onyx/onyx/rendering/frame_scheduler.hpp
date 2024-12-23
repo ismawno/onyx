@@ -8,9 +8,6 @@
 #include "vkit/backend/command_pool.hpp"
 #include "tkit/multiprocessing/task.hpp"
 
-// Documentar y explicar bien TODO. Añadir comentario al crear render pass (pq intermediate es input etc)
-// Actualizar un poco los readme
-
 namespace Onyx
 {
 struct Color;
@@ -100,9 +97,6 @@ class ONYX_API FrameScheduler
      * @return A Vulkan result indicating success or failure.
      */
     VkResult Present() noexcept;
-
-    // Si se quiere cambiar de pre/post, se llama setup, no remove
-    // las llamadas estan diferidas para evitar problemas de sincronizacion
 
     /**
      * @brief Sets up the pre-processing pipeline, which is used to apply effects to the scene before the main rendering
