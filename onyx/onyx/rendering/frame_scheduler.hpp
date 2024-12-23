@@ -8,11 +8,23 @@
 #include "vkit/backend/command_pool.hpp"
 #include "tkit/multiprocessing/task.hpp"
 
+// Documentar y explicar bien TODO. Añadir comentario al crear render pass (pq intermediate es input etc)
+// Actualizar un poco los readme
+
 namespace Onyx
 {
 struct Color;
 class Window;
 
+/**
+ * @brief Manages frame scheduling and rendering operations for a window.
+ *
+ * The `FrameScheduler` class provides a high-level abstraction for managing Vulkan rendering
+ * tasks, including frame synchronization, command buffer management, and render pass execution.
+ *
+ * It currently provides a single render pass with support for pre- and post-processing effects, which are split into
+ * multiple subpasses.
+ */
 class ONYX_API FrameScheduler
 {
     TKIT_NON_COPYABLE(FrameScheduler)
@@ -20,21 +32,86 @@ class ONYX_API FrameScheduler
     explicit FrameScheduler(Window &p_Window) noexcept;
     ~FrameScheduler() noexcept;
 
+    /**
+     * @brief Begins a new frame and prepares a command buffer for rendering.
+     *
+     * Synchronizes with the GPU to ensure the next swap chain image is ready for rendering. Will wait for the present
+     * task before proceeding.
+     *
+     * @param p_Window The window associated with the rendering context.
+     * @return A Vulkan command buffer for the current frame. May be a null handle if the swap chain needs to be
+     * recreated.
+     */
     VkCommandBuffer BeginFrame(Window &p_Window) noexcept;
+
+    /**
+     * @brief Finalizes the current frame and submits the rendering commands.
+     *
+     * Ensures all recorded commands for the frame are submitted for execution.
+     *
+     * @param p_Window The window associated with the rendering context.
+     */
     void EndFrame(Window &p_Window) noexcept;
 
+    /**
+     * @brief Begins a render pass with the specified clear color.
+     *
+     * It will clear the framebuffer with the provided color and set dynamic viewport and scissor states. It will also
+     * run the pre processing pipeline, if any.
+     *
+     * @param p_ClearColor The color to clear the framebuffer with.
+     */
     void BeginRenderPass(const Color &p_ClearColor) noexcept;
+
+    /**
+     * @brief Ends the current render pass and runs the post processing pipeline.
+     *
+     * If not specified, the post-processing pipeline will be a naive one that simply blits the final image to the
+     * swap chain image.
+     *
+     */
     void EndRenderPass() noexcept;
 
     u32 GetFrameIndex() const noexcept;
 
+    /**
+     * @brief Acquires the next image from the swap chain for rendering.
+     *
+     * Synchronizes rendering with the presentation engine.
+     *
+     * @return A Vulkan result indicating success or failure.
+     */
     VkResult AcquireNextImage() noexcept;
+
+    /**
+     * @brief Submits the current command buffer for execution.
+     *
+     * Sends recorded commands to the GPU for processing.
+     *
+     * @return A Vulkan result indicating success or failure.
+     */
     VkResult SubmitCurrentCommandBuffer() noexcept;
+
+    /**
+     * @brief Presents the rendered frame to the screen.
+     *
+     * Synchronizes frame rendering with presentation.
+     *
+     * @return A Vulkan result indicating success or failure.
+     */
     VkResult Present() noexcept;
+
+    PreProcessing *GetPreProcessing() noexcept;
+    PostProcessing *GetPostProcessing() noexcept;
 
     void RemovePreProcessing() noexcept;
     void RemovePostProcessing() noexcept;
 
+    /**
+     * @brief Immediately submits a command buffer for execution.
+     *
+     * @param p_Submission The callable to execute on the command buffer.
+     */
     template <typename F> void ImmediateSubmission(F &&p_Submission) const noexcept
     {
         const auto cmdresult = m_CommandPool.BeginSingleTimeCommands();
@@ -60,6 +137,7 @@ class ONYX_API FrameScheduler
     void createSwapChain(Window &p_Window) noexcept;
     void recreateSwapChain(Window &p_Window) noexcept;
     void createRenderPass() noexcept;
+    void createProcessingEffects() noexcept;
     void createCommandPool() noexcept;
     void createCommandBuffers() noexcept;
 

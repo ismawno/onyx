@@ -78,6 +78,8 @@ class PostProcessing final : public ProcessingEffect
     void UpdateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept;
 
   private:
+    void overwriteSamplerSet(VkImageView p_ImageView, VkDescriptorSet p_Set) const noexcept;
+
     TKit::StaticArray4<VkDescriptorSet> m_SamplerDescriptorSets;
     TKit::StaticArray4<VkImageView> m_ImageViews;
     VKit::DescriptorSetLayout m_DescriptorSetLayout{};

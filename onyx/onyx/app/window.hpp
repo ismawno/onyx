@@ -195,6 +195,32 @@ class ONYX_API Window
     std::pair<u32, u32> GetPosition() const noexcept;
 
     /**
+     * @brief Gets the pre-processing pipeline, through which it is possible to apply effects to the rendered image
+     * before the main scene gets rendered.
+     *
+     * @return PreProcessing*
+     */
+    PreProcessing *GetPreProcessing() noexcept;
+
+    /**
+     * @brief Gets the post-processing pipeline, through which it is possible to apply effects to the rendered image
+     * after the main scene gets rendered.
+     *
+     * @return PostProcessing*
+     */
+    PostProcessing *GetPostProcessing() noexcept;
+
+    /**
+     * @brief Removes the pre-processing pipeline.
+     */
+    void RemovePreProcessing() noexcept;
+
+    /**
+     * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final image
+     */
+    void RemovePostProcessing() noexcept;
+
+    /**
      * @brief Checks if the window was resized.
      *
      * @return true if the window was resized since the last call to FlagResizeDone().

@@ -113,6 +113,17 @@ VKit::PipelineLayout::Builder PostProcessing::CreatePipelineLayoutBuilder() noex
 {
     return VKit::PipelineLayout::Builder(Core::GetDevice()).AddDescriptorSetLayout(m_DescriptorSetLayout);
 }
+void PostProcessing::overwriteSamplerSet(const VkImageView p_ImageView, const VkDescriptorSet p_Set) const noexcept
+{
+    VKit::DescriptorSet::Writer writer{Core::GetDevice(), &m_DescriptorSetLayout};
+    VkDescriptorImageInfo info{};
+    info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    info.imageView = p_ImageView;
+    info.sampler = m_Sampler;
+    writer.WriteImage(0, info);
+    writer.Overwrite(p_Set);
+}
+
 void PostProcessing::Setup(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
                            const VkSamplerCreateInfo *p_SamplerCreateInfo) noexcept
 {
@@ -159,14 +170,7 @@ void PostProcessing::Setup(const VKit::PipelineLayout &p_Layout, const VKit::Sha
         const auto result = pool.Allocate(m_DescriptorSetLayout);
         VKIT_ASSERT_RESULT(result);
         const VkDescriptorSet set = result.GetValue();
-
-        VKit::DescriptorSet::Writer writer{Core::GetDevice(), &m_DescriptorSetLayout};
-        VkDescriptorImageInfo info{};
-        info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        info.imageView = m_ImageViews[i];
-        info.sampler = m_Sampler;
-        writer.WriteImage(0, info);
-        writer.Overwrite(set);
+        overwriteSamplerSet(m_ImageViews[i], set);
         m_SamplerDescriptorSets.push_back(set);
     }
 
@@ -193,15 +197,7 @@ void PostProcessing::UpdateImageViews(const TKit::StaticArray4<VkImageView> &p_I
     m_ImageViews = p_ImageViews;
     const u32 imageCount = static_cast<u32>(m_ImageViews.size());
     for (u32 i = 0; i < imageCount; ++i)
-    {
-        VKit::DescriptorSet::Writer writer{Core::GetDevice(), &m_DescriptorSetLayout};
-        VkDescriptorImageInfo info{};
-        info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        info.imageView = m_ImageViews[i];
-        info.sampler = m_Sampler;
-        writer.WriteImage(0, info);
-        writer.Overwrite(m_SamplerDescriptorSets[i]);
-    }
+        overwriteSamplerSet(m_ImageViews[i], m_SamplerDescriptorSets[i]);
 }
 
 } // namespace Onyx

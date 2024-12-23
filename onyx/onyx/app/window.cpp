@@ -113,6 +113,24 @@ std::pair<u32, u32> Window::GetPosition() const noexcept
     return {static_cast<u32>(x), static_cast<u32>(y)};
 }
 
+PreProcessing *Window::GetPreProcessing() noexcept
+{
+    return m_FrameScheduler->GetPreProcessing();
+}
+PostProcessing *Window::GetPostProcessing() noexcept
+{
+    return m_FrameScheduler->GetPostProcessing();
+}
+
+void Window::RemovePreProcessing() noexcept
+{
+    m_FrameScheduler->RemovePreProcessing();
+}
+void Window::RemovePostProcessing() noexcept
+{
+    m_FrameScheduler->RemovePostProcessing();
+}
+
 bool Window::WasResized() const noexcept
 {
     return m_Resized;

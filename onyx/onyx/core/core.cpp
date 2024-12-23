@@ -105,7 +105,7 @@ static void createDescriptorData() noexcept
     const auto poolResult = VKit::DescriptorPool::Builder(s_Device)
                                 .SetMaxSets(ONYX_MAX_DESCRIPTOR_SETS)
                                 .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, ONYX_MAX_DESCRIPTORS)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8)
+                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, ONYX_MAX_DESCRIPTORS)
                                 .Build();
 
     VKIT_ASSERT_RESULT(poolResult);

@@ -14,27 +14,11 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
     createSwapChain(p_Window);
     m_InFlightImages.resize(m_SwapChain.GetInfo().ImageData.size(), VK_NULL_HANDLE);
     createRenderPass();
-
-    m_PreProcessingVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass.vert");
-    m_PostProcessingVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass-uvs.vert");
-    m_NaivePostProcessingFragmentShader =
-        CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/naive-post-processing.frag");
-
-    const TKit::StaticArray4<VkImageView> imageviews = getIntermediateAttachmentImageViews();
-    m_PreProcessing.Create(m_RenderPass, m_PreProcessingVertexShader);
-    m_PostProcessing.Create(m_RenderPass, m_PostProcessingVertexShader, imageviews);
-
-    const VKit::PipelineLayout::Builder builder = m_PostProcessing->CreatePipelineLayoutBuilder();
-    const auto layoutResult = builder.Build();
-    VKIT_ASSERT_RESULT(layoutResult);
-    m_NaivePostProcessingLayout = layoutResult.GetValue();
-
-    setupNaivePostProcessing();
-
+    createProcessingEffects();
     createCommandPool();
     createCommandBuffers();
-    const auto syncResult = VKit::CreateSynchronizationObjects(Core::GetDevice(), m_SyncData);
-    VKIT_ASSERT_VULKAN_RESULT(syncResult);
+    const auto result = VKit::CreateSynchronizationObjects(Core::GetDevice(), m_SyncData);
+    VKIT_ASSERT_VULKAN_RESULT(result);
 }
 
 FrameScheduler::~FrameScheduler() noexcept
@@ -238,6 +222,15 @@ VkResult FrameScheduler::Present() noexcept
     return vkQueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
 }
 
+PreProcessing *FrameScheduler::GetPreProcessing() noexcept
+{
+    return m_PreProcessing.Get();
+}
+PostProcessing *FrameScheduler::GetPostProcessing() noexcept
+{
+    return m_PostProcessing.Get();
+}
+
 void FrameScheduler::RemovePreProcessing() noexcept
 {
     m_PreProcessing.Destroy();
@@ -331,32 +324,37 @@ void FrameScheduler::createRenderPass() noexcept
     const auto result =
         VKit::RenderPass::Builder(&device, imageCount)
             .SetAllocator(Core::GetVulkanAllocator())
-            // Attachment 0: Final presentation color, post processing result
+            // Attachment 0: This is the final presentation image. It is the post processing target image.
             .BeginAttachment(VKit::Attachment::Flag_Color)
             .RequestFormat(info.SurfaceFormat.format)
             .SetFinalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
             .EndAttachment()
-            // Attachment 1: Depth/Stencil
+            // Attachment 1: Depth/Stencil. This is the main depth/stencil buffer for the scene.
             .BeginAttachment(VKit::Attachment::Flag_Depth | VKit::Attachment::Flag_Stencil)
             .RequestFormat(VK_FORMAT_D32_SFLOAT_S8_UINT)
             .SetFinalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .EndAttachment()
-            // Attachment 2: Intermediate A, for pre-processing and scene rendering
+            // Attachment 2: An intermediate color attachment used as the target of the pre-processing pass and the main
+            // scene itself. It will also serve as "input" for the post-processing pass. This attachment is supplied to
+            // the post processing pipeline via a sampler, so in theory, flagging it as an input attachment would not be
+            // necessary. However, it is flagged as an input attachment to ensure that vulkan is
+            // aware of the dependency between the scene rendering and the post-processing pass. It is kind of a quirk
+            // that allows us to defer synchronization to the render pass itself.
             .BeginAttachment(VKit::Attachment::Flag_Color | VKit::Attachment::Flag_Sampled |
                              VKit::Attachment::Flag_Input)
             .RequestFormat(info.SurfaceFormat.format)
             .SetFinalLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
             .EndAttachment()
-            // Subpass 0 - pre-processing
+            // Subpass 0 - Runs the pre-processing pass
             .BeginSubpass(VK_PIPELINE_BIND_POINT_GRAPHICS)
             .AddColorAttachment(2)
             .EndSubpass()
-            // Subpass 1 - scene rendering
+            // Subpass 1 - Runs the main scene rendering pass
             .BeginSubpass(VK_PIPELINE_BIND_POINT_GRAPHICS)
             .AddColorAttachment(2)
             .SetDepthStencilAttachment(1)
             .EndSubpass()
-            // Subpass 2 - post-processing
+            // Subpass 2 - Runs the post-processing pass
             .BeginSubpass(VK_PIPELINE_BIND_POINT_GRAPHICS)
             .AddColorAttachment(0)
             .AddInputAttachment(2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
@@ -366,12 +364,14 @@ void FrameScheduler::createRenderPass() noexcept
             .SetStageMask(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
             .SetAccessMask(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
             .EndDependency()
-            // Dependency 1 - Pre-processing to scene rendering
+            // Dependency 1 - Pre-processing to scene rendering. Here, we tell vulkan that subpass 1 will write to
+            // attachment 2 and need the pre-processing pass to be finished before that.
             .BeginDependency(0, 1)
             .SetStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
             .SetAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
             .EndDependency()
-            // Dependency 2 - Scene rendering to post-processing
+            // Dependency 2 - Scene rendering to post-processing. Here, we tell vulkan that subpass 2 will read from
+            // attachment 2 from the fragment shader and need the scene rendering pass to be finished before that.
             .BeginDependency(1, 2)
             .SetStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
             .SetAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT)
@@ -388,6 +388,25 @@ void FrameScheduler::createRenderPass() noexcept
     VKIT_ASSERT_RESULT(resresult);
 
     m_Resources = resresult.GetValue();
+}
+
+void FrameScheduler::createProcessingEffects() noexcept
+{
+    m_PreProcessingVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass.vert");
+    m_PostProcessingVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass-uvs.vert");
+    m_NaivePostProcessingFragmentShader =
+        CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/naive-post-processing.frag");
+
+    const TKit::StaticArray4<VkImageView> imageviews = getIntermediateAttachmentImageViews();
+    m_PreProcessing.Create(m_RenderPass, m_PreProcessingVertexShader);
+    m_PostProcessing.Create(m_RenderPass, m_PostProcessingVertexShader, imageviews);
+
+    const VKit::PipelineLayout::Builder builder = m_PostProcessing->CreatePipelineLayoutBuilder();
+    const auto result = builder.Build();
+    VKIT_ASSERT_RESULT(result);
+    m_NaivePostProcessingLayout = result.GetValue();
+
+    setupNaivePostProcessing();
 }
 
 void FrameScheduler::createCommandPool() noexcept
