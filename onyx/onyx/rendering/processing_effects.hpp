@@ -41,12 +41,12 @@ class ProcessingEffect
         u32 Size = 0;
     };
     TKit::StaticArray8<PerFrameData<VkDescriptorSet>> m_DescriptorSets{};
+    VKit::GraphicsPipeline m_Pipeline{};
 
   private:
     VkRenderPass m_RenderPass;
     VKit::Shader m_VertexShader;
     VKit::PipelineLayout m_Layout{};
-    VKit::GraphicsPipeline m_Pipeline{};
     TKit::StaticArray4<PushDataInfo> m_PushData{};
 };
 
@@ -56,9 +56,15 @@ class PreProcessing final : public ProcessingEffect
 
   public:
     using ProcessingEffect::ProcessingEffect;
+    ~PreProcessing() noexcept;
 
     void Setup(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader) noexcept;
     void Bind(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) const noexcept;
+
+    void Remove() noexcept;
+
+  private:
+    VKit::GraphicsPipeline m_OldPipelineHandle{};
 };
 
 class PostProcessing final : public ProcessingEffect

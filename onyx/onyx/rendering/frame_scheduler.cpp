@@ -232,8 +232,7 @@ PostProcessing *FrameScheduler::GetPostProcessing() noexcept
 
 void FrameScheduler::RemovePreProcessing() noexcept
 {
-    m_PreProcessing.Destroy();
-    m_PreProcessing.Create(m_RenderPass, m_ProcessingEffectVertexShader);
+    m_PreProcessing->Remove();
 }
 void FrameScheduler::RemovePostProcessing() noexcept
 {

@@ -5,7 +5,7 @@
 
 namespace Onyx
 {
-static VKit::Shader getBlurShader() noexcept
+static const VKit::Shader &getBlurShader() noexcept
 {
     static VKit::Shader shader{};
     if (!shader)
@@ -16,13 +16,38 @@ static VKit::Shader getBlurShader() noexcept
     return shader;
 }
 
-static VKit::PipelineLayout getBlurPipelineLayout(const PostProcessing *p_PostProcessing) noexcept
+static const VKit::PipelineLayout &getBlurPipelineLayout(const PostProcessing *p_PostProcessing) noexcept
 {
     static VKit::PipelineLayout layout{};
     if (!layout)
     {
         VKit::PipelineLayout::Builder builder = p_PostProcessing->CreatePipelineLayoutBuilder();
         const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
+        VKIT_ASSERT_RESULT(result);
+        layout = result.GetValue();
+
+        Core::GetDeletionQueue().SubmitForDeletion(layout);
+    }
+    return layout;
+}
+
+static const VKit::Shader &getRainbowShader() noexcept
+{
+    static VKit::Shader shader{};
+    if (!shader)
+    {
+        shader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
+        Core::GetDeletionQueue().SubmitForDeletion(shader);
+    }
+    return shader;
+}
+
+static const VKit::PipelineLayout &getRainbowPipelineLayout() noexcept
+{
+    static VKit::PipelineLayout layout{};
+    if (!layout)
+    {
+        const auto result = VKit::PipelineLayout::Builder(Core::GetDevice()).Build();
         VKIT_ASSERT_RESULT(result);
         layout = result.GetValue();
 
@@ -62,6 +87,16 @@ void WindowData::OnImGuiRender() noexcept
     if (ImGui::Checkbox("VSync", &vsync))
         m_Window->GetFrameScheduler().SetPresentMode(vsync ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR);
 
+    if (ImGui::Checkbox("Enable pre-processing (rainbow)", &m_PreProcessing))
+    {
+        if (m_PreProcessing)
+        {
+            PreProcessing *preProcessing = m_Window->GetPreProcessing();
+            preProcessing->Setup(getRainbowPipelineLayout(), getRainbowShader());
+        }
+        else
+            m_Window->RemovePreProcessing();
+    }
     if (ImGui::TreeNode("Post-processing"))
     {
         if (ImGui::Checkbox("Enable", &m_PostProcessing))

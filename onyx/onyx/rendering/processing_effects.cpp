@@ -51,7 +51,8 @@ void ProcessingEffect::bind(const VkCommandBuffer p_CommandBuffer,
                             const std::span<const VkDescriptorSet> p_Sets) const noexcept
 {
     m_Pipeline.Bind(p_CommandBuffer);
-    VKit::DescriptorSet::Bind(p_CommandBuffer, p_Sets, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Layout);
+    if (!p_Sets.empty())
+        VKit::DescriptorSet::Bind(p_CommandBuffer, p_Sets, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Layout);
 
     u32 offset = 0;
     const u32 pushCount = static_cast<u32>(m_PushData.size());
@@ -85,8 +86,16 @@ ProcessingEffect::operator bool() const noexcept
     return m_Pipeline;
 }
 
+PreProcessing::~PreProcessing() noexcept
+{
+    if (m_OldPipelineHandle)
+        m_OldPipelineHandle.Destroy();
+}
+
 void PreProcessing::Setup(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader) noexcept
 {
+    // Device wait idles are necessary to avoid destroying resources that are still in use (such as the sampler, or user
+    // resources)
     Core::DeviceWaitIdle();
     setup(p_Layout, p_FragmentShader, 0);
 }
@@ -99,6 +108,17 @@ void PreProcessing::Bind(const u32 p_FrameIndex, const VkCommandBuffer p_Command
             descriptorSets.push_back(m_DescriptorSets[i][p_FrameIndex]);
 
     bind(p_CommandBuffer, descriptorSets);
+}
+void PreProcessing::Remove() noexcept
+{
+    Core::DeviceWaitIdle();
+
+    // User calls execute AFTER pre processing pass, so the Remove method may be called while the pipeline is still
+    // bound. That is why it must remain alive in this temporary variable
+    if (m_OldPipelineHandle)
+        m_OldPipelineHandle.Destroy();
+    m_OldPipelineHandle = m_Pipeline;
+    m_Pipeline = {};
 }
 
 PostProcessing::PostProcessing(VkRenderPass p_RenderPass, const VKit::Shader &p_VertexShader,

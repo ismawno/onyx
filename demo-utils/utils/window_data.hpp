@@ -76,6 +76,7 @@ class WindowData
 
     TKit::Scope<std::mutex> m_Mutex = TKit::Scope<std::mutex>::Create();
     BlurData m_BlurData{};
+    bool m_PreProcessing = false;
     bool m_PostProcessing = false;
 };
 
