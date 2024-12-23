@@ -90,10 +90,7 @@ void WindowData::OnImGuiRender() noexcept
     if (ImGui::Checkbox("Enable pre-processing (rainbow)", &m_PreProcessing))
     {
         if (m_PreProcessing)
-        {
-            PreProcessing *preProcessing = m_Window->GetPreProcessing();
-            preProcessing->Setup(getRainbowPipelineLayout(), getRainbowShader());
-        }
+            m_Window->SetupPreProcessing(getRainbowPipelineLayout(), getRainbowShader());
         else
             m_Window->RemovePreProcessing();
     }
@@ -104,7 +101,7 @@ void WindowData::OnImGuiRender() noexcept
             if (m_PostProcessing)
             {
                 PostProcessing *postProcessing = m_Window->GetPostProcessing();
-                postProcessing->Setup(getBlurPipelineLayout(postProcessing), getBlurShader());
+                m_Window->SetupPostProcessing(getBlurPipelineLayout(postProcessing), getBlurShader());
             }
             else
                 m_Window->RemovePostProcessing();

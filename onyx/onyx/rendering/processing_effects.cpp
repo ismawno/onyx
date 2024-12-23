@@ -12,6 +12,7 @@ ProcessingEffect::ProcessingEffect(VkRenderPass p_RenderPass, const VKit::Shader
 
 ProcessingEffect::~ProcessingEffect() noexcept
 {
+    Core::DeviceWaitIdle();
     if (m_Pipeline)
         m_Pipeline.Destroy();
 }
@@ -69,6 +70,11 @@ void ProcessingEffect::Draw(const VkCommandBuffer p_CommandBuffer) const noexcep
 {
     vkCmdDraw(p_CommandBuffer, 3, 1, 0, 0);
 }
+void ProcessingEffect::ResizeResourceContainers(const VKit::PipelineLayout::Info &p_Info) noexcept
+{
+    m_PushData.resize(p_Info.PushConstantRanges.size());
+    m_DescriptorSets.resize(p_Info.DescriptorSetLayouts.size());
+}
 
 void ProcessingEffect::UpdateDescriptorSet(const u32 p_Index,
                                            const PerFrameData<VkDescriptorSet> &p_DescriptorSet) noexcept
@@ -85,18 +91,10 @@ ProcessingEffect::operator bool() const noexcept
     return m_Pipeline;
 }
 
-PreProcessing::~PreProcessing() noexcept
+void PreProcessing::Setup(const Specs &p_Specs) noexcept
 {
-    if (m_OldPipelineHandle)
-        m_OldPipelineHandle.Destroy();
-}
-
-void PreProcessing::Setup(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader) noexcept
-{
-    // Device wait idles are necessary to avoid destroying resources that are still in use (such as the sampler, or user
-    // resources)
     Core::DeviceWaitIdle();
-    setup(p_Layout, p_FragmentShader, 0);
+    setup(p_Specs.Layout, p_Specs.FragmentShader, 0);
 }
 void PreProcessing::Bind(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) const noexcept
 {
@@ -107,17 +105,6 @@ void PreProcessing::Bind(const u32 p_FrameIndex, const VkCommandBuffer p_Command
             descriptorSets.push_back(m_DescriptorSets[i][p_FrameIndex]);
 
     bind(p_CommandBuffer, descriptorSets);
-}
-void PreProcessing::Remove() noexcept
-{
-    Core::DeviceWaitIdle();
-
-    // User calls execute AFTER pre processing pass, so the Remove method may be called while the pipeline is still
-    // bound. That is why it must remain alive in this temporary variable
-    if (m_OldPipelineHandle)
-        m_OldPipelineHandle.Destroy();
-    m_OldPipelineHandle = m_Pipeline;
-    m_Pipeline = {};
 }
 
 PostProcessing::PostProcessing(VkRenderPass p_RenderPass, const VKit::Shader &p_VertexShader,
@@ -151,46 +138,41 @@ void PostProcessing::overwriteSamplerSet(const VkImageView p_ImageView, const Vk
     writer.Overwrite(p_Set);
 }
 
-void PostProcessing::Setup(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                           const VkSamplerCreateInfo *p_SamplerCreateInfo) noexcept
+VkSamplerCreateInfo PostProcessing::DefaultSamplerCreateInfo() noexcept
+{
+    VkSamplerCreateInfo samplerCreateInfo{};
+    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
+    samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerCreateInfo.anisotropyEnable = VK_FALSE;
+    samplerCreateInfo.maxAnisotropy = 1.0f;
+    samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerCreateInfo.compareEnable = VK_FALSE;
+    samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerCreateInfo.mipLodBias = 0.0f;
+    samplerCreateInfo.minLod = 0.0f;
+    samplerCreateInfo.maxLod = 0.0f;
+    return samplerCreateInfo;
+}
+
+void PostProcessing::Setup(const Specs &p_Specs) noexcept
 {
     TKIT_ASSERT(
-        p_Layout.GetInfo().DescriptorSetLayouts.empty() ||
-            p_Layout.GetInfo().DescriptorSetLayouts[0] == m_DescriptorSetLayout.GetLayout(),
+        p_Specs.Layout.GetInfo().DescriptorSetLayouts.empty() ||
+            p_Specs.Layout.GetInfo().DescriptorSetLayouts[0] == m_DescriptorSetLayout.GetLayout(),
         "The pipeline layout used must be created from the PostProcessing's CreatePipelineLayoutBuilder method");
 
     Core::DeviceWaitIdle();
     if (m_Sampler)
         vkDestroySampler(Core::GetDevice(), m_Sampler, nullptr);
 
-    if (p_SamplerCreateInfo)
-    {
-        TKIT_ASSERT_RETURNS(vkCreateSampler(Core::GetDevice(), p_SamplerCreateInfo, nullptr, &m_Sampler), VK_SUCCESS,
-                            "Failed to create sampler");
-    }
-    else
-    {
-        VkSamplerCreateInfo samplerCreateInfo{};
-        samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-        samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-        samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        samplerCreateInfo.anisotropyEnable = VK_FALSE;
-        samplerCreateInfo.maxAnisotropy = 1.0f;
-        samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-        samplerCreateInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerCreateInfo.compareEnable = VK_FALSE;
-        samplerCreateInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerCreateInfo.mipLodBias = 0.0f;
-        samplerCreateInfo.minLod = 0.0f;
-        samplerCreateInfo.maxLod = 0.0f;
-
-        TKIT_ASSERT_RETURNS(vkCreateSampler(Core::GetDevice(), &samplerCreateInfo, nullptr, &m_Sampler), VK_SUCCESS,
-                            "Failed to create sampler");
-    }
+    TKIT_ASSERT_RETURNS(vkCreateSampler(Core::GetDevice(), &p_Specs.SamplerCreateInfo, nullptr, &m_Sampler), VK_SUCCESS,
+                        "Failed to create sampler");
 
     m_SamplerDescriptorSets.clear();
 
@@ -205,7 +187,7 @@ void PostProcessing::Setup(const VKit::PipelineLayout &p_Layout, const VKit::Sha
         m_SamplerDescriptorSets.push_back(set);
     }
 
-    setup(p_Layout, p_FragmentShader, 2);
+    setup(p_Specs.Layout, p_Specs.FragmentShader, 2);
 }
 
 void PostProcessing::Bind(const u32 p_FrameIndex, const u32 p_ImageIndex,

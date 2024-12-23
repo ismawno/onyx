@@ -101,10 +101,66 @@ class ONYX_API FrameScheduler
      */
     VkResult Present() noexcept;
 
+    // Si se quiere cambiar de pre/post, se llama setup, no remove
+    // las llamadas estan diferidas para evitar problemas de sincronizacion
+
+    /**
+     * @brief Sets up the pre-processing pipeline, which is used to apply effects to the scene before the main rendering
+     * pass.
+     *
+     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
+     * pre-processing setup requires the creation and destruction of Vulkan resources, which requires more careful
+     * synchronization.
+     *
+     * If you wish to switch to a different pre-processing pipeline, call this method again with the new specifications.
+     * Do not call RemovePreProcessing before or after that in the same frame, as that call will override the setup.
+     *
+     * @param p_Layout The pipeline layout to use for the pre-processing pipeline.
+     * @param p_FragmentShader The fragment shader to use for the pre-processing pipeline.
+     * @return A pointer to the pre-processing pipeline.
+     */
+    PreProcessing *SetupPreProcessing(const VKit::PipelineLayout &p_Layout,
+                                      const VKit::Shader &p_FragmentShader) noexcept;
+
+    /**
+     * @brief Sets up the post-processing pipeline, which is used to apply effects to the scene after the main rendering
+     * pass.
+     *
+     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
+     * post-processing setup requires the creation and destruction of Vulkan resources, which requires more careful
+     * synchronization.
+     *
+     * If you wish to switch to a different post-processing pipeline, call this method again with the new
+     * specifications. Do not call RemovePostProcessing before or after that in the same frame, as that call will
+     * override the setup.
+     *
+     * @param p_Layout The pipeline layout to use for the post-processing pipeline.
+     * @param p_FragmentShader The fragment shader to use for the post-processing pipeline.
+     * @param p_Info Optional sampler information to use for the post-processing pipeline.
+     * @return A pointer to the post-processing pipeline.
+     */
+    PostProcessing *SetupPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
+                                        const VkSamplerCreateInfo *p_Info = nullptr) noexcept;
+
     PreProcessing *GetPreProcessing() noexcept;
     PostProcessing *GetPostProcessing() noexcept;
 
+    /**
+     * @brief Removes the pre-processing pipeline.
+     *
+     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
+     * pre-processing removal requires the destruction of Vulkan resources, which requires more careful synchronization.
+     */
     void RemovePreProcessing() noexcept;
+
+    /**
+     * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final
+     * image.
+     *
+     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
+     * post-processing removal requires the destruction of Vulkan resources, which requires more careful
+     * synchronization.
+     */
     void RemovePostProcessing() noexcept;
 
     /**
@@ -134,6 +190,17 @@ class ONYX_API FrameScheduler
     void SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept;
 
   private:
+    enum FlagBits : u8
+    {
+        Flag_FrameStarted = 1 << 0,
+        Flag_PresentModeChanged = 1 << 1,
+        Flag_SignalSetupPreProcessing = 1 << 2,
+        Flag_SignalSetupPostProcessing = 1 << 3,
+        Flag_SignalRemovePreProcessing = 1 << 4,
+        Flag_SignalRemovePostProcessing = 1 << 5
+    };
+    using Flags = u8;
+
     void createSwapChain(Window &p_Window) noexcept;
     void recreateSwapChain(Window &p_Window) noexcept;
     void createRenderPass() noexcept;
@@ -144,6 +211,8 @@ class ONYX_API FrameScheduler
     void setupNaivePostProcessing() noexcept;
     TKit::StaticArray4<VkImageView> getIntermediateAttachmentImageViews() const noexcept;
 
+    bool checkFlag(Flags p_Flag) const noexcept;
+
     VKit::CommandPool m_CommandPool;
     VKit::SwapChain m_SwapChain;
     VKit::RenderPass m_RenderPass;
@@ -152,6 +221,9 @@ class ONYX_API FrameScheduler
 
     TKit::Storage<PreProcessing> m_PreProcessing;
     TKit::Storage<PostProcessing> m_PostProcessing;
+
+    PreProcessing::Specs m_PreProcessingSpecs{};
+    PostProcessing::Specs m_PostProcessingSpecs{};
 
     VKit::Shader m_ProcessingEffectVertexShader;
     VKit::Shader m_NaivePostProcessingFragmentShader;
@@ -165,8 +237,7 @@ class ONYX_API FrameScheduler
 
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;
-    bool m_FrameStarted = false;
-    bool m_PresentModeChanged = false;
+    Flags m_Flags = 0;
 
     TKit::Ref<TKit::Task<VkResult>> m_PresentTask;
 };

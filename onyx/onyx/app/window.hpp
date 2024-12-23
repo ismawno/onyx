@@ -195,28 +195,61 @@ class ONYX_API Window
     std::pair<u32, u32> GetPosition() const noexcept;
 
     /**
-     * @brief Gets the pre-processing pipeline, through which it is possible to apply effects to the rendered image
-     * before the main scene gets rendered.
+     * @brief Sets up the pre-processing pipeline, which is used to apply effects to the scene before the main rendering
+     * pass.
      *
-     * @return PreProcessing*
+     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
+     * pre-processing setup requires the creation and destruction of Vulkan resources, which requires more careful
+     * synchronization.
+     *
+     * If you wish to switch to a different pre-processing pipeline, call this method again with the new specifications.
+     * Do not call RemovePreProcessing before or after that in the same frame, as that call will override the setup.
+     *
+     * @param p_Layout The pipeline layout to use for the pre-processing pipeline.
+     * @param p_FragmentShader The fragment shader to use for the pre-processing pipeline.
+     * @return A pointer to the pre-processing pipeline.
      */
-    PreProcessing *GetPreProcessing() noexcept;
+    PreProcessing *SetupPreProcessing(const VKit::PipelineLayout &p_Layout,
+                                      const VKit::Shader &p_FragmentShader) noexcept;
 
     /**
-     * @brief Gets the post-processing pipeline, through which it is possible to apply effects to the rendered image
-     * after the main scene gets rendered.
+     * @brief Sets up the post-processing pipeline, which is used to apply effects to the scene after the main rendering
+     * pass.
      *
-     * @return PostProcessing*
+     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
+     * post-processing setup requires the creation and destruction of Vulkan resources, which requires more careful
+     * synchronization.
+     *
+     * If you wish to switch to a different post-processing pipeline, call this method again with the new
+     * specifications. Do not call RemovePostProcessing before or after that in the same frame, as that call will
+     * override the setup.
+     *
+     * @param p_Layout The pipeline layout to use for the post-processing pipeline.
+     * @param p_FragmentShader The fragment shader to use for the post-processing pipeline.
+     * @param p_Info Optional sampler information to use for the post-processing pipeline.
+     * @return A pointer to the post-processing pipeline.
      */
+    PostProcessing *SetupPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
+                                        const VkSamplerCreateInfo *p_Info = nullptr) noexcept;
+
+    PreProcessing *GetPreProcessing() noexcept;
     PostProcessing *GetPostProcessing() noexcept;
 
     /**
      * @brief Removes the pre-processing pipeline.
+     *
+     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
+     * pre-processing removal requires the destruction of Vulkan resources, which requires more careful synchronization.
      */
     void RemovePreProcessing() noexcept;
 
     /**
-     * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final image
+     * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final
+     * image.
+     *
+     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
+     * post-processing removal requires the destruction of Vulkan resources, which requires more careful
+     * synchronization.
      */
     void RemovePostProcessing() noexcept;
 

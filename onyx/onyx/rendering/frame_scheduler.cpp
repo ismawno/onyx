@@ -46,19 +46,19 @@ FrameScheduler::~FrameScheduler() noexcept
 VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::BeginFrame");
-    TKIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
+    TKIT_ASSERT(!checkFlag(Flag_FrameStarted), "Cannot begin a new frame when there is already one in progress");
     if (m_PresentTask) [[likely]]
     {
         const VkResult result = m_PresentTask->WaitForResult();
         const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
-                                 p_Window.WasResized() || m_PresentModeChanged;
+                                 p_Window.WasResized() || checkFlag(Flag_PresentModeChanged);
 
         TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
         if (resizeFixes)
         {
             recreateSwapChain(p_Window);
             p_Window.FlagResizeDone();
-            m_PresentModeChanged = false;
+            m_Flags &= ~Flag_PresentModeChanged;
             return VK_NULL_HANDLE;
         }
     }
@@ -79,7 +79,29 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     }
 
     TKIT_ASSERT(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "Failed to acquire swap chain image");
-    m_FrameStarted = true;
+    m_Flags |= Flag_FrameStarted;
+
+    if (checkFlag(Flag_SignalSetupPreProcessing))
+    {
+        m_PreProcessing->Setup(m_PreProcessingSpecs);
+        m_Flags &= ~Flag_SignalSetupPreProcessing;
+    }
+    if (checkFlag(Flag_SignalSetupPostProcessing))
+    {
+        m_PostProcessing->Setup(m_PostProcessingSpecs);
+        m_Flags &= ~Flag_SignalSetupPostProcessing;
+    }
+    if (checkFlag(Flag_SignalRemovePreProcessing))
+    {
+        m_PreProcessing.Destroy();
+        m_PreProcessing.Create(m_RenderPass, m_ProcessingEffectVertexShader);
+        m_Flags &= ~Flag_SignalRemovePreProcessing;
+    }
+    if (checkFlag(Flag_SignalRemovePostProcessing))
+    {
+        setupNaivePostProcessing();
+        m_Flags &= ~Flag_SignalRemovePostProcessing;
+    }
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -95,19 +117,19 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 void FrameScheduler::EndFrame(Window &) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
-    TKIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
+    TKIT_ASSERT(checkFlag(Flag_FrameStarted), "Cannot end a frame when there is no frame in progress");
     TKIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
 
     TKit::ITaskManager *taskManager = Core::GetTaskManager();
 
     m_PresentTask->Reset();
     taskManager->SubmitTask(m_PresentTask);
-    m_FrameStarted = false;
+    m_Flags &= ~Flag_FrameStarted;
 }
 
 void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 {
-    TKIT_ASSERT(m_FrameStarted, "Cannot begin render pass if a frame is not in progress");
+    TKIT_ASSERT(checkFlag(Flag_FrameStarted), "Cannot begin render pass if a frame is not in progress");
 
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
     const VkExtent2D extent = info.Extent;
@@ -155,7 +177,7 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 
 void FrameScheduler::EndRenderPass() noexcept
 {
-    TKIT_ASSERT(m_FrameStarted, "Cannot end render pass if a frame is not in progress");
+    TKIT_ASSERT(checkFlag(Flag_FrameStarted), "Cannot end render pass if a frame is not in progress");
     vkCmdNextSubpass(m_CommandBuffers[m_FrameIndex], VK_SUBPASS_CONTENTS_INLINE);
     m_PostProcessing->Bind(m_FrameIndex, m_ImageIndex, m_CommandBuffers[m_FrameIndex]);
     m_PostProcessing->Draw(m_CommandBuffers[m_FrameIndex]);
@@ -221,6 +243,24 @@ VkResult FrameScheduler::Present() noexcept
     return vkQueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
 }
 
+PreProcessing *FrameScheduler::SetupPreProcessing(const VKit::PipelineLayout &p_Layout,
+                                                  const VKit::Shader &p_FragmentShader) noexcept
+{
+    m_PreProcessingSpecs = {p_Layout, p_FragmentShader};
+    m_Flags |= Flag_SignalSetupPreProcessing;
+    m_PreProcessing->ResizeResourceContainers(p_Layout.GetInfo());
+    return m_PreProcessing.Get();
+}
+PostProcessing *FrameScheduler::SetupPostProcessing(const VKit::PipelineLayout &p_Layout,
+                                                    const VKit::Shader &p_FragmentShader,
+                                                    const VkSamplerCreateInfo *p_Info) noexcept
+{
+    m_PostProcessingSpecs = {p_Layout, p_FragmentShader, p_Info ? *p_Info : PostProcessing::DefaultSamplerCreateInfo()};
+    m_Flags |= Flag_SignalSetupPostProcessing;
+    m_PostProcessing->ResizeResourceContainers(p_Layout.GetInfo());
+    return m_PostProcessing.Get();
+}
+
 PreProcessing *FrameScheduler::GetPreProcessing() noexcept
 {
     return m_PreProcessing.Get();
@@ -232,11 +272,11 @@ PostProcessing *FrameScheduler::GetPostProcessing() noexcept
 
 void FrameScheduler::RemovePreProcessing() noexcept
 {
-    m_PreProcessing->Remove();
+    m_Flags |= Flag_SignalRemovePreProcessing;
 }
 void FrameScheduler::RemovePostProcessing() noexcept
 {
-    setupNaivePostProcessing();
+    m_Flags |= Flag_SignalRemovePostProcessing;
 }
 
 u32 FrameScheduler::GetFrameIndex() const noexcept
@@ -265,7 +305,9 @@ VkPresentModeKHR FrameScheduler::GetPresentMode() const noexcept
 }
 void FrameScheduler::SetPresentMode(const VkPresentModeKHR p_PresentMode) noexcept
 {
-    m_PresentModeChanged = m_PresentMode != p_PresentMode;
+    if (m_PresentMode == p_PresentMode)
+        return;
+    m_Flags |= Flag_PresentModeChanged;
     m_PresentMode = p_PresentMode;
 }
 
@@ -430,7 +472,10 @@ void FrameScheduler::createCommandBuffers() noexcept
 
 void FrameScheduler::setupNaivePostProcessing() noexcept
 {
-    m_PostProcessing->Setup(m_NaivePostProcessingLayout, m_NaivePostProcessingFragmentShader);
+    PostProcessing::Specs specs{};
+    specs.Layout = m_NaivePostProcessingLayout;
+    specs.FragmentShader = m_NaivePostProcessingFragmentShader;
+    m_PostProcessing->Setup(specs);
 }
 
 TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateAttachmentImageViews() const noexcept
@@ -440,6 +485,11 @@ TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateAttachmentImageVi
     for (u32 i = 0; i < imageCount; ++i)
         imageViews.push_back(m_Resources.GetImageView(i, 2));
     return imageViews;
+}
+
+bool FrameScheduler::checkFlag(Flags p_Flag) const noexcept
+{
+    return m_Flags & p_Flag;
 }
 
 } // namespace Onyx
