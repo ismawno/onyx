@@ -1,14 +1,50 @@
 #include "utils/window_data.hpp"
+#include "onyx/core/shaders.hpp"
 #include <imgui.h>
 #include <implot.h>
 
 namespace Onyx
 {
+static VKit::Shader getBlurShader() noexcept
+{
+    static VKit::Shader shader{};
+    if (!shader)
+    {
+        shader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+        Core::GetDeletionQueue().SubmitForDeletion(shader);
+    }
+    return shader;
+}
+
+static VKit::PipelineLayout getBlurPipelineLayout(const PostProcessing *p_PostProcessing) noexcept
+{
+    static VKit::PipelineLayout layout{};
+    if (!layout)
+    {
+        VKit::PipelineLayout::Builder builder = p_PostProcessing->CreatePipelineLayoutBuilder();
+        const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
+        VKIT_ASSERT_RESULT(result);
+        layout = result.GetValue();
+
+        Core::GetDeletionQueue().SubmitForDeletion(layout);
+    }
+    return layout;
+}
+
 void WindowData::OnStart(Window *p_Window) noexcept
 {
     m_LayerData2.Context = p_Window->GetRenderContext<D2>();
     m_LayerData3.Context = p_Window->GetRenderContext<D3>();
     m_Window = p_Window;
+}
+
+void WindowData::OnUpdate() noexcept
+{
+    if (!m_PostProcessing)
+        return;
+    m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
+    m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
+    m_Window->GetPostProcessing()->UpdatePushConstantRange(&m_BlurData);
 }
 
 void WindowData::OnRender(const TKit::Timespan p_Timestep) noexcept
@@ -25,6 +61,22 @@ void WindowData::OnImGuiRender() noexcept
     bool vsync = currentMode == VK_PRESENT_MODE_FIFO_KHR;
     if (ImGui::Checkbox("VSync", &vsync))
         m_Window->GetFrameScheduler().SetPresentMode(vsync ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR);
+
+    if (ImGui::TreeNode("Post-processing"))
+    {
+        if (ImGui::Checkbox("Enable", &m_PostProcessing))
+        {
+            if (m_PostProcessing)
+            {
+                PostProcessing *postProcessing = m_Window->GetPostProcessing();
+                postProcessing->Setup(getBlurPipelineLayout(postProcessing), getBlurShader());
+            }
+            else
+                m_Window->RemovePostProcessing();
+        }
+        ImGui::SliderInt("Blur kernel size", (int *)&m_BlurData.KernelSize, 0, 12);
+        ImGui::TreePop();
+    }
 
     ImGui::BeginTabBar("Dimension");
     if (ImGui::BeginTabItem("2D"))

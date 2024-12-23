@@ -14,6 +14,11 @@ void SWExampleLayer::OnStart() noexcept
     m_Data.OnStart(m_Application->GetMainWindow());
 }
 
+void SWExampleLayer::OnUpdate() noexcept
+{
+    m_Data.OnUpdate();
+}
+
 bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
 {
     m_Data.OnEvent(p_Event);

@@ -70,7 +70,7 @@ class PostProcessing final : public ProcessingEffect
                    const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept;
     ~PostProcessing() noexcept;
 
-    VKit::PipelineLayout::Builder CreatePipelineLayoutBuilder() noexcept;
+    VKit::PipelineLayout::Builder CreatePipelineLayoutBuilder() const noexcept;
     void Setup(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
                const VkSamplerCreateInfo *p_SamplerCreateInfo = nullptr) noexcept;
     void Bind(u32 p_FrameIndex, u32 p_ImageIndex, VkCommandBuffer p_CommandBuffer) const noexcept;

@@ -16,6 +16,11 @@ void MWExampleLayer::OnStart() noexcept
         m_Data[i].OnStart(m_Application->GetWindow(i));
 }
 
+void MWExampleLayer::OnUpdate(const usize p_WindowIndex) noexcept
+{
+    m_Data[p_WindowIndex].OnUpdate();
+}
+
 bool MWExampleLayer::OnEvent(const usize p_WindowIndex, const Event &p_Event) noexcept
 {
     TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.size(), "Index out of bounds");

@@ -391,9 +391,8 @@ void FrameScheduler::createRenderPass() noexcept
 
 void FrameScheduler::createProcessingEffects() noexcept
 {
-    m_ProcessingEffectVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass.vert");
-    m_NaivePostProcessingFragmentShader =
-        CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/naive-post-processing.frag");
+    m_ProcessingEffectVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass.vert");
+    m_NaivePostProcessingFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/naive-post-processing.frag");
 
     const TKit::StaticArray4<VkImageView> imageviews = getIntermediateAttachmentImageViews();
     m_PreProcessing.Create(m_RenderPass, m_ProcessingEffectVertexShader);

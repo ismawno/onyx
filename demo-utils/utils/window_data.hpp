@@ -46,10 +46,18 @@ template <> struct LayerData<D3> : ILayerData<D3>
     usize SelectedPointLight = 0;
 };
 
+struct BlurData
+{
+    u32 KernelSize = 1;
+    f32 Width = 1.f;
+    f32 Height = 1.f;
+};
+
 class WindowData
 {
   public:
     void OnStart(Window *p_Window) noexcept;
+    void OnUpdate() noexcept;
     void OnRender(TKit::Timespan p_Timestep) noexcept;
     void OnImGuiRender() noexcept;
     void OnEvent(const Event &p_Event) noexcept;
@@ -67,6 +75,8 @@ class WindowData
     Color m_BackgroundColor = Color::BLACK;
 
     TKit::Scope<std::mutex> m_Mutex = TKit::Scope<std::mutex>::Create();
+    BlurData m_BlurData{};
+    bool m_PostProcessing = false;
 };
 
 } // namespace Onyx

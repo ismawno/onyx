@@ -12,6 +12,7 @@ ProcessingEffect::ProcessingEffect(VkRenderPass p_RenderPass, const VKit::Shader
 
 ProcessingEffect::~ProcessingEffect() noexcept
 {
+    Core::DeviceWaitIdle();
     if (m_Pipeline)
         m_Pipeline.Destroy();
 }
@@ -32,9 +33,15 @@ void ProcessingEffect::setup(const VKit::PipelineLayout &p_Layout, const VKit::S
     specs.VertexShader = m_VertexShader;
     specs.FragmentShader = p_FragmentShader;
 
+    if (m_Pipeline)
+        m_Pipeline.Destroy();
+
     const auto result = VKit::GraphicsPipeline::Create(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     m_Pipeline = result.GetValue();
+
+    m_PushData.clear();
+    m_DescriptorSets.clear();
 
     m_PushData.resize(p_Layout.GetInfo().PushConstantRanges.size());
     m_DescriptorSets.resize(p_Layout.GetInfo().DescriptorSetLayouts.size());
@@ -53,7 +60,7 @@ void ProcessingEffect::bind(const VkCommandBuffer p_CommandBuffer,
         const PushDataInfo &info = m_PushData[i];
         if (!info.Data)
             continue;
-        vkCmdPushConstants(p_CommandBuffer, m_Layout, VK_SHADER_STAGE_COMPUTE_BIT, offset, info.Size, info.Data);
+        vkCmdPushConstants(p_CommandBuffer, m_Layout, VK_SHADER_STAGE_FRAGMENT_BIT, offset, info.Size, info.Data);
         offset += info.Size;
     }
 }
@@ -80,6 +87,7 @@ ProcessingEffect::operator bool() const noexcept
 
 void PreProcessing::Setup(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader) noexcept
 {
+    Core::DeviceWaitIdle();
     setup(p_Layout, p_FragmentShader, 0);
 }
 void PreProcessing::Bind(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) const noexcept
@@ -109,7 +117,7 @@ PostProcessing::~PostProcessing() noexcept
     m_DescriptorSetLayout.Destroy();
 }
 
-VKit::PipelineLayout::Builder PostProcessing::CreatePipelineLayoutBuilder() noexcept
+VKit::PipelineLayout::Builder PostProcessing::CreatePipelineLayoutBuilder() const noexcept
 {
     return VKit::PipelineLayout::Builder(Core::GetDevice()).AddDescriptorSetLayout(m_DescriptorSetLayout);
 }
@@ -131,6 +139,8 @@ void PostProcessing::Setup(const VKit::PipelineLayout &p_Layout, const VKit::Sha
         p_Layout.GetInfo().DescriptorSetLayouts.empty() ||
             p_Layout.GetInfo().DescriptorSetLayouts[0] == m_DescriptorSetLayout.GetLayout(),
         "The pipeline layout used must be created from the PostProcessing's CreatePipelineLayoutBuilder method");
+
+    Core::DeviceWaitIdle();
     if (m_Sampler)
         vkDestroySampler(Core::GetDevice(), m_Sampler, nullptr);
 
@@ -162,6 +172,8 @@ void PostProcessing::Setup(const VKit::PipelineLayout &p_Layout, const VKit::Sha
         TKIT_ASSERT_RETURNS(vkCreateSampler(Core::GetDevice(), &samplerCreateInfo, nullptr, &m_Sampler), VK_SUCCESS,
                             "Failed to create sampler");
     }
+
+    m_SamplerDescriptorSets.clear();
 
     const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
     const u32 imageCount = static_cast<u32>(m_ImageViews.size());
