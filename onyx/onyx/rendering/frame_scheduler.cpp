@@ -33,8 +33,7 @@ FrameScheduler::~FrameScheduler() noexcept
     m_Resources.Destroy();
     m_PreProcessing.Destroy();
     m_PostProcessing.Destroy();
-    m_PreProcessingVertexShader.Destroy();
-    m_PostProcessingVertexShader.Destroy();
+    m_ProcessingEffectVertexShader.Destroy();
     m_NaivePostProcessingFragmentShader.Destroy();
     m_NaivePostProcessingLayout.Destroy();
     VKit::DestroySynchronizationObjects(Core::GetDevice(), m_SyncData);
@@ -234,7 +233,7 @@ PostProcessing *FrameScheduler::GetPostProcessing() noexcept
 void FrameScheduler::RemovePreProcessing() noexcept
 {
     m_PreProcessing.Destroy();
-    m_PreProcessing.Create(m_RenderPass, m_PreProcessingVertexShader);
+    m_PreProcessing.Create(m_RenderPass, m_ProcessingEffectVertexShader);
 }
 void FrameScheduler::RemovePostProcessing() noexcept
 {
@@ -392,14 +391,13 @@ void FrameScheduler::createRenderPass() noexcept
 
 void FrameScheduler::createProcessingEffects() noexcept
 {
-    m_PreProcessingVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass.vert");
-    m_PostProcessingVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass-uvs.vert");
+    m_ProcessingEffectVertexShader = CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass.vert");
     m_NaivePostProcessingFragmentShader =
         CreateAndCompileShader(ONYX_ROOT_PATH "/onyx/shaders/naive-post-processing.frag");
 
     const TKit::StaticArray4<VkImageView> imageviews = getIntermediateAttachmentImageViews();
-    m_PreProcessing.Create(m_RenderPass, m_PreProcessingVertexShader);
-    m_PostProcessing.Create(m_RenderPass, m_PostProcessingVertexShader, imageviews);
+    m_PreProcessing.Create(m_RenderPass, m_ProcessingEffectVertexShader);
+    m_PostProcessing.Create(m_RenderPass, m_ProcessingEffectVertexShader, imageviews);
 
     const VKit::PipelineLayout::Builder builder = m_PostProcessing->CreatePipelineLayoutBuilder();
     const auto result = builder.Build();

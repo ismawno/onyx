@@ -153,8 +153,7 @@ class ONYX_API FrameScheduler
     TKit::Storage<PreProcessing> m_PreProcessing;
     TKit::Storage<PostProcessing> m_PostProcessing;
 
-    VKit::Shader m_PreProcessingVertexShader;
-    VKit::Shader m_PostProcessingVertexShader;
+    VKit::Shader m_ProcessingEffectVertexShader;
     VKit::Shader m_NaivePostProcessingFragmentShader;
 
     VKit::PipelineLayout m_NaivePostProcessingLayout;
