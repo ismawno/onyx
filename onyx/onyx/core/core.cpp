@@ -18,6 +18,8 @@ static TKit::ITaskManager *s_TaskManager;
 static VKit::Instance s_Instance{};
 static VKit::LogicalDevice s_Device{};
 
+static VKit::DeletionQueue s_DeletionQueue{};
+
 static VKit::DescriptorPool s_DescriptorPool{};
 static VKit::DescriptorSetLayout s_TransformStorageLayout{};
 static VKit::DescriptorSetLayout s_LightStorageLayout{};
@@ -183,6 +185,7 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
 
 void Core::Terminate() noexcept
 {
+    s_DeletionQueue.Flush();
     if (s_Device)
     {
         s_Device.WaitIdle();
@@ -259,6 +262,11 @@ VKit::CommandPool &Core::GetCommandPool() noexcept
 VmaAllocator Core::GetVulkanAllocator() noexcept
 {
     return s_VulkanAllocator;
+}
+
+VKit::DeletionQueue &Core::GetDeletionQueue() noexcept
+{
+    return s_DeletionQueue;
 }
 
 const VKit::DescriptorPool &Core::GetDescriptorPool() noexcept
