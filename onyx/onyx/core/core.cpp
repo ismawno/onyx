@@ -44,7 +44,6 @@ static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
 static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 {
-    TKIT_LOG_INFO("Creating Vulkan device...");
     const auto physres = VKit::PhysicalDevice::Selector(&s_Instance)
                              .SetSurface(p_Surface)
                              .PreferType(VKit::PhysicalDevice::Discrete)
@@ -61,11 +60,11 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 
     s_GraphicsQueue = s_Device.GetQueue(VKit::QueueType::Graphics);
     s_PresentQueue = s_Device.GetQueue(VKit::QueueType::Present);
+    TKIT_LOG_INFO("Created Vulkan device: {}", s_Device.GetPhysicalDevice().GetInfo().Properties.Core.deviceName);
 }
 
 static void createVulkanAllocator() noexcept
 {
-    TKIT_LOG_INFO("Creating Vulkan allocator...");
     VmaAllocatorCreateInfo allocatorInfo = {};
     allocatorInfo.physicalDevice = s_Device.GetPhysicalDevice();
     allocatorInfo.device = s_Device.GetDevice();
@@ -75,35 +74,35 @@ static void createVulkanAllocator() noexcept
     allocatorInfo.pVulkanFunctions = nullptr;
     TKIT_ASSERT_RETURNS(vmaCreateAllocator(&allocatorInfo, &s_VulkanAllocator), VK_SUCCESS,
                         "Failed to create vulkan allocator");
+    TKIT_LOG_INFO("Created Vulkan allocator");
 }
 
 static void createCommandPool() noexcept
 {
-    TKIT_LOG_INFO("Creating global command pool...");
     VKit::CommandPool::Specs specs{};
     specs.QueueFamilyIndex = s_Device.GetPhysicalDevice().GetInfo().GraphicsIndex;
     specs.Flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
     const auto poolres = VKit::CommandPool::Create(s_Device, specs);
     VKIT_ASSERT_RESULT(poolres);
     s_CommandPool = poolres.GetValue();
+    TKIT_LOG_INFO("Created global command pool");
 }
 
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
 static void createProfilingContext() noexcept
 {
-    TKIT_LOG_INFO("Creating Vulkan profiling context...");
     const auto cmdres = s_CommandPool.Allocate();
     VKIT_ASSERT_RESULT(cmdres);
     s_ProfilingCommandBuffer = cmdres.GetValue();
 
     s_ProfilingContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue,
                                                             s_ProfilingCommandBuffer);
+    TKIT_LOG_INFO("Created Vulkan profiling context");
 }
 #endif
 
 static void createDescriptorData() noexcept
 {
-    TKIT_LOG_INFO("Creating global descriptor data...");
     const auto poolResult = VKit::DescriptorPool::Builder(s_Device)
                                 .SetMaxSets(ONYX_MAX_DESCRIPTOR_SETS)
                                 .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, ONYX_MAX_DESCRIPTORS)
@@ -127,11 +126,11 @@ static void createDescriptorData() noexcept
 
     VKIT_ASSERT_RESULT(layoutResult);
     s_LightStorageLayout = layoutResult.GetValue();
+    TKIT_LOG_INFO("Created global descriptor data");
 }
 
 static void createPipelineLayouts() noexcept
 {
-    TKIT_LOG_INFO("Creating global pipeline layouts...");
     auto layoutResult =
         VKit::PipelineLayout::Builder(s_Device).AddDescriptorSetLayout(s_TransformStorageLayout).Build();
 
@@ -147,15 +146,16 @@ static void createPipelineLayouts() noexcept
 
     VKIT_ASSERT_RESULT(layoutResult);
     s_GraphicsPipelineLayout3D = layoutResult.GetValue();
+    TKIT_LOG_INFO("Created global pipeline layouts");
 }
 
 static void createShaders() noexcept
 {
-    TKIT_LOG_INFO("Creating global shaders...");
     Shaders<D2, DrawMode::Fill>::Initialize();
     Shaders<D2, DrawMode::Stencil>::Initialize();
     Shaders<D3, DrawMode::Fill>::Initialize();
     Shaders<D3, DrawMode::Stencil>::Initialize();
+    TKIT_LOG_INFO("Created global shaders");
 }
 
 void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
@@ -169,7 +169,6 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
     const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
     const std::span<const char *> extensionSpan(extensions, extensionCount);
 
-    TKIT_LOG_INFO("Creating Vulkan instance...");
     VKit::Instance::Builder builder{};
     builder.SetApplicationName("Onyx").RequireApiVersion(1, 1, 0).RequireExtensions(extensionSpan);
 #ifdef TKIT_ENABLE_ASSERTS
@@ -181,6 +180,8 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
 
     s_Instance = result.GetValue();
     s_TaskManager = p_TaskManager;
+    TKIT_LOG_INFO("Created Vulkan instance. API version: {}.{}.{}", VK_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion),
+                  VK_VERSION_MINOR(s_Instance.GetInfo().ApiVersion), VK_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
 }
 
 void Core::Terminate() noexcept
