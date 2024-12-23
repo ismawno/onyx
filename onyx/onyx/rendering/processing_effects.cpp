@@ -40,11 +40,7 @@ void ProcessingEffect::setup(const VKit::PipelineLayout &p_Layout, const VKit::S
     VKIT_ASSERT_RESULT(result);
     m_Pipeline = result.GetValue();
 
-    m_PushData.clear();
-    m_DescriptorSets.clear();
-
-    m_PushData.resize(p_Layout.GetInfo().PushConstantRanges.size());
-    m_DescriptorSets.resize(p_Layout.GetInfo().DescriptorSetLayouts.size());
+    // Containers should already be cleared and resized
 }
 
 void ProcessingEffect::bind(const VkCommandBuffer p_CommandBuffer,
@@ -72,6 +68,9 @@ void ProcessingEffect::Draw(const VkCommandBuffer p_CommandBuffer) const noexcep
 }
 void ProcessingEffect::ResizeResourceContainers(const VKit::PipelineLayout::Info &p_Info) noexcept
 {
+    m_PushData.clear();
+    m_DescriptorSets.clear();
+
     m_PushData.resize(p_Info.PushConstantRanges.size());
     m_DescriptorSets.resize(p_Info.DescriptorSetLayouts.size());
 }

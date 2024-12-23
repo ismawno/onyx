@@ -22,6 +22,9 @@ class ProcessingEffect
      * the setup calls are made. This is necessary because the user may try to update the resources before the actual
      * deferred setup takes place, and so the arrays must be properly resized.
      *
+     * This method is in fact necessary to call before the setup call, as the setup call will not clear and resize the
+     * containers.
+     *
      * @param p_Info
      */
     void ResizeResourceContainers(const VKit::PipelineLayout::Info &p_Info) noexcept;
@@ -81,6 +84,9 @@ class PreProcessing final : public ProcessingEffect
      * This setup call is NOT deferred, and will take effect immediately, which may cause crashes if used incorrectly.
      * The user is not expected to call this method directly, but rather through the FrameScheduler.
      *
+     * ResizeResourceContainers() must be called before this method to properly clear and resize the resource
+     * containers.
+     *
      * If you wish to switch to a different pre-processing pipeline, call this method again with the new specifications.
      * Do not call RemovePreProcessing before or after that in the same frame, as that call will override the setup.
      *
@@ -129,6 +135,8 @@ class PostProcessing final : public ProcessingEffect
      *
      * This setup call is NOT deferred, and will take effect immediately, which may cause crashes if used incorrectly.
      * The user is not expected to call this method directly, but rather through the FrameScheduler.
+     *
+     * ResizeResourceContainers() must be called before this method to properly resize the resource containers.
      *
      * If you wish to switch to a different post-processing pipeline, call this method again with the new
      * specifications. Do not call RemovePostProcessing before or after that in the same frame, as that call will

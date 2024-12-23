@@ -81,23 +81,23 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     TKIT_ASSERT(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "Failed to acquire swap chain image");
     m_Flags |= Flag_FrameStarted;
 
-    if (checkFlag(Flag_SignalSetupPreProcessing))
+    if (checkFlag(Flag_SignalSetupPreProcessing)) [[unlikely]]
     {
         m_PreProcessing->Setup(m_PreProcessingSpecs);
         m_Flags &= ~Flag_SignalSetupPreProcessing;
     }
-    if (checkFlag(Flag_SignalSetupPostProcessing))
+    if (checkFlag(Flag_SignalSetupPostProcessing)) [[unlikely]]
     {
         m_PostProcessing->Setup(m_PostProcessingSpecs);
         m_Flags &= ~Flag_SignalSetupPostProcessing;
     }
-    if (checkFlag(Flag_SignalRemovePreProcessing))
+    if (checkFlag(Flag_SignalRemovePreProcessing)) [[unlikely]]
     {
         m_PreProcessing.Destroy();
         m_PreProcessing.Create(m_RenderPass, m_ProcessingEffectVertexShader);
         m_Flags &= ~Flag_SignalRemovePreProcessing;
     }
-    if (checkFlag(Flag_SignalRemovePostProcessing))
+    if (checkFlag(Flag_SignalRemovePostProcessing)) [[unlikely]]
     {
         setupNaivePostProcessing();
         m_Flags &= ~Flag_SignalRemovePostProcessing;
@@ -475,6 +475,7 @@ void FrameScheduler::setupNaivePostProcessing() noexcept
     PostProcessing::Specs specs{};
     specs.Layout = m_NaivePostProcessingLayout;
     specs.FragmentShader = m_NaivePostProcessingFragmentShader;
+    m_PostProcessing->ResizeResourceContainers(specs.Layout.GetInfo());
     m_PostProcessing->Setup(specs);
 }
 

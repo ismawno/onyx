@@ -170,7 +170,8 @@ VkSurfaceKHR Window::GetSurface() const noexcept
 
 void Window::PushEvent(const Event &p_Event) noexcept
 {
-    m_Events.push_back(p_Event);
+    if (!m_Events.full())
+        m_Events.push_back(p_Event);
 }
 
 const TKit::StaticArray128<Event> &Window::GetNewEvents() const noexcept

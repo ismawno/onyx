@@ -1,9 +1,11 @@
 #include "onyx/app/app.hpp"
+#include "onyx/core/shaders.hpp"
 #include "tkit/core/literals.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include <imgui.h>
 
 using Onyx::D2;
+using namespace TKit::Alias;
 
 static void RunStandaloneWindow() noexcept
 {
@@ -13,6 +15,72 @@ static void RunStandaloneWindow() noexcept
     specs.Height = 600;
 
     Onyx::Window window(specs);
+
+    while (!window.ShouldClose())
+    {
+        Onyx::Input::PollEvents();
+
+        Onyx::RenderContext<D2> *context = window.GetRenderContext<D2>();
+        context->Flush(Onyx::Color::BLACK);
+
+        context->Fill(Onyx::Color::RED);
+        context->Square();
+
+        window.Render();
+    }
+}
+
+static void SetupPreProcessing(Onyx::Window &p_Window) noexcept
+{
+    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
+
+    auto result = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
+    VKIT_ASSERT_RESULT(result);
+    VKit::PipelineLayout &layout = result.GetValue();
+
+    p_Window.SetupPreProcessing(layout, shader);
+
+    Onyx::Core::GetDeletionQueue().SubmitForDeletion(shader);
+    Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
+}
+
+static void SetupPostProcessing(Onyx::Window &p_Window) noexcept
+{
+    struct BlurData
+    {
+        u32 KernelSize = 8;
+
+        // Window dimensions
+        f32 Width = 800.f;
+        f32 Height = 600.f;
+    };
+    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+
+    VKit::PipelineLayout::Builder builder = p_Window.GetPostProcessing()->CreatePipelineLayoutBuilder();
+    auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
+    VKIT_ASSERT_RESULT(result);
+    VKit::PipelineLayout &layout = result.GetValue();
+
+    p_Window.SetupPostProcessing(layout, shader);
+    static BlurData blurData{};
+
+    p_Window.GetPostProcessing()->UpdatePushConstantRange(&blurData);
+
+    Onyx::Core::GetDeletionQueue().SubmitForDeletion(shader);
+    Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
+}
+
+static void RunStandaloneWindowPreProcessing() noexcept
+{
+    Onyx::Window::Specs specs;
+    specs.Name = "Standalone Hello, World! With a pre- and post-processing effect!";
+    specs.Width = 800;
+    specs.Height = 600;
+
+    Onyx::Window window(specs);
+
+    SetupPreProcessing(window);
+    SetupPostProcessing(window);
 
     while (!window.ShouldClose())
     {
@@ -96,6 +164,7 @@ int main()
 
     Onyx::Core::Initialize(&threadPool);
     RunStandaloneWindow();
+    RunStandaloneWindowPreProcessing();
     RunAppExample1();
     RunAppExample2();
     RunAppExample3();
