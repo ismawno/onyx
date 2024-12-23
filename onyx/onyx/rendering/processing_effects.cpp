@@ -12,7 +12,6 @@ ProcessingEffect::ProcessingEffect(VkRenderPass p_RenderPass, const VKit::Shader
 
 ProcessingEffect::~ProcessingEffect() noexcept
 {
-    Core::DeviceWaitIdle();
     if (m_Pipeline)
         m_Pipeline.Destroy();
 }
