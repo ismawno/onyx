@@ -101,7 +101,7 @@ struct ONYX_API Core
     template <Dimension D> static VkPipelineLayout GetGraphicsPipelineLayout() noexcept;
 
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
-    TKit::VkProfilingContext GetProfilingContext() noexcept;
+    static TKit::VkProfilingContext GetProfilingContext() noexcept;
 #endif
 };
 
