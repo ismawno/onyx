@@ -58,7 +58,7 @@ class WindowData
   public:
     void OnStart(Window *p_Window) noexcept;
     void OnUpdate() noexcept;
-    void OnRender(TKit::Timespan p_Timestep) noexcept;
+    void OnRender(VkCommandBuffer p_CommandBuffer, TKit::Timespan p_Timestep) noexcept;
     void OnImGuiRender() noexcept;
     void OnEvent(const Event &p_Event) noexcept;
 
@@ -76,7 +76,9 @@ class WindowData
 
     TKit::Scope<std::mutex> m_Mutex = TKit::Scope<std::mutex>::Create();
     BlurData m_BlurData{};
-    bool m_PreProcessing = false;
+    VKit::GraphicsJob m_RainbowJob{};
+
+    bool m_RainbowBackground = false;
     bool m_PostProcessing = false;
 };
 

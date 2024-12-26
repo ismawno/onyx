@@ -25,6 +25,16 @@ VKit::Shader CreateShader(const std::string_view p_SourcePath) noexcept
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
+const VKit::Shader &GetFullPassVertexShader() noexcept
+{
+    static VKit::Shader shader{};
+    if (shader)
+        return shader;
+    shader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass.vert");
+    Core::GetDeletionQueue().SubmitForDeletion(shader);
+    return shader;
+}
+
 template <Dimension D, DrawMode DMode> struct SneakyShaders
 {
     static void Initialize() noexcept
@@ -53,14 +63,11 @@ template <Dimension D, DrawMode DMode> struct SneakyShaders
             CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle2D.vert");
             CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle2D.frag");
         }
-    }
 
-    static void Terminate() noexcept
-    {
-        MeshVertexShader.Destroy();
-        MeshFragmentShader.Destroy();
-        CircleVertexShader.Destroy();
-        CircleFragmentShader.Destroy();
+        Core::GetDeletionQueue().SubmitForDeletion(MeshVertexShader);
+        Core::GetDeletionQueue().SubmitForDeletion(MeshFragmentShader);
+        Core::GetDeletionQueue().SubmitForDeletion(CircleVertexShader);
+        Core::GetDeletionQueue().SubmitForDeletion(CircleFragmentShader);
     }
 
     static inline VKit::Shader MeshVertexShader{};
@@ -72,10 +79,6 @@ template <Dimension D, DrawMode DMode> struct SneakyShaders
 template <Dimension D, DrawMode DMode> void Shaders<D, DMode>::Initialize() noexcept
 {
     SneakyShaders<D, DMode>::Initialize();
-}
-template <Dimension D, DrawMode DMode> void Shaders<D, DMode>::Terminate() noexcept
-{
-    SneakyShaders<D, DMode>::Terminate();
 }
 
 template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::GetMeshVertexShader() noexcept

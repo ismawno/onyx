@@ -13,7 +13,7 @@ class SWExampleLayer final : public Layer
 
     void OnStart() noexcept override;
     void OnUpdate() noexcept override;
-    void OnRender(VkCommandBuffer) noexcept override;
+    void OnRender(VkCommandBuffer p_CommandBuffer) noexcept override;
     bool OnEvent(const Event &p_Event) noexcept override;
 
   private:

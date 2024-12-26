@@ -132,12 +132,11 @@ void CreateCombinedPrimitiveBuffers() noexcept
 
     createBuffers<D2>(paths2D);
     createBuffers<D3>(paths3D);
-}
 
-void DestroyCombinedPrimitiveBuffers() noexcept
-{
-    s_Buffers2D.Destroy();
-    s_Buffers3D.Destroy();
+    Core::GetDeletionQueue().Push([] {
+        s_Buffers2D.Destroy();
+        s_Buffers3D.Destroy();
+    });
 }
 
 template struct IPrimitives<D2>;

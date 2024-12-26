@@ -27,14 +27,15 @@ class ONYX_API Window
      *
      * These flags can be used to specify window attributes such as resizable, visible, decorated, etc.
      */
-    enum Flags : u8
+    enum FlagBits : u8
     {
-        RESIZABLE = 1 << 0, ///< The window can be resized.
-        VISIBLE = 1 << 1,   ///< The window is visible upon creation.
-        DECORATED = 1 << 2, ///< The window has decorations such as a border, close button, etc.
-        FOCUSED = 1 << 3,   ///< The window is focused upon creation.
-        FLOATING = 1 << 4   ///< The window is always on top of other windows.
+        Flag_Resizable = 1 << 0, ///< The window can be resized.
+        Flag_Visible = 1 << 1,   ///< The window is visible upon creation.
+        Flag_Decorated = 1 << 2, ///< The window has decorations such as a border, close button, etc.
+        Flag_Focused = 1 << 3,   ///< The window is focused upon creation.
+        Flag_Floating = 1 << 4   ///< The window is always on top of other windows.
     };
+    using Flags = u8;
     /**
      * @brief Specifications for creating a window.
      *
@@ -45,7 +46,7 @@ class ONYX_API Window
         const char *Name = "Onyx window";
         u32 Width = 800;
         u32 Height = 600;
-        u8 Flags = RESIZABLE | VISIBLE | DECORATED | FOCUSED;
+        Flags Flags = Flag_Resizable | Flag_Visible | Flag_Decorated | Flag_Focused;
     };
 
     /**
@@ -73,11 +74,11 @@ class ONYX_API Window
      *
      * @tparam F1 Type of the draw calls callable.
      * @tparam F2 Type of the UI calls callable.
-     * @param p_DrawCalls Callable for custom draw calls.
-     * @param p_UICalls Callable for custom UI calls.
+     * @param p_FirstDraws Callable for draw calls that happen before the main scene rendering.
+     * @param p_LastDraws Callable for draw calls that happen after the main scene rendering.
      * @return true if rendering was successful, false otherwise.
      */
-    template <typename F1, typename F2> bool Render(F1 &&p_DrawCalls, F2 &&p_UICalls) noexcept
+    template <typename F1, typename F2> bool Render(F1 &&p_FirstDraws, F2 &&p_LastDraws) noexcept
     {
         TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
         const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this);
@@ -88,9 +89,10 @@ class ONYX_API Window
             TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Render", Core::GetProfilingContext(), cmd);
             m_FrameScheduler->BeginRenderPass(BackgroundColor);
             {
-                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkDrawCalls, "Onyx::DrawCalls", Core::GetProfilingContext(), cmd, true);
-                TKIT_PROFILE_NAMED_NSCOPE(drawCalls, "Onyx::DrawCalls", true);
-                std::forward<F1>(p_DrawCalls)(cmd);
+                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkFirstCalls, "Onyx::FirstDrawCalls", Core::GetProfilingContext(), cmd,
+                                                true);
+                TKIT_PROFILE_NAMED_NSCOPE(firstCalls, "Onyx::FirstDrawCalls", true);
+                std::forward<F1>(p_FirstDraws)(cmd);
             }
 
             // This bit is profiled inside the renderer methods.
@@ -98,9 +100,10 @@ class ONYX_API Window
             m_RenderContext3D->Render(cmd);
 
             {
-                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkUiCalls, "Onyx::ImGui", Core::GetProfilingContext(), cmd, true);
-                TKIT_PROFILE_NAMED_NSCOPE(uiCalls, "Onyx::ImGui", true);
-                std::forward<F2>(p_UICalls)(cmd);
+                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkLastCalls, "Onyx::LastDrawCalls", Core::GetProfilingContext(), cmd,
+                                                true);
+                TKIT_PROFILE_NAMED_NSCOPE(lastCalls, "Onyx::LastDrawCalls", true);
+                std::forward<F2>(p_LastDraws)(cmd);
             }
             m_FrameScheduler->EndRenderPass();
         }
@@ -116,6 +119,37 @@ class ONYX_API Window
         m_FrameScheduler->EndFrame(*this);
         return true;
     }
+
+    /**
+     * @brief Renders the window using the provided draw callables.
+     *
+     * This method begins a new frame, starts the render pass with the specified background color,
+     * executes the provided draw callables, and ends the render pass and frame.
+     *
+     * @tparam F Type of the draw calls callable.
+     * @param p_FirstDraws Callable for draw calls that happen before the main scene rendering.
+     * @return true if rendering was successful, false otherwise.
+     */
+    template <typename F> bool RenderSubmitFirst(F &&p_FirstDraws) noexcept
+    {
+        return Render(std::forward<F>(p_FirstDraws), [](const VkCommandBuffer) {});
+    }
+
+    /**
+     * @brief Renders the window using the provided UI callables.
+     *
+     * This method begins a new frame, starts the render pass with the specified background color,
+     * executes the provided UI callables, and ends the render pass and frame.
+     *
+     * @tparam F Type of the UI calls callable.
+     * @param p_LastDraws Callable for draw calls that happen after the main scene rendering.
+     * @return true if rendering was successful, false otherwise.
+     */
+    template <typename F> bool RenderSubmitLast(F &&p_LastDraws) noexcept
+    {
+        return Render([](const VkCommandBuffer) {}, std::forward<F>(p_LastDraws));
+    }
+
     /**
      * @brief Renders the window without any custom draw or UI calls.
      *
@@ -195,30 +229,8 @@ class ONYX_API Window
     std::pair<u32, u32> GetPosition() const noexcept;
 
     /**
-     * @brief Sets up the pre-processing pipeline, which is used to apply effects to the scene before the main rendering
-     * pass.
-     *
-     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
-     * pre-processing setup requires the creation and destruction of Vulkan resources, which requires more careful
-     * synchronization.
-     *
-     * If you wish to switch to a different pre-processing pipeline, call this method again with the new specifications.
-     * Do not call RemovePreProcessing before or after that in the same frame, as that call will override the setup.
-     *
-     * @param p_Layout The pipeline layout to use for the pre-processing pipeline.
-     * @param p_FragmentShader The fragment shader to use for the pre-processing pipeline.
-     * @return A pointer to the pre-processing pipeline.
-     */
-    PreProcessing *SetupPreProcessing(const VKit::PipelineLayout &p_Layout,
-                                      const VKit::Shader &p_FragmentShader) noexcept;
-
-    /**
      * @brief Sets up the post-processing pipeline, which is used to apply effects to the scene after the main rendering
      * pass.
-     *
-     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
-     * post-processing setup requires the creation and destruction of Vulkan resources, which requires more careful
-     * synchronization.
      *
      * If you wish to switch to a different post-processing pipeline, call this method again with the new
      * specifications. Do not call RemovePostProcessing before or after that in the same frame, as that call will
@@ -226,30 +238,19 @@ class ONYX_API Window
      *
      * @param p_Layout The pipeline layout to use for the post-processing pipeline.
      * @param p_FragmentShader The fragment shader to use for the post-processing pipeline.
+     * @param p_VertexShader Optional vertex shader to use for the post-processing pipeline.
      * @param p_Info Optional sampler information to use for the post-processing pipeline.
      * @return A pointer to the post-processing pipeline.
      */
     PostProcessing *SetupPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
+                                        const VKit::Shader *p_VertexShader = nullptr,
                                         const VkSamplerCreateInfo *p_Info = nullptr) noexcept;
 
-    PreProcessing *GetPreProcessing() noexcept;
     PostProcessing *GetPostProcessing() noexcept;
-
-    /**
-     * @brief Removes the pre-processing pipeline.
-     *
-     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
-     * pre-processing removal requires the destruction of Vulkan resources, which requires more careful synchronization.
-     */
-    void RemovePreProcessing() noexcept;
 
     /**
      * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final
      * image.
-     *
-     * Please note that this call is deferred, and will not take effect until the next frame. This is because the
-     * post-processing removal requires the destruction of Vulkan resources, which requires more careful
-     * synchronization.
      */
     void RemovePostProcessing() noexcept;
 
@@ -326,18 +327,11 @@ class ONYX_API Window
             return m_RenderContext3D.Get();
     }
 
-    /**
-     * @brief Gets the frame scheduler.
-     *
-     * @return const FrameScheduler& Reference to the frame scheduler.
-     */
-    const FrameScheduler &GetFrameScheduler() const noexcept;
-    /**
-     * @brief Gets the frame scheduler.
-     *
-     * @return FrameScheduler& Reference to the frame scheduler.
-     */
-    FrameScheduler &GetFrameScheduler() noexcept;
+    const VKit::RenderPass &GetRenderPass() const noexcept;
+    u32 GetFrameIndex() const noexcept;
+
+    VkPresentModeKHR GetPresentMode() const noexcept;
+    void SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept;
 
     /// The background color used when clearing the window.
     Color BackgroundColor = Color::BLACK;

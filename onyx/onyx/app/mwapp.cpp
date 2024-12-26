@@ -132,14 +132,17 @@ void MultiWindowApplication<Serial>::processWindows() noexcept
         Layers.OnRender(0, p_CommandBuffer);
         Layers.OnImGuiRender();
     };
-    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
+    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) {
+        Layers.OnLateRender(0, p_CommandBuffer);
+        endRenderImGui(p_CommandBuffer);
+    };
     processFrame(0, *m_Windows[0], Layers, drawCalls, uiSubmission);
 
     for (usize i = 1; i < m_Windows.size(); ++i)
         processFrame(
             i, *m_Windows[i], Layers,
             [this, i](const VkCommandBuffer p_CommandBuffer) { Layers.OnRender(i, p_CommandBuffer); },
-            [](const VkCommandBuffer) {});
+            [this, i](const VkCommandBuffer p_CommandBuffer) { Layers.OnLateRender(i, p_CommandBuffer); });
 
     m_MustDeferWindowManagement = false;
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
@@ -220,7 +223,9 @@ TKit::Ref<TKit::Task<void>> MultiWindowApplication<Concurrent>::createWindowTask
             [this, p_WindowIndex](const VkCommandBuffer p_CommandBuffer) {
                 Layers.OnRender(p_WindowIndex, p_CommandBuffer);
             },
-            [](const VkCommandBuffer) {});
+            [this, p_WindowIndex](const VkCommandBuffer p_CommandBuffer) {
+                Layers.OnLateRender(p_WindowIndex, p_CommandBuffer);
+            });
     });
 }
 
@@ -278,7 +283,10 @@ void MultiWindowApplication<Concurrent>::processWindows() noexcept
         Layers.OnRender(0, p_CommandBuffer);
         Layers.OnImGuiRender();
     };
-    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
+    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) {
+        Layers.OnLateRender(0, p_CommandBuffer);
+        endRenderImGui(p_CommandBuffer);
+    };
 
     // Main thread always handles the first window. First element of tasks is always nullptr
     processFrame(0, *m_Windows[0], Layers, drawCalls, uiSubmission);

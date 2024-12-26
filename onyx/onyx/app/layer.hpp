@@ -94,6 +94,25 @@ class Layer
     }
 
     /**
+     * @brief Called every frame after the OnUpdate() and OnRender() methods.
+     *
+     * Its purpose is to contain direct user draw calls that execute after the main scene pass. The draw calls must come
+     * from the Vulkan's API itself. Having update code in this method is not recommended. If you need to update some
+     * state, you should do so in the OnUpdate() method.
+     *
+     * This method can (and must) be used to issue ImGui draw calls.
+     *
+     * @note This variant of the method is not called in multi window applications. Use the OnRender(usize,
+     * VkCommandBuffer) method instead.
+     *
+     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
+     *
+     */
+    virtual void OnLateRender(VkCommandBuffer) noexcept
+    {
+    }
+
+    /**
      * @brief Called every frame before the OnRender(usize) method.
      *
      * Behaves the same as the OnUpdate() method, but is called in multi window applications. In concurrent mode, this
@@ -123,6 +142,24 @@ class Layer
      *
      */
     virtual void OnRender(usize, VkCommandBuffer) noexcept
+    {
+    }
+
+    /**
+     * @brief Called every frame after the OnUpdate(usize) and OnRender(usize, VkCommandBuffer) methods.
+     *
+     * Behaves the same as the OnLateRender() method, but is called in multi window applications. In concurrent mode,
+     * this method is called simultaneously for all windows.
+     *
+     * This method cannot be used to issue ImGui draw calls. Use OnImGuiRender() for that.
+     *
+     * @note This method is not called in single window applications. Use the OnLateRender() method instead.
+     *
+     * @param p_WindowIndex The index of the window that is currently being processed.
+     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
+     *
+     */
+    virtual void OnLateRender(usize, VkCommandBuffer) noexcept
     {
     }
 
@@ -193,10 +230,12 @@ class LayerSystem
 
     void OnUpdate() noexcept;
     void OnRender(VkCommandBuffer p_CommandBuffer) noexcept;
+    void OnLateRender(VkCommandBuffer p_CommandBuffer) noexcept;
 
     // Window is also passed in update because it also acts as an identifier for the current window thread
     void OnUpdate(usize p_WindowIndex) noexcept;
     void OnRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void OnLateRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
 
     // To be used only in multi window apps (in single window, OnRender does fine)
     void OnImGuiRender() noexcept;

@@ -33,10 +33,10 @@ bool MWExampleLayer::OnEvent(const usize p_WindowIndex, const Event &p_Event) no
     return true;
 }
 
-void MWExampleLayer::OnRender(const usize p_WindowIndex, const VkCommandBuffer) noexcept
+void MWExampleLayer::OnRender(const usize p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     const auto ts = m_Application->GetDeltaTime();
-    m_Data[p_WindowIndex].OnRender(ts);
+    m_Data[p_WindowIndex].OnRender(p_CommandBuffer, ts);
 }
 
 void MWExampleLayer::OnImGuiRender() noexcept

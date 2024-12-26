@@ -27,11 +27,7 @@ static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferI
 template <Dimension D, PipelineMode PMode>
 MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    VKit::GraphicsPipeline::Specs specs = Pipeline<D, PMode>::CreateMeshSpecs(p_RenderPass);
-    const auto result = VKit::GraphicsPipeline::Create(Core::GetDevice(), specs);
-    VKIT_ASSERT_RESULT(result);
-    m_Pipeline = result.GetValue();
-
+    m_Pipeline = Pipeline<D, PMode>::CreateMeshPipeline(p_RenderPass);
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
@@ -64,8 +60,12 @@ void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_
     m_DeviceInstanceData.StorageSizes[p_FrameIndex] = size + 1;
 }
 
-static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info,
-                             const VKit::GraphicsPipeline &p_Pipeline) noexcept
+template <Dimension D> static VkPipelineLayout getLayout() noexcept
+{
+    return Core::GetGraphicsPipelineLayout<D>();
+}
+
+static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info) noexcept
 {
     PushConstantData3D pdata{};
     pdata.ProjectionView = *p_Info.ProjectionView;
@@ -74,22 +74,19 @@ static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info,
     pdata.DirectionalLightCount = p_Info.DirectionalLightCount;
     pdata.PointLightCount = p_Info.PointLightCount;
 
-    vkCmdPushConstants(p_Info.CommandBuffer, p_Pipeline.GetLayout(),
-                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstantData3D),
-                       &pdata);
+    vkCmdPushConstants(p_Info.CommandBuffer, getLayout<D3>(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, sizeof(PushConstantData3D), &pdata);
 }
 
 template <Dimension D, DrawMode DMode>
-static void bindDescriptorSets(const RenderInfo<D, DMode> &p_Info, const VKit::GraphicsPipeline &p_Pipeline,
-                               const VkDescriptorSet p_Transforms) noexcept
+static void bindDescriptorSets(const RenderInfo<D, DMode> &p_Info, const VkDescriptorSet p_Transforms) noexcept
 {
     if constexpr (D == D2 || DMode == DrawMode::Stencil)
-        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_Transforms, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  p_Pipeline.GetLayout());
+        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_Transforms, VK_PIPELINE_BIND_POINT_GRAPHICS, getLayout<D>());
     else
     {
         const std::array<VkDescriptorSet, 2> sets = {p_Transforms, p_Info.LightStorageBuffers};
-        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, sets, VK_PIPELINE_BIND_POINT_GRAPHICS, p_Pipeline.GetLayout());
+        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, sets, VK_PIPELINE_BIND_POINT_GRAPHICS, getLayout<D>());
     }
 }
 
@@ -108,10 +105,10 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        pushConstantData(p_Info, m_Pipeline);
+        pushConstantData(p_Info);
 
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, m_Pipeline, transforms);
+    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
 
     u32 firstInstance = 0;
     for (const auto &[model, data] : m_HostInstanceData)
@@ -137,10 +134,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() 
 template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    VKit::GraphicsPipeline::Specs specs = Pipeline<D, PMode>::CreateMeshSpecs(p_RenderPass);
-    const auto result = VKit::GraphicsPipeline::Create(Core::GetDevice(), specs);
-    VKIT_ASSERT_RESULT(result);
-    m_Pipeline = result.GetValue();
+    m_Pipeline = Pipeline<D, PMode>::CreateMeshPipeline(p_RenderPass);
 
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -191,10 +185,10 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        pushConstantData(p_Info, m_Pipeline);
+        pushConstantData(p_Info);
 
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, m_Pipeline, transforms);
+    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
 
     const VertexBuffer<D> &vbuffer = Primitives<D>::GetVertexBuffer();
     const IndexBuffer &ibuffer = Primitives<D>::GetIndexBuffer();
@@ -227,10 +221,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 template <Dimension D, PipelineMode PMode>
 PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    VKit::GraphicsPipeline::Specs specs = Pipeline<D, PMode>::CreateMeshSpecs(p_RenderPass);
-    const auto result = VKit::GraphicsPipeline::Create(Core::GetDevice(), specs);
-    VKIT_ASSERT_RESULT(result);
-    m_Pipeline = result.GetValue();
+    m_Pipeline = Pipeline<D, PMode>::CreateMeshPipeline(p_RenderPass);
 
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -329,10 +320,10 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        pushConstantData(p_Info, m_Pipeline);
+        pushConstantData(p_Info);
 
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, m_Pipeline, transforms);
+    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
 
     vertexBuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
     indexBuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
@@ -355,11 +346,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush
 template <Dimension D, PipelineMode PMode>
 CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    VKit::GraphicsPipeline::Specs specs = Pipeline<D, PMode>::CreateCircleSpecs(p_RenderPass);
-    const auto result = VKit::GraphicsPipeline::Create(Core::GetDevice(), specs);
-    VKIT_ASSERT_RESULT(result);
-    m_Pipeline = result.GetValue();
-
+    m_Pipeline = Pipeline<D, PMode>::CreateCirclePipeline(p_RenderPass);
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
@@ -416,10 +403,10 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        pushConstantData(p_Info, m_Pipeline);
+        pushConstantData(p_Info);
 
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, m_Pipeline, transforms);
+    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
 
     const u32 size = static_cast<u32>(m_HostInstanceData.size());
     vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);

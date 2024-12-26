@@ -133,8 +133,8 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     initInfo.MinImageCount = 3;
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    initInfo.RenderPass = p_Window.GetFrameScheduler().GetRenderPass();
-    initInfo.Subpass = 1;
+    initInfo.RenderPass = p_Window.GetRenderPass();
+    initInfo.Subpass = 0;
 
     ImGui_ImplVulkan_Init(&initInfo);
     ImGui_ImplVulkan_CreateFontsTexture();
@@ -176,7 +176,10 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
         beginRenderImGui();
         Layers.OnRender(p_CommandBuffer);
     };
-    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) { endRenderImGui(p_CommandBuffer); };
+    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) {
+        Layers.OnLateRender(p_CommandBuffer);
+        endRenderImGui(p_CommandBuffer);
+    };
 
     m_Window->Render(drawCalls, uiSubmission);
     if (m_Window->ShouldClose())

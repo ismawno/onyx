@@ -61,6 +61,22 @@ void WindowData::OnStart(Window *p_Window) noexcept
     m_LayerData2.Context = p_Window->GetRenderContext<D2>();
     m_LayerData3.Context = p_Window->GetRenderContext<D3>();
     m_Window = p_Window;
+
+    const auto result =
+        VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowPipelineLayout(), m_Window->GetRenderPass())
+            .SetViewportCount(1)
+            .AddShaderStage(GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
+            .AddShaderStage(getRainbowShader(), VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+            .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+            .AddDefaultColorAttachment()
+            .Build();
+
+    VKIT_ASSERT_RESULT(result);
+    const VKit::GraphicsPipeline &pipeline = result.GetValue();
+    Core::GetDeletionQueue().SubmitForDeletion(pipeline);
+
+    m_RainbowJob = VKit::GraphicsJob(result.GetValue(), getRainbowPipelineLayout());
 }
 
 void WindowData::OnUpdate() noexcept
@@ -69,31 +85,31 @@ void WindowData::OnUpdate() noexcept
         return;
     m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
     m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
-    m_Window->GetPostProcessing()->UpdatePushConstantRange(&m_BlurData);
+    m_Window->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
 }
 
-void WindowData::OnRender(const TKit::Timespan p_Timestep) noexcept
+void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Timespan p_Timestep) noexcept
 {
     std::scoped_lock lock(*m_Mutex);
     drawShapes(m_LayerData2, p_Timestep);
     drawShapes(m_LayerData3, p_Timestep);
+
+    if (m_RainbowBackground)
+    {
+        m_RainbowJob.Bind(p_CommandBuffer);
+        m_RainbowJob.Draw(p_CommandBuffer, 3);
+    }
 }
 
 void WindowData::OnImGuiRender() noexcept
 {
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
-    const VkPresentModeKHR currentMode = m_Window->GetFrameScheduler().GetPresentMode();
+    const VkPresentModeKHR currentMode = m_Window->GetPresentMode();
     bool vsync = currentMode == VK_PRESENT_MODE_FIFO_KHR;
     if (ImGui::Checkbox("VSync", &vsync))
-        m_Window->GetFrameScheduler().SetPresentMode(vsync ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR);
+        m_Window->SetPresentMode(vsync ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR);
 
-    if (ImGui::Checkbox("Enable pre-processing (rainbow)", &m_PreProcessing))
-    {
-        if (m_PreProcessing)
-            m_Window->SetupPreProcessing(getRainbowPipelineLayout(), getRainbowShader());
-        else
-            m_Window->RemovePreProcessing();
-    }
+    ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
     if (ImGui::TreeNode("Post-processing"))
     {
         if (ImGui::Checkbox("Enable", &m_PostProcessing))

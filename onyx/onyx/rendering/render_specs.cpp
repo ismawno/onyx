@@ -38,75 +38,91 @@ template <Dimension D, DrawMode DMode> PolygonDeviceInstanceData<D, DMode>::~Pol
 }
 
 template <Dimension D, PipelineMode PMode>
-static VKit::GraphicsPipeline::Specs defaultPipelineSpecs(const VKit::Shader &p_VertexShader,
-                                                          const VKit::Shader &p_FragmentShader,
-                                                          const VkRenderPass p_RenderPass) noexcept
+static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkRenderPass p_RenderPass,
+                                                              const VKit::Shader &p_VertexShader,
+                                                              const VKit::Shader &p_FragmentShader) noexcept
 {
-    VKit::GraphicsPipeline::Specs specs{};
+    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), Core::GetGraphicsPipelineLayout<D>(), p_RenderPass};
+    auto &colorBuilder = builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+                             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+                             .SetViewportCount(1)
+                             .AddShaderStage(p_VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
+                             .AddShaderStage(p_FragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
+                             .BeginColorAttachment()
+                             .EnableBlending();
+
     if constexpr (D == D3)
-        specs.ColorBlendAttachment.blendEnable = VK_FALSE;
+        builder.EnableDepthTest().EnableDepthWrite();
     else if constexpr (GetDrawMode<PMode>() == DrawMode::Stencil)
-        specs.ColorBlendAttachment.blendEnable = VK_FALSE;
+        colorBuilder.DisableBlending();
 
-    specs.Layout = Core::GetGraphicsPipelineLayout<D>();
-
+    const auto stencilFlags =
+        VKit::GraphicsPipeline::Builder::Flag_StencilFront | VKit::GraphicsPipeline::Builder::Flag_StencilBack;
     if constexpr (PMode == PipelineMode::DoStencilWriteDoFill || PMode == PipelineMode::DoStencilWriteNoFill)
     {
-        specs.DepthStencilInfo.stencilTestEnable = VK_TRUE;
-        specs.DepthStencilInfo.front.failOp = VK_STENCIL_OP_REPLACE;
-        specs.DepthStencilInfo.front.passOp = VK_STENCIL_OP_REPLACE;
-        specs.DepthStencilInfo.front.depthFailOp = VK_STENCIL_OP_REPLACE;
-        specs.DepthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
-        specs.DepthStencilInfo.front.compareMask = 0xFF;
-        specs.DepthStencilInfo.front.writeMask = 0xFF;
-        specs.DepthStencilInfo.front.reference = 1;
-        specs.DepthStencilInfo.back = specs.DepthStencilInfo.front;
+        builder.EnableStencilTest()
+            .SetStencilFailOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
+            .SetStencilPassOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
+            .SetStencilDepthFailOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
+            .SetStencilCompareOperation(VK_COMPARE_OP_ALWAYS, stencilFlags)
+            .SetStencilCompareMask(0xFF, stencilFlags)
+            .SetStencilWriteMask(0xFF, stencilFlags)
+            .SetStencilReference(1, stencilFlags);
     }
     else if constexpr (PMode == PipelineMode::DoStencilTestNoFill)
     {
-        specs.DepthStencilInfo.stencilTestEnable = VK_TRUE;
-        specs.DepthStencilInfo.depthWriteEnable = VK_FALSE;
-        specs.DepthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-        specs.DepthStencilInfo.depthBoundsTestEnable = VK_FALSE;
-        specs.DepthStencilInfo.front.failOp = VK_STENCIL_OP_KEEP;
-        specs.DepthStencilInfo.front.passOp = VK_STENCIL_OP_REPLACE;
-        specs.DepthStencilInfo.front.depthFailOp = VK_STENCIL_OP_KEEP;
-        specs.DepthStencilInfo.front.compareOp = VK_COMPARE_OP_NOT_EQUAL;
-        specs.DepthStencilInfo.front.reference = 1;
-        specs.DepthStencilInfo.front.compareMask = 0xFF;
-        specs.DepthStencilInfo.front.writeMask = 0;
-        specs.DepthStencilInfo.back = specs.DepthStencilInfo.front;
+        builder.EnableStencilTest()
+            .DisableDepthWrite()
+            .SetStencilFailOperation(VK_STENCIL_OP_KEEP, stencilFlags)
+            .SetStencilPassOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
+            .SetStencilDepthFailOperation(VK_STENCIL_OP_KEEP, stencilFlags)
+            .SetStencilCompareOperation(VK_COMPARE_OP_NOT_EQUAL, stencilFlags)
+            .SetStencilCompareMask(0xFF, stencilFlags)
+            .SetStencilWriteMask(0, stencilFlags)
+            .SetStencilReference(1, stencilFlags);
         if constexpr (D == D3)
-            specs.DepthStencilInfo.depthTestEnable = VK_FALSE;
+            builder.DisableDepthTest();
     }
     if constexpr (PMode == PipelineMode::DoStencilWriteNoFill)
-        specs.ColorBlendAttachment.colorWriteMask = 0;
+        colorBuilder.SetColorWriteMask(0);
+    colorBuilder.EndColorAttachment();
 
-    specs.VertexShader = p_VertexShader;
-    specs.FragmentShader = p_FragmentShader;
-    specs.RenderPass = p_RenderPass;
-    specs.Subpass = 1;
-
-    return specs;
+    return builder;
 }
 
 template <Dimension D, PipelineMode PMode>
-VKit::GraphicsPipeline::Specs Pipeline<D, PMode>::CreateMeshSpecs(const VkRenderPass p_RenderPass) noexcept
+VKit::GraphicsPipeline Pipeline<D, PMode>::CreateMeshPipeline(const VkRenderPass p_RenderPass) noexcept
 {
-    VKit::GraphicsPipeline::Specs specs =
-        defaultPipelineSpecs<D, PMode>(Shaders<D, GetDrawMode<PMode>()>::GetMeshVertexShader(),
-                                       Shaders<D, GetDrawMode<PMode>()>::GetMeshFragmentShader(), p_RenderPass);
+    const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshVertexShader();
+    const VKit::Shader &fragmentShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshFragmentShader();
 
-    specs.BindingDescriptions = Vertex<D>::GetBindingDescriptions();
-    specs.AttributeDescriptions = Vertex<D>::GetAttributeDescriptions();
-    return specs;
+    VKit::GraphicsPipeline::Builder builder =
+        defaultPipelineBuilder<D, PMode>(p_RenderPass, vertexShader, fragmentShader);
+
+    builder.AddBindingDescription<Vertex<D>>(VK_VERTEX_INPUT_RATE_VERTEX);
+    if constexpr (D == D2)
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex<D2>, Position));
+    else
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex<D3>, Position))
+            .AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex<D3>, Normal));
+
+    const auto result = builder.Build();
+    VKIT_ASSERT_RESULT(result);
+    return result.GetValue();
 }
 
 template <Dimension D, PipelineMode PMode>
-VKit::GraphicsPipeline::Specs Pipeline<D, PMode>::CreateCircleSpecs(const VkRenderPass p_RenderPass) noexcept
+VKit::GraphicsPipeline Pipeline<D, PMode>::CreateCirclePipeline(const VkRenderPass p_RenderPass) noexcept
 {
-    return defaultPipelineSpecs<D, PMode>(Shaders<D, GetDrawMode<PMode>()>::GetCircleVertexShader(),
-                                          Shaders<D, GetDrawMode<PMode>()>::GetCircleFragmentShader(), p_RenderPass);
+    const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetCircleVertexShader();
+    const VKit::Shader &fragmentShader = Shaders<D, GetDrawMode<PMode>()>::GetCircleFragmentShader();
+
+    VKit::GraphicsPipeline::Builder builder =
+        defaultPipelineBuilder<D, PMode>(p_RenderPass, vertexShader, fragmentShader);
+
+    const auto result = builder.Build();
+    VKIT_ASSERT_RESULT(result);
+    return result.GetValue();
 }
 
 template struct PolygonDeviceInstanceData<D2, DrawMode::Fill>;

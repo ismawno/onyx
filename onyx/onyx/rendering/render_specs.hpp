@@ -275,24 +275,24 @@ struct ONYX_API PushConstantData3D
 template <Dimension D, PipelineMode PMode> struct ONYX_API Pipeline
 {
     /**
-     * @brief Create the pipeline specifications for a meshed shape.
+     * @brief Create a pipeline for a meshed shape.
      *
      * @tparam D The dimension (D2 or D3).
      * @tparam PMode The pipeline mode.
      * @param p_RenderPass The render pass to use.
-     * @return The pipeline specifications.
+     * @return The pipeline handle.
      */
-    static VKit::GraphicsPipeline::Specs CreateMeshSpecs(VkRenderPass p_RenderPass) noexcept;
+    static VKit::GraphicsPipeline CreateMeshPipeline(VkRenderPass p_RenderPass) noexcept;
 
     /**
-     * @brief Create the pipeline specifications for a circle shape.
+     * @brief Create a pipeline for a circle shape.
      *
      * @tparam D The dimension (D2 or D3).
      * @tparam PMode The pipeline mode.
      * @param p_RenderPass The render pass to use.
-     * @return The pipeline specifications.
+     * @return The pipeline handle.
      */
-    static VKit::GraphicsPipeline::Specs CreateCircleSpecs(VkRenderPass p_RenderPass) noexcept;
+    static VKit::GraphicsPipeline CreateCirclePipeline(VkRenderPass p_RenderPass) noexcept;
 };
 
 /**

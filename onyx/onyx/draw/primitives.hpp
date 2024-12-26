@@ -154,12 +154,4 @@ template <> struct Primitives<D3> : IPrimitives<D3>
  */
 void CreateCombinedPrimitiveBuffers() noexcept;
 
-/**
- * @brief Destroys the combined primitive buffers.
- *
- * This function cleans up the combined vertex and index buffers for all primitives.
- * It is called automatically and should not be called by the user.
- */
-void DestroyCombinedPrimitiveBuffers() noexcept;
-
 } // namespace Onyx

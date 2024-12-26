@@ -113,30 +113,18 @@ std::pair<u32, u32> Window::GetPosition() const noexcept
     return {static_cast<u32>(x), static_cast<u32>(y)};
 }
 
-PreProcessing *Window::SetupPreProcessing(const VKit::PipelineLayout &p_Layout,
-                                          const VKit::Shader &p_FragmentShader) noexcept
-{
-    return m_FrameScheduler->SetupPreProcessing(p_Layout, p_FragmentShader);
-}
 PostProcessing *Window::SetupPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
+                                            const VKit::Shader *p_VertexShader,
                                             const VkSamplerCreateInfo *p_Info) noexcept
 {
-    return m_FrameScheduler->SetupPostProcessing(p_Layout, p_FragmentShader, p_Info);
+    return m_FrameScheduler->SetupPostProcessing(p_Layout, p_FragmentShader, p_VertexShader, p_Info);
 }
 
-PreProcessing *Window::GetPreProcessing() noexcept
-{
-    return m_FrameScheduler->GetPreProcessing();
-}
 PostProcessing *Window::GetPostProcessing() noexcept
 {
     return m_FrameScheduler->GetPostProcessing();
 }
 
-void Window::RemovePreProcessing() noexcept
-{
-    m_FrameScheduler->RemovePreProcessing();
-}
 void Window::RemovePostProcessing() noexcept
 {
     m_FrameScheduler->RemovePostProcessing();
@@ -183,13 +171,24 @@ void Window::FlushEvents() noexcept
     m_Events.clear();
 }
 
-const FrameScheduler &Window::GetFrameScheduler() const noexcept
+const VKit::RenderPass &Window::GetRenderPass() const noexcept
 {
-    return *m_FrameScheduler;
+    return m_FrameScheduler->GetRenderPass();
 }
-FrameScheduler &Window::GetFrameScheduler() noexcept
+
+u32 Window::GetFrameIndex() const noexcept
 {
-    return *m_FrameScheduler;
+    return m_FrameScheduler->GetFrameIndex();
+}
+
+VkPresentModeKHR Window::GetPresentMode() const noexcept
+{
+    return m_FrameScheduler->GetPresentMode();
+}
+
+void Window::SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept
+{
+    m_FrameScheduler->SetPresentMode(p_PresentMode);
 }
 
 } // namespace Onyx

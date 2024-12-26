@@ -61,6 +61,8 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
     s_GraphicsQueue = s_Device.GetQueue(VKit::QueueType::Graphics);
     s_PresentQueue = s_Device.GetQueue(VKit::QueueType::Present);
     TKIT_LOG_INFO("Created Vulkan device: {}", s_Device.GetPhysicalDevice().GetInfo().Properties.Core.deviceName);
+
+    s_DeletionQueue.SubmitForDeletion(s_Device);
 }
 
 static void createVulkanAllocator() noexcept
@@ -75,6 +77,8 @@ static void createVulkanAllocator() noexcept
     TKIT_ASSERT_RETURNS(vmaCreateAllocator(&allocatorInfo, &s_VulkanAllocator), VK_SUCCESS,
                         "Failed to create vulkan allocator");
     TKIT_LOG_INFO("Created Vulkan allocator");
+
+    s_DeletionQueue.Push([] { vmaDestroyAllocator(s_VulkanAllocator); });
 }
 
 static void createCommandPool() noexcept
@@ -86,6 +90,8 @@ static void createCommandPool() noexcept
     VKIT_ASSERT_RESULT(poolres);
     s_CommandPool = poolres.GetValue();
     TKIT_LOG_INFO("Created global command pool");
+
+    s_DeletionQueue.SubmitForDeletion(s_CommandPool);
 }
 
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
@@ -98,6 +104,11 @@ static void createProfilingContext() noexcept
     s_ProfilingContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue,
                                                             s_ProfilingCommandBuffer);
     TKIT_LOG_INFO("Created Vulkan profiling context");
+
+    s_DeletionQueue.Push([] {
+        TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_ProfilingContext);
+        s_CommandPool.Deallocate(s_ProfilingCommandBuffer);
+    });
 }
 #endif
 
@@ -127,6 +138,10 @@ static void createDescriptorData() noexcept
     VKIT_ASSERT_RESULT(layoutResult);
     s_LightStorageLayout = layoutResult.GetValue();
     TKIT_LOG_INFO("Created global descriptor data");
+
+    s_DeletionQueue.SubmitForDeletion(s_DescriptorPool);
+    s_DeletionQueue.SubmitForDeletion(s_TransformStorageLayout);
+    s_DeletionQueue.SubmitForDeletion(s_LightStorageLayout);
 }
 
 static void createPipelineLayouts() noexcept
@@ -147,6 +162,9 @@ static void createPipelineLayouts() noexcept
     VKIT_ASSERT_RESULT(layoutResult);
     s_GraphicsPipelineLayout3D = layoutResult.GetValue();
     TKIT_LOG_INFO("Created global pipeline layouts");
+
+    s_DeletionQueue.SubmitForDeletion(s_GraphicsPipelineLayout2D);
+    s_DeletionQueue.SubmitForDeletion(s_GraphicsPipelineLayout3D);
 }
 
 static void createShaders() noexcept
@@ -182,37 +200,16 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
     s_TaskManager = p_TaskManager;
     TKIT_LOG_INFO("Created Vulkan instance. API version: {}.{}.{}", VK_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion),
                   VK_VERSION_MINOR(s_Instance.GetInfo().ApiVersion), VK_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
+    s_DeletionQueue.SubmitForDeletion(s_Instance);
 }
 
 void Core::Terminate() noexcept
 {
-    s_DeletionQueue.Flush();
     if (s_Device)
-    {
         s_Device.WaitIdle();
-        Shaders<D2, DrawMode::Fill>::Terminate();
-        Shaders<D2, DrawMode::Stencil>::Terminate();
-        Shaders<D3, DrawMode::Fill>::Terminate();
-        Shaders<D3, DrawMode::Stencil>::Terminate();
 
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
-        TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_ProfilingContext);
-        s_CommandPool.Deallocate(s_ProfilingCommandBuffer);
-#endif
-
-        DestroyCombinedPrimitiveBuffers();
-        s_GraphicsPipelineLayout2D.Destroy();
-        s_GraphicsPipelineLayout3D.Destroy();
-
-        s_TransformStorageLayout.Destroy();
-        s_LightStorageLayout.Destroy();
-        s_DescriptorPool.Destroy();
-        s_CommandPool.Destroy();
-        vmaDestroyAllocator(s_VulkanAllocator);
-        s_Device.Destroy();
-    }
+    s_DeletionQueue.Flush();
     glfwTerminate();
-    s_Instance.Destroy();
 }
 
 void Core::CreateDevice(const VkSurfaceKHR p_Surface) noexcept

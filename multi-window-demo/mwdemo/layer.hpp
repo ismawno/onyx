@@ -13,7 +13,7 @@ class MWExampleLayer final : public Layer
 
     void OnStart() noexcept override;
     void OnUpdate(usize p_WindowIndex) noexcept override;
-    void OnRender(usize p_WindowIndex, VkCommandBuffer) noexcept override;
+    void OnRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept override;
     void OnImGuiRender() noexcept override;
     bool OnEvent(usize p_WindowIndex, const Event &p_Event) noexcept override;
 

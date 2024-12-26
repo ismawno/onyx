@@ -30,18 +30,30 @@ static void RunStandaloneWindow() noexcept
     }
 }
 
-static void SetupPreProcessing(Onyx::Window &p_Window) noexcept
+static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
 {
-    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
+    const VKit::Shader fragment = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
 
-    auto result = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
-    VKIT_ASSERT_RESULT(result);
-    VKit::PipelineLayout &layout = result.GetValue();
+    auto lresult = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
+    VKIT_ASSERT_RESULT(lresult);
+    VKit::PipelineLayout &layout = lresult.GetValue();
 
-    p_Window.SetupPreProcessing(layout, shader);
+    const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout, p_Window.GetRenderPass())
+                             .SetViewportCount(1)
+                             .AddShaderStage(Onyx::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
+                             .AddShaderStage(fragment, VK_SHADER_STAGE_FRAGMENT_BIT)
+                             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+                             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+                             .AddDefaultColorAttachment()
+                             .Build();
 
-    Onyx::Core::GetDeletionQueue().SubmitForDeletion(shader);
+    const VKit::GraphicsPipeline &pipeline = presult.GetValue();
+    Onyx::Core::GetDeletionQueue().SubmitForDeletion(fragment);
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
+    Onyx::Core::GetDeletionQueue().SubmitForDeletion(pipeline);
+
+    VKIT_ASSERT_RESULT(presult);
+    return VKit::GraphicsJob(pipeline, layout);
 }
 
 static void SetupPostProcessing(Onyx::Window &p_Window) noexcept
@@ -54,17 +66,18 @@ static void SetupPostProcessing(Onyx::Window &p_Window) noexcept
         f32 Width = 800.f;
         f32 Height = 600.f;
     };
-    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+    const VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
 
     VKit::PipelineLayout::Builder builder = p_Window.GetPostProcessing()->CreatePipelineLayoutBuilder();
-    auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
+
+    const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
     VKIT_ASSERT_RESULT(result);
-    VKit::PipelineLayout &layout = result.GetValue();
+    const VKit::PipelineLayout &layout = result.GetValue();
 
     p_Window.SetupPostProcessing(layout, shader);
     static BlurData blurData{};
 
-    p_Window.GetPostProcessing()->UpdatePushConstantRange(&blurData);
+    p_Window.GetPostProcessing()->UpdatePushConstantRange(0, &blurData);
 
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(shader);
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
@@ -79,7 +92,7 @@ static void RunStandaloneWindowPreProcessing() noexcept
 
     Onyx::Window window(specs);
 
-    SetupPreProcessing(window);
+    const VKit::GraphicsJob job = SetupCustomPipeline(window);
     SetupPostProcessing(window);
 
     while (!window.ShouldClose())

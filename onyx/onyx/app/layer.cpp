@@ -40,6 +40,12 @@ void LayerSystem::OnRender(const VkCommandBuffer p_CommandBuffer) noexcept
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnRender(p_CommandBuffer);
 }
+void LayerSystem::OnLateRender(const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnLateRender");
+    for (auto &layer : enabledLayers(m_Layers))
+        layer->OnLateRender(p_CommandBuffer);
+}
 
 void LayerSystem::OnUpdate(const usize p_WindowIndex) noexcept
 {
@@ -53,6 +59,13 @@ void LayerSystem::OnRender(const usize p_WindowIndex, const VkCommandBuffer p_Co
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnRender(p_WindowIndex, p_CommandBuffer);
 }
+void LayerSystem::OnLateRender(const usize p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnLateRender");
+    for (auto &layer : enabledLayers(m_Layers))
+        layer->OnLateRender(p_WindowIndex, p_CommandBuffer);
+}
+
 void LayerSystem::OnImGuiRender() noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnImGuiRender");
