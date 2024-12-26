@@ -121,7 +121,6 @@ template <Dimension D> static void createBuffers(const std::span<const char *con
 
 void CreateCombinedPrimitiveBuffers() noexcept
 {
-    TKIT_LOG_INFO("[ONYX] Creating primitive vertex and index buffers...");
     const std::array<const char *, Primitives<D2>::AMOUNT> paths2D = {ONYX_ROOT_PATH "/onyx/models/triangle.obj",
                                                                       ONYX_ROOT_PATH "/onyx/models/square.obj"};
 
@@ -132,6 +131,8 @@ void CreateCombinedPrimitiveBuffers() noexcept
 
     createBuffers<D2>(paths2D);
     createBuffers<D3>(paths3D);
+
+    TKIT_LOG_INFO("[ONYX] Created primitive vertex and index buffers");
 
     Core::GetDeletionQueue().Push([] {
         s_Buffers2D.Destroy();
