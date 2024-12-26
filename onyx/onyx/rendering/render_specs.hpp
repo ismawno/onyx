@@ -351,6 +351,20 @@ template <> struct ONYX_API RenderState<D3>
     bool Outline = false;
 };
 
+/**
+ * @brief The ProjectionViewData struct is a simple struct that holds the view and projection matrices.
+ *
+ * 2D shapes only need a view matrix, as the projection matrix is always an orthographic projection matrix. The view can
+ * also include scaling.
+ *
+ * In 2D, the projection view matrix is the "raw" inverse of the view's transform. Then, just before sending the data to
+ * the gpu as a mat4, the renderer applies the extrinsic coordinate system.
+ *
+ * In 3D, the projection view matrix is the projection matrix multiplied by the view matrix. As the view matrix is
+ * already a mat4, the renderer can directly apply the extrinsic coordinate system.
+ *
+ * @tparam D
+ */
 template <Dimension D> struct ProjectionViewData;
 
 template <> struct ONYX_API ProjectionViewData<D2>

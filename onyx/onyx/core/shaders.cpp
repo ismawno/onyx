@@ -11,17 +11,17 @@ VKit::Shader CreateShader(const std::string_view p_SourcePath) noexcept
         fs::path binaryPath = p_Path;
         binaryPath = binaryPath.parent_path() / "bin" / binaryPath.filename();
         binaryPath += ".spv";
-        return binaryPath;
+        return binaryPath.string();
     };
 
-    const fs::path binaryPath = createBinaryPath(p_SourcePath);
-    const i32 shresult = VKit::Shader::CompileIfModified(p_SourcePath, binaryPath.c_str());
+    const std::string binaryPath = createBinaryPath(p_SourcePath);
+    const i32 shresult = VKit::Shader::CompileIfModified(p_SourcePath, binaryPath);
 
     TKIT_ASSERT(shresult == 0 || shresult == INT32_MAX, "Failed to compile shader at {}", p_SourcePath);
     TKIT_LOG_INFO_IF(shresult == 0, "Compiled shader: {}", p_SourcePath);
     (void)shresult;
 
-    const auto result = VKit::Shader::Create(Core::GetDevice(), binaryPath.c_str());
+    const auto result = VKit::Shader::Create(Core::GetDevice(), binaryPath);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }

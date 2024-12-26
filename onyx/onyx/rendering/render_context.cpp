@@ -1039,6 +1039,19 @@ template <Dimension D> const ProjectionViewData<D> &IRenderContext<D>::GetProjec
     return m_ProjectionView;
 }
 
+template <Dimension D> void IRenderContext<D>::SetView(const Onyx::Transform<D> &p_View) noexcept
+{
+    m_ProjectionView.View = p_View;
+    if constexpr (D == D2)
+        m_ProjectionView.ProjectionView = p_View.ComputeInverseTransform();
+    else
+    {
+        mat4 vmat = p_View.ComputeInverseTransform();
+        ApplyCoordinateSystemExtrinsic(vmat);
+        m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
+    }
+}
+
 template <Dimension D> void IRenderContext<D>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
 {
     m_Renderer.Render(p_Commandbuffer);

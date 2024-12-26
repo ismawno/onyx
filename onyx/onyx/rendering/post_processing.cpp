@@ -67,9 +67,9 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
         const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
         for (usize i = 0; i < m_ImageViews.size(); ++i)
         {
-            const auto result = pool.Allocate(m_DescriptorSetLayout);
-            VKIT_ASSERT_RESULT(result);
-            m_SamplerDescriptors.push_back(result.GetValue());
+            const auto dresult = pool.Allocate(m_DescriptorSetLayout);
+            VKIT_ASSERT_RESULT(dresult);
+            m_SamplerDescriptors.push_back(dresult.GetValue());
         }
     }
 
