@@ -15,13 +15,13 @@ blurData;
 
 void main()
 {
-    const uint kernelRadius = uint(blurData.KernelSize) / 2;
+    const int kernelRadius = int(blurData.KernelSize) / 2;
 
     vec4 sumColor = vec4(0.0);
     float count = 0.0;
 
-    for (uint y = -kernelRadius; y <= kernelRadius; y++)
-        for (uint x = -kernelRadius; x <= kernelRadius; x++)
+    for (int y = -kernelRadius; y <= kernelRadius; y++)
+        for (int x = -kernelRadius; x <= kernelRadius; x++)
         {
             const vec2 offset = vec2(float(x) / blurData.width, float(y) / blurData.height);
             sumColor += texture(i_FrameImage, i_FragUV + offset);
