@@ -61,6 +61,8 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
     s_GraphicsQueue = s_Device.GetQueue(VKit::QueueType::Graphics);
     s_PresentQueue = s_Device.GetQueue(VKit::QueueType::Present);
     TKIT_LOG_INFO("Created Vulkan device: {}", s_Device.GetPhysicalDevice().GetInfo().Properties.Core.deviceName);
+    TKIT_LOG_WARNING_IF(!(s_Device.GetPhysicalDevice().GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal),
+                        "The device is suitable, but not optimal");
 
     s_DeletionQueue.SubmitForDeletion(s_Device);
 }
