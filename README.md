@@ -44,21 +44,33 @@ while (!window.ShouldClose())
 }
 ```
 
-It is also possible to add pre- and post-processing effects that act on the raw color attachments of the framebuffers witha custom fragment shader. To add such effects to the previous example, the following two functions may be defined:
+It is also very easy to include your own shaders into the Onyx's rendering setup. It is possible to do so with a custom pipeline binding through the `VKit::GraphicsJob` abstraction or with post-processing effects. The latter includes a pre-bound sampled texture that represents the frame that is about to be rendered to the screen, to be modified freely. To add such features, the following two functions may be defined:
 
 ```cpp
-static void SetupPreProcessing(Onyx::Window &p_Window) noexcept
+static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
 {
-    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
+    const VKit::Shader fragment = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
 
-    auto result = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
-    VKIT_ASSERT_RESULT(result);
-    VKit::PipelineLayout &layout = result.GetValue();
+    auto lresult = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
+    VKIT_ASSERT_RESULT(lresult);
+    VKit::PipelineLayout &layout = lresult.GetValue();
 
-    p_Window.SetupPreProcessing(layout, shader);
+    const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout, p_Window.GetRenderPass())
+                             .SetViewportCount(1)
+                             .AddShaderStage(Onyx::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
+                             .AddShaderStage(fragment, VK_SHADER_STAGE_FRAGMENT_BIT)
+                             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+                             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+                             .AddDefaultColorAttachment()
+                             .Build();
 
-    Onyx::Core::GetDeletionQueue().SubmitForDeletion(shader);
+    const VKit::GraphicsPipeline &pipeline = presult.GetValue();
+    Onyx::Core::GetDeletionQueue().SubmitForDeletion(fragment);
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
+    Onyx::Core::GetDeletionQueue().SubmitForDeletion(pipeline);
+
+    VKIT_ASSERT_RESULT(presult);
+    return VKit::GraphicsJob(pipeline, layout);
 }
 
 static void SetupPostProcessing(Onyx::Window &p_Window) noexcept
@@ -71,17 +83,18 @@ static void SetupPostProcessing(Onyx::Window &p_Window) noexcept
         f32 Width = 800.f;
         f32 Height = 600.f;
     };
-    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+    const VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
 
     VKit::PipelineLayout::Builder builder = p_Window.GetPostProcessing()->CreatePipelineLayoutBuilder();
-    auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
+
+    const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
     VKIT_ASSERT_RESULT(result);
-    VKit::PipelineLayout &layout = result.GetValue();
+    const VKit::PipelineLayout &layout = result.GetValue();
 
     p_Window.SetupPostProcessing(layout, shader);
     static BlurData blurData{};
 
-    p_Window.GetPostProcessing()->UpdatePushConstantRange(&blurData);
+    p_Window.GetPostProcessing()->UpdatePushConstantRange(0, &blurData);
 
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(shader);
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
@@ -92,13 +105,13 @@ Then, by modifying the window setup:
 
 ```cpp
 Onyx::Window::Specs specs;
-specs.Name = "Standalone Hello, World! With a pre- and post-processing effect!";
+specs.Name = "Standalone Hello, World! With a custom rainbow background and a post-processing effect!";
 specs.Width = 800;
 specs.Height = 600;
 
 Onyx::Window window(specs);
 
-SetupPreProcessing(window);
+const VKit::GraphicsJob job = SetupCustomPipeline(window);
 SetupPostProcessing(window);
 
 while (!window.ShouldClose())
@@ -111,11 +124,16 @@ while (!window.ShouldClose())
     context->Fill(Onyx::Color::RED);
     context->Square();
 
-    window.Render();
+    window.RenderSubmitFirst([&job](const VkCommandBuffer p_CommandBuffer) {
+        job.Bind(p_CommandBuffer);
+        job.Draw(p_CommandBuffer, 3);
+    });
 }
 ```
 
-These steps are very similar to perform with the Application API. Note that a global Onyx deletion queue is being used to handle resource cleanup at the end of the program.
+Note that, to ensure the custom pipeline that draws a rainbow does so in the background, `RenderSubmitFirst()` is called so that the lambda passed is executed before the main scene rendering. To submit effects that would override previous draws, use `RenderSubmitLast()`.
+
+These steps are very similar to perform with the Application API. Instead of using lambdas, the layer callbacks should be used instead, which already provide a Vulkan command buffer. To handle resource cleanup, a global Onyx deletion queue is being used.
 
 The full code with examples can be found at [hello-world](https://github.com/ismawno/onyx/blob/main/hello-world/main.cpp).
 

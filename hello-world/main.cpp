@@ -83,10 +83,10 @@ static void SetupPostProcessing(Onyx::Window &p_Window) noexcept
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
 }
 
-static void RunStandaloneWindowPreProcessing() noexcept
+static void RunStandaloneWindowCustomPipeline() noexcept
 {
     Onyx::Window::Specs specs;
-    specs.Name = "Standalone Hello, World! With a pre- and post-processing effect!";
+    specs.Name = "Standalone Hello, World! With a custom rainbow background and a post-processing effect!";
     specs.Width = 800;
     specs.Height = 600;
 
@@ -105,7 +105,10 @@ static void RunStandaloneWindowPreProcessing() noexcept
         context->Fill(Onyx::Color::RED);
         context->Square();
 
-        window.Render();
+        window.RenderSubmitFirst([&job](const VkCommandBuffer p_CommandBuffer) {
+            job.Bind(p_CommandBuffer);
+            job.Draw(p_CommandBuffer, 3);
+        });
     }
 }
 
@@ -177,7 +180,7 @@ int main()
 
     Onyx::Core::Initialize(&threadPool);
     RunStandaloneWindow();
-    RunStandaloneWindowPreProcessing();
+    RunStandaloneWindowCustomPipeline();
     RunAppExample1();
     RunAppExample2();
     RunAppExample3();
