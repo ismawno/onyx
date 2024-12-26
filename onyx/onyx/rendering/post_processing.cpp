@@ -38,14 +38,14 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
     TKIT_ASSERT(
         !p_Specs.Layout.GetInfo().DescriptorSetLayouts.empty() &&
             p_Specs.Layout.GetInfo().DescriptorSetLayouts[0] == m_DescriptorSetLayout.GetLayout(),
-        "The pipeline layout used must be created from the PostProcessing's CreatePipelineLayoutBuilder method");
+        "[ONYX] The pipeline layout used must be created from the PostProcessing's CreatePipelineLayoutBuilder method");
 
     Core::DeviceWaitIdle();
     if (m_Sampler)
         vkDestroySampler(Core::GetDevice(), m_Sampler, nullptr);
 
     TKIT_ASSERT_RETURNS(vkCreateSampler(Core::GetDevice(), &p_Specs.SamplerCreateInfo, nullptr, &m_Sampler), VK_SUCCESS,
-                        "Failed to create sampler");
+                        "[ONYX] Failed to create sampler");
 
     const auto result = VKit::GraphicsPipeline::Builder(Core::GetDevice(), p_Specs.Layout, m_RenderPass, 1)
                             .AddShaderStage(p_Specs.VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
@@ -111,7 +111,7 @@ VkSamplerCreateInfo PostProcessing::DefaultSamplerCreateInfo() noexcept
 
 void PostProcessing::UpdateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept
 {
-    TKIT_ASSERT(m_ImageViews.size() == p_ImageViews.size(), "Image view count mismatch");
+    TKIT_ASSERT(m_ImageViews.size() == p_ImageViews.size(), "[ONYX] Image view count mismatch");
     m_ImageViews = p_ImageViews;
     const u32 imageCount = static_cast<u32>(m_ImageViews.size());
     for (u32 i = 0; i < imageCount; ++i)

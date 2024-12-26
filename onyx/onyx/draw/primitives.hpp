@@ -86,8 +86,8 @@ template <Dimension D> struct IPrimitives
      */
     static constexpr usize GetNGonIndex(u32 p_Sides) noexcept
     {
-        TKIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3, "NGon sides must be between 3 and {}",
-                    ONYX_MAX_REGULAR_POLYGON_SIDES);
+        TKIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3,
+                    "[ONYX] NGon sides must be between 3 and {}", ONYX_MAX_REGULAR_POLYGON_SIDES);
         return (D - 1) * 2 + p_Sides - 3 + (D - 2);
     }
 };

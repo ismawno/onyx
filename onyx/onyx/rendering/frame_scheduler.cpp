@@ -44,14 +44,14 @@ FrameScheduler::~FrameScheduler() noexcept
 VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::BeginFrame");
-    TKIT_ASSERT(!m_FrameStarted, "Cannot begin a new frame when there is already one in progress");
+    TKIT_ASSERT(!m_FrameStarted, "[ONYX] Cannot begin a new frame when there is already one in progress");
     if (m_PresentTask) [[likely]]
     {
         const VkResult result = m_PresentTask->WaitForResult();
         const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
                                  p_Window.WasResized() || m_PresentModeChanged;
 
-        TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "Failed to submit command buffers");
+        TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "[ONYX] Failed to submit command buffers");
         if (resizeFixes)
         {
             recreateSwapChain(p_Window);
@@ -64,7 +64,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     {
         TKit::ITaskManager *taskManager = Core::GetTaskManager();
         m_PresentTask = taskManager->CreateTask([this](usize) {
-            TKIT_ASSERT_RETURNS(SubmitCurrentCommandBuffer(), VK_SUCCESS, "Failed to submit command buffers");
+            TKIT_ASSERT_RETURNS(SubmitCurrentCommandBuffer(), VK_SUCCESS, "[ONYX] Failed to submit command buffers");
             return Present();
         });
     }
@@ -76,16 +76,16 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
         return VK_NULL_HANDLE;
     }
 
-    TKIT_ASSERT(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "Failed to acquire swap chain image");
+    TKIT_ASSERT(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "[ONYX] Failed to acquire swap chain image");
     m_FrameStarted = true;
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     TKIT_ASSERT_RETURNS(vkResetCommandBuffer(m_CommandBuffers[m_FrameIndex], 0), VK_SUCCESS,
-                        "Failed to reset command buffer");
+                        "[ONYX] Failed to reset command buffer");
     TKIT_ASSERT_RETURNS(vkBeginCommandBuffer(m_CommandBuffers[m_FrameIndex], &beginInfo), VK_SUCCESS,
-                        "Failed to begin command buffer");
+                        "[ONYX] Failed to begin command buffer");
 
     return m_CommandBuffers[m_FrameIndex];
 }
@@ -93,8 +93,9 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 void FrameScheduler::EndFrame(Window &) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
-    TKIT_ASSERT(m_FrameStarted, "Cannot end a frame when there is no frame in progress");
-    TKIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS, "Failed to end command buffer");
+    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end a frame when there is no frame in progress");
+    TKIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS,
+                        "[ONYX] Failed to end command buffer");
 
     TKit::ITaskManager *taskManager = Core::GetTaskManager();
 
@@ -105,7 +106,7 @@ void FrameScheduler::EndFrame(Window &) noexcept
 
 void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 {
-    TKIT_ASSERT(m_FrameStarted, "Cannot begin render pass if a frame is not in progress");
+    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot begin render pass if a frame is not in progress");
 
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
     const VkExtent2D extent = info.Extent;
@@ -146,7 +147,7 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 
 void FrameScheduler::EndRenderPass() noexcept
 {
-    TKIT_ASSERT(m_FrameStarted, "Cannot end render pass if a frame is not in progress");
+    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end render pass if a frame is not in progress");
     vkCmdNextSubpass(m_CommandBuffers[m_FrameIndex], VK_SUBPASS_CONTENTS_INLINE);
     m_PostProcessing->Bind(m_CommandBuffers[m_FrameIndex], m_ImageIndex);
     m_PostProcessing->Draw(m_CommandBuffers[m_FrameIndex]);
@@ -413,7 +414,7 @@ void FrameScheduler::createCommandBuffers() noexcept
     allocInfo.commandBufferCount = ONYX_MAX_FRAMES_IN_FLIGHT;
 
     TKIT_ASSERT_RETURNS(vkAllocateCommandBuffers(Core::GetDevice(), &allocInfo, m_CommandBuffers.data()), VK_SUCCESS,
-                        "Failed to create command buffers");
+                        "[ONYX] Failed to create command buffers");
 }
 
 void FrameScheduler::setupNaivePostProcessing() noexcept

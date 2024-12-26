@@ -60,9 +60,10 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 
     s_GraphicsQueue = s_Device.GetQueue(VKit::QueueType::Graphics);
     s_PresentQueue = s_Device.GetQueue(VKit::QueueType::Present);
-    TKIT_LOG_INFO("Created Vulkan device: {}", s_Device.GetPhysicalDevice().GetInfo().Properties.Core.deviceName);
+    TKIT_LOG_INFO("[ONYX] Created Vulkan device: {}",
+                  s_Device.GetPhysicalDevice().GetInfo().Properties.Core.deviceName);
     TKIT_LOG_WARNING_IF(!(s_Device.GetPhysicalDevice().GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal),
-                        "The device is suitable, but not optimal");
+                        "[ONYX] The device is suitable, but not optimal");
 
     s_DeletionQueue.SubmitForDeletion(s_Device);
 }
@@ -77,8 +78,8 @@ static void createVulkanAllocator() noexcept
     allocatorInfo.flags = 0;
     allocatorInfo.pVulkanFunctions = nullptr;
     TKIT_ASSERT_RETURNS(vmaCreateAllocator(&allocatorInfo, &s_VulkanAllocator), VK_SUCCESS,
-                        "Failed to create vulkan allocator");
-    TKIT_LOG_INFO("Created Vulkan allocator");
+                        "[ONYX] Failed to create vulkan allocator");
+    TKIT_LOG_INFO("[ONYX] Created Vulkan allocator");
 
     s_DeletionQueue.Push([] { vmaDestroyAllocator(s_VulkanAllocator); });
 }
@@ -91,7 +92,7 @@ static void createCommandPool() noexcept
     const auto poolres = VKit::CommandPool::Create(s_Device, specs);
     VKIT_ASSERT_RESULT(poolres);
     s_CommandPool = poolres.GetValue();
-    TKIT_LOG_INFO("Created global command pool");
+    TKIT_LOG_INFO("[ONYX] Created global command pool");
 
     s_DeletionQueue.SubmitForDeletion(s_CommandPool);
 }
@@ -105,7 +106,7 @@ static void createProfilingContext() noexcept
 
     s_ProfilingContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue,
                                                             s_ProfilingCommandBuffer);
-    TKIT_LOG_INFO("Created Vulkan profiling context");
+    TKIT_LOG_INFO("[ONYX] Created Vulkan profiling context");
 
     s_DeletionQueue.Push([] {
         TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_ProfilingContext);
@@ -139,7 +140,7 @@ static void createDescriptorData() noexcept
 
     VKIT_ASSERT_RESULT(layoutResult);
     s_LightStorageLayout = layoutResult.GetValue();
-    TKIT_LOG_INFO("Created global descriptor data");
+    TKIT_LOG_INFO("[ONYX] Created global descriptor data");
 
     s_DeletionQueue.SubmitForDeletion(s_DescriptorPool);
     s_DeletionQueue.SubmitForDeletion(s_TransformStorageLayout);
@@ -163,7 +164,7 @@ static void createPipelineLayouts() noexcept
 
     VKIT_ASSERT_RESULT(layoutResult);
     s_GraphicsPipelineLayout3D = layoutResult.GetValue();
-    TKIT_LOG_INFO("Created global pipeline layouts");
+    TKIT_LOG_INFO("[ONYX] Created global pipeline layouts");
 
     s_DeletionQueue.SubmitForDeletion(s_GraphicsPipelineLayout2D);
     s_DeletionQueue.SubmitForDeletion(s_GraphicsPipelineLayout3D);
@@ -175,16 +176,16 @@ static void createShaders() noexcept
     Shaders<D2, DrawMode::Stencil>::Initialize();
     Shaders<D3, DrawMode::Fill>::Initialize();
     Shaders<D3, DrawMode::Stencil>::Initialize();
-    TKIT_LOG_INFO("Created global shaders");
+    TKIT_LOG_INFO("[ONYX] Created global shaders");
 }
 
 void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
 {
-    TKIT_LOG_INFO("Initializing Onyx...");
+    TKIT_LOG_INFO("[ONYX] Initializing...");
     const auto sysres = VKit::System::Initialize();
     VKIT_ASSERT_VULKAN_RESULT(sysres);
 
-    TKIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "Failed to initialize GLFW");
+    TKIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX] Failed to initialize GLFW");
     u32 extensionCount;
     const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
     const std::span<const char *> extensionSpan(extensions, extensionCount);
@@ -200,8 +201,9 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
 
     s_Instance = result.GetValue();
     s_TaskManager = p_TaskManager;
-    TKIT_LOG_INFO("Created Vulkan instance. API version: {}.{}.{}", VK_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion),
-                  VK_VERSION_MINOR(s_Instance.GetInfo().ApiVersion), VK_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
+    TKIT_LOG_INFO("[ONYX] Created Vulkan instance. API version: {}.{}.{}",
+                  VK_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion), VK_VERSION_MINOR(s_Instance.GetInfo().ApiVersion),
+                  VK_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
     s_DeletionQueue.SubmitForDeletion(s_Instance);
 }
 
@@ -216,8 +218,8 @@ void Core::Terminate() noexcept
 
 void Core::CreateDevice(const VkSurfaceKHR p_Surface) noexcept
 {
-    TKIT_ASSERT(s_Instance, "Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
-    TKIT_ASSERT(!s_Device, "Device has already been created");
+    TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
+    TKIT_ASSERT(!s_Device, "[ONYX] Device has already been created");
 
     createDevice(p_Surface);
     createVulkanAllocator();
@@ -237,7 +239,7 @@ TKit::ITaskManager *Core::GetTaskManager() noexcept
 
 const VKit::Instance &Core::GetInstance() noexcept
 {
-    TKIT_ASSERT(s_Instance, "Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
+    TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     return s_Instance;
 }
 const VKit::LogicalDevice &Core::GetDevice() noexcept

@@ -145,7 +145,7 @@ template <typename Renderer, typename... DrawArgs>
 void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Flags, DrawArgs &&...p_Args) noexcept
 {
     const RenderState<D> &state = m_State->back();
-    TKIT_ASSERT(state.OutlineWidth >= 0.f, "Outline width must be non-negative");
+    TKIT_ASSERT(state.OutlineWidth >= 0.f, "[ONYX] Outline width must be non-negative");
 
     if (p_Flags & DrawFlags_Auto)
     {

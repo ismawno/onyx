@@ -239,7 +239,7 @@ template <Dimension D, PipelineMode PMode>
 void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
                                      const std::span<const vec<D>> p_Vertices) noexcept
 {
-    TKIT_ASSERT(p_Vertices.size() >= 3, "A polygon must have at least 3 sides");
+    TKIT_ASSERT(p_Vertices.size() >= 3, "[ONYX] A polygon must have at least 3 sides");
     const usize storageSize = m_HostInstanceData.size();
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     if (storageSize == storageBuffer.GetInfo().InstanceCount)

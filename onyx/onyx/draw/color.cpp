@@ -24,7 +24,7 @@ static f32 toFloat(const u32 p_Val) noexcept
 
 Color::Color(const f32 p_Val) noexcept : Color(p_Val, p_Val, p_Val, 1.f)
 {
-    TKIT_ASSERT(p_Val <= 1.f && p_Val >= 0.f, "Color floating values must be in the range [0, 1]");
+    TKIT_ASSERT(p_Val <= 1.f && p_Val >= 0.f, "[ONYX] Color floating values must be in the range [0, 1]");
 }
 Color::Color(const u32 p_Val) noexcept : Color(p_Val, p_Val, p_Val, 255u)
 {
@@ -35,32 +35,32 @@ Color::Color(const u8 p_Val) noexcept : Color(p_Val, p_Val, p_Val, 255)
 
 Color::Color(const vec4 &p_RGBA) noexcept : RGBA(p_RGBA)
 {
-    TKIT_ASSERT(p_RGBA.r <= 1.f && p_RGBA.r >= 0.f, "Red value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGBA.g <= 1.f && p_RGBA.g >= 0.f, "Green value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGBA.b <= 1.f && p_RGBA.b >= 0.f, "Blue value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGBA.a <= 1.f && p_RGBA.a >= 0.f, "Alpha value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGBA.r <= 1.f && p_RGBA.r >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGBA.g <= 1.f && p_RGBA.g >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGBA.b <= 1.f && p_RGBA.b >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGBA.a <= 1.f && p_RGBA.a >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
 }
 Color::Color(const vec3 &p_RGB, const f32 p_Alpha) noexcept : RGBA(p_RGB, p_Alpha)
 {
-    TKIT_ASSERT(p_RGB.r <= 1.f && p_RGB.r >= 0.f, "Red value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGB.g <= 1.f && p_RGB.g >= 0.f, "Green value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGB.b <= 1.f && p_RGB.b >= 0.f, "Blue value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGB.r <= 1.f && p_RGB.r >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGB.g <= 1.f && p_RGB.g >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGB.b <= 1.f && p_RGB.b >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
 }
 
 Color::Color(const f32 r, const f32 g, const f32 b, const f32 a) noexcept : RGBA(r, g, b, a)
 {
-    TKIT_ASSERT(r <= 1.f && r >= 0.f, "Red value must be in the range [0, 1]");
-    TKIT_ASSERT(g <= 1.f && g >= 0.f, "Green value must be in the range [0, 1]");
-    TKIT_ASSERT(b <= 1.f && b >= 0.f, "Blue value must be in the range [0, 1]");
-    TKIT_ASSERT(a <= 1.f && a >= 0.f, "Alpha value must be in the range [0, 1]");
+    TKIT_ASSERT(r <= 1.f && r >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
+    TKIT_ASSERT(g <= 1.f && g >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
+    TKIT_ASSERT(b <= 1.f && b >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
+    TKIT_ASSERT(a <= 1.f && a >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
 }
 Color::Color(const u32 r, const u32 g, const u32 b, const u32 a) noexcept
     : RGBA(toFloat(r), toFloat(g), toFloat(b), toFloat(a))
 {
-    TKIT_ASSERT(r < 256, "Red value must be in the range [0, 255]");
-    TKIT_ASSERT(g < 256, "Green value must be in the range [0, 255]");
-    TKIT_ASSERT(b < 256, "Blue value must be in the range [0, 255]");
-    TKIT_ASSERT(a < 256, "Alpha value must be in the range [0, 255]");
+    TKIT_ASSERT(r < 256, "[ONYX] Red value must be in the range [0, 255]");
+    TKIT_ASSERT(g < 256, "[ONYX] Green value must be in the range [0, 255]");
+    TKIT_ASSERT(b < 256, "[ONYX] Blue value must be in the range [0, 255]");
+    TKIT_ASSERT(a < 256, "[ONYX] Alpha value must be in the range [0, 255]");
 }
 Color::Color(const u8 r, const u8 g, const u8 b, const u8 a) noexcept
     : RGBA(toFloat(r), toFloat(g), toFloat(b), toFloat(a))
@@ -70,12 +70,12 @@ Color::Color(const u8 r, const u8 g, const u8 b, const u8 a) noexcept
 
 Color::Color(const Color &p_RGB, const f32 p_Alpha) noexcept : RGBA(vec3(p_RGB.RGBA), p_Alpha)
 {
-    TKIT_ASSERT(p_Alpha <= 1.f && p_Alpha >= 0.f, "Alpha value must be in the range [0, 1]");
+    TKIT_ASSERT(p_Alpha <= 1.f && p_Alpha >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
 }
 
 Color::Color(const Color &p_RGB, const u32 p_Alpha) noexcept : RGBA(vec3(p_RGB.RGBA), toFloat(p_Alpha))
 {
-    TKIT_ASSERT(p_Alpha < 256, "Alpha value must be in the range [0, 255]");
+    TKIT_ASSERT(p_Alpha < 256, "[ONYX] Alpha value must be in the range [0, 255]");
 }
 Color::Color(const Color &p_RGB, const u8 p_Alpha) noexcept : RGBA(vec3(p_RGB.RGBA), toFloat(p_Alpha))
 {
@@ -221,12 +221,12 @@ const HashMap<std::string, Color> Color::s_ColorMap{
 
 Gradient::Gradient(const std::span<const Color> p_Span) noexcept : m_Colors(p_Span)
 {
-    TKIT_ASSERT(p_Span.size() >= 2, "Gradient must have at least two colors");
+    TKIT_ASSERT(p_Span.size() >= 2, "[ONYX] Gradient must have at least two colors");
 }
 
 Color Gradient::Evaluate(const f32 p_T) const noexcept
 {
-    TKIT_ASSERT(p_T >= 0.f && p_T <= 1.f, "Gradient evaluation parameter must be in the range [0, 1]");
+    TKIT_ASSERT(p_T >= 0.f && p_T <= 1.f, "[ONYX] Gradient evaluation parameter must be in the range [0, 1]");
 
     if (TKit::ApproachesZero(p_T))
         return m_Colors.front();

@@ -17,7 +17,7 @@ IRenderContext<D>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderP
 
 template <Dimension D> void IRenderContext<D>::FlushState() noexcept
 {
-    TKIT_ASSERT(m_RenderState.size() == 1, "For every push, there must be a pop");
+    TKIT_ASSERT(m_RenderState.size() == 1, "[ONYX] For every push, there must be a pop");
     m_RenderState[0] = RenderState<D>{};
 }
 template <Dimension D> void IRenderContext<D>::FlushState(const Color &p_Color) noexcept
@@ -631,7 +631,7 @@ void RenderContext<D3>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_Z1, con
 template <Dimension D>
 void IRenderContext<D>::LineStrip(std::span<const vec<D>> p_Points, const f32 p_Thickness) noexcept
 {
-    TKIT_ASSERT(p_Points.size() > 1, "A line strip must have at least two points");
+    TKIT_ASSERT(p_Points.size() > 1, "[ONYX] A line strip must have at least two points");
     for (u32 i = 0; i < p_Points.size() - 1; ++i)
         Line(p_Points[i], p_Points[i + 1], p_Thickness);
 }
@@ -983,7 +983,7 @@ template <Dimension D> void IRenderContext<D>::PushAndClear() noexcept
 }
 template <Dimension D> void IRenderContext<D>::Pop() noexcept
 {
-    TKIT_ASSERT(m_RenderState.size() > 1, "For every push, there must be a pop");
+    TKIT_ASSERT(m_RenderState.size() > 1, "[ONYX] For every push, there must be a pop");
     m_RenderState.pop_back();
 }
 

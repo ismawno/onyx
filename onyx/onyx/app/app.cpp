@@ -29,14 +29,14 @@ bool IApplication::IsRunning() const noexcept
 
 void IApplication::Startup() noexcept
 {
-    TKIT_ASSERT(!m_Terminated && !m_Started, "Application cannot be started more than once");
+    TKIT_ASSERT(!m_Terminated && !m_Started, "[ONYX] Application cannot be started more than once");
     m_Started = true;
     Layers.OnStart();
 }
 
 void IApplication::Shutdown() noexcept
 {
-    TKIT_ASSERT(!m_Terminated && m_Started, "Application cannot be terminated before it is started");
+    TKIT_ASSERT(!m_Terminated && m_Started, "[ONYX] Application cannot be terminated before it is started");
     Layers.OnShutdown();
     if (Core::IsDeviceCreated())
         vkDestroyDescriptorPool(Core::GetDevice(), m_ImGuiPool, nullptr);
@@ -45,7 +45,7 @@ void IApplication::Shutdown() noexcept
 
 void IApplication::ApplyTheme() noexcept
 {
-    TKIT_ASSERT(m_Theme, "No theme has been set. Set one with SetTheme");
+    TKIT_ASSERT(m_Theme, "[ONYX] No theme has been set. Set one with SetTheme");
     m_Theme->Apply();
 }
 
@@ -100,7 +100,7 @@ void IApplication::createImGuiPool() noexcept
     poolInfo.pPoolSizes = poolSizes;
 
     TKIT_ASSERT_RETURNS(vkCreateDescriptorPool(Core::GetDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
-                        "Failed to create descriptor pool");
+                        "[ONYX] Failed to create descriptor pool");
 }
 
 void IApplication::initializeImGui(Window &p_Window) noexcept

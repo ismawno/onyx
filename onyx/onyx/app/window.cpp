@@ -40,10 +40,10 @@ void Window::createWindow(const Specs &p_Specs) noexcept
 
     m_Window = glfwCreateWindow(static_cast<i32>(p_Specs.Width), static_cast<i32>(p_Specs.Height), p_Specs.Name,
                                 nullptr, nullptr);
-    TKIT_ASSERT(m_Window, "Failed to create a GLFW window");
+    TKIT_ASSERT(m_Window, "[ONYX] Failed to create a GLFW window");
 
     TKIT_ASSERT_RETURNS(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
-                        "Failed to create a window surface");
+                        "[ONYX] Failed to create a window surface");
     glfwSetWindowUserPointer(m_Window, this);
 
     if (!Core::IsDeviceCreated())

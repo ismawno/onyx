@@ -23,7 +23,7 @@ void MWExampleLayer::OnUpdate(const usize p_WindowIndex) noexcept
 
 bool MWExampleLayer::OnEvent(const usize p_WindowIndex, const Event &p_Event) noexcept
 {
-    TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.size(), "Index out of bounds");
+    TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.size(), "[ONYX] Index out of bounds");
     if (p_Event.Type == Event::WindowOpened)
         m_Data.emplace_back().OnStart(p_Event.Window);
     else if (p_Event.Type == Event::WindowClosed)

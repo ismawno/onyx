@@ -40,12 +40,12 @@ void IMultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
 
 const Window *IMultiWindowApplication::GetWindow(const usize p_Index) const noexcept
 {
-    TKIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
     return m_Windows[p_Index].Get();
 }
 Window *IMultiWindowApplication::GetWindow(const usize p_Index) noexcept
 {
-    TKIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
     return m_Windows[p_Index].Get();
 }
 
@@ -76,7 +76,7 @@ bool IMultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 
 void MultiWindowApplication<Serial>::CloseWindow(const usize p_Index) noexcept
 {
-    TKIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
     if (m_MustDeferWindowManagement)
     {
         m_Windows[p_Index]->FlagShouldClose();
@@ -165,7 +165,7 @@ void MultiWindowApplication<Serial>::setDeltaTime(const TKit::Timespan p_DeltaTi
 
 void MultiWindowApplication<Concurrent>::CloseWindow(const usize p_Index) noexcept
 {
-    TKIT_ASSERT(p_Index < m_Windows.size(), "Index out of bounds");
+    TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
 
     // m_MustDeferWindowManagement does not need to be atomic because only way to get to the second part is by being the
     // main thread
