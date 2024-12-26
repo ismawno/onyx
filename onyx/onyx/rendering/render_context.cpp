@@ -1114,9 +1114,8 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
 
         const vec2 mpos = Input::GetMousePosition(m_Window);
 
-        const f32 step = 180.f * p_RotationStep;
         const vec2 delta =
-            Input::IsKeyPressed(m_Window, Input::Key::LeftShift) ? step * (m_PrevMousePos - mpos) : vec2{0.f};
+            Input::IsKeyPressed(m_Window, Input::Key::LeftShift) ? 3.f * (m_PrevMousePos - mpos) : vec2{0.f};
         m_PrevMousePos = mpos;
 
         vec3 angles{delta.y, delta.x, 0.f};
