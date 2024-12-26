@@ -15,7 +15,6 @@ blurData;
 
 void main()
 {
-    // Convert the user-defined KernelSize into a radius
     const int kernelRadius = int(blurData.KernelSize) / 2;
 
     vec4 sumColor = vec4(0.0);
@@ -31,6 +30,5 @@ void main()
         }
     }
 
-    // Average the collected samples
     o_Color = sumColor / count;
 }
