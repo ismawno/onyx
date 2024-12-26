@@ -5,78 +5,43 @@
 
 namespace Onyx
 {
-static const VKit::Shader &getBlurShader() noexcept
-{
-    static VKit::Shader shader{};
-    if (!shader)
-    {
-        shader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
-        Core::GetDeletionQueue().SubmitForDeletion(shader);
-    }
-    return shader;
-}
-
-static const VKit::PipelineLayout &getBlurPipelineLayout(const PostProcessing *p_PostProcessing) noexcept
-{
-    static VKit::PipelineLayout layout{};
-    if (!layout)
-    {
-        VKit::PipelineLayout::Builder builder = p_PostProcessing->CreatePipelineLayoutBuilder();
-        const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
-        VKIT_ASSERT_RESULT(result);
-        layout = result.GetValue();
-
-        Core::GetDeletionQueue().SubmitForDeletion(layout);
-    }
-    return layout;
-}
-
-static const VKit::Shader &getRainbowShader() noexcept
-{
-    static VKit::Shader shader{};
-    if (!shader)
-    {
-        shader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
-        Core::GetDeletionQueue().SubmitForDeletion(shader);
-    }
-    return shader;
-}
-
-static const VKit::PipelineLayout &getRainbowPipelineLayout() noexcept
-{
-    static VKit::PipelineLayout layout{};
-    if (!layout)
-    {
-        const auto result = VKit::PipelineLayout::Builder(Core::GetDevice()).Build();
-        VKIT_ASSERT_RESULT(result);
-        layout = result.GetValue();
-
-        Core::GetDeletionQueue().SubmitForDeletion(layout);
-    }
-    return layout;
-}
-
 void WindowData::OnStart(Window *p_Window) noexcept
 {
     m_LayerData2.Context = p_Window->GetRenderContext<D2>();
     m_LayerData3.Context = p_Window->GetRenderContext<D3>();
     m_Window = p_Window;
 
-    const auto result =
-        VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowPipelineLayout(), m_Window->GetRenderPass())
-            .SetViewportCount(1)
-            .AddShaderStage(GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
-            .AddShaderStage(getRainbowShader(), VK_SHADER_STAGE_FRAGMENT_BIT)
-            .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-            .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
-            .AddDefaultColorAttachment()
-            .Build();
+    const VKit::Shader rainbow = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
+    auto lresult = VKit::PipelineLayout::Builder(Core::GetDevice()).Build();
+    VKIT_ASSERT_RESULT(lresult);
+    const VKit::PipelineLayout layout = lresult.GetValue();
 
-    VKIT_ASSERT_RESULT(result);
-    const VKit::GraphicsPipeline &pipeline = result.GetValue();
+    const auto presult = VKit::GraphicsPipeline::Builder(Core::GetDevice(), layout, m_Window->GetRenderPass())
+                             .SetViewportCount(1)
+                             .AddShaderStage(GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
+                             .AddShaderStage(rainbow, VK_SHADER_STAGE_FRAGMENT_BIT)
+                             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+                             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+                             .AddDefaultColorAttachment()
+                             .Build();
+
+    VKIT_ASSERT_RESULT(presult);
+    const VKit::GraphicsPipeline &pipeline = presult.GetValue();
+
+    m_RainbowJob = VKit::GraphicsJob(presult.GetValue(), layout);
+
+    m_BlurShader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+
+    VKit::PipelineLayout::Builder builder = m_Window->GetPostProcessing()->CreatePipelineLayoutBuilder();
+    lresult = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
+    VKIT_ASSERT_RESULT(lresult);
+    m_BlurLayout = lresult.GetValue();
+
     Core::GetDeletionQueue().SubmitForDeletion(pipeline);
-
-    m_RainbowJob = VKit::GraphicsJob(result.GetValue(), getRainbowPipelineLayout());
+    Core::GetDeletionQueue().SubmitForDeletion(m_BlurShader);
+    Core::GetDeletionQueue().SubmitForDeletion(rainbow);
+    Core::GetDeletionQueue().SubmitForDeletion(m_BlurLayout);
+    Core::GetDeletionQueue().SubmitForDeletion(layout);
 }
 
 void WindowData::OnUpdate() noexcept
@@ -110,21 +75,15 @@ void WindowData::OnImGuiRender() noexcept
         m_Window->SetPresentMode(vsync ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR);
 
     ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
-    if (ImGui::TreeNode("Post-processing"))
+    if (ImGui::Checkbox("Blur", &m_PostProcessing))
     {
-        if (ImGui::Checkbox("Enable", &m_PostProcessing))
-        {
-            if (m_PostProcessing)
-            {
-                PostProcessing *postProcessing = m_Window->GetPostProcessing();
-                m_Window->SetupPostProcessing(getBlurPipelineLayout(postProcessing), getBlurShader());
-            }
-            else
-                m_Window->RemovePostProcessing();
-        }
-        ImGui::SliderInt("Blur kernel size", (int *)&m_BlurData.KernelSize, 0, 12);
-        ImGui::TreePop();
+        if (m_PostProcessing)
+            m_Window->SetupPostProcessing(m_BlurLayout, m_BlurShader);
+        else
+            m_Window->RemovePostProcessing();
     }
+    if (m_PostProcessing)
+        ImGui::SliderInt("Blur kernel size", (int *)&m_BlurData.KernelSize, 0, 12);
 
     ImGui::BeginTabBar("Dimension");
     if (ImGui::BeginTabItem("2D"))
