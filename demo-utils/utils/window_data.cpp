@@ -101,7 +101,11 @@ void WindowData::OnImGuiRender() noexcept
     if (ImGui::Checkbox("Blur", &m_PostProcessing))
     {
         if (m_PostProcessing)
-            m_Window->SetupPostProcessing(m_BlurLayout, getBlurShader());
+        {
+            m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
+            m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
+            m_Window->SetupPostProcessing(m_BlurLayout, getBlurShader())->UpdatePushConstantRange(0, &m_BlurData);
+        }
         else
             m_Window->RemovePostProcessing();
     }
