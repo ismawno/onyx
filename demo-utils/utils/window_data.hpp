@@ -78,7 +78,6 @@ class WindowData
     BlurData m_BlurData{};
     VKit::GraphicsJob m_RainbowJob{};
 
-    VKit::Shader m_BlurShader{};
     VKit::PipelineLayout m_BlurLayout{};
 
     bool m_RainbowBackground = false;

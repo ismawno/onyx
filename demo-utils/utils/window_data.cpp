@@ -5,43 +5,66 @@
 
 namespace Onyx
 {
+static const VKit::PipelineLayout &getRainbowLayout() noexcept
+{
+    static VKit::PipelineLayout layout{};
+    if (layout)
+        return layout;
+    const auto result = VKit::PipelineLayout::Builder(Core::GetDevice()).Build();
+    VKIT_ASSERT_RESULT(result);
+    layout = result.GetValue();
+    Core::GetDeletionQueue().SubmitForDeletion(layout);
+    return layout;
+}
+
+static const VKit::Shader &getRainbowShader() noexcept
+{
+    static VKit::Shader shader{};
+    if (shader)
+        return shader;
+    shader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
+    Core::GetDeletionQueue().SubmitForDeletion(shader);
+    return shader;
+}
+
+static const VKit::Shader &getBlurShader() noexcept
+{
+    static VKit::Shader shader{};
+    if (shader)
+        return shader;
+    shader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+    Core::GetDeletionQueue().SubmitForDeletion(shader);
+    return shader;
+}
+
 void WindowData::OnStart(Window *p_Window) noexcept
 {
     m_LayerData2.Context = p_Window->GetRenderContext<D2>();
     m_LayerData3.Context = p_Window->GetRenderContext<D3>();
     m_Window = p_Window;
 
-    const VKit::Shader rainbow = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
-    auto lresult = VKit::PipelineLayout::Builder(Core::GetDevice()).Build();
-    VKIT_ASSERT_RESULT(lresult);
-    const VKit::PipelineLayout layout = lresult.GetValue();
-
-    const auto presult = VKit::GraphicsPipeline::Builder(Core::GetDevice(), layout, m_Window->GetRenderPass())
-                             .SetViewportCount(1)
-                             .AddShaderStage(GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
-                             .AddShaderStage(rainbow, VK_SHADER_STAGE_FRAGMENT_BIT)
-                             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-                             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
-                             .AddDefaultColorAttachment()
-                             .Build();
+    const auto presult =
+        VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowLayout(), m_Window->GetRenderPass())
+            .SetViewportCount(1)
+            .AddShaderStage(GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
+            .AddShaderStage(getRainbowShader(), VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+            .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+            .AddDefaultColorAttachment()
+            .Build();
 
     VKIT_ASSERT_RESULT(presult);
     const VKit::GraphicsPipeline &pipeline = presult.GetValue();
 
-    m_RainbowJob = VKit::GraphicsJob(presult.GetValue(), layout);
-
-    m_BlurShader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+    m_RainbowJob = VKit::GraphicsJob(presult.GetValue(), getRainbowLayout());
 
     VKit::PipelineLayout::Builder builder = m_Window->GetPostProcessing()->CreatePipelineLayoutBuilder();
-    lresult = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
-    VKIT_ASSERT_RESULT(lresult);
-    m_BlurLayout = lresult.GetValue();
+    const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
+    VKIT_ASSERT_RESULT(result);
+    m_BlurLayout = result.GetValue();
 
     Core::GetDeletionQueue().SubmitForDeletion(pipeline);
-    Core::GetDeletionQueue().SubmitForDeletion(m_BlurShader);
-    Core::GetDeletionQueue().SubmitForDeletion(rainbow);
     Core::GetDeletionQueue().SubmitForDeletion(m_BlurLayout);
-    Core::GetDeletionQueue().SubmitForDeletion(layout);
 }
 
 void WindowData::OnUpdate() noexcept
@@ -78,7 +101,7 @@ void WindowData::OnImGuiRender() noexcept
     if (ImGui::Checkbox("Blur", &m_PostProcessing))
     {
         if (m_PostProcessing)
-            m_Window->SetupPostProcessing(m_BlurLayout, m_BlurShader);
+            m_Window->SetupPostProcessing(m_BlurLayout, getBlurShader());
         else
             m_Window->RemovePostProcessing();
     }
