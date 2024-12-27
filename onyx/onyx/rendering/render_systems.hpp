@@ -227,13 +227,17 @@ template <Dimension D, PipelineMode PMode> class ONYX_API CircleRenderer
      *
      * @param p_FrameIndex The index of the current frame.
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
-     * @param p_LowerAngle The angle from which the arc starts.
-     * @param p_UpperAngle The angle at which the arc ends.
+     * @param p_InnerFade A normalized value between 0 and 1, denoting how much the circle fades from the center to the
+     * edge.
+     * @param p_OuterFade A normalized value between 0 and 1, denoting how much the circle fades from the edge to the
+     * center.
      * @param p_Hollowness A normalized value between 0 and 1, denoting how hollow the circle is. 0 is a full circle and
      * 1 would correspond to not having a circle at all.
+     * @param p_LowerAngle The angle from which the arc starts.
+     * @param p_UpperAngle The angle at which the arc ends.
      */
-    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, f32 p_LowerAngle, f32 p_UpperAngle,
-              f32 p_Hollowness) noexcept;
+    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, f32 p_InnerFade, f32 p_OuterFade, f32 p_Hollowness,
+              f32 p_LowerAngle, f32 p_UpperAngle) noexcept;
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.

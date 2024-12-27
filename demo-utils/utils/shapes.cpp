@@ -53,13 +53,15 @@ template <Dimension D> const char *Circle<D>::GetName() const noexcept
 
 template <Dimension D> void Circle<D>::draw(RenderContext<D> *p_Context) noexcept
 {
-    p_Context->Circle(this->Transform.ComputeTransform(), LowerAngle, UpperAngle, Hollowness);
+    p_Context->Arc(this->Transform.ComputeTransform(), LowerAngle, UpperAngle, InnerFade, LowerFade, Hollowness);
 }
 
 template <Dimension D> void Circle<D>::Edit() noexcept
 {
     Shape<D>::Edit();
     ImGui::PushID(this);
+    ImGui::SliderFloat("Inner Fade", &InnerFade, 0.f, 1.f, "%.2f");
+    ImGui::SliderFloat("Outer Fade", &LowerFade, 0.f, 1.f, "%.2f");
     ImGui::SliderAngle("Lower Angle", &LowerAngle);
     ImGui::SliderAngle("Upper Angle", &UpperAngle);
     ImGui::SliderFloat("Hollowness", &Hollowness, 0.f, 1.f, "%.2f");

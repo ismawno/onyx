@@ -132,25 +132,31 @@ template <Dimension D> class ONYX_API IRenderer
      * @brief Record a draw call for a circle or arc.
      *
      * @param p_Transform The transformation matrix to apply to the circle.
+     * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
+     * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
+     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
      * @param p_LowerAngle Starting angle of the arc in radians.
      * @param p_UpperAngle Ending angle of the arc in radians.
-     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawCircle(const mat<D> &p_Transform, f32 p_LowerAngle = 0.f, f32 p_UpperAngle = glm::two_pi<f32>(),
-                    f32 p_Hollowness = 0.f, u8 p_Flags = DrawFlags_Auto) noexcept;
+    void DrawCircleOrArc(const mat<D> &p_Transform, f32 p_InnerFade = 0.f, f32 p_OuterFade = 0.f,
+                         f32 p_Hollowness = 0.f, f32 p_LowerAngle = 0.f, f32 p_UpperAngle = glm::two_pi<f32>(),
+                         u8 p_Flags = DrawFlags_Auto) noexcept;
 
     /**
      * @brief Record a draw call for a circle or arc with flags specified before angles.
      *
      * @param p_Transform The transformation matrix to apply to the circle.
      * @param p_Flags Drawing flags to control rendering behavior.
+     * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
+     * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
      * @param p_LowerAngle Starting angle of the arc in radians.
      * @param p_UpperAngle Ending angle of the arc in radians.
      * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
      */
-    void DrawCircle(const mat<D> &p_Transform, u8 p_Flags, f32 p_LowerAngle = 0.f,
-                    f32 p_UpperAngle = glm::two_pi<f32>(), f32 p_Hollowness = 0.f) noexcept;
+    void DrawCircleOrArc(const mat<D> &p_Transform, u8 p_Flags, f32 p_InnerFade = 0.f, f32 p_OuterFade = 0.f,
+                         f32 p_Hollowness = 0.f, f32 p_LowerAngle = 0.f,
+                         f32 p_UpperAngle = glm::two_pi<f32>()) noexcept;
 
   protected:
     /// Current frame index for synchronization purposes.

@@ -255,6 +255,8 @@ template <Dimension D, DrawMode DMode> struct ONYX_API CircleInstanceData
     alignas(16) vec4 ArcInfo;
     u32 AngleOverflow;
     f32 Hollowness;
+    f32 InnerFade;
+    f32 OuterFade;
 };
 TKIT_WARNING_IGNORE_POP
 

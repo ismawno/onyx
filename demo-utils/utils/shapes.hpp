@@ -49,6 +49,8 @@ template <Dimension D> class Circle final : public Shape<D>
 
     void Edit() noexcept override;
 
+    f32 InnerFade = 0.f;
+    f32 LowerFade = 0.f;
     f32 LowerAngle = 0.f;
     f32 UpperAngle = glm::two_pi<f32>();
     f32 Hollowness = 0.f;

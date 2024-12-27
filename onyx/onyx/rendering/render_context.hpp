@@ -383,13 +383,33 @@ template <Dimension D> class ONYX_API IRenderContext
     void Circle(const mat<D> &p_Transform) noexcept;
 
     /**
+     * @brief Draw a unit circle with the specified fade values.
+     *
+     * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
+     * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
+     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
+     */
+    void Circle(f32 p_InnerFade, f32 p_OuterFade, f32 p_Hollowness = 0.f) noexcept;
+
+    /**
+     * @brief Draw a unit circle with the specified fade values and transformation.
+     *
+     * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
+     * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
+     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
+     */
+    void Circle(const mat<D> &p_Transform, f32 p_InnerFade, f32 p_OuterFade, f32 p_Hollowness = 0.f) noexcept;
+
+    /**
      * @brief Draw a circular arc or annulus sector.
      *
      * @param p_LowerAngle The starting angle in radians.
      * @param p_UpperAngle The ending angle in radians.
      * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
      */
-    void Circle(f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
+    void Arc(f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
 
     /**
      * @brief Draw a circular arc with the specified transformation matrix.
@@ -400,7 +420,30 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_UpperAngle The ending angle in radians.
      * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
      */
-    void Circle(const mat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
+    void Arc(const mat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
+
+    /**
+     * @brief Draw a circular arc or annulus sector.
+     *
+     * @param p_LowerAngle The starting angle in radians.
+     * @param p_UpperAngle The ending angle in radians.
+     * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
+     * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
+     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
+     */
+    void Arc(f32 p_LowerAngle, f32 p_UpperAngle, f32 p_InnerFade, f32 p_OuterFade, f32 p_Hollowness = 0.f) noexcept;
+
+    /**
+     * @brief Draw a circular arc with the specified transformation matrix.
+     *
+     * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_LowerAngle The starting angle in radians.
+     * @param p_UpperAngle The ending angle in radians.
+     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
+     */
+    void Arc(const mat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_InnerFade, f32 p_OuterFade,
+             f32 p_Hollowness = 0.f) noexcept;
 
     /**
      * @brief Draw a unit stadium shape (a rectangle with semicircular ends).

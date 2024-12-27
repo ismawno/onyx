@@ -6,6 +6,8 @@ layout(location = 2) in vec3 i_WorldPosition;
 layout(location = 3) in flat vec4 i_ArcInfo;
 layout(location = 4) in flat uint i_AngleOverflow;
 layout(location = 5) in flat float i_Hollowness;
+layout(location = 6) in flat float i_InnerFade;
+layout(location = 7) in flat float i_OuterFade;
 
 struct MaterialData
 {
@@ -15,7 +17,7 @@ struct MaterialData
     float SpecularSharpness;
 };
 
-layout(location = 6) in flat MaterialData i_Material;
+layout(location = 8) in flat MaterialData i_Material;
 
 layout(location = 0) out vec4 o_Color;
 
@@ -56,8 +58,9 @@ lightData;
 
 void main()
 {
-    const float len = dot(i_LocalPosition, i_LocalPosition);
-    if (len > 0.25 || len < 0.25 * i_Hollowness * i_Hollowness)
+    const float hollowness = i_Hollowness * i_Hollowness;
+    const float len = 4.f * dot(i_LocalPosition, i_LocalPosition);
+    if (len > 1.0 || len < hollowness)
         discard;
 
     const vec2 lowerArc = i_ArcInfo.xy;
@@ -111,8 +114,8 @@ void main()
         {
             const vec3 lightColor = pointLights.Lights[i].Color.xyz;
             const float radius = pointLights.Lights[i].Radius * pointLights.Lights[i].Radius;
-            const float len = dot(direction, direction);
-            const float attenuation = radius / (len + radius);
+            const float dirLen = dot(direction, direction);
+            const float attenuation = radius / (dirLen + radius);
             const float intensity = attenuation * pointLights.Lights[i].PositionAndIntensity.w;
             diffuseColor += intensity * lightColor * max(dot(normal, normalize(direction)), 0.0);
 
@@ -124,5 +127,16 @@ void main()
 
     const vec3 color = lightData.AmbientColor.xyz * lightData.AmbientColor.w +
                        i_Material.DiffuseContribution * diffuseColor + i_Material.SpecularContribution * specularColor;
-    o_Color = min(i_Material.Color * vec4(color, 1.0), 1.0);
+
+    const float innerFade = (hollowness + i_InnerFade * i_InnerFade) / (hollowness + 1.0);
+    const float outerFade = i_OuterFade * i_OuterFade;
+
+    float a = 1.0;
+    if (len <= innerFade)
+        a *= len / innerFade;
+    if (len >= outerFade)
+        a *= (outerFade - len) / outerFade;
+    a = clamp(a, 0.0, 1.0);
+
+    o_Color = min(i_Material.Color * vec4(color, 1.0), a);
 }

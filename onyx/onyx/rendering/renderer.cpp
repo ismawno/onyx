@@ -224,18 +224,20 @@ void IRenderer<D>::DrawPolygon(const mat<D> &p_Transform, const std::span<const 
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawCircle(const mat<D> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
-                              const f32 p_Hollowness, const u8 p_Flags) noexcept
+void IRenderer<D>::DrawCircleOrArc(const mat<D> &p_Transform, const f32 p_InnerFade, const f32 p_OuterFade,
+                                   const f32 p_Hollowness, const f32 p_LowerAngle, const f32 p_UpperAngle,
+                                   const u8 p_Flags) noexcept
 {
     const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
-    draw(m_CircleRenderer, transform, p_Flags, p_LowerAngle, p_UpperAngle, p_Hollowness);
+    draw(m_CircleRenderer, transform, p_Flags, p_InnerFade, p_OuterFade, p_Hollowness, p_LowerAngle, p_UpperAngle);
 }
 template <Dimension D>
-void IRenderer<D>::DrawCircle(const mat<D> &p_Transform, const u8 p_Flags, const f32 p_LowerAngle,
-                              const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
+void IRenderer<D>::DrawCircleOrArc(const mat<D> &p_Transform, const u8 p_Flags, const f32 p_InnerFade,
+                                   const f32 p_OuterFade, const f32 p_Hollowness, const f32 p_LowerAngle,
+                                   const f32 p_UpperAngle) noexcept
 {
     const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
-    draw(m_CircleRenderer, transform, p_Flags, p_LowerAngle, p_UpperAngle, p_Hollowness);
+    draw(m_CircleRenderer, transform, p_Flags, p_InnerFade, p_OuterFade, p_Hollowness, p_LowerAngle, p_UpperAngle);
 }
 
 void Renderer<D2>::Flush() noexcept

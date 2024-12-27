@@ -335,42 +335,69 @@ void IRenderContext<D>::Polygon(const mat<D> &p_Transform, const std::span<const
 
 template <Dimension D> void IRenderContext<D>::Circle() noexcept
 {
-    m_Renderer.DrawCircle(m_RenderState.back().Transform);
+    m_Renderer.DrawCircleOrArc(m_RenderState.back().Transform);
 }
 template <Dimension D> void IRenderContext<D>::Circle(const mat<D> &p_Transform) noexcept
 {
-    m_Renderer.DrawCircle(p_Transform * m_RenderState.back().Transform);
+    m_Renderer.DrawCircleOrArc(p_Transform * m_RenderState.back().Transform);
 }
 template <Dimension D>
-void IRenderContext<D>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
+void IRenderContext<D>::Circle(const f32 p_InnerFade, const f32 p_LowerFade, const f32 p_Hollowness) noexcept
 {
-    m_Renderer.DrawCircle(m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle, p_Hollowness);
+    m_Renderer.DrawCircleOrArc(m_RenderState.back().Transform, p_InnerFade, p_LowerFade, p_Hollowness);
 }
 template <Dimension D>
-void IRenderContext<D>::Circle(const mat<D> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
+void IRenderContext<D>::Circle(const mat<D> &p_Transform, const f32 p_InnerFade, const f32 p_LowerFade,
                                const f32 p_Hollowness) noexcept
 {
-    m_Renderer.DrawCircle(p_Transform * m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle, p_Hollowness);
+    m_Renderer.DrawCircleOrArc(p_Transform * m_RenderState.back().Transform, p_InnerFade, p_LowerFade, p_Hollowness);
 }
 
 template <Dimension D>
-static void drawIntrinsicCircle(Renderer<D> &p_Renderer, mat<D> p_Transform, const vec<D> &p_Position,
-                                const f32 p_Diameter, const f32 p_LowerAngle, const f32 p_UpperAngle,
-                                const u8 p_Flags) noexcept
+void IRenderContext<D>::Arc(const f32 p_LowerAngle, const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
+{
+    m_Renderer.DrawCircleOrArc(m_RenderState.back().Transform, 0.f, 0.f, p_Hollowness, p_LowerAngle, p_UpperAngle);
+}
+template <Dimension D>
+void IRenderContext<D>::Arc(const mat<D> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
+                            const f32 p_Hollowness) noexcept
+{
+    m_Renderer.DrawCircleOrArc(p_Transform * m_RenderState.back().Transform, 0.f, 0.f, p_Hollowness, p_LowerAngle,
+                               p_UpperAngle);
+}
+template <Dimension D>
+void IRenderContext<D>::Arc(const f32 p_LowerAngle, const f32 p_UpperAngle, const f32 p_InnerFade,
+                            const f32 p_OuterFade, const f32 p_Hollowness) noexcept
+{
+    m_Renderer.DrawCircleOrArc(m_RenderState.back().Transform, p_InnerFade, p_OuterFade, p_Hollowness, p_LowerAngle,
+                               p_UpperAngle);
+}
+template <Dimension D>
+void IRenderContext<D>::Arc(const mat<D> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
+                            const f32 p_InnerFade, const f32 p_OuterFade, const f32 p_Hollowness) noexcept
+{
+    m_Renderer.DrawCircleOrArc(p_Transform * m_RenderState.back().Transform, p_InnerFade, p_OuterFade, p_Hollowness,
+                               p_LowerAngle, p_UpperAngle);
+}
+
+template <Dimension D>
+static void drawIntrinsicArc(Renderer<D> &p_Renderer, mat<D> p_Transform, const vec<D> &p_Position,
+                             const f32 p_Diameter, const f32 p_LowerAngle, const f32 p_UpperAngle,
+                             const u8 p_Flags) noexcept
 {
     Onyx::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
     if constexpr (D == D2)
         Onyx::Transform<D>::ScaleIntrinsic(p_Transform, vec<D>{p_Diameter});
     else
         Onyx::Transform<D>::ScaleIntrinsic(p_Transform, vec<D>{p_Diameter, p_Diameter, 1.f});
-    p_Renderer.DrawCircle(p_Transform, p_LowerAngle, p_UpperAngle, 0.f, p_Flags);
+    p_Renderer.DrawCircleOrArc(p_Transform, 0.f, 0.f, 0.f, p_LowerAngle, p_UpperAngle, p_Flags);
 }
 template <Dimension D>
-static void drawIntrinsicCircle(Renderer<D> &p_Renderer, mat<D> p_Transform, const vec<D> &p_Position,
-                                const f32 p_LowerAngle, const f32 p_UpperAngle, const u8 p_Flags) noexcept
+static void drawIntrinsicArc(Renderer<D> &p_Renderer, mat<D> p_Transform, const vec<D> &p_Position,
+                             const f32 p_LowerAngle, const f32 p_UpperAngle, const u8 p_Flags) noexcept
 {
     Onyx::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
-    p_Renderer.DrawCircle(p_Transform, p_LowerAngle, p_UpperAngle, 0.f, p_Flags);
+    p_Renderer.DrawCircleOrArc(p_Transform, 0.f, 0.f, p_LowerAngle, p_UpperAngle, 0.f, p_Flags);
 }
 
 static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, mat4 p_Transform, const vec3 &p_Position,
@@ -393,9 +420,9 @@ static void drawStadiumMoons(Renderer<D> &p_Renderer, const mat<D> &p_Transform,
 {
     vec<D> pos{0.f};
     pos.x = -0.5f * p_Length;
-    drawIntrinsicCircle<D>(p_Renderer, p_Transform, pos, p_Diameter, glm::radians(90.f), glm::radians(270.f), p_Flags);
+    drawIntrinsicArc<D>(p_Renderer, p_Transform, pos, p_Diameter, glm::radians(90.f), glm::radians(270.f), p_Flags);
     pos.x = -pos.x;
-    drawIntrinsicCircle<D>(p_Renderer, p_Transform, pos, p_Diameter, glm::radians(-90.f), glm::radians(90.f), p_Flags);
+    drawIntrinsicArc<D>(p_Renderer, p_Transform, pos, p_Diameter, glm::radians(-90.f), glm::radians(90.f), p_Flags);
 }
 
 template <Dimension D>
@@ -510,7 +537,7 @@ static void drawRoundedSquareEdges(Renderer<D> &p_Renderer, const mat<D> &p_Tran
         p_Renderer.DrawPrimitive(transform, Primitives<D>::GetSquareIndex(), p_Flags);
 
         const f32 angle = i * glm::half_pi<f32>();
-        drawIntrinsicCircle<D>(p_Renderer, p_Transform, pos, diameter, angle, angle + glm::half_pi<f32>(), p_Flags);
+        drawIntrinsicArc<D>(p_Renderer, p_Transform, pos, diameter, angle, angle + glm::half_pi<f32>(), p_Flags);
         pos[index1] = -pos[index1];
     }
 }

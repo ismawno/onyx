@@ -360,8 +360,9 @@ template <Dimension D, PipelineMode PMode> CircleRenderer<D, PMode>::~CircleRend
 }
 
 template <Dimension D, PipelineMode PMode>
-void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData, const f32 p_LowerAngle,
-                                    const f32 p_UpperAngle, const f32 p_Hollowness) noexcept
+void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData, const f32 p_InnerFade,
+                                    const f32 p_OuterFade, const f32 p_Hollowness, const f32 p_LowerAngle,
+                                    const f32 p_UpperAngle) noexcept
 {
     if (TKit::Approximately(p_LowerAngle, p_UpperAngle) || TKit::Approximately(p_Hollowness, 1.f))
         return;
@@ -375,6 +376,8 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
         vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
     instanceData.AngleOverflow = glm::abs(p_UpperAngle - p_LowerAngle) > glm::pi<f32>() ? 1 : 0;
     instanceData.Hollowness = p_Hollowness;
+    instanceData.InnerFade = p_InnerFade;
+    instanceData.OuterFade = p_OuterFade;
 
     if (size == buffer.GetInfo().InstanceCount)
     {
