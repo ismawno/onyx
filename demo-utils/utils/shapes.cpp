@@ -53,7 +53,7 @@ template <Dimension D> const char *Circle<D>::GetName() const noexcept
 
 template <Dimension D> void Circle<D>::draw(RenderContext<D> *p_Context) noexcept
 {
-    p_Context->Circle(LowerAngle, UpperAngle, Hollowness, this->Transform.ComputeTransform());
+    p_Context->Circle(this->Transform.ComputeTransform(), LowerAngle, UpperAngle, Hollowness);
 }
 
 template <Dimension D> void Circle<D>::Edit() noexcept
@@ -73,7 +73,7 @@ template <Dimension D> const char *NGon<D>::GetName() const noexcept
 
 template <Dimension D> void NGon<D>::draw(RenderContext<D> *p_Context) noexcept
 {
-    p_Context->NGon(Sides, this->Transform.ComputeTransform());
+    p_Context->NGon(this->Transform.ComputeTransform(), Sides);
 }
 
 template <Dimension D> const char *Polygon<D>::GetName() const noexcept
@@ -83,7 +83,7 @@ template <Dimension D> const char *Polygon<D>::GetName() const noexcept
 
 template <Dimension D> void Polygon<D>::draw(RenderContext<D> *p_Context) noexcept
 {
-    p_Context->Polygon(Vertices, this->Transform.ComputeTransform());
+    p_Context->Polygon(this->Transform.ComputeTransform(), Vertices);
 }
 
 template <Dimension D> const char *Stadium<D>::GetName() const noexcept
@@ -93,7 +93,7 @@ template <Dimension D> const char *Stadium<D>::GetName() const noexcept
 
 template <Dimension D> void Stadium<D>::draw(RenderContext<D> *p_Context) noexcept
 {
-    p_Context->Stadium(Length, Radius, this->Transform.ComputeTransform());
+    p_Context->Stadium(this->Transform.ComputeTransform(), Length, Radius);
 }
 
 template <Dimension D> void Stadium<D>::Edit() noexcept
@@ -107,7 +107,7 @@ template <Dimension D> void Stadium<D>::Edit() noexcept
 
 template <Dimension D> void RoundedSquare<D>::draw(RenderContext<D> *p_Context) noexcept
 {
-    p_Context->RoundedSquare(Dimensions, Radius, this->Transform.ComputeTransform());
+    p_Context->RoundedSquare(this->Transform.ComputeTransform(), Dimensions, Radius);
 }
 
 template <Dimension D> const char *RoundedSquare<D>::GetName() const noexcept
@@ -161,7 +161,7 @@ const char *Capsule::GetName() const noexcept
 
 void Capsule::draw(RenderContext<D3> *p_Context) noexcept
 {
-    p_Context->Capsule(Length, Radius, Transform.ComputeTransform());
+    p_Context->Capsule(Transform.ComputeTransform(), Length, Radius);
 }
 
 void Capsule::Edit() noexcept
@@ -175,7 +175,7 @@ void Capsule::Edit() noexcept
 
 void RoundedCube::draw(RenderContext<D3> *p_Context) noexcept
 {
-    p_Context->RoundedCube(Dimensions, Radius, Transform.ComputeTransform());
+    p_Context->RoundedCube(Transform.ComputeTransform(), Dimensions, Radius);
 }
 
 const char *RoundedCube::GetName() const noexcept

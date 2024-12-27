@@ -79,7 +79,7 @@ enum DrawFlags : u8
 };
 
 /**
- * @brief The IRenderer class is an abstract base class for renderers in the ONYX API.
+ * @brief The IRenderer class is an abstract base class for renderers in the Onyx API.
  *
  * This template class provides common functionality for 2D and 3D renderers, handling draw calls and managing render
  * systems.

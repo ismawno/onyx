@@ -158,12 +158,12 @@ class IMultiWindowApplication : public IApplication
     virtual void setDeltaTime(TKit::Timespan p_DeltaTime) noexcept = 0;
 };
 
-// There are two ways available to manage multiple windows in an ONYX application:
+// There are two ways available to manage multiple windows in an Onyx application:
 // - Serial: The windows are managed in a serial way, meaning that the windows are drawn one after the other in the main
-// thread. This is the default and most forgiving mode, allowing submission of onyx draw calls to multiple windows from
+// thread. This is the default and most forgiving mode, allowing submission of Onyx draw calls to multiple windows from
 // the main thread
 // - Concurrent: The windows are managed in a concurrent way, meaning that the windows are drawn in parallel. This mode
-//  *can* be more efficient but requires the user to take extra care when submitting onyx draw calls to multiple windows
+//  *can* be more efficient but requires the user to take extra care when submitting Onyx draw calls to multiple windows
 
 template <WindowThreading Threading = Serial> class ONYX_API MultiWindowApplication;
 

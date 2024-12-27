@@ -13,7 +13,7 @@
 namespace Onyx
 {
 /**
- * @brief Represents a window in the ONYX application.
+ * @brief Represents a window in the Onyx application.
  *
  * This class encapsulates the functionality of a window, including rendering, input handling,
  * and window properties like size, position, and visibility.

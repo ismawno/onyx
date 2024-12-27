@@ -26,7 +26,7 @@ class StackAllocator;
 class ITaskManager;
 } // namespace TKit
 
-// This file handles the lifetime of global data the ONYX library needs, such as the Vulkan instance and device. To
+// This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
 // properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX
 // objects are alive at that point.
 

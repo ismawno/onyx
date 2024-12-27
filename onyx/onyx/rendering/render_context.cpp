@@ -318,7 +318,7 @@ template <Dimension D> void IRenderContext<D>::NGon(const u32 p_Sides) noexcept
 {
     m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D>::GetNGonIndex(p_Sides));
 }
-template <Dimension D> void IRenderContext<D>::NGon(const u32 p_Sides, const mat<D> &p_Transform) noexcept
+template <Dimension D> void IRenderContext<D>::NGon(const mat<D> &p_Transform, const u32 p_Sides) noexcept
 {
     m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D>::GetNGonIndex(p_Sides));
 }
@@ -328,7 +328,7 @@ template <Dimension D> void IRenderContext<D>::Polygon(const std::span<const vec
     m_Renderer.DrawPolygon(m_RenderState.back().Transform, p_Vertices);
 }
 template <Dimension D>
-void IRenderContext<D>::Polygon(const std::span<const vec<D>> p_Vertices, const mat<D> &p_Transform) noexcept
+void IRenderContext<D>::Polygon(const mat<D> &p_Transform, const std::span<const vec<D>> p_Vertices) noexcept
 {
     m_Renderer.DrawPolygon(p_Transform * m_RenderState.back().Transform, p_Vertices);
 }
@@ -347,13 +347,8 @@ void IRenderContext<D>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle, c
     m_Renderer.DrawCircle(m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle, p_Hollowness);
 }
 template <Dimension D>
-void IRenderContext<D>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle, const mat<D> &p_Transform) noexcept
-{
-    m_Renderer.DrawCircle(p_Transform * m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle);
-}
-template <Dimension D>
-void IRenderContext<D>::Circle(const f32 p_LowerAngle, const f32 p_UpperAngle, const f32 p_Hollowness,
-                               const mat<D> &p_Transform) noexcept
+void IRenderContext<D>::Circle(const mat<D> &p_Transform, const f32 p_LowerAngle, const f32 p_UpperAngle,
+                               const f32 p_Hollowness) noexcept
 {
     m_Renderer.DrawCircle(p_Transform * m_RenderState.back().Transform, p_LowerAngle, p_UpperAngle, p_Hollowness);
 }
@@ -477,7 +472,7 @@ template <Dimension D> void IRenderContext<D>::Stadium(const f32 p_Length, const
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 template <Dimension D>
-void IRenderContext<D>::Stadium(const f32 p_Length, const f32 p_Radius, const mat<D> &p_Transform) noexcept
+void IRenderContext<D>::Stadium(const mat<D> &p_Transform, const f32 p_Length, const f32 p_Radius) noexcept
 {
     const mat<D> transform = p_Transform * m_RenderState.back().Transform;
     const auto fill = [this, &transform, p_Length, p_Radius](const u8 p_Flags) {
@@ -571,7 +566,7 @@ template <Dimension D> void IRenderContext<D>::RoundedSquare(const vec2 &p_Dimen
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 template <Dimension D>
-void IRenderContext<D>::RoundedSquare(const vec2 &p_Dimensions, const f32 p_Radius, const mat<D> &p_Transform) noexcept
+void IRenderContext<D>::RoundedSquare(const mat<D> &p_Transform, const vec2 &p_Dimensions, const f32 p_Radius) noexcept
 {
     const mat<D> transform = p_Transform * m_RenderState.back().Transform;
     const auto fill = [this, &transform, &p_Dimensions, p_Radius](const u8 p_Flags) {
@@ -589,10 +584,10 @@ void IRenderContext<D>::RoundedSquare(const f32 p_Width, const f32 p_Height, con
     RoundedSquare(vec2{p_Width, p_Height}, p_Radius);
 }
 template <Dimension D>
-void IRenderContext<D>::RoundedSquare(const f32 p_Width, const f32 p_Height, const f32 p_Radius,
-                                      const mat<D> &p_Transform) noexcept
+void IRenderContext<D>::RoundedSquare(const mat<D> &p_Transform, const f32 p_Width, const f32 p_Height,
+                                      const f32 p_Radius) noexcept
 {
-    RoundedSquare(vec2{p_Width, p_Height}, p_Radius, p_Transform);
+    RoundedSquare(p_Transform, vec2{p_Width, p_Height}, p_Radius);
 }
 
 template <Dimension D>
@@ -643,7 +638,7 @@ void RenderContext<D2>::RoundedLine(const vec2 &p_Start, const vec2 &p_End, cons
     Onyx::Transform<D2>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D2>::RotateIntrinsic(transform, glm::atan(delta.y, delta.x));
 
-    Stadium(glm::length(delta), p_Thickness, transform);
+    Stadium(transform, glm::length(delta), p_Thickness);
 }
 void RenderContext<D3>::RoundedLine(const vec3 &p_Start, const vec3 &p_End, const f32 p_Thickness) noexcept
 {
@@ -652,7 +647,7 @@ void RenderContext<D3>::RoundedLine(const vec3 &p_Start, const vec3 &p_End, cons
     Onyx::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D3>::RotateIntrinsic(transform,
                                          quat{{0.f, glm::atan(delta.y, delta.x), glm::atan(delta.z, delta.x)}});
-    Capsule(glm::length(delta), p_Thickness, transform);
+    Capsule(transform, glm::length(delta), p_Thickness);
 }
 
 void RenderContext<D2>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
@@ -747,7 +742,7 @@ void RenderContext<D3>::Capsule(const f32 p_Length, const f32 p_Radius) noexcept
     };
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
-void RenderContext<D3>::Capsule(const f32 p_Length, const f32 p_Radius, const mat4 &p_Transform) noexcept
+void RenderContext<D3>::Capsule(const mat4 &p_Transform, const f32 p_Length, const f32 p_Radius) noexcept
 {
     const mat4 transform = p_Transform * m_RenderState.back().Transform;
     const auto fill = [this, &transform, p_Length, p_Radius](const u8 p_Flags) {
@@ -860,7 +855,7 @@ void RenderContext<D3>::RoundedCube(const vec3 &p_Dimensions, const f32 p_Radius
     };
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
-void RenderContext<D3>::RoundedCube(const vec3 &p_Dimensions, const f32 p_Radius, const mat4 &p_Transform) noexcept
+void RenderContext<D3>::RoundedCube(const mat4 &p_Transform, const vec3 &p_Dimensions, const f32 p_Radius) noexcept
 {
     const mat4 transform = p_Transform * m_RenderState.back().Transform;
     const auto fill = [this, &transform, &p_Dimensions, p_Radius](const u8 p_Flags) {
@@ -877,10 +872,10 @@ void RenderContext<D3>::RoundedCube(const f32 p_Width, const f32 p_Height, const
 {
     RoundedCube(vec3{p_Width, p_Height, p_Depth}, p_Radius);
 }
-void RenderContext<D3>::RoundedCube(const f32 p_Width, const f32 p_Height, const f32 p_Depth, const f32 p_Radius,
-                                    const mat4 &p_Transform) noexcept
+void RenderContext<D3>::RoundedCube(const mat4 &p_Transform, const f32 p_Width, const f32 p_Height, const f32 p_Depth,
+                                    const f32 p_Radius) noexcept
 {
-    RoundedCube(vec3{p_Width, p_Height, p_Depth}, p_Radius, p_Transform);
+    RoundedCube(p_Transform, vec3{p_Width, p_Height, p_Depth}, p_Radius);
 }
 
 void RenderContext<D3>::LightColor(const Color &p_Color) noexcept
@@ -968,7 +963,7 @@ template <Dimension D> void IRenderContext<D>::Mesh(const Model<D> &p_Model) noe
 {
     m_Renderer.DrawMesh(m_RenderState.back().Transform, p_Model);
 }
-template <Dimension D> void IRenderContext<D>::Mesh(const Model<D> &p_Model, const mat<D> &p_Transform) noexcept
+template <Dimension D> void IRenderContext<D>::Mesh(const mat<D> &p_Transform, const Model<D> &p_Model) noexcept
 {
     m_Renderer.DrawMesh(p_Transform * m_RenderState.back().Transform, p_Model);
 }

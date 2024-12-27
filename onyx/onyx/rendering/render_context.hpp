@@ -5,12 +5,6 @@
 #include "onyx/draw/transform.hpp"
 #include <vulkan/vulkan.h>
 
-// Translate() Rotate() etc is only valid for primitives, not lights
-
-// Explain why InstanceData3D has view data for each instance (it's because of the immediate mode)
-
-// Ambient intensity must be called AFTER ambient color
-
 // 2D objects that are drawn later will always be on top of earlier ones. HOWEVER, blending will only work expectedly
 // between objects of the same primitive
 
@@ -20,7 +14,7 @@ namespace Onyx
 {
 class Window;
 /**
- * @brief The RenderContext class is the primary way of communicating with the ONYX API.
+ * @brief The RenderContext class is the primary way of communicating with the Onyx API.
  *
  * It is a high-level API that allows the user to draw shapes and meshes in a simple immediate mode
  * fashion. The following is a set of properties of the RenderContext you must take into account when using it:
@@ -45,7 +39,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @brief Clear all of the recorded draw data until this point.
      *
      * It is meant to be called at the beginning of the frame, but it is not required to do so in case you want to
-     * persist ONYX draw calls made in older frames.
+     * persist Onyx draw calls made in older frames.
      *
      * It calls all of the renderer's Flush() methods.
      *
@@ -351,11 +345,11 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Draw a regular n-sided polygon with the specified transformation.
      *
-     * @param p_Sides The number of sides of the polygon.
      * @param p_Transform The transformation matrix to apply to the polygon. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Sides The number of sides of the polygon.
      */
-    void NGon(u32 p_Sides, const mat<D> &p_Transform) noexcept;
+    void NGon(const mat<D> &p_Transform, u32 p_Sides) noexcept;
 
     /**
      * @brief Draw a polygon defined by the given vertices.
@@ -367,11 +361,11 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Draw a polygon defined by the given vertices with the specified transformation.
      *
-     * @param p_Vertices A span of vertices defining the polygon.
      * @param p_Transform The transformation matrix to apply to the polygon. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Vertices A span of vertices defining the polygon.
      */
-    void Polygon(std::span<const vec<D>> p_Vertices, const mat<D> &p_Transform) noexcept;
+    void Polygon(const mat<D> &p_Transform, std::span<const vec<D>> p_Vertices) noexcept;
 
     /**
      * @brief Draw a unit circle centered at the origin.
@@ -400,23 +394,13 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Draw a circular arc with the specified transformation matrix.
      *
-     * @param p_LowerAngle The starting angle in radians.
-     * @param p_UpperAngle The ending angle in radians.
      * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
-     */
-    void Circle(f32 p_LowerAngle, f32 p_UpperAngle, const mat<D> &p_Transform) noexcept;
-
-    /**
-     * @brief Draw a circular arc or annulus sector with the specified transformation matrix.
-     *
      * @param p_LowerAngle The starting angle in radians.
      * @param p_UpperAngle The ending angle in radians.
-     * @param p_Hollowness The inner radius of the circle.
-     * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
-     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
      */
-    void Circle(f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness, const mat<D> &p_Transform) noexcept;
+    void Circle(const mat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
 
     /**
      * @brief Draw a unit stadium shape (a rectangle with semicircular ends).
@@ -444,12 +428,12 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Draw a stadium shape with the given parameters and transformation.
      *
-     * @param p_Length The length of the rectangular part of the stadium.
-     * @param p_Radius The radius of the semicircular ends.
      * @param p_Transform The transformation matrix to apply to the stadium. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Length The length of the rectangular part of the stadium.
+     * @param p_Radius The radius of the semicircular ends.
      */
-    void Stadium(f32 p_Length, f32 p_Radius, const mat<D> &p_Transform) noexcept;
+    void Stadium(const mat<D> &p_Transform, f32 p_Length, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a unit rounded square centered at the origin.
@@ -477,12 +461,12 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Draw a rounded square with given dimensions, corner radius, and transformation.
      *
-     * @param p_Dimensions The width and height of the square.
-     * @param p_Radius The radius of the corners.
      * @param p_Transform The transformation matrix to apply to the rounded square. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Dimensions The width and height of the square.
+     * @param p_Radius The radius of the corners.
      */
-    void RoundedSquare(const vec2 &p_Dimensions, f32 p_Radius, const mat<D> &p_Transform) noexcept;
+    void RoundedSquare(const mat<D> &p_Transform, const vec2 &p_Dimensions, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a rounded square with given dimensions and corner radius.
@@ -496,13 +480,13 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Draw a rounded square with given dimensions, corner radius, and transformation.
      *
+     * @param p_Transform The transformation matrix to apply to the rounded square. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
      * @param p_Width The width of the square.
      * @param p_Height The height of the square.
      * @param p_Radius The radius of the corners.
-     * @param p_Transform The transformation matrix to apply to the rounded square. This transformation will be applied
-     * extrinsically, on top of the current cummulated transformations.
      */
-    void RoundedSquare(f32 p_Width, f32 p_Height, f32 p_Radius, const mat<D> &p_Transform) noexcept;
+    void RoundedSquare(const mat<D> &p_Transform, f32 p_Width, f32 p_Height, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a line between two points with the specified thickness.
@@ -531,11 +515,11 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Draw a mesh model with the specified transformation.
      *
-     * @param p_Model The mesh model to draw.
      * @param p_Transform The transformation matrix to apply to the model. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Model The mesh model to draw.
      */
-    void Mesh(const Model<D> &p_Model, const mat<D> &p_Transform) noexcept;
+    void Mesh(const mat<D> &p_Transform, const Model<D> &p_Model) noexcept;
 
     /**
      * @brief Pushes the current transformation state onto the stack.
@@ -689,8 +673,8 @@ template <Dimension D> class ONYX_API IRenderContext
 template <Dimension D> class RenderContext;
 
 /**
- * @brief The RenderContext class handles all primitive ONYX draw calls and allows the user to interact with most of the
- * ONYX API in 2D.
+ * @brief The RenderContext class handles all primitive Onyx draw calls and allows the user to interact with most of the
+ * Onyx API in 2D.
  *
  */
 template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
@@ -819,8 +803,8 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
 };
 
 /**
- * @brief The RenderContext class handles all primitive ONYX draw calls and allows the user to interact with most of the
- * ONYX API in 3D.
+ * @brief The RenderContext class handles all primitive Onyx draw calls and allows the user to interact with most of the
+ * Onyx API in 3D.
  *
  */
 template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
@@ -1152,7 +1136,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the capsule. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Capsule(f32 p_Length, f32 p_Radius, const mat4 &p_Transform) noexcept;
+    void Capsule(const mat4 &p_Transform, f32 p_Length, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a unit rounded cube centered at the origin.
@@ -1185,7 +1169,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void RoundedCube(const vec3 &p_Dimensions, f32 p_Radius, const mat4 &p_Transform) noexcept;
+    void RoundedCube(const mat4 &p_Transform, const vec3 &p_Dimensions, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a rounded cube with given dimensions and corner radius.
@@ -1207,7 +1191,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void RoundedCube(f32 p_Width, f32 p_Height, f32 p_Depth, f32 p_Radius, const mat4 &p_Transform) noexcept;
+    void RoundedCube(const mat4 &p_Transform, f32 p_Width, f32 p_Height, f32 p_Depth, f32 p_Radius) noexcept;
 
     /**
      * @brief Set the color of the light for subsequent lighting calculations.
