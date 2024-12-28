@@ -141,7 +141,7 @@ void WindowData::OnEvent(const Event &p_Event) noexcept
     processPolygonEvent(m_LayerData2, p_Event);
     processPolygonEvent(m_LayerData3, p_Event);
     if (p_Event.Type == Event::Scrolled && Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift))
-        m_LayerData2.Context->ApplyCameraLikeScalingControls(0.005f * p_Event.ScrollOffset.y);
+        m_LayerData2.Context->ApplyCameraScalingControls(0.005f * p_Event.ScrollOffset.y);
 }
 
 void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
@@ -171,8 +171,7 @@ template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, c
 {
     p_Data.Context->Flush(m_BackgroundColor);
 
-    const f32 step = p_Timestep.AsSeconds();
-    p_Data.Context->ApplyCameraLikeMovementControls(step, step);
+    p_Data.Context->ApplyCameraMovementControls(p_Timestep);
 
     p_Data.Context->TransformAxes(p_Data.AxesTransform.ComputeTransform());
 

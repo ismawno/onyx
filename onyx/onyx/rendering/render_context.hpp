@@ -3,6 +3,8 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/draw/transform.hpp"
+#include "onyx/app/input.hpp"
+#include "tkit/profiling/timespan.hpp"
 #include <vulkan/vulkan.h>
 
 // 2D objects that are drawn later will always be on top of earlier ones. HOWEVER, blending will only work expectedly
@@ -13,6 +15,35 @@
 namespace Onyx
 {
 class Window;
+
+template <Dimension D> struct CameraMovementControls;
+
+template <> struct CameraMovementControls<D2>
+{
+    f32 TranslationStep = 1.f / 60.f;
+    f32 RotationStep = 1.f / 60.f;
+    Input::Key Up = Input::Key::W;
+    Input::Key Down = Input::Key::S;
+    Input::Key Left = Input::Key::A;
+    Input::Key Right = Input::Key::D;
+    Input::Key RotateLeft = Input::Key::Q;
+    Input::Key RotateRight = Input::Key::E;
+};
+template <> struct CameraMovementControls<D3>
+{
+    f32 TranslationStep = 1.f / 60.f;
+    f32 RotationStep = 1.f / 60.f;
+    Input::Key Forward = Input::Key::W;
+    Input::Key Backward = Input::Key::S;
+    Input::Key Left = Input::Key::A;
+    Input::Key Right = Input::Key::D;
+    Input::Key Up = Input::Key::Space;
+    Input::Key Down = Input::Key::LeftControl;
+    Input::Key RotateLeft = Input::Key::Q;
+    Input::Key RotateRight = Input::Key::E;
+    Input::Key ToggleLookAround = Input::Key::LeftShift;
+};
+
 /**
  * @brief The RenderContext class is the primary way of communicating with the Onyx API.
  *
@@ -655,10 +686,15 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Control the global view's movement of the rendering context with user input.
      *
-     * @param p_TranslationStep The step size for translation.
-     * @param p_RotationStep The step size for rotation.
+     * @param p_Controls The camera movement controls to use.
      */
-    void ApplyCameraLikeMovementControls(const f32 p_TranslationStep, const f32 p_RotationStep) noexcept;
+    void ApplyCameraMovementControls(const CameraMovementControls<D> &p_Controls) noexcept;
+
+    /**
+     * @brief Control the global view's movement of the rendering context with user input.
+     *
+     */
+    void ApplyCameraMovementControls(TKit::Timespan p_DeltaTime) noexcept;
 
     /**
      * @brief Retrieve the coordinates of a point in the rendering context from a normalized position.
@@ -842,7 +878,7 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
      *
      * @param p_ScaleStep The step size for scaling.
      */
-    void ApplyCameraLikeScalingControls(const f32 p_ScaleStep) noexcept;
+    void ApplyCameraScalingControls(f32 p_ScaleStep) noexcept;
 };
 
 /**

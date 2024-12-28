@@ -162,7 +162,8 @@ enum class Key : u16
     RightAlt = GLFW_KEY_RIGHT_ALT,
     RightSuper = GLFW_KEY_RIGHT_SUPER,
     Menu = GLFW_KEY_MENU,
-    Last = GLFW_KEY_MENU
+    Last = GLFW_KEY_MENU,
+    None = GLFW_KEY_LAST + 1
 };
 
 /**
@@ -182,7 +183,8 @@ enum class Mouse : u8
     ButtonLast = GLFW_MOUSE_BUTTON_LAST,
     ButtonLeft = GLFW_MOUSE_BUTTON_LEFT,
     ButtonRight = GLFW_MOUSE_BUTTON_RIGHT,
-    ButtonMiddle = GLFW_MOUSE_BUTTON_MIDDLE
+    ButtonMiddle = GLFW_MOUSE_BUTTON_MIDDLE,
+    None = GLFW_MOUSE_BUTTON_LAST + 1
 };
 
 /**

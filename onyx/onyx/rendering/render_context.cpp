@@ -1119,45 +1119,45 @@ template <Dimension D> void IRenderContext<D>::Axes(const f32 p_Thickness, const
 }
 
 template <Dimension D>
-void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationStep, const f32 p_RotationStep) noexcept
+void IRenderContext<D>::ApplyCameraMovementControls(const CameraMovementControls<D> &p_Controls) noexcept
 {
     Onyx::Transform<D> &view = m_ProjectionView.View;
     vec<D> translation{0.f};
-    if (Input::IsKeyPressed(m_Window, Input::Key::A))
-        translation.x -= view.Scale.x * p_TranslationStep;
-    if (Input::IsKeyPressed(m_Window, Input::Key::D))
-        translation.x += view.Scale.x * p_TranslationStep;
+    if (Input::IsKeyPressed(m_Window, p_Controls.Left))
+        translation.x -= view.Scale.x * p_Controls.TranslationStep;
+    if (Input::IsKeyPressed(m_Window, p_Controls.Right))
+        translation.x += view.Scale.x * p_Controls.TranslationStep;
+
+    if (Input::IsKeyPressed(m_Window, p_Controls.Up))
+        translation.y += view.Scale.y * p_Controls.TranslationStep;
+    if (Input::IsKeyPressed(m_Window, p_Controls.Down))
+        translation.y -= view.Scale.y * p_Controls.TranslationStep;
 
     if constexpr (D == D2)
     {
-        if (Input::IsKeyPressed(m_Window, Input::Key::W))
-            translation.y += view.Scale.y * p_TranslationStep;
-        if (Input::IsKeyPressed(m_Window, Input::Key::S))
-            translation.y -= view.Scale.y * p_TranslationStep;
-
-        if (Input::IsKeyPressed(m_Window, Input::Key::Q))
-            view.Rotation += p_RotationStep;
-        if (Input::IsKeyPressed(m_Window, Input::Key::E))
-            view.Rotation -= p_RotationStep;
+        if (Input::IsKeyPressed(m_Window, p_Controls.RotateLeft))
+            view.Rotation += p_Controls.RotationStep;
+        if (Input::IsKeyPressed(m_Window, p_Controls.RotateRight))
+            view.Rotation -= p_Controls.RotationStep;
     }
     else
     {
-        if (Input::IsKeyPressed(m_Window, Input::Key::W))
-            translation.z -= view.Scale.z * p_TranslationStep;
-        if (Input::IsKeyPressed(m_Window, Input::Key::S))
-            translation.z += view.Scale.z * p_TranslationStep;
+        if (Input::IsKeyPressed(m_Window, p_Controls.Forward))
+            translation.z -= view.Scale.z * p_Controls.TranslationStep;
+        if (Input::IsKeyPressed(m_Window, p_Controls.Backward))
+            translation.z += view.Scale.z * p_Controls.TranslationStep;
 
         const vec2 mpos = Input::GetMousePosition(m_Window);
 
-        const vec2 delta =
-            Input::IsKeyPressed(m_Window, Input::Key::LeftShift) ? 3.f * (m_PrevMousePos - mpos) : vec2{0.f};
+        const bool lookAround = Input::IsKeyPressed(m_Window, p_Controls.ToggleLookAround);
+        const vec2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : vec2{0.f};
         m_PrevMousePos = mpos;
 
         vec3 angles{delta.y, delta.x, 0.f};
-        if (Input::IsKeyPressed(m_Window, Input::Key::Q))
-            angles.z += p_RotationStep;
-        if (Input::IsKeyPressed(m_Window, Input::Key::E))
-            angles.z -= p_RotationStep;
+        if (Input::IsKeyPressed(m_Window, p_Controls.RotateLeft))
+            angles.z += p_Controls.RotationStep;
+        if (Input::IsKeyPressed(m_Window, p_Controls.RotateRight))
+            angles.z -= p_Controls.RotationStep;
 
         view.Rotation *= quat{angles};
     }
@@ -1174,7 +1174,15 @@ void IRenderContext<D>::ApplyCameraLikeMovementControls(const f32 p_TranslationS
         m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
     }
 }
-void RenderContext<D2>::ApplyCameraLikeScalingControls(const f32 p_ScaleStep) noexcept
+template <Dimension D> void IRenderContext<D>::ApplyCameraMovementControls(const TKit::Timespan p_DeltaTime) noexcept
+{
+    CameraMovementControls<D> controls{};
+    controls.TranslationStep = p_DeltaTime.AsSeconds();
+    controls.RotationStep = p_DeltaTime.AsSeconds();
+    ApplyCameraMovementControls(controls);
+}
+
+void RenderContext<D2>::ApplyCameraScalingControls(const f32 p_ScaleStep) noexcept
 {
     mat4 transform = transform3ToTransform4(m_ProjectionView.View.ComputeTransform());
     ApplyCoordinateSystemIntrinsic(transform);
