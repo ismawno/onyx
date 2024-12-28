@@ -142,10 +142,10 @@ class ONYX_API FrameScheduler
         VKIT_ASSERT_VULKAN_RESULT(result);
     }
 
+    const VKit::SwapChain &GetSwapChain() const noexcept;
     const VKit::RenderPass &GetRenderPass() const noexcept;
 
     VkCommandBuffer GetCurrentCommandBuffer() const noexcept;
-    const VKit::SwapChain &GetSwapChain() const noexcept;
 
     VkPresentModeKHR GetPresentMode() const noexcept;
     void SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept;

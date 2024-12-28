@@ -331,6 +331,8 @@ class ONYX_API Window
     u32 GetFrameIndex() const noexcept;
 
     VkPresentModeKHR GetPresentMode() const noexcept;
+    const TKit::StaticArray8<VkPresentModeKHR> &GetAvailablePresentModes() const noexcept;
+
     void SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept;
 
     /// The background color used when clearing the window.

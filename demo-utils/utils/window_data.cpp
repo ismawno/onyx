@@ -1,5 +1,6 @@
 #include "utils/window_data.hpp"
 #include "onyx/core/shaders.hpp"
+#include "onyx/app/layer.hpp"
 #include <imgui.h>
 #include <implot.h>
 
@@ -92,10 +93,7 @@ void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Tim
 void WindowData::OnImGuiRender() noexcept
 {
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
-    const VkPresentModeKHR currentMode = m_Window->GetPresentMode();
-    bool vsync = currentMode == VK_PRESENT_MODE_FIFO_KHR;
-    if (ImGui::Checkbox("VSync", &vsync))
-        m_Window->SetPresentMode(vsync ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_IMMEDIATE_KHR);
+    Layer::EditPresentMode(*m_Window);
 
     ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
     if (ImGui::Checkbox("Blur", &m_PostProcessing))
@@ -220,51 +218,6 @@ template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, c
     }
 }
 
-template <Dimension D> static void editMaterial(MaterialData<D> &p_Material) noexcept
-{
-    if constexpr (D == D2)
-        ImGui::ColorEdit4("Color", p_Material.Color.AsPointer());
-    else
-    {
-        if (ImGui::SliderFloat("Diffuse contribution", &p_Material.DiffuseContribution, 0.f, 1.f))
-            p_Material.SpecularContribution = 1.f - p_Material.DiffuseContribution;
-        if (ImGui::SliderFloat("Specular contribution", &p_Material.SpecularContribution, 0.f, 1.f))
-            p_Material.DiffuseContribution = 1.f - p_Material.SpecularContribution;
-        ImGui::SliderFloat("Specular sharpness", &p_Material.SpecularSharpness, 0.f, 512.f, "%.2f",
-                           ImGuiSliderFlags_Logarithmic);
-
-        ImGui::ColorEdit3("Color", p_Material.Color.AsPointer());
-    }
-}
-
-template <Dimension D> static void editTransform(Transform<D> &p_Transform) noexcept
-{
-    ImGui::PushID(&p_Transform);
-    if constexpr (D == D2)
-    {
-        ImGui::DragFloat2("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
-        ImGui::DragFloat2("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
-        ImGui::DragFloat("Rotation", &p_Transform.Rotation, 0.03f);
-    }
-    else
-    {
-        ImGui::DragFloat3("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
-        ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
-
-        vec3 angles{0.f};
-        if (ImGui::DragFloat3("Rotate (global)", glm::value_ptr(angles), 0.03f, 0.f, 0.f, "Slide!"))
-            p_Transform.Rotation = glm::normalize(glm::quat(angles) * p_Transform.Rotation);
-
-        ImGui::Spacing();
-
-        if (ImGui::DragFloat3("Rotate (Local)", glm::value_ptr(angles), 0.03f, 0.f, 0.f, "Slide!"))
-            p_Transform.Rotation = glm::normalize(p_Transform.Rotation * glm::quat(angles));
-        if (ImGui::Button("Reset rotation"))
-            p_Transform.Rotation = quat{1.f, 0.f, 0.f, 0.f};
-    }
-    ImGui::PopID();
-}
-
 template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexcept
 {
     static i32 ngonSides = 3;
@@ -375,9 +328,9 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     if (selected < size)
     {
         ImGui::Text("Transform");
-        editTransform(p_Data.Shapes[selected]->Transform);
+        Layer::EditTransform<D>(p_Data.Shapes[selected]->Transform);
         ImGui::Text("Material");
-        editMaterial(p_Data.Shapes[selected]->Material);
+        Layer::EditMaterial<D>(p_Data.Shapes[selected]->Material);
         p_Data.Shapes[selected]->Edit();
     }
 }
@@ -403,7 +356,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
     if (ImGui::CollapsingHeader("Axes"))
     {
         ImGui::Text("Transform");
-        editTransform<D>(p_Data.AxesTransform);
+        Layer::EditTransform<D>(p_Data.AxesTransform);
         if constexpr (D == D3)
         {
             if (ImGui::Checkbox("Perspective", &p_Data.Perspective))
@@ -436,7 +389,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 
         if (ImGui::TreeNode("Material"))
         {
-            editMaterial(p_Data.AxesMaterial);
+            Layer::EditMaterial<D>(p_Data.AxesMaterial);
             ImGui::TreePop();
         }
     }
@@ -445,25 +398,6 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
     if constexpr (D == D3)
         if (ImGui::CollapsingHeader("Lights"))
             renderLightSpawn();
-}
-
-static void editDirectionalLight(DirectionalLight &p_Light) noexcept
-{
-    ImGui::PushID(&p_Light);
-    ImGui::SliderFloat("Intensity", &p_Light.DirectionAndIntensity.w, 0.f, 1.f);
-    ImGui::SliderFloat3("Direction", glm::value_ptr(p_Light.DirectionAndIntensity), 0.f, 1.f);
-    ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
-    ImGui::PopID();
-}
-
-static void editPointLight(PointLight &p_Light) noexcept
-{
-    ImGui::PushID(&p_Light);
-    ImGui::SliderFloat("Intensity", &p_Light.PositionAndIntensity.w, 0.f, 1.f);
-    ImGui::DragFloat3("Position", glm::value_ptr(p_Light.PositionAndIntensity), 0.01f);
-    ImGui::SliderFloat("Radius", &p_Light.Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
-    ImGui::PopID();
 }
 
 void WindowData::renderLightSpawn() noexcept
@@ -499,7 +433,7 @@ void WindowData::renderLightSpawn() noexcept
         ImGui::PopID();
     }
     if (m_LayerData3.SelectedDirLight < dsize)
-        editDirectionalLight(m_LayerData3.DirectionalLights[m_LayerData3.SelectedDirLight]);
+        Layer::EditDirectionalLight(m_LayerData3.DirectionalLights[m_LayerData3.SelectedDirLight]);
 
     const usize psize = static_cast<usize>(m_LayerData3.PointLights.size());
     for (usize i = 0; i < psize; ++i)
@@ -517,7 +451,7 @@ void WindowData::renderLightSpawn() noexcept
         ImGui::PopID();
     }
     if (m_LayerData3.SelectedPointLight < psize)
-        editPointLight(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight]);
+        Layer::EditPointLight(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight]);
 }
 
 } // namespace Onyx

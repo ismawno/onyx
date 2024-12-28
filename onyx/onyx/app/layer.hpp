@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/core/alias.hpp"
+#include "onyx/core/dimension.hpp"
 #include "tkit/core/non_copyable.hpp"
 #include "tkit/memory/ptr.hpp"
 #include "tkit/container/static_array.hpp"
@@ -10,6 +11,14 @@
 namespace Onyx
 {
 struct Event;
+
+template <Dimension D> struct Transform;
+template <Dimension D> struct MaterialData;
+
+struct DirectionalLight;
+struct PointLight;
+
+class Window;
 
 /**
  * @brief A base class for all layers in the application, containing callback methods for the application's lifecycle.
@@ -213,6 +222,15 @@ class Layer
     }
 
     const char *GetName() const noexcept;
+
+    template <Dimension D> static void EditTransform(Transform<D> &p_Transform, f32 p_DragSpeed = 0.03f) noexcept;
+    template <Dimension D> static void EditMaterial(MaterialData<D> &p_Material) noexcept;
+
+    static void EditDirectionalLight(DirectionalLight &p_Light) noexcept;
+    static void EditPointLight(PointLight &p_Light) noexcept;
+
+    static void EditPresentMode(Window &p_Window) noexcept;
+
     bool Enabled = true;
 
   private:

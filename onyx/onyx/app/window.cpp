@@ -185,6 +185,10 @@ VkPresentModeKHR Window::GetPresentMode() const noexcept
 {
     return m_FrameScheduler->GetPresentMode();
 }
+const TKit::StaticArray8<VkPresentModeKHR> &Window::GetAvailablePresentModes() const noexcept
+{
+    return m_FrameScheduler->GetSwapChain().GetInfo().SupportDetails.PresentModes;
+}
 
 void Window::SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept
 {

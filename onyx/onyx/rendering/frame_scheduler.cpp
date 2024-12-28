@@ -242,6 +242,10 @@ u32 FrameScheduler::GetFrameIndex() const noexcept
     return m_FrameIndex;
 }
 
+const VKit::SwapChain &FrameScheduler::GetSwapChain() const noexcept
+{
+    return m_SwapChain;
+}
 const VKit::RenderPass &FrameScheduler::GetRenderPass() const noexcept
 {
     return m_RenderPass;
@@ -250,11 +254,6 @@ const VKit::RenderPass &FrameScheduler::GetRenderPass() const noexcept
 VkCommandBuffer FrameScheduler::GetCurrentCommandBuffer() const noexcept
 {
     return m_CommandBuffers[m_FrameIndex];
-}
-
-const VKit::SwapChain &FrameScheduler::GetSwapChain() const noexcept
-{
-    return m_SwapChain;
 }
 
 VkPresentModeKHR FrameScheduler::GetPresentMode() const noexcept
