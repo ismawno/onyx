@@ -340,7 +340,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
     if constexpr (D == D2)
     {
         std::scoped_lock lock(*m_Mutex);
-        const vec2 mpos2 = m_LayerData2.Context->GetMouseCoordinates();
+        const fvec2 mpos2 = m_LayerData2.Context->GetMouseCoordinates();
         ImGui::Text("Mouse Position: (%.2f, %.2f)", mpos2.x, mpos2.y);
     }
     else
@@ -348,7 +348,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
         ImGui::SliderFloat("Mouse Z offset", &p_Data.ZOffset, -1.f, 1.f);
 
         std::scoped_lock lock(*m_Mutex);
-        const vec3 mpos3 = m_LayerData3.Context->GetMouseCoordinates(p_Data.ZOffset);
+        const fvec3 mpos3 = m_LayerData3.Context->GetMouseCoordinates(p_Data.ZOffset);
 
         ImGui::Text("Mouse Position 3D: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
     }

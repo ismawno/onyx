@@ -530,7 +530,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Dimensions The width and height of the square.
      * @param p_Radius The radius of the corners.
      */
-    void RoundedSquare(const vec2 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedSquare(const fvec2 &p_Dimensions, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a rounded square with given dimensions, corner radius, and transformation.
@@ -540,7 +540,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Dimensions The width and height of the square.
      * @param p_Radius The radius of the corners.
      */
-    void RoundedSquare(const mat<D> &p_Transform, const vec2 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedSquare(const mat<D> &p_Transform, const fvec2 &p_Dimensions, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a rounded square with given dimensions and corner radius.
@@ -767,7 +767,7 @@ template <Dimension D> class ONYX_API IRenderContext
     Window *m_Window;
 
   private:
-    vec2 m_PrevMousePos{0.f};
+    fvec2 m_PrevMousePos{0.f};
 };
 
 template <Dimension D> class RenderContext;
@@ -853,7 +853,7 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
      * @param p_End The ending point of the line.
      * @param p_Thickness The thickness of the line.
      */
-    void RoundedLine(const vec2 &p_Start, const vec2 &p_End, f32 p_Thickness = 0.01f) noexcept;
+    void RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, f32 p_Thickness = 0.01f) noexcept;
 
     /**
      * @brief Draw a rounded line between two points with the specified thickness.
@@ -871,7 +871,7 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
      *
      * @return The mouse coordinates as a 2D vector.
      */
-    vec2 GetMouseCoordinates() const noexcept;
+    fvec2 GetMouseCoordinates() const noexcept;
 
     /**
      * @brief Control the global view's scale of the rendering context with user input.
@@ -905,7 +905,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Scale The scaling vector.
      * @param p_Rotation The rotation angles (in radians) around the X, Y, and Z axes.
      */
-    void Transform(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept;
+    void Transform(const fvec3 &p_Translation, const fvec3 &p_Scale, const fvec3 &p_Rotation) noexcept;
 
     /**
      * @brief Transforms subsequent shapes by the given translation, uniform scale, and rotation angles.
@@ -914,7 +914,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Scale The uniform scaling factor.
      * @param p_Rotation The rotation angles (in radians) around the X, Y, and Z axes.
      */
-    void Transform(const vec3 &p_Translation, f32 p_Scale, const vec3 &p_Rotation) noexcept;
+    void Transform(const fvec3 &p_Translation, f32 p_Scale, const fvec3 &p_Rotation) noexcept;
 
     /**
      * @brief Transforms the coordinate system by the given translation, scale, and rotation angles.
@@ -923,7 +923,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Scale The scaling vector.
      * @param p_Rotation The rotation angles (in radians) around the X, Y, and Z axes.
      */
-    void TransformAxes(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept;
+    void TransformAxes(const fvec3 &p_Translation, const fvec3 &p_Scale, const fvec3 &p_Rotation) noexcept;
 
     /**
      * @brief Transforms the coordinate system by the given translation, uniform scale, and rotation angles.
@@ -932,7 +932,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Scale The uniform scaling factor.
      * @param p_Rotation The rotation angles (in radians) around the X, Y, and Z axes.
      */
-    void TransformAxes(const vec3 &p_Translation, f32 p_Scale, const vec3 &p_Rotation) noexcept;
+    void TransformAxes(const fvec3 &p_Translation, f32 p_Scale, const fvec3 &p_Rotation) noexcept;
 
     /**
      * @brief Translate subsequent shapes by the given amounts along the X, Y, and Z axes.
@@ -1010,7 +1010,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      *
      * @param p_Angles The rotation angles (in radians) around the X, Y, and Z axes.
      */
-    void Rotate(const vec3 &p_Angles) noexcept;
+    void Rotate(const fvec3 &p_Angles) noexcept;
 
     /**
      * @brief Rotates subsequent shapes by the given angles around each axis.
@@ -1027,7 +1027,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Angle The rotation angle in radians.
      * @param p_Axis The axis to rotate around.
      */
-    void Rotate(f32 p_Angle, const vec3 &p_Axis) noexcept;
+    void Rotate(f32 p_Angle, const fvec3 &p_Axis) noexcept;
 
     /**
      * @brief Rotates subsequent shapes around the X-axis.
@@ -1062,7 +1062,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      *
      * @param p_Angles The rotation angles (in radians) around the X, Y, and Z axes.
      */
-    void RotateAxes(const vec3 &p_Angles) noexcept;
+    void RotateAxes(const fvec3 &p_Angles) noexcept;
 
     /**
      * @brief Rotates the coordinate system by the given angles around each axis.
@@ -1079,7 +1079,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Angle The rotation angle in radians.
      * @param p_Axis The axis to rotate around.
      */
-    void RotateAxes(f32 p_Angle, const vec3 &p_Axis) noexcept;
+    void RotateAxes(f32 p_Angle, const fvec3 &p_Axis) noexcept;
 
     /**
      * @brief Rotates the coordinate system around the X-axis.
@@ -1123,7 +1123,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_End The ending point of the line.
      * @param p_Thickness The thickness of the line.
      */
-    void RoundedLine(const vec3 &p_Start, const vec3 &p_End, f32 p_Thickness = 0.01f) noexcept;
+    void RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, f32 p_Thickness = 0.01f) noexcept;
 
     /**
      * @brief Draw a rounded line between two points with the specified thickness.
@@ -1152,7 +1152,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Cube(const mat4 &p_Transform) noexcept;
+    void Cube(const fmat4 &p_Transform) noexcept;
 
     /**
      * @brief Draw a unit cylinder centered at the origin.
@@ -1167,7 +1167,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the cylinder. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Cylinder(const mat4 &p_Transform) noexcept;
+    void Cylinder(const fmat4 &p_Transform) noexcept;
 
     /**
      * @brief Draw a unit sphere centered at the origin.
@@ -1182,7 +1182,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the sphere. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Sphere(const mat4 &p_Transform) noexcept;
+    void Sphere(const fmat4 &p_Transform) noexcept;
 
     /**
      * @brief Draw a unit capsule centered at the origin.
@@ -1197,7 +1197,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the capsule. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Capsule(const mat4 &p_Transform) noexcept;
+    void Capsule(const fmat4 &p_Transform) noexcept;
 
     /**
      * @brief Draw a capsule shape with the given length and radius.
@@ -1215,7 +1215,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the capsule. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Capsule(const mat4 &p_Transform, f32 p_Length, f32 p_Radius) noexcept;
+    void Capsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a unit rounded cube centered at the origin.
@@ -1230,7 +1230,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void RoundedCube(const mat4 &p_Transform) noexcept;
+    void RoundedCube(const fmat4 &p_Transform) noexcept;
 
     /**
      * @brief Draw a rounded cube with given dimensions and corner radius.
@@ -1238,7 +1238,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Dimensions The width, height, and depth of the cube.
      * @param p_Radius The radius of the corners.
      */
-    void RoundedCube(const vec3 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedCube(const fvec3 &p_Dimensions, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a rounded cube with given dimensions, corner radius, and transformation.
@@ -1248,7 +1248,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void RoundedCube(const mat4 &p_Transform, const vec3 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a rounded cube with given dimensions and corner radius.
@@ -1270,7 +1270,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void RoundedCube(const mat4 &p_Transform, f32 p_Width, f32 p_Height, f32 p_Depth, f32 p_Radius) noexcept;
+    void RoundedCube(const fmat4 &p_Transform, f32 p_Width, f32 p_Height, f32 p_Depth, f32 p_Radius) noexcept;
 
     /**
      * @brief Set the color of the light for subsequent lighting calculations.
@@ -1322,7 +1322,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Direction The direction of the light.
      * @param p_Intensity The intensity of the light.
      */
-    void DirectionalLight(const vec3 &p_Direction, f32 p_Intensity = 1.f) noexcept;
+    void DirectionalLight(const fvec3 &p_Direction, f32 p_Intensity = 1.f) noexcept;
 
     /**
      * @brief Adds a directional light to the scene with the specified direction components and intensity.
@@ -1356,7 +1356,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Radius The radius of the light's influence.
      * @param p_Intensity The intensity of the light.
      */
-    void PointLight(const vec3 &p_Position, f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
+    void PointLight(const fvec3 &p_Position, f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
 
     /**
      * @brief Adds a point light to the scene at the specified position.
@@ -1395,7 +1395,7 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      *
      * @param p_Projection The projection matrix to set.
      */
-    void SetProjection(const mat4 &p_Projection) noexcept;
+    void SetProjection(const fmat4 &p_Projection) noexcept;
 
     /**
      * @brief Set a global perspective projection with the given field of view and near/far planes.
@@ -1418,6 +1418,6 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Depth The depth at which to get the mouse coordinates.
      * @return The mouse coordinates as a 3D vector.
      */
-    vec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
+    fvec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
 };
 } // namespace Onyx

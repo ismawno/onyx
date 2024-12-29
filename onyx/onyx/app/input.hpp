@@ -197,7 +197,7 @@ enum class Mouse : u8
  * @param p_Window The window to get the mouse position from.
  * @return The mouse position.
  */
-vec2 GetMousePosition(Window *p_Window) noexcept;
+fvec2 GetMousePosition(Window *p_Window) noexcept;
 
 /**
  * @brief Check if a key is currently pressed.
@@ -291,7 +291,7 @@ struct Event
      */
     struct MouseState
     {
-        vec2 Position{0.f};
+        fvec2 Position{0.f};
         Input::Mouse Button;
     };
 
@@ -301,7 +301,7 @@ struct Event
 
     WindowResizedDimensions WindowResize;
     MouseState Mouse;
-    vec2 ScrollOffset{0.f};
+    fvec2 ScrollOffset{0.f};
     Window *Window = nullptr;
 
     explicit(false) operator bool() const

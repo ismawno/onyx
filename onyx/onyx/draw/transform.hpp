@@ -72,7 +72,7 @@ template <Dimension D> struct ONYX_API ITransform
         {
             const f32 c = glm::cos(p_Rotation);
             const f32 s = glm::sin(p_Rotation);
-            return mat2{c, s, -s, c};
+            return fmat2{c, s, -s, c};
         }
         else
             return glm::toMat3(p_Rotation);
@@ -269,7 +269,7 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateIntrinsic(mat3 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateIntrinsic(fmat3 &p_Transform, f32 p_Angle) noexcept;
 
     /**
      * @brief Applies an extrinsic rotation to a 2D transformation matrix.
@@ -279,7 +279,7 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateExtrinsic(mat3 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateExtrinsic(fmat3 &p_Transform, f32 p_Angle) noexcept;
 
     /**
      * @brief Extracts a 2D Transform object from a transformation matrix.
@@ -287,7 +287,7 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @param p_Transform The transformation matrix.
      * @return The extracted Transform object.
      */
-    static Transform Extract(const mat3 &p_Transform) noexcept;
+    static Transform Extract(const fmat3 &p_Transform) noexcept;
 };
 
 /**
@@ -307,7 +307,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateXIntrinsic(mat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateXIntrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
 
     /**
      * @brief Applies an intrinsic rotation around the Y-axis to a 3D transformation matrix.
@@ -317,7 +317,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateYIntrinsic(mat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateYIntrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
 
     /**
      * @brief Applies an intrinsic rotation around the Z-axis to a 3D transformation matrix.
@@ -327,7 +327,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateZIntrinsic(mat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateZIntrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
 
     /**
      * @brief Applies an extrinsic rotation around the X-axis to a 3D transformation matrix.
@@ -337,7 +337,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateXExtrinsic(mat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateXExtrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
 
     /**
      * @brief Applies an extrinsic rotation around the Y-axis to a 3D transformation matrix.
@@ -347,7 +347,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateYExtrinsic(mat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateYExtrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
 
     /**
      * @brief Applies an extrinsic rotation around the Z-axis to a 3D transformation matrix.
@@ -357,7 +357,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateZExtrinsic(mat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateZExtrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
 
     /**
      * @brief Applies an intrinsic rotation using a quaternion to a 3D transformation matrix.
@@ -367,7 +367,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Quaternion The quaternion representing the rotation.
      */
-    static void RotateIntrinsic(mat4 &p_Transform, const quat &p_Quaternion) noexcept;
+    static void RotateIntrinsic(fmat4 &p_Transform, const quat &p_Quaternion) noexcept;
 
     /**
      * @brief Applies an extrinsic rotation using a quaternion to a 3D transformation matrix.
@@ -377,7 +377,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Quaternion The quaternion representing the rotation.
      */
-    static void RotateExtrinsic(mat4 &p_Transform, const quat &p_Quaternion) noexcept;
+    static void RotateExtrinsic(fmat4 &p_Transform, const quat &p_Quaternion) noexcept;
 
     /**
      * @brief Extracts a 3D Transform object from a transformation matrix.
@@ -385,7 +385,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix.
      * @return The extracted Transform object.
      */
-    static Transform Extract(const mat4 &p_Transform) noexcept;
+    static Transform Extract(const fmat4 &p_Transform) noexcept;
 };
 
 } // namespace Onyx

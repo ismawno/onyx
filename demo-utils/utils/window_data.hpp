@@ -29,7 +29,7 @@ template <> struct LayerData<D3> : ILayerData<D3>
 {
     DynamicArray<DirectionalLight> DirectionalLights;
     DynamicArray<PointLight> PointLights;
-    vec4 Ambient = vec4{1.f, 1.f, 1.f, 0.4f};
+    fvec4 Ambient = fvec4{1.f, 1.f, 1.f, 0.4f};
 
     f32 FieldOfView = glm::radians(75.f);
     f32 Near = 0.1f;
@@ -40,8 +40,8 @@ template <> struct LayerData<D3> : ILayerData<D3>
     bool DrawLights = false;
 
     int LightToSpawn = 0;
-    DirectionalLight DirLightToAdd{vec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE};
-    PointLight PointLightToAdd{vec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f};
+    DirectionalLight DirLightToAdd{fvec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE};
+    PointLight PointLightToAdd{fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f};
     usize SelectedDirLight = 0;
     usize SelectedPointLight = 0;
 };

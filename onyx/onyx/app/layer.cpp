@@ -29,7 +29,7 @@ template <Dimension D> void Layer::EditTransform(Transform<D> &p_Transform, f32 
         ImGui::DragFloat3("Translation", glm::value_ptr(p_Transform.Translation), p_DragSpeed);
         ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale), p_DragSpeed);
 
-        vec3 angles{0.f};
+        fvec3 angles{0.f};
         if (ImGui::DragFloat3("Rotate (global)", glm::value_ptr(angles), p_DragSpeed, 0.f, 0.f, "Slide!"))
             p_Transform.Rotation = glm::normalize(glm::quat(angles) * p_Transform.Rotation);
 

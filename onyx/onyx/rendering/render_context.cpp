@@ -56,13 +56,13 @@ void IRenderContext<D>::Transform(const vec<D> &p_Translation, const f32 p_Scale
 {
     this->Transform(Onyx::Transform<D>::ComputeTransform(p_Translation, vec<D>{p_Scale}, p_Rotation));
 }
-void RenderContext<D3>::Transform(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept
+void RenderContext<D3>::Transform(const fvec3 &p_Translation, const fvec3 &p_Scale, const fvec3 &p_Rotation) noexcept
 {
     this->Transform(Onyx::Transform<D3>::ComputeTransform(p_Translation, p_Scale, p_Rotation));
 }
-void RenderContext<D3>::Transform(const vec3 &p_Translation, const f32 p_Scale, const vec3 &p_Rotation) noexcept
+void RenderContext<D3>::Transform(const fvec3 &p_Translation, const f32 p_Scale, const fvec3 &p_Rotation) noexcept
 {
-    this->Transform(Onyx::Transform<D3>::ComputeTransform(p_Translation, vec3{p_Scale}, p_Rotation));
+    this->Transform(Onyx::Transform<D3>::ComputeTransform(p_Translation, fvec3{p_Scale}, p_Rotation));
 }
 
 template <Dimension D> void IRenderContext<D>::TransformAxes(const mat<D> &p_Axes) noexcept
@@ -80,13 +80,14 @@ void IRenderContext<D>::TransformAxes(const vec<D> &p_Translation, const f32 p_S
 {
     TransformAxes(p_Translation, vec<D>{p_Scale}, p_Rotation);
 }
-void RenderContext<D3>::TransformAxes(const vec3 &p_Translation, const vec3 &p_Scale, const vec3 &p_Rotation) noexcept
+void RenderContext<D3>::TransformAxes(const fvec3 &p_Translation, const fvec3 &p_Scale,
+                                      const fvec3 &p_Rotation) noexcept
 {
     TransformAxes(Onyx::Transform<D3>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation));
 }
-void RenderContext<D3>::TransformAxes(const vec3 &p_Translation, const f32 p_Scale, const vec3 &p_Rotation) noexcept
+void RenderContext<D3>::TransformAxes(const fvec3 &p_Translation, const f32 p_Scale, const fvec3 &p_Rotation) noexcept
 {
-    TransformAxes(Onyx::Transform<D3>::ComputeReversedTransform(p_Translation, vec3{p_Scale}, p_Rotation));
+    TransformAxes(Onyx::Transform<D3>::ComputeReversedTransform(p_Translation, fvec3{p_Scale}, p_Rotation));
 }
 
 template <Dimension D> void IRenderContext<D>::Translate(const vec<D> &p_Translation) noexcept
@@ -95,11 +96,11 @@ template <Dimension D> void IRenderContext<D>::Translate(const vec<D> &p_Transla
 }
 void RenderContext<D2>::Translate(const f32 p_X, const f32 p_Y) noexcept
 {
-    Translate(vec2{p_X, p_Y});
+    Translate(fvec2{p_X, p_Y});
 }
 void RenderContext<D3>::Translate(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
-    Translate(vec3{p_X, p_Y, p_Z});
+    Translate(fvec3{p_X, p_Y, p_Z});
 }
 
 template <Dimension D> void IRenderContext<D>::Scale(const vec<D> &p_Scale) noexcept
@@ -112,11 +113,11 @@ template <Dimension D> void IRenderContext<D>::Scale(const f32 p_Scale) noexcept
 }
 void RenderContext<D2>::Scale(const f32 p_X, const f32 p_Y) noexcept
 {
-    Scale(vec2{p_X, p_Y});
+    Scale(fvec2{p_X, p_Y});
 }
 void RenderContext<D3>::Scale(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
-    Scale(vec3{p_X, p_Y, p_Z});
+    Scale(fvec3{p_X, p_Y, p_Z});
 }
 
 template <Dimension D> void IRenderContext<D>::TranslateX(const f32 p_X) noexcept
@@ -178,7 +179,7 @@ template <Dimension D> void IRenderContext<D>::UpdateViewAspect(const f32 p_Aspe
         m_ProjectionView.ProjectionView = m_ProjectionView.View.ComputeInverseTransform();
     else
     {
-        mat4 vmat = m_ProjectionView.View.ComputeInverseTransform();
+        fmat4 vmat = m_ProjectionView.View.ComputeInverseTransform();
         ApplyCoordinateSystemExtrinsic(vmat);
         m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
     }
@@ -190,11 +191,11 @@ template <Dimension D> void IRenderContext<D>::TranslateAxes(const vec<D> &p_Tra
 }
 void RenderContext<D2>::TranslateAxes(const f32 p_X, const f32 p_Y) noexcept
 {
-    TranslateAxes(vec2{p_X, p_Y});
+    TranslateAxes(fvec2{p_X, p_Y});
 }
 void RenderContext<D3>::TranslateAxes(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
-    TranslateAxes(vec3{p_X, p_Y, p_Z});
+    TranslateAxes(fvec3{p_X, p_Y, p_Z});
 }
 
 template <Dimension D> void IRenderContext<D>::ScaleAxes(const vec<D> &p_Scale) noexcept
@@ -207,11 +208,11 @@ template <Dimension D> void IRenderContext<D>::ScaleAxes(const f32 p_Scale) noex
 }
 void RenderContext<D2>::ScaleAxes(const f32 p_X, const f32 p_Y) noexcept
 {
-    ScaleAxes(vec2{p_X, p_Y});
+    ScaleAxes(fvec2{p_X, p_Y});
 }
 void RenderContext<D3>::ScaleAxes(const f32 p_X, const f32 p_Y, const f32 p_Z) noexcept
 {
-    ScaleAxes(vec3{p_X, p_Y, p_Z});
+    ScaleAxes(fvec3{p_X, p_Y, p_Z});
 }
 
 void RenderContext<D2>::Rotate(const f32 p_Angle) noexcept
@@ -223,29 +224,29 @@ void RenderContext<D3>::Rotate(const quat &p_Quaternion) noexcept
 {
     Onyx::Transform<D3>::RotateExtrinsic(m_RenderState.back().Transform, p_Quaternion);
 }
-void RenderContext<D3>::Rotate(const f32 p_Angle, const vec3 &p_Axis) noexcept
+void RenderContext<D3>::Rotate(const f32 p_Angle, const fvec3 &p_Axis) noexcept
 {
     Rotate(glm::angleAxis(p_Angle, p_Axis));
 }
-void RenderContext<D3>::Rotate(const vec3 &p_Angles) noexcept
+void RenderContext<D3>::Rotate(const fvec3 &p_Angles) noexcept
 {
     Rotate(glm::quat(p_Angles));
 }
 void RenderContext<D3>::Rotate(const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
 {
-    Rotate(vec3{p_XRot, p_YRot, p_ZRot});
+    Rotate(fvec3{p_XRot, p_YRot, p_ZRot});
 }
 void RenderContext<D3>::RotateX(const f32 p_Angle) noexcept
 {
-    Rotate(vec3{p_Angle, 0.f, 0.f});
+    Rotate(fvec3{p_Angle, 0.f, 0.f});
 }
 void RenderContext<D3>::RotateY(const f32 p_Angle) noexcept
 {
-    Rotate(vec3{0.f, p_Angle, 0.f});
+    Rotate(fvec3{0.f, p_Angle, 0.f});
 }
 void RenderContext<D3>::RotateZ(const f32 p_Angle) noexcept
 {
-    Rotate(vec3{0.f, 0.f, p_Angle});
+    Rotate(fvec3{0.f, 0.f, p_Angle});
 }
 
 void RenderContext<D2>::RotateAxes(const f32 p_Angle) noexcept
@@ -258,13 +259,13 @@ void RenderContext<D3>::RotateAxes(const quat &p_Quaternion) noexcept
 }
 void RenderContext<D3>::RotateAxes(const f32 p_XRot, const f32 p_YRot, const f32 p_ZRot) noexcept
 {
-    RotateAxes(vec3{p_XRot, p_YRot, p_ZRot});
+    RotateAxes(fvec3{p_XRot, p_YRot, p_ZRot});
 }
-void RenderContext<D3>::RotateAxes(const f32 p_Angle, const vec3 &p_Axis) noexcept
+void RenderContext<D3>::RotateAxes(const f32 p_Angle, const fvec3 &p_Axis) noexcept
 {
     RotateAxes(glm::angleAxis(p_Angle, p_Axis));
 }
-void RenderContext<D3>::RotateAxes(const vec3 &p_Angles) noexcept
+void RenderContext<D3>::RotateAxes(const fvec3 &p_Angles) noexcept
 {
     RotateAxes(glm::quat(p_Angles));
 }
@@ -272,20 +273,20 @@ void RenderContext<D3>::RotateAxes(const vec3 &p_Angles) noexcept
 // This could be optimized a bit
 void RenderContext<D3>::RotateXAxis(const f32 p_Angle) noexcept
 {
-    RotateAxes(vec3{p_Angle, 0.f, 0.f});
+    RotateAxes(fvec3{p_Angle, 0.f, 0.f});
 }
 void RenderContext<D3>::RotateYAxis(const f32 p_Angle) noexcept
 {
-    RotateAxes(vec3{0.f, p_Angle, 0.f});
+    RotateAxes(fvec3{0.f, p_Angle, 0.f});
 }
 void RenderContext<D3>::RotateZAxis(const f32 p_Angle) noexcept
 {
-    RotateAxes(vec3{0.f, 0.f, p_Angle});
+    RotateAxes(fvec3{0.f, 0.f, p_Angle});
 }
 
-static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
+static fmat4 transform3ToTransform4(const fmat3 &p_Transform) noexcept
 {
-    mat4 t4{1.f};
+    fmat4 t4{1.f};
     t4[0][0] = p_Transform[0][0];
     t4[0][1] = p_Transform[0][1];
     t4[1][0] = p_Transform[1][0];
@@ -400,14 +401,14 @@ static void drawIntrinsicArc(Renderer<D> &p_Renderer, mat<D> p_Transform, const 
     p_Renderer.DrawCircleOrArc(p_Transform, 0.f, 0.f, p_LowerAngle, p_UpperAngle, 0.f, p_Flags);
 }
 
-static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, mat4 p_Transform, const vec3 &p_Position,
+static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, fmat4 p_Transform, const fvec3 &p_Position,
                                 const f32 p_Diameter, const u8 p_Flags) noexcept
 {
     Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
-    Onyx::Transform<D3>::ScaleIntrinsic(p_Transform, vec3{p_Diameter});
+    Onyx::Transform<D3>::ScaleIntrinsic(p_Transform, fvec3{p_Diameter});
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetSphereIndex(), p_Flags);
 }
-static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, mat4 p_Transform, const vec3 &p_Position,
+static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, fmat4 p_Transform, const fvec3 &p_Position,
                                 const u8 p_Flags) noexcept
 {
     Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
@@ -514,17 +515,17 @@ void IRenderContext<D>::Stadium(const mat<D> &p_Transform, const f32 p_Length, c
 
 template <Dimension D>
 static void drawRoundedSquareEdges(Renderer<D> &p_Renderer, const mat<D> &p_Transform, const u8 p_Flags,
-                                   const vec2 &p_Dimensions = vec2{1.f}, const f32 p_Radius = 0.5f) noexcept
+                                   const fvec2 &p_Dimensions = fvec2{1.f}, const f32 p_Radius = 0.5f) noexcept
 {
-    const vec2 halfDims = 0.5f * p_Dimensions;
-    const vec2 paddedDims = halfDims + 0.5f * p_Radius;
+    const fvec2 halfDims = 0.5f * p_Dimensions;
+    const fvec2 paddedDims = halfDims + 0.5f * p_Radius;
     const f32 diameter = 2.f * p_Radius;
 
     vec<D> pos;
     if constexpr (D == D2)
         pos = halfDims;
     else
-        pos = vec3{halfDims.x, halfDims.y, 0.f};
+        pos = fvec3{halfDims.x, halfDims.y, 0.f};
     for (u32 i = 0; i < 4; ++i)
     {
         mat<D> transform = p_Transform;
@@ -549,7 +550,7 @@ static void drawRoundedSquare(Renderer<D> &p_Renderer, const mat<D> &p_Transform
     drawRoundedSquareEdges<D>(p_Renderer, p_Transform, p_Flags);
 }
 template <Dimension D>
-static void drawRoundedSquare(Renderer<D> &p_Renderer, const mat<D> &p_Transform, const vec2 &p_Dimensions,
+static void drawRoundedSquare(Renderer<D> &p_Renderer, const mat<D> &p_Transform, const fvec2 &p_Dimensions,
                               const f32 p_Radius, const u8 p_Flags) noexcept
 {
     mat<D> transform = p_Transform;
@@ -566,7 +567,7 @@ template <Dimension D> void IRenderContext<D>::RoundedSquare() noexcept
     const auto fill = [this, &transform](const u8 p_Flags) { drawRoundedSquare(m_Renderer, transform, p_Flags); };
     const auto outline = [this, &transform](const u8 p_Flags) {
         const f32 radius = 0.5f + 0.5f * m_RenderState.back().OutlineWidth;
-        drawRoundedSquare(m_Renderer, transform, vec2{1.f}, radius, p_Flags);
+        drawRoundedSquare(m_Renderer, transform, fvec2{1.f}, radius, p_Flags);
     };
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
@@ -576,11 +577,11 @@ template <Dimension D> void IRenderContext<D>::RoundedSquare(const mat<D> &p_Tra
     const auto fill = [this, &transform](const u8 p_Flags) { drawRoundedSquare(m_Renderer, transform, p_Flags); };
     const auto outline = [this, &transform](const u8 p_Flags) {
         const f32 radius = 0.5f + 0.5f * m_RenderState.back().OutlineWidth;
-        drawRoundedSquare(m_Renderer, transform, vec2{1.f}, radius, p_Flags);
+        drawRoundedSquare(m_Renderer, transform, fvec2{1.f}, radius, p_Flags);
     };
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
-template <Dimension D> void IRenderContext<D>::RoundedSquare(const vec2 &p_Dimensions, const f32 p_Radius) noexcept
+template <Dimension D> void IRenderContext<D>::RoundedSquare(const fvec2 &p_Dimensions, const f32 p_Radius) noexcept
 {
     const mat<D> &transform = m_RenderState.back().Transform;
     const auto fill = [this, &transform, &p_Dimensions, p_Radius](const u8 p_Flags) {
@@ -593,7 +594,7 @@ template <Dimension D> void IRenderContext<D>::RoundedSquare(const vec2 &p_Dimen
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 template <Dimension D>
-void IRenderContext<D>::RoundedSquare(const mat<D> &p_Transform, const vec2 &p_Dimensions, const f32 p_Radius) noexcept
+void IRenderContext<D>::RoundedSquare(const mat<D> &p_Transform, const fvec2 &p_Dimensions, const f32 p_Radius) noexcept
 {
     const mat<D> transform = p_Transform * m_RenderState.back().Transform;
     const auto fill = [this, &transform, &p_Dimensions, p_Radius](const u8 p_Flags) {
@@ -608,13 +609,13 @@ void IRenderContext<D>::RoundedSquare(const mat<D> &p_Transform, const vec2 &p_D
 template <Dimension D>
 void IRenderContext<D>::RoundedSquare(const f32 p_Width, const f32 p_Height, const f32 p_Radius) noexcept
 {
-    RoundedSquare(vec2{p_Width, p_Height}, p_Radius);
+    RoundedSquare(fvec2{p_Width, p_Height}, p_Radius);
 }
 template <Dimension D>
 void IRenderContext<D>::RoundedSquare(const mat<D> &p_Transform, const f32 p_Width, const f32 p_Height,
                                       const f32 p_Radius) noexcept
 {
-    RoundedSquare(p_Transform, vec2{p_Width, p_Height}, p_Radius);
+    RoundedSquare(p_Transform, fvec2{p_Width, p_Height}, p_Radius);
 }
 
 template <Dimension D>
@@ -642,12 +643,12 @@ void IRenderContext<D>::Line(const vec<D> &p_Start, const vec<D> &p_End, const f
 void RenderContext<D2>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
                              const f32 p_Thickness) noexcept
 {
-    Line(vec2{p_X1, p_Y1}, vec2{p_X2, p_Y2}, p_Thickness);
+    Line(fvec2{p_X1, p_Y1}, fvec2{p_X2, p_Y2}, p_Thickness);
 }
 void RenderContext<D3>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_Z1, const f32 p_X2, const f32 p_Y2,
                              const f32 p_Z2, const f32 p_Thickness) noexcept
 {
-    Line(vec3{p_X1, p_Y1, p_Z1}, vec3{p_X2, p_Y2, p_Z2}, p_Thickness);
+    Line(fvec3{p_X1, p_Y1, p_Z1}, fvec3{p_X2, p_Y2, p_Z2}, p_Thickness);
 }
 
 template <Dimension D>
@@ -658,19 +659,19 @@ void IRenderContext<D>::LineStrip(std::span<const vec<D>> p_Points, const f32 p_
         Line(p_Points[i], p_Points[i + 1], p_Thickness);
 }
 
-void RenderContext<D2>::RoundedLine(const vec2 &p_Start, const vec2 &p_End, const f32 p_Thickness) noexcept
+void RenderContext<D2>::RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, const f32 p_Thickness) noexcept
 {
-    const vec2 delta = p_End - p_Start;
-    mat3 transform = m_RenderState.back().Transform;
+    const fvec2 delta = p_End - p_Start;
+    fmat3 transform = m_RenderState.back().Transform;
     Onyx::Transform<D2>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D2>::RotateIntrinsic(transform, glm::atan(delta.y, delta.x));
 
     Stadium(transform, glm::length(delta), p_Thickness);
 }
-void RenderContext<D3>::RoundedLine(const vec3 &p_Start, const vec3 &p_End, const f32 p_Thickness) noexcept
+void RenderContext<D3>::RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, const f32 p_Thickness) noexcept
 {
-    const vec3 delta = p_End - p_Start;
-    mat4 transform = m_RenderState.back().Transform;
+    const fvec3 delta = p_End - p_Start;
+    fmat4 transform = m_RenderState.back().Transform;
     Onyx::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D3>::RotateIntrinsic(transform,
                                          quat{{0.f, glm::atan(delta.y, delta.x), glm::atan(delta.z, delta.x)}});
@@ -680,19 +681,19 @@ void RenderContext<D3>::RoundedLine(const vec3 &p_Start, const vec3 &p_End, cons
 void RenderContext<D2>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
                                     const f32 p_Thickness) noexcept
 {
-    RoundedLine(vec2{p_X1, p_Y1}, vec2{p_X2, p_Y2}, p_Thickness);
+    RoundedLine(fvec2{p_X1, p_Y1}, fvec2{p_X2, p_Y2}, p_Thickness);
 }
 void RenderContext<D3>::RoundedLine(const f32 p_X1, const f32 p_Y1, const f32 p_Z1, const f32 p_X2, const f32 p_Y2,
                                     const f32 p_Z2, const f32 p_Thickness) noexcept
 {
-    RoundedLine(vec3{p_X1, p_Y1, p_Z1}, vec3{p_X2, p_Y2, p_Z2}, p_Thickness);
+    RoundedLine(fvec3{p_X1, p_Y1, p_Z1}, fvec3{p_X2, p_Y2, p_Z2}, p_Thickness);
 }
 
 void RenderContext<D3>::Cube() noexcept
 {
     m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D3>::GetCubeIndex());
 }
-void RenderContext<D3>::Cube(const mat4 &p_Transform) noexcept
+void RenderContext<D3>::Cube(const fmat4 &p_Transform) noexcept
 {
     m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D3>::GetCubeIndex());
 }
@@ -701,7 +702,7 @@ void RenderContext<D3>::Cylinder() noexcept
 {
     m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D3>::GetCylinderIndex());
 }
-void RenderContext<D3>::Cylinder(const mat4 &p_Transform) noexcept
+void RenderContext<D3>::Cylinder(const fmat4 &p_Transform) noexcept
 {
     m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D3>::GetCylinderIndex());
 }
@@ -710,29 +711,29 @@ void RenderContext<D3>::Sphere() noexcept
 {
     m_Renderer.DrawPrimitive(m_RenderState.back().Transform, Primitives<D3>::GetSphereIndex());
 }
-void RenderContext<D3>::Sphere(const mat4 &p_Transform) noexcept
+void RenderContext<D3>::Sphere(const fmat4 &p_Transform) noexcept
 {
     m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D3>::GetSphereIndex());
 }
 
-static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const u8 p_Flags) noexcept
+static void drawCapsule(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const u8 p_Flags) noexcept
 {
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetCylinderIndex());
 
-    vec3 pos{0.f};
+    fvec3 pos{0.f};
     pos.x = -0.5f;
     drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Flags);
     pos.x = 0.5f;
     drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Flags);
 }
-static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const f32 p_Length, const f32 p_Diameter,
+static void drawCapsule(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const f32 p_Length, const f32 p_Diameter,
                         const u8 p_Flags) noexcept
 {
-    mat4 transform = p_Transform;
+    fmat4 transform = p_Transform;
     Onyx::Transform<D3>::ScaleIntrinsic(transform, {p_Length, p_Diameter, p_Diameter});
     p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCylinderIndex(), p_Flags);
 
-    vec3 pos{0.f};
+    fvec3 pos{0.f};
     pos.x = -0.5f * p_Length;
     drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Diameter, p_Flags);
     pos.x = -pos.x;
@@ -741,16 +742,16 @@ static void drawCapsule(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const
 
 void RenderContext<D3>::Capsule() noexcept
 {
-    const mat4 &transform = m_RenderState.back().Transform;
+    const fmat4 &transform = m_RenderState.back().Transform;
     const auto fill = [this, &transform](const u8 p_Flags) { drawCapsule(m_Renderer, transform, p_Flags); };
     const auto outline = [this, &transform](const u8 p_Flags) {
         drawCapsule(m_Renderer, transform, 1.f, 1.f + m_RenderState.back().OutlineWidth, p_Flags);
     };
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
-void RenderContext<D3>::Capsule(const mat4 &p_Transform) noexcept
+void RenderContext<D3>::Capsule(const fmat4 &p_Transform) noexcept
 {
-    const mat4 transform = p_Transform * m_RenderState.back().Transform;
+    const fmat4 transform = p_Transform * m_RenderState.back().Transform;
     const auto fill = [this, &transform](const u8 p_Flags) { drawCapsule(m_Renderer, transform, p_Flags); };
     const auto outline = [this, &transform](const u8 p_Flags) {
         drawCapsule(m_Renderer, transform, 1.f, 1.f + m_RenderState.back().OutlineWidth, p_Flags);
@@ -760,7 +761,7 @@ void RenderContext<D3>::Capsule(const mat4 &p_Transform) noexcept
 
 void RenderContext<D3>::Capsule(const f32 p_Length, const f32 p_Radius) noexcept
 {
-    const mat4 &transform = m_RenderState.back().Transform;
+    const fmat4 &transform = m_RenderState.back().Transform;
     const auto fill = [this, &transform, p_Length, p_Radius](const u8 p_Flags) {
         drawCapsule(m_Renderer, transform, p_Length, 2.f * p_Radius, p_Flags);
     };
@@ -769,9 +770,9 @@ void RenderContext<D3>::Capsule(const f32 p_Length, const f32 p_Radius) noexcept
     };
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
-void RenderContext<D3>::Capsule(const mat4 &p_Transform, const f32 p_Length, const f32 p_Radius) noexcept
+void RenderContext<D3>::Capsule(const fmat4 &p_Transform, const f32 p_Length, const f32 p_Radius) noexcept
 {
-    const mat4 transform = p_Transform * m_RenderState.back().Transform;
+    const fmat4 transform = p_Transform * m_RenderState.back().Transform;
     const auto fill = [this, &transform, p_Length, p_Radius](const u8 p_Flags) {
         drawCapsule(m_Renderer, transform, p_Length, 2.f * p_Radius, p_Flags);
     };
@@ -781,14 +782,14 @@ void RenderContext<D3>::Capsule(const mat4 &p_Transform, const f32 p_Length, con
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 
-static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const u8 p_Flags,
-                                 const vec3 &p_Dimensions = vec3{1.f}, const f32 p_Radius = 0.5f) noexcept
+static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const u8 p_Flags,
+                                 const fvec3 &p_Dimensions = fvec3{1.f}, const f32 p_Radius = 0.5f) noexcept
 {
-    const vec3 halfDims = 0.5f * p_Dimensions;
-    const vec3 paddedDims = halfDims + 0.5f * p_Radius;
+    const fvec3 halfDims = 0.5f * p_Dimensions;
+    const fvec3 paddedDims = halfDims + 0.5f * p_Radius;
     for (u32 i = 0; i < 6; ++i)
     {
-        mat4 transform = p_Transform;
+        fmat4 transform = p_Transform;
         const u32 index1 = i % 3;
         const u32 index2 = (i + 1) % 3;
         const u32 index3 = (i + 2) % 3;
@@ -800,7 +801,7 @@ static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const mat4 &p_Transfo
         p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCubeIndex(), p_Flags);
     }
     const f32 diameter = 2.f * p_Radius;
-    vec3 pos = halfDims;
+    fvec3 pos = halfDims;
     for (u32 i = 0; i < 8; ++i)
     {
         drawIntrinsicSphere(p_Renderer, p_Transform, pos, diameter, p_Flags);
@@ -814,16 +815,16 @@ static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const mat4 &p_Transfo
     {
         const u32 dimIndex1 = (axis + 1) % 3;
         const u32 dimIndex2 = (axis + 2) % 3;
-        const vec4 relevantDims = {halfDims[dimIndex1], -halfDims[dimIndex1], halfDims[dimIndex2],
-                                   -halfDims[dimIndex2]};
+        const fvec4 relevantDims = {halfDims[dimIndex1], -halfDims[dimIndex1], halfDims[dimIndex2],
+                                    -halfDims[dimIndex2]};
         for (u32 i = 0; i < 2; ++i)
             for (u32 j = 0; j < 2; ++j)
             {
-                pos = vec3{0.f};
+                pos = fvec3{0.f};
                 pos[dimIndex1] = relevantDims[i];
                 pos[dimIndex2] = relevantDims[2 + j];
 
-                mat4 transform = p_Transform;
+                fmat4 transform = p_Transform;
                 Onyx::Transform<D3>::TranslateIntrinsic(transform, pos);
                 if (axis > 0)
                     Onyx::Transform<D3>::RotateZIntrinsic(transform, glm::half_pi<f32>());
@@ -835,15 +836,15 @@ static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const mat4 &p_Transfo
     }
 }
 
-static void drawRoundedCube(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const u8 p_Flags) noexcept
+static void drawRoundedCube(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const u8 p_Flags) noexcept
 {
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetSquareIndex(), p_Flags);
     drawRoundedCubeEdges(p_Renderer, p_Transform, p_Flags);
 }
-static void drawRoundedCube(Renderer<D3> &p_Renderer, const mat4 &p_Transform, const vec3 &p_Dimensions,
+static void drawRoundedCube(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const fvec3 &p_Dimensions,
                             const f32 p_Radius, const u8 p_Flags) noexcept
 {
-    mat4 transform = p_Transform;
+    fmat4 transform = p_Transform;
     Onyx::Transform<D3>::ScaleIntrinsic(transform, p_Dimensions);
     p_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCubeIndex(), p_Flags);
 
@@ -852,27 +853,27 @@ static void drawRoundedCube(Renderer<D3> &p_Renderer, const mat4 &p_Transform, c
 
 void RenderContext<D3>::RoundedCube() noexcept
 {
-    const mat4 &transform = m_RenderState.back().Transform;
+    const fmat4 &transform = m_RenderState.back().Transform;
     const auto fill = [this, &transform](const u8 p_Flags) { drawRoundedCube(m_Renderer, transform, p_Flags); };
     const auto outline = [this, &transform](const u8 p_Flags) {
         const f32 radius = 0.5f + 0.5f * m_RenderState.back().OutlineWidth;
-        drawRoundedCube(m_Renderer, transform, vec3{1.f}, radius, p_Flags);
+        drawRoundedCube(m_Renderer, transform, fvec3{1.f}, radius, p_Flags);
     };
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
-void RenderContext<D3>::RoundedCube(const mat4 &p_Transform) noexcept
+void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform) noexcept
 {
-    const mat4 transform = p_Transform * m_RenderState.back().Transform;
+    const fmat4 transform = p_Transform * m_RenderState.back().Transform;
     const auto fill = [this, &transform](const u8 p_Flags) { drawRoundedCube(m_Renderer, transform, p_Flags); };
     const auto outline = [this, &transform](const u8 p_Flags) {
         const f32 radius = 0.5f + 0.5f * m_RenderState.back().OutlineWidth;
-        drawRoundedCube(m_Renderer, transform, vec3{1.f}, radius, p_Flags);
+        drawRoundedCube(m_Renderer, transform, fvec3{1.f}, radius, p_Flags);
     };
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
-void RenderContext<D3>::RoundedCube(const vec3 &p_Dimensions, const f32 p_Radius) noexcept
+void RenderContext<D3>::RoundedCube(const fvec3 &p_Dimensions, const f32 p_Radius) noexcept
 {
-    const mat4 &transform = m_RenderState.back().Transform;
+    const fmat4 &transform = m_RenderState.back().Transform;
     const auto fill = [this, &transform, &p_Dimensions, p_Radius](const u8 p_Flags) {
         drawRoundedCube(m_Renderer, transform, p_Dimensions, p_Radius, p_Flags);
     };
@@ -882,9 +883,9 @@ void RenderContext<D3>::RoundedCube(const vec3 &p_Dimensions, const f32 p_Radius
     };
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
-void RenderContext<D3>::RoundedCube(const mat4 &p_Transform, const vec3 &p_Dimensions, const f32 p_Radius) noexcept
+void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const f32 p_Radius) noexcept
 {
-    const mat4 transform = p_Transform * m_RenderState.back().Transform;
+    const fmat4 transform = p_Transform * m_RenderState.back().Transform;
     const auto fill = [this, &transform, &p_Dimensions, p_Radius](const u8 p_Flags) {
         drawRoundedCube(m_Renderer, transform, p_Dimensions, p_Radius, p_Flags);
     };
@@ -897,12 +898,12 @@ void RenderContext<D3>::RoundedCube(const mat4 &p_Transform, const vec3 &p_Dimen
 void RenderContext<D3>::RoundedCube(const f32 p_Width, const f32 p_Height, const f32 p_Depth,
                                     const f32 p_Radius) noexcept
 {
-    RoundedCube(vec3{p_Width, p_Height, p_Depth}, p_Radius);
+    RoundedCube(fvec3{p_Width, p_Height, p_Depth}, p_Radius);
 }
-void RenderContext<D3>::RoundedCube(const mat4 &p_Transform, const f32 p_Width, const f32 p_Height, const f32 p_Depth,
+void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const f32 p_Width, const f32 p_Height, const f32 p_Depth,
                                     const f32 p_Radius) noexcept
 {
-    RoundedCube(p_Transform, vec3{p_Width, p_Height, p_Depth}, p_Radius);
+    RoundedCube(p_Transform, fvec3{p_Width, p_Height, p_Depth}, p_Radius);
 }
 
 void RenderContext<D3>::LightColor(const Color &p_Color) noexcept
@@ -920,40 +921,40 @@ void RenderContext<D3>::AmbientIntensity(const f32 p_Intensity) noexcept
 
 void RenderContext<D3>::DirectionalLight(Onyx::DirectionalLight p_Light) noexcept
 {
-    const mat4 transform = m_RenderState.back().Axes * m_RenderState.back().Transform;
-    vec4 direction = p_Light.DirectionAndIntensity;
+    const fmat4 transform = m_RenderState.back().Axes * m_RenderState.back().Transform;
+    fvec4 direction = p_Light.DirectionAndIntensity;
     direction.w = 0.f;
     direction = transform * direction;
 
-    p_Light.DirectionAndIntensity = vec4{glm::normalize(vec3{direction}), p_Light.DirectionAndIntensity.w};
+    p_Light.DirectionAndIntensity = fvec4{glm::normalize(fvec3{direction}), p_Light.DirectionAndIntensity.w};
     m_Renderer.AddDirectionalLight(p_Light);
 }
-void RenderContext<D3>::DirectionalLight(const vec3 &p_Direction, const f32 p_Intensity) noexcept
+void RenderContext<D3>::DirectionalLight(const fvec3 &p_Direction, const f32 p_Intensity) noexcept
 {
     Onyx::DirectionalLight light;
-    light.DirectionAndIntensity = vec4{p_Direction, p_Intensity};
+    light.DirectionAndIntensity = fvec4{p_Direction, p_Intensity};
     light.Color = m_RenderState.back().LightColor;
     DirectionalLight(light);
 }
 void RenderContext<D3>::DirectionalLight(const f32 p_DX, const f32 p_DY, const f32 p_DZ, const f32 p_Intensity) noexcept
 {
-    DirectionalLight(vec3{p_DX, p_DY, p_DZ}, p_Intensity);
+    DirectionalLight(fvec3{p_DX, p_DY, p_DZ}, p_Intensity);
 }
 
 void RenderContext<D3>::PointLight(Onyx::PointLight p_Light) noexcept
 {
-    const mat4 transform = m_RenderState.back().Axes * m_RenderState.back().Transform;
-    vec4 position = p_Light.PositionAndIntensity;
+    const fmat4 transform = m_RenderState.back().Axes * m_RenderState.back().Transform;
+    fvec4 position = p_Light.PositionAndIntensity;
     position.w = 1.f;
     position = transform * position;
     position.w = p_Light.PositionAndIntensity.w;
     p_Light.PositionAndIntensity = position;
     m_Renderer.AddPointLight(p_Light);
 }
-void RenderContext<D3>::PointLight(const vec3 &p_Position, const f32 p_Radius, const f32 p_Intensity) noexcept
+void RenderContext<D3>::PointLight(const fvec3 &p_Position, const f32 p_Radius, const f32 p_Intensity) noexcept
 {
     Onyx::PointLight light;
-    light.PositionAndIntensity = vec4{p_Position, p_Intensity};
+    light.PositionAndIntensity = fvec4{p_Position, p_Intensity};
     light.Radius = p_Radius;
     light.Color = m_RenderState.back().LightColor;
     PointLight(light);
@@ -961,11 +962,11 @@ void RenderContext<D3>::PointLight(const vec3 &p_Position, const f32 p_Radius, c
 void RenderContext<D3>::PointLight(const f32 p_X, const f32 p_Y, const f32 p_Z, const f32 p_Radius,
                                    const f32 p_Intensity) noexcept
 {
-    PointLight(vec3{p_X, p_Y, p_Z}, p_Radius, p_Intensity);
+    PointLight(fvec3{p_X, p_Y, p_Z}, p_Radius, p_Intensity);
 }
 void RenderContext<D3>::PointLight(const f32 p_Radius, const f32 p_Intensity) noexcept
 {
-    PointLight(vec3{0.f}, p_Radius, p_Intensity);
+    PointLight(fvec3{0.f}, p_Radius, p_Intensity);
 }
 
 void RenderContext<D3>::DiffuseContribution(const f32 p_Contribution) noexcept
@@ -1068,7 +1069,7 @@ template <Dimension D> void IRenderContext<D>::SetView(const Onyx::Transform<D> 
         m_ProjectionView.ProjectionView = p_View.ComputeInverseTransform();
     else
     {
-        mat4 vmat = p_View.ComputeInverseTransform();
+        fmat4 vmat = p_View.ComputeInverseTransform();
         ApplyCoordinateSystemExtrinsic(vmat);
         m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
     }
@@ -1086,11 +1087,11 @@ template <Dimension D> void IRenderContext<D>::Axes(const f32 p_Thickness, const
     const Color oldColor = color; // A cheap filthy push
     if constexpr (D == D2)
     {
-        const vec2 xLeft = vec2{-p_Size, 0.f};
-        const vec2 xRight = vec2{p_Size, 0.f};
+        const fvec2 xLeft = fvec2{-p_Size, 0.f};
+        const fvec2 xRight = fvec2{p_Size, 0.f};
 
-        const vec2 yDown = vec2{0.f, -p_Size};
-        const vec2 yUp = vec2{0.f, p_Size};
+        const fvec2 yDown = fvec2{0.f, -p_Size};
+        const fvec2 yUp = fvec2{0.f, p_Size};
 
         color = Color{245u, 64u, 90u};
         Line(xLeft, xRight, p_Thickness);
@@ -1099,14 +1100,14 @@ template <Dimension D> void IRenderContext<D>::Axes(const f32 p_Thickness, const
     }
     else
     {
-        const vec3 xLeft = vec3{-p_Size, 0.f, 0.f};
-        const vec3 xRight = vec3{p_Size, 0.f, 0.f};
+        const fvec3 xLeft = fvec3{-p_Size, 0.f, 0.f};
+        const fvec3 xRight = fvec3{p_Size, 0.f, 0.f};
 
-        const vec3 yDown = vec3{0.f, -p_Size, 0.f};
-        const vec3 yUp = vec3{0.f, p_Size, 0.f};
+        const fvec3 yDown = fvec3{0.f, -p_Size, 0.f};
+        const fvec3 yUp = fvec3{0.f, p_Size, 0.f};
 
-        const vec3 zBack = vec3{0.f, 0.f, -p_Size};
-        const vec3 zFront = vec3{0.f, 0.f, p_Size};
+        const fvec3 zBack = fvec3{0.f, 0.f, -p_Size};
+        const fvec3 zFront = fvec3{0.f, 0.f, p_Size};
 
         color = Color{245u, 64u, 90u};
         Line(xLeft, xRight, p_Thickness);
@@ -1147,13 +1148,13 @@ void IRenderContext<D>::ApplyCameraMovementControls(const CameraMovementControls
         if (Input::IsKeyPressed(m_Window, p_Controls.Backward))
             translation.z += view.Scale.z * p_Controls.TranslationStep;
 
-        const vec2 mpos = Input::GetMousePosition(m_Window);
+        const fvec2 mpos = Input::GetMousePosition(m_Window);
 
         const bool lookAround = Input::IsKeyPressed(m_Window, p_Controls.ToggleLookAround);
-        const vec2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : vec2{0.f};
+        const fvec2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : fvec2{0.f};
         m_PrevMousePos = mpos;
 
-        vec3 angles{delta.y, delta.x, 0.f};
+        fvec3 angles{delta.y, delta.x, 0.f};
         if (Input::IsKeyPressed(m_Window, p_Controls.RotateLeft))
             angles.z += p_Controls.RotationStep;
         if (Input::IsKeyPressed(m_Window, p_Controls.RotateRight))
@@ -1169,7 +1170,7 @@ void IRenderContext<D>::ApplyCameraMovementControls(const CameraMovementControls
         m_ProjectionView.ProjectionView = view.ComputeInverseTransform();
     else
     {
-        mat4 vmat = view.ComputeInverseTransform();
+        fmat4 vmat = view.ComputeInverseTransform();
         ApplyCoordinateSystemExtrinsic(vmat);
         m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
     }
@@ -1184,11 +1185,11 @@ template <Dimension D> void IRenderContext<D>::ApplyCameraMovementControls(const
 
 void RenderContext<D2>::ApplyCameraScalingControls(const f32 p_ScaleStep) noexcept
 {
-    mat4 transform = transform3ToTransform4(m_ProjectionView.View.ComputeTransform());
+    fmat4 transform = transform3ToTransform4(m_ProjectionView.View.ComputeTransform());
     ApplyCoordinateSystemIntrinsic(transform);
-    const vec2 mpos = transform * vec4{Input::GetMousePosition(m_Window), 0.f, 1.f};
+    const fvec2 mpos = transform * fvec4{Input::GetMousePosition(m_Window), 0.f, 1.f};
 
-    const vec2 dpos = p_ScaleStep * (mpos - m_ProjectionView.View.Translation);
+    const fvec2 dpos = p_ScaleStep * (mpos - m_ProjectionView.View.Translation);
     m_ProjectionView.View.Translation += dpos;
     m_ProjectionView.View.Scale *= 1.f - p_ScaleStep;
 
@@ -1199,38 +1200,38 @@ template <Dimension D> vec<D> IRenderContext<D>::GetCoordinates(const vec<D> &p_
 {
     if constexpr (D == D2)
     {
-        const mat3 itransform3 = glm::inverse(m_ProjectionView.ProjectionView * m_RenderState.back().Axes);
-        mat4 itransform = transform3ToTransform4(itransform3);
+        const fmat3 itransform3 = glm::inverse(m_ProjectionView.ProjectionView * m_RenderState.back().Axes);
+        fmat4 itransform = transform3ToTransform4(itransform3);
         ApplyCoordinateSystemIntrinsic(itransform);
-        return itransform * vec4{p_NormalizedPos, 0.f, 1.f};
+        return itransform * fvec4{p_NormalizedPos, 0.f, 1.f};
     }
     else
     {
-        const mat4 transform = m_ProjectionView.ProjectionView * m_RenderState.back().Axes;
-        const vec4 clip = glm::inverse(transform) * vec4{p_NormalizedPos, 1.f};
-        return vec3{clip} / clip.w;
+        const fmat4 transform = m_ProjectionView.ProjectionView * m_RenderState.back().Axes;
+        const fvec4 clip = glm::inverse(transform) * fvec4{p_NormalizedPos, 1.f};
+        return fvec3{clip} / clip.w;
     }
 }
-vec2 RenderContext<D2>::GetMouseCoordinates() const noexcept
+fvec2 RenderContext<D2>::GetMouseCoordinates() const noexcept
 {
     return GetCoordinates(Input::GetMousePosition(m_Window));
 }
-vec3 RenderContext<D3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
+fvec3 RenderContext<D3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
 {
-    return GetCoordinates(vec3{Input::GetMousePosition(m_Window), p_Depth});
+    return GetCoordinates(fvec3{Input::GetMousePosition(m_Window), p_Depth});
 }
 
-void RenderContext<D3>::SetProjection(const mat4 &p_Projection) noexcept
+void RenderContext<D3>::SetProjection(const fmat4 &p_Projection) noexcept
 {
     m_ProjectionView.Projection = p_Projection;
 
-    mat4 vmat = m_ProjectionView.View.ComputeInverseTransform();
+    fmat4 vmat = m_ProjectionView.View.ComputeInverseTransform();
     ApplyCoordinateSystemExtrinsic(vmat);
     m_ProjectionView.ProjectionView = p_Projection * vmat;
 }
 void RenderContext<D3>::SetPerspectiveProjection(const f32 p_FieldOfView, const f32 p_Near, const f32 p_Far) noexcept
 {
-    mat4 projection{0.f};
+    fmat4 projection{0.f};
     const f32 invHalfPov = 1.f / glm::tan(0.5f * p_FieldOfView);
 
     projection[0][0] = invHalfPov; // Aspect applied in view
@@ -1243,7 +1244,7 @@ void RenderContext<D3>::SetPerspectiveProjection(const f32 p_FieldOfView, const 
 
 void RenderContext<D3>::SetOrthographicProjection() noexcept
 {
-    SetProjection(mat4{1.f});
+    SetProjection(fmat4{1.f});
 }
 
 template class IRenderContext<D2>;

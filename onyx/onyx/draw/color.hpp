@@ -14,8 +14,8 @@ struct ONYX_API Color
     explicit Color(u32 p_Val) noexcept;
     explicit Color(u8 p_Val) noexcept;
 
-    explicit(false) Color(const vec4 &p_RGBA) noexcept;
-    explicit(false) Color(const vec3 &p_RGB, f32 p_Alpha = 1.f) noexcept;
+    explicit(false) Color(const fvec4 &p_RGBA) noexcept;
+    explicit(false) Color(const fvec3 &p_RGB, f32 p_Alpha = 1.f) noexcept;
 
     Color(f32 p_Red, f32 p_Green, f32 p_Blue, f32 p_Alpha = 1.f) noexcept;
     Color(u32 p_Red, u32 p_Green, u32 p_Blue, u32 p_Alpha = 255) noexcept;
@@ -26,8 +26,8 @@ struct ONYX_API Color
     Color(const Color &p_RGB, u8 p_Alpha) noexcept;
 
     union {
-        vec4 RGBA;
-        vec3 RGB;
+        fvec4 RGBA;
+        fvec3 RGB;
     };
 
     u8 Red() const noexcept;
@@ -50,8 +50,8 @@ struct ONYX_API Color
     const f32 *AsPointer() const noexcept;
     f32 *AsPointer() noexcept;
 
-    explicit(false) operator const vec4 &() const noexcept;
-    explicit(false) operator const vec3 &() const noexcept;
+    explicit(false) operator const fvec4 &() const noexcept;
+    explicit(false) operator const fvec3 &() const noexcept;
 
     Color &operator+=(const Color &p_Right) noexcept;
     Color &operator-=(const Color &p_Right) noexcept;

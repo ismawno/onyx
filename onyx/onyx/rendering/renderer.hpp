@@ -243,7 +243,7 @@ template <> class Renderer<D2> final : public IRenderer<D2>
 struct ONYX_API DirectionalLight
 {
     /// Direction of the light and its intensity (w component).
-    vec4 DirectionAndIntensity;
+    fvec4 DirectionAndIntensity;
 
     /// Color of the light.
     Color Color;
@@ -257,7 +257,7 @@ struct ONYX_API DirectionalLight
 struct ONYX_API PointLight
 {
     /// Position of the light and its intensity (w component).
-    vec4 PositionAndIntensity;
+    fvec4 PositionAndIntensity;
 
     /// Color of the light.
     Color Color;

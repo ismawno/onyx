@@ -14,7 +14,7 @@ void PollEvents()
     glfwPollEvents();
 }
 
-vec2 GetMousePosition(Window *p_Window) noexcept
+fvec2 GetMousePosition(Window *p_Window) noexcept
 {
     GLFWwindow *window = p_Window->GetWindowHandle();
     double xPos, yPos;

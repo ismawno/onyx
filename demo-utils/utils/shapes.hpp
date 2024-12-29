@@ -94,7 +94,7 @@ template <Dimension D> class RoundedSquare final : public Shape<D>
 
     void Edit() noexcept override;
 
-    vec2 Dimensions{1.f};
+    fvec2 Dimensions{1.f};
     f32 Radius = 0.5f;
 };
 
@@ -139,7 +139,7 @@ class RoundedCube final : public Shape<D3>
 
     void Edit() noexcept override;
 
-    vec3 Dimensions{1.f};
+    fvec3 Dimensions{1.f};
     f32 Radius = 0.5f;
 };
 

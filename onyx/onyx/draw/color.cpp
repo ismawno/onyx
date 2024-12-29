@@ -33,14 +33,14 @@ Color::Color(const u8 p_Val) noexcept : Color(p_Val, p_Val, p_Val, 255)
 {
 }
 
-Color::Color(const vec4 &p_RGBA) noexcept : RGBA(p_RGBA)
+Color::Color(const fvec4 &p_RGBA) noexcept : RGBA(p_RGBA)
 {
     TKIT_ASSERT(p_RGBA.r <= 1.f && p_RGBA.r >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
     TKIT_ASSERT(p_RGBA.g <= 1.f && p_RGBA.g >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
     TKIT_ASSERT(p_RGBA.b <= 1.f && p_RGBA.b >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
     TKIT_ASSERT(p_RGBA.a <= 1.f && p_RGBA.a >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
 }
-Color::Color(const vec3 &p_RGB, const f32 p_Alpha) noexcept : RGBA(p_RGB, p_Alpha)
+Color::Color(const fvec3 &p_RGB, const f32 p_Alpha) noexcept : RGBA(p_RGB, p_Alpha)
 {
     TKIT_ASSERT(p_RGB.r <= 1.f && p_RGB.r >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
     TKIT_ASSERT(p_RGB.g <= 1.f && p_RGB.g >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
@@ -68,16 +68,16 @@ Color::Color(const u8 r, const u8 g, const u8 b, const u8 a) noexcept
     // No asserts needed: u8 is always in the range [0, 255]
 }
 
-Color::Color(const Color &p_RGB, const f32 p_Alpha) noexcept : RGBA(vec3(p_RGB.RGBA), p_Alpha)
+Color::Color(const Color &p_RGB, const f32 p_Alpha) noexcept : RGBA(fvec3(p_RGB.RGBA), p_Alpha)
 {
     TKIT_ASSERT(p_Alpha <= 1.f && p_Alpha >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
 }
 
-Color::Color(const Color &p_RGB, const u32 p_Alpha) noexcept : RGBA(vec3(p_RGB.RGBA), toFloat(p_Alpha))
+Color::Color(const Color &p_RGB, const u32 p_Alpha) noexcept : RGBA(fvec3(p_RGB.RGBA), toFloat(p_Alpha))
 {
     TKIT_ASSERT(p_Alpha < 256, "[ONYX] Alpha value must be in the range [0, 255]");
 }
-Color::Color(const Color &p_RGB, const u8 p_Alpha) noexcept : RGBA(vec3(p_RGB.RGBA), toFloat(p_Alpha))
+Color::Color(const Color &p_RGB, const u8 p_Alpha) noexcept : RGBA(fvec3(p_RGB.RGBA), toFloat(p_Alpha))
 {
     // No asserts needed: u8 is always in the range [0, 255]
 }
@@ -169,11 +169,11 @@ f32 *Color::AsPointer() noexcept
     return glm::value_ptr(RGBA);
 }
 
-Color::operator const vec4 &() const noexcept
+Color::operator const fvec4 &() const noexcept
 {
     return RGBA;
 }
-Color::operator const vec3 &() const noexcept
+Color::operator const fvec3 &() const noexcept
 {
     return RGB;
 }

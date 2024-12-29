@@ -6,19 +6,19 @@
 
 namespace Onyx
 {
-using vec2 = glm::vec<2, f32>;
-using vec3 = glm::vec<3, f32>;
-using vec4 = glm::vec<4, f32>;
+using fvec2 = glm::vec<2, f32>;
+using fvec3 = glm::vec<3, f32>;
+using fvec4 = glm::vec<4, f32>;
 
 template <Dimension D> using vec = glm::vec<D, f32>;
 
-using mat2 = glm::mat<2, 2, f32>;
-using mat3 = glm::mat<3, 3, f32>;
-using mat4 = glm::mat<4, 4, f32>;
+using fmat2 = glm::mat<2, 2, f32>;
+using fmat3 = glm::mat<3, 3, f32>;
+using fmat4 = glm::mat<4, 4, f32>;
 
 template <Dimension D> using mat = glm::mat<D + 1, D + 1, f32>;
 
-using quat = glm::quat;
+using quat = glm::qua<f32>;
 
 template <Dimension D> struct RotType;
 

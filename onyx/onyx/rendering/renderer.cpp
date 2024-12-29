@@ -80,9 +80,9 @@ DeviceLightData::~DeviceLightData() noexcept
     }
 }
 
-static mat4 transform3ToTransform4(const mat3 &p_Transform) noexcept
+static fmat4 transform3ToTransform4(const fmat3 &p_Transform) noexcept
 {
-    mat4 t4{1.f};
+    fmat4 t4{1.f};
     t4[0][0] = p_Transform[0][0];
     t4[0][1] = p_Transform[0][1];
     t4[1][0] = p_Transform[1][0];
@@ -107,7 +107,7 @@ static IData createFullDrawInstanceData(const mat<D> &p_Transform, const Materia
     else
     {
         instanceData.Transform = p_Transform;
-        instanceData.NormalMatrix = mat4(glm::transpose(glm::inverse(mat3(instanceData.Transform))));
+        instanceData.NormalMatrix = fmat4(glm::transpose(glm::inverse(fmat3(instanceData.Transform))));
     }
     instanceData.Material = p_Material;
 
@@ -122,9 +122,9 @@ static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderSt
     IData instanceData{};
     if constexpr (D == D2)
     {
-        mat3 transform = p_Transform;
+        fmat3 transform = p_Transform;
         if (p_Flags & DrawFlags_DoStencilScale)
-            Transform<D2>::ScaleIntrinsic(transform, vec2{1.f + p_State.OutlineWidth});
+            Transform<D2>::ScaleIntrinsic(transform, fvec2{1.f + p_State.OutlineWidth});
         instanceData.Transform = transform3ToTransform4(transform);
         ApplyCoordinateSystemExtrinsic(instanceData.Transform);
         instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
@@ -133,7 +133,7 @@ static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderSt
     {
         instanceData.Transform = p_ProjectionView * p_Transform;
         if (p_Flags & DrawFlags_DoStencilScale)
-            Transform<D3>::ScaleIntrinsic(instanceData.Transform, vec3{1.f + p_State.OutlineWidth});
+            Transform<D3>::ScaleIntrinsic(instanceData.Transform, fvec3{1.f + p_State.OutlineWidth});
     }
 
     instanceData.Material.Color = p_State.OutlineColor;

@@ -121,9 +121,9 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Fill>
 {
     VkCommandBuffer CommandBuffer;
     VkDescriptorSet LightStorageBuffers;
-    const mat4 *ProjectionView;
+    const fmat4 *ProjectionView;
     const Color *AmbientColor;
-    const vec3 *ViewPosition;
+    const fvec3 *ViewPosition;
     u32 FrameIndex;
     u32 DirectionalLightCount;
     u32 PointLightCount;
@@ -155,7 +155,7 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
  */
 template <Dimension D, DrawMode DMode> struct ONYX_API InstanceData
 {
-    mat4 Transform;
+    fmat4 Transform;
     MaterialData<D> Material;
 };
 
@@ -164,14 +164,14 @@ template <Dimension D, DrawMode DMode> struct ONYX_API InstanceData
 
 template <> struct ONYX_API InstanceData<D3, DrawMode::Fill>
 {
-    mat4 Transform;
-    mat4 NormalMatrix;
+    fmat4 Transform;
+    fmat4 NormalMatrix;
     MaterialData<D3> Material;
 };
 
 template <> struct ONYX_API InstanceData<D3, DrawMode::Stencil>
 {
-    mat4 Transform;
+    fmat4 Transform;
     MaterialData<D2> Material;
 };
 
@@ -252,7 +252,7 @@ TKIT_MSVC_WARNING_IGNORE(4324)
 template <Dimension D, DrawMode DMode> struct ONYX_API CircleInstanceData
 {
     InstanceData<D, DMode> BaseData;
-    alignas(16) vec4 ArcInfo;
+    alignas(16) fvec4 ArcInfo;
     u32 AngleOverflow;
     f32 Hollowness;
     f32 InnerFade;
@@ -266,9 +266,9 @@ TKIT_WARNING_IGNORE_POP
  */
 struct ONYX_API PushConstantData3D
 {
-    mat4 ProjectionView;
-    vec4 ViewPosition;
-    vec4 AmbientColor;
+    fmat4 ProjectionView;
+    fvec4 ViewPosition;
+    fvec4 AmbientColor;
     u32 DirectionalLightCount;
     u32 PointLightCount;
     u32 _Padding[2];
@@ -305,7 +305,7 @@ template <Dimension D, PipelineMode PMode> struct ONYX_API Pipeline
  *
  * @param p_Transform The transform to modify.
  */
-ONYX_API void ApplyCoordinateSystemExtrinsic(mat4 &p_Transform) noexcept;
+ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept;
 
 /**
  * @brief Modify the transform to comply with a specific coordinate system intrinsically.
@@ -317,7 +317,7 @@ ONYX_API void ApplyCoordinateSystemExtrinsic(mat4 &p_Transform) noexcept;
  *
  * @param p_Transform The transform to modify.
  */
-ONYX_API void ApplyCoordinateSystemIntrinsic(mat4 &p_Transform) noexcept;
+ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept;
 
 /**
  * @brief The RenderState struct is used by the RenderContext class to track the current object and axes
@@ -332,8 +332,8 @@ template <Dimension D> struct RenderState;
 
 template <> struct ONYX_API RenderState<D2>
 {
-    mat3 Transform{1.f};
-    mat3 Axes{1.f};
+    fmat3 Transform{1.f};
+    fmat3 Axes{1.f};
     Color OutlineColor = Color::WHITE;
     MaterialData<D2> Material{};
     f32 OutlineWidth = 0.f;
@@ -343,8 +343,8 @@ template <> struct ONYX_API RenderState<D2>
 
 template <> struct ONYX_API RenderState<D3>
 {
-    mat4 Transform{1.f};
-    mat4 Axes{1.f};
+    fmat4 Transform{1.f};
+    fmat4 Axes{1.f};
     Color OutlineColor = Color::WHITE;
     Color LightColor = Color::WHITE;
     MaterialData<D3> Material{};
@@ -360,10 +360,10 @@ template <> struct ONYX_API RenderState<D3>
  * also include scaling.
  *
  * In 2D, the projection view matrix is the "raw" inverse of the view's transform. Then, just before sending the data to
- * the gpu as a mat4, the renderer applies the extrinsic coordinate system.
+ * the gpu as a fmat4, the renderer applies the extrinsic coordinate system.
  *
  * In 3D, the projection view matrix is the projection matrix multiplied by the view matrix. As the view matrix is
- * already a mat4, the renderer can directly apply the extrinsic coordinate system.
+ * already a fmat4, the renderer can directly apply the extrinsic coordinate system.
  *
  * @tparam D
  */
@@ -372,13 +372,13 @@ template <Dimension D> struct ProjectionViewData;
 template <> struct ONYX_API ProjectionViewData<D2>
 {
     Transform<D2> View{};
-    mat3 ProjectionView{1.f};
+    fmat3 ProjectionView{1.f};
 };
 template <> struct ONYX_API ProjectionViewData<D3>
 {
     Transform<D3> View{};
-    mat4 Projection{1.f};
-    mat4 ProjectionView{1.f};
+    fmat4 Projection{1.f};
+    fmat4 ProjectionView{1.f};
 };
 
 } // namespace Onyx

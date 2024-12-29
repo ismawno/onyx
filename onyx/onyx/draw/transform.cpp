@@ -11,14 +11,14 @@ mat<D> ITransform<D>::ComputeTransform(const vec<D> &p_Translation, const vec<D>
 {
     if constexpr (D == D2)
     {
-        const mat2 rmat = ComputeRotationMatrix(p_Rotation);
-        return mat3{vec3(rmat[0] * p_Scale.x, 0.f), vec3(rmat[1] * p_Scale.y, 0.f), vec3{p_Translation, 1.f}};
+        const fmat2 rmat = ComputeRotationMatrix(p_Rotation);
+        return fmat3{fvec3(rmat[0] * p_Scale.x, 0.f), fvec3(rmat[1] * p_Scale.y, 0.f), fvec3{p_Translation, 1.f}};
     }
     else
     {
-        const mat3 rmat = ComputeRotationMatrix(p_Rotation);
-        return mat4{vec4(rmat[0] * p_Scale.x, 0.f), vec4(rmat[1] * p_Scale.y, 0.f), vec4(rmat[2] * p_Scale.z, 0.f),
-                    vec4{p_Translation, 1.f}};
+        const fmat3 rmat = ComputeRotationMatrix(p_Rotation);
+        return fmat4{fvec4(rmat[0] * p_Scale.x, 0.f), fvec4(rmat[1] * p_Scale.y, 0.f), fvec4(rmat[2] * p_Scale.z, 0.f),
+                     fvec4{p_Translation, 1.f}};
     }
 }
 
@@ -28,22 +28,22 @@ mat<D> ITransform<D>::ComputeReversedTransform(const vec<D> &p_Translation, cons
 {
     if constexpr (D == D2)
     {
-        mat2 rmat = ComputeRotationMatrix(p_Rotation);
+        fmat2 rmat = ComputeRotationMatrix(p_Rotation);
         rmat[0] *= p_Scale;
         rmat[1] *= p_Scale;
-        const vec2 translation = rmat * p_Translation;
+        const fvec2 translation = rmat * p_Translation;
 
-        return mat3{vec3(rmat[0], 0.f), vec3(rmat[1], 0.f), vec3{translation, 1.f}};
+        return fmat3{fvec3(rmat[0], 0.f), fvec3(rmat[1], 0.f), fvec3{translation, 1.f}};
     }
     else
     {
-        mat3 rmat = ComputeRotationMatrix(p_Rotation);
+        fmat3 rmat = ComputeRotationMatrix(p_Rotation);
         rmat[0] *= p_Scale;
         rmat[1] *= p_Scale;
         rmat[2] *= p_Scale;
-        const vec3 translation = rmat * p_Translation;
+        const fvec3 translation = rmat * p_Translation;
 
-        return mat4{vec4(rmat[0], 0.f), vec4(rmat[1], 0.f), vec4(rmat[2], 0.f), vec4{translation, 1.f}};
+        return fmat4{fvec4(rmat[0], 0.f), fvec4(rmat[1], 0.f), fvec4(rmat[2], 0.f), fvec4{translation, 1.f}};
     }
 }
 template <Dimension D>
@@ -131,77 +131,77 @@ template <Dimension D> void ITransform<D>::ScaleExtrinsic(mat<D> &p_Transform, c
             p_Transform[i][j] *= p_Scale[j];
 }
 
-using mat3x2 = glm::mat<D3, 2, f32>;
-using mat4x2 = glm::mat<4, 2, f32>;
-using mat2x3 = glm::mat<D2, 3, f32>;
-using mat4x3 = glm::mat<4, 3, f32>;
+using fmat3x2 = glm::mat<D3, 2, f32>;
+using fmat4x2 = glm::mat<4, 2, f32>;
+using fmat2x3 = glm::mat<D2, 3, f32>;
+using fmat4x3 = glm::mat<4, 3, f32>;
 
-void Transform<D2>::RotateIntrinsic(mat3 &p_Transform, const f32 p_Angle) noexcept
+void Transform<D2>::RotateIntrinsic(fmat3 &p_Transform, const f32 p_Angle) noexcept
 {
-    const mat2 rot = ComputeRotationMatrix(p_Angle);
-    const mat2 submat = mat2{p_Transform} * rot;
-    p_Transform[0] = vec3{submat[0], 0.f};
-    p_Transform[1] = vec3{submat[1], 0.f};
+    const fmat2 rot = ComputeRotationMatrix(p_Angle);
+    const fmat2 submat = fmat2{p_Transform} * rot;
+    p_Transform[0] = fvec3{submat[0], 0.f};
+    p_Transform[1] = fvec3{submat[1], 0.f};
 }
-void Transform<D2>::RotateExtrinsic(mat3 &p_Transform, const f32 p_Angle) noexcept
+void Transform<D2>::RotateExtrinsic(fmat3 &p_Transform, const f32 p_Angle) noexcept
 {
-    const mat2 rot = ComputeRotationMatrix(p_Angle);
-    const mat3x2 submat = rot * mat3x2{p_Transform};
-    p_Transform = mat3{vec3{submat[0], 0.f}, vec3{submat[1], 0.f}, vec3{submat[2], 1.f}};
-}
-
-void Transform<D3>::RotateXIntrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
-{
-    const mat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
-    const mat2x3 submat = mat2x3{vec3{p_Transform[1]}, vec3{p_Transform[2]}} * rot;
-    p_Transform[1] = vec4{submat[0], 0.f};
-    p_Transform[2] = vec4{submat[1], 0.f};
-}
-void Transform<D3>::RotateYIntrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
-{
-    const mat2 rot = Transform<D2>::ComputeRotationMatrix(-p_Angle);
-    const mat2x3 submat = mat2x3{vec3{p_Transform[0]}, vec3{p_Transform[2]}} * rot;
-    p_Transform[0] = vec4{submat[0], 0.f};
-    p_Transform[2] = vec4{submat[1], 0.f};
-}
-void Transform<D3>::RotateZIntrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
-{
-    const mat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
-    const mat2x3 submat = mat2x3{vec3{p_Transform[0]}, vec3{p_Transform[1]}} * rot;
-    p_Transform[0] = vec4{submat[0], 0.f};
-    p_Transform[1] = vec4{submat[1], 0.f};
+    const fmat2 rot = ComputeRotationMatrix(p_Angle);
+    const fmat3x2 submat = rot * fmat3x2{p_Transform};
+    p_Transform = fmat3{fvec3{submat[0], 0.f}, fvec3{submat[1], 0.f}, fvec3{submat[2], 1.f}};
 }
 
-void Transform<D3>::RotateXExtrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
+void Transform<D3>::RotateXIntrinsic(fmat4 &p_Transform, const f32 p_Angle) noexcept
 {
-    const mat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
-    const mat4x2 submat = rot * mat4x2{{p_Transform[0][1], p_Transform[0][2]},
-                                       {p_Transform[1][1], p_Transform[1][2]},
-                                       {p_Transform[2][1], p_Transform[2][2]},
-                                       {p_Transform[3][1], p_Transform[3][2]}};
+    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
+    const fmat2x3 submat = fmat2x3{fvec3{p_Transform[1]}, fvec3{p_Transform[2]}} * rot;
+    p_Transform[1] = fvec4{submat[0], 0.f};
+    p_Transform[2] = fvec4{submat[1], 0.f};
+}
+void Transform<D3>::RotateYIntrinsic(fmat4 &p_Transform, const f32 p_Angle) noexcept
+{
+    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(-p_Angle);
+    const fmat2x3 submat = fmat2x3{fvec3{p_Transform[0]}, fvec3{p_Transform[2]}} * rot;
+    p_Transform[0] = fvec4{submat[0], 0.f};
+    p_Transform[2] = fvec4{submat[1], 0.f};
+}
+void Transform<D3>::RotateZIntrinsic(fmat4 &p_Transform, const f32 p_Angle) noexcept
+{
+    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
+    const fmat2x3 submat = fmat2x3{fvec3{p_Transform[0]}, fvec3{p_Transform[1]}} * rot;
+    p_Transform[0] = fvec4{submat[0], 0.f};
+    p_Transform[1] = fvec4{submat[1], 0.f};
+}
+
+void Transform<D3>::RotateXExtrinsic(fmat4 &p_Transform, const f32 p_Angle) noexcept
+{
+    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
+    const fmat4x2 submat = rot * fmat4x2{{p_Transform[0][1], p_Transform[0][2]},
+                                         {p_Transform[1][1], p_Transform[1][2]},
+                                         {p_Transform[2][1], p_Transform[2][2]},
+                                         {p_Transform[3][1], p_Transform[3][2]}};
     for (u32 i = 0; i < 4; ++i)
     {
         p_Transform[i][1] = submat[i][0];
         p_Transform[i][2] = submat[i][1];
     }
 }
-void Transform<D3>::RotateYExtrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
+void Transform<D3>::RotateYExtrinsic(fmat4 &p_Transform, const f32 p_Angle) noexcept
 {
-    const mat2 rot = Transform<D2>::ComputeRotationMatrix(-p_Angle);
-    const mat4x2 submat = rot * mat4x2{{p_Transform[0][0], p_Transform[0][2]},
-                                       {p_Transform[1][0], p_Transform[1][2]},
-                                       {p_Transform[2][0], p_Transform[2][2]},
-                                       {p_Transform[3][0], p_Transform[3][2]}};
+    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(-p_Angle);
+    const fmat4x2 submat = rot * fmat4x2{{p_Transform[0][0], p_Transform[0][2]},
+                                         {p_Transform[1][0], p_Transform[1][2]},
+                                         {p_Transform[2][0], p_Transform[2][2]},
+                                         {p_Transform[3][0], p_Transform[3][2]}};
     for (u32 i = 0; i < 4; ++i)
     {
         p_Transform[i][0] = submat[i][0];
         p_Transform[i][2] = submat[i][1];
     }
 }
-void Transform<D3>::RotateZExtrinsic(mat4 &p_Transform, const f32 p_Angle) noexcept
+void Transform<D3>::RotateZExtrinsic(fmat4 &p_Transform, const f32 p_Angle) noexcept
 {
-    const mat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
-    const mat4x2 submat = rot * mat4x2{p_Transform};
+    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
+    const fmat4x2 submat = rot * fmat4x2{p_Transform};
     for (u32 i = 0; i < 4; ++i)
     {
         p_Transform[i][0] = submat[i][0];
@@ -209,19 +209,19 @@ void Transform<D3>::RotateZExtrinsic(mat4 &p_Transform, const f32 p_Angle) noexc
     }
 }
 
-void Transform<D3>::RotateIntrinsic(mat4 &p_Transform, const quat &p_Quaternion) noexcept
+void Transform<D3>::RotateIntrinsic(fmat4 &p_Transform, const quat &p_Quaternion) noexcept
 {
-    const mat3 rot = ComputeRotationMatrix(p_Quaternion);
-    const mat3 submat = mat3{p_Transform} * rot;
-    p_Transform[0] = vec4{submat[0], 0.f};
-    p_Transform[1] = vec4{submat[1], 0.f};
-    p_Transform[2] = vec4{submat[2], 0.f};
+    const fmat3 rot = ComputeRotationMatrix(p_Quaternion);
+    const fmat3 submat = fmat3{p_Transform} * rot;
+    p_Transform[0] = fvec4{submat[0], 0.f};
+    p_Transform[1] = fvec4{submat[1], 0.f};
+    p_Transform[2] = fvec4{submat[2], 0.f};
 }
-void Transform<D3>::RotateExtrinsic(mat4 &p_Transform, const quat &p_Quaternion) noexcept
+void Transform<D3>::RotateExtrinsic(fmat4 &p_Transform, const quat &p_Quaternion) noexcept
 {
-    const mat3 rot = ComputeRotationMatrix(p_Quaternion);
-    const mat4x3 submat = rot * mat4x3{p_Transform};
-    p_Transform = mat4{vec4{submat[0], 0.f}, vec4{submat[1], 0.f}, vec4{submat[2], 0.f}, vec4{submat[3], 1.f}};
+    const fmat3 rot = ComputeRotationMatrix(p_Quaternion);
+    const fmat4x3 submat = rot * fmat4x3{p_Transform};
+    p_Transform = fmat4{fvec4{submat[0], 0.f}, fvec4{submat[1], 0.f}, fvec4{submat[2], 0.f}, fvec4{submat[3], 1.f}};
 }
 
 template <Dimension D>
@@ -233,13 +233,13 @@ void ITransform<D>::Extract(const mat<D> &p_Transform, vec<D> *p_Translation, ve
     *p_Rotation = ExtractRotation(p_Transform);
 }
 
-Transform<D2> Transform<D2>::Extract(const mat3 &p_Transform) noexcept
+Transform<D2> Transform<D2>::Extract(const fmat3 &p_Transform) noexcept
 {
     Transform<D2> transform;
     Extract(p_Transform, &transform.Translation, &transform.Scale, &transform.Rotation);
     return transform;
 }
-Transform<D3> Transform<D3>::Extract(const mat4 &p_Transform) noexcept
+Transform<D3> Transform<D3>::Extract(const fmat4 &p_Transform) noexcept
 {
     Transform<D3> transform;
     Extract(p_Transform, &transform.Translation, &transform.Scale, &transform.Rotation);
@@ -253,10 +253,10 @@ template <Dimension D> vec<D> ITransform<D>::ExtractTranslation(const mat<D> &p_
 template <Dimension D> vec<D> ITransform<D>::ExtractScale(const mat<D> &p_Transform) noexcept
 {
     if constexpr (D == D2)
-        return vec2{glm::length(vec2{p_Transform[0]}), glm::length(vec2{p_Transform[1]})};
+        return fvec2{glm::length(fvec2{p_Transform[0]}), glm::length(fvec2{p_Transform[1]})};
     else
-        return vec3{glm::length(vec3{p_Transform[0]}), glm::length(vec3{p_Transform[1]}),
-                    glm::length(vec3{p_Transform[2]})};
+        return fvec3{glm::length(fvec3{p_Transform[0]}), glm::length(fvec3{p_Transform[1]}),
+                     glm::length(fvec3{p_Transform[2]})};
 }
 template <Dimension D> rot<D> ITransform<D>::ExtractRotation(const mat<D> &p_Transform) noexcept
 {
@@ -264,7 +264,7 @@ template <Dimension D> rot<D> ITransform<D>::ExtractRotation(const mat<D> &p_Tra
         return glm::atan(p_Transform[0][1], p_Transform[0][0]);
     else
     {
-        vec3 angles;
+        fvec3 angles;
         angles.x = glm::atan(p_Transform[1][2], p_Transform[2][2]);
         angles.y = glm::atan(-p_Transform[0][2],
                              glm::sqrt(p_Transform[1][2] * p_Transform[1][2] + p_Transform[2][2] * p_Transform[2][2]));

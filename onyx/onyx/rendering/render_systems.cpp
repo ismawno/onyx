@@ -69,7 +69,7 @@ static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info) noexc
 {
     PushConstantData3D pdata{};
     pdata.ProjectionView = *p_Info.ProjectionView;
-    pdata.ViewPosition = vec4(*p_Info.ViewPosition, 1.f);
+    pdata.ViewPosition = fvec4(*p_Info.ViewPosition, 1.f);
     pdata.AmbientColor = p_Info.AmbientColor->RGBA;
     pdata.DirectionalLightCount = p_Info.DirectionalLightCount;
     pdata.PointLightCount = p_Info.PointLightCount;
@@ -267,7 +267,7 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
         Vertex<D> vertex{};
         vertex.Position = v;
         if constexpr (D == D3)
-            vertex.Normal = vec3{0.0f, 0.0f, 1.0f};
+            vertex.Normal = fvec3{0.0f, 0.0f, 1.0f};
         m_Vertices.push_back(vertex);
     };
 
@@ -373,7 +373,7 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
     instanceData.BaseData = p_InstanceData;
 
     instanceData.ArcInfo =
-        vec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
+        fvec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
     instanceData.AngleOverflow = glm::abs(p_UpperAngle - p_LowerAngle) > glm::pi<f32>() ? 1 : 0;
     instanceData.Hollowness = p_Hollowness;
     instanceData.InnerFade = p_InnerFade;
