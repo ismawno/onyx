@@ -15,7 +15,7 @@ template <Dimension D> struct ILayerData
     Transform<D> AxesTransform{};
     MaterialData<D> AxesMaterial{};
 
-    DynamicArray<vec<D>> PolygonVertices;
+    DynamicArray<fvec<D>> PolygonVertices;
     i32 ShapeToSpawn = 0;
     f32 AxesThickness = 0.01f;
     bool DrawAxes = false;

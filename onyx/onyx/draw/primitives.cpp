@@ -64,9 +64,9 @@ template <Dimension D> static IndexVertexData<D> createRegularPolygonBuffers(con
 
         data.Indices.push_back(i);
         if constexpr (D == D2)
-            data.Vertices.push_back(Vertex<D>{vec<D>{x, y}});
+            data.Vertices.push_back(Vertex<D>{fvec<D>{x, y}});
         else
-            data.Vertices.push_back(Vertex<D>{vec<D>{x, y, 0.f}, vec<D>{0.f, 0.f, 1.f}});
+            data.Vertices.push_back(Vertex<D>{fvec<D>{x, y, 0.f}, fvec<D>{0.f, 0.f, 1.f}});
     }
 
     for (Index i = 3; i < p_Sides; ++i)
@@ -78,9 +78,9 @@ template <Dimension D> static IndexVertexData<D> createRegularPolygonBuffers(con
         data.Indices.push_back(i);
 
         if constexpr (D == D2)
-            data.Vertices.push_back(Vertex<D>{vec<D>{x, y}});
+            data.Vertices.push_back(Vertex<D>{fvec<D>{x, y}});
         else
-            data.Vertices.push_back(Vertex<D>{vec<D>{x, y, 0.f}, vec<D>{0.f, 0.f, 1.f}});
+            data.Vertices.push_back(Vertex<D>{fvec<D>{x, y, 0.f}, fvec<D>{0.f, 0.f, 1.f}});
     }
 
     return data;

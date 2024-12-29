@@ -234,7 +234,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
     else if (p_Data.ShapeToSpawn == 4)
     {
-        static vec<D> toAdd{0.f};
+        static fvec<D> toAdd{0.f};
         if constexpr (D == D2)
             ImGui::DragFloat2("Vertex", glm::value_ptr(toAdd), 0.1f);
         else
@@ -243,7 +243,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         if (ImGui::Button("Add"))
         {
             p_Data.PolygonVertices.push_back(toAdd);
-            toAdd = vec<D>{0.f};
+            toAdd = fvec<D>{0.f};
         }
         for (usize i = 0; i < p_Data.PolygonVertices.size(); ++i)
         {

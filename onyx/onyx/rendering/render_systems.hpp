@@ -160,7 +160,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PolygonRenderer
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_Vertices The vertices of the polygon to draw. Must be sorted consistently.
      */
-    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, std::span<const vec<D>> p_Vertices) noexcept;
+    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, std::span<const fvec<D>> p_Vertices) noexcept;
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.

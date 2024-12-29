@@ -139,7 +139,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * @param p_Transform The transformation matrix.
      */
-    void Transform(const mat<D> &p_Transform) noexcept;
+    void Transform(const fmat<D> &p_Transform) noexcept;
 
     /**
      * @brief Transform subsequent shapes by the given translation, scale, and rotation.
@@ -150,7 +150,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Scale The scale vector.
      * @param p_Rotation The rotation object.
      */
-    void Transform(const vec<D> &p_Translation, const vec<D> &p_Scale, const rot<D> &p_Rotation) noexcept;
+    void Transform(const fvec<D> &p_Translation, const fvec<D> &p_Scale, const rot<D> &p_Rotation) noexcept;
 
     /**
      * @brief Transform subsequent shapes by the given translation, uniform scale, and rotation.
@@ -161,7 +161,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Scale The uniform scale value.
      * @param p_Rotation The rotation object.
      */
-    void Transform(const vec<D> &p_Translation, f32 p_Scale, const rot<D> &p_Rotation) noexcept;
+    void Transform(const fvec<D> &p_Translation, f32 p_Scale, const rot<D> &p_Rotation) noexcept;
 
     /**
      * @brief Transform subsequent shapes' coordinate system (axes) by the given transformation matrix.
@@ -171,7 +171,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * @param p_Transform The transformation matrix.
      */
-    void TransformAxes(const mat<D> &p_Transform) noexcept;
+    void TransformAxes(const fmat<D> &p_Transform) noexcept;
 
     /**
      * @brief Transform subsequent shapes' coordinate system (axes) by the given translation, scale, and rotation.
@@ -183,7 +183,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Scale The scale vector.
      * @param p_Rotation The rotation object.
      */
-    void TransformAxes(const vec<D> &p_Translation, const vec<D> &p_Scale, const rot<D> &p_Rotation) noexcept;
+    void TransformAxes(const fvec<D> &p_Translation, const fvec<D> &p_Scale, const rot<D> &p_Rotation) noexcept;
 
     /**
      * @brief Transform subsequent shapes' coordinate system (axes) by the given translation, uniform scale, and
@@ -193,7 +193,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Scale The uniform scale value.
      * @param p_Rotation The rotation object.
      */
-    void TransformAxes(const vec<D> &p_Translation, f32 p_Scale, const rot<D> &p_Rotation) noexcept;
+    void TransformAxes(const fvec<D> &p_Translation, f32 p_Scale, const rot<D> &p_Rotation) noexcept;
 
     /**
      * @brief Translate subsequent shapes by the given vector.
@@ -202,7 +202,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * @param p_Translation The translation vector.
      */
-    void Translate(const vec<D> &p_Translation) noexcept;
+    void Translate(const fvec<D> &p_Translation) noexcept;
 
     /**
      * @brief Scale subsequent shapes by the given vector.
@@ -211,7 +211,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * @param p_Scale The scaling vector.
      */
-    void Scale(const vec<D> &p_Scale) noexcept;
+    void Scale(const fvec<D> &p_Scale) noexcept;
 
     /**
      * @brief Scale subsequent shapes uniformly by the given factor.
@@ -265,7 +265,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * @param p_Translation The translation vector.
      */
-    void TranslateAxes(const vec<D> &p_Translation) noexcept;
+    void TranslateAxes(const fvec<D> &p_Translation) noexcept;
 
     /**
      * @brief Scale the coordinate system (axes) by the given vector.
@@ -274,7 +274,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * @param p_Scale The scaling vector.
      */
-    void ScaleAxes(const vec<D> &p_Scale) noexcept;
+    void ScaleAxes(const fvec<D> &p_Scale) noexcept;
 
     /**
      * @brief Scale the coordinate system (axes) uniformly by the given factor.
@@ -349,7 +349,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Transform The transformation matrix to apply to the triangle. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Triangle(const mat<D> &p_Transform) noexcept;
+    void Triangle(const fmat<D> &p_Transform) noexcept;
 
     /**
      * @brief Draw a unit square centered at the origin.
@@ -364,7 +364,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Transform The transformation matrix to apply to the square. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Square(const mat<D> &p_Transform) noexcept;
+    void Square(const fmat<D> &p_Transform) noexcept;
 
     /**
      * @brief Draw a regular n-sided polygon centered at the origin.
@@ -380,14 +380,14 @@ template <Dimension D> class ONYX_API IRenderContext
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Sides The number of sides of the polygon.
      */
-    void NGon(const mat<D> &p_Transform, u32 p_Sides) noexcept;
+    void NGon(const fmat<D> &p_Transform, u32 p_Sides) noexcept;
 
     /**
      * @brief Draw a polygon defined by the given vertices.
      *
      * @param p_Vertices A span of vertices defining the polygon. Vertices are expected to be centered around zero.
      */
-    void Polygon(std::span<const vec<D>> p_Vertices) noexcept;
+    void Polygon(std::span<const fvec<D>> p_Vertices) noexcept;
 
     /**
      * @brief Draw a polygon defined by the given vertices with the specified transformation.
@@ -396,7 +396,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Vertices A span of vertices defining the polygon.
      */
-    void Polygon(const mat<D> &p_Transform, std::span<const vec<D>> p_Vertices) noexcept;
+    void Polygon(const fmat<D> &p_Transform, std::span<const fvec<D>> p_Vertices) noexcept;
 
     /**
      * @brief Draw a unit circle centered at the origin.
@@ -411,7 +411,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Circle(const mat<D> &p_Transform) noexcept;
+    void Circle(const fmat<D> &p_Transform) noexcept;
 
     /**
      * @brief Draw a unit circle with the specified fade values.
@@ -431,7 +431,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
      * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
      */
-    void Circle(const mat<D> &p_Transform, f32 p_InnerFade, f32 p_OuterFade, f32 p_Hollowness = 0.f) noexcept;
+    void Circle(const fmat<D> &p_Transform, f32 p_InnerFade, f32 p_OuterFade, f32 p_Hollowness = 0.f) noexcept;
 
     /**
      * @brief Draw a circular arc or annulus sector.
@@ -451,7 +451,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_UpperAngle The ending angle in radians.
      * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
      */
-    void Arc(const mat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
+    void Arc(const fmat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
 
     /**
      * @brief Draw a circular arc or annulus sector.
@@ -473,7 +473,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_UpperAngle The ending angle in radians.
      * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
      */
-    void Arc(const mat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_InnerFade, f32 p_OuterFade,
+    void Arc(const fmat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_InnerFade, f32 p_OuterFade,
              f32 p_Hollowness = 0.f) noexcept;
 
     /**
@@ -489,7 +489,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Transform The transformation matrix to apply to the stadium. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Stadium(const mat<D> &p_Transform) noexcept;
+    void Stadium(const fmat<D> &p_Transform) noexcept;
 
     /**
      * @brief Draw a stadium shape with the given length and radius.
@@ -507,7 +507,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Length The length of the rectangular part of the stadium.
      * @param p_Radius The radius of the semicircular ends.
      */
-    void Stadium(const mat<D> &p_Transform, f32 p_Length, f32 p_Radius) noexcept;
+    void Stadium(const fmat<D> &p_Transform, f32 p_Length, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a unit rounded square centered at the origin.
@@ -522,7 +522,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Transform The transformation matrix to apply to the rounded square. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void RoundedSquare(const mat<D> &p_Transform) noexcept;
+    void RoundedSquare(const fmat<D> &p_Transform) noexcept;
 
     /**
      * @brief Draw a rounded square with given dimensions and corner radius.
@@ -540,7 +540,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Dimensions The width and height of the square.
      * @param p_Radius The radius of the corners.
      */
-    void RoundedSquare(const mat<D> &p_Transform, const fvec2 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimensions, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a rounded square with given dimensions and corner radius.
@@ -560,7 +560,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Height The height of the square.
      * @param p_Radius The radius of the corners.
      */
-    void RoundedSquare(const mat<D> &p_Transform, f32 p_Width, f32 p_Height, f32 p_Radius) noexcept;
+    void RoundedSquare(const fmat<D> &p_Transform, f32 p_Width, f32 p_Height, f32 p_Radius) noexcept;
 
     /**
      * @brief Draw a line between two points with the specified thickness.
@@ -569,7 +569,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_End The ending point of the line.
      * @param p_Thickness The thickness of the line.
      */
-    void Line(const vec<D> &p_Start, const vec<D> &p_End, f32 p_Thickness = 0.01f) noexcept;
+    void Line(const fvec<D> &p_Start, const fvec<D> &p_End, f32 p_Thickness = 0.01f) noexcept;
 
     /**
      * @brief Draw a line strip through the given points.
@@ -577,7 +577,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Points A span of points defining the line strip.
      * @param p_Thickness The thickness of the line.
      */
-    void LineStrip(std::span<const vec<D>> p_Points, f32 p_Thickness = 0.01f) noexcept;
+    void LineStrip(std::span<const fvec<D>> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
     /**
      * @brief Draw a mesh model.
@@ -593,7 +593,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Model The mesh model to draw.
      */
-    void Mesh(const mat<D> &p_Transform, const Model<D> &p_Model) noexcept;
+    void Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model) noexcept;
 
     /**
      * @brief Pushes the current transformation state onto the stack.
@@ -724,7 +724,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * axis must be between [0, 1].
      * @return The coordinates of the point in the rendering context.
      */
-    vec<D> GetCoordinates(const vec<D> &p_NormalizedPos) const noexcept;
+    fvec<D> GetCoordinates(const fvec<D> &p_NormalizedPos) const noexcept;
 
     /**
      * @brief Get the current rendering state.

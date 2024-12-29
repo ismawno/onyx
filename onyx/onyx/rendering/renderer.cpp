@@ -94,7 +94,7 @@ static fmat4 transform3ToTransform4(const fmat3 &p_Transform) noexcept
 }
 
 template <Dimension D, typename IData>
-static IData createFullDrawInstanceData(const mat<D> &p_Transform, const MaterialData<D> &p_Material,
+static IData createFullDrawInstanceData(const fmat<D> &p_Transform, const MaterialData<D> &p_Material,
                                         [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
     IData instanceData{};
@@ -115,8 +115,8 @@ static IData createFullDrawInstanceData(const mat<D> &p_Transform, const Materia
 }
 // ProjectionView is needed here, because stencil uses 2D shaders, where they require the transform to be complete.
 template <Dimension D, typename IData>
-static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderState<D> &p_State, const u8 p_Flags,
-                                       [[maybe_unused]] const mat<D> &p_ProjectionView,
+static IData createStencilInstanceData(const fmat<D> &p_Transform, const RenderState<D> &p_State, const u8 p_Flags,
+                                       [[maybe_unused]] const fmat<D> &p_ProjectionView,
                                        [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
     IData instanceData{};
@@ -142,7 +142,7 @@ static IData createStencilInstanceData(const mat<D> &p_Transform, const RenderSt
 
 template <Dimension D>
 template <typename Renderer, typename... DrawArgs>
-void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Flags, DrawArgs &&...p_Args) noexcept
+void IRenderer<D>::draw(Renderer &p_Renderer, const fmat<D> &p_Transform, u8 p_Flags, DrawArgs &&...p_Args) noexcept
 {
     const RenderState<D> &state = m_State->back();
     TKIT_ASSERT(state.OutlineWidth >= 0.f, "[ONYX] Outline width must be non-negative");
@@ -192,8 +192,8 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const mat<D> &p_Transform, u8 p_Fl
 }
 
 template <Dimension D>
-static mat<D> finalTransform(const mat<D> &p_Transform, const RenderState<D> &p_State,
-                             [[maybe_unused]] const mat<D> &p_ProjectionView) noexcept
+static fmat<D> finalTransform(const fmat<D> &p_Transform, const RenderState<D> &p_State,
+                              [[maybe_unused]] const fmat<D> &p_ProjectionView) noexcept
 {
     if constexpr (D == D2)
         return p_ProjectionView * p_State.Axes * p_Transform;
@@ -202,41 +202,41 @@ static mat<D> finalTransform(const mat<D> &p_Transform, const RenderState<D> &p_
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const mat<D> &p_Transform, const Model<D> &p_Model, const u8 p_Flags) noexcept
+void IRenderer<D>::DrawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const u8 p_Flags) noexcept
 {
-    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
     draw(m_MeshRenderer, transform, p_Flags, p_Model);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPrimitive(const mat<D> &p_Transform, const usize p_PrimitiveIndex, const u8 p_Flags) noexcept
+void IRenderer<D>::DrawPrimitive(const fmat<D> &p_Transform, const usize p_PrimitiveIndex, const u8 p_Flags) noexcept
 {
-    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
     draw(m_PrimitiveRenderer, transform, p_Flags, p_PrimitiveIndex);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPolygon(const mat<D> &p_Transform, const std::span<const vec<D>> p_Vertices,
+void IRenderer<D>::DrawPolygon(const fmat<D> &p_Transform, const std::span<const fvec<D>> p_Vertices,
                                const u8 p_Flags) noexcept
 {
-    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
     draw(m_PolygonRenderer, transform, p_Flags, p_Vertices);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawCircleOrArc(const mat<D> &p_Transform, const f32 p_InnerFade, const f32 p_OuterFade,
+void IRenderer<D>::DrawCircleOrArc(const fmat<D> &p_Transform, const f32 p_InnerFade, const f32 p_OuterFade,
                                    const f32 p_Hollowness, const f32 p_LowerAngle, const f32 p_UpperAngle,
                                    const u8 p_Flags) noexcept
 {
-    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
     draw(m_CircleRenderer, transform, p_Flags, p_InnerFade, p_OuterFade, p_Hollowness, p_LowerAngle, p_UpperAngle);
 }
 template <Dimension D>
-void IRenderer<D>::DrawCircleOrArc(const mat<D> &p_Transform, const u8 p_Flags, const f32 p_InnerFade,
+void IRenderer<D>::DrawCircleOrArc(const fmat<D> &p_Transform, const u8 p_Flags, const f32 p_InnerFade,
                                    const f32 p_OuterFade, const f32 p_Hollowness, const f32 p_LowerAngle,
                                    const f32 p_UpperAngle) noexcept
 {
-    const mat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
+    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
     draw(m_CircleRenderer, transform, p_Flags, p_InnerFade, p_OuterFade, p_Hollowness, p_LowerAngle, p_UpperAngle);
 }
 

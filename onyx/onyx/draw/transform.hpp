@@ -24,8 +24,8 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Rotation The rotation object.
      * @return The resulting transformation matrix.
      */
-    static mat<D> ComputeTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
-                                   const rot<D> &p_Rotation) noexcept;
+    static fmat<D> ComputeTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
+                                    const rot<D> &p_Rotation) noexcept;
 
     /**
      * @brief Compute a reversed transformation matrix from translation, scale, and rotation.
@@ -37,8 +37,8 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Rotation The rotation object.
      * @return The resulting transformation matrix.
      */
-    static mat<D> ComputeReversedTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
-                                           const rot<D> &p_Rotation) noexcept;
+    static fmat<D> ComputeReversedTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
+                                            const rot<D> &p_Rotation) noexcept;
 
     /**
      * @brief Compute an inversed transformation matrix.
@@ -48,8 +48,8 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Rotation The rotation object.
      * @return The inverse transformation matrix.
      */
-    static mat<D> ComputeInverseTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
-                                          const rot<D> &p_Rotation) noexcept;
+    static fmat<D> ComputeInverseTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
+                                           const rot<D> &p_Rotation) noexcept;
 
     /**
      * @brief Compute an inversed and reversed transformation matrix.
@@ -59,8 +59,8 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Rotation The rotation object.
      * @return The inverse transformation matrix.
      */
-    static mat<D> ComputeInverseReversedTransform(const vec<D> &p_Translation, const vec<D> &p_Scale,
-                                                  const rot<D> &p_Rotation) noexcept;
+    static fmat<D> ComputeInverseReversedTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
+                                                   const rot<D> &p_Rotation) noexcept;
 
     /**
      * @brief Compute a rotation matrix.
@@ -97,7 +97,7 @@ template <Dimension D> struct ONYX_API ITransform
      *
      * @return The transformation matrix.
      */
-    mat<D> ComputeTransform() const noexcept;
+    fmat<D> ComputeTransform() const noexcept;
 
     /**
      * @brief Compute the reversed transformation matrix using the current object's translation, scale, and rotation.
@@ -106,21 +106,21 @@ template <Dimension D> struct ONYX_API ITransform
      *
      * @return The transformation matrix.
      */
-    mat<D> ComputeReversedTransform() const noexcept;
+    fmat<D> ComputeReversedTransform() const noexcept;
 
     /**
      * @brief Compute the inverse of the transformation matrix using the current object's parameters.
      *
      * @return The inverse transformation matrix.
      */
-    mat<D> ComputeInverseTransform() const noexcept;
+    fmat<D> ComputeInverseTransform() const noexcept;
 
     /**
      * @brief Compute the inverse of the axes transformation matrix using the current object's parameters.
      *
      * @return The inverse transformation matrix.
      */
-    mat<D> ComputeInverseReversedTransform() const noexcept;
+    fmat<D> ComputeInverseReversedTransform() const noexcept;
 
     /**
      * @brief Applies an intrinsic translation to a transformation matrix along a specified axis.
@@ -131,7 +131,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Axis The axis index along which to translate.
      * @param p_Translation The translation amount.
      */
-    static void TranslateIntrinsic(mat<D> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
+    static void TranslateIntrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
 
     /**
      * @brief Applies an intrinsic translation to a transformation matrix.
@@ -141,7 +141,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Transform The transformation matrix to modify.
      * @param p_Translation The translation vector.
      */
-    static void TranslateIntrinsic(mat<D> &p_Transform, const vec<D> &p_Translation) noexcept;
+    static void TranslateIntrinsic(fmat<D> &p_Transform, const fvec<D> &p_Translation) noexcept;
 
     /**
      * @brief Applies an extrinsic translation to a transformation matrix along a specified axis.
@@ -152,7 +152,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Axis The axis index along which to translate.
      * @param p_Translation The translation amount.
      */
-    static void TranslateExtrinsic(mat<D> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
+    static void TranslateExtrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
 
     /**
      * @brief Applies an extrinsic translation to a transformation matrix.
@@ -162,7 +162,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Transform The transformation matrix to modify.
      * @param p_Translation The translation vector.
      */
-    static void TranslateExtrinsic(mat<D> &p_Transform, const vec<D> &p_Translation) noexcept;
+    static void TranslateExtrinsic(fmat<D> &p_Transform, const fvec<D> &p_Translation) noexcept;
 
     /**
      * @brief Applies an intrinsic scaling to a transformation matrix along a specified axis.
@@ -173,7 +173,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Axis The axis index along which to scale.
      * @param p_Scale The scaling factor.
      */
-    static void ScaleIntrinsic(mat<D> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
+    static void ScaleIntrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
 
     /**
      * @brief Applies an intrinsic scaling to a transformation matrix.
@@ -183,7 +183,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Transform The transformation matrix to modify.
      * @param p_Scale The scaling vector.
      */
-    static void ScaleIntrinsic(mat<D> &p_Transform, const vec<D> &p_Scale) noexcept;
+    static void ScaleIntrinsic(fmat<D> &p_Transform, const fvec<D> &p_Scale) noexcept;
 
     /**
      * @brief Applies an extrinsic scaling to a transformation matrix along a specified axis.
@@ -194,7 +194,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Axis The axis index along which to scale.
      * @param p_Scale The scaling factor.
      */
-    static void ScaleExtrinsic(mat<D> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
+    static void ScaleExtrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
 
     /**
      * @brief Applies an extrinsic scaling to a transformation matrix.
@@ -204,7 +204,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Transform The transformation matrix to modify.
      * @param p_Scale The scaling vector.
      */
-    static void ScaleExtrinsic(mat<D> &p_Transform, const vec<D> &p_Scale) noexcept;
+    static void ScaleExtrinsic(fmat<D> &p_Transform, const fvec<D> &p_Scale) noexcept;
 
     /**
      * @brief Extracts translation, scale, and rotation components from a transformation matrix.
@@ -214,7 +214,8 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Scale Output pointer for the scale vector.
      * @param p_Rotation Output pointer for the rotation object.
      */
-    static void Extract(const mat<D> &p_Transform, vec<D> *p_Translation, vec<D> *p_Scale, rot<D> *p_Rotation) noexcept;
+    static void Extract(const fmat<D> &p_Transform, fvec<D> *p_Translation, fvec<D> *p_Scale,
+                        rot<D> *p_Rotation) noexcept;
 
     /**
      * @brief Extracts the translation component from a transformation matrix.
@@ -222,7 +223,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Transform The transformation matrix.
      * @return The extracted translation vector.
      */
-    static vec<D> ExtractTranslation(const mat<D> &p_Transform) noexcept;
+    static fvec<D> ExtractTranslation(const fmat<D> &p_Transform) noexcept;
 
     /**
      * @brief Extracts the scale component from a transformation matrix.
@@ -230,7 +231,7 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Transform The transformation matrix.
      * @return The extracted scale vector.
      */
-    static vec<D> ExtractScale(const mat<D> &p_Transform) noexcept;
+    static fvec<D> ExtractScale(const fmat<D> &p_Transform) noexcept;
 
     /**
      * @brief Extracts the rotation component from a transformation matrix.
@@ -238,13 +239,13 @@ template <Dimension D> struct ONYX_API ITransform
      * @param p_Transform The transformation matrix.
      * @return The extracted rotation object.
      */
-    static rot<D> ExtractRotation(const mat<D> &p_Transform) noexcept;
+    static rot<D> ExtractRotation(const fmat<D> &p_Transform) noexcept;
 
     /// Translation vector component of the transformation.
-    vec<D> Translation{0.f};
+    fvec<D> Translation{0.f};
 
     /// Scale vector component of the transformation.
-    vec<D> Scale{1.f};
+    fvec<D> Scale{1.f};
 
     /// Rotation component of the transformation.
     rot<D> Rotation = RotType<D>::Identity;

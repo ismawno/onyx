@@ -71,7 +71,7 @@ template <Dimension D> class Polygon final : public Shape<D>
     const char *GetName() const noexcept override;
     void draw(RenderContext<D> *p_Context) noexcept override;
 
-    DynamicArray<vec<D>> Vertices;
+    DynamicArray<fvec<D>> Vertices;
 };
 
 template <Dimension D> class Stadium final : public Shape<D>
