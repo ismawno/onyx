@@ -1009,15 +1009,15 @@ template <Dimension D> void IRenderContext<D>::Pop() noexcept
     m_RenderState.pop_back();
 }
 
-void RenderContext<D2>::Alpha(const f32 p_Alpha) noexcept
+template <Dimension D> void IRenderContext<D>::Alpha(const f32 p_Alpha) noexcept
 {
     m_RenderState.back().Material.Color.RGBA.a = p_Alpha;
 }
-void RenderContext<D2>::Alpha(const u8 p_Alpha) noexcept
+template <Dimension D> void IRenderContext<D>::Alpha(const u8 p_Alpha) noexcept
 {
     m_RenderState.back().Material.Color.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
 }
-void RenderContext<D2>::Alpha(const u32 p_Alpha) noexcept
+template <Dimension D> void IRenderContext<D>::Alpha(const u32 p_Alpha) noexcept
 {
     m_RenderState.back().Material.Color.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
 }

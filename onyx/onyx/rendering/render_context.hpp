@@ -646,6 +646,27 @@ template <Dimension D> class ONYX_API IRenderContext
     }
 
     /**
+     * @brief Set the alpha (transparency) value for subsequent shapes.
+     *
+     * @param p_Alpha The alpha value between 0.0 (fully transparent) and 1.0 (fully opaque).
+     */
+    void Alpha(f32 p_Alpha) noexcept;
+
+    /**
+     * @brief Set the alpha (transparency) value for subsequent shapes.
+     *
+     * @param p_Alpha The alpha value between 0 and 255.
+     */
+    void Alpha(u8 p_Alpha) noexcept;
+
+    /**
+     * @brief Set the alpha (transparency) value for subsequent shapes.
+     *
+     * @param p_Alpha The alpha value between 0 and 255.
+     */
+    void Alpha(u32 p_Alpha) noexcept;
+
+    /**
      * @brief Enables or disables outlining of subsequent shapes.
      *
      * @param p_Enable Set to true to enable outlining, false to disable.
@@ -844,27 +865,6 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
      * @param p_Thickness The thickness of the line.
      */
     void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.01f) noexcept;
-
-    /**
-     * @brief Set the alpha (transparency) value for subsequent shapes.
-     *
-     * @param p_Alpha The alpha value between 0.0 (fully transparent) and 1.0 (fully opaque).
-     */
-    void Alpha(f32 p_Alpha) noexcept;
-
-    /**
-     * @brief Set the alpha (transparency) value for subsequent shapes.
-     *
-     * @param p_Alpha The alpha value between 0 and 255.
-     */
-    void Alpha(u8 p_Alpha) noexcept;
-
-    /**
-     * @brief Set the alpha (transparency) value for subsequent shapes.
-     *
-     * @param p_Alpha The alpha value between 0 and 255.
-     */
-    void Alpha(u32 p_Alpha) noexcept;
 
     /**
      * @brief Retrieve the current mouse coordinates in the rendering context.
