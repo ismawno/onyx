@@ -108,10 +108,10 @@ static const char *presentModeToString(const VkPresentModeKHR mode)
     }
 }
 
-void Layer::EditPresentMode(Window &p_Window) noexcept
+void Layer::EditPresentMode(Window *p_Window) noexcept
 {
-    const VkPresentModeKHR current = p_Window.GetPresentMode();
-    const TKit::StaticArray8<VkPresentModeKHR> &available = p_Window.GetAvailablePresentModes();
+    const VkPresentModeKHR current = p_Window->GetPresentMode();
+    const TKit::StaticArray8<VkPresentModeKHR> &available = p_Window->GetAvailablePresentModes();
 
     int index = -1;
     TKit::StaticArray8<const char *> presentModes;
@@ -123,7 +123,7 @@ void Layer::EditPresentMode(Window &p_Window) noexcept
     }
 
     if (ImGui::Combo("Present mode", &index, presentModes.data(), static_cast<int>(available.size())))
-        p_Window.SetPresentMode(available[index]);
+        p_Window->SetPresentMode(available[index]);
 }
 
 template <std::ranges::range R> static auto enabledLayers(R &&p_Layers) noexcept
