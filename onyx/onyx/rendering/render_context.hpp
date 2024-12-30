@@ -1418,6 +1418,6 @@ template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
      * @param p_Depth The depth at which to get the mouse coordinates.
      * @return The mouse coordinates as a 3D vector.
      */
-    fvec3 GetMouseCoordinates(f32 p_Depth) const noexcept;
+    fvec3 GetMouseCoordinates(f32 p_Depth = 0.5f) const noexcept;
 };
 } // namespace Onyx
