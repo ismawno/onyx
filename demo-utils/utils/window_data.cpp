@@ -93,7 +93,7 @@ void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Tim
 void WindowData::OnImGuiRender() noexcept
 {
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
-    Layer::EditPresentMode(*m_Window);
+    Layer::EditPresentMode(m_Window);
 
     ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
     if (ImGui::Checkbox("Blur", &m_PostProcessing))

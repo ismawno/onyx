@@ -8,15 +8,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Dist")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if (NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
-endif()
+function(define_option varname default)
+    if (NOT DEFINED ${varname})
+        set(${varname} ${default} PARENT_SCOPE)
+    endif()
+endfunction()
 
-set(ONYX_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+define_option(CMAKE_BUILD_TYPE "Debug")
 
 # If demos are built, implot will always be used
-set(ONYX_BUILD_DEMOS OFF)
-set(ONYX_USE_IMPLOT OFF)
+define_option(ONYX_BUILD_DEMOS OFF)
+define_option(ONYX_USE_IMPLOT OFF)
+
+set(ONYX_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 message(STATUS "ONYX: Build demos: ${ONYX_BUILD_DEMOS}")
 message(STATUS "ONYX: Use ImPlot: ${ONYX_USE_IMPLOT}")
