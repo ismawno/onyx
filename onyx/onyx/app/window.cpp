@@ -130,18 +130,18 @@ void Window::RemovePostProcessing() noexcept
     m_FrameScheduler->RemovePostProcessing();
 }
 
-bool Window::WasResized() const noexcept
+bool Window::wasResized() const noexcept
 {
     return m_Resized;
 }
 
-void Window::FlagResize(const u32 p_Width, const u32 p_Height) noexcept
+void Window::flagResize(const u32 p_Width, const u32 p_Height) noexcept
 {
     m_Width = p_Width;
     m_Height = p_Height;
     m_Resized = true;
 }
-void Window::FlagResizeDone() noexcept
+void Window::flagResizeDone() noexcept
 {
     m_Resized = false;
 }

@@ -12,7 +12,7 @@
 #    define ONYX_MAX_POINT_LIGHTS 64
 #endif
 
-namespace Onyx
+namespace Onyx::Detail
 {
 /**
  * @brief The RenderSystem struct manages multiple renderers with different pipeline modes.
@@ -234,7 +234,10 @@ template <> class Renderer<D2> final : public IRenderer<D2>
      */
     void Flush() noexcept;
 };
+} // namespace Onyx::Detail
 
+namespace Onyx
+{
 /**
  * @brief Structure representing a directional light in the scene.
  *
@@ -265,7 +268,10 @@ struct ONYX_API PointLight
     /// Radius within which the light has an effect.
     f32 Radius;
 };
+} // namespace Onyx
 
+namespace Onyx::Detail
+{
 /**
  * @brief Manages device-side storage and descriptors for lighting data.
  *
@@ -355,5 +361,4 @@ template <> class Renderer<D3> final : public IRenderer<D3>
     /// Device-side storage and descriptors for light data.
     DeviceLightData m_DeviceLightData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
-
-} // namespace Onyx
+} // namespace Onyx::Detail

@@ -235,7 +235,7 @@ class Layer
 
   private:
     const char *m_Name = nullptr;
-    mutable bool m_RemoveFlag = false; // If true, the layer will be removed from the LayerSystem in the next frame
+    bool m_RemoveFlag = false; // If true, the layer will be removed from the LayerSystem in the next frame
 
     friend class LayerSystem;
 };
@@ -245,24 +245,6 @@ class LayerSystem
     TKIT_NON_COPYABLE(LayerSystem)
   public:
     LayerSystem() noexcept = default;
-
-    void OnStart() noexcept;
-    void OnShutdown() noexcept;
-
-    void OnUpdate() noexcept;
-    void OnRender(VkCommandBuffer p_CommandBuffer) noexcept;
-    void OnLateRender(VkCommandBuffer p_CommandBuffer) noexcept;
-
-    // Window is also passed in update because it also acts as an identifier for the current window thread
-    void OnUpdate(usize p_WindowIndex) noexcept;
-    void OnRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void OnLateRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-
-    // To be used only in multi window apps (in single window, OnRender does fine)
-    void OnImGuiRender() noexcept;
-
-    void OnEvent(const Event &p_Event) noexcept;
-    void OnEvent(usize p_WindowIndex, const Event &p_Event) noexcept;
 
     /**
      * @brief Push a new layer into the LayerSystem.
@@ -332,12 +314,6 @@ class LayerSystem
     }
 
     /**
-     * @brief Remove all layers that have been flagged for removal.
-     *
-     */
-    void RemoveFlaggedLayers() noexcept;
-
-    /**
      * @brief Immediately remove a layer by index.
      *
      * Calling this method will immediately remove the layer from the LayerSystem. This method is not recommended to be
@@ -396,6 +372,28 @@ class LayerSystem
      * @param p_Layer The pointer to the layer.
      */
     void FlagRemoveLayer(const Layer *p_Layer) noexcept;
+
+    // Made public bc its a hassle to befriend every app class. But note the camelcase: not supposed to be accessed by
+    // user
+    void onStart() noexcept;
+    void onShutdown() noexcept;
+
+    void onUpdate() noexcept;
+    void onRender(VkCommandBuffer p_CommandBuffer) noexcept;
+    void onLateRender(VkCommandBuffer p_CommandBuffer) noexcept;
+
+    // Window is also passed in update because it also acts as an identifier for the current window thread
+    void onUpdate(usize p_WindowIndex) noexcept;
+    void onRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onLateRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+
+    // To be used only in multi window apps (in single window, OnRender does fine)
+    void onImGuiRender() noexcept;
+
+    void onEvent(const Event &p_Event) noexcept;
+    void onEvent(usize p_WindowIndex, const Event &p_Event) noexcept;
+
+    void removeFlaggedLayers() noexcept;
 
   private:
     TKit::StaticArray16<TKit::Scope<Layer>> m_Layers;

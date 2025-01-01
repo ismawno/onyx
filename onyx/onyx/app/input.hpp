@@ -13,8 +13,6 @@ class Window;
 
 /**
  * @brief The Input class handles all input events for the application.
- *
- *
  */
 
 namespace Input

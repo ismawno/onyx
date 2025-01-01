@@ -8,7 +8,7 @@
 #    define ONYX_BUFFER_INITIAL_CAPACITY 4
 #endif
 
-namespace Onyx
+namespace Onyx::Detail
 {
 /**
  * @brief Responsible for handling all user draw calls that involve meshes built from a Model instance.
@@ -21,8 +21,8 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
 {
     TKIT_NON_COPYABLE(MeshRenderer)
 
-    using InstanceData = Onyx::InstanceData<D, GetDrawMode<PMode>()>;
-    using RenderInfo = Onyx::RenderInfo<D, GetDrawMode<PMode>()>;
+    using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
+    using RenderInfo = RenderInfo<D, GetDrawMode<PMode>()>;
 
   public:
     MeshRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -80,8 +80,8 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
 {
     TKIT_NON_COPYABLE(PrimitiveRenderer)
 
-    using InstanceData = Onyx::InstanceData<D, GetDrawMode<PMode>()>;
-    using RenderInfo = Onyx::RenderInfo<D, GetDrawMode<PMode>()>;
+    using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
+    using RenderInfo = RenderInfo<D, GetDrawMode<PMode>()>;
 
   public:
     PrimitiveRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -141,11 +141,11 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PolygonRenderer
 {
     TKIT_NON_COPYABLE(PolygonRenderer)
 
-    using InstanceData = Onyx::InstanceData<D, GetDrawMode<PMode>()>;
-    using RenderInfo = Onyx::RenderInfo<D, GetDrawMode<PMode>()>;
+    using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
+    using RenderInfo = RenderInfo<D, GetDrawMode<PMode>()>;
 
-    using PolygonInstanceData = Onyx::PolygonInstanceData<D, GetDrawMode<PMode>()>;
-    using PolygonDeviceInstanceData = Onyx::PolygonDeviceInstanceData<D, GetDrawMode<PMode>()>;
+    using PolygonInstanceData = PolygonInstanceData<D, GetDrawMode<PMode>()>;
+    using PolygonDeviceInstanceData = PolygonDeviceInstanceData<D, GetDrawMode<PMode>()>;
 
   public:
     PolygonRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -205,10 +205,10 @@ template <Dimension D, PipelineMode PMode> class ONYX_API CircleRenderer
 {
     TKIT_NON_COPYABLE(CircleRenderer)
 
-    using InstanceData = Onyx::InstanceData<D, GetDrawMode<PMode>()>;
-    using RenderInfo = Onyx::RenderInfo<D, GetDrawMode<PMode>()>;
+    using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
+    using RenderInfo = RenderInfo<D, GetDrawMode<PMode>()>;
 
-    using CircleInstanceData = Onyx::CircleInstanceData<D, GetDrawMode<PMode>()>;
+    using CircleInstanceData = CircleInstanceData<D, GetDrawMode<PMode>()>;
 
   public:
     CircleRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -266,4 +266,4 @@ template <Dimension D, PipelineMode PMode> class ONYX_API CircleRenderer
     DeviceInstanceData<CircleInstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
 
-} // namespace Onyx
+} // namespace Onyx::Detail

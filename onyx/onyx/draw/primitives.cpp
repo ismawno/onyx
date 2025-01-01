@@ -119,7 +119,7 @@ template <Dimension D> static void createBuffers(const std::span<const char *con
     buffers.Create(vertices, indices, layout);
 }
 
-void CreateCombinedPrimitiveBuffers() noexcept
+void createCombinedPrimitiveBuffers() noexcept
 {
     const std::array<const char *, Primitives<D2>::AMOUNT> paths2D = {ONYX_ROOT_PATH "/onyx/models/triangle.obj",
                                                                       ONYX_ROOT_PATH "/onyx/models/square.obj"};

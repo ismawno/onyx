@@ -7,7 +7,7 @@
 
 #include "onyx/core/glfw.hpp"
 
-namespace Onyx
+namespace Onyx::Detail
 {
 FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 {
@@ -49,13 +49,13 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     {
         const VkResult result = m_PresentTask->WaitForResult();
         const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
-                                 p_Window.WasResized() || m_PresentModeChanged;
+                                 p_Window.wasResized() || m_PresentModeChanged;
 
         TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "[ONYX] Failed to submit command buffers");
         if (resizeFixes)
         {
             recreateSwapChain(p_Window);
-            p_Window.FlagResizeDone();
+            p_Window.flagResizeDone();
             m_PresentModeChanged = false;
             return VK_NULL_HANDLE;
         }
@@ -309,7 +309,7 @@ void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
     m_Resources = result.GetValue();
 
     const TKit::StaticArray4<VkImageView> imageViews = getIntermediateAttachmentImageViews();
-    m_PostProcessing->UpdateImageViews(imageViews);
+    m_PostProcessing->updateImageViews(imageViews);
 }
 
 void FrameScheduler::createRenderPass() noexcept
@@ -435,4 +435,4 @@ TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateAttachmentImageVi
     return imageViews;
 }
 
-} // namespace Onyx
+} // namespace Onyx::Detail

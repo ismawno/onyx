@@ -12,7 +12,10 @@ namespace Onyx
 {
 struct Color;
 class Window;
+} // namespace Onyx
 
+namespace Onyx::Detail
+{
 /**
  * @brief Manages frame scheduling and rendering operations for a window.
  *
@@ -184,4 +187,4 @@ class ONYX_API FrameScheduler
 
     TKit::Ref<TKit::Task<VkResult>> m_PresentTask;
 };
-} // namespace Onyx
+} // namespace Onyx::Detail

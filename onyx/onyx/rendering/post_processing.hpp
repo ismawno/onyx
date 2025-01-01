@@ -66,8 +66,9 @@ class PostProcessing
     void Bind(VkCommandBuffer p_CommandBuffer, u32 p_ImageIndex) noexcept;
     void Draw(VkCommandBuffer p_CommandBuffer) const noexcept;
 
-    void UpdateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept;
     static VkSamplerCreateInfo DefaultSamplerCreateInfo() noexcept;
+
+    void updateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept;
 
   private:
     void overwriteSamplerSet(VkImageView p_ImageView, VkDescriptorSet p_Set) const noexcept;

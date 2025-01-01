@@ -2,9 +2,9 @@
 
 #include "onyx/rendering/render_specs.hpp"
 
-namespace Onyx
+namespace Onyx::Detail
 {
-template <Dimension D, DrawMode DMode> struct Shaders
+template <Dimension D, DrawMode DMode> struct ONYX_API Shaders
 {
     static void Initialize() noexcept;
 
@@ -13,7 +13,10 @@ template <Dimension D, DrawMode DMode> struct Shaders
     static const VKit::Shader &GetCircleVertexShader() noexcept;
     static const VKit::Shader &GetCircleFragmentShader() noexcept;
 };
+} // namespace Onyx::Detail
 
+namespace Onyx
+{
 ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath) noexcept;
 ONYX_API const VKit::Shader &GetFullPassVertexShader() noexcept;
 } // namespace Onyx

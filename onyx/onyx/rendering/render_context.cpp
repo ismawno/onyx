@@ -384,7 +384,7 @@ void IRenderContext<D>::Arc(const fmat<D> &p_Transform, const f32 p_LowerAngle, 
 }
 
 template <Dimension D>
-static void drawIntrinsicArc(Renderer<D> &p_Renderer, fmat<D> p_Transform, const fvec<D> &p_Position,
+static void drawIntrinsicArc(Detail::Renderer<D> &p_Renderer, fmat<D> p_Transform, const fvec<D> &p_Position,
                              const f32 p_Diameter, const f32 p_LowerAngle, const f32 p_UpperAngle,
                              const u8 p_Flags) noexcept
 {
@@ -396,21 +396,21 @@ static void drawIntrinsicArc(Renderer<D> &p_Renderer, fmat<D> p_Transform, const
     p_Renderer.DrawCircleOrArc(p_Transform, 0.f, 0.f, 0.f, p_LowerAngle, p_UpperAngle, p_Flags);
 }
 template <Dimension D>
-static void drawIntrinsicArc(Renderer<D> &p_Renderer, fmat<D> p_Transform, const fvec<D> &p_Position,
+static void drawIntrinsicArc(Detail::Renderer<D> &p_Renderer, fmat<D> p_Transform, const fvec<D> &p_Position,
                              const f32 p_LowerAngle, const f32 p_UpperAngle, const u8 p_Flags) noexcept
 {
     Onyx::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
     p_Renderer.DrawCircleOrArc(p_Transform, 0.f, 0.f, p_LowerAngle, p_UpperAngle, 0.f, p_Flags);
 }
 
-static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, fmat4 p_Transform, const fvec3 &p_Position,
+static void drawIntrinsicSphere(Detail::Renderer<D3> &p_Renderer, fmat4 p_Transform, const fvec3 &p_Position,
                                 const f32 p_Diameter, const u8 p_Flags) noexcept
 {
     Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
     Onyx::Transform<D3>::ScaleIntrinsic(p_Transform, fvec3{p_Diameter});
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetSphereIndex(), p_Flags);
 }
-static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, fmat4 p_Transform, const fvec3 &p_Position,
+static void drawIntrinsicSphere(Detail::Renderer<D3> &p_Renderer, fmat4 p_Transform, const fvec3 &p_Position,
                                 const u8 p_Flags) noexcept
 {
     Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
@@ -418,7 +418,7 @@ static void drawIntrinsicSphere(Renderer<D3> &p_Renderer, fmat4 p_Transform, con
 }
 
 template <Dimension D>
-static void drawStadiumMoons(Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const u8 p_Flags,
+static void drawStadiumMoons(Detail::Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const u8 p_Flags,
                              const f32 p_Length = 1.f, const f32 p_Diameter = 1.f) noexcept
 {
     fvec<D> pos{0.f};
@@ -429,14 +429,14 @@ static void drawStadiumMoons(Renderer<D> &p_Renderer, const fmat<D> &p_Transform
 }
 
 template <Dimension D>
-static void drawStadium(Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const u8 p_Flags) noexcept
+static void drawStadium(Detail::Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const u8 p_Flags) noexcept
 {
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D>::GetSquareIndex(), p_Flags);
     drawStadiumMoons<D>(p_Renderer, p_Transform, p_Flags);
 }
 template <Dimension D>
-static void drawStadium(Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const f32 p_Length, const f32 p_Diameter,
-                        const u8 p_Flags) noexcept
+static void drawStadium(Detail::Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const f32 p_Length,
+                        const f32 p_Diameter, const u8 p_Flags) noexcept
 {
     fmat<D> transform = p_Transform;
     Onyx::Transform<D>::ScaleIntrinsic(transform, 0, p_Length);
@@ -455,16 +455,16 @@ static void resolveDrawCallWithFlagsBasedOnState(F1 &&p_FillDraw, F2 &&p_Outline
     {
         if (p_Outline)
         {
-            p_FillDraw(DrawFlags_DoStencilWriteDoFill);
-            p_OutlineDraw(DrawFlags_DoStencilTestNoFill);
+            p_FillDraw(Detail::DrawFlags_DoStencilWriteDoFill);
+            p_OutlineDraw(Detail::DrawFlags_DoStencilTestNoFill);
         }
         else
-            p_FillDraw(DrawFlags_NoStencilWriteDoFill);
+            p_FillDraw(Detail::DrawFlags_NoStencilWriteDoFill);
     }
     else if (p_Outline)
     {
-        p_FillDraw(DrawFlags_DoStencilWriteNoFill);
-        p_OutlineDraw(DrawFlags_DoStencilTestNoFill);
+        p_FillDraw(Detail::DrawFlags_DoStencilWriteNoFill);
+        p_OutlineDraw(Detail::DrawFlags_DoStencilTestNoFill);
     }
 }
 
@@ -516,7 +516,7 @@ void IRenderContext<D>::Stadium(const fmat<D> &p_Transform, const f32 p_Length, 
 }
 
 template <Dimension D>
-static void drawRoundedSquareEdges(Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const u8 p_Flags,
+static void drawRoundedSquareEdges(Detail::Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const u8 p_Flags,
                                    const fvec2 &p_Dimensions = fvec2{1.f}, const f32 p_Radius = 0.5f) noexcept
 {
     const fvec2 halfDims = 0.5f * p_Dimensions;
@@ -546,13 +546,13 @@ static void drawRoundedSquareEdges(Renderer<D> &p_Renderer, const fmat<D> &p_Tra
 }
 
 template <Dimension D>
-static void drawRoundedSquare(Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const u8 p_Flags) noexcept
+static void drawRoundedSquare(Detail::Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const u8 p_Flags) noexcept
 {
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D>::GetSquareIndex(), p_Flags);
     drawRoundedSquareEdges<D>(p_Renderer, p_Transform, p_Flags);
 }
 template <Dimension D>
-static void drawRoundedSquare(Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const fvec2 &p_Dimensions,
+static void drawRoundedSquare(Detail::Renderer<D> &p_Renderer, const fmat<D> &p_Transform, const fvec2 &p_Dimensions,
                               const f32 p_Radius, const u8 p_Flags) noexcept
 {
     fmat<D> transform = p_Transform;
@@ -719,7 +719,7 @@ void RenderContext<D3>::Sphere(const fmat4 &p_Transform) noexcept
     m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D3>::GetSphereIndex());
 }
 
-static void drawCapsule(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const u8 p_Flags) noexcept
+static void drawCapsule(Detail::Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const u8 p_Flags) noexcept
 {
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetCylinderIndex());
 
@@ -729,8 +729,8 @@ static void drawCapsule(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, cons
     pos.x = 0.5f;
     drawIntrinsicSphere(p_Renderer, p_Transform, pos, p_Flags);
 }
-static void drawCapsule(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const f32 p_Length, const f32 p_Diameter,
-                        const u8 p_Flags) noexcept
+static void drawCapsule(Detail::Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const f32 p_Length,
+                        const f32 p_Diameter, const u8 p_Flags) noexcept
 {
     fmat4 transform = p_Transform;
     Onyx::Transform<D3>::ScaleIntrinsic(transform, {p_Length, p_Diameter, p_Diameter});
@@ -785,7 +785,7 @@ void RenderContext<D3>::Capsule(const fmat4 &p_Transform, const f32 p_Length, co
     resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 
-static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const u8 p_Flags,
+static void drawRoundedCubeEdges(Detail::Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const u8 p_Flags,
                                  const fvec3 &p_Dimensions = fvec3{1.f}, const f32 p_Radius = 0.5f) noexcept
 {
     const fvec3 halfDims = 0.5f * p_Dimensions;
@@ -839,12 +839,12 @@ static void drawRoundedCubeEdges(Renderer<D3> &p_Renderer, const fmat4 &p_Transf
     }
 }
 
-static void drawRoundedCube(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const u8 p_Flags) noexcept
+static void drawRoundedCube(Detail::Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const u8 p_Flags) noexcept
 {
     p_Renderer.DrawPrimitive(p_Transform, Primitives<D3>::GetSquareIndex(), p_Flags);
     drawRoundedCubeEdges(p_Renderer, p_Transform, p_Flags);
 }
-static void drawRoundedCube(Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const fvec3 &p_Dimensions,
+static void drawRoundedCube(Detail::Renderer<D3> &p_Renderer, const fmat4 &p_Transform, const fvec3 &p_Dimensions,
                             const f32 p_Radius, const u8 p_Flags) noexcept
 {
     fmat4 transform = p_Transform;

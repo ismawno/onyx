@@ -11,6 +11,27 @@
 
 namespace Onyx
 {
+/**
+ * @brief Modify the transform to comply with a specific coordinate system extrinsically.
+ *
+ * The current coordinate system used by this library is right-handed, with the center of the screen being at the
+ * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
+ *
+ * @param p_Transform The transform to modify.
+ */
+ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept;
+
+/**
+ * @brief Modify the transform to comply with a specific coordinate system intrinsically.
+ *
+ * The current coordinate system used by this library is right-handed, with the center of the screen being at the
+ * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
+ *
+ * This version of the function is used to apply such coordinate system to the corresponding inverse transform.
+ *
+ * @param p_Transform The transform to modify.
+ */
+ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept;
 
 // VERY CLUNKY: 3 out of 4 possible instantiations of MaterialData and RenderInfo are identical
 
@@ -36,6 +57,72 @@ template <> struct ONYX_API MaterialData<D3>
     f32 SpecularContribution = 0.2f;
     f32 SpecularSharpness = 32.f;
 };
+
+/**
+ * @brief The RenderState struct is used by the RenderContext class to track the current object and axes
+ * transformations, the current material, outline color and width, and some other rendering settings.
+ *
+ * It holds all of the state that RenderContext's immediate mode API needs and allows it to easily push/pop states to
+ * quickly modify and restore the rendering state.
+ *
+ * @tparam D The dimension (D2 or D3).
+ */
+template <Dimension D> struct RenderState;
+
+template <> struct ONYX_API RenderState<D2>
+{
+    fmat3 Transform{1.f};
+    fmat3 Axes{1.f};
+    Color OutlineColor = Color::WHITE;
+    MaterialData<D2> Material{};
+    f32 OutlineWidth = 0.f;
+    bool Fill = true;
+    bool Outline = false;
+};
+
+template <> struct ONYX_API RenderState<D3>
+{
+    fmat4 Transform{1.f};
+    fmat4 Axes{1.f};
+    Color OutlineColor = Color::WHITE;
+    Color LightColor = Color::WHITE;
+    MaterialData<D3> Material{};
+    f32 OutlineWidth = 0.f;
+    bool Fill = true;
+    bool Outline = false;
+};
+
+/**
+ * @brief The ProjectionViewData struct is a simple struct that holds the view and projection matrices.
+ *
+ * 2D shapes only need a view matrix, as the projection matrix is always an orthographic projection matrix. The view can
+ * also include scaling.
+ *
+ * In 2D, the projection view matrix is the "raw" inverse of the view's transform. Then, just before sending the data to
+ * the gpu as a fmat4, the renderer applies the extrinsic coordinate system.
+ *
+ * In 3D, the projection view matrix is the projection matrix multiplied by the view matrix. As the view matrix is
+ * already a fmat4, the renderer can directly apply the extrinsic coordinate system.
+ *
+ * @tparam D
+ */
+template <Dimension D> struct ProjectionViewData;
+
+template <> struct ONYX_API ProjectionViewData<D2>
+{
+    Transform<D2> View{};
+    fmat3 ProjectionView{1.f};
+};
+template <> struct ONYX_API ProjectionViewData<D3>
+{
+    Transform<D3> View{};
+    fmat4 Projection{1.f};
+    fmat4 ProjectionView{1.f};
+};
+} // namespace Onyx
+
+namespace Onyx::Detail
+{
 
 /**
  * @brief The PipelineMode enum represents a grouping of pipelines with slightly different settings that all renderers
@@ -297,88 +384,4 @@ template <Dimension D, PipelineMode PMode> struct ONYX_API Pipeline
     static VKit::GraphicsPipeline CreateCirclePipeline(VkRenderPass p_RenderPass) noexcept;
 };
 
-/**
- * @brief Modify the transform to comply with a specific coordinate system extrinsically.
- *
- * The current coordinate system used by this library is right-handed, with the center of the screen being at the
- * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
- *
- * @param p_Transform The transform to modify.
- */
-ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept;
-
-/**
- * @brief Modify the transform to comply with a specific coordinate system intrinsically.
- *
- * The current coordinate system used by this library is right-handed, with the center of the screen being at the
- * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
- *
- * This version of the function is used to apply such coordinate system to the corresponding inverse transform.
- *
- * @param p_Transform The transform to modify.
- */
-ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept;
-
-/**
- * @brief The RenderState struct is used by the RenderContext class to track the current object and axes
- * transformations, the current material, outline color and width, and some other rendering settings.
- *
- * It holds all of the state that RenderContext's immediate mode API needs and allows it to easily push/pop states to
- * quickly modify and restore the rendering state.
- *
- * @tparam D The dimension (D2 or D3).
- */
-template <Dimension D> struct RenderState;
-
-template <> struct ONYX_API RenderState<D2>
-{
-    fmat3 Transform{1.f};
-    fmat3 Axes{1.f};
-    Color OutlineColor = Color::WHITE;
-    MaterialData<D2> Material{};
-    f32 OutlineWidth = 0.f;
-    bool Fill = true;
-    bool Outline = false;
-};
-
-template <> struct ONYX_API RenderState<D3>
-{
-    fmat4 Transform{1.f};
-    fmat4 Axes{1.f};
-    Color OutlineColor = Color::WHITE;
-    Color LightColor = Color::WHITE;
-    MaterialData<D3> Material{};
-    f32 OutlineWidth = 0.f;
-    bool Fill = true;
-    bool Outline = false;
-};
-
-/**
- * @brief The ProjectionViewData struct is a simple struct that holds the view and projection matrices.
- *
- * 2D shapes only need a view matrix, as the projection matrix is always an orthographic projection matrix. The view can
- * also include scaling.
- *
- * In 2D, the projection view matrix is the "raw" inverse of the view's transform. Then, just before sending the data to
- * the gpu as a fmat4, the renderer applies the extrinsic coordinate system.
- *
- * In 3D, the projection view matrix is the projection matrix multiplied by the view matrix. As the view matrix is
- * already a fmat4, the renderer can directly apply the extrinsic coordinate system.
- *
- * @tparam D
- */
-template <Dimension D> struct ProjectionViewData;
-
-template <> struct ONYX_API ProjectionViewData<D2>
-{
-    Transform<D2> View{};
-    fmat3 ProjectionView{1.f};
-};
-template <> struct ONYX_API ProjectionViewData<D3>
-{
-    Transform<D3> View{};
-    fmat4 Projection{1.f};
-    fmat4 ProjectionView{1.f};
-};
-
-} // namespace Onyx
+} // namespace Onyx::Detail

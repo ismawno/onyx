@@ -763,7 +763,7 @@ template <Dimension D> class ONYX_API IRenderContext
   protected:
     TKit::StaticArray8<RenderState<D>> m_RenderState;
     ProjectionViewData<D> m_ProjectionView{};
-    Renderer<D> m_Renderer;
+    Detail::Renderer<D> m_Renderer;
     Window *m_Window;
 
   private:

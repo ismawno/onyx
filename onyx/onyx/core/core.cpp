@@ -159,7 +159,7 @@ static void createPipelineLayouts() noexcept
         VKit::PipelineLayout::Builder(s_Device)
             .AddDescriptorSetLayout(s_TransformStorageLayout)
             .AddDescriptorSetLayout(s_LightStorageLayout)
-            .AddPushConstantRange<PushConstantData3D>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddPushConstantRange<Detail::PushConstantData3D>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .Build();
 
     VKIT_ASSERT_RESULT(layoutResult);
@@ -172,10 +172,10 @@ static void createPipelineLayouts() noexcept
 
 static void createShaders() noexcept
 {
-    Shaders<D2, DrawMode::Fill>::Initialize();
-    Shaders<D2, DrawMode::Stencil>::Initialize();
-    Shaders<D3, DrawMode::Fill>::Initialize();
-    Shaders<D3, DrawMode::Stencil>::Initialize();
+    Detail::Shaders<D2, Detail::DrawMode::Fill>::Initialize();
+    Detail::Shaders<D2, Detail::DrawMode::Stencil>::Initialize();
+    Detail::Shaders<D3, Detail::DrawMode::Fill>::Initialize();
+    Detail::Shaders<D3, Detail::DrawMode::Stencil>::Initialize();
     TKIT_LOG_INFO("[ONYX] Created global shaders");
 }
 
@@ -226,7 +226,7 @@ void Core::CreateDevice(const VkSurfaceKHR p_Surface) noexcept
     createCommandPool();
     createDescriptorData();
     createPipelineLayouts();
-    CreateCombinedPrimitiveBuffers();
+    createCombinedPrimitiveBuffers();
     createShaders();
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
     createProfilingContext();

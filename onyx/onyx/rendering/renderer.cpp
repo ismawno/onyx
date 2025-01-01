@@ -5,7 +5,7 @@
 #include "vkit/descriptors/descriptor_set.hpp"
 #include "tkit/utilities/math.hpp"
 
-namespace Onyx
+namespace Onyx::Detail
 {
 template <Dimension D, template <Dimension, PipelineMode> typename R>
 RenderSystem<D, R>::RenderSystem(const VkRenderPass p_RenderPass) noexcept
@@ -384,4 +384,4 @@ void Renderer<D3>::AddPointLight(const PointLight &p_Light) noexcept
 template class IRenderer<D2>;
 template class IRenderer<D3>;
 
-} // namespace Onyx
+} // namespace Onyx::Detail

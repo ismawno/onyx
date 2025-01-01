@@ -17,7 +17,10 @@ void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept
     p_Transform[1] = -p_Transform[1];
     p_Transform[2] = -p_Transform[2];
 }
+} // namespace Onyx
 
+namespace Onyx::Detail
+{
 template <Dimension D, DrawMode DMode>
 PolygonDeviceInstanceData<D, DMode>::PolygonDeviceInstanceData(const usize p_Capacity) noexcept
     : DeviceInstanceData<InstanceData<D, DMode>>(p_Capacity)
@@ -140,4 +143,4 @@ template struct Pipeline<D3, PipelineMode::DoStencilWriteDoFill>;
 template struct Pipeline<D3, PipelineMode::DoStencilWriteNoFill>;
 template struct Pipeline<D3, PipelineMode::DoStencilTestNoFill>;
 
-} // namespace Onyx
+} // namespace Onyx::Detail

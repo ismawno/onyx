@@ -60,7 +60,7 @@ static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const 
     event.WindowResize.NewWidth = static_cast<u32>(p_Width);
     event.WindowResize.NewHeight = static_cast<u32>(p_Height);
 
-    window->FlagResize(event.WindowResize.NewWidth, event.WindowResize.NewHeight);
+    window->flagResize(event.WindowResize.NewWidth, event.WindowResize.NewHeight);
     window->PushEvent(event);
 
     const f32 aspect = window->GetScreenAspect();

@@ -31,13 +31,13 @@ void IApplication::Startup() noexcept
 {
     TKIT_ASSERT(!m_Terminated && !m_Started, "[ONYX] Application cannot be started more than once");
     m_Started = true;
-    Layers.OnStart();
+    Layers.onStart();
 }
 
 void IApplication::Shutdown() noexcept
 {
     TKIT_ASSERT(!m_Terminated && m_Started, "[ONYX] Application cannot be terminated before it is started");
-    Layers.OnShutdown();
+    Layers.onShutdown();
     if (Core::IsDeviceCreated())
         vkDestroyDescriptorPool(Core::GetDevice(), m_ImGuiPool, nullptr);
     m_Terminated = true;
@@ -162,24 +162,24 @@ Application::Application(const Window::Specs &p_WindowSpecs) noexcept
 bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
-    Layers.RemoveFlaggedLayers();
+    Layers.removeFlaggedLayers();
 
     m_DeltaTime = p_Clock.Restart();
     Input::PollEvents();
     for (const Event &event : m_Window->GetNewEvents())
-        Layers.OnEvent(event);
+        Layers.onEvent(event);
 
     m_Window->FlushEvents();
     // Should maybe exit if window is closed at this point (triggered by event)
 
-    Layers.OnUpdate();
+    Layers.onUpdate();
 
     const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        Layers.OnRender(p_CommandBuffer);
+        Layers.onRender(p_CommandBuffer);
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) {
-        Layers.OnLateRender(p_CommandBuffer);
+        Layers.onLateRender(p_CommandBuffer);
         endRenderImGui(p_CommandBuffer);
     };
 

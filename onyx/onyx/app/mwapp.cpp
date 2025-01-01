@@ -12,11 +12,11 @@ static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSyste
                          F2 &&p_UICalls) noexcept
 {
     for (const Event &event : p_Window.GetNewEvents())
-        p_Layers.OnEvent(p_WindowIndex, event);
+        p_Layers.onEvent(p_WindowIndex, event);
     p_Window.FlushEvents();
     // Should maybe exit if window is closed at this point? (triggered by event)
 
-    p_Layers.OnUpdate(p_WindowIndex);
+    p_Layers.onUpdate(p_WindowIndex);
 
     p_Window.Render(std::forward<F1>(p_DrawCalls), std::forward<F2>(p_UICalls));
 }
@@ -91,7 +91,7 @@ void MultiWindowApplication<Serial>::CloseWindow(const usize p_Index) noexcept
     Event event;
     event.Type = Event::WindowClosed;
     event.Window = m_Windows[p_Index].Get();
-    Layers.OnEvent(p_Index, event);
+    Layers.onEvent(p_Index, event);
 
     m_Windows.erase(m_Windows.begin() + p_Index);
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
@@ -127,21 +127,21 @@ void MultiWindowApplication<Serial>::OpenWindow(const Window::Specs &p_Specs) no
     Event event;
     event.Type = Event::WindowOpened;
     event.Window = m_Windows.back().Get();
-    Layers.OnEvent(m_Windows.size() - 1, event);
+    Layers.onEvent(m_Windows.size() - 1, event);
 }
 
 void MultiWindowApplication<Serial>::processWindows() noexcept
 {
-    Layers.RemoveFlaggedLayers();
+    Layers.removeFlaggedLayers();
 
     m_MustDeferWindowManagement = true;
     const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        Layers.OnRender(0, p_CommandBuffer);
-        Layers.OnImGuiRender();
+        Layers.onRender(0, p_CommandBuffer);
+        Layers.onImGuiRender();
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) {
-        Layers.OnLateRender(0, p_CommandBuffer);
+        Layers.onLateRender(0, p_CommandBuffer);
         endRenderImGui(p_CommandBuffer);
     };
     processFrame(0, *m_Windows[0], Layers, drawCalls, uiSubmission);
@@ -149,8 +149,8 @@ void MultiWindowApplication<Serial>::processWindows() noexcept
     for (usize i = 1; i < m_Windows.size(); ++i)
         processFrame(
             i, *m_Windows[i], Layers,
-            [this, i](const VkCommandBuffer p_CommandBuffer) { Layers.OnRender(i, p_CommandBuffer); },
-            [this, i](const VkCommandBuffer p_CommandBuffer) { Layers.OnLateRender(i, p_CommandBuffer); });
+            [this, i](const VkCommandBuffer p_CommandBuffer) { Layers.onRender(i, p_CommandBuffer); },
+            [this, i](const VkCommandBuffer p_CommandBuffer) { Layers.onLateRender(i, p_CommandBuffer); });
 
     m_MustDeferWindowManagement = false;
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
@@ -189,7 +189,7 @@ void MultiWindowApplication<Concurrent>::CloseWindow(const usize p_Index) noexce
     Event event;
     event.Type = Event::WindowClosed;
     event.Window = m_Windows[p_Index].Get();
-    Layers.OnEvent(p_Index, event);
+    Layers.onEvent(p_Index, event);
 
     m_Windows.erase(m_Windows.begin() + p_Index);
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
@@ -229,10 +229,10 @@ TKit::Ref<TKit::Task<void>> MultiWindowApplication<Concurrent>::createWindowTask
         processFrame(
             p_WindowIndex, *m_Windows[p_WindowIndex], Layers,
             [this, p_WindowIndex](const VkCommandBuffer p_CommandBuffer) {
-                Layers.OnRender(p_WindowIndex, p_CommandBuffer);
+                Layers.onRender(p_WindowIndex, p_CommandBuffer);
             },
             [this, p_WindowIndex](const VkCommandBuffer p_CommandBuffer) {
-                Layers.OnLateRender(p_WindowIndex, p_CommandBuffer);
+                Layers.onLateRender(p_WindowIndex, p_CommandBuffer);
             });
     });
 }
@@ -259,7 +259,7 @@ void MultiWindowApplication<Concurrent>::OpenWindow(const Window::Specs &p_Specs
     Event event;
     event.Type = Event::WindowOpened;
     event.Window = windowPtr;
-    Layers.OnEvent(m_Windows.size() - 1, event);
+    Layers.onEvent(m_Windows.size() - 1, event);
 }
 
 void MultiWindowApplication<Concurrent>::processWindows() noexcept
@@ -270,7 +270,7 @@ void MultiWindowApplication<Concurrent>::processWindows() noexcept
         task->Reset();
     }
     m_MustDeferWindowManagement = false;
-    Layers.RemoveFlaggedLayers();
+    Layers.removeFlaggedLayers();
 
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
@@ -289,11 +289,11 @@ void MultiWindowApplication<Concurrent>::processWindows() noexcept
 
     const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        Layers.OnRender(0, p_CommandBuffer);
-        Layers.OnImGuiRender();
+        Layers.onRender(0, p_CommandBuffer);
+        Layers.onImGuiRender();
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) {
-        Layers.OnLateRender(0, p_CommandBuffer);
+        Layers.onLateRender(0, p_CommandBuffer);
         endRenderImGui(p_CommandBuffer);
     };
 

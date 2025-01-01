@@ -255,23 +255,6 @@ class ONYX_API Window
     void RemovePostProcessing() noexcept;
 
     /**
-     * @brief Checks if the window was resized.
-     *
-     * @return true if the window was resized since the last call to FlagResizeDone().
-     */
-    bool WasResized() const noexcept;
-    /**
-     * @brief Flags the window as resized with the new dimensions.
-     *
-     * @param p_Width New width of the window.
-     * @param p_Height New height of the window.
-     */
-    void FlagResize(u32 p_Width, u32 p_Height) noexcept;
-    /**
-     * @brief Resets the resized flag after handling a resize event.
-     */
-    void FlagResizeDone() noexcept;
-    /**
      * @brief Flags the window to be closed.
      */
     void FlagShouldClose() noexcept;
@@ -338,6 +321,10 @@ class ONYX_API Window
     /// The background color used when clearing the window.
     Color BackgroundColor = Color::BLACK;
 
+    bool wasResized() const noexcept;
+    void flagResize(u32 p_Width, u32 p_Height) noexcept;
+    void flagResizeDone() noexcept;
+
   private:
     /**
      * @brief Creates the window with the given specifications.
@@ -348,7 +335,7 @@ class ONYX_API Window
 
     GLFWwindow *m_Window;
 
-    TKit::Storage<FrameScheduler> m_FrameScheduler;
+    TKit::Storage<Detail::FrameScheduler> m_FrameScheduler;
     TKit::Storage<RenderContext<D2>> m_RenderContext2D;
     TKit::Storage<RenderContext<D3>> m_RenderContext3D;
 

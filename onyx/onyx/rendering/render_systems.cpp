@@ -3,7 +3,7 @@
 #include "vkit/descriptors/descriptor_set.hpp"
 #include "tkit/utilities/math.hpp"
 
-namespace Onyx
+namespace Onyx::Detail
 {
 static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
                                                        VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
@@ -464,4 +464,4 @@ template class CircleRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
 template class CircleRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
 template class CircleRenderer<D3, PipelineMode::DoStencilTestNoFill>;
 
-} // namespace Onyx
+} // namespace Onyx::Detail

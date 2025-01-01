@@ -34,7 +34,10 @@ const VKit::Shader &GetFullPassVertexShader() noexcept
     Core::GetDeletionQueue().SubmitForDeletion(shader);
     return shader;
 }
+} // namespace Onyx
 
+namespace Onyx::Detail
+{
 template <Dimension D, DrawMode DMode> struct SneakyShaders
 {
     static void Initialize() noexcept
@@ -102,4 +105,4 @@ template struct Shaders<D2, DrawMode::Fill>;
 template struct Shaders<D2, DrawMode::Stencil>;
 template struct Shaders<D3, DrawMode::Fill>;
 template struct Shaders<D3, DrawMode::Stencil>;
-} // namespace Onyx
+} // namespace Onyx::Detail
