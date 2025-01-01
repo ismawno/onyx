@@ -69,6 +69,14 @@ class Layer
     }
 
     /**
+     * @brief Called when the layer is about to be removed from the LayerSystem.
+     *
+     */
+    virtual void OnRemoval() noexcept
+    {
+    }
+
+    /**
      * @brief Called every frame before the OnRender() method.
      *
      * This method is called outside the the render loop, so you cannot issue any onyx draw calls here. Its purpose is

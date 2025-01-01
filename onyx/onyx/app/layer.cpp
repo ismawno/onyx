@@ -209,7 +209,10 @@ void LayerSystem::removeFlaggedLayers() noexcept
     Core::DeviceWaitIdle();
     for (usize i = 0; i < m_Layers.size();)
         if (m_Layers[i]->m_RemoveFlag)
+        {
+            m_Layers[i]->OnRemoval();
             m_Layers.erase(m_Layers.begin() + i);
+        }
         else
             ++i;
 
@@ -218,6 +221,7 @@ void LayerSystem::removeFlaggedLayers() noexcept
 
 void LayerSystem::RemoveLayer(const usize p_Index) noexcept
 {
+    m_Layers[p_Index]->OnRemoval();
     m_Layers.erase(m_Layers.begin() + p_Index);
 }
 void LayerSystem::RemoveLayer(std::string_view p_Name) noexcept
@@ -225,6 +229,7 @@ void LayerSystem::RemoveLayer(std::string_view p_Name) noexcept
     for (usize i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i]->GetName() == p_Name)
         {
+            m_Layers[i]->OnRemoval();
             m_Layers.erase(m_Layers.begin() + i);
             return;
         }
@@ -234,6 +239,7 @@ void LayerSystem::RemoveLayer(const Layer *p_Layer) noexcept
     for (usize i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i].Get() == p_Layer)
         {
+            m_Layers[i]->OnRemoval();
             m_Layers.erase(m_Layers.begin() + i);
             return;
         }
