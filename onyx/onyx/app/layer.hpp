@@ -278,7 +278,7 @@ class LayerSystem
         auto layer = TKit::Scope<T>::Create(std::forward<LayerArgs>(p_Args)...);
         T *ptr = layer.Get();
         m_Layers.push_back(std::move(layer));
-        ptr->OnPush();
+        m_Layers.back()->OnPush();
         return ptr;
     }
 
