@@ -65,12 +65,18 @@ usize IMultiWindowApplication::GetWindowCount() const noexcept
 
 bool IMultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 {
+    TKIT_PROFILE_NSCOPE("Onyx::IMultiWindowApplication::NextFrame");
     setDeltaTime(p_Clock.Restart());
     if (m_Windows.empty())
+    {
+        TKIT_PROFILE_MARK_FRAME;
         return false;
+    }
 
     Input::PollEvents();
     processWindows();
+
+    TKIT_PROFILE_MARK_FRAME;
     return !m_Windows.empty();
 }
 
@@ -126,6 +132,8 @@ void MultiWindowApplication<Serial>::OpenWindow(const Window::Specs &p_Specs) no
 
 void MultiWindowApplication<Serial>::processWindows() noexcept
 {
+    Layers.RemoveFlaggedLayers();
+
     m_MustDeferWindowManagement = true;
     const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
@@ -262,6 +270,7 @@ void MultiWindowApplication<Concurrent>::processWindows() noexcept
         task->Reset();
     }
     m_MustDeferWindowManagement = false;
+    Layers.RemoveFlaggedLayers();
 
     for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
@@ -288,7 +297,8 @@ void MultiWindowApplication<Concurrent>::processWindows() noexcept
         endRenderImGui(p_CommandBuffer);
     };
 
-    // Main thread always handles the first window. First element of tasks is always nullptr
+    // Main thread always handles the first window. Array of tasks is always one element smaller than the array of
+    // windows
     processFrame(0, *m_Windows[0], Layers, drawCalls, uiSubmission);
 }
 

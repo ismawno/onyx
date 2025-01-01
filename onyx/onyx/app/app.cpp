@@ -162,6 +162,8 @@ Application::Application(const Window::Specs &p_WindowSpecs) noexcept
 bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
+    Layers.RemoveFlaggedLayers();
+
     m_DeltaTime = p_Clock.Restart();
     Input::PollEvents();
     for (const Event &event : m_Window->GetNewEvents())

@@ -201,4 +201,68 @@ void LayerSystem::OnEvent(const usize p_WindowIndex, const Event &p_Event) noexc
             return;
 }
 
+void LayerSystem::RemoveFlaggedLayers() noexcept
+{
+    if (!m_MustRemoveLayers)
+        return;
+
+    Core::DeviceWaitIdle();
+    for (usize i = 0; i < m_Layers.size();)
+        if (m_Layers[i]->m_RemoveFlag)
+            m_Layers.erase(m_Layers.begin() + i);
+        else
+            ++i;
+
+    m_MustRemoveLayers = false;
+}
+
+void LayerSystem::RemoveLayer(const usize p_Index) noexcept
+{
+    m_Layers.erase(m_Layers.begin() + p_Index);
+}
+void LayerSystem::RemoveLayer(std::string_view p_Name) noexcept
+{
+    for (usize i = 0; i < m_Layers.size(); ++i)
+        if (m_Layers[i]->GetName() == p_Name)
+        {
+            m_Layers.erase(m_Layers.begin() + i);
+            return;
+        }
+}
+void LayerSystem::RemoveLayer(const Layer *p_Layer) noexcept
+{
+    for (usize i = 0; i < m_Layers.size(); ++i)
+        if (m_Layers[i].Get() == p_Layer)
+        {
+            m_Layers.erase(m_Layers.begin() + i);
+            return;
+        }
+}
+
+void LayerSystem::FlagRemoveLayer(const usize p_Index) noexcept
+{
+    m_Layers[p_Index]->m_RemoveFlag = true;
+    m_MustRemoveLayers = true;
+}
+void LayerSystem::FlagRemoveLayer(const std::string_view p_Name) noexcept
+{
+    for (usize i = 0; i < m_Layers.size(); ++i)
+        if (m_Layers[i]->GetName() == p_Name)
+        {
+            m_Layers[i]->m_RemoveFlag = true;
+            m_MustRemoveLayers = true;
+            return;
+        }
+}
+void LayerSystem::FlagRemoveLayer(const Layer *p_Layer) noexcept
+{
+    for (usize i = 0; i < m_Layers.size(); ++i)
+        if (m_Layers[i].Get() == p_Layer)
+        {
+            m_Layers[i]->m_RemoveFlag = true;
+            m_MustRemoveLayers = true;
+            return;
+        }
+}
+
 } // namespace Onyx

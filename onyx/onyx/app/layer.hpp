@@ -235,6 +235,9 @@ class Layer
 
   private:
     const char *m_Name = nullptr;
+    mutable bool m_RemoveFlag = false; // If true, the layer will be removed from the LayerSystem in the next frame
+
+    friend class LayerSystem;
 };
 
 class LayerSystem
@@ -328,8 +331,75 @@ class LayerSystem
         return nullptr;
     }
 
+    /**
+     * @brief Remove all layers that have been flagged for removal.
+     *
+     */
+    void RemoveFlaggedLayers() noexcept;
+
+    /**
+     * @brief Immediately remove a layer by index.
+     *
+     * Calling this method will immediately remove the layer from the LayerSystem. This method is not recommended to be
+     * called during the LayerSystem's update/render loop, as it may cause undefined behaviour or unexpected bugs.
+     *
+     * @param p_Index The index of the layer.
+     */
+    void RemoveLayer(const usize p_Index) noexcept;
+
+    /**
+     * @brief Immediately remove a layer by name.
+     *
+     * Calling this method will immediately remove the layer from the LayerSystem. This method is not recommended to be
+     * called during the LayerSystem's update/render loop, as it may cause undefined behaviour or unexpected bugs.
+     *
+     * @param p_Name The name of the layer.
+     */
+    void RemoveLayer(std::string_view p_Name) noexcept;
+
+    /**
+     * @brief Immediately remove a layer by pointer.
+     *
+     * Calling this method will immediately remove the layer from the LayerSystem. This method is not recommended to be
+     * called during the LayerSystem's update/render loop, as it may cause undefined behaviour or unexpected bugs.
+     *
+     * @param p_Layer The pointer to the layer.
+     */
+    void RemoveLayer(const Layer *p_Layer) noexcept;
+
+    /**
+     * @brief Flag a layer to be removed in the next frame.
+     *
+     * The layer will be removed from the LayerSystem in the next frame, after all of the layer callbacks have been
+     * processed. This method is safe to be called during the LayerSystem's update/render loop.
+     *
+     * @param p_Index The index of the layer.
+     */
+    void FlagRemoveLayer(const usize p_Index) noexcept;
+
+    /**
+     * @brief Flag a layer to be removed in the next frame.
+     *
+     * The layer will be removed from the LayerSystem in the next frame, after all of the layer callbacks have been
+     * processed. This method is safe to be called during the LayerSystem's update/render loop.
+     *
+     * @param p_Name The name of the layer.
+     */
+    void FlagRemoveLayer(std::string_view p_Name) noexcept;
+
+    /**
+     * @brief Flag a layer to be removed in the next frame.
+     *
+     * The layer will be removed from the LayerSystem in the next frame, after all of the layer callbacks have been
+     * processed. This method is safe to be called during the LayerSystem's update/render loop.
+     *
+     * @param p_Layer The pointer to the layer.
+     */
+    void FlagRemoveLayer(const Layer *p_Layer) noexcept;
+
   private:
     TKit::StaticArray16<TKit::Scope<Layer>> m_Layers;
+    bool m_MustRemoveLayers = false;
 };
 
 } // namespace Onyx
