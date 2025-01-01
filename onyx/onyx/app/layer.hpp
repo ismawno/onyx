@@ -50,11 +50,20 @@ class Layer
      * @brief Called when the Startup() method of the application is called.
      *
      * If Startup() was already called, this method will never be called. If you wish a callback for when the layer is
-     * pushed into the LayerSystem, you should use the constructor of your layer object. This method is called serially
+     * pushed into the LayerSystem, you should use the OnPush() layer callback. This method is called serially
      * in all cases.
      *
      */
     virtual void OnStart() noexcept
+    {
+    }
+
+    /**
+     * @brief Called when the layer is pushed into the LayerSystem.
+     *
+     *
+     */
+    virtual void OnPush() noexcept
     {
     }
 
@@ -269,6 +278,7 @@ class LayerSystem
         auto layer = TKit::Scope<T>::Create(std::forward<LayerArgs>(p_Args)...);
         T *ptr = layer.Get();
         m_Layers.push_back(std::move(layer));
+        ptr->OnPush();
         return ptr;
     }
 
@@ -278,7 +288,7 @@ class LayerSystem
      * @tparam T The type to cast the layer to.
      * @param p_Index The index of the layer.
      */
-    template <std::derived_from<Layer> T = Layer> const T *GetLayer(const usize p_Index)
+    template <std::derived_from<Layer> T = Layer> const T *Get(const usize p_Index)
     {
         return static_cast<const T *>(m_Layers[p_Index].Get());
     }
@@ -288,7 +298,7 @@ class LayerSystem
      * @tparam T The type to cast the layer to.
      * @param p_Index The index of the layer.
      */
-    template <std::derived_from<Layer> T = Layer> T *GetLayer(const usize p_Index)
+    template <std::derived_from<Layer> T = Layer> T *Get(const usize p_Index)
     {
         return static_cast<T *>(m_Layers[p_Index].Get());
     }
@@ -299,7 +309,7 @@ class LayerSystem
      * @tparam T The type to cast the layer to.
      * @param p_Name The name of the layer.
      */
-    template <std::derived_from<Layer> T = Layer> const T *GetLayer(const std::string_view p_Name)
+    template <std::derived_from<Layer> T = Layer> const T *Get(const std::string_view p_Name)
     {
         for (auto &layer : m_Layers)
             if (layer->GetName() == p_Name)
@@ -313,7 +323,7 @@ class LayerSystem
      * @tparam T The type to cast the layer to.
      * @param p_Name The name of the layer.
      */
-    template <std::derived_from<Layer> T = Layer> T *GetLayer(const std::string_view p_Name)
+    template <std::derived_from<Layer> T = Layer> T *Get(const std::string_view p_Name)
     {
         for (auto &layer : m_Layers)
             if (layer->GetName() == p_Name)
@@ -329,7 +339,7 @@ class LayerSystem
      *
      * @param p_Index The index of the layer.
      */
-    void RemoveLayer(const usize p_Index) noexcept;
+    void Remove(const usize p_Index) noexcept;
 
     /**
      * @brief Immediately remove a layer by name.
@@ -339,7 +349,7 @@ class LayerSystem
      *
      * @param p_Name The name of the layer.
      */
-    void RemoveLayer(std::string_view p_Name) noexcept;
+    void Remove(std::string_view p_Name) noexcept;
 
     /**
      * @brief Immediately remove a layer by pointer.
@@ -349,7 +359,7 @@ class LayerSystem
      *
      * @param p_Layer The pointer to the layer.
      */
-    void RemoveLayer(const Layer *p_Layer) noexcept;
+    void Remove(const Layer *p_Layer) noexcept;
 
     /**
      * @brief Flag a layer to be removed in the next frame.
@@ -359,7 +369,7 @@ class LayerSystem
      *
      * @param p_Index The index of the layer.
      */
-    void FlagRemoveLayer(const usize p_Index) noexcept;
+    void FlagRemove(const usize p_Index) noexcept;
 
     /**
      * @brief Flag a layer to be removed in the next frame.
@@ -369,7 +379,7 @@ class LayerSystem
      *
      * @param p_Name The name of the layer.
      */
-    void FlagRemoveLayer(std::string_view p_Name) noexcept;
+    void FlagRemove(std::string_view p_Name) noexcept;
 
     /**
      * @brief Flag a layer to be removed in the next frame.
@@ -379,7 +389,7 @@ class LayerSystem
      *
      * @param p_Layer The pointer to the layer.
      */
-    void FlagRemoveLayer(const Layer *p_Layer) noexcept;
+    void FlagRemove(const Layer *p_Layer) noexcept;
 
     // Made public bc its a hassle to befriend every app class. But note the camelcase: not supposed to be accessed by
     // user

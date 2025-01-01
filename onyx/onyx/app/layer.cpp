@@ -219,12 +219,12 @@ void LayerSystem::removeFlaggedLayers() noexcept
     m_MustRemoveLayers = false;
 }
 
-void LayerSystem::RemoveLayer(const usize p_Index) noexcept
+void LayerSystem::Remove(const usize p_Index) noexcept
 {
     m_Layers[p_Index]->OnRemoval();
     m_Layers.erase(m_Layers.begin() + p_Index);
 }
-void LayerSystem::RemoveLayer(std::string_view p_Name) noexcept
+void LayerSystem::Remove(std::string_view p_Name) noexcept
 {
     for (usize i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i]->GetName() == p_Name)
@@ -234,7 +234,7 @@ void LayerSystem::RemoveLayer(std::string_view p_Name) noexcept
             return;
         }
 }
-void LayerSystem::RemoveLayer(const Layer *p_Layer) noexcept
+void LayerSystem::Remove(const Layer *p_Layer) noexcept
 {
     for (usize i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i].Get() == p_Layer)
@@ -245,12 +245,12 @@ void LayerSystem::RemoveLayer(const Layer *p_Layer) noexcept
         }
 }
 
-void LayerSystem::FlagRemoveLayer(const usize p_Index) noexcept
+void LayerSystem::FlagRemove(const usize p_Index) noexcept
 {
     m_Layers[p_Index]->m_RemoveFlag = true;
     m_MustRemoveLayers = true;
 }
-void LayerSystem::FlagRemoveLayer(const std::string_view p_Name) noexcept
+void LayerSystem::FlagRemove(const std::string_view p_Name) noexcept
 {
     for (usize i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i]->GetName() == p_Name)
@@ -260,7 +260,7 @@ void LayerSystem::FlagRemoveLayer(const std::string_view p_Name) noexcept
             return;
         }
 }
-void LayerSystem::FlagRemoveLayer(const Layer *p_Layer) noexcept
+void LayerSystem::FlagRemove(const Layer *p_Layer) noexcept
 {
     for (usize i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i].Get() == p_Layer)
