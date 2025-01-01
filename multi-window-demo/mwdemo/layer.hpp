@@ -6,6 +6,10 @@
 namespace Onyx
 {
 class IMultiWindowApplication;
+}
+
+namespace Onyx::Demo
+{
 class MWExampleLayer final : public Layer
 {
   public:
@@ -21,4 +25,4 @@ class MWExampleLayer final : public Layer
     IMultiWindowApplication *m_Application = nullptr;
     TKit::StaticArray8<WindowData> m_Data;
 };
-} // namespace Onyx
+} // namespace Onyx::Demo

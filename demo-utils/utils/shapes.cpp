@@ -1,7 +1,7 @@
 #include "utils/shapes.hpp"
 #include <imgui.h>
 
-namespace Onyx
+namespace Onyx::Demo
 {
 template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context) noexcept
 {
@@ -218,4 +218,4 @@ template class Stadium<D3>;
 template class RoundedSquare<D2>;
 template class RoundedSquare<D3>;
 
-} // namespace Onyx
+} // namespace Onyx::Demo

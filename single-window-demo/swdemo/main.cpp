@@ -9,7 +9,7 @@ void RunApp() noexcept
     spc.Name = "Single window demo app";
 
     Onyx::Application app{spc};
-    app.Layers.Push<Onyx::SWExampleLayer>(&app);
+    app.Layers.Push<Onyx::Demo::SWExampleLayer>(&app);
     app.Run();
 }
 

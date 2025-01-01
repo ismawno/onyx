@@ -3,7 +3,7 @@
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/draw/transform.hpp"
 
-namespace Onyx
+namespace Onyx::Demo
 {
 template <Dimension D> class Shape
 {
@@ -143,4 +143,4 @@ class RoundedCube final : public Shape<D3>
     f32 Radius = 0.5f;
 };
 
-} // namespace Onyx
+} // namespace Onyx::Demo

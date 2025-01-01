@@ -6,6 +6,10 @@
 namespace Onyx
 {
 class Application;
+}
+
+namespace Onyx::Demo
+{
 class SWExampleLayer final : public Layer
 {
   public:
@@ -20,4 +24,4 @@ class SWExampleLayer final : public Layer
     Application *m_Application = nullptr;
     WindowData m_Data;
 };
-} // namespace Onyx
+} // namespace Onyx::Demo

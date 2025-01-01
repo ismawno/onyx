@@ -6,7 +6,7 @@
 template <Onyx::WindowThreading Threading> void RunApp() noexcept
 {
     Onyx::MultiWindowApplication<Threading> app;
-    app.Layers.template Push<Onyx::MWExampleLayer>(&app);
+    app.Layers.template Push<Onyx::Demo::MWExampleLayer>(&app);
 
     Onyx::Window::Specs spc{};
     spc.Name = "Main window";

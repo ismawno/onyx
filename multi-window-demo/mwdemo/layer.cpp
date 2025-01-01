@@ -3,7 +3,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-namespace Onyx
+namespace Onyx::Demo
 {
 MWExampleLayer::MWExampleLayer(IMultiWindowApplication *p_Application) noexcept
     : Layer("Example"), m_Application(p_Application)
@@ -62,4 +62,4 @@ void MWExampleLayer::OnImGuiRender() noexcept
     ImGui::End();
 }
 
-} // namespace Onyx
+} // namespace Onyx::Demo

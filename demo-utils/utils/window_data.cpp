@@ -4,7 +4,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-namespace Onyx
+namespace Onyx::Demo
 {
 static const VKit::PipelineLayout &getRainbowLayout() noexcept
 {
@@ -454,4 +454,4 @@ void WindowData::renderLightSpawn() noexcept
         Layer::EditPointLight(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight]);
 }
 
-} // namespace Onyx
+} // namespace Onyx::Demo

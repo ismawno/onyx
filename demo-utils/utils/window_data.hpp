@@ -6,7 +6,7 @@
 #include "utils/shapes.hpp"
 #include "tkit/profiling/timespan.hpp"
 
-namespace Onyx
+namespace Onyx::Demo
 {
 template <Dimension D> struct ILayerData
 {
@@ -84,4 +84,4 @@ class WindowData
     bool m_PostProcessing = false;
 };
 
-} // namespace Onyx
+} // namespace Onyx::Demo
