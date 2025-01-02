@@ -209,8 +209,8 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
 
 void Core::Terminate() noexcept
 {
-    if (s_Device)
-        s_Device.WaitIdle();
+    if (IsDeviceCreated())
+        DeviceWaitIdle();
 
     s_DeletionQueue.Flush();
     glfwTerminate();
