@@ -86,12 +86,12 @@ class ONYX_API Window
             return false;
 
         {
-            TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Render", Core::GetProfilingContext(), cmd);
+            TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Window::Render", Core::GetProfilingContext(), cmd);
             m_FrameScheduler->BeginRenderPass(BackgroundColor);
             {
-                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkFirstCalls, "Onyx::FirstDrawCalls", Core::GetProfilingContext(), cmd,
-                                                true);
-                TKIT_PROFILE_NAMED_NSCOPE(firstCalls, "Onyx::FirstDrawCalls", true);
+                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkFirstCalls, "Onyx::Window::FirstDrawCalls",
+                                                Core::GetProfilingContext(), cmd, true);
+                TKIT_PROFILE_NAMED_NSCOPE(firstCalls, "Onyx::Window::FirstDrawCalls", true);
                 std::forward<F1>(p_FirstDraws)(cmd);
             }
 
@@ -100,9 +100,9 @@ class ONYX_API Window
             m_RenderContext3D->Render(cmd);
 
             {
-                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkLastCalls, "Onyx::LastDrawCalls", Core::GetProfilingContext(), cmd,
-                                                true);
-                TKIT_PROFILE_NAMED_NSCOPE(lastCalls, "Onyx::LastDrawCalls", true);
+                TKIT_PROFILE_VULKAN_NAMED_SCOPE(vkLastCalls, "Onyx::Window::LastDrawCalls", Core::GetProfilingContext(),
+                                                cmd, true);
+                TKIT_PROFILE_NAMED_NSCOPE(lastCalls, "Onyx::Window::LastDrawCalls", true);
                 std::forward<F2>(p_LastDraws)(cmd);
             }
             m_FrameScheduler->EndRenderPass();
