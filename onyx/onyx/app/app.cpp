@@ -188,10 +188,10 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
     {
         m_Window.Destroy();
         shutdownImGui();
-        TKIT_PROFILE_MARK_FRAME;
+        TKIT_PROFILE_MARK_FRAME();
         return false;
     }
-    TKIT_PROFILE_MARK_FRAME;
+    TKIT_PROFILE_MARK_FRAME();
     return true;
 }
 

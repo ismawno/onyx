@@ -69,14 +69,14 @@ bool IMultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
     setDeltaTime(p_Clock.Restart());
     if (m_Windows.empty())
     {
-        TKIT_PROFILE_MARK_FRAME;
+        TKIT_PROFILE_MARK_FRAME();
         return false;
     }
 
     Input::PollEvents();
     processWindows();
 
-    TKIT_PROFILE_MARK_FRAME;
+    TKIT_PROFILE_MARK_FRAME();
     return !m_Windows.empty();
 }
 
