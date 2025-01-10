@@ -45,7 +45,7 @@ void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_
                                   const Model<D> &p_Model) noexcept
 {
     m_HostInstanceData[p_Model].push_back(p_InstanceData);
-    const usize size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
+    const u32 size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
     MutableStorageBuffer<InstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
 
     if (size == buffer.GetInfo().InstanceCount)
@@ -97,7 +97,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     TKIT_PROFILE_NSCOPE("MeshRenderer::Render");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
-    usize index = 0;
+    u32 index = 0;
     for (const auto &[model, data] : m_HostInstanceData)
         for (const auto &instanceData : data)
             storageBuffer.WriteAt(index++, &instanceData);
@@ -113,7 +113,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     u32 firstInstance = 0;
     for (const auto &[model, data] : m_HostInstanceData)
     {
-        const u32 size = static_cast<u32>(data.size());
+        const u32 size = data.size();
 
         model.Bind(p_Info.CommandBuffer);
         if (model.HasIndices())
@@ -127,7 +127,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
 {
     m_HostInstanceData.clear();
-    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         m_DeviceInstanceData.StorageSizes[i] = 0;
 }
 
@@ -150,9 +150,9 @@ template <Dimension D, PipelineMode PMode> PrimitiveRenderer<D, PMode>::~Primiti
 
 template <Dimension D, PipelineMode PMode>
 void PrimitiveRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
-                                       const usize p_PrimitiveIndex) noexcept
+                                       const u32 p_PrimitiveIndex) noexcept
 {
-    const usize size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
+    const u32 size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
     MutableStorageBuffer<InstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     if (size == buffer.GetInfo().InstanceCount)
     {
@@ -177,7 +177,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
 
     // Cant just memcpy this because of alignment
-    usize index = 0;
+    u32 index = 0;
     for (const auto &instanceData : m_HostInstanceData)
         for (const auto &data : instanceData)
             storageBuffer.WriteAt(index++, &data);
@@ -197,11 +197,11 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     ibuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
 
     u32 firstInstance = 0;
-    for (usize i = 0; i < m_HostInstanceData.size(); ++i)
+    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
     {
         if (m_HostInstanceData[i].empty())
             continue;
-        const u32 size = static_cast<u32>(m_HostInstanceData[i].size());
+        const u32 size = m_HostInstanceData[i].size();
         const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
 
         vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart,
@@ -214,7 +214,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 {
     for (auto &data : m_HostInstanceData)
         data.clear();
-    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         m_DeviceInstanceData.StorageSizes[i] = 0;
 }
 
@@ -240,7 +240,7 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
                                      const std::span<const fvec<D>> p_Vertices) noexcept
 {
     TKIT_ASSERT(p_Vertices.size() >= 3, "[ONYX] A polygon must have at least 3 sides");
-    const usize storageSize = m_HostInstanceData.size();
+    const u32 storageSize = m_HostInstanceData.size();
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     if (storageSize == storageBuffer.GetInfo().InstanceCount)
     {
@@ -256,9 +256,9 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
     instanceData.BaseData = p_InstanceData;
 
     PrimitiveDataLayout layout;
-    layout.VerticesStart = static_cast<u32>(m_Vertices.size());
-    layout.IndicesStart = static_cast<u32>(m_Indices.size());
-    layout.IndicesSize = static_cast<u32>(p_Vertices.size() * 3 - 6);
+    layout.VerticesStart = m_Vertices.size();
+    layout.IndicesStart = m_Indices.size();
+    layout.IndicesSize = static_cast<u32>(p_Vertices.size()) * 3 - 6;
     instanceData.Layout = layout;
 
     m_HostInstanceData.push_back(instanceData);
@@ -271,13 +271,13 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
         m_Vertices.push_back(vertex);
     };
 
-    for (usize i = 0; i < 3; ++i)
+    for (u32 i = 0; i < 3; ++i)
     {
         m_Indices.push_back(static_cast<Index>(i));
         pushVertex(p_Vertices[i]);
     }
 
-    for (usize i = 3; i < p_Vertices.size(); ++i)
+    for (u32 i = 3; i < p_Vertices.size(); ++i)
     {
         const Index index = static_cast<Index>(i);
         m_Indices.push_back(0);
@@ -286,8 +286,8 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
         pushVertex(p_Vertices[i]);
     }
 
-    const usize vertexSize = m_Vertices.size();
-    const usize indexSize = m_Indices.size();
+    const u32 vertexSize = m_Vertices.size();
+    const u32 indexSize = m_Indices.size();
     MutableVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_FrameIndex];
     MutableIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_FrameIndex];
 
@@ -328,7 +328,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
     vertexBuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
     indexBuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
 
-    for (usize i = 0; i < m_HostInstanceData.size(); ++i)
+    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
     {
         const auto &data = m_HostInstanceData[i];
         storageBuffer.WriteAt(i, &data.BaseData);
@@ -366,7 +366,7 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
 {
     if (TKit::Approximately(p_LowerAngle, p_UpperAngle) || TKit::Approximately(p_Hollowness, 1.f))
         return;
-    const usize size = m_HostInstanceData.size();
+    const u32 size = m_HostInstanceData.size();
     MutableStorageBuffer<CircleInstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
 
     CircleInstanceData instanceData;
@@ -401,7 +401,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
 
     // Cant just memcpy this because of alignment
-    for (usize i = 0; i < m_HostInstanceData.size(); ++i)
+    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
         storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
@@ -411,14 +411,14 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
     bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
 
-    const u32 size = static_cast<u32>(m_HostInstanceData.size());
+    const u32 size = m_HostInstanceData.size();
     vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush() noexcept
 {
     m_HostInstanceData.clear();
-    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         m_DeviceInstanceData.StorageSizes[i] = 0;
 }
 

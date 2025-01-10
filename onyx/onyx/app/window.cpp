@@ -16,15 +16,15 @@ Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_
 {
     createWindow(p_Specs);
 
-    m_RenderContext2D.Create(this, m_FrameScheduler->GetRenderPass());
-    m_RenderContext3D.Create(this, m_FrameScheduler->GetRenderPass());
+    m_RenderContext2D.Construct(this, m_FrameScheduler->GetRenderPass());
+    m_RenderContext3D.Construct(this, m_FrameScheduler->GetRenderPass());
 }
 
 Window::~Window() noexcept
 {
-    m_FrameScheduler.Destroy();
-    m_RenderContext2D.Destroy();
-    m_RenderContext3D.Destroy();
+    m_FrameScheduler.Destruct();
+    m_RenderContext2D.Destruct();
+    m_RenderContext3D.Destruct();
     vkDestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
@@ -48,7 +48,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
 
     if (!Core::IsDeviceCreated())
         Core::CreateDevice(m_Surface);
-    m_FrameScheduler.Create(*this);
+    m_FrameScheduler.Construct(*this);
     Input::InstallCallbacks(*this);
 }
 

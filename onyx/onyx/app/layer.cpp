@@ -115,7 +115,7 @@ void Layer::EditPresentMode(Window *p_Window) noexcept
 
     int index = -1;
     TKit::StaticArray8<const char *> presentModes;
-    for (usize i = 0; i < available.size(); ++i)
+    for (u32 i = 0; i < available.size(); ++i)
     {
         presentModes.push_back(presentModeToString(available[i]));
         if (available[i] == current)
@@ -161,19 +161,19 @@ void LayerSystem::onLateRender(const VkCommandBuffer p_CommandBuffer) noexcept
         layer->OnLateRender(p_CommandBuffer);
 }
 
-void LayerSystem::onUpdate(const usize p_WindowIndex) noexcept
+void LayerSystem::onUpdate(const u32 p_WindowIndex) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnUpdate");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnUpdate(p_WindowIndex);
 }
-void LayerSystem::onRender(const usize p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void LayerSystem::onRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnRender");
     for (auto &layer : enabledLayers(m_Layers))
         layer->OnRender(p_WindowIndex, p_CommandBuffer);
 }
-void LayerSystem::onLateRender(const usize p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void LayerSystem::onLateRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::LayerSystem::OnLateRender");
     for (auto &layer : enabledLayers(m_Layers))
@@ -194,7 +194,7 @@ void LayerSystem::onEvent(const Event &p_Event) noexcept
             return;
 }
 
-void LayerSystem::onEvent(const usize p_WindowIndex, const Event &p_Event) noexcept
+void LayerSystem::onEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
 {
     for (auto &layer : enabledLayers(m_Layers) | std::views::reverse)
         if (layer->OnEvent(p_WindowIndex, p_Event))
@@ -207,7 +207,7 @@ void LayerSystem::removeFlaggedLayers() noexcept
         return;
 
     Core::DeviceWaitIdle();
-    for (usize i = 0; i < m_Layers.size();)
+    for (u32 i = 0; i < m_Layers.size();)
         if (m_Layers[i]->m_RemoveFlag)
         {
             m_Layers[i]->OnRemoval();
@@ -219,14 +219,14 @@ void LayerSystem::removeFlaggedLayers() noexcept
     m_MustRemoveLayers = false;
 }
 
-void LayerSystem::Remove(const usize p_Index) noexcept
+void LayerSystem::Remove(const u32 p_Index) noexcept
 {
     m_Layers[p_Index]->OnRemoval();
     m_Layers.erase(m_Layers.begin() + p_Index);
 }
 void LayerSystem::Remove(std::string_view p_Name) noexcept
 {
-    for (usize i = 0; i < m_Layers.size(); ++i)
+    for (u32 i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i]->GetName() == p_Name)
         {
             m_Layers[i]->OnRemoval();
@@ -236,7 +236,7 @@ void LayerSystem::Remove(std::string_view p_Name) noexcept
 }
 void LayerSystem::Remove(const Layer *p_Layer) noexcept
 {
-    for (usize i = 0; i < m_Layers.size(); ++i)
+    for (u32 i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i].Get() == p_Layer)
         {
             m_Layers[i]->OnRemoval();
@@ -245,14 +245,14 @@ void LayerSystem::Remove(const Layer *p_Layer) noexcept
         }
 }
 
-void LayerSystem::FlagRemove(const usize p_Index) noexcept
+void LayerSystem::FlagRemove(const u32 p_Index) noexcept
 {
     m_Layers[p_Index]->m_RemoveFlag = true;
     m_MustRemoveLayers = true;
 }
 void LayerSystem::FlagRemove(const std::string_view p_Name) noexcept
 {
-    for (usize i = 0; i < m_Layers.size(); ++i)
+    for (u32 i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i]->GetName() == p_Name)
         {
             m_Layers[i]->m_RemoveFlag = true;
@@ -262,7 +262,7 @@ void LayerSystem::FlagRemove(const std::string_view p_Name) noexcept
 }
 void LayerSystem::FlagRemove(const Layer *p_Layer) noexcept
 {
-    for (usize i = 0; i < m_Layers.size(); ++i)
+    for (u32 i = 0; i < m_Layers.size(); ++i)
         if (m_Layers[i].Get() == p_Layer)
         {
             m_Layers[i]->m_RemoveFlag = true;

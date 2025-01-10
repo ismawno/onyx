@@ -56,14 +56,14 @@ template <Dimension D> struct IPrimitives
      * @param p_PrimitiveIndex The index of the primitive.
      * @return The data layout of the primitive.
      */
-    static const PrimitiveDataLayout &GetDataLayout(usize p_PrimitiveIndex) noexcept;
+    static const PrimitiveDataLayout &GetDataLayout(u32 p_PrimitiveIndex) noexcept;
 
     /**
      * @brief Get the index of the triangle primitive.
      *
      * @return Index of the triangle primitive.
      */
-    static TKIT_CONSTEVAL usize GetTriangleIndex() noexcept
+    static TKIT_CONSTEVAL u32 GetTriangleIndex() noexcept
     {
         return 0;
     }
@@ -73,7 +73,7 @@ template <Dimension D> struct IPrimitives
      *
      * @return Index of the square primitive.
      */
-    static TKIT_CONSTEVAL usize GetSquareIndex() noexcept
+    static TKIT_CONSTEVAL u32 GetSquareIndex() noexcept
     {
         return 1;
     }
@@ -84,7 +84,7 @@ template <Dimension D> struct IPrimitives
      * @param p_Sides Number of sides of the n-gon.
      * @return Index of the n-gon primitive.
      */
-    static constexpr usize GetNGonIndex(u32 p_Sides) noexcept
+    static constexpr u32 GetNGonIndex(u32 p_Sides) noexcept
     {
         TKIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3,
                     "[ONYX] NGon sides must be between 3 and {}", ONYX_MAX_REGULAR_POLYGON_SIDES);
@@ -101,7 +101,7 @@ template <Dimension D> struct Primitives;
 template <> struct Primitives<D2> : IPrimitives<D2>
 {
     /// Total number of 2D primitives available.
-    static constexpr usize AMOUNT = 2 + ONYX_REGULAR_POLYGON_COUNT;
+    static constexpr u32 AMOUNT = 2 + ONYX_REGULAR_POLYGON_COUNT;
 };
 
 /**
@@ -111,14 +111,14 @@ template <> struct Primitives<D2> : IPrimitives<D2>
 template <> struct Primitives<D3> : IPrimitives<D3>
 {
     /// Total number of 3D primitives available.
-    static constexpr usize AMOUNT = 5 + ONYX_REGULAR_POLYGON_COUNT;
+    static constexpr u32 AMOUNT = 5 + ONYX_REGULAR_POLYGON_COUNT;
 
     /**
      * @brief Get the index of the cube primitive.
      *
-     * @return usize Index of the cube primitive.
+     * @return u32 Index of the cube primitive.
      */
-    static TKIT_CONSTEVAL usize GetCubeIndex() noexcept
+    static TKIT_CONSTEVAL u32 GetCubeIndex() noexcept
     {
         return 2;
     }
@@ -126,9 +126,9 @@ template <> struct Primitives<D3> : IPrimitives<D3>
     /**
      * @brief Get the index of the sphere primitive.
      *
-     * @return usize Index of the sphere primitive.
+     * @return u32 Index of the sphere primitive.
      */
-    static TKIT_CONSTEVAL usize GetSphereIndex() noexcept
+    static TKIT_CONSTEVAL u32 GetSphereIndex() noexcept
     {
         return 3;
     }
@@ -136,9 +136,9 @@ template <> struct Primitives<D3> : IPrimitives<D3>
     /**
      * @brief Get the index of the cylinder primitive.
      *
-     * @return usize Index of the cylinder primitive.
+     * @return u32 Index of the cylinder primitive.
      */
-    static TKIT_CONSTEVAL usize GetCylinderIndex() noexcept
+    static TKIT_CONSTEVAL u32 GetCylinderIndex() noexcept
     {
         return 4;
     }

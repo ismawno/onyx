@@ -12,16 +12,16 @@ MWExampleLayer::MWExampleLayer(IMultiWindowApplication *p_Application) noexcept
 
 void MWExampleLayer::OnStart() noexcept
 {
-    for (usize i = 0; i < m_Application->GetWindowCount(); ++i)
+    for (u32 i = 0; i < m_Application->GetWindowCount(); ++i)
         m_Data[i].OnStart(m_Application->GetWindow(i));
 }
 
-void MWExampleLayer::OnUpdate(const usize p_WindowIndex) noexcept
+void MWExampleLayer::OnUpdate(const u32 p_WindowIndex) noexcept
 {
     m_Data[p_WindowIndex].OnUpdate();
 }
 
-bool MWExampleLayer::OnEvent(const usize p_WindowIndex, const Event &p_Event) noexcept
+bool MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
 {
     TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.size(), "[ONYX] Index out of bounds");
     if (p_Event.Type == Event::WindowOpened)
@@ -33,7 +33,7 @@ bool MWExampleLayer::OnEvent(const usize p_WindowIndex, const Event &p_Event) no
     return true;
 }
 
-void MWExampleLayer::OnRender(const usize p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void MWExampleLayer::OnRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     const auto ts = m_Application->GetDeltaTime();
     m_Data[p_WindowIndex].OnRender(p_CommandBuffer, ts);
@@ -48,7 +48,7 @@ void MWExampleLayer::OnImGuiRender() noexcept
         if (ImGui::Button("Open Window"))
             m_Application->OpenWindow();
 
-        for (usize i = 0; i < m_Application->GetWindowCount(); ++i)
+        for (u32 i = 0; i < m_Application->GetWindowCount(); ++i)
         {
             Window *window = m_Application->GetWindow(i);
             if (ImGui::TreeNode(window, window->GetName(), i))

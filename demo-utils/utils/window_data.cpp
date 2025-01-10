@@ -245,7 +245,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             p_Data.PolygonVertices.push_back(toAdd);
             toAdd = fvec<D>{0.f};
         }
-        for (usize i = 0; i < p_Data.PolygonVertices.size(); ++i)
+        for (u32 i = 0; i < p_Data.PolygonVertices.size(); ++i)
         {
             ImGui::PushID(&p_Data.PolygonVertices[i]);
             if (ImGui::Button("X"))
@@ -257,9 +257,9 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
 
             ImGui::SameLine();
             if constexpr (D == D2)
-                ImGui::Text("Vertex %zu: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
+                ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
             else
-                ImGui::Text("Vertex %zu: (%.2f, %.2f, %.2f)", i, p_Data.PolygonVertices[i].x,
+                ImGui::Text("Vertex %u: (%.2f, %.2f, %.2f)", i, p_Data.PolygonVertices[i].x,
                             p_Data.PolygonVertices[i].y, p_Data.PolygonVertices[i].z);
             ImGui::PopID();
         }
@@ -309,9 +309,9 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     if (ImGui::Button("Clear"))
         p_Data.Shapes.clear();
 
-    const usize size = static_cast<usize>(p_Data.Shapes.size());
-    static usize selected = 0;
-    for (usize i = 0; i < size; ++i)
+    const u32 size = p_Data.Shapes.size();
+    static u32 selected = 0;
+    for (u32 i = 0; i < size; ++i)
     {
         ImGui::PushID(&p_Data.Shapes[i]);
         if (ImGui::Button("X"))
@@ -417,8 +417,8 @@ void WindowData::renderLightSpawn() noexcept
             m_LayerData3.PointLights.push_back(m_LayerData3.PointLightToAdd);
     }
 
-    const usize dsize = static_cast<usize>(m_LayerData3.DirectionalLights.size());
-    for (usize i = 0; i < dsize; ++i)
+    const u32 dsize = m_LayerData3.DirectionalLights.size();
+    for (u32 i = 0; i < dsize; ++i)
     {
         ImGui::PushID(&m_LayerData3.DirectionalLights[i]);
         if (ImGui::Button("X"))
@@ -435,8 +435,8 @@ void WindowData::renderLightSpawn() noexcept
     if (m_LayerData3.SelectedDirLight < dsize)
         Layer::EditDirectionalLight(m_LayerData3.DirectionalLights[m_LayerData3.SelectedDirLight]);
 
-    const usize psize = static_cast<usize>(m_LayerData3.PointLights.size());
-    for (usize i = 0; i < psize; ++i)
+    const u32 psize = m_LayerData3.PointLights.size();
+    for (u32 i = 0; i < psize; ++i)
     {
         ImGui::PushID(&m_LayerData3.PointLights[i]);
         if (ImGui::Button("X"))

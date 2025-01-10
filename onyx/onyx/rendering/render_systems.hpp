@@ -60,7 +60,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
   private:
     VKit::GraphicsPipeline m_Pipeline{};
 
-    using HostInstanceData = HashMap<Model<D>, DynamicArray<InstanceData>>;
+    using HostInstanceData = TKit::HashMap<Model<D>, TKit::DynamicArray<InstanceData>>;
 
     HostInstanceData m_HostInstanceData;
     DeviceInstanceData<InstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
@@ -96,7 +96,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_PrimitiveIndex The index of the primitive to draw. Can be queried from Primitive<D>::Get...Index()
      */
-    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, usize p_PrimitiveIndex) noexcept;
+    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, u32 p_PrimitiveIndex) noexcept;
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.
@@ -119,7 +119,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
   private:
     VKit::GraphicsPipeline m_Pipeline{};
 
-    using HostInstanceData = std::array<DynamicArray<InstanceData>, Primitives<D>::AMOUNT>;
+    using HostInstanceData = std::array<TKit::DynamicArray<InstanceData>, Primitives<D>::AMOUNT>;
 
     HostInstanceData m_HostInstanceData;
     DeviceInstanceData<InstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
@@ -185,10 +185,10 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PolygonRenderer
 
     // Batch data maps perfectly to the number of polygons to be drawn i.e number of entries in storage buffer.
     // StorageSizes is not needed
-    DynamicArray<PolygonInstanceData> m_HostInstanceData;
+    TKit::DynamicArray<PolygonInstanceData> m_HostInstanceData;
     PolygonDeviceInstanceData m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
-    DynamicArray<Vertex<D>> m_Vertices;
-    DynamicArray<Index> m_Indices;
+    TKit::DynamicArray<Vertex<D>> m_Vertices;
+    TKit::DynamicArray<Index> m_Indices;
 };
 
 /**
@@ -262,7 +262,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API CircleRenderer
 
     // Batch data maps perfectly to the number of circles to be drawn i.e number of entries in storage buffer.
     // StorageSizes is not needed
-    DynamicArray<CircleInstanceData> m_HostInstanceData;
+    TKit::DynamicArray<CircleInstanceData> m_HostInstanceData;
     DeviceInstanceData<CircleInstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
 

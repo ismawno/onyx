@@ -33,7 +33,7 @@ class Window;
  * outside of the NextFrame() call, and so it is not possible to modify the container that holds all of the layers. Some
  * synchronization could be implemented, but that overhead would defeat the purpose of the concurrency.
  *
- * When using a concurrent multi window application, and using the callback variants On...(usize), you are guaranteed
+ * When using a concurrent multi window application, and using the callback variants On...(u32), you are guaranteed
  * synchronized execution between calls that share the same window index, and simultaneous execution between calls that
  * do not share the same window index, with the exception of OnEvent() calls regarding a WindowOpened or WindowClosed
  * event. When those happen, OnEvent is always executed on the main thread, and all other window tasks are stopped. This
@@ -92,7 +92,7 @@ class Layer
      * to update the user's state as they see fit. Doing so in OnRender() callbacks is not recommended, as some
      * rendering operations can be performed at the same time OnUpdate() runs, but not at the same time OnRender() runs.
      *
-     * @note This variant of the method is not called in multi window applications. Use the OnUpdate(usize) method
+     * @note This variant of the method is not called in multi window applications. Use the OnUpdate(u32) method
      * instead.
      *
      */
@@ -109,7 +109,7 @@ class Layer
      *
      * This method can (and must) be used to issue ImGui draw calls.
      *
-     * @note This variant of the method is not called in multi window applications. Use the OnRender(usize,
+     * @note This variant of the method is not called in multi window applications. Use the OnRender(u32,
      * VkCommandBuffer) method instead.
      *
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
@@ -128,7 +128,7 @@ class Layer
      *
      * This method can (and must) be used to issue ImGui draw calls.
      *
-     * @note This variant of the method is not called in multi window applications. Use the OnRender(usize,
+     * @note This variant of the method is not called in multi window applications. Use the OnRender(u32,
      * VkCommandBuffer) method instead.
      *
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
@@ -139,7 +139,7 @@ class Layer
     }
 
     /**
-     * @brief Called every frame before the OnRender(usize) method.
+     * @brief Called every frame before the OnRender(u32) method.
      *
      * Behaves the same as the OnUpdate() method, but is called in multi window applications. In concurrent mode, this
      * method is called simultaneously for all windows.
@@ -149,12 +149,12 @@ class Layer
      * @param p_WindowIndex The index of the window that is currently being processed.
      *
      */
-    virtual void OnUpdate(usize) noexcept
+    virtual void OnUpdate(u32) noexcept
     {
     }
 
     /**
-     * @brief Called every frame after the OnUpdate(usize) method.
+     * @brief Called every frame after the OnUpdate(u32) method.
      *
      * Behaves the same as the OnRender() method, but is called in multi window applications. In concurrent mode, this
      * method is called simultaneously for all windows.
@@ -167,12 +167,12 @@ class Layer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRender(usize, VkCommandBuffer) noexcept
+    virtual void OnRender(u32, VkCommandBuffer) noexcept
     {
     }
 
     /**
-     * @brief Called every frame after the OnUpdate(usize) and OnRender(usize, VkCommandBuffer) methods.
+     * @brief Called every frame after the OnUpdate(u32) and OnRender(u32, VkCommandBuffer) methods.
      *
      * Behaves the same as the OnLateRender() method, but is called in multi window applications. In concurrent mode,
      * this method is called simultaneously for all windows.
@@ -185,7 +185,7 @@ class Layer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnLateRender(usize, VkCommandBuffer) noexcept
+    virtual void OnLateRender(u32, VkCommandBuffer) noexcept
     {
     }
 
@@ -195,7 +195,7 @@ class Layer
      * As there is only a unique ImGui context per application (not per window), ImGui callbacks are always called once
      * per frame in the main thread, no matter how many active windows there are. This behaviour can be problematic in
      * the case of concurrent applications, as the user may want to display data from windows that are being processed
-     * in other threads. Synchronization between calls to this method and other On..(usize) methods is not guaranteed,
+     * in other threads. Synchronization between calls to this method and other On..(u32) methods is not guaranteed,
      * so the user must provide their own.
      *
      * @note This method is not called in single window applications. Use the OnRender() method instead.
@@ -211,7 +211,7 @@ class Layer
      * This method is called in reverse order of the layers, meaning that the last layer pushed into the
      * LayerSystem will be the first to receive the event.
      *
-     * @note This method is not called in multi window applications. Use the OnEvent(usize) method instead.
+     * @note This method is not called in multi window applications. Use the OnEvent(u32) method instead.
      *
      * @return Whether the event was handled by the layer.
      *
@@ -233,7 +233,7 @@ class Layer
      * @return Whether the event was handled by the layer.
      *
      */
-    virtual bool OnEvent(usize, const Event &) noexcept
+    virtual bool OnEvent(u32, const Event &) noexcept
     {
         return false;
     }
@@ -288,7 +288,7 @@ class LayerSystem
      * @tparam T The type to cast the layer to.
      * @param p_Index The index of the layer.
      */
-    template <std::derived_from<Layer> T = Layer> const T *Get(const usize p_Index)
+    template <std::derived_from<Layer> T = Layer> const T *Get(const u32 p_Index)
     {
         return static_cast<const T *>(m_Layers[p_Index].Get());
     }
@@ -298,7 +298,7 @@ class LayerSystem
      * @tparam T The type to cast the layer to.
      * @param p_Index The index of the layer.
      */
-    template <std::derived_from<Layer> T = Layer> T *Get(const usize p_Index)
+    template <std::derived_from<Layer> T = Layer> T *Get(const u32 p_Index)
     {
         return static_cast<T *>(m_Layers[p_Index].Get());
     }
@@ -339,7 +339,7 @@ class LayerSystem
      *
      * @param p_Index The index of the layer.
      */
-    void Remove(const usize p_Index) noexcept;
+    void Remove(const u32 p_Index) noexcept;
 
     /**
      * @brief Immediately remove a layer by name.
@@ -369,7 +369,7 @@ class LayerSystem
      *
      * @param p_Index The index of the layer.
      */
-    void FlagRemove(const usize p_Index) noexcept;
+    void FlagRemove(const u32 p_Index) noexcept;
 
     /**
      * @brief Flag a layer to be removed in the next frame.
@@ -401,15 +401,15 @@ class LayerSystem
     void onLateRender(VkCommandBuffer p_CommandBuffer) noexcept;
 
     // Window is also passed in update because it also acts as an identifier for the current window thread
-    void onUpdate(usize p_WindowIndex) noexcept;
-    void onRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onLateRender(usize p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onUpdate(u32 p_WindowIndex) noexcept;
+    void onRender(u32 p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onLateRender(u32 p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
 
     // To be used only in multi window apps (in single window, OnRender does fine)
     void onImGuiRender() noexcept;
 
     void onEvent(const Event &p_Event) noexcept;
-    void onEvent(usize p_WindowIndex, const Event &p_Event) noexcept;
+    void onEvent(u32 p_WindowIndex, const Event &p_Event) noexcept;
 
     void removeFlaggedLayers() noexcept;
 

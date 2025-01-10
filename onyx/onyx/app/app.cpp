@@ -155,7 +155,7 @@ void IApplication::shutdownImGui() noexcept
 
 Application::Application(const Window::Specs &p_WindowSpecs) noexcept
 {
-    m_Window.Create(p_WindowSpecs);
+    m_Window.Construct(p_WindowSpecs);
     initializeImGui(*m_Window);
 }
 
@@ -186,7 +186,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
     m_Window->Render(drawCalls, uiSubmission);
     if (m_Window->ShouldClose())
     {
-        m_Window.Destroy();
+        m_Window.Destruct();
         shutdownImGui();
         TKIT_PROFILE_MARK_FRAME();
         return false;

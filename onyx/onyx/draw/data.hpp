@@ -14,8 +14,8 @@ using Index = ONYX_INDEX_TYPE;
 
 template <Dimension D> struct ONYX_API IndexVertexData
 {
-    DynamicArray<Vertex<D>> Vertices;
-    DynamicArray<Index> Indices;
+    TKit::DynamicArray<Vertex<D>> Vertices;
+    TKit::DynamicArray<Index> Indices;
 };
 
 template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(std::string_view p_Path) noexcept;

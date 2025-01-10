@@ -63,9 +63,9 @@ Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const TKit::StaticArray8
     }
 }
 
-DeviceLightData::DeviceLightData(const usize p_Capacity) noexcept
+DeviceLightData::DeviceLightData(const u32 p_Capacity) noexcept
 {
-    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         DirectionalLightBuffers[i] = Core::CreateMutableStorageBuffer<DirectionalLight>(p_Capacity);
         PointLightBuffers[i] = Core::CreateMutableStorageBuffer<PointLight>(p_Capacity);
@@ -73,7 +73,7 @@ DeviceLightData::DeviceLightData(const usize p_Capacity) noexcept
 }
 DeviceLightData::~DeviceLightData() noexcept
 {
-    for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         DirectionalLightBuffers[i].Destroy();
         PointLightBuffers[i].Destroy();
@@ -209,7 +209,7 @@ void IRenderer<D>::DrawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model,
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPrimitive(const fmat<D> &p_Transform, const usize p_PrimitiveIndex, const u8 p_Flags) noexcept
+void IRenderer<D>::DrawPrimitive(const fmat<D> &p_Transform, const u32 p_PrimitiveIndex, const u8 p_Flags) noexcept
 {
     const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
     draw(m_PrimitiveRenderer, transform, p_Flags, p_PrimitiveIndex);
@@ -306,15 +306,15 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
     fillDrawInfo.CommandBuffer = p_CommandBuffer;
     fillDrawInfo.FrameIndex = m_FrameIndex;
     fillDrawInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
-    fillDrawInfo.DirectionalLightCount = static_cast<u32>(m_DirectionalLights.size());
-    fillDrawInfo.PointLightCount = static_cast<u32>(m_PointLights.size());
+    fillDrawInfo.DirectionalLightCount = m_DirectionalLights.size();
+    fillDrawInfo.PointLightCount = m_PointLights.size();
     fillDrawInfo.ProjectionView = &m_ProjectionView->ProjectionView;
     fillDrawInfo.ViewPosition = &m_ProjectionView->View.Translation;
     fillDrawInfo.AmbientColor = &AmbientColor;
 
-    for (usize i = 0; i < m_DirectionalLights.size(); ++i)
+    for (u32 i = 0; i < m_DirectionalLights.size(); ++i)
         m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].WriteAt(i, &m_DirectionalLights[i]);
-    for (usize i = 0; i < m_PointLights.size(); ++i)
+    for (u32 i = 0; i < m_PointLights.size(); ++i)
         m_DeviceLightData.PointLightBuffers[m_FrameIndex].WriteAt(i, &m_PointLights[i]);
 
     m_MeshRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
@@ -346,7 +346,7 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 
 void Renderer<D3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
 {
-    const usize size = m_DirectionalLights.size();
+    const u32 size = m_DirectionalLights.size();
     auto &buffer = m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex];
     if (buffer.GetInfo().InstanceCount == size)
     {
@@ -364,7 +364,7 @@ void Renderer<D3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
 
 void Renderer<D3>::AddPointLight(const PointLight &p_Light) noexcept
 {
-    const usize size = m_PointLights.size();
+    const u32 size = m_PointLights.size();
     MutableStorageBuffer<PointLight> &buffer = m_DeviceLightData.PointLightBuffers[m_FrameIndex];
     if (buffer.GetInfo().InstanceCount == size)
     {

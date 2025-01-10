@@ -15,7 +15,7 @@ template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(const std:
         return VKit::FormattedResult<IndexVertexData<D>>::Error(
             VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load model: {}", err + warn));
 
-    HashMap<Vertex<D>, Index> uniqueVertices;
+    TKit::HashMap<Vertex<D>, Index> uniqueVertices;
     IndexVertexData<D> buffers;
 
     buffers.Vertices.reserve(attrib.vertices.size() / 3);

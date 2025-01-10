@@ -271,9 +271,9 @@ template <> struct ONYX_API InstanceData<D3, DrawMode::Stencil>
 template <typename T> struct ONYX_API DeviceInstanceData
 {
     TKIT_NON_COPYABLE(DeviceInstanceData)
-    DeviceInstanceData(usize p_Capacity) noexcept
+    DeviceInstanceData(u32 p_Capacity) noexcept
     {
-        for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+        for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         {
             StorageBuffers[i] = Core::CreateMutableStorageBuffer<T>(p_Capacity);
             StorageSizes[i] = 0;
@@ -281,13 +281,13 @@ template <typename T> struct ONYX_API DeviceInstanceData
     }
     ~DeviceInstanceData() noexcept
     {
-        for (usize i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+        for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
             StorageBuffers[i].Destroy();
     }
 
     PerFrameData<MutableStorageBuffer<T>> StorageBuffers;
     PerFrameData<VkDescriptorSet> DescriptorSets;
-    PerFrameData<usize> StorageSizes;
+    PerFrameData<u32> StorageSizes;
 };
 
 /**
@@ -302,7 +302,7 @@ template <typename T> struct ONYX_API DeviceInstanceData
 template <Dimension D, DrawMode DMode>
 struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
 {
-    PolygonDeviceInstanceData(const usize p_Capacity) noexcept;
+    PolygonDeviceInstanceData(const u32 p_Capacity) noexcept;
     ~PolygonDeviceInstanceData() noexcept;
 
     PerFrameData<MutableVertexBuffer<D>> VertexBuffers;

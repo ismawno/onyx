@@ -31,7 +31,7 @@ FrameScheduler::~FrameScheduler() noexcept
     // Lock the queues to prevent any other command buffers from being submitted
     Core::DeviceWaitIdle();
     m_Resources.Destroy();
-    m_PostProcessing.Destroy();
+    m_PostProcessing.Destruct();
     m_NaivePostProcessingFragmentShader.Destroy();
     m_NaivePostProcessingLayout.Destroy();
     VKit::DestroySynchronizationObjects(Core::GetDevice(), m_SyncData);
@@ -63,7 +63,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     else
     {
         TKit::ITaskManager *taskManager = Core::GetTaskManager();
-        m_PresentTask = taskManager->CreateTask([this](usize) {
+        m_PresentTask = taskManager->CreateTask([this](u32) {
             TKIT_ASSERT_RETURNS(SubmitCurrentCommandBuffer(), VK_SUCCESS, "[ONYX] Failed to submit command buffers");
             return Present();
         });
@@ -118,14 +118,14 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
     passInfo.renderArea.offset = {0, 0};
     passInfo.renderArea.extent = extent;
 
-    std::array<VkClearValue, 3> clear_values;
-    clear_values[0].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
-    clear_values[1].depthStencil.depth = 1.f;
-    clear_values[1].depthStencil.stencil = 0;
-    clear_values[2].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
+    std::array<VkClearValue, 3> clearValues;
+    clearValues[0].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
+    clearValues[1].depthStencil.depth = 1.f;
+    clearValues[1].depthStencil.stencil = 0;
+    clearValues[2].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
 
-    passInfo.clearValueCount = static_cast<u32>(clear_values.size());
-    passInfo.pClearValues = clear_values.data();
+    passInfo.clearValueCount = static_cast<u32>(clearValues.size());
+    passInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(m_CommandBuffers[m_FrameIndex], &passInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -315,11 +315,10 @@ void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
 void FrameScheduler::createRenderPass() noexcept
 {
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-    const u32 imageCount = static_cast<u32>(info.ImageData.size());
 
     const VKit::LogicalDevice &device = Core::GetDevice();
     const auto result =
-        VKit::RenderPass::Builder(&device, imageCount)
+        VKit::RenderPass::Builder(&device, info.ImageData.size())
             .SetAllocator(Core::GetVulkanAllocator())
             // Attachment 0: This is the final presentation image. It is the post processing target image.
             .BeginAttachment(VKit::Attachment::Flag_Color)
@@ -383,7 +382,7 @@ void FrameScheduler::createProcessingEffects() noexcept
     m_NaivePostProcessingFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/naive-post-processing.frag");
 
     const TKit::StaticArray4<VkImageView> imageviews = getIntermediateAttachmentImageViews();
-    m_PostProcessing.Create(m_RenderPass, imageviews);
+    m_PostProcessing.Construct(m_RenderPass, imageviews);
 
     const VKit::PipelineLayout::Builder builder = m_PostProcessing->CreatePipelineLayoutBuilder();
     const auto result = builder.Build();
@@ -429,8 +428,7 @@ void FrameScheduler::setupNaivePostProcessing() noexcept
 TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateAttachmentImageViews() const noexcept
 {
     TKit::StaticArray4<VkImageView> imageViews;
-    const u32 imageCount = static_cast<u32>(m_SwapChain.GetInfo().ImageData.size());
-    for (u32 i = 0; i < imageCount; ++i)
+    for (u32 i = 0; i < m_SwapChain.GetInfo().ImageData.size(); ++i)
         imageViews.push_back(m_Resources.GetImageView(i, 2));
     return imageViews;
 }

@@ -8,7 +8,7 @@ namespace Onyx
 {
 // this function smells like shit
 template <typename F1, typename F2>
-static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSystem &p_Layers, F1 &&p_DrawCalls,
+static void processFrame(const u32 p_WindowIndex, Window &p_Window, LayerSystem &p_Layers, F1 &&p_DrawCalls,
                          F2 &&p_UICalls) noexcept
 {
     for (const Event &event : p_Window.GetNewEvents())
@@ -23,13 +23,13 @@ static void processFrame(const usize p_WindowIndex, Window &p_Window, LayerSyste
 
 void IMultiWindowApplication::CloseAllWindows() noexcept
 {
-    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+    for (u32 i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         CloseWindow(i);
 }
 
 void IMultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
 {
-    for (usize i = 0; i < m_Windows.size(); ++i)
+    for (u32 i = 0; i < m_Windows.size(); ++i)
         if (m_Windows[i].Get() == p_Window)
         {
             CloseWindow(i);
@@ -38,12 +38,12 @@ void IMultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
     TKIT_ERROR("Window was not found");
 }
 
-const Window *IMultiWindowApplication::GetWindow(const usize p_Index) const noexcept
+const Window *IMultiWindowApplication::GetWindow(const u32 p_Index) const noexcept
 {
     TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
     return m_Windows[p_Index].Get();
 }
-Window *IMultiWindowApplication::GetWindow(const usize p_Index) noexcept
+Window *IMultiWindowApplication::GetWindow(const u32 p_Index) noexcept
 {
     TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
     return m_Windows[p_Index].Get();
@@ -58,7 +58,7 @@ Window *IMultiWindowApplication::GetMainWindow() noexcept
     return GetWindow(0);
 }
 
-usize IMultiWindowApplication::GetWindowCount() const noexcept
+u32 IMultiWindowApplication::GetWindowCount() const noexcept
 {
     return m_Windows.size();
 }
@@ -80,7 +80,7 @@ bool IMultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
     return !m_Windows.empty();
 }
 
-void MultiWindowApplication<Serial>::CloseWindow(const usize p_Index) noexcept
+void MultiWindowApplication<Serial>::CloseWindow(const u32 p_Index) noexcept
 {
     TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
     if (m_MustDeferWindowManagement)
@@ -146,14 +146,14 @@ void MultiWindowApplication<Serial>::processWindows() noexcept
     };
     processFrame(0, *m_Windows[0], Layers, drawCalls, uiSubmission);
 
-    for (usize i = 1; i < m_Windows.size(); ++i)
+    for (u32 i = 1; i < m_Windows.size(); ++i)
         processFrame(
             i, *m_Windows[i], Layers,
             [this, i](const VkCommandBuffer p_CommandBuffer) { Layers.onRender(i, p_CommandBuffer); },
             [this, i](const VkCommandBuffer p_CommandBuffer) { Layers.onLateRender(i, p_CommandBuffer); });
 
     m_MustDeferWindowManagement = false;
-    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+    for (u32 i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
             CloseWindow(i);
     for (const auto &specs : m_WindowsToAdd)
@@ -171,7 +171,7 @@ void MultiWindowApplication<Serial>::setDeltaTime(const TKit::Timespan p_DeltaTi
     m_DeltaTime = p_DeltaTime;
 }
 
-void MultiWindowApplication<Concurrent>::CloseWindow(const usize p_Index) noexcept
+void MultiWindowApplication<Concurrent>::CloseWindow(const u32 p_Index) noexcept
 {
     TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
 
@@ -204,7 +204,7 @@ void MultiWindowApplication<Concurrent>::CloseWindow(const usize p_Index) noexce
     else
         m_Tasks.erase(m_Tasks.begin() + p_Index - 1);
 
-    for (usize i = 0; i < m_Tasks.size(); ++i)
+    for (u32 i = 0; i < m_Tasks.size(); ++i)
         m_Tasks[i] = createWindowTask(i + 1);
 }
 
@@ -222,10 +222,10 @@ void MultiWindowApplication<Concurrent>::Startup() noexcept
         taskManager->SubmitTask(task);
 }
 
-TKit::Ref<TKit::Task<void>> MultiWindowApplication<Concurrent>::createWindowTask(const usize p_WindowIndex) noexcept
+TKit::Ref<TKit::Task<void>> MultiWindowApplication<Concurrent>::createWindowTask(const u32 p_WindowIndex) noexcept
 {
     const TKit::ITaskManager *taskManager = Core::GetTaskManager();
-    return taskManager->CreateTask([this, p_WindowIndex](usize) {
+    return taskManager->CreateTask([this, p_WindowIndex](u32) {
         processFrame(
             p_WindowIndex, *m_Windows[p_WindowIndex], Layers,
             [this, p_WindowIndex](const VkCommandBuffer p_CommandBuffer) {
@@ -272,7 +272,7 @@ void MultiWindowApplication<Concurrent>::processWindows() noexcept
     m_MustDeferWindowManagement = false;
     Layers.removeFlaggedLayers();
 
-    for (usize i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+    for (u32 i = m_Windows.size() - 1; i < m_Windows.size(); --i)
         if (m_Windows[i]->ShouldClose())
             CloseWindow(i);
     for (const auto &specs : m_WindowsToAdd)

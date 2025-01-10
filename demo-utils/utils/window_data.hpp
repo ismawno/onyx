@@ -11,11 +11,11 @@ namespace Onyx::Demo
 template <Dimension D> struct ILayerData
 {
     RenderContext<D> *Context;
-    DynamicArray<TKit::Scope<Shape<D>>> Shapes;
+    TKit::DynamicArray<TKit::Scope<Shape<D>>> Shapes;
     Transform<D> AxesTransform{};
     MaterialData<D> AxesMaterial{};
 
-    DynamicArray<fvec<D>> PolygonVertices;
+    TKit::DynamicArray<fvec<D>> PolygonVertices;
     i32 ShapeToSpawn = 0;
     f32 AxesThickness = 0.01f;
     bool DrawAxes = false;
@@ -27,8 +27,8 @@ template <Dimension D> struct LayerData : ILayerData<D>
 
 template <> struct LayerData<D3> : ILayerData<D3>
 {
-    DynamicArray<DirectionalLight> DirectionalLights;
-    DynamicArray<PointLight> PointLights;
+    TKit::DynamicArray<DirectionalLight> DirectionalLights;
+    TKit::DynamicArray<PointLight> PointLights;
     fvec4 Ambient = fvec4{1.f, 1.f, 1.f, 0.4f};
 
     f32 FieldOfView = glm::radians(75.f);
@@ -42,8 +42,8 @@ template <> struct LayerData<D3> : ILayerData<D3>
     int LightToSpawn = 0;
     DirectionalLight DirLightToAdd{fvec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE};
     PointLight PointLightToAdd{fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f};
-    usize SelectedDirLight = 0;
-    usize SelectedPointLight = 0;
+    u32 SelectedDirLight = 0;
+    u32 SelectedPointLight = 0;
 };
 
 struct BlurData

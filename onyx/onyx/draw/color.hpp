@@ -122,7 +122,7 @@ struct ONYX_API Color
 
   private:
     // This will be useful for serialization (not implemented yet)
-    static const HashMap<std::string, Color> s_ColorMap;
+    static const TKit::HashMap<std::string, Color> s_ColorMap;
 };
 
 class Gradient

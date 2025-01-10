@@ -64,7 +64,7 @@ class IMultiWindowApplication : public IApplication
      *
      * @param p_Index The index of the window to close.
      */
-    virtual void CloseWindow(usize p_Index) noexcept = 0;
+    virtual void CloseWindow(u32 p_Index) noexcept = 0;
 
     /**
      * @brief Close the given window.
@@ -93,7 +93,7 @@ class IMultiWindowApplication : public IApplication
      * @param p_Index The index of the window to retrieve.
      * @return const Window* Pointer to the window at the given index.
      */
-    const Window *GetWindow(usize p_Index) const noexcept;
+    const Window *GetWindow(u32 p_Index) const noexcept;
 
     /**
      * @brief Get a pointer to the window at the specified index.
@@ -101,7 +101,7 @@ class IMultiWindowApplication : public IApplication
      * @param p_Index The index of the window to retrieve.
      * @return Window* Pointer to the window at the given index.
      */
-    Window *GetWindow(usize p_Index) noexcept;
+    Window *GetWindow(u32 p_Index) noexcept;
 
     /**
      * @brief Get a pointer to the main window.
@@ -120,9 +120,9 @@ class IMultiWindowApplication : public IApplication
     /**
      * @brief Get the number of currently open windows.
      *
-     * @return usize The number of windows.
+     * @return u32 The number of windows.
      */
-    usize GetWindowCount() const noexcept;
+    u32 GetWindowCount() const noexcept;
 
     /**
      * @brief Get the threading mode used by the application.
@@ -180,7 +180,7 @@ template <> class ONYX_API MultiWindowApplication<Serial> final : public IMultiW
     MultiWindowApplication() = default;
 
     void OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
-    void CloseWindow(usize p_Index) noexcept override;
+    void CloseWindow(u32 p_Index) noexcept override;
 
     /**
      * @brief Get the threading mode used by the application.
@@ -234,7 +234,7 @@ template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMu
     using IMultiWindowApplication::IMultiWindowApplication;
 
     void OpenWindow(const Window::Specs &p_Specs = {}) noexcept override;
-    void CloseWindow(usize p_Index) noexcept override;
+    void CloseWindow(u32 p_Index) noexcept override;
 
     /**
      * @brief Get the threading mode used by the application.
@@ -269,7 +269,7 @@ template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMu
      * @param p_WindowIndex The index of the window to process.
      * @return TKit::Ref<TKit::Task<void>> A reference to the created task.
      */
-    TKit::Ref<TKit::Task<void>> createWindowTask(usize p_WindowIndex) noexcept;
+    TKit::Ref<TKit::Task<void>> createWindowTask(u32 p_WindowIndex) noexcept;
 
     /**
      * @brief Set the delta time between frames.

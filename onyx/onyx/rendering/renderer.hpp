@@ -116,7 +116,7 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_PrimitiveIndex Index of the primitive shape to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawPrimitive(const fmat<D> &p_Transform, usize p_PrimitiveIndex, u8 p_Flags = DrawFlags_Auto) noexcept;
+    void DrawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex, u8 p_Flags = DrawFlags_Auto) noexcept;
 
     /**
      * @brief Record a draw call for a polygon defined by a set of vertices.
@@ -286,7 +286,7 @@ struct ONYX_API DeviceLightData
      *
      * @param p_Capacity The initial capacity for the light buffers.
      */
-    DeviceLightData(usize p_Capacity) noexcept;
+    DeviceLightData(u32 p_Capacity) noexcept;
 
     /**
      * @brief Destroy the DeviceLightData, releasing resources.

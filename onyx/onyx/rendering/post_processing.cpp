@@ -65,7 +65,7 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
     if (m_SamplerDescriptors.empty())
     {
         const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
-        for (usize i = 0; i < m_ImageViews.size(); ++i)
+        for (u32 i = 0; i < m_ImageViews.size(); ++i)
         {
             const auto dresult = pool.Allocate(m_DescriptorSetLayout);
             VKIT_ASSERT_RESULT(dresult);
@@ -73,7 +73,7 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
         }
     }
 
-    for (usize i = 0; i < m_ImageViews.size(); ++i)
+    for (u32 i = 0; i < m_ImageViews.size(); ++i)
         overwriteSamplerSet(m_ImageViews[i], m_SamplerDescriptors[i]);
 }
 
@@ -113,8 +113,7 @@ void PostProcessing::updateImageViews(const TKit::StaticArray4<VkImageView> &p_I
 {
     TKIT_ASSERT(m_ImageViews.size() == p_ImageViews.size(), "[ONYX] Image view count mismatch");
     m_ImageViews = p_ImageViews;
-    const u32 imageCount = static_cast<u32>(m_ImageViews.size());
-    for (u32 i = 0; i < imageCount; ++i)
+    for (u32 i = 0; i < m_ImageViews.size(); ++i)
         overwriteSamplerSet(m_ImageViews[i], m_SamplerDescriptors[i]);
 }
 

@@ -45,12 +45,12 @@ template <Dimension D> const IndexBuffer &IPrimitives<D>::GetIndexBuffer() noexc
 {
     return getBuffers<D>()->Indices;
 }
-template <Dimension D> const PrimitiveDataLayout &IPrimitives<D>::GetDataLayout(const usize p_PrimitiveIndex) noexcept
+template <Dimension D> const PrimitiveDataLayout &IPrimitives<D>::GetDataLayout(const u32 p_PrimitiveIndex) noexcept
 {
     return getBuffers<D>()->Layout[p_PrimitiveIndex];
 }
 
-template <Dimension D> static IndexVertexData<D> createRegularPolygonBuffers(const usize p_Sides) noexcept
+template <Dimension D> static IndexVertexData<D> createRegularPolygonBuffers(const u32 p_Sides) noexcept
 {
     IndexVertexData<D> data{};
     data.Vertices.reserve(p_Sides);
@@ -98,15 +98,15 @@ template <Dimension D> static void createBuffers(const std::span<const char *con
     BufferLayout<D> layout;
     IndexVertexData<D> data{};
 
-    static constexpr usize toLoad = Primitives<D>::AMOUNT - ONYX_REGULAR_POLYGON_COUNT;
-    for (usize i = 0; i < Primitives<D>::AMOUNT; ++i)
+    static constexpr u32 toLoad = Primitives<D>::AMOUNT - ONYX_REGULAR_POLYGON_COUNT;
+    for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
     {
         const IndexVertexData<D> buffers =
             i < toLoad ? load<D>(p_Paths[i]) : createRegularPolygonBuffers<D>(i - toLoad + 3);
 
-        layout[i].VerticesStart = static_cast<u32>(data.Vertices.size());
-        layout[i].IndicesStart = static_cast<u32>(data.Indices.size());
-        layout[i].IndicesSize = static_cast<u32>(buffers.Indices.size());
+        layout[i].VerticesStart = data.Vertices.size();
+        layout[i].IndicesStart = data.Indices.size();
+        layout[i].IndicesSize = buffers.Indices.size();
 
         data.Vertices.insert(data.Vertices.end(), buffers.Vertices.begin(), buffers.Vertices.end());
         data.Indices.insert(data.Indices.end(), buffers.Indices.begin(), buffers.Indices.end());
@@ -116,7 +116,7 @@ template <Dimension D> static void createBuffers(const std::span<const char *con
     const std::span<const Vertex<D>> vertices{data.Vertices};
     const std::span<const Index> indices{data.Indices};
 
-    buffers.Create(vertices, indices, layout);
+    buffers.Construct(vertices, indices, layout);
 }
 
 void createCombinedPrimitiveBuffers() noexcept
@@ -135,8 +135,8 @@ void createCombinedPrimitiveBuffers() noexcept
     TKIT_LOG_INFO("[ONYX] Created primitive vertex and index buffers");
 
     Core::GetDeletionQueue().Push([] {
-        s_Buffers2D.Destroy();
-        s_Buffers3D.Destroy();
+        s_Buffers2D.Destruct();
+        s_Buffers3D.Destruct();
     });
 }
 
