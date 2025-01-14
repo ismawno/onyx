@@ -219,7 +219,7 @@ const TKit::HashMap<std::string, Color> Color::s_ColorMap{
     {"cyan", CYAN}, {"orange", ORANGE}, {"yellow", YELLOW}, {"black", BLACK},
     {"pink", PINK}, {"purple", PURPLE}, {"white", WHITE},   {"transparent", TRANSPARENT}};
 
-Gradient::Gradient(const std::span<const Color> p_Span) noexcept : m_Colors(p_Span)
+Gradient::Gradient(const TKit::Span<const Color> p_Span) noexcept : m_Colors(p_Span)
 {
     TKIT_ASSERT(p_Span.size() >= 2, "[ONYX] Gradient must have at least two colors");
 }

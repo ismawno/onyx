@@ -326,12 +326,12 @@ template <Dimension D> void IRenderContext<D>::NGon(const fmat<D> &p_Transform, 
     m_Renderer.DrawPrimitive(p_Transform * m_RenderState.back().Transform, Primitives<D>::GetNGonIndex(p_Sides));
 }
 
-template <Dimension D> void IRenderContext<D>::Polygon(const std::span<const fvec<D>> p_Vertices) noexcept
+template <Dimension D> void IRenderContext<D>::Polygon(const TKit::Span<const fvec<D>> p_Vertices) noexcept
 {
     m_Renderer.DrawPolygon(m_RenderState.back().Transform, p_Vertices);
 }
 template <Dimension D>
-void IRenderContext<D>::Polygon(const fmat<D> &p_Transform, const std::span<const fvec<D>> p_Vertices) noexcept
+void IRenderContext<D>::Polygon(const fmat<D> &p_Transform, const TKit::Span<const fvec<D>> p_Vertices) noexcept
 {
     m_Renderer.DrawPolygon(p_Transform * m_RenderState.back().Transform, p_Vertices);
 }
@@ -655,7 +655,7 @@ void RenderContext<D3>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_Z1, con
 }
 
 template <Dimension D>
-void IRenderContext<D>::LineStrip(std::span<const fvec<D>> p_Points, const f32 p_Thickness) noexcept
+void IRenderContext<D>::LineStrip(TKit::Span<const fvec<D>> p_Points, const f32 p_Thickness) noexcept
 {
     TKIT_ASSERT(p_Points.size() > 1, "[ONYX] A line strip must have at least two points");
     for (u32 i = 0; i < p_Points.size() - 1; ++i)

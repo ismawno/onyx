@@ -85,8 +85,9 @@ static void bindDescriptorSets(const RenderInfo<D, DMode> &p_Info, const VkDescr
         VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_Transforms, VK_PIPELINE_BIND_POINT_GRAPHICS, getLayout<D>());
     else
     {
-        const std::array<VkDescriptorSet, 2> sets = {p_Transforms, p_Info.LightStorageBuffers};
-        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, sets, VK_PIPELINE_BIND_POINT_GRAPHICS, getLayout<D>());
+        const TKit::Array<VkDescriptorSet, 2> sets = {p_Transforms, p_Info.LightStorageBuffers};
+        const TKit::Span<const VkDescriptorSet> span(sets);
+        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, span, VK_PIPELINE_BIND_POINT_GRAPHICS, getLayout<D>());
     }
 }
 
@@ -237,7 +238,7 @@ template <Dimension D, PipelineMode PMode> PolygonRenderer<D, PMode>::~PolygonRe
 
 template <Dimension D, PipelineMode PMode>
 void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
-                                     const std::span<const fvec<D>> p_Vertices) noexcept
+                                     const TKit::Span<const fvec<D>> p_Vertices) noexcept
 {
     TKIT_ASSERT(p_Vertices.size() >= 3, "[ONYX] A polygon must have at least 3 sides");
     const u32 storageSize = m_HostInstanceData.size();

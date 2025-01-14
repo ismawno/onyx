@@ -19,8 +19,8 @@ template <> struct ONYX_API Vertex<D2>
 {
     static constexpr u32 BINDINGS = 1;
     static constexpr u32 ATTRIBUTES = 1;
-    static const std::array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions() noexcept;
-    static const std::array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions() noexcept;
+    static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions() noexcept;
+    static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions() noexcept;
 
     fvec2 Position;
 
@@ -34,8 +34,8 @@ template <> struct ONYX_API Vertex<D3>
 {
     static constexpr u32 BINDINGS = 1;
     static constexpr u32 ATTRIBUTES = 2;
-    static const std::array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions() noexcept;
-    static const std::array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions() noexcept;
+    static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions() noexcept;
+    static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions() noexcept;
 
     fvec3 Position;
     fvec3 Normal;

@@ -4,9 +4,9 @@
 namespace Onyx
 {
 template <Dimension D>
-static const std::array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> &bindingDescriptions() noexcept
+static const TKit::Array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> &bindingDescriptions() noexcept
 {
-    static std::array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> bindingDescriptions{};
+    static TKit::Array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> bindingDescriptions{};
     VkVertexInputBindingDescription description{};
     description.binding = 0;
     description.stride = sizeof(Vertex<D>);
@@ -17,9 +17,9 @@ static const std::array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> &b
 }
 
 template <Dimension D>
-static const std::array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTES> &attributeDescriptions() noexcept
+static const TKit::Array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTES> &attributeDescriptions() noexcept
 {
-    static std::array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTES> attributeDescriptions{};
+    static TKit::Array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTES> attributeDescriptions{};
 
     VkVertexInputAttributeDescription position{};
     position.binding = 0;
@@ -43,21 +43,21 @@ static const std::array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTES
     return attributeDescriptions;
 }
 
-const std::array<VkVertexInputBindingDescription, Vertex<D2>::BINDINGS> &Vertex<D2>::GetBindingDescriptions() noexcept
+const TKit::Array<VkVertexInputBindingDescription, Vertex<D2>::BINDINGS> &Vertex<D2>::GetBindingDescriptions() noexcept
 {
     return bindingDescriptions<D2>();
 }
-const std::array<VkVertexInputAttributeDescription, Vertex<D2>::ATTRIBUTES> &Vertex<
+const TKit::Array<VkVertexInputAttributeDescription, Vertex<D2>::ATTRIBUTES> &Vertex<
     D2>::GetAttributeDescriptions() noexcept
 {
     return attributeDescriptions<D2>();
 }
 
-const std::array<VkVertexInputBindingDescription, Vertex<D3>::BINDINGS> &Vertex<D3>::GetBindingDescriptions() noexcept
+const TKit::Array<VkVertexInputBindingDescription, Vertex<D3>::BINDINGS> &Vertex<D3>::GetBindingDescriptions() noexcept
 {
     return bindingDescriptions<D3>();
 }
-const std::array<VkVertexInputAttributeDescription, Vertex<D3>::ATTRIBUTES> &Vertex<
+const TKit::Array<VkVertexInputAttributeDescription, Vertex<D3>::ATTRIBUTES> &Vertex<
     D3>::GetAttributeDescriptions() noexcept
 {
     return attributeDescriptions<D3>();

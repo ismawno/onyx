@@ -188,7 +188,7 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
     TKIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX] Failed to initialize GLFW");
     u32 extensionCount;
     const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
-    const std::span<const char *> extensionSpan(extensions, extensionCount);
+    const TKit::Span<const char *> extensionSpan(extensions, extensionCount);
 
     VKit::Instance::Builder builder{};
     builder.SetApplicationName("Onyx").RequireApiVersion(1, 1, 0).RequireExtensions(extensionSpan);
@@ -284,7 +284,7 @@ const VKit::DescriptorSetLayout &Core::GetLightStorageDescriptorSetLayout() noex
     return s_LightStorageLayout;
 }
 
-template <Dimension D> VertexBuffer<D> Core::CreateVertexBuffer(const std::span<const Vertex<D>> p_Vertices) noexcept
+template <Dimension D> VertexBuffer<D> Core::CreateVertexBuffer(const TKit::Span<const Vertex<D>> p_Vertices) noexcept
 {
     typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs specs{};
     specs.Allocator = s_VulkanAllocator;
@@ -295,7 +295,7 @@ template <Dimension D> VertexBuffer<D> Core::CreateVertexBuffer(const std::span<
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
-IndexBuffer Core::CreateIndexBuffer(const std::span<const Index> p_Indices) noexcept
+IndexBuffer Core::CreateIndexBuffer(const TKit::Span<const Index> p_Indices) noexcept
 {
     typename VKit::DeviceLocalBuffer<Index>::IndexSpecs specs{};
     specs.Allocator = s_VulkanAllocator;
@@ -377,8 +377,8 @@ TKit::VkProfilingContext Core::GetProfilingContext() noexcept
 }
 #endif
 
-template VertexBuffer<D2> Core::CreateVertexBuffer<D2>(std::span<const Vertex<D2>>) noexcept;
-template VertexBuffer<D3> Core::CreateVertexBuffer<D3>(std::span<const Vertex<D3>>) noexcept;
+template VertexBuffer<D2> Core::CreateVertexBuffer<D2>(TKit::Span<const Vertex<D2>>) noexcept;
+template VertexBuffer<D3> Core::CreateVertexBuffer<D3>(TKit::Span<const Vertex<D3>>) noexcept;
 
 template MutableVertexBuffer<D2> Core::CreateMutableVertexBuffer<D2>(VkDeviceSize) noexcept;
 template MutableVertexBuffer<D3> Core::CreateMutableVertexBuffer<D3>(VkDeviceSize) noexcept;

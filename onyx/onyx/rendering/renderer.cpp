@@ -216,7 +216,7 @@ void IRenderer<D>::DrawPrimitive(const fmat<D> &p_Transform, const u32 p_Primiti
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPolygon(const fmat<D> &p_Transform, const std::span<const fvec<D>> p_Vertices,
+void IRenderer<D>::DrawPolygon(const fmat<D> &p_Transform, const TKit::Span<const fvec<D>> p_Vertices,
                                const u8 p_Flags) noexcept
 {
     const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);

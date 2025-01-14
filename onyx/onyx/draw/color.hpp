@@ -4,6 +4,7 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/glm.hpp"
 #include "tkit/core/concepts.hpp"
+#include "tkit/container/span.hpp"
 #include <span>
 
 namespace Onyx
@@ -128,12 +129,12 @@ struct ONYX_API Color
 class Gradient
 {
   public:
-    Gradient(std::span<const Color> p_Colors) noexcept;
+    Gradient(TKit::Span<const Color> p_Colors) noexcept;
 
     Color Evaluate(f32 p_T) const noexcept;
 
   private:
-    std::span<const Color> m_Colors;
+    TKit::Span<const Color> m_Colors;
 };
 
 } // namespace Onyx

@@ -27,7 +27,7 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
      *
      * @param p_Vertices A span of vertices to initialize the model.
      */
-    static VKit::Result<Model> Create(std::span<const Vertex<D>> p_Vertices) noexcept;
+    static VKit::Result<Model> Create(TKit::Span<const Vertex<D>> p_Vertices) noexcept;
 
     /**
      * @brief Creates a model with the given vertices and indices.
@@ -35,7 +35,8 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
      * @param p_Vertices A span of vertices to initialize the model.
      * @param p_Indices A span of indices for indexed drawing.
      */
-    static VKit::Result<Model> Create(std::span<const Vertex<D>> p_Vertices, std::span<const Index> p_Indices) noexcept;
+    static VKit::Result<Model> Create(TKit::Span<const Vertex<D>> p_Vertices,
+                                      TKit::Span<const Index> p_Indices) noexcept;
 
     Model() noexcept = default;
     Model(const VertexBuffer<D> &p_VertexBuffer) noexcept;

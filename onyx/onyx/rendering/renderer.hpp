@@ -125,7 +125,7 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_Vertices Span of vertices defining the polygon.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawPolygon(const fmat<D> &p_Transform, std::span<const fvec<D>> p_Vertices,
+    void DrawPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec<D>> p_Vertices,
                      u8 p_Flags = DrawFlags_Auto) noexcept;
 
     /**

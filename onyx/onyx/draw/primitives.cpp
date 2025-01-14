@@ -5,10 +5,10 @@
 
 namespace Onyx
 {
-template <Dimension D> using BufferLayout = std::array<PrimitiveDataLayout, Primitives<D>::AMOUNT>;
+template <Dimension D> using BufferLayout = TKit::Array<PrimitiveDataLayout, Primitives<D>::AMOUNT>;
 template <Dimension D> struct IndexVertexBuffers
 {
-    IndexVertexBuffers(const std::span<const Vertex<D>> p_Vertices, const std::span<const Index> p_Indices,
+    IndexVertexBuffers(const TKit::Span<const Vertex<D>> p_Vertices, const TKit::Span<const Index> p_Indices,
                        const BufferLayout<D> &p_Layout) noexcept
         : Layout{p_Layout}
     {
@@ -93,7 +93,7 @@ template <Dimension D> static IndexVertexData<D> load(const std::string_view p_P
     return result.GetValue();
 }
 
-template <Dimension D> static void createBuffers(const std::span<const char *const> p_Paths) noexcept
+template <Dimension D> static void createBuffers(const TKit::Span<const char *const> p_Paths) noexcept
 {
     BufferLayout<D> layout;
     IndexVertexData<D> data{};
@@ -113,18 +113,18 @@ template <Dimension D> static void createBuffers(const std::span<const char *con
     }
 
     auto &buffers = getBuffers<D>();
-    const std::span<const Vertex<D>> vertices{data.Vertices};
-    const std::span<const Index> indices{data.Indices};
+    const TKit::Span<const Vertex<D>> vertices{data.Vertices};
+    const TKit::Span<const Index> indices{data.Indices};
 
     buffers.Construct(vertices, indices, layout);
 }
 
 void createCombinedPrimitiveBuffers() noexcept
 {
-    const std::array<const char *, Primitives<D2>::AMOUNT> paths2D = {ONYX_ROOT_PATH "/onyx/models/triangle.obj",
-                                                                      ONYX_ROOT_PATH "/onyx/models/square.obj"};
+    const TKit::Array<const char *, Primitives<D2>::AMOUNT> paths2D = {ONYX_ROOT_PATH "/onyx/models/triangle.obj",
+                                                                       ONYX_ROOT_PATH "/onyx/models/square.obj"};
 
-    const std::array<const char *, Primitives<D3>::AMOUNT> paths3D = {
+    const TKit::Array<const char *, Primitives<D3>::AMOUNT> paths3D = {
         ONYX_ROOT_PATH "/onyx/models/triangle.obj", ONYX_ROOT_PATH "/onyx/models/square.obj",
         ONYX_ROOT_PATH "/onyx/models/cube.obj", ONYX_ROOT_PATH "/onyx/models/sphere.obj",
         ONYX_ROOT_PATH "/onyx/models/cylinder.obj"};

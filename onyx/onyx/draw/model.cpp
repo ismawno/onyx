@@ -6,7 +6,7 @@
 
 namespace Onyx
 {
-template <Dimension D> VKit::Result<Model<D>> Model<D>::Create(const std::span<const Vertex<D>> p_Vertices) noexcept
+template <Dimension D> VKit::Result<Model<D>> Model<D>::Create(const TKit::Span<const Vertex<D>> p_Vertices) noexcept
 {
     typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
@@ -21,8 +21,8 @@ template <Dimension D> VKit::Result<Model<D>> Model<D>::Create(const std::span<c
 }
 
 template <Dimension D>
-VKit::Result<Model<D>> Model<D>::Create(std::span<const Vertex<D>> p_Vertices,
-                                        std::span<const Index> p_Indices) noexcept
+VKit::Result<Model<D>> Model<D>::Create(TKit::Span<const Vertex<D>> p_Vertices,
+                                        TKit::Span<const Index> p_Indices) noexcept
 {
     typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs vspecs{};
     vspecs.Allocator = Core::GetVulkanAllocator();
@@ -105,8 +105,8 @@ template <Dimension D> VKit::FormattedResult<Model<D>> Model<D>::Load(const std:
         return VKit::FormattedResult<Model>::Error(result.GetError());
 
     const IndexVertexData<D> &data = result.GetValue();
-    const std::span<const Vertex<D>> vertices{data.Vertices};
-    const std::span<const Index> indices{data.Indices};
+    const TKit::Span<const Vertex<D>> vertices{data.Vertices};
+    const TKit::Span<const Index> indices{data.Indices};
 
     const bool needsIndices = !indices.empty() && indices.size() != vertices.size();
     return VKit::ToFormatted(needsIndices ? Model<D>::Create(vertices, indices) : Model<D>::Create(vertices));

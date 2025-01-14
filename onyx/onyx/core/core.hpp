@@ -7,6 +7,7 @@
 #include "vkit/descriptors/descriptor_set_layout.hpp"
 #include "vkit/backend/command_pool.hpp"
 #include "tkit/profiling/vulkan.hpp"
+#include "tkit/container/span.hpp"
 
 #ifndef ONYX_MAX_DESCRIPTOR_SETS
 #    define ONYX_MAX_DESCRIPTOR_SETS 1024
@@ -32,7 +33,7 @@ class ITaskManager;
 
 namespace Onyx
 {
-template <typename T> using PerFrameData = std::array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
+template <typename T> using PerFrameData = TKit::Array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
 struct ONYX_API Core
 {
     static void Initialize(TKit::ITaskManager *p_TaskManager) noexcept;
@@ -56,9 +57,9 @@ struct ONYX_API Core
     static const VKit::DescriptorSetLayout &GetTransformStorageDescriptorSetLayout() noexcept;
     static const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout() noexcept;
 
-    template <Dimension D> static VertexBuffer<D> CreateVertexBuffer(std::span<const Vertex<D>> p_Vertices) noexcept;
-    static IndexBuffer CreateIndexBuffer(std::span<const Index> p_Indices) noexcept;
-    template <typename T> static StorageBuffer<T> CreateStorageBuffer(const std::span<const T> p_Data) noexcept
+    template <Dimension D> static VertexBuffer<D> CreateVertexBuffer(TKit::Span<const Vertex<D>> p_Vertices) noexcept;
+    static IndexBuffer CreateIndexBuffer(TKit::Span<const Index> p_Indices) noexcept;
+    template <typename T> static StorageBuffer<T> CreateStorageBuffer(const TKit::Span<const T> p_Data) noexcept
     {
         typename VKit::DeviceLocalBuffer<T>::StorageSpecs specs{};
         specs.Allocator = GetVulkanAllocator();

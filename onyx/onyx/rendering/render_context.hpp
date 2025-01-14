@@ -387,7 +387,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * @param p_Vertices A span of vertices defining the polygon. Vertices are expected to be centered around zero.
      */
-    void Polygon(std::span<const fvec<D>> p_Vertices) noexcept;
+    void Polygon(TKit::Span<const fvec<D>> p_Vertices) noexcept;
 
     /**
      * @brief Draw a polygon defined by the given vertices with the specified transformation.
@@ -396,7 +396,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Vertices A span of vertices defining the polygon.
      */
-    void Polygon(const fmat<D> &p_Transform, std::span<const fvec<D>> p_Vertices) noexcept;
+    void Polygon(const fmat<D> &p_Transform, TKit::Span<const fvec<D>> p_Vertices) noexcept;
 
     /**
      * @brief Draw a unit circle centered at the origin.
@@ -577,7 +577,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Points A span of points defining the line strip.
      * @param p_Thickness The thickness of the line.
      */
-    void LineStrip(std::span<const fvec<D>> p_Points, f32 p_Thickness = 0.01f) noexcept;
+    void LineStrip(TKit::Span<const fvec<D>> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
     /**
      * @brief Draw a mesh model.

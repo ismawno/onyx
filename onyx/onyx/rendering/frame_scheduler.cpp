@@ -118,7 +118,7 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
     passInfo.renderArea.offset = {0, 0};
     passInfo.renderArea.extent = extent;
 
-    std::array<VkClearValue, 3> clearValues;
+    TKit::Array<VkClearValue, 3> clearValues;
     clearValues[0].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
     clearValues[1].depthStencil.depth = 1.f;
     clearValues[1].depthStencil.stencil = 0;
