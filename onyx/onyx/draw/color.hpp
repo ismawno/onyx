@@ -46,7 +46,7 @@ struct ONYX_API Color
     static Color FromHexadecimal(u32 p_Hex, bool p_Alpha = true) noexcept;
     static Color FromHexadecimal(std::string_view p_Hex, bool p_Alpha = true) noexcept;
 
-    static Color FromString(std::string_view p_Color) noexcept;
+    static Color FromString(const std::string &p_Color) noexcept;
 
     const f32 *AsPointer() const noexcept;
     f32 *AsPointer() noexcept;

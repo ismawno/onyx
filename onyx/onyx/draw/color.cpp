@@ -152,12 +152,10 @@ Color Color::FromHexadecimal(const std::string_view p_Hex, const bool p_Alpha) n
     return FromHexadecimal(val, p_Alpha);
 }
 
-Color Color::FromString(const std::string_view p_Color) noexcept
+Color Color::FromString(const std::string &p_Color) noexcept
 {
-    const auto it = s_ColorMap.find(p_Color);
-    if (it != s_ColorMap.end())
-        return it->second;
-    return Color::WHITE;
+    TKIT_ASSERT(s_ColorMap.contains(p_Color), "[ONYX] Color '{}' not found", p_Color);
+    return s_ColorMap.at(p_Color);
 }
 
 const f32 *Color::AsPointer() const noexcept
