@@ -93,15 +93,16 @@ void MultiWindowApplication<Serial>::CloseWindow(const u32 p_Index) noexcept
     event.Window = m_Windows[p_Index].Get();
     Layers.onEvent(p_Index, event);
 
-    m_Windows.erase(m_Windows.begin() + p_Index);
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
     if (p_Index == 0)
     {
         shutdownImGui();
-        if (m_Windows.empty())
-            return;
-        initializeImGui(*m_Windows[0]);
+        m_Windows.erase(m_Windows.begin() + p_Index);
+        if (!m_Windows.empty())
+            initializeImGui(*m_Windows[0]);
     }
+    else
+        m_Windows.erase(m_Windows.begin() + p_Index);
 }
 
 WindowThreading MultiWindowApplication<Serial>::GetWindowThreading() const noexcept
@@ -191,18 +192,22 @@ void MultiWindowApplication<Concurrent>::CloseWindow(const u32 p_Index) noexcept
     event.Window = m_Windows[p_Index].Get();
     Layers.onEvent(p_Index, event);
 
-    m_Windows.erase(m_Windows.begin() + p_Index);
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
     if (p_Index == 0)
     {
         shutdownImGui();
-        if (m_Windows.empty())
-            return;
-        initializeImGui(*m_Windows[0]);
-        m_Tasks.erase(m_Tasks.begin());
+        m_Windows.erase(m_Windows.begin() + p_Index);
+        if (!m_Windows.empty())
+        {
+            initializeImGui(*m_Windows[0]);
+            m_Tasks.erase(m_Tasks.begin());
+        }
     }
     else
+    {
+        m_Windows.erase(m_Windows.begin() + p_Index);
         m_Tasks.erase(m_Tasks.begin() + p_Index - 1);
+    }
 
     for (u32 i = 0; i < m_Tasks.size(); ++i)
         m_Tasks[i] = createWindowTask(i + 1);

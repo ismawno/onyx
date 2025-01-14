@@ -35,9 +35,9 @@ FrameScheduler::~FrameScheduler() noexcept
     m_NaivePostProcessingFragmentShader.Destroy();
     m_NaivePostProcessingLayout.Destroy();
     VKit::DestroySynchronizationObjects(Core::GetDevice(), m_SyncData);
-    vkFreeCommandBuffers(Core::GetDevice(), m_CommandPool, ONYX_MAX_FRAMES_IN_FLIGHT, m_CommandBuffers.data());
-    vkDestroyCommandPool(Core::GetDevice(), m_CommandPool, nullptr);
-    vkDestroyRenderPass(Core::GetDevice(), m_RenderPass, nullptr);
+    m_CommandPool.Deallocate(m_CommandBuffers);
+    m_CommandPool.Destroy();
+    m_RenderPass.Destroy();
     m_SwapChain.Destroy();
 }
 
