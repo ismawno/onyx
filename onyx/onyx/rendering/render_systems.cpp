@@ -259,7 +259,7 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
     PrimitiveDataLayout layout;
     layout.VerticesStart = m_Vertices.size();
     layout.IndicesStart = m_Indices.size();
-    layout.IndicesSize = static_cast<u32>(p_Vertices.size()) * 3 - 6;
+    layout.IndicesSize = p_Vertices.size() * 3 - 6;
     instanceData.Layout = layout;
 
     m_HostInstanceData.push_back(instanceData);

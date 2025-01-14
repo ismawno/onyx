@@ -124,7 +124,7 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
     clearValues[1].depthStencil.stencil = 0;
     clearValues[2].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
 
-    passInfo.clearValueCount = static_cast<u32>(clearValues.size());
+    passInfo.clearValueCount = clearValues.size();
     passInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(m_CommandBuffers[m_FrameIndex], &passInfo, VK_SUBPASS_CONTENTS_INLINE);
