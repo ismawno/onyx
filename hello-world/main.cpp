@@ -153,13 +153,9 @@ static void RunAppExample3() noexcept
     specs.Width = 800;
     specs.Height = 600;
 
-    class MyLayer : public Onyx::Layer
+    class MyLayer : public Onyx::UserLayer
     {
       public:
-        MyLayer() noexcept : Layer("MyLayer")
-        {
-        }
-
         void OnRender(const VkCommandBuffer) noexcept override
         {
             ImGui::Begin("Hello, World!");
@@ -169,7 +165,7 @@ static void RunAppExample3() noexcept
     };
 
     Onyx::Application app(specs);
-    app.Layers.Push<MyLayer>();
+    app.SetUserLayer<MyLayer>();
 
     app.Run();
 }

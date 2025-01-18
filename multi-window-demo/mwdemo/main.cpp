@@ -6,7 +6,7 @@
 template <Onyx::WindowThreading Threading> void RunApp() noexcept
 {
     Onyx::MultiWindowApplication<Threading> app;
-    app.Layers.template Push<Onyx::Demo::MWExampleLayer>(&app);
+    app.template SetUserLayer<Onyx::Demo::MWExampleLayer>(&app);
 
     Onyx::Window::Specs spc{};
     spc.Name = "Main window";
@@ -18,6 +18,6 @@ int main()
 {
     TKit::ThreadPool<std::mutex> threadPool{7};
     Onyx::Core::Initialize(&threadPool);
-    RunApp<Onyx::Serial>();
+    RunApp<Onyx::Concurrent>();
     Onyx::Core::Terminate();
 }

@@ -21,7 +21,7 @@ set(SOURCES
     onyx/app/mwapp.cpp
     onyx/app/window.cpp
     onyx/app/input.cpp
-    onyx/app/layer.cpp
+    onyx/app/user_layer.cpp
     onyx/app/theme.cpp
 )
 

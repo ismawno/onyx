@@ -36,12 +36,12 @@ ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept;
 // VERY CLUNKY: 3 out of 4 possible instantiations of MaterialData and RenderInfo are identical
 
 /**
- * @brief The MaterialData struct is a simple collection of data that represents the material of a shape.
+ * @brief The `MaterialData` struct is a simple collection of data that represents the material of a shape.
  *
  * The material is a simple color in 2D, and a color with additional properties in 3D, mostly used for lighting. The
  * simple 2D material data is also used for stencil passes in 3D.
  *
- * @tparam D The dimension (D2 or D3).
+ * @tparam D The dimension (`D2` or `D3`).
  */
 template <Dimension D> struct MaterialData;
 
@@ -59,13 +59,13 @@ template <> struct ONYX_API MaterialData<D3>
 };
 
 /**
- * @brief The RenderState struct is used by the RenderContext class to track the current object and axes
+ * @brief The `RenderState` struct is used by the `RenderContext` class to track the current object and axes
  * transformations, the current material, outline color and width, and some other rendering settings.
  *
- * It holds all of the state that RenderContext's immediate mode API needs and allows it to easily push/pop states to
+ * It holds all of the state that `RenderContext`'s immediate mode API needs and allows it to easily push/pop states to
  * quickly modify and restore the rendering state.
  *
- * @tparam D The dimension (D2 or D3).
+ * @tparam D The dimension (`D2` or `D3`).
  */
 template <Dimension D> struct RenderState;
 
@@ -93,18 +93,18 @@ template <> struct ONYX_API RenderState<D3>
 };
 
 /**
- * @brief The ProjectionViewData struct is a simple struct that holds the view and projection matrices.
+ * @brief The `ProjectionViewData` struct is a simple struct that holds the view and projection matrices.
  *
  * 2D shapes only need a view matrix, as the projection matrix is always an orthographic projection matrix. The view can
  * also include scaling.
  *
  * In 2D, the projection view matrix is the "raw" inverse of the view's transform. Then, just before sending the data to
- * the gpu as a fmat4, the renderer applies the extrinsic coordinate system.
+ * the gpu as a `fmat4`, the renderer applies the extrinsic coordinate system.
  *
  * In 3D, the projection view matrix is the projection matrix multiplied by the view matrix. As the view matrix is
- * already a fmat4, the renderer can directly apply the extrinsic coordinate system.
+ * already a `fmat4`, the renderer can directly apply the extrinsic coordinate system.
  *
- * @tparam D
+ * @tparam D The dimension (`D2` or `D3`).
  */
 template <Dimension D> struct ProjectionViewData;
 
@@ -123,29 +123,28 @@ template <> struct ONYX_API ProjectionViewData<D3>
 
 namespace Onyx::Detail
 {
-
 /**
- * @brief The PipelineMode enum represents a grouping of pipelines with slightly different settings that all renderers
+ * @brief The `PipelineMode` enum represents a grouping of pipelines with slightly different settings that all renderers
  * use.
  *
  * To support nice outlines, especially in 3D, the stencil buffer can be used to re-render the same shape
  * slightly scaled only in places where the stencil buffer has not been set. Generally, only two passes would be
  * necessary, but in this implementation four are used.
  *
- * - NoStencilWriteDoFill: This pass will render the shape normally and corresponds to a shape being rendered without
+ * - `NoStencilWriteDoFill`: This pass will render the shape normally and corresponds to a shape being rendered without
  * an outline, thus not writing to the stencil buffer. This is important so that other shapes having outlines can have
  * theirs drawn on top of objects that do not have an outline. This way, an object's outline will always be visible and
- * on top of non-outlined shapes. The corresponding DrawMode is Fill.
+ * on top of non-outlined shapes. The corresponding `DrawMode` is `Fill`.
  *
- * - DoStencilWriteDoFill: This pass will render the shape normally and write to the stencil buffer, which corresponds
- * to a shape being rendered both filled and with an outline. The corresponding DrawMode is Fill.
+ * - `DoStencilWriteDoFill`: This pass will render the shape normally and write to the stencil buffer, which corresponds
+ * to a shape being rendered both filled and with an outline. The corresponding `DrawMode` is `Fill`.
  *
- * - DoStencilWriteNoFill: This pass will only write to the stencil buffer and will not render the shape. This step is
+ * - `DoStencilWriteNoFill`: This pass will only write to the stencil buffer and will not render the shape. This step is
  * necessary in case the user wants to render an outline only, without the shape being filled. The corresponding
- * DrawMode is Stencil.
+ * `DrawMode` is `Stencil`.
  *
- * - DoStencilTestNoFill: This pass will test the stencil buffer and render the shape only where the stencil buffer is
- * not set. The corresponding DrawMode is Stencil.
+ * - `DoStencilTestNoFill`: This pass will test the stencil buffer and render the shape only where the stencil buffer is
+ * not set. The corresponding `DrawMode` is St`encil`.
  *
  */
 enum class ONYX_API PipelineMode : u8
@@ -193,7 +192,7 @@ template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
  * It contains the current command buffer, the current frame index, different descriptor sets to bind to (storage
  * buffers containing light information in the 3D case, for example), and some other global information.
  *
- * @tparam D The dimension (D2 or D3).
+ * @tparam D The dimension (`D2` or `D3`).
  * @tparam DMode The draw mode (Fill or Stencil).
  */
 template <Dimension D, DrawMode DMode> struct RenderInfo;
@@ -237,8 +236,8 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
  * The view (or axes) matrix is still stored per instance because of the immediate mode. This way, the user can change
  * the view matrix between shapes, and the renderer will use the correct one.
  *
- * @tparam D The dimension (D2 or D3).
- * @tparam DMode The draw mode (Fill or Stencil).
+ * @tparam D The dimension (`D2` or `D3`).
+ * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
 template <Dimension D, DrawMode DMode> struct ONYX_API InstanceData
 {
@@ -263,7 +262,7 @@ template <> struct ONYX_API InstanceData<D3, DrawMode::Stencil>
 };
 
 /**
- * @brief The DeviceInstanceData is a convenience struct that helps organize the data that is sent to the GPU so that
+ * @brief The `DeviceInstanceData` is a convenience struct that helps organize the data that is sent to the GPU so that
  * each frame contains a dedicated set of storage buffers and descriptors.
  *
  * @tparam T The type of the data that is sent to the GPU.
@@ -291,13 +290,13 @@ template <typename T> struct ONYX_API DeviceInstanceData
 };
 
 /**
- * @brief An extension of the DeviceInstanceData for polygons.
+ * @brief An extension of the `DeviceInstanceData` for polygons.
  *
  * This struct contains additional mutable vertex and index buffers that are used to store the geometry of arbitrary
  * polygons.
  *
- * @tparam D The dimension (D2 or D3).
- * @tparam DMode The draw mode (Fill or Stencil).
+ * @tparam D The dimension (`D2` or `D3`).
+ * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
 template <Dimension D, DrawMode DMode>
 struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
@@ -310,13 +309,13 @@ struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, D
 };
 
 /**
- * @brief Specific InstanceData for polygons.
+ * @brief Specific `InstanceData` for polygons.
  *
  * The Layout field is actually not sent to the GPU. It is used on the CPU side to know which parts of the index and
  * vertex buffers to use when issuing Vulkan draw commands.
  *
- * @tparam D The dimension (D2 or D3).
- * @tparam DMode The draw mode (Fill or Stencil).
+ * @tparam D The dimension (`D2` or `D3`).
+ * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
 template <Dimension D, DrawMode DMode> struct ONYX_API PolygonInstanceData
 {
@@ -328,13 +327,13 @@ TKIT_WARNING_IGNORE_PUSH
 TKIT_MSVC_WARNING_IGNORE(4324)
 
 /**
- * @brief Specific InstanceData for circles.
+ * @brief Specific `InstanceData` for circles.
  *
  * The additional data is used in the fragment shaders to discard fragments that are outside the circle or the
  * user-defined arc.
  *
- * @tparam D The dimension (D2 or D3).
- * @tparam DMode The draw mode (Fill or Stencil).
+ * @tparam D The dimension (`D2` or `D3`).
+ * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
 template <Dimension D, DrawMode DMode> struct ONYX_API CircleInstanceData
 {
@@ -364,9 +363,9 @@ struct ONYX_API PushConstantData3D
 template <Dimension D, PipelineMode PMode> struct ONYX_API Pipeline
 {
     /**
-     * @brief Create a pipeline for a meshed shape.
+     * @brief Create a pipeline for meshed shapes.
      *
-     * @tparam D The dimension (D2 or D3).
+     * @tparam D The dimension (`D2` or `D3`).
      * @tparam PMode The pipeline mode.
      * @param p_RenderPass The render pass to use.
      * @return The pipeline handle.
@@ -374,9 +373,9 @@ template <Dimension D, PipelineMode PMode> struct ONYX_API Pipeline
     static VKit::GraphicsPipeline CreateMeshPipeline(VkRenderPass p_RenderPass) noexcept;
 
     /**
-     * @brief Create a pipeline for a circle shape.
+     * @brief Create a pipeline for circle shapes.
      *
-     * @tparam D The dimension (D2 or D3).
+     * @tparam D The dimension (`D2` or `D3`).
      * @tparam PMode The pipeline mode.
      * @param p_RenderPass The render pass to use.
      * @return The pipeline handle.

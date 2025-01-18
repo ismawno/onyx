@@ -171,6 +171,11 @@ void Window::FlushEvents() noexcept
     m_Events.clear();
 }
 
+void Window::WaitForFrameSubmission() noexcept
+{
+    m_FrameScheduler->WaitForSubmissions();
+}
+
 const VKit::RenderPass &Window::GetRenderPass() const noexcept
 {
     return m_FrameScheduler->GetRenderPass();

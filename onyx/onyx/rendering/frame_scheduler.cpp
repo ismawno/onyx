@@ -23,8 +23,7 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 
 FrameScheduler::~FrameScheduler() noexcept
 {
-    if (m_PresentTask)
-        m_PresentTask->WaitUntilFinished();
+    WaitForSubmissions();
     // Must wait for the device. Windows/RenderContexts may be destroyed at runtime, and all its command buffers must
     // have finished
 
@@ -211,6 +210,12 @@ VkResult FrameScheduler::Present() noexcept
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
     std::scoped_lock lock(Core::GetPresentMutex());
     return vkQueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
+}
+
+void FrameScheduler::WaitForSubmissions() noexcept
+{
+    if (m_PresentTask)
+        m_PresentTask->WaitUntilFinished();
 }
 
 PostProcessing *FrameScheduler::SetupPostProcessing(const VKit::PipelineLayout &p_Layout,

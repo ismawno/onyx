@@ -5,8 +5,7 @@
 
 namespace Onyx::Demo
 {
-MWExampleLayer::MWExampleLayer(IMultiWindowApplication *p_Application) noexcept
-    : Layer("Example"), m_Application(p_Application)
+MWExampleLayer::MWExampleLayer(IMultiWindowApplication *p_Application) noexcept : m_Application(p_Application)
 {
 }
 

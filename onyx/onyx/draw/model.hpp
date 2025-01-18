@@ -17,7 +17,7 @@ namespace Onyx
  * and provides methods for binding and drawing the model.
  * It is not intended to be modified after creation.
  *
- * @tparam D The dimensionality of the model (D2 or D3).
+ * @tparam D The dimensionality of the model (`D2` or `D3`).
  */
 template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
 {

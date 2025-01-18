@@ -19,11 +19,8 @@ namespace Onyx
  */
 struct PrimitiveDataLayout
 {
-    /// The starting index of vertices in the combined vertex buffer.
     u32 VerticesStart;
-    /// The starting index of indices in the combined index buffer.
     u32 IndicesStart;
-    /// The number of indices for the primitive.
     u32 IndicesSize;
 };
 
@@ -32,7 +29,7 @@ struct PrimitiveDataLayout
  *
  * Provides methods to retrieve vertex and index buffers, as well as data layouts for primitives.
  *
- * @tparam D The dimension (D2 or D3).
+ * @tparam D The dimension (`D2` or `D3`).
  */
 template <Dimension D> struct IPrimitives
 {
@@ -58,21 +55,10 @@ template <Dimension D> struct IPrimitives
      */
     static const PrimitiveDataLayout &GetDataLayout(u32 p_PrimitiveIndex) noexcept;
 
-    /**
-     * @brief Get the index of the triangle primitive.
-     *
-     * @return Index of the triangle primitive.
-     */
     static TKIT_CONSTEVAL u32 GetTriangleIndex() noexcept
     {
         return 0;
     }
-
-    /**
-     * @brief Get the index of the square primitive.
-     *
-     * @return Index of the square primitive.
-     */
     static TKIT_CONSTEVAL u32 GetSquareIndex() noexcept
     {
         return 1;
@@ -94,50 +80,25 @@ template <Dimension D> struct IPrimitives
 
 template <Dimension D> struct Primitives;
 
-/**
- * @brief Specialized primitive shapes for 2D rendering.
- *
- */
 template <> struct Primitives<D2> : IPrimitives<D2>
 {
-    /// Total number of 2D primitives available.
     static constexpr u32 AMOUNT = 2 + ONYX_REGULAR_POLYGON_COUNT;
 };
 
-/**
- * @brief Specialized primitive shapes for 3D rendering.
- *
- */
 template <> struct Primitives<D3> : IPrimitives<D3>
 {
-    /// Total number of 3D primitives available.
     static constexpr u32 AMOUNT = 5 + ONYX_REGULAR_POLYGON_COUNT;
 
-    /**
-     * @brief Get the index of the cube primitive.
-     *
-     * @return u32 Index of the cube primitive.
-     */
     static TKIT_CONSTEVAL u32 GetCubeIndex() noexcept
     {
         return 2;
     }
 
-    /**
-     * @brief Get the index of the sphere primitive.
-     *
-     * @return u32 Index of the sphere primitive.
-     */
     static TKIT_CONSTEVAL u32 GetSphereIndex() noexcept
     {
         return 3;
     }
 
-    /**
-     * @brief Get the index of the cylinder primitive.
-     *
-     * @return u32 Index of the cylinder primitive.
-     */
     static TKIT_CONSTEVAL u32 GetCylinderIndex() noexcept
     {
         return 4;

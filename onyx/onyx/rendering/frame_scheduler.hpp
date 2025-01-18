@@ -102,6 +102,13 @@ class ONYX_API FrameScheduler
     VkResult Present() noexcept;
 
     /**
+     * @brief Waits for `m_PresentTask` to finish.
+     *
+     * Blocks the calling thread until all command buffers have been submitted.
+     */
+    void WaitForSubmissions() noexcept;
+
+    /**
      * @brief Sets up the post-processing pipeline, which is used to apply effects to the scene after the main rendering
      * pass.
      *

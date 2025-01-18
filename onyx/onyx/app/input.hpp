@@ -12,15 +12,14 @@ namespace Onyx
 class Window;
 
 /**
- * @brief The Input class handles all input events for the application.
+ * @brief The `Input` namespace handles all input events for the application.
  */
-
 namespace Input
 {
 /**
  * @brief Poll events.
  *
- * Calls glfwPollEvents() under the hood.
+ * Calls `glfwPollEvents()` under the hood.
  *
  */
 void PollEvents();
@@ -190,7 +189,7 @@ enum class Mouse : u8
  *
  * The position follows a centered coordinate system, with the y axis pointing downwards. This coordinate system is
  * constant and is retrieved directly from the GLFW API. To get the mouse position according to the render context
- * axes', call its GetMouseCoordinates() method instead.
+ * axes', call its `GetMouseCoordinates()` method instead.
  *
  * @param p_Window The window to get the mouse position from.
  * @return The mouse position.
@@ -202,7 +201,7 @@ fvec2 GetMousePosition(Window *p_Window) noexcept;
  *
  * @param p_Window The window to check the key for.
  * @param p_Key The key to check.
- * @return True if the key is currently pressed, false otherwise.
+ * @return true if the key is currently pressed, false otherwise.
  */
 bool IsKeyPressed(Window *p_Window, Key p_Key) noexcept;
 
@@ -211,7 +210,7 @@ bool IsKeyPressed(Window *p_Window, Key p_Key) noexcept;
  *
  * @param p_Window The window to check the key for.
  * @param p_Key The key to check.
- * @return True if the key was released in the current frame, false otherwise.
+ * @return true if the key was released in the current frame, false otherwise.
  */
 bool IsKeyReleased(Window *p_Window, Key p_Key) noexcept;
 
@@ -220,7 +219,7 @@ bool IsKeyReleased(Window *p_Window, Key p_Key) noexcept;
  *
  * @param p_Window The window to check the button for.
  * @param p_Button The button to check.
- * @return True if the mouse button is currently pressed, false otherwise.
+ * @return true if the mouse button is currently pressed, false otherwise.
  */
 bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button) noexcept;
 
@@ -229,7 +228,7 @@ bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button) noexcept;
  *
  * @param p_Window The window to check the button for.
  * @param p_Button The button to check.
- * @return True if the mouse button was released in the current frame, false otherwise.
+ * @return true if the mouse button was released in the current frame, false otherwise.
  */
 bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button) noexcept;
 

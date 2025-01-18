@@ -45,15 +45,15 @@ template <> struct CameraMovementControls<D3>
 };
 
 /**
- * @brief The RenderContext class is the primary way of communicating with the Onyx API.
+ * @brief The `RenderContext` class is the primary way of communicating with the Onyx API.
  *
  * It is a high-level API that allows the user to draw shapes and meshes in a simple immediate mode
- * fashion. The following is a set of properties of the RenderContext you must take into account when using it:
+ * fashion. The following is a set of properties of the `RenderContext` you must take into account when using it:
  *
- * - The RenderContext is mostly immediate mode. Almost all mutations to its state can be reset with the Flush()
+ * - The `RenderContext` is mostly immediate mode. Almost all mutations to its state can be reset with the `Flush()`
  * methods, which is recommended to be called at the beginning of each frame.
  *
- * - The view and projection matrices are not reset by the Flush() methods. The view can be controlled by user input
+ * - The view and projection matrices are not reset by the `Flush()` methods. The view can be controlled by user input
  * using the appropriate methods.
  *
  * - All entities that can be added to the scene (shapes, meshes, lights) will always have their position, scale and
@@ -78,23 +78,23 @@ template <Dimension D> class ONYX_API IRenderContext
     void FlushDrawData() noexcept;
 
     /**
-     * @brief Reset the state of the RenderContext to its default values.
+     * @brief Reset the state of the `RenderContext` to its default values.
      *
      * This method is meant to be called at the beginning of the frame, but it is not required to do so in case you want
-     * to persist the state of the RenderContext from older frames.
+     * to persist the state of the `RenderContext` from older frames.
      *
      */
     void FlushState() noexcept;
 
     /**
-     * @brief Reset the state of the RenderContext to its default values and sets the background color.
+     * @brief Reset the state of the `RenderContext` to its default values and sets the background color.
      *
      * @param p_Color The background color to set.
      */
     void FlushState(const Color &p_Color) noexcept;
 
     /**
-     * @brief Reset the state of the RenderContext to its default values and sets the background color.
+     * @brief Reset the state of the `RenderContext` to its default values and sets the background color.
      *
      * @param p_ColorArgs Arguments to construct the background color.
      */
@@ -773,8 +773,8 @@ template <Dimension D> class ONYX_API IRenderContext
 template <Dimension D> class RenderContext;
 
 /**
- * @brief The RenderContext class handles all primitive Onyx draw calls and allows the user to interact with most of the
- * Onyx API in 2D.
+ * @brief The `RenderContext` class handles all primitive Onyx draw calls and allows the user to interact with most of
+ * the Onyx API in 2D.
  *
  */
 template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
@@ -882,8 +882,8 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
 };
 
 /**
- * @brief The RenderContext class handles all primitive Onyx draw calls and allows the user to interact with most of the
- * Onyx API in 3D.
+ * @brief The `RenderContext` class handles all primitive Onyx draw calls and allows the user to interact with most of
+ * the Onyx API in 3D.
  *
  */
 template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/app/layer.hpp"
+#include "onyx/app/user_layer.hpp"
 #include "utils/window_data.hpp"
 
 namespace Onyx
@@ -10,7 +10,7 @@ class Application;
 
 namespace Onyx::Demo
 {
-class SWExampleLayer final : public Layer
+class SWExampleLayer final : public UserLayer
 {
   public:
     SWExampleLayer(Application *p_Application) noexcept;

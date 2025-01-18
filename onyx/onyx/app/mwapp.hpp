@@ -30,12 +30,13 @@ enum WindowThreading
  *
  * This class provides a simple interface and partial implementation for a multi-window application, which can either be
  * a serial or concurrent application. The user can choose the threading scheme by specifying the template parameter in
- * the MultiWindowApplication class. Because of the ability of having multiple windows, the user must always explicitly
- * open windows from the application's API, including the main (first) window.
+ * the `MultiWindowApplication` class. Because of the ability of having multiple windows, the user must always
+ * explicitly open windows from the application's API, including the main (first) window before entering the rendering
+ * loop.
  *
- * To better manage window lifetimes, calls to OpenWindow() or CloseWindow() may be deferred if called from within an
- * ongoing frame. Never update your state based on the calls of these functions, but rather react to the corresponding
- * events (WindowOpened, WindowClosed) to ensure synchronization between the API and the user.
+ * To better manage window lifetimes, calls to `OpenWindow()` or `CloseWindow()` may be deferred if called from within
+ * an ongoing frame. Never update your state based on the calls of these functions, but rather react to the
+ * corresponding events (`WindowOpened`, `WindowClosed`) to ensure synchronization between the API and the user.
  *
  */
 class IMultiWindowApplication : public IApplication
@@ -91,7 +92,7 @@ class IMultiWindowApplication : public IApplication
      * @brief Get a pointer to the window at the specified index.
      *
      * @param p_Index The index of the window to retrieve.
-     * @return const Window* Pointer to the window at the given index.
+     * @return Pointer to the window at the given index.
      */
     const Window *GetWindow(u32 p_Index) const noexcept;
 
@@ -99,35 +100,30 @@ class IMultiWindowApplication : public IApplication
      * @brief Get a pointer to the window at the specified index.
      *
      * @param p_Index The index of the window to retrieve.
-     * @return Window* Pointer to the window at the given index.
+     * @return Pointer to the window at the given index.
      */
     Window *GetWindow(u32 p_Index) noexcept;
 
     /**
-     * @brief Get a pointer to the main window.
+     * @brief Get a pointer to the main window (at `index = 0`).
      *
-     * @return const Window* Pointer to the main window.
+     * @return Pointer to the main window.
      */
     const Window *GetMainWindow() const noexcept override;
 
     /**
-     * @brief Get a pointer to the main window.
+     * @brief Get a pointer to the main window (at `index = 0`).
      *
-     * @return Window* Pointer to the main window.
+     * @return Pointer to the main window.
      */
     Window *GetMainWindow() noexcept override;
 
-    /**
-     * @brief Get the number of currently open windows.
-     *
-     * @return u32 The number of windows.
-     */
     u32 GetWindowCount() const noexcept;
 
     /**
      * @brief Get the threading mode used by the application.
      *
-     * @return WindowThreading The threading mode (Serial or Concurrent).
+     * @return The threading mode ('Serial' or 'Concurrent').
      */
     virtual WindowThreading GetWindowThreading() const noexcept = 0;
 
@@ -140,21 +136,13 @@ class IMultiWindowApplication : public IApplication
     bool NextFrame(TKit::Clock &p_Clock) noexcept override;
 
   protected:
-    /// The list of currently open windows.
     TKit::StaticArray8<TKit::Scope<Window>> m_Windows;
 
-  private:
-    /**
-     * @brief Process window events and rendering for each window.
-     *
-     */
-    virtual void processWindows() noexcept = 0;
+    template <typename F1, typename F2>
+    void processFrame(u32 p_WindowIndex, F1 &&p_FirstDrawCalls, F2 &&p_LastDrawCalls) noexcept;
 
-    /**
-     * @brief Set the delta time between frames.
-     *
-     * @param p_DeltaTime The delta time to set.
-     */
+  private:
+    virtual void processWindows() noexcept = 0;
     virtual void setDeltaTime(TKit::Timespan p_DeltaTime) noexcept = 0;
 };
 
@@ -185,39 +173,18 @@ template <> class ONYX_API MultiWindowApplication<Serial> final : public IMultiW
     /**
      * @brief Get the threading mode used by the application.
      *
-     * @return WindowThreading The threading mode (Serial).
+     * @return The threading mode (`Serial`).
      */
     WindowThreading GetWindowThreading() const noexcept override;
 
-    /**
-     * @brief Get the time elapsed between the current and previous frame.
-     *
-     * @return TKit::Timespan The delta time.
-     */
     TKit::Timespan GetDeltaTime() const noexcept override;
 
   private:
-    /**
-     * @brief Process windows in serial mode.
-     *
-     */
     void processWindows() noexcept override;
-
-    /**
-     * @brief Set the delta time between frames.
-     *
-     * @param p_DeltaTime The delta time to set.
-     */
     void setDeltaTime(TKit::Timespan p_DeltaTime) noexcept override;
 
-    /// The time elapsed between frames.
     TKit::Timespan m_DeltaTime;
-
-    /// Specifications of windows to add in the next frame.
     TKit::StaticArray4<Window::Specs> m_WindowsToAdd;
-
-    /// Indicates whether window management should be deferred.
-    bool m_MustDeferWindowManagement = false;
 };
 
 /**
@@ -239,61 +206,24 @@ template <> class ONYX_API MultiWindowApplication<Concurrent> final : public IMu
     /**
      * @brief Get the threading mode used by the application.
      *
-     * @return WindowThreading The threading mode (Concurrent).
+     * @return The threading mode (`Concurrent`).
      */
     WindowThreading GetWindowThreading() const noexcept override;
 
-    /**
-     * @brief Get the time elapsed between the current and previous frame.
-     *
-     * @return TKit::Timespan The delta time.
-     */
     TKit::Timespan GetDeltaTime() const noexcept override;
 
-    /**
-     * @brief Perform startup tasks for the application.
-     *
-     */
     void Startup() noexcept override;
 
   private:
-    /**
-     * @brief Process windows in concurrent mode.
-     *
-     */
     void processWindows() noexcept override;
-
-    /**
-     * @brief Create a task for processing a window in concurrent mode.
-     *
-     * @param p_WindowIndex The index of the window to process.
-     * @return TKit::Ref<TKit::Task<void>> A reference to the created task.
-     */
     TKit::Ref<TKit::Task<void>> createWindowTask(u32 p_WindowIndex) noexcept;
-
-    /**
-     * @brief Set the delta time between frames.
-     *
-     * @param p_DeltaTime The delta time to set.
-     */
     void setDeltaTime(TKit::Timespan p_DeltaTime) noexcept override;
 
-    /// Tasks for processing windows in concurrent mode.
     TKit::StaticArray8<TKit::Ref<TKit::Task<void>>> m_Tasks;
-
-    /// Specifications of windows to add in the next frame.
     TKit::StaticArray4<Window::Specs> m_WindowsToAdd;
-
-    /// The time elapsed between frames, shared between threads.
     std::atomic<TKit::Timespan> m_DeltaTime;
 
-    /// Indicates whether window management should be deferred.
-    bool m_MustDeferWindowManagement = false;
-
-    /// The ID of the main thread.
     const std::thread::id m_MainThreadID = std::this_thread::get_id();
-
-    /// Mutex for synchronizing access to m_WindowsToAdd.
     mutable std::mutex m_WindowsToAddMutex;
 };
 } // namespace Onyx

@@ -20,8 +20,8 @@ namespace Onyx::Detail
  * This template struct holds instances of a renderer R with different PipelineModes,
  * allowing for different rendering passes such as filling and outlining shapes.
  *
- * @tparam D The dimensionality (2D or 3D).
- * @tparam R The renderer type template (e.g., MeshRenderer, PrimitiveRenderer).
+ * @tparam D The dimensionality (`D2`or `D3`).
+ * @tparam R The renderer type template (e.g., `MeshRenderer`, `PrimitiveRenderer`).
  */
 template <Dimension D, template <Dimension, PipelineMode> typename R> struct RenderSystem
 {
@@ -84,7 +84,7 @@ enum DrawFlags : u8
  * This template class provides common functionality for 2D and 3D renderers, handling draw calls and managing render
  * systems.
  *
- * @tparam D The dimensionality (2D or 3D).
+ * @tparam D The dimensionality (`D2`or `D3`).
  */
 template <Dimension D> class ONYX_API IRenderer
 {
@@ -206,7 +206,7 @@ template <Dimension D> class ONYX_API IRenderer
  *
  * Specialized implementations are provided for 2D and 3D rendering.
  *
- * @tparam D The dimensionality (2D or 3D).
+ * @tparam D The dimensionality (`D2`or `D3`).
  */
 template <Dimension D> class Renderer;
 

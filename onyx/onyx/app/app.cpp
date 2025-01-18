@@ -31,13 +31,14 @@ void IApplication::Startup() noexcept
 {
     TKIT_ASSERT(!m_Terminated && !m_Started, "[ONYX] Application cannot be started more than once");
     m_Started = true;
-    Layers.onStart();
+    onStart();
 }
 
 void IApplication::Shutdown() noexcept
 {
     TKIT_ASSERT(!m_Terminated && m_Started, "[ONYX] Application cannot be terminated before it is started");
-    Layers.onShutdown();
+    onShutdown();
+    delete m_UserLayer;
     if (Core::IsDeviceCreated())
         vkDestroyDescriptorPool(Core::GetDevice(), m_ImGuiPool, nullptr);
     m_Terminated = true;
@@ -75,6 +76,72 @@ void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault(nullptr, p_CommandBuffer);
     Core::UnlockGraphicsAndPresentQueues();
+}
+
+void IApplication::updateUserLayerPointer() noexcept
+{
+    if (m_StagedUserLayer)
+    {
+        delete m_UserLayer;
+        m_UserLayer = m_StagedUserLayer;
+        m_StagedUserLayer = nullptr;
+    }
+}
+
+void IApplication::onStart() noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnStart();
+}
+void IApplication::onShutdown() noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnShutdown();
+}
+void IApplication::onUpdate() noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnUpdate();
+}
+void IApplication::onRender(const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnRender(p_CommandBuffer);
+}
+void IApplication::onLateRender(const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnLateRender(p_CommandBuffer);
+}
+void IApplication::onEvent(const Event &p_Event) noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnEvent(p_Event);
+}
+void IApplication::onUpdate(const u32 p_WindowIndex) noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnUpdate(p_WindowIndex);
+}
+void IApplication::onRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnRender(p_WindowIndex, p_CommandBuffer);
+}
+void IApplication::onLateRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnLateRender(p_WindowIndex, p_CommandBuffer);
+}
+void IApplication::onEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnEvent(p_WindowIndex, p_Event);
+}
+void IApplication::onImGuiRender() noexcept
+{
+    if (m_UserLayer)
+        m_UserLayer->OnImGuiRender();
 }
 
 void IApplication::createImGuiPool() noexcept
@@ -162,32 +229,32 @@ Application::Application(const Window::Specs &p_WindowSpecs) noexcept
 bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
-    Layers.removeFlaggedLayers();
 
     m_DeltaTime = p_Clock.Restart();
     Input::PollEvents();
     for (const Event &event : m_Window->GetNewEvents())
-        Layers.onEvent(event);
+        onEvent(event);
 
     m_Window->FlushEvents();
     // Should maybe exit if window is closed at this point (triggered by event)
 
-    Layers.onUpdate();
+    onUpdate();
 
     const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        Layers.onRender(p_CommandBuffer);
+        onRender(p_CommandBuffer);
     };
     const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) {
-        Layers.onLateRender(p_CommandBuffer);
+        onLateRender(p_CommandBuffer);
         endRenderImGui(p_CommandBuffer);
     };
 
     m_Window->Render(drawCalls, uiSubmission);
     if (m_Window->ShouldClose())
     {
-        m_Window.Destruct();
+        m_Window->WaitForFrameSubmission();
         shutdownImGui();
+        m_Window.Destruct();
         TKIT_PROFILE_MARK_FRAME();
         return false;
     }

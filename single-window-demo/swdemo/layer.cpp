@@ -5,7 +5,7 @@
 
 namespace Onyx::Demo
 {
-SWExampleLayer::SWExampleLayer(Application *p_Application) noexcept : Layer("Example"), m_Application(p_Application)
+SWExampleLayer::SWExampleLayer(Application *p_Application) noexcept : m_Application(p_Application)
 {
 }
 

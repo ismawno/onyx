@@ -176,7 +176,7 @@ while (app.NextFrame(clock))
 app.Shutdown();
 ```
 
-This setup is more flexible than the previous one but still similar to the example shown in the [Window API](#window-api) section. However, it still won’t allow the user to use ImGui. To take full advantage of the application interface, including ImGui, you will likely want to use the layer system to leverage its full capabilities:
+This setup is more flexible than the previous one but still similar to the example shown in the [Window API](#window-api) section. However, it still won’t allow the user to use ImGui. To take full advantage of the application interface, including ImGui, you will likely want to use the user layer to leverage its full capabilities:
 
 
 ```cpp
@@ -185,13 +185,9 @@ specs.Name = "App3 Hello, World!";
 specs.Width = 800;
 specs.Height = 600;
 
-class MyLayer : public Onyx::Layer
+class MyLayer : public Onyx::UserLayer
 {
     public:
-    MyLayer() noexcept : Layer("MyLayer")
-    {
-    }
-
     void OnRender(const VkCommandBuffer) noexcept override
     {
         ImGui::Begin("Hello, World!");
@@ -201,7 +197,7 @@ class MyLayer : public Onyx::Layer
 };
 
 Onyx::Application app(specs);
-app.Layers.Push<MyLayer>();
+app.SetUserLayer<MyLayer>();
 
 app.Run();
 ```
@@ -214,7 +210,7 @@ Onyx also supports a multi-window application interface, allowing many windows p
 1. **Serial**: All windows run on the main thread.
 2. **Concurrent**: Each window runs on its own dedicated thread.
 
-For more details, refer to the documentation and the [onyx/app/mwapp.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/mwapp.hpp) and [onyx/app/layer.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/layer.hpp) files.
+For more details, refer to the documentation and the [onyx/app/mwapp.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/mwapp.hpp) and [onyx/app/user_layer.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/user_layer.hpp) files.
 
 The serial implementation is more forgiving and easier to use than the concurrent one. The latter requires careful synchronization on the user’s end to avoid issues. I have minimized locking to preserve parallelism (to my humble extent), but I have not measured its performance, so use it at your own risk.
 

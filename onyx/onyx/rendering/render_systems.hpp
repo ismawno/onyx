@@ -94,7 +94,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
      *
      * @param p_FrameIndex The index of the current frame.
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
-     * @param p_PrimitiveIndex The index of the primitive to draw. Can be queried from Primitive<D>::Get...Index()
+     * @param p_PrimitiveIndex The index of the primitive to draw. Can be queried from `Primitive<D>::Get...Index()`
      */
     void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, u32 p_PrimitiveIndex) noexcept;
 

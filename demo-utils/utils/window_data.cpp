@@ -1,6 +1,6 @@
 #include "utils/window_data.hpp"
 #include "onyx/core/shaders.hpp"
-#include "onyx/app/layer.hpp"
+#include "onyx/app/user_layer.hpp"
 #include <imgui.h>
 #include <implot.h>
 
@@ -93,7 +93,7 @@ void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Tim
 void WindowData::OnImGuiRender() noexcept
 {
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
-    Layer::EditPresentMode(m_Window);
+    UserLayer::PresentModeEditor(m_Window);
 
     ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
     if (ImGui::Checkbox("Blur", &m_PostProcessing))
@@ -328,9 +328,9 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     if (selected < size)
     {
         ImGui::Text("Transform");
-        Layer::EditTransform<D>(p_Data.Shapes[selected]->Transform);
+        UserLayer::TransformEditor<D>(p_Data.Shapes[selected]->Transform);
         ImGui::Text("Material");
-        Layer::EditMaterial<D>(p_Data.Shapes[selected]->Material);
+        UserLayer::MaterialEditor<D>(p_Data.Shapes[selected]->Material);
         p_Data.Shapes[selected]->Edit();
     }
 }
@@ -356,7 +356,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
     if (ImGui::CollapsingHeader("Axes"))
     {
         ImGui::Text("Transform");
-        Layer::EditTransform<D>(p_Data.AxesTransform);
+        UserLayer::TransformEditor<D>(p_Data.AxesTransform);
         if constexpr (D == D3)
         {
             if (ImGui::Checkbox("Perspective", &p_Data.Perspective))
@@ -389,7 +389,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 
         if (ImGui::TreeNode("Material"))
         {
-            Layer::EditMaterial<D>(p_Data.AxesMaterial);
+            UserLayer::MaterialEditor<D>(p_Data.AxesMaterial);
             ImGui::TreePop();
         }
     }
@@ -433,7 +433,7 @@ void WindowData::renderLightSpawn() noexcept
         ImGui::PopID();
     }
     if (m_LayerData3.SelectedDirLight < dsize)
-        Layer::EditDirectionalLight(m_LayerData3.DirectionalLights[m_LayerData3.SelectedDirLight]);
+        UserLayer::DirectionalLightEditor(m_LayerData3.DirectionalLights[m_LayerData3.SelectedDirLight]);
 
     const u32 psize = m_LayerData3.PointLights.size();
     for (u32 i = 0; i < psize; ++i)
@@ -451,7 +451,7 @@ void WindowData::renderLightSpawn() noexcept
         ImGui::PopID();
     }
     if (m_LayerData3.SelectedPointLight < psize)
-        Layer::EditPointLight(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight]);
+        UserLayer::PointLightEditor(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight]);
 }
 
 } // namespace Onyx::Demo

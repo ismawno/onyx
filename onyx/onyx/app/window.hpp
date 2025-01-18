@@ -151,72 +151,27 @@ class ONYX_API Window
     /**
      * @brief Renders the window without any custom draw or UI calls.
      *
+     * This method begins a new frame, starts the render pass with the specified background color,
+     * executes the provided draw callables, and ends the render pass and frame.
+     *
      * @return true if rendering was successful, false otherwise.
      */
     bool Render() noexcept;
-    /**
-     * @brief Checks if the window should close.
-     *
-     * @return true if the window should close, false otherwise.
-     */
+
     bool ShouldClose() const noexcept;
 
-    /**
-     * @brief Gets the GLFW window handle.
-     *
-     * @return const GLFWwindow* Pointer to the GLFW window.
-     */
     const GLFWwindow *GetWindowHandle() const noexcept;
-    /**
-     * @brief Gets the GLFW window handle.
-     *
-     * @return GLFWwindow* Pointer to the GLFW window.
-     */
     GLFWwindow *GetWindowHandle() noexcept;
 
-    /**
-     * @brief Gets the window's name.
-     *
-     * @return const char* The window's name.
-     */
     const char *GetName() const noexcept;
-    /**
-     * @brief Gets the window's width in screen coordinates.
-     *
-     * @return u32 The window's width.
-     */
+
     u32 GetScreenWidth() const noexcept;
-    /**
-     * @brief Gets the window's height in screen coordinates.
-     *
-     * @return u32 The window's height.
-     */
     u32 GetScreenHeight() const noexcept;
 
-    /**
-     * @brief Gets the window's width in pixels.
-     *
-     * @return u32 The window's width in pixels.
-     */
     u32 GetPixelWidth() const noexcept;
-    /**
-     * @brief Gets the window's height in pixels.
-     *
-     * @return u32 The window's height in pixels.
-     */
     u32 GetPixelHeight() const noexcept;
 
-    /**
-     * @brief Gets the aspect ratio of the window in screen coordinates.
-     *
-     * @return f32 The screen aspect ratio.
-     */
     f32 GetScreenAspect() const noexcept;
-    /**
-     * @brief Gets the aspect ratio of the window in pixels.
-     *
-     * @return f32 The pixel aspect ratio.
-     */
     f32 GetPixelAspect() const noexcept;
 
     /**
@@ -252,39 +207,25 @@ class ONYX_API Window
      */
     void RemovePostProcessing() noexcept;
 
-    /**
-     * @brief Flags the window to be closed.
-     */
     void FlagShouldClose() noexcept;
 
-    /**
-     * @brief Gets the Vulkan surface associated with the window.
-     *
-     * @return VkSurfaceKHR The Vulkan surface.
-     */
     VkSurfaceKHR GetSurface() const noexcept;
 
-    /**
-     * @brief Pushes a new event to the window's event queue.
-     *
-     * @param p_Event The event to push.
-     */
     void PushEvent(const Event &p_Event) noexcept;
+
     /**
-     * @brief Gets the new events since the last call to FlushEvents().
+     * @brief Gets the new events since the last call to `FlushEvents()`.
      *
      * @return The array of new events.
      */
     const TKit::StaticArray128<Event> &GetNewEvents() const noexcept;
-    /**
-     * @brief Clears the window's event queue.
-     */
+
     void FlushEvents() noexcept;
 
     /**
      * @brief Gets the render context for the specified dimension.
      *
-     * @tparam D The dimension (D2 or D3).
+     * @tparam D The dimension (`D2` or `D3`).
      * @return const RenderContext<D>* Pointer to the render context.
      */
     template <Dimension D> const RenderContext<D> *GetRenderContext() const noexcept
@@ -297,7 +238,7 @@ class ONYX_API Window
     /**
      * @brief Gets the render context for the specified dimension.
      *
-     * @tparam D The dimension (D2 or D3).
+     * @tparam D The dimension (`D2` or `D3`).
      * @return RenderContext<D>* Pointer to the render context.
      */
     template <Dimension D> RenderContext<D> *GetRenderContext() noexcept
@@ -307,6 +248,13 @@ class ONYX_API Window
         else
             return m_RenderContext3D.Get();
     }
+
+    /**
+     * @brief Waits for the `FrameScheduler` to finish submitting the current frame.
+     *
+     * Blocks the calling thread until all command buffers have been submitted.
+     */
+    void WaitForFrameSubmission() noexcept;
 
     const VKit::RenderPass &GetRenderPass() const noexcept;
     u32 GetFrameIndex() const noexcept;
@@ -324,11 +272,6 @@ class ONYX_API Window
     void flagResizeDone() noexcept;
 
   private:
-    /**
-     * @brief Creates the window with the given specifications.
-     *
-     * @param p_Specs The specifications for the window.
-     */
     void createWindow(const Specs &p_Specs) noexcept;
 
     GLFWwindow *m_Window;

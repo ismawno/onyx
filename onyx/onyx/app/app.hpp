@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/app/layer.hpp"
+#include "onyx/app/user_layer.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/app/theme.hpp"
 #include "tkit/profiling/clock.hpp"
@@ -29,19 +29,19 @@ class IApplication
     virtual ~IApplication() noexcept;
 
     /**
-     * @brief Startup the application and call the OnStart() method of all layers.
+     * @brief Startup the application and call the `OnStart()` method of all layers.
      *
-     * This method must be called before calling NextFrame().
+     * This method must be called before calling `NextFrame()`.
      * Calling this method more than once will result in undefined behaviour or a crash.
      *
      */
     virtual void Startup() noexcept;
 
     /**
-     * @brief Shutdown the application, clean up some resources and call the OnShutdown() method of all layers.
+     * @brief Shutdown the application, clean up some resources and call the `OnShutdown()` method of all layers.
      *
-     * This method must be called after the Startup() call, after the last call to NextFrame(), once all windows have
-     * been closed. Failing to do so, or calling this method more than once will result in undefined behaviour or a
+     * This method must be called after the `Startup()` call, after the last call to `NextFrame()`, once all windows
+     * have been closed. Failing to do so, or calling this method more than once will result in undefined behaviour or a
      * crash.
      *
      */
@@ -51,26 +51,21 @@ class IApplication
      * @brief This method is in charge of processing and presenting the next frame for all windows.
      *
      * This method should be called in a loop until it returns false, which means that all windows have been closed.
-     * All of its calls should reside between Startup() and Shutdown().
+     * All of its calls should reside between `Startup()` and `Shutdown()`.
      *
      * @param p_Clock A clock that lets both the API and the user to keep track of the frame time.
      * @return Whether the application still contains opened windows.
      */
     virtual bool NextFrame(TKit::Clock &p_Clock) noexcept = 0;
 
-    /**
-     * @brief Get the time it took the last frame to process.
-     *
-     * @return TKit::Timespan The delta time of the last frame.
-     */
     virtual TKit::Timespan GetDeltaTime() const noexcept = 0;
 
     /**
-     * @brief Get the main window, which is always the window at index 0.
+     * @brief Get the main window, which is always the window at index 0 in multi-window applications.
      *
      * In concurrent mode, that window is always handled by the main thread.
      *
-     * @return const Window* The main window at index 0.
+     * @return The main window at index 0.
      */
     virtual const Window *GetMainWindow() const noexcept = 0;
 
@@ -79,17 +74,17 @@ class IApplication
      *
      * In concurrent mode, that window is always handled by the main thread.
      *
-     * @return Window* The main window at index 0.
+     * @return The main window at index 0.
      */
     virtual Window *GetMainWindow() noexcept = 0;
 
     /**
-     * @brief Set an object derived from Theme to apply an ImGui theme.
+     * @brief Set an object derived from Theme to apply an `ImGui` theme.
      *
      * @tparam T User defined theme.
      * @tparam ThemeArgs Arguments to pass to the theme constructor.
      * @param p_Args Arguments to pass to the theme constructor.
-     * @return T* Pointer to the theme object.
+     * @return Pointer to the theme object.
      */
     template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args) noexcept
     {
@@ -100,8 +95,29 @@ class IApplication
         return result;
     }
 
+    template <std::derived_from<UserLayer> T, typename... LayerArgs> T *SetUserLayer(LayerArgs &&...p_Args) noexcept
+    {
+        T *layer = new T(std::forward<LayerArgs>(p_Args)...);
+        if (m_DeferFlag)
+        {
+            delete m_StagedUserLayer;
+            m_StagedUserLayer = layer;
+        }
+        else
+        {
+            delete m_UserLayer;
+            m_UserLayer = layer;
+        }
+        return layer;
+    }
+
+    template <std::derived_from<UserLayer> T = UserLayer> T *GetUserLayer() noexcept
+    {
+        return static_cast<T *>(m_UserLayer);
+    }
+
     /**
-     * @brief Apply the current theme to ImGui. Use SetTheme() to set a new theme.
+     * @brief Apply the current theme to `ImGui`. Use `SetTheme()` to set a new theme.
      *
      */
     void ApplyTheme() noexcept;
@@ -109,81 +125,69 @@ class IApplication
     /**
      * @brief Run the whole application in one go.
      *
-     * This method automatically calls Startup(), NextFrame() and Shutdown(). If you choose to run the application this
-     * way, you must not use any of the other 3 methods.
+     * This method automatically calls `Startup()`, `NextFrame()` and `Shutdown()`. If you choose to run the application
+     * this way, you must not use any of the other 3 methods.
      *
      */
     void Run() noexcept;
 
     /**
-     * @brief Check if the Startup method has been called.
+     * @brief Check if the 'Startup()` method has been called.
      *
-     * @return true if Startup() has been called.
+     * @return true if `Startup()` has been called.
      */
     bool IsStarted() const noexcept;
 
     /**
-     * @brief Check if the Shutdown method has been called.
+     * @brief Check if the `Shutdown()` method has been called.
      *
-     * @return true if Shutdown() has been called.
+     * @return true if `Shutdown()` has been called.
      */
     bool IsTerminated() const noexcept;
 
     /**
-     * @brief Check if the Startup method has been called and the Shutdown method has not been called.
+     * @brief Check if the 'Startup()` method has been called and the `Shutdown()` method has not been called.
      *
      * @return true if the application is running.
      */
     bool IsRunning() const noexcept;
 
-    /// The layer system managing application layers.
-    LayerSystem Layers;
-
   protected:
-    /**
-     * @brief Initialize ImGui for the given window.
-     *
-     * @param p_Window The window to initialize ImGui for.
-     */
     void initializeImGui(Window &p_Window) noexcept;
-
-    /**
-     * @brief Shutdown ImGui and release its resources.
-     *
-     */
     void shutdownImGui() noexcept;
 
-    /**
-     * @brief Begin rendering ImGui frame.
-     *
-     */
     static void beginRenderImGui() noexcept;
-
-    /**
-     * @brief End rendering ImGui frame and submit commands.
-     *
-     * @param p_CommandBuffer The command buffer to record commands into.
-     */
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
 
+    void updateUserLayerPointer() noexcept;
+
+    void onStart() noexcept;
+    void onShutdown() noexcept;
+
+    void onUpdate() noexcept;
+    void onRender(VkCommandBuffer p_CommandBuffer) noexcept;
+    void onLateRender(VkCommandBuffer p_CommandBuffer) noexcept;
+    void onEvent(const Event &p_Event) noexcept;
+
+    void onUpdate(u32 p_WindowIndex) noexcept;
+    void onRender(u32 p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onLateRender(u32 p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onEvent(u32 p_WindowIndex, const Event &p_Event) noexcept;
+    void onImGuiRender() noexcept;
+
+    bool m_DeferFlag = false;
+
   private:
-    /**
-     * @brief Create the ImGui descriptor pool.
-     *
-     */
     void createImGuiPool() noexcept;
 
-    /// Indicates whether Startup() has been called.
-    bool m_Started = false;
+    UserLayer *m_UserLayer = nullptr;
+    UserLayer *m_StagedUserLayer = nullptr;
 
-    /// Indicates whether Shutdown() has been called.
-    bool m_Terminated = false;
-
-    /// Vulkan descriptor pool used by ImGui.
     VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
-
-    /// Current theme applied to ImGui.
     TKit::Scope<Theme> m_Theme;
+
+    bool m_Started = false;
+    bool m_Terminated = false;
 };
 
 /**
@@ -195,11 +199,6 @@ class IApplication
 class Application final : public IApplication
 {
   public:
-    /**
-     * @brief Construct a new Application object with the given window specifications.
-     *
-     * @param p_WindowSpecs Specifications for the main window.
-     */
     Application(const Window::Specs &p_WindowSpecs = {}) noexcept;
 
     /**
@@ -210,32 +209,13 @@ class Application final : public IApplication
      */
     bool NextFrame(TKit::Clock &p_Clock) noexcept override;
 
-    /**
-     * @brief Get the main window.
-     *
-     * @return const Window* Pointer to the main window.
-     */
     const Window *GetMainWindow() const noexcept override;
-
-    /**
-     * @brief Get the main window.
-     *
-     * @return Window* Pointer to the main window.
-     */
     Window *GetMainWindow() noexcept override;
 
-    /**
-     * @brief Get the time it took the last frame to process.
-     *
-     * @return TKit::Timespan The delta time of the last frame.
-     */
     TKit::Timespan GetDeltaTime() const noexcept override;
 
   private:
-    /// Storage for the main window.
     TKit::Storage<Window> m_Window;
-
-    /// The time elapsed between frames.
     TKit::Timespan m_DeltaTime;
 };
 
