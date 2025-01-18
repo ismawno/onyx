@@ -124,6 +124,6 @@ namespace std
 {
 template <Onyx::Dimension D> struct hash<Onyx::Model<D>>
 {
-    std::size_t operator()(const Onyx::Model<D> &p_Model) const noexcept;
+    size_t operator()(const Onyx::Model<D> &p_Model) const noexcept;
 };
 } // namespace std

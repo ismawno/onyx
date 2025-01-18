@@ -2,7 +2,7 @@
 #include "onyx/draw/model.hpp"
 #include "onyx/draw/data.hpp"
 #include "onyx/core/core.hpp"
-#include "tkit/container/hashable_tuple.hpp"
+#include "tkit/utilities/hash.hpp"
 
 namespace Onyx
 {
@@ -117,10 +117,9 @@ template class Model<D3>;
 
 namespace std
 {
-template <Onyx::Dimension D> std::size_t hash<Onyx::Model<D>>::operator()(const Onyx::Model<D> &p_Model) const noexcept
+template <Onyx::Dimension D> size_t hash<Onyx::Model<D>>::operator()(const Onyx::Model<D> &p_Model) const noexcept
 {
-    const TKit::HashableTuple tuple(p_Model.GetVertexBuffer().GetBuffer(), p_Model.GetIndexBuffer().GetBuffer());
-    return tuple();
+    return TKit::Hash(p_Model.GetVertexBuffer().GetBuffer(), p_Model.GetIndexBuffer().GetBuffer());
 }
 
 template struct hash<Onyx::Model<Onyx::D2>>;

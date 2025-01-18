@@ -4,7 +4,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/draw/color.hpp"
 #include "tkit/container/static_array.hpp"
-#include "tkit/container/hashable_tuple.hpp"
+#include "tkit/utilities/hash.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -52,7 +52,7 @@ template <> struct std::hash<Onyx::Vertex<Onyx::D2>>
 {
     std::size_t operator()(const Onyx::Vertex<Onyx::D2> &p_Vertex) const
     {
-        return std::hash<glm::fvec2>()(p_Vertex.Position);
+        return TKit::Hash(p_Vertex.Position);
     }
 };
 
@@ -60,7 +60,6 @@ template <> struct std::hash<Onyx::Vertex<Onyx::D3>>
 {
     std::size_t operator()(const Onyx::Vertex<Onyx::D3> &p_Vertex) const
     {
-        TKit::HashableTuple<glm::fvec3, glm::fvec3> tuple{p_Vertex.Position, p_Vertex.Normal};
-        return tuple();
+        return TKit::Hash(p_Vertex.Position, p_Vertex.Normal);
     }
 };
