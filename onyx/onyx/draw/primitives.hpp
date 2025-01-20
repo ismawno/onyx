@@ -105,14 +105,14 @@ template <> struct Primitives<D3> : IPrimitives<D3>
     }
 };
 
-// Called automatically, user must not call this
-
-/**
- * @brief Creates the combined primitive buffers.
- *
- * This function initializes the combined vertex and index buffers for all primitives.
- * It is called automatically and should not be called by the user.
- */
-void createCombinedPrimitiveBuffers() noexcept;
+namespace Detail
+{ /**
+   * @brief Creates the combined primitive buffers.
+   *
+   * This function initializes the combined vertex and index buffers for all primitives.
+   * It is called automatically and should not be called by the user.
+   */
+void CreateCombinedPrimitiveBuffers() noexcept;
+}
 
 } // namespace Onyx

@@ -226,7 +226,7 @@ void Core::CreateDevice(const VkSurfaceKHR p_Surface) noexcept
     createCommandPool();
     createDescriptorData();
     createPipelineLayouts();
-    createCombinedPrimitiveBuffers();
+    Detail::CreateCombinedPrimitiveBuffers();
     createShaders();
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
     createProfilingContext();

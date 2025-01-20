@@ -119,7 +119,7 @@ template <Dimension D> static void createBuffers(const TKit::Span<const char *co
     buffers.Construct(vertices, indices, layout);
 }
 
-void createCombinedPrimitiveBuffers() noexcept
+void CreateCombinedPrimitiveBuffers() noexcept
 {
     const TKit::Array<const char *, Primitives<D2>::AMOUNT> paths2D = {ONYX_ROOT_PATH "/onyx/models/triangle.obj",
                                                                        ONYX_ROOT_PATH "/onyx/models/square.obj"};
