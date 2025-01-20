@@ -10,7 +10,7 @@
 
 // Important: index buffers must always be provided for primitives so that they can be batch rendered nicely
 
-namespace Onyx
+namespace Onyx::Detail
 {
 /**
  * @brief Layout information for primitive data.
@@ -105,14 +105,12 @@ template <> struct Primitives<D3> : IPrimitives<D3>
     }
 };
 
-namespace Detail
-{ /**
-   * @brief Creates the combined primitive buffers.
-   *
-   * This function initializes the combined vertex and index buffers for all primitives.
-   * It is called automatically and should not be called by the user.
-   */
+/**
+ * @brief Creates the combined primitive buffers.
+ *
+ * This function initializes the combined vertex and index buffers for all primitives.
+ * It is called automatically and should not be called by the user.
+ */
 void CreateCombinedPrimitiveBuffers() noexcept;
-}
 
-} // namespace Onyx
+} // namespace Onyx::Detail

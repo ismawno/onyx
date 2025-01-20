@@ -44,6 +44,9 @@ template <> struct CameraMovementControls<D3>
     Input::Key ToggleLookAround = Input::Key::LeftShift;
 };
 
+namespace Detail
+{
+
 /**
  * @brief The `RenderContext` class is the primary way of communicating with the Onyx API.
  *
@@ -769,6 +772,7 @@ template <Dimension D> class ONYX_API IRenderContext
   private:
     fvec2 m_PrevMousePos{0.f};
 };
+} // namespace Detail
 
 template <Dimension D> class RenderContext;
 
@@ -777,7 +781,7 @@ template <Dimension D> class RenderContext;
  * the Onyx API in 2D.
  *
  */
-template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
+template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderContext<D2>
 {
   public:
     using IRenderContext<D2>::IRenderContext;
@@ -886,7 +890,7 @@ template <> class ONYX_API RenderContext<D2> final : public IRenderContext<D2>
  * the Onyx API in 3D.
  *
  */
-template <> class ONYX_API RenderContext<D3> final : public IRenderContext<D3>
+template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderContext<D3>
 {
   public:
     using IRenderContext<D3>::IRenderContext;

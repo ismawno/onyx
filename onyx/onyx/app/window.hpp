@@ -280,7 +280,7 @@ class ONYX_API Window
     TKit::Storage<RenderContext<D2>> m_RenderContext2D;
     TKit::Storage<RenderContext<D3>> m_RenderContext3D;
 
-    TKit::StaticArray128<Event> m_Events;
+    TKit::StaticArray32<Event> m_Events;
     VkSurfaceKHR m_Surface;
 
     const char *m_Name;

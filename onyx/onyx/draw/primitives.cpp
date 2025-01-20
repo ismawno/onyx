@@ -3,7 +3,7 @@
 #include "onyx/core/core.hpp"
 #include "tkit/container/storage.hpp"
 
-namespace Onyx
+namespace Onyx::Detail
 {
 template <Dimension D> using BufferLayout = TKit::Array<PrimitiveDataLayout, Primitives<D>::AMOUNT>;
 template <Dimension D> struct IndexVertexBuffers
@@ -143,4 +143,4 @@ void CreateCombinedPrimitiveBuffers() noexcept
 template struct IPrimitives<D2>;
 template struct IPrimitives<D3>;
 
-} // namespace Onyx
+} // namespace Onyx::Detail

@@ -5,7 +5,7 @@
 #include "vkit/buffer/host_visible_buffer.hpp"
 
 #ifndef ONYX_INDEX_TYPE
-#    define ONYX_INDEX_TYPE u32
+#    define ONYX_INDEX_TYPE TKit::Alias::u32
 #endif
 
 namespace Onyx
