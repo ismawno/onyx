@@ -323,7 +323,7 @@ template <Dimension D, DrawMode DMode> struct ONYX_API PolygonInstanceData
     PrimitiveDataLayout Layout;
 };
 
-TKIT_WARNING_IGNORE_PUSH
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_MSVC_WARNING_IGNORE(4324)
 
 /**
@@ -344,7 +344,7 @@ template <Dimension D, DrawMode DMode> struct ONYX_API CircleInstanceData
     f32 InnerFade;
     f32 OuterFade;
 };
-TKIT_WARNING_IGNORE_POP
+TKIT_COMPILER_WARNING_IGNORE_POP()
 
 /**
  * @brief Some push constant data that is used in the 3D case, containing the ambient color and the number of lights.

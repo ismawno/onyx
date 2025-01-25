@@ -172,7 +172,7 @@ static void RunAppExample3() noexcept
 
 int main()
 {
-    TKit::ThreadPool<std::mutex> threadPool(7);
+    TKit::ThreadPool threadPool(7);
 
     Onyx::Core::Initialize(&threadPool);
     RunStandaloneWindow();

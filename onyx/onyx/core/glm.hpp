@@ -3,6 +3,7 @@
 #include "tkit/utilities/glm.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/alias.hpp"
+#include "onyx/core/api.hpp"
 
 namespace Onyx
 {

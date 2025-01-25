@@ -15,7 +15,7 @@ void RunApp() noexcept
 
 int main()
 {
-    TKit::ThreadPool<std::mutex> threadPool{7};
+    TKit::ThreadPool threadPool{7};
     Onyx::Core::Initialize(&threadPool);
     RunApp();
     Onyx::Core::Terminate();

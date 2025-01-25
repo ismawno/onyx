@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/draw/data.hpp"
-#include "onyx/core/vma.hpp"
+#include "vkit/core/vma.hpp"
 #include "vkit/backend/physical_device.hpp"
 #include "vkit/descriptors/descriptor_pool.hpp"
 #include "vkit/descriptors/descriptor_set_layout.hpp"

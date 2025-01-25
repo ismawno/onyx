@@ -162,7 +162,7 @@ void Window::PushEvent(const Event &p_Event) noexcept
         m_Events.push_back(p_Event);
 }
 
-const TKit::StaticArray128<Event> &Window::GetNewEvents() const noexcept
+const TKit::StaticArray32<Event> &Window::GetNewEvents() const noexcept
 {
     return m_Events;
 }

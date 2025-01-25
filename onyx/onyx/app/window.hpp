@@ -218,7 +218,7 @@ class ONYX_API Window
      *
      * @return The array of new events.
      */
-    const TKit::StaticArray128<Event> &GetNewEvents() const noexcept;
+    const TKit::StaticArray32<Event> &GetNewEvents() const noexcept;
 
     void FlushEvents() noexcept;
 
