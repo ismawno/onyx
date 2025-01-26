@@ -4,30 +4,38 @@
 
 namespace Onyx
 {
-VKit::Shader CreateShader(const std::string_view p_SourcePath) noexcept
+std::string CreateShaderDefaultBinaryPath(const std::string_view p_SourcePath) noexcept
 {
     namespace fs = std::filesystem;
-    const auto createBinaryPath = [](const std::string_view p_Path) {
-        fs::path binaryPath = p_Path;
-        binaryPath = binaryPath.parent_path() / "bin" / binaryPath.filename();
-        binaryPath += ".spv";
-        return binaryPath.string();
-    };
+    fs::path binaryPath = p_SourcePath;
+    binaryPath = binaryPath.parent_path() / "bin" / binaryPath.filename();
+    binaryPath += ".spv";
+    return binaryPath.string();
+}
 
-    const std::string binaryPath = createBinaryPath(p_SourcePath);
-    if (VKit::Shader::MustCompile(p_SourcePath, binaryPath))
+VKit::Shader CreateShader(const std::string_view p_SourcePath) noexcept
+{
+    const std::string binaryPath = CreateShaderDefaultBinaryPath(p_SourcePath);
+    return CreateShader(p_SourcePath, binaryPath);
+}
+
+VKit::Shader CreateShader(const std::string_view p_SourcePath, const std::string_view p_BinaryPath,
+                          const std::string_view p_Arguments) noexcept
+{
+    if (VKit::Shader::MustCompile(p_SourcePath, p_BinaryPath))
     {
-        const i32 shresult = VKit::Shader::Compile(p_SourcePath, binaryPath);
+        const i32 shresult = VKit::Shader::Compile(p_SourcePath, p_BinaryPath, p_Arguments);
 
         TKIT_ASSERT(shresult == 0 || shresult == INT32_MAX, "[ONYX] Failed to compile shader at {}", p_SourcePath);
         TKIT_LOG_INFO_IF(shresult == 0, "[ONYX] Compiled shader: {}", p_SourcePath);
         (void)shresult;
     }
 
-    const auto result = VKit::Shader::Create(Core::GetDevice(), binaryPath);
+    const auto result = VKit::Shader::Create(Core::GetDevice(), p_BinaryPath);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
+
 const VKit::Shader &GetFullPassVertexShader() noexcept
 {
     static VKit::Shader shader{};
