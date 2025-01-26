@@ -95,6 +95,17 @@ class IApplication
         return result;
     }
 
+    /**
+     * @brief Set a new user layer to provide custom functionality.
+     *
+     * This method will delete the current user layer and replace it with a new one. If called in the middle of a frame,
+     * the operation will be deferred until the end of the frame.
+     *
+     * @tparam T User defined layer.
+     * @tparam LayerArgs Arguments to pass to the layer constructor.
+     * @param p_Args Arguments to pass to the layer constructor.
+     * @return Pointer to the new user layer.
+     */
     template <std::derived_from<UserLayer> T, typename... LayerArgs> T *SetUserLayer(LayerArgs &&...p_Args) noexcept
     {
         T *layer = new T(std::forward<LayerArgs>(p_Args)...);
