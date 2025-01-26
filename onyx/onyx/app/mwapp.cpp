@@ -68,7 +68,6 @@ u32 IMultiWindowApplication::GetWindowCount() const noexcept
 bool IMultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::IMultiWindowApplication::NextFrame");
-    setDeltaTime(p_Clock.Restart());
     if (m_Windows.empty())
     {
         TKIT_PROFILE_MARK_FRAME();
@@ -78,6 +77,7 @@ bool IMultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
     Input::PollEvents();
     processWindows();
 
+    setDeltaTime(p_Clock.Restart());
     TKIT_PROFILE_MARK_FRAME();
     return !m_Windows.empty();
 }

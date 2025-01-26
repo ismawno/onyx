@@ -230,7 +230,6 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
 
-    m_DeltaTime = p_Clock.Restart();
     Input::PollEvents();
     for (const Event &event : m_Window->GetNewEvents())
         onEvent(event);
@@ -258,6 +257,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
         TKIT_PROFILE_MARK_FRAME();
         return false;
     }
+    m_DeltaTime = p_Clock.Restart();
     TKIT_PROFILE_MARK_FRAME();
     return true;
 }
