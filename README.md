@@ -49,7 +49,7 @@ It is also very easy to include your own shaders into the Onyx's rendering setup
 ```cpp
 static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
 {
-    const VKit::Shader fragment = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
+    VKit::Shader fragment = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
 
     auto lresult = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
     VKIT_ASSERT_RESULT(lresult);
@@ -65,7 +65,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
                              .Build();
 
     const VKit::GraphicsPipeline &pipeline = presult.GetValue();
-    Onyx::Core::GetDeletionQueue().SubmitForDeletion(fragment);
+    fragment.Destroy();
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(pipeline);
 
@@ -73,7 +73,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
     return VKit::GraphicsJob(pipeline, layout);
 }
 
-static void SetupPostProcessing(Onyx::Window &p_Window) noexcept
+static void SetPostProcessing(Onyx::Window &p_Window) noexcept
 {
     struct BlurData
     {
@@ -83,7 +83,7 @@ static void SetupPostProcessing(Onyx::Window &p_Window) noexcept
         f32 Width = 800.f;
         f32 Height = 600.f;
     };
-    const VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
 
     VKit::PipelineLayout::Builder builder = p_Window.GetPostProcessing()->CreatePipelineLayoutBuilder();
 
@@ -91,12 +91,12 @@ static void SetupPostProcessing(Onyx::Window &p_Window) noexcept
     VKIT_ASSERT_RESULT(result);
     const VKit::PipelineLayout &layout = result.GetValue();
 
-    p_Window.SetupPostProcessing(layout, shader);
+    p_Window.SetPostProcessing(layout, shader);
     static BlurData blurData{};
 
     p_Window.GetPostProcessing()->UpdatePushConstantRange(0, &blurData);
 
-    Onyx::Core::GetDeletionQueue().SubmitForDeletion(shader);
+    shader.Destroy();
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
 }
 ```
@@ -112,7 +112,7 @@ specs.Height = 600;
 Onyx::Window window(specs);
 
 const VKit::GraphicsJob job = SetupCustomPipeline(window);
-SetupPostProcessing(window);
+SetPostProcessing(window);
 
 while (!window.ShouldClose())
 {

@@ -122,9 +122,9 @@ class ONYX_API FrameScheduler
      * @param p_Info Optional sampler information to use for the post-processing pipeline.
      * @return A pointer to the post-processing pipeline.
      */
-    PostProcessing *SetupPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                                        const VKit::Shader *p_VertexShader = nullptr,
-                                        const VkSamplerCreateInfo *p_Info = nullptr) noexcept;
+    PostProcessing *SetPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
+                                      const VKit::Shader *p_VertexShader = nullptr,
+                                      const VkSamplerCreateInfo *p_Info = nullptr) noexcept;
 
     PostProcessing *GetPostProcessing() noexcept;
 

@@ -113,11 +113,11 @@ std::pair<u32, u32> Window::GetPosition() const noexcept
     return {static_cast<u32>(x), static_cast<u32>(y)};
 }
 
-PostProcessing *Window::SetupPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                                            const VKit::Shader *p_VertexShader,
-                                            const VkSamplerCreateInfo *p_Info) noexcept
+PostProcessing *Window::SetPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
+                                          const VKit::Shader *p_VertexShader,
+                                          const VkSamplerCreateInfo *p_Info) noexcept
 {
-    return m_FrameScheduler->SetupPostProcessing(p_Layout, p_FragmentShader, p_VertexShader, p_Info);
+    return m_FrameScheduler->SetPostProcessing(p_Layout, p_FragmentShader, p_VertexShader, p_Info);
 }
 
 PostProcessing *Window::GetPostProcessing() noexcept

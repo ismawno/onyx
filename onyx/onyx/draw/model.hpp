@@ -86,7 +86,7 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
     /**
      * @brief Gets the vertex buffer of the model.
      *
-     * @return const VertexBuffer<D>& Reference to the vertex buffer.
+     * @return Reference to the vertex buffer.
      */
     const VertexBuffer<D> &GetVertexBuffer() const noexcept;
 
@@ -95,7 +95,7 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
      *
      * @note This function is undefined behavior if HasIndices() returns false.
      *
-     * @return const IndexBuffer& Reference to the index buffer.
+     * @return Reference to the index buffer.
      */
     const IndexBuffer &GetIndexBuffer() const noexcept; // This is UB if HasIndices returns false
 

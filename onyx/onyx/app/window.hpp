@@ -177,7 +177,7 @@ class ONYX_API Window
     /**
      * @brief Gets the position of the window on the screen.
      *
-     * @return std::pair<u32, u32> The (x, y) position of the window.
+     * @return The (x, y) position of the window.
      */
     std::pair<u32, u32> GetPosition() const noexcept;
 
@@ -195,9 +195,9 @@ class ONYX_API Window
      * @param p_Info Optional sampler information to use for the post-processing pipeline.
      * @return A pointer to the post-processing pipeline.
      */
-    PostProcessing *SetupPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                                        const VKit::Shader *p_VertexShader = nullptr,
-                                        const VkSamplerCreateInfo *p_Info = nullptr) noexcept;
+    PostProcessing *SetPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
+                                      const VKit::Shader *p_VertexShader = nullptr,
+                                      const VkSamplerCreateInfo *p_Info = nullptr) noexcept;
 
     PostProcessing *GetPostProcessing() noexcept;
 
@@ -226,7 +226,7 @@ class ONYX_API Window
      * @brief Gets the render context for the specified dimension.
      *
      * @tparam D The dimension (`D2` or `D3`).
-     * @return const RenderContext<D>* Pointer to the render context.
+     * @return Pointer to the render context.
      */
     template <Dimension D> const RenderContext<D> *GetRenderContext() const noexcept
     {
@@ -239,7 +239,7 @@ class ONYX_API Window
      * @brief Gets the render context for the specified dimension.
      *
      * @tparam D The dimension (`D2` or `D3`).
-     * @return RenderContext<D>* Pointer to the render context.
+     * @return Pointer to the render context.
      */
     template <Dimension D> RenderContext<D> *GetRenderContext() noexcept
     {

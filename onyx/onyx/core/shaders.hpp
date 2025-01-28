@@ -23,7 +23,7 @@ namespace Onyx
  * The default binary path is `<source-parent>/bin/<shader-filename>.spv`.
  *
  * @param p_SourcePath The source path.
- * @return std::string The binary path.
+ * @return The binary path.
  */
 ONYX_API std::string CreateShaderDefaultBinaryPath(std::string_view p_SourcePath) noexcept;
 
@@ -37,7 +37,7 @@ ONYX_API std::string CreateShaderDefaultBinaryPath(std::string_view p_SourcePath
  * and returns the shader module created from the binary file.
  *
  * @param p_SourcePath The path to the source file.
- * @return VKit::Shader The created shader.
+ * @return The created shader.
  */
 ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath) noexcept;
 
@@ -50,7 +50,7 @@ ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath) noexcept;
  * @param p_SourcePath The path to the source file.
  * @param p_BinaryPath The path to the binary file.
  * @param p_Arguments The arguments to pass to the `glslc` compiler.
- * @return VKit::Shader The created shader.
+ * @return The created shader.
  */
 ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath, std::string_view p_BinaryPath,
                                    std::string_view p_Arguments = "") noexcept;
@@ -61,7 +61,7 @@ ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath, std::string_vi
  * This function returns an already available full pass vertex shader that outputs the UV coordinates of the whole
  * screen to the fragment shader.
  *
- * @return const VKit::Shader& The full pass vertex shader.
+ * @return The full pass vertex shader.
  */
 ONYX_API const VKit::Shader &GetFullPassVertexShader() noexcept;
 } // namespace Onyx

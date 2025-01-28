@@ -218,10 +218,10 @@ void FrameScheduler::WaitForSubmissions() noexcept
         m_PresentTask->WaitUntilFinished();
 }
 
-PostProcessing *FrameScheduler::SetupPostProcessing(const VKit::PipelineLayout &p_Layout,
-                                                    const VKit::Shader &p_FragmentShader,
-                                                    const VKit::Shader *p_VertexShader,
-                                                    const VkSamplerCreateInfo *p_Info) noexcept
+PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,
+                                                  const VKit::Shader &p_FragmentShader,
+                                                  const VKit::Shader *p_VertexShader,
+                                                  const VkSamplerCreateInfo *p_Info) noexcept
 {
     PostProcessing::Specs specs{};
     specs.Layout = p_Layout;
