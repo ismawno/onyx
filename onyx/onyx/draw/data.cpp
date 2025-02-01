@@ -18,8 +18,8 @@ template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(const std:
     TKit::HashMap<Vertex<D>, Index> uniqueVertices;
     IndexVertexData<D> buffers;
 
-    buffers.Vertices.reserve(attrib.vertices.size() / 3);
-    buffers.Indices.reserve(shapes.size() * 3);
+    buffers.Vertices.reserve(static_cast<u32>(attrib.vertices.size() / 3));
+    buffers.Indices.reserve(static_cast<u32>(shapes.size() * 3));
 
     for (const auto &shape : shapes)
         for (const auto &index : shape.mesh.indices)
