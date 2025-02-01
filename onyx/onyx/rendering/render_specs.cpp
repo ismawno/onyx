@@ -54,9 +54,9 @@ static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkRenderPass
                              .BeginColorAttachment()
                              .EnableBlending();
 
-    if constexpr (D == D3)
+    if constexpr (D == D3 || D == D2)
         builder.EnableDepthTest().EnableDepthWrite();
-    else if constexpr (GetDrawMode<PMode>() == DrawMode::Stencil)
+    if constexpr (GetDrawMode<PMode>() == DrawMode::Stencil && D == D2)
         colorBuilder.DisableBlending();
 
     const auto stencilFlags =
