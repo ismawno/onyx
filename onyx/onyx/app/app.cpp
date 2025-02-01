@@ -61,6 +61,7 @@ void IApplication::Run() noexcept
 
 void IApplication::beginRenderImGui() noexcept
 {
+    TKIT_PROFILE_NSCOPE("Onyx::IApplication::BeginRenderImGui");
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -68,6 +69,7 @@ void IApplication::beginRenderImGui() noexcept
 
 void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
 {
+    TKIT_PROFILE_NSCOPE("Onyx::IApplication::EndRenderImGui");
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
 
