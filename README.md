@@ -245,6 +245,8 @@ Sometimes, in very rare occasions, the framework (and thus the whole program) ma
 
 ## Building
 
-The building process is straightforward. Create a `build` folder, `cd` into it, and run `cmake ..`. All available Onyx options will be displayed.
+The building process is (fortunately) very straightforward. Because of how much I hate how CMake cache works (I just don't even know what configuration I am building half of the time as soon as I am 3 or 4 `cmake` commands in), I have left some python building scripts in the [setup](https://github.com/ismawno/onyx/tree/main/setup) folder. Specifically, the [build.py](https://github.com/ismawno/onyx/blob/main/setup/build.py) file, when executed from root, will handle the entire CMake execution process for you. You can enter `python setup/build.py -h` to see the available options.
+
+If you prefer using CMake directly, that's perfectly fine as well. Create a `build` folder, `cd` into it, and run `cmake ..`. All available Onyx options will be displayed.
 
 Then compile the project with your editor/IDE of choice, and test the [hello-world](https://github.com/ismawno/onyx/blob/main/hello-world/main.cpp) example along with the demos ([single-window](https://github.com/ismawno/onyx/blob/main/single-window-demo) and [multi-window](https://github.com/ismawno/onyx/blob/main/multi-window-demo)).
