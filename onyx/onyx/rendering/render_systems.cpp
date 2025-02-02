@@ -404,6 +404,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
     // Cant just memcpy this because of alignment
     for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
         storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
+    storageBuffer.Flush();
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
