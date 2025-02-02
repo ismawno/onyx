@@ -73,10 +73,10 @@ void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
 
+    ImGui::UpdatePlatformWindows();
     // Lock the queues, as imgui requires them
     Core::LockGraphicsAndPresentQueues();
-    ImGui::UpdatePlatformWindows();
-    ImGui::RenderPlatformWindowsDefault(nullptr, p_CommandBuffer);
+    ImGui::RenderPlatformWindowsDefault(nullptr, nullptr);
     Core::UnlockGraphicsAndPresentQueues();
 }
 
