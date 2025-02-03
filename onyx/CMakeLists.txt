@@ -18,7 +18,6 @@ set(SOURCES
     onyx/draw/data.cpp
     onyx/draw/model.cpp
     onyx/app/app.cpp
-    onyx/app/mwapp.cpp
     onyx/app/window.cpp
     onyx/app/input.cpp
     onyx/app/user_layer.cpp

@@ -23,10 +23,6 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 
 FrameScheduler::~FrameScheduler() noexcept
 {
-    WaitForSubmissions();
-    // Must wait for the device. Windows/RenderContexts may be destroyed at runtime, and all its command buffers must
-    // have finished
-
     // Lock the queues to prevent any other command buffers from being submitted
     Core::DeviceWaitIdle();
     m_Resources.Destroy();
@@ -44,29 +40,6 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::BeginFrame");
     TKIT_ASSERT(!m_FrameStarted, "[ONYX] Cannot begin a new frame when there is already one in progress");
-    if (m_PresentTask) [[likely]]
-    {
-        const VkResult result = m_PresentTask->WaitForResult();
-        const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
-                                 p_Window.wasResized() || m_PresentModeChanged;
-
-        TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "[ONYX] Failed to submit command buffers");
-        if (resizeFixes)
-        {
-            recreateSwapChain(p_Window);
-            p_Window.flagResizeDone();
-            m_PresentModeChanged = false;
-            return VK_NULL_HANDLE;
-        }
-    }
-    else
-    {
-        TKit::ITaskManager *taskManager = Core::GetTaskManager();
-        m_PresentTask = taskManager->CreateTask([this](u32) {
-            TKIT_ASSERT_RETURNS(SubmitCurrentCommandBuffer(), VK_SUCCESS, "[ONYX] Failed to submit command buffers");
-            return Present();
-        });
-    }
 
     const VkResult result = AcquireNextImage();
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -89,17 +62,25 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     return m_CommandBuffers[m_FrameIndex];
 }
 
-void FrameScheduler::EndFrame(Window &) noexcept
+void FrameScheduler::EndFrame(Window &p_Window) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end a frame when there is no frame in progress");
     TKIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS,
                         "[ONYX] Failed to end command buffer");
 
-    TKit::ITaskManager *taskManager = Core::GetTaskManager();
+    TKIT_ASSERT_RETURNS(SubmitCurrentCommandBuffer(), VK_SUCCESS, "[ONYX] Failed to submit command buffers");
+    const VkResult result = Present();
+    const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
+                             p_Window.wasResized() || m_PresentModeChanged;
 
-    m_PresentTask->Reset();
-    taskManager->SubmitTask(m_PresentTask);
+    TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "[ONYX] Failed to submit command buffers");
+    if (resizeFixes)
+    {
+        recreateSwapChain(p_Window);
+        p_Window.flagResizeDone();
+        m_PresentModeChanged = false;
+    }
     m_FrameStarted = false;
 }
 
@@ -185,10 +166,6 @@ VkResult FrameScheduler::SubmitCurrentCommandBuffer() noexcept
     submitInfo.pSignalSemaphores = &m_SyncData[m_FrameIndex].RenderFinishedSemaphore;
 
     vkResetFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence);
-
-    // A nice mutex here to prevent race conditions if user is rendering concurrently to multiple windows, each with its
-    // own renderer, swap chain etcetera
-    std::scoped_lock lock(Core::GetGraphicsMutex());
     return vkQueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, m_SyncData[m_FrameIndex].InFlightFence);
 }
 VkResult FrameScheduler::Present() noexcept
@@ -208,14 +185,7 @@ VkResult FrameScheduler::Present() noexcept
     presentInfo.pImageIndices = &m_ImageIndex;
 
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
-    std::scoped_lock lock(Core::GetPresentMutex());
     return vkQueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
-}
-
-void FrameScheduler::WaitForSubmissions() noexcept
-{
-    if (m_PresentTask)
-        m_PresentTask->WaitUntilFinished();
 }
 
 PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,

@@ -37,9 +37,6 @@ static VkCommandBuffer s_ProfilingCommandBuffer;
 static VkQueue s_GraphicsQueue = VK_NULL_HANDLE;
 static VkQueue s_PresentQueue = VK_NULL_HANDLE;
 
-static std::mutex s_GraphicsMutex{};
-static std::mutex s_PresentMutex{};
-
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
 static void createDevice(const VkSurfaceKHR p_Surface) noexcept
@@ -188,7 +185,7 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
     TKIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX] Failed to initialize GLFW");
     u32 extensionCount;
     const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
-    const TKit::Span<const char *> extensionSpan(extensions, extensionCount);
+    const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);
 
     VKit::Instance::Builder builder{};
     builder.SetApplicationName("Onyx").RequireApiVersion(1, 1, 0).RequireExtensions(extensionSpan);
@@ -252,9 +249,7 @@ bool Core::IsDeviceCreated() noexcept
 }
 void Core::DeviceWaitIdle() noexcept
 {
-    LockGraphicsAndPresentQueues();
     s_Device.WaitIdle();
-    UnlockGraphicsAndPresentQueues();
 }
 
 VKit::CommandPool &Core::GetCommandPool() noexcept
@@ -341,33 +336,6 @@ VkQueue Core::GetGraphicsQueue() noexcept
 VkQueue Core::GetPresentQueue() noexcept
 {
     return s_PresentQueue;
-}
-
-std::mutex &Core::GetGraphicsMutex() noexcept
-{
-    return s_GraphicsMutex;
-}
-std::mutex &Core::GetPresentMutex() noexcept
-{
-    return s_GraphicsQueue == s_PresentQueue ? s_GraphicsMutex : s_PresentMutex;
-}
-
-void Core::LockGraphicsAndPresentQueues() noexcept
-{
-    if (s_GraphicsQueue != s_PresentQueue)
-        std::lock(s_GraphicsMutex, s_PresentMutex);
-    else
-        s_GraphicsMutex.lock();
-}
-void Core::UnlockGraphicsAndPresentQueues() noexcept
-{
-    if (s_GraphicsQueue != s_PresentQueue)
-    {
-        s_GraphicsMutex.unlock();
-        s_PresentMutex.unlock();
-    }
-    else
-        s_GraphicsMutex.unlock();
 }
 
 #ifdef TKIT_ENABLE_VULKAN_PROFILING

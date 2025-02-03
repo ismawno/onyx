@@ -10,22 +10,14 @@ namespace Onyx
 /**
  * @brief This class provides a simple application interface, with some common functionality.
  *
- * This base class can represent a single or multiple window application.
+ * This base class can represent a single or multi-window application.
  *
  */
 class IApplication
 {
   public:
-    /**
-     * @brief Construct a new IApplication object.
-     *
-     */
     IApplication() = default;
 
-    /**
-     * @brief Destroy the IApplication object.
-     *
-     */
     virtual ~IApplication() noexcept;
 
     /**
@@ -47,6 +39,8 @@ class IApplication
      */
     void Shutdown() noexcept;
 
+    TKit::Timespan GetDeltaTime() const noexcept;
+
     /**
      * @brief This method is in charge of processing and presenting the next frame for all windows.
      *
@@ -57,8 +51,6 @@ class IApplication
      * @return Whether the application still contains opened windows.
      */
     virtual bool NextFrame(TKit::Clock &p_Clock) noexcept = 0;
-
-    virtual TKit::Timespan GetDeltaTime() const noexcept = 0;
 
     /**
      * @brief Get the main window, which is always the window at index 0 in multi-window applications.
@@ -186,6 +178,7 @@ class IApplication
     void onEvent(u32 p_WindowIndex, const Event &p_Event) noexcept;
     void onImGuiRender() noexcept;
 
+    TKit::Timespan m_DeltaTime;
     bool m_DeferFlag = false;
 
   private:
@@ -223,11 +216,118 @@ class Application final : public IApplication
     const Window *GetMainWindow() const noexcept override;
     Window *GetMainWindow() noexcept override;
 
-    TKit::Timespan GetDeltaTime() const noexcept override;
-
   private:
     TKit::Storage<Window> m_Window;
-    TKit::Timespan m_DeltaTime;
+};
+
+/**
+ * @brief A multi-window application.
+ *
+ * This class provides an implementation for a multi-window application. Because of the ability of having multiple
+ * windows, the user must always explicitly open windows from the application's API, including the main (first) window
+ * before entering the rendering loop.
+ *
+ * To better manage window lifetimes, calls to `OpenWindow()` or `CloseWindow()` may be deferred if called from within
+ * an ongoing frame. Never update your state based on the calls of these functions, but rather react to the
+ * corresponding events (`WindowOpened`, `WindowClosed`) to ensure synchronization between the API and the user.
+ *
+ */
+class MultiWindowApplication final : public IApplication
+{
+    TKIT_NON_COPYABLE(MultiWindowApplication)
+  public:
+    MultiWindowApplication() = default;
+
+    /**
+     * @brief Open a new window with the given specs.
+     *
+     * @note The window addition may not take effect immediately if called in the middle of a frame. Only react to
+     * the window addition through the corresponding event (WindowOpened) unless you are sure that the window is being
+     * added outside the frame loop.
+     *
+     * @param p_Specs
+     */
+    void OpenWindow(const Window::Specs &p_Specs = {}) noexcept;
+
+    /**
+     * @brief Close the window at the given index.
+     *
+     * @note The window removal may not take effect immediately if called in the middle of a frame. Only react to
+     * the window removal through the corresponding event (WindowClosed) unless you are sure that the window is being
+     * removed outside the frame loop.
+     *
+     * @param p_Index The index of the window to close.
+     */
+    void CloseWindow(u32 p_Index) noexcept;
+
+    /**
+     * @brief Close the given window.
+     *
+     * @note The window removal may not take effect immediately if called in the middle of a frame. Only react to
+     * the window removal through the corresponding event (WindowClosed) unless you are sure that the window is being
+     * removed outside the frame loop.
+     *
+     * @param p_Window The window to close.
+     */
+    void CloseWindow(const Window *p_Window) noexcept;
+
+    /**
+     * @brief Close all windows.
+     *
+     * @note The window removal may not take effect immediately if called in the middle of a frame. Only react to
+     * the window removal through the corresponding event (WindowClosed) unless you are sure that the window is being
+     * removed outside the frame loop.
+     *
+     */
+    void CloseAllWindows() noexcept;
+
+    /**
+     * @brief Get a pointer to the window at the specified index.
+     *
+     * @param p_Index The index of the window to retrieve.
+     * @return Pointer to the window at the given index.
+     */
+    const Window *GetWindow(u32 p_Index) const noexcept;
+
+    /**
+     * @brief Get a pointer to the window at the specified index.
+     *
+     * @param p_Index The index of the window to retrieve.
+     * @return Pointer to the window at the given index.
+     */
+    Window *GetWindow(u32 p_Index) noexcept;
+
+    /**
+     * @brief Get a pointer to the main window (at `index = 0`).
+     *
+     * @return Pointer to the main window.
+     */
+    const Window *GetMainWindow() const noexcept override;
+
+    /**
+     * @brief Get a pointer to the main window (at `index = 0`).
+     *
+     * @return Pointer to the main window.
+     */
+    Window *GetMainWindow() noexcept override;
+
+    u32 GetWindowCount() const noexcept;
+
+    /**
+     * @brief Proceed to the next frame of the application.
+     *
+     * @param p_Clock The clock used to measure frame time.
+     * @return true if the application should continue running, false otherwise.
+     */
+    bool NextFrame(TKit::Clock &p_Clock) noexcept override;
+
+  private:
+    template <typename F1, typename F2>
+    void processFrame(u32 p_WindowIndex, F1 &&p_FirstDrawCalls, F2 &&p_LastDrawCalls) noexcept;
+    void processWindows() noexcept;
+
+    TKit::StaticArray8<TKit::Scope<Window>> m_Windows;
+    TKit::StaticArray4<Window::Specs> m_WindowsToAdd;
 };
 
 } // namespace Onyx

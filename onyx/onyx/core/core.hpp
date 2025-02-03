@@ -93,12 +93,6 @@ struct ONYX_API Core
     static VkQueue GetGraphicsQueue() noexcept;
     static VkQueue GetPresentQueue() noexcept;
 
-    static std::mutex &GetGraphicsMutex() noexcept;
-    static std::mutex &GetPresentMutex() noexcept;
-
-    static void LockGraphicsAndPresentQueues() noexcept;
-    static void UnlockGraphicsAndPresentQueues() noexcept;
-
     template <Dimension D> static VkPipelineLayout GetGraphicsPipelineLayout() noexcept;
 
 #ifdef TKIT_ENABLE_VULKAN_PROFILING

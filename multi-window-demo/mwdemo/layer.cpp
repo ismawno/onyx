@@ -1,11 +1,10 @@
 #include "mwdemo/layer.hpp"
-#include "onyx/app/mwapp.hpp"
 #include <imgui.h>
 #include <implot.h>
 
 namespace Onyx::Demo
 {
-MWExampleLayer::MWExampleLayer(IMultiWindowApplication *p_Application) noexcept : m_Application(p_Application)
+MWExampleLayer::MWExampleLayer(MultiWindowApplication *p_Application) noexcept : m_Application(p_Application)
 {
 }
 

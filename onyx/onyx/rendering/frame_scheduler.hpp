@@ -102,13 +102,6 @@ class ONYX_API FrameScheduler
     VkResult Present() noexcept;
 
     /**
-     * @brief Waits for `m_PresentTask` to finish.
-     *
-     * Blocks the calling thread until all command buffers have been submitted.
-     */
-    void WaitForSubmissions() noexcept;
-
-    /**
      * @brief Sets up the post-processing pipeline, which is used to apply effects to the scene after the main rendering
      * pass.
      *
@@ -191,7 +184,5 @@ class ONYX_API FrameScheduler
     u32 m_FrameIndex = 0;
     bool m_FrameStarted = false;
     bool m_PresentModeChanged = false;
-
-    TKit::Ref<TKit::Task<VkResult>> m_PresentTask;
 };
 } // namespace Onyx::Detail

@@ -242,13 +242,6 @@ class ONYX_API Window
             return m_RenderContext3D.Get();
     }
 
-    /**
-     * @brief Waits for the `FrameScheduler` to finish submitting the current frame.
-     *
-     * Blocks the calling thread until all command buffers have been submitted.
-     */
-    void WaitForFrameSubmission() noexcept;
-
     const VKit::RenderPass &GetRenderPass() const noexcept;
     u32 GetFrameIndex() const noexcept;
 
