@@ -6,7 +6,7 @@
 void RunApp() noexcept
 {
     Onyx::MultiWindowApplication app;
-    app.template SetUserLayer<Onyx::Demo::MWExampleLayer>(&app);
+    app.SetUserLayer<Onyx::Demo::MWExampleLayer>(&app);
 
     Onyx::Window::Specs spc{};
     spc.Name = "Main window";
