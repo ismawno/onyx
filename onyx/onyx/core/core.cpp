@@ -104,11 +104,6 @@ static void createProfilingContext() noexcept
     s_ProfilingContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue,
                                                             s_ProfilingCommandBuffer);
     TKIT_LOG_INFO("[ONYX] Created Vulkan profiling context");
-
-    s_DeletionQueue.Push([] {
-        TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_ProfilingContext);
-        s_CommandPool.Deallocate(s_ProfilingCommandBuffer);
-    });
 }
 #endif
 

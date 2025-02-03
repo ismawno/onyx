@@ -30,7 +30,6 @@ FrameScheduler::~FrameScheduler() noexcept
     m_NaivePostProcessingFragmentShader.Destroy();
     m_NaivePostProcessingLayout.Destroy();
     VKit::DestroySynchronizationObjects(Core::GetDevice(), m_SyncData);
-    m_CommandPool.Deallocate(m_CommandBuffers);
     m_CommandPool.Destroy();
     m_RenderPass.Destroy();
     m_SwapChain.Destroy();
