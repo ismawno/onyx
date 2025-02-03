@@ -206,13 +206,7 @@ There is more to this system, such as additional layer callbacks like `OnEvent()
 
 #### Multi-Window Application
 
-Onyx also supports a multi-window application interface, allowing many windows per application. This interface offers two implementations:
-1. **Serial**: All windows run on the main thread.
-2. **Concurrent**: Each window runs on its own dedicated thread.
-
-For more details, refer to the documentation and the [onyx/app/mwapp.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/mwapp.hpp) and [onyx/app/user_layer.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/user_layer.hpp) files.
-
-The serial implementation is more forgiving and easier to use than the concurrent one. The latter requires careful synchronization on the user’s end to avoid issues. I have minimized locking to preserve parallelism (to my humble extent), but I have not measured its performance, so use it at your own risk.
+Onyx also supports a multi-window application interface, allowing many windows per application. The main difference with the standard application is that windows must be opened manually, including the main window. For more details, refer to the documentation and the [onyx/app/mwapp.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/mwapp.hpp) and [onyx/app/user_layer.hpp](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/user_layer.hpp) files.
 
 ### Render API
 

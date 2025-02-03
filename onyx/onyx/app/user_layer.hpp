@@ -24,12 +24,6 @@ class Window;
  * @brief A base class that allows users to inject their own code into the application's lifecycle with different
  * callbacks.
  *
- * When using a concurrent multi-window application, and using the callback variants `On...(u32)`, you have guaranteed
- * synchronized execution between calls that share the same window index, and multithreaded execution between calls that
- * do not share the same window index, with the exception of `OnEvent()` calls triggered by a `WindowOpened` or
- * `WindowClosed` event. When those happen, the `OnEvent()` method is always executed on the main thread, and all other
- * window tasks are paused. This means the user is free to update its state according to the window addition/removal.
- *
  * @note In multi-window applications, users must always react to a window opening/closing in the `OnEvent()` method
  * even when it was triggered by a direct `OpenWindow()` or `CloseWindow()` call. This is because the window
  * addition/removal mechanism is deferred until it can be performed safely. In that moment, the `OnEvent()` method is
@@ -122,8 +116,7 @@ class UserLayer
     /**
      * @brief Called every frame before the `OnRender(u32)` method.
      *
-     * Behaves the same as the `OnUpdate()` method, but is called in multi-window applications. In concurrent mode, this
-     * method is called simultaneously for all windows.
+     * Behaves the same as the `OnUpdate()` method, but is called in multi-window applications.
      *
      * @note This method is not called in single window applications. Use the `OnUpdate()` method instead.
      *
@@ -137,8 +130,7 @@ class UserLayer
     /**
      * @brief Called every frame after the `OnUpdate(u32)` method.
      *
-     * Behaves the same as the `OnRender()` method, but is called in multi-window applications. In concurrent mode, this
-     * method is called simultaneously for all windows.
+     * Behaves the same as the `OnRender()` method, but is called in multi-window applications.
      *
      * This method cannot be used to issue ImGui draw calls. Use `OnImGuiRender()` for that.
      *
@@ -155,8 +147,7 @@ class UserLayer
     /**
      * @brief Called every frame after the `OnUpdate(u32)` and `OnRender(u32, VkCommandBuffer)` methods.
      *
-     * Behaves the same as the `OnLateRender()` method, but is called in multi-window applications. In concurrent mode,
-     * this method is called simultaneously for all windows.
+     * Behaves the same as the `OnLateRender()` method, but is called in multi-window applications.
      *
      * This method cannot be used to issue ImGui draw calls. Use `OnImGuiRender()` for that.
      *
@@ -173,11 +164,9 @@ class UserLayer
     /**
      * @brief A specialized method used to issue `ImGui` draw calls in multi-window applications.
      *
-     * As there is only a unique ImGui context per application (not per window), ImGui callbacks are always called once
-     * per frame in the main thread, no matter how many active windows there are. This behaviour can be problematic in
-     * the case of concurrent applications, as the user may want to display data from windows that are being processed
-     * in other threads. Synchronization between calls to this method and other `On...(u32)` methods is not guaranteed,
-     * so the user must provide their own.
+     * As there is only a unique ImGui context per application (not per window), `ImGui` callbacks are always called
+     * once per frame in the main thread, no matter how many active windows there are. The `ImGui` calls are linked to
+     * the main window.
      *
      * @note This method is not called in single window applications. Use the `OnRender()` method instead.
      *

@@ -55,16 +55,12 @@ class IApplication
     /**
      * @brief Get the main window, which is always the window at index 0 in multi-window applications.
      *
-     * In concurrent mode, that window is always handled by the main thread.
-     *
      * @return The main window at index 0.
      */
     virtual const Window *GetMainWindow() const noexcept = 0;
 
     /**
      * @brief Get the main window, which is always the window at index 0.
-     *
-     * In concurrent mode, that window is always handled by the main thread.
      *
      * @return The main window at index 0.
      */
