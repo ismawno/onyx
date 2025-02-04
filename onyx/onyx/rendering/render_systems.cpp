@@ -25,13 +25,15 @@ static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferI
     return p_OldSet;
 }
 
-template <typename F> static void forEach(const u32 p_Start, const u32 p_End, F &&p_Function) noexcept
+template <typename F1, typename F2>
+static void forEach(const u32 p_Start, const u32 p_End, F1 &&p_Function, F2 &&p_OnWait) noexcept
 {
     TKit::ITaskManager *taskManager = Core::GetTaskManager();
     const u32 partitions = taskManager->GetThreadCount();
     TKit::Array<TKit::Ref<TKit::Task<void>>, ONYX_MAX_THREADS> tasks;
 
-    TKit::ForEachMainThreadLead(*taskManager, p_Start, p_End, tasks.begin(), partitions, std::forward<F>(p_Function));
+    TKit::ForEachMainThreadLead(*taskManager, p_Start, p_End, tasks.begin(), partitions, std::forward<F1>(p_Function));
+    p_OnWait();
     for (u32 i = 0; i < partitions - 1; ++i)
         tasks[i]->WaitUntilFinished();
 }
@@ -128,16 +130,19 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
         const u32 size = data.size();
 
         // This may not be that good if a lot of models exist
-        forEach(0, size, [&storageBuffer, &data, firstInstance](const u32 p_Start, const u32 p_End, const u32) {
-            for (u32 i = p_Start; i < p_End; ++i)
-                storageBuffer.WriteAt(i + firstInstance, &data[i]);
-        });
-
-        model.Bind(p_Info.CommandBuffer);
-        if (model.HasIndices())
-            model.DrawIndexed(p_Info.CommandBuffer, firstInstance + size, firstInstance);
-        else
-            model.Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
+        forEach(
+            0, size,
+            [&storageBuffer, &data, firstInstance](const u32 p_Start, const u32 p_End, const u32) {
+                for (u32 i = p_Start; i < p_End; ++i)
+                    storageBuffer.WriteAt(i + firstInstance, &data[i]);
+            },
+            [&p_Info, &model, size, firstInstance]() {
+                model.Bind(p_Info.CommandBuffer);
+                if (model.HasIndices())
+                    model.DrawIndexed(p_Info.CommandBuffer, firstInstance + size, firstInstance);
+                else
+                    model.Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
+            });
         firstInstance += size;
     }
     storageBuffer.Flush();
@@ -216,14 +221,17 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
             continue;
 
         const u32 size = m_HostInstanceData[i].size();
-        forEach(0, size, [&storageBuffer, &data, firstInstance](const u32 p_Start, const u32 p_End, const u32) {
-            for (u32 i = p_Start; i < p_End; ++i)
-                storageBuffer.WriteAt(i + firstInstance, &data[i]);
-        });
-
-        const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
-        vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart,
-                         firstInstance);
+        forEach(
+            0, size,
+            [&storageBuffer, &data, firstInstance](const u32 p_Start, const u32 p_End, const u32) {
+                for (u32 i = p_Start; i < p_End; ++i)
+                    storageBuffer.WriteAt(i + firstInstance, &data[i]);
+            },
+            [&p_Info, i, firstInstance, size]() {
+                const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
+                vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart,
+                                 layout.VerticesStart, firstInstance);
+            });
 
         firstInstance += size;
     }
@@ -411,21 +419,24 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
 
-    forEach(0, m_HostInstanceData.size(), [&storageBuffer, this](const u32 p_Start, const u32 p_End, const u32) {
-        for (u32 i = p_Start; i < p_End; ++i)
-            storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
-    });
+    forEach(
+        0, m_HostInstanceData.size(),
+        [&storageBuffer, this](const u32 p_Start, const u32 p_End, const u32) {
+            for (u32 i = p_Start; i < p_End; ++i)
+                storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
+        },
+        [this, &p_Info]() {
+            m_Pipeline.Bind(p_Info.CommandBuffer);
+            if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
+                pushConstantData(p_Info);
+
+            const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
+            bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
+
+            const u32 size = m_HostInstanceData.size();
+            vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);
+        });
     storageBuffer.Flush();
-
-    m_Pipeline.Bind(p_Info.CommandBuffer);
-    if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        pushConstantData(p_Info);
-
-    const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
-
-    const u32 size = m_HostInstanceData.size();
-    vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush() noexcept
