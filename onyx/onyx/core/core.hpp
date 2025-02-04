@@ -21,8 +21,8 @@
 #    define ONYX_MAX_FRAMES_IN_FLIGHT 2
 #endif
 
-#ifndef ONYX_MAX_THREADS
-#    define ONYX_MAX_THREADS 16
+#ifndef ONYX_MAX_WORKER_THREADS
+#    define ONYX_MAX_WORKER_THREADS 15
 #endif
 
 namespace TKit

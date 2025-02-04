@@ -29,8 +29,8 @@ template <typename F1, typename F2>
 static void forEach(const u32 p_Start, const u32 p_End, F1 &&p_Function, F2 &&p_OnWait) noexcept
 {
     TKit::ITaskManager *taskManager = Core::GetTaskManager();
-    const u32 partitions = taskManager->GetThreadCount();
-    TKit::Array<TKit::Ref<TKit::Task<void>>, ONYX_MAX_THREADS> tasks;
+    const u32 partitions = taskManager->GetThreadCount() + 1;
+    TKit::Array<TKit::Ref<TKit::Task<void>>, ONYX_MAX_WORKER_THREADS> tasks;
 
     TKit::ForEachMainThreadLead(*taskManager, p_Start, p_End, tasks.begin(), partitions, std::forward<F1>(p_Function));
     p_OnWait();
