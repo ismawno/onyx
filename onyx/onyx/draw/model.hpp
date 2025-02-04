@@ -15,7 +15,9 @@ namespace Onyx
  *
  * This class encapsulates vertex and optional index data,
  * and provides methods for binding and drawing the model.
- * It is not intended to be modified after creation.
+ *
+ * It is not intended to be modified after creation. It must be manually destroyed when no longer needed using the
+ * `Destroy()` method.
  *
  * @tparam D The dimensionality of the model (`D2` or `D3`).
  */
@@ -45,6 +47,11 @@ template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
     // TODO: Make sure no redundant bind calls are made
     // These bind and draw commands operate with a single vertex and index buffer. Not ideal when instancing could be
     // used. Plus, the same buffer may be bound multiple times if this is not handled with care
+
+    /**
+     * @brief Destroys the model and releases its resources.
+     */
+    void Destroy() noexcept;
 
     /**
      * @brief Binds the vertex (and index) buffers to the given command buffer.

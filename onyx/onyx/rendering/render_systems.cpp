@@ -2,6 +2,7 @@
 #include "onyx/rendering/render_systems.hpp"
 #include "vkit/descriptors/descriptor_set.hpp"
 #include "tkit/utilities/math.hpp"
+#include "tkit/multiprocessing/for_each.hpp"
 
 namespace Onyx::Detail
 {
@@ -24,15 +25,31 @@ static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferI
     return p_OldSet;
 }
 
+template <typename F> static void forEach(const u32 p_Start, const u32 p_End, F &&p_Function) noexcept
+{
+    TKit::ITaskManager *taskManager = Core::GetTaskManager();
+    const u32 partitions = taskManager->GetThreadCount();
+    TKit::Array<TKit::Ref<TKit::Task<void>>, ONYX_MAX_THREADS> tasks;
+
+    TKit::ForEachMainThreadLead(*taskManager, p_Start, p_End, tasks.begin(), partitions, std::forward<F>(p_Function));
+    for (u32 i = 0; i < partitions - 1; ++i)
+        tasks[i]->WaitUntilFinished();
+}
+
+template <typename T> static void initializeRenderer(T &p_DeviceInstanceData) noexcept
+{
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    {
+        const VkDescriptorBufferInfo info = p_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
+        p_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
+    }
+}
+
 template <Dimension D, PipelineMode PMode>
 MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_Pipeline = Pipeline<D, PMode>::CreateMeshPipeline(p_RenderPass);
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-    {
-        const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
-        m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
-    }
+    initializeRenderer(m_DeviceInstanceData);
 }
 
 template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer() noexcept
@@ -97,13 +114,6 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
         return;
     TKIT_PROFILE_NSCOPE("MeshRenderer::Render");
 
-    auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
-    u32 index = 0;
-    for (const auto &[model, data] : m_HostInstanceData)
-        for (const auto &instanceData : data)
-            storageBuffer.WriteAt(index++, &instanceData);
-    storageBuffer.Flush();
-
     m_Pipeline.Bind(p_Info.CommandBuffer);
     if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
         pushConstantData(p_Info);
@@ -111,10 +121,17 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
     bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
 
+    auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
     u32 firstInstance = 0;
     for (const auto &[model, data] : m_HostInstanceData)
     {
         const u32 size = data.size();
+
+        // This may not be that good if a lot of models exist
+        forEach(0, size, [&storageBuffer, &data, firstInstance](const u32 p_Start, const u32 p_End, const u32) {
+            for (u32 i = p_Start; i < p_End; ++i)
+                storageBuffer.WriteAt(i + firstInstance, &data[i]);
+        });
 
         model.Bind(p_Info.CommandBuffer);
         if (model.HasIndices())
@@ -123,6 +140,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
             model.Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
         firstInstance += size;
     }
+    storageBuffer.Flush();
 }
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
@@ -136,12 +154,7 @@ template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_Pipeline = Pipeline<D, PMode>::CreateMeshPipeline(p_RenderPass);
-
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-    {
-        const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
-        m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
-    }
+    initializeRenderer(m_DeviceInstanceData);
 }
 
 template <Dimension D, PipelineMode PMode> PrimitiveRenderer<D, PMode>::~PrimitiveRenderer() noexcept
@@ -177,12 +190,10 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
 
     MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
 
-    // Cant just memcpy this because of alignment
     u32 index = 0;
     for (const auto &instanceData : m_HostInstanceData)
         for (const auto &data : instanceData)
             storageBuffer.WriteAt(index++, &data);
-    storageBuffer.Flush();
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
@@ -200,15 +211,23 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     u32 firstInstance = 0;
     for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
     {
-        if (m_HostInstanceData[i].empty())
+        const auto &data = m_HostInstanceData[i];
+        if (data.empty())
             continue;
-        const u32 size = m_HostInstanceData[i].size();
-        const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
 
+        const u32 size = m_HostInstanceData[i].size();
+        forEach(0, size, [&storageBuffer, &data, firstInstance](const u32 p_Start, const u32 p_End, const u32) {
+            for (u32 i = p_Start; i < p_End; ++i)
+                storageBuffer.WriteAt(i + firstInstance, &data[i]);
+        });
+
+        const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
         vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart,
                          firstInstance);
+
         firstInstance += size;
     }
+    storageBuffer.Flush();
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flush() noexcept
@@ -223,12 +242,7 @@ template <Dimension D, PipelineMode PMode>
 PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_Pipeline = Pipeline<D, PMode>::CreateMeshPipeline(p_RenderPass);
-
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-    {
-        const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
-        m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
-    }
+    initializeRenderer(m_DeviceInstanceData);
 }
 
 template <Dimension D, PipelineMode PMode> PolygonRenderer<D, PMode>::~PolygonRenderer() noexcept
@@ -348,11 +362,7 @@ template <Dimension D, PipelineMode PMode>
 CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_Pipeline = Pipeline<D, PMode>::CreateCirclePipeline(p_RenderPass);
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-    {
-        const VkDescriptorBufferInfo info = m_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
-        m_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
-    }
+    initializeRenderer(m_DeviceInstanceData);
 }
 
 template <Dimension D, PipelineMode PMode> CircleRenderer<D, PMode>::~CircleRenderer() noexcept
@@ -401,9 +411,10 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
 
-    // Cant just memcpy this because of alignment
-    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
-        storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
+    forEach(0, m_HostInstanceData.size(), [&storageBuffer, this](const u32 p_Start, const u32 p_End, const u32) {
+        for (u32 i = p_Start; i < p_End; ++i)
+            storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
+    });
     storageBuffer.Flush();
 
     m_Pipeline.Bind(p_Info.CommandBuffer);

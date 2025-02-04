@@ -15,8 +15,7 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
     m_InFlightImages.resize(m_SwapChain.GetInfo().ImageData.size(), VK_NULL_HANDLE);
     createRenderPass();
     createProcessingEffects();
-    createCommandPool();
-    createCommandBuffers();
+    createCommandData();
     const auto result = VKit::CreateSynchronizationObjects(Core::GetDevice(), m_SyncData);
     VKIT_ASSERT_VULKAN_RESULT(result);
 }
@@ -30,7 +29,9 @@ FrameScheduler::~FrameScheduler() noexcept
     m_NaivePostProcessingFragmentShader.Destroy();
     m_NaivePostProcessingLayout.Destroy();
     VKit::DestroySynchronizationObjects(Core::GetDevice(), m_SyncData);
-    m_CommandPool.Destroy();
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+        m_CommandPools[i].Destroy();
+
     m_RenderPass.Destroy();
     m_SwapChain.Destroy();
 }
@@ -53,8 +54,9 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    TKIT_ASSERT_RETURNS(vkResetCommandBuffer(m_CommandBuffers[m_FrameIndex], 0), VK_SUCCESS,
-                        "[ONYX] Failed to reset command buffer");
+    const auto cmdres = m_CommandPools[m_FrameIndex].Reset();
+    VKIT_ASSERT_VULKAN_RESULT(cmdres);
+
     TKIT_ASSERT_RETURNS(vkBeginCommandBuffer(m_CommandBuffers[m_FrameIndex], &beginInfo), VK_SUCCESS,
                         "[ONYX] Failed to begin command buffer");
 
@@ -87,9 +89,7 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 {
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot begin render pass if a frame is not in progress");
 
-    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-    const VkExtent2D extent = info.Extent;
-
+    const VkExtent2D extent = m_SwapChain.GetInfo().Extent;
     VkRenderPassBeginInfo passInfo{};
     passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     passInfo.renderPass = m_RenderPass;
@@ -118,7 +118,7 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
 
     VkRect2D scissor;
     scissor.offset = {0, 0};
-    scissor.extent = {extent.width, extent.height};
+    scissor.extent = extent;
 
     vkCmdSetViewport(m_CommandBuffers[m_FrameIndex], 0, 1, &viewport);
     vkCmdSetScissor(m_CommandBuffers[m_FrameIndex], 0, 1, &scissor);
@@ -366,27 +366,22 @@ void FrameScheduler::createProcessingEffects() noexcept
     setupNaivePostProcessing();
 }
 
-void FrameScheduler::createCommandPool() noexcept
+void FrameScheduler::createCommandData() noexcept
 {
-    VKit::CommandPool::Specs specs{};
-    specs.QueueFamilyIndex = Core::GetDevice().GetPhysicalDevice().GetInfo().GraphicsIndex;
-    specs.Flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    {
+        VKit::CommandPool::Specs specs{};
+        specs.QueueFamilyIndex = Core::GetDevice().GetPhysicalDevice().GetInfo().GraphicsIndex;
+        specs.Flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 
-    const auto result = VKit::CommandPool::Create(Core::GetDevice(), specs);
-    VKIT_ASSERT_RESULT(result);
-    m_CommandPool = result.GetValue();
-}
+        const auto result = VKit::CommandPool::Create(Core::GetDevice(), specs);
+        VKIT_ASSERT_RESULT(result);
+        m_CommandPools[i] = result.GetValue();
 
-void FrameScheduler::createCommandBuffers() noexcept
-{
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = m_CommandPool;
-    allocInfo.commandBufferCount = ONYX_MAX_FRAMES_IN_FLIGHT;
-
-    TKIT_ASSERT_RETURNS(vkAllocateCommandBuffers(Core::GetDevice(), &allocInfo, m_CommandBuffers.data()), VK_SUCCESS,
-                        "[ONYX] Failed to create command buffers");
+        const auto cmdres = m_CommandPools[i].Allocate();
+        VKIT_ASSERT_RESULT(cmdres);
+        m_CommandBuffers[i] = cmdres.GetValue();
+    }
 }
 
 void FrameScheduler::setupNaivePostProcessing() noexcept

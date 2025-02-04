@@ -314,8 +314,11 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 
     for (u32 i = 0; i < m_DirectionalLights.size(); ++i)
         m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].WriteAt(i, &m_DirectionalLights[i]);
+    m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].Flush();
+
     for (u32 i = 0; i < m_PointLights.size(); ++i)
         m_DeviceLightData.PointLightBuffers[m_FrameIndex].WriteAt(i, &m_PointLights[i]);
+    m_DeviceLightData.PointLightBuffers[m_FrameIndex].Flush();
 
     m_MeshRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
     m_PrimitiveRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);

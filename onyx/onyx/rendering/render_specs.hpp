@@ -33,7 +33,7 @@ ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept;
  */
 ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept;
 
-// VERY CLUNKY: 3 out of 4 possible instantiations of MaterialData and RenderInfo are identical
+// VERY CLUNKY: 3 out of 4 possible instantiations of `MaterialData` and `RenderInfo` are identical
 
 /**
  * @brief The `MaterialData` struct is a simple collection of data that represents the material of a shape.
@@ -187,7 +187,7 @@ template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
 }
 
 /**
- * @brief The RenderInfo is a small struct containing information the renderers need to draw their shapes.
+ * @brief The `RenderInfo` is a small struct containing information the renderers need to draw their shapes.
  *
  * It contains the current command buffer, the current frame index, different descriptor sets to bind to (storage
  * buffers containing light information in the 3D case, for example), and some other global information.

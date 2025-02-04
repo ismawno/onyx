@@ -52,7 +52,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
     /**
      * @brief Clear all of the stored onyx draw calls.
      *
-     * This method can be called optionally. Not doing do will persist the onyx draw calls until the next frame.
+     * This method can be called optionally. Not doing so will persist the onyx draw calls until the next frame.
      *
      */
     void Flush() noexcept;

@@ -127,24 +127,6 @@ class ONYX_API FrameScheduler
      */
     void RemovePostProcessing() noexcept;
 
-    /**
-     * @brief Immediately submits a command buffer for execution.
-     *
-     * @param p_Submission The callable to execute on the command buffer.
-     */
-    template <typename F> void ImmediateSubmission(F &&p_Submission) const noexcept
-    {
-        const auto cmdresult = m_CommandPool.BeginSingleTimeCommands();
-        VKIT_ASSERT_RESULT(cmdresult);
-
-        const VkCommandBuffer cmd = cmdresult.GetValue();
-        std::forward<F>(p_Submission)(cmd);
-        const auto result =
-            m_CommandPool.EndSingleTimeCommands(cmd, Core::GetDevice().GetQueue(VKit::QueueType::Graphics));
-
-        VKIT_ASSERT_VULKAN_RESULT(result);
-    }
-
     const VKit::SwapChain &GetSwapChain() const noexcept;
     const VKit::RenderPass &GetRenderPass() const noexcept;
 
@@ -158,13 +140,11 @@ class ONYX_API FrameScheduler
     void recreateSwapChain(Window &p_Window) noexcept;
     void createRenderPass() noexcept;
     void createProcessingEffects() noexcept;
-    void createCommandPool() noexcept;
-    void createCommandBuffers() noexcept;
+    void createCommandData() noexcept;
 
     void setupNaivePostProcessing() noexcept;
     TKit::StaticArray4<VkImageView> getIntermediateAttachmentImageViews() const noexcept;
 
-    VKit::CommandPool m_CommandPool;
     VKit::SwapChain m_SwapChain;
     VKit::RenderPass m_RenderPass;
     VKit::RenderPass::Resources m_Resources;
@@ -177,6 +157,7 @@ class ONYX_API FrameScheduler
 
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
+    PerFrameData<VKit::CommandPool> m_CommandPools;
     PerFrameData<VkCommandBuffer> m_CommandBuffers;
     PerFrameData<VKit::SyncData> m_SyncData{};
 

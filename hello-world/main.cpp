@@ -134,6 +134,10 @@ static void RunAppExample2() noexcept
 
     Onyx::Application app(specs);
 
+    const auto result = Onyx::Model<D2>::Load(ONYX_ROOT_PATH "/onyx/models/square.obj");
+    VKIT_ASSERT_RESULT(result);
+    Onyx::Model<D2> square = result.GetValue();
+
     TKit::Clock clock;
     app.Startup();
     while (app.NextFrame(clock))
@@ -142,8 +146,9 @@ static void RunAppExample2() noexcept
         context->Flush(Onyx::Color::BLACK);
 
         context->Fill(Onyx::Color::RED);
-        context->Square();
+        context->Mesh(square);
     }
+    square.Destroy();
     app.Shutdown();
 }
 

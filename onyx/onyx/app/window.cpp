@@ -16,8 +16,9 @@ Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_
 {
     createWindow(p_Specs);
 
-    m_RenderContext2D.Construct(this, m_FrameScheduler->GetRenderPass());
-    m_RenderContext3D.Construct(this, m_FrameScheduler->GetRenderPass());
+    const VkRenderPass renderPass = m_FrameScheduler->GetRenderPass();
+    m_RenderContext2D.Construct(this, renderPass);
+    m_RenderContext3D.Construct(this, renderPass);
 }
 
 Window::~Window() noexcept

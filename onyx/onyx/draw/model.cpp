@@ -58,6 +58,13 @@ Model<D>::Model(const VertexBuffer<D> &p_VertexBuffer, const IndexBuffer &p_Inde
 {
 }
 
+template <Dimension D> void Model<D>::Destroy() noexcept
+{
+    m_VertexBuffer.Destroy();
+    if (m_IndexBuffer)
+        m_IndexBuffer.Destroy();
+}
+
 template <Dimension D> void Model<D>::Bind(const VkCommandBuffer p_CommandBuffer) const noexcept
 {
     m_VertexBuffer.BindAsVertexBuffer(p_CommandBuffer);
