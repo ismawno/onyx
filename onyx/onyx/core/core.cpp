@@ -5,7 +5,7 @@
 #include "onyx/draw/primitives.hpp"
 #include "onyx/rendering/render_specs.hpp"
 #include "onyx/core/shaders.hpp"
-#include "tkit/core/logging.hpp"
+#include "tkit/utils/logging.hpp"
 
 #include "onyx/core/glfw.hpp"
 

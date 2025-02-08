@@ -3,7 +3,7 @@
 #include "onyx/app/input.hpp"
 #include "onyx/app/window.hpp"
 
-#include "tkit/utilities/math.hpp"
+#include "tkit/utils/math.hpp"
 
 namespace Onyx
 {

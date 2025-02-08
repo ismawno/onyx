@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tkit/utilities/dimension.hpp"
+#include "tkit/utils/dimension.hpp"
 
 // This utility is used to provide 2 different APIs (2D and 3D) with as little code duplication as possible
 

@@ -2,7 +2,7 @@
 #include "onyx/draw/model.hpp"
 #include "onyx/draw/data.hpp"
 #include "onyx/core/core.hpp"
-#include "tkit/utilities/hash.hpp"
+#include "tkit/utils/hash.hpp"
 
 namespace Onyx
 {

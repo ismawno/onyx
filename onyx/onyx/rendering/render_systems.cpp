@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_systems.hpp"
 #include "vkit/descriptors/descriptor_set.hpp"
-#include "tkit/utilities/math.hpp"
+#include "tkit/utils/math.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
 
 namespace Onyx::Detail

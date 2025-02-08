@@ -3,7 +3,7 @@
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/draw/color.hpp"
-#include "tkit/core/logging.hpp"
+#include "tkit/utils/logging.hpp"
 
 namespace Onyx
 {

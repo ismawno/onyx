@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/draw/color.hpp"
-#include "tkit/core/logging.hpp"
-#include "tkit/utilities/math.hpp"
+#include "tkit/utils/logging.hpp"
+#include "tkit/utils/math.hpp"
 #include <sstream>
 
 namespace Onyx

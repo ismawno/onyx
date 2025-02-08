@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tkit/core/api.hpp"
+#include "tkit/preprocessor/system.hpp"
 
 #ifdef TKIT_OS_WINDOWS
 #    ifdef ONYX_SHARED_LIBRARY

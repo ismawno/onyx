@@ -4,7 +4,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/draw/color.hpp"
 #include "tkit/container/static_array.hpp"
-#include "tkit/utilities/hash.hpp"
+#include "tkit/utils/hash.hpp"
 
 #include <vulkan/vulkan.h>
 

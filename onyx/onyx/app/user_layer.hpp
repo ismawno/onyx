@@ -2,7 +2,7 @@
 
 #include "onyx/core/alias.hpp"
 #include "onyx/core/dimension.hpp"
-#include "tkit/core/non_copyable.hpp"
+#include "tkit/utils/non_copyable.hpp"
 #include "tkit/memory/ptr.hpp"
 #include "tkit/container/static_array.hpp"
 #include <concepts>

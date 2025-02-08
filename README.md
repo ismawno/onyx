@@ -233,6 +233,10 @@ Onyx relies on several dependencies for platform-independent windowing, graphics
 - [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader): Library for loading `.obj` models.
 - [vulkit](https://github.com/ismawno/vulkit): A Vulkan library I have developed.
 
+## Versioning
+
+As some Onyx dependencies are being developed by me and are under constant change, I can only guarantee this project will build from the `main` branch or a specific tagged commit. This is because such dependencies are fetched with `CMake`'s `FetchContent` module with the `GIT_TAG` parameter set to `main` for all commits except for tagged ones. This makes my life easier when it comes to updating the dependencies according to my needs.
+
 ## Known bugs -- SOLVED --
 
 Sometimes, in very rare occasions, the framework (and thus the whole program) may experience a crash (segfault) when shutting down the application. I have seen this only happen in release/distribution builds, where optimizations are on and debug symbols are rarely enabled. I did manage to catch the crash with the debugger once. I even thought I knew what was happening and added a fix, but it didn't work... The crash happens at the last call to `vkDeviceWaitIdle()`, which is called by the `Onyx::Core::Shutdown()` method. As it only happens on program shutdown, it should not affect the user experience in any way. It does annoy me that the application may not exit gracefully sometimes, but I have decided to leave it as is for now.
