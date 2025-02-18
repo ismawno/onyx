@@ -7,6 +7,8 @@
 #include "onyx/rendering/frame_scheduler.hpp"
 
 #include "tkit/container/storage.hpp"
+#include "tkit/profiling/macros.hpp"
+#include "tkit/profiling/vulkan.hpp"
 
 #include "onyx/core/glfw.hpp"
 

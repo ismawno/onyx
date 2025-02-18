@@ -3,6 +3,7 @@
 #include "vkit/descriptors/descriptor_set.hpp"
 #include "tkit/utils/math.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
+#include "tkit/profiling/macros.hpp"
 
 namespace Onyx::Detail
 {
