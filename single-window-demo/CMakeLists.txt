@@ -8,9 +8,9 @@ set(SOURCES
 
 add_executable(onyx-sw-demo ${SOURCES})
 if (MSVC)
-    configure_compile_link_options(onyx-sw-demo FLAGS /W4 /WX)
+    tkit_configure_compile_link_options(onyx-sw-demo FLAGS /W4 /WX)
 else()
-    configure_compile_link_options(onyx-sw-demo FLAGS -Wall -Wextra -Wpedantic -Werror)
+    tkit_configure_compile_link_options(onyx-sw-demo FLAGS -Wall -Wextra -Wpedantic -Werror)
 endif()
 
 target_link_libraries(onyx-sw-demo PRIVATE onyx-demo-utils)

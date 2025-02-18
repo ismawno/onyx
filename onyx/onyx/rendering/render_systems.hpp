@@ -11,7 +11,7 @@
 namespace Onyx::Detail
 {
 /**
- * @brief Responsible for handling all user draw calls that involve meshes built from a Model instance.
+ * @brief Responsible for handling all user draw calls that involve meshes built from a `Model` instance.
  *
  * User draw calls will be stored and then recorded in a command buffer when the render step begins.
  * This renderer uses instanced rendering to draw multiple instances of the same model in a single draw call.
@@ -72,7 +72,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
  *
  * User draw calls will be stored and then recorded in a command buffer when the render step begins.
  * This renderer uses instanced rendering to draw multiple instances of the same primitive in a single draw call.
- * All of the primitives geometry data is stored in two uniques index and vertex buffers created at the beginning of the
+ * All of the primitives geometry data is stored in two unique index and vertex buffers created at the beginning of the
  * program.
  *
  */

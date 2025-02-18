@@ -27,7 +27,7 @@ class IApplication
      * Calling this method more than once will result in undefined behaviour or a crash.
      *
      */
-    virtual void Startup() noexcept;
+    void Startup() noexcept;
 
     /**
      * @brief Shutdown the application, clean up some resources and call the `OnShutdown()` method of all layers.

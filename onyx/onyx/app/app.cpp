@@ -93,57 +93,57 @@ void IApplication::updateUserLayerPointer() noexcept
 
 void IApplication::onStart() noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnStart();
 }
 void IApplication::onShutdown() noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnShutdown();
 }
 void IApplication::onUpdate() noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnUpdate();
 }
 void IApplication::onRender(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnRender(p_CommandBuffer);
 }
 void IApplication::onLateRender(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnLateRender(p_CommandBuffer);
 }
 void IApplication::onEvent(const Event &p_Event) noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnEvent(p_Event);
 }
 void IApplication::onUpdate(const u32 p_WindowIndex) noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnUpdate(p_WindowIndex);
 }
 void IApplication::onRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnRender(p_WindowIndex, p_CommandBuffer);
 }
 void IApplication::onLateRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnLateRender(p_WindowIndex, p_CommandBuffer);
 }
 void IApplication::onEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnEvent(p_WindowIndex, p_Event);
 }
 void IApplication::onImGuiRender() noexcept
 {
-    if (m_UserLayer)
+    if (m_UserLayer) [[likely]]
         m_UserLayer->OnImGuiRender();
 }
 

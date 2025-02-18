@@ -75,7 +75,7 @@ template <Dimension D> class ONYX_API IRenderContext
      * It is meant to be called at the beginning of the frame, but it is not required to do so in case you want to
      * persist Onyx draw calls made in older frames.
      *
-     * It calls all of the renderer's Flush() methods.
+     * It calls all of the renderer's `Flush()` methods.
      *
      */
     void FlushDrawData() noexcept;
@@ -110,20 +110,20 @@ template <Dimension D> class ONYX_API IRenderContext
     }
 
     /**
-     * @brief Call both FlushDrawData() and FlushState().
+     * @brief Call both `FlushDrawData()` and `FlushState()`.
      *
      */
     void Flush() noexcept;
 
     /**
-     * @brief Call both FlushDrawData() and FlushState(), and sets the background color.
+     * @brief Call both `FlushDrawData()` and `FlushState()`, and sets the background color.
      *
      * @param p_Color The background color to set.
      */
     void Flush(const Color &p_Color) noexcept;
 
     /**
-     * @brief Call both FlushDrawData() and FlushState(), and sets the background color.
+     * @brief Call both `FlushDrawData()` and `FlushState()`, and sets the background color.
      *
      * @param p_ColorArgs Arguments to construct the background color.
      */

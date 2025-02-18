@@ -8,9 +8,9 @@ set(SOURCES
 
 add_library(onyx-demo-utils STATIC ${SOURCES})
 if (MSVC)
-    configure_compile_link_options(onyx-demo-utils FLAGS /W4 /WX)
+    tkit_configure_compile_link_options(onyx-demo-utils FLAGS /W4 /WX)
 else()
-    configure_compile_link_options(onyx-demo-utils FLAGS -Wall -Wextra -Wpedantic -Werror)
+    tkit_configure_compile_link_options(onyx-demo-utils FLAGS -Wall -Wextra -Wpedantic -Werror)
 endif()
 
 target_link_libraries(onyx-demo-utils PUBLIC onyx)
