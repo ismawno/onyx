@@ -128,12 +128,10 @@ template <> std::string Color::ToHexadecimal<std::string>(const bool p_Alpha) co
     std::stringstream ss;
     ss << std::hex << ToHexadecimal<u32>(p_Alpha);
     std::string hex = ss.str();
-    if (p_Alpha)
-        while (hex.size() < 8)
-            hex = "0" + hex;
-    else
-        while (hex.size() < 6)
-            hex = "0" + hex;
+    const u32 size = p_Alpha ? 8 : 6;
+    while (hex.size() < size)
+        hex = "0" + hex;
+
     return hex;
 }
 
