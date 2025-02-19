@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tkit/serialization/yaml.hpp"
+#include "tkit/serialization/yaml/codec.hpp"
 #include "onyx/draw/color.hpp"
 
 template <> struct TKit::Yaml::Codec<Onyx::Color>
