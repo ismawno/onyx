@@ -18,8 +18,7 @@ template <> struct TKit::Yaml::Codec<Onyx::Color>
             if (color[0] == '#')
             {
                 const std::string hex = color.substr(1);
-                TKIT_ASSERT(hex.size() == 6 || hex.size() == 8, "[ONYX] Invalid hexadecimal color");
-                p_Color = Onyx::Color::FromHexadecimal(hex, hex.size() == 8);
+                p_Color = Onyx::Color::FromHexadecimal(hex);
                 return true;
             }
             p_Color = Onyx::Color::FromString(color);
