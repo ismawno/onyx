@@ -48,6 +48,11 @@ void IApplication::Shutdown() noexcept
     m_Terminated = true;
 }
 
+void IApplication::Quit() noexcept
+{
+    m_QuitFlag = true;
+}
+
 void IApplication::ApplyTheme() noexcept
 {
     TKIT_ASSERT(m_Theme, "[ONYX] No theme has been set. Set one with SetTheme");
@@ -229,9 +234,26 @@ Application::Application(const Window::Specs &p_WindowSpecs) noexcept
     initializeImGui(*m_Window);
 }
 
+void Application::Shutdown() noexcept
+{
+    if (m_WindowAlive)
+    {
+        shutdownImGui();
+        m_Window.Destruct();
+        m_WindowAlive = false;
+    }
+    IApplication::Shutdown();
+}
+
 bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
+    if (m_QuitFlag) [[unlikely]]
+    {
+        m_QuitFlag = false;
+        TKIT_PROFILE_MARK_FRAME();
+        return false;
+    }
 
     m_DeferFlag = true;
     Input::PollEvents();
@@ -256,10 +278,11 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
     m_DeferFlag = false;
     updateUserLayerPointer();
 
-    if (m_Window->ShouldClose())
+    if (m_Window->ShouldClose()) [[unlikely]]
     {
         shutdownImGui();
         m_Window.Destruct();
+        m_WindowAlive = false;
         TKIT_PROFILE_MARK_FRAME();
         return false;
     }
@@ -290,6 +313,12 @@ void MultiWindowApplication::processFrame(const u32 p_WindowIndex, F1 &&p_FirstD
     onUpdate(p_WindowIndex);
 
     window->Render(std::forward<F1>(p_FirstDrawCalls), std::forward<F2>(p_LastDrawCalls));
+}
+
+void MultiWindowApplication::Shutdown() noexcept
+{
+    CloseAllWindows();
+    IApplication::Shutdown();
 }
 
 void MultiWindowApplication::CloseAllWindows() noexcept
@@ -337,8 +366,9 @@ u32 MultiWindowApplication::GetWindowCount() const noexcept
 bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApplication::NextFrame");
-    if (m_Windows.empty())
+    if (m_Windows.empty() || m_QuitFlag) [[unlikely]]
     {
+        m_QuitFlag = false;
         TKIT_PROFILE_MARK_FRAME();
         return false;
     }

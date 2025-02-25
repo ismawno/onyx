@@ -34,10 +34,19 @@ class IApplication
      *
      * This method must be called after the `Startup()` call, after the last call to `NextFrame()`, once all windows
      * have been closed. Failing to do so, or calling this method more than once will result in undefined behaviour or a
-     * crash.
+     * crash. This method will close all remaining windows.
      *
      */
-    void Shutdown() noexcept;
+    virtual void Shutdown() noexcept;
+
+    /**
+     * @brief Signals the application to stop the rendering loop.
+     *
+     * This method will only tell the applicatio to return `false` in the next call to `NextFrame()`. It will not close
+     * any windows. Calling `NextFrame()` after this method is safe.
+     *
+     */
+    void Quit() noexcept;
 
     TKit::Timespan GetDeltaTime() const noexcept;
 
@@ -176,6 +185,7 @@ class IApplication
 
     TKit::Timespan m_DeltaTime;
     bool m_DeferFlag = false;
+    bool m_QuitFlag = false; // Contemplate adding onQuit?
 
   private:
     void createImGuiPool() noexcept;
@@ -201,6 +211,8 @@ class Application final : public IApplication
   public:
     Application(const Window::Specs &p_WindowSpecs = {}) noexcept;
 
+    void Shutdown() noexcept override;
+
     /**
      * @brief Process and present the next frame for the application.
      *
@@ -214,6 +226,7 @@ class Application final : public IApplication
 
   private:
     TKit::Storage<Window> m_Window;
+    bool m_WindowAlive = true;
 };
 
 /**
@@ -233,6 +246,8 @@ class MultiWindowApplication final : public IApplication
     TKIT_NON_COPYABLE(MultiWindowApplication)
   public:
     MultiWindowApplication() = default;
+
+    void Shutdown() noexcept override;
 
     /**
      * @brief Open a new window with the given specs.
