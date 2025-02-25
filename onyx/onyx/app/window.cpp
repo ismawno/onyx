@@ -19,6 +19,8 @@ Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_
     const VkRenderPass renderPass = m_FrameScheduler->GetRenderPass();
     m_RenderContext2D.Construct(this, renderPass);
     m_RenderContext3D.Construct(this, renderPass);
+
+    SetPresentMode(p_Specs.PresentMode);
 }
 
 Window::~Window() noexcept
@@ -191,7 +193,7 @@ const TKit::StaticArray8<VkPresentModeKHR> &Window::GetAvailablePresentModes() c
     return m_FrameScheduler->GetSwapChain().GetInfo().SupportDetails.PresentModes;
 }
 
-void Window::SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept
+void Window::SetPresentMode(const VkPresentModeKHR p_PresentMode) noexcept
 {
     m_FrameScheduler->SetPresentMode(p_PresentMode);
 }

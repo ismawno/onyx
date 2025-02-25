@@ -48,6 +48,7 @@ class ONYX_API Window
         const char *Name = "Onyx window";
         u32 Width = 800;
         u32 Height = 600;
+        VkPresentModeKHR PresentMode = VK_PRESENT_MODE_FIFO_KHR;
         Flags Flags = Flag_Resizable | Flag_Visible | Flag_Decorated | Flag_Focused;
     };
 
@@ -181,7 +182,7 @@ class ONYX_API Window
      * pass.
      *
      * If you wish to switch to a different post-processing pipeline, call this method again with the new
-     * specifications. Do not call RemovePostProcessing before or after that in the same frame, as that call will
+     * specifications. Do not call `RemovePostProcessing` before or after that in the same frame, as that call will
      * override the setup.
      *
      * @param p_Layout The pipeline layout to use for the post-processing pipeline.
