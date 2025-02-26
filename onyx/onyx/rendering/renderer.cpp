@@ -183,6 +183,8 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const fmat<D> &p_Transform, u8 p_F
             p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
         else
         {
+            // This is horrible and evil, but it is needed to avoid having circle outlines with inner/outer fades, which
+            // doesnt make any sense
             const auto drawIgnoreArgs = [this, &p_Renderer, &instanceData](const f32, const f32, auto &&...p_Args) {
                 p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, 0.f, 0.f,
                                                      std::forward<decltype(p_Args)>(p_Args)...);
@@ -199,6 +201,8 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const fmat<D> &p_Transform, u8 p_F
             p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
         else
         {
+            // This is horrible and evil, but it is needed to avoid having circle outlines with inner/outer fades, which
+            // doesnt make any sense
             const auto drawIgnoreArgs = [this, &p_Renderer, &instanceData](const f32, const f32, auto &&...p_Args) {
                 p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, 0.f, 0.f,
                                                     std::forward<decltype(p_Args)>(p_Args)...);
