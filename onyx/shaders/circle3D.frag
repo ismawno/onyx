@@ -128,15 +128,15 @@ void main()
     const vec3 color = lightData.AmbientColor.xyz * lightData.AmbientColor.w +
                        i_Material.DiffuseContribution * diffuseColor + i_Material.SpecularContribution * specularColor;
 
-    const float innerFade = (hollowness + i_InnerFade * i_InnerFade) / (hollowness + 1.0);
-    const float outerFade = i_OuterFade * i_OuterFade;
+    const float innerFade = i_InnerFade * i_InnerFade;
+    const float outerFade = 1.0 - i_OuterFade * i_OuterFade;
+    const float shiftLen = (len - hollowness) / (1.0 - hollowness);
 
-    float a = 1.0;
-    if (len <= innerFade)
-        a *= len / innerFade;
-    if (len >= outerFade)
-        a *= (outerFade - len) / outerFade;
-    a = clamp(a, 0.0, 1.0);
+    o_Color = i_Material.Color * vec4(color, 1.0);
+    if (shiftLen < innerFade)
+        o_Color.a *= shiftLen / innerFade;
+    if (shiftLen > outerFade)
+        o_Color.a *= 1.0 - (shiftLen - outerFade) / (1.0 - outerFade);
 
-    o_Color = min(i_Material.Color * vec4(color, 1.0), a);
+    o_Color.a = clamp(o_Color.a, 0.0, 1.0);
 }

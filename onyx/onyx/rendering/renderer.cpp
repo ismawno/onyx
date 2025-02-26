@@ -179,14 +179,32 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const fmat<D> &p_Transform, u8 p_F
     {
         const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(
             p_Transform, state, 0, m_ProjectionView->ProjectionView, m_ZOffset);
-        p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        if constexpr (!std::is_same_v<Renderer, RenderSystem<D, CircleRenderer>>)
+            p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        else
+        {
+            const auto drawIgnoreArgs = [this, &p_Renderer, &instanceData](const f32, const f32, auto &&...p_Args) {
+                p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, 0.f, 0.f,
+                                                     std::forward<decltype(p_Args)>(p_Args)...);
+            };
+            drawIgnoreArgs(std::forward<DrawArgs>(p_Args)...);
+        }
         ++m_DrawCount;
     }
     if (p_Flags & DrawFlags_DoStencilTestNoFill)
     {
         const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(
             p_Transform, state, p_Flags, m_ProjectionView->ProjectionView, m_ZOffset);
-        p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        if constexpr (!std::is_same_v<Renderer, RenderSystem<D, CircleRenderer>>)
+            p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        else
+        {
+            const auto drawIgnoreArgs = [this, &p_Renderer, &instanceData](const f32, const f32, auto &&...p_Args) {
+                p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, 0.f, 0.f,
+                                                    std::forward<decltype(p_Args)>(p_Args)...);
+            };
+            drawIgnoreArgs(std::forward<DrawArgs>(p_Args)...);
+        }
         ++m_DrawCount;
     }
 }
