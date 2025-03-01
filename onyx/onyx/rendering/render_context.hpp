@@ -1408,7 +1408,8 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Near The near clipping plane.
      * @param p_Far The far clipping plane.
      */
-    void SetPerspectiveProjection(f32 p_FieldOfView, f32 p_Near, f32 p_Far) noexcept;
+    void SetPerspectiveProjection(f32 p_FieldOfView = glm::radians(75.f), f32 p_Near = 0.1f,
+                                  f32 p_Far = 100.f) noexcept;
 
     /**
      * @brief Set a global orthographic projection for the rendering context.
