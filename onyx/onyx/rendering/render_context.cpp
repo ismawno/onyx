@@ -632,7 +632,7 @@ void Detail::IRenderContext<D>::Line(const fvec<D> &p_Start, const fvec<D> &p_En
     if constexpr (D == D2)
         t.Rotation = glm::atan(delta.y, delta.x);
     else
-        t.Rotation = quat{{0.f, glm::atan(delta.y, delta.x), glm::atan(delta.z, delta.x)}};
+        t.Rotation = quat{{0.f, glm::atan(delta.z, delta.x), glm::atan(delta.y, delta.x)}};
     t.Scale.x = glm::length(delta);
     t.Scale.y = p_Thickness;
     if constexpr (D == D3)
