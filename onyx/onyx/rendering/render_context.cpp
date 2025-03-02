@@ -624,7 +624,8 @@ void Detail::IRenderContext<D>::RoundedSquare(const fmat<D> &p_Transform, const 
 }
 
 template <Dimension D>
-void Detail::IRenderContext<D>::Line(const fvec<D> &p_Start, const fvec<D> &p_End, const f32 p_Thickness) noexcept
+static void drawLine(Detail::Renderer<D> &p_Renderer, const RenderState<D> &p_State, const fvec<D> &p_Start,
+                     const fvec<D> &p_End, const f32 p_Thickness, const u8 p_Flags) noexcept
 {
     Onyx::Transform<D> t;
     t.Translation = 0.5f * (p_Start + p_End);
@@ -638,11 +639,26 @@ void Detail::IRenderContext<D>::Line(const fvec<D> &p_Start, const fvec<D> &p_En
     if constexpr (D == D3)
         t.Scale.z = p_Thickness;
 
-    const fmat<D> transform = m_RenderState.back().Transform * t.ComputeTransform();
+    const fmat<D> transform = p_State.Transform * t.ComputeTransform();
     if constexpr (D == D2)
-        m_Renderer.DrawPrimitive(transform, Primitives<D2>::GetSquareIndex());
+        p_Renderer.DrawPrimitive(transform, Detail::Primitives<D2>::GetSquareIndex(), p_Flags);
     else
-        m_Renderer.DrawPrimitive(transform, Primitives<D3>::GetCylinderIndex());
+        p_Renderer.DrawPrimitive(transform, Detail::Primitives<D3>::GetCylinderIndex(), p_Flags);
+}
+
+template <Dimension D>
+void Detail::IRenderContext<D>::Line(const fvec<D> &p_Start, const fvec<D> &p_End, const f32 p_Thickness) noexcept
+{
+    const auto fill = [this, &p_Start, &p_End, p_Thickness](const u8 p_Flags) {
+        drawLine<D>(m_Renderer, m_RenderState.back(), p_Start, p_End, p_Thickness, p_Flags);
+    };
+    const auto outline = [this, &p_Start, &p_End, p_Thickness](const u8 p_Flags) {
+        const f32 w = m_RenderState.back().OutlineWidth;
+        const f32 thickness = p_Thickness * (1.f + w);
+        const fvec<D> delta = 0.5f * w * glm::normalize(p_End - p_Start);
+        drawLine<D>(m_Renderer, m_RenderState.back(), p_Start - delta, p_End + delta, thickness, p_Flags);
+    };
+    resolveDrawCallWithFlagsBasedOnState(fill, outline, m_RenderState.back().Fill, m_RenderState.back().Outline);
 }
 
 void RenderContext<D2>::Line(const f32 p_X1, const f32 p_Y1, const f32 p_X2, const f32 p_Y2,
