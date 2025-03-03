@@ -105,7 +105,6 @@ class ONYX_API Window
         {
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
             static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
-            std::scoped_lock lock(mutex);
             TKIT_PROFILE_MARK_LOCK(mutex);
 #endif
             TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);

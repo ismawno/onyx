@@ -205,6 +205,8 @@ class UserLayer
     template <Dimension D> static void TransformEditor(Transform<D> &p_Transform, f32 p_DragSpeed = 0.03f) noexcept;
     template <Dimension D> static void MaterialEditor(MaterialData<D> &p_Material) noexcept;
 
+    template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform) noexcept;
+
     static void DirectionalLightEditor(DirectionalLight &p_Light) noexcept;
     static void PointLightEditor(PointLight &p_Light) noexcept;
 

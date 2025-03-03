@@ -1,4 +1,5 @@
 #include "utils/shapes.hpp"
+#include "onyx/app/user_layer.hpp"
 #include <imgui.h>
 
 namespace Onyx::Demo
@@ -16,6 +17,10 @@ template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context) noexcept
 template <Dimension D> void Shape<D>::Edit() noexcept
 {
     ImGui::PushID(this);
+    ImGui::Text("Transform");
+    UserLayer::TransformEditor<D>(Transform);
+    ImGui::Text("Material");
+    UserLayer::MaterialEditor<D>(Material);
     ImGui::Checkbox("Fill", &Fill);
     ImGui::Checkbox("Outline", &Outline);
     ImGui::SliderFloat("Outline Width", &OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);

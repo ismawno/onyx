@@ -721,9 +721,9 @@ template <Dimension D> class ONYX_API IRenderContext
     void ApplyCameraMovementControls(TKit::Timespan p_DeltaTime) noexcept;
 
     /**
-     * @brief Retrieve the coordinates of a point in the rendering context from a normalized position.
+     * @brief Retrieve the coordinates of a point in the rendering context from an "un-transformed" position.
      *
-     * @param p_NormalizedPos The normalized position to convert. Should be in the range [-1, 1]. If in 3D, the Z
+     * @param p_NormalizedPos The position to convert. Should be in the range [-1, 1]. If in 3D, the Z
      * axis must be between [0, 1].
      * @return The coordinates of the point in the rendering context.
      */
@@ -732,14 +732,14 @@ template <Dimension D> class ONYX_API IRenderContext
     /**
      * @brief Get the current rendering state.
      *
-     * @return A constant reference to the current RenderState.
+     * @return A constant reference to the current `RenderState`.
      */
     const RenderState<D> &GetCurrentState() const noexcept;
 
     /**
      * @brief Get the current rendering state.
      *
-     * @return A reference to the current RenderState.
+     * @return A reference to the current `RenderState`.
      */
     RenderState<D> &GetCurrentState() noexcept;
 

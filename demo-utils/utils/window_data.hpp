@@ -8,6 +8,15 @@
 
 namespace Onyx::Demo
 {
+template <Dimension D> struct LatticeData
+{
+    uvec<D> Dimensions{2};
+    f32 Separation = 1.f;
+    TKit::Scope<Shape<D>> Shape;
+    bool Enabled = false;
+    bool PropToScale = true;
+};
+
 template <Dimension D> struct ILayerData
 {
     RenderContext<D> *Context;
@@ -18,6 +27,8 @@ template <Dimension D> struct ILayerData
     TKit::DynamicArray<fvec<D>> PolygonVertices;
     i32 ShapeToSpawn = 0;
     f32 AxesThickness = 0.01f;
+    LatticeData<D> Lattice;
+
     bool DrawAxes = false;
 };
 
@@ -74,7 +85,6 @@ class WindowData
     LayerData<D3> m_LayerData3{};
     Color m_BackgroundColor = Color::BLACK;
 
-    TKit::Scope<std::mutex> m_Mutex = TKit::Scope<std::mutex>::Create();
     BlurData m_BlurData{};
     VKit::GraphicsJob m_RainbowJob{};
 

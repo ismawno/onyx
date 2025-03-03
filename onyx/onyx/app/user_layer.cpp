@@ -6,28 +6,32 @@
 
 namespace Onyx
 {
-template <Dimension D> void UserLayer::TransformEditor(Transform<D> &p_Transform, f32 p_DragSpeed) noexcept
+template <Dimension D> void UserLayer::TransformEditor(Transform<D> &p_Transform, const f32 p_DragSpeed) noexcept
 {
     ImGui::PushID(&p_Transform);
     if constexpr (D == D2)
     {
         ImGui::DragFloat2("Translation", glm::value_ptr(p_Transform.Translation), p_DragSpeed);
         ImGui::DragFloat2("Scale", glm::value_ptr(p_Transform.Scale), p_DragSpeed);
-        ImGui::DragFloat("Rotation", &p_Transform.Rotation, p_DragSpeed);
+
+        f32 degrees = glm::degrees(p_Transform.Rotation);
+        if (ImGui::DragFloat("Rotation", &degrees, p_DragSpeed * 10.f, 0.f, 0.f, "%.1f deg"))
+            p_Transform.Rotation = glm::radians(degrees);
     }
     else
     {
         ImGui::DragFloat3("Translation", glm::value_ptr(p_Transform.Translation), p_DragSpeed);
         ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale), p_DragSpeed);
 
+        const fvec3 degrees = glm::degrees(glm::eulerAngles(p_Transform.Rotation));
+        ImGui::Text("Rotation: (%.2f, %.2f, %.2f) deg", degrees.x, degrees.y, degrees.z);
+
         fvec3 angles{0.f};
-        if (ImGui::DragFloat3("Rotate (global)", glm::value_ptr(angles), p_DragSpeed, 0.f, 0.f, "Slide!"))
-            p_Transform.Rotation = glm::normalize(glm::quat(angles) * p_Transform.Rotation);
+        if (ImGui::DragFloat3("Rotate (global)", glm::value_ptr(angles), p_DragSpeed * 10.f, 0.f, 0.f, "Slide!"))
+            p_Transform.Rotation = glm::normalize(glm::quat(glm::radians(angles)) * p_Transform.Rotation);
 
-        ImGui::Spacing();
-
-        if (ImGui::DragFloat3("Rotate (Local)", glm::value_ptr(angles), p_DragSpeed, 0.f, 0.f, "Slide!"))
-            p_Transform.Rotation = glm::normalize(p_Transform.Rotation * glm::quat(angles));
+        if (ImGui::DragFloat3("Rotate (Local)", glm::value_ptr(angles), p_DragSpeed * 10.f, 0.f, 0.f, "Slide!"))
+            p_Transform.Rotation = glm::normalize(p_Transform.Rotation * glm::quat(glm::radians(angles)));
         if (ImGui::Button("Reset rotation"))
             p_Transform.Rotation = quat{1.f, 0.f, 0.f, 0.f};
     }
@@ -36,6 +40,29 @@ template <Dimension D> void UserLayer::TransformEditor(Transform<D> &p_Transform
 
 template void UserLayer::TransformEditor<D2>(Transform<D2> &p_Transform, f32 p_DragSpeed) noexcept;
 template void UserLayer::TransformEditor<D3>(Transform<D3> &p_Transform, f32 p_DragSpeed) noexcept;
+
+template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Transform) noexcept
+{
+    const fvec<D> &translation = p_Transform.Translation;
+    const fvec<D> &scale = p_Transform.Scale;
+    if constexpr (D == D2)
+    {
+        ImGui::Text("Translation: (%.2f, %.2f)", translation.x, translation.y);
+        ImGui::Text("Scale: (%.2f, %.2f)", scale.x, scale.y);
+        ImGui::Text("Rotation: %.2f deg", glm::degrees(p_Transform.Rotation));
+    }
+    else
+    {
+        ImGui::Text("Translation: (%.2f, %.2f, %.2f)", translation.x, translation.y, translation.z);
+        ImGui::Text("Scale: (%.2f, %.2f, %.2f)", scale.x, scale.y, scale.z);
+
+        const fvec3 angles = glm::degrees(glm::eulerAngles(p_Transform.Rotation));
+        ImGui::Text("Rotation: (%.2f, %.2f, %.2f) deg", angles.x, angles.y, angles.z);
+    }
+}
+
+template void UserLayer::DisplayTransform<D2>(const Transform<D2> &p_Transform) noexcept;
+template void UserLayer::DisplayTransform<D3>(const Transform<D3> &p_Transform) noexcept;
 
 template <Dimension D> void UserLayer::MaterialEditor(MaterialData<D> &p_Material) noexcept
 {

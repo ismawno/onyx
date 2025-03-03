@@ -79,7 +79,6 @@ void WindowData::OnUpdate() noexcept
 
 void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Timespan p_Timestep) noexcept
 {
-    std::scoped_lock lock(*m_Mutex);
     drawShapes(m_LayerData2, p_Timestep);
     drawShapes(m_LayerData3, p_Timestep);
 
@@ -168,10 +167,37 @@ void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
 template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, const TKit::Timespan p_Timestep) noexcept
 {
     p_Data.Context->Flush(m_BackgroundColor);
-
     p_Data.Context->ApplyCameraMovementControls(p_Timestep);
-
     p_Data.Context->TransformAxes(p_Data.AxesTransform.ComputeTransform());
+
+    const LatticeData<D> &lattice = p_Data.Lattice;
+    if (lattice.Enabled && lattice.Shape)
+    {
+        const fvec<D> separation =
+            lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : fvec<D>{lattice.Separation};
+        const fvec<D> midPoint = 0.5f * separation * fvec<D>{lattice.Dimensions - 1u};
+
+        for (u32 i = 0; i < lattice.Dimensions.x; ++i)
+        {
+            const f32 x = static_cast<f32>(i) * separation.x;
+            for (u32 j = 0; j < lattice.Dimensions.y; ++j)
+            {
+                const f32 y = static_cast<f32>(j) * separation.y;
+                if constexpr (D == D2)
+                {
+                    lattice.Shape->Transform.Translation = fvec2{x, y} - midPoint;
+                    lattice.Shape->Draw(p_Data.Context);
+                }
+                else
+                    for (u32 k = 0; k < lattice.Dimensions.z; ++k)
+                    {
+                        const f32 z = static_cast<f32>(k) * separation.z;
+                        lattice.Shape->Transform.Translation = fvec3{x, y, z} - midPoint;
+                        lattice.Shape->Draw(p_Data.Context);
+                    }
+            }
+        }
+    }
 
     for (const auto &shape : p_Data.Shapes)
         shape->Draw(p_Data.Context);
@@ -221,14 +247,91 @@ template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, c
 template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexcept
 {
     static i32 ngonSides = 3;
+    const auto createShape = [&p_Data]() -> TKit::Scope<Shape<D>> {
+        if (p_Data.ShapeToSpawn == 0)
+            return TKit::Scope<Triangle<D>>::Create();
+        else if (p_Data.ShapeToSpawn == 1)
+            return TKit::Scope<Square<D>>::Create();
+        else if (p_Data.ShapeToSpawn == 2)
+            return TKit::Scope<Circle<D>>::Create();
+        else if (p_Data.ShapeToSpawn == 3)
+        {
+            auto ngon = TKit::Scope<NGon<D>>::Create();
+            ngon->Sides = static_cast<u32>(ngonSides);
+            return std::move(ngon);
+        }
+        else if (p_Data.ShapeToSpawn == 4)
+        {
+            auto polygon = TKit::Scope<Polygon<D>>::Create();
+            polygon->Vertices = p_Data.PolygonVertices;
+            return std::move(polygon);
+            p_Data.PolygonVertices.clear();
+        }
+        else if (p_Data.ShapeToSpawn == 5)
+            return TKit::Scope<Stadium<D>>::Create();
+        else if (p_Data.ShapeToSpawn == 6)
+            return TKit::Scope<RoundedSquare<D>>::Create();
 
+        else if constexpr (D == D3)
+        {
+            if (p_Data.ShapeToSpawn == 7)
+                return TKit::Scope<Cube>::Create();
+            else if (p_Data.ShapeToSpawn == 8)
+                return TKit::Scope<Sphere>::Create();
+            else if (p_Data.ShapeToSpawn == 9)
+                return TKit::Scope<Cylinder>::Create();
+            else if (p_Data.ShapeToSpawn == 10)
+                return TKit::Scope<Capsule>::Create();
+            else if (p_Data.ShapeToSpawn == 11)
+                return TKit::Scope<RoundedCube>::Create();
+        }
+        return nullptr;
+    };
+
+    bool changed = false;
     if constexpr (D == D2)
-        ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                     "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded Square\0\0");
+        changed |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+                                "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded Square\0\0");
     else
-        ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                     "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded "
-                     "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
+        changed |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+                                "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded "
+                                "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
+
+    LatticeData<D> &lattice = p_Data.Lattice;
+    if (!lattice.Shape)
+        lattice.Shape = createShape();
+
+    if (changed)
+    {
+        const Transform<D> transform = lattice.Shape->Transform;
+        lattice.Shape = createShape();
+        lattice.Shape->Transform = transform;
+    }
+
+    ImGui::Checkbox("Draw shape lattice", &lattice.Enabled);
+    if (lattice.Enabled)
+    {
+        if constexpr (D == D2)
+        {
+            ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y);
+            ImGui::DragInt2("Lattice dimensions", reinterpret_cast<i32 *>(glm::value_ptr(lattice.Dimensions)), 2.f, 1,
+                            INT32_MAX);
+        }
+        else
+        {
+            ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y * lattice.Dimensions.z);
+            ImGui::DragInt3("Lattice dimensions", reinterpret_cast<i32 *>(glm::value_ptr(lattice.Dimensions)), 2.f, 1,
+                            INT32_MAX);
+        }
+
+        ImGui::Checkbox("Separation proportional to scale", &lattice.PropToScale);
+        ImGui::DragFloat("Lattice separation", &lattice.Separation, 0.01f, 0.f, FLT_MAX);
+        if (lattice.Shape)
+        {
+            ImGui::Text("Lattice shape:");
+            lattice.Shape->Edit();
+        }
+    }
 
     if (p_Data.ShapeToSpawn == 3)
         ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
@@ -266,45 +369,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     }
 
     if (ImGui::Button("Spawn##Shape"))
-    {
-        if (p_Data.ShapeToSpawn == 0)
-            p_Data.Shapes.push_back(TKit::Scope<Triangle<D>>::Create());
-        else if (p_Data.ShapeToSpawn == 1)
-            p_Data.Shapes.push_back(TKit::Scope<Square<D>>::Create());
-        else if (p_Data.ShapeToSpawn == 2)
-            p_Data.Shapes.push_back(TKit::Scope<Circle<D>>::Create());
-        else if (p_Data.ShapeToSpawn == 3)
-        {
-            auto ngon = TKit::Scope<NGon<D>>::Create();
-            ngon->Sides = static_cast<u32>(ngonSides);
-            p_Data.Shapes.push_back(std::move(ngon));
-        }
-        else if (p_Data.ShapeToSpawn == 4)
-        {
-            auto polygon = TKit::Scope<Polygon<D>>::Create();
-            polygon->Vertices = p_Data.PolygonVertices;
-            p_Data.Shapes.push_back(std::move(polygon));
-            p_Data.PolygonVertices.clear();
-        }
-        else if (p_Data.ShapeToSpawn == 5)
-            p_Data.Shapes.push_back(TKit::Scope<Stadium<D>>::Create());
-        else if (p_Data.ShapeToSpawn == 6)
-            p_Data.Shapes.push_back(TKit::Scope<RoundedSquare<D>>::Create());
-
-        else if constexpr (D == D3)
-        {
-            if (p_Data.ShapeToSpawn == 7)
-                p_Data.Shapes.push_back(TKit::Scope<Cube>::Create());
-            else if (p_Data.ShapeToSpawn == 8)
-                p_Data.Shapes.push_back(TKit::Scope<Sphere>::Create());
-            else if (p_Data.ShapeToSpawn == 9)
-                p_Data.Shapes.push_back(TKit::Scope<Cylinder>::Create());
-            else if (p_Data.ShapeToSpawn == 10)
-                p_Data.Shapes.push_back(TKit::Scope<Capsule>::Create());
-            else if (p_Data.ShapeToSpawn == 11)
-                p_Data.Shapes.push_back(TKit::Scope<RoundedCube>::Create());
-        }
-    }
+        p_Data.Shapes.push_back(createShape());
 
     if (ImGui::Button("Clear"))
         p_Data.Shapes.clear();
@@ -326,37 +391,33 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         ImGui::PopID();
     }
     if (selected < size)
-    {
-        ImGui::Text("Transform");
-        UserLayer::TransformEditor<D>(p_Data.Shapes[selected]->Transform);
-        ImGui::Text("Material");
-        UserLayer::MaterialEditor<D>(p_Data.Shapes[selected]->Material);
         p_Data.Shapes[selected]->Edit();
-    }
 }
 
 template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 {
     if constexpr (D == D2)
     {
-        std::scoped_lock lock(*m_Mutex);
         const fvec2 mpos2 = m_LayerData2.Context->GetMouseCoordinates();
-        ImGui::Text("Mouse Position: (%.2f, %.2f)", mpos2.x, mpos2.y);
+        ImGui::Text("Mouse position 2D: (%.2f, %.2f)", mpos2.x, mpos2.y);
     }
     else
     {
-        ImGui::SliderFloat("Mouse Z offset", &p_Data.ZOffset, -1.f, 1.f);
+        ImGui::SliderFloat("Mouse Z offset", &p_Data.ZOffset, 0.f, 1.f);
 
-        std::scoped_lock lock(*m_Mutex);
         const fvec3 mpos3 = m_LayerData3.Context->GetMouseCoordinates(p_Data.ZOffset);
-
-        ImGui::Text("Mouse Position 3D: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
+        ImGui::Text("Mouse position 3D: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
     }
 
-    if (ImGui::CollapsingHeader("Axes"))
+    if (ImGui::CollapsingHeader("View"))
     {
-        ImGui::Text("Transform");
-        UserLayer::TransformEditor<D>(p_Data.AxesTransform);
+        const Transform<D> &view = p_Data.Context->GetProjectionViewData().View;
+        UserLayer::DisplayTransform(view);
+        if constexpr (D == D3)
+        {
+            const fvec3 lookDir = glm::normalize(p_Data.Context->GetCoordinates(fvec3{0.f, 0.f, 1.f}));
+            ImGui::Text("Look direction (global): (%.2f, %.2f, %.2f)", lookDir.x, lookDir.y, lookDir.z);
+        }
         if constexpr (D == D3)
         {
             if (ImGui::Checkbox("Perspective", &p_Data.Perspective))
@@ -369,10 +430,9 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 
             if (p_Data.Perspective)
             {
-                bool changed = false;
                 f32 degs = glm::degrees(p_Data.FieldOfView);
 
-                changed |= ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
+                bool changed = ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
                 changed |= ImGui::SliderFloat("Near", &p_Data.Near, 0.1f, 10.f);
                 changed |= ImGui::SliderFloat("Far", &p_Data.Far, 10.f, 100.f);
                 if (changed)
@@ -382,6 +442,12 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
                 }
             }
         }
+    }
+
+    if (ImGui::CollapsingHeader("Axes"))
+    {
+        ImGui::Text("Transform");
+        UserLayer::TransformEditor<D>(p_Data.AxesTransform);
 
         ImGui::Checkbox("Draw##Axes", &p_Data.DrawAxes);
         if (p_Data.DrawAxes)
