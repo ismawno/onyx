@@ -31,7 +31,10 @@ void SWExampleLayer::OnRender(const VkCommandBuffer p_CommandBuffer) noexcept
     m_Data.OnRender(p_CommandBuffer, ts);
     WindowData::OnImGuiRenderGlobal(ts);
     if (ImGui::Begin("Editor"))
+    {
+        WindowData::RenderEditorText();
         m_Data.OnImGuiRender();
+    }
     ImGui::End();
 }
 

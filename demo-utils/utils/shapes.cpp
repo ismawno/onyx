@@ -18,9 +18,11 @@ template <Dimension D> void Shape<D>::Edit() noexcept
 {
     ImGui::PushID(this);
     ImGui::Text("Transform");
-    UserLayer::TransformEditor<D>(Transform);
+    ImGui::SameLine();
+    UserLayer::TransformEditor<D>(Transform, UserLayer::Flag_DisplayHelp);
     ImGui::Text("Material");
-    UserLayer::MaterialEditor<D>(Material);
+    ImGui::SameLine();
+    UserLayer::MaterialEditor<D>(Material, UserLayer::Flag_DisplayHelp);
     ImGui::Checkbox("Fill", &Fill);
     ImGui::Checkbox("Outline", &Outline);
     ImGui::SliderFloat("Outline Width", &OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);

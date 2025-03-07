@@ -92,9 +92,12 @@ void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Tim
 void WindowData::OnImGuiRender() noexcept
 {
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
-    UserLayer::PresentModeEditor(m_Window);
+    UserLayer::PresentModeEditor(m_Window, UserLayer::Flag_DisplayHelp);
 
     ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
+    UserLayer::HelpMarkerSameLine("This is a small demonstration of how to hook-up your own pipelines to the Onyx "
+                                  "rendering context (in this case, to draw a nice rainbow background).");
+
     if (ImGui::Checkbox("Blur", &m_PostProcessing))
     {
         if (m_PostProcessing)
@@ -106,6 +109,10 @@ void WindowData::OnImGuiRender() noexcept
         else
             m_Window->RemovePostProcessing();
     }
+    UserLayer::HelpMarkerSameLine(
+        "This is a small demonstration of how to hook-up a post-processing pipeline to the Onyx rendering context to "
+        "apply transformations to the final image (in this case, a blur effect).");
+
     if (m_PostProcessing)
         ImGui::SliderInt("Blur kernel size", (int *)&m_BlurData.KernelSize, 0, 12);
 
@@ -146,22 +153,27 @@ void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
     ImGui::ShowDemoWindow();
     ImPlot::ShowDemoWindow();
 
-    if (ImGui::Begin("Global stats"))
+    if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {
-        static f32 maxTS = 0.f;
-        static f32 smoothTS = 0.f;
-        static f32 smoothFactor = 0.f;
-        const f32 ts = p_Timestep.AsMilliseconds();
-        if (ts > maxTS)
-            maxTS = ts;
-        smoothTS = smoothFactor * smoothTS + (1.f - smoothFactor) * ts;
+        UserLayer::DisplayFrameTime(p_Timestep, UserLayer::Flag_DisplayHelp);
+        ImGui::TextWrapped(
+            "Onyx is a small application framework I have implemented to be used primarily in all projects I develop "
+            "that require some sort of rendering. It is built on top of the Vulkan API and provides a simple and "
+            "easy-to-use (or so I tried) interface for creating windows, rendering shapes, and handling input events. "
+            "The framework is still in its early stages, but I plan to expand it further in the future.");
 
-        ImGui::Text("Time step: %.2f ms (max: %.2f ms)", smoothTS, maxTS);
-        ImGui::SliderFloat("Smoothing factor", &smoothFactor, 0.f, 0.999f);
-        if (ImGui::Button("Reset maximum"))
-            maxTS = 0.f;
+        ImGui::TextWrapped("This program is the Onyx demo, showcasing some of its features. Most of them can be tried "
+                           "in the 'Editor' panel.");
+
+        ImGui::TextLinkOpenURL("My GitHub", "https://github.com/ismawno");
     }
     ImGui::End();
+}
+void WindowData::RenderEditorText() noexcept
+{
+    ImGui::Text("This is the editor panel, where you can interact with the demo.");
+    ImGui::TextWrapped("Onyx windows can draw shapes in 2D and 3D, and have a separate API for each even though the "
+                       "window is shared. You can choose between both dimensions using the tabs below.");
 }
 
 template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, const TKit::Timespan p_Timestep) noexcept
@@ -288,6 +300,11 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         return nullptr;
     };
 
+    if (ImGui::Button("Spawn##Shape"))
+        p_Data.Shapes.push_back(createShape());
+
+    ImGui::SameLine();
+
     bool changed = false;
     if constexpr (D == D2)
         changed |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
@@ -308,9 +325,12 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         lattice.Shape->Transform = transform;
     }
 
-    ImGui::Checkbox("Draw shape lattice", &lattice.Enabled);
-    if (lattice.Enabled)
+    if (ImGui::TreeNode("Lattice"))
     {
+        ImGui::Checkbox("Draw shape lattice", &lattice.Enabled);
+        UserLayer::HelpMarkerSameLine("You may choose to draw a lattice of shapes to stress test the rendering engine. "
+                                      "I advice to build the engine "
+                                      "in distribution mode to see meaningful results.");
         if constexpr (D == D2)
         {
             ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y);
@@ -331,92 +351,144 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             ImGui::Text("Lattice shape:");
             lattice.Shape->Edit();
         }
+        ImGui::TreePop();
     }
 
-    if (p_Data.ShapeToSpawn == 3)
-        ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
-    else if (p_Data.ShapeToSpawn == 4)
+    if (!p_Data.Shapes.empty() && ImGui::TreeNode("Spawned shapes"))
     {
-        static fvec<D> toAdd{0.f};
-        if constexpr (D == D2)
-            ImGui::DragFloat2("Vertex", glm::value_ptr(toAdd), 0.1f);
-        else
-            ImGui::DragFloat3("Vertex", glm::value_ptr(toAdd), 0.1f);
-        ImGui::SameLine();
-        if (ImGui::Button("Add"))
+        if (ImGui::Button("Clear"))
+            p_Data.Shapes.clear();
+        if (p_Data.ShapeToSpawn == 3)
+            ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
+        else if (p_Data.ShapeToSpawn == 4)
         {
-            p_Data.PolygonVertices.push_back(toAdd);
-            toAdd = fvec<D>{0.f};
+            static fvec<D> toAdd{0.f};
+            if constexpr (D == D2)
+                ImGui::DragFloat2("Vertex", glm::value_ptr(toAdd), 0.1f);
+            else
+                ImGui::DragFloat3("Vertex", glm::value_ptr(toAdd), 0.1f);
+            ImGui::SameLine();
+            if (ImGui::Button("Add"))
+            {
+                p_Data.PolygonVertices.push_back(toAdd);
+                toAdd = fvec<D>{0.f};
+            }
+            for (u32 i = 0; i < p_Data.PolygonVertices.size(); ++i)
+            {
+                ImGui::PushID(&p_Data.PolygonVertices[i]);
+                if (ImGui::Button("X"))
+                {
+                    p_Data.PolygonVertices.erase(p_Data.PolygonVertices.begin() + i);
+                    ImGui::PopID();
+                    break;
+                }
+
+                ImGui::SameLine();
+                if constexpr (D == D2)
+                    ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
+                else
+                    ImGui::Text("Vertex %u: (%.2f, %.2f, %.2f)", i, p_Data.PolygonVertices[i].x,
+                                p_Data.PolygonVertices[i].y, p_Data.PolygonVertices[i].z);
+                ImGui::PopID();
+            }
         }
-        for (u32 i = 0; i < p_Data.PolygonVertices.size(); ++i)
+
+        const u32 size = p_Data.Shapes.size();
+        static u32 selected = 0;
+        for (u32 i = 0; i < size; ++i)
         {
-            ImGui::PushID(&p_Data.PolygonVertices[i]);
+            ImGui::PushID(&p_Data.Shapes[i]);
             if (ImGui::Button("X"))
             {
-                p_Data.PolygonVertices.erase(p_Data.PolygonVertices.begin() + i);
+                p_Data.Shapes.erase(p_Data.Shapes.begin() + i);
                 ImGui::PopID();
-                break;
+                return;
             }
-
             ImGui::SameLine();
-            if constexpr (D == D2)
-                ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
-            else
-                ImGui::Text("Vertex %u: (%.2f, %.2f, %.2f)", i, p_Data.PolygonVertices[i].x,
-                            p_Data.PolygonVertices[i].y, p_Data.PolygonVertices[i].z);
+            if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), selected == i))
+                selected = i;
             ImGui::PopID();
         }
+        if (selected < size)
+            p_Data.Shapes[selected]->Edit();
+        ImGui::TreePop();
     }
-
-    if (ImGui::Button("Spawn##Shape"))
-        p_Data.Shapes.push_back(createShape());
-
-    if (ImGui::Button("Clear"))
-        p_Data.Shapes.clear();
-
-    const u32 size = p_Data.Shapes.size();
-    static u32 selected = 0;
-    for (u32 i = 0; i < size; ++i)
-    {
-        ImGui::PushID(&p_Data.Shapes[i]);
-        if (ImGui::Button("X"))
-        {
-            p_Data.Shapes.erase(p_Data.Shapes.begin() + i);
-            ImGui::PopID();
-            return;
-        }
-        ImGui::SameLine();
-        if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), selected == i))
-            selected = i;
-        ImGui::PopID();
-    }
-    if (selected < size)
-        p_Data.Shapes[selected]->Edit();
 }
 
 template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 {
+    const fvec2 spos = Input::GetMousePosition(m_Window);
+    ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos.x, spos.y);
+    UserLayer::HelpMarkerSameLine(
+        "The screen mouse position is always normalized to the window size, always ranging "
+        "from (-1, -1) to (1, 1) for 'x' and 'y', and from (0, 0) to (1, 1) for 'z' respectively.");
+
     if constexpr (D == D2)
     {
-        const fvec2 mpos2 = m_LayerData2.Context->GetMouseCoordinates();
-        ImGui::Text("Mouse position 2D: (%.2f, %.2f)", mpos2.x, mpos2.y);
+        const fvec2 wpos2 = m_LayerData2.Context->GetMouseCoordinates();
+        ImGui::Text("World mouse position 2D: (%.2f, %.2f)", wpos2.x, wpos2.y);
     }
     else
     {
         ImGui::SliderFloat("Mouse Z offset", &p_Data.ZOffset, 0.f, 1.f);
+        UserLayer::HelpMarkerSameLine(
+            "In 3D, the world mouse position can be ambiguous because of the extra dimension. This amibiguity needs to "
+            "somehow be resolved. In most use-cases, ray casting is the best approach to fully define this position, "
+            "but because this is a simple demo, the z offset can be manually specified, and is in the range [0, 1] "
+            "(screen coordinates). Note that, if in perspective mode, 0 corresponds to the near plane and 1 to the "
+            "far plane.");
 
         const fvec3 mpos3 = m_LayerData3.Context->GetMouseCoordinates(p_Data.ZOffset);
         ImGui::Text("Mouse position 3D: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
     }
+    UserLayer::HelpMarkerSameLine("The world mouse position has world units, meaning it is scaled to the world "
+                                  "coordinates and are compatible with the translation units of the shapes.");
 
-    if (ImGui::CollapsingHeader("View"))
+    if (ImGui::CollapsingHeader("Shapes"))
+        renderShapeSpawn(p_Data);
+    if constexpr (D == D3)
+        if (ImGui::CollapsingHeader("Lights"))
+            renderLightSpawn();
+
+    if (ImGui::CollapsingHeader("Axes"))
     {
-        const Transform<D> &view = p_Data.Context->GetProjectionViewData().View;
-        UserLayer::DisplayTransform(view);
+        ImGui::TextWrapped(
+            "The axes are the coordinate system that is used to draw objects in the scene. All object "
+            "positions will always be relative to the state the axes were in the moment the draw command was issued.");
+        ImGui::Text("Transform");
+        ImGui::SameLine();
+        UserLayer::TransformEditor<D>(p_Data.AxesTransform, UserLayer::Flag_DisplayHelp);
+
+        ImGui::Checkbox("Draw##Axes", &p_Data.DrawAxes);
+        if (p_Data.DrawAxes)
+            ImGui::SliderFloat("Axes thickness", &p_Data.AxesThickness, 0.001f, 0.1f);
+
+        if (ImGui::TreeNode("Material"))
+        {
+            ImGui::SameLine();
+            UserLayer::MaterialEditor<D>(p_Data.AxesMaterial, UserLayer::Flag_DisplayHelp);
+            ImGui::TreePop();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Projection & View"))
+    {
+        const Transform<D> &view = p_Data.Context->GetViewTransformInCurrentAxes();
+        ImGui::Text("View transform (with respect current axes)");
+        UserLayer::HelpMarkerSameLine(
+            "This view transform is represented specifically with respect the current axes, "
+            "but note that, as the view is a global state that is not reset every frame in "
+            "the Onyx render context, it is generally detached from the axes transform. Onyx, behind the scenes, uses "
+            "the detached view transform to setup the scene. This not a design decision but a requirement, as the axes "
+            "is a somewhat volatile state (it is reset every frame).");
+
+        UserLayer::DisplayTransform(view, UserLayer::Flag_DisplayHelp);
         if constexpr (D == D3)
         {
-            const fvec3 lookDir = glm::normalize(p_Data.Context->GetCoordinates(fvec3{0.f, 0.f, 1.f}));
-            ImGui::Text("Look direction (global): (%.2f, %.2f, %.2f)", lookDir.x, lookDir.y, lookDir.z);
+            const fvec3 lookDir = p_Data.Context->GetViewLookDirectionInCurrentAxes();
+            ImGui::Text("Look direction: (%.2f, %.2f, %.2f)", lookDir.x, lookDir.y, lookDir.z);
+            UserLayer::HelpMarkerSameLine("The look direction is the direction the camera is facing. It is the "
+                                          "direction of the camera's 'forward' vector in the current axes.");
         }
         if constexpr (D == D3)
         {
@@ -427,6 +499,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
                 else
                     p_Data.Context->SetOrthographicProjection();
             }
+            UserLayer::HelpMarkerSameLine("Switch between perspective and orthographic projections.");
 
             if (p_Data.Perspective)
             {
@@ -442,38 +515,34 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
                 }
             }
         }
+
+        ImGui::Text("The camera/view controls are the following:");
+        UserLayer::DisplayCameraMovementControls<D>();
+        ImGui::TextWrapped(
+            "The view describes the position and orientation of the camera in the scene. It is defined as a matrix "
+            "that corresponds to the inverse of the camera's transform, and is applied to all objects in the scene. "
+            "When you 'move' the camera around, you are actually moving the scene in the opposite direction. That is "
+            "why the inverse is needed to transform the scene around you.");
+
+        ImGui::TextWrapped("The projection is defined as an additional matrix that is applied on top of the view. It "
+                           "projects and maps your scene onto your screen, and is responsible for the dimensions, "
+                           "aspect ratio and, if using a 3D perspective, the field of view of the scene. In Onyx, only "
+                           "orthographic and perspective projections are available. Orthographic projections are "
+                           "embedded into the view's transform.");
+        ImGui::TextWrapped("Orthographic projection: The scene is projected onto the screen without any perspective. "
+                           "This means that objects do not get smaller as they move away from the camera. This is "
+                           "useful for 2D games or when you want to keep the size of objects constant.");
+        ImGui::TextWrapped("Perspective projection: The scene is projected onto the screen with perspective. This "
+                           "means that objects get smaller as they move away from the camera, similar as how real life "
+                           "vision behaves. This is useful for 3D games or when you want to create a sense of depth in "
+                           "your scene. In Onyx, this projection is only available in 3D scenes.");
     }
-
-    if (ImGui::CollapsingHeader("Axes"))
-    {
-        ImGui::Text("Transform");
-        UserLayer::TransformEditor<D>(p_Data.AxesTransform);
-
-        ImGui::Checkbox("Draw##Axes", &p_Data.DrawAxes);
-        if (p_Data.DrawAxes)
-            ImGui::SliderFloat("Axes thickness", &p_Data.AxesThickness, 0.001f, 0.1f);
-
-        if (ImGui::TreeNode("Material"))
-        {
-            UserLayer::MaterialEditor<D>(p_Data.AxesMaterial);
-            ImGui::TreePop();
-        }
-    }
-    if (ImGui::CollapsingHeader("Shapes"))
-        renderShapeSpawn(p_Data);
-    if constexpr (D == D3)
-        if (ImGui::CollapsingHeader("Lights"))
-            renderLightSpawn();
 }
 
 void WindowData::renderLightSpawn() noexcept
 {
     ImGui::SliderFloat("Ambient intensity", &m_LayerData3.Ambient.w, 0.f, 1.f);
     ImGui::ColorEdit3("Color", glm::value_ptr(m_LayerData3.Ambient));
-
-    ImGui::Combo("Light", &m_LayerData3.LightToSpawn, "Directional\0Point\0\0");
-    if (m_LayerData3.LightToSpawn == 1)
-        ImGui::Checkbox("Draw##Light", &m_LayerData3.DrawLights);
 
     if (ImGui::Button("Spawn##Light"))
     {
@@ -482,42 +551,53 @@ void WindowData::renderLightSpawn() noexcept
         else
             m_LayerData3.PointLights.push_back(m_LayerData3.PointLightToAdd);
     }
+    ImGui::SameLine();
+    ImGui::Combo("Light", &m_LayerData3.LightToSpawn, "Directional\0Point\0\0");
+    if (m_LayerData3.LightToSpawn == 1)
+        ImGui::Checkbox("Draw##Light", &m_LayerData3.DrawLights);
 
-    const u32 dsize = m_LayerData3.DirectionalLights.size();
-    for (u32 i = 0; i < dsize; ++i)
+    if ((!m_LayerData3.DirectionalLights.empty() || !m_LayerData3.PointLights.empty()) &&
+        ImGui::TreeNode("Spawned lights"))
     {
-        ImGui::PushID(&m_LayerData3.DirectionalLights[i]);
-        if (ImGui::Button("X"))
+        const u32 dsize = m_LayerData3.DirectionalLights.size();
+        for (u32 i = 0; i < dsize; ++i)
         {
-            m_LayerData3.DirectionalLights.erase(m_LayerData3.DirectionalLights.begin() + i);
+            ImGui::PushID(&m_LayerData3.DirectionalLights[i]);
+            if (ImGui::Button("X"))
+            {
+                m_LayerData3.DirectionalLights.erase(m_LayerData3.DirectionalLights.begin() + i);
+                ImGui::PopID();
+                return;
+            }
+            ImGui::SameLine();
+            if (ImGui::Selectable("Directional", m_LayerData3.SelectedDirLight == i))
+                m_LayerData3.SelectedDirLight = i;
             ImGui::PopID();
-            return;
         }
-        ImGui::SameLine();
-        if (ImGui::Selectable("Directional", m_LayerData3.SelectedDirLight == i))
-            m_LayerData3.SelectedDirLight = i;
-        ImGui::PopID();
-    }
-    if (m_LayerData3.SelectedDirLight < dsize)
-        UserLayer::DirectionalLightEditor(m_LayerData3.DirectionalLights[m_LayerData3.SelectedDirLight]);
+        if (m_LayerData3.SelectedDirLight < dsize)
+            UserLayer::DirectionalLightEditor(m_LayerData3.DirectionalLights[m_LayerData3.SelectedDirLight],
+                                              UserLayer::Flag_DisplayHelp);
 
-    const u32 psize = m_LayerData3.PointLights.size();
-    for (u32 i = 0; i < psize; ++i)
-    {
-        ImGui::PushID(&m_LayerData3.PointLights[i]);
-        if (ImGui::Button("X"))
+        const u32 psize = m_LayerData3.PointLights.size();
+        for (u32 i = 0; i < psize; ++i)
         {
-            m_LayerData3.PointLights.erase(m_LayerData3.PointLights.begin() + i);
+            ImGui::PushID(&m_LayerData3.PointLights[i]);
+            if (ImGui::Button("X"))
+            {
+                m_LayerData3.PointLights.erase(m_LayerData3.PointLights.begin() + i);
+                ImGui::PopID();
+                return;
+            }
+            ImGui::SameLine();
+            if (ImGui::Selectable("Point", m_LayerData3.SelectedPointLight == i))
+                m_LayerData3.SelectedPointLight = i;
             ImGui::PopID();
-            return;
         }
-        ImGui::SameLine();
-        if (ImGui::Selectable("Point", m_LayerData3.SelectedPointLight == i))
-            m_LayerData3.SelectedPointLight = i;
-        ImGui::PopID();
+        if (m_LayerData3.SelectedPointLight < psize)
+            UserLayer::PointLightEditor(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight],
+                                        UserLayer::Flag_DisplayHelp);
+        ImGui::TreePop();
     }
-    if (m_LayerData3.SelectedPointLight < psize)
-        UserLayer::PointLightEditor(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight]);
 }
 
 } // namespace Onyx::Demo

@@ -23,6 +23,12 @@ class CinderTheme final : public Theme
     void Apply() const noexcept override;
 };
 
+class BabyTheme final : public Theme
+{
+  public:
+    void Apply() const noexcept override;
+};
+
 class DougBinksTheme final : public Theme
 {
   public:

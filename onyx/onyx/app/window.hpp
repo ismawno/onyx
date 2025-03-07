@@ -24,12 +24,13 @@ class ONYX_API Window
 {
     TKIT_NON_COPYABLE(Window)
   public:
+    using Flags = u8;
     /**
      * @brief Flags representing window properties.
      *
      * These flags can be used to specify window attributes such as resizable, visible, decorated, etc.
      */
-    enum FlagBits : u8
+    enum FlagBit : Flags
     {
         Flag_Resizable = 1 << 0, ///< The window can be resized.
         Flag_Visible = 1 << 1,   ///< The window is visible upon creation.
@@ -37,7 +38,6 @@ class ONYX_API Window
         Flag_Focused = 1 << 3,   ///< The window is focused upon creation.
         Flag_Floating = 1 << 4   ///< The window is always on top of other windows.
     };
-    using Flags = u8;
     /**
      * @brief Specifications for creating a window.
      *

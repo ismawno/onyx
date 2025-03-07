@@ -74,6 +74,7 @@ class WindowData
     void OnEvent(const Event &p_Event) noexcept;
 
     static void OnImGuiRenderGlobal(TKit::Timespan p_Timestep) noexcept;
+    static void RenderEditorText() noexcept;
 
   private:
     template <Dimension D> void drawShapes(const LayerData<D> &p_Data, TKit::Timespan p_Timestep) noexcept;

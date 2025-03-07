@@ -43,6 +43,12 @@ void MWExampleLayer::OnImGuiRender() noexcept
     WindowData::OnImGuiRenderGlobal(ts);
     if (ImGui::Begin("Editor"))
     {
+        WindowData::RenderEditorText();
+        ImGui::Spacing();
+        ImGui::TextWrapped(
+            "This is a multi-window application, meaning windows can be opened and closed at runtime. "
+            "The editor panel is shared between all windows, and each window has its own set of 2D or 3D shapes.");
+
         if (ImGui::Button("Open Window"))
             m_Application->OpenWindow();
 

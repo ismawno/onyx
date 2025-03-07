@@ -52,12 +52,13 @@ template <Dimension D, template <Dimension, PipelineMode> typename R> struct Ren
     R<D, PipelineMode::DoStencilTestNoFill> DoStencilTestNoFill;
 };
 
+using DrawFlags = u8;
 /**
  * @brief Enumeration of flags used to control drawing behavior.
  *
  * These flags determine how shapes are rendered, particularly regarding stencil operations and scaling.
  */
-enum DrawFlags : u8
+enum DrawFlagBit : DrawFlags
 {
     /// Automatic selection of draw flags based on the current state.
     DrawFlags_Auto = 1 << 0,
@@ -107,7 +108,7 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_Model The mesh model to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, u8 p_Flags = DrawFlags_Auto) noexcept;
+    void DrawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, DrawFlags p_Flags = DrawFlags_Auto) noexcept;
 
     /**
      * @brief Record a draw call for a primitive shape.
@@ -116,7 +117,7 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_PrimitiveIndex Index of the primitive shape to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex, u8 p_Flags = DrawFlags_Auto) noexcept;
+    void DrawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex, DrawFlags p_Flags = DrawFlags_Auto) noexcept;
 
     /**
      * @brief Record a draw call for a polygon defined by a set of vertices.
@@ -126,7 +127,7 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_Flags Drawing flags to control rendering behavior.
      */
     void DrawPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec<D>> p_Vertices,
-                     u8 p_Flags = DrawFlags_Auto) noexcept;
+                     DrawFlags p_Flags = DrawFlags_Auto) noexcept;
 
     /**
      * @brief Record a draw call for a circle or arc.
@@ -141,7 +142,7 @@ template <Dimension D> class ONYX_API IRenderer
      */
     void DrawCircleOrArc(const fmat<D> &p_Transform, f32 p_InnerFade = 0.f, f32 p_OuterFade = 0.f,
                          f32 p_Hollowness = 0.f, f32 p_LowerAngle = 0.f, f32 p_UpperAngle = glm::two_pi<f32>(),
-                         u8 p_Flags = DrawFlags_Auto) noexcept;
+                         DrawFlags p_Flags = DrawFlags_Auto) noexcept;
 
     /**
      * @brief Record a draw call for a circle or arc with flags specified before angles.
@@ -154,7 +155,7 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_UpperAngle Ending angle of the arc in radians.
      * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
      */
-    void DrawCircleOrArc(const fmat<D> &p_Transform, u8 p_Flags, f32 p_InnerFade = 0.f, f32 p_OuterFade = 0.f,
+    void DrawCircleOrArc(const fmat<D> &p_Transform, DrawFlags p_Flags, f32 p_InnerFade = 0.f, f32 p_OuterFade = 0.f,
                          f32 p_Hollowness = 0.f, f32 p_LowerAngle = 0.f,
                          f32 p_UpperAngle = glm::two_pi<f32>()) noexcept;
 
@@ -195,7 +196,7 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_Args Additional arguments specific to the renderer.
      */
     template <typename Renderer, typename... DrawArgs>
-    void draw(Renderer &p_Renderer, const fmat<D> &p_Transform, u8 p_Flags, DrawArgs &&...p_Args) noexcept;
+    void draw(Renderer &p_Renderer, const fmat<D> &p_Transform, DrawFlags p_Flags, DrawArgs &&...p_Args) noexcept;
 
     /// Pointer to the current render state stack.
     const TKit::StaticArray8<RenderState<D>> *m_State;

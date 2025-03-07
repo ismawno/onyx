@@ -56,11 +56,18 @@ namespace Detail
  * - The `RenderContext` is mostly immediate mode. Almost all mutations to its state can be reset with the `Flush()`
  * methods, which is recommended to be called at the beginning of each frame.
  *
- * - The view and projection matrices are not reset by the `Flush()` methods. The view can be controlled by user input
- * using the appropriate methods.
+ * - The view and projection matrices are not reset by the `Flush()` methods. Their state is kept between frames. The
+ * view can be controlled by user input using the appropriate methods.
  *
  * - All entities that can be added to the scene (shapes, meshes, lights) will always have their position, scale and
  * rotation relative to the current axes transform, which can be modified as well.
+ *
+ * - Please note that objects drawn in the scene inherit the state the axes were in when the draw command was issued.
+ * This means that every object drawn will have its own, dedicated parent axes transform. Because of this, the view's
+ * transform, a global state, cannot be bound to the axes, as these are not unique and well defined. If you want to
+ * query the view's transform with respect to the current axes, you must use the `GetViewTransformInCurrentAxes()`
+ * method. Otherwise, you may query the view's transform from the `GetProjectionViewData()` method, which will not have
+ * any axes transform applied to it.
  *
  */
 template <Dimension D> class ONYX_API IRenderContext
@@ -751,6 +758,13 @@ template <Dimension D> class ONYX_API IRenderContext
     const ProjectionViewData<D> &GetProjectionViewData() const noexcept;
 
     /**
+     * @brief Get the view transform coordinates with respect the curren defined axes.
+     *
+     * @return The view transform in the current axes.
+     */
+    Onyx::Transform<D> GetViewTransformInCurrentAxes() const noexcept;
+
+    /**
      * @brief Set the global context's view.
      *
      */
@@ -1393,6 +1407,12 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Sharpness The specular sharpness factor.
      */
     void SpecularSharpness(f32 p_Sharpness) noexcept;
+
+    /**
+     * @brief Get the direction of the view in the current axes.
+     *
+     */
+    fvec3 GetViewLookDirectionInCurrentAxes() const noexcept;
 
     /**
      * @brief Set the global projection matrix for the rendering context.

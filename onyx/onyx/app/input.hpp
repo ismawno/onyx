@@ -159,7 +159,6 @@ enum class Key : u16
     RightAlt = GLFW_KEY_RIGHT_ALT,
     RightSuper = GLFW_KEY_RIGHT_SUPER,
     Menu = GLFW_KEY_MENU,
-    Last = GLFW_KEY_MENU,
     None = GLFW_KEY_LAST + 1
 };
 

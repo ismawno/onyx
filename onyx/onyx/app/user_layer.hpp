@@ -5,6 +5,7 @@
 #include "tkit/utils/non_copyable.hpp"
 #include "tkit/memory/ptr.hpp"
 #include "tkit/container/static_array.hpp"
+#include "tkit/profiling/timespan.hpp"
 #include <concepts>
 #include <vulkan/vulkan.h>
 
@@ -14,6 +15,7 @@ struct Event;
 
 template <Dimension D> struct Transform;
 template <Dimension D> struct MaterialData;
+template <Dimension D> struct CameraMovementControls;
 
 struct DirectionalLight;
 struct PointLight;
@@ -33,6 +35,12 @@ class Window;
 class UserLayer
 {
   public:
+    using Flags = u8;
+    enum FlagBit : Flags
+    {
+        Flag_DisplayHelp = 1 << 0,
+    };
+
     virtual ~UserLayer() noexcept = default;
 
     /**
@@ -202,15 +210,22 @@ class UserLayer
         return false;
     }
 
-    template <Dimension D> static void TransformEditor(Transform<D> &p_Transform, f32 p_DragSpeed = 0.03f) noexcept;
-    template <Dimension D> static void MaterialEditor(MaterialData<D> &p_Material) noexcept;
+    template <Dimension D> static void TransformEditor(Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;
+    template <Dimension D> static void MaterialEditor(MaterialData<D> &p_Material, Flags p_Flags = 0) noexcept;
 
-    template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform) noexcept;
+    template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;
+    template <Dimension D>
+    static void DisplayCameraMovementControls(const CameraMovementControls<D> &p_Controls = {}) noexcept;
 
-    static void DirectionalLightEditor(DirectionalLight &p_Light) noexcept;
-    static void PointLightEditor(PointLight &p_Light) noexcept;
+    static void DisplayFrameTime(TKit::Timespan p_DeltaTime, Flags p_Flags = 0) noexcept;
 
-    static void PresentModeEditor(Window *p_Window) noexcept;
+    static void DirectionalLightEditor(DirectionalLight &p_Light, Flags p_Flags = 0) noexcept;
+    static void PointLightEditor(PointLight &p_Light, Flags p_Flags = 0) noexcept;
+
+    static void PresentModeEditor(Window *p_Window, Flags p_Flags = 0) noexcept;
+
+    static void HelpMarker(const char *p_Description, const char *p_Icon = "(?)") noexcept;
+    static void HelpMarkerSameLine(const char *p_Description, const char *p_Icon = "(?)") noexcept;
 };
 
 } // namespace Onyx

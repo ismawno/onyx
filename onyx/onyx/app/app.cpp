@@ -183,7 +183,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     if (!m_ImGuiPool)
         createImGuiPool();
     if (!m_Theme)
-        m_Theme = TKit::Scope<DefaultTheme>::Create();
+        m_Theme = TKit::Scope<BabyTheme>::Create();
 
     ImGui::CreateContext();
 #ifdef ONYX_ENABLE_IMPLOT
