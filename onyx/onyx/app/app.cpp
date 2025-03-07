@@ -257,9 +257,9 @@ void Application::Shutdown() noexcept
 static void endFrame() noexcept
 {
 #ifdef TKIT_ENABLE_INSTRUMENTATION
-    const u32 drawCalls = GetDrawCallCount();
-    TKIT_PROFILE_PLOT("Draw calls", drawCalls);
-    ResetDrawCallCount();
+    const i64 drawCalls = static_cast<i64>(Detail::GetDrawCallCount());
+    TKIT_PROFILE_PLOT("Draw calls", static_cast<i64>(drawCalls));
+    Detail::ResetDrawCallCount();
 #endif
     TKIT_PROFILE_MARK_FRAME();
 }
