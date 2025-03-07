@@ -5,8 +5,27 @@
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
 
+#ifdef TKIT_ENABLE_INSTRUMENTATION
+#    define INCREASE_DRAW_CALL_COUNT() ++s_DrawCallCount
+#else
+#    define INCREASE_DRAW_CALL_COUNT()
+#endif
+
 namespace Onyx::Detail
 {
+#ifdef TKIT_ENABLE_INSTRUMENTATION
+static u32 s_DrawCallCount = 0;
+
+u32 GetDrawCallCount() noexcept
+{
+    return s_DrawCallCount;
+}
+void ResetDrawCallCount() noexcept
+{
+    s_DrawCallCount = 0;
+}
+#endif
+
 static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
                                                        VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
 {
@@ -143,6 +162,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
                     model.DrawIndexed(p_Info.CommandBuffer, firstInstance + size, firstInstance);
                 else
                     model.Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
+                INCREASE_DRAW_CALL_COUNT();
             });
         firstInstance += size;
     }
@@ -232,6 +252,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
                 const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
                 vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart,
                                  layout.VerticesStart, firstInstance);
+                INCREASE_DRAW_CALL_COUNT();
             });
 
         firstInstance += size;
@@ -358,6 +379,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
         storageBuffer.WriteAt(i, &data.BaseData);
         vkCmdDrawIndexed(p_Info.CommandBuffer, data.Layout.IndicesSize, 1, data.Layout.IndicesStart,
                          data.Layout.VerticesStart, 0);
+        INCREASE_DRAW_CALL_COUNT();
     }
     storageBuffer.Flush();
 }
@@ -436,6 +458,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 
             const u32 size = m_HostInstanceData.size();
             vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);
+            INCREASE_DRAW_CALL_COUNT();
         });
     storageBuffer.Flush();
 }

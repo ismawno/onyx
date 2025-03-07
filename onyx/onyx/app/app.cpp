@@ -34,6 +34,7 @@ TKit::Timespan IApplication::GetDeltaTime() const noexcept
 void IApplication::Startup() noexcept
 {
     TKIT_ASSERT(!m_Terminated && !m_Started, "[ONYX] Application cannot be started more than once");
+    TKIT_PROFILE_PLOT_CONFIG("Draw calls", TKit::ProfilingPlotFormat::Number, false, true, 0);
     m_Started = true;
     onStart();
 }
@@ -185,9 +186,9 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     if (!m_Theme)
         m_Theme = TKit::Scope<BabyTheme>::Create();
 
-    ImGui::CreateContext();
+    m_ImGuiContext = ImGui::CreateContext();
 #ifdef ONYX_ENABLE_IMPLOT
-    ImPlot::CreateContext();
+    m_ImPlotContext = ImPlot::CreateContext();
 #endif
 
     IMGUI_CHECKVERSION();
@@ -228,6 +229,14 @@ void IApplication::shutdownImGui() noexcept
 #endif
 }
 
+void IApplication::setImContexts() noexcept
+{
+    ImGui::SetCurrentContext(m_ImGuiContext);
+#ifdef ONYX_ENABLE_IMPLOT
+    ImPlot::SetCurrentContext(m_ImPlotContext);
+#endif
+}
+
 Application::Application(const Window::Specs &p_WindowSpecs) noexcept
 {
     m_Window.Construct(p_WindowSpecs);
@@ -245,13 +254,24 @@ void Application::Shutdown() noexcept
     IApplication::Shutdown();
 }
 
+static void endFrame() noexcept
+{
+#ifdef TKIT_ENABLE_INSTRUMENTATION
+    const u32 drawCalls = GetDrawCallCount();
+    TKIT_PROFILE_PLOT("Draw calls", drawCalls);
+    ResetDrawCallCount();
+#endif
+    TKIT_PROFILE_MARK_FRAME();
+}
+
 bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
+    setImContexts();
     if (m_QuitFlag) [[unlikely]]
     {
         m_QuitFlag = false;
-        TKIT_PROFILE_MARK_FRAME();
+        endFrame();
         return false;
     }
 
@@ -283,11 +303,11 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
         shutdownImGui();
         m_Window.Destruct();
         m_WindowAlive = false;
-        TKIT_PROFILE_MARK_FRAME();
+        endFrame();
         return false;
     }
     m_DeltaTime = p_Clock.Restart();
-    TKIT_PROFILE_MARK_FRAME();
+    endFrame();
     return true;
 }
 
@@ -366,10 +386,11 @@ u32 MultiWindowApplication::GetWindowCount() const noexcept
 bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApplication::NextFrame");
+    setImContexts();
     if (m_Windows.empty() || m_QuitFlag) [[unlikely]]
     {
         m_QuitFlag = false;
-        TKIT_PROFILE_MARK_FRAME();
+        endFrame();
         return false;
     }
 
@@ -377,7 +398,7 @@ bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
     processWindows();
 
     m_DeltaTime = p_Clock.Restart();
-    TKIT_PROFILE_MARK_FRAME();
+    endFrame();
     return !m_Windows.empty();
 }
 

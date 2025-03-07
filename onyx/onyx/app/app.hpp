@@ -5,12 +5,31 @@
 #include "onyx/app/theme.hpp"
 #include "tkit/profiling/clock.hpp"
 
+struct ImGuiContext;
+#ifdef ONYX_ENABLE_IMPLOT
+struct ImPlotContext;
+#endif
+
 namespace Onyx
 {
 /**
  * @brief This class provides a simple application interface, with some common functionality.
  *
- * This base class can represent a single or multi-window application.
+ * This base class can represent a single or multi-window application. It is strongly discouraged (although technically
+ * possible) to use multiple applications in the same program. If you do so, note that the following (among other
+ * possible unknown things) may work incorrectly:
+ *
+ * - ImGui: Currently, the application manages an ImGui context, and although that context is set at
+ * the beginning of each frame to ensure consistency, ImGui itself discourages using multiple.
+ *
+ * - Draw call profile plot: The draw call count is global for the whole program, but it would be registered and reset
+ * by each application in turn, yielding weird results.
+ *
+ * - `UserLayer::DisplayFrameTime()`: This method uses static variables. Using many applications would result in
+ * inconsistencies.
+ *
+ * The most common reason for a user to want to use multiple applications is to have different windows. In that case,
+ * please use the `MultiWindowApplication` class, which is designed to handle multiple windows.
  *
  */
 class IApplication
@@ -163,6 +182,7 @@ class IApplication
   protected:
     void initializeImGui(Window &p_Window) noexcept;
     void shutdownImGui() noexcept;
+    void setImContexts() noexcept;
 
     static void beginRenderImGui() noexcept;
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
@@ -192,6 +212,11 @@ class IApplication
 
     UserLayer *m_UserLayer = nullptr;
     UserLayer *m_StagedUserLayer = nullptr;
+
+    ImGuiContext *m_ImGuiContext = nullptr;
+#ifdef ONYX_ENABLE_IMPLOT
+    ImPlotContext *m_ImPlotContext = nullptr;
+#endif
 
     VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
     TKit::Scope<Theme> m_Theme;

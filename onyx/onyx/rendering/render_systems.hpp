@@ -10,6 +10,11 @@
 
 namespace Onyx::Detail
 {
+#ifdef TKIT_ENABLE_INSTRUMENTATION
+u32 GetDrawCallCount() noexcept;
+void ResetDrawCallCount() noexcept;
+#endif
+
 /**
  * @brief Responsible for handling all user draw calls that involve meshes built from a `Model` instance.
  *

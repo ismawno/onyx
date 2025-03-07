@@ -4,6 +4,20 @@
 #include <imgui.h>
 #include <implot.h>
 
+// dirty ass macros as lazy enums lol
+#define TRIANGLE 0
+#define SQUARE 1
+#define CIRCLE 2
+#define NGON 3
+#define POLYGON 4
+#define STADIUM 5
+#define ROUNDED_SQUARE 6
+#define CUBE 7
+#define SPHERE 8
+#define CYLINDER 9
+#define CAPSULE 10
+#define ROUNDED_CUBE 11
+
 namespace Onyx::Demo
 {
 static const VKit::PipelineLayout &getRainbowLayout() noexcept
@@ -132,7 +146,7 @@ void WindowData::OnImGuiRender() noexcept
 
 template <Dimension D> static void processPolygonEvent(LayerData<D> &p_Data, const Event &p_Event)
 {
-    if (p_Event.Type != Event::MousePressed || p_Data.ShapeToSpawn != 4)
+    if (p_Event.Type != Event::MousePressed || p_Data.ShapeToSpawn != POLYGON)
         return;
     if constexpr (D == D2)
         p_Data.PolygonVertices.push_back(p_Data.Context->GetMouseCoordinates());
@@ -183,7 +197,7 @@ template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, c
     p_Data.Context->TransformAxes(p_Data.AxesTransform.ComputeTransform());
 
     const LatticeData<D> &lattice = p_Data.Lattice;
-    if (lattice.Enabled && lattice.Shape)
+    if (lattice.Enabled && lattice.Shape && p_Data.ShapeToSpawn != POLYGON)
     {
         const fvec<D> separation =
             lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : fvec<D>{lattice.Separation};
@@ -260,41 +274,41 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
 {
     static i32 ngonSides = 3;
     const auto createShape = [&p_Data]() -> TKit::Scope<Shape<D>> {
-        if (p_Data.ShapeToSpawn == 0)
+        if (p_Data.ShapeToSpawn == TRIANGLE)
             return TKit::Scope<Triangle<D>>::Create();
-        else if (p_Data.ShapeToSpawn == 1)
+        else if (p_Data.ShapeToSpawn == SQUARE)
             return TKit::Scope<Square<D>>::Create();
-        else if (p_Data.ShapeToSpawn == 2)
+        else if (p_Data.ShapeToSpawn == CIRCLE)
             return TKit::Scope<Circle<D>>::Create();
-        else if (p_Data.ShapeToSpawn == 3)
+        else if (p_Data.ShapeToSpawn == NGON)
         {
             auto ngon = TKit::Scope<NGon<D>>::Create();
             ngon->Sides = static_cast<u32>(ngonSides);
             return std::move(ngon);
         }
-        else if (p_Data.ShapeToSpawn == 4)
+        else if (p_Data.ShapeToSpawn == POLYGON)
         {
             auto polygon = TKit::Scope<Polygon<D>>::Create();
             polygon->Vertices = p_Data.PolygonVertices;
-            return std::move(polygon);
             p_Data.PolygonVertices.clear();
+            return std::move(polygon);
         }
-        else if (p_Data.ShapeToSpawn == 5)
+        else if (p_Data.ShapeToSpawn == STADIUM)
             return TKit::Scope<Stadium<D>>::Create();
-        else if (p_Data.ShapeToSpawn == 6)
+        else if (p_Data.ShapeToSpawn == ROUNDED_SQUARE)
             return TKit::Scope<RoundedSquare<D>>::Create();
 
         else if constexpr (D == D3)
         {
-            if (p_Data.ShapeToSpawn == 7)
+            if (p_Data.ShapeToSpawn == CUBE)
                 return TKit::Scope<Cube>::Create();
-            else if (p_Data.ShapeToSpawn == 8)
+            else if (p_Data.ShapeToSpawn == SPHERE)
                 return TKit::Scope<Sphere>::Create();
-            else if (p_Data.ShapeToSpawn == 9)
+            else if (p_Data.ShapeToSpawn == CYLINDER)
                 return TKit::Scope<Cylinder>::Create();
-            else if (p_Data.ShapeToSpawn == 10)
+            else if (p_Data.ShapeToSpawn == CAPSULE)
                 return TKit::Scope<Capsule>::Create();
-            else if (p_Data.ShapeToSpawn == 11)
+            else if (p_Data.ShapeToSpawn == ROUNDED_CUBE)
                 return TKit::Scope<RoundedCube>::Create();
         }
         return nullptr;
@@ -325,12 +339,51 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         lattice.Shape->Transform = transform;
     }
 
+    if (p_Data.ShapeToSpawn == NGON)
+        ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
+    else if (p_Data.ShapeToSpawn == POLYGON)
+    {
+        ImGui::Text("Click on the screen or the 'Add' button to add vertices to the polygon.");
+        static fvec<D> toAdd{0.f};
+        if constexpr (D == D2)
+            ImGui::DragFloat2("Vertex", glm::value_ptr(toAdd), 0.1f);
+        else
+            ImGui::DragFloat3("Vertex", glm::value_ptr(toAdd), 0.1f);
+        ImGui::SameLine();
+        if (ImGui::Button("Add"))
+        {
+            p_Data.PolygonVertices.push_back(toAdd);
+            toAdd = fvec<D>{0.f};
+        }
+        for (u32 i = 0; i < p_Data.PolygonVertices.size(); ++i)
+        {
+            ImGui::PushID(&p_Data.PolygonVertices[i]);
+            if (ImGui::Button("X"))
+            {
+                p_Data.PolygonVertices.erase(p_Data.PolygonVertices.begin() + i);
+                ImGui::PopID();
+                break;
+            }
+
+            ImGui::SameLine();
+            if constexpr (D == D2)
+                ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
+            else
+                ImGui::Text("Vertex %u: (%.2f, %.2f, %.2f)", i, p_Data.PolygonVertices[i].x,
+                            p_Data.PolygonVertices[i].y, p_Data.PolygonVertices[i].z);
+            ImGui::PopID();
+        }
+    }
+
     if (ImGui::TreeNode("Lattice"))
     {
         ImGui::Checkbox("Draw shape lattice", &lattice.Enabled);
         UserLayer::HelpMarkerSameLine("You may choose to draw a lattice of shapes to stress test the rendering engine. "
                                       "I advice to build the engine "
                                       "in distribution mode to see meaningful results.");
+
+        if (p_Data.ShapeToSpawn == POLYGON)
+            ImGui::TextDisabled("Polygon shapes cannot be drawn in a lattice :(");
         if constexpr (D == D2)
         {
             ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y);
@@ -358,58 +411,23 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     {
         if (ImGui::Button("Clear"))
             p_Data.Shapes.clear();
-        if (p_Data.ShapeToSpawn == 3)
-            ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
-        else if (p_Data.ShapeToSpawn == 4)
-        {
-            static fvec<D> toAdd{0.f};
-            if constexpr (D == D2)
-                ImGui::DragFloat2("Vertex", glm::value_ptr(toAdd), 0.1f);
-            else
-                ImGui::DragFloat3("Vertex", glm::value_ptr(toAdd), 0.1f);
-            ImGui::SameLine();
-            if (ImGui::Button("Add"))
-            {
-                p_Data.PolygonVertices.push_back(toAdd);
-                toAdd = fvec<D>{0.f};
-            }
-            for (u32 i = 0; i < p_Data.PolygonVertices.size(); ++i)
-            {
-                ImGui::PushID(&p_Data.PolygonVertices[i]);
-                if (ImGui::Button("X"))
-                {
-                    p_Data.PolygonVertices.erase(p_Data.PolygonVertices.begin() + i);
-                    ImGui::PopID();
-                    break;
-                }
 
-                ImGui::SameLine();
-                if constexpr (D == D2)
-                    ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
-                else
-                    ImGui::Text("Vertex %u: (%.2f, %.2f, %.2f)", i, p_Data.PolygonVertices[i].x,
-                                p_Data.PolygonVertices[i].y, p_Data.PolygonVertices[i].z);
-                ImGui::PopID();
-            }
-        }
-
-        const u32 size = p_Data.Shapes.size();
         static u32 selected = 0;
-        for (u32 i = 0; i < size; ++i)
+        for (u32 i = 0; i < p_Data.Shapes.size(); ++i)
         {
             ImGui::PushID(&p_Data.Shapes[i]);
             if (ImGui::Button("X"))
             {
                 p_Data.Shapes.erase(p_Data.Shapes.begin() + i);
                 ImGui::PopID();
-                return;
+                break;
             }
             ImGui::SameLine();
             if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), selected == i))
                 selected = i;
             ImGui::PopID();
         }
-        if (selected < size)
+        if (selected < p_Data.Shapes.size())
             p_Data.Shapes[selected]->Edit();
         ImGui::TreePop();
     }
@@ -559,41 +577,39 @@ void WindowData::renderLightSpawn() noexcept
     if ((!m_LayerData3.DirectionalLights.empty() || !m_LayerData3.PointLights.empty()) &&
         ImGui::TreeNode("Spawned lights"))
     {
-        const u32 dsize = m_LayerData3.DirectionalLights.size();
-        for (u32 i = 0; i < dsize; ++i)
+        for (u32 i = 0; i < m_LayerData3.DirectionalLights.size(); ++i)
         {
             ImGui::PushID(&m_LayerData3.DirectionalLights[i]);
             if (ImGui::Button("X"))
             {
                 m_LayerData3.DirectionalLights.erase(m_LayerData3.DirectionalLights.begin() + i);
                 ImGui::PopID();
-                return;
+                break;
             }
             ImGui::SameLine();
             if (ImGui::Selectable("Directional", m_LayerData3.SelectedDirLight == i))
                 m_LayerData3.SelectedDirLight = i;
             ImGui::PopID();
         }
-        if (m_LayerData3.SelectedDirLight < dsize)
+        if (m_LayerData3.SelectedDirLight < m_LayerData3.DirectionalLights.size())
             UserLayer::DirectionalLightEditor(m_LayerData3.DirectionalLights[m_LayerData3.SelectedDirLight],
                                               UserLayer::Flag_DisplayHelp);
 
-        const u32 psize = m_LayerData3.PointLights.size();
-        for (u32 i = 0; i < psize; ++i)
+        for (u32 i = 0; i < m_LayerData3.PointLights.size(); ++i)
         {
             ImGui::PushID(&m_LayerData3.PointLights[i]);
             if (ImGui::Button("X"))
             {
                 m_LayerData3.PointLights.erase(m_LayerData3.PointLights.begin() + i);
                 ImGui::PopID();
-                return;
+                break;
             }
             ImGui::SameLine();
             if (ImGui::Selectable("Point", m_LayerData3.SelectedPointLight == i))
                 m_LayerData3.SelectedPointLight = i;
             ImGui::PopID();
         }
-        if (m_LayerData3.SelectedPointLight < psize)
+        if (m_LayerData3.SelectedPointLight < m_LayerData3.PointLights.size())
             UserLayer::PointLightEditor(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight],
                                         UserLayer::Flag_DisplayHelp);
         ImGui::TreePop();

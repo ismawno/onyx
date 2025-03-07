@@ -126,7 +126,7 @@ void CreateCombinedPrimitiveBuffers() noexcept
 
     const TKit::Array<const char *, Primitives<D3>::AMOUNT> paths3D = {
         ONYX_ROOT_PATH "/onyx/models/triangle.obj", ONYX_ROOT_PATH "/onyx/models/square.obj",
-        ONYX_ROOT_PATH "/onyx/models/cube.obj", ONYX_ROOT_PATH "/onyx/models/sphere.obj",
+        ONYX_ROOT_PATH "/onyx/models/cube.obj", ONYX_ROOT_PATH "/onyx/models/" ONYX_SPHERE_MODEL,
         ONYX_ROOT_PATH "/onyx/models/cylinder.obj"};
 
     createBuffers<D2>(paths2D);

@@ -168,13 +168,11 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const fmat<D> &p_Transform, DrawFl
     {
         const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state.Material, m_ZOffset);
         p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
-        ++m_DrawCount;
     }
     if (p_Flags & DrawFlags_DoStencilWriteDoFill)
     {
         const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state.Material, m_ZOffset);
         p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
-        ++m_DrawCount;
     }
     if (p_Flags & DrawFlags_DoStencilWriteNoFill)
     {
@@ -192,7 +190,6 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const fmat<D> &p_Transform, DrawFl
             };
             drawIgnoreArgs(std::forward<DrawArgs>(p_Args)...);
         }
-        ++m_DrawCount;
     }
     if (p_Flags & DrawFlags_DoStencilTestNoFill)
     {
@@ -210,7 +207,6 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const fmat<D> &p_Transform, DrawFl
             };
             drawIgnoreArgs(std::forward<DrawArgs>(p_Args)...);
         }
-        ++m_DrawCount;
     }
 }
 
@@ -270,7 +266,6 @@ void Renderer<D2>::Flush() noexcept
     m_PrimitiveRenderer.Flush();
     m_PolygonRenderer.Flush();
     m_CircleRenderer.Flush();
-    m_DrawCount = 0;
 }
 void Renderer<D3>::Flush() noexcept
 {
@@ -281,13 +276,10 @@ void Renderer<D3>::Flush() noexcept
 
     m_DirectionalLights.clear();
     m_PointLights.clear();
-    m_DrawCount = 0;
 }
 
 void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    if (m_DrawCount == 0)
-        return;
     TKIT_PROFILE_NSCOPE("Onyx::Renderer<D2>::Render");
     RenderInfo<D2, DrawMode::Fill> fillDrawInfo;
     fillDrawInfo.CommandBuffer = p_CommandBuffer;
@@ -323,8 +315,6 @@ void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 
 void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
 {
-    if (m_DrawCount == 0)
-        return;
     TKIT_PROFILE_NSCOPE("Onyx::Renderer<D3>::Render");
     RenderInfo<D3, DrawMode::Fill> fillDrawInfo;
     fillDrawInfo.CommandBuffer = p_CommandBuffer;
