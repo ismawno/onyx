@@ -10,6 +10,10 @@
 #    define ONYX_SPHERE_MODEL "16-sphere.obj"
 #endif
 
+#ifndef ONYX_CYLINDER_MODEL
+#    define ONYX_CYLINDER_MODEL "16-cylinder.obj"
+#endif
+
 #define ONYX_REGULAR_POLYGON_COUNT (ONYX_MAX_REGULAR_POLYGON_SIDES - 2)
 
 // Important: index buffers must always be provided for primitives so that they can be batch rendered nicely
