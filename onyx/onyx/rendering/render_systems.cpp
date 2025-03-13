@@ -282,7 +282,7 @@ template <Dimension D, PipelineMode PMode> PolygonRenderer<D, PMode>::~PolygonRe
 
 template <Dimension D, PipelineMode PMode>
 void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
-                                     const TKit::Span<const fvec<D>> p_Vertices) noexcept
+                                     const TKit::Span<const fvec2> p_Vertices) noexcept
 {
     TKIT_ASSERT(p_Vertices.size() >= 3, "[ONYX] A polygon must have at least 3 sides");
     const u32 storageSize = m_HostInstanceData.size();
@@ -308,11 +308,16 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
 
     m_HostInstanceData.push_back(instanceData);
 
-    const auto pushVertex = [this](const fvec<D> &v) {
+    const auto pushVertex = [this](const fvec2 &v) {
         Vertex<D> vertex{};
-        vertex.Position = v;
         if constexpr (D == D3)
+        {
+            vertex.Position = fvec3{v, 0.f};
             vertex.Normal = fvec3{0.0f, 0.0f, 1.0f};
+        }
+        else
+            vertex.Position = v;
+
         m_Vertices.push_back(vertex);
     };
 
@@ -402,11 +407,11 @@ template <Dimension D, PipelineMode PMode> CircleRenderer<D, PMode>::~CircleRend
 }
 
 template <Dimension D, PipelineMode PMode>
-void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData, const f32 p_InnerFade,
-                                    const f32 p_OuterFade, const f32 p_Hollowness, const f32 p_LowerAngle,
-                                    const f32 p_UpperAngle) noexcept
+void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
+                                    const CircleOptions &p_Options) noexcept
 {
-    if (TKit::Approximately(p_LowerAngle, p_UpperAngle) || TKit::Approximately(p_Hollowness, 1.f))
+    if (TKit::Approximately(p_Options.LowerAngle, p_Options.UpperAngle) ||
+        TKit::Approximately(p_Options.Hollowness, 1.f))
         return;
     const u32 size = m_HostInstanceData.size();
     MutableStorageBuffer<CircleInstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
@@ -414,12 +419,12 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
     CircleInstanceData instanceData;
     instanceData.BaseData = p_InstanceData;
 
-    instanceData.ArcInfo =
-        fvec4{glm::cos(p_LowerAngle), glm::sin(p_LowerAngle), glm::cos(p_UpperAngle), glm::sin(p_UpperAngle)};
-    instanceData.AngleOverflow = glm::abs(p_UpperAngle - p_LowerAngle) > glm::pi<f32>() ? 1 : 0;
-    instanceData.Hollowness = p_Hollowness;
-    instanceData.InnerFade = p_InnerFade;
-    instanceData.OuterFade = p_OuterFade;
+    instanceData.ArcInfo = fvec4{glm::cos(p_Options.LowerAngle), glm::sin(p_Options.LowerAngle),
+                                 glm::cos(p_Options.UpperAngle), glm::sin(p_Options.UpperAngle)};
+    instanceData.AngleOverflow = glm::abs(p_Options.UpperAngle - p_Options.LowerAngle) > glm::pi<f32>() ? 1 : 0;
+    instanceData.Hollowness = p_Options.Hollowness;
+    instanceData.InnerFade = p_Options.InnerFade;
+    instanceData.OuterFade = p_Options.OuterFade;
 
     if (size == buffer.GetInfo().InstanceCount)
     {

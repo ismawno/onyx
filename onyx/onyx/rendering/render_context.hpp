@@ -7,6 +7,10 @@
 #include "tkit/profiling/timespan.hpp"
 #include <vulkan/vulkan.h>
 
+#ifndef ONYX_MAX_POLYGON_VERTICES
+#    define ONYX_MAX_POLYGON_VERTICES 32
+#endif
+
 // 2D objects that are drawn later will always be on top of earlier ones. HOWEVER, blending will only work expectedly
 // between objects of the same primitive
 
@@ -46,6 +50,11 @@ template <> struct CameraMovementControls<D3>
 
 namespace Detail
 {
+struct AxesOptions
+{
+    f32 Thickness = 0.01f;
+    f32 Size = 50.f;
+};
 
 /**
  * @brief The `RenderContext` class is the primary way of communicating with the Onyx API.
@@ -54,10 +63,19 @@ namespace Detail
  * fashion. The following is a set of properties of the `RenderContext` you must take into account when using it:
  *
  * - The `RenderContext` is mostly immediate mode. Almost all mutations to its state can be reset with the `Flush()`
- * methods, which is recommended to be called at the beginning of each frame.
+ * method, which is recommended to be called at the beginning of each frame.
  *
  * - The view and projection matrices are not reset by the `Flush()` methods. Their state is kept between frames. The
  * view can be controlled by user input using the appropriate methods.
+ *
+ * - Keep in mind that outlines are affected by the scaling of the shapes they outline. This means you may get weird
+ * outlines with scaled shapes, especially if the scaling is not uniform. To avoid this issue when using outlines,
+ * always try to modify the shape's dimensions explicitly through function parameters, instead of trying to apply
+ * scaling transformations directly. Note that all shapes have a way to set their dimensions directly. That particular
+ * way will work well with outlines.
+ *
+ * - Onyx renderers use batch rendering to optimize draw calls. This means that in some cases, the order in which shapes
+ * are drawn may not be respected.
  *
  * - All entities that can be added to the scene (shapes, meshes, lights) will always have their position, scale and
  * rotation relative to the current axes transform, which can be modified as well.
@@ -337,16 +355,6 @@ template <Dimension D> class ONYX_API IRenderContext
     void UpdateViewAspect(f32 p_Aspect) noexcept;
 
     /**
-     * @brief Render the coordinate axes for visualization.
-     *
-     * Draw the X and Y axes (and Z axis if D == 3) with the specified thickness and size.
-     *
-     * @param p_Thickness The thickness of the axes lines.
-     * @param p_Size The length of the axes.
-     */
-    void Axes(f32 p_Thickness = 0.01f, f32 p_Size = 50.f) noexcept;
-
-    /**
      * @brief Draw a unit triangle centered at the origin.
      *
      * The triangle will be affected by the current transformation state.
@@ -362,6 +370,42 @@ template <Dimension D> class ONYX_API IRenderContext
     void Triangle(const fmat<D> &p_Transform) noexcept;
 
     /**
+     * @brief Draw a unit triangle centered at the origin.
+     *
+     * The triangle will be affected by the current transformation state.
+     *
+     * @param p_Dimensions The dimensions of the triangle.
+     */
+    void Triangle(const fvec2 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a triangle with the specified transformation matrix.
+     *
+     * @param p_Transform The transformation matrix to apply to the triangle. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Dimensions The dimensions of the triangle.
+     */
+    void Triangle(const fmat<D> &p_Transform, const fvec2 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a unit triangle centered at the origin.
+     *
+     * The triangle will be affected by the current transformation state.
+     *
+     * @param p_Size The size of the triangle.
+     */
+    void Triangle(f32 p_Size) noexcept;
+
+    /**
+     * @brief Draw a triangle with the specified transformation matrix.
+     *
+     * @param p_Transform The transformation matrix to apply to the triangle. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Size The size of the triangle.
+     */
+    void Triangle(const fmat<D> &p_Transform, f32 p_Size) noexcept;
+
+    /**
      * @brief Draw a unit square centered at the origin.
      *
      * The square will be affected by the current transformation state.
@@ -375,6 +419,38 @@ template <Dimension D> class ONYX_API IRenderContext
      * extrinsically, on top of the current cummulated transformations.
      */
     void Square(const fmat<D> &p_Transform) noexcept;
+
+    /**
+     * @brief Draw a square with the specified dimensions.
+     *
+     * @param p_Dimensions The dimensions of the square.
+     */
+    void Square(const fvec2 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a square with the specified transformation matrix and dimensions.
+     *
+     * @param p_Transform The transformation matrix to apply to the square. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Dimensions The dimensions of the square.
+     */
+    void Square(const fmat<D> &p_Transform, const fvec2 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a square with the specified dimensions.
+     *
+     * @param p_Size The size of the square.
+     */
+    void Square(f32 p_Size) noexcept;
+
+    /**
+     * @brief Draw a square with the specified transformation matrix and dimensions.
+     *
+     * @param p_Transform The transformation matrix to apply to the square. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Size The size of the square.
+     */
+    void Square(const fmat<D> &p_Transform, f32 p_Size) noexcept;
 
     /**
      * @brief Draw a regular n-sided polygon centered at the origin.
@@ -393,98 +469,169 @@ template <Dimension D> class ONYX_API IRenderContext
     void NGon(const fmat<D> &p_Transform, u32 p_Sides) noexcept;
 
     /**
+     * @brief Draw a regular n-sided polygon centered at the origin.
+     *
+     * @param p_Sides The number of sides of the polygon.
+     * @param p_Dimensions The dimensions of the polygon.
+     */
+    void NGon(u32 p_Sides, const fvec2 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a regular n-sided polygon with the specified transformation.
+     *
+     * @param p_Transform The transformation matrix to apply to the polygon. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Sides The number of sides of the polygon.
+     * @param p_Dimensions The dimensions of the polygon.
+     */
+    void NGon(const fmat<D> &p_Transform, u32 p_Sides, const fvec2 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a regular n-sided polygon centered at the origin.
+     *
+     * @param p_Sides The number of sides of the polygon.
+     * @param p_Size The size of the polygon.
+     */
+    void NGon(u32 p_Sides, f32 p_Size) noexcept;
+
+    /**
+     * @brief Draw a regular n-sided polygon with the specified transformation.
+     *
+     * @param p_Transform The transformation matrix to apply to the polygon. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Sides The number of sides of the polygon.
+     * @param p_Size The size of the polygon.
+     */
+    void NGon(const fmat<D> &p_Transform, u32 p_Sides, f32 p_Size) noexcept;
+
+    /**
      * @brief Draw a polygon defined by the given vertices.
+     *
+     * The vertices must be in counter-clockwise order, otherwise outlines will not be drawn correctly.
+     * The polygon must be convex and will be affected by the current transformation state.
+     *
+     * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to achieve,
+     * so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just rotate
+     * the polygon.
      *
      * @param p_Vertices A span of vertices defining the polygon. Vertices are expected to be centered around zero.
      */
-    void Polygon(TKit::Span<const fvec<D>> p_Vertices) noexcept;
+    void ConvexPolygon(TKit::Span<const fvec2> p_Vertices) noexcept;
 
     /**
      * @brief Draw a polygon defined by the given vertices with the specified transformation.
+     *
+     * The vertices must be in counter-clockwise order, otherwise outlines will not be drawn correctly.
+     * The polygon must be convex and will be affected by the current transformation state.
+     *
+     * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to
+     * achieve, so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just
+     * rotate the polygon.
      *
      * @param p_Transform The transformation matrix to apply to the polygon. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Vertices A span of vertices defining the polygon.
      */
-    void Polygon(const fmat<D> &p_Transform, TKit::Span<const fvec<D>> p_Vertices) noexcept;
+    void ConvexPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
 
     /**
      * @brief Draw a unit circle centered at the origin.
      *
      * The circle will be affected by the current transformation state.
+     *
+     * The following is encoded in the `CircleOptions` struct:
+     *
+     * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
+     * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
+     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
+     * @param p_LowerAngle Starting angle of the arc in radians.
+     * @param p_UpperAngle Ending angle of the arc in radians.
      */
-    void Circle() noexcept;
+    void Circle(const CircleOptions &p_Options = {}) noexcept;
 
     /**
      * @brief Draw a circle with the specified transformation matrix.
      *
      * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
-     */
-    void Circle(const fmat<D> &p_Transform) noexcept;
-
-    /**
-     * @brief Draw a unit circle with the specified fade values.
+     *
+     * The following is encoded in the `CircleOptions` struct:
      *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
-     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
+     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
+     * @param p_LowerAngle Starting angle of the arc in radians.
+     * @param p_UpperAngle Ending angle of the arc in radians.
      */
-    void Circle(f32 p_InnerFade, f32 p_OuterFade, f32 p_Hollowness = 0.f) noexcept;
+    void Circle(const fmat<D> &p_Transform, const CircleOptions &p_Options = {}) noexcept;
 
     /**
-     * @brief Draw a unit circle with the specified fade values and transformation.
+     * @brief Draw a unit circle centered at the origin.
      *
-     * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
-     * extrinsically, on top of the current cummulated transformations.
+     * The circle will be affected by the current transformation state.
+     *
+     * @param p_Dimensions The dimensions of the circle.
+     *
+     * The following is encoded in the `CircleOptions` struct:
+     *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
-     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
+     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
+     * @param p_LowerAngle Starting angle of the arc in radians.
+     * @param p_UpperAngle Ending angle of the arc in radians.
      */
-    void Circle(const fmat<D> &p_Transform, f32 p_InnerFade, f32 p_OuterFade, f32 p_Hollowness = 0.f) noexcept;
+    void Circle(const fvec2 &p_Dimensions, const CircleOptions &p_Options = {}) noexcept;
 
     /**
-     * @brief Draw a circular arc or annulus sector.
-     *
-     * @param p_LowerAngle The starting angle in radians.
-     * @param p_UpperAngle The ending angle in radians.
-     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
-     */
-    void Arc(f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
-
-    /**
-     * @brief Draw a circular arc with the specified transformation matrix.
+     * @brief Draw a circle with the specified transformation matrix.
      *
      * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
-     * @param p_LowerAngle The starting angle in radians.
-     * @param p_UpperAngle The ending angle in radians.
-     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
-     */
-    void Arc(const fmat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_Hollowness = 0.f) noexcept;
-
-    /**
-     * @brief Draw a circular arc or annulus sector.
+     * @param p_Dimensions The dimensions of the circle.
      *
-     * @param p_LowerAngle The starting angle in radians.
-     * @param p_UpperAngle The ending angle in radians.
+     * The following is encoded in the `CircleOptions` struct:
+     *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
-     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
+     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
+     * @param p_LowerAngle Starting angle of the arc in radians.
+     * @param p_UpperAngle Ending angle of the arc in radians.
      */
-    void Arc(f32 p_LowerAngle, f32 p_UpperAngle, f32 p_InnerFade, f32 p_OuterFade, f32 p_Hollowness = 0.f) noexcept;
+    void Circle(const fmat<D> &p_Transform, const fvec2 &p_Dimensions, const CircleOptions &p_Options = {}) noexcept;
 
     /**
-     * @brief Draw a circular arc with the specified transformation matrix.
+     * @brief Draw a unit circle centered at the origin.
+     *
+     * The circle will be affected by the current transformation state.
+     *
+     * @param p_Diameter The diameter of the circle.
+     *
+     * The following is encoded in the `CircleOptions` struct:
+     *
+     * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
+     * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
+     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
+     * @param p_LowerAngle Starting angle of the arc in radians.
+     * @param p_UpperAngle Ending angle of the arc in radians.
+     */
+    void Circle(f32 p_Diameter, const CircleOptions &p_Options = {}) noexcept;
+
+    /**
+     * @brief Draw a circle with the specified transformation matrix.
      *
      * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
-     * @param p_LowerAngle The starting angle in radians.
-     * @param p_UpperAngle The ending angle in radians.
-     * @param p_Hollowness The inner radius of the circle (for hollow circles), default is 0 (solid).
+     * @param p_Diameter The diameter of the circle.
+     *
+     * The following is encoded in the `CircleOptions` struct:
+     *
+     * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
+     * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
+     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
+     * @param p_LowerAngle Starting angle of the arc in radians.
+     * @param p_UpperAngle Ending angle of the arc in radians.
      */
-    void Arc(const fmat<D> &p_Transform, f32 p_LowerAngle, f32 p_UpperAngle, f32 p_InnerFade, f32 p_OuterFade,
-             f32 p_Hollowness = 0.f) noexcept;
+    void Circle(const fmat<D> &p_Transform, f32 p_Diameter, const CircleOptions &p_Options = {}) noexcept;
 
     /**
      * @brief Draw a unit stadium shape (a rectangle with semicircular ends).
@@ -502,12 +649,12 @@ template <Dimension D> class ONYX_API IRenderContext
     void Stadium(const fmat<D> &p_Transform) noexcept;
 
     /**
-     * @brief Draw a stadium shape with the given length and radius.
+     * @brief Draw a stadium shape with the given length and diameter.
      *
      * @param p_Length The length of the rectangular part of the stadium.
-     * @param p_Radius The radius of the semicircular ends.
+     * @param p_Diameter The diameter of the semicircular ends.
      */
-    void Stadium(f32 p_Length, f32 p_Radius) noexcept;
+    void Stadium(f32 p_Length, f32 p_Diameter) noexcept;
 
     /**
      * @brief Draw a stadium shape with the given parameters and transformation.
@@ -515,9 +662,9 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Transform The transformation matrix to apply to the stadium. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Length The length of the rectangular part of the stadium.
-     * @param p_Radius The radius of the semicircular ends.
+     * @param p_Diameter The diameter of the semicircular ends.
      */
-    void Stadium(const fmat<D> &p_Transform, f32 p_Length, f32 p_Radius) noexcept;
+    void Stadium(const fmat<D> &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
 
     /**
      * @brief Draw a unit rounded square centered at the origin.
@@ -535,59 +682,43 @@ template <Dimension D> class ONYX_API IRenderContext
     void RoundedSquare(const fmat<D> &p_Transform) noexcept;
 
     /**
-     * @brief Draw a rounded square with given dimensions and corner radius.
+     * @brief Draw a rounded square with given dimensions and corner diameter.
      *
      * @param p_Dimensions The width and height of the square.
-     * @param p_Radius The radius of the corners.
+     * @param p_Diameter The diameter of the corners.
      */
-    void RoundedSquare(const fvec2 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedSquare(const fvec2 &p_Dimensions, f32 p_Diameter) noexcept;
 
     /**
-     * @brief Draw a rounded square with given dimensions, corner radius, and transformation.
+     * @brief Draw a rounded square with given dimensions, corner diameter, and transformation.
      *
      * @param p_Transform The transformation matrix to apply to the rounded square. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Dimensions The width and height of the square.
-     * @param p_Radius The radius of the corners.
+     * @param p_Diameter The diameter of the corners.
      */
-    void RoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimensions, f32 p_Diameter) noexcept;
 
     /**
-     * @brief Draw a rounded square with given dimensions and corner radius.
+     * @brief Draw a rounded square with given dimensions and corner diameter.
      *
-     * @param p_Width The width of the square.
-     * @param p_Height The height of the square.
-     * @param p_Radius The radius of the corners.
+     * @param p_Size The size of the square.
+     * @param p_Diameter The diameter of the corners.
      */
-    void RoundedSquare(f32 p_Width, f32 p_Height, f32 p_Radius) noexcept;
+    void RoundedSquare(f32 p_Size, f32 p_Diameter) noexcept;
 
     /**
-     * @brief Draw a rounded square with given dimensions, corner radius, and transformation.
+     * @brief Draw a rounded square with given dimensions, corner diameter, and transformation.
      *
      * @param p_Transform The transformation matrix to apply to the rounded square. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
-     * @param p_Width The width of the square.
-     * @param p_Height The height of the square.
-     * @param p_Radius The radius of the corners.
+     * @param p_Size The size of the square.
+     * @param p_Diameter The diameter of the corners.
      */
-    void RoundedSquare(const fmat<D> &p_Transform, f32 p_Width, f32 p_Height, f32 p_Radius) noexcept;
+    void RoundedSquare(const fmat<D> &p_Transform, f32 p_Size, f32 p_Diameter) noexcept;
 
-    /**
-     * @brief Draw a line between two points with the specified thickness.
-     *
-     * @param p_Start The starting point of the line.
-     * @param p_End The ending point of the line.
-     * @param p_Thickness The thickness of the line.
-     */
-    void Line(const fvec<D> &p_Start, const fvec<D> &p_End, f32 p_Thickness = 0.01f) noexcept;
-
-    /**
-     * @brief Draw a line strip through the given points.
-     *
-     * @param p_Points A span of points defining the line strip.
-     * @param p_Thickness The thickness of the line.
-     */
-    void LineStrip(TKit::Span<const fvec<D>> p_Points, f32 p_Thickness = 0.01f) noexcept;
+    // Actually, 2D models could be used in 3D as well. This feature is not implemented yet. If you want a 2D model in a
+    // 3D context, you must load such model as a 3D model
 
     /**
      * @brief Draw a mesh model.
@@ -604,6 +735,22 @@ template <Dimension D> class ONYX_API IRenderContext
      * @param p_Model The mesh model to draw.
      */
     void Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model) noexcept;
+
+    /**
+     * @brief Draw a mesh model.
+     *
+     * @param p_Model The mesh model to draw.
+     */
+    void Mesh(const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a mesh model with the specified transformation.
+     *
+     * @param p_Transform The transformation matrix to apply to the model. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Model The mesh model to draw.
+     */
+    void Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
 
     /**
      * @brief Pushes the current transformation state onto the stack.
@@ -778,12 +925,46 @@ template <Dimension D> class ONYX_API IRenderContext
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
   protected:
-    TKit::StaticArray8<RenderState<D>> m_RenderState;
+    template <typename F1, typename F2> void resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept;
+
+    fmat<D> computeFinalTransform(const fmat<D> &p_Transform) noexcept;
+
+    template <Dimension PDim> void drawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex) noexcept;
+    template <Dimension PDim>
+    void drawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex, const fvec<PDim> &p_Dimensions) noexcept;
+
+    void drawConvexPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
+
+    void drawCircle(const fmat<D> &p_Transform, const CircleOptions &p_Options) noexcept;
+    void drawCircle(const fmat<D> &p_Transform, const CircleOptions &p_Options, const fvec2 &p_Dimensions) noexcept;
+
+    void drawChildCircle(fmat<D> p_Transform, const fvec<D> &p_Position, const CircleOptions &p_Options,
+                         Detail::DrawFlags p_Flags) noexcept;
+    void drawChildCircle(fmat<D> p_Transform, const fvec<D> &p_Position, f32 p_Diameter, const CircleOptions &p_Options,
+                         Detail::DrawFlags p_Flags) noexcept;
+
+    void drawStadiumMoons(const fmat<D> &p_Transform, Detail::DrawFlags p_Flags) noexcept;
+    void drawStadiumMoons(const fmat<D> &p_Transform, f32 p_Length, f32 p_Diameter, Detail::DrawFlags p_Flags) noexcept;
+
+    void drawStadium(const fmat<D> &p_Transform) noexcept;
+    void drawStadium(const fmat<D> &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
+
+    void drawRoundedSquareMoons(const fmat<D> &p_Transform, const fvec2 &p_Dimension, f32 p_Diameter,
+                                Detail::DrawFlags p_Flags) noexcept;
+
+    void drawRoundedSquare(const fmat<D> &p_Transform) noexcept;
+    void drawRoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimension, f32 p_Diameter) noexcept;
+
+    void drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model) noexcept;
+    void drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
+
+    RenderState<D> *m_State;
     ProjectionViewData<D> m_ProjectionView{};
     Detail::Renderer<D> m_Renderer;
     Window *m_Window;
 
   private:
+    TKit::StaticArray8<RenderState<D>> m_StateStack;
     fvec2 m_PrevMousePos{0.f};
 };
 } // namespace Detail
@@ -799,29 +980,18 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
 {
   public:
     using IRenderContext<D2>::IRenderContext;
-    using IRenderContext<D2>::Transform;
-    using IRenderContext<D2>::TransformAxes;
-    using IRenderContext<D2>::Translate;
-    using IRenderContext<D2>::Scale;
-    using IRenderContext<D2>::TranslateAxes;
-    using IRenderContext<D2>::ScaleAxes;
-    using IRenderContext<D2>::Line;
 
     /**
-     * @brief Translate subsequent shapes by the given amounts along the X and Y axes.
+     * @brief Render the coordinate axes for visualization.
      *
-     * @param p_X The translation along the X-axis.
-     * @param p_Y The translation along the Y-axis.
-     */
-    void Translate(f32 p_X, f32 p_Y) noexcept;
-
-    /**
-     * @brief Scale subsequent shapes by the given factors along the X and Y axes.
+     * Draw the X and Y axes with the specified thickness and size.
      *
-     * @param p_X The scaling factor along the X-axis.
-     * @param p_Y The scaling factor along the Y-axis.
+     * The following is encoded in the `AxesOptions` struct:
+     *
+     * @param p_Thickness The thickness of the axes lines.
+     * @param p_Size The length of the axes.
      */
-    void Scale(f32 p_X, f32 p_Y) noexcept;
+    void Axes(const Detail::AxesOptions &p_Options) noexcept;
 
     /**
      * @brief Rotates subsequent shapes by the given angle.
@@ -829,22 +999,6 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
      * @param p_Angle The rotation angle in radians.
      */
     void Rotate(f32 p_Angle) noexcept;
-
-    /**
-     * @brief Translate the coordinate system by the given amounts along the X and Y axes.
-     *
-     * @param p_X The translation along the X-axis.
-     * @param p_Y The translation along the Y-axis.
-     */
-    void TranslateAxes(f32 p_X, f32 p_Y) noexcept;
-
-    /**
-     * @brief Scale the coordinate system by the given factors along the X and Y axes.
-     *
-     * @param p_X The scaling factor along the X-axis.
-     * @param p_Y The scaling factor along the Y-axis.
-     */
-    void ScaleAxes(f32 p_X, f32 p_Y) noexcept;
 
     /**
      * @brief Rotates the coordinate system by the given angle.
@@ -856,13 +1010,19 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
     /**
      * @brief Draw a line between two points with the specified thickness.
      *
-     * @param p_StartX The X-coordinate of the starting point.
-     * @param p_StartY The Y-coordinate of the starting point.
-     * @param p_EndX The X-coordinate of the ending point.
-     * @param p_EndY The Y-coordinate of the ending point.
+     * @param p_Start The starting point of the line.
+     * @param p_End The ending point of the line.
      * @param p_Thickness The thickness of the line.
      */
-    void Line(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.01f) noexcept;
+    void Line(const fvec2 &p_Start, const fvec2 &p_End, f32 p_Thickness = 0.01f) noexcept;
+
+    /**
+     * @brief Draw a line strip through the given points.
+     *
+     * @param p_Points A span of points defining the line strip.
+     * @param p_Thickness The thickness of the line.
+     */
+    void LineStrip(TKit::Span<const fvec2> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
     /**
      * @brief Draw a rounded line between two points with the specified thickness.
@@ -872,17 +1032,6 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
      * @param p_Thickness The thickness of the line.
      */
     void RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, f32 p_Thickness = 0.01f) noexcept;
-
-    /**
-     * @brief Draw a rounded line between two points with the specified thickness.
-     *
-     * @param p_StartX The X-coordinate of the starting point.
-     * @param p_StartY The Y-coordinate of the starting point.
-     * @param p_EndX The X-coordinate of the ending point.
-     * @param p_EndY The Y-coordinate of the ending point.
-     * @param p_Thickness The thickness of the line.
-     */
-    void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_EndX, f32 p_EndY, f32 p_Thickness = 0.01f) noexcept;
 
     /**
      * @brief Retrieve the current mouse coordinates in the rendering context.
@@ -910,11 +1059,18 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     using IRenderContext<D3>::IRenderContext;
     using IRenderContext<D3>::Transform;
     using IRenderContext<D3>::TransformAxes;
-    using IRenderContext<D3>::Translate;
-    using IRenderContext<D3>::Scale;
-    using IRenderContext<D3>::TranslateAxes;
-    using IRenderContext<D3>::ScaleAxes;
-    using IRenderContext<D3>::Line;
+
+    /**
+     * @brief Render the coordinate axes for visualization.
+     *
+     * Draw the X, Y and Z axes with the specified thickness and size.
+     *
+     * The following is encoded in the `AxesOptions` struct:
+     *
+     * @param p_Thickness The thickness of the axes lines.
+     * @param p_Size The length of the axes.
+     */
+    void Axes(const Detail::AxesOptions &p_Options) noexcept;
 
     /**
      * @brief Transforms subsequent shapes by the given translation, scale, and rotation angles.
@@ -953,24 +1109,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void TransformAxes(const fvec3 &p_Translation, f32 p_Scale, const fvec3 &p_Rotation) noexcept;
 
     /**
-     * @brief Translate subsequent shapes by the given amounts along the X, Y, and Z axes.
-     *
-     * @param p_X The translation along the X-axis.
-     * @param p_Y The translation along the Y-axis.
-     * @param p_Z The translation along the Z-axis.
-     */
-    void Translate(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
-
-    /**
-     * @brief Scale subsequent shapes by the given factors along the X, Y, and Z axes.
-     *
-     * @param p_X The scaling factor along the X-axis.
-     * @param p_Y The scaling factor along the Y-axis.
-     * @param p_Z The scaling factor along the Z-axis.
-     */
-    void Scale(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
-
-    /**
      * @brief Translate subsequent shapes along the Z-axis.
      *
      * @param p_Z The translation distance along the Z-axis.
@@ -983,24 +1121,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Z The scaling factor along the Z-axis.
      */
     void ScaleZ(f32 p_Z) noexcept;
-
-    /**
-     * @brief Translate the coordinate system by the given amounts along the X, Y, and Z axes.
-     *
-     * @param p_X The translation along the X-axis.
-     * @param p_Y The translation along the Y-axis.
-     * @param p_Z The translation along the Z-axis.
-     */
-    void TranslateAxes(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
-
-    /**
-     * @brief Scale the coordinate system by the given factors along the X, Y, and Z axes.
-     *
-     * @param p_X The scaling factor along the X-axis.
-     * @param p_Y The scaling factor along the Y-axis.
-     * @param p_Z The scaling factor along the Z-axis.
-     */
-    void ScaleAxes(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
 
     /**
      * @brief Translate the coordinate system along the Z-axis.
@@ -1029,15 +1149,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Angles The rotation angles (in radians) around the X, Y, and Z axes.
      */
     void Rotate(const fvec3 &p_Angles) noexcept;
-
-    /**
-     * @brief Rotates subsequent shapes by the given angles around each axis.
-     *
-     * @param p_X The rotation angle around the X-axis.
-     * @param p_Y The rotation angle around the Y-axis.
-     * @param p_Z The rotation angle around the Z-axis.
-     */
-    void Rotate(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
 
     /**
      * @brief Rotates subsequent shapes by the given angle around the specified axis.
@@ -1083,15 +1194,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void RotateAxes(const fvec3 &p_Angles) noexcept;
 
     /**
-     * @brief Rotates the coordinate system by the given angles around each axis.
-     *
-     * @param p_X The rotation angle around the X-axis.
-     * @param p_Y The rotation angle around the Y-axis.
-     * @param p_Z The rotation angle around the Z-axis.
-     */
-    void RotateAxes(f32 p_X, f32 p_Y, f32 p_Z) noexcept;
-
-    /**
      * @brief Rotates the coordinate system by the given angle around the specified axis.
      *
      * @param p_Angle The rotation angle in radians.
@@ -1123,16 +1225,19 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     /**
      * @brief Draw a line between two points with the specified thickness.
      *
-     * @param p_StartX The X-coordinate of the starting point.
-     * @param p_StartY The Y-coordinate of the starting point.
-     * @param p_StartZ The Z-coordinate of the starting point.
-     * @param p_EndX The X-coordinate of the ending point.
-     * @param p_EndY The Y-coordinate of the ending point.
-     * @param p_EndZ The Z-coordinate of the ending point.
+     * @param p_Start The starting point of the line.
+     * @param p_End The ending point of the line.
      * @param p_Thickness The thickness of the line.
      */
-    void Line(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
-              f32 p_Thickness = 0.01f) noexcept;
+    void Line(const fvec3 &p_Start, const fvec3 &p_End, f32 p_Thickness = 0.01f) noexcept;
+
+    /**
+     * @brief Draw a line strip through the given points.
+     *
+     * @param p_Points A span of points defining the line strip.
+     * @param p_Thickness The thickness of the line.
+     */
+    void LineStrip(TKit::Span<const fvec3> p_Points, f32 p_Thickness = 0.01f) noexcept;
 
     /**
      * @brief Draw a rounded line between two points with the specified thickness.
@@ -1142,20 +1247,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Thickness The thickness of the line.
      */
     void RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, f32 p_Thickness = 0.01f) noexcept;
-
-    /**
-     * @brief Draw a rounded line between two points with the specified thickness.
-     *
-     * @param p_StartX The X-coordinate of the starting point.
-     * @param p_StartY The Y-coordinate of the starting point.
-     * @param p_StartZ The Z-coordinate of the starting point.
-     * @param p_EndX The X-coordinate of the ending point.
-     * @param p_EndY The Y-coordinate of the ending point.
-     * @param p_EndZ The Z-coordinate of the ending point.
-     * @param p_Thickness The thickness of the line.
-     */
-    void RoundedLine(f32 p_StartX, f32 p_StartY, f32 p_StartZ, f32 p_EndX, f32 p_EndY, f32 p_EndZ,
-                     f32 p_Thickness = 0.01f) noexcept;
 
     /**
      * @brief Draw a unit cube centered at the origin.
@@ -1173,6 +1264,38 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void Cube(const fmat4 &p_Transform) noexcept;
 
     /**
+     * @brief Draw a cube with the specified dimensions.
+     *
+     * @param p_Dimensions The width, height, and depth of the cube.
+     */
+    void Cube(const fvec3 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a cube with the specified transformation matrix and dimensions.
+     *
+     * @param p_Transform The transformation matrix to apply to the cube. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Dimensions The width, height, and depth of the cube.
+     */
+    void Cube(const fmat4 &p_Transform, const fvec3 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a cube with the specified dimensions.
+     *
+     * @param p_Size The size of the cube.
+     */
+    void Cube(f32 p_Size) noexcept;
+
+    /**
+     * @brief Draw a cube with the specified transformation matrix and dimensions.
+     *
+     * @param p_Transform The transformation matrix to apply to the cube. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Size The size of the cube.
+     */
+    void Cube(const fmat4 &p_Transform, f32 p_Size) noexcept;
+
+    /**
      * @brief Draw a unit cylinder centered at the origin.
      *
      * The cylinder will be affected by the current transformation state.
@@ -1186,6 +1309,40 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * extrinsically, on top of the current cummulated transformations.
      */
     void Cylinder(const fmat4 &p_Transform) noexcept;
+
+    /**
+     * @brief Draw a cylinder with the specified dimensions.
+     *
+     * @param p_Dimensions The width, height, and depth of the cylinder.
+     */
+    void Cylinder(const fvec3 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a cylinder with the specified transformation matrix and dimensions.
+     *
+     * @param p_Transform The transformation matrix to apply to the cylinder. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Dimensions The width, height, and depth of the cylinder.
+     */
+    void Cylinder(const fmat4 &p_Transform, const fvec3 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a cylinder shape with the given length and diameter.
+     *
+     * @param p_Length The length of the cylindrical part of the cylinder.
+     * @param p_Diameter The diameter of the hemispherical ends.
+     */
+    void Cylinder(f32 p_Length, f32 p_Diameter) noexcept;
+
+    /**
+     * @brief Draw a cylinder shape with the given parameters and transformation.
+     *
+     * @param p_Length The length of the cylindrical part of the cylinder.
+     * @param p_Diameter The diameter of the hemispherical ends.
+     * @param p_Transform The transformation matrix to apply to the cylinder. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     */
+    void Cylinder(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
 
     /**
      * @brief Draw a unit sphere centered at the origin.
@@ -1203,6 +1360,38 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void Sphere(const fmat4 &p_Transform) noexcept;
 
     /**
+     * @brief Draw a sphere shape with the given dimensions.
+     *
+     * @param p_Dimensions The width, height, and depth of the sphere.
+     */
+    void Sphere(const fvec3 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a sphere shape with the given dimensions and transformation.
+     *
+     * @param p_Transform The transformation matrix to apply to the sphere. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Dimensions The width, height, and depth of the sphere.
+     */
+    void Sphere(const fmat4 &p_Transform, const fvec3 &p_Dimensions) noexcept;
+
+    /**
+     * @brief Draw a sphere shape with the given dimensions.
+     *
+     * @param p_Diameter The diameter of the sphere.
+     */
+    void Sphere(f32 p_Diameter) noexcept;
+
+    /**
+     * @brief Draw a sphere shape with the given dimensions and transformation.
+     *
+     * @param p_Transform The transformation matrix to apply to the sphere. This transformation will be applied
+     * extrinsically, on top of the current cummulated transformations.
+     * @param p_Diameter The diameter of the sphere.
+     */
+    void Sphere(const fmat4 &p_Transform, f32 p_Diameter) noexcept;
+
+    /**
      * @brief Draw a unit capsule centered at the origin.
      *
      * The capsule will be affected by the current transformation state.
@@ -1218,22 +1407,22 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void Capsule(const fmat4 &p_Transform) noexcept;
 
     /**
-     * @brief Draw a capsule shape with the given length and radius.
+     * @brief Draw a capsule shape with the given length and diameter.
      *
      * @param p_Length The length of the cylindrical part of the capsule.
-     * @param p_Radius The radius of the hemispherical ends.
+     * @param p_Diameter The diameter of the hemispherical ends.
      */
-    void Capsule(f32 p_Length, f32 p_Radius) noexcept;
+    void Capsule(f32 p_Length, f32 p_Diameter) noexcept;
 
     /**
      * @brief Draw a capsule shape with the given parameters and transformation.
      *
      * @param p_Length The length of the cylindrical part of the capsule.
-     * @param p_Radius The radius of the hemispherical ends.
+     * @param p_Diameter The diameter of the hemispherical ends.
      * @param p_Transform The transformation matrix to apply to the capsule. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void Capsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Radius) noexcept;
+    void Capsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
 
     /**
      * @brief Draw a unit rounded cube centered at the origin.
@@ -1251,44 +1440,40 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void RoundedCube(const fmat4 &p_Transform) noexcept;
 
     /**
-     * @brief Draw a rounded cube with given dimensions and corner radius.
+     * @brief Draw a rounded cube with given dimensions and corner diameter.
      *
      * @param p_Dimensions The width, height, and depth of the cube.
-     * @param p_Radius The radius of the corners.
+     * @param p_Diameter The diameter of the corners.
      */
-    void RoundedCube(const fvec3 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedCube(const fvec3 &p_Dimensions, f32 p_Diameter) noexcept;
 
     /**
-     * @brief Draw a rounded cube with given dimensions, corner radius, and transformation.
+     * @brief Draw a rounded cube with given dimensions, corner diameter, and transformation.
      *
      * @param p_Dimensions The width, height, and depth of the cube.
-     * @param p_Radius The radius of the corners.
+     * @param p_Diameter The diameter of the corners.
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void RoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Radius) noexcept;
+    void RoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter) noexcept;
 
     /**
-     * @brief Draw a rounded cube with given dimensions and corner radius.
+     * @brief Draw a rounded cube with given dimensions and corner diameter.
      *
-     * @param p_Width The width of the cube.
-     * @param p_Height The height of the cube.
-     * @param p_Depth The depth of the cube.
-     * @param p_Radius The radius of the corners.
+     * @param p_Size The size of the cube.
+     * @param p_Diameter The diameter of the corners.
      */
-    void RoundedCube(f32 p_Width, f32 p_Height, f32 p_Depth, f32 p_Radius) noexcept;
+    void RoundedCube(f32 p_Size, f32 p_Diameter) noexcept;
 
     /**
-     * @brief Draw a rounded cube with given dimensions, corner radius, and transformation.
+     * @brief Draw a rounded cube with given dimensions, corner diameter, and transformation.
      *
-     * @param p_Width The width of the cube.
-     * @param p_Height The height of the cube.
-     * @param p_Depth The depth of the cube.
-     * @param p_Radius The radius of the corners.
+     * @param p_Size The size of the cube.
+     * @param p_Diameter The diameter of the corners.
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      */
-    void RoundedCube(const fmat4 &p_Transform, f32 p_Width, f32 p_Height, f32 p_Depth, f32 p_Radius) noexcept;
+    void RoundedCube(const fmat4 &p_Transform, f32 p_Size, f32 p_Diameter) noexcept;
 
     /**
      * @brief Set the color of the light for subsequent lighting calculations.
@@ -1343,16 +1528,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void DirectionalLight(const fvec3 &p_Direction, f32 p_Intensity = 1.f) noexcept;
 
     /**
-     * @brief Adds a directional light to the scene with the specified direction components and intensity.
-     *
-     * @param p_DX The X component of the direction.
-     * @param p_DY The Y component of the direction.
-     * @param p_DZ The Z component of the direction.
-     * @param p_Intensity The intensity of the light.
-     */
-    void DirectionalLight(f32 p_DX, f32 p_DY, f32 p_DZ, f32 p_Intensity = 1.f) noexcept;
-
-    /**
      * @brief Adds a point light to the scene.
      *
      * @param p_Light The point light object.
@@ -1362,30 +1537,19 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     /**
      * @brief Adds a point light to the scene at the current position.
      *
-     * @param p_Radius The radius of the light's influence.
+     * @param p_Diameter The diameter of the light's influence.
      * @param p_Intensity The intensity of the light.
      */
-    void PointLight(f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
+    void PointLight(f32 p_Diameter = 1.f, f32 p_Intensity = 1.f) noexcept;
 
     /**
      * @brief Adds a point light to the scene at the specified position.
      *
      * @param p_Position The position of the light.
-     * @param p_Radius The radius of the light's influence.
+     * @param p_Diameter The diameter of the light's influence.
      * @param p_Intensity The intensity of the light.
      */
-    void PointLight(const fvec3 &p_Position, f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
-
-    /**
-     * @brief Adds a point light to the scene at the specified position.
-     *
-     * @param p_X The X-coordinate of the light's position.
-     * @param p_Y The Y-coordinate of the light's position.
-     * @param p_Z The Z-coordinate of the light's position.
-     * @param p_Radius The radius of the light's influence.
-     * @param p_Intensity The intensity of the light.
-     */
-    void PointLight(f32 p_X, f32 p_Y, f32 p_Z, f32 p_Radius = 1.f, f32 p_Intensity = 1.f) noexcept;
+    void PointLight(const fvec3 &p_Position, f32 p_Diameter = 1.f, f32 p_Intensity = 1.f) noexcept;
 
     /**
      * @brief Set the diffuse contribution factor for lighting calculations.
@@ -1444,5 +1608,19 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @return The mouse coordinates as a 3D vector.
      */
     fvec3 GetMouseCoordinates(f32 p_Depth = 0.5f) const noexcept;
+
+  private:
+    void drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, const Detail::DrawFlags p_Flags) noexcept;
+    void drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, const f32 p_Diameter,
+                         const Detail::DrawFlags p_Flags) noexcept;
+
+    void drawCapsule(const fmat4 &p_Transform) noexcept;
+    void drawCapsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
+
+    void drawRoundedCubeMoons(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter,
+                              Detail::DrawFlags p_Flags) noexcept;
+
+    void drawRoundedCube(const fmat4 &p_Transform) noexcept;
+    void drawRoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter) noexcept;
 };
 } // namespace Onyx

@@ -119,6 +119,15 @@ template <> struct ONYX_API ProjectionViewData<D3>
     fmat4 Projection{1.f};
     fmat4 ProjectionView{1.f};
 };
+
+struct CircleOptions
+{
+    f32 InnerFade = 0.f;
+    f32 OuterFade = 0.f;
+    f32 Hollowness = 0.f;
+    f32 LowerAngle = 0.f;
+    f32 UpperAngle = glm::two_pi<f32>();
+};
 } // namespace Onyx
 
 namespace Onyx::Detail

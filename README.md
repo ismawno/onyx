@@ -23,12 +23,7 @@ This is the simplest use case of the Onyx framework, allowing you to get a windo
 Creating and using an Onyx window looks like this:
 
 ```cpp
-Onyx::Window::Specs specs;
-specs.Name = "Standalone Hello, World!";
-specs.Width = 800;
-specs.Height = 600;
-
-Onyx::Window window(specs);
+Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
 
 while (!window.ShouldClose())
 {
@@ -104,12 +99,10 @@ static void SetPostProcessing(Onyx::Window &p_Window) noexcept
 Then, by modifying the window setup:
 
 ```cpp
-Onyx::Window::Specs specs;
-specs.Name = "Standalone Hello, World! With a custom rainbow background and a post-processing effect!";
-specs.Width = 800;
-specs.Height = 600;
-
-Onyx::Window window(specs);
+Onyx::Window window(
+        {.Name = "Standalone Hello, World! With a custom rainbow background and a post-processing effect!",
+         .Width = 800,
+         .Height = 600});
 
 const VKit::GraphicsJob job = SetupCustomPipeline(window);
 SetPostProcessing(window);
@@ -143,25 +136,14 @@ This feature allows the user to control the flow of their application. One of th
 
 
 ```cpp
-Onyx::Window::Specs specs;
-specs.Name = "App1 Hello, World!";
-specs.Width = 800;
-specs.Height = 600;
-
-Onyx::Application app(specs);
-
+Onyx::Application app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
 app.Run();
 ```
 
 Note that this setup won’t do anything beyond opening a pitch-black window, which may not be very useful. You can break down the `Application::Run()` method to insert your own logic into the frame loop:
 
 ```cpp
-Onyx::Window::Specs specs;
-specs.Name = "App2 Hello, World!";
-specs.Width = 800;
-specs.Height = 600;
-
-Onyx::Application app(specs);
+Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
 
 TKit::Clock clock;
 app.Startup();
@@ -180,11 +162,6 @@ This setup is more flexible than the previous one but still similar to the examp
 
 
 ```cpp
-Onyx::Window::Specs specs;
-specs.Name = "App3 Hello, World!";
-specs.Width = 800;
-specs.Height = 600;
-
 class MyLayer : public Onyx::UserLayer
 {
     public:
@@ -196,7 +173,7 @@ class MyLayer : public Onyx::UserLayer
     }
 };
 
-Onyx::Application app(specs);
+Onyx::Application app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
 app.SetUserLayer<MyLayer>();
 
 app.Run();

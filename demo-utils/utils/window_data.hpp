@@ -24,7 +24,7 @@ template <Dimension D> struct ILayerData
     Transform<D> AxesTransform{};
     MaterialData<D> AxesMaterial{};
 
-    TKit::DynamicArray<fvec<D>> PolygonVertices;
+    TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> PolygonVertices;
     i32 ShapeToSpawn = 0;
     f32 AxesThickness = 0.01f;
     LatticeData<D> Lattice;

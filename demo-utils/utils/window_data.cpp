@@ -233,14 +233,17 @@ template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, c
     {
         p_Data.Context->Material(p_Data.AxesMaterial);
         p_Data.Context->Fill();
-        p_Data.Context->Axes(p_Data.AxesThickness);
+        p_Data.Context->Axes({.Thickness = p_Data.AxesThickness});
     }
 
-    for (const auto &vertex : p_Data.PolygonVertices)
+    for (const fvec2 &vertex : p_Data.PolygonVertices)
     {
         p_Data.Context->Push();
         p_Data.Context->Scale(0.02f);
-        p_Data.Context->Translate(vertex);
+        if constexpr (D == D2)
+            p_Data.Context->Translate(vertex);
+        else
+            p_Data.Context->Translate(fvec3{vertex, 0.f});
         p_Data.Context->Circle();
         p_Data.Context->Pop();
     }
@@ -314,18 +317,22 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         return nullptr;
     };
 
-    if (ImGui::Button("Spawn##Shape"))
+    const bool canSpawn = p_Data.ShapeToSpawn != POLYGON || p_Data.PolygonVertices.size() >= 3;
+    if (!canSpawn)
+        ImGui::TextDisabled("A polygon must have at least 3 verticesto spawn!");
+    else if (ImGui::Button("Spawn##Shape"))
         p_Data.Shapes.push_back(createShape());
 
-    ImGui::SameLine();
+    if (canSpawn)
+        ImGui::SameLine();
 
     bool changed = false;
     if constexpr (D == D2)
         changed |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                                "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded Square\0\0");
+                                "Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded Square\0\0");
     else
         changed |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                                "Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded "
+                                "Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded "
                                 "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
 
     LatticeData<D> &lattice = p_Data.Lattice;
@@ -343,6 +350,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
     else if (p_Data.ShapeToSpawn == POLYGON)
     {
+        ImGui::Text("Vertices must be in counter clockwise order for outlines to work correctly");
         ImGui::Text("Click on the screen or the 'Add' button to add vertices to the polygon.");
         static fvec<D> toAdd{0.f};
         if constexpr (D == D2)
@@ -366,11 +374,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             }
 
             ImGui::SameLine();
-            if constexpr (D == D2)
-                ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
-            else
-                ImGui::Text("Vertex %u: (%.2f, %.2f, %.2f)", i, p_Data.PolygonVertices[i].x,
-                            p_Data.PolygonVertices[i].y, p_Data.PolygonVertices[i].z);
+            ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
             ImGui::PopID();
         }
     }
@@ -404,6 +408,51 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             ImGui::Text("Lattice shape:");
             lattice.Shape->Edit();
         }
+        ImGui::TreePop();
+    }
+    if (ImGui::TreeNode("Line test"))
+    {
+        static fvec<D> start{0.f};
+        static fvec<D> end{1.f};
+        static MaterialData<D> material{};
+        Color outlineColor = Color::ORANGE;
+        static f32 thickness = 0.05f;
+        static f32 outlineWidth = 0.01f;
+        static bool rounded = false;
+        static bool outline = false;
+
+        ImGui::Checkbox("Rounded", &rounded);
+        ImGui::Checkbox("Outline", &outline);
+        ImGui::SliderFloat("Outline width", &outlineWidth, 0.01f, 0.1f);
+        ImGui::SliderFloat("Thickness", &thickness, 0.01f, 0.1f);
+
+        if constexpr (D == D2)
+        {
+            ImGui::DragFloat2("Start", glm::value_ptr(start), 0.1f);
+            ImGui::DragFloat2("End", glm::value_ptr(end), 0.1f);
+        }
+        else
+        {
+            ImGui::DragFloat3("Start", glm::value_ptr(start), 0.1f);
+            ImGui::DragFloat3("End", glm::value_ptr(end), 0.1f);
+        }
+
+        ImGui::Text("Material");
+        UserLayer::MaterialEditor<D>(material, UserLayer::Flag_DisplayHelp);
+        ImGui::ColorEdit3("Outline color", outlineColor.AsPointer());
+
+        p_Data.Context->Push();
+        if (outline)
+        {
+            p_Data.Context->Outline(outlineColor);
+            p_Data.Context->OutlineWidth(outlineWidth);
+        }
+        p_Data.Context->Material(material);
+        if (rounded)
+            p_Data.Context->RoundedLine(start, end, thickness);
+        else
+            p_Data.Context->Line(start, end, thickness);
+        p_Data.Context->Pop();
         ImGui::TreePop();
     }
 

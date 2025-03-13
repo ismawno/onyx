@@ -44,16 +44,14 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
 }
 
 template <Dimension D>
-IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass, const TKit::StaticArray8<RenderState<D>> *p_State,
-                        const ProjectionViewData<D> *p_ProjectionView) noexcept
+IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass, const ProjectionViewData<D> *p_ProjectionView) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
-      m_CircleRenderer(p_RenderPass), m_ProjectionView(p_ProjectionView), m_State(p_State)
+      m_CircleRenderer(p_RenderPass), m_ProjectionView(p_ProjectionView)
 {
 }
 
-Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const TKit::StaticArray8<RenderState<D3>> *p_State,
-                       const ProjectionViewData<D3> *p_ProjectionView) noexcept
-    : IRenderer<D3>(p_RenderPass, p_State, p_ProjectionView)
+Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const ProjectionViewData<D3> *p_ProjectionView) noexcept
+    : IRenderer<D3>(p_RenderPass, p_ProjectionView)
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -115,149 +113,101 @@ static IData createFullDrawInstanceData(const fmat<D> &p_Transform, const Materi
 }
 // ProjectionView is needed here, because stencil uses 2D shaders, where they require the transform to be complete.
 template <Dimension D, typename IData>
-static IData createStencilInstanceData(const fmat<D> &p_Transform, const RenderState<D> &p_State,
-                                       const DrawFlags p_Flags, [[maybe_unused]] const fmat<D> &p_ProjectionView,
+static IData createStencilInstanceData(const fmat<D> &p_Transform, const Color &p_OutlineColor,
+                                       [[maybe_unused]] const fmat<D> &p_ProjectionView,
                                        [[maybe_unused]] u32 &p_ZOffset) noexcept
 {
     IData instanceData{};
     if constexpr (D == D2)
     {
-        fmat3 transform = p_Transform;
-        if (p_Flags & DrawFlags_DoStencilScale)
-            Transform<D2>::ScaleIntrinsic(transform, fvec2{1.f + p_State.OutlineWidth});
-        instanceData.Transform = transform3ToTransform4(transform);
+        instanceData.Transform = transform3ToTransform4(p_Transform);
         ApplyCoordinateSystemExtrinsic(instanceData.Transform);
         instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
     }
     else
-    {
         instanceData.Transform = p_ProjectionView * p_Transform;
-        if (p_Flags & DrawFlags_DoStencilScale)
-            Transform<D3>::ScaleIntrinsic(instanceData.Transform, fvec3{1.f + p_State.OutlineWidth});
-    }
 
-    instanceData.Material.Color = p_State.OutlineColor;
+    instanceData.Material.Color = p_OutlineColor;
     return instanceData;
 }
 
 template <Dimension D>
-template <typename Renderer, typename... DrawArgs>
-void IRenderer<D>::draw(Renderer &p_Renderer, const fmat<D> &p_Transform, DrawFlags p_Flags,
-                        DrawArgs &&...p_Args) noexcept
+template <typename Renderer, typename DrawArg>
+void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> *p_State, const fmat<D> &p_Transform,
+                        DrawArg &&p_Arg, DrawFlags p_Flags) noexcept
 {
-    const RenderState<D> &state = m_State->back();
-    TKIT_ASSERT(state.OutlineWidth >= 0.f, "[ONYX] Outline width must be non-negative");
-
-    if (p_Flags & DrawFlags_Auto)
-    {
-        p_Flags = DrawFlags_DoStencilScale;
-        if (state.Fill)
-        {
-            if (state.Outline)
-                p_Flags |= DrawFlags_DoStencilWriteDoFill | DrawFlags_DoStencilTestNoFill;
-            else
-                p_Flags |= DrawFlags_NoStencilWriteDoFill;
-        }
-        else if (state.Outline)
-            p_Flags |= DrawFlags_DoStencilWriteNoFill | DrawFlags_DoStencilTestNoFill;
-    }
+    TKIT_ASSERT(p_State->OutlineWidth >= 0.f, "[ONYX] Outline width must be non-negative");
 
     using FillIData = InstanceData<D, DrawMode::Fill>;
     using StencilIData = InstanceData<D, DrawMode::Stencil>;
     if (p_Flags & DrawFlags_NoStencilWriteDoFill)
     {
-        const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state.Material, m_ZOffset);
-        p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        const FillIData instanceData =
+            createFullDrawInstanceData<D, FillIData>(p_Transform, p_State->Material, m_ZOffset);
+        p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArg>(p_Arg));
     }
     if (p_Flags & DrawFlags_DoStencilWriteDoFill)
     {
-        const FillIData instanceData = createFullDrawInstanceData<D, FillIData>(p_Transform, state.Material, m_ZOffset);
-        p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+        const FillIData instanceData =
+            createFullDrawInstanceData<D, FillIData>(p_Transform, p_State->Material, m_ZOffset);
+        p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArg>(p_Arg));
     }
     if (p_Flags & DrawFlags_DoStencilWriteNoFill)
     {
         const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(
-            p_Transform, state, 0, m_ProjectionView->ProjectionView, m_ZOffset);
+            p_Transform, p_State->OutlineColor, m_ProjectionView->ProjectionView, m_ZOffset);
         if constexpr (!std::is_same_v<Renderer, RenderSystem<D, CircleRenderer>>)
-            p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+            p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArg>(p_Arg));
         else
         {
-            // This is horrible and evil, but it is needed to avoid having circle outlines with inner/outer fades, which
-            // doesnt make any sense
-            const auto drawIgnoreArgs = [this, &p_Renderer, &instanceData](const f32, const f32, auto &&...p_Args) {
-                p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, 0.f, 0.f,
-                                                     std::forward<decltype(p_Args)>(p_Args)...);
-            };
-            drawIgnoreArgs(std::forward<DrawArgs>(p_Args)...);
+            CircleOptions options = p_Arg;
+            options.InnerFade = 0.f;
+            options.OuterFade = 0.f;
+            p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, options);
         }
     }
     if (p_Flags & DrawFlags_DoStencilTestNoFill)
     {
         const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(
-            p_Transform, state, p_Flags, m_ProjectionView->ProjectionView, m_ZOffset);
+            p_Transform, p_State->OutlineColor, m_ProjectionView->ProjectionView, m_ZOffset);
         if constexpr (!std::is_same_v<Renderer, RenderSystem<D, CircleRenderer>>)
-            p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArgs>(p_Args)...);
+            p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArg>(p_Arg));
         else
         {
-            // This is horrible and evil, but it is needed to avoid having circle outlines with inner/outer fades, which
-            // doesnt make any sense
-            const auto drawIgnoreArgs = [this, &p_Renderer, &instanceData](const f32, const f32, auto &&...p_Args) {
-                p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, 0.f, 0.f,
-                                                    std::forward<decltype(p_Args)>(p_Args)...);
-            };
-            drawIgnoreArgs(std::forward<DrawArgs>(p_Args)...);
+            CircleOptions options = p_Arg;
+            options.InnerFade = 0.f;
+            options.OuterFade = 0.f;
+            p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, options);
         }
     }
 }
 
 template <Dimension D>
-static fmat<D> finalTransform(const fmat<D> &p_Transform, const RenderState<D> &p_State,
-                              [[maybe_unused]] const fmat<D> &p_ProjectionView) noexcept
+void IRenderer<D>::DrawMesh(const RenderState<D> *p_State, const fmat<D> &p_Transform, const Model<D> &p_Model,
+                            const DrawFlags p_Flags) noexcept
 {
-    if constexpr (D == D2)
-        return p_ProjectionView * p_State.Axes * p_Transform;
-    else
-        return p_State.Axes * p_Transform;
+    draw(m_MeshRenderer, p_State, p_Transform, p_Model, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const DrawFlags p_Flags) noexcept
-{
-    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
-    draw(m_MeshRenderer, transform, p_Flags, p_Model);
-}
-
-template <Dimension D>
-void IRenderer<D>::DrawPrimitive(const fmat<D> &p_Transform, const u32 p_PrimitiveIndex,
+void IRenderer<D>::DrawPrimitive(const RenderState<D> *p_State, const fmat<D> &p_Transform, const u32 p_PrimitiveIndex,
                                  const DrawFlags p_Flags) noexcept
 {
-    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
-    draw(m_PrimitiveRenderer, transform, p_Flags, p_PrimitiveIndex);
+    draw(m_PrimitiveRenderer, p_State, p_Transform, p_PrimitiveIndex, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPolygon(const fmat<D> &p_Transform, const TKit::Span<const fvec<D>> p_Vertices,
-                               const DrawFlags p_Flags) noexcept
+void IRenderer<D>::DrawPolygon(const RenderState<D> *p_State, const fmat<D> &p_Transform,
+                               const TKit::Span<const fvec2> p_Vertices, const DrawFlags p_Flags) noexcept
 {
-    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
-    draw(m_PolygonRenderer, transform, p_Flags, p_Vertices);
+    draw(m_PolygonRenderer, p_State, p_Transform, p_Vertices, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawCircleOrArc(const fmat<D> &p_Transform, const f32 p_InnerFade, const f32 p_OuterFade,
-                                   const f32 p_Hollowness, const f32 p_LowerAngle, const f32 p_UpperAngle,
-                                   const DrawFlags p_Flags) noexcept
+void IRenderer<D>::DrawCircle(const RenderState<D> *p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
+                              const DrawFlags p_Flags) noexcept
 {
-    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
-    draw(m_CircleRenderer, transform, p_Flags, p_InnerFade, p_OuterFade, p_Hollowness, p_LowerAngle, p_UpperAngle);
-}
-template <Dimension D>
-void IRenderer<D>::DrawCircleOrArc(const fmat<D> &p_Transform, const DrawFlags p_Flags, const f32 p_InnerFade,
-                                   const f32 p_OuterFade, const f32 p_Hollowness, const f32 p_LowerAngle,
-                                   const f32 p_UpperAngle) noexcept
-{
-    const fmat<D> transform = finalTransform<D>(p_Transform, m_State->back(), m_ProjectionView->ProjectionView);
-    draw(m_CircleRenderer, transform, p_Flags, p_InnerFade, p_OuterFade, p_Hollowness, p_LowerAngle, p_UpperAngle);
+    draw(m_CircleRenderer, p_State, p_Transform, p_Options, p_Flags);
 }
 
 void Renderer<D2>::Flush() noexcept

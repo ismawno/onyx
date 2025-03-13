@@ -60,23 +60,17 @@ using DrawFlags = u8;
  */
 enum DrawFlagBit : DrawFlags
 {
-    /// Automatic selection of draw flags based on the current state.
-    DrawFlags_Auto = 1 << 0,
-
     /// Do not write to stencil buffer, perform fill operation.
-    DrawFlags_NoStencilWriteDoFill = 1 << 1,
+    DrawFlags_NoStencilWriteDoFill = 1 << 0,
 
     /// Write to stencil buffer, perform fill operation.
-    DrawFlags_DoStencilWriteDoFill = 1 << 2,
+    DrawFlags_DoStencilWriteDoFill = 1 << 1,
 
     /// Write to stencil buffer, do not perform fill operation.
-    DrawFlags_DoStencilWriteNoFill = 1 << 3,
+    DrawFlags_DoStencilWriteNoFill = 1 << 2,
 
     /// Test stencil buffer, do not perform fill operation.
-    DrawFlags_DoStencilTestNoFill = 1 << 4,
-
-    /// Apply scaling during stencil operations.
-    DrawFlags_DoStencilScale = 1 << 5,
+    DrawFlags_DoStencilTestNoFill = 1 << 3,
 };
 
 /**
@@ -96,10 +90,9 @@ template <Dimension D> class ONYX_API IRenderer
      * @brief Construct an IRenderer with the specified render pass and render state.
      *
      * @param p_RenderPass The Vulkan render pass to be used.
-     * @param p_State Pointer to the current render state stack.
+     * @param p_ProjectionView Pointer to the global projection view data.
      */
-    IRenderer(VkRenderPass p_RenderPass, const TKit::StaticArray8<RenderState<D>> *p_State,
-              const ProjectionViewData<D> *p_ProjectionView) noexcept; // Passing the state like this is a bit dodgy
+    IRenderer(VkRenderPass p_RenderPass, const ProjectionViewData<D> *p_ProjectionView) noexcept;
 
     /**
      * @brief Record a draw call for a mesh model.
@@ -108,7 +101,8 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_Model The mesh model to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, DrawFlags p_Flags = DrawFlags_Auto) noexcept;
+    void DrawMesh(const RenderState<D> *p_State, const fmat<D> &p_Transform, const Model<D> &p_Model,
+                  DrawFlags p_Flags) noexcept;
 
     /**
      * @brief Record a draw call for a primitive shape.
@@ -117,7 +111,8 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_PrimitiveIndex Index of the primitive shape to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex, DrawFlags p_Flags = DrawFlags_Auto) noexcept;
+    void DrawPrimitive(const RenderState<D> *p_State, const fmat<D> &p_Transform, u32 p_PrimitiveIndex,
+                       DrawFlags p_Flags) noexcept;
 
     /**
      * @brief Record a draw call for a polygon defined by a set of vertices.
@@ -126,38 +121,26 @@ template <Dimension D> class ONYX_API IRenderer
      * @param p_Vertices Span of vertices defining the polygon.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec<D>> p_Vertices,
-                     DrawFlags p_Flags = DrawFlags_Auto) noexcept;
+    void DrawPolygon(const RenderState<D> *p_State, const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices,
+                     DrawFlags p_Flags) noexcept;
 
     /**
      * @brief Record a draw call for a circle or arc.
      *
      * @param p_Transform The transformation matrix to apply to the circle.
-     * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
-     * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
-     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
-     * @param p_LowerAngle Starting angle of the arc in radians.
-     * @param p_UpperAngle Ending angle of the arc in radians.
-     * @param p_Flags Drawing flags to control rendering behavior.
-     */
-    void DrawCircleOrArc(const fmat<D> &p_Transform, f32 p_InnerFade = 0.f, f32 p_OuterFade = 0.f,
-                         f32 p_Hollowness = 0.f, f32 p_LowerAngle = 0.f, f32 p_UpperAngle = glm::two_pi<f32>(),
-                         DrawFlags p_Flags = DrawFlags_Auto) noexcept;
-
-    /**
-     * @brief Record a draw call for a circle or arc with flags specified before angles.
      *
-     * @param p_Transform The transformation matrix to apply to the circle.
-     * @param p_Flags Drawing flags to control rendering behavior.
+     * The following is encoded in the `CircleOptions` struct:
+     *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
+     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
      * @param p_LowerAngle Starting angle of the arc in radians.
      * @param p_UpperAngle Ending angle of the arc in radians.
-     * @param p_Hollowness A value between 0 and 1 indicating how hollow the circle is.
+     *
+     * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawCircleOrArc(const fmat<D> &p_Transform, DrawFlags p_Flags, f32 p_InnerFade = 0.f, f32 p_OuterFade = 0.f,
-                         f32 p_Hollowness = 0.f, f32 p_LowerAngle = 0.f,
-                         f32 p_UpperAngle = glm::two_pi<f32>()) noexcept;
+    void DrawCircle(const RenderState<D> *p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
+                    DrawFlags p_Flags) noexcept;
 
   protected:
     /// Current frame index for synchronization purposes.
@@ -189,14 +172,12 @@ template <Dimension D> class ONYX_API IRenderer
      * @tparam DrawArgs Variadic template for additional drawing arguments.
      * @param p_Renderer Reference to the renderer.
      * @param p_Transform The transformation matrix to apply.
+     * @param p_Arg An additional argument specific to the renderer.
      * @param p_Flags Drawing flags to control rendering behavior.
-     * @param p_Args Additional arguments specific to the renderer.
      */
-    template <typename Renderer, typename... DrawArgs>
-    void draw(Renderer &p_Renderer, const fmat<D> &p_Transform, DrawFlags p_Flags, DrawArgs &&...p_Args) noexcept;
-
-    /// Pointer to the current render state stack.
-    const TKit::StaticArray8<RenderState<D>> *m_State;
+    template <typename Renderer, typename DrawArg>
+    void draw(Renderer &p_Renderer, const RenderState<D> *p_State, const fmat<D> &p_Transform, DrawArg &&p_Arg,
+              DrawFlags p_Flags) noexcept;
 };
 
 /**
@@ -313,10 +294,9 @@ template <> class Renderer<D3> final : public IRenderer<D3>
      * @brief Construct a Renderer for 3D rendering with the specified render pass and render state.
      *
      * @param p_RenderPass The Vulkan render pass to be used.
-     * @param p_State Pointer to the current render state stack.
+     * @param p_ProjectionView Pointer to the global projection view data.
      */
-    Renderer(VkRenderPass p_RenderPass, const TKit::StaticArray8<RenderState<D3>> *p_State,
-             const ProjectionViewData<D3> *p_ProjectionView) noexcept;
+    Renderer(VkRenderPass p_RenderPass, const ProjectionViewData<D3> *p_ProjectionView) noexcept;
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.

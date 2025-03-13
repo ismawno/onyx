@@ -117,10 +117,9 @@ std::pair<u32, u32> Window::GetPosition() const noexcept
 }
 
 PostProcessing *Window::SetPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                                          const VKit::Shader *p_VertexShader,
-                                          const VkSamplerCreateInfo *p_Info) noexcept
+                                          const Detail::FrameScheduler::PostProcessingOptions &p_Options) noexcept
 {
-    return m_FrameScheduler->SetPostProcessing(p_Layout, p_FragmentShader, p_VertexShader, p_Info);
+    return m_FrameScheduler->SetPostProcessing(p_Layout, p_FragmentShader, p_Options);
 }
 
 PostProcessing *Window::GetPostProcessing() noexcept

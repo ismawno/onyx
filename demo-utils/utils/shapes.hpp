@@ -16,14 +16,15 @@ template <Dimension D> class Shape
     virtual void Edit() noexcept;
 
     Transform<D> Transform;
-    MaterialData<D> Material;
-
-    bool Fill = true;
-    bool Outline = false;
-    f32 OutlineWidth = 0.01f;
-    Color OutlineColor = Color::ORANGE;
 
   private:
+    MaterialData<D> m_Material;
+
+    bool m_Fill = true;
+    bool m_Outline = false;
+    f32 m_OutlineWidth = 0.01f;
+    Color m_OutlineColor = Color::ORANGE;
+
     virtual void draw(RenderContext<D> *p_Context) noexcept = 0;
 };
 
@@ -31,6 +32,8 @@ template <Dimension D> class Triangle final : public Shape<D>
 {
   public:
     const char *GetName() const noexcept override;
+
+  private:
     void draw(RenderContext<D> *p_Context) noexcept override;
 };
 
@@ -38,109 +41,130 @@ template <Dimension D> class Square final : public Shape<D>
 {
   public:
     const char *GetName() const noexcept override;
+    void Edit() noexcept override;
+
+  private:
     void draw(RenderContext<D> *p_Context) noexcept override;
+    fvec2 m_Dimensions{1.f};
 };
 
 template <Dimension D> class Circle final : public Shape<D>
 {
   public:
     const char *GetName() const noexcept override;
-    void draw(RenderContext<D> *p_Context) noexcept override;
-
     void Edit() noexcept override;
 
-    f32 InnerFade = 0.f;
-    f32 LowerFade = 0.f;
-    f32 LowerAngle = 0.f;
-    f32 UpperAngle = glm::two_pi<f32>();
-    f32 Hollowness = 0.f;
+  private:
+    void draw(RenderContext<D> *p_Context) noexcept override;
+    fvec2 m_Dimensions{1.f};
+
+    CircleOptions m_Options{};
 };
 
 template <Dimension D> class NGon final : public Shape<D>
 {
   public:
     const char *GetName() const noexcept override;
-    void draw(RenderContext<D> *p_Context) noexcept override;
+    void Edit() noexcept override;
 
     u32 Sides = 3;
+
+  private:
+    void draw(RenderContext<D> *p_Context) noexcept override;
+    fvec2 m_Dimensions{1.f};
 };
 
 template <Dimension D> class Polygon final : public Shape<D>
 {
   public:
     const char *GetName() const noexcept override;
-    void draw(RenderContext<D> *p_Context) noexcept override;
+    void Edit() noexcept override;
 
-    TKit::DynamicArray<fvec<D>> Vertices;
+    TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> Vertices;
+
+  private:
+    void draw(RenderContext<D> *p_Context) noexcept override;
 };
 
 template <Dimension D> class Stadium final : public Shape<D>
 {
   public:
     const char *GetName() const noexcept override;
-    void draw(RenderContext<D> *p_Context) noexcept override;
-
     void Edit() noexcept override;
 
-    f32 Length = 1.f;
-    f32 Radius = 0.5f;
+  private:
+    void draw(RenderContext<D> *p_Context) noexcept override;
+    f32 m_Length = 1.f;
+    f32 m_Diameter = 1.f;
 };
 
 template <Dimension D> class RoundedSquare final : public Shape<D>
 {
   public:
     const char *GetName() const noexcept override;
-    void draw(RenderContext<D> *p_Context) noexcept override;
-
     void Edit() noexcept override;
 
-    fvec2 Dimensions{1.f};
-    f32 Radius = 0.5f;
+  private:
+    void draw(RenderContext<D> *p_Context) noexcept override;
+    fvec2 m_Dimensions{1.f};
+    f32 m_Diameter = 1.f;
 };
 
 class Cube final : public Shape<D3>
 {
   public:
     const char *GetName() const noexcept override;
+    void Edit() noexcept override;
+
+  private:
     void draw(RenderContext<D3> *p_Context) noexcept override;
+    fvec3 m_Dimensions{1.f};
 };
 
 class Sphere final : public Shape<D3>
 {
   public:
     const char *GetName() const noexcept override;
+    void Edit() noexcept override;
+
+  private:
     void draw(RenderContext<D3> *p_Context) noexcept override;
+    fvec3 m_Dimensions{1.f};
 };
 
 class Cylinder final : public Shape<D3>
 {
   public:
     const char *GetName() const noexcept override;
+    void Edit() noexcept override;
+
+  private:
     void draw(RenderContext<D3> *p_Context) noexcept override;
+    fvec3 m_Dimensions{1.f};
 };
 
 class Capsule final : public Shape<D3>
 {
   public:
     const char *GetName() const noexcept override;
-    void draw(RenderContext<D3> *p_Context) noexcept override;
-
     void Edit() noexcept override;
 
-    f32 Length = 1.f;
-    f32 Radius = 0.5f;
+  private:
+    void draw(RenderContext<D3> *p_Context) noexcept override;
+    f32 m_Length = 1.f;
+    f32 m_Diameter = 1.f;
 };
 
 class RoundedCube final : public Shape<D3>
 {
   public:
     const char *GetName() const noexcept override;
-    void draw(RenderContext<D3> *p_Context) noexcept override;
-
     void Edit() noexcept override;
 
-    fvec3 Dimensions{1.f};
-    f32 Radius = 0.5f;
+  private:
+    void draw(RenderContext<D3> *p_Context) noexcept override;
+    fvec3 m_Dimensions{1.f};
+    f32 m_Diameter = 1.f;
 };
 
 } // namespace Onyx::Demo

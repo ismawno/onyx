@@ -189,14 +189,14 @@ VkResult FrameScheduler::Present() noexcept
 
 PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,
                                                   const VKit::Shader &p_FragmentShader,
-                                                  const VKit::Shader *p_VertexShader,
-                                                  const VkSamplerCreateInfo *p_Info) noexcept
+                                                  const PostProcessingOptions &p_Options) noexcept
 {
     PostProcessing::Specs specs{};
     specs.Layout = p_Layout;
     specs.FragmentShader = p_FragmentShader;
-    specs.VertexShader = p_VertexShader ? *p_VertexShader : GetFullPassVertexShader();
-    specs.SamplerCreateInfo = p_Info ? *p_Info : PostProcessing::DefaultSamplerCreateInfo();
+    specs.VertexShader = p_Options.VertexShader ? *p_Options.VertexShader : GetFullPassVertexShader();
+    specs.SamplerCreateInfo =
+        p_Options.SamplerCreateInfo ? *p_Options.SamplerCreateInfo : PostProcessing::DefaultSamplerCreateInfo();
     m_PostProcessing->Setup(specs);
     return m_PostProcessing.Get();
 }
@@ -370,11 +370,10 @@ void FrameScheduler::createCommandData() noexcept
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        VKit::CommandPool::Specs specs{};
-        specs.QueueFamilyIndex = Core::GetDevice().GetPhysicalDevice().GetInfo().GraphicsIndex;
-        specs.Flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+        const auto result =
+            VKit::CommandPool::Create(Core::GetDevice(), Core::GetDevice().GetPhysicalDevice().GetInfo().GraphicsIndex,
+                                      VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 
-        const auto result = VKit::CommandPool::Create(Core::GetDevice(), specs);
         VKIT_ASSERT_RESULT(result);
         m_CommandPools[i] = result.GetValue();
 

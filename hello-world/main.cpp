@@ -9,12 +9,7 @@ using namespace TKit::Alias;
 
 static void RunStandaloneWindow() noexcept
 {
-    Onyx::Window::Specs specs;
-    specs.Name = "Standalone Hello, World!";
-    specs.Width = 800;
-    specs.Height = 600;
-
-    Onyx::Window window(specs);
+    Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
 
     while (!window.ShouldClose())
     {
@@ -86,12 +81,10 @@ static void SetPostProcessing(Onyx::Window &p_Window) noexcept
 
 static void RunStandaloneWindowCustomPipeline() noexcept
 {
-    Onyx::Window::Specs specs;
-    specs.Name = "Standalone Hello, World! With a custom rainbow background and a post-processing effect!";
-    specs.Width = 800;
-    specs.Height = 600;
-
-    Onyx::Window window(specs);
+    Onyx::Window window(
+        {.Name = "Standalone Hello, World! With a custom rainbow background and a post-processing effect!",
+         .Width = 800,
+         .Height = 600});
 
     const VKit::GraphicsJob job = SetupCustomPipeline(window);
     SetPostProcessing(window);
@@ -115,24 +108,13 @@ static void RunStandaloneWindowCustomPipeline() noexcept
 
 static void RunAppExample1() noexcept
 {
-    Onyx::Window::Specs specs;
-    specs.Name = "App1 Hello, World!";
-    specs.Width = 800;
-    specs.Height = 600;
-
-    Onyx::Application app(specs);
-
+    Onyx::Application app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
     app.Run();
 }
 
 static void RunAppExample2() noexcept
 {
-    Onyx::Window::Specs specs;
-    specs.Name = "App2 Hello, World!";
-    specs.Width = 800;
-    specs.Height = 600;
-
-    Onyx::Application app(specs);
+    Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
 
     const auto result = Onyx::Model<D2>::Load(ONYX_ROOT_PATH "/onyx/models/square.obj");
     VKIT_ASSERT_RESULT(result);
@@ -154,11 +136,6 @@ static void RunAppExample2() noexcept
 
 static void RunAppExample3() noexcept
 {
-    Onyx::Window::Specs specs;
-    specs.Name = "App3 Hello, World!";
-    specs.Width = 800;
-    specs.Height = 600;
-
     class MyLayer : public Onyx::UserLayer
     {
       public:
@@ -170,7 +147,7 @@ static void RunAppExample3() noexcept
         }
     };
 
-    Onyx::Application app(specs);
+    Onyx::Application app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
     app.SetUserLayer<MyLayer>();
 
     app.Run();

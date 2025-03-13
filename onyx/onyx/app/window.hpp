@@ -181,18 +181,20 @@ class ONYX_API Window
      * pass.
      *
      * If you wish to switch to a different post-processing pipeline, call this method again with the new
-     * specifications. Do not call `RemovePostProcessing` before or after that in the same frame, as that call will
+     * specifications. Do not call `RemovePostProcessing()` before or after that in the same frame, as that call will
      * override the setup.
      *
      * @param p_Layout The pipeline layout to use for the post-processing pipeline.
      * @param p_FragmentShader The fragment shader to use for the post-processing pipeline.
+     *
+     * The following is encoded in the `PostProcessingOptions` struct:
+     *
      * @param p_VertexShader Optional vertex shader to use for the post-processing pipeline.
      * @param p_Info Optional sampler information to use for the post-processing pipeline.
      * @return A pointer to the post-processing pipeline.
      */
     PostProcessing *SetPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                                      const VKit::Shader *p_VertexShader = nullptr,
-                                      const VkSamplerCreateInfo *p_Info = nullptr) noexcept;
+                                      const Detail::FrameScheduler::PostProcessingOptions &p_Options = {}) noexcept;
 
     PostProcessing *GetPostProcessing() noexcept;
 

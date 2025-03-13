@@ -7,10 +7,7 @@ void RunApp() noexcept
 {
     Onyx::MultiWindowApplication app;
     app.SetUserLayer<Onyx::Demo::MWExampleLayer>(&app);
-
-    Onyx::Window::Specs spc{};
-    spc.Name = "Main window";
-    app.OpenWindow(spc);
+    app.OpenWindow({.Name = "Main window"});
     app.Run();
 }
 

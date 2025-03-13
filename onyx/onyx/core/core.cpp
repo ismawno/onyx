@@ -13,6 +13,8 @@
 
 namespace Onyx
 {
+using namespace Detail;
+
 static TKit::ITaskManager *s_TaskManager;
 
 static VKit::Instance s_Instance{};
@@ -83,10 +85,10 @@ static void createVulkanAllocator() noexcept
 
 static void createCommandPool() noexcept
 {
-    VKit::CommandPool::Specs specs{};
-    specs.QueueFamilyIndex = s_Device.GetPhysicalDevice().GetInfo().GraphicsIndex;
-    specs.Flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-    const auto poolres = VKit::CommandPool::Create(s_Device, specs);
+    const auto poolres = VKit::CommandPool::Create(s_Device, s_Device.GetPhysicalDevice().GetInfo().GraphicsIndex,
+                                                   VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
+                                                       VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+
     VKIT_ASSERT_RESULT(poolres);
     s_CommandPool = poolres.GetValue();
     TKIT_LOG_INFO("[ONYX] Created global command pool");
@@ -151,7 +153,7 @@ static void createPipelineLayouts() noexcept
         VKit::PipelineLayout::Builder(s_Device)
             .AddDescriptorSetLayout(s_TransformStorageLayout)
             .AddDescriptorSetLayout(s_LightStorageLayout)
-            .AddPushConstantRange<Detail::PushConstantData3D>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddPushConstantRange<PushConstantData3D>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .Build();
 
     VKIT_ASSERT_RESULT(layoutResult);
@@ -164,10 +166,10 @@ static void createPipelineLayouts() noexcept
 
 static void createShaders() noexcept
 {
-    Detail::Shaders<D2, Detail::DrawMode::Fill>::Initialize();
-    Detail::Shaders<D2, Detail::DrawMode::Stencil>::Initialize();
-    Detail::Shaders<D3, Detail::DrawMode::Fill>::Initialize();
-    Detail::Shaders<D3, Detail::DrawMode::Stencil>::Initialize();
+    Shaders<D2, DrawMode::Fill>::Initialize();
+    Shaders<D2, DrawMode::Stencil>::Initialize();
+    Shaders<D3, DrawMode::Fill>::Initialize();
+    Shaders<D3, DrawMode::Stencil>::Initialize();
     TKIT_LOG_INFO("[ONYX] Created global shaders");
 }
 
@@ -218,7 +220,7 @@ void Core::CreateDevice(const VkSurfaceKHR p_Surface) noexcept
     createCommandPool();
     createDescriptorData();
     createPipelineLayouts();
-    Detail::CreateCombinedPrimitiveBuffers();
+    CreateCombinedPrimitiveBuffers();
     createShaders();
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
     createProfilingContext();
