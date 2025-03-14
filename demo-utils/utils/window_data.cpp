@@ -275,7 +275,6 @@ template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, c
 
 template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexcept
 {
-    static i32 ngonSides = 3;
     const auto createShape = [&p_Data]() -> TKit::Scope<Shape<D>> {
         if (p_Data.ShapeToSpawn == TRIANGLE)
             return TKit::Scope<Triangle<D>>::Create();
@@ -286,7 +285,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         else if (p_Data.ShapeToSpawn == NGON)
         {
             auto ngon = TKit::Scope<NGon<D>>::Create();
-            ngon->Sides = static_cast<u32>(ngonSides);
+            ngon->Sides = static_cast<u32>(p_Data.NGonSides);
             return std::move(ngon);
         }
         else if (p_Data.ShapeToSpawn == POLYGON)
@@ -347,21 +346,18 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     }
 
     if (p_Data.ShapeToSpawn == NGON)
-        ImGui::SliderInt("Sides", &ngonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
+        ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
     else if (p_Data.ShapeToSpawn == POLYGON)
     {
         ImGui::Text("Vertices must be in counter clockwise order for outlines to work correctly");
         ImGui::Text("Click on the screen or the 'Add' button to add vertices to the polygon.");
-        static fvec<D> toAdd{0.f};
-        if constexpr (D == D2)
-            ImGui::DragFloat2("Vertex", glm::value_ptr(toAdd), 0.1f);
-        else
-            ImGui::DragFloat3("Vertex", glm::value_ptr(toAdd), 0.1f);
+        ImGui::DragFloat2("Vertex", glm::value_ptr(p_Data.VertexToAdd), 0.1f);
+
         ImGui::SameLine();
         if (ImGui::Button("Add"))
         {
-            p_Data.PolygonVertices.push_back(toAdd);
-            toAdd = fvec<D>{0.f};
+            p_Data.PolygonVertices.push_back(p_Data.VertexToAdd);
+            p_Data.VertexToAdd = fvec2{0.f};
         }
         for (u32 i = 0; i < p_Data.PolygonVertices.size(); ++i)
         {
@@ -412,46 +408,39 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     }
     if (ImGui::TreeNode("Line test"))
     {
-        static fvec<D> start{0.f};
-        static fvec<D> end{1.f};
-        static MaterialData<D> material{};
-        Color outlineColor = Color::ORANGE;
-        static f32 thickness = 0.05f;
-        static f32 outlineWidth = 0.01f;
-        static bool rounded = false;
-        static bool outline = false;
+        LineTest<D> &line = p_Data.Line;
 
-        ImGui::Checkbox("Rounded", &rounded);
-        ImGui::Checkbox("Outline", &outline);
-        ImGui::SliderFloat("Outline width", &outlineWidth, 0.01f, 0.1f);
-        ImGui::SliderFloat("Thickness", &thickness, 0.01f, 0.1f);
+        ImGui::Checkbox("Rounded", &line.Rounded);
+        ImGui::Checkbox("Outline", &line.Outline);
+        ImGui::SliderFloat("Outline width", &line.OutlineWidth, 0.01f, 0.1f);
+        ImGui::SliderFloat("Thickness", &line.Thickness, 0.01f, 0.1f);
 
         if constexpr (D == D2)
         {
-            ImGui::DragFloat2("Start", glm::value_ptr(start), 0.1f);
-            ImGui::DragFloat2("End", glm::value_ptr(end), 0.1f);
+            ImGui::DragFloat2("Start", glm::value_ptr(line.Start), 0.1f);
+            ImGui::DragFloat2("End", glm::value_ptr(line.End), 0.1f);
         }
         else
         {
-            ImGui::DragFloat3("Start", glm::value_ptr(start), 0.1f);
-            ImGui::DragFloat3("End", glm::value_ptr(end), 0.1f);
+            ImGui::DragFloat3("Start", glm::value_ptr(line.Start), 0.1f);
+            ImGui::DragFloat3("End", glm::value_ptr(line.End), 0.1f);
         }
 
         ImGui::Text("Material");
-        UserLayer::MaterialEditor<D>(material, UserLayer::Flag_DisplayHelp);
-        ImGui::ColorEdit3("Outline color", outlineColor.AsPointer());
+        UserLayer::MaterialEditor<D>(line.Material, UserLayer::Flag_DisplayHelp);
+        ImGui::ColorEdit3("Outline color", line.OutlineColor.AsPointer());
 
         p_Data.Context->Push();
-        if (outline)
+        if (line.Outline)
         {
-            p_Data.Context->Outline(outlineColor);
-            p_Data.Context->OutlineWidth(outlineWidth);
+            p_Data.Context->Outline(line.OutlineColor);
+            p_Data.Context->OutlineWidth(line.OutlineWidth);
         }
-        p_Data.Context->Material(material);
-        if (rounded)
-            p_Data.Context->RoundedLine(start, end, thickness);
+        p_Data.Context->Material(line.Material);
+        if (line.Rounded)
+            p_Data.Context->RoundedLine(line.Start, line.End, line.Thickness);
         else
-            p_Data.Context->Line(start, end, thickness);
+            p_Data.Context->Line(line.Start, line.End, line.Thickness);
         p_Data.Context->Pop();
         ImGui::TreePop();
     }
@@ -461,7 +450,6 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         if (ImGui::Button("Clear"))
             p_Data.Shapes.clear();
 
-        static u32 selected = 0;
         for (u32 i = 0; i < p_Data.Shapes.size(); ++i)
         {
             ImGui::PushID(&p_Data.Shapes[i]);
@@ -472,12 +460,12 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
                 break;
             }
             ImGui::SameLine();
-            if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), selected == i))
-                selected = i;
+            if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), p_Data.SelectedShape == i))
+                p_Data.SelectedShape = i;
             ImGui::PopID();
         }
-        if (selected < p_Data.Shapes.size())
-            p_Data.Shapes[selected]->Edit();
+        if (p_Data.SelectedShape < p_Data.Shapes.size())
+            p_Data.Shapes[p_Data.SelectedShape]->Edit();
         ImGui::TreePop();
     }
 }
@@ -559,14 +547,15 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
         }
         if constexpr (D == D3)
         {
-            if (ImGui::Checkbox("Perspective", &p_Data.Perspective))
+            i32 perspective = static_cast<i32>(p_Data.Perspective);
+            if (ImGui::Combo("Projection", &perspective, "Orthographic\0Perspective\0\0"))
             {
+                p_Data.Perspective = perspective == 1;
                 if (p_Data.Perspective)
                     p_Data.Context->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
                 else
                     p_Data.Context->SetOrthographicProjection();
             }
-            UserLayer::HelpMarkerSameLine("Switch between perspective and orthographic projections.");
 
             if (p_Data.Perspective)
             {

@@ -43,6 +43,13 @@ template <Dimension D> static void dimensionEditor(fvec<D> &p_Dimensions) noexce
     ImGui::PopID();
 }
 
+static void resolutionEditor(Resolution &p_Res) noexcept
+{
+    ImGui::PushID(&p_Res);
+    ImGui::Combo("Resolution", reinterpret_cast<i32 *>(&p_Res), "Very Low\0Low\0Medium\0High\0Very High\0\0");
+    ImGui::PopID();
+}
+
 template <Dimension D> const char *Triangle<D>::GetName() const noexcept
 {
     return "Triangle";
@@ -200,12 +207,13 @@ const char *Sphere::GetName() const noexcept
 
 void Sphere::draw(RenderContext<D3> *p_Context) noexcept
 {
-    p_Context->Sphere(Transform.ComputeTransform(), m_Dimensions);
+    p_Context->Sphere(Transform.ComputeTransform(), m_Dimensions, m_Res);
 }
 void Sphere::Edit() noexcept
 {
     Shape<D3>::Edit();
     dimensionEditor<D3>(m_Dimensions);
+    resolutionEditor(m_Res);
 }
 
 const char *Cylinder::GetName() const noexcept
@@ -216,11 +224,12 @@ void Cylinder::Edit() noexcept
 {
     Shape<D3>::Edit();
     dimensionEditor<D3>(m_Dimensions);
+    resolutionEditor(m_Res);
 }
 
 void Cylinder::draw(RenderContext<D3> *p_Context) noexcept
 {
-    p_Context->Cylinder(Transform.ComputeTransform(), m_Dimensions);
+    p_Context->Cylinder(Transform.ComputeTransform(), m_Dimensions, m_Res);
 }
 
 const char *Capsule::GetName() const noexcept
@@ -230,7 +239,7 @@ const char *Capsule::GetName() const noexcept
 
 void Capsule::draw(RenderContext<D3> *p_Context) noexcept
 {
-    p_Context->Capsule(Transform.ComputeTransform(), m_Length, m_Diameter);
+    p_Context->Capsule(Transform.ComputeTransform(), m_Length, m_Diameter, m_Res);
 }
 
 void Capsule::Edit() noexcept
@@ -240,11 +249,12 @@ void Capsule::Edit() noexcept
     ImGui::DragFloat("Length", &m_Length, 0.01f, 0.f, FLT_MAX);
     ImGui::DragFloat("Diameter", &m_Diameter, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
+    resolutionEditor(m_Res);
 }
 
 void RoundedCube::draw(RenderContext<D3> *p_Context) noexcept
 {
-    p_Context->RoundedCube(Transform.ComputeTransform(), m_Dimensions, m_Diameter);
+    p_Context->RoundedCube(Transform.ComputeTransform(), m_Dimensions, m_Diameter, m_Res);
 }
 
 const char *RoundedCube::GetName() const noexcept
@@ -259,6 +269,7 @@ void RoundedCube::Edit() noexcept
     ImGui::PushID(this);
     ImGui::DragFloat("Diameter", &m_Diameter, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
+    resolutionEditor(m_Res);
 }
 
 template class Shape<D2>;

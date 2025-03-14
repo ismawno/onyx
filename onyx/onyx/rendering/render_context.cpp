@@ -737,13 +737,14 @@ void RenderContext<D2>::Line(const fvec2 &p_Start, const fvec2 &p_End, const f32
 
     Square(transform, fvec2{glm::length(delta), p_Thickness});
 }
-void RenderContext<D3>::Line(const fvec3 &p_Start, const fvec3 &p_End, const f32 p_Thickness) noexcept
+void RenderContext<D3>::Line(const fvec3 &p_Start, const fvec3 &p_End, const f32 p_Thickness,
+                             const Resolution p_Res) noexcept
 {
     const fvec3 delta = p_End - p_Start;
     fmat4 transform = m_State->Transform;
     Onyx::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D3>::RotateIntrinsic(transform, computeLineRotation<D3>(p_Start, p_End));
-    Cylinder(transform, glm::length(delta), p_Thickness);
+    Cylinder(transform, glm::length(delta), p_Thickness, p_Res);
 }
 
 void RenderContext<D2>::LineStrip(const TKit::Span<const fvec2> p_Points, const f32 p_Thickness) noexcept
@@ -768,13 +769,14 @@ void RenderContext<D2>::RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, co
 
     Stadium(transform, glm::length(delta), p_Thickness);
 }
-void RenderContext<D3>::RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, const f32 p_Thickness) noexcept
+void RenderContext<D3>::RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, const f32 p_Thickness,
+                                    const Resolution p_Res) noexcept
 {
     const fvec3 delta = p_End - p_Start;
     fmat4 transform = m_State->Transform;
     Onyx::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D3>::RotateIntrinsic(transform, computeLineRotation<D3>(p_Start, p_End));
-    Capsule(transform, glm::length(delta), p_Thickness);
+    Capsule(transform, glm::length(delta), p_Thickness, p_Res);
 }
 
 void RenderContext<D3>::Cube() noexcept
@@ -802,148 +804,154 @@ void RenderContext<D3>::Cube(const fmat4 &p_Transform, const f32 p_Size) noexcep
     Cube(p_Transform, fvec3{p_Size});
 }
 
-void RenderContext<D3>::Cylinder() noexcept
+void RenderContext<D3>::Cylinder(const Resolution p_Res) noexcept
 {
-    drawPrimitive<D3>(m_State->Transform, Primitives<D3>::GetCylinderIndex());
+    drawPrimitive<D3>(m_State->Transform, Primitives<D3>::GetCylinderIndex(p_Res));
 }
-void RenderContext<D3>::Cylinder(const fmat4 &p_Transform) noexcept
+void RenderContext<D3>::Cylinder(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
-    drawPrimitive<D3>(p_Transform * m_State->Transform, Primitives<D3>::GetCylinderIndex());
+    drawPrimitive<D3>(p_Transform * m_State->Transform, Primitives<D3>::GetCylinderIndex(p_Res));
 }
-void RenderContext<D3>::Cylinder(const fvec3 &p_Dimensions) noexcept
+void RenderContext<D3>::Cylinder(const fvec3 &p_Dimensions, const Resolution p_Res) noexcept
 {
-    drawPrimitive<D3>(m_State->Transform, Primitives<D3>::GetCylinderIndex(), p_Dimensions);
+    drawPrimitive<D3>(m_State->Transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Dimensions);
 }
-void RenderContext<D3>::Cylinder(const fmat4 &p_Transform, const fvec3 &p_Dimensions) noexcept
+void RenderContext<D3>::Cylinder(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const Resolution p_Res) noexcept
 {
-    drawPrimitive<D3>(p_Transform * m_State->Transform, Primitives<D3>::GetCylinderIndex(), p_Dimensions);
+    drawPrimitive<D3>(p_Transform * m_State->Transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Dimensions);
 }
-void RenderContext<D3>::Cylinder(const f32 p_Length, const f32 p_Diameter) noexcept
+void RenderContext<D3>::Cylinder(const f32 p_Length, const f32 p_Diameter, const Resolution p_Res) noexcept
 {
-    Cylinder(fvec3{p_Length, p_Diameter, p_Diameter});
+    Cylinder(fvec3{p_Length, p_Diameter, p_Diameter}, p_Res);
 }
-void RenderContext<D3>::Cylinder(const fmat4 &p_Transform, const f32 p_Length, const f32 p_Diameter) noexcept
+void RenderContext<D3>::Cylinder(const fmat4 &p_Transform, const f32 p_Length, const f32 p_Diameter,
+                                 const Resolution p_Res) noexcept
 {
-    Cylinder(p_Transform, fvec3{p_Length, p_Diameter, p_Diameter});
-}
-
-void RenderContext<D3>::Sphere() noexcept
-{
-    drawPrimitive<D3>(m_State->Transform, Primitives<D3>::GetSphereIndex());
-}
-void RenderContext<D3>::Sphere(const fmat4 &p_Transform) noexcept
-{
-    drawPrimitive<D3>(p_Transform * m_State->Transform, Primitives<D3>::GetSphereIndex());
-}
-void RenderContext<D3>::Sphere(const fvec3 &p_Dimensions) noexcept
-{
-    drawPrimitive<D3>(m_State->Transform, Primitives<D3>::GetSphereIndex(), p_Dimensions);
-}
-void RenderContext<D3>::Sphere(const fmat4 &p_Transform, const fvec3 &p_Dimensions) noexcept
-{
-    drawPrimitive<D3>(p_Transform * m_State->Transform, Primitives<D3>::GetSphereIndex(), p_Dimensions);
-}
-void RenderContext<D3>::Sphere(const f32 p_Diameter) noexcept
-{
-    Sphere(fvec3{p_Diameter});
-}
-void RenderContext<D3>::Sphere(const fmat4 &p_Transform, const f32 p_Diameter) noexcept
-{
-    Sphere(p_Transform, fvec3{p_Diameter});
+    Cylinder(p_Transform, fvec3{p_Length, p_Diameter, p_Diameter}, p_Res);
 }
 
-void RenderContext<D3>::drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, const DrawFlags p_Flags) noexcept
+void RenderContext<D3>::Sphere(const Resolution p_Res) noexcept
 {
-    Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
-    m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetSphereIndex(), p_Flags);
+    drawPrimitive<D3>(m_State->Transform, Primitives<D3>::GetSphereIndex(p_Res));
 }
-void RenderContext<D3>::drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, const f32 p_Diameter,
+void RenderContext<D3>::Sphere(const fmat4 &p_Transform, const Resolution p_Res) noexcept
+{
+    drawPrimitive<D3>(p_Transform * m_State->Transform, Primitives<D3>::GetSphereIndex(p_Res));
+}
+void RenderContext<D3>::Sphere(const fvec3 &p_Dimensions, const Resolution p_Res) noexcept
+{
+    drawPrimitive<D3>(m_State->Transform, Primitives<D3>::GetSphereIndex(p_Res), p_Dimensions);
+}
+void RenderContext<D3>::Sphere(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const Resolution p_Res) noexcept
+{
+    drawPrimitive<D3>(p_Transform * m_State->Transform, Primitives<D3>::GetSphereIndex(p_Res), p_Dimensions);
+}
+void RenderContext<D3>::Sphere(const f32 p_Diameter, const Resolution p_Res) noexcept
+{
+    Sphere(fvec3{p_Diameter}, p_Res);
+}
+void RenderContext<D3>::Sphere(const fmat4 &p_Transform, const f32 p_Diameter, const Resolution p_Res) noexcept
+{
+    Sphere(p_Transform, fvec3{p_Diameter}, p_Res);
+}
+
+void RenderContext<D3>::drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, const Resolution p_Res,
                                         const DrawFlags p_Flags) noexcept
 {
     Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
+    m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetSphereIndex(p_Res),
+                             p_Flags);
+}
+void RenderContext<D3>::drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, const f32 p_Diameter,
+                                        const Resolution p_Res, const DrawFlags p_Flags) noexcept
+{
+    Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
     Onyx::Transform<D3>::ScaleIntrinsic(p_Transform, fvec3{p_Diameter});
-    m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetSphereIndex(), p_Flags);
+    m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetSphereIndex(p_Res),
+                             p_Flags);
 }
 
-void RenderContext<D3>::drawCapsule(const fmat4 &p_Transform) noexcept
+void RenderContext<D3>::drawCapsule(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
-    const auto fill = [this, &p_Transform](const DrawFlags p_Flags) {
-        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetCylinderIndex(),
+    const auto fill = [this, &p_Transform, p_Res](const DrawFlags p_Flags) {
+        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetCylinderIndex(p_Res),
                                  p_Flags);
         fvec3 pos{0.f};
 
         pos.x = -0.5f;
-        drawChildSphere(p_Transform, pos, p_Flags);
+        drawChildSphere(p_Transform, pos, p_Res, p_Flags);
         pos.x = 0.5f;
-        drawChildSphere(p_Transform, pos, p_Flags);
+        drawChildSphere(p_Transform, pos, p_Res, p_Flags);
     };
-    const auto outline = [this, &p_Transform](const DrawFlags p_Flags) {
+    const auto outline = [this, &p_Transform, p_Res](const DrawFlags p_Flags) {
         const f32 thickness = 1.f + m_State->OutlineWidth;
         fmat4 transform = p_Transform;
 
         Onyx::Transform<D3>::ScaleIntrinsic(transform, 1, thickness);
         Onyx::Transform<D3>::ScaleIntrinsic(transform, 2, thickness);
-        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D3>::GetCylinderIndex(),
+        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D3>::GetCylinderIndex(p_Res),
                                  p_Flags);
         fvec3 pos{0.f};
 
         pos.x = -0.5f;
-        drawChildSphere(p_Transform, pos, thickness, p_Flags);
+        drawChildSphere(p_Transform, pos, thickness, p_Res, p_Flags);
         pos.x = 0.5f;
-        drawChildSphere(p_Transform, pos, thickness, p_Flags);
+        drawChildSphere(p_Transform, pos, thickness, p_Res, p_Flags);
     };
     resolveDrawFlagsWithState(fill, outline);
 }
-void RenderContext<D3>::drawCapsule(const fmat4 &p_Transform, const f32 p_Length, const f32 p_Diameter) noexcept
+void RenderContext<D3>::drawCapsule(const fmat4 &p_Transform, const f32 p_Length, const f32 p_Diameter,
+                                    const Resolution p_Res) noexcept
 {
-    const auto fill = [this, &p_Transform, p_Length, p_Diameter](const DrawFlags p_Flags) {
+    const auto fill = [this, &p_Transform, p_Length, p_Diameter, p_Res](const DrawFlags p_Flags) {
         fmat4 transform = p_Transform;
         Onyx::Transform<D3>::ScaleIntrinsic(transform, fvec3{p_Length, p_Diameter, p_Diameter});
 
-        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D3>::GetCylinderIndex(),
+        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D3>::GetCylinderIndex(p_Res),
                                  p_Flags);
         fvec3 pos{0.f};
 
         pos.x = -0.5f * p_Length;
-        drawChildSphere(p_Transform, pos, p_Flags);
+        drawChildSphere(p_Transform, pos, p_Diameter, p_Res, p_Flags);
         pos.x = -pos.x;
-        drawChildSphere(p_Transform, pos, p_Flags);
+        drawChildSphere(p_Transform, pos, p_Diameter, p_Res, p_Flags);
     };
-    const auto outline = [this, &p_Transform, p_Length, p_Diameter](const DrawFlags p_Flags) {
+    const auto outline = [this, &p_Transform, p_Length, p_Diameter, p_Res](const DrawFlags p_Flags) {
         const f32 diameter = p_Diameter + m_State->OutlineWidth;
         fmat4 transform = p_Transform;
         Onyx::Transform<D3>::ScaleIntrinsic(transform, fvec3{p_Length, diameter, diameter});
-        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D3>::GetCylinderIndex(),
+        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D3>::GetCylinderIndex(p_Res),
                                  p_Flags);
         fvec3 pos{0.f};
 
         pos.x = -0.5f * p_Length;
-        drawChildSphere(p_Transform, pos, diameter, p_Flags);
+        drawChildSphere(p_Transform, pos, diameter, p_Res, p_Flags);
         pos.x = -pos.x;
-        drawChildSphere(p_Transform, pos, diameter, p_Flags);
+        drawChildSphere(p_Transform, pos, diameter, p_Res, p_Flags);
     };
     resolveDrawFlagsWithState(fill, outline);
 }
 
-void RenderContext<D3>::Capsule() noexcept
+void RenderContext<D3>::Capsule(const Resolution p_Res) noexcept
 {
-    drawCapsule(m_State->Transform);
+    drawCapsule(m_State->Transform, p_Res);
 }
-void RenderContext<D3>::Capsule(const fmat4 &p_Transform) noexcept
+void RenderContext<D3>::Capsule(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
-    drawCapsule(p_Transform * m_State->Transform);
+    drawCapsule(p_Transform * m_State->Transform, p_Res);
 }
-void RenderContext<D3>::Capsule(const f32 p_Length, const f32 p_Diameter) noexcept
+void RenderContext<D3>::Capsule(const f32 p_Length, const f32 p_Diameter, const Resolution p_Res) noexcept
 {
-    drawCapsule(m_State->Transform, p_Length, p_Diameter);
+    drawCapsule(m_State->Transform, p_Length, p_Diameter, p_Res);
 }
-void RenderContext<D3>::Capsule(const fmat4 &p_Transform, const f32 p_Length, const f32 p_Diameter) noexcept
+void RenderContext<D3>::Capsule(const fmat4 &p_Transform, const f32 p_Length, const f32 p_Diameter,
+                                const Resolution p_Res) noexcept
 {
-    drawCapsule(p_Transform * m_State->Transform, p_Length, p_Diameter);
+    drawCapsule(p_Transform * m_State->Transform, p_Length, p_Diameter, p_Res);
 }
 
 void RenderContext<D3>::drawRoundedCubeMoons(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const f32 p_Diameter,
-                                             const DrawFlags p_Flags) noexcept
+                                             const Resolution p_Res, const DrawFlags p_Flags) noexcept
 {
     const f32 radius = 0.5f * p_Diameter;
     const fvec3 halfDims = 0.5f * p_Dimensions;
@@ -964,7 +972,7 @@ void RenderContext<D3>::drawRoundedCubeMoons(const fmat4 &p_Transform, const fve
     fvec3 pos = halfDims;
     for (u32 i = 0; i < 8; ++i)
     {
-        drawChildSphere(p_Transform, pos, p_Diameter, p_Flags);
+        drawChildSphere(p_Transform, pos, p_Diameter, p_Res, p_Flags);
         const u32 index = i % 2;
         pos[index] = -pos[index];
         if (i == 3)
@@ -991,71 +999,73 @@ void RenderContext<D3>::drawRoundedCubeMoons(const fmat4 &p_Transform, const fve
                 if (axis > 1)
                     Onyx::Transform<D3>::RotateYIntrinsic(transform, glm::half_pi<f32>());
                 Onyx::Transform<D3>::ScaleIntrinsic(transform, {p_Dimensions[axis], p_Diameter, p_Diameter});
-                m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D3>::GetCylinderIndex(),
-                                         p_Flags);
+                m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform),
+                                         Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
             }
     }
 }
 
-void RenderContext<D3>::drawRoundedCube(const fmat4 &p_Transform) noexcept
+void RenderContext<D3>::drawRoundedCube(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
-    const auto fill = [this, &p_Transform](const DrawFlags p_Flags) {
+    const auto fill = [this, &p_Transform, p_Res](const DrawFlags p_Flags) {
         m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetSquareIndex(),
                                  p_Flags);
-        drawRoundedCubeMoons(p_Transform, fvec3{1.f}, 1.f, p_Flags);
+        drawRoundedCubeMoons(p_Transform, fvec3{1.f}, 1.f, p_Res, p_Flags);
     };
-    const auto outline = [this, &p_Transform](const DrawFlags p_Flags) {
+    const auto outline = [this, &p_Transform, p_Res](const DrawFlags p_Flags) {
         const f32 thickness = 1.f + m_State->OutlineWidth;
         m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetSquareIndex(),
                                  p_Flags);
-        drawRoundedCubeMoons(p_Transform, fvec3{1.f}, thickness, p_Flags);
+        drawRoundedCubeMoons(p_Transform, fvec3{1.f}, thickness, p_Res, p_Flags);
     };
     resolveDrawFlagsWithState(fill, outline);
 }
-void RenderContext<D3>::drawRoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions,
-                                        const f32 p_Diameter) noexcept
+void RenderContext<D3>::drawRoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const f32 p_Diameter,
+                                        const Resolution p_Res) noexcept
 {
-    const auto fill = [this, &p_Transform, &p_Dimensions, p_Diameter](const DrawFlags p_Flags) {
+    const auto fill = [this, &p_Transform, &p_Dimensions, p_Diameter, p_Res](const DrawFlags p_Flags) {
         fmat4 transform = p_Transform;
         Onyx::Transform<D3>::ScaleIntrinsic(transform, p_Dimensions);
         m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D3>::GetSquareIndex(), p_Flags);
 
-        drawRoundedCubeMoons(p_Transform, p_Dimensions, p_Diameter, p_Flags);
+        drawRoundedCubeMoons(p_Transform, p_Dimensions, p_Diameter, p_Res, p_Flags);
     };
-    const auto outline = [this, &p_Transform, &p_Dimensions, p_Diameter](const DrawFlags p_Flags) {
+    const auto outline = [this, &p_Transform, &p_Dimensions, p_Diameter, p_Res](const DrawFlags p_Flags) {
         const f32 width = m_State->OutlineWidth;
         fmat4 transform = p_Transform;
         Onyx::Transform<D3>::ScaleIntrinsic(transform, p_Dimensions);
         m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D3>::GetSquareIndex(), p_Flags);
 
-        drawRoundedCubeMoons(p_Transform, p_Dimensions, p_Diameter + width, p_Flags);
+        drawRoundedCubeMoons(p_Transform, p_Dimensions, p_Diameter + width, p_Res, p_Flags);
     };
     resolveDrawFlagsWithState(fill, outline);
 }
 
-void RenderContext<D3>::RoundedCube() noexcept
+void RenderContext<D3>::RoundedCube(const Resolution p_Res) noexcept
 {
-    drawRoundedCube(m_State->Transform);
+    drawRoundedCube(m_State->Transform, p_Res);
 }
-void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform) noexcept
+void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
-    drawRoundedCube(p_Transform * m_State->Transform);
+    drawRoundedCube(p_Transform * m_State->Transform, p_Res);
 }
-void RenderContext<D3>::RoundedCube(const fvec3 &p_Dimensions, const f32 p_Diameter) noexcept
+void RenderContext<D3>::RoundedCube(const fvec3 &p_Dimensions, const f32 p_Diameter, const Resolution p_Res) noexcept
 {
-    drawRoundedCube(m_State->Transform, p_Dimensions, p_Diameter);
+    drawRoundedCube(m_State->Transform, p_Dimensions, p_Diameter, p_Res);
 }
-void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const f32 p_Diameter) noexcept
+void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const f32 p_Diameter,
+                                    const Resolution p_Res) noexcept
 {
-    drawRoundedCube(p_Transform * m_State->Transform, p_Dimensions, p_Diameter);
+    drawRoundedCube(p_Transform * m_State->Transform, p_Dimensions, p_Diameter, p_Res);
 }
-void RenderContext<D3>::RoundedCube(const f32 p_Size, const f32 p_Diameter) noexcept
+void RenderContext<D3>::RoundedCube(const f32 p_Size, const f32 p_Diameter, const Resolution p_Res) noexcept
 {
-    RoundedCube(fvec3{p_Size}, p_Diameter);
+    RoundedCube(fvec3{p_Size}, p_Diameter, p_Res);
 }
-void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const f32 p_Size, const f32 p_Diameter) noexcept
+void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const f32 p_Size, const f32 p_Diameter,
+                                    const Resolution p_Res) noexcept
 {
-    RoundedCube(p_Transform, fvec3{p_Size}, p_Diameter);
+    RoundedCube(p_Transform, fvec3{p_Size}, p_Diameter, p_Res);
 }
 
 void RenderContext<D3>::LightColor(const Color &p_Color) noexcept
@@ -1277,7 +1287,7 @@ template <Dimension D> void IRenderContext<D>::Render(const VkCommandBuffer p_Co
     m_Renderer.Render(p_Commandbuffer);
 }
 
-void RenderContext<D2>::Axes(const AxesOptions &p_Options) noexcept
+void RenderContext<D2>::Axes(const AxesOptions<D2> &p_Options) noexcept
 {
     // TODO: Parametrize this
     Color &color = m_State->Material.Color;
@@ -1297,7 +1307,7 @@ void RenderContext<D2>::Axes(const AxesOptions &p_Options) noexcept
     color = oldColor; // A cheap filthy pop
 }
 
-void RenderContext<D3>::Axes(const AxesOptions &p_Options) noexcept
+void RenderContext<D3>::Axes(const AxesOptions<D3> &p_Options) noexcept
 {
     // TODO: Parametrize this
     Color &color = m_State->Material.Color;
@@ -1313,11 +1323,11 @@ void RenderContext<D3>::Axes(const AxesOptions &p_Options) noexcept
     const fvec3 zFront = fvec3{0.f, 0.f, p_Options.Size};
 
     color = Color{245u, 64u, 90u};
-    Line(xLeft, xRight, p_Options.Thickness);
+    Line(xLeft, xRight, p_Options.Thickness, p_Options.Res);
     color = Color{65u, 135u, 245u};
-    Line(yDown, yUp, p_Options.Thickness);
+    Line(yDown, yUp, p_Options.Thickness, p_Options.Res);
     color = Color{180u, 245u, 65u};
-    Line(zBack, zFront, p_Options.Thickness);
+    Line(zBack, zFront, p_Options.Thickness, p_Options.Res);
     color = oldColor; // A cheap filthy pop
 }
 

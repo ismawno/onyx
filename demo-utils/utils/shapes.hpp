@@ -129,6 +129,7 @@ class Sphere final : public Shape<D3>
 
   private:
     void draw(RenderContext<D3> *p_Context) noexcept override;
+    Resolution m_Res = Resolution::Medium;
     fvec3 m_Dimensions{1.f};
 };
 
@@ -140,6 +141,7 @@ class Cylinder final : public Shape<D3>
 
   private:
     void draw(RenderContext<D3> *p_Context) noexcept override;
+    Resolution m_Res = Resolution::Medium;
     fvec3 m_Dimensions{1.f};
 };
 
@@ -151,6 +153,7 @@ class Capsule final : public Shape<D3>
 
   private:
     void draw(RenderContext<D3> *p_Context) noexcept override;
+    Resolution m_Res = Resolution::Medium;
     f32 m_Length = 1.f;
     f32 m_Diameter = 1.f;
 };
@@ -163,6 +166,7 @@ class RoundedCube final : public Shape<D3>
 
   private:
     void draw(RenderContext<D3> *p_Context) noexcept override;
+    Resolution m_Res = Resolution::Medium;
     fvec3 m_Dimensions{1.f};
     f32 m_Diameter = 1.f;
 };

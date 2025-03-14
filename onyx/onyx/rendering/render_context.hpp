@@ -48,13 +48,22 @@ template <> struct CameraMovementControls<D3>
     Input::Key ToggleLookAround = Input::Key::LeftShift;
 };
 
-namespace Detail
-{
-struct AxesOptions
+template <Dimension D> struct AxesOptions;
+
+template <> struct AxesOptions<D2>
 {
     f32 Thickness = 0.01f;
     f32 Size = 50.f;
 };
+template <> struct AxesOptions<D3>
+{
+    f32 Thickness = 0.01f;
+    f32 Size = 50.f;
+    Resolution Res = Resolution::Medium;
+};
+
+namespace Detail
+{
 
 /**
  * @brief The `RenderContext` class is the primary way of communicating with the Onyx API.
@@ -509,6 +518,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * The vertices must be in counter-clockwise order, otherwise outlines will not be drawn correctly.
      * The polygon must be convex and will be affected by the current transformation state.
+     * The polygon's origin is its transform's position (with respect to the current axes, of course).
      *
      * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to achieve,
      * so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just rotate
@@ -523,6 +533,7 @@ template <Dimension D> class ONYX_API IRenderContext
      *
      * The vertices must be in counter-clockwise order, otherwise outlines will not be drawn correctly.
      * The polygon must be convex and will be affected by the current transformation state.
+     * The polygon's origin is its transform's position (with respect to the current axes, of course).
      *
      * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to
      * achieve, so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just
@@ -991,7 +1002,7 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
      * @param p_Thickness The thickness of the axes lines.
      * @param p_Size The length of the axes.
      */
-    void Axes(const Detail::AxesOptions &p_Options) noexcept;
+    void Axes(const AxesOptions<D2> &p_Options = {}) noexcept;
 
     /**
      * @brief Rotates subsequent shapes by the given angle.
@@ -1070,7 +1081,7 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Thickness The thickness of the axes lines.
      * @param p_Size The length of the axes.
      */
-    void Axes(const Detail::AxesOptions &p_Options) noexcept;
+    void Axes(const AxesOptions<D3> &p_Options = {}) noexcept;
 
     /**
      * @brief Transforms subsequent shapes by the given translation, scale, and rotation angles.
@@ -1229,7 +1240,8 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_End The ending point of the line.
      * @param p_Thickness The thickness of the line.
      */
-    void Line(const fvec3 &p_Start, const fvec3 &p_End, f32 p_Thickness = 0.01f) noexcept;
+    void Line(const fvec3 &p_Start, const fvec3 &p_End, f32 p_Thickness = 0.01f,
+              Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a line strip through the given points.
@@ -1246,7 +1258,8 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_End The ending point of the line.
      * @param p_Thickness The thickness of the line.
      */
-    void RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, f32 p_Thickness = 0.01f) noexcept;
+    void RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, f32 p_Thickness = 0.01f,
+                     Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a unit cube centered at the origin.
@@ -1299,23 +1312,26 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @brief Draw a unit cylinder centered at the origin.
      *
      * The cylinder will be affected by the current transformation state.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Cylinder() noexcept;
+    void Cylinder(Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a cylinder with the specified transformation matrix.
      *
      * @param p_Transform The transformation matrix to apply to the cylinder. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Cylinder(const fmat4 &p_Transform) noexcept;
+    void Cylinder(const fmat4 &p_Transform, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a cylinder with the specified dimensions.
      *
      * @param p_Dimensions The width, height, and depth of the cylinder.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Cylinder(const fvec3 &p_Dimensions) noexcept;
+    void Cylinder(const fvec3 &p_Dimensions, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a cylinder with the specified transformation matrix and dimensions.
@@ -1323,16 +1339,18 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Transform The transformation matrix to apply to the cylinder. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Dimensions The width, height, and depth of the cylinder.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Cylinder(const fmat4 &p_Transform, const fvec3 &p_Dimensions) noexcept;
+    void Cylinder(const fmat4 &p_Transform, const fvec3 &p_Dimensions, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a cylinder shape with the given length and diameter.
      *
      * @param p_Length The length of the cylindrical part of the cylinder.
      * @param p_Diameter The diameter of the hemispherical ends.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Cylinder(f32 p_Length, f32 p_Diameter) noexcept;
+    void Cylinder(f32 p_Length, f32 p_Diameter, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a cylinder shape with the given parameters and transformation.
@@ -1341,30 +1359,35 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Diameter The diameter of the hemispherical ends.
      * @param p_Transform The transformation matrix to apply to the cylinder. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Cylinder(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
+    void Cylinder(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter,
+                  Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a unit sphere centered at the origin.
      *
      * The sphere will be affected by the current transformation state.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Sphere() noexcept;
+    void Sphere(Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a sphere with the specified transformation matrix.
      *
      * @param p_Transform The transformation matrix to apply to the sphere. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Sphere(const fmat4 &p_Transform) noexcept;
+    void Sphere(const fmat4 &p_Transform, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a sphere shape with the given dimensions.
      *
      * @param p_Dimensions The width, height, and depth of the sphere.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Sphere(const fvec3 &p_Dimensions) noexcept;
+    void Sphere(const fvec3 &p_Dimensions, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a sphere shape with the given dimensions and transformation.
@@ -1372,15 +1395,17 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Transform The transformation matrix to apply to the sphere. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Dimensions The width, height, and depth of the sphere.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Sphere(const fmat4 &p_Transform, const fvec3 &p_Dimensions) noexcept;
+    void Sphere(const fmat4 &p_Transform, const fvec3 &p_Dimensions, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a sphere shape with the given dimensions.
      *
      * @param p_Diameter The diameter of the sphere.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Sphere(f32 p_Diameter) noexcept;
+    void Sphere(f32 p_Diameter, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a sphere shape with the given dimensions and transformation.
@@ -1388,31 +1413,35 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Transform The transformation matrix to apply to the sphere. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Diameter The diameter of the sphere.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Sphere(const fmat4 &p_Transform, f32 p_Diameter) noexcept;
+    void Sphere(const fmat4 &p_Transform, f32 p_Diameter, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a unit capsule centered at the origin.
      *
      * The capsule will be affected by the current transformation state.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Capsule() noexcept;
+    void Capsule(Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a capsule with the specified transformation matrix.
      *
      * @param p_Transform The transformation matrix to apply to the capsule. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Capsule(const fmat4 &p_Transform) noexcept;
+    void Capsule(const fmat4 &p_Transform, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a capsule shape with the given length and diameter.
      *
      * @param p_Length The length of the cylindrical part of the capsule.
      * @param p_Diameter The diameter of the hemispherical ends.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Capsule(f32 p_Length, f32 p_Diameter) noexcept;
+    void Capsule(f32 p_Length, f32 p_Diameter, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a capsule shape with the given parameters and transformation.
@@ -1421,31 +1450,36 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Diameter The diameter of the hemispherical ends.
      * @param p_Transform The transformation matrix to apply to the capsule. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Capsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
+    void Capsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter,
+                 Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a unit rounded cube centered at the origin.
      *
      * The rounded cube will be affected by the current transformation state.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void RoundedCube() noexcept;
+    void RoundedCube(Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a rounded cube with the specified transformation matrix.
      *
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void RoundedCube(const fmat4 &p_Transform) noexcept;
+    void RoundedCube(const fmat4 &p_Transform, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a rounded cube with given dimensions and corner diameter.
      *
      * @param p_Dimensions The width, height, and depth of the cube.
      * @param p_Diameter The diameter of the corners.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void RoundedCube(const fvec3 &p_Dimensions, f32 p_Diameter) noexcept;
+    void RoundedCube(const fvec3 &p_Dimensions, f32 p_Diameter, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a rounded cube with given dimensions, corner diameter, and transformation.
@@ -1454,16 +1488,19 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Diameter The diameter of the corners.
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void RoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter) noexcept;
+    void RoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter,
+                     Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a rounded cube with given dimensions and corner diameter.
      *
      * @param p_Size The size of the cube.
      * @param p_Diameter The diameter of the corners.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void RoundedCube(f32 p_Size, f32 p_Diameter) noexcept;
+    void RoundedCube(f32 p_Size, f32 p_Diameter, Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Draw a rounded cube with given dimensions, corner diameter, and transformation.
@@ -1472,8 +1509,10 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Diameter The diameter of the corners.
      * @param p_Transform The transformation matrix to apply to the rounded cube. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
+     * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void RoundedCube(const fmat4 &p_Transform, f32 p_Size, f32 p_Diameter) noexcept;
+    void RoundedCube(const fmat4 &p_Transform, f32 p_Size, f32 p_Diameter,
+                     Resolution p_Res = Resolution::Medium) noexcept;
 
     /**
      * @brief Set the color of the light for subsequent lighting calculations.
@@ -1610,17 +1649,19 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     fvec3 GetMouseCoordinates(f32 p_Depth = 0.5f) const noexcept;
 
   private:
-    void drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, const Detail::DrawFlags p_Flags) noexcept;
-    void drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, const f32 p_Diameter,
-                         const Detail::DrawFlags p_Flags) noexcept;
+    void drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, Resolution p_Res,
+                         Detail::DrawFlags p_Flags) noexcept;
+    void drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, f32 p_Diameter, Resolution p_Res,
+                         Detail::DrawFlags p_Flags) noexcept;
 
-    void drawCapsule(const fmat4 &p_Transform) noexcept;
-    void drawCapsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
+    void drawCapsule(const fmat4 &p_Transform, Resolution p_Res) noexcept;
+    void drawCapsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter, Resolution p_Res) noexcept;
 
-    void drawRoundedCubeMoons(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter,
+    void drawRoundedCubeMoons(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter, Resolution p_Res,
                               Detail::DrawFlags p_Flags) noexcept;
 
-    void drawRoundedCube(const fmat4 &p_Transform) noexcept;
-    void drawRoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter) noexcept;
+    void drawRoundedCube(const fmat4 &p_Transform, Resolution p_Res) noexcept;
+    void drawRoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter,
+                         Resolution p_Res) noexcept;
 };
 } // namespace Onyx

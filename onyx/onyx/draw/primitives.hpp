@@ -6,17 +6,21 @@
 #    define ONYX_MAX_REGULAR_POLYGON_SIDES 8
 #endif
 
-#ifndef ONYX_SPHERE_MODEL
-#    define ONYX_SPHERE_MODEL "16-sphere.obj"
-#endif
-
-#ifndef ONYX_CYLINDER_MODEL
-#    define ONYX_CYLINDER_MODEL "16-cylinder.obj"
-#endif
-
 #define ONYX_REGULAR_POLYGON_COUNT (ONYX_MAX_REGULAR_POLYGON_SIDES - 2)
 
 // Important: index buffers must always be provided for primitives so that they can be batch rendered nicely
+
+namespace Onyx
+{
+enum class Resolution
+{
+    VeryLow = 0,
+    Low = 1,
+    Medium = 2,
+    High = 3,
+    VeryHigh = 4
+};
+} // namespace Onyx
 
 namespace Onyx::Detail
 {
@@ -95,21 +99,21 @@ template <> struct Primitives<D2> : IPrimitives<D2>
 
 template <> struct Primitives<D3> : IPrimitives<D3>
 {
-    static constexpr u32 AMOUNT = 5 + ONYX_REGULAR_POLYGON_COUNT;
+    static constexpr u32 AMOUNT = 13 + ONYX_REGULAR_POLYGON_COUNT;
 
     static TKIT_CONSTEVAL u32 GetCubeIndex() noexcept
     {
         return 2;
     }
 
-    static TKIT_CONSTEVAL u32 GetSphereIndex() noexcept
+    static constexpr u32 GetSphereIndex(const Resolution p_Res) noexcept
     {
-        return 3;
+        return 3 + static_cast<i32>(p_Res);
     }
 
-    static TKIT_CONSTEVAL u32 GetCylinderIndex() noexcept
+    static constexpr u32 GetCylinderIndex(const Resolution p_Res) noexcept
     {
-        return 4;
+        return 8 + static_cast<i32>(p_Res);
     }
 };
 

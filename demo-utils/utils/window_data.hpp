@@ -17,6 +17,18 @@ template <Dimension D> struct LatticeData
     bool PropToScale = true;
 };
 
+template <Dimension D> struct LineTest
+{
+    fvec<D> Start{0.f};
+    fvec<D> End{1.f};
+    MaterialData<D> Material{};
+    f32 Thickness = 0.05f;
+    f32 OutlineWidth = 0.01f;
+    Color OutlineColor = Color::ORANGE;
+    bool Rounded = false;
+    bool Outline = false;
+};
+
 template <Dimension D> struct ILayerData
 {
     RenderContext<D> *Context;
@@ -26,8 +38,13 @@ template <Dimension D> struct ILayerData
 
     TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> PolygonVertices;
     i32 ShapeToSpawn = 0;
+    i32 NGonSides = 3;
     f32 AxesThickness = 0.01f;
+    u32 SelectedShape = 0;
+    fvec2 VertexToAdd{0.f};
+
     LatticeData<D> Lattice;
+    LineTest<D> Line;
 
     bool DrawAxes = false;
 };

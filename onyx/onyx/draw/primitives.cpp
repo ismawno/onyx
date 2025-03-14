@@ -125,9 +125,13 @@ void CreateCombinedPrimitiveBuffers() noexcept
                                                                        ONYX_ROOT_PATH "/onyx/models/square.obj"};
 
     const TKit::Array<const char *, Primitives<D3>::AMOUNT> paths3D = {
-        ONYX_ROOT_PATH "/onyx/models/triangle.obj", ONYX_ROOT_PATH "/onyx/models/square.obj",
-        ONYX_ROOT_PATH "/onyx/models/cube.obj", ONYX_ROOT_PATH "/onyx/models/" ONYX_SPHERE_MODEL,
-        ONYX_ROOT_PATH "/onyx/models/" ONYX_CYLINDER_MODEL};
+        ONYX_ROOT_PATH "/onyx/models/triangle.obj",    ONYX_ROOT_PATH "/onyx/models/square.obj",
+        ONYX_ROOT_PATH "/onyx/models/cube.obj",        ONYX_ROOT_PATH "/onyx/models/8-sphere.obj",
+        ONYX_ROOT_PATH "/onyx/models/16-sphere.obj",   ONYX_ROOT_PATH "/onyx/models/32-sphere.obj",
+        ONYX_ROOT_PATH "/onyx/models/64-sphere.obj",   ONYX_ROOT_PATH "/onyx/models/128-sphere.obj",
+        ONYX_ROOT_PATH "/onyx/models/8-cylinder.obj",  ONYX_ROOT_PATH "/onyx/models/16-cylinder.obj",
+        ONYX_ROOT_PATH "/onyx/models/32-cylinder.obj", ONYX_ROOT_PATH "/onyx/models/64-cylinder.obj",
+        ONYX_ROOT_PATH "/onyx/models/128-cylinder.obj"};
 
     createBuffers<D2>(paths2D);
     createBuffers<D3>(paths3D);
