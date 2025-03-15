@@ -19,6 +19,7 @@ template <Dimension D> struct CameraMovementControls;
 
 struct DirectionalLight;
 struct PointLight;
+enum class Resolution;
 
 class Window;
 

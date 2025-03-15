@@ -6,6 +6,7 @@
 
 namespace Onyx
 {
+
 static void displayTransformHelp() noexcept
 {
     UserLayer::HelpMarker(

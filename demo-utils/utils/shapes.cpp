@@ -43,13 +43,6 @@ template <Dimension D> static void dimensionEditor(fvec<D> &p_Dimensions) noexce
     ImGui::PopID();
 }
 
-static void resolutionEditor(Resolution &p_Res) noexcept
-{
-    ImGui::PushID(&p_Res);
-    ImGui::Combo("Resolution", reinterpret_cast<i32 *>(&p_Res), "Very Low\0Low\0Medium\0High\0Very High\0\0");
-    ImGui::PopID();
-}
-
 template <Dimension D> const char *Triangle<D>::GetName() const noexcept
 {
     return "Triangle";
@@ -213,7 +206,7 @@ void Sphere::Edit() noexcept
 {
     Shape<D3>::Edit();
     dimensionEditor<D3>(m_Dimensions);
-    resolutionEditor(m_Res);
+    UserLayer::ResolutionEditor(m_Res, UserLayer::Flag_DisplayHelp);
 }
 
 const char *Cylinder::GetName() const noexcept
@@ -224,7 +217,7 @@ void Cylinder::Edit() noexcept
 {
     Shape<D3>::Edit();
     dimensionEditor<D3>(m_Dimensions);
-    resolutionEditor(m_Res);
+    UserLayer::ResolutionEditor(m_Res, UserLayer::Flag_DisplayHelp);
 }
 
 void Cylinder::draw(RenderContext<D3> *p_Context) noexcept
@@ -249,7 +242,7 @@ void Capsule::Edit() noexcept
     ImGui::DragFloat("Length", &m_Length, 0.01f, 0.f, FLT_MAX);
     ImGui::DragFloat("Diameter", &m_Diameter, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
-    resolutionEditor(m_Res);
+    UserLayer::ResolutionEditor(m_Res, UserLayer::Flag_DisplayHelp);
 }
 
 void RoundedCube::draw(RenderContext<D3> *p_Context) noexcept
@@ -269,7 +262,7 @@ void RoundedCube::Edit() noexcept
     ImGui::PushID(this);
     ImGui::DragFloat("Diameter", &m_Diameter, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
-    resolutionEditor(m_Res);
+    UserLayer::ResolutionEditor(m_Res, UserLayer::Flag_DisplayHelp);
 }
 
 template class Shape<D2>;
