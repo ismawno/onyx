@@ -288,6 +288,7 @@ const char *GetKeyName(const Key p_Key) noexcept
     case Key::None:
         return "None";
     }
+    return "Unknown";
 }
 
 static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_Height)
