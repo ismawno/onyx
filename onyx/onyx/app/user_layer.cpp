@@ -225,6 +225,19 @@ void UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags) noexc
     ImGui::PopID();
 }
 
+void UserLayer::ResolutionEditor(Resolution &p_Res, const Flags p_Flags) noexcept
+{
+    ImGui::PushID(&p_Res);
+    ImGui::Combo("Resolution", reinterpret_cast<i32 *>(&p_Res), "Very Low\0Low\0Medium\0High\0Very High\0\0");
+    if (p_Flags & Flag_DisplayHelp)
+        HelpMarkerSameLine(
+            "This setting allows you to control the resolution of certain 3D shapes that have smooth curved surfaces, "
+            "such as spheres and cylinders. The resolution is the number of segments that the shape is divided into. A "
+            "higher resolution will make the shape smoother, but it will also increase the number of vertices and the "
+            "computational cost of rendering the shape.");
+    ImGui::PopID();
+}
+
 static const char *presentModeToString(const VkPresentModeKHR mode)
 {
     switch (mode)

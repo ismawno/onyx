@@ -218,6 +218,7 @@ class UserLayer
     static void DirectionalLightEditor(DirectionalLight &p_Light, Flags p_Flags = 0) noexcept;
     static void PointLightEditor(PointLight &p_Light, Flags p_Flags = 0) noexcept;
 
+    static void ResolutionEditor(Resolution &p_Res, Flags p_Flags = 0) noexcept;
     static void PresentModeEditor(Window *p_Window, Flags p_Flags = 0) noexcept;
 
     static void HelpMarker(const char *p_Description, const char *p_Icon = "(?)") noexcept;
