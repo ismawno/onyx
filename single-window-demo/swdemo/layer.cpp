@@ -19,10 +19,9 @@ void SWExampleLayer::OnUpdate() noexcept
     m_Data.OnUpdate();
 }
 
-bool SWExampleLayer::OnEvent(const Event &p_Event) noexcept
+void SWExampleLayer::OnEvent(const Event &p_Event) noexcept
 {
     m_Data.OnEvent(p_Event);
-    return true;
 }
 
 void SWExampleLayer::OnRender(const VkCommandBuffer p_CommandBuffer) noexcept

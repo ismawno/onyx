@@ -19,7 +19,7 @@ void MWExampleLayer::OnUpdate(const u32 p_WindowIndex) noexcept
     m_Data[p_WindowIndex].OnUpdate();
 }
 
-bool MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
+void MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
 {
     TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.size(), "[ONYX] Index out of bounds");
     if (p_Event.Type == Event::WindowOpened)
@@ -28,7 +28,6 @@ bool MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noex
         m_Data.erase(m_Data.begin() + p_WindowIndex);
     else
         m_Data[p_WindowIndex].OnEvent(p_Event);
-    return true;
 }
 
 void MWExampleLayer::OnRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept

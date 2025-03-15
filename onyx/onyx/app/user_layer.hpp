@@ -188,12 +188,10 @@ class UserLayer
      *
      * @note This method is not called in multi-window applications. Use the `OnEvent(u32)` method instead.
      *
-     * @return Whether the event was handled by the layer.
      *
      */
-    virtual bool OnEvent(const Event &) noexcept
+    virtual void OnEvent(const Event &) noexcept
     {
-        return false;
     }
 
     /**
@@ -202,12 +200,10 @@ class UserLayer
      * @note This method is not called in single window applications. Use the `OnEvent()` method instead.
      *
      * @param p_WindowIndex The index of the window that is currently being processed.
-     * @return Whether the event was handled by the layer.
      *
      */
-    virtual bool OnEvent(u32, const Event &) noexcept
+    virtual void OnEvent(u32, const Event &) noexcept
     {
-        return false;
     }
 
     template <Dimension D> static void TransformEditor(Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;

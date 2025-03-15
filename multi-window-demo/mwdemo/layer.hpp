@@ -15,7 +15,7 @@ class MWExampleLayer final : public UserLayer
     void OnUpdate(u32 p_WindowIndex) noexcept override;
     void OnRender(u32 p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept override;
     void OnImGuiRender() noexcept override;
-    bool OnEvent(u32 p_WindowIndex, const Event &p_Event) noexcept override;
+    void OnEvent(u32 p_WindowIndex, const Event &p_Event) noexcept override;
 
   private:
     MultiWindowApplication *m_Application = nullptr;
