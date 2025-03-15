@@ -1618,6 +1618,12 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     fvec3 GetViewLookDirectionInCurrentAxes() const noexcept;
 
     /**
+     * @brief Get the direction of an imaginary ray cast from the mouse in the current axes.
+     *
+     */
+    fvec3 GetMouseRayCastDirection() const noexcept;
+
+    /**
      * @brief Set the global projection matrix for the rendering context.
      *
      * @param p_Projection The projection matrix to set.

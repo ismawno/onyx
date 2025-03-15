@@ -1139,6 +1139,10 @@ fvec3 RenderContext<D3>::GetViewLookDirectionInCurrentAxes() const noexcept
 {
     return glm::normalize(GetCoordinates(fvec3{0.f, 0.f, 1.f}));
 }
+fvec3 RenderContext<D3>::GetMouseRayCastDirection() const noexcept
+{
+    return glm::normalize(GetMouseCoordinates(0.f) - GetMouseCoordinates(0.25f));
+}
 
 template <Dimension D> void IRenderContext<D>::Fill(const bool p_Enabled) noexcept
 {
