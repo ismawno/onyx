@@ -566,7 +566,7 @@ template <Dimension D> void IRenderContext<D>::drawStadium(const fmat<D> &p_Tran
         const f32 diameter = 1.f + m_State->OutlineWidth;
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, diameter);
         m_Renderer.DrawPrimitive(m_State, computeFinalTransform(transform), Primitives<D>::GetSquareIndex(), p_Flags);
-        drawStadiumMoons(p_Transform, p_Flags, 1.f, diameter);
+        drawStadiumMoons(p_Transform, 1.f, diameter, p_Flags);
     };
     resolveDrawFlagsWithState(fill, outline);
 }
