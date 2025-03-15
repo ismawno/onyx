@@ -206,7 +206,7 @@ void Sphere::Edit() noexcept
 {
     Shape<D3>::Edit();
     dimensionEditor<D3>(m_Dimensions);
-    UserLayer::ResolutionEditor(m_Res, UserLayer::Flag_DisplayHelp);
+    UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
 
 const char *Cylinder::GetName() const noexcept
@@ -217,7 +217,7 @@ void Cylinder::Edit() noexcept
 {
     Shape<D3>::Edit();
     dimensionEditor<D3>(m_Dimensions);
-    UserLayer::ResolutionEditor(m_Res, UserLayer::Flag_DisplayHelp);
+    UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
 
 void Cylinder::draw(RenderContext<D3> *p_Context) noexcept
@@ -242,7 +242,7 @@ void Capsule::Edit() noexcept
     ImGui::DragFloat("Length", &m_Length, 0.01f, 0.f, FLT_MAX);
     ImGui::DragFloat("Diameter", &m_Diameter, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
-    UserLayer::ResolutionEditor(m_Res, UserLayer::Flag_DisplayHelp);
+    UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
 
 void RoundedCube::draw(RenderContext<D3> *p_Context) noexcept
@@ -262,7 +262,7 @@ void RoundedCube::Edit() noexcept
     ImGui::PushID(this);
     ImGui::DragFloat("Diameter", &m_Diameter, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
-    UserLayer::ResolutionEditor(m_Res, UserLayer::Flag_DisplayHelp);
+    UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
 
 template class Shape<D2>;
