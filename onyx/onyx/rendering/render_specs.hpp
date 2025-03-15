@@ -75,7 +75,7 @@ template <> struct ONYX_API RenderState<D2>
     fmat3 Axes{1.f};
     Color OutlineColor = Color::WHITE;
     MaterialData<D2> Material{};
-    f32 OutlineWidth = 0.f;
+    f32 OutlineWidth = 0.1f;
     bool Fill = true;
     bool Outline = false;
 };
@@ -87,7 +87,7 @@ template <> struct ONYX_API RenderState<D3>
     Color OutlineColor = Color::WHITE;
     Color LightColor = Color::WHITE;
     MaterialData<D3> Material{};
-    f32 OutlineWidth = 0.f;
+    f32 OutlineWidth = 0.1f;
     bool Fill = true;
     bool Outline = false;
 };
