@@ -59,7 +59,13 @@ template <> struct AxesOptions<D3>
 {
     f32 Thickness = 0.01f;
     f32 Size = 50.f;
-    Resolution Res = Resolution::Medium;
+    Onyx::Resolution Resolution = Onyx::Resolution::Medium;
+};
+
+struct LineOptions
+{
+    f32 Thickness = 0.01f;
+    Onyx::Resolution Resolution = Onyx::Resolution::Medium;
 };
 
 namespace Detail
@@ -1240,8 +1246,7 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_End The ending point of the line.
      * @param p_Thickness The thickness of the line.
      */
-    void Line(const fvec3 &p_Start, const fvec3 &p_End, f32 p_Thickness = 0.01f,
-              Resolution p_Res = Resolution::Medium) noexcept;
+    void Line(const fvec3 &p_Start, const fvec3 &p_End, const LineOptions &p_Options = {}) noexcept;
 
     /**
      * @brief Draw a line strip through the given points.
@@ -1249,7 +1254,7 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Points A span of points defining the line strip.
      * @param p_Thickness The thickness of the line.
      */
-    void LineStrip(TKit::Span<const fvec3> p_Points, f32 p_Thickness = 0.01f) noexcept;
+    void LineStrip(TKit::Span<const fvec3> p_Points, const LineOptions &p_Options = {}) noexcept;
 
     /**
      * @brief Draw a rounded line between two points with the specified thickness.
@@ -1258,8 +1263,7 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_End The ending point of the line.
      * @param p_Thickness The thickness of the line.
      */
-    void RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, f32 p_Thickness = 0.01f,
-                     Resolution p_Res = Resolution::Medium) noexcept;
+    void RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, const LineOptions &p_Options = {}) noexcept;
 
     /**
      * @brief Draw a unit cube centered at the origin.

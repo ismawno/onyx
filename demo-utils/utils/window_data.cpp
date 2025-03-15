@@ -437,10 +437,20 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             p_Data.Context->OutlineWidth(line.OutlineWidth);
         }
         p_Data.Context->Material(line.Material);
-        if (line.Rounded)
-            p_Data.Context->RoundedLine(line.Start, line.End, line.Thickness);
+        if constexpr (D == D2)
+        {
+            if (line.Rounded)
+                p_Data.Context->RoundedLine(line.Start, line.End, line.Thickness);
+            else
+                p_Data.Context->Line(line.Start, line.End, line.Thickness);
+        }
         else
-            p_Data.Context->Line(line.Start, line.End, line.Thickness);
+        {
+            if (line.Rounded)
+                p_Data.Context->RoundedLine(line.Start, line.End, {.Thickness = line.Thickness});
+            else
+                p_Data.Context->Line(line.Start, line.End, {.Thickness = line.Thickness});
+        }
         p_Data.Context->Pop();
         ImGui::TreePop();
     }

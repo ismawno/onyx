@@ -737,14 +737,13 @@ void RenderContext<D2>::Line(const fvec2 &p_Start, const fvec2 &p_End, const f32
 
     Square(transform, fvec2{glm::length(delta), p_Thickness});
 }
-void RenderContext<D3>::Line(const fvec3 &p_Start, const fvec3 &p_End, const f32 p_Thickness,
-                             const Resolution p_Res) noexcept
+void RenderContext<D3>::Line(const fvec3 &p_Start, const fvec3 &p_End, const LineOptions &p_Options) noexcept
 {
     const fvec3 delta = p_End - p_Start;
     fmat4 transform = m_State->Transform;
     Onyx::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D3>::RotateIntrinsic(transform, computeLineRotation<D3>(p_Start, p_End));
-    Cylinder(transform, glm::length(delta), p_Thickness, p_Res);
+    Cylinder(transform, glm::length(delta), p_Options.Thickness, p_Options.Resolution);
 }
 
 void RenderContext<D2>::LineStrip(const TKit::Span<const fvec2> p_Points, const f32 p_Thickness) noexcept
@@ -753,11 +752,11 @@ void RenderContext<D2>::LineStrip(const TKit::Span<const fvec2> p_Points, const 
     for (u32 i = 0; i < p_Points.size() - 1; ++i)
         Line(p_Points[i], p_Points[i + 1], p_Thickness);
 }
-void RenderContext<D3>::LineStrip(const TKit::Span<const fvec3> p_Points, const f32 p_Thickness) noexcept
+void RenderContext<D3>::LineStrip(const TKit::Span<const fvec3> p_Points, const LineOptions &p_Options) noexcept
 {
     TKIT_ASSERT(p_Points.size() > 1, "[ONYX] A line strip must have at least two points");
     for (u32 i = 0; i < p_Points.size() - 1; ++i)
-        Line(p_Points[i], p_Points[i + 1], p_Thickness);
+        Line(p_Points[i], p_Points[i + 1], p_Options);
 }
 
 void RenderContext<D2>::RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, const f32 p_Thickness) noexcept
@@ -769,14 +768,13 @@ void RenderContext<D2>::RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, co
 
     Stadium(transform, glm::length(delta), p_Thickness);
 }
-void RenderContext<D3>::RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, const f32 p_Thickness,
-                                    const Resolution p_Res) noexcept
+void RenderContext<D3>::RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, const LineOptions &p_Options) noexcept
 {
     const fvec3 delta = p_End - p_Start;
     fmat4 transform = m_State->Transform;
     Onyx::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D3>::RotateIntrinsic(transform, computeLineRotation<D3>(p_Start, p_End));
-    Capsule(transform, glm::length(delta), p_Thickness, p_Res);
+    Capsule(transform, glm::length(delta), p_Options.Thickness, p_Options.Resolution);
 }
 
 void RenderContext<D3>::Cube() noexcept
@@ -1327,11 +1325,11 @@ void RenderContext<D3>::Axes(const AxesOptions<D3> &p_Options) noexcept
     const fvec3 zFront = fvec3{0.f, 0.f, p_Options.Size};
 
     color = Color{245u, 64u, 90u};
-    Line(xLeft, xRight, p_Options.Thickness, p_Options.Res);
+    Line(xLeft, xRight, {.Thickness = p_Options.Thickness, .Resolution = p_Options.Resolution});
     color = Color{65u, 135u, 245u};
-    Line(yDown, yUp, p_Options.Thickness, p_Options.Res);
+    Line(yDown, yUp, {.Thickness = p_Options.Thickness, .Resolution = p_Options.Resolution});
     color = Color{180u, 245u, 65u};
-    Line(zBack, zFront, p_Options.Thickness, p_Options.Res);
+    Line(zBack, zFront, {.Thickness = p_Options.Thickness, .Resolution = p_Options.Resolution});
     color = oldColor; // A cheap filthy pop
 }
 
