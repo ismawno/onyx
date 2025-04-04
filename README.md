@@ -203,12 +203,21 @@ ImGui support is built-in when using the application interface, as shown in the 
 
 Onyx relies on several dependencies for platform-independent windowing, graphics APIs, and ImGui support:
 
-- [glfw](https://github.com/glfw/glfw): Platform-agnostic window API.
-- [glm](https://github.com/g-truc/glm): Math library for transformations and algebra.
-- [imgui](https://github.com/ocornut/imgui): ImGui library.
-- [implot](https://github.com/epezent/implot): ImPlot library (optional, can be enabled via CMake).
-- [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader): Library for loading `.obj` models.
+- [toolkit](https://github.com/ismawno/toolkit): A utility library I have developed.
+
 - [vulkit](https://github.com/ismawno/vulkit): A Vulkan library I have developed.
+
+- [glfw](https://github.com/glfw/glfw): Platform-agnostic window API.
+
+- [glm](https://github.com/g-truc/glm): Math library for transformations and algebra.
+
+- [imgui](https://github.com/ocornut/imgui): ImGui library.
+
+- [implot](https://github.com/epezent/implot): ImPlot library (optional, can be enabled via `CMake`).
+
+- [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader): Library for loading `.obj` models.
+
+**Note:** `CMake` is required to be manually installed in your system.
 
 ## Versioning
 
@@ -220,12 +229,12 @@ Sometimes, in very rare occasions, the framework (and thus the whole program) ma
 
 ## Building
 
-The building process is (fortunately) very straightforward. Because of how much I hate how the CMake cache works, I have left some python building scripts in the [setup](https://github.com/ismawno/onyx/tree/main/setup) folder.
+The building process is (fortunately) very straightforward. Because of how much I hate how the `CMake` cache works, I have left some python building scripts in the [setup](https://github.com/ismawno/onyx/tree/main/setup) folder.
 
-The reason behind this is that CMake sometimes stores some variables in cache that you may not want to persist. This results in some default values for variables being only relevant if the variable itself is not already stored in cache. The problem with this is that I feel it is very easy to lose track of what configuration is being built unless I type in all my CMake flags explicitly every time I build the project, and that is just unbearable. Hence, these python scripts provide flags with reliable defaults stored in a `build.ini` file that are always applied unless explicitly changed with a command line argument.
+The reason behind this is that `CMake` sometimes stores some variables in cache that you may not want to persist. This results in some default values for variables being only relevant if the variable itself is not already stored in cache. The problem with this is that I feel it is very easy to lose track of what configuration is being built unless I type in all my `CMake` flags explicitly every time I build the project, and that is just unbearable. Hence, these python scripts provide flags with reliable defaults stored in a `build.ini` file that are always applied unless explicitly changed with a command line argument.
 
-Specifically, the [build.py](https://github.com/ismawno/onyx/blob/main/setup/build.py) file, when executed from root, will handle the entire CMake execution process for you. You can enter `python setup/build.py -h` to see the available options.
+Specifically, the [build.py](https://github.com/ismawno/onyx/blob/main/setup/build.py) file, when executed from root, will handle the entire `CMake` execution process for you. You can enter `python setup/build.py -h` to see the available options.
 
-If you prefer using CMake directly, that's perfectly fine as well. Create a `build` folder, `cd` into it, and run `cmake ..`. All available Onyx options will be displayed.
+If you prefer using `CMake` directly, that's perfectly fine as well. Create a `build` folder, `cd` into it, and run `cmake ..`. All available Onyx options will be displayed.
 
 Then compile the project with your editor/IDE of choice, and test the [hello-world](https://github.com/ismawno/onyx/blob/main/hello-world/main.cpp) example along with the demos ([single-window](https://github.com/ismawno/onyx/blob/main/single-window-demo) and [multi-window](https://github.com/ismawno/onyx/blob/main/multi-window-demo)).
