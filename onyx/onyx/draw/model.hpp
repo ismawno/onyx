@@ -21,7 +21,7 @@ namespace Onyx
  *
  * @tparam D The dimensionality of the model (`D2` or `D3`).
  */
-template <Dimension D> class ONYX_API Model : public TKit::RefCounted<Model<D>>
+template <Dimension D> class Model : public TKit::RefCounted<Model<D>>
 {
   public:
     /**

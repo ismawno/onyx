@@ -2,7 +2,7 @@
 
 namespace Onyx
 {
-class Theme
+class ONYX_API Theme
 {
   public:
     virtual ~Theme() = default;
@@ -17,37 +17,37 @@ class Theme
     virtual void Apply() const noexcept = 0;
 };
 
-class CinderTheme final : public Theme
+class ONYX_API CinderTheme final : public Theme
 {
   public:
     void Apply() const noexcept override;
 };
 
-class BabyTheme final : public Theme
+class ONYX_API BabyTheme final : public Theme
 {
   public:
     void Apply() const noexcept override;
 };
 
-class DougBinksTheme final : public Theme
+class ONYX_API DougBinksTheme final : public Theme
 {
   public:
     void Apply() const noexcept override;
 };
 
-class LedSynthMasterTheme final : public Theme
+class ONYX_API LedSynthMasterTheme final : public Theme
 {
   public:
     void Apply() const noexcept override;
 };
 
-class HazelTheme final : public Theme
+class ONYX_API HazelTheme final : public Theme
 {
   public:
     void Apply() const noexcept override;
 };
 
-class DefaultTheme final : public Theme
+class ONYX_API DefaultTheme final : public Theme
 {
   public:
     void Apply() const noexcept override;

@@ -12,7 +12,7 @@ namespace Onyx
  * Provides methods for computing transformations, inverse transformations,
  * and extracting translation, scale, and rotation components from matrices.
  */
-template <Dimension D> struct ONYX_API ITransform
+template <Dimension D> struct ITransform
 {
     /**
      * @brief Compute a transformation matrix from translation, scale, and rotation.

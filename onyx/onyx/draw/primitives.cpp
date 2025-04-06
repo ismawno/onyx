@@ -144,7 +144,7 @@ void CreateCombinedPrimitiveBuffers() noexcept
     });
 }
 
-template struct IPrimitives<D2>;
-template struct IPrimitives<D3>;
+template struct ONYX_API IPrimitives<D2>;
+template struct ONYX_API IPrimitives<D3>;
 
 } // namespace Onyx::Detail

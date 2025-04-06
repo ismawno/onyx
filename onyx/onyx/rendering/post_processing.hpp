@@ -13,7 +13,7 @@ namespace Onyx
  * A custom fragment shader can be provided to apply effects to the scene. The post-processing pipeline can also
  * read from the scene's data as a sampled texture, allowing for more complex effects.
  */
-class PostProcessing
+class ONYX_API PostProcessing
 {
   public:
     struct Specs

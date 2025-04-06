@@ -275,7 +275,7 @@ template <Dimension D> rot<D> ITransform<D>::ExtractRotation(const fmat<D> &p_Tr
     }
 }
 
-template struct ITransform<D2>;
-template struct ITransform<D3>;
+template struct ONYX_API ITransform<D2>;
+template struct ONYX_API ITransform<D3>;
 
 } // namespace Onyx

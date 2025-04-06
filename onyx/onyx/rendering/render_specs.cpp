@@ -128,19 +128,19 @@ VKit::GraphicsPipeline Pipeline<D, PMode>::CreateCirclePipeline(const VkRenderPa
     return result.GetValue();
 }
 
-template struct PolygonDeviceInstanceData<D2, DrawMode::Fill>;
-template struct PolygonDeviceInstanceData<D2, DrawMode::Stencil>;
-template struct PolygonDeviceInstanceData<D3, DrawMode::Fill>;
-template struct PolygonDeviceInstanceData<D3, DrawMode::Stencil>;
+template struct ONYX_API PolygonDeviceInstanceData<D2, DrawMode::Fill>;
+template struct ONYX_API PolygonDeviceInstanceData<D2, DrawMode::Stencil>;
+template struct ONYX_API PolygonDeviceInstanceData<D3, DrawMode::Fill>;
+template struct ONYX_API PolygonDeviceInstanceData<D3, DrawMode::Stencil>;
 
-template struct Pipeline<D2, PipelineMode::NoStencilWriteDoFill>;
-template struct Pipeline<D2, PipelineMode::DoStencilWriteDoFill>;
-template struct Pipeline<D2, PipelineMode::DoStencilWriteNoFill>;
-template struct Pipeline<D2, PipelineMode::DoStencilTestNoFill>;
+template struct ONYX_API Pipeline<D2, PipelineMode::NoStencilWriteDoFill>;
+template struct ONYX_API Pipeline<D2, PipelineMode::DoStencilWriteDoFill>;
+template struct ONYX_API Pipeline<D2, PipelineMode::DoStencilWriteNoFill>;
+template struct ONYX_API Pipeline<D2, PipelineMode::DoStencilTestNoFill>;
 
-template struct Pipeline<D3, PipelineMode::NoStencilWriteDoFill>;
-template struct Pipeline<D3, PipelineMode::DoStencilWriteDoFill>;
-template struct Pipeline<D3, PipelineMode::DoStencilWriteNoFill>;
-template struct Pipeline<D3, PipelineMode::DoStencilTestNoFill>;
+template struct ONYX_API Pipeline<D3, PipelineMode::NoStencilWriteDoFill>;
+template struct ONYX_API Pipeline<D3, PipelineMode::DoStencilWriteDoFill>;
+template struct ONYX_API Pipeline<D3, PipelineMode::DoStencilWriteNoFill>;
+template struct ONYX_API Pipeline<D3, PipelineMode::DoStencilTestNoFill>;
 
 } // namespace Onyx::Detail

@@ -41,10 +41,10 @@ template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(const std:
     return VKit::FormattedResult<IndexVertexData<D>>::Ok(buffers);
 }
 
-template VKit::FormattedResult<IndexVertexData<D2>> Load(const std::string_view p_Path) noexcept;
-template VKit::FormattedResult<IndexVertexData<D3>> Load(const std::string_view p_Path) noexcept;
+template ONYX_API VKit::FormattedResult<IndexVertexData<D2>> Load(const std::string_view p_Path) noexcept;
+template ONYX_API VKit::FormattedResult<IndexVertexData<D3>> Load(const std::string_view p_Path) noexcept;
 
-template struct IndexVertexData<D2>;
-template struct IndexVertexData<D3>;
+template struct ONYX_API IndexVertexData<D2>;
+template struct ONYX_API IndexVertexData<D3>;
 
 } // namespace Onyx

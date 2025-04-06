@@ -33,7 +33,7 @@ class Window;
  * finally called.
  *
  */
-class UserLayer
+class ONYX_API UserLayer
 {
   public:
     using Flags = u8;

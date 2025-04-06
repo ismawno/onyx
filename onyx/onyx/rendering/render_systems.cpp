@@ -477,44 +477,44 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush(
 
 // This is just crazy
 
-template class MeshRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
-template class MeshRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
-template class MeshRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
-template class MeshRenderer<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API MeshRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API MeshRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API MeshRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API MeshRenderer<D2, PipelineMode::DoStencilTestNoFill>;
 
-template class MeshRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
-template class MeshRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
-template class MeshRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
-template class MeshRenderer<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API MeshRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API MeshRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API MeshRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API MeshRenderer<D3, PipelineMode::DoStencilTestNoFill>;
 
-template class PrimitiveRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
-template class PrimitiveRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
-template class PrimitiveRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
-template class PrimitiveRenderer<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API PrimitiveRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API PrimitiveRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API PrimitiveRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API PrimitiveRenderer<D2, PipelineMode::DoStencilTestNoFill>;
 
-template class PrimitiveRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
-template class PrimitiveRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
-template class PrimitiveRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
-template class PrimitiveRenderer<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API PrimitiveRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API PrimitiveRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API PrimitiveRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API PrimitiveRenderer<D3, PipelineMode::DoStencilTestNoFill>;
 
-template class PolygonRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
-template class PolygonRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
-template class PolygonRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
-template class PolygonRenderer<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API PolygonRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API PolygonRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API PolygonRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API PolygonRenderer<D2, PipelineMode::DoStencilTestNoFill>;
 
-template class PolygonRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
-template class PolygonRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
-template class PolygonRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
-template class PolygonRenderer<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API PolygonRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API PolygonRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API PolygonRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API PolygonRenderer<D3, PipelineMode::DoStencilTestNoFill>;
 
-template class CircleRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
-template class CircleRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
-template class CircleRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
-template class CircleRenderer<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API CircleRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API CircleRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API CircleRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API CircleRenderer<D2, PipelineMode::DoStencilTestNoFill>;
 
-template class CircleRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
-template class CircleRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
-template class CircleRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
-template class CircleRenderer<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API CircleRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API CircleRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API CircleRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API CircleRenderer<D3, PipelineMode::DoStencilTestNoFill>;
 
 } // namespace Onyx::Detail

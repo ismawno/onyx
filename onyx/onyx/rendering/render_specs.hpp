@@ -206,7 +206,7 @@ template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
  */
 template <Dimension D, DrawMode DMode> struct RenderInfo;
 
-template <DrawMode DMode> struct ONYX_API RenderInfo<D2, DMode>
+template <DrawMode DMode> struct RenderInfo<D2, DMode>
 {
     VkCommandBuffer CommandBuffer;
     u32 FrameIndex;
@@ -248,7 +248,7 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
  * @tparam D The dimension (`D2` or `D3`).
  * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
-template <Dimension D, DrawMode DMode> struct ONYX_API InstanceData
+template <Dimension D, DrawMode DMode> struct InstanceData
 {
     fmat4 Transform;
     MaterialData<D> Material;
@@ -276,7 +276,7 @@ template <> struct ONYX_API InstanceData<D3, DrawMode::Stencil>
  *
  * @tparam T The type of the data that is sent to the GPU.
  */
-template <typename T> struct ONYX_API DeviceInstanceData
+template <typename T> struct DeviceInstanceData
 {
     TKIT_NON_COPYABLE(DeviceInstanceData)
     DeviceInstanceData(u32 p_Capacity) noexcept
@@ -307,8 +307,7 @@ template <typename T> struct ONYX_API DeviceInstanceData
  * @tparam D The dimension (`D2` or `D3`).
  * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
-template <Dimension D, DrawMode DMode>
-struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
+template <Dimension D, DrawMode DMode> struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
 {
     PolygonDeviceInstanceData(const u32 p_Capacity) noexcept;
     ~PolygonDeviceInstanceData() noexcept;
@@ -326,7 +325,7 @@ struct ONYX_API PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, D
  * @tparam D The dimension (`D2` or `D3`).
  * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
-template <Dimension D, DrawMode DMode> struct ONYX_API PolygonInstanceData
+template <Dimension D, DrawMode DMode> struct PolygonInstanceData
 {
     InstanceData<D, DMode> BaseData;
     PrimitiveDataLayout Layout;
@@ -344,7 +343,7 @@ TKIT_MSVC_WARNING_IGNORE(4324)
  * @tparam D The dimension (`D2` or `D3`).
  * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
-template <Dimension D, DrawMode DMode> struct ONYX_API CircleInstanceData
+template <Dimension D, DrawMode DMode> struct CircleInstanceData
 {
     InstanceData<D, DMode> BaseData;
     alignas(16) fvec4 ArcInfo;
@@ -369,7 +368,7 @@ struct ONYX_API PushConstantData3D
     u32 _Padding[2];
 };
 
-template <Dimension D, PipelineMode PMode> struct ONYX_API Pipeline
+template <Dimension D, PipelineMode PMode> struct Pipeline
 {
     /**
      * @brief Create a pipeline for meshed shapes.

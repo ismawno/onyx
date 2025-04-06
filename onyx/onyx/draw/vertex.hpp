@@ -48,7 +48,7 @@ template <> struct ONYX_API Vertex<D3>
 
 } // namespace Onyx
 
-template <> struct std::hash<Onyx::Vertex<Onyx::D2>>
+template <> struct ONYX_API std::hash<Onyx::Vertex<Onyx::D2>>
 {
     std::size_t operator()(const Onyx::Vertex<Onyx::D2> &p_Vertex) const
     {
@@ -56,7 +56,7 @@ template <> struct std::hash<Onyx::Vertex<Onyx::D2>>
     }
 };
 
-template <> struct std::hash<Onyx::Vertex<Onyx::D3>>
+template <> struct ONYX_API std::hash<Onyx::Vertex<Onyx::D3>>
 {
     std::size_t operator()(const Onyx::Vertex<Onyx::D3> &p_Vertex) const
     {

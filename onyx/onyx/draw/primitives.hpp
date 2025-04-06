@@ -29,7 +29,7 @@ namespace Onyx::Detail
  *
  * Contains the starting indices and sizes for vertices and indices of a primitive shape.
  */
-struct PrimitiveDataLayout
+struct ONYX_API PrimitiveDataLayout
 {
     u32 VerticesStart;
     u32 IndicesStart;
@@ -92,12 +92,12 @@ template <Dimension D> struct IPrimitives
 
 template <Dimension D> struct Primitives;
 
-template <> struct Primitives<D2> : IPrimitives<D2>
+template <> struct ONYX_API Primitives<D2> : IPrimitives<D2>
 {
     static constexpr u32 AMOUNT = 2 + ONYX_REGULAR_POLYGON_COUNT;
 };
 
-template <> struct Primitives<D3> : IPrimitives<D3>
+template <> struct ONYX_API Primitives<D3> : IPrimitives<D3>
 {
     static constexpr u32 AMOUNT = 13 + ONYX_REGULAR_POLYGON_COUNT;
 
@@ -123,6 +123,6 @@ template <> struct Primitives<D3> : IPrimitives<D3>
  * This function initializes the combined vertex and index buffers for all primitives.
  * It is called automatically and should not be called by the user.
  */
-void CreateCombinedPrimitiveBuffers() noexcept;
+ONYX_API void CreateCombinedPrimitiveBuffers() noexcept;
 
 } // namespace Onyx::Detail

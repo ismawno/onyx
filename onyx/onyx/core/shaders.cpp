@@ -112,8 +112,8 @@ template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::Ge
     return SneakyShaders<D, DMode>::CircleFragmentShader;
 }
 
-template struct Shaders<D2, DrawMode::Fill>;
-template struct Shaders<D2, DrawMode::Stencil>;
-template struct Shaders<D3, DrawMode::Fill>;
-template struct Shaders<D3, DrawMode::Stencil>;
+template struct ONYX_API Shaders<D2, DrawMode::Fill>;
+template struct ONYX_API Shaders<D2, DrawMode::Stencil>;
+template struct ONYX_API Shaders<D3, DrawMode::Fill>;
+template struct ONYX_API Shaders<D3, DrawMode::Stencil>;
 } // namespace Onyx::Detail

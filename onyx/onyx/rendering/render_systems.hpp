@@ -22,7 +22,7 @@ void ResetDrawCallCount() noexcept;
  * This renderer uses instanced rendering to draw multiple instances of the same model in a single draw call.
  *
  */
-template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
+template <Dimension D, PipelineMode PMode> class MeshRenderer
 {
     TKIT_NON_COPYABLE(MeshRenderer)
 
@@ -81,7 +81,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API MeshRenderer
  * program.
  *
  */
-template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
+template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
 {
     TKIT_NON_COPYABLE(PrimitiveRenderer)
 
@@ -142,7 +142,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PrimitiveRenderer
  * polygons are drawn.
  *
  */
-template <Dimension D, PipelineMode PMode> class ONYX_API PolygonRenderer
+template <Dimension D, PipelineMode PMode> class PolygonRenderer
 {
     TKIT_NON_COPYABLE(PolygonRenderer)
 
@@ -206,7 +206,7 @@ template <Dimension D, PipelineMode PMode> class ONYX_API PolygonRenderer
  * This renderer uses instanced rendering for all of its draw calls, as all circles share the same geometry.
  *
  */
-template <Dimension D, PipelineMode PMode> class ONYX_API CircleRenderer
+template <Dimension D, PipelineMode PMode> class CircleRenderer
 {
     TKIT_NON_COPYABLE(CircleRenderer)
 

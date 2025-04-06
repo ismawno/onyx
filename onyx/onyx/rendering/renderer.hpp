@@ -81,7 +81,7 @@ enum DrawFlagBit : DrawFlags
  *
  * @tparam D The dimensionality (`D2`or `D3`).
  */
-template <Dimension D> class ONYX_API IRenderer
+template <Dimension D> class IRenderer
 {
     TKIT_NON_COPYABLE(IRenderer)
 
@@ -194,7 +194,7 @@ template <Dimension D> class Renderer;
  *
  * Handles the rendering of 2D shapes and manages the rendering pipeline.
  */
-template <> class Renderer<D2> final : public IRenderer<D2>
+template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
 {
   public:
     using IRenderer<D2>::IRenderer;
@@ -287,7 +287,7 @@ struct ONYX_API DeviceLightData
  *
  * Handles the rendering of 3D shapes, manages lighting, and controls the rendering pipeline.
  */
-template <> class Renderer<D3> final : public IRenderer<D3>
+template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
 {
   public:
     /**

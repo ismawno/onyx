@@ -4,7 +4,7 @@
 
 namespace Onyx::Detail
 {
-template <Dimension D, DrawMode DMode> struct ONYX_API Shaders
+template <Dimension D, DrawMode DMode> struct Shaders
 {
     static void Initialize() noexcept;
 

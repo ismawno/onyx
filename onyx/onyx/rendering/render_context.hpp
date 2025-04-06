@@ -22,7 +22,7 @@ class Window;
 
 template <Dimension D> struct CameraMovementControls;
 
-template <> struct CameraMovementControls<D2>
+template <> struct ONYX_API CameraMovementControls<D2>
 {
     f32 TranslationStep = 1.f / 60.f;
     f32 RotationStep = 1.f / 60.f;
@@ -33,7 +33,7 @@ template <> struct CameraMovementControls<D2>
     Input::Key RotateLeft = Input::Key::Q;
     Input::Key RotateRight = Input::Key::E;
 };
-template <> struct CameraMovementControls<D3>
+template <> struct ONYX_API CameraMovementControls<D3>
 {
     f32 TranslationStep = 1.f / 60.f;
     f32 RotationStep = 1.f / 60.f;
@@ -50,19 +50,19 @@ template <> struct CameraMovementControls<D3>
 
 template <Dimension D> struct AxesOptions;
 
-template <> struct AxesOptions<D2>
+template <> struct ONYX_API AxesOptions<D2>
 {
     f32 Thickness = 0.01f;
     f32 Size = 50.f;
 };
-template <> struct AxesOptions<D3>
+template <> struct ONYX_API AxesOptions<D3>
 {
     f32 Thickness = 0.01f;
     f32 Size = 50.f;
     Onyx::Resolution Resolution = Onyx::Resolution::Medium;
 };
 
-struct LineOptions
+struct ONYX_API LineOptions
 {
     f32 Thickness = 0.01f;
     Onyx::Resolution Resolution = Onyx::Resolution::Medium;
@@ -103,7 +103,7 @@ namespace Detail
  * any axes transform applied to it.
  *
  */
-template <Dimension D> class ONYX_API IRenderContext
+template <Dimension D> class IRenderContext
 {
     TKIT_NON_COPYABLE(IRenderContext)
   public:

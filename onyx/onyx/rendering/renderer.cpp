@@ -348,7 +348,7 @@ void Renderer<D3>::AddPointLight(const PointLight &p_Light) noexcept
     m_PointLights.push_back(p_Light);
 }
 
-template class IRenderer<D2>;
-template class IRenderer<D3>;
+template class ONYX_API IRenderer<D2>;
+template class ONYX_API IRenderer<D3>;
 
 } // namespace Onyx::Detail

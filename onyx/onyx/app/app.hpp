@@ -32,7 +32,7 @@ namespace Onyx
  * please use the `MultiWindowApplication` class, which is designed to handle multiple windows.
  *
  */
-class IApplication
+class ONYX_API IApplication
 {
   public:
     IApplication() = default;
@@ -231,7 +231,7 @@ class IApplication
  * It is the simplest form of an application available, and works as one would expect.
  *
  */
-class Application final : public IApplication
+class ONYX_API Application final : public IApplication
 {
   public:
     Application(const Window::Specs &p_WindowSpecs = {}) noexcept;
@@ -266,7 +266,7 @@ class Application final : public IApplication
  * corresponding events (`WindowOpened`, `WindowClosed`) to ensure synchronization between the API and the user.
  *
  */
-class MultiWindowApplication final : public IApplication
+class ONYX_API MultiWindowApplication final : public IApplication
 {
     TKIT_NON_COPYABLE(MultiWindowApplication)
   public:

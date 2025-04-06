@@ -12,7 +12,7 @@ namespace Onyx
 {
 using Index = ONYX_INDEX_TYPE;
 
-template <Dimension D> struct ONYX_API IndexVertexData
+template <Dimension D> struct IndexVertexData
 {
     TKit::DynamicArray<Vertex<D>> Vertices;
     TKit::DynamicArray<Index> Indices;

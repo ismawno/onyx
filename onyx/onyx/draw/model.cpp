@@ -119,8 +119,8 @@ template <Dimension D> VKit::FormattedResult<Model<D>> Model<D>::Load(const std:
     return VKit::ToFormatted(needsIndices ? Model<D>::Create(vertices, indices) : Model<D>::Create(vertices));
 }
 
-template class Model<D2>;
-template class Model<D3>;
+template class ONYX_API Model<D2>;
+template class ONYX_API Model<D3>;
 } // namespace Onyx
 
 namespace std
@@ -130,7 +130,7 @@ template <Onyx::Dimension D> size_t hash<Onyx::Model<D>>::operator()(const Onyx:
     return TKit::Hash(p_Model.GetVertexBuffer().GetBuffer(), p_Model.GetIndexBuffer().GetBuffer());
 }
 
-template struct hash<Onyx::Model<Onyx::D2>>;
-template struct hash<Onyx::Model<Onyx::D3>>;
+template struct ONYX_API hash<Onyx::Model<Onyx::D2>>;
+template struct ONYX_API hash<Onyx::Model<Onyx::D3>>;
 
 } // namespace std

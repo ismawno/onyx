@@ -1461,7 +1461,7 @@ void RenderContext<D3>::SetOrthographicProjection() noexcept
     SetProjection(fmat4{1.f});
 }
 
-template class Detail::IRenderContext<D2>;
-template class Detail::IRenderContext<D3>;
+template class ONYX_API Detail::IRenderContext<D2>;
+template class ONYX_API Detail::IRenderContext<D3>;
 
 } // namespace Onyx

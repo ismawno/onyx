@@ -126,7 +126,7 @@ struct ONYX_API Color
     static const TKit::HashMap<std::string, Color> s_ColorMap;
 };
 
-class Gradient
+class ONYX_API Gradient
 {
   public:
     Gradient(TKit::Span<const Color> p_Colors) noexcept;
