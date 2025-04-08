@@ -94,6 +94,9 @@ class ONYX_API Window
 
             std::forward<F1>(p_FirstDraws)(cmd);
 
+            m_RenderContext2D->SendToDevice();
+            m_RenderContext3D->SendToDevice();
+
             m_RenderContext2D->Render(cmd);
             m_RenderContext3D->Render(cmd);
 

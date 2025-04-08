@@ -22,6 +22,15 @@ template <Dimension D, template <Dimension, PipelineMode> typename R> void Rende
     DoStencilTestNoFill.Flush();
 }
 
+template <Dimension D, template <Dimension, PipelineMode> typename R>
+void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex) noexcept
+{
+    NoStencilWriteDoFill.SendToDevice(p_FrameIndex);
+    DoStencilWriteDoFill.SendToDevice(p_FrameIndex);
+    DoStencilWriteNoFill.SendToDevice(p_FrameIndex);
+    DoStencilTestNoFill.SendToDevice(p_FrameIndex);
+}
+
 static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInfo &p_DirectionalInfo,
                                                      const VkDescriptorBufferInfo &p_PointInfo,
                                                      VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
@@ -194,6 +203,30 @@ void Renderer<D3>::Flush() noexcept
     m_PointLights.clear();
 }
 
+void Renderer<D2>::SendToDevice() noexcept
+{
+    m_MeshRenderer.SendToDevice(m_FrameIndex);
+    m_PrimitiveRenderer.SendToDevice(m_FrameIndex);
+    m_PolygonRenderer.SendToDevice(m_FrameIndex);
+    m_CircleRenderer.SendToDevice(m_FrameIndex);
+}
+
+void Renderer<D3>::SendToDevice() noexcept
+{
+    m_MeshRenderer.SendToDevice(m_FrameIndex);
+    m_PrimitiveRenderer.SendToDevice(m_FrameIndex);
+    m_PolygonRenderer.SendToDevice(m_FrameIndex);
+    m_CircleRenderer.SendToDevice(m_FrameIndex);
+
+    for (u32 i = 0; i < m_DirectionalLights.size(); ++i)
+        m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].WriteAt(i, &m_DirectionalLights[i]);
+    for (u32 i = 0; i < m_PointLights.size(); ++i)
+        m_DeviceLightData.PointLightBuffers[m_FrameIndex].WriteAt(i, &m_PointLights[i]);
+
+    m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].Flush();
+    m_DeviceLightData.PointLightBuffers[m_FrameIndex].Flush();
+}
+
 template <DrawLevel DLevel, typename... Renderers>
 static void noStencilWriteDoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderers &...p_Renderers) noexcept
 {
@@ -251,14 +284,6 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer,
     complexDrawInfo.ProjectionView = &p_ProjectionView.ProjectionView;
     complexDrawInfo.ViewPosition = &p_ProjectionView.View.Translation;
     complexDrawInfo.AmbientColor = &AmbientColor;
-
-    for (u32 i = 0; i < m_DirectionalLights.size(); ++i)
-        m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].WriteAt(i, &m_DirectionalLights[i]);
-    m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].Flush();
-
-    for (u32 i = 0; i < m_PointLights.size(); ++i)
-        m_DeviceLightData.PointLightBuffers[m_FrameIndex].WriteAt(i, &m_PointLights[i]);
-    m_DeviceLightData.PointLightBuffers[m_FrameIndex].Flush();
 
     noStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
     doStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);

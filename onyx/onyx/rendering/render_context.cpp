@@ -1271,6 +1271,10 @@ template <Dimension D> void IRenderContext<D>::SetView(const Onyx::Transform<D> 
     }
 }
 
+template <Dimension D> void IRenderContext<D>::SendToDevice() noexcept
+{
+    m_Renderer.SendToDevice();
+}
 template <Dimension D> void IRenderContext<D>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
 {
     m_Renderer.Render(p_Commandbuffer, m_ProjectionView);

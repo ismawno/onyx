@@ -45,6 +45,13 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, const Model<D> &p_Model) noexcept;
 
     /**
+     * @brief Send all host data to the device through storage, vertex or index buffers.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void SendToDevice(u32 p_FrameIndex) noexcept;
+
+    /**
      * @brief Record the current command buffer with the stored onyx draw calls.
      *
      * It will also copy all of the host data (stored in c++ standars data structures) to the device data (stored in
@@ -102,6 +109,13 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
      * @param p_PrimitiveIndex The index of the primitive to draw. Can be queried from `Primitive<D>::Get...Index()`
      */
     void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, u32 p_PrimitiveIndex) noexcept;
+
+    /**
+     * @brief Send all host data to the device through storage, vertex or index buffers.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.
@@ -166,6 +180,13 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
      * @param p_Vertices The vertices of the polygon to draw. Must be sorted consistently.
      */
     void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, TKit::Span<const fvec2> p_Vertices) noexcept;
+
+    /**
+     * @brief Send all host data to the device through storage, vertex or index buffers.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.
@@ -245,6 +266,13 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
      * @param p_UpperAngle The angle at which the arc ends.
      */
     void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, const CircleOptions &p_Properties) noexcept;
+
+    /**
+     * @brief Send all host data to the device through storage, vertex or index buffers.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.

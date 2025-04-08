@@ -33,11 +33,17 @@ template <Dimension D, template <Dimension, PipelineMode> typename Renderer> str
     RenderSystem(VkRenderPass p_RenderPass) noexcept;
 
     /**
-     * @brief Clear all stored draw calls in each renderer.
+     * @brief Clear all host data in each renderer.
      *
      * This method should be called to reset the renderers' state, typically at the beginning or end of a frame.
      */
     void Flush() noexcept;
+
+    /**
+     * @brief Send all host data to the device through storage, vertex or index buffers.
+     *
+     */
+    void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /// Renderer without stencil write, performs fill operation.
     Renderer<D, PipelineMode::NoStencilWriteDoFill> NoStencilWriteDoFill;
@@ -194,14 +200,21 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
     using IRenderer<D2>::IRenderer;
 
     /**
+     * @brief Send all host data to the device through storage, vertex or index buffers.
+     *
+     */
+    void SendToDevice() noexcept;
+
+    /**
      * @brief Record all stored draw calls into the command buffer for execution.
      *
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
+     * @param p_ProjectionView The current projection view data.
      */
     void Render(VkCommandBuffer p_CommandBuffer, const ProjectionViewData<D2> &p_ProjectionView) noexcept;
 
     /**
-     * @brief Clear all stored draw calls and resets the renderer's state.
+     * @brief Clear all host data and resets the renderer's state.
      *
      * Should be called to prepare the renderer for a new frame.
      */
@@ -293,9 +306,16 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
     Renderer(VkRenderPass p_RenderPass) noexcept;
 
     /**
+     * @brief Send all host data to the device through storage, vertex or index buffers.
+     *
+     */
+    void SendToDevice() noexcept;
+
+    /**
      * @brief Record all stored draw calls into the command buffer for execution.
      *
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
+     * @param p_ProjectionView The current projection view data.
      */
     void Render(VkCommandBuffer p_CommandBuffer, const ProjectionViewData<D3> &p_ProjectionView) noexcept;
 
@@ -314,7 +334,7 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
     void AddPointLight(const PointLight &p_Light) noexcept;
 
     /**
-     * @brief Clear all stored draw calls, lights, and resets the renderer's state.
+     * @brief Clear all host data, lights, and resets the renderer's state.
      *
      * Should be called to prepare the renderer for a new frame.
      */

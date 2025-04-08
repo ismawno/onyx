@@ -935,6 +935,12 @@ template <Dimension D> class IRenderContext
     void SetView(const Onyx::Transform<D> &p_View) noexcept;
 
     /**
+     * @brief Send all stored host data to the device.
+     *
+     */
+    void SendToDevice() noexcept;
+
+    /**
      * @brief Render the recorded draw data using the provided command buffer.
      *
      * @param p_CommandBuffer The Vulkan command buffer to use for rendering.

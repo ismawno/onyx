@@ -99,6 +99,20 @@ void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_
     m_DeviceInstanceData.StorageSizes[p_FrameIndex] = size + 1;
 }
 
+template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+{
+    if (m_HostInstanceData.empty())
+        return;
+    TKIT_PROFILE_NSCOPE("MeshRenderer::SendToDevice");
+
+    auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    u32 index = 0;
+    for (const auto &[model, data] : m_HostInstanceData)
+        for (const auto &instanceData : data)
+            storageBuffer.WriteAt(index++, &instanceData);
+    storageBuffer.Flush();
+}
+
 template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
 {
     if constexpr (DLevel == DrawLevel::Simple)
@@ -152,30 +166,18 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
     bindDescriptorSets<dlevel>(p_Info, transforms);
 
-    auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
     u32 firstInstance = 0;
     for (const auto &[model, data] : m_HostInstanceData)
     {
         const u32 size = data.size();
 
-        // This may not be that good if a lot of models exist
-        forEach(
-            0, size,
-            [&storageBuffer, &data, firstInstance](const u32 p_Start, const u32 p_End, const u32) {
-                for (u32 i = p_Start; i < p_End; ++i)
-                    storageBuffer.WriteAt(i + firstInstance, &data[i]);
-            },
-            [&p_Info, &model, size, firstInstance]() {
-                model.Bind(p_Info.CommandBuffer);
-                if (model.HasIndices())
-                    model.DrawIndexed(p_Info.CommandBuffer, firstInstance + size, firstInstance);
-                else
-                    model.Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
-                INCREASE_DRAW_CALL_COUNT();
-            });
+        model.Bind(p_Info.CommandBuffer);
+        if (model.HasIndices())
+            model.DrawIndexed(p_Info.CommandBuffer, firstInstance + size, firstInstance);
+        else
+            model.Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
         firstInstance += size;
     }
-    storageBuffer.Flush();
 }
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
@@ -217,18 +219,26 @@ void PrimitiveRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceDat
     m_DeviceInstanceData.StorageSizes[p_FrameIndex] = size + 1;
 }
 
+template <Dimension D, PipelineMode PMode>
+void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+{
+    if (m_DeviceInstanceData.StorageSizes[p_FrameIndex] == 0)
+        return;
+
+    TKIT_PROFILE_NSCOPE("PrimitiveRenderer::SendToDevice");
+    MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    u32 index = 0;
+    for (const auto &instanceData : m_HostInstanceData)
+        for (const auto &data : instanceData)
+            storageBuffer.WriteAt(index++, &data);
+    storageBuffer.Flush();
+}
+
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
     if (m_DeviceInstanceData.StorageSizes[p_Info.FrameIndex] == 0)
         return;
     TKIT_PROFILE_NSCOPE("PrimitiveRenderer::Render");
-
-    MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
-
-    u32 index = 0;
-    for (const auto &instanceData : m_HostInstanceData)
-        for (const auto &data : instanceData)
-            storageBuffer.WriteAt(index++, &data);
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
@@ -246,27 +256,15 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     u32 firstInstance = 0;
     for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
     {
-        const auto &data = m_HostInstanceData[i];
-        if (data.empty())
+        if (m_HostInstanceData[i].empty())
             continue;
-
         const u32 size = m_HostInstanceData[i].size();
-        forEach(
-            0, size,
-            [&storageBuffer, &data, firstInstance](const u32 p_Start, const u32 p_End, const u32) {
-                for (u32 i = p_Start; i < p_End; ++i)
-                    storageBuffer.WriteAt(i + firstInstance, &data[i]);
-            },
-            [&p_Info, i, firstInstance, size]() {
-                const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
-                vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart,
-                                 layout.VerticesStart, firstInstance);
-                INCREASE_DRAW_CALL_COUNT();
-            });
+        const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
 
+        vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart,
+                         firstInstance);
         firstInstance += size;
     }
-    storageBuffer.Flush();
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flush() noexcept
@@ -322,7 +320,7 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
         if constexpr (D == D3)
         {
             vertex.Position = fvec3{v, 0.f};
-            vertex.Normal = fvec3{0.0f, 0.0f, 1.0f};
+            vertex.Normal = fvec3{0.f, 0.f, 1.f};
         }
         else
             vertex.Position = v;
@@ -362,20 +360,30 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
     }
 }
 
+template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+{
+    if (m_HostInstanceData.empty())
+        return;
+    TKIT_PROFILE_NSCOPE("PolygonRenderer::SendToDevice");
+    MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    MutableVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_FrameIndex];
+    MutableIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_FrameIndex];
+
+    vertexBuffer.Write(m_Vertices);
+    indexBuffer.Write(m_Indices);
+    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
+        storageBuffer.WriteAt(i, &m_HostInstanceData[i].BaseData);
+
+    vertexBuffer.Flush();
+    indexBuffer.Flush();
+    storageBuffer.Flush();
+}
+
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
     if (m_HostInstanceData.empty())
         return;
     TKIT_PROFILE_NSCOPE("PolygonRenderer::Render");
-
-    MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
-    MutableVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_Info.FrameIndex];
-    MutableIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_Info.FrameIndex];
-
-    vertexBuffer.Write(m_Vertices);
-    indexBuffer.Write(m_Indices);
-    vertexBuffer.Flush();
-    indexBuffer.Flush();
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
@@ -384,18 +392,19 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
     bindDescriptorSets<dlevel>(p_Info, transforms);
 
+    MutableVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_Info.FrameIndex];
+    MutableIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_Info.FrameIndex];
+
     vertexBuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
     indexBuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
 
     for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
     {
         const auto &data = m_HostInstanceData[i];
-        storageBuffer.WriteAt(i, &data.BaseData);
         vkCmdDrawIndexed(p_Info.CommandBuffer, data.Layout.IndicesSize, 1, data.Layout.IndicesStart,
                          data.Layout.VerticesStart, 0);
         INCREASE_DRAW_CALL_COUNT();
     }
-    storageBuffer.Flush();
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush() noexcept
@@ -448,33 +457,32 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
     m_HostInstanceData.push_back(instanceData);
 }
 
+template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+{
+    if (m_HostInstanceData.empty())
+        return;
+    TKIT_PROFILE_NSCOPE("CircleRenderer::SendToDevice");
+    auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
+        storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
+    storageBuffer.Flush();
+}
+
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
     if (m_HostInstanceData.empty())
         return;
     TKIT_PROFILE_NSCOPE("CircleRenderer::Render");
+    m_Pipeline.Bind(p_Info.CommandBuffer);
+    constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
+    pushConstantData<dlevel>(p_Info);
 
-    auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
+    const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
+    bindDescriptorSets<dlevel>(p_Info, transforms);
 
-    forEach(
-        0, m_HostInstanceData.size(),
-        [&storageBuffer, this](const u32 p_Start, const u32 p_End, const u32) {
-            for (u32 i = p_Start; i < p_End; ++i)
-                storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
-        },
-        [this, &p_Info]() {
-            m_Pipeline.Bind(p_Info.CommandBuffer);
-            constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-            pushConstantData<dlevel>(p_Info);
-
-            const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-            bindDescriptorSets<dlevel>(p_Info, transforms);
-
-            const u32 size = m_HostInstanceData.size();
-            vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);
-            INCREASE_DRAW_CALL_COUNT();
-        });
-    storageBuffer.Flush();
+    const u32 size = m_HostInstanceData.size();
+    vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);
+    INCREASE_DRAW_CALL_COUNT();
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush() noexcept
