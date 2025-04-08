@@ -177,9 +177,7 @@ template <Dimension D> void UserLayer::MaterialEditor(MaterialData<D> &p_Materia
             "contributions, and its specular sharpness. The material is used to calculate the final color of the "
             "object, which is then used to render it. Onyx does not support 2D lights, so 2D materials are very "
             "simple: a lone color.");
-    if constexpr (D == D2)
-        ImGui::ColorEdit4("Color", p_Material.Color.AsPointer());
-    else
+    if constexpr (D == D3)
     {
         if (ImGui::SliderFloat("Diffuse contribution", &p_Material.DiffuseContribution, 0.f, 1.f))
             p_Material.SpecularContribution = 1.f - p_Material.DiffuseContribution;
@@ -187,9 +185,8 @@ template <Dimension D> void UserLayer::MaterialEditor(MaterialData<D> &p_Materia
             p_Material.DiffuseContribution = 1.f - p_Material.SpecularContribution;
         ImGui::SliderFloat("Specular sharpness", &p_Material.SpecularSharpness, 0.f, 512.f, "%.2f",
                            ImGuiSliderFlags_Logarithmic);
-
-        ImGui::ColorEdit3("Color", p_Material.Color.AsPointer());
     }
+    ImGui::ColorEdit4("Color", p_Material.Color.AsPointer());
 }
 
 template void UserLayer::MaterialEditor<D2>(MaterialData<D2> &p_Material, Flags p_Flags) noexcept;
