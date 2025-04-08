@@ -26,8 +26,8 @@ static VKit::DescriptorPool s_DescriptorPool{};
 static VKit::DescriptorSetLayout s_TransformStorageLayout{};
 static VKit::DescriptorSetLayout s_LightStorageLayout{};
 
-static VKit::PipelineLayout s_GraphicsPipelineLayout2D{};
-static VKit::PipelineLayout s_GraphicsPipelineLayout3D{};
+static VKit::PipelineLayout s_DLevelSimpleLayout{};
+static VKit::PipelineLayout s_DLevelComplexLayout{};
 
 static VKit::CommandPool s_CommandPool{};
 
@@ -143,25 +143,27 @@ static void createDescriptorData() noexcept
 
 static void createPipelineLayouts() noexcept
 {
-    auto layoutResult =
-        VKit::PipelineLayout::Builder(s_Device).AddDescriptorSetLayout(s_TransformStorageLayout).Build();
+    auto layoutResult = VKit::PipelineLayout::Builder(s_Device)
+                            .AddDescriptorSetLayout(s_TransformStorageLayout)
+                            .AddPushConstantRange<PushConstantData<DrawLevel::Simple>>(VK_SHADER_STAGE_VERTEX_BIT)
+                            .Build();
 
     VKIT_ASSERT_RESULT(layoutResult);
-    s_GraphicsPipelineLayout2D = layoutResult.GetValue();
+    s_DLevelSimpleLayout = layoutResult.GetValue();
+    s_DeletionQueue.SubmitForDeletion(layoutResult.GetValue());
 
-    layoutResult =
-        VKit::PipelineLayout::Builder(s_Device)
-            .AddDescriptorSetLayout(s_TransformStorageLayout)
-            .AddDescriptorSetLayout(s_LightStorageLayout)
-            .AddPushConstantRange<PushConstantData3D>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-            .Build();
+    layoutResult = VKit::PipelineLayout::Builder(s_Device)
+                       .AddDescriptorSetLayout(s_TransformStorageLayout)
+                       .AddDescriptorSetLayout(s_LightStorageLayout)
+                       .AddPushConstantRange<PushConstantData<DrawLevel::Complex>>(VK_SHADER_STAGE_VERTEX_BIT |
+                                                                                   VK_SHADER_STAGE_FRAGMENT_BIT)
+                       .Build();
 
     VKIT_ASSERT_RESULT(layoutResult);
-    s_GraphicsPipelineLayout3D = layoutResult.GetValue();
+    s_DLevelComplexLayout = layoutResult.GetValue();
+    s_DeletionQueue.SubmitForDeletion(layoutResult.GetValue());
+
     TKIT_LOG_INFO("[ONYX] Created global pipeline layouts");
-
-    s_DeletionQueue.SubmitForDeletion(s_GraphicsPipelineLayout2D);
-    s_DeletionQueue.SubmitForDeletion(s_GraphicsPipelineLayout3D);
 }
 
 static void createShaders() noexcept
@@ -185,7 +187,7 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
     const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);
 
     VKit::Instance::Builder builder{};
-    builder.SetApplicationName("Onyx").RequireApiVersion(1, 1, 0).RequireExtensions(extensionSpan);
+    builder.SetApplicationName("Onyx").RequireApiVersion(1, 2, 0).RequireExtensions(extensionSpan);
 #ifdef TKIT_ENABLE_ASSERTS
     builder.RequireValidationLayers();
 #endif
@@ -196,8 +198,9 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
     s_Instance = result.GetValue();
     s_TaskManager = p_TaskManager;
     TKIT_LOG_INFO("[ONYX] Created Vulkan instance. API version: {}.{}.{}",
-                  VK_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion), VK_VERSION_MINOR(s_Instance.GetInfo().ApiVersion),
-                  VK_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
+                  VKIT_API_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion),
+                  VKIT_API_VERSION_MINOR(s_Instance.GetInfo().ApiVersion),
+                  VKIT_API_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
     s_DeletionQueue.SubmitForDeletion(s_Instance);
 }
 
@@ -318,12 +321,13 @@ MutableIndexBuffer Core::CreateMutableIndexBuffer(const VkDeviceSize p_Capacity)
     return result.GetValue();
 }
 
-template <Dimension D> VkPipelineLayout Core::GetGraphicsPipelineLayout() noexcept
+VkPipelineLayout Core::GetGraphicsPipelineLayoutSimple() noexcept
 {
-    if constexpr (D == D2)
-        return s_GraphicsPipelineLayout2D;
-    else
-        return s_GraphicsPipelineLayout3D;
+    return s_DLevelSimpleLayout;
+}
+VkPipelineLayout Core::GetGraphicsPipelineLayoutComplex() noexcept
+{
+    return s_DLevelComplexLayout;
 }
 
 VkQueue Core::GetGraphicsQueue() noexcept
@@ -342,13 +346,10 @@ TKit::VkProfilingContext Core::GetProfilingContext() noexcept
 }
 #endif
 
-template VertexBuffer<D2> Core::CreateVertexBuffer<D2>(TKit::Span<const Vertex<D2>>) noexcept;
-template VertexBuffer<D3> Core::CreateVertexBuffer<D3>(TKit::Span<const Vertex<D3>>) noexcept;
+template ONYX_API VertexBuffer<D2> Core::CreateVertexBuffer<D2>(TKit::Span<const Vertex<D2>>) noexcept;
+template ONYX_API VertexBuffer<D3> Core::CreateVertexBuffer<D3>(TKit::Span<const Vertex<D3>>) noexcept;
 
-template MutableVertexBuffer<D2> Core::CreateMutableVertexBuffer<D2>(VkDeviceSize) noexcept;
-template MutableVertexBuffer<D3> Core::CreateMutableVertexBuffer<D3>(VkDeviceSize) noexcept;
-
-template VkPipelineLayout Core::GetGraphicsPipelineLayout<D2>() noexcept;
-template VkPipelineLayout Core::GetGraphicsPipelineLayout<D3>() noexcept;
+template ONYX_API MutableVertexBuffer<D2> Core::CreateMutableVertexBuffer<D2>(VkDeviceSize) noexcept;
+template ONYX_API MutableVertexBuffer<D3> Core::CreateMutableVertexBuffer<D3>(VkDeviceSize) noexcept;
 
 } // namespace Onyx

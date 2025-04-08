@@ -944,7 +944,7 @@ template <Dimension D> class IRenderContext
   protected:
     template <typename F1, typename F2> void resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept;
 
-    fmat<D> computeFinalTransform(const fmat<D> &p_Transform) noexcept;
+    fmat4 computeFinalTransform(const fmat<D> &p_Transform) noexcept;
 
     template <Dimension PDim> void drawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex) noexcept;
     template <Dimension PDim>

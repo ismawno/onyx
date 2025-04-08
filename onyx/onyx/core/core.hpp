@@ -97,7 +97,8 @@ struct ONYX_API Core
     static VkQueue GetGraphicsQueue() noexcept;
     static VkQueue GetPresentQueue() noexcept;
 
-    template <Dimension D> static VkPipelineLayout GetGraphicsPipelineLayout() noexcept;
+    static VkPipelineLayout GetGraphicsPipelineLayoutSimple() noexcept;
+    static VkPipelineLayout GetGraphicsPipelineLayoutComplex() noexcept;
 
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
     static TKit::VkProfilingContext GetProfilingContext() noexcept;

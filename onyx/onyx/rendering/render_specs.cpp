@@ -17,13 +17,25 @@ void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept
     p_Transform[1] = -p_Transform[1];
     p_Transform[2] = -p_Transform[2];
 }
+fmat4 PromoteTransform(const fmat3 &p_Transform) noexcept
+{
+    fmat4 t4{1.f};
+    t4[0][0] = p_Transform[0][0];
+    t4[0][1] = p_Transform[0][1];
+    t4[1][0] = p_Transform[1][0];
+    t4[1][1] = p_Transform[1][1];
+
+    t4[3][0] = p_Transform[2][0];
+    t4[3][1] = p_Transform[2][1];
+    return t4;
+}
 } // namespace Onyx
 
 namespace Onyx::Detail
 {
-template <Dimension D, DrawMode DMode>
-PolygonDeviceInstanceData<D, DMode>::PolygonDeviceInstanceData(const u32 p_Capacity) noexcept
-    : DeviceInstanceData<InstanceData<D, DMode>>(p_Capacity)
+template <Dimension D, DrawLevel DLevel>
+PolygonDeviceInstanceData<D, DLevel>::PolygonDeviceInstanceData(const u32 p_Capacity) noexcept
+    : DeviceInstanceData<InstanceData<DLevel>>(p_Capacity)
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -31,7 +43,7 @@ PolygonDeviceInstanceData<D, DMode>::PolygonDeviceInstanceData(const u32 p_Capac
         IndexBuffers[i] = Core::CreateMutableIndexBuffer(p_Capacity);
     }
 }
-template <Dimension D, DrawMode DMode> PolygonDeviceInstanceData<D, DMode>::~PolygonDeviceInstanceData() noexcept
+template <Dimension D, DrawLevel DLevel> PolygonDeviceInstanceData<D, DLevel>::~PolygonDeviceInstanceData() noexcept
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -40,12 +52,21 @@ template <Dimension D, DrawMode DMode> PolygonDeviceInstanceData<D, DMode>::~Pol
     }
 }
 
+template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
+{
+    if constexpr (DLevel == DrawLevel::Simple)
+        return Core::GetGraphicsPipelineLayoutSimple();
+    else
+        return Core::GetGraphicsPipelineLayoutComplex();
+}
+
 template <Dimension D, PipelineMode PMode>
 static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkRenderPass p_RenderPass,
                                                               const VKit::Shader &p_VertexShader,
                                                               const VKit::Shader &p_FragmentShader) noexcept
 {
-    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), Core::GetGraphicsPipelineLayout<D>(), p_RenderPass};
+    constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
+    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), getLayout<dlevel>(), p_RenderPass};
     auto &colorBuilder = builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
                              .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
                              .SetViewportCount(1)
@@ -54,7 +75,7 @@ static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkRenderPass
                              .BeginColorAttachment()
                              .EnableBlending();
 
-    if constexpr (D == D3 || D == D2)
+    if constexpr (D == D3)
         builder.EnableDepthTest().EnableDepthWrite();
     if constexpr (GetDrawMode<PMode>() == DrawMode::Stencil && D == D2)
         colorBuilder.DisableBlending();
@@ -94,7 +115,7 @@ static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkRenderPass
 }
 
 template <Dimension D, PipelineMode PMode>
-VKit::GraphicsPipeline Pipeline<D, PMode>::CreateMeshPipeline(const VkRenderPass p_RenderPass) noexcept
+VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateMeshPipeline(const VkRenderPass p_RenderPass) noexcept
 {
     const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshVertexShader();
     const VKit::Shader &fragmentShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshFragmentShader();
@@ -115,7 +136,7 @@ VKit::GraphicsPipeline Pipeline<D, PMode>::CreateMeshPipeline(const VkRenderPass
 }
 
 template <Dimension D, PipelineMode PMode>
-VKit::GraphicsPipeline Pipeline<D, PMode>::CreateCirclePipeline(const VkRenderPass p_RenderPass) noexcept
+VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateCirclePipeline(const VkRenderPass p_RenderPass) noexcept
 {
     const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetCircleVertexShader();
     const VKit::Shader &fragmentShader = Shaders<D, GetDrawMode<PMode>()>::GetCircleFragmentShader();
@@ -128,19 +149,19 @@ VKit::GraphicsPipeline Pipeline<D, PMode>::CreateCirclePipeline(const VkRenderPa
     return result.GetValue();
 }
 
-template struct ONYX_API PolygonDeviceInstanceData<D2, DrawMode::Fill>;
-template struct ONYX_API PolygonDeviceInstanceData<D2, DrawMode::Stencil>;
-template struct ONYX_API PolygonDeviceInstanceData<D3, DrawMode::Fill>;
-template struct ONYX_API PolygonDeviceInstanceData<D3, DrawMode::Stencil>;
+template struct ONYX_API PolygonDeviceInstanceData<D2, DrawLevel::Simple>;
+template struct ONYX_API PolygonDeviceInstanceData<D2, DrawLevel::Complex>;
+template struct ONYX_API PolygonDeviceInstanceData<D3, DrawLevel::Simple>;
+template struct ONYX_API PolygonDeviceInstanceData<D3, DrawLevel::Complex>;
 
-template struct ONYX_API Pipeline<D2, PipelineMode::NoStencilWriteDoFill>;
-template struct ONYX_API Pipeline<D2, PipelineMode::DoStencilWriteDoFill>;
-template struct ONYX_API Pipeline<D2, PipelineMode::DoStencilWriteNoFill>;
-template struct ONYX_API Pipeline<D2, PipelineMode::DoStencilTestNoFill>;
+template struct ONYX_API PipelineGenerator<D2, PipelineMode::NoStencilWriteDoFill>;
+template struct ONYX_API PipelineGenerator<D2, PipelineMode::DoStencilWriteDoFill>;
+template struct ONYX_API PipelineGenerator<D2, PipelineMode::DoStencilWriteNoFill>;
+template struct ONYX_API PipelineGenerator<D2, PipelineMode::DoStencilTestNoFill>;
 
-template struct ONYX_API Pipeline<D3, PipelineMode::NoStencilWriteDoFill>;
-template struct ONYX_API Pipeline<D3, PipelineMode::DoStencilWriteDoFill>;
-template struct ONYX_API Pipeline<D3, PipelineMode::DoStencilWriteNoFill>;
-template struct ONYX_API Pipeline<D3, PipelineMode::DoStencilTestNoFill>;
+template struct ONYX_API PipelineGenerator<D3, PipelineMode::NoStencilWriteDoFill>;
+template struct ONYX_API PipelineGenerator<D3, PipelineMode::DoStencilWriteDoFill>;
+template struct ONYX_API PipelineGenerator<D3, PipelineMode::DoStencilWriteNoFill>;
+template struct ONYX_API PipelineGenerator<D3, PipelineMode::DoStencilTestNoFill>;
 
 } // namespace Onyx::Detail

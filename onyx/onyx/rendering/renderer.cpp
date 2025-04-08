@@ -44,14 +44,13 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
 }
 
 template <Dimension D>
-IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass, const ProjectionViewData<D> *p_ProjectionView) noexcept
+IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass) noexcept
     : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
-      m_CircleRenderer(p_RenderPass), m_ProjectionView(p_ProjectionView)
+      m_CircleRenderer(p_RenderPass)
 {
 }
 
-Renderer<D3>::Renderer(const VkRenderPass p_RenderPass, const ProjectionViewData<D3> *p_ProjectionView) noexcept
-    : IRenderer<D3>(p_RenderPass, p_ProjectionView)
+Renderer<D3>::Renderer(const VkRenderPass p_RenderPass) noexcept : IRenderer<D3>(p_RenderPass)
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -78,84 +77,50 @@ DeviceLightData::~DeviceLightData() noexcept
     }
 }
 
-static fmat4 transform3ToTransform4(const fmat3 &p_Transform) noexcept
+template <DrawLevel DLevel> static constexpr Dimension getMaterialDimension() noexcept
 {
-    fmat4 t4{1.f};
-    t4[0][0] = p_Transform[0][0];
-    t4[0][1] = p_Transform[0][1];
-    t4[1][0] = p_Transform[1][0];
-    t4[1][1] = p_Transform[1][1];
-
-    t4[3][0] = p_Transform[2][0];
-    t4[3][1] = p_Transform[2][1];
-    return t4;
+    if constexpr (DLevel == DrawLevel::Simple)
+        return D2;
+    else
+        return D3;
 }
 
-template <Dimension D, typename IData>
-static IData createFullDrawInstanceData(const fmat<D> &p_Transform, const MaterialData<D> &p_Material,
-                                        [[maybe_unused]] u32 &p_ZOffset) noexcept
+template <DrawLevel DLevel>
+static InstanceData<DLevel> createInstanceData(const fmat4 &p_Transform,
+                                               const MaterialData<getMaterialDimension<DLevel>()> &p_Material) noexcept
 {
-    IData instanceData{};
-    if constexpr (D == D2)
-    {
-        instanceData.Transform = transform3ToTransform4(p_Transform);
-        ApplyCoordinateSystemExtrinsic(instanceData.Transform);
-        instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
-    }
-    else
-    {
-        instanceData.Transform = p_Transform;
-        instanceData.NormalMatrix = fmat4(glm::transpose(glm::inverse(fmat3(instanceData.Transform))));
-    }
+    InstanceData<DLevel> instanceData{};
+    instanceData.Transform = p_Transform;
     instanceData.Material = p_Material;
+    if constexpr (DLevel == DrawLevel::Complex)
+        instanceData.NormalMatrix = fmat4(glm::transpose(glm::inverse(fmat3(instanceData.Transform))));
 
-    return instanceData;
-}
-// ProjectionView is needed here, because stencil uses 2D shaders, where they require the transform to be complete.
-template <Dimension D, typename IData>
-static IData createStencilInstanceData(const fmat<D> &p_Transform, const Color &p_OutlineColor,
-                                       [[maybe_unused]] const fmat<D> &p_ProjectionView,
-                                       [[maybe_unused]] u32 &p_ZOffset) noexcept
-{
-    IData instanceData{};
-    if constexpr (D == D2)
-    {
-        instanceData.Transform = transform3ToTransform4(p_Transform);
-        ApplyCoordinateSystemExtrinsic(instanceData.Transform);
-        instanceData.Transform[3][2] = 1.f - ++p_ZOffset * glm::epsilon<f32>();
-    }
-    else
-        instanceData.Transform = p_ProjectionView * p_Transform;
-
-    instanceData.Material.Color = p_OutlineColor;
     return instanceData;
 }
 
 template <Dimension D>
 template <typename Renderer, typename DrawArg>
-void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> *p_State, const fmat<D> &p_Transform,
-                        DrawArg &&p_Arg, DrawFlags p_Flags) noexcept
+void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> *p_State, const fmat4 &p_Transform, DrawArg &&p_Arg,
+                        DrawFlags p_Flags) noexcept
 {
     TKIT_ASSERT(p_State->OutlineWidth >= 0.f, "[ONYX] Outline width must be non-negative");
+    constexpr DrawLevel dlevel = D == D2 ? DrawLevel::Simple : DrawLevel::Complex;
 
-    using FillIData = InstanceData<D, DrawMode::Fill>;
-    using StencilIData = InstanceData<D, DrawMode::Stencil>;
     if (p_Flags & DrawFlags_NoStencilWriteDoFill)
     {
-        const FillIData instanceData =
-            createFullDrawInstanceData<D, FillIData>(p_Transform, p_State->Material, m_ZOffset);
+        const auto instanceData = createInstanceData<dlevel>(p_Transform, p_State->Material);
         p_Renderer.NoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArg>(p_Arg));
     }
     if (p_Flags & DrawFlags_DoStencilWriteDoFill)
     {
-        const FillIData instanceData =
-            createFullDrawInstanceData<D, FillIData>(p_Transform, p_State->Material, m_ZOffset);
+        const auto instanceData = createInstanceData<dlevel>(p_Transform, p_State->Material);
         p_Renderer.DoStencilWriteDoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArg>(p_Arg));
     }
     if (p_Flags & DrawFlags_DoStencilWriteNoFill)
     {
-        const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(
-            p_Transform, p_State->OutlineColor, m_ProjectionView->ProjectionView, m_ZOffset);
+        const MaterialData<D2> material{p_State->OutlineColor};
+        const auto instanceData = createInstanceData<DrawLevel::Simple>(p_Transform, material);
+
         if constexpr (!std::is_same_v<Renderer, RenderSystem<D, CircleRenderer>>)
             p_Renderer.DoStencilWriteNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArg>(p_Arg));
         else
@@ -168,8 +133,9 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> *p_State, con
     }
     if (p_Flags & DrawFlags_DoStencilTestNoFill)
     {
-        const StencilIData instanceData = createStencilInstanceData<D, StencilIData>(
-            p_Transform, p_State->OutlineColor, m_ProjectionView->ProjectionView, m_ZOffset);
+        const MaterialData<D2> material{p_State->OutlineColor};
+        const auto instanceData = createInstanceData<DrawLevel::Simple>(p_Transform, material);
+
         if constexpr (!std::is_same_v<Renderer, RenderSystem<D, CircleRenderer>>)
             p_Renderer.DoStencilTestNoFill.Draw(m_FrameIndex, instanceData, std::forward<DrawArg>(p_Arg));
         else
@@ -183,28 +149,28 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> *p_State, con
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const RenderState<D> *p_State, const fmat<D> &p_Transform, const Model<D> &p_Model,
+void IRenderer<D>::DrawMesh(const RenderState<D> *p_State, const fmat4 &p_Transform, const Model<D> &p_Model,
                             const DrawFlags p_Flags) noexcept
 {
     draw(m_MeshRenderer, p_State, p_Transform, p_Model, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPrimitive(const RenderState<D> *p_State, const fmat<D> &p_Transform, const u32 p_PrimitiveIndex,
+void IRenderer<D>::DrawPrimitive(const RenderState<D> *p_State, const fmat4 &p_Transform, const u32 p_PrimitiveIndex,
                                  const DrawFlags p_Flags) noexcept
 {
     draw(m_PrimitiveRenderer, p_State, p_Transform, p_PrimitiveIndex, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPolygon(const RenderState<D> *p_State, const fmat<D> &p_Transform,
+void IRenderer<D>::DrawPolygon(const RenderState<D> *p_State, const fmat4 &p_Transform,
                                const TKit::Span<const fvec2> p_Vertices, const DrawFlags p_Flags) noexcept
 {
     draw(m_PolygonRenderer, p_State, p_Transform, p_Vertices, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawCircle(const RenderState<D> *p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
+void IRenderer<D>::DrawCircle(const RenderState<D> *p_State, const fmat4 &p_Transform, const CircleOptions &p_Options,
                               const DrawFlags p_Flags) noexcept
 {
     draw(m_CircleRenderer, p_State, p_Transform, p_Options, p_Flags);
@@ -228,53 +194,63 @@ void Renderer<D3>::Flush() noexcept
     m_PointLights.clear();
 }
 
-void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
+template <DrawLevel DLevel, typename... Renderers>
+static void noStencilWriteDoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderers &...p_Renderers) noexcept
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Renderer<D2>::Render");
-    RenderInfo<D2, DrawMode::Fill> fillDrawInfo;
-    fillDrawInfo.CommandBuffer = p_CommandBuffer;
-    fillDrawInfo.FrameIndex = m_FrameIndex;
-
-    m_MeshRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
-    m_PrimitiveRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
-    m_PolygonRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
-    m_CircleRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
-
-    m_MeshRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
-    m_PrimitiveRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
-    m_PolygonRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
-    m_CircleRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
-
-    RenderInfo<D2, DrawMode::Stencil> stencilInfo;
-    stencilInfo.CommandBuffer = p_CommandBuffer;
-    stencilInfo.FrameIndex = m_FrameIndex;
-
-    m_MeshRenderer.DoStencilWriteNoFill.Render(stencilInfo);
-    m_PrimitiveRenderer.DoStencilWriteNoFill.Render(stencilInfo);
-    m_PolygonRenderer.DoStencilWriteNoFill.Render(stencilInfo);
-    m_CircleRenderer.DoStencilWriteNoFill.Render(stencilInfo);
-
-    m_MeshRenderer.DoStencilTestNoFill.Render(stencilInfo);
-    m_PrimitiveRenderer.DoStencilTestNoFill.Render(stencilInfo);
-    m_PolygonRenderer.DoStencilTestNoFill.Render(stencilInfo);
-    m_CircleRenderer.DoStencilTestNoFill.Render(stencilInfo);
-
-    m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
-    m_ZOffset = 0;
+    (p_Renderers.NoStencilWriteDoFill.Render(p_RenderInfo), ...);
 }
 
-void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
+template <DrawLevel DLevel, typename... Renderers>
+static void doStencilWriteDoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderers &...p_Renderers) noexcept
+{
+    (p_Renderers.DoStencilWriteDoFill.Render(p_RenderInfo), ...);
+}
+
+template <DrawLevel DLevel, typename... Renderers>
+static void doStencilWriteNoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderers &...p_Renderers) noexcept
+{
+    (p_Renderers.DoStencilWriteNoFill.Render(p_RenderInfo), ...);
+}
+
+template <DrawLevel DLevel, typename... Renderers>
+static void doStencilTestNoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderers &...p_Renderers) noexcept
+{
+    (p_Renderers.DoStencilTestNoFill.Render(p_RenderInfo), ...);
+}
+
+void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer,
+                          const ProjectionViewData<D2> &p_ProjectionView) noexcept
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer<D2>::Render");
+    RenderInfo<DrawLevel::Simple> simpleDrawInfo;
+    simpleDrawInfo.CommandBuffer = p_CommandBuffer;
+
+    fmat4 projectionView = PromoteTransform(p_ProjectionView.ProjectionView);
+    ApplyCoordinateSystemExtrinsic(projectionView);
+    simpleDrawInfo.ProjectionView = &projectionView;
+    simpleDrawInfo.FrameIndex = m_FrameIndex;
+
+    noStencilWriteDoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+    doStencilWriteDoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+    doStencilWriteNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+    doStencilTestNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+
+    m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
+}
+
+void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer,
+                          const ProjectionViewData<D3> &p_ProjectionView) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer<D3>::Render");
-    RenderInfo<D3, DrawMode::Fill> fillDrawInfo;
-    fillDrawInfo.CommandBuffer = p_CommandBuffer;
-    fillDrawInfo.FrameIndex = m_FrameIndex;
-    fillDrawInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
-    fillDrawInfo.DirectionalLightCount = m_DirectionalLights.size();
-    fillDrawInfo.PointLightCount = m_PointLights.size();
-    fillDrawInfo.ProjectionView = &m_ProjectionView->ProjectionView;
-    fillDrawInfo.ViewPosition = &m_ProjectionView->View.Translation;
-    fillDrawInfo.AmbientColor = &AmbientColor;
+    RenderInfo<DrawLevel::Complex> complexDrawInfo;
+    complexDrawInfo.CommandBuffer = p_CommandBuffer;
+    complexDrawInfo.FrameIndex = m_FrameIndex;
+    complexDrawInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
+    complexDrawInfo.DirectionalLightCount = m_DirectionalLights.size();
+    complexDrawInfo.PointLightCount = m_PointLights.size();
+    complexDrawInfo.ProjectionView = &p_ProjectionView.ProjectionView;
+    complexDrawInfo.ViewPosition = &p_ProjectionView.View.Translation;
+    complexDrawInfo.AmbientColor = &AmbientColor;
 
     for (u32 i = 0; i < m_DirectionalLights.size(); ++i)
         m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].WriteAt(i, &m_DirectionalLights[i]);
@@ -284,29 +260,16 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer) noexcept
         m_DeviceLightData.PointLightBuffers[m_FrameIndex].WriteAt(i, &m_PointLights[i]);
     m_DeviceLightData.PointLightBuffers[m_FrameIndex].Flush();
 
-    m_MeshRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
-    m_PrimitiveRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
-    m_PolygonRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
-    m_CircleRenderer.NoStencilWriteDoFill.Render(fillDrawInfo);
+    noStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+    doStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
 
-    m_MeshRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
-    m_PrimitiveRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
-    m_PolygonRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
-    m_CircleRenderer.DoStencilWriteDoFill.Render(fillDrawInfo);
-
-    RenderInfo<D3, DrawMode::Stencil> stencilInfo;
+    RenderInfo<DrawLevel::Simple> stencilInfo;
     stencilInfo.CommandBuffer = p_CommandBuffer;
+    stencilInfo.ProjectionView = &p_ProjectionView.ProjectionView;
     stencilInfo.FrameIndex = m_FrameIndex;
 
-    m_MeshRenderer.DoStencilWriteNoFill.Render(stencilInfo);
-    m_PrimitiveRenderer.DoStencilWriteNoFill.Render(stencilInfo);
-    m_PolygonRenderer.DoStencilWriteNoFill.Render(stencilInfo);
-    m_CircleRenderer.DoStencilWriteNoFill.Render(stencilInfo);
-
-    m_MeshRenderer.DoStencilTestNoFill.Render(stencilInfo);
-    m_PrimitiveRenderer.DoStencilTestNoFill.Render(stencilInfo);
-    m_PolygonRenderer.DoStencilTestNoFill.Render(stencilInfo);
-    m_CircleRenderer.DoStencilTestNoFill.Render(stencilInfo);
+    doStencilWriteNoFill(stencilInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+    doStencilTestNoFill(stencilInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
 
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
 }

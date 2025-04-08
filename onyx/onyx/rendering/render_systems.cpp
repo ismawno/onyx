@@ -70,7 +70,7 @@ template <typename T> static void initializeRenderer(T &p_DeviceInstanceData) no
 template <Dimension D, PipelineMode PMode>
 MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    m_Pipeline = Pipeline<D, PMode>::CreateMeshPipeline(p_RenderPass);
+    m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderPass);
     initializeRenderer(m_DeviceInstanceData);
 }
 
@@ -99,34 +99,43 @@ void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_
     m_DeviceInstanceData.StorageSizes[p_FrameIndex] = size + 1;
 }
 
-template <Dimension D> static VkPipelineLayout getLayout() noexcept
+template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
 {
-    return Core::GetGraphicsPipelineLayout<D>();
+    if constexpr (DLevel == DrawLevel::Simple)
+        return Core::GetGraphicsPipelineLayoutSimple();
+    else
+        return Core::GetGraphicsPipelineLayoutComplex();
 }
 
-static void pushConstantData(const RenderInfo<D3, DrawMode::Fill> &p_Info) noexcept
+template <DrawLevel DLevel> static void pushConstantData(const RenderInfo<DLevel> &p_Info) noexcept
 {
-    PushConstantData3D pdata{};
+    PushConstantData<DLevel> pdata{};
     pdata.ProjectionView = *p_Info.ProjectionView;
-    pdata.ViewPosition = fvec4(*p_Info.ViewPosition, 1.f);
-    pdata.AmbientColor = p_Info.AmbientColor->RGBA;
-    pdata.DirectionalLightCount = p_Info.DirectionalLightCount;
-    pdata.PointLightCount = p_Info.PointLightCount;
 
-    vkCmdPushConstants(p_Info.CommandBuffer, getLayout<D3>(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                       0, sizeof(PushConstantData3D), &pdata);
+    VkShaderStageFlags stages = VK_SHADER_STAGE_VERTEX_BIT;
+    if constexpr (DLevel == DrawLevel::Complex)
+    {
+        pdata.ViewPosition = fvec4(*p_Info.ViewPosition, 1.f);
+        pdata.AmbientColor = p_Info.AmbientColor->RGBA;
+        pdata.DirectionalLightCount = p_Info.DirectionalLightCount;
+        pdata.PointLightCount = p_Info.PointLightCount;
+        stages |= VK_SHADER_STAGE_FRAGMENT_BIT;
+    }
+    vkCmdPushConstants(p_Info.CommandBuffer, getLayout<DLevel>(), stages, 0, sizeof(PushConstantData<DLevel>), &pdata);
 }
 
-template <Dimension D, DrawMode DMode>
-static void bindDescriptorSets(const RenderInfo<D, DMode> &p_Info, const VkDescriptorSet p_Transforms) noexcept
+template <DrawLevel DLevel>
+static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescriptorSet p_Transforms) noexcept
 {
-    if constexpr (D == D2 || DMode == DrawMode::Stencil)
-        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_Transforms, VK_PIPELINE_BIND_POINT_GRAPHICS, getLayout<D>());
+    if constexpr (DLevel == DrawLevel::Simple)
+        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_Transforms, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  getLayout<DrawLevel::Simple>());
     else
     {
         const TKit::Array<VkDescriptorSet, 2> sets = {p_Transforms, p_Info.LightStorageBuffers};
         const TKit::Span<const VkDescriptorSet> span(sets);
-        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, span, VK_PIPELINE_BIND_POINT_GRAPHICS, getLayout<D>());
+        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, span, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  getLayout<DrawLevel::Complex>());
     }
 }
 
@@ -137,11 +146,11 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     TKIT_PROFILE_NSCOPE("MeshRenderer::Render");
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
-    if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        pushConstantData(p_Info);
+    constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
+    pushConstantData<dlevel>(p_Info);
 
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
+    bindDescriptorSets<dlevel>(p_Info, transforms);
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_Info.FrameIndex];
     u32 firstInstance = 0;
@@ -179,7 +188,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() 
 template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    m_Pipeline = Pipeline<D, PMode>::CreateMeshPipeline(p_RenderPass);
+    m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderPass);
     initializeRenderer(m_DeviceInstanceData);
 }
 
@@ -222,11 +231,11 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
             storageBuffer.WriteAt(index++, &data);
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
-    if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        pushConstantData(p_Info);
+    constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
+    pushConstantData<dlevel>(p_Info);
 
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
+    bindDescriptorSets<dlevel>(p_Info, transforms);
 
     const VertexBuffer<D> &vbuffer = Primitives<D>::GetVertexBuffer();
     const IndexBuffer &ibuffer = Primitives<D>::GetIndexBuffer();
@@ -271,7 +280,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 template <Dimension D, PipelineMode PMode>
 PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    m_Pipeline = Pipeline<D, PMode>::CreateMeshPipeline(p_RenderPass);
+    m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderPass);
     initializeRenderer(m_DeviceInstanceData);
 }
 
@@ -369,11 +378,11 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
     indexBuffer.Flush();
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
-    if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-        pushConstantData(p_Info);
+    constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
+    pushConstantData<dlevel>(p_Info);
 
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
+    bindDescriptorSets<dlevel>(p_Info, transforms);
 
     vertexBuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
     indexBuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
@@ -397,7 +406,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush
 template <Dimension D, PipelineMode PMode>
 CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexcept
 {
-    m_Pipeline = Pipeline<D, PMode>::CreateCirclePipeline(p_RenderPass);
+    m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderPass);
     initializeRenderer(m_DeviceInstanceData);
 }
 
@@ -455,11 +464,11 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
         },
         [this, &p_Info]() {
             m_Pipeline.Bind(p_Info.CommandBuffer);
-            if constexpr (D == D3 && GetDrawMode<PMode>() == DrawMode::Fill)
-                pushConstantData(p_Info);
+            constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
+            pushConstantData<dlevel>(p_Info);
 
             const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-            bindDescriptorSets<D, GetDrawMode<PMode>()>(p_Info, transforms);
+            bindDescriptorSets<dlevel>(p_Info, transforms);
 
             const u32 size = m_HostInstanceData.size();
             vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);

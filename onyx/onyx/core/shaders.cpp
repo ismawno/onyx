@@ -41,7 +41,7 @@ const VKit::Shader &GetFullPassVertexShader() noexcept
     static VKit::Shader shader{};
     if (shader)
         return shader;
-    shader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/full-pass.vert");
+    shader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/pp-full-pass.vert");
     Core::GetDeletionQueue().SubmitForDeletion(shader);
     return shader;
 }
@@ -55,27 +55,27 @@ template <Dimension D, DrawMode DMode> struct SneakyShaders
     {
         if constexpr (D == D2)
         {
-            MeshVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh2D.vert");
-            MeshFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh2D.frag");
+            MeshVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-2D.vert");
+            MeshFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawlevel-simple.frag");
 
-            CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle2D.vert");
-            CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle2D.frag");
+            CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawlevel-simple.vert");
+            CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawlevel-simple.frag");
         }
         else if constexpr (DMode == DrawMode::Fill)
         {
-            MeshVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh3D.vert");
-            MeshFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh3D.frag");
+            MeshVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawmode-fill-3D.vert");
+            MeshFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawmode-fill-3D.frag");
 
-            CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle3D.vert");
-            CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle3D.frag");
+            CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawmode-fill-3D.vert");
+            CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawmode-fill-3D.frag");
         }
         else
         {
-            MeshVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-outline3D.vert");
-            MeshFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh2D.frag");
+            MeshVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawmode-stencil-3D.vert");
+            MeshFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawlevel-simple.frag");
 
-            CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle2D.vert");
-            CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle2D.frag");
+            CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawlevel-simple.vert");
+            CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawlevel-simple.frag");
         }
 
         Core::GetDeletionQueue().SubmitForDeletion(MeshVertexShader);

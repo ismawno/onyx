@@ -33,13 +33,22 @@ ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept;
  */
 ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept;
 
-// VERY CLUNKY: 3 out of 4 possible instantiations of `MaterialData` and `RenderInfo` are identical
+/**
+ * @brief Promote a 2D transform to an equivalent 3D transform.
+ *
+ * This function takes a 2D transform and promotes it to a 3D transform by adding a Z-axis component set to the
+ * identity.
+ *
+ * @param p_Transform The 2D transform to promote.
+ * @return The promoted 3D transform.
+ */
+ONYX_API fmat4 PromoteTransform(const fmat3 &p_Transform) noexcept;
 
 /**
  * @brief The `MaterialData` struct is a simple collection of data that represents the material of a shape.
  *
  * The material is a simple color in 2D, and a color with additional properties in 3D, mostly used for lighting. The
- * simple 2D material data is also used for stencil passes in 3D.
+ * simple 2D material data is also used for stencil passes in 3D (`DrawLevel::Simple`).
  *
  * @tparam D The dimension (`D2` or `D3`).
  */
@@ -165,14 +174,14 @@ enum class ONYX_API PipelineMode : u8
 };
 
 /**
- * @brief The DrawMode is related to the data each PipelineMode needs to render correctly.
+ * @brief The `DrawMode` is related to the data each `PipelineMode` needs to render correctly.
  *
  * To render a filled shape in, say, 3D, the renderer must know information about the lights in the environment, have
  * access to normals, etc. When writing/testing to the stencil buffer, however, the renderer only needs the shape's
  * geometry and an outline color.
  *
- * The first two modes are used for rendering filled shapes (DrawMode::Fill), and the last two are used for rendering
- * outlines (DrawMode::Stencil).
+ * The first two modes are used for rendering filled shapes (`DrawMode::Fill`), and the last two are used for rendering
+ * outlines (`DrawMode::Stencil`).
  *
  */
 enum class ONYX_API DrawMode : u8
@@ -182,10 +191,27 @@ enum class ONYX_API DrawMode : u8
 };
 
 /**
- * @brief Get the DrawMode corresponding to a PipelineMode.
+ * @brief The `DrawLevel` combines resource requirements when requiring combinations of `Dimension` and `DrawMode`.
+ *
+ * Turns out that when rendering things in 2D, (either with `DrawMode::Fill` or `DrawMode::Stencil`), the resource
+ * requirements are very similar when rendering things in 3D with `DrawMode::Stencil`. This means some resources (such
+ * as pipeline layouts) can be shared between these two cases.
+ *
+ * In summary, `DrawLevel::Simple` is used for 2D rendering and 3D stencil rendering, while `DrawLevel::Complex` is used
+ * exclusively for 3D filled rendering.
+ *
+ */
+enum class ONYX_API DrawLevel : u8
+{
+    Simple,
+    Complex
+};
+
+/**
+ * @brief Get the `DrawMode` corresponding to a `PipelineMode`.
  *
  * @tparam PMode The pipeline mode.
- * @return The corresponding DrawMode.
+ * @return The corresponding `DrawMode`.
  */
 template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
 {
@@ -196,23 +222,50 @@ template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
 }
 
 /**
+ * @brief Get the `DrawLevel` corresponding to a `Dimension` and `DrawMode`.
+ *
+ * @tparam D The dimension (`D2` or `D3`).
+ * @tparam DMode The draw mode (`Fill` or `Stencil`).
+ * @return The corresponding `DrawLevel`.
+ */
+template <Dimension D, DrawMode DMode> constexpr DrawLevel GetDrawLevel() noexcept
+{
+    if constexpr (D == D2 || DMode == DrawMode::Stencil)
+        return DrawLevel::Simple;
+    else
+        return DrawLevel::Complex;
+}
+
+/**
+ * @brief Get the `DrawLevel` corresponding to a `Dimension` and `PipelineMode`.
+ *
+ * @tparam D The dimension (`D2` or `D3`).
+ * @tparam PMode The pipeline mode.
+ * @return The corresponding `DrawLevel`.
+ */
+template <Dimension D, PipelineMode PMode> constexpr DrawLevel GetDrawLevel() noexcept
+{
+    return GetDrawLevel<D, GetDrawMode<PMode>()>();
+}
+
+/**
  * @brief The `RenderInfo` is a small struct containing information the renderers need to draw their shapes.
  *
  * It contains the current command buffer, the current frame index, different descriptor sets to bind to (storage
  * buffers containing light information in the 3D case, for example), and some other global information.
  *
- * @tparam D The dimension (`D2` or `D3`).
- * @tparam DMode The draw mode (Fill or Stencil).
+ * @tparam DLevel The draw level (`Simple` or `Complex`).
  */
-template <Dimension D, DrawMode DMode> struct RenderInfo;
+template <DrawLevel DLevel> struct RenderInfo;
 
-template <DrawMode DMode> struct RenderInfo<D2, DMode>
+template <> struct ONYX_API RenderInfo<DrawLevel::Simple>
 {
     VkCommandBuffer CommandBuffer;
+    const fmat4 *ProjectionView;
     u32 FrameIndex;
 };
 
-template <> struct ONYX_API RenderInfo<D3, DrawMode::Fill>
+template <> struct ONYX_API RenderInfo<DrawLevel::Complex>
 {
     VkCommandBuffer CommandBuffer;
     VkDescriptorSet LightStorageBuffers;
@@ -224,19 +277,13 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Fill>
     u32 PointLightCount;
 };
 
-template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
-{
-    VkCommandBuffer CommandBuffer;
-    u32 FrameIndex;
-};
-
 /**
- * @brief The InstanceData struct is the collection of all the data needed to render a shape.
+ * @brief The `InstanceData` struct is the collection of all the data needed to render a shape.
  *
  * It is stored and sent to the GPU in a storage buffer, and the renderer will use this data to render the shape.
- * The InstanceData varies between dimensions and draw modes, as the data needed to render a 2D shape is different from
- * the data needed to render a 3D shape, and the data needed to render a filled shape is different from the data needed
- * to render an outline.
+ * The `InstanceData` varies between dimensions and draw modes, as the data needed to render a 2D shape is different
+ * from the data needed to render a 3D shape, and the data needed to render a filled shape is different from the data
+ * needed to render an outline.
  *
  * The most notable data this struct contains is the transform matrix, responsible for positioning, rotating, and
  * scaling the shape; the material data, which contains the color of the shape and some other properties; and the view
@@ -245,29 +292,23 @@ template <> struct ONYX_API RenderInfo<D3, DrawMode::Stencil>
  * The view (or axes) matrix is still stored per instance because of the immediate mode. This way, the user can change
  * the view matrix between shapes, and the renderer will use the correct one.
  *
- * @tparam D The dimension (`D2` or `D3`).
- * @tparam DMode The draw mode (`Fill` or `Stencil`).
+ * @tparam DLevel The draw level (`Simple` or `Complex`).
  */
-template <Dimension D, DrawMode DMode> struct InstanceData
-{
-    fmat4 Transform;
-    MaterialData<D> Material;
-};
+template <DrawLevel DLevel> struct InstanceData;
 
 // Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
 // 0 1 but I don't want to deal with the alignment management, to be honest.
 
-template <> struct ONYX_API InstanceData<D3, DrawMode::Fill>
+template <> struct ONYX_API InstanceData<DrawLevel::Simple>
+{
+    fmat4 Transform;
+    MaterialData<D2> Material;
+};
+template <> struct ONYX_API InstanceData<DrawLevel::Complex>
 {
     fmat4 Transform;
     fmat4 NormalMatrix;
     MaterialData<D3> Material;
-};
-
-template <> struct ONYX_API InstanceData<D3, DrawMode::Stencil>
-{
-    fmat4 Transform;
-    MaterialData<D2> Material;
 };
 
 /**
@@ -305,9 +346,9 @@ template <typename T> struct DeviceInstanceData
  * polygons.
  *
  * @tparam D The dimension (`D2` or `D3`).
- * @tparam DMode The draw mode (`Fill` or `Stencil`).
+ * @tparam DLevel The draw level (`Simple` or `Complex`).
  */
-template <Dimension D, DrawMode DMode> struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<D, DMode>>
+template <Dimension D, DrawLevel DLevel> struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<DLevel>>
 {
     PolygonDeviceInstanceData(const u32 p_Capacity) noexcept;
     ~PolygonDeviceInstanceData() noexcept;
@@ -325,9 +366,9 @@ template <Dimension D, DrawMode DMode> struct PolygonDeviceInstanceData : Device
  * @tparam D The dimension (`D2` or `D3`).
  * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
-template <Dimension D, DrawMode DMode> struct PolygonInstanceData
+template <DrawLevel DLevel> struct PolygonInstanceData
 {
-    InstanceData<D, DMode> BaseData;
+    InstanceData<DLevel> BaseData;
     PrimitiveDataLayout Layout;
 };
 
@@ -343,9 +384,9 @@ TKIT_MSVC_WARNING_IGNORE(4324)
  * @tparam D The dimension (`D2` or `D3`).
  * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
-template <Dimension D, DrawMode DMode> struct CircleInstanceData
+template <DrawLevel DLevel> struct CircleInstanceData
 {
-    InstanceData<D, DMode> BaseData;
+    InstanceData<DLevel> BaseData;
     alignas(16) fvec4 ArcInfo;
     u32 AngleOverflow;
     f32 Hollowness;
@@ -355,10 +396,16 @@ template <Dimension D, DrawMode DMode> struct CircleInstanceData
 TKIT_COMPILER_WARNING_IGNORE_POP()
 
 /**
- * @brief Some push constant data that is used in the 3D case, containing the ambient color and the number of lights.
- *
+ * @brief Some global push constant data that is used by the shaders.
  */
-struct ONYX_API PushConstantData3D
+template <DrawLevel DLevel> struct PushConstantData;
+
+template <> struct ONYX_API PushConstantData<DrawLevel::Simple>
+{
+    fmat4 ProjectionView;
+};
+
+template <> struct ONYX_API PushConstantData<DrawLevel::Complex>
 {
     fmat4 ProjectionView;
     fvec4 ViewPosition;
@@ -368,7 +415,7 @@ struct ONYX_API PushConstantData3D
     u32 _Padding[2];
 };
 
-template <Dimension D, PipelineMode PMode> struct Pipeline
+template <Dimension D, PipelineMode PMode> struct PipelineGenerator
 {
     /**
      * @brief Create a pipeline for meshed shapes.

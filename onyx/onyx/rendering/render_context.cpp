@@ -11,7 +11,7 @@ using namespace Detail;
 
 template <Dimension D>
 IRenderContext<D>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
-    : m_Renderer(p_RenderPass, &m_ProjectionView), m_Window(p_Window)
+    : m_Renderer(p_RenderPass), m_Window(p_Window)
 {
     m_StateStack.push_back(RenderState<D>{});
     m_State = &m_StateStack.back();
@@ -251,19 +251,6 @@ void RenderContext<D3>::RotateZAxis(const f32 p_Angle) noexcept
     RotateAxes(fvec3{0.f, 0.f, p_Angle});
 }
 
-static fmat4 transform3ToTransform4(const fmat3 &p_Transform) noexcept
-{
-    fmat4 t4{1.f};
-    t4[0][0] = p_Transform[0][0];
-    t4[0][1] = p_Transform[0][1];
-    t4[1][0] = p_Transform[1][0];
-    t4[1][1] = p_Transform[1][1];
-
-    t4[3][0] = p_Transform[2][0];
-    t4[3][1] = p_Transform[2][1];
-    return t4;
-}
-
 template <Dimension D>
 template <typename F1, typename F2>
 void IRenderContext<D>::resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept
@@ -285,10 +272,10 @@ void IRenderContext<D>::resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_Outlin
     }
 }
 
-template <Dimension D> fmat<D> IRenderContext<D>::computeFinalTransform(const fmat<D> &p_Transform) noexcept
+template <Dimension D> fmat4 IRenderContext<D>::computeFinalTransform(const fmat<D> &p_Transform) noexcept
 {
     if constexpr (D == D2)
-        return m_ProjectionView.ProjectionView * m_State->Axes * p_Transform;
+        return PromoteTransform(m_State->Axes * p_Transform);
     else
         return m_State->Axes * p_Transform;
 }
@@ -1286,7 +1273,7 @@ template <Dimension D> void IRenderContext<D>::SetView(const Onyx::Transform<D> 
 
 template <Dimension D> void IRenderContext<D>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
 {
-    m_Renderer.Render(p_Commandbuffer);
+    m_Renderer.Render(p_Commandbuffer, m_ProjectionView);
 }
 
 void RenderContext<D2>::Axes(const AxesOptions<D2> &p_Options) noexcept
@@ -1399,7 +1386,7 @@ template <Dimension D> void IRenderContext<D>::ApplyCameraMovementControls(const
 
 void RenderContext<D2>::ApplyCameraScalingControls(const f32 p_ScaleStep) noexcept
 {
-    fmat4 transform = transform3ToTransform4(m_ProjectionView.View.ComputeTransform());
+    fmat4 transform = PromoteTransform(m_ProjectionView.View.ComputeTransform());
     ApplyCoordinateSystemIntrinsic(transform);
     const fvec2 mpos = transform * fvec4{Input::GetMousePosition(m_Window), 0.f, 1.f};
 
@@ -1415,7 +1402,7 @@ template <Dimension D> fvec<D> IRenderContext<D>::GetCoordinates(const fvec<D> &
     if constexpr (D == D2)
     {
         const fmat3 itransform3 = glm::inverse(m_ProjectionView.ProjectionView * m_State->Axes);
-        fmat4 itransform = transform3ToTransform4(itransform3);
+        fmat4 itransform = PromoteTransform(itransform3);
         ApplyCoordinateSystemIntrinsic(itransform);
         return itransform * fvec4{p_NormalizedPos, 0.f, 1.f};
     }

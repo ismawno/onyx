@@ -23,7 +23,7 @@ namespace Onyx::Detail
  * @tparam D The dimensionality (`D2`or `D3`).
  * @tparam R The renderer type template (e.g., `MeshRenderer`, `PrimitiveRenderer`).
  */
-template <Dimension D, template <Dimension, PipelineMode> typename R> struct RenderSystem
+template <Dimension D, template <Dimension, PipelineMode> typename Renderer> struct RenderSystem
 {
     /**
      * @brief Construct a RenderSystem with the specified render pass.
@@ -40,16 +40,16 @@ template <Dimension D, template <Dimension, PipelineMode> typename R> struct Ren
     void Flush() noexcept;
 
     /// Renderer without stencil write, performs fill operation.
-    R<D, PipelineMode::NoStencilWriteDoFill> NoStencilWriteDoFill;
+    Renderer<D, PipelineMode::NoStencilWriteDoFill> NoStencilWriteDoFill;
 
     /// Renderer with stencil write, performs fill operation.
-    R<D, PipelineMode::DoStencilWriteDoFill> DoStencilWriteDoFill;
+    Renderer<D, PipelineMode::DoStencilWriteDoFill> DoStencilWriteDoFill;
 
     /// Renderer with stencil write, does not perform fill operation.
-    R<D, PipelineMode::DoStencilWriteNoFill> DoStencilWriteNoFill;
+    Renderer<D, PipelineMode::DoStencilWriteNoFill> DoStencilWriteNoFill;
 
     /// Renderer with stencil test, does not perform fill operation.
-    R<D, PipelineMode::DoStencilTestNoFill> DoStencilTestNoFill;
+    Renderer<D, PipelineMode::DoStencilTestNoFill> DoStencilTestNoFill;
 };
 
 using DrawFlags = u8;
@@ -92,7 +92,7 @@ template <Dimension D> class IRenderer
      * @param p_RenderPass The Vulkan render pass to be used.
      * @param p_ProjectionView Pointer to the global projection view data.
      */
-    IRenderer(VkRenderPass p_RenderPass, const ProjectionViewData<D> *p_ProjectionView) noexcept;
+    IRenderer(VkRenderPass p_RenderPass) noexcept;
 
     /**
      * @brief Record a draw call for a mesh model.
@@ -101,7 +101,7 @@ template <Dimension D> class IRenderer
      * @param p_Model The mesh model to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawMesh(const RenderState<D> *p_State, const fmat<D> &p_Transform, const Model<D> &p_Model,
+    void DrawMesh(const RenderState<D> *p_State, const fmat4 &p_Transform, const Model<D> &p_Model,
                   DrawFlags p_Flags) noexcept;
 
     /**
@@ -111,7 +111,7 @@ template <Dimension D> class IRenderer
      * @param p_PrimitiveIndex Index of the primitive shape to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawPrimitive(const RenderState<D> *p_State, const fmat<D> &p_Transform, u32 p_PrimitiveIndex,
+    void DrawPrimitive(const RenderState<D> *p_State, const fmat4 &p_Transform, u32 p_PrimitiveIndex,
                        DrawFlags p_Flags) noexcept;
 
     /**
@@ -121,7 +121,7 @@ template <Dimension D> class IRenderer
      * @param p_Vertices Span of vertices defining the polygon.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawPolygon(const RenderState<D> *p_State, const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices,
+    void DrawPolygon(const RenderState<D> *p_State, const fmat4 &p_Transform, TKit::Span<const fvec2> p_Vertices,
                      DrawFlags p_Flags) noexcept;
 
     /**
@@ -139,15 +139,12 @@ template <Dimension D> class IRenderer
      *
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawCircle(const RenderState<D> *p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
+    void DrawCircle(const RenderState<D> *p_State, const fmat4 &p_Transform, const CircleOptions &p_Options,
                     DrawFlags p_Flags) noexcept;
 
   protected:
     /// Current frame index for synchronization purposes.
     u32 m_FrameIndex = 0;
-
-    /// Z-offset used in 2D rendering to manage draw order; only used in 2D.
-    u32 m_ZOffset = 0;
 
     /// Render system for mesh models.
     RenderSystem<D, MeshRenderer> m_MeshRenderer;
@@ -161,9 +158,6 @@ template <Dimension D> class IRenderer
     /// Render system for circles and arcs.
     RenderSystem<D, CircleRenderer> m_CircleRenderer;
 
-    /// Pointer to the global projection view data.
-    const ProjectionViewData<D> *m_ProjectionView;
-
   private:
     /**
      * @brief Internal template method to handle drawing with different renderers.
@@ -176,7 +170,7 @@ template <Dimension D> class IRenderer
      * @param p_Flags Drawing flags to control rendering behavior.
      */
     template <typename Renderer, typename DrawArg>
-    void draw(Renderer &p_Renderer, const RenderState<D> *p_State, const fmat<D> &p_Transform, DrawArg &&p_Arg,
+    void draw(Renderer &p_Renderer, const RenderState<D> *p_State, const fmat4 &p_Transform, DrawArg &&p_Arg,
               DrawFlags p_Flags) noexcept;
 };
 
@@ -204,7 +198,7 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
      *
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
      */
-    void Render(VkCommandBuffer p_CommandBuffer) noexcept;
+    void Render(VkCommandBuffer p_CommandBuffer, const ProjectionViewData<D2> &p_ProjectionView) noexcept;
 
     /**
      * @brief Clear all stored draw calls and resets the renderer's state.
@@ -296,14 +290,14 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
      * @param p_RenderPass The Vulkan render pass to be used.
      * @param p_ProjectionView Pointer to the global projection view data.
      */
-    Renderer(VkRenderPass p_RenderPass, const ProjectionViewData<D3> *p_ProjectionView) noexcept;
+    Renderer(VkRenderPass p_RenderPass) noexcept;
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.
      *
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
      */
-    void Render(VkCommandBuffer p_CommandBuffer) noexcept;
+    void Render(VkCommandBuffer p_CommandBuffer, const ProjectionViewData<D3> &p_ProjectionView) noexcept;
 
     /**
      * @brief Add a directional light to the scene.
