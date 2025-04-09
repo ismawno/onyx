@@ -176,6 +176,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
             model.DrawIndexed(p_Info.CommandBuffer, firstInstance + size, firstInstance);
         else
             model.Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
+        INCREASE_DRAW_CALL_COUNT();
         firstInstance += size;
     }
 }
@@ -263,6 +264,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
 
         vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart,
                          firstInstance);
+        INCREASE_DRAW_CALL_COUNT();
         firstInstance += size;
     }
 }
