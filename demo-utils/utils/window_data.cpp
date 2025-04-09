@@ -482,7 +482,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
 
 template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 {
-    const fvec2 spos = Input::GetMousePosition(m_Window);
+    const fvec2 spos = Input::GetCartesianMousePosition(m_Window);
     ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos.x, spos.y);
     UserLayer::HelpMarkerSameLine(
         "The screen mouse position is always normalized to the window size, always ranging "

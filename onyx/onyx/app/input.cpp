@@ -14,13 +14,21 @@ void PollEvents()
     glfwPollEvents();
 }
 
-fvec2 GetMousePosition(Window *p_Window) noexcept
+fvec2 GetNativeMousePosition(Window *p_Window) noexcept
 {
     GLFWwindow *window = p_Window->GetWindowHandle();
     double xPos, yPos;
     glfwGetCursorPos(window, &xPos, &yPos);
     return {2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,
             2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight() - 1.f};
+}
+fvec2 GetCartesianMousePosition(Window *p_Window) noexcept
+{
+    GLFWwindow *window = p_Window->GetWindowHandle();
+    double xPos, yPos;
+    glfwGetCursorPos(window, &xPos, &yPos);
+    return {2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,
+            1.f - 2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight()};
 }
 
 bool IsKeyPressed(Window *p_Window, const Key p_Key) noexcept

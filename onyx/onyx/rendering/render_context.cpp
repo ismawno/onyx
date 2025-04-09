@@ -1353,7 +1353,7 @@ void IRenderContext<D>::ApplyCameraMovementControls(const CameraMovementControls
         if (Input::IsKeyPressed(m_Window, p_Controls.Backward))
             translation.z += view.Scale.z * p_Controls.TranslationStep;
 
-        const fvec2 mpos = Input::GetMousePosition(m_Window);
+        const fvec2 mpos = Input::GetNativeMousePosition(m_Window);
 
         const bool lookAround = Input::IsKeyPressed(m_Window, p_Controls.ToggleLookAround);
         const fvec2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : fvec2{0.f};
@@ -1392,7 +1392,7 @@ void RenderContext<D2>::ApplyCameraScalingControls(const f32 p_ScaleStep) noexce
 {
     fmat4 transform = Onyx::Transform<D2>::Promote(m_ProjectionView.View.ComputeTransform());
     ApplyCoordinateSystemIntrinsic(transform);
-    const fvec2 mpos = transform * fvec4{Input::GetMousePosition(m_Window), 0.f, 1.f};
+    const fvec2 mpos = transform * fvec4{Input::GetNativeMousePosition(m_Window), 0.f, 1.f};
 
     const fvec2 dpos = p_ScaleStep * (mpos - m_ProjectionView.View.Translation);
     m_ProjectionView.View.Translation += dpos;
@@ -1419,11 +1419,11 @@ template <Dimension D> fvec<D> IRenderContext<D>::GetCoordinates(const fvec<D> &
 }
 fvec2 RenderContext<D2>::GetMouseCoordinates() const noexcept
 {
-    return GetCoordinates(Input::GetMousePosition(m_Window));
+    return GetCoordinates(Input::GetNativeMousePosition(m_Window));
 }
 fvec3 RenderContext<D3>::GetMouseCoordinates(const f32 p_Depth) const noexcept
 {
-    return GetCoordinates(fvec3{Input::GetMousePosition(m_Window), p_Depth});
+    return GetCoordinates(fvec3{Input::GetNativeMousePosition(m_Window), p_Depth});
 }
 
 void RenderContext<D3>::SetProjection(const fmat4 &p_Projection) noexcept

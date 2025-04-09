@@ -193,7 +193,19 @@ enum class Mouse : u8
  * @param p_Window The window to get the mouse position from.
  * @return The mouse position.
  */
-ONYX_API fvec2 GetMousePosition(Window *p_Window) noexcept;
+ONYX_API fvec2 GetNativeMousePosition(Window *p_Window) noexcept;
+
+/**
+ * @brief Get the current mouse position, normalized between -1 and 1 with the screen dimensions.
+ *
+ * The position follows a centered coordinate system, with the y axis pointing upwards. This coordinate system is
+ * constant and is retrieved directly from the GLFW API. To get the mouse position according to the render context
+ * axes', call its `GetMouseCoordinates()` method instead.
+ *
+ * @param p_Window The window to get the mouse position from.
+ * @return The mouse position.
+ */
+ONYX_API fvec2 GetCartesianMousePosition(Window *p_Window) noexcept;
 
 /**
  * @brief Check if a key is currently pressed.
