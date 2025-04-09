@@ -3,7 +3,7 @@
 #include "onyx/core/core.hpp"
 #include "vkit/pipeline/pipeline_layout.hpp"
 #include "onyx/draw/primitives.hpp"
-#include "onyx/rendering/render_specs.hpp"
+#include "onyx/rendering/render_structs.hpp"
 #include "onyx/core/shaders.hpp"
 #include "tkit/utils/logging.hpp"
 

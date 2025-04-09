@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/rendering/render_specs.hpp"
+#include "onyx/rendering/render_structs.hpp"
 
 namespace Onyx::Detail
 {

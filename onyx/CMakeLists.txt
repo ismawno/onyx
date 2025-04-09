@@ -8,7 +8,7 @@ set(SOURCES
     onyx/rendering/render_context.cpp
     onyx/rendering/render_systems.cpp
     onyx/rendering/renderer.cpp
-    onyx/rendering/render_specs.cpp
+    onyx/rendering/render_structs.cpp
     onyx/rendering/frame_scheduler.cpp
     onyx/rendering/post_processing.cpp
     onyx/draw/vertex.cpp

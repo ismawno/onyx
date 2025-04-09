@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/rendering/render_specs.hpp"
+#include "onyx/rendering/render_structs.hpp"
 #include "onyx/core/shaders.hpp"
 
 namespace Onyx::Detail
