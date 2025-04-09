@@ -34,17 +34,6 @@ ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept;
 ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept;
 
 /**
- * @brief Promote a 2D transform to an equivalent 3D transform.
- *
- * This function takes a 2D transform and promotes it to a 3D transform by adding a Z-axis component set to the
- * identity.
- *
- * @param p_Transform The 2D transform to promote.
- * @return The promoted 3D transform.
- */
-ONYX_API fmat4 PromoteTransform(const fmat3 &p_Transform) noexcept;
-
-/**
  * @brief The `MaterialData` struct is a simple collection of data that represents the material of a shape.
  *
  * The material is a simple color in 2D, and a color with additional properties in 3D, mostly used for lighting. The

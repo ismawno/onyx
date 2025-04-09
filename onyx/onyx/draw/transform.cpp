@@ -248,6 +248,35 @@ Transform<D3> Transform<D3>::Extract(const fmat4 &p_Transform) noexcept
     return transform;
 }
 
+Transform<D3> Transform<D2>::Promote(const Transform &p_Transform) noexcept
+{
+    Transform<D3> transform;
+    transform.Translation = fvec3{p_Transform.Translation, 0.f};
+    transform.Scale = fvec3{p_Transform.Scale, 1.f};
+    transform.Rotation = quat{{0.f, 0.f, p_Transform.Rotation}};
+    return transform;
+}
+Transform<D3> Transform<D2>::Promote() noexcept
+{
+    Transform<D3> transform;
+    transform.Translation = fvec3{Translation, 0.f};
+    transform.Scale = fvec3{Scale, 1.f};
+    transform.Rotation = quat{{0.f, 0.f, Rotation}};
+    return transform;
+}
+fmat4 Transform<D2>::Promote(const fmat3 &p_Transform) noexcept
+{
+    fmat4 t4{1.f};
+    t4[0][0] = p_Transform[0][0];
+    t4[0][1] = p_Transform[0][1];
+    t4[1][0] = p_Transform[1][0];
+    t4[1][1] = p_Transform[1][1];
+
+    t4[3][0] = p_Transform[2][0];
+    t4[3][1] = p_Transform[2][1];
+    return t4;
+}
+
 template <Dimension D> fvec<D> ITransform<D>::ExtractTranslation(const fmat<D> &p_Transform) noexcept
 {
     return fvec<D>{p_Transform[D]};

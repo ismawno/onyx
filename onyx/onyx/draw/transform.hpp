@@ -254,44 +254,6 @@ template <Dimension D> struct ITransform
 template <Dimension D> struct Transform;
 
 /**
- * @brief Specialization of Transform for 2D transformations.
- *
- * Provides additional methods specific to 2D transformations.
- */
-template <> struct ONYX_API Transform<D2> : ITransform<D2>
-{
-    using ITransform<D2>::Extract;
-
-    /**
-     * @brief Applies an intrinsic rotation to a 2D transformation matrix.
-     *
-     * Intrinsic rotations are applied relative to the object's local coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
-     */
-    static void RotateIntrinsic(fmat3 &p_Transform, f32 p_Angle) noexcept;
-
-    /**
-     * @brief Applies an extrinsic rotation to a 2D transformation matrix.
-     *
-     * Extrinsic rotations are applied relative to the global coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
-     */
-    static void RotateExtrinsic(fmat3 &p_Transform, f32 p_Angle) noexcept;
-
-    /**
-     * @brief Extracts a 2D Transform object from a transformation matrix.
-     *
-     * @param p_Transform The transformation matrix.
-     * @return The extracted Transform object.
-     */
-    static Transform Extract(const fmat3 &p_Transform) noexcept;
-};
-
-/**
  * @brief Specialization of Transform for 3D transformations.
  *
  * Provides additional methods specific to 3D transformations.
@@ -387,6 +349,76 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @return The extracted Transform object.
      */
     static Transform Extract(const fmat4 &p_Transform) noexcept;
+};
+
+/**
+ * @brief Specialization of Transform for 2D transformations.
+ *
+ * Provides additional methods specific to 2D transformations.
+ */
+template <> struct ONYX_API Transform<D2> : ITransform<D2>
+{
+    using ITransform<D2>::Extract;
+
+    /**
+     * @brief Applies an intrinsic rotation to a 2D transformation matrix.
+     *
+     * Intrinsic rotations are applied relative to the object's local coordinate system.
+     *
+     * @param p_Transform The transformation matrix to modify.
+     * @param p_Angle The rotation angle in radians.
+     */
+    static void RotateIntrinsic(fmat3 &p_Transform, f32 p_Angle) noexcept;
+
+    /**
+     * @brief Applies an extrinsic rotation to a 2D transformation matrix.
+     *
+     * Extrinsic rotations are applied relative to the global coordinate system.
+     *
+     * @param p_Transform The transformation matrix to modify.
+     * @param p_Angle The rotation angle in radians.
+     */
+    static void RotateExtrinsic(fmat3 &p_Transform, f32 p_Angle) noexcept;
+
+    /**
+     * @brief Extracts a 2D Transform object from a transformation matrix.
+     *
+     * @param p_Transform The transformation matrix.
+     * @return The extracted Transform object.
+     */
+    static Transform Extract(const fmat3 &p_Transform) noexcept;
+
+    /**
+     * @brief Promote a 2D transform to an equivalent 3D transform.
+     *
+     * This function takes a 2D transform and promotes it to a 3D transform by adding a Z-axis component set to the
+     * identity.
+     *
+     * @param p_Transform The 2D transform to promote.
+     * @return The promoted 3D transform.
+     */
+    static Transform<D3> Promote(const Transform &p_Transform) noexcept;
+
+    /**
+     * @brief Promote a 2D transform to an equivalent 3D transform.
+     *
+     * This function takes a 2D transform and promotes it to a 3D transform by adding a Z-axis component set to the
+     * identity.
+     *
+     * @param p_Transform The 2D transform to promote.
+     * @return The promoted 3D transform.
+     */
+    static fmat4 Promote(const fmat3 &p_Transform) noexcept;
+
+    /**
+     * @brief Promote a 2D transform to an equivalent 3D transform.
+     *
+     * This function promotes a 2D transform into a 3D transform by adding a Z-axis component set to the
+     * identity.
+     *
+     * @return The promoted 3D transform.
+     */
+    Transform<D3> Promote() noexcept;
 };
 
 } // namespace Onyx

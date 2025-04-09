@@ -258,7 +258,7 @@ void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer,
     RenderInfo<DrawLevel::Simple> simpleDrawInfo;
     simpleDrawInfo.CommandBuffer = p_CommandBuffer;
 
-    fmat4 projectionView = PromoteTransform(p_ProjectionView.ProjectionView);
+    fmat4 projectionView = Onyx::Transform<D2>::Promote(p_ProjectionView.ProjectionView);
     ApplyCoordinateSystemExtrinsic(projectionView);
     simpleDrawInfo.ProjectionView = &projectionView;
     simpleDrawInfo.FrameIndex = m_FrameIndex;

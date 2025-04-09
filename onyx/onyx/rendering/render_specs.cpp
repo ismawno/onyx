@@ -17,18 +17,6 @@ void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept
     p_Transform[1] = -p_Transform[1];
     p_Transform[2] = -p_Transform[2];
 }
-fmat4 PromoteTransform(const fmat3 &p_Transform) noexcept
-{
-    fmat4 t4{1.f};
-    t4[0][0] = p_Transform[0][0];
-    t4[0][1] = p_Transform[0][1];
-    t4[1][0] = p_Transform[1][0];
-    t4[1][1] = p_Transform[1][1];
-
-    t4[3][0] = p_Transform[2][0];
-    t4[3][1] = p_Transform[2][1];
-    return t4;
-}
 } // namespace Onyx
 
 namespace Onyx::Detail
