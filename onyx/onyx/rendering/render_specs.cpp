@@ -2,23 +2,6 @@
 #include "onyx/rendering/render_specs.hpp"
 #include "onyx/core/shaders.hpp"
 
-namespace Onyx
-{
-void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept
-{
-    // Essentially, a rotation around the x axis
-    for (glm::length_t i = 0; i < 4; ++i)
-        for (glm::length_t j = 1; j <= 2; ++j)
-            p_Transform[i][j] = -p_Transform[i][j];
-}
-void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept
-{
-    // Essentially, a rotation around the x axis
-    p_Transform[1] = -p_Transform[1];
-    p_Transform[2] = -p_Transform[2];
-}
-} // namespace Onyx
-
 namespace Onyx::Detail
 {
 template <Dimension D, DrawLevel DLevel>

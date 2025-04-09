@@ -12,28 +12,6 @@
 namespace Onyx
 {
 /**
- * @brief Modify the transform to comply with a specific coordinate system extrinsically.
- *
- * The current coordinate system used by this library is right-handed, with the center of the screen being at the
- * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
- *
- * @param p_Transform The transform to modify.
- */
-ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept;
-
-/**
- * @brief Modify the transform to comply with a specific coordinate system intrinsically.
- *
- * The current coordinate system used by this library is right-handed, with the center of the screen being at the
- * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
- *
- * This version of the function is used to apply such coordinate system to the corresponding inverse transform.
- *
- * @param p_Transform The transform to modify.
- */
-ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept;
-
-/**
  * @brief The `MaterialData` struct is a simple collection of data that represents the material of a shape.
  *
  * The material is a simple color in 2D, and a color with additional properties in 3D, mostly used for lighting. The
