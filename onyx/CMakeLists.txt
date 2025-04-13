@@ -5,6 +5,7 @@ set(SOURCES
     onyx/core/pch.cpp
     onyx/core/core.cpp
     onyx/core/shaders.cpp
+    onyx/rendering/camera.cpp
     onyx/rendering/render_context.cpp
     onyx/rendering/render_systems.cpp
     onyx/rendering/renderer.cpp

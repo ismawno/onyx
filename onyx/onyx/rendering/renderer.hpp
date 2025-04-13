@@ -209,9 +209,9 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
      * @brief Record all stored draw calls into the command buffer for execution.
      *
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
-     * @param p_ProjectionView The current projection view data.
+     * @param p_Cameras The cameras from which to render the scene.
      */
-    void Render(VkCommandBuffer p_CommandBuffer, const ProjectionViewData<D2> &p_ProjectionView) noexcept;
+    void Render(VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
 
     /**
      * @brief Clear all host data and resets the renderer's state.
@@ -315,9 +315,9 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
      * @brief Record all stored draw calls into the command buffer for execution.
      *
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
-     * @param p_ProjectionView The current projection view data.
+     * @param p_Cameras The cameras from which to render the scene.
      */
-    void Render(VkCommandBuffer p_CommandBuffer, const ProjectionViewData<D3> &p_ProjectionView) noexcept;
+    void Render(VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
 
     /**
      * @brief Add a directional light to the scene.
@@ -340,17 +340,11 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
      */
     void Flush() noexcept;
 
-    /// Ambient light color and intensity in the scene.
     Color AmbientColor = Color{Color::WHITE, 0.4f};
 
   private:
-    /// Collection of directional lights in the scene.
     TKit::StaticArray<DirectionalLight, ONYX_MAX_DIRECTIONAL_LIGHTS> m_DirectionalLights;
-
-    /// Collection of point lights in the scene.
     TKit::StaticArray<PointLight, ONYX_MAX_POINT_LIGHTS> m_PointLights;
-
-    /// Device-side storage and descriptors for light data.
     DeviceLightData m_DeviceLightData{ONYX_BUFFER_INITIAL_CAPACITY};
 };
 } // namespace Onyx::Detail

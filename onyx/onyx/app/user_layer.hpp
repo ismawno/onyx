@@ -16,7 +16,7 @@ struct Event;
 
 template <Dimension D> struct Transform;
 template <Dimension D> struct MaterialData;
-template <Dimension D> struct CameraMovementControls;
+template <Dimension D> struct CameraControls;
 
 struct DirectionalLight;
 struct PointLight;
@@ -212,8 +212,7 @@ class ONYX_API UserLayer
     template <Dimension D> static void MaterialEditor(MaterialData<D> &p_Material, Flags p_Flags = 0) noexcept;
 
     template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;
-    template <Dimension D>
-    static void DisplayCameraMovementControls(const CameraMovementControls<D> &p_Controls = {}) noexcept;
+    template <Dimension D> static void DisplayCameraControls(const CameraControls<D> &p_Controls = {}) noexcept;
 
     static void DisplayFrameTime(TKit::Timespan p_DeltaTime, Flags p_Flags = 0) noexcept;
 

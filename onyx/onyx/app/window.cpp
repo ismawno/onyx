@@ -15,19 +15,14 @@ Window::Window() noexcept : Window(Specs{})
 Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height)
 {
     createWindow(p_Specs);
-
-    const VkRenderPass renderPass = m_FrameScheduler->GetRenderPass();
-    m_RenderContext2D.Construct(this, renderPass);
-    m_RenderContext3D.Construct(this, renderPass);
-
     SetPresentMode(p_Specs.PresentMode);
 }
 
 Window::~Window() noexcept
 {
     m_FrameScheduler.Destruct();
-    m_RenderContext2D.Destruct();
-    m_RenderContext3D.Destruct();
+    m_RenderContexts2D.clear();
+    m_RenderContexts3D.clear();
     vkDestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
@@ -171,6 +166,14 @@ const TKit::StaticArray32<Event> &Window::GetNewEvents() const noexcept
 void Window::FlushEvents() noexcept
 {
     m_Events.clear();
+}
+
+void Window::AdaptCamerasToViewportAspect() noexcept
+{
+    for (const auto &context : m_RenderContexts2D)
+        context->AdaptCamerasToViewportAspect();
+    for (const auto &context : m_RenderContexts3D)
+        context->AdaptCamerasToViewportAspect();
 }
 
 const VKit::RenderPass &Window::GetRenderPass() const noexcept

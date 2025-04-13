@@ -94,11 +94,15 @@ class ONYX_API Window
 
             std::forward<F1>(p_FirstDraws)(cmd);
 
-            m_RenderContext2D->SendToDevice();
-            m_RenderContext3D->SendToDevice();
+            for (const auto &context : m_RenderContexts2D)
+                context->SendToDevice();
+            for (const auto &context : m_RenderContexts3D)
+                context->SendToDevice();
 
-            m_RenderContext2D->Render(cmd);
-            m_RenderContext3D->Render(cmd);
+            for (const auto &context : m_RenderContexts2D)
+                context->Render(cmd);
+            for (const auto &context : m_RenderContexts3D)
+                context->Render(cmd);
 
             std::forward<F2>(p_LastDraws)(cmd);
 
@@ -222,32 +226,41 @@ class ONYX_API Window
 
     void FlushEvents() noexcept;
 
-    /**
-     * @brief Gets the render context for the specified dimension.
-     *
-     * @tparam D The dimension (`D2` or `D3`).
-     * @return Pointer to the render context.
-     */
-    template <Dimension D> const RenderContext<D> *GetRenderContext() const noexcept
+    template <Dimension D> RenderContext<D> *CreateRenderContext() noexcept
     {
-        if constexpr (D == D2)
-            return m_RenderContext2D.Get();
-        else
-            return m_RenderContext3D.Get();
+        auto context = TKit::Scope<RenderContext<D>>::Create(this, GetRenderPass());
+        auto &array = getContextArray<D>();
+        RenderContext<D> *ptr = context.Get();
+        array.push_back(std::move(context));
+        return ptr;
     }
-    /**
-     * @brief Gets the render context for the specified dimension.
-     *
-     * @tparam D The dimension (`D2` or `D3`).
-     * @return Pointer to the render context.
-     */
-    template <Dimension D> RenderContext<D> *GetRenderContext() noexcept
+    template <Dimension D> RenderContext<D> *GetRenderContext(const u32 p_Index = 0) noexcept
     {
-        if constexpr (D == D2)
-            return m_RenderContext2D.Get();
-        else
-            return m_RenderContext3D.Get();
+        auto &array = getContextArray<D>();
+        return array[p_Index].Get();
     }
+    template <Dimension D> void DestroyRenderContext(const u32 p_Index = 0) noexcept
+    {
+        auto &array = getContextArray<D>();
+        array.erase(array.begin() + p_Index);
+    }
+    template <Dimension D> void DestroyRenderContext(const RenderContext<D> *p_Context) noexcept
+    {
+        auto &array = getContextArray<D>();
+        for (u32 i = 0; i < array.size(); ++i)
+            if (array[i].Get() == p_Context)
+            {
+                DestroyRenderContext<D>(i);
+                return;
+            }
+    }
+
+    /**
+     * @brief Scale camera views to adapt to their viewport aspects.
+     *
+     * This method is called automatically on window resize events so that elements in the scene are not distorted.
+     */
+    void AdaptCamerasToViewportAspect() noexcept;
 
     const VKit::RenderPass &GetRenderPass() const noexcept;
     u32 GetFrameIndex() const noexcept;
@@ -267,11 +280,19 @@ class ONYX_API Window
   private:
     void createWindow(const Specs &p_Specs) noexcept;
 
+    template <Dimension D> auto &getContextArray() noexcept
+    {
+        if constexpr (D == D2)
+            return m_RenderContexts2D;
+        else
+            return m_RenderContexts3D;
+    }
+
     GLFWwindow *m_Window;
 
     TKit::Storage<Detail::FrameScheduler> m_FrameScheduler;
-    TKit::Storage<RenderContext<D2>> m_RenderContext2D;
-    TKit::Storage<RenderContext<D3>> m_RenderContext3D;
+    TKit::StaticArray4<TKit::Scope<RenderContext<D2>>> m_RenderContexts2D;
+    TKit::StaticArray4<TKit::Scope<RenderContext<D3>>> m_RenderContexts3D;
 
     TKit::StaticArray32<Event> m_Events;
     VkSurfaceKHR m_Surface;

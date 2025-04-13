@@ -263,28 +263,28 @@ void RoundedCube::Edit() noexcept
     UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
 
-template class Shape<D2>;
-template class Shape<D3>;
+template class ONYX_API Shape<D2>;
+template class ONYX_API Shape<D3>;
 
-template class Triangle<D2>;
-template class Triangle<D3>;
+template class ONYX_API Triangle<D2>;
+template class ONYX_API Triangle<D3>;
 
-template class Square<D2>;
-template class Square<D3>;
+template class ONYX_API Square<D2>;
+template class ONYX_API Square<D3>;
 
-template class Circle<D2>;
-template class Circle<D3>;
+template class ONYX_API Circle<D2>;
+template class ONYX_API Circle<D3>;
 
-template class NGon<D2>;
-template class NGon<D3>;
+template class ONYX_API NGon<D2>;
+template class ONYX_API NGon<D3>;
 
-template class Polygon<D2>;
-template class Polygon<D3>;
+template class ONYX_API Polygon<D2>;
+template class ONYX_API Polygon<D3>;
 
-template class Stadium<D2>;
-template class Stadium<D3>;
+template class ONYX_API Stadium<D2>;
+template class ONYX_API Stadium<D3>;
 
-template class RoundedSquare<D2>;
-template class RoundedSquare<D3>;
+template class ONYX_API RoundedSquare<D2>;
+template class ONYX_API RoundedSquare<D3>;
 
 } // namespace Onyx::Demo

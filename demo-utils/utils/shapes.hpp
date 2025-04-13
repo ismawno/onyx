@@ -110,7 +110,7 @@ template <Dimension D> class RoundedSquare final : public Shape<D>
     f32 m_Diameter = 1.f;
 };
 
-class Cube final : public Shape<D3>
+class ONYX_API Cube final : public Shape<D3>
 {
   public:
     const char *GetName() const noexcept override;
@@ -121,19 +121,7 @@ class Cube final : public Shape<D3>
     fvec3 m_Dimensions{1.f};
 };
 
-class Sphere final : public Shape<D3>
-{
-  public:
-    const char *GetName() const noexcept override;
-    void Edit() noexcept override;
-
-  private:
-    void draw(RenderContext<D3> *p_Context) noexcept override;
-    Resolution m_Res = Resolution::Medium;
-    fvec3 m_Dimensions{1.f};
-};
-
-class Cylinder final : public Shape<D3>
+class ONYX_API Sphere final : public Shape<D3>
 {
   public:
     const char *GetName() const noexcept override;
@@ -145,7 +133,19 @@ class Cylinder final : public Shape<D3>
     fvec3 m_Dimensions{1.f};
 };
 
-class Capsule final : public Shape<D3>
+class ONYX_API Cylinder final : public Shape<D3>
+{
+  public:
+    const char *GetName() const noexcept override;
+    void Edit() noexcept override;
+
+  private:
+    void draw(RenderContext<D3> *p_Context) noexcept override;
+    Resolution m_Res = Resolution::Medium;
+    fvec3 m_Dimensions{1.f};
+};
+
+class ONYX_API Capsule final : public Shape<D3>
 {
   public:
     const char *GetName() const noexcept override;
@@ -158,7 +158,7 @@ class Capsule final : public Shape<D3>
     f32 m_Diameter = 1.f;
 };
 
-class RoundedCube final : public Shape<D3>
+class ONYX_API RoundedCube final : public Shape<D3>
 {
   public:
     const char *GetName() const noexcept override;

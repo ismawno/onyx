@@ -78,8 +78,7 @@ template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Tr
 template void UserLayer::DisplayTransform<D2>(const Transform<D2> &p_Transform, Flags p_Flags) noexcept;
 template void UserLayer::DisplayTransform<D3>(const Transform<D3> &p_Transform, Flags p_Flags) noexcept;
 
-template <Dimension D>
-void UserLayer::DisplayCameraMovementControls(const CameraMovementControls<D> &p_Controls) noexcept
+template <Dimension D> void UserLayer::DisplayCameraControls(const CameraControls<D> &p_Controls) noexcept
 {
     if constexpr (D == D2)
     {
@@ -104,8 +103,8 @@ void UserLayer::DisplayCameraMovementControls(const CameraMovementControls<D> &p
     }
 }
 
-template void UserLayer::DisplayCameraMovementControls<D2>(const CameraMovementControls<D2> &p_Controls) noexcept;
-template void UserLayer::DisplayCameraMovementControls<D3>(const CameraMovementControls<D3> &p_Controls) noexcept;
+template void UserLayer::DisplayCameraControls<D2>(const CameraControls<D2> &p_Controls) noexcept;
+template void UserLayer::DisplayCameraControls<D3>(const CameraControls<D3> &p_Controls) noexcept;
 
 void UserLayer::DisplayFrameTime(const TKit::Timespan p_DeltaTime, const Flags p_Flags) noexcept
 {

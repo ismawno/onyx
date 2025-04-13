@@ -68,34 +68,6 @@ template <> struct ONYX_API RenderState<D3>
     bool Outline = false;
 };
 
-/**
- * @brief The `ProjectionViewData` struct is a simple struct that holds the view and projection matrices.
- *
- * 2D shapes only need a view matrix, as the projection matrix is always an orthographic projection matrix. The view can
- * also include scaling.
- *
- * In 2D, the projection view matrix is the "raw" inverse of the view's transform. Then, just before sending the data to
- * the gpu as a `fmat4`, the renderer applies the extrinsic coordinate system.
- *
- * In 3D, the projection view matrix is the projection matrix multiplied by the view matrix. As the view matrix is
- * already a `fmat4`, the renderer can directly apply the extrinsic coordinate system.
- *
- * @tparam D The dimension (`D2` or `D3`).
- */
-template <Dimension D> struct ProjectionViewData;
-
-template <> struct ONYX_API ProjectionViewData<D2>
-{
-    Transform<D2> View{};
-    fmat3 ProjectionView{1.f};
-};
-template <> struct ONYX_API ProjectionViewData<D3>
-{
-    Transform<D3> View{};
-    fmat4 Projection{1.f};
-    fmat4 ProjectionView{1.f};
-};
-
 struct CircleOptions
 {
     f32 InnerFade = 0.f;
@@ -215,6 +187,15 @@ template <Dimension D, PipelineMode PMode> constexpr DrawLevel GetDrawLevel() no
     return GetDrawLevel<D, GetDrawMode<PMode>()>();
 }
 
+struct ONYX_API CameraInfo
+{
+    fmat4 ProjectionView;
+    Color BackgroundColor;
+    fvec3 ViewPosition; // Unused in 2D... not ideal
+    VkViewport Viewport;
+    VkRect2D Scissor;
+};
+
 /**
  * @brief The `RenderInfo` is a small struct containing information the renderers need to draw their shapes.
  *
@@ -228,7 +209,7 @@ template <DrawLevel DLevel> struct RenderInfo;
 template <> struct ONYX_API RenderInfo<DrawLevel::Simple>
 {
     VkCommandBuffer CommandBuffer;
-    const fmat4 *ProjectionView;
+    const CameraInfo *Camera;
     u32 FrameIndex;
 };
 
@@ -236,7 +217,7 @@ template <> struct ONYX_API RenderInfo<DrawLevel::Complex>
 {
     VkCommandBuffer CommandBuffer;
     VkDescriptorSet LightStorageBuffers;
-    const fmat4 *ProjectionView;
+    const CameraInfo *Camera;
     const Color *AmbientColor;
     const fvec3 *ViewPosition;
     u32 FrameIndex;

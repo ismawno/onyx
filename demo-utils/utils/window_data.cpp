@@ -4,7 +4,7 @@
 #include <imgui.h>
 #include <implot.h>
 
-// dirty ass macros as lazy enums lol
+// dirty macros as lazy enums lol
 #define TRIANGLE 0
 #define SQUARE 1
 #define CIRCLE 2
@@ -54,8 +54,6 @@ static const VKit::Shader &getBlurShader() noexcept
 
 void WindowData::OnStart(Window *p_Window) noexcept
 {
-    m_LayerData2.Context = p_Window->GetRenderContext<D2>();
-    m_LayerData3.Context = p_Window->GetRenderContext<D3>();
     m_Window = p_Window;
 
     const auto presult =
@@ -93,8 +91,11 @@ void WindowData::OnUpdate() noexcept
 
 void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Timespan p_Timestep) noexcept
 {
-    drawShapes(m_LayerData2, p_Timestep);
-    drawShapes(m_LayerData3, p_Timestep);
+    for (const LayerData<D2> &ldata : m_LayerData2.Data)
+        drawShapes(ldata, p_Timestep);
+
+    for (const LayerData<D3> &ldata : m_LayerData3.Data)
+        drawShapes(ldata, p_Timestep);
 
     if (m_RainbowBackground)
     {
@@ -144,22 +145,32 @@ void WindowData::OnImGuiRender() noexcept
     ImGui::EndTabBar();
 }
 
-template <Dimension D> static void processPolygonEvent(LayerData<D> &p_Data, const Event &p_Event)
+template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Container, const Event &p_Event)
 {
-    if (p_Event.Type != Event::MousePressed || p_Data.ShapeToSpawn != POLYGON)
-        return;
-    if constexpr (D == D2)
-        p_Data.PolygonVertices.push_back(p_Data.Context->GetMouseCoordinates());
-    else
-        p_Data.PolygonVertices.push_back(p_Data.Context->GetMouseCoordinates(p_Data.ZOffset));
+    for (u32 i = 0; i < p_Container.Data.size(); ++i)
+        if (i == p_Container.Selected)
+            for (u32 j = 0; j < p_Container.Data[i].Cameras.size(); ++j)
+                if (j == p_Container.Data[i].ActiveCamera && p_Container.Data[i].ShapeToSpawn == POLYGON)
+                {
+                    LayerData<D> &data = p_Container.Data[i];
+                    Camera<D> *camera = data.Cameras[j].Camera;
+                    if constexpr (D == D2)
+                    {
+                        if (p_Event.Type == Event::MousePressed)
+                            data.PolygonVertices.push_back(camera->GetMousePosition());
+                        else if (Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift))
+                            camera->ControlScrollWithUserInput(0.005f * p_Event.ScrollOffset.y);
+                    }
+                    else if (p_Event.Type == Event::MousePressed)
+                        data.PolygonVertices.push_back(camera->GetMousePosition(data.Cameras[j].ZOffset));
+                    return;
+                }
 }
 
 void WindowData::OnEvent(const Event &p_Event) noexcept
 {
-    processPolygonEvent(m_LayerData2, p_Event);
-    processPolygonEvent(m_LayerData3, p_Event);
-    if (p_Event.Type == Event::Scrolled && Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift))
-        m_LayerData2.Context->ApplyCameraScalingControls(0.005f * p_Event.ScrollOffset.y);
+    processEvent(m_LayerData2, p_Event);
+    processEvent(m_LayerData3, p_Event);
 }
 
 void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
@@ -193,7 +204,12 @@ void WindowData::RenderEditorText() noexcept
 template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, const TKit::Timespan p_Timestep) noexcept
 {
     p_Data.Context->Flush(m_BackgroundColor);
-    p_Data.Context->ApplyCameraMovementControls(p_Timestep);
+    for (u32 i = 0; i < p_Data.Cameras.size(); ++i)
+        if (i == p_Data.ActiveCamera)
+        {
+            p_Data.Cameras[i].Camera->ControlMovementWithUserInput(p_Timestep);
+            break;
+        }
     p_Data.Context->TransformAxes(p_Data.AxesTransform.ComputeTransform());
 
     const LatticeData<D> &lattice = p_Data.Lattice;
@@ -270,6 +286,44 @@ template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, c
             p_Data.Context->LightColor(light.Color);
             p_Data.Context->PointLight(light);
         }
+    }
+}
+
+template <typename C, typename F>
+static void renderSelectable(const char *p_TreeName, const char *p_ElementName, C &p_Container, u32 &p_Selected,
+                             F &&p_OnSelected) noexcept
+{
+    renderSelectable(p_TreeName, p_ElementName, p_Container, p_Selected, std::forward<F>(p_OnSelected),
+                     [](const auto &) {});
+}
+
+template <typename C, typename F1, typename F2>
+static void renderSelectable(const char *p_TreeName, const char *p_ElementName, C &p_Container, u32 &p_Selected,
+                             F1 &&p_OnSelected, F2 &&p_OnRemoval) noexcept
+{
+    if (!p_Container.empty() && ImGui::TreeNode(p_TreeName))
+    {
+        if (ImGui::Button("Clear"))
+            p_Container.clear();
+
+        for (u32 i = 0; i < p_Container.size(); ++i)
+        {
+            ImGui::PushID(&p_Container[i]);
+            if (ImGui::Button("X"))
+            {
+                p_OnRemoval(p_Container[i]);
+                p_Container.erase(p_Container.begin() + i);
+                ImGui::PopID();
+                break;
+            }
+            ImGui::SameLine();
+            if (ImGui::Selectable(p_ElementName, p_Selected == i))
+                p_Selected = i;
+            ImGui::PopID();
+        }
+        if (p_Selected < p_Container.size())
+            p_OnSelected(p_Container[p_Selected]);
+        ImGui::TreePop();
     }
 }
 
@@ -455,43 +509,19 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         ImGui::TreePop();
     }
 
-    if (!p_Data.Shapes.empty() && ImGui::TreeNode("Spawned shapes"))
-    {
-        if (ImGui::Button("Clear"))
-            p_Data.Shapes.clear();
-
-        for (u32 i = 0; i < p_Data.Shapes.size(); ++i)
-        {
-            ImGui::PushID(&p_Data.Shapes[i]);
-            if (ImGui::Button("X"))
-            {
-                p_Data.Shapes.erase(p_Data.Shapes.begin() + i);
-                ImGui::PopID();
-                break;
-            }
-            ImGui::SameLine();
-            if (ImGui::Selectable(p_Data.Shapes[i]->GetName(), p_Data.SelectedShape == i))
-                p_Data.SelectedShape = i;
-            ImGui::PopID();
-        }
-        if (p_Data.SelectedShape < p_Data.Shapes.size())
-            p_Data.Shapes[p_Data.SelectedShape]->Edit();
-        ImGui::TreePop();
-    }
+    renderSelectable("Spawned shapes", "Shape", p_Data.Shapes, p_Data.SelectedShape,
+                     [](const TKit::Scope<Shape<D>> &p_Shape) { p_Shape->Edit(); });
 }
 
-template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
+template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noexcept
 {
-    const fvec2 spos = Input::GetCartesianMousePosition(m_Window);
-    ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos.x, spos.y);
-    UserLayer::HelpMarkerSameLine(
-        "The screen mouse position is always normalized to the window size, always ranging "
-        "from (-1, -1) to (1, 1) for 'x' and 'y', and from (0, 0) to (1, 1) for 'z' respectively.");
+    Camera<D> *camera = p_Data.Camera;
+    ImGui::ColorEdit3("Background", camera->BackgroundColor.AsPointer());
 
     if constexpr (D == D2)
     {
-        const fvec2 wpos2 = m_LayerData2.Context->GetMouseCoordinates();
-        ImGui::Text("World mouse position 2D: (%.2f, %.2f)", wpos2.x, wpos2.y);
+        const fvec2 wpos2 = camera->GetMousePosition();
+        ImGui::Text("World mouse position: (%.2f, %.2f)", wpos2.x, wpos2.y);
     }
     else
     {
@@ -503,17 +533,105 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
             "(screen coordinates). Note that, if in perspective mode, 0 corresponds to the near plane and 1 to the "
             "far plane.");
 
-        const fvec3 mpos3 = m_LayerData3.Context->GetMouseCoordinates(p_Data.ZOffset);
-        ImGui::Text("Mouse position 3D: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
+        const fvec3 mpos3 = camera->GetMousePosition(p_Data.ZOffset);
+        ImGui::Text("Mouse position: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
     }
     UserLayer::HelpMarkerSameLine("The world mouse position has world units, meaning it is scaled to the world "
                                   "coordinates and are compatible with the translation units of the shapes.");
 
+    const Transform<D> view = camera->GetViewTransform();
+    ImGui::Text("View transform (with respect current axes)");
+    UserLayer::HelpMarkerSameLine(
+        "This view transform is represented specifically with respect the current axes, "
+        "but note that, as the view is a global state that is not reset every frame in "
+        "the Onyx render context, it is generally detached from the axes transform. Onyx, under the hood, uses "
+        "the detached view transform to setup the scene. This not a design decision but a requirement, as the axes "
+        "is a somewhat volatile state (it is reset every frame).");
+
+    UserLayer::DisplayTransform(view, UserLayer::Flag_DisplayHelp);
+    if constexpr (D == D3)
+    {
+        const fvec3 lookDir = camera->GetViewLookDirection();
+        ImGui::Text("Look direction: (%.2f, %.2f, %.2f)", lookDir.x, lookDir.y, lookDir.z);
+        UserLayer::HelpMarkerSameLine("The look direction is the direction the camera is facing. It is the "
+                                      "direction of the camera's 'forward' vector in the current axes.");
+    }
+    if constexpr (D == D3)
+    {
+        i32 perspective = static_cast<i32>(p_Data.Perspective);
+        if (ImGui::Combo("Projection", &perspective, "Orthographic\0Perspective\0\0"))
+        {
+            p_Data.Perspective = perspective == 1;
+            if (p_Data.Perspective)
+                camera->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
+            else
+                camera->SetOrthographicProjection();
+        }
+
+        if (p_Data.Perspective)
+        {
+            f32 degs = glm::degrees(p_Data.FieldOfView);
+
+            bool changed = ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
+            changed |= ImGui::SliderFloat("Near", &p_Data.Near, 0.1f, 10.f);
+            changed |= ImGui::SliderFloat("Far", &p_Data.Far, 10.f, 100.f);
+            if (changed)
+            {
+                p_Data.FieldOfView = glm::radians(degs);
+                camera->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
+            }
+        }
+    }
+
+    ImGui::Text("The camera/view controls are the following:");
+    UserLayer::DisplayCameraControls<D>();
+    ImGui::TextWrapped(
+        "The view describes the position and orientation of the camera in the scene. It is defined as a matrix "
+        "that corresponds to the inverse of the camera's transform, and is applied to all objects in the scene. "
+        "When you 'move' the camera around, you are actually moving the scene in the opposite direction. That is "
+        "why the inverse is needed to transform the scene around you.");
+
+    ImGui::TextWrapped("The projection is defined as an additional matrix that is applied on top of the view. It "
+                       "projects and maps your scene onto your screen, and is responsible for the dimensions, "
+                       "aspect ratio and, if using a 3D perspective, the field of view of the scene. In Onyx, only "
+                       "orthographic and perspective projections are available. Orthographic projections are "
+                       "embedded into the view's transform.");
+    ImGui::TextWrapped("Orthographic projection: The scene is projected onto the screen without any perspective. "
+                       "This means that objects do not get smaller as they move away from the camera. This is "
+                       "useful for 2D games or when you want to keep the size of objects constant.");
+    ImGui::TextWrapped("Perspective projection: The scene is projected onto the screen with perspective. This "
+                       "means that objects get smaller as they move away from the camera, similar as how real life "
+                       "vision behaves. This is useful for 3D games or when you want to create a sense of depth in "
+                       "your scene. In Onyx, this projection is only available in 3D scenes.");
+}
+
+template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Container) noexcept
+{
+    const fvec2 spos = Input::GetCartesianMousePosition(m_Window);
+    ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos.x, spos.y);
+    UserLayer::HelpMarkerSameLine("The screen mouse position is always normalized to the window size, always ranging "
+                                  "from -1 to 1 for 'x' and 'y', and from 0 to 1 for 'z'.");
+
+    if (ImGui::Button("Add context"))
+    {
+        LayerData<D> layerData{};
+        layerData.Context = m_Window->CreateRenderContext<D>();
+        p_Container.Data.push_back(std::move(layerData));
+    }
+
+    renderSelectable(
+        "Contexts", "Context", p_Container.Data, p_Container.Selected,
+        [this](LayerData<D> &p_Data) { renderUI(p_Data); },
+        [this](const LayerData<D> &p_Data) { m_Window->DestroyRenderContext(p_Data.Context); });
+}
+
+template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
+{
     if (ImGui::CollapsingHeader("Shapes"))
         renderShapeSpawn(p_Data);
     if constexpr (D == D3)
         if (ImGui::CollapsingHeader("Lights"))
-            renderLightSpawn();
+            renderLightSpawn(p_Data);
 
     if (ImGui::CollapsingHeader("Axes"))
     {
@@ -538,130 +656,42 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 
     if (ImGui::CollapsingHeader("Projection & View"))
     {
-        const Transform<D> &view = p_Data.Context->GetViewTransformInCurrentAxes();
-        ImGui::Text("View transform (with respect current axes)");
-        UserLayer::HelpMarkerSameLine(
-            "This view transform is represented specifically with respect the current axes, "
-            "but note that, as the view is a global state that is not reset every frame in "
-            "the Onyx render context, it is generally detached from the axes transform. Onyx, behind the scenes, uses "
-            "the detached view transform to setup the scene. This not a design decision but a requirement, as the axes "
-            "is a somewhat volatile state (it is reset every frame).");
-
-        UserLayer::DisplayTransform(view, UserLayer::Flag_DisplayHelp);
-        if constexpr (D == D3)
+        if (ImGui::Button("Add camera"))
         {
-            const fvec3 lookDir = p_Data.Context->GetViewLookDirectionInCurrentAxes();
-            ImGui::Text("Look direction: (%.2f, %.2f, %.2f)", lookDir.x, lookDir.y, lookDir.z);
-            UserLayer::HelpMarkerSameLine("The look direction is the direction the camera is facing. It is the "
-                                          "direction of the camera's 'forward' vector in the current axes.");
+            Camera<D> *camera = p_Data.Context->CreateCamera();
+            CameraData<D> camData{};
+            camData.Camera = camera;
+            p_Data.Cameras.push_back(camData);
         }
-        if constexpr (D == D3)
-        {
-            i32 perspective = static_cast<i32>(p_Data.Perspective);
-            if (ImGui::Combo("Projection", &perspective, "Orthographic\0Perspective\0\0"))
-            {
-                p_Data.Perspective = perspective == 1;
-                if (p_Data.Perspective)
-                    p_Data.Context->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
-                else
-                    p_Data.Context->SetOrthographicProjection();
-            }
-
-            if (p_Data.Perspective)
-            {
-                f32 degs = glm::degrees(p_Data.FieldOfView);
-
-                bool changed = ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
-                changed |= ImGui::SliderFloat("Near", &p_Data.Near, 0.1f, 10.f);
-                changed |= ImGui::SliderFloat("Far", &p_Data.Far, 10.f, 100.f);
-                if (changed)
-                {
-                    p_Data.FieldOfView = glm::radians(degs);
-                    p_Data.Context->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
-                }
-            }
-        }
-
-        ImGui::Text("The camera/view controls are the following:");
-        UserLayer::DisplayCameraMovementControls<D>();
-        ImGui::TextWrapped(
-            "The view describes the position and orientation of the camera in the scene. It is defined as a matrix "
-            "that corresponds to the inverse of the camera's transform, and is applied to all objects in the scene. "
-            "When you 'move' the camera around, you are actually moving the scene in the opposite direction. That is "
-            "why the inverse is needed to transform the scene around you.");
-
-        ImGui::TextWrapped("The projection is defined as an additional matrix that is applied on top of the view. It "
-                           "projects and maps your scene onto your screen, and is responsible for the dimensions, "
-                           "aspect ratio and, if using a 3D perspective, the field of view of the scene. In Onyx, only "
-                           "orthographic and perspective projections are available. Orthographic projections are "
-                           "embedded into the view's transform.");
-        ImGui::TextWrapped("Orthographic projection: The scene is projected onto the screen without any perspective. "
-                           "This means that objects do not get smaller as they move away from the camera. This is "
-                           "useful for 2D games or when you want to keep the size of objects constant.");
-        ImGui::TextWrapped("Perspective projection: The scene is projected onto the screen with perspective. This "
-                           "means that objects get smaller as they move away from the camera, similar as how real life "
-                           "vision behaves. This is useful for 3D games or when you want to create a sense of depth in "
-                           "your scene. In Onyx, this projection is only available in 3D scenes.");
+        renderSelectable(
+            "Cameras", "Camera", p_Data.Cameras, p_Data.ActiveCamera,
+            [this](CameraData<D> &p_Camera) { renderCamera(p_Camera); },
+            [&p_Data](const CameraData<D> &p_Camera) { p_Data.Context->DestroyCamera(p_Camera.Camera); });
     }
 }
 
-void WindowData::renderLightSpawn() noexcept
+void WindowData::renderLightSpawn(LayerData<D3> &p_Data) noexcept
 {
-    ImGui::SliderFloat("Ambient intensity", &m_LayerData3.Ambient.w, 0.f, 1.f);
-    ImGui::ColorEdit3("Color", glm::value_ptr(m_LayerData3.Ambient));
+    ImGui::SliderFloat("Ambient intensity", &p_Data.Ambient.w, 0.f, 1.f);
+    ImGui::ColorEdit3("Color", glm::value_ptr(p_Data.Ambient));
 
     if (ImGui::Button("Spawn##Light"))
     {
-        if (m_LayerData3.LightToSpawn == 0)
-            m_LayerData3.DirectionalLights.push_back(m_LayerData3.DirLightToAdd);
+        if (p_Data.LightToSpawn == 0)
+            p_Data.DirectionalLights.push_back({fvec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE});
         else
-            m_LayerData3.PointLights.push_back(m_LayerData3.PointLightToAdd);
+            p_Data.PointLights.push_back({fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f});
     }
     ImGui::SameLine();
-    ImGui::Combo("Light", &m_LayerData3.LightToSpawn, "Directional\0Point\0\0");
-    if (m_LayerData3.LightToSpawn == 1)
-        ImGui::Checkbox("Draw##Light", &m_LayerData3.DrawLights);
+    ImGui::Combo("Light", &p_Data.LightToSpawn, "Directional\0Point\0\0");
+    if (p_Data.LightToSpawn == 1)
+        ImGui::Checkbox("Draw##Light", &p_Data.DrawLights);
 
-    if ((!m_LayerData3.DirectionalLights.empty() || !m_LayerData3.PointLights.empty()) &&
-        ImGui::TreeNode("Spawned lights"))
-    {
-        for (u32 i = 0; i < m_LayerData3.DirectionalLights.size(); ++i)
-        {
-            ImGui::PushID(&m_LayerData3.DirectionalLights[i]);
-            if (ImGui::Button("X"))
-            {
-                m_LayerData3.DirectionalLights.erase(m_LayerData3.DirectionalLights.begin() + i);
-                ImGui::PopID();
-                break;
-            }
-            ImGui::SameLine();
-            if (ImGui::Selectable("Directional", m_LayerData3.SelectedDirLight == i))
-                m_LayerData3.SelectedDirLight = i;
-            ImGui::PopID();
-        }
-        if (m_LayerData3.SelectedDirLight < m_LayerData3.DirectionalLights.size())
-            UserLayer::DirectionalLightEditor(m_LayerData3.DirectionalLights[m_LayerData3.SelectedDirLight],
-                                              UserLayer::Flag_DisplayHelp);
+    renderSelectable("Directional lights", "Directional", p_Data.DirectionalLights, p_Data.SelectedDirLight,
+                     [](DirectionalLight &p_Light) { UserLayer::DirectionalLightEditor(p_Light); });
 
-        for (u32 i = 0; i < m_LayerData3.PointLights.size(); ++i)
-        {
-            ImGui::PushID(&m_LayerData3.PointLights[i]);
-            if (ImGui::Button("X"))
-            {
-                m_LayerData3.PointLights.erase(m_LayerData3.PointLights.begin() + i);
-                ImGui::PopID();
-                break;
-            }
-            ImGui::SameLine();
-            if (ImGui::Selectable("Point", m_LayerData3.SelectedPointLight == i))
-                m_LayerData3.SelectedPointLight = i;
-            ImGui::PopID();
-        }
-        if (m_LayerData3.SelectedPointLight < m_LayerData3.PointLights.size())
-            UserLayer::PointLightEditor(m_LayerData3.PointLights[m_LayerData3.SelectedPointLight],
-                                        UserLayer::Flag_DisplayHelp);
-        ImGui::TreePop();
-    }
+    renderSelectable("Point lights", "Point", p_Data.PointLights, p_Data.SelectedPointLight,
+                     [](PointLight &p_Light) { UserLayer::PointLightEditor(p_Light); });
 }
 
 } // namespace Onyx::Demo

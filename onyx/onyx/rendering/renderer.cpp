@@ -251,28 +251,55 @@ static void doStencilTestNoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderer
     (p_Renderers.DoStencilTestNoFill.Render(p_RenderInfo), ...);
 }
 
-void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer,
-                          const ProjectionViewData<D2> &p_ProjectionView) noexcept
+template <Dimension D>
+static void setCameraViewport(const VkCommandBuffer p_CommandBuffer, const CameraInfo &p_Camera) noexcept
+{
+    const Color &bg = p_Camera.BackgroundColor;
+
+    TKit::Array<VkClearAttachment, D - 1> clearAttachments{};
+    clearAttachments[0].colorAttachment = 0;
+    clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    clearAttachments[0].clearValue.color = {{bg.RGBA.r, bg.RGBA.g, bg.RGBA.b, bg.RGBA.a}};
+
+    if constexpr (D == D3)
+    {
+        clearAttachments[1].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        clearAttachments[1].clearValue.depthStencil = {1.f, 0};
+    }
+
+    VkClearRect clearRect{};
+    clearRect.rect.offset = {static_cast<i32>(p_Camera.Viewport.x), static_cast<i32>(p_Camera.Viewport.y)};
+    clearRect.rect.extent = {static_cast<u32>(p_Camera.Viewport.width), static_cast<u32>(p_Camera.Viewport.height)};
+    clearRect.layerCount = 1;
+    clearRect.baseArrayLayer = 0;
+
+    vkCmdClearAttachments(p_CommandBuffer, D - 1, clearAttachments.data(), 1, &clearRect);
+    vkCmdSetViewport(p_CommandBuffer, 0, 1, &p_Camera.Viewport);
+    vkCmdSetScissor(p_CommandBuffer, 0, 1, &p_Camera.Scissor);
+}
+
+void Renderer<D2>::Render(const VkCommandBuffer p_CommandBuffer, const TKit::Span<const CameraInfo> p_Cameras) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer<D2>::Render");
     RenderInfo<DrawLevel::Simple> simpleDrawInfo;
     simpleDrawInfo.CommandBuffer = p_CommandBuffer;
-
-    fmat4 projectionView = Onyx::Transform<D2>::Promote(p_ProjectionView.ProjectionView);
-    ApplyCoordinateSystemExtrinsic(projectionView);
-    simpleDrawInfo.ProjectionView = &projectionView;
     simpleDrawInfo.FrameIndex = m_FrameIndex;
 
-    noStencilWriteDoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-    doStencilWriteDoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-    doStencilWriteNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-    doStencilTestNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+    for (const CameraInfo &camera : p_Cameras)
+    {
+        setCameraViewport<D2>(p_CommandBuffer, camera);
+
+        simpleDrawInfo.Camera = &camera;
+        noStencilWriteDoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+        doStencilWriteDoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+        doStencilWriteNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+        doStencilTestNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+    }
 
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
 }
 
-void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer,
-                          const ProjectionViewData<D3> &p_ProjectionView) noexcept
+void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer, const TKit::Span<const CameraInfo> p_Cameras) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer<D3>::Render");
     RenderInfo<DrawLevel::Complex> complexDrawInfo;
@@ -281,20 +308,24 @@ void Renderer<D3>::Render(const VkCommandBuffer p_CommandBuffer,
     complexDrawInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[m_FrameIndex];
     complexDrawInfo.DirectionalLightCount = m_DirectionalLights.size();
     complexDrawInfo.PointLightCount = m_PointLights.size();
-    complexDrawInfo.ProjectionView = &p_ProjectionView.ProjectionView;
-    complexDrawInfo.ViewPosition = &p_ProjectionView.View.Translation;
     complexDrawInfo.AmbientColor = &AmbientColor;
 
-    noStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-    doStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+    RenderInfo<DrawLevel::Simple> simpleDrawInfo;
+    simpleDrawInfo.CommandBuffer = p_CommandBuffer;
+    simpleDrawInfo.FrameIndex = m_FrameIndex;
 
-    RenderInfo<DrawLevel::Simple> stencilInfo;
-    stencilInfo.CommandBuffer = p_CommandBuffer;
-    stencilInfo.ProjectionView = &p_ProjectionView.ProjectionView;
-    stencilInfo.FrameIndex = m_FrameIndex;
+    for (const CameraInfo &camera : p_Cameras)
+    {
+        setCameraViewport<D3>(p_CommandBuffer, camera);
 
-    doStencilWriteNoFill(stencilInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-    doStencilTestNoFill(stencilInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+        complexDrawInfo.Camera = &camera;
+        noStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+        doStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+
+        simpleDrawInfo.Camera = &camera;
+        doStencilWriteNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+        doStencilTestNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+    }
 
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
 }

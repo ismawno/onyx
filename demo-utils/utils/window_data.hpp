@@ -29,9 +29,29 @@ template <Dimension D> struct LineTest
     bool Outline = false;
 };
 
+template <Dimension D> struct ICameraData
+{
+    Camera<D> *Camera;
+};
+
+template <Dimension D> struct CameraData : ICameraData<D>
+{
+};
+
+template <> struct ONYX_API CameraData<D3> : ICameraData<D3>
+{
+    f32 FieldOfView = glm::radians(75.f);
+    f32 Near = 0.1f;
+    f32 Far = 100.f;
+    f32 ZOffset = 0.f;
+
+    bool Perspective = false;
+};
+
 template <Dimension D> struct ILayerData
 {
     RenderContext<D> *Context;
+    TKit::StaticArray8<CameraData<D>> Cameras;
     TKit::DynamicArray<TKit::Scope<Shape<D>>> Shapes;
     Transform<D> AxesTransform{};
     MaterialData<D> AxesMaterial{};
@@ -41,6 +61,7 @@ template <Dimension D> struct ILayerData
     i32 NGonSides = 3;
     f32 AxesThickness = 0.01f;
     u32 SelectedShape = 0;
+    u32 ActiveCamera = 0;
     fvec2 VertexToAdd{0.f};
 
     LatticeData<D> Lattice;
@@ -53,35 +74,32 @@ template <Dimension D> struct LayerData : ILayerData<D>
 {
 };
 
-template <> struct LayerData<D3> : ILayerData<D3>
+template <> struct ONYX_API LayerData<D3> : ILayerData<D3>
 {
     TKit::DynamicArray<DirectionalLight> DirectionalLights;
     TKit::DynamicArray<PointLight> PointLights;
     fvec4 Ambient = fvec4{1.f, 1.f, 1.f, 0.4f};
 
-    f32 FieldOfView = glm::radians(75.f);
-    f32 Near = 0.1f;
-    f32 Far = 100.f;
-    f32 ZOffset = 0.f;
-
-    bool Perspective = false;
     bool DrawLights = false;
-
     int LightToSpawn = 0;
-    DirectionalLight DirLightToAdd{fvec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE};
-    PointLight PointLightToAdd{fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f};
     u32 SelectedDirLight = 0;
     u32 SelectedPointLight = 0;
 };
 
-struct BlurData
+struct ONYX_API BlurData
 {
     u32 KernelSize = 1;
     f32 Width = 1.f;
     f32 Height = 1.f;
 };
 
-class WindowData
+template <Dimension D> struct LayerDataContainer
+{
+    TKit::StaticArray4<LayerData<D>> Data;
+    u32 Selected = 0;
+};
+
+class ONYX_API WindowData
 {
   public:
     void OnStart(Window *p_Window) noexcept;
@@ -95,12 +113,15 @@ class WindowData
 
   private:
     template <Dimension D> void drawShapes(const LayerData<D> &p_Data, TKit::Timespan p_Timestep) noexcept;
+    template <Dimension D> void renderUI(LayerDataContainer<D> &p_Container) noexcept;
     template <Dimension D> void renderUI(LayerData<D> &p_Data) noexcept;
-    void renderLightSpawn() noexcept;
+    template <Dimension D> void renderCamera(CameraData<D> &p_Data) noexcept;
+
+    void renderLightSpawn(LayerData<D3> &p_Data) noexcept;
 
     Window *m_Window = nullptr;
-    LayerData<D2> m_LayerData2{};
-    LayerData<D3> m_LayerData3{};
+    LayerDataContainer<D2> m_LayerData2{};
+    LayerDataContainer<D3> m_LayerData3{};
     Color m_BackgroundColor = Color::BLACK;
 
     BlurData m_BlurData{};

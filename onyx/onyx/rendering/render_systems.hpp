@@ -256,11 +256,11 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
      *
      * The following is encoded in the `CircleOptions` struct:
      *
-     * @param p_InnerFade A normalized value between 0 and 1, denoting how much the circle fades from the center to the
+     * @param p_InnerFade A value between 0 and 1, denoting how much the circle fades from the center to the
      * edge.
-     * @param p_OuterFade A normalized value between 0 and 1, denoting how much the circle fades from the edge to the
+     * @param p_OuterFade A value between 0 and 1, denoting how much the circle fades from the edge to the
      * center.
-     * @param p_Hollowness A normalized value between 0 and 1, denoting how hollow the circle is. 0 is a full circle and
+     * @param p_Hollowness A value between 0 and 1, denoting how hollow the circle is. 0 is a full circle and
      * 1 would correspond to not having a circle at all.
      * @param p_LowerAngle The angle from which the arc starts.
      * @param p_UpperAngle The angle at which the arc ends.

@@ -2,9 +2,7 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/draw/transform.hpp"
-#include "onyx/app/input.hpp"
-#include "tkit/profiling/timespan.hpp"
+#include "onyx/rendering/camera.hpp"
 #include <vulkan/vulkan.h>
 
 #ifndef ONYX_MAX_POLYGON_VERTICES
@@ -19,34 +17,6 @@
 namespace Onyx
 {
 class Window;
-
-template <Dimension D> struct CameraMovementControls;
-
-template <> struct ONYX_API CameraMovementControls<D2>
-{
-    f32 TranslationStep = 1.f / 60.f;
-    f32 RotationStep = 1.f / 60.f;
-    Input::Key Up = Input::Key::W;
-    Input::Key Down = Input::Key::S;
-    Input::Key Left = Input::Key::A;
-    Input::Key Right = Input::Key::D;
-    Input::Key RotateLeft = Input::Key::Q;
-    Input::Key RotateRight = Input::Key::E;
-};
-template <> struct ONYX_API CameraMovementControls<D3>
-{
-    f32 TranslationStep = 1.f / 60.f;
-    f32 RotationStep = 1.f / 60.f;
-    Input::Key Forward = Input::Key::W;
-    Input::Key Backward = Input::Key::S;
-    Input::Key Left = Input::Key::A;
-    Input::Key Right = Input::Key::D;
-    Input::Key Up = Input::Key::Space;
-    Input::Key Down = Input::Key::LeftControl;
-    Input::Key RotateLeft = Input::Key::Q;
-    Input::Key RotateRight = Input::Key::E;
-    Input::Key ToggleLookAround = Input::Key::LeftShift;
-};
 
 template <Dimension D> struct AxesOptions;
 
@@ -68,41 +38,14 @@ struct ONYX_API LineOptions
     Onyx::Resolution Resolution = Onyx::Resolution::Medium;
 };
 
+struct ONYX_API CameraOptions
+{
+    ScreenViewport Viewport{};
+    ScreenScissor Scissor{};
+};
+
 namespace Detail
 {
-
-/**
- * @brief The `RenderContext` class is the primary way of communicating with the Onyx API.
- *
- * It is a high-level API that allows the user to draw shapes and meshes in a simple immediate mode
- * fashion. The following is a set of properties of the `RenderContext` you must take into account when using it:
- *
- * - The `RenderContext` is mostly immediate mode. Almost all mutations to its state can be reset with the `Flush()`
- * method, which is recommended to be called at the beginning of each frame.
- *
- * - The view and projection matrices are not reset by the `Flush()` methods. Their state is kept between frames. The
- * view can be controlled by user input using the appropriate methods.
- *
- * - Keep in mind that outlines are affected by the scaling of the shapes they outline. This means you may get weird
- * outlines with scaled shapes, especially if the scaling is not uniform. To avoid this issue when using outlines,
- * always try to modify the shape's dimensions explicitly through function parameters, instead of trying to apply
- * scaling transformations directly. Note that all shapes have a way to set their dimensions directly. That particular
- * way will work well with outlines.
- *
- * - Onyx renderers use batch rendering to optimize draw calls. This means that in some cases, the order in which shapes
- * are drawn may not be respected.
- *
- * - All entities that can be added to the scene (shapes, meshes, lights) will always have their position, scale and
- * rotation relative to the current axes transform, which can be modified as well.
- *
- * - Please note that objects drawn in the scene inherit the state the axes were in when the draw command was issued.
- * This means that every object drawn will have its own, dedicated parent axes transform. Because of this, the view's
- * transform, a global state, cannot be bound to the axes, as these are not unique and well defined. If you want to
- * query the view's transform with respect to the current axes, you must use the `GetViewTransformInCurrentAxes()`
- * method. Otherwise, you may query the view's transform from the `GetProjectionViewData()` method, which will not have
- * any axes transform applied to it.
- *
- */
 template <Dimension D> class IRenderContext
 {
     TKIT_NON_COPYABLE(IRenderContext)
@@ -363,11 +306,11 @@ template <Dimension D> class IRenderContext
     void ScaleYAxis(f32 p_Y) noexcept;
 
     /**
-     * @brief Update the view aspect ratio.
+     * @brief Scale camera views to adapt to their viewport aspects.
      *
-     * @param p_Aspect The new aspect ratio.
+     * This method is called automatically on window resize events so that elements in the scene are not distorted.
      */
-    void UpdateViewAspect(f32 p_Aspect) noexcept;
+    void AdaptCamerasToViewportAspect() noexcept;
 
     /**
      * @brief Draw a unit triangle centered at the origin.
@@ -879,28 +822,6 @@ template <Dimension D> class IRenderContext
     void Material(const MaterialData<D> &p_Material) noexcept;
 
     /**
-     * @brief Control the global view's movement of the rendering context with user input.
-     *
-     * @param p_Controls The camera movement controls to use.
-     */
-    void ApplyCameraMovementControls(const CameraMovementControls<D> &p_Controls) noexcept;
-
-    /**
-     * @brief Control the global view's movement of the rendering context with user input.
-     *
-     */
-    void ApplyCameraMovementControls(TKit::Timespan p_DeltaTime) noexcept;
-
-    /**
-     * @brief Retrieve the coordinates of a point in the rendering context from an "un-transformed" position.
-     *
-     * @param p_NormalizedPos The position to convert. Should be in the range [-1, 1]. If in 3D, the Z
-     * axis must be between [0, 1].
-     * @return The coordinates of the point in the rendering context.
-     */
-    fvec<D> GetCoordinates(const fvec<D> &p_NormalizedPos) const noexcept;
-
-    /**
      * @brief Get the current rendering state.
      *
      * @return A constant reference to the current `RenderState`.
@@ -915,26 +836,6 @@ template <Dimension D> class IRenderContext
     RenderState<D> &GetCurrentState() noexcept;
 
     /**
-     * @brief Get the global context's projection view data.
-     *
-     * @return A constant reference to the global context's projection view data.
-     */
-    const ProjectionViewData<D> &GetProjectionViewData() const noexcept;
-
-    /**
-     * @brief Get the view transform coordinates with respect the curren defined axes.
-     *
-     * @return The view transform in the current axes.
-     */
-    Onyx::Transform<D> GetViewTransformInCurrentAxes() const noexcept;
-
-    /**
-     * @brief Set the global context's view.
-     *
-     */
-    void SetView(const Onyx::Transform<D> &p_View) noexcept;
-
-    /**
      * @brief Send all stored host data to the device.
      *
      */
@@ -947,9 +848,47 @@ template <Dimension D> class IRenderContext
      */
     void Render(VkCommandBuffer p_CommandBuffer) noexcept;
 
+    /**
+     * @brief Create a new camera for the rendering context.
+     *
+     * @return A new camera.
+     */
+    Camera<D> *CreateCamera() noexcept;
+
+    /**
+     * @brief Create a new camera for the rendering context.
+     *
+     * @param p_Options Options such as the viewport or scissor.
+     * @return A new camera.
+     */
+    Camera<D> *CreateCamera(const CameraOptions &p_Options) noexcept;
+
+    /**
+     * @brief Get a camera by its index.
+     *
+     * @param p_Index The index of the camera to retrieve.
+     * @return A pointer to the camera.
+     */
+    Camera<D> *GetCamera(u32 p_Index = 0) noexcept;
+
+    /**
+     * @brief Remove a camera from the rendering context.
+     *
+     * @param p_Index The index of the camera to remove.
+     */
+    void DestroyCamera(u32 p_Index) noexcept;
+
+    /**
+     * @brief Remove a camera from the rendering context.
+     *
+     * @param p_Camera The camera to remove.
+     */
+    void DestroyCamera(const Camera<D> *p_Camera) noexcept;
+
   protected:
     template <typename F1, typename F2> void resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept;
 
+    void updateState() noexcept;
     fmat4 computeFinalTransform(const fmat<D> &p_Transform) noexcept;
 
     template <Dimension PDim> void drawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex) noexcept;
@@ -982,23 +921,47 @@ template <Dimension D> class IRenderContext
     void drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
 
     RenderState<D> *m_State;
-    ProjectionViewData<D> m_ProjectionView{};
+    TKit::StaticArray8<TKit::Scope<Camera<D>>> m_Cameras{};
     Detail::Renderer<D> m_Renderer;
     Window *m_Window;
 
   private:
     TKit::StaticArray8<RenderState<D>> m_StateStack;
-    fvec2 m_PrevMousePos{0.f};
 };
 } // namespace Detail
 
-template <Dimension D> class RenderContext;
-
 /**
- * @brief The `RenderContext` class handles all primitive Onyx draw calls and allows the user to interact with most of
- * the Onyx API in 2D.
+ * @brief The `RenderContext` class is the primary way of communicating with the Onyx API.
+ *
+ * It is a high-level API that allows the user to draw shapes and meshes in a simple immediate mode
+ * fashion. The following is a set of properties of the `RenderContext` you must take into account when using it:
+ *
+ * - The `RenderContext` is mostly immediate mode. Almost all mutations to its state can be reset with the `Flush()`
+ * method, which is recommended to be called at the beginning of each frame. Cameras always persist, and are not reset
+ * by the `Flush()` methods.
+ *
+ * - Keep in mind that outlines are affected by the scaling of the shapes they outline. This means you may get weird
+ * outlines with scaled shapes, especially if the scaling is not uniform. To avoid this issue when using outlines,
+ * always try to modify the shape's dimensions explicitly through function parameters, instead of trying to apply
+ * scaling transformations directly. Note that all shapes have a way to set their dimensions directly. That particular
+ * way will work well with outlines.
+ *
+ * - Onyx renderers use batch rendering to optimize draw calls. This means that in some cases, the order in which shapes
+ * are drawn may not be respected.
+ *
+ * - All entities that can be added to the scene (shapes, meshes, lights) will always have their position, scale and
+ * rotation relative to the current axes transform, which can be modified as well.
+ *
+ * - Please note that objects drawn in the scene inherit the state the axes were in when the draw command was issued.
+ * This means that every object drawn will have its own, dedicated parent axes transform. Because of this, the view's
+ * transform found in all cameras (which are persisted) cannot be bound to the axes, as these are not unique and well
+ * defined. If you want to query the view's transform with respect to the current axes, you must use the
+ * `GetViewTransform()` camera method. Otherwise, you may query the view's transform from the
+ * `GetProjectionViewData()` camera method, which will not have any axes transform applied to it.
  *
  */
+template <Dimension D> class RenderContext;
+
 template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderContext<D2>
 {
   public:
@@ -1055,27 +1018,8 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
      * @param p_Thickness The thickness of the line.
      */
     void RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, f32 p_Thickness = 0.01f) noexcept;
-
-    /**
-     * @brief Retrieve the current mouse coordinates in the rendering context.
-     *
-     * @return The mouse coordinates as a 2D vector.
-     */
-    fvec2 GetMouseCoordinates() const noexcept;
-
-    /**
-     * @brief Control the global view's scale of the rendering context with user input.
-     *
-     * @param p_ScaleStep The step size for scaling.
-     */
-    void ApplyCameraScalingControls(f32 p_ScaleStep) noexcept;
 };
 
-/**
- * @brief The `RenderContext` class handles all primitive Onyx draw calls and allows the user to interact with most of
- * the Onyx API in 3D.
- *
- */
 template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderContext<D3>
 {
   public:
@@ -1620,49 +1564,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Sharpness The specular sharpness factor.
      */
     void SpecularSharpness(f32 p_Sharpness) noexcept;
-
-    /**
-     * @brief Get the direction of the view in the current axes.
-     *
-     */
-    fvec3 GetViewLookDirectionInCurrentAxes() const noexcept;
-
-    /**
-     * @brief Get the direction of an imaginary ray cast from the mouse in the current axes.
-     *
-     */
-    fvec3 GetMouseRayCastDirection() const noexcept;
-
-    /**
-     * @brief Set the global projection matrix for the rendering context.
-     *
-     * @param p_Projection The projection matrix to set.
-     */
-    void SetProjection(const fmat4 &p_Projection) noexcept;
-
-    /**
-     * @brief Set a global perspective projection with the given field of view and near/far planes.
-     *
-     * @param p_FieldOfView The field of view in radians.
-     * @param p_Near The near clipping plane.
-     * @param p_Far The far clipping plane.
-     */
-    void SetPerspectiveProjection(f32 p_FieldOfView = glm::radians(75.f), f32 p_Near = 0.1f,
-                                  f32 p_Far = 100.f) noexcept;
-
-    /**
-     * @brief Set a global orthographic projection for the rendering context.
-     *
-     */
-    void SetOrthographicProjection() noexcept;
-
-    /**
-     * @brief Retrieve the mouse coordinates at the specified depth in the rendering context.
-     *
-     * @param p_Depth The depth at which to get the mouse coordinates.
-     * @return The mouse coordinates as a 3D vector.
-     */
-    fvec3 GetMouseCoordinates(f32 p_Depth = 0.5f) const noexcept;
 
   private:
     void drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, Resolution p_Res,
