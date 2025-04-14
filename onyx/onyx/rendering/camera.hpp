@@ -122,13 +122,68 @@ template <Dimension D> class ICamera
     ICamera() = default;
 
     /**
-     * @brief Retrieve the position of a point in the camera's rendering context from screen to world coordinates.
+     * @brief Compute the position of a point in the camera's rendering context from screen to viewport coordinates.
      *
-     * @param p_ScreenPos The position to convert. Should be in the range [-1, 1]. If in 3D, the Z
-     * axis must be between [0, 1].
-     * @return The coordinates of the point in the camera's rendering context.
+     * @param p_ScreenPos The position to convert. Should be in the range [-1, 1] for points contained in the screen,
+     * with the y axis pointing upwards.
+     * @return The position in viewport coordinates.
+     */
+    fvec2 ScreenToViewport(const fvec2 &p_ScreenPos) const noexcept;
+
+    /**
+     * @brief Compute the position of a point in the camera's rendering context from viewport to world coordinates.
+     *
+     * @param p_ViewportPos The position to convert. Should be in the range [-1, 1] for points contained in the
+     * viewport, with the y axis pointing upwards. If in 3D, the z axis must be between [0, 1], mapping the near and far
+     * planes or the orthographic size.
+     * @return The position in world coordinates.
+     */
+    fvec<D> ViewportToWorld(fvec<D> p_ViewportPos) const noexcept;
+
+    /**
+     * @brief Compute the position of a point in the camera's rendering context from world to viewport coordinates.
+     *
+     * @param p_WorldPos The position to convert.
+     * @return The position in viewport coordinates. Should be in the range [-1, 1] only if the provided point was
+     * contained in the viewport, with the y axis pointing upwards.
+     */
+    fvec2 WorldToViewport(const fvec<D> &p_WorldPos) const noexcept;
+
+    /**
+     * @brief Compute the position of a point in the camera's rendering context from viewport to screen coordinates.
+     *
+     * @param p_ViewportPos The position to convert. Should be in the range [-1, 1] for points contained in the
+     * viewport, with the y axis pointing upwards.
+     * @return The position in screen coordinates. Should be in the range [-1, 1] only if the provided point was
+     * contained in the screen, with the y axis pointing upwards.
+     */
+    fvec2 ViewportToScreen(const fvec2 &p_ViewportPos) const noexcept;
+
+    /**
+     * @brief Compute the position of a point in the camera's rendering context from screen to world coordinates.
+     *
+     * @param p_ScreenPos The position to convert. Should be in the range [-1, 1] for points contained in the screen,
+     * with the y axis pointing upwards. If in 3D, the z axis must be between [0, 1], mapping the near and far planes or
+     * the orthographic size.
+     * @return The position in world coordinates.
      */
     fvec<D> ScreenToWorld(const fvec<D> &p_ScreenPos) const noexcept;
+
+    /**
+     * @brief Compute the position of a point in the camera's rendering context from world to screen coordinates.
+     *
+     * @param p_WorldPos The position to convert.
+     * @return The position in screen coordinates. Should be in the range [-1, 1] only if the provided point was
+     * contained in the screen, with the y axis pointing upwards.
+     */
+    fvec2 WorldToScreen(const fvec<D> &p_WorldPos) const noexcept;
+
+    /**
+     * @brief Compute the position of the mouse in the camera's rendering context from screen to viewport coordinates.
+     *
+     * @return The mouse position in the camera's viewport coordinates.
+     */
+    fvec2 GetViewportMousePosition() const noexcept;
 
     void ControlMovementWithUserInput(const CameraControls<D> &p_Controls) noexcept;
     void ControlMovementWithUserInput(TKit::Timespan p_DeltaTime) noexcept;
@@ -183,11 +238,11 @@ template <> class ONYX_API Camera<D2> final : public Detail::ICamera<D2>
     using ICamera<D2>::ICamera;
 
     /**
-     * @brief Retrieve the position of the mouse in the camera's rendering context from screen to world coordinates.
+     * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
      *
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    fvec2 GetMousePosition() const noexcept;
+    fvec2 GetWorldMousePosition() const noexcept;
 
     /**
      * @brief Control the view's scale of the camera with user input.
@@ -207,12 +262,12 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
     using ICamera<D3>::ICamera;
 
     /**
-     * @brief Retrieve the position of the mouse in the camera's rendering context from screen to world coordinates.
+     * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
      *
      * @param p_Depth The depth at which to get the mouse coordinates.
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    fvec3 GetMousePosition(f32 p_Depth = 0.5f) const noexcept;
+    fvec3 GetWorldMousePosition(f32 p_Depth = 0.5f) const noexcept;
 
     /**
      * @brief Get the direction of the view in the current axes.

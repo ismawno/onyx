@@ -255,13 +255,6 @@ class ONYX_API Window
             }
     }
 
-    /**
-     * @brief Scale camera views to adapt to their viewport aspects.
-     *
-     * This method is called automatically on window resize events so that elements in the scene are not distorted.
-     */
-    void AdaptCamerasToViewportAspect() noexcept;
-
     const VKit::RenderPass &GetRenderPass() const noexcept;
     u32 GetFrameIndex() const noexcept;
 
@@ -279,6 +272,12 @@ class ONYX_API Window
 
   private:
     void createWindow(const Specs &p_Specs) noexcept;
+    /**
+     * @brief Scale camera views to adapt to their viewport aspects.
+     *
+     * This method is called automatically on window resize events so that elements in the scene are not distorted.
+     */
+    void adaptCamerasToViewportAspect() noexcept;
 
     template <Dimension D> auto &getContextArray() noexcept
     {

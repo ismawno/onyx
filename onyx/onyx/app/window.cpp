@@ -140,6 +140,7 @@ void Window::flagResize(const u32 p_Width, const u32 p_Height) noexcept
 }
 void Window::flagResizeDone() noexcept
 {
+    adaptCamerasToViewportAspect();
     m_Resized = false;
 }
 
@@ -168,7 +169,7 @@ void Window::FlushEvents() noexcept
     m_Events.clear();
 }
 
-void Window::AdaptCamerasToViewportAspect() noexcept
+void Window::adaptCamerasToViewportAspect() noexcept
 {
     for (const auto &context : m_RenderContexts2D)
         context->AdaptCamerasToViewportAspect();

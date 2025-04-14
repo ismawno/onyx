@@ -157,12 +157,12 @@ template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Contain
                     if constexpr (D == D2)
                     {
                         if (p_Event.Type == Event::MousePressed)
-                            data.PolygonVertices.push_back(camera->GetMousePosition());
+                            data.PolygonVertices.push_back(camera->GetWorldMousePosition());
                         else if (Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift))
                             camera->ControlScrollWithUserInput(0.005f * p_Event.ScrollOffset.y);
                     }
                     else if (p_Event.Type == Event::MousePressed)
-                        data.PolygonVertices.push_back(camera->GetMousePosition(data.Cameras[j].ZOffset));
+                        data.PolygonVertices.push_back(camera->GetWorldMousePosition(data.Cameras[j].ZOffset));
                     return;
                 }
 }
@@ -531,6 +531,32 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
 template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noexcept
 {
     Camera<D> *camera = p_Data.Camera;
+    const fvec2 vpos = camera->GetViewportMousePosition();
+    ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos.x, vpos.y);
+
+    if constexpr (D == D2)
+    {
+        const fvec2 wpos2 = camera->GetWorldMousePosition();
+        ImGui::Text("World mouse position: (%.2f, %.2f)", wpos2.x, wpos2.y);
+    }
+    else
+    {
+        ImGui::SliderFloat("Mouse Z offset", &p_Data.ZOffset, 0.f, 1.f);
+        UserLayer::HelpMarkerSameLine(
+            "In 3D, the world mouse position can be ambiguous because of the extra dimension. This amibiguity needs to "
+            "somehow be resolved. In most use-cases, ray casting is the best approach to fully define this position, "
+            "but because this is a simple demo, the z offset can be manually specified, and is in the range [0, 1] "
+            "(screen coordinates). Note that, if in perspective mode, 0 corresponds to the near plane and 1 to the "
+            "far plane.");
+
+        const fvec3 mpos3 = camera->GetWorldMousePosition(p_Data.ZOffset);
+        const fvec2 vpos3 = camera->GetViewportMousePosition();
+        ImGui::Text("World mouse position: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
+    }
+    UserLayer::HelpMarkerSameLine(
+        "The world mouse position has world units, meaning it is scaled to the world "
+        "coordinates of the current rendering context and are compatible with the translation units of the shapes.");
+
     ImGui::Checkbox("Transparent", &camera->Transparent);
     if (!camera->Transparent)
         ImGui::ColorEdit3("Background", camera->BackgroundColor.AsPointer());
@@ -546,28 +572,6 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
     ScreenScissor scissor = camera->GetScissor();
     if (UserLayer::ScissorEditor(scissor, UserLayer::Flag_DisplayHelp))
         camera->SetScissor(scissor);
-
-    if constexpr (D == D2)
-    {
-        const fvec2 wpos2 = camera->GetMousePosition();
-        ImGui::Text("World mouse position: (%.2f, %.2f)", wpos2.x, wpos2.y);
-    }
-    else
-    {
-        ImGui::SliderFloat("Mouse Z offset", &p_Data.ZOffset, 0.f, 1.f);
-        UserLayer::HelpMarkerSameLine(
-            "In 3D, the world mouse position can be ambiguous because of the extra dimension. This amibiguity needs to "
-            "somehow be resolved. In most use-cases, ray casting is the best approach to fully define this position, "
-            "but because this is a simple demo, the z offset can be manually specified, and is in the range [0, 1] "
-            "(screen coordinates). Note that, if in perspective mode, 0 corresponds to the near plane and 1 to the "
-            "far plane.");
-
-        const fvec3 mpos3 = camera->GetMousePosition(p_Data.ZOffset);
-        ImGui::Text("Mouse position: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
-    }
-    UserLayer::HelpMarkerSameLine(
-        "The world mouse position has world units, meaning it is scaled to the world "
-        "coordinates of the current rendering context and are compatible with the translation units of the shapes.");
 
     const Transform<D> view = camera->GetViewTransform();
     ImGui::Text("View transform (with respect current axes)");
@@ -637,7 +641,7 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
 
 template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Container) noexcept
 {
-    const fvec2 spos = Input::GetCartesianMousePosition(m_Window);
+    const fvec2 spos = Input::GetScreenMousePosition(m_Window);
     ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos.x, spos.y);
     UserLayer::HelpMarkerSameLine("The screen mouse position is always normalized to the window size, always ranging "
                                   "from -1 to 1 for 'x' and 'y', and from 0 to 1 for 'z'.");
