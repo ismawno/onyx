@@ -150,18 +150,18 @@ template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Contain
     for (u32 i = 0; i < p_Container.Data.size(); ++i)
         if (i == p_Container.Selected)
             for (u32 j = 0; j < p_Container.Data[i].Cameras.size(); ++j)
-                if (j == p_Container.Data[i].ActiveCamera && p_Container.Data[i].ShapeToSpawn == POLYGON)
+                if (j == p_Container.Data[i].ActiveCamera)
                 {
                     LayerData<D> &data = p_Container.Data[i];
                     Camera<D> *camera = data.Cameras[j].Camera;
                     if constexpr (D == D2)
                     {
-                        if (p_Event.Type == Event::MousePressed)
+                        if (p_Event.Type == Event::MousePressed && p_Container.Data[i].ShapeToSpawn == POLYGON)
                             data.PolygonVertices.push_back(camera->GetWorldMousePosition());
                         else if (Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift))
                             camera->ControlScrollWithUserInput(0.005f * p_Event.ScrollOffset.y);
                     }
-                    else if (p_Event.Type == Event::MousePressed)
+                    else if (p_Event.Type == Event::MousePressed && p_Container.Data[i].ShapeToSpawn == POLYGON)
                         data.PolygonVertices.push_back(camera->GetWorldMousePosition(data.Cameras[j].ZOffset));
                     return;
                 }
