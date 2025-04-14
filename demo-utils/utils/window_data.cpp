@@ -156,12 +156,20 @@ template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Contain
                     Camera<D> *camera = data.Cameras[j].Camera;
                     if constexpr (D == D2)
                     {
-                        if (p_Event.Type == Event::MousePressed && p_Container.Data[i].ShapeToSpawn == POLYGON)
+                        if (p_Event.Type == Event::MousePressed && !ImGui::GetIO().WantCaptureMouse &&
+                            p_Container.Data[i].ShapeToSpawn == POLYGON)
                             data.PolygonVertices.push_back(camera->GetWorldMousePosition());
-                        else if (Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift))
-                            camera->ControlScrollWithUserInput(0.005f * p_Event.ScrollOffset.y);
+                        else if (!ImGui::GetIO().WantCaptureMouse)
+                        {
+                            const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) &&
+                                                       !ImGui::GetIO().WantCaptureKeyboard
+                                                   ? 0.05f
+                                                   : 0.005f;
+                            camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset.y);
+                        }
                     }
-                    else if (p_Event.Type == Event::MousePressed && p_Container.Data[i].ShapeToSpawn == POLYGON)
+                    else if (p_Event.Type == Event::MousePressed && !ImGui::GetIO().WantCaptureMouse &&
+                             p_Container.Data[i].ShapeToSpawn == POLYGON)
                         data.PolygonVertices.push_back(camera->GetWorldMousePosition(data.Cameras[j].ZOffset));
                     return;
                 }
