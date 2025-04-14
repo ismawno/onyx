@@ -104,7 +104,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
 {
     if (m_HostInstanceData.empty())
         return;
-    TKIT_PROFILE_NSCOPE("MeshRenderer::SendToDevice");
+    TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     u32 index = 0;
@@ -158,7 +158,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 {
     if (m_HostInstanceData.empty())
         return;
-    TKIT_PROFILE_NSCOPE("MeshRenderer::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::Render");
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
@@ -227,7 +227,7 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
     if (m_DeviceInstanceData.StorageSizes[p_FrameIndex] == 0)
         return;
 
-    TKIT_PROFILE_NSCOPE("PrimitiveRenderer::SendToDevice");
+    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
     MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     u32 index = 0;
     for (const auto &instanceData : m_HostInstanceData)
@@ -240,7 +240,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
 {
     if (m_DeviceInstanceData.StorageSizes[p_Info.FrameIndex] == 0)
         return;
-    TKIT_PROFILE_NSCOPE("PrimitiveRenderer::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::Render");
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
@@ -367,7 +367,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
 {
     if (m_HostInstanceData.empty())
         return;
-    TKIT_PROFILE_NSCOPE("PolygonRenderer::SendToDevice");
+    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
     MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     MutableVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_FrameIndex];
     MutableIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_FrameIndex];
@@ -386,7 +386,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
 {
     if (m_HostInstanceData.empty())
         return;
-    TKIT_PROFILE_NSCOPE("PolygonRenderer::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::Render");
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
@@ -464,7 +464,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
 {
     if (m_HostInstanceData.empty())
         return;
-    TKIT_PROFILE_NSCOPE("CircleRenderer::SendToDevice");
+    TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
     auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
         storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
@@ -475,7 +475,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 {
     if (m_HostInstanceData.empty())
         return;
-    TKIT_PROFILE_NSCOPE("CircleRenderer::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::Render");
     m_Pipeline.Bind(p_Info.CommandBuffer);
 
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();

@@ -131,7 +131,10 @@ VkResult FrameScheduler::SubmitCurrentCommandBuffer() noexcept
     const VkCommandBuffer cmd = m_CommandBuffers[m_FrameIndex];
 
     if (m_InFlightImages[m_ImageIndex] != VK_NULL_HANDLE)
+    {
+        TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForPreviousFrame");
         vkWaitForFences(Core::GetDevice(), 1, &m_InFlightImages[m_ImageIndex], VK_TRUE, UINT64_MAX);
+    }
 
     m_InFlightImages[m_ImageIndex] = m_SyncData[m_FrameIndex].InFlightFence;
 

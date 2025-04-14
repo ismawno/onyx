@@ -84,6 +84,7 @@ void WindowData::OnUpdate() noexcept
 {
     if (!m_PostProcessing)
         return;
+    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
     m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
     m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
     m_Window->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
@@ -91,6 +92,7 @@ void WindowData::OnUpdate() noexcept
 
 void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Timespan p_Timestep) noexcept
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnRender");
     for (const LayerData<D2> &ldata : m_LayerData2.Data)
         drawShapes(ldata, p_Timestep);
 
@@ -106,6 +108,7 @@ void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Tim
 
 void WindowData::OnImGuiRender() noexcept
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnImGuiRender");
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
     UserLayer::PresentModeEditor(m_Window, UserLayer::Flag_DisplayHelp);
 
