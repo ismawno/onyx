@@ -291,8 +291,8 @@ class ONYX_API Window
     GLFWwindow *m_Window;
 
     TKit::Storage<Detail::FrameScheduler> m_FrameScheduler;
-    TKit::StaticArray4<TKit::Scope<RenderContext<D2>>> m_RenderContexts2D;
-    TKit::StaticArray4<TKit::Scope<RenderContext<D3>>> m_RenderContexts3D;
+    TKit::StaticArray16<TKit::Scope<RenderContext<D2>>> m_RenderContexts2D;
+    TKit::StaticArray16<TKit::Scope<RenderContext<D3>>> m_RenderContexts3D;
 
     TKit::StaticArray32<Event> m_Events;
     VkSurfaceKHR m_Surface;

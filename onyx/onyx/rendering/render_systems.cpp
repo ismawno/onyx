@@ -76,6 +76,7 @@ MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
 
 template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer() noexcept
 {
+    Core::DeviceWaitIdle();
     m_Pipeline.Destroy();
 }
 
@@ -196,6 +197,7 @@ PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) 
 
 template <Dimension D, PipelineMode PMode> PrimitiveRenderer<D, PMode>::~PrimitiveRenderer() noexcept
 {
+    Core::DeviceWaitIdle();
     m_Pipeline.Destroy();
 }
 
@@ -284,6 +286,7 @@ PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noex
 
 template <Dimension D, PipelineMode PMode> PolygonRenderer<D, PMode>::~PolygonRenderer() noexcept
 {
+    Core::DeviceWaitIdle();
     m_Pipeline.Destroy();
 }
 
@@ -420,6 +423,7 @@ CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexce
 
 template <Dimension D, PipelineMode PMode> CircleRenderer<D, PMode>::~CircleRenderer() noexcept
 {
+    Core::DeviceWaitIdle();
     m_Pipeline.Destroy();
 }
 

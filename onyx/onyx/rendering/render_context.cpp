@@ -1245,7 +1245,7 @@ template <Dimension D> void IRenderContext<D>::Render(const VkCommandBuffer p_Co
 {
     if (m_Cameras.empty())
         return;
-    TKit::StaticArray8<CameraInfo> cameras;
+    TKit::StaticArray16<CameraInfo> cameras;
     for (const auto &cam : m_Cameras)
         cameras.push_back(cam->CreateCameraInfo());
 

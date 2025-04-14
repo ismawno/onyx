@@ -921,7 +921,7 @@ template <Dimension D> class IRenderContext
     void drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
 
     RenderState<D> *m_State;
-    TKit::StaticArray8<TKit::Scope<Camera<D>>> m_Cameras{};
+    TKit::StaticArray16<TKit::Scope<Camera<D>>> m_Cameras{};
     Detail::Renderer<D> m_Renderer;
     Window *m_Window;
 

@@ -20,6 +20,10 @@ template <Dimension D> struct CameraControls;
 
 struct DirectionalLight;
 struct PointLight;
+
+struct ScreenViewport;
+struct ScreenScissor;
+
 enum class Resolution;
 
 class Window;
@@ -208,19 +212,22 @@ class ONYX_API UserLayer
     {
     }
 
-    template <Dimension D> static void TransformEditor(Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;
-    template <Dimension D> static void MaterialEditor(MaterialData<D> &p_Material, Flags p_Flags = 0) noexcept;
+    template <Dimension D> static bool TransformEditor(Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;
+    template <Dimension D> static bool MaterialEditor(MaterialData<D> &p_Material, Flags p_Flags = 0) noexcept;
 
     template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;
     template <Dimension D> static void DisplayCameraControls(const CameraControls<D> &p_Controls = {}) noexcept;
 
     static void DisplayFrameTime(TKit::Timespan p_DeltaTime, Flags p_Flags = 0) noexcept;
 
-    static void DirectionalLightEditor(DirectionalLight &p_Light, Flags p_Flags = 0) noexcept;
-    static void PointLightEditor(PointLight &p_Light, Flags p_Flags = 0) noexcept;
+    static bool DirectionalLightEditor(DirectionalLight &p_Light, Flags p_Flags = 0) noexcept;
+    static bool PointLightEditor(PointLight &p_Light, Flags p_Flags = 0) noexcept;
 
-    static void ResolutionEditor(const char *p_Name, Resolution &p_Res, Flags p_Flags = 0) noexcept;
-    static void PresentModeEditor(Window *p_Window, Flags p_Flags = 0) noexcept;
+    static bool ResolutionEditor(const char *p_Name, Resolution &p_Res, Flags p_Flags = 0) noexcept;
+    static bool PresentModeEditor(Window *p_Window, Flags p_Flags = 0) noexcept;
+
+    static bool ViewportEditor(ScreenViewport &p_Viewport, Flags p_Flags = 0) noexcept;
+    static bool ScissorEditor(ScreenScissor &p_Scissor, Flags p_Flags = 0) noexcept;
 
     static void HelpMarker(const char *p_Description, const char *p_Icon = "(?)") noexcept;
     static void HelpMarkerSameLine(const char *p_Description, const char *p_Icon = "(?)") noexcept;

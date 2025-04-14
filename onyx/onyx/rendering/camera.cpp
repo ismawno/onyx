@@ -9,23 +9,28 @@ using namespace Detail;
 VkViewport ScreenViewport::AsVulkanViewport(const VkExtent2D &p_Extent) const noexcept
 {
     VkViewport viewport;
-    viewport.x = 0.5f * (Position.x + 1.f) * p_Extent.width;
-    viewport.y = 0.5f * (Position.y + 1.f) * p_Extent.height;
-    viewport.width = Size.x * p_Extent.width;
-    viewport.height = Size.y * p_Extent.height;
-    viewport.minDepth = Position.z;
-    viewport.maxDepth = Position.z + Size.z;
+    viewport.x = 0.5f * (1.f + Min.x) * p_Extent.width;
+    viewport.y = 0.5f * (1.f - Max.y) * p_Extent.height;
+    viewport.width = 0.5f * (1.f + Max.x) * p_Extent.width - viewport.x;
+    viewport.height = 0.5f * (1.f - Min.y) * p_Extent.height - viewport.y;
+    viewport.minDepth = DepthBounds.x;
+    viewport.maxDepth = DepthBounds.y;
 
     return viewport;
 }
 
-VkRect2D ScreenScissor::AsVulkanScissor(const VkExtent2D &p_Extent) const noexcept
+VkRect2D ScreenScissor::AsVulkanScissor(const VkExtent2D &p_Extent, const ScreenViewport &p_Viewport) const noexcept
 {
+    const fvec2 size = p_Viewport.Max - p_Viewport.Min;
+    const fvec2 min = p_Viewport.Min + 0.5f * (1.f + Min) * size;
+    const fvec2 max = p_Viewport.Min + 0.5f * (1.f + Max) * size;
+
     VkRect2D scissor;
-    scissor.offset.x = static_cast<i32>(0.5f * (Position.x + 1.f) * p_Extent.width);
-    scissor.offset.y = static_cast<i32>(0.5f * (Position.y + 1.f) * p_Extent.height);
-    scissor.extent.width = static_cast<u32>(Size.x * p_Extent.width);
-    scissor.extent.height = static_cast<u32>(Size.y * p_Extent.height);
+    scissor.offset.x = static_cast<i32>(0.5f * (1.f + min.x) * p_Extent.width);
+    scissor.offset.y = static_cast<i32>(0.5f * (1.f - max.y) * p_Extent.height);
+    scissor.extent.width = static_cast<u32>(0.5f * (1.f + max.x) * p_Extent.width) - static_cast<u32>(scissor.offset.x);
+    scissor.extent.height =
+        static_cast<u32>(0.5f * (1.f - min.y) * p_Extent.height) - static_cast<u32>(scissor.offset.y);
 
     return scissor;
 }
@@ -206,8 +211,9 @@ template <Dimension D> CameraInfo ICamera<D>::CreateCameraInfo() const noexcept
         info.ProjectionView = m_ProjectionView.ProjectionView;
     }
     info.BackgroundColor = BackgroundColor;
+    info.Transparent = Transparent;
     info.Viewport = m_Viewport.AsVulkanViewport(extent);
-    info.Scissor = m_Scissor.AsVulkanScissor(extent);
+    info.Scissor = m_Scissor.AsVulkanScissor(extent, m_Viewport);
     return info;
 }
 

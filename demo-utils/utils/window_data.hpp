@@ -51,7 +51,7 @@ template <> struct ONYX_API CameraData<D3> : ICameraData<D3>
 template <Dimension D> struct ILayerData
 {
     RenderContext<D> *Context;
-    TKit::StaticArray8<CameraData<D>> Cameras;
+    TKit::StaticArray16<CameraData<D>> Cameras;
     TKit::DynamicArray<TKit::Scope<Shape<D>>> Shapes;
     Transform<D> AxesTransform{};
     MaterialData<D> AxesMaterial{};
@@ -95,7 +95,7 @@ struct ONYX_API BlurData
 
 template <Dimension D> struct LayerDataContainer
 {
-    TKit::StaticArray4<LayerData<D>> Data;
+    TKit::StaticArray16<LayerData<D>> Data;
     u32 Selected = 0;
 };
 

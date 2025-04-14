@@ -37,16 +37,17 @@ template <> struct ONYX_API ProjectionViewData<D3>
 };
 
 /**
- * @brief The `ScreenViewport` struct holds normalized viewport dimensions (in screen coordinates).
+ * @brief The `ScreenViewport` struct holds screen viewport dimensions.
  *
- * The viewport position values range from -1 to 1 for `x` and `y`, and from 0 to 1 for `z`, with the origin at the
- * center of the screen. The size values range from 0 to 1. The viewport is used to designate a render area.
+ * It is represented as an axis-aligned rectangle with the `Min` and `Max` coordinates ranging from -1 to 1. The
+ * `DepthBounds` are normalized, ranging from 0 to 1. The default values are set to cover the entire screen.
  *
  */
 struct ONYX_API ScreenViewport
 {
-    fvec3 Position{-1.f, -1.f, 0.f};
-    fvec3 Size{1.f, 1.f, 1.f};
+    fvec2 Min{-1.f};
+    fvec2 Max{1.f};
+    fvec2 DepthBounds{0.f, 1.f};
 
     /**
      * @brief Convert the viewport to a Vulkan viewport given a Vulkan extent.
@@ -58,24 +59,26 @@ struct ONYX_API ScreenViewport
 };
 
 /**
- * @brief The `ScreenScissor` struct holds normalized scissor dimensions (in screen coordinates).
+ * @brief The `ScreenScissor` struct holds screen scissor dimensions relative to a viewport.
  *
- * The scissor position values range from -1 to 1, with the origin at he center of the screen. The size values range
- * from 0 to 1. The scissor is used to designate a render area.
+ * It is represented as an axis-aligned rectangle with the `Min` and `Max` coordinates ranging from -1 to 1. The default
+ * values are set to cover the entire screen.
  *
  */
 struct ONYX_API ScreenScissor
 {
-    fvec2 Position{-1.f};
-    fvec2 Size{1.f};
+    fvec2 Min{-1.f};
+    fvec2 Max{1.f};
 
     /**
-     * @brief Convert the scissor to a Vulkan scissor given a Vulkan extent.
+     * @brief Convert the scissor to a Vulkan scissor given a Vulkan extent and a viewport.
+     *
+     * The scissor will be adapted so its coordinates are relative to the viewport.
      *
      * @param p_Extent The Vulkan extent to use for the conversion.
      * @return The Vulkan scissor.
      */
-    VkRect2D AsVulkanScissor(const VkExtent2D &p_Extent) const noexcept;
+    VkRect2D AsVulkanScissor(const VkExtent2D &p_Extent, const ScreenViewport &p_Viewport) const noexcept;
 };
 
 template <Dimension D> struct CameraControls;
@@ -148,6 +151,7 @@ template <Dimension D> class ICamera
     CameraInfo CreateCameraInfo() const noexcept;
 
     Color BackgroundColor{Color::BLACK};
+    bool Transparent = false;
 
   protected:
     void updateProjectionView() noexcept;

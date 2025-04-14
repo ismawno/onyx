@@ -198,7 +198,7 @@ void WindowData::RenderEditorText() noexcept
 {
     ImGui::Text("This is the editor panel, where you can interact with the demo.");
     ImGui::TextWrapped("Onyx windows can draw shapes in 2D and 3D, and have a separate API for each even though the "
-                       "window is shared. You can choose between both dimensions using the tabs below.");
+                       "window is shared. Users interact with the rendering API through rendering contexts.");
 }
 
 template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, const TKit::Timespan p_Timestep) noexcept
@@ -289,41 +289,54 @@ template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, c
     }
 }
 
-template <typename C, typename F>
-static void renderSelectable(const char *p_TreeName, const char *p_ElementName, C &p_Container, u32 &p_Selected,
-                             F &&p_OnSelected) noexcept
+template <typename C, typename F1, typename F2>
+static void renderSelectableNoRemoval(const char *p_TreeName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
+                                      F2 p_GetName) noexcept
 {
-    renderSelectable(p_TreeName, p_ElementName, p_Container, p_Selected, std::forward<F>(p_OnSelected),
-                     [](const auto &) {});
+    if constexpr (std::is_same_v<F2, const char *>)
+        renderSelectable(
+            p_TreeName, p_Container, p_Selected, std::forward<F1>(p_OnSelected), [](const auto &) {},
+            [p_GetName](const auto &) { return p_GetName; });
+    else
+        renderSelectable(
+            p_TreeName, p_Container, p_Selected, std::forward<F1>(p_OnSelected), [](const auto &) {}, p_GetName);
 }
 
 template <typename C, typename F1, typename F2>
-static void renderSelectable(const char *p_TreeName, const char *p_ElementName, C &p_Container, u32 &p_Selected,
-                             F1 &&p_OnSelected, F2 &&p_OnRemoval) noexcept
+static void renderSelectableNoTree(const char *p_ElementName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
+                                   F2 &&p_OnRemoval) noexcept
 {
-    if (!p_Container.empty() && ImGui::TreeNode(p_TreeName))
-    {
-        if (ImGui::Button("Clear"))
-            p_Container.clear();
+    renderSelectable(nullptr, p_Container, p_Selected, std::forward<F1>(p_OnSelected), std::forward<F2>(p_OnRemoval),
+                     [p_ElementName](const auto &) { return p_ElementName; });
+}
 
+template <typename C, typename F1, typename F2, typename F3>
+static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
+                             F2 &&p_OnRemoval, F3 &&p_GetName) noexcept
+{
+    if (!p_Container.empty() && (!p_TreeName || ImGui::TreeNode(p_TreeName)))
+    {
         for (u32 i = 0; i < p_Container.size(); ++i)
         {
             ImGui::PushID(&p_Container[i]);
             if (ImGui::Button("X"))
             {
-                p_OnRemoval(p_Container[i]);
+                std::forward<F2>(p_OnRemoval)(p_Container[i]);
                 p_Container.erase(p_Container.begin() + i);
                 ImGui::PopID();
                 break;
             }
             ImGui::SameLine();
-            if (ImGui::Selectable(p_ElementName, p_Selected == i))
+            const char *name = std::forward<F3>(p_GetName)(p_Container[i]);
+            if (ImGui::Selectable(name, i == p_Selected))
                 p_Selected = i;
+
             ImGui::PopID();
         }
         if (p_Selected < p_Container.size())
-            p_OnSelected(p_Container[p_Selected]);
-        ImGui::TreePop();
+            std::forward<F1>(p_OnSelected)(p_Container[p_Selected]);
+        if (p_TreeName)
+            ImGui::TreePop();
     }
 }
 
@@ -509,14 +522,30 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         ImGui::TreePop();
     }
 
-    renderSelectable("Spawned shapes", "Shape", p_Data.Shapes, p_Data.SelectedShape,
-                     [](const TKit::Scope<Shape<D>> &p_Shape) { p_Shape->Edit(); });
+    renderSelectableNoRemoval(
+        "Shapes##Singular", p_Data.Shapes, p_Data.SelectedShape,
+        [](const TKit::Scope<Shape<D>> &p_Shape) { p_Shape->Edit(); },
+        [](const TKit::Scope<Shape<D>> &p_Shape) { return p_Shape->GetName(); });
 }
 
 template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noexcept
 {
     Camera<D> *camera = p_Data.Camera;
-    ImGui::ColorEdit3("Background", camera->BackgroundColor.AsPointer());
+    ImGui::Checkbox("Transparent", &camera->Transparent);
+    if (!camera->Transparent)
+        ImGui::ColorEdit3("Background", camera->BackgroundColor.AsPointer());
+
+    ImGui::Text("Viewport");
+    ImGui::SameLine();
+    ScreenViewport viewport = camera->GetViewport();
+    if (UserLayer::ViewportEditor(viewport, UserLayer::Flag_DisplayHelp))
+        camera->SetViewport(viewport);
+
+    ImGui::Text("Scissor");
+    ImGui::SameLine();
+    ScreenScissor scissor = camera->GetScissor();
+    if (UserLayer::ScissorEditor(scissor, UserLayer::Flag_DisplayHelp))
+        camera->SetScissor(scissor);
 
     if constexpr (D == D2)
     {
@@ -536,15 +565,16 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
         const fvec3 mpos3 = camera->GetMousePosition(p_Data.ZOffset);
         ImGui::Text("Mouse position: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
     }
-    UserLayer::HelpMarkerSameLine("The world mouse position has world units, meaning it is scaled to the world "
-                                  "coordinates and are compatible with the translation units of the shapes.");
+    UserLayer::HelpMarkerSameLine(
+        "The world mouse position has world units, meaning it is scaled to the world "
+        "coordinates of the current rendering context and are compatible with the translation units of the shapes.");
 
     const Transform<D> view = camera->GetViewTransform();
     ImGui::Text("View transform (with respect current axes)");
     UserLayer::HelpMarkerSameLine(
         "This view transform is represented specifically with respect the current axes, "
         "but note that, as the view is a global state that is not reset every frame in "
-        "the Onyx render context, it is generally detached from the axes transform. Onyx, under the hood, uses "
+        "a rendering context, it is generally detached from the axes transform. Onyx, under the hood, uses "
         "the detached view transform to setup the scene. This not a design decision but a requirement, as the axes "
         "is a somewhat volatile state (it is reset every frame).");
 
@@ -586,10 +616,10 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
     ImGui::Text("The camera/view controls are the following:");
     UserLayer::DisplayCameraControls<D>();
     ImGui::TextWrapped(
-        "The view describes the position and orientation of the camera in the scene. It is defined as a matrix "
-        "that corresponds to the inverse of the camera's transform, and is applied to all objects in the scene. "
-        "When you 'move' the camera around, you are actually moving the scene in the opposite direction. That is "
-        "why the inverse is needed to transform the scene around you.");
+        "The view describes the position and orientation of a camera in the scene. It is defined as a matrix "
+        "that corresponds to the inverse of the camera's transform, and is applied to all objects in a context. "
+        "When you 'move' a camera around, you are actually moving the scene (rendered by that camera) in the opposite "
+        "direction. That is why the inverse is needed to transform the scene around you.");
 
     ImGui::TextWrapped("The projection is defined as an additional matrix that is applied on top of the view. It "
                        "projects and maps your scene onto your screen, and is responsible for the dimensions, "
@@ -618,15 +648,20 @@ template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Contai
         layerData.Context = m_Window->CreateRenderContext<D>();
         p_Container.Data.push_back(std::move(layerData));
     }
+    UserLayer::HelpMarkerSameLine("A rendering context is an immediate mode API that allows users (you) to draw many "
+                                  "different objects in a window. Multiple contexts may exist per window, each with "
+                                  "their own independent state.");
 
-    renderSelectable(
-        "Contexts", "Context", p_Container.Data, p_Container.Selected,
-        [this](LayerData<D> &p_Data) { renderUI(p_Data); },
+    renderSelectableNoTree(
+        "Context", p_Container.Data, p_Container.Selected, [this](LayerData<D> &p_Data) { renderUI(p_Data); },
         [this](const LayerData<D> &p_Data) { m_Window->DestroyRenderContext(p_Data.Context); });
 }
 
 template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 {
+    if (p_Data.Cameras.empty())
+        ImGui::TextDisabled("Context has no cameras. At least one must be added to render anything.");
+
     if (ImGui::CollapsingHeader("Shapes"))
         renderShapeSpawn(p_Data);
     if constexpr (D == D3)
@@ -654,7 +689,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
         }
     }
 
-    if (ImGui::CollapsingHeader("Projection & View"))
+    if (ImGui::CollapsingHeader("Cameras"))
     {
         if (ImGui::Button("Add camera"))
         {
@@ -663,9 +698,8 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
             camData.Camera = camera;
             p_Data.Cameras.push_back(camData);
         }
-        renderSelectable(
-            "Cameras", "Camera", p_Data.Cameras, p_Data.ActiveCamera,
-            [this](CameraData<D> &p_Camera) { renderCamera(p_Camera); },
+        renderSelectableNoTree(
+            "Camera", p_Data.Cameras, p_Data.ActiveCamera, [this](CameraData<D> &p_Camera) { renderCamera(p_Camera); },
             [&p_Data](const CameraData<D> &p_Camera) { p_Data.Context->DestroyCamera(p_Camera.Camera); });
     }
 }
@@ -687,11 +721,13 @@ void WindowData::renderLightSpawn(LayerData<D3> &p_Data) noexcept
     if (p_Data.LightToSpawn == 1)
         ImGui::Checkbox("Draw##Light", &p_Data.DrawLights);
 
-    renderSelectable("Directional lights", "Directional", p_Data.DirectionalLights, p_Data.SelectedDirLight,
-                     [](DirectionalLight &p_Light) { UserLayer::DirectionalLightEditor(p_Light); });
+    renderSelectableNoRemoval(
+        "Directional lights", p_Data.DirectionalLights, p_Data.SelectedDirLight,
+        [](DirectionalLight &p_Light) { UserLayer::DirectionalLightEditor(p_Light); }, "Directional");
 
-    renderSelectable("Point lights", "Point", p_Data.PointLights, p_Data.SelectedPointLight,
-                     [](PointLight &p_Light) { UserLayer::PointLightEditor(p_Light); });
+    renderSelectableNoRemoval(
+        "Point lights", p_Data.PointLights, p_Data.SelectedPointLight,
+        [](PointLight &p_Light) { UserLayer::PointLightEditor(p_Light); }, "Point");
 }
 
 } // namespace Onyx::Demo

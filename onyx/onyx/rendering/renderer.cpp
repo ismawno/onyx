@@ -254,26 +254,28 @@ static void doStencilTestNoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderer
 template <Dimension D>
 static void setCameraViewport(const VkCommandBuffer p_CommandBuffer, const CameraInfo &p_Camera) noexcept
 {
-    const Color &bg = p_Camera.BackgroundColor;
-
-    TKit::Array<VkClearAttachment, D - 1> clearAttachments{};
-    clearAttachments[0].colorAttachment = 0;
-    clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    clearAttachments[0].clearValue.color = {{bg.RGBA.r, bg.RGBA.g, bg.RGBA.b, bg.RGBA.a}};
-
-    if constexpr (D == D3)
+    if (!p_Camera.Transparent)
     {
-        clearAttachments[1].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-        clearAttachments[1].clearValue.depthStencil = {1.f, 0};
+        const Color &bg = p_Camera.BackgroundColor;
+        TKit::Array<VkClearAttachment, D - 1> clearAttachments{};
+        clearAttachments[0].colorAttachment = 0;
+        clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        clearAttachments[0].clearValue.color = {{bg.RGBA.r, bg.RGBA.g, bg.RGBA.b, bg.RGBA.a}};
+
+        if constexpr (D == D3)
+        {
+            clearAttachments[1].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+            clearAttachments[1].clearValue.depthStencil = {1.f, 0};
+        }
+
+        VkClearRect clearRect{};
+        clearRect.rect.offset = {static_cast<i32>(p_Camera.Viewport.x), static_cast<i32>(p_Camera.Viewport.y)};
+        clearRect.rect.extent = {static_cast<u32>(p_Camera.Viewport.width), static_cast<u32>(p_Camera.Viewport.height)};
+        clearRect.layerCount = 1;
+        clearRect.baseArrayLayer = 0;
+
+        vkCmdClearAttachments(p_CommandBuffer, D - 1, clearAttachments.data(), 1, &clearRect);
     }
-
-    VkClearRect clearRect{};
-    clearRect.rect.offset = {static_cast<i32>(p_Camera.Viewport.x), static_cast<i32>(p_Camera.Viewport.y)};
-    clearRect.rect.extent = {static_cast<u32>(p_Camera.Viewport.width), static_cast<u32>(p_Camera.Viewport.height)};
-    clearRect.layerCount = 1;
-    clearRect.baseArrayLayer = 0;
-
-    vkCmdClearAttachments(p_CommandBuffer, D - 1, clearAttachments.data(), 1, &clearRect);
     vkCmdSetViewport(p_CommandBuffer, 0, 1, &p_Camera.Viewport);
     vkCmdSetScissor(p_CommandBuffer, 0, 1, &p_Camera.Scissor);
 }

@@ -194,6 +194,7 @@ struct ONYX_API CameraInfo
     fvec3 ViewPosition; // Unused in 2D... not ideal
     VkViewport Viewport;
     VkRect2D Scissor;
+    bool Transparent;
 };
 
 /**

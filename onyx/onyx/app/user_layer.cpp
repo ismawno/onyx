@@ -15,42 +15,56 @@ static void displayTransformHelp() noexcept
         "quaternion in 3D, or a rotation angle in 2D. Almost all objects in a scene have a transform.");
 }
 
-template <Dimension D> void UserLayer::TransformEditor(Transform<D> &p_Transform, const Flags p_Flags) noexcept
+template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform, const Flags p_Flags) noexcept
 {
     ImGui::PushID(&p_Transform);
     if (p_Flags & Flag_DisplayHelp)
         displayTransformHelp();
+    bool changed = false;
     if constexpr (D == D2)
     {
-        ImGui::DragFloat2("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
-        ImGui::DragFloat2("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
+        changed |= ImGui::DragFloat2("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
+        changed |= ImGui::DragFloat2("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
 
         f32 degrees = glm::degrees(p_Transform.Rotation);
         if (ImGui::DragFloat("Rotation", &degrees, 0.3f, 0.f, 0.f, "%.1f deg"))
+        {
             p_Transform.Rotation = glm::radians(degrees);
+            changed = true;
+        }
     }
     else
     {
-        ImGui::DragFloat3("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
-        ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
+        changed |= ImGui::DragFloat3("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
+        changed |= ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
 
         const fvec3 degrees = glm::degrees(glm::eulerAngles(p_Transform.Rotation));
         ImGui::Text("Rotation: (%.2f, %.2f, %.2f) deg", degrees.x, degrees.y, degrees.z);
 
         fvec3 angles{0.f};
         if (ImGui::DragFloat3("Rotate (global)", glm::value_ptr(angles), 0.3f, 0.f, 0.f, "Slide!"))
+        {
             p_Transform.Rotation = glm::normalize(glm::quat(glm::radians(angles)) * p_Transform.Rotation);
+            changed = true;
+        }
 
         if (ImGui::DragFloat3("Rotate (Local)", glm::value_ptr(angles), 0.3f, 0.f, 0.f, "Slide!"))
+        {
             p_Transform.Rotation = glm::normalize(p_Transform.Rotation * glm::quat(glm::radians(angles)));
+            changed = true;
+        }
         if (ImGui::Button("Reset rotation"))
+        {
             p_Transform.Rotation = quat{1.f, 0.f, 0.f, 0.f};
+            changed = true;
+        }
     }
     ImGui::PopID();
+    return changed;
 }
 
-template void UserLayer::TransformEditor<D2>(Transform<D2> &p_Transform, Flags p_Flags) noexcept;
-template void UserLayer::TransformEditor<D3>(Transform<D3> &p_Transform, Flags p_Flags) noexcept;
+template bool UserLayer::TransformEditor<D2>(Transform<D2> &p_Transform, Flags p_Flags) noexcept;
+template bool UserLayer::TransformEditor<D3>(Transform<D3> &p_Transform, Flags p_Flags) noexcept;
 
 template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Transform, const Flags p_Flags) noexcept
 {
@@ -168,7 +182,7 @@ void UserLayer::HelpMarkerSameLine(const char *p_Description, const char *p_Icon
     HelpMarker(p_Description, p_Icon);
 }
 
-template <Dimension D> void UserLayer::MaterialEditor(MaterialData<D> &p_Material, const Flags p_Flags) noexcept
+template <Dimension D> bool UserLayer::MaterialEditor(MaterialData<D> &p_Material, const Flags p_Flags) noexcept
 {
     if (p_Flags & Flag_DisplayHelp)
         HelpMarker(
@@ -176,37 +190,49 @@ template <Dimension D> void UserLayer::MaterialEditor(MaterialData<D> &p_Materia
             "contributions, and its specular sharpness. The material is used to calculate the final color of the "
             "object, which is then used to render it. Onyx does not support 2D lights, so 2D materials are very "
             "simple: a lone color.");
+    bool changed = false;
     if constexpr (D == D3)
     {
         if (ImGui::SliderFloat("Diffuse contribution", &p_Material.DiffuseContribution, 0.f, 1.f))
+        {
             p_Material.SpecularContribution = 1.f - p_Material.DiffuseContribution;
+            changed = true;
+        }
         if (ImGui::SliderFloat("Specular contribution", &p_Material.SpecularContribution, 0.f, 1.f))
+        {
             p_Material.DiffuseContribution = 1.f - p_Material.SpecularContribution;
-        ImGui::SliderFloat("Specular sharpness", &p_Material.SpecularSharpness, 0.f, 512.f, "%.2f",
-                           ImGuiSliderFlags_Logarithmic);
+            changed = true;
+        }
+        changed |= ImGui::SliderFloat("Specular sharpness", &p_Material.SpecularSharpness, 0.f, 512.f, "%.2f",
+                                      ImGuiSliderFlags_Logarithmic);
     }
-    ImGui::ColorEdit4("Color", p_Material.Color.AsPointer());
+    changed |= ImGui::ColorEdit4("Color", p_Material.Color.AsPointer());
+    return changed;
 }
 
-template void UserLayer::MaterialEditor<D2>(MaterialData<D2> &p_Material, Flags p_Flags) noexcept;
-template void UserLayer::MaterialEditor<D3>(MaterialData<D3> &p_Material, Flags p_Flags) noexcept;
+template bool UserLayer::MaterialEditor<D2>(MaterialData<D2> &p_Material, Flags p_Flags) noexcept;
+template bool UserLayer::MaterialEditor<D3>(MaterialData<D3> &p_Material, Flags p_Flags) noexcept;
 
-void UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_Flags) noexcept
+bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_Flags) noexcept
 {
+    bool changed = false;
     if (p_Flags & Flag_DisplayHelp)
         HelpMarker("Directional lights are lights that have no position, only a direction. They are used to simulate "
                    "infinite light sources, such as the sun. They have a direction, an intensity, and a color. The "
                    "direction is a normalized vector that points in the direction of the light, the intensity is the "
                    "brightness of the light, and the color is the color of the light.");
     ImGui::PushID(&p_Light);
-    ImGui::SliderFloat("Intensity", &p_Light.DirectionAndIntensity.w, 0.f, 1.f);
-    ImGui::SliderFloat3("Direction", glm::value_ptr(p_Light.DirectionAndIntensity), 0.f, 1.f);
-    ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
+    changed |= ImGui::SliderFloat("Intensity", &p_Light.DirectionAndIntensity.w, 0.f, 1.f);
+    changed |= ImGui::SliderFloat3("Direction", glm::value_ptr(p_Light.DirectionAndIntensity), 0.f, 1.f);
+    changed |= ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
     ImGui::PopID();
+
+    return changed;
 }
 
-void UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags) noexcept
+bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags) noexcept
 {
+    bool changed = false;
     if (p_Flags & Flag_DisplayHelp)
         HelpMarker(
             "Point lights are lights that have a position and a radius. They are used to simulate light sources "
@@ -215,17 +241,19 @@ void UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags) noexc
             "the light, the radius is the distance at which the light is still visible, and the color is the color "
             "of the light.");
     ImGui::PushID(&p_Light);
-    ImGui::SliderFloat("Intensity", &p_Light.PositionAndIntensity.w, 0.f, 1.f);
-    ImGui::DragFloat3("Position", glm::value_ptr(p_Light.PositionAndIntensity), 0.01f);
-    ImGui::SliderFloat("Radius", &p_Light.Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
+    changed |= ImGui::SliderFloat("Intensity", &p_Light.PositionAndIntensity.w, 0.f, 1.f);
+    changed |= ImGui::DragFloat3("Position", glm::value_ptr(p_Light.PositionAndIntensity), 0.01f);
+    changed |= ImGui::SliderFloat("Radius", &p_Light.Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    changed |= ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
     ImGui::PopID();
+    return changed;
 }
 
-void UserLayer::ResolutionEditor(const char *p_Name, Resolution &p_Res, const Flags p_Flags) noexcept
+bool UserLayer::ResolutionEditor(const char *p_Name, Resolution &p_Res, const Flags p_Flags) noexcept
 {
+    bool changed = false;
     ImGui::PushID(&p_Res);
-    ImGui::Combo(p_Name, reinterpret_cast<i32 *>(&p_Res), "Very Low\0Low\0Medium\0High\0Very High\0\0");
+    changed |= ImGui::Combo(p_Name, reinterpret_cast<i32 *>(&p_Res), "Very Low\0Low\0Medium\0High\0Very High\0\0");
     if (p_Flags & Flag_DisplayHelp)
         HelpMarkerSameLine(
             "This setting allows you to control the resolution of certain 3D shapes that have smooth curved surfaces, "
@@ -233,6 +261,7 @@ void UserLayer::ResolutionEditor(const char *p_Name, Resolution &p_Res, const Fl
             "higher resolution will make the shape smoother, but it will also increase the number of vertices and the "
             "computational cost of rendering the shape.");
     ImGui::PopID();
+    return changed;
 }
 
 static const char *presentModeToString(const VkPresentModeKHR mode)
@@ -258,7 +287,7 @@ static const char *presentModeToString(const VkPresentModeKHR mode)
     }
 }
 
-void UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags) noexcept
+bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags) noexcept
 {
     const VkPresentModeKHR current = p_Window->GetPresentMode();
     const TKit::StaticArray8<VkPresentModeKHR> &available = p_Window->GetAvailablePresentModes();
@@ -272,7 +301,8 @@ void UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags) noexcep
             index = static_cast<int>(i);
     }
 
-    if (ImGui::Combo("Present mode", &index, presentModes.data(), static_cast<int>(available.size())))
+    const bool changed = ImGui::Combo("Present mode", &index, presentModes.data(), static_cast<int>(available.size()));
+    if (changed)
         p_Window->SetPresentMode(available[index]);
 
     if (p_Flags & Flag_DisplayHelp)
@@ -280,6 +310,48 @@ void UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags) noexcep
                            "can be used to limit the frame rate of the application. The most common present mode is "
                            "Fifo, and uses V-Sync to synchronize the frame rate with the "
                            "refresh rate of the monitor.");
+    return changed;
+}
+
+bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags) noexcept
+{
+    bool changed = false;
+    ImGui::PushID(&p_Viewport);
+    if (p_Flags & Flag_DisplayHelp)
+    {
+        HelpMarker("The viewport is the area of the screen where the camera is rendered. It is defined as a "
+                   "rectangle that is specified in normalized coordinates (0, 0) to (1, 1).");
+        HelpMarkerSameLine("Vulkan is pretty strict about the validity of viewports. The area of the viewport must "
+                           "always be greater than zero, and the minimum and maximum depth bounds must be between 0 "
+                           "and 1. Otherwise, the application will crash.",
+                           "(!)");
+    }
+
+    changed |= ImGui::SliderFloat2("Min", glm::value_ptr(p_Viewport.Min), -1.f, 1.f);
+    changed |= ImGui::SliderFloat2("Max", glm::value_ptr(p_Viewport.Max), -1.f, 1.f);
+    changed |= ImGui::SliderFloat2("Depth bounds", glm::value_ptr(p_Viewport.DepthBounds), 0.f, 1.f);
+    ImGui::PopID();
+    return changed;
+}
+
+bool UserLayer::ScissorEditor(ScreenScissor &p_Scissor, const Flags p_Flags) noexcept
+{
+    bool changed = false;
+    ImGui::PushID(&p_Scissor);
+    if (p_Flags & Flag_DisplayHelp)
+    {
+        HelpMarker("The scissor limits the area of the screen the camera is rendered to. It is defined as a "
+                   "rectangle that is specified in normalized coordinates (0, 0) to (1, 1).");
+        HelpMarkerSameLine("Vulkan is pretty strict about the validity of scissors. The area of the scissor must "
+                           "always be greater than zero, and the minimum and maximum depth bounds must be between 0 "
+                           "and 1. Otherwise, the application will crash.",
+                           "(!)");
+    }
+
+    changed |= ImGui::SliderFloat2("Min", glm::value_ptr(p_Scissor.Min), -1.f, 1.f);
+    changed |= ImGui::SliderFloat2("Max", glm::value_ptr(p_Scissor.Max), -1.f, 1.f);
+    ImGui::PopID();
+    return changed;
 }
 
 } // namespace Onyx
