@@ -86,12 +86,12 @@ void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_
 {
     m_HostInstanceData[p_Model].push_back(p_InstanceData);
     const u32 size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
-    MutableStorageBuffer<InstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    HostVisibleStorageBuffer<InstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
 
     if (size == buffer.GetInfo().InstanceCount)
     {
         buffer.Destroy();
-        buffer = Core::CreateMutableStorageBuffer<InstanceData>(size * 2);
+        buffer = CreateHostVisibleStorageBuffer<InstanceData>(size * 2);
         const VkDescriptorBufferInfo info = buffer.GetDescriptorInfo();
 
         m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
@@ -206,11 +206,11 @@ void PrimitiveRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceDat
                                        const u32 p_PrimitiveIndex) noexcept
 {
     const u32 size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
-    MutableStorageBuffer<InstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    HostVisibleStorageBuffer<InstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     if (size == buffer.GetInfo().InstanceCount)
     {
         buffer.Destroy();
-        buffer = Core::CreateMutableStorageBuffer<InstanceData>(size * 2);
+        buffer = CreateHostVisibleStorageBuffer<InstanceData>(size * 2);
         const VkDescriptorBufferInfo info = buffer.GetDescriptorInfo();
 
         m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
@@ -228,7 +228,7 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
         return;
 
     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
-    MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    HostVisibleStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
     u32 index = 0;
     for (const auto &instanceData : m_HostInstanceData)
         for (const auto &data : instanceData)
@@ -247,8 +247,8 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
     bindDescriptorSets<dlevel>(p_Info, transforms);
 
-    const VertexBuffer<D> &vbuffer = Primitives<D>::GetVertexBuffer();
-    const IndexBuffer &ibuffer = Primitives<D>::GetIndexBuffer();
+    const DeviceLocalVertexBuffer<D> &vbuffer = Primitives<D>::GetVertexBuffer();
+    const DeviceLocalIndexBuffer &ibuffer = Primitives<D>::GetIndexBuffer();
 
     vbuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
     ibuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
@@ -300,7 +300,7 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
     if (storageSize == storageBuffer.GetInfo().InstanceCount)
     {
         storageBuffer.Destroy();
-        storageBuffer = Core::CreateMutableStorageBuffer<InstanceData>(storageSize * 2);
+        storageBuffer = CreateHostVisibleStorageBuffer<InstanceData>(storageSize * 2);
         const VkDescriptorBufferInfo info = storageBuffer.GetDescriptorInfo();
 
         m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
@@ -348,18 +348,18 @@ void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData 
 
     const u32 vertexSize = m_Vertices.size();
     const u32 indexSize = m_Indices.size();
-    MutableVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_FrameIndex];
-    MutableIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_FrameIndex];
+    HostVisibleVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_FrameIndex];
+    HostVisibleIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_FrameIndex];
 
     if (vertexSize >= vertexBuffer.GetInfo().InstanceCount)
     {
         vertexBuffer.Destroy();
-        vertexBuffer = Core::CreateMutableVertexBuffer<D>(vertexSize * 2);
+        vertexBuffer = CreateHostVisibleVertexBuffer<D>(vertexSize * 2);
     }
     if (indexSize >= indexBuffer.GetInfo().InstanceCount)
     {
         indexBuffer.Destroy();
-        indexBuffer = Core::CreateMutableIndexBuffer(indexSize * 2);
+        indexBuffer = CreateHostVisibleIndexBuffer(indexSize * 2);
     }
 }
 
@@ -368,12 +368,12 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
     if (m_HostInstanceData.empty())
         return;
     TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
-    MutableStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
-    MutableVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_FrameIndex];
-    MutableIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_FrameIndex];
+    HostVisibleStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    HostVisibleVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_FrameIndex];
+    HostVisibleIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_FrameIndex];
 
-    vertexBuffer.Write(m_Vertices);
-    indexBuffer.Write(m_Indices);
+    vertexBuffer.Write(m_Vertices.data(), m_Vertices.size());
+    indexBuffer.Write(m_Indices.data(), m_Indices.size());
     for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
         storageBuffer.WriteAt(i, &m_HostInstanceData[i].BaseData);
 
@@ -393,8 +393,8 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
     const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
     bindDescriptorSets<dlevel>(p_Info, transforms);
 
-    MutableVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_Info.FrameIndex];
-    MutableIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_Info.FrameIndex];
+    HostVisibleVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_Info.FrameIndex];
+    HostVisibleIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_Info.FrameIndex];
 
     vertexBuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
     indexBuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
@@ -435,7 +435,7 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
         TKit::Approximately(p_Options.Hollowness, 1.f))
         return;
     const u32 size = m_HostInstanceData.size();
-    MutableStorageBuffer<CircleInstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    HostVisibleStorageBuffer<CircleInstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
 
     CircleInstanceData instanceData;
     instanceData.BaseData = p_InstanceData;
@@ -450,7 +450,7 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
     if (size == buffer.GetInfo().InstanceCount)
     {
         buffer.Destroy();
-        buffer = Core::CreateMutableStorageBuffer<CircleInstanceData>(size * 2);
+        buffer = CreateHostVisibleStorageBuffer<CircleInstanceData>(size * 2);
         const VkDescriptorBufferInfo info = buffer.GetDescriptorInfo();
 
         m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =

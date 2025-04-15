@@ -12,8 +12,8 @@ template <Dimension D> struct IndexVertexBuffers
                        const BufferLayout<D> &p_Layout) noexcept
         : Layout{p_Layout}
     {
-        Vertices = Core::CreateVertexBuffer(p_Vertices);
-        Indices = Core::CreateIndexBuffer(p_Indices);
+        Vertices = CreateDeviceLocalVertexBuffer(p_Vertices);
+        Indices = CreateDeviceLocalIndexBuffer(p_Indices);
     }
     ~IndexVertexBuffers() noexcept
     {
@@ -21,8 +21,8 @@ template <Dimension D> struct IndexVertexBuffers
         Indices.Destroy();
     }
 
-    VertexBuffer<D> Vertices;
-    IndexBuffer Indices;
+    DeviceLocalVertexBuffer<D> Vertices;
+    DeviceLocalIndexBuffer Indices;
     BufferLayout<D> Layout;
 };
 
@@ -37,11 +37,11 @@ template <Dimension D> static TKit::Storage<IndexVertexBuffers<D>> &getBuffers()
         return s_Buffers3D;
 }
 
-template <Dimension D> const VertexBuffer<D> &IPrimitives<D>::GetVertexBuffer() noexcept
+template <Dimension D> const DeviceLocalVertexBuffer<D> &IPrimitives<D>::GetVertexBuffer() noexcept
 {
     return getBuffers<D>()->Vertices;
 }
-template <Dimension D> const IndexBuffer &IPrimitives<D>::GetIndexBuffer() noexcept
+template <Dimension D> const DeviceLocalIndexBuffer &IPrimitives<D>::GetIndexBuffer() noexcept
 {
     return getBuffers<D>()->Indices;
 }

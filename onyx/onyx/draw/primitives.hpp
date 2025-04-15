@@ -50,14 +50,14 @@ template <Dimension D> struct IPrimitives
      *
      * @return The vertex buffer.
      */
-    static const VertexBuffer<D> &GetVertexBuffer() noexcept;
+    static const DeviceLocalVertexBuffer<D> &GetVertexBuffer() noexcept;
 
     /**
      * @brief Get the combined index buffer for the primitives.
      *
      * @return The index buffer.
      */
-    static const IndexBuffer &GetIndexBuffer() noexcept;
+    static const DeviceLocalIndexBuffer &GetIndexBuffer() noexcept;
 
     /**
      * @brief Get the data layout for a specific primitive.

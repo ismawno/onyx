@@ -280,10 +280,10 @@ struct ONYX_API DeviceLightData
     ~DeviceLightData() noexcept;
 
     /// Storage buffers for directional lights, one per frame in flight.
-    PerFrameData<MutableStorageBuffer<DirectionalLight>> DirectionalLightBuffers;
+    PerFrameData<HostVisibleStorageBuffer<DirectionalLight>> DirectionalLightBuffers;
 
     /// Storage buffers for point lights, one per frame in flight.
-    PerFrameData<MutableStorageBuffer<PointLight>> PointLightBuffers;
+    PerFrameData<HostVisibleStorageBuffer<PointLight>> PointLightBuffers;
 
     /// Descriptor sets associated with the light buffers, one per frame in flight.
     PerFrameData<VkDescriptorSet> DescriptorSets;

@@ -41,8 +41,8 @@ template <Dimension D> class Model
                                       TKit::Span<const Index> p_Indices) noexcept;
 
     Model() noexcept = default;
-    Model(const VertexBuffer<D> &p_VertexBuffer) noexcept;
-    Model(const VertexBuffer<D> &p_VertexBuffer, const IndexBuffer &p_IndexBuffer) noexcept;
+    Model(const DeviceLocalVertexBuffer<D> &p_VertexBuffer) noexcept;
+    Model(const DeviceLocalVertexBuffer<D> &p_VertexBuffer, const DeviceLocalIndexBuffer &p_IndexBuffer) noexcept;
 
     // TODO: Make sure no redundant bind calls are made
     // These bind and draw commands operate with a single vertex and index buffer. Not ideal when instancing could be
@@ -95,7 +95,7 @@ template <Dimension D> class Model
      *
      * @return Reference to the vertex buffer.
      */
-    const VertexBuffer<D> &GetVertexBuffer() const noexcept;
+    const DeviceLocalVertexBuffer<D> &GetVertexBuffer() const noexcept;
 
     /**
      * @brief Gets the index buffer of the model.
@@ -104,7 +104,7 @@ template <Dimension D> class Model
      *
      * @return Reference to the index buffer.
      */
-    const IndexBuffer &GetIndexBuffer() const noexcept; // This is UB if HasIndices returns false
+    const DeviceLocalIndexBuffer &GetIndexBuffer() const noexcept; // This is UB if HasIndices returns false
 
     /**
      * @brief Loads a model from a file.
@@ -121,8 +121,8 @@ template <Dimension D> class Model
     }
 
   private:
-    VertexBuffer<D> m_VertexBuffer{};
-    IndexBuffer m_IndexBuffer{};
+    DeviceLocalVertexBuffer<D> m_VertexBuffer{};
+    DeviceLocalIndexBuffer m_IndexBuffer{};
 };
 
 } // namespace Onyx

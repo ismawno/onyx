@@ -279,48 +279,6 @@ const VKit::DescriptorSetLayout &Core::GetLightStorageDescriptorSetLayout() noex
     return s_LightStorageLayout;
 }
 
-template <Dimension D> VertexBuffer<D> Core::CreateVertexBuffer(const TKit::Span<const Vertex<D>> p_Vertices) noexcept
-{
-    typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs specs{};
-    specs.Allocator = s_VulkanAllocator;
-    specs.Data = p_Vertices;
-    specs.CommandPool = &GetCommandPool();
-    specs.Queue = GetGraphicsQueue();
-    const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(specs);
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-IndexBuffer Core::CreateIndexBuffer(const TKit::Span<const Index> p_Indices) noexcept
-{
-    typename VKit::DeviceLocalBuffer<Index>::IndexSpecs specs{};
-    specs.Allocator = s_VulkanAllocator;
-    specs.Data = p_Indices;
-    specs.CommandPool = &GetCommandPool();
-    specs.Queue = GetGraphicsQueue();
-    const auto result = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(specs);
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-
-template <Dimension D> MutableVertexBuffer<D> Core::CreateMutableVertexBuffer(const VkDeviceSize p_Capacity) noexcept
-{
-    typename VKit::HostVisibleBuffer<Vertex<D>>::VertexSpecs specs{};
-    specs.Allocator = s_VulkanAllocator;
-    specs.Capacity = p_Capacity;
-    const auto result = VKit::HostVisibleBuffer<Vertex<D>>::CreateVertexBuffer(specs);
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-MutableIndexBuffer Core::CreateMutableIndexBuffer(const VkDeviceSize p_Capacity) noexcept
-{
-    typename VKit::HostVisibleBuffer<Index>::IndexSpecs specs{};
-    specs.Allocator = s_VulkanAllocator;
-    specs.Capacity = p_Capacity;
-    const auto result = VKit::HostVisibleBuffer<Index>::CreateIndexBuffer(specs);
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-
 VkPipelineLayout Core::GetGraphicsPipelineLayoutSimple() noexcept
 {
     return s_DLevelSimpleLayout;
@@ -345,11 +303,5 @@ TKit::VkProfilingContext Core::GetProfilingContext() noexcept
     return s_ProfilingContext;
 }
 #endif
-
-template ONYX_API VertexBuffer<D2> Core::CreateVertexBuffer<D2>(TKit::Span<const Vertex<D2>>) noexcept;
-template ONYX_API VertexBuffer<D3> Core::CreateVertexBuffer<D3>(TKit::Span<const Vertex<D3>>) noexcept;
-
-template ONYX_API MutableVertexBuffer<D2> Core::CreateMutableVertexBuffer<D2>(VkDeviceSize) noexcept;
-template ONYX_API MutableVertexBuffer<D3> Core::CreateMutableVertexBuffer<D3>(VkDeviceSize) noexcept;
 
 } // namespace Onyx

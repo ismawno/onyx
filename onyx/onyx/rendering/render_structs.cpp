@@ -10,8 +10,8 @@ PolygonDeviceInstanceData<D, DLevel>::PolygonDeviceInstanceData(const u32 p_Capa
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        VertexBuffers[i] = Core::CreateMutableVertexBuffer<D>(p_Capacity);
-        IndexBuffers[i] = Core::CreateMutableIndexBuffer(p_Capacity);
+        VertexBuffers[i] = CreateHostVisibleVertexBuffer<D>(p_Capacity);
+        IndexBuffers[i] = CreateHostVisibleIndexBuffer(p_Capacity);
     }
 }
 template <Dimension D, DrawLevel DLevel> PolygonDeviceInstanceData<D, DLevel>::~PolygonDeviceInstanceData() noexcept

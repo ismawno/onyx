@@ -273,7 +273,7 @@ template <typename T> struct DeviceInstanceData
     {
         for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         {
-            StorageBuffers[i] = Core::CreateMutableStorageBuffer<T>(p_Capacity);
+            StorageBuffers[i] = CreateHostVisibleStorageBuffer<T>(p_Capacity);
             StorageSizes[i] = 0;
         }
     }
@@ -283,7 +283,7 @@ template <typename T> struct DeviceInstanceData
             StorageBuffers[i].Destroy();
     }
 
-    PerFrameData<MutableStorageBuffer<T>> StorageBuffers;
+    PerFrameData<HostVisibleStorageBuffer<T>> StorageBuffers;
     PerFrameData<VkDescriptorSet> DescriptorSets;
     PerFrameData<u32> StorageSizes;
 };
@@ -302,8 +302,8 @@ template <Dimension D, DrawLevel DLevel> struct PolygonDeviceInstanceData : Devi
     PolygonDeviceInstanceData(const u32 p_Capacity) noexcept;
     ~PolygonDeviceInstanceData() noexcept;
 
-    PerFrameData<MutableVertexBuffer<D>> VertexBuffers;
-    PerFrameData<MutableIndexBuffer> IndexBuffers;
+    PerFrameData<HostVisibleVertexBuffer<D>> VertexBuffers;
+    PerFrameData<HostVisibleIndexBuffer> IndexBuffers;
 };
 
 /**

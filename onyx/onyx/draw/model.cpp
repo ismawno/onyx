@@ -49,11 +49,12 @@ VKit::Result<Model<D>> Model<D>::Create(TKit::Span<const Vertex<D>> p_Vertices,
     return VKit::Result<Model<D>>::Ok(vresult.GetValue(), iresult.GetValue());
 }
 
-template <Dimension D> Model<D>::Model(const VertexBuffer<D> &p_VertexBuffer) noexcept : m_VertexBuffer(p_VertexBuffer)
+template <Dimension D>
+Model<D>::Model(const DeviceLocalVertexBuffer<D> &p_VertexBuffer) noexcept : m_VertexBuffer(p_VertexBuffer)
 {
 }
 template <Dimension D>
-Model<D>::Model(const VertexBuffer<D> &p_VertexBuffer, const IndexBuffer &p_IndexBuffer) noexcept
+Model<D>::Model(const DeviceLocalVertexBuffer<D> &p_VertexBuffer, const DeviceLocalIndexBuffer &p_IndexBuffer) noexcept
     : m_VertexBuffer(p_VertexBuffer), m_IndexBuffer(p_IndexBuffer)
 {
 }
@@ -95,11 +96,11 @@ void Model<D>::DrawIndexed(const VkCommandBuffer p_CommandBuffer, const u32 p_In
                      p_FirstIndex, p_VertexOffset, p_FirstInstance);
 }
 
-template <Dimension D> const VertexBuffer<D> &Model<D>::GetVertexBuffer() const noexcept
+template <Dimension D> const DeviceLocalVertexBuffer<D> &Model<D>::GetVertexBuffer() const noexcept
 {
     return m_VertexBuffer;
 }
-template <Dimension D> const IndexBuffer &Model<D>::GetIndexBuffer() const noexcept
+template <Dimension D> const DeviceLocalIndexBuffer &Model<D>::GetIndexBuffer() const noexcept
 {
     return m_IndexBuffer;
 }

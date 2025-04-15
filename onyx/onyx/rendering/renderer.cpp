@@ -73,8 +73,8 @@ DeviceLightData::DeviceLightData(const u32 p_Capacity) noexcept
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        DirectionalLightBuffers[i] = Core::CreateMutableStorageBuffer<DirectionalLight>(p_Capacity);
-        PointLightBuffers[i] = Core::CreateMutableStorageBuffer<PointLight>(p_Capacity);
+        DirectionalLightBuffers[i] = CreateHostVisibleStorageBuffer<DirectionalLight>(p_Capacity);
+        PointLightBuffers[i] = CreateHostVisibleStorageBuffer<PointLight>(p_Capacity);
     }
 }
 DeviceLightData::~DeviceLightData() noexcept
@@ -339,7 +339,7 @@ void Renderer<D3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
     if (buffer.GetInfo().InstanceCount == size)
     {
         buffer.Destroy();
-        buffer = Core::CreateMutableStorageBuffer<DirectionalLight>(size * 2);
+        buffer = CreateHostVisibleStorageBuffer<DirectionalLight>(size * 2);
         const VkDescriptorBufferInfo dirInfo = buffer.GetDescriptorInfo();
         const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.PointLightBuffers[m_FrameIndex].GetDescriptorInfo();
 
@@ -353,11 +353,11 @@ void Renderer<D3>::AddDirectionalLight(const DirectionalLight &p_Light) noexcept
 void Renderer<D3>::AddPointLight(const PointLight &p_Light) noexcept
 {
     const u32 size = m_PointLights.size();
-    MutableStorageBuffer<PointLight> &buffer = m_DeviceLightData.PointLightBuffers[m_FrameIndex];
+    HostVisibleStorageBuffer<PointLight> &buffer = m_DeviceLightData.PointLightBuffers[m_FrameIndex];
     if (buffer.GetInfo().InstanceCount == size)
     {
         buffer.Destroy();
-        buffer = Core::CreateMutableStorageBuffer<PointLight>(size * 2);
+        buffer = CreateHostVisibleStorageBuffer<PointLight>(size * 2);
         const VkDescriptorBufferInfo dirInfo =
             m_DeviceLightData.DirectionalLightBuffers[m_FrameIndex].GetDescriptorInfo();
         const VkDescriptorBufferInfo pointInfo = buffer.GetDescriptorInfo();
