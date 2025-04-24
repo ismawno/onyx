@@ -254,7 +254,7 @@ struct ONYX_API DeviceLightData
     DeviceLightData() noexcept;
     ~DeviceLightData() noexcept;
 
-    template <typename T> void Grow(u32 p_FrameIndex) noexcept;
+    template <typename T> void Grow(u32 p_FrameIndex, u32 p_Instances) noexcept;
 
     PerFrameData<HostVisibleStorageBuffer<DirectionalLight>> DirectionalLightBuffers;
     PerFrameData<HostVisibleStorageBuffer<PointLight>> PointLightBuffers;

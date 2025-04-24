@@ -21,17 +21,17 @@ layout(location = 8) out flat MaterialData o_Material;
 
 struct InstanceData
 {
+    vec4 ArcInfo;
     mat4 Transform;
     mat4 NormalMatrix;
     MaterialData Material;
-    vec4 ArcInfo;
     uint AngleOverflow;
     float Hollowness;
     float InnerFade;
     float OuterFade;
 };
 
-layout(std140, set = 0, binding = 0) readonly buffer InstanceBuffer
+layout(std430, set = 0, binding = 0) readonly buffer InstanceBuffer
 {
     InstanceData Instances[];
 }

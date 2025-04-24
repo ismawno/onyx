@@ -86,17 +86,16 @@ DeviceLightData::~DeviceLightData() noexcept
     }
 }
 
-template <typename T> void DeviceLightData::Grow(const u32 p_FrameIndex) noexcept
+template <typename T> void DeviceLightData::Grow(const u32 p_FrameIndex, const u32 p_Instances) noexcept
 {
     HostVisibleStorageBuffer<T> *buffer;
     if constexpr (std::is_same_v<T, DirectionalLight>)
         buffer = &DirectionalLightBuffers[p_FrameIndex];
     else
         buffer = &PointLightBuffers[p_FrameIndex];
-    const u32 instances = buffer->GetInfo().InstanceCount;
 
     buffer->Destroy();
-    *buffer = CreateHostVisibleStorageBuffer<T>(1 + instances + instances / 2);
+    *buffer = CreateHostVisibleStorageBuffer<T>(1 + p_Instances + p_Instances / 2);
 
     const VkDescriptorBufferInfo dirInfo = DirectionalLightBuffers[p_FrameIndex].GetDescriptorInfo();
     const VkDescriptorBufferInfo pointInfo = PointLightBuffers[p_FrameIndex].GetDescriptorInfo();
@@ -242,7 +241,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
         auto &devDirBuffer = m_DeviceLightData.DirectionalLightBuffers[p_FrameIndex];
 
         if (dcount >= devDirBuffer.GetInfo().InstanceCount)
-            m_DeviceLightData.Grow<DirectionalLight>(p_FrameIndex);
+            m_DeviceLightData.Grow<DirectionalLight>(p_FrameIndex, dcount);
 
         const auto &hostDirBuffer = m_HostLightData.DirectionalLights;
         devDirBuffer.Write(hostDirBuffer);
@@ -254,7 +253,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
         auto &devPointBuffer = m_DeviceLightData.PointLightBuffers[p_FrameIndex];
 
         if (pcount >= devPointBuffer.GetInfo().InstanceCount)
-            m_DeviceLightData.Grow<PointLight>(p_FrameIndex);
+            m_DeviceLightData.Grow<PointLight>(p_FrameIndex, pcount);
 
         const auto &hostPointBuffer = m_HostLightData.PointLights;
         devPointBuffer.Write(hostPointBuffer);

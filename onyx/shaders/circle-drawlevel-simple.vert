@@ -10,16 +10,16 @@ layout(location = 6) out flat float o_OuterFade;
 
 struct InstanceData
 {
+    vec4 ArcInfo;
     mat4 Transform;
     vec4 Color;
-    vec4 ArcInfo;
     uint AngleOverflow;
     float Hollowness;
     float InnerFade;
     float OuterFade;
 };
 
-layout(std140, set = 0, binding = 0) readonly buffer InstanceBuffer
+layout(std430, set = 0, binding = 0) readonly buffer InstanceBuffer
 {
     InstanceData Instances[];
 }

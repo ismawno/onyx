@@ -10,7 +10,7 @@ struct InstanceData
     vec4 Color;
 };
 
-layout(std140, set = 0, binding = 0) readonly buffer InstanceBuffer
+layout(std430, set = 0, binding = 0) readonly buffer InstanceBuffer
 {
     InstanceData Instances[];
 }

@@ -13,6 +13,9 @@
 #    define ONYX_BUFFER_INITIAL_CAPACITY 4
 #endif
 
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
+TKIT_MSVC_WARNING_IGNORE(4324)
+
 namespace Onyx
 {
 /**
@@ -252,12 +255,12 @@ template <DrawLevel DLevel> struct InstanceData;
 // Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
 // 0 1 but I don't want to deal with the alignment management, to be honest.
 
-template <> struct ONYX_API InstanceData<DrawLevel::Simple>
+template <> struct alignas(16) ONYX_API InstanceData<DrawLevel::Simple>
 {
     fmat4 Transform;
     MaterialData<D2> Material;
 };
-template <> struct ONYX_API InstanceData<DrawLevel::Complex>
+template <> struct alignas(16) ONYX_API InstanceData<DrawLevel::Complex>
 {
     fmat4 Transform;
     fmat4 NormalMatrix;
@@ -287,13 +290,12 @@ template <typename T> struct DeviceData
             StorageBuffers[i].Destroy();
     }
 
-    void Grow(const u32 p_FrameIndex) noexcept
+    void Grow(const u32 p_FrameIndex, const u32 p_Instances) noexcept
     {
         auto &buffer = StorageBuffers[p_FrameIndex];
-        const u32 instances = buffer.GetInfo().InstanceCount;
 
         buffer.Destroy();
-        buffer = CreateHostVisibleStorageBuffer<T>(1 + instances + instances / 2);
+        buffer = CreateHostVisibleStorageBuffer<T>(1 + p_Instances + p_Instances / 2);
 
         const VkDescriptorBufferInfo info = buffer.GetDescriptorInfo();
         DescriptorSets[p_FrameIndex] = WriteStorageBufferDescriptorSet(info, DescriptorSets[p_FrameIndex]);
@@ -321,9 +323,6 @@ template <Dimension D, DrawLevel DLevel> struct PolygonDeviceData : DeviceData<I
     PerFrameData<HostVisibleIndexBuffer> IndexBuffers;
 };
 
-TKIT_COMPILER_WARNING_IGNORE_PUSH()
-TKIT_MSVC_WARNING_IGNORE(4324)
-
 /**
  * @brief Specific `InstanceData` for circles.
  *
@@ -333,16 +332,15 @@ TKIT_MSVC_WARNING_IGNORE(4324)
  * @tparam D The dimension (`D2` or `D3`).
  * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
-template <DrawLevel DLevel> struct CircleInstanceData
+template <DrawLevel DLevel> struct alignas(16) CircleInstanceData
 {
+    fvec4 ArcInfo;
     InstanceData<DLevel> BaseData;
-    alignas(16) fvec4 ArcInfo;
     u32 AngleOverflow;
     f32 Hollowness;
     f32 InnerFade;
     f32 OuterFade;
 };
-TKIT_COMPILER_WARNING_IGNORE_POP()
 
 /**
  * @brief Some global push constant data that is used by the shaders.
@@ -388,3 +386,5 @@ template <Dimension D, PipelineMode PMode> struct PipelineGenerator
 };
 
 } // namespace Onyx::Detail
+
+TKIT_COMPILER_WARNING_IGNORE_POP()

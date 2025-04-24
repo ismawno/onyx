@@ -709,6 +709,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
         if (ImGui::Button("Add camera"))
         {
             Camera<D> *camera = p_Data.Context->CreateCamera();
+            camera->BackgroundColor = Color{0.1f};
             CameraData<D> camData{};
             camData.Camera = camera;
             p_Data.Cameras.Append(camData);

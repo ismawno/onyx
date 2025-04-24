@@ -76,7 +76,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
-        m_DeviceData.Grow(p_FrameIndex);
+        m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
 
     u32 offset = 0;
     for (const auto &[model, data] : m_HostData)
@@ -190,7 +190,7 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
-        m_DeviceData.Grow(p_FrameIndex);
+        m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
 
     u32 offset = 0;
     for (const auto &data : m_HostData)
@@ -306,7 +306,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     if (m_HostData.Data.GetSize() >= storageBuffer.GetInfo().InstanceCount)
-        m_DeviceData.Grow(p_FrameIndex);
+        m_DeviceData.Grow(p_FrameIndex, m_HostData.Data.GetSize());
 
     auto &vertexBuffer = m_DeviceData.VertexBuffers[p_FrameIndex];
     const u32 vsize = m_HostData.Vertices.GetSize();
@@ -404,7 +404,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     if (m_HostData.GetSize() >= storageBuffer.GetInfo().InstanceCount)
-        m_DeviceData.Grow(p_FrameIndex);
+        m_DeviceData.Grow(p_FrameIndex, m_HostData.GetSize());
 
     storageBuffer.Write(m_HostData);
 }
