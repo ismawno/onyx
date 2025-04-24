@@ -328,6 +328,13 @@ bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags) 
                            "(!)");
     }
 
+    if (ImGui::Button("Fullscreen", ImVec2{166.f, 0.f}))
+    {
+        p_Viewport.Min = {-1.f, -1.f};
+        p_Viewport.Max = {1.f, 1.f};
+        changed = true;
+    }
+
     if (ImGui::Button("Top-left", ImVec2{80.f, 0.f}))
     {
         p_Viewport.Min = {-1.f, 0.5f};
