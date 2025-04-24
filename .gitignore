@@ -1,5 +1,6 @@
 # Onyx
 .vscode/
+.vs/
 *build*/
 onyx/shaders/bin/
 .venv/
