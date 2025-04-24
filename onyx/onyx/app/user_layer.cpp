@@ -328,6 +328,34 @@ bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags) 
                            "(!)");
     }
 
+    if (ImGui::Button("Top-left", ImVec2{80.f, 0.f}))
+    {
+        p_Viewport.Min = {-1.f, 0.5f};
+        p_Viewport.Max = {-0.5f, 1.f};
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Top-right", ImVec2{80.f, 0.f}))
+    {
+        p_Viewport.Min = {0.5f, 0.5f};
+        p_Viewport.Max = {1.f, 1.f};
+        changed = true;
+    }
+
+    if (ImGui::Button("Bottom-left", ImVec2{80.f, 0.f}))
+    {
+        p_Viewport.Min = {-1.f, -1.f};
+        p_Viewport.Max = {-0.5f, -0.5f};
+        changed = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Bottom-right", ImVec2{80.f, 0.f}))
+    {
+        p_Viewport.Min = {0.5f, -1.f};
+        p_Viewport.Max = {1.f, -0.5f};
+        changed = true;
+    }
+
     changed |= ImGui::SliderFloat2("Min", glm::value_ptr(p_Viewport.Min), -1.f, 1.f);
     changed |= ImGui::SliderFloat2("Max", glm::value_ptr(p_Viewport.Max), -1.f, 1.f);
     changed |= ImGui::SliderFloat2("Depth bounds", glm::value_ptr(p_Viewport.DepthBounds), 0.f, 1.f);
