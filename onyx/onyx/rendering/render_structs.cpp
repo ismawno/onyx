@@ -4,17 +4,34 @@
 
 namespace Onyx::Detail
 {
+VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info, VkDescriptorSet p_OldSet) noexcept
+{
+    const VKit::DescriptorSetLayout &layout = Core::GetInstanceDataStorageDescriptorSetLayout();
+    const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
+
+    VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
+    writer.WriteBuffer(0, p_Info);
+
+    if (!p_OldSet)
+    {
+        const auto result = pool.Allocate(layout);
+        VKIT_ASSERT_RESULT(result);
+        p_OldSet = result.GetValue();
+    }
+    writer.Overwrite(p_OldSet);
+    return p_OldSet;
+}
+
 template <Dimension D, DrawLevel DLevel>
-PolygonDeviceInstanceData<D, DLevel>::PolygonDeviceInstanceData(const u32 p_Capacity) noexcept
-    : DeviceInstanceData<InstanceData<DLevel>>(p_Capacity)
+PolygonDeviceData<D, DLevel>::PolygonDeviceData() noexcept : DeviceData<InstanceData<DLevel>>()
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        VertexBuffers[i] = CreateHostVisibleVertexBuffer<D>(p_Capacity);
-        IndexBuffers[i] = CreateHostVisibleIndexBuffer(p_Capacity);
+        VertexBuffers[i] = CreateHostVisibleVertexBuffer<D>(ONYX_BUFFER_INITIAL_CAPACITY);
+        IndexBuffers[i] = CreateHostVisibleIndexBuffer(ONYX_BUFFER_INITIAL_CAPACITY);
     }
 }
-template <Dimension D, DrawLevel DLevel> PolygonDeviceInstanceData<D, DLevel>::~PolygonDeviceInstanceData() noexcept
+template <Dimension D, DrawLevel DLevel> PolygonDeviceData<D, DLevel>::~PolygonDeviceData() noexcept
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -120,10 +137,10 @@ VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateCirclePipeline(const V
     return result.GetValue();
 }
 
-template struct ONYX_API PolygonDeviceInstanceData<D2, DrawLevel::Simple>;
-template struct ONYX_API PolygonDeviceInstanceData<D2, DrawLevel::Complex>;
-template struct ONYX_API PolygonDeviceInstanceData<D3, DrawLevel::Simple>;
-template struct ONYX_API PolygonDeviceInstanceData<D3, DrawLevel::Complex>;
+template struct ONYX_API PolygonDeviceData<D2, DrawLevel::Simple>;
+template struct ONYX_API PolygonDeviceData<D2, DrawLevel::Complex>;
+template struct ONYX_API PolygonDeviceData<D3, DrawLevel::Simple>;
+template struct ONYX_API PolygonDeviceData<D3, DrawLevel::Complex>;
 
 template struct ONYX_API PipelineGenerator<D2, PipelineMode::NoStencilWriteDoFill>;
 template struct ONYX_API PipelineGenerator<D2, PipelineMode::DoStencilWriteDoFill>;

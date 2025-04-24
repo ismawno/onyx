@@ -114,16 +114,16 @@ template <Dimension D> const char *Polygon<D>::GetName() const noexcept
 template <Dimension D> void Polygon<D>::Edit() noexcept
 {
     Shape<D>::Edit();
-    for (u32 i = 0; i < Vertices.size(); ++i)
+    for (u32 i = 0; i < Vertices.GetSize(); ++i)
     {
         ImGui::PushID(&Vertices[i]);
-        if (Vertices.size() > 3 && ImGui::Button("X"))
+        if (Vertices.GetSize() > 3 && ImGui::Button("X"))
         {
-            Vertices.erase(Vertices.begin() + i);
+            Vertices.RemoveOrdered(Vertices.begin() + i);
             ImGui::PopID();
             break;
         }
-        if (Vertices.size() > 3)
+        if (Vertices.GetSize() > 3)
             ImGui::SameLine();
 
         ImGui::Text("Vertex %u: ", i);

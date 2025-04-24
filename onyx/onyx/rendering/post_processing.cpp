@@ -36,7 +36,7 @@ VKit::PipelineLayout::Builder PostProcessing::CreatePipelineLayoutBuilder() cons
 void PostProcessing::Setup(const Specs &p_Specs) noexcept
 {
     TKIT_ASSERT(
-        !p_Specs.Layout.GetInfo().DescriptorSetLayouts.empty() &&
+        !p_Specs.Layout.GetInfo().DescriptorSetLayouts.IsEmpty() &&
             p_Specs.Layout.GetInfo().DescriptorSetLayouts[0] == m_DescriptorSetLayout.GetLayout(),
         "[ONYX] The pipeline layout used must be created from the PostProcessing's CreatePipelineLayoutBuilder method");
 
@@ -62,18 +62,18 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
     m_Pipeline = result.GetValue();
 
     m_Job = VKit::GraphicsJob(m_Pipeline, p_Specs.Layout);
-    if (m_SamplerDescriptors.empty())
+    if (m_SamplerDescriptors.IsEmpty())
     {
         const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
-        for (u32 i = 0; i < m_ImageViews.size(); ++i)
+        for (u32 i = 0; i < m_ImageViews.GetSize(); ++i)
         {
             const auto dresult = pool.Allocate(m_DescriptorSetLayout);
             VKIT_ASSERT_RESULT(dresult);
-            m_SamplerDescriptors.push_back(dresult.GetValue());
+            m_SamplerDescriptors.Append(dresult.GetValue());
         }
     }
 
-    for (u32 i = 0; i < m_ImageViews.size(); ++i)
+    for (u32 i = 0; i < m_ImageViews.GetSize(); ++i)
         overwriteSamplerSet(m_ImageViews[i], m_SamplerDescriptors[i]);
 }
 
@@ -111,9 +111,9 @@ VkSamplerCreateInfo PostProcessing::DefaultSamplerCreateInfo() noexcept
 
 void PostProcessing::updateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept
 {
-    TKIT_ASSERT(m_ImageViews.size() == p_ImageViews.size(), "[ONYX] Image view count mismatch");
+    TKIT_ASSERT(m_ImageViews.GetSize() == p_ImageViews.GetSize(), "[ONYX] Image view count mismatch");
     m_ImageViews = p_ImageViews;
-    for (u32 i = 0; i < m_ImageViews.size(); ++i)
+    for (u32 i = 0; i < m_ImageViews.GetSize(); ++i)
         overwriteSamplerSet(m_ImageViews[i], m_SamplerDescriptors[i]);
 }
 

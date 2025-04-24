@@ -4,7 +4,7 @@
 
 namespace Onyx
 {
-template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(const std::string_view p_Path) noexcept
+template <Dimension D> VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path) noexcept
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -12,15 +12,16 @@ template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(const std:
     std::string warn, err;
 
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, p_Path.data()))
-        return VKit::FormattedResult<IndexVertexData<D>>::Error(
+        return VKit::FormattedResult<IndexVertexHostData<D>>::Error(
             VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load model: {}", err + warn));
 
     TKit::HashMap<Vertex<D>, Index> uniqueVertices;
-    IndexVertexData<D> buffers;
+    IndexVertexHostData<D> buffers;
 
-    buffers.Vertices.reserve(static_cast<u32>(attrib.vertices.size() / 3));
-    buffers.Indices.reserve(static_cast<u32>(shapes.size() * 3));
+    const u32 vcount = static_cast<u32>(attrib.vertices.size());
 
+    buffers.Vertices.Reserve(vcount);
+    buffers.Indices.Reserve(vcount);
     for (const auto &shape : shapes)
         for (const auto &index : shape.mesh.indices)
         {
@@ -34,17 +35,17 @@ template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(const std:
             if (!uniqueVertices.contains(vertex))
             {
                 uniqueVertices[vertex] = static_cast<Index>(uniqueVertices.size());
-                buffers.Vertices.push_back(vertex);
+                buffers.Vertices.Append(vertex);
             }
-            buffers.Indices.push_back(uniqueVertices[vertex]);
+            buffers.Indices.Append(uniqueVertices[vertex]);
         }
-    return VKit::FormattedResult<IndexVertexData<D>>::Ok(buffers);
+    return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
 }
 
 template <Dimension D>
-DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const TKit::Span<const Vertex<D>> p_Vertices) noexcept
+DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices) noexcept
 {
-    typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs specs{};
+    typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = p_Vertices;
     specs.CommandPool = &Core::GetCommandPool();
@@ -53,9 +54,9 @@ DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const TKit::Span<const 
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
-DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const TKit::Span<const Index> p_Indices) noexcept
+DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Indices) noexcept
 {
-    typename VKit::DeviceLocalBuffer<Index>::IndexSpecs specs{};
+    typename VKit::DeviceLocalBuffer<Index>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = p_Indices;
     specs.CommandPool = &Core::GetCommandPool();
@@ -67,31 +68,33 @@ DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const TKit::Span<const Index
 
 template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(const VkDeviceSize p_Capacity) noexcept
 {
-    typename VKit::HostVisibleBuffer<Vertex<D>>::VertexSpecs specs{};
+    typename VKit::HostVisibleBuffer<Vertex<D>>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Capacity = p_Capacity;
+    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
     const auto result = VKit::HostVisibleBuffer<Vertex<D>>::CreateVertexBuffer(specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
 HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(const VkDeviceSize p_Capacity) noexcept
 {
-    typename VKit::HostVisibleBuffer<Index>::IndexSpecs specs{};
+    typename VKit::HostVisibleBuffer<Index>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Capacity = p_Capacity;
+    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
     const auto result = VKit::HostVisibleBuffer<Index>::CreateIndexBuffer(specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
 
-template ONYX_API VKit::FormattedResult<IndexVertexData<D2>> Load(const std::string_view p_Path) noexcept;
-template ONYX_API VKit::FormattedResult<IndexVertexData<D3>> Load(const std::string_view p_Path) noexcept;
+template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path) noexcept;
+template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std::string_view p_Path) noexcept;
 
-template struct ONYX_API IndexVertexData<D2>;
-template struct ONYX_API IndexVertexData<D3>;
+template struct ONYX_API IndexVertexHostData<D2>;
+template struct ONYX_API IndexVertexHostData<D3>;
 
-template ONYX_API DeviceLocalVertexBuffer<D2> CreateDeviceLocalVertexBuffer<D2>(TKit::Span<const Vertex<D2>>) noexcept;
-template ONYX_API DeviceLocalVertexBuffer<D3> CreateDeviceLocalVertexBuffer<D3>(TKit::Span<const Vertex<D3>>) noexcept;
+template ONYX_API DeviceLocalVertexBuffer<D2> CreateDeviceLocalVertexBuffer<D2>(const HostVertexBuffer<D2> &) noexcept;
+template ONYX_API DeviceLocalVertexBuffer<D3> CreateDeviceLocalVertexBuffer<D3>(const HostVertexBuffer<D3> &) noexcept;
 
 template ONYX_API HostVisibleVertexBuffer<D2> CreateHostVisibleVertexBuffer<D2>(VkDeviceSize) noexcept;
 template ONYX_API HostVisibleVertexBuffer<D3> CreateHostVisibleVertexBuffer<D3>(VkDeviceSize) noexcept;

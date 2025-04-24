@@ -74,12 +74,12 @@ class ONYX_API UserLayer
     }
 
     /**
-     * @brief Called every frame before the `OnRender()` method.
+     * @brief Called every frame before the `OnRender(u32)` method.
      *
      * This method is called outside the the render loop, so you cannot issue any onyx draw calls here. Its purpose is
-     * to update the user's state as they see fit. Doing so in `OnRender()` callbacks is not recommended, as some
-     * rendering operations can be performed at the same time `OnUpdate()` runs, but not at the same time `OnRender()`
-     * runs.
+     * to update the user's state as they see fit. Doing so in `OnRender(u32)` callbacks is not recommended, as some
+     * rendering operations can be performed at the same time `OnUpdate()` runs, but not at the same time
+     * `OnRender(u32)` runs.
      *
      * @note This variant of the method is not called in multi-window applications. Use the OnUpdate(u32) method
      * instead.
@@ -101,15 +101,16 @@ class ONYX_API UserLayer
      * @note This variant of the method is not called in multi-window applications. Use the OnRender(u32,
      * VkCommandBuffer) method instead.
      *
+     * @param p_FrameIndex The index of the current frame.
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRender(VkCommandBuffer) noexcept
+    virtual void OnRender(u32, VkCommandBuffer) noexcept
     {
     }
 
     /**
-     * @brief Called every frame after the `OnUpdate()` and `OnRender()` methods.
+     * @brief Called every frame after the `OnUpdate()` and `OnRender(u32)` methods.
      *
      * Its purpose is to contain direct user draw calls that execute after the main scene pass. The draw calls must come
      * from the Vulkan's API itself. Having update code in this method is not recommended. If you need to update some
@@ -120,15 +121,16 @@ class ONYX_API UserLayer
      * @note This variant of the method is not called in multi-window applications. Use the OnRender(u32,
      * VkCommandBuffer) method instead.
      *
+     * @param p_FrameIndex The index of the current frame.
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnLateRender(VkCommandBuffer) noexcept
+    virtual void OnLateRender(u32, VkCommandBuffer) noexcept
     {
     }
 
     /**
-     * @brief Called every frame before the `OnRender(u32)` method.
+     * @brief Called every frame before the `OnRender(u32, u32)` method.
      *
      * Behaves the same as the `OnUpdate()` method, but is called in multi-window applications.
      *
@@ -144,17 +146,18 @@ class ONYX_API UserLayer
     /**
      * @brief Called every frame after the `OnUpdate(u32)` method.
      *
-     * Behaves the same as the `OnRender()` method, but is called in multi-window applications.
+     * Behaves the same as the `OnRender(u32)` method, but is called in multi-window applications.
      *
      * This method cannot be used to issue ImGui draw calls. Use `OnImGuiRender()` for that.
      *
-     * @note This method is not called in single window applications. Use the `OnRender()` method instead.
+     * @note This method is not called in single window applications. Use the `OnRender(u32)` method instead.
      *
      * @param p_WindowIndex The index of the window that is currently being processed.
+     * @param p_FrameIndex The index of the current frame.
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRender(u32, VkCommandBuffer) noexcept
+    virtual void OnRender(u32, u32, VkCommandBuffer) noexcept
     {
     }
 
@@ -168,10 +171,11 @@ class ONYX_API UserLayer
      * @note This method is not called in single window applications. Use the `OnLateRender()` method instead.
      *
      * @param p_WindowIndex The index of the window that is currently being processed.
+     * @param p_FrameIndex The index of the current frame.
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnLateRender(u32, VkCommandBuffer) noexcept
+    virtual void OnLateRender(u32, u32, VkCommandBuffer) noexcept
     {
     }
 
@@ -182,7 +186,7 @@ class ONYX_API UserLayer
      * once per frame in the main thread, no matter how many active windows there are. The `ImGui` calls are linked to
      * the main window.
      *
-     * @note This method is not called in single window applications. Use the `OnRender()` method instead.
+     * @note This method is not called in single window applications. Use the `OnRender(u32)` method instead.
      *
      */
     virtual void OnImGuiRender() noexcept

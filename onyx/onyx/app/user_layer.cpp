@@ -294,14 +294,15 @@ bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags) noexcep
 
     int index = -1;
     TKit::StaticArray8<const char *> presentModes;
-    for (u32 i = 0; i < available.size(); ++i)
+    for (u32 i = 0; i < available.GetSize(); ++i)
     {
-        presentModes.push_back(presentModeToString(available[i]));
+        presentModes.Append(presentModeToString(available[i]));
         if (available[i] == current)
             index = static_cast<int>(i);
     }
 
-    const bool changed = ImGui::Combo("Present mode", &index, presentModes.data(), static_cast<int>(available.size()));
+    const bool changed =
+        ImGui::Combo("Present mode", &index, presentModes.GetData(), static_cast<int>(available.GetSize()));
     if (changed)
         p_Window->SetPresentMode(available[index]);
 

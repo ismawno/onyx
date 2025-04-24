@@ -112,15 +112,15 @@ void IApplication::onUpdate() noexcept
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnUpdate();
 }
-void IApplication::onRender(const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onRender(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     if (m_UserLayer) [[likely]]
-        m_UserLayer->OnRender(p_CommandBuffer);
+        m_UserLayer->OnRender(p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onLateRender(const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onLateRender(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     if (m_UserLayer) [[likely]]
-        m_UserLayer->OnLateRender(p_CommandBuffer);
+        m_UserLayer->OnLateRender(p_FrameIndex, p_CommandBuffer);
 }
 void IApplication::onEvent(const Event &p_Event) noexcept
 {
@@ -132,15 +132,17 @@ void IApplication::onUpdate(const u32 p_WindowIndex) noexcept
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnUpdate(p_WindowIndex);
 }
-void IApplication::onRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onRender(const u32 p_WindowIndex, const u32 p_FrameIndex,
+                            const VkCommandBuffer p_CommandBuffer) noexcept
 {
     if (m_UserLayer) [[likely]]
-        m_UserLayer->OnRender(p_WindowIndex, p_CommandBuffer);
+        m_UserLayer->OnRender(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onLateRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onLateRender(const u32 p_WindowIndex, const u32 p_FrameIndex,
+                                const VkCommandBuffer p_CommandBuffer) noexcept
 {
     if (m_UserLayer) [[likely]]
-        m_UserLayer->OnLateRender(p_WindowIndex, p_CommandBuffer);
+        m_UserLayer->OnLateRender(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
 void IApplication::onEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
 {
@@ -285,12 +287,12 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 
     onUpdate();
 
-    const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
+    const auto drawCalls = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        onRender(p_CommandBuffer);
+        onRender(p_FrameIndex, p_CommandBuffer);
     };
-    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) {
-        onLateRender(p_CommandBuffer);
+    const auto uiSubmission = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+        onLateRender(p_FrameIndex, p_CommandBuffer);
         endRenderImGui(p_CommandBuffer);
     };
 
@@ -343,13 +345,13 @@ void MultiWindowApplication::Shutdown() noexcept
 
 void MultiWindowApplication::CloseAllWindows() noexcept
 {
-    for (u32 i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+    for (u32 i = m_Windows.GetSize() - 1; i < m_Windows.GetSize(); --i)
         CloseWindow(i);
 }
 
 void MultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
 {
-    for (u32 i = 0; i < m_Windows.size(); ++i)
+    for (u32 i = 0; i < m_Windows.GetSize(); ++i)
         if (m_Windows[i].Get() == p_Window)
         {
             CloseWindow(i);
@@ -360,12 +362,12 @@ void MultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
 
 const Window *MultiWindowApplication::GetWindow(const u32 p_Index) const noexcept
 {
-    TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
+    TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
     return m_Windows[p_Index].Get();
 }
 Window *MultiWindowApplication::GetWindow(const u32 p_Index) noexcept
 {
-    TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
+    TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
     return m_Windows[p_Index].Get();
 }
 
@@ -380,14 +382,14 @@ Window *MultiWindowApplication::GetMainWindow() noexcept
 
 u32 MultiWindowApplication::GetWindowCount() const noexcept
 {
-    return m_Windows.size();
+    return m_Windows.GetSize();
 }
 
 bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApplication::NextFrame");
     setImContexts();
-    if (m_Windows.empty() || m_QuitFlag) [[unlikely]]
+    if (m_Windows.IsEmpty() || m_QuitFlag) [[unlikely]]
     {
         m_QuitFlag = false;
         endFrame();
@@ -399,12 +401,12 @@ bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 
     m_DeltaTime = p_Clock.Restart();
     endFrame();
-    return !m_Windows.empty();
+    return !m_Windows.IsEmpty();
 }
 
 void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
 {
-    TKIT_ASSERT(p_Index < m_Windows.size(), "[ONYX] Index out of bounds");
+    TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
     if (m_DeferFlag)
     {
         m_Windows[p_Index]->FlagShouldClose();
@@ -419,12 +421,12 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
     if (p_Index == 0)
     {
         shutdownImGui();
-        m_Windows.erase(m_Windows.begin() + p_Index);
-        if (!m_Windows.empty())
+        m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
+        if (!m_Windows.IsEmpty())
             initializeImGui(*m_Windows[0]);
     }
     else
-        m_Windows.erase(m_Windows.begin() + p_Index);
+        m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
 }
 
 void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
@@ -433,49 +435,54 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
     // the GLFW ImGui backend limitations
     if (m_DeferFlag)
     {
-        m_WindowsToAdd.push_back(p_Specs);
+        m_WindowsToAdd.Append(p_Specs);
         return;
     }
 
     auto window = TKit::Scope<Window>::Create(p_Specs);
-    if (m_Windows.empty())
+    if (m_Windows.IsEmpty())
         initializeImGui(*window);
 
-    m_Windows.push_back(std::move(window));
+    m_Windows.Append(std::move(window));
     Event event;
     event.Type = Event::WindowOpened;
-    event.Window = m_Windows.back().Get();
-    onEvent(m_Windows.size() - 1, event);
+    event.Window = m_Windows.GetBack().Get();
+    onEvent(m_Windows.GetSize() - 1, event);
 }
 
 void MultiWindowApplication::processWindows() noexcept
 {
     m_DeferFlag = true;
-    const auto drawCalls = [this](const VkCommandBuffer p_CommandBuffer) {
+    const auto drawCalls = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        onRender(0, p_CommandBuffer);
+        onRender(0, p_FrameIndex, p_CommandBuffer);
         onImGuiRender();
     };
-    const auto uiSubmission = [this](const VkCommandBuffer p_CommandBuffer) {
-        onLateRender(0, p_CommandBuffer);
+    const auto uiSubmission = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+        onLateRender(0, p_FrameIndex, p_CommandBuffer);
         endRenderImGui(p_CommandBuffer);
     };
     processFrame(0, drawCalls, uiSubmission);
 
-    for (u32 i = 1; i < m_Windows.size(); ++i)
+    for (u32 i = 1; i < m_Windows.GetSize(); ++i)
         processFrame(
-            i, [this, i](const VkCommandBuffer p_CommandBuffer) { onRender(i, p_CommandBuffer); },
-            [this, i](const VkCommandBuffer p_CommandBuffer) { onLateRender(i, p_CommandBuffer); });
+            i,
+            [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+                onRender(i, p_FrameIndex, p_CommandBuffer);
+            },
+            [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+                onLateRender(i, p_FrameIndex, p_CommandBuffer);
+            });
 
     m_DeferFlag = false;
     updateUserLayerPointer();
 
-    for (u32 i = m_Windows.size() - 1; i < m_Windows.size(); --i)
+    for (u32 i = m_Windows.GetSize() - 1; i < m_Windows.GetSize(); --i)
         if (m_Windows[i]->ShouldClose())
             CloseWindow(i);
     for (const auto &specs : m_WindowsToAdd)
         OpenWindow(specs);
-    m_WindowsToAdd.clear();
+    m_WindowsToAdd.Clear();
 }
 
 } // namespace Onyx

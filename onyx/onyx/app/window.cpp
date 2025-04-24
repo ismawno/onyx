@@ -21,8 +21,8 @@ Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_
 Window::~Window() noexcept
 {
     m_FrameScheduler.Destruct();
-    m_RenderContexts2D.clear();
-    m_RenderContexts3D.clear();
+    m_RenderContexts2D.Clear();
+    m_RenderContexts3D.Clear();
     vkDestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
@@ -54,7 +54,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
 
 bool Window::Render() noexcept
 {
-    return Render([](const VkCommandBuffer) {}, [](const VkCommandBuffer) {});
+    return Render([](const u32, const VkCommandBuffer) {}, [](const u32, const VkCommandBuffer) {});
 }
 
 bool Window::ShouldClose() const noexcept
@@ -156,8 +156,8 @@ VkSurfaceKHR Window::GetSurface() const noexcept
 
 void Window::PushEvent(const Event &p_Event) noexcept
 {
-    if (!m_Events.full())
-        m_Events.push_back(p_Event);
+    if (!m_Events.IsFull())
+        m_Events.Append(p_Event);
 }
 
 const TKit::StaticArray32<Event> &Window::GetNewEvents() const noexcept
@@ -166,7 +166,7 @@ const TKit::StaticArray32<Event> &Window::GetNewEvents() const noexcept
 }
 void Window::FlushEvents() noexcept
 {
-    m_Events.clear();
+    m_Events.Clear();
 }
 
 void Window::adaptCamerasToViewportAspect() noexcept

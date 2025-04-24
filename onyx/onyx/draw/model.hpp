@@ -27,18 +27,24 @@ template <Dimension D> class Model
     /**
      * @brief Creates a model with the given vertices.
      *
-     * @param p_Vertices A span of vertices to initialize the model.
+     * @param p_Vertices A host buffer of vertices to initialize the model.
      */
-    static VKit::Result<Model> Create(TKit::Span<const Vertex<D>> p_Vertices) noexcept;
+    static VKit::Result<Model> Create(const HostVertexBuffer<D> &p_Vertices) noexcept;
 
     /**
      * @brief Creates a model with the given vertices and indices.
      *
-     * @param p_Vertices A span of vertices to initialize the model.
-     * @param p_Indices A span of indices for indexed drawing.
+     * @param p_Vertices A host buffer of vertices to initialize the model.
+     * @param p_Indices A host buffer of indices for indexed drawing.
      */
-    static VKit::Result<Model> Create(TKit::Span<const Vertex<D>> p_Vertices,
-                                      TKit::Span<const Index> p_Indices) noexcept;
+    static VKit::Result<Model> Create(const HostVertexBuffer<D> &p_Vertices, const HostIndexBuffer &p_Indices) noexcept;
+
+    /**
+     * @brief Creates a model with the given index and vertex data.
+     *
+     * @param p_Data The index and vertex data to initialize the model.
+     */
+    static VKit::Result<Model> Create(const IndexVertexHostData<D> &p_Data) noexcept;
 
     Model() noexcept = default;
     Model(const DeviceLocalVertexBuffer<D> &p_VertexBuffer) noexcept;

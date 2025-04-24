@@ -193,13 +193,13 @@ class ONYX_API IApplication
     void onShutdown() noexcept;
 
     void onUpdate() noexcept;
-    void onRender(VkCommandBuffer p_CommandBuffer) noexcept;
-    void onLateRender(VkCommandBuffer p_CommandBuffer) noexcept;
+    void onRender(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onLateRender(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
     void onEvent(const Event &p_Event) noexcept;
 
     void onUpdate(u32 p_WindowIndex) noexcept;
-    void onRender(u32 p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onLateRender(u32 p_WindowIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onRender(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onLateRender(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
     void onEvent(u32 p_WindowIndex, const Event &p_Event) noexcept;
     void onImGuiRender() noexcept;
 

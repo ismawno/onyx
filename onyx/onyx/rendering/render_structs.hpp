@@ -9,6 +9,10 @@
 #include "vkit/pipeline/graphics_pipeline.hpp"
 #include <vulkan/vulkan.h>
 
+#ifndef ONYX_BUFFER_INITIAL_CAPACITY
+#    define ONYX_BUFFER_INITIAL_CAPACITY 4
+#endif
+
 namespace Onyx
 {
 /**
@@ -229,7 +233,7 @@ template <> struct ONYX_API RenderInfo<DrawLevel::Complex>
 /**
  * @brief The `InstanceData` struct is the collection of all the data needed to render a shape.
  *
- * It is stored and sent to the GPU in a storage buffer, and the renderer will use this data to render the shape.
+ * It is stored and sent to the device in a storage buffer, and the renderer will use this data to render the shape.
  * The `InstanceData` varies between dimensions and draw modes, as the data needed to render a 2D shape is different
  * from the data needed to render a 3D shape, and the data needed to render a filled shape is different from the data
  * needed to render an outline.
@@ -260,65 +264,61 @@ template <> struct ONYX_API InstanceData<DrawLevel::Complex>
     MaterialData<D3> Material;
 };
 
+ONYX_API VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
+                                                         VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept;
+
 /**
- * @brief The `DeviceInstanceData` is a convenience struct that helps organize the data that is sent to the GPU so that
- * each frame contains a dedicated set of storage buffers and descriptors.
+ * @brief The `DeviceData` is a convenience struct that helps organize the data that is sent to the device so
+ * that each frame contains a dedicated set of storage buffers and descriptors.
  *
- * @tparam T The type of the data that is sent to the GPU.
+ * @tparam T The type of the data that is sent to the device.
  */
-template <typename T> struct DeviceInstanceData
+template <typename T> struct DeviceData
 {
-    TKIT_NON_COPYABLE(DeviceInstanceData)
-    DeviceInstanceData(u32 p_Capacity) noexcept
+    TKIT_NON_COPYABLE(DeviceData)
+    DeviceData() noexcept
     {
         for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-        {
-            StorageBuffers[i] = CreateHostVisibleStorageBuffer<T>(p_Capacity);
-            StorageSizes[i] = 0;
-        }
+            StorageBuffers[i] = CreateHostVisibleStorageBuffer<T>(ONYX_BUFFER_INITIAL_CAPACITY);
     }
-    ~DeviceInstanceData() noexcept
+    ~DeviceData() noexcept
     {
         for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
             StorageBuffers[i].Destroy();
     }
 
+    void Grow(const u32 p_FrameIndex) noexcept
+    {
+        auto &buffer = StorageBuffers[p_FrameIndex];
+        const u32 instances = buffer.GetInfo().InstanceCount;
+
+        buffer.Destroy();
+        buffer = CreateHostVisibleStorageBuffer<T>(1 + instances + instances / 2);
+
+        const VkDescriptorBufferInfo info = buffer.GetDescriptorInfo();
+        DescriptorSets[p_FrameIndex] = WriteStorageBufferDescriptorSet(info, DescriptorSets[p_FrameIndex]);
+    }
+
     PerFrameData<HostVisibleStorageBuffer<T>> StorageBuffers;
     PerFrameData<VkDescriptorSet> DescriptorSets;
-    PerFrameData<u32> StorageSizes;
 };
 
 /**
- * @brief An extension of the `DeviceInstanceData` for polygons.
+ * @brief An extension of the `DeviceData` for polygons.
  *
- * This struct contains additional mutable vertex and index buffers that are used to store the geometry of arbitrary
+ * This struct contains additional vertex and index buffers that are used to store the geometry of arbitrary
  * polygons.
  *
  * @tparam D The dimension (`D2` or `D3`).
  * @tparam DLevel The draw level (`Simple` or `Complex`).
  */
-template <Dimension D, DrawLevel DLevel> struct PolygonDeviceInstanceData : DeviceInstanceData<InstanceData<DLevel>>
+template <Dimension D, DrawLevel DLevel> struct PolygonDeviceData : DeviceData<InstanceData<DLevel>>
 {
-    PolygonDeviceInstanceData(const u32 p_Capacity) noexcept;
-    ~PolygonDeviceInstanceData() noexcept;
+    PolygonDeviceData() noexcept;
+    ~PolygonDeviceData() noexcept;
 
     PerFrameData<HostVisibleVertexBuffer<D>> VertexBuffers;
     PerFrameData<HostVisibleIndexBuffer> IndexBuffers;
-};
-
-/**
- * @brief Specific `InstanceData` for polygons.
- *
- * The Layout field is actually not sent to the GPU. It is used on the CPU side to know which parts of the index and
- * vertex buffers to use when issuing Vulkan draw commands.
- *
- * @tparam D The dimension (`D2` or `D3`).
- * @tparam DMode The draw mode (`Fill` or `Stencil`).
- */
-template <DrawLevel DLevel> struct PolygonInstanceData
-{
-    InstanceData<DLevel> BaseData;
-    PrimitiveDataLayout Layout;
 };
 
 TKIT_COMPILER_WARNING_IGNORE_PUSH()

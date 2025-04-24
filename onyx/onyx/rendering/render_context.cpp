@@ -13,13 +13,13 @@ template <Dimension D>
 IRenderContext<D>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
     : m_Renderer(p_RenderPass), m_Window(p_Window)
 {
-    m_StateStack.push_back(RenderState<D>{});
+    m_StateStack.Append(RenderState<D>{});
     updateState();
 }
 
 template <Dimension D> void IRenderContext<D>::FlushState() noexcept
 {
-    TKIT_ASSERT(m_StateStack.size() == 1, "[ONYX] For every push, there must be a pop");
+    TKIT_ASSERT(m_StateStack.GetSize() == 1, "[ONYX] For every push, there must be a pop");
     m_StateStack[0] = RenderState<D>{};
 }
 template <Dimension D> void IRenderContext<D>::FlushState(const Color &p_Color) noexcept
@@ -266,7 +266,7 @@ void IRenderContext<D>::resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_Outlin
 
 template <Dimension D> void IRenderContext<D>::updateState() noexcept
 {
-    m_State = &m_StateStack.back();
+    m_State = &m_StateStack.GetBack();
     for (const auto &camera : m_Cameras)
         camera->m_State = m_State;
 }
@@ -400,22 +400,22 @@ void IRenderContext<D>::drawConvexPolygon(const fmat<D> &p_Transform, const TKit
         m_Renderer.DrawPolygon(m_State, computeFinalTransform(p_Transform), p_Vertices, p_Flags);
     };
     const auto outline = [this, &p_Transform, p_Vertices](const DrawFlags p_Flags) {
-        TKIT_ASSERT(p_Vertices.size() < ONYX_MAX_POLYGON_VERTICES,
-                    "[ONYX] The provided vertices ({}) exceed the maximum: {}", p_Vertices.size(),
+        TKIT_ASSERT(p_Vertices.GetSize() < ONYX_MAX_POLYGON_VERTICES,
+                    "[ONYX] The provided vertices ({}) exceed the maximum: {}", p_Vertices.GetSize(),
                     ONYX_MAX_POLYGON_VERTICES);
         TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> vertices;
         const f32 width = m_State->OutlineWidth;
-        for (u32 prev = 0; prev < p_Vertices.size(); ++prev)
+        for (u32 prev = 0; prev < p_Vertices.GetSize(); ++prev)
         {
-            const u32 current = (prev + 1) % p_Vertices.size();
-            const u32 next = (current + 1) % p_Vertices.size();
+            const u32 current = (prev + 1) % p_Vertices.GetSize();
+            const u32 next = (current + 1) % p_Vertices.GetSize();
 
             const fvec2 edge1 = p_Vertices[current] - p_Vertices[prev];
             const fvec2 edge2 = p_Vertices[next] - p_Vertices[current];
 
             const fvec2 normal1 = glm::normalize(fvec2{edge1.y, -edge1.x});
             const fvec2 normal2 = glm::normalize(fvec2{edge2.y, -edge2.x});
-            vertices.push_back(p_Vertices[current] + width * glm::normalize(normal1 + normal2));
+            vertices.Append(p_Vertices[current] + width * glm::normalize(normal1 + normal2));
         }
         m_Renderer.DrawPolygon(m_State, computeFinalTransform(p_Transform), vertices, p_Flags);
     };
@@ -734,14 +734,14 @@ void RenderContext<D3>::Line(const fvec3 &p_Start, const fvec3 &p_End, const Lin
 
 void RenderContext<D2>::LineStrip(const TKit::Span<const fvec2> p_Points, const f32 p_Thickness) noexcept
 {
-    TKIT_ASSERT(p_Points.size() > 1, "[ONYX] A line strip must have at least two points");
-    for (u32 i = 0; i < p_Points.size() - 1; ++i)
+    TKIT_ASSERT(p_Points.GetSize() > 1, "[ONYX] A line strip must have at least two points");
+    for (u32 i = 0; i < p_Points.GetSize() - 1; ++i)
         Line(p_Points[i], p_Points[i + 1], p_Thickness);
 }
 void RenderContext<D3>::LineStrip(const TKit::Span<const fvec3> p_Points, const LineOptions &p_Options) noexcept
 {
-    TKIT_ASSERT(p_Points.size() > 1, "[ONYX] A line strip must have at least two points");
-    for (u32 i = 0; i < p_Points.size() - 1; ++i)
+    TKIT_ASSERT(p_Points.GetSize() > 1, "[ONYX] A line strip must have at least two points");
+    for (u32 i = 0; i < p_Points.GetSize() - 1; ++i)
         Line(p_Points[i], p_Points[i + 1], p_Options);
 }
 
@@ -1175,18 +1175,18 @@ void IRenderContext<D>::Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model
 
 template <Dimension D> void IRenderContext<D>::Push() noexcept
 {
-    m_StateStack.push_back(m_StateStack.back());
+    m_StateStack.Append(m_StateStack.GetBack());
     updateState();
 }
 template <Dimension D> void IRenderContext<D>::PushAndClear() noexcept
 {
-    m_StateStack.push_back(RenderState<D>{});
+    m_StateStack.Append(RenderState<D>{});
     updateState();
 }
 template <Dimension D> void IRenderContext<D>::Pop() noexcept
 {
-    TKIT_ASSERT(m_StateStack.size() > 1, "[ONYX] For every push, there must be a pop");
-    m_StateStack.pop_back();
+    TKIT_ASSERT(m_StateStack.GetSize() > 1, "[ONYX] For every push, there must be a pop");
+    m_StateStack.Pop();
     updateState();
 }
 
@@ -1230,26 +1230,27 @@ template <Dimension D> void IRenderContext<D>::Material(const MaterialData<D> &p
 
 template <Dimension D> const RenderState<D> &IRenderContext<D>::GetCurrentState() const noexcept
 {
-    return m_StateStack.back();
+    return m_StateStack.GetBack();
 }
 template <Dimension D> RenderState<D> &IRenderContext<D>::GetCurrentState() noexcept
 {
-    return m_StateStack.back();
+    return m_StateStack.GetBack();
 }
 
-template <Dimension D> void IRenderContext<D>::SendToDevice() noexcept
+template <Dimension D> void IRenderContext<D>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    m_Renderer.SendToDevice();
+    m_Renderer.SendToDevice(p_FrameIndex);
 }
-template <Dimension D> void IRenderContext<D>::Render(const VkCommandBuffer p_Commandbuffer) noexcept
+template <Dimension D>
+void IRenderContext<D>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Commandbuffer) noexcept
 {
-    if (m_Cameras.empty())
+    if (m_Cameras.IsEmpty())
         return;
     TKit::StaticArray16<CameraInfo> cameras;
     for (const auto &cam : m_Cameras)
-        cameras.push_back(cam->CreateCameraInfo());
+        cameras.Append(cam->CreateCameraInfo());
 
-    m_Renderer.Render(p_Commandbuffer, cameras);
+    m_Renderer.Render(p_FrameIndex, p_Commandbuffer, cameras);
 }
 
 template <Dimension D> Camera<D> *IRenderContext<D>::CreateCamera() noexcept
@@ -1260,7 +1261,7 @@ template <Dimension D> Camera<D> *IRenderContext<D>::CreateCamera() noexcept
     camera->adaptViewToViewportAspect();
 
     Camera<D> *ptr = camera.Get();
-    m_Cameras.push_back(std::move(camera));
+    m_Cameras.Append(std::move(camera));
     return ptr;
 }
 template <Dimension D> Camera<D> *IRenderContext<D>::CreateCamera(const CameraOptions &p_Options) noexcept
@@ -1276,11 +1277,11 @@ template <Dimension D> Camera<D> *IRenderContext<D>::GetCamera(const u32 p_Index
 }
 template <Dimension D> void IRenderContext<D>::DestroyCamera(const u32 p_Index) noexcept
 {
-    m_Cameras.erase(m_Cameras.begin() + p_Index);
+    m_Cameras.RemoveOrdered(m_Cameras.begin() + p_Index);
 }
 template <Dimension D> void IRenderContext<D>::DestroyCamera(const Camera<D> *p_Camera) noexcept
 {
-    for (u32 i = 0; i < m_Cameras.size(); ++i)
+    for (u32 i = 0; i < m_Cameras.GetSize(); ++i)
         if (m_Cameras[i].Get() == p_Camera)
         {
             DestroyCamera(i);

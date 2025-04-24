@@ -4,14 +4,6 @@
 #include "vkit/descriptors/descriptor_set_layout.hpp"
 #include "vkit/descriptors/descriptor_pool.hpp"
 
-#ifndef ONYX_MAX_DIRECTIONAL_LIGHTS
-#    define ONYX_MAX_DIRECTIONAL_LIGHTS 8
-#endif
-
-#ifndef ONYX_MAX_POINT_LIGHTS
-#    define ONYX_MAX_POINT_LIGHTS 64
-#endif
-
 namespace Onyx::Detail
 {
 /**
@@ -149,19 +141,9 @@ template <Dimension D> class IRenderer
                     DrawFlags p_Flags) noexcept;
 
   protected:
-    /// Current frame index for synchronization purposes.
-    u32 m_FrameIndex = 0;
-
-    /// Render system for mesh models.
     RenderSystem<D, MeshRenderer> m_MeshRenderer;
-
-    /// Render system for primitive shapes.
     RenderSystem<D, PrimitiveRenderer> m_PrimitiveRenderer;
-
-    /// Render system for polygons.
     RenderSystem<D, PolygonRenderer> m_PolygonRenderer;
-
-    /// Render system for circles and arcs.
     RenderSystem<D, CircleRenderer> m_CircleRenderer;
 
   private:
@@ -202,16 +184,18 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
+     * @param p_FrameIndex The index of the current frame.
      */
-    void SendToDevice() noexcept;
+    void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.
      *
+     * @param p_FrameIndex The index of the current frame.
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
      * @param p_Cameras The cameras from which to render the scene.
      */
-    void Render(VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
+    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
 
     /**
      * @brief Clear all host data and resets the renderer's state.
@@ -267,26 +251,20 @@ struct ONYX_API DeviceLightData
 {
     TKIT_NON_COPYABLE(DeviceLightData)
 
-    /**
-     * @brief Construct DeviceLightData with a specified initial capacity.
-     *
-     * @param p_Capacity The initial capacity for the light buffers.
-     */
-    DeviceLightData(u32 p_Capacity) noexcept;
-
-    /**
-     * @brief Destroy the DeviceLightData, releasing resources.
-     */
+    DeviceLightData() noexcept;
     ~DeviceLightData() noexcept;
 
-    /// Storage buffers for directional lights, one per frame in flight.
+    template <typename T> void Grow(u32 p_FrameIndex) noexcept;
+
     PerFrameData<HostVisibleStorageBuffer<DirectionalLight>> DirectionalLightBuffers;
-
-    /// Storage buffers for point lights, one per frame in flight.
     PerFrameData<HostVisibleStorageBuffer<PointLight>> PointLightBuffers;
-
-    /// Descriptor sets associated with the light buffers, one per frame in flight.
     PerFrameData<VkDescriptorSet> DescriptorSets;
+};
+
+struct ONYX_API HostLightData
+{
+    HostStorageBuffer<DirectionalLight> DirectionalLights;
+    HostStorageBuffer<PointLight> PointLights;
 };
 
 /**
@@ -308,16 +286,18 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
+     * @param p_FrameIndex The index of the current frame.
      */
-    void SendToDevice() noexcept;
+    void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.
      *
+     * @param p_FrameIndex The index of the current frame.
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
      * @param p_Cameras The cameras from which to render the scene.
      */
-    void Render(VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
+    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
 
     /**
      * @brief Add a directional light to the scene.
@@ -343,8 +323,7 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
     Color AmbientColor = Color{Color::WHITE, 0.4f};
 
   private:
-    TKit::StaticArray<DirectionalLight, ONYX_MAX_DIRECTIONAL_LIGHTS> m_DirectionalLights;
-    TKit::StaticArray<PointLight, ONYX_MAX_POINT_LIGHTS> m_PointLights;
-    DeviceLightData m_DeviceLightData{ONYX_BUFFER_INITIAL_CAPACITY};
+    HostLightData m_HostLightData{};
+    DeviceLightData m_DeviceLightData{};
 };
 } // namespace Onyx::Detail

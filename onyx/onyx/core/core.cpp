@@ -23,7 +23,7 @@ static VKit::LogicalDevice s_Device{};
 static VKit::DeletionQueue s_DeletionQueue{};
 
 static VKit::DescriptorPool s_DescriptorPool{};
-static VKit::DescriptorSetLayout s_TransformStorageLayout{};
+static VKit::DescriptorSetLayout s_InstanceDataStorageLayout{};
 static VKit::DescriptorSetLayout s_LightStorageLayout{};
 
 static VKit::PipelineLayout s_DLevelSimpleLayout{};
@@ -125,7 +125,7 @@ static void createDescriptorData() noexcept
                             .Build();
 
     VKIT_ASSERT_RESULT(layoutResult);
-    s_TransformStorageLayout = layoutResult.GetValue();
+    s_InstanceDataStorageLayout = layoutResult.GetValue();
 
     layoutResult = VKit::DescriptorSetLayout::Builder(s_Device)
                        .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -137,14 +137,14 @@ static void createDescriptorData() noexcept
     TKIT_LOG_INFO("[ONYX] Created global descriptor data");
 
     s_DeletionQueue.SubmitForDeletion(s_DescriptorPool);
-    s_DeletionQueue.SubmitForDeletion(s_TransformStorageLayout);
+    s_DeletionQueue.SubmitForDeletion(s_InstanceDataStorageLayout);
     s_DeletionQueue.SubmitForDeletion(s_LightStorageLayout);
 }
 
 static void createPipelineLayouts() noexcept
 {
     auto layoutResult = VKit::PipelineLayout::Builder(s_Device)
-                            .AddDescriptorSetLayout(s_TransformStorageLayout)
+                            .AddDescriptorSetLayout(s_InstanceDataStorageLayout)
                             .AddPushConstantRange<PushConstantData<DrawLevel::Simple>>(VK_SHADER_STAGE_VERTEX_BIT)
                             .Build();
 
@@ -153,7 +153,7 @@ static void createPipelineLayouts() noexcept
     s_DeletionQueue.SubmitForDeletion(layoutResult.GetValue());
 
     layoutResult = VKit::PipelineLayout::Builder(s_Device)
-                       .AddDescriptorSetLayout(s_TransformStorageLayout)
+                       .AddDescriptorSetLayout(s_InstanceDataStorageLayout)
                        .AddDescriptorSetLayout(s_LightStorageLayout)
                        .AddPushConstantRange<PushConstantData<DrawLevel::Complex>>(VK_SHADER_STAGE_VERTEX_BIT |
                                                                                    VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -270,9 +270,9 @@ const VKit::DescriptorPool &Core::GetDescriptorPool() noexcept
 {
     return s_DescriptorPool;
 }
-const VKit::DescriptorSetLayout &Core::GetTransformStorageDescriptorSetLayout() noexcept
+const VKit::DescriptorSetLayout &Core::GetInstanceDataStorageDescriptorSetLayout() noexcept
 {
-    return s_TransformStorageLayout;
+    return s_InstanceDataStorageLayout;
 }
 const VKit::DescriptorSetLayout &Core::GetLightStorageDescriptorSetLayout() noexcept
 {

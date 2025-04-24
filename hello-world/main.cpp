@@ -99,7 +99,7 @@ static void RunStandaloneWindowCustomPipeline() noexcept
         context->Fill(Onyx::Color::RED);
         context->Square();
 
-        window.RenderSubmitFirst([&job](const VkCommandBuffer p_CommandBuffer) {
+        window.RenderSubmitFirst([&job](const u32, const VkCommandBuffer p_CommandBuffer) {
             job.Bind(p_CommandBuffer);
             job.Draw(p_CommandBuffer, 3);
         });
@@ -139,7 +139,7 @@ static void RunAppExample3() noexcept
     class MyLayer : public Onyx::UserLayer
     {
       public:
-        void OnRender(const VkCommandBuffer) noexcept override
+        void OnRender(const u32, const VkCommandBuffer) noexcept override
         {
             ImGui::Begin("Hello, World!");
             ImGui::Text("Hello, World from ImGui!");

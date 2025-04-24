@@ -6,9 +6,9 @@
 
 namespace Onyx
 {
-template <Dimension D> VKit::Result<Model<D>> Model<D>::Create(const TKit::Span<const Vertex<D>> p_Vertices) noexcept
+template <Dimension D> VKit::Result<Model<D>> Model<D>::Create(const HostVertexBuffer<D> &p_Vertices) noexcept
 {
-    typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs specs{};
+    typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = p_Vertices;
     specs.CommandPool = &Core::GetCommandPool();
@@ -21,10 +21,10 @@ template <Dimension D> VKit::Result<Model<D>> Model<D>::Create(const TKit::Span<
 }
 
 template <Dimension D>
-VKit::Result<Model<D>> Model<D>::Create(TKit::Span<const Vertex<D>> p_Vertices,
-                                        TKit::Span<const Index> p_Indices) noexcept
+VKit::Result<Model<D>> Model<D>::Create(const HostVertexBuffer<D> &p_Vertices,
+                                        const HostIndexBuffer &p_Indices) noexcept
 {
-    typename VKit::DeviceLocalBuffer<Vertex<D>>::VertexSpecs vspecs{};
+    typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs vspecs{};
     vspecs.Allocator = Core::GetVulkanAllocator();
     vspecs.Data = p_Vertices;
     vspecs.CommandPool = &Core::GetCommandPool();
@@ -33,7 +33,7 @@ VKit::Result<Model<D>> Model<D>::Create(TKit::Span<const Vertex<D>> p_Vertices,
     if (!vresult)
         return VKit::Result<Model<D>>::Error(vresult.GetError());
 
-    typename VKit::DeviceLocalBuffer<Index>::IndexSpecs ispecs{};
+    typename VKit::DeviceLocalBuffer<Index>::Specs ispecs{};
     ispecs.Allocator = Core::GetVulkanAllocator();
     ispecs.Data = p_Indices;
     ispecs.CommandPool = &Core::GetCommandPool();
@@ -47,6 +47,11 @@ VKit::Result<Model<D>> Model<D>::Create(TKit::Span<const Vertex<D>> p_Vertices,
     }
 
     return VKit::Result<Model<D>>::Ok(vresult.GetValue(), iresult.GetValue());
+}
+
+template <Dimension D> VKit::Result<Model<D>> Model<D>::Create(const IndexVertexHostData<D> &p_Data) noexcept
+{
+    return Model<D>::Create(p_Data.Vertices, p_Data.Indices);
 }
 
 template <Dimension D>
@@ -105,19 +110,17 @@ template <Dimension D> const DeviceLocalIndexBuffer &Model<D>::GetIndexBuffer() 
     return m_IndexBuffer;
 }
 
-// this loads and stores the model in the user models
 template <Dimension D> VKit::FormattedResult<Model<D>> Model<D>::Load(const std::string_view p_Path) noexcept
 {
     const auto result = Onyx::Load<D>(p_Path);
     if (!result)
         return VKit::FormattedResult<Model>::Error(result.GetError());
 
-    const IndexVertexData<D> &data = result.GetValue();
-    const TKit::Span<const Vertex<D>> vertices{data.Vertices};
-    const TKit::Span<const Index> indices{data.Indices};
+    const IndexVertexHostData<D> &data = result.GetValue();
 
-    const bool needsIndices = !indices.empty() && indices.size() != vertices.size();
-    return VKit::ToFormatted(needsIndices ? Model<D>::Create(vertices, indices) : Model<D>::Create(vertices));
+    // a bit of an assumption here
+    const bool needsIndices = data.Indices.GetSize() > data.Vertices.GetSize();
+    return VKit::ToFormatted(needsIndices ? Model<D>::Create(data) : Model<D>::Create(data.Vertices));
 }
 
 template class ONYX_API Model<D2>;

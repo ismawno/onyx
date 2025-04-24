@@ -218,7 +218,7 @@ const TKit::HashMap<std::string, Color> Color::s_ColorMap{
 
 Gradient::Gradient(const TKit::Span<const Color> p_Span) noexcept : m_Colors(p_Span)
 {
-    TKIT_ASSERT(p_Span.size() >= 2, "[ONYX] Gradient must have at least two colors");
+    TKIT_ASSERT(p_Span.GetSize() >= 2, "[ONYX] Gradient must have at least two colors");
 }
 
 Color Gradient::Evaluate(const f32 p_T) const noexcept
@@ -226,11 +226,11 @@ Color Gradient::Evaluate(const f32 p_T) const noexcept
     TKIT_ASSERT(p_T >= 0.f && p_T <= 1.f, "[ONYX] Gradient evaluation parameter must be in the range [0, 1]");
 
     if (TKit::ApproachesZero(p_T))
-        return m_Colors.front();
+        return m_Colors.GetFront();
     if (TKit::Approximately(p_T, 1.f))
-        return m_Colors.back();
+        return m_Colors.GetBack();
 
-    const f32 loc = p_T * (m_Colors.size() - 1);
+    const f32 loc = p_T * (m_Colors.GetSize() - 1);
     const u32 index1 = static_cast<u32>(loc);
 
     const f32 t = loc - static_cast<f32>(index1);

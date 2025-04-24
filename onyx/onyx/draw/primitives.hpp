@@ -33,7 +33,7 @@ struct ONYX_API PrimitiveDataLayout
 {
     u32 VerticesStart;
     u32 IndicesStart;
-    u32 IndicesSize;
+    u32 IndicesCount;
 };
 
 /**

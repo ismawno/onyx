@@ -26,25 +26,6 @@ void ResetDrawCallCount() noexcept
 }
 #endif
 
-static VkDescriptorSet resetStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
-                                                       VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
-{
-    const VKit::DescriptorSetLayout &layout = Core::GetTransformStorageDescriptorSetLayout();
-    const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
-
-    VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
-    writer.WriteBuffer(0, p_Info);
-
-    if (!p_OldSet)
-    {
-        const auto result = pool.Allocate(layout);
-        VKIT_ASSERT_RESULT(result);
-        p_OldSet = result.GetValue();
-    }
-    writer.Overwrite(p_OldSet);
-    return p_OldSet;
-}
-
 template <typename F1, typename F2>
 static void forEach(const u32 p_Start, const u32 p_End, F1 &&p_Function, F2 &&p_OnWait) noexcept
 {
@@ -58,12 +39,12 @@ static void forEach(const u32 p_Start, const u32 p_End, F1 &&p_Function, F2 &&p_
         tasks[i]->WaitUntilFinished();
 }
 
-template <typename T> static void initializeRenderer(T &p_DeviceInstanceData) noexcept
+template <typename T> static void initializeRenderer(T &p_DeviceData) noexcept
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        const VkDescriptorBufferInfo info = p_DeviceInstanceData.StorageBuffers[i].GetDescriptorInfo();
-        p_DeviceInstanceData.DescriptorSets[i] = resetStorageBufferDescriptorSet(info);
+        const VkDescriptorBufferInfo info = p_DeviceData.StorageBuffers[i].GetDescriptorInfo();
+        p_DeviceData.DescriptorSets[i] = WriteStorageBufferDescriptorSet(info);
     }
 }
 
@@ -71,7 +52,7 @@ template <Dimension D, PipelineMode PMode>
 MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderPass);
-    initializeRenderer(m_DeviceInstanceData);
+    initializeRenderer(m_DeviceData);
 }
 
 template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer() noexcept
@@ -81,37 +62,29 @@ template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer
 }
 
 template <Dimension D, PipelineMode PMode>
-void MeshRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
-                                  const Model<D> &p_Model) noexcept
+void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Model<D> &p_Model) noexcept
 {
-    m_HostInstanceData[p_Model].push_back(p_InstanceData);
-    const u32 size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
-    HostVisibleStorageBuffer<InstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
-
-    if (size == buffer.GetInfo().InstanceCount)
-    {
-        buffer.Destroy();
-        buffer = CreateHostVisibleStorageBuffer<InstanceData>(size * 2);
-        const VkDescriptorBufferInfo info = buffer.GetDescriptorInfo();
-
-        m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
-            resetStorageBufferDescriptorSet(info, m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
-    }
-    m_DeviceInstanceData.StorageSizes[p_FrameIndex] = size + 1;
+    m_HostData[p_Model].Append(p_InstanceData);
+    ++m_DeviceInstances;
 }
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_HostInstanceData.empty())
+    if (m_DeviceInstances == 0)
         return;
     TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
 
-    auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
-    u32 index = 0;
-    for (const auto &[model, data] : m_HostInstanceData)
-        for (const auto &instanceData : data)
-            storageBuffer.WriteAt(index++, &instanceData);
-    storageBuffer.Flush();
+    auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
+    if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
+        m_DeviceData.Grow(p_FrameIndex);
+
+    u32 offset = 0;
+    for (const auto &[model, data] : m_HostData)
+        if (!data.IsEmpty())
+        {
+            storageBuffer.Write(data, offset);
+            offset += data.GetSize();
+        }
 }
 
 template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
@@ -140,14 +113,14 @@ template <DrawLevel DLevel> static void pushConstantData(const RenderInfo<DLevel
 }
 
 template <DrawLevel DLevel>
-static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescriptorSet p_Transforms) noexcept
+static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescriptorSet p_InstanceData) noexcept
 {
     if constexpr (DLevel == DrawLevel::Simple)
-        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_Transforms, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_InstanceData, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   getLayout<DrawLevel::Simple>());
     else
     {
-        const TKit::Array<VkDescriptorSet, 2> sets = {p_Transforms, p_Info.LightStorageBuffers};
+        const TKit::Array<VkDescriptorSet, 2> sets = {p_InstanceData, p_Info.LightStorageBuffers};
         const TKit::Span<const VkDescriptorSet> span(sets);
         VKit::DescriptorSet::Bind(p_Info.CommandBuffer, span, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   getLayout<DrawLevel::Complex>());
@@ -156,43 +129,43 @@ static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescrip
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_HostInstanceData.empty())
+    if (m_DeviceInstances == 0)
         return;
+
     TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::Render");
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
-    const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
+    const VkDescriptorSet instanceData = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-    bindDescriptorSets<dlevel>(p_Info, transforms);
+    bindDescriptorSets<dlevel>(p_Info, instanceData);
 
     pushConstantData<dlevel>(p_Info);
     u32 firstInstance = 0;
-    for (const auto &[model, data] : m_HostInstanceData)
-    {
-        const u32 size = data.size();
-
-        model.Bind(p_Info.CommandBuffer);
-        if (model.HasIndices())
-            model.DrawIndexed(p_Info.CommandBuffer, firstInstance + size, firstInstance);
-        else
-            model.Draw(p_Info.CommandBuffer, firstInstance + size, firstInstance);
-        INCREASE_DRAW_CALL_COUNT();
-        firstInstance += size;
-    }
+    for (const auto &[model, data] : m_HostData)
+        if (!data.IsEmpty())
+        {
+            model.Bind(p_Info.CommandBuffer);
+            if (model.HasIndices())
+                model.DrawIndexed(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
+            else
+                model.Draw(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
+            INCREASE_DRAW_CALL_COUNT();
+            firstInstance += data.GetSize();
+        }
 }
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
 {
-    m_HostInstanceData.clear();
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-        m_DeviceInstanceData.StorageSizes[i] = 0;
+    for (auto &[model, hostData] : m_HostData)
+        hostData.Clear();
+    m_DeviceInstances = 0;
 }
 
 template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderPass);
-    initializeRenderer(m_DeviceInstanceData);
+    initializeRenderer(m_DeviceData);
 }
 
 template <Dimension D, PipelineMode PMode> PrimitiveRenderer<D, PMode>::~PrimitiveRenderer() noexcept
@@ -202,86 +175,77 @@ template <Dimension D, PipelineMode PMode> PrimitiveRenderer<D, PMode>::~Primiti
 }
 
 template <Dimension D, PipelineMode PMode>
-void PrimitiveRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
-                                       const u32 p_PrimitiveIndex) noexcept
+void PrimitiveRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const u32 p_PrimitiveIndex) noexcept
 {
-    const u32 size = m_DeviceInstanceData.StorageSizes[p_FrameIndex];
-    HostVisibleStorageBuffer<InstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
-    if (size == buffer.GetInfo().InstanceCount)
-    {
-        buffer.Destroy();
-        buffer = CreateHostVisibleStorageBuffer<InstanceData>(size * 2);
-        const VkDescriptorBufferInfo info = buffer.GetDescriptorInfo();
-
-        m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
-            resetStorageBufferDescriptorSet(info, m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
-    }
-
-    m_HostInstanceData[p_PrimitiveIndex].push_back(p_InstanceData);
-    m_DeviceInstanceData.StorageSizes[p_FrameIndex] = size + 1;
+    m_HostData[p_PrimitiveIndex].Append(p_InstanceData);
+    ++m_DeviceInstances;
 }
 
 template <Dimension D, PipelineMode PMode>
 void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_DeviceInstanceData.StorageSizes[p_FrameIndex] == 0)
+    if (m_DeviceInstances == 0)
         return;
-
     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
-    HostVisibleStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
-    u32 index = 0;
-    for (const auto &instanceData : m_HostInstanceData)
-        for (const auto &data : instanceData)
-            storageBuffer.WriteAt(index++, &data);
-    storageBuffer.Flush();
+
+    auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
+    if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
+        m_DeviceData.Grow(p_FrameIndex);
+
+    u32 offset = 0;
+    for (const auto &data : m_HostData)
+        if (!data.IsEmpty())
+        {
+            storageBuffer.Write(data, offset);
+            offset += data.GetSize();
+        }
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_DeviceInstanceData.StorageSizes[p_Info.FrameIndex] == 0)
+    if (m_DeviceInstances == 0)
         return;
+
     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::Render");
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-    const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<dlevel>(p_Info, transforms);
+    const VkDescriptorSet instanceData = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
+    bindDescriptorSets<dlevel>(p_Info, instanceData);
 
-    const DeviceLocalVertexBuffer<D> &vbuffer = Primitives<D>::GetVertexBuffer();
-    const DeviceLocalIndexBuffer &ibuffer = Primitives<D>::GetIndexBuffer();
+    const auto &vbuffer = Primitives<D>::GetVertexBuffer();
+    const auto &ibuffer = Primitives<D>::GetIndexBuffer();
 
     vbuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
     ibuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
 
     pushConstantData<dlevel>(p_Info);
     u32 firstInstance = 0;
-    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
-    {
-        if (m_HostInstanceData[i].empty())
-            continue;
-        const u32 size = m_HostInstanceData[i].size();
-        const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
+    for (u32 i = 0; i < m_HostData.GetSize(); ++i)
+        if (!m_HostData[i].IsEmpty())
+        {
+            const u32 instanceCount = m_HostData[i].GetSize();
+            const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
 
-        vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesSize, size, layout.IndicesStart, layout.VerticesStart,
-                         firstInstance);
-        INCREASE_DRAW_CALL_COUNT();
-        firstInstance += size;
-    }
+            vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
+                             layout.VerticesStart, firstInstance);
+            INCREASE_DRAW_CALL_COUNT();
+            firstInstance += instanceCount;
+        }
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flush() noexcept
 {
-    for (auto &data : m_HostInstanceData)
-        data.clear();
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-        m_DeviceInstanceData.StorageSizes[i] = 0;
+    for (auto &data : m_HostData)
+        data.Clear();
+    m_DeviceInstances = 0;
 }
 
 template <Dimension D, PipelineMode PMode>
 PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderPass);
-    initializeRenderer(m_DeviceInstanceData);
+    initializeRenderer(m_DeviceData);
 }
 
 template <Dimension D, PipelineMode PMode> PolygonRenderer<D, PMode>::~PolygonRenderer() noexcept
@@ -291,134 +255,118 @@ template <Dimension D, PipelineMode PMode> PolygonRenderer<D, PMode>::~PolygonRe
 }
 
 template <Dimension D, PipelineMode PMode>
-void PolygonRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
+void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData,
                                      const TKit::Span<const fvec2> p_Vertices) noexcept
 {
-    TKIT_ASSERT(p_Vertices.size() >= 3, "[ONYX] A polygon must have at least 3 sides");
-    const u32 storageSize = m_HostInstanceData.size();
-    auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
-    if (storageSize == storageBuffer.GetInfo().InstanceCount)
-    {
-        storageBuffer.Destroy();
-        storageBuffer = CreateHostVisibleStorageBuffer<InstanceData>(storageSize * 2);
-        const VkDescriptorBufferInfo info = storageBuffer.GetDescriptorInfo();
-
-        m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
-            resetStorageBufferDescriptorSet(info, m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
-    }
-
-    PolygonInstanceData instanceData;
-    instanceData.BaseData = p_InstanceData;
+    TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX] A polygon must have at least 3 sides");
 
     PrimitiveDataLayout layout;
-    layout.VerticesStart = m_Vertices.size();
-    layout.IndicesStart = m_Indices.size();
-    layout.IndicesSize = p_Vertices.size() * 3 - 6;
-    instanceData.Layout = layout;
+    layout.VerticesStart = m_HostData.Vertices.GetSize();
+    layout.IndicesStart = m_HostData.Indices.GetSize();
+    layout.IndicesCount = p_Vertices.GetSize() * 3 - 6;
 
-    m_HostInstanceData.push_back(instanceData);
+    m_HostData.Data.Append(p_InstanceData);
+    m_HostData.Layouts.Append(layout);
 
-    const auto pushVertex = [this](const fvec2 &v) {
+    const auto writeVertex = [this](const fvec2 &p_Vertex) {
         Vertex<D> vertex{};
         if constexpr (D == D3)
         {
-            vertex.Position = fvec3{v, 0.f};
+            vertex.Position = fvec3{p_Vertex, 0.f};
             vertex.Normal = fvec3{0.f, 0.f, 1.f};
         }
         else
-            vertex.Position = v;
-
-        m_Vertices.push_back(vertex);
+            vertex.Position = p_Vertex;
+        m_HostData.Vertices.Append(vertex);
     };
 
     for (u32 i = 0; i < 3; ++i)
     {
-        m_Indices.push_back(static_cast<Index>(i));
-        pushVertex(p_Vertices[i]);
+        const Index index = static_cast<Index>(i);
+        m_HostData.Indices.Append(index);
+        writeVertex(p_Vertices[i]);
     }
 
-    for (u32 i = 3; i < p_Vertices.size(); ++i)
+    for (u32 i = 3; i < p_Vertices.GetSize(); ++i)
     {
         const Index index = static_cast<Index>(i);
-        m_Indices.push_back(0);
-        m_Indices.push_back(index - 1);
-        m_Indices.push_back(index);
-        pushVertex(p_Vertices[i]);
-    }
-
-    const u32 vertexSize = m_Vertices.size();
-    const u32 indexSize = m_Indices.size();
-    HostVisibleVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_FrameIndex];
-    HostVisibleIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_FrameIndex];
-
-    if (vertexSize >= vertexBuffer.GetInfo().InstanceCount)
-    {
-        vertexBuffer.Destroy();
-        vertexBuffer = CreateHostVisibleVertexBuffer<D>(vertexSize * 2);
-    }
-    if (indexSize >= indexBuffer.GetInfo().InstanceCount)
-    {
-        indexBuffer.Destroy();
-        indexBuffer = CreateHostVisibleIndexBuffer(indexSize * 2);
+        m_HostData.Indices.Append(0);
+        m_HostData.Indices.Append(index - 1);
+        m_HostData.Indices.Append(index);
+        writeVertex(p_Vertices[i]);
     }
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_HostInstanceData.empty())
+    if (m_HostData.Data.IsEmpty())
         return;
+
     TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
-    HostVisibleStorageBuffer<InstanceData> &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
-    HostVisibleVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_FrameIndex];
-    HostVisibleIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_FrameIndex];
 
-    vertexBuffer.Write(m_Vertices.data(), m_Vertices.size());
-    indexBuffer.Write(m_Indices.data(), m_Indices.size());
-    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
-        storageBuffer.WriteAt(i, &m_HostInstanceData[i].BaseData);
+    auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
+    if (m_HostData.Data.GetSize() >= storageBuffer.GetInfo().InstanceCount)
+        m_DeviceData.Grow(p_FrameIndex);
 
-    vertexBuffer.Flush();
-    indexBuffer.Flush();
-    storageBuffer.Flush();
+    auto &vertexBuffer = m_DeviceData.VertexBuffers[p_FrameIndex];
+    const u32 vsize = m_HostData.Vertices.GetSize();
+    if (vsize >= vertexBuffer.GetInfo().InstanceCount)
+    {
+        vertexBuffer.Destroy();
+        vertexBuffer = CreateHostVisibleVertexBuffer<D>(1 + vsize + vsize / 2);
+    }
+
+    auto &indexBuffer = m_DeviceData.IndexBuffers[p_FrameIndex];
+    const u32 isize = m_HostData.Indices.GetSize();
+    if (isize >= indexBuffer.GetInfo().InstanceCount)
+    {
+        indexBuffer.Destroy();
+        indexBuffer = CreateHostVisibleIndexBuffer(1 + isize + isize / 2);
+    }
+
+    storageBuffer.Write(m_HostData.Data);
+    vertexBuffer.Write(m_HostData.Vertices);
+    indexBuffer.Write(m_HostData.Indices);
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_HostInstanceData.empty())
+    if (m_HostData.Data.IsEmpty())
         return;
     TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::Render");
 
     m_Pipeline.Bind(p_Info.CommandBuffer);
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-    const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<dlevel>(p_Info, transforms);
+    const VkDescriptorSet instanceData = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
+    bindDescriptorSets<dlevel>(p_Info, instanceData);
 
-    HostVisibleVertexBuffer<D> &vertexBuffer = m_DeviceInstanceData.VertexBuffers[p_Info.FrameIndex];
-    HostVisibleIndexBuffer &indexBuffer = m_DeviceInstanceData.IndexBuffers[p_Info.FrameIndex];
+    const auto &vertexBuffer = m_DeviceData.VertexBuffers[p_Info.FrameIndex];
+    const auto &indexBuffer = m_DeviceData.IndexBuffers[p_Info.FrameIndex];
 
     vertexBuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
     indexBuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
 
     pushConstantData<dlevel>(p_Info);
-    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
+    for (const PrimitiveDataLayout &layout : m_HostData.Layouts)
     {
-        const auto &data = m_HostInstanceData[i];
-        vkCmdDrawIndexed(p_Info.CommandBuffer, data.Layout.IndicesSize, 1, data.Layout.IndicesStart,
-                         data.Layout.VerticesStart, 0);
+        vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, 1, layout.IndicesStart, layout.VerticesStart, 0);
         INCREASE_DRAW_CALL_COUNT();
     }
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush() noexcept
 {
-    m_HostInstanceData.clear();
+    m_HostData.Data.Clear();
+    m_HostData.Layouts.Clear();
+    m_HostData.Vertices.Clear();
+    m_HostData.Indices.Clear();
 }
 
 template <Dimension D, PipelineMode PMode>
 CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexcept
 {
     m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderPass);
-    initializeRenderer(m_DeviceInstanceData);
+    initializeRenderer(m_DeviceData);
 }
 
 template <Dimension D, PipelineMode PMode> CircleRenderer<D, PMode>::~CircleRenderer() noexcept
@@ -428,14 +376,11 @@ template <Dimension D, PipelineMode PMode> CircleRenderer<D, PMode>::~CircleRend
 }
 
 template <Dimension D, PipelineMode PMode>
-void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &p_InstanceData,
-                                    const CircleOptions &p_Options) noexcept
+void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Options) noexcept
 {
-    if (TKit::Approximately(p_Options.LowerAngle, p_Options.UpperAngle) ||
-        TKit::Approximately(p_Options.Hollowness, 1.f))
-        return;
-    const u32 size = m_HostInstanceData.size();
-    HostVisibleStorageBuffer<CircleInstanceData> &buffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
+    // if (TKit::Approximately(p_Options.LowerAngle, p_Options.UpperAngle) ||
+    //     TKit::Approximately(p_Options.Hollowness, 1.f))
+    //     return;
 
     CircleInstanceData instanceData;
     instanceData.BaseData = p_InstanceData;
@@ -447,53 +392,43 @@ void CircleRenderer<D, PMode>::Draw(const u32 p_FrameIndex, const InstanceData &
     instanceData.InnerFade = p_Options.InnerFade;
     instanceData.OuterFade = p_Options.OuterFade;
 
-    if (size == buffer.GetInfo().InstanceCount)
-    {
-        buffer.Destroy();
-        buffer = CreateHostVisibleStorageBuffer<CircleInstanceData>(size * 2);
-        const VkDescriptorBufferInfo info = buffer.GetDescriptorInfo();
-
-        m_DeviceInstanceData.DescriptorSets[p_FrameIndex] =
-            resetStorageBufferDescriptorSet(info, m_DeviceInstanceData.DescriptorSets[p_FrameIndex]);
-    }
-
-    m_HostInstanceData.push_back(instanceData);
+    m_HostData.Append(instanceData);
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_HostInstanceData.empty())
+    if (m_HostData.IsEmpty())
         return;
+
     TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
-    auto &storageBuffer = m_DeviceInstanceData.StorageBuffers[p_FrameIndex];
-    for (u32 i = 0; i < m_HostInstanceData.size(); ++i)
-        storageBuffer.WriteAt(i, &m_HostInstanceData[i]);
-    storageBuffer.Flush();
+
+    auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
+    if (m_HostData.GetSize() >= storageBuffer.GetInfo().InstanceCount)
+        m_DeviceData.Grow(p_FrameIndex);
+
+    storageBuffer.Write(m_HostData);
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_HostInstanceData.empty())
+    if (m_HostData.IsEmpty())
         return;
     TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::Render");
     m_Pipeline.Bind(p_Info.CommandBuffer);
 
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-    const VkDescriptorSet transforms = m_DeviceInstanceData.DescriptorSets[p_Info.FrameIndex];
-    bindDescriptorSets<dlevel>(p_Info, transforms);
+    const VkDescriptorSet instanceData = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
+    bindDescriptorSets<dlevel>(p_Info, instanceData);
 
     pushConstantData<dlevel>(p_Info);
 
-    const u32 size = m_HostInstanceData.size();
-    vkCmdDraw(p_Info.CommandBuffer, 6, size, 0, 0);
+    vkCmdDraw(p_Info.CommandBuffer, 6, m_HostData.GetSize(), 0, 0);
     INCREASE_DRAW_CALL_COUNT();
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush() noexcept
 {
-    m_HostInstanceData.clear();
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-        m_DeviceInstanceData.StorageSizes[i] = 0;
+    m_HostData.Clear();
 }
 
 // This is just crazy

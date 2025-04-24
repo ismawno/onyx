@@ -150,9 +150,9 @@ void WindowData::OnImGuiRender() noexcept
 
 template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Container, const Event &p_Event)
 {
-    for (u32 i = 0; i < p_Container.Data.size(); ++i)
+    for (u32 i = 0; i < p_Container.Data.GetSize(); ++i)
         if (i == p_Container.Selected)
-            for (u32 j = 0; j < p_Container.Data[i].Cameras.size(); ++j)
+            for (u32 j = 0; j < p_Container.Data[i].Cameras.GetSize(); ++j)
                 if (j == p_Container.Data[i].ActiveCamera)
                 {
                     LayerData<D> &data = p_Container.Data[i];
@@ -161,7 +161,7 @@ template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Contain
                     {
                         if (p_Event.Type == Event::MousePressed && !ImGui::GetIO().WantCaptureMouse &&
                             p_Container.Data[i].ShapeToSpawn == POLYGON)
-                            data.PolygonVertices.push_back(camera->GetWorldMousePosition());
+                            data.PolygonVertices.Append(camera->GetWorldMousePosition());
                         else if (!ImGui::GetIO().WantCaptureMouse)
                         {
                             const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) &&
@@ -173,7 +173,7 @@ template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Contain
                     }
                     else if (p_Event.Type == Event::MousePressed && !ImGui::GetIO().WantCaptureMouse &&
                              p_Container.Data[i].ShapeToSpawn == POLYGON)
-                        data.PolygonVertices.push_back(camera->GetWorldMousePosition(data.Cameras[j].ZOffset));
+                        data.PolygonVertices.Append(camera->GetWorldMousePosition(data.Cameras[j].ZOffset));
                     return;
                 }
 }
@@ -215,7 +215,7 @@ void WindowData::RenderEditorText() noexcept
 template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, const TKit::Timespan p_Timestep) noexcept
 {
     p_Data.Context->Flush(m_BackgroundColor);
-    for (u32 i = 0; i < p_Data.Cameras.size(); ++i)
+    for (u32 i = 0; i < p_Data.Cameras.GetSize(); ++i)
         if (i == p_Data.ActiveCamera)
         {
             p_Data.Cameras[i].Camera->ControlMovementWithUserInput(p_Timestep);
@@ -325,15 +325,15 @@ template <typename C, typename F1, typename F2, typename F3>
 static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
                              F2 &&p_OnRemoval, F3 &&p_GetName) noexcept
 {
-    if (!p_Container.empty() && (!p_TreeName || ImGui::TreeNode(p_TreeName)))
+    if (!p_Container.IsEmpty() && (!p_TreeName || ImGui::TreeNode(p_TreeName)))
     {
-        for (u32 i = 0; i < p_Container.size(); ++i)
+        for (u32 i = 0; i < p_Container.GetSize(); ++i)
         {
             ImGui::PushID(&p_Container[i]);
             if (ImGui::Button("X"))
             {
                 std::forward<F2>(p_OnRemoval)(p_Container[i]);
-                p_Container.erase(p_Container.begin() + i);
+                p_Container.RemoveOrdered(p_Container.begin() + i);
                 ImGui::PopID();
                 break;
             }
@@ -344,7 +344,7 @@ static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Sele
 
             ImGui::PopID();
         }
-        if (p_Selected < p_Container.size())
+        if (p_Selected < p_Container.GetSize())
             std::forward<F1>(p_OnSelected)(p_Container[p_Selected]);
         if (p_TreeName)
             ImGui::TreePop();
@@ -370,7 +370,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         {
             auto polygon = TKit::Scope<Polygon<D>>::Create();
             polygon->Vertices = p_Data.PolygonVertices;
-            p_Data.PolygonVertices.clear();
+            p_Data.PolygonVertices.Clear();
             return std::move(polygon);
         }
         else if (p_Data.ShapeToSpawn == STADIUM)
@@ -394,11 +394,11 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         return nullptr;
     };
 
-    const bool canSpawn = p_Data.ShapeToSpawn != POLYGON || p_Data.PolygonVertices.size() >= 3;
+    const bool canSpawn = p_Data.ShapeToSpawn != POLYGON || p_Data.PolygonVertices.GetSize() >= 3;
     if (!canSpawn)
         ImGui::TextDisabled("A polygon must have at least 3 verticesto spawn!");
     else if (ImGui::Button("Spawn##Shape"))
-        p_Data.Shapes.push_back(createShape());
+        p_Data.Shapes.Append(createShape());
 
     if (canSpawn)
         ImGui::SameLine();
@@ -434,15 +434,15 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         ImGui::SameLine();
         if (ImGui::Button("Add"))
         {
-            p_Data.PolygonVertices.push_back(p_Data.VertexToAdd);
+            p_Data.PolygonVertices.Append(p_Data.VertexToAdd);
             p_Data.VertexToAdd = fvec2{0.f};
         }
-        for (u32 i = 0; i < p_Data.PolygonVertices.size(); ++i)
+        for (u32 i = 0; i < p_Data.PolygonVertices.GetSize(); ++i)
         {
             ImGui::PushID(&p_Data.PolygonVertices[i]);
             if (ImGui::Button("X"))
             {
-                p_Data.PolygonVertices.erase(p_Data.PolygonVertices.begin() + i);
+                p_Data.PolygonVertices.RemoveOrdered(p_Data.PolygonVertices.begin() + i);
                 ImGui::PopID();
                 break;
             }
@@ -661,7 +661,7 @@ template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Contai
     {
         LayerData<D> layerData{};
         layerData.Context = m_Window->CreateRenderContext<D>();
-        p_Container.Data.push_back(std::move(layerData));
+        p_Container.Data.Append(std::move(layerData));
     }
     UserLayer::HelpMarkerSameLine("A rendering context is an immediate mode API that allows users (you) to draw many "
                                   "different objects in a window. Multiple contexts may exist per window, each with "
@@ -674,7 +674,7 @@ template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Contai
 
 template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
 {
-    if (p_Data.Cameras.empty())
+    if (p_Data.Cameras.IsEmpty())
         ImGui::TextDisabled("Context has no cameras. At least one must be added to render anything.");
 
     if (ImGui::CollapsingHeader("Shapes"))
@@ -711,7 +711,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
             Camera<D> *camera = p_Data.Context->CreateCamera();
             CameraData<D> camData{};
             camData.Camera = camera;
-            p_Data.Cameras.push_back(camData);
+            p_Data.Cameras.Append(camData);
         }
         renderSelectableNoTree(
             "Camera", p_Data.Cameras, p_Data.ActiveCamera, [this](CameraData<D> &p_Camera) { renderCamera(p_Camera); },
@@ -727,9 +727,9 @@ void WindowData::renderLightSpawn(LayerData<D3> &p_Data) noexcept
     if (ImGui::Button("Spawn##Light"))
     {
         if (p_Data.LightToSpawn == 0)
-            p_Data.DirectionalLights.push_back({fvec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE});
+            p_Data.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE);
         else
-            p_Data.PointLights.push_back({fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f});
+            p_Data.PointLights.Append(fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f);
     }
     ImGui::SameLine();
     ImGui::Combo("Light", &p_Data.LightToSpawn, "Directional\0Point\0\0");

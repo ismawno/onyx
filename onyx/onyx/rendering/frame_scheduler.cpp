@@ -12,7 +12,7 @@ namespace Onyx::Detail
 FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 {
     createSwapChain(p_Window);
-    m_InFlightImages.resize(m_SwapChain.GetInfo().ImageData.size(), VK_NULL_HANDLE);
+    m_InFlightImages.Resize(m_SwapChain.GetInfo().ImageData.GetSize(), VK_NULL_HANDLE);
     createRenderPass();
     createProcessingEffects();
     createCommandData();
@@ -103,8 +103,8 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
     clearValues[1].depthStencil.stencil = 0;
     clearValues[2].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
 
-    passInfo.clearValueCount = clearValues.size();
-    passInfo.pClearValues = clearValues.data();
+    passInfo.clearValueCount = clearValues.GetSize();
+    passInfo.pClearValues = clearValues.GetData();
 
     vkCmdBeginRenderPass(m_CommandBuffers[m_FrameIndex], &passInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
@@ -280,7 +280,7 @@ void FrameScheduler::createRenderPass() noexcept
 
     const VKit::LogicalDevice &device = Core::GetDevice();
     const auto result =
-        VKit::RenderPass::Builder(&device, info.ImageData.size())
+        VKit::RenderPass::Builder(&device, info.ImageData.GetSize())
             .SetAllocator(Core::GetVulkanAllocator())
             // Attachment 0: This is the final presentation image. It is the post processing target image.
             .BeginAttachment(VKit::Attachment::Flag_Color)
@@ -384,8 +384,8 @@ void FrameScheduler::setupNaivePostProcessing() noexcept
 TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateAttachmentImageViews() const noexcept
 {
     TKit::StaticArray4<VkImageView> imageViews;
-    for (u32 i = 0; i < m_SwapChain.GetInfo().ImageData.size(); ++i)
-        imageViews.push_back(m_Resources.GetImageView(i, 2));
+    for (u32 i = 0; i < m_SwapChain.GetInfo().ImageData.GetSize(); ++i)
+        imageViews.Append(m_Resources.GetImageView(i, 2));
     return imageViews;
 }
 

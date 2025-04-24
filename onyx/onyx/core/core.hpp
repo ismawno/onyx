@@ -56,7 +56,7 @@ struct ONYX_API Core
     static VKit::DeletionQueue &GetDeletionQueue() noexcept;
 
     static const VKit::DescriptorPool &GetDescriptorPool() noexcept;
-    static const VKit::DescriptorSetLayout &GetTransformStorageDescriptorSetLayout() noexcept;
+    static const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout() noexcept;
     static const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout() noexcept;
 
     static VkQueue GetGraphicsQueue() noexcept;

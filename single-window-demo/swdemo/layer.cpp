@@ -24,7 +24,7 @@ void SWExampleLayer::OnEvent(const Event &p_Event) noexcept
     m_Data.OnEvent(p_Event);
 }
 
-void SWExampleLayer::OnRender(const VkCommandBuffer p_CommandBuffer) noexcept
+void SWExampleLayer::OnRender(u32, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     const auto ts = m_Application->GetDeltaTime();
     m_Data.OnRender(p_CommandBuffer, ts);

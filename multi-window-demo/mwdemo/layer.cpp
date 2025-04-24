@@ -21,16 +21,16 @@ void MWExampleLayer::OnUpdate(const u32 p_WindowIndex) noexcept
 
 void MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
 {
-    TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.size(), "[ONYX] Index out of bounds");
+    TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.GetSize(), "[ONYX] Index out of bounds");
     if (p_Event.Type == Event::WindowOpened)
-        m_Data.emplace_back().OnStart(p_Event.Window);
+        m_Data.Append().OnStart(p_Event.Window);
     else if (p_Event.Type == Event::WindowClosed)
-        m_Data.erase(m_Data.begin() + p_WindowIndex);
+        m_Data.RemoveOrdered(m_Data.begin() + p_WindowIndex);
     else
         m_Data[p_WindowIndex].OnEvent(p_Event);
 }
 
-void MWExampleLayer::OnRender(const u32 p_WindowIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void MWExampleLayer::OnRender(const u32 p_WindowIndex, u32, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     const auto ts = m_Application->GetDeltaTime();
     m_Data[p_WindowIndex].OnRender(p_CommandBuffer, ts);

@@ -92,19 +92,20 @@ class ONYX_API Window
             TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Window::Render", Core::GetProfilingContext(), cmd);
             m_FrameScheduler->BeginRenderPass(BackgroundColor);
 
-            std::forward<F1>(p_FirstDraws)(cmd);
+            const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
+            std::forward<F1>(p_FirstDraws)(frameIndex, cmd);
 
             for (const auto &context : m_RenderContexts2D)
-                context->SendToDevice();
+                context->SendToDevice(frameIndex);
             for (const auto &context : m_RenderContexts3D)
-                context->SendToDevice();
+                context->SendToDevice(frameIndex);
 
             for (const auto &context : m_RenderContexts2D)
-                context->Render(cmd);
+                context->Render(frameIndex, cmd);
             for (const auto &context : m_RenderContexts3D)
-                context->Render(cmd);
+                context->Render(frameIndex, cmd);
 
-            std::forward<F2>(p_LastDraws)(cmd);
+            std::forward<F2>(p_LastDraws)(frameIndex, cmd);
 
             m_FrameScheduler->EndRenderPass();
         }
@@ -132,7 +133,7 @@ class ONYX_API Window
      */
     template <typename F> bool RenderSubmitFirst(F &&p_FirstDraws) noexcept
     {
-        return Render(std::forward<F>(p_FirstDraws), [](const VkCommandBuffer) {});
+        return Render(std::forward<F>(p_FirstDraws), [](const u32, const VkCommandBuffer) {});
     }
 
     /**
@@ -231,7 +232,7 @@ class ONYX_API Window
         auto context = TKit::Scope<RenderContext<D>>::Create(this, GetRenderPass());
         auto &array = getContextArray<D>();
         RenderContext<D> *ptr = context.Get();
-        array.push_back(std::move(context));
+        array.Append(std::move(context));
         return ptr;
     }
     template <Dimension D> RenderContext<D> *GetRenderContext(const u32 p_Index = 0) noexcept
@@ -242,12 +243,12 @@ class ONYX_API Window
     template <Dimension D> void DestroyRenderContext(const u32 p_Index = 0) noexcept
     {
         auto &array = getContextArray<D>();
-        array.erase(array.begin() + p_Index);
+        array.RemoveOrdered(array.begin() + p_Index);
     }
     template <Dimension D> void DestroyRenderContext(const RenderContext<D> *p_Context) noexcept
     {
         auto &array = getContextArray<D>();
-        for (u32 i = 0; i < array.size(); ++i)
+        for (u32 i = 0; i < array.GetSize(); ++i)
             if (array[i].Get() == p_Context)
             {
                 DestroyRenderContext<D>(i);

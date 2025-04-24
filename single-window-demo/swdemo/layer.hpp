@@ -17,7 +17,7 @@ class SWExampleLayer final : public UserLayer
 
     void OnStart() noexcept override;
     void OnUpdate() noexcept override;
-    void OnRender(VkCommandBuffer p_CommandBuffer) noexcept override;
+    void OnRender(u32, VkCommandBuffer p_CommandBuffer) noexcept override;
     void OnEvent(const Event &p_Event) noexcept override;
 
   private:

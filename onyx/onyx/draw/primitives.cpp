@@ -8,7 +8,7 @@ namespace Onyx::Detail
 template <Dimension D> using BufferLayout = TKit::Array<PrimitiveDataLayout, Primitives<D>::AMOUNT>;
 template <Dimension D> struct IndexVertexBuffers
 {
-    IndexVertexBuffers(const TKit::Span<const Vertex<D>> p_Vertices, const TKit::Span<const Index> p_Indices,
+    IndexVertexBuffers(const HostVertexBuffer<D> &p_Vertices, const HostIndexBuffer &p_Indices,
                        const BufferLayout<D> &p_Layout) noexcept
         : Layout{p_Layout}
     {
@@ -50,73 +50,75 @@ template <Dimension D> const PrimitiveDataLayout &IPrimitives<D>::GetDataLayout(
     return getBuffers<D>()->Layout[p_PrimitiveIndex];
 }
 
-template <Dimension D> static IndexVertexData<D> createRegularPolygonBuffers(const u32 p_Sides) noexcept
+template <Dimension D> static IndexVertexHostData<D> createRegularPolygonBuffers(const u32 p_Sides) noexcept
 {
-    IndexVertexData<D> data{};
-    data.Vertices.reserve(p_Sides);
-    data.Indices.reserve(p_Sides * 3 - 6);
+    IndexVertexHostData<D> data{};
+    data.Vertices.Resize(p_Sides);
+    data.Indices.Resize(p_Sides * 3 - 6);
 
+    u32 vindex = 0;
+    u32 iindex = 0;
     const f32 angle = 2.f * glm::pi<f32>() / p_Sides;
     for (Index i = 0; i < 3; ++i)
     {
         const f32 x = 0.5f * glm::cos(angle * i);
         const f32 y = 0.5f * glm::sin(angle * i);
 
-        data.Indices.push_back(i);
+        data.Indices[iindex++] = i;
         if constexpr (D == D2)
-            data.Vertices.push_back(Vertex<D>{fvec<D>{x, y}});
+            data.Vertices[vindex++] = Vertex<D2>{fvec2{x, y}};
         else
-            data.Vertices.push_back(Vertex<D>{fvec<D>{x, y, 0.f}, fvec<D>{0.f, 0.f, 1.f}});
+            data.Vertices[vindex++] = Vertex<D3>{fvec3{x, y, 0.f}, fvec3{0.f, 0.f, 1.f}};
     }
 
     for (Index i = 3; i < p_Sides; ++i)
     {
         const f32 x = 0.5f * glm::cos(angle * i);
         const f32 y = 0.5f * glm::sin(angle * i);
-        data.Indices.push_back(0);
-        data.Indices.push_back(i - 1);
-        data.Indices.push_back(i);
+        data.Indices[iindex++] = 0;
+        data.Indices[iindex++] = i - 1;
+        data.Indices[iindex++] = i;
 
         if constexpr (D == D2)
-            data.Vertices.push_back(Vertex<D>{fvec<D>{x, y}});
+            data.Vertices[vindex++] = Vertex<D2>{fvec2{x, y}};
         else
-            data.Vertices.push_back(Vertex<D>{fvec<D>{x, y, 0.f}, fvec<D>{0.f, 0.f, 1.f}});
+            data.Vertices[vindex++] = Vertex<D3>{fvec3{x, y, 0.f}, fvec3{0.f, 0.f, 1.f}};
     }
 
     return data;
 }
 
-template <Dimension D> static IndexVertexData<D> load(const std::string_view p_Path) noexcept
+template <Dimension D> static IndexVertexHostData<D> load(const std::string_view p_Path) noexcept
 {
     const auto result = Load<D>(p_Path);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
 
-template <Dimension D> static void createBuffers(const TKit::Span<const char *const> p_Paths) noexcept
+template <Dimension D> static void createCombinedBuffers(const TKit::Span<const char *const> p_Paths) noexcept
 {
-    BufferLayout<D> layout;
-    IndexVertexData<D> data{};
+    BufferLayout<D> layout{};
+    IndexVertexHostData<D> combinedData{};
 
-    static constexpr u32 toLoad = Primitives<D>::AMOUNT - ONYX_REGULAR_POLYGON_COUNT;
+    constexpr u32 toLoad = Primitives<D>::AMOUNT - ONYX_REGULAR_POLYGON_COUNT;
     for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
     {
-        const IndexVertexData<D> buffers =
+        const IndexVertexHostData<D> buffers =
             i < toLoad ? load<D>(p_Paths[i]) : createRegularPolygonBuffers<D>(i - toLoad + 3);
 
-        layout[i].VerticesStart = data.Vertices.size();
-        layout[i].IndicesStart = data.Indices.size();
-        layout[i].IndicesSize = buffers.Indices.size();
+        auto &vertices = combinedData.Vertices;
+        auto &indices = combinedData.Indices;
 
-        data.Vertices.insert(data.Vertices.end(), buffers.Vertices.begin(), buffers.Vertices.end());
-        data.Indices.insert(data.Indices.end(), buffers.Indices.begin(), buffers.Indices.end());
+        layout[i].VerticesStart = vertices.GetSize();
+        layout[i].IndicesStart = indices.GetSize();
+        layout[i].IndicesCount = buffers.Indices.GetSize();
+
+        vertices.Insert(vertices.end(), buffers.Vertices.begin(), buffers.Vertices.end());
+        indices.Insert(indices.end(), buffers.Indices.begin(), buffers.Indices.end());
     }
 
     auto &buffers = getBuffers<D>();
-    const TKit::Span<const Vertex<D>> vertices{data.Vertices};
-    const TKit::Span<const Index> indices{data.Indices};
-
-    buffers.Construct(vertices, indices, layout);
+    buffers.Construct(combinedData.Vertices, combinedData.Indices, layout);
 }
 
 void CreateCombinedPrimitiveBuffers() noexcept
@@ -133,8 +135,8 @@ void CreateCombinedPrimitiveBuffers() noexcept
         ONYX_ROOT_PATH "/onyx/models/32-cylinder.obj", ONYX_ROOT_PATH "/onyx/models/64-cylinder.obj",
         ONYX_ROOT_PATH "/onyx/models/128-cylinder.obj"};
 
-    createBuffers<D2>(paths2D);
-    createBuffers<D3>(paths3D);
+    createCombinedBuffers<D2>(paths2D);
+    createCombinedBuffers<D3>(paths3D);
 
     TKIT_LOG_INFO("[ONYX] Created primitive vertex and index buffers");
 

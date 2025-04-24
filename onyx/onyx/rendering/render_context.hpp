@@ -838,15 +838,17 @@ template <Dimension D> class IRenderContext
     /**
      * @brief Send all stored host data to the device.
      *
+     * @param p_FrameIndex The index of the frame to send data for.
      */
-    void SendToDevice() noexcept;
+    void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Render the recorded draw data using the provided command buffer.
      *
+     * @param p_FrameIndex The index of the frame to render.
      * @param p_CommandBuffer The Vulkan command buffer to use for rendering.
      */
-    void Render(VkCommandBuffer p_CommandBuffer) noexcept;
+    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
 
     /**
      * @brief Create a new camera for the rendering context.

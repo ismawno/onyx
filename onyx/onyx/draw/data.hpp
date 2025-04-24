@@ -4,8 +4,8 @@
 #include "onyx/core/core.hpp"
 #include "vkit/buffer/device_local_buffer.hpp"
 #include "vkit/buffer/host_visible_buffer.hpp"
-#include "tkit/container/buffer.hpp"
 #include "tkit/container/span.hpp"
+#include "tkit/container/dynamic_array.hpp"
 
 #ifndef ONYX_INDEX_TYPE
 #    define ONYX_INDEX_TYPE TKit::Alias::u32
@@ -15,14 +15,6 @@ namespace Onyx
 {
 using Index = ONYX_INDEX_TYPE;
 
-template <Dimension D> struct IndexVertexData
-{
-    TKit::DynamicArray<Vertex<D>> Vertices;
-    TKit::DynamicArray<Index> Indices;
-};
-
-template <Dimension D> VKit::FormattedResult<IndexVertexData<D>> Load(std::string_view p_Path) noexcept;
-
 template <Dimension D> using DeviceLocalVertexBuffer = VKit::DeviceLocalBuffer<Vertex<D>>;
 using DeviceLocalIndexBuffer = VKit::DeviceLocalBuffer<Index>;
 template <typename T> using DeviceLocalStorageBuffer = VKit::DeviceLocalBuffer<T>;
@@ -31,26 +23,32 @@ template <Dimension D> using HostVisibleVertexBuffer = VKit::HostVisibleBuffer<V
 using HostVisibleIndexBuffer = VKit::HostVisibleBuffer<Index>;
 template <typename T> using HostVisibleStorageBuffer = VKit::HostVisibleBuffer<T>;
 
-template <Dimension D> using HostVertexBuffer = TKit::Buffer<Vertex<D>>;
-using HostIndexBuffer = TKit::Buffer<Index>;
-template <typename T> using HostStorageBuffer = TKit::Buffer<T>;
+template <Dimension D> using HostVertexBuffer = TKit::DynamicArray<Vertex<D>>;
+using HostIndexBuffer = TKit::DynamicArray<Index>;
+template <typename T> using HostStorageBuffer = TKit::DynamicArray<T>;
+
+template <Dimension D> struct IndexVertexHostData
+{
+    HostVertexBuffer<D> Vertices;
+    HostIndexBuffer Indices;
+};
+
+template <Dimension D> VKit::FormattedResult<IndexVertexHostData<D>> Load(std::string_view p_Path) noexcept;
 
 template <Dimension D>
-DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(TKit::Span<const Vertex<D>> p_Vertices) noexcept;
-ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(TKit::Span<const Index> p_Indices) noexcept;
+DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices) noexcept;
+ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Indices) noexcept;
 
 template <typename T>
-DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer(const TKit::Span<const T> p_Data) noexcept
+DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer(const HostStorageBuffer<T> &p_Data) noexcept
 {
-    typename VKit::DeviceLocalBuffer<T>::StorageSpecs specs{};
+    typename VKit::DeviceLocalBuffer<T>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = p_Data;
     specs.CommandPool = &Core::GetCommandPool();
     specs.Queue = Core::GetGraphicsQueue();
 
-    const VKit::PhysicalDevice &device = Core::GetDevice().GetPhysicalDevice();
-    const VkDeviceSize alignment = device.GetInfo().Properties.Core.limits.minStorageBufferOffsetAlignment;
-    const auto result = VKit::DeviceLocalBuffer<T>::CreateStorageBuffer(specs, alignment);
+    const auto result = VKit::DeviceLocalBuffer<T>::CreateStorageBuffer(specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
@@ -60,23 +58,14 @@ ONYX_API HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(VkDeviceSize p_Capa
 
 template <typename T> HostVisibleStorageBuffer<T> CreateHostVisibleStorageBuffer(const VkDeviceSize p_Capacity) noexcept
 {
-    typename VKit::HostVisibleBuffer<T>::StorageSpecs specs{};
+    typename VKit::HostVisibleBuffer<T>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Capacity = p_Capacity;
+    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
-    const VKit::PhysicalDevice &device = Core::GetDevice().GetPhysicalDevice();
-    const VkDeviceSize alignment = device.GetInfo().Properties.Core.limits.minStorageBufferOffsetAlignment;
-    const auto result = VKit::HostVisibleBuffer<T>::CreateStorageBuffer(specs, alignment);
+    const auto result = VKit::HostVisibleBuffer<T>::CreateStorageBuffer(specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
-}
-
-template <typename T> HostStorageBuffer<T> CreateHostStorageBuffer(const u32 p_Capacity) noexcept
-{
-    const VKit::PhysicalDevice &device = Core::GetDevice().GetPhysicalDevice();
-    const HostStorageBuffer<T> buffer{p_Capacity,
-                                      device.GetInfo().Properties.Core.limits.minStorageBufferOffsetAlignment};
-    return buffer;
 }
 
 } // namespace Onyx

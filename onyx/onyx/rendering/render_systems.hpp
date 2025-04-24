@@ -4,10 +4,6 @@
 #include "onyx/draw/model.hpp"
 #include "onyx/core/core.hpp"
 
-#ifndef ONYX_BUFFER_INITIAL_CAPACITY
-#    define ONYX_BUFFER_INITIAL_CAPACITY 4
-#endif
-
 namespace Onyx::Detail
 {
 #ifdef TKIT_ENABLE_INSTRUMENTATION
@@ -26,8 +22,8 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
 {
     TKIT_NON_COPYABLE(MeshRenderer)
 
-    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
+    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
 
   public:
     MeshRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -36,13 +32,12 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     /**
      * @brief Record and store the data needed to draw a model instance. This is an onyx draw call.
      *
-     * This method does not perform any vulkan commands.
+     * This method does not record any vulkan commands.
      *
-     * @param p_FrameIndex The index of the current frame.
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_Model The model to draw.
      */
-    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, const Model<D> &p_Model) noexcept;
+    void Draw(const InstanceData &p_InstanceData, const Model<D> &p_Model) noexcept;
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
@@ -70,12 +65,14 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     void Flush() noexcept;
 
   private:
+    using MeshHostData = TKit::HashMap<Model<D>, HostStorageBuffer<InstanceData>>;
+    using MeshDeviceData = DeviceData<InstanceData>;
+
     VKit::GraphicsPipeline m_Pipeline{};
 
-    using HostInstanceData = TKit::HashMap<Model<D>, TKit::DynamicArray<InstanceData>>;
-
-    HostInstanceData m_HostInstanceData;
-    DeviceInstanceData<InstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
+    MeshHostData m_HostData{};
+    MeshDeviceData m_DeviceData{};
+    u32 m_DeviceInstances = 0;
 };
 
 /**
@@ -92,8 +89,8 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
 {
     TKIT_NON_COPYABLE(PrimitiveRenderer)
 
-    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
+    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
 
   public:
     PrimitiveRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -102,13 +99,12 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
     /**
      * @brief Record and store the data needed to draw a primitive instance. This is an onyx draw call.
      *
-     * This method does not perform any vulkan commands.
+     * This method does not record any vulkan commands.
      *
-     * @param p_FrameIndex The index of the current frame.
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_PrimitiveIndex The index of the primitive to draw. Can be queried from `Primitive<D>::Get...Index()`
      */
-    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, u32 p_PrimitiveIndex) noexcept;
+    void Draw(const InstanceData &p_InstanceData, u32 p_PrimitiveIndex) noexcept;
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
@@ -136,12 +132,14 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
     void Flush() noexcept;
 
   private:
+    using PrimitiveHostData = TKit::Array<HostStorageBuffer<InstanceData>, Primitives<D>::AMOUNT>;
+    using PrimitiveDeviceData = DeviceData<InstanceData>;
+
     VKit::GraphicsPipeline m_Pipeline{};
 
-    using HostInstanceData = TKit::Array<TKit::DynamicArray<InstanceData>, Primitives<D>::AMOUNT>;
-
-    HostInstanceData m_HostInstanceData;
-    DeviceInstanceData<InstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
+    PrimitiveHostData m_HostData{};
+    PrimitiveDeviceData m_DeviceData{};
+    u32 m_DeviceInstances = 0;
 };
 
 /**
@@ -160,11 +158,8 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
 {
     TKIT_NON_COPYABLE(PolygonRenderer)
 
-    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
-
-    using PolygonInstanceData = PolygonInstanceData<GetDrawLevel<D, PMode>()>;
-    using PolygonDeviceInstanceData = PolygonDeviceInstanceData<D, GetDrawLevel<D, PMode>()>;
+    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
 
   public:
     PolygonRenderer(VkRenderPass p_RenderPass) noexcept;
@@ -173,13 +168,12 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
     /**
      * @brief Record and store the data needed to draw a polygon instance. This is an onyx draw call.
      *
-     * This method does not perform any vulkan commands.
+     * This method does not record any vulkan commands.
      *
-     * @param p_FrameIndex The index of the current frame.
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_Vertices The vertices of the polygon to draw. Must be sorted consistently.
      */
-    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, TKit::Span<const fvec2> p_Vertices) noexcept;
+    void Draw(const InstanceData &p_InstanceData, TKit::Span<const fvec2> p_Vertices) noexcept;
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
@@ -207,14 +201,22 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
     void Flush() noexcept;
 
   private:
+    struct PolygonHostData
+    {
+        HostStorageBuffer<InstanceData> Data;
+        HostStorageBuffer<PrimitiveDataLayout> Layouts;
+        HostVertexBuffer<D> Vertices;
+        HostIndexBuffer Indices;
+    };
+
+    using PolygonDeviceData = PolygonDeviceData<D, GetDrawLevel<D, PMode>()>;
+
     VKit::GraphicsPipeline m_Pipeline{};
 
-    // Batch data maps perfectly to the number of polygons to be drawn i.e number of entries in storage buffer.
-    // StorageSizes is not needed
-    TKit::DynamicArray<PolygonInstanceData> m_HostInstanceData;
-    PolygonDeviceInstanceData m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
-    TKit::DynamicArray<Vertex<D>> m_Vertices;
-    TKit::DynamicArray<Index> m_Indices;
+    // Host data maps perfectly to the number of polygons to be drawn i.e number of entries in storage buffer.
+    // DeviceInstances is not needed
+    PolygonHostData m_HostData{};
+    PolygonDeviceData m_DeviceData{};
 };
 
 /**
@@ -249,9 +251,8 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
      *
      * Nothing will be drawn if p_LowerAngle == p_UpperAngle or if p_Hollowness approaches 1.
      *
-     * This method does not perform any vulkan commands.
+     * This method does not record any vulkan commands.
      *
-     * @param p_FrameIndex The index of the current frame.
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      *
      * The following is encoded in the `CircleOptions` struct:
@@ -265,7 +266,7 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
      * @param p_LowerAngle The angle from which the arc starts.
      * @param p_UpperAngle The angle at which the arc ends.
      */
-    void Draw(u32 p_FrameIndex, const InstanceData &p_InstanceData, const CircleOptions &p_Properties) noexcept;
+    void Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Properties) noexcept;
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
@@ -293,12 +294,15 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
     void Flush() noexcept;
 
   private:
+    using CircleHostData = HostStorageBuffer<CircleInstanceData>;
+    using CircleDeviceData = DeviceData<CircleInstanceData>;
+
     VKit::GraphicsPipeline m_Pipeline{};
 
-    // Batch data maps perfectly to the number of circles to be drawn i.e number of entries in storage buffer.
-    // StorageSizes is not needed
-    TKit::DynamicArray<CircleInstanceData> m_HostInstanceData;
-    DeviceInstanceData<CircleInstanceData> m_DeviceInstanceData{ONYX_BUFFER_INITIAL_CAPACITY};
+    // Host data maps perfectly to the number of polygons to be drawn i.e number of entries in storage buffer.
+    // DeviceInstances is not needed
+    CircleHostData m_HostData{};
+    CircleDeviceData m_DeviceData{};
 };
 
 } // namespace Onyx::Detail
