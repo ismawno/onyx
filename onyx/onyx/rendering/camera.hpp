@@ -188,6 +188,15 @@ template <Dimension D> class ICamera
     void ControlMovementWithUserInput(const CameraControls<D> &p_Controls) noexcept;
     void ControlMovementWithUserInput(TKit::Timespan p_DeltaTime) noexcept;
 
+    /**
+     * @brief Control the view's scale of the camera with user input.
+     *
+     * Typically used in scroll events. Not recommended to use in 3D, specially with a perspective projection.
+     *
+     * @param p_ScaleStep The step size for scaling.
+     */
+    void ControlScrollWithUserInput(f32 p_ScaleStep) noexcept;
+
     const ProjectionViewData<D> &GetProjectionViewData() const noexcept;
     const ScreenViewport &GetViewport() const noexcept;
     const ScreenScissor &GetScissor() const noexcept;
@@ -243,15 +252,6 @@ template <> class ONYX_API Camera<D2> final : public Detail::ICamera<D2>
      * @return The mouse position in the camera's rendering context coordinates.
      */
     fvec2 GetWorldMousePosition() const noexcept;
-
-    /**
-     * @brief Control the view's scale of the camera with user input.
-     *
-     * Typically used in scroll events.
-     *
-     * @param p_ScaleStep The step size for scaling.
-     */
-    void ControlScrollWithUserInput(f32 p_ScaleStep) noexcept;
 };
 
 template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>

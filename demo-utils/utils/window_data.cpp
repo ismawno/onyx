@@ -157,23 +157,18 @@ template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Contain
                 {
                     LayerData<D> &data = p_Container.Data[i];
                     Camera<D> *camera = data.Cameras[j].Camera;
-                    if constexpr (D == D2)
+                    if (p_Event.Type == Event::MousePressed && !ImGui::GetIO().WantCaptureMouse &&
+                        p_Container.Data[i].ShapeToSpawn == POLYGON)
+                        data.PolygonVertices.Append(camera->GetWorldMousePosition());
+
+                    else if (!ImGui::GetIO().WantCaptureMouse)
                     {
-                        if (p_Event.Type == Event::MousePressed && !ImGui::GetIO().WantCaptureMouse &&
-                            p_Container.Data[i].ShapeToSpawn == POLYGON)
-                            data.PolygonVertices.Append(camera->GetWorldMousePosition());
-                        else if (!ImGui::GetIO().WantCaptureMouse)
-                        {
-                            const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) &&
-                                                       !ImGui::GetIO().WantCaptureKeyboard
-                                                   ? 0.05f
-                                                   : 0.005f;
-                            camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset.y);
-                        }
+                        const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) &&
+                                                   !ImGui::GetIO().WantCaptureKeyboard
+                                               ? 0.05f
+                                               : 0.005f;
+                        camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset.y);
                     }
-                    else if (p_Event.Type == Event::MousePressed && !ImGui::GetIO().WantCaptureMouse &&
-                             p_Container.Data[i].ShapeToSpawn == POLYGON)
-                        data.PolygonVertices.Append(camera->GetWorldMousePosition(data.Cameras[j].ZOffset));
                     return;
                 }
 }

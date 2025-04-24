@@ -229,6 +229,33 @@ template <Dimension D> void ICamera<D>::ControlMovementWithUserInput(const TKit:
     ControlMovementWithUserInput(controls);
 }
 
+template <Dimension D> void ICamera<D>::ControlScrollWithUserInput(const f32 p_ScaleStep) noexcept
+{
+    fvec2 scpos = Input::GetScreenMousePosition(m_Window);
+    scpos.y = -scpos.y; // Invert y axis to undo onyx's inversion to GLFW, so that now when applying the
+    // rotation around x axis everything works out
+
+    if constexpr (D == D2)
+    {
+        fmat4 transform = Onyx::Transform<D2>::Promote(m_ProjectionView.View.ComputeTransform());
+        ApplyCoordinateSystemIntrinsic(transform);
+        const fvec2 mpos = transform * fvec4{scpos, 0.f, 1.f};
+        const fvec2 dpos = p_ScaleStep * (mpos - m_ProjectionView.View.Translation);
+        m_ProjectionView.View.Translation += dpos;
+        m_ProjectionView.View.Scale *= 1.f - p_ScaleStep;
+    }
+    else
+    {
+        const fmat4 transform = m_ProjectionView.View.ComputeTransform();
+        const fvec3 mpos = transform * fvec4{scpos, 0.f, 1.f};
+        const fvec3 dpos = p_ScaleStep * (mpos - m_ProjectionView.View.Translation);
+        m_ProjectionView.View.Translation += dpos;
+        m_ProjectionView.View.Scale *= 1.f - p_ScaleStep;
+    }
+
+    updateProjectionView();
+}
+
 template <Dimension D> void ICamera<D>::adaptViewToViewportAspect() noexcept
 {
     const VkExtent2D extent = {m_Window->GetPixelWidth(), m_Window->GetPixelHeight()};
@@ -269,23 +296,6 @@ template <Dimension D> CameraInfo ICamera<D>::CreateCameraInfo() const noexcept
     info.Viewport = m_Viewport.AsVulkanViewport(extent);
     info.Scissor = m_Scissor.AsVulkanScissor(extent, m_Viewport);
     return info;
-}
-
-void Camera<D2>::ControlScrollWithUserInput(const f32 p_ScaleStep) noexcept
-{
-    fmat4 transform = Onyx::Transform<D2>::Promote(m_ProjectionView.View.ComputeTransform());
-    ApplyCoordinateSystemIntrinsic(transform);
-
-    fvec2 scpos = Input::GetScreenMousePosition(m_Window);
-    scpos.y = -scpos.y; // Invert y axis to undo onyx's inversion to GLFW, so that now when applying the
-                        // rotation around x axis everything works out
-    const fvec2 mpos = transform * fvec4{scpos, 0.f, 1.f};
-
-    const fvec2 dpos = p_ScaleStep * (mpos - m_ProjectionView.View.Translation);
-    m_ProjectionView.View.Translation += dpos;
-    m_ProjectionView.View.Scale *= 1.f - p_ScaleStep;
-
-    updateProjectionView();
 }
 
 fvec3 Camera<D3>::GetViewLookDirection() const noexcept
