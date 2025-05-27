@@ -5,6 +5,7 @@
 onyx/shaders/bin/
 .venv/
 .DS_Store
+.clangd
 imgui.ini
 docs/html/
 docs/latex/
