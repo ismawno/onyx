@@ -47,6 +47,8 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
                              .AddFlags(VKit::PhysicalDevice::Selector::Flag_AnyType |
                                        VKit::PhysicalDevice::Selector::Flag_PortabilitySubset |
                                        VKit::PhysicalDevice::Selector::Flag_RequireGraphicsQueue)
+                             .RequireApiVersion(1, 2, 0)
+                             .RequestApiVersion(1, 3, 0)
                              .Select();
     VKIT_ASSERT_RESULT(physres);
     const VKit::PhysicalDevice &phys = physres.GetValue();
@@ -184,7 +186,11 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
     const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);
 
     VKit::Instance::Builder builder{};
-    builder.SetApplicationName("Onyx").RequireApiVersion(1, 2, 0).RequireExtensions(extensionSpan);
+    builder.SetApplicationName("Onyx")
+        .RequestApiVersion(1, 3, 0)
+        .RequireApiVersion(1, 2, 0)
+        .RequireExtensions(extensionSpan)
+        .SetApplicationVersion(1, 2, 0);
 #ifdef TKIT_ENABLE_ASSERTS
     builder.RequireValidationLayers();
 #endif
