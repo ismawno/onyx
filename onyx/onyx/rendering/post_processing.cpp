@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/post_processing.hpp"
-#include "onyx/core/shaders.hpp"
 #include "vkit/descriptors/descriptor_set.hpp"
+#include "vkit/pipeline/pipeline_job.hpp"
 
 namespace Onyx
 {
@@ -37,7 +37,7 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
 {
     TKIT_ASSERT(
         !p_Specs.Layout.GetInfo().DescriptorSetLayouts.IsEmpty() &&
-            p_Specs.Layout.GetInfo().DescriptorSetLayouts[0] == m_DescriptorSetLayout.GetLayout(),
+            p_Specs.Layout.GetInfo().DescriptorSetLayouts[0] == m_DescriptorSetLayout.GetHandle(),
         "[ONYX] The pipeline layout used must be created from the PostProcessing's CreatePipelineLayoutBuilder method");
 
     Core::DeviceWaitIdle();
@@ -61,7 +61,9 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
         m_Pipeline.Destroy();
     m_Pipeline = result.GetValue();
 
-    m_Job = VKit::GraphicsJob(m_Pipeline, p_Specs.Layout);
+    const auto jresult = VKit::GraphicsJob::Create(m_Pipeline, p_Specs.Layout);
+    VKIT_ASSERT_RESULT(jresult);
+    m_Job = jresult.GetValue();
     if (m_SamplerDescriptors.IsEmpty())
     {
         const VKit::DescriptorPool &pool = Core::GetDescriptorPool();

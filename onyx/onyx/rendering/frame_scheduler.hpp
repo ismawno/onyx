@@ -1,12 +1,9 @@
 #pragma once
 
-#include "onyx/core/alias.hpp"
-#include "onyx/core/dimension.hpp"
 #include "onyx/rendering/post_processing.hpp"
 #include "vkit/rendering/swap_chain.hpp"
 #include "vkit/rendering/render_pass.hpp"
-#include "vkit/backend/command_pool.hpp"
-#include "tkit/multiprocessing/task.hpp"
+#include "vkit/rendering/command_pool.hpp"
 
 namespace Onyx
 {

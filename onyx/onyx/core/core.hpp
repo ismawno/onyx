@@ -1,10 +1,10 @@
 #pragma once
 
-#include "vkit/core/vma.hpp"
-#include "vkit/backend/physical_device.hpp"
+#include "onyx/core/api.hpp"
+#include "vkit/vulkan/allocator.hpp"
 #include "vkit/descriptors/descriptor_pool.hpp"
 #include "vkit/descriptors/descriptor_set_layout.hpp"
-#include "vkit/backend/command_pool.hpp"
+#include "vkit/rendering/command_pool.hpp"
 #include "tkit/profiling/vulkan.hpp"
 
 #ifndef ONYX_MAX_DESCRIPTOR_SETS

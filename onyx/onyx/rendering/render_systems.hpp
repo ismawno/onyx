@@ -2,7 +2,7 @@
 
 #include "onyx/rendering/render_structs.hpp"
 #include "onyx/draw/model.hpp"
-#include "onyx/core/core.hpp"
+#include "onyx/draw/primitives.hpp"
 
 namespace Onyx::Detail
 {

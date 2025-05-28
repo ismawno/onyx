@@ -3,9 +3,6 @@
 #include "onyx/app/window.hpp"
 #include "onyx/draw/color.hpp"
 #include "onyx/core/shaders.hpp"
-#include "tkit/multiprocessing/task_manager.hpp"
-
-#include "onyx/core/glfw.hpp"
 
 namespace Onyx::Detail
 {
@@ -17,7 +14,7 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
     createProcessingEffects();
     createCommandData();
     const auto result = VKit::CreateSynchronizationObjects(Core::GetDevice(), m_SyncData);
-    VKIT_ASSERT_VULKAN_RESULT(result);
+    VKIT_ASSERT_RESULT(result);
 }
 
 FrameScheduler::~FrameScheduler() noexcept
@@ -55,7 +52,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     const auto cmdres = m_CommandPools[m_FrameIndex].Reset();
-    VKIT_ASSERT_VULKAN_RESULT(cmdres);
+    VKIT_ASSERT_RESULT(cmdres);
 
     TKIT_ASSERT_RETURNS(vkBeginCommandBuffer(m_CommandBuffers[m_FrameIndex], &beginInfo), VK_SUCCESS,
                         "[ONYX] Failed to begin command buffer");

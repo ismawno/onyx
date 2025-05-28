@@ -65,7 +65,11 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(pipeline);
 
     VKIT_ASSERT_RESULT(presult);
-    return VKit::GraphicsJob(pipeline, layout);
+
+    const auto jresult = VKit::GraphicsJob::Create(pipeline, layout);
+    VKIT_ASSERT_RESULT(jresult);
+
+    return jresult.GetValue();
 }
 
 static void SetPostProcessing(Onyx::Window &p_Window) noexcept

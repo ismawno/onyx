@@ -1,8 +1,8 @@
 #pragma once
 
+#include "onyx/core/api.hpp"
 #include "onyx/core/glm.hpp"
 #include "onyx/core/dimension.hpp"
-#include "onyx/core/alias.hpp"
 
 namespace Onyx
 {

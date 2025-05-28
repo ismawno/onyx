@@ -2,10 +2,8 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/draw/color.hpp"
-#include "onyx/draw/primitives.hpp"
-#include "onyx/draw/model.hpp"
-#include "onyx/draw/transform.hpp"
 #include "onyx/core/core.hpp"
+#include "onyx/draw/data.hpp"
 #include "vkit/pipeline/graphics_pipeline.hpp"
 #include <vulkan/vulkan.h>
 

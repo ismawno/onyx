@@ -123,6 +123,7 @@ template <Dimension D> static void createCombinedBuffers(const TKit::Span<const 
 
 void CreateCombinedPrimitiveBuffers() noexcept
 {
+    TKIT_LOG_INFO("[ONYX] Creating primitive vertex and index buffers");
     const TKit::Array<const char *, Primitives<D2>::AMOUNT> paths2D = {ONYX_ROOT_PATH "/onyx/models/triangle.obj",
                                                                        ONYX_ROOT_PATH "/onyx/models/square.obj"};
 
@@ -137,8 +138,6 @@ void CreateCombinedPrimitiveBuffers() noexcept
 
     createCombinedBuffers<D2>(paths2D);
     createCombinedBuffers<D3>(paths3D);
-
-    TKIT_LOG_INFO("[ONYX] Created primitive vertex and index buffers");
 
     Core::GetDeletionQueue().Push([] {
         s_Buffers2D.Destruct();

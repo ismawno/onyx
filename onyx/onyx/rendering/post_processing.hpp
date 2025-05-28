@@ -3,6 +3,7 @@
 #include "onyx/core/core.hpp"
 #include "vkit/pipeline/pipeline_layout.hpp"
 #include "vkit/pipeline/graphics_pipeline.hpp"
+#include "vkit/pipeline/shader.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 
 namespace Onyx
@@ -44,7 +45,7 @@ class ONYX_API PostProcessing
      * creates a pipeline layout builder with the necessary descriptor set layout. The user can then add any
      * additional descriptor set layouts or push constant ranges as needed.
      *
-     * Failiure to use this method to create the pipeline layout will result in a runtime error when the post
+     * Failure to use this method to create the pipeline layout will result in a runtime error when the post
      * processing pipeline is set up.
      *
      * @return A pipeline layout builder for the post-processing pipeline.

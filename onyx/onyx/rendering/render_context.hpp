@@ -3,6 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/rendering/camera.hpp"
+#include "tkit/memory/ptr.hpp"
 #include <vulkan/vulkan.h>
 
 #ifndef ONYX_MAX_POLYGON_VERTICES

@@ -1,9 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/draw/transform.hpp"
-#include "onyx/app/window.hpp"
 #include "vkit/descriptors/descriptor_set.hpp"
-#include "tkit/utils/math.hpp"
+#include "tkit/profiling/macros.hpp"
 
 namespace Onyx::Detail
 {

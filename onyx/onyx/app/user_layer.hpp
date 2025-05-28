@@ -3,11 +3,7 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/api.hpp"
 #include "onyx/core/dimension.hpp"
-#include "tkit/utils/non_copyable.hpp"
-#include "tkit/memory/ptr.hpp"
-#include "tkit/container/static_array.hpp"
 #include "tkit/profiling/timespan.hpp"
-#include <concepts>
 #include <vulkan/vulkan.h>
 
 namespace Onyx

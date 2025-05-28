@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/rendering/render_structs.hpp"
+#include "vkit/pipeline/shader.hpp"
 
 namespace Onyx::Detail
 {

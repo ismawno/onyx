@@ -1,6 +1,7 @@
 #include "utils/window_data.hpp"
 #include "onyx/core/shaders.hpp"
 #include "onyx/app/user_layer.hpp"
+#include "vkit/pipeline/pipeline_job.hpp"
 #include <imgui.h>
 #include <implot.h>
 
@@ -69,7 +70,9 @@ void WindowData::OnStart(Window *p_Window) noexcept
     VKIT_ASSERT_RESULT(presult);
     const VKit::GraphicsPipeline &pipeline = presult.GetValue();
 
-    m_RainbowJob = VKit::GraphicsJob(presult.GetValue(), getRainbowLayout());
+    const auto jresult = VKit::GraphicsJob::Create(presult.GetValue(), getRainbowLayout());
+    VKIT_ASSERT_RESULT(jresult);
+    m_RainbowJob = jresult.GetValue();
 
     VKit::PipelineLayout::Builder builder = m_Window->GetPostProcessing()->CreatePipelineLayoutBuilder();
     const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();

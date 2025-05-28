@@ -1,8 +1,6 @@
 #pragma once
 
 #include "onyx/rendering/render_systems.hpp"
-#include "vkit/descriptors/descriptor_set_layout.hpp"
-#include "vkit/descriptors/descriptor_pool.hpp"
 
 namespace Onyx::Detail
 {

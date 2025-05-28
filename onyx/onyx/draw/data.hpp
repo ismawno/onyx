@@ -4,7 +4,6 @@
 #include "onyx/core/core.hpp"
 #include "vkit/buffer/device_local_buffer.hpp"
 #include "vkit/buffer/host_visible_buffer.hpp"
-#include "tkit/container/span.hpp"
 #include "tkit/container/dynamic_array.hpp"
 
 #ifndef ONYX_INDEX_TYPE
@@ -48,7 +47,7 @@ DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer(const HostStorageBuff
     specs.CommandPool = &Core::GetCommandPool();
     specs.Queue = Core::GetGraphicsQueue();
 
-    const auto result = VKit::DeviceLocalBuffer<T>::CreateStorageBuffer(specs);
+    const auto result = VKit::DeviceLocalBuffer<T>::CreateStorageBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
@@ -63,7 +62,7 @@ template <typename T> HostVisibleStorageBuffer<T> CreateHostVisibleStorageBuffer
     specs.Capacity = p_Capacity;
     specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 
-    const auto result = VKit::HostVisibleBuffer<T>::CreateStorageBuffer(specs);
+    const auto result = VKit::HostVisibleBuffer<T>::CreateStorageBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }

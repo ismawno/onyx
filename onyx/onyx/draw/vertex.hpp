@@ -2,8 +2,7 @@
 
 #include "onyx/core/glm.hpp"
 #include "onyx/core/dimension.hpp"
-#include "onyx/draw/color.hpp"
-#include "tkit/container/static_array.hpp"
+#include "onyx/core/api.hpp"
 #include "tkit/utils/hash.hpp"
 
 #include <vulkan/vulkan.h>

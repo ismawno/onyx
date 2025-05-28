@@ -1,5 +1,6 @@
 #pragma once
 
+#include "onyx/core/api.hpp"
 namespace Onyx
 {
 class ONYX_API Theme

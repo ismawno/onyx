@@ -1,9 +1,6 @@
 #pragma once
 
-#include "onyx/draw/vertex.hpp"
 #include "onyx/draw/data.hpp"
-
-#include "tkit/container/storage.hpp"
 
 namespace Onyx
 {
@@ -122,8 +119,8 @@ template <Dimension D> class Model
 
     friend bool operator==(const Model &p_Lhs, const Model &p_Rhs) noexcept
     {
-        return p_Lhs.m_VertexBuffer.GetBuffer() == p_Rhs.m_VertexBuffer.GetBuffer() &&
-               p_Lhs.m_IndexBuffer.GetBuffer() == p_Rhs.m_IndexBuffer.GetBuffer();
+        return p_Lhs.m_VertexBuffer.GetHandle() == p_Rhs.m_VertexBuffer.GetHandle() &&
+               p_Lhs.m_IndexBuffer.GetHandle() == p_Rhs.m_IndexBuffer.GetHandle();
     }
 
   private:

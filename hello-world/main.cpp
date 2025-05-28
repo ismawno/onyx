@@ -2,6 +2,8 @@
 #include "onyx/core/shaders.hpp"
 #include "tkit/utils/literals.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
+#include "vkit/pipeline/pipeline_job.hpp"
+#include "vkit/vulkan/vulkan.hpp"
 #include <imgui.h>
 
 using Onyx::D2;
@@ -42,14 +44,16 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
                              .AddDefaultColorAttachment()
                              .Build();
 
+    VKIT_ASSERT_RESULT(presult);
     const VKit::GraphicsPipeline &pipeline = presult.GetValue();
 
     fragment.Destroy();
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(pipeline);
 
-    VKIT_ASSERT_RESULT(presult);
-    return VKit::GraphicsJob(pipeline, layout);
+    const auto jresult = VKit::GraphicsJob::Create(pipeline, layout);
+    VKIT_ASSERT_RESULT(jresult);
+    return jresult.GetValue();
 }
 
 static void SetPostProcessing(Onyx::Window &p_Window) noexcept

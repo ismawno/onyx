@@ -13,7 +13,7 @@ template <Dimension D> VKit::Result<Model<D>> Model<D>::Create(const HostVertexB
     specs.Data = p_Vertices;
     specs.CommandPool = &Core::GetCommandPool();
     specs.Queue = Core::GetGraphicsQueue();
-    const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(specs);
+    const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
     if (!result)
         return VKit::Result<Model<D>>::Error(result.GetError());
 
@@ -29,7 +29,7 @@ VKit::Result<Model<D>> Model<D>::Create(const HostVertexBuffer<D> &p_Vertices,
     vspecs.Data = p_Vertices;
     vspecs.CommandPool = &Core::GetCommandPool();
     vspecs.Queue = Core::GetGraphicsQueue();
-    auto vresult = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(vspecs);
+    auto vresult = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), vspecs);
     if (!vresult)
         return VKit::Result<Model<D>>::Error(vresult.GetError());
 
@@ -38,7 +38,7 @@ VKit::Result<Model<D>> Model<D>::Create(const HostVertexBuffer<D> &p_Vertices,
     ispecs.Data = p_Indices;
     ispecs.CommandPool = &Core::GetCommandPool();
     ispecs.Queue = Core::GetGraphicsQueue();
-    const auto iresult = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(ispecs);
+    const auto iresult = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), ispecs);
 
     if (!iresult)
     {
@@ -131,7 +131,7 @@ namespace std
 {
 template <Onyx::Dimension D> size_t hash<Onyx::Model<D>>::operator()(const Onyx::Model<D> &p_Model) const noexcept
 {
-    return TKit::Hash(p_Model.GetVertexBuffer().GetBuffer(), p_Model.GetIndexBuffer().GetBuffer());
+    return TKit::Hash(p_Model.GetVertexBuffer().GetHandle(), p_Model.GetIndexBuffer().GetHandle());
 }
 
 template struct ONYX_API hash<Onyx::Model<Onyx::D2>>;

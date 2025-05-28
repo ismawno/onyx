@@ -33,5 +33,5 @@
 #endif
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_vulkan.h>
-#include "vkit/core/vma.hpp"
+#include "vkit/vulkan/allocator.hpp"
 #include "onyx/core/glm.hpp"

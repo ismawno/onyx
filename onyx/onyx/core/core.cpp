@@ -1,15 +1,13 @@
-#define VMA_IMPLEMENTATION
 #include "onyx/core/pch.hpp"
 #include "onyx/core/core.hpp"
-#include "vkit/pipeline/pipeline_layout.hpp"
-#include "onyx/draw/primitives.hpp"
 #include "onyx/rendering/render_structs.hpp"
 #include "onyx/core/shaders.hpp"
+#include "onyx/draw/primitives.hpp"
+#include "vkit/pipeline/pipeline_layout.hpp"
+#include "vkit/core/core.hpp"
 #include "tkit/utils/logging.hpp"
 
 #include "onyx/core/glfw.hpp"
-
-#include <filesystem>
 
 namespace Onyx
 {
@@ -71,27 +69,27 @@ static void createVulkanAllocator() noexcept
 {
     VmaAllocatorCreateInfo allocatorInfo = {};
     allocatorInfo.physicalDevice = s_Device.GetPhysicalDevice();
-    allocatorInfo.device = s_Device.GetDevice();
-    allocatorInfo.instance = s_Instance.GetInstance();
+    allocatorInfo.device = s_Device.GetHandle();
+    allocatorInfo.instance = s_Instance.GetHandle();
     allocatorInfo.vulkanApiVersion = s_Instance.GetInfo().ApiVersion;
     allocatorInfo.flags = 0;
     allocatorInfo.pVulkanFunctions = nullptr;
     TKIT_ASSERT_RETURNS(vmaCreateAllocator(&allocatorInfo, &s_VulkanAllocator), VK_SUCCESS,
-                        "[ONYX] Failed to create vulkan allocator");
-    TKIT_LOG_INFO("[ONYX] Created Vulkan allocator");
+                        "[ONYX] Failed to create Vulkan allocator");
+    TKIT_LOG_INFO("[ONYX] Creating Vulkan allocator");
 
     s_DeletionQueue.Push([] { vmaDestroyAllocator(s_VulkanAllocator); });
 }
 
 static void createCommandPool() noexcept
 {
+    TKIT_LOG_INFO("[ONYX] Creating global command pool");
     const auto poolres = VKit::CommandPool::Create(s_Device, s_Device.GetPhysicalDevice().GetInfo().GraphicsIndex,
                                                    VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
                                                        VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 
     VKIT_ASSERT_RESULT(poolres);
     s_CommandPool = poolres.GetValue();
-    TKIT_LOG_INFO("[ONYX] Created global command pool");
 
     s_DeletionQueue.SubmitForDeletion(s_CommandPool);
 }
@@ -99,18 +97,19 @@ static void createCommandPool() noexcept
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
 static void createProfilingContext() noexcept
 {
+    TKIT_LOG_INFO("[ONYX] Creating Vulkan profiling context");
     const auto cmdres = s_CommandPool.Allocate();
     VKIT_ASSERT_RESULT(cmdres);
     s_ProfilingCommandBuffer = cmdres.GetValue();
 
     s_ProfilingContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue,
                                                             s_ProfilingCommandBuffer);
-    TKIT_LOG_INFO("[ONYX] Created Vulkan profiling context");
 }
 #endif
 
 static void createDescriptorData() noexcept
 {
+    TKIT_LOG_INFO("[ONYX] Creating global descriptor data");
     const auto poolResult = VKit::DescriptorPool::Builder(s_Device)
                                 .SetMaxSets(ONYX_MAX_DESCRIPTOR_SETS)
                                 .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, ONYX_MAX_DESCRIPTORS)
@@ -134,7 +133,6 @@ static void createDescriptorData() noexcept
 
     VKIT_ASSERT_RESULT(layoutResult);
     s_LightStorageLayout = layoutResult.GetValue();
-    TKIT_LOG_INFO("[ONYX] Created global descriptor data");
 
     s_DeletionQueue.SubmitForDeletion(s_DescriptorPool);
     s_DeletionQueue.SubmitForDeletion(s_InstanceDataStorageLayout);
@@ -143,6 +141,7 @@ static void createDescriptorData() noexcept
 
 static void createPipelineLayouts() noexcept
 {
+    TKIT_LOG_INFO("[ONYX] Creating global pipeline layouts");
     auto layoutResult = VKit::PipelineLayout::Builder(s_Device)
                             .AddDescriptorSetLayout(s_InstanceDataStorageLayout)
                             .AddPushConstantRange<PushConstantData<DrawLevel::Simple>>(VK_SHADER_STAGE_VERTEX_BIT)
@@ -162,24 +161,22 @@ static void createPipelineLayouts() noexcept
     VKIT_ASSERT_RESULT(layoutResult);
     s_DLevelComplexLayout = layoutResult.GetValue();
     s_DeletionQueue.SubmitForDeletion(layoutResult.GetValue());
-
-    TKIT_LOG_INFO("[ONYX] Created global pipeline layouts");
 }
 
 static void createShaders() noexcept
 {
+    TKIT_LOG_INFO("[ONYX] Creating global shaders");
     Shaders<D2, DrawMode::Fill>::Initialize();
     Shaders<D2, DrawMode::Stencil>::Initialize();
     Shaders<D3, DrawMode::Fill>::Initialize();
     Shaders<D3, DrawMode::Stencil>::Initialize();
-    TKIT_LOG_INFO("[ONYX] Created global shaders");
 }
 
 void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
 {
-    TKIT_LOG_INFO("[ONYX] Initializing...");
-    const auto sysres = VKit::System::Initialize();
-    VKIT_ASSERT_VULKAN_RESULT(sysres);
+    TKIT_LOG_INFO("[ONYX] Creating Vulkan instance");
+    const auto sysres = VKit::Core::Initialize();
+    VKIT_ASSERT_RESULT(sysres);
 
     TKIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX] Failed to initialize GLFW");
     u32 extensionCount;

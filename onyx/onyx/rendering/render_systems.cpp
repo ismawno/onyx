@@ -1,7 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_systems.hpp"
 #include "vkit/descriptors/descriptor_set.hpp"
-#include "tkit/utils/math.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
 
@@ -116,13 +115,13 @@ template <DrawLevel DLevel>
 static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescriptorSet p_InstanceData) noexcept
 {
     if constexpr (DLevel == DrawLevel::Simple)
-        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, p_InstanceData, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  getLayout<DrawLevel::Simple>());
+        VKit::DescriptorSet::Bind(Core::GetDevice(), p_Info.CommandBuffer, p_InstanceData,
+                                  VK_PIPELINE_BIND_POINT_GRAPHICS, getLayout<DrawLevel::Simple>());
     else
     {
         const TKit::Array<VkDescriptorSet, 2> sets = {p_InstanceData, p_Info.LightStorageBuffers};
         const TKit::Span<const VkDescriptorSet> span(sets);
-        VKit::DescriptorSet::Bind(p_Info.CommandBuffer, span, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        VKit::DescriptorSet::Bind(Core::GetDevice(), p_Info.CommandBuffer, span, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   getLayout<DrawLevel::Complex>());
     }
 }

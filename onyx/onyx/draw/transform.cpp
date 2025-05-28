@@ -1,8 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/draw/transform.hpp"
 
-#include "tkit/utils/logging.hpp"
-
 namespace Onyx
 {
 void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept
