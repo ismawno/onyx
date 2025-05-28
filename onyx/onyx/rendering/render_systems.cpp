@@ -5,7 +5,8 @@
 #include "tkit/profiling/macros.hpp"
 
 #ifdef TKIT_ENABLE_INSTRUMENTATION
-#    define INCREASE_DRAW_CALL_COUNT() ++s_DrawCallCount
+#    include <atomic>
+#    define INCREASE_DRAW_CALL_COUNT() s_DrawCallCount.fetch_add(1, std::memory_order_relaxed)
 #else
 #    define INCREASE_DRAW_CALL_COUNT()
 #endif
@@ -13,15 +14,15 @@
 namespace Onyx::Detail
 {
 #ifdef TKIT_ENABLE_INSTRUMENTATION
-static u32 s_DrawCallCount = 0;
+static std::atomic<u32> s_DrawCallCount = 0;
 
 u32 GetDrawCallCount() noexcept
 {
-    return s_DrawCallCount;
+    return s_DrawCallCount.load(std::memory_order_relaxed);
 }
 void ResetDrawCallCount() noexcept
 {
-    s_DrawCallCount = 0;
+    s_DrawCallCount.store(std::memory_order_relaxed);
 }
 #endif
 
