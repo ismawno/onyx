@@ -22,7 +22,7 @@ u32 GetDrawCallCount() noexcept
 }
 void ResetDrawCallCount() noexcept
 {
-    s_DrawCallCount.store(std::memory_order_relaxed);
+    s_DrawCallCount.store(0, std::memory_order_relaxed);
 }
 #endif
 
