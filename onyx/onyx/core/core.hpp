@@ -46,7 +46,10 @@ class Initializer
     virtual void OnInstanceCreation(VKit::Instance::Builder &) noexcept
     {
     }
-    virtual void OnPhysicalDeviceCreation(const VKit::Instance &, VKit::PhysicalDevice::Selector &) noexcept
+    virtual void OnPhysicalDeviceCreation(VKit::PhysicalDevice::Selector &) noexcept
+    {
+    }
+    virtual void OnAllocatorCreation(VKit::AllocatorSpecs &) noexcept
     {
     }
 };

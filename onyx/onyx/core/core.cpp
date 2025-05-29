@@ -9,6 +9,8 @@
 #include "tkit/utils/logging.hpp"
 
 #include "onyx/core/glfw.hpp"
+#include "vkit/vulkan/allocator.hpp"
+#include "vkit/vulkan/vulkan.hpp"
 
 namespace Onyx
 {
@@ -54,7 +56,7 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
         .RequestApiVersion(1, 3, 0);
 
     if (s_Initializer)
-        s_Initializer->OnPhysicalDeviceCreation(s_Instance, selector);
+        s_Initializer->OnPhysicalDeviceCreation(selector);
 
     const auto physres = selector.Select();
     VKIT_ASSERT_RESULT(physres);
@@ -76,18 +78,16 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 
 static void createVulkanAllocator() noexcept
 {
-    VmaAllocatorCreateInfo allocatorInfo = {};
-    allocatorInfo.physicalDevice = s_Device.GetPhysicalDevice();
-    allocatorInfo.device = s_Device.GetHandle();
-    allocatorInfo.instance = s_Instance.GetHandle();
-    allocatorInfo.vulkanApiVersion = s_Instance.GetInfo().ApiVersion;
-    allocatorInfo.flags = 0;
-    allocatorInfo.pVulkanFunctions = nullptr;
-    TKIT_ASSERT_RETURNS(vmaCreateAllocator(&allocatorInfo, &s_VulkanAllocator), VK_SUCCESS,
-                        "[ONYX] Failed to create Vulkan allocator");
+    VKit::AllocatorSpecs specs{};
+    if (s_Initializer)
+        s_Initializer->OnAllocatorCreation(specs);
+
+    const auto result = VKit::CreateAllocator(s_Device);
+    VKIT_ASSERT_RESULT(result);
+    s_VulkanAllocator = result.GetValue();
     TKIT_LOG_INFO("[ONYX] Creating Vulkan allocator");
 
-    s_DeletionQueue.Push([] { vmaDestroyAllocator(s_VulkanAllocator); });
+    s_DeletionQueue.Push([] { VKit::DestroyAllocator(s_VulkanAllocator); });
 }
 
 static void createCommandPool() noexcept
