@@ -6,6 +6,9 @@
 #include "vkit/descriptors/descriptor_set_layout.hpp"
 #include "vkit/rendering/command_pool.hpp"
 #include "tkit/profiling/vulkan.hpp"
+#include "vkit/vulkan/instance.hpp"
+#include "vkit/vulkan/logical_device.hpp"
+#include "vkit/vulkan/physical_device.hpp"
 
 #ifndef ONYX_MAX_DESCRIPTOR_SETS
 #    define ONYX_MAX_DESCRIPTOR_SETS 1024
@@ -35,13 +38,27 @@ class ITaskManager;
 
 namespace Onyx
 {
+class Initializer
+{
+  public:
+    virtual ~Initializer() = default;
+
+    virtual void OnInstanceCreation(VKit::Instance::Builder &) noexcept
+    {
+    }
+    virtual void OnPhysicalDeviceCreation(const VKit::Instance &, VKit::PhysicalDevice::Selector &) noexcept
+    {
+    }
+};
+
 template <typename T> using PerFrameData = TKit::Array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
 struct ONYX_API Core
 {
-    static void Initialize(TKit::ITaskManager *p_TaskManager) noexcept;
+    static void Initialize(TKit::ITaskManager *p_TaskManager, Initializer *p_Initializer = nullptr) noexcept;
     static void Terminate() noexcept;
 
     static TKit::ITaskManager *GetTaskManager() noexcept;
+    static void SetTaskManager(TKit::ITaskManager *p_TaskManager) noexcept;
 
     static const VKit::Instance &GetInstance() noexcept;
     static const VKit::LogicalDevice &GetDevice() noexcept;

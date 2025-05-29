@@ -3,6 +3,7 @@
 #include "onyx/rendering/render_structs.hpp"
 #include "onyx/core/shaders.hpp"
 #include "onyx/draw/primitives.hpp"
+#include "tkit/multiprocessing/task_manager.hpp"
 #include "vkit/pipeline/pipeline_layout.hpp"
 #include "vkit/core/core.hpp"
 #include "tkit/utils/logging.hpp"
@@ -39,17 +40,23 @@ static VkQueue s_PresentQueue = VK_NULL_HANDLE;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
+static Initializer *s_Initializer;
+
 static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 {
-    const auto physres = VKit::PhysicalDevice::Selector(&s_Instance)
-                             .SetSurface(p_Surface)
-                             .PreferType(VKit::PhysicalDevice::Discrete)
-                             .AddFlags(VKit::PhysicalDevice::Selector::Flag_AnyType |
-                                       VKit::PhysicalDevice::Selector::Flag_PortabilitySubset |
-                                       VKit::PhysicalDevice::Selector::Flag_RequireGraphicsQueue)
-                             .RequireApiVersion(1, 2, 0)
-                             .RequestApiVersion(1, 3, 0)
-                             .Select();
+    VKit::PhysicalDevice::Selector selector(&s_Instance);
+    selector.SetSurface(p_Surface)
+        .PreferType(VKit::PhysicalDevice::Discrete)
+        .AddFlags(VKit::PhysicalDevice::Selector::Flag_AnyType |
+                  VKit::PhysicalDevice::Selector::Flag_PortabilitySubset |
+                  VKit::PhysicalDevice::Selector::Flag_RequireGraphicsQueue)
+        .RequireApiVersion(1, 2, 0)
+        .RequestApiVersion(1, 3, 0);
+
+    if (s_Initializer)
+        s_Initializer->OnPhysicalDeviceCreation(s_Instance, selector);
+
+    const auto physres = selector.Select();
     VKIT_ASSERT_RESULT(physres);
     const VKit::PhysicalDevice &phys = physres.GetValue();
 
@@ -174,9 +181,12 @@ static void createShaders() noexcept
     Shaders<D3, DrawMode::Stencil>::Initialize();
 }
 
-void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
+void Core::Initialize(TKit::ITaskManager *p_TaskManager, Initializer *p_Initializer) noexcept
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan instance");
+    s_TaskManager = p_TaskManager;
+    s_Initializer = p_Initializer;
+
     const auto sysres = VKit::Core::Initialize();
     VKIT_ASSERT_RESULT(sysres);
 
@@ -194,12 +204,13 @@ void Core::Initialize(TKit::ITaskManager *p_TaskManager) noexcept
 #ifdef TKIT_ENABLE_ASSERTS
     builder.RequireValidationLayers();
 #endif
+    if (s_Initializer)
+        s_Initializer->OnInstanceCreation(builder);
 
     const auto result = builder.Build();
     VKIT_ASSERT_RESULT(result);
 
     s_Instance = result.GetValue();
-    s_TaskManager = p_TaskManager;
     TKIT_LOG_INFO("[ONYX] Created Vulkan instance. API version: {}.{}.{}",
                   VKIT_API_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion),
                   VKIT_API_VERSION_MINOR(s_Instance.GetInfo().ApiVersion),
@@ -235,6 +246,10 @@ void Core::CreateDevice(const VkSurfaceKHR p_Surface) noexcept
 TKit::ITaskManager *Core::GetTaskManager() noexcept
 {
     return s_TaskManager;
+}
+void Core::SetTaskManager(TKit::ITaskManager *p_TaskManager) noexcept
+{
+    s_TaskManager = p_TaskManager;
 }
 
 const VKit::Instance &Core::GetInstance() noexcept
