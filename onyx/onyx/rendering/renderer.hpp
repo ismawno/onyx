@@ -30,6 +30,13 @@ template <Dimension D, template <Dimension, PipelineMode> typename Renderer> str
     void Flush() noexcept;
 
     /**
+     * @brief Grow all device buffers to fit host data.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void GrowToFit(u32 p_FrameIndex) noexcept;
+
+    /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      */
@@ -180,6 +187,13 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
     using IRenderer<D2>::IRenderer;
 
     /**
+     * @brief Grow all device buffers to fit host data.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void GrowToFit(u32 p_FrameIndex) noexcept;
+
+    /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      * @param p_FrameIndex The index of the current frame.
@@ -280,6 +294,13 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
      * @param p_ProjectionView Pointer to the global projection view data.
      */
     Renderer(VkRenderPass p_RenderPass) noexcept;
+
+    /**
+     * @brief Grow all device buffers to fit host data.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void GrowToFit(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.

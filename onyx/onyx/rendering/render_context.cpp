@@ -1238,6 +1238,10 @@ template <Dimension D> RenderState<D> &IRenderContext<D>::GetCurrentState() noex
     return m_StateStack.GetBack();
 }
 
+template <Dimension D> void IRenderContext<D>::GrowToFit(const u32 p_FrameIndex) noexcept
+{
+    m_Renderer.GrowToFit(p_FrameIndex);
+}
 template <Dimension D> void IRenderContext<D>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
     m_Renderer.SendToDevice(p_FrameIndex);

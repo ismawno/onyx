@@ -68,6 +68,12 @@ void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mode
     ++m_DeviceInstances;
 }
 
+template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
+{
+    auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
+    if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
+        m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
+}
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
     if (m_DeviceInstances == 0)
@@ -75,9 +81,6 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
     TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
-    if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
-        m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
-
     u32 offset = 0;
     for (const auto &[model, data] : m_HostData)
         if (!data.IsEmpty())
@@ -181,6 +184,13 @@ void PrimitiveRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const
     ++m_DeviceInstances;
 }
 
+template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
+{
+    auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
+    if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
+        m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
+}
+
 template <Dimension D, PipelineMode PMode>
 void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
@@ -189,9 +199,6 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
-    if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
-        m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
-
     u32 offset = 0;
     for (const auto &data : m_HostData)
         if (!data.IsEmpty())
@@ -297,13 +304,8 @@ void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData,
     }
 }
 
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
-    if (m_HostData.Data.IsEmpty())
-        return;
-
-    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
-
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     if (m_HostData.Data.GetSize() >= storageBuffer.GetInfo().InstanceCount)
         m_DeviceData.Grow(p_FrameIndex, m_HostData.Data.GetSize());
@@ -323,6 +325,17 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
         indexBuffer.Destroy();
         indexBuffer = CreateHostVisibleIndexBuffer(1 + isize + isize / 2);
     }
+}
+template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+{
+    if (m_HostData.Data.IsEmpty())
+        return;
+
+    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
+
+    auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
+    auto &vertexBuffer = m_DeviceData.VertexBuffers[p_FrameIndex];
+    auto &indexBuffer = m_DeviceData.IndexBuffers[p_FrameIndex];
 
     storageBuffer.Write(m_HostData.Data);
     vertexBuffer.Write(m_HostData.Vertices);
@@ -395,6 +408,12 @@ void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Ci
     m_HostData.Append(instanceData);
 }
 
+template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
+{
+    auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
+    if (m_HostData.GetSize() >= storageBuffer.GetInfo().InstanceCount)
+        m_DeviceData.Grow(p_FrameIndex, m_HostData.GetSize());
+}
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
     if (m_HostData.IsEmpty())
@@ -403,9 +422,6 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
     TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
-    if (m_HostData.GetSize() >= storageBuffer.GetInfo().InstanceCount)
-        m_DeviceData.Grow(p_FrameIndex, m_HostData.GetSize());
-
     storageBuffer.Write(m_HostData);
 }
 

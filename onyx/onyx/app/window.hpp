@@ -96,6 +96,11 @@ class ONYX_API Window
             std::forward<F1>(p_FirstDraws)(frameIndex, cmd);
 
             for (const auto &context : m_RenderContexts2D)
+                context->GrowToFit(frameIndex);
+            for (const auto &context : m_RenderContexts3D)
+                context->GrowToFit(frameIndex);
+
+            for (const auto &context : m_RenderContexts2D)
                 context->SendToDevice(frameIndex);
             for (const auto &context : m_RenderContexts3D)
                 context->SendToDevice(frameIndex);

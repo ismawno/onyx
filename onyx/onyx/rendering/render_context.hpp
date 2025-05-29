@@ -837,6 +837,13 @@ template <Dimension D> class IRenderContext
     RenderState<D> &GetCurrentState() noexcept;
 
     /**
+     * @brief Grow all device buffers to fit host data.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void GrowToFit(u32 p_FrameIndex) noexcept;
+
+    /**
      * @brief Send all stored host data to the device.
      *
      * @param p_FrameIndex The index of the frame to send data for.

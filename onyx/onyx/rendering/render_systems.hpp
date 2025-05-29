@@ -40,6 +40,13 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     void Draw(const InstanceData &p_InstanceData, const Model<D> &p_Model) noexcept;
 
     /**
+     * @brief Grow all device buffers to fit host data.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void GrowToFit(u32 p_FrameIndex) noexcept;
+
+    /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      * @param p_FrameIndex The index of the current frame.
@@ -105,6 +112,13 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
      * @param p_PrimitiveIndex The index of the primitive to draw. Can be queried from `Primitive<D>::Get...Index()`
      */
     void Draw(const InstanceData &p_InstanceData, u32 p_PrimitiveIndex) noexcept;
+
+    /**
+     * @brief Grow all device buffers to fit host data.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void GrowToFit(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
@@ -174,6 +188,13 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
      * @param p_Vertices The vertices of the polygon to draw. Must be sorted consistently.
      */
     void Draw(const InstanceData &p_InstanceData, TKit::Span<const fvec2> p_Vertices) noexcept;
+
+    /**
+     * @brief Grow all device buffers to fit host data.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void GrowToFit(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
@@ -267,6 +288,13 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
      * @param p_UpperAngle The angle at which the arc ends.
      */
     void Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Properties) noexcept;
+
+    /**
+     * @brief Grow all device buffers to fit host data.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     */
+    void GrowToFit(u32 p_FrameIndex) noexcept;
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.

@@ -21,6 +21,14 @@ template <Dimension D, template <Dimension, PipelineMode> typename R> void Rende
 }
 
 template <Dimension D, template <Dimension, PipelineMode> typename R>
+void RenderSystem<D, R>::GrowToFit(const u32 p_FrameIndex) noexcept
+{
+    NoStencilWriteDoFill.GrowToFit(p_FrameIndex);
+    DoStencilWriteDoFill.GrowToFit(p_FrameIndex);
+    DoStencilWriteNoFill.GrowToFit(p_FrameIndex);
+    DoStencilTestNoFill.GrowToFit(p_FrameIndex);
+}
+template <Dimension D, template <Dimension, PipelineMode> typename R>
 void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
     NoStencilWriteDoFill.SendToDevice(p_FrameIndex);
@@ -218,12 +226,37 @@ void Renderer<D3>::Flush() noexcept
     m_HostLightData.PointLights.Clear();
 }
 
+void Renderer<D2>::GrowToFit(const u32 p_FrameIndex) noexcept
+{
+    m_MeshRenderer.GrowToFit(p_FrameIndex);
+    m_PrimitiveRenderer.GrowToFit(p_FrameIndex);
+    m_PolygonRenderer.GrowToFit(p_FrameIndex);
+    m_CircleRenderer.GrowToFit(p_FrameIndex);
+}
 void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
     m_MeshRenderer.SendToDevice(p_FrameIndex);
     m_PrimitiveRenderer.SendToDevice(p_FrameIndex);
     m_PolygonRenderer.SendToDevice(p_FrameIndex);
     m_CircleRenderer.SendToDevice(p_FrameIndex);
+}
+
+void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
+{
+    m_MeshRenderer.GrowToFit(p_FrameIndex);
+    m_PrimitiveRenderer.GrowToFit(p_FrameIndex);
+    m_PolygonRenderer.GrowToFit(p_FrameIndex);
+    m_CircleRenderer.GrowToFit(p_FrameIndex);
+
+    const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
+    auto &devDirBuffer = m_DeviceLightData.DirectionalLightBuffers[p_FrameIndex];
+    if (dcount >= devDirBuffer.GetInfo().InstanceCount)
+        m_DeviceLightData.Grow<DirectionalLight>(p_FrameIndex, dcount);
+
+    const u32 pcount = m_HostLightData.PointLights.GetSize();
+    auto &devPointBuffer = m_DeviceLightData.PointLightBuffers[p_FrameIndex];
+    if (pcount >= devPointBuffer.GetInfo().InstanceCount)
+        m_DeviceLightData.Grow<PointLight>(p_FrameIndex, pcount);
 }
 
 void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
@@ -237,10 +270,6 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
     if (dcount > 0)
     {
         auto &devDirBuffer = m_DeviceLightData.DirectionalLightBuffers[p_FrameIndex];
-
-        if (dcount >= devDirBuffer.GetInfo().InstanceCount)
-            m_DeviceLightData.Grow<DirectionalLight>(p_FrameIndex, dcount);
-
         const auto &hostDirBuffer = m_HostLightData.DirectionalLights;
         devDirBuffer.Write(hostDirBuffer);
     }
@@ -249,10 +278,6 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
     if (pcount > 0)
     {
         auto &devPointBuffer = m_DeviceLightData.PointLightBuffers[p_FrameIndex];
-
-        if (pcount >= devPointBuffer.GetInfo().InstanceCount)
-            m_DeviceLightData.Grow<PointLight>(p_FrameIndex, pcount);
-
         const auto &hostPointBuffer = m_HostLightData.PointLights;
         devPointBuffer.Write(hostPointBuffer);
     }
