@@ -88,8 +88,8 @@ void Model<D>::Draw(const VkCommandBuffer p_CommandBuffer, const u32 p_InstanceC
                     const u32 p_FirstVertex) const noexcept
 {
     TKIT_ASSERT(!m_IndexBuffer, "[ONYX] Model does not have indices, use Draw instead");
-    vkCmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer.GetInfo().InstanceCount), p_InstanceCount, p_FirstVertex,
-              p_FirstInstance);
+    Core::GetDeviceTable().CmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer.GetInfo().InstanceCount),
+                                   p_InstanceCount, p_FirstVertex, p_FirstInstance);
 }
 
 template <Dimension D>
@@ -97,8 +97,8 @@ void Model<D>::DrawIndexed(const VkCommandBuffer p_CommandBuffer, const u32 p_In
                            const u32 p_FirstIndex, const u32 p_VertexOffset) const noexcept
 {
     TKIT_ASSERT(m_IndexBuffer, "[ONYX] Model has indices, use DrawIndexed instead");
-    vkCmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer.GetInfo().InstanceCount), p_InstanceCount,
-                     p_FirstIndex, p_VertexOffset, p_FirstInstance);
+    Core::GetDeviceTable().CmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer.GetInfo().InstanceCount),
+                                          p_InstanceCount, p_FirstIndex, p_VertexOffset, p_FirstInstance);
 }
 
 template <Dimension D> const DeviceLocalVertexBuffer<D> &Model<D>::GetVertexBuffer() const noexcept

@@ -3,6 +3,8 @@
 #include "onyx/app/window.hpp"
 #include "onyx/draw/color.hpp"
 #include "onyx/core/shaders.hpp"
+#include "tkit/utils/logging.hpp"
+#include "vulkan/vulkan_core.h"
 
 namespace Onyx::Detail
 {
@@ -54,7 +56,8 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     const auto cmdres = m_CommandPools[m_FrameIndex].Reset();
     VKIT_ASSERT_RESULT(cmdres);
 
-    TKIT_ASSERT_RETURNS(vkBeginCommandBuffer(m_CommandBuffers[m_FrameIndex], &beginInfo), VK_SUCCESS,
+    const auto &table = Core::GetDeviceTable();
+    TKIT_ASSERT_RETURNS(table.BeginCommandBuffer(m_CommandBuffers[m_FrameIndex], &beginInfo), VK_SUCCESS,
                         "[ONYX] Failed to begin command buffer");
 
     return m_CommandBuffers[m_FrameIndex];
@@ -64,7 +67,8 @@ void FrameScheduler::EndFrame(Window &p_Window) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end a frame when there is no frame in progress");
-    TKIT_ASSERT_RETURNS(vkEndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS,
+    const auto &table = Core::GetDeviceTable();
+    TKIT_ASSERT_RETURNS(table.EndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS,
                         "[ONYX] Failed to end command buffer");
 
     TKIT_ASSERT_RETURNS(SubmitCurrentCommandBuffer(), VK_SUCCESS, "[ONYX] Failed to submit command buffers");
@@ -115,36 +119,44 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
     scissor.offset = {0, 0};
     scissor.extent = extent;
 
-    vkCmdSetViewport(m_CommandBuffers[m_FrameIndex], 0, 1, &viewport);
-    vkCmdSetScissor(m_CommandBuffers[m_FrameIndex], 0, 1, &scissor);
-    vkCmdBeginRenderPass(m_CommandBuffers[m_FrameIndex], &passInfo, VK_SUBPASS_CONTENTS_INLINE);
+    const auto &table = Core::GetDeviceTable();
+    table.CmdSetViewport(m_CommandBuffers[m_FrameIndex], 0, 1, &viewport);
+    table.CmdSetScissor(m_CommandBuffers[m_FrameIndex], 0, 1, &scissor);
+    table.CmdBeginRenderPass(m_CommandBuffers[m_FrameIndex], &passInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void FrameScheduler::EndRenderPass() noexcept
 {
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end render pass if a frame is not in progress");
-    vkCmdNextSubpass(m_CommandBuffers[m_FrameIndex], VK_SUBPASS_CONTENTS_INLINE);
+    const auto &table = Core::GetDeviceTable();
+    table.CmdNextSubpass(m_CommandBuffers[m_FrameIndex], VK_SUBPASS_CONTENTS_INLINE);
     m_PostProcessing->Bind(m_CommandBuffers[m_FrameIndex], m_ImageIndex);
     m_PostProcessing->Draw(m_CommandBuffers[m_FrameIndex]);
 
-    vkCmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
+    table.CmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
 }
 
 VkResult FrameScheduler::AcquireNextImage() noexcept
 {
-    vkWaitForFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence, VK_TRUE, UINT64_MAX);
-    return vkAcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX,
-                                 m_SyncData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
+    const auto &table = Core::GetDeviceTable();
+    TKIT_ASSERT_RETURNS(
+        table.WaitForFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence, VK_TRUE, UINT64_MAX),
+        VK_SUCCESS, "[ONYX] Failed to wait for fences");
+    return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX,
+                                     m_SyncData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
 }
 VkResult FrameScheduler::SubmitCurrentCommandBuffer() noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::SubmitCurrentCommandBuffer");
+    const auto &table = Core::GetDeviceTable();
     const VkCommandBuffer cmd = m_CommandBuffers[m_FrameIndex];
 
     if (m_InFlightImages[m_ImageIndex] != VK_NULL_HANDLE)
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForPreviousFrame");
-        vkWaitForFences(Core::GetDevice(), 1, &m_InFlightImages[m_ImageIndex], VK_TRUE, UINT64_MAX);
+        TKIT_ASSERT_RETURNS(
+            table.WaitForFences(Core::GetDevice(), 1, &m_InFlightImages[m_ImageIndex], VK_TRUE, UINT64_MAX), VK_SUCCESS,
+            "[ONYX] Failed to wait for fences");
     }
 
     m_InFlightImages[m_ImageIndex] = m_SyncData[m_FrameIndex].InFlightFence;
@@ -163,8 +175,9 @@ VkResult FrameScheduler::SubmitCurrentCommandBuffer() noexcept
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_SyncData[m_FrameIndex].RenderFinishedSemaphore;
 
-    vkResetFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence);
-    return vkQueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, m_SyncData[m_FrameIndex].InFlightFence);
+    TKIT_ASSERT_RETURNS(table.ResetFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence), VK_SUCCESS,
+                        "[ONYX] Failed to reset fences");
+    return table.QueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, m_SyncData[m_FrameIndex].InFlightFence);
 }
 VkResult FrameScheduler::Present() noexcept
 {
@@ -183,7 +196,8 @@ VkResult FrameScheduler::Present() noexcept
     presentInfo.pImageIndices = &m_ImageIndex;
 
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
-    return vkQueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
+    const auto &table = Core::GetDeviceTable();
+    return table.QueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
 }
 
 PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,

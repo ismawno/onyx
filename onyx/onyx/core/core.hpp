@@ -7,6 +7,7 @@
 #include "vkit/rendering/command_pool.hpp"
 #include "tkit/profiling/vulkan.hpp"
 #include "vkit/vulkan/instance.hpp"
+#include "vkit/vulkan/loader.hpp"
 #include "vkit/vulkan/logical_device.hpp"
 #include "vkit/vulkan/physical_device.hpp"
 
@@ -64,7 +65,11 @@ struct ONYX_API Core
     static void SetTaskManager(TKit::ITaskManager *p_TaskManager) noexcept;
 
     static const VKit::Instance &GetInstance() noexcept;
+    static const VKit::Vulkan::InstanceTable &GetInstanceTable() noexcept;
+
     static const VKit::LogicalDevice &GetDevice() noexcept;
+    static const VKit::Vulkan::DeviceTable &GetDeviceTable() noexcept;
+
     static void CreateDevice(VkSurfaceKHR p_Surface) noexcept;
 
     static bool IsDeviceCreated() noexcept;

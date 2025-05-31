@@ -13,4 +13,3 @@ endif()
 
 target_link_libraries(onyx-demo-utils PUBLIC onyx)
 target_include_directories(onyx-demo-utils PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-

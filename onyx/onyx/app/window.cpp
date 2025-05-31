@@ -22,7 +22,7 @@ Window::~Window() noexcept
     m_FrameScheduler.Destruct();
     m_RenderContexts2D.Clear();
     m_RenderContexts3D.Clear();
-    vkDestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
+    Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
 

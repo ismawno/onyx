@@ -1,3 +1,4 @@
+#include "backends/imgui_impl_vulkan.h"
 #include "onyx/core/pch.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/app/input.hpp"
@@ -5,6 +6,8 @@
 
 #include "tkit/profiling/macros.hpp"
 #include "tkit/profiling/vulkan.hpp"
+#include "tkit/utils/logging.hpp"
+#include "vkit/vulkan/loader.hpp"
 
 namespace Onyx
 {
@@ -45,7 +48,7 @@ void IApplication::Shutdown() noexcept
     onShutdown();
     delete m_UserLayer;
     if (Core::IsDeviceCreated())
-        vkDestroyDescriptorPool(Core::GetDevice(), m_ImGuiPool, nullptr);
+        Core::GetDeviceTable().DestroyDescriptorPool(Core::GetDevice(), m_ImGuiPool, nullptr);
     m_Terminated = true;
 }
 
@@ -177,8 +180,9 @@ void IApplication::createImGuiPool() noexcept
     poolInfo.poolSizeCount = 11;
     poolInfo.pPoolSizes = poolSizes;
 
-    TKIT_ASSERT_RETURNS(vkCreateDescriptorPool(Core::GetDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
-                        "[ONYX] Failed to create descriptor pool");
+    TKIT_ASSERT_RETURNS(
+        Core::GetDeviceTable().CreateDescriptorPool(Core::GetDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
+        "[ONYX] Failed to create descriptor pool");
 }
 
 void IApplication::initializeImGui(Window &p_Window) noexcept
@@ -200,7 +204,8 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
     m_Theme->Apply();
-    ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindowHandle(), true);
+    TKIT_ASSERT_RETURNS(ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindowHandle(), true), true,
+                        "[ONYX] Failed to initialize ImGui GLFW");
 
     ImGui_ImplVulkan_InitInfo initInfo{};
     initInfo.Instance = Core::GetInstance();
@@ -214,8 +219,13 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     initInfo.RenderPass = p_Window.GetRenderPass();
     initInfo.Subpass = 0;
 
-    ImGui_ImplVulkan_Init(&initInfo);
-    ImGui_ImplVulkan_CreateFontsTexture();
+    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_LoadFunctions([](const char *p_Name, void *) -> PFN_vkVoidFunction {
+                            return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(), p_Name);
+                        }),
+                        true, "[ONYX] Failed to load ImGui Vulkan functions");
+    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true, "[ONYX] Failed to initialize ImGui Vulkan");
+    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_CreateFontsTexture(), true,
+                        "[ONYX] ImGui failed to create fonts texture for Vulkan");
 }
 
 void IApplication::shutdownImGui() noexcept

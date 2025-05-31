@@ -112,7 +112,9 @@ template <DrawLevel DLevel> static void pushConstantData(const RenderInfo<DLevel
         pdata.PointLightCount = p_Info.PointLightCount;
         stages |= VK_SHADER_STAGE_FRAGMENT_BIT;
     }
-    vkCmdPushConstants(p_Info.CommandBuffer, getLayout<DLevel>(), stages, 0, sizeof(PushConstantData<DLevel>), &pdata);
+    const auto &table = Core::GetDeviceTable();
+    table.CmdPushConstants(p_Info.CommandBuffer, getLayout<DLevel>(), stages, 0, sizeof(PushConstantData<DLevel>),
+                           &pdata);
 }
 
 template <DrawLevel DLevel>
@@ -228,14 +230,15 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
 
     pushConstantData<dlevel>(p_Info);
     u32 firstInstance = 0;
+    const auto &table = Core::GetDeviceTable();
     for (u32 i = 0; i < m_HostData.GetSize(); ++i)
         if (!m_HostData[i].IsEmpty())
         {
             const u32 instanceCount = m_HostData[i].GetSize();
             const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
 
-            vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
-                             layout.VerticesStart, firstInstance);
+            table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
+                                 layout.VerticesStart, firstInstance);
             INCREASE_DRAW_CALL_COUNT();
             firstInstance += instanceCount;
         }
@@ -360,9 +363,11 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
     indexBuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
 
     pushConstantData<dlevel>(p_Info);
+    const auto &table = Core::GetDeviceTable();
     for (const PrimitiveDataLayout &layout : m_HostData.Layouts)
     {
-        vkCmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, 1, layout.IndicesStart, layout.VerticesStart, 0);
+        table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, 1, layout.IndicesStart, layout.VerticesStart,
+                             0);
         INCREASE_DRAW_CALL_COUNT();
     }
 }
@@ -438,7 +443,8 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 
     pushConstantData<dlevel>(p_Info);
 
-    vkCmdDraw(p_Info.CommandBuffer, 6, m_HostData.GetSize(), 0, 0);
+    const auto &table = Core::GetDeviceTable();
+    table.CmdDraw(p_Info.CommandBuffer, 6, m_HostData.GetSize(), 0, 0);
     INCREASE_DRAW_CALL_COUNT();
 }
 

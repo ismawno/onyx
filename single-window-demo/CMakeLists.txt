@@ -14,3 +14,4 @@ endif()
 target_link_libraries(onyx-sw-demo PRIVATE onyx-demo-utils)
 target_include_directories(onyx-sw-demo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
+vkit_add_vulkan_executable_macos_rpath(onyx-sw-demo)

@@ -257,10 +257,19 @@ const VKit::Instance &Core::GetInstance() noexcept
     TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     return s_Instance;
 }
+const VKit::Vulkan::InstanceTable &Core::GetInstanceTable() noexcept
+{
+    TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
+    return s_Instance.GetInfo().Table;
+};
 const VKit::LogicalDevice &Core::GetDevice() noexcept
 {
     return s_Device;
 }
+const VKit::Vulkan::DeviceTable &Core::GetDeviceTable() noexcept
+{
+    return s_Device.GetTable();
+};
 bool Core::IsDeviceCreated() noexcept
 {
     return s_Device;

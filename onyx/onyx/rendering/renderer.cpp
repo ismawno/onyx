@@ -310,6 +310,7 @@ static void doStencilTestNoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderer
 template <Dimension D>
 static void setCameraViewport(const VkCommandBuffer p_CommandBuffer, const CameraInfo &p_Camera) noexcept
 {
+    const auto &table = Core::GetDeviceTable();
     if (!p_Camera.Transparent)
     {
         const Color &bg = p_Camera.BackgroundColor;
@@ -330,10 +331,10 @@ static void setCameraViewport(const VkCommandBuffer p_CommandBuffer, const Camer
         clearRect.layerCount = 1;
         clearRect.baseArrayLayer = 0;
 
-        vkCmdClearAttachments(p_CommandBuffer, D - 1, clearAttachments.GetData(), 1, &clearRect);
+        table.CmdClearAttachments(p_CommandBuffer, D - 1, clearAttachments.GetData(), 1, &clearRect);
     }
-    vkCmdSetViewport(p_CommandBuffer, 0, 1, &p_Camera.Viewport);
-    vkCmdSetScissor(p_CommandBuffer, 0, 1, &p_Camera.Scissor);
+    table.CmdSetViewport(p_CommandBuffer, 0, 1, &p_Camera.Viewport);
+    table.CmdSetScissor(p_CommandBuffer, 0, 1, &p_Camera.Scissor);
 }
 
 void Renderer<D2>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer,

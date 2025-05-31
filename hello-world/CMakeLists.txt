@@ -13,3 +13,4 @@ endif()
 
 target_link_libraries(hello-world PRIVATE onyx)
 
+vkit_add_vulkan_executable_macos_rpath(hello-world)

@@ -17,7 +17,8 @@ PostProcessing::PostProcessing(const VkRenderPass p_RenderPass,
 }
 PostProcessing::~PostProcessing() noexcept
 {
-    vkDestroySampler(Core::GetDevice(), m_Sampler, nullptr); // Sampler guaranteed to exist because of frame scheduler
+    Core::GetDeviceTable().DestroySampler(Core::GetDevice(), m_Sampler,
+                                          nullptr); // Sampler guaranteed to exist because of frame scheduler
     m_DescriptorSetLayout.Destroy();
     m_Pipeline.Destroy();
 }
@@ -41,11 +42,12 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
         "[ONYX] The pipeline layout used must be created from the PostProcessing's CreatePipelineLayoutBuilder method");
 
     Core::DeviceWaitIdle();
+    const auto &table = Core::GetDeviceTable();
     if (m_Sampler)
-        vkDestroySampler(Core::GetDevice(), m_Sampler, nullptr);
+        table.DestroySampler(Core::GetDevice(), m_Sampler, nullptr);
 
-    TKIT_ASSERT_RETURNS(vkCreateSampler(Core::GetDevice(), &p_Specs.SamplerCreateInfo, nullptr, &m_Sampler), VK_SUCCESS,
-                        "[ONYX] Failed to create sampler");
+    TKIT_ASSERT_RETURNS(table.CreateSampler(Core::GetDevice(), &p_Specs.SamplerCreateInfo, nullptr, &m_Sampler),
+                        VK_SUCCESS, "[ONYX] Failed to create sampler");
 
     const auto result = VKit::GraphicsPipeline::Builder(Core::GetDevice(), p_Specs.Layout, m_RenderPass, 1)
                             .AddShaderStage(p_Specs.VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
