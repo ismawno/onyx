@@ -1,13 +1,15 @@
 #pragma once
 
+#include "utils/shapes.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/app/window.hpp"
-#include "utils/shapes.hpp"
+#include "tkit/container/static_array.hpp"
 #include "tkit/profiling/timespan.hpp"
 
 namespace Onyx::Demo
 {
+
 template <Dimension D> struct LatticeData
 {
     uvec<D> Dimensions{2};
@@ -57,6 +59,7 @@ template <Dimension D> struct ILayerData
     MaterialData<D> AxesMaterial{};
 
     TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> PolygonVertices;
+    NamedModel<D> Model{};
     i32 ShapeToSpawn = 0;
     i32 NGonSides = 3;
     f32 AxesThickness = 0.01f;

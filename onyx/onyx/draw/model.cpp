@@ -123,6 +123,10 @@ template <Dimension D> VKit::FormattedResult<Model<D>> Model<D>::Load(const std:
     return VKit::ToFormatted(needsIndices ? Model<D>::Create(data) : Model<D>::Create(data.Vertices));
 }
 
+template <Dimension D> Model<D>::operator bool() const noexcept
+{
+    return m_VertexBuffer;
+}
 template class ONYX_API Model<D2>;
 template class ONYX_API Model<D3>;
 } // namespace Onyx

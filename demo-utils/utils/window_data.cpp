@@ -1,23 +1,27 @@
 #include "utils/window_data.hpp"
 #include "onyx/core/shaders.hpp"
 #include "onyx/app/user_layer.hpp"
+#include "tkit/container/static_array.hpp"
+#include "utils/shapes.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
+#include "vkit/vulkan/vulkan.hpp"
 #include <imgui.h>
 #include <implot.h>
 
 // dirty macros as lazy enums lol
-#define TRIANGLE 0
-#define SQUARE 1
-#define CIRCLE 2
-#define NGON 3
-#define POLYGON 4
-#define STADIUM 5
-#define ROUNDED_SQUARE 6
-#define CUBE 7
-#define SPHERE 8
-#define CYLINDER 9
-#define CAPSULE 10
-#define ROUNDED_CUBE 11
+#define MODEL 0
+#define TRIANGLE 1
+#define SQUARE 2
+#define CIRCLE 3
+#define NGON 4
+#define POLYGON 5
+#define STADIUM 6
+#define ROUNDED_SQUARE 7
+#define CUBE 8
+#define SPHERE 9
+#define CYLINDER 10
+#define CAPSULE 11
+#define ROUNDED_CUBE 12
 
 namespace Onyx::Demo
 {
@@ -182,6 +186,28 @@ void WindowData::OnEvent(const Event &p_Event) noexcept
     processEvent(m_LayerData3, p_Event);
 }
 
+template <Dimension D> static void renderModelLoad(const char *p_Path)
+{
+    static TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> models{};
+    static bool tried = false;
+
+    ImGui::PushID(&models);
+    if (ImGui::Button("Load"))
+    {
+        models = NamedModel<D>::Load(p_Path);
+        tried = true;
+    }
+    if (tried && models.IsEmpty())
+        ImGui::Text("No models found in '%s'", p_Path);
+
+    for (const auto &result : models)
+        if (result)
+            ImGui::BulletText("SUCCESS - %s", result.GetValue().Name.c_str());
+        else
+            ImGui::BulletText("FAILED - %s", result.GetError().ToString().c_str());
+    ImGui::PopID();
+}
+
 void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
 {
     ImGui::ShowDemoWindow();
@@ -200,6 +226,17 @@ void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
                            "in the 'Editor' panel.");
 
         ImGui::TextLinkOpenURL("My GitHub", "https://github.com/ismawno");
+
+        const char *path2 = ONYX_ROOT_PATH "/demo-utils/models2/";
+        const char *path3 = ONYX_ROOT_PATH "/demo-utils/models3/";
+        ImGui::TextWrapped("You may load models for this demo to use located in the '%s' and '%s' paths, for 2D and 3D "
+                           "models respectively.",
+                           path2, path3);
+
+        if (ImGui::CollapsingHeader("2D Models"))
+            renderModelLoad<D2>(path2);
+        if (ImGui::CollapsingHeader("3D Models"))
+            renderModelLoad<D3>(path3);
     }
     ImGui::End();
 }
@@ -352,7 +389,9 @@ static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Sele
 template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexcept
 {
     const auto createShape = [&p_Data]() -> TKit::Scope<Shape<D>> {
-        if (p_Data.ShapeToSpawn == TRIANGLE)
+        if (p_Data.ShapeToSpawn == MODEL)
+            return TKit::Scope<ModelShape<D>>::Create(p_Data.Model);
+        else if (p_Data.ShapeToSpawn == TRIANGLE)
             return TKit::Scope<Triangle<D>>::Create();
         else if (p_Data.ShapeToSpawn == SQUARE)
             return TKit::Scope<Square<D>>::Create();
@@ -392,22 +431,25 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         return nullptr;
     };
 
-    const bool canSpawn = p_Data.ShapeToSpawn != POLYGON || p_Data.PolygonVertices.GetSize() >= 3;
-    if (!canSpawn)
-        ImGui::TextDisabled("A polygon must have at least 3 verticesto spawn!");
+    const bool canSpawnPoly = p_Data.ShapeToSpawn != POLYGON || p_Data.PolygonVertices.GetSize() >= 3;
+    const bool canSpawnModel = p_Data.ShapeToSpawn != MODEL || p_Data.Model.Model;
+    if (!canSpawnPoly)
+        ImGui::TextDisabled("A polygon must have at least 3 vertices to spawn!");
+    else if (!canSpawnModel)
+        ImGui::TextDisabled("No valid model has been selected!");
     else if (ImGui::Button("Spawn##Shape"))
         p_Data.Shapes.Append(createShape());
 
-    if (canSpawn)
+    if (canSpawnPoly && canSpawnModel)
         ImGui::SameLine();
 
     bool changed = false;
     if constexpr (D == D2)
         changed |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                                "Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded Square\0\0");
+                                "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded Square\0\0");
     else
         changed |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                                "Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded "
+                                "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded "
                                 "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
 
     LatticeData<D> &lattice = p_Data.Lattice;
@@ -421,7 +463,22 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
         lattice.Shape->Transform = transform;
     }
 
-    if (p_Data.ShapeToSpawn == NGON)
+    if (p_Data.ShapeToSpawn == MODEL)
+    {
+        const auto &models = NamedModel<D>::Get();
+        if (!models.IsEmpty())
+        {
+            TKit::StaticArray16<const char *> modelNames{};
+            for (const NamedModel<D> &model : models)
+                modelNames.Append(model.Name.c_str());
+            i32 index = 0;
+            ImGui::Combo("Model ID", &index, modelNames.GetData(), static_cast<i32>(modelNames.GetSize()));
+            p_Data.Model = models[index];
+        }
+        else
+            ImGui::Text("No models have been loaded yet! Load from the welcome window.");
+    }
+    else if (p_Data.ShapeToSpawn == NGON)
         ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
     else if (p_Data.ShapeToSpawn == POLYGON)
     {

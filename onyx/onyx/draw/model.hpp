@@ -123,6 +123,8 @@ template <Dimension D> class Model
                p_Lhs.m_IndexBuffer.GetHandle() == p_Rhs.m_IndexBuffer.GetHandle();
     }
 
+    operator bool() const noexcept;
+
   private:
     DeviceLocalVertexBuffer<D> m_VertexBuffer{};
     DeviceLocalIndexBuffer m_IndexBuffer{};

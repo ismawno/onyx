@@ -2,9 +2,20 @@
 
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/draw/transform.hpp"
+#include "onyx/draw/model.hpp"
+#include <string_view>
 
 namespace Onyx::Demo
 {
+template <Dimension D> struct NamedModel
+{
+    static const TKit::StaticArray16<NamedModel<D>> &Get() noexcept;
+    static TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> Load(std::string_view p_Path) noexcept;
+
+    std::string Name{};
+    Model<D> Model{};
+};
+
 template <Dimension D> class Shape
 {
   public:
@@ -26,6 +37,21 @@ template <Dimension D> class Shape
     Color m_OutlineColor = Color::ORANGE;
 
     virtual void draw(RenderContext<D> *p_Context) noexcept = 0;
+};
+
+template <Dimension D> class ModelShape final : public Shape<D>
+{
+  public:
+    ModelShape(const NamedModel<D> &p_Model) noexcept;
+
+    const char *GetName() const noexcept override;
+    void Edit() noexcept override;
+
+  private:
+    void draw(RenderContext<D> *p_Context) noexcept override;
+
+    NamedModel<D> m_Model{};
+    fvec<D> m_Dimensions{1.f};
 };
 
 template <Dimension D> class Triangle final : public Shape<D>
