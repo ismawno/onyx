@@ -486,7 +486,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             p_Data.Model = models[p_Data.ModelToSpawn];
         }
         else
-            ImGui::Text("No models have been loaded yet! Load from the welcome window.");
+            ImGui::TextDisabled("No models have been loaded yet! Load from the welcome window.");
     }
     else if (p_Data.ShapeToSpawn == NGON)
         ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
