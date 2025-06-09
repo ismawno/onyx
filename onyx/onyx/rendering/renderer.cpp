@@ -85,6 +85,7 @@ DeviceLightData::DeviceLightData() noexcept
 }
 DeviceLightData::~DeviceLightData() noexcept
 {
+    Core::DeviceWaitIdle();
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         DirectionalLightBuffers[i].Destroy();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utils/argparse.hpp"
 #include "utils/shapes.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/app/input.hpp"
@@ -100,12 +101,14 @@ template <Dimension D> struct LayerDataContainer
 {
     TKit::StaticArray16<LayerData<D>> Data;
     u32 Selected = 0;
+    bool EmptyContext = false;
+    bool Active = false;
 };
 
 class ONYX_API WindowData
 {
   public:
-    void OnStart(Window *p_Window) noexcept;
+    void OnStart(Window *p_Window, Scene p_Scene) noexcept;
     void OnUpdate() noexcept;
     void OnRender(VkCommandBuffer p_CommandBuffer, TKit::Timespan p_Timestep) noexcept;
     void OnImGuiRender() noexcept;
@@ -115,12 +118,18 @@ class ONYX_API WindowData
     static void RenderEditorText() noexcept;
 
   private:
-    template <Dimension D> void drawShapes(const LayerData<D> &p_Data, TKit::Timespan p_Timestep) noexcept;
+    template <Dimension D>
+    void drawShapes(const LayerData<D> &p_Data, TKit::Timespan p_Timestep, bool p_Active) noexcept;
     template <Dimension D> void renderUI(LayerDataContainer<D> &p_Container) noexcept;
     template <Dimension D> void renderUI(LayerData<D> &p_Data) noexcept;
     template <Dimension D> void renderCamera(CameraData<D> &p_Data) noexcept;
 
     void renderLightSpawn(LayerData<D3> &p_Data) noexcept;
+
+    template <Dimension D> LayerData<D> &addContext(LayerDataContainer<D> &p_Data) noexcept;
+    template <Dimension D> void setupContext(LayerData<D> &p_Data) noexcept;
+
+    template <Dimension D> CameraData<D> &addCamera(LayerData<D> &p_Data) noexcept;
 
     Window *m_Window = nullptr;
     LayerDataContainer<D2> m_LayerData2{};

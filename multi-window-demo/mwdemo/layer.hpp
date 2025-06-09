@@ -9,7 +9,7 @@ namespace Onyx::Demo
 class MWExampleLayer final : public UserLayer
 {
   public:
-    MWExampleLayer(MultiWindowApplication *p_Application) noexcept;
+    MWExampleLayer(MultiWindowApplication *p_Application, Scene p_Scene) noexcept;
 
     void OnStart() noexcept override;
     void OnUpdate(u32 p_WindowIndex) noexcept override;
@@ -20,5 +20,6 @@ class MWExampleLayer final : public UserLayer
   private:
     MultiWindowApplication *m_Application = nullptr;
     TKit::StaticArray8<WindowData> m_Data;
+    Scene m_Scene;
 };
 } // namespace Onyx::Demo

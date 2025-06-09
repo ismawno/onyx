@@ -13,7 +13,7 @@ namespace Onyx::Demo
 class SWExampleLayer final : public UserLayer
 {
   public:
-    SWExampleLayer(Application *p_Application) noexcept;
+    SWExampleLayer(Application *p_Application, Scene p_Scene) noexcept;
 
     void OnStart() noexcept override;
     void OnUpdate() noexcept override;
@@ -23,5 +23,6 @@ class SWExampleLayer final : public UserLayer
   private:
     Application *m_Application = nullptr;
     WindowData m_Data;
+    Scene m_Scene;
 };
 } // namespace Onyx::Demo

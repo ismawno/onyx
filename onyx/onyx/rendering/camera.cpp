@@ -126,7 +126,7 @@ template <Dimension D> Onyx::Transform<D> ICamera<D>::GetViewTransform() const n
 template <Dimension D> void ICamera<D>::SetView(const Onyx::Transform<D> &p_View) noexcept
 {
     m_ProjectionView.View = p_View;
-    updateProjectionView();
+    adaptViewToViewportAspect();
 }
 template <Dimension D> void ICamera<D>::SetViewport(const ScreenViewport &p_Viewport) noexcept
 {

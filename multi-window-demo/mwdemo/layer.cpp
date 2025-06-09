@@ -4,14 +4,15 @@
 
 namespace Onyx::Demo
 {
-MWExampleLayer::MWExampleLayer(MultiWindowApplication *p_Application) noexcept : m_Application(p_Application)
+MWExampleLayer::MWExampleLayer(MultiWindowApplication *p_Application, const Scene p_Scene) noexcept
+    : m_Application(p_Application), m_Scene(p_Scene)
 {
 }
 
 void MWExampleLayer::OnStart() noexcept
 {
     for (u32 i = 0; i < m_Application->GetWindowCount(); ++i)
-        m_Data[i].OnStart(m_Application->GetWindow(i));
+        m_Data[i].OnStart(m_Application->GetWindow(i), m_Scene);
 }
 
 void MWExampleLayer::OnUpdate(const u32 p_WindowIndex) noexcept
@@ -22,8 +23,9 @@ void MWExampleLayer::OnUpdate(const u32 p_WindowIndex) noexcept
 void MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
 {
     TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.GetSize(), "[ONYX] Index out of bounds");
+
     if (p_Event.Type == Event::WindowOpened)
-        m_Data.Append().OnStart(p_Event.Window);
+        m_Data.Append().OnStart(p_Event.Window, m_Scene);
     else if (p_Event.Type == Event::WindowClosed)
         m_Data.RemoveOrdered(m_Data.begin() + p_WindowIndex);
     else
@@ -47,6 +49,13 @@ void MWExampleLayer::OnImGuiRender() noexcept
         ImGui::TextWrapped(
             "This is a multi-window application, meaning windows can be opened and closed at runtime. "
             "The editor panel is shared between all windows, and each window has its own set of 2D or 3D shapes.");
+
+        i32 scene = static_cast<i32>(m_Scene);
+        if (ImGui::Combo("Scene setup", &scene,
+                         "None\0"
+                         "2D\0"
+                         "3D\0\0"))
+            m_Scene = static_cast<Scene>(scene);
 
         if (ImGui::Button("Open Window"))
             m_Application->OpenWindow();

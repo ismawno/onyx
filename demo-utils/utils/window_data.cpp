@@ -1,4 +1,5 @@
 #include "utils/window_data.hpp"
+#include "glm/trigonometric.hpp"
 #include "onyx/core/shaders.hpp"
 #include "onyx/app/user_layer.hpp"
 #include "tkit/container/static_array.hpp"
@@ -57,7 +58,7 @@ static const VKit::Shader &getBlurShader() noexcept
     return shader;
 }
 
-void WindowData::OnStart(Window *p_Window) noexcept
+void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
 {
     m_Window = p_Window;
 
@@ -85,6 +86,17 @@ void WindowData::OnStart(Window *p_Window) noexcept
 
     Core::GetDeletionQueue().SubmitForDeletion(pipeline);
     Core::GetDeletionQueue().SubmitForDeletion(m_BlurLayout);
+
+    if (p_Scene == Scene::Setup2D)
+    {
+        LayerData<D2> &data = addContext<D2>(m_LayerData2);
+        setupContext<D2>(data);
+    }
+    else if (p_Scene == Scene::Setup3D)
+    {
+        LayerData<D3> &data = addContext<D3>(m_LayerData3);
+        setupContext<D3>(data);
+    }
 }
 
 void WindowData::OnUpdate() noexcept
@@ -100,11 +112,11 @@ void WindowData::OnUpdate() noexcept
 void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Timespan p_Timestep) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnRender");
-    for (const LayerData<D2> &ldata : m_LayerData2.Data)
-        drawShapes(ldata, p_Timestep);
+    for (u32 i = 0; i < m_LayerData2.Data.GetSize(); ++i)
+        drawShapes(m_LayerData2.Data[i], p_Timestep, m_LayerData2.Active && i == m_LayerData2.Selected);
 
-    for (const LayerData<D3> &ldata : m_LayerData3.Data)
-        drawShapes(ldata, p_Timestep);
+    for (u32 i = 0; i < m_LayerData3.Data.GetSize(); ++i)
+        drawShapes(m_LayerData3.Data[i], p_Timestep, m_LayerData3.Active && i == m_LayerData3.Selected);
 
     if (m_RainbowBackground)
     {
@@ -142,12 +154,15 @@ void WindowData::OnImGuiRender() noexcept
         ImGui::SliderInt("Blur kernel size", (int *)&m_BlurData.KernelSize, 0, 12);
 
     ImGui::BeginTabBar("Dimension");
-    if (ImGui::BeginTabItem("2D"))
+
+    m_LayerData2.Active = ImGui::BeginTabItem("2D");
+    if (m_LayerData2.Active)
     {
         renderUI(m_LayerData2);
         ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem("3D"))
+    m_LayerData3.Active = ImGui::BeginTabItem("3D");
+    if (m_LayerData3.Active)
     {
         renderUI(m_LayerData3);
         ImGui::EndTabItem();
@@ -247,15 +262,17 @@ void WindowData::RenderEditorText() noexcept
                        "window is shared. Users interact with the rendering API through rendering contexts.");
 }
 
-template <Dimension D> void WindowData::drawShapes(const LayerData<D> &p_Data, const TKit::Timespan p_Timestep) noexcept
+template <Dimension D>
+void WindowData::drawShapes(const LayerData<D> &p_Data, const TKit::Timespan p_Timestep, const bool p_Active) noexcept
 {
     p_Data.Context->Flush(m_BackgroundColor);
-    for (u32 i = 0; i < p_Data.Cameras.GetSize(); ++i)
-        if (i == p_Data.ActiveCamera)
-        {
-            p_Data.Cameras[i].Camera->ControlMovementWithUserInput(p_Timestep);
-            break;
-        }
+    if (p_Active)
+        for (u32 i = 0; i < p_Data.Cameras.GetSize(); ++i)
+            if (i == p_Data.ActiveCamera)
+            {
+                p_Data.Cameras[i].Camera->ControlMovementWithUserInput(p_Timestep);
+                break;
+            }
     p_Data.Context->TransformAxes(p_Data.AxesTransform.ComputeTransform());
 
     const LatticeData<D> &lattice = p_Data.Lattice;
@@ -705,6 +722,37 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
                        "your scene. In Onyx, this projection is only available in 3D scenes.");
 }
 
+template <Dimension D> LayerData<D> &WindowData::addContext(LayerDataContainer<D> &p_Container) noexcept
+{
+    LayerData<D> &layerData = p_Container.Data.Append();
+    layerData.Context = m_Window->CreateRenderContext<D>();
+    return layerData;
+}
+template <Dimension D> void WindowData::setupContext(LayerData<D> &p_Data) noexcept
+{
+    CameraData<D> &cameraData = addCamera(p_Data);
+    if constexpr (D == D3)
+    {
+        p_Data.DrawAxes = true;
+        cameraData.Perspective = true;
+        cameraData.Camera->SetPerspectiveProjection(cameraData.FieldOfView, cameraData.Near, cameraData.Far);
+        Transform<D3> transform{};
+        transform.Translation = {2.f, 0.75f, 2.f};
+        transform.Rotation = glm::quat{glm::radians(fvec3{-15.f, 45.f, -4.f})};
+        cameraData.Camera->SetView(transform);
+        p_Data.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
+    }
+}
+template <Dimension D> CameraData<D> &WindowData::addCamera(LayerData<D> &p_Data) noexcept
+{
+    Camera<D> *camera = p_Data.Context->CreateCamera();
+    camera->BackgroundColor = Color{0.1f};
+
+    CameraData<D> &camData = p_Data.Cameras.Append();
+    camData.Camera = camera;
+    return camData;
+}
+
 template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Container) noexcept
 {
     const fvec2 spos = Input::GetScreenMousePosition(m_Window);
@@ -712,12 +760,19 @@ template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Contai
     UserLayer::HelpMarkerSameLine("The screen mouse position is always normalized to the window size, always ranging "
                                   "from -1 to 1 for 'x' and 'y', and from 0 to 1 for 'z'.");
 
+    ImGui::Checkbox("Empty context", &p_Container.EmptyContext);
+    UserLayer::HelpMarkerSameLine(
+        "A rendering context is always initialized empty by default. But for convenience reasons, this demo will "
+        "create "
+        "contexts with a working camera and some other convenient settings enabled, unless this checkbox is marked.");
+
     if (ImGui::Button("Add context"))
     {
-        LayerData<D> layerData{};
-        layerData.Context = m_Window->CreateRenderContext<D>();
-        p_Container.Data.Append(std::move(layerData));
+        LayerData<D> &data = addContext(p_Container);
+        if (!p_Container.EmptyContext)
+            setupContext(data);
     }
+
     UserLayer::HelpMarkerSameLine("A rendering context is an immediate mode API that allows users (you) to draw many "
                                   "different objects in a window. Multiple contexts may exist per window, each with "
                                   "their own independent state.");
@@ -762,13 +817,8 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
     if (ImGui::CollapsingHeader("Cameras"))
     {
         if (ImGui::Button("Add camera"))
-        {
-            Camera<D> *camera = p_Data.Context->CreateCamera();
-            camera->BackgroundColor = Color{0.1f};
-            CameraData<D> camData{};
-            camData.Camera = camera;
-            p_Data.Cameras.Append(camData);
-        }
+            addCamera(p_Data);
+
         renderSelectableNoTree(
             "Camera", p_Data.Cameras, p_Data.ActiveCamera, [this](CameraData<D> &p_Camera) { renderCamera(p_Camera); },
             [&p_Data](const CameraData<D> &p_Camera) { p_Data.Context->DestroyCamera(p_Camera.Camera); });
@@ -783,7 +833,7 @@ void WindowData::renderLightSpawn(LayerData<D3> &p_Data) noexcept
     if (ImGui::Button("Spawn##Light"))
     {
         if (p_Data.LightToSpawn == 0)
-            p_Data.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 1.f}, Color::WHITE);
+            p_Data.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
         else
             p_Data.PointLights.Append(fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f);
     }

@@ -1,22 +1,24 @@
 #include "swdemo/layer.hpp"
 #include "onyx/app/app.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
-#include "tkit/utils/literals.hpp"
+#include "utils/argparse.hpp"
 
-void RunApp() noexcept
+void RunApp(const Onyx::Demo::Scene p_Scene) noexcept
 {
     Onyx::Window::Specs spc;
     spc.Name = "Single window demo app";
 
     Onyx::Application app{spc};
-    app.SetUserLayer<Onyx::Demo::SWExampleLayer>(&app);
+    app.SetUserLayer<Onyx::Demo::SWExampleLayer>(&app, p_Scene);
     app.Run();
 }
 
-int main()
+int main(int argc, char **argv)
 {
+    const Onyx::Demo::Scene scene = Onyx::Demo::ParseArguments(argc, argv);
+
     TKit::ThreadPool threadPool{7};
     Onyx::Core::Initialize(&threadPool);
-    RunApp();
+    RunApp(scene);
     Onyx::Core::Terminate();
 }
