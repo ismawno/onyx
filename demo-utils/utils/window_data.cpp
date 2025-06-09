@@ -407,7 +407,7 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
 {
     const auto createShape = [&p_Data]() -> TKit::Scope<Shape<D>> {
         if (p_Data.ShapeToSpawn == MODEL)
-            return TKit::Scope<ModelShape<D>>::Create(p_Data.Model);
+            return p_Data.Model.Model ? TKit::Scope<ModelShape<D>>::Create(p_Data.Model) : nullptr;
         else if (p_Data.ShapeToSpawn == TRIANGLE)
             return TKit::Scope<Triangle<D>>::Create();
         else if (p_Data.ShapeToSpawn == SQUARE)
@@ -473,13 +473,6 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
     if (!lattice.Shape)
         lattice.Shape = createShape();
 
-    if (changed)
-    {
-        const Transform<D> transform = lattice.Shape->Transform;
-        lattice.Shape = createShape();
-        lattice.Shape->Transform = transform;
-    }
-
     if (p_Data.ShapeToSpawn == MODEL)
     {
         const auto &models = NamedModel<D>::Get();
@@ -488,9 +481,9 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             TKit::StaticArray16<const char *> modelNames{};
             for (const NamedModel<D> &model : models)
                 modelNames.Append(model.Name.c_str());
-            i32 index = 0;
-            ImGui::Combo("Model ID", &index, modelNames.GetData(), static_cast<i32>(modelNames.GetSize()));
-            p_Data.Model = models[index];
+            changed |= ImGui::Combo("Model ID", &p_Data.ModelToSpawn, modelNames.GetData(),
+                                    static_cast<i32>(modelNames.GetSize()));
+            p_Data.Model = models[p_Data.ModelToSpawn];
         }
         else
             ImGui::Text("No models have been loaded yet! Load from the welcome window.");
@@ -523,6 +516,13 @@ template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexce
             ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
             ImGui::PopID();
         }
+    }
+    if (changed && lattice.Shape)
+    {
+        const Transform<D> transform = lattice.Shape->Transform;
+        lattice.Shape = createShape();
+        if (lattice.Shape)
+            lattice.Shape->Transform = transform;
     }
 
     if (ImGui::TreeNode("Lattice"))

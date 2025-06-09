@@ -62,6 +62,7 @@ template <Dimension D> struct ILayerData
     TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> PolygonVertices;
     NamedModel<D> Model{};
     i32 ShapeToSpawn = 0;
+    i32 ModelToSpawn = 0;
     i32 NGonSides = 3;
     f32 AxesThickness = 0.01f;
     u32 SelectedShape = 0;
