@@ -89,12 +89,12 @@ void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
 
     if (p_Scene == Scene::Setup2D)
     {
-        LayerData<D2> &data = addContext<D2>(m_LayerData2);
+        ContextData<D2> &data = addContext<D2>(m_ContextData2);
         setupContext<D2>(data);
     }
     else if (p_Scene == Scene::Setup3D)
     {
-        LayerData<D3> &data = addContext<D3>(m_LayerData3);
+        ContextData<D3> &data = addContext<D3>(m_ContextData3);
         setupContext<D3>(data);
     }
 }
@@ -112,11 +112,11 @@ void WindowData::OnUpdate() noexcept
 void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Timespan p_Timestep) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnRender");
-    for (u32 i = 0; i < m_LayerData2.Data.GetSize(); ++i)
-        drawShapes(m_LayerData2.Data[i], p_Timestep, m_LayerData2.Active && i == m_LayerData2.Selected);
+    for (u32 i = 0; i < m_ContextData2.Data.GetSize(); ++i)
+        drawShapes(m_ContextData2.Data[i], p_Timestep, m_ContextData2.Active && i == m_ContextData2.Selected);
 
-    for (u32 i = 0; i < m_LayerData3.Data.GetSize(); ++i)
-        drawShapes(m_LayerData3.Data[i], p_Timestep, m_LayerData3.Active && i == m_LayerData3.Selected);
+    for (u32 i = 0; i < m_ContextData3.Data.GetSize(); ++i)
+        drawShapes(m_ContextData3.Data[i], p_Timestep, m_ContextData3.Active && i == m_ContextData3.Selected);
 
     if (m_RainbowBackground)
     {
@@ -155,29 +155,29 @@ void WindowData::OnImGuiRender() noexcept
 
     ImGui::BeginTabBar("Dimension");
 
-    m_LayerData2.Active = ImGui::BeginTabItem("2D");
-    if (m_LayerData2.Active)
+    m_ContextData2.Active = ImGui::BeginTabItem("2D");
+    if (m_ContextData2.Active)
     {
-        renderUI(m_LayerData2);
+        renderUI(m_ContextData2);
         ImGui::EndTabItem();
     }
-    m_LayerData3.Active = ImGui::BeginTabItem("3D");
-    if (m_LayerData3.Active)
+    m_ContextData3.Active = ImGui::BeginTabItem("3D");
+    if (m_ContextData3.Active)
     {
-        renderUI(m_LayerData3);
+        renderUI(m_ContextData3);
         ImGui::EndTabItem();
     }
     ImGui::EndTabBar();
 }
 
-template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Container, const Event &p_Event)
+template <Dimension D> static void processEvent(ContextDataContainer<D> &p_Container, const Event &p_Event)
 {
     for (u32 i = 0; i < p_Container.Data.GetSize(); ++i)
         if (i == p_Container.Selected)
             for (u32 j = 0; j < p_Container.Data[i].Cameras.GetSize(); ++j)
                 if (j == p_Container.Data[i].ActiveCamera)
                 {
-                    LayerData<D> &data = p_Container.Data[i];
+                    ContextData<D> &data = p_Container.Data[i];
                     Camera<D> *camera = data.Cameras[j].Camera;
                     if (p_Event.Type == Event::MousePressed && !ImGui::GetIO().WantCaptureMouse &&
                         p_Container.Data[i].ShapeToSpawn == POLYGON)
@@ -197,8 +197,8 @@ template <Dimension D> static void processEvent(LayerDataContainer<D> &p_Contain
 
 void WindowData::OnEvent(const Event &p_Event) noexcept
 {
-    processEvent(m_LayerData2, p_Event);
-    processEvent(m_LayerData3, p_Event);
+    processEvent(m_ContextData2, p_Event);
+    processEvent(m_ContextData3, p_Event);
 }
 
 template <Dimension D> static void renderModelLoad(const char *p_Path)
@@ -263,7 +263,7 @@ void WindowData::RenderEditorText() noexcept
 }
 
 template <Dimension D>
-void WindowData::drawShapes(const LayerData<D> &p_Data, const TKit::Timespan p_Timestep, const bool p_Active) noexcept
+void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p_Timestep, const bool p_Active) noexcept
 {
     p_Data.Context->Flush(m_BackgroundColor);
     if (p_Active)
@@ -403,7 +403,7 @@ static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Sele
     }
 }
 
-template <Dimension D> static void renderShapeSpawn(LayerData<D> &p_Data) noexcept
+template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noexcept
 {
     const auto createShape = [&p_Data]() -> TKit::Scope<Shape<D>> {
         if (p_Data.ShapeToSpawn == MODEL)
@@ -722,13 +722,13 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
                        "your scene. In Onyx, this projection is only available in 3D scenes.");
 }
 
-template <Dimension D> LayerData<D> &WindowData::addContext(LayerDataContainer<D> &p_Container) noexcept
+template <Dimension D> ContextData<D> &WindowData::addContext(ContextDataContainer<D> &p_Container) noexcept
 {
-    LayerData<D> &layerData = p_Container.Data.Append();
-    layerData.Context = m_Window->CreateRenderContext<D>();
-    return layerData;
+    ContextData<D> &contextData = p_Container.Data.Append();
+    contextData.Context = m_Window->CreateRenderContext<D>();
+    return contextData;
 }
-template <Dimension D> void WindowData::setupContext(LayerData<D> &p_Data) noexcept
+template <Dimension D> void WindowData::setupContext(ContextData<D> &p_Data) noexcept
 {
     CameraData<D> &cameraData = addCamera(p_Data);
     if constexpr (D == D3)
@@ -743,7 +743,7 @@ template <Dimension D> void WindowData::setupContext(LayerData<D> &p_Data) noexc
         p_Data.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
     }
 }
-template <Dimension D> CameraData<D> &WindowData::addCamera(LayerData<D> &p_Data) noexcept
+template <Dimension D> CameraData<D> &WindowData::addCamera(ContextData<D> &p_Data) noexcept
 {
     Camera<D> *camera = p_Data.Context->CreateCamera();
     camera->BackgroundColor = Color{0.1f};
@@ -753,7 +753,7 @@ template <Dimension D> CameraData<D> &WindowData::addCamera(LayerData<D> &p_Data
     return camData;
 }
 
-template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Container) noexcept
+template <Dimension D> void WindowData::renderUI(ContextDataContainer<D> &p_Container) noexcept
 {
     const fvec2 spos = Input::GetScreenMousePosition(m_Window);
     ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos.x, spos.y);
@@ -768,7 +768,7 @@ template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Contai
 
     if (ImGui::Button("Add context"))
     {
-        LayerData<D> &data = addContext(p_Container);
+        ContextData<D> &data = addContext(p_Container);
         if (!p_Container.EmptyContext)
             setupContext(data);
     }
@@ -778,11 +778,11 @@ template <Dimension D> void WindowData::renderUI(LayerDataContainer<D> &p_Contai
                                   "their own independent state.");
 
     renderSelectableNoTree(
-        "Context", p_Container.Data, p_Container.Selected, [this](LayerData<D> &p_Data) { renderUI(p_Data); },
-        [this](const LayerData<D> &p_Data) { m_Window->DestroyRenderContext(p_Data.Context); });
+        "Context", p_Container.Data, p_Container.Selected, [this](ContextData<D> &p_Data) { renderUI(p_Data); },
+        [this](const ContextData<D> &p_Data) { m_Window->DestroyRenderContext(p_Data.Context); });
 }
 
-template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
+template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Data) noexcept
 {
     if (p_Data.Cameras.IsEmpty())
         ImGui::TextDisabled("Context has no cameras. At least one must be added to render anything.");
@@ -825,7 +825,7 @@ template <Dimension D> void WindowData::renderUI(LayerData<D> &p_Data) noexcept
     }
 }
 
-void WindowData::renderLightSpawn(LayerData<D3> &p_Data) noexcept
+void WindowData::renderLightSpawn(ContextData<D3> &p_Data) noexcept
 {
     ImGui::SliderFloat("Ambient intensity", &p_Data.Ambient.w, 0.f, 1.f);
     ImGui::ColorEdit3("Color", glm::value_ptr(p_Data.Ambient));
