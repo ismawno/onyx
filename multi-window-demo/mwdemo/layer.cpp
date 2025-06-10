@@ -9,12 +9,6 @@ MWExampleLayer::MWExampleLayer(MultiWindowApplication *p_Application, const Scen
 {
 }
 
-void MWExampleLayer::OnStart() noexcept
-{
-    for (u32 i = 0; i < m_Application->GetWindowCount(); ++i)
-        m_Data[i].OnStart(m_Application->GetWindow(i), m_Scene);
-}
-
 void MWExampleLayer::OnUpdate(const u32 p_WindowIndex) noexcept
 {
     m_Data[p_WindowIndex].OnUpdate();

@@ -11,7 +11,6 @@ class MWExampleLayer final : public UserLayer
   public:
     MWExampleLayer(MultiWindowApplication *p_Application, Scene p_Scene) noexcept;
 
-    void OnStart() noexcept override;
     void OnUpdate(u32 p_WindowIndex) noexcept override;
     void OnRender(u32 p_WindowIndex, u32, VkCommandBuffer p_CommandBuffer) noexcept override;
     void OnImGuiRender() noexcept override;
