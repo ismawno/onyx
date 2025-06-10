@@ -12,12 +12,12 @@ using namespace TKit::Alias;
 static void RunStandaloneWindow() noexcept
 {
     Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
+    Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
 
     while (!window.ShouldClose())
     {
         Onyx::Input::PollEvents();
 
-        Onyx::RenderContext<D2> *context = window.GetRenderContext<D2>();
         context->Flush(Onyx::Color::BLACK);
 
         context->Fill(Onyx::Color::RED);
@@ -92,12 +92,12 @@ static void RunStandaloneWindowCustomPipeline() noexcept
 
     const VKit::GraphicsJob job = SetupCustomPipeline(window);
     SetPostProcessing(window);
+    Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
 
     while (!window.ShouldClose())
     {
         Onyx::Input::PollEvents();
 
-        Onyx::RenderContext<D2> *context = window.GetRenderContext<D2>();
         context->Flush(Onyx::Color::BLACK);
 
         context->Fill(Onyx::Color::RED);
@@ -123,12 +123,12 @@ static void RunAppExample2() noexcept
     const auto result = Onyx::Model<D2>::Load(ONYX_ROOT_PATH "/onyx/models/square.obj");
     VKIT_ASSERT_RESULT(result);
     Onyx::Model<D2> square = result.GetValue();
+    Onyx::RenderContext<D2> *context = app.GetMainWindow()->CreateRenderContext<D2>();
 
     TKit::Clock clock;
     app.Startup();
     while (app.NextFrame(clock))
     {
-        Onyx::RenderContext<D2> *context = app.GetMainWindow()->GetRenderContext<D2>();
         context->Flush(Onyx::Color::BLACK);
 
         context->Fill(Onyx::Color::RED);
