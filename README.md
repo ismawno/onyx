@@ -24,12 +24,12 @@ Creating and using an Onyx window looks like this:
 
 ```cpp
 Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
+Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
 
 while (!window.ShouldClose())
 {
     Onyx::Input::PollEvents();
 
-    Onyx::RenderContext<D2> *context = window.GetRenderContext<D2>();
     context->Flush(Onyx::Color::BLACK);
 
     context->Fill(Onyx::Color::RED);
@@ -111,11 +111,11 @@ Onyx::Window window(
 const VKit::GraphicsJob job = SetupCustomPipeline(window);
 SetPostProcessing(window);
 
+Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
 while (!window.ShouldClose())
 {
     Onyx::Input::PollEvents();
 
-    Onyx::RenderContext<D2> *context = window.GetRenderContext<D2>();
     context->Flush(Onyx::Color::BLACK);
 
     context->Fill(Onyx::Color::RED);
@@ -151,9 +151,9 @@ Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600
 
 TKit::Clock clock;
 app.Startup();
+Onyx::RenderContext<D2> *context = app.GetMainWindow()->CreateRenderContext<D2>();
 while (app.NextFrame(clock))
 {
-    Onyx::RenderContext<D2> *context = app.GetMainWindow()->GetRenderContext<D2>();
     context->Flush(Onyx::Color::BLACK);
 
     context->Fill(Onyx::Color::RED);
