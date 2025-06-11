@@ -172,6 +172,9 @@ void WindowData::OnImGuiRender() noexcept
 
 template <Dimension D> static void processEvent(ContextDataContainer<D> &p_Container, const Event &p_Event)
 {
+    if (ImGui::GetIO().WantCaptureMouse)
+        return;
+
     for (u32 i = 0; i < p_Container.Data.GetSize(); ++i)
         if (i == p_Container.Selected)
             for (u32 j = 0; j < p_Container.Data[i].Cameras.GetSize(); ++j)
@@ -179,11 +182,10 @@ template <Dimension D> static void processEvent(ContextDataContainer<D> &p_Conta
                 {
                     ContextData<D> &data = p_Container.Data[i];
                     Camera<D> *camera = data.Cameras[j].Camera;
-                    if (p_Event.Type == Event::MousePressed && !ImGui::GetIO().WantCaptureMouse &&
-                        p_Container.Data[i].ShapeToSpawn == POLYGON)
+                    if (p_Event.Type == Event::MousePressed && p_Container.Data[i].ShapeToSpawn == POLYGON)
                         data.PolygonVertices.Append(camera->GetWorldMousePosition());
 
-                    else if (!ImGui::GetIO().WantCaptureMouse)
+                    else if (p_Event.Type == Event::Scrolled)
                     {
                         const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) &&
                                                    !ImGui::GetIO().WantCaptureKeyboard
@@ -276,7 +278,7 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
     p_Data.Context->TransformAxes(p_Data.AxesTransform.ComputeTransform());
 
     const LatticeData<D> &lattice = p_Data.Lattice;
-    if (lattice.Enabled && lattice.Shape && p_Data.ShapeToSpawn != POLYGON)
+    if (lattice.Enabled && lattice.Shape)
     {
         const fvec<D> separation =
             lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : fvec<D>{lattice.Separation};
@@ -422,9 +424,11 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
         }
         else if (p_Data.ShapeToSpawn == POLYGON)
         {
+            if (p_Data.PolygonVertices.GetSize() < 3)
+                return nullptr;
+
             auto polygon = TKit::Scope<Polygon<D>>::Create();
             polygon->Vertices = p_Data.PolygonVertices;
-            p_Data.PolygonVertices.Clear();
             return std::move(polygon);
         }
         else if (p_Data.ShapeToSpawn == STADIUM)
@@ -460,18 +464,13 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
     if (canSpawnPoly && canSpawnModel)
         ImGui::SameLine();
 
-    bool changed = false;
     if constexpr (D == D2)
-        changed |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                                "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded Square\0\0");
+        ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+                     "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded Square\0\0");
     else
-        changed |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                                "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded "
-                                "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
-
-    LatticeData<D> &lattice = p_Data.Lattice;
-    if (!lattice.Shape)
-        lattice.Shape = createShape();
+        ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+                     "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded "
+                     "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
 
     if (p_Data.ShapeToSpawn == MODEL)
     {
@@ -481,8 +480,8 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
             TKit::StaticArray16<const char *> modelNames{};
             for (const NamedModel<D> &model : models)
                 modelNames.Append(model.Name.c_str());
-            changed |= ImGui::Combo("Model ID", &p_Data.ModelToSpawn, modelNames.GetData(),
-                                    static_cast<i32>(modelNames.GetSize()));
+            ImGui::Combo("Model ID", &p_Data.ModelToSpawn, modelNames.GetData(),
+                         static_cast<i32>(modelNames.GetSize()));
             p_Data.Model = models[p_Data.ModelToSpawn];
         }
         else
@@ -494,6 +493,9 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
     {
         ImGui::Text("Vertices must be in counter clockwise order for outlines to work correctly");
         ImGui::Text("Click on the screen or the 'Add' button to add vertices to the polygon.");
+        if (ImGui::Button("Clear"))
+            p_Data.PolygonVertices.Clear();
+
         ImGui::DragFloat2("Vertex", glm::value_ptr(p_Data.VertexToAdd), 0.1f);
 
         ImGui::SameLine();
@@ -517,9 +519,13 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
             ImGui::PopID();
         }
     }
-    if (changed && lattice.Shape)
+    LatticeData<D> &lattice = p_Data.Lattice;
+    if (lattice.Enabled)
     {
-        const Transform<D> transform = lattice.Shape->Transform;
+        Transform<D> transform{};
+        if (lattice.Shape)
+            transform = lattice.Shape->Transform;
+
         lattice.Shape = createShape();
         if (lattice.Shape)
             lattice.Shape->Transform = transform;
@@ -532,8 +538,6 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
                                       "I advice to build the engine "
                                       "in distribution mode to see meaningful results.");
 
-        if (p_Data.ShapeToSpawn == POLYGON)
-            ImGui::TextDisabled("Polygon shapes cannot be drawn in a lattice :(");
         if constexpr (D == D2)
         {
             ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y);

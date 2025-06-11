@@ -364,10 +364,11 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
 
     pushConstantData<dlevel>(p_Info);
     const auto &table = Core::GetDeviceTable();
-    for (const PrimitiveDataLayout &layout : m_HostData.Layouts)
+    for (u32 i = 0; i < m_HostData.Layouts.GetSize(); ++i)
     {
+        const PrimitiveDataLayout &layout = m_HostData.Layouts[i];
         table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, 1, layout.IndicesStart, layout.VerticesStart,
-                             0);
+                             i);
         INCREASE_DRAW_CALL_COUNT();
     }
 }

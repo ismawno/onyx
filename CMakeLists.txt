@@ -36,6 +36,5 @@ if(ONYX_BUILD_DEMOS)
   add_subdirectory(multi-window-demo)
   add_subdirectory(single-window-demo)
   add_subdirectory(hello-world)
-  add_subdirectory(performance)
+  # add_subdirectory(performance)
 endif()
-
