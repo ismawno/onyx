@@ -8,10 +8,9 @@ template <Dimension D> VKit::FormattedResult<IndexVertexHostData<D>> Load(const 
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, p_Path.data()))
+    if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, p_Path.data()))
         return VKit::FormattedResult<IndexVertexHostData<D>>::Error(
             VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load model: {}", err + warn));
 

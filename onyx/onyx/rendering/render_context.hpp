@@ -468,11 +468,12 @@ template <Dimension D> class IRenderContext
      *
      * The vertices must be in counter-clockwise order, otherwise outlines will not be drawn correctly.
      * The polygon must be convex and will be affected by the current transformation state.
-     * The polygon's origin is its transform's position (with respect to the current axes, of course).
+     * The polygon's origin is its transform's position (with respect to the current axes, of course), and so the
+     * vertices are expected to be with respect that position.
      *
-     * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to achieve,
-     * so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just rotate
-     * the polygon.
+     * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to
+     * achieve, so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just
+     * rotate the polygon. The default plane for 3D polygons is the XY plane.
      *
      * @param p_Vertices A span of vertices defining the polygon. Vertices are expected to be centered around zero.
      */
@@ -487,7 +488,7 @@ template <Dimension D> class IRenderContext
      *
      * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to
      * achieve, so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just
-     * rotate the polygon.
+     * rotate the polygon. The default plane for 3D polygons is the XY plane.
      *
      * @param p_Transform The transformation matrix to apply to the polygon. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
