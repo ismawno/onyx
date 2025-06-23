@@ -74,7 +74,8 @@ set(IMGUI_SOURCES
 find_package(Vulkan REQUIRED)
 add_library(imgui STATIC ${IMGUI_SOURCES})
 
-target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR})
+target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR}
+                                        ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(imgui PUBLIC glfw)
 target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
 
@@ -111,12 +112,7 @@ target_precompile_headers(onyx PRIVATE
                           ${CMAKE_CURRENT_SOURCE_DIR}/onyx/core/pch.hpp)
 target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
-if(MSVC)
-  tkit_configure_compile_link_options(onyx FLAGS /W4 /WX)
-else()
-  tkit_configure_compile_link_options(onyx FLAGS -Wall -Wextra -Wpedantic
-                                      -Werror)
-endif()
+tkit_default_configure(onyx)
 
 tkit_configure_compile_link_options(glm FORBID_SANITIZERS)
 tkit_configure_compile_link_options(glfw FORBID_SANITIZERS)
@@ -125,4 +121,3 @@ tkit_configure_compile_link_options(tinyobjloader FORBID_SANITIZERS)
 
 # No need for more: toolkit handles the rest. As it is a library I develop, I
 # will be reusing its macros/configurations
-

@@ -4,12 +4,8 @@ project(onyx-performance)
 set(SOURCES perf/main.cpp perf/lattice.cpp perf/layer.cpp)
 
 add_executable(onyx-performance ${SOURCES})
-if(MSVC)
-  tkit_configure_compile_link_options(onyx-performance FLAGS /W4 /WX)
-else()
-  tkit_configure_compile_link_options(onyx-performance FLAGS -Wall -Wextra
-                                      -Wpedantic -Werror)
-endif()
+
+tkit_default_configure(onyx-performance)
 
 FetchContent_Declare(
   argparse
@@ -21,3 +17,7 @@ target_link_libraries(onyx-performance PRIVATE onyx)
 target_include_directories(
   onyx-performance PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                            ${argparse_SOURCE_DIR}/include)
+
+if(UNIX AND APPLE)
+  vkit_add_vulkan_executable_macos_rpath(onyx-performance)
+endif()
