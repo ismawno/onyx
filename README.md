@@ -25,6 +25,7 @@ Creating and using an Onyx window looks like this:
 ```cpp
 Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
 Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
+context->CreateCamera();
 
 while (!window.ShouldClose())
 {
@@ -112,6 +113,7 @@ const VKit::GraphicsJob job = SetupCustomPipeline(window);
 SetPostProcessing(window);
 
 Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
+context->CreateCamera();
 while (!window.ShouldClose())
 {
     Onyx::Input::PollEvents();
@@ -152,6 +154,7 @@ Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600
 TKit::Clock clock;
 app.Startup();
 Onyx::RenderContext<D2> *context = app.GetMainWindow()->CreateRenderContext<D2>();
+context->CreateCamera();
 while (app.NextFrame(clock))
 {
     context->Flush(Onyx::Color::BLACK);
