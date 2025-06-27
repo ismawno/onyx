@@ -18,6 +18,7 @@ template <Dimension D> struct LatticeData
     TKit::Scope<Shape<D>> Shape;
     bool Enabled = false;
     bool PropToScale = true;
+    bool NeedsUpdate = false;
 };
 
 template <Dimension D> struct LineTest

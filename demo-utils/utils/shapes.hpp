@@ -3,14 +3,18 @@
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/draw/transform.hpp"
 #include "onyx/draw/model.hpp"
-#include <string_view>
+#include "tkit/container/static_array.hpp"
+#include <string>
 
 namespace Onyx::Demo
 {
 template <Dimension D> struct NamedModel
 {
     static const TKit::StaticArray16<NamedModel<D>> &Get() noexcept;
-    static TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> Load(std::string_view p_Path) noexcept;
+    static TKit::StaticArray16<std::string> Query(std::string_view p_Directory) noexcept;
+
+    static bool IsLoaded(std::string_view p_Name) noexcept;
+    static VKit::FormattedResult<NamedModel<D>> Load(std::string_view p_Name, std::string_view p_Path) noexcept;
 
     std::string Name{};
     Model<D> Model{};

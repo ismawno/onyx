@@ -1,10 +1,12 @@
 #include "onyx/core/pch.hpp"
+#include "onyx/draw/vertex.hpp"
 #include "onyx/draw/data.hpp"
 #include <tiny_obj_loader.h>
 
 namespace Onyx
 {
-template <Dimension D> VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path) noexcept
+template <Dimension D>
+VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path, const fmat<D> *p_Transform) noexcept
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -38,6 +40,22 @@ template <Dimension D> VKit::FormattedResult<IndexVertexHostData<D>> Load(const 
             }
             buffers.Indices.Append(uniqueVertices[vertex]);
         }
+    if (!p_Transform)
+        return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
+
+    if constexpr (D == D3)
+    {
+        const fmat3 normalMatrix = glm::transpose(glm::inverse(fmat3(p_Transform)));
+        for (Vertex<D> &vertex : buffers.Vertices)
+        {
+            vertex.Position = fvec3{p_Transform * fvec4{vertex.Position, 1.f}};
+            vertex.Normal = normalMatrix * vertex.Normal;
+        }
+    }
+    else
+        for (Vertex<D> &vertex : buffers.Vertices)
+            if constexpr (D == D3)
+                vertex.Position = fvec2{p_Transform * fvec3{vertex.Position, 1.f}};
     return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
 }
 

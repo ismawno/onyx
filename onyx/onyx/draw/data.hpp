@@ -32,7 +32,9 @@ template <Dimension D> struct IndexVertexHostData
     HostIndexBuffer Indices;
 };
 
-template <Dimension D> VKit::FormattedResult<IndexVertexHostData<D>> Load(std::string_view p_Path) noexcept;
+template <Dimension D>
+VKit::FormattedResult<IndexVertexHostData<D>> Load(std::string_view p_Path,
+                                                   const fmat<D> *p_Transform = nullptr) noexcept;
 
 template <Dimension D>
 DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices) noexcept;

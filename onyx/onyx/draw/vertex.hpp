@@ -4,6 +4,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/api.hpp"
 #include "tkit/utils/hash.hpp"
+#include "tkit/container/array.hpp"
 
 #include <vulkan/vulkan.h>
 

@@ -1,8 +1,6 @@
 #include "utils/shapes.hpp"
 #include "onyx/app/user_layer.hpp"
 #include "tkit/utils/dimension.hpp"
-#include "vkit/vulkan/vulkan.hpp"
-#include "vulkan/vulkan_core.h"
 #include <imgui.h>
 #include <filesystem>
 
@@ -25,49 +23,43 @@ template <Dimension D> const TKit::StaticArray16<NamedModel<D>> &NamedModel<D>::
 {
     return getModels<D>();
 }
-template <Dimension D>
-TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> NamedModel<D>::Load(const std::string_view p_Path) noexcept
-{
-    if (!fs::exists(p_Path))
-        return {};
 
-    auto &models = getModels<D>();
-    const auto &modelExists = [&models](const std::string &p_Name) {
-        for (const NamedModel<D> &model : models)
-            if (model.Name == p_Name)
-                return true;
-        return false;
-    };
-    TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> results{};
-    for (const auto &entry : fs::directory_iterator(p_Path))
+template <Dimension D>
+TKit::StaticArray16<std::string> NamedModel<D>::Query(const std::string_view p_Directory) noexcept
+{
+    TKit::StaticArray16<std::string> names;
+    for (const auto &entry : fs::directory_iterator(p_Directory))
     {
         const auto &path = entry.path();
         const std::string name = path.filename().string();
-        VKit::FormattedResult<NamedModel<D>> nresult =
-            VKit::FormattedResult<NamedModel<D>>::Error(VK_ERROR_UNKNOWN, "Unknown");
-        if (modelExists(name))
-        {
-            nresult = VKit::FormattedResult<NamedModel<D>>::Error(VKIT_FORMAT_ERROR(
-                VK_ERROR_INITIALIZATION_FAILED, "Failed to load model: '{}' - Model is already loaded", name));
-            results.Append(nresult);
-            continue;
-        }
-
-        const auto result = Onyx::Model<D>::Load(path.c_str());
-        if (result)
-        {
-            Onyx::Model<D> model = result.GetValue();
-            Onyx::Core::GetDeletionQueue().Push([model]() mutable { model.Destroy(); });
-            const NamedModel<D> nmodel{name, model};
-            models.Append(nmodel);
-            nresult = VKit::FormattedResult<NamedModel<D>>::Ok(nmodel);
-        }
-        else
-            nresult = VKit::FormattedResult<NamedModel<D>>::Error(VKIT_FORMAT_ERROR(
-                result.GetError().ErrorCode, "Failed to load model: '{}' - {}", name, result.GetError().ToString()));
-        results.Append(nresult);
+        names.Append(name);
     }
-    return results;
+    return names;
+}
+
+template <Dimension D> bool NamedModel<D>::IsLoaded(const std::string_view p_Name) noexcept
+{
+    const auto &models = getModels<D>();
+    for (const NamedModel<D> &model : models)
+        if (model.Name == p_Name)
+            return true;
+    return false;
+}
+template <Dimension D>
+VKit::FormattedResult<NamedModel<D>> Load(const std::string_view p_Name, const std::string_view p_Path) noexcept
+{
+    const auto result = Onyx::Model<D>::Load(p_Path);
+    if (!result)
+        return VKit::FormattedResult<NamedModel<D>>::Error(VKIT_FORMAT_ERROR(
+            result.GetError().ErrorCode, "Failed to load model: '{}' - {}", p_Name, result.GetError().ToString()));
+
+    Onyx::Model<D> model = result.GetValue();
+    Onyx::Core::GetDeletionQueue().Push([model]() mutable { model.Destroy(); });
+    const NamedModel<D> nmodel{p_Name, model};
+
+    auto &models = getModels<D>();
+    models.Append(nmodel);
+    return VKit::FormattedResult<NamedModel<D>>::Ok(nmodel);
 }
 template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context) noexcept
 {
