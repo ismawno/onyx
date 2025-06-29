@@ -10,7 +10,7 @@
 #include <implot.h>
 
 // dirty macros as lazy enums lol
-#define MODEL 0
+#define MESH 0
 #define TRIANGLE 1
 #define SQUARE 2
 #define CIRCLE 3
@@ -206,15 +206,15 @@ void WindowData::OnEvent(const Event &p_Event) noexcept
     processEvent(m_ContextData3, p_Event);
 }
 
-template <Dimension D> static void renderModelLoad(const char *p_Path)
+template <Dimension D> static void renderMeshLoad(const char *p_Path)
 {
     static Transform<D> transform{};
     static TKit::Array16<std::string> customNames{};
 
-    const auto names = NamedModel<D>::Query(p_Path);
+    const auto names = NamedMesh<D>::Query(p_Path);
     if (names.IsEmpty())
     {
-        ImGui::TextDisabled("No models found at %s", p_Path);
+        ImGui::TextDisabled("No meshes found at %s", p_Path);
         return;
     }
 
@@ -240,16 +240,16 @@ template <Dimension D> static void renderModelLoad(const char *p_Path)
         input[size + 1] = '\0';
 
         ImGui::PushID(&name);
-        if (ImGui::InputText("Model name", input, msize + 1))
+        if (ImGui::InputText("Mesh name", input, msize + 1))
             cname = input;
 
         // Should consider using fs::path
         ImGui::SameLine();
-        const bool isLoaded = NamedModel<D>::IsLoaded(cname);
+        const bool isLoaded = NamedMesh<D>::IsLoaded(cname);
         if (!isLoaded && ImGui::Button("Load"))
         {
             const auto result =
-                NamedModel<D>::Load(cname, std::string(p_Path) + "/" + name, transform.ComputeTransform());
+                NamedMesh<D>::Load(cname, std::string(p_Path) + "/" + name, transform.ComputeTransform());
             if (!result)
             {
                 const std::string error = result.GetError().ToString();
@@ -282,21 +282,20 @@ void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
 
         ImGui::TextLinkOpenURL("My GitHub", "https://github.com/ismawno");
 
-        const char *path2 = ONYX_ROOT_PATH "/demo-utils/models2/";
-        const char *path3 = ONYX_ROOT_PATH "/demo-utils/models3/";
+        const char *path2 = ONYX_ROOT_PATH "/demo-utils/meshes2/";
+        const char *path3 = ONYX_ROOT_PATH "/demo-utils/meshes3/";
         ImGui::TextWrapped(
-            path2,
-            "You may load models for this demo to use located in the '%s' and '%s' paths, for 2D and 3D "
-            "models respectively. Take into account that models may have been created with a different coordinate "
+            "You may load meshes for this demo to use located in the '%s' and '%s' paths, for 2D and 3D "
+            "meshes respectively. Take into account that meshes may have been created with a different coordinate "
             "system or unit scaling values. In Onyx, shapes with unit transforms are supposed to be centered around "
             "zero with a cartesian coordinate system and size (from end to end) of 1. That is why you may apply a "
-            "transform before loading a specific model.",
-            path3);
+            "transform before loading a specific mesh.",
+            path2, path3);
 
-        if (ImGui::CollapsingHeader("2D Models"))
-            renderModelLoad<D2>(path2);
-        if (ImGui::CollapsingHeader("3D Models"))
-            renderModelLoad<D3>(path3);
+        if (ImGui::CollapsingHeader("2D Meshes"))
+            renderMeshLoad<D2>(path2);
+        if (ImGui::CollapsingHeader("3D Meshes"))
+            renderMeshLoad<D3>(path3);
     }
     ImGui::End();
 }
@@ -451,8 +450,8 @@ static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Sele
 template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noexcept
 {
     const auto createShape = [&p_Data]() -> TKit::Scope<Shape<D>> {
-        if (p_Data.ShapeToSpawn == MODEL)
-            return p_Data.Model.Model ? TKit::Scope<ModelShape<D>>::Create(p_Data.Model) : nullptr;
+        if (p_Data.ShapeToSpawn == MESH)
+            return p_Data.Mesh.Mesh ? TKit::Scope<MeshShape<D>>::Create(p_Data.Mesh) : nullptr;
         else if (p_Data.ShapeToSpawn == TRIANGLE)
             return TKit::Scope<Triangle<D>>::Create();
         else if (p_Data.ShapeToSpawn == SQUARE)
@@ -496,41 +495,41 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
     };
 
     const bool canSpawnPoly = p_Data.ShapeToSpawn != POLYGON || p_Data.PolygonVertices.GetSize() >= 3;
-    const bool canSpawnModel = p_Data.ShapeToSpawn != MODEL || p_Data.Model.Model;
+    const bool canSpawnMesh = p_Data.ShapeToSpawn != MESH || p_Data.Mesh.Mesh;
     if (!canSpawnPoly)
         ImGui::TextDisabled("A polygon must have at least 3 vertices to spawn!");
-    else if (!canSpawnModel)
-        ImGui::TextDisabled("No valid model has been selected!");
+    else if (!canSpawnMesh)
+        ImGui::TextDisabled("No valid mesh has been selected!");
     else if (ImGui::Button("Spawn##Shape"))
         p_Data.Shapes.Append(createShape());
 
-    if (canSpawnPoly && canSpawnModel)
+    if (canSpawnPoly && canSpawnMesh)
         ImGui::SameLine();
 
     LatticeData<D> &lattice = p_Data.Lattice;
     if constexpr (D == D2)
         lattice.NeedsUpdate |=
             ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                         "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded Square\0\0");
+                         "Mesh\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded Square\0\0");
     else
         lattice.NeedsUpdate |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                                            "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded "
+                                            "Mesh\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded "
                                             "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
 
-    if (p_Data.ShapeToSpawn == MODEL)
+    if (p_Data.ShapeToSpawn == MESH)
     {
-        const auto &models = NamedModel<D>::Get();
-        if (!models.IsEmpty())
+        const auto &meshes = NamedMesh<D>::Get();
+        if (!meshes.IsEmpty())
         {
-            TKit::StaticArray16<const char *> modelNames{};
-            for (const NamedModel<D> &model : models)
-                modelNames.Append(model.Name.c_str());
-            lattice.NeedsUpdate |= ImGui::Combo("Model ID", &p_Data.ModelToSpawn, modelNames.GetData(),
-                                                static_cast<i32>(modelNames.GetSize()));
-            p_Data.Model = models[p_Data.ModelToSpawn];
+            TKit::StaticArray16<const char *> meshNames{};
+            for (const NamedMesh<D> &mesh : meshes)
+                meshNames.Append(mesh.Name.c_str());
+            lattice.NeedsUpdate |= ImGui::Combo("Mesh ID", &p_Data.MeshToSpawn, meshNames.GetData(),
+                                                static_cast<i32>(meshNames.GetSize()));
+            p_Data.Mesh = meshes[p_Data.MeshToSpawn];
         }
         else
-            ImGui::TextDisabled("No models have been loaded yet! Load from the welcome window.");
+            ImGui::TextDisabled("No meshes have been loaded yet! Load from the welcome window.");
     }
     else if (p_Data.ShapeToSpawn == NGON)
         lattice.NeedsUpdate |= ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);

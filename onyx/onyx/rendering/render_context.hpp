@@ -679,40 +679,40 @@ template <Dimension D> class IRenderContext
      */
     void RoundedSquare(const fmat<D> &p_Transform, f32 p_Size, f32 p_Diameter) noexcept;
 
-    // Actually, 2D models could be used in 3D as well. This feature is not implemented yet. If you want a 2D model in a
-    // 3D context, you must load such model as a 3D model
+    // Actually, 2D meshes could be used in 3D as well. This feature is not implemented yet. If you want a 2D mesh in a
+    // 3D context, you must load such mesh as a 3D mesh
 
     /**
      * @brief Draw a mesh model.
      *
-     * @param p_Model The mesh model to draw.
+     * @param p_Mesh The mesh model to draw.
      */
-    void Mesh(const Model<D> &p_Model) noexcept;
+    void Mesh(const Onyx::Mesh<D> &p_Mesh) noexcept;
 
     /**
      * @brief Draw a mesh model with the specified transformation.
      *
      * @param p_Transform The transformation matrix to apply to the model. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
-     * @param p_Model The mesh model to draw.
+     * @param p_Mesh The mesh model to draw.
      */
-    void Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model) noexcept;
+    void Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh) noexcept;
 
     /**
      * @brief Draw a mesh model.
      *
-     * @param p_Model The mesh model to draw.
+     * @param p_Mesh The mesh model to draw.
      */
-    void Mesh(const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
+    void Mesh(const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept;
 
     /**
      * @brief Draw a mesh model with the specified transformation.
      *
-     * @param p_Transform The transformation matrix to apply to the model. This transformation will be applied
+     * @param p_Transform The transformation matrix to apply to the mesh. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
-     * @param p_Model The mesh model to draw.
+     * @param p_Mesh The mesh model to draw.
      */
-    void Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
+    void Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept;
 
     /**
      * @brief Pushes the current transformation state onto the stack.
@@ -928,8 +928,8 @@ template <Dimension D> class IRenderContext
     void drawRoundedSquare(const fmat<D> &p_Transform) noexcept;
     void drawRoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimension, f32 p_Diameter) noexcept;
 
-    void drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model) noexcept;
-    void drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
+    void drawMesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh) noexcept;
+    void drawMesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept;
 
     RenderState<D> *m_State;
     TKit::StaticArray16<TKit::Scope<Camera<D>>> m_Cameras{};

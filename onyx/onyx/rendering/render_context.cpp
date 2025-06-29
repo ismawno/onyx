@@ -1125,53 +1125,55 @@ template <Dimension D> void IRenderContext<D>::Fill(const bool p_Enabled) noexce
     m_State->Fill = p_Enabled;
 }
 
-template <Dimension D> void IRenderContext<D>::drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model) noexcept
+template <Dimension D>
+void IRenderContext<D>::drawMesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh) noexcept
 {
-    const auto fill = [this, &p_Transform, &p_Model](const DrawFlags p_Flags) {
-        m_Renderer.DrawMesh(m_State, p_Transform, p_Model, p_Flags);
+    const auto fill = [this, &p_Transform, &p_Mesh](const DrawFlags p_Flags) {
+        m_Renderer.DrawMesh(m_State, p_Transform, p_Mesh, p_Flags);
     };
-    const auto outline = [this, &p_Transform, &p_Model](const DrawFlags p_Flags) {
+    const auto outline = [this, &p_Transform, &p_Mesh](const DrawFlags p_Flags) {
         fmat<D> transform = p_Transform;
         const f32 scale = 1.f + m_State->OutlineWidth;
         Onyx::Transform<D>::ScaleIntrinsic(transform, fvec<D>{scale});
-        m_Renderer.DrawMesh(m_State, transform, p_Model, p_Flags);
+        m_Renderer.DrawMesh(m_State, transform, p_Mesh, p_Flags);
     };
     resolveDrawFlagsWithState(fill, outline);
 }
 template <Dimension D>
-void IRenderContext<D>::drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model,
+void IRenderContext<D>::drawMesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh,
                                  const fvec<D> &p_Dimensions) noexcept
 {
-    const auto fill = [this, &p_Transform, &p_Model, &p_Dimensions](const DrawFlags p_Flags) {
+    const auto fill = [this, &p_Transform, &p_Mesh, &p_Dimensions](const DrawFlags p_Flags) {
         fmat<D> transform = p_Transform;
         Onyx::Transform<D>::ScaleIntrinsic(transform, p_Dimensions);
-        m_Renderer.DrawMesh(m_State, transform, p_Model, p_Flags);
+        m_Renderer.DrawMesh(m_State, transform, p_Mesh, p_Flags);
     };
-    const auto outline = [this, &p_Transform, &p_Model, &p_Dimensions](const DrawFlags p_Flags) {
+    const auto outline = [this, &p_Transform, &p_Mesh, &p_Dimensions](const DrawFlags p_Flags) {
         fmat<D> transform = p_Transform;
         const f32 width = m_State->OutlineWidth;
         Onyx::Transform<D>::ScaleIntrinsic(transform, p_Dimensions + width);
-        m_Renderer.DrawMesh(m_State, transform, p_Model, p_Flags);
+        m_Renderer.DrawMesh(m_State, transform, p_Mesh, p_Flags);
     };
     resolveDrawFlagsWithState(fill, outline);
 }
 
-template <Dimension D> void IRenderContext<D>::Mesh(const Model<D> &p_Model) noexcept
+template <Dimension D> void IRenderContext<D>::Mesh(const Onyx::Mesh<D> &p_Mesh) noexcept
 {
-    drawMesh(m_State->Transform, p_Model);
+    drawMesh(m_State->Transform, p_Mesh);
 }
-template <Dimension D> void IRenderContext<D>::Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model) noexcept
+template <Dimension D> void IRenderContext<D>::Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh) noexcept
 {
-    drawMesh(p_Transform * m_State->Transform, p_Model);
+    drawMesh(p_Transform * m_State->Transform, p_Mesh);
 }
-template <Dimension D> void IRenderContext<D>::Mesh(const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept
+template <Dimension D> void IRenderContext<D>::Mesh(const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept
 {
-    drawMesh(m_State->Transform, p_Model, p_Dimensions);
+    drawMesh(m_State->Transform, p_Mesh, p_Dimensions);
 }
 template <Dimension D>
-void IRenderContext<D>::Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept
+void IRenderContext<D>::Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh,
+                             const fvec<D> &p_Dimensions) noexcept
 {
-    drawMesh(p_Transform * m_State->Transform, p_Model, p_Dimensions);
+    drawMesh(p_Transform * m_State->Transform, p_Mesh, p_Dimensions);
 }
 
 template <Dimension D> void IRenderContext<D>::Push() noexcept

@@ -182,10 +182,10 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> *p_State, con
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const RenderState<D> *p_State, const fmat4 &p_Transform, const Model<D> &p_Model,
+void IRenderer<D>::DrawMesh(const RenderState<D> *p_State, const fmat4 &p_Transform, const Mesh<D> &p_Mesh,
                             const DrawFlags p_Flags) noexcept
 {
-    draw(m_MeshRenderer, p_State, p_Transform, p_Model, p_Flags);
+    draw(m_MeshRenderer, p_State, p_Transform, p_Mesh, p_Flags);
 }
 
 template <Dimension D>

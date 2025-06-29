@@ -123,9 +123,9 @@ static void RunAppExample2() noexcept
 {
     Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
 
-    const auto result = Onyx::Model<D2>::Load(ONYX_ROOT_PATH "/onyx/models/square.obj");
+    const auto result = Onyx::Mesh<D2>::Load(ONYX_ROOT_PATH "/onyx/meshes/square.obj");
     VKIT_ASSERT_RESULT(result);
-    Onyx::Model<D2> square = result.GetValue();
+    Onyx::Mesh<D2> square = result.GetValue();
     Onyx::RenderContext<D2> *context = app.GetMainWindow()->CreateRenderContext<D2>();
     context->CreateCamera();
 

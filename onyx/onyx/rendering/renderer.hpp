@@ -101,10 +101,10 @@ template <Dimension D> class IRenderer
      * @brief Record a draw call for a mesh model.
      *
      * @param p_Transform The transformation matrix to apply to the mesh.
-     * @param p_Model The mesh model to draw.
+     * @param p_Mesh The mesh model to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawMesh(const RenderState<D> *p_State, const fmat4 &p_Transform, const Model<D> &p_Model,
+    void DrawMesh(const RenderState<D> *p_State, const fmat4 &p_Transform, const Mesh<D> &p_Mesh,
                   DrawFlags p_Flags) noexcept;
 
     /**

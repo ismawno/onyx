@@ -17,7 +17,7 @@ set(SOURCES
     onyx/draw/transform.cpp
     onyx/draw/primitives.cpp
     onyx/draw/data.cpp
-    onyx/draw/model.cpp
+    onyx/draw/mesh.cpp
     onyx/app/app.cpp
     onyx/app/window.cpp
     onyx/app/input.cpp

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/rendering/render_structs.hpp"
-#include "onyx/draw/model.hpp"
+#include "onyx/draw/mesh.hpp"
 #include "onyx/draw/primitives.hpp"
 
 namespace Onyx::Detail
@@ -12,10 +12,10 @@ void ResetDrawCallCount() noexcept;
 #endif
 
 /**
- * @brief Responsible for handling all user draw calls that involve meshes built from a `Model` instance.
+ * @brief Responsible for handling all user draw calls that involve meshes built from a `Mesh` instance.
  *
  * User draw calls will be stored and then recorded in a command buffer when the render step begins.
- * This renderer uses instanced rendering to draw multiple instances of the same model in a single draw call.
+ * This renderer uses instanced rendering to draw multiple instances of the same mesh in a single draw call.
  *
  */
 template <Dimension D, PipelineMode PMode> class MeshRenderer
@@ -30,14 +30,14 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     ~MeshRenderer() noexcept;
 
     /**
-     * @brief Record and store the data needed to draw a model instance. This is an onyx draw call.
+     * @brief Record and store the data needed to draw a mesh instance. This is an onyx draw call.
      *
      * This method does not record any vulkan commands.
      *
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
-     * @param p_Model The model to draw.
+     * @param p_Mesh The mesh to draw.
      */
-    void Draw(const InstanceData &p_InstanceData, const Model<D> &p_Model) noexcept;
+    void Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh) noexcept;
 
     /**
      * @brief Grow all device buffers to fit host data.
@@ -72,7 +72,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     void Flush() noexcept;
 
   private:
-    using MeshHostData = TKit::HashMap<Model<D>, HostStorageBuffer<InstanceData>>;
+    using MeshHostData = TKit::HashMap<Mesh<D>, HostStorageBuffer<InstanceData>>;
     using MeshDeviceData = DeviceData<InstanceData>;
 
     VKit::GraphicsPipeline m_Pipeline{};

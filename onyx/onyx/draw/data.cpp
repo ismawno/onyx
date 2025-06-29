@@ -14,7 +14,7 @@ VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path
 
     if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, p_Path.data()))
         return VKit::FormattedResult<IndexVertexHostData<D>>::Error(
-            VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load model: {}", err + warn));
+            VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load mesh: {}", err + warn));
 
     TKit::HashMap<Vertex<D>, Index> uniqueVertices;
     IndexVertexHostData<D> buffers;

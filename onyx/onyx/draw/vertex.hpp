@@ -11,7 +11,7 @@
 namespace Onyx
 {
 
-// Vertices have no color because they limit my ability to re use a model. I plan to have a single color per rendered
+// Vertices have no color because they limit my ability to re use a mesh. I plan to have a single color per rendered
 // object, so I dont need to store it in the vertex
 template <Dimension D> struct Vertex;
 

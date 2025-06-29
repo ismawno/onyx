@@ -62,9 +62,9 @@ template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer
 }
 
 template <Dimension D, PipelineMode PMode>
-void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Model<D> &p_Model) noexcept
+void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh) noexcept
 {
-    m_HostData[p_Model].Append(p_InstanceData);
+    m_HostData[p_Mesh].Append(p_InstanceData);
     ++m_DeviceInstances;
 }
 
@@ -82,7 +82,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
-    for (const auto &[model, data] : m_HostData)
+    for (const auto &[mesh, data] : m_HostData)
         if (!data.IsEmpty())
         {
             storageBuffer.Write(data, offset);
@@ -146,14 +146,14 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 
     pushConstantData<dlevel>(p_Info);
     u32 firstInstance = 0;
-    for (const auto &[model, data] : m_HostData)
+    for (const auto &[mesh, data] : m_HostData)
         if (!data.IsEmpty())
         {
-            model.Bind(p_Info.CommandBuffer);
-            if (model.HasIndices())
-                model.DrawIndexed(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
+            mesh.Bind(p_Info.CommandBuffer);
+            if (mesh.HasIndices())
+                mesh.DrawIndexed(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
             else
-                model.Draw(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
+                mesh.Draw(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
             INCREASE_DRAW_CALL_COUNT();
             firstInstance += data.GetSize();
         }
@@ -161,7 +161,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
 {
-    for (auto &[model, hostData] : m_HostData)
+    for (auto &[mesh, hostData] : m_HostData)
         hostData.Clear();
     m_DeviceInstances = 0;
 }
