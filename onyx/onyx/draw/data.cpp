@@ -45,17 +45,17 @@ VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path
 
     if constexpr (D == D3)
     {
-        const fmat3 normalMatrix = glm::transpose(glm::inverse(fmat3(p_Transform)));
+        const fmat3 normalMatrix = glm::transpose(glm::inverse(fmat3(*p_Transform)));
         for (Vertex<D> &vertex : buffers.Vertices)
         {
-            vertex.Position = fvec3{p_Transform * fvec4{vertex.Position, 1.f}};
+            vertex.Position = fvec3{*p_Transform * fvec4{vertex.Position, 1.f}};
             vertex.Normal = normalMatrix * vertex.Normal;
         }
     }
     else
         for (Vertex<D> &vertex : buffers.Vertices)
             if constexpr (D == D3)
-                vertex.Position = fvec2{p_Transform * fvec3{vertex.Position, 1.f}};
+                vertex.Position = fvec2{*p_Transform * fvec3{vertex.Position, 1.f}};
     return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
 }
 
@@ -104,8 +104,10 @@ HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(const VkDeviceSize p_Capacit
     return result.GetValue();
 }
 
-template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path) noexcept;
-template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std::string_view p_Path) noexcept;
+template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path,
+                                                                      const fmat<D2> *p_Transform) noexcept;
+template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std::string_view p_Path,
+                                                                      const fmat<D3> *p_Transform) noexcept;
 
 template struct ONYX_API IndexVertexHostData<D2>;
 template struct ONYX_API IndexVertexHostData<D3>;

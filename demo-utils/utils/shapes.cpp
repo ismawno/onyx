@@ -28,6 +28,9 @@ template <Dimension D>
 TKit::StaticArray16<std::string> NamedModel<D>::Query(const std::string_view p_Directory) noexcept
 {
     TKit::StaticArray16<std::string> names;
+    if (!fs::exists(p_Directory))
+        return names;
+
     for (const auto &entry : fs::directory_iterator(p_Directory))
     {
         const auto &path = entry.path();
@@ -46,16 +49,17 @@ template <Dimension D> bool NamedModel<D>::IsLoaded(const std::string_view p_Nam
     return false;
 }
 template <Dimension D>
-VKit::FormattedResult<NamedModel<D>> Load(const std::string_view p_Name, const std::string_view p_Path) noexcept
+VKit::FormattedResult<NamedModel<D>> NamedModel<D>::Load(const std::string_view p_Name, const std::string_view p_Path,
+                                                         const fmat<D> &p_Transform) noexcept
 {
-    const auto result = Onyx::Model<D>::Load(p_Path);
+    const auto result = Onyx::Model<D>::Load(p_Path, &p_Transform);
     if (!result)
         return VKit::FormattedResult<NamedModel<D>>::Error(VKIT_FORMAT_ERROR(
             result.GetError().ErrorCode, "Failed to load model: '{}' - {}", p_Name, result.GetError().ToString()));
 
     Onyx::Model<D> model = result.GetValue();
     Onyx::Core::GetDeletionQueue().Push([model]() mutable { model.Destroy(); });
-    const NamedModel<D> nmodel{p_Name, model};
+    const NamedModel<D> nmodel{std::string(p_Name), model};
 
     auto &models = getModels<D>();
     models.Append(nmodel);

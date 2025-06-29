@@ -212,6 +212,14 @@ template <Dimension D> static void renderModelLoad(const char *p_Path)
     static TKit::Array16<std::string> customNames{};
 
     const auto names = NamedModel<D>::Query(p_Path);
+    if (names.IsEmpty())
+    {
+        ImGui::TextDisabled("No models found at %s", p_Path);
+        return;
+    }
+
+    UserLayer::TransformEditor(transform, UserLayer::Flag_DisplayHelp);
+
     ImGui::PushID(&transform);
     for (u32 i = 0; i < names.GetSize(); ++i)
     {
@@ -222,27 +230,37 @@ template <Dimension D> static void renderModelLoad(const char *p_Path)
 
         ImGui::Spacing();
         ImGui::Text("%s", name.c_str());
-        char input[16];
+        constexpr u32 msize = 15;
+        const u32 csize = static_cast<u32>(cname.size());
+
+        char input[msize + 1];
+        const u32 size = glm::min(csize, msize);
+        for (u32 i = 0; i < size; ++i)
+            input[i] = cname[i];
+        input[size + 1] = '\0';
+
+        ImGui::PushID(&name);
+        if (ImGui::InputText("Model name", input, msize + 1))
+            cname = input;
+
+        // Should consider using fs::path
+        ImGui::SameLine();
+        const bool isLoaded = NamedModel<D>::IsLoaded(cname);
+        if (!isLoaded && ImGui::Button("Load"))
+        {
+            const auto result =
+                NamedModel<D>::Load(cname, std::string(p_Path) + "/" + name, transform.ComputeTransform());
+            if (!result)
+            {
+                const std::string error = result.GetError().ToString();
+                ImGui::Text("Failed to load mesh: %s. Cause: %s", name.c_str(), error.c_str());
+            }
+        }
+        else if (isLoaded)
+            ImGui::TextDisabled("Loaded");
+        ImGui::PopID();
     }
     ImGui::PopID();
-    // static TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> models{};
-    // static bool tried = false;
-    //
-    // ImGui::PushID(&models);
-    // if (ImGui::Button("Load"))
-    // {
-    //     models = NamedModel<D>::Load(p_Path);
-    //     tried = true;
-    // }
-    // if (tried && models.IsEmpty())
-    //     ImGui::Text("No models found in '%s'", p_Path);
-    //
-    // for (const auto &result : models)
-    //     if (result)
-    //         ImGui::BulletText("SUCCESS - %s", result.GetValue().Name.c_str());
-    //     else
-    //         ImGui::BulletText("FAILED - %s", result.GetError().ToString().c_str());
-    // ImGui::PopID();
 }
 
 void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept

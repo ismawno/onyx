@@ -14,7 +14,8 @@ template <Dimension D> struct NamedModel
     static TKit::StaticArray16<std::string> Query(std::string_view p_Directory) noexcept;
 
     static bool IsLoaded(std::string_view p_Name) noexcept;
-    static VKit::FormattedResult<NamedModel<D>> Load(std::string_view p_Name, std::string_view p_Path) noexcept;
+    static VKit::FormattedResult<NamedModel<D>> Load(std::string_view p_Name, std::string_view p_Path,
+                                                     const fmat<D> &p_Transform) noexcept;
 
     std::string Name{};
     Model<D> Model{};

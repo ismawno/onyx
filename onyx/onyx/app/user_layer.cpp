@@ -42,13 +42,14 @@ template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform
         changed |= ImGui::DragFloat3("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
         changed |= ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
 
+        ImGui::Spacing();
+
         fvec3 degrees = glm::degrees(glm::eulerAngles(p_Transform.Rotation));
-        if (ImGui::InputFloat3("Rotation", glm::value_ptr(degrees), ".2f deg"))
+        if (ImGui::InputFloat3("Rotation", glm::value_ptr(degrees), "%.0f deg"))
         {
             p_Transform.Rotation = glm::quat{glm::radians(degrees)};
             changed = true;
         }
-        ImGui::Text("Rotation: (%.2f, %.2f, %.2f) deg", degrees.x, degrees.y, degrees.z);
 
         fvec3 angles{0.f};
         if (ImGui::DragFloat3("Rotate (global)", glm::value_ptr(angles), 0.3f, 0.f, 0.f, "Slide!"))

@@ -113,9 +113,10 @@ template <Dimension D> class Model
      * @brief Loads a model from a file.
      *
      * @param p_Path The file path to load the model from.
+     * @param p_Transform An optional transform to be applied to all vertices of the mesh.
      * @return A result containing the loaded model or an error.
      */
-    static VKit::FormattedResult<Model> Load(std::string_view p_Path) noexcept;
+    static VKit::FormattedResult<Model> Load(std::string_view p_Path, const fmat<D> *p_Transform = nullptr) noexcept;
 
     friend bool operator==(const Model &p_Lhs, const Model &p_Rhs) noexcept
     {

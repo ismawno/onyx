@@ -110,9 +110,10 @@ template <Dimension D> const DeviceLocalIndexBuffer &Model<D>::GetIndexBuffer() 
     return m_IndexBuffer;
 }
 
-template <Dimension D> VKit::FormattedResult<Model<D>> Model<D>::Load(const std::string_view p_Path) noexcept
+template <Dimension D>
+VKit::FormattedResult<Model<D>> Model<D>::Load(const std::string_view p_Path, const fmat<D> *p_Transform) noexcept
 {
-    const auto result = Onyx::Load<D>(p_Path);
+    const auto result = Onyx::Load<D>(p_Path, p_Transform);
     if (!result)
         return VKit::FormattedResult<Model>::Error(result.GetError());
 
