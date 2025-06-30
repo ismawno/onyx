@@ -467,7 +467,7 @@ template <Dimension D> class IRenderContext
      * @brief Draw a polygon defined by the given vertices.
      *
      * The vertices must be in counter-clockwise order, otherwise outlines will not be drawn correctly.
-     * The polygon must be convex and will be affected by the current transformation state.
+     * The polygon will be affected by the current transformation state.
      * The polygon's origin is its transform's position (with respect to the current axes, of course), and so the
      * vertices are expected to be with respect that position.
      *
@@ -477,13 +477,13 @@ template <Dimension D> class IRenderContext
      *
      * @param p_Vertices A span of vertices defining the polygon. Vertices are expected to be centered around zero.
      */
-    void ConvexPolygon(TKit::Span<const fvec2> p_Vertices) noexcept;
+    void Polygon(TKit::Span<const fvec2> p_Vertices) noexcept;
 
     /**
      * @brief Draw a polygon defined by the given vertices with the specified transformation.
      *
      * The vertices must be in counter-clockwise order, otherwise outlines will not be drawn correctly.
-     * The polygon must be convex and will be affected by the current transformation state.
+     * The polygon will be affected by the current transformation state.
      * The polygon's origin is its transform's position (with respect to the current axes, of course).
      *
      * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to
@@ -494,7 +494,7 @@ template <Dimension D> class IRenderContext
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Vertices A span of vertices defining the polygon.
      */
-    void ConvexPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
+    void Polygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
 
     /**
      * @brief Draw a unit circle centered at the origin.
@@ -906,7 +906,7 @@ template <Dimension D> class IRenderContext
     template <Dimension PDim>
     void drawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex, const fvec<PDim> &p_Dimensions) noexcept;
 
-    void drawConvexPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
+    void drawPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
 
     void drawCircle(const fmat<D> &p_Transform, const CircleOptions &p_Options) noexcept;
     void drawCircle(const fmat<D> &p_Transform, const CircleOptions &p_Options, const fvec2 &p_Dimensions) noexcept;

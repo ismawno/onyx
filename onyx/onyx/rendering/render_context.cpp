@@ -395,7 +395,7 @@ void IRenderContext<D>::NGon(const fmat<D> &p_Transform, const u32 p_Sides, cons
 }
 
 template <Dimension D>
-void IRenderContext<D>::drawConvexPolygon(const fmat<D> &p_Transform, const TKit::Span<const fvec2> p_Vertices) noexcept
+void IRenderContext<D>::drawPolygon(const fmat<D> &p_Transform, const TKit::Span<const fvec2> p_Vertices) noexcept
 {
     const auto fill = [this, &p_Transform, p_Vertices](const DrawFlags p_Flags) {
         m_Renderer.DrawPolygon(m_State, computeFinalTransform(p_Transform), p_Vertices, p_Flags);
@@ -423,14 +423,14 @@ void IRenderContext<D>::drawConvexPolygon(const fmat<D> &p_Transform, const TKit
     resolveDrawFlagsWithState(fill, outline);
 }
 
-template <Dimension D> void IRenderContext<D>::ConvexPolygon(const TKit::Span<const fvec2> p_Vertices) noexcept
+template <Dimension D> void IRenderContext<D>::Polygon(const TKit::Span<const fvec2> p_Vertices) noexcept
 {
-    drawConvexPolygon(m_State->Transform, p_Vertices);
+    drawPolygon(m_State->Transform, p_Vertices);
 }
 template <Dimension D>
-void IRenderContext<D>::ConvexPolygon(const fmat<D> &p_Transform, const TKit::Span<const fvec2> p_Vertices) noexcept
+void IRenderContext<D>::Polygon(const fmat<D> &p_Transform, const TKit::Span<const fvec2> p_Vertices) noexcept
 {
-    drawConvexPolygon(p_Transform * m_State->Transform, p_Vertices);
+    drawPolygon(p_Transform * m_State->Transform, p_Vertices);
 }
 
 template <Dimension D>

@@ -11,7 +11,7 @@ enum Shapes2 : u8
     Triangle,
     Square,
     NGon,
-    ConvexPolygon,
+    Polygon,
     Circle,
     Stadium,
     RoundedSquare,

@@ -510,10 +510,10 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
     if constexpr (D == D2)
         lattice.NeedsUpdate |=
             ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                         "Mesh\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded Square\0\0");
+                         "Mesh\0Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded Square\0\0");
     else
         lattice.NeedsUpdate |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                                            "Mesh\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded "
+                                            "Mesh\0Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded "
                                             "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
 
     if (p_Data.ShapeToSpawn == MESH)

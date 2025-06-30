@@ -187,7 +187,7 @@ template <Dimension D> void NGon<D>::Edit() noexcept
 
 template <Dimension D> const char *Polygon<D>::GetName() const noexcept
 {
-    return "Convex Polygon";
+    return "Polygon";
 }
 template <Dimension D> void Polygon<D>::Edit() noexcept
 {
@@ -213,7 +213,7 @@ template <Dimension D> void Polygon<D>::Edit() noexcept
 
 template <Dimension D> void Polygon<D>::draw(RenderContext<D> *p_Context) noexcept
 {
-    p_Context->ConvexPolygon(this->Transform.ComputeTransform(), Vertices);
+    p_Context->Polygon(this->Transform.ComputeTransform(), Vertices);
 }
 
 template <Dimension D> const char *Stadium<D>::GetName() const noexcept
