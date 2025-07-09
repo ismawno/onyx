@@ -3,6 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/rendering/camera.hpp"
+#include "onyx/data/options.hpp"
 #include "tkit/memory/ptr.hpp"
 #include <vulkan/vulkan.h>
 
@@ -18,32 +19,6 @@
 namespace Onyx
 {
 class Window;
-
-template <Dimension D> struct AxesOptions;
-
-template <> struct ONYX_API AxesOptions<D2>
-{
-    f32 Thickness = 0.01f;
-    f32 Size = 50.f;
-};
-template <> struct ONYX_API AxesOptions<D3>
-{
-    f32 Thickness = 0.01f;
-    f32 Size = 50.f;
-    Onyx::Resolution Resolution = Onyx::Resolution::Medium;
-};
-
-struct ONYX_API LineOptions
-{
-    f32 Thickness = 0.01f;
-    Onyx::Resolution Resolution = Onyx::Resolution::Medium;
-};
-
-struct ONYX_API CameraOptions
-{
-    ScreenViewport Viewport{};
-    ScreenScissor Scissor{};
-};
 
 namespace Detail
 {

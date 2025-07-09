@@ -3,6 +3,7 @@
 #include "onyx/data/state.hpp"
 #include "onyx/object/mesh.hpp"
 #include "onyx/object/primitives.hpp"
+#include "onyx/data/options.hpp"
 
 namespace Onyx::Detail
 {

@@ -73,14 +73,6 @@ template <> struct ONYX_API RenderState<D3>
     bool Outline = false;
 };
 
-struct CircleOptions
-{
-    f32 InnerFade = 0.f;
-    f32 OuterFade = 0.f;
-    f32 Hollowness = 0.f;
-    f32 LowerAngle = 0.f;
-    f32 UpperAngle = glm::two_pi<f32>();
-};
 } // namespace Onyx
 
 namespace Onyx::Detail
