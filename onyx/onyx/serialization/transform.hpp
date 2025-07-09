@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/draw/transform.hpp"
+#include "onyx/property/transform.hpp"
 #include "tkit/serialization/yaml/codec.hpp"
 #include "tkit/serialization/yaml/glm.hpp"
 

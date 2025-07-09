@@ -1,8 +1,8 @@
 #pragma once
 
 #include "onyx/rendering/render_context.hpp"
-#include "onyx/draw/transform.hpp"
-#include "onyx/draw/mesh.hpp"
+#include "onyx/property/transform.hpp"
+#include "onyx/object/mesh.hpp"
 #include "tkit/container/static_array.hpp"
 #include <string>
 

@@ -9,15 +9,15 @@ set(SOURCES
     onyx/rendering/render_context.cpp
     onyx/rendering/render_systems.cpp
     onyx/rendering/renderer.cpp
-    onyx/rendering/render_structs.cpp
     onyx/rendering/frame_scheduler.cpp
     onyx/rendering/post_processing.cpp
-    onyx/draw/vertex.cpp
-    onyx/draw/color.cpp
-    onyx/draw/transform.cpp
-    onyx/draw/primitives.cpp
-    onyx/draw/data.cpp
-    onyx/draw/mesh.cpp
+    onyx/data/state.cpp
+    onyx/data/buffers.cpp
+    onyx/property/vertex.cpp
+    onyx/property/color.cpp
+    onyx/property/transform.cpp
+    onyx/object/primitives.cpp
+    onyx/object/mesh.cpp
     onyx/app/app.cpp
     onyx/app/window.cpp
     onyx/app/input.cpp

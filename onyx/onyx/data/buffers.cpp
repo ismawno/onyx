@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/draw/vertex.hpp"
-#include "onyx/draw/data.hpp"
+#include "onyx/property/vertex.hpp"
+#include "onyx/data/buffers.hpp"
 #include <tiny_obj_loader.h>
 
 namespace Onyx

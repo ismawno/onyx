@@ -6,7 +6,7 @@
 #include "onyx/app/user_layer.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/rendering/render_context.hpp"
-#include "onyx/draw/transform.hpp"
+#include "onyx/property/transform.hpp"
 
 namespace Onyx
 {

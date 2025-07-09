@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/draw/vertex.hpp"
+#include "onyx/property/vertex.hpp"
 #include "onyx/core/core.hpp"
 #include "vkit/buffer/device_local_buffer.hpp"
 #include "vkit/buffer/host_visible_buffer.hpp"

@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/frame_scheduler.hpp"
 #include "onyx/app/window.hpp"
-#include "onyx/draw/color.hpp"
+#include "onyx/property/color.hpp"
 #include "onyx/core/shaders.hpp"
 #include "tkit/utils/logging.hpp"
 #include "vulkan/vulkan_core.h"

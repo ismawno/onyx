@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/draw/mesh.hpp"
-#include "onyx/draw/data.hpp"
+#include "onyx/object/mesh.hpp"
+#include "onyx/data/buffers.hpp"
 #include "onyx/core/core.hpp"
 #include "tkit/utils/hash.hpp"
 

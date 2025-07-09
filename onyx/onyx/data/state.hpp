@@ -1,9 +1,9 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/draw/color.hpp"
+#include "onyx/property/color.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/draw/data.hpp"
+#include "onyx/data/buffers.hpp"
 #include "vkit/pipeline/graphics_pipeline.hpp"
 #include <vulkan/vulkan.h>
 

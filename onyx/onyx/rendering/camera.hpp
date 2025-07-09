@@ -1,8 +1,8 @@
 #pragma once
 
-#include "onyx/rendering/render_structs.hpp"
+#include "onyx/data/state.hpp"
 #include "onyx/app/input.hpp"
-#include "onyx/draw/transform.hpp"
+#include "onyx/property/transform.hpp"
 #include "tkit/profiling/timespan.hpp"
 #include "tkit/utils/non_copyable.hpp"
 

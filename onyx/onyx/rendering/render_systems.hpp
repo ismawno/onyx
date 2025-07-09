@@ -1,8 +1,8 @@
 #pragma once
 
-#include "onyx/rendering/render_structs.hpp"
-#include "onyx/draw/mesh.hpp"
-#include "onyx/draw/primitives.hpp"
+#include "onyx/data/state.hpp"
+#include "onyx/object/mesh.hpp"
+#include "onyx/object/primitives.hpp"
 
 namespace Onyx::Detail
 {

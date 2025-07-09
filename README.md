@@ -200,7 +200,7 @@ The Onyx framework includes two basic renderers for drawing simple geometry:
 
 The API uses an immediate mode approach, inspired by the [Processing](https://processing.org) API. Features like `Push()`/`Pop()` are implemented for state management. Examples can be found in the previous sections, where the `RenderContext<D>` class is used (`D` being either `D2` or `D3`).
 
-Onyx also supports meshemeshes rendering through the [Mesh](https://github.com/ismawno/onyx/blob/main/onyx/onyx/draw/mesh.hpp) class. When possible, it uses instance rendering to minimize draw calls.
+Onyx also supports meshemeshes rendering through the [Mesh](https://github.com/ismawno/onyx/blob/main/onyx/onyx/object/mesh.hpp) class. When possible, it uses instance rendering to minimize draw calls.
 
 ### ImGui Usage
 

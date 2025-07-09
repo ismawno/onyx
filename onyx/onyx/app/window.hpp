@@ -3,7 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/app/input.hpp"
-#include "onyx/draw/color.hpp"
+#include "onyx/property/color.hpp"
 #include "onyx/rendering/frame_scheduler.hpp"
 
 #include "tkit/container/storage.hpp"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/draw/data.hpp"
+#include "onyx/data/buffers.hpp"
 
 namespace Onyx
 {

@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/draw/primitives.hpp"
+#include "onyx/object/primitives.hpp"
 #include "onyx/core/core.hpp"
 #include "tkit/container/storage.hpp"
 

@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/draw/vertex.hpp"
+#include "onyx/property/vertex.hpp"
 
 namespace Onyx
 {
