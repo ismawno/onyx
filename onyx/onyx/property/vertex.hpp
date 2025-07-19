@@ -3,6 +3,8 @@
 #include "onyx/core/glm.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/api.hpp"
+#include "tkit/reflection/reflect.hpp"
+#include "tkit/serialization/yaml/serialize.hpp"
 #include "tkit/utils/hash.hpp"
 #include "tkit/container/array.hpp"
 
@@ -17,8 +19,16 @@ template <Dimension D> struct Vertex;
 
 template <> struct ONYX_API Vertex<D2>
 {
+    TKIT_REFLECT_DECLARE(Vertex)
+    TKIT_YAML_SERIALIZE_DECLARE(Vertex)
+
+    TKIT_REFLECT_IGNORE_BEGIN()
+    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr u32 BINDINGS = 1;
     static constexpr u32 ATTRIBUTES = 1;
+    TKIT_REFLECT_IGNORE_END()
+    TKIT_YAML_SERIALIZE_IGNORE_END()
+
     static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions() noexcept;
     static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions() noexcept;
 
@@ -32,8 +42,16 @@ template <> struct ONYX_API Vertex<D2>
 
 template <> struct ONYX_API Vertex<D3>
 {
+    TKIT_REFLECT_DECLARE(Vertex)
+    TKIT_YAML_SERIALIZE_DECLARE(Vertex)
+
+    TKIT_REFLECT_IGNORE_BEGIN()
+    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr u32 BINDINGS = 1;
     static constexpr u32 ATTRIBUTES = 2;
+    TKIT_REFLECT_IGNORE_END()
+    TKIT_YAML_SERIALIZE_IGNORE_END()
+
     static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions() noexcept;
     static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions() noexcept;
 

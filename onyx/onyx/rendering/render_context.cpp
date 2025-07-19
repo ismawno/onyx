@@ -2,7 +2,6 @@
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/app/window.hpp"
-#include "onyx/data/options.hpp"
 
 #include "tkit/utils/math.hpp"
 

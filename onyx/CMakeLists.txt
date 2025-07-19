@@ -60,6 +60,14 @@ FetchContent_Declare(
   GIT_TAG v2.0.0rc13)
 FetchContent_MakeAvailable(tobjl)
 
+tkit_register_for_yaml_serialization(
+  onyx SOURCES onyx/property/transform.hpp onyx/property/vertex.hpp
+  onyx/data/state.hpp onyx/data/options.hpp)
+
+tkit_register_for_reflection(
+  onyx SOURCES onyx/property/transform.hpp onyx/property/vertex.hpp
+  onyx/data/state.hpp onyx/data/options.hpp)
+
 # IMGUI ###
 
 set(IMGUI_SOURCES

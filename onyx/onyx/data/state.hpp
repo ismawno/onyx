@@ -28,11 +28,15 @@ template <Dimension D> struct MaterialData;
 
 template <> struct ONYX_API MaterialData<D2>
 {
+    TKIT_REFLECT_DECLARE(MaterialData)
+    TKIT_YAML_SERIALIZE_DECLARE(MaterialData)
     Color Color = Onyx::Color::WHITE;
 };
 
 template <> struct ONYX_API MaterialData<D3>
 {
+    TKIT_REFLECT_DECLARE(MaterialData)
+    TKIT_YAML_SERIALIZE_DECLARE(MaterialData)
     Color Color = Onyx::Color::WHITE;
     f32 DiffuseContribution = 0.8f;
     f32 SpecularContribution = 0.2f;
@@ -52,6 +56,8 @@ template <Dimension D> struct RenderState;
 
 template <> struct ONYX_API RenderState<D2>
 {
+    TKIT_REFLECT_DECLARE(RenderState)
+    TKIT_YAML_SERIALIZE_DECLARE(RenderState)
     fmat3 Transform{1.f};
     fmat3 Axes{1.f};
     Color OutlineColor = Color::WHITE;
@@ -63,6 +69,8 @@ template <> struct ONYX_API RenderState<D2>
 
 template <> struct ONYX_API RenderState<D3>
 {
+    TKIT_REFLECT_DECLARE(RenderState)
+    TKIT_YAML_SERIALIZE_DECLARE(RenderState)
     fmat4 Transform{1.f};
     fmat4 Axes{1.f};
     Color OutlineColor = Color::WHITE;

@@ -5,6 +5,8 @@
 #include "onyx/property/transform.hpp"
 #include "tkit/profiling/timespan.hpp"
 #include "tkit/utils/non_copyable.hpp"
+#include "tkit/reflection/reflect.hpp"
+#include "tkit/serialization/yaml/serialize.hpp"
 
 namespace Onyx
 {
@@ -27,11 +29,15 @@ template <Dimension D> struct ProjectionViewData;
 
 template <> struct ONYX_API ProjectionViewData<D2>
 {
+    TKIT_REFLECT_DECLARE(ProjectionViewData)
+    TKIT_YAML_SERIALIZE_DECLARE(ProjectionViewData)
     Transform<D2> View{};
     fmat3 ProjectionView{1.f};
 };
 template <> struct ONYX_API ProjectionViewData<D3>
 {
+    TKIT_REFLECT_DECLARE(ProjectionViewData)
+    TKIT_YAML_SERIALIZE_DECLARE(ProjectionViewData)
     Transform<D3> View{};
     fmat4 Projection{1.f};
     fmat4 ProjectionView{1.f};
@@ -46,6 +52,8 @@ template <> struct ONYX_API ProjectionViewData<D3>
  */
 struct ONYX_API ScreenViewport
 {
+    TKIT_REFLECT_DECLARE(ScreenViewport)
+    TKIT_YAML_SERIALIZE_DECLARE(ScreenViewport)
     fvec2 Min{-1.f};
     fvec2 Max{1.f};
     fvec2 DepthBounds{0.f, 1.f};
@@ -68,6 +76,8 @@ struct ONYX_API ScreenViewport
  */
 struct ONYX_API ScreenScissor
 {
+    TKIT_REFLECT_DECLARE(ScreenScissor)
+    TKIT_YAML_SERIALIZE_DECLARE(ScreenScissor)
     fvec2 Min{-1.f};
     fvec2 Max{1.f};
 
