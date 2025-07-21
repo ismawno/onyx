@@ -16,7 +16,7 @@ namespace Onyx::Perf
 template <Dimension D> class Layer : public UserLayer
 {
   public:
-    Layer(Application *p_Application) noexcept;
+    Layer(Application *p_Application, TKit::Span<const Lattice<D>> p_Lattices) noexcept;
 
     void OnStart() noexcept override;
     void OnRender(u32, VkCommandBuffer) noexcept override;
@@ -27,6 +27,6 @@ template <Dimension D> class Layer : public UserLayer
     Window *m_Window;
     RenderContext<D> *m_Context;
     Camera<D> *m_Camera;
-    Lattice<D> m_Lattice{};
+    TKit::StaticArray8<Lattice<D>> m_Lattices{};
 };
 } // namespace Onyx::Perf
