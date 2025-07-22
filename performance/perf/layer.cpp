@@ -21,7 +21,7 @@ template <Dimension D> void Layer<D>::OnStart() noexcept
     {
         m_Camera->SetPerspectiveProjection();
         Transform<D3> transform{};
-        transform.Translation = {2.f, 0.75f, 2.f};
+        transform.Translation = 3.f * fvec3{2.f, 0.75f, 2.f};
         transform.Rotation = glm::quat{glm::radians(fvec3{-15.f, 45.f, -4.f})};
         m_Camera->SetView(transform);
     }
@@ -42,14 +42,18 @@ template <Dimension D> void Layer<D>::OnRender(const u32, const VkCommandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Perf::OnRender");
     const auto timestep = m_Application->GetDeltaTime();
-    m_Camera->ControlMovementWithUserInput(timestep);
+    m_Camera->ControlMovementWithUserInput(3.f * timestep);
     if (ImGui::Begin("Info"))
         UserLayer::DisplayFrameTime(timestep);
     ImGui::End();
 
     m_Context->Flush();
     if constexpr (D == D3)
+    {
         m_Context->Axes({.Thickness = 0.05f});
+        m_Context->LightColor(Color::WHITE);
+        m_Context->DirectionalLight(fvec3{1.f}, 0.55f);
+    }
 
     for (const Lattice<D> &lattice : m_Lattices)
         lattice.Render(m_Context);

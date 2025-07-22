@@ -67,7 +67,8 @@ tkit_register_for_yaml_serialization(
   onyx/property/vertex.hpp
   onyx/data/state.hpp
   onyx/data/options.hpp
-  onyx/rendering/camera.hpp)
+  onyx/rendering/camera.hpp
+  onyx/object/primitives.hpp)
 
 tkit_register_for_reflection(
   onyx

@@ -111,7 +111,7 @@ template <Dimension D> struct Lattice
     f32 Length = 1.f;
     Resolution Res = Resolution::Medium;
 
-    f32 Separation = 1.f;
+    f32 Separation = 2.5f;
     bool Multithread = false;
     TKIT_YAML_SERIALIZE_GROUP_END()
 };
