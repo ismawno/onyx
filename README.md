@@ -6,7 +6,7 @@ I have very little experience with graphics programming. This project represents
 
 Given this and the reasonably small scope of this project, one could argue that OpenGL might have been a better option. However, I decided against it for two main reasons:
 
-1. OpenGL is deprecated in macOS, and I use macOS as my main coding environment.
+1. OpenGL is deprecated in macOS, and I use macOS as my main coding environment. EDIT - I know use linux, but I want good macOS support as well.
 2. Vulkan is growing more popular every year due to its versatility and optimization opportunities. Since I am starting graphics programming now, I might as well learn a modern API. I can’t help but feel that learning an API I don't think is "the best" would be a waste of time (arguably, a subjective argument, but that’s how I feel).
 
 ## Features
@@ -17,6 +17,8 @@ The three main features I consider the most valuable are:
 - Built-in support for ImGui and ImPlot.
 
 ### Window API
+
+**Note:** All examples will use the 2D API. 3D is almost identical and can be accessed by changing the template argument from `D2` to `D3`.
 
 This is the simplest use case of the Onyx framework, allowing you to get a window up and running very quickly. It is also highly customizable, as it doesn’t require the application interface to work. However, some higher-level features, such as ImGui, are not included by default (you will have to manually set up the ImGui backend, which I highly discourage. If you want to use ImGui, refer to the [Application API](#application-api) section).
 
@@ -113,7 +115,7 @@ const VKit::GraphicsJob job = SetupCustomPipeline(window);
 SetPostProcessing(window);
 
 Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
-context->CreateCamera();
+context->CreateCamera()->Transparent = true;
 while (!window.ShouldClose())
 {
     Onyx::Input::PollEvents();

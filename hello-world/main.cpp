@@ -1,7 +1,6 @@
 #include "onyx/app/app.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/core/shaders.hpp"
-#include "onyx/rendering/camera.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -95,7 +94,7 @@ static void RunStandaloneWindowCustomPipeline() noexcept
     const VKit::GraphicsJob job = SetupCustomPipeline(window);
     SetPostProcessing(window);
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
-    context->CreateCamera();
+    context->CreateCamera()->Transparent = true;
 
     while (!window.ShouldClose())
     {
