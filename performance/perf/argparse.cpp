@@ -1,5 +1,6 @@
 #include "perf/argparse.hpp"
 #include "onyx/core/core.hpp"
+#include "onyx/serialization/color.hpp"
 #include "tkit/serialization/yaml/container.hpp"
 #include "tkit/serialization/yaml/glm.hpp"
 #include "tkit/serialization/yaml/onyx/rendering/camera.hpp"
@@ -74,10 +75,10 @@ ParseResult ParseArguments(int argc, char **argv)
         const auto settings = TKit::Yaml::FromFile(*path);
         result.Dim = settings["Dimension"].as<Dimension>();
         if (result.Dim == D2)
-            for (const TKit::Yaml::Node &node : settings)
+            for (const TKit::Yaml::Node &node : settings["Lattices"])
                 result.Lattices2.Append(node.as<Lattice<D2>>());
         else
-            for (const TKit::Yaml::Node &node : settings)
+            for (const TKit::Yaml::Node &node : settings["Lattices"])
                 result.Lattices3.Append(node.as<Lattice<D3>>());
     }
     else if (parser.get<bool>("--export"))

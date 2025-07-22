@@ -11,6 +11,7 @@ template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) cons
 {
     const fvec<D> offset = Transform.Translation;
     const fmat<D> transform = Transform.ComputeTransform();
+    p_Context->Fill(Color);
     if constexpr (D == D2)
         switch (Shape)
         {
@@ -41,7 +42,7 @@ template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) cons
         case Shapes2::Circle:
             Run([this, p_Context, &offset, &transform](const fvec2 &p_Pos) {
                 const auto t = setPos<D2>(transform, p_Pos + offset);
-                p_Context->Circle(t, Diameter, Options);
+                p_Context->Circle(t, Diameter, CircleOptions);
             });
             return;
         case Shapes2::Stadium:
@@ -95,7 +96,7 @@ template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) cons
         case Shapes3::Circle:
             Run([this, p_Context, &offset, &transform](const fvec3 &p_Pos) {
                 const auto t = setPos<D3>(transform, p_Pos + offset);
-                p_Context->Circle(t, Diameter, Options);
+                p_Context->Circle(t, Diameter, CircleOptions);
             });
             return;
         case Shapes3::Stadium:

@@ -142,6 +142,12 @@ fvec2 Camera<D2>::GetWorldMousePosition() const noexcept
 {
     return ScreenToWorld(Input::GetScreenMousePosition(m_Window));
 }
+void Camera<D2>::SetSize(const f32 p_Size) noexcept
+{
+    const f32 aspect = m_ProjectionView.View.Scale.x / m_ProjectionView.View.Scale.x;
+    m_ProjectionView.View.Scale.x = p_Size * aspect;
+    m_ProjectionView.View.Scale.y = p_Size;
+}
 fvec3 Camera<D3>::GetWorldMousePosition(const f32 p_Depth) const noexcept
 {
     return ScreenToWorld(fvec3{Input::GetScreenMousePosition(m_Window), p_Depth});
@@ -218,6 +224,13 @@ void Camera<D3>::SetPerspectiveProjection(const f32 p_FieldOfView, const f32 p_N
 
 void Camera<D3>::SetOrthographicProjection() noexcept
 {
+    SetProjection(fmat4{1.f});
+}
+void Camera<D3>::SetOrthographicProjection(const f32 p_Size) noexcept
+{
+    const f32 aspect = m_ProjectionView.View.Scale.x / m_ProjectionView.View.Scale.x;
+    m_ProjectionView.View.Scale.x = p_Size * aspect;
+    m_ProjectionView.View.Scale.y = p_Size;
     SetProjection(fmat4{1.f});
 }
 

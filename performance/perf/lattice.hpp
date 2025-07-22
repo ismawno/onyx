@@ -8,9 +8,9 @@
 
 namespace Onyx::Perf
 {
-enum class Shapes2 : u16
+enum class Shapes2 : u8
 {
-    Triangle,
+    Triangle = 0,
     Square,
     NGon,
     Polygon,
@@ -19,9 +19,9 @@ enum class Shapes2 : u16
     RoundedSquare,
     Mesh,
 };
-enum class Shapes3 : u16
+enum class Shapes3 : u8
 {
-    Triangle,
+    Triangle = 0,
     Square,
     NGon,
     Polygon,
@@ -80,7 +80,7 @@ template <Dimension D> struct Lattice
                     for (u32 k = 0; k < LatticeDims.z; ++k)
                     {
                         const f32 z = static_cast<f32>(k) * Separation;
-                        const fvec3 pos = fvec3{x, y, z};
+                        const fvec3 pos = fvec3{x, y, z} - midPoint;
                         std::forward<F>(p_Func)(pos);
                     }
             }
@@ -93,6 +93,7 @@ template <Dimension D> struct Lattice
 
     Transform<D> Transform{};
     ShapeType<D> Shape = ShapeType<D>::Triangle;
+    Onyx::Color Color = Onyx::Color::WHITE;
 
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     Mesh<D> Mesh{};
@@ -102,7 +103,7 @@ template <Dimension D> struct Lattice
 
     TKIT_YAML_SERIALIZE_GROUP_BEGIN("Optionals", "--skip-if-missing")
     std::string MeshPath{};
-    CircleOptions Options{};
+    CircleOptions CircleOptions{};
     fvec<D> ShapeSize{1.f};
     TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> Vertices{{0.5f, -0.3f}, {0.f, 0.3f}, {-0.5f, -0.3f}};
     u32 NGonSides = 3;

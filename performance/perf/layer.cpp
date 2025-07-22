@@ -16,6 +16,7 @@ template <Dimension D> void Layer<D>::OnStart() noexcept
     m_Window = m_Application->GetMainWindow();
     m_Context = m_Window->CreateRenderContext<D>();
     m_Camera = m_Context->CreateCamera();
+    m_Window->SetPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR);
     if constexpr (D == D3)
     {
         m_Camera->SetPerspectiveProjection();
@@ -24,6 +25,8 @@ template <Dimension D> void Layer<D>::OnStart() noexcept
         transform.Rotation = glm::quat{glm::radians(fvec3{-15.f, 45.f, -4.f})};
         m_Camera->SetView(transform);
     }
+    else
+        m_Camera->SetSize(10.f);
     for (Lattice<D> &lattice : m_Lattices)
         if (lattice.Shape == ShapeType<D>::Mesh)
         {
@@ -39,8 +42,14 @@ template <Dimension D> void Layer<D>::OnRender(const u32, const VkCommandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Perf::OnRender");
     const auto timestep = m_Application->GetDeltaTime();
-    UserLayer::DisplayFrameTime(timestep);
-    m_Context->Axes();
+    m_Camera->ControlMovementWithUserInput(timestep);
+    if (ImGui::Begin("Info"))
+        UserLayer::DisplayFrameTime(timestep);
+    ImGui::End();
+
+    m_Context->Flush();
+    if constexpr (D == D3)
+        m_Context->Axes({.Thickness = 0.05f});
 
     for (const Lattice<D> &lattice : m_Lattices)
         lattice.Render(m_Context);

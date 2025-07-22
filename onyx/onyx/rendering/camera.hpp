@@ -263,6 +263,8 @@ template <> class ONYX_API Camera<D2> final : public Detail::ICamera<D2>
      * @return The mouse position in the camera's rendering context coordinates.
      */
     fvec2 GetWorldMousePosition() const noexcept;
+
+    void SetSize(f32 p_Size) noexcept;
 };
 
 template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
@@ -304,6 +306,16 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
     void SetPerspectiveProjection(f32 p_FieldOfView = glm::radians(75.f), f32 p_Near = 0.1f,
                                   f32 p_Far = 100.f) noexcept;
 
+    /**
+     * @brief Set a basic orthographic projection.
+     */
     void SetOrthographicProjection() noexcept;
+
+    /**
+     * @brief Set a basic orthographic projection.
+     *
+     * @param p_Size The size of the camera, respecting the current aspect ratio.
+     */
+    void SetOrthographicProjection(f32 p_Size) noexcept;
 };
 } // namespace Onyx
