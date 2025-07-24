@@ -60,6 +60,11 @@ ParseResult ParseArguments(int argc, char **argv)
         "In case the --export option is set, choose to run the 3D default lattice. "
         "Will be ignored if --export is not set.");
 
+    parser.add_argument("-r", "--run-time")
+        .scan<'f', f32>()
+        .help("The amount of time the program will run for in seconds. If not "
+              "specified, the simulation will run indefinitely.");
+
     try
     {
         parser.parse_args(argc, argv);
@@ -98,6 +103,14 @@ ParseResult ParseArguments(int argc, char **argv)
         exportLatticeToFile(l2, result);
         exportLatticeToFile(l3, result);
     }
+
+    if (const auto rt = parser.present<f32>("--run-time"))
+    {
+        result.RunTime = *rt;
+        result.HasRuntime = true;
+    }
+    else
+        result.HasRuntime = false;
 
     return result;
 }

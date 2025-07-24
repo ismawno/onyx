@@ -25,6 +25,13 @@ set(SOURCES
     onyx/app/theme.cpp)
 
 add_library(onyx STATIC ${SOURCES})
+if(UNIX AND NOT APPLE)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(FONTCONFIG REQUIRED fontconfig)
+
+  target_include_directories(onyx PRIVATE ${FONTCONFIG_INCLUDE_DIRS})
+  target_link_libraries(onyx PRIVATE ${FONTCONFIG_LIBRARIES})
+endif()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -87,7 +94,7 @@ set(IMGUI_SOURCES
     ${imgui_SOURCE_DIR}/imgui_draw.cpp
     ${imgui_SOURCE_DIR}/imgui_tables.cpp
     ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    onyx/vendor/imgui_impl_glfw.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
 
 find_package(Vulkan REQUIRED)

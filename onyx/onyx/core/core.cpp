@@ -11,6 +11,9 @@
 #include "onyx/core/glfw.hpp"
 #include "vkit/vulkan/allocator.hpp"
 #include "vkit/vulkan/vulkan.hpp"
+#ifdef TKIT_OS_LINUX
+#    include <fontconfig/fontconfig.h>
+#endif
 
 namespace Onyx
 {
@@ -184,6 +187,10 @@ static void createShaders() noexcept
 void Core::Initialize(TKit::ITaskManager *p_TaskManager, Initializer *p_Initializer) noexcept
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan instance");
+#ifdef TKIT_OS_LINUX
+    FcInit();
+#endif
+
     s_TaskManager = p_TaskManager;
     s_Initializer = p_Initializer;
 

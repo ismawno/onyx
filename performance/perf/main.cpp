@@ -13,7 +13,17 @@ void RunApp(const Onyx::Perf::ParseResult &p_Args) noexcept
         app.SetUserLayer<Onyx::Perf::Layer<Onyx::Dimension::D2>>(&app, p_Args.Lattices2);
     else
         app.SetUserLayer<Onyx::Perf::Layer<Onyx::Dimension::D3>>(&app, p_Args.Lattices3);
-    app.Run();
+    if (!p_Args.HasRuntime)
+        app.Run();
+    else
+    {
+        app.Startup();
+        TKit::Clock frameClock{};
+        TKit::Clock runTimeClock{};
+        while (runTimeClock.GetElapsed().AsSeconds() < p_Args.RunTime && app.NextFrame(frameClock))
+            ;
+        app.Shutdown();
+    }
 }
 
 int main(int argc, char **argv)
