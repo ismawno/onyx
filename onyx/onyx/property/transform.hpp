@@ -3,6 +3,8 @@
 #include "onyx/core/api.hpp"
 #include "onyx/core/glm.hpp"
 #include "onyx/core/dimension.hpp"
+#include "tkit/reflection/reflect.hpp"
+#include "tkit/serialization/yaml/serialize.hpp"
 
 namespace Onyx
 {
@@ -282,6 +284,8 @@ template <Dimension D> struct Transform;
  */
 template <> struct ONYX_API Transform<D3> : ITransform<D3>
 {
+    TKIT_REFLECT_DECLARE(Transform, ITransform<D3>)
+    TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D3>)
     using ITransform<D3>::Extract;
 
     /**
@@ -380,6 +384,8 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
  */
 template <> struct ONYX_API Transform<D2> : ITransform<D2>
 {
+    TKIT_REFLECT_DECLARE(Transform, ITransform<D2>)
+    TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D2>)
     using ITransform<D2>::Extract;
 
     /**

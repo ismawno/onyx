@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/draw/color.hpp"
+#include "onyx/property/color.hpp"
 #include "tkit/utils/logging.hpp"
 #include "tkit/utils/math.hpp"
 #include <sstream>

@@ -1,6 +1,6 @@
 #include "onyx/app/app.hpp"
+#include "onyx/app/window.hpp"
 #include "onyx/core/shaders.hpp"
-#include "tkit/utils/literals.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -13,6 +13,7 @@ static void RunStandaloneWindow() noexcept
 {
     Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
+    context->CreateCamera();
 
     while (!window.ShouldClose())
     {
@@ -93,6 +94,7 @@ static void RunStandaloneWindowCustomPipeline() noexcept
     const VKit::GraphicsJob job = SetupCustomPipeline(window);
     SetPostProcessing(window);
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
+    context->CreateCamera()->Transparent = true;
 
     while (!window.ShouldClose())
     {
@@ -120,10 +122,11 @@ static void RunAppExample2() noexcept
 {
     Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
 
-    const auto result = Onyx::Model<D2>::Load(ONYX_ROOT_PATH "/onyx/models/square.obj");
+    const auto result = Onyx::Mesh<D2>::Load(ONYX_ROOT_PATH "/onyx/meshes/square.obj");
     VKIT_ASSERT_RESULT(result);
-    Onyx::Model<D2> square = result.GetValue();
+    Onyx::Mesh<D2> square = result.GetValue();
     Onyx::RenderContext<D2> *context = app.GetMainWindow()->CreateRenderContext<D2>();
+    context->CreateCamera();
 
     TKit::Clock clock;
     app.Startup();

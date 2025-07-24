@@ -1,19 +1,20 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/draw/data.hpp"
+#include "onyx/property/vertex.hpp"
+#include "onyx/data/buffers.hpp"
 #include <tiny_obj_loader.h>
 
 namespace Onyx
 {
-template <Dimension D> VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path) noexcept
+template <Dimension D>
+VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path, const fmat<D> *p_Transform) noexcept
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, p_Path.data()))
+    if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, p_Path.data()))
         return VKit::FormattedResult<IndexVertexHostData<D>>::Error(
-            VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load model: {}", err + warn));
+            VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load mesh: {}", err + warn));
 
     TKit::HashMap<Vertex<D>, Index> uniqueVertices;
     IndexVertexHostData<D> buffers;
@@ -39,6 +40,22 @@ template <Dimension D> VKit::FormattedResult<IndexVertexHostData<D>> Load(const 
             }
             buffers.Indices.Append(uniqueVertices[vertex]);
         }
+    if (!p_Transform)
+        return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
+
+    if constexpr (D == D3)
+    {
+        const fmat3 normalMatrix = glm::transpose(glm::inverse(fmat3(*p_Transform)));
+        for (Vertex<D> &vertex : buffers.Vertices)
+        {
+            vertex.Position = fvec3{*p_Transform * fvec4{vertex.Position, 1.f}};
+            vertex.Normal = normalMatrix * vertex.Normal;
+        }
+    }
+    else
+        for (Vertex<D> &vertex : buffers.Vertices)
+            if constexpr (D == D3)
+                vertex.Position = fvec2{*p_Transform * fvec3{vertex.Position, 1.f}};
     return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
 }
 
@@ -87,8 +104,10 @@ HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(const VkDeviceSize p_Capacit
     return result.GetValue();
 }
 
-template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path) noexcept;
-template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std::string_view p_Path) noexcept;
+template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path,
+                                                                      const fmat<D2> *p_Transform) noexcept;
+template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std::string_view p_Path,
+                                                                      const fmat<D3> *p_Transform) noexcept;
 
 template struct ONYX_API IndexVertexHostData<D2>;
 template struct ONYX_API IndexVertexHostData<D3>;

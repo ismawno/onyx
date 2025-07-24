@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/draw/color.hpp"
+#include "onyx/property/color.hpp"
 #include "tkit/serialization/yaml/codec.hpp"
 
 template <> struct TKit::Yaml::Codec<Onyx::Color>
@@ -26,10 +26,10 @@ template <> struct TKit::Yaml::Codec<Onyx::Color>
         }
         if (p_Node.IsSequence())
         {
-            TKIT_ASSERT(p_Node.GetSize() == 3 || p_Node.GetSize() == 4, "[ONYX] Invalid RGB(A) color");
-            if (p_Node.GetSize() == 3)
+            TKIT_ASSERT(p_Node.size() == 3 || p_Node.size() == 4, "[ONYX] Invalid RGB(A) color");
+            if (p_Node.size() == 3)
                 p_Color = Onyx::Color{p_Node[0].as<f32>(), p_Node[1].as<f32>(), p_Node[2].as<f32>()};
-            else if (p_Node.GetSize() == 4)
+            else if (p_Node.size() == 4)
                 p_Color =
                     Onyx::Color{p_Node[0].as<f32>(), p_Node[1].as<f32>(), p_Node[2].as<f32>(), p_Node[3].as<f32>()};
             return true;

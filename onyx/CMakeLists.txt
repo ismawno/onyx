@@ -9,15 +9,15 @@ set(SOURCES
     onyx/rendering/render_context.cpp
     onyx/rendering/render_systems.cpp
     onyx/rendering/renderer.cpp
-    onyx/rendering/render_structs.cpp
     onyx/rendering/frame_scheduler.cpp
     onyx/rendering/post_processing.cpp
-    onyx/draw/vertex.cpp
-    onyx/draw/color.cpp
-    onyx/draw/transform.cpp
-    onyx/draw/primitives.cpp
-    onyx/draw/data.cpp
-    onyx/draw/model.cpp
+    onyx/data/state.cpp
+    onyx/data/buffers.cpp
+    onyx/property/vertex.cpp
+    onyx/property/color.cpp
+    onyx/property/transform.cpp
+    onyx/object/primitives.cpp
+    onyx/object/mesh.cpp
     onyx/app/app.cpp
     onyx/app/window.cpp
     onyx/app/input.cpp
@@ -25,6 +25,13 @@ set(SOURCES
     onyx/app/theme.cpp)
 
 add_library(onyx STATIC ${SOURCES})
+if(UNIX AND NOT APPLE)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(FONTCONFIG REQUIRED fontconfig)
+
+  target_include_directories(onyx PRIVATE ${FONTCONFIG_INCLUDE_DIRS})
+  target_link_libraries(onyx PRIVATE ${FONTCONFIG_LIBRARIES})
+endif()
 
 include(FetchContent)
 FetchContent_Declare(
@@ -60,6 +67,25 @@ FetchContent_Declare(
   GIT_TAG v2.0.0rc13)
 FetchContent_MakeAvailable(tobjl)
 
+tkit_register_for_yaml_serialization(
+  onyx
+  SOURCES
+  onyx/property/transform.hpp
+  onyx/property/vertex.hpp
+  onyx/data/state.hpp
+  onyx/data/options.hpp
+  onyx/rendering/camera.hpp
+  onyx/object/primitives.hpp)
+
+tkit_register_for_reflection(
+  onyx
+  SOURCES
+  onyx/property/transform.hpp
+  onyx/property/vertex.hpp
+  onyx/data/state.hpp
+  onyx/data/options.hpp
+  onyx/rendering/camera.hpp)
+
 # IMGUI ###
 
 set(IMGUI_SOURCES
@@ -68,13 +94,14 @@ set(IMGUI_SOURCES
     ${imgui_SOURCE_DIR}/imgui_draw.cpp
     ${imgui_SOURCE_DIR}/imgui_tables.cpp
     ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+    onyx/vendor/imgui_impl_glfw.cpp
     ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
 
 find_package(Vulkan REQUIRED)
 add_library(imgui STATIC ${IMGUI_SOURCES})
 
-target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR})
+target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR}
+                                        ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(imgui PUBLIC glfw)
 target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
 
@@ -111,12 +138,7 @@ target_precompile_headers(onyx PRIVATE
                           ${CMAKE_CURRENT_SOURCE_DIR}/onyx/core/pch.hpp)
 target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
-if(MSVC)
-  tkit_configure_compile_link_options(onyx FLAGS /W4 /WX)
-else()
-  tkit_configure_compile_link_options(onyx FLAGS -Wall -Wextra -Wpedantic
-                                      -Werror)
-endif()
+tkit_default_configure(onyx)
 
 tkit_configure_compile_link_options(glm FORBID_SANITIZERS)
 tkit_configure_compile_link_options(glfw FORBID_SANITIZERS)
@@ -125,4 +147,3 @@ tkit_configure_compile_link_options(tinyobjloader FORBID_SANITIZERS)
 
 # No need for more: toolkit handles the rest. As it is a library I develop, I
 # will be reusing its macros/configurations
-

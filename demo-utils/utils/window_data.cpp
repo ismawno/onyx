@@ -10,7 +10,7 @@
 #include <implot.h>
 
 // dirty macros as lazy enums lol
-#define MODEL 0
+#define MESH 0
 #define TRIANGLE 1
 #define SQUARE 2
 #define CIRCLE 3
@@ -183,7 +183,10 @@ template <Dimension D> static void processEvent(ContextDataContainer<D> &p_Conta
                     ContextData<D> &data = p_Container.Data[i];
                     Camera<D> *camera = data.Cameras[j].Camera;
                     if (p_Event.Type == Event::MousePressed && p_Container.Data[i].ShapeToSpawn == POLYGON)
+                    {
                         data.PolygonVertices.Append(camera->GetWorldMousePosition());
+                        data.Lattice.NeedsUpdate = true;
+                    }
 
                     else if (p_Event.Type == Event::Scrolled)
                     {
@@ -203,25 +206,60 @@ void WindowData::OnEvent(const Event &p_Event) noexcept
     processEvent(m_ContextData3, p_Event);
 }
 
-template <Dimension D> static void renderModelLoad(const char *p_Path)
+template <Dimension D> static void renderMeshLoad(const char *p_Path)
 {
-    static TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> models{};
-    static bool tried = false;
+    static Transform<D> transform{};
+    static TKit::Array16<std::string> customNames{};
 
-    ImGui::PushID(&models);
-    if (ImGui::Button("Load"))
+    const auto names = NamedMesh<D>::Query(p_Path);
+    if (names.IsEmpty())
     {
-        models = NamedModel<D>::Load(p_Path);
-        tried = true;
+        ImGui::TextDisabled("No meshes found at %s", p_Path);
+        return;
     }
-    if (tried && models.IsEmpty())
-        ImGui::Text("No models found in '%s'", p_Path);
 
-    for (const auto &result : models)
-        if (result)
-            ImGui::BulletText("SUCCESS - %s", result.GetValue().Name.c_str());
-        else
-            ImGui::BulletText("FAILED - %s", result.GetError().ToString().c_str());
+    UserLayer::TransformEditor(transform, UserLayer::Flag_DisplayHelp);
+
+    ImGui::PushID(&transform);
+    for (u32 i = 0; i < names.GetSize(); ++i)
+    {
+        const std::string &name = names[i];
+        std::string &cname = customNames[i];
+        if (cname.empty())
+            cname = name;
+
+        ImGui::Spacing();
+        ImGui::Text("%s", name.c_str());
+        constexpr u32 msize = 15;
+        const u32 csize = static_cast<u32>(cname.size());
+
+        char input[msize + 1];
+        const u32 size = glm::min(csize, msize);
+        for (u32 i = 0; i < size; ++i)
+            input[i] = cname[i];
+        input[size + 1] = '\0';
+
+        ImGui::PushID(&name);
+        if (ImGui::InputText("Mesh name", input, msize + 1))
+            cname = input;
+
+        // Should consider using fs::path
+        ImGui::SameLine();
+        const bool isLoaded = NamedMesh<D>::IsLoaded(cname);
+        if (!isLoaded && ImGui::Button("Load"))
+        {
+            const auto result =
+                NamedMesh<D>::Load(cname, std::string(p_Path) + "/" + name, transform.ComputeTransform());
+            if (!result)
+            {
+                const std::string error = result.GetError().ToString();
+                ImGui::Text("Failed to load mesh: %s. Cause: %s", name.c_str(), error.c_str());
+            }
+        }
+        else if (isLoaded)
+            ImGui::TextDisabled("Loaded");
+        ImGui::PopID();
+    }
     ImGui::PopID();
 }
 
@@ -244,16 +282,20 @@ void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
 
         ImGui::TextLinkOpenURL("My GitHub", "https://github.com/ismawno");
 
-        const char *path2 = ONYX_ROOT_PATH "/demo-utils/models2/";
-        const char *path3 = ONYX_ROOT_PATH "/demo-utils/models3/";
-        ImGui::TextWrapped("You may load models for this demo to use located in the '%s' and '%s' paths, for 2D and 3D "
-                           "models respectively.",
-                           path2, path3);
+        const char *path2 = ONYX_ROOT_PATH "/demo-utils/meshes2/";
+        const char *path3 = ONYX_ROOT_PATH "/demo-utils/meshes3/";
+        ImGui::TextWrapped(
+            "You may load meshes for this demo to use located in the '%s' and '%s' paths, for 2D and 3D "
+            "meshes respectively. Take into account that meshes may have been created with a different coordinate "
+            "system or unit scaling values. In Onyx, shapes with unit transforms are supposed to be centered around "
+            "zero with a cartesian coordinate system and size (from end to end) of 1. That is why you may apply a "
+            "transform before loading a specific mesh.",
+            path2, path3);
 
-        if (ImGui::CollapsingHeader("2D Models"))
-            renderModelLoad<D2>(path2);
-        if (ImGui::CollapsingHeader("3D Models"))
-            renderModelLoad<D3>(path3);
+        if (ImGui::CollapsingHeader("2D Meshes"))
+            renderMeshLoad<D2>(path2);
+        if (ImGui::CollapsingHeader("3D Meshes"))
+            renderMeshLoad<D3>(path3);
     }
     ImGui::End();
 }
@@ -408,8 +450,8 @@ static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Sele
 template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noexcept
 {
     const auto createShape = [&p_Data]() -> TKit::Scope<Shape<D>> {
-        if (p_Data.ShapeToSpawn == MODEL)
-            return p_Data.Model.Model ? TKit::Scope<ModelShape<D>>::Create(p_Data.Model) : nullptr;
+        if (p_Data.ShapeToSpawn == MESH)
+            return p_Data.Mesh.Mesh ? TKit::Scope<MeshShape<D>>::Create(p_Data.Mesh) : nullptr;
         else if (p_Data.ShapeToSpawn == TRIANGLE)
             return TKit::Scope<Triangle<D>>::Create();
         else if (p_Data.ShapeToSpawn == SQUARE)
@@ -453,56 +495,62 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
     };
 
     const bool canSpawnPoly = p_Data.ShapeToSpawn != POLYGON || p_Data.PolygonVertices.GetSize() >= 3;
-    const bool canSpawnModel = p_Data.ShapeToSpawn != MODEL || p_Data.Model.Model;
+    const bool canSpawnMesh = p_Data.ShapeToSpawn != MESH || p_Data.Mesh.Mesh;
     if (!canSpawnPoly)
         ImGui::TextDisabled("A polygon must have at least 3 vertices to spawn!");
-    else if (!canSpawnModel)
-        ImGui::TextDisabled("No valid model has been selected!");
+    else if (!canSpawnMesh)
+        ImGui::TextDisabled("No valid mesh has been selected!");
     else if (ImGui::Button("Spawn##Shape"))
         p_Data.Shapes.Append(createShape());
 
-    if (canSpawnPoly && canSpawnModel)
+    if (canSpawnPoly && canSpawnMesh)
         ImGui::SameLine();
 
+    LatticeData<D> &lattice = p_Data.Lattice;
     if constexpr (D == D2)
-        ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                     "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded Square\0\0");
+        lattice.NeedsUpdate |=
+            ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+                         "Mesh\0Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded Square\0\0");
     else
-        ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
-                     "Model\0Triangle\0Square\0Circle\0NGon\0Convex Polygon\0Stadium\0Rounded "
-                     "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
+        lattice.NeedsUpdate |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+                                            "Mesh\0Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded "
+                                            "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
 
-    if (p_Data.ShapeToSpawn == MODEL)
+    if (p_Data.ShapeToSpawn == MESH)
     {
-        const auto &models = NamedModel<D>::Get();
-        if (!models.IsEmpty())
+        const auto &meshes = NamedMesh<D>::Get();
+        if (!meshes.IsEmpty())
         {
-            TKit::StaticArray16<const char *> modelNames{};
-            for (const NamedModel<D> &model : models)
-                modelNames.Append(model.Name.c_str());
-            ImGui::Combo("Model ID", &p_Data.ModelToSpawn, modelNames.GetData(),
-                         static_cast<i32>(modelNames.GetSize()));
-            p_Data.Model = models[p_Data.ModelToSpawn];
+            TKit::StaticArray16<const char *> meshNames{};
+            for (const NamedMesh<D> &mesh : meshes)
+                meshNames.Append(mesh.Name.c_str());
+            lattice.NeedsUpdate |= ImGui::Combo("Mesh ID", &p_Data.MeshToSpawn, meshNames.GetData(),
+                                                static_cast<i32>(meshNames.GetSize()));
+            p_Data.Mesh = meshes[p_Data.MeshToSpawn];
         }
         else
-            ImGui::TextDisabled("No models have been loaded yet! Load from the welcome window.");
+            ImGui::TextDisabled("No meshes have been loaded yet! Load from the welcome window.");
     }
     else if (p_Data.ShapeToSpawn == NGON)
-        ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
+        lattice.NeedsUpdate |= ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
     else if (p_Data.ShapeToSpawn == POLYGON)
     {
         ImGui::Text("Vertices must be in counter clockwise order for outlines to work correctly");
         ImGui::Text("Click on the screen or the 'Add' button to add vertices to the polygon.");
         if (ImGui::Button("Clear"))
+        {
+            lattice.NeedsUpdate = true;
             p_Data.PolygonVertices.Clear();
+        }
 
-        ImGui::DragFloat2("Vertex", glm::value_ptr(p_Data.VertexToAdd), 0.1f);
+        lattice.NeedsUpdate |= ImGui::DragFloat2("Vertex", glm::value_ptr(p_Data.VertexToAdd), 0.1f);
 
         ImGui::SameLine();
         if (ImGui::Button("Add"))
         {
             p_Data.PolygonVertices.Append(p_Data.VertexToAdd);
             p_Data.VertexToAdd = fvec2{0.f};
+            lattice.NeedsUpdate = true;
         }
         for (u32 i = 0; i < p_Data.PolygonVertices.GetSize(); ++i)
         {
@@ -511,6 +559,7 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
             {
                 p_Data.PolygonVertices.RemoveOrdered(p_Data.PolygonVertices.begin() + i);
                 ImGui::PopID();
+                lattice.NeedsUpdate = true;
                 break;
             }
 
@@ -519,21 +568,15 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
             ImGui::PopID();
         }
     }
-    LatticeData<D> &lattice = p_Data.Lattice;
-    if (lattice.Enabled)
+    if (lattice.Enabled && lattice.NeedsUpdate)
     {
-        Transform<D> transform{};
-        if (lattice.Shape)
-            transform = lattice.Shape->Transform;
-
         lattice.Shape = createShape();
-        if (lattice.Shape)
-            lattice.Shape->Transform = transform;
+        lattice.NeedsUpdate = false;
     }
 
     if (ImGui::TreeNode("Lattice"))
     {
-        ImGui::Checkbox("Draw shape lattice", &lattice.Enabled);
+        lattice.NeedsUpdate |= ImGui::Checkbox("Draw shape lattice", &lattice.Enabled);
         UserLayer::HelpMarkerSameLine("You may choose to draw a lattice of shapes to stress test the rendering engine. "
                                       "I advice to build the engine "
                                       "in distribution mode to see meaningful results.");

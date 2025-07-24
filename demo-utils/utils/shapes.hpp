@@ -1,19 +1,24 @@
 #pragma once
 
 #include "onyx/rendering/render_context.hpp"
-#include "onyx/draw/transform.hpp"
-#include "onyx/draw/model.hpp"
-#include <string_view>
+#include "onyx/property/transform.hpp"
+#include "onyx/object/mesh.hpp"
+#include "tkit/container/static_array.hpp"
+#include <string>
 
 namespace Onyx::Demo
 {
-template <Dimension D> struct NamedModel
+template <Dimension D> struct NamedMesh
 {
-    static const TKit::StaticArray16<NamedModel<D>> &Get() noexcept;
-    static TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> Load(std::string_view p_Path) noexcept;
+    static const TKit::StaticArray16<NamedMesh<D>> &Get() noexcept;
+    static TKit::StaticArray16<std::string> Query(std::string_view p_Directory) noexcept;
+
+    static bool IsLoaded(std::string_view p_Name) noexcept;
+    static VKit::FormattedResult<NamedMesh<D>> Load(std::string_view p_Name, std::string_view p_Path,
+                                                    const fmat<D> &p_Transform) noexcept;
 
     std::string Name{};
-    Model<D> Model{};
+    Mesh<D> Mesh{};
 };
 
 template <Dimension D> class Shape
@@ -39,10 +44,10 @@ template <Dimension D> class Shape
     virtual void draw(RenderContext<D> *p_Context) noexcept = 0;
 };
 
-template <Dimension D> class ModelShape final : public Shape<D>
+template <Dimension D> class MeshShape final : public Shape<D>
 {
   public:
-    ModelShape(const NamedModel<D> &p_Model) noexcept;
+    MeshShape(const NamedMesh<D> &p_Mesh) noexcept;
 
     const char *GetName() const noexcept override;
     void Edit() noexcept override;
@@ -50,7 +55,7 @@ template <Dimension D> class ModelShape final : public Shape<D>
   private:
     void draw(RenderContext<D> *p_Context) noexcept override;
 
-    NamedModel<D> m_Model{};
+    NamedMesh<D> m_Mesh{};
     fvec<D> m_Dimensions{1.f};
 };
 

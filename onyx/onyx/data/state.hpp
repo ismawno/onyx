@@ -1,9 +1,9 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/draw/color.hpp"
+#include "onyx/property/color.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/draw/data.hpp"
+#include "onyx/data/buffers.hpp"
 #include "vkit/pipeline/graphics_pipeline.hpp"
 #include <vulkan/vulkan.h>
 
@@ -28,11 +28,15 @@ template <Dimension D> struct MaterialData;
 
 template <> struct ONYX_API MaterialData<D2>
 {
+    TKIT_REFLECT_DECLARE(MaterialData)
+    TKIT_YAML_SERIALIZE_DECLARE(MaterialData)
     Color Color = Onyx::Color::WHITE;
 };
 
 template <> struct ONYX_API MaterialData<D3>
 {
+    TKIT_REFLECT_DECLARE(MaterialData)
+    TKIT_YAML_SERIALIZE_DECLARE(MaterialData)
     Color Color = Onyx::Color::WHITE;
     f32 DiffuseContribution = 0.8f;
     f32 SpecularContribution = 0.2f;
@@ -52,6 +56,8 @@ template <Dimension D> struct RenderState;
 
 template <> struct ONYX_API RenderState<D2>
 {
+    TKIT_REFLECT_DECLARE(RenderState)
+    TKIT_YAML_SERIALIZE_DECLARE(RenderState)
     fmat3 Transform{1.f};
     fmat3 Axes{1.f};
     Color OutlineColor = Color::WHITE;
@@ -63,6 +69,8 @@ template <> struct ONYX_API RenderState<D2>
 
 template <> struct ONYX_API RenderState<D3>
 {
+    TKIT_REFLECT_DECLARE(RenderState)
+    TKIT_YAML_SERIALIZE_DECLARE(RenderState)
     fmat4 Transform{1.f};
     fmat4 Axes{1.f};
     Color OutlineColor = Color::WHITE;
@@ -73,14 +81,6 @@ template <> struct ONYX_API RenderState<D3>
     bool Outline = false;
 };
 
-struct CircleOptions
-{
-    f32 InnerFade = 0.f;
-    f32 OuterFade = 0.f;
-    f32 Hollowness = 0.f;
-    f32 LowerAngle = 0.f;
-    f32 UpperAngle = glm::two_pi<f32>();
-};
 } // namespace Onyx
 
 namespace Onyx::Detail

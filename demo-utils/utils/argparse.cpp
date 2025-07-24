@@ -7,7 +7,7 @@ namespace Onyx::Demo
 {
 Scene ParseArguments(int argc, char **argv)
 {
-    argparse::ArgumentParser parser{"drizzle", ONYX_VERSION, argparse::default_arguments::all};
+    argparse::ArgumentParser parser{"onyx", ONYX_VERSION, argparse::default_arguments::all};
     parser.add_description(
         "Onyx is a small application framework I have implemented to be used primarily in all projects I develop "
         "that require some sort of rendering. It is built on top of the Vulkan API and provides a simple and "

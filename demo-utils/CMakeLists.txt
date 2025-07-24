@@ -4,12 +4,8 @@ project(onyx-demo-utils)
 set(SOURCES utils/shapes.cpp utils/window_data.cpp utils/argparse.cpp)
 
 add_library(onyx-demo-utils STATIC ${SOURCES})
-if(MSVC)
-  tkit_configure_compile_link_options(onyx-demo-utils FLAGS /W4 /WX)
-else()
-  tkit_configure_compile_link_options(onyx-demo-utils FLAGS -Wall -Wextra
-                                      -Wpedantic -Werror)
-endif()
+
+tkit_default_configure(onyx-demo-utils)
 
 FetchContent_Declare(
   argparse

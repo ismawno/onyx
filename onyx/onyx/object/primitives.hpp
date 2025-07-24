@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/draw/data.hpp"
+#include "onyx/data/buffers.hpp"
 
 #ifndef ONYX_MAX_REGULAR_POLYGON_SIDES
 #    define ONYX_MAX_REGULAR_POLYGON_SIDES 8

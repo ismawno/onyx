@@ -6,7 +6,7 @@ I have very little experience with graphics programming. This project represents
 
 Given this and the reasonably small scope of this project, one could argue that OpenGL might have been a better option. However, I decided against it for two main reasons:
 
-1. OpenGL is deprecated in macOS, and I use macOS as my main coding environment.
+1. OpenGL is deprecated in macOS, and I use macOS as my main coding environment. EDIT - I know use linux, but I want good macOS support as well.
 2. Vulkan is growing more popular every year due to its versatility and optimization opportunities. Since I am starting graphics programming now, I might as well learn a modern API. I can’t help but feel that learning an API I don't think is "the best" would be a waste of time (arguably, a subjective argument, but that’s how I feel).
 
 ## Features
@@ -18,6 +18,8 @@ The three main features I consider the most valuable are:
 
 ### Window API
 
+**Note:** All examples will use the 2D API. 3D is almost identical and can be accessed by changing the template argument from `D2` to `D3`.
+
 This is the simplest use case of the Onyx framework, allowing you to get a window up and running very quickly. It is also highly customizable, as it doesn’t require the application interface to work. However, some higher-level features, such as ImGui, are not included by default (you will have to manually set up the ImGui backend, which I highly discourage. If you want to use ImGui, refer to the [Application API](#application-api) section).
 
 Creating and using an Onyx window looks like this:
@@ -25,6 +27,7 @@ Creating and using an Onyx window looks like this:
 ```cpp
 Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
 Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
+context->CreateCamera();
 
 while (!window.ShouldClose())
 {
@@ -112,6 +115,7 @@ const VKit::GraphicsJob job = SetupCustomPipeline(window);
 SetPostProcessing(window);
 
 Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
+context->CreateCamera()->Transparent = true;
 while (!window.ShouldClose())
 {
     Onyx::Input::PollEvents();
@@ -152,6 +156,7 @@ Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600
 TKit::Clock clock;
 app.Startup();
 Onyx::RenderContext<D2> *context = app.GetMainWindow()->CreateRenderContext<D2>();
+context->CreateCamera();
 while (app.NextFrame(clock))
 {
     context->Flush(Onyx::Color::BLACK);
@@ -197,7 +202,7 @@ The Onyx framework includes two basic renderers for drawing simple geometry:
 
 The API uses an immediate mode approach, inspired by the [Processing](https://processing.org) API. Features like `Push()`/`Pop()` are implemented for state management. Examples can be found in the previous sections, where the `RenderContext<D>` class is used (`D` being either `D2` or `D3`).
 
-Onyx also supports model rendering through the [Model](https://github.com/ismawno/onyx/blob/main/onyx/onyx/draw/model.hpp) class. When possible, it uses instance rendering to minimize draw calls.
+Onyx also supports meshemeshes rendering through the [Mesh](https://github.com/ismawno/onyx/blob/main/onyx/onyx/object/mesh.hpp) class. When possible, it uses instance rendering to minimize draw calls.
 
 ### ImGui Usage
 
@@ -219,7 +224,7 @@ Onyx relies on several dependencies for platform-independent windowing, graphics
 
 - [implot](https://github.com/epezent/implot): ImPlot library (optional, can be enabled via `CMake`).
 
-- [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader): Library for loading `.obj` models.
+- [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader): Library for loading `.obj` meshes.
 
 **Note:** `CMake` is required to be manually installed in your system.
 
@@ -237,7 +242,7 @@ The building process is (fortunately) very straightforward. Because of how much 
 
 The reason behind this is that `CMake` sometimes stores some variables in cache that you may not want to persist. This results in some default values for variables being only relevant if the variable itself is not already stored in cache. The problem with this is that I feel it is very easy to lose track of what configuration is being built unless I type in all my `CMake` flags explicitly every time I build the project, and that is just unbearable. Hence, these python scripts provide flags with reliable defaults stored in a `build.ini` file that are always applied unless explicitly changed with a command line argument.
 
-Specifically, the [build.py](https://github.com/ismawno/onyx/blob/main/setup/build.py) file, when executed from root, will handle the entire `CMake` execution process for you. You can enter `python setup/build.py -h` to see the available options.
+Specifically, the [build.py](https://github.com/ismawno/onyx/blob/main/setup/build.py) file, when executed from the root folder, will handle the entire `CMake` execution process for you. You can enter `python setup/build.py -h` to see the available options.
 
 If you prefer using `CMake` directly, that's perfectly fine as well. Create a `build` folder, `cd` into it, and run `cmake ..`. All available Onyx options will be displayed.
 

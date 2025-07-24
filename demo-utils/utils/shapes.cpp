@@ -1,8 +1,6 @@
 #include "utils/shapes.hpp"
 #include "onyx/app/user_layer.hpp"
 #include "tkit/utils/dimension.hpp"
-#include "vkit/vulkan/vulkan.hpp"
-#include "vulkan/vulkan_core.h"
 #include <imgui.h>
 #include <filesystem>
 
@@ -11,63 +9,60 @@ namespace Onyx::Demo
 
 namespace fs = std::filesystem;
 
-TKit::StaticArray16<NamedModel<D2>> s_Models2{};
-TKit::StaticArray16<NamedModel<D3>> s_Models3{};
-template <Dimension D> TKit::StaticArray16<NamedModel<D>> &getModels() noexcept
+TKit::StaticArray16<NamedMesh<D2>> s_Meshes2{};
+TKit::StaticArray16<NamedMesh<D3>> s_Meshes3{};
+template <Dimension D> TKit::StaticArray16<NamedMesh<D>> &getMeshes() noexcept
 {
     if constexpr (D == D2)
-        return s_Models2;
+        return s_Meshes2;
     else
-        return s_Models3;
+        return s_Meshes3;
 }
 
-template <Dimension D> const TKit::StaticArray16<NamedModel<D>> &NamedModel<D>::Get() noexcept
+template <Dimension D> const TKit::StaticArray16<NamedMesh<D>> &NamedMesh<D>::Get() noexcept
 {
-    return getModels<D>();
+    return getMeshes<D>();
 }
-template <Dimension D>
-TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> NamedModel<D>::Load(const std::string_view p_Path) noexcept
-{
-    if (!fs::exists(p_Path))
-        return {};
 
-    auto &models = getModels<D>();
-    const auto &modelExists = [&models](const std::string &p_Name) {
-        for (const NamedModel<D> &model : models)
-            if (model.Name == p_Name)
-                return true;
-        return false;
-    };
-    TKit::StaticArray16<VKit::FormattedResult<NamedModel<D>>> results{};
-    for (const auto &entry : fs::directory_iterator(p_Path))
+template <Dimension D> TKit::StaticArray16<std::string> NamedMesh<D>::Query(const std::string_view p_Directory) noexcept
+{
+    TKit::StaticArray16<std::string> names;
+    if (!fs::exists(p_Directory))
+        return names;
+
+    for (const auto &entry : fs::directory_iterator(p_Directory))
     {
         const auto &path = entry.path();
         const std::string name = path.filename().string();
-        VKit::FormattedResult<NamedModel<D>> nresult =
-            VKit::FormattedResult<NamedModel<D>>::Error(VK_ERROR_UNKNOWN, "Unknown");
-        if (modelExists(name))
-        {
-            nresult = VKit::FormattedResult<NamedModel<D>>::Error(VKIT_FORMAT_ERROR(
-                VK_ERROR_INITIALIZATION_FAILED, "Failed to load model: '{}' - Model is already loaded", name));
-            results.Append(nresult);
-            continue;
-        }
-
-        const auto result = Onyx::Model<D>::Load(path.c_str());
-        if (result)
-        {
-            Onyx::Model<D> model = result.GetValue();
-            Onyx::Core::GetDeletionQueue().Push([model]() mutable { model.Destroy(); });
-            const NamedModel<D> nmodel{name, model};
-            models.Append(nmodel);
-            nresult = VKit::FormattedResult<NamedModel<D>>::Ok(nmodel);
-        }
-        else
-            nresult = VKit::FormattedResult<NamedModel<D>>::Error(VKIT_FORMAT_ERROR(
-                result.GetError().ErrorCode, "Failed to load model: '{}' - {}", name, result.GetError().ToString()));
-        results.Append(nresult);
+        names.Append(name);
     }
-    return results;
+    return names;
+}
+
+template <Dimension D> bool NamedMesh<D>::IsLoaded(const std::string_view p_Name) noexcept
+{
+    const auto &meshes = getMeshes<D>();
+    for (const NamedMesh<D> &mesh : meshes)
+        if (mesh.Name == p_Name)
+            return true;
+    return false;
+}
+template <Dimension D>
+VKit::FormattedResult<NamedMesh<D>> NamedMesh<D>::Load(const std::string_view p_Name, const std::string_view p_Path,
+                                                       const fmat<D> &p_Transform) noexcept
+{
+    const auto result = Onyx::Mesh<D>::Load(p_Path, &p_Transform);
+    if (!result)
+        return VKit::FormattedResult<NamedMesh<D>>::Error(VKIT_FORMAT_ERROR(
+            result.GetError().ErrorCode, "Failed to load mesh: '{}' - {}", p_Name, result.GetError().ToString()));
+
+    Onyx::Mesh<D> mesh = result.GetValue();
+    Onyx::Core::GetDeletionQueue().Push([mesh]() mutable { mesh.Destroy(); });
+    const NamedMesh<D> nmesh{std::string(p_Name), mesh};
+
+    auto &meshes = getMeshes<D>();
+    meshes.Append(nmesh);
+    return VKit::FormattedResult<NamedMesh<D>>::Ok(nmesh);
 }
 template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context) noexcept
 {
@@ -106,17 +101,17 @@ template <Dimension D> static void dimensionEditor(fvec<D> &p_Dimensions) noexce
     ImGui::PopID();
 }
 
-template <Dimension D> ModelShape<D>::ModelShape(const NamedModel<D> &p_Model) noexcept : m_Model(p_Model)
+template <Dimension D> MeshShape<D>::MeshShape(const NamedMesh<D> &p_Mesh) noexcept : m_Mesh(p_Mesh)
 {
 }
 
-template <Dimension D> const char *ModelShape<D>::GetName() const noexcept
+template <Dimension D> const char *MeshShape<D>::GetName() const noexcept
 {
-    return m_Model.Name.c_str();
+    return m_Mesh.Name.c_str();
 }
-template <Dimension D> void ModelShape<D>::draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D> void MeshShape<D>::draw(RenderContext<D> *p_Context) noexcept
 {
-    p_Context->Mesh(this->Transform.ComputeTransform(), m_Model.Model, m_Dimensions);
+    p_Context->Mesh(this->Transform.ComputeTransform(), m_Mesh.Mesh, m_Dimensions);
 }
 
 template <Dimension D> const char *Triangle<D>::GetName() const noexcept
@@ -139,7 +134,7 @@ template <Dimension D> void Square<D>::Edit() noexcept
     dimensionEditor<D2>(m_Dimensions);
 }
 
-template <Dimension D> void ModelShape<D>::Edit() noexcept
+template <Dimension D> void MeshShape<D>::Edit() noexcept
 {
     Shape<D>::Edit();
     dimensionEditor<D>(m_Dimensions);
@@ -192,7 +187,7 @@ template <Dimension D> void NGon<D>::Edit() noexcept
 
 template <Dimension D> const char *Polygon<D>::GetName() const noexcept
 {
-    return "Convex Polygon";
+    return "Polygon";
 }
 template <Dimension D> void Polygon<D>::Edit() noexcept
 {
@@ -218,7 +213,7 @@ template <Dimension D> void Polygon<D>::Edit() noexcept
 
 template <Dimension D> void Polygon<D>::draw(RenderContext<D> *p_Context) noexcept
 {
-    p_Context->ConvexPolygon(this->Transform.ComputeTransform(), Vertices);
+    p_Context->Polygon(this->Transform.ComputeTransform(), Vertices);
 }
 
 template <Dimension D> const char *Stadium<D>::GetName() const noexcept
@@ -346,14 +341,14 @@ void RoundedCube::Edit() noexcept
     UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
 
-template struct ONYX_API NamedModel<D2>;
-template struct ONYX_API NamedModel<D3>;
+template struct ONYX_API NamedMesh<D2>;
+template struct ONYX_API NamedMesh<D3>;
 
 template class ONYX_API Shape<D2>;
 template class ONYX_API Shape<D3>;
 
-template class ONYX_API ModelShape<D2>;
-template class ONYX_API ModelShape<D3>;
+template class ONYX_API MeshShape<D2>;
+template class ONYX_API MeshShape<D3>;
 
 template class ONYX_API Triangle<D2>;
 template class ONYX_API Triangle<D3>;

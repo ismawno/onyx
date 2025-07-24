@@ -3,6 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/rendering/camera.hpp"
+#include "onyx/data/options.hpp"
 #include "tkit/memory/ptr.hpp"
 #include <vulkan/vulkan.h>
 
@@ -18,32 +19,6 @@
 namespace Onyx
 {
 class Window;
-
-template <Dimension D> struct AxesOptions;
-
-template <> struct ONYX_API AxesOptions<D2>
-{
-    f32 Thickness = 0.01f;
-    f32 Size = 50.f;
-};
-template <> struct ONYX_API AxesOptions<D3>
-{
-    f32 Thickness = 0.01f;
-    f32 Size = 50.f;
-    Onyx::Resolution Resolution = Onyx::Resolution::Medium;
-};
-
-struct ONYX_API LineOptions
-{
-    f32 Thickness = 0.01f;
-    Onyx::Resolution Resolution = Onyx::Resolution::Medium;
-};
-
-struct ONYX_API CameraOptions
-{
-    ScreenViewport Viewport{};
-    ScreenScissor Scissor{};
-};
 
 namespace Detail
 {
@@ -467,33 +442,34 @@ template <Dimension D> class IRenderContext
      * @brief Draw a polygon defined by the given vertices.
      *
      * The vertices must be in counter-clockwise order, otherwise outlines will not be drawn correctly.
-     * The polygon must be convex and will be affected by the current transformation state.
-     * The polygon's origin is its transform's position (with respect to the current axes, of course).
+     * The polygon will be affected by the current transformation state.
+     * The polygon's origin is its transform's position (with respect to the current axes, of course), and so the
+     * vertices are expected to be with respect that position.
      *
-     * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to achieve,
-     * so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just rotate
-     * the polygon.
+     * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to
+     * achieve, so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just
+     * rotate the polygon. The default plane for 3D polygons is the XY plane.
      *
      * @param p_Vertices A span of vertices defining the polygon. Vertices are expected to be centered around zero.
      */
-    void ConvexPolygon(TKit::Span<const fvec2> p_Vertices) noexcept;
+    void Polygon(TKit::Span<const fvec2> p_Vertices) noexcept;
 
     /**
      * @brief Draw a polygon defined by the given vertices with the specified transformation.
      *
      * The vertices must be in counter-clockwise order, otherwise outlines will not be drawn correctly.
-     * The polygon must be convex and will be affected by the current transformation state.
+     * The polygon will be affected by the current transformation state.
      * The polygon's origin is its transform's position (with respect to the current axes, of course).
      *
      * In 3D, to define a correct 2D polygon, all vertices must lie on the same plane. That is quite hard to
      * achieve, so the way to go is to use 2D vectors for the vertices in 3D, and if you want another orientation, just
-     * rotate the polygon.
+     * rotate the polygon. The default plane for 3D polygons is the XY plane.
      *
      * @param p_Transform The transformation matrix to apply to the polygon. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Vertices A span of vertices defining the polygon.
      */
-    void ConvexPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
+    void Polygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
 
     /**
      * @brief Draw a unit circle centered at the origin.
@@ -678,40 +654,40 @@ template <Dimension D> class IRenderContext
      */
     void RoundedSquare(const fmat<D> &p_Transform, f32 p_Size, f32 p_Diameter) noexcept;
 
-    // Actually, 2D models could be used in 3D as well. This feature is not implemented yet. If you want a 2D model in a
-    // 3D context, you must load such model as a 3D model
+    // Actually, 2D meshes could be used in 3D as well. This feature is not implemented yet. If you want a 2D mesh in a
+    // 3D context, you must load such mesh as a 3D mesh
 
     /**
      * @brief Draw a mesh model.
      *
-     * @param p_Model The mesh model to draw.
+     * @param p_Mesh The mesh model to draw.
      */
-    void Mesh(const Model<D> &p_Model) noexcept;
+    void Mesh(const Onyx::Mesh<D> &p_Mesh) noexcept;
 
     /**
      * @brief Draw a mesh model with the specified transformation.
      *
      * @param p_Transform The transformation matrix to apply to the model. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
-     * @param p_Model The mesh model to draw.
+     * @param p_Mesh The mesh model to draw.
      */
-    void Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model) noexcept;
+    void Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh) noexcept;
 
     /**
      * @brief Draw a mesh model.
      *
-     * @param p_Model The mesh model to draw.
+     * @param p_Mesh The mesh model to draw.
      */
-    void Mesh(const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
+    void Mesh(const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept;
 
     /**
      * @brief Draw a mesh model with the specified transformation.
      *
-     * @param p_Transform The transformation matrix to apply to the model. This transformation will be applied
+     * @param p_Transform The transformation matrix to apply to the mesh. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
-     * @param p_Model The mesh model to draw.
+     * @param p_Mesh The mesh model to draw.
      */
-    void Mesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
+    void Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept;
 
     /**
      * @brief Pushes the current transformation state onto the stack.
@@ -905,7 +881,7 @@ template <Dimension D> class IRenderContext
     template <Dimension PDim>
     void drawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex, const fvec<PDim> &p_Dimensions) noexcept;
 
-    void drawConvexPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
+    void drawPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
 
     void drawCircle(const fmat<D> &p_Transform, const CircleOptions &p_Options) noexcept;
     void drawCircle(const fmat<D> &p_Transform, const CircleOptions &p_Options, const fvec2 &p_Dimensions) noexcept;
@@ -927,8 +903,8 @@ template <Dimension D> class IRenderContext
     void drawRoundedSquare(const fmat<D> &p_Transform) noexcept;
     void drawRoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimension, f32 p_Diameter) noexcept;
 
-    void drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model) noexcept;
-    void drawMesh(const fmat<D> &p_Transform, const Model<D> &p_Model, const fvec<D> &p_Dimensions) noexcept;
+    void drawMesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh) noexcept;
+    void drawMesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept;
 
     RenderState<D> *m_State;
     TKit::StaticArray16<TKit::Scope<Camera<D>>> m_Cameras{};

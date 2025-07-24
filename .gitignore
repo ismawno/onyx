@@ -3,7 +3,7 @@
 .vs/
 *build*/
 onyx/shaders/bin/
-demo-utils/models*/
+demo-utils/meshes*/
 .venv/
 .DS_Store
 .clangd
@@ -13,6 +13,7 @@ docs/html/
 docs/latex/
 __pycache__/
 reminders.txt
+performance/*yaml
 
 # Prerequisites
 *.d

@@ -1,8 +1,8 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/rendering/render_structs.hpp"
+#include "onyx/data/state.hpp"
 #include "onyx/core/shaders.hpp"
-#include "onyx/draw/primitives.hpp"
+#include "onyx/object/primitives.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "vkit/pipeline/pipeline_layout.hpp"
 #include "vkit/core/core.hpp"
@@ -11,6 +11,9 @@
 #include "onyx/core/glfw.hpp"
 #include "vkit/vulkan/allocator.hpp"
 #include "vkit/vulkan/vulkan.hpp"
+#ifdef TKIT_OS_LINUX
+#    include <fontconfig/fontconfig.h>
+#endif
 
 namespace Onyx
 {
@@ -184,6 +187,10 @@ static void createShaders() noexcept
 void Core::Initialize(TKit::ITaskManager *p_TaskManager, Initializer *p_Initializer) noexcept
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan instance");
+#ifdef TKIT_OS_LINUX
+    FcInit();
+#endif
+
     s_TaskManager = p_TaskManager;
     s_Initializer = p_Initializer;
 

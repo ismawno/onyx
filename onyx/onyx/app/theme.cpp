@@ -194,7 +194,7 @@ void DougBinksTheme::Apply() const noexcept
     style.Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
     style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
 
-    for (int i = 0; i <= ImGuiCol_COUNT; i++)
+    for (int i = 0; i < ImGuiCol_COUNT; i++)
     {
         ImVec4 &col = style.Colors[i];
         f32 H, S, V;

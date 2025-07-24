@@ -1,8 +1,12 @@
+#include "glm/fwd.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#include "glm/trigonometric.hpp"
+#include "imgui.h"
 #include "onyx/core/pch.hpp"
 #include "onyx/app/user_layer.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/rendering/render_context.hpp"
-#include "onyx/draw/transform.hpp"
+#include "onyx/property/transform.hpp"
 
 namespace Onyx
 {
@@ -38,8 +42,14 @@ template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform
         changed |= ImGui::DragFloat3("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
         changed |= ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
 
-        const fvec3 degrees = glm::degrees(glm::eulerAngles(p_Transform.Rotation));
-        ImGui::Text("Rotation: (%.2f, %.2f, %.2f) deg", degrees.x, degrees.y, degrees.z);
+        ImGui::Spacing();
+
+        fvec3 degrees = glm::degrees(glm::eulerAngles(p_Transform.Rotation));
+        if (ImGui::InputFloat3("Rotation", glm::value_ptr(degrees), "%.0f deg"))
+        {
+            p_Transform.Rotation = glm::quat{glm::radians(degrees)};
+            changed = true;
+        }
 
         fvec3 angles{0.f};
         if (ImGui::DragFloat3("Rotate (global)", glm::value_ptr(angles), 0.3f, 0.f, 0.f, "Slide!"))
@@ -53,6 +63,12 @@ template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform
             p_Transform.Rotation = glm::normalize(p_Transform.Rotation * glm::quat(glm::radians(angles)));
             changed = true;
         }
+        if (ImGui::Button("Reset transform"))
+        {
+            p_Transform = Transform<D>{};
+            changed = true;
+        }
+        ImGui::SameLine();
         if (ImGui::Button("Reset rotation"))
         {
             p_Transform.Rotation = quat{1.f, 0.f, 0.f, 0.f};
@@ -149,8 +165,13 @@ void UserLayer::DisplayFrameTime(const TKit::Timespan p_DeltaTime, const Flags p
         ImGui::Text("Frame time: %u us (max: %u us)", static_cast<u32>(smoothDeltaTime.AsMicroseconds()),
                     static_cast<u32>(maxDeltaTime.AsMicroseconds()));
     else
+#ifndef TKIT_OS_LINUX
         ImGui::Text("Frame time: %llu ns (max: %llu ns)", smoothDeltaTime.AsNanoseconds(),
                     maxDeltaTime.AsNanoseconds());
+#else
+        ImGui::Text("Frame time: %lu ns (max: %lu ns)", smoothDeltaTime.AsNanoseconds(), maxDeltaTime.AsNanoseconds());
+#endif
+
     if (p_Flags & Flag_DisplayHelp)
         HelpMarkerSameLine(
             "The frame time is a measure of the time it takes to process and render a frame, and it is one of the main "
