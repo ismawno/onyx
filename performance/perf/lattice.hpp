@@ -8,6 +8,8 @@
 
 namespace Onyx::Perf
 {
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(Shapes2)
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(Shapes3)
 enum class Shapes2 : u8
 {
     Triangle = 0,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/data/buffers.hpp"
+#include "tkit/serialization/yaml/serialize.hpp"
 
 #ifndef ONYX_MAX_REGULAR_POLYGON_SIDES
 #    define ONYX_MAX_REGULAR_POLYGON_SIDES 8
@@ -12,6 +13,7 @@
 
 namespace Onyx
 {
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(Resolution)
 enum class Resolution
 {
     VeryLow = 0,

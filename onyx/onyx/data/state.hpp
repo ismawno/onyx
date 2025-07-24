@@ -109,7 +109,7 @@ namespace Onyx::Detail
  * not set. The corresponding `DrawMode` is St`encil`.
  *
  */
-enum class ONYX_API PipelineMode : u8
+enum class PipelineMode : u8
 {
     NoStencilWriteDoFill,
     DoStencilWriteDoFill,
@@ -128,7 +128,7 @@ enum class ONYX_API PipelineMode : u8
  * outlines (`DrawMode::Stencil`).
  *
  */
-enum class ONYX_API DrawMode : u8
+enum class DrawMode : u8
 {
     Fill,
     Stencil
@@ -145,7 +145,7 @@ enum class ONYX_API DrawMode : u8
  * exclusively for 3D filled rendering.
  *
  */
-enum class ONYX_API DrawLevel : u8
+enum class DrawLevel : u8
 {
     Simple,
     Complex
