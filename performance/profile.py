@@ -5,9 +5,8 @@ import datetime as dt
 import subprocess
 import time
 
-import yaml
 import copy
-
+import yaml
 import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -21,6 +20,7 @@ def setup_arguments() -> Namespace:
     """
     parser = ArgumentParser(description=desc)
 
+    parser.add_argument("-n", "--name", type=str, default=None, help="An optional name for the run.")
     parser.add_argument(
         "-e",
         "--exec",
@@ -50,7 +50,7 @@ def setup_arguments() -> Namespace:
         help="The path to the configuration file of the profiling script. It can be the same as the one passed to the onyx executable, with the addition that the key 'Shape' may be a list of shapes.",
     )
     parser.add_argument(
-        "-r", "--run-time", type=float, default=5.0, help="The amount of time the program will be run for each shape."
+        "-r", "--run-time", type=float, default=3.0, help="The amount of time the program will be run for each shape."
     )
 
     return parser.parse_args()
@@ -71,62 +71,63 @@ if not path.is_file():
 output.mkdir(parents=True, exist_ok=True)
 
 with open(path) as f:
-    general = yaml.safe_load(f)
+    configurations = yaml.safe_load(f)
 
+if not isinstance(configurations, list):
+    configurations = [configurations]
 
-piv_shapes = []
-ln = 0
+now = dt.datetime.now(dt.UTC).strftime("%Y-%m-%d--%H-%M-%S")
+name = now if args.name is None else f"{now}-{args.name}"
+dirpath = output / name
 
-for lattice in general["Lattices"]:
-    sp = lattice["Shape"]
-    if not isinstance(sp, list):
-        sp = [sp]
+for cfg in configurations:
+    piv_shapes = []
+    ln = 0
 
-    if not sp:
-        Convoy.exit_error("Shapes must not be empty.")
+    for lattice in cfg["Lattices"]:
+        sp = lattice["Shape"]
+        if not isinstance(sp, list):
+            sp = [sp]
 
-    if ln == 0:
-        ln = len(sp)
-    elif ln != len(sp):
-        Convoy.exit_error(f"All shape lists must contain the same number of elements: {len(sp)} vs {ln}")
-    piv_shapes.append(sp)
+        if not sp:
+            Convoy.exit_error("Shapes must not be empty.")
 
-shapes: list[list[str]] = []
-for i in range(ln):
-    shapes.append([])
-    for s in piv_shapes:
-        shapes[-1].append(s[i])
+        if ln == 0:
+            ln = len(sp)
+        elif ln != len(sp):
+            Convoy.exit_error(f"All shape lists must contain the same number of elements: {len(sp)} vs {ln}")
+        piv_shapes.append(sp)
 
+    shapes: list[list[str]] = []
+    for i in range(ln):
+        shapes.append([])
+        for s in piv_shapes:
+            shapes[-1].append(s[i])
 
-now = dt.datetime.now(dt.UTC)
-dirpath = output / now.strftime("%Y-%m-%d--%H-%M-%S")
+    for slist in shapes:
+        settings = copy.deepcopy(cfg)
+        for lattice, shp in zip(settings["Lattices"], slist, strict=True):
+            lattice["Shape"] = shp
 
-run = 0
+        sufix = "-".join([s.lower() for s in slist])
+        dirpath.mkdir(parents=True, exist_ok=True)
 
-for slist in shapes:
-    settings = copy.deepcopy(general)
-    for lattice, shp in zip(settings["Lattices"], slist, strict=True):
-        lattice["Shape"] = shp
+        sfile = dirpath / f"settings-{sufix}.yaml"
+        trace = dirpath / f"trace-{sufix}.tracy"
+        Convoy.log(f"Starting trace... Will be exported to <underline>{trace}</underline>.")
 
-    dirpath.mkdir(parents=True, exist_ok=True)
+        with open(sfile, "w") as f:
+            yaml.safe_dump(settings, f)
 
-    sfile = dirpath / f"settings-{run}.yaml"
-    trace = dirpath / f"trace-{run}.tracy"
-    Convoy.log(f"Starting trace... Will be exported to <underline>{trace}</underline>.")
+        targs = [str(tracy), "-o", str(trace)]
+        eargs = [str(exec), "-s", str(sfile), "-r", str(args.run_time)]
 
-    with open(sfile, "w") as f:
-        yaml.safe_dump(settings, f)
+        Convoy.log(f"Executing tracy-capture with the following command: <bold>{' '.join(targs)}")
 
-    targs = [str(tracy), "-o", str(trace)]
-    eargs = [str(exec), "-s", str(sfile), "-r", str(args.run_time)]
+        tprocess = subprocess.Popen(targs)
+        time.sleep(0.6)
 
-    Convoy.log(f"Executing tracy-capture with the following command: <bold>{' '.join(targs)}")
+        Convoy.log(f"Executing onyx performance with the following command: <bold>{' '.join(eargs)}")
+        eprocess = subprocess.Popen(eargs)
 
-    tprocess = subprocess.Popen(targs)
-    time.sleep(0.6)
-
-    Convoy.log(f"Executing onyx performance with the following command: <bold>{' '.join(eargs)}")
-    eprocess = subprocess.Popen(eargs)
-
-    eprocess.wait()
-    run += 1
+        eprocess.wait()
