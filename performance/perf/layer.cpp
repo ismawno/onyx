@@ -26,7 +26,7 @@ template <Dimension D> void Layer<D>::OnStart() noexcept
         m_Camera->SetView(transform);
     }
     else
-        m_Camera->SetSize(10.f);
+        m_Camera->SetSize(50.f);
     for (Lattice<D> &lattice : m_Lattices)
         if (lattice.Shape == ShapeType<D>::Mesh)
         {

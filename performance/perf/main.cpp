@@ -6,7 +6,7 @@
 void RunApp(const Onyx::Perf::ParseResult &p_Args) noexcept
 {
     Onyx::Window::Specs spc;
-    spc.Name = "Single window demo app";
+    spc.Name = "Performance lattice";
 
     Onyx::Application app{spc};
     if (p_Args.Dim == Onyx::Dimension::D2)
