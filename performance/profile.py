@@ -68,21 +68,17 @@ if not tracy.is_file():
     Convoy.exit_error(f"The tracy path <underline>{tracy}</underline> must exist and point to a tracy executable.")
 if not path.is_file():
     Convoy.exit_error(f"The settings path <underline>{path}</underline> must exist and point to a yaml file.")
-output.mkdir(parents=True, exist_ok=True)
 
 with open(path) as f:
     configurations = yaml.safe_load(f)
 
-if not isinstance(configurations, list):
-    configurations = [configurations]
-
 now = dt.datetime.now(dt.UTC).strftime("%Y-%m-%d--%H-%M-%S")
 name = now if args.name is None else f"{now}-{args.name}"
-dirpath = output / name
 
-for cfg in configurations:
+for cname, cfg in configurations.items():
     piv_shapes = []
     ln = 0
+    dirpath = output / name / Convoy.to_dyphen_case(cname)
 
     for lattice in cfg["Lattices"]:
         sp = lattice["Shape"]
@@ -109,7 +105,7 @@ for cfg in configurations:
         for lattice, shp in zip(settings["Lattices"], slist, strict=True):
             lattice["Shape"] = shp
 
-        sufix = "-".join([s.lower() for s in slist])
+        sufix = "-".join([Convoy.to_dyphen_case(s) for s in slist])
         dirpath.mkdir(parents=True, exist_ok=True)
 
         sfile = dirpath / f"settings-{sufix}.yaml"
@@ -117,7 +113,7 @@ for cfg in configurations:
         Convoy.log(f"Starting trace... Will be exported to <underline>{trace}</underline>.")
 
         with open(sfile, "w") as f:
-            yaml.safe_dump(settings, f)
+            yaml.safe_dump(settings, f, default_flow_style=True)
 
         targs = [str(tracy), "-o", str(trace)]
         eargs = [str(exec), "-s", str(sfile), "-r", str(args.run_time)]
@@ -125,7 +121,7 @@ for cfg in configurations:
         Convoy.log(f"Executing tracy-capture with the following command: <bold>{' '.join(targs)}")
 
         tprocess = subprocess.Popen(targs)
-        time.sleep(0.6)
+        time.sleep(0.4)
 
         Convoy.log(f"Executing onyx performance with the following command: <bold>{' '.join(eargs)}")
         eprocess = subprocess.Popen(eargs)

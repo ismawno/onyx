@@ -88,7 +88,10 @@ template <Dimension D> struct IPrimitives
     {
         TKIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3,
                     "[ONYX] NGon sides must be between 3 and {}", ONYX_MAX_REGULAR_POLYGON_SIDES);
-        return (D - 1) * 2 + p_Sides - 3 + (D - 2);
+        if constexpr (D == 2)
+            return 2 + p_Sides - 3;
+        else
+            return 13 + p_Sides - 3;
     }
 };
 

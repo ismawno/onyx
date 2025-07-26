@@ -206,10 +206,18 @@ void WindowData::OnEvent(const Event &p_Event) noexcept
     processEvent(m_ContextData3, p_Event);
 }
 
+static TKit::Array16<std::string> getEmptyStrings() noexcept
+{
+    TKit::Array16<std::string> customNames{};
+    for (u32 i = 0; i < 16; ++i)
+        customNames[i] = std::string{};
+    return customNames;
+}
+
 template <Dimension D> static void renderMeshLoad(const char *p_Path)
 {
     static Transform<D> transform{};
-    static TKit::Array16<std::string> customNames{};
+    static TKit::Array16<std::string> customNames = getEmptyStrings();
 
     const auto names = NamedMesh<D>::Query(p_Path);
     if (names.IsEmpty())
@@ -231,13 +239,10 @@ template <Dimension D> static void renderMeshLoad(const char *p_Path)
         ImGui::Spacing();
         ImGui::Text("%s", name.c_str());
         constexpr u32 msize = 15;
-        const u32 csize = static_cast<u32>(cname.size());
 
         char input[msize + 1];
-        const u32 size = glm::min(csize, msize);
-        for (u32 i = 0; i < size; ++i)
-            input[i] = cname[i];
-        input[size + 1] = '\0';
+        std::strncpy(input, cname.c_str(), msize);
+        input[msize] = '\0';
 
         ImGui::PushID(&name);
         if (ImGui::InputText("Mesh name", input, msize + 1))
