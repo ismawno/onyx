@@ -146,6 +146,7 @@ class ONYX_API FrameScheduler
     void createRenderPass() noexcept;
     void createProcessingEffects() noexcept;
     void createCommandData() noexcept;
+    VKit::RenderPass::Resources createResources() noexcept;
 
     void setupNaivePostProcessing() noexcept;
     TKit::StaticArray4<VkImageView> getIntermediateAttachmentImageViews() const noexcept;

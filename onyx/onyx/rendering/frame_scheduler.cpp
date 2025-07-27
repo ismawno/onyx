@@ -285,15 +285,9 @@ void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
     createSwapChain(p_Window);
     old.Destroy();
 
-    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-    const auto result =
-        m_RenderPass.CreateResources(info.Extent, [this, &info](const u32 p_ImageIndex, const u32 p_AttachmentIndex) {
-            return p_AttachmentIndex == 0 ? m_RenderPass.CreateImageData(info.ImageData[p_ImageIndex].ImageView)
-                                          : m_RenderPass.CreateImageData(p_AttachmentIndex, info.Extent);
-        });
-    VKIT_ASSERT_RESULT(result);
+    const auto resources = createResources();
     m_Resources.Destroy();
-    m_Resources = result.GetValue();
+    m_Resources = resources;
 
     const TKit::StaticArray4<VkImageView> imageViews = getIntermediateAttachmentImageViews();
     m_PostProcessing->updateImageViews(imageViews);
@@ -308,12 +302,12 @@ void FrameScheduler::createRenderPass() noexcept
         VKit::RenderPass::Builder(&device, info.ImageData.GetSize())
             .SetAllocator(Core::GetVulkanAllocator())
             // Attachment 0: This is the final presentation image. It is the post processing target image.
-            .BeginAttachment(VKit::Attachment::Flag_Color)
+            .BeginAttachment(VKit::AttachmentFlag_Color)
             .RequestFormat(info.SurfaceFormat.format)
             .SetFinalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
             .EndAttachment()
             // Attachment 1: Depth/Stencil. This is the main depth/stencil buffer for the scene.
-            .BeginAttachment(VKit::Attachment::Flag_Depth | VKit::Attachment::Flag_Stencil)
+            .BeginAttachment(VKit::AttachmentFlag_Depth | VKit::AttachmentFlag_Stencil)
             .RequestFormat(VK_FORMAT_D32_SFLOAT_S8_UINT)
             .SetFinalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .EndAttachment()
@@ -323,8 +317,7 @@ void FrameScheduler::createRenderPass() noexcept
             // necessary. However, it is flagged as an input attachment to ensure that vulkan is
             // aware of the dependency between the scene rendering and the post-processing pass. It is kind of a quirk
             // that allows us to defer synchronization to the render pass itself.
-            .BeginAttachment(VKit::Attachment::Flag_Color | VKit::Attachment::Flag_Sampled |
-                             VKit::Attachment::Flag_Input)
+            .BeginAttachment(VKit::AttachmentFlag_Color | VKit::AttachmentFlag_Sampled | VKit::AttachmentFlag_Input)
             .RequestFormat(info.SurfaceFormat.format)
             .SetFinalLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
             .EndAttachment()
@@ -354,14 +347,7 @@ void FrameScheduler::createRenderPass() noexcept
 
     VKIT_ASSERT_RESULT(result);
     m_RenderPass = result.GetValue();
-    const auto resresult =
-        m_RenderPass.CreateResources(info.Extent, [this, &info](const u32 p_ImageIndex, const u32 p_AttachmentIndex) {
-            return p_AttachmentIndex == 0 ? m_RenderPass.CreateImageData(info.ImageData[p_ImageIndex].ImageView)
-                                          : m_RenderPass.CreateImageData(p_AttachmentIndex, info.Extent);
-        });
-    VKIT_ASSERT_RESULT(resresult);
-
-    m_Resources = resresult.GetValue();
+    m_Resources = createResources();
 }
 
 void FrameScheduler::createProcessingEffects() noexcept
@@ -394,6 +380,21 @@ void FrameScheduler::createCommandData() noexcept
         VKIT_ASSERT_RESULT(cmdres);
         m_CommandBuffers[i] = cmdres.GetValue();
     }
+}
+VKit::RenderPass::Resources FrameScheduler::createResources() noexcept
+{
+    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
+    const auto result =
+        m_RenderPass.CreateResources(info.Extent, [this, &info](const VKit::ImageHouse &p_ImageHouse,
+                                                                const u32 p_ImageIndex, const u32 p_AttachmentIndex) {
+            if (p_AttachmentIndex == 0)
+                return p_ImageHouse.CreateImage(info.ImageData[p_ImageIndex].ImageView);
+
+            const VKit::RenderPass::Attachment &attachment = m_RenderPass.GetAttachment(p_AttachmentIndex);
+            return p_ImageHouse.CreateImage(attachment.Description.format, info.Extent, attachment.Flags);
+        });
+    VKIT_ASSERT_RESULT(result);
+    return result.GetValue();
 }
 
 void FrameScheduler::setupNaivePostProcessing() noexcept
