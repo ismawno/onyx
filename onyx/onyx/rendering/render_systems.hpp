@@ -4,6 +4,7 @@
 #include "onyx/object/mesh.hpp"
 #include "onyx/object/primitives.hpp"
 #include "onyx/data/options.hpp"
+#include "tkit/container/array.hpp"
 
 namespace Onyx::Detail
 {
@@ -73,12 +74,16 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     void Flush() noexcept;
 
   private:
-    using MeshHostData = TKit::HashMap<Mesh<D>, HostStorageBuffer<InstanceData>>;
+    struct MeshHostData
+    {
+        TKit::HashMap<Mesh<D>, HostStorageBuffer<InstanceData>> Data{};
+        u32 Instances = 0;
+    };
     using MeshDeviceData = DeviceData<InstanceData>;
 
     VKit::GraphicsPipeline m_Pipeline{};
 
-    MeshHostData m_HostData{};
+    TKit::Array<MeshHostData, ONYX_MAX_THREADS> m_HostData{};
     MeshDeviceData m_DeviceData{};
     u32 m_DeviceInstances = 0;
 };
@@ -147,12 +152,16 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
     void Flush() noexcept;
 
   private:
-    using PrimitiveHostData = TKit::Array<HostStorageBuffer<InstanceData>, Primitives<D>::AMOUNT>;
+    struct PrimitiveHostData
+    {
+        TKit::Array<HostStorageBuffer<InstanceData>, Primitives<D>::AMOUNT> Data{};
+        u32 Instances = 0;
+    };
     using PrimitiveDeviceData = DeviceData<InstanceData>;
 
     VKit::GraphicsPipeline m_Pipeline{};
 
-    PrimitiveHostData m_HostData{};
+    TKit::Array<PrimitiveHostData, ONYX_MAX_THREADS> m_HostData{};
     PrimitiveDeviceData m_DeviceData{};
     u32 m_DeviceInstances = 0;
 };
@@ -235,10 +244,9 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
 
     VKit::GraphicsPipeline m_Pipeline{};
 
-    // Host data maps perfectly to the number of polygons to be drawn i.e number of entries in storage buffer.
-    // DeviceInstances is not needed
-    PolygonHostData m_HostData{};
+    TKit::Array<PolygonHostData, ONYX_MAX_THREADS> m_HostData{};
     PolygonDeviceData m_DeviceData{};
+    u32 m_DeviceInstances = 0;
 };
 
 /**
@@ -328,10 +336,9 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
 
     VKit::GraphicsPipeline m_Pipeline{};
 
-    // Host data maps perfectly to the number of polygons to be drawn i.e number of entries in storage buffer.
-    // DeviceInstances is not needed
-    CircleHostData m_HostData{};
+    TKit::Array<CircleHostData, ONYX_MAX_THREADS> m_HostData{};
     CircleDeviceData m_DeviceData{};
+    u32 m_DeviceInstances = 0;
 };
 
 } // namespace Onyx::Detail

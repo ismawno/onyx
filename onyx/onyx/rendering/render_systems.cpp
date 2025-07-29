@@ -26,19 +26,6 @@ void ResetDrawCallCount() noexcept
 }
 #endif
 
-template <typename F1, typename F2>
-static void forEach(const u32 p_Start, const u32 p_End, F1 &&p_Function, F2 &&p_OnWait) noexcept
-{
-    TKit::ITaskManager *taskManager = Core::GetTaskManager();
-    const u32 partitions = taskManager->GetThreadCount() + 1;
-    TKit::Array<TKit::Ref<TKit::Task<void>>, ONYX_MAX_WORKER_THREADS> tasks;
-
-    TKit::ForEachMainThreadLead(*taskManager, p_Start, p_End, tasks.begin(), partitions, std::forward<F1>(p_Function));
-    p_OnWait();
-    for (u32 i = 0; i < partitions - 1; ++i)
-        tasks[i]->WaitUntilFinished();
-}
-
 template <typename T> static void initializeRenderer(T &p_DeviceData) noexcept
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
@@ -64,12 +51,18 @@ template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer
 template <Dimension D, PipelineMode PMode>
 void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh) noexcept
 {
-    m_HostData[p_Mesh].Append(p_InstanceData);
-    ++m_DeviceInstances;
+    thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
+    auto &hostData = m_HostData[threadIndex];
+    hostData.Data[p_Mesh].Append(p_InstanceData);
+    ++hostData.Instances;
 }
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
+    m_DeviceInstances = 0;
+    for (const auto &hostData : m_HostData)
+        m_DeviceInstances += hostData.Instances;
+
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
         m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
@@ -82,12 +75,13 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
-    for (const auto &[mesh, data] : m_HostData)
-        if (!data.IsEmpty())
-        {
-            storageBuffer.Write(data, offset);
-            offset += data.GetSize();
-        }
+    for (const auto &hostData : m_HostData)
+        for (const auto &[mesh, data] : hostData.Data)
+            if (!data.IsEmpty())
+            {
+                storageBuffer.Write(data, offset);
+                offset += data.GetSize();
+            }
 }
 
 template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
@@ -146,24 +140,28 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 
     pushConstantData<dlevel>(p_Info);
     u32 firstInstance = 0;
-    for (const auto &[mesh, data] : m_HostData)
-        if (!data.IsEmpty())
-        {
-            mesh.Bind(p_Info.CommandBuffer);
-            if (mesh.HasIndices())
-                mesh.DrawIndexed(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
-            else
-                mesh.Draw(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
-            INCREASE_DRAW_CALL_COUNT();
-            firstInstance += data.GetSize();
-        }
+    for (const auto &hostData : m_HostData)
+        for (const auto &[mesh, data] : hostData.Data)
+            if (!data.IsEmpty())
+            {
+                mesh.Bind(p_Info.CommandBuffer);
+                if (mesh.HasIndices())
+                    mesh.DrawIndexed(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
+                else
+                    mesh.Draw(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
+                INCREASE_DRAW_CALL_COUNT();
+                firstInstance += data.GetSize();
+            }
 }
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
 {
-    for (auto &[mesh, hostData] : m_HostData)
-        hostData.Clear();
-    m_DeviceInstances = 0;
+    for (auto &hostData : m_HostData)
+    {
+        for (auto &[model, data] : hostData.Data)
+            data.Clear();
+        hostData.Instances = 0;
+    }
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -182,12 +180,18 @@ template <Dimension D, PipelineMode PMode> PrimitiveRenderer<D, PMode>::~Primiti
 template <Dimension D, PipelineMode PMode>
 void PrimitiveRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const u32 p_PrimitiveIndex) noexcept
 {
-    m_HostData[p_PrimitiveIndex].Append(p_InstanceData);
-    ++m_DeviceInstances;
+    thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
+    auto &hostData = m_HostData[threadIndex];
+    hostData.Data[p_PrimitiveIndex].Append(p_InstanceData);
+    ++hostData.Instances;
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
+    m_DeviceInstances = 0;
+    for (const auto &hostData : m_HostData)
+        m_DeviceInstances += hostData.Instances;
+
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
         m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
@@ -202,12 +206,13 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
-    for (const auto &data : m_HostData)
-        if (!data.IsEmpty())
-        {
-            storageBuffer.Write(data, offset);
-            offset += data.GetSize();
-        }
+    for (const auto &hostData : m_HostData)
+        for (const auto &data : hostData.Data)
+            if (!data.IsEmpty())
+            {
+                storageBuffer.Write(data, offset);
+                offset += data.GetSize();
+            }
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
@@ -231,24 +236,29 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     pushConstantData<dlevel>(p_Info);
     u32 firstInstance = 0;
     const auto &table = Core::GetDeviceTable();
-    for (u32 i = 0; i < m_HostData.GetSize(); ++i)
-        if (!m_HostData[i].IsEmpty())
-        {
-            const u32 instanceCount = m_HostData[i].GetSize();
-            const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
 
-            table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
-                                 layout.VerticesStart, firstInstance);
-            INCREASE_DRAW_CALL_COUNT();
-            firstInstance += instanceCount;
-        }
+    for (const auto &hostData : m_HostData)
+        for (u32 i = 0; i < hostData.Data.GetSize(); ++i)
+            if (!hostData.Data[i].IsEmpty())
+            {
+                const u32 instanceCount = hostData.Data[i].GetSize();
+                const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
+
+                table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
+                                     layout.VerticesStart, firstInstance);
+                INCREASE_DRAW_CALL_COUNT();
+                firstInstance += instanceCount;
+            }
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flush() noexcept
 {
-    for (auto &data : m_HostData)
-        data.Clear();
-    m_DeviceInstances = 0;
+    for (auto &hostData : m_HostData)
+    {
+        for (auto &data : hostData.Data)
+            data.Clear();
+        hostData.Instances = 0;
+    }
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -269,16 +279,18 @@ void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData,
                                      const TKit::Span<const fvec2> p_Vertices) noexcept
 {
     TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX] A polygon must have at least 3 sides");
+    thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
+    auto &hostData = m_HostData[threadIndex];
 
     PrimitiveDataLayout layout;
-    layout.VerticesStart = m_HostData.Vertices.GetSize();
-    layout.IndicesStart = m_HostData.Indices.GetSize();
+    layout.VerticesStart = hostData.Vertices.GetSize();
+    layout.IndicesStart = hostData.Indices.GetSize();
     layout.IndicesCount = p_Vertices.GetSize() * 3 - 6;
 
-    m_HostData.Data.Append(p_InstanceData);
-    m_HostData.Layouts.Append(layout);
+    hostData.Data.Append(p_InstanceData);
+    hostData.Layouts.Append(layout);
 
-    const auto writeVertex = [this](const fvec2 &p_Vertex) {
+    const auto writeVertex = [&hostData](const fvec2 &p_Vertex) {
         Vertex<D> vertex{};
         if constexpr (D == D3)
         {
@@ -287,34 +299,43 @@ void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData,
         }
         else
             vertex.Position = p_Vertex;
-        m_HostData.Vertices.Append(vertex);
+        hostData.Vertices.Append(vertex);
     };
 
     for (u32 i = 0; i < 3; ++i)
     {
         const Index index = static_cast<Index>(i);
-        m_HostData.Indices.Append(index);
+        hostData.Indices.Append(index);
         writeVertex(p_Vertices[i]);
     }
 
     for (u32 i = 3; i < p_Vertices.GetSize(); ++i)
     {
         const Index index = static_cast<Index>(i);
-        m_HostData.Indices.Append(0);
-        m_HostData.Indices.Append(index - 1);
-        m_HostData.Indices.Append(index);
+        hostData.Indices.Append(0);
+        hostData.Indices.Append(index - 1);
+        hostData.Indices.Append(index);
         writeVertex(p_Vertices[i]);
     }
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
+    m_DeviceInstances = 0;
+    u32 vsize = 0;
+    u32 isize = 0;
+    for (const auto &hostData : m_HostData)
+    {
+        m_DeviceInstances += hostData.Data.GetSize();
+        vsize += hostData.Vertices.GetSize();
+        isize += hostData.Indices.GetSize();
+    }
+
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
-    if (m_HostData.Data.GetSize() >= storageBuffer.GetInfo().InstanceCount)
-        m_DeviceData.Grow(p_FrameIndex, m_HostData.Data.GetSize());
+    if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
+        m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
 
     auto &vertexBuffer = m_DeviceData.VertexBuffers[p_FrameIndex];
-    const u32 vsize = m_HostData.Vertices.GetSize();
     if (vsize >= vertexBuffer.GetInfo().InstanceCount)
     {
         vertexBuffer.Destroy();
@@ -322,7 +343,6 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowT
     }
 
     auto &indexBuffer = m_DeviceData.IndexBuffers[p_FrameIndex];
-    const u32 isize = m_HostData.Indices.GetSize();
     if (isize >= indexBuffer.GetInfo().InstanceCount)
     {
         indexBuffer.Destroy();
@@ -331,7 +351,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowT
 }
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_HostData.Data.IsEmpty())
+    if (m_DeviceInstances == 0)
         return;
 
     TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
@@ -340,14 +360,26 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
     auto &vertexBuffer = m_DeviceData.VertexBuffers[p_FrameIndex];
     auto &indexBuffer = m_DeviceData.IndexBuffers[p_FrameIndex];
 
-    storageBuffer.Write(m_HostData.Data);
-    vertexBuffer.Write(m_HostData.Vertices);
-    indexBuffer.Write(m_HostData.Indices);
+    u32 offset = 0;
+    u32 voffset = 0;
+    u32 ioffset = 0;
+
+    for (const auto &hostData : m_HostData)
+        if (!hostData.Data.IsEmpty())
+        {
+            storageBuffer.Write(hostData.Data, offset);
+            vertexBuffer.Write(hostData.Vertices, voffset);
+            indexBuffer.Write(hostData.Indices, ioffset);
+
+            offset += hostData.Data.GetSize();
+            voffset += hostData.Vertices.GetSize();
+            ioffset += hostData.Indices.GetSize();
+        }
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_HostData.Data.IsEmpty())
+    if (m_DeviceInstances == 0)
         return;
     TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::Render");
 
@@ -364,21 +396,25 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
 
     pushConstantData<dlevel>(p_Info);
     const auto &table = Core::GetDeviceTable();
-    for (u32 i = 0; i < m_HostData.Layouts.GetSize(); ++i)
-    {
-        const PrimitiveDataLayout &layout = m_HostData.Layouts[i];
-        table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, 1, layout.IndicesStart, layout.VerticesStart,
-                             i);
-        INCREASE_DRAW_CALL_COUNT();
-    }
+    for (const auto &hostData : m_HostData)
+        for (const PrimitiveDataLayout &layout : hostData.Layouts)
+            if (layout.IndicesCount > 0)
+            {
+                table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, 1, layout.IndicesStart,
+                                     layout.VerticesStart, 0);
+                INCREASE_DRAW_CALL_COUNT();
+            }
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush() noexcept
 {
-    m_HostData.Data.Clear();
-    m_HostData.Layouts.Clear();
-    m_HostData.Vertices.Clear();
-    m_HostData.Indices.Clear();
+    for (auto &hostData : m_HostData)
+    {
+        hostData.Data.Clear();
+        hostData.Layouts.Clear();
+        hostData.Vertices.Clear();
+        hostData.Indices.Clear();
+    }
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -401,6 +437,9 @@ void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Ci
     //     TKit::Approximately(p_Options.Hollowness, 1.f))
     //     return;
 
+    thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
+    auto &hostData = m_HostData[threadIndex];
+
     CircleInstanceData instanceData;
     instanceData.BaseData = p_InstanceData;
 
@@ -411,29 +450,39 @@ void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Ci
     instanceData.InnerFade = p_Options.InnerFade;
     instanceData.OuterFade = p_Options.OuterFade;
 
-    m_HostData.Append(instanceData);
+    hostData.Append(instanceData);
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
+    m_DeviceInstances = 0;
+    for (const auto &hostData : m_HostData)
+        m_DeviceInstances += hostData.GetSize();
+
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
-    if (m_HostData.GetSize() >= storageBuffer.GetInfo().InstanceCount)
-        m_DeviceData.Grow(p_FrameIndex, m_HostData.GetSize());
+    if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
+        m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
 }
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_HostData.IsEmpty())
+    if (m_DeviceInstances == 0)
         return;
 
     TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
-    storageBuffer.Write(m_HostData);
+    u32 offset = 0;
+    for (const auto &hostData : m_HostData)
+        if (!hostData.IsEmpty())
+        {
+            storageBuffer.Write(hostData, offset);
+            offset += hostData.GetSize();
+        }
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_HostData.IsEmpty())
+    if (m_DeviceInstances == 0)
         return;
     TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::Render");
     m_Pipeline.Bind(p_Info.CommandBuffer);
@@ -445,16 +494,20 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
     pushConstantData<dlevel>(p_Info);
 
     const auto &table = Core::GetDeviceTable();
-    table.CmdDraw(p_Info.CommandBuffer, 6, m_HostData.GetSize(), 0, 0);
+
+    for (const auto &hostData : m_HostData)
+        if (!hostData.IsEmpty())
+            table.CmdDraw(p_Info.CommandBuffer, 6, hostData.GetSize(), 0, 0);
     INCREASE_DRAW_CALL_COUNT();
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush() noexcept
 {
-    m_HostData.Clear();
+    for (auto &hostData : m_HostData)
+        hostData.Clear();
 }
 
-// This is just crazy
+// This is crazy
 
 template class ONYX_API MeshRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
 template class ONYX_API MeshRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
