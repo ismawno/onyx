@@ -124,7 +124,7 @@ for cname, cfg in configurations.items():
         Convoy.log(f"Executing tracy-capture with the following command: <bold>{' '.join(targs)}")
 
         tprocess = subprocess.Popen(targs)
-        time.sleep(0.4)
+        time.sleep(1.0)
 
         Convoy.log(f"Executing onyx performance with the following command: <bold>{' '.join(eargs)}")
         eprocess = subprocess.Popen(eargs)
