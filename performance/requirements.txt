@@ -1,2 +1,2 @@
-pyaml==25.7.0
-PyYAML==6.0.2
+ruamel.yaml==0.18.14
+ruamel.yaml.clib==0.2.12

@@ -6,7 +6,7 @@ import subprocess
 import time
 
 import copy
-import yaml
+from ruamel.yaml import YAML
 import sys
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -69,8 +69,11 @@ if not tracy.is_file():
 if not path.is_file():
     Convoy.exit_error(f"The settings path <underline>{path}</underline> must exist and point to a yaml file.")
 
+
+yaml = YAML(pure=True)
 with open(path) as f:
-    configurations = yaml.safe_load(f)
+    configurations = yaml.load(f)
+
 
 now = dt.datetime.now(dt.UTC).strftime("%Y-%m-%d--%H-%M-%S")
 name = now if args.name is None else f"{now}-{args.name}"
@@ -113,7 +116,7 @@ for cname, cfg in configurations.items():
         Convoy.log(f"Starting trace... Will be exported to <underline>{trace}</underline>.")
 
         with open(sfile, "w") as f:
-            yaml.safe_dump(settings, f, default_flow_style=True)
+            yaml.dump(settings, f)
 
         targs = [str(tracy), "-o", str(trace)]
         eargs = [str(exec), "-s", str(sfile), "-r", str(args.run_time)]
