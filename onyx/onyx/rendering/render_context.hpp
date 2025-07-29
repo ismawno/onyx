@@ -26,7 +26,7 @@ template <Dimension D> class IRenderContext
 {
     TKIT_NON_COPYABLE(IRenderContext)
   public:
-    IRenderContext(Window *p_Window, VkRenderPass p_RenderPass) noexcept;
+    IRenderContext(Window *p_Window, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 
     /**
      * @brief Clear all of the recorded draw data until this point.

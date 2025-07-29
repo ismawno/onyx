@@ -2,8 +2,8 @@
 
 #include "onyx/rendering/post_processing.hpp"
 #include "vkit/rendering/swap_chain.hpp"
-#include "vkit/rendering/render_pass.hpp"
 #include "vkit/rendering/command_pool.hpp"
+#include "vkit/rendering/image.hpp"
 
 namespace Onyx
 {
@@ -17,15 +17,25 @@ namespace Onyx::Detail
  * @brief Manages frame scheduling and rendering operations for a window.
  *
  * The `FrameScheduler` class provides a high-level abstraction for managing Vulkan rendering
- * tasks, including frame synchronization, command buffer management, and render pass execution.
+ * tasks, including frame synchronization, command buffer management, and rendering execution.
  *
- * It currently provides a single render pass with support for post-processing effects, which is split into
- * 2 subpasses.
  */
 class ONYX_API FrameScheduler
 {
     TKIT_NON_COPYABLE(FrameScheduler)
   public:
+    struct Image
+    {
+        VKit::Image Image;
+        VkImageLayout Layout;
+    };
+    struct ImageData
+    {
+        Image Presentation;
+        Image Intermediate;
+        Image DepthStencil;
+    };
+
     explicit FrameScheduler(Window &p_Window) noexcept;
     ~FrameScheduler() noexcept;
 
@@ -51,25 +61,36 @@ class ONYX_API FrameScheduler
     void EndFrame(Window &p_Window) noexcept;
 
     /**
-     * @brief Begins a render pass with the specified clear color.
+     * @brief Begins the main scene rendering with the specified clear color.
      *
-     * It will clear the framebuffer with the provided color and set dynamic viewport and scissor states. It will also
-     * run the pre processing pipeline, if any.
+     * It will clear the color attachment with the provided color and set dynamic viewport and scissor states.
      *
      * @param p_ClearColor The color to clear the framebuffer with.
      */
-    void BeginRenderPass(const Color &p_ClearColor) noexcept;
+    void BeginRendering(const Color &p_ClearColor) noexcept;
 
     /**
-     * @brief Ends the current render pass and runs the post processing pipeline.
+     * @brief Ends the current rendering and runs the post processing pipeline.
      *
      * If not specified, the post-processing pipeline will be a naive one that simply blits the final image to the
      * swap chain image.
      *
      */
-    void EndRenderPass() noexcept;
+    void EndRendering() noexcept;
 
     u32 GetFrameIndex() const noexcept;
+
+    /**
+     * @brief Creates information needed by pipelines that wish to render to the main scene.
+     *
+     */
+    VkPipelineRenderingCreateInfoKHR CreateSceneRenderInfo() const noexcept;
+
+    /**
+     * @brief Creates information needed by pipelines that wish to act in post processing.
+     *
+     */
+    VkPipelineRenderingCreateInfoKHR CreatePostProcessingRenderInfo() const noexcept;
 
     /**
      * @brief Acquires the next image from the swap chain for rendering.
@@ -133,7 +154,6 @@ class ONYX_API FrameScheduler
     void RemovePostProcessing() noexcept;
 
     const VKit::SwapChain &GetSwapChain() const noexcept;
-    const VKit::RenderPass &GetRenderPass() const noexcept;
 
     VkCommandBuffer GetCurrentCommandBuffer() const noexcept;
 
@@ -143,23 +163,25 @@ class ONYX_API FrameScheduler
   private:
     void createSwapChain(Window &p_Window) noexcept;
     void recreateSwapChain(Window &p_Window) noexcept;
-    void createRenderPass() noexcept;
     void createProcessingEffects() noexcept;
     void createCommandData() noexcept;
-    VKit::RenderPass::Resources createResources() noexcept;
+
+    TKit::StaticArray4<ImageData> createImageData() noexcept;
+    void destroyImageData() noexcept;
 
     void setupNaivePostProcessing() noexcept;
-    TKit::StaticArray4<VkImageView> getIntermediateAttachmentImageViews() const noexcept;
+
+    TKit::StaticArray4<ImageData> m_Images{};
+    TKit::StaticArray4<VkImageView> getIntermediateColorImageViews() const noexcept;
 
     VKit::SwapChain m_SwapChain;
-    VKit::RenderPass m_RenderPass;
-    VKit::RenderPass::Resources m_Resources;
     TKit::StaticArray4<VkFence> m_InFlightImages;
     TKit::Storage<PostProcessing> m_PostProcessing;
 
     VKit::Shader m_NaivePostProcessingFragmentShader;
 
     VKit::PipelineLayout m_NaivePostProcessingLayout;
+    VKit::ImageHouse m_ImageHouse;
 
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
 

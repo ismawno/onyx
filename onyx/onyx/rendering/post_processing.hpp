@@ -23,9 +23,10 @@ class ONYX_API PostProcessing
         VKit::Shader VertexShader;
         VKit::Shader FragmentShader;
         VkSamplerCreateInfo SamplerCreateInfo = DefaultSamplerCreateInfo();
+        VkPipelineRenderingCreateInfoKHR RenderInfo;
     };
 
-    PostProcessing(VkRenderPass p_RenderPass, const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept;
+    PostProcessing(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept;
     ~PostProcessing() noexcept;
 
     void UpdateDescriptorSet(u32 p_Index, VkDescriptorSet p_DescriptorSet) noexcept;
@@ -74,7 +75,6 @@ class ONYX_API PostProcessing
   private:
     void overwriteSamplerSet(VkImageView p_ImageView, VkDescriptorSet p_Set) const noexcept;
 
-    VkRenderPass m_RenderPass;
     VKit::GraphicsPipeline m_Pipeline{};
     VKit::GraphicsJob m_Job{};
 

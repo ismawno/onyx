@@ -5,9 +5,8 @@
 
 namespace Onyx
 {
-PostProcessing::PostProcessing(const VkRenderPass p_RenderPass,
-                               const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept
-    : m_RenderPass(p_RenderPass), m_ImageViews(p_ImageViews)
+PostProcessing::PostProcessing(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept
+    : m_ImageViews(p_ImageViews)
 {
     const auto result = VKit::DescriptorSetLayout::Builder(Core::GetDevice())
                             .AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -49,7 +48,7 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
     TKIT_ASSERT_RETURNS(table.CreateSampler(Core::GetDevice(), &p_Specs.SamplerCreateInfo, nullptr, &m_Sampler),
                         VK_SUCCESS, "[ONYX] Failed to create sampler");
 
-    const auto result = VKit::GraphicsPipeline::Builder(Core::GetDevice(), p_Specs.Layout, m_RenderPass, 1)
+    const auto result = VKit::GraphicsPipeline::Builder(Core::GetDevice(), p_Specs.Layout, p_Specs.RenderInfo)
                             .AddShaderStage(p_Specs.VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
                             .AddShaderStage(p_Specs.FragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
                             .SetViewportCount(1)

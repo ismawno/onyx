@@ -73,8 +73,8 @@ class ONYX_API Window
     /**
      * @brief Renders the window using the provided draw and UI callables.
      *
-     * This method begins a new frame, starts the render pass with the specified background color,
-     * executes the provided draw and UI callables, and ends the render pass and frame.
+     * This method begins a new frame, starts the rendering with the specified background color,
+     * executes the provided draw and UI callables, and ends the rendering and frame.
      *
      * @tparam F1 Type of the draw calls callable.
      * @tparam F2 Type of the UI calls callable.
@@ -91,7 +91,7 @@ class ONYX_API Window
 
         {
             TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Window::Render", Core::GetProfilingContext(), cmd);
-            m_FrameScheduler->BeginRenderPass(BackgroundColor);
+            m_FrameScheduler->BeginRendering(BackgroundColor);
 
             const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
             std::forward<F1>(p_FirstDraws)(frameIndex, cmd);
@@ -118,7 +118,7 @@ class ONYX_API Window
 
             std::forward<F2>(p_LastDraws)(frameIndex, cmd);
 
-            m_FrameScheduler->EndRenderPass();
+            m_FrameScheduler->EndRendering();
         }
 
         {
@@ -135,8 +135,8 @@ class ONYX_API Window
     /**
      * @brief Renders the window using the provided draw callables.
      *
-     * This method begins a new frame, starts the render pass with the specified background color,
-     * executes the provided draw callables, and ends the render pass and frame.
+     * This method begins a new frame, starts the rendering with the specified background color,
+     * executes the provided draw callables, and ends the rendering and frame.
      *
      * @tparam F Type of the draw calls callable.
      * @param p_FirstDraws Callable for draw calls that happen before the main scene rendering.
@@ -150,8 +150,8 @@ class ONYX_API Window
     /**
      * @brief Renders the window using the provided UI callables.
      *
-     * This method begins a new frame, starts the render pass with the specified background color,
-     * executes the provided UI callables, and ends the render pass and frame.
+     * This method begins a new frame, starts the rendering with the specified background color,
+     * executes the provided UI callables, and ends the rendering and frame.
      *
      * @tparam F Type of the UI calls callable.
      * @param p_LastDraws Callable for draw calls that happen after the main scene rendering.
@@ -165,8 +165,8 @@ class ONYX_API Window
     /**
      * @brief Renders the window without any custom draw or UI calls.
      *
-     * This method begins a new frame, starts the render pass with the specified background color,
-     * executes the provided draw callables, and ends the render pass and frame.
+     * This method begins a new frame, starts the rendering with the specified background color,
+     * executes the provided draw callables, and ends the rendering and frame.
      *
      * @return true if rendering was successful, false otherwise.
      */
@@ -240,7 +240,7 @@ class ONYX_API Window
 
     template <Dimension D> RenderContext<D> *CreateRenderContext() noexcept
     {
-        auto context = TKit::Scope<RenderContext<D>>::Create(this, GetRenderPass());
+        auto context = TKit::Scope<RenderContext<D>>::Create(this, m_FrameScheduler->CreateSceneRenderInfo());
         auto &array = getContextArray<D>();
         RenderContext<D> *ptr = context.Get();
         array.Append(std::move(context));
@@ -267,7 +267,18 @@ class ONYX_API Window
             }
     }
 
-    const VKit::RenderPass &GetRenderPass() const noexcept;
+    /**
+     * @brief Creates information needed by pipelines that wish to render to the main scene.
+     *
+     */
+    VkPipelineRenderingCreateInfoKHR CreateSceneRenderInfo() const noexcept;
+
+    /**
+     * @brief Creates information needed by pipelines that wish to act in post processing.
+     *
+     */
+    VkPipelineRenderingCreateInfoKHR CreatePostProcessingRenderInfo() const noexcept;
+
     u32 GetFrameIndex() const noexcept;
 
     VkPresentModeKHR GetPresentMode() const noexcept;

@@ -8,11 +8,12 @@
 
 namespace Onyx::Detail
 {
+const VkFormat s_DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
 FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 {
     createSwapChain(p_Window);
     m_InFlightImages.Resize(m_SwapChain.GetInfo().ImageData.GetSize(), VK_NULL_HANDLE);
-    createRenderPass();
+    m_Images = createImageData();
     createProcessingEffects();
     createCommandData();
     const auto result = VKit::CreateSynchronizationObjects(Core::GetDevice(), m_SyncData);
@@ -23,7 +24,7 @@ FrameScheduler::~FrameScheduler() noexcept
 {
     // Lock the queues to prevent any other command buffers from being submitted
     Core::DeviceWaitIdle();
-    m_Resources.Destroy();
+    destroyImageData();
     m_PostProcessing.Destruct();
     m_NaivePostProcessingFragmentShader.Destroy();
     m_NaivePostProcessingLayout.Destroy();
@@ -31,7 +32,6 @@ FrameScheduler::~FrameScheduler() noexcept
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         m_CommandPools[i].Destroy();
 
-    m_RenderPass.Destroy();
     m_SwapChain.Destroy();
 }
 
@@ -86,26 +86,69 @@ void FrameScheduler::EndFrame(Window &p_Window) noexcept
     m_FrameStarted = false;
 }
 
-void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
+static void transitionImage(const VKit::Vulkan::DeviceTable &p_Table, const VkCommandBuffer p_Cmd,
+                            FrameScheduler::Image &p_Image, const VkImageLayout p_NewLayout,
+                            const VkAccessFlags p_SrcAccess, const VkAccessFlags p_DstAccess,
+                            const VkPipelineStageFlags p_SrcStage, const VkPipelineStageFlags p_DstStage,
+                            const VkImageAspectFlags p_AspectMask = VK_IMAGE_ASPECT_COLOR_BIT) noexcept
 {
-    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot begin render pass if a frame is not in progress");
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = p_Image.Layout;
+    barrier.newLayout = p_NewLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = p_Image.Image.Image;
+    barrier.subresourceRange = {p_AspectMask, 0, 1, 0, 1};
+    barrier.srcAccessMask = p_SrcAccess;
+    barrier.dstAccessMask = p_DstAccess;
 
-    const VkExtent2D extent = m_SwapChain.GetInfo().Extent;
-    VkRenderPassBeginInfo passInfo{};
-    passInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    passInfo.renderPass = m_RenderPass;
-    passInfo.framebuffer = m_Resources.GetFrameBuffer(m_ImageIndex);
-    passInfo.renderArea.offset = {0, 0};
-    passInfo.renderArea.extent = extent;
+    p_Table.CmdPipelineBarrier(p_Cmd, p_SrcStage, p_DstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    p_Image.Layout = p_NewLayout;
+}
 
-    TKit::Array<VkClearValue, 3> clearValues;
-    clearValues[0].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
-    clearValues[1].depthStencil.depth = 1.f;
-    clearValues[1].depthStencil.stencil = 0;
-    clearValues[2].color = {{p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
+void FrameScheduler::BeginRendering(const Color &p_ClearColor) noexcept
+{
+    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot begin rendering if a frame is not in progress");
 
-    passInfo.clearValueCount = clearValues.GetSize();
-    passInfo.pClearValues = clearValues.GetData();
+    const auto &table = Core::GetDeviceTable();
+    const VkCommandBuffer cmd = m_CommandBuffers[m_FrameIndex];
+
+    VkRenderingAttachmentInfoKHR intermediateColor{};
+    intermediateColor.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    intermediateColor.imageView = m_Images[m_ImageIndex].Intermediate.Image.ImageView;
+    intermediateColor.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    intermediateColor.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    intermediateColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    intermediateColor.clearValue.color = {
+        {p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
+    transitionImage(table, cmd, m_Images[m_ImageIndex].Intermediate, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+
+    VkRenderingAttachmentInfoKHR depth{};
+    depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    depth.imageView = m_Images[m_ImageIndex].DepthStencil.Image.ImageView;
+    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.clearValue.depthStencil = {1.f, 0};
+    transitionImage(table, cmd, m_Images[m_ImageIndex].DepthStencil, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                    0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+                    VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
+
+    const VkRenderingAttachmentInfoKHR stencil = depth;
+
+    const VkExtent2D &extent = m_SwapChain.GetInfo().Extent;
+    VkRenderingInfoKHR renderInfo{};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderInfo.renderArea = {{0, 0}, extent};
+    renderInfo.layerCount = 1;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachments = &intermediateColor;
+    renderInfo.pDepthAttachment = &depth;
+    renderInfo.pStencilAttachment = &stencil;
 
     VkViewport viewport{};
     viewport.x = 0.f;
@@ -119,21 +162,51 @@ void FrameScheduler::BeginRenderPass(const Color &p_ClearColor) noexcept
     scissor.offset = {0, 0};
     scissor.extent = extent;
 
-    const auto &table = Core::GetDeviceTable();
-    table.CmdSetViewport(m_CommandBuffers[m_FrameIndex], 0, 1, &viewport);
-    table.CmdSetScissor(m_CommandBuffers[m_FrameIndex], 0, 1, &scissor);
-    table.CmdBeginRenderPass(m_CommandBuffers[m_FrameIndex], &passInfo, VK_SUBPASS_CONTENTS_INLINE);
+    table.CmdSetViewport(cmd, 0, 1, &viewport);
+    table.CmdSetScissor(cmd, 0, 1, &scissor);
+
+    table.CmdBeginRenderingKHR(cmd, &renderInfo);
 }
 
-void FrameScheduler::EndRenderPass() noexcept
+void FrameScheduler::EndRendering() noexcept
 {
-    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end render pass if a frame is not in progress");
+    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end rendering if a frame is not in progress");
     const auto &table = Core::GetDeviceTable();
-    table.CmdNextSubpass(m_CommandBuffers[m_FrameIndex], VK_SUBPASS_CONTENTS_INLINE);
-    m_PostProcessing->Bind(m_CommandBuffers[m_FrameIndex], m_ImageIndex);
-    m_PostProcessing->Draw(m_CommandBuffers[m_FrameIndex]);
 
-    table.CmdEndRenderPass(m_CommandBuffers[m_FrameIndex]);
+    const VkCommandBuffer cmd = m_CommandBuffers[m_FrameIndex];
+    table.CmdEndRenderingKHR(cmd);
+
+    VkRenderingAttachmentInfoKHR finalColor{};
+    finalColor.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
+    finalColor.imageView = m_Images[m_ImageIndex].Presentation.Image.ImageView;
+    finalColor.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    finalColor.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    finalColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    transitionImage(table, cmd, m_Images[m_ImageIndex].Intermediate, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+
+    const VkExtent2D &extent = m_SwapChain.GetInfo().Extent;
+    VkRenderingInfoKHR renderInfo{};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
+    renderInfo.renderArea = {{0, 0}, extent};
+    renderInfo.layerCount = 1;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachments = &finalColor;
+    renderInfo.pDepthAttachment = nullptr;
+    renderInfo.pStencilAttachment = nullptr;
+
+    table.CmdBeginRenderingKHR(cmd, &renderInfo);
+
+    m_PostProcessing->Bind(cmd, m_ImageIndex);
+    m_PostProcessing->Draw(cmd);
+
+    table.CmdEndRenderingKHR(cmd);
+
+    transitionImage(table, cmd, m_Images[m_ImageIndex].Presentation, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 }
 
 VkResult FrameScheduler::AcquireNextImage() noexcept
@@ -210,6 +283,7 @@ PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_
     specs.VertexShader = p_Options.VertexShader ? *p_Options.VertexShader : GetFullPassVertexShader();
     specs.SamplerCreateInfo =
         p_Options.SamplerCreateInfo ? *p_Options.SamplerCreateInfo : PostProcessing::DefaultSamplerCreateInfo();
+    specs.RenderInfo = CreatePostProcessingRenderInfo();
     m_PostProcessing->Setup(specs);
     return m_PostProcessing.Get();
 }
@@ -228,14 +302,32 @@ u32 FrameScheduler::GetFrameIndex() const noexcept
 {
     return m_FrameIndex;
 }
+VkPipelineRenderingCreateInfoKHR FrameScheduler::CreateSceneRenderInfo() const noexcept
+{
+    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
+    VkPipelineRenderingCreateInfoKHR renderInfo{};
+    renderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachmentFormats = &info.SurfaceFormat.format;
+    renderInfo.depthAttachmentFormat = s_DepthStencilFormat;
+    renderInfo.stencilAttachmentFormat = s_DepthStencilFormat;
+    return renderInfo;
+}
+VkPipelineRenderingCreateInfoKHR FrameScheduler::CreatePostProcessingRenderInfo() const noexcept
+{
+    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
+    VkPipelineRenderingCreateInfoKHR renderInfo{};
+    renderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachmentFormats = &info.SurfaceFormat.format;
+    renderInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+    renderInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+    return renderInfo;
+}
 
 const VKit::SwapChain &FrameScheduler::GetSwapChain() const noexcept
 {
     return m_SwapChain;
-}
-const VKit::RenderPass &FrameScheduler::GetRenderPass() const noexcept
-{
-    return m_RenderPass;
 }
 
 VkCommandBuffer FrameScheduler::GetCurrentCommandBuffer() const noexcept
@@ -285,77 +377,61 @@ void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
     createSwapChain(p_Window);
     old.Destroy();
 
-    const auto resources = createResources();
-    m_Resources.Destroy();
-    m_Resources = resources;
+    destroyImageData();
+    m_Images = createImageData();
 
-    const TKit::StaticArray4<VkImageView> imageViews = getIntermediateAttachmentImageViews();
+    const TKit::StaticArray4<VkImageView> imageViews = getIntermediateColorImageViews();
     m_PostProcessing->updateImageViews(imageViews);
 }
 
-void FrameScheduler::createRenderPass() noexcept
+TKit::StaticArray4<FrameScheduler::ImageData> FrameScheduler::createImageData() noexcept
 {
-    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-
-    const VKit::LogicalDevice &device = Core::GetDevice();
-    const auto result =
-        VKit::RenderPass::Builder(&device, info.ImageData.GetSize())
-            .SetAllocator(Core::GetVulkanAllocator())
-            // Attachment 0: This is the final presentation image. It is the post processing target image.
-            .BeginAttachment(VKit::AttachmentFlag_Color)
-            .RequestFormat(info.SurfaceFormat.format)
-            .SetFinalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
-            .EndAttachment()
-            // Attachment 1: Depth/Stencil. This is the main depth/stencil buffer for the scene.
-            .BeginAttachment(VKit::AttachmentFlag_Depth | VKit::AttachmentFlag_Stencil)
-            .RequestFormat(VK_FORMAT_D32_SFLOAT_S8_UINT)
-            .SetFinalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            .EndAttachment()
-            // Attachment 2: An intermediate color attachment used as the target of  the main
-            // scene. It will also serve as "input" for the post-processing pass. This attachment is supplied to
-            // the post processing pipeline via a sampler, so in theory, flagging it as an input attachment would not be
-            // necessary. However, it is flagged as an input attachment to ensure that vulkan is
-            // aware of the dependency between the scene rendering and the post-processing pass. It is kind of a quirk
-            // that allows us to defer synchronization to the render pass itself.
-            .BeginAttachment(VKit::AttachmentFlag_Color | VKit::AttachmentFlag_Sampled | VKit::AttachmentFlag_Input)
-            .RequestFormat(info.SurfaceFormat.format)
-            .SetFinalLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-            .EndAttachment()
-            // Subpass 0 - Runs the main scene rendering pass
-            .BeginSubpass(VK_PIPELINE_BIND_POINT_GRAPHICS)
-            .AddColorAttachment(2)
-            .SetDepthStencilAttachment(1)
-            .EndSubpass()
-            // Subpass 1 - Runs the post-processing pass
-            .BeginSubpass(VK_PIPELINE_BIND_POINT_GRAPHICS)
-            .AddColorAttachment(0)
-            .AddInputAttachment(2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-            .EndSubpass()
-            // Dependency 0 - External to main scene.
-            .BeginDependency(VK_SUBPASS_EXTERNAL, 0)
-            .SetStageMask(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                          VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT)
-            .SetAccessMask(0, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)
-            .EndDependency()
-            // Dependency 1 - Scene rendering to post-processing. Here, we tell vulkan that subpass 1 will read from
-            // attachment 2 from the fragment shader and need the scene rendering pass to be finished before that.
-            .BeginDependency(0, 1)
-            .SetStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
-            .SetAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT)
-            .EndDependency()
-            .Build();
-
+    const auto result = VKit::ImageHouse::Create(Core::GetDevice(), Core::GetVulkanAllocator());
     VKIT_ASSERT_RESULT(result);
-    m_RenderPass = result.GetValue();
-    m_Resources = createResources();
+    m_ImageHouse = result.GetValue();
+
+    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
+    TKit::StaticArray4<ImageData> images{};
+    for (u32 i = 0; i < info.ImageData.GetSize(); ++i)
+    {
+        ImageData data{};
+        auto iresult = m_ImageHouse.CreateImage(info.ImageData[i].Image, info.ImageData[i].ImageView);
+        VKIT_ASSERT_RESULT(iresult);
+        data.Presentation.Image = iresult.GetValue();
+        data.Presentation.Layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        iresult = m_ImageHouse.CreateImage(info.SurfaceFormat.format, info.Extent,
+                                           VKit::AttachmentFlag_Color | VKit::AttachmentFlag_Sampled);
+        VKIT_ASSERT_RESULT(iresult);
+        data.Intermediate.Image = iresult.GetValue();
+        data.Intermediate.Layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        iresult = m_ImageHouse.CreateImage(s_DepthStencilFormat, info.Extent,
+                                           VKit::AttachmentFlag_Depth | VKit::AttachmentFlag_Stencil);
+        VKIT_ASSERT_RESULT(iresult);
+        data.DepthStencil.Image = iresult.GetValue();
+        data.DepthStencil.Layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        images.Append(data);
+    }
+    return images;
+}
+void FrameScheduler::destroyImageData() noexcept
+{
+    for (const ImageData &data : m_Images)
+    {
+        m_ImageHouse.DestroyImage(data.Presentation.Image);
+        m_ImageHouse.DestroyImage(data.Intermediate.Image);
+        m_ImageHouse.DestroyImage(data.DepthStencil.Image);
+    }
 }
 
 void FrameScheduler::createProcessingEffects() noexcept
 {
     m_NaivePostProcessingFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/pp-naive.frag");
 
-    const TKit::StaticArray4<VkImageView> imageviews = getIntermediateAttachmentImageViews();
-    m_PostProcessing.Construct(m_RenderPass, imageviews);
+    const TKit::StaticArray4<VkImageView> imageviews = getIntermediateColorImageViews();
+    m_PostProcessing.Construct(imageviews);
 
     const VKit::PipelineLayout::Builder builder = m_PostProcessing->CreatePipelineLayoutBuilder();
     const auto result = builder.Build();
@@ -381,21 +457,6 @@ void FrameScheduler::createCommandData() noexcept
         m_CommandBuffers[i] = cmdres.GetValue();
     }
 }
-VKit::RenderPass::Resources FrameScheduler::createResources() noexcept
-{
-    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-    const auto result =
-        m_RenderPass.CreateResources(info.Extent, [this, &info](const VKit::ImageHouse &p_ImageHouse,
-                                                                const u32 p_ImageIndex, const u32 p_AttachmentIndex) {
-            if (p_AttachmentIndex == 0)
-                return p_ImageHouse.CreateImage(info.ImageData[p_ImageIndex].ImageView);
-
-            const VKit::RenderPass::Attachment &attachment = m_RenderPass.GetAttachment(p_AttachmentIndex);
-            return p_ImageHouse.CreateImage(attachment.Description.format, info.Extent, attachment.Flags);
-        });
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
 
 void FrameScheduler::setupNaivePostProcessing() noexcept
 {
@@ -404,14 +465,15 @@ void FrameScheduler::setupNaivePostProcessing() noexcept
     specs.FragmentShader = m_NaivePostProcessingFragmentShader;
     specs.VertexShader = GetFullPassVertexShader();
     specs.SamplerCreateInfo = PostProcessing::DefaultSamplerCreateInfo();
+    specs.RenderInfo = CreatePostProcessingRenderInfo();
     m_PostProcessing->Setup(specs);
 }
 
-TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateAttachmentImageViews() const noexcept
+TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateColorImageViews() const noexcept
 {
     TKit::StaticArray4<VkImageView> imageViews;
     for (u32 i = 0; i < m_SwapChain.GetInfo().ImageData.GetSize(); ++i)
-        imageViews.Append(m_Resources.GetImageView(i, 2));
+        imageViews.Append(m_Images[i].Intermediate.Image.ImageView);
     return imageViews;
 }
 

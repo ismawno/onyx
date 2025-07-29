@@ -176,9 +176,13 @@ void Window::adaptCamerasToViewportAspect() noexcept
         context->AdaptCamerasToViewportAspect();
 }
 
-const VKit::RenderPass &Window::GetRenderPass() const noexcept
+VkPipelineRenderingCreateInfoKHR Window::CreateSceneRenderInfo() const noexcept
 {
-    return m_FrameScheduler->GetRenderPass();
+    return m_FrameScheduler->CreateSceneRenderInfo();
+}
+VkPipelineRenderingCreateInfoKHR Window::CreatePostProcessingRenderInfo() const noexcept
+{
+    return m_FrameScheduler->CreatePostProcessingRenderInfo();
 }
 
 u32 Window::GetFrameIndex() const noexcept

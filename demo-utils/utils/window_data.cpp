@@ -63,7 +63,7 @@ void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
     m_Window = p_Window;
 
     const auto presult =
-        VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowLayout(), m_Window->GetRenderPass())
+        VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowLayout(), m_Window->CreateSceneRenderInfo())
             .SetViewportCount(1)
             .AddShaderStage(GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
             .AddShaderStage(getRainbowShader(), VK_SHADER_STAGE_FRAGMENT_BIT)

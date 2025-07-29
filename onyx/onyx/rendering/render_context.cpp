@@ -10,8 +10,8 @@ namespace Onyx
 using namespace Detail;
 
 template <Dimension D>
-IRenderContext<D>::IRenderContext(Window *p_Window, const VkRenderPass p_RenderPass) noexcept
-    : m_Renderer(p_RenderPass), m_Window(p_Window)
+IRenderContext<D>::IRenderContext(Window *p_Window, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+    : m_Renderer(p_RenderInfo), m_Window(p_Window)
 {
     m_StateStack.Append(RenderState<D>{});
     updateState();

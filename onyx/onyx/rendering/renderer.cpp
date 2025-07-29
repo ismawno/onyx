@@ -6,9 +6,9 @@
 namespace Onyx::Detail
 {
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-RenderSystem<D, R>::RenderSystem(const VkRenderPass p_RenderPass) noexcept
-    : NoStencilWriteDoFill(p_RenderPass), DoStencilWriteDoFill(p_RenderPass), DoStencilWriteNoFill(p_RenderPass),
-      DoStencilTestNoFill(p_RenderPass)
+RenderSystem<D, R>::RenderSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+    : NoStencilWriteDoFill(p_RenderInfo), DoStencilWriteDoFill(p_RenderInfo), DoStencilWriteNoFill(p_RenderInfo),
+      DoStencilTestNoFill(p_RenderInfo)
 {
 }
 
@@ -59,13 +59,13 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
 }
 
 template <Dimension D>
-IRenderer<D>::IRenderer(const VkRenderPass p_RenderPass) noexcept
-    : m_MeshRenderer(p_RenderPass), m_PrimitiveRenderer(p_RenderPass), m_PolygonRenderer(p_RenderPass),
-      m_CircleRenderer(p_RenderPass)
+IRenderer<D>::IRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+    : m_MeshRenderer(p_RenderInfo), m_PrimitiveRenderer(p_RenderInfo), m_PolygonRenderer(p_RenderInfo),
+      m_CircleRenderer(p_RenderInfo)
 {
 }
 
-Renderer<D3>::Renderer(const VkRenderPass p_RenderPass) noexcept : IRenderer<D3>(p_RenderPass)
+Renderer<D3>::Renderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept : IRenderer<D3>(p_RenderInfo)
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {

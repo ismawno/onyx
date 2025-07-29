@@ -15,12 +15,7 @@ namespace Onyx::Detail
  */
 template <Dimension D, template <Dimension, PipelineMode> typename Renderer> struct RenderSystem
 {
-    /**
-     * @brief Construct a RenderSystem with the specified render pass.
-     *
-     * @param p_RenderPass The Vulkan render pass to be used by the renderers.
-     */
-    RenderSystem(VkRenderPass p_RenderPass) noexcept;
+    RenderSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 
     /**
      * @brief Clear all host data in each renderer.
@@ -89,13 +84,7 @@ template <Dimension D> class IRenderer
     TKIT_NON_COPYABLE(IRenderer)
 
   public:
-    /**
-     * @brief Construct an IRenderer with the specified render pass and render state.
-     *
-     * @param p_RenderPass The Vulkan render pass to be used.
-     * @param p_ProjectionView Pointer to the global projection view data.
-     */
-    IRenderer(VkRenderPass p_RenderPass) noexcept;
+    IRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 
     /**
      * @brief Record a draw call for a mesh model.
@@ -287,13 +276,7 @@ struct ONYX_API HostLightData
 template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
 {
   public:
-    /**
-     * @brief Construct a Renderer for 3D rendering with the specified render pass and render state.
-     *
-     * @param p_RenderPass The Vulkan render pass to be used.
-     * @param p_ProjectionView Pointer to the global projection view data.
-     */
-    Renderer(VkRenderPass p_RenderPass) noexcept;
+    Renderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 
     /**
      * @brief Grow all device buffers to fit host data.

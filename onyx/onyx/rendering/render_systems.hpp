@@ -27,7 +27,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
 
   public:
-    MeshRenderer(VkRenderPass p_RenderPass) noexcept;
+    MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
     ~MeshRenderer() noexcept;
 
     /**
@@ -101,7 +101,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
     using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
 
   public:
-    PrimitiveRenderer(VkRenderPass p_RenderPass) noexcept;
+    PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
     ~PrimitiveRenderer() noexcept;
 
     /**
@@ -177,7 +177,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
     using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
 
   public:
-    PolygonRenderer(VkRenderPass p_RenderPass) noexcept;
+    PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
     ~PolygonRenderer() noexcept;
 
     /**
@@ -261,7 +261,7 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
     using CircleInstanceData = CircleInstanceData<GetDrawLevel<D, PMode>()>;
 
   public:
-    CircleRenderer(VkRenderPass p_RenderPass) noexcept;
+    CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
     ~CircleRenderer() noexcept;
 
     /**

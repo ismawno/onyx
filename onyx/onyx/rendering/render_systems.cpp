@@ -49,9 +49,9 @@ template <typename T> static void initializeRenderer(T &p_DeviceData) noexcept
 }
 
 template <Dimension D, PipelineMode PMode>
-MeshRenderer<D, PMode>::MeshRenderer(const VkRenderPass p_RenderPass) noexcept
+MeshRenderer<D, PMode>::MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderPass);
+    m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
     initializeRenderer(m_DeviceData);
 }
 
@@ -167,9 +167,9 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() 
 }
 
 template <Dimension D, PipelineMode PMode>
-PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkRenderPass p_RenderPass) noexcept
+PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderPass);
+    m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
     initializeRenderer(m_DeviceData);
 }
 
@@ -252,9 +252,9 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 }
 
 template <Dimension D, PipelineMode PMode>
-PolygonRenderer<D, PMode>::PolygonRenderer(const VkRenderPass p_RenderPass) noexcept
+PolygonRenderer<D, PMode>::PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderPass);
+    m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
     initializeRenderer(m_DeviceData);
 }
 
@@ -382,9 +382,9 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush
 }
 
 template <Dimension D, PipelineMode PMode>
-CircleRenderer<D, PMode>::CircleRenderer(const VkRenderPass p_RenderPass) noexcept
+CircleRenderer<D, PMode>::CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderPass);
+    m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderInfo);
     initializeRenderer(m_DeviceData);
 }
 

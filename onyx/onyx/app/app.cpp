@@ -222,8 +222,8 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     initInfo.MinImageCount = 3;
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    initInfo.RenderPass = p_Window.GetRenderPass();
-    initInfo.Subpass = 0;
+    initInfo.UseDynamicRendering = true;
+    initInfo.PipelineRenderingCreateInfo = p_Window.CreateSceneRenderInfo();
 
     TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_LoadFunctions([](const char *p_Name, void *) -> PFN_vkVoidFunction {
                             return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(), p_Name);

@@ -50,20 +50,40 @@ static Initializer *s_Initializer;
 static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 {
     VKit::PhysicalDevice::Selector selector(&s_Instance);
+
     selector.SetSurface(p_Surface)
         .PreferType(VKit::PhysicalDevice::Discrete)
         .AddFlags(VKit::PhysicalDevice::Selector::Flag_AnyType |
                   VKit::PhysicalDevice::Selector::Flag_PortabilitySubset |
                   VKit::PhysicalDevice::Selector::Flag_RequireGraphicsQueue)
+        .RequireExtension("VK_KHR_dynamic_rendering")
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 3, 0);
 
     if (s_Initializer)
         s_Initializer->OnPhysicalDeviceCreation(selector);
 
-    const auto physres = selector.Select();
+    auto physres = selector.Select();
     VKIT_ASSERT_RESULT(physres);
-    const VKit::PhysicalDevice &phys = physres.GetValue();
+
+    VKit::PhysicalDevice &phys = physres.GetValue();
+    const u32 apiVersion = phys.GetInfo().ApiVersion;
+
+    VkPhysicalDeviceDynamicRenderingFeaturesKHR drendering{};
+    drendering.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
+    drendering.dynamicRendering = VK_TRUE;
+#ifdef VKIT_API_VERSION_1_3
+    if (apiVersion >= VKIT_API_VERSION_1_3)
+    {
+        VKit::PhysicalDevice::Features features{};
+        features.Vulkan13.dynamicRendering = VK_TRUE;
+        TKIT_ASSERT_RETURNS(phys.EnableFeatures(features), true, "[ONYX] Failed to enable dynamic rendering");
+    }
+    else
+        phys.EnableExtensionBoundFeature(&drendering);
+#else
+    phys.EnableExtensionBoundFeature(&drendering);
+#endif
 
     const auto devres = VKit::LogicalDevice::Create(s_Instance, phys);
     VKIT_ASSERT_RESULT(devres);

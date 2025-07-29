@@ -367,20 +367,20 @@ template <Dimension D, PipelineMode PMode> struct PipelineGenerator
      *
      * @tparam D The dimension (`D2` or `D3`).
      * @tparam PMode The pipeline mode.
-     * @param p_RenderPass The render pass to use.
+     * @param p_RenderInfo The rendering information to use.
      * @return The pipeline handle.
      */
-    static VKit::GraphicsPipeline CreateMeshPipeline(VkRenderPass p_RenderPass) noexcept;
+    static VKit::GraphicsPipeline CreateMeshPipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 
     /**
      * @brief Create a pipeline for circle shapes.
      *
      * @tparam D The dimension (`D2` or `D3`).
      * @tparam PMode The pipeline mode.
-     * @param p_RenderPass The render pass to use.
+     * @param p_RenderInfo The rendering information to use.
      * @return The pipeline handle.
      */
-    static VKit::GraphicsPipeline CreateCirclePipeline(VkRenderPass p_RenderPass) noexcept;
+    static VKit::GraphicsPipeline CreateCirclePipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 };
 
 } // namespace Onyx::Detail

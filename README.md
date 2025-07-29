@@ -53,7 +53,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
     VKIT_ASSERT_RESULT(lresult);
     VKit::PipelineLayout &layout = lresult.GetValue();
 
-    const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout, p_Window.GetRenderPass())
+    const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout, p_Window.CreateSceneRenderInfo())
                              .SetViewportCount(1)
                              .AddShaderStage(Onyx::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
                              .AddShaderStage(fragment, VK_SHADER_STAGE_FRAGMENT_BIT)

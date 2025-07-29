@@ -49,12 +49,12 @@ template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
 }
 
 template <Dimension D, PipelineMode PMode>
-static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkRenderPass p_RenderPass,
+static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo,
                                                               const VKit::Shader &p_VertexShader,
                                                               const VKit::Shader &p_FragmentShader) noexcept
 {
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), getLayout<dlevel>(), p_RenderPass};
+    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), getLayout<dlevel>(), p_RenderInfo};
     auto &colorBuilder = builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
                              .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
                              .SetViewportCount(1)
@@ -103,13 +103,14 @@ static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkRenderPass
 }
 
 template <Dimension D, PipelineMode PMode>
-VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateMeshPipeline(const VkRenderPass p_RenderPass) noexcept
+VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateMeshPipeline(
+    const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
     const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshVertexShader();
     const VKit::Shader &fragmentShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshFragmentShader();
 
     VKit::GraphicsPipeline::Builder builder =
-        defaultPipelineBuilder<D, PMode>(p_RenderPass, vertexShader, fragmentShader);
+        defaultPipelineBuilder<D, PMode>(p_RenderInfo, vertexShader, fragmentShader);
 
     builder.AddBindingDescription<Vertex<D>>(VK_VERTEX_INPUT_RATE_VERTEX);
     if constexpr (D == D2)
@@ -124,13 +125,14 @@ VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateMeshPipeline(const VkR
 }
 
 template <Dimension D, PipelineMode PMode>
-VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateCirclePipeline(const VkRenderPass p_RenderPass) noexcept
+VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateCirclePipeline(
+    const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
     const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetCircleVertexShader();
     const VKit::Shader &fragmentShader = Shaders<D, GetDrawMode<PMode>()>::GetCircleFragmentShader();
 
     VKit::GraphicsPipeline::Builder builder =
-        defaultPipelineBuilder<D, PMode>(p_RenderPass, vertexShader, fragmentShader);
+        defaultPipelineBuilder<D, PMode>(p_RenderInfo, vertexShader, fragmentShader);
 
     const auto result = builder.Build();
     VKIT_ASSERT_RESULT(result);
