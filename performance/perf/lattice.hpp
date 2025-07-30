@@ -5,6 +5,8 @@
 #include "onyx/rendering/render_context.hpp"
 #include "tkit/reflection/reflect.hpp"
 #include "tkit/serialization/yaml/serialize.hpp"
+#include "tkit/multiprocessing/for_each.hpp"
+#include "tkit/profiling/macros.hpp"
 
 namespace Onyx::Perf
 {
@@ -89,8 +91,56 @@ template <Dimension D> struct Lattice
         }
     }
 
-    template <typename F> void RunMultiThread(F &&) const noexcept
+    template <typename F> void RunMultiThread(F &&p_Func) const noexcept
     {
+        const fvec<D> midPoint = 0.5f * Separation * fvec<D>{LatticeDims - 1u};
+        TKit::ITaskManager *tm = Core::GetTaskManager();
+        using Task = TKit::Ref<TKit::Task<void>>;
+        if constexpr (D == D2)
+        {
+            const u32 size = LatticeDims.x * LatticeDims.y;
+            const auto fn = [this, &midPoint, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
+                TKIT_PROFILE_NSCOPE("Onyx::Perf::MT-Lattice<D2>");
+                for (u32 i = p_Start; i < p_End; ++i)
+                {
+                    const u32 ix = i / LatticeDims.y;
+                    const u32 iy = i % LatticeDims.y;
+                    const f32 x = Separation * static_cast<f32>(ix);
+                    const f32 y = Separation * static_cast<f32>(iy);
+
+                    const fvec2 pos = fvec2{x, y} - midPoint;
+                    std::forward<F>(p_Func)(pos);
+                }
+            };
+            TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
+            TKit::ForEachMainThreadLead(*tm, 0u, size, tasks.begin(), Tasks, fn);
+            for (u32 i = 0; i < Tasks - 1; ++i)
+                tasks[i]->WaitUntilFinished();
+        }
+        else
+        {
+            const u32 size = LatticeDims.x * LatticeDims.y * LatticeDims.z;
+            const u32 yz = LatticeDims.y * LatticeDims.z;
+            const auto fn = [this, yz, &midPoint, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
+                TKIT_PROFILE_NSCOPE("Onyx::Perf::MT-Lattice<D3>");
+                for (u32 i = p_Start; i < p_End; ++i)
+                {
+                    const u32 ix = i / yz;
+                    const u32 j = ix * yz;
+                    const u32 iy = (i - j) / LatticeDims.z;
+                    const u32 iz = (i - j) % LatticeDims.z;
+                    const f32 x = Separation * static_cast<f32>(ix);
+                    const f32 y = Separation * static_cast<f32>(iy);
+                    const f32 z = Separation * static_cast<f32>(iz);
+                    const fvec3 pos = fvec3{x, y, z} - midPoint;
+                    std::forward<F>(p_Func)(pos);
+                }
+            };
+            TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
+            TKit::ForEachMainThreadLead(*tm, 0u, size, tasks.begin(), Tasks, fn);
+            for (u32 i = 0; i < Tasks - 1; ++i)
+                tasks[i]->WaitUntilFinished();
+        }
     }
 
     Transform<D> Transform{};
@@ -114,6 +164,7 @@ template <Dimension D> struct Lattice
     Resolution Res = Resolution::Medium;
 
     f32 Separation = 2.5f;
+    u32 Tasks = 1;
     TKIT_YAML_SERIALIZE_GROUP_END()
     bool Multithread = false;
 };
