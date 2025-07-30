@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 {
     const Onyx::Perf::ParseResult args = Onyx::Perf::ParseArguments(argc, argv);
 
-    TKit::ThreadPool threadPool{7};
+    TKit::ThreadPool threadPool{ONYX_MAX_THREADS - 1};
     Onyx::Core::Initialize(&threadPool);
     RunApp(args);
     Onyx::Core::Terminate();

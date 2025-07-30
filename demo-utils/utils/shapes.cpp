@@ -64,14 +64,33 @@ VKit::FormattedResult<NamedMesh<D>> NamedMesh<D>::Load(const std::string_view p_
     meshes.Append(nmesh);
     return VKit::FormattedResult<NamedMesh<D>>::Ok(nmesh);
 }
-template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D> void Shape<D>::SetProperties(RenderContext<D> *p_Context) noexcept
 {
     p_Context->Material(m_Material);
     p_Context->OutlineWidth(m_OutlineWidth);
     p_Context->Outline(m_OutlineColor);
     p_Context->Fill(m_Fill);
     p_Context->Outline(m_Outline);
-    draw(p_Context);
+}
+
+template <Dimension D> void Shape<D>::DrawRaw(RenderContext<D> *p_Context) const noexcept
+{
+    draw(p_Context, this->Transform);
+}
+template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context) noexcept
+{
+    SetProperties(p_Context);
+    draw(p_Context, this->Transform);
+}
+template <Dimension D>
+void Shape<D>::DrawRaw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept
+{
+    draw(p_Context, p_Transform);
+}
+template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) noexcept
+{
+    SetProperties(p_Context);
+    draw(p_Context, p_Transform);
 }
 
 template <Dimension D> void Shape<D>::Edit() noexcept
@@ -109,9 +128,10 @@ template <Dimension D> const char *MeshShape<D>::GetName() const noexcept
 {
     return m_Mesh.Name.c_str();
 }
-template <Dimension D> void MeshShape<D>::draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D>
+void MeshShape<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept
 {
-    p_Context->Mesh(this->Transform.ComputeTransform(), m_Mesh.Mesh, m_Dimensions);
+    p_Context->Mesh(p_Transform.ComputeTransform(), m_Mesh.Mesh, m_Dimensions);
 }
 
 template <Dimension D> const char *Triangle<D>::GetName() const noexcept
@@ -119,9 +139,10 @@ template <Dimension D> const char *Triangle<D>::GetName() const noexcept
     return "Triangle";
 }
 
-template <Dimension D> void Triangle<D>::draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D>
+void Triangle<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept
 {
-    p_Context->Triangle(this->Transform.ComputeTransform());
+    p_Context->Triangle(p_Transform.ComputeTransform());
 }
 
 template <Dimension D> const char *Square<D>::GetName() const noexcept
@@ -139,9 +160,10 @@ template <Dimension D> void MeshShape<D>::Edit() noexcept
     Shape<D>::Edit();
     dimensionEditor<D>(m_Dimensions);
 }
-template <Dimension D> void Square<D>::draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D>
+void Square<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept
 {
-    p_Context->Square(this->Transform.ComputeTransform(), m_Dimensions);
+    p_Context->Square(p_Transform.ComputeTransform(), m_Dimensions);
 }
 
 template <Dimension D> const char *Circle<D>::GetName() const noexcept
@@ -149,9 +171,10 @@ template <Dimension D> const char *Circle<D>::GetName() const noexcept
     return "Circle";
 }
 
-template <Dimension D> void Circle<D>::draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D>
+void Circle<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept
 {
-    p_Context->Circle(this->Transform.ComputeTransform(), m_Dimensions, m_Options);
+    p_Context->Circle(p_Transform.ComputeTransform(), m_Dimensions, m_Options);
 }
 
 template <Dimension D> void Circle<D>::Edit() noexcept
@@ -172,9 +195,10 @@ template <Dimension D> const char *NGon<D>::GetName() const noexcept
     return "NGon";
 }
 
-template <Dimension D> void NGon<D>::draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D>
+void NGon<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept
 {
-    p_Context->NGon(this->Transform.ComputeTransform(), Sides, m_Dimensions);
+    p_Context->NGon(p_Transform.ComputeTransform(), Sides, m_Dimensions);
 }
 template <Dimension D> void NGon<D>::Edit() noexcept
 {
@@ -211,9 +235,10 @@ template <Dimension D> void Polygon<D>::Edit() noexcept
     }
 }
 
-template <Dimension D> void Polygon<D>::draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D>
+void Polygon<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept
 {
-    p_Context->Polygon(this->Transform.ComputeTransform(), Vertices);
+    p_Context->Polygon(p_Transform.ComputeTransform(), Vertices);
 }
 
 template <Dimension D> const char *Stadium<D>::GetName() const noexcept
@@ -221,9 +246,10 @@ template <Dimension D> const char *Stadium<D>::GetName() const noexcept
     return "Stadium";
 }
 
-template <Dimension D> void Stadium<D>::draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D>
+void Stadium<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept
 {
-    p_Context->Stadium(this->Transform.ComputeTransform(), m_Length, m_Diameter);
+    p_Context->Stadium(p_Transform.ComputeTransform(), m_Length, m_Diameter);
 }
 
 template <Dimension D> void Stadium<D>::Edit() noexcept
@@ -235,9 +261,10 @@ template <Dimension D> void Stadium<D>::Edit() noexcept
     ImGui::PopID();
 }
 
-template <Dimension D> void RoundedSquare<D>::draw(RenderContext<D> *p_Context) noexcept
+template <Dimension D>
+void RoundedSquare<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept
 {
-    p_Context->RoundedSquare(this->Transform.ComputeTransform(), m_Dimensions, m_Diameter);
+    p_Context->RoundedSquare(p_Transform.ComputeTransform(), m_Dimensions, m_Diameter);
 }
 
 template <Dimension D> const char *RoundedSquare<D>::GetName() const noexcept
@@ -259,9 +286,9 @@ const char *Cube::GetName() const noexcept
     return "Cube";
 }
 
-void Cube::draw(RenderContext<D3> *p_Context) noexcept
+void Cube::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const noexcept
 {
-    p_Context->Cube(Transform.ComputeTransform());
+    p_Context->Cube(p_Transform.ComputeTransform());
 }
 void Cube::Edit() noexcept
 {
@@ -274,9 +301,9 @@ const char *Sphere::GetName() const noexcept
     return "Sphere";
 }
 
-void Sphere::draw(RenderContext<D3> *p_Context) noexcept
+void Sphere::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const noexcept
 {
-    p_Context->Sphere(Transform.ComputeTransform(), m_Dimensions, m_Res);
+    p_Context->Sphere(p_Transform.ComputeTransform(), m_Dimensions, m_Res);
 }
 void Sphere::Edit() noexcept
 {
@@ -296,9 +323,9 @@ void Cylinder::Edit() noexcept
     UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
 
-void Cylinder::draw(RenderContext<D3> *p_Context) noexcept
+void Cylinder::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const noexcept
 {
-    p_Context->Cylinder(Transform.ComputeTransform(), m_Dimensions, m_Res);
+    p_Context->Cylinder(p_Transform.ComputeTransform(), m_Dimensions, m_Res);
 }
 
 const char *Capsule::GetName() const noexcept
@@ -306,9 +333,9 @@ const char *Capsule::GetName() const noexcept
     return "Capsule";
 }
 
-void Capsule::draw(RenderContext<D3> *p_Context) noexcept
+void Capsule::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const noexcept
 {
-    p_Context->Capsule(Transform.ComputeTransform(), m_Length, m_Diameter, m_Res);
+    p_Context->Capsule(p_Transform.ComputeTransform(), m_Length, m_Diameter, m_Res);
 }
 
 void Capsule::Edit() noexcept
@@ -321,9 +348,9 @@ void Capsule::Edit() noexcept
     UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
 
-void RoundedCube::draw(RenderContext<D3> *p_Context) noexcept
+void RoundedCube::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const noexcept
 {
-    p_Context->RoundedCube(Transform.ComputeTransform(), m_Dimensions, m_Diameter, m_Res);
+    p_Context->RoundedCube(p_Transform.ComputeTransform(), m_Dimensions, m_Diameter, m_Res);
 }
 
 const char *RoundedCube::GetName() const noexcept

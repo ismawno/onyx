@@ -17,7 +17,7 @@ int main(int argc, char **argv)
 {
     const Onyx::Demo::Scene scene = Onyx::Demo::ParseArguments(argc, argv);
 
-    TKit::ThreadPool threadPool{7};
+    TKit::ThreadPool threadPool{ONYX_MAX_THREADS - 1};
     Onyx::Core::Initialize(&threadPool);
     RunApp(scene);
     Onyx::Core::Terminate();

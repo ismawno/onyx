@@ -2,10 +2,12 @@
 #include "glm/trigonometric.hpp"
 #include "onyx/core/shaders.hpp"
 #include "onyx/app/user_layer.hpp"
-#include "tkit/container/static_array.hpp"
 #include "utils/shapes.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
+#include "tkit/container/static_array.hpp"
+#include "tkit/multiprocessing/thread_pool.hpp"
+#include "tkit/multiprocessing/for_each.hpp"
 #include <imgui.h>
 #include <implot.h>
 
@@ -325,32 +327,86 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
     p_Data.Context->TransformAxes(p_Data.AxesTransform.ComputeTransform());
 
     const LatticeData<D> &lattice = p_Data.Lattice;
+    const uvec<D> &dims = lattice.Dimensions;
     if (lattice.Enabled && lattice.Shape)
     {
         const fvec<D> separation =
             lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : fvec<D>{lattice.Separation};
-        const fvec<D> midPoint = 0.5f * separation * fvec<D>{lattice.Dimensions - 1u};
+        const fvec<D> midPoint = 0.5f * separation * fvec<D>{dims - 1u};
 
-        for (u32 i = 0; i < lattice.Dimensions.x; ++i)
+        lattice.Shape->SetProperties(p_Data.Context);
+        if (lattice.Multithreaded)
         {
-            const f32 x = static_cast<f32>(i) * separation.x;
-            for (u32 j = 0; j < lattice.Dimensions.y; ++j)
+            TKit::ITaskManager *tm = Core::GetTaskManager();
+            using Task = TKit::Ref<TKit::Task<void>>;
+            if constexpr (D == D2)
             {
-                const f32 y = static_cast<f32>(j) * separation.y;
-                if constexpr (D == D2)
-                {
-                    lattice.Shape->Transform.Translation = fvec2{x, y} - midPoint;
-                    lattice.Shape->Draw(p_Data.Context);
-                }
-                else
-                    for (u32 k = 0; k < lattice.Dimensions.z; ++k)
+                const u32 size = dims.x * dims.y;
+                const auto fn = [&dims, &separation, &lattice, &midPoint, &p_Data](const u32 p_Start, const u32 p_End,
+                                                                                   const u32) {
+                    Transform<D2> transform = lattice.Shape->Transform;
+                    for (u32 i = p_Start; i < p_End; ++i)
                     {
-                        const f32 z = static_cast<f32>(k) * separation.z;
-                        lattice.Shape->Transform.Translation = fvec3{x, y, z} - midPoint;
-                        lattice.Shape->Draw(p_Data.Context);
+                        const u32 ix = i / dims.y;
+                        const u32 iy = i % dims.y;
+                        const f32 x = separation.x * static_cast<f32>(ix);
+                        const u32 y = separation.y * static_cast<f32>(iy);
+                        transform.Translation = fvec2{x, y} - midPoint;
+                        lattice.Shape->DrawRaw(p_Data.Context, transform);
                     }
+                };
+
+                TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
+                TKit::ForEachMainThreadLead(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
+                for (u32 i = 0; i < lattice.Tasks - 1; ++i)
+                    tasks[i]->WaitUntilFinished();
+            }
+            else
+            {
+                const u32 size = dims.x * dims.y * dims.z;
+                const u32 size2 = dims.y * dims.z;
+                const auto fn = [&dims, size2, &separation, &lattice, &midPoint, &p_Data](const u32 p_Start,
+                                                                                          const u32 p_End, const u32) {
+                    Transform<D3> transform = lattice.Shape->Transform;
+                    for (u32 i = p_Start; i < p_End; ++i)
+                    {
+                        const u32 ix = i / size2;
+                        const u32 iy = i / dims.y;
+                        const u32 iz = i % dims.z;
+                        const f32 x = separation.x * static_cast<f32>(ix);
+                        const u32 y = separation.y * static_cast<f32>(iy);
+                        const u32 z = separation.z * static_cast<f32>(iz);
+                        transform.Translation = fvec3{x, y, z} - midPoint;
+                        lattice.Shape->DrawRaw(p_Data.Context, transform);
+                    }
+                };
+                TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
+                TKit::ForEachMainThreadLead(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
+                for (u32 i = 0; i < lattice.Tasks - 1; ++i)
+                    tasks[i]->WaitUntilFinished();
             }
         }
+        else
+            for (u32 i = 0; i < dims.x; ++i)
+            {
+                const f32 x = static_cast<f32>(i) * separation.x;
+                for (u32 j = 0; j < dims.y; ++j)
+                {
+                    const f32 y = static_cast<f32>(j) * separation.y;
+                    if constexpr (D == D2)
+                    {
+                        lattice.Shape->Transform.Translation = fvec2{x, y} - midPoint;
+                        lattice.Shape->DrawRaw(p_Data.Context);
+                    }
+                    else
+                        for (u32 k = 0; k < dims.z; ++k)
+                        {
+                            const f32 z = static_cast<f32>(k) * separation.z;
+                            lattice.Shape->Transform.Translation = fvec3{x, y, z} - midPoint;
+                            lattice.Shape->DrawRaw(p_Data.Context);
+                        }
+                }
+            }
     }
 
     for (const auto &shape : p_Data.Shapes)
@@ -585,6 +641,9 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
         UserLayer::HelpMarkerSameLine("You may choose to draw a lattice of shapes to stress test the rendering engine. "
                                       "I advice to build the engine "
                                       "in distribution mode to see meaningful results.");
+        ImGui::Checkbox("Multithreaded", &lattice.Multithreaded);
+        if (lattice.Multithreaded)
+            ImGui::SliderInt("Tasks", (int *)&lattice.Tasks, 1, ONYX_MAX_THREADS);
 
         if constexpr (D == D2)
         {

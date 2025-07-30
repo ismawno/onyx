@@ -23,6 +23,8 @@
 #    define ONYX_MAX_FRAMES_IN_FLIGHT 2
 #endif
 
+// The amount of active threads (accounting for the main thread as well) should not surpass this number. This means
+// thread pools should be created with LESS threads than this limit.
 #ifndef ONYX_MAX_THREADS
 #    define ONYX_MAX_THREADS 16
 #endif
