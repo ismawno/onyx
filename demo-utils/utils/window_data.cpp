@@ -364,18 +364,19 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
             else
             {
                 const u32 size = dims.x * dims.y * dims.z;
-                const u32 size2 = dims.y * dims.z;
-                const auto fn = [&dims, size2, &separation, &lattice, &midPoint, &p_Data](const u32 p_Start,
-                                                                                          const u32 p_End, const u32) {
+                const u32 yz = dims.y * dims.z;
+                const auto fn = [&dims, yz, &separation, &lattice, &midPoint, &p_Data](const u32 p_Start,
+                                                                                       const u32 p_End, const u32) {
                     Transform<D3> transform = lattice.Shape->Transform;
                     for (u32 i = p_Start; i < p_End; ++i)
                     {
-                        const u32 ix = i / size2;
-                        const u32 iy = i / dims.y;
-                        const u32 iz = i % dims.z;
+                        const u32 ix = i / yz;
+                        const u32 j = ix * yz;
+                        const u32 iy = (i - j) / dims.z;
+                        const u32 iz = (i - j) % dims.z;
                         const f32 x = separation.x * static_cast<f32>(ix);
-                        const u32 y = separation.y * static_cast<f32>(iy);
-                        const u32 z = separation.z * static_cast<f32>(iz);
+                        const f32 y = separation.y * static_cast<f32>(iy);
+                        const f32 z = separation.z * static_cast<f32>(iz);
                         transform.Translation = fvec3{x, y, z} - midPoint;
                         lattice.Shape->DrawRaw(p_Data.Context, transform);
                     }
