@@ -206,13 +206,16 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
-    for (const auto &hostData : m_HostData)
-        for (const auto &data : hostData.Data)
+    for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
+        for (const auto &hostData : m_HostData)
+        {
+            const auto &data = hostData.Data[i];
             if (!data.IsEmpty())
             {
                 storageBuffer.Write(data, offset);
                 offset += data.GetSize();
             }
+        }
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
@@ -239,12 +242,12 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
 
     for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
     {
-        const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
         u32 instanceCount = 0;
         for (const auto &hostData : m_HostData)
             instanceCount += hostData.Data[i].GetSize();
         if (instanceCount == 0)
             continue;
+        const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
 
         table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
                              layout.VerticesStart, firstInstance);
