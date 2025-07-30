@@ -237,18 +237,20 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     u32 firstInstance = 0;
     const auto &table = Core::GetDeviceTable();
 
-    for (const auto &hostData : m_HostData)
-        for (u32 i = 0; i < hostData.Data.GetSize(); ++i)
-            if (!hostData.Data[i].IsEmpty())
-            {
-                const u32 instanceCount = hostData.Data[i].GetSize();
-                const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
+    for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
+    {
+        const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
+        u32 instanceCount = 0;
+        for (const auto &hostData : m_HostData)
+            instanceCount += hostData.Data[i].GetSize();
+        if (instanceCount == 0)
+            continue;
 
-                table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
-                                     layout.VerticesStart, firstInstance);
-                INCREASE_DRAW_CALL_COUNT();
-                firstInstance += instanceCount;
-            }
+        table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
+                             layout.VerticesStart, firstInstance);
+        INCREASE_DRAW_CALL_COUNT();
+        firstInstance += instanceCount;
+    }
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flush() noexcept
@@ -497,9 +499,13 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 
     const auto &table = Core::GetDeviceTable();
 
+    u32 instanceCount = 0;
     for (const auto &hostData : m_HostData)
-        if (!hostData.IsEmpty())
-            table.CmdDraw(p_Info.CommandBuffer, 6, hostData.GetSize(), 0, 0);
+        instanceCount += hostData.GetSize();
+    TKIT_ASSERT(instanceCount > 0,
+                "[ONYX] Circle renderer instance count is zero, which should have trigger an early return earlier");
+
+    table.CmdDraw(p_Info.CommandBuffer, 6, instanceCount, 0, 0);
     INCREASE_DRAW_CALL_COUNT();
 }
 
