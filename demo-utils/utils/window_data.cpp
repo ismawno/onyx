@@ -350,7 +350,7 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                         const u32 ix = i / dims.y;
                         const u32 iy = i % dims.y;
                         const f32 x = separation.x * static_cast<f32>(ix);
-                        const u32 y = separation.y * static_cast<f32>(iy);
+                        const f32 y = separation.y * static_cast<f32>(iy);
                         transform.Translation = fvec2{x, y} - midPoint;
                         lattice.Shape->DrawRaw(p_Data.Context, transform);
                     }

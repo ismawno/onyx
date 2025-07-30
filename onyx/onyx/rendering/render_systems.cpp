@@ -396,13 +396,15 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
 
     pushConstantData<dlevel>(p_Info);
     const auto &table = Core::GetDeviceTable();
+    u32 firstInstance = 0;
     for (const auto &hostData : m_HostData)
         for (const PrimitiveDataLayout &layout : hostData.Layouts)
             if (layout.IndicesCount > 0)
             {
                 table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, 1, layout.IndicesStart,
-                                     layout.VerticesStart, 0);
+                                     layout.VerticesStart, firstInstance);
                 INCREASE_DRAW_CALL_COUNT();
+                ++firstInstance;
             }
 }
 
