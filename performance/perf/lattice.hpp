@@ -68,6 +68,7 @@ template <Dimension D> struct Lattice
     }
     template <typename F> void RunSingleThread(F &&p_Func) const noexcept
     {
+        TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
         const fvec<D> midPoint = 0.5f * Separation * fvec<D>{LatticeDims - 1u};
         for (u32 i = 0; i < LatticeDims.x; ++i)
         {
@@ -93,6 +94,7 @@ template <Dimension D> struct Lattice
 
     template <typename F> void RunMultiThread(F &&p_Func) const noexcept
     {
+        TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
         const fvec<D> midPoint = 0.5f * Separation * fvec<D>{LatticeDims - 1u};
         TKit::ITaskManager *tm = Core::GetTaskManager();
         using Task = TKit::Ref<TKit::Task<void>>;
@@ -100,7 +102,7 @@ template <Dimension D> struct Lattice
         {
             const u32 size = LatticeDims.x * LatticeDims.y;
             const auto fn = [this, &midPoint, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
-                TKIT_PROFILE_NSCOPE("Onyx::Perf::MT-Lattice<D2>");
+                TKIT_PROFILE_NSCOPE("Onyx::Perf::Task");
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
                     const u32 ix = i / LatticeDims.y;
@@ -122,7 +124,7 @@ template <Dimension D> struct Lattice
             const u32 size = LatticeDims.x * LatticeDims.y * LatticeDims.z;
             const u32 yz = LatticeDims.y * LatticeDims.z;
             const auto fn = [this, yz, &midPoint, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
-                TKIT_PROFILE_NSCOPE("Onyx::Perf::MT-Lattice<D3>");
+                TKIT_PROFILE_NSCOPE("Onyx::Perf::Task");
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
                     const u32 ix = i / yz;
