@@ -10,7 +10,10 @@ tkit_default_configure(onyx-demo-utils)
 FetchContent_Declare(
   argparse
   GIT_REPOSITORY https://github.com/p-ranav/argparse.git
-  GIT_TAG v3.2)
+  GIT_TAG v3.2
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE)
+
 FetchContent_MakeAvailable(argparse)
 
 target_link_libraries(onyx-demo-utils PUBLIC onyx)

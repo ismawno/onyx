@@ -37,13 +37,18 @@ include(FetchContent)
 FetchContent_Declare(
   vulkit
   GIT_REPOSITORY https://github.com/ismawno/vulkit.git
-  GIT_TAG main)
+  GIT_TAG main
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE)
 FetchContent_MakeAvailable(vulkit)
 
 FetchContent_Declare(
   glm
   GIT_REPOSITORY https://github.com/g-truc/glm.git
-  GIT_TAG 1.0.1)
+  GIT_TAG 1.0.1
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE)
+
 FetchContent_MakeAvailable(glm)
 
 set(GLFW_BUILD_DOCS
@@ -52,19 +57,28 @@ set(GLFW_BUILD_DOCS
 FetchContent_Declare(
   glfw
   GIT_REPOSITORY https://github.com/glfw/glfw.git
-  GIT_TAG 3.4)
+  GIT_TAG 3.4
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE)
+
 FetchContent_MakeAvailable(glfw)
 
 FetchContent_Declare(
   imgui
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
-  GIT_TAG v1.91.1-docking)
+  GIT_TAG v1.91.1-docking
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE)
+
 FetchContent_MakeAvailable(imgui)
 
 FetchContent_Declare(
   tobjl
   GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
-  GIT_TAG v2.0.0rc13)
+  GIT_TAG v2.0.0rc13
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE)
+
 FetchContent_MakeAvailable(tobjl)
 
 tkit_register_for_yaml_serialization(
@@ -111,7 +125,10 @@ if(ONYX_USE_IMPLOT OR ONYX_BUILD_DEMOS)
   FetchContent_Declare(
     implot
     GIT_REPOSITORY https://github.com/epezent/implot.git
-    GIT_TAG v0.16)
+    GIT_TAG v0.16
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
+
   FetchContent_MakeAvailable(implot)
 
   set(IMPLOT_SOURCES
