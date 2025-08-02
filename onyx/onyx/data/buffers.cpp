@@ -88,7 +88,7 @@ template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(
     typename VKit::HostVisibleBuffer<Vertex<D>>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Capacity = p_Capacity;
-    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
     const auto result = VKit::HostVisibleBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
@@ -98,7 +98,7 @@ HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(const VkDeviceSize p_Capacit
     typename VKit::HostVisibleBuffer<Index>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Capacity = p_Capacity;
-    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
     const auto result = VKit::HostVisibleBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();

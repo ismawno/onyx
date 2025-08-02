@@ -62,7 +62,7 @@ template <typename T> HostVisibleStorageBuffer<T> CreateHostVisibleStorageBuffer
     typename VKit::HostVisibleBuffer<T>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Capacity = p_Capacity;
-    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 
     const auto result = VKit::HostVisibleBuffer<T>::CreateStorageBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);

@@ -32,7 +32,7 @@ def setup_arguments() -> Namespace:
         "-t",
         "--tracy-exec",
         type=Path,
-        default=Path("../tracy/capture/build/tracy-capture"),
+        default=Path("../vendor/tracy/capture/build/tracy-capture"),
         help="The path to the tracy capture executable.",
     )
     parser.add_argument(

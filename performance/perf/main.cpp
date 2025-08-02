@@ -28,7 +28,7 @@ void RunApp(const Onyx::Perf::ParseResult &p_Args) noexcept
 
 int main(int argc, char **argv)
 {
-    TKIT_PROFILE_NOOP()
+    TKIT_PROFILE_NOOP();
     const Onyx::Perf::ParseResult args = Onyx::Perf::ParseArguments(argc, argv);
 
     TKit::ThreadPool threadPool{ONYX_MAX_THREADS - 1};
