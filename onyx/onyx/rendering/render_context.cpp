@@ -992,14 +992,10 @@ void RenderContext<D3>::drawRoundedCubeMoons(const fmat4 &p_Transform, const fve
 void RenderContext<D3>::drawRoundedCube(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
     const auto fill = [this, &p_Transform, p_Res](const DrawFlags p_Flags) {
-        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetSquareIndex(),
-                                 p_Flags);
         drawRoundedCubeMoons(p_Transform, fvec3{1.f}, 1.f, p_Res, p_Flags);
     };
     const auto outline = [this, &p_Transform, p_Res](const DrawFlags p_Flags) {
         const f32 thickness = 1.f + m_State->OutlineWidth;
-        m_Renderer.DrawPrimitive(m_State, computeFinalTransform(p_Transform), Primitives<D3>::GetSquareIndex(),
-                                 p_Flags);
         drawRoundedCubeMoons(p_Transform, fvec3{1.f}, thickness, p_Res, p_Flags);
     };
     resolveDrawFlagsWithState(fill, outline);
