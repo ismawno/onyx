@@ -130,3 +130,4 @@ for cname, cfg in configurations.items():
         eprocess = subprocess.Popen(eargs)
 
         eprocess.wait()
+        tprocess.wait()

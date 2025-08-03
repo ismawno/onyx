@@ -74,7 +74,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     void Flush() noexcept;
 
   private:
-    struct MeshHostData
+    struct alignas(TKIT_CACHE_LINE_SIZE) MeshHostData
     {
         TKit::HashMap<Mesh<D>, HostStorageBuffer<InstanceData>> Data{};
         u32 Instances = 0;
@@ -152,7 +152,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
     void Flush() noexcept;
 
   private:
-    struct PrimitiveHostData
+    struct alignas(TKIT_CACHE_LINE_SIZE) PrimitiveHostData
     {
         TKit::Array<HostStorageBuffer<InstanceData>, Primitives<D>::AMOUNT> Data{};
         u32 Instances = 0;
@@ -232,7 +232,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
     void Flush() noexcept;
 
   private:
-    struct PolygonHostData
+    struct alignas(TKIT_CACHE_LINE_SIZE) PolygonHostData
     {
         HostStorageBuffer<InstanceData> Data;
         HostStorageBuffer<PrimitiveDataLayout> Layouts;

@@ -875,36 +875,43 @@ template <Dimension D> class IRenderContext
     template <typename F1, typename F2> void resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept;
 
     void updateState() noexcept;
-    fmat4 computeFinalTransform(const fmat<D> &p_Transform) noexcept;
 
-    template <Dimension PDim> void drawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex) noexcept;
     template <Dimension PDim>
-    void drawPrimitive(const fmat<D> &p_Transform, u32 p_PrimitiveIndex, const fvec<PDim> &p_Dimensions) noexcept;
+    void drawPrimitive(const RenderState<D> &p_State, const fmat<D> &p_Transform, u32 p_PrimitiveIndex) noexcept;
+    template <Dimension PDim>
+    void drawPrimitive(const RenderState<D> &p_State, const fmat<D> &p_Transform, u32 p_PrimitiveIndex,
+                       const fvec<PDim> &p_Dimensions) noexcept;
 
-    void drawPolygon(const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices) noexcept;
+    void drawPolygon(const RenderState<D> &p_State, const fmat<D> &p_Transform,
+                     TKit::Span<const fvec2> p_Vertices) noexcept;
 
-    void drawCircle(const fmat<D> &p_Transform, const CircleOptions &p_Options) noexcept;
-    void drawCircle(const fmat<D> &p_Transform, const CircleOptions &p_Options, const fvec2 &p_Dimensions) noexcept;
+    void drawCircle(const RenderState<D> &p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options) noexcept;
+    void drawCircle(const RenderState<D> &p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
+                    const fvec2 &p_Dimensions) noexcept;
 
-    void drawChildCircle(fmat<D> p_Transform, const fvec<D> &p_Position, const CircleOptions &p_Options,
-                         Detail::DrawFlags p_Flags) noexcept;
-    void drawChildCircle(fmat<D> p_Transform, const fvec<D> &p_Position, f32 p_Diameter, const CircleOptions &p_Options,
-                         Detail::DrawFlags p_Flags) noexcept;
+    void drawChildCircle(const RenderState<D> &p_State, fmat<D> p_Transform, const fvec<D> &p_Position,
+                         const CircleOptions &p_Options, Detail::DrawFlags p_Flags) noexcept;
+    void drawChildCircle(const RenderState<D> &p_State, fmat<D> p_Transform, const fvec<D> &p_Position, f32 p_Diameter,
+                         const CircleOptions &p_Options, Detail::DrawFlags p_Flags) noexcept;
 
-    void drawStadiumMoons(const fmat<D> &p_Transform, Detail::DrawFlags p_Flags) noexcept;
-    void drawStadiumMoons(const fmat<D> &p_Transform, f32 p_Length, f32 p_Diameter, Detail::DrawFlags p_Flags) noexcept;
+    void drawStadiumMoons(const RenderState<D> &p_State, const fmat<D> &p_Transform,
+                          Detail::DrawFlags p_Flags) noexcept;
+    void drawStadiumMoons(const RenderState<D> &p_State, const fmat<D> &p_Transform, f32 p_Length, f32 p_Diameter,
+                          Detail::DrawFlags p_Flags) noexcept;
 
-    void drawStadium(const fmat<D> &p_Transform) noexcept;
-    void drawStadium(const fmat<D> &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
+    void drawStadium(const RenderState<D> &p_State, const fmat<D> &p_Transform) noexcept;
+    void drawStadium(const RenderState<D> &p_State, const fmat<D> &p_Transform, f32 p_Length, f32 p_Diameter) noexcept;
 
-    void drawRoundedSquareMoons(const fmat<D> &p_Transform, const fvec2 &p_Dimension, f32 p_Diameter,
-                                Detail::DrawFlags p_Flags) noexcept;
+    void drawRoundedSquareMoons(const RenderState<D> &p_State, const fmat<D> &p_Transform, const fvec2 &p_Dimension,
+                                f32 p_Diameter, Detail::DrawFlags p_Flags) noexcept;
 
-    void drawRoundedSquare(const fmat<D> &p_Transform) noexcept;
-    void drawRoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimension, f32 p_Diameter) noexcept;
+    void drawRoundedSquare(const RenderState<D> &p_State, const fmat<D> &p_Transform) noexcept;
+    void drawRoundedSquare(const RenderState<D> &p_State, const fmat<D> &p_Transform, const fvec2 &p_Dimension,
+                           f32 p_Diameter) noexcept;
 
-    void drawMesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh) noexcept;
-    void drawMesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept;
+    void drawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh) noexcept;
+    void drawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh,
+                  const fvec<D> &p_Dimensions) noexcept;
 
     RenderState<D> *m_State;
     TKit::StaticArray16<TKit::Scope<Camera<D>>> m_Cameras{};
@@ -1552,19 +1559,20 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void SpecularSharpness(f32 p_Sharpness) noexcept;
 
   private:
-    void drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, Resolution p_Res,
+    void drawChildSphere(const RenderState<D3> &p_State, fmat4 p_Transform, const fvec3 &p_Position, Resolution p_Res,
                          Detail::DrawFlags p_Flags) noexcept;
-    void drawChildSphere(fmat4 p_Transform, const fvec3 &p_Position, f32 p_Diameter, Resolution p_Res,
-                         Detail::DrawFlags p_Flags) noexcept;
+    void drawChildSphere(const RenderState<D3> &p_State, fmat4 p_Transform, const fvec3 &p_Position, f32 p_Diameter,
+                         Resolution p_Res, Detail::DrawFlags p_Flags) noexcept;
 
-    void drawCapsule(const fmat4 &p_Transform, Resolution p_Res) noexcept;
-    void drawCapsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter, Resolution p_Res) noexcept;
+    void drawCapsule(const RenderState<D3> &p_State, const fmat4 &p_Transform, Resolution p_Res) noexcept;
+    void drawCapsule(const RenderState<D3> &p_State, const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter,
+                     Resolution p_Res) noexcept;
 
-    void drawRoundedCubeMoons(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter, Resolution p_Res,
-                              Detail::DrawFlags p_Flags) noexcept;
+    void drawRoundedCubeMoons(const RenderState<D3> &p_State, const fmat4 &p_Transform, const fvec3 &p_Dimensions,
+                              f32 p_Diameter, Resolution p_Res, Detail::DrawFlags p_Flags) noexcept;
 
-    void drawRoundedCube(const fmat4 &p_Transform, Resolution p_Res) noexcept;
-    void drawRoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, f32 p_Diameter,
-                         Resolution p_Res) noexcept;
+    void drawRoundedCube(const RenderState<D3> &p_State, const fmat4 &p_Transform, Resolution p_Res) noexcept;
+    void drawRoundedCube(const RenderState<D3> &p_State, const fmat4 &p_Transform, const fvec3 &p_Dimensions,
+                         f32 p_Diameter, Resolution p_Res) noexcept;
 };
 } // namespace Onyx
