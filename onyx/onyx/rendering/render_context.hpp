@@ -4,6 +4,7 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/rendering/camera.hpp"
 #include "onyx/data/options.hpp"
+#include "onyx/data/command.hpp"
 #include "tkit/memory/ptr.hpp"
 #include <vulkan/vulkan.h>
 
@@ -867,8 +868,16 @@ template <Dimension D> class IRenderContext
      */
     void DestroyCamera(const Camera<D> *p_Camera) noexcept;
 
+    /**
+     * @brief Create a draw command to batch draws on the cpu side.
+     *
+     * @param p_Shape The shape that will be drawn.
+     */
+    DrawCommand<D> CreateDrawCommand(Shape<D> p_Shape) noexcept;
+
   protected:
     template <typename F1, typename F2> void resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept;
+    template <typename F> void draw(const DrawCommand<D> &p_Command, F &&p_Func) noexcept;
 
     void updateState() noexcept;
 
@@ -1007,6 +1016,8 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
      * @param p_Thickness The thickness of the line.
      */
     void RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, f32 p_Thickness = 0.01f) noexcept;
+
+    void Draw(const DrawCommand<D2> &p_Command) noexcept;
 };
 
 template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderContext<D3>
@@ -1553,6 +1564,8 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Sharpness The specular sharpness factor.
      */
     void SpecularSharpness(f32 p_Sharpness) noexcept;
+
+    void Draw(const DrawCommand<D3> &p_Command) noexcept;
 
   private:
     void drawChildSphere(const RenderState<D3> &p_State, fmat4 p_Transform, const fvec3 &p_Position, Resolution p_Res,

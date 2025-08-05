@@ -816,6 +816,145 @@ void RenderContext<D3>::RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, co
     drawCapsule(state, transform, glm::length(delta), p_Options.Thickness, p_Options.Resolution);
 }
 
+template <Dimension D>
+template <typename F>
+void IRenderContext<D>::draw(const DrawCommand<D> &p_Command, F &&p_Func) noexcept
+{
+    for (u32 i = 0; i < p_Command.Transforms.GetSize(); ++i)
+    {
+        const fmat<D2> &transform = p_Command.Transforms[i];
+        const RenderState<D2> &state = p_Command.State.Get(i);
+        std::forward<F>(p_Func)(i, state, transform);
+    }
+}
+
+void RenderContext<D2>::Draw(const DrawCommand<D2> &p_Command) noexcept
+{
+    switch (p_Command.Shape)
+    {
+    case Shape<D2>::Triangle:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D2> p_State, const fmat<D2> &p_Transform) {
+                 drawPrimitive<D2>(p_State, p_Transform, Primitives<D2>::GetTriangleIndex(),
+                                   p_Command.ShapeSize.Get(p_Index));
+             });
+    case Shape<D2>::Square:
+        draw(p_Command, [this, &p_Command](const u32 p_Index, const RenderState<D2> p_State,
+                                           const fmat<D2> &p_Transform) {
+            drawPrimitive<D2>(p_State, p_Transform, Primitives<D2>::GetSquareIndex(), p_Command.ShapeSize.Get(p_Index));
+        });
+    case Shape<D2>::NGon:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D2> p_State, const fmat<D2> &p_Transform) {
+                 drawPrimitive<D2>(p_State, p_Transform, Primitives<D2>::GetNGonIndex(p_Command.NGonSides.Get(p_Index)),
+                                   p_Command.ShapeSize.Get(p_Index));
+             });
+    case Shape<D2>::Polygon:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D2> p_State, const fmat<D2> &p_Transform) {
+                 drawPolygon(p_State, p_Transform, p_Command.Vertices.Get(p_Index));
+             });
+    case Shape<D2>::Circle:
+        draw(p_Command, [this, &p_Command](const u32 p_Index, const RenderState<D2> p_State,
+                                           const fmat<D2> &p_Transform) {
+            drawCircle(p_State, p_Transform, p_Command.CircleOptions.Get(p_Index), p_Command.ShapeSize.Get(p_Index));
+        });
+    case Shape<D2>::Stadium:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D2> p_State, const fmat<D2> &p_Transform) {
+                 drawStadium(p_State, p_Transform, p_Command.Length.Get(p_Index), p_Command.Diameter.Get(p_Index));
+             });
+    case Shape<D2>::RoundedSquare:
+        draw(p_Command, [this, &p_Command](const u32 p_Index, const RenderState<D2> p_State,
+                                           const fmat<D2> &p_Transform) {
+            drawRoundedSquare(p_State, p_Transform, p_Command.ShapeSize.Get(p_Index), p_Command.Diameter.Get(p_Index));
+        });
+    case Shape<D2>::Mesh:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D2> p_State, const fmat<D2> &p_Transform) {
+                 drawMesh(p_State, p_Transform, p_Command.Mesh.Get(p_Index), p_Command.ShapeSize.Get(p_Index));
+             });
+    }
+}
+void RenderContext<D3>::Draw(const DrawCommand<D3> &p_Command) noexcept
+{
+    switch (p_Command.Shape)
+    {
+    case Shape<D3>::Triangle:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State, const fmat<D3> &p_Transform) {
+                 drawPrimitive<D2>(p_State, p_Transform, Primitives<D3>::GetTriangleIndex(),
+                                   fvec2{p_Command.ShapeSize.Get(p_Index)});
+             });
+    case Shape<D3>::Square:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State, const fmat<D3> &p_Transform) {
+                 drawPrimitive<D2>(p_State, p_Transform, Primitives<D3>::GetSquareIndex(),
+                                   fvec2{p_Command.ShapeSize.Get(p_Index)});
+             });
+    case Shape<D3>::NGon:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State, const fmat<D3> &p_Transform) {
+                 drawPrimitive<D2>(p_State, p_Transform, Primitives<D3>::GetNGonIndex(p_Command.NGonSides.Get(p_Index)),
+                                   fvec2{p_Command.ShapeSize.Get(p_Index)});
+             });
+    case Shape<D3>::Polygon:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State, const fmat<D3> &p_Transform) {
+                 drawPolygon(p_State, p_Transform, p_Command.Vertices.Get(p_Index));
+             });
+    case Shape<D3>::Circle:
+        draw(p_Command, [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State,
+                                           const fmat<D3> &p_Transform) {
+            drawCircle(p_State, p_Transform, p_Command.CircleOptions.Get(p_Index), p_Command.ShapeSize.Get(p_Index));
+        });
+    case Shape<D3>::Stadium:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State, const fmat<D3> &p_Transform) {
+                 drawStadium(p_State, p_Transform, p_Command.Length.Get(p_Index), p_Command.Diameter.Get(p_Index));
+             });
+    case Shape<D3>::RoundedSquare:
+        draw(p_Command, [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State,
+                                           const fmat<D3> &p_Transform) {
+            drawRoundedSquare(p_State, p_Transform, p_Command.ShapeSize.Get(p_Index), p_Command.Diameter.Get(p_Index));
+        });
+    case Shape<D3>::Mesh:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State, const fmat<D3> &p_Transform) {
+                 drawMesh(p_State, p_Transform, p_Command.Mesh.Get(p_Index), p_Command.ShapeSize.Get(p_Index));
+             });
+    case Shape<D3>::Cube:
+        draw(p_Command, [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State,
+                                           const fmat<D3> &p_Transform) {
+            drawPrimitive<D3>(p_State, p_Transform, Primitives<D3>::GetCubeIndex(), p_Command.ShapeSize.Get(p_Index));
+        });
+    case Shape<D3>::Cylinder:
+        draw(p_Command, [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State,
+                                           const fmat<D3> &p_Transform) {
+            drawPrimitive<D3>(p_State, p_Transform, Primitives<D3>::GetCylinderIndex(p_Command.Resolution.Get(p_Index)),
+                              p_Command.ShapeSize.Get(p_Index));
+        });
+    case Shape<D3>::Sphere:
+        draw(p_Command, [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State,
+                                           const fmat<D3> &p_Transform) {
+            drawPrimitive<D3>(p_State, p_Transform, Primitives<D3>::GetSphereIndex(p_Command.Resolution.Get(p_Index)),
+                              p_Command.ShapeSize.Get(p_Index));
+        });
+    case Shape<D3>::Capsule:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State, const fmat<D3> &p_Transform) {
+                 drawCapsule(p_State, p_Transform, p_Command.Length.Get(p_Index), p_Command.Diameter.Get(p_Index),
+                             p_Command.Resolution.Get(p_Index));
+             });
+    case Shape<D3>::RoundedCube:
+        draw(p_Command,
+             [this, &p_Command](const u32 p_Index, const RenderState<D3> p_State, const fmat<D3> &p_Transform) {
+                 drawCapsule(p_State, p_Transform, p_Command.Length.Get(p_Index), p_Command.Diameter.Get(p_Index),
+                             p_Command.Resolution.Get(p_Index));
+             });
+    }
+}
+
 void RenderContext<D3>::Cube() noexcept
 {
     const RenderState<D3> state = *m_State;
@@ -1374,6 +1513,14 @@ template <Dimension D> void IRenderContext<D>::DestroyCamera(const Camera<D> *p_
             DestroyCamera(i);
             return;
         }
+}
+
+template <Dimension D> DrawCommand<D> IRenderContext<D>::CreateDrawCommand(const Shape<D> p_Shape) noexcept
+{
+    DrawCommand<D> Cmd{};
+    Cmd.Shape = p_Shape;
+    Cmd.State = *m_State;
+    return Cmd;
 }
 
 void RenderContext<D2>::Axes(const AxesOptions<D2> &p_Options) noexcept
