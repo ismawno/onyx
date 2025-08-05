@@ -30,7 +30,7 @@ template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) cons
         case Shapes2::NGon:
             Run([this, p_Context, &offset, &transform](const fvec2 &p_Pos) {
                 const auto t = setPos<D2>(transform, p_Pos + offset);
-                p_Context->NGon(t, NGonSides);
+                p_Context->NGon(t, NGonSides, ShapeSize);
             });
             return;
         case Shapes2::Polygon:
@@ -84,7 +84,7 @@ template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) cons
         case Shapes3::NGon:
             Run([this, p_Context, &offset, &transform](const fvec3 &p_Pos) {
                 const auto t = setPos<D3>(transform, p_Pos + offset);
-                p_Context->NGon(t, NGonSides);
+                p_Context->NGon(t, NGonSides, ShapeSize);
             });
             return;
         case Shapes3::Polygon:

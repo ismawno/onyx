@@ -115,7 +115,7 @@ template <Dimension D> struct Lattice
                 }
             };
             TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
-            TKit::ForEachMainThreadLead(*tm, 0u, size, tasks.begin(), Tasks, fn);
+            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), Tasks, fn);
             for (u32 i = 0; i < Tasks - 1; ++i)
                 tasks[i]->WaitUntilFinished();
         }
@@ -139,7 +139,7 @@ template <Dimension D> struct Lattice
                 }
             };
             TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
-            TKit::ForEachMainThreadLead(*tm, 0u, size, tasks.begin(), Tasks, fn);
+            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), Tasks, fn);
             for (u32 i = 0; i < Tasks - 1; ++i)
                 tasks[i]->WaitUntilFinished();
         }

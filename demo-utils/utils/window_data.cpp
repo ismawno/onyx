@@ -357,7 +357,7 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                 };
 
                 TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
-                TKit::ForEachMainThreadLead(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
+                TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
                 for (u32 i = 0; i < lattice.Tasks - 1; ++i)
                     tasks[i]->WaitUntilFinished();
             }
@@ -382,7 +382,7 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                     }
                 };
                 TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
-                TKit::ForEachMainThreadLead(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
+                TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
                 for (u32 i = 0; i < lattice.Tasks - 1; ++i)
                     tasks[i]->WaitUntilFinished();
             }

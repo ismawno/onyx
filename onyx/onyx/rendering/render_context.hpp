@@ -7,10 +7,6 @@
 #include "tkit/memory/ptr.hpp"
 #include <vulkan/vulkan.h>
 
-#ifndef ONYX_MAX_POLYGON_VERTICES
-#    define ONYX_MAX_POLYGON_VERTICES 32
-#endif
-
 // 2D objects that are drawn later will always be on top of earlier ones. HOWEVER, blending will only work expectedly
 // between objects of the same primitive
 
