@@ -69,7 +69,9 @@ template <Dimension D> struct Lattice
     template <typename F> void RunSingleThread(F &&p_Func) const noexcept
     {
         TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
-        const fvec<D> midPoint = 0.5f * Separation * fvec<D>{LatticeDims - 1u};
+        const fvec<D> offset = Transform.Translation - 0.5f * Separation * fvec<D>{LatticeDims - 1u};
+        fmat<D> transform = Transform.ComputeTransform();
+        const Lattice<D> lattice = *this;
         for (u32 i = 0; i < LatticeDims.x; ++i)
         {
             const f32 x = static_cast<f32>(i) * Separation;
@@ -78,15 +80,17 @@ template <Dimension D> struct Lattice
                 const f32 y = static_cast<f32>(j) * Separation;
                 if constexpr (D == D2)
                 {
-                    const fvec2 pos = fvec2{x, y} - midPoint;
-                    std::forward<F>(p_Func)(pos);
+                    const fvec2 pos = fvec2{x, y} + offset;
+                    transform[2] = fvec3{pos, 1.f};
+                    std::forward<F>(p_Func)(lattice, transform);
                 }
                 else
                     for (u32 k = 0; k < LatticeDims.z; ++k)
                     {
                         const f32 z = static_cast<f32>(k) * Separation;
-                        const fvec3 pos = fvec3{x, y, z} - midPoint;
-                        std::forward<F>(p_Func)(pos);
+                        const fvec3 pos = fvec3{x, y, z} + offset;
+                        transform[3] = fvec4{pos, 1.f};
+                        std::forward<F>(p_Func)(lattice, transform);
                     }
             }
         }
@@ -95,14 +99,18 @@ template <Dimension D> struct Lattice
     template <typename F> void RunMultiThread(F &&p_Func) const noexcept
     {
         TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
-        const fvec<D> midPoint = 0.5f * Separation * fvec<D>{LatticeDims - 1u};
         TKit::ITaskManager *tm = Core::GetTaskManager();
         using Task = TKit::Ref<TKit::Task<void>>;
+
         if constexpr (D == D2)
         {
             const u32 size = LatticeDims.x * LatticeDims.y;
-            const auto fn = [this, &midPoint, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
+            const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
                 TKIT_PROFILE_NSCOPE("Onyx::Perf::Task");
+                const Lattice<D> lattice = *this;
+
+                const fvec<D> offset = Transform.Translation - 0.5f * Separation * fvec<D>{LatticeDims - 1u};
+                fmat<D> transform = Transform.ComputeTransform();
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
                     const u32 ix = i / LatticeDims.y;
@@ -110,8 +118,9 @@ template <Dimension D> struct Lattice
                     const f32 x = Separation * static_cast<f32>(ix);
                     const f32 y = Separation * static_cast<f32>(iy);
 
-                    const fvec2 pos = fvec2{x, y} - midPoint;
-                    std::forward<F>(p_Func)(pos);
+                    const fvec2 pos = fvec2{x, y} + offset;
+                    transform[2] = fvec3{pos, 1.f};
+                    std::forward<F>(p_Func)(lattice, transform);
                 }
             };
             TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
@@ -122,9 +131,13 @@ template <Dimension D> struct Lattice
         else
         {
             const u32 size = LatticeDims.x * LatticeDims.y * LatticeDims.z;
-            const u32 yz = LatticeDims.y * LatticeDims.z;
-            const auto fn = [this, yz, &midPoint, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
+            const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
                 TKIT_PROFILE_NSCOPE("Onyx::Perf::Task");
+
+                const Lattice<D> lattice = *this;
+                const u32 yz = LatticeDims.y * LatticeDims.z;
+                const fvec<D> offset = Transform.Translation - 0.5f * Separation * fvec<D>{LatticeDims - 1u};
+                fmat<D> transform = Transform.ComputeTransform();
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
                     const u32 ix = i / yz;
@@ -134,8 +147,9 @@ template <Dimension D> struct Lattice
                     const f32 x = Separation * static_cast<f32>(ix);
                     const f32 y = Separation * static_cast<f32>(iy);
                     const f32 z = Separation * static_cast<f32>(iz);
-                    const fvec3 pos = fvec3{x, y, z} - midPoint;
-                    std::forward<F>(p_Func)(pos);
+                    const fvec3 pos = fvec3{x, y, z} + offset;
+                    transform[3] = fvec4{pos, 1.f};
+                    std::forward<F>(p_Func)(lattice, transform);
                 }
             };
             TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
