@@ -110,7 +110,7 @@ namespace Onyx::Detail
  * `DrawMode` is `Stencil`.
  *
  * - `DoStencilTestNoFill`: This pass will test the stencil buffer and render the shape only where the stencil buffer is
- * not set. The corresponding `DrawMode` is St`encil`.
+ * not set. The corresponding `DrawMode` is `Stencil`.
  *
  */
 enum class PipelineMode : u8
