@@ -102,7 +102,7 @@ class ONYX_API Window
                 context->GrowToFit(frameIndex);
 
             TKit::ITaskManager *tm = Core::GetTaskManager();
-            const auto sendToDevice = tm->CreateAndSubmit([this, frameIndex](const u32) {
+            const auto sendToDevice = tm->CreateAndSubmit([this, frameIndex]() {
                 for (const auto &context : m_RenderContexts2D)
                     context->SendToDevice(frameIndex);
                 for (const auto &context : m_RenderContexts3D)

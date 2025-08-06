@@ -342,8 +342,7 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
             if constexpr (D == D2)
             {
                 const u32 size = dims.x * dims.y;
-                const auto fn = [&dims, &separation, &lattice, &midPoint, &p_Data](const u32 p_Start, const u32 p_End,
-                                                                                   const u32) {
+                const auto fn = [&dims, &separation, &lattice, &midPoint, &p_Data](const u32 p_Start, const u32 p_End) {
                     Transform<D2> transform = lattice.Shape->Transform;
                     for (u32 i = p_Start; i < p_End; ++i)
                     {
@@ -366,7 +365,7 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                 const u32 size = dims.x * dims.y * dims.z;
                 const u32 yz = dims.y * dims.z;
                 const auto fn = [&dims, yz, &separation, &lattice, &midPoint, &p_Data](const u32 p_Start,
-                                                                                       const u32 p_End, const u32) {
+                                                                                       const u32 p_End) {
                     Transform<D3> transform = lattice.Shape->Transform;
                     for (u32 i = p_Start; i < p_End; ++i)
                     {

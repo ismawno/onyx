@@ -105,7 +105,7 @@ template <Dimension D> struct Lattice
         if constexpr (D == D2)
         {
             const u32 size = LatticeDims.x * LatticeDims.y;
-            const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
+            const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
                 TKIT_PROFILE_NSCOPE("Onyx::Perf::Task");
                 const Lattice<D> lattice = *this;
 
@@ -131,7 +131,7 @@ template <Dimension D> struct Lattice
         else
         {
             const u32 size = LatticeDims.x * LatticeDims.y * LatticeDims.z;
-            const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End, const u32) {
+            const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
                 TKIT_PROFILE_NSCOPE("Onyx::Perf::Task");
 
                 const Lattice<D> lattice = *this;
