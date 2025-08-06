@@ -374,7 +374,7 @@ template <Dimension D, PipelineMode PMode> struct PipelineGenerator
      * @param p_RenderInfo The rendering information to use.
      * @return The pipeline handle.
      */
-    static VKit::GraphicsPipeline CreateMeshPipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    static VKit::GraphicsPipeline CreateGeometryPipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 
     /**
      * @brief Create a pipeline for circle shapes.

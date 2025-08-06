@@ -103,7 +103,7 @@ static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkPipelineRe
 }
 
 template <Dimension D, PipelineMode PMode>
-VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateMeshPipeline(
+VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateGeometryPipeline(
     const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
     const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshVertexShader();
