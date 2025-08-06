@@ -29,12 +29,17 @@ void RenderSystem<D, R>::GrowToFit(const u32 p_FrameIndex) noexcept
     DoStencilTestNoFill.GrowToFit(p_FrameIndex);
 }
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex) noexcept
+void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks) noexcept
 {
-    NoStencilWriteDoFill.SendToDevice(p_FrameIndex);
-    DoStencilWriteDoFill.SendToDevice(p_FrameIndex);
-    DoStencilWriteNoFill.SendToDevice(p_FrameIndex);
-    DoStencilTestNoFill.SendToDevice(p_FrameIndex);
+    const TKit::ITaskManager *tm = Core::GetTaskManager();
+    if (NoStencilWriteDoFill.HasInstances())
+        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { NoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
+    if (DoStencilWriteDoFill.HasInstances())
+        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
+    if (DoStencilWriteNoFill.HasInstances())
+        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilWriteNoFill.SendToDevice(p_FrameIndex); }));
+    if (DoStencilTestNoFill.HasInstances())
+        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilTestNoFill.SendToDevice(p_FrameIndex); }));
 }
 
 static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInfo &p_DirectionalInfo,
@@ -236,10 +241,20 @@ void Renderer<D2>::GrowToFit(const u32 p_FrameIndex) noexcept
 }
 void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    m_MeshRenderer.SendToDevice(p_FrameIndex);
-    m_PrimitiveRenderer.SendToDevice(p_FrameIndex);
-    m_PolygonRenderer.SendToDevice(p_FrameIndex);
-    m_CircleRenderer.SendToDevice(p_FrameIndex);
+    TKit::StaticArray16<Task> tasks{};
+    m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
+    m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
+    m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
+    m_CircleRenderer.SendToDevice(p_FrameIndex, tasks);
+    if (tasks.IsEmpty())
+        return;
+
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+    for (u32 i = 1; i < tasks.GetSize(); ++i)
+        tm->SubmitTask(tasks[i]);
+    (*tasks[0])();
+    // for (u32 i = 0; i < tasks.GetSize(); ++i)
+    //     (*tasks[i])();
 }
 
 void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
@@ -262,10 +277,15 @@ void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
 
 void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    m_MeshRenderer.SendToDevice(p_FrameIndex);
-    m_PrimitiveRenderer.SendToDevice(p_FrameIndex);
-    m_PolygonRenderer.SendToDevice(p_FrameIndex);
-    m_CircleRenderer.SendToDevice(p_FrameIndex);
+    TKit::StaticArray16<Task> tasks{};
+    m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
+    m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
+    m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
+    m_CircleRenderer.SendToDevice(p_FrameIndex, tasks);
+
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+    for (u32 i = 1; i < tasks.GetSize(); ++i)
+        tm->SubmitTask(tasks[i]);
 
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
     if (dcount > 0)
@@ -282,6 +302,12 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
         const auto &hostPointBuffer = m_HostLightData.PointLights;
         devPointBuffer.Write(hostPointBuffer);
     }
+    if (tasks.IsEmpty())
+        return;
+
+    (*tasks[0])();
+    for (u32 i = 1; i < tasks.GetSize(); ++i)
+        tasks[i]->WaitUntilFinished();
 }
 
 template <DrawLevel DLevel, typename... Renderers>

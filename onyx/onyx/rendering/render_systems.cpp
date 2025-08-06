@@ -69,8 +69,6 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFi
 }
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_DeviceInstances == 0)
-        return;
     TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
@@ -164,6 +162,11 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() 
     }
 }
 
+template <Dimension D, PipelineMode PMode> bool MeshRenderer<D, PMode>::HasInstances() const noexcept
+{
+    return m_DeviceInstances != 0;
+}
+
 template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
@@ -200,8 +203,6 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Gro
 template <Dimension D, PipelineMode PMode>
 void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_DeviceInstances == 0)
-        return;
     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
@@ -264,6 +265,11 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
             data.Clear();
         hostData.Instances = 0;
     }
+}
+
+template <Dimension D, PipelineMode PMode> bool PrimitiveRenderer<D, PMode>::HasInstances() const noexcept
+{
+    return m_DeviceInstances != 0;
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -356,9 +362,6 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowT
 }
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_DeviceInstances == 0)
-        return;
-
     TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
@@ -424,6 +427,11 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush
     }
 }
 
+template <Dimension D, PipelineMode PMode> bool PolygonRenderer<D, PMode>::HasInstances() const noexcept
+{
+    return m_DeviceInstances != 0;
+}
+
 template <Dimension D, PipelineMode PMode>
 CircleRenderer<D, PMode>::CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
@@ -472,8 +480,6 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowTo
 }
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    if (m_DeviceInstances == 0)
-        return;
 
     TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
 
@@ -516,6 +522,11 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush(
 {
     for (auto &hostData : m_HostData)
         hostData.Clear();
+}
+
+template <Dimension D, PipelineMode PMode> bool CircleRenderer<D, PMode>::HasInstances() const noexcept
+{
+    return m_DeviceInstances != 0;
 }
 
 // This is crazy

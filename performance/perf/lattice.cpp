@@ -5,6 +5,8 @@ namespace Onyx::Perf
 template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) const noexcept
 {
     p_Context->Fill(Color);
+    // p_Context->Outline(Onyx::Color::ORANGE);
+    // p_Context->OutlineWidth(0.1f);
     if constexpr (D == D2)
         switch (Shape)
         {

@@ -73,6 +73,8 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
      */
     void Flush() noexcept;
 
+    bool HasInstances() const noexcept;
+
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) MeshHostData
     {
@@ -150,6 +152,8 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
      *
      */
     void Flush() noexcept;
+
+    bool HasInstances() const noexcept;
 
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) PrimitiveHostData
@@ -230,6 +234,8 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
      *
      */
     void Flush() noexcept;
+
+    bool HasInstances() const noexcept;
 
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) PolygonHostData
@@ -329,6 +335,8 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
      *
      */
     void Flush() noexcept;
+
+    bool HasInstances() const noexcept;
 
   private:
     using CircleHostData = HostStorageBuffer<CircleInstanceData>;

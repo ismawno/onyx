@@ -1,9 +1,11 @@
 #pragma once
 
 #include "onyx/rendering/render_systems.hpp"
+#include "tkit/multiprocessing/task_manager.hpp"
 
 namespace Onyx::Detail
 {
+using Task = TKit::Ref<TKit::Task<void>>;
 /**
  * @brief The RenderSystem struct manages multiple renderers with different pipeline modes.
  *
@@ -35,7 +37,7 @@ template <Dimension D, template <Dimension, PipelineMode> typename Renderer> str
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      */
-    void SendToDevice(u32 p_FrameIndex) noexcept;
+    void SendToDevice(u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks) noexcept;
 
     /// Renderer without stencil write, performs fill operation.
     Renderer<D, PipelineMode::NoStencilWriteDoFill> NoStencilWriteDoFill;
