@@ -25,6 +25,8 @@ set(SOURCES
     onyx/app/theme.cpp)
 
 add_library(onyx STATIC ${SOURCES})
+target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.2.2\")
+
 if(UNIX AND NOT APPLE)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(FONTCONFIG REQUIRED fontconfig)

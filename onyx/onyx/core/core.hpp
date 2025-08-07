@@ -29,8 +29,6 @@
 #    define ONYX_MAX_THREADS 16
 #endif
 
-#define ONYX_VERSION "v0.2.1"
-
 namespace TKit
 {
 class StackAllocator;
