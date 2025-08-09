@@ -465,14 +465,14 @@ void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Ci
     instanceData.InnerFade = p_Options.InnerFade;
     instanceData.OuterFade = p_Options.OuterFade;
 
-    hostData.Append(instanceData);
+    hostData.Data.Append(instanceData);
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
     m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
-        m_DeviceInstances += hostData.GetSize();
+        m_DeviceInstances += hostData.Data.GetSize();
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
@@ -480,16 +480,15 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowTo
 }
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-
     TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
     for (const auto &hostData : m_HostData)
-        if (!hostData.IsEmpty())
+        if (!hostData.Data.IsEmpty())
         {
-            storageBuffer.Write(hostData, offset);
-            offset += hostData.GetSize();
+            storageBuffer.Write(hostData.Data, offset);
+            offset += hostData.Data.GetSize();
         }
 }
 
@@ -510,7 +509,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 
     u32 instanceCount = 0;
     for (const auto &hostData : m_HostData)
-        instanceCount += hostData.GetSize();
+        instanceCount += hostData.Data.GetSize();
     TKIT_ASSERT(instanceCount > 0,
                 "[ONYX] Circle renderer instance count is zero, which should have trigger an early return earlier");
 
@@ -521,7 +520,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush() noexcept
 {
     for (auto &hostData : m_HostData)
-        hostData.Clear();
+        hostData.Data.Clear();
 }
 
 template <Dimension D, PipelineMode PMode> bool CircleRenderer<D, PMode>::HasInstances() const noexcept

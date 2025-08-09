@@ -80,6 +80,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     {
         TKit::HashMap<Mesh<D>, HostStorageBuffer<InstanceData>> Data{};
         u32 Instances = 0;
+        std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
     using MeshDeviceData = DeviceData<InstanceData>;
 
@@ -160,6 +161,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
     {
         TKit::Array<HostStorageBuffer<InstanceData>, Primitives<D>::AMOUNT> Data{};
         u32 Instances = 0;
+        std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
     using PrimitiveDeviceData = DeviceData<InstanceData>;
 
@@ -244,6 +246,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
         HostStorageBuffer<PrimitiveDataLayout> Layouts;
         HostVertexBuffer<D> Vertices;
         HostIndexBuffer Indices;
+        std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
 
     using PolygonDeviceData = PolygonDeviceData<D, GetDrawLevel<D, PMode>()>;
@@ -339,7 +342,11 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
     bool HasInstances() const noexcept;
 
   private:
-    using CircleHostData = HostStorageBuffer<CircleInstanceData>;
+    struct alignas(TKIT_CACHE_LINE_SIZE) CircleHostData
+    {
+        HostStorageBuffer<CircleInstanceData> Data;
+        std::byte _Pad[TKIT_CACHE_LINE_SIZE];
+    };
     using CircleDeviceData = DeviceData<CircleInstanceData>;
 
     VKit::GraphicsPipeline m_Pipeline{};

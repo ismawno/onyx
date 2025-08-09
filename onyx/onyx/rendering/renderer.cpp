@@ -253,6 +253,10 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
     for (u32 i = 1; i < tasks.GetSize(); ++i)
         tm->SubmitTask(tasks[i]);
     (*tasks[0])();
+
+    for (u32 i = 1; i < tasks.GetSize(); ++i)
+        tasks[i]->WaitUntilFinished();
+
     // for (u32 i = 0; i < tasks.GetSize(); ++i)
     //     (*tasks[i])();
 }
