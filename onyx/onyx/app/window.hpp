@@ -102,7 +102,8 @@ class ONYX_API Window
                 context->GrowToFit(frameIndex);
 
             TKit::ITaskManager *tm = Core::GetTaskManager();
-            const auto render = tm->CreateAndSubmit([this, frameIndex, cmd]() {
+
+            TKit::Task<> *render = tm->CreateAndSubmit([this, frameIndex, cmd]() {
                 for (const auto &context : m_RenderContexts2D)
                     context->Render(frameIndex, cmd);
                 for (const auto &context : m_RenderContexts3D)
@@ -115,6 +116,7 @@ class ONYX_API Window
                 context->SendToDevice(frameIndex);
 
             render->WaitUntilFinished();
+            tm->DestroyTask(render);
 
             std::forward<F2>(p_LastDraws)(frameIndex, cmd);
 

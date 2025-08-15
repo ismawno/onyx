@@ -338,7 +338,6 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
         if (lattice.Multithreaded)
         {
             TKit::ITaskManager *tm = Core::GetTaskManager();
-            using Task = TKit::Ref<TKit::Task<void>>;
             if constexpr (D == D2)
             {
                 const u32 size = dims.x * dims.y;
@@ -355,10 +354,13 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                     }
                 };
 
-                TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
+                TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS> tasks{};
                 TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
                 for (u32 i = 0; i < lattice.Tasks - 1; ++i)
+                {
                     tasks[i]->WaitUntilFinished();
+                    tm->DestroyTask(tasks[i]);
+                }
             }
             else
             {
@@ -380,10 +382,13 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                         lattice.Shape->DrawRaw(p_Data.Context, transform);
                     }
                 };
-                TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
+                TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS> tasks{};
                 TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
                 for (u32 i = 0; i < lattice.Tasks - 1; ++i)
+                {
                     tasks[i]->WaitUntilFinished();
+                    tm->DestroyTask(tasks[i]);
+                }
             }
         }
         else

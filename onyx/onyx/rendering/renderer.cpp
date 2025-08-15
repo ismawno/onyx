@@ -29,7 +29,7 @@ void RenderSystem<D, R>::GrowToFit(const u32 p_FrameIndex) noexcept
     DoStencilTestNoFill.GrowToFit(p_FrameIndex);
 }
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks) noexcept
+void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex, TKit::StaticArray16<TKit::Task<> *> &p_Tasks) noexcept
 {
     const TKit::ITaskManager *tm = Core::GetTaskManager();
     if (NoStencilWriteDoFill.HasInstances())
@@ -241,7 +241,7 @@ void Renderer<D2>::GrowToFit(const u32 p_FrameIndex) noexcept
 }
 void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKit::StaticArray16<Task> tasks{};
+    TKit::StaticArray16<TKit::Task<> *> tasks{};
     m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
@@ -252,10 +252,15 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
     TKit::ITaskManager *tm = Core::GetTaskManager();
     for (u32 i = 1; i < tasks.GetSize(); ++i)
         tm->SubmitTask(tasks[i]);
+
     (*tasks[0])();
 
+    tm->DestroyTask(tasks[0]);
     for (u32 i = 1; i < tasks.GetSize(); ++i)
+    {
         tasks[i]->WaitUntilFinished();
+        tm->DestroyTask(tasks[i]);
+    }
 
     // for (u32 i = 0; i < tasks.GetSize(); ++i)
     //     (*tasks[i])();
@@ -281,7 +286,7 @@ void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
 
 void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKit::StaticArray16<Task> tasks{};
+    TKit::StaticArray16<TKit::Task<> *> tasks{};
     m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
@@ -310,8 +315,12 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
         return;
 
     (*tasks[0])();
+    tm->DestroyTask(tasks[0]);
     for (u32 i = 1; i < tasks.GetSize(); ++i)
+    {
         tasks[i]->WaitUntilFinished();
+        tm->DestroyTask(tasks[i]);
+    }
 }
 
 template <DrawLevel DLevel, typename... Renderers>

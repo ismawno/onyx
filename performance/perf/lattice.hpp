@@ -100,7 +100,6 @@ template <Dimension D> struct Lattice
     {
         TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
         TKit::ITaskManager *tm = Core::GetTaskManager();
-        using Task = TKit::Ref<TKit::Task<void>>;
 
         if constexpr (D == D2)
         {
@@ -123,10 +122,13 @@ template <Dimension D> struct Lattice
                     std::forward<F>(p_Func)(lattice, transform);
                 }
             };
-            TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
+            TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS> tasks{};
             TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), Tasks, fn);
             for (u32 i = 0; i < Tasks - 1; ++i)
+            {
                 tasks[i]->WaitUntilFinished();
+                tm->DestroyTask(tasks[i]);
+            }
         }
         else
         {
@@ -152,10 +154,13 @@ template <Dimension D> struct Lattice
                     std::forward<F>(p_Func)(lattice, transform);
                 }
             };
-            TKit::Array<Task, ONYX_MAX_THREADS> tasks{};
+            TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS> tasks{};
             TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), Tasks, fn);
             for (u32 i = 0; i < Tasks - 1; ++i)
+            {
                 tasks[i]->WaitUntilFinished();
+                tm->DestroyTask(tasks[i]);
+            }
         }
     }
 
