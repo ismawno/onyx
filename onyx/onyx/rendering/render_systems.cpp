@@ -67,19 +67,47 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFi
     if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
         m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
 }
+using Task = TKit::Task<> *;
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
+
+    TKit::StaticArray<Task, ONYX_MAX_THREADS> tasks{};
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+
     for (const auto &hostData : m_HostData)
         for (const auto &[mesh, data] : hostData.Data)
             if (!data.IsEmpty())
             {
-                storageBuffer.Write(data, offset);
+                const Task task = tm->CreateTask([offset, &storageBuffer, &data]() {
+                    TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::Task");
+                    storageBuffer.Write(data, offset);
+                });
+                tasks.Append(task);
                 offset += data.GetSize();
             }
+
+    const Task task = tasks.GetBack();
+    tasks.Pop();
+    if (tasks.IsEmpty())
+    {
+        (*task)();
+        tm->DestroyTask(task);
+        return;
+    }
+
+    tm->SubmitTasks(TKit::Span<const Task>{tasks});
+
+    (*task)();
+    tm->DestroyTask(task);
+    for (const Task task : tasks)
+    {
+        tm->WaitUntilFinished(task);
+        tm->DestroyTask(task);
+    }
 }
 
 template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
@@ -207,16 +235,44 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
+
+    TKit::StaticArray<Task, ONYX_MAX_THREADS> tasks{};
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+
     for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
         for (const auto &hostData : m_HostData)
         {
             const auto &data = hostData.Data[i];
             if (!data.IsEmpty())
             {
-                storageBuffer.Write(data, offset);
+                const Task task = tm->CreateTask([offset, &storageBuffer, &data]() {
+                    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::Task");
+                    storageBuffer.Write(data, offset);
+                });
+
+                tasks.Append(task);
                 offset += data.GetSize();
             }
         }
+
+    const Task task = tasks.GetBack();
+    tasks.Pop();
+    if (tasks.IsEmpty())
+    {
+        (*task)();
+        tm->DestroyTask(task);
+        return;
+    }
+
+    tm->SubmitTasks(TKit::Span<const Task>{tasks});
+
+    (*task)();
+    tm->DestroyTask(task);
+    for (const Task task : tasks)
+    {
+        tm->WaitUntilFinished(task);
+        tm->DestroyTask(task);
+    }
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
@@ -372,17 +428,45 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
     u32 voffset = 0;
     u32 ioffset = 0;
 
+    TKit::StaticArray<Task, ONYX_MAX_THREADS> tasks{};
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+
     for (const auto &hostData : m_HostData)
         if (!hostData.Data.IsEmpty())
         {
-            storageBuffer.Write(hostData.Data, offset);
-            vertexBuffer.Write(hostData.Vertices, voffset);
-            indexBuffer.Write(hostData.Indices, ioffset);
+            const Task task =
+                tm->CreateTask([offset, voffset, ioffset, &hostData, &storageBuffer, &vertexBuffer, &indexBuffer]() {
+                    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::Task");
+                    storageBuffer.Write(hostData.Data, offset);
+                    vertexBuffer.Write(hostData.Vertices, voffset);
+                    indexBuffer.Write(hostData.Indices, ioffset);
+                });
 
             offset += hostData.Data.GetSize();
             voffset += hostData.Vertices.GetSize();
             ioffset += hostData.Indices.GetSize();
+
+            tasks.Append(task);
         }
+
+    const Task task = tasks.GetBack();
+    tasks.Pop();
+    if (tasks.IsEmpty())
+    {
+        (*task)();
+        tm->DestroyTask(task);
+        return;
+    }
+
+    tm->SubmitTasks(TKit::Span<const Task>{tasks});
+
+    (*task)();
+    tm->DestroyTask(task);
+    for (const Task task : tasks)
+    {
+        tm->WaitUntilFinished(task);
+        tm->DestroyTask(task);
+    }
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
@@ -484,12 +568,41 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
 
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
+
+    TKit::StaticArray<Task, ONYX_MAX_THREADS> tasks{};
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+
     for (const auto &hostData : m_HostData)
         if (!hostData.Data.IsEmpty())
         {
-            storageBuffer.Write(hostData.Data, offset);
+            const Task task = tm->CreateTask([offset, &storageBuffer, &hostData]() {
+                TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::Task");
+                storageBuffer.Write(hostData.Data, offset);
+            });
+
+            tasks.Append(task);
             offset += hostData.Data.GetSize();
         }
+
+    const Task task = tasks.GetBack();
+    tasks.Pop();
+    if (tasks.IsEmpty())
+    {
+        (*task)();
+        tm->DestroyTask(task);
+        return;
+    }
+
+    tm->SubmitTasks(TKit::Span<const Task>{tasks});
+
+    (*task)();
+    tm->DestroyTask(task);
+
+    for (const Task task : tasks)
+    {
+        tm->WaitUntilFinished(task);
+        tm->DestroyTask(task);
+    }
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
