@@ -2,6 +2,7 @@
 #include "onyx/rendering/renderer.hpp"
 #include "vkit/descriptors/descriptor_set.hpp"
 #include "tkit/profiling/macros.hpp"
+#include "tkit/multiprocessing/task_manager.hpp"
 
 namespace Onyx::Detail
 {
@@ -29,7 +30,7 @@ void RenderSystem<D, R>::GrowToFit(const u32 p_FrameIndex) noexcept
     DoStencilTestNoFill.GrowToFit(p_FrameIndex);
 }
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex, TKit::StaticArray16<TKit::Task<> *> &p_Tasks) noexcept
+void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks) noexcept
 {
     const TKit::ITaskManager *tm = Core::GetTaskManager();
     if (NoStencilWriteDoFill.HasInstances())
@@ -239,9 +240,10 @@ void Renderer<D2>::GrowToFit(const u32 p_FrameIndex) noexcept
     m_PolygonRenderer.GrowToFit(p_FrameIndex);
     m_CircleRenderer.GrowToFit(p_FrameIndex);
 }
+
 void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKit::StaticArray16<TKit::Task<> *> tasks{};
+    TKit::StaticArray16<Task> tasks{};
     m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
@@ -250,20 +252,26 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
         return;
 
     TKit::ITaskManager *tm = Core::GetTaskManager();
-    for (u32 i = 1; i < tasks.GetSize(); ++i)
-        tm->SubmitTask(tasks[i]);
+    const Task task = tasks.GetBack();
+    tasks.Pop();
 
-    (*tasks[0])();
-
-    tm->DestroyTask(tasks[0]);
-    for (u32 i = 1; i < tasks.GetSize(); ++i)
+    if (tasks.IsEmpty())
     {
-        tasks[i]->WaitUntilFinished();
-        tm->DestroyTask(tasks[i]);
+        (*task)();
+        tm->DestroyTask(task);
+        return;
     }
 
-    // for (u32 i = 0; i < tasks.GetSize(); ++i)
-    //     (*tasks[i])();
+    tm->SubmitTasks(TKit::Span<const Task>{tasks});
+
+    (*task)();
+    tm->DestroyTask(task);
+
+    for (const Task t : tasks)
+    {
+        t->WaitUntilFinished();
+        tm->DestroyTask(t);
+    }
 }
 
 void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
@@ -286,15 +294,23 @@ void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
 
 void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKit::StaticArray16<TKit::Task<> *> tasks{};
+    TKit::StaticArray16<Task> tasks{};
     m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
     m_CircleRenderer.SendToDevice(p_FrameIndex, tasks);
 
+    Task task = nullptr;
+    if (!tasks.IsEmpty())
+    {
+        task = tasks.GetBack();
+        tasks.Pop();
+    }
+
     TKit::ITaskManager *tm = Core::GetTaskManager();
-    for (u32 i = 1; i < tasks.GetSize(); ++i)
-        tm->SubmitTask(tasks[i]);
+
+    if (!tasks.IsEmpty())
+        tm->SubmitTasks(TKit::Span<const Task>{tasks});
 
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
     if (dcount > 0)
@@ -311,15 +327,15 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
         const auto &hostPointBuffer = m_HostLightData.PointLights;
         devPointBuffer.Write(hostPointBuffer);
     }
-    if (tasks.IsEmpty())
+    if (!task)
         return;
 
-    (*tasks[0])();
-    tm->DestroyTask(tasks[0]);
-    for (u32 i = 1; i < tasks.GetSize(); ++i)
+    (*task)();
+    tm->DestroyTask(task);
+    for (const Task t : tasks)
     {
-        tasks[i]->WaitUntilFinished();
-        tm->DestroyTask(tasks[i]);
+        t->WaitUntilFinished();
+        tm->DestroyTask(t);
     }
 }
 
