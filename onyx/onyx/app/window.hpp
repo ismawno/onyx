@@ -115,7 +115,7 @@ class ONYX_API Window
             for (const auto &context : m_RenderContexts3D)
                 context->SendToDevice(frameIndex);
 
-            render->WaitUntilFinished();
+            tm->WaitUntilFinished(render);
             tm->DestroyTask(render);
 
             std::forward<F2>(p_LastDraws)(frameIndex, cmd);

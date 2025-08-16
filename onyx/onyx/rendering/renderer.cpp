@@ -269,7 +269,7 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
 
     for (const Task t : tasks)
     {
-        t->WaitUntilFinished();
+        tm->WaitUntilFinished(t);
         tm->DestroyTask(t);
     }
 }
@@ -334,7 +334,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
     tm->DestroyTask(task);
     for (const Task t : tasks)
     {
-        t->WaitUntilFinished();
+        tm->WaitUntilFinished(t);
         tm->DestroyTask(t);
     }
 }
