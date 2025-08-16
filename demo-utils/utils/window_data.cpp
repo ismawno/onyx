@@ -6,7 +6,6 @@
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
 #include "tkit/container/static_array.hpp"
-#include "tkit/multiprocessing/thread_pool.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
 #include <imgui.h>
 #include <implot.h>
@@ -354,9 +353,12 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                     }
                 };
 
-                TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS> tasks{};
+                TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS - 1> tasks{};
                 TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
-                for (u32 i = 0; i < lattice.Tasks - 1; ++i)
+
+                const u32 tcount =
+                    (lattice.Tasks - 1) >= (ONYX_MAX_THREADS - 1) ? (ONYX_MAX_THREADS - 1) : (lattice.Tasks - 1);
+                for (u32 i = 0; i < tcount; ++i)
                 {
                     tasks[i]->WaitUntilFinished();
                     tm->DestroyTask(tasks[i]);
@@ -382,9 +384,12 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                         lattice.Shape->DrawRaw(p_Data.Context, transform);
                     }
                 };
-                TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS> tasks{};
+                TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS - 1> tasks{};
                 TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
-                for (u32 i = 0; i < lattice.Tasks - 1; ++i)
+
+                const u32 tcount =
+                    (lattice.Tasks - 1) >= (ONYX_MAX_THREADS - 1) ? (ONYX_MAX_THREADS - 1) : (lattice.Tasks - 1);
+                for (u32 i = 0; i < tcount; ++i)
                 {
                     tasks[i]->WaitUntilFinished();
                     tm->DestroyTask(tasks[i]);
