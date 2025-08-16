@@ -75,7 +75,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
 
-    TKit::StaticArray<Task, ONYX_MAX_THREADS> tasks{};
+    TKit::StaticArray<Task, ONYX_MAX_TASKS> tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
     for (const auto &hostData : m_HostData)
@@ -236,7 +236,7 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
 
-    TKit::StaticArray<Task, ONYX_MAX_THREADS> tasks{};
+    TKit::StaticArray<Task, ONYX_MAX_TASKS> tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
     for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
@@ -428,7 +428,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
     u32 voffset = 0;
     u32 ioffset = 0;
 
-    TKit::StaticArray<Task, ONYX_MAX_THREADS> tasks{};
+    TKit::StaticArray<Task, ONYX_MAX_TASKS> tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
     for (const auto &hostData : m_HostData)
@@ -569,7 +569,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
     auto &storageBuffer = m_DeviceData.StorageBuffers[p_FrameIndex];
     u32 offset = 0;
 
-    TKit::StaticArray<Task, ONYX_MAX_THREADS> tasks{};
+    TKit::StaticArray<Task, ONYX_MAX_TASKS> tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
     for (const auto &hostData : m_HostData)

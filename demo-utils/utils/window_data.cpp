@@ -353,11 +353,11 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                     }
                 };
 
-                TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS - 1> tasks{};
-                TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
+                TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
+                TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
 
                 const u32 tcount =
-                    (lattice.Tasks - 1) >= (ONYX_MAX_THREADS - 1) ? (ONYX_MAX_THREADS - 1) : (lattice.Tasks - 1);
+                    (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
                 for (u32 i = 0; i < tcount; ++i)
                 {
                     tasks[i]->WaitUntilFinished();
@@ -384,11 +384,11 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                         lattice.Shape->DrawRaw(p_Data.Context, transform);
                     }
                 };
-                TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS - 1> tasks{};
-                TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Tasks, fn);
+                TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
+                TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
 
                 const u32 tcount =
-                    (lattice.Tasks - 1) >= (ONYX_MAX_THREADS - 1) ? (ONYX_MAX_THREADS - 1) : (lattice.Tasks - 1);
+                    (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
                 for (u32 i = 0; i < tcount; ++i)
                 {
                     tasks[i]->WaitUntilFinished();
@@ -653,7 +653,7 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
                                       "in distribution mode to see meaningful results.");
         ImGui::Checkbox("Multithreaded", &lattice.Multithreaded);
         if (lattice.Multithreaded)
-            ImGui::SliderInt("Tasks", (int *)&lattice.Tasks, 1, ONYX_MAX_THREADS);
+            ImGui::SliderInt("Partitions", (int *)&lattice.Partitions, 1, ONYX_MAX_THREADS);
 
         if constexpr (D == D2)
         {

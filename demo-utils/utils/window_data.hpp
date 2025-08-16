@@ -16,7 +16,7 @@ template <Dimension D> struct LatticeData
     uvec<D> Dimensions{2};
     f32 Separation = 1.f;
     TKit::Scope<Shape<D>> Shape;
-    u32 Tasks = 1;
+    u32 Partitions = 1;
     bool Enabled = false;
     bool Multithreaded = false;
     bool PropToScale = true;

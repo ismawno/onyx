@@ -16,7 +16,7 @@ int main(int argc, char **argv)
 {
     TKIT_PROFILE_NOOP();
     const Onyx::Demo::Scene scene = Onyx::Demo::ParseArguments(argc, argv);
-    TKit::ThreadPool threadPool{ONYX_MAX_THREADS - 1};
+    TKit::ThreadPool threadPool{ONYX_MAX_WORKERS};
     Onyx::Core::Initialize(&threadPool);
     RunApp(scene);
     Onyx::Core::Terminate();

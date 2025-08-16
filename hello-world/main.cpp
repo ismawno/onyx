@@ -163,7 +163,7 @@ static void RunAppExample3() noexcept
 
 int main()
 {
-    TKit::ThreadPool threadPool(ONYX_MAX_THREADS - 1);
+    TKit::ThreadPool threadPool{ONYX_MAX_WORKERS};
 
     Onyx::Core::Initialize(&threadPool);
     RunStandaloneWindow();

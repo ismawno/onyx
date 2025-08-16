@@ -122,10 +122,11 @@ template <Dimension D> struct Lattice
                     std::forward<F>(p_Func)(lattice, transform);
                 }
             };
-            TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS - 1> tasks{};
-            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), Tasks, fn);
+            TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
+            const u32 partitions = Tasks; // Unfortunate naming
+            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), partitions, fn);
 
-            const u32 tcount = (Tasks - 1) >= (ONYX_MAX_THREADS - 1) ? (ONYX_MAX_THREADS - 1) : (Tasks - 1);
+            const u32 tcount = (partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
             {
                 tasks[i]->WaitUntilFinished();
@@ -156,10 +157,11 @@ template <Dimension D> struct Lattice
                     std::forward<F>(p_Func)(lattice, transform);
                 }
             };
-            TKit::Array<TKit::Task<> *, ONYX_MAX_THREADS - 1> tasks{};
-            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), Tasks, fn);
+            TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
+            const u32 partitions = Tasks; // Unfortunate naming
+            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), partitions, fn);
 
-            const u32 tcount = (Tasks - 1) >= (ONYX_MAX_THREADS - 1) ? (ONYX_MAX_THREADS - 1) : (Tasks - 1);
+            const u32 tcount = (partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
             {
                 tasks[i]->WaitUntilFinished();
