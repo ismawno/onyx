@@ -63,8 +63,9 @@ void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
 {
     m_Window = p_Window;
 
+    FrameScheduler *fs = m_Window->GetFrameScheduler();
     const auto presult =
-        VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowLayout(), m_Window->CreateSceneRenderInfo())
+        VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowLayout(), fs->CreateSceneRenderInfo())
             .SetViewportCount(1)
             .AddShaderStage(GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
             .AddShaderStage(getRainbowShader(), VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -80,7 +81,7 @@ void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
     VKIT_ASSERT_RESULT(jresult);
     m_RainbowJob = jresult.GetValue();
 
-    VKit::PipelineLayout::Builder builder = m_Window->GetPostProcessing()->CreatePipelineLayoutBuilder();
+    VKit::PipelineLayout::Builder builder = fs->GetPostProcessing()->CreatePipelineLayoutBuilder();
     const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
     VKIT_ASSERT_RESULT(result);
     m_BlurLayout = result.GetValue();
@@ -107,7 +108,7 @@ void WindowData::OnUpdate() noexcept
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
     m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
     m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
-    m_Window->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
+    m_Window->GetFrameScheduler()->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
 }
 
 void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Timespan p_Timestep) noexcept
@@ -138,14 +139,15 @@ void WindowData::OnImGuiRender() noexcept
 
     if (ImGui::Checkbox("Blur", &m_PostProcessing))
     {
+        FrameScheduler *fs = m_Window->GetFrameScheduler();
         if (m_PostProcessing)
         {
             m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
             m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
-            m_Window->SetPostProcessing(m_BlurLayout, getBlurShader())->UpdatePushConstantRange(0, &m_BlurData);
+            fs->SetPostProcessing(m_BlurLayout, getBlurShader())->UpdatePushConstantRange(0, &m_BlurData);
         }
         else
-            m_Window->RemovePostProcessing();
+            fs->RemovePostProcessing();
     }
     UserLayer::HelpMarkerSameLine(
         "This is a small demonstration of how to hook-up a post-processing pipeline to the Onyx rendering context to "

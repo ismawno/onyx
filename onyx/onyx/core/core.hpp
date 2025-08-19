@@ -5,7 +5,9 @@
 #include "vkit/descriptors/descriptor_pool.hpp"
 #include "vkit/descriptors/descriptor_set_layout.hpp"
 #include "vkit/rendering/command_pool.hpp"
-#include "tkit/profiling/vulkan.hpp"
+#ifdef TKIT_ENABLE_VULKAN_PROFILING
+#    include "tkit/profiling/vulkan.hpp"
+#endif
 #include "vkit/vulkan/instance.hpp"
 #include "vkit/vulkan/loader.hpp"
 #include "vkit/vulkan/logical_device.hpp"
@@ -39,6 +41,7 @@ namespace TKit
 {
 class StackAllocator;
 class ITaskManager;
+template <typename T> class Task;
 } // namespace TKit
 
 // This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
@@ -47,6 +50,7 @@ class ITaskManager;
 
 namespace Onyx
 {
+using Task = TKit::Task<void> *;
 class Initializer
 {
   public:

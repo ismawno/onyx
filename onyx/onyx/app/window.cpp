@@ -14,7 +14,7 @@ Window::Window() noexcept : Window(Specs{})
 Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height)
 {
     createWindow(p_Specs);
-    SetPresentMode(p_Specs.PresentMode);
+    m_FrameScheduler->SetPresentMode(p_Specs.PresentMode);
 }
 
 Window::~Window() noexcept
@@ -70,6 +70,15 @@ GLFWwindow *Window::GetWindowHandle() noexcept
     return m_Window;
 }
 
+const FrameScheduler *Window::GetFrameScheduler() const noexcept
+{
+    return m_FrameScheduler.Get();
+}
+FrameScheduler *Window::GetFrameScheduler() noexcept
+{
+    return m_FrameScheduler.Get();
+}
+
 const char *Window::GetName() const noexcept
 {
     return m_Name;
@@ -108,22 +117,6 @@ std::pair<u32, u32> Window::GetPosition() const noexcept
     i32 x, y;
     glfwGetWindowPos(m_Window, &x, &y);
     return {static_cast<u32>(x), static_cast<u32>(y)};
-}
-
-PostProcessing *Window::SetPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                                          const Detail::FrameScheduler::PostProcessingOptions &p_Options) noexcept
-{
-    return m_FrameScheduler->SetPostProcessing(p_Layout, p_FragmentShader, p_Options);
-}
-
-PostProcessing *Window::GetPostProcessing() noexcept
-{
-    return m_FrameScheduler->GetPostProcessing();
-}
-
-void Window::RemovePostProcessing() noexcept
-{
-    m_FrameScheduler->RemovePostProcessing();
 }
 
 bool Window::wasResized() const noexcept
@@ -174,34 +167,6 @@ void Window::adaptCamerasToViewportAspect() noexcept
         context->AdaptCamerasToViewportAspect();
     for (const auto &context : m_RenderContexts3D)
         context->AdaptCamerasToViewportAspect();
-}
-
-VkPipelineRenderingCreateInfoKHR Window::CreateSceneRenderInfo() const noexcept
-{
-    return m_FrameScheduler->CreateSceneRenderInfo();
-}
-VkPipelineRenderingCreateInfoKHR Window::CreatePostProcessingRenderInfo() const noexcept
-{
-    return m_FrameScheduler->CreatePostProcessingRenderInfo();
-}
-
-u32 Window::GetFrameIndex() const noexcept
-{
-    return m_FrameScheduler->GetFrameIndex();
-}
-
-VkPresentModeKHR Window::GetPresentMode() const noexcept
-{
-    return m_FrameScheduler->GetPresentMode();
-}
-const TKit::StaticArray8<VkPresentModeKHR> &Window::GetAvailablePresentModes() const noexcept
-{
-    return m_FrameScheduler->GetSwapChain().GetInfo().SupportDetails.PresentModes;
-}
-
-void Window::SetPresentMode(const VkPresentModeKHR p_PresentMode) noexcept
-{
-    m_FrameScheduler->SetPresentMode(p_PresentMode);
 }
 
 } // namespace Onyx

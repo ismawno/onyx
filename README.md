@@ -53,7 +53,8 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
     VKIT_ASSERT_RESULT(lresult);
     VKit::PipelineLayout &layout = lresult.GetValue();
 
-    const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout, p_Window.CreateSceneRenderInfo())
+    const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout,
+                                                         p_Window.GetFrameScheduler()->CreateSceneRenderInfo())
                              .SetViewportCount(1)
                              .AddShaderStage(Onyx::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
                              .AddShaderStage(fragment, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -87,16 +88,17 @@ static void SetPostProcessing(Onyx::Window &p_Window) noexcept
     };
     VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
 
-    VKit::PipelineLayout::Builder builder = p_Window.GetPostProcessing()->CreatePipelineLayoutBuilder();
+    Onyx::FrameScheduler *fs = p_Window.GetFrameScheduler();
+    VKit::PipelineLayout::Builder builder = fs->GetPostProcessing()->CreatePipelineLayoutBuilder();
 
     const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
     VKIT_ASSERT_RESULT(result);
     const VKit::PipelineLayout &layout = result.GetValue();
 
-    p_Window.SetPostProcessing(layout, shader);
+    fs->SetPostProcessing(layout, shader);
     static BlurData blurData{};
 
-    p_Window.GetPostProcessing()->UpdatePushConstantRange(0, &blurData);
+    fs->GetPostProcessing()->UpdatePushConstantRange(0, &blurData);
 
     shader.Destroy();
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);

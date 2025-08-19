@@ -6,7 +6,7 @@
 #include "tkit/utils/logging.hpp"
 #include "vulkan/vulkan_core.h"
 
-namespace Onyx::Detail
+namespace Onyx
 {
 const VkFormat s_DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
 FrameScheduler::FrameScheduler(Window &p_Window) noexcept
@@ -23,6 +23,8 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 FrameScheduler::~FrameScheduler() noexcept
 {
     // Lock the queues to prevent any other command buffers from being submitted
+    WaitIdle();
+    Core::GetTaskManager()->DestroyTask(m_PresentTask);
     Core::DeviceWaitIdle();
     destroyImageData();
     m_PostProcessing.Destruct();
@@ -39,6 +41,23 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::BeginFrame");
     TKIT_ASSERT(!m_FrameStarted, "[ONYX] Cannot begin a new frame when there is already one in progress");
+
+    if (m_PresentTask) [[likely]]
+    {
+        TKit::ITaskManager *tm = Core::GetTaskManager();
+        const VkResult result = tm->WaitForResult(m_PresentTask);
+
+        const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
+                                 p_Window.wasResized() || m_PresentModeChanged;
+
+        TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "[ONYX] Failed to submit command buffers");
+        if (resizeFixes)
+        {
+            recreateSwapChain(p_Window);
+            p_Window.flagResizeDone();
+            m_PresentModeChanged = false;
+        }
+    }
 
     const VkResult result = AcquireNextImage();
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -63,26 +82,24 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     return m_CommandBuffers[m_FrameIndex];
 }
 
-void FrameScheduler::EndFrame(Window &p_Window) noexcept
+void FrameScheduler::EndFrame() noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end a frame when there is no frame in progress");
-    const auto &table = Core::GetDeviceTable();
-    TKIT_ASSERT_RETURNS(table.EndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS,
-                        "[ONYX] Failed to end command buffer");
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+    if (!m_PresentTask) [[unlikely]]
+        m_PresentTask = tm->CreateTask([this]() {
+            const auto &table = Core::GetDeviceTable();
+            TKIT_ASSERT_RETURNS(table.EndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS,
+                                "[ONYX] Failed to end command buffer");
 
-    TKIT_ASSERT_RETURNS(SubmitCurrentCommandBuffer(), VK_SUCCESS, "[ONYX] Failed to submit command buffers");
-    const VkResult result = Present();
-    const bool resizeFixes = result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
-                             p_Window.wasResized() || m_PresentModeChanged;
+            TKIT_ASSERT_RETURNS(SubmitCurrentCommandBuffer(), VK_SUCCESS, "[ONYX] Failed to submit command buffers");
+            return Present();
+        });
+    else
+        m_PresentTask->Reset();
 
-    TKIT_ASSERT(resizeFixes || result == VK_SUCCESS, "[ONYX] Failed to submit command buffers");
-    if (resizeFixes)
-    {
-        recreateSwapChain(p_Window);
-        p_Window.flagResizeDone();
-        m_PresentModeChanged = false;
-    }
+    tm->SubmitTask(m_PresentTask);
     m_FrameStarted = false;
 }
 
@@ -293,6 +310,12 @@ PostProcessing *FrameScheduler::GetPostProcessing() noexcept
     return m_PostProcessing.Get();
 }
 
+void FrameScheduler::WaitIdle() const noexcept
+{
+    if (m_PresentTask) [[likely]]
+        Core::GetTaskManager()->WaitUntilFinished(m_PresentTask);
+}
+
 void FrameScheduler::RemovePostProcessing() noexcept
 {
     setupNaivePostProcessing();
@@ -338,6 +361,11 @@ VkCommandBuffer FrameScheduler::GetCurrentCommandBuffer() const noexcept
 VkPresentModeKHR FrameScheduler::GetPresentMode() const noexcept
 {
     return m_PresentMode;
+}
+TKit::StaticArray8<VkPresentModeKHR> FrameScheduler::GetAvailablePresentModes() const noexcept
+{
+
+    return m_SwapChain.GetInfo().SupportDetails.PresentModes;
 }
 void FrameScheduler::SetPresentMode(const VkPresentModeKHR p_PresentMode) noexcept
 {
@@ -477,4 +505,4 @@ TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateColorImageViews()
     return imageViews;
 }
 
-} // namespace Onyx::Detail
+} // namespace Onyx

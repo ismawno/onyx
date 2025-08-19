@@ -16,7 +16,7 @@ template <Dimension D> void Layer<D>::OnStart() noexcept
     m_Window = m_Application->GetMainWindow();
     m_Context = m_Window->CreateRenderContext<D>();
     m_Camera = m_Context->CreateCamera();
-    m_Window->SetPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR);
+    m_Window->GetFrameScheduler()->SetPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR);
     if constexpr (D == D3)
     {
         m_Camera->SetPerspectiveProjection();

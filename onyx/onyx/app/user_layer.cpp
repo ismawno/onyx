@@ -310,8 +310,9 @@ static const char *presentModeToString(const VkPresentModeKHR mode)
 
 bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags) noexcept
 {
-    const VkPresentModeKHR current = p_Window->GetPresentMode();
-    const TKit::StaticArray8<VkPresentModeKHR> &available = p_Window->GetAvailablePresentModes();
+    const FrameScheduler *fs = p_Window->GetFrameScheduler();
+    const VkPresentModeKHR current = fs->GetPresentMode();
+    const TKit::StaticArray8<VkPresentModeKHR> &available = fs->GetAvailablePresentModes();
 
     int index = -1;
     TKit::StaticArray8<const char *> presentModes;
@@ -325,7 +326,7 @@ bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags) noexcep
     const bool changed =
         ImGui::Combo("Present mode", &index, presentModes.GetData(), static_cast<int>(available.GetSize()));
     if (changed)
-        p_Window->SetPresentMode(available[index]);
+        p_Window->GetFrameScheduler()->SetPresentMode(available[index]);
 
     if (p_Flags & Flag_DisplayHelp)
         HelpMarkerSameLine("Controls the frequency with which rendered images are sent to the screen. This setting "

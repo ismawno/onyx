@@ -130,7 +130,7 @@ class ONYX_API Window
 #endif
             TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);
         }
-        m_FrameScheduler->EndFrame(*this);
+        m_FrameScheduler->EndFrame();
         return true;
     }
 
@@ -179,6 +179,9 @@ class ONYX_API Window
     const GLFWwindow *GetWindowHandle() const noexcept;
     GLFWwindow *GetWindowHandle() noexcept;
 
+    const FrameScheduler *GetFrameScheduler() const noexcept;
+    FrameScheduler *GetFrameScheduler() noexcept;
+
     const char *GetName() const noexcept;
 
     u32 GetScreenWidth() const noexcept;
@@ -196,34 +199,6 @@ class ONYX_API Window
      * @return The (x, y) position of the window.
      */
     std::pair<u32, u32> GetPosition() const noexcept;
-
-    /**
-     * @brief Sets up the post-processing pipeline, which is used to apply effects to the scene after the main rendering
-     * pass.
-     *
-     * If you wish to switch to a different post-processing pipeline, call this method again with the new
-     * specifications. Do not call `RemovePostProcessing()` before or after that in the same frame, as that call will
-     * override the setup.
-     *
-     * @param p_Layout The pipeline layout to use for the post-processing pipeline.
-     * @param p_FragmentShader The fragment shader to use for the post-processing pipeline.
-     *
-     * The following is encoded in the `PostProcessingOptions` struct:
-     *
-     * @param p_VertexShader Optional vertex shader to use for the post-processing pipeline.
-     * @param p_Info Optional sampler information to use for the post-processing pipeline.
-     * @return A pointer to the post-processing pipeline.
-     */
-    PostProcessing *SetPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                                      const Detail::FrameScheduler::PostProcessingOptions &p_Options = {}) noexcept;
-
-    PostProcessing *GetPostProcessing() noexcept;
-
-    /**
-     * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final
-     * image.
-     */
-    void RemovePostProcessing() noexcept;
 
     void FlagShouldClose() noexcept;
 
@@ -269,25 +244,6 @@ class ONYX_API Window
             }
     }
 
-    /**
-     * @brief Creates information needed by pipelines that wish to render to the main scene.
-     *
-     */
-    VkPipelineRenderingCreateInfoKHR CreateSceneRenderInfo() const noexcept;
-
-    /**
-     * @brief Creates information needed by pipelines that wish to act in post processing.
-     *
-     */
-    VkPipelineRenderingCreateInfoKHR CreatePostProcessingRenderInfo() const noexcept;
-
-    u32 GetFrameIndex() const noexcept;
-
-    VkPresentModeKHR GetPresentMode() const noexcept;
-    const TKit::StaticArray8<VkPresentModeKHR> &GetAvailablePresentModes() const noexcept;
-
-    void SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept;
-
     /// The background color used when clearing the window.
     Color BackgroundColor = Color::BLACK;
 
@@ -314,7 +270,7 @@ class ONYX_API Window
 
     GLFWwindow *m_Window;
 
-    TKit::Storage<Detail::FrameScheduler> m_FrameScheduler;
+    TKit::Storage<FrameScheduler> m_FrameScheduler;
     TKit::StaticArray16<TKit::Scope<RenderContext<D2>>> m_RenderContexts2D;
     TKit::StaticArray16<TKit::Scope<RenderContext<D3>>> m_RenderContexts3D;
 

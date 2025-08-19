@@ -223,7 +223,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     initInfo.UseDynamicRendering = true;
-    initInfo.PipelineRenderingCreateInfo = p_Window.CreateSceneRenderInfo();
+    initInfo.PipelineRenderingCreateInfo = p_Window.GetFrameScheduler()->CreateSceneRenderInfo();
 
     TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_LoadFunctions([](const char *p_Name, void *) -> PFN_vkVoidFunction {
                             return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(), p_Name);
@@ -265,6 +265,7 @@ void Application::Shutdown() noexcept
 {
     if (m_WindowAlive)
     {
+        m_Window->GetFrameScheduler()->WaitIdle();
         shutdownImGui();
         m_Window.Destruct();
         m_WindowAlive = false;
@@ -318,6 +319,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 
     if (m_Window->ShouldClose()) [[unlikely]]
     {
+        m_Window->GetFrameScheduler()->WaitIdle();
         shutdownImGui();
         m_Window.Destruct();
         m_WindowAlive = false;
@@ -349,7 +351,10 @@ void MultiWindowApplication::processFrame(const u32 p_WindowIndex, F1 &&p_FirstD
     // Should maybe exit if window is closed at this point? (triggered by event)
 
     onUpdate(p_WindowIndex);
+    const u32 size = m_Windows.GetSize();
+    const auto &prevWindow = m_Windows[p_WindowIndex == 0 ? (size - 1) : (p_WindowIndex - 1)];
 
+    prevWindow->GetFrameScheduler()->WaitIdle();
     window->Render(std::forward<F1>(p_FirstDrawCalls), std::forward<F2>(p_LastDrawCalls));
 }
 
@@ -436,6 +441,7 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
     if (p_Index == 0)
     {
+        m_Windows[p_Index]->GetFrameScheduler()->WaitIdle();
         shutdownImGui();
         m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
         if (!m_Windows.IsEmpty())

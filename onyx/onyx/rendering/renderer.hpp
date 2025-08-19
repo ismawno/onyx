@@ -5,7 +5,6 @@
 
 namespace Onyx::Detail
 {
-using Task = TKit::Task<> *;
 /**
  * @brief The RenderSystem struct manages multiple renderers with different pipeline modes.
  *

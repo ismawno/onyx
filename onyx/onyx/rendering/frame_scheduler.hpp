@@ -9,10 +9,6 @@ namespace Onyx
 {
 struct Color;
 class Window;
-} // namespace Onyx
-
-namespace Onyx::Detail
-{
 /**
  * @brief Manages frame scheduling and rendering operations for a window.
  *
@@ -56,9 +52,8 @@ class ONYX_API FrameScheduler
      *
      * Ensures all recorded commands for the frame are submitted for execution.
      *
-     * @param p_Window The window associated with the rendering context.
      */
-    void EndFrame(Window &p_Window) noexcept;
+    void EndFrame() noexcept;
 
     /**
      * @brief Begins the main scene rendering with the specified clear color.
@@ -148,6 +143,15 @@ class ONYX_API FrameScheduler
     PostProcessing *GetPostProcessing() noexcept;
 
     /**
+     * @brief Block calling threads until all queue submissions are complete.
+     *
+     * This method only waits for `VkQueueSubmit()` calls to complete, not the underlying tasks submitted. For that, you
+     * must wait on the corresponding queue to be idle.
+     *
+     */
+    void WaitIdle() const noexcept;
+
+    /**
      * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final
      * image.
      */
@@ -159,6 +163,8 @@ class ONYX_API FrameScheduler
 
     VkPresentModeKHR GetPresentMode() const noexcept;
     void SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept;
+
+    TKit::StaticArray8<VkPresentModeKHR> GetAvailablePresentModes() const noexcept;
 
   private:
     void createSwapChain(Window &p_Window) noexcept;
@@ -189,9 +195,11 @@ class ONYX_API FrameScheduler
     PerFrameData<VkCommandBuffer> m_CommandBuffers;
     PerFrameData<VKit::SyncData> m_SyncData{};
 
+    TKit::Task<VkResult> *m_PresentTask = nullptr;
+
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;
     bool m_FrameStarted = false;
     bool m_PresentModeChanged = false;
 };
-} // namespace Onyx::Detail
+} // namespace Onyx

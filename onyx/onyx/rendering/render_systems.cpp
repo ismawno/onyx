@@ -67,7 +67,6 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFi
     if (m_DeviceInstances >= storageBuffer.GetInfo().InstanceCount)
         m_DeviceData.Grow(p_FrameIndex, m_DeviceInstances);
 }
-using Task = TKit::Task<> *;
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
