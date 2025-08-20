@@ -111,15 +111,18 @@ void WindowData::OnUpdate() noexcept
     m_Window->GetFrameScheduler()->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
 }
 
-void WindowData::OnRender(const VkCommandBuffer p_CommandBuffer, const TKit::Timespan p_Timestep) noexcept
+void WindowData::OnFrameBegin(const TKit::Timespan p_Timestep) noexcept
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnRender");
+    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnFrameBegin");
     for (u32 i = 0; i < m_ContextData2.Data.GetSize(); ++i)
         drawShapes(m_ContextData2.Data[i], p_Timestep, m_ContextData2.Active && i == m_ContextData2.Selected);
 
     for (u32 i = 0; i < m_ContextData3.Data.GetSize(); ++i)
         drawShapes(m_ContextData3.Data[i], p_Timestep, m_ContextData3.Active && i == m_ContextData3.Selected);
+}
 
+void WindowData::OnRenderBegin(const VkCommandBuffer p_CommandBuffer) noexcept
+{
     if (m_RainbowBackground)
     {
         m_RainbowJob.Bind(p_CommandBuffer);

@@ -4,6 +4,7 @@
 #include "onyx/property/color.hpp"
 #include "onyx/core/shaders.hpp"
 #include "tkit/utils/logging.hpp"
+#include "tkit/multiprocessing/task_manager.hpp"
 #include "vulkan/vulkan_core.h"
 
 namespace Onyx

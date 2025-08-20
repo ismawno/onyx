@@ -7,14 +7,21 @@
 #include "onyx/rendering/frame_scheduler.hpp"
 
 #include "tkit/container/storage.hpp"
-#include "tkit/multiprocessing/task_manager.hpp"
-#include "tkit/profiling/macros.hpp"
-#include "tkit/profiling/vulkan.hpp"
-
 #include "onyx/core/glfw.hpp"
+
+#include <functional>
 
 namespace Onyx
 {
+
+struct RenderCallbacks
+{
+    std::function<void(u32, VkCommandBuffer)> OnFrameBegin = nullptr;
+    std::function<void(u32, VkCommandBuffer)> OnRenderBegin = nullptr;
+    std::function<void(u32, VkCommandBuffer)> OnRenderEnd = nullptr;
+    std::function<void(u32, VkCommandBuffer)> OnFrameEnd = nullptr;
+};
+
 /**
  * @brief Represents a window in the Onyx application.
  *
@@ -73,106 +80,17 @@ class ONYX_API Window
     /**
      * @brief Renders the window using the provided draw and UI callables.
      *
-     * This method begins a new frame, starts the rendering with the specified background color,
-     * executes the provided draw and UI callables, and ends the rendering and frame.
+     * This method begins a new frame, starts rendering with the vulkan API,
+     * executes the provided callbacks, and ends the rendering and frame.
      *
-     * @tparam F1 Type of the draw calls callable.
-     * @tparam F2 Type of the UI calls callable.
-     * @param p_FirstDraws Callable for draw calls that happen before the main scene rendering.
-     * @param p_LastDraws Callable for draw calls that happen after the main scene rendering.
-     * @return true if rendering was successful, false otherwise.
-     */
-    template <typename F1, typename F2> bool Render(F1 &&p_FirstDraws, F2 &&p_LastDraws) noexcept
-    {
-        TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
-        const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this);
-        if (!cmd)
-            return false;
-
-        {
-            TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Window::Render", Core::GetProfilingContext(), cmd);
-            m_FrameScheduler->BeginRendering(BackgroundColor);
-
-            const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
-            std::forward<F1>(p_FirstDraws)(frameIndex, cmd);
-
-            for (const auto &context : m_RenderContexts2D)
-                context->GrowToFit(frameIndex);
-            for (const auto &context : m_RenderContexts3D)
-                context->GrowToFit(frameIndex);
-
-            TKit::ITaskManager *tm = Core::GetTaskManager();
-
-            TKit::Task<> *render = tm->CreateAndSubmit([this, frameIndex, cmd]() {
-                for (const auto &context : m_RenderContexts2D)
-                    context->Render(frameIndex, cmd);
-                for (const auto &context : m_RenderContexts3D)
-                    context->Render(frameIndex, cmd);
-            });
-
-            for (const auto &context : m_RenderContexts2D)
-                context->SendToDevice(frameIndex);
-            for (const auto &context : m_RenderContexts3D)
-                context->SendToDevice(frameIndex);
-
-            tm->WaitUntilFinished(render);
-            tm->DestroyTask(render);
-
-            std::forward<F2>(p_LastDraws)(frameIndex, cmd);
-
-            m_FrameScheduler->EndRendering();
-        }
-
-        {
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
-            static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
-            TKIT_PROFILE_MARK_LOCK(mutex);
-#endif
-            TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);
-        }
-        m_FrameScheduler->EndFrame();
-        return true;
-    }
-
-    /**
-     * @brief Renders the window using the provided draw callables.
+     * Vulkan command recording outside the render callbacks may cause undefined behaviour.
      *
-     * This method begins a new frame, starts the rendering with the specified background color,
-     * executes the provided draw callables, and ends the rendering and frame.
-     *
-     * @tparam F Type of the draw calls callable.
-     * @param p_FirstDraws Callable for draw calls that happen before the main scene rendering.
-     * @return true if rendering was successful, false otherwise.
-     */
-    template <typename F> bool RenderSubmitFirst(F &&p_FirstDraws) noexcept
-    {
-        return Render(std::forward<F>(p_FirstDraws), [](const u32, const VkCommandBuffer) {});
-    }
-
-    /**
-     * @brief Renders the window using the provided UI callables.
-     *
-     * This method begins a new frame, starts the rendering with the specified background color,
-     * executes the provided UI callables, and ends the rendering and frame.
-     *
-     * @tparam F Type of the UI calls callable.
-     * @param p_LastDraws Callable for draw calls that happen after the main scene rendering.
-     * @return true if rendering was successful, false otherwise.
-     */
-    template <typename F> bool RenderSubmitLast(F &&p_LastDraws) noexcept
-    {
-        return Render([](const VkCommandBuffer) {}, std::forward<F>(p_LastDraws));
-    }
-
-    /**
-     * @brief Renders the window without any custom draw or UI calls.
-     *
-     * This method begins a new frame, starts the rendering with the specified background color,
-     * executes the provided draw callables, and ends the rendering and frame.
+     * @param p_Callbacks Render callbacks to customize rendering behaviour and submit custom render commands within the
+     * frame loop.
      *
      * @return true if rendering was successful, false otherwise.
      */
-    bool Render() noexcept;
+    bool Render(const RenderCallbacks &p_Callbacks = {}) noexcept;
 
     bool ShouldClose() const noexcept;
 

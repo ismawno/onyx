@@ -6,7 +6,6 @@
 
 #include "tkit/preprocessor/system.hpp"
 #include "tkit/profiling/macros.hpp"
-#include "tkit/profiling/vulkan.hpp"
 #include "tkit/utils/logging.hpp"
 #include "vkit/vulkan/loader.hpp"
 
@@ -116,15 +115,25 @@ void IApplication::onUpdate() noexcept
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnUpdate();
 }
-void IApplication::onRender(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onFrameBegin(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     if (m_UserLayer) [[likely]]
-        m_UserLayer->OnRender(p_FrameIndex, p_CommandBuffer);
+        m_UserLayer->OnFrameBegin(p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onLateRender(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onFrameEnd(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
 {
     if (m_UserLayer) [[likely]]
-        m_UserLayer->OnLateRender(p_FrameIndex, p_CommandBuffer);
+        m_UserLayer->OnFrameEnd(p_FrameIndex, p_CommandBuffer);
+}
+void IApplication::onRenderBegin(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    if (m_UserLayer) [[likely]]
+        m_UserLayer->OnRenderBegin(p_FrameIndex, p_CommandBuffer);
+}
+void IApplication::onRenderEnd(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    if (m_UserLayer) [[likely]]
+        m_UserLayer->OnRenderEnd(p_FrameIndex, p_CommandBuffer);
 }
 void IApplication::onEvent(const Event &p_Event) noexcept
 {
@@ -136,17 +145,29 @@ void IApplication::onUpdate(const u32 p_WindowIndex) noexcept
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnUpdate(p_WindowIndex);
 }
-void IApplication::onRender(const u32 p_WindowIndex, const u32 p_FrameIndex,
-                            const VkCommandBuffer p_CommandBuffer) noexcept
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnRender(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
-}
-void IApplication::onLateRender(const u32 p_WindowIndex, const u32 p_FrameIndex,
+void IApplication::onFrameBegin(const u32 p_WindowIndex, const u32 p_FrameIndex,
                                 const VkCommandBuffer p_CommandBuffer) noexcept
 {
     if (m_UserLayer) [[likely]]
-        m_UserLayer->OnLateRender(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
+        m_UserLayer->OnFrameBegin(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
+}
+void IApplication::onFrameEnd(const u32 p_WindowIndex, const u32 p_FrameIndex,
+                              const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    if (m_UserLayer) [[likely]]
+        m_UserLayer->OnFrameEnd(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
+}
+void IApplication::onRenderBegin(const u32 p_WindowIndex, const u32 p_FrameIndex,
+                                 const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    if (m_UserLayer) [[likely]]
+        m_UserLayer->OnRenderBegin(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
+}
+void IApplication::onRenderEnd(const u32 p_WindowIndex, const u32 p_FrameIndex,
+                               const VkCommandBuffer p_CommandBuffer) noexcept
+{
+    if (m_UserLayer) [[likely]]
+        m_UserLayer->OnRenderEnd(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
 void IApplication::onEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
 {
@@ -304,16 +325,23 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 
     onUpdate();
 
-    const auto drawCalls = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+    RenderCallbacks callbacks{};
+    callbacks.OnFrameBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        onRender(p_FrameIndex, p_CommandBuffer);
+        onFrameBegin(p_FrameIndex, p_CommandBuffer);
     };
-    const auto uiSubmission = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        onLateRender(p_FrameIndex, p_CommandBuffer);
+    callbacks.OnFrameEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+        onFrameEnd(p_FrameIndex, p_CommandBuffer);
+    };
+    callbacks.OnRenderBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+        onRenderBegin(p_FrameIndex, p_CommandBuffer);
+    };
+    callbacks.OnRenderEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+        onRenderEnd(p_FrameIndex, p_CommandBuffer);
         endRenderImGui(p_CommandBuffer);
     };
 
-    m_Window->Render(drawCalls, uiSubmission);
+    m_Window->Render(callbacks);
     m_DeferFlag = false;
     updateUserLayerPointer();
 
@@ -340,8 +368,7 @@ Window *Application::GetMainWindow() noexcept
     return m_Window.Get();
 }
 
-template <typename F1, typename F2>
-void MultiWindowApplication::processFrame(const u32 p_WindowIndex, F1 &&p_FirstDrawCalls, F2 &&p_LastDrawCalls) noexcept
+void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderCallbacks &p_Callbacks) noexcept
 {
     const auto &window = m_Windows[p_WindowIndex];
     for (const Event &event : window->GetNewEvents())
@@ -355,7 +382,7 @@ void MultiWindowApplication::processFrame(const u32 p_WindowIndex, F1 &&p_FirstD
     const auto &prevWindow = m_Windows[p_WindowIndex == 0 ? (size - 1) : (p_WindowIndex - 1)];
 
     prevWindow->GetFrameScheduler()->WaitIdle();
-    window->Render(std::forward<F1>(p_FirstDrawCalls), std::forward<F2>(p_LastDrawCalls));
+    window->Render(p_Callbacks);
 }
 
 void MultiWindowApplication::Shutdown() noexcept
@@ -428,6 +455,9 @@ bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
 {
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
+    for (const auto &window : m_Windows)
+        window->GetFrameScheduler()->WaitIdle();
+
     if (m_DeferFlag)
     {
         m_Windows[p_Index]->FlagShouldClose();
@@ -453,6 +483,8 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
 
 void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
+    for (const auto &window : m_Windows)
+        window->GetFrameScheduler()->WaitIdle();
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
     if (m_DeferFlag)
@@ -475,26 +507,41 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
 void MultiWindowApplication::processWindows() noexcept
 {
     m_DeferFlag = true;
-    const auto drawCalls = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+    RenderCallbacks mainCbs{};
+    mainCbs.OnFrameBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
         beginRenderImGui();
-        onRender(0, p_FrameIndex, p_CommandBuffer);
-        onImGuiRender();
+        onFrameBegin(0, p_FrameIndex, p_CommandBuffer);
     };
-    const auto uiSubmission = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        onLateRender(0, p_FrameIndex, p_CommandBuffer);
+    mainCbs.OnFrameEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+        onFrameEnd(0, p_FrameIndex, p_CommandBuffer);
+    };
+    mainCbs.OnRenderBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+        onImGuiRender();
+        onRenderBegin(0, p_FrameIndex, p_CommandBuffer);
+    };
+    mainCbs.OnRenderEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+        onRenderEnd(0, p_FrameIndex, p_CommandBuffer);
         endRenderImGui(p_CommandBuffer);
     };
-    processFrame(0, drawCalls, uiSubmission);
 
+    processFrame(0, mainCbs);
     for (u32 i = 1; i < m_Windows.GetSize(); ++i)
-        processFrame(
-            i,
-            [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-                onRender(i, p_FrameIndex, p_CommandBuffer);
-            },
-            [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-                onLateRender(i, p_FrameIndex, p_CommandBuffer);
-            });
+    {
+        RenderCallbacks secCbs{};
+        secCbs.OnFrameBegin = [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+            onFrameBegin(i, p_FrameIndex, p_CommandBuffer);
+        };
+        secCbs.OnFrameEnd = [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+            onFrameEnd(i, p_FrameIndex, p_CommandBuffer);
+        };
+        secCbs.OnRenderBegin = [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+            onRenderBegin(i, p_FrameIndex, p_CommandBuffer);
+        };
+        secCbs.OnRenderEnd = [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+            onRenderEnd(i, p_FrameIndex, p_CommandBuffer);
+        };
+        processFrame(i, secCbs);
+    }
 
     m_DeferFlag = false;
     updateUserLayerPointer();

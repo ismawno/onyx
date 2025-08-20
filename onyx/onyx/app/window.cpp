@@ -2,6 +2,10 @@
 #include "onyx/app/window.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
+#include "tkit/multiprocessing/task_manager.hpp"
+#include "tkit/profiling/macros.hpp"
+#include "tkit/profiling/vulkan.hpp"
+
 #include "tkit/utils/logging.hpp"
 
 namespace Onyx
@@ -49,11 +53,64 @@ void Window::createWindow(const Specs &p_Specs) noexcept
     Input::InstallCallbacks(*this);
 }
 
-// I could define my own topology enum and use it here as the index... but i didnt
-
-bool Window::Render() noexcept
+bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
 {
-    return Render([](const u32, const VkCommandBuffer) {}, [](const u32, const VkCommandBuffer) {});
+    TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
+    const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this);
+    if (!cmd)
+        return false;
+
+    const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
+
+    if (p_Callbacks.OnFrameBegin)
+        p_Callbacks.OnFrameBegin(frameIndex, cmd);
+
+    {
+        TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Render", Core::GetProfilingContext(), cmd);
+        m_FrameScheduler->BeginRendering(BackgroundColor);
+
+        if (p_Callbacks.OnRenderBegin)
+            p_Callbacks.OnRenderBegin(frameIndex, cmd);
+
+        for (const auto &context : m_RenderContexts2D)
+            context->GrowToFit(frameIndex);
+        for (const auto &context : m_RenderContexts3D)
+            context->GrowToFit(frameIndex);
+
+        TKit::ITaskManager *tm = Core::GetTaskManager();
+
+        TKit::Task<> *render = tm->CreateAndSubmit([this, frameIndex, cmd]() {
+            for (const auto &context : m_RenderContexts2D)
+                context->Render(frameIndex, cmd);
+            for (const auto &context : m_RenderContexts3D)
+                context->Render(frameIndex, cmd);
+        });
+
+        for (const auto &context : m_RenderContexts2D)
+            context->SendToDevice(frameIndex);
+        for (const auto &context : m_RenderContexts3D)
+            context->SendToDevice(frameIndex);
+
+        tm->WaitUntilFinished(render);
+        tm->DestroyTask(render);
+
+        if (p_Callbacks.OnRenderEnd)
+            p_Callbacks.OnRenderEnd(frameIndex, cmd);
+
+        m_FrameScheduler->EndRendering();
+    }
+
+    {
+        if (p_Callbacks.OnFrameEnd)
+            p_Callbacks.OnFrameEnd(frameIndex, cmd);
+#ifdef TKIT_ENABLE_VULKAN_PROFILING
+        static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
+        TKIT_PROFILE_MARK_LOCK(mutex);
+#endif
+        TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);
+    }
+    m_FrameScheduler->EndFrame();
+    return true;
 }
 
 bool Window::ShouldClose() const noexcept

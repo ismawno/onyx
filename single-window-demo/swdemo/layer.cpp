@@ -25,10 +25,10 @@ void SWExampleLayer::OnEvent(const Event &p_Event) noexcept
     m_Data.OnEvent(p_Event);
 }
 
-void SWExampleLayer::OnRender(u32, const VkCommandBuffer p_CommandBuffer) noexcept
+void SWExampleLayer::OnFrameBegin(u32, VkCommandBuffer) noexcept
 {
     const auto ts = m_Application->GetDeltaTime();
-    m_Data.OnRender(p_CommandBuffer, ts);
+    m_Data.OnFrameBegin(ts);
     WindowData::OnImGuiRenderGlobal(ts);
     if (ImGui::Begin("Editor"))
     {
@@ -36,6 +36,10 @@ void SWExampleLayer::OnRender(u32, const VkCommandBuffer p_CommandBuffer) noexce
         m_Data.OnImGuiRender();
     }
     ImGui::End();
+}
+void SWExampleLayer::OnRenderBegin(u32, VkCommandBuffer p_CommandBuffer) noexcept
+{
+    m_Data.OnRenderBegin(p_CommandBuffer);
 }
 
 } // namespace Onyx::Demo

@@ -70,14 +70,14 @@ class ONYX_API UserLayer
     }
 
     /**
-     * @brief Called every frame before the `OnRender(u32)` method.
+     * @brief Called every frame before the `OnFrameBegin()` method.
      *
-     * This method is called outside the the render loop, so you cannot issue any onyx draw calls here. Its purpose is
-     * to update the user's state as they see fit. Doing so in `OnRender(u32)` callbacks is not recommended, as some
-     * rendering operations can be performed at the same time `OnUpdate()` runs, but not at the same time
-     * `OnRender(u32)` runs.
+     * This method is called outside the the frame loop, so you cannot issue any onyx or vulkan draw calls here. Its
+     * purpose is to update the user's state as they see fit. Doing so in `OnRender()` callbacks is not recommended, as
+     * some rendering operations can be performed at the same time `OnUpdate()` runs, but not at the same time
+     * `OnRender()` runs.
      *
-     * @note This variant of the method is not called in multi-window applications. Use the OnUpdate(u32) method
+     * @note This variant of the method is not called in multi-window applications. Use the `OnUpdate(u32)` method
      * instead.
      *
      */
@@ -86,53 +86,89 @@ class ONYX_API UserLayer
     }
 
     /**
-     * @brief Called every frame after the `OnUpdate()` method.
+     * @brief Called every frame before the `OnRenderBegin()` method.
      *
-     * Its purpose is to contain all of the user draw calls, as it is called inside the render loop. Having update
-     * code in this method is not recommended. If you need to update some state, you should do so in the `OnUpdate()`
-     * method.
+     * It is designed to contain all of the `RenderContext` draw calls. It may also be used to issue `ImGui` or `ImPlot`
+     * calls or to record vulkan commands directly before the main scene rendering.
      *
-     * This method can (and must) be used to issue ImGui draw calls.
+     * Take into account this method is not executed inside a `vkBeginRendering()`/`vkEndRendering()` pair call.
      *
-     * @note This variant of the method is not called in multi-window applications. Use the OnRender(u32,
-     * VkCommandBuffer) method instead.
-     *
-     * @param p_FrameIndex The index of the current frame.
-     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
-     *
-     */
-    virtual void OnRender(u32, VkCommandBuffer) noexcept
-    {
-    }
-
-    /**
-     * @brief Called every frame after the `OnUpdate()` and `OnRender(u32)` methods.
-     *
-     * Its purpose is to contain direct user draw calls that execute after the main scene pass. The draw calls must come
-     * from the Vulkan's API itself. Having update code in this method is not recommended. If you need to update some
-     * state, you should do so in the `OnUpdate()` method.
-     *
-     * This method can (and must) be used to issue ImGui draw calls.
-     *
-     * @note This variant of the method is not called in multi-window applications. Use the OnRender(u32,
-     * VkCommandBuffer) method instead.
+     * @note This variant of the method is not called in multi-window applications. Use the `OnFrameBegin(u32, u32,
+     * VkCommandBuffer)` method instead.
      *
      * @param p_FrameIndex The index of the current frame.
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnLateRender(u32, VkCommandBuffer) noexcept
+    virtual void OnFrameBegin(u32, VkCommandBuffer) noexcept
     {
     }
 
     /**
-     * @brief Called every frame before the `OnRender(u32, u32)` method.
+     * @brief Called every frame at the bottom of the frame loop.
      *
-     * Behaves the same as the `OnUpdate()` method, but is called in multi-window applications.
+     * Its purpose is to contain direct vulkan draw calls that execute after the main scene rendering. The draw calls
+     * must come from the Vulkan's API itself. It cannot be used to issue `ImGui` or `ImPlot` calls.
      *
-     * @note This method is not called in single window applications. Use the `OnUpdate()` method instead.
+     * Take into account this method is not executed inside a `vkBeginRendering()`/`vkEndRendering()` pair call.
      *
-     * @param p_WindowIndex The index of the window that is currently being processed.
+     * @note This variant of the method is not called in multi-window applications. Use the `OnFrameEnd(u32, u32,
+     * VkCommandBuffer)` method instead.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
+     *
+     */
+    virtual void OnFrameEnd(u32, VkCommandBuffer) noexcept
+    {
+    }
+
+    /**
+     * @brief Called every frame before the `OnRenderEnd()` method.
+     *
+     * It is designed to submit direct vulkan commands before the main scene rendering. It is called in between a
+     * `vkBeginRendering()`/`vkEndRendering()` pair call. It may also be used to issue `ImGui` or `ImPlot` calls.
+     *
+     * @note This variant of the method is not called in multi-window applications. Use the `OnRenderBegin(u32, u32,
+     * VkCommandBuffer)` method instead.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
+     *
+     */
+    virtual void OnRenderBegin(u32, VkCommandBuffer) noexcept
+    {
+    }
+
+    /**
+     * @brief Called every frame before the `OnFrameEnd()` method.
+     *
+     * It is designed to submit direct vulkan commands after the main scene rendering. It is called in between a
+     * `vkBeginRendering()`/`vkEndRendering()` pair call. It may also be used to issue `ImGui` or `ImPlot` calls.
+     *
+     * @note This variant of the method is not called in multi-window applications. Use the `OnFrameBegin(u32, u32,
+     * VkCommandBuffer)` method instead.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
+     *
+     */
+    virtual void OnRenderEnd(u32, VkCommandBuffer) noexcept
+    {
+    }
+
+    /**
+     * @brief Called every frame before the `OnFrameBegin()` method.
+     *
+     * This method is called outside the the frame loop, so you cannot issue any onyx or vulkan draw calls here. Its
+     * purpose is to update the user's state as they see fit. Doing so in `OnRender()` callbacks is not recommended, as
+     * some rendering operations can be performed at the same time `OnUpdate()` runs, but not at the same time
+     * `OnRender()` runs.
+     *
+     * @note This variant of the method is not called in single-window applications. Use the `OnUpdate()` method
+     * instead.
+     *
+     * @param p_WindowIndex The index of the window this method will be called for.
      *
      */
     virtual void OnUpdate(u32) noexcept
@@ -140,38 +176,78 @@ class ONYX_API UserLayer
     }
 
     /**
-     * @brief Called every frame after the `OnUpdate(u32)` method.
+     * @brief Called every frame before the `OnRenderBegin()` method.
      *
-     * Behaves the same as the `OnRender(u32)` method, but is called in multi-window applications.
+     * It is designed to contain all of the `RenderContext` draw calls. It may also be used to record vulkan commands
+     * directly before the main scene rendering. It cannot be used to issue `ImGui` or `ImPlot` calls.
      *
-     * This method cannot be used to issue ImGui draw calls. Use `OnImGuiRender()` for that.
+     * Take into account this method is not executed inside a `vkBeginRendering()`/`vkEndRendering()` pair call.
      *
-     * @note This method is not called in single window applications. Use the `OnRender(u32)` method instead.
+     * @note This variant of the method is not called in single-window applications. Use the `OnFrameBegin(u32,
+     * VkCommandBuffer)` method instead.
      *
-     * @param p_WindowIndex The index of the window that is currently being processed.
+     * @param p_WindowIndex The index of the window this method will be called for.
      * @param p_FrameIndex The index of the current frame.
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRender(u32, u32, VkCommandBuffer) noexcept
+    virtual void OnFrameBegin(u32, u32, VkCommandBuffer) noexcept
     {
     }
 
     /**
-     * @brief Called every frame after the `OnUpdate(u32)` and `OnRender(u32, VkCommandBuffer)` methods.
+     * @brief Called every frame at the bottom of the frame loop.
      *
-     * Behaves the same as the `OnLateRender()` method, but is called in multi-window applications.
+     * Its purpose is to contain direct vulkan draw calls that execute after the main scene rendering. The draw calls
+     * must come from the Vulkan's API itself. It may also be used to issue `ImGui` or `ImPlot` calls.
      *
-     * This method cannot be used to issue ImGui draw calls. Use `OnImGuiRender()` for that.
+     * Take into account this method is not executed inside a `vkBeginRendering()`/`vkEndRendering()` pair call.
      *
-     * @note This method is not called in single window applications. Use the `OnLateRender()` method instead.
+     * @note This variant of the method is not called in single-window applications. Use the `OnFrameEnd(u32,
+     * VkCommandBuffer)` method instead.
      *
-     * @param p_WindowIndex The index of the window that is currently being processed.
+     * @param p_WindowIndex The index of the window this method will be called for.
      * @param p_FrameIndex The index of the current frame.
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnLateRender(u32, u32, VkCommandBuffer) noexcept
+    virtual void OnFrameEnd(u32, u32, VkCommandBuffer) noexcept
+    {
+    }
+
+    /**
+     * @brief Called every frame before the `OnRenderEnd()` method.
+     *
+     * It is designed to submit direct vulkan commands before the main scene rendering. It is called in between a
+     * `vkBeginRendering()`/`vkEndRendering()` pair call. It cannot be used to issue `ImGui` or `ImPlot` calls.
+     *
+     * @note This variant of the method is not called in single-window applications. Use the `OnRenderBegin(u32,
+     * VkCommandBuffer)` method instead.
+     *
+     * @param p_WindowIndex The index of the window this method will be called for.
+     * @param p_FrameIndex The index of the current frame.
+     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
+     *
+     */
+    virtual void OnRenderBegin(u32, u32, VkCommandBuffer) noexcept
+    {
+    }
+
+    /**
+     * @brief Called every frame before the `OnFrameEnd()` method.
+     *
+     * It is designed to submit direct vulkan commands after the main scene rendering. It is called in between a
+     * `vkBeginRendering()`/`vkEndRendering()` pair call. It cannot be used to issue `ImGui` or `ImPlot` calls.
+     *
+     * @note This variant of the method is not called in single-window applications. Use the `OnFrameBegin(u32,
+     * VkCommandBuffer)` method instead.
+     *
+     * @param p_WindowIndex The index of the window this method will be called for.
+     * @param p_FrameIndex The index of the current frame.
+     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
+     *
+     */
+    virtual void OnRenderEnd(u32, u32, VkCommandBuffer) noexcept
     {
     }
 
@@ -182,7 +258,7 @@ class ONYX_API UserLayer
      * once per frame in the main thread, no matter how many active windows there are. The `ImGui` calls are linked to
      * the main window.
      *
-     * @note This method is not called in single window applications. Use the `OnRender(u32)` method instead.
+     * @note This method is not called in single window applications. Use the any of the other render methods instead.
      *
      */
     virtual void OnImGuiRender() noexcept
@@ -193,7 +269,6 @@ class ONYX_API UserLayer
      * @brief Called for every event that is processed by the application.
      *
      * @note This method is not called in multi-window applications. Use the `OnEvent(u32)` method instead.
-     *
      *
      */
     virtual void OnEvent(const Event &) noexcept

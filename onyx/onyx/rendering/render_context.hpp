@@ -923,7 +923,8 @@ template <Dimension D> class IRenderContext
  * @brief The `RenderContext` class is the primary way of communicating with the Onyx API.
  *
  * It is a high-level API that allows the user to draw shapes and meshes in a simple immediate mode
- * fashion. The following is a set of properties of the `RenderContext` you must take into account when using it:
+ * fashion. The draw calls are recorded, sent to the gpu and translated to vulkan draw calls when appropiate. The
+ * following is a set of properties of the `RenderContext` you must take into account when using it:
  *
  * - The `RenderContext` is mostly immediate mode. Almost all mutations to its state can be reset with the `Flush()`
  * method, which is recommended to be called at the beginning of each frame. Cameras always persist, and are not reset

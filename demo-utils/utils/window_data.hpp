@@ -114,7 +114,8 @@ class ONYX_API WindowData
   public:
     void OnStart(Window *p_Window, Scene p_Scene) noexcept;
     void OnUpdate() noexcept;
-    void OnRender(VkCommandBuffer p_CommandBuffer, TKit::Timespan p_Timestep) noexcept;
+    void OnFrameBegin(TKit::Timespan p_Timestep) noexcept;
+    void OnRenderBegin(VkCommandBuffer p_CommandBuffer) noexcept;
     void OnImGuiRender() noexcept;
     void OnEvent(const Event &p_Event) noexcept;
 

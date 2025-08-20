@@ -59,7 +59,7 @@ class ONYX_API IApplication
     virtual void Shutdown() noexcept;
 
     /**
-     * @brief Signals the application to stop the rendering loop.
+     * @brief Signals the application to stop the frame loop.
      *
      * This method will only tell the applicatio to return `false` in the next call to `NextFrame()`. It will not close
      * any windows. Calling `NextFrame()` after this method is safe.
@@ -193,13 +193,17 @@ class ONYX_API IApplication
     void onShutdown() noexcept;
 
     void onUpdate() noexcept;
-    void onRender(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onLateRender(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onFrameBegin(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onFrameEnd(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onRenderBegin(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onRenderEnd(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
     void onEvent(const Event &p_Event) noexcept;
 
     void onUpdate(u32 p_WindowIndex) noexcept;
-    void onRender(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onLateRender(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onFrameBegin(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onFrameEnd(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onRenderBegin(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
+    void onRenderEnd(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
     void onEvent(u32 p_WindowIndex, const Event &p_Event) noexcept;
     void onImGuiRender() noexcept;
 
@@ -259,7 +263,7 @@ class ONYX_API Application final : public IApplication
  *
  * This class provides an implementation for a multi-window application. Because of the ability of having multiple
  * windows, the user must always explicitly open windows from the application's API, including the main (first) window
- * before entering the rendering loop.
+ * before entering the frame loop. Otherwise, the application will end immediately.
  *
  * To better manage window lifetimes, calls to `OpenWindow()` or `CloseWindow()` may be deferred if called from within
  * an ongoing frame. Never update your state based on the calls of these functions, but rather react to the
@@ -358,8 +362,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
     bool NextFrame(TKit::Clock &p_Clock) noexcept override;
 
   private:
-    template <typename F1, typename F2>
-    void processFrame(u32 p_WindowIndex, F1 &&p_FirstDrawCalls, F2 &&p_LastDrawCalls) noexcept;
+    void processFrame(u32 p_WindowIndex, const RenderCallbacks &p_Callbacks) noexcept;
     void processWindows() noexcept;
 
     TKit::StaticArray8<TKit::Scope<Window>> m_Windows;

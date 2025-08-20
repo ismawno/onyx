@@ -103,7 +103,7 @@ template <Dimension D> class Mesh
     /**
      * @brief Gets the index buffer of the mesh.
      *
-     * @note This function is undefined behavior if HasIndices() returns false.
+     * @note This function is undefined behavior if `HasIndices()` returns false.
      *
      * @return Reference to the index buffer.
      */

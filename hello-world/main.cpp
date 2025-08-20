@@ -98,6 +98,12 @@ static void RunStandaloneWindowCustomPipeline() noexcept
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
     context->CreateCamera()->Transparent = true;
 
+    Onyx::RenderCallbacks cbs{};
+    cbs.OnRenderBegin = [&job](const u32, const VkCommandBuffer p_CommandBuffer) {
+        job.Bind(p_CommandBuffer);
+        job.Draw(p_CommandBuffer, 3);
+    };
+
     while (!window.ShouldClose())
     {
         Onyx::Input::PollEvents();
@@ -107,10 +113,7 @@ static void RunStandaloneWindowCustomPipeline() noexcept
         context->Fill(Onyx::Color::RED);
         context->Square();
 
-        window.RenderSubmitFirst([&job](const u32, const VkCommandBuffer p_CommandBuffer) {
-            job.Bind(p_CommandBuffer);
-            job.Draw(p_CommandBuffer, 3);
-        });
+        window.Render(cbs);
     }
 }
 
@@ -148,7 +151,7 @@ static void RunAppExample3() noexcept
     class MyLayer : public Onyx::UserLayer
     {
       public:
-        void OnRender(const u32, const VkCommandBuffer) noexcept override
+        void OnFrameBegin(const u32, const VkCommandBuffer) noexcept override
         {
             ImGui::Begin("Hello, World!");
             ImGui::Text("Hello, World from ImGui!");
