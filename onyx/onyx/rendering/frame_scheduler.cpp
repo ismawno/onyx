@@ -279,7 +279,7 @@ VkResult FrameScheduler::SubmitCurrentCommandBuffer(const u32 p_FrameIndex, cons
     const auto &table = Core::GetDeviceTable();
     const VkCommandBuffer cmd = m_CommandBuffers[p_FrameIndex];
 
-    if (m_InFlightImages[m_ImageIndex] != VK_NULL_HANDLE)
+    if (m_InFlightImages[p_ImageIndex] != VK_NULL_HANDLE)
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForPreviousFrame");
         TKIT_ASSERT_RETURNS(
