@@ -53,7 +53,7 @@ class ONYX_API FrameScheduler
      * Ensures all recorded commands for the frame are submitted for execution.
      *
      */
-    void EndFrame() noexcept;
+    void EndFrame(Window &p_Window) noexcept;
 
     /**
      * @brief Begins the main scene rendering with the specified clear color.
@@ -103,7 +103,7 @@ class ONYX_API FrameScheduler
      *
      * @return A Vulkan result indicating success or failure.
      */
-    VkResult SubmitCurrentCommandBuffer() noexcept;
+    VkResult SubmitCurrentCommandBuffer(u32 p_FrameIndex, u32 p_ImageIndex) noexcept;
 
     /**
      * @brief Presents the rendered frame to the screen.
@@ -112,7 +112,7 @@ class ONYX_API FrameScheduler
      *
      * @return A Vulkan result indicating success or failure.
      */
-    VkResult Present() noexcept;
+    VkResult Present(u32 p_FrameIndex, u32 p_ImageIndex) noexcept;
 
     struct PostProcessingOptions
     {
@@ -148,6 +148,8 @@ class ONYX_API FrameScheduler
      * This method only waits for `VkQueueSubmit()` calls to complete, not the underlying tasks submitted. For that, you
      * must wait on the corresponding queue to be idle.
      *
+     * If the `Window::Flag_ConcurrentQueueSubmission` was not set on window creation, this is a no-op.
+     *
      */
     void WaitIdle() const noexcept;
 
@@ -169,8 +171,12 @@ class ONYX_API FrameScheduler
   private:
     void createSwapChain(Window &p_Window) noexcept;
     void recreateSwapChain(Window &p_Window) noexcept;
+    void recreateSurface(Window &p_Window) noexcept;
+    void recreateResources() noexcept;
     void createProcessingEffects() noexcept;
     void createCommandData() noexcept;
+
+    void handlePresentResult(Window &p_Window, VkResult p_Result) noexcept;
 
     TKit::StaticArray4<ImageData> createImageData() noexcept;
     void destroyImageData() noexcept;

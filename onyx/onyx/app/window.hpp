@@ -37,14 +37,31 @@ class ONYX_API Window
      * @brief Flags representing window properties.
      *
      * These flags can be used to specify window attributes such as resizable, visible, decorated, etc.
+     *
+     * - Flag_Resizable: The window can be resized.
+     *
+     * - Flag_Visible: THe window will be visible when created.
+     *
+     * - Flag_Decorated: The window had decorations such as border, close button etc.
+     *
+     * - Flag_Focused: The window is focused upon creation.
+     *
+     * - Flag_Floating: The window is always on top of other windows.
+     *
+     * - Flag_ConcurrentQueueSubmission: Graphics queue submissions for this window will run in a parallel thread
+     * between the end of a frame and the start of the next one. Beware: this functionality is buggy when using multiple
+     * windows. The surface may become lost and the application crashes. This does not seem to happen when using a
+     * single window. If you are not GPU bounded or are not doing anything usefule between frames (i.e. in `OnUpdate()`
+     * callbacks), dont bother with this setting.
      */
     enum FlagBit : Flags
     {
-        Flag_Resizable = 1 << 0, ///< The window can be resized.
-        Flag_Visible = 1 << 1,   ///< The window is visible upon creation.
-        Flag_Decorated = 1 << 2, ///< The window has decorations such as a border, close button, etc.
-        Flag_Focused = 1 << 3,   ///< The window is focused upon creation.
-        Flag_Floating = 1 << 4   ///< The window is always on top of other windows.
+        Flag_Resizable = 1 << 0,
+        Flag_Visible = 1 << 1,
+        Flag_Decorated = 1 << 2,
+        Flag_Focused = 1 << 3,
+        Flag_Floating = 1 << 4,
+        Flag_ConcurrentQueueSubmission = 1 << 5
     };
     /**
      * @brief Specifications for creating a window.
@@ -111,6 +128,8 @@ class ONYX_API Window
     f32 GetScreenAspect() const noexcept;
     f32 GetPixelAspect() const noexcept;
 
+    Flags GetFlags() const noexcept;
+
     /**
      * @brief Gets the position of the window on the screen.
      *
@@ -168,6 +187,7 @@ class ONYX_API Window
     bool wasResized() const noexcept;
     void flagResize(u32 p_Width, u32 p_Height) noexcept;
     void flagResizeDone() noexcept;
+    void recreateSurface() noexcept;
 
   private:
     void createWindow(const Specs &p_Specs) noexcept;
@@ -198,6 +218,7 @@ class ONYX_API Window
     const char *m_Name;
     u32 m_Width;
     u32 m_Height;
+    Flags m_Flags;
 
     bool m_Resized = false;
 };

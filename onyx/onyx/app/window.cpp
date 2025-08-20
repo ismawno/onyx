@@ -15,7 +15,8 @@ Window::Window() noexcept : Window(Specs{})
 {
 }
 
-Window::Window(const Specs &p_Specs) noexcept : m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height)
+Window::Window(const Specs &p_Specs) noexcept
+    : m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height), m_Flags(p_Specs.Flags)
 {
     createWindow(p_Specs);
     m_FrameScheduler->SetPresentMode(p_Specs.PresentMode);
@@ -109,7 +110,7 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
 #endif
         TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);
     }
-    m_FrameScheduler->EndFrame();
+    m_FrameScheduler->EndFrame(*this);
     return true;
 }
 
@@ -169,6 +170,11 @@ f32 Window::GetPixelAspect() const noexcept
     return static_cast<f32>(GetPixelWidth()) / static_cast<f32>(GetPixelHeight());
 }
 
+Window::Flags Window::GetFlags() const noexcept
+{
+    return m_Flags;
+}
+
 std::pair<u32, u32> Window::GetPosition() const noexcept
 {
     i32 x, y;
@@ -191,6 +197,12 @@ void Window::flagResizeDone() noexcept
 {
     adaptCamerasToViewportAspect();
     m_Resized = false;
+}
+void Window::recreateSurface() noexcept
+{
+    Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
+    TKIT_ASSERT_RETURNS(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
+                        "[ONYX] Failed to create a window surface");
 }
 
 void Window::FlagShouldClose() noexcept

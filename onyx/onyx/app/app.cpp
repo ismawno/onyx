@@ -240,7 +240,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
     initInfo.Device = Core::GetDevice();
     initInfo.Queue = Core::GetGraphicsQueue();
     initInfo.DescriptorPool = m_ImGuiPool;
-    initInfo.MinImageCount = 3;
+    initInfo.MinImageCount = 2;
     initInfo.ImageCount = 3;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     initInfo.UseDynamicRendering = true;
@@ -483,8 +483,6 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
 
 void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
-    for (const auto &window : m_Windows)
-        window->GetFrameScheduler()->WaitIdle();
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
     if (m_DeferFlag)
