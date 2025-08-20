@@ -485,6 +485,9 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
+    TKIT_LOG_WARNING_IF(p_Specs.Flags & Window::Flag_ConcurrentQueueSubmission,
+                        "[ONYX] Concurrent queue submission works badly in multi window applications. Consider "
+                        "disabling it to avoid unexpected crashes.");
     if (m_DeferFlag)
     {
         m_WindowsToAdd.Append(p_Specs);

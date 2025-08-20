@@ -266,10 +266,14 @@ void FrameScheduler::EndRendering() noexcept
 
 VkResult FrameScheduler::AcquireNextImage() noexcept
 {
+    TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::AcquireNextImage");
     const auto &table = Core::GetDeviceTable();
-    TKIT_ASSERT_RETURNS(
-        table.WaitForFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence, VK_TRUE, UINT64_MAX),
-        VK_SUCCESS, "[ONYX] Failed to wait for fences");
+    {
+        TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForFrame");
+        TKIT_ASSERT_RETURNS(
+            table.WaitForFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence, VK_TRUE, UINT64_MAX),
+            VK_SUCCESS, "[ONYX] Failed to wait for fences");
+    }
     return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX,
                                      m_SyncData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
 }
@@ -281,7 +285,7 @@ VkResult FrameScheduler::SubmitCurrentCommandBuffer(const u32 p_FrameIndex, cons
 
     if (m_InFlightImages[p_ImageIndex] != VK_NULL_HANDLE)
     {
-        TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForPreviousFrame");
+        TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForImage");
         TKIT_ASSERT_RETURNS(
             table.WaitForFences(Core::GetDevice(), 1, &m_InFlightImages[p_ImageIndex], VK_TRUE, UINT64_MAX), VK_SUCCESS,
             "[ONYX] Failed to wait for fences");

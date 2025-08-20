@@ -926,6 +926,9 @@ template <Dimension D> class IRenderContext
  * fashion. The draw calls are recorded, sent to the gpu and translated to vulkan draw calls when appropiate. The
  * following is a set of properties of the `RenderContext` you must take into account when using it:
  *
+ * - You may use the `RenderContext` at almost any moment. Do not forget to call `Flush()` at the beginning of your loop
+ * to not to persist data from the last frame.
+ *
  * - The `RenderContext` is mostly immediate mode. Almost all mutations to its state can be reset with the `Flush()`
  * method, which is recommended to be called at the beginning of each frame. Cameras always persist, and are not reset
  * by the `Flush()` methods.
