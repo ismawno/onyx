@@ -12,6 +12,7 @@ set(SOURCES
     onyx/rendering/frame_scheduler.cpp
     onyx/rendering/post_processing.cpp
     onyx/data/state.cpp
+    onyx/data/sync.cpp
     onyx/data/buffers.cpp
     onyx/property/vertex.cpp
     onyx/property/color.cpp

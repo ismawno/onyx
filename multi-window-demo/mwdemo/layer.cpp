@@ -11,7 +11,8 @@ MWExampleLayer::MWExampleLayer(MultiWindowApplication *p_Application, const Scen
 
 void MWExampleLayer::OnUpdate(const u32 p_WindowIndex) noexcept
 {
-    m_Data[p_WindowIndex].OnUpdate();
+    const auto ts = m_Application->GetDeltaTime();
+    m_Data[p_WindowIndex].OnUpdate(ts);
 }
 
 void MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
@@ -26,11 +27,6 @@ void MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noex
         m_Data[p_WindowIndex].OnEvent(p_Event);
 }
 
-void MWExampleLayer::OnFrameBegin(const u32 p_WindowIndex, u32, VkCommandBuffer) noexcept
-{
-    const auto ts = m_Application->GetDeltaTime();
-    m_Data[p_WindowIndex].OnFrameBegin(ts);
-}
 void MWExampleLayer::OnRenderBegin(const u32 p_WindowIndex, u32, VkCommandBuffer p_CommandBuffer) noexcept
 {
     m_Data[p_WindowIndex].OnRenderBegin(p_CommandBuffer);

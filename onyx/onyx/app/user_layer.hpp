@@ -73,7 +73,8 @@ class ONYX_API UserLayer
      * @brief Called every frame before the `OnFrameBegin()` method.
      *
      * This method is called outside the the frame loop, so you cannot issue any vulkan draw calls here. You can (and is
-     * advised) to submit `RenderContext` draw calls from this callback, as it is cpu-side work only.
+     * advised) to submit `RenderContext` draw calls from this callback, as it is cpu-side work only. You may also
+     * submit `ImGui` or `ImPlot` calls.
      *
      * Its purpose is to update the user's state as they see fit. Doing so in other render callbacks is not recommended,
      * as some gpu operations can be performed at the same time `OnUpdate()` runs, but not at the same time the other
@@ -163,7 +164,8 @@ class ONYX_API UserLayer
      * @brief Called every frame before the `OnFrameBegin()` method.
      *
      * This method is called outside the the frame loop, so you cannot issue any vulkan draw calls here. You can (and is
-     * advised) to submit onyx draw calls from this callback, as it is cpu-side work only.
+     * advised) to submit onyx draw calls from this callback, as it is cpu-side work only. You may also submit `ImGui`
+     * or `ImPlot` calls.
      *
      * Its purpose is to update the user's state as they see fit. Doing so in other render callbacks is not recommended,
      * as some gpu operations can be performed at the same time `OnUpdate()` runs, but not at the same time the other

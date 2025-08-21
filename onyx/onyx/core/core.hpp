@@ -25,6 +25,10 @@
 #    define ONYX_MAX_FRAMES_IN_FLIGHT 2
 #endif
 
+#if ONYX_MAX_FRAMES_IN_FLIGHT < 2
+#    error "[ONYX] Maximum frames in flight must be greater than 2"
+#endif
+
 // The amount of active threads (accounting for the main thread as well) should not surpass this number. This means
 // thread pools should be created with LESS threads than this limit.
 #ifndef ONYX_MAX_THREADS
@@ -34,7 +38,7 @@
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
 #ifndef ONYX_MAX_TASKS
-#    define ONYX_MAX_TASKS 32
+#    define ONYX_MAX_TASKS 4096
 #endif
 
 namespace TKit

@@ -101,19 +101,15 @@ void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
     }
 }
 
-void WindowData::OnUpdate() noexcept
+void WindowData::OnUpdate(TKit::Timespan p_Timestep) noexcept
 {
-    if (!m_PostProcessing)
-        return;
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
-    m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
-    m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
-    m_Window->GetFrameScheduler()->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
-}
-
-void WindowData::OnFrameBegin(const TKit::Timespan p_Timestep) noexcept
-{
-    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnFrameBegin");
+    if (m_PostProcessing)
+    {
+        m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
+        m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
+        m_Window->GetFrameScheduler()->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
+    }
     for (u32 i = 0; i < m_ContextData2.Data.GetSize(); ++i)
         drawShapes(m_ContextData2.Data[i], p_Timestep, m_ContextData2.Active && i == m_ContextData2.Selected);
 

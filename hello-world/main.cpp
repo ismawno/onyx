@@ -151,7 +151,7 @@ static void RunAppExample3() noexcept
     class MyLayer : public Onyx::UserLayer
     {
       public:
-        void OnFrameBegin(const u32, const VkCommandBuffer) noexcept override
+        void OnUpdate() noexcept override
         {
             ImGui::Begin("Hello, World!");
             ImGui::Text("Hello, World from ImGui!");

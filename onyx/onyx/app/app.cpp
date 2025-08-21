@@ -323,11 +323,11 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
     m_Window->FlushEvents();
     // Should maybe exit if window is closed at this point (triggered by event)
 
+    beginRenderImGui();
     onUpdate();
 
     RenderCallbacks callbacks{};
     callbacks.OnFrameBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        beginRenderImGui();
         onFrameBegin(p_FrameIndex, p_CommandBuffer);
     };
     callbacks.OnFrameEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
@@ -377,6 +377,8 @@ void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderC
     window->FlushEvents();
     // Should maybe exit if window is closed at this point? (triggered by event)
 
+    if (p_WindowIndex == 0)
+        beginRenderImGui();
     onUpdate(p_WindowIndex);
     const u32 size = m_Windows.GetSize();
     const auto &prevWindow = m_Windows[p_WindowIndex == 0 ? (size - 1) : (p_WindowIndex - 1)];
@@ -510,7 +512,6 @@ void MultiWindowApplication::processWindows() noexcept
     m_DeferFlag = true;
     RenderCallbacks mainCbs{};
     mainCbs.OnFrameBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        beginRenderImGui();
         onFrameBegin(0, p_FrameIndex, p_CommandBuffer);
     };
     mainCbs.OnFrameEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {

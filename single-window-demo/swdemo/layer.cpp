@@ -17,18 +17,8 @@ void SWExampleLayer::OnStart() noexcept
 
 void SWExampleLayer::OnUpdate() noexcept
 {
-    m_Data.OnUpdate();
-}
-
-void SWExampleLayer::OnEvent(const Event &p_Event) noexcept
-{
-    m_Data.OnEvent(p_Event);
-}
-
-void SWExampleLayer::OnFrameBegin(u32, VkCommandBuffer) noexcept
-{
     const auto ts = m_Application->GetDeltaTime();
-    m_Data.OnFrameBegin(ts);
+    m_Data.OnUpdate(ts);
     WindowData::OnImGuiRenderGlobal(ts);
     if (ImGui::Begin("Editor"))
     {
@@ -37,6 +27,12 @@ void SWExampleLayer::OnFrameBegin(u32, VkCommandBuffer) noexcept
     }
     ImGui::End();
 }
+
+void SWExampleLayer::OnEvent(const Event &p_Event) noexcept
+{
+    m_Data.OnEvent(p_Event);
+}
+
 void SWExampleLayer::OnRenderBegin(u32, VkCommandBuffer p_CommandBuffer) noexcept
 {
     m_Data.OnRenderBegin(p_CommandBuffer);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/rendering/post_processing.hpp"
+#include "onyx/data/sync.hpp"
 #include "vkit/rendering/swap_chain.hpp"
 #include "vkit/rendering/command_pool.hpp"
 #include "vkit/rendering/image.hpp"
@@ -96,24 +97,6 @@ class ONYX_API FrameScheduler
      */
     VkResult AcquireNextImage() noexcept;
 
-    /**
-     * @brief Submits the current command buffer for execution.
-     *
-     * Sends recorded commands to the GPU for processing.
-     *
-     * @return A Vulkan result indicating success or failure.
-     */
-    VkResult SubmitCurrentCommandBuffer(u32 p_FrameIndex, u32 p_ImageIndex) noexcept;
-
-    /**
-     * @brief Presents the rendered frame to the screen.
-     *
-     * Synchronizes frame rendering with presentation.
-     *
-     * @return A Vulkan result indicating success or failure.
-     */
-    VkResult Present(u32 p_FrameIndex, u32 p_ImageIndex) noexcept;
-
     struct PostProcessingOptions
     {
         const VKit::Shader *VertexShader = nullptr;
@@ -169,7 +152,7 @@ class ONYX_API FrameScheduler
     TKit::StaticArray8<VkPresentModeKHR> GetAvailablePresentModes() const noexcept;
 
   private:
-    void createSwapChain(Window &p_Window) noexcept;
+    void createSwapChain(Window &p_Window, const VkExtent2D &p_WindowExtent) noexcept;
     void recreateSwapChain(Window &p_Window) noexcept;
     void recreateSurface(Window &p_Window) noexcept;
     void recreateResources() noexcept;
@@ -182,6 +165,7 @@ class ONYX_API FrameScheduler
     void destroyImageData() noexcept;
 
     void setupNaivePostProcessing() noexcept;
+    VkExtent2D waitGlfwEvents(Window &p_Window) noexcept;
 
     TKit::StaticArray4<ImageData> m_Images{};
     TKit::StaticArray4<VkImageView> getIntermediateColorImageViews() const noexcept;
@@ -199,7 +183,7 @@ class ONYX_API FrameScheduler
 
     PerFrameData<VKit::CommandPool> m_CommandPools;
     PerFrameData<VkCommandBuffer> m_CommandBuffers;
-    PerFrameData<VKit::SyncData> m_SyncData{};
+    PerFrameData<SyncData> m_SyncData{};
 
     TKit::Task<VkResult> *m_PresentTask = nullptr;
 
