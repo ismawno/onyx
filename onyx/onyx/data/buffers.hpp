@@ -64,8 +64,8 @@ template <typename T> DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer
     typename VKit::DeviceLocalBuffer<T>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = TKit::Span<const T>{nullptr, p_Capacity};
-    specs.CommandPool = &Core::GetCommandPool();
-    specs.Queue = Core::GetGraphicsQueue();
+    specs.CommandPool = &Core::GetTransferPool();
+    specs.Queue = Core::GetTransferQueue();
 
     const auto result = VKit::DeviceLocalBuffer<T>::CreateStorageBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);

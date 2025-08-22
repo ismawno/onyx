@@ -33,12 +33,15 @@ static VKit::DescriptorSetLayout s_LightStorageLayout{};
 static VKit::PipelineLayout s_DLevelSimpleLayout{};
 static VKit::PipelineLayout s_DLevelComplexLayout{};
 
-static VKit::CommandPool s_CommandPool{};
+static VKit::CommandPool s_GraphicsPool{};
+static VKit::CommandPool s_TransferPool{};
 static TransferMode s_TransferMode;
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-static TKit::VkProfilingContext s_ProfilingContext;
-static VkCommandBuffer s_ProfilingCommandBuffer;
+static TKit::VkProfilingContext s_GraphicsContext;
+static TKit::VkProfilingContext s_TransferContext;
+static VkCommandBuffer s_ProfilingGraphicsCmd;
+static VkCommandBuffer s_ProfilingTransferCmd;
 #endif
 
 static VkQueue s_GraphicsQueue = VK_NULL_HANDLE;
@@ -136,28 +139,51 @@ static void createVulkanAllocator() noexcept
 
 static void createCommandPool() noexcept
 {
-    TKIT_LOG_INFO("[ONYX] Creating global command pool");
-    const auto poolres = VKit::CommandPool::Create(s_Device, s_Device.GetPhysicalDevice().GetInfo().GraphicsIndex,
-                                                   VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
-                                                       VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+    TKIT_LOG_INFO("[ONYX] Creating global command pools");
+    auto poolres = VKit::CommandPool::Create(s_Device, Core::GetGraphicsIndex(),
+                                             VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
+                                                 VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 
     VKIT_ASSERT_RESULT(poolres);
-    s_CommandPool = poolres.GetValue();
-
-    s_DeletionQueue.SubmitForDeletion(s_CommandPool);
+    s_GraphicsPool = poolres.GetValue();
+    s_DeletionQueue.SubmitForDeletion(s_GraphicsPool);
+    if (s_TransferMode == TransferMode::Separate)
+    {
+        poolres = VKit::CommandPool::Create(s_Device, Core::GetTransferIndex(),
+                                            VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
+                                                VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+        VKIT_ASSERT_RESULT(poolres);
+        s_TransferPool = poolres.GetValue();
+        s_DeletionQueue.SubmitForDeletion(s_TransferPool);
+    }
+    else
+        s_TransferPool = s_GraphicsPool;
 }
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 static void createProfilingContext() noexcept
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan profiling context");
-    const auto cmdres = s_CommandPool.Allocate();
+    auto cmdres = s_GraphicsPool.Allocate();
     VKIT_ASSERT_RESULT(cmdres);
-    s_ProfilingCommandBuffer = cmdres.GetValue();
+    s_ProfilingGraphicsCmd = cmdres.GetValue();
 
-    s_ProfilingContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
-        s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue, s_ProfilingCommandBuffer,
+    s_GraphicsContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
+        s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue, s_ProfilingGraphicsCmd,
         VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
+
+    if (s_TransferMode == TransferMode::Separate)
+    {
+        cmdres = s_TransferPool.Allocate();
+        VKIT_ASSERT_RESULT(cmdres);
+        s_ProfilingTransferCmd = cmdres.GetValue();
+
+        s_TransferContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
+            s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_TransferQueue, s_ProfilingTransferCmd,
+            VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
+    }
+    else
+        s_TransferContext = s_GraphicsContext;
 }
 #endif
 
@@ -328,9 +354,13 @@ void Core::DeviceWaitIdle() noexcept
     s_Device.WaitIdle();
 }
 
-VKit::CommandPool &Core::GetCommandPool() noexcept
+VKit::CommandPool &Core::GetGraphicsPool() noexcept
 {
-    return s_CommandPool;
+    return s_GraphicsPool;
+}
+VKit::CommandPool &Core::GetTransferPool() noexcept
+{
+    return s_TransferPool;
 }
 VmaAllocator Core::GetVulkanAllocator() noexcept
 {
@@ -396,9 +426,13 @@ TransferMode Core::GetTransferMode() noexcept
 }
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-TKit::VkProfilingContext Core::GetProfilingContext() noexcept
+TKit::VkProfilingContext Core::GetGraphicsContext() noexcept
 {
-    return s_ProfilingContext;
+    return s_GraphicsContext;
+}
+TKit::VkProfilingContext Core::GetTransferContext() noexcept
+{
+    return s_TransferContext;
 }
 #endif
 

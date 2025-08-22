@@ -99,7 +99,8 @@ struct ONYX_API Core
     static bool IsDeviceCreated() noexcept;
     static void DeviceWaitIdle() noexcept;
 
-    static VKit::CommandPool &GetCommandPool() noexcept;
+    static VKit::CommandPool &GetGraphicsPool() noexcept;
+    static VKit::CommandPool &GetTransferPool() noexcept;
     static VmaAllocator GetVulkanAllocator() noexcept;
 
     static VKit::DeletionQueue &GetDeletionQueue() noexcept;
@@ -122,7 +123,8 @@ struct ONYX_API Core
     static VkPipelineLayout GetGraphicsPipelineLayoutComplex() noexcept;
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-    static TKit::VkProfilingContext GetProfilingContext() noexcept;
+    static TKit::VkProfilingContext GetGraphicsContext() noexcept;
+    static TKit::VkProfilingContext GetTransferContext() noexcept;
 #endif
 };
 

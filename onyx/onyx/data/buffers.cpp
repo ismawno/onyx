@@ -139,8 +139,8 @@ DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<
     typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = p_Vertices;
-    specs.CommandPool = &Core::GetCommandPool();
-    specs.Queue = Core::GetGraphicsQueue();
+    specs.CommandPool = &Core::GetTransferPool();
+    specs.Queue = Core::GetTransferQueue();
     const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
@@ -150,8 +150,8 @@ DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Ind
     typename VKit::DeviceLocalBuffer<Index>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = p_Indices;
-    specs.CommandPool = &Core::GetCommandPool();
-    specs.Queue = Core::GetGraphicsQueue();
+    specs.CommandPool = &Core::GetTransferPool();
+    specs.Queue = Core::GetTransferQueue();
     const auto result = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
@@ -161,8 +161,8 @@ template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(
     typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = TKit::Span<const Vertex<D>>{nullptr, p_Capacity};
-    specs.CommandPool = &Core::GetCommandPool();
-    specs.Queue = Core::GetGraphicsQueue();
+    specs.CommandPool = &Core::GetTransferPool();
+    specs.Queue = Core::GetTransferQueue();
     const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
@@ -172,8 +172,8 @@ DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const u32 p_Capacity) noexce
     typename VKit::DeviceLocalBuffer<Index>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = TKit::Span<const Index>{nullptr, p_Capacity};
-    specs.CommandPool = &Core::GetCommandPool();
-    specs.Queue = Core::GetGraphicsQueue();
+    specs.CommandPool = &Core::GetTransferPool();
+    specs.Queue = Core::GetTransferQueue();
     const auto result = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
