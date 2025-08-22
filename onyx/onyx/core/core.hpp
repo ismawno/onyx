@@ -5,7 +5,7 @@
 #include "vkit/descriptors/descriptor_pool.hpp"
 #include "vkit/descriptors/descriptor_set_layout.hpp"
 #include "vkit/rendering/command_pool.hpp"
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
+#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 #    include "tkit/profiling/vulkan.hpp"
 #endif
 #include "vkit/vulkan/instance.hpp"
@@ -106,7 +106,7 @@ struct ONYX_API Core
     static VkPipelineLayout GetGraphicsPipelineLayoutSimple() noexcept;
     static VkPipelineLayout GetGraphicsPipelineLayoutComplex() noexcept;
 
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
+#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
     static TKit::VkProfilingContext GetProfilingContext() noexcept;
 #endif
 };

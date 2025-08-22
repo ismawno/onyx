@@ -38,9 +38,9 @@ template <Dimension D> void Layer<D>::OnStart() noexcept
             lattice.Mesh = mesh;
         }
 }
-template <Dimension D> void Layer<D>::OnFrameBegin(const u32, const VkCommandBuffer) noexcept
+template <Dimension D> void Layer<D>::OnUpdate() noexcept
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Perf::OnFrameBegin");
+    TKIT_PROFILE_NSCOPE("Onyx::Perf::OnUpdate");
     const auto timestep = m_Application->GetDeltaTime();
     m_Camera->ControlMovementWithUserInput(3.f * timestep);
     if (ImGui::Begin("Info"))
