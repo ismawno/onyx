@@ -36,7 +36,7 @@ static VKit::PipelineLayout s_DLevelComplexLayout{};
 static VKit::CommandPool s_CommandPool{};
 static TransferMode s_TransferMode;
 
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
+#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 static TKit::VkProfilingContext s_ProfilingContext;
 static VkCommandBuffer s_ProfilingCommandBuffer;
 #endif
@@ -147,7 +147,7 @@ static void createCommandPool() noexcept
     s_DeletionQueue.SubmitForDeletion(s_CommandPool);
 }
 
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
+#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 static void createProfilingContext() noexcept
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan profiling context");
@@ -155,8 +155,9 @@ static void createProfilingContext() noexcept
     VKIT_ASSERT_RESULT(cmdres);
     s_ProfilingCommandBuffer = cmdres.GetValue();
 
-    s_ProfilingContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue,
-                                                            s_ProfilingCommandBuffer);
+    s_ProfilingContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
+        s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue, s_ProfilingCommandBuffer,
+        VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
 }
 #endif
 
@@ -287,7 +288,7 @@ void Core::CreateDevice(const VkSurfaceKHR p_Surface) noexcept
     createPipelineLayouts();
     CreateCombinedPrimitiveBuffers();
     createShaders();
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
+#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
     createProfilingContext();
 #endif
 }
@@ -394,7 +395,7 @@ TransferMode Core::GetTransferMode() noexcept
     return s_TransferMode;
 }
 
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
+#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 TKit::VkProfilingContext Core::GetProfilingContext() noexcept
 {
     return s_ProfilingContext;

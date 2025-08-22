@@ -7,6 +7,7 @@ void RunApp(const Onyx::Perf::ParseResult &p_Args) noexcept
 {
     Onyx::Window::Specs spc;
     spc.Name = "Performance lattice";
+    // spc.Flags |= Onyx::Window::Flag_ConcurrentQueueSubmission;
 
     Onyx::Application app{spc};
     if (p_Args.Dim == Onyx::Dimension::D2)

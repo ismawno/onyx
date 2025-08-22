@@ -19,7 +19,7 @@ template <Dimension D> class Layer : public UserLayer
     Layer(Application *p_Application, TKit::Span<const Lattice<D>> p_Lattices) noexcept;
 
     void OnStart() noexcept override;
-    void OnFrameBegin(u32, VkCommandBuffer) noexcept override;
+    void OnUpdate() noexcept override;
     void OnEvent(const Event &p_Event) noexcept override;
 
   private:
