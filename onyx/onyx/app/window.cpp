@@ -2,7 +2,6 @@
 #include "onyx/app/window.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
-#include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/profiling/vulkan.hpp"
 
@@ -70,11 +69,6 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
         context->GrowToFit(frameIndex);
     for (const auto &context : m_RenderContexts3D)
         context->GrowToFit(frameIndex);
-
-    for (const auto &context : m_RenderContexts2D)
-        context->SendToDevice(frameIndex);
-    for (const auto &context : m_RenderContexts3D)
-        context->SendToDevice(frameIndex);
 
     for (const auto &context : m_RenderContexts2D)
         context->SendToDevice(frameIndex);
