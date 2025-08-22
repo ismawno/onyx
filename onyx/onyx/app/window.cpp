@@ -57,58 +57,64 @@ void Window::createWindow(const Specs &p_Specs) noexcept
 bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
-    const VkCommandBuffer cmd = m_FrameScheduler->BeginFrame(*this);
-    if (!cmd)
+    const VkCommandBuffer gcmd = m_FrameScheduler->BeginFrame(*this);
+    if (!gcmd)
         return false;
 
     const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
 
     if (p_Callbacks.OnFrameBegin)
-        p_Callbacks.OnFrameBegin(frameIndex, cmd);
+        p_Callbacks.OnFrameBegin(frameIndex, gcmd);
+
+    for (const auto &context : m_RenderContexts2D)
+        context->GrowToFit(frameIndex);
+    for (const auto &context : m_RenderContexts3D)
+        context->GrowToFit(frameIndex);
+
+    for (const auto &context : m_RenderContexts2D)
+        context->SendToDevice(frameIndex);
+    for (const auto &context : m_RenderContexts3D)
+        context->SendToDevice(frameIndex);
+
+    for (const auto &context : m_RenderContexts2D)
+        context->SendToDevice(frameIndex);
+    for (const auto &context : m_RenderContexts3D)
+        context->SendToDevice(frameIndex);
+
+    const VkCommandBuffer tcmd = m_FrameScheduler->GetTransferCommandBuffer();
+    for (const auto &context : m_RenderContexts2D)
+        context->RecordCopyCommands(frameIndex, gcmd, tcmd);
+    for (const auto &context : m_RenderContexts3D)
+        context->RecordCopyCommands(frameIndex, gcmd, tcmd);
+
+    m_FrameScheduler->SubmitTransferQueue();
 
     {
-        TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Render", Core::GetProfilingContext(), cmd);
+        TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Render", Core::GetProfilingContext(), gcmd);
         m_FrameScheduler->BeginRendering(BackgroundColor);
 
         if (p_Callbacks.OnRenderBegin)
-            p_Callbacks.OnRenderBegin(frameIndex, cmd);
+            p_Callbacks.OnRenderBegin(frameIndex, gcmd);
 
         for (const auto &context : m_RenderContexts2D)
-            context->GrowToFit(frameIndex);
+            context->Render(frameIndex, gcmd);
         for (const auto &context : m_RenderContexts3D)
-            context->GrowToFit(frameIndex);
-
-        TKit::ITaskManager *tm = Core::GetTaskManager();
-
-        TKit::Task<> *render = tm->CreateAndSubmit([this, frameIndex, cmd]() {
-            for (const auto &context : m_RenderContexts2D)
-                context->Render(frameIndex, cmd);
-            for (const auto &context : m_RenderContexts3D)
-                context->Render(frameIndex, cmd);
-        });
-
-        for (const auto &context : m_RenderContexts2D)
-            context->SendToDevice(frameIndex);
-        for (const auto &context : m_RenderContexts3D)
-            context->SendToDevice(frameIndex);
-
-        tm->WaitUntilFinished(render);
-        tm->DestroyTask(render);
+            context->Render(frameIndex, gcmd);
 
         if (p_Callbacks.OnRenderEnd)
-            p_Callbacks.OnRenderEnd(frameIndex, cmd);
+            p_Callbacks.OnRenderEnd(frameIndex, gcmd);
 
         m_FrameScheduler->EndRendering();
     }
 
     {
         if (p_Callbacks.OnFrameEnd)
-            p_Callbacks.OnFrameEnd(frameIndex, cmd);
+            p_Callbacks.OnFrameEnd(frameIndex, gcmd);
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
         static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
         TKIT_PROFILE_MARK_LOCK(mutex);
 #endif
-        TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);
+        TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), gcmd);
     }
     m_FrameScheduler->EndFrame(*this);
     return true;

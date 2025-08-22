@@ -34,6 +34,7 @@ static VKit::PipelineLayout s_DLevelSimpleLayout{};
 static VKit::PipelineLayout s_DLevelComplexLayout{};
 
 static VKit::CommandPool s_CommandPool{};
+static TransferMode s_TransferMode;
 
 #ifdef TKIT_ENABLE_VULKAN_PROFILING
 static TKit::VkProfilingContext s_ProfilingContext;
@@ -42,6 +43,7 @@ static VkCommandBuffer s_ProfilingCommandBuffer;
 
 static VkQueue s_GraphicsQueue = VK_NULL_HANDLE;
 static VkQueue s_PresentQueue = VK_NULL_HANDLE;
+static VkQueue s_TransferQueue = VK_NULL_HANDLE;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
@@ -55,7 +57,9 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
         .PreferType(VKit::PhysicalDevice::Discrete)
         .AddFlags(VKit::PhysicalDevice::Selector::Flag_AnyType |
                   VKit::PhysicalDevice::Selector::Flag_PortabilitySubset |
-                  VKit::PhysicalDevice::Selector::Flag_RequireGraphicsQueue)
+                  VKit::PhysicalDevice::Selector::Flag_RequireGraphicsQueue |
+                  VKit::PhysicalDevice::Selector::Flag_RequirePresentQueue |
+                  VKit::PhysicalDevice::Selector::Flag_RequireTransferQueue)
         .RequireExtension("VK_KHR_dynamic_rendering")
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 3, 0);
@@ -91,10 +95,27 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
 
     s_GraphicsQueue = s_Device.GetQueue(VKit::QueueType::Graphics);
     s_PresentQueue = s_Device.GetQueue(VKit::QueueType::Present);
+    s_TransferQueue = s_Device.GetQueue(VKit::QueueType::Transfer);
     TKIT_LOG_INFO("[ONYX] Created Vulkan device: {}",
                   s_Device.GetPhysicalDevice().GetInfo().Properties.Core.deviceName);
     TKIT_LOG_WARNING_IF(!(s_Device.GetPhysicalDevice().GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal),
                         "[ONYX] The device is suitable, but not optimal");
+
+    if (s_GraphicsQueue == s_TransferQueue)
+    {
+        s_TransferMode = TransferMode::SameQueue;
+        TKIT_LOG_INFO("[ONYX] Transfer mode is 'SameQueue'");
+    }
+    else if (Core::GetGraphicsIndex() == Core::GetTransferIndex())
+    {
+        s_TransferMode = TransferMode::SameIndex;
+        TKIT_LOG_INFO("[ONYX] Transfer mode is 'SameIndex'");
+    }
+    else
+    {
+        s_TransferMode = TransferMode::Separate;
+        TKIT_LOG_INFO("[ONYX] Transfer mode is 'Separate'");
+    }
 
     s_DeletionQueue.SubmitForDeletion(s_Device);
 }
@@ -349,6 +370,28 @@ VkQueue Core::GetGraphicsQueue() noexcept
 VkQueue Core::GetPresentQueue() noexcept
 {
     return s_PresentQueue;
+}
+VkQueue Core::GetTransferQueue() noexcept
+{
+    return s_TransferQueue;
+}
+
+u32 Core::GetGraphicsIndex() noexcept
+{
+    return s_Device.GetPhysicalDevice().GetInfo().GraphicsIndex;
+}
+u32 Core::GetPresentIndex() noexcept
+{
+    return s_Device.GetPhysicalDevice().GetInfo().PresentIndex;
+}
+u32 Core::GetTransferIndex() noexcept
+{
+    return s_Device.GetPhysicalDevice().GetInfo().TransferIndex;
+}
+
+TransferMode Core::GetTransferMode() noexcept
+{
+    return s_TransferMode;
 }
 
 #ifdef TKIT_ENABLE_VULKAN_PROFILING

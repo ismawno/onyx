@@ -12,6 +12,22 @@
 
 namespace Onyx
 {
+namespace Detail
+{
+
+// These change behaviour depending if the physical device has a transfer queue different to the graphics queue used.
+
+void RecordCopy(VkCommandBuffer p_CommandBuffer, VkBuffer p_DeviceLocalBuffer, VkBuffer p_DeviceStagingBuffer,
+                u32 p_Size) noexcept;
+
+VkBufferMemoryBarrier CreateAcquireBarrier(VkBuffer p_DeviceLocalBuffer, u32 p_Size,
+                                           VkAccessFlags p_DstFlags = VK_ACCESS_SHADER_READ_BIT) noexcept;
+VkBufferMemoryBarrier CreateReleaseBarrier(VkBuffer p_DeviceLocalBuffer, u32 p_Size) noexcept;
+
+void ApplyAcquireBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers) noexcept;
+void ApplyReleaseBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers) noexcept;
+} // namespace Detail
+
 using Index = ONYX_INDEX_TYPE;
 
 template <Dimension D> using DeviceLocalVertexBuffer = VKit::DeviceLocalBuffer<Vertex<D>>;
@@ -40,12 +56,14 @@ template <Dimension D>
 DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices) noexcept;
 ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Indices) noexcept;
 
-template <typename T>
-DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer(const HostStorageBuffer<T> &p_Data) noexcept
+template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(u32 p_Capacity) noexcept;
+ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(u32 p_Capacity) noexcept;
+
+template <typename T> DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer(const u32 p_Capacity) noexcept
 {
     typename VKit::DeviceLocalBuffer<T>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
-    specs.Data = p_Data;
+    specs.Data = TKit::Span<const T>{nullptr, p_Capacity};
     specs.CommandPool = &Core::GetCommandPool();
     specs.Queue = Core::GetGraphicsQueue();
 
@@ -54,15 +72,16 @@ DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer(const HostStorageBuff
     return result.GetValue();
 }
 
-template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(VkDeviceSize p_Capacity) noexcept;
-ONYX_API HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(VkDeviceSize p_Capacity) noexcept;
+template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(u32 p_Capacity) noexcept;
+ONYX_API HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(u32 p_Capacity) noexcept;
 
-template <typename T> HostVisibleStorageBuffer<T> CreateHostVisibleStorageBuffer(const VkDeviceSize p_Capacity) noexcept
+template <typename T> HostVisibleStorageBuffer<T> CreateHostVisibleStorageBuffer(const u32 p_Capacity) noexcept
 {
     typename VKit::HostVisibleBuffer<T>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Capacity = p_Capacity;
     specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+    specs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
     const auto result = VKit::HostVisibleBuffer<T>::CreateStorageBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);

@@ -5,6 +5,80 @@
 
 namespace Onyx
 {
+namespace Detail
+{
+void RecordCopy(const VkCommandBuffer p_CommandBuffer, const VkBuffer p_DeviceLocalBuffer,
+                const VkBuffer p_DeviceStagingBuffer, const u32 p_Size) noexcept
+{
+    VkBufferCopy copy{};
+    copy.dstOffset = 0;
+    copy.srcOffset = 0;
+    copy.size = p_Size;
+
+    Core::GetDeviceTable().CmdCopyBuffer(p_CommandBuffer, p_DeviceStagingBuffer, p_DeviceLocalBuffer, 1, &copy);
+}
+
+VkBufferMemoryBarrier CreateAcquireBarrier(const VkBuffer p_DeviceLocalBuffer, const u32 p_Size,
+                                           const VkAccessFlags p_DstFlags) noexcept
+{
+    const u32 qsrc = Core::GetTransferIndex();
+    const u32 qdst = Core::GetGraphicsIndex();
+
+    VkBufferMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.srcAccessMask = qsrc != qdst ? 0 : VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = p_DstFlags;
+    barrier.srcQueueFamilyIndex = qsrc != qdst ? qsrc : VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = qsrc != qdst ? qdst : VK_QUEUE_FAMILY_IGNORED;
+    barrier.buffer = p_DeviceLocalBuffer;
+    barrier.offset = 0;
+    barrier.size = p_Size;
+
+    return barrier;
+}
+VkBufferMemoryBarrier CreateReleaseBarrier(const VkBuffer p_DeviceLocalBuffer, const u32 p_Size) noexcept
+{
+    const u32 qsrc = Core::GetTransferIndex();
+    const u32 qdst = Core::GetGraphicsIndex();
+    TKIT_ASSERT(qsrc != qdst,
+                "[ONYX] Cannot create a release barrier if the graphics and transfer queues belong to the same family");
+
+    VkBufferMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = 0;
+    barrier.srcQueueFamilyIndex = qsrc;
+    barrier.dstQueueFamilyIndex = qdst;
+    barrier.buffer = p_DeviceLocalBuffer;
+    barrier.offset = 0;
+    barrier.size = p_Size;
+
+    return barrier;
+}
+
+void ApplyAcquireBarrier(const VkCommandBuffer p_CommandBuffer,
+                         const TKit::Span<const VkBufferMemoryBarrier> p_Barriers) noexcept
+{
+    const TransferMode mode = Core::GetTransferMode();
+    const VkPipelineStageFlags src =
+        mode == TransferMode::Separate ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT;
+
+    Core::GetDeviceTable().CmdPipelineBarrier(p_CommandBuffer, src, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr,
+                                              p_Barriers.GetSize(), p_Barriers.GetData(), 0, nullptr);
+}
+
+void ApplyReleaseBarrier(const VkCommandBuffer p_CommandBuffer,
+                         const TKit::Span<const VkBufferMemoryBarrier> p_Barriers) noexcept
+{
+    TKIT_ASSERT(
+        Core::GetTransferMode() == TransferMode::Separate,
+        "[ONYX] Can only apply release barrier if the graphics and transfer queues dont belong to the same family");
+
+    Core::GetDeviceTable().CmdPipelineBarrier(p_CommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                              VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, p_Barriers.GetSize(),
+                                              p_Barriers.GetData(), 0, nullptr);
+}
+} // namespace Detail
 template <Dimension D>
 VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path, const fmat<D> *p_Transform) noexcept
 {
@@ -82,23 +156,47 @@ DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Ind
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
+template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const u32 p_Capacity) noexcept
+{
+    typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs specs{};
+    specs.Allocator = Core::GetVulkanAllocator();
+    specs.Data = TKit::Span<const Vertex<D>>{nullptr, p_Capacity};
+    specs.CommandPool = &Core::GetCommandPool();
+    specs.Queue = Core::GetGraphicsQueue();
+    const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
+    VKIT_ASSERT_RESULT(result);
+    return result.GetValue();
+}
+DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const u32 p_Capacity) noexcept
+{
+    typename VKit::DeviceLocalBuffer<Index>::Specs specs{};
+    specs.Allocator = Core::GetVulkanAllocator();
+    specs.Data = TKit::Span<const Index>{nullptr, p_Capacity};
+    specs.CommandPool = &Core::GetCommandPool();
+    specs.Queue = Core::GetGraphicsQueue();
+    const auto result = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), specs);
+    VKIT_ASSERT_RESULT(result);
+    return result.GetValue();
+}
 
-template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(const VkDeviceSize p_Capacity) noexcept
+template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(const u32 p_Capacity) noexcept
 {
     typename VKit::HostVisibleBuffer<Vertex<D>>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
-    specs.Capacity = p_Capacity;
+    specs.Capacity = static_cast<VkDeviceSize>(p_Capacity);
     specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+    specs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     const auto result = VKit::HostVisibleBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
-HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(const VkDeviceSize p_Capacity) noexcept
+HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(const u32 p_Capacity) noexcept
 {
     typename VKit::HostVisibleBuffer<Index>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
-    specs.Capacity = p_Capacity;
+    specs.Capacity = static_cast<VkDeviceSize>(p_Capacity);
     specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+    specs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     const auto result = VKit::HostVisibleBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), specs);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
@@ -115,7 +213,10 @@ template struct ONYX_API IndexVertexHostData<D3>;
 template ONYX_API DeviceLocalVertexBuffer<D2> CreateDeviceLocalVertexBuffer<D2>(const HostVertexBuffer<D2> &) noexcept;
 template ONYX_API DeviceLocalVertexBuffer<D3> CreateDeviceLocalVertexBuffer<D3>(const HostVertexBuffer<D3> &) noexcept;
 
-template ONYX_API HostVisibleVertexBuffer<D2> CreateHostVisibleVertexBuffer<D2>(VkDeviceSize) noexcept;
-template ONYX_API HostVisibleVertexBuffer<D3> CreateHostVisibleVertexBuffer<D3>(VkDeviceSize) noexcept;
+template ONYX_API DeviceLocalVertexBuffer<D2> CreateDeviceLocalVertexBuffer<D2>(u32) noexcept;
+template ONYX_API DeviceLocalVertexBuffer<D3> CreateDeviceLocalVertexBuffer<D3>(u32) noexcept;
+
+template ONYX_API HostVisibleVertexBuffer<D2> CreateHostVisibleVertexBuffer<D2>(u32) noexcept;
+template ONYX_API HostVisibleVertexBuffer<D3> CreateHostVisibleVertexBuffer<D3>(u32) noexcept;
 
 } // namespace Onyx

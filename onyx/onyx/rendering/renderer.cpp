@@ -43,6 +43,19 @@ void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex, TKit::StaticArray1
         p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilTestNoFill.SendToDevice(p_FrameIndex); }));
 }
 
+template <Dimension D, template <Dimension, PipelineMode> typename R>
+void RenderSystem<D, R>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
+{
+    if (NoStencilWriteDoFill.HasInstances())
+        NoStencilWriteDoFill.RecordCopyCommands(p_Info);
+    if (DoStencilWriteDoFill.HasInstances())
+        DoStencilWriteDoFill.RecordCopyCommands(p_Info);
+    if (DoStencilWriteNoFill.HasInstances())
+        DoStencilWriteNoFill.RecordCopyCommands(p_Info);
+    if (DoStencilTestNoFill.HasInstances())
+        DoStencilTestNoFill.RecordCopyCommands(p_Info);
+}
+
 static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInfo &p_DirectionalInfo,
                                                      const VkDescriptorBufferInfo &p_PointInfo,
                                                      VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept
@@ -75,8 +88,8 @@ Renderer<D3>::Renderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noe
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        const VkDescriptorBufferInfo dirInfo = m_DeviceLightData.DirectionalLightBuffers[i].GetDescriptorInfo();
-        const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.PointLightBuffers[i].GetDescriptorInfo();
+        const VkDescriptorBufferInfo dirInfo = m_DeviceLightData.DeviceLocalDirectionals[i].GetDescriptorInfo();
+        const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.DeviceLocalPoints[i].GetDescriptorInfo();
         m_DeviceLightData.DescriptorSets[i] = resetLightBufferDescriptorSet(dirInfo, pointInfo);
     }
 }
@@ -85,8 +98,10 @@ DeviceLightData::DeviceLightData() noexcept
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        DirectionalLightBuffers[i] = CreateHostVisibleStorageBuffer<DirectionalLight>(ONYX_BUFFER_INITIAL_CAPACITY);
-        PointLightBuffers[i] = CreateHostVisibleStorageBuffer<PointLight>(ONYX_BUFFER_INITIAL_CAPACITY);
+        DeviceLocalDirectionals[i] = CreateDeviceLocalStorageBuffer<DirectionalLight>(ONYX_BUFFER_INITIAL_CAPACITY);
+        DeviceLocalPoints[i] = CreateDeviceLocalStorageBuffer<PointLight>(ONYX_BUFFER_INITIAL_CAPACITY);
+        StagingDirectionals[i] = CreateHostVisibleStorageBuffer<DirectionalLight>(ONYX_BUFFER_INITIAL_CAPACITY);
+        StagingPoints[i] = CreateHostVisibleStorageBuffer<PointLight>(ONYX_BUFFER_INITIAL_CAPACITY);
     }
 }
 DeviceLightData::~DeviceLightData() noexcept
@@ -94,24 +109,44 @@ DeviceLightData::~DeviceLightData() noexcept
     Core::DeviceWaitIdle();
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        DirectionalLightBuffers[i].Destroy();
-        PointLightBuffers[i].Destroy();
+        DeviceLocalDirectionals[i].Destroy();
+        DeviceLocalPoints[i].Destroy();
+        StagingDirectionals[i].Destroy();
+        StagingPoints[i].Destroy();
     }
 }
 
-template <typename T> void DeviceLightData::Grow(const u32 p_FrameIndex, const u32 p_Instances) noexcept
+void DeviceLightData::GrowToFit(const u32 p_FrameIndex, const u32 p_Directionals, const u32 p_Points) noexcept
 {
-    HostVisibleStorageBuffer<T> *buffer;
-    if constexpr (std::is_same_v<T, DirectionalLight>)
-        buffer = &DirectionalLightBuffers[p_FrameIndex];
-    else
-        buffer = &PointLightBuffers[p_FrameIndex];
+    auto &ldbuffer = DeviceLocalDirectionals[p_FrameIndex];
+    if (ldbuffer.GetInfo().InstanceCount < p_Directionals)
+    {
+        ldbuffer.Destroy();
+        ldbuffer = CreateDeviceLocalStorageBuffer<DirectionalLight>(1 + p_Directionals + p_Directionals / 2);
+    }
 
-    buffer->Destroy();
-    *buffer = CreateHostVisibleStorageBuffer<T>(1 + p_Instances + p_Instances / 2);
+    auto &sdbuffer = StagingDirectionals[p_FrameIndex];
+    if (sdbuffer.GetInfo().InstanceCount < p_Directionals)
+    {
+        sdbuffer.Destroy();
+        sdbuffer = CreateHostVisibleStorageBuffer<DirectionalLight>(1 + p_Directionals + p_Directionals / 2);
+    }
+    auto &lpbuffer = DeviceLocalPoints[p_FrameIndex];
+    if (lpbuffer.GetInfo().InstanceCount < p_Points)
+    {
+        lpbuffer.Destroy();
+        lpbuffer = CreateDeviceLocalStorageBuffer<PointLight>(1 + p_Points + p_Points / 2);
+    }
 
-    const VkDescriptorBufferInfo dirInfo = DirectionalLightBuffers[p_FrameIndex].GetDescriptorInfo();
-    const VkDescriptorBufferInfo pointInfo = PointLightBuffers[p_FrameIndex].GetDescriptorInfo();
+    auto &spbuffer = StagingPoints[p_FrameIndex];
+    if (spbuffer.GetInfo().InstanceCount < p_Points)
+    {
+        spbuffer.Destroy();
+        spbuffer = CreateHostVisibleStorageBuffer<PointLight>(1 + p_Points + p_Points / 2);
+    }
+
+    const VkDescriptorBufferInfo dirInfo = ldbuffer.GetDescriptorInfo();
+    const VkDescriptorBufferInfo pointInfo = lpbuffer.GetDescriptorInfo();
 
     DescriptorSets[p_FrameIndex] = resetLightBufferDescriptorSet(dirInfo, pointInfo, DescriptorSets[p_FrameIndex]);
 }
@@ -273,6 +308,29 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
         tm->DestroyTask(t);
     }
 }
+void Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
+                                      const VkCommandBuffer p_TransferCommand) noexcept
+{
+    const bool separate = Core::GetTransferMode() == TransferMode::Separate;
+    TKit::StaticArray256<VkBufferMemoryBarrier> acquires{};
+    TKit::StaticArray256<VkBufferMemoryBarrier> releases{};
+
+    CopyInfo info{};
+    info.CommandBuffer = p_TransferCommand;
+    info.FrameIndex = p_FrameIndex;
+    info.AcquireBarriers = &acquires;
+    info.ReleaseBarriers = separate ? &releases : nullptr;
+
+    m_MeshRenderer.RecordCopyCommands(info);
+    m_PrimitiveRenderer.RecordCopyCommands(info);
+    m_PolygonRenderer.RecordCopyCommands(info);
+    m_CircleRenderer.RecordCopyCommands(info);
+
+    if (!releases.IsEmpty())
+        ApplyReleaseBarrier(p_TransferCommand, releases);
+    if (!acquires.IsEmpty())
+        ApplyAcquireBarrier(p_GraphicsCommand, acquires);
+}
 
 void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
@@ -282,14 +340,8 @@ void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
     m_CircleRenderer.GrowToFit(p_FrameIndex);
 
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
-    auto &devDirBuffer = m_DeviceLightData.DirectionalLightBuffers[p_FrameIndex];
-    if (dcount >= devDirBuffer.GetInfo().InstanceCount)
-        m_DeviceLightData.Grow<DirectionalLight>(p_FrameIndex, dcount);
-
     const u32 pcount = m_HostLightData.PointLights.GetSize();
-    auto &devPointBuffer = m_DeviceLightData.PointLightBuffers[p_FrameIndex];
-    if (pcount >= devPointBuffer.GetInfo().InstanceCount)
-        m_DeviceLightData.Grow<PointLight>(p_FrameIndex, pcount);
+    m_DeviceLightData.GrowToFit(p_FrameIndex, dcount, pcount);
 }
 
 void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
@@ -315,7 +367,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
     if (dcount > 0)
     {
-        auto &devDirBuffer = m_DeviceLightData.DirectionalLightBuffers[p_FrameIndex];
+        auto &devDirBuffer = m_DeviceLightData.StagingDirectionals[p_FrameIndex];
         const auto &hostDirBuffer = m_HostLightData.DirectionalLights;
         devDirBuffer.Write(hostDirBuffer);
     }
@@ -323,7 +375,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
     const u32 pcount = m_HostLightData.PointLights.GetSize();
     if (pcount > 0)
     {
-        auto &devPointBuffer = m_DeviceLightData.PointLightBuffers[p_FrameIndex];
+        auto &devPointBuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
         const auto &hostPointBuffer = m_HostLightData.PointLights;
         devPointBuffer.Write(hostPointBuffer);
     }
@@ -337,6 +389,51 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
         tm->WaitUntilFinished(t);
         tm->DestroyTask(t);
     }
+}
+void Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
+                                      const VkCommandBuffer p_TransferCommand) noexcept
+{
+    const bool separate = Core::GetTransferMode() == TransferMode::Separate;
+    TKit::StaticArray256<VkBufferMemoryBarrier> acquires{};
+    TKit::StaticArray256<VkBufferMemoryBarrier> releases{};
+
+    CopyInfo info{};
+    info.CommandBuffer = p_TransferCommand;
+    info.FrameIndex = p_FrameIndex;
+    info.AcquireBarriers = &acquires;
+    info.ReleaseBarriers = separate ? &releases : nullptr;
+
+    m_MeshRenderer.RecordCopyCommands(info);
+    m_PrimitiveRenderer.RecordCopyCommands(info);
+    m_PolygonRenderer.RecordCopyCommands(info);
+    m_CircleRenderer.RecordCopyCommands(info);
+
+    const u32 dsize = m_HostLightData.DirectionalLights.GetSize() * sizeof(DirectionalLight);
+    if (dsize > 0)
+    {
+        const auto &ldbuffer = m_DeviceLightData.DeviceLocalDirectionals[p_FrameIndex];
+        const auto &sdbuffer = m_DeviceLightData.StagingDirectionals[p_FrameIndex];
+        RecordCopy(p_TransferCommand, ldbuffer, sdbuffer, dsize);
+        acquires.Append(CreateAcquireBarrier(ldbuffer, dsize));
+        if (separate)
+            releases.Append(CreateReleaseBarrier(ldbuffer, dsize));
+    }
+
+    const u32 psize = m_HostLightData.PointLights.GetSize() * sizeof(PointLight);
+    if (psize > 0)
+    {
+        const auto &lpbuffer = m_DeviceLightData.DeviceLocalPoints[p_FrameIndex];
+        const auto &spbuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
+        RecordCopy(p_TransferCommand, lpbuffer, spbuffer, psize);
+        acquires.Append(CreateAcquireBarrier(lpbuffer, dsize));
+        if (separate)
+            releases.Append(CreateReleaseBarrier(lpbuffer, dsize));
+    }
+
+    if (!releases.IsEmpty())
+        ApplyReleaseBarrier(p_TransferCommand, releases);
+    if (!acquires.IsEmpty())
+        ApplyAcquireBarrier(p_GraphicsCommand, acquires);
 }
 
 template <DrawLevel DLevel, typename... Renderers>
@@ -420,10 +517,18 @@ void Renderer<D3>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Comman
     RenderInfo<DrawLevel::Complex> complexDrawInfo;
     complexDrawInfo.CommandBuffer = p_CommandBuffer;
     complexDrawInfo.FrameIndex = p_FrameIndex;
-    complexDrawInfo.LightStorageBuffers = m_DeviceLightData.DescriptorSets[p_FrameIndex];
-    complexDrawInfo.DirectionalLightCount = m_HostLightData.DirectionalLights.GetSize();
-    complexDrawInfo.PointLightCount = m_HostLightData.PointLights.GetSize();
-    complexDrawInfo.AmbientColor = &AmbientColor;
+    LightData light;
+
+    light.DescriptorSet = m_DeviceLightData.DescriptorSets[p_FrameIndex];
+    const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
+    const u32 pcount = m_HostLightData.PointLights.GetSize();
+
+    light.AmbientColor = &AmbientColor;
+
+    light.DirectionalCount = dcount;
+    light.PointCount = pcount;
+
+    complexDrawInfo.Light = light;
 
     RenderInfo<DrawLevel::Simple> simpleDrawInfo;
     simpleDrawInfo.CommandBuffer = p_CommandBuffer;

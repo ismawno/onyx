@@ -56,6 +56,13 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
     void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
+     * @brief Record vulkan copy commands to send data to a device local buffer.
+     *
+     * @param p_Info The necessary information to record the copies.
+     */
+    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+
+    /**
      * @brief Record the current command buffer with the stored onyx draw calls.
      *
      * It will also copy all of the host data (stored in c++ standars data structures) to the device data (stored in
@@ -82,12 +89,13 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
         u32 Instances = 0;
         std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
-    using MeshDeviceData = DeviceData<InstanceData>;
 
     VKit::GraphicsPipeline m_Pipeline{};
 
     TKit::Array<MeshHostData, ONYX_MAX_THREADS> m_HostData{};
-    MeshDeviceData m_DeviceData{};
+
+    DeviceData<InstanceData> m_DeviceData{};
+
     u32 m_DeviceInstances = 0;
 };
 
@@ -137,6 +145,13 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
     void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
+     * @brief Record vulkan copy commands to send data to a device local buffer.
+     *
+     * @param p_Info The necessary information to record the copies.
+     */
+    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+
+    /**
      * @brief Record the current command buffer with the stored onyx draw calls.
      *
      * It will also copy all of the host data (stored in c++ standars data structures) to the device data (stored in
@@ -163,12 +178,13 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
         u32 Instances = 0;
         std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
-    using PrimitiveDeviceData = DeviceData<InstanceData>;
 
     VKit::GraphicsPipeline m_Pipeline{};
 
     TKit::Array<PrimitiveHostData, ONYX_MAX_THREADS> m_HostData{};
-    PrimitiveDeviceData m_DeviceData{};
+
+    DeviceData<InstanceData> m_DeviceData{};
+
     u32 m_DeviceInstances = 0;
 };
 
@@ -220,6 +236,13 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
     void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
+     * @brief Record vulkan copy commands to send data to a device local buffer.
+     *
+     * @param p_Info The necessary information to record the copies.
+     */
+    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+
+    /**
      * @brief Record the current command buffer with the stored onyx draw calls.
      *
      * It will also copy all of the host data (stored in c++ standars data structures) to the device data (stored in
@@ -249,13 +272,15 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
         std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
 
-    using PolygonDeviceData = PolygonDeviceData<D, GetDrawLevel<D, PMode>()>;
-
     VKit::GraphicsPipeline m_Pipeline{};
 
     TKit::Array<PolygonHostData, ONYX_MAX_THREADS> m_HostData{};
-    PolygonDeviceData m_DeviceData{};
+
+    PolygonDeviceData<D, GetDrawLevel<D, PMode>()> m_DeviceData{};
+
     u32 m_DeviceInstances = 0;
+    u32 m_DeviceVertices = 0;
+    u32 m_DeviceIndices = 0;
 };
 
 /**
@@ -322,6 +347,13 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
     void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
+     * @brief Record vulkan copy commands to send data to a device local buffer.
+     *
+     * @param p_Info The necessary information to record the copies.
+     */
+    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+
+    /**
      * @brief Record the current command buffer with the stored onyx draw calls.
      *
      * It will also copy all of the host data (stored in c++ standars data structures) to the device data (stored in
@@ -347,12 +379,13 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
         HostStorageBuffer<CircleInstanceData> Data;
         std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
-    using CircleDeviceData = DeviceData<CircleInstanceData>;
 
     VKit::GraphicsPipeline m_Pipeline{};
 
     TKit::Array<CircleHostData, ONYX_MAX_THREADS> m_HostData{};
-    CircleDeviceData m_DeviceData{};
+
+    DeviceData<CircleInstanceData> m_DeviceData{};
+
     u32 m_DeviceInstances = 0;
 };
 

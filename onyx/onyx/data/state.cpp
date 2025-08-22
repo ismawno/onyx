@@ -27,16 +27,54 @@ PolygonDeviceData<D, DLevel>::PolygonDeviceData() noexcept : DeviceData<Instance
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        VertexBuffers[i] = CreateHostVisibleVertexBuffer<D>(ONYX_BUFFER_INITIAL_CAPACITY);
-        IndexBuffers[i] = CreateHostVisibleIndexBuffer(ONYX_BUFFER_INITIAL_CAPACITY);
+        DeviceLocalVertices[i] = CreateDeviceLocalVertexBuffer<D>(ONYX_BUFFER_INITIAL_CAPACITY);
+        DeviceLocalIndices[i] = CreateDeviceLocalIndexBuffer(ONYX_BUFFER_INITIAL_CAPACITY);
+        StagingVertices[i] = CreateHostVisibleVertexBuffer<D>(ONYX_BUFFER_INITIAL_CAPACITY);
+        StagingIndices[i] = CreateHostVisibleIndexBuffer(ONYX_BUFFER_INITIAL_CAPACITY);
     }
 }
 template <Dimension D, DrawLevel DLevel> PolygonDeviceData<D, DLevel>::~PolygonDeviceData() noexcept
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        VertexBuffers[i].Destroy();
-        IndexBuffers[i].Destroy();
+        DeviceLocalVertices[i].Destroy();
+        DeviceLocalIndices[i].Destroy();
+        StagingVertices[i].Destroy();
+        StagingIndices[i].Destroy();
+    }
+}
+
+template <Dimension D, DrawLevel DLevel>
+void PolygonDeviceData<D, DLevel>::GrowToFit(const u32 p_FrameIndex, const u32 p_Instances, const u32 p_Vertices,
+                                             const u32 p_Indices) noexcept
+{
+    DeviceData<InstanceData<DLevel>>::GrowToFit(p_FrameIndex, p_Instances);
+
+    auto &vlbuffer = DeviceLocalVertices[p_FrameIndex];
+    if (vlbuffer.GetInfo().InstanceCount < p_Vertices)
+    {
+        vlbuffer.Destroy();
+        vlbuffer = CreateDeviceLocalVertexBuffer<D>(1 + p_Vertices + p_Vertices / 2);
+    }
+
+    auto &ilbuffer = DeviceLocalIndices[p_FrameIndex];
+    if (ilbuffer.GetInfo().InstanceCount < p_Indices)
+    {
+        ilbuffer.Destroy();
+        ilbuffer = CreateDeviceLocalIndexBuffer(1 + p_Indices + p_Indices / 2);
+    }
+    auto &vsbuffer = StagingVertices[p_FrameIndex];
+    if (vsbuffer.GetInfo().InstanceCount < p_Vertices)
+    {
+        vsbuffer.Destroy();
+        vsbuffer = CreateHostVisibleVertexBuffer<D>(1 + p_Vertices + p_Vertices / 2);
+    }
+
+    auto &isbuffer = StagingIndices[p_FrameIndex];
+    if (isbuffer.GetInfo().InstanceCount < p_Indices)
+    {
+        isbuffer.Destroy();
+        isbuffer = CreateHostVisibleIndexBuffer(1 + p_Indices + p_Indices / 2);
     }
 }
 

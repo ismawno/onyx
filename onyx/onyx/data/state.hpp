@@ -206,6 +206,14 @@ struct ONYX_API CameraInfo
     bool Transparent;
 };
 
+struct LightData
+{
+    VkDescriptorSet DescriptorSet;
+    const Color *AmbientColor;
+    u32 DirectionalCount;
+    u32 PointCount;
+};
+
 /**
  * @brief The `RenderInfo` is a small struct containing information the renderers need to draw their shapes.
  *
@@ -226,13 +234,18 @@ template <> struct ONYX_API RenderInfo<DrawLevel::Simple>
 template <> struct ONYX_API RenderInfo<DrawLevel::Complex>
 {
     VkCommandBuffer CommandBuffer;
-    VkDescriptorSet LightStorageBuffers;
     const CameraInfo *Camera;
-    const Color *AmbientColor;
     const fvec3 *ViewPosition;
     u32 FrameIndex;
-    u32 DirectionalLightCount;
-    u32 PointLightCount;
+    LightData Light;
+};
+
+struct ONYX_API CopyInfo
+{
+    u32 FrameIndex;
+    VkCommandBuffer CommandBuffer;
+    TKit::StaticArray256<VkBufferMemoryBarrier> *AcquireBarriers;
+    TKit::StaticArray256<VkBufferMemoryBarrier> *ReleaseBarriers;
 };
 
 /**
@@ -284,26 +297,42 @@ template <typename T> struct DeviceData
     DeviceData() noexcept
     {
         for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-            StorageBuffers[i] = CreateHostVisibleStorageBuffer<T>(ONYX_BUFFER_INITIAL_CAPACITY);
+        {
+            DeviceLocalStorage[i] = CreateDeviceLocalStorageBuffer<T>(ONYX_BUFFER_INITIAL_CAPACITY);
+            StagingStorage[i] = CreateHostVisibleStorageBuffer<T>(ONYX_BUFFER_INITIAL_CAPACITY);
+        }
     }
     ~DeviceData() noexcept
     {
         for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-            StorageBuffers[i].Destroy();
+        {
+            DeviceLocalStorage[i].Destroy();
+            StagingStorage[i].Destroy();
+        }
     }
 
-    void Grow(const u32 p_FrameIndex, const u32 p_Instances) noexcept
+    void GrowToFit(const u32 p_FrameIndex, const u32 p_Instances) noexcept
     {
-        auto &buffer = StorageBuffers[p_FrameIndex];
+        auto &lbuffer = DeviceLocalStorage[p_FrameIndex];
+        if (lbuffer.GetInfo().InstanceCount < p_Instances)
+        {
+            lbuffer.Destroy();
+            lbuffer = CreateDeviceLocalStorageBuffer<T>(1 + p_Instances + p_Instances / 2);
 
-        buffer.Destroy();
-        buffer = CreateHostVisibleStorageBuffer<T>(1 + p_Instances + p_Instances / 2);
+            const VkDescriptorBufferInfo info = lbuffer.GetDescriptorInfo();
+            DescriptorSets[p_FrameIndex] = WriteStorageBufferDescriptorSet(info, DescriptorSets[p_FrameIndex]);
+        }
 
-        const VkDescriptorBufferInfo info = buffer.GetDescriptorInfo();
-        DescriptorSets[p_FrameIndex] = WriteStorageBufferDescriptorSet(info, DescriptorSets[p_FrameIndex]);
+        auto &sbuffer = StagingStorage[p_FrameIndex];
+        if (sbuffer.GetInfo().InstanceCount < p_Instances)
+        {
+            sbuffer.Destroy();
+            sbuffer = CreateHostVisibleStorageBuffer<T>(1 + p_Instances + p_Instances / 2);
+        }
     }
 
-    PerFrameData<HostVisibleStorageBuffer<T>> StorageBuffers;
+    PerFrameData<DeviceLocalStorageBuffer<T>> DeviceLocalStorage;
+    PerFrameData<HostVisibleStorageBuffer<T>> StagingStorage;
     PerFrameData<VkDescriptorSet> DescriptorSets;
 };
 
@@ -321,8 +350,13 @@ template <Dimension D, DrawLevel DLevel> struct PolygonDeviceData : DeviceData<I
     PolygonDeviceData() noexcept;
     ~PolygonDeviceData() noexcept;
 
-    PerFrameData<HostVisibleVertexBuffer<D>> VertexBuffers;
-    PerFrameData<HostVisibleIndexBuffer> IndexBuffers;
+    PerFrameData<DeviceLocalVertexBuffer<D>> DeviceLocalVertices;
+    PerFrameData<DeviceLocalIndexBuffer> DeviceLocalIndices;
+
+    PerFrameData<HostVisibleVertexBuffer<D>> StagingVertices;
+    PerFrameData<HostVisibleIndexBuffer> StagingIndices;
+
+    void GrowToFit(u32 p_FrameIndex, u32 p_Instances, u32 p_Vertices, u32 p_Indices) noexcept;
 };
 
 /**

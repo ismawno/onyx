@@ -3,7 +3,6 @@
 #include "onyx/core/api.hpp"
 #include "onyx/core/glm.hpp"
 #include "tkit/container/span.hpp"
-#include <span>
 
 namespace Onyx
 {

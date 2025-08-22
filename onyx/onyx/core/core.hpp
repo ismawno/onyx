@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/core/api.hpp"
+#include "onyx/core/alias.hpp"
 #include "vkit/vulkan/allocator.hpp"
 #include "vkit/descriptors/descriptor_pool.hpp"
 #include "vkit/descriptors/descriptor_set_layout.hpp"
@@ -71,6 +72,13 @@ class Initializer
     }
 };
 
+enum class TransferMode : u8
+{
+    Separate,
+    SameIndex,
+    SameQueue
+};
+
 template <typename T> using PerFrameData = TKit::Array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
 struct ONYX_API Core
 {
@@ -102,6 +110,13 @@ struct ONYX_API Core
 
     static VkQueue GetGraphicsQueue() noexcept;
     static VkQueue GetPresentQueue() noexcept;
+    static VkQueue GetTransferQueue() noexcept;
+
+    static u32 GetGraphicsIndex() noexcept;
+    static u32 GetPresentIndex() noexcept;
+    static u32 GetTransferIndex() noexcept;
+
+    static TransferMode GetTransferMode() noexcept;
 
     static VkPipelineLayout GetGraphicsPipelineLayoutSimple() noexcept;
     static VkPipelineLayout GetGraphicsPipelineLayoutComplex() noexcept;

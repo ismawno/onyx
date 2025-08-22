@@ -8,6 +8,7 @@ struct SyncData
 {
     VkSemaphore ImageAvailableSemaphore;
     VkSemaphore RenderFinishedSemaphore;
+    VkSemaphore TransferCopyDoneSemaphore;
     VkFence InFlightFence;
 };
 

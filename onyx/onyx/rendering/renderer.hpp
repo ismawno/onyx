@@ -38,6 +38,13 @@ template <Dimension D, template <Dimension, PipelineMode> typename Renderer> str
      */
     void SendToDevice(u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks) noexcept;
 
+    /**
+     * @brief Record vulkan copy commands to send data to a device local buffer.
+     *
+     * @param p_Info The necessary information to record the copies.
+     */
+    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+
     /// Renderer without stencil write, performs fill operation.
     Renderer<D, PipelineMode::NoStencilWriteDoFill> NoStencilWriteDoFill;
 
@@ -196,6 +203,16 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
     void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
+     * @brief Record vulkan copy commands to send data to a device local buffer.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     * @param p_GraphicsCommand The graphics command buffer.
+     * @param p_TransferCommand The transfer command buffer.
+     */
+    void RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
+                            VkCommandBuffer p_TransferCommand) noexcept;
+
+    /**
      * @brief Record all stored draw calls into the command buffer for execution.
      *
      * @param p_FrameIndex The index of the current frame.
@@ -261,10 +278,12 @@ struct ONYX_API DeviceLightData
     DeviceLightData() noexcept;
     ~DeviceLightData() noexcept;
 
-    template <typename T> void Grow(u32 p_FrameIndex, u32 p_Instances) noexcept;
+    void GrowToFit(u32 p_FrameIndex, u32 p_Directionals, u32 p_Points) noexcept;
 
-    PerFrameData<HostVisibleStorageBuffer<DirectionalLight>> DirectionalLightBuffers;
-    PerFrameData<HostVisibleStorageBuffer<PointLight>> PointLightBuffers;
+    PerFrameData<DeviceLocalStorageBuffer<DirectionalLight>> DeviceLocalDirectionals;
+    PerFrameData<DeviceLocalStorageBuffer<PointLight>> DeviceLocalPoints;
+    PerFrameData<HostVisibleStorageBuffer<DirectionalLight>> StagingDirectionals;
+    PerFrameData<HostVisibleStorageBuffer<PointLight>> StagingPoints;
     PerFrameData<VkDescriptorSet> DescriptorSets;
 };
 
@@ -297,6 +316,16 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
      * @param p_FrameIndex The index of the current frame.
      */
     void SendToDevice(u32 p_FrameIndex) noexcept;
+
+    /**
+     * @brief Record vulkan copy commands to send data to a device local buffer.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     * @param p_GraphicsCommand The graphics command buffer.
+     * @param p_TransferCommand The transfer command buffer.
+     */
+    void RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
+                            VkCommandBuffer p_TransferCommand) noexcept;
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.

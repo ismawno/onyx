@@ -34,7 +34,11 @@ FrameScheduler::~FrameScheduler() noexcept
     m_NaivePostProcessingLayout.Destroy();
     DestroySynchronizationObjects(m_SyncData);
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-        m_CommandPools[i].Destroy();
+    {
+        m_CommandData[i].GraphicsPool.Destroy();
+        if (m_TransferMode == TransferMode::Separate)
+            m_CommandData[i].TransferPool.Destroy();
+    }
 
     m_SwapChain.Destroy();
 }
@@ -90,15 +94,27 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    const auto cmdres = m_CommandPools[m_FrameIndex].Reset();
+    const CommandData &cmd = m_CommandData[m_FrameIndex];
+    auto cmdres = cmd.GraphicsPool.Reset();
     VKIT_ASSERT_RESULT(cmdres);
+    if (m_TransferMode == TransferMode::Separate)
+    {
+        cmdres = cmd.TransferPool.Reset();
+        VKIT_ASSERT_RESULT(cmdres);
+    }
 
     const auto &table = Core::GetDeviceTable();
-    TKIT_ASSERT_RETURNS(table.BeginCommandBuffer(m_CommandBuffers[m_FrameIndex], &beginInfo), VK_SUCCESS,
+    TKIT_ASSERT_RETURNS(table.BeginCommandBuffer(cmd.GraphicsCommand, &beginInfo), VK_SUCCESS,
                         "[ONYX] Failed to begin command buffer");
+    if (m_TransferMode == TransferMode::Separate)
+    {
+        TKIT_ASSERT_RETURNS(table.BeginCommandBuffer(cmd.TransferCommand, &beginInfo), VK_SUCCESS,
+                            "[ONYX] Failed to begin command buffer");
+    }
 
-    return m_CommandBuffers[m_FrameIndex];
+    return cmd.GraphicsCommand;
 }
+
 struct SubmitInfo
 {
     VkSwapchainKHR SwapChain;
@@ -107,6 +123,7 @@ struct SubmitInfo
     VkFence *InFlightImage;
     u32 ImageIndex;
 };
+
 static VkResult submitGraphicsQueue(const SubmitInfo &p_Info) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::SubmitCurrentCommandBuffer");
@@ -124,10 +141,14 @@ static VkResult submitGraphicsQueue(const SubmitInfo &p_Info) noexcept
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    const VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &p_Info.Sync.ImageAvailableSemaphore;
-    submitInfo.pWaitDstStageMask = &waitStage;
+    const TKit::Array<VkSemaphore, 2> semaphores{p_Info.Sync.ImageAvailableSemaphore,
+                                                 p_Info.Sync.TransferCopyDoneSemaphore};
+    const TKit::Array<VkPipelineStageFlags, 2> stages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                                      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT};
+
+    submitInfo.waitSemaphoreCount = 2;
+    submitInfo.pWaitSemaphores = semaphores.GetData();
+    submitInfo.pWaitDstStageMask = stages.GetData();
 
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &p_Info.CommandBuffer;
@@ -163,14 +184,15 @@ void FrameScheduler::EndFrame(Window &p_Window) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end a frame when there is no frame in progress");
+
+    const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
     const auto &table = Core::GetDeviceTable();
-    TKIT_ASSERT_RETURNS(table.EndCommandBuffer(m_CommandBuffers[m_FrameIndex]), VK_SUCCESS,
-                        "[ONYX] Failed to end command buffer");
+    TKIT_ASSERT_RETURNS(table.EndCommandBuffer(cmd), VK_SUCCESS, "[ONYX] Failed to end command buffer");
 
     SubmitInfo info{};
-    info.CommandBuffer = m_CommandBuffers[m_FrameIndex];
+    info.CommandBuffer = cmd;
     info.ImageIndex = m_ImageIndex;
-    info.InFlightImage = &m_InFlightImages[m_FrameIndex];
+    info.InFlightImage = &m_InFlightImages[m_ImageIndex];
     info.SwapChain = m_SwapChain;
     info.Sync = m_SyncData[m_FrameIndex];
 
@@ -223,7 +245,7 @@ void FrameScheduler::BeginRendering(const Color &p_ClearColor) noexcept
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot begin rendering if a frame is not in progress");
 
     const auto &table = Core::GetDeviceTable();
-    const VkCommandBuffer cmd = m_CommandBuffers[m_FrameIndex];
+    const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
 
     VkRenderingAttachmentInfoKHR intermediateColor{};
     intermediateColor.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
@@ -286,7 +308,7 @@ void FrameScheduler::EndRendering() noexcept
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end rendering if a frame is not in progress");
     const auto &table = Core::GetDeviceTable();
 
-    const VkCommandBuffer cmd = m_CommandBuffers[m_FrameIndex];
+    const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
     table.CmdEndRenderingKHR(cmd);
 
     VkRenderingAttachmentInfoKHR finalColor{};
@@ -338,6 +360,36 @@ VkResult FrameScheduler::AcquireNextImage() noexcept
     }
     return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX - 1,
                                      m_SyncData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
+}
+
+void FrameScheduler::SubmitTransferQueue() noexcept
+{
+    if (m_TransferMode == TransferMode::SameQueue)
+        return;
+
+    const auto &table = Core::GetDeviceTable();
+    TKIT_ASSERT_RETURNS(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand), VK_SUCCESS,
+                        "[ONYX] Failed to end command buffer");
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_CommandData[m_FrameIndex].TransferCommand;
+
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &m_SyncData[m_FrameIndex].TransferCopyDoneSemaphore;
+
+    TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE), VK_SUCCESS);
+}
+
+VkCommandBuffer FrameScheduler::GetGraphicsCommandBuffer() const noexcept
+{
+    return m_CommandData[m_FrameIndex].GraphicsCommand;
+}
+VkCommandBuffer FrameScheduler::GetTransferCommandBuffer() const noexcept
+{
+    return m_CommandData[m_FrameIndex].TransferCommand;
 }
 
 PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,
@@ -401,11 +453,6 @@ VkPipelineRenderingCreateInfoKHR FrameScheduler::CreatePostProcessingRenderInfo(
 const VKit::SwapChain &FrameScheduler::GetSwapChain() const noexcept
 {
     return m_SwapChain;
-}
-
-VkCommandBuffer FrameScheduler::GetCurrentCommandBuffer() const noexcept
-{
-    return m_CommandBuffers[m_FrameIndex];
 }
 
 VkPresentModeKHR FrameScheduler::GetPresentMode() const noexcept
@@ -548,18 +595,43 @@ void FrameScheduler::createProcessingEffects() noexcept
 
 void FrameScheduler::createCommandData() noexcept
 {
+    m_TransferMode = Core::GetTransferMode();
+    const u32 gindex = Core::GetGraphicsIndex();
+    const u32 tindex = Core::GetTransferIndex();
+
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        const auto result =
-            VKit::CommandPool::Create(Core::GetDevice(), Core::GetDevice().GetPhysicalDevice().GetInfo().GraphicsIndex,
-                                      VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+        auto result = VKit::CommandPool::Create(Core::GetDevice(), gindex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 
+        CommandData &cmd = m_CommandData[i];
         VKIT_ASSERT_RESULT(result);
-        m_CommandPools[i] = result.GetValue();
+        cmd.GraphicsPool = result.GetValue();
 
-        const auto cmdres = m_CommandPools[i].Allocate();
+        auto cmdres = cmd.GraphicsPool.Allocate();
         VKIT_ASSERT_RESULT(cmdres);
-        m_CommandBuffers[i] = cmdres.GetValue();
+        cmd.GraphicsCommand = cmdres.GetValue();
+        if (m_TransferMode == TransferMode::SameQueue)
+        {
+            cmd.TransferPool = cmd.GraphicsPool;
+            cmd.TransferCommand = cmd.GraphicsCommand;
+        }
+        else if (m_TransferMode == TransferMode::SameIndex)
+        {
+            cmd.TransferPool = cmd.GraphicsPool;
+            cmdres = cmd.TransferPool.Allocate();
+            VKIT_ASSERT_RESULT(cmdres);
+            cmd.TransferCommand = cmdres.GetValue();
+        }
+        else
+        {
+            result = VKit::CommandPool::Create(Core::GetDevice(), tindex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+            VKIT_ASSERT_RESULT(result);
+            cmd.TransferPool = result.GetValue();
+
+            cmdres = cmd.TransferPool.Allocate();
+            VKIT_ASSERT_RESULT(cmdres);
+            cmd.TransferCommand = cmdres.GetValue();
+        }
     }
 }
 

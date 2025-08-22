@@ -823,6 +823,16 @@ template <Dimension D> class IRenderContext
     void SendToDevice(u32 p_FrameIndex) noexcept;
 
     /**
+     * @brief Record vulkan copy commands to send data to a device local buffer.
+     *
+     * @param p_FrameIndex The index of the current frame.
+     * @param p_GraphicsCommand The graphics command buffer.
+     * @param p_TransferCommand The transfer command buffer.
+     */
+    void RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
+                            VkCommandBuffer p_TransferCommand) noexcept;
+
+    /**
      * @brief Render the recorded draw data using the provided command buffer.
      *
      * @param p_FrameIndex The index of the frame to render.

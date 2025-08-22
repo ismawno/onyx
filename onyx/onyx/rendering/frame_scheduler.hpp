@@ -32,6 +32,13 @@ class ONYX_API FrameScheduler
         Image Intermediate;
         Image DepthStencil;
     };
+    struct CommandData
+    {
+        VKit::CommandPool GraphicsPool;
+        VKit::CommandPool TransferPool;
+        VkCommandBuffer GraphicsCommand;
+        VkCommandBuffer TransferCommand;
+    };
 
     explicit FrameScheduler(Window &p_Window) noexcept;
     ~FrameScheduler() noexcept;
@@ -97,6 +104,11 @@ class ONYX_API FrameScheduler
      */
     VkResult AcquireNextImage() noexcept;
 
+    void SubmitTransferQueue() noexcept;
+
+    VkCommandBuffer GetGraphicsCommandBuffer() const noexcept;
+    VkCommandBuffer GetTransferCommandBuffer() const noexcept;
+
     struct PostProcessingOptions
     {
         const VKit::Shader *VertexShader = nullptr;
@@ -144,8 +156,6 @@ class ONYX_API FrameScheduler
 
     const VKit::SwapChain &GetSwapChain() const noexcept;
 
-    VkCommandBuffer GetCurrentCommandBuffer() const noexcept;
-
     VkPresentModeKHR GetPresentMode() const noexcept;
     void SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept;
 
@@ -181,8 +191,7 @@ class ONYX_API FrameScheduler
 
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
-    PerFrameData<VKit::CommandPool> m_CommandPools;
-    PerFrameData<VkCommandBuffer> m_CommandBuffers;
+    PerFrameData<CommandData> m_CommandData;
     PerFrameData<SyncData> m_SyncData{};
 
     TKit::Task<VkResult> *m_PresentTask = nullptr;
@@ -191,5 +200,6 @@ class ONYX_API FrameScheduler
     u32 m_FrameIndex = 0;
     bool m_FrameStarted = false;
     bool m_PresentModeChanged = false;
+    TransferMode m_TransferMode;
 };
 } // namespace Onyx

@@ -24,6 +24,9 @@ TKit::Array<SyncData, ONYX_MAX_FRAMES_IN_FLIGHT> CreateSynchronizationObjects() 
         TKIT_ASSERT_RETURNS(table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore),
                             VK_SUCCESS, "[ONYX] Failed to create render finished semaphore");
 
+        TKIT_ASSERT_RETURNS(table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].TransferCopyDoneSemaphore),
+                            VK_SUCCESS, "[ONYX] Failed to create transfer copy done semaphore");
+
         TKIT_ASSERT_RETURNS(table.CreateFence(device, &fenceInfo, nullptr, &syncs[i].InFlightFence), VK_SUCCESS,
                             "[ONYX] Failed to create in flight fence");
     }
@@ -35,12 +38,10 @@ void DestroySynchronizationObjects(const TKit::Span<const SyncData> p_Objects) n
     const auto &table = device.GetTable();
     for (const SyncData &data : p_Objects)
     {
-        if (data.RenderFinishedSemaphore)
-            table.DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);
-        if (data.ImageAvailableSemaphore)
-            table.DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
-        if (data.InFlightFence)
-            table.DestroyFence(device, data.InFlightFence, nullptr);
+        table.DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);
+        table.DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
+        table.DestroySemaphore(device, data.TransferCopyDoneSemaphore, nullptr);
+        table.DestroyFence(device, data.InFlightFence, nullptr);
     }
 }
 
