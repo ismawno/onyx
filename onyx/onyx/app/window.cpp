@@ -104,10 +104,10 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
     {
         if (p_Callbacks.OnFrameEnd)
             p_Callbacks.OnFrameEnd(frameIndex, cmd);
-#ifdef TKIT_ENABLE_VULKAN_PROFILING
-        static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
-        TKIT_PROFILE_MARK_LOCK(mutex);
-#endif
+        // #ifdef TKIT_ENABLE_VULKAN_PROFILING
+        //         static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
+        //         TKIT_PROFILE_MARK_LOCK(mutex);
+        // #endif
         TKIT_PROFILE_VULKAN_COLLECT(Core::GetProfilingContext(), cmd);
     }
     m_FrameScheduler->EndFrame(*this);
