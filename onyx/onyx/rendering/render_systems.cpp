@@ -26,20 +26,10 @@ void ResetDrawCallCount() noexcept
 }
 #endif
 
-template <typename T> static void initializeDescriptors(T &p_DeviceData) noexcept
-{
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
-    {
-        const VkDescriptorBufferInfo info = p_DeviceData.DeviceLocalStorage[i].GetDescriptorInfo();
-        p_DeviceData.DescriptorSets[i] = WriteStorageBufferDescriptorSet(info);
-    }
-}
-
 template <Dimension D, PipelineMode PMode>
 MeshRenderer<D, PMode>::MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
     m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
-    initializeDescriptors(m_DeviceData);
 }
 
 template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer() noexcept
@@ -212,7 +202,6 @@ template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
     m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
-    initializeDescriptors(m_DeviceData);
 }
 
 template <Dimension D, PipelineMode PMode> PrimitiveRenderer<D, PMode>::~PrimitiveRenderer() noexcept
@@ -358,7 +347,6 @@ template <Dimension D, PipelineMode PMode>
 PolygonRenderer<D, PMode>::PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
     m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
-    initializeDescriptors(m_DeviceData);
 }
 
 template <Dimension D, PipelineMode PMode> PolygonRenderer<D, PMode>::~PolygonRenderer() noexcept
@@ -562,7 +550,6 @@ template <Dimension D, PipelineMode PMode>
 CircleRenderer<D, PMode>::CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
     m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderInfo);
-    initializeDescriptors(m_DeviceData);
 }
 
 template <Dimension D, PipelineMode PMode> CircleRenderer<D, PMode>::~CircleRenderer() noexcept

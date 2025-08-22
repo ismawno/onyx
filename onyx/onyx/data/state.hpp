@@ -300,6 +300,9 @@ template <typename T> struct DeviceData
         {
             DeviceLocalStorage[i] = CreateDeviceLocalStorageBuffer<T>(ONYX_BUFFER_INITIAL_CAPACITY);
             StagingStorage[i] = CreateHostVisibleStorageBuffer<T>(ONYX_BUFFER_INITIAL_CAPACITY);
+
+            const VkDescriptorBufferInfo info = DeviceLocalStorage[i].GetDescriptorInfo();
+            DescriptorSets[i] = WriteStorageBufferDescriptorSet(info);
         }
     }
     ~DeviceData() noexcept
