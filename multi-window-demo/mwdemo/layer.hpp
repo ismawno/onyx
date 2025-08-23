@@ -18,7 +18,7 @@ class MWExampleLayer final : public UserLayer
 
   private:
     MultiWindowApplication *m_Application = nullptr;
-    TKit::StaticArray8<WindowData> m_Data;
+    TKit::StaticArray<WindowData, ONYX_MAX_WINDOWS> m_Data;
     Scene m_Scene;
 };
 } // namespace Onyx::Demo

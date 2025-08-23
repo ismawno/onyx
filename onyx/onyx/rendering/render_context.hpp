@@ -4,7 +4,6 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/rendering/camera.hpp"
 #include "onyx/data/options.hpp"
-#include "tkit/memory/ptr.hpp"
 #include <vulkan/vulkan.h>
 
 // 2D objects that are drawn later will always be on top of earlier ones. HOWEVER, blending will only work expectedly
@@ -12,8 +11,14 @@
 
 // Because of batch rendering, draw order is not guaranteed
 
+#ifndef ONYX_MAX_RENDER_STATE_DEPTH
+#    define ONYX_MAX_RENDER_STATE_DEPTH 8
+#endif
+
 namespace Onyx
 {
+template <Dimension D> using RenderStateStack = TKit::StaticArray<RenderState<D>, ONYX_MAX_RENDER_STATE_DEPTH>;
+
 class Window;
 
 namespace Detail
@@ -276,13 +281,6 @@ template <Dimension D> class IRenderContext
      * @param p_Y The scaling factor along the Y-axis.
      */
     void ScaleYAxis(f32 p_Y) noexcept;
-
-    /**
-     * @brief Scale camera views to adapt to their viewport aspects.
-     *
-     * This method is called automatically on window resize events so that elements in the scene are not distorted.
-     */
-    void AdaptCamerasToViewportAspect() noexcept;
 
     /**
      * @brief Draw a unit triangle centered at the origin.
@@ -837,45 +835,9 @@ template <Dimension D> class IRenderContext
      *
      * @param p_FrameIndex The index of the frame to render.
      * @param p_CommandBuffer The Vulkan command buffer to use for rendering.
+     * @param p_Cameras The cameras from which to render the scene.
      */
-    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-
-    /**
-     * @brief Create a new camera for the rendering context.
-     *
-     * @return A new camera.
-     */
-    Camera<D> *CreateCamera() noexcept;
-
-    /**
-     * @brief Create a new camera for the rendering context.
-     *
-     * @param p_Options Options such as the viewport or scissor.
-     * @return A new camera.
-     */
-    Camera<D> *CreateCamera(const CameraOptions &p_Options) noexcept;
-
-    /**
-     * @brief Get a camera by its index.
-     *
-     * @param p_Index The index of the camera to retrieve.
-     * @return A pointer to the camera.
-     */
-    Camera<D> *GetCamera(u32 p_Index = 0) noexcept;
-
-    /**
-     * @brief Remove a camera from the rendering context.
-     *
-     * @param p_Index The index of the camera to remove.
-     */
-    void DestroyCamera(u32 p_Index) noexcept;
-
-    /**
-     * @brief Remove a camera from the rendering context.
-     *
-     * @param p_Camera The camera to remove.
-     */
-    void DestroyCamera(const Camera<D> *p_Camera) noexcept;
+    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
 
   protected:
     template <typename F1, typename F2> void resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept;
@@ -920,12 +882,11 @@ template <Dimension D> class IRenderContext
                   const fvec<D> &p_Dimensions) noexcept;
 
     RenderState<D> *m_State;
-    TKit::StaticArray16<TKit::Scope<Camera<D>>> m_Cameras{};
     Detail::Renderer<D> m_Renderer;
     Window *m_Window;
 
   private:
-    TKit::StaticArray8<RenderState<D>> m_StateStack;
+    RenderStateStack<D> m_StateStack;
 };
 } // namespace Detail
 
@@ -939,9 +900,8 @@ template <Dimension D> class IRenderContext
  * - You may use the `RenderContext` at almost any moment. Do not forget to call `Flush()` at the beginning of your loop
  * to not to persist data from the last frame.
  *
- * - The `RenderContext` is mostly immediate mode. Almost all mutations to its state can be reset with the `Flush()`
- * method, which is recommended to be called at the beginning of each frame. Cameras always persist, and are not reset
- * by the `Flush()` methods.
+ * - The `RenderContext` is mostly immediate mode. All mutations to its state can be reset with the `Flush()`
+ * method, which is recommended to be called at the beginning of each frame.
  *
  * - Keep in mind that outlines are affected by the scaling of the shapes they outline. This means you may get weird
  * outlines with scaled shapes, especially if the scaling is not uniform. To avoid this issue when using outlines,

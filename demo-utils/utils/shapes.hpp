@@ -117,7 +117,7 @@ template <Dimension D> class Polygon final : public Shape<D>
     const char *GetName() const noexcept override;
     void Edit() noexcept override;
 
-    TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> Vertices;
+    PolygonVerticesArray Vertices;
 
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const noexcept override;

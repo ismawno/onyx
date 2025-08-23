@@ -12,7 +12,7 @@ template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuf
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = p_Vertices;
     specs.CommandPool = &Core::GetTransferPool();
-    specs.Queue = Core::GetGraphicsQueue();
+    specs.Queue = Core::GetTransferQueue();
     const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
     if (!result)
         return VKit::Result<Mesh<D>>::Error(result.GetError());
@@ -27,7 +27,7 @@ VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, con
     vspecs.Allocator = Core::GetVulkanAllocator();
     vspecs.Data = p_Vertices;
     vspecs.CommandPool = &Core::GetTransferPool();
-    vspecs.Queue = Core::GetGraphicsQueue();
+    vspecs.Queue = Core::GetTransferQueue();
     auto vresult = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), vspecs);
     if (!vresult)
         return VKit::Result<Mesh<D>>::Error(vresult.GetError());
@@ -36,7 +36,7 @@ VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, con
     ispecs.Allocator = Core::GetVulkanAllocator();
     ispecs.Data = p_Indices;
     ispecs.CommandPool = &Core::GetTransferPool();
-    ispecs.Queue = Core::GetGraphicsQueue();
+    ispecs.Queue = Core::GetTransferQueue();
     const auto iresult = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), ispecs);
 
     if (!iresult)

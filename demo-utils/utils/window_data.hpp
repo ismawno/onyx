@@ -54,22 +54,26 @@ template <> struct ONYX_API CameraData<D3> : ICameraData<D3>
     bool Perspective = false;
 };
 
+template <Dimension D> struct CameraDataContainer
+{
+    TKit::StaticArray<CameraData<D>, ONYX_MAX_CAMERAS> Cameras;
+    u32 Active = 0;
+};
+
 template <Dimension D> struct IContextData
 {
     RenderContext<D> *Context;
-    TKit::StaticArray16<CameraData<D>> Cameras;
     TKit::DynamicArray<TKit::Scope<Shape<D>>> Shapes;
     Transform<D> AxesTransform{};
     MaterialData<D> AxesMaterial{};
 
-    TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> PolygonVertices;
+    PolygonVerticesArray PolygonVertices;
     NamedMesh<D> Mesh{};
     i32 ShapeToSpawn = 0;
     i32 MeshToSpawn = 0;
     i32 NGonSides = 3;
     f32 AxesThickness = 0.01f;
     u32 SelectedShape = 0;
-    u32 ActiveCamera = 0;
     fvec2 VertexToAdd{0.f};
 
     LatticeData<D> Lattice;
@@ -103,10 +107,9 @@ struct ONYX_API BlurData
 
 template <Dimension D> struct ContextDataContainer
 {
-    TKit::StaticArray16<ContextData<D>> Data;
-    u32 Selected = 0;
+    TKit::StaticArray<ContextData<D>, ONYX_MAX_RENDER_CONTEXTS> Contexts;
+    u32 Active = 0;
     bool EmptyContext = false;
-    bool Active = false;
 };
 
 class ONYX_API WindowData
@@ -122,22 +125,29 @@ class ONYX_API WindowData
     static void RenderEditorText() noexcept;
 
   private:
-    template <Dimension D>
-    void drawShapes(const ContextData<D> &p_Data, TKit::Timespan p_Timestep, bool p_Active) noexcept;
-    template <Dimension D> void renderUI(ContextDataContainer<D> &p_Container) noexcept;
-    template <Dimension D> void renderUI(ContextData<D> &p_Data) noexcept;
-    template <Dimension D> void renderCamera(CameraData<D> &p_Data) noexcept;
+    template <Dimension D> void drawShapes(const ContextData<D> &p_Context) noexcept;
 
-    void renderLightSpawn(ContextData<D3> &p_Data) noexcept;
+    template <Dimension D> void renderUI(ContextDataContainer<D> &p_Contexts) noexcept;
+    template <Dimension D> void renderUI(ContextData<D> &p_Context) noexcept;
 
-    template <Dimension D> ContextData<D> &addContext(ContextDataContainer<D> &p_Data) noexcept;
-    template <Dimension D> void setupContext(ContextData<D> &p_Data) noexcept;
+    template <Dimension D> void renderCameras(CameraDataContainer<D> &p_Container) noexcept;
+    template <Dimension D> void renderCamera(CameraData<D> &p_Camera) noexcept;
 
-    template <Dimension D> CameraData<D> &addCamera(ContextData<D> &p_Data) noexcept;
+    void renderLightSpawn(ContextData<D3> &p_Context) noexcept;
+
+    template <Dimension D> ContextData<D> &addContext(ContextDataContainer<D> &p_Contexts) noexcept;
+    template <Dimension D> void setupContext(ContextData<D> &p_Context) noexcept;
+
+    template <Dimension D> CameraData<D> &addCamera(CameraDataContainer<D> &p_Cameras) noexcept;
+    void setupCamera(CameraData<D3> &p_Camera) noexcept;
 
     Window *m_Window = nullptr;
     ContextDataContainer<D2> m_ContextData2{};
     ContextDataContainer<D3> m_ContextData3{};
+
+    CameraDataContainer<D2> m_Cameras2{};
+    CameraDataContainer<D3> m_Cameras3{};
+
     Color m_BackgroundColor = Color::BLACK;
 
     BlurData m_BlurData{};

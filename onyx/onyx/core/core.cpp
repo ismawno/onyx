@@ -39,9 +39,9 @@ static TransferMode s_TransferMode;
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 static TKit::VkProfilingContext s_GraphicsContext;
-static TKit::VkProfilingContext s_TransferContext;
+// static TKit::VkProfilingContext s_TransferContext;
 static VkCommandBuffer s_ProfilingGraphicsCmd;
-static VkCommandBuffer s_ProfilingTransferCmd;
+// static VkCommandBuffer s_ProfilingTransferCmd;
 #endif
 
 static VkQueue s_GraphicsQueue = VK_NULL_HANDLE;
@@ -172,18 +172,22 @@ static void createProfilingContext() noexcept
         s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue, s_ProfilingGraphicsCmd,
         VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
 
-    if (s_TransferMode == TransferMode::Separate)
-    {
-        cmdres = s_TransferPool.Allocate();
-        VKIT_ASSERT_RESULT(cmdres);
-        s_ProfilingTransferCmd = cmdres.GetValue();
+    s_DeletionQueue.Push([]() { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_GraphicsContext); });
 
-        s_TransferContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
-            s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_TransferQueue, s_ProfilingTransferCmd,
-            VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
-    }
-    else
-        s_TransferContext = s_GraphicsContext;
+    // if (s_TransferMode == TransferMode::Separate)
+    // {
+    //     cmdres = s_TransferPool.Allocate();
+    //     VKIT_ASSERT_RESULT(cmdres);
+    //     s_ProfilingTransferCmd = cmdres.GetValue();
+    //
+    //     s_TransferContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
+    //         s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_TransferQueue, s_ProfilingTransferCmd,
+    //         VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
+    //
+    //     s_DeletionQueue.Push([]() { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_TransferContext); });
+    // }
+    // else
+    //     s_TransferContext = s_GraphicsContext;
 }
 #endif
 
@@ -430,10 +434,10 @@ TKit::VkProfilingContext Core::GetGraphicsContext() noexcept
 {
     return s_GraphicsContext;
 }
-TKit::VkProfilingContext Core::GetTransferContext() noexcept
-{
-    return s_TransferContext;
-}
+// TKit::VkProfilingContext Core::GetTransferContext() noexcept
+// {
+//     return s_TransferContext;
+// }
 #endif
 
 } // namespace Onyx

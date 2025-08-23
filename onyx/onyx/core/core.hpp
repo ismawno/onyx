@@ -39,7 +39,7 @@
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
 #ifndef ONYX_MAX_TASKS
-#    define ONYX_MAX_TASKS 4096
+#    define ONYX_MAX_TASKS 512
 #endif
 
 namespace TKit
@@ -56,6 +56,8 @@ template <typename T> class Task;
 namespace Onyx
 {
 using Task = TKit::Task<void> *;
+using TaskArray = TKit::StaticArray<Task, ONYX_MAX_TASKS>;
+
 class Initializer
 {
   public:
@@ -124,7 +126,7 @@ struct ONYX_API Core
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
     static TKit::VkProfilingContext GetGraphicsContext() noexcept;
-    static TKit::VkProfilingContext GetTransferContext() noexcept;
+    // static TKit::VkProfilingContext GetTransferContext() noexcept;
 #endif
 };
 

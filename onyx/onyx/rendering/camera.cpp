@@ -40,29 +40,31 @@ template <Dimension D> fvec2 ICamera<D>::ScreenToViewport(const fvec2 &p_ScreenP
     const fvec2 size = m_Viewport.Max - m_Viewport.Min;
     return -1.f + 2.f * (p_ScreenPos - m_Viewport.Min) / size;
 }
-template <Dimension D> fvec<D> ICamera<D>::ViewportToWorld(fvec<D> p_ViewportPos) const noexcept
+template <Dimension D> fvec<D> ICamera<D>::ViewportToWorld(fvec<D> p_ViewportPos, const fmat<D> *p_Axes) const noexcept
 {
     p_ViewportPos.y = -p_ViewportPos.y; // Invert y axis to undo onyx's inversion to GLFW
     if constexpr (D == D2)
     {
-        const fmat3 itransform3 = glm::inverse(m_ProjectionView.ProjectionView * m_State->Axes);
+        const fmat3 itransform3 =
+            glm::inverse(p_Axes ? (m_ProjectionView.ProjectionView * *p_Axes) : m_ProjectionView.ProjectionView);
         fmat4 itransform = Onyx::Transform<D2>::Promote(itransform3);
         ApplyCoordinateSystemIntrinsic(itransform);
         return itransform * fvec4{p_ViewportPos, 0.f, 1.f};
     }
     else
     {
-        const fmat4 transform = m_ProjectionView.ProjectionView * m_State->Axes;
+        const fmat4 transform = p_Axes ? (m_ProjectionView.ProjectionView * *p_Axes) : m_ProjectionView.ProjectionView;
         const fvec4 clip = glm::inverse(transform) * fvec4{p_ViewportPos, 1.f};
         return fvec3{clip} / clip.w;
     }
 }
 
-template <Dimension D> fvec2 ICamera<D>::WorldToViewport(const fvec<D> &p_WorldPos) const noexcept
+template <Dimension D>
+fvec2 ICamera<D>::WorldToViewport(const fvec<D> &p_WorldPos, const fmat<D> *p_Axes) const noexcept
 {
     if constexpr (D == D2)
     {
-        const fmat3 transform3 = m_ProjectionView.ProjectionView * m_State->Axes;
+        const fmat3 transform3 = p_Axes ? (m_ProjectionView.ProjectionView * *p_Axes) : m_ProjectionView.ProjectionView;
         fmat4 transform = Onyx::Transform<D2>::Promote(transform3);
         ApplyCoordinateSystemExtrinsic(transform);
         fvec2 viewportPos = transform * fvec4{p_WorldPos, 0.f, 1.f};
@@ -71,7 +73,7 @@ template <Dimension D> fvec2 ICamera<D>::WorldToViewport(const fvec<D> &p_WorldP
     }
     else
     {
-        const fmat4 transform = m_ProjectionView.ProjectionView * m_State->Axes;
+        const fmat4 transform = p_Axes ? (m_ProjectionView.ProjectionView * *p_Axes) : m_ProjectionView.ProjectionView;
         fvec4 clip = transform * fvec4{p_WorldPos, 1.f};
         clip.y = -clip.y;
         return fvec2{clip} / clip.w;
@@ -117,9 +119,10 @@ template <Dimension D> const ScreenScissor &ICamera<D>::GetScissor() const noexc
     return m_Scissor;
 }
 
-template <Dimension D> Onyx::Transform<D> ICamera<D>::GetViewTransform() const noexcept
+template <Dimension D> Onyx::Transform<D> ICamera<D>::GetViewTransform(const fmat<D> *p_Axes) const noexcept
 {
-    const fmat<D> vmat = glm::inverse(m_State->Axes) * m_ProjectionView.View.ComputeTransform();
+    const fmat<D> vmat = p_Axes ? (glm::inverse(*p_Axes) * m_ProjectionView.View.ComputeTransform())
+                                : m_ProjectionView.View.ComputeTransform();
     return Onyx::Transform<D>::Extract(vmat);
 }
 

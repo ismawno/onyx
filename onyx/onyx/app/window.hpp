@@ -7,12 +7,31 @@
 #include "onyx/rendering/frame_scheduler.hpp"
 
 #include "tkit/container/storage.hpp"
+#include "tkit/memory/ptr.hpp"
 #include "onyx/core/glfw.hpp"
 
 #include <functional>
 
+#ifndef ONYX_MAX_RENDER_CONTEXTS
+#    define ONYX_MAX_RENDER_CONTEXTS 16
+#endif
+
+#ifndef ONYX_MAX_CAMERAS
+#    define ONYX_MAX_CAMERAS 16
+#endif
+
+#ifndef ONYX_MAX_EVENTS
+#    define ONYX_MAX_EVENTS 32
+#endif
+
 namespace Onyx
 {
+template <Dimension D>
+using RenderContextArray = TKit::StaticArray<TKit::Scope<RenderContext<D>>, ONYX_MAX_RENDER_CONTEXTS>;
+
+template <Dimension D> using CameraArray = TKit::StaticArray<TKit::Scope<Camera<D>>, ONYX_MAX_CAMERAS>;
+
+using EventArray = TKit::StaticArray<Event, ONYX_MAX_EVENTS>;
 
 struct RenderCallbacks
 {
@@ -148,7 +167,7 @@ class ONYX_API Window
      *
      * @return The array of new events.
      */
-    const TKit::StaticArray32<Event> &GetNewEvents() const noexcept;
+    const EventArray &GetNewEvents() const noexcept;
 
     void FlushEvents() noexcept;
 
@@ -181,6 +200,49 @@ class ONYX_API Window
             }
     }
 
+    template <Dimension D> Camera<D> *CreateCamera() noexcept
+    {
+        auto &array = getCameraArray<D>();
+        auto camera = TKit::Scope<Camera<D>>::Create();
+        camera->m_Window = this;
+        camera->adaptViewToViewportAspect();
+
+        Camera<D> *ptr = camera.Get();
+        array.Append(std::move(camera));
+        return ptr;
+    }
+
+    template <Dimension D> Camera<D> *CreateCamera(const CameraOptions &p_Options) noexcept
+    {
+        Camera<D> *camera = CreateCamera<D>();
+        camera->SetViewport(p_Options.Viewport);
+        camera->SetScissor(p_Options.Scissor);
+        return camera;
+    }
+
+    template <Dimension D> Camera<D> *GetCamera(const u32 p_Index = 0) noexcept
+    {
+        auto &array = getCameraArray<D>();
+        return array[p_Index].Get();
+    }
+
+    template <Dimension D> void DestroyCamera(const u32 p_Index = 0) noexcept
+    {
+        auto &array = getCameraArray<D>();
+        array.RemoveOrdered(array.begin() + p_Index);
+    }
+
+    template <Dimension D> void DestroyCamera(const Camera<D> *p_Camera) noexcept
+    {
+        auto &array = getCameraArray<D>();
+        for (u32 i = 0; i < array.GetSize(); ++i)
+            if (array[i].Get() == p_Camera)
+            {
+                DestroyCamera<D>(i);
+                return;
+            }
+    }
+
     /// The background color used when clearing the window.
     Color BackgroundColor = Color::BLACK;
 
@@ -205,14 +267,34 @@ class ONYX_API Window
         else
             return m_RenderContexts3D;
     }
+    template <Dimension D> auto &getCameraArray() noexcept
+    {
+        if constexpr (D == D2)
+            return m_Cameras2D;
+        else
+            return m_Cameras3D;
+    }
+
+    template <Dimension D> TKit::StaticArray<Detail::CameraInfo, ONYX_MAX_CAMERAS> getCameraInfos() noexcept
+    {
+        auto &array = getCameraArray<D>();
+        TKit::StaticArray<Detail::CameraInfo, ONYX_MAX_CAMERAS> cameras;
+        for (const auto &cam : array)
+            cameras.Append(cam->CreateCameraInfo());
+        return cameras;
+    }
 
     GLFWwindow *m_Window;
 
     TKit::Storage<FrameScheduler> m_FrameScheduler;
-    TKit::StaticArray16<TKit::Scope<RenderContext<D2>>> m_RenderContexts2D;
-    TKit::StaticArray16<TKit::Scope<RenderContext<D3>>> m_RenderContexts3D;
 
-    TKit::StaticArray32<Event> m_Events;
+    RenderContextArray<D2> m_RenderContexts2D;
+    RenderContextArray<D3> m_RenderContexts3D;
+
+    CameraArray<D2> m_Cameras2D{};
+    CameraArray<D3> m_Cameras3D{};
+
+    EventArray m_Events;
     VkSurfaceKHR m_Surface;
 
     const char *m_Name;

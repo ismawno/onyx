@@ -77,7 +77,7 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
 
     const VkCommandBuffer tcmd = m_FrameScheduler->GetTransferCommandBuffer();
     {
-        TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Copy", Core::GetTransferContext(), tcmd);
+        // TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Copy", Core::GetTransferContext(), tcmd);
         for (const auto &context : m_RenderContexts2D)
             context->RecordCopyCommands(frameIndex, gcmd, tcmd);
         for (const auto &context : m_RenderContexts3D)
@@ -93,10 +93,15 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
         if (p_Callbacks.OnRenderBegin)
             p_Callbacks.OnRenderBegin(frameIndex, gcmd);
 
-        for (const auto &context : m_RenderContexts2D)
-            context->Render(frameIndex, gcmd);
-        for (const auto &context : m_RenderContexts3D)
-            context->Render(frameIndex, gcmd);
+        auto caminfos = getCameraInfos<D2>();
+        if (!caminfos.IsEmpty())
+            for (const auto &context : m_RenderContexts2D)
+                context->Render(frameIndex, gcmd, caminfos);
+
+        caminfos = getCameraInfos<D3>();
+        if (!caminfos.IsEmpty())
+            for (const auto &context : m_RenderContexts3D)
+                context->Render(frameIndex, gcmd, caminfos);
 
         if (p_Callbacks.OnRenderEnd)
             p_Callbacks.OnRenderEnd(frameIndex, gcmd);
@@ -112,7 +117,7 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
         //         TKIT_PROFILE_MARK_LOCK(mutex);
         // #endif
         TKIT_PROFILE_VULKAN_COLLECT(Core::GetGraphicsContext(), gcmd);
-        TKIT_PROFILE_VULKAN_COLLECT(Core::GetTransferContext(), tcmd);
+        // TKIT_PROFILE_VULKAN_COLLECT(Core::GetTransferContext(), tcmd);
     }
     m_FrameScheduler->EndFrame(*this);
     return true;
@@ -225,7 +230,7 @@ void Window::PushEvent(const Event &p_Event) noexcept
         m_Events.Append(p_Event);
 }
 
-const TKit::StaticArray32<Event> &Window::GetNewEvents() const noexcept
+const EventArray &Window::GetNewEvents() const noexcept
 {
     return m_Events;
 }
@@ -236,10 +241,10 @@ void Window::FlushEvents() noexcept
 
 void Window::adaptCamerasToViewportAspect() noexcept
 {
-    for (const auto &context : m_RenderContexts2D)
-        context->AdaptCamerasToViewportAspect();
-    for (const auto &context : m_RenderContexts3D)
-        context->AdaptCamerasToViewportAspect();
+    for (const auto &cam : m_Cameras2D)
+        cam->adaptViewToViewportAspect();
+    for (const auto &cam : m_Cameras3D)
+        cam->adaptViewToViewportAspect();
 }
 
 } // namespace Onyx

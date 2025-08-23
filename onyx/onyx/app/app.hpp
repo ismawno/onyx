@@ -10,8 +10,13 @@ struct ImGuiContext;
 struct ImPlotContext;
 #endif
 
+#ifndef ONYX_MAX_WINDOWS
+#    define ONYX_MAX_WINDOWS 8
+#endif
+
 namespace Onyx
 {
+using WindowArray = TKit::StaticArray<TKit::Scope<Window>, ONYX_MAX_WINDOWS>;
 /**
  * @brief This class provides a simple application interface, with some common functionality.
  *
@@ -365,7 +370,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
     void processFrame(u32 p_WindowIndex, const RenderCallbacks &p_Callbacks) noexcept;
     void processWindows() noexcept;
 
-    TKit::StaticArray8<TKit::Scope<Window>> m_Windows;
+    WindowArray m_Windows;
     TKit::StaticArray4<Window::Specs> m_WindowsToAdd;
 };
 

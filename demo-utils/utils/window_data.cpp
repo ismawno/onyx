@@ -91,13 +91,15 @@ void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
 
     if (p_Scene == Scene::Setup2D)
     {
-        ContextData<D2> &data = addContext<D2>(m_ContextData2);
-        setupContext<D2>(data);
+        ContextData<D2> &context = addContext(m_ContextData2);
+        setupContext<D2>(context);
     }
     else if (p_Scene == Scene::Setup3D)
     {
-        ContextData<D3> &data = addContext<D3>(m_ContextData3);
-        setupContext<D3>(data);
+        ContextData<D3> &context = addContext(m_ContextData3);
+        setupContext<D3>(context);
+        CameraData<D3> camera = addCamera(m_Cameras3);
+        setupCamera(camera);
     }
 }
 
@@ -110,11 +112,17 @@ void WindowData::OnUpdate(TKit::Timespan p_Timestep) noexcept
         m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
         m_Window->GetFrameScheduler()->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
     }
-    for (u32 i = 0; i < m_ContextData2.Data.GetSize(); ++i)
-        drawShapes(m_ContextData2.Data[i], p_Timestep, m_ContextData2.Active && i == m_ContextData2.Selected);
 
-    for (u32 i = 0; i < m_ContextData3.Data.GetSize(); ++i)
-        drawShapes(m_ContextData3.Data[i], p_Timestep, m_ContextData3.Active && i == m_ContextData3.Selected);
+    if (!m_Cameras2.Cameras.IsEmpty())
+        m_Cameras2.Cameras[m_Cameras2.Active].Camera->ControlMovementWithUserInput(p_Timestep);
+    if (!m_Cameras3.Cameras.IsEmpty())
+        m_Cameras3.Cameras[m_Cameras3.Active].Camera->ControlMovementWithUserInput(p_Timestep);
+
+    for (u32 i = 0; i < m_ContextData2.Contexts.GetSize(); ++i)
+        drawShapes(m_ContextData2.Contexts[i]);
+
+    for (u32 i = 0; i < m_ContextData3.Contexts.GetSize(); ++i)
+        drawShapes(m_ContextData3.Contexts[i]);
 }
 
 void WindowData::OnRenderBegin(const VkCommandBuffer p_CommandBuffer) noexcept
@@ -157,55 +165,50 @@ void WindowData::OnImGuiRender() noexcept
 
     ImGui::BeginTabBar("Dimension");
 
-    m_ContextData2.Active = ImGui::BeginTabItem("2D");
-    if (m_ContextData2.Active)
+    if (ImGui::BeginTabItem("2D"))
     {
+        renderCameras(m_Cameras2);
         renderUI(m_ContextData2);
         ImGui::EndTabItem();
     }
-    m_ContextData3.Active = ImGui::BeginTabItem("3D");
-    if (m_ContextData3.Active)
+    if (ImGui::BeginTabItem("3D"))
     {
+        renderCameras(m_Cameras3);
         renderUI(m_ContextData3);
         ImGui::EndTabItem();
     }
     ImGui::EndTabBar();
 }
 
-template <Dimension D> static void processEvent(ContextDataContainer<D> &p_Container, const Event &p_Event)
+template <Dimension D>
+static void processEvent(ContextDataContainer<D> &p_Contexts, const CameraDataContainer<D> &p_Cameras,
+                         const Event &p_Event)
 {
-    if (ImGui::GetIO().WantCaptureMouse)
+    if (ImGui::GetIO().WantCaptureMouse || p_Cameras.Cameras.IsEmpty() || p_Contexts.Contexts.IsEmpty())
         return;
 
-    for (u32 i = 0; i < p_Container.Data.GetSize(); ++i)
-        if (i == p_Container.Selected)
-            for (u32 j = 0; j < p_Container.Data[i].Cameras.GetSize(); ++j)
-                if (j == p_Container.Data[i].ActiveCamera)
-                {
-                    ContextData<D> &data = p_Container.Data[i];
-                    Camera<D> *camera = data.Cameras[j].Camera;
-                    if (p_Event.Type == Event::MousePressed && p_Container.Data[i].ShapeToSpawn == POLYGON)
-                    {
-                        data.PolygonVertices.Append(camera->GetWorldMousePosition());
-                        data.Lattice.NeedsUpdate = true;
-                    }
+    const CameraData<D> &cam = p_Cameras.Cameras[p_Cameras.Active];
+    ContextData<D> &context = p_Contexts.Contexts[p_Contexts.Active];
 
-                    else if (p_Event.Type == Event::Scrolled)
-                    {
-                        const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) &&
-                                                   !ImGui::GetIO().WantCaptureKeyboard
-                                               ? 0.05f
-                                               : 0.005f;
-                        camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset.y);
-                    }
-                    return;
-                }
+    Camera<D> *camera = cam.Camera;
+    if (p_Event.Type == Event::MousePressed && context.ShapeToSpawn == POLYGON)
+    {
+        context.PolygonVertices.Append(camera->GetWorldMousePosition());
+        context.Lattice.NeedsUpdate = true;
+    }
+    else if (p_Event.Type == Event::Scrolled)
+    {
+        const f32 factor =
+            Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) && !ImGui::GetIO().WantCaptureKeyboard ? 0.05f
+                                                                                                              : 0.005f;
+        camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset.y);
+    }
 }
 
 void WindowData::OnEvent(const Event &p_Event) noexcept
 {
-    processEvent(m_ContextData2, p_Event);
-    processEvent(m_ContextData3, p_Event);
+    processEvent(m_ContextData2, m_Cameras2, p_Event);
+    processEvent(m_ContextData3, m_Cameras3, p_Event);
 }
 
 static TKit::Array16<std::string> getEmptyStrings() noexcept
@@ -313,20 +316,12 @@ void WindowData::RenderEditorText() noexcept
                        "window is shared. Users interact with the rendering API through rendering contexts.");
 }
 
-template <Dimension D>
-void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p_Timestep, const bool p_Active) noexcept
+template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Context) noexcept
 {
-    p_Data.Context->Flush(m_BackgroundColor);
-    if (p_Active)
-        for (u32 i = 0; i < p_Data.Cameras.GetSize(); ++i)
-            if (i == p_Data.ActiveCamera)
-            {
-                p_Data.Cameras[i].Camera->ControlMovementWithUserInput(p_Timestep);
-                break;
-            }
-    p_Data.Context->TransformAxes(p_Data.AxesTransform.ComputeTransform());
+    p_Context.Context->Flush(m_BackgroundColor);
+    p_Context.Context->TransformAxes(p_Context.AxesTransform.ComputeTransform());
 
-    const LatticeData<D> &lattice = p_Data.Lattice;
+    const LatticeData<D> &lattice = p_Context.Lattice;
     const uvec<D> &dims = lattice.Dimensions;
     if (lattice.Enabled && lattice.Shape)
     {
@@ -334,14 +329,15 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
             lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : fvec<D>{lattice.Separation};
         const fvec<D> midPoint = 0.5f * separation * fvec<D>{dims - 1u};
 
-        lattice.Shape->SetProperties(p_Data.Context);
+        lattice.Shape->SetProperties(p_Context.Context);
         if (lattice.Multithreaded)
         {
             TKit::ITaskManager *tm = Core::GetTaskManager();
             if constexpr (D == D2)
             {
                 const u32 size = dims.x * dims.y;
-                const auto fn = [&dims, &separation, &lattice, &midPoint, &p_Data](const u32 p_Start, const u32 p_End) {
+                const auto fn = [&dims, &separation, &lattice, &midPoint, &p_Context](const u32 p_Start,
+                                                                                      const u32 p_End) {
                     Transform<D2> transform = lattice.Shape->Transform;
                     for (u32 i = p_Start; i < p_End; ++i)
                     {
@@ -350,7 +346,7 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                         const f32 x = separation.x * static_cast<f32>(ix);
                         const f32 y = separation.y * static_cast<f32>(iy);
                         transform.Translation = fvec2{x, y} - midPoint;
-                        lattice.Shape->DrawRaw(p_Data.Context, transform);
+                        lattice.Shape->DrawRaw(p_Context.Context, transform);
                     }
                 };
 
@@ -369,8 +365,8 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
             {
                 const u32 size = dims.x * dims.y * dims.z;
                 const u32 yz = dims.y * dims.z;
-                const auto fn = [&dims, yz, &separation, &lattice, &midPoint, &p_Data](const u32 p_Start,
-                                                                                       const u32 p_End) {
+                const auto fn = [&dims, yz, &separation, &lattice, &midPoint, &p_Context](const u32 p_Start,
+                                                                                          const u32 p_End) {
                     Transform<D3> transform = lattice.Shape->Transform;
                     for (u32 i = p_Start; i < p_End; ++i)
                     {
@@ -382,7 +378,7 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                         const f32 y = separation.y * static_cast<f32>(iy);
                         const f32 z = separation.z * static_cast<f32>(iz);
                         transform.Translation = fvec3{x, y, z} - midPoint;
-                        lattice.Shape->DrawRaw(p_Data.Context, transform);
+                        lattice.Shape->DrawRaw(p_Context.Context, transform);
                     }
                 };
                 TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
@@ -407,63 +403,63 @@ void WindowData::drawShapes(const ContextData<D> &p_Data, const TKit::Timespan p
                     if constexpr (D == D2)
                     {
                         lattice.Shape->Transform.Translation = fvec2{x, y} - midPoint;
-                        lattice.Shape->DrawRaw(p_Data.Context);
+                        lattice.Shape->DrawRaw(p_Context.Context);
                     }
                     else
                         for (u32 k = 0; k < dims.z; ++k)
                         {
                             const f32 z = static_cast<f32>(k) * separation.z;
                             lattice.Shape->Transform.Translation = fvec3{x, y, z} - midPoint;
-                            lattice.Shape->DrawRaw(p_Data.Context);
+                            lattice.Shape->DrawRaw(p_Context.Context);
                         }
                 }
             }
     }
 
-    for (const auto &shape : p_Data.Shapes)
-        shape->Draw(p_Data.Context);
+    for (const auto &shape : p_Context.Shapes)
+        shape->Draw(p_Context.Context);
 
-    p_Data.Context->Outline(false);
-    if (p_Data.DrawAxes)
+    p_Context.Context->Outline(false);
+    if (p_Context.DrawAxes)
     {
-        p_Data.Context->Material(p_Data.AxesMaterial);
-        p_Data.Context->Fill();
-        p_Data.Context->Axes({.Thickness = p_Data.AxesThickness});
+        p_Context.Context->Material(p_Context.AxesMaterial);
+        p_Context.Context->Fill();
+        p_Context.Context->Axes({.Thickness = p_Context.AxesThickness});
     }
 
-    for (const fvec2 &vertex : p_Data.PolygonVertices)
+    for (const fvec2 &vertex : p_Context.PolygonVertices)
     {
-        p_Data.Context->Push();
-        p_Data.Context->Scale(0.02f);
+        p_Context.Context->Push();
+        p_Context.Context->Scale(0.02f);
         if constexpr (D == D2)
-            p_Data.Context->Translate(vertex);
+            p_Context.Context->Translate(vertex);
         else
-            p_Data.Context->Translate(fvec3{vertex, 0.f});
-        p_Data.Context->Circle();
-        p_Data.Context->Pop();
+            p_Context.Context->Translate(fvec3{vertex, 0.f});
+        p_Context.Context->Circle();
+        p_Context.Context->Pop();
     }
 
     if constexpr (D == D3)
     {
-        p_Data.Context->AmbientColor(p_Data.Ambient);
-        for (const auto &light : p_Data.DirectionalLights)
+        p_Context.Context->AmbientColor(p_Context.Ambient);
+        for (const auto &light : p_Context.DirectionalLights)
         {
-            p_Data.Context->LightColor(light.Color);
-            p_Data.Context->DirectionalLight(light);
+            p_Context.Context->LightColor(light.Color);
+            p_Context.Context->DirectionalLight(light);
         }
-        for (const auto &light : p_Data.PointLights)
+        for (const auto &light : p_Context.PointLights)
         {
-            if (p_Data.DrawLights)
+            if (p_Context.DrawLights)
             {
-                p_Data.Context->Push();
-                p_Data.Context->Fill(light.Color);
-                p_Data.Context->Scale(0.01f);
-                p_Data.Context->Translate(light.PositionAndIntensity);
-                p_Data.Context->Sphere();
-                p_Data.Context->Pop();
+                p_Context.Context->Push();
+                p_Context.Context->Fill(light.Color);
+                p_Context.Context->Scale(0.01f);
+                p_Context.Context->Translate(light.PositionAndIntensity);
+                p_Context.Context->Sphere();
+                p_Context.Context->Pop();
             }
-            p_Data.Context->LightColor(light.Color);
-            p_Data.Context->PointLight(light);
+            p_Context.Context->LightColor(light.Color);
+            p_Context.Context->PointLight(light);
         }
     }
 }
@@ -519,76 +515,76 @@ static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Sele
     }
 }
 
-template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noexcept
+template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context) noexcept
 {
-    const auto createShape = [&p_Data]() -> TKit::Scope<Shape<D>> {
-        if (p_Data.ShapeToSpawn == MESH)
-            return p_Data.Mesh.Mesh ? TKit::Scope<MeshShape<D>>::Create(p_Data.Mesh) : nullptr;
-        else if (p_Data.ShapeToSpawn == TRIANGLE)
+    const auto createShape = [&p_Context]() -> TKit::Scope<Shape<D>> {
+        if (p_Context.ShapeToSpawn == MESH)
+            return p_Context.Mesh.Mesh ? TKit::Scope<MeshShape<D>>::Create(p_Context.Mesh) : nullptr;
+        else if (p_Context.ShapeToSpawn == TRIANGLE)
             return TKit::Scope<Triangle<D>>::Create();
-        else if (p_Data.ShapeToSpawn == SQUARE)
+        else if (p_Context.ShapeToSpawn == SQUARE)
             return TKit::Scope<Square<D>>::Create();
-        else if (p_Data.ShapeToSpawn == CIRCLE)
+        else if (p_Context.ShapeToSpawn == CIRCLE)
             return TKit::Scope<Circle<D>>::Create();
-        else if (p_Data.ShapeToSpawn == NGON)
+        else if (p_Context.ShapeToSpawn == NGON)
         {
             auto ngon = TKit::Scope<NGon<D>>::Create();
-            ngon->Sides = static_cast<u32>(p_Data.NGonSides);
+            ngon->Sides = static_cast<u32>(p_Context.NGonSides);
             return std::move(ngon);
         }
-        else if (p_Data.ShapeToSpawn == POLYGON)
+        else if (p_Context.ShapeToSpawn == POLYGON)
         {
-            if (p_Data.PolygonVertices.GetSize() < 3)
+            if (p_Context.PolygonVertices.GetSize() < 3)
                 return nullptr;
 
             auto polygon = TKit::Scope<Polygon<D>>::Create();
-            polygon->Vertices = p_Data.PolygonVertices;
+            polygon->Vertices = p_Context.PolygonVertices;
             return std::move(polygon);
         }
-        else if (p_Data.ShapeToSpawn == STADIUM)
+        else if (p_Context.ShapeToSpawn == STADIUM)
             return TKit::Scope<Stadium<D>>::Create();
-        else if (p_Data.ShapeToSpawn == ROUNDED_SQUARE)
+        else if (p_Context.ShapeToSpawn == ROUNDED_SQUARE)
             return TKit::Scope<RoundedSquare<D>>::Create();
 
         else if constexpr (D == D3)
         {
-            if (p_Data.ShapeToSpawn == CUBE)
+            if (p_Context.ShapeToSpawn == CUBE)
                 return TKit::Scope<Cube>::Create();
-            else if (p_Data.ShapeToSpawn == SPHERE)
+            else if (p_Context.ShapeToSpawn == SPHERE)
                 return TKit::Scope<Sphere>::Create();
-            else if (p_Data.ShapeToSpawn == CYLINDER)
+            else if (p_Context.ShapeToSpawn == CYLINDER)
                 return TKit::Scope<Cylinder>::Create();
-            else if (p_Data.ShapeToSpawn == CAPSULE)
+            else if (p_Context.ShapeToSpawn == CAPSULE)
                 return TKit::Scope<Capsule>::Create();
-            else if (p_Data.ShapeToSpawn == ROUNDED_CUBE)
+            else if (p_Context.ShapeToSpawn == ROUNDED_CUBE)
                 return TKit::Scope<RoundedCube>::Create();
         }
         return nullptr;
     };
 
-    const bool canSpawnPoly = p_Data.ShapeToSpawn != POLYGON || p_Data.PolygonVertices.GetSize() >= 3;
-    const bool canSpawnMesh = p_Data.ShapeToSpawn != MESH || p_Data.Mesh.Mesh;
+    const bool canSpawnPoly = p_Context.ShapeToSpawn != POLYGON || p_Context.PolygonVertices.GetSize() >= 3;
+    const bool canSpawnMesh = p_Context.ShapeToSpawn != MESH || p_Context.Mesh.Mesh;
     if (!canSpawnPoly)
         ImGui::TextDisabled("A polygon must have at least 3 vertices to spawn!");
     else if (!canSpawnMesh)
         ImGui::TextDisabled("No valid mesh has been selected!");
     else if (ImGui::Button("Spawn##Shape"))
-        p_Data.Shapes.Append(createShape());
+        p_Context.Shapes.Append(createShape());
 
     if (canSpawnPoly && canSpawnMesh)
         ImGui::SameLine();
 
-    LatticeData<D> &lattice = p_Data.Lattice;
+    LatticeData<D> &lattice = p_Context.Lattice;
     if constexpr (D == D2)
         lattice.NeedsUpdate |=
-            ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+            ImGui::Combo("Shape", &p_Context.ShapeToSpawn,
                          "Mesh\0Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded Square\0\0");
     else
-        lattice.NeedsUpdate |= ImGui::Combo("Shape", &p_Data.ShapeToSpawn,
+        lattice.NeedsUpdate |= ImGui::Combo("Shape", &p_Context.ShapeToSpawn,
                                             "Mesh\0Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded "
                                             "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
 
-    if (p_Data.ShapeToSpawn == MESH)
+    if (p_Context.ShapeToSpawn == MESH)
     {
         const auto &meshes = NamedMesh<D>::Get();
         if (!meshes.IsEmpty())
@@ -596,47 +592,47 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
             TKit::StaticArray16<const char *> meshNames{};
             for (const NamedMesh<D> &mesh : meshes)
                 meshNames.Append(mesh.Name.c_str());
-            lattice.NeedsUpdate |= ImGui::Combo("Mesh ID", &p_Data.MeshToSpawn, meshNames.GetData(),
+            lattice.NeedsUpdate |= ImGui::Combo("Mesh ID", &p_Context.MeshToSpawn, meshNames.GetData(),
                                                 static_cast<i32>(meshNames.GetSize()));
-            p_Data.Mesh = meshes[p_Data.MeshToSpawn];
+            p_Context.Mesh = meshes[p_Context.MeshToSpawn];
         }
         else
             ImGui::TextDisabled("No meshes have been loaded yet! Load from the welcome window.");
     }
-    else if (p_Data.ShapeToSpawn == NGON)
-        lattice.NeedsUpdate |= ImGui::SliderInt("Sides", &p_Data.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
-    else if (p_Data.ShapeToSpawn == POLYGON)
+    else if (p_Context.ShapeToSpawn == NGON)
+        lattice.NeedsUpdate |= ImGui::SliderInt("Sides", &p_Context.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
+    else if (p_Context.ShapeToSpawn == POLYGON)
     {
         ImGui::Text("Vertices must be in counter clockwise order for outlines to work correctly");
         ImGui::Text("Click on the screen or the 'Add' button to add vertices to the polygon.");
         if (ImGui::Button("Clear"))
         {
             lattice.NeedsUpdate = true;
-            p_Data.PolygonVertices.Clear();
+            p_Context.PolygonVertices.Clear();
         }
 
-        lattice.NeedsUpdate |= ImGui::DragFloat2("Vertex", glm::value_ptr(p_Data.VertexToAdd), 0.1f);
+        lattice.NeedsUpdate |= ImGui::DragFloat2("Vertex", glm::value_ptr(p_Context.VertexToAdd), 0.1f);
 
         ImGui::SameLine();
         if (ImGui::Button("Add"))
         {
-            p_Data.PolygonVertices.Append(p_Data.VertexToAdd);
-            p_Data.VertexToAdd = fvec2{0.f};
+            p_Context.PolygonVertices.Append(p_Context.VertexToAdd);
+            p_Context.VertexToAdd = fvec2{0.f};
             lattice.NeedsUpdate = true;
         }
-        for (u32 i = 0; i < p_Data.PolygonVertices.GetSize(); ++i)
+        for (u32 i = 0; i < p_Context.PolygonVertices.GetSize(); ++i)
         {
-            ImGui::PushID(&p_Data.PolygonVertices[i]);
+            ImGui::PushID(&p_Context.PolygonVertices[i]);
             if (ImGui::Button("X"))
             {
-                p_Data.PolygonVertices.RemoveOrdered(p_Data.PolygonVertices.begin() + i);
+                p_Context.PolygonVertices.RemoveOrdered(p_Context.PolygonVertices.begin() + i);
                 ImGui::PopID();
                 lattice.NeedsUpdate = true;
                 break;
             }
 
             ImGui::SameLine();
-            ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Data.PolygonVertices[i].x, p_Data.PolygonVertices[i].y);
+            ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Context.PolygonVertices[i].x, p_Context.PolygonVertices[i].y);
             ImGui::PopID();
         }
     }
@@ -680,7 +676,7 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
     }
     if (ImGui::TreeNode("Line test"))
     {
-        LineTest<D> &line = p_Data.Line;
+        LineTest<D> &line = p_Context.Line;
 
         ImGui::Checkbox("Rounded", &line.Rounded);
         ImGui::Checkbox("Outline", &line.Outline);
@@ -702,40 +698,40 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Data) noex
         UserLayer::MaterialEditor<D>(line.Material, UserLayer::Flag_DisplayHelp);
         ImGui::ColorEdit3("Outline color", line.OutlineColor.AsPointer());
 
-        p_Data.Context->Push();
+        p_Context.Context->Push();
         if (line.Outline)
         {
-            p_Data.Context->Outline(line.OutlineColor);
-            p_Data.Context->OutlineWidth(line.OutlineWidth);
+            p_Context.Context->Outline(line.OutlineColor);
+            p_Context.Context->OutlineWidth(line.OutlineWidth);
         }
-        p_Data.Context->Material(line.Material);
+        p_Context.Context->Material(line.Material);
         if constexpr (D == D2)
         {
             if (line.Rounded)
-                p_Data.Context->RoundedLine(line.Start, line.End, line.Thickness);
+                p_Context.Context->RoundedLine(line.Start, line.End, line.Thickness);
             else
-                p_Data.Context->Line(line.Start, line.End, line.Thickness);
+                p_Context.Context->Line(line.Start, line.End, line.Thickness);
         }
         else
         {
             if (line.Rounded)
-                p_Data.Context->RoundedLine(line.Start, line.End, {.Thickness = line.Thickness});
+                p_Context.Context->RoundedLine(line.Start, line.End, {.Thickness = line.Thickness});
             else
-                p_Data.Context->Line(line.Start, line.End, {.Thickness = line.Thickness});
+                p_Context.Context->Line(line.Start, line.End, {.Thickness = line.Thickness});
         }
-        p_Data.Context->Pop();
+        p_Context.Context->Pop();
         ImGui::TreePop();
     }
 
     renderSelectableNoRemoval(
-        "Shapes##Singular", p_Data.Shapes, p_Data.SelectedShape,
+        "Shapes##Singular", p_Context.Shapes, p_Context.SelectedShape,
         [](const TKit::Scope<Shape<D>> &p_Shape) { p_Shape->Edit(); },
         [](const TKit::Scope<Shape<D>> &p_Shape) { return p_Shape->GetName(); });
 }
 
-template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noexcept
+template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera) noexcept
 {
-    Camera<D> *camera = p_Data.Camera;
+    Camera<D> *camera = p_Camera.Camera;
     const fvec2 vpos = camera->GetViewportMousePosition();
     ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos.x, vpos.y);
 
@@ -746,7 +742,7 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
     }
     else
     {
-        ImGui::SliderFloat("Mouse Z offset", &p_Data.ZOffset, 0.f, 1.f);
+        ImGui::SliderFloat("Mouse Z offset", &p_Camera.ZOffset, 0.f, 1.f);
         UserLayer::HelpMarkerSameLine(
             "In 3D, the world mouse position can be ambiguous because of the extra dimension. This amibiguity needs to "
             "somehow be resolved. In most use-cases, ray casting is the best approach to fully define this position, "
@@ -754,7 +750,7 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
             "(screen coordinates). Note that, if in perspective mode, 0 corresponds to the near plane and 1 to the "
             "far plane.");
 
-        const fvec3 mpos3 = camera->GetWorldMousePosition(p_Data.ZOffset);
+        const fvec3 mpos3 = camera->GetWorldMousePosition(p_Camera.ZOffset);
         const fvec2 vpos3 = camera->GetViewportMousePosition();
         ImGui::Text("World mouse position: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
     }
@@ -797,27 +793,27 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
     }
     if constexpr (D == D3)
     {
-        i32 perspective = static_cast<i32>(p_Data.Perspective);
+        i32 perspective = static_cast<i32>(p_Camera.Perspective);
         if (ImGui::Combo("Projection", &perspective, "Orthographic\0Perspective\0\0"))
         {
-            p_Data.Perspective = perspective == 1;
-            if (p_Data.Perspective)
-                camera->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
+            p_Camera.Perspective = perspective == 1;
+            if (p_Camera.Perspective)
+                camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
             else
                 camera->SetOrthographicProjection();
         }
 
-        if (p_Data.Perspective)
+        if (p_Camera.Perspective)
         {
-            f32 degs = glm::degrees(p_Data.FieldOfView);
+            f32 degs = glm::degrees(p_Camera.FieldOfView);
 
             bool changed = ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
-            changed |= ImGui::SliderFloat("Near", &p_Data.Near, 0.1f, 10.f);
-            changed |= ImGui::SliderFloat("Far", &p_Data.Far, 10.f, 100.f);
+            changed |= ImGui::SliderFloat("Near", &p_Camera.Near, 0.1f, 10.f);
+            changed |= ImGui::SliderFloat("Far", &p_Camera.Far, 10.f, 100.f);
             if (changed)
             {
-                p_Data.FieldOfView = glm::radians(degs);
-                camera->SetPerspectiveProjection(p_Data.FieldOfView, p_Data.Near, p_Data.Far);
+                p_Camera.FieldOfView = glm::radians(degs);
+                camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
             }
         }
     }
@@ -844,45 +840,64 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Data) noex
                        "your scene. In Onyx, this projection is only available in 3D scenes.");
 }
 
-template <Dimension D> ContextData<D> &WindowData::addContext(ContextDataContainer<D> &p_Container) noexcept
+template <Dimension D> ContextData<D> &WindowData::addContext(ContextDataContainer<D> &p_Contexts) noexcept
 {
-    ContextData<D> &contextData = p_Container.Data.Append();
+    ContextData<D> &contextData = p_Contexts.Contexts.Append();
     contextData.Context = m_Window->CreateRenderContext<D>();
     return contextData;
 }
-template <Dimension D> void WindowData::setupContext(ContextData<D> &p_Data) noexcept
+template <Dimension D> void WindowData::setupContext(ContextData<D> &p_Context) noexcept
 {
-    CameraData<D> &cameraData = addCamera(p_Data);
     if constexpr (D == D3)
     {
-        p_Data.DrawAxes = true;
-        cameraData.Perspective = true;
-        cameraData.Camera->SetPerspectiveProjection(cameraData.FieldOfView, cameraData.Near, cameraData.Far);
-        Transform<D3> transform{};
-        transform.Translation = {2.f, 0.75f, 2.f};
-        transform.Rotation = glm::quat{glm::radians(fvec3{-15.f, 45.f, -4.f})};
-        cameraData.Camera->SetView(transform);
-        p_Data.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
+        p_Context.DrawAxes = true;
+        p_Context.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
     }
 }
-template <Dimension D> CameraData<D> &WindowData::addCamera(ContextData<D> &p_Data) noexcept
+template <Dimension D> CameraData<D> &WindowData::addCamera(CameraDataContainer<D> &p_Cameras) noexcept
 {
-    Camera<D> *camera = p_Data.Context->CreateCamera();
+    Camera<D> *camera = m_Window->CreateCamera<D>();
     camera->BackgroundColor = Color{0.1f};
 
-    CameraData<D> &camData = p_Data.Cameras.Append();
+    CameraData<D> &camData = p_Cameras.Cameras.Append();
     camData.Camera = camera;
     return camData;
 }
+void WindowData::setupCamera(CameraData<D3> &p_Camera) noexcept
+{
+    p_Camera.Perspective = true;
+    p_Camera.Camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
+    Transform<D3> transform{};
+    transform.Translation = {2.f, 0.75f, 2.f};
+    transform.Rotation = glm::quat{glm::radians(fvec3{-15.f, 45.f, -4.f})};
+    p_Camera.Camera->SetView(transform);
+}
 
-template <Dimension D> void WindowData::renderUI(ContextDataContainer<D> &p_Container) noexcept
+template <Dimension D> void WindowData::renderCameras(CameraDataContainer<D> &p_Cameras) noexcept
+{
+    if (ImGui::CollapsingHeader("Cameras"))
+    {
+        if (p_Cameras.Cameras.IsEmpty())
+            ImGui::TextDisabled(
+                "Window has no cameras for this dimension. At least one must be added to render anything 2D.");
+
+        if (ImGui::Button("Add camera"))
+            addCamera(p_Cameras);
+
+        renderSelectableNoTree(
+            "Camera", p_Cameras.Cameras, p_Cameras.Active, [this](CameraData<D> &p_Camera) { renderCamera(p_Camera); },
+            [this](const CameraData<D> &p_Camera) { m_Window->DestroyCamera(p_Camera.Camera); });
+    }
+}
+
+template <Dimension D> void WindowData::renderUI(ContextDataContainer<D> &p_Contexts) noexcept
 {
     const fvec2 spos = Input::GetScreenMousePosition(m_Window);
     ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos.x, spos.y);
     UserLayer::HelpMarkerSameLine("The screen mouse position is always normalized to the window size, always ranging "
                                   "from -1 to 1 for 'x' and 'y', and from 0 to 1 for 'z'.");
 
-    ImGui::Checkbox("Empty context", &p_Container.EmptyContext);
+    ImGui::Checkbox("Empty context", &p_Contexts.EmptyContext);
     UserLayer::HelpMarkerSameLine(
         "A rendering context is always initialized empty by default. But for convenience reasons, this demo will "
         "create "
@@ -890,8 +905,8 @@ template <Dimension D> void WindowData::renderUI(ContextDataContainer<D> &p_Cont
 
     if (ImGui::Button("Add context"))
     {
-        ContextData<D> &data = addContext(p_Container);
-        if (!p_Container.EmptyContext)
+        ContextData<D> &data = addContext(p_Contexts);
+        if (!p_Contexts.EmptyContext)
             setupContext(data);
     }
 
@@ -900,20 +915,18 @@ template <Dimension D> void WindowData::renderUI(ContextDataContainer<D> &p_Cont
                                   "their own independent state.");
 
     renderSelectableNoTree(
-        "Context", p_Container.Data, p_Container.Selected, [this](ContextData<D> &p_Data) { renderUI(p_Data); },
-        [this](const ContextData<D> &p_Data) { m_Window->DestroyRenderContext(p_Data.Context); });
+        "Context", p_Contexts.Contexts, p_Contexts.Active, [this](ContextData<D> &p_Context) { renderUI(p_Context); },
+        [this](const ContextData<D> &p_Context) { m_Window->DestroyRenderContext(p_Context.Context); });
 }
 
-template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Data) noexcept
+template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Context) noexcept
 {
-    if (p_Data.Cameras.IsEmpty())
-        ImGui::TextDisabled("Context has no cameras. At least one must be added to render anything.");
 
     if (ImGui::CollapsingHeader("Shapes"))
-        renderShapeSpawn(p_Data);
+        renderShapeSpawn(p_Context);
     if constexpr (D == D3)
         if (ImGui::CollapsingHeader("Lights"))
-            renderLightSpawn(p_Data);
+            renderLightSpawn(p_Context);
 
     if (ImGui::CollapsingHeader("Axes"))
     {
@@ -922,54 +935,44 @@ template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Data) noexcep
             "positions will always be relative to the state the axes were in the moment the draw command was issued.");
         ImGui::Text("Transform");
         ImGui::SameLine();
-        UserLayer::TransformEditor<D>(p_Data.AxesTransform, UserLayer::Flag_DisplayHelp);
+        UserLayer::TransformEditor<D>(p_Context.AxesTransform, UserLayer::Flag_DisplayHelp);
 
-        ImGui::Checkbox("Draw##Axes", &p_Data.DrawAxes);
-        if (p_Data.DrawAxes)
-            ImGui::SliderFloat("Axes thickness", &p_Data.AxesThickness, 0.001f, 0.1f);
+        ImGui::Checkbox("Draw##Axes", &p_Context.DrawAxes);
+        if (p_Context.DrawAxes)
+            ImGui::SliderFloat("Axes thickness", &p_Context.AxesThickness, 0.001f, 0.1f);
 
         if (ImGui::TreeNode("Material"))
         {
             ImGui::SameLine();
-            UserLayer::MaterialEditor<D>(p_Data.AxesMaterial, UserLayer::Flag_DisplayHelp);
+            UserLayer::MaterialEditor<D>(p_Context.AxesMaterial, UserLayer::Flag_DisplayHelp);
             ImGui::TreePop();
         }
     }
-
-    if (ImGui::CollapsingHeader("Cameras"))
-    {
-        if (ImGui::Button("Add camera"))
-            addCamera(p_Data);
-
-        renderSelectableNoTree(
-            "Camera", p_Data.Cameras, p_Data.ActiveCamera, [this](CameraData<D> &p_Camera) { renderCamera(p_Camera); },
-            [&p_Data](const CameraData<D> &p_Camera) { p_Data.Context->DestroyCamera(p_Camera.Camera); });
-    }
 }
 
-void WindowData::renderLightSpawn(ContextData<D3> &p_Data) noexcept
+void WindowData::renderLightSpawn(ContextData<D3> &p_Context) noexcept
 {
-    ImGui::SliderFloat("Ambient intensity", &p_Data.Ambient.w, 0.f, 1.f);
-    ImGui::ColorEdit3("Color", glm::value_ptr(p_Data.Ambient));
+    ImGui::SliderFloat("Ambient intensity", &p_Context.Ambient.w, 0.f, 1.f);
+    ImGui::ColorEdit3("Color", glm::value_ptr(p_Context.Ambient));
 
     if (ImGui::Button("Spawn##Light"))
     {
-        if (p_Data.LightToSpawn == 0)
-            p_Data.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
+        if (p_Context.LightToSpawn == 0)
+            p_Context.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
         else
-            p_Data.PointLights.Append(fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f);
+            p_Context.PointLights.Append(fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f);
     }
     ImGui::SameLine();
-    ImGui::Combo("Light", &p_Data.LightToSpawn, "Directional\0Point\0\0");
-    if (p_Data.LightToSpawn == 1)
-        ImGui::Checkbox("Draw##Light", &p_Data.DrawLights);
+    ImGui::Combo("Light", &p_Context.LightToSpawn, "Directional\0Point\0\0");
+    if (p_Context.LightToSpawn == 1)
+        ImGui::Checkbox("Draw##Light", &p_Context.DrawLights);
 
     renderSelectableNoRemoval(
-        "Directional lights", p_Data.DirectionalLights, p_Data.SelectedDirLight,
+        "Directional lights", p_Context.DirectionalLights, p_Context.SelectedDirLight,
         [](DirectionalLight &p_Light) { UserLayer::DirectionalLightEditor(p_Light); }, "Directional");
 
     renderSelectableNoRemoval(
-        "Point lights", p_Data.PointLights, p_Data.SelectedPointLight,
+        "Point lights", p_Context.PointLights, p_Context.SelectedPointLight,
         [](PointLight &p_Light) { UserLayer::PointLightEditor(p_Light); }, "Point");
 }
 

@@ -184,7 +184,7 @@ template <Dimension D> struct Lattice
     std::string MeshPath{};
     CircleOptions CircleOptions{};
     fvec<D> ShapeSize{1.f};
-    TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> Vertices{{0.5f, -0.3f}, {0.f, 0.3f}, {-0.5f, -0.3f}};
+    PolygonVerticesArray Vertices{{0.5f, -0.3f}, {0.f, 0.3f}, {-0.5f, -0.3f}};
     u32 NGonSides = 3;
     f32 Diameter = 1.f;
     f32 Length = 1.f;

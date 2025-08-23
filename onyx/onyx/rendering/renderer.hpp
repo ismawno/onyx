@@ -1,12 +1,11 @@
 #pragma once
 
 #include "onyx/rendering/render_systems.hpp"
-#include "tkit/multiprocessing/task.hpp"
 
 namespace Onyx::Detail
 {
 /**
- * @brief The RenderSystem struct manages multiple renderers with different pipeline modes.
+ * @brief The `RenderSystem` struct manages multiple renderers with different pipeline modes.
  *
  * This template struct holds instances of a renderer R with different PipelineModes,
  * allowing for different rendering passes such as filling and outlining shapes.
@@ -36,7 +35,7 @@ template <Dimension D, template <Dimension, PipelineMode> typename Renderer> str
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      */
-    void SendToDevice(u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks) noexcept;
+    void SendToDevice(u32 p_FrameIndex, TaskArray &p_Tasks) noexcept;
 
     /**
      * @brief Record vulkan copy commands to send data to a device local buffer.

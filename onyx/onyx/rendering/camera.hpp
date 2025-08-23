@@ -10,6 +10,7 @@
 
 namespace Onyx
 {
+class Window;
 /**
  * @brief The `ProjectionViewData` struct is a simple struct that holds the view and projection matrices.
  *
@@ -147,18 +148,23 @@ template <Dimension D> class ICamera
      * @param p_ViewportPos The position to convert. Should be in the range [-1, 1] for points contained in the
      * viewport, with the y axis pointing upwards. If in 3D, the z axis must be between [0, 1], mapping the near and far
      * planes or the orthographic size.
+     *
+     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
+     *
      * @return The position in world coordinates.
      */
-    fvec<D> ViewportToWorld(fvec<D> p_ViewportPos) const noexcept;
+    fvec<D> ViewportToWorld(fvec<D> p_ViewportPos, const fmat<D> *p_Axes = nullptr) const noexcept;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from world to viewport coordinates.
      *
      * @param p_WorldPos The position to convert.
+     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
+     *
      * @return The position in viewport coordinates. Should be in the range [-1, 1] only if the provided point was
      * contained in the viewport, with the y axis pointing upwards.
      */
-    fvec2 WorldToViewport(const fvec<D> &p_WorldPos) const noexcept;
+    fvec2 WorldToViewport(const fvec<D> &p_WorldPos, const fmat<D> *p_Axes = nullptr) const noexcept;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from viewport to screen coordinates.
@@ -215,9 +221,10 @@ template <Dimension D> class ICamera
     /**
      * @brief Get the view transform of the camera in the current axes.
      *
+     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      * @return The view transform of the camera.
      */
-    Onyx::Transform<D> GetViewTransform() const noexcept;
+    Onyx::Transform<D> GetViewTransform(const fmat<D> *p_Axes = nullptr) const noexcept;
 
     void SetView(const Onyx::Transform<D> &p_View) noexcept;
     void SetViewport(const ScreenViewport &p_Viewport) noexcept;
@@ -239,10 +246,8 @@ template <Dimension D> class ICamera
   private:
     void adaptViewToViewportAspect() noexcept;
 
-    RenderState<D> *m_State;
     fvec2 m_PrevMousePos{0.f};
-
-    template <Dimension Dim> friend class IRenderContext;
+    friend class Onyx::Window;
 };
 } // namespace Onyx::Detail
 

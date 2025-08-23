@@ -13,7 +13,7 @@ static void RunStandaloneWindow() noexcept
 {
     Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
-    context->CreateCamera();
+    window.CreateCamera<D2>();
 
     while (!window.ShouldClose())
     {
@@ -96,7 +96,7 @@ static void RunStandaloneWindowCustomPipeline() noexcept
     const VKit::GraphicsJob job = SetupCustomPipeline(window);
     SetPostProcessing(window);
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
-    context->CreateCamera()->Transparent = true;
+    window.CreateCamera<D2>()->Transparent = true;
 
     Onyx::RenderCallbacks cbs{};
     cbs.OnRenderBegin = [&job](const u32, const VkCommandBuffer p_CommandBuffer) {
@@ -131,7 +131,7 @@ static void RunAppExample2() noexcept
     VKIT_ASSERT_RESULT(result);
     Onyx::Mesh<D2> square = result.GetValue();
     Onyx::RenderContext<D2> *context = app.GetMainWindow()->CreateRenderContext<D2>();
-    context->CreateCamera();
+    app.GetMainWindow()->CreateCamera<D2>();
 
     TKit::Clock clock;
     app.Startup();

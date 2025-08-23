@@ -30,7 +30,7 @@ void RenderSystem<D, R>::GrowToFit(const u32 p_FrameIndex) noexcept
     DoStencilTestNoFill.GrowToFit(p_FrameIndex);
 }
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks) noexcept
+void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex, TaskArray &p_Tasks) noexcept
 {
     const TKit::ITaskManager *tm = Core::GetTaskManager();
     if (NoStencilWriteDoFill.HasInstances())
@@ -278,7 +278,7 @@ void Renderer<D2>::GrowToFit(const u32 p_FrameIndex) noexcept
 
 void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKit::StaticArray16<Task> tasks{};
+    TaskArray tasks{};
     m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
@@ -346,7 +346,7 @@ void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
 
 void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKit::StaticArray16<Task> tasks{};
+    TaskArray tasks{};
     m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);

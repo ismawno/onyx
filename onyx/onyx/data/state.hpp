@@ -20,6 +20,7 @@ TKIT_MSVC_WARNING_IGNORE(4324)
 
 namespace Onyx
 {
+using PolygonVerticesArray = TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES>;
 /**
  * @brief The `MaterialData` struct is a simple collection of data that represents the material of a shape.
  *

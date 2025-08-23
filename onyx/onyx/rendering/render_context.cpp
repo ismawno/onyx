@@ -160,12 +160,6 @@ void RenderContext<D3>::ScaleZAxis(const f32 p_Z) noexcept
     Onyx::Transform<D3>::ScaleIntrinsic(m_State->Axes, 2, p_Z);
 }
 
-template <Dimension D> void IRenderContext<D>::AdaptCamerasToViewportAspect() noexcept
-{
-    for (const auto &camera : m_Cameras)
-        camera->adaptViewToViewportAspect();
-}
-
 template <Dimension D> void IRenderContext<D>::TranslateAxes(const fvec<D> &p_Translation) noexcept
 {
     Onyx::Transform<D>::TranslateIntrinsic(m_State->Axes, p_Translation);
@@ -267,8 +261,6 @@ void IRenderContext<D>::resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_Outlin
 template <Dimension D> void IRenderContext<D>::updateState() noexcept
 {
     m_State = &m_StateStack.GetBack();
-    for (const auto &camera : m_Cameras)
-        camera->m_State = m_State;
 }
 
 template <Dimension D> static fmat4 computeFinalTransform(const fmat<D> &p_Axes, const fmat<D> &p_Transform) noexcept
@@ -418,7 +410,7 @@ void IRenderContext<D>::drawPolygon(const RenderState<D> &p_State, const fmat<D>
         TKIT_ASSERT(p_Vertices.GetSize() < ONYX_MAX_POLYGON_VERTICES,
                     "[ONYX] The provided vertices ({}) exceed the maximum: {}", p_Vertices.GetSize(),
                     ONYX_MAX_POLYGON_VERTICES);
-        TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES> vertices;
+        PolygonVerticesArray vertices;
         const f32 width = p_State.OutlineWidth;
         for (u32 prev = 0; prev < p_Vertices.GetSize(); ++prev)
         {
@@ -1336,51 +1328,10 @@ void IRenderContext<D>::RecordCopyCommands(const u32 p_FrameIndex, const VkComma
 }
 
 template <Dimension D>
-void IRenderContext<D>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Commandbuffer) noexcept
+void IRenderContext<D>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Commandbuffer,
+                               TKit::Span<const CameraInfo> p_Cameras) noexcept
 {
-    if (m_Cameras.IsEmpty())
-        return;
-    TKit::StaticArray16<CameraInfo> cameras;
-    for (const auto &cam : m_Cameras)
-        cameras.Append(cam->CreateCameraInfo());
-
-    m_Renderer.Render(p_FrameIndex, p_Commandbuffer, cameras);
-}
-
-template <Dimension D> Camera<D> *IRenderContext<D>::CreateCamera() noexcept
-{
-    auto camera = TKit::Scope<Camera<D>>::Create();
-    camera->m_State = m_State;
-    camera->m_Window = m_Window;
-    camera->adaptViewToViewportAspect();
-
-    Camera<D> *ptr = camera.Get();
-    m_Cameras.Append(std::move(camera));
-    return ptr;
-}
-template <Dimension D> Camera<D> *IRenderContext<D>::CreateCamera(const CameraOptions &p_Options) noexcept
-{
-    Camera<D> *camera = CreateCamera();
-    camera->SetViewport(p_Options.Viewport);
-    camera->SetScissor(p_Options.Scissor);
-    return camera;
-}
-template <Dimension D> Camera<D> *IRenderContext<D>::GetCamera(const u32 p_Index) noexcept
-{
-    return m_Cameras[p_Index].Get();
-}
-template <Dimension D> void IRenderContext<D>::DestroyCamera(const u32 p_Index) noexcept
-{
-    m_Cameras.RemoveOrdered(m_Cameras.begin() + p_Index);
-}
-template <Dimension D> void IRenderContext<D>::DestroyCamera(const Camera<D> *p_Camera) noexcept
-{
-    for (u32 i = 0; i < m_Cameras.GetSize(); ++i)
-        if (m_Cameras[i].Get() == p_Camera)
-        {
-            DestroyCamera(i);
-            return;
-        }
+    m_Renderer.Render(p_FrameIndex, p_Commandbuffer, p_Cameras);
 }
 
 void RenderContext<D2>::Axes(const AxesOptions<D2> &p_Options) noexcept
