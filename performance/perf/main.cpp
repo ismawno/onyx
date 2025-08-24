@@ -7,7 +7,7 @@ void RunApp(const Onyx::Perf::ParseResult &p_Args) noexcept
 {
     Onyx::Window::Specs spc;
     spc.Name = "Performance lattice";
-    // spc.Flags |= Onyx::Window::Flag_ConcurrentQueueSubmission;
+    spc.PresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 
     Onyx::Application app{spc};
     if (p_Args.Dim == Onyx::Dimension::D2)

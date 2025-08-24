@@ -4,7 +4,7 @@
 #include "onyx/property/color.hpp"
 #include "onyx/core/shaders.hpp"
 #include "tkit/utils/logging.hpp"
-#include "tkit/multiprocessing/task_manager.hpp"
+#include "tkit/profiling/macros.hpp"
 #include "vulkan/vulkan_core.h"
 
 namespace Onyx
@@ -23,10 +23,6 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 
 FrameScheduler::~FrameScheduler() noexcept
 {
-    // Lock the queues to prevent any other command buffers from being submitted
-    WaitIdle();
-    if (m_PresentTask)
-        Core::GetTaskManager()->DestroyTask(m_PresentTask);
     Core::DeviceWaitIdle();
     destroyImageData();
     m_PostProcessing.Destruct();
@@ -66,14 +62,6 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::BeginFrame");
     TKIT_ASSERT(!m_FrameStarted, "[ONYX] Cannot begin a new frame when there is already one in progress");
-
-    const Window::Flags flags = p_Window.GetFlags();
-    if ((flags & Window::Flag_ConcurrentQueueSubmission) && m_PresentTask)
-    {
-        TKit::ITaskManager *tm = Core::GetTaskManager();
-        const VkResult result = tm->WaitForResult(m_PresentTask);
-        handlePresentResult(p_Window, result);
-    }
 
     const VkResult result = AcquireNextImage();
     if (result == VK_ERROR_SURFACE_LOST_KHR)
@@ -115,66 +103,62 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     return cmd.GraphicsCommand;
 }
 
-struct SubmitInfo
-{
-    VkSwapchainKHR SwapChain;
-    VkCommandBuffer CommandBuffer;
-    SyncData Sync;
-    VkFence *InFlightImage;
-    u32 ImageIndex;
-};
-
-static VkResult submitGraphicsQueue(const SubmitInfo &p_Info) noexcept
+void FrameScheduler::SubmitGraphicsQueue() noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::SubmitCurrentCommandBuffer");
     const auto &table = Core::GetDeviceTable();
 
-    if (*p_Info.InFlightImage != VK_NULL_HANDLE)
+    const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
+
+    if (m_InFlightImages[m_ImageIndex] != VK_NULL_HANDLE)
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForImage");
-        TKIT_ASSERT_RETURNS(table.WaitForFences(Core::GetDevice(), 1, p_Info.InFlightImage, VK_TRUE, UINT64_MAX),
-                            VK_SUCCESS, "[ONYX] Failed to wait for fences");
+        TKIT_ASSERT_RETURNS(
+            table.WaitForFences(Core::GetDevice(), 1, &m_InFlightImages[m_ImageIndex], VK_TRUE, UINT64_MAX), VK_SUCCESS,
+            "[ONYX] Failed to wait for fences");
     }
 
-    *p_Info.InFlightImage = p_Info.Sync.InFlightFence;
+    m_InFlightImages[m_ImageIndex] = m_SyncData[m_FrameIndex].InFlightFence;
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    const TKit::Array<VkSemaphore, 2> semaphores{p_Info.Sync.ImageAvailableSemaphore,
-                                                 p_Info.Sync.TransferCopyDoneSemaphore};
+    const SyncData &sync = m_SyncData[m_FrameIndex];
+    const TKit::Array<VkSemaphore, 2> semaphores{sync.ImageAvailableSemaphore, sync.TransferCopyDoneSemaphore};
     const TKit::Array<VkPipelineStageFlags, 2> stages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                                      VK_PIPELINE_STAGE_VERTEX_INPUT_BIT};
+                                                      VK_PIPELINE_STAGE_VERTEX_SHADER_BIT};
 
     submitInfo.waitSemaphoreCount = 2;
     submitInfo.pWaitSemaphores = semaphores.GetData();
     submitInfo.pWaitDstStageMask = stages.GetData();
 
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &p_Info.CommandBuffer;
+    submitInfo.pCommandBuffers = &cmd;
 
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &p_Info.Sync.RenderFinishedSemaphore;
+    submitInfo.pSignalSemaphores = &sync.RenderFinishedSemaphore;
 
-    TKIT_ASSERT_RETURNS(table.ResetFences(Core::GetDevice(), 1, &p_Info.Sync.InFlightFence), VK_SUCCESS,
+    TKIT_ASSERT_RETURNS(table.ResetFences(Core::GetDevice(), 1, &sync.InFlightFence), VK_SUCCESS,
                         "[ONYX] Failed to reset fences");
-    return table.QueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, p_Info.Sync.InFlightFence);
+    TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, sync.InFlightFence), VK_SUCCESS,
+                        "[ONYX] Failed to submit graphics queue");
 }
-static VkResult present(const SubmitInfo &p_Info) noexcept
+VkResult FrameScheduler::Present() noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FramwScheduler::Present");
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
+    const SyncData &sync = m_SyncData[m_FrameIndex];
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &p_Info.Sync.RenderFinishedSemaphore;
+    presentInfo.pWaitSemaphores = &sync.RenderFinishedSemaphore;
 
-    const VkSwapchainKHR swapChain = p_Info.SwapChain;
+    const VkSwapchainKHR swapChain = m_SwapChain;
 
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &swapChain;
-    presentInfo.pImageIndices = &p_Info.ImageIndex;
+    presentInfo.pImageIndices = &m_ImageIndex;
 
     const auto &table = Core::GetDeviceTable();
     const VkResult result = table.QueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
@@ -189,31 +173,10 @@ void FrameScheduler::EndFrame(Window &p_Window) noexcept
     const auto &table = Core::GetDeviceTable();
     TKIT_ASSERT_RETURNS(table.EndCommandBuffer(cmd), VK_SUCCESS, "[ONYX] Failed to end command buffer");
 
-    SubmitInfo info{};
-    info.CommandBuffer = cmd;
-    info.ImageIndex = m_ImageIndex;
-    info.InFlightImage = &m_InFlightImages[m_ImageIndex];
-    info.SwapChain = m_SwapChain;
-    info.Sync = m_SyncData[m_FrameIndex];
+    SubmitGraphicsQueue();
+    const VkResult result = Present();
 
-    const auto submission = [info]() {
-        TKIT_ASSERT_RETURNS(submitGraphicsQueue(info), VK_SUCCESS, "[ONYX] Failed to submit command buffer");
-        return present(info);
-    };
-
-    const Window::Flags flags = p_Window.GetFlags();
-    if (flags & Window::Flag_ConcurrentQueueSubmission)
-    {
-        TKit::ITaskManager *tm = Core::GetTaskManager();
-        if (m_PresentTask)
-            tm->DestroyTask(m_PresentTask);
-        m_PresentTask = tm->CreateAndSubmit(submission);
-    }
-    else
-    {
-        const VkResult result = submission();
-        handlePresentResult(p_Window, result);
-    }
+    handlePresentResult(p_Window, result);
 
     m_FrameStarted = false;
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
@@ -358,7 +321,7 @@ VkResult FrameScheduler::AcquireNextImage() noexcept
             table.WaitForFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence, VK_TRUE, UINT64_MAX),
             VK_SUCCESS, "[ONYX] Failed to wait for fences");
     }
-    return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX - 1,
+    return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX,
                                      m_SyncData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
 }
 
@@ -410,12 +373,6 @@ PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_
 PostProcessing *FrameScheduler::GetPostProcessing() noexcept
 {
     return m_PostProcessing.Get();
-}
-
-void FrameScheduler::WaitIdle() const noexcept
-{
-    if (m_PresentTask)
-        Core::GetTaskManager()->WaitUntilFinished(m_PresentTask);
 }
 
 void FrameScheduler::RemovePostProcessing() noexcept
@@ -490,18 +447,22 @@ void FrameScheduler::createSwapChain(Window &p_Window, const VkExtent2D &p_Windo
             .RequestSurfaceFormat({VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
             .RequestPresentMode(m_PresentMode)
             .RequestExtent(p_WindowExtent)
+            .RequestImageCount(3)
             .SetOldSwapChain(m_SwapChain)
             .AddFlags(VKit::SwapChain::Builder::Flag_Clipped | VKit::SwapChain::Builder::Flag_CreateImageViews)
             .Build();
 
     VKIT_ASSERT_RESULT(result);
     m_SwapChain = result.GetValue();
+#ifdef TKIT_ENABLE_INFO_LOGS
+    const u32 icount = m_SwapChain.GetInfo().ImageData.GetSize();
+    TKIT_LOG_INFO("[ONYX] Created swapchain with {} images", icount);
+#endif
 }
 
 void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
 {
     TKIT_LOG_INFO("[ONYX] Out of date swap chain. Re-creating swap chain and resources");
-    WaitIdle();
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     Core::DeviceWaitIdle();
 
@@ -513,7 +474,6 @@ void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
 void FrameScheduler::recreateSurface(Window &p_Window) noexcept
 {
     TKIT_LOG_INFO("[ONYX] Surface lost... re-creating surface, swap chain and resources");
-    WaitIdle();
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     Core::DeviceWaitIdle();
 

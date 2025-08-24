@@ -286,7 +286,6 @@ void Application::Shutdown() noexcept
 {
     if (m_WindowAlive)
     {
-        m_Window->GetFrameScheduler()->WaitIdle();
         shutdownImGui();
         m_Window.Destruct();
         m_WindowAlive = false;
@@ -347,7 +346,6 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 
     if (m_Window->ShouldClose()) [[unlikely]]
     {
-        m_Window->GetFrameScheduler()->WaitIdle();
         shutdownImGui();
         m_Window.Destruct();
         m_WindowAlive = false;
@@ -379,11 +377,8 @@ void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderC
 
     if (p_WindowIndex == 0)
         beginRenderImGui();
-    onUpdate(p_WindowIndex);
-    const u32 size = m_Windows.GetSize();
-    const auto &prevWindow = m_Windows[p_WindowIndex == 0 ? (size - 1) : (p_WindowIndex - 1)];
 
-    prevWindow->GetFrameScheduler()->WaitIdle();
+    onUpdate(p_WindowIndex);
     window->Render(p_Callbacks);
 }
 
@@ -457,8 +452,6 @@ bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
 {
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
-    for (const auto &window : m_Windows)
-        window->GetFrameScheduler()->WaitIdle();
 
     if (m_DeferFlag)
     {
@@ -473,7 +466,6 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
     if (p_Index == 0)
     {
-        m_Windows[p_Index]->GetFrameScheduler()->WaitIdle();
         shutdownImGui();
         m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
         if (!m_Windows.IsEmpty())
@@ -487,9 +479,6 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
-    TKIT_LOG_WARNING_IF(p_Specs.Flags & Window::Flag_ConcurrentQueueSubmission,
-                        "[ONYX] Concurrent queue submission works badly in multi window applications. Consider "
-                        "disabling it to avoid unexpected crashes.");
     if (m_DeferFlag)
     {
         m_WindowsToAdd.Append(p_Specs);

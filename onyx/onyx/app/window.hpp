@@ -66,12 +66,6 @@ class ONYX_API Window
      * - Flag_Focused: The window is focused upon creation.
      *
      * - Flag_Floating: The window is always on top of other windows.
-     *
-     * - Flag_ConcurrentQueueSubmission: Graphics queue submissions for this window will run in a parallel thread
-     * between the end of a frame and the start of the next one. Beware: this functionality is buggy when using multiple
-     * windows. The surface may become lost and the application crashes. This does not seem to happen when using a
-     * single window. If you are not GPU bounded or are not doing anything usefule between frames (i.e. in `OnUpdate()`
-     * callbacks), dont bother with this setting.
      */
     enum FlagBit : Flags
     {
@@ -80,7 +74,6 @@ class ONYX_API Window
         Flag_Decorated = 1 << 2,
         Flag_Focused = 1 << 3,
         Flag_Floating = 1 << 4,
-        Flag_ConcurrentQueueSubmission = 1 << 5
     };
     /**
      * @brief Specifications for creating a window.

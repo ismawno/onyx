@@ -104,7 +104,9 @@ class ONYX_API FrameScheduler
      */
     VkResult AcquireNextImage() noexcept;
 
+    void SubmitGraphicsQueue() noexcept;
     void SubmitTransferQueue() noexcept;
+    VkResult Present() noexcept;
 
     VkCommandBuffer GetGraphicsCommandBuffer() const noexcept;
     VkCommandBuffer GetTransferCommandBuffer() const noexcept;
@@ -136,17 +138,6 @@ class ONYX_API FrameScheduler
                                       const PostProcessingOptions &p_Options = {nullptr, nullptr}) noexcept;
 
     PostProcessing *GetPostProcessing() noexcept;
-
-    /**
-     * @brief Block calling threads until all queue submissions are complete.
-     *
-     * This method only waits for `VkQueueSubmit()` calls to complete, not the underlying tasks submitted. For that, you
-     * must wait on the corresponding queue to be idle.
-     *
-     * If the `Window::Flag_ConcurrentQueueSubmission` was not set on window creation, this is a no-op.
-     *
-     */
-    void WaitIdle() const noexcept;
 
     /**
      * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final
@@ -193,8 +184,6 @@ class ONYX_API FrameScheduler
 
     PerFrameData<CommandData> m_CommandData;
     PerFrameData<SyncData> m_SyncData{};
-
-    TKit::Task<VkResult> *m_PresentTask = nullptr;
 
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;
