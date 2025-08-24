@@ -59,23 +59,30 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
 {
     TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
 
-    auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
-    u32 offset = 0;
-
     TaskArray tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
+
+    thread_local TKit::HashMap<Mesh<D>, TKit::StaticArray<const HostStorageBuffer<InstanceData> *, ONYX_MAX_THREADS>>
+        localData{};
+    localData.clear();
 
     for (const auto &hostData : m_HostData)
         for (const auto &[mesh, data] : hostData.Data)
             if (!data.IsEmpty())
-            {
-                const Task task = tm->CreateTask([offset, &storageBuffer, &data]() {
-                    TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::Task");
-                    storageBuffer.Write(data, offset);
-                });
-                tasks.Append(task);
-                offset += data.GetSize();
-            }
+                localData[mesh].Append(&data);
+
+    auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
+    u32 offset = 0;
+    for (const auto &[mesh, buffers] : localData)
+        for (const auto data : buffers)
+        {
+            const Task task = tm->CreateTask([offset, &storageBuffer, data]() {
+                TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::Task");
+                storageBuffer.Write(*data, offset);
+            });
+            tasks.Append(task);
+            offset += data->GetSize();
+        }
 
     const Task task = tasks.GetBack();
     tasks.Pop();
@@ -168,19 +175,30 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     bindDescriptorSets<dlevel>(p_Info, instanceDescriptor);
     pushConstantData<dlevel>(p_Info);
 
+    thread_local TKit::HashMap<Mesh<D>, TKit::StaticArray<const HostStorageBuffer<InstanceData> *, ONYX_MAX_THREADS>>
+        localData{};
+    localData.clear();
+
     u32 firstInstance = 0;
     for (const auto &hostData : m_HostData)
         for (const auto &[mesh, data] : hostData.Data)
             if (!data.IsEmpty())
-            {
-                mesh.Bind(p_Info.CommandBuffer);
-                if (mesh.HasIndices())
-                    mesh.DrawIndexed(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
-                else
-                    mesh.Draw(p_Info.CommandBuffer, firstInstance + data.GetSize(), firstInstance);
-                INCREASE_DRAW_CALL_COUNT();
-                firstInstance += data.GetSize();
-            }
+                localData[mesh].Append(&data);
+
+    for (const auto &[mesh, buffers] : localData)
+    {
+        u32 instanceCount = 0;
+        for (const auto data : buffers)
+            instanceCount += data->GetSize();
+
+        mesh.Bind(p_Info.CommandBuffer);
+        if (mesh.HasIndices())
+            mesh.DrawIndexed(p_Info.CommandBuffer, instanceCount, firstInstance);
+        else
+            mesh.Draw(p_Info.CommandBuffer, instanceCount, firstInstance);
+        INCREASE_DRAW_CALL_COUNT();
+        firstInstance += instanceCount;
+    }
 }
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
