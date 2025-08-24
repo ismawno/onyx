@@ -24,7 +24,8 @@ VkBufferMemoryBarrier CreateAcquireBarrier(VkBuffer p_DeviceLocalBuffer, u32 p_S
                                            VkAccessFlags p_DstFlags = VK_ACCESS_SHADER_READ_BIT) noexcept;
 VkBufferMemoryBarrier CreateReleaseBarrier(VkBuffer p_DeviceLocalBuffer, u32 p_Size) noexcept;
 
-void ApplyAcquireBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers) noexcept;
+void ApplyAcquireBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers,
+                         VkPipelineStageFlags p_DstFlags) noexcept;
 void ApplyReleaseBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers) noexcept;
 } // namespace Detail
 

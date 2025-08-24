@@ -1321,10 +1321,11 @@ template <Dimension D> void IRenderContext<D>::SendToDevice(const u32 p_FrameInd
     m_Renderer.SendToDevice(p_FrameIndex);
 }
 template <Dimension D>
-void IRenderContext<D>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
-                                           const VkCommandBuffer p_TransferCommand) noexcept
+VkPipelineStageFlags IRenderContext<D>::RecordCopyCommands(const u32 p_FrameIndex,
+                                                           const VkCommandBuffer p_GraphicsCommand,
+                                                           const VkCommandBuffer p_TransferCommand) noexcept
 {
-    m_Renderer.RecordCopyCommands(p_FrameIndex, p_GraphicsCommand, p_TransferCommand);
+    return m_Renderer.RecordCopyCommands(p_FrameIndex, p_GraphicsCommand, p_TransferCommand);
 }
 
 template <Dimension D>

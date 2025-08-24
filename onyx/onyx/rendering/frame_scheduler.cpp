@@ -103,7 +103,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     return cmd.GraphicsCommand;
 }
 
-void FrameScheduler::SubmitGraphicsQueue() noexcept
+void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::SubmitCurrentCommandBuffer");
     const auto &table = Core::GetDeviceTable();
@@ -125,12 +125,10 @@ void FrameScheduler::SubmitGraphicsQueue() noexcept
 
     const SyncData &sync = m_SyncData[m_FrameIndex];
     const TKit::Array<VkSemaphore, 2> semaphores{sync.ImageAvailableSemaphore, sync.TransferCopyDoneSemaphore};
-    const TKit::Array<VkPipelineStageFlags, 2> stages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                                      VK_PIPELINE_STAGE_VERTEX_SHADER_BIT};
-
-    submitInfo.waitSemaphoreCount = 2;
+    const TKit::Array<VkPipelineStageFlags, 2> stages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, p_Flags};
     submitInfo.pWaitSemaphores = semaphores.GetData();
     submitInfo.pWaitDstStageMask = stages.GetData();
+    submitInfo.waitSemaphoreCount = (m_TransferMode == TransferMode::Separate && p_Flags != 0) ? 2 : 1;
 
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
@@ -164,7 +162,7 @@ VkResult FrameScheduler::Present() noexcept
     const VkResult result = table.QueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
     return result;
 }
-void FrameScheduler::EndFrame(Window &p_Window) noexcept
+void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Flags) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end a frame when there is no frame in progress");
@@ -173,7 +171,7 @@ void FrameScheduler::EndFrame(Window &p_Window) noexcept
     const auto &table = Core::GetDeviceTable();
     TKIT_ASSERT_RETURNS(table.EndCommandBuffer(cmd), VK_SUCCESS, "[ONYX] Failed to end command buffer");
 
-    SubmitGraphicsQueue();
+    SubmitGraphicsQueue(p_Flags);
     const VkResult result = Present();
 
     handlePresentResult(p_Window, result);
@@ -327,9 +325,6 @@ VkResult FrameScheduler::AcquireNextImage() noexcept
 
 void FrameScheduler::SubmitTransferQueue() noexcept
 {
-    if (m_TransferMode == TransferMode::SameQueue)
-        return;
-
     const auto &table = Core::GetDeviceTable();
     TKIT_ASSERT_RETURNS(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand), VK_SUCCESS,
                         "[ONYX] Failed to end command buffer");

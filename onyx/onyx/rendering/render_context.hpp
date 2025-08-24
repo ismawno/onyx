@@ -826,9 +826,10 @@ template <Dimension D> class IRenderContext
      * @param p_FrameIndex The index of the current frame.
      * @param p_GraphicsCommand The graphics command buffer.
      * @param p_TransferCommand The transfer command buffer.
+     * @return The stages to synchronize.
      */
-    void RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
-                            VkCommandBuffer p_TransferCommand) noexcept;
+    VkPipelineStageFlags RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
+                                            VkCommandBuffer p_TransferCommand) noexcept;
 
     /**
      * @brief Render the recorded draw data using the provided command buffer.

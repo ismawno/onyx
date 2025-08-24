@@ -245,8 +245,9 @@ struct ONYX_API CopyInfo
 {
     u32 FrameIndex;
     VkCommandBuffer CommandBuffer;
-    TKit::StaticArray256<VkBufferMemoryBarrier> *AcquireBarriers;
-    TKit::StaticArray256<VkBufferMemoryBarrier> *ReleaseBarriers;
+    TKit::StaticArray16<VkBufferMemoryBarrier> *AcquireShaderBarriers;
+    TKit::StaticArray4<VkBufferMemoryBarrier> *AcquireVertexBarriers;
+    TKit::StaticArray32<VkBufferMemoryBarrier> *ReleaseBarriers;
 };
 
 /**

@@ -207,9 +207,10 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
      * @param p_FrameIndex The index of the current frame.
      * @param p_GraphicsCommand The graphics command buffer.
      * @param p_TransferCommand The transfer command buffer.
+     * @return The stages to synchronize.
      */
-    void RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
-                            VkCommandBuffer p_TransferCommand) noexcept;
+    VkPipelineStageFlags RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
+                                            VkCommandBuffer p_TransferCommand) noexcept;
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.
@@ -322,9 +323,10 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
      * @param p_FrameIndex The index of the current frame.
      * @param p_GraphicsCommand The graphics command buffer.
      * @param p_TransferCommand The transfer command buffer.
+     * @return The stages to synchronize.
      */
-    void RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
-                            VkCommandBuffer p_TransferCommand) noexcept;
+    VkPipelineStageFlags RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
+                                            VkCommandBuffer p_TransferCommand) noexcept;
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.

@@ -148,7 +148,7 @@ void MeshRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
     const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
     RecordCopy(p_Info.CommandBuffer, buffer, staging, size);
 
-    p_Info.AcquireBarriers->Append(CreateAcquireBarrier(buffer, size));
+    p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
     if (p_Info.ReleaseBarriers)
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
@@ -284,7 +284,7 @@ void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noe
     const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
     RecordCopy(p_Info.CommandBuffer, buffer, staging, size);
 
-    p_Info.AcquireBarriers->Append(CreateAcquireBarrier(buffer, size));
+    p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
     if (p_Info.ReleaseBarriers)
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
@@ -486,9 +486,9 @@ void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexc
     const auto &istaging = m_DeviceData.StagingIndices[p_Info.FrameIndex];
     RecordCopy(p_Info.CommandBuffer, ibuffer, istaging, isize);
 
-    p_Info.AcquireBarriers->Append(CreateAcquireBarrier(buffer, size));
-    p_Info.AcquireBarriers->Append(CreateAcquireBarrier(vbuffer, vsize));
-    p_Info.AcquireBarriers->Append(CreateAcquireBarrier(ibuffer, isize));
+    p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
+    p_Info.AcquireVertexBarriers->Append(CreateAcquireBarrier(vbuffer, vsize, VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT));
+    p_Info.AcquireVertexBarriers->Append(CreateAcquireBarrier(ibuffer, isize, VK_ACCESS_INDEX_READ_BIT));
     if (p_Info.ReleaseBarriers)
     {
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
@@ -635,13 +635,13 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
 template <Dimension D, PipelineMode PMode>
 void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
 {
-    const u32 size = m_DeviceInstances * sizeof(InstanceData);
+    const u32 size = m_DeviceInstances * sizeof(CircleInstanceData);
 
     const auto &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
     const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
     RecordCopy(p_Info.CommandBuffer, buffer, staging, size);
 
-    p_Info.AcquireBarriers->Append(CreateAcquireBarrier(buffer, size));
+    p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
     if (p_Info.ReleaseBarriers)
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }

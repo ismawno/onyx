@@ -93,6 +93,7 @@ void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
     {
         ContextData<D2> &context = addContext(m_ContextData2);
         setupContext<D2>(context);
+        addCamera(m_Cameras2);
     }
     else if (p_Scene == Scene::Setup3D)
     {

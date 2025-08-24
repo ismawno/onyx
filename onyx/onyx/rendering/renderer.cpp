@@ -308,28 +308,41 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex) noexcept
         tm->DestroyTask(t);
     }
 }
-void Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
-                                      const VkCommandBuffer p_TransferCommand) noexcept
+VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
+                                                      const VkCommandBuffer p_TransferCommand) noexcept
 {
     const bool separate = Core::GetTransferMode() == TransferMode::Separate;
-    TKit::StaticArray256<VkBufferMemoryBarrier> acquires{};
-    TKit::StaticArray256<VkBufferMemoryBarrier> releases{};
+    TKit::StaticArray16<VkBufferMemoryBarrier> sacquires{};
+    TKit::StaticArray4<VkBufferMemoryBarrier> vacquires{};
+    TKit::StaticArray32<VkBufferMemoryBarrier> releases{};
 
     CopyInfo info{};
     info.CommandBuffer = p_TransferCommand;
     info.FrameIndex = p_FrameIndex;
-    info.AcquireBarriers = &acquires;
+    info.AcquireShaderBarriers = &sacquires;
     info.ReleaseBarriers = separate ? &releases : nullptr;
+    info.AcquireVertexBarriers = &vacquires;
 
     m_MeshRenderer.RecordCopyCommands(info);
     m_PrimitiveRenderer.RecordCopyCommands(info);
     m_PolygonRenderer.RecordCopyCommands(info);
     m_CircleRenderer.RecordCopyCommands(info);
 
+    VkPipelineStageFlags flags = 0;
     if (!releases.IsEmpty())
         ApplyReleaseBarrier(p_TransferCommand, releases);
-    if (!acquires.IsEmpty())
-        ApplyAcquireBarrier(p_GraphicsCommand, acquires);
+
+    if (!sacquires.IsEmpty())
+    {
+        ApplyAcquireBarrier(p_GraphicsCommand, sacquires, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT);
+        flags |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+    }
+    if (!sacquires.IsEmpty())
+    {
+        ApplyAcquireBarrier(p_GraphicsCommand, vacquires, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+        flags |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+    }
+    return flags;
 }
 
 void Renderer<D3>::GrowToFit(const u32 p_FrameIndex) noexcept
@@ -390,18 +403,20 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex) noexcept
         tm->DestroyTask(t);
     }
 }
-void Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
-                                      const VkCommandBuffer p_TransferCommand) noexcept
+VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
+                                                      const VkCommandBuffer p_TransferCommand) noexcept
 {
     const bool separate = Core::GetTransferMode() == TransferMode::Separate;
-    TKit::StaticArray256<VkBufferMemoryBarrier> acquires{};
-    TKit::StaticArray256<VkBufferMemoryBarrier> releases{};
+    TKit::StaticArray16<VkBufferMemoryBarrier> sacquires{};
+    TKit::StaticArray4<VkBufferMemoryBarrier> vacquires{};
+    TKit::StaticArray32<VkBufferMemoryBarrier> releases{};
 
     CopyInfo info{};
     info.CommandBuffer = p_TransferCommand;
     info.FrameIndex = p_FrameIndex;
-    info.AcquireBarriers = &acquires;
+    info.AcquireShaderBarriers = &sacquires;
     info.ReleaseBarriers = separate ? &releases : nullptr;
+    info.AcquireVertexBarriers = &vacquires;
 
     m_MeshRenderer.RecordCopyCommands(info);
     m_PrimitiveRenderer.RecordCopyCommands(info);
@@ -414,7 +429,7 @@ void Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuf
         const auto &ldbuffer = m_DeviceLightData.DeviceLocalDirectionals[p_FrameIndex];
         const auto &sdbuffer = m_DeviceLightData.StagingDirectionals[p_FrameIndex];
         RecordCopy(p_TransferCommand, ldbuffer, sdbuffer, dsize);
-        acquires.Append(CreateAcquireBarrier(ldbuffer, dsize));
+        sacquires.Append(CreateAcquireBarrier(ldbuffer, dsize));
         if (separate)
             releases.Append(CreateReleaseBarrier(ldbuffer, dsize));
     }
@@ -425,15 +440,26 @@ void Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuf
         const auto &lpbuffer = m_DeviceLightData.DeviceLocalPoints[p_FrameIndex];
         const auto &spbuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
         RecordCopy(p_TransferCommand, lpbuffer, spbuffer, psize);
-        acquires.Append(CreateAcquireBarrier(lpbuffer, dsize));
+        sacquires.Append(CreateAcquireBarrier(lpbuffer, dsize));
         if (separate)
             releases.Append(CreateReleaseBarrier(lpbuffer, dsize));
     }
 
+    VkPipelineStageFlags flags = 0;
     if (!releases.IsEmpty())
         ApplyReleaseBarrier(p_TransferCommand, releases);
-    if (!acquires.IsEmpty())
-        ApplyAcquireBarrier(p_GraphicsCommand, acquires);
+
+    if (!sacquires.IsEmpty())
+    {
+        ApplyAcquireBarrier(p_GraphicsCommand, sacquires, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT);
+        flags |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+    }
+    if (!sacquires.IsEmpty())
+    {
+        ApplyAcquireBarrier(p_GraphicsCommand, vacquires, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+        flags |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+    }
+    return flags;
 }
 
 template <DrawLevel DLevel, typename... Renderers>

@@ -60,6 +60,7 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
     if (!gcmd)
         return false;
 
+    VkPipelineStageFlags transferFlags = 0;
     const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
 
     if (p_Callbacks.OnFrameBegin)
@@ -79,12 +80,13 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
     {
         // TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Copy", Core::GetTransferContext(), tcmd);
         for (const auto &context : m_RenderContexts2D)
-            context->RecordCopyCommands(frameIndex, gcmd, tcmd);
+            transferFlags |= context->RecordCopyCommands(frameIndex, gcmd, tcmd);
         for (const auto &context : m_RenderContexts3D)
-            context->RecordCopyCommands(frameIndex, gcmd, tcmd);
+            transferFlags |= context->RecordCopyCommands(frameIndex, gcmd, tcmd);
     }
 
-    m_FrameScheduler->SubmitTransferQueue();
+    if (Core::GetTransferMode() == TransferMode::Separate && transferFlags != 0)
+        m_FrameScheduler->SubmitTransferQueue();
 
     {
         TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Render", Core::GetGraphicsContext(), gcmd);
@@ -119,7 +121,7 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
         TKIT_PROFILE_VULKAN_COLLECT(Core::GetGraphicsContext(), gcmd);
         // TKIT_PROFILE_VULKAN_COLLECT(Core::GetTransferContext(), tcmd);
     }
-    m_FrameScheduler->EndFrame(*this);
+    m_FrameScheduler->EndFrame(*this, transferFlags);
     return true;
 }
 

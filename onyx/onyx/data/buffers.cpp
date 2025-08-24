@@ -57,14 +57,15 @@ VkBufferMemoryBarrier CreateReleaseBarrier(const VkBuffer p_DeviceLocalBuffer, c
 }
 
 void ApplyAcquireBarrier(const VkCommandBuffer p_CommandBuffer,
-                         const TKit::Span<const VkBufferMemoryBarrier> p_Barriers) noexcept
+                         const TKit::Span<const VkBufferMemoryBarrier> p_Barriers,
+                         const VkPipelineStageFlags p_DstFlags) noexcept
 {
     const TransferMode mode = Core::GetTransferMode();
     const VkPipelineStageFlags src =
         mode == TransferMode::Separate ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT;
 
-    Core::GetDeviceTable().CmdPipelineBarrier(p_CommandBuffer, src, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 0, nullptr,
-                                              p_Barriers.GetSize(), p_Barriers.GetData(), 0, nullptr);
+    Core::GetDeviceTable().CmdPipelineBarrier(p_CommandBuffer, src, p_DstFlags, 0, 0, nullptr, p_Barriers.GetSize(),
+                                              p_Barriers.GetData(), 0, nullptr);
 }
 
 void ApplyReleaseBarrier(const VkCommandBuffer p_CommandBuffer,

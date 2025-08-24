@@ -61,7 +61,7 @@ class ONYX_API FrameScheduler
      * Ensures all recorded commands for the frame are submitted for execution.
      *
      */
-    void EndFrame(Window &p_Window) noexcept;
+    void EndFrame(Window &p_Window, VkPipelineStageFlags p_Flags) noexcept;
 
     /**
      * @brief Begins the main scene rendering with the specified clear color.
@@ -104,7 +104,7 @@ class ONYX_API FrameScheduler
      */
     VkResult AcquireNextImage() noexcept;
 
-    void SubmitGraphicsQueue() noexcept;
+    void SubmitGraphicsQueue(VkPipelineStageFlags p_Flags) noexcept;
     void SubmitTransferQueue() noexcept;
     VkResult Present() noexcept;
 
