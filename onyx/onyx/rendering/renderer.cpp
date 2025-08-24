@@ -337,7 +337,7 @@ VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, co
         ApplyAcquireBarrier(p_GraphicsCommand, sacquires, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT);
         flags |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
     }
-    if (!sacquires.IsEmpty())
+    if (!vacquires.IsEmpty())
     {
         ApplyAcquireBarrier(p_GraphicsCommand, vacquires, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
         flags |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
@@ -454,7 +454,7 @@ VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, co
         ApplyAcquireBarrier(p_GraphicsCommand, sacquires, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT);
         flags |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
     }
-    if (!sacquires.IsEmpty())
+    if (!vacquires.IsEmpty())
     {
         ApplyAcquireBarrier(p_GraphicsCommand, vacquires, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
         flags |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
