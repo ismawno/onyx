@@ -26,16 +26,36 @@ void ResetDrawCallCount() noexcept
 }
 #endif
 
-template <Dimension D, PipelineMode PMode>
-MeshRenderer<D, PMode>::MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::RenderSystem() noexcept
 {
-    m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
+    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+        m_DeviceSubmissionId[i] = 0;
 }
-
-template <Dimension D, PipelineMode PMode> MeshRenderer<D, PMode>::~MeshRenderer() noexcept
+template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::~RenderSystem() noexcept
 {
     Core::DeviceWaitIdle();
     m_Pipeline.Destroy();
+}
+
+template <Dimension D, PipelineMode PMode>
+bool RenderSystem<D, PMode>::HasInstances(const u32 p_FrameIndex) const noexcept
+{
+    return m_DeviceInstances != 0 && m_DeviceSubmissionId[p_FrameIndex] != m_HostSubmissionId;
+}
+template <Dimension D, PipelineMode PMode> void RenderSystem<D, PMode>::Flush() noexcept
+{
+    ++m_HostSubmissionId;
+}
+template <Dimension D, PipelineMode PMode>
+void RenderSystem<D, PMode>::AcknowledgeSubmission(const u32 p_FrameIndex) noexcept
+{
+    ++m_DeviceSubmissionId[p_FrameIndex];
+}
+
+template <Dimension D, PipelineMode PMode>
+MeshRenderer<D, PMode>::MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+{
+    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -49,11 +69,11 @@ void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
-    m_DeviceInstances = 0;
+    this->m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
-        m_DeviceInstances += hostData.Instances;
+        this->m_DeviceInstances += hostData.Instances;
 
-    m_DeviceData.GrowToFit(p_FrameIndex, m_DeviceInstances);
+    m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
 }
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
@@ -149,7 +169,8 @@ static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescrip
 template <Dimension D, PipelineMode PMode>
 void MeshRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
 {
-    const u32 size = m_DeviceInstances * sizeof(InstanceData);
+    RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
+    const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
 
     const auto &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
     const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
@@ -162,12 +183,12 @@ void MeshRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_DeviceInstances == 0)
+    if (this->m_DeviceInstances == 0)
         return;
 
     TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::Render");
 
-    m_Pipeline.Bind(p_Info.CommandBuffer);
+    this->m_Pipeline.Bind(p_Info.CommandBuffer);
 
     const VkDescriptorSet instanceDescriptor = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
 
@@ -203,6 +224,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
 
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
 {
+    RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
     {
         for (auto &[model, data] : hostData.Data)
@@ -211,21 +233,10 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() 
     }
 }
 
-template <Dimension D, PipelineMode PMode> bool MeshRenderer<D, PMode>::HasInstances() const noexcept
-{
-    return m_DeviceInstances != 0;
-}
-
 template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
-}
-
-template <Dimension D, PipelineMode PMode> PrimitiveRenderer<D, PMode>::~PrimitiveRenderer() noexcept
-{
-    Core::DeviceWaitIdle();
-    m_Pipeline.Destroy();
+    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -239,11 +250,11 @@ void PrimitiveRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
-    m_DeviceInstances = 0;
+    this->m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
-        m_DeviceInstances += hostData.Instances;
+        this->m_DeviceInstances += hostData.Instances;
 
-    m_DeviceData.GrowToFit(p_FrameIndex, m_DeviceInstances);
+    m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -296,7 +307,8 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 template <Dimension D, PipelineMode PMode>
 void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
 {
-    const u32 size = m_DeviceInstances * sizeof(InstanceData);
+    RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
+    const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
 
     const auto &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
     const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
@@ -308,12 +320,12 @@ void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noe
 }
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_DeviceInstances == 0)
+    if (this->m_DeviceInstances == 0)
         return;
 
     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::Render");
 
-    m_Pipeline.Bind(p_Info.CommandBuffer);
+    this->m_Pipeline.Bind(p_Info.CommandBuffer);
 
     const VkDescriptorSet instanceDescriptor = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
 
@@ -337,6 +349,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
             instanceCount += hostData.Data[i].GetSize();
         if (instanceCount == 0)
             continue;
+
         const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
 
         table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
@@ -348,6 +361,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flush() noexcept
 {
+    RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
     {
         for (auto &data : hostData.Data)
@@ -356,21 +370,10 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
     }
 }
 
-template <Dimension D, PipelineMode PMode> bool PrimitiveRenderer<D, PMode>::HasInstances() const noexcept
-{
-    return m_DeviceInstances != 0;
-}
-
 template <Dimension D, PipelineMode PMode>
 PolygonRenderer<D, PMode>::PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
-}
-
-template <Dimension D, PipelineMode PMode> PolygonRenderer<D, PMode>::~PolygonRenderer() noexcept
-{
-    Core::DeviceWaitIdle();
-    m_Pipeline.Destroy();
+    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -420,17 +423,17 @@ void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData,
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
-    m_DeviceInstances = 0;
+    this->m_DeviceInstances = 0;
     m_DeviceVertices = 0;
     m_DeviceIndices = 0;
     for (const auto &hostData : m_HostData)
     {
-        m_DeviceInstances += hostData.Data.GetSize();
+        this->m_DeviceInstances += hostData.Data.GetSize();
         m_DeviceVertices += hostData.Vertices.GetSize();
         m_DeviceIndices += hostData.Indices.GetSize();
     }
 
-    m_DeviceData.GrowToFit(p_FrameIndex, m_DeviceInstances, m_DeviceVertices, m_DeviceIndices);
+    m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances, m_DeviceVertices, m_DeviceIndices);
 }
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
@@ -488,7 +491,8 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
 template <Dimension D, PipelineMode PMode>
 void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
 {
-    const u32 size = m_DeviceInstances * sizeof(InstanceData);
+    RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
+    const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
     const u32 vsize = m_DeviceVertices * sizeof(Vertex<D>);
     const u32 isize = m_DeviceIndices * sizeof(Index);
 
@@ -516,11 +520,11 @@ void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexc
 }
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_DeviceInstances == 0)
+    if (this->m_DeviceInstances == 0)
         return;
     TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::Render");
 
-    m_Pipeline.Bind(p_Info.CommandBuffer);
+    this->m_Pipeline.Bind(p_Info.CommandBuffer);
 
     const VkDescriptorSet instanceDescriptor = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
 
@@ -550,6 +554,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush() noexcept
 {
+    RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
     {
         hostData.Data.Clear();
@@ -559,21 +564,10 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush
     }
 }
 
-template <Dimension D, PipelineMode PMode> bool PolygonRenderer<D, PMode>::HasInstances() const noexcept
-{
-    return m_DeviceInstances != 0;
-}
-
 template <Dimension D, PipelineMode PMode>
 CircleRenderer<D, PMode>::CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderInfo);
-}
-
-template <Dimension D, PipelineMode PMode> CircleRenderer<D, PMode>::~CircleRenderer() noexcept
-{
-    Core::DeviceWaitIdle();
-    m_Pipeline.Destroy();
+    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -601,11 +595,11 @@ void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Ci
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
-    m_DeviceInstances = 0;
+    this->m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
-        m_DeviceInstances += hostData.Data.GetSize();
+        this->m_DeviceInstances += hostData.Data.GetSize();
 
-    m_DeviceData.GrowToFit(p_FrameIndex, m_DeviceInstances);
+    m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
 }
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
@@ -653,7 +647,9 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
 template <Dimension D, PipelineMode PMode>
 void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
 {
-    const u32 size = m_DeviceInstances * sizeof(CircleInstanceData);
+    RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
+
+    const u32 size = this->m_DeviceInstances * sizeof(CircleInstanceData);
 
     const auto &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
     const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
@@ -666,11 +662,11 @@ void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexce
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
 {
-    if (m_DeviceInstances == 0)
+    if (this->m_DeviceInstances == 0)
         return;
     TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::Render");
 
-    m_Pipeline.Bind(p_Info.CommandBuffer);
+    this->m_Pipeline.Bind(p_Info.CommandBuffer);
     const VkDescriptorSet instanceDescriptor = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
 
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
@@ -691,16 +687,21 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush() noexcept
 {
+    RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
         hostData.Data.Clear();
 }
 
-template <Dimension D, PipelineMode PMode> bool CircleRenderer<D, PMode>::HasInstances() const noexcept
-{
-    return m_DeviceInstances != 0;
-}
-
 // This is crazy
+template class ONYX_API RenderSystem<D2, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API RenderSystem<D2, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API RenderSystem<D2, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API RenderSystem<D2, PipelineMode::DoStencilTestNoFill>;
+
+template class ONYX_API RenderSystem<D3, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API RenderSystem<D3, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API RenderSystem<D3, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API RenderSystem<D3, PipelineMode::DoStencilTestNoFill>;
 
 template class ONYX_API MeshRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
 template class ONYX_API MeshRenderer<D2, PipelineMode::DoStencilWriteDoFill>;

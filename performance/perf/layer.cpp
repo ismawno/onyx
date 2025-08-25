@@ -45,6 +45,10 @@ template <Dimension D> void Layer<D>::OnUpdate() noexcept
     if (ImGui::Begin("Info"))
         UserLayer::DisplayFrameTime(timestep);
     ImGui::End();
+    // static bool first = false;
+    // if (first)
+    //     return;
+    // first = true;
 
     m_Context->Flush();
     if constexpr (D == D3)

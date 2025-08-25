@@ -5,7 +5,7 @@
 namespace Onyx::Detail
 {
 /**
- * @brief The `RenderSystem` struct manages multiple renderers with different pipeline modes.
+ * @brief The `RenderGroup` struct manages multiple renderers with different pipeline modes.
  *
  * This template struct holds instances of a renderer R with different PipelineModes,
  * allowing for different rendering passes such as filling and outlining shapes.
@@ -13,9 +13,9 @@ namespace Onyx::Detail
  * @tparam D The dimensionality (`D2`or `D3`).
  * @tparam R The renderer type template (e.g., `MeshRenderer`, `PrimitiveRenderer`).
  */
-template <Dimension D, template <Dimension, PipelineMode> typename Renderer> struct RenderSystem
+template <Dimension D, template <Dimension, PipelineMode> typename Renderer> struct RenderGroup
 {
-    RenderSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    RenderGroup(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 
     /**
      * @brief Clear all host data in each renderer.
@@ -146,10 +146,10 @@ template <Dimension D> class IRenderer
                     DrawFlags p_Flags) noexcept;
 
   protected:
-    RenderSystem<D, MeshRenderer> m_MeshRenderer;
-    RenderSystem<D, PrimitiveRenderer> m_PrimitiveRenderer;
-    RenderSystem<D, PolygonRenderer> m_PolygonRenderer;
-    RenderSystem<D, CircleRenderer> m_CircleRenderer;
+    RenderGroup<D, MeshRenderer> m_MeshRenderer;
+    RenderGroup<D, PrimitiveRenderer> m_PrimitiveRenderer;
+    RenderGroup<D, PolygonRenderer> m_PolygonRenderer;
+    RenderGroup<D, CircleRenderer> m_CircleRenderer;
 
   private:
     /**

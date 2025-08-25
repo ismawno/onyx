@@ -7,13 +7,13 @@
 namespace Onyx::Detail
 {
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-RenderSystem<D, R>::RenderSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+RenderGroup<D, R>::RenderGroup(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
     : NoStencilWriteDoFill(p_RenderInfo), DoStencilWriteDoFill(p_RenderInfo), DoStencilWriteNoFill(p_RenderInfo),
       DoStencilTestNoFill(p_RenderInfo)
 {
 }
 
-template <Dimension D, template <Dimension, PipelineMode> typename R> void RenderSystem<D, R>::Flush() noexcept
+template <Dimension D, template <Dimension, PipelineMode> typename R> void RenderGroup<D, R>::Flush() noexcept
 {
     NoStencilWriteDoFill.Flush();
     DoStencilWriteDoFill.Flush();
@@ -22,7 +22,7 @@ template <Dimension D, template <Dimension, PipelineMode> typename R> void Rende
 }
 
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderSystem<D, R>::GrowToFit(const u32 p_FrameIndex) noexcept
+void RenderGroup<D, R>::GrowToFit(const u32 p_FrameIndex) noexcept
 {
     NoStencilWriteDoFill.GrowToFit(p_FrameIndex);
     DoStencilWriteDoFill.GrowToFit(p_FrameIndex);
@@ -30,29 +30,29 @@ void RenderSystem<D, R>::GrowToFit(const u32 p_FrameIndex) noexcept
     DoStencilTestNoFill.GrowToFit(p_FrameIndex);
 }
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderSystem<D, R>::SendToDevice(const u32 p_FrameIndex, TaskArray &p_Tasks) noexcept
+void RenderGroup<D, R>::SendToDevice(const u32 p_FrameIndex, TaskArray &p_Tasks) noexcept
 {
     const TKit::ITaskManager *tm = Core::GetTaskManager();
-    if (NoStencilWriteDoFill.HasInstances())
+    if (NoStencilWriteDoFill.HasInstances(p_FrameIndex))
         p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { NoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
-    if (DoStencilWriteDoFill.HasInstances())
+    if (DoStencilWriteDoFill.HasInstances(p_FrameIndex))
         p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
-    if (DoStencilWriteNoFill.HasInstances())
+    if (DoStencilWriteNoFill.HasInstances(p_FrameIndex))
         p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilWriteNoFill.SendToDevice(p_FrameIndex); }));
-    if (DoStencilTestNoFill.HasInstances())
+    if (DoStencilTestNoFill.HasInstances(p_FrameIndex))
         p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilTestNoFill.SendToDevice(p_FrameIndex); }));
 }
 
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderSystem<D, R>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
+void RenderGroup<D, R>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
 {
-    if (NoStencilWriteDoFill.HasInstances())
+    if (NoStencilWriteDoFill.HasInstances(p_Info.FrameIndex))
         NoStencilWriteDoFill.RecordCopyCommands(p_Info);
-    if (DoStencilWriteDoFill.HasInstances())
+    if (DoStencilWriteDoFill.HasInstances(p_Info.FrameIndex))
         DoStencilWriteDoFill.RecordCopyCommands(p_Info);
-    if (DoStencilWriteNoFill.HasInstances())
+    if (DoStencilWriteNoFill.HasInstances(p_Info.FrameIndex))
         DoStencilWriteNoFill.RecordCopyCommands(p_Info);
-    if (DoStencilTestNoFill.HasInstances())
+    if (DoStencilTestNoFill.HasInstances(p_Info.FrameIndex))
         DoStencilTestNoFill.RecordCopyCommands(p_Info);
 }
 
@@ -195,7 +195,7 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
         const MaterialData<D2> material{p_State.OutlineColor};
         const auto instanceData = createInstanceData<DrawLevel::Simple>(p_Transform, material);
 
-        if constexpr (!std::is_same_v<Renderer, RenderSystem<D, CircleRenderer>>)
+        if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleRenderer>>)
             p_Renderer.DoStencilWriteNoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
         else
         {
@@ -210,7 +210,7 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
         const MaterialData<D2> material{p_State.OutlineColor};
         const auto instanceData = createInstanceData<DrawLevel::Simple>(p_Transform, material);
 
-        if constexpr (!std::is_same_v<Renderer, RenderSystem<D, CircleRenderer>>)
+        if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleRenderer>>)
             p_Renderer.DoStencilTestNoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
         else
         {

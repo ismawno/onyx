@@ -898,11 +898,24 @@ template <Dimension D> class IRenderContext
  * fashion. The draw calls are recorded, sent to the gpu and translated to vulkan draw calls when appropiate. The
  * following is a set of properties of the `RenderContext` you must take into account when using it:
  *
- * - You may use the `RenderContext` at almost any moment. Do not forget to call `Flush()` at the beginning of your loop
- * to not to persist data from the last frame.
+ * - While it is possible to use `RenderContext` in pretty much any callback, it is recommended to use it in the
+ * `OnUpdate()` callbacks, if using an application, or inside the body of the while loop if using a simple window. You
+ * should also be consistent with which callback you use, and stick to calling the API from that callback only. Failing
+ * to do so may result in only some of the things you draw popping on the screen, or worse.
  *
  * - The `RenderContext` is mostly immediate mode. All mutations to its state can be reset with the `Flush()`
- * method, which is recommended to be called at the beginning of each frame.
+ * method, which is recommended to be called at the beginning of each frame in case your scene consists of moving
+ * objects. If `Flush()` is not called, the context will keep its state and the device will keep drawing the same
+ * geometry every frame. The context will make sure not to re-upload the data to the gpu in case it is to re-use its
+ * state.
+ *
+ * - Windows support multiple `RenderContext` objects, and it is advised to group your objects by frequency of update,
+ * and have a `RenderContext` per group. Sending data to the device can be a time consuming operation and a real
+ * bottleneck. If your data does not change, use a static `RenderContext` to render it, by calling `Flush()` once and
+ * submitting draw commands.
+ *
+ * - Once recorded and submitted (this step happens automatically once the `RenderContext` sends the data to the
+ * device), to re-draw the contents of a `RenderContext` it is necessary to flush it and re-record the commands.
  *
  * - Keep in mind that outlines are affected by the scaling of the shapes they outline. This means you may get weird
  * outlines with scaled shapes, especially if the scaling is not uniform. To avoid this issue when using outlines,

@@ -13,6 +13,24 @@ u32 GetDrawCallCount() noexcept;
 void ResetDrawCallCount() noexcept;
 #endif
 
+template <Dimension D, PipelineMode PMode> class RenderSystem
+{
+  public:
+    RenderSystem() noexcept;
+    ~RenderSystem() noexcept;
+
+    bool HasInstances(u32 p_FrameIndex) const noexcept;
+    void Flush() noexcept;
+    void AcknowledgeSubmission(u32 p_FrameIndex) noexcept;
+
+  protected:
+    VKit::GraphicsPipeline m_Pipeline{};
+
+    PerFrameData<u64> m_DeviceSubmissionId{};
+    u64 m_HostSubmissionId = 0;
+    u32 m_DeviceInstances = 0;
+};
+
 /**
  * @brief Responsible for handling all user draw calls that involve meshes built from a `Mesh` instance.
  *
@@ -20,7 +38,7 @@ void ResetDrawCallCount() noexcept;
  * This renderer uses instanced rendering to draw multiple instances of the same mesh in a single draw call.
  *
  */
-template <Dimension D, PipelineMode PMode> class MeshRenderer
+template <Dimension D, PipelineMode PMode> class MeshRenderer final : public RenderSystem<D, PMode>
 {
     TKIT_NON_COPYABLE(MeshRenderer)
 
@@ -29,7 +47,6 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
 
   public:
     MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
-    ~MeshRenderer() noexcept;
 
     /**
      * @brief Record and store the data needed to draw a mesh instance. This is an onyx draw call.
@@ -80,8 +97,6 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
      */
     void Flush() noexcept;
 
-    bool HasInstances() const noexcept;
-
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) MeshHostData
     {
@@ -90,13 +105,8 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
         std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
 
-    VKit::GraphicsPipeline m_Pipeline{};
-
     TKit::Array<MeshHostData, ONYX_MAX_THREADS> m_HostData{};
-
     DeviceData<InstanceData> m_DeviceData{};
-
-    u32 m_DeviceInstances = 0;
 };
 
 /**
@@ -109,7 +119,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer
  * program.
  *
  */
-template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
+template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : public RenderSystem<D, PMode>
 {
     TKIT_NON_COPYABLE(PrimitiveRenderer)
 
@@ -118,7 +128,6 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
 
   public:
     PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
-    ~PrimitiveRenderer() noexcept;
 
     /**
      * @brief Record and store the data needed to draw a primitive instance. This is an onyx draw call.
@@ -169,8 +178,6 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
      */
     void Flush() noexcept;
 
-    bool HasInstances() const noexcept;
-
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) PrimitiveHostData
     {
@@ -179,13 +186,8 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
         std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
 
-    VKit::GraphicsPipeline m_Pipeline{};
-
     TKit::Array<PrimitiveHostData, ONYX_MAX_THREADS> m_HostData{};
-
     DeviceData<InstanceData> m_DeviceData{};
-
-    u32 m_DeviceInstances = 0;
 };
 
 /**
@@ -200,7 +202,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer
  * polygons are drawn.
  *
  */
-template <Dimension D, PipelineMode PMode> class PolygonRenderer
+template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public RenderSystem<D, PMode>
 {
     TKIT_NON_COPYABLE(PolygonRenderer)
 
@@ -209,7 +211,6 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
 
   public:
     PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
-    ~PolygonRenderer() noexcept;
 
     /**
      * @brief Record and store the data needed to draw a polygon instance. This is an onyx draw call.
@@ -260,8 +261,6 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
      */
     void Flush() noexcept;
 
-    bool HasInstances() const noexcept;
-
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) PolygonHostData
     {
@@ -272,13 +271,8 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
         std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
 
-    VKit::GraphicsPipeline m_Pipeline{};
-
     TKit::Array<PolygonHostData, ONYX_MAX_THREADS> m_HostData{};
-
     PolygonDeviceData<D, GetDrawLevel<D, PMode>()> m_DeviceData{};
-
-    u32 m_DeviceInstances = 0;
     u32 m_DeviceVertices = 0;
     u32 m_DeviceIndices = 0;
 };
@@ -293,7 +287,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer
  * This renderer uses instanced rendering for all of its draw calls, as all circles share the same geometry.
  *
  */
-template <Dimension D, PipelineMode PMode> class CircleRenderer
+template <Dimension D, PipelineMode PMode> class CircleRenderer final : public RenderSystem<D, PMode>
 {
     TKIT_NON_COPYABLE(CircleRenderer)
 
@@ -304,7 +298,6 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
 
   public:
     CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
-    ~CircleRenderer() noexcept;
 
     /**
      * @brief Record and store the data needed to draw a circle instance. This is an onyx draw call.
@@ -371,8 +364,6 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
      */
     void Flush() noexcept;
 
-    bool HasInstances() const noexcept;
-
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) CircleHostData
     {
@@ -380,13 +371,8 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer
         std::byte _Pad[TKIT_CACHE_LINE_SIZE];
     };
 
-    VKit::GraphicsPipeline m_Pipeline{};
-
     TKit::Array<CircleHostData, ONYX_MAX_THREADS> m_HostData{};
-
     DeviceData<CircleInstanceData> m_DeviceData{};
-
-    u32 m_DeviceInstances = 0;
 };
 
 } // namespace Onyx::Detail
