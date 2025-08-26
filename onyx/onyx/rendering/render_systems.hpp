@@ -43,7 +43,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer final : public Ren
     TKIT_NON_COPYABLE(MeshRenderer)
 
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
-    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
+    using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
 
   public:
     MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
@@ -124,7 +124,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : publi
     TKIT_NON_COPYABLE(PrimitiveRenderer)
 
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
-    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
+    using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
 
   public:
     PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
@@ -207,7 +207,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public 
     TKIT_NON_COPYABLE(PolygonRenderer)
 
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
-    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
+    using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
 
   public:
     PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
@@ -272,7 +272,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public 
     };
 
     TKit::Array<PolygonHostData, ONYX_MAX_THREADS> m_HostData{};
-    PolygonDeviceData<D, GetDrawLevel<D, PMode>()> m_DeviceData{};
+    PolygonDeviceData<D, GetDrawMode<PMode>()> m_DeviceData{};
     u32 m_DeviceVertices = 0;
     u32 m_DeviceIndices = 0;
 };
@@ -291,10 +291,10 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer final : public R
 {
     TKIT_NON_COPYABLE(CircleRenderer)
 
-    using InstanceData = InstanceData<GetDrawLevel<D, PMode>()>;
+    using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
 
-    using CircleInstanceData = CircleInstanceData<GetDrawLevel<D, PMode>()>;
+    using CircleInstanceData = CircleInstanceData<D, GetDrawMode<PMode>()>;
 
   public:
     CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;

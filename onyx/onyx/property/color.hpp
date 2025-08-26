@@ -38,6 +38,9 @@ struct ONYX_API Color
     void Blue(u8 p_Blue) noexcept;
     void Alpha(u8 p_Alpha) noexcept;
 
+    u32 Pack() const noexcept;
+    static Color Unpack(u32 p_Packed) noexcept;
+
     template <typename T> T ToHexadecimal(bool p_Alpha = true) const noexcept;
 
     static Color FromHexadecimal(u32 p_Hex, bool p_Alpha = true) noexcept;

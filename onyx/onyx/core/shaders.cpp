@@ -23,17 +23,27 @@ VKit::Shader CreateShader(const std::string_view p_SourcePath, const std::string
                           const std::string_view p_Arguments) noexcept
 {
     if (VKit::Shader::MustCompile(p_SourcePath, p_BinaryPath))
-    {
-        const i32 shresult = VKit::Shader::Compile(p_SourcePath, p_BinaryPath, p_Arguments);
-
-        TKIT_ASSERT(shresult == 0 || shresult == INT32_MAX, "[ONYX] Failed to compile shader at {}", p_SourcePath);
-        TKIT_LOG_INFO_IF(shresult == 0, "[ONYX] Compiled shader: {}", p_SourcePath);
-        (void)shresult;
-    }
+        CompileShader(p_SourcePath, p_BinaryPath, p_Arguments);
 
     const auto result = VKit::Shader::Create(Core::GetDevice(), p_BinaryPath);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
+}
+
+void CompileShader(const std::string_view p_SourcePath) noexcept
+{
+    const std::string binaryPath = CreateShaderDefaultBinaryPath(p_SourcePath);
+    CompileShader(p_SourcePath, binaryPath);
+}
+
+void CompileShader(const std::string_view p_SourcePath, const std::string_view p_BinaryPath,
+                   const std::string_view p_Arguments) noexcept
+{
+    const i32 shresult = VKit::Shader::Compile(p_SourcePath, p_BinaryPath, p_Arguments);
+
+    TKIT_ASSERT(shresult == 0 || shresult == INT32_MAX, "[ONYX] Failed to compile shader at {}", p_SourcePath);
+    TKIT_LOG_INFO_IF(shresult == 0, "[ONYX] Compiled shader: {}", p_SourcePath);
+    (void)shresult;
 }
 
 const VKit::Shader &GetFullPassVertexShader() noexcept
@@ -49,33 +59,46 @@ const VKit::Shader &GetFullPassVertexShader() noexcept
 
 namespace Onyx::Detail
 {
+static bool utilsWasModified(const std::string &p_BinaryPath) noexcept
+{
+    const char *sourcePath = ONYX_ROOT_PATH "/onyx/shaders/utils.glsl";
+    return VKit::Shader::MustCompile(sourcePath, p_BinaryPath);
+}
+static VKit::Shader createShader(const char *p_SourcePath) noexcept
+{
+    const std::string binaryPath = CreateShaderDefaultBinaryPath(p_SourcePath);
+    if (utilsWasModified(binaryPath))
+        CompileShader(p_SourcePath, binaryPath);
+
+    return CreateShader(p_SourcePath);
+}
 template <Dimension D, DrawMode DMode> struct SneakyShaders
 {
     static void Initialize() noexcept
     {
         if constexpr (D == D2)
         {
-            MeshVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-2D.vert");
-            MeshFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawlevel-simple.frag");
+            MeshVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-2D.vert");
+            MeshFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-2D.frag");
 
-            CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawlevel-simple.vert");
-            CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawlevel-simple.frag");
+            CircleVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-2D.vert");
+            CircleFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-2D.frag");
         }
         else if constexpr (DMode == DrawMode::Fill)
         {
-            MeshVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawmode-fill-3D.vert");
-            MeshFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawmode-fill-3D.frag");
+            MeshVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-fill-3D.vert");
+            MeshFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-fill-3D.frag");
 
-            CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawmode-fill-3D.vert");
-            CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawmode-fill-3D.frag");
+            CircleVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-fill-3D.vert");
+            CircleFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-fill-3D.frag");
         }
         else
         {
-            MeshVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawmode-stencil-3D.vert");
-            MeshFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-drawlevel-simple.frag");
+            MeshVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-stencil-3D.vert");
+            MeshFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-stencil-3D.frag");
 
-            CircleVertexShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawlevel-simple.vert");
-            CircleFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/circle-drawlevel-simple.frag");
+            CircleVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-stencil-3D.vert");
+            CircleFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-stencil-3D.frag");
         }
 
         Core::GetDeletionQueue().SubmitForDeletion(MeshVertexShader);

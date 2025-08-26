@@ -116,6 +116,15 @@ void Color::Alpha(const u8 p_Alpha) noexcept
     RGBA.a = toFloat(p_Alpha);
 }
 
+u32 Color::Pack() const noexcept
+{
+    return Red() | Green() << 8 | Blue() << 16 | Alpha() << 24;
+}
+Color Color::Unpack(const u32 p_Packed) noexcept
+{
+    return Color{p_Packed & 0xFF, (p_Packed >> 8) & 0xFF, (p_Packed >> 16) & 0xFF, (p_Packed >> 24) & 0xFF};
+}
+
 template <> u32 Color::ToHexadecimal<u32>(const bool p_Alpha) const noexcept
 {
     if (p_Alpha)

@@ -101,7 +101,7 @@ template <Dimension D> class IRenderer
      * @param p_Mesh The mesh model to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawMesh(const RenderState<D> &p_State, const fmat4 &p_Transform, const Mesh<D> &p_Mesh,
+    void DrawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Mesh<D> &p_Mesh,
                   DrawFlags p_Flags) noexcept;
 
     /**
@@ -112,7 +112,7 @@ template <Dimension D> class IRenderer
      * @param p_PrimitiveIndex Index of the primitive shape to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawPrimitive(const RenderState<D> &p_State, const fmat4 &p_Transform, u32 p_PrimitiveIndex,
+    void DrawPrimitive(const RenderState<D> &p_State, const fmat<D> &p_Transform, u32 p_PrimitiveIndex,
                        DrawFlags p_Flags) noexcept;
 
     /**
@@ -123,7 +123,7 @@ template <Dimension D> class IRenderer
      * @param p_Vertices Span of vertices defining the polygon.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawPolygon(const RenderState<D> &p_State, const fmat4 &p_Transform, TKit::Span<const fvec2> p_Vertices,
+    void DrawPolygon(const RenderState<D> &p_State, const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices,
                      DrawFlags p_Flags) noexcept;
 
     /**
@@ -142,7 +142,7 @@ template <Dimension D> class IRenderer
      *
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawCircle(const RenderState<D> &p_State, const fmat4 &p_Transform, const CircleOptions &p_Options,
+    void DrawCircle(const RenderState<D> &p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
                     DrawFlags p_Flags) noexcept;
 
   protected:
@@ -164,7 +164,7 @@ template <Dimension D> class IRenderer
      * @param p_Flags Drawing flags to control rendering behavior.
      */
     template <typename Renderer, typename DrawArg>
-    void draw(Renderer &p_Renderer, const RenderState<D> &p_State, const fmat4 &p_Transform, DrawArg &&p_Arg,
+    void draw(Renderer &p_Renderer, const RenderState<D> &p_State, const fmat<D> &p_Transform, DrawArg &&p_Arg,
               DrawFlags p_Flags) noexcept;
 };
 

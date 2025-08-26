@@ -55,7 +55,7 @@ void RenderSystem<D, PMode>::AcknowledgeSubmission(const u32 p_FrameIndex) noexc
 template <Dimension D, PipelineMode PMode>
 MeshRenderer<D, PMode>::MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
+    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -236,7 +236,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() 
 template <Dimension D, PipelineMode PMode>
 PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
+    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -373,7 +373,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 template <Dimension D, PipelineMode PMode>
 PolygonRenderer<D, PMode>::PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
-    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateGeometryPipeline(p_RenderInfo);
+    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
@@ -581,10 +581,13 @@ void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Ci
     auto &hostData = m_HostData[threadIndex];
 
     CircleInstanceData instanceData;
-    instanceData.BaseData = p_InstanceData;
+    instanceData.Base = p_InstanceData;
 
-    instanceData.ArcInfo = fvec4{glm::cos(p_Options.LowerAngle), glm::sin(p_Options.LowerAngle),
-                                 glm::cos(p_Options.UpperAngle), glm::sin(p_Options.UpperAngle)};
+    instanceData.LowerCos = glm::cos(p_Options.LowerAngle);
+    instanceData.LowerSin = glm::sin(p_Options.LowerAngle);
+    instanceData.UpperCos = glm::cos(p_Options.UpperAngle);
+    instanceData.UpperSin = glm::sin(p_Options.UpperAngle);
+
     instanceData.AngleOverflow = glm::abs(p_Options.UpperAngle - p_Options.LowerAngle) > glm::pi<f32>() ? 1 : 0;
     instanceData.Hollowness = p_Options.Hollowness;
     instanceData.InnerFade = p_Options.InnerFade;

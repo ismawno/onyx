@@ -265,23 +265,59 @@ struct ONYX_API CopyInfo
  * The view (or axes) matrix is still stored per instance because of the immediate mode. This way, the user can change
  * the view matrix between shapes, and the renderer will use the correct one.
  *
- * @tparam DLevel The draw level (`Simple` or `Complex`).
+ * @tparam D The dimension (`D2` or `D3`).
+ * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
-template <DrawLevel DLevel> struct InstanceData;
+template <Dimension D, DrawMode DMode> struct InstanceData;
 
-// Could actually save some space by using smaller matrices in the 2D case and removing the last row, as it always is 0
-// 0 1 but I don't want to deal with the alignment management, to be honest.
-
-template <> struct alignas(16) ONYX_API InstanceData<DrawLevel::Simple>
+template <DrawMode DMode> struct ONYX_API InstanceData<D2, DMode>
 {
-    fmat4 Transform;
-    MaterialData<D2> Material;
+    fvec2 Basis1;
+    fvec2 Basis2;
+    fvec2 Basis3;
+    u32 Color;
 };
-template <> struct alignas(16) ONYX_API InstanceData<DrawLevel::Complex>
+
+template <> struct ONYX_API InstanceData<D3, DrawMode::Fill>
 {
-    fmat4 Transform;
-    fmat4 NormalMatrix;
-    MaterialData<D3> Material;
+    fvec4 Basis1;
+    fvec4 Basis2;
+    fvec4 Basis3;
+    u32 Color;
+    f32 DiffuseContribution;
+    f32 SpecularContribution;
+    f32 SpecularSharpness;
+};
+template <> struct ONYX_API InstanceData<D3, DrawMode::Stencil>
+{
+    fvec4 Basis1;
+    fvec4 Basis2;
+    fvec4 Basis3;
+    u32 Color;
+};
+
+/**
+ * @brief Specific `InstanceData` for circles.
+ *
+ * The additional data is used in the fragment shaders to discard fragments that are outside the circle or the
+ * user-defined arc.
+ *
+ * @tparam D The dimension (`D2` or `D3`).
+ * @tparam DMode The draw mode (`Fill` or `Stencil`).
+ */
+template <Dimension D, DrawMode DMode> struct CircleInstanceData
+{
+    InstanceData<D, DMode> Base;
+
+    f32 LowerCos;
+    f32 LowerSin;
+    f32 UpperCos;
+    f32 UpperSin;
+
+    u32 AngleOverflow;
+    f32 Hollowness;
+    f32 InnerFade;
+    f32 OuterFade;
 };
 
 ONYX_API VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
@@ -348,9 +384,9 @@ template <typename T> struct DeviceData
  * polygons.
  *
  * @tparam D The dimension (`D2` or `D3`).
- * @tparam DLevel The draw level (`Simple` or `Complex`).
+ * @tparam DMode The draw mode (`Fill` or `Stencil`).
  */
-template <Dimension D, DrawLevel DLevel> struct PolygonDeviceData : DeviceData<InstanceData<DLevel>>
+template <Dimension D, DrawMode DMode> struct PolygonDeviceData : DeviceData<InstanceData<D, DMode>>
 {
     PolygonDeviceData() noexcept;
     ~PolygonDeviceData() noexcept;
@@ -362,25 +398,6 @@ template <Dimension D, DrawLevel DLevel> struct PolygonDeviceData : DeviceData<I
     PerFrameData<HostVisibleIndexBuffer> StagingIndices;
 
     void GrowToFit(u32 p_FrameIndex, u32 p_Instances, u32 p_Vertices, u32 p_Indices) noexcept;
-};
-
-/**
- * @brief Specific `InstanceData` for circles.
- *
- * The additional data is used in the fragment shaders to discard fragments that are outside the circle or the
- * user-defined arc.
- *
- * @tparam D The dimension (`D2` or `D3`).
- * @tparam DMode The draw mode (`Fill` or `Stencil`).
- */
-template <DrawLevel DLevel> struct alignas(16) CircleInstanceData
-{
-    fvec4 ArcInfo;
-    InstanceData<DLevel> BaseData;
-    u32 AngleOverflow;
-    f32 Hollowness;
-    f32 InnerFade;
-    f32 OuterFade;
 };
 
 /**
@@ -413,7 +430,7 @@ template <Dimension D, PipelineMode PMode> struct PipelineGenerator
      * @param p_RenderInfo The rendering information to use.
      * @return The pipeline handle.
      */
-    static VKit::GraphicsPipeline CreateGeometryPipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    static VKit::GraphicsPipeline CreateMeshPipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 
     /**
      * @brief Create a pipeline for circle shapes.

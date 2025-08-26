@@ -22,8 +22,8 @@ VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_
     return p_OldSet;
 }
 
-template <Dimension D, DrawLevel DLevel>
-PolygonDeviceData<D, DLevel>::PolygonDeviceData() noexcept : DeviceData<InstanceData<DLevel>>()
+template <Dimension D, DrawMode DMode>
+PolygonDeviceData<D, DMode>::PolygonDeviceData() noexcept : DeviceData<InstanceData<D, DMode>>()
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -33,7 +33,7 @@ PolygonDeviceData<D, DLevel>::PolygonDeviceData() noexcept : DeviceData<Instance
         StagingIndices[i] = CreateHostVisibleIndexBuffer(ONYX_BUFFER_INITIAL_CAPACITY);
     }
 }
-template <Dimension D, DrawLevel DLevel> PolygonDeviceData<D, DLevel>::~PolygonDeviceData() noexcept
+template <Dimension D, DrawMode DMode> PolygonDeviceData<D, DMode>::~PolygonDeviceData() noexcept
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -44,11 +44,11 @@ template <Dimension D, DrawLevel DLevel> PolygonDeviceData<D, DLevel>::~PolygonD
     }
 }
 
-template <Dimension D, DrawLevel DLevel>
-void PolygonDeviceData<D, DLevel>::GrowToFit(const u32 p_FrameIndex, const u32 p_Instances, const u32 p_Vertices,
-                                             const u32 p_Indices) noexcept
+template <Dimension D, DrawMode DMode>
+void PolygonDeviceData<D, DMode>::GrowToFit(const u32 p_FrameIndex, const u32 p_Instances, const u32 p_Vertices,
+                                            const u32 p_Indices) noexcept
 {
-    DeviceData<InstanceData<DLevel>>::GrowToFit(p_FrameIndex, p_Instances);
+    DeviceData<InstanceData<D, DMode>>::GrowToFit(p_FrameIndex, p_Instances);
 
     auto &vlbuffer = DeviceLocalVertices[p_FrameIndex];
     if (vlbuffer.GetInfo().InstanceCount < p_Vertices)
@@ -141,7 +141,7 @@ static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkPipelineRe
 }
 
 template <Dimension D, PipelineMode PMode>
-VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateGeometryPipeline(
+VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateMeshPipeline(
     const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
 {
     const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshVertexShader();
@@ -177,10 +177,10 @@ VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateCirclePipeline(
     return result.GetValue();
 }
 
-template struct ONYX_API PolygonDeviceData<D2, DrawLevel::Simple>;
-template struct ONYX_API PolygonDeviceData<D2, DrawLevel::Complex>;
-template struct ONYX_API PolygonDeviceData<D3, DrawLevel::Simple>;
-template struct ONYX_API PolygonDeviceData<D3, DrawLevel::Complex>;
+template struct ONYX_API PolygonDeviceData<D2, DrawMode::Fill>;
+template struct ONYX_API PolygonDeviceData<D2, DrawMode::Stencil>;
+template struct ONYX_API PolygonDeviceData<D3, DrawMode::Fill>;
+template struct ONYX_API PolygonDeviceData<D3, DrawMode::Stencil>;
 
 template struct ONYX_API PipelineGenerator<D2, PipelineMode::NoStencilWriteDoFill>;
 template struct ONYX_API PipelineGenerator<D2, PipelineMode::DoStencilWriteDoFill>;

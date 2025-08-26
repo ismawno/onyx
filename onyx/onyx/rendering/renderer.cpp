@@ -151,49 +151,80 @@ void DeviceLightData::GrowToFit(const u32 p_FrameIndex, const u32 p_Directionals
     DescriptorSets[p_FrameIndex] = resetLightBufferDescriptorSet(dirInfo, pointInfo, DescriptorSets[p_FrameIndex]);
 }
 
-template <DrawLevel DLevel> static constexpr Dimension getMaterialDimension() noexcept
+struct Material
 {
-    if constexpr (DLevel == DrawLevel::Simple)
-        return D2;
+    u32 Color;
+    f32 DiffuseContribution;
+    f32 SpecularContribution;
+    f32 SpecularSharpness;
+};
+
+template <Dimension D, DrawMode DMode>
+static InstanceData<D, DMode> createInstanceData(const fmat<D> &p_Transform, const Material &p_Material) noexcept
+{
+    if constexpr (D == D2)
+    {
+        InstanceData<D2, DMode> instanceData{};
+        instanceData.Basis1 = fvec2{p_Transform[0]};
+        instanceData.Basis2 = fvec2{p_Transform[1]};
+        instanceData.Basis3 = fvec2{p_Transform[2]};
+        instanceData.Color = p_Material.Color;
+        return instanceData;
+    }
+    else if constexpr (DMode == DrawMode::Fill)
+    {
+        InstanceData<D3, DrawMode::Fill> instanceData{};
+        instanceData.Basis1 = fvec4{p_Transform[0].x, p_Transform[1].x, p_Transform[2].x, p_Transform[3].x};
+        instanceData.Basis2 = fvec4{p_Transform[0].y, p_Transform[1].y, p_Transform[2].y, p_Transform[3].y};
+        instanceData.Basis3 = fvec4{p_Transform[0].z, p_Transform[1].z, p_Transform[2].z, p_Transform[3].z};
+        instanceData.Color = p_Material.Color;
+        instanceData.DiffuseContribution = p_Material.DiffuseContribution;
+        instanceData.SpecularContribution = p_Material.SpecularContribution;
+        instanceData.SpecularSharpness = p_Material.SpecularSharpness;
+        return instanceData;
+    }
     else
-        return D3;
-}
-
-template <DrawLevel DLevel>
-static InstanceData<DLevel> createInstanceData(const fmat4 &p_Transform,
-                                               const MaterialData<getMaterialDimension<DLevel>()> &p_Material) noexcept
-{
-    InstanceData<DLevel> instanceData{};
-    instanceData.Transform = p_Transform;
-    instanceData.Material = p_Material;
-    if constexpr (DLevel == DrawLevel::Complex)
-        instanceData.NormalMatrix = fmat4(glm::transpose(glm::inverse(fmat3(instanceData.Transform))));
-
-    return instanceData;
+    {
+        InstanceData<D3, DrawMode::Stencil> instanceData{};
+        instanceData.Basis1 = fvec4{p_Transform[0].x, p_Transform[1].x, p_Transform[2].x, p_Transform[3].x};
+        instanceData.Basis2 = fvec4{p_Transform[0].y, p_Transform[1].y, p_Transform[2].y, p_Transform[3].y};
+        instanceData.Basis3 = fvec4{p_Transform[0].z, p_Transform[1].z, p_Transform[2].z, p_Transform[3].z};
+        instanceData.Color = p_Material.Color;
+        return instanceData;
+    }
 }
 
 template <Dimension D>
 template <typename Renderer, typename DrawArg>
-void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, const fmat4 &p_Transform, DrawArg &&p_Arg,
-                        DrawFlags p_Flags) noexcept
+void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, const fmat<D> &p_Transform,
+                        DrawArg &&p_Arg, DrawFlags p_Flags) noexcept
 {
     TKIT_ASSERT(p_State.OutlineWidth >= 0.f, "[ONYX] Outline width must be non-negative");
-    constexpr DrawLevel dlevel = D == D2 ? DrawLevel::Simple : DrawLevel::Complex;
+
+    Material material;
+    if constexpr (D == D3)
+    {
+        material.DiffuseContribution = p_State.Material.DiffuseContribution;
+        material.SpecularContribution = p_State.Material.SpecularContribution;
+        material.SpecularSharpness = p_State.Material.SpecularSharpness;
+    }
 
     if (p_Flags & DrawFlags_NoStencilWriteDoFill)
     {
-        const auto instanceData = createInstanceData<dlevel>(p_Transform, p_State.Material);
+        material.Color = p_State.Material.Color.Pack();
+        const auto instanceData = createInstanceData<D, DrawMode::Fill>(p_Transform, material);
         p_Renderer.NoStencilWriteDoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
     }
     if (p_Flags & DrawFlags_DoStencilWriteDoFill)
     {
-        const auto instanceData = createInstanceData<dlevel>(p_Transform, p_State.Material);
+        material.Color = p_State.Material.Color.Pack();
+        const auto instanceData = createInstanceData<D, DrawMode::Fill>(p_Transform, material);
         p_Renderer.DoStencilWriteDoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
     }
     if (p_Flags & DrawFlags_DoStencilWriteNoFill)
     {
-        const MaterialData<D2> material{p_State.OutlineColor};
-        const auto instanceData = createInstanceData<DrawLevel::Simple>(p_Transform, material);
+        material.Color = p_State.OutlineColor.Pack();
+        const auto instanceData = createInstanceData<D, DrawMode::Stencil>(p_Transform, material);
 
         if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleRenderer>>)
             p_Renderer.DoStencilWriteNoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
@@ -207,8 +238,8 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
     }
     if (p_Flags & DrawFlags_DoStencilTestNoFill)
     {
-        const MaterialData<D2> material{p_State.OutlineColor};
-        const auto instanceData = createInstanceData<DrawLevel::Simple>(p_Transform, material);
+        material.Color = p_State.OutlineColor.Pack();
+        const auto instanceData = createInstanceData<D, DrawMode::Stencil>(p_Transform, material);
 
         if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleRenderer>>)
             p_Renderer.DoStencilTestNoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
@@ -223,28 +254,28 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const RenderState<D> &p_State, const fmat4 &p_Transform, const Mesh<D> &p_Mesh,
+void IRenderer<D>::DrawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Mesh<D> &p_Mesh,
                             const DrawFlags p_Flags) noexcept
 {
     draw(m_MeshRenderer, p_State, p_Transform, p_Mesh, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPrimitive(const RenderState<D> &p_State, const fmat4 &p_Transform, const u32 p_PrimitiveIndex,
+void IRenderer<D>::DrawPrimitive(const RenderState<D> &p_State, const fmat<D> &p_Transform, const u32 p_PrimitiveIndex,
                                  const DrawFlags p_Flags) noexcept
 {
     draw(m_PrimitiveRenderer, p_State, p_Transform, p_PrimitiveIndex, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPolygon(const RenderState<D> &p_State, const fmat4 &p_Transform,
+void IRenderer<D>::DrawPolygon(const RenderState<D> &p_State, const fmat<D> &p_Transform,
                                const TKit::Span<const fvec2> p_Vertices, const DrawFlags p_Flags) noexcept
 {
     draw(m_PolygonRenderer, p_State, p_Transform, p_Vertices, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawCircle(const RenderState<D> &p_State, const fmat4 &p_Transform, const CircleOptions &p_Options,
+void IRenderer<D>::DrawCircle(const RenderState<D> &p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
                               const DrawFlags p_Flags) noexcept
 {
     draw(m_CircleRenderer, p_State, p_Transform, p_Options, p_Flags);
