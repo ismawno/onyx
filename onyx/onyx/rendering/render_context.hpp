@@ -860,8 +860,13 @@ template <Dimension D> class IRenderContext
  * @brief The `RenderContext` class is the primary way of communicating with the Onyx API.
  *
  * It is a high-level API that allows the user to draw shapes and meshes in a simple immediate mode
- * fashion. The draw calls are recorded, sent to the gpu and translated to vulkan draw calls when appropiate. The
- * following is a set of properties of the `RenderContext` you must take into account when using it:
+ * fashion. The draw calls are recorded, sent to the gpu and translated to vulkan draw calls when appropiate.
+ *
+ * All public interface is thread-safe unless the documentation says otherwise. Each thread has a separate state, with
+ * support for up to `ONYX_MAX_THREADS`. Thread-unsafe methods to synchronize state between threads are available as
+ * well. Multi-threaded use is encouraged, as the API was designed with core-friendliness in mind.
+ *
+ * The following is a set of properties of the `RenderContext` you must take into account when using it:
  *
  * - While it is possible to use `RenderContext` in pretty much any callback, it is recommended to use it in the
  * `OnUpdate()` callbacks, if using an application, or inside the body of the while loop if using a simple window. You
