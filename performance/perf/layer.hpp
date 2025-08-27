@@ -4,7 +4,6 @@
 #include "onyx/app/user_layer.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/render_context.hpp"
-#include "vulkan/vulkan_core.h"
 
 namespace Onyx
 {

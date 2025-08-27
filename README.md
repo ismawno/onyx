@@ -33,7 +33,7 @@ while (!window.ShouldClose())
 {
     Onyx::Input::PollEvents();
 
-    context->Flush(Onyx::Color::BLACK);
+    context->Flush();
 
     context->Fill(Onyx::Color::RED);
     context->Square();
@@ -122,7 +122,7 @@ while (!window.ShouldClose())
 {
     Onyx::Input::PollEvents();
 
-    context->Flush(Onyx::Color::BLACK);
+    context->Flush();
 
     context->Fill(Onyx::Color::RED);
     context->Square();
@@ -161,7 +161,7 @@ Onyx::RenderContext<D2> *context = app.GetMainWindow()->CreateRenderContext<D2>(
 app.GetMainWindow()->CreateCamera<D2>();
 while (app.NextFrame(clock))
 {
-    context->Flush(Onyx::Color::BLACK);
+    context->Flush();
 
     context->Fill(Onyx::Color::RED);
     context->Square();

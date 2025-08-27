@@ -166,7 +166,7 @@ class ONYX_API Window
 
     template <Dimension D> RenderContext<D> *CreateRenderContext() noexcept
     {
-        auto context = TKit::Scope<RenderContext<D>>::Create(this, m_FrameScheduler->CreateSceneRenderInfo());
+        auto context = TKit::Scope<RenderContext<D>>::Create(m_FrameScheduler->CreateSceneRenderInfo());
         auto &array = getContextArray<D>();
         RenderContext<D> *ptr = context.Get();
         array.Append(std::move(context));
@@ -239,12 +239,14 @@ class ONYX_API Window
     /// The background color used when clearing the window.
     Color BackgroundColor = Color::BLACK;
 
-    bool wasResized() const noexcept;
+    // Implementation detail but needs to be public
     void flagResize(u32 p_Width, u32 p_Height) noexcept;
+
+  private:
+    bool wasResized() const noexcept;
     void flagResizeDone() noexcept;
     void recreateSurface() noexcept;
 
-  private:
     void createWindow(const Specs &p_Specs) noexcept;
     /**
      * @brief Scale camera views to adapt to their viewport aspects.
@@ -296,5 +298,7 @@ class ONYX_API Window
     Flags m_Flags;
 
     bool m_Resized = false;
+
+    friend class FrameScheduler;
 };
 } // namespace Onyx

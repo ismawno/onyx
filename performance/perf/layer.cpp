@@ -58,6 +58,7 @@ template <Dimension D> void Layer<D>::OnUpdate() noexcept
         m_Context->DirectionalLight(fvec3{1.f}, 0.55f);
     }
 
+    m_Context->ShareCurrentState();
     for (const Lattice<D> &lattice : m_Lattices)
         lattice.Render(m_Context);
 }

@@ -19,7 +19,7 @@ static void RunStandaloneWindow() noexcept
     {
         Onyx::Input::PollEvents();
 
-        context->Flush(Onyx::Color::BLACK);
+        context->Flush();
 
         context->Fill(Onyx::Color::RED);
         context->Square();
@@ -108,7 +108,7 @@ static void RunStandaloneWindowCustomPipeline() noexcept
     {
         Onyx::Input::PollEvents();
 
-        context->Flush(Onyx::Color::BLACK);
+        context->Flush();
 
         context->Fill(Onyx::Color::RED);
         context->Square();
@@ -137,7 +137,7 @@ static void RunAppExample2() noexcept
     app.Startup();
     while (app.NextFrame(clock))
     {
-        context->Flush(Onyx::Color::BLACK);
+        context->Flush();
 
         context->Fill(Onyx::Color::RED);
         context->Mesh(square);

@@ -1,7 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_context.hpp"
-#include "onyx/app/input.hpp"
-#include "onyx/app/window.hpp"
+#include "tkit/multiprocessing/task_manager.hpp"
 
 #include "tkit/utils/math.hpp"
 
@@ -10,43 +9,38 @@ namespace Onyx
 using namespace Detail;
 
 template <Dimension D>
-IRenderContext<D>::IRenderContext(Window *p_Window, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
-    : m_Renderer(p_RenderInfo), m_Window(p_Window)
+IRenderContext<D>::IRenderContext(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+    : m_Renderer(p_RenderInfo)
 {
-    m_StateStack.Append(RenderState<D>{});
-    updateState();
+    for (u32 i = 0; i < ONYX_MAX_THREADS; ++i)
+    {
+        RenderState<D> &state = m_StateStack[i].States.Append();
+        m_StateStack[i].Current = &state;
+    }
 }
 
-template <Dimension D> void IRenderContext<D>::FlushState() noexcept
+static u32 getThreadIndex() noexcept
 {
-    TKIT_ASSERT(m_StateStack.GetSize() == 1, "[ONYX] For every push, there must be a pop");
-    m_StateStack[0] = RenderState<D>{};
-}
-template <Dimension D> void IRenderContext<D>::FlushState(const Color &p_Color) noexcept
-{
-    FlushState();
-    m_Window->BackgroundColor = p_Color;
+    thread_local u32 tindex = Core::GetTaskManager()->GetThreadIndex();
+    return tindex;
 }
 
-template <Dimension D> void IRenderContext<D>::FlushDrawData() noexcept
+template <Dimension D> void IRenderContext<D>::Flush(const u32 p_ThreadCount) noexcept
 {
+    TKIT_ASSERT(p_ThreadCount <= ONYX_MAX_THREADS, "[ONYX] Thread count is greater than the maximum threads allowed");
     m_Renderer.Flush();
-}
-
-template <Dimension D> void IRenderContext<D>::Flush() noexcept
-{
-    FlushDrawData();
-    FlushState();
-}
-template <Dimension D> void IRenderContext<D>::Flush(const Color &p_Color) noexcept
-{
-    FlushDrawData();
-    FlushState(p_Color);
+    for (u32 i = 0; i < p_ThreadCount; ++i)
+    {
+        Stack &stack = m_StateStack[i];
+        TKIT_ASSERT(stack.States.GetSize() == 1,
+                    "[ONYX] Mismatched Push() call found in thread {}. For every Push(), there must be a Pop()", i);
+        stack.States[0] = RenderState<D>{};
+    }
 }
 
 template <Dimension D> void IRenderContext<D>::Transform(const fmat<D> &p_Transform) noexcept
 {
-    m_State->Transform = p_Transform * m_State->Transform;
+    getState()->Transform = p_Transform * getState()->Transform;
 }
 template <Dimension D>
 void IRenderContext<D>::Transform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
@@ -70,13 +64,13 @@ void RenderContext<D3>::Transform(const fvec3 &p_Translation, const f32 p_Scale,
 
 template <Dimension D> void IRenderContext<D>::TransformAxes(const fmat<D> &p_Axes) noexcept
 {
-    m_State->Axes *= p_Axes;
+    getState()->Axes *= p_Axes;
 }
 template <Dimension D>
 void IRenderContext<D>::TransformAxes(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
                                       const rot<D> &p_Rotation) noexcept
 {
-    m_State->Axes *= Onyx::Transform<D>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation);
+    getState()->Axes *= Onyx::Transform<D>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation);
 }
 template <Dimension D>
 void IRenderContext<D>::TransformAxes(const fvec<D> &p_Translation, const f32 p_Scale,
@@ -96,12 +90,12 @@ void RenderContext<D3>::TransformAxes(const fvec3 &p_Translation, const f32 p_Sc
 
 template <Dimension D> void IRenderContext<D>::Translate(const fvec<D> &p_Translation) noexcept
 {
-    Onyx::Transform<D>::TranslateExtrinsic(m_State->Transform, p_Translation);
+    Onyx::Transform<D>::TranslateExtrinsic(getState()->Transform, p_Translation);
 }
 
 template <Dimension D> void IRenderContext<D>::Scale(const fvec<D> &p_Scale) noexcept
 {
-    Onyx::Transform<D>::ScaleExtrinsic(m_State->Transform, p_Scale);
+    Onyx::Transform<D>::ScaleExtrinsic(getState()->Transform, p_Scale);
 }
 template <Dimension D> void IRenderContext<D>::Scale(const f32 p_Scale) noexcept
 {
@@ -110,64 +104,64 @@ template <Dimension D> void IRenderContext<D>::Scale(const f32 p_Scale) noexcept
 
 template <Dimension D> void IRenderContext<D>::TranslateX(const f32 p_X) noexcept
 {
-    Onyx::Transform<D>::TranslateExtrinsic(m_State->Transform, 0, p_X);
+    Onyx::Transform<D>::TranslateExtrinsic(getState()->Transform, 0, p_X);
 }
 template <Dimension D> void IRenderContext<D>::TranslateY(const f32 p_Y) noexcept
 {
-    Onyx::Transform<D>::TranslateExtrinsic(m_State->Transform, 1, p_Y);
+    Onyx::Transform<D>::TranslateExtrinsic(getState()->Transform, 1, p_Y);
 }
 void RenderContext<D3>::TranslateZ(const f32 p_Z) noexcept
 {
-    Onyx::Transform<D3>::TranslateExtrinsic(m_State->Transform, 2, p_Z);
+    Onyx::Transform<D3>::TranslateExtrinsic(getState()->Transform, 2, p_Z);
 }
 
 template <Dimension D> void IRenderContext<D>::ScaleX(const f32 p_X) noexcept
 {
-    Onyx::Transform<D>::ScaleExtrinsic(m_State->Transform, 0, p_X);
+    Onyx::Transform<D>::ScaleExtrinsic(getState()->Transform, 0, p_X);
 }
 template <Dimension D> void IRenderContext<D>::ScaleY(const f32 p_Y) noexcept
 {
-    Onyx::Transform<D>::ScaleExtrinsic(m_State->Transform, 1, p_Y);
+    Onyx::Transform<D>::ScaleExtrinsic(getState()->Transform, 1, p_Y);
 }
 void RenderContext<D3>::ScaleZ(const f32 p_Z) noexcept
 {
-    Onyx::Transform<D3>::ScaleExtrinsic(m_State->Transform, 2, p_Z);
+    Onyx::Transform<D3>::ScaleExtrinsic(getState()->Transform, 2, p_Z);
 }
 
 template <Dimension D> void IRenderContext<D>::TranslateXAxis(const f32 p_X) noexcept
 {
-    Onyx::Transform<D>::TranslateIntrinsic(m_State->Axes, 0, p_X);
+    Onyx::Transform<D>::TranslateIntrinsic(getState()->Axes, 0, p_X);
 }
 template <Dimension D> void IRenderContext<D>::TranslateYAxis(const f32 p_Y) noexcept
 {
-    Onyx::Transform<D>::TranslateIntrinsic(m_State->Axes, 1, p_Y);
+    Onyx::Transform<D>::TranslateIntrinsic(getState()->Axes, 1, p_Y);
 }
 void RenderContext<D3>::TranslateZAxis(const f32 p_Z) noexcept
 {
-    Onyx::Transform<D3>::TranslateIntrinsic(m_State->Axes, 2, p_Z);
+    Onyx::Transform<D3>::TranslateIntrinsic(getState()->Axes, 2, p_Z);
 }
 
 template <Dimension D> void IRenderContext<D>::ScaleXAxis(const f32 p_X) noexcept
 {
-    Onyx::Transform<D>::ScaleIntrinsic(m_State->Axes, 0, p_X);
+    Onyx::Transform<D>::ScaleIntrinsic(getState()->Axes, 0, p_X);
 }
 template <Dimension D> void IRenderContext<D>::ScaleYAxis(const f32 p_Y) noexcept
 {
-    Onyx::Transform<D>::ScaleIntrinsic(m_State->Axes, 1, p_Y);
+    Onyx::Transform<D>::ScaleIntrinsic(getState()->Axes, 1, p_Y);
 }
 void RenderContext<D3>::ScaleZAxis(const f32 p_Z) noexcept
 {
-    Onyx::Transform<D3>::ScaleIntrinsic(m_State->Axes, 2, p_Z);
+    Onyx::Transform<D3>::ScaleIntrinsic(getState()->Axes, 2, p_Z);
 }
 
 template <Dimension D> void IRenderContext<D>::TranslateAxes(const fvec<D> &p_Translation) noexcept
 {
-    Onyx::Transform<D>::TranslateIntrinsic(m_State->Axes, p_Translation);
+    Onyx::Transform<D>::TranslateIntrinsic(getState()->Axes, p_Translation);
 }
 
 template <Dimension D> void IRenderContext<D>::ScaleAxes(const fvec<D> &p_Scale) noexcept
 {
-    Onyx::Transform<D>::ScaleIntrinsic(m_State->Axes, p_Scale);
+    Onyx::Transform<D>::ScaleIntrinsic(getState()->Axes, p_Scale);
 }
 template <Dimension D> void IRenderContext<D>::ScaleAxes(const f32 p_Scale) noexcept
 {
@@ -176,12 +170,12 @@ template <Dimension D> void IRenderContext<D>::ScaleAxes(const f32 p_Scale) noex
 
 void RenderContext<D2>::Rotate(const f32 p_Angle) noexcept
 {
-    Onyx::Transform<D2>::RotateExtrinsic(m_State->Transform, p_Angle);
+    Onyx::Transform<D2>::RotateExtrinsic(getState()->Transform, p_Angle);
 }
 
 void RenderContext<D3>::Rotate(const quat &p_Quaternion) noexcept
 {
-    Onyx::Transform<D3>::RotateExtrinsic(m_State->Transform, p_Quaternion);
+    Onyx::Transform<D3>::RotateExtrinsic(getState()->Transform, p_Quaternion);
 }
 void RenderContext<D3>::Rotate(const f32 p_Angle, const fvec3 &p_Axis) noexcept
 {
@@ -208,11 +202,11 @@ void RenderContext<D3>::RotateZ(const f32 p_Angle) noexcept
 
 void RenderContext<D2>::RotateAxes(const f32 p_Angle) noexcept
 {
-    Onyx::Transform<D2>::RotateIntrinsic(m_State->Axes, p_Angle);
+    Onyx::Transform<D2>::RotateIntrinsic(getState()->Axes, p_Angle);
 }
 void RenderContext<D3>::RotateAxes(const quat &p_Quaternion) noexcept
 {
-    Onyx::Transform<D3>::RotateIntrinsic(m_State->Axes, p_Quaternion);
+    Onyx::Transform<D3>::RotateIntrinsic(getState()->Axes, p_Quaternion);
 }
 void RenderContext<D3>::RotateAxes(const f32 p_Angle, const fvec3 &p_Axis) noexcept
 {
@@ -237,13 +231,12 @@ void RenderContext<D3>::RotateZAxis(const f32 p_Angle) noexcept
     RotateAxes(fvec3{0.f, 0.f, p_Angle});
 }
 
-template <Dimension D>
-template <typename F1, typename F2>
-void IRenderContext<D>::resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept
+template <Dimension D, typename F1, typename F2>
+static void resolveDrawFlagsWithState(const RenderState<D> &p_State, F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept
 {
-    if (m_State->Fill)
+    if (p_State.Fill)
     {
-        if (m_State->Outline)
+        if (p_State.Outline)
         {
             std::forward<F1>(p_FillDraw)(DrawFlags_DoStencilWriteDoFill);
             std::forward<F2>(p_OutlineDraw)(DrawFlags_DoStencilTestNoFill);
@@ -251,7 +244,7 @@ void IRenderContext<D>::resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_Outlin
         else
             std::forward<F1>(p_FillDraw)(DrawFlags_NoStencilWriteDoFill);
     }
-    else if (m_State->Outline)
+    else if (p_State.Outline)
     {
         std::forward<F1>(p_FillDraw)(DrawFlags_DoStencilWriteNoFill);
         std::forward<F2>(p_OutlineDraw)(DrawFlags_DoStencilTestNoFill);
@@ -260,7 +253,12 @@ void IRenderContext<D>::resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_Outlin
 
 template <Dimension D> void IRenderContext<D>::updateState() noexcept
 {
-    m_State = &m_StateStack.GetBack();
+    Stack &stack = m_StateStack[getThreadIndex()];
+    stack.Current = &stack.States.GetBack();
+}
+template <Dimension D> RenderState<D> *IRenderContext<D>::getState() noexcept
+{
+    return m_StateStack[getThreadIndex()].Current;
 }
 
 template <Dimension D>
@@ -278,7 +276,7 @@ void IRenderContext<D>::drawPrimitive(const RenderState<D> &p_State, const fmat<
             Onyx::Transform<D>::ScaleIntrinsic(transform, i, thickness);
         m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, p_PrimitiveIndex, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 template <Dimension D>
 template <Dimension PDim>
@@ -298,27 +296,27 @@ void IRenderContext<D>::drawPrimitive(const RenderState<D> &p_State, const fmat<
             Onyx::Transform<D>::ScaleIntrinsic(transform, i, p_Dimensions[i] + width);
         m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, p_PrimitiveIndex, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 
 template <Dimension D> void IRenderContext<D>::Triangle() noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, state.Transform, Primitives<D>::GetTriangleIndex());
 }
 template <Dimension D> void IRenderContext<D>::Triangle(const fmat<D> &p_Transform) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, p_Transform * state.Transform, Primitives<D>::GetTriangleIndex());
 }
 template <Dimension D> void IRenderContext<D>::Triangle(const fvec2 &p_Dimensions) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, state.Transform, Primitives<D>::GetTriangleIndex(), p_Dimensions);
 }
 template <Dimension D> void IRenderContext<D>::Triangle(const fmat<D> &p_Transform, const fvec2 &p_Dimensions) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, p_Transform * state.Transform, Primitives<D>::GetTriangleIndex(), p_Dimensions);
 }
 template <Dimension D> void IRenderContext<D>::Triangle(const f32 p_Size) noexcept
@@ -332,22 +330,22 @@ template <Dimension D> void IRenderContext<D>::Triangle(const fmat<D> &p_Transfo
 
 template <Dimension D> void IRenderContext<D>::Square() noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, state.Transform, Primitives<D>::GetSquareIndex());
 }
 template <Dimension D> void IRenderContext<D>::Square(const fmat<D> &p_Transform) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, p_Transform * state.Transform, Primitives<D>::GetSquareIndex());
 }
 template <Dimension D> void IRenderContext<D>::Square(const fvec2 &p_Dimensions) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, state.Transform, Primitives<D>::GetSquareIndex(), p_Dimensions);
 }
 template <Dimension D> void IRenderContext<D>::Square(const fmat<D> &p_Transform, const fvec2 &p_Dimensions) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, p_Transform * state.Transform, Primitives<D>::GetSquareIndex(), p_Dimensions);
 }
 template <Dimension D> void IRenderContext<D>::Square(const f32 p_Size) noexcept
@@ -361,23 +359,23 @@ template <Dimension D> void IRenderContext<D>::Square(const fmat<D> &p_Transform
 
 template <Dimension D> void IRenderContext<D>::NGon(const u32 p_Sides) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, state.Transform, Primitives<D>::GetNGonIndex(p_Sides));
 }
 template <Dimension D> void IRenderContext<D>::NGon(const fmat<D> &p_Transform, const u32 p_Sides) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, p_Transform * state.Transform, Primitives<D>::GetNGonIndex(p_Sides));
 }
 template <Dimension D> void IRenderContext<D>::NGon(const u32 p_Sides, const fvec2 &p_Dimensions) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, state.Transform, Primitives<D>::GetNGonIndex(p_Sides), p_Dimensions);
 }
 template <Dimension D>
 void IRenderContext<D>::NGon(const fmat<D> &p_Transform, const u32 p_Sides, const fvec2 &p_Dimensions) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPrimitive<D2>(state, p_Transform * state.Transform, Primitives<D>::GetNGonIndex(p_Sides), p_Dimensions);
 }
 template <Dimension D> void IRenderContext<D>::NGon(const u32 p_Sides, const f32 p_Size) noexcept
@@ -417,18 +415,18 @@ void IRenderContext<D>::drawPolygon(const RenderState<D> &p_State, const fmat<D>
         }
         m_Renderer.DrawPolygon(p_State, p_State.Axes * p_Transform, vertices, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 
 template <Dimension D> void IRenderContext<D>::Polygon(const TKit::Span<const fvec2> p_Vertices) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPolygon(state, state.Transform, p_Vertices);
 }
 template <Dimension D>
 void IRenderContext<D>::Polygon(const fmat<D> &p_Transform, const TKit::Span<const fvec2> p_Vertices) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawPolygon(state, p_Transform * state.Transform, p_Vertices);
 }
 
@@ -447,7 +445,7 @@ void IRenderContext<D>::drawCircle(const RenderState<D> &p_State, const fmat<D> 
 
         m_Renderer.DrawCircle(p_State, p_State.Axes * transform, p_Options, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 template <Dimension D>
 void IRenderContext<D>::drawCircle(const RenderState<D> &p_State, const fmat<D> &p_Transform,
@@ -467,31 +465,31 @@ void IRenderContext<D>::drawCircle(const RenderState<D> &p_State, const fmat<D> 
 
         m_Renderer.DrawCircle(p_State, p_State.Axes * transform, p_Options, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 
 template <Dimension D> void IRenderContext<D>::Circle(const CircleOptions &p_Options) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawCircle(state, state.Transform, p_Options);
 }
 template <Dimension D>
 void IRenderContext<D>::Circle(const fmat<D> &p_Transform, const CircleOptions &p_Options) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawCircle(state, p_Transform * state.Transform, p_Options);
 }
 template <Dimension D>
 void IRenderContext<D>::Circle(const fvec2 &p_Dimensions, const CircleOptions &p_Options) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawCircle(state, state.Transform, p_Options, p_Dimensions);
 }
 template <Dimension D>
 void IRenderContext<D>::Circle(const fmat<D> &p_Transform, const fvec2 &p_Dimensions,
                                const CircleOptions &p_Options) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawCircle(state, p_Transform * state.Transform, p_Options, p_Dimensions);
 }
 template <Dimension D> void IRenderContext<D>::Circle(const f32 p_Diameter, const CircleOptions &p_Options) noexcept
@@ -562,7 +560,7 @@ void IRenderContext<D>::drawStadium(const RenderState<D> &p_State, const fmat<D>
         m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D>::GetSquareIndex(), p_Flags);
         drawStadiumMoons(p_State, p_Transform, 1.f, diameter, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 template <Dimension D>
 void IRenderContext<D>::drawStadium(const RenderState<D> &p_State, const fmat<D> &p_Transform, const f32 p_Length,
@@ -583,29 +581,29 @@ void IRenderContext<D>::drawStadium(const RenderState<D> &p_State, const fmat<D>
         m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D>::GetSquareIndex(), p_Flags);
         drawStadiumMoons(p_State, p_Transform, p_Length, diameter, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 
 template <Dimension D> void IRenderContext<D>::Stadium() noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawStadium(state, state.Transform);
 }
 template <Dimension D> void IRenderContext<D>::Stadium(const fmat<D> &p_Transform) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawStadium(state, p_Transform * state.Transform);
 }
 
 template <Dimension D> void IRenderContext<D>::Stadium(const f32 p_Length, const f32 p_Diameter) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawStadium(state, state.Transform, p_Length, p_Diameter);
 }
 template <Dimension D>
 void IRenderContext<D>::Stadium(const fmat<D> &p_Transform, const f32 p_Length, const f32 p_Diameter) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawStadium(state, p_Transform * state.Transform, p_Length, p_Diameter);
 }
 
@@ -658,7 +656,7 @@ void IRenderContext<D>::drawRoundedSquare(const RenderState<D> &p_State, const f
 
         drawRoundedSquareMoons(p_State, p_Transform, fvec2{1.f}, thickness, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 template <Dimension D>
 void IRenderContext<D>::drawRoundedSquare(const RenderState<D> &p_State, const fmat<D> &p_Transform,
@@ -681,29 +679,29 @@ void IRenderContext<D>::drawRoundedSquare(const RenderState<D> &p_State, const f
 
         drawRoundedSquareMoons(p_State, p_Transform, p_Dimensions, p_Diameter + width, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 
 template <Dimension D> void IRenderContext<D>::RoundedSquare() noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawRoundedSquare(state, state.Transform);
 }
 template <Dimension D> void IRenderContext<D>::RoundedSquare(const fmat<D> &p_Transform) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawRoundedSquare(state, p_Transform * state.Transform);
 }
 template <Dimension D> void IRenderContext<D>::RoundedSquare(const fvec2 &p_Dimensions, const f32 p_Diameter) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawRoundedSquare(state, state.Transform, p_Dimensions, p_Diameter);
 }
 template <Dimension D>
 void IRenderContext<D>::RoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimensions,
                                       const f32 p_Diameter) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawRoundedSquare(state, p_Transform * state.Transform, p_Dimensions, p_Diameter);
 }
 template <Dimension D> void IRenderContext<D>::RoundedSquare(const f32 p_Size, const f32 p_Diameter) noexcept
@@ -737,7 +735,7 @@ template <Dimension D> static rot<D> computeLineRotation(const fvec<D> &p_Start,
 void RenderContext<D2>::Line(const fvec2 &p_Start, const fvec2 &p_End, const f32 p_Thickness) noexcept
 {
     const fvec2 delta = p_End - p_Start;
-    const RenderState<D2> state = *m_State;
+    const RenderState<D2> &state = *getState();
     fmat3 transform = state.Transform;
     Onyx::Transform<D2>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D2>::RotateIntrinsic(transform, computeLineRotation<D2>(p_Start, p_End));
@@ -747,7 +745,7 @@ void RenderContext<D2>::Line(const fvec2 &p_Start, const fvec2 &p_End, const f32
 void RenderContext<D3>::Line(const fvec3 &p_Start, const fvec3 &p_End, const LineOptions &p_Options) noexcept
 {
     const fvec3 delta = p_End - p_Start;
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     fmat4 transform = state.Transform;
     Onyx::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D3>::RotateIntrinsic(transform, computeLineRotation<D3>(p_Start, p_End));
@@ -772,7 +770,7 @@ void RenderContext<D3>::LineStrip(const TKit::Span<const fvec3> p_Points, const 
 void RenderContext<D2>::RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, const f32 p_Thickness) noexcept
 {
     const fvec2 delta = p_End - p_Start;
-    const RenderState<D2> state = *m_State;
+    const RenderState<D2> &state = *getState();
     fmat3 transform = state.Transform;
     Onyx::Transform<D2>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D2>::RotateIntrinsic(transform, computeLineRotation<D2>(p_Start, p_End));
@@ -782,7 +780,7 @@ void RenderContext<D2>::RoundedLine(const fvec2 &p_Start, const fvec2 &p_End, co
 void RenderContext<D3>::RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, const LineOptions &p_Options) noexcept
 {
     const fvec3 delta = p_End - p_Start;
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     fmat4 transform = state.Transform;
     Onyx::Transform<D3>::TranslateIntrinsic(transform, 0.5f * (p_Start + p_End));
     Onyx::Transform<D3>::RotateIntrinsic(transform, computeLineRotation<D3>(p_Start, p_End));
@@ -792,22 +790,22 @@ void RenderContext<D3>::RoundedLine(const fvec3 &p_Start, const fvec3 &p_End, co
 
 void RenderContext<D3>::Cube() noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, state.Transform, Primitives<D3>::GetCubeIndex());
 }
 void RenderContext<D3>::Cube(const fmat4 &p_Transform) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, p_Transform * state.Transform, Primitives<D3>::GetCubeIndex());
 }
 void RenderContext<D3>::Cube(const fvec3 &p_Dimensions) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, state.Transform, Primitives<D3>::GetCubeIndex(), p_Dimensions);
 }
 void RenderContext<D3>::Cube(const fmat4 &p_Transform, const fvec3 &p_Dimensions) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, p_Transform * state.Transform, Primitives<D3>::GetCubeIndex(), p_Dimensions);
 }
 void RenderContext<D3>::Cube(const f32 p_Size) noexcept
@@ -821,22 +819,22 @@ void RenderContext<D3>::Cube(const fmat4 &p_Transform, const f32 p_Size) noexcep
 
 void RenderContext<D3>::Cylinder(const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, state.Transform, Primitives<D3>::GetCylinderIndex(p_Res));
 }
 void RenderContext<D3>::Cylinder(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, p_Transform * state.Transform, Primitives<D3>::GetCylinderIndex(p_Res));
 }
 void RenderContext<D3>::Cylinder(const fvec3 &p_Dimensions, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, state.Transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Dimensions);
 }
 void RenderContext<D3>::Cylinder(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, p_Transform * state.Transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Dimensions);
 }
 void RenderContext<D3>::Cylinder(const f32 p_Length, const f32 p_Diameter, const Resolution p_Res) noexcept
@@ -851,22 +849,22 @@ void RenderContext<D3>::Cylinder(const fmat4 &p_Transform, const f32 p_Length, c
 
 void RenderContext<D3>::Sphere(const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, state.Transform, Primitives<D3>::GetSphereIndex(p_Res));
 }
 void RenderContext<D3>::Sphere(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, p_Transform * state.Transform, Primitives<D3>::GetSphereIndex(p_Res));
 }
 void RenderContext<D3>::Sphere(const fvec3 &p_Dimensions, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, state.Transform, Primitives<D3>::GetSphereIndex(p_Res), p_Dimensions);
 }
 void RenderContext<D3>::Sphere(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawPrimitive<D3>(state, p_Transform * state.Transform, Primitives<D3>::GetSphereIndex(p_Res), p_Dimensions);
 }
 void RenderContext<D3>::Sphere(const f32 p_Diameter, const Resolution p_Res) noexcept
@@ -918,7 +916,7 @@ void RenderContext<D3>::drawCapsule(const RenderState<D3> &p_State, const fmat4 
         pos.x = 0.5f;
         drawChildSphere(p_State, p_Transform, pos, thickness, p_Res, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 void RenderContext<D3>::drawCapsule(const RenderState<D3> &p_State, const fmat4 &p_Transform, const f32 p_Length,
                                     const f32 p_Diameter, const Resolution p_Res) noexcept
@@ -947,28 +945,28 @@ void RenderContext<D3>::drawCapsule(const RenderState<D3> &p_State, const fmat4 
         pos.x = -pos.x;
         drawChildSphere(p_State, p_Transform, pos, diameter, p_Res, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 
 void RenderContext<D3>::Capsule(const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawCapsule(state, state.Transform, p_Res);
 }
 void RenderContext<D3>::Capsule(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawCapsule(state, p_Transform * state.Transform, p_Res);
 }
 void RenderContext<D3>::Capsule(const f32 p_Length, const f32 p_Diameter, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawCapsule(state, state.Transform, p_Length, p_Diameter, p_Res);
 }
 void RenderContext<D3>::Capsule(const fmat4 &p_Transform, const f32 p_Length, const f32 p_Diameter,
                                 const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawCapsule(state, p_Transform * state.Transform, p_Length, p_Diameter, p_Res);
 }
 
@@ -1038,7 +1036,7 @@ void RenderContext<D3>::drawRoundedCube(const RenderState<D3> &p_State, const fm
         const f32 thickness = 1.f + p_State.OutlineWidth;
         drawRoundedCubeMoons(p_State, p_Transform, fvec3{1.f}, thickness, p_Res, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 void RenderContext<D3>::drawRoundedCube(const RenderState<D3> &p_State, const fmat4 &p_Transform,
                                         const fvec3 &p_Dimensions, const f32 p_Diameter,
@@ -1059,28 +1057,28 @@ void RenderContext<D3>::drawRoundedCube(const RenderState<D3> &p_State, const fm
 
         drawRoundedCubeMoons(p_State, p_Transform, p_Dimensions, p_Diameter + width, p_Res, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 
 void RenderContext<D3>::RoundedCube(const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawRoundedCube(state, state.Transform, p_Res);
 }
 void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawRoundedCube(state, p_Transform * state.Transform, p_Res);
 }
 void RenderContext<D3>::RoundedCube(const fvec3 &p_Dimensions, const f32 p_Diameter, const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawRoundedCube(state, state.Transform, p_Dimensions, p_Diameter, p_Res);
 }
 void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const fvec3 &p_Dimensions, const f32 p_Diameter,
                                     const Resolution p_Res) noexcept
 {
-    const RenderState<D3> state = *m_State;
+    const RenderState<D3> &state = *getState();
     drawRoundedCube(state, p_Transform * state.Transform, p_Dimensions, p_Diameter, p_Res);
 }
 void RenderContext<D3>::RoundedCube(const f32 p_Size, const f32 p_Diameter, const Resolution p_Res) noexcept
@@ -1095,7 +1093,7 @@ void RenderContext<D3>::RoundedCube(const fmat4 &p_Transform, const f32 p_Size, 
 
 void RenderContext<D3>::LightColor(const Color &p_Color) noexcept
 {
-    m_State->LightColor = p_Color;
+    getState()->LightColor = p_Color;
 }
 void RenderContext<D3>::AmbientColor(const Color &p_Color) noexcept
 {
@@ -1108,7 +1106,7 @@ void RenderContext<D3>::AmbientIntensity(const f32 p_Intensity) noexcept
 
 void RenderContext<D3>::DirectionalLight(Onyx::DirectionalLight p_Light) noexcept
 {
-    const fmat4 transform = m_State->Axes * m_State->Transform;
+    const fmat4 transform = getState()->Axes * getState()->Transform;
     fvec4 direction = p_Light.DirectionAndIntensity;
     direction.w = 0.f;
     direction = transform * direction;
@@ -1120,13 +1118,13 @@ void RenderContext<D3>::DirectionalLight(const fvec3 &p_Direction, const f32 p_I
 {
     Onyx::DirectionalLight light;
     light.DirectionAndIntensity = fvec4{p_Direction, p_Intensity};
-    light.Color = m_State->LightColor;
+    light.Color = getState()->LightColor;
     DirectionalLight(light);
 }
 
 void RenderContext<D3>::PointLight(Onyx::PointLight p_Light) noexcept
 {
-    const fmat4 transform = m_State->Axes * m_State->Transform;
+    const fmat4 transform = getState()->Axes * getState()->Transform;
     fvec4 position = p_Light.PositionAndIntensity;
     position.w = 1.f;
     position = transform * position;
@@ -1139,7 +1137,7 @@ void RenderContext<D3>::PointLight(const fvec3 &p_Position, const f32 p_Diameter
     Onyx::PointLight light;
     light.PositionAndIntensity = fvec4{p_Position, p_Intensity};
     light.Radius = p_Diameter;
-    light.Color = m_State->LightColor;
+    light.Color = getState()->LightColor;
     PointLight(light);
 }
 void RenderContext<D3>::PointLight(const f32 p_Diameter, const f32 p_Intensity) noexcept
@@ -1149,20 +1147,20 @@ void RenderContext<D3>::PointLight(const f32 p_Diameter, const f32 p_Intensity) 
 
 void RenderContext<D3>::DiffuseContribution(const f32 p_Contribution) noexcept
 {
-    m_State->Material.DiffuseContribution = p_Contribution;
+    getState()->Material.DiffuseContribution = p_Contribution;
 }
 void RenderContext<D3>::SpecularContribution(const f32 p_Contribution) noexcept
 {
-    m_State->Material.SpecularContribution = p_Contribution;
+    getState()->Material.SpecularContribution = p_Contribution;
 }
 void RenderContext<D3>::SpecularSharpness(const f32 p_Sharpness) noexcept
 {
-    m_State->Material.SpecularSharpness = p_Sharpness;
+    getState()->Material.SpecularSharpness = p_Sharpness;
 }
 
 template <Dimension D> void IRenderContext<D>::Fill(const bool p_Enabled) noexcept
 {
-    m_State->Fill = p_Enabled;
+    getState()->Fill = p_Enabled;
 }
 
 template <Dimension D>
@@ -1178,7 +1176,7 @@ void IRenderContext<D>::drawMesh(const RenderState<D> &p_State, const fmat<D> &p
         Onyx::Transform<D>::ScaleIntrinsic(transform, fvec<D>{scale});
         m_Renderer.DrawMesh(p_State, transform, p_Mesh, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 template <Dimension D>
 void IRenderContext<D>::drawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh,
@@ -1195,123 +1193,140 @@ void IRenderContext<D>::drawMesh(const RenderState<D> &p_State, const fmat<D> &p
         Onyx::Transform<D>::ScaleIntrinsic(transform, p_Dimensions + width);
         m_Renderer.DrawMesh(p_State, transform, p_Mesh, p_Flags);
     };
-    resolveDrawFlagsWithState(fill, outline);
+    resolveDrawFlagsWithState(p_State, fill, outline);
 }
 
 template <Dimension D> void IRenderContext<D>::Mesh(const Onyx::Mesh<D> &p_Mesh) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawMesh(state, state.Transform, p_Mesh);
 }
 template <Dimension D> void IRenderContext<D>::Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawMesh(state, p_Transform * state.Transform, p_Mesh);
 }
 template <Dimension D> void IRenderContext<D>::Mesh(const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawMesh(state, state.Transform, p_Mesh, p_Dimensions);
 }
 template <Dimension D>
 void IRenderContext<D>::Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh,
                              const fvec<D> &p_Dimensions) noexcept
 {
-    const RenderState<D> state = *m_State;
+    const RenderState<D> &state = *getState();
     drawMesh(state, p_Transform * state.Transform, p_Mesh, p_Dimensions);
 }
 
-template <Dimension D> void IRenderContext<D>::Push() noexcept
+template <Dimension D> void IRenderContext<D>::Push(const RenderState<D> &p_State) noexcept
 {
-    m_StateStack.Append(m_StateStack.GetBack());
+    Stack &stack = m_StateStack[getThreadIndex()];
+    stack.States.Append(p_State);
     updateState();
 }
-template <Dimension D> void IRenderContext<D>::PushAndClear() noexcept
+template <Dimension D> void IRenderContext<D>::Push() noexcept
 {
-    m_StateStack.Append(RenderState<D>{});
-    updateState();
+    Push(m_StateStack[getThreadIndex()].States.GetBack());
 }
 template <Dimension D> void IRenderContext<D>::Pop() noexcept
 {
-    TKIT_ASSERT(m_StateStack.GetSize() > 1, "[ONYX] For every push, there must be a pop");
-    m_StateStack.Pop();
+    TKIT_ASSERT(m_StateStack.GetSize() > 1, "[ONYX] For every Push(), there must be a Pop()");
+    Stack &stack = m_StateStack[getThreadIndex()];
+    stack.States.Pop();
     updateState();
 }
 
 template <Dimension D> void IRenderContext<D>::Alpha(const f32 p_Alpha) noexcept
 {
-    m_State->Material.Color.RGBA.a = p_Alpha;
+    getState()->Material.Color.RGBA.a = p_Alpha;
 }
 template <Dimension D> void IRenderContext<D>::Alpha(const u8 p_Alpha) noexcept
 {
-    m_State->Material.Color.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
+    getState()->Material.Color.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
 }
 template <Dimension D> void IRenderContext<D>::Alpha(const u32 p_Alpha) noexcept
 {
-    m_State->Material.Color.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
+    getState()->Material.Color.RGBA.a = static_cast<f32>(p_Alpha) / 255.f;
 }
 
 template <Dimension D> void IRenderContext<D>::Fill(const Color &p_Color) noexcept
 {
     Fill(true);
-    m_State->Material.Color = p_Color;
+    getState()->Material.Color = p_Color;
 }
 template <Dimension D> void IRenderContext<D>::Outline(const bool p_Enabled) noexcept
 {
-    m_State->Outline = p_Enabled;
+    getState()->Outline = p_Enabled;
 }
 template <Dimension D> void IRenderContext<D>::Outline(const Color &p_Color) noexcept
 {
     Outline(true);
-    m_State->OutlineColor = p_Color;
+    getState()->OutlineColor = p_Color;
 }
 template <Dimension D> void IRenderContext<D>::OutlineWidth(const f32 p_Width) noexcept
 {
     Outline(true);
-    m_State->OutlineWidth = p_Width;
+    getState()->OutlineWidth = p_Width;
 }
 
 template <Dimension D> void IRenderContext<D>::Material(const MaterialData<D> &p_Material) noexcept
 {
-    m_State->Material = p_Material;
+    getState()->Material = p_Material;
+}
+
+template <Dimension D> void IRenderContext<D>::ShareStateStack(const u32 p_ThreadCount) noexcept
+{
+    TKIT_ASSERT(p_ThreadCount <= ONYX_MAX_THREADS, "[ONYX] Thread count is greater than the maximum threads allowed");
+    const u32 tindex = getThreadIndex();
+    for (u32 i = 0; i < p_ThreadCount; ++i)
+        if (i != tindex)
+            m_StateStack[i] = m_StateStack[tindex];
+}
+
+template <Dimension D> void IRenderContext<D>::ShareCurrentState(const u32 p_ThreadCount) noexcept
+{
+    TKIT_ASSERT(p_ThreadCount <= ONYX_MAX_THREADS, "[ONYX] Thread count is greater than the maximum threads allowed");
+    const u32 tindex = getThreadIndex();
+    for (u32 i = 0; i < p_ThreadCount; ++i)
+        if (i != tindex)
+            *m_StateStack[i].Current = *m_StateStack[tindex].Current;
+}
+
+template <Dimension D>
+void IRenderContext<D>::ShareState(const RenderState<D> &p_State, const u32 p_ThreadCount) noexcept
+{
+    TKIT_ASSERT(p_ThreadCount <= ONYX_MAX_THREADS, "[ONYX] Thread count is greater than the maximum threads allowed");
+    for (u32 i = 0; i < p_ThreadCount; ++i)
+        *m_StateStack[i].Current = p_State;
 }
 
 template <Dimension D> const RenderState<D> &IRenderContext<D>::GetCurrentState() const noexcept
 {
-    return m_StateStack.GetBack();
+    return *m_StateStack[getThreadIndex()].Current;
 }
 template <Dimension D> RenderState<D> &IRenderContext<D>::GetCurrentState() noexcept
 {
-    return m_StateStack.GetBack();
+    return *m_StateStack[getThreadIndex()].Current;
+}
+template <Dimension D> void IRenderContext<D>::SetCurrentState(const RenderState<D> &p_State) noexcept
+{
+    *m_StateStack[getThreadIndex()].Current = p_State;
 }
 
-template <Dimension D> void IRenderContext<D>::GrowToFit(const u32 p_FrameIndex) noexcept
+template <Dimension D> const Renderer<D> &IRenderContext<D>::GetRenderer() const noexcept
 {
-    m_Renderer.GrowToFit(p_FrameIndex);
+    return m_Renderer;
 }
-template <Dimension D> void IRenderContext<D>::SendToDevice(const u32 p_FrameIndex) noexcept
+template <Dimension D> Renderer<D> &IRenderContext<D>::GetRenderer() noexcept
 {
-    m_Renderer.SendToDevice(p_FrameIndex);
-}
-template <Dimension D>
-VkPipelineStageFlags IRenderContext<D>::RecordCopyCommands(const u32 p_FrameIndex,
-                                                           const VkCommandBuffer p_GraphicsCommand,
-                                                           const VkCommandBuffer p_TransferCommand) noexcept
-{
-    return m_Renderer.RecordCopyCommands(p_FrameIndex, p_GraphicsCommand, p_TransferCommand);
-}
-
-template <Dimension D>
-void IRenderContext<D>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Commandbuffer,
-                               TKit::Span<const CameraInfo> p_Cameras) noexcept
-{
-    m_Renderer.Render(p_FrameIndex, p_Commandbuffer, p_Cameras);
+    return m_Renderer;
 }
 
 void RenderContext<D2>::Axes(const AxesOptions<D2> &p_Options) noexcept
 {
     // TODO: Parametrize this
-    Color &color = m_State->Material.Color;
+    Color &color = getState()->Material.Color;
     const Color oldColor = color; // A cheap filthy push
 
     const fvec2 xLeft = fvec2{-p_Options.Size, 0.f};
@@ -1331,7 +1346,7 @@ void RenderContext<D2>::Axes(const AxesOptions<D2> &p_Options) noexcept
 void RenderContext<D3>::Axes(const AxesOptions<D3> &p_Options) noexcept
 {
     // TODO: Parametrize this
-    Color &color = m_State->Material.Color;
+    Color &color = getState()->Material.Color;
     const Color oldColor = color; // A cheap filthy push
 
     const fvec3 xLeft = fvec3{-p_Options.Size, 0.f, 0.f};

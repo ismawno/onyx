@@ -17,83 +17,36 @@
 
 namespace Onyx
 {
-template <Dimension D> using RenderStateStack = TKit::StaticArray<RenderState<D>, ONYX_MAX_RENDER_STATE_DEPTH>;
 
 class Window;
 
 namespace Detail
 {
+template <Dimension D> using RenderStateStack = TKit::StaticArray<RenderState<D>, ONYX_MAX_RENDER_STATE_DEPTH>;
 template <Dimension D> class IRenderContext
 {
     TKIT_NON_COPYABLE(IRenderContext)
   public:
-    IRenderContext(Window *p_Window, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    IRenderContext(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
 
     /**
-     * @brief Clear all of the recorded draw data until this point.
+     * @brief Flushes all cpu-stored draw data, signaling the context to draw from scratch, and resets the state for all
+     *threads.
      *
-     * It is meant to be called at the beginning of the frame, but it is not required to do so in case you want to
-     * persist Onyx draw calls made in older frames.
+     * At the end of the frame, all cpu-stored data will be sent to the device and drawn. If this method is not called
+     * in the next frame, no new data will be sent and the device will keep rendering what was recorded last frame.
      *
-     * It calls all of the renderer's `Flush()` methods.
+     * New calls to `RenderContext` will have no effect and will be lost if at the start of a new frame `Flush()` is not
+     * called and draw commands are issued.
      *
-     */
-    void FlushDrawData() noexcept;
-
-    /**
-     * @brief Reset the state of the `RenderContext` to its default values.
+     * This method is not thread-safe and should be called once from a single thread.
      *
-     * This method is meant to be called at the beginning of the frame, but it is not required to do so in case you want
-     * to persist the state of the `RenderContext` from older frames.
-     *
-     */
-    void FlushState() noexcept;
-
-    /**
-     * @brief Reset the state of the `RenderContext` to its default values and sets the background color.
-     *
-     * @param p_Color The background color to set.
-     */
-    void FlushState(const Color &p_Color) noexcept;
-
-    /**
-     * @brief Reset the state of the `RenderContext` to its default values and sets the background color.
-     *
-     * @param p_ColorArgs Arguments to construct the background color.
-     */
-    template <typename... ColorArgs>
-        requires std::constructible_from<Color, ColorArgs...>
-    void FlushState(ColorArgs &&...p_ColorArgs) noexcept
-    {
-        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
-        FlushState(color);
-    }
-
-    /**
-     * @brief Call both `FlushDrawData()` and `FlushState()`.
+     * @param p_ThreadCount The number of threads affected. The application may not be using all of the threads given by
+     * `ONYX_MAX_THREADS`. This number may reflect how many threads are actually in use by your application to avoid
+     * extra work. The calling thread's index is thus expected to be lower than the count, although it is not required.
      *
      */
-    void Flush() noexcept;
-
-    /**
-     * @brief Call both `FlushDrawData()` and `FlushState()`, and sets the background color.
-     *
-     * @param p_Color The background color to set.
-     */
-    void Flush(const Color &p_Color) noexcept;
-
-    /**
-     * @brief Call both `FlushDrawData()` and `FlushState()`, and sets the background color.
-     *
-     * @param p_ColorArgs Arguments to construct the background color.
-     */
-    template <typename... ColorArgs>
-        requires std::constructible_from<Color, ColorArgs...>
-    void Flush(ColorArgs &&...p_ColorArgs) noexcept
-    {
-        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
-        Flush(color);
-    }
+    void Flush(const u32 p_ThreadCount = ONYX_MAX_THREADS) noexcept;
 
     /**
      * @brief Transform subsequent shapes by the given transformation matrix.
@@ -684,23 +637,23 @@ template <Dimension D> class IRenderContext
     void Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions) noexcept;
 
     /**
-     * @brief Pushes the current transformation state onto the stack.
+     * @brief Pushes the current context state onto the stack.
      *
-     * Allows you to save the current state and restore it later with Pop().
+     * Allows you to save the current state and restore it later with `Pop()`.
      */
     void Push() noexcept;
 
     /**
-     * @brief Pushes the current state onto the stack and resets the transformation state.
+     * @brief Pushes the specified context state onto the stack.
      *
-     * Useful for temporarily changing the transformation state without affecting the saved state.
+     * Allows you to save the current state and restore it later with `Pop()`.
      */
-    void PushAndClear() noexcept;
+    void Push(const RenderState<D> &p_State) noexcept;
 
     /**
-     * @brief Pops the last saved transformation state from the stack.
+     * @brief Pops the last saved context state from the stack.
      *
-     * Restores the transformation state to the last state saved with Push().
+     * Restores the context state to the last state saved with `Push()`.
      */
     void Pop() noexcept;
 
@@ -793,6 +746,46 @@ template <Dimension D> class IRenderContext
     void Material(const MaterialData<D> &p_Material) noexcept;
 
     /**
+     * @brief Share this thread's state stack to all other threads.
+     *
+     * Useful when a global state is set from the main thread and is expected to be inherited by all threads. If
+     * `Push()` was called n times, all threads will have to `Pop()` n times as well. Take into account this will
+     * override previous `Pus()`/`Pop()` calls for the other threads. This method is not thread-safe.
+     *
+     * @param p_ThreadCount The number of threads affected. The application may not be using all of the threads given by
+     * `ONYX_MAX_THREADS`. Because this method shares the whole stack, this number should reflect how many threads are
+     * actually in use by your application. Failing to do so may result in assert errors from other threads state. The
+     * calling thread's index is thus expected to be lower than the count, although it is not required.
+     */
+    void ShareStateStack(u32 p_ThreadCount = ONYX_MAX_THREADS) noexcept;
+
+    /**
+     * @brief Share this thread's current state to all other threads.
+     *
+     * Useful when a global state is set from the main thread and is expected to be inherited by all threads. The other
+     * threads will not inherit this thread's `Push()`/`Pop()` calls. This method is not thread-safe.
+     *
+     * @param p_ThreadCount The number of threads affected. The application may not be using all of the threads given by
+     * `ONYX_MAX_THREADS`. This number may reflect how many threads are actually in use by your application to avoid
+     * extra work. The calling thread's index is thus expected to be lower than the count, although it is not required.
+     */
+    void ShareCurrentState(u32 p_ThreadCount = ONYX_MAX_THREADS) noexcept;
+
+    /**
+     * @brief Sets the specified state to all threads.
+     *
+     * Useful when a global state is set from the main thread and is expected to be inherited by all threads. The other
+     * threads will not inherit this thread's `Push()`/`Pop()` calls. This method is not thread-safe.
+     *
+     * @param p_State The state all threads will have.
+     * @param p_ThreadCount The number of threads affected. The application may not be using all of the threads given by
+     * `ONYX_MAX_THREADS`. This number may reflect how many threads are actually in use by your application to avoid
+     * extra work. The calling thread's index is thus expected to be lower than the count, although it is not required.
+     *
+     */
+    void ShareState(const RenderState<D> &p_State, u32 p_ThreadCount = ONYX_MAX_THREADS) noexcept;
+
+    /**
      * @brief Get the current rendering state.
      *
      * @return A constant reference to the current `RenderState`.
@@ -806,44 +799,14 @@ template <Dimension D> class IRenderContext
      */
     RenderState<D> &GetCurrentState() noexcept;
 
-    /**
-     * @brief Grow all device buffers to fit host data.
-     *
-     * @param p_FrameIndex The index of the current frame.
-     */
-    void GrowToFit(u32 p_FrameIndex) noexcept;
+    void SetCurrentState(const RenderState<D> &p_State) noexcept;
 
-    /**
-     * @brief Send all stored host data to the device.
-     *
-     * @param p_FrameIndex The index of the frame to send data for.
-     */
-    void SendToDevice(u32 p_FrameIndex) noexcept;
-
-    /**
-     * @brief Record vulkan copy commands to send data to a device local buffer.
-     *
-     * @param p_FrameIndex The index of the current frame.
-     * @param p_GraphicsCommand The graphics command buffer.
-     * @param p_TransferCommand The transfer command buffer.
-     * @return The stages to synchronize.
-     */
-    VkPipelineStageFlags RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
-                                            VkCommandBuffer p_TransferCommand) noexcept;
-
-    /**
-     * @brief Render the recorded draw data using the provided command buffer.
-     *
-     * @param p_FrameIndex The index of the frame to render.
-     * @param p_CommandBuffer The Vulkan command buffer to use for rendering.
-     * @param p_Cameras The cameras from which to render the scene.
-     */
-    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
+    const Renderer<D> &GetRenderer() const noexcept;
+    Renderer<D> &GetRenderer() noexcept;
 
   protected:
-    template <typename F1, typename F2> void resolveDrawFlagsWithState(F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept;
-
     void updateState() noexcept;
+    RenderState<D> *getState() noexcept;
 
     template <Dimension PDim>
     void drawPrimitive(const RenderState<D> &p_State, const fmat<D> &p_Transform, u32 p_PrimitiveIndex) noexcept;
@@ -882,12 +845,14 @@ template <Dimension D> class IRenderContext
     void drawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh,
                   const fvec<D> &p_Dimensions) noexcept;
 
-    RenderState<D> *m_State;
-    Detail::Renderer<D> m_Renderer;
-    Window *m_Window;
+    struct alignas(TKIT_CACHE_LINE_SIZE) Stack
+    {
+        RenderStateStack<D> States;
+        RenderState<D> *Current;
+    };
 
-  private:
-    RenderStateStack<D> m_StateStack;
+    TKit::Array<Stack, ONYX_MAX_THREADS> m_StateStack;
+    Detail::Renderer<D> m_Renderer;
 };
 } // namespace Detail
 

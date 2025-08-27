@@ -67,22 +67,22 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
         p_Callbacks.OnFrameBegin(frameIndex, gcmd);
 
     for (const auto &context : m_RenderContexts2D)
-        context->GrowToFit(frameIndex);
+        context->GetRenderer().GrowToFit(frameIndex);
     for (const auto &context : m_RenderContexts3D)
-        context->GrowToFit(frameIndex);
+        context->GetRenderer().GrowToFit(frameIndex);
 
     for (const auto &context : m_RenderContexts2D)
-        context->SendToDevice(frameIndex);
+        context->GetRenderer().SendToDevice(frameIndex);
     for (const auto &context : m_RenderContexts3D)
-        context->SendToDevice(frameIndex);
+        context->GetRenderer().SendToDevice(frameIndex);
 
     const VkCommandBuffer tcmd = m_FrameScheduler->GetTransferCommandBuffer();
     {
         // TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Copy", Core::GetTransferContext(), tcmd);
         for (const auto &context : m_RenderContexts2D)
-            transferFlags |= context->RecordCopyCommands(frameIndex, gcmd, tcmd);
+            transferFlags |= context->GetRenderer().RecordCopyCommands(frameIndex, gcmd, tcmd);
         for (const auto &context : m_RenderContexts3D)
-            transferFlags |= context->RecordCopyCommands(frameIndex, gcmd, tcmd);
+            transferFlags |= context->GetRenderer().RecordCopyCommands(frameIndex, gcmd, tcmd);
     }
 
     if (Core::GetTransferMode() == TransferMode::Separate && transferFlags != 0)
@@ -98,12 +98,12 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
         auto caminfos = getCameraInfos<D2>();
         if (!caminfos.IsEmpty())
             for (const auto &context : m_RenderContexts2D)
-                context->Render(frameIndex, gcmd, caminfos);
+                context->GetRenderer().Render(frameIndex, gcmd, caminfos);
 
         caminfos = getCameraInfos<D3>();
         if (!caminfos.IsEmpty())
             for (const auto &context : m_RenderContexts3D)
-                context->Render(frameIndex, gcmd, caminfos);
+                context->GetRenderer().Render(frameIndex, gcmd, caminfos);
 
         if (p_Callbacks.OnRenderEnd)
             p_Callbacks.OnRenderEnd(frameIndex, gcmd);

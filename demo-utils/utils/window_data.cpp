@@ -319,7 +319,8 @@ void WindowData::RenderEditorText() noexcept
 
 template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Context) noexcept
 {
-    p_Context.Context->Flush(m_BackgroundColor);
+    m_Window->BackgroundColor = m_BackgroundColor;
+    p_Context.Context->Flush();
     p_Context.Context->TransformAxes(p_Context.AxesTransform.ComputeTransform());
 
     const LatticeData<D> &lattice = p_Context.Lattice;
@@ -333,6 +334,7 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
         lattice.Shape->SetProperties(p_Context.Context);
         if (lattice.Multithreaded)
         {
+            p_Context.Context->ShareCurrentState();
             TKit::ITaskManager *tm = Core::GetTaskManager();
             if constexpr (D == D2)
             {
