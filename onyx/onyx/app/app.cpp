@@ -193,8 +193,13 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
 
     IMGUI_CHECKVERSION();
     ImGuiIO &io = ImGui::GetIO();
-    io.ConfigFlags |=
-        ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
+    ImGuiConfigFlags flags = ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
+
+#ifndef TKIT_OS_LINUX
+    flags |= ImGuiConfigFlags_ViewportsEnable; // linux may use a tiling window manager
+#endif
+
+    io.ConfigFlags |= flags;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
     m_Theme->Apply();

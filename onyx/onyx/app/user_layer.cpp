@@ -136,8 +136,12 @@ void UserLayer::DisplayFrameTime(const TKit::Timespan p_DeltaTime, const Flags p
         ImGui::Text("Frame time: %u us (max: %u us)", static_cast<u32>(smoothDeltaTime.AsMicroseconds()),
                     static_cast<u32>(maxDeltaTime.AsMicroseconds()));
     else
+#ifndef TKIT_OS_LINUX
         ImGui::Text("Frame time: %llu ns (max: %llu ns)", smoothDeltaTime.AsNanoseconds(),
                     maxDeltaTime.AsNanoseconds());
+#else
+        ImGui::Text("Frame time: %lu ns (max: %lu ns)", smoothDeltaTime.AsNanoseconds(), maxDeltaTime.AsNanoseconds());
+#endif
     if (p_Flags & Flag_DisplayHelp)
         HelpMarkerSameLine(
             "The frame time is a measure of the time it takes to process and render a frame, and it is one of the main "

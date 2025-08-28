@@ -8,6 +8,9 @@ imgui.ini
 docs/html/
 docs/latex/
 __pycache__/
+.cache/
+demo-utils/meshes3/
+demo-utils/meshes2/
 
 # Prerequisites
 *.d
