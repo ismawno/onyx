@@ -3,6 +3,8 @@
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "utils/argparse.hpp"
 
+#define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
+
 void RunApp(const Onyx::Demo::Scene p_Scene) noexcept
 {
     Onyx::MultiWindowApplication app;

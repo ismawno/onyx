@@ -3,6 +3,8 @@
 #include "onyx/app/app.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 
+#define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
+
 void RunApp(const Onyx::Perf::ParseResult &p_Args) noexcept
 {
     Onyx::Window::Specs spc;

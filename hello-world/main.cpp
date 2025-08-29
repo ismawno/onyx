@@ -9,6 +9,8 @@
 using Onyx::D2;
 using namespace TKit::Alias;
 
+#define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
+
 static void RunStandaloneWindow() noexcept
 {
     Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
