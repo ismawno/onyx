@@ -65,17 +65,19 @@ using DrawFlags = u8;
  */
 enum DrawFlagBit : DrawFlags
 {
+    DrawFlag_None = 0,
+
     /// Do not write to stencil buffer, perform fill operation.
-    DrawFlags_NoStencilWriteDoFill = 1 << 0,
+    DrawFlag_NoStencilWriteDoFill = 1 << 0,
 
     /// Write to stencil buffer, perform fill operation.
-    DrawFlags_DoStencilWriteDoFill = 1 << 1,
+    DrawFlag_DoStencilWriteDoFill = 1 << 1,
 
     /// Write to stencil buffer, do not perform fill operation.
-    DrawFlags_DoStencilWriteNoFill = 1 << 2,
+    DrawFlag_DoStencilWriteNoFill = 1 << 2,
 
     /// Test stencil buffer, do not perform fill operation.
-    DrawFlags_DoStencilTestNoFill = 1 << 3,
+    DrawFlag_DoStencilTestNoFill = 1 << 3,
 };
 
 /**

@@ -209,19 +209,19 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
         material.SpecularSharpness = p_State.Material.SpecularSharpness;
     }
 
-    if (p_Flags & DrawFlags_NoStencilWriteDoFill)
+    if (p_Flags & DrawFlag_NoStencilWriteDoFill)
     {
         material.Color = p_State.Material.Color.Pack();
         const auto instanceData = createInstanceData<D, DrawMode::Fill>(p_Transform, material);
         p_Renderer.NoStencilWriteDoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
     }
-    if (p_Flags & DrawFlags_DoStencilWriteDoFill)
+    if (p_Flags & DrawFlag_DoStencilWriteDoFill)
     {
         material.Color = p_State.Material.Color.Pack();
         const auto instanceData = createInstanceData<D, DrawMode::Fill>(p_Transform, material);
         p_Renderer.DoStencilWriteDoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
     }
-    if (p_Flags & DrawFlags_DoStencilWriteNoFill)
+    if (p_Flags & DrawFlag_DoStencilWriteNoFill)
     {
         material.Color = p_State.OutlineColor.Pack();
         const auto instanceData = createInstanceData<D, DrawMode::Stencil>(p_Transform, material);
@@ -236,7 +236,7 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
             p_Renderer.DoStencilWriteNoFill.Draw(instanceData, options);
         }
     }
-    if (p_Flags & DrawFlags_DoStencilTestNoFill)
+    if (p_Flags & DrawFlag_DoStencilTestNoFill)
     {
         material.Color = p_State.OutlineColor.Pack();
         const auto instanceData = createInstanceData<D, DrawMode::Stencil>(p_Transform, material);

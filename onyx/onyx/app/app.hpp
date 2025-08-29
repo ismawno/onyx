@@ -5,7 +5,9 @@
 #include "onyx/app/theme.hpp"
 #include "tkit/profiling/clock.hpp"
 
+#ifdef ONYX_ENABLE_IMGUI
 struct ImGuiContext;
+#endif
 #ifdef ONYX_ENABLE_IMPLOT
 struct ImPlotContext;
 #endif
@@ -40,7 +42,11 @@ using WindowArray = TKit::StaticArray<TKit::Scope<Window>, ONYX_MAX_WINDOWS>;
 class ONYX_API IApplication
 {
   public:
-    IApplication() = default;
+#ifdef ONYX_ENABLE_IMGUI
+    IApplication(i32 p_ImGuiConfigFlags) noexcept;
+#else
+    IApplication() noexcept = default;
+#endif
 
     virtual ~IApplication() noexcept;
 
@@ -185,12 +191,14 @@ class ONYX_API IApplication
     bool IsRunning() const noexcept;
 
   protected:
+#ifdef ONYX_ENABLE_IMGUI
     void initializeImGui(Window &p_Window) noexcept;
     void shutdownImGui() noexcept;
     void setImContexts() noexcept;
 
     static void beginRenderImGui() noexcept;
     void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
+#endif
 
     void updateUserLayerPointer() noexcept;
 
@@ -210,24 +218,33 @@ class ONYX_API IApplication
     void onRenderBegin(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
     void onRenderEnd(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
     void onEvent(u32 p_WindowIndex, const Event &p_Event) noexcept;
+#ifdef ONYX_ENABLE_IMGUI
     void onImGuiRender() noexcept;
+#endif
 
     TKit::Timespan m_DeltaTime;
     bool m_DeferFlag = false;
     bool m_QuitFlag = false; // Contemplate adding onQuit?
 
   private:
+#ifdef ONYX_ENABLE_IMGUI
     void createImGuiPool() noexcept;
+#endif
 
     UserLayer *m_UserLayer = nullptr;
     UserLayer *m_StagedUserLayer = nullptr;
 
+#ifdef ONYX_ENABLE_IMGUI
     ImGuiContext *m_ImGuiContext = nullptr;
+#endif
 #ifdef ONYX_ENABLE_IMPLOT
     ImPlotContext *m_ImPlotContext = nullptr;
 #endif
 
+#ifdef ONYX_ENABLE_IMGUI
     VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
+    i32 m_ImGuiConfigFlags = 0;
+#endif
     TKit::Scope<Theme> m_Theme;
 
     bool m_Started = false;
@@ -243,7 +260,12 @@ class ONYX_API IApplication
 class ONYX_API Application final : public IApplication
 {
   public:
+#ifdef ONYX_ENABLE_IMGUI
+    Application(const Window::Specs &p_WindowSpecs = {}, i32 p_ImGuiConfigFlags = 0) noexcept;
+    Application(i32 p_ImGuiConfigFlags) noexcept;
+#else
     Application(const Window::Specs &p_WindowSpecs = {}) noexcept;
+#endif
 
     void Shutdown() noexcept override;
 
@@ -279,7 +301,11 @@ class ONYX_API MultiWindowApplication final : public IApplication
 {
     TKIT_NON_COPYABLE(MultiWindowApplication)
   public:
-    MultiWindowApplication() = default;
+#ifdef ONYX_ENABLE_IMGUI
+    MultiWindowApplication(i32 p_ImGuiConfigFlags = 0) noexcept;
+#else
+    MultiWindowApplication() noexcept = default;
+#endif
 
     void Shutdown() noexcept override;
 

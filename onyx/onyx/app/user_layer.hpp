@@ -40,6 +40,7 @@ class ONYX_API UserLayer
     using Flags = u8;
     enum FlagBit : Flags
     {
+        Flag_None = 0,
         Flag_DisplayHelp = 1 << 0,
     };
 
@@ -257,6 +258,7 @@ class ONYX_API UserLayer
     {
     }
 
+#ifdef ONYX_ENABLE_IMGUI
     /**
      * @brief A specialized method used to issue `ImGui` draw calls in multi-window applications.
      *
@@ -270,6 +272,7 @@ class ONYX_API UserLayer
     virtual void OnImGuiRender() noexcept
     {
     }
+#endif
 
     /**
      * @brief Called for every event that is processed by the application.
@@ -293,6 +296,7 @@ class ONYX_API UserLayer
     {
     }
 
+#ifdef ONYX_ENABLE_IMGUI
     template <Dimension D> static bool TransformEditor(Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;
     template <Dimension D> static bool MaterialEditor(MaterialData<D> &p_Material, Flags p_Flags = 0) noexcept;
 
@@ -312,6 +316,7 @@ class ONYX_API UserLayer
 
     static void HelpMarker(const char *p_Description, const char *p_Icon = "(?)") noexcept;
     static void HelpMarkerSameLine(const char *p_Description, const char *p_Icon = "(?)") noexcept;
+#endif
 };
 
 } // namespace Onyx

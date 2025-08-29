@@ -27,11 +27,13 @@
 #include <cstdlib>
 #include <filesystem>
 #include <vulkan/vulkan.h>
-#include <imgui.h>
+#ifdef ONYX_ENABLE_IMGUI
+#    include <imgui.h>
+#    include <backends/imgui_impl_glfw.h>
+#    include <backends/imgui_impl_vulkan.h>
+#endif
 #ifdef ONYX_ENABLE_IMPLOT
 #    include <implot.h>
 #endif
-#include <backends/imgui_impl_glfw.h>
-#include <backends/imgui_impl_vulkan.h>
 #include "vkit/vulkan/allocator.hpp"
 #include "onyx/core/glm.hpp"

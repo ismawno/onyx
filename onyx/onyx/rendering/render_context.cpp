@@ -40,7 +40,8 @@ template <Dimension D> void IRenderContext<D>::Flush(const u32 p_ThreadCount) no
 
 template <Dimension D> void IRenderContext<D>::Transform(const fmat<D> &p_Transform) noexcept
 {
-    getState()->Transform = p_Transform * getState()->Transform;
+    RenderState<D> *state = getState();
+    state->Transform = p_Transform * state->Transform;
 }
 template <Dimension D>
 void IRenderContext<D>::Transform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
@@ -234,20 +235,20 @@ void RenderContext<D3>::RotateZAxis(const f32 p_Angle) noexcept
 template <Dimension D, typename F1, typename F2>
 static void resolveDrawFlagsWithState(const RenderState<D> &p_State, F1 &&p_FillDraw, F2 &&p_OutlineDraw) noexcept
 {
-    if (p_State.Fill)
+    if (p_State.Flags & RenderStateFlag_Fill)
     {
-        if (p_State.Outline)
+        if (p_State.Flags & RenderStateFlag_Outline)
         {
-            std::forward<F1>(p_FillDraw)(DrawFlags_DoStencilWriteDoFill);
-            std::forward<F2>(p_OutlineDraw)(DrawFlags_DoStencilTestNoFill);
+            std::forward<F1>(p_FillDraw)(DrawFlag_DoStencilWriteDoFill);
+            std::forward<F2>(p_OutlineDraw)(DrawFlag_DoStencilTestNoFill);
         }
         else
-            std::forward<F1>(p_FillDraw)(DrawFlags_NoStencilWriteDoFill);
+            std::forward<F1>(p_FillDraw)(DrawFlag_NoStencilWriteDoFill);
     }
-    else if (p_State.Outline)
+    else if (p_State.Flags & RenderStateFlag_Outline)
     {
-        std::forward<F1>(p_FillDraw)(DrawFlags_DoStencilWriteNoFill);
-        std::forward<F2>(p_OutlineDraw)(DrawFlags_DoStencilTestNoFill);
+        std::forward<F1>(p_FillDraw)(DrawFlag_DoStencilWriteNoFill);
+        std::forward<F2>(p_OutlineDraw)(DrawFlag_DoStencilTestNoFill);
     }
 }
 
@@ -1106,10 +1107,10 @@ void RenderContext<D3>::AmbientIntensity(const f32 p_Intensity) noexcept
 
 void RenderContext<D3>::DirectionalLight(Onyx::DirectionalLight p_Light) noexcept
 {
-    const fmat4 transform = getState()->Axes * getState()->Transform;
+    const RenderState<D3> *state = getState();
     fvec4 direction = p_Light.DirectionAndIntensity;
     direction.w = 0.f;
-    direction = transform * direction;
+    direction = state->Axes * state->Transform * direction;
 
     p_Light.DirectionAndIntensity = fvec4{glm::normalize(fvec3{direction}), p_Light.DirectionAndIntensity.w};
     m_Renderer.AddDirectionalLight(p_Light);
@@ -1124,10 +1125,10 @@ void RenderContext<D3>::DirectionalLight(const fvec3 &p_Direction, const f32 p_I
 
 void RenderContext<D3>::PointLight(Onyx::PointLight p_Light) noexcept
 {
-    const fmat4 transform = getState()->Axes * getState()->Transform;
+    const RenderState<D3> *state = getState();
     fvec4 position = p_Light.PositionAndIntensity;
     position.w = 1.f;
-    position = transform * position;
+    position = state->Axes * state->Transform * position;
     position.w = p_Light.PositionAndIntensity.w;
     p_Light.PositionAndIntensity = position;
     m_Renderer.AddPointLight(p_Light);
@@ -1157,10 +1158,21 @@ void RenderContext<D3>::SpecularSharpness(const f32 p_Sharpness) noexcept
 {
     getState()->Material.SpecularSharpness = p_Sharpness;
 }
+template <Dimension D> void IRenderContext<D>::AddFlags(const RenderStateFlags p_Flags) noexcept
+{
+    getState()->Flags |= p_Flags;
+}
+template <Dimension D> void IRenderContext<D>::RemoveFlags(const RenderStateFlags p_Flags) noexcept
+{
+    getState()->Flags &= ~p_Flags;
+}
 
 template <Dimension D> void IRenderContext<D>::Fill(const bool p_Enabled) noexcept
 {
-    getState()->Fill = p_Enabled;
+    if (p_Enabled)
+        AddFlags(RenderStateFlag_Fill);
+    else
+        RemoveFlags(RenderStateFlag_Fill);
 }
 
 template <Dimension D>
@@ -1257,7 +1269,10 @@ template <Dimension D> void IRenderContext<D>::Fill(const Color &p_Color) noexce
 }
 template <Dimension D> void IRenderContext<D>::Outline(const bool p_Enabled) noexcept
 {
-    getState()->Outline = p_Enabled;
+    if (p_Enabled)
+        AddFlags(RenderStateFlag_Outline);
+    else
+        RemoveFlags(RenderStateFlag_Outline);
 }
 template <Dimension D> void IRenderContext<D>::Outline(const Color &p_Color) noexcept
 {

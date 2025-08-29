@@ -1,16 +1,13 @@
-#include "glm/fwd.hpp"
-#include "glm/gtc/type_ptr.hpp"
-#include "glm/trigonometric.hpp"
-#include "imgui.h"
-#include "onyx/core/pch.hpp"
-#include "onyx/app/user_layer.hpp"
-#include "onyx/app/window.hpp"
-#include "onyx/rendering/render_context.hpp"
-#include "onyx/property/transform.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include "onyx/core/pch.hpp"
+#    include "onyx/app/user_layer.hpp"
+#    include "onyx/app/window.hpp"
+#    include "onyx/rendering/render_context.hpp"
+#    include "onyx/property/transform.hpp"
+#    include <imgui.h>
 
 namespace Onyx
 {
-
 static void displayTransformHelp() noexcept
 {
     UserLayer::HelpMarker(
@@ -165,12 +162,12 @@ void UserLayer::DisplayFrameTime(const TKit::Timespan p_DeltaTime, const Flags p
         ImGui::Text("Frame time: %u us (max: %u us)", static_cast<u32>(smoothDeltaTime.AsMicroseconds()),
                     static_cast<u32>(maxDeltaTime.AsMicroseconds()));
     else
-#ifndef TKIT_OS_LINUX
+#    ifndef TKIT_OS_LINUX
         ImGui::Text("Frame time: %llu ns (max: %llu ns)", smoothDeltaTime.AsNanoseconds(),
                     maxDeltaTime.AsNanoseconds());
-#else
+#    else
         ImGui::Text("Frame time: %lu ns (max: %lu ns)", smoothDeltaTime.AsNanoseconds(), maxDeltaTime.AsNanoseconds());
-#endif
+#    endif
 
     if (p_Flags & Flag_DisplayHelp)
         HelpMarkerSameLine(
@@ -413,3 +410,4 @@ bool UserLayer::ScissorEditor(ScreenScissor &p_Scissor, const Flags p_Flags) noe
 }
 
 } // namespace Onyx
+#endif

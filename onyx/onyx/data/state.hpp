@@ -48,6 +48,14 @@ template <> struct ONYX_API MaterialData<D3>
     f32 SpecularSharpness = 32.f;
 };
 
+using RenderStateFlags = u8;
+enum RenderStateFlagBit : RenderStateFlags
+{
+    RenderStateFlag_None = 0,
+    RenderStateFlag_Fill = 1 << 0,
+    RenderStateFlag_Outline = 1 << 1,
+};
+
 /**
  * @brief The `RenderState` struct is used by the `RenderContext` class to track the current object and axes
  * transformations, the current material, outline color and width, and some other rendering settings.
@@ -68,8 +76,7 @@ template <> struct ONYX_API RenderState<D2>
     Color OutlineColor = Color::WHITE;
     MaterialData<D2> Material{};
     f32 OutlineWidth = 0.1f;
-    bool Fill = true;
-    bool Outline = false;
+    RenderStateFlags Flags = 0;
 };
 
 template <> struct ONYX_API RenderState<D3>
@@ -82,8 +89,7 @@ template <> struct ONYX_API RenderState<D3>
     Color LightColor = Color::WHITE;
     MaterialData<D3> Material{};
     f32 OutlineWidth = 0.1f;
-    bool Fill = true;
-    bool Outline = false;
+    RenderStateFlags Flags = 0;
 };
 
 } // namespace Onyx

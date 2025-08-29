@@ -1,8 +1,9 @@
-#include "onyx/core/pch.hpp"
-#include "onyx/app/theme.hpp"
-#include "onyx/core/alias.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include "onyx/core/pch.hpp"
+#    include "onyx/app/theme.hpp"
+#    include "onyx/core/alias.hpp"
 
-#include <imgui.h>
+#    include <imgui.h>
 
 namespace Onyx
 {
@@ -371,3 +372,4 @@ void DefaultTheme::Apply() const noexcept
 }
 
 } // namespace Onyx
+#endif

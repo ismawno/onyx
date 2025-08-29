@@ -6,7 +6,7 @@ I have very little experience with graphics programming. This project represents
 
 Given this and the reasonably small scope of this project, one could argue that OpenGL might have been a better option. However, I decided against it for two main reasons:
 
-1. OpenGL is deprecated in macOS, and I use macOS as my main coding environment. EDIT - I know use linux, but I want good macOS support as well.
+1. OpenGL is deprecated in macOS, and I use macOS as my main coding environment. EDIT - I now use linux, but I want good macOS support as well.
 2. Vulkan is growing more popular every year due to its versatility and optimization opportunities. Since I am starting graphics programming now, I might as well learn a modern API. I can’t help but feel that learning an API I don't think is "the best" would be a waste of time (arguably, a subjective argument, but that’s how I feel).
 
 ## Features

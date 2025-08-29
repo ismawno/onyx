@@ -69,6 +69,7 @@ class ONYX_API Window
      */
     enum FlagBit : Flags
     {
+        Flag_None = 0,
         Flag_Resizable = 1 << 0,
         Flag_Visible = 1 << 1,
         Flag_Decorated = 1 << 2,

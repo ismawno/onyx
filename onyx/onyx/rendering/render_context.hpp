@@ -2,7 +2,6 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/rendering/camera.hpp"
 #include "onyx/data/options.hpp"
 #include <vulkan/vulkan.h>
 
@@ -657,6 +656,9 @@ template <Dimension D> class IRenderContext
      */
     void Pop() noexcept;
 
+    void AddFlags(RenderStateFlags p_Flags) noexcept;
+    void RemoveFlags(RenderStateFlags p_Flags) noexcept;
+
     /**
      * @brief Enables or disables filling of subsequent shapes.
      *
@@ -917,6 +919,9 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
     /**
      * @brief Render the coordinate axes for visualization.
      *
+     * Axes are the global coordinates of the `RenderContext`, which can be transformed at will to affect the whole
+     * scene (from where the transformation happened) when enabled.
+     *
      * Draw the X and Y axes with the specified thickness and size.
      *
      * The following is encoded in the `AxesOptions` struct:
@@ -976,6 +981,9 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
 
     /**
      * @brief Render the coordinate axes for visualization.
+     *
+     * Axes are the global coordinates of the `RenderContext`, which can be transformed at will to affect the whole
+     * scene (from where the transformation happened) when enabled.
      *
      * Draw the X, Y and Z axes with the specified thickness and size.
      *

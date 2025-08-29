@@ -21,9 +21,11 @@ set(SOURCES
     onyx/object/mesh.cpp
     onyx/app/app.cpp
     onyx/app/window.cpp
-    onyx/app/input.cpp
-    onyx/app/user_layer.cpp
-    onyx/app/theme.cpp)
+    onyx/app/input.cpp)
+
+if(ONYX_ENABLE_IMGUI)
+  list(APPEND SOURCES onyx/app/user_layer.cpp onyx/app/theme.cpp)
+endif()
 
 add_library(onyx STATIC ${SOURCES})
 target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.4.0\")
@@ -67,15 +69,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glfw)
 
 FetchContent_Declare(
-  imgui
-  GIT_REPOSITORY https://github.com/ocornut/imgui.git
-  GIT_TAG v1.91.1-docking
-  GIT_SHALLOW TRUE
-  GIT_PROGRESS TRUE)
-
-FetchContent_MakeAvailable(imgui)
-
-FetchContent_Declare(
   tobjl
   GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
   GIT_TAG v2.0.0rc13
@@ -105,26 +98,49 @@ tkit_register_for_reflection(
 
 # IMGUI ###
 
-set(IMGUI_SOURCES
-    ${imgui_SOURCE_DIR}/imgui.cpp
-    ${imgui_SOURCE_DIR}/imgui_demo.cpp
-    ${imgui_SOURCE_DIR}/imgui_draw.cpp
-    ${imgui_SOURCE_DIR}/imgui_tables.cpp
-    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-    onyx/vendor/imgui_impl_glfw.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
+if(ONYX_ENABLE_IMGUI)
+  FetchContent_Declare(
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.1-docking
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
 
-find_package(Vulkan REQUIRED)
-add_library(imgui STATIC ${IMGUI_SOURCES})
+  FetchContent_MakeAvailable(imgui)
 
-target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR}
-                                        ${Vulkan_INCLUDE_DIRS})
-target_link_libraries(imgui PUBLIC glfw)
-target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
+  set(IMGUI_SOURCES
+      ${imgui_SOURCE_DIR}/imgui.cpp
+      ${imgui_SOURCE_DIR}/imgui_demo.cpp
+      ${imgui_SOURCE_DIR}/imgui_draw.cpp
+      ${imgui_SOURCE_DIR}/imgui_tables.cpp
+      ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+      onyx/vendor/imgui_impl_glfw.cpp
+      ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
+
+  find_package(Vulkan REQUIRED)
+  add_library(imgui STATIC ${IMGUI_SOURCES})
+
+  target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR}
+                                          ${Vulkan_INCLUDE_DIRS})
+  target_link_libraries(imgui PUBLIC glfw)
+  target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMGUI)
+  target_link_libraries(
+    onyx
+    PUBLIC toolkit vulkit glm imgui
+    PRIVATE tinyobjloader)
+
+  tkit_configure_compile_link_options(imgui FORBID_SANITIZERS)
+else()
+  target_link_libraries(
+    onyx
+    PUBLIC toolkit vulkit glm glfw
+    PRIVATE tinyobjloader)
+endif()
 
 # IMPLOT ###
 
-if(ONYX_USE_IMPLOT OR ONYX_BUILD_DEMOS)
+if(ONYX_ENABLE_IMPLOT)
   FetchContent_Declare(
     implot
     GIT_REPOSITORY https://github.com/epezent/implot.git
@@ -140,19 +156,15 @@ if(ONYX_USE_IMPLOT OR ONYX_BUILD_DEMOS)
 
   add_library(implot STATIC ${IMPLOT_SOURCES})
 
-  target_compile_definitions(implot PUBLIC ONYX_ENABLE_IMPLOT)
   target_include_directories(implot PUBLIC ${implot_SOURCE_DIR})
   target_link_libraries(implot PUBLIC imgui)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMPLOT)
   target_link_libraries(onyx PUBLIC implot)
+  tkit_configure_compile_link_options(implot FORBID_SANITIZERS)
 
 endif()
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-# Vulkan and GLFW are already linked with imgui
-target_link_libraries(
-  onyx
-  PUBLIC toolkit vulkit glm imgui
-  PRIVATE tinyobjloader)
 
 target_precompile_headers(onyx PRIVATE
                           ${CMAKE_CURRENT_SOURCE_DIR}/onyx/core/pch.hpp)
@@ -162,7 +174,6 @@ tkit_default_configure(onyx)
 
 tkit_configure_compile_link_options(glm FORBID_SANITIZERS)
 tkit_configure_compile_link_options(glfw FORBID_SANITIZERS)
-tkit_configure_compile_link_options(imgui FORBID_SANITIZERS)
 tkit_configure_compile_link_options(tinyobjloader FORBID_SANITIZERS)
 
 # No need for more: toolkit handles the rest. As it is a library I develop, I

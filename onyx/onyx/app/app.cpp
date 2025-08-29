@@ -1,4 +1,3 @@
-#include "backends/imgui_impl_vulkan.h"
 #include "onyx/core/pch.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/app/input.hpp"
@@ -11,6 +10,11 @@
 
 namespace Onyx
 {
+#ifdef ONYX_ENABLE_IMGUI
+IApplication::IApplication(const i32 p_ImGuiConfigFlags) noexcept : m_ImGuiConfigFlags(p_ImGuiConfigFlags)
+{
+}
+#endif
 IApplication::~IApplication() noexcept
 {
     if (!m_Terminated && m_Started)
@@ -47,8 +51,10 @@ void IApplication::Shutdown() noexcept
     TKIT_ASSERT(!m_Terminated && m_Started, "[ONYX] Application cannot be terminated before it is started");
     onShutdown();
     delete m_UserLayer;
+#ifdef ONYX_ENABLE_IMGUI
     if (Core::IsDeviceCreated())
         Core::GetDeviceTable().DestroyDescriptorPool(Core::GetDevice(), m_ImGuiPool, nullptr);
+#endif
     m_Terminated = true;
 }
 
@@ -72,6 +78,7 @@ void IApplication::Run() noexcept
     Shutdown();
 }
 
+#ifdef ONYX_ENABLE_IMGUI
 void IApplication::beginRenderImGui() noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::IApplication::BeginRenderImGui");
@@ -89,6 +96,7 @@ void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault(nullptr, nullptr);
 }
+#endif
 
 void IApplication::updateUserLayerPointer() noexcept
 {
@@ -174,6 +182,7 @@ void IApplication::onEvent(const u32 p_WindowIndex, const Event &p_Event) noexce
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnEvent(p_WindowIndex, p_Event);
 }
+#ifdef ONYX_ENABLE_IMGUI
 void IApplication::onImGuiRender() noexcept
 {
     if (m_UserLayer) [[likely]]
@@ -215,19 +224,14 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
         m_Theme = TKit::Scope<BabyTheme>::Create();
 
     m_ImGuiContext = ImGui::CreateContext();
-#ifdef ONYX_ENABLE_IMPLOT
+#    ifdef ONYX_ENABLE_IMPLOT
     m_ImPlotContext = ImPlot::CreateContext();
-#endif
+#    endif
 
     IMGUI_CHECKVERSION();
     ImGuiIO &io = ImGui::GetIO();
-    ImGuiConfigFlags flags = ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable;
 
-#ifndef TKIT_OS_LINUX
-    flags |= ImGuiConfigFlags_ViewportsEnable; // linux may use a tiling window manager
-#endif
-
-    io.ConfigFlags |= flags;
+    io.ConfigFlags = m_ImGuiConfigFlags;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
 
     m_Theme->Apply();
@@ -263,30 +267,45 @@ void IApplication::shutdownImGui() noexcept
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyPlatformWindows();
     ImGui::DestroyContext();
-#ifdef ONYX_ENABLE_IMPLOT
+#    ifdef ONYX_ENABLE_IMPLOT
     ImPlot::DestroyContext();
-#endif
+#    endif
 }
 
 void IApplication::setImContexts() noexcept
 {
     ImGui::SetCurrentContext(m_ImGuiContext);
-#ifdef ONYX_ENABLE_IMPLOT
+#    ifdef ONYX_ENABLE_IMPLOT
     ImPlot::SetCurrentContext(m_ImPlotContext);
-#endif
+#    endif
 }
+#endif
 
-Application::Application(const Window::Specs &p_WindowSpecs) noexcept
+#ifdef ONYX_ENABLE_IMGUI
+Application::Application(const Window::Specs &p_WindowSpecs, const i32 p_ImGuiConfigFlags) noexcept
+    : IApplication(p_ImGuiConfigFlags)
 {
     m_Window.Construct(p_WindowSpecs);
     initializeImGui(*m_Window);
 }
-
+Application::Application(const i32 p_ImGuiConfigFlags) noexcept : IApplication(p_ImGuiConfigFlags)
+{
+    m_Window.Construct();
+    initializeImGui(*m_Window);
+}
+#else
+Application::Application(const Window::Specs &p_WindowSpecs) noexcept
+{
+    m_Window.Construct(p_WindowSpecs);
+}
+#endif
 void Application::Shutdown() noexcept
 {
     if (m_WindowAlive)
     {
+#ifdef ONYX_ENABLE_IMGUI
         shutdownImGui();
+#endif
         m_Window.Destruct();
         m_WindowAlive = false;
     }
@@ -306,7 +325,9 @@ static void endFrame() noexcept
 bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
+#ifdef ONYX_ENABLE_IMGUI
     setImContexts();
+#endif
     if (m_QuitFlag) [[unlikely]]
     {
         m_QuitFlag = false;
@@ -322,7 +343,9 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
     m_Window->FlushEvents();
     // Should maybe exit if window is closed at this point (triggered by event)
 
+#ifdef ONYX_ENABLE_IMGUI
     beginRenderImGui();
+#endif
     onUpdate();
 
     RenderCallbacks callbacks{};
@@ -337,7 +360,9 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
     };
     callbacks.OnRenderEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
         onRenderEnd(p_FrameIndex, p_CommandBuffer);
+#ifdef ONYX_ENABLE_IMGUI
         endRenderImGui(p_CommandBuffer);
+#endif
     };
 
     m_Window->Render(callbacks);
@@ -346,7 +371,9 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
 
     if (m_Window->ShouldClose()) [[unlikely]]
     {
+#ifdef ONYX_ENABLE_IMGUI
         shutdownImGui();
+#endif
         m_Window.Destruct();
         m_WindowAlive = false;
         endFrame();
@@ -365,7 +392,11 @@ Window *Application::GetMainWindow() noexcept
 {
     return m_Window.Get();
 }
-
+#ifdef ONYX_ENABLE_IMGUI
+MultiWindowApplication::MultiWindowApplication(const i32 p_ImGuiConfigFlags) noexcept : IApplication(p_ImGuiConfigFlags)
+{
+}
+#endif
 void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderCallbacks &p_Callbacks) noexcept
 {
     const auto &window = m_Windows[p_WindowIndex];
@@ -375,8 +406,10 @@ void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderC
     window->FlushEvents();
     // Should maybe exit if window is closed at this point? (triggered by event)
 
+#ifdef ONYX_ENABLE_IMGUI
     if (p_WindowIndex == 0)
         beginRenderImGui();
+#endif
 
     onUpdate(p_WindowIndex);
     window->Render(p_Callbacks);
@@ -433,7 +466,9 @@ u32 MultiWindowApplication::GetWindowCount() const noexcept
 bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
 {
     TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApplication::NextFrame");
+#ifdef ONYX_ENABLE_IMGUI
     setImContexts();
+#endif
     if (m_Windows.IsEmpty() || m_QuitFlag) [[unlikely]]
     {
         m_QuitFlag = false;
@@ -466,10 +501,14 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
     if (p_Index == 0)
     {
+#ifdef ONYX_ENABLE_IMGUI
         shutdownImGui();
+#endif
         m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
+#ifdef ONYX_ENABLE_IMGUI
         if (!m_Windows.IsEmpty())
             initializeImGui(*m_Windows[0]);
+#endif
     }
     else
         m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
@@ -486,8 +525,10 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
     }
 
     auto window = TKit::Scope<Window>::Create(p_Specs);
+#ifdef ONYX_ENABLE_IMGUI
     if (m_Windows.IsEmpty())
         initializeImGui(*window);
+#endif
 
     m_Windows.Append(std::move(window));
     Event event;
@@ -507,12 +548,16 @@ void MultiWindowApplication::processWindows() noexcept
         onFrameEnd(0, p_FrameIndex, p_CommandBuffer);
     };
     mainCbs.OnRenderBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+#ifdef ONYX_ENABLE_IMGUI
         onImGuiRender();
+#endif
         onRenderBegin(0, p_FrameIndex, p_CommandBuffer);
     };
     mainCbs.OnRenderEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
         onRenderEnd(0, p_FrameIndex, p_CommandBuffer);
+#ifdef ONYX_ENABLE_IMGUI
         endRenderImGui(p_CommandBuffer);
+#endif
     };
 
     processFrame(0, mainCbs);

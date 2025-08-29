@@ -20,12 +20,18 @@ define_option(CMAKE_BUILD_TYPE "Debug" "Onyx - Build")
 
 # If demos are built, implot will always be used
 define_option(ONYX_BUILD_DEMOS OFF "Onyx - Build")
-define_option(ONYX_USE_IMPLOT OFF "Onyx - Feature")
+define_option(ONYX_ENABLE_IMGUI OFF "Onyx - Feature")
+define_option(ONYX_ENABLE_IMPLOT OFF "Onyx - Feature")
 
 set(ONYX_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
+if(ONYX_ENABLE_IMPLOT AND NOT ONYX_ENABLE_IMGUI)
+  message(ERROR "ONYX: ImGui is required to use ImPlot. Enable ImGui as well")
+endif()
+
 message(STATUS "ONYX: Build demos: ${ONYX_BUILD_DEMOS}")
-message(STATUS "ONYX: Use ImPlot: ${ONYX_USE_IMPLOT}")
+message(STATUS "ONYX: Use ImGui: ${ONYX_ENABLE_IMGUI}")
+message(STATUS "ONYX: Use ImPlot: ${ONYX_ENABLE_IMPLOT}")
 
 # Compiler flags, linker flags etcetera, those should all be handled when making
 # available the toolkit library through the global CMAKE flag variables
