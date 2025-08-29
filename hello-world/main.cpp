@@ -171,7 +171,7 @@ int main()
 {
     TKit::ThreadPool threadPool{ONYX_MAX_WORKERS};
 
-    Onyx::Core::Initialize(&threadPool);
+    Onyx::Core::Initialize(Onyx::Specs{.TaskManager = &threadPool});
     RunStandaloneWindow();
     RunStandaloneWindowCustomPipeline();
     RunAppExample1();

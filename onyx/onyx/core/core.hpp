@@ -79,10 +79,16 @@ enum class TransferMode : u8
     SameQueue
 };
 
+struct Specs
+{
+    TKit::ITaskManager *TaskManager = nullptr;
+    Initializer *Initializer = nullptr;
+};
+
 template <typename T> using PerFrameData = TKit::Array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
 struct ONYX_API Core
 {
-    static void Initialize(TKit::ITaskManager *p_TaskManager, Initializer *p_Initializer = nullptr) noexcept;
+    static void Initialize(const Specs &p_Specs = {}) noexcept;
     static void Terminate() noexcept;
 
     static TKit::ITaskManager *GetTaskManager() noexcept;

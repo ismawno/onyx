@@ -20,6 +20,7 @@ namespace Onyx
 using namespace Detail;
 
 static TKit::ITaskManager *s_TaskManager;
+static TKit::Storage<TKit::TaskManager> s_DefaultManager;
 
 static VKit::Instance s_Instance{};
 static VKit::LogicalDevice s_Device{};
@@ -256,15 +257,22 @@ static void createShaders() noexcept
     Shaders<D3, DrawMode::Stencil>::Initialize();
 }
 
-void Core::Initialize(TKit::ITaskManager *p_TaskManager, Initializer *p_Initializer) noexcept
+void Core::Initialize(const Specs &p_Specs) noexcept
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan instance");
 #ifdef TKIT_OS_LINUX
     FcInit();
 #endif
 
-    s_TaskManager = p_TaskManager;
-    s_Initializer = p_Initializer;
+    if (p_Specs.TaskManager)
+        s_TaskManager = p_Specs.TaskManager;
+    else
+    {
+        s_DefaultManager.Construct();
+        s_TaskManager = s_DefaultManager.Get();
+        s_DeletionQueue.Push([]() { s_DefaultManager.Destruct(); });
+    }
+    s_Initializer = p_Specs.Initializer;
 
     const auto sysres = VKit::Core::Initialize();
     VKIT_ASSERT_RESULT(sysres);
