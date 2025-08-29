@@ -288,7 +288,7 @@ const char *Cube::GetName() const noexcept
 
 void Cube::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const noexcept
 {
-    p_Context->Cube(p_Transform.ComputeTransform());
+    p_Context->Cube(p_Transform.ComputeTransform(), m_Dimensions);
 }
 void Cube::Edit() noexcept
 {
