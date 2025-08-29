@@ -120,6 +120,15 @@ template <Dimension D> class IRenderContext
     void Translate(const fvec<D> &p_Translation) noexcept;
 
     /**
+     * @brief Set the translation of subsequent shapes by the given vector.
+     *
+     * This sets a translation transformation to all subsequent draw calls.
+     *
+     * @param p_Translation The translation vector.
+     */
+    void SetTranslation(const fvec<D> &p_Translation) noexcept;
+
+    /**
      * @brief Scale subsequent shapes by the given vector.
      *
      * This applies a scaling transformation to all subsequent draw calls.
@@ -154,6 +163,24 @@ template <Dimension D> class IRenderContext
      * @param p_Y The translation distance along the Y-axis.
      */
     void TranslateY(f32 p_Y) noexcept;
+
+    /**
+     * @brief Set the translation of subsequent shapes along the X-axis.
+     *
+     * This sets a translation along the X-axis to all subsequent draw calls.
+     *
+     * @param p_X The translation distance along the X-axis
+     */
+    void SetTranslationX(f32 p_X) noexcept;
+
+    /**
+     * @brief Set the translation of subsequent shapes along the Y-axis.
+     *
+     * This sets a translation along the Y-axis to all subsequent draw calls.
+     *
+     * @param p_Y The translation distance along the Y-axis
+     */
+    void SetTranslationY(f32 p_Y) noexcept;
 
     /**
      * @brief Scale subsequent shapes along the X-axis.
@@ -1036,6 +1063,15 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Z The translation distance along the Z-axis.
      */
     void TranslateZ(f32 p_Z) noexcept;
+
+    /**
+     * @brief Set the translation of subsequent shapes along the Z-axis.
+     *
+     * This sets a translation along the Z-axis to all subsequent draw calls.
+     *
+     * @param p_Z The translation distance along the Z-axis
+     */
+    void SetTranslationZ(f32 p_Z) noexcept;
 
     /**
      * @brief Scale subsequent shapes along the Z-axis.

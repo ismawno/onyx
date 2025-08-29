@@ -93,6 +93,14 @@ template <Dimension D> void IRenderContext<D>::Translate(const fvec<D> &p_Transl
 {
     Onyx::Transform<D>::TranslateExtrinsic(getState()->Transform, p_Translation);
 }
+template <Dimension D> void IRenderContext<D>::SetTranslation(const fvec<D> &p_Translation) noexcept
+{
+    RenderState<D> *state = getState();
+    state->Transform[D][0] = p_Translation[0];
+    state->Transform[D][1] = p_Translation[1];
+    if constexpr (D == D3)
+        state->Transform[D][2] = p_Translation[2];
+}
 
 template <Dimension D> void IRenderContext<D>::Scale(const fvec<D> &p_Scale) noexcept
 {
@@ -116,6 +124,18 @@ void RenderContext<D3>::TranslateZ(const f32 p_Z) noexcept
     Onyx::Transform<D3>::TranslateExtrinsic(getState()->Transform, 2, p_Z);
 }
 
+template <Dimension D> void IRenderContext<D>::SetTranslationX(const f32 p_X) noexcept
+{
+    getState()->Transform[D][0] = p_X;
+}
+template <Dimension D> void IRenderContext<D>::SetTranslationY(const f32 p_Y) noexcept
+{
+    getState()->Transform[D][1] = p_Y;
+}
+void RenderContext<D3>::SetTranslationZ(const f32 p_Z) noexcept
+{
+    getState()->Transform[D3][2] = p_Z;
+}
 template <Dimension D> void IRenderContext<D>::ScaleX(const f32 p_X) noexcept
 {
     Onyx::Transform<D>::ScaleExtrinsic(getState()->Transform, 0, p_X);
