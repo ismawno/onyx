@@ -282,6 +282,7 @@ void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
     if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {
         UserLayer::DisplayFrameTime(p_Timestep, UserLayer::Flag_DisplayHelp);
+        ImGui::Text("Version: " ONYX_VERSION);
         ImGui::TextWrapped(
             "Onyx is a small application framework I have implemented to be used primarily in all projects I develop "
             "that require some sort of rendering. It is built on top of the Vulkan API and provides a simple and "

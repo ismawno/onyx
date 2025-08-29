@@ -44,6 +44,7 @@ template <Dimension D> void Layer<D>::OnUpdate() noexcept
     m_Camera->ControlMovementWithUserInput(3.f * timestep);
     if (ImGui::Begin("Info"))
         UserLayer::DisplayFrameTime(timestep);
+    ImGui::Text("Version: " ONYX_VERSION);
     ImGui::End();
     // static bool first = false;
     // if (first)
