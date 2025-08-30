@@ -49,7 +49,7 @@ template <Dimension D, PipelineMode PMode> void RenderSystem<D, PMode>::Flush() 
 template <Dimension D, PipelineMode PMode>
 void RenderSystem<D, PMode>::AcknowledgeSubmission(const u32 p_FrameIndex) noexcept
 {
-    ++m_DeviceSubmissionId[p_FrameIndex];
+    m_DeviceSubmissionId[p_FrameIndex] = m_HostSubmissionId;
 }
 
 template <Dimension D, PipelineMode PMode>
