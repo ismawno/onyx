@@ -7,7 +7,7 @@
 #include "onyx/rendering/frame_scheduler.hpp"
 
 #include "tkit/container/storage.hpp"
-#include "tkit/memory/ptr.hpp"
+#include "tkit/memory/block_allocator.hpp"
 #include "onyx/core/glfw.hpp"
 
 #include <functional>
@@ -26,10 +26,8 @@
 
 namespace Onyx
 {
-template <Dimension D>
-using RenderContextArray = TKit::StaticArray<TKit::Scope<RenderContext<D>>, ONYX_MAX_RENDER_CONTEXTS>;
-
-template <Dimension D> using CameraArray = TKit::StaticArray<TKit::Scope<Camera<D>>, ONYX_MAX_CAMERAS>;
+template <Dimension D> using RenderContextArray = TKit::StaticArray<RenderContext<D> *, ONYX_MAX_RENDER_CONTEXTS>;
+template <Dimension D> using CameraArray = TKit::StaticArray<Camera<D> *, ONYX_MAX_CAMERAS>;
 
 using EventArray = TKit::StaticArray<Event, ONYX_MAX_EVENTS>;
 
@@ -167,27 +165,27 @@ class ONYX_API Window
 
     template <Dimension D> RenderContext<D> *CreateRenderContext() noexcept
     {
-        auto context = TKit::Scope<RenderContext<D>>::Create(m_FrameScheduler->CreateSceneRenderInfo());
+        RenderContext<D> *context = m_Allocator.Create<RenderContext<D>>(m_FrameScheduler->CreateSceneRenderInfo());
         auto &array = getContextArray<D>();
-        RenderContext<D> *ptr = context.Get();
-        array.Append(std::move(context));
-        return ptr;
+        array.Append(context);
+        return context;
     }
     template <Dimension D> RenderContext<D> *GetRenderContext(const u32 p_Index = 0) noexcept
     {
         auto &array = getContextArray<D>();
-        return array[p_Index].Get();
+        return array[p_Index];
     }
     template <Dimension D> void DestroyRenderContext(const u32 p_Index = 0) noexcept
     {
         auto &array = getContextArray<D>();
+        m_Allocator.Destroy(array[p_Index]);
         array.RemoveOrdered(array.begin() + p_Index);
     }
     template <Dimension D> void DestroyRenderContext(const RenderContext<D> *p_Context) noexcept
     {
         auto &array = getContextArray<D>();
         for (u32 i = 0; i < array.GetSize(); ++i)
-            if (array[i].Get() == p_Context)
+            if (array[i] == p_Context)
             {
                 DestroyRenderContext<D>(i);
                 return;
@@ -197,13 +195,12 @@ class ONYX_API Window
     template <Dimension D> Camera<D> *CreateCamera() noexcept
     {
         auto &array = getCameraArray<D>();
-        auto camera = TKit::Scope<Camera<D>>::Create();
+        Camera<D> *camera = m_Allocator.Create<Camera<D>>();
         camera->m_Window = this;
         camera->adaptViewToViewportAspect();
 
-        Camera<D> *ptr = camera.Get();
-        array.Append(std::move(camera));
-        return ptr;
+        array.Append(camera);
+        return camera;
     }
 
     template <Dimension D> Camera<D> *CreateCamera(const CameraOptions &p_Options) noexcept
@@ -217,12 +214,13 @@ class ONYX_API Window
     template <Dimension D> Camera<D> *GetCamera(const u32 p_Index = 0) noexcept
     {
         auto &array = getCameraArray<D>();
-        return array[p_Index].Get();
+        return array[p_Index];
     }
 
     template <Dimension D> void DestroyCamera(const u32 p_Index = 0) noexcept
     {
         auto &array = getCameraArray<D>();
+        m_Allocator.Destroy(array[p_Index]);
         array.RemoveOrdered(array.begin() + p_Index);
     }
 
@@ -230,7 +228,7 @@ class ONYX_API Window
     {
         auto &array = getCameraArray<D>();
         for (u32 i = 0; i < array.GetSize(); ++i)
-            if (array[i].Get() == p_Camera)
+            if (array[i] == p_Camera)
             {
                 DestroyCamera<D>(i);
                 return;
@@ -275,7 +273,7 @@ class ONYX_API Window
     {
         auto &array = getCameraArray<D>();
         TKit::StaticArray<Detail::CameraInfo, ONYX_MAX_CAMERAS> cameras;
-        for (const auto &cam : array)
+        for (const Camera<D> *cam : array)
             cameras.Append(cam->CreateCameraInfo());
         return cameras;
     }
@@ -289,6 +287,8 @@ class ONYX_API Window
 
     CameraArray<D2> m_Cameras2D{};
     CameraArray<D3> m_Cameras3D{};
+
+    TKit::BlockAllocator m_Allocator;
 
     EventArray m_Events;
     VkSurfaceKHR m_Surface;

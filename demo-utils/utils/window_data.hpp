@@ -7,6 +7,7 @@
 #include "onyx/app/window.hpp"
 #include "tkit/container/static_array.hpp"
 #include "tkit/profiling/timespan.hpp"
+#include "tkit/memory/ptr.hpp"
 
 namespace Onyx::Demo
 {

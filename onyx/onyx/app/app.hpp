@@ -4,7 +4,7 @@
 #include "onyx/app/window.hpp"
 #include "onyx/app/theme.hpp"
 #include "tkit/profiling/clock.hpp"
-#include "tkit/memory/block_allocator.hpp"
+#include "tkit/memory/ptr.hpp"
 
 #ifdef ONYX_ENABLE_IMGUI
 struct ImGuiContext;

@@ -10,12 +10,20 @@
 namespace Onyx
 {
 
+static TKit::BlockAllocator createAllocator() noexcept
+{
+    const u32 maxSize =
+        std::max({sizeof(RenderContext<D2>), sizeof(RenderContext<D3>), sizeof(Camera<D2>), sizeof(Camera<D3>)});
+    return TKit::BlockAllocator{maxSize * 2 * (ONYX_MAX_RENDER_CONTEXTS + ONYX_MAX_CAMERAS), maxSize};
+}
+
 Window::Window() noexcept : Window(Specs{})
 {
 }
 
 Window::Window(const Specs &p_Specs) noexcept
-    : m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height), m_Flags(p_Specs.Flags)
+    : m_Allocator(createAllocator()), m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height),
+      m_Flags(p_Specs.Flags)
 {
     createWindow(p_Specs);
     m_FrameScheduler->SetPresentMode(p_Specs.PresentMode);
@@ -24,8 +32,16 @@ Window::Window(const Specs &p_Specs) noexcept
 Window::~Window() noexcept
 {
     m_FrameScheduler.Destruct();
-    m_RenderContexts2D.Clear();
-    m_RenderContexts3D.Clear();
+    for (RenderContext<D2> *context : m_RenderContexts2D)
+        m_Allocator.Destroy(context);
+    for (RenderContext<D3> *context : m_RenderContexts3D)
+        m_Allocator.Destroy(context);
+
+    for (Camera<D2> *context : m_Cameras2D)
+        m_Allocator.Destroy(context);
+    for (Camera<D3> *context : m_Cameras3D)
+        m_Allocator.Destroy(context);
+
     Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
@@ -66,14 +82,14 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
     if (p_Callbacks.OnFrameBegin)
         p_Callbacks.OnFrameBegin(frameIndex, gcmd);
 
-    for (const auto &context : m_RenderContexts2D)
+    for (RenderContext<D2> *context : m_RenderContexts2D)
         context->GetRenderer().GrowToFit(frameIndex);
-    for (const auto &context : m_RenderContexts3D)
+    for (RenderContext<D3> *context : m_RenderContexts3D)
         context->GetRenderer().GrowToFit(frameIndex);
 
-    for (const auto &context : m_RenderContexts2D)
+    for (RenderContext<D2> *context : m_RenderContexts2D)
         context->GetRenderer().SendToDevice(frameIndex);
-    for (const auto &context : m_RenderContexts3D)
+    for (RenderContext<D3> *context : m_RenderContexts3D)
         context->GetRenderer().SendToDevice(frameIndex);
 
     const VkCommandBuffer tcmd = m_FrameScheduler->GetTransferCommandBuffer();
@@ -97,12 +113,12 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
 
         auto caminfos = getCameraInfos<D2>();
         if (!caminfos.IsEmpty())
-            for (const auto &context : m_RenderContexts2D)
+            for (RenderContext<D2> *context : m_RenderContexts2D)
                 context->GetRenderer().Render(frameIndex, gcmd, caminfos);
 
         caminfos = getCameraInfos<D3>();
         if (!caminfos.IsEmpty())
-            for (const auto &context : m_RenderContexts3D)
+            for (RenderContext<D3> *context : m_RenderContexts3D)
                 context->GetRenderer().Render(frameIndex, gcmd, caminfos);
 
         if (p_Callbacks.OnRenderEnd)
@@ -243,9 +259,9 @@ void Window::FlushEvents() noexcept
 
 void Window::adaptCamerasToViewportAspect() noexcept
 {
-    for (const auto &cam : m_Cameras2D)
+    for (Camera<D2> *cam : m_Cameras2D)
         cam->adaptViewToViewportAspect();
-    for (const auto &cam : m_Cameras3D)
+    for (Camera<D3> *cam : m_Cameras3D)
         cam->adaptViewToViewportAspect();
 }
 
