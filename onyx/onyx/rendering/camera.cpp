@@ -64,8 +64,8 @@ fvec2 ICamera<D>::WorldToViewport(const fvec<D> &p_WorldPos, const fmat<D> *p_Ax
 {
     if constexpr (D == D2)
     {
-        const fmat3 transform3 = p_Axes ? (m_ProjectionView.ProjectionView * *p_Axes) : m_ProjectionView.ProjectionView;
-        fmat4 transform = Onyx::Transform<D2>::Promote(transform3);
+        fmat4 transform = Onyx::Transform<D2>::Promote(p_Axes ? (m_ProjectionView.ProjectionView * *p_Axes)
+                                                              : m_ProjectionView.ProjectionView);
         ApplyCoordinateSystemExtrinsic(transform);
         fvec2 viewportPos = transform * fvec4{p_WorldPos, 0.f, 1.f};
         viewportPos.y = -viewportPos.y;
@@ -86,19 +86,20 @@ template <Dimension D> fvec2 ICamera<D>::ViewportToScreen(const fvec2 &p_Viewpor
     return m_Viewport.Min + 0.5f * (1.f + p_ViewportPos) * size;
 }
 
-template <Dimension D> fvec<D> ICamera<D>::ScreenToWorld(const fvec<D> &p_ScreenPos) const noexcept
+template <Dimension D>
+fvec<D> ICamera<D>::ScreenToWorld(const fvec<D> &p_ScreenPos, const fmat<D> *p_Axes) const noexcept
 {
     if constexpr (D == D2)
-        return ViewportToWorld(ScreenToViewport(p_ScreenPos));
+        return ViewportToWorld(ScreenToViewport(p_ScreenPos), p_Axes);
     else
     {
         const f32 z = p_ScreenPos.z;
-        return ViewportToWorld(fvec3{ScreenToViewport(fvec2{p_ScreenPos}), z});
+        return ViewportToWorld(fvec3{ScreenToViewport(fvec2{p_ScreenPos}), z}, p_Axes);
     }
 }
-template <Dimension D> fvec2 ICamera<D>::WorldToScreen(const fvec<D> &p_WorldPos) const noexcept
+template <Dimension D> fvec2 ICamera<D>::WorldToScreen(const fvec<D> &p_WorldPos, const fmat<D> *p_Axes) const noexcept
 {
-    return ViewportToScreen(WorldToViewport(p_WorldPos));
+    return ViewportToScreen(WorldToViewport(p_WorldPos, p_Axes));
 }
 
 template <Dimension D> fvec2 ICamera<D>::GetViewportMousePosition() const noexcept
@@ -119,10 +120,9 @@ template <Dimension D> const ScreenScissor &ICamera<D>::GetScissor() const noexc
     return m_Scissor;
 }
 
-template <Dimension D> Onyx::Transform<D> ICamera<D>::GetViewTransform(const fmat<D> *p_Axes) const noexcept
+template <Dimension D> Onyx::Transform<D> ICamera<D>::GetViewTransform(const fmat<D> &p_Axes) const noexcept
 {
-    const fmat<D> vmat = p_Axes ? (glm::inverse(*p_Axes) * m_ProjectionView.View.ComputeTransform())
-                                : m_ProjectionView.View.ComputeTransform();
+    const fmat<D> vmat = glm::inverse(p_Axes) * m_ProjectionView.View.ComputeTransform();
     return Onyx::Transform<D>::Extract(vmat);
 }
 
@@ -141,9 +141,9 @@ template <Dimension D> void ICamera<D>::SetScissor(const ScreenScissor &p_Scisso
     m_Scissor = p_Scissor;
 }
 
-fvec2 Camera<D2>::GetWorldMousePosition() const noexcept
+fvec2 Camera<D2>::GetWorldMousePosition(const fmat<D2> *p_Axes) const noexcept
 {
-    return ScreenToWorld(Input::GetScreenMousePosition(m_Window));
+    return ScreenToWorld(Input::GetScreenMousePosition(m_Window), p_Axes);
 }
 void Camera<D2>::SetSize(const f32 p_Size) noexcept
 {
@@ -151,9 +151,9 @@ void Camera<D2>::SetSize(const f32 p_Size) noexcept
     m_ProjectionView.View.Scale.x = p_Size * aspect;
     m_ProjectionView.View.Scale.y = p_Size;
 }
-fvec3 Camera<D3>::GetWorldMousePosition(const f32 p_Depth) const noexcept
+fvec3 Camera<D3>::GetWorldMousePosition(const f32 p_Depth, const fmat<D3> *p_Axes) const noexcept
 {
-    return ScreenToWorld(fvec3{Input::GetScreenMousePosition(m_Window), p_Depth});
+    return ScreenToWorld(fvec3{Input::GetScreenMousePosition(m_Window), p_Depth}, p_Axes);
 }
 
 template <Dimension D> void ICamera<D>::ControlMovementWithUserInput(const CameraControls<D> &p_Controls) noexcept
@@ -314,13 +314,13 @@ template <Dimension D> CameraInfo ICamera<D>::CreateCameraInfo() const noexcept
     return info;
 }
 
-fvec3 Camera<D3>::GetViewLookDirection() const noexcept
+fvec3 Camera<D3>::GetViewLookDirection(const fmat4 *p_Axes) const noexcept
 {
-    return glm::normalize(ScreenToWorld(fvec3{0.f, 0.f, 1.f}));
+    return glm::normalize(ScreenToWorld(fvec3{0.f, 0.f, 1.f}, p_Axes));
 }
-fvec3 Camera<D3>::GetMouseRayCastDirection() const noexcept
+fvec3 Camera<D3>::GetMouseRayCastDirection(const fmat4 *p_Axes) const noexcept
 {
-    return glm::normalize(GetWorldMousePosition(0.25f) - GetWorldMousePosition(0.f));
+    return glm::normalize(GetWorldMousePosition(0.25f, p_Axes) - GetWorldMousePosition(0.f, p_Axes));
 }
 
 template class ONYX_API Detail::ICamera<D2>;

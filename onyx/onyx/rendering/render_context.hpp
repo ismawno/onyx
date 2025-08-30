@@ -814,6 +814,8 @@ template <Dimension D> class IRenderContext
      */
     void ShareState(const RenderState<D> &p_State, u32 p_ThreadCount = ONYX_MAX_THREADS) noexcept;
 
+    const fmat<D> &GetCurrentAxes() const noexcept;
+
     /**
      * @brief Get the current rendering state.
      *
@@ -897,6 +899,13 @@ template <Dimension D> class IRenderContext
  *
  * The following is a set of properties of the `RenderContext` you must take into account when using it:
  *
+ * - `RenderContext`s have their own coordinate system, defined by the axes transform that can be found in the context's
+ * state and which can be modified through its API to affect the coordinates in which subsequent shapes are drawn. You
+ * must take this into account when communicating to other systems unaware of these coordinates, such as cameras. All
+ * world related camera methods have an optional parameter where you can specify the axes transform of (potentially) a
+ * context, so that you get accurate coordinates when querying for the world mouse position in a `RenderContext`, for
+ * instance.
+ *
  * - While it is possible to use `RenderContext` in pretty much any callback, it is recommended to use it in the
  * `OnUpdate()` callbacks, if using an application, or inside the body of the while loop if using a simple window. You
  * should also be consistent with which callback you use, and stick to calling the API from that callback only. Failing
@@ -928,12 +937,8 @@ template <Dimension D> class IRenderContext
  * - All entities that can be added to the scene (shapes, meshes, lights) will always have their position, scale and
  * rotation relative to the current axes transform, which can be modified as well.
  *
- * - Please note that objects drawn in the scene inherit the state the axes were in when the draw command was issued.
- * This means that every object drawn will have its own, dedicated parent axes transform. Because of this, the view's
- * transform found in all cameras (which are persisted) cannot be bound to the axes, as these are not unique and well
- * defined. If you want to query the view's transform with respect to the current axes, you must use the
- * `GetViewTransform()` camera method. Otherwise, you may query the view's transform from the
- * `GetProjectionViewData()` camera method, which will not have any axes transform applied to it.
+ * - Note that objects drawn in the scene inherit the state the axes were in when the draw command was issued.
+ * This means that every object drawn will have its own, dedicated parent axes transform.
  *
  */
 template <Dimension D> class RenderContext;

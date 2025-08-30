@@ -770,9 +770,9 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera) no
         const fvec2 vpos3 = camera->GetViewportMousePosition();
         ImGui::Text("World mouse position: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
     }
-    UserLayer::HelpMarkerSameLine(
-        "The world mouse position has world units, meaning it is scaled to the world "
-        "coordinates of the current rendering context and are compatible with the translation units of the shapes.");
+    UserLayer::HelpMarkerSameLine("The world mouse position has world units, meaning it takes into account the "
+                                  "transform of the camera to compute the mouse coordinates. It will not, however, "
+                                  "take into account the axes of any render context by default.");
 
     ImGui::Checkbox("Transparent", &camera->Transparent);
     if (!camera->Transparent)
@@ -790,14 +790,10 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera) no
     if (UserLayer::ScissorEditor(scissor, UserLayer::Flag_DisplayHelp))
         camera->SetScissor(scissor);
 
-    const Transform<D> view = camera->GetViewTransform();
-    ImGui::Text("View transform (with respect current axes)");
+    const Transform<D> &view = camera->GetProjectionViewData().View;
+    ImGui::Text("View transform");
     UserLayer::HelpMarkerSameLine(
-        "This view transform is represented specifically with respect the current axes, "
-        "but note that, as the view is a global state that is not reset every frame in "
-        "a rendering context, it is generally detached from the axes transform. Onyx, under the hood, uses "
-        "the detached view transform to setup the scene. This not a design decision but a requirement, as the axes "
-        "is a somewhat volatile state (it is reset every frame).");
+        "The view transform are the coordinates of the camera, detached from any render context coordinate system.");
 
     UserLayer::DisplayTransform(view, UserLayer::Flag_DisplayHelp);
     if constexpr (D == D3)
@@ -805,7 +801,7 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera) no
         const fvec3 lookDir = camera->GetViewLookDirection();
         ImGui::Text("Look direction: (%.2f, %.2f, %.2f)", lookDir.x, lookDir.y, lookDir.z);
         UserLayer::HelpMarkerSameLine("The look direction is the direction the camera is facing. It is the "
-                                      "direction of the camera's 'forward' vector in the current axes.");
+                                      "direction of the camera's 'forward' vector.");
     }
     if constexpr (D == D3)
     {
@@ -947,8 +943,9 @@ template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Context) noex
     if (ImGui::CollapsingHeader("Axes"))
     {
         ImGui::TextWrapped(
-            "The axes are the coordinate system that is used to draw objects in the scene. All object "
-            "positions will always be relative to the state the axes were in the moment the draw command was issued.");
+            "The axes are the coordinate system that the corresponding render context uses to draw objects in the "
+            "scene. All object positions will always be relative to the state the axes were in the moment the draw "
+            "command was issued.");
         ImGui::Text("Transform");
         ImGui::SameLine();
         UserLayer::TransformEditor<D>(p_Context.AxesTransform, UserLayer::Flag_DisplayHelp);

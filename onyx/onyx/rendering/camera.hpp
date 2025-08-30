@@ -182,9 +182,11 @@ template <Dimension D> class ICamera
      * @param p_ScreenPos The position to convert. Should be in the range [-1, 1] for points contained in the screen,
      * with the y axis pointing upwards. If in 3D, the z axis must be between [0, 1], mapping the near and far planes or
      * the orthographic size.
+     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
+     *
      * @return The position in world coordinates.
      */
-    fvec<D> ScreenToWorld(const fvec<D> &p_ScreenPos) const noexcept;
+    fvec<D> ScreenToWorld(const fvec<D> &p_ScreenPos, const fmat<D> *p_Axes = nullptr) const noexcept;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from world to screen coordinates.
@@ -193,7 +195,7 @@ template <Dimension D> class ICamera
      * @return The position in screen coordinates. Should be in the range [-1, 1] only if the provided point was
      * contained in the screen, with the y axis pointing upwards.
      */
-    fvec2 WorldToScreen(const fvec<D> &p_WorldPos) const noexcept;
+    fvec2 WorldToScreen(const fvec<D> &p_WorldPos, const fmat<D> *p_Axes = nullptr) const noexcept;
 
     /**
      * @brief Compute the position of the mouse in the camera's rendering context from screen to viewport coordinates.
@@ -219,12 +221,12 @@ template <Dimension D> class ICamera
     const ScreenScissor &GetScissor() const noexcept;
 
     /**
-     * @brief Get the view transform of the camera in the current axes.
+     * @brief Get the view transform of the camera.
      *
-     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
+     * @param p_Axes The axes coordinates of the system.
      * @return The view transform of the camera.
      */
-    Onyx::Transform<D> GetViewTransform(const fmat<D> *p_Axes = nullptr) const noexcept;
+    Onyx::Transform<D> GetViewTransform(const fmat<D> &p_Axes) const noexcept;
 
     void SetView(const Onyx::Transform<D> &p_View) noexcept;
     void SetViewport(const ScreenViewport &p_Viewport) noexcept;
@@ -265,9 +267,10 @@ template <> class ONYX_API Camera<D2> final : public Detail::ICamera<D2>
     /**
      * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
      *
+     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    fvec2 GetWorldMousePosition() const noexcept;
+    fvec2 GetWorldMousePosition(const fmat3 *p_Axes = nullptr) const noexcept;
 
     void SetSize(f32 p_Size) noexcept;
 };
@@ -282,22 +285,28 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
     /**
      * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
      *
+     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      * @param p_Depth The depth at which to get the mouse coordinates.
+     *
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    fvec3 GetWorldMousePosition(f32 p_Depth = 0.5f) const noexcept;
+    fvec3 GetWorldMousePosition(f32 p_Depth = 0.5f, const fmat4 *p_Axes = nullptr) const noexcept;
 
     /**
-     * @brief Get the direction of the view in the current axes.
+     * @brief Get the direction of the view.
+     *
+     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      *
      */
-    fvec3 GetViewLookDirection() const noexcept;
+    fvec3 GetViewLookDirection(const fmat4 *p_Axes = nullptr) const noexcept;
 
     /**
-     * @brief Get the direction of an imaginary ray cast from the mouse in the current axes.
+     * @brief Get the direction of an imaginary ray cast from the mouse.
+     *
+     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      *
      */
-    fvec3 GetMouseRayCastDirection() const noexcept;
+    fvec3 GetMouseRayCastDirection(const fmat4 *p_Axes = nullptr) const noexcept;
 
     void SetProjection(const fmat4 &p_Projection) noexcept;
 

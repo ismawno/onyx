@@ -1336,6 +1336,10 @@ void IRenderContext<D>::ShareState(const RenderState<D> &p_State, const u32 p_Th
         *m_StateStack[i].Current = p_State;
 }
 
+template <Dimension D> const fmat<D> &IRenderContext<D>::GetCurrentAxes() const noexcept
+{
+    return m_StateStack[getThreadIndex()].Current->Axes;
+}
 template <Dimension D> const RenderState<D> &IRenderContext<D>::GetCurrentState() const noexcept
 {
     return *m_StateStack[getThreadIndex()].Current;
