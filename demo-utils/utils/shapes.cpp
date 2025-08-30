@@ -205,7 +205,9 @@ template <Dimension D> void NGon<D>::Edit() noexcept
     Shape<D>::Edit();
     dimensionEditor<D2>(m_Dimensions);
     ImGui::PushID(this);
-    ImGui::SliderInt("Sides", reinterpret_cast<i32 *>(&Sides), 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
+    const u32 mn = 3;
+    const u32 mx = ONYX_MAX_REGULAR_POLYGON_SIDES;
+    ImGui::SliderScalar("Sides", ImGuiDataType_U32, &Sides, &mn, &mx);
     ImGui::PopID();
 }
 

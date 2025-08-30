@@ -20,7 +20,7 @@ struct PointLight;
 struct ScreenViewport;
 struct ScreenScissor;
 
-enum class Resolution;
+enum class Resolution : u32;
 
 class Window;
 

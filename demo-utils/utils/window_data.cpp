@@ -162,7 +162,11 @@ void WindowData::OnImGuiRender() noexcept
         "apply transformations to the final image (in this case, a blur effect).");
 
     if (m_PostProcessing)
-        ImGui::SliderInt("Blur kernel size", (int *)&m_BlurData.KernelSize, 0, 12);
+    {
+        const u32 mn = 0;
+        const u32 mx = 12;
+        ImGui::SliderScalar("Blur kernel size", ImGuiDataType_U32, &m_BlurData.KernelSize, &mn, &mx);
+    }
 
     ImGui::BeginTabBar("Dimension");
 
@@ -654,19 +658,27 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context) n
                                       "in distribution mode to see meaningful results.");
         ImGui::Checkbox("Multithreaded", &lattice.Multithreaded);
         if (lattice.Multithreaded)
-            ImGui::SliderInt("Partitions", (int *)&lattice.Partitions, 1, ONYX_MAX_THREADS);
+        {
+            const u32 mn = 1;
+            const u32 mx = ONYX_MAX_THREADS;
+            ImGui::SliderScalar("Partitions", ImGuiDataType_U32, &lattice.Partitions, &mn, &mx);
+        }
 
         if constexpr (D == D2)
         {
             ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y);
-            ImGui::DragInt2("Lattice dimensions", reinterpret_cast<i32 *>(glm::value_ptr(lattice.Dimensions)), 2.f, 1,
-                            INT32_MAX);
+            const u32 mn = 1;
+            const u32 mx = Limits<u32>::max();
+            ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, glm::value_ptr(lattice.Dimensions), 2, 2.f, &mn,
+                               &mx);
         }
         else
         {
             ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y * lattice.Dimensions.z);
-            ImGui::DragInt3("Lattice dimensions", reinterpret_cast<i32 *>(glm::value_ptr(lattice.Dimensions)), 2.f, 1,
-                            INT32_MAX);
+            const u32 mn = 1;
+            const u32 mx = Limits<u32>::max();
+            ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, glm::value_ptr(lattice.Dimensions), 3, 2.f, &mn,
+                               &mx);
         }
 
         ImGui::Checkbox("Separation proportional to scale", &lattice.PropToScale);

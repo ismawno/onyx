@@ -269,9 +269,13 @@ bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags) noexc
 
 bool UserLayer::ResolutionEditor(const char *p_Name, Resolution &p_Res, const Flags p_Flags) noexcept
 {
-    bool changed = false;
     ImGui::PushID(&p_Res);
-    changed |= ImGui::Combo(p_Name, reinterpret_cast<i32 *>(&p_Res), "Very Low\0Low\0Medium\0High\0Very High\0\0");
+    i32 res = static_cast<i32>(p_Res);
+
+    const bool changed = ImGui::Combo(p_Name, &res, "Very Low\0Low\0Medium\0High\0Very High\0\0");
+    if (changed)
+        p_Res = static_cast<Resolution>(res);
+
     if (p_Flags & Flag_DisplayHelp)
         HelpMarkerSameLine(
             "This setting allows you to control the resolution of certain 3D shapes that have smooth curved surfaces, "

@@ -14,7 +14,7 @@
 namespace Onyx
 {
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(Resolution)
-enum class Resolution
+enum class Resolution : u32
 {
     VeryLow = 0,
     Low = 1,
@@ -113,12 +113,12 @@ template <> struct ONYX_API Primitives<D3> : IPrimitives<D3>
 
     static constexpr u32 GetSphereIndex(const Resolution p_Res) noexcept
     {
-        return 3 + static_cast<i32>(p_Res);
+        return 3 + static_cast<u32>(p_Res);
     }
 
     static constexpr u32 GetCylinderIndex(const Resolution p_Res) noexcept
     {
-        return 8 + static_cast<i32>(p_Res);
+        return 8 + static_cast<u32>(p_Res);
     }
 };
 
