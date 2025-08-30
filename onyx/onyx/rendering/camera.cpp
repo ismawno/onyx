@@ -151,9 +151,13 @@ void Camera<D2>::SetSize(const f32 p_Size) noexcept
     m_ProjectionView.View.Scale.x = p_Size * aspect;
     m_ProjectionView.View.Scale.y = p_Size;
 }
-fvec3 Camera<D3>::GetWorldMousePosition(const f32 p_Depth, const fmat<D3> *p_Axes) const noexcept
+fvec3 Camera<D3>::GetWorldMousePosition(const fmat<D3> *p_Axes, const f32 p_Depth) const noexcept
 {
     return ScreenToWorld(fvec3{Input::GetScreenMousePosition(m_Window), p_Depth}, p_Axes);
+}
+fvec3 Camera<D3>::GetWorldMousePosition(const f32 p_Depth) const noexcept
+{
+    return GetWorldMousePosition(nullptr, p_Depth);
 }
 
 template <Dimension D> void ICamera<D>::ControlMovementWithUserInput(const CameraControls<D> &p_Controls) noexcept
@@ -320,7 +324,7 @@ fvec3 Camera<D3>::GetViewLookDirection(const fmat4 *p_Axes) const noexcept
 }
 fvec3 Camera<D3>::GetMouseRayCastDirection(const fmat4 *p_Axes) const noexcept
 {
-    return glm::normalize(GetWorldMousePosition(0.25f, p_Axes) - GetWorldMousePosition(0.f, p_Axes));
+    return glm::normalize(GetWorldMousePosition(p_Axes, 0.25f) - GetWorldMousePosition(p_Axes, 0.f));
 }
 
 template class ONYX_API Detail::ICamera<D2>;

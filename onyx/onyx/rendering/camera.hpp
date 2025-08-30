@@ -290,7 +290,16 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
      *
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    fvec3 GetWorldMousePosition(f32 p_Depth = 0.5f, const fmat4 *p_Axes = nullptr) const noexcept;
+    fvec3 GetWorldMousePosition(const fmat4 *p_Axes = nullptr, f32 p_Depth = 0.5f) const noexcept;
+
+    /**
+     * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
+     *
+     * @param p_Depth The depth at which to get the mouse coordinates.
+     *
+     * @return The mouse position in the camera's rendering context coordinates.
+     */
+    fvec3 GetWorldMousePosition(f32 p_Depth) const noexcept;
 
     /**
      * @brief Get the direction of the view.
