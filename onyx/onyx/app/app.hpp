@@ -4,6 +4,7 @@
 #include "onyx/app/window.hpp"
 #include "onyx/app/theme.hpp"
 #include "tkit/profiling/clock.hpp"
+#include "tkit/memory/block_allocator.hpp"
 
 #ifdef ONYX_ENABLE_IMGUI
 struct ImGuiContext;
@@ -18,7 +19,7 @@ struct ImPlotContext;
 
 namespace Onyx
 {
-using WindowArray = TKit::StaticArray<TKit::Scope<Window>, ONYX_MAX_WINDOWS>;
+using WindowArray = TKit::StaticArray<Window *, ONYX_MAX_WINDOWS>;
 /**
  * @brief This class provides a simple application interface, with some common functionality.
  *
@@ -398,6 +399,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
 
     WindowArray m_Windows;
     TKit::StaticArray4<Window::Specs> m_WindowsToAdd;
+    TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_MAX_WINDOWS);
 };
 
 } // namespace Onyx

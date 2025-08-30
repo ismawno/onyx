@@ -3,7 +3,6 @@
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
 
-#include "tkit/preprocessor/system.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/logging.hpp"
 #include "vkit/vulkan/loader.hpp"
@@ -399,7 +398,7 @@ MultiWindowApplication::MultiWindowApplication(const i32 p_ImGuiConfigFlags) noe
 #endif
 void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderCallbacks &p_Callbacks) noexcept
 {
-    const auto &window = m_Windows[p_WindowIndex];
+    Window *window = m_Windows[p_WindowIndex];
     for (const Event &event : window->GetNewEvents())
         onEvent(p_WindowIndex, event);
 
@@ -430,7 +429,7 @@ void MultiWindowApplication::CloseAllWindows() noexcept
 void MultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
 {
     for (u32 i = 0; i < m_Windows.GetSize(); ++i)
-        if (m_Windows[i].Get() == p_Window)
+        if (m_Windows[i] == p_Window)
         {
             CloseWindow(i);
             return;
@@ -441,12 +440,12 @@ void MultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
 const Window *MultiWindowApplication::GetWindow(const u32 p_Index) const noexcept
 {
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
-    return m_Windows[p_Index].Get();
+    return m_Windows[p_Index];
 }
 Window *MultiWindowApplication::GetWindow(const u32 p_Index) noexcept
 {
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
-    return m_Windows[p_Index].Get();
+    return m_Windows[p_Index];
 }
 
 const Window *MultiWindowApplication::GetMainWindow() const noexcept
@@ -488,14 +487,15 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
 {
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
 
+    Window *window = m_Windows[p_Index];
     if (m_DeferFlag)
     {
-        m_Windows[p_Index]->FlagShouldClose();
+        window->FlagShouldClose();
         return;
     }
     Event event;
     event.Type = Event::WindowClosed;
-    event.Window = m_Windows[p_Index].Get();
+    event.Window = window;
     onEvent(p_Index, event);
 
     // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
@@ -504,6 +504,7 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
 #ifdef ONYX_ENABLE_IMGUI
         shutdownImGui();
 #endif
+        m_WindowAllocator.Destroy(window);
         m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
 #ifdef ONYX_ENABLE_IMGUI
         if (!m_Windows.IsEmpty())
@@ -511,7 +512,10 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
 #endif
     }
     else
+    {
+        m_WindowAllocator.Destroy(window);
         m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
+    }
 }
 
 void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
@@ -524,16 +528,16 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
         return;
     }
 
-    auto window = TKit::Scope<Window>::Create(p_Specs);
+    Window *window = m_WindowAllocator.Create<Window>(p_Specs);
 #ifdef ONYX_ENABLE_IMGUI
     if (m_Windows.IsEmpty())
         initializeImGui(*window);
 #endif
 
-    m_Windows.Append(std::move(window));
+    m_Windows.Append(window);
     Event event;
     event.Type = Event::WindowOpened;
-    event.Window = m_Windows.GetBack().Get();
+    event.Window = window;
     onEvent(m_Windows.GetSize() - 1, event);
 }
 
