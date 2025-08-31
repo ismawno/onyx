@@ -77,8 +77,6 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFi
 }
 template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
-
     TaskArray tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
@@ -97,7 +95,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
         for (const auto data : buffers)
         {
             const Task task = tm->CreateTask([offset, &storageBuffer, data]() {
-                TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::Task");
+                TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
                 storageBuffer.Write(*data, offset);
             });
             tasks.Append(task);
@@ -260,8 +258,6 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Gro
 template <Dimension D, PipelineMode PMode>
 void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
-
     auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
 
@@ -275,7 +271,7 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
             if (!data.IsEmpty())
             {
                 const Task task = tm->CreateTask([offset, &storageBuffer, &data]() {
-                    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::Task");
+                    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
                     storageBuffer.Write(data, offset);
                 });
 
@@ -437,8 +433,6 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowT
 }
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
-
     auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     auto &vertexBuffer = m_DeviceData.StagingVertices[p_FrameIndex];
     auto &indexBuffer = m_DeviceData.StagingIndices[p_FrameIndex];
@@ -455,7 +449,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
         {
             const Task task =
                 tm->CreateTask([offset, voffset, ioffset, &hostData, &storageBuffer, &vertexBuffer, &indexBuffer]() {
-                    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::Task");
+                    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
                     storageBuffer.Write(hostData.Data, offset);
                     vertexBuffer.Write(hostData.Vertices, voffset);
                     indexBuffer.Write(hostData.Indices, ioffset);
@@ -606,8 +600,6 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowTo
 }
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 {
-    TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
-
     auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
 
@@ -618,7 +610,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
         if (!hostData.Data.IsEmpty())
         {
             const Task task = tm->CreateTask([offset, &storageBuffer, &hostData]() {
-                TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::Task");
+                TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
                 storageBuffer.Write(hostData.Data, offset);
             });
 
