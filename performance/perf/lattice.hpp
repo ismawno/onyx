@@ -61,41 +61,6 @@ template <Dimension D> struct Lattice
 
     template <typename F> void Run(F &&p_Func) const noexcept
     {
-        if (Multithread)
-            RunMultiThread(std::forward<F>(p_Func));
-        else
-            RunSingleThread(std::forward<F>(p_Func));
-    }
-    template <typename F> void RunSingleThread(F &&p_Func) const noexcept
-    {
-        TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
-        const fvec<D> offset = -0.5f * Separation * fvec<D>{LatticeDims - 1u};
-
-        const Lattice<D> lattice = *this;
-        for (u32 i = 0; i < LatticeDims.x; ++i)
-        {
-            const f32 x = static_cast<f32>(i) * Separation;
-            for (u32 j = 0; j < LatticeDims.y; ++j)
-            {
-                const f32 y = static_cast<f32>(j) * Separation;
-                if constexpr (D == D2)
-                {
-                    const fvec2 pos = fvec2{x, y} + offset;
-                    std::forward<F>(p_Func)(pos, lattice);
-                }
-                else
-                    for (u32 k = 0; k < LatticeDims.z; ++k)
-                    {
-                        const f32 z = static_cast<f32>(k) * Separation;
-                        const fvec3 pos = fvec3{x, y, z} + offset;
-                        std::forward<F>(p_Func)(pos, lattice);
-                    }
-            }
-        }
-    }
-
-    template <typename F> void RunMultiThread(F &&p_Func) const noexcept
-    {
         TKit::ITaskManager *tm = Core::GetTaskManager();
 
         if constexpr (D == D2)
@@ -185,7 +150,6 @@ template <Dimension D> struct Lattice
 
     f32 Separation = 2.5f;
     u32 Tasks = 1;
-    bool Multithread = true;
     TKIT_YAML_SERIALIZE_GROUP_END()
 };
 } // namespace Onyx::Perf
