@@ -28,7 +28,7 @@ if(ONYX_ENABLE_IMGUI)
 endif()
 
 add_library(onyx STATIC ${SOURCES})
-target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.4.0\")
+target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.4.1\")
 
 if(UNIX AND NOT APPLE)
   find_package(PkgConfig REQUIRED)
