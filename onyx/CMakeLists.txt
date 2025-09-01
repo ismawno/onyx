@@ -25,7 +25,7 @@ set(SOURCES
     onyx/app/theme.cpp)
 
 add_library(onyx STATIC ${SOURCES})
-target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.3.1\")
+target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.3.2\")
 
 if(UNIX AND NOT APPLE)
   find_package(PkgConfig REQUIRED)
@@ -39,7 +39,7 @@ include(FetchContent)
 FetchContent_Declare(
   vulkit
   GIT_REPOSITORY https://github.com/ismawno/vulkit.git
-  GIT_TAG v0.3.0
+  GIT_TAG v0.3.3
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE)
 FetchContent_MakeAvailable(vulkit)
