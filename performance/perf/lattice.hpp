@@ -96,14 +96,13 @@ template <Dimension D> struct Lattice
 
     template <typename F> void RunMultiThread(F &&p_Func) const noexcept
     {
-        TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
         TKit::ITaskManager *tm = Core::GetTaskManager();
 
         if constexpr (D == D2)
         {
             const u32 size = LatticeDims.x * LatticeDims.y;
             const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
-                TKIT_PROFILE_NSCOPE("Onyx::Perf::Task");
+                TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
                 const Lattice<D> lattice = *this;
 
                 const fvec<D> offset = -0.5f * Separation * fvec<D>{LatticeDims - 1u};
@@ -133,7 +132,7 @@ template <Dimension D> struct Lattice
         {
             const u32 size = LatticeDims.x * LatticeDims.y * LatticeDims.z;
             const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
-                TKIT_PROFILE_NSCOPE("Onyx::Perf::Task");
+                TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
 
                 const Lattice<D> lattice = *this;
                 const u32 yz = LatticeDims.y * LatticeDims.z;
