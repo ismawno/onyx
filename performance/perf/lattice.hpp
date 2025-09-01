@@ -185,7 +185,7 @@ template <Dimension D> struct Lattice
 
     f32 Separation = 2.5f;
     u32 Tasks = 1;
+    bool Multithread = true;
     TKIT_YAML_SERIALIZE_GROUP_END()
-    bool Multithread = false;
 };
 } // namespace Onyx::Perf
