@@ -114,7 +114,7 @@ template <Dimension D> struct Lattice
     Resolution Res = Resolution::Medium;
 
     f32 Separation = 2.5f;
+    bool Multithread = true;
     TKIT_YAML_SERIALIZE_GROUP_END()
-    bool Multithread = false;
 };
 } // namespace Onyx::Perf
