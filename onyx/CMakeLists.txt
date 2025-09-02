@@ -122,20 +122,12 @@ if(ONYX_ENABLE_IMGUI)
 
   target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR}
                                           ${Vulkan_INCLUDE_DIRS})
-  target_link_libraries(imgui PUBLIC glfw)
+  target_link_libraries(imgui PRIVATE glfw)
   target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMGUI)
-  target_link_libraries(
-    onyx
-    PUBLIC toolkit vulkit glm imgui
-    PRIVATE tinyobjloader)
+  target_link_libraries(onyx PUBLIC imgui)
 
   tkit_configure_compile_link_options(imgui FORBID_SANITIZERS)
-else()
-  target_link_libraries(
-    onyx
-    PUBLIC toolkit vulkit glm glfw
-    PRIVATE tinyobjloader)
 endif()
 
 # IMPLOT ###
@@ -160,9 +152,14 @@ if(ONYX_ENABLE_IMPLOT)
   target_link_libraries(implot PUBLIC imgui)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMPLOT)
   target_link_libraries(onyx PUBLIC implot)
-  tkit_configure_compile_link_options(implot FORBID_SANITIZERS)
 
+  tkit_configure_compile_link_options(implot FORBID_SANITIZERS)
 endif()
+
+target_link_libraries(
+  onyx
+  PUBLIC toolkit vulkit glm imgui
+  PRIVATE tinyobjloader glfw)
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

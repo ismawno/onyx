@@ -4,8 +4,8 @@
 #include "onyx/core/core.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/profiling/vulkan.hpp"
-
 #include "tkit/utils/logging.hpp"
+#include "onyx/core/glfw.hpp"
 
 namespace Onyx
 {

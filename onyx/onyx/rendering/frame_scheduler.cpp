@@ -5,7 +5,7 @@
 #include "onyx/core/shaders.hpp"
 #include "tkit/utils/logging.hpp"
 #include "tkit/profiling/macros.hpp"
-#include "vulkan/vulkan_core.h"
+#include "onyx/core/glfw.hpp"
 
 namespace Onyx
 {

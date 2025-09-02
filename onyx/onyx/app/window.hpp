@@ -8,7 +8,6 @@
 
 #include "tkit/container/storage.hpp"
 #include "tkit/memory/block_allocator.hpp"
-#include "onyx/core/glfw.hpp"
 
 #include <functional>
 
@@ -23,6 +22,8 @@
 #ifndef ONYX_MAX_EVENTS
 #    define ONYX_MAX_EVENTS 32
 #endif
+
+struct GLFWwindow;
 
 namespace Onyx
 {
