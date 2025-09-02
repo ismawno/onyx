@@ -134,7 +134,7 @@ template <Dimension D> class IRenderer
      * @param p_State The render state used when drawing.
      * @param p_Transform The transformation matrix to apply to the circle.
      *
-     * The following is encoded in the `CircleOptions` struct:
+     * The following is specified through the `CircleOptions` struct:
      *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.

@@ -128,7 +128,7 @@ class ONYX_API FrameScheduler
      * @param p_Layout The pipeline layout to use for the post-processing pipeline.
      * @param p_FragmentShader The fragment shader to use for the post-processing pipeline.
      *
-     * The following is encoded in the `PostProcessingOptions` struct:
+     * The following is specified through the `PostProcessingOptions` struct:
      *
      * @param p_VertexShader Optional vertex shader to use for the post-processing pipeline.
      * @param p_Info Optional sampler information to use for the post-processing pipeline.

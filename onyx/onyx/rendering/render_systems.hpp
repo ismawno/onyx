@@ -309,7 +309,7 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer final : public R
      *
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      *
-     * The following is encoded in the `CircleOptions` struct:
+     * The following is specified through the `CircleOptions` struct:
      *
      * @param p_InnerFade A value between 0 and 1, denoting how much the circle fades from the center to the
      * edge.

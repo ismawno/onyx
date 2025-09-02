@@ -449,7 +449,7 @@ template <Dimension D> class IRenderContext
      *
      * The circle will be affected by the current transformation state.
      *
-     * The following is encoded in the `CircleOptions` struct:
+     * The following is specified through the `CircleOptions` struct:
      *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
@@ -465,7 +465,7 @@ template <Dimension D> class IRenderContext
      * @param p_Transform The transformation matrix to apply to the circle. This transformation will be applied
      * extrinsically, on top of the current cummulated transformations.
      *
-     * The following is encoded in the `CircleOptions` struct:
+     * The following is specified through the `CircleOptions` struct:
      *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
@@ -482,7 +482,7 @@ template <Dimension D> class IRenderContext
      *
      * @param p_Dimensions The dimensions of the circle.
      *
-     * The following is encoded in the `CircleOptions` struct:
+     * The following is specified through the `CircleOptions` struct:
      *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
@@ -499,7 +499,7 @@ template <Dimension D> class IRenderContext
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Dimensions The dimensions of the circle.
      *
-     * The following is encoded in the `CircleOptions` struct:
+     * The following is specified through the `CircleOptions` struct:
      *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
@@ -516,7 +516,7 @@ template <Dimension D> class IRenderContext
      *
      * @param p_Diameter The diameter of the circle.
      *
-     * The following is encoded in the `CircleOptions` struct:
+     * The following is specified through the `CircleOptions` struct:
      *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
@@ -533,7 +533,7 @@ template <Dimension D> class IRenderContext
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Diameter The diameter of the circle.
      *
-     * The following is encoded in the `CircleOptions` struct:
+     * The following is specified through the `CircleOptions` struct:
      *
      * @param p_InnerFade A value between 0 and 1 indicating how much the circle fades from the center to the edge.
      * @param p_OuterFade A value between 0 and 1 indicating how much the circle fades from the edge to the center.
@@ -956,7 +956,7 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
      *
      * Draw the X and Y axes with the specified thickness and size.
      *
-     * The following is encoded in the `AxesOptions` struct:
+     * The following is specified through the `AxesOptions` struct:
      *
      * @param p_Thickness The thickness of the axes lines.
      * @param p_Size The length of the axes.
@@ -1019,7 +1019,7 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      *
      * Draw the X, Y and Z axes with the specified thickness and size.
      *
-     * The following is encoded in the `AxesOptions` struct:
+     * The following is specified through the `AxesOptions` struct:
      *
      * @param p_Thickness The thickness of the axes lines.
      * @param p_Size The length of the axes.
