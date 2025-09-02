@@ -14,7 +14,9 @@ static TKit::BlockAllocator createAllocator() noexcept
 {
     const u32 maxSize =
         std::max({sizeof(RenderContext<D2>), sizeof(RenderContext<D3>), sizeof(Camera<D2>), sizeof(Camera<D3>)});
-    return TKit::BlockAllocator{maxSize * 2 * (ONYX_MAX_RENDER_CONTEXTS + ONYX_MAX_CAMERAS), maxSize};
+    const u32 alignment =
+        std::max({alignof(RenderContext<D2>), alignof(RenderContext<D3>), alignof(Camera<D2>), alignof(Camera<D3>)});
+    return TKit::BlockAllocator{maxSize * 2 * (ONYX_MAX_RENDER_CONTEXTS + ONYX_MAX_CAMERAS), maxSize, alignment};
 }
 
 Window::Window() noexcept : Window(Specs{})
