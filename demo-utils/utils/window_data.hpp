@@ -19,7 +19,6 @@ template <Dimension D> struct LatticeData
     TKit::Scope<Shape<D>> Shape;
     u32 Partitions = 1;
     bool Enabled = false;
-    bool Multithreaded = false;
     bool PropToScale = true;
     bool NeedsUpdate = false;
 };

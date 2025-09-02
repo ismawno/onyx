@@ -337,91 +337,65 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
         const fvec<D> midPoint = 0.5f * separation * fvec<D>{dims - 1u};
 
         lattice.Shape->SetProperties(p_Context.Context);
-        if (lattice.Multithreaded)
+        p_Context.Context->ShareCurrentState();
+
+        TKit::ITaskManager *tm = Core::GetTaskManager();
+        if constexpr (D == D2)
         {
-            p_Context.Context->ShareCurrentState();
-            TKit::ITaskManager *tm = Core::GetTaskManager();
-            if constexpr (D == D2)
-            {
-                const u32 size = dims.x * dims.y;
-                const auto fn = [&dims, &separation, &lattice, &midPoint, &p_Context](const u32 p_Start,
-                                                                                      const u32 p_End) {
-                    Transform<D2> transform = lattice.Shape->Transform;
-                    for (u32 i = p_Start; i < p_End; ++i)
-                    {
-                        const u32 ix = i / dims.y;
-                        const u32 iy = i % dims.y;
-                        const f32 x = separation.x * static_cast<f32>(ix);
-                        const f32 y = separation.y * static_cast<f32>(iy);
-                        transform.Translation = fvec2{x, y} - midPoint;
-                        lattice.Shape->DrawRaw(p_Context.Context, transform);
-                    }
-                };
-
-                TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
-                TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
-
-                const u32 tcount =
-                    (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
-                for (u32 i = 0; i < tcount; ++i)
+            const u32 size = dims.x * dims.y;
+            const auto fn = [&dims, &separation, &lattice, &midPoint, &p_Context](const u32 p_Start, const u32 p_End) {
+                Transform<D2> transform = lattice.Shape->Transform;
+                for (u32 i = p_Start; i < p_End; ++i)
                 {
-                    tasks[i]->WaitUntilFinished();
-                    tm->DestroyTask(tasks[i]);
+                    const u32 ix = i / dims.y;
+                    const u32 iy = i % dims.y;
+                    const f32 x = separation.x * static_cast<f32>(ix);
+                    const f32 y = separation.y * static_cast<f32>(iy);
+                    transform.Translation = fvec2{x, y} - midPoint;
+                    lattice.Shape->DrawRaw(p_Context.Context, transform);
                 }
-            }
-            else
-            {
-                const u32 size = dims.x * dims.y * dims.z;
-                const u32 yz = dims.y * dims.z;
-                const auto fn = [&dims, yz, &separation, &lattice, &midPoint, &p_Context](const u32 p_Start,
-                                                                                          const u32 p_End) {
-                    Transform<D3> transform = lattice.Shape->Transform;
-                    for (u32 i = p_Start; i < p_End; ++i)
-                    {
-                        const u32 ix = i / yz;
-                        const u32 j = ix * yz;
-                        const u32 iy = (i - j) / dims.z;
-                        const u32 iz = (i - j) % dims.z;
-                        const f32 x = separation.x * static_cast<f32>(ix);
-                        const f32 y = separation.y * static_cast<f32>(iy);
-                        const f32 z = separation.z * static_cast<f32>(iz);
-                        transform.Translation = fvec3{x, y, z} - midPoint;
-                        lattice.Shape->DrawRaw(p_Context.Context, transform);
-                    }
-                };
-                TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
-                TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
+            };
 
-                const u32 tcount =
-                    (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
-                for (u32 i = 0; i < tcount; ++i)
-                {
-                    tasks[i]->WaitUntilFinished();
-                    tm->DestroyTask(tasks[i]);
-                }
+            TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
+            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
+
+            const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
+            for (u32 i = 0; i < tcount; ++i)
+            {
+                tasks[i]->WaitUntilFinished();
+                tm->DestroyTask(tasks[i]);
             }
         }
         else
-            for (u32 i = 0; i < dims.x; ++i)
-            {
-                const f32 x = static_cast<f32>(i) * separation.x;
-                for (u32 j = 0; j < dims.y; ++j)
+        {
+            const u32 size = dims.x * dims.y * dims.z;
+            const u32 yz = dims.y * dims.z;
+            const auto fn = [&dims, yz, &separation, &lattice, &midPoint, &p_Context](const u32 p_Start,
+                                                                                      const u32 p_End) {
+                Transform<D3> transform = lattice.Shape->Transform;
+                for (u32 i = p_Start; i < p_End; ++i)
                 {
-                    const f32 y = static_cast<f32>(j) * separation.y;
-                    if constexpr (D == D2)
-                    {
-                        lattice.Shape->Transform.Translation = fvec2{x, y} - midPoint;
-                        lattice.Shape->DrawRaw(p_Context.Context);
-                    }
-                    else
-                        for (u32 k = 0; k < dims.z; ++k)
-                        {
-                            const f32 z = static_cast<f32>(k) * separation.z;
-                            lattice.Shape->Transform.Translation = fvec3{x, y, z} - midPoint;
-                            lattice.Shape->DrawRaw(p_Context.Context);
-                        }
+                    const u32 ix = i / yz;
+                    const u32 j = ix * yz;
+                    const u32 iy = (i - j) / dims.z;
+                    const u32 iz = (i - j) % dims.z;
+                    const f32 x = separation.x * static_cast<f32>(ix);
+                    const f32 y = separation.y * static_cast<f32>(iy);
+                    const f32 z = separation.z * static_cast<f32>(iz);
+                    transform.Translation = fvec3{x, y, z} - midPoint;
+                    lattice.Shape->DrawRaw(p_Context.Context, transform);
                 }
+            };
+            TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
+            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
+
+            const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
+            for (u32 i = 0; i < tcount; ++i)
+            {
+                tasks[i]->WaitUntilFinished();
+                tm->DestroyTask(tasks[i]);
             }
+        }
     }
 
     for (const auto &shape : p_Context.Shapes)
@@ -656,13 +630,9 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context) n
         UserLayer::HelpMarkerSameLine("You may choose to draw a lattice of shapes to stress test the rendering engine. "
                                       "I advice to build the engine "
                                       "in distribution mode to see meaningful results.");
-        ImGui::Checkbox("Multithreaded", &lattice.Multithreaded);
-        if (lattice.Multithreaded)
-        {
-            const u32 mn = 1;
-            const u32 mx = ONYX_MAX_THREADS;
-            ImGui::SliderScalar("Partitions", ImGuiDataType_U32, &lattice.Partitions, &mn, &mx);
-        }
+        const u32 mn = 1;
+        const u32 mx = ONYX_MAX_THREADS;
+        ImGui::SliderScalar("Partitions", ImGuiDataType_U32, &lattice.Partitions, &mn, &mx);
 
         if constexpr (D == D2)
         {
