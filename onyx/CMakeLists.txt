@@ -127,7 +127,7 @@ if(ONYX_ENABLE_IMGUI)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMGUI)
   target_link_libraries(onyx PUBLIC imgui)
 
-  tkit_configure_compile_link_options(imgui FORBID_SANITIZERS)
+  tkit_configure_compile_link_options(imgui FORBID_SANITIZERS NO_EXCEPTIONS)
 endif()
 
 # IMPLOT ###
@@ -153,7 +153,7 @@ if(ONYX_ENABLE_IMPLOT)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMPLOT)
   target_link_libraries(onyx PUBLIC implot)
 
-  tkit_configure_compile_link_options(implot FORBID_SANITIZERS)
+  tkit_configure_compile_link_options(implot FORBID_SANITIZERS NO_EXCEPTIONS)
 endif()
 
 target_link_libraries(
@@ -169,9 +169,10 @@ target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 tkit_default_configure(onyx)
 
-tkit_configure_compile_link_options(glm FORBID_SANITIZERS)
-tkit_configure_compile_link_options(glfw FORBID_SANITIZERS)
-tkit_configure_compile_link_options(tinyobjloader FORBID_SANITIZERS)
+tkit_configure_compile_link_options(glm FORBID_SANITIZERS NO_EXCEPTIONS)
+tkit_configure_compile_link_options(glfw FORBID_SANITIZERS NO_EXCEPTIONS)
+tkit_configure_compile_link_options(tinyobjloader FORBID_SANITIZERS
+                                    NO_EXCEPTIONS)
 
 # No need for more: toolkit handles the rest. As it is a library I develop, I
 # will be reusing its macros/configurations

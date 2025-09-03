@@ -4,7 +4,7 @@
 
 namespace Onyx::Detail
 {
-VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info, VkDescriptorSet p_OldSet) noexcept
+VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info, VkDescriptorSet p_OldSet)
 {
     const VKit::DescriptorSetLayout &layout = Core::GetInstanceDataStorageDescriptorSetLayout();
     const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
@@ -23,7 +23,7 @@ VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_
 }
 
 template <Dimension D, DrawMode DMode>
-PolygonDeviceData<D, DMode>::PolygonDeviceData() noexcept : DeviceData<InstanceData<D, DMode>>()
+PolygonDeviceData<D, DMode>::PolygonDeviceData() : DeviceData<InstanceData<D, DMode>>()
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -33,7 +33,7 @@ PolygonDeviceData<D, DMode>::PolygonDeviceData() noexcept : DeviceData<InstanceD
         StagingIndices[i] = CreateHostVisibleIndexBuffer(ONYX_BUFFER_INITIAL_CAPACITY);
     }
 }
-template <Dimension D, DrawMode DMode> PolygonDeviceData<D, DMode>::~PolygonDeviceData() noexcept
+template <Dimension D, DrawMode DMode> PolygonDeviceData<D, DMode>::~PolygonDeviceData()
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
@@ -46,7 +46,7 @@ template <Dimension D, DrawMode DMode> PolygonDeviceData<D, DMode>::~PolygonDevi
 
 template <Dimension D, DrawMode DMode>
 void PolygonDeviceData<D, DMode>::GrowToFit(const u32 p_FrameIndex, const u32 p_Instances, const u32 p_Vertices,
-                                            const u32 p_Indices) noexcept
+                                            const u32 p_Indices)
 {
     DeviceData<InstanceData<D, DMode>>::GrowToFit(p_FrameIndex, p_Instances);
 
@@ -78,7 +78,7 @@ void PolygonDeviceData<D, DMode>::GrowToFit(const u32 p_FrameIndex, const u32 p_
     }
 }
 
-template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
+template <DrawLevel DLevel> static VkPipelineLayout getLayout()
 {
     if constexpr (DLevel == DrawLevel::Simple)
         return Core::GetGraphicsPipelineLayoutSimple();
@@ -89,7 +89,7 @@ template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
 template <Dimension D, PipelineMode PMode>
 static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo,
                                                               const VKit::Shader &p_VertexShader,
-                                                              const VKit::Shader &p_FragmentShader) noexcept
+                                                              const VKit::Shader &p_FragmentShader)
 {
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
     VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), getLayout<dlevel>(), p_RenderInfo};
@@ -142,7 +142,7 @@ static VKit::GraphicsPipeline::Builder defaultPipelineBuilder(const VkPipelineRe
 
 template <Dimension D, PipelineMode PMode>
 VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateMeshPipeline(
-    const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+    const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshVertexShader();
     const VKit::Shader &fragmentShader = Shaders<D, GetDrawMode<PMode>()>::GetMeshFragmentShader();
@@ -164,7 +164,7 @@ VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateMeshPipeline(
 
 template <Dimension D, PipelineMode PMode>
 VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateCirclePipeline(
-    const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+    const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     const VKit::Shader &vertexShader = Shaders<D, GetDrawMode<PMode>()>::GetCircleVertexShader();
     const VKit::Shader &fragmentShader = Shaders<D, GetDrawMode<PMode>()>::GetCircleFragmentShader();

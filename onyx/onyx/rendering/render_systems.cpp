@@ -16,50 +16,50 @@ namespace Onyx::Detail
 #ifdef TKIT_ENABLE_INSTRUMENTATION
 static std::atomic<u32> s_DrawCallCount = 0;
 
-u32 GetDrawCallCount() noexcept
+u32 GetDrawCallCount()
 {
     return s_DrawCallCount.load(std::memory_order_relaxed);
 }
-void ResetDrawCallCount() noexcept
+void ResetDrawCallCount()
 {
     s_DrawCallCount.store(0, std::memory_order_relaxed);
 }
 #endif
 
-template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::RenderSystem() noexcept
+template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::RenderSystem()
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         m_DeviceSubmissionId[i] = 0;
 }
-template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::~RenderSystem() noexcept
+template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::~RenderSystem()
 {
     Core::DeviceWaitIdle();
     m_Pipeline.Destroy();
 }
 
 template <Dimension D, PipelineMode PMode>
-bool RenderSystem<D, PMode>::HasInstances(const u32 p_FrameIndex) const noexcept
+bool RenderSystem<D, PMode>::HasInstances(const u32 p_FrameIndex) const
 {
     return m_DeviceInstances != 0 && m_DeviceSubmissionId[p_FrameIndex] != m_HostSubmissionId;
 }
-template <Dimension D, PipelineMode PMode> void RenderSystem<D, PMode>::Flush() noexcept
+template <Dimension D, PipelineMode PMode> void RenderSystem<D, PMode>::Flush()
 {
     ++m_HostSubmissionId;
 }
 template <Dimension D, PipelineMode PMode>
-void RenderSystem<D, PMode>::AcknowledgeSubmission(const u32 p_FrameIndex) noexcept
+void RenderSystem<D, PMode>::AcknowledgeSubmission(const u32 p_FrameIndex)
 {
     m_DeviceSubmissionId[p_FrameIndex] = m_HostSubmissionId;
 }
 
 template <Dimension D, PipelineMode PMode>
-MeshRenderer<D, PMode>::MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+MeshRenderer<D, PMode>::MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
-void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh) noexcept
+void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh)
 {
     thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
     auto &hostData = m_HostData[threadIndex];
@@ -67,7 +67,7 @@ void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh
     ++hostData.Instances;
 }
 
-template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
+template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex)
 {
     this->m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
@@ -75,7 +75,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFi
 
     m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
 }
-template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
     TaskArray tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
@@ -122,7 +122,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
     }
 }
 
-template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
+template <DrawLevel DLevel> static VkPipelineLayout getLayout()
 {
     if constexpr (DLevel == DrawLevel::Simple)
         return Core::GetGraphicsPipelineLayoutSimple();
@@ -130,7 +130,7 @@ template <DrawLevel DLevel> static VkPipelineLayout getLayout() noexcept
         return Core::GetGraphicsPipelineLayoutComplex();
 }
 
-template <DrawLevel DLevel> static void pushConstantData(const RenderInfo<DLevel> &p_Info) noexcept
+template <DrawLevel DLevel> static void pushConstantData(const RenderInfo<DLevel> &p_Info)
 {
     PushConstantData<DLevel> pdata{};
     pdata.ProjectionView = p_Info.Camera->ProjectionView;
@@ -150,7 +150,7 @@ template <DrawLevel DLevel> static void pushConstantData(const RenderInfo<DLevel
 }
 
 template <DrawLevel DLevel>
-static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescriptorSet p_InstanceData) noexcept
+static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescriptorSet p_InstanceData)
 {
     if constexpr (DLevel == DrawLevel::Simple)
         VKit::DescriptorSet::Bind(Core::GetDevice(), p_Info.CommandBuffer, p_InstanceData,
@@ -165,7 +165,7 @@ static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescrip
 }
 
 template <Dimension D, PipelineMode PMode>
-void MeshRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
+void MeshRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
@@ -179,7 +179,7 @@ void MeshRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
 
-template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
+template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(const RenderInfo &p_Info)
 {
     if (this->m_DeviceInstances == 0)
         return;
@@ -220,7 +220,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     }
 }
 
-template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() noexcept
+template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush()
 {
     RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
@@ -232,13 +232,13 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush() 
 }
 
 template <Dimension D, PipelineMode PMode>
-PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
-void PrimitiveRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const u32 p_PrimitiveIndex) noexcept
+void PrimitiveRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const u32 p_PrimitiveIndex)
 {
     thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
     auto &hostData = m_HostData[threadIndex];
@@ -246,7 +246,7 @@ void PrimitiveRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const
     ++hostData.Instances;
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
+template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex)
 {
     this->m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
@@ -256,7 +256,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Gro
 }
 
 template <Dimension D, PipelineMode PMode>
-void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
     auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
@@ -301,7 +301,7 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
 }
 
 template <Dimension D, PipelineMode PMode>
-void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
+void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
@@ -314,7 +314,7 @@ void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noe
     if (p_Info.ReleaseBarriers)
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
-template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
+template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Render(const RenderInfo &p_Info)
 {
     if (this->m_DeviceInstances == 0)
         return;
@@ -355,7 +355,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     }
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flush() noexcept
+template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flush()
 {
     RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
@@ -367,14 +367,14 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 }
 
 template <Dimension D, PipelineMode PMode>
-PolygonRenderer<D, PMode>::PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+PolygonRenderer<D, PMode>::PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
 void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData,
-                                     const TKit::Span<const fvec2> p_Vertices) noexcept
+                                     const TKit::Span<const fvec2> p_Vertices)
 {
     TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX] A polygon must have at least 3 sides");
     thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
@@ -417,7 +417,7 @@ void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData,
     }
 }
 
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
+template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex)
 {
     this->m_DeviceInstances = 0;
     m_DeviceVertices = 0;
@@ -431,7 +431,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowT
 
     m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances, m_DeviceVertices, m_DeviceIndices);
 }
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
     auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     auto &vertexBuffer = m_DeviceData.StagingVertices[p_FrameIndex];
@@ -483,7 +483,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
 }
 
 template <Dimension D, PipelineMode PMode>
-void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
+void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
@@ -512,7 +512,7 @@ void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexc
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(ibuffer, isize));
     }
 }
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
+template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Render(const RenderInfo &p_Info)
 {
     if (this->m_DeviceInstances == 0)
         return;
@@ -546,7 +546,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
             }
 }
 
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush() noexcept
+template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush()
 {
     RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
@@ -559,13 +559,13 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush
 }
 
 template <Dimension D, PipelineMode PMode>
-CircleRenderer<D, PMode>::CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept
+CircleRenderer<D, PMode>::CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     this->m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
-void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Options) noexcept
+void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Options)
 {
     // if (TKit::Approximately(p_Options.LowerAngle, p_Options.UpperAngle) ||
     //     TKit::Approximately(p_Options.Hollowness, 1.f))
@@ -590,7 +590,7 @@ void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Ci
     hostData.Data.Append(instanceData);
 }
 
-template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex) noexcept
+template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex)
 {
     this->m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
@@ -598,7 +598,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowTo
 
     m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
 }
-template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex) noexcept
+template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
     auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
@@ -640,7 +640,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
 }
 
 template <Dimension D, PipelineMode PMode>
-void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexcept
+void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
 
@@ -655,7 +655,7 @@ void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info) noexce
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
 
-template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render(const RenderInfo &p_Info) noexcept
+template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render(const RenderInfo &p_Info)
 {
     if (this->m_DeviceInstances == 0)
         return;
@@ -680,7 +680,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
     INCREASE_DRAW_CALL_COUNT();
 }
 
-template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush() noexcept
+template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush()
 {
     RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)

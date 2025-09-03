@@ -10,7 +10,7 @@
 namespace Onyx
 {
 
-static TKit::BlockAllocator createAllocator() noexcept
+static TKit::BlockAllocator createAllocator()
 {
     const u32 maxSize =
         std::max({sizeof(RenderContext<D2>), sizeof(RenderContext<D3>), sizeof(Camera<D2>), sizeof(Camera<D3>)});
@@ -19,11 +19,11 @@ static TKit::BlockAllocator createAllocator() noexcept
     return TKit::BlockAllocator{maxSize * 2 * (ONYX_MAX_RENDER_CONTEXTS + ONYX_MAX_CAMERAS), maxSize, alignment};
 }
 
-Window::Window() noexcept : Window(Specs{})
+Window::Window() : Window(Specs{})
 {
 }
 
-Window::Window(const Specs &p_Specs) noexcept
+Window::Window(const Specs &p_Specs)
     : m_Allocator(createAllocator()), m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height),
       m_Flags(p_Specs.Flags)
 {
@@ -31,7 +31,7 @@ Window::Window(const Specs &p_Specs) noexcept
     m_FrameScheduler->SetPresentMode(p_Specs.PresentMode);
 }
 
-Window::~Window() noexcept
+Window::~Window()
 {
     m_FrameScheduler.Destruct();
     for (RenderContext<D2> *context : m_RenderContexts2D)
@@ -48,7 +48,7 @@ Window::~Window() noexcept
     glfwDestroyWindow(m_Window);
 }
 
-void Window::createWindow(const Specs &p_Specs) noexcept
+void Window::createWindow(const Specs &p_Specs)
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, p_Specs.Flags & Flag_Resizable);
@@ -71,7 +71,7 @@ void Window::createWindow(const Specs &p_Specs) noexcept
     Input::InstallCallbacks(*this);
 }
 
-bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
+bool Window::Render(const RenderCallbacks &p_Callbacks)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
     const VkCommandBuffer gcmd = m_FrameScheduler->BeginFrame(*this);
@@ -143,123 +143,123 @@ bool Window::Render(const RenderCallbacks &p_Callbacks) noexcept
     return true;
 }
 
-bool Window::ShouldClose() const noexcept
+bool Window::ShouldClose() const
 {
     return glfwWindowShouldClose(m_Window);
 }
 
-const GLFWwindow *Window::GetWindowHandle() const noexcept
+const GLFWwindow *Window::GetWindowHandle() const
 {
     return m_Window;
 }
-GLFWwindow *Window::GetWindowHandle() noexcept
+GLFWwindow *Window::GetWindowHandle()
 {
     return m_Window;
 }
 
-const FrameScheduler *Window::GetFrameScheduler() const noexcept
+const FrameScheduler *Window::GetFrameScheduler() const
 {
     return m_FrameScheduler.Get();
 }
-FrameScheduler *Window::GetFrameScheduler() noexcept
+FrameScheduler *Window::GetFrameScheduler()
 {
     return m_FrameScheduler.Get();
 }
 
-const char *Window::GetName() const noexcept
+const char *Window::GetName() const
 {
     return m_Name;
 }
 
-u32 Window::GetScreenWidth() const noexcept
+u32 Window::GetScreenWidth() const
 {
     return m_Width;
 }
-u32 Window::GetScreenHeight() const noexcept
+u32 Window::GetScreenHeight() const
 {
     return m_Height;
 }
 
-u32 Window::GetPixelWidth() const noexcept
+u32 Window::GetPixelWidth() const
 {
     return m_FrameScheduler->GetSwapChain().GetInfo().Extent.width;
 }
-u32 Window::GetPixelHeight() const noexcept
+u32 Window::GetPixelHeight() const
 {
     return m_FrameScheduler->GetSwapChain().GetInfo().Extent.height;
 }
 
-f32 Window::GetScreenAspect() const noexcept
+f32 Window::GetScreenAspect() const
 {
     return static_cast<f32>(m_Width) / static_cast<f32>(m_Height);
 }
 
-f32 Window::GetPixelAspect() const noexcept
+f32 Window::GetPixelAspect() const
 {
     return static_cast<f32>(GetPixelWidth()) / static_cast<f32>(GetPixelHeight());
 }
 
-Window::Flags Window::GetFlags() const noexcept
+Window::Flags Window::GetFlags() const
 {
     return m_Flags;
 }
 
-std::pair<u32, u32> Window::GetPosition() const noexcept
+std::pair<u32, u32> Window::GetPosition() const
 {
     i32 x, y;
     glfwGetWindowPos(m_Window, &x, &y);
     return {static_cast<u32>(x), static_cast<u32>(y)};
 }
 
-bool Window::wasResized() const noexcept
+bool Window::wasResized() const
 {
     return m_Resized;
 }
 
-void Window::flagResize(const u32 p_Width, const u32 p_Height) noexcept
+void Window::flagResize(const u32 p_Width, const u32 p_Height)
 {
     m_Width = p_Width;
     m_Height = p_Height;
     m_Resized = true;
 }
-void Window::flagResizeDone() noexcept
+void Window::flagResizeDone()
 {
     adaptCamerasToViewportAspect();
     m_Resized = false;
 }
-void Window::recreateSurface() noexcept
+void Window::recreateSurface()
 {
     Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     TKIT_ASSERT_RETURNS(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface), VK_SUCCESS,
                         "[ONYX] Failed to create a window surface");
 }
 
-void Window::FlagShouldClose() noexcept
+void Window::FlagShouldClose()
 {
     glfwSetWindowShouldClose(m_Window, GLFW_TRUE);
 }
 
-VkSurfaceKHR Window::GetSurface() const noexcept
+VkSurfaceKHR Window::GetSurface() const
 {
     return m_Surface;
 }
 
-void Window::PushEvent(const Event &p_Event) noexcept
+void Window::PushEvent(const Event &p_Event)
 {
     if (!m_Events.IsFull())
         m_Events.Append(p_Event);
 }
 
-const EventArray &Window::GetNewEvents() const noexcept
+const EventArray &Window::GetNewEvents() const
 {
     return m_Events;
 }
-void Window::FlushEvents() noexcept
+void Window::FlushEvents()
 {
     m_Events.Clear();
 }
 
-void Window::adaptCamerasToViewportAspect() noexcept
+void Window::adaptCamerasToViewportAspect()
 {
     for (Camera<D2> *cam : m_Cameras2D)
         cam->adaptViewToViewportAspect();

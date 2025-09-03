@@ -115,31 +115,31 @@ template <Dimension D> struct ContextDataContainer
 class ONYX_API WindowData
 {
   public:
-    void OnStart(Window *p_Window, Scene p_Scene) noexcept;
-    void OnUpdate(TKit::Timespan p_Timestep) noexcept;
-    void OnRenderBegin(VkCommandBuffer p_CommandBuffer) noexcept;
-    void OnImGuiRender() noexcept;
-    void OnEvent(const Event &p_Event) noexcept;
+    void OnStart(Window *p_Window, Scene p_Scene);
+    void OnUpdate(TKit::Timespan p_Timestep);
+    void OnRenderBegin(VkCommandBuffer p_CommandBuffer);
+    void OnImGuiRender();
+    void OnEvent(const Event &p_Event);
 
-    static void OnImGuiRenderGlobal(TKit::Timespan p_Timestep) noexcept;
-    static void RenderEditorText() noexcept;
+    static void OnImGuiRenderGlobal(TKit::Timespan p_Timestep);
+    static void RenderEditorText();
 
   private:
-    template <Dimension D> void drawShapes(const ContextData<D> &p_Context) noexcept;
+    template <Dimension D> void drawShapes(const ContextData<D> &p_Context);
 
-    template <Dimension D> void renderUI(ContextDataContainer<D> &p_Contexts) noexcept;
-    template <Dimension D> void renderUI(ContextData<D> &p_Context) noexcept;
+    template <Dimension D> void renderUI(ContextDataContainer<D> &p_Contexts);
+    template <Dimension D> void renderUI(ContextData<D> &p_Context);
 
-    template <Dimension D> void renderCameras(CameraDataContainer<D> &p_Container) noexcept;
-    template <Dimension D> void renderCamera(CameraData<D> &p_Camera) noexcept;
+    template <Dimension D> void renderCameras(CameraDataContainer<D> &p_Container);
+    template <Dimension D> void renderCamera(CameraData<D> &p_Camera);
 
-    void renderLightSpawn(ContextData<D3> &p_Context) noexcept;
+    void renderLightSpawn(ContextData<D3> &p_Context);
 
-    template <Dimension D> ContextData<D> &addContext(ContextDataContainer<D> &p_Contexts) noexcept;
-    template <Dimension D> void setupContext(ContextData<D> &p_Context) noexcept;
+    template <Dimension D> ContextData<D> &addContext(ContextDataContainer<D> &p_Contexts);
+    template <Dimension D> void setupContext(ContextData<D> &p_Context);
 
-    template <Dimension D> CameraData<D> &addCamera(CameraDataContainer<D> &p_Cameras) noexcept;
-    void setupCamera(CameraData<D3> &p_Camera) noexcept;
+    template <Dimension D> CameraData<D> &addCamera(CameraDataContainer<D> &p_Cameras);
+    void setupCamera(CameraData<D3> &p_Camera);
 
     Window *m_Window = nullptr;
     ContextDataContainer<D2> m_ContextData2{};

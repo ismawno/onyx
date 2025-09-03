@@ -15,34 +15,34 @@ namespace Onyx::Detail
  */
 template <Dimension D, template <Dimension, PipelineMode> typename Renderer> struct RenderGroup
 {
-    RenderGroup(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    RenderGroup(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Clear all host data in each renderer.
      *
      * This method should be called to reset the renderers' state, typically at the beginning or end of a frame.
      */
-    void Flush() noexcept;
+    void Flush();
 
     /**
      * @brief Grow all device buffers to fit host data.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void GrowToFit(u32 p_FrameIndex) noexcept;
+    void GrowToFit(u32 p_FrameIndex);
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      */
-    void SendToDevice(u32 p_FrameIndex, TaskArray &p_Tasks) noexcept;
+    void SendToDevice(u32 p_FrameIndex, TaskArray &p_Tasks);
 
     /**
      * @brief Record vulkan copy commands to send data to a device local buffer.
      *
      * @param p_Info The necessary information to record the copies.
      */
-    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+    void RecordCopyCommands(const CopyInfo &p_Info);
 
     /// Renderer without stencil write, performs fill operation.
     Renderer<D, PipelineMode::NoStencilWriteDoFill> NoStencilWriteDoFill;
@@ -93,7 +93,7 @@ template <Dimension D> class IRenderer
     TKIT_NON_COPYABLE(IRenderer)
 
   public:
-    IRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    IRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Record a draw call for a mesh model.
@@ -104,7 +104,7 @@ template <Dimension D> class IRenderer
      * @param p_Flags Drawing flags to control rendering behavior.
      */
     void DrawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Mesh<D> &p_Mesh,
-                  DrawFlags p_Flags) noexcept;
+                  DrawFlags p_Flags);
 
     /**
      * @brief Record a draw call for a primitive shape.
@@ -115,7 +115,7 @@ template <Dimension D> class IRenderer
      * @param p_Flags Drawing flags to control rendering behavior.
      */
     void DrawPrimitive(const RenderState<D> &p_State, const fmat<D> &p_Transform, u32 p_PrimitiveIndex,
-                       DrawFlags p_Flags) noexcept;
+                       DrawFlags p_Flags);
 
     /**
      * @brief Record a draw call for a polygon defined by a set of vertices.
@@ -126,7 +126,7 @@ template <Dimension D> class IRenderer
      * @param p_Flags Drawing flags to control rendering behavior.
      */
     void DrawPolygon(const RenderState<D> &p_State, const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices,
-                     DrawFlags p_Flags) noexcept;
+                     DrawFlags p_Flags);
 
     /**
      * @brief Record a draw call for a circle or arc.
@@ -145,7 +145,7 @@ template <Dimension D> class IRenderer
      * @param p_Flags Drawing flags to control rendering behavior.
      */
     void DrawCircle(const RenderState<D> &p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
-                    DrawFlags p_Flags) noexcept;
+                    DrawFlags p_Flags);
 
   protected:
     RenderGroup<D, MeshRenderer> m_MeshRenderer;
@@ -167,7 +167,7 @@ template <Dimension D> class IRenderer
      */
     template <typename Renderer, typename DrawArg>
     void draw(Renderer &p_Renderer, const RenderState<D> &p_State, const fmat<D> &p_Transform, DrawArg &&p_Arg,
-              DrawFlags p_Flags) noexcept;
+              DrawFlags p_Flags);
 };
 
 /**
@@ -194,14 +194,14 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void GrowToFit(u32 p_FrameIndex) noexcept;
+    void GrowToFit(u32 p_FrameIndex);
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void SendToDevice(u32 p_FrameIndex) noexcept;
+    void SendToDevice(u32 p_FrameIndex);
 
     /**
      * @brief Record vulkan copy commands to send data to a device local buffer.
@@ -212,7 +212,7 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
      * @return The stages to synchronize.
      */
     VkPipelineStageFlags RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
-                                            VkCommandBuffer p_TransferCommand) noexcept;
+                                            VkCommandBuffer p_TransferCommand);
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.
@@ -221,14 +221,14 @@ template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
      * @param p_Cameras The cameras from which to render the scene.
      */
-    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
+    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras);
 
     /**
      * @brief Clear all host data and resets the renderer's state.
      *
      * Should be called to prepare the renderer for a new frame.
      */
-    void Flush() noexcept;
+    void Flush();
 };
 } // namespace Onyx::Detail
 
@@ -277,10 +277,10 @@ struct ONYX_API DeviceLightData
 {
     TKIT_NON_COPYABLE(DeviceLightData)
 
-    DeviceLightData() noexcept;
-    ~DeviceLightData() noexcept;
+    DeviceLightData();
+    ~DeviceLightData();
 
-    void GrowToFit(u32 p_FrameIndex, u32 p_Directionals, u32 p_Points) noexcept;
+    void GrowToFit(u32 p_FrameIndex, u32 p_Directionals, u32 p_Points);
 
     PerFrameData<DeviceLocalStorageBuffer<DirectionalLight>> DeviceLocalDirectionals;
     PerFrameData<DeviceLocalStorageBuffer<PointLight>> DeviceLocalPoints;
@@ -303,21 +303,21 @@ struct ONYX_API HostLightData
 template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
 {
   public:
-    Renderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    Renderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Grow all device buffers to fit host data.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void GrowToFit(u32 p_FrameIndex) noexcept;
+    void GrowToFit(u32 p_FrameIndex);
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void SendToDevice(u32 p_FrameIndex) noexcept;
+    void SendToDevice(u32 p_FrameIndex);
 
     /**
      * @brief Record vulkan copy commands to send data to a device local buffer.
@@ -328,7 +328,7 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
      * @return The stages to synchronize.
      */
     VkPipelineStageFlags RecordCopyCommands(u32 p_FrameIndex, VkCommandBuffer p_GraphicsCommand,
-                                            VkCommandBuffer p_TransferCommand) noexcept;
+                                            VkCommandBuffer p_TransferCommand);
 
     /**
      * @brief Record all stored draw calls into the command buffer for execution.
@@ -337,28 +337,28 @@ template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
      * @param p_CommandBuffer The Vulkan command buffer to record commands into.
      * @param p_Cameras The cameras from which to render the scene.
      */
-    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras) noexcept;
+    void Render(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer, TKit::Span<const CameraInfo> p_Cameras);
 
     /**
      * @brief Add a directional light to the scene.
      *
      * @param p_Light The directional light to add.
      */
-    void AddDirectionalLight(const DirectionalLight &p_Light) noexcept;
+    void AddDirectionalLight(const DirectionalLight &p_Light);
 
     /**
      * @brief Add a point light to the scene.
      *
      * @param p_Light The point light to add.
      */
-    void AddPointLight(const PointLight &p_Light) noexcept;
+    void AddPointLight(const PointLight &p_Light);
 
     /**
      * @brief Clear all host data, lights, and resets the renderer's state.
      *
      * Should be called to prepare the renderer for a new frame.
      */
-    void Flush() noexcept;
+    void Flush();
 
     Color AmbientColor = Color{Color::WHITE, 0.4f};
 

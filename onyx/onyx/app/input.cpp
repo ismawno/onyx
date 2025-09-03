@@ -10,7 +10,7 @@ static Window *windowFromGLFW(GLFWwindow *p_Window)
     return static_cast<Window *>(glfwGetWindowUserPointer(p_Window));
 }
 
-static i32 toGlfw(const Key p_Key) noexcept
+static i32 toGlfw(const Key p_Key)
 {
     switch (p_Key)
     {
@@ -260,7 +260,7 @@ static i32 toGlfw(const Key p_Key) noexcept
     return GLFW_KEY_LAST + 1;
 }
 
-static i32 toGlfw(const Mouse p_Mouse) noexcept
+static i32 toGlfw(const Mouse p_Mouse)
 {
     switch (p_Mouse)
     {
@@ -294,7 +294,7 @@ static i32 toGlfw(const Mouse p_Mouse) noexcept
     return GLFW_MOUSE_BUTTON_LAST + 1;
 }
 
-static Key toKey(const i32 p_Key) noexcept
+static Key toKey(const i32 p_Key)
 {
     switch (p_Key)
     {
@@ -543,7 +543,7 @@ static Key toKey(const i32 p_Key) noexcept
     }
 }
 
-static Mouse toMouse(const i32 p_Mouse) noexcept
+static Mouse toMouse(const i32 p_Mouse)
 {
     switch (p_Mouse)
     {
@@ -580,7 +580,7 @@ void PollEvents()
 {
     glfwPollEvents();
 }
-fvec2 GetScreenMousePosition(Window *p_Window) noexcept
+fvec2 GetScreenMousePosition(Window *p_Window)
 {
     GLFWwindow *window = p_Window->GetWindowHandle();
     double xPos, yPos;
@@ -589,25 +589,25 @@ fvec2 GetScreenMousePosition(Window *p_Window) noexcept
             1.f - 2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight()};
 }
 
-bool IsKeyPressed(Window *p_Window, const Key p_Key) noexcept
+bool IsKeyPressed(Window *p_Window, const Key p_Key)
 {
     return glfwGetKey(p_Window->GetWindowHandle(), toGlfw(p_Key)) == GLFW_PRESS;
 }
-bool IsKeyReleased(Window *p_Window, const Key p_Key) noexcept
+bool IsKeyReleased(Window *p_Window, const Key p_Key)
 {
     return glfwGetKey(p_Window->GetWindowHandle(), toGlfw(p_Key)) == GLFW_RELEASE;
 }
 
-bool IsMouseButtonPressed(Window *p_Window, const Mouse p_Button) noexcept
+bool IsMouseButtonPressed(Window *p_Window, const Mouse p_Button)
 {
     return glfwGetMouseButton(p_Window->GetWindowHandle(), toGlfw(p_Button)) == GLFW_PRESS;
 }
-bool IsMouseButtonReleased(Window *p_Window, const Mouse p_Button) noexcept
+bool IsMouseButtonReleased(Window *p_Window, const Mouse p_Button)
 {
     return glfwGetMouseButton(p_Window->GetWindowHandle(), toGlfw(p_Button)) == GLFW_RELEASE;
 }
 
-const char *GetKeyName(const Key p_Key) noexcept
+const char *GetKeyName(const Key p_Key)
 {
     switch (p_Key)
     {
@@ -940,7 +940,7 @@ static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOff
     event.Window->PushEvent(event);
 }
 
-void InstallCallbacks(Window &p_Window) noexcept
+void InstallCallbacks(Window &p_Window)
 {
     glfwSetWindowSizeCallback(p_Window.GetWindowHandle(), windowResizeCallback);
     glfwSetWindowFocusCallback(p_Window.GetWindowHandle(), windowFocusCallback);

@@ -6,12 +6,12 @@
 namespace Onyx::Perf
 {
 template <Dimension D>
-Layer<D>::Layer(Application *p_Application, const TKit::Span<const Lattice<D>> p_Lattices) noexcept
+Layer<D>::Layer(Application *p_Application, const TKit::Span<const Lattice<D>> p_Lattices)
     : m_Application(p_Application), m_Lattices(p_Lattices.begin(), p_Lattices.end())
 {
 }
 
-template <Dimension D> void Layer<D>::OnStart() noexcept
+template <Dimension D> void Layer<D>::OnStart()
 {
     m_Window = m_Application->GetMainWindow();
     m_Context = m_Window->CreateRenderContext<D>();
@@ -37,7 +37,7 @@ template <Dimension D> void Layer<D>::OnStart() noexcept
             lattice.Mesh = mesh;
         }
 }
-template <Dimension D> void Layer<D>::OnUpdate() noexcept
+template <Dimension D> void Layer<D>::OnUpdate()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Perf::OnUpdate");
     const auto timestep = m_Application->GetDeltaTime();
@@ -62,7 +62,7 @@ template <Dimension D> void Layer<D>::OnUpdate() noexcept
     for (const Lattice<D> &lattice : m_Lattices)
         lattice.Render(m_Context);
 }
-template <Dimension D> void Layer<D>::OnEvent(const Event &p_Event) noexcept
+template <Dimension D> void Layer<D>::OnEvent(const Event &p_Event)
 {
     if (ImGui::GetIO().WantCaptureMouse)
         return;

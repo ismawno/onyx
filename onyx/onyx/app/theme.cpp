@@ -7,7 +7,7 @@
 
 namespace Onyx
 {
-static void applyOpenSansFont() noexcept
+static void applyOpenSansFont()
 {
     ImGuiIO &io = ImGui::GetIO();
 
@@ -16,7 +16,7 @@ static void applyOpenSansFont() noexcept
     io.Fonts->Build();
     io.FontDefault = font;
 }
-void CinderTheme::Apply() const noexcept
+void CinderTheme::Apply() const
 {
     applyOpenSansFont();
     ImGuiStyle &style = ImGui::GetStyle();
@@ -84,7 +84,7 @@ void CinderTheme::Apply() const noexcept
     style.Colors[ImGuiCol_TableHeaderBg] = ImVec4(0.20f, 0.22f, 0.27f, 1.00f);
 }
 
-void BabyTheme::Apply() const noexcept
+void BabyTheme::Apply() const
 {
     applyOpenSansFont();
     ImGuiStyle &style = ImGui::GetStyle();
@@ -146,7 +146,7 @@ void BabyTheme::Apply() const noexcept
     style.Colors[ImGuiCol_TabHovered] = ImVec4(0.26f, 0.54f, 0.85f, 0.78f);           // Adjusted Baby Blue
 }
 
-void DougBinksTheme::Apply() const noexcept
+void DougBinksTheme::Apply() const
 {
     applyOpenSansFont();
     ImGuiStyle &style = ImGui::GetStyle();
@@ -209,7 +209,7 @@ void DougBinksTheme::Apply() const noexcept
     }
 }
 
-void LedSynthMasterTheme::Apply() const noexcept
+void LedSynthMasterTheme::Apply() const
 {
     applyOpenSansFont();
 
@@ -281,7 +281,7 @@ constexpr auto groupHeader = IM_COL32(47, 47, 47, 255);
 constexpr auto backgroundPopup = IM_COL32(50, 50, 50, 255);
 } // namespace Colors::Theme
 
-void HazelTheme::Apply() const noexcept
+void HazelTheme::Apply() const
 {
     auto &style = ImGui::GetStyle();
     auto &colors = ImGui::GetStyle().Colors;
@@ -365,7 +365,7 @@ void HazelTheme::Apply() const noexcept
     style.IndentSpacing = 11.0f;
 }
 
-void DefaultTheme::Apply() const noexcept
+void DefaultTheme::Apply() const
 {
     applyOpenSansFont();
     ImGui::StyleColorsDark();

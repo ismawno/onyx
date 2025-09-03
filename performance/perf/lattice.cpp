@@ -2,7 +2,7 @@
 
 namespace Onyx::Perf
 {
-template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) const noexcept
+template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) const
 {
     p_Context->Fill(Color);
     p_Context->Transform(Transform.ComputeTransform());

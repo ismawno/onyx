@@ -92,19 +92,19 @@ class ONYX_API Window
     /**
      * @brief Constructs a window with default specifications.
      */
-    Window() noexcept;
+    Window();
     /**
      * @brief Constructs a window with the given specifications.
      *
      * @param p_Specs Specifications for the window.
      */
-    explicit Window(const Specs &p_Specs) noexcept;
+    explicit Window(const Specs &p_Specs);
     /**
      * @brief Destructor.
      *
      * Cleans up resources associated with the window.
      */
-    ~Window() noexcept;
+    ~Window();
 
     /**
      * @brief Renders the window using the provided draw and UI callables.
@@ -119,70 +119,70 @@ class ONYX_API Window
      *
      * @return true if rendering was successful, false otherwise.
      */
-    bool Render(const RenderCallbacks &p_Callbacks = {}) noexcept;
+    bool Render(const RenderCallbacks &p_Callbacks = {});
 
-    bool ShouldClose() const noexcept;
+    bool ShouldClose() const;
 
-    const GLFWwindow *GetWindowHandle() const noexcept;
-    GLFWwindow *GetWindowHandle() noexcept;
+    const GLFWwindow *GetWindowHandle() const;
+    GLFWwindow *GetWindowHandle();
 
-    const FrameScheduler *GetFrameScheduler() const noexcept;
-    FrameScheduler *GetFrameScheduler() noexcept;
+    const FrameScheduler *GetFrameScheduler() const;
+    FrameScheduler *GetFrameScheduler();
 
-    const char *GetName() const noexcept;
+    const char *GetName() const;
 
-    u32 GetScreenWidth() const noexcept;
-    u32 GetScreenHeight() const noexcept;
+    u32 GetScreenWidth() const;
+    u32 GetScreenHeight() const;
 
-    u32 GetPixelWidth() const noexcept;
-    u32 GetPixelHeight() const noexcept;
+    u32 GetPixelWidth() const;
+    u32 GetPixelHeight() const;
 
-    f32 GetScreenAspect() const noexcept;
-    f32 GetPixelAspect() const noexcept;
+    f32 GetScreenAspect() const;
+    f32 GetPixelAspect() const;
 
-    Flags GetFlags() const noexcept;
+    Flags GetFlags() const;
 
     /**
      * @brief Gets the position of the window on the screen.
      *
      * @return The (x, y) position of the window.
      */
-    std::pair<u32, u32> GetPosition() const noexcept;
+    std::pair<u32, u32> GetPosition() const;
 
-    void FlagShouldClose() noexcept;
+    void FlagShouldClose();
 
-    VkSurfaceKHR GetSurface() const noexcept;
+    VkSurfaceKHR GetSurface() const;
 
-    void PushEvent(const Event &p_Event) noexcept;
+    void PushEvent(const Event &p_Event);
 
     /**
      * @brief Gets the new events since the last call to `FlushEvents()`.
      *
      * @return The array of new events.
      */
-    const EventArray &GetNewEvents() const noexcept;
+    const EventArray &GetNewEvents() const;
 
-    void FlushEvents() noexcept;
+    void FlushEvents();
 
-    template <Dimension D> RenderContext<D> *CreateRenderContext() noexcept
+    template <Dimension D> RenderContext<D> *CreateRenderContext()
     {
         RenderContext<D> *context = m_Allocator.Create<RenderContext<D>>(m_FrameScheduler->CreateSceneRenderInfo());
         auto &array = getContextArray<D>();
         array.Append(context);
         return context;
     }
-    template <Dimension D> RenderContext<D> *GetRenderContext(const u32 p_Index = 0) noexcept
+    template <Dimension D> RenderContext<D> *GetRenderContext(const u32 p_Index = 0)
     {
         auto &array = getContextArray<D>();
         return array[p_Index];
     }
-    template <Dimension D> void DestroyRenderContext(const u32 p_Index = 0) noexcept
+    template <Dimension D> void DestroyRenderContext(const u32 p_Index = 0)
     {
         auto &array = getContextArray<D>();
         m_Allocator.Destroy(array[p_Index]);
         array.RemoveOrdered(array.begin() + p_Index);
     }
-    template <Dimension D> void DestroyRenderContext(const RenderContext<D> *p_Context) noexcept
+    template <Dimension D> void DestroyRenderContext(const RenderContext<D> *p_Context)
     {
         auto &array = getContextArray<D>();
         for (u32 i = 0; i < array.GetSize(); ++i)
@@ -193,7 +193,7 @@ class ONYX_API Window
             }
     }
 
-    template <Dimension D> Camera<D> *CreateCamera() noexcept
+    template <Dimension D> Camera<D> *CreateCamera()
     {
         auto &array = getCameraArray<D>();
         Camera<D> *camera = m_Allocator.Create<Camera<D>>();
@@ -204,7 +204,7 @@ class ONYX_API Window
         return camera;
     }
 
-    template <Dimension D> Camera<D> *CreateCamera(const CameraOptions &p_Options) noexcept
+    template <Dimension D> Camera<D> *CreateCamera(const CameraOptions &p_Options)
     {
         Camera<D> *camera = CreateCamera<D>();
         camera->SetViewport(p_Options.Viewport);
@@ -212,20 +212,20 @@ class ONYX_API Window
         return camera;
     }
 
-    template <Dimension D> Camera<D> *GetCamera(const u32 p_Index = 0) noexcept
+    template <Dimension D> Camera<D> *GetCamera(const u32 p_Index = 0)
     {
         auto &array = getCameraArray<D>();
         return array[p_Index];
     }
 
-    template <Dimension D> void DestroyCamera(const u32 p_Index = 0) noexcept
+    template <Dimension D> void DestroyCamera(const u32 p_Index = 0)
     {
         auto &array = getCameraArray<D>();
         m_Allocator.Destroy(array[p_Index]);
         array.RemoveOrdered(array.begin() + p_Index);
     }
 
-    template <Dimension D> void DestroyCamera(const Camera<D> *p_Camera) noexcept
+    template <Dimension D> void DestroyCamera(const Camera<D> *p_Camera)
     {
         auto &array = getCameraArray<D>();
         for (u32 i = 0; i < array.GetSize(); ++i)
@@ -240,29 +240,29 @@ class ONYX_API Window
     Color BackgroundColor = Color::BLACK;
 
     // Implementation detail but needs to be public
-    void flagResize(u32 p_Width, u32 p_Height) noexcept;
+    void flagResize(u32 p_Width, u32 p_Height);
 
   private:
-    bool wasResized() const noexcept;
-    void flagResizeDone() noexcept;
-    void recreateSurface() noexcept;
+    bool wasResized() const;
+    void flagResizeDone();
+    void recreateSurface();
 
-    void createWindow(const Specs &p_Specs) noexcept;
+    void createWindow(const Specs &p_Specs);
     /**
      * @brief Scale camera views to adapt to their viewport aspects.
      *
      * This method is called automatically on window resize events so that elements in the scene are not distorted.
      */
-    void adaptCamerasToViewportAspect() noexcept;
+    void adaptCamerasToViewportAspect();
 
-    template <Dimension D> auto &getContextArray() noexcept
+    template <Dimension D> auto &getContextArray()
     {
         if constexpr (D == D2)
             return m_RenderContexts2D;
         else
             return m_RenderContexts3D;
     }
-    template <Dimension D> auto &getCameraArray() noexcept
+    template <Dimension D> auto &getCameraArray()
     {
         if constexpr (D == D2)
             return m_Cameras2D;
@@ -270,7 +270,7 @@ class ONYX_API Window
             return m_Cameras3D;
     }
 
-    template <Dimension D> TKit::StaticArray<Detail::CameraInfo, ONYX_MAX_CAMERAS> getCameraInfos() noexcept
+    template <Dimension D> TKit::StaticArray<Detail::CameraInfo, ONYX_MAX_CAMERAS> getCameraInfos()
     {
         auto &array = getCameraArray<D>();
         TKit::StaticArray<Detail::CameraInfo, ONYX_MAX_CAMERAS> cameras;

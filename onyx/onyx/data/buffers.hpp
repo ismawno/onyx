@@ -18,15 +18,15 @@ namespace Detail
 // These change behaviour depending if the physical device has a transfer queue different to the graphics queue used.
 
 void RecordCopy(VkCommandBuffer p_CommandBuffer, VkBuffer p_DeviceLocalBuffer, VkBuffer p_DeviceStagingBuffer,
-                u32 p_Size) noexcept;
+                u32 p_Size);
 
 VkBufferMemoryBarrier CreateAcquireBarrier(VkBuffer p_DeviceLocalBuffer, u32 p_Size,
-                                           VkAccessFlags p_DstFlags = VK_ACCESS_SHADER_READ_BIT) noexcept;
-VkBufferMemoryBarrier CreateReleaseBarrier(VkBuffer p_DeviceLocalBuffer, u32 p_Size) noexcept;
+                                           VkAccessFlags p_DstFlags = VK_ACCESS_SHADER_READ_BIT);
+VkBufferMemoryBarrier CreateReleaseBarrier(VkBuffer p_DeviceLocalBuffer, u32 p_Size);
 
 void ApplyAcquireBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers,
-                         VkPipelineStageFlags p_DstFlags) noexcept;
-void ApplyReleaseBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers) noexcept;
+                         VkPipelineStageFlags p_DstFlags);
+void ApplyReleaseBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers);
 } // namespace Detail
 
 using Index = ONYX_INDEX_TYPE;
@@ -51,16 +51,16 @@ template <Dimension D> struct IndexVertexHostData
 
 template <Dimension D>
 VKit::FormattedResult<IndexVertexHostData<D>> Load(std::string_view p_Path,
-                                                   const fmat<D> *p_Transform = nullptr) noexcept;
+                                                   const fmat<D> *p_Transform = nullptr);
 
 template <Dimension D>
-DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices) noexcept;
-ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Indices) noexcept;
+DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices);
+ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Indices);
 
-template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(u32 p_Capacity) noexcept;
-ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(u32 p_Capacity) noexcept;
+template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(u32 p_Capacity);
+ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(u32 p_Capacity);
 
-template <typename T> DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer(const u32 p_Capacity) noexcept
+template <typename T> DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer(const u32 p_Capacity)
 {
     typename VKit::DeviceLocalBuffer<T>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
@@ -73,10 +73,10 @@ template <typename T> DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer
     return result.GetValue();
 }
 
-template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(u32 p_Capacity) noexcept;
-ONYX_API HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(u32 p_Capacity) noexcept;
+template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(u32 p_Capacity);
+ONYX_API HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(u32 p_Capacity);
 
-template <typename T> HostVisibleStorageBuffer<T> CreateHostVisibleStorageBuffer(const u32 p_Capacity) noexcept
+template <typename T> HostVisibleStorageBuffer<T> CreateHostVisibleStorageBuffer(const u32 p_Capacity)
 {
     typename VKit::HostVisibleBuffer<T>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();

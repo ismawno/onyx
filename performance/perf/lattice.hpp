@@ -57,9 +57,9 @@ template <Dimension D> struct Lattice
     TKIT_REFLECT_DECLARE(Lattice)
     TKIT_YAML_SERIALIZE_DECLARE(Lattice)
 
-    void Render(RenderContext<D> *p_Context) const noexcept;
+    void Render(RenderContext<D> *p_Context) const;
 
-    template <typename F> void Run(F &&p_Func) const noexcept
+    template <typename F> void Run(F &&p_Func) const
     {
         TKit::ITaskManager *tm = Core::GetTaskManager();
 

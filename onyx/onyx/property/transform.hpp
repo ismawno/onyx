@@ -16,7 +16,7 @@ namespace Onyx
  *
  * @param p_Transform The transform to modify.
  */
-ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept;
+ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform);
 
 /**
  * @brief Modify the transform to comply with a specific coordinate system intrinsically.
@@ -28,7 +28,7 @@ ONYX_API void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform) noexcept;
  *
  * @param p_Transform The transform to modify.
  */
-ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform) noexcept;
+ONYX_API void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform);
 
 /**
  * @brief Interface for transformation operations in D-dimensional space.
@@ -49,7 +49,7 @@ template <Dimension D> struct ITransform
      * @return The resulting transformation matrix.
      */
     static fmat<D> ComputeTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
-                                    const rot<D> &p_Rotation) noexcept;
+                                    const rot<D> &p_Rotation);
 
     /**
      * @brief Compute a reversed transformation matrix from translation, scale, and rotation.
@@ -62,7 +62,7 @@ template <Dimension D> struct ITransform
      * @return The resulting transformation matrix.
      */
     static fmat<D> ComputeReversedTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
-                                            const rot<D> &p_Rotation) noexcept;
+                                            const rot<D> &p_Rotation);
 
     /**
      * @brief Compute an inversed transformation matrix.
@@ -73,7 +73,7 @@ template <Dimension D> struct ITransform
      * @return The inverse transformation matrix.
      */
     static fmat<D> ComputeInverseTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
-                                           const rot<D> &p_Rotation) noexcept;
+                                           const rot<D> &p_Rotation);
 
     /**
      * @brief Compute an inversed and reversed transformation matrix.
@@ -84,13 +84,13 @@ template <Dimension D> struct ITransform
      * @return The inverse transformation matrix.
      */
     static fmat<D> ComputeInverseReversedTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
-                                                   const rot<D> &p_Rotation) noexcept;
+                                                   const rot<D> &p_Rotation);
 
     /**
      * @brief Compute a rotation matrix.
      *
      */
-    static auto ComputeRotationMatrix(const rot<D> &p_Rotation) noexcept
+    static auto ComputeRotationMatrix(const rot<D> &p_Rotation)
     {
         if constexpr (D == D2)
         {
@@ -106,7 +106,7 @@ template <Dimension D> struct ITransform
      * @brief Compute an inversed rotation matrix.
      *
      */
-    static auto ComputeInverseRotationMatrix(const rot<D> &p_Rotation) noexcept
+    static auto ComputeInverseRotationMatrix(const rot<D> &p_Rotation)
     {
         if constexpr (D == D2)
             return ComputeRotationMatrix(-p_Rotation);
@@ -121,7 +121,7 @@ template <Dimension D> struct ITransform
      *
      * @return The transformation matrix.
      */
-    fmat<D> ComputeTransform() const noexcept;
+    fmat<D> ComputeTransform() const;
 
     /**
      * @brief Compute the reversed transformation matrix using the current object's translation, scale, and rotation.
@@ -130,21 +130,21 @@ template <Dimension D> struct ITransform
      *
      * @return The transformation matrix.
      */
-    fmat<D> ComputeReversedTransform() const noexcept;
+    fmat<D> ComputeReversedTransform() const;
 
     /**
      * @brief Compute the inverse of the transformation matrix using the current object's parameters.
      *
      * @return The inverse transformation matrix.
      */
-    fmat<D> ComputeInverseTransform() const noexcept;
+    fmat<D> ComputeInverseTransform() const;
 
     /**
      * @brief Compute the inverse of the axes transformation matrix using the current object's parameters.
      *
      * @return The inverse transformation matrix.
      */
-    fmat<D> ComputeInverseReversedTransform() const noexcept;
+    fmat<D> ComputeInverseReversedTransform() const;
 
     /**
      * @brief Applies an intrinsic translation to a transformation matrix along a specified axis.
@@ -155,7 +155,7 @@ template <Dimension D> struct ITransform
      * @param p_Axis The axis index along which to translate.
      * @param p_Translation The translation amount.
      */
-    static void TranslateIntrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
+    static void TranslateIntrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Translation);
 
     /**
      * @brief Applies an intrinsic translation to a transformation matrix.
@@ -165,7 +165,7 @@ template <Dimension D> struct ITransform
      * @param p_Transform The transformation matrix to modify.
      * @param p_Translation The translation vector.
      */
-    static void TranslateIntrinsic(fmat<D> &p_Transform, const fvec<D> &p_Translation) noexcept;
+    static void TranslateIntrinsic(fmat<D> &p_Transform, const fvec<D> &p_Translation);
 
     /**
      * @brief Applies an extrinsic translation to a transformation matrix along a specified axis.
@@ -176,7 +176,7 @@ template <Dimension D> struct ITransform
      * @param p_Axis The axis index along which to translate.
      * @param p_Translation The translation amount.
      */
-    static void TranslateExtrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Translation) noexcept;
+    static void TranslateExtrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Translation);
 
     /**
      * @brief Applies an extrinsic translation to a transformation matrix.
@@ -186,7 +186,7 @@ template <Dimension D> struct ITransform
      * @param p_Transform The transformation matrix to modify.
      * @param p_Translation The translation vector.
      */
-    static void TranslateExtrinsic(fmat<D> &p_Transform, const fvec<D> &p_Translation) noexcept;
+    static void TranslateExtrinsic(fmat<D> &p_Transform, const fvec<D> &p_Translation);
 
     /**
      * @brief Applies an intrinsic scaling to a transformation matrix along a specified axis.
@@ -197,7 +197,7 @@ template <Dimension D> struct ITransform
      * @param p_Axis The axis index along which to scale.
      * @param p_Scale The scaling factor.
      */
-    static void ScaleIntrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
+    static void ScaleIntrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Scale);
 
     /**
      * @brief Applies an intrinsic scaling to a transformation matrix.
@@ -207,7 +207,7 @@ template <Dimension D> struct ITransform
      * @param p_Transform The transformation matrix to modify.
      * @param p_Scale The scaling vector.
      */
-    static void ScaleIntrinsic(fmat<D> &p_Transform, const fvec<D> &p_Scale) noexcept;
+    static void ScaleIntrinsic(fmat<D> &p_Transform, const fvec<D> &p_Scale);
 
     /**
      * @brief Applies an extrinsic scaling to a transformation matrix along a specified axis.
@@ -218,7 +218,7 @@ template <Dimension D> struct ITransform
      * @param p_Axis The axis index along which to scale.
      * @param p_Scale The scaling factor.
      */
-    static void ScaleExtrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Scale) noexcept;
+    static void ScaleExtrinsic(fmat<D> &p_Transform, u32 p_Axis, f32 p_Scale);
 
     /**
      * @brief Applies an extrinsic scaling to a transformation matrix.
@@ -228,7 +228,7 @@ template <Dimension D> struct ITransform
      * @param p_Transform The transformation matrix to modify.
      * @param p_Scale The scaling vector.
      */
-    static void ScaleExtrinsic(fmat<D> &p_Transform, const fvec<D> &p_Scale) noexcept;
+    static void ScaleExtrinsic(fmat<D> &p_Transform, const fvec<D> &p_Scale);
 
     /**
      * @brief Extracts translation, scale, and rotation components from a transformation matrix.
@@ -239,7 +239,7 @@ template <Dimension D> struct ITransform
      * @param p_Rotation Output pointer for the rotation object.
      */
     static void Extract(const fmat<D> &p_Transform, fvec<D> *p_Translation, fvec<D> *p_Scale,
-                        rot<D> *p_Rotation) noexcept;
+                        rot<D> *p_Rotation);
 
     /**
      * @brief Extracts the translation component from a transformation matrix.
@@ -247,7 +247,7 @@ template <Dimension D> struct ITransform
      * @param p_Transform The transformation matrix.
      * @return The extracted translation vector.
      */
-    static fvec<D> ExtractTranslation(const fmat<D> &p_Transform) noexcept;
+    static fvec<D> ExtractTranslation(const fmat<D> &p_Transform);
 
     /**
      * @brief Extracts the scale component from a transformation matrix.
@@ -255,7 +255,7 @@ template <Dimension D> struct ITransform
      * @param p_Transform The transformation matrix.
      * @return The extracted scale vector.
      */
-    static fvec<D> ExtractScale(const fmat<D> &p_Transform) noexcept;
+    static fvec<D> ExtractScale(const fmat<D> &p_Transform);
 
     /**
      * @brief Extracts the rotation component from a transformation matrix.
@@ -263,7 +263,7 @@ template <Dimension D> struct ITransform
      * @param p_Transform The transformation matrix.
      * @return The extracted rotation object.
      */
-    static rot<D> ExtractRotation(const fmat<D> &p_Transform) noexcept;
+    static rot<D> ExtractRotation(const fmat<D> &p_Transform);
 
     /// Translation vector component of the transformation.
     fvec<D> Translation{0.f};
@@ -296,7 +296,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateXIntrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateXIntrinsic(fmat4 &p_Transform, f32 p_Angle);
 
     /**
      * @brief Applies an intrinsic rotation around the Y-axis to a 3D transformation matrix.
@@ -306,7 +306,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateYIntrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateYIntrinsic(fmat4 &p_Transform, f32 p_Angle);
 
     /**
      * @brief Applies an intrinsic rotation around the Z-axis to a 3D transformation matrix.
@@ -316,7 +316,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateZIntrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateZIntrinsic(fmat4 &p_Transform, f32 p_Angle);
 
     /**
      * @brief Applies an extrinsic rotation around the X-axis to a 3D transformation matrix.
@@ -326,7 +326,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateXExtrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateXExtrinsic(fmat4 &p_Transform, f32 p_Angle);
 
     /**
      * @brief Applies an extrinsic rotation around the Y-axis to a 3D transformation matrix.
@@ -336,7 +336,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateYExtrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateYExtrinsic(fmat4 &p_Transform, f32 p_Angle);
 
     /**
      * @brief Applies an extrinsic rotation around the Z-axis to a 3D transformation matrix.
@@ -346,7 +346,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateZExtrinsic(fmat4 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateZExtrinsic(fmat4 &p_Transform, f32 p_Angle);
 
     /**
      * @brief Applies an intrinsic rotation using a quaternion to a 3D transformation matrix.
@@ -356,7 +356,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Quaternion The quaternion representing the rotation.
      */
-    static void RotateIntrinsic(fmat4 &p_Transform, const quat &p_Quaternion) noexcept;
+    static void RotateIntrinsic(fmat4 &p_Transform, const quat &p_Quaternion);
 
     /**
      * @brief Applies an extrinsic rotation using a quaternion to a 3D transformation matrix.
@@ -366,7 +366,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Quaternion The quaternion representing the rotation.
      */
-    static void RotateExtrinsic(fmat4 &p_Transform, const quat &p_Quaternion) noexcept;
+    static void RotateExtrinsic(fmat4 &p_Transform, const quat &p_Quaternion);
 
     /**
      * @brief Extracts a 3D Transform object from a transformation matrix.
@@ -374,7 +374,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Transform The transformation matrix.
      * @return The extracted Transform object.
      */
-    static Transform Extract(const fmat4 &p_Transform) noexcept;
+    static Transform Extract(const fmat4 &p_Transform);
 };
 
 /**
@@ -396,7 +396,7 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateIntrinsic(fmat3 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateIntrinsic(fmat3 &p_Transform, f32 p_Angle);
 
     /**
      * @brief Applies an extrinsic rotation to a 2D transformation matrix.
@@ -406,7 +406,7 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @param p_Transform The transformation matrix to modify.
      * @param p_Angle The rotation angle in radians.
      */
-    static void RotateExtrinsic(fmat3 &p_Transform, f32 p_Angle) noexcept;
+    static void RotateExtrinsic(fmat3 &p_Transform, f32 p_Angle);
 
     /**
      * @brief Extracts a 2D Transform object from a transformation matrix.
@@ -414,7 +414,7 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @param p_Transform The transformation matrix.
      * @return The extracted Transform object.
      */
-    static Transform Extract(const fmat3 &p_Transform) noexcept;
+    static Transform Extract(const fmat3 &p_Transform);
 
     /**
      * @brief Promote a 2D transform to an equivalent 3D transform.
@@ -425,7 +425,7 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @param p_Transform The 2D transform to promote.
      * @return The promoted 3D transform.
      */
-    static Transform<D3> Promote(const Transform &p_Transform) noexcept;
+    static Transform<D3> Promote(const Transform &p_Transform);
 
     /**
      * @brief Promote a 2D transform to an equivalent 3D transform.
@@ -436,7 +436,7 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @param p_Transform The 2D transform to promote.
      * @return The promoted 3D transform.
      */
-    static fmat4 Promote(const fmat3 &p_Transform) noexcept;
+    static fmat4 Promote(const fmat3 &p_Transform);
 
     /**
      * @brief Promote a 2D transform to an equivalent 3D transform.
@@ -446,7 +446,7 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      *
      * @return The promoted 3D transform.
      */
-    Transform<D3> Promote() noexcept;
+    Transform<D3> Promote();
 };
 
 } // namespace Onyx

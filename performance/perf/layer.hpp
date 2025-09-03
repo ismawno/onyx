@@ -15,11 +15,11 @@ namespace Onyx::Perf
 template <Dimension D> class Layer : public UserLayer
 {
   public:
-    Layer(Application *p_Application, TKit::Span<const Lattice<D>> p_Lattices) noexcept;
+    Layer(Application *p_Application, TKit::Span<const Lattice<D>> p_Lattices);
 
-    void OnStart() noexcept override;
-    void OnUpdate() noexcept override;
-    void OnEvent(const Event &p_Event) noexcept override;
+    void OnStart() override;
+    void OnUpdate() override;
+    void OnEvent(const Event &p_Event) override;
 
   private:
     Application *m_Application;

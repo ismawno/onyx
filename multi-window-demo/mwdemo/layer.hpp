@@ -9,12 +9,12 @@ namespace Onyx::Demo
 class MWExampleLayer final : public UserLayer
 {
   public:
-    MWExampleLayer(MultiWindowApplication *p_Application, Scene p_Scene) noexcept;
+    MWExampleLayer(MultiWindowApplication *p_Application, Scene p_Scene);
 
-    void OnUpdate(u32 p_WindowIndex) noexcept override;
-    void OnRenderBegin(u32 p_WindowIndex, u32, VkCommandBuffer p_CommandBuffer) noexcept override;
-    void OnImGuiRender() noexcept override;
-    void OnEvent(u32 p_WindowIndex, const Event &p_Event) noexcept override;
+    void OnUpdate(u32 p_WindowIndex) override;
+    void OnRenderBegin(u32 p_WindowIndex, u32, VkCommandBuffer p_CommandBuffer) override;
+    void OnImGuiRender() override;
+    void OnEvent(u32 p_WindowIndex, const Event &p_Event) override;
 
   private:
     MultiWindowApplication *m_Application = nullptr;

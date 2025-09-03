@@ -26,7 +26,7 @@ template <Dimension D> class Mesh
      *
      * @param p_Vertices A host buffer of vertices to initialize the mesh.
      */
-    static VKit::Result<Mesh> Create(const HostVertexBuffer<D> &p_Vertices) noexcept;
+    static VKit::Result<Mesh> Create(const HostVertexBuffer<D> &p_Vertices);
 
     /**
      * @brief Creates a mesh with the given vertices and indices.
@@ -34,18 +34,18 @@ template <Dimension D> class Mesh
      * @param p_Vertices A host buffer of vertices to initialize the mesh.
      * @param p_Indices A host buffer of indices for indexed drawing.
      */
-    static VKit::Result<Mesh> Create(const HostVertexBuffer<D> &p_Vertices, const HostIndexBuffer &p_Indices) noexcept;
+    static VKit::Result<Mesh> Create(const HostVertexBuffer<D> &p_Vertices, const HostIndexBuffer &p_Indices);
 
     /**
      * @brief Creates a mesh with the given index and vertex data.
      *
      * @param p_Data The index and vertex data to initialize the mesh.
      */
-    static VKit::Result<Mesh> Create(const IndexVertexHostData<D> &p_Data) noexcept;
+    static VKit::Result<Mesh> Create(const IndexVertexHostData<D> &p_Data);
 
-    Mesh() noexcept = default;
-    Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer) noexcept;
-    Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer, const DeviceLocalIndexBuffer &p_IndexBuffer) noexcept;
+    Mesh() = default;
+    Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer);
+    Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer, const DeviceLocalIndexBuffer &p_IndexBuffer);
 
     // TODO: Make sure no redundant bind calls are made
     // These bind and draw commands operate with a single vertex and index buffer. Not ideal when instancing could be
@@ -54,14 +54,14 @@ template <Dimension D> class Mesh
     /**
      * @brief Destroys the mesh and releases its resources.
      */
-    void Destroy() noexcept;
+    void Destroy();
 
     /**
      * @brief Binds the vertex (and index) buffers to the given command buffer.
      *
      * @param p_CommandBuffer The Vulkan command buffer to bind the buffers to.
      */
-    void Bind(VkCommandBuffer p_CommandBuffer) const noexcept;
+    void Bind(VkCommandBuffer p_CommandBuffer) const;
 
     /**
      * @brief Draws the mesh using non-indexed drawing.
@@ -72,7 +72,7 @@ template <Dimension D> class Mesh
      * @param p_FirstVertex Offset of the first vertex to draw.
      */
     void Draw(VkCommandBuffer p_CommandBuffer, u32 p_InstanceCount = 0, u32 p_FirstInstance = 0,
-              u32 p_FirstVertex = 0) const noexcept;
+              u32 p_FirstVertex = 0) const;
 
     /**
      * @brief Draws the mesh using indexed drawing.
@@ -84,21 +84,21 @@ template <Dimension D> class Mesh
      * @param p_VertexOffset Offset added to the vertex indices.
      */
     void DrawIndexed(VkCommandBuffer p_CommandBuffer, u32 p_InstanceCount = 0, u32 p_FirstInstance = 0,
-                     u32 p_FirstIndex = 0, u32 p_VertexOffset = 0) const noexcept;
+                     u32 p_FirstIndex = 0, u32 p_VertexOffset = 0) const;
 
     /**
      * @brief Checks if the mesh has indices for indexed drawing.
      *
      * @return true if the mesh has indices, false otherwise.
      */
-    bool HasIndices() const noexcept;
+    bool HasIndices() const;
 
     /**
      * @brief Gets the vertex buffer of the mesh.
      *
      * @return Reference to the vertex buffer.
      */
-    const DeviceLocalVertexBuffer<D> &GetVertexBuffer() const noexcept;
+    const DeviceLocalVertexBuffer<D> &GetVertexBuffer() const;
 
     /**
      * @brief Gets the index buffer of the mesh.
@@ -107,7 +107,7 @@ template <Dimension D> class Mesh
      *
      * @return Reference to the index buffer.
      */
-    const DeviceLocalIndexBuffer &GetIndexBuffer() const noexcept; // This is UB if HasIndices returns false
+    const DeviceLocalIndexBuffer &GetIndexBuffer() const; // This is UB if HasIndices returns false
 
     /**
      * @brief Loads a mesh from a file.
@@ -116,15 +116,15 @@ template <Dimension D> class Mesh
      * @param p_Transform An optional transform to be applied to all vertices of the mesh.
      * @return A result containing the loaded mesh or an error.
      */
-    static VKit::FormattedResult<Mesh> Load(std::string_view p_Path, const fmat<D> *p_Transform = nullptr) noexcept;
+    static VKit::FormattedResult<Mesh> Load(std::string_view p_Path, const fmat<D> *p_Transform = nullptr);
 
-    friend bool operator==(const Mesh &p_Lhs, const Mesh &p_Rhs) noexcept
+    friend bool operator==(const Mesh &p_Lhs, const Mesh &p_Rhs)
     {
         return p_Lhs.m_VertexBuffer.GetHandle() == p_Rhs.m_VertexBuffer.GetHandle() &&
                p_Lhs.m_IndexBuffer.GetHandle() == p_Rhs.m_IndexBuffer.GetHandle();
     }
 
-    operator bool() const noexcept;
+    operator bool() const;
 
   private:
     DeviceLocalVertexBuffer<D> m_VertexBuffer{};
@@ -137,6 +137,6 @@ namespace std
 {
 template <Onyx::Dimension D> struct hash<Onyx::Mesh<D>>
 {
-    size_t operator()(const Onyx::Mesh<D> &p_Mesh) const noexcept;
+    size_t operator()(const Onyx::Mesh<D> &p_Mesh) const;
 };
 } // namespace std

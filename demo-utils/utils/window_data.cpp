@@ -7,6 +7,7 @@
 #include "vkit/vulkan/vulkan.hpp"
 #include "tkit/container/static_array.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
+#include "tkit/profiling/macros.hpp"
 #include <imgui.h>
 #include <implot.h>
 
@@ -27,7 +28,7 @@
 
 namespace Onyx::Demo
 {
-static const VKit::PipelineLayout &getRainbowLayout() noexcept
+static const VKit::PipelineLayout &getRainbowLayout()
 {
     static VKit::PipelineLayout layout{};
     if (layout)
@@ -39,7 +40,7 @@ static const VKit::PipelineLayout &getRainbowLayout() noexcept
     return layout;
 }
 
-static const VKit::Shader &getRainbowShader() noexcept
+static const VKit::Shader &getRainbowShader()
 {
     static VKit::Shader shader{};
     if (shader)
@@ -49,7 +50,7 @@ static const VKit::Shader &getRainbowShader() noexcept
     return shader;
 }
 
-static const VKit::Shader &getBlurShader() noexcept
+static const VKit::Shader &getBlurShader()
 {
     static VKit::Shader shader{};
     if (shader)
@@ -59,7 +60,7 @@ static const VKit::Shader &getBlurShader() noexcept
     return shader;
 }
 
-void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
+void WindowData::OnStart(Window *p_Window, const Scene p_Scene)
 {
     m_Window = p_Window;
 
@@ -104,7 +105,7 @@ void WindowData::OnStart(Window *p_Window, const Scene p_Scene) noexcept
     }
 }
 
-void WindowData::OnUpdate(TKit::Timespan p_Timestep) noexcept
+void WindowData::OnUpdate(TKit::Timespan p_Timestep)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
     if (m_PostProcessing)
@@ -126,7 +127,7 @@ void WindowData::OnUpdate(TKit::Timespan p_Timestep) noexcept
         drawShapes(m_ContextData3.Contexts[i]);
 }
 
-void WindowData::OnRenderBegin(const VkCommandBuffer p_CommandBuffer) noexcept
+void WindowData::OnRenderBegin(const VkCommandBuffer p_CommandBuffer)
 {
     if (m_RainbowBackground)
     {
@@ -135,7 +136,7 @@ void WindowData::OnRenderBegin(const VkCommandBuffer p_CommandBuffer) noexcept
     }
 }
 
-void WindowData::OnImGuiRender() noexcept
+void WindowData::OnImGuiRender()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnImGuiRender");
     ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
@@ -210,13 +211,13 @@ static void processEvent(ContextDataContainer<D> &p_Contexts, const CameraDataCo
     }
 }
 
-void WindowData::OnEvent(const Event &p_Event) noexcept
+void WindowData::OnEvent(const Event &p_Event)
 {
     processEvent(m_ContextData2, m_Cameras2, p_Event);
     processEvent(m_ContextData3, m_Cameras3, p_Event);
 }
 
-static TKit::Array16<std::string> getEmptyStrings() noexcept
+static TKit::Array16<std::string> getEmptyStrings()
 {
     TKit::Array16<std::string> customNames{};
     for (u32 i = 0; i < 16; ++i)
@@ -278,7 +279,7 @@ template <Dimension D> static void renderMeshLoad(const char *p_Path)
     ImGui::PopID();
 }
 
-void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
+void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep)
 {
     ImGui::ShowDemoWindow();
     ImPlot::ShowDemoWindow();
@@ -315,14 +316,14 @@ void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep) noexcept
     }
     ImGui::End();
 }
-void WindowData::RenderEditorText() noexcept
+void WindowData::RenderEditorText()
 {
     ImGui::Text("This is the editor panel, where you can interact with the demo.");
     ImGui::TextWrapped("Onyx windows can draw shapes in 2D and 3D, and have a separate API for each even though the "
                        "window is shared. Users interact with the rendering API through rendering contexts.");
 }
 
-template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Context) noexcept
+template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Context)
 {
     m_Window->BackgroundColor = m_BackgroundColor;
     p_Context.Context->Flush();
@@ -448,7 +449,7 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
 
 template <typename C, typename F1, typename F2>
 static void renderSelectableNoRemoval(const char *p_TreeName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
-                                      F2 p_GetName) noexcept
+                                      F2 p_GetName)
 {
     if constexpr (std::is_same_v<F2, const char *>)
         renderSelectable(
@@ -461,7 +462,7 @@ static void renderSelectableNoRemoval(const char *p_TreeName, C &p_Container, u3
 
 template <typename C, typename F1, typename F2>
 static void renderSelectableNoTree(const char *p_ElementName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
-                                   F2 &&p_OnRemoval) noexcept
+                                   F2 &&p_OnRemoval)
 {
     renderSelectable(nullptr, p_Container, p_Selected, std::forward<F1>(p_OnSelected), std::forward<F2>(p_OnRemoval),
                      [p_ElementName](const auto &) { return p_ElementName; });
@@ -469,7 +470,7 @@ static void renderSelectableNoTree(const char *p_ElementName, C &p_Container, u3
 
 template <typename C, typename F1, typename F2, typename F3>
 static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
-                             F2 &&p_OnRemoval, F3 &&p_GetName) noexcept
+                             F2 &&p_OnRemoval, F3 &&p_GetName)
 {
     if (!p_Container.IsEmpty() && (!p_TreeName || ImGui::TreeNode(p_TreeName)))
     {
@@ -497,7 +498,7 @@ static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Sele
     }
 }
 
-template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context) noexcept
+template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
 {
     const auto createShape = [&p_Context]() -> TKit::Scope<Shape<D>> {
         if (p_Context.ShapeToSpawn == MESH)
@@ -715,7 +716,7 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context) n
         [](const TKit::Scope<Shape<D>> &p_Shape) { return p_Shape->GetName(); });
 }
 
-template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera) noexcept
+template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera)
 {
     Camera<D> *camera = p_Camera.Camera;
     const fvec2 vpos = camera->GetViewportMousePosition();
@@ -822,13 +823,13 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera) no
                        "your scene. In Onyx, this projection is only available in 3D scenes.");
 }
 
-template <Dimension D> ContextData<D> &WindowData::addContext(ContextDataContainer<D> &p_Contexts) noexcept
+template <Dimension D> ContextData<D> &WindowData::addContext(ContextDataContainer<D> &p_Contexts)
 {
     ContextData<D> &contextData = p_Contexts.Contexts.Append();
     contextData.Context = m_Window->CreateRenderContext<D>();
     return contextData;
 }
-template <Dimension D> void WindowData::setupContext(ContextData<D> &p_Context) noexcept
+template <Dimension D> void WindowData::setupContext(ContextData<D> &p_Context)
 {
     if constexpr (D == D3)
     {
@@ -836,7 +837,7 @@ template <Dimension D> void WindowData::setupContext(ContextData<D> &p_Context) 
         p_Context.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
     }
 }
-template <Dimension D> CameraData<D> &WindowData::addCamera(CameraDataContainer<D> &p_Cameras) noexcept
+template <Dimension D> CameraData<D> &WindowData::addCamera(CameraDataContainer<D> &p_Cameras)
 {
     Camera<D> *camera = m_Window->CreateCamera<D>();
     camera->BackgroundColor = Color{0.1f};
@@ -845,7 +846,7 @@ template <Dimension D> CameraData<D> &WindowData::addCamera(CameraDataContainer<
     camData.Camera = camera;
     return camData;
 }
-void WindowData::setupCamera(CameraData<D3> &p_Camera) noexcept
+void WindowData::setupCamera(CameraData<D3> &p_Camera)
 {
     p_Camera.Perspective = true;
     p_Camera.Camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
@@ -855,7 +856,7 @@ void WindowData::setupCamera(CameraData<D3> &p_Camera) noexcept
     p_Camera.Camera->SetView(transform);
 }
 
-template <Dimension D> void WindowData::renderCameras(CameraDataContainer<D> &p_Cameras) noexcept
+template <Dimension D> void WindowData::renderCameras(CameraDataContainer<D> &p_Cameras)
 {
     if (ImGui::CollapsingHeader("Cameras"))
     {
@@ -872,7 +873,7 @@ template <Dimension D> void WindowData::renderCameras(CameraDataContainer<D> &p_
     }
 }
 
-template <Dimension D> void WindowData::renderUI(ContextDataContainer<D> &p_Contexts) noexcept
+template <Dimension D> void WindowData::renderUI(ContextDataContainer<D> &p_Contexts)
 {
     const fvec2 spos = Input::GetScreenMousePosition(m_Window);
     ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos.x, spos.y);
@@ -901,7 +902,7 @@ template <Dimension D> void WindowData::renderUI(ContextDataContainer<D> &p_Cont
         [this](const ContextData<D> &p_Context) { m_Window->DestroyRenderContext(p_Context.Context); });
 }
 
-template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Context) noexcept
+template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Context)
 {
 
     if (ImGui::CollapsingHeader("Shapes"))
@@ -933,7 +934,7 @@ template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Context) noex
     }
 }
 
-void WindowData::renderLightSpawn(ContextData<D3> &p_Context) noexcept
+void WindowData::renderLightSpawn(ContextData<D3> &p_Context)
 {
     ImGui::SliderFloat("Ambient intensity", &p_Context.Ambient.w, 0.f, 1.f);
     ImGui::ColorEdit3("Color", glm::value_ptr(p_Context.Ambient));

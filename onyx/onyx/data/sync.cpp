@@ -3,7 +3,7 @@
 
 namespace Onyx
 {
-TKit::Array<SyncData, ONYX_MAX_FRAMES_IN_FLIGHT> CreateSynchronizationObjects() noexcept
+TKit::Array<SyncData, ONYX_MAX_FRAMES_IN_FLIGHT> CreateSynchronizationObjects()
 {
     const auto &device = Core::GetDevice();
     const auto &table = device.GetTable();
@@ -32,7 +32,7 @@ TKit::Array<SyncData, ONYX_MAX_FRAMES_IN_FLIGHT> CreateSynchronizationObjects() 
     }
     return syncs;
 }
-void DestroySynchronizationObjects(const TKit::Span<const SyncData> p_Objects) noexcept
+void DestroySynchronizationObjects(const TKit::Span<const SyncData> p_Objects)
 {
     const auto &device = Core::GetDevice();
     const auto &table = device.GetTable();

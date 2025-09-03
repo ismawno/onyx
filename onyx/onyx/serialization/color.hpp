@@ -5,12 +5,12 @@
 
 template <> struct TKit::Yaml::Codec<Onyx::Color>
 {
-    static Node Encode(const Onyx::Color &p_Color) noexcept
+    static Node Encode(const Onyx::Color &p_Color)
     {
         return Node{"#" + p_Color.ToHexadecimal<std::string>(p_Color.Alpha() != 255)};
     }
 
-    static bool Decode(const Node &p_Node, Onyx::Color &p_Color) noexcept
+    static bool Decode(const Node &p_Node, Onyx::Color &p_Color)
     {
         if (p_Node.IsScalar())
         {

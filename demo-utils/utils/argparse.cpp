@@ -21,15 +21,7 @@ Scene ParseArguments(int argc, char **argv)
     group.add_argument("--2-scene").flag().help("Setup a default 2D scene.");
     group.add_argument("--3-scene").flag().help("Setup a default 3D scene.");
 
-    try
-    {
-        parser.parse_args(argc, argv);
-    }
-    catch (const std::exception &err)
-    {
-        std::cerr << err.what() << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
+    parser.parse_args(argc, argv);
 
     if (parser.get<bool>("--2-scene"))
         return Scene::Setup2D;

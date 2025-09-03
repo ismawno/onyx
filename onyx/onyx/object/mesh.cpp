@@ -6,7 +6,7 @@
 
 namespace Onyx
 {
-template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices) noexcept
+template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices)
 {
     typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs specs{};
     specs.Allocator = Core::GetVulkanAllocator();
@@ -21,7 +21,7 @@ template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuf
 }
 
 template <Dimension D>
-VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, const HostIndexBuffer &p_Indices) noexcept
+VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, const HostIndexBuffer &p_Indices)
 {
     typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs vspecs{};
     vspecs.Allocator = Core::GetVulkanAllocator();
@@ -48,43 +48,43 @@ VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, con
     return VKit::Result<Mesh<D>>::Ok(vresult.GetValue(), iresult.GetValue());
 }
 
-template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const IndexVertexHostData<D> &p_Data) noexcept
+template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const IndexVertexHostData<D> &p_Data)
 {
     return Mesh<D>::Create(p_Data.Vertices, p_Data.Indices);
 }
 
 template <Dimension D>
-Mesh<D>::Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer) noexcept : m_VertexBuffer(p_VertexBuffer)
+Mesh<D>::Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer) : m_VertexBuffer(p_VertexBuffer)
 {
 }
 template <Dimension D>
-Mesh<D>::Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer, const DeviceLocalIndexBuffer &p_IndexBuffer) noexcept
+Mesh<D>::Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer, const DeviceLocalIndexBuffer &p_IndexBuffer)
     : m_VertexBuffer(p_VertexBuffer), m_IndexBuffer(p_IndexBuffer)
 {
 }
 
-template <Dimension D> void Mesh<D>::Destroy() noexcept
+template <Dimension D> void Mesh<D>::Destroy()
 {
     m_VertexBuffer.Destroy();
     if (m_IndexBuffer)
         m_IndexBuffer.Destroy();
 }
 
-template <Dimension D> void Mesh<D>::Bind(const VkCommandBuffer p_CommandBuffer) const noexcept
+template <Dimension D> void Mesh<D>::Bind(const VkCommandBuffer p_CommandBuffer) const
 {
     m_VertexBuffer.BindAsVertexBuffer(p_CommandBuffer);
     if (m_IndexBuffer)
         m_IndexBuffer.BindAsIndexBuffer(p_CommandBuffer);
 }
 
-template <Dimension D> bool Mesh<D>::HasIndices() const noexcept
+template <Dimension D> bool Mesh<D>::HasIndices() const
 {
     return m_IndexBuffer;
 }
 
 template <Dimension D>
 void Mesh<D>::Draw(const VkCommandBuffer p_CommandBuffer, const u32 p_InstanceCount, const u32 p_FirstInstance,
-                   const u32 p_FirstVertex) const noexcept
+                   const u32 p_FirstVertex) const
 {
     TKIT_ASSERT(!m_IndexBuffer, "[ONYX] Mesh does not have indices, use Draw instead");
     Core::GetDeviceTable().CmdDraw(p_CommandBuffer, static_cast<u32>(m_VertexBuffer.GetInfo().InstanceCount),
@@ -93,24 +93,24 @@ void Mesh<D>::Draw(const VkCommandBuffer p_CommandBuffer, const u32 p_InstanceCo
 
 template <Dimension D>
 void Mesh<D>::DrawIndexed(const VkCommandBuffer p_CommandBuffer, const u32 p_InstanceCount, const u32 p_FirstInstance,
-                          const u32 p_FirstIndex, const u32 p_VertexOffset) const noexcept
+                          const u32 p_FirstIndex, const u32 p_VertexOffset) const
 {
     TKIT_ASSERT(m_IndexBuffer, "[ONYX] Mesh has indices, use DrawIndexed instead");
     Core::GetDeviceTable().CmdDrawIndexed(p_CommandBuffer, static_cast<u32>(m_IndexBuffer.GetInfo().InstanceCount),
                                           p_InstanceCount, p_FirstIndex, p_VertexOffset, p_FirstInstance);
 }
 
-template <Dimension D> const DeviceLocalVertexBuffer<D> &Mesh<D>::GetVertexBuffer() const noexcept
+template <Dimension D> const DeviceLocalVertexBuffer<D> &Mesh<D>::GetVertexBuffer() const
 {
     return m_VertexBuffer;
 }
-template <Dimension D> const DeviceLocalIndexBuffer &Mesh<D>::GetIndexBuffer() const noexcept
+template <Dimension D> const DeviceLocalIndexBuffer &Mesh<D>::GetIndexBuffer() const
 {
     return m_IndexBuffer;
 }
 
 template <Dimension D>
-VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, const fmat<D> *p_Transform) noexcept
+VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, const fmat<D> *p_Transform)
 {
     const auto result = Onyx::Load<D>(p_Path, p_Transform);
     if (!result)
@@ -123,7 +123,7 @@ VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, cons
     return VKit::ToFormatted(needsIndices ? Mesh<D>::Create(data) : Mesh<D>::Create(data.Vertices));
 }
 
-template <Dimension D> Mesh<D>::operator bool() const noexcept
+template <Dimension D> Mesh<D>::operator bool() const
 {
     return m_VertexBuffer;
 }
@@ -133,7 +133,7 @@ template class ONYX_API Mesh<D3>;
 
 namespace std
 {
-template <Onyx::Dimension D> size_t hash<Onyx::Mesh<D>>::operator()(const Onyx::Mesh<D> &p_Mesh) const noexcept
+template <Onyx::Dimension D> size_t hash<Onyx::Mesh<D>>::operator()(const Onyx::Mesh<D> &p_Mesh) const
 {
     return TKit::Hash(p_Mesh.GetVertexBuffer().GetHandle(), p_Mesh.GetIndexBuffer().GetHandle());
 }

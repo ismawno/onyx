@@ -1,11 +1,12 @@
 #include "swdemo/layer.hpp"
 #include "onyx/app/app.hpp"
-#include "tkit/multiprocessing/thread_pool.hpp"
 #include "utils/argparse.hpp"
+#include "tkit/multiprocessing/thread_pool.hpp"
+#include "tkit/profiling/macros.hpp"
 
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
-void RunApp(const Onyx::Demo::Scene p_Scene) noexcept
+void RunApp(const Onyx::Demo::Scene p_Scene)
 {
     Onyx::Window::Specs spc;
     spc.Name = "Single window demo app";

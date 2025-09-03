@@ -19,7 +19,7 @@ struct SyncData
  *
  * @return The newly created objects.
  */
-PerFrameData<SyncData> CreateSynchronizationObjects() noexcept;
+PerFrameData<SyncData> CreateSynchronizationObjects();
 
 /**
  * @brief Destroys synchronization objects.
@@ -28,5 +28,5 @@ PerFrameData<SyncData> CreateSynchronizationObjects() noexcept;
  *
  * @param p_Objects A span of `SyncData` structures whose resources will be destroyed.
  */
-void DestroySynchronizationObjects(TKit::Span<const SyncData> p_Objects) noexcept;
+void DestroySynchronizationObjects(TKit::Span<const SyncData> p_Objects);
 } // namespace Onyx

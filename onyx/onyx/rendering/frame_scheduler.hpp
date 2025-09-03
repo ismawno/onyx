@@ -40,8 +40,8 @@ class ONYX_API FrameScheduler
         VkCommandBuffer TransferCommand;
     };
 
-    explicit FrameScheduler(Window &p_Window) noexcept;
-    ~FrameScheduler() noexcept;
+    explicit FrameScheduler(Window &p_Window);
+    ~FrameScheduler();
 
     /**
      * @brief Begins a new frame and prepares a command buffer for rendering.
@@ -53,7 +53,7 @@ class ONYX_API FrameScheduler
      * @return A Vulkan command buffer for the current frame. May be a null handle if the swap chain needs to be
      * recreated.
      */
-    VkCommandBuffer BeginFrame(Window &p_Window) noexcept;
+    VkCommandBuffer BeginFrame(Window &p_Window);
 
     /**
      * @brief Finalizes the current frame and submits the rendering commands.
@@ -61,7 +61,7 @@ class ONYX_API FrameScheduler
      * Ensures all recorded commands for the frame are submitted for execution.
      *
      */
-    void EndFrame(Window &p_Window, VkPipelineStageFlags p_Flags) noexcept;
+    void EndFrame(Window &p_Window, VkPipelineStageFlags p_Flags);
 
     /**
      * @brief Begins the main scene rendering with the specified clear color.
@@ -70,7 +70,7 @@ class ONYX_API FrameScheduler
      *
      * @param p_ClearColor The color to clear the framebuffer with.
      */
-    void BeginRendering(const Color &p_ClearColor) noexcept;
+    void BeginRendering(const Color &p_ClearColor);
 
     /**
      * @brief Ends the current rendering and runs the post processing pipeline.
@@ -79,21 +79,21 @@ class ONYX_API FrameScheduler
      * swap chain image.
      *
      */
-    void EndRendering() noexcept;
+    void EndRendering();
 
-    u32 GetFrameIndex() const noexcept;
+    u32 GetFrameIndex() const;
 
     /**
      * @brief Creates information needed by pipelines that wish to render to the main scene.
      *
      */
-    VkPipelineRenderingCreateInfoKHR CreateSceneRenderInfo() const noexcept;
+    VkPipelineRenderingCreateInfoKHR CreateSceneRenderInfo() const;
 
     /**
      * @brief Creates information needed by pipelines that wish to act in post processing.
      *
      */
-    VkPipelineRenderingCreateInfoKHR CreatePostProcessingRenderInfo() const noexcept;
+    VkPipelineRenderingCreateInfoKHR CreatePostProcessingRenderInfo() const;
 
     /**
      * @brief Acquires the next image from the swap chain for rendering.
@@ -102,14 +102,14 @@ class ONYX_API FrameScheduler
      *
      * @return A Vulkan result indicating success or failure.
      */
-    VkResult AcquireNextImage() noexcept;
+    VkResult AcquireNextImage();
 
-    void SubmitGraphicsQueue(VkPipelineStageFlags p_Flags) noexcept;
-    void SubmitTransferQueue() noexcept;
-    VkResult Present() noexcept;
+    void SubmitGraphicsQueue(VkPipelineStageFlags p_Flags);
+    void SubmitTransferQueue();
+    VkResult Present();
 
-    VkCommandBuffer GetGraphicsCommandBuffer() const noexcept;
-    VkCommandBuffer GetTransferCommandBuffer() const noexcept;
+    VkCommandBuffer GetGraphicsCommandBuffer() const;
+    VkCommandBuffer GetTransferCommandBuffer() const;
 
     struct PostProcessingOptions
     {
@@ -135,41 +135,41 @@ class ONYX_API FrameScheduler
      * @return A pointer to the post-processing pipeline.
      */
     PostProcessing *SetPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                                      const PostProcessingOptions &p_Options = {nullptr, nullptr}) noexcept;
+                                      const PostProcessingOptions &p_Options = {nullptr, nullptr});
 
-    PostProcessing *GetPostProcessing() noexcept;
+    PostProcessing *GetPostProcessing();
 
     /**
      * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final
      * image.
      */
-    void RemovePostProcessing() noexcept;
+    void RemovePostProcessing();
 
-    const VKit::SwapChain &GetSwapChain() const noexcept;
+    const VKit::SwapChain &GetSwapChain() const;
 
-    VkPresentModeKHR GetPresentMode() const noexcept;
-    void SetPresentMode(VkPresentModeKHR p_PresentMode) noexcept;
+    VkPresentModeKHR GetPresentMode() const;
+    void SetPresentMode(VkPresentModeKHR p_PresentMode);
 
-    TKit::StaticArray8<VkPresentModeKHR> GetAvailablePresentModes() const noexcept;
+    TKit::StaticArray8<VkPresentModeKHR> GetAvailablePresentModes() const;
 
   private:
-    void createSwapChain(Window &p_Window, const VkExtent2D &p_WindowExtent) noexcept;
-    void recreateSwapChain(Window &p_Window) noexcept;
-    void recreateSurface(Window &p_Window) noexcept;
-    void recreateResources() noexcept;
-    void createProcessingEffects() noexcept;
-    void createCommandData() noexcept;
+    void createSwapChain(Window &p_Window, const VkExtent2D &p_WindowExtent);
+    void recreateSwapChain(Window &p_Window);
+    void recreateSurface(Window &p_Window);
+    void recreateResources();
+    void createProcessingEffects();
+    void createCommandData();
 
-    void handlePresentResult(Window &p_Window, VkResult p_Result) noexcept;
+    void handlePresentResult(Window &p_Window, VkResult p_Result);
 
-    TKit::StaticArray4<ImageData> createImageData() noexcept;
-    void destroyImageData() noexcept;
+    TKit::StaticArray4<ImageData> createImageData();
+    void destroyImageData();
 
-    void setupNaivePostProcessing() noexcept;
-    VkExtent2D waitGlfwEvents(Window &p_Window) noexcept;
+    void setupNaivePostProcessing();
+    VkExtent2D waitGlfwEvents(Window &p_Window);
 
     TKit::StaticArray4<ImageData> m_Images{};
-    TKit::StaticArray4<VkImageView> getIntermediateColorImageViews() const noexcept;
+    TKit::StaticArray4<VkImageView> getIntermediateColorImageViews() const;
 
     VKit::SwapChain m_SwapChain;
     TKit::StaticArray4<VkFence> m_InFlightImages;

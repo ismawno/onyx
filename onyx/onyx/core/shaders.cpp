@@ -4,7 +4,7 @@
 
 namespace Onyx
 {
-std::string CreateShaderDefaultBinaryPath(const std::string_view p_SourcePath) noexcept
+std::string CreateShaderDefaultBinaryPath(const std::string_view p_SourcePath)
 {
     namespace fs = std::filesystem;
     fs::path binaryPath = p_SourcePath;
@@ -13,14 +13,14 @@ std::string CreateShaderDefaultBinaryPath(const std::string_view p_SourcePath) n
     return binaryPath.string();
 }
 
-VKit::Shader CreateShader(const std::string_view p_SourcePath) noexcept
+VKit::Shader CreateShader(const std::string_view p_SourcePath)
 {
     const std::string binaryPath = CreateShaderDefaultBinaryPath(p_SourcePath);
     return CreateShader(p_SourcePath, binaryPath);
 }
 
 VKit::Shader CreateShader(const std::string_view p_SourcePath, const std::string_view p_BinaryPath,
-                          const std::string_view p_Arguments) noexcept
+                          const std::string_view p_Arguments)
 {
     if (VKit::Shader::MustCompile(p_SourcePath, p_BinaryPath))
         CompileShader(p_SourcePath, p_BinaryPath, p_Arguments);
@@ -30,14 +30,14 @@ VKit::Shader CreateShader(const std::string_view p_SourcePath, const std::string
     return result.GetValue();
 }
 
-void CompileShader(const std::string_view p_SourcePath) noexcept
+void CompileShader(const std::string_view p_SourcePath)
 {
     const std::string binaryPath = CreateShaderDefaultBinaryPath(p_SourcePath);
     CompileShader(p_SourcePath, binaryPath);
 }
 
 void CompileShader(const std::string_view p_SourcePath, const std::string_view p_BinaryPath,
-                   const std::string_view p_Arguments) noexcept
+                   const std::string_view p_Arguments)
 {
     const i32 shresult = VKit::Shader::Compile(p_SourcePath, p_BinaryPath, p_Arguments);
 
@@ -46,7 +46,7 @@ void CompileShader(const std::string_view p_SourcePath, const std::string_view p
     (void)shresult;
 }
 
-const VKit::Shader &GetFullPassVertexShader() noexcept
+const VKit::Shader &GetFullPassVertexShader()
 {
     static VKit::Shader shader{};
     if (shader)
@@ -59,12 +59,12 @@ const VKit::Shader &GetFullPassVertexShader() noexcept
 
 namespace Onyx::Detail
 {
-static bool utilsWasModified(const std::string &p_BinaryPath) noexcept
+static bool utilsWasModified(const std::string &p_BinaryPath)
 {
     const char *sourcePath = ONYX_ROOT_PATH "/onyx/shaders/utils.glsl";
     return VKit::Shader::MustCompile(sourcePath, p_BinaryPath);
 }
-static VKit::Shader createShader(const char *p_SourcePath) noexcept
+static VKit::Shader createShader(const char *p_SourcePath)
 {
     const std::string binaryPath = CreateShaderDefaultBinaryPath(p_SourcePath);
     if (utilsWasModified(binaryPath))
@@ -74,7 +74,7 @@ static VKit::Shader createShader(const char *p_SourcePath) noexcept
 }
 template <Dimension D, DrawMode DMode> struct SneakyShaders
 {
-    static void Initialize() noexcept
+    static void Initialize()
     {
         if constexpr (D == D2)
         {
@@ -113,24 +113,24 @@ template <Dimension D, DrawMode DMode> struct SneakyShaders
     static inline VKit::Shader CircleFragmentShader{};
 };
 
-template <Dimension D, DrawMode DMode> void Shaders<D, DMode>::Initialize() noexcept
+template <Dimension D, DrawMode DMode> void Shaders<D, DMode>::Initialize()
 {
     SneakyShaders<D, DMode>::Initialize();
 }
 
-template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::GetMeshVertexShader() noexcept
+template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::GetMeshVertexShader()
 {
     return SneakyShaders<D, DMode>::MeshVertexShader;
 }
-template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::GetMeshFragmentShader() noexcept
+template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::GetMeshFragmentShader()
 {
     return SneakyShaders<D, DMode>::MeshFragmentShader;
 }
-template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::GetCircleVertexShader() noexcept
+template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::GetCircleVertexShader()
 {
     return SneakyShaders<D, DMode>::CircleVertexShader;
 }
-template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::GetCircleFragmentShader() noexcept
+template <Dimension D, DrawMode DMode> const VKit::Shader &Shaders<D, DMode>::GetCircleFragmentShader()
 {
     return SneakyShaders<D, DMode>::CircleFragmentShader;
 }

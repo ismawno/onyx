@@ -14,7 +14,7 @@
 
 namespace Onyx::Perf
 {
-template <Dimension D> void exportLatticeToFile(const Lattice<D> &p_Lattice, ParseResult &result) noexcept
+template <Dimension D> void exportLatticeToFile(const Lattice<D> &p_Lattice, ParseResult &result)
 {
     TKit::Yaml::Node node;
     node["Dimension"] = D;
@@ -65,15 +65,7 @@ ParseResult ParseArguments(int argc, char **argv)
         .help("The amount of time the program will run for in seconds. If not "
               "specified, the simulation will run indefinitely.");
 
-    try
-    {
-        parser.parse_args(argc, argv);
-    }
-    catch (const std::exception &err)
-    {
-        std::cerr << err.what() << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
+    parser.parse_args(argc, argv);
 
     ParseResult result{};
 

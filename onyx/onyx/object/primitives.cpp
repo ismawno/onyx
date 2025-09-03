@@ -9,13 +9,13 @@ template <Dimension D> using BufferLayout = TKit::Array<PrimitiveDataLayout, Pri
 template <Dimension D> struct IndexVertexBuffers
 {
     IndexVertexBuffers(const HostVertexBuffer<D> &p_Vertices, const HostIndexBuffer &p_Indices,
-                       const BufferLayout<D> &p_Layout) noexcept
+                       const BufferLayout<D> &p_Layout)
         : Layout{p_Layout}
     {
         Vertices = CreateDeviceLocalVertexBuffer(p_Vertices);
         Indices = CreateDeviceLocalIndexBuffer(p_Indices);
     }
-    ~IndexVertexBuffers() noexcept
+    ~IndexVertexBuffers()
     {
         Vertices.Destroy();
         Indices.Destroy();
@@ -29,7 +29,7 @@ template <Dimension D> struct IndexVertexBuffers
 static TKit::Storage<IndexVertexBuffers<D2>> s_Buffers2D;
 static TKit::Storage<IndexVertexBuffers<D3>> s_Buffers3D;
 
-template <Dimension D> static TKit::Storage<IndexVertexBuffers<D>> &getBuffers() noexcept
+template <Dimension D> static TKit::Storage<IndexVertexBuffers<D>> &getBuffers()
 {
     if constexpr (D == D2)
         return s_Buffers2D;
@@ -37,20 +37,20 @@ template <Dimension D> static TKit::Storage<IndexVertexBuffers<D>> &getBuffers()
         return s_Buffers3D;
 }
 
-template <Dimension D> const DeviceLocalVertexBuffer<D> &IPrimitives<D>::GetVertexBuffer() noexcept
+template <Dimension D> const DeviceLocalVertexBuffer<D> &IPrimitives<D>::GetVertexBuffer()
 {
     return getBuffers<D>()->Vertices;
 }
-template <Dimension D> const DeviceLocalIndexBuffer &IPrimitives<D>::GetIndexBuffer() noexcept
+template <Dimension D> const DeviceLocalIndexBuffer &IPrimitives<D>::GetIndexBuffer()
 {
     return getBuffers<D>()->Indices;
 }
-template <Dimension D> const PrimitiveDataLayout &IPrimitives<D>::GetDataLayout(const u32 p_PrimitiveIndex) noexcept
+template <Dimension D> const PrimitiveDataLayout &IPrimitives<D>::GetDataLayout(const u32 p_PrimitiveIndex)
 {
     return getBuffers<D>()->Layout[p_PrimitiveIndex];
 }
 
-template <Dimension D> static IndexVertexHostData<D> createRegularPolygonBuffers(const u32 p_Sides) noexcept
+template <Dimension D> static IndexVertexHostData<D> createRegularPolygonBuffers(const u32 p_Sides)
 {
     IndexVertexHostData<D> data{};
     data.Vertices.Resize(p_Sides);
@@ -88,14 +88,14 @@ template <Dimension D> static IndexVertexHostData<D> createRegularPolygonBuffers
     return data;
 }
 
-template <Dimension D> static IndexVertexHostData<D> load(const std::string_view p_Path) noexcept
+template <Dimension D> static IndexVertexHostData<D> load(const std::string_view p_Path)
 {
     const auto result = Load<D>(p_Path);
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
 
-template <Dimension D> static void createCombinedBuffers(const TKit::Span<const char *const> p_Paths) noexcept
+template <Dimension D> static void createCombinedBuffers(const TKit::Span<const char *const> p_Paths)
 {
     BufferLayout<D> layout{};
     IndexVertexHostData<D> combinedData{};
@@ -121,7 +121,7 @@ template <Dimension D> static void createCombinedBuffers(const TKit::Span<const 
     buffers.Construct(combinedData.Vertices, combinedData.Indices, layout);
 }
 
-void CreateCombinedPrimitiveBuffers() noexcept
+void CreateCombinedPrimitiveBuffers()
 {
     TKIT_LOG_INFO("[ONYX] Creating primitive vertex and index buffers");
     const TKit::Array<const char *, Primitives<D2>::AMOUNT> paths2D = {ONYX_ROOT_PATH "/onyx/meshes/triangle.obj",

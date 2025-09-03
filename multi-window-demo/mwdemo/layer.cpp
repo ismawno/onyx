@@ -4,18 +4,18 @@
 
 namespace Onyx::Demo
 {
-MWExampleLayer::MWExampleLayer(MultiWindowApplication *p_Application, const Scene p_Scene) noexcept
+MWExampleLayer::MWExampleLayer(MultiWindowApplication *p_Application, const Scene p_Scene)
     : m_Application(p_Application), m_Scene(p_Scene)
 {
 }
 
-void MWExampleLayer::OnUpdate(const u32 p_WindowIndex) noexcept
+void MWExampleLayer::OnUpdate(const u32 p_WindowIndex)
 {
     const auto ts = m_Application->GetDeltaTime();
     m_Data[p_WindowIndex].OnUpdate(ts);
 }
 
-void MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
+void MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event)
 {
     TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.GetSize(), "[ONYX] Index out of bounds");
 
@@ -27,12 +27,12 @@ void MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event) noex
         m_Data[p_WindowIndex].OnEvent(p_Event);
 }
 
-void MWExampleLayer::OnRenderBegin(const u32 p_WindowIndex, u32, VkCommandBuffer p_CommandBuffer) noexcept
+void MWExampleLayer::OnRenderBegin(const u32 p_WindowIndex, u32, VkCommandBuffer p_CommandBuffer)
 {
     m_Data[p_WindowIndex].OnRenderBegin(p_CommandBuffer);
 }
 
-void MWExampleLayer::OnImGuiRender() noexcept
+void MWExampleLayer::OnImGuiRender()
 {
     const auto ts = m_Application->GetDeltaTime();
     WindowData::OnImGuiRenderGlobal(ts);

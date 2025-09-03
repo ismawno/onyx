@@ -8,7 +8,7 @@
 
 namespace Onyx
 {
-static void displayTransformHelp() noexcept
+static void displayTransformHelp()
 {
     UserLayer::HelpMarker(
         "The transform is the main component with which a shape or an object in a scene is positioned, "
@@ -16,7 +16,7 @@ static void displayTransformHelp() noexcept
         "quaternion in 3D, or a rotation angle in 2D. Almost all objects in a scene have a transform.");
 }
 
-template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform, const Flags p_Flags) noexcept
+template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform, const Flags p_Flags)
 {
     ImGui::PushID(&p_Transform);
     if (p_Flags & Flag_DisplayHelp)
@@ -76,10 +76,10 @@ template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform
     return changed;
 }
 
-template bool UserLayer::TransformEditor<D2>(Transform<D2> &p_Transform, Flags p_Flags) noexcept;
-template bool UserLayer::TransformEditor<D3>(Transform<D3> &p_Transform, Flags p_Flags) noexcept;
+template bool UserLayer::TransformEditor<D2>(Transform<D2> &p_Transform, Flags p_Flags);
+template bool UserLayer::TransformEditor<D3>(Transform<D3> &p_Transform, Flags p_Flags);
 
-template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Transform, const Flags p_Flags) noexcept
+template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Transform, const Flags p_Flags)
 {
     const fvec<D> &translation = p_Transform.Translation;
     const fvec<D> &scale = p_Transform.Scale;
@@ -102,10 +102,10 @@ template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Tr
     }
 }
 
-template void UserLayer::DisplayTransform<D2>(const Transform<D2> &p_Transform, Flags p_Flags) noexcept;
-template void UserLayer::DisplayTransform<D3>(const Transform<D3> &p_Transform, Flags p_Flags) noexcept;
+template void UserLayer::DisplayTransform<D2>(const Transform<D2> &p_Transform, Flags p_Flags);
+template void UserLayer::DisplayTransform<D3>(const Transform<D3> &p_Transform, Flags p_Flags);
 
-template <Dimension D> void UserLayer::DisplayCameraControls(const CameraControls<D> &p_Controls) noexcept
+template <Dimension D> void UserLayer::DisplayCameraControls(const CameraControls<D> &p_Controls)
 {
     if constexpr (D == D2)
     {
@@ -130,10 +130,10 @@ template <Dimension D> void UserLayer::DisplayCameraControls(const CameraControl
     }
 }
 
-template void UserLayer::DisplayCameraControls<D2>(const CameraControls<D2> &p_Controls) noexcept;
-template void UserLayer::DisplayCameraControls<D3>(const CameraControls<D3> &p_Controls) noexcept;
+template void UserLayer::DisplayCameraControls<D2>(const CameraControls<D2> &p_Controls);
+template void UserLayer::DisplayCameraControls<D3>(const CameraControls<D3> &p_Controls);
 
-void UserLayer::DisplayFrameTime(const TKit::Timespan p_DeltaTime, const Flags p_Flags) noexcept
+void UserLayer::DisplayFrameTime(const TKit::Timespan p_DeltaTime, const Flags p_Flags)
 {
     // These statics may cause trouble with multiple applications
     static TKit::Timespan maxDeltaTime{};
@@ -183,7 +183,7 @@ void UserLayer::DisplayFrameTime(const TKit::Timespan p_DeltaTime, const Flags p
         maxDeltaTime = TKit::Timespan{};
 }
 
-void UserLayer::HelpMarker(const char *p_Description, const char *p_Icon) noexcept
+void UserLayer::HelpMarker(const char *p_Description, const char *p_Icon)
 {
     ImGui::TextDisabled("%s", p_Icon);
     if (ImGui::BeginItemTooltip())
@@ -194,13 +194,13 @@ void UserLayer::HelpMarker(const char *p_Description, const char *p_Icon) noexce
         ImGui::EndTooltip();
     }
 }
-void UserLayer::HelpMarkerSameLine(const char *p_Description, const char *p_Icon) noexcept
+void UserLayer::HelpMarkerSameLine(const char *p_Description, const char *p_Icon)
 {
     ImGui::SameLine();
     HelpMarker(p_Description, p_Icon);
 }
 
-template <Dimension D> bool UserLayer::MaterialEditor(MaterialData<D> &p_Material, const Flags p_Flags) noexcept
+template <Dimension D> bool UserLayer::MaterialEditor(MaterialData<D> &p_Material, const Flags p_Flags)
 {
     if (p_Flags & Flag_DisplayHelp)
         HelpMarker(
@@ -228,10 +228,10 @@ template <Dimension D> bool UserLayer::MaterialEditor(MaterialData<D> &p_Materia
     return changed;
 }
 
-template bool UserLayer::MaterialEditor<D2>(MaterialData<D2> &p_Material, Flags p_Flags) noexcept;
-template bool UserLayer::MaterialEditor<D3>(MaterialData<D3> &p_Material, Flags p_Flags) noexcept;
+template bool UserLayer::MaterialEditor<D2>(MaterialData<D2> &p_Material, Flags p_Flags);
+template bool UserLayer::MaterialEditor<D3>(MaterialData<D3> &p_Material, Flags p_Flags);
 
-bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_Flags) noexcept
+bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_Flags)
 {
     bool changed = false;
     if (p_Flags & Flag_DisplayHelp)
@@ -248,7 +248,7 @@ bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_
     return changed;
 }
 
-bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags) noexcept
+bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags)
 {
     bool changed = false;
     if (p_Flags & Flag_DisplayHelp)
@@ -267,7 +267,7 @@ bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags) noexc
     return changed;
 }
 
-bool UserLayer::ResolutionEditor(const char *p_Name, Resolution &p_Res, const Flags p_Flags) noexcept
+bool UserLayer::ResolutionEditor(const char *p_Name, Resolution &p_Res, const Flags p_Flags)
 {
     ImGui::PushID(&p_Res);
     i32 res = static_cast<i32>(p_Res);
@@ -309,7 +309,7 @@ static const char *presentModeToString(const VkPresentModeKHR mode)
     }
 }
 
-bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags) noexcept
+bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags)
 {
     const FrameScheduler *fs = p_Window->GetFrameScheduler();
     const VkPresentModeKHR current = fs->GetPresentMode();
@@ -337,7 +337,7 @@ bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags) noexcep
     return changed;
 }
 
-bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags) noexcept
+bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags)
 {
     bool changed = false;
     ImGui::PushID(&p_Viewport);
@@ -393,7 +393,7 @@ bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags) 
     return changed;
 }
 
-bool UserLayer::ScissorEditor(ScreenScissor &p_Scissor, const Flags p_Flags) noexcept
+bool UserLayer::ScissorEditor(ScreenScissor &p_Scissor, const Flags p_Flags)
 {
     bool changed = false;
     ImGui::PushID(&p_Scissor);

@@ -29,12 +29,12 @@ template <> struct ONYX_API Vertex<D2>
     TKIT_REFLECT_IGNORE_END()
     TKIT_YAML_SERIALIZE_IGNORE_END()
 
-    static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions() noexcept;
-    static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions() noexcept;
+    static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions();
+    static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions();
 
     fvec2 Position;
 
-    friend bool operator==(const Vertex<D2> &p_Left, const Vertex<D2> &p_Right) noexcept
+    friend bool operator==(const Vertex<D2> &p_Left, const Vertex<D2> &p_Right)
     {
         return p_Left.Position == p_Right.Position;
     }
@@ -52,13 +52,13 @@ template <> struct ONYX_API Vertex<D3>
     TKIT_REFLECT_IGNORE_END()
     TKIT_YAML_SERIALIZE_IGNORE_END()
 
-    static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions() noexcept;
-    static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions() noexcept;
+    static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions();
+    static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions();
 
     fvec3 Position;
     fvec3 Normal;
 
-    friend bool operator==(const Vertex<D3> &p_Left, const Vertex<D3> &p_Right) noexcept
+    friend bool operator==(const Vertex<D3> &p_Left, const Vertex<D3> &p_Right)
     {
         return p_Left.Position == p_Right.Position && p_Left.Normal == p_Right.Normal;
     }

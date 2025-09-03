@@ -7,12 +7,12 @@ namespace Onyx::Detail
 {
 template <Dimension D, DrawMode DMode> struct Shaders
 {
-    static void Initialize() noexcept;
+    static void Initialize();
 
-    static const VKit::Shader &GetMeshVertexShader() noexcept;
-    static const VKit::Shader &GetMeshFragmentShader() noexcept;
-    static const VKit::Shader &GetCircleVertexShader() noexcept;
-    static const VKit::Shader &GetCircleFragmentShader() noexcept;
+    static const VKit::Shader &GetMeshVertexShader();
+    static const VKit::Shader &GetMeshFragmentShader();
+    static const VKit::Shader &GetCircleVertexShader();
+    static const VKit::Shader &GetCircleFragmentShader();
 };
 } // namespace Onyx::Detail
 
@@ -26,7 +26,7 @@ namespace Onyx
  * @param p_SourcePath The source path.
  * @return The binary path.
  */
-ONYX_API std::string CreateShaderDefaultBinaryPath(std::string_view p_SourcePath) noexcept;
+ONYX_API std::string CreateShaderDefaultBinaryPath(std::string_view p_SourcePath);
 
 /**
  * @brief This is a high level function to create a compiled shader binary from a source glsl shader file.
@@ -40,7 +40,7 @@ ONYX_API std::string CreateShaderDefaultBinaryPath(std::string_view p_SourcePath
  * @param p_SourcePath The path to the source file.
  * @return The created shader.
  */
-ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath) noexcept;
+ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath);
 
 /**
  * @brief This is a high level function to create a compiled shader binary from a source glsl shader file.
@@ -54,7 +54,7 @@ ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath) noexcept;
  * @return The created shader.
  */
 ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath, std::string_view p_BinaryPath,
-                                   std::string_view p_Arguments = "") noexcept;
+                                   std::string_view p_Arguments = "");
 
 /**
  * @brief This is a high level function to compile a shader from a source glsl shader file.
@@ -67,7 +67,7 @@ ONYX_API VKit::Shader CreateShader(std::string_view p_SourcePath, std::string_vi
  *
  * @param p_SourcePath The path to the source file.
  */
-ONYX_API void CompileShader(std::string_view p_SourcePath) noexcept;
+ONYX_API void CompileShader(std::string_view p_SourcePath);
 
 /**
  * @brief This is a high level function to compile a shader from a source glsl shader file.
@@ -83,7 +83,7 @@ ONYX_API void CompileShader(std::string_view p_SourcePath) noexcept;
  * @param p_Arguments The arguments to pass to the `glslc` compiler.
  */
 ONYX_API void CompileShader(std::string_view p_SourcePath, std::string_view p_BinaryPath,
-                            std::string_view p_Arguments = "") noexcept;
+                            std::string_view p_Arguments = "");
 
 /**
  * @brief Get a full pass vertex shader.
@@ -93,5 +93,5 @@ ONYX_API void CompileShader(std::string_view p_SourcePath, std::string_view p_Bi
  *
  * @return The full pass vertex shader.
  */
-ONYX_API const VKit::Shader &GetFullPassVertexShader() noexcept;
+ONYX_API const VKit::Shader &GetFullPassVertexShader();
 } // namespace Onyx

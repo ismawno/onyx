@@ -53,7 +53,7 @@ static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 
 static Initializer *s_Initializer;
 
-static void createDevice(const VkSurfaceKHR p_Surface) noexcept
+static void createDevice(const VkSurfaceKHR p_Surface)
 {
     VKit::PhysicalDevice::Selector selector(&s_Instance);
 
@@ -124,7 +124,7 @@ static void createDevice(const VkSurfaceKHR p_Surface) noexcept
     s_DeletionQueue.SubmitForDeletion(s_Device);
 }
 
-static void createVulkanAllocator() noexcept
+static void createVulkanAllocator()
 {
     VKit::AllocatorSpecs specs{};
     if (s_Initializer)
@@ -138,7 +138,7 @@ static void createVulkanAllocator() noexcept
     s_DeletionQueue.Push([] { VKit::DestroyAllocator(s_VulkanAllocator); });
 }
 
-static void createCommandPool() noexcept
+static void createCommandPool()
 {
     TKIT_LOG_INFO("[ONYX] Creating global command pools");
     auto poolres = VKit::CommandPool::Create(s_Device, Core::GetGraphicsIndex(),
@@ -162,7 +162,7 @@ static void createCommandPool() noexcept
 }
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-static void createProfilingContext() noexcept
+static void createProfilingContext()
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan profiling context");
     auto cmdres = s_GraphicsPool.Allocate();
@@ -192,7 +192,7 @@ static void createProfilingContext() noexcept
 }
 #endif
 
-static void createDescriptorData() noexcept
+static void createDescriptorData()
 {
     TKIT_LOG_INFO("[ONYX] Creating global descriptor data");
     const auto poolResult = VKit::DescriptorPool::Builder(s_Device)
@@ -224,7 +224,7 @@ static void createDescriptorData() noexcept
     s_DeletionQueue.SubmitForDeletion(s_LightStorageLayout);
 }
 
-static void createPipelineLayouts() noexcept
+static void createPipelineLayouts()
 {
     TKIT_LOG_INFO("[ONYX] Creating global pipeline layouts");
     auto layoutResult = VKit::PipelineLayout::Builder(s_Device)
@@ -248,7 +248,7 @@ static void createPipelineLayouts() noexcept
     s_DeletionQueue.SubmitForDeletion(layoutResult.GetValue());
 }
 
-static void createShaders() noexcept
+static void createShaders()
 {
     TKIT_LOG_INFO("[ONYX] Creating global shaders");
     Shaders<D2, DrawMode::Fill>::Initialize();
@@ -257,7 +257,7 @@ static void createShaders() noexcept
     Shaders<D3, DrawMode::Stencil>::Initialize();
 }
 
-void Core::Initialize(const Specs &p_Specs) noexcept
+void Core::Initialize(const Specs &p_Specs)
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan instance");
 #ifdef TKIT_OS_LINUX
@@ -305,7 +305,7 @@ void Core::Initialize(const Specs &p_Specs) noexcept
     s_DeletionQueue.SubmitForDeletion(s_Instance);
 }
 
-void Core::Terminate() noexcept
+void Core::Terminate()
 {
     if (IsDeviceCreated())
         DeviceWaitIdle();
@@ -314,7 +314,7 @@ void Core::Terminate() noexcept
     glfwTerminate();
 }
 
-void Core::CreateDevice(const VkSurfaceKHR p_Surface) noexcept
+void Core::CreateDevice(const VkSurfaceKHR p_Surface)
 {
     TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     TKIT_ASSERT(!s_Device, "[ONYX] Device has already been created");
@@ -330,119 +330,119 @@ void Core::CreateDevice(const VkSurfaceKHR p_Surface) noexcept
     createProfilingContext();
 #endif
 }
-TKit::ITaskManager *Core::GetTaskManager() noexcept
+TKit::ITaskManager *Core::GetTaskManager()
 {
     return s_TaskManager;
 }
-void Core::SetTaskManager(TKit::ITaskManager *p_TaskManager) noexcept
+void Core::SetTaskManager(TKit::ITaskManager *p_TaskManager)
 {
     s_TaskManager = p_TaskManager;
 }
 
-const VKit::Instance &Core::GetInstance() noexcept
+const VKit::Instance &Core::GetInstance()
 {
     TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     return s_Instance;
 }
-const VKit::Vulkan::InstanceTable &Core::GetInstanceTable() noexcept
+const VKit::Vulkan::InstanceTable &Core::GetInstanceTable()
 {
     TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     return s_Instance.GetInfo().Table;
 };
-const VKit::LogicalDevice &Core::GetDevice() noexcept
+const VKit::LogicalDevice &Core::GetDevice()
 {
     return s_Device;
 }
-const VKit::Vulkan::DeviceTable &Core::GetDeviceTable() noexcept
+const VKit::Vulkan::DeviceTable &Core::GetDeviceTable()
 {
     return s_Device.GetTable();
 };
-bool Core::IsDeviceCreated() noexcept
+bool Core::IsDeviceCreated()
 {
     return s_Device;
 }
-void Core::DeviceWaitIdle() noexcept
+void Core::DeviceWaitIdle()
 {
     s_Device.WaitIdle();
 }
 
-VKit::CommandPool &Core::GetGraphicsPool() noexcept
+VKit::CommandPool &Core::GetGraphicsPool()
 {
     return s_GraphicsPool;
 }
-VKit::CommandPool &Core::GetTransferPool() noexcept
+VKit::CommandPool &Core::GetTransferPool()
 {
     return s_TransferPool;
 }
-VmaAllocator Core::GetVulkanAllocator() noexcept
+VmaAllocator Core::GetVulkanAllocator()
 {
     return s_VulkanAllocator;
 }
 
-VKit::DeletionQueue &Core::GetDeletionQueue() noexcept
+VKit::DeletionQueue &Core::GetDeletionQueue()
 {
     return s_DeletionQueue;
 }
 
-const VKit::DescriptorPool &Core::GetDescriptorPool() noexcept
+const VKit::DescriptorPool &Core::GetDescriptorPool()
 {
     return s_DescriptorPool;
 }
-const VKit::DescriptorSetLayout &Core::GetInstanceDataStorageDescriptorSetLayout() noexcept
+const VKit::DescriptorSetLayout &Core::GetInstanceDataStorageDescriptorSetLayout()
 {
     return s_InstanceDataStorageLayout;
 }
-const VKit::DescriptorSetLayout &Core::GetLightStorageDescriptorSetLayout() noexcept
+const VKit::DescriptorSetLayout &Core::GetLightStorageDescriptorSetLayout()
 {
     return s_LightStorageLayout;
 }
 
-VkPipelineLayout Core::GetGraphicsPipelineLayoutSimple() noexcept
+VkPipelineLayout Core::GetGraphicsPipelineLayoutSimple()
 {
     return s_DLevelSimpleLayout;
 }
-VkPipelineLayout Core::GetGraphicsPipelineLayoutComplex() noexcept
+VkPipelineLayout Core::GetGraphicsPipelineLayoutComplex()
 {
     return s_DLevelComplexLayout;
 }
 
-VkQueue Core::GetGraphicsQueue() noexcept
+VkQueue Core::GetGraphicsQueue()
 {
     return s_GraphicsQueue;
 }
-VkQueue Core::GetPresentQueue() noexcept
+VkQueue Core::GetPresentQueue()
 {
     return s_PresentQueue;
 }
-VkQueue Core::GetTransferQueue() noexcept
+VkQueue Core::GetTransferQueue()
 {
     return s_TransferQueue;
 }
 
-u32 Core::GetGraphicsIndex() noexcept
+u32 Core::GetGraphicsIndex()
 {
     return s_Device.GetPhysicalDevice().GetInfo().GraphicsIndex;
 }
-u32 Core::GetPresentIndex() noexcept
+u32 Core::GetPresentIndex()
 {
     return s_Device.GetPhysicalDevice().GetInfo().PresentIndex;
 }
-u32 Core::GetTransferIndex() noexcept
+u32 Core::GetTransferIndex()
 {
     return s_Device.GetPhysicalDevice().GetInfo().TransferIndex;
 }
 
-TransferMode Core::GetTransferMode() noexcept
+TransferMode Core::GetTransferMode()
 {
     return s_TransferMode;
 }
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-TKit::VkProfilingContext Core::GetGraphicsContext() noexcept
+TKit::VkProfilingContext Core::GetGraphicsContext()
 {
     return s_GraphicsContext;
 }
-// TKit::VkProfilingContext Core::GetTransferContext() noexcept
+// TKit::VkProfilingContext Core::GetTransferContext()
 // {
 //     return s_TransferContext;
 // }

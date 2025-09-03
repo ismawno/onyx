@@ -5,7 +5,7 @@
 
 namespace Onyx
 {
-PostProcessing::PostProcessing(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept
+PostProcessing::PostProcessing(const TKit::StaticArray4<VkImageView> &p_ImageViews)
     : m_ImageViews(p_ImageViews)
 {
     const auto result = VKit::DescriptorSetLayout::Builder(Core::GetDevice())
@@ -14,7 +14,7 @@ PostProcessing::PostProcessing(const TKit::StaticArray4<VkImageView> &p_ImageVie
     VKIT_ASSERT_RESULT(result);
     m_DescriptorSetLayout = result.GetValue();
 }
-PostProcessing::~PostProcessing() noexcept
+PostProcessing::~PostProcessing()
 {
     Core::GetDeviceTable().DestroySampler(Core::GetDevice(), m_Sampler,
                                           nullptr); // Sampler guaranteed to exist because of frame scheduler
@@ -22,18 +22,18 @@ PostProcessing::~PostProcessing() noexcept
     m_Pipeline.Destroy();
 }
 
-void PostProcessing::UpdateDescriptorSet(const u32 p_Index, const VkDescriptorSet p_DescriptorSet) noexcept
+void PostProcessing::UpdateDescriptorSet(const u32 p_Index, const VkDescriptorSet p_DescriptorSet)
 {
     // To account for reserved sampled image slot
     m_Job.UpdateDescriptorSet(p_Index + 1, p_DescriptorSet);
 }
 
-VKit::PipelineLayout::Builder PostProcessing::CreatePipelineLayoutBuilder() const noexcept
+VKit::PipelineLayout::Builder PostProcessing::CreatePipelineLayoutBuilder() const
 {
     return VKit::PipelineLayout::Builder(Core::GetDevice()).AddDescriptorSetLayout(m_DescriptorSetLayout);
 }
 
-void PostProcessing::Setup(const Specs &p_Specs) noexcept
+void PostProcessing::Setup(const Specs &p_Specs)
 {
     TKIT_ASSERT(
         !p_Specs.Layout.GetInfo().DescriptorSetLayouts.IsEmpty() &&
@@ -80,17 +80,17 @@ void PostProcessing::Setup(const Specs &p_Specs) noexcept
         overwriteSamplerSet(m_ImageViews[i], m_SamplerDescriptors[i]);
 }
 
-void PostProcessing::Bind(const VkCommandBuffer p_CommandBuffer, const u32 p_ImageIndex) noexcept
+void PostProcessing::Bind(const VkCommandBuffer p_CommandBuffer, const u32 p_ImageIndex)
 {
     m_Job.UpdateDescriptorSet(0, m_SamplerDescriptors[p_ImageIndex]);
     m_Job.Bind(p_CommandBuffer);
 }
-void PostProcessing::Draw(const VkCommandBuffer p_CommandBuffer) const noexcept
+void PostProcessing::Draw(const VkCommandBuffer p_CommandBuffer) const
 {
     m_Job.Draw(p_CommandBuffer, 3);
 }
 
-VkSamplerCreateInfo PostProcessing::DefaultSamplerCreateInfo() noexcept
+VkSamplerCreateInfo PostProcessing::DefaultSamplerCreateInfo()
 {
     VkSamplerCreateInfo samplerCreateInfo{};
     samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -112,7 +112,7 @@ VkSamplerCreateInfo PostProcessing::DefaultSamplerCreateInfo() noexcept
     return samplerCreateInfo;
 }
 
-void PostProcessing::updateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept
+void PostProcessing::updateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews)
 {
     TKIT_ASSERT(m_ImageViews.GetSize() == p_ImageViews.GetSize(), "[ONYX] Image view count mismatch");
     m_ImageViews = p_ImageViews;
@@ -120,7 +120,7 @@ void PostProcessing::updateImageViews(const TKit::StaticArray4<VkImageView> &p_I
         overwriteSamplerSet(m_ImageViews[i], m_SamplerDescriptors[i]);
 }
 
-void PostProcessing::overwriteSamplerSet(const VkImageView p_ImageView, const VkDescriptorSet p_Set) const noexcept
+void PostProcessing::overwriteSamplerSet(const VkImageView p_ImageView, const VkDescriptorSet p_Set) const
 {
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &m_DescriptorSetLayout};
     VkDescriptorImageInfo info{};

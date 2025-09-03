@@ -44,12 +44,12 @@ class ONYX_API IApplication
 {
   public:
 #ifdef ONYX_ENABLE_IMGUI
-    IApplication(i32 p_ImGuiConfigFlags) noexcept;
+    IApplication(i32 p_ImGuiConfigFlags);
 #else
-    IApplication() noexcept = default;
+    IApplication() = default;
 #endif
 
-    virtual ~IApplication() noexcept;
+    virtual ~IApplication();
 
     /**
      * @brief Startup the application and call the `OnStart()` method of all layers.
@@ -58,7 +58,7 @@ class ONYX_API IApplication
      * Calling this method more than once will result in undefined behaviour or a crash.
      *
      */
-    void Startup() noexcept;
+    void Startup();
 
     /**
      * @brief Shutdown the application, clean up some resources and call the `OnShutdown()` method of all layers.
@@ -68,7 +68,7 @@ class ONYX_API IApplication
      * crash. This method will close all remaining windows.
      *
      */
-    virtual void Shutdown() noexcept;
+    virtual void Shutdown();
 
     /**
      * @brief Signals the application to stop the frame loop.
@@ -77,9 +77,9 @@ class ONYX_API IApplication
      * any windows. Calling `NextFrame()` after this method is safe.
      *
      */
-    void Quit() noexcept;
+    void Quit();
 
-    TKit::Timespan GetDeltaTime() const noexcept;
+    TKit::Timespan GetDeltaTime() const;
 
     /**
      * @brief This method is in charge of processing and presenting the next frame for all windows.
@@ -90,21 +90,21 @@ class ONYX_API IApplication
      * @param p_Clock A clock that lets both the API and the user to keep track of the frame time.
      * @return Whether the application still contains opened windows.
      */
-    virtual bool NextFrame(TKit::Clock &p_Clock) noexcept = 0;
+    virtual bool NextFrame(TKit::Clock &p_Clock) = 0;
 
     /**
      * @brief Get the main window, which is always the window at index 0 in multi-window applications.
      *
      * @return The main window at index 0.
      */
-    virtual const Window *GetMainWindow() const noexcept = 0;
+    virtual const Window *GetMainWindow() const = 0;
 
     /**
      * @brief Get the main window, which is always the window at index 0.
      *
      * @return The main window at index 0.
      */
-    virtual Window *GetMainWindow() noexcept = 0;
+    virtual Window *GetMainWindow() = 0;
 
     /**
      * @brief Set an object derived from Theme to apply an `ImGui` theme.
@@ -114,7 +114,7 @@ class ONYX_API IApplication
      * @param p_Args Arguments to pass to the theme constructor.
      * @return Pointer to the theme object.
      */
-    template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args) noexcept
+    template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args)
     {
         auto theme = TKit::Scope<T>::Create(std::forward<ThemeArgs>(p_Args)...);
         T *result = theme.Get();
@@ -134,7 +134,7 @@ class ONYX_API IApplication
      * @param p_Args Arguments to pass to the layer constructor.
      * @return Pointer to the new user layer.
      */
-    template <std::derived_from<UserLayer> T, typename... LayerArgs> T *SetUserLayer(LayerArgs &&...p_Args) noexcept
+    template <std::derived_from<UserLayer> T, typename... LayerArgs> T *SetUserLayer(LayerArgs &&...p_Args)
     {
         T *layer = new T(std::forward<LayerArgs>(p_Args)...);
         if (m_DeferFlag)
@@ -150,7 +150,7 @@ class ONYX_API IApplication
         return layer;
     }
 
-    template <std::derived_from<UserLayer> T = UserLayer> T *GetUserLayer() noexcept
+    template <std::derived_from<UserLayer> T = UserLayer> T *GetUserLayer()
     {
         return static_cast<T *>(m_UserLayer);
     }
@@ -159,7 +159,7 @@ class ONYX_API IApplication
      * @brief Apply the current theme to `ImGui`. Use `SetTheme()` to set a new theme.
      *
      */
-    void ApplyTheme() noexcept;
+    void ApplyTheme();
 
     /**
      * @brief Run the whole application in one go.
@@ -168,59 +168,59 @@ class ONYX_API IApplication
      * this way, you must not use any of the other 3 methods.
      *
      */
-    void Run() noexcept;
+    void Run();
 
     /**
      * @brief Check if the 'Startup()` method has been called.
      *
      * @return true if `Startup()` has been called.
      */
-    bool IsStarted() const noexcept;
+    bool IsStarted() const;
 
     /**
      * @brief Check if the `Shutdown()` method has been called.
      *
      * @return true if `Shutdown()` has been called.
      */
-    bool IsTerminated() const noexcept;
+    bool IsTerminated() const;
 
     /**
      * @brief Check if the 'Startup()` method has been called and the `Shutdown()` method has not been called.
      *
      * @return true if the application is running.
      */
-    bool IsRunning() const noexcept;
+    bool IsRunning() const;
 
   protected:
 #ifdef ONYX_ENABLE_IMGUI
-    void initializeImGui(Window &p_Window) noexcept;
-    void shutdownImGui() noexcept;
-    void setImContexts() noexcept;
+    void initializeImGui(Window &p_Window);
+    void shutdownImGui();
+    void setImContexts();
 
-    static void beginRenderImGui() noexcept;
-    void endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept;
+    static void beginRenderImGui();
+    void endRenderImGui(VkCommandBuffer p_CommandBuffer);
 #endif
 
-    void updateUserLayerPointer() noexcept;
+    void updateUserLayerPointer();
 
-    void onStart() noexcept;
-    void onShutdown() noexcept;
+    void onStart();
+    void onShutdown();
 
-    void onUpdate() noexcept;
-    void onFrameBegin(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onFrameEnd(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onRenderBegin(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onRenderEnd(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onEvent(const Event &p_Event) noexcept;
+    void onUpdate();
+    void onFrameBegin(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
+    void onFrameEnd(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
+    void onRenderBegin(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
+    void onRenderEnd(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
+    void onEvent(const Event &p_Event);
 
-    void onUpdate(u32 p_WindowIndex) noexcept;
-    void onFrameBegin(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onFrameEnd(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onRenderBegin(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onRenderEnd(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer) noexcept;
-    void onEvent(u32 p_WindowIndex, const Event &p_Event) noexcept;
+    void onUpdate(u32 p_WindowIndex);
+    void onFrameBegin(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
+    void onFrameEnd(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
+    void onRenderBegin(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
+    void onRenderEnd(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
+    void onEvent(u32 p_WindowIndex, const Event &p_Event);
 #ifdef ONYX_ENABLE_IMGUI
-    void onImGuiRender() noexcept;
+    void onImGuiRender();
 #endif
 
     TKit::Timespan m_DeltaTime;
@@ -229,7 +229,7 @@ class ONYX_API IApplication
 
   private:
 #ifdef ONYX_ENABLE_IMGUI
-    void createImGuiPool() noexcept;
+    void createImGuiPool();
 #endif
 
     UserLayer *m_UserLayer = nullptr;
@@ -262,13 +262,13 @@ class ONYX_API Application final : public IApplication
 {
   public:
 #ifdef ONYX_ENABLE_IMGUI
-    Application(const Window::Specs &p_WindowSpecs = {}, i32 p_ImGuiConfigFlags = 0) noexcept;
-    Application(i32 p_ImGuiConfigFlags) noexcept;
+    Application(const Window::Specs &p_WindowSpecs = {}, i32 p_ImGuiConfigFlags = 0);
+    Application(i32 p_ImGuiConfigFlags);
 #else
-    Application(const Window::Specs &p_WindowSpecs = {}) noexcept;
+    Application(const Window::Specs &p_WindowSpecs = {});
 #endif
 
-    void Shutdown() noexcept override;
+    void Shutdown() override;
 
     /**
      * @brief Process and present the next frame for the application.
@@ -276,10 +276,10 @@ class ONYX_API Application final : public IApplication
      * @param p_Clock A clock to keep track of frame time.
      * @return true if the application should continue running.
      */
-    bool NextFrame(TKit::Clock &p_Clock) noexcept override;
+    bool NextFrame(TKit::Clock &p_Clock) override;
 
-    const Window *GetMainWindow() const noexcept override;
-    Window *GetMainWindow() noexcept override;
+    const Window *GetMainWindow() const override;
+    Window *GetMainWindow() override;
 
   private:
     TKit::Storage<Window> m_Window;
@@ -303,12 +303,12 @@ class ONYX_API MultiWindowApplication final : public IApplication
     TKIT_NON_COPYABLE(MultiWindowApplication)
   public:
 #ifdef ONYX_ENABLE_IMGUI
-    MultiWindowApplication(i32 p_ImGuiConfigFlags = 0) noexcept;
+    MultiWindowApplication(i32 p_ImGuiConfigFlags = 0);
 #else
-    MultiWindowApplication() noexcept = default;
+    MultiWindowApplication() = default;
 #endif
 
-    void Shutdown() noexcept override;
+    void Shutdown() override;
 
     /**
      * @brief Open a new window with the given specs.
@@ -319,7 +319,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
      *
      * @param p_Specs
      */
-    void OpenWindow(const Window::Specs &p_Specs = {}) noexcept;
+    void OpenWindow(const Window::Specs &p_Specs = {});
 
     /**
      * @brief Close the window at the given index.
@@ -330,7 +330,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
      *
      * @param p_Index The index of the window to close.
      */
-    void CloseWindow(u32 p_Index) noexcept;
+    void CloseWindow(u32 p_Index);
 
     /**
      * @brief Close the given window.
@@ -341,7 +341,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
      *
      * @param p_Window The window to close.
      */
-    void CloseWindow(const Window *p_Window) noexcept;
+    void CloseWindow(const Window *p_Window);
 
     /**
      * @brief Close all windows.
@@ -351,7 +351,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
      * removed outside the frame loop.
      *
      */
-    void CloseAllWindows() noexcept;
+    void CloseAllWindows();
 
     /**
      * @brief Get a pointer to the window at the specified index.
@@ -359,7 +359,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
      * @param p_Index The index of the window to retrieve.
      * @return Pointer to the window at the given index.
      */
-    const Window *GetWindow(u32 p_Index) const noexcept;
+    const Window *GetWindow(u32 p_Index) const;
 
     /**
      * @brief Get a pointer to the window at the specified index.
@@ -367,23 +367,23 @@ class ONYX_API MultiWindowApplication final : public IApplication
      * @param p_Index The index of the window to retrieve.
      * @return Pointer to the window at the given index.
      */
-    Window *GetWindow(u32 p_Index) noexcept;
+    Window *GetWindow(u32 p_Index);
 
     /**
      * @brief Get a pointer to the main window (at `index = 0`).
      *
      * @return Pointer to the main window.
      */
-    const Window *GetMainWindow() const noexcept override;
+    const Window *GetMainWindow() const override;
 
     /**
      * @brief Get a pointer to the main window (at `index = 0`).
      *
      * @return Pointer to the main window.
      */
-    Window *GetMainWindow() noexcept override;
+    Window *GetMainWindow() override;
 
-    u32 GetWindowCount() const noexcept;
+    u32 GetWindowCount() const;
 
     /**
      * @brief Proceed to the next frame of the application.
@@ -391,11 +391,11 @@ class ONYX_API MultiWindowApplication final : public IApplication
      * @param p_Clock The clock used to measure frame time.
      * @return true if the application should continue running, false otherwise.
      */
-    bool NextFrame(TKit::Clock &p_Clock) noexcept override;
+    bool NextFrame(TKit::Clock &p_Clock) override;
 
   private:
-    void processFrame(u32 p_WindowIndex, const RenderCallbacks &p_Callbacks) noexcept;
-    void processWindows() noexcept;
+    void processFrame(u32 p_WindowIndex, const RenderCallbacks &p_Callbacks);
+    void processWindows();
 
     WindowArray m_Windows;
     TKit::StaticArray4<Window::Specs> m_WindowsToAdd;

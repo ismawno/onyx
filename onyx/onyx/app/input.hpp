@@ -27,7 +27,7 @@ ONYX_API void PollEvents();
  *
  * @param p_Window The window to install the callbacks to.
  */
-ONYX_API void InstallCallbacks(Window &p_Window) noexcept;
+ONYX_API void InstallCallbacks(Window &p_Window);
 
 /**
  * @brief An enum listing all the keys that can be used in the application.
@@ -189,7 +189,7 @@ enum class Mouse : u8
  * @param p_Window The window to get the mouse position from.
  * @return The mouse position.
  */
-ONYX_API fvec2 GetScreenMousePosition(Window *p_Window) noexcept;
+ONYX_API fvec2 GetScreenMousePosition(Window *p_Window);
 
 /**
  * @brief Check if a key is currently pressed.
@@ -198,7 +198,7 @@ ONYX_API fvec2 GetScreenMousePosition(Window *p_Window) noexcept;
  * @param p_Key The key to check.
  * @return true if the key is currently pressed, false otherwise.
  */
-ONYX_API bool IsKeyPressed(Window *p_Window, Key p_Key) noexcept;
+ONYX_API bool IsKeyPressed(Window *p_Window, Key p_Key);
 
 /**
  * @brief Check if a key was released in the current frame.
@@ -207,7 +207,7 @@ ONYX_API bool IsKeyPressed(Window *p_Window, Key p_Key) noexcept;
  * @param p_Key The key to check.
  * @return true if the key was released in the current frame, false otherwise.
  */
-ONYX_API bool IsKeyReleased(Window *p_Window, Key p_Key) noexcept;
+ONYX_API bool IsKeyReleased(Window *p_Window, Key p_Key);
 
 /**
  * @brief Check if a mouse button is currently pressed.
@@ -216,7 +216,7 @@ ONYX_API bool IsKeyReleased(Window *p_Window, Key p_Key) noexcept;
  * @param p_Button The button to check.
  * @return true if the mouse button is currently pressed, false otherwise.
  */
-ONYX_API bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button) noexcept;
+ONYX_API bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button);
 
 /**
  * @brief Check if a mouse button was released in the current frame.
@@ -225,7 +225,7 @@ ONYX_API bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button) noexcept;
  * @param p_Button The button to check.
  * @return true if the mouse button was released in the current frame, false otherwise.
  */
-ONYX_API bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button) noexcept;
+ONYX_API bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button);
 
 /**
  * @brief Get the key enum value as a string.
@@ -233,7 +233,7 @@ ONYX_API bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button) noexcept;
  * @param p_Key The key to get the name for.
  * @return The name of the key as a string.
  */
-ONYX_API const char *GetKeyName(Key p_Key) noexcept;
+ONYX_API const char *GetKeyName(Key p_Key);
 }; // namespace Input
 
 /**

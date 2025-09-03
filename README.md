@@ -45,7 +45,7 @@ while (!window.ShouldClose())
 It is also very easy to include your own shaders into the Onyx's rendering setup. It is possible to do so with a custom pipeline binding through the `VKit::GraphicsJob` abstraction or with post-processing effects. The latter includes a pre-bound sampled texture that represents the frame that is about to be rendered to the screen, to be modified freely. To add such features, the following two functions may be defined:
 
 ```cpp
-static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
+static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
 {
     VKit::Shader fragment = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
 
@@ -76,7 +76,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
     return jresult.GetValue();
 }
 
-static void SetPostProcessing(Onyx::Window &p_Window) noexcept
+static void SetPostProcessing(Onyx::Window &p_Window)
 {
     struct BlurData
     {
@@ -176,7 +176,7 @@ This setup is more flexible than the previous one but still similar to the examp
 class MyLayer : public Onyx::UserLayer
 {
     public:
-    void OnRender(const VkCommandBuffer) noexcept override
+    void OnRender(const VkCommandBuffer) override
     {
         ImGui::Begin("Hello, World!");
         ImGui::Text("Hello, World from ImGui!");

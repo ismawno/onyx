@@ -52,14 +52,14 @@ template <Dimension D> struct IPrimitives
      *
      * @return The vertex buffer.
      */
-    static const DeviceLocalVertexBuffer<D> &GetVertexBuffer() noexcept;
+    static const DeviceLocalVertexBuffer<D> &GetVertexBuffer();
 
     /**
      * @brief Get the combined index buffer for the primitives.
      *
      * @return The index buffer.
      */
-    static const DeviceLocalIndexBuffer &GetIndexBuffer() noexcept;
+    static const DeviceLocalIndexBuffer &GetIndexBuffer();
 
     /**
      * @brief Get the data layout for a specific primitive.
@@ -67,13 +67,13 @@ template <Dimension D> struct IPrimitives
      * @param p_PrimitiveIndex The index of the primitive.
      * @return The data layout of the primitive.
      */
-    static const PrimitiveDataLayout &GetDataLayout(u32 p_PrimitiveIndex) noexcept;
+    static const PrimitiveDataLayout &GetDataLayout(u32 p_PrimitiveIndex);
 
-    static TKIT_CONSTEVAL u32 GetTriangleIndex() noexcept
+    static TKIT_CONSTEVAL u32 GetTriangleIndex()
     {
         return 0;
     }
-    static TKIT_CONSTEVAL u32 GetSquareIndex() noexcept
+    static TKIT_CONSTEVAL u32 GetSquareIndex()
     {
         return 1;
     }
@@ -84,7 +84,7 @@ template <Dimension D> struct IPrimitives
      * @param p_Sides Number of sides of the n-gon.
      * @return Index of the n-gon primitive.
      */
-    static constexpr u32 GetNGonIndex(u32 p_Sides) noexcept
+    static constexpr u32 GetNGonIndex(u32 p_Sides)
     {
         TKIT_ASSERT(p_Sides <= ONYX_MAX_REGULAR_POLYGON_SIDES && p_Sides >= 3,
                     "[ONYX] NGon sides must be between 3 and {}", ONYX_MAX_REGULAR_POLYGON_SIDES);
@@ -106,17 +106,17 @@ template <> struct ONYX_API Primitives<D3> : IPrimitives<D3>
 {
     static constexpr u32 AMOUNT = 13 + ONYX_REGULAR_POLYGON_COUNT;
 
-    static TKIT_CONSTEVAL u32 GetCubeIndex() noexcept
+    static TKIT_CONSTEVAL u32 GetCubeIndex()
     {
         return 2;
     }
 
-    static constexpr u32 GetSphereIndex(const Resolution p_Res) noexcept
+    static constexpr u32 GetSphereIndex(const Resolution p_Res)
     {
         return 3 + static_cast<u32>(p_Res);
     }
 
-    static constexpr u32 GetCylinderIndex(const Resolution p_Res) noexcept
+    static constexpr u32 GetCylinderIndex(const Resolution p_Res)
     {
         return 8 + static_cast<u32>(p_Res);
     }
@@ -128,6 +128,6 @@ template <> struct ONYX_API Primitives<D3> : IPrimitives<D3>
  * This function initializes the combined vertex and index buffers for all primitives.
  * It is called automatically and should not be called by the user.
  */
-ONYX_API void CreateCombinedPrimitiveBuffers() noexcept;
+ONYX_API void CreateCombinedPrimitiveBuffers();
 
 } // namespace Onyx::Detail

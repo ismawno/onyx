@@ -168,7 +168,7 @@ enum class DrawLevel : u8
  * @tparam PMode The pipeline mode.
  * @return The corresponding `DrawMode`.
  */
-template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
+template <PipelineMode PMode> constexpr DrawMode GetDrawMode()
 {
     if constexpr (PMode == PipelineMode::NoStencilWriteDoFill || PMode == PipelineMode::DoStencilWriteDoFill)
         return DrawMode::Fill;
@@ -183,7 +183,7 @@ template <PipelineMode PMode> constexpr DrawMode GetDrawMode() noexcept
  * @tparam DMode The draw mode (`Fill` or `Stencil`).
  * @return The corresponding `DrawLevel`.
  */
-template <Dimension D, DrawMode DMode> constexpr DrawLevel GetDrawLevel() noexcept
+template <Dimension D, DrawMode DMode> constexpr DrawLevel GetDrawLevel()
 {
     if constexpr (D == D2 || DMode == DrawMode::Stencil)
         return DrawLevel::Simple;
@@ -198,7 +198,7 @@ template <Dimension D, DrawMode DMode> constexpr DrawLevel GetDrawLevel() noexce
  * @tparam PMode The pipeline mode.
  * @return The corresponding `DrawLevel`.
  */
-template <Dimension D, PipelineMode PMode> constexpr DrawLevel GetDrawLevel() noexcept
+template <Dimension D, PipelineMode PMode> constexpr DrawLevel GetDrawLevel()
 {
     return GetDrawLevel<D, GetDrawMode<PMode>()>();
 }
@@ -327,7 +327,7 @@ template <Dimension D, DrawMode DMode> struct CircleInstanceData
 };
 
 ONYX_API VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
-                                                         VkDescriptorSet p_OldSet = VK_NULL_HANDLE) noexcept;
+                                                         VkDescriptorSet p_OldSet = VK_NULL_HANDLE);
 
 /**
  * @brief The `DeviceData` is a convenience struct that helps organize the data that is sent to the device so
@@ -338,7 +338,7 @@ ONYX_API VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBuffe
 template <typename T> struct DeviceData
 {
     TKIT_NON_COPYABLE(DeviceData)
-    DeviceData() noexcept
+    DeviceData()
     {
         for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         {
@@ -349,7 +349,7 @@ template <typename T> struct DeviceData
             DescriptorSets[i] = WriteStorageBufferDescriptorSet(info);
         }
     }
-    ~DeviceData() noexcept
+    ~DeviceData()
     {
         for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         {
@@ -358,7 +358,7 @@ template <typename T> struct DeviceData
         }
     }
 
-    void GrowToFit(const u32 p_FrameIndex, const u32 p_Instances) noexcept
+    void GrowToFit(const u32 p_FrameIndex, const u32 p_Instances)
     {
         auto &lbuffer = DeviceLocalStorage[p_FrameIndex];
         if (lbuffer.GetInfo().InstanceCount < p_Instances)
@@ -394,8 +394,8 @@ template <typename T> struct DeviceData
  */
 template <Dimension D, DrawMode DMode> struct PolygonDeviceData : DeviceData<InstanceData<D, DMode>>
 {
-    PolygonDeviceData() noexcept;
-    ~PolygonDeviceData() noexcept;
+    PolygonDeviceData();
+    ~PolygonDeviceData();
 
     PerFrameData<DeviceLocalVertexBuffer<D>> DeviceLocalVertices;
     PerFrameData<DeviceLocalIndexBuffer> DeviceLocalIndices;
@@ -403,7 +403,7 @@ template <Dimension D, DrawMode DMode> struct PolygonDeviceData : DeviceData<Ins
     PerFrameData<HostVisibleVertexBuffer<D>> StagingVertices;
     PerFrameData<HostVisibleIndexBuffer> StagingIndices;
 
-    void GrowToFit(u32 p_FrameIndex, u32 p_Instances, u32 p_Vertices, u32 p_Indices) noexcept;
+    void GrowToFit(u32 p_FrameIndex, u32 p_Instances, u32 p_Vertices, u32 p_Indices);
 };
 
 /**
@@ -436,7 +436,7 @@ template <Dimension D, PipelineMode PMode> struct PipelineGenerator
      * @param p_RenderInfo The rendering information to use.
      * @return The pipeline handle.
      */
-    static VKit::GraphicsPipeline CreateMeshPipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    static VKit::GraphicsPipeline CreateMeshPipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Create a pipeline for circle shapes.
@@ -446,7 +446,7 @@ template <Dimension D, PipelineMode PMode> struct PipelineGenerator
      * @param p_RenderInfo The rendering information to use.
      * @return The pipeline handle.
      */
-    static VKit::GraphicsPipeline CreateCirclePipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    static VKit::GraphicsPipeline CreateCirclePipeline(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 };
 
 } // namespace Onyx::Detail

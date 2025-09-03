@@ -61,13 +61,13 @@ class Initializer
   public:
     virtual ~Initializer() = default;
 
-    virtual void OnInstanceCreation(VKit::Instance::Builder &) noexcept
+    virtual void OnInstanceCreation(VKit::Instance::Builder &)
     {
     }
-    virtual void OnPhysicalDeviceCreation(VKit::PhysicalDevice::Selector &) noexcept
+    virtual void OnPhysicalDeviceCreation(VKit::PhysicalDevice::Selector &)
     {
     }
-    virtual void OnAllocatorCreation(VKit::AllocatorSpecs &) noexcept
+    virtual void OnAllocatorCreation(VKit::AllocatorSpecs &)
     {
     }
 };
@@ -88,49 +88,49 @@ struct Specs
 template <typename T> using PerFrameData = TKit::Array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
 struct ONYX_API Core
 {
-    static void Initialize(const Specs &p_Specs = {}) noexcept;
-    static void Terminate() noexcept;
+    static void Initialize(const Specs &p_Specs = {});
+    static void Terminate();
 
-    static TKit::ITaskManager *GetTaskManager() noexcept;
-    static void SetTaskManager(TKit::ITaskManager *p_TaskManager) noexcept;
+    static TKit::ITaskManager *GetTaskManager();
+    static void SetTaskManager(TKit::ITaskManager *p_TaskManager);
 
-    static const VKit::Instance &GetInstance() noexcept;
-    static const VKit::Vulkan::InstanceTable &GetInstanceTable() noexcept;
+    static const VKit::Instance &GetInstance();
+    static const VKit::Vulkan::InstanceTable &GetInstanceTable();
 
-    static const VKit::LogicalDevice &GetDevice() noexcept;
-    static const VKit::Vulkan::DeviceTable &GetDeviceTable() noexcept;
+    static const VKit::LogicalDevice &GetDevice();
+    static const VKit::Vulkan::DeviceTable &GetDeviceTable();
 
-    static void CreateDevice(VkSurfaceKHR p_Surface) noexcept;
+    static void CreateDevice(VkSurfaceKHR p_Surface);
 
-    static bool IsDeviceCreated() noexcept;
-    static void DeviceWaitIdle() noexcept;
+    static bool IsDeviceCreated();
+    static void DeviceWaitIdle();
 
-    static VKit::CommandPool &GetGraphicsPool() noexcept;
-    static VKit::CommandPool &GetTransferPool() noexcept;
-    static VmaAllocator GetVulkanAllocator() noexcept;
+    static VKit::CommandPool &GetGraphicsPool();
+    static VKit::CommandPool &GetTransferPool();
+    static VmaAllocator GetVulkanAllocator();
 
-    static VKit::DeletionQueue &GetDeletionQueue() noexcept;
+    static VKit::DeletionQueue &GetDeletionQueue();
 
-    static const VKit::DescriptorPool &GetDescriptorPool() noexcept;
-    static const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout() noexcept;
-    static const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout() noexcept;
+    static const VKit::DescriptorPool &GetDescriptorPool();
+    static const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout();
+    static const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout();
 
-    static VkQueue GetGraphicsQueue() noexcept;
-    static VkQueue GetPresentQueue() noexcept;
-    static VkQueue GetTransferQueue() noexcept;
+    static VkQueue GetGraphicsQueue();
+    static VkQueue GetPresentQueue();
+    static VkQueue GetTransferQueue();
 
-    static u32 GetGraphicsIndex() noexcept;
-    static u32 GetPresentIndex() noexcept;
-    static u32 GetTransferIndex() noexcept;
+    static u32 GetGraphicsIndex();
+    static u32 GetPresentIndex();
+    static u32 GetTransferIndex();
 
-    static TransferMode GetTransferMode() noexcept;
+    static TransferMode GetTransferMode();
 
-    static VkPipelineLayout GetGraphicsPipelineLayoutSimple() noexcept;
-    static VkPipelineLayout GetGraphicsPipelineLayoutComplex() noexcept;
+    static VkPipelineLayout GetGraphicsPipelineLayoutSimple();
+    static VkPipelineLayout GetGraphicsPipelineLayoutComplex();
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-    static TKit::VkProfilingContext GetGraphicsContext() noexcept;
-    // static TKit::VkProfilingContext GetTransferContext() noexcept;
+    static TKit::VkProfilingContext GetGraphicsContext();
+    // static TKit::VkProfilingContext GetTransferContext();
 #endif
 };
 

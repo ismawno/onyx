@@ -13,12 +13,12 @@ namespace Onyx::Demo
 class SWExampleLayer final : public UserLayer
 {
   public:
-    SWExampleLayer(Application *p_Application, Scene p_Scene) noexcept;
+    SWExampleLayer(Application *p_Application, Scene p_Scene);
 
-    void OnStart() noexcept override;
-    void OnUpdate() noexcept override;
-    void OnRenderBegin(u32, VkCommandBuffer p_CommandBuffer) noexcept override;
-    void OnEvent(const Event &p_Event) noexcept override;
+    void OnStart() override;
+    void OnUpdate() override;
+    void OnRenderBegin(u32, VkCommandBuffer p_CommandBuffer) override;
+    void OnEvent(const Event &p_Event) override;
 
   private:
     Application *m_Application = nullptr;

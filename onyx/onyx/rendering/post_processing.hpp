@@ -26,14 +26,14 @@ class ONYX_API PostProcessing
         VkPipelineRenderingCreateInfoKHR RenderInfo;
     };
 
-    PostProcessing(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept;
-    ~PostProcessing() noexcept;
+    PostProcessing(const TKit::StaticArray4<VkImageView> &p_ImageViews);
+    ~PostProcessing();
 
-    void UpdateDescriptorSet(u32 p_Index, VkDescriptorSet p_DescriptorSet) noexcept;
+    void UpdateDescriptorSet(u32 p_Index, VkDescriptorSet p_DescriptorSet);
 
     template <typename T>
     void UpdatePushConstantRange(u32 p_Index, const T *p_Data,
-                                 const VkShaderStageFlags p_Stages = VK_SHADER_STAGE_FRAGMENT_BIT) noexcept
+                                 const VkShaderStageFlags p_Stages = VK_SHADER_STAGE_FRAGMENT_BIT)
     {
         m_Job.UpdatePushConstantRange(p_Index, p_Data, p_Stages);
     }
@@ -51,7 +51,7 @@ class ONYX_API PostProcessing
      *
      * @return A pipeline layout builder for the post-processing pipeline.
      */
-    VKit::PipelineLayout::Builder CreatePipelineLayoutBuilder() const noexcept;
+    VKit::PipelineLayout::Builder CreatePipelineLayoutBuilder() const;
 
     /**
      * @brief Sets up the post-processing pipeline, which is used to apply effects to the scene after the main rendering
@@ -63,17 +63,17 @@ class ONYX_API PostProcessing
      *
      * @param p_Specs The specifications for the post-processing pipeline.
      */
-    void Setup(const Specs &p_Specs) noexcept;
+    void Setup(const Specs &p_Specs);
 
-    void Bind(VkCommandBuffer p_CommandBuffer, u32 p_ImageIndex) noexcept;
-    void Draw(VkCommandBuffer p_CommandBuffer) const noexcept;
+    void Bind(VkCommandBuffer p_CommandBuffer, u32 p_ImageIndex);
+    void Draw(VkCommandBuffer p_CommandBuffer) const;
 
-    static VkSamplerCreateInfo DefaultSamplerCreateInfo() noexcept;
+    static VkSamplerCreateInfo DefaultSamplerCreateInfo();
 
-    void updateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept;
+    void updateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews);
 
   private:
-    void overwriteSamplerSet(VkImageView p_ImageView, VkDescriptorSet p_Set) const noexcept;
+    void overwriteSamplerSet(VkImageView p_ImageView, VkDescriptorSet p_Set) const;
 
     VKit::GraphicsPipeline m_Pipeline{};
     VKit::GraphicsJob m_Job{};

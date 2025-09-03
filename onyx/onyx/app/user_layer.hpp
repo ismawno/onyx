@@ -44,7 +44,7 @@ class ONYX_API UserLayer
         Flag_DisplayHelp = 1 << 0,
     };
 
-    virtual ~UserLayer() noexcept = default;
+    virtual ~UserLayer() = default;
 
     /**
      * @brief Called when the `Startup()` method of the application is called.
@@ -54,7 +54,7 @@ class ONYX_API UserLayer
      * in all cases.
      *
      */
-    virtual void OnStart() noexcept
+    virtual void OnStart()
     {
     }
 
@@ -66,7 +66,7 @@ class ONYX_API UserLayer
      * It is not possible to reference any window at this point.
      *
      */
-    virtual void OnShutdown() noexcept
+    virtual void OnShutdown()
     {
     }
 
@@ -85,7 +85,7 @@ class ONYX_API UserLayer
      * instead.
      *
      */
-    virtual void OnUpdate() noexcept
+    virtual void OnUpdate()
     {
     }
 
@@ -104,7 +104,7 @@ class ONYX_API UserLayer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnFrameBegin(u32, VkCommandBuffer) noexcept
+    virtual void OnFrameBegin(u32, VkCommandBuffer)
     {
     }
 
@@ -123,7 +123,7 @@ class ONYX_API UserLayer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnFrameEnd(u32, VkCommandBuffer) noexcept
+    virtual void OnFrameEnd(u32, VkCommandBuffer)
     {
     }
 
@@ -140,7 +140,7 @@ class ONYX_API UserLayer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRenderBegin(u32, VkCommandBuffer) noexcept
+    virtual void OnRenderBegin(u32, VkCommandBuffer)
     {
     }
 
@@ -157,7 +157,7 @@ class ONYX_API UserLayer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRenderEnd(u32, VkCommandBuffer) noexcept
+    virtual void OnRenderEnd(u32, VkCommandBuffer)
     {
     }
 
@@ -178,7 +178,7 @@ class ONYX_API UserLayer
      * @param p_WindowIndex The index of the window this method will be called for.
      *
      */
-    virtual void OnUpdate(u32) noexcept
+    virtual void OnUpdate(u32)
     {
     }
 
@@ -198,7 +198,7 @@ class ONYX_API UserLayer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnFrameBegin(u32, u32, VkCommandBuffer) noexcept
+    virtual void OnFrameBegin(u32, u32, VkCommandBuffer)
     {
     }
 
@@ -218,7 +218,7 @@ class ONYX_API UserLayer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnFrameEnd(u32, u32, VkCommandBuffer) noexcept
+    virtual void OnFrameEnd(u32, u32, VkCommandBuffer)
     {
     }
 
@@ -236,7 +236,7 @@ class ONYX_API UserLayer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRenderBegin(u32, u32, VkCommandBuffer) noexcept
+    virtual void OnRenderBegin(u32, u32, VkCommandBuffer)
     {
     }
 
@@ -254,7 +254,7 @@ class ONYX_API UserLayer
      * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
      *
      */
-    virtual void OnRenderEnd(u32, u32, VkCommandBuffer) noexcept
+    virtual void OnRenderEnd(u32, u32, VkCommandBuffer)
     {
     }
 
@@ -269,7 +269,7 @@ class ONYX_API UserLayer
      * @note This method is not called in single window applications. Use the any of the other render methods instead.
      *
      */
-    virtual void OnImGuiRender() noexcept
+    virtual void OnImGuiRender()
     {
     }
 #endif
@@ -280,7 +280,7 @@ class ONYX_API UserLayer
      * @note This method is not called in multi-window applications. Use the `OnEvent(u32)` method instead.
      *
      */
-    virtual void OnEvent(const Event &) noexcept
+    virtual void OnEvent(const Event &)
     {
     }
 
@@ -292,30 +292,30 @@ class ONYX_API UserLayer
      * @param p_WindowIndex The index of the window that is currently being processed.
      *
      */
-    virtual void OnEvent(u32, const Event &) noexcept
+    virtual void OnEvent(u32, const Event &)
     {
     }
 
 #ifdef ONYX_ENABLE_IMGUI
-    template <Dimension D> static bool TransformEditor(Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;
-    template <Dimension D> static bool MaterialEditor(MaterialData<D> &p_Material, Flags p_Flags = 0) noexcept;
+    template <Dimension D> static bool TransformEditor(Transform<D> &p_Transform, Flags p_Flags = 0);
+    template <Dimension D> static bool MaterialEditor(MaterialData<D> &p_Material, Flags p_Flags = 0);
 
-    template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, Flags p_Flags = 0) noexcept;
-    template <Dimension D> static void DisplayCameraControls(const CameraControls<D> &p_Controls = {}) noexcept;
+    template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, Flags p_Flags = 0);
+    template <Dimension D> static void DisplayCameraControls(const CameraControls<D> &p_Controls = {});
 
-    static void DisplayFrameTime(TKit::Timespan p_DeltaTime, Flags p_Flags = 0) noexcept;
+    static void DisplayFrameTime(TKit::Timespan p_DeltaTime, Flags p_Flags = 0);
 
-    static bool DirectionalLightEditor(DirectionalLight &p_Light, Flags p_Flags = 0) noexcept;
-    static bool PointLightEditor(PointLight &p_Light, Flags p_Flags = 0) noexcept;
+    static bool DirectionalLightEditor(DirectionalLight &p_Light, Flags p_Flags = 0);
+    static bool PointLightEditor(PointLight &p_Light, Flags p_Flags = 0);
 
-    static bool ResolutionEditor(const char *p_Name, Resolution &p_Res, Flags p_Flags = 0) noexcept;
-    static bool PresentModeEditor(Window *p_Window, Flags p_Flags = 0) noexcept;
+    static bool ResolutionEditor(const char *p_Name, Resolution &p_Res, Flags p_Flags = 0);
+    static bool PresentModeEditor(Window *p_Window, Flags p_Flags = 0);
 
-    static bool ViewportEditor(ScreenViewport &p_Viewport, Flags p_Flags = 0) noexcept;
-    static bool ScissorEditor(ScreenScissor &p_Scissor, Flags p_Flags = 0) noexcept;
+    static bool ViewportEditor(ScreenViewport &p_Viewport, Flags p_Flags = 0);
+    static bool ScissorEditor(ScreenScissor &p_Scissor, Flags p_Flags = 0);
 
-    static void HelpMarker(const char *p_Description, const char *p_Icon = "(?)") noexcept;
-    static void HelpMarkerSameLine(const char *p_Description, const char *p_Icon = "(?)") noexcept;
+    static void HelpMarker(const char *p_Description, const char *p_Icon = "(?)");
+    static void HelpMarkerSameLine(const char *p_Description, const char *p_Icon = "(?)");
 #endif
 };
 

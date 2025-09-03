@@ -11,7 +11,7 @@ using namespace TKit::Alias;
 
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
-static void RunStandaloneWindow() noexcept
+static void RunStandaloneWindow()
 {
     Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
@@ -30,7 +30,7 @@ static void RunStandaloneWindow() noexcept
     }
 }
 
-static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
+static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
 {
     VKit::Shader fragment = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
 
@@ -60,7 +60,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window) noexcept
     return jresult.GetValue();
 }
 
-static void SetPostProcessing(Onyx::Window &p_Window) noexcept
+static void SetPostProcessing(Onyx::Window &p_Window)
 {
     struct BlurData
     {
@@ -88,7 +88,7 @@ static void SetPostProcessing(Onyx::Window &p_Window) noexcept
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
 }
 
-static void RunStandaloneWindowCustomPipeline() noexcept
+static void RunStandaloneWindowCustomPipeline()
 {
     Onyx::Window window(
         {.Name = "Standalone Hello, World! With a custom rainbow background and a post-processing effect!",
@@ -119,13 +119,13 @@ static void RunStandaloneWindowCustomPipeline() noexcept
     }
 }
 
-static void RunAppExample1() noexcept
+static void RunAppExample1()
 {
     Onyx::Application app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
     app.Run();
 }
 
-static void RunAppExample2() noexcept
+static void RunAppExample2()
 {
     Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
 
@@ -148,12 +148,12 @@ static void RunAppExample2() noexcept
     app.Shutdown();
 }
 
-static void RunAppExample3() noexcept
+static void RunAppExample3()
 {
     class MyLayer : public Onyx::UserLayer
     {
       public:
-        void OnUpdate() noexcept override
+        void OnUpdate() override
         {
             ImGui::Begin("Hello, World!");
             ImGui::Text("Hello, World from ImGui!");

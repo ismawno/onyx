@@ -9,19 +9,19 @@
 namespace Onyx::Detail
 {
 #ifdef TKIT_ENABLE_INSTRUMENTATION
-u32 GetDrawCallCount() noexcept;
-void ResetDrawCallCount() noexcept;
+u32 GetDrawCallCount();
+void ResetDrawCallCount();
 #endif
 
 template <Dimension D, PipelineMode PMode> class RenderSystem
 {
   public:
-    RenderSystem() noexcept;
-    ~RenderSystem() noexcept;
+    RenderSystem();
+    ~RenderSystem();
 
-    bool HasInstances(u32 p_FrameIndex) const noexcept;
-    void Flush() noexcept;
-    void AcknowledgeSubmission(u32 p_FrameIndex) noexcept;
+    bool HasInstances(u32 p_FrameIndex) const;
+    void Flush();
+    void AcknowledgeSubmission(u32 p_FrameIndex);
 
   protected:
     VKit::GraphicsPipeline m_Pipeline{};
@@ -46,7 +46,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer final : public Ren
     using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
 
   public:
-    MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Record and store the data needed to draw a mesh instance. This is an onyx draw call.
@@ -56,28 +56,28 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer final : public Ren
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_Mesh The mesh to draw.
      */
-    void Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh) noexcept;
+    void Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh);
 
     /**
      * @brief Grow all device buffers to fit host data.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void GrowToFit(u32 p_FrameIndex) noexcept;
+    void GrowToFit(u32 p_FrameIndex);
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void SendToDevice(u32 p_FrameIndex) noexcept;
+    void SendToDevice(u32 p_FrameIndex);
 
     /**
      * @brief Record vulkan copy commands to send data to a device local buffer.
      *
      * @param p_Info The necessary information to record the copies.
      */
-    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+    void RecordCopyCommands(const CopyInfo &p_Info);
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.
@@ -87,7 +87,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer final : public Ren
      *
      * @param p_Info The rendering info of the current frame.
      */
-    void Render(const RenderInfo &p_Info) noexcept;
+    void Render(const RenderInfo &p_Info);
 
     /**
      * @brief Clear all of the stored onyx draw calls.
@@ -95,7 +95,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer final : public Ren
      * This method can be called optionally. Not doing so will persist the onyx draw calls until the next frame.
      *
      */
-    void Flush() noexcept;
+    void Flush();
 
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) MeshHostData
@@ -126,7 +126,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : publi
     using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
 
   public:
-    PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Record and store the data needed to draw a primitive instance. This is an onyx draw call.
@@ -136,28 +136,28 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : publi
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_PrimitiveIndex The index of the primitive to draw. Can be queried from `Primitive<D>::Get...Index()`
      */
-    void Draw(const InstanceData &p_InstanceData, u32 p_PrimitiveIndex) noexcept;
+    void Draw(const InstanceData &p_InstanceData, u32 p_PrimitiveIndex);
 
     /**
      * @brief Grow all device buffers to fit host data.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void GrowToFit(u32 p_FrameIndex) noexcept;
+    void GrowToFit(u32 p_FrameIndex);
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void SendToDevice(u32 p_FrameIndex) noexcept;
+    void SendToDevice(u32 p_FrameIndex);
 
     /**
      * @brief Record vulkan copy commands to send data to a device local buffer.
      *
      * @param p_Info The necessary information to record the copies.
      */
-    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+    void RecordCopyCommands(const CopyInfo &p_Info);
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.
@@ -167,7 +167,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : publi
      *
      * @param p_Info The rendering info of the current frame.
      */
-    void Render(const RenderInfo &p_Info) noexcept;
+    void Render(const RenderInfo &p_Info);
 
     /**
      * @brief Clear all of the stored onyx draw calls.
@@ -175,7 +175,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : publi
      * This method can be called optionally. Not doing do will persist the onyx draw calls until the next frame.
      *
      */
-    void Flush() noexcept;
+    void Flush();
 
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) PrimitiveHostData
@@ -208,7 +208,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public 
     using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
 
   public:
-    PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Record and store the data needed to draw a polygon instance. This is an onyx draw call.
@@ -218,28 +218,28 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public 
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_Vertices The vertices of the polygon to draw. Must be sorted consistently.
      */
-    void Draw(const InstanceData &p_InstanceData, TKit::Span<const fvec2> p_Vertices) noexcept;
+    void Draw(const InstanceData &p_InstanceData, TKit::Span<const fvec2> p_Vertices);
 
     /**
      * @brief Grow all device buffers to fit host data.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void GrowToFit(u32 p_FrameIndex) noexcept;
+    void GrowToFit(u32 p_FrameIndex);
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void SendToDevice(u32 p_FrameIndex) noexcept;
+    void SendToDevice(u32 p_FrameIndex);
 
     /**
      * @brief Record vulkan copy commands to send data to a device local buffer.
      *
      * @param p_Info The necessary information to record the copies.
      */
-    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+    void RecordCopyCommands(const CopyInfo &p_Info);
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.
@@ -249,7 +249,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public 
      *
      * @param p_Info The rendering info of the current frame.
      */
-    void Render(const RenderInfo &p_Info) noexcept;
+    void Render(const RenderInfo &p_Info);
 
     /**
      * @brief Clear all of the stored onyx draw calls.
@@ -257,7 +257,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public 
      * This method can be called optionally. Not doing do will persist the onyx draw calls until the next frame.
      *
      */
-    void Flush() noexcept;
+    void Flush();
 
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) PolygonHostData
@@ -294,7 +294,7 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer final : public R
     using CircleInstanceData = CircleInstanceData<D, GetDrawMode<PMode>()>;
 
   public:
-    CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) noexcept;
+    CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Record and store the data needed to draw a circle instance. This is an onyx draw call.
@@ -320,28 +320,28 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer final : public R
      * @param p_LowerAngle The angle from which the arc starts.
      * @param p_UpperAngle The angle at which the arc ends.
      */
-    void Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Properties) noexcept;
+    void Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Properties);
 
     /**
      * @brief Grow all device buffers to fit host data.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void GrowToFit(u32 p_FrameIndex) noexcept;
+    void GrowToFit(u32 p_FrameIndex);
 
     /**
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      * @param p_FrameIndex The index of the current frame.
      */
-    void SendToDevice(u32 p_FrameIndex) noexcept;
+    void SendToDevice(u32 p_FrameIndex);
 
     /**
      * @brief Record vulkan copy commands to send data to a device local buffer.
      *
      * @param p_Info The necessary information to record the copies.
      */
-    void RecordCopyCommands(const CopyInfo &p_Info) noexcept;
+    void RecordCopyCommands(const CopyInfo &p_Info);
 
     /**
      * @brief Record the current command buffer with the stored onyx draw calls.
@@ -351,7 +351,7 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer final : public R
      *
      * @param p_Info The rendering info of the current frame.
      */
-    void Render(const RenderInfo &p_Info) noexcept;
+    void Render(const RenderInfo &p_Info);
 
     /**
      * @brief Clear all of the stored onyx draw calls.
@@ -359,7 +359,7 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer final : public R
      * This method can be called optionally. Not doing do will persist the onyx draw calls until the next frame.
      *
      */
-    void Flush() noexcept;
+    void Flush();
 
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) CircleHostData

@@ -10,34 +10,34 @@
 namespace Onyx
 {
 #ifdef ONYX_ENABLE_IMGUI
-IApplication::IApplication(const i32 p_ImGuiConfigFlags) noexcept : m_ImGuiConfigFlags(p_ImGuiConfigFlags)
+IApplication::IApplication(const i32 p_ImGuiConfigFlags) : m_ImGuiConfigFlags(p_ImGuiConfigFlags)
 {
 }
 #endif
-IApplication::~IApplication() noexcept
+IApplication::~IApplication()
 {
     if (!m_Terminated && m_Started)
         Shutdown();
 }
 
-bool IApplication::IsStarted() const noexcept
+bool IApplication::IsStarted() const
 {
     return m_Started;
 }
-bool IApplication::IsTerminated() const noexcept
+bool IApplication::IsTerminated() const
 {
     return m_Terminated;
 }
-bool IApplication::IsRunning() const noexcept
+bool IApplication::IsRunning() const
 {
     return m_Started && !m_Terminated;
 }
-TKit::Timespan IApplication::GetDeltaTime() const noexcept
+TKit::Timespan IApplication::GetDeltaTime() const
 {
     return m_DeltaTime;
 }
 
-void IApplication::Startup() noexcept
+void IApplication::Startup()
 {
     TKIT_ASSERT(!m_Terminated && !m_Started, "[ONYX] Application cannot be started more than once");
     TKIT_PROFILE_PLOT_CONFIG("Draw calls", TKit::ProfilingPlotFormat::Number, false, true, 0);
@@ -45,7 +45,7 @@ void IApplication::Startup() noexcept
     onStart();
 }
 
-void IApplication::Shutdown() noexcept
+void IApplication::Shutdown()
 {
     TKIT_ASSERT(!m_Terminated && m_Started, "[ONYX] Application cannot be terminated before it is started");
     onShutdown();
@@ -57,18 +57,18 @@ void IApplication::Shutdown() noexcept
     m_Terminated = true;
 }
 
-void IApplication::Quit() noexcept
+void IApplication::Quit()
 {
     m_QuitFlag = true;
 }
 
-void IApplication::ApplyTheme() noexcept
+void IApplication::ApplyTheme()
 {
     TKIT_ASSERT(m_Theme, "[ONYX] No theme has been set. Set one with SetTheme");
     m_Theme->Apply();
 }
 
-void IApplication::Run() noexcept
+void IApplication::Run()
 {
     Startup();
     TKit::Clock clock;
@@ -78,7 +78,7 @@ void IApplication::Run() noexcept
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-void IApplication::beginRenderImGui() noexcept
+void IApplication::beginRenderImGui()
 {
     TKIT_PROFILE_NSCOPE("Onyx::IApplication::BeginRenderImGui");
     ImGui_ImplVulkan_NewFrame();
@@ -86,7 +86,7 @@ void IApplication::beginRenderImGui() noexcept
     ImGui::NewFrame();
 }
 
-void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::IApplication::EndRenderImGui");
     ImGui::Render();
@@ -97,7 +97,7 @@ void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer) noexcept
 }
 #endif
 
-void IApplication::updateUserLayerPointer() noexcept
+void IApplication::updateUserLayerPointer()
 {
     if (m_StagedUserLayer)
     {
@@ -107,88 +107,88 @@ void IApplication::updateUserLayerPointer() noexcept
     }
 }
 
-void IApplication::onStart() noexcept
+void IApplication::onStart()
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnStart();
 }
-void IApplication::onShutdown() noexcept
+void IApplication::onShutdown()
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnShutdown();
 }
-void IApplication::onUpdate() noexcept
+void IApplication::onUpdate()
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnUpdate();
 }
-void IApplication::onFrameBegin(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onFrameBegin(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnFrameBegin(p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onFrameEnd(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onFrameEnd(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnFrameEnd(p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onRenderBegin(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onRenderBegin(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnRenderBegin(p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onRenderEnd(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) noexcept
+void IApplication::onRenderEnd(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnRenderEnd(p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onEvent(const Event &p_Event) noexcept
+void IApplication::onEvent(const Event &p_Event)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnEvent(p_Event);
 }
-void IApplication::onUpdate(const u32 p_WindowIndex) noexcept
+void IApplication::onUpdate(const u32 p_WindowIndex)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnUpdate(p_WindowIndex);
 }
 void IApplication::onFrameBegin(const u32 p_WindowIndex, const u32 p_FrameIndex,
-                                const VkCommandBuffer p_CommandBuffer) noexcept
+                                const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnFrameBegin(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
 void IApplication::onFrameEnd(const u32 p_WindowIndex, const u32 p_FrameIndex,
-                              const VkCommandBuffer p_CommandBuffer) noexcept
+                              const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnFrameEnd(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
 void IApplication::onRenderBegin(const u32 p_WindowIndex, const u32 p_FrameIndex,
-                                 const VkCommandBuffer p_CommandBuffer) noexcept
+                                 const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnRenderBegin(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
 void IApplication::onRenderEnd(const u32 p_WindowIndex, const u32 p_FrameIndex,
-                               const VkCommandBuffer p_CommandBuffer) noexcept
+                               const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnRenderEnd(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onEvent(const u32 p_WindowIndex, const Event &p_Event) noexcept
+void IApplication::onEvent(const u32 p_WindowIndex, const Event &p_Event)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnEvent(p_WindowIndex, p_Event);
 }
 #ifdef ONYX_ENABLE_IMGUI
-void IApplication::onImGuiRender() noexcept
+void IApplication::onImGuiRender()
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnImGuiRender();
 }
 
-void IApplication::createImGuiPool() noexcept
+void IApplication::createImGuiPool()
 {
     constexpr std::uint32_t poolSize = 100;
     VkDescriptorPoolSize poolSizes[11] = {{VK_DESCRIPTOR_TYPE_SAMPLER, poolSize},
@@ -215,7 +215,7 @@ void IApplication::createImGuiPool() noexcept
         "[ONYX] Failed to create descriptor pool");
 }
 
-void IApplication::initializeImGui(Window &p_Window) noexcept
+void IApplication::initializeImGui(Window &p_Window)
 {
     if (!m_ImGuiPool)
         createImGuiPool();
@@ -258,7 +258,7 @@ void IApplication::initializeImGui(Window &p_Window) noexcept
                         "[ONYX] ImGui failed to create fonts texture for Vulkan");
 }
 
-void IApplication::shutdownImGui() noexcept
+void IApplication::shutdownImGui()
 {
     Core::DeviceWaitIdle();
     ImGui_ImplVulkan_DestroyFontsTexture();
@@ -271,7 +271,7 @@ void IApplication::shutdownImGui() noexcept
 #    endif
 }
 
-void IApplication::setImContexts() noexcept
+void IApplication::setImContexts()
 {
     ImGui::SetCurrentContext(m_ImGuiContext);
 #    ifdef ONYX_ENABLE_IMPLOT
@@ -281,24 +281,24 @@ void IApplication::setImContexts() noexcept
 #endif
 
 #ifdef ONYX_ENABLE_IMGUI
-Application::Application(const Window::Specs &p_WindowSpecs, const i32 p_ImGuiConfigFlags) noexcept
+Application::Application(const Window::Specs &p_WindowSpecs, const i32 p_ImGuiConfigFlags)
     : IApplication(p_ImGuiConfigFlags)
 {
     m_Window.Construct(p_WindowSpecs);
     initializeImGui(*m_Window);
 }
-Application::Application(const i32 p_ImGuiConfigFlags) noexcept : IApplication(p_ImGuiConfigFlags)
+Application::Application(const i32 p_ImGuiConfigFlags) : IApplication(p_ImGuiConfigFlags)
 {
     m_Window.Construct();
     initializeImGui(*m_Window);
 }
 #else
-Application::Application(const Window::Specs &p_WindowSpecs) noexcept
+Application::Application(const Window::Specs &p_WindowSpecs)
 {
     m_Window.Construct(p_WindowSpecs);
 }
 #endif
-void Application::Shutdown() noexcept
+void Application::Shutdown()
 {
     if (m_WindowAlive)
     {
@@ -311,7 +311,7 @@ void Application::Shutdown() noexcept
     IApplication::Shutdown();
 }
 
-static void endFrame() noexcept
+static void endFrame()
 {
 #ifdef TKIT_ENABLE_INSTRUMENTATION
     const i64 drawCalls = static_cast<i64>(Detail::GetDrawCallCount());
@@ -321,7 +321,7 @@ static void endFrame() noexcept
     TKIT_PROFILE_MARK_FRAME();
 }
 
-bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
+bool Application::NextFrame(TKit::Clock &p_Clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
 #ifdef ONYX_ENABLE_IMGUI
@@ -383,20 +383,20 @@ bool Application::NextFrame(TKit::Clock &p_Clock) noexcept
     return true;
 }
 
-const Window *Application::GetMainWindow() const noexcept
+const Window *Application::GetMainWindow() const
 {
     return m_Window.Get();
 }
-Window *Application::GetMainWindow() noexcept
+Window *Application::GetMainWindow()
 {
     return m_Window.Get();
 }
 #ifdef ONYX_ENABLE_IMGUI
-MultiWindowApplication::MultiWindowApplication(const i32 p_ImGuiConfigFlags) noexcept : IApplication(p_ImGuiConfigFlags)
+MultiWindowApplication::MultiWindowApplication(const i32 p_ImGuiConfigFlags) : IApplication(p_ImGuiConfigFlags)
 {
 }
 #endif
-void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderCallbacks &p_Callbacks) noexcept
+void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderCallbacks &p_Callbacks)
 {
     Window *window = m_Windows[p_WindowIndex];
     for (const Event &event : window->GetNewEvents())
@@ -414,19 +414,19 @@ void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderC
     window->Render(p_Callbacks);
 }
 
-void MultiWindowApplication::Shutdown() noexcept
+void MultiWindowApplication::Shutdown()
 {
     CloseAllWindows();
     IApplication::Shutdown();
 }
 
-void MultiWindowApplication::CloseAllWindows() noexcept
+void MultiWindowApplication::CloseAllWindows()
 {
     for (u32 i = m_Windows.GetSize() - 1; i < m_Windows.GetSize(); --i)
         CloseWindow(i);
 }
 
-void MultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
+void MultiWindowApplication::CloseWindow(const Window *p_Window)
 {
     for (u32 i = 0; i < m_Windows.GetSize(); ++i)
         if (m_Windows[i] == p_Window)
@@ -437,32 +437,32 @@ void MultiWindowApplication::CloseWindow(const Window *p_Window) noexcept
     TKIT_ERROR("Window was not found");
 }
 
-const Window *MultiWindowApplication::GetWindow(const u32 p_Index) const noexcept
+const Window *MultiWindowApplication::GetWindow(const u32 p_Index) const
 {
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
     return m_Windows[p_Index];
 }
-Window *MultiWindowApplication::GetWindow(const u32 p_Index) noexcept
+Window *MultiWindowApplication::GetWindow(const u32 p_Index)
 {
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
     return m_Windows[p_Index];
 }
 
-const Window *MultiWindowApplication::GetMainWindow() const noexcept
+const Window *MultiWindowApplication::GetMainWindow() const
 {
     return GetWindow(0);
 }
-Window *MultiWindowApplication::GetMainWindow() noexcept
+Window *MultiWindowApplication::GetMainWindow()
 {
     return GetWindow(0);
 }
 
-u32 MultiWindowApplication::GetWindowCount() const noexcept
+u32 MultiWindowApplication::GetWindowCount() const
 {
     return m_Windows.GetSize();
 }
 
-bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
+bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApplication::NextFrame");
 #ifdef ONYX_ENABLE_IMGUI
@@ -483,7 +483,7 @@ bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock) noexcept
     return !m_Windows.IsEmpty();
 }
 
-void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
+void MultiWindowApplication::CloseWindow(const u32 p_Index)
 {
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
 
@@ -518,7 +518,7 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index) noexcept
     }
 }
 
-void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
+void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs)
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
@@ -541,7 +541,7 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs) noexcept
     onEvent(m_Windows.GetSize() - 1, event);
 }
 
-void MultiWindowApplication::processWindows() noexcept
+void MultiWindowApplication::processWindows()
 {
     m_DeferFlag = true;
     RenderCallbacks mainCbs{};

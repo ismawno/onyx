@@ -10,7 +10,7 @@
 namespace Onyx
 {
 const VkFormat s_DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
-FrameScheduler::FrameScheduler(Window &p_Window) noexcept
+FrameScheduler::FrameScheduler(Window &p_Window)
 {
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     createSwapChain(p_Window, extent);
@@ -21,7 +21,7 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
     m_SyncData = CreateSynchronizationObjects();
 }
 
-FrameScheduler::~FrameScheduler() noexcept
+FrameScheduler::~FrameScheduler()
 {
     Core::DeviceWaitIdle();
     destroyImageData();
@@ -39,7 +39,7 @@ FrameScheduler::~FrameScheduler() noexcept
     m_SwapChain.Destroy();
 }
 
-void FrameScheduler::handlePresentResult(Window &p_Window, const VkResult p_Result) noexcept
+void FrameScheduler::handlePresentResult(Window &p_Window, const VkResult p_Result)
 {
     if (p_Result == VK_ERROR_SURFACE_LOST_KHR)
         recreateSurface(p_Window);
@@ -58,7 +58,7 @@ void FrameScheduler::handlePresentResult(Window &p_Window, const VkResult p_Resu
     m_PresentModeChanged = false;
 }
 
-VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
+VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window)
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::BeginFrame");
     TKIT_ASSERT(!m_FrameStarted, "[ONYX] Cannot begin a new frame when there is already one in progress");
@@ -103,7 +103,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window) noexcept
     return cmd.GraphicsCommand;
 }
 
-void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags) noexcept
+void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::SubmitCurrentCommandBuffer");
     const auto &table = Core::GetDeviceTable();
@@ -141,7 +141,7 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags) noe
     TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, sync.InFlightFence), VK_SUCCESS,
                         "[ONYX] Failed to submit graphics queue");
 }
-VkResult FrameScheduler::Present() noexcept
+VkResult FrameScheduler::Present()
 {
     TKIT_PROFILE_NSCOPE("Onyx::FramwScheduler::Present");
 
@@ -162,7 +162,7 @@ VkResult FrameScheduler::Present() noexcept
     const VkResult result = table.QueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
     return result;
 }
-void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Flags) noexcept
+void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Flags)
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end a frame when there is no frame in progress");
@@ -184,7 +184,7 @@ static void transitionImage(const VKit::Vulkan::DeviceTable &p_Table, const VkCo
                             FrameScheduler::Image &p_Image, const VkImageLayout p_NewLayout,
                             const VkAccessFlags p_SrcAccess, const VkAccessFlags p_DstAccess,
                             const VkPipelineStageFlags p_SrcStage, const VkPipelineStageFlags p_DstStage,
-                            const VkImageAspectFlags p_AspectMask = VK_IMAGE_ASPECT_COLOR_BIT) noexcept
+                            const VkImageAspectFlags p_AspectMask = VK_IMAGE_ASPECT_COLOR_BIT)
 {
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -201,7 +201,7 @@ static void transitionImage(const VKit::Vulkan::DeviceTable &p_Table, const VkCo
     p_Image.Layout = p_NewLayout;
 }
 
-void FrameScheduler::BeginRendering(const Color &p_ClearColor) noexcept
+void FrameScheduler::BeginRendering(const Color &p_ClearColor)
 {
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot begin rendering if a frame is not in progress");
 
@@ -264,7 +264,7 @@ void FrameScheduler::BeginRendering(const Color &p_ClearColor) noexcept
     table.CmdBeginRenderingKHR(cmd, &renderInfo);
 }
 
-void FrameScheduler::EndRendering() noexcept
+void FrameScheduler::EndRendering()
 {
     TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end rendering if a frame is not in progress");
     const auto &table = Core::GetDeviceTable();
@@ -309,7 +309,7 @@ void FrameScheduler::EndRendering() noexcept
                     VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
 }
 
-VkResult FrameScheduler::AcquireNextImage() noexcept
+VkResult FrameScheduler::AcquireNextImage()
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::AcquireNextImage");
     const auto &table = Core::GetDeviceTable();
@@ -323,7 +323,7 @@ VkResult FrameScheduler::AcquireNextImage() noexcept
                                      m_SyncData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
 }
 
-void FrameScheduler::SubmitTransferQueue() noexcept
+void FrameScheduler::SubmitTransferQueue()
 {
     const auto &table = Core::GetDeviceTable();
     TKIT_ASSERT_RETURNS(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand), VK_SUCCESS,
@@ -341,18 +341,18 @@ void FrameScheduler::SubmitTransferQueue() noexcept
     TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE), VK_SUCCESS);
 }
 
-VkCommandBuffer FrameScheduler::GetGraphicsCommandBuffer() const noexcept
+VkCommandBuffer FrameScheduler::GetGraphicsCommandBuffer() const
 {
     return m_CommandData[m_FrameIndex].GraphicsCommand;
 }
-VkCommandBuffer FrameScheduler::GetTransferCommandBuffer() const noexcept
+VkCommandBuffer FrameScheduler::GetTransferCommandBuffer() const
 {
     return m_CommandData[m_FrameIndex].TransferCommand;
 }
 
 PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,
                                                   const VKit::Shader &p_FragmentShader,
-                                                  const PostProcessingOptions &p_Options) noexcept
+                                                  const PostProcessingOptions &p_Options)
 {
     PostProcessing::Specs specs{};
     specs.Layout = p_Layout;
@@ -365,21 +365,21 @@ PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_
     return m_PostProcessing.Get();
 }
 
-PostProcessing *FrameScheduler::GetPostProcessing() noexcept
+PostProcessing *FrameScheduler::GetPostProcessing()
 {
     return m_PostProcessing.Get();
 }
 
-void FrameScheduler::RemovePostProcessing() noexcept
+void FrameScheduler::RemovePostProcessing()
 {
     setupNaivePostProcessing();
 }
 
-u32 FrameScheduler::GetFrameIndex() const noexcept
+u32 FrameScheduler::GetFrameIndex() const
 {
     return m_FrameIndex;
 }
-VkPipelineRenderingCreateInfoKHR FrameScheduler::CreateSceneRenderInfo() const noexcept
+VkPipelineRenderingCreateInfoKHR FrameScheduler::CreateSceneRenderInfo() const
 {
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
     VkPipelineRenderingCreateInfoKHR renderInfo{};
@@ -390,7 +390,7 @@ VkPipelineRenderingCreateInfoKHR FrameScheduler::CreateSceneRenderInfo() const n
     renderInfo.stencilAttachmentFormat = s_DepthStencilFormat;
     return renderInfo;
 }
-VkPipelineRenderingCreateInfoKHR FrameScheduler::CreatePostProcessingRenderInfo() const noexcept
+VkPipelineRenderingCreateInfoKHR FrameScheduler::CreatePostProcessingRenderInfo() const
 {
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
     VkPipelineRenderingCreateInfoKHR renderInfo{};
@@ -402,21 +402,21 @@ VkPipelineRenderingCreateInfoKHR FrameScheduler::CreatePostProcessingRenderInfo(
     return renderInfo;
 }
 
-const VKit::SwapChain &FrameScheduler::GetSwapChain() const noexcept
+const VKit::SwapChain &FrameScheduler::GetSwapChain() const
 {
     return m_SwapChain;
 }
 
-VkPresentModeKHR FrameScheduler::GetPresentMode() const noexcept
+VkPresentModeKHR FrameScheduler::GetPresentMode() const
 {
     return m_PresentMode;
 }
-TKit::StaticArray8<VkPresentModeKHR> FrameScheduler::GetAvailablePresentModes() const noexcept
+TKit::StaticArray8<VkPresentModeKHR> FrameScheduler::GetAvailablePresentModes() const
 {
 
     return m_SwapChain.GetInfo().SupportDetails.PresentModes;
 }
-void FrameScheduler::SetPresentMode(const VkPresentModeKHR p_PresentMode) noexcept
+void FrameScheduler::SetPresentMode(const VkPresentModeKHR p_PresentMode)
 {
     if (m_PresentMode == p_PresentMode)
         return;
@@ -424,7 +424,7 @@ void FrameScheduler::SetPresentMode(const VkPresentModeKHR p_PresentMode) noexce
     m_PresentMode = p_PresentMode;
 }
 
-VkExtent2D FrameScheduler::waitGlfwEvents(Window &p_Window) noexcept
+VkExtent2D FrameScheduler::waitGlfwEvents(Window &p_Window)
 {
     VkExtent2D windowExtent = {p_Window.GetScreenWidth(), p_Window.GetScreenHeight()};
     while (windowExtent.width == 0 || windowExtent.height == 0)
@@ -434,7 +434,7 @@ VkExtent2D FrameScheduler::waitGlfwEvents(Window &p_Window) noexcept
     }
     return windowExtent;
 }
-void FrameScheduler::createSwapChain(Window &p_Window, const VkExtent2D &p_WindowExtent) noexcept
+void FrameScheduler::createSwapChain(Window &p_Window, const VkExtent2D &p_WindowExtent)
 {
     const VKit::LogicalDevice &device = Core::GetDevice();
     const auto result =
@@ -455,7 +455,7 @@ void FrameScheduler::createSwapChain(Window &p_Window, const VkExtent2D &p_Windo
 #endif
 }
 
-void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
+void FrameScheduler::recreateSwapChain(Window &p_Window)
 {
     TKIT_LOG_INFO("[ONYX] Out of date swap chain. Re-creating swap chain and resources");
     const VkExtent2D extent = waitGlfwEvents(p_Window);
@@ -466,7 +466,7 @@ void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
     old.Destroy();
     recreateResources();
 }
-void FrameScheduler::recreateSurface(Window &p_Window) noexcept
+void FrameScheduler::recreateSurface(Window &p_Window)
 {
     TKIT_LOG_INFO("[ONYX] Surface lost... re-creating surface, swap chain and resources");
     const VkExtent2D extent = waitGlfwEvents(p_Window);
@@ -480,7 +480,7 @@ void FrameScheduler::recreateSurface(Window &p_Window) noexcept
     recreateResources();
 }
 
-void FrameScheduler::recreateResources() noexcept
+void FrameScheduler::recreateResources()
 {
     destroyImageData();
     m_Images = createImageData();
@@ -491,7 +491,7 @@ void FrameScheduler::recreateResources() noexcept
     m_ImageIndex = 0;
 }
 
-TKit::StaticArray4<FrameScheduler::ImageData> FrameScheduler::createImageData() noexcept
+TKit::StaticArray4<FrameScheduler::ImageData> FrameScheduler::createImageData()
 {
     const auto result = VKit::ImageHouse::Create(Core::GetDevice(), Core::GetVulkanAllocator());
     VKIT_ASSERT_RESULT(result);
@@ -523,7 +523,7 @@ TKit::StaticArray4<FrameScheduler::ImageData> FrameScheduler::createImageData() 
     }
     return images;
 }
-void FrameScheduler::destroyImageData() noexcept
+void FrameScheduler::destroyImageData()
 {
     for (const ImageData &data : m_Images)
     {
@@ -533,7 +533,7 @@ void FrameScheduler::destroyImageData() noexcept
     }
 }
 
-void FrameScheduler::createProcessingEffects() noexcept
+void FrameScheduler::createProcessingEffects()
 {
     m_NaivePostProcessingFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/pp-naive.frag");
 
@@ -548,7 +548,7 @@ void FrameScheduler::createProcessingEffects() noexcept
     setupNaivePostProcessing();
 }
 
-void FrameScheduler::createCommandData() noexcept
+void FrameScheduler::createCommandData()
 {
     m_TransferMode = Core::GetTransferMode();
     const u32 gindex = Core::GetGraphicsIndex();
@@ -590,7 +590,7 @@ void FrameScheduler::createCommandData() noexcept
     }
 }
 
-void FrameScheduler::setupNaivePostProcessing() noexcept
+void FrameScheduler::setupNaivePostProcessing()
 {
     PostProcessing::Specs specs{};
     specs.Layout = m_NaivePostProcessingLayout;
@@ -601,7 +601,7 @@ void FrameScheduler::setupNaivePostProcessing() noexcept
     m_PostProcessing->Setup(specs);
 }
 
-TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateColorImageViews() const noexcept
+TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateColorImageViews() const
 {
     TKit::StaticArray4<VkImageView> imageViews;
     for (u32 i = 0; i < m_SwapChain.GetInfo().ImageData.GetSize(); ++i)
