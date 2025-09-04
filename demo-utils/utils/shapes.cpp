@@ -82,8 +82,7 @@ template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context)
     SetProperties(p_Context);
     draw(p_Context, this->Transform);
 }
-template <Dimension D>
-void Shape<D>::DrawRaw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
+template <Dimension D> void Shape<D>::DrawRaw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
     draw(p_Context, p_Transform);
 }
@@ -128,8 +127,7 @@ template <Dimension D> const char *MeshShape<D>::GetName() const
 {
     return m_Mesh.Name.c_str();
 }
-template <Dimension D>
-void MeshShape<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
+template <Dimension D> void MeshShape<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
     p_Context->Mesh(p_Transform.ComputeTransform(), m_Mesh.Mesh, m_Dimensions);
 }
@@ -139,8 +137,7 @@ template <Dimension D> const char *Triangle<D>::GetName() const
     return "Triangle";
 }
 
-template <Dimension D>
-void Triangle<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
+template <Dimension D> void Triangle<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
     p_Context->Triangle(p_Transform.ComputeTransform());
 }
@@ -160,8 +157,7 @@ template <Dimension D> void MeshShape<D>::Edit()
     Shape<D>::Edit();
     dimensionEditor<D>(m_Dimensions);
 }
-template <Dimension D>
-void Square<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
+template <Dimension D> void Square<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
     p_Context->Square(p_Transform.ComputeTransform(), m_Dimensions);
 }
@@ -171,8 +167,7 @@ template <Dimension D> const char *Circle<D>::GetName() const
     return "Circle";
 }
 
-template <Dimension D>
-void Circle<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
+template <Dimension D> void Circle<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
     p_Context->Circle(p_Transform.ComputeTransform(), m_Dimensions, m_Options);
 }
@@ -195,8 +190,7 @@ template <Dimension D> const char *NGon<D>::GetName() const
     return "NGon";
 }
 
-template <Dimension D>
-void NGon<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
+template <Dimension D> void NGon<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
     p_Context->NGon(p_Transform.ComputeTransform(), Sides, m_Dimensions);
 }
@@ -237,8 +231,7 @@ template <Dimension D> void Polygon<D>::Edit()
     }
 }
 
-template <Dimension D>
-void Polygon<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
+template <Dimension D> void Polygon<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
     p_Context->Polygon(p_Transform.ComputeTransform(), Vertices);
 }
@@ -248,8 +241,7 @@ template <Dimension D> const char *Stadium<D>::GetName() const
     return "Stadium";
 }
 
-template <Dimension D>
-void Stadium<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
+template <Dimension D> void Stadium<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
     p_Context->Stadium(p_Transform.ComputeTransform(), m_Length, m_Diameter);
 }

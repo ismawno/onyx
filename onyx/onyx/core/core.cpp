@@ -173,7 +173,7 @@ static void createProfilingContext()
         s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue, s_ProfilingGraphicsCmd,
         VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
 
-    s_DeletionQueue.Push([]() { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_GraphicsContext); });
+    s_DeletionQueue.Push([] { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_GraphicsContext); });
 
     // if (s_TransferMode == TransferMode::Separate)
     // {
@@ -185,7 +185,7 @@ static void createProfilingContext()
     //         s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_TransferQueue, s_ProfilingTransferCmd,
     //         VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
     //
-    //     s_DeletionQueue.Push([]() { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_TransferContext); });
+    //     s_DeletionQueue.Push([] { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_TransferContext); });
     // }
     // else
     //     s_TransferContext = s_GraphicsContext;
@@ -270,7 +270,7 @@ void Core::Initialize(const Specs &p_Specs)
     {
         s_DefaultManager.Construct();
         s_TaskManager = s_DefaultManager.Get();
-        s_DeletionQueue.Push([]() { s_DefaultManager.Destruct(); });
+        s_DeletionQueue.Push([] { s_DefaultManager.Destruct(); });
     }
     s_Initializer = p_Specs.Initializer;
 

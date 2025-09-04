@@ -344,7 +344,7 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
         if constexpr (D == D2)
         {
             const u32 size = dims.x * dims.y;
-            const auto fn = [&dims, &separation, &lattice, &midPoint, &p_Context](const u32 p_Start, const u32 p_End) {
+            const auto fn = [&](const u32 p_Start, const u32 p_End) {
                 Transform<D2> transform = lattice.Shape->Transform;
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
@@ -371,8 +371,7 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
         {
             const u32 size = dims.x * dims.y * dims.z;
             const u32 yz = dims.y * dims.z;
-            const auto fn = [&dims, yz, &separation, &lattice, &midPoint, &p_Context](const u32 p_Start,
-                                                                                      const u32 p_End) {
+            const auto fn = [&, yz](const u32 p_Start, const u32 p_End) {
                 Transform<D3> transform = lattice.Shape->Transform;
                 for (u32 i = p_Start; i < p_End; ++i)
                 {

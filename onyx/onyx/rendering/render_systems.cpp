@@ -37,8 +37,7 @@ template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::~RenderSystem
     m_Pipeline.Destroy();
 }
 
-template <Dimension D, PipelineMode PMode>
-bool RenderSystem<D, PMode>::HasInstances(const u32 p_FrameIndex) const
+template <Dimension D, PipelineMode PMode> bool RenderSystem<D, PMode>::HasInstances(const u32 p_FrameIndex) const
 {
     return m_DeviceInstances != 0 && m_DeviceSubmissionId[p_FrameIndex] != m_HostSubmissionId;
 }
@@ -46,8 +45,7 @@ template <Dimension D, PipelineMode PMode> void RenderSystem<D, PMode>::Flush()
 {
     ++m_HostSubmissionId;
 }
-template <Dimension D, PipelineMode PMode>
-void RenderSystem<D, PMode>::AcknowledgeSubmission(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void RenderSystem<D, PMode>::AcknowledgeSubmission(const u32 p_FrameIndex)
 {
     m_DeviceSubmissionId[p_FrameIndex] = m_HostSubmissionId;
 }
@@ -94,7 +92,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
     for (const auto &[mesh, buffers] : localData)
         for (const auto data : buffers)
         {
-            const Task task = tm->CreateTask([offset, &storageBuffer, data]() {
+            const Task task = tm->CreateTask([&, offset] {
                 TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
                 storageBuffer.Write(*data, offset);
             });
@@ -164,8 +162,7 @@ static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescrip
     }
 }
 
-template <Dimension D, PipelineMode PMode>
-void MeshRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
@@ -255,8 +252,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Gro
     m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
 }
 
-template <Dimension D, PipelineMode PMode>
-void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
     auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
@@ -270,7 +266,7 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
             const auto &data = hostData.Data[i];
             if (!data.IsEmpty())
             {
-                const Task task = tm->CreateTask([offset, &storageBuffer, &data]() {
+                const Task task = tm->CreateTask([&, offset] {
                     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
                     storageBuffer.Write(data, offset);
                 });
@@ -300,8 +296,7 @@ void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
     }
 }
 
-template <Dimension D, PipelineMode PMode>
-void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
@@ -373,8 +368,7 @@ PolygonRenderer<D, PMode>::PolygonRenderer(const VkPipelineRenderingCreateInfoKH
 }
 
 template <Dimension D, PipelineMode PMode>
-void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData,
-                                     const TKit::Span<const fvec2> p_Vertices)
+void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const TKit::Span<const fvec2> p_Vertices)
 {
     TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX] A polygon must have at least 3 sides");
     thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
@@ -447,13 +441,12 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
     for (const auto &hostData : m_HostData)
         if (!hostData.Data.IsEmpty())
         {
-            const Task task =
-                tm->CreateTask([offset, voffset, ioffset, &hostData, &storageBuffer, &vertexBuffer, &indexBuffer]() {
-                    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
-                    storageBuffer.Write(hostData.Data, offset);
-                    vertexBuffer.Write(hostData.Vertices, voffset);
-                    indexBuffer.Write(hostData.Indices, ioffset);
-                });
+            const Task task = tm->CreateTask([&, offset, voffset, ioffset] {
+                TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
+                storageBuffer.Write(hostData.Data, offset);
+                vertexBuffer.Write(hostData.Vertices, voffset);
+                indexBuffer.Write(hostData.Indices, ioffset);
+            });
 
             offset += hostData.Data.GetSize();
             voffset += hostData.Vertices.GetSize();
@@ -482,8 +475,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
     }
 }
 
-template <Dimension D, PipelineMode PMode>
-void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
@@ -609,7 +601,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
     for (const auto &hostData : m_HostData)
         if (!hostData.Data.IsEmpty())
         {
-            const Task task = tm->CreateTask([offset, &storageBuffer, &hostData]() {
+            const Task task = tm->CreateTask([&, offset] {
                 TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
                 storageBuffer.Write(hostData.Data, offset);
             });
@@ -639,8 +631,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
     }
 }
 
-template <Dimension D, PipelineMode PMode>
-void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
 

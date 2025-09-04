@@ -34,13 +34,13 @@ void RenderGroup<D, R>::SendToDevice(const u32 p_FrameIndex, TaskArray &p_Tasks)
 {
     const TKit::ITaskManager *tm = Core::GetTaskManager();
     if (NoStencilWriteDoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { NoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
+        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex] { NoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
     if (DoStencilWriteDoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
+        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex] { DoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
     if (DoStencilWriteNoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilWriteNoFill.SendToDevice(p_FrameIndex); }));
+        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex] { DoStencilWriteNoFill.SendToDevice(p_FrameIndex); }));
     if (DoStencilTestNoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex]() { DoStencilTestNoFill.SendToDevice(p_FrameIndex); }));
+        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex] { DoStencilTestNoFill.SendToDevice(p_FrameIndex); }));
 }
 
 template <Dimension D, template <Dimension, PipelineMode> typename R>
@@ -517,8 +517,7 @@ static void doStencilTestNoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderer
     (p_Renderers.DoStencilTestNoFill.Render(p_RenderInfo), ...);
 }
 
-template <Dimension D>
-static void setCameraViewport(const VkCommandBuffer p_CommandBuffer, const CameraInfo &p_Camera)
+template <Dimension D> static void setCameraViewport(const VkCommandBuffer p_CommandBuffer, const CameraInfo &p_Camera)
 {
     const auto &table = Core::GetDeviceTable();
     if (!p_Camera.Transparent)
