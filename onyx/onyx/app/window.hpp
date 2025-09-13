@@ -89,21 +89,8 @@ class ONYX_API Window
         Flags Flags = Flag_Resizable | Flag_Visible | Flag_Decorated | Flag_Focused;
     };
 
-    /**
-     * @brief Constructs a window with default specifications.
-     */
     Window();
-    /**
-     * @brief Constructs a window with the given specifications.
-     *
-     * @param p_Specs Specifications for the window.
-     */
-    explicit Window(const Specs &p_Specs);
-    /**
-     * @brief Destructor.
-     *
-     * Cleans up resources associated with the window.
-     */
+    Window(const Specs &p_Specs);
     ~Window();
 
     /**

@@ -296,7 +296,7 @@ struct ONYX_API Event
     fvec2 ScrollOffset{0.f};
     Window *Window = nullptr;
 
-    explicit(false) operator bool() const
+    operator bool() const
     {
         return !Empty;
     }

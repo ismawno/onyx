@@ -8,12 +8,12 @@ namespace Onyx
 {
 struct ONYX_API Color
 {
-    explicit Color(f32 p_Val = 1.f);
-    explicit Color(u32 p_Val);
-    explicit Color(u8 p_Val);
+    Color(f32 p_Val = 1.f);
+    Color(u32 p_Val);
+    Color(u8 p_Val);
 
-    explicit(false) Color(const fvec4 &p_RGBA);
-    explicit(false) Color(const fvec3 &p_RGB, f32 p_Alpha = 1.f);
+    Color(const fvec4 &p_RGBA);
+    Color(const fvec3 &p_RGB, f32 p_Alpha = 1.f);
 
     Color(f32 p_Red, f32 p_Green, f32 p_Blue, f32 p_Alpha = 1.f);
     Color(u32 p_Red, u32 p_Green, u32 p_Blue, u32 p_Alpha = 255);
@@ -51,8 +51,8 @@ struct ONYX_API Color
     const f32 *AsPointer() const;
     f32 *AsPointer();
 
-    explicit(false) operator const fvec4 &() const;
-    explicit(false) operator const fvec3 &() const;
+    operator const fvec4 &() const;
+    operator const fvec3 &() const;
 
     Color &operator+=(const Color &p_Right);
     Color &operator-=(const Color &p_Right);
