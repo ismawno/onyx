@@ -30,17 +30,16 @@ void RenderGroup<D, R>::GrowToFit(const u32 p_FrameIndex)
     DoStencilTestNoFill.GrowToFit(p_FrameIndex);
 }
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderGroup<D, R>::SendToDevice(const u32 p_FrameIndex, TaskArray &p_Tasks)
+void RenderGroup<D, R>::SendToDevice(const u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks)
 {
-    const TKit::ITaskManager *tm = Core::GetTaskManager();
     if (NoStencilWriteDoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex] { NoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
+        p_Tasks.Append([this, p_FrameIndex] { NoStencilWriteDoFill.SendToDevice(p_FrameIndex); });
     if (DoStencilWriteDoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex] { DoStencilWriteDoFill.SendToDevice(p_FrameIndex); }));
+        p_Tasks.Append([this, p_FrameIndex] { DoStencilWriteDoFill.SendToDevice(p_FrameIndex); });
     if (DoStencilWriteNoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex] { DoStencilWriteNoFill.SendToDevice(p_FrameIndex); }));
+        p_Tasks.Append([this, p_FrameIndex] { DoStencilWriteNoFill.SendToDevice(p_FrameIndex); });
     if (DoStencilTestNoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append(tm->CreateTask([this, p_FrameIndex] { DoStencilTestNoFill.SendToDevice(p_FrameIndex); }));
+        p_Tasks.Append([this, p_FrameIndex] { DoStencilTestNoFill.SendToDevice(p_FrameIndex); });
 }
 
 template <Dimension D, template <Dimension, PipelineMode> typename R>
@@ -309,7 +308,7 @@ void Renderer<D2>::GrowToFit(const u32 p_FrameIndex)
 
 void Renderer<D2>::SendToDevice(const u32 p_FrameIndex)
 {
-    TaskArray tasks{};
+    TKit::StaticArray16<Task> tasks{};
     m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
@@ -318,26 +317,15 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex)
         return;
 
     TKit::ITaskManager *tm = Core::GetTaskManager();
-    const Task task = tasks.GetBack();
-    tasks.Pop();
 
-    if (tasks.IsEmpty())
-    {
-        (*task)();
-        tm->DestroyTask(task);
-        return;
-    }
+    u32 sindex = 0;
+    for (u32 i = 1; i < tasks.GetSize(); ++i)
+        sindex = tm->SubmitTask(&tasks[i], sindex);
 
-    tm->SubmitTasks(TKit::Span<const Task>{tasks});
+    tasks[0]();
 
-    (*task)();
-    tm->DestroyTask(task);
-
-    for (const Task t : tasks)
-    {
-        tm->WaitUntilFinished(t);
-        tm->DestroyTask(t);
-    }
+    for (u32 i = 1; i < tasks.GetSize(); ++i)
+        tm->WaitUntilFinished(tasks[i]);
 }
 VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
                                                       const VkCommandBuffer p_TransferCommand)
@@ -390,23 +378,21 @@ void Renderer<D3>::GrowToFit(const u32 p_FrameIndex)
 
 void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
 {
-    TaskArray tasks{};
+    TKit::StaticArray16<Task> tasks{};
     m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
     m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
     m_CircleRenderer.SendToDevice(p_FrameIndex, tasks);
 
-    Task task = nullptr;
+    TKit::ITaskManager *tm = Core::GetTaskManager();
     if (!tasks.IsEmpty())
     {
-        task = tasks.GetBack();
-        tasks.Pop();
+        u32 sindex = 0;
+        for (u32 i = 1; i < tasks.GetSize(); ++i)
+            sindex = tm->SubmitTask(&tasks[i], sindex);
+
+        tasks[0]();
     }
-
-    TKit::ITaskManager *tm = Core::GetTaskManager();
-
-    if (!tasks.IsEmpty())
-        tm->SubmitTasks(TKit::Span<const Task>{tasks});
 
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
     if (dcount > 0)
@@ -423,16 +409,9 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
         const auto &hostPointBuffer = m_HostLightData.PointLights;
         devPointBuffer.Write(hostPointBuffer);
     }
-    if (!task)
-        return;
 
-    (*task)();
-    tm->DestroyTask(task);
-    for (const Task t : tasks)
-    {
-        tm->WaitUntilFinished(t);
-        tm->DestroyTask(t);
-    }
+    for (u32 i = 1; i < tasks.GetSize(); ++i)
+        tm->WaitUntilFinished(tasks[i]);
 }
 VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
                                                       const VkCommandBuffer p_TransferCommand)

@@ -37,7 +37,7 @@
 #endif
 
 #ifndef ONYX_MAX_TASKS
-#    define ONYX_MAX_TASKS 512
+#    define ONYX_MAX_TASKS 256
 #endif
 
 namespace TKit
@@ -53,7 +53,7 @@ template <typename T> class Task;
 
 namespace Onyx
 {
-using Task = TKit::Task<void> *;
+using Task = TKit::Task<void>;
 using TaskArray = TKit::StaticArray<Task, ONYX_MAX_TASKS>;
 
 class Initializer

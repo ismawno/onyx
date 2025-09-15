@@ -82,42 +82,40 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
         localData{};
     localData.clear();
 
+    u32 count = 0;
     for (const auto &hostData : m_HostData)
         for (const auto &[mesh, data] : hostData.Data)
             if (!data.IsEmpty())
+            {
                 localData[mesh].Append(&data);
+                ++count;
+            }
 
     auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
+    u32 index = 0;
+    u32 sindex = 0;
+
     for (const auto &[mesh, buffers] : localData)
         for (const auto data : buffers)
         {
-            const Task task = tm->CreateTask([&, offset] {
+            const auto copy = [&, offset] {
                 TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
                 storageBuffer.Write(*data, offset);
-            });
-            tasks.Append(task);
+            };
+
+            if (count == ++index)
+                copy();
+            else
+            {
+                Task &task = tasks.Append(copy);
+                sindex = tm->SubmitTask(&task, sindex);
+            }
             offset += data->GetSize();
         }
 
-    const Task task = tasks.GetBack();
-    tasks.Pop();
-    if (tasks.IsEmpty())
-    {
-        (*task)();
-        tm->DestroyTask(task);
-        return;
-    }
-
-    tm->SubmitTasks(TKit::Span<const Task>{tasks});
-
-    (*task)();
-    tm->DestroyTask(task);
-    for (const Task task : tasks)
-    {
+    for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
-        tm->DestroyTask(task);
-    }
 }
 
 template <DrawLevel DLevel> static VkPipelineLayout getLayout()
@@ -260,40 +258,34 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Sen
     TaskArray tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
-    for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
-        for (const auto &hostData : m_HostData)
+    constexpr u32 pcount = Primitives<D>::Count;
+    const u32 hcount = m_HostData.GetSize();
+
+    u32 sindex = 0;
+    for (u32 i = 0; i < pcount; ++i)
+        for (u32 j = 0; j < hcount; ++j)
         {
+            const auto &hostData = m_HostData[j];
             const auto &data = hostData.Data[i];
             if (!data.IsEmpty())
             {
-                const Task task = tm->CreateTask([&, offset] {
+                const auto copy = [&, offset] {
                     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
                     storageBuffer.Write(data, offset);
-                });
-
-                tasks.Append(task);
+                };
+                if (i == pcount - 1 && j == hcount - 1)
+                    copy();
+                else
+                {
+                    Task &task = tasks.Append(copy);
+                    sindex = tm->SubmitTask(&task, sindex);
+                }
                 offset += data.GetSize();
             }
         }
 
-    const Task task = tasks.GetBack();
-    tasks.Pop();
-    if (tasks.IsEmpty())
-    {
-        (*task)();
-        tm->DestroyTask(task);
-        return;
-    }
-
-    tm->SubmitTasks(TKit::Span<const Task>{tasks});
-
-    (*task)();
-    tm->DestroyTask(task);
-    for (const Task task : tasks)
-    {
+    for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
-        tm->DestroyTask(task);
-    }
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
@@ -333,7 +325,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     u32 firstInstance = 0;
     const auto &table = Core::GetDeviceTable();
 
-    for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
+    for (u32 i = 0; i < Primitives<D>::Count; ++i)
     {
         u32 instanceCount = 0;
         for (const auto &hostData : m_HostData)
@@ -438,41 +430,35 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
     TaskArray tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
-    for (const auto &hostData : m_HostData)
+    u32 sindex = 0;
+    const u32 hcount = m_HostData.GetSize();
+    for (u32 i = 0; i < hcount; ++i)
+    {
+        const auto &hostData = m_HostData[i];
         if (!hostData.Data.IsEmpty())
         {
-            const Task task = tm->CreateTask([&, offset, voffset, ioffset] {
+            const auto copy = [&, offset, voffset, ioffset] {
                 TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
                 storageBuffer.Write(hostData.Data, offset);
                 vertexBuffer.Write(hostData.Vertices, voffset);
                 indexBuffer.Write(hostData.Indices, ioffset);
-            });
+            };
+            if (i == hcount - 1)
+                copy();
+            else
+            {
+                Task &task = tasks.Append(copy);
+                sindex = tm->SubmitTask(&task, sindex);
+            }
 
             offset += hostData.Data.GetSize();
             voffset += hostData.Vertices.GetSize();
             ioffset += hostData.Indices.GetSize();
-
-            tasks.Append(task);
         }
-
-    const Task task = tasks.GetBack();
-    tasks.Pop();
-    if (tasks.IsEmpty())
-    {
-        (*task)();
-        tm->DestroyTask(task);
-        return;
     }
 
-    tm->SubmitTasks(TKit::Span<const Task>{tasks});
-
-    (*task)();
-    tm->DestroyTask(task);
-    for (const Task task : tasks)
-    {
+    for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
-        tm->DestroyTask(task);
-    }
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
@@ -598,37 +584,30 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
     TaskArray tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
-    for (const auto &hostData : m_HostData)
+    u32 sindex = 0;
+    const u32 hcount = m_HostData.GetSize();
+    for (u32 i = 0; i < hcount; ++i)
+    {
+        const auto &hostData = m_HostData[i];
         if (!hostData.Data.IsEmpty())
         {
-            const Task task = tm->CreateTask([&, offset] {
+            const auto copy = [&, offset] {
                 TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
                 storageBuffer.Write(hostData.Data, offset);
-            });
-
-            tasks.Append(task);
+            };
+            if (i == hcount - 1)
+                copy();
+            else
+            {
+                Task &task = tasks.Append(copy);
+                sindex = tm->SubmitTask(&task, sindex);
+            }
             offset += hostData.Data.GetSize();
         }
-
-    const Task task = tasks.GetBack();
-    tasks.Pop();
-    if (tasks.IsEmpty())
-    {
-        (*task)();
-        tm->DestroyTask(task);
-        return;
     }
 
-    tm->SubmitTasks(TKit::Span<const Task>{tasks});
-
-    (*task)();
-    tm->DestroyTask(task);
-
-    for (const Task task : tasks)
-    {
+    for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
-        tm->DestroyTask(task);
-    }
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)

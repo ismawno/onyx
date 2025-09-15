@@ -99,12 +99,12 @@ template <Dimension D> struct Primitives;
 
 template <> struct ONYX_API Primitives<D2> : IPrimitives<D2>
 {
-    static constexpr u32 AMOUNT = 2 + ONYX_REGULAR_POLYGON_COUNT;
+    static constexpr u32 Count = 2 + ONYX_REGULAR_POLYGON_COUNT;
 };
 
 template <> struct ONYX_API Primitives<D3> : IPrimitives<D3>
 {
-    static constexpr u32 AMOUNT = 13 + ONYX_REGULAR_POLYGON_COUNT;
+    static constexpr u32 Count = 13 + ONYX_REGULAR_POLYGON_COUNT;
 
     static TKIT_CONSTEVAL u32 GetCubeIndex()
     {

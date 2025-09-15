@@ -82,16 +82,14 @@ template <Dimension D> struct Lattice
                     std::forward<F>(p_Func)(pos, lattice);
                 }
             };
-            TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
+
+            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
             const u32 partitions = Tasks; // Unfortunate naming
             TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), partitions, fn);
 
             const u32 tcount = (partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
-            {
-                tasks[i]->WaitUntilFinished();
-                tm->DestroyTask(tasks[i]);
-            }
+                tasks[i].WaitUntilFinished();
         }
         else
         {
@@ -115,16 +113,14 @@ template <Dimension D> struct Lattice
                     std::forward<F>(p_Func)(pos, lattice);
                 }
             };
-            TKit::Array<TKit::Task<> *, ONYX_MAX_TASKS> tasks{};
+
+            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
             const u32 partitions = Tasks; // Unfortunate naming
             TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), partitions, fn);
 
             const u32 tcount = (partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
-            {
-                tasks[i]->WaitUntilFinished();
-                tm->DestroyTask(tasks[i]);
-            }
+                tasks[i].WaitUntilFinished();
         }
     }
 

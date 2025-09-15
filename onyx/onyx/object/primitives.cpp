@@ -5,7 +5,7 @@
 
 namespace Onyx::Detail
 {
-template <Dimension D> using BufferLayout = TKit::Array<PrimitiveDataLayout, Primitives<D>::AMOUNT>;
+template <Dimension D> using BufferLayout = TKit::Array<PrimitiveDataLayout, Primitives<D>::Count>;
 template <Dimension D> struct IndexVertexBuffers
 {
     IndexVertexBuffers(const HostVertexBuffer<D> &p_Vertices, const HostIndexBuffer &p_Indices,
@@ -100,8 +100,8 @@ template <Dimension D> static void createCombinedBuffers(const TKit::Span<const 
     BufferLayout<D> layout{};
     IndexVertexHostData<D> combinedData{};
 
-    constexpr u32 toLoad = Primitives<D>::AMOUNT - ONYX_REGULAR_POLYGON_COUNT;
-    for (u32 i = 0; i < Primitives<D>::AMOUNT; ++i)
+    constexpr u32 toLoad = Primitives<D>::Count - ONYX_REGULAR_POLYGON_COUNT;
+    for (u32 i = 0; i < Primitives<D>::Count; ++i)
     {
         const IndexVertexHostData<D> buffers =
             i < toLoad ? load<D>(p_Paths[i]) : createRegularPolygonBuffers<D>(i - toLoad + 3);
@@ -124,10 +124,10 @@ template <Dimension D> static void createCombinedBuffers(const TKit::Span<const 
 void CreateCombinedPrimitiveBuffers()
 {
     TKIT_LOG_INFO("[ONYX] Creating primitive vertex and index buffers");
-    const TKit::Array<const char *, Primitives<D2>::AMOUNT> paths2D = {ONYX_ROOT_PATH "/onyx/meshes/triangle.obj",
+    const TKit::Array<const char *, Primitives<D2>::Count> paths2D = {ONYX_ROOT_PATH "/onyx/meshes/triangle.obj",
                                                                        ONYX_ROOT_PATH "/onyx/meshes/square.obj"};
 
-    const TKit::Array<const char *, Primitives<D3>::AMOUNT> paths3D = {
+    const TKit::Array<const char *, Primitives<D3>::Count> paths3D = {
         ONYX_ROOT_PATH "/onyx/meshes/triangle.obj",    ONYX_ROOT_PATH "/onyx/meshes/square.obj",
         ONYX_ROOT_PATH "/onyx/meshes/cube.obj",        ONYX_ROOT_PATH "/onyx/meshes/8-sphere.obj",
         ONYX_ROOT_PATH "/onyx/meshes/16-sphere.obj",   ONYX_ROOT_PATH "/onyx/meshes/32-sphere.obj",

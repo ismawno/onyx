@@ -180,7 +180,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : publi
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) PrimitiveHostData
     {
-        TKit::Array<HostStorageBuffer<InstanceData>, Primitives<D>::AMOUNT> Data{};
+        TKit::Array<HostStorageBuffer<InstanceData>, Primitives<D>::Count> Data{};
         u32 Instances = 0;
     };
 

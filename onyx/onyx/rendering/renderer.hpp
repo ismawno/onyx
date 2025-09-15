@@ -35,7 +35,7 @@ template <Dimension D, template <Dimension, PipelineMode> typename Renderer> str
      * @brief Send all host data to the device through storage, vertex or index buffers.
      *
      */
-    void SendToDevice(u32 p_FrameIndex, TaskArray &p_Tasks);
+    void SendToDevice(u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks);
 
     /**
      * @brief Record vulkan copy commands to send data to a device local buffer.
@@ -103,8 +103,7 @@ template <Dimension D> class IRenderer
      * @param p_Mesh The mesh model to draw.
      * @param p_Flags Drawing flags to control rendering behavior.
      */
-    void DrawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Mesh<D> &p_Mesh,
-                  DrawFlags p_Flags);
+    void DrawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Mesh<D> &p_Mesh, DrawFlags p_Flags);
 
     /**
      * @brief Record a draw call for a primitive shape.
