@@ -289,7 +289,7 @@ void Core::Initialize(const Specs &p_Specs)
         .RequireExtensions(extensionSpan)
         .SetApplicationVersion(1, 2, 0);
 #ifdef TKIT_ENABLE_ASSERTS
-    builder.RequireValidationLayers();
+    builder.RequestValidationLayers();
 #endif
     if (s_Initializer)
         s_Initializer->OnInstanceCreation(builder);
@@ -302,6 +302,16 @@ void Core::Initialize(const Specs &p_Specs)
                   VKIT_API_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion),
                   VKIT_API_VERSION_MINOR(s_Instance.GetInfo().ApiVersion),
                   VKIT_API_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
+#ifdef TKIT_ENABLE_INFO_LOGS
+    if (s_Instance.GetInfo().Flags & VKit::Instance::Flag_HasValidationLayers)
+    {
+        TKIT_LOG_INFO("[ONYX] Validation layers enabled");
+    }
+    else
+    {
+        TKIT_LOG_INFO("[ONYX] Validation layers disabled");
+    }
+#endif
     s_DeletionQueue.SubmitForDeletion(s_Instance);
 }
 
