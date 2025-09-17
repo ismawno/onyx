@@ -118,12 +118,12 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
             "[ONYX] Failed to wait for fences");
     }
 
-    m_InFlightImages[m_ImageIndex] = m_SyncData[m_FrameIndex].InFlightFence;
+    const SyncData &sync = m_SyncData[m_FrameIndex];
+    m_InFlightImages[m_ImageIndex] = sync.InFlightFence;
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    const SyncData &sync = m_SyncData[m_FrameIndex];
     const TKit::Array<VkSemaphore, 2> semaphores{sync.ImageAvailableSemaphore, sync.TransferCopyDoneSemaphore};
     const TKit::Array<VkPipelineStageFlags, 2> stages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, p_Flags};
     submitInfo.pWaitSemaphores = semaphores.GetData();

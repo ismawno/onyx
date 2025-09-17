@@ -47,26 +47,56 @@ FetchContent_Declare(
   GIT_PROGRESS TRUE)
 FetchContent_MakeAvailable(vulkit)
 
-FetchContent_Declare(
-  glm
-  GIT_REPOSITORY https://github.com/g-truc/glm.git
-  GIT_TAG 1.0.1
-  GIT_SHALLOW TRUE
-  GIT_PROGRESS TRUE)
+find_package(glm QUIET)
+if(NOT TARGET glm::glm)
 
-FetchContent_MakeAvailable(glm)
+  message(STATUS "ONYX: GLM not found. Fetching headers...")
+  FetchContent_Declare(
+    glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.1
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
 
-set(GLFW_BUILD_DOCS
-    OFF
-    CACHE BOOL "" FORCE)
-FetchContent_Declare(
-  glfw
-  GIT_REPOSITORY https://github.com/glfw/glfw.git
-  GIT_TAG 3.4
-  GIT_SHALLOW TRUE
-  GIT_PROGRESS TRUE)
+  FetchContent_MakeAvailable(glm)
+  tkit_configure_compile_link_options(glm FORBID_SANITIZERS NO_EXCEPTIONS)
+  target_link_libraries(onyx PUBLIC glm)
+else()
+  message(STATUS "ONYX: GLM found")
+  target_link_libraries(onyx PUBLIC glm::glm)
+endif()
 
-FetchContent_MakeAvailable(glfw)
+find_package(glfw3 QUIET)
+
+if(NOT TARGET glfw)
+  message(STATUS "ONYX: GLFW not found. Fetching source...")
+  FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG 3.4
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
+
+  set(GLFW_BUILD_DOCS
+      OFF
+      CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_EXAMPLES
+      OFF
+      CACHE BOOL "" FORCE)
+  set(GLFW_BUILD_TESTS
+      OFF
+      CACHE BOOL "" FORCE)
+  set(GLFW_INSTALL
+      OFF
+      CACHE BOOL "" FORCE)
+
+  FetchContent_MakeAvailable(glfw)
+  tkit_configure_compile_link_options(glfw FORBID_SANITIZERS NO_EXCEPTIONS)
+
+else()
+  message(STATUS "ONYX: GLFW found")
+endif()
+target_link_libraries(onyx PRIVATE glfw)
 
 FetchContent_Declare(
   tobjl
@@ -117,11 +147,15 @@ if(ONYX_ENABLE_IMGUI)
       onyx/vendor/imgui_impl_glfw.cpp
       ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
 
-  find_package(Vulkan REQUIRED)
   add_library(imgui STATIC ${IMGUI_SOURCES})
 
-  target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR}
-                                          ${Vulkan_INCLUDE_DIRS})
+  find_package(Vulkan QUIET)
+  target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR})
+  if(VULKAN_FOUND)
+    target_include_directories(imgui PUBLIC ${Vulkan_INCLUDE_DIRS})
+  else()
+    target_link_libraries(imgui PUBLIC Vulkan::Headers)
+  endif()
   target_link_libraries(imgui PRIVATE glfw)
   target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMGUI)
@@ -158,8 +192,8 @@ endif()
 
 target_link_libraries(
   onyx
-  PUBLIC toolkit vulkit glm imgui
-  PRIVATE tinyobjloader glfw)
+  PUBLIC toolkit vulkit imgui
+  PRIVATE tinyobjloader)
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -169,8 +203,6 @@ target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 tkit_default_configure(onyx)
 
-tkit_configure_compile_link_options(glm FORBID_SANITIZERS NO_EXCEPTIONS)
-tkit_configure_compile_link_options(glfw FORBID_SANITIZERS NO_EXCEPTIONS)
 tkit_configure_compile_link_options(tinyobjloader FORBID_SANITIZERS
                                     NO_EXCEPTIONS)
 
