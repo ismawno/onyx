@@ -14,11 +14,11 @@ FrameScheduler::FrameScheduler(Window &p_Window)
 {
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     createSwapChain(p_Window, extent);
-    m_InFlightImages.Resize(m_SwapChain.GetInfo().ImageData.GetSize(), VK_NULL_HANDLE);
+    m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetInfo().ImageData.GetSize());
     m_Images = createImageData();
     createProcessingEffects();
     createCommandData();
-    m_SyncData = CreateSynchronizationObjects();
+    m_SyncFrameData = Detail::CreatePerFrameSyncData();
 }
 
 FrameScheduler::~FrameScheduler()
@@ -28,7 +28,8 @@ FrameScheduler::~FrameScheduler()
     m_PostProcessing.Destruct();
     m_NaivePostProcessingFragmentShader.Destroy();
     m_NaivePostProcessingLayout.Destroy();
-    DestroySynchronizationObjects(m_SyncData);
+    Detail::DestroyPerFrameSyncData(m_SyncFrameData);
+    Detail::DestroyPerImageSyncData(m_SyncImageData);
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
         m_CommandData[i].GraphicsPool.Destroy();
@@ -110,21 +111,22 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
 
     const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
 
-    if (m_InFlightImages[m_ImageIndex] != VK_NULL_HANDLE)
+    const Detail::SyncFrameData &fsync = m_SyncFrameData[m_FrameIndex];
+    Detail::SyncImageData &isync = m_SyncImageData[m_ImageIndex];
+
+    if (isync.InFlightImage != VK_NULL_HANDLE)
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForImage");
-        TKIT_ASSERT_RETURNS(
-            table.WaitForFences(Core::GetDevice(), 1, &m_InFlightImages[m_ImageIndex], VK_TRUE, UINT64_MAX), VK_SUCCESS,
-            "[ONYX] Failed to wait for fences");
+        TKIT_ASSERT_RETURNS(table.WaitForFences(Core::GetDevice(), 1, &isync.InFlightImage, VK_TRUE, UINT64_MAX),
+                            VK_SUCCESS, "[ONYX] Failed to wait for fences");
     }
 
-    const SyncData &sync = m_SyncData[m_FrameIndex];
-    m_InFlightImages[m_ImageIndex] = sync.InFlightFence;
+    isync.InFlightImage = fsync.InFlightFence;
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    const TKit::Array<VkSemaphore, 2> semaphores{sync.ImageAvailableSemaphore, sync.TransferCopyDoneSemaphore};
+    const TKit::Array<VkSemaphore, 2> semaphores{fsync.ImageAvailableSemaphore, fsync.TransferCopyDoneSemaphore};
     const TKit::Array<VkPipelineStageFlags, 2> stages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, p_Flags};
     submitInfo.pWaitSemaphores = semaphores.GetData();
     submitInfo.pWaitDstStageMask = stages.GetData();
@@ -134,11 +136,11 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
     submitInfo.pCommandBuffers = &cmd;
 
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &sync.RenderFinishedSemaphore;
+    submitInfo.pSignalSemaphores = &isync.RenderFinishedSemaphore;
 
-    TKIT_ASSERT_RETURNS(table.ResetFences(Core::GetDevice(), 1, &sync.InFlightFence), VK_SUCCESS,
+    TKIT_ASSERT_RETURNS(table.ResetFences(Core::GetDevice(), 1, &fsync.InFlightFence), VK_SUCCESS,
                         "[ONYX] Failed to reset fences");
-    TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, sync.InFlightFence), VK_SUCCESS,
+    TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, fsync.InFlightFence), VK_SUCCESS,
                         "[ONYX] Failed to submit graphics queue");
 }
 VkResult FrameScheduler::Present()
@@ -148,7 +150,7 @@ VkResult FrameScheduler::Present()
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
-    const SyncData &sync = m_SyncData[m_FrameIndex];
+    const Detail::SyncImageData &sync = m_SyncImageData[m_ImageIndex];
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &sync.RenderFinishedSemaphore;
 
@@ -315,12 +317,13 @@ VkResult FrameScheduler::AcquireNextImage()
     const auto &table = Core::GetDeviceTable();
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForFrame");
-        TKIT_ASSERT_RETURNS(
-            table.WaitForFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence, VK_TRUE, UINT64_MAX),
-            VK_SUCCESS, "[ONYX] Failed to wait for fences");
+        TKIT_ASSERT_RETURNS(table.WaitForFences(Core::GetDevice(), 1, &m_SyncFrameData[m_FrameIndex].InFlightFence,
+                                                VK_TRUE, UINT64_MAX),
+                            VK_SUCCESS, "[ONYX] Failed to wait for fences");
     }
     return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX,
-                                     m_SyncData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
+                                     m_SyncFrameData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE,
+                                     &m_ImageIndex);
 }
 
 void FrameScheduler::SubmitTransferQueue()
@@ -336,7 +339,7 @@ void FrameScheduler::SubmitTransferQueue()
     submitInfo.pCommandBuffers = &m_CommandData[m_FrameIndex].TransferCommand;
 
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &m_SyncData[m_FrameIndex].TransferCopyDoneSemaphore;
+    submitInfo.pSignalSemaphores = &m_SyncFrameData[m_FrameIndex].TransferCopyDoneSemaphore;
 
     TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE), VK_SUCCESS);
 }
@@ -484,21 +487,23 @@ void FrameScheduler::recreateResources()
 {
     destroyImageData();
     m_Images = createImageData();
-    m_InFlightImages.Resize(m_SwapChain.GetInfo().ImageData.GetSize(), VK_NULL_HANDLE);
 
-    const TKit::StaticArray4<VkImageView> imageViews = getIntermediateColorImageViews();
+    Detail::DestroyPerImageSyncData(m_SyncImageData);
+    m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetInfo().ImageData.GetSize());
+
+    const PerImageData<VkImageView> imageViews = getIntermediateColorImageViews();
     m_PostProcessing->updateImageViews(imageViews);
     m_ImageIndex = 0;
 }
 
-TKit::StaticArray4<FrameScheduler::ImageData> FrameScheduler::createImageData()
+PerImageData<FrameScheduler::ImageData> FrameScheduler::createImageData()
 {
     const auto result = VKit::ImageHouse::Create(Core::GetDevice(), Core::GetVulkanAllocator());
     VKIT_ASSERT_RESULT(result);
     m_ImageHouse = result.GetValue();
 
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-    TKit::StaticArray4<ImageData> images{};
+    PerImageData<ImageData> images{};
     for (u32 i = 0; i < info.ImageData.GetSize(); ++i)
     {
         ImageData data{};
@@ -537,7 +542,7 @@ void FrameScheduler::createProcessingEffects()
 {
     m_NaivePostProcessingFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/pp-naive.frag");
 
-    const TKit::StaticArray4<VkImageView> imageviews = getIntermediateColorImageViews();
+    const PerImageData<VkImageView> imageviews = getIntermediateColorImageViews();
     m_PostProcessing.Construct(imageviews);
 
     const VKit::PipelineLayout::Builder builder = m_PostProcessing->CreatePipelineLayoutBuilder();
@@ -601,9 +606,9 @@ void FrameScheduler::setupNaivePostProcessing()
     m_PostProcessing->Setup(specs);
 }
 
-TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateColorImageViews() const
+PerImageData<VkImageView> FrameScheduler::getIntermediateColorImageViews() const
 {
-    TKit::StaticArray4<VkImageView> imageViews;
+    PerImageData<VkImageView> imageViews;
     for (u32 i = 0; i < m_SwapChain.GetInfo().ImageData.GetSize(); ++i)
         imageViews.Append(m_Images[i].Intermediate.Image.ImageView);
     return imageViews;

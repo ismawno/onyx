@@ -10,6 +10,7 @@ namespace Onyx
 {
 struct Color;
 class Window;
+
 /**
  * @brief Manages frame scheduling and rendering operations for a window.
  *
@@ -162,17 +163,16 @@ class ONYX_API FrameScheduler
 
     void handlePresentResult(Window &p_Window, VkResult p_Result);
 
-    TKit::StaticArray4<ImageData> createImageData();
+    PerImageData<ImageData> createImageData();
     void destroyImageData();
 
     void setupNaivePostProcessing();
     VkExtent2D waitGlfwEvents(Window &p_Window);
 
-    TKit::StaticArray4<ImageData> m_Images{};
-    TKit::StaticArray4<VkImageView> getIntermediateColorImageViews() const;
+    PerImageData<ImageData> m_Images{};
+    PerImageData<VkImageView> getIntermediateColorImageViews() const;
 
     VKit::SwapChain m_SwapChain;
-    TKit::StaticArray4<VkFence> m_InFlightImages;
     TKit::Storage<PostProcessing> m_PostProcessing;
 
     VKit::Shader m_NaivePostProcessingFragmentShader;
@@ -183,7 +183,9 @@ class ONYX_API FrameScheduler
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
     PerFrameData<CommandData> m_CommandData;
-    PerFrameData<SyncData> m_SyncData{};
+
+    PerFrameData<Detail::SyncFrameData> m_SyncFrameData{};
+    PerImageData<Detail::SyncImageData> m_SyncImageData{};
 
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;

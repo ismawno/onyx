@@ -26,7 +26,7 @@ class ONYX_API PostProcessing
         VkPipelineRenderingCreateInfoKHR RenderInfo;
     };
 
-    PostProcessing(const TKit::StaticArray4<VkImageView> &p_ImageViews);
+    PostProcessing(const PerImageData<VkImageView> &p_ImageViews);
     ~PostProcessing();
 
     void UpdateDescriptorSet(u32 p_Index, VkDescriptorSet p_DescriptorSet);
@@ -70,7 +70,7 @@ class ONYX_API PostProcessing
 
     static VkSamplerCreateInfo DefaultSamplerCreateInfo();
 
-    void updateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews);
+    void updateImageViews(const PerImageData<VkImageView> &p_ImageViews);
 
   private:
     void overwriteSamplerSet(VkImageView p_ImageView, VkDescriptorSet p_Set) const;
@@ -78,8 +78,8 @@ class ONYX_API PostProcessing
     VKit::GraphicsPipeline m_Pipeline{};
     VKit::GraphicsJob m_Job{};
 
-    TKit::StaticArray4<VkImageView> m_ImageViews;
-    TKit::StaticArray4<VkDescriptorSet> m_SamplerDescriptors;
+    PerImageData<VkImageView> m_ImageViews;
+    PerImageData<VkDescriptorSet> m_SamplerDescriptors;
     VKit::DescriptorSetLayout m_DescriptorSetLayout{};
     VkSampler m_Sampler = VK_NULL_HANDLE;
 };
