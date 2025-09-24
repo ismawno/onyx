@@ -110,24 +110,66 @@ class ONYX_API Window
 
     bool ShouldClose() const;
 
-    const GLFWwindow *GetWindowHandle() const;
-    GLFWwindow *GetWindowHandle();
+    const GLFWwindow *GetWindowHandle() const
+    {
+        return m_Window;
+    }
+    GLFWwindow *GetWindowHandle()
+    {
+        return m_Window;
+    }
 
-    const FrameScheduler *GetFrameScheduler() const;
-    FrameScheduler *GetFrameScheduler();
+    const FrameScheduler *GetFrameScheduler() const
+    {
+        return m_FrameScheduler.Get();
+    }
+    FrameScheduler *GetFrameScheduler()
+    {
+        return m_FrameScheduler.Get();
+    }
 
-    const char *GetName() const;
+    const char *GetName() const
+    {
+        return m_Name;
+    }
 
-    u32 GetScreenWidth() const;
-    u32 GetScreenHeight() const;
+    u32 GetScreenWidth() const
+    {
+        return m_Width;
+    }
+    u32 GetScreenHeight() const
+    {
+        return m_Height;
+    }
 
-    u32 GetPixelWidth() const;
-    u32 GetPixelHeight() const;
+    u32 GetPixelWidth() const
+    {
+        return m_FrameScheduler->GetSwapChain().GetInfo().Extent.width;
+    }
+    u32 GetPixelHeight() const
+    {
+        return m_FrameScheduler->GetSwapChain().GetInfo().Extent.height;
+    }
 
-    f32 GetScreenAspect() const;
-    f32 GetPixelAspect() const;
+    f32 GetScreenAspect() const
+    {
+        return static_cast<f32>(m_Width) / static_cast<f32>(m_Height);
+    }
 
-    Flags GetFlags() const;
+    f32 GetPixelAspect() const
+    {
+        return static_cast<f32>(GetPixelWidth()) / static_cast<f32>(GetPixelHeight());
+    }
+
+    Flags GetFlags() const
+    {
+        return m_Flags;
+    }
+
+    VkSurfaceKHR GetSurface() const
+    {
+        return m_Surface;
+    }
 
     /**
      * @brief Gets the position of the window on the screen.
@@ -138,8 +180,6 @@ class ONYX_API Window
 
     void FlagShouldClose();
 
-    VkSurfaceKHR GetSurface() const;
-
     void PushEvent(const Event &p_Event);
 
     /**
@@ -147,7 +187,10 @@ class ONYX_API Window
      *
      * @return The array of new events.
      */
-    const EventArray &GetNewEvents() const;
+    const EventArray &GetNewEvents() const
+    {
+        return m_Events;
+    }
 
     void FlushEvents();
 

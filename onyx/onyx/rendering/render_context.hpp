@@ -832,8 +832,14 @@ template <Dimension D> class IRenderContext
 
     void SetCurrentState(const RenderState<D> &p_State);
 
-    const Renderer<D> &GetRenderer() const;
-    Renderer<D> &GetRenderer();
+    const Renderer<D> &GetRenderer() const
+    {
+        return m_Renderer;
+    }
+    Renderer<D> &GetRenderer()
+    {
+        return m_Renderer;
+    }
 
   protected:
     void updateState();
@@ -845,8 +851,7 @@ template <Dimension D> class IRenderContext
     void drawPrimitive(const RenderState<D> &p_State, const fmat<D> &p_Transform, u32 p_PrimitiveIndex,
                        const fvec<PDim> &p_Dimensions);
 
-    void drawPolygon(const RenderState<D> &p_State, const fmat<D> &p_Transform,
-                     TKit::Span<const fvec2> p_Vertices);
+    void drawPolygon(const RenderState<D> &p_State, const fmat<D> &p_Transform, TKit::Span<const fvec2> p_Vertices);
 
     void drawCircle(const RenderState<D> &p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options);
     void drawCircle(const RenderState<D> &p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
@@ -857,8 +862,7 @@ template <Dimension D> class IRenderContext
     void drawChildCircle(const RenderState<D> &p_State, fmat<D> p_Transform, const fvec<D> &p_Position, f32 p_Diameter,
                          const CircleOptions &p_Options, Detail::DrawFlags p_Flags);
 
-    void drawStadiumMoons(const RenderState<D> &p_State, const fmat<D> &p_Transform,
-                          Detail::DrawFlags p_Flags);
+    void drawStadiumMoons(const RenderState<D> &p_State, const fmat<D> &p_Transform, Detail::DrawFlags p_Flags);
     void drawStadiumMoons(const RenderState<D> &p_State, const fmat<D> &p_Transform, f32 p_Length, f32 p_Diameter,
                           Detail::DrawFlags p_Flags);
 
@@ -1311,8 +1315,7 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Cylinder(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter,
-                  Resolution p_Res = Resolution::Medium);
+    void Cylinder(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter, Resolution p_Res = Resolution::Medium);
 
     /**
      * @brief Draw a unit sphere centered at the origin.
@@ -1402,8 +1405,7 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void Capsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter,
-                 Resolution p_Res = Resolution::Medium);
+    void Capsule(const fmat4 &p_Transform, f32 p_Length, f32 p_Diameter, Resolution p_Res = Resolution::Medium);
 
     /**
      * @brief Draw a unit rounded cube centered at the origin.
@@ -1461,8 +1463,7 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * extrinsically, on top of the current cummulated transformations.
      * @param p_Res The shape vertex resolution. Can be low, medium or high. Higher resolutions are more expensive.
      */
-    void RoundedCube(const fmat4 &p_Transform, f32 p_Size, f32 p_Diameter,
-                     Resolution p_Res = Resolution::Medium);
+    void RoundedCube(const fmat4 &p_Transform, f32 p_Size, f32 p_Diameter, Resolution p_Res = Resolution::Medium);
 
     /**
      * @brief Set the color of the light for subsequent lighting calculations.

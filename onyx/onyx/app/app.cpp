@@ -20,23 +20,6 @@ IApplication::~IApplication()
         Shutdown();
 }
 
-bool IApplication::IsStarted() const
-{
-    return m_Started;
-}
-bool IApplication::IsTerminated() const
-{
-    return m_Terminated;
-}
-bool IApplication::IsRunning() const
-{
-    return m_Started && !m_Terminated;
-}
-TKit::Timespan IApplication::GetDeltaTime() const
-{
-    return m_DeltaTime;
-}
-
 void IApplication::Startup()
 {
     TKIT_ASSERT(!m_Terminated && !m_Started, "[ONYX] Application cannot be started more than once");
@@ -152,26 +135,22 @@ void IApplication::onUpdate(const u32 p_WindowIndex)
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnUpdate(p_WindowIndex);
 }
-void IApplication::onFrameBegin(const u32 p_WindowIndex, const u32 p_FrameIndex,
-                                const VkCommandBuffer p_CommandBuffer)
+void IApplication::onFrameBegin(const u32 p_WindowIndex, const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnFrameBegin(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onFrameEnd(const u32 p_WindowIndex, const u32 p_FrameIndex,
-                              const VkCommandBuffer p_CommandBuffer)
+void IApplication::onFrameEnd(const u32 p_WindowIndex, const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnFrameEnd(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onRenderBegin(const u32 p_WindowIndex, const u32 p_FrameIndex,
-                                 const VkCommandBuffer p_CommandBuffer)
+void IApplication::onRenderBegin(const u32 p_WindowIndex, const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnRenderBegin(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
 }
-void IApplication::onRenderEnd(const u32 p_WindowIndex, const u32 p_FrameIndex,
-                               const VkCommandBuffer p_CommandBuffer)
+void IApplication::onRenderEnd(const u32 p_WindowIndex, const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
 {
     if (m_UserLayer) [[likely]]
         m_UserLayer->OnRenderEnd(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
@@ -383,14 +362,6 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
     return true;
 }
 
-const Window *Application::GetMainWindow() const
-{
-    return m_Window.Get();
-}
-Window *Application::GetMainWindow()
-{
-    return m_Window.Get();
-}
 #ifdef ONYX_ENABLE_IMGUI
 MultiWindowApplication::MultiWindowApplication(const i32 p_ImGuiConfigFlags) : IApplication(p_ImGuiConfigFlags)
 {
@@ -435,31 +406,6 @@ void MultiWindowApplication::CloseWindow(const Window *p_Window)
             return;
         }
     TKIT_ERROR("Window was not found");
-}
-
-const Window *MultiWindowApplication::GetWindow(const u32 p_Index) const
-{
-    TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
-    return m_Windows[p_Index];
-}
-Window *MultiWindowApplication::GetWindow(const u32 p_Index)
-{
-    TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
-    return m_Windows[p_Index];
-}
-
-const Window *MultiWindowApplication::GetMainWindow() const
-{
-    return GetWindow(0);
-}
-Window *MultiWindowApplication::GetMainWindow()
-{
-    return GetWindow(0);
-}
-
-u32 MultiWindowApplication::GetWindowCount() const
-{
-    return m_Windows.GetSize();
 }
 
 bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock)

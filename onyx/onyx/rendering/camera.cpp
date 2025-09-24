@@ -59,8 +59,7 @@ template <Dimension D> fvec<D> ICamera<D>::ViewportToWorld(fvec<D> p_ViewportPos
     }
 }
 
-template <Dimension D>
-fvec2 ICamera<D>::WorldToViewport(const fvec<D> &p_WorldPos, const fmat<D> *p_Axes) const
+template <Dimension D> fvec2 ICamera<D>::WorldToViewport(const fvec<D> &p_WorldPos, const fmat<D> *p_Axes) const
 {
     if constexpr (D == D2)
     {
@@ -86,8 +85,7 @@ template <Dimension D> fvec2 ICamera<D>::ViewportToScreen(const fvec2 &p_Viewpor
     return m_Viewport.Min + 0.5f * (1.f + p_ViewportPos) * size;
 }
 
-template <Dimension D>
-fvec<D> ICamera<D>::ScreenToWorld(const fvec<D> &p_ScreenPos, const fmat<D> *p_Axes) const
+template <Dimension D> fvec<D> ICamera<D>::ScreenToWorld(const fvec<D> &p_ScreenPos, const fmat<D> *p_Axes) const
 {
     if constexpr (D == D2)
         return ViewportToWorld(ScreenToViewport(p_ScreenPos), p_Axes);
@@ -105,19 +103,6 @@ template <Dimension D> fvec2 ICamera<D>::WorldToScreen(const fvec<D> &p_WorldPos
 template <Dimension D> fvec2 ICamera<D>::GetViewportMousePosition() const
 {
     return ScreenToViewport(Input::GetScreenMousePosition(m_Window));
-}
-
-template <Dimension D> const ProjectionViewData<D> &ICamera<D>::GetProjectionViewData() const
-{
-    return m_ProjectionView;
-}
-template <Dimension D> const ScreenViewport &ICamera<D>::GetViewport() const
-{
-    return m_Viewport;
-}
-template <Dimension D> const ScreenScissor &ICamera<D>::GetScissor() const
-{
-    return m_Scissor;
 }
 
 template <Dimension D> Onyx::Transform<D> ICamera<D>::GetViewTransform(const fmat<D> &p_Axes) const

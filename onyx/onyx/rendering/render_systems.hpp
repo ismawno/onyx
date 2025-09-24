@@ -19,9 +19,18 @@ template <Dimension D, PipelineMode PMode> class RenderSystem
     RenderSystem();
     ~RenderSystem();
 
-    bool HasInstances(u32 p_FrameIndex) const;
-    void Flush();
-    void AcknowledgeSubmission(u32 p_FrameIndex);
+    bool HasInstances(const u32 p_FrameIndex) const
+    {
+        return m_DeviceInstances != 0 && m_DeviceSubmissionId[p_FrameIndex] != m_HostSubmissionId;
+    }
+    void Flush()
+    {
+        ++m_HostSubmissionId;
+    }
+    void AcknowledgeSubmission(const u32 p_FrameIndex)
+    {
+        m_DeviceSubmissionId[p_FrameIndex] = m_HostSubmissionId;
+    }
 
   protected:
     VKit::GraphicsPipeline m_Pipeline{};

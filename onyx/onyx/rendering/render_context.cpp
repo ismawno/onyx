@@ -9,8 +9,7 @@ namespace Onyx
 using namespace Detail;
 
 template <Dimension D>
-IRenderContext<D>::IRenderContext(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
-    : m_Renderer(p_RenderInfo)
+IRenderContext<D>::IRenderContext(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) : m_Renderer(p_RenderInfo)
 {
     for (u32 i = 0; i < ONYX_MAX_THREADS; ++i)
     {
@@ -44,8 +43,7 @@ template <Dimension D> void IRenderContext<D>::Transform(const fmat<D> &p_Transf
     state->Transform = p_Transform * state->Transform;
 }
 template <Dimension D>
-void IRenderContext<D>::Transform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
-                                  const rot<D> &p_Rotation)
+void IRenderContext<D>::Transform(const fvec<D> &p_Translation, const fvec<D> &p_Scale, const rot<D> &p_Rotation)
 {
     this->Transform(Onyx::Transform<D>::ComputeTransform(p_Translation, p_Scale, p_Rotation));
 }
@@ -68,19 +66,16 @@ template <Dimension D> void IRenderContext<D>::TransformAxes(const fmat<D> &p_Ax
     getState()->Axes *= p_Axes;
 }
 template <Dimension D>
-void IRenderContext<D>::TransformAxes(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
-                                      const rot<D> &p_Rotation)
+void IRenderContext<D>::TransformAxes(const fvec<D> &p_Translation, const fvec<D> &p_Scale, const rot<D> &p_Rotation)
 {
     getState()->Axes *= Onyx::Transform<D>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation);
 }
 template <Dimension D>
-void IRenderContext<D>::TransformAxes(const fvec<D> &p_Translation, const f32 p_Scale,
-                                      const rot<D> &p_Rotation)
+void IRenderContext<D>::TransformAxes(const fvec<D> &p_Translation, const f32 p_Scale, const rot<D> &p_Rotation)
 {
     TransformAxes(p_Translation, fvec<D>{p_Scale}, p_Rotation);
 }
-void RenderContext<D3>::TransformAxes(const fvec3 &p_Translation, const fvec3 &p_Scale,
-                                      const fvec3 &p_Rotation)
+void RenderContext<D3>::TransformAxes(const fvec3 &p_Translation, const fvec3 &p_Scale, const fvec3 &p_Rotation)
 {
     TransformAxes(Onyx::Transform<D3>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation));
 }
@@ -403,8 +398,7 @@ template <Dimension D> void IRenderContext<D>::NGon(const u32 p_Sides, const f32
 {
     NGon(p_Sides, fvec2{p_Size});
 }
-template <Dimension D>
-void IRenderContext<D>::NGon(const fmat<D> &p_Transform, const u32 p_Sides, const f32 p_Size)
+template <Dimension D> void IRenderContext<D>::NGon(const fmat<D> &p_Transform, const u32 p_Sides, const f32 p_Size)
 {
     NGon(p_Transform, p_Sides, fvec2{p_Size});
 }
@@ -494,21 +488,18 @@ template <Dimension D> void IRenderContext<D>::Circle(const CircleOptions &p_Opt
     const RenderState<D> &state = *getState();
     drawCircle(state, state.Transform, p_Options);
 }
-template <Dimension D>
-void IRenderContext<D>::Circle(const fmat<D> &p_Transform, const CircleOptions &p_Options)
+template <Dimension D> void IRenderContext<D>::Circle(const fmat<D> &p_Transform, const CircleOptions &p_Options)
 {
     const RenderState<D> &state = *getState();
     drawCircle(state, p_Transform * state.Transform, p_Options);
 }
-template <Dimension D>
-void IRenderContext<D>::Circle(const fvec2 &p_Dimensions, const CircleOptions &p_Options)
+template <Dimension D> void IRenderContext<D>::Circle(const fvec2 &p_Dimensions, const CircleOptions &p_Options)
 {
     const RenderState<D> &state = *getState();
     drawCircle(state, state.Transform, p_Options, p_Dimensions);
 }
 template <Dimension D>
-void IRenderContext<D>::Circle(const fmat<D> &p_Transform, const fvec2 &p_Dimensions,
-                               const CircleOptions &p_Options)
+void IRenderContext<D>::Circle(const fmat<D> &p_Transform, const fvec2 &p_Dimensions, const CircleOptions &p_Options)
 {
     const RenderState<D> &state = *getState();
     drawCircle(state, p_Transform * state.Transform, p_Options, p_Dimensions);
@@ -518,8 +509,7 @@ template <Dimension D> void IRenderContext<D>::Circle(const f32 p_Diameter, cons
     Circle(fvec2{p_Diameter}, p_Options);
 }
 template <Dimension D>
-void IRenderContext<D>::Circle(const fmat<D> &p_Transform, const f32 p_Diameter,
-                               const CircleOptions &p_Options)
+void IRenderContext<D>::Circle(const fmat<D> &p_Transform, const f32 p_Diameter, const CircleOptions &p_Options)
 {
     Circle(p_Transform, fvec2{p_Diameter}, p_Options);
 }
@@ -533,8 +523,7 @@ void IRenderContext<D>::drawChildCircle(const RenderState<D> &p_State, fmat<D> p
 }
 template <Dimension D>
 void IRenderContext<D>::drawChildCircle(const RenderState<D> &p_State, fmat<D> p_Transform, const fvec<D> &p_Position,
-                                        const f32 p_Diameter, const CircleOptions &p_Options,
-                                        const DrawFlags p_Flags)
+                                        const f32 p_Diameter, const CircleOptions &p_Options, const DrawFlags p_Flags)
 {
     Onyx::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
     Onyx::Transform<D>::ScaleIntrinsic(p_Transform, 0, p_Diameter);
@@ -567,8 +556,7 @@ void IRenderContext<D>::drawStadiumMoons(const RenderState<D> &p_State, const fm
                     CircleOptions{.LowerAngle = glm::radians(-90.f), .UpperAngle = glm::radians(90.f)}, p_Flags);
 }
 
-template <Dimension D>
-void IRenderContext<D>::drawStadium(const RenderState<D> &p_State, const fmat<D> &p_Transform)
+template <Dimension D> void IRenderContext<D>::drawStadium(const RenderState<D> &p_State, const fmat<D> &p_Transform)
 {
     const auto fill = [this, &p_State, &p_Transform](const DrawFlags p_Flags) {
         m_Renderer.DrawPrimitive(p_State, p_State.Axes * p_Transform, Primitives<D>::GetSquareIndex(), p_Flags);
@@ -630,8 +618,7 @@ void IRenderContext<D>::Stadium(const fmat<D> &p_Transform, const f32 p_Length, 
 
 template <Dimension D>
 void IRenderContext<D>::drawRoundedSquareMoons(const RenderState<D> &p_State, const fmat<D> &p_Transform,
-                                               const fvec2 &p_Dimensions, const f32 p_Diameter,
-                                               const DrawFlags p_Flags)
+                                               const fvec2 &p_Dimensions, const f32 p_Diameter, const DrawFlags p_Flags)
 {
     const f32 radius = 0.5f * p_Diameter;
     const fvec2 halfDims = 0.5f * p_Dimensions;
@@ -719,8 +706,7 @@ template <Dimension D> void IRenderContext<D>::RoundedSquare(const fvec2 &p_Dime
     drawRoundedSquare(state, state.Transform, p_Dimensions, p_Diameter);
 }
 template <Dimension D>
-void IRenderContext<D>::RoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimensions,
-                                      const f32 p_Diameter)
+void IRenderContext<D>::RoundedSquare(const fmat<D> &p_Transform, const fvec2 &p_Dimensions, const f32 p_Diameter)
 {
     const RenderState<D> &state = *getState();
     drawRoundedSquare(state, p_Transform * state.Transform, p_Dimensions, p_Diameter);
@@ -911,8 +897,7 @@ void RenderContext<D3>::drawChildSphere(const RenderState<D3> &p_State, fmat4 p_
     m_Renderer.DrawPrimitive(p_State, p_State.Axes * p_Transform, Primitives<D3>::GetSphereIndex(p_Res), p_Flags);
 }
 
-void RenderContext<D3>::drawCapsule(const RenderState<D3> &p_State, const fmat4 &p_Transform,
-                                    const Resolution p_Res)
+void RenderContext<D3>::drawCapsule(const RenderState<D3> &p_State, const fmat4 &p_Transform, const Resolution p_Res)
 {
     const auto fill = [this, &p_State, &p_Transform, p_Res](const DrawFlags p_Flags) {
         m_Renderer.DrawPrimitive(p_State, p_State.Axes * p_Transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
@@ -1060,8 +1045,7 @@ void RenderContext<D3>::drawRoundedCube(const RenderState<D3> &p_State, const fm
     resolveDrawFlagsWithState(p_State, fill, outline);
 }
 void RenderContext<D3>::drawRoundedCube(const RenderState<D3> &p_State, const fmat4 &p_Transform,
-                                        const fvec3 &p_Dimensions, const f32 p_Diameter,
-                                        const Resolution p_Res)
+                                        const fvec3 &p_Dimensions, const f32 p_Diameter, const Resolution p_Res)
 {
     const auto fill = [this, &p_State, &p_Transform, &p_Dimensions, p_Diameter, p_Res](const DrawFlags p_Flags) {
         fmat4 transform = p_Transform;
@@ -1196,8 +1180,7 @@ template <Dimension D> void IRenderContext<D>::Fill(const bool p_Enabled)
 }
 
 template <Dimension D>
-void IRenderContext<D>::drawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform,
-                                 const Onyx::Mesh<D> &p_Mesh)
+void IRenderContext<D>::drawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh)
 {
     const auto fill = [this, &p_State, &p_Transform, &p_Mesh](const DrawFlags p_Flags) {
         m_Renderer.DrawMesh(p_State, p_Transform, p_Mesh, p_Flags);
@@ -1244,8 +1227,7 @@ template <Dimension D> void IRenderContext<D>::Mesh(const Onyx::Mesh<D> &p_Mesh,
     drawMesh(state, state.Transform, p_Mesh, p_Dimensions);
 }
 template <Dimension D>
-void IRenderContext<D>::Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh,
-                             const fvec<D> &p_Dimensions)
+void IRenderContext<D>::Mesh(const fmat<D> &p_Transform, const Onyx::Mesh<D> &p_Mesh, const fvec<D> &p_Dimensions)
 {
     const RenderState<D> &state = *getState();
     drawMesh(state, p_Transform * state.Transform, p_Mesh, p_Dimensions);
@@ -1328,8 +1310,7 @@ template <Dimension D> void IRenderContext<D>::ShareCurrentState(const u32 p_Thr
             *m_StateStack[i].Current = *m_StateStack[tindex].Current;
 }
 
-template <Dimension D>
-void IRenderContext<D>::ShareState(const RenderState<D> &p_State, const u32 p_ThreadCount)
+template <Dimension D> void IRenderContext<D>::ShareState(const RenderState<D> &p_State, const u32 p_ThreadCount)
 {
     TKIT_ASSERT(p_ThreadCount <= ONYX_MAX_THREADS, "[ONYX] Thread count is greater than the maximum threads allowed");
     for (u32 i = 0; i < p_ThreadCount; ++i)
@@ -1351,15 +1332,6 @@ template <Dimension D> RenderState<D> &IRenderContext<D>::GetCurrentState()
 template <Dimension D> void IRenderContext<D>::SetCurrentState(const RenderState<D> &p_State)
 {
     *m_StateStack[getThreadIndex()].Current = p_State;
-}
-
-template <Dimension D> const Renderer<D> &IRenderContext<D>::GetRenderer() const
-{
-    return m_Renderer;
-}
-template <Dimension D> Renderer<D> &IRenderContext<D>::GetRenderer()
-{
-    return m_Renderer;
 }
 
 void RenderContext<D2>::Axes(const AxesOptions<D2> &p_Options)

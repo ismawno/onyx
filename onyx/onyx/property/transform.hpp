@@ -48,8 +48,7 @@ template <Dimension D> struct ITransform
      * @param p_Rotation The rotation object.
      * @return The resulting transformation matrix.
      */
-    static fmat<D> ComputeTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
-                                    const rot<D> &p_Rotation);
+    static fmat<D> ComputeTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale, const rot<D> &p_Rotation);
 
     /**
      * @brief Compute a reversed transformation matrix from translation, scale, and rotation.
@@ -238,8 +237,7 @@ template <Dimension D> struct ITransform
      * @param p_Scale Output pointer for the scale vector.
      * @param p_Rotation Output pointer for the rotation object.
      */
-    static void Extract(const fmat<D> &p_Transform, fvec<D> *p_Translation, fvec<D> *p_Scale,
-                        rot<D> *p_Rotation);
+    static void Extract(const fmat<D> &p_Transform, fvec<D> *p_Translation, fvec<D> *p_Scale, rot<D> *p_Rotation);
 
     /**
      * @brief Extracts the translation component from a transformation matrix.
@@ -265,13 +263,8 @@ template <Dimension D> struct ITransform
      */
     static rot<D> ExtractRotation(const fmat<D> &p_Transform);
 
-    /// Translation vector component of the transformation.
     fvec<D> Translation{0.f};
-
-    /// Scale vector component of the transformation.
     fvec<D> Scale{1.f};
-
-    /// Rotation component of the transformation.
     rot<D> Rotation = RotType<D>::Identity;
 };
 

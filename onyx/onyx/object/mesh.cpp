@@ -53,8 +53,7 @@ template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const IndexVertexHo
     return Mesh<D>::Create(p_Data.Vertices, p_Data.Indices);
 }
 
-template <Dimension D>
-Mesh<D>::Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer) : m_VertexBuffer(p_VertexBuffer)
+template <Dimension D> Mesh<D>::Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer) : m_VertexBuffer(p_VertexBuffer)
 {
 }
 template <Dimension D>
@@ -77,11 +76,6 @@ template <Dimension D> void Mesh<D>::Bind(const VkCommandBuffer p_CommandBuffer)
         m_IndexBuffer.BindAsIndexBuffer(p_CommandBuffer);
 }
 
-template <Dimension D> bool Mesh<D>::HasIndices() const
-{
-    return m_IndexBuffer;
-}
-
 template <Dimension D>
 void Mesh<D>::Draw(const VkCommandBuffer p_CommandBuffer, const u32 p_InstanceCount, const u32 p_FirstInstance,
                    const u32 p_FirstVertex) const
@@ -100,15 +94,6 @@ void Mesh<D>::DrawIndexed(const VkCommandBuffer p_CommandBuffer, const u32 p_Ins
                                           p_InstanceCount, p_FirstIndex, p_VertexOffset, p_FirstInstance);
 }
 
-template <Dimension D> const DeviceLocalVertexBuffer<D> &Mesh<D>::GetVertexBuffer() const
-{
-    return m_VertexBuffer;
-}
-template <Dimension D> const DeviceLocalIndexBuffer &Mesh<D>::GetIndexBuffer() const
-{
-    return m_IndexBuffer;
-}
-
 template <Dimension D>
 VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, const fmat<D> *p_Transform)
 {
@@ -123,22 +108,6 @@ VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, cons
     return VKit::ToFormatted(needsIndices ? Mesh<D>::Create(data) : Mesh<D>::Create(data.Vertices));
 }
 
-template <Dimension D> Mesh<D>::operator bool() const
-{
-    return m_VertexBuffer;
-}
 template class ONYX_API Mesh<D2>;
 template class ONYX_API Mesh<D3>;
 } // namespace Onyx
-
-namespace std
-{
-template <Onyx::Dimension D> size_t hash<Onyx::Mesh<D>>::operator()(const Onyx::Mesh<D> &p_Mesh) const
-{
-    return TKit::Hash(p_Mesh.GetVertexBuffer().GetHandle(), p_Mesh.GetIndexBuffer().GetHandle());
-}
-
-template struct ONYX_API hash<Onyx::Mesh<Onyx::D2>>;
-template struct ONYX_API hash<Onyx::Mesh<Onyx::D3>>;
-
-} // namespace std

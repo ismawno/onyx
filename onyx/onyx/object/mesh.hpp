@@ -47,10 +47,6 @@ template <Dimension D> class Mesh
     Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer);
     Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer, const DeviceLocalIndexBuffer &p_IndexBuffer);
 
-    // TODO: Make sure no redundant bind calls are made
-    // These bind and draw commands operate with a single vertex and index buffer. Not ideal when instancing could be
-    // used. Plus, the same buffer may be bound multiple times if this is not handled with care
-
     /**
      * @brief Destroys the mesh and releases its resources.
      */
@@ -86,28 +82,18 @@ template <Dimension D> class Mesh
     void DrawIndexed(VkCommandBuffer p_CommandBuffer, u32 p_InstanceCount = 0, u32 p_FirstInstance = 0,
                      u32 p_FirstIndex = 0, u32 p_VertexOffset = 0) const;
 
-    /**
-     * @brief Checks if the mesh has indices for indexed drawing.
-     *
-     * @return true if the mesh has indices, false otherwise.
-     */
-    bool HasIndices() const;
-
-    /**
-     * @brief Gets the vertex buffer of the mesh.
-     *
-     * @return Reference to the vertex buffer.
-     */
-    const DeviceLocalVertexBuffer<D> &GetVertexBuffer() const;
-
-    /**
-     * @brief Gets the index buffer of the mesh.
-     *
-     * @note This function is undefined behavior if `HasIndices()` returns false.
-     *
-     * @return Reference to the index buffer.
-     */
-    const DeviceLocalIndexBuffer &GetIndexBuffer() const; // This is UB if HasIndices returns false
+    bool HasIndices() const
+    {
+        return m_IndexBuffer;
+    }
+    const DeviceLocalVertexBuffer<D> &GetVertexBuffer() const
+    {
+        return m_VertexBuffer;
+    }
+    const DeviceLocalIndexBuffer &GetIndexBuffer() const
+    {
+        return m_IndexBuffer;
+    }
 
     /**
      * @brief Loads a mesh from a file.
@@ -124,7 +110,10 @@ template <Dimension D> class Mesh
                p_Lhs.m_IndexBuffer.GetHandle() == p_Rhs.m_IndexBuffer.GetHandle();
     }
 
-    operator bool() const;
+    operator bool() const
+    {
+        return m_VertexBuffer;
+    }
 
   private:
     DeviceLocalVertexBuffer<D> m_VertexBuffer{};
@@ -133,10 +122,10 @@ template <Dimension D> class Mesh
 
 } // namespace Onyx
 
-namespace std
+template <Onyx::Dimension D> struct std::hash<Onyx::Mesh<D>>
 {
-template <Onyx::Dimension D> struct hash<Onyx::Mesh<D>>
-{
-    size_t operator()(const Onyx::Mesh<D> &p_Mesh) const;
+    size_t operator()(const Onyx::Mesh<D> &p_Mesh) const
+    {
+        return TKit::Hash(p_Mesh.GetVertexBuffer().GetHandle(), p_Mesh.GetIndexBuffer().GetHandle());
+    }
 };
-} // namespace std

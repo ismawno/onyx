@@ -41,7 +41,7 @@ class ONYX_API FrameScheduler
         VkCommandBuffer TransferCommand;
     };
 
-    explicit FrameScheduler(Window &p_Window);
+    FrameScheduler(Window &p_Window);
     ~FrameScheduler();
 
     /**
@@ -82,7 +82,10 @@ class ONYX_API FrameScheduler
      */
     void EndRendering();
 
-    u32 GetFrameIndex() const;
+    u32 GetFrameIndex() const
+    {
+        return m_FrameIndex;
+    }
 
     /**
      * @brief Creates information needed by pipelines that wish to render to the main scene.
@@ -109,8 +112,14 @@ class ONYX_API FrameScheduler
     void SubmitTransferQueue();
     VkResult Present();
 
-    VkCommandBuffer GetGraphicsCommandBuffer() const;
-    VkCommandBuffer GetTransferCommandBuffer() const;
+    VkCommandBuffer GetGraphicsCommandBuffer() const
+    {
+        return m_CommandData[m_FrameIndex].GraphicsCommand;
+    }
+    VkCommandBuffer GetTransferCommandBuffer() const
+    {
+        return m_CommandData[m_FrameIndex].TransferCommand;
+    }
 
     struct PostProcessingOptions
     {
@@ -146,12 +155,20 @@ class ONYX_API FrameScheduler
      */
     void RemovePostProcessing();
 
-    const VKit::SwapChain &GetSwapChain() const;
+    const VKit::SwapChain &GetSwapChain() const
+    {
+        return m_SwapChain;
+    }
+    VkPresentModeKHR GetPresentMode() const
+    {
+        return m_PresentMode;
+    }
+    const TKit::StaticArray8<VkPresentModeKHR> &GetAvailablePresentModes() const
+    {
+        return m_SwapChain.GetInfo().SupportDetails.PresentModes;
+    }
 
-    VkPresentModeKHR GetPresentMode() const;
     void SetPresentMode(VkPresentModeKHR p_PresentMode);
-
-    TKit::StaticArray8<VkPresentModeKHR> GetAvailablePresentModes() const;
 
   private:
     void createSwapChain(Window &p_Window, const VkExtent2D &p_WindowExtent);
@@ -168,9 +185,9 @@ class ONYX_API FrameScheduler
 
     void setupNaivePostProcessing();
     VkExtent2D waitGlfwEvents(Window &p_Window);
+    PerImageData<VkImageView> getIntermediateColorImageViews() const;
 
     PerImageData<ImageData> m_Images{};
-    PerImageData<VkImageView> getIntermediateColorImageViews() const;
 
     VKit::SwapChain m_SwapChain;
     TKit::Storage<PostProcessing> m_PostProcessing;

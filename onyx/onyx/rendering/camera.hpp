@@ -216,9 +216,18 @@ template <Dimension D> class ICamera
      */
     void ControlScrollWithUserInput(f32 p_ScaleStep);
 
-    const ProjectionViewData<D> &GetProjectionViewData() const;
-    const ScreenViewport &GetViewport() const;
-    const ScreenScissor &GetScissor() const;
+    const ProjectionViewData<D> &GetProjectionViewData() const
+    {
+        return m_ProjectionView;
+    }
+    const ScreenViewport &GetViewport() const
+    {
+        return m_Viewport;
+    }
+    const ScreenScissor &GetScissor() const
+    {
+        return m_Scissor;
+    }
 
     /**
      * @brief Get the view transform of the camera.
@@ -326,8 +335,7 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
      * @param p_Near The near clipping plane.
      * @param p_Far The far clipping plane.
      */
-    void SetPerspectiveProjection(f32 p_FieldOfView = glm::radians(75.f), f32 p_Near = 0.1f,
-                                  f32 p_Far = 100.f);
+    void SetPerspectiveProjection(f32 p_FieldOfView = glm::radians(75.f), f32 p_Near = 0.1f, f32 p_Far = 100.f);
 
     /**
      * @brief Set a basic orthographic projection.

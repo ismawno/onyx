@@ -79,8 +79,6 @@ class ONYX_API IApplication
      */
     void Quit();
 
-    TKit::Timespan GetDeltaTime() const;
-
     /**
      * @brief This method is in charge of processing and presenting the next frame for all windows.
      *
@@ -170,26 +168,22 @@ class ONYX_API IApplication
      */
     void Run();
 
-    /**
-     * @brief Check if the 'Startup()` method has been called.
-     *
-     * @return true if `Startup()` has been called.
-     */
-    bool IsStarted() const;
-
-    /**
-     * @brief Check if the `Shutdown()` method has been called.
-     *
-     * @return true if `Shutdown()` has been called.
-     */
-    bool IsTerminated() const;
-
-    /**
-     * @brief Check if the 'Startup()` method has been called and the `Shutdown()` method has not been called.
-     *
-     * @return true if the application is running.
-     */
-    bool IsRunning() const;
+    bool IsStarted() const
+    {
+        return m_Started;
+    }
+    bool IsTerminated() const
+    {
+        return m_Terminated;
+    }
+    bool IsRunning() const
+    {
+        return m_Started && !m_Terminated;
+    }
+    TKit::Timespan GetDeltaTime() const
+    {
+        return m_DeltaTime;
+    }
 
   protected:
 #ifdef ONYX_ENABLE_IMGUI
@@ -278,8 +272,14 @@ class ONYX_API Application final : public IApplication
      */
     bool NextFrame(TKit::Clock &p_Clock) override;
 
-    const Window *GetMainWindow() const override;
-    Window *GetMainWindow() override;
+    const Window *GetMainWindow() const override
+    {
+        return m_Window.Get();
+    }
+    Window *GetMainWindow() override
+    {
+        return m_Window.Get();
+    }
 
   private:
     TKit::Storage<Window> m_Window;
@@ -353,37 +353,39 @@ class ONYX_API MultiWindowApplication final : public IApplication
      */
     void CloseAllWindows();
 
-    /**
-     * @brief Get a pointer to the window at the specified index.
-     *
-     * @param p_Index The index of the window to retrieve.
-     * @return Pointer to the window at the given index.
-     */
-    const Window *GetWindow(u32 p_Index) const;
-
-    /**
-     * @brief Get a pointer to the window at the specified index.
-     *
-     * @param p_Index The index of the window to retrieve.
-     * @return Pointer to the window at the given index.
-     */
-    Window *GetWindow(u32 p_Index);
+    const Window *GetWindow(const u32 p_Index) const
+    {
+        return m_Windows[p_Index];
+    }
+    Window *GetWindow(const u32 p_Index)
+    {
+        return m_Windows[p_Index];
+    }
 
     /**
      * @brief Get a pointer to the main window (at `index = 0`).
      *
      * @return Pointer to the main window.
      */
-    const Window *GetMainWindow() const override;
+    const Window *GetMainWindow() const override
+    {
+        return GetWindow(0);
+    }
 
     /**
      * @brief Get a pointer to the main window (at `index = 0`).
      *
      * @return Pointer to the main window.
      */
-    Window *GetMainWindow() override;
+    Window *GetMainWindow() override
+    {
+        return GetWindow(0);
+    }
 
-    u32 GetWindowCount() const;
+    u32 GetWindowCount() const
+    {
+        return m_Windows.GetSize();
+    }
 
     /**
      * @brief Proceed to the next frame of the application.

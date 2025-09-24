@@ -37,19 +37,6 @@ template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::~RenderSystem
     m_Pipeline.Destroy();
 }
 
-template <Dimension D, PipelineMode PMode> bool RenderSystem<D, PMode>::HasInstances(const u32 p_FrameIndex) const
-{
-    return m_DeviceInstances != 0 && m_DeviceSubmissionId[p_FrameIndex] != m_HostSubmissionId;
-}
-template <Dimension D, PipelineMode PMode> void RenderSystem<D, PMode>::Flush()
-{
-    ++m_HostSubmissionId;
-}
-template <Dimension D, PipelineMode PMode> void RenderSystem<D, PMode>::AcknowledgeSubmission(const u32 p_FrameIndex)
-{
-    m_DeviceSubmissionId[p_FrameIndex] = m_HostSubmissionId;
-}
-
 template <Dimension D, PipelineMode PMode>
 MeshRenderer<D, PMode>::MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {

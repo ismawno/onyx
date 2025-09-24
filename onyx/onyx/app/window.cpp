@@ -148,62 +148,6 @@ bool Window::ShouldClose() const
     return glfwWindowShouldClose(m_Window);
 }
 
-const GLFWwindow *Window::GetWindowHandle() const
-{
-    return m_Window;
-}
-GLFWwindow *Window::GetWindowHandle()
-{
-    return m_Window;
-}
-
-const FrameScheduler *Window::GetFrameScheduler() const
-{
-    return m_FrameScheduler.Get();
-}
-FrameScheduler *Window::GetFrameScheduler()
-{
-    return m_FrameScheduler.Get();
-}
-
-const char *Window::GetName() const
-{
-    return m_Name;
-}
-
-u32 Window::GetScreenWidth() const
-{
-    return m_Width;
-}
-u32 Window::GetScreenHeight() const
-{
-    return m_Height;
-}
-
-u32 Window::GetPixelWidth() const
-{
-    return m_FrameScheduler->GetSwapChain().GetInfo().Extent.width;
-}
-u32 Window::GetPixelHeight() const
-{
-    return m_FrameScheduler->GetSwapChain().GetInfo().Extent.height;
-}
-
-f32 Window::GetScreenAspect() const
-{
-    return static_cast<f32>(m_Width) / static_cast<f32>(m_Height);
-}
-
-f32 Window::GetPixelAspect() const
-{
-    return static_cast<f32>(GetPixelWidth()) / static_cast<f32>(GetPixelHeight());
-}
-
-Window::Flags Window::GetFlags() const
-{
-    return m_Flags;
-}
-
 std::pair<u32, u32> Window::GetPosition() const
 {
     i32 x, y;
@@ -239,21 +183,12 @@ void Window::FlagShouldClose()
     glfwSetWindowShouldClose(m_Window, GLFW_TRUE);
 }
 
-VkSurfaceKHR Window::GetSurface() const
-{
-    return m_Surface;
-}
-
 void Window::PushEvent(const Event &p_Event)
 {
     if (!m_Events.IsFull())
         m_Events.Append(p_Event);
 }
 
-const EventArray &Window::GetNewEvents() const
-{
-    return m_Events;
-}
 void Window::FlushEvents()
 {
     m_Events.Clear();

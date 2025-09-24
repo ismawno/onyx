@@ -24,13 +24,13 @@ template <> struct ONYX_API Vertex<D2>
 
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
-    static constexpr u32 BINDINGS = 1;
-    static constexpr u32 ATTRIBUTES = 1;
-    TKIT_REFLECT_IGNORE_END()
+    static constexpr u32 Bindings = 1;
+    static constexpr u32 Attributes = 1;
     TKIT_YAML_SERIALIZE_IGNORE_END()
+    TKIT_REFLECT_IGNORE_END()
 
-    static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions();
-    static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions();
+    static const TKit::Array<VkVertexInputBindingDescription, Bindings> &GetBindingDescriptions();
+    static const TKit::Array<VkVertexInputAttributeDescription, Attributes> &GetAttributeDescriptions();
 
     fvec2 Position;
 
@@ -47,13 +47,13 @@ template <> struct ONYX_API Vertex<D3>
 
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
-    static constexpr u32 BINDINGS = 1;
-    static constexpr u32 ATTRIBUTES = 2;
-    TKIT_REFLECT_IGNORE_END()
+    static constexpr u32 Bindings = 1;
+    static constexpr u32 Attributes = 2;
     TKIT_YAML_SERIALIZE_IGNORE_END()
+    TKIT_REFLECT_IGNORE_END()
 
-    static const TKit::Array<VkVertexInputBindingDescription, BINDINGS> &GetBindingDescriptions();
-    static const TKit::Array<VkVertexInputAttributeDescription, ATTRIBUTES> &GetAttributeDescriptions();
+    static const TKit::Array<VkVertexInputBindingDescription, Bindings> &GetBindingDescriptions();
+    static const TKit::Array<VkVertexInputAttributeDescription, Attributes> &GetAttributeDescriptions();
 
     fvec3 Position;
     fvec3 Normal;

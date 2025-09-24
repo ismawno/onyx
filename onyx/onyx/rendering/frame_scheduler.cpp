@@ -344,15 +344,6 @@ void FrameScheduler::SubmitTransferQueue()
     TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE), VK_SUCCESS);
 }
 
-VkCommandBuffer FrameScheduler::GetGraphicsCommandBuffer() const
-{
-    return m_CommandData[m_FrameIndex].GraphicsCommand;
-}
-VkCommandBuffer FrameScheduler::GetTransferCommandBuffer() const
-{
-    return m_CommandData[m_FrameIndex].TransferCommand;
-}
-
 PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,
                                                   const VKit::Shader &p_FragmentShader,
                                                   const PostProcessingOptions &p_Options)
@@ -378,10 +369,6 @@ void FrameScheduler::RemovePostProcessing()
     setupNaivePostProcessing();
 }
 
-u32 FrameScheduler::GetFrameIndex() const
-{
-    return m_FrameIndex;
-}
 VkPipelineRenderingCreateInfoKHR FrameScheduler::CreateSceneRenderInfo() const
 {
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
@@ -405,20 +392,6 @@ VkPipelineRenderingCreateInfoKHR FrameScheduler::CreatePostProcessingRenderInfo(
     return renderInfo;
 }
 
-const VKit::SwapChain &FrameScheduler::GetSwapChain() const
-{
-    return m_SwapChain;
-}
-
-VkPresentModeKHR FrameScheduler::GetPresentMode() const
-{
-    return m_PresentMode;
-}
-TKit::StaticArray8<VkPresentModeKHR> FrameScheduler::GetAvailablePresentModes() const
-{
-
-    return m_SwapChain.GetInfo().SupportDetails.PresentModes;
-}
 void FrameScheduler::SetPresentMode(const VkPresentModeKHR p_PresentMode)
 {
     if (m_PresentMode == p_PresentMode)

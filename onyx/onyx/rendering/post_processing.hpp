@@ -29,7 +29,11 @@ class ONYX_API PostProcessing
     PostProcessing(const PerImageData<VkImageView> &p_ImageViews);
     ~PostProcessing();
 
-    void UpdateDescriptorSet(u32 p_Index, VkDescriptorSet p_DescriptorSet);
+    void UpdateDescriptorSet(const u32 p_Index, const VkDescriptorSet p_DescriptorSet)
+    {
+        // To account for reserved sampled image slot
+        m_Job.UpdateDescriptorSet(p_Index + 1, p_DescriptorSet);
+    }
 
     template <typename T>
     void UpdatePushConstantRange(u32 p_Index, const T *p_Data,
@@ -70,9 +74,8 @@ class ONYX_API PostProcessing
 
     static VkSamplerCreateInfo DefaultSamplerCreateInfo();
 
-    void updateImageViews(const PerImageData<VkImageView> &p_ImageViews);
-
   private:
+    void updateImageViews(const PerImageData<VkImageView> &p_ImageViews);
     void overwriteSamplerSet(VkImageView p_ImageView, VkDescriptorSet p_Set) const;
 
     VKit::GraphicsPipeline m_Pipeline{};
@@ -82,5 +85,7 @@ class ONYX_API PostProcessing
     PerImageData<VkDescriptorSet> m_SamplerDescriptors;
     VKit::DescriptorSetLayout m_DescriptorSetLayout{};
     VkSampler m_Sampler = VK_NULL_HANDLE;
+
+    friend class FrameScheduler;
 };
 } // namespace Onyx

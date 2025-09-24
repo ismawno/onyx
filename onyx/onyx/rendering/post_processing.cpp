@@ -21,12 +21,6 @@ PostProcessing::~PostProcessing()
     m_Pipeline.Destroy();
 }
 
-void PostProcessing::UpdateDescriptorSet(const u32 p_Index, const VkDescriptorSet p_DescriptorSet)
-{
-    // To account for reserved sampled image slot
-    m_Job.UpdateDescriptorSet(p_Index + 1, p_DescriptorSet);
-}
-
 VKit::PipelineLayout::Builder PostProcessing::CreatePipelineLayoutBuilder() const
 {
     return VKit::PipelineLayout::Builder(Core::GetDevice()).AddDescriptorSetLayout(m_DescriptorSetLayout);

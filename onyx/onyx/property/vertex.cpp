@@ -4,9 +4,9 @@
 namespace Onyx
 {
 template <Dimension D>
-static const TKit::Array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> &bindingDescriptions()
+static const TKit::Array<VkVertexInputBindingDescription, Vertex<D>::Bindings> &bindingDescriptions()
 {
-    static TKit::Array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> bindingDescriptions{};
+    static TKit::Array<VkVertexInputBindingDescription, Vertex<D>::Bindings> bindingDescriptions{};
     VkVertexInputBindingDescription description{};
     description.binding = 0;
     description.stride = sizeof(Vertex<D>);
@@ -17,9 +17,9 @@ static const TKit::Array<VkVertexInputBindingDescription, Vertex<D>::BINDINGS> &
 }
 
 template <Dimension D>
-static const TKit::Array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTES> &attributeDescriptions()
+static const TKit::Array<VkVertexInputAttributeDescription, Vertex<D>::Attributes> &attributeDescriptions()
 {
-    static TKit::Array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTES> attributeDescriptions{};
+    static TKit::Array<VkVertexInputAttributeDescription, Vertex<D>::Attributes> attributeDescriptions{};
 
     VkVertexInputAttributeDescription position{};
     position.binding = 0;
@@ -43,22 +43,20 @@ static const TKit::Array<VkVertexInputAttributeDescription, Vertex<D>::ATTRIBUTE
     return attributeDescriptions;
 }
 
-const TKit::Array<VkVertexInputBindingDescription, Vertex<D2>::BINDINGS> &Vertex<D2>::GetBindingDescriptions()
+const TKit::Array<VkVertexInputBindingDescription, Vertex<D2>::Bindings> &Vertex<D2>::GetBindingDescriptions()
 {
     return bindingDescriptions<D2>();
 }
-const TKit::Array<VkVertexInputAttributeDescription, Vertex<D2>::ATTRIBUTES> &Vertex<
-    D2>::GetAttributeDescriptions()
+const TKit::Array<VkVertexInputAttributeDescription, Vertex<D2>::Attributes> &Vertex<D2>::GetAttributeDescriptions()
 {
     return attributeDescriptions<D2>();
 }
 
-const TKit::Array<VkVertexInputBindingDescription, Vertex<D3>::BINDINGS> &Vertex<D3>::GetBindingDescriptions()
+const TKit::Array<VkVertexInputBindingDescription, Vertex<D3>::Bindings> &Vertex<D3>::GetBindingDescriptions()
 {
     return bindingDescriptions<D3>();
 }
-const TKit::Array<VkVertexInputAttributeDescription, Vertex<D3>::ATTRIBUTES> &Vertex<
-    D3>::GetAttributeDescriptions()
+const TKit::Array<VkVertexInputAttributeDescription, Vertex<D3>::Attributes> &Vertex<D3>::GetAttributeDescriptions()
 {
     return attributeDescriptions<D3>();
 }
