@@ -38,6 +38,7 @@ struct RenderCallbacks
     std::function<void(u32, VkCommandBuffer)> OnRenderBegin = nullptr;
     std::function<void(u32, VkCommandBuffer)> OnRenderEnd = nullptr;
     std::function<void(u32, VkCommandBuffer)> OnFrameEnd = nullptr;
+    std::function<void(u32)> OnBadFrame = nullptr;
 };
 
 /**

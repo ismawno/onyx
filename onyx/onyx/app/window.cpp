@@ -75,11 +75,15 @@ bool Window::Render(const RenderCallbacks &p_Callbacks)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
     const VkCommandBuffer gcmd = m_FrameScheduler->BeginFrame(*this);
+    const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
     if (!gcmd)
+    {
+        if (p_Callbacks.OnBadFrame)
+            p_Callbacks.OnBadFrame(frameIndex);
         return false;
+    }
 
     VkPipelineStageFlags transferFlags = 0;
-    const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
 
     if (p_Callbacks.OnFrameBegin)
         p_Callbacks.OnFrameBegin(frameIndex, gcmd);
