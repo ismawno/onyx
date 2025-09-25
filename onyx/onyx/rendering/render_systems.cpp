@@ -69,20 +69,16 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
         localData{};
     localData.clear();
 
-    u32 count = 0;
     for (const auto &hostData : m_HostData)
         for (const auto &[mesh, data] : hostData.Data)
             if (!data.IsEmpty())
-            {
                 localData[mesh].Append(&data);
-                ++count;
-            }
 
     auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
-    u32 index = 0;
     u32 sindex = 0;
 
+    Task mainTask{};
     for (const auto &[mesh, buffers] : localData)
         for (const auto data : buffers)
         {
@@ -91,8 +87,8 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
                 storageBuffer.Write(*data, offset);
             };
 
-            if (count == ++index)
-                copy();
+            if (!mainTask)
+                mainTask = copy;
             else
             {
                 Task &task = tasks.Append(copy);
@@ -101,6 +97,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
             offset += data->GetSize();
         }
 
+    mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
 }
@@ -248,6 +245,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Sen
     constexpr u32 pcount = Primitives<D>::Count;
     const u32 hcount = m_HostData.GetSize();
 
+    Task mainTask{};
     u32 sindex = 0;
     for (u32 i = 0; i < pcount; ++i)
         for (u32 j = 0; j < hcount; ++j)
@@ -260,8 +258,8 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Sen
                     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
                     storageBuffer.Write(data, offset);
                 };
-                if (i == pcount - 1 && j == hcount - 1)
-                    copy();
+                if (!mainTask)
+                    mainTask = copy;
                 else
                 {
                     Task &task = tasks.Append(copy);
@@ -271,6 +269,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Sen
             }
         }
 
+    mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
 }
@@ -419,6 +418,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
 
     u32 sindex = 0;
     const u32 hcount = m_HostData.GetSize();
+    Task mainTask{};
     for (u32 i = 0; i < hcount; ++i)
     {
         const auto &hostData = m_HostData[i];
@@ -430,8 +430,8 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
                 vertexBuffer.Write(hostData.Vertices, voffset);
                 indexBuffer.Write(hostData.Indices, ioffset);
             };
-            if (i == hcount - 1)
-                copy();
+            if (!mainTask)
+                mainTask = copy;
             else
             {
                 Task &task = tasks.Append(copy);
@@ -444,6 +444,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
         }
     }
 
+    mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
 }
@@ -573,6 +574,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
 
     u32 sindex = 0;
     const u32 hcount = m_HostData.GetSize();
+    Task mainTask{};
     for (u32 i = 0; i < hcount; ++i)
     {
         const auto &hostData = m_HostData[i];
@@ -582,8 +584,8 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
                 TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
                 storageBuffer.Write(hostData.Data, offset);
             };
-            if (i == hcount - 1)
-                copy();
+            if (!mainTask)
+                mainTask = copy;
             else
             {
                 Task &task = tasks.Append(copy);
@@ -593,6 +595,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
         }
     }
 
+    mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
 }

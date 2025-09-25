@@ -30,16 +30,28 @@ void RenderGroup<D, R>::GrowToFit(const u32 p_FrameIndex)
     DoStencilTestNoFill.GrowToFit(p_FrameIndex);
 }
 template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderGroup<D, R>::SendToDevice(const u32 p_FrameIndex, TKit::StaticArray16<Task> &p_Tasks)
+void RenderGroup<D, R>::SendToDevice(const u32 p_FrameIndex, SendInfo &p_Info)
 {
-    if (NoStencilWriteDoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append([this, p_FrameIndex] { NoStencilWriteDoFill.SendToDevice(p_FrameIndex); });
-    if (DoStencilWriteDoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append([this, p_FrameIndex] { DoStencilWriteDoFill.SendToDevice(p_FrameIndex); });
-    if (DoStencilWriteNoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append([this, p_FrameIndex] { DoStencilWriteNoFill.SendToDevice(p_FrameIndex); });
-    if (DoStencilTestNoFill.HasInstances(p_FrameIndex))
-        p_Tasks.Append([this, p_FrameIndex] { DoStencilTestNoFill.SendToDevice(p_FrameIndex); });
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+    const auto send = [&p_Info, p_FrameIndex, tm](auto &p_System) {
+        if (!p_System.HasInstances(p_FrameIndex))
+            return;
+
+        const auto fn = [&p_System, p_FrameIndex]() { p_System.SendToDevice(p_FrameIndex); };
+        Task &mainTask = *p_Info.MainTask;
+        if (!mainTask)
+            mainTask = fn;
+        else
+        {
+            Task &task = p_Info.Tasks->Append(fn);
+            p_Info.SubmissionIndex = tm->SubmitTask(&task, p_Info.SubmissionIndex);
+        }
+    };
+
+    send(NoStencilWriteDoFill);
+    send(DoStencilWriteDoFill);
+    send(DoStencilWriteNoFill);
+    send(DoStencilTestNoFill);
 }
 
 template <Dimension D, template <Dimension, PipelineMode> typename R>
@@ -308,24 +320,25 @@ void Renderer<D2>::GrowToFit(const u32 p_FrameIndex)
 
 void Renderer<D2>::SendToDevice(const u32 p_FrameIndex)
 {
+    Task mainTask{};
     TKit::StaticArray16<Task> tasks{};
-    m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
-    m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
-    m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
-    m_CircleRenderer.SendToDevice(p_FrameIndex, tasks);
-    if (tasks.IsEmpty())
+    SendInfo info{};
+    info.Tasks = &tasks;
+    info.MainTask = &mainTask;
+    info.SubmissionIndex = 0;
+
+    m_MeshRenderer.SendToDevice(p_FrameIndex, info);
+    m_PrimitiveRenderer.SendToDevice(p_FrameIndex, info);
+    m_PolygonRenderer.SendToDevice(p_FrameIndex, info);
+    m_CircleRenderer.SendToDevice(p_FrameIndex, info);
+
+    if (!mainTask)
         return;
 
+    mainTask();
     TKit::ITaskManager *tm = Core::GetTaskManager();
-
-    u32 sindex = 0;
-    for (u32 i = 1; i < tasks.GetSize(); ++i)
-        sindex = tm->SubmitTask(&tasks[i], sindex);
-
-    tasks[0]();
-
-    for (u32 i = 1; i < tasks.GetSize(); ++i)
-        tm->WaitUntilFinished(tasks[i]);
+    for (const Task &task : tasks)
+        tm->WaitUntilFinished(task);
 }
 VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
                                                       const VkCommandBuffer p_TransferCommand)
@@ -378,21 +391,17 @@ void Renderer<D3>::GrowToFit(const u32 p_FrameIndex)
 
 void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
 {
+    Task mainTask{};
     TKit::StaticArray16<Task> tasks{};
-    m_MeshRenderer.SendToDevice(p_FrameIndex, tasks);
-    m_PrimitiveRenderer.SendToDevice(p_FrameIndex, tasks);
-    m_PolygonRenderer.SendToDevice(p_FrameIndex, tasks);
-    m_CircleRenderer.SendToDevice(p_FrameIndex, tasks);
+    SendInfo info{};
+    info.Tasks = &tasks;
+    info.MainTask = &mainTask;
+    info.SubmissionIndex = 0;
 
-    TKit::ITaskManager *tm = Core::GetTaskManager();
-    if (!tasks.IsEmpty())
-    {
-        u32 sindex = 0;
-        for (u32 i = 1; i < tasks.GetSize(); ++i)
-            sindex = tm->SubmitTask(&tasks[i], sindex);
-
-        tasks[0]();
-    }
+    m_MeshRenderer.SendToDevice(p_FrameIndex, info);
+    m_PrimitiveRenderer.SendToDevice(p_FrameIndex, info);
+    m_PolygonRenderer.SendToDevice(p_FrameIndex, info);
+    m_CircleRenderer.SendToDevice(p_FrameIndex, info);
 
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
     if (dcount > 0)
@@ -409,9 +418,14 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
         const auto &hostPointBuffer = m_HostLightData.PointLights;
         devPointBuffer.Write(hostPointBuffer);
     }
+    if (!mainTask)
+        return;
 
-    for (u32 i = 1; i < tasks.GetSize(); ++i)
-        tm->WaitUntilFinished(tasks[i]);
+    mainTask();
+
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+    for (const Task &task : tasks)
+        tm->WaitUntilFinished(task);
 }
 VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
                                                       const VkCommandBuffer p_TransferCommand)
