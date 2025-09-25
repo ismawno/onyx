@@ -342,6 +342,9 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
         endRenderImGui(p_CommandBuffer);
 #endif
     };
+#ifdef ONYX_ENABLE_IMGUI
+    callbacks.OnBadFrame = [](const u32) { ImGui::Render(); };
+#endif
 
     m_Window->Render(callbacks);
     m_DeferFlag = false;
