@@ -89,7 +89,7 @@ template <Dimension D> struct Lattice
 
             const u32 tcount = (partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
-                tasks[i].WaitUntilFinished();
+                tm->WaitUntilFinished(tasks[i]);
         }
         else
         {
@@ -120,7 +120,7 @@ template <Dimension D> struct Lattice
 
             const u32 tcount = (partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
-                tasks[i].WaitUntilFinished();
+                tm->WaitUntilFinished(tasks[i]);
         }
     }
 

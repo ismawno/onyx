@@ -362,7 +362,7 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
 
             const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
-                tasks[i].WaitUntilFinished();
+                tm->WaitUntilFinished(tasks[i]);
         }
         else
         {
@@ -388,7 +388,7 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
 
             const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
-                tasks[i].WaitUntilFinished();
+                tm->WaitUntilFinished(tasks[i]);
         }
     }
 
