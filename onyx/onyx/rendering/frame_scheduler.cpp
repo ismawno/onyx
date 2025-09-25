@@ -462,7 +462,9 @@ void FrameScheduler::recreateResources()
     m_Images = createImageData();
 
     Detail::DestroyPerImageSyncData(m_SyncImageData);
+    Detail::DestroyPerFrameSyncData(m_SyncFrameData);
     m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetInfo().ImageData.GetSize());
+    m_SyncFrameData = Detail::CreatePerFrameSyncData();
 
     const PerImageData<VkImageView> imageViews = getIntermediateColorImageViews();
     m_PostProcessing->updateImageViews(imageViews);
