@@ -25,7 +25,7 @@ set(SOURCES
     onyx/app/theme.cpp)
 
 add_library(onyx STATIC ${SOURCES})
-target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.4.2\")
+target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.4.3\")
 
 if(UNIX AND NOT APPLE)
   find_package(PkgConfig REQUIRED)
