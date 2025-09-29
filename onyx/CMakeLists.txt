@@ -29,7 +29,7 @@ include(FetchContent)
 FetchContent_Declare(
   vulkit
   GIT_REPOSITORY https://github.com/ismawno/vulkit.git
-  GIT_TAG v0.1.2)
+  GIT_TAG v0.1.x)
 FetchContent_MakeAvailable(vulkit)
 
 FetchContent_Declare(
