@@ -9,7 +9,9 @@
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
 #include <imgui.h>
-#include <implot.h>
+#ifdef ONYX_ENABLE_IMPLOT
+#    include <implot.h>
+#endif
 
 // dirty macros as lazy enums lol
 #define MESH 0
@@ -282,7 +284,9 @@ template <Dimension D> static void renderMeshLoad(const char *p_Path)
 void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep)
 {
     ImGui::ShowDemoWindow();
+#ifdef ONYX_ENABLE_IMPLOT
     ImPlot::ShowDemoWindow();
+#endif
 
     if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {

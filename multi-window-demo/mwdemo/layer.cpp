@@ -1,6 +1,5 @@
 #include "mwdemo/layer.hpp"
 #include <imgui.h>
-#include <implot.h>
 
 namespace Onyx::Demo
 {
