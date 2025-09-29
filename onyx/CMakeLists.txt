@@ -28,7 +28,7 @@ if(ONYX_ENABLE_IMGUI)
 endif()
 
 add_library(onyx STATIC ${SOURCES})
-target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.6.0\")
+target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.6.x\")
 
 if(UNIX AND NOT APPLE)
   find_package(PkgConfig REQUIRED)
@@ -42,7 +42,7 @@ include(FetchContent)
 FetchContent_Declare(
   vulkit
   GIT_REPOSITORY https://github.com/ismawno/vulkit.git
-  GIT_TAG v0.6.0
+  GIT_TAG v0.6.x
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE)
 FetchContent_MakeAvailable(vulkit)
