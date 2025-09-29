@@ -423,22 +423,18 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
     {
         p_Context.Context->AmbientColor(p_Context.Ambient);
         for (const auto &light : p_Context.DirectionalLights)
-        {
-            p_Context.Context->LightColor(light.Color);
             p_Context.Context->DirectionalLight(light);
-        }
         for (const auto &light : p_Context.PointLights)
         {
             if (p_Context.DrawLights)
             {
                 p_Context.Context->Push();
-                p_Context.Context->Fill(light.Color);
+                p_Context.Context->Fill(Color::Unpack(light.Color));
                 p_Context.Context->Scale(0.01f);
-                p_Context.Context->Translate(light.PositionAndIntensity);
+                p_Context.Context->Translate(light.Position);
                 p_Context.Context->Sphere();
                 p_Context.Context->Pop();
             }
-            p_Context.Context->LightColor(light.Color);
             p_Context.Context->PointLight(light);
         }
     }
@@ -831,7 +827,7 @@ template <Dimension D> void WindowData::setupContext(ContextData<D> &p_Context)
     if constexpr (D == D3)
     {
         p_Context.DrawAxes = true;
-        p_Context.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
+        p_Context.DirectionalLights.Append(fvec3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
     }
 }
 template <Dimension D> CameraData<D> &WindowData::addCamera(CameraDataContainer<D> &p_Cameras)
@@ -939,9 +935,9 @@ void WindowData::renderLightSpawn(ContextData<D3> &p_Context)
     if (ImGui::Button("Spawn##Light"))
     {
         if (p_Context.LightToSpawn == 0)
-            p_Context.DirectionalLights.Append(fvec4{1.f, 1.f, 1.f, 0.55f}, Color::WHITE);
+            p_Context.DirectionalLights.Append(fvec3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
         else
-            p_Context.PointLights.Append(fvec4{0.f, 0.f, 0.f, 1.f}, Color::WHITE, 1.f);
+            p_Context.PointLights.Append(fvec3{0.f, 0.f, 0.f}, 0.3f, 1.f, Color::WHITE.Pack());
     }
     ImGui::SameLine();
     ImGui::Combo("Light", &p_Context.LightToSpawn, "Directional\0Point\0\0");

@@ -240,9 +240,15 @@ bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_
                    "direction is a normalized vector that points in the direction of the light, the intensity is the "
                    "brightness of the light, and the color is the color of the light.");
     ImGui::PushID(&p_Light);
-    changed |= ImGui::SliderFloat("Intensity", &p_Light.DirectionAndIntensity.w, 0.f, 1.f);
-    changed |= ImGui::SliderFloat3("Direction", glm::value_ptr(p_Light.DirectionAndIntensity), 0.f, 1.f);
-    changed |= ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
+    changed |= ImGui::SliderFloat("Intensity", &p_Light.Intensity, 0.f, 1.f);
+    changed |= ImGui::SliderFloat3("Direction", glm::value_ptr(p_Light.Direction), 0.f, 1.f);
+
+    Color color = Color::Unpack(p_Light.Color);
+    if (ImGui::ColorEdit3("Color", color.AsPointer()))
+    {
+        p_Light.Color = color.Pack();
+        changed = true;
+    }
     ImGui::PopID();
 
     return changed;
@@ -259,10 +265,17 @@ bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags)
             "the light, the radius is the distance at which the light is still visible, and the color is the color "
             "of the light.");
     ImGui::PushID(&p_Light);
-    changed |= ImGui::SliderFloat("Intensity", &p_Light.PositionAndIntensity.w, 0.f, 1.f);
-    changed |= ImGui::DragFloat3("Position", glm::value_ptr(p_Light.PositionAndIntensity), 0.01f);
+
+    changed |= ImGui::SliderFloat("Intensity", &p_Light.Intensity, 0.f, 1.f);
+    changed |= ImGui::DragFloat3("Position", glm::value_ptr(p_Light.Position), 0.01f);
     changed |= ImGui::SliderFloat("Radius", &p_Light.Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    changed |= ImGui::ColorEdit3("Color", p_Light.Color.AsPointer());
+
+    Color color = Color::Unpack(p_Light.Color);
+    if (ImGui::ColorEdit3("Color", color.AsPointer()))
+    {
+        p_Light.Color = color.Pack();
+        changed = true;
+    }
     ImGui::PopID();
     return changed;
 }

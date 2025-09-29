@@ -1527,19 +1527,19 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     /**
      * @brief Adds a point light to the scene at the current position.
      *
-     * @param p_Diameter The diameter of the light's influence.
+     * @param p_Radius The radius of the light's influence.
      * @param p_Intensity The intensity of the light.
      */
-    void PointLight(f32 p_Diameter = 1.f, f32 p_Intensity = 1.f);
+    void PointLight(f32 p_Radius = 1.f, f32 p_Intensity = 1.f);
 
     /**
      * @brief Adds a point light to the scene at the specified position.
      *
      * @param p_Position The position of the light.
-     * @param p_Diameter The diameter of the light's influence.
+     * @param p_Radius The radius of the light's influence.
      * @param p_Intensity The intensity of the light.
      */
-    void PointLight(const fvec3 &p_Position, f32 p_Diameter = 1.f, f32 p_Intensity = 1.f);
+    void PointLight(const fvec3 &p_Position, f32 p_Radius = 1.f, f32 p_Intensity = 1.f);
 
     /**
      * @brief Set the diffuse contribution factor for lighting calculations.

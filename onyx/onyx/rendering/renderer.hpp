@@ -244,13 +244,11 @@ namespace Onyx
  *
  * Contains the light's direction, intensity, and color.
  */
-struct ONYX_API DirectionalLight
+struct DirectionalLight
 {
-    /// Direction of the light and its intensity (w component).
-    fvec4 DirectionAndIntensity;
-
-    /// Color of the light.
-    Color Color;
+    fvec3 Direction;
+    f32 Intensity;
+    u32 Color;
 };
 
 /**
@@ -258,16 +256,12 @@ struct ONYX_API DirectionalLight
  *
  * Contains the light's position, intensity, color, and radius of influence.
  */
-struct ONYX_API PointLight
+struct PointLight
 {
-    /// Position of the light and its intensity (w component).
-    fvec4 PositionAndIntensity;
-
-    /// Color of the light.
-    Color Color;
-
-    /// Radius within which the light has an effect.
+    fvec3 Position;
+    f32 Intensity;
     f32 Radius;
+    u32 Color;
 };
 } // namespace Onyx
 

@@ -180,24 +180,30 @@ struct LightData3D
 
 struct DirectionalLight
 {
-    vec4 DirectionAndIntensity;
-    vec4 Color;
+    float PosX;
+    float PosY;
+    float PosZ;
+    float Intensity;
+    uint Color;
 };
 
 struct PointLight
 {
-    vec4 PositionAndIntensity;
-    vec4 Color;
+    float PosX;
+    float PosY;
+    float PosZ;
+    float Intensity;
     float Radius;
+    uint Color;
 };
 
-layout(std140, set = 1, binding = 0) readonly buffer DirectionalLights
+layout(std430, set = 1, binding = 0) readonly buffer DirectionalLights
 {
     DirectionalLight Lights[];
 }
 directionalLights;
 
-layout(set = 1, binding = 1) readonly buffer PointLights
+layout(std430, set = 1, binding = 1) readonly buffer PointLights
 {
     PointLight Lights[];
 }
@@ -212,13 +218,13 @@ vec3 GetLightColor(const LightData3D p_Data, const vec3 p_Normal, const Reflecti
     for (uint i = 0; i < p_Data.DirectionalLightCount; ++i)
     {
         const DirectionalLight dlight = directionalLights.Lights[i];
-        const vec3 direction = dlight.DirectionAndIntensity.xyz;
+        const vec3 direction = vec3(dlight.PosY, dlight.PosY, dlight.PosZ);
         const float product = dot(p_Normal, direction);
 
         if (product > 0.0)
         {
-            const float intensity = dlight.DirectionAndIntensity.w;
-            const vec3 lightColor = dlight.Color.xyz;
+            const float intensity = dlight.Intensity;
+            const vec3 lightColor = unpackUnorm4x8(dlight.Color).xyz;
             diffuseColor += intensity * lightColor * product;
 
             const vec3 halfVector = normalize(direction + specularDirection);
@@ -230,16 +236,16 @@ vec3 GetLightColor(const LightData3D p_Data, const vec3 p_Normal, const Reflecti
     for (uint i = 0; i < p_Data.PointLightCount; ++i)
     {
         const PointLight plight = pointLights.Lights[i];
-        const vec3 direction = plight.PositionAndIntensity.xyz - p_WorldPosition;
+        const vec3 direction = vec3(plight.PosX, plight.PosY, plight.PosZ) - p_WorldPosition;
         const float product = dot(p_Normal, direction);
 
         if (product > 0.0)
         {
-            const vec3 lightColor = plight.Color.xyz;
+            const vec3 lightColor = unpackUnorm4x8(plight.Color).xyz;
             const float radius = plight.Radius * plight.Radius;
             const float dirLen = dot(direction, direction);
             const float attenuation = radius / (dirLen + radius);
-            const float intensity = attenuation * plight.PositionAndIntensity.w;
+            const float intensity = attenuation * plight.Intensity;
             diffuseColor += intensity * lightColor * max(dot(p_Normal, normalize(direction)), 0.0);
 
             const vec3 halfVector = normalize(direction + specularDirection);

@@ -1112,42 +1112,36 @@ void RenderContext<D3>::AmbientIntensity(const f32 p_Intensity)
 void RenderContext<D3>::DirectionalLight(Onyx::DirectionalLight p_Light)
 {
     const RenderState<D3> *state = getState();
-    fvec4 direction = p_Light.DirectionAndIntensity;
-    direction.w = 0.f;
-    direction = state->Axes * state->Transform * direction;
-
-    p_Light.DirectionAndIntensity = fvec4{glm::normalize(fvec3{direction}), p_Light.DirectionAndIntensity.w};
+    p_Light.Direction = state->Axes * state->Transform * fvec4{p_Light.Direction, 0.f};
     m_Renderer.AddDirectionalLight(p_Light);
 }
 void RenderContext<D3>::DirectionalLight(const fvec3 &p_Direction, const f32 p_Intensity)
 {
     Onyx::DirectionalLight light;
-    light.DirectionAndIntensity = fvec4{p_Direction, p_Intensity};
-    light.Color = getState()->LightColor;
+    light.Direction = p_Direction;
+    light.Intensity = p_Intensity;
+    light.Color = getState()->LightColor.Pack();
     DirectionalLight(light);
 }
 
 void RenderContext<D3>::PointLight(Onyx::PointLight p_Light)
 {
     const RenderState<D3> *state = getState();
-    fvec4 position = p_Light.PositionAndIntensity;
-    position.w = 1.f;
-    position = state->Axes * state->Transform * position;
-    position.w = p_Light.PositionAndIntensity.w;
-    p_Light.PositionAndIntensity = position;
+    p_Light.Position = state->Axes * state->Transform * fvec4{p_Light.Position, 1.f};
     m_Renderer.AddPointLight(p_Light);
 }
-void RenderContext<D3>::PointLight(const fvec3 &p_Position, const f32 p_Diameter, const f32 p_Intensity)
+void RenderContext<D3>::PointLight(const fvec3 &p_Position, const f32 p_Radius, const f32 p_Intensity)
 {
     Onyx::PointLight light;
-    light.PositionAndIntensity = fvec4{p_Position, p_Intensity};
-    light.Radius = p_Diameter;
-    light.Color = getState()->LightColor;
+    light.Position = p_Position;
+    light.Radius = p_Radius;
+    light.Intensity = p_Intensity;
+    light.Color = getState()->LightColor.Pack();
     PointLight(light);
 }
-void RenderContext<D3>::PointLight(const f32 p_Diameter, const f32 p_Intensity)
+void RenderContext<D3>::PointLight(const f32 p_Radius, const f32 p_Intensity)
 {
-    PointLight(fvec3{0.f}, p_Diameter, p_Intensity);
+    PointLight(fvec3{0.f}, p_Radius, p_Intensity);
 }
 
 void RenderContext<D3>::DiffuseContribution(const f32 p_Contribution)
