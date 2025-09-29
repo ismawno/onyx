@@ -27,7 +27,7 @@
 #    define ONYX_MAX_WORKER_THREADS 15
 #endif
 
-#define ONYX_VERSION "v0.2.4"
+#define ONYX_VERSION "v0.2.x"
 
 namespace TKit
 {
