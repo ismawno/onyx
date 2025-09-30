@@ -168,11 +168,11 @@ class ONYX_API FrameScheduler
     void setupNaivePostProcessing() noexcept;
     VkExtent2D waitGlfwEvents(Window &p_Window) noexcept;
 
-    TKit::StaticArray4<ImageData> m_Images{};
-    TKit::StaticArray4<VkImageView> getIntermediateColorImageViews() const noexcept;
+    TKit::StaticArray8<ImageData> m_Images{};
+    TKit::StaticArray8<VkImageView> getIntermediateColorImageViews() const noexcept;
 
     VKit::SwapChain m_SwapChain;
-    TKit::StaticArray4<VkFence> m_InFlightImages;
+    TKit::StaticArray8<VkFence> m_InFlightImages;
     TKit::Storage<PostProcessing> m_PostProcessing;
 
     VKit::Shader m_NaivePostProcessingFragmentShader;

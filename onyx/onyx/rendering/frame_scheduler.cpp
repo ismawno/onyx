@@ -486,7 +486,7 @@ void FrameScheduler::recreateResources() noexcept
     m_Images = createImageData();
     m_InFlightImages.Resize(m_SwapChain.GetInfo().ImageData.GetSize(), VK_NULL_HANDLE);
 
-    const TKit::StaticArray4<VkImageView> imageViews = getIntermediateColorImageViews();
+    const TKit::StaticArray8<VkImageView> imageViews = getIntermediateColorImageViews();
     m_PostProcessing->updateImageViews(imageViews);
     m_ImageIndex = 0;
 }
@@ -537,7 +537,7 @@ void FrameScheduler::createProcessingEffects() noexcept
 {
     m_NaivePostProcessingFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/pp-naive.frag");
 
-    const TKit::StaticArray4<VkImageView> imageviews = getIntermediateColorImageViews();
+    const TKit::StaticArray8<VkImageView> imageviews = getIntermediateColorImageViews();
     m_PostProcessing.Construct(imageviews);
 
     const VKit::PipelineLayout::Builder builder = m_PostProcessing->CreatePipelineLayoutBuilder();
@@ -601,9 +601,9 @@ void FrameScheduler::setupNaivePostProcessing() noexcept
     m_PostProcessing->Setup(specs);
 }
 
-TKit::StaticArray4<VkImageView> FrameScheduler::getIntermediateColorImageViews() const noexcept
+TKit::StaticArray8<VkImageView> FrameScheduler::getIntermediateColorImageViews() const noexcept
 {
-    TKit::StaticArray4<VkImageView> imageViews;
+    TKit::StaticArray8<VkImageView> imageViews;
     for (u32 i = 0; i < m_SwapChain.GetInfo().ImageData.GetSize(); ++i)
         imageViews.Append(m_Images[i].Intermediate.Image.ImageView);
     return imageViews;
