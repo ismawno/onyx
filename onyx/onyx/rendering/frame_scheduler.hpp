@@ -162,7 +162,7 @@ class ONYX_API FrameScheduler
 
     void handlePresentResult(Window &p_Window, VkResult p_Result) noexcept;
 
-    TKit::StaticArray4<ImageData> createImageData() noexcept;
+    TKit::StaticArray8<ImageData> createImageData() noexcept;
     void destroyImageData() noexcept;
 
     void setupNaivePostProcessing() noexcept;
