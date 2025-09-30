@@ -86,7 +86,7 @@ struct Specs
 };
 
 template <typename T> using PerFrameData = TKit::Array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
-template <typename T> using PerImageData = TKit::StaticArray4<T>;
+template <typename T> using PerImageData = TKit::StaticArray8<T>;
 struct ONYX_API Core
 {
     static void Initialize(const Specs &p_Specs = {});
