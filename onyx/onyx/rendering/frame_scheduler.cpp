@@ -8,6 +8,27 @@
 
 namespace Onyx::Detail
 {
+static TKit::StaticArray8<VkSemaphore> createRenderFinishedSemaphores(const u32 p_Count) noexcept
+{
+    TKit::StaticArray8<VkSemaphore> semaphores{};
+    semaphores.Resize(p_Count);
+    const auto &table = Core::GetDeviceTable();
+    for (VkSemaphore &sp : semaphores)
+    {
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        TKIT_ASSERT_RETURNS(table.CreateSemaphore(Core::GetDevice(), &semaphoreInfo, nullptr, &sp), VK_SUCCESS,
+                            "[ONYX] Failed to create render finished semaphore");
+    }
+    return semaphores;
+}
+static void destroyRenderFinishedSemaphores(const TKit::Span<VkSemaphore> p_Semaphores) noexcept
+{
+    const auto &table = Core::GetDeviceTable();
+    for (const VkSemaphore sp : p_Semaphores)
+        table.DestroySemaphore(Core::GetDevice(), sp, nullptr);
+}
 FrameScheduler::FrameScheduler(Window &p_Window) noexcept
 {
     createSwapChain(p_Window);
@@ -16,6 +37,7 @@ FrameScheduler::FrameScheduler(Window &p_Window) noexcept
     createProcessingEffects();
     createCommandData();
     const auto result = VKit::CreateSynchronizationObjects(Core::GetDevice(), m_SyncData);
+    m_RenderFinishedSemaphores = createRenderFinishedSemaphores(m_SwapChain.GetInfo().ImageData.GetSize());
     VKIT_ASSERT_RESULT(result);
 }
 
@@ -28,6 +50,7 @@ FrameScheduler::~FrameScheduler() noexcept
     m_NaivePostProcessingFragmentShader.Destroy();
     m_NaivePostProcessingLayout.Destroy();
     VKit::DestroySynchronizationObjects(Core::GetDevice(), m_SyncData);
+    destroyRenderFinishedSemaphores(m_RenderFinishedSemaphores);
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         m_CommandPools[i].Destroy();
 
@@ -173,7 +196,7 @@ VkResult FrameScheduler::SubmitCurrentCommandBuffer() noexcept
     submitInfo.pCommandBuffers = &cmd;
 
     submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &m_SyncData[m_FrameIndex].RenderFinishedSemaphore;
+    submitInfo.pSignalSemaphores = &m_RenderFinishedSemaphores[m_ImageIndex];
 
     TKIT_ASSERT_RETURNS(table.ResetFences(Core::GetDevice(), 1, &m_SyncData[m_FrameIndex].InFlightFence), VK_SUCCESS,
                         "[ONYX] Failed to reset fences");
@@ -187,7 +210,7 @@ VkResult FrameScheduler::Present() noexcept
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &m_SyncData[m_FrameIndex].RenderFinishedSemaphore;
+    presentInfo.pWaitSemaphores = &m_RenderFinishedSemaphores[m_ImageIndex];
 
     const VkSwapchainKHR swapChain = m_SwapChain;
 
