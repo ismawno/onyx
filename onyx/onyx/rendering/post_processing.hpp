@@ -79,7 +79,7 @@ class ONYX_API PostProcessing
     VKit::GraphicsJob m_Job{};
 
     TKit::StaticArray8<VkImageView> m_ImageViews;
-    TKit::StaticArray4<VkDescriptorSet> m_SamplerDescriptors;
+    TKit::StaticArray8<VkDescriptorSet> m_SamplerDescriptors;
     VKit::DescriptorSetLayout m_DescriptorSetLayout{};
     VkSampler m_Sampler = VK_NULL_HANDLE;
 };
