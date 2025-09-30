@@ -151,12 +151,12 @@ class ONYX_API FrameScheduler
     void createCommandData() noexcept;
 
     void setupNaivePostProcessing() noexcept;
-    TKit::StaticArray4<VkImageView> getIntermediateAttachmentImageViews() const noexcept;
+    TKit::StaticArray8<VkImageView> getIntermediateAttachmentImageViews() const noexcept;
 
     VKit::SwapChain m_SwapChain;
     VKit::RenderPass m_RenderPass;
     VKit::RenderPass::Resources m_Resources;
-    TKit::StaticArray4<VkFence> m_InFlightImages;
+    TKit::StaticArray8<VkFence> m_InFlightImages;
     TKit::Storage<PostProcessing> m_PostProcessing;
 
     VKit::Shader m_NaivePostProcessingFragmentShader;
