@@ -173,6 +173,7 @@ class ONYX_API FrameScheduler
 
     VKit::SwapChain m_SwapChain;
     TKit::StaticArray8<VkFence> m_InFlightImages;
+    TKit::StaticArray8<VkSemaphore> m_RenderFinishedSemaphores;
     TKit::Storage<PostProcessing> m_PostProcessing;
 
     VKit::Shader m_NaivePostProcessingFragmentShader;
