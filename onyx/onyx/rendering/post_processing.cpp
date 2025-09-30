@@ -6,7 +6,7 @@
 namespace Onyx
 {
 PostProcessing::PostProcessing(const VkRenderPass p_RenderPass,
-                               const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept
+                               const TKit::StaticArray8<VkImageView> &p_ImageViews) noexcept
     : m_RenderPass(p_RenderPass), m_ImageViews(p_ImageViews)
 {
     const auto result = VKit::DescriptorSetLayout::Builder(Core::GetDevice())
@@ -113,7 +113,7 @@ VkSamplerCreateInfo PostProcessing::DefaultSamplerCreateInfo() noexcept
     return samplerCreateInfo;
 }
 
-void PostProcessing::updateImageViews(const TKit::StaticArray4<VkImageView> &p_ImageViews) noexcept
+void PostProcessing::updateImageViews(const TKit::StaticArray8<VkImageView> &p_ImageViews) noexcept
 {
     TKIT_ASSERT(m_ImageViews.GetSize() == p_ImageViews.GetSize(), "[ONYX] Image view count mismatch");
     m_ImageViews = p_ImageViews;
