@@ -407,14 +407,14 @@ void FrameScheduler::recreateSwapChain(Window &p_Window) noexcept
     m_PostProcessing->updateImageViews(imageViews);
 }
 
-TKit::StaticArray4<FrameScheduler::ImageData> FrameScheduler::createImageData() noexcept
+TKit::StaticArray8<FrameScheduler::ImageData> FrameScheduler::createImageData() noexcept
 {
     const auto result = VKit::ImageHouse::Create(Core::GetDevice(), Core::GetVulkanAllocator());
     VKIT_ASSERT_RESULT(result);
     m_ImageHouse = result.GetValue();
 
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-    TKit::StaticArray4<ImageData> images{};
+    TKit::StaticArray8<ImageData> images{};
     for (u32 i = 0; i < info.ImageData.GetSize(); ++i)
     {
         ImageData data{};
