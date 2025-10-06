@@ -1112,7 +1112,7 @@ void RenderContext<D3>::AmbientIntensity(const f32 p_Intensity)
 void RenderContext<D3>::DirectionalLight(Onyx::DirectionalLight p_Light)
 {
     const RenderState<D3> *state = getState();
-    p_Light.Direction = state->Axes * state->Transform * fvec4{p_Light.Direction, 0.f};
+    p_Light.Direction = glm::normalize(state->Axes * state->Transform * fvec4{p_Light.Direction, 0.f});
     m_Renderer.AddDirectionalLight(p_Light);
 }
 void RenderContext<D3>::DirectionalLight(const fvec3 &p_Direction, const f32 p_Intensity)
