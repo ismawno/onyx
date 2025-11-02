@@ -2,7 +2,7 @@
 #include "onyx/rendering/render_context.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 
-#include "tkit/utils/math.hpp"
+#include "tkit/math/math.hpp"
 
 namespace Onyx
 {

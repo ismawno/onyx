@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/property/color.hpp"
 #include "tkit/utils/logging.hpp"
-#include "tkit/utils/math.hpp"
+#include "tkit/math/math.hpp"
 #include <sstream>
 
 namespace Onyx
@@ -54,16 +54,14 @@ Color::Color(const f32 r, const f32 g, const f32 b, const f32 a) : RGBA(r, g, b,
     TKIT_ASSERT(b <= 1.f && b >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
     TKIT_ASSERT(a <= 1.f && a >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
 }
-Color::Color(const u32 r, const u32 g, const u32 b, const u32 a)
-    : RGBA(toFloat(r), toFloat(g), toFloat(b), toFloat(a))
+Color::Color(const u32 r, const u32 g, const u32 b, const u32 a) : RGBA(toFloat(r), toFloat(g), toFloat(b), toFloat(a))
 {
     TKIT_ASSERT(r < 256, "[ONYX] Red value must be in the range [0, 255]");
     TKIT_ASSERT(g < 256, "[ONYX] Green value must be in the range [0, 255]");
     TKIT_ASSERT(b < 256, "[ONYX] Blue value must be in the range [0, 255]");
     TKIT_ASSERT(a < 256, "[ONYX] Alpha value must be in the range [0, 255]");
 }
-Color::Color(const u8 r, const u8 g, const u8 b, const u8 a)
-    : RGBA(toFloat(r), toFloat(g), toFloat(b), toFloat(a))
+Color::Color(const u8 r, const u8 g, const u8 b, const u8 a) : RGBA(toFloat(r), toFloat(g), toFloat(b), toFloat(a))
 {
     // No asserts needed: u8 is always in the range [0, 255]
 }

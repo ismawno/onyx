@@ -11,7 +11,7 @@
 #include "onyx/core/glfw.hpp"
 #include "vkit/vulkan/allocator.hpp"
 #include "vkit/vulkan/vulkan.hpp"
-#ifdef TKIT_OS_LINUX
+#ifdef ONYX_FONTCONFIG
 #    include <fontconfig/fontconfig.h>
 #endif
 
@@ -260,7 +260,7 @@ static void createShaders()
 void Core::Initialize(const Specs &p_Specs)
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan instance");
-#ifdef TKIT_OS_LINUX
+#ifdef ONYX_FONTCONFIG
     FcInit();
 #endif
 
