@@ -3,7 +3,7 @@
 #include "onyx/app/window.hpp"
 #include "onyx/property/color.hpp"
 #include "onyx/core/shaders.hpp"
-#include "tkit/utils/logging.hpp"
+#include "tkit/utils/debug.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "onyx/core/glfw.hpp"
 
@@ -341,7 +341,8 @@ void FrameScheduler::SubmitTransferQueue()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_SyncFrameData[m_FrameIndex].TransferCopyDoneSemaphore;
 
-    TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE), VK_SUCCESS);
+    TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE), VK_SUCCESS,
+                        "[ONYX] Failed to submit to transfer queue");
 }
 
 PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,
@@ -425,15 +426,15 @@ void FrameScheduler::createSwapChain(Window &p_Window, const VkExtent2D &p_Windo
 
     VKIT_ASSERT_RESULT(result);
     m_SwapChain = result.GetValue();
-#ifdef TKIT_ENABLE_INFO_LOGS
+#ifdef TKIT_ENABLE_DEBUG_LOGS
     const u32 icount = m_SwapChain.GetInfo().ImageData.GetSize();
-    TKIT_LOG_INFO("[ONYX] Created swapchain with {} images", icount);
+    TKIT_LOG_DEBUG("[ONYX] Created swapchain with {} images", icount);
 #endif
 }
 
 void FrameScheduler::recreateSwapChain(Window &p_Window)
 {
-    TKIT_LOG_INFO("[ONYX] Out of date swap chain. Re-creating swap chain and resources");
+    TKIT_LOG_DEBUG("[ONYX] Out of date swap chain. Re-creating swap chain and resources");
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     Core::DeviceWaitIdle();
 
@@ -444,7 +445,7 @@ void FrameScheduler::recreateSwapChain(Window &p_Window)
 }
 void FrameScheduler::recreateSurface(Window &p_Window)
 {
-    TKIT_LOG_INFO("[ONYX] Surface lost... re-creating surface, swap chain and resources");
+    TKIT_LOG_WARNING("[ONYX] Surface lost... re-creating surface, swap chain and resources");
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     Core::DeviceWaitIdle();
 

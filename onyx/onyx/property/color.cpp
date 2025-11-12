@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/property/color.hpp"
-#include "tkit/utils/logging.hpp"
+#include "tkit/utils/debug.hpp"
 #include "tkit/math/math.hpp"
 #include <sstream>
 

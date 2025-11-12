@@ -4,7 +4,7 @@
 #include "onyx/core/core.hpp"
 
 #include "tkit/profiling/macros.hpp"
-#include "tkit/utils/logging.hpp"
+#include "tkit/utils/debug.hpp"
 #include "vkit/vulkan/loader.hpp"
 
 namespace Onyx
@@ -408,7 +408,7 @@ void MultiWindowApplication::CloseWindow(const Window *p_Window)
             CloseWindow(i);
             return;
         }
-    TKIT_ERROR("Window was not found");
+    TKIT_FATAL("Window was not found");
 }
 
 bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock)

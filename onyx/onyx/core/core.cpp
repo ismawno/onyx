@@ -6,7 +6,7 @@
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "vkit/pipeline/pipeline_layout.hpp"
 #include "vkit/core/core.hpp"
-#include "tkit/utils/logging.hpp"
+#include "tkit/utils/debug.hpp"
 
 #include "onyx/core/glfw.hpp"
 #include "vkit/vulkan/allocator.hpp"
@@ -288,7 +288,7 @@ void Core::Initialize(const Specs &p_Specs)
         .RequireApiVersion(1, 2, 0)
         .RequireExtensions(extensionSpan)
         .SetApplicationVersion(1, 2, 0);
-#ifdef TKIT_ENABLE_ASSERTS
+#ifdef ONYX_ENABLE_VALIDATION_LAYERS
     builder.RequestValidationLayers();
 #endif
     if (s_Initializer)
@@ -309,7 +309,11 @@ void Core::Initialize(const Specs &p_Specs)
     }
     else
     {
+#    ifdef ONYX_ENABLE_VALIDATION_LAYERS
+        TKIT_LOG_ERROR("[ONYX] Validation layers were requested, but could not be enabled");
+#    else
         TKIT_LOG_INFO("[ONYX] Validation layers disabled");
+#    endif
     }
 #endif
     s_DeletionQueue.SubmitForDeletion(s_Instance);
