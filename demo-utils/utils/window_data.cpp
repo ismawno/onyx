@@ -1,5 +1,4 @@
 #include "utils/window_data.hpp"
-#include "glm/trigonometric.hpp"
 #include "onyx/core/shaders.hpp"
 #include "onyx/app/user_layer.hpp"
 #include "utils/shapes.hpp"
@@ -8,6 +7,8 @@
 #include "tkit/container/static_array.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
+#include "tkit/utils/limits.hpp"
+#include <glm/trigonometric.hpp>
 #include <imgui.h>
 #ifdef ONYX_ENABLE_IMPLOT
 #    include <implot.h>
@@ -632,7 +633,7 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
         {
             ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y);
             const u32 mn = 1;
-            const u32 mx = Limits<u32>::max();
+            const u32 mx = TKit::Limits<u32>::Max();
             ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, glm::value_ptr(lattice.Dimensions), 2, 2.f, &mn,
                                &mx);
         }
@@ -640,7 +641,7 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
         {
             ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y * lattice.Dimensions.z);
             const u32 mn = 1;
-            const u32 mx = Limits<u32>::max();
+            const u32 mx = TKit::Limits<u32>::Max();
             ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, glm::value_ptr(lattice.Dimensions), 3, 2.f, &mn,
                                &mx);
         }
