@@ -48,8 +48,8 @@ struct ONYX_API Color
 
     static Color FromString(const std::string &p_Color);
 
-    const f32 *AsPointer() const;
-    f32 *AsPointer();
+    const f32 *GetData() const;
+    f32 *GetData();
 
     operator const fvec4 &() const;
     operator const fvec3 &() const;

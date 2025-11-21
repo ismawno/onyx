@@ -104,7 +104,7 @@ template <Dimension D> void Shape<D>::Edit()
     ImGui::Checkbox("Fill", &m_Fill);
     ImGui::Checkbox("Outline", &m_Outline);
     ImGui::SliderFloat("Outline Width", &m_OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    ImGui::ColorEdit4("Outline Color", m_OutlineColor.AsPointer());
+    ImGui::ColorEdit4("Outline Color", m_OutlineColor.GetData());
 
     ImGui::PopID();
 }

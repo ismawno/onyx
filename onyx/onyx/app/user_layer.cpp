@@ -224,7 +224,7 @@ template <Dimension D> bool UserLayer::MaterialEditor(MaterialData<D> &p_Materia
         changed |= ImGui::SliderFloat("Specular sharpness", &p_Material.SpecularSharpness, 0.f, 512.f, "%.2f",
                                       ImGuiSliderFlags_Logarithmic);
     }
-    changed |= ImGui::ColorEdit4("Color", p_Material.Color.AsPointer());
+    changed |= ImGui::ColorEdit4("Color", p_Material.Color.GetData());
     return changed;
 }
 
@@ -244,7 +244,7 @@ bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_
     changed |= ImGui::SliderFloat3("Direction", glm::value_ptr(p_Light.Direction), 0.f, 1.f);
 
     Color color = Color::Unpack(p_Light.Color);
-    if (ImGui::ColorEdit3("Color", color.AsPointer()))
+    if (ImGui::ColorEdit3("Color", color.GetData()))
     {
         p_Light.Color = color.Pack();
         changed = true;
@@ -271,7 +271,7 @@ bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags)
     changed |= ImGui::SliderFloat("Radius", &p_Light.Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
 
     Color color = Color::Unpack(p_Light.Color);
-    if (ImGui::ColorEdit3("Color", color.AsPointer()))
+    if (ImGui::ColorEdit3("Color", color.GetData()))
     {
         p_Light.Color = color.Pack();
         changed = true;

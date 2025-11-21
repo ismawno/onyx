@@ -164,11 +164,11 @@ Color Color::FromString(const std::string &p_Color)
     return s_ColorMap.at(p_Color);
 }
 
-const f32 *Color::AsPointer() const
+const f32 *Color::GetData() const
 {
     return glm::value_ptr(RGBA);
 }
-f32 *Color::AsPointer()
+f32 *Color::GetData()
 {
     return glm::value_ptr(RGBA);
 }

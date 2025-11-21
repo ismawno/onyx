@@ -142,7 +142,7 @@ void WindowData::OnRenderBegin(const VkCommandBuffer p_CommandBuffer)
 void WindowData::OnImGuiRender()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnImGuiRender");
-    ImGui::ColorEdit3("Window background", m_BackgroundColor.AsPointer());
+    ImGui::ColorEdit3("Window background", m_BackgroundColor.GetData());
     UserLayer::PresentModeEditor(m_Window, UserLayer::Flag_DisplayHelp);
 
     ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
@@ -677,7 +677,7 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
 
         ImGui::Text("Material");
         UserLayer::MaterialEditor<D>(line.Material, UserLayer::Flag_DisplayHelp);
-        ImGui::ColorEdit3("Outline color", line.OutlineColor.AsPointer());
+        ImGui::ColorEdit3("Outline color", line.OutlineColor.GetData());
 
         p_Context.Context->Push();
         if (line.Outline)
@@ -741,7 +741,7 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera)
 
     ImGui::Checkbox("Transparent", &camera->Transparent);
     if (!camera->Transparent)
-        ImGui::ColorEdit3("Background", camera->BackgroundColor.AsPointer());
+        ImGui::ColorEdit3("Background", camera->BackgroundColor.GetData());
 
     ImGui::Text("Viewport");
     ImGui::SameLine();
