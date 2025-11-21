@@ -81,7 +81,7 @@ void ApplyReleaseBarrier(const VkCommandBuffer p_CommandBuffer,
 }
 } // namespace Detail
 template <Dimension D>
-VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path, const fmat<D> *p_Transform)
+VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path, const f32m<D> *p_Transform)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -120,17 +120,17 @@ VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path
 
     if constexpr (D == D3)
     {
-        const fmat3 normalMatrix = glm::transpose(glm::inverse(fmat3(*p_Transform)));
+        const f32m3 normalMatrix = Math::Transpose(Math::Inverse(f32m3(*p_Transform)));
         for (Vertex<D> &vertex : buffers.Vertices)
         {
-            vertex.Position = fvec3{*p_Transform * fvec4{vertex.Position, 1.f}};
+            vertex.Position = f32v3{*p_Transform * f32v4{vertex.Position, 1.f}};
             vertex.Normal = normalMatrix * vertex.Normal;
         }
     }
     else
         for (Vertex<D> &vertex : buffers.Vertices)
             if constexpr (D == D3)
-                vertex.Position = fvec2{*p_Transform * fvec3{vertex.Position, 1.f}};
+                vertex.Position = f32v2{*p_Transform * f32v3{vertex.Position, 1.f}};
     return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
 }
 
@@ -204,9 +204,9 @@ HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(const u32 p_Capacity)
 }
 
 template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path,
-                                                                      const fmat<D2> *p_Transform);
+                                                                      const f32m<D2> *p_Transform);
 template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std::string_view p_Path,
-                                                                      const fmat<D3> *p_Transform);
+                                                                      const f32m<D3> *p_Transform);
 
 template struct ONYX_API IndexVertexHostData<D2>;
 template struct ONYX_API IndexVertexHostData<D3>;

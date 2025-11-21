@@ -8,24 +8,21 @@ namespace Onyx
 {
 struct ONYX_API Color
 {
+    Color(const f32v4 &p_RGBA);
+    Color(const f32v3 &p_RGB, f32 p_Alpha = 1.f);
+
     Color(f32 p_Val = 1.f);
     Color(u32 p_Val);
-    Color(u8 p_Val);
-
-    Color(const fvec4 &p_RGBA);
-    Color(const fvec3 &p_RGB, f32 p_Alpha = 1.f);
 
     Color(f32 p_Red, f32 p_Green, f32 p_Blue, f32 p_Alpha = 1.f);
     Color(u32 p_Red, u32 p_Green, u32 p_Blue, u32 p_Alpha = 255);
-    Color(u8 p_Red, u8 p_Green, u8 p_Blue, u8 p_Alpha = 255);
 
     Color(const Color &p_RGB, f32 p_Alpha);
     Color(const Color &p_RGB, u32 p_Alpha);
-    Color(const Color &p_RGB, u8 p_Alpha);
 
     union {
-        fvec4 RGBA;
-        fvec3 RGB;
+        f32v4 RGBA;
+        f32v3 RGB;
     };
 
     u8 Red() const;
@@ -33,10 +30,10 @@ struct ONYX_API Color
     u8 Blue() const;
     u8 Alpha() const;
 
-    void Red(u8 p_Red);
-    void Green(u8 p_Green);
-    void Blue(u8 p_Blue);
-    void Alpha(u8 p_Alpha);
+    void Red(u32 p_Red);
+    void Green(u32 p_Green);
+    void Blue(u32 p_Blue);
+    void Alpha(u32 p_Alpha);
 
     u32 Pack() const;
     static Color Unpack(u32 p_Packed);
@@ -51,8 +48,8 @@ struct ONYX_API Color
     const f32 *GetData() const;
     f32 *GetData();
 
-    operator const fvec4 &() const;
-    operator const fvec3 &() const;
+    operator const f32v4 &() const;
+    operator const f32v3 &() const;
 
     Color &operator+=(const Color &p_Right);
     Color &operator-=(const Color &p_Right);
@@ -60,12 +57,12 @@ struct ONYX_API Color
     Color &operator/=(const Color &p_Right);
     template <typename T> Color &operator*=(const T &p_Right)
     {
-        RGB = glm::clamp(RGB * p_Right, 0.f, 1.f);
+        RGB = Math::Clamp(RGB * p_Right, 0.f, 1.f);
         return *this;
     }
     template <typename T> Color &operator/=(const T &p_Right)
     {
-        RGB = glm::clamp(RGB / p_Right, 0.f, 1.f);
+        RGB = Math::Clamp(RGB / p_Right, 0.f, 1.f);
         return *this;
     }
 
@@ -98,14 +95,14 @@ struct ONYX_API Color
     }
 
     // Sonarlint yells lol but this is a union like class and no default equality operator is provided
-    friend bool operator==(const Color &lhs, const Color &rhs)
+    friend bool operator==(const Color &p_Left, const Color &p_Right)
     {
-        return lhs.RGBA == rhs.RGBA;
+        return p_Left.RGBA == p_Right.RGBA;
     }
     // Sonarlint yells lol but this is a union like class and no default equality operator is provided
-    friend bool operator!=(const Color &lhs, const Color &rhs)
+    friend bool operator!=(const Color &p_Left, const Color &p_Right)
     {
-        return lhs.RGBA != rhs.RGBA;
+        return !(p_Left == p_Right);
     }
 
     static const Color RED;

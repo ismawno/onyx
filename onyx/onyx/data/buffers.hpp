@@ -51,7 +51,7 @@ template <Dimension D> struct IndexVertexHostData
 
 template <Dimension D>
 VKit::FormattedResult<IndexVertexHostData<D>> Load(std::string_view p_Path,
-                                                   const fmat<D> *p_Transform = nullptr);
+                                                   const f32m<D> *p_Transform = nullptr);
 
 template <Dimension D>
 DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices);

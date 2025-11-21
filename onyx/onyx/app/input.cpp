@@ -580,13 +580,13 @@ void PollEvents()
 {
     glfwPollEvents();
 }
-fvec2 GetScreenMousePosition(Window *p_Window)
+f32v2 GetScreenMousePosition(Window *p_Window)
 {
     GLFWwindow *window = p_Window->GetWindowHandle();
     double xPos, yPos;
     glfwGetCursorPos(window, &xPos, &yPos);
-    return {2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,
-            1.f - 2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight()};
+    return f32v2{2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,
+                 1.f - 2.f * static_cast<f32>(yPos) / p_Window->GetScreenHeight()};
 }
 
 bool IsKeyPressed(Window *p_Window, const Key p_Key)
@@ -910,7 +910,7 @@ static void cursorPositionCallback(GLFWwindow *p_Window, const double p_XPos, co
     Event event;
     event.Window = windowFromGLFW(p_Window);
     event.Type = Event::MouseMoved;
-    event.Mouse.Position = {static_cast<f32>(p_XPos), static_cast<f32>(p_YPos)};
+    event.Mouse.Position = f32v2{static_cast<f32>(p_XPos), static_cast<f32>(p_YPos)};
     event.Window->PushEvent(event);
 }
 
@@ -936,7 +936,7 @@ static void scrollCallback(GLFWwindow *p_Window, double p_XOffset, double p_YOff
     Event event;
     event.Window = windowFromGLFW(p_Window);
     event.Type = Event::Scrolled;
-    event.ScrollOffset = {static_cast<f32>(p_XOffset), static_cast<f32>(p_YOffset)};
+    event.ScrollOffset = f32v2{static_cast<f32>(p_XOffset), static_cast<f32>(p_YOffset)};
     event.Window->PushEvent(event);
 }
 

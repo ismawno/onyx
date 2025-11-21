@@ -65,20 +65,20 @@ template <Dimension D> struct Lattice
 
         if constexpr (D == D2)
         {
-            const u32 size = LatticeDims.x * LatticeDims.y;
+            const u32 size = LatticeDims[0] * LatticeDims[1];
             const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
                 TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
                 const Lattice<D> lattice = *this;
 
-                const fvec<D> offset = -0.5f * Separation * fvec<D>{LatticeDims - 1u};
+                const f32v<D> offset = -0.5f * Separation * f32v<D>{LatticeDims - 1u};
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
-                    const u32 ix = i / LatticeDims.y;
-                    const u32 iy = i % LatticeDims.y;
+                    const u32 ix = i / LatticeDims[1];
+                    const u32 iy = i % LatticeDims[1];
                     const f32 x = Separation * static_cast<f32>(ix);
                     const f32 y = Separation * static_cast<f32>(iy);
 
-                    const fvec2 pos = fvec2{x, y} + offset;
+                    const f32v2 pos = f32v2{x, y} + offset;
                     std::forward<F>(p_Func)(pos, lattice);
                 }
             };
@@ -93,23 +93,23 @@ template <Dimension D> struct Lattice
         }
         else
         {
-            const u32 size = LatticeDims.x * LatticeDims.y * LatticeDims.z;
+            const u32 size = LatticeDims[0] * LatticeDims[1] * LatticeDims[2];
             const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
                 TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
 
                 const Lattice<D> lattice = *this;
-                const u32 yz = LatticeDims.y * LatticeDims.z;
-                const fvec<D> offset = Transform.Translation - 0.5f * Separation * fvec<D>{LatticeDims - 1u};
+                const u32 yz = LatticeDims[1] * LatticeDims[2];
+                const f32v<D> offset = Transform.Translation - 0.5f * Separation * f32v<D>{LatticeDims - 1u};
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
                     const u32 ix = i / yz;
                     const u32 j = ix * yz;
-                    const u32 iy = (i - j) / LatticeDims.z;
-                    const u32 iz = (i - j) % LatticeDims.z;
+                    const u32 iy = (i - j) / LatticeDims[2];
+                    const u32 iz = (i - j) % LatticeDims[2];
                     const f32 x = Separation * static_cast<f32>(ix);
                     const f32 y = Separation * static_cast<f32>(iy);
                     const f32 z = Separation * static_cast<f32>(iz);
-                    const fvec3 pos = fvec3{x, y, z} + offset;
+                    const f32v3 pos = f32v3{x, y, z} + offset;
                     std::forward<F>(p_Func)(pos, lattice);
                 }
             };
@@ -132,13 +132,13 @@ template <Dimension D> struct Lattice
     Mesh<D> Mesh{};
     TKIT_YAML_SERIALIZE_IGNORE_END()
 
-    uvec<D> LatticeDims{10};
+    u32v<D> LatticeDims{10};
 
     TKIT_YAML_SERIALIZE_GROUP_BEGIN("Optionals", "--skip-if-missing")
     std::string MeshPath{};
     CircleOptions CircleOptions{};
-    fvec<D> ShapeSize{1.f};
-    PolygonVerticesArray Vertices{{0.5f, -0.3f}, {0.f, 0.3f}, {-0.5f, -0.3f}};
+    f32v<D> ShapeSize{1.f};
+    PolygonVerticesArray Vertices{f32v2{0.5f, -0.3f}, f32v2{0.f, 0.3f}, f32v2{-0.5f, -0.3f}};
     u32 NGonSides = 3;
     f32 Diameter = 1.f;
     f32 Length = 1.f;

@@ -9,9 +9,9 @@
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/limits.hpp"
 #include <glm/trigonometric.hpp>
-#include <imgui.h>
+#include "onyx/core/imgui.hpp"
 #ifdef ONYX_ENABLE_IMPLOT
-#    include <implot.h>
+#    include "onyx/core/implot.hpp"
 #endif
 
 // dirty macros as lazy enums lol
@@ -210,7 +210,7 @@ static void processEvent(ContextDataContainer<D> &p_Contexts, const CameraDataCo
         const f32 factor =
             Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) && !ImGui::GetIO().WantCaptureKeyboard ? 0.05f
                                                                                                               : 0.005f;
-        camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset.y);
+        camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
     }
 }
 
@@ -335,12 +335,12 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
     p_Context.Context->TransformAxes(p_Context.AxesTransform.ComputeTransform());
 
     const LatticeData<D> &lattice = p_Context.Lattice;
-    const uvec<D> &dims = lattice.Dimensions;
+    const u32v<D> &dims = lattice.Dimensions;
     if (lattice.Enabled && lattice.Shape)
     {
-        const fvec<D> separation =
-            lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : fvec<D>{lattice.Separation};
-        const fvec<D> midPoint = 0.5f * separation * fvec<D>{dims - 1u};
+        const f32v<D> separation =
+            lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : f32v<D>{lattice.Separation};
+        const f32v<D> midPoint = 0.5f * separation * f32v<D>{dims - 1u};
 
         lattice.Shape->SetProperties(p_Context.Context);
         p_Context.Context->ShareCurrentState();
@@ -348,16 +348,16 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
         TKit::ITaskManager *tm = Core::GetTaskManager();
         if constexpr (D == D2)
         {
-            const u32 size = dims.x * dims.y;
+            const u32 size = dims[0] * dims[1];
             const auto fn = [&](const u32 p_Start, const u32 p_End) {
                 Transform<D2> transform = lattice.Shape->Transform;
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
-                    const u32 ix = i / dims.y;
-                    const u32 iy = i % dims.y;
-                    const f32 x = separation.x * static_cast<f32>(ix);
-                    const f32 y = separation.y * static_cast<f32>(iy);
-                    transform.Translation = fvec2{x, y} - midPoint;
+                    const u32 ix = i / dims[1];
+                    const u32 iy = i % dims[1];
+                    const f32 x = separation[0] * static_cast<f32>(ix);
+                    const f32 y = separation[1] * static_cast<f32>(iy);
+                    transform.Translation = f32v2{x, y} - midPoint;
                     lattice.Shape->DrawRaw(p_Context.Context, transform);
                 }
             };
@@ -371,20 +371,20 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
         }
         else
         {
-            const u32 size = dims.x * dims.y * dims.z;
-            const u32 yz = dims.y * dims.z;
+            const u32 size = dims[0] * dims[1] * dims[2];
+            const u32 yz = dims[1] * dims[2];
             const auto fn = [&, yz](const u32 p_Start, const u32 p_End) {
                 Transform<D3> transform = lattice.Shape->Transform;
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
                     const u32 ix = i / yz;
                     const u32 j = ix * yz;
-                    const u32 iy = (i - j) / dims.z;
-                    const u32 iz = (i - j) % dims.z;
-                    const f32 x = separation.x * static_cast<f32>(ix);
-                    const f32 y = separation.y * static_cast<f32>(iy);
-                    const f32 z = separation.z * static_cast<f32>(iz);
-                    transform.Translation = fvec3{x, y, z} - midPoint;
+                    const u32 iy = (i - j) / dims[2];
+                    const u32 iz = (i - j) % dims[2];
+                    const f32 x = separation[0] * static_cast<f32>(ix);
+                    const f32 y = separation[1] * static_cast<f32>(iy);
+                    const f32 z = separation[2] * static_cast<f32>(iz);
+                    transform.Translation = f32v3{x, y, z} - midPoint;
                     lattice.Shape->DrawRaw(p_Context.Context, transform);
                 }
             };
@@ -408,14 +408,14 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
         p_Context.Context->Axes({.Thickness = p_Context.AxesThickness});
     }
 
-    for (const fvec2 &vertex : p_Context.PolygonVertices)
+    for (const f32v2 &vertex : p_Context.PolygonVertices)
     {
         p_Context.Context->Push();
         p_Context.Context->Scale(0.02f);
         if constexpr (D == D2)
             p_Context.Context->Translate(vertex);
         else
-            p_Context.Context->Translate(fvec3{vertex, 0.f});
+            p_Context.Context->Translate(f32v3{vertex, 0.f});
         p_Context.Context->Circle();
         p_Context.Context->Pop();
     }
@@ -588,13 +588,13 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
             p_Context.PolygonVertices.Clear();
         }
 
-        lattice.NeedsUpdate |= ImGui::DragFloat2("Vertex", glm::value_ptr(p_Context.VertexToAdd), 0.1f);
+        lattice.NeedsUpdate |= ImGui::DragFloat2("Vertex", Math::AsPointer(p_Context.VertexToAdd), 0.1f);
 
         ImGui::SameLine();
         if (ImGui::Button("Add"))
         {
             p_Context.PolygonVertices.Append(p_Context.VertexToAdd);
-            p_Context.VertexToAdd = fvec2{0.f};
+            p_Context.VertexToAdd = f32v2{0.f};
             lattice.NeedsUpdate = true;
         }
         for (u32 i = 0; i < p_Context.PolygonVertices.GetSize(); ++i)
@@ -609,7 +609,7 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
             }
 
             ImGui::SameLine();
-            ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Context.PolygonVertices[i].x, p_Context.PolygonVertices[i].y);
+            ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Context.PolygonVertices[i][0], p_Context.PolygonVertices[i][1]);
             ImGui::PopID();
         }
     }
@@ -631,19 +631,19 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
 
         if constexpr (D == D2)
         {
-            ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y);
+            ImGui::Text("Shape count: %u", lattice.Dimensions[0] * lattice.Dimensions[1]);
             const u32 mn = 1;
             const u32 mx = TKit::Limits<u32>::Max();
-            ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, glm::value_ptr(lattice.Dimensions), 2, 2.f, &mn,
-                               &mx);
+            ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, Math::AsPointer(lattice.Dimensions), 2, 2.f,
+                               &mn, &mx);
         }
         else
         {
-            ImGui::Text("Shape count: %u", lattice.Dimensions.x * lattice.Dimensions.y * lattice.Dimensions.z);
+            ImGui::Text("Shape count: %u", lattice.Dimensions[0] * lattice.Dimensions[1] * lattice.Dimensions[2]);
             const u32 mn = 1;
             const u32 mx = TKit::Limits<u32>::Max();
-            ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, glm::value_ptr(lattice.Dimensions), 3, 2.f, &mn,
-                               &mx);
+            ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, Math::AsPointer(lattice.Dimensions), 3, 2.f,
+                               &mn, &mx);
         }
 
         ImGui::Checkbox("Separation proportional to scale", &lattice.PropToScale);
@@ -666,13 +666,13 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
 
         if constexpr (D == D2)
         {
-            ImGui::DragFloat2("Start", glm::value_ptr(line.Start), 0.1f);
-            ImGui::DragFloat2("End", glm::value_ptr(line.End), 0.1f);
+            ImGui::DragFloat2("Start", Math::AsPointer(line.Start), 0.1f);
+            ImGui::DragFloat2("End", Math::AsPointer(line.End), 0.1f);
         }
         else
         {
-            ImGui::DragFloat3("Start", glm::value_ptr(line.Start), 0.1f);
-            ImGui::DragFloat3("End", glm::value_ptr(line.End), 0.1f);
+            ImGui::DragFloat3("Start", Math::AsPointer(line.Start), 0.1f);
+            ImGui::DragFloat3("End", Math::AsPointer(line.End), 0.1f);
         }
 
         ImGui::Text("Material");
@@ -713,13 +713,13 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
 template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera)
 {
     Camera<D> *camera = p_Camera.Camera;
-    const fvec2 vpos = camera->GetViewportMousePosition();
-    ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos.x, vpos.y);
+    const f32v2 vpos = camera->GetViewportMousePosition();
+    ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos[0], vpos[1]);
 
     if constexpr (D == D2)
     {
-        const fvec2 wpos2 = camera->GetWorldMousePosition();
-        ImGui::Text("World mouse position: (%.2f, %.2f)", wpos2.x, wpos2.y);
+        const f32v2 wpos2 = camera->GetWorldMousePosition();
+        ImGui::Text("World mouse position: (%.2f, %.2f)", wpos2[0], wpos2[1]);
     }
     else
     {
@@ -731,9 +731,10 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera)
             "(screen coordinates). Note that, if in perspective mode, 0 corresponds to the near plane and 1 to the "
             "far plane.");
 
-        const fvec3 mpos3 = camera->GetWorldMousePosition(p_Camera.ZOffset);
-        const fvec2 vpos3 = camera->GetViewportMousePosition();
-        ImGui::Text("World mouse position: (%.2f, %.2f, %.2f)", mpos3.x, mpos3.y, mpos3.z);
+        const f32v3 mpos3 = camera->GetWorldMousePosition(p_Camera.ZOffset);
+        const f32v2 vpos2 = camera->GetViewportMousePosition();
+        ImGui::Text("World mouse position: (%.2f, %.2f, %.2f)", mpos3[0], mpos3[1], mpos3[2]);
+        ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos2[0], vpos2[1]);
     }
     UserLayer::HelpMarkerSameLine("The world mouse position has world units, meaning it takes into account the "
                                   "transform of the camera to compute the mouse coordinates. It will not, however, "
@@ -763,8 +764,8 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera)
     UserLayer::DisplayTransform(view, UserLayer::Flag_DisplayHelp);
     if constexpr (D == D3)
     {
-        const fvec3 lookDir = camera->GetViewLookDirection();
-        ImGui::Text("Look direction: (%.2f, %.2f, %.2f)", lookDir.x, lookDir.y, lookDir.z);
+        const f32v3 lookDir = camera->GetViewLookDirection();
+        ImGui::Text("Look direction: (%.2f, %.2f, %.2f)", lookDir[0], lookDir[1], lookDir[2]);
         UserLayer::HelpMarkerSameLine("The look direction is the direction the camera is facing. It is the "
                                       "direction of the camera's 'forward' vector.");
     }
@@ -782,14 +783,14 @@ template <Dimension D> void WindowData::renderCamera(CameraData<D> &p_Camera)
 
         if (p_Camera.Perspective)
         {
-            f32 degs = glm::degrees(p_Camera.FieldOfView);
+            f32 degs = Math::Degrees(p_Camera.FieldOfView);
 
             bool changed = ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
             changed |= ImGui::SliderFloat("Near", &p_Camera.Near, 0.1f, 10.f);
             changed |= ImGui::SliderFloat("Far", &p_Camera.Far, 10.f, 100.f);
             if (changed)
             {
-                p_Camera.FieldOfView = glm::radians(degs);
+                p_Camera.FieldOfView = Math::Radians(degs);
                 camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
             }
         }
@@ -828,7 +829,7 @@ template <Dimension D> void WindowData::setupContext(ContextData<D> &p_Context)
     if constexpr (D == D3)
     {
         p_Context.DrawAxes = true;
-        p_Context.DirectionalLights.Append(fvec3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
+        p_Context.DirectionalLights.Append(f32v3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
     }
 }
 template <Dimension D> CameraData<D> &WindowData::addCamera(CameraDataContainer<D> &p_Cameras)
@@ -845,8 +846,8 @@ void WindowData::setupCamera(CameraData<D3> &p_Camera)
     p_Camera.Perspective = true;
     p_Camera.Camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
     Transform<D3> transform{};
-    transform.Translation = {2.f, 0.75f, 2.f};
-    transform.Rotation = glm::quat{glm::radians(fvec3{-15.f, 45.f, -4.f})};
+    transform.Translation = f32v3{2.f, 0.75f, 2.f};
+    transform.Rotation = f32q{Math::Radians(f32v3{-15.f, 45.f, -4.f})};
     p_Camera.Camera->SetView(transform);
 }
 
@@ -869,10 +870,11 @@ template <Dimension D> void WindowData::renderCameras(CameraDataContainer<D> &p_
 
 template <Dimension D> void WindowData::renderUI(ContextDataContainer<D> &p_Contexts)
 {
-    const fvec2 spos = Input::GetScreenMousePosition(m_Window);
-    ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos.x, spos.y);
-    UserLayer::HelpMarkerSameLine("The screen mouse position is always normalized to the window size, always ranging "
-                                  "from -1 to 1 for 'x' and 'y', and from 0 to 1 for 'z'.");
+    const f32v2 spos = Input::GetScreenMousePosition(m_Window);
+    ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos[0], spos[1]);
+    UserLayer::HelpMarkerSameLine(
+        "The screen mouse position is always Math::Normalized to the window size, always ranging "
+        "from -1 to 1 for 'x' and 'y', and from 0 to 1 for 'z'.");
 
     ImGui::Checkbox("Empty context", &p_Contexts.EmptyContext);
     UserLayer::HelpMarkerSameLine(
@@ -930,15 +932,15 @@ template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Context)
 
 void WindowData::renderLightSpawn(ContextData<D3> &p_Context)
 {
-    ImGui::SliderFloat("Ambient intensity", &p_Context.Ambient.w, 0.f, 1.f);
-    ImGui::ColorEdit3("Color", glm::value_ptr(p_Context.Ambient));
+    ImGui::SliderFloat("Ambient intensity", &p_Context.Ambient[3], 0.f, 1.f);
+    ImGui::ColorEdit3("Color", Math::AsPointer(p_Context.Ambient));
 
     if (ImGui::Button("Spawn##Light"))
     {
         if (p_Context.LightToSpawn == 0)
-            p_Context.DirectionalLights.Append(fvec3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
+            p_Context.DirectionalLights.Append(f32v3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
         else
-            p_Context.PointLights.Append(fvec3{0.f, 0.f, 0.f}, 0.3f, 1.f, Color::WHITE.Pack());
+            p_Context.PointLights.Append(f32v3{0.f, 0.f, 0.f}, 0.3f, 1.f, Color::WHITE.Pack());
     }
     ImGui::SameLine();
     ImGui::Combo("Light", &p_Context.LightToSpawn, "Directional\0Point\0\0");

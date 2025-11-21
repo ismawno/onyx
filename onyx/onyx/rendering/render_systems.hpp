@@ -227,7 +227,7 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public 
      * @param p_InstanceData The data needed to draw the instance (transforms, material data, etc.).
      * @param p_Vertices The vertices of the polygon to draw. Must be sorted consistently.
      */
-    void Draw(const InstanceData &p_InstanceData, TKit::Span<const fvec2> p_Vertices);
+    void Draw(const InstanceData &p_InstanceData, TKit::Span<const f32v2> p_Vertices);
 
     /**
      * @brief Grow all device buffers to fit host data.

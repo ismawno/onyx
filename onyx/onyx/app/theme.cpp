@@ -3,7 +3,7 @@
 #    include "onyx/app/theme.hpp"
 #    include "onyx/core/alias.hpp"
 
-#    include <imgui.h>
+#    include "onyx/core/imgui.hpp"
 
 namespace Onyx
 {

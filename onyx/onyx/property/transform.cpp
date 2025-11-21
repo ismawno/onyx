@@ -3,14 +3,14 @@
 
 namespace Onyx
 {
-void ApplyCoordinateSystemExtrinsic(fmat4 &p_Transform)
+void ApplyCoordinateSystemExtrinsic(f32m4 &p_Transform)
 {
     // Essentially, a rotation around the x axis
-    for (glm::length_t i = 0; i < 4; ++i)
-        for (glm::length_t j = 1; j < 3; ++j)
+    for (u32 i = 0; i < 4; ++i)
+        for (u32 j = 1; j < 3; ++j)
             p_Transform[i][j] = -p_Transform[i][j];
 }
-void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform)
+void ApplyCoordinateSystemIntrinsic(f32m4 &p_Transform)
 {
     // Essentially, a rotation around the x axis
     p_Transform[1] = -p_Transform[1];
@@ -18,204 +18,192 @@ void ApplyCoordinateSystemIntrinsic(fmat4 &p_Transform)
 }
 
 template <Dimension D>
-fmat<D> ITransform<D>::ComputeTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
-                                        const rot<D> &p_Rotation)
+f32m<D> ITransform<D>::ComputeTransform(const f32v<D> &p_Translation, const f32v<D> &p_Scale, const rot<D> &p_Rotation)
 {
     if constexpr (D == D2)
     {
-        const fmat2 rmat = ComputeRotationMatrix(p_Rotation);
-        return fmat3{fvec3(rmat[0] * p_Scale.x, 0.f), fvec3(rmat[1] * p_Scale.y, 0.f), fvec3{p_Translation, 1.f}};
+        const f32m2 rmat = ComputeRotationMatrix(p_Rotation);
+        return f32m3{f32v3(rmat[0] * p_Scale[0], 0.f), f32v3(rmat[1] * p_Scale[1], 0.f), f32v3{p_Translation, 1.f}};
     }
     else
     {
-        const fmat3 rmat = ComputeRotationMatrix(p_Rotation);
-        return fmat4{fvec4(rmat[0] * p_Scale.x, 0.f), fvec4(rmat[1] * p_Scale.y, 0.f), fvec4(rmat[2] * p_Scale.z, 0.f),
-                     fvec4{p_Translation, 1.f}};
+        const f32m3 rmat = ComputeRotationMatrix(p_Rotation);
+        return f32m4{f32v4(rmat[0] * p_Scale[0], 0.f), f32v4(rmat[1] * p_Scale[1], 0.f),
+                     f32v4(rmat[2] * p_Scale[2], 0.f), f32v4{p_Translation, 1.f}};
     }
 }
 
 template <Dimension D>
-fmat<D> ITransform<D>::ComputeReversedTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
+f32m<D> ITransform<D>::ComputeReversedTransform(const f32v<D> &p_Translation, const f32v<D> &p_Scale,
                                                 const rot<D> &p_Rotation)
 {
     if constexpr (D == D2)
     {
-        fmat2 rmat = ComputeRotationMatrix(p_Rotation);
+        f32m2 rmat = ComputeRotationMatrix(p_Rotation);
         rmat[0] *= p_Scale;
         rmat[1] *= p_Scale;
-        const fvec2 translation = rmat * p_Translation;
+        const f32v2 translation = rmat * p_Translation;
 
-        return fmat3{fvec3(rmat[0], 0.f), fvec3(rmat[1], 0.f), fvec3{translation, 1.f}};
+        return f32m3{f32v3(rmat[0], 0.f), f32v3(rmat[1], 0.f), f32v3{translation, 1.f}};
     }
     else
     {
-        fmat3 rmat = ComputeRotationMatrix(p_Rotation);
+        f32m3 rmat = ComputeRotationMatrix(p_Rotation);
         rmat[0] *= p_Scale;
         rmat[1] *= p_Scale;
         rmat[2] *= p_Scale;
-        const fvec3 translation = rmat * p_Translation;
+        const f32v3 translation = rmat * p_Translation;
 
-        return fmat4{fvec4(rmat[0], 0.f), fvec4(rmat[1], 0.f), fvec4(rmat[2], 0.f), fvec4{translation, 1.f}};
+        return f32m4{f32v4(rmat[0], 0.f), f32v4(rmat[1], 0.f), f32v4(rmat[2], 0.f), f32v4{translation, 1.f}};
     }
 }
 template <Dimension D>
-fmat<D> ITransform<D>::ComputeInverseTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
+f32m<D> ITransform<D>::ComputeInverseTransform(const f32v<D> &p_Translation, const f32v<D> &p_Scale,
                                                const rot<D> &p_Rotation)
 {
     if constexpr (D == D2)
         return ComputeReversedTransform(-p_Translation, 1.f / p_Scale, -p_Rotation);
     else
-        return ComputeReversedTransform(-p_Translation, 1.f / p_Scale, glm::conjugate(p_Rotation));
+        return ComputeReversedTransform(-p_Translation, 1.f / p_Scale, Math::Conjugate(p_Rotation));
 }
 template <Dimension D>
-fmat<D> ITransform<D>::ComputeInverseReversedTransform(const fvec<D> &p_Translation, const fvec<D> &p_Scale,
+f32m<D> ITransform<D>::ComputeInverseReversedTransform(const f32v<D> &p_Translation, const f32v<D> &p_Scale,
                                                        const rot<D> &p_Rotation)
 {
     if constexpr (D == D2)
         return ComputeTransform(-p_Translation, 1.f / p_Scale, -p_Rotation);
     else
-        return ComputeTransform(-p_Translation, 1.f / p_Scale, glm::conjugate(p_Rotation));
+        return ComputeTransform(-p_Translation, 1.f / p_Scale, Math::Conjugate(p_Rotation));
 }
 
-template <Dimension D> fmat<D> ITransform<D>::ComputeTransform() const
+template <Dimension D> f32m<D> ITransform<D>::ComputeTransform() const
 {
     return ComputeTransform(Translation, Scale, Rotation);
 }
-template <Dimension D> fmat<D> ITransform<D>::ComputeReversedTransform() const
+template <Dimension D> f32m<D> ITransform<D>::ComputeReversedTransform() const
 {
     return ComputeReversedTransform(Translation, Scale, Rotation);
 }
-template <Dimension D> fmat<D> ITransform<D>::ComputeInverseTransform() const
+template <Dimension D> f32m<D> ITransform<D>::ComputeInverseTransform() const
 {
     return ComputeInverseTransform(Translation, Scale, Rotation);
 }
-template <Dimension D> fmat<D> ITransform<D>::ComputeInverseReversedTransform() const
+template <Dimension D> f32m<D> ITransform<D>::ComputeInverseReversedTransform() const
 {
     return ComputeInverseReversedTransform(Translation, Scale, Rotation);
 }
 
 template <Dimension D>
-void ITransform<D>::TranslateIntrinsic(fmat<D> &p_Transform, const u32 p_Axis, const f32 p_Translation)
+void ITransform<D>::TranslateIntrinsic(f32m<D> &p_Transform, const u32 p_Axis, const f32 p_Translation)
 {
     for (u32 i = 0; i < D; ++i)
         p_Transform[D][i] += p_Transform[p_Axis][i] * p_Translation;
 }
-template <Dimension D>
-void ITransform<D>::TranslateIntrinsic(fmat<D> &p_Transform, const fvec<D> &p_Translation)
+template <Dimension D> void ITransform<D>::TranslateIntrinsic(f32m<D> &p_Transform, const f32v<D> &p_Translation)
 {
     for (u32 i = 0; i < D; ++i)
         TranslateIntrinsic(p_Transform, i, p_Translation[i]);
 }
 
 template <Dimension D>
-void ITransform<D>::TranslateExtrinsic(fmat<D> &p_Transform, const u32 p_Axis, const f32 p_Translation)
+void ITransform<D>::TranslateExtrinsic(f32m<D> &p_Transform, const u32 p_Axis, const f32 p_Translation)
 {
     p_Transform[D][p_Axis] += p_Translation;
 }
-template <Dimension D>
-void ITransform<D>::TranslateExtrinsic(fmat<D> &p_Transform, const fvec<D> &p_Translation)
+template <Dimension D> void ITransform<D>::TranslateExtrinsic(f32m<D> &p_Transform, const f32v<D> &p_Translation)
 {
     for (u32 i = 0; i < D; ++i)
         p_Transform[D][i] += p_Translation[i];
 }
 
-template <Dimension D>
-void ITransform<D>::ScaleIntrinsic(fmat<D> &p_Transform, const u32 p_Axis, const f32 p_Scale)
+template <Dimension D> void ITransform<D>::ScaleIntrinsic(f32m<D> &p_Transform, const u32 p_Axis, const f32 p_Scale)
 {
     for (u32 i = 0; i < D; ++i)
         p_Transform[p_Axis][i] *= p_Scale;
 }
-template <Dimension D> void ITransform<D>::ScaleIntrinsic(fmat<D> &p_Transform, const fvec<D> &p_Scale)
+template <Dimension D> void ITransform<D>::ScaleIntrinsic(f32m<D> &p_Transform, const f32v<D> &p_Scale)
 {
     for (u32 i = 0; i < D; ++i)
         for (u32 j = 0; j < D; ++j)
             p_Transform[i][j] *= p_Scale[i];
 }
 
-template <Dimension D>
-void ITransform<D>::ScaleExtrinsic(fmat<D> &p_Transform, const u32 p_Axis, const f32 p_Scale)
+template <Dimension D> void ITransform<D>::ScaleExtrinsic(f32m<D> &p_Transform, const u32 p_Axis, const f32 p_Scale)
 {
     for (u32 i = 0; i < D + 1; ++i)
         p_Transform[i][p_Axis] *= p_Scale;
 }
-template <Dimension D> void ITransform<D>::ScaleExtrinsic(fmat<D> &p_Transform, const fvec<D> &p_Scale)
+template <Dimension D> void ITransform<D>::ScaleExtrinsic(f32m<D> &p_Transform, const f32v<D> &p_Scale)
 {
     for (u32 i = 0; i < D + 1; ++i)
         for (u32 j = 0; j < D; ++j)
             p_Transform[i][j] *= p_Scale[j];
 }
 
-using fmat3x2 = glm::mat<D3, 2, f32>;
-using fmat4x2 = glm::mat<4, 2, f32>;
-using fmat2x3 = glm::mat<D2, 3, f32>;
-using fmat4x3 = glm::mat<4, 3, f32>;
-
-void Transform<D2>::RotateIntrinsic(fmat3 &p_Transform, const f32 p_Angle)
+void Transform<D2>::RotateIntrinsic(f32m3 &p_Transform, const f32 p_Angle)
 {
-    const fmat2 rot = ComputeRotationMatrix(p_Angle);
-    const fmat2 submat = fmat2{p_Transform} * rot;
-    p_Transform[0] = fvec3{submat[0], 0.f};
-    p_Transform[1] = fvec3{submat[1], 0.f};
+    const f32m2 rot = ComputeRotationMatrix(p_Angle);
+    const f32m2 submat = f32m2{p_Transform} * rot;
+    p_Transform[0] = f32v3{submat[0], 0.f};
+    p_Transform[1] = f32v3{submat[1], 0.f};
 }
-void Transform<D2>::RotateExtrinsic(fmat3 &p_Transform, const f32 p_Angle)
+void Transform<D2>::RotateExtrinsic(f32m3 &p_Transform, const f32 p_Angle)
 {
-    const fmat2 rot = ComputeRotationMatrix(p_Angle);
-    const fmat3x2 submat = rot * fmat3x2{p_Transform};
-    p_Transform = fmat3{fvec3{submat[0], 0.f}, fvec3{submat[1], 0.f}, fvec3{submat[2], 1.f}};
+    const f32m2 rot = ComputeRotationMatrix(p_Angle);
+    const f32m3x2 submat = rot * f32m3x2{p_Transform};
+    p_Transform = f32m3{f32v3{submat[0], 0.f}, f32v3{submat[1], 0.f}, f32v3{submat[2], 1.f}};
 }
 
-void Transform<D3>::RotateXIntrinsic(fmat4 &p_Transform, const f32 p_Angle)
+void Transform<D3>::RotateXIntrinsic(f32m4 &p_Transform, const f32 p_Angle)
 {
-    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
-    const fmat2x3 submat = fmat2x3{fvec3{p_Transform[1]}, fvec3{p_Transform[2]}} * rot;
-    p_Transform[1] = fvec4{submat[0], 0.f};
-    p_Transform[2] = fvec4{submat[1], 0.f};
+    const f32m2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
+    const f32m2x3 submat = f32m2x3{f32v3{p_Transform[1]}, f32v3{p_Transform[2]}} * rot;
+    p_Transform[1] = f32v4{submat[0], 0.f};
+    p_Transform[2] = f32v4{submat[1], 0.f};
 }
-void Transform<D3>::RotateYIntrinsic(fmat4 &p_Transform, const f32 p_Angle)
+void Transform<D3>::RotateYIntrinsic(f32m4 &p_Transform, const f32 p_Angle)
 {
-    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(-p_Angle);
-    const fmat2x3 submat = fmat2x3{fvec3{p_Transform[0]}, fvec3{p_Transform[2]}} * rot;
-    p_Transform[0] = fvec4{submat[0], 0.f};
-    p_Transform[2] = fvec4{submat[1], 0.f};
+    const f32m2 rot = Transform<D2>::ComputeRotationMatrix(-p_Angle);
+    const f32m2x3 submat = f32m2x3{f32v3{p_Transform[0]}, f32v3{p_Transform[2]}} * rot;
+    p_Transform[0] = f32v4{submat[0], 0.f};
+    p_Transform[2] = f32v4{submat[1], 0.f};
 }
-void Transform<D3>::RotateZIntrinsic(fmat4 &p_Transform, const f32 p_Angle)
+void Transform<D3>::RotateZIntrinsic(f32m4 &p_Transform, const f32 p_Angle)
 {
-    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
-    const fmat2x3 submat = fmat2x3{fvec3{p_Transform[0]}, fvec3{p_Transform[1]}} * rot;
-    p_Transform[0] = fvec4{submat[0], 0.f};
-    p_Transform[1] = fvec4{submat[1], 0.f};
+    const f32m2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
+    const f32m2x3 submat = f32m2x3{f32v3{p_Transform[0]}, f32v3{p_Transform[1]}} * rot;
+    p_Transform[0] = f32v4{submat[0], 0.f};
+    p_Transform[1] = f32v4{submat[1], 0.f};
 }
 
-void Transform<D3>::RotateXExtrinsic(fmat4 &p_Transform, const f32 p_Angle)
+void Transform<D3>::RotateXExtrinsic(f32m4 &p_Transform, const f32 p_Angle)
 {
-    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
-    const fmat4x2 submat = rot * fmat4x2{{p_Transform[0][1], p_Transform[0][2]},
-                                         {p_Transform[1][1], p_Transform[1][2]},
-                                         {p_Transform[2][1], p_Transform[2][2]},
-                                         {p_Transform[3][1], p_Transform[3][2]}};
+    const f32m2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
+    const f32m4x2 submat =
+        rot * f32m4x2{f32v2{p_Transform[0][1], p_Transform[0][2]}, f32v2{p_Transform[1][1], p_Transform[1][2]},
+                      f32v2{p_Transform[2][1], p_Transform[2][2]}, f32v2{p_Transform[3][1], p_Transform[3][2]}};
     for (u32 i = 0; i < 4; ++i)
     {
         p_Transform[i][1] = submat[i][0];
         p_Transform[i][2] = submat[i][1];
     }
 }
-void Transform<D3>::RotateYExtrinsic(fmat4 &p_Transform, const f32 p_Angle)
+void Transform<D3>::RotateYExtrinsic(f32m4 &p_Transform, const f32 p_Angle)
 {
-    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(-p_Angle);
-    const fmat4x2 submat = rot * fmat4x2{{p_Transform[0][0], p_Transform[0][2]},
-                                         {p_Transform[1][0], p_Transform[1][2]},
-                                         {p_Transform[2][0], p_Transform[2][2]},
-                                         {p_Transform[3][0], p_Transform[3][2]}};
+    const f32m2 rot = Transform<D2>::ComputeRotationMatrix(-p_Angle);
+    const f32m4x2 submat =
+        rot * f32m4x2{f32v2{p_Transform[0][0], p_Transform[0][2]}, f32v2{p_Transform[1][0], p_Transform[1][2]},
+                      f32v2{p_Transform[2][0], p_Transform[2][2]}, f32v2{p_Transform[3][0], p_Transform[3][2]}};
     for (u32 i = 0; i < 4; ++i)
     {
         p_Transform[i][0] = submat[i][0];
         p_Transform[i][2] = submat[i][1];
     }
 }
-void Transform<D3>::RotateZExtrinsic(fmat4 &p_Transform, const f32 p_Angle)
+void Transform<D3>::RotateZExtrinsic(f32m4 &p_Transform, const f32 p_Angle)
 {
-    const fmat2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
-    const fmat4x2 submat = rot * fmat4x2{p_Transform};
+    const f32m2 rot = Transform<D2>::ComputeRotationMatrix(p_Angle);
+    const f32m4x2 submat = rot * f32m4x2{p_Transform};
     for (u32 i = 0; i < 4; ++i)
     {
         p_Transform[i][0] = submat[i][0];
@@ -223,37 +211,36 @@ void Transform<D3>::RotateZExtrinsic(fmat4 &p_Transform, const f32 p_Angle)
     }
 }
 
-void Transform<D3>::RotateIntrinsic(fmat4 &p_Transform, const quat &p_Quaternion)
+void Transform<D3>::RotateIntrinsic(f32m4 &p_Transform, const f32q &p_Quaternion)
 {
-    const fmat3 rot = ComputeRotationMatrix(p_Quaternion);
-    const fmat3 submat = fmat3{p_Transform} * rot;
-    p_Transform[0] = fvec4{submat[0], 0.f};
-    p_Transform[1] = fvec4{submat[1], 0.f};
-    p_Transform[2] = fvec4{submat[2], 0.f};
+    const f32m3 rot = ComputeRotationMatrix(p_Quaternion);
+    const f32m3 submat = f32m3{p_Transform} * rot;
+    p_Transform[0] = f32v4{submat[0], 0.f};
+    p_Transform[1] = f32v4{submat[1], 0.f};
+    p_Transform[2] = f32v4{submat[2], 0.f};
 }
-void Transform<D3>::RotateExtrinsic(fmat4 &p_Transform, const quat &p_Quaternion)
+void Transform<D3>::RotateExtrinsic(f32m4 &p_Transform, const f32q &p_Quaternion)
 {
-    const fmat3 rot = ComputeRotationMatrix(p_Quaternion);
-    const fmat4x3 submat = rot * fmat4x3{p_Transform};
-    p_Transform = fmat4{fvec4{submat[0], 0.f}, fvec4{submat[1], 0.f}, fvec4{submat[2], 0.f}, fvec4{submat[3], 1.f}};
+    const f32m3 rot = ComputeRotationMatrix(p_Quaternion);
+    const f32m4x3 submat = rot * f32m4x3{p_Transform};
+    p_Transform = f32m4{f32v4{submat[0], 0.f}, f32v4{submat[1], 0.f}, f32v4{submat[2], 0.f}, f32v4{submat[3], 1.f}};
 }
 
 template <Dimension D>
-void ITransform<D>::Extract(const fmat<D> &p_Transform, fvec<D> *p_Translation, fvec<D> *p_Scale,
-                            rot<D> *p_Rotation)
+void ITransform<D>::Extract(const f32m<D> &p_Transform, f32v<D> *p_Translation, f32v<D> *p_Scale, rot<D> *p_Rotation)
 {
     *p_Translation = ExtractTranslation(p_Transform);
     *p_Scale = ExtractScale(p_Transform);
     *p_Rotation = ExtractRotation(p_Transform);
 }
 
-Transform<D2> Transform<D2>::Extract(const fmat3 &p_Transform)
+Transform<D2> Transform<D2>::Extract(const f32m3 &p_Transform)
 {
     Transform<D2> transform;
     Extract(p_Transform, &transform.Translation, &transform.Scale, &transform.Rotation);
     return transform;
 }
-Transform<D3> Transform<D3>::Extract(const fmat4 &p_Transform)
+Transform<D3> Transform<D3>::Extract(const f32m4 &p_Transform)
 {
     Transform<D3> transform;
     Extract(p_Transform, &transform.Translation, &transform.Scale, &transform.Rotation);
@@ -263,22 +250,22 @@ Transform<D3> Transform<D3>::Extract(const fmat4 &p_Transform)
 Transform<D3> Transform<D2>::Promote(const Transform &p_Transform)
 {
     Transform<D3> transform;
-    transform.Translation = fvec3{p_Transform.Translation, 0.f};
-    transform.Scale = fvec3{p_Transform.Scale, 1.f};
-    transform.Rotation = quat{{0.f, 0.f, p_Transform.Rotation}};
+    transform.Translation = f32v3{p_Transform.Translation, 0.f};
+    transform.Scale = f32v3{p_Transform.Scale, 1.f};
+    transform.Rotation = f32q{f32v3{0.f, 0.f, p_Transform.Rotation}};
     return transform;
 }
 Transform<D3> Transform<D2>::Promote()
 {
     Transform<D3> transform;
-    transform.Translation = fvec3{Translation, 0.f};
-    transform.Scale = fvec3{Scale, 1.f};
-    transform.Rotation = quat{{0.f, 0.f, Rotation}};
+    transform.Translation = f32v3{Translation, 0.f};
+    transform.Scale = f32v3{Scale, 1.f};
+    transform.Rotation = f32q{f32v3{0.f, 0.f, Rotation}};
     return transform;
 }
-fmat4 Transform<D2>::Promote(const fmat3 &p_Transform)
+f32m4 Transform<D2>::Promote(const f32m3 &p_Transform)
 {
-    fmat4 t4{1.f};
+    f32m4 t4 = f32m4::Identity();
     t4[0][0] = p_Transform[0][0];
     t4[0][1] = p_Transform[0][1];
     t4[1][0] = p_Transform[1][0];
@@ -289,30 +276,30 @@ fmat4 Transform<D2>::Promote(const fmat3 &p_Transform)
     return t4;
 }
 
-template <Dimension D> fvec<D> ITransform<D>::ExtractTranslation(const fmat<D> &p_Transform)
+template <Dimension D> f32v<D> ITransform<D>::ExtractTranslation(const f32m<D> &p_Transform)
 {
-    return fvec<D>{p_Transform[D]};
+    return f32v<D>{p_Transform[D]};
 }
-template <Dimension D> fvec<D> ITransform<D>::ExtractScale(const fmat<D> &p_Transform)
+template <Dimension D> f32v<D> ITransform<D>::ExtractScale(const f32m<D> &p_Transform)
 {
     if constexpr (D == D2)
-        return fvec2{glm::length(fvec2{p_Transform[0]}), glm::length(fvec2{p_Transform[1]})};
+        return f32v2{Math::Norm(f32v2{p_Transform[0]}), Math::Norm(f32v2{p_Transform[1]})};
     else
-        return fvec3{glm::length(fvec3{p_Transform[0]}), glm::length(fvec3{p_Transform[1]}),
-                     glm::length(fvec3{p_Transform[2]})};
+        return f32v3{Math::Norm(f32v3{p_Transform[0]}), Math::Norm(f32v3{p_Transform[1]}),
+                     Math::Norm(f32v3{p_Transform[2]})};
 }
-template <Dimension D> rot<D> ITransform<D>::ExtractRotation(const fmat<D> &p_Transform)
+template <Dimension D> rot<D> ITransform<D>::ExtractRotation(const f32m<D> &p_Transform)
 {
     if constexpr (D == D2)
-        return glm::atan(p_Transform[0][1], p_Transform[0][0]);
+        return Math::AntiTangent(p_Transform[0][1], p_Transform[0][0]);
     else
     {
-        fvec3 angles;
-        angles.x = glm::atan(p_Transform[1][2], p_Transform[2][2]);
-        angles.y = glm::atan(-p_Transform[0][2],
-                             glm::sqrt(p_Transform[1][2] * p_Transform[1][2] + p_Transform[2][2] * p_Transform[2][2]));
-        angles.z = glm::atan(p_Transform[0][1], p_Transform[0][0]);
-        return quat{angles};
+        f32v3 angles;
+        angles[0] = Math::AntiTangent(p_Transform[1][2], p_Transform[2][2]);
+        angles[1] = Math::AntiTangent(-p_Transform[0][2], Math::SquareRoot(p_Transform[1][2] * p_Transform[1][2] +
+                                                                           p_Transform[2][2] * p_Transform[2][2]));
+        angles[2] = Math::AntiTangent(p_Transform[0][1], p_Transform[0][0]);
+        return f32q{angles};
     }
 }
 

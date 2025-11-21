@@ -7,6 +7,7 @@
 #include "tkit/serialization/yaml/serialize.hpp"
 #include "tkit/utils/hash.hpp"
 #include "tkit/container/array.hpp"
+#include "tkit/math/hash.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -32,7 +33,7 @@ template <> struct ONYX_API Vertex<D2>
     static const TKit::Array<VkVertexInputBindingDescription, Bindings> &GetBindingDescriptions();
     static const TKit::Array<VkVertexInputAttributeDescription, Attributes> &GetAttributeDescriptions();
 
-    fvec2 Position;
+    f32v2 Position;
 
     friend bool operator==(const Vertex<D2> &p_Left, const Vertex<D2> &p_Right)
     {
@@ -55,8 +56,8 @@ template <> struct ONYX_API Vertex<D3>
     static const TKit::Array<VkVertexInputBindingDescription, Bindings> &GetBindingDescriptions();
     static const TKit::Array<VkVertexInputAttributeDescription, Attributes> &GetAttributeDescriptions();
 
-    fvec3 Position;
-    fvec3 Normal;
+    f32v3 Position;
+    f32v3 Normal;
 
     friend bool operator==(const Vertex<D3> &p_Left, const Vertex<D3> &p_Right)
     {

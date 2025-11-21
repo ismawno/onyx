@@ -102,7 +102,7 @@ template <Dimension D> class Mesh
      * @param p_Transform An optional transform to be applied to all vertices of the mesh.
      * @return A result containing the loaded mesh or an error.
      */
-    static VKit::FormattedResult<Mesh> Load(std::string_view p_Path, const fmat<D> *p_Transform = nullptr);
+    static VKit::FormattedResult<Mesh> Load(std::string_view p_Path, const f32m<D> *p_Transform = nullptr);
 
     friend bool operator==(const Mesh &p_Lhs, const Mesh &p_Rhs)
     {

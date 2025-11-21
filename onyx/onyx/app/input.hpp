@@ -189,7 +189,7 @@ enum class Mouse : u8
  * @param p_Window The window to get the mouse position from.
  * @return The mouse position.
  */
-ONYX_API fvec2 GetScreenMousePosition(Window *p_Window);
+ONYX_API f32v2 GetScreenMousePosition(Window *p_Window);
 
 /**
  * @brief Check if a key is currently pressed.
@@ -283,7 +283,7 @@ struct ONYX_API Event
      */
     struct MouseState
     {
-        fvec2 Position{0.f};
+        f32v2 Position{0.f};
         Input::Mouse Button;
     };
 
@@ -293,7 +293,7 @@ struct ONYX_API Event
 
     WindowResizedDimensions WindowResize;
     MouseState Mouse;
-    fvec2 ScrollOffset{0.f};
+    f32v2 ScrollOffset{0.f};
     Window *Window = nullptr;
 
     operator bool() const

@@ -58,31 +58,31 @@ template <Dimension D> static IndexVertexHostData<D> createRegularPolygonBuffers
 
     u32 vindex = 0;
     u32 iindex = 0;
-    const f32 angle = 2.f * glm::pi<f32>() / p_Sides;
+    const f32 angle = 2.f * Math::Pi<f32>() / p_Sides;
     for (Index i = 0; i < 3; ++i)
     {
-        const f32 x = 0.5f * glm::cos(angle * i);
-        const f32 y = 0.5f * glm::sin(angle * i);
+        const f32 x = 0.5f * Math::Cosine(angle * i);
+        const f32 y = 0.5f * Math::Sine(angle * i);
 
         data.Indices[iindex++] = i;
         if constexpr (D == D2)
-            data.Vertices[vindex++] = Vertex<D2>{fvec2{x, y}};
+            data.Vertices[vindex++] = Vertex<D2>{f32v2{x, y}};
         else
-            data.Vertices[vindex++] = Vertex<D3>{fvec3{x, y, 0.f}, fvec3{0.f, 0.f, 1.f}};
+            data.Vertices[vindex++] = Vertex<D3>{f32v3{x, y, 0.f}, f32v3{0.f, 0.f, 1.f}};
     }
 
     for (Index i = 3; i < p_Sides; ++i)
     {
-        const f32 x = 0.5f * glm::cos(angle * i);
-        const f32 y = 0.5f * glm::sin(angle * i);
+        const f32 x = 0.5f * Math::Cosine(angle * i);
+        const f32 y = 0.5f * Math::Sine(angle * i);
         data.Indices[iindex++] = 0;
         data.Indices[iindex++] = i - 1;
         data.Indices[iindex++] = i;
 
         if constexpr (D == D2)
-            data.Vertices[vindex++] = Vertex<D2>{fvec2{x, y}};
+            data.Vertices[vindex++] = Vertex<D2>{f32v2{x, y}};
         else
-            data.Vertices[vindex++] = Vertex<D3>{fvec3{x, y, 0.f}, fvec3{0.f, 0.f, 1.f}};
+            data.Vertices[vindex++] = Vertex<D3>{f32v3{x, y, 0.f}, f32v3{0.f, 0.f, 1.f}};
     }
 
     return data;
@@ -125,7 +125,7 @@ void CreateCombinedPrimitiveBuffers()
 {
     TKIT_LOG_INFO("[ONYX] Creating primitive vertex and index buffers");
     const TKit::Array<const char *, Primitives<D2>::Count> paths2D = {ONYX_ROOT_PATH "/onyx/meshes/triangle.obj",
-                                                                       ONYX_ROOT_PATH "/onyx/meshes/square.obj"};
+                                                                      ONYX_ROOT_PATH "/onyx/meshes/square.obj"};
 
     const TKit::Array<const char *, Primitives<D3>::Count> paths3D = {
         ONYX_ROOT_PATH "/onyx/meshes/triangle.obj",    ONYX_ROOT_PATH "/onyx/meshes/square.obj",

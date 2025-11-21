@@ -95,7 +95,7 @@ void Mesh<D>::DrawIndexed(const VkCommandBuffer p_CommandBuffer, const u32 p_Ins
 }
 
 template <Dimension D>
-VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, const fmat<D> *p_Transform)
+VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, const f32m<D> *p_Transform)
 {
     const auto result = Onyx::Load<D>(p_Path, p_Transform);
     if (!result)

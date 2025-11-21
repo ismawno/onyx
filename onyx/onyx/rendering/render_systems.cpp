@@ -118,7 +118,7 @@ template <DrawLevel DLevel> static void pushConstantData(const RenderInfo<DLevel
     VkShaderStageFlags stages = VK_SHADER_STAGE_VERTEX_BIT;
     if constexpr (DLevel == DrawLevel::Complex)
     {
-        pdata.ViewPosition = fvec4(p_Info.Camera->ViewPosition, 1.f);
+        pdata.ViewPosition = f32v4(p_Info.Camera->ViewPosition, 1.f);
         pdata.AmbientColor = p_Info.Light.AmbientColor->RGBA;
         pdata.DirectionalLightCount = p_Info.Light.DirectionalCount;
         pdata.PointLightCount = p_Info.Light.PointCount;
@@ -346,7 +346,7 @@ PolygonRenderer<D, PMode>::PolygonRenderer(const VkPipelineRenderingCreateInfoKH
 }
 
 template <Dimension D, PipelineMode PMode>
-void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const TKit::Span<const fvec2> p_Vertices)
+void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const TKit::Span<const f32v2> p_Vertices)
 {
     TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX] A polygon must have at least 3 sides");
     thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
@@ -360,12 +360,12 @@ void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const T
     hostData.Data.Append(p_InstanceData);
     hostData.Layouts.Append(layout);
 
-    const auto writeVertex = [&hostData](const fvec2 &p_Vertex) {
+    const auto writeVertex = [&hostData](const f32v2 &p_Vertex) {
         Vertex<D> vertex{};
         if constexpr (D == D3)
         {
-            vertex.Position = fvec3{p_Vertex, 0.f};
-            vertex.Normal = fvec3{0.f, 0.f, 1.f};
+            vertex.Position = f32v3{p_Vertex, 0.f};
+            vertex.Normal = f32v3{0.f, 0.f, 1.f};
         }
         else
             vertex.Position = p_Vertex;
@@ -543,12 +543,12 @@ void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Ci
     CircleInstanceData instanceData;
     instanceData.Base = p_InstanceData;
 
-    instanceData.LowerCos = glm::cos(p_Options.LowerAngle);
-    instanceData.LowerSin = glm::sin(p_Options.LowerAngle);
-    instanceData.UpperCos = glm::cos(p_Options.UpperAngle);
-    instanceData.UpperSin = glm::sin(p_Options.UpperAngle);
+    instanceData.LowerCos = Math::Cosine(p_Options.LowerAngle);
+    instanceData.LowerSin = Math::Sine(p_Options.LowerAngle);
+    instanceData.UpperCos = Math::Cosine(p_Options.UpperAngle);
+    instanceData.UpperSin = Math::Sine(p_Options.UpperAngle);
 
-    instanceData.AngleOverflow = glm::abs(p_Options.UpperAngle - p_Options.LowerAngle) > glm::pi<f32>() ? 1 : 0;
+    instanceData.AngleOverflow = Math::Absolute(p_Options.UpperAngle - p_Options.LowerAngle) > Math::Pi<f32>() ? 1 : 0;
     instanceData.Hollowness = p_Options.Hollowness;
     instanceData.InnerFade = p_Options.InnerFade;
     instanceData.OuterFade = p_Options.OuterFade;

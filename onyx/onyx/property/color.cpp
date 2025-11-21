@@ -6,17 +6,12 @@
 
 namespace Onyx
 {
-static u8 toInt(const f32 p_Val)
+static constexpr u8 toInt(const f32 p_Val)
 {
     return static_cast<u8>(p_Val * 255.f);
 }
 
-static f32 toFloat(const u8 p_Val)
-{
-    constexpr f32 oneOver255 = 1.f / 255.f;
-    return static_cast<f32>(p_Val) * oneOver255;
-}
-static f32 toFloat(const u32 p_Val)
+static constexpr f32 toFloat(const u32 p_Val)
 {
     constexpr f32 oneOver255 = 1.f / 255.f;
     return static_cast<f32>(p_Val) * oneOver255;
@@ -29,89 +24,80 @@ Color::Color(const f32 p_Val) : Color(p_Val, p_Val, p_Val, 1.f)
 Color::Color(const u32 p_Val) : Color(p_Val, p_Val, p_Val, 255u)
 {
 }
-Color::Color(const u8 p_Val) : Color(p_Val, p_Val, p_Val, 255)
+
+Color::Color(const f32v4 &p_RGBA) : RGBA(p_RGBA)
 {
+    TKIT_ASSERT(p_RGBA[0] <= 1.f && p_RGBA[0] >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGBA[1] <= 1.f && p_RGBA[1] >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGBA[2] <= 1.f && p_RGBA[2] >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGBA[3] <= 1.f && p_RGBA[3] >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
+}
+Color::Color(const f32v3 &p_RGB, const f32 p_Alpha) : RGBA(p_RGB, p_Alpha)
+{
+    TKIT_ASSERT(p_RGB[0] <= 1.f && p_RGB[0] >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGB[1] <= 1.f && p_RGB[1] >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
+    TKIT_ASSERT(p_RGB[2] <= 1.f && p_RGB[2] >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
 }
 
-Color::Color(const fvec4 &p_RGBA) : RGBA(p_RGBA)
+Color::Color(const f32 p_Red, const f32 p_Green, const f32 p_Blue, const f32 p_Alpha)
+    : RGBA(p_Red, p_Green, p_Blue, p_Alpha)
 {
-    TKIT_ASSERT(p_RGBA.r <= 1.f && p_RGBA.r >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGBA.g <= 1.f && p_RGBA.g >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGBA.b <= 1.f && p_RGBA.b >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGBA.a <= 1.f && p_RGBA.a >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
+    TKIT_ASSERT(p_Red <= 1.f && p_Red >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
+    TKIT_ASSERT(p_Green <= 1.f && p_Green >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
+    TKIT_ASSERT(p_Blue <= 1.f && p_Blue >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
+    TKIT_ASSERT(p_Alpha <= 1.f && p_Alpha >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
 }
-Color::Color(const fvec3 &p_RGB, const f32 p_Alpha) : RGBA(p_RGB, p_Alpha)
+Color::Color(const u32 p_Red, const u32 p_Green, const u32 p_Blue, const u32 p_Alpha)
+    : RGBA(toFloat(p_Red), toFloat(p_Green), toFloat(p_Blue), toFloat(p_Alpha))
 {
-    TKIT_ASSERT(p_RGB.r <= 1.f && p_RGB.r >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGB.g <= 1.f && p_RGB.g >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
-    TKIT_ASSERT(p_RGB.b <= 1.f && p_RGB.b >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
-}
-
-Color::Color(const f32 r, const f32 g, const f32 b, const f32 a) : RGBA(r, g, b, a)
-{
-    TKIT_ASSERT(r <= 1.f && r >= 0.f, "[ONYX] Red value must be in the range [0, 1]");
-    TKIT_ASSERT(g <= 1.f && g >= 0.f, "[ONYX] Green value must be in the range [0, 1]");
-    TKIT_ASSERT(b <= 1.f && b >= 0.f, "[ONYX] Blue value must be in the range [0, 1]");
-    TKIT_ASSERT(a <= 1.f && a >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
-}
-Color::Color(const u32 r, const u32 g, const u32 b, const u32 a) : RGBA(toFloat(r), toFloat(g), toFloat(b), toFloat(a))
-{
-    TKIT_ASSERT(r < 256, "[ONYX] Red value must be in the range [0, 255]");
-    TKIT_ASSERT(g < 256, "[ONYX] Green value must be in the range [0, 255]");
-    TKIT_ASSERT(b < 256, "[ONYX] Blue value must be in the range [0, 255]");
-    TKIT_ASSERT(a < 256, "[ONYX] Alpha value must be in the range [0, 255]");
-}
-Color::Color(const u8 r, const u8 g, const u8 b, const u8 a) : RGBA(toFloat(r), toFloat(g), toFloat(b), toFloat(a))
-{
-    // No asserts needed: u8 is always in the range [0, 255]
+    TKIT_ASSERT(p_Red < 256, "[ONYX] Red value must be in the range [0, 255]");
+    TKIT_ASSERT(p_Green < 256, "[ONYX] Green value must be in the range [0, 255]");
+    TKIT_ASSERT(p_Blue < 256, "[ONYX] Blue value must be in the range [0, 255]");
+    TKIT_ASSERT(p_Alpha < 256, "[ONYX] Alpha value must be in the range [0, 255]");
 }
 
-Color::Color(const Color &p_RGB, const f32 p_Alpha) : RGBA(fvec3(p_RGB.RGBA), p_Alpha)
+Color::Color(const Color &p_RGB, const f32 p_Alpha) : RGBA(f32v3(p_RGB.RGBA), p_Alpha)
 {
     TKIT_ASSERT(p_Alpha <= 1.f && p_Alpha >= 0.f, "[ONYX] Alpha value must be in the range [0, 1]");
 }
 
-Color::Color(const Color &p_RGB, const u32 p_Alpha) : RGBA(fvec3(p_RGB.RGBA), toFloat(p_Alpha))
+Color::Color(const Color &p_RGB, const u32 p_Alpha) : RGBA(f32v3(p_RGB.RGBA), toFloat(p_Alpha))
 {
-    TKIT_ASSERT(p_Alpha < 256, "[ONYX] Alpha value must be in the range [0, 255]");
-}
-Color::Color(const Color &p_RGB, const u8 p_Alpha) : RGBA(fvec3(p_RGB.RGBA), toFloat(p_Alpha))
-{
-    // No asserts needed: u8 is always in the range [0, 255]
+    TKIT_ASSERT(p_Alpha <= 255, "[ONYX] Alpha value must be in the range [0, 255]");
 }
 
 u8 Color::Red() const
 {
-    return toInt(RGBA.r);
+    return toInt(RGBA[0]);
 }
 u8 Color::Green() const
 {
-    return toInt(RGBA.g);
+    return toInt(RGBA[1]);
 }
 u8 Color::Blue() const
 {
-    return toInt(RGBA.b);
+    return toInt(RGBA[2]);
 }
 u8 Color::Alpha() const
 {
-    return toInt(RGBA.a);
+    return toInt(RGBA[3]);
 }
 
-void Color::Red(const u8 p_Red)
+void Color::Red(const u32 p_Red)
 {
-    RGBA.r = toFloat(p_Red);
+    RGBA[0] = toFloat(p_Red);
 }
-void Color::Green(const u8 p_Green)
+void Color::Green(const u32 p_Green)
 {
-    RGBA.g = toFloat(p_Green);
+    RGBA[1] = toFloat(p_Green);
 }
-void Color::Blue(const u8 p_Blue)
+void Color::Blue(const u32 p_Blue)
 {
-    RGBA.b = toFloat(p_Blue);
+    RGBA[2] = toFloat(p_Blue);
 }
-void Color::Alpha(const u8 p_Alpha)
+void Color::Alpha(const u32 p_Alpha)
 {
-    RGBA.a = toFloat(p_Alpha);
+    RGBA[3] = toFloat(p_Alpha);
 }
 
 u32 Color::Pack() const
@@ -166,42 +152,42 @@ Color Color::FromString(const std::string &p_Color)
 
 const f32 *Color::GetData() const
 {
-    return glm::value_ptr(RGBA);
+    return Math::AsPointer(RGBA);
 }
 f32 *Color::GetData()
 {
-    return glm::value_ptr(RGBA);
+    return Math::AsPointer(RGBA);
 }
 
-Color::operator const fvec4 &() const
+Color::operator const f32v4 &() const
 {
     return RGBA;
 }
-Color::operator const fvec3 &() const
+Color::operator const f32v3 &() const
 {
     return RGB;
 }
 
 Color &Color::operator+=(const Color &rhs)
 {
-    RGB = glm::clamp(RGB + rhs.RGB, 0.f, 1.f);
+    RGB = Math::Clamp(RGB + rhs.RGB, 0.f, 1.f);
     return *this;
 }
 Color &Color::operator-=(const Color &rhs)
 {
-    RGB = glm::clamp(RGB - rhs.RGB, 0.f, 1.f);
+    RGB = Math::Clamp(RGB - rhs.RGB, 0.f, 1.f);
     return *this;
 }
 
 Color &Color::operator*=(const Color &rhs)
 {
-    RGB = glm::clamp(RGB * rhs.RGB, 0.f, 1.f);
+    RGB = Math::Clamp(RGB * rhs.RGB, 0.f, 1.f);
     return *this;
 }
 
 Color &Color::operator/=(const Color &rhs)
 {
-    RGB = glm::clamp(RGB / rhs.RGB, 0.f, 1.f);
+    RGB = Math::Clamp(RGB / rhs.RGB, 0.f, 1.f);
     return *this;
 }
 

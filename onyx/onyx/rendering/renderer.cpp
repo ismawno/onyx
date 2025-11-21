@@ -171,23 +171,23 @@ struct Material
 };
 
 template <Dimension D, DrawMode DMode>
-static InstanceData<D, DMode> createInstanceData(const fmat<D> &p_Transform, const Material &p_Material)
+static InstanceData<D, DMode> createInstanceData(const f32m<D> &p_Transform, const Material &p_Material)
 {
     if constexpr (D == D2)
     {
         InstanceData<D2, DMode> instanceData{};
-        instanceData.Basis1 = fvec2{p_Transform[0]};
-        instanceData.Basis2 = fvec2{p_Transform[1]};
-        instanceData.Basis3 = fvec2{p_Transform[2]};
+        instanceData.Basis1 = f32v2{p_Transform[0]};
+        instanceData.Basis2 = f32v2{p_Transform[1]};
+        instanceData.Basis3 = f32v2{p_Transform[2]};
         instanceData.Color = p_Material.Color;
         return instanceData;
     }
     else if constexpr (DMode == DrawMode::Fill)
     {
         InstanceData<D3, DrawMode::Fill> instanceData{};
-        instanceData.Basis1 = fvec4{p_Transform[0].x, p_Transform[1].x, p_Transform[2].x, p_Transform[3].x};
-        instanceData.Basis2 = fvec4{p_Transform[0].y, p_Transform[1].y, p_Transform[2].y, p_Transform[3].y};
-        instanceData.Basis3 = fvec4{p_Transform[0].z, p_Transform[1].z, p_Transform[2].z, p_Transform[3].z};
+        instanceData.Basis1 = f32v4{p_Transform[0][0], p_Transform[1][0], p_Transform[2][0], p_Transform[3][0]};
+        instanceData.Basis2 = f32v4{p_Transform[0][1], p_Transform[1][1], p_Transform[2][1], p_Transform[3][1]};
+        instanceData.Basis3 = f32v4{p_Transform[0][2], p_Transform[1][2], p_Transform[2][2], p_Transform[3][2]};
         instanceData.Color = p_Material.Color;
         instanceData.DiffuseContribution = p_Material.DiffuseContribution;
         instanceData.SpecularContribution = p_Material.SpecularContribution;
@@ -197,9 +197,9 @@ static InstanceData<D, DMode> createInstanceData(const fmat<D> &p_Transform, con
     else
     {
         InstanceData<D3, DrawMode::Stencil> instanceData{};
-        instanceData.Basis1 = fvec4{p_Transform[0].x, p_Transform[1].x, p_Transform[2].x, p_Transform[3].x};
-        instanceData.Basis2 = fvec4{p_Transform[0].y, p_Transform[1].y, p_Transform[2].y, p_Transform[3].y};
-        instanceData.Basis3 = fvec4{p_Transform[0].z, p_Transform[1].z, p_Transform[2].z, p_Transform[3].z};
+        instanceData.Basis1 = f32v4{p_Transform[0][0], p_Transform[1][0], p_Transform[2][0], p_Transform[3][0]};
+        instanceData.Basis2 = f32v4{p_Transform[0][1], p_Transform[1][1], p_Transform[2][1], p_Transform[3][1]};
+        instanceData.Basis3 = f32v4{p_Transform[0][2], p_Transform[1][2], p_Transform[2][2], p_Transform[3][2]};
         instanceData.Color = p_Material.Color;
         return instanceData;
     }
@@ -207,7 +207,7 @@ static InstanceData<D, DMode> createInstanceData(const fmat<D> &p_Transform, con
 
 template <Dimension D>
 template <typename Renderer, typename DrawArg>
-void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, const fmat<D> &p_Transform,
+void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, const f32m<D> &p_Transform,
                         DrawArg &&p_Arg, DrawFlags p_Flags)
 {
     TKIT_ASSERT(p_State.OutlineWidth >= 0.f, "[ONYX] Outline width must be non-negative");
@@ -265,28 +265,28 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawMesh(const RenderState<D> &p_State, const fmat<D> &p_Transform, const Mesh<D> &p_Mesh,
+void IRenderer<D>::DrawMesh(const RenderState<D> &p_State, const f32m<D> &p_Transform, const Mesh<D> &p_Mesh,
                             const DrawFlags p_Flags)
 {
     draw(m_MeshRenderer, p_State, p_Transform, p_Mesh, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPrimitive(const RenderState<D> &p_State, const fmat<D> &p_Transform, const u32 p_PrimitiveIndex,
+void IRenderer<D>::DrawPrimitive(const RenderState<D> &p_State, const f32m<D> &p_Transform, const u32 p_PrimitiveIndex,
                                  const DrawFlags p_Flags)
 {
     draw(m_PrimitiveRenderer, p_State, p_Transform, p_PrimitiveIndex, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawPolygon(const RenderState<D> &p_State, const fmat<D> &p_Transform,
-                               const TKit::Span<const fvec2> p_Vertices, const DrawFlags p_Flags)
+void IRenderer<D>::DrawPolygon(const RenderState<D> &p_State, const f32m<D> &p_Transform,
+                               const TKit::Span<const f32v2> p_Vertices, const DrawFlags p_Flags)
 {
     draw(m_PolygonRenderer, p_State, p_Transform, p_Vertices, p_Flags);
 }
 
 template <Dimension D>
-void IRenderer<D>::DrawCircle(const RenderState<D> &p_State, const fmat<D> &p_Transform, const CircleOptions &p_Options,
+void IRenderer<D>::DrawCircle(const RenderState<D> &p_State, const f32m<D> &p_Transform, const CircleOptions &p_Options,
                               const DrawFlags p_Flags)
 {
     draw(m_CircleRenderer, p_State, p_Transform, p_Options, p_Flags);
@@ -519,7 +519,7 @@ template <Dimension D> static void setCameraViewport(const VkCommandBuffer p_Com
         TKit::Array<VkClearAttachment, D - 1> clearAttachments{};
         clearAttachments[0].colorAttachment = 0;
         clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        clearAttachments[0].clearValue.color = {{bg.RGBA.r, bg.RGBA.g, bg.RGBA.b, bg.RGBA.a}};
+        clearAttachments[0].clearValue.color = {{bg.RGBA[0], bg.RGBA[1], bg.RGBA[2], bg.RGBA[3]}};
 
         if constexpr (D == D3)
         {

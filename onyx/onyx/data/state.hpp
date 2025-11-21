@@ -20,7 +20,7 @@ TKIT_MSVC_WARNING_IGNORE(4324)
 
 namespace Onyx
 {
-using PolygonVerticesArray = TKit::StaticArray<fvec2, ONYX_MAX_POLYGON_VERTICES>;
+using PolygonVerticesArray = TKit::StaticArray<f32v2, ONYX_MAX_POLYGON_VERTICES>;
 /**
  * @brief The `MaterialData` struct is a simple collection of data that represents the material of a shape.
  *
@@ -71,8 +71,8 @@ template <> struct ONYX_API RenderState<D2>
 {
     TKIT_REFLECT_DECLARE(RenderState)
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
-    fmat3 Transform{1.f};
-    fmat3 Axes{1.f};
+    f32m3 Transform = f32m3::Identity();
+    f32m3 Axes = f32m3::Identity();
     Color OutlineColor = Color::WHITE;
     MaterialData<D2> Material{};
     f32 OutlineWidth = 0.1f;
@@ -83,8 +83,8 @@ template <> struct ONYX_API RenderState<D3>
 {
     TKIT_REFLECT_DECLARE(RenderState)
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
-    fmat4 Transform{1.f};
-    fmat4 Axes{1.f};
+    f32m4 Transform = f32m4::Identity();
+    f32m4 Axes = f32m4::Identity();
     Color OutlineColor = Color::WHITE;
     Color LightColor = Color::WHITE;
     MaterialData<D3> Material{};
@@ -205,9 +205,9 @@ template <Dimension D, PipelineMode PMode> constexpr DrawLevel GetDrawLevel()
 
 struct ONYX_API CameraInfo
 {
-    fmat4 ProjectionView;
+    f32m4 ProjectionView;
     Color BackgroundColor;
-    fvec3 ViewPosition; // Unused in 2D... not ideal
+    f32v3 ViewPosition; // Unused in 2D... not ideal
     VkViewport Viewport;
     VkRect2D Scissor;
     bool Transparent;
@@ -242,7 +242,7 @@ template <> struct ONYX_API RenderInfo<DrawLevel::Complex>
 {
     VkCommandBuffer CommandBuffer;
     const CameraInfo *Camera;
-    const fvec3 *ViewPosition;
+    const f32v3 *ViewPosition;
     u32 FrameIndex;
     LightData Light;
 };
@@ -278,17 +278,17 @@ template <Dimension D, DrawMode DMode> struct InstanceData;
 
 template <DrawMode DMode> struct ONYX_API InstanceData<D2, DMode>
 {
-    fvec2 Basis1;
-    fvec2 Basis2;
-    fvec2 Basis3;
+    f32v2 Basis1;
+    f32v2 Basis2;
+    f32v2 Basis3;
     u32 Color;
 };
 
 template <> struct ONYX_API InstanceData<D3, DrawMode::Fill>
 {
-    fvec4 Basis1;
-    fvec4 Basis2;
-    fvec4 Basis3;
+    f32v4 Basis1;
+    f32v4 Basis2;
+    f32v4 Basis3;
     u32 Color;
     f32 DiffuseContribution;
     f32 SpecularContribution;
@@ -296,9 +296,9 @@ template <> struct ONYX_API InstanceData<D3, DrawMode::Fill>
 };
 template <> struct ONYX_API InstanceData<D3, DrawMode::Stencil>
 {
-    fvec4 Basis1;
-    fvec4 Basis2;
-    fvec4 Basis3;
+    f32v4 Basis1;
+    f32v4 Basis2;
+    f32v4 Basis3;
     u32 Color;
 };
 
@@ -413,14 +413,14 @@ template <DrawLevel DLevel> struct PushConstantData;
 
 template <> struct ONYX_API PushConstantData<DrawLevel::Simple>
 {
-    fmat4 ProjectionView;
+    f32m4 ProjectionView;
 };
 
 template <> struct ONYX_API PushConstantData<DrawLevel::Complex>
 {
-    fmat4 ProjectionView;
-    fvec4 ViewPosition;
-    fvec4 AmbientColor;
+    f32m4 ProjectionView;
+    f32v4 ViewPosition;
+    f32v4 AmbientColor;
     u32 DirectionalLightCount;
     u32 PointLightCount;
     u32 _Padding[2];

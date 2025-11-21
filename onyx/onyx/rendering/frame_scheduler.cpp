@@ -217,7 +217,7 @@ void FrameScheduler::BeginRendering(const Color &p_ClearColor)
     intermediateColor.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     intermediateColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     intermediateColor.clearValue.color = {
-        {p_ClearColor.RGBA.r, p_ClearColor.RGBA.g, p_ClearColor.RGBA.b, p_ClearColor.RGBA.a}};
+        {p_ClearColor.RGBA[0], p_ClearColor.RGBA[1], p_ClearColor.RGBA[2], p_ClearColor.RGBA[3]}};
 
     transitionImage(table, cmd, m_Images[m_ImageIndex].Intermediate, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
                     VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,

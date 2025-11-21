@@ -13,7 +13,7 @@ struct CircleOptions
     f32 OuterFade = 0.f;
     f32 Hollowness = 0.f;
     f32 LowerAngle = 0.f;
-    f32 UpperAngle = glm::two_pi<f32>();
+    f32 UpperAngle = Math::Pi<f32>();
 };
 template <Dimension D> struct AxesOptions;
 

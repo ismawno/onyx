@@ -4,7 +4,7 @@
 #    include "onyx/app/window.hpp"
 #    include "onyx/rendering/render_context.hpp"
 #    include "onyx/property/transform.hpp"
-#    include <imgui.h>
+#    include "onyx/core/imgui.hpp"
 
 namespace Onyx
 {
@@ -24,40 +24,40 @@ template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform
     bool changed = false;
     if constexpr (D == D2)
     {
-        changed |= ImGui::DragFloat2("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
-        changed |= ImGui::DragFloat2("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
+        changed |= ImGui::DragFloat2("Translation", Math::AsPointer(p_Transform.Translation), 0.03f);
+        changed |= ImGui::DragFloat2("Scale", Math::AsPointer(p_Transform.Scale), 0.03f);
 
-        f32 degrees = glm::degrees(p_Transform.Rotation);
+        f32 degrees = Math::Degrees(p_Transform.Rotation);
         if (ImGui::DragFloat("Rotation", &degrees, 0.3f, 0.f, 0.f, "%.1f deg"))
         {
-            p_Transform.Rotation = glm::radians(degrees);
+            p_Transform.Rotation = Math::Radians(degrees);
             changed = true;
         }
     }
     else
     {
-        changed |= ImGui::DragFloat3("Translation", glm::value_ptr(p_Transform.Translation), 0.03f);
-        changed |= ImGui::DragFloat3("Scale", glm::value_ptr(p_Transform.Scale), 0.03f);
+        changed |= ImGui::DragFloat3("Translation", Math::AsPointer(p_Transform.Translation), 0.03f);
+        changed |= ImGui::DragFloat3("Scale", Math::AsPointer(p_Transform.Scale), 0.03f);
 
         ImGui::Spacing();
 
-        fvec3 degrees = glm::degrees(glm::eulerAngles(p_Transform.Rotation));
-        if (ImGui::InputFloat3("Rotation", glm::value_ptr(degrees), "%.0f deg"))
+        f32v3 degrees = Math::Degrees(Math::ToEulerAngles(p_Transform.Rotation));
+        if (ImGui::InputFloat3("Rotation", Math::AsPointer(degrees), "%.0f deg"))
         {
-            p_Transform.Rotation = glm::quat{glm::radians(degrees)};
+            p_Transform.Rotation = f32q{Math::Radians(degrees)};
             changed = true;
         }
 
-        fvec3 angles{0.f};
-        if (ImGui::DragFloat3("Rotate (global)", glm::value_ptr(angles), 0.3f, 0.f, 0.f, "Slide!"))
+        f32v3 angles{0.f};
+        if (ImGui::DragFloat3("Rotate (global)", Math::AsPointer(angles), 0.3f, 0.f, 0.f, "Slide!"))
         {
-            p_Transform.Rotation = glm::normalize(glm::quat(glm::radians(angles)) * p_Transform.Rotation);
+            p_Transform.Rotation = Math::Normalize(f32q(Math::Radians(angles)) * p_Transform.Rotation);
             changed = true;
         }
 
-        if (ImGui::DragFloat3("Rotate (Local)", glm::value_ptr(angles), 0.3f, 0.f, 0.f, "Slide!"))
+        if (ImGui::DragFloat3("Rotate (Local)", Math::AsPointer(angles), 0.3f, 0.f, 0.f, "Slide!"))
         {
-            p_Transform.Rotation = glm::normalize(p_Transform.Rotation * glm::quat(glm::radians(angles)));
+            p_Transform.Rotation = Math::Normalize(p_Transform.Rotation * f32q(Math::Radians(angles)));
             changed = true;
         }
         if (ImGui::Button("Reset transform"))
@@ -68,7 +68,7 @@ template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform
         ImGui::SameLine();
         if (ImGui::Button("Reset rotation"))
         {
-            p_Transform.Rotation = quat{1.f, 0.f, 0.f, 0.f};
+            p_Transform.Rotation = f32q{1.f, 0.f, 0.f, 0.f};
             changed = true;
         }
     }
@@ -81,24 +81,24 @@ template bool UserLayer::TransformEditor<D3>(Transform<D3> &p_Transform, Flags p
 
 template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Transform, const Flags p_Flags)
 {
-    const fvec<D> &translation = p_Transform.Translation;
-    const fvec<D> &scale = p_Transform.Scale;
+    const f32v<D> &translation = p_Transform.Translation;
+    const f32v<D> &scale = p_Transform.Scale;
 
     if (p_Flags & Flag_DisplayHelp)
         displayTransformHelp();
     if constexpr (D == D2)
     {
-        ImGui::Text("Translation: (%.2f, %.2f)", translation.x, translation.y);
-        ImGui::Text("Scale: (%.2f, %.2f)", scale.x, scale.y);
-        ImGui::Text("Rotation: %.2f deg", glm::degrees(p_Transform.Rotation));
+        ImGui::Text("Translation: (%.2f, %.2f)", translation[0], translation[1]);
+        ImGui::Text("Scale: (%.2f, %.2f)", scale[0], scale[1]);
+        ImGui::Text("Rotation: %.2f deg", Math::Degrees(p_Transform.Rotation));
     }
     else
     {
-        ImGui::Text("Translation: (%.2f, %.2f, %.2f)", translation.x, translation.y, translation.z);
-        ImGui::Text("Scale: (%.2f, %.2f, %.2f)", scale.x, scale.y, scale.z);
+        ImGui::Text("Translation: (%.2f, %.2f, %.2f)", translation[0], translation[1], translation[2]);
+        ImGui::Text("Scale: (%.2f, %.2f, %.2f)", scale[0], scale[1], scale[2]);
 
-        const fvec3 angles = glm::degrees(glm::eulerAngles(p_Transform.Rotation));
-        ImGui::Text("Rotation: (%.2f, %.2f, %.2f) deg", angles.x, angles.y, angles.z);
+        const f32v3 angles = Math::Degrees(Math::ToEulerAngles(p_Transform.Rotation));
+        ImGui::Text("Rotation: (%.2f, %.2f, %.2f) deg", angles[0], angles[1], angles[2]);
     }
 }
 
@@ -235,13 +235,14 @@ bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_
 {
     bool changed = false;
     if (p_Flags & Flag_DisplayHelp)
-        HelpMarker("Directional lights are lights that have no position, only a direction. They are used to simulate "
-                   "infinite light sources, such as the sun. They have a direction, an intensity, and a color. The "
-                   "direction is a normalized vector that points in the direction of the light, the intensity is the "
-                   "brightness of the light, and the color is the color of the light.");
+        HelpMarker(
+            "Directional lights are lights that have no position, only a direction. They are used to simulate "
+            "infinite light sources, such as the sun. They have a direction, an intensity, and a color. The "
+            "direction is a Math::Normalized vector that points in the direction of the light, the intensity is the "
+            "brightness of the light, and the color is the color of the light.");
     ImGui::PushID(&p_Light);
     changed |= ImGui::SliderFloat("Intensity", &p_Light.Intensity, 0.f, 1.f);
-    changed |= ImGui::SliderFloat3("Direction", glm::value_ptr(p_Light.Direction), 0.f, 1.f);
+    changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(p_Light.Direction), 0.f, 1.f);
 
     Color color = Color::Unpack(p_Light.Color);
     if (ImGui::ColorEdit3("Color", color.GetData()))
@@ -267,7 +268,7 @@ bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags)
     ImGui::PushID(&p_Light);
 
     changed |= ImGui::SliderFloat("Intensity", &p_Light.Intensity, 0.f, 1.f);
-    changed |= ImGui::DragFloat3("Position", glm::value_ptr(p_Light.Position), 0.01f);
+    changed |= ImGui::DragFloat3("Position", Math::AsPointer(p_Light.Position), 0.01f);
     changed |= ImGui::SliderFloat("Radius", &p_Light.Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
 
     Color color = Color::Unpack(p_Light.Color);
@@ -357,7 +358,7 @@ bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags)
     if (p_Flags & Flag_DisplayHelp)
     {
         HelpMarker("The viewport is the area of the screen where the camera is rendered. It is defined as a "
-                   "rectangle that is specified in normalized coordinates (0, 0) to (1, 1).");
+                   "rectangle that is specified in Math::Normalized coordinates (0, 0) to (1, 1).");
         HelpMarkerSameLine("Vulkan is pretty strict about the validity of viewports. The area of the viewport must "
                            "always be greater than zero, and the minimum and maximum depth bounds must be between 0 "
                            "and 1. Otherwise, the application will crash.",
@@ -366,42 +367,42 @@ bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags)
 
     if (ImGui::Button("Fullscreen", ImVec2{166.f, 0.f}))
     {
-        p_Viewport.Min = {-1.f, -1.f};
-        p_Viewport.Max = {1.f, 1.f};
+        p_Viewport.Min = f32v2{-1.f, -1.f};
+        p_Viewport.Max = f32v2{1.f, 1.f};
         changed = true;
     }
 
     if (ImGui::Button("Top-left", ImVec2{80.f, 0.f}))
     {
-        p_Viewport.Min = {-1.f, 0.f};
-        p_Viewport.Max = {0.f, 1.f};
+        p_Viewport.Min = f32v2{-1.f, 0.f};
+        p_Viewport.Max = f32v2{0.f, 1.f};
         changed = true;
     }
     ImGui::SameLine();
     if (ImGui::Button("Top-right", ImVec2{80.f, 0.f}))
     {
-        p_Viewport.Min = {0.f, 0.f};
-        p_Viewport.Max = {1.f, 1.f};
+        p_Viewport.Min = f32v2{0.f, 0.f};
+        p_Viewport.Max = f32v2{1.f, 1.f};
         changed = true;
     }
 
     if (ImGui::Button("Bottom-left", ImVec2{80.f, 0.f}))
     {
-        p_Viewport.Min = {-1.f, -1.f};
-        p_Viewport.Max = {0.f, 0.f};
+        p_Viewport.Min = f32v2{-1.f, -1.f};
+        p_Viewport.Max = f32v2{0.f, 0.f};
         changed = true;
     }
     ImGui::SameLine();
     if (ImGui::Button("Bottom-right", ImVec2{80.f, 0.f}))
     {
-        p_Viewport.Min = {0.f, -1.f};
-        p_Viewport.Max = {1.f, 0.f};
+        p_Viewport.Min = f32v2{0.f, -1.f};
+        p_Viewport.Max = f32v2{1.f, 0.f};
         changed = true;
     }
 
-    changed |= ImGui::SliderFloat2("Min", glm::value_ptr(p_Viewport.Min), -1.f, 1.f);
-    changed |= ImGui::SliderFloat2("Max", glm::value_ptr(p_Viewport.Max), -1.f, 1.f);
-    changed |= ImGui::SliderFloat2("Depth bounds", glm::value_ptr(p_Viewport.DepthBounds), 0.f, 1.f);
+    changed |= ImGui::SliderFloat2("Min", Math::AsPointer(p_Viewport.Min), -1.f, 1.f);
+    changed |= ImGui::SliderFloat2("Max", Math::AsPointer(p_Viewport.Max), -1.f, 1.f);
+    changed |= ImGui::SliderFloat2("Depth bounds", Math::AsPointer(p_Viewport.DepthBounds), 0.f, 1.f);
     ImGui::PopID();
     return changed;
 }
@@ -413,15 +414,15 @@ bool UserLayer::ScissorEditor(ScreenScissor &p_Scissor, const Flags p_Flags)
     if (p_Flags & Flag_DisplayHelp)
     {
         HelpMarker("The scissor limits the area of the screen the camera is rendered to. It is defined as a "
-                   "rectangle that is specified in normalized coordinates (0, 0) to (1, 1).");
+                   "rectangle that is specified in Math::Normalized coordinates (0, 0) to (1, 1).");
         HelpMarkerSameLine("Vulkan is pretty strict about the validity of scissors. The area of the scissor must "
                            "always be greater than zero, and the minimum and maximum depth bounds must be between 0 "
                            "and 1. Otherwise, the application will crash.",
                            "(!)");
     }
 
-    changed |= ImGui::SliderFloat2("Min", glm::value_ptr(p_Scissor.Min), -1.f, 1.f);
-    changed |= ImGui::SliderFloat2("Max", glm::value_ptr(p_Scissor.Max), -1.f, 1.f);
+    changed |= ImGui::SliderFloat2("Min", Math::AsPointer(p_Scissor.Min), -1.f, 1.f);
+    changed |= ImGui::SliderFloat2("Max", Math::AsPointer(p_Scissor.Max), -1.f, 1.f);
     ImGui::PopID();
     return changed;
 }

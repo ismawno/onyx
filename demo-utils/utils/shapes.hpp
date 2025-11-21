@@ -15,7 +15,7 @@ template <Dimension D> struct NamedMesh
 
     static bool IsLoaded(std::string_view p_Name);
     static VKit::FormattedResult<NamedMesh<D>> Load(std::string_view p_Name, std::string_view p_Path,
-                                                    const fmat<D> &p_Transform);
+                                                    const f32m<D> &p_Transform);
 
     std::string Name{};
     Mesh<D> Mesh{};
@@ -62,7 +62,7 @@ template <Dimension D> class MeshShape final : public Shape<D>
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
 
     NamedMesh<D> m_Mesh{};
-    fvec<D> m_Dimensions{1.f};
+    f32v<D> m_Dimensions{1.f};
 };
 
 template <Dimension D> class Triangle final : public Shape<D>
@@ -82,7 +82,7 @@ template <Dimension D> class Square final : public Shape<D>
 
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
-    fvec2 m_Dimensions{1.f};
+    f32v2 m_Dimensions{1.f};
 };
 
 template <Dimension D> class Circle final : public Shape<D>
@@ -93,7 +93,7 @@ template <Dimension D> class Circle final : public Shape<D>
 
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
-    fvec2 m_Dimensions{1.f};
+    f32v2 m_Dimensions{1.f};
 
     CircleOptions m_Options{};
 };
@@ -108,7 +108,7 @@ template <Dimension D> class NGon final : public Shape<D>
 
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
-    fvec2 m_Dimensions{1.f};
+    f32v2 m_Dimensions{1.f};
 };
 
 template <Dimension D> class Polygon final : public Shape<D>
@@ -143,7 +143,7 @@ template <Dimension D> class RoundedSquare final : public Shape<D>
 
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
-    fvec2 m_Dimensions{1.f};
+    f32v2 m_Dimensions{1.f};
     f32 m_Diameter = 1.f;
 };
 
@@ -155,7 +155,7 @@ class ONYX_API Cube final : public Shape<D3>
 
   private:
     void draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const override;
-    fvec3 m_Dimensions{1.f};
+    f32v3 m_Dimensions{1.f};
 };
 
 class ONYX_API Sphere final : public Shape<D3>
@@ -167,7 +167,7 @@ class ONYX_API Sphere final : public Shape<D3>
   private:
     void draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const override;
     Resolution m_Res = Resolution::Medium;
-    fvec3 m_Dimensions{1.f};
+    f32v3 m_Dimensions{1.f};
 };
 
 class ONYX_API Cylinder final : public Shape<D3>
@@ -179,7 +179,7 @@ class ONYX_API Cylinder final : public Shape<D3>
   private:
     void draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const override;
     Resolution m_Res = Resolution::Medium;
-    fvec3 m_Dimensions{1.f};
+    f32v3 m_Dimensions{1.f};
 };
 
 class ONYX_API Capsule final : public Shape<D3>
@@ -205,7 +205,7 @@ class ONYX_API RoundedCube final : public Shape<D3>
     void draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const override;
 
     Resolution m_Res = Resolution::Medium;
-    fvec3 m_Dimensions{1.f};
+    f32v3 m_Dimensions{1.f};
     f32 m_Diameter = 1.f;
 };
 

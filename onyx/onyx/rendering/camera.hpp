@@ -19,10 +19,10 @@ class Window;
  * possible. The view can also include scaling.
  *
  * In 2D, the projection view matrix is the "raw" inverse of the view's transform. Then, just before sending the data to
- * the gpu as a `fmat4`, the renderer applies the extrinsic coordinate system.
+ * the gpu as a `f32m4`, the renderer applies the extrinsic coordinate system.
  *
  * In 3D, the projection view matrix is the projection matrix multiplied by the view matrix. As the view matrix is
- * already a `fmat4`, the renderer can directly apply the extrinsic coordinate system.
+ * already a `f32m4`, the renderer can directly apply the extrinsic coordinate system.
  *
  * @tparam D The dimension (`D2` or `D3`).
  */
@@ -33,31 +33,31 @@ template <> struct ONYX_API ProjectionViewData<D2>
     TKIT_REFLECT_DECLARE(ProjectionViewData)
     TKIT_YAML_SERIALIZE_DECLARE(ProjectionViewData)
     Transform<D2> View{};
-    fmat3 ProjectionView{1.f};
+    f32m3 ProjectionView = f32m3::Identity();
 };
 template <> struct ONYX_API ProjectionViewData<D3>
 {
     TKIT_REFLECT_DECLARE(ProjectionViewData)
     TKIT_YAML_SERIALIZE_DECLARE(ProjectionViewData)
     Transform<D3> View{};
-    fmat4 Projection{1.f};
-    fmat4 ProjectionView{1.f};
+    f32m4 Projection = f32m4::Identity();
+    f32m4 ProjectionView = f32m4::Identity();
 };
 
 /**
  * @brief The `ScreenViewport` struct holds screen viewport dimensions.
  *
  * It is represented as an axis-aligned rectangle with the `Min` and `Max` coordinates ranging from -1 to 1. The
- * `DepthBounds` are normalized, ranging from 0 to 1. The default values are set to cover the entire screen.
+ * `DepthBounds` are Math::Normalized, ranging from 0 to 1. The default values are set to cover the entire screen.
  *
  */
 struct ONYX_API ScreenViewport
 {
     TKIT_REFLECT_DECLARE(ScreenViewport)
     TKIT_YAML_SERIALIZE_DECLARE(ScreenViewport)
-    fvec2 Min{-1.f};
-    fvec2 Max{1.f};
-    fvec2 DepthBounds{0.f, 1.f};
+    f32v2 Min{-1.f};
+    f32v2 Max{1.f};
+    f32v2 DepthBounds{0.f, 1.f};
 
     /**
      * @brief Convert the viewport to a Vulkan viewport given a Vulkan extent.
@@ -79,8 +79,8 @@ struct ONYX_API ScreenScissor
 {
     TKIT_REFLECT_DECLARE(ScreenScissor)
     TKIT_YAML_SERIALIZE_DECLARE(ScreenScissor)
-    fvec2 Min{-1.f};
-    fvec2 Max{1.f};
+    f32v2 Min{-1.f};
+    f32v2 Max{1.f};
 
     /**
      * @brief Convert the scissor to a Vulkan scissor given a Vulkan extent and a viewport.
@@ -140,7 +140,7 @@ template <Dimension D> class ICamera
      * with the y axis pointing upwards.
      * @return The position in viewport coordinates.
      */
-    fvec2 ScreenToViewport(const fvec2 &p_ScreenPos) const;
+    f32v2 ScreenToViewport(const f32v2 &p_ScreenPos) const;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from viewport to world coordinates.
@@ -153,7 +153,7 @@ template <Dimension D> class ICamera
      *
      * @return The position in world coordinates.
      */
-    fvec<D> ViewportToWorld(fvec<D> p_ViewportPos, const fmat<D> *p_Axes = nullptr) const;
+    f32v<D> ViewportToWorld(f32v<D> p_ViewportPos, const f32m<D> *p_Axes = nullptr) const;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from world to viewport coordinates.
@@ -164,7 +164,7 @@ template <Dimension D> class ICamera
      * @return The position in viewport coordinates. Should be in the range [-1, 1] only if the provided point was
      * contained in the viewport, with the y axis pointing upwards.
      */
-    fvec2 WorldToViewport(const fvec<D> &p_WorldPos, const fmat<D> *p_Axes = nullptr) const;
+    f32v2 WorldToViewport(const f32v<D> &p_WorldPos, const f32m<D> *p_Axes = nullptr) const;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from viewport to screen coordinates.
@@ -174,7 +174,7 @@ template <Dimension D> class ICamera
      * @return The position in screen coordinates. Should be in the range [-1, 1] only if the provided point was
      * contained in the screen, with the y axis pointing upwards.
      */
-    fvec2 ViewportToScreen(const fvec2 &p_ViewportPos) const;
+    f32v2 ViewportToScreen(const f32v2 &p_ViewportPos) const;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from screen to world coordinates.
@@ -186,7 +186,7 @@ template <Dimension D> class ICamera
      *
      * @return The position in world coordinates.
      */
-    fvec<D> ScreenToWorld(const fvec<D> &p_ScreenPos, const fmat<D> *p_Axes = nullptr) const;
+    f32v<D> ScreenToWorld(const f32v<D> &p_ScreenPos, const f32m<D> *p_Axes = nullptr) const;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from world to screen coordinates.
@@ -195,14 +195,14 @@ template <Dimension D> class ICamera
      * @return The position in screen coordinates. Should be in the range [-1, 1] only if the provided point was
      * contained in the screen, with the y axis pointing upwards.
      */
-    fvec2 WorldToScreen(const fvec<D> &p_WorldPos, const fmat<D> *p_Axes = nullptr) const;
+    f32v2 WorldToScreen(const f32v<D> &p_WorldPos, const f32m<D> *p_Axes = nullptr) const;
 
     /**
      * @brief Compute the position of the mouse in the camera's rendering context from screen to viewport coordinates.
      *
      * @return The mouse position in the camera's viewport coordinates.
      */
-    fvec2 GetViewportMousePosition() const;
+    f32v2 GetViewportMousePosition() const;
 
     void ControlMovementWithUserInput(const CameraControls<D> &p_Controls);
     void ControlMovementWithUserInput(TKit::Timespan p_DeltaTime);
@@ -235,7 +235,7 @@ template <Dimension D> class ICamera
      * @param p_Axes The axes coordinates of the system.
      * @return The view transform of the camera.
      */
-    Onyx::Transform<D> GetViewTransform(const fmat<D> &p_Axes) const;
+    Onyx::Transform<D> GetViewTransform(const f32m<D> &p_Axes) const;
 
     void SetView(const Onyx::Transform<D> &p_View);
     void SetViewport(const ScreenViewport &p_Viewport);
@@ -257,7 +257,7 @@ template <Dimension D> class ICamera
   private:
     void adaptViewToViewportAspect();
 
-    fvec2 m_PrevMousePos{0.f};
+    f32v2 m_PrevMousePos{0.f};
     friend class Onyx::Window;
 };
 } // namespace Onyx::Detail
@@ -279,7 +279,7 @@ template <> class ONYX_API Camera<D2> final : public Detail::ICamera<D2>
      * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    fvec2 GetWorldMousePosition(const fmat3 *p_Axes = nullptr) const;
+    f32v2 GetWorldMousePosition(const f32m3 *p_Axes = nullptr) const;
 
     void SetSize(f32 p_Size);
 };
@@ -299,7 +299,7 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
      *
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    fvec3 GetWorldMousePosition(const fmat4 *p_Axes = nullptr, f32 p_Depth = 0.5f) const;
+    f32v3 GetWorldMousePosition(const f32m4 *p_Axes = nullptr, f32 p_Depth = 0.5f) const;
 
     /**
      * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
@@ -308,7 +308,7 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
      *
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    fvec3 GetWorldMousePosition(f32 p_Depth) const;
+    f32v3 GetWorldMousePosition(f32 p_Depth) const;
 
     /**
      * @brief Get the direction of the view.
@@ -316,7 +316,7 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
      * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      *
      */
-    fvec3 GetViewLookDirection(const fmat4 *p_Axes = nullptr) const;
+    f32v3 GetViewLookDirection(const f32m4 *p_Axes = nullptr) const;
 
     /**
      * @brief Get the direction of an imaginary ray cast from the mouse.
@@ -324,9 +324,9 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
      * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      *
      */
-    fvec3 GetMouseRayCastDirection(const fmat4 *p_Axes = nullptr) const;
+    f32v3 GetMouseRayCastDirection(const f32m4 *p_Axes = nullptr) const;
 
-    void SetProjection(const fmat4 &p_Projection);
+    void SetProjection(const f32m4 &p_Projection);
 
     /**
      * @brief Set a perspective projection with the given field of view and near/far planes.
@@ -335,7 +335,7 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
      * @param p_Near The near clipping plane.
      * @param p_Far The far clipping plane.
      */
-    void SetPerspectiveProjection(f32 p_FieldOfView = glm::radians(75.f), f32 p_Near = 0.1f, f32 p_Far = 100.f);
+    void SetPerspectiveProjection(f32 p_FieldOfView = Math::Radians(75.f), f32 p_Near = 0.1f, f32 p_Far = 100.f);
 
     /**
      * @brief Set a basic orthographic projection.

@@ -1,7 +1,7 @@
 #include "perf/layer.hpp"
 #include "onyx/app/app.hpp"
 #include "vulkan/vulkan_core.h"
-#include <imgui.h>
+#include "onyx/core/imgui.hpp"
 
 namespace Onyx::Perf
 {
@@ -20,8 +20,8 @@ template <Dimension D> void Layer<D>::OnStart()
     {
         m_Camera->SetPerspectiveProjection();
         Transform<D3> transform{};
-        transform.Translation = 3.f * fvec3{2.f, 0.75f, 2.f};
-        transform.Rotation = glm::quat{glm::radians(fvec3{-15.f, 45.f, -4.f})};
+        transform.Translation = 3.f * f32v3{2.f, 0.75f, 2.f};
+        transform.Rotation = f32q{Math::Radians(f32v3{-15.f, 45.f, -4.f})};
         m_Camera->SetView(transform);
     }
     else
@@ -56,7 +56,7 @@ template <Dimension D> void Layer<D>::OnUpdate()
     {
         m_Context->Axes({.Thickness = 0.05f});
         m_Context->LightColor(Color::WHITE);
-        m_Context->DirectionalLight(fvec3{1.f}, 0.55f);
+        m_Context->DirectionalLight(f32v3{1.f}, 0.55f);
     }
 
     for (const Lattice<D> &lattice : m_Lattices)
@@ -69,7 +69,7 @@ template <Dimension D> void Layer<D>::OnEvent(const Event &p_Event)
     const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) && !ImGui::GetIO().WantCaptureKeyboard
                            ? 0.05f
                            : 0.005f;
-    m_Camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset.y);
+    m_Camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
 }
 
 template class Layer<D2>;

@@ -4,7 +4,7 @@
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
-#include <imgui.h>
+#include "onyx/core/imgui.hpp"
 
 using Onyx::D2;
 using namespace TKit::Alias;

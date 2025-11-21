@@ -1,7 +1,7 @@
 #include "utils/shapes.hpp"
 #include "onyx/app/user_layer.hpp"
 #include "tkit/utils/dimension.hpp"
-#include <imgui.h>
+#include "onyx/core/imgui.hpp"
 #include <filesystem>
 
 namespace Onyx::Demo
@@ -49,7 +49,7 @@ template <Dimension D> bool NamedMesh<D>::IsLoaded(const std::string_view p_Name
 }
 template <Dimension D>
 VKit::FormattedResult<NamedMesh<D>> NamedMesh<D>::Load(const std::string_view p_Name, const std::string_view p_Path,
-                                                       const fmat<D> &p_Transform)
+                                                       const f32m<D> &p_Transform)
 {
     const auto result = Onyx::Mesh<D>::Load(p_Path, &p_Transform);
     if (!result)
@@ -109,13 +109,13 @@ template <Dimension D> void Shape<D>::Edit()
     ImGui::PopID();
 }
 
-template <Dimension D> static void dimensionEditor(fvec<D> &p_Dimensions)
+template <Dimension D> static void dimensionEditor(f32v<D> &p_Dimensions)
 {
     ImGui::PushID(&p_Dimensions);
     if constexpr (D == D2)
-        ImGui::DragFloat2("Dimensions", glm::value_ptr(p_Dimensions), 0.01f, 0.f, FLT_MAX);
+        ImGui::DragFloat2("Dimensions", Math::AsPointer(p_Dimensions), 0.01f, 0.f, FLT_MAX);
     else
-        ImGui::DragFloat3("Dimensions", glm::value_ptr(p_Dimensions), 0.01f, 0.f, FLT_MAX);
+        ImGui::DragFloat3("Dimensions", Math::AsPointer(p_Dimensions), 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
 }
 
@@ -226,7 +226,7 @@ template <Dimension D> void Polygon<D>::Edit()
 
         ImGui::Text("Vertex %u: ", i);
         ImGui::SameLine();
-        ImGui::DragFloat2("##Vertex", glm::value_ptr(Vertices[i]), 0.01f, -FLT_MAX, FLT_MAX);
+        ImGui::DragFloat2("##Vertex", Math::AsPointer(Vertices[i]), 0.01f, -FLT_MAX, FLT_MAX);
         ImGui::PopID();
     }
 }

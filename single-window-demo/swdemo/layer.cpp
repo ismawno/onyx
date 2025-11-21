@@ -1,6 +1,6 @@
 #include "swdemo/layer.hpp"
 #include "onyx/app/app.hpp"
-#include <imgui.h>
+#include "onyx/core/imgui.hpp"
 
 namespace Onyx::Demo
 {
