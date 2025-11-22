@@ -237,7 +237,6 @@ class ONYX_API IApplication
 #endif
 
 #ifdef ONYX_ENABLE_IMGUI
-    VkDescriptorPool m_ImGuiPool = VK_NULL_HANDLE;
     i32 m_ImGuiConfigFlags = 0;
 #endif
     TKit::Scope<Theme> m_Theme;

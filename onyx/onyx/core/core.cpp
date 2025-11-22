@@ -278,6 +278,8 @@ void Core::Initialize(const Specs &p_Specs)
     VKIT_ASSERT_RESULT(sysres);
 
     TKIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX] Failed to initialize GLFW");
+    TKIT_LOG_WARNING_IF(!glfwVulkanSupported(), "[ONYX] Vulkan is not supported, according to GLFW");
+
     u32 extensionCount;
     const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
     const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);

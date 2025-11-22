@@ -1,8 +1,8 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/app/input.hpp"
+#include "onyx/core/glfw.hpp"
 #include "onyx/core/core.hpp"
-
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/debug.hpp"
 #include "vkit/vulkan/loader.hpp"
@@ -33,10 +33,6 @@ void IApplication::Shutdown()
     TKIT_ASSERT(!m_Terminated && m_Started, "[ONYX] Application cannot be terminated before it is started");
     onShutdown();
     delete m_UserLayer;
-#ifdef ONYX_ENABLE_IMGUI
-    if (Core::IsDeviceCreated())
-        Core::GetDeviceTable().DestroyDescriptorPool(Core::GetDevice(), m_ImGuiPool, nullptr);
-#endif
     m_Terminated = true;
 }
 
@@ -75,8 +71,13 @@ void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer)
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
 
-    ImGui::UpdatePlatformWindows();
-    ImGui::RenderPlatformWindowsDefault(nullptr, nullptr);
+    const ImGuiIO &io = ImGui::GetIO();
+
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+    }
 }
 #endif
 
@@ -167,37 +168,15 @@ void IApplication::onImGuiRender()
         m_UserLayer->OnImGuiRender();
 }
 
-void IApplication::createImGuiPool()
+static i32 createVkSurface(ImGuiViewport *, ImU64 p_Instance, const void *p_Callbacks, ImU64 *p_Surface)
 {
-    constexpr std::uint32_t poolSize = 100;
-    VkDescriptorPoolSize poolSizes[11] = {{VK_DESCRIPTOR_TYPE_SAMPLER, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, poolSize},
-                                          {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, poolSize}};
-
-    VkDescriptorPoolCreateInfo poolInfo = {};
-    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    poolInfo.maxSets = poolSize;
-    poolInfo.poolSizeCount = 11;
-    poolInfo.pPoolSizes = poolSizes;
-
-    TKIT_ASSERT_RETURNS(
-        Core::GetDeviceTable().CreateDescriptorPool(Core::GetDevice(), &poolInfo, nullptr, &m_ImGuiPool), VK_SUCCESS,
-        "[ONYX] Failed to create descriptor pool");
+    return glfwCreateWindowSurface(reinterpret_cast<VkInstance>(p_Instance), nullptr,
+                                   static_cast<const VkAllocationCallbacks *>(p_Callbacks),
+                                   reinterpret_cast<VkSurfaceKHR *>(&p_Surface));
 }
 
 void IApplication::initializeImGui(Window &p_Window)
 {
-    if (!m_ImGuiPool)
-        createImGuiPool();
     if (!m_Theme)
         m_Theme = TKit::Scope<BabyTheme>::Create();
 
@@ -208,39 +187,57 @@ void IApplication::initializeImGui(Window &p_Window)
 
     IMGUI_CHECKVERSION();
     ImGuiIO &io = ImGui::GetIO();
+    io.MouseDrawCursor = false;
 
-    io.ConfigFlags = m_ImGuiConfigFlags;
-    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;
+    io.ConfigFlags = ImGuiConfigFlags_NoMouseCursorChange | m_ImGuiConfigFlags;
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures | ImGuiBackendFlags_RendererHasVtxOffset;
+    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
+
+    ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
+    if (!(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
+        pio.Platform_CreateVkSurface = createVkSurface;
 
     m_Theme->Apply();
     TKIT_ASSERT_RETURNS(ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindowHandle(), true), true,
                         "[ONYX] Failed to initialize ImGui GLFW");
 
-    ImGui_ImplVulkan_InitInfo initInfo{};
-    initInfo.Instance = Core::GetInstance();
-    initInfo.PhysicalDevice = Core::GetDevice().GetPhysicalDevice();
-    initInfo.Device = Core::GetDevice();
-    initInfo.Queue = Core::GetGraphicsQueue();
-    initInfo.DescriptorPool = m_ImGuiPool;
-    initInfo.MinImageCount = 2;
-    initInfo.ImageCount = 3;
-    initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    initInfo.UseDynamicRendering = true;
-    initInfo.PipelineRenderingCreateInfo = p_Window.GetFrameScheduler()->CreateSceneRenderInfo();
+    const VKit::Instance &instance = Core::GetInstance();
+    const VKit::LogicalDevice &device = Core::GetDevice();
 
-    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_LoadFunctions([](const char *p_Name, void *) -> PFN_vkVoidFunction {
-                            return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(), p_Name);
-                        }),
+    ImGui_ImplVulkan_PipelineInfo pipelineInfo{};
+    pipelineInfo.PipelineRenderingCreateInfo = p_Window.GetFrameScheduler()->CreateSceneRenderInfo();
+    pipelineInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+    const VkSurfaceCapabilitiesKHR &sc =
+        p_Window.GetFrameScheduler()->GetSwapChain().GetInfo().SupportDetails.Capabilities;
+
+    const u32 imageCount = sc.minImageCount != sc.maxImageCount ? sc.minImageCount + 1 : sc.minImageCount;
+
+    ImGui_ImplVulkan_InitInfo initInfo{};
+    initInfo.ApiVersion = instance.GetInfo().ApiVersion;
+    initInfo.Instance = instance;
+    initInfo.PhysicalDevice = device.GetPhysicalDevice();
+    initInfo.Device = device;
+    initInfo.Queue = Core::GetGraphicsQueue();
+    initInfo.QueueFamily = Core::GetGraphicsIndex();
+    initInfo.DescriptorPoolSize = 100;
+    initInfo.MinImageCount = sc.minImageCount;
+    initInfo.ImageCount = imageCount;
+    initInfo.UseDynamicRendering = true;
+    initInfo.PipelineInfoMain = pipelineInfo;
+
+    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_LoadFunctions(instance.GetInfo().ApiVersion,
+                                                       [](const char *p_Name, void *) -> PFN_vkVoidFunction {
+                                                           return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(),
+                                                                                                    p_Name);
+                                                       }),
                         true, "[ONYX] Failed to load ImGui Vulkan functions");
     TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true, "[ONYX] Failed to initialize ImGui Vulkan");
-    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_CreateFontsTexture(), true,
-                        "[ONYX] ImGui failed to create fonts texture for Vulkan");
 }
 
 void IApplication::shutdownImGui()
 {
     Core::DeviceWaitIdle();
-    ImGui_ImplVulkan_DestroyFontsTexture();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyPlatformWindows();
