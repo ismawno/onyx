@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/glm.hpp"
+#include "onyx/core/alias.hpp"
 #include "onyx/core/api.hpp"
 
 namespace Onyx

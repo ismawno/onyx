@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/glm.hpp"
+#include "onyx/core/math.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/api.hpp"
 #include "tkit/reflection/reflect.hpp"

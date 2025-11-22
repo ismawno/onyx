@@ -34,6 +34,15 @@ if(ONYX_ENABLE_VALIDATION_LAYERS)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_VALIDATION_LAYERS)
 endif()
 
+include(FetchContent)
+FetchContent_Declare(
+  vulkit
+  GIT_REPOSITORY https://github.com/ismawno/vulkit.git
+  GIT_TAG main
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE)
+FetchContent_MakeAvailable(vulkit)
+
 if(UNIX AND NOT APPLE)
   find_package(PkgConfig QUIET)
   if(PkgConfig_FOUND)
@@ -48,34 +57,6 @@ if(UNIX AND NOT APPLE)
   else()
     message(STATUS "ONYX: PkgConfig not found")
   endif()
-endif()
-
-include(FetchContent)
-FetchContent_Declare(
-  vulkit
-  GIT_REPOSITORY https://github.com/ismawno/vulkit.git
-  GIT_TAG main
-  GIT_SHALLOW TRUE
-  GIT_PROGRESS TRUE)
-FetchContent_MakeAvailable(vulkit)
-
-find_package(glm QUIET)
-if(NOT TARGET glm::glm)
-
-  message(STATUS "ONYX: GLM not found. Fetching headers...")
-  FetchContent_Declare(
-    glm
-    GIT_REPOSITORY https://github.com/g-truc/glm.git
-    GIT_TAG 1.0.1
-    GIT_SHALLOW TRUE
-    GIT_PROGRESS TRUE)
-
-  FetchContent_MakeAvailable(glm)
-  tkit_configure_compile_link_options(glm FORBID_SANITIZERS NO_EXCEPTIONS)
-  target_link_libraries(onyx PUBLIC glm)
-else()
-  message(STATUS "ONYX: GLM found")
-  target_link_libraries(onyx PUBLIC glm::glm)
 endif()
 
 find_package(glfw3 QUIET)

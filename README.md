@@ -148,7 +148,7 @@ If enabled through `CMake`, ImGui and ImPlot support is built-in when using the 
 
 ## Dependencies and Third-Party Libraries
 
-Onyx relies on some dependencies such as [toolkit](https://github.com/ismawno/toolkit), [vulkit](https://github.com/ismawno/vulkit), [glfw](https://github.com/glfw/glfw) and [glm](https://github.com/g-truc/glm.git). Some of them are optional ([imgui](https://github.com/ocornut/imgui) and [implot](https://github.com/epezent/implot)) and most of them are pulled automatically from `CMake`.
+Onyx relies on some dependencies such as [toolkit](https://github.com/ismawno/toolkit), [vulkit](https://github.com/ismawno/vulkit) and [glfw](https://github.com/glfw/glfw). Some of them are optional ([imgui](https://github.com/ocornut/imgui) and [implot](https://github.com/epezent/implot)) and most of them are pulled automatically from `CMake`.
 
 ## Versioning
 

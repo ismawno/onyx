@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/core/api.hpp"
-#include "onyx/core/glm.hpp"
+#include "onyx/core/math.hpp"
 #include "onyx/core/dimension.hpp"
 #include "tkit/reflection/reflect.hpp"
 #include "tkit/serialization/yaml/serialize.hpp"

@@ -8,7 +8,6 @@
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/limits.hpp"
-#include <glm/trigonometric.hpp>
 #include "onyx/core/imgui.hpp"
 #ifdef ONYX_ENABLE_IMPLOT
 #    include "onyx/core/implot.hpp"

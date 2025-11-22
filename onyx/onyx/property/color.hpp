@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/core/api.hpp"
-#include "onyx/core/glm.hpp"
+#include "onyx/core/math.hpp"
 #include "tkit/container/span.hpp"
 
 namespace Onyx
