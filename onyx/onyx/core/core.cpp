@@ -277,6 +277,9 @@ void Core::Initialize(const Specs &p_Specs)
     const auto sysres = VKit::Core::Initialize();
     VKIT_ASSERT_RESULT(sysres);
 
+#ifdef TKIT_OS_LINUX
+    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+#endif
     TKIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX] Failed to initialize GLFW");
     TKIT_LOG_WARNING_IF(!glfwVulkanSupported(), "[ONYX] Vulkan is not supported, according to GLFW");
 
@@ -304,19 +307,16 @@ void Core::Initialize(const Specs &p_Specs)
                   VKIT_API_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion),
                   VKIT_API_VERSION_MINOR(s_Instance.GetInfo().ApiVersion),
                   VKIT_API_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
-#ifdef TKIT_ENABLE_INFO_LOGS
-    if (s_Instance.GetInfo().Flags & VKit::Instance::Flag_HasValidationLayers)
-    {
-        TKIT_LOG_INFO("[ONYX] Validation layers enabled");
-    }
-    else
-    {
-#    ifdef ONYX_ENABLE_VALIDATION_LAYERS
-        TKIT_LOG_ERROR("[ONYX] Validation layers were requested, but could not be enabled");
-#    else
-        TKIT_LOG_INFO("[ONYX] Validation layers disabled");
-#    endif
-    }
+
+#if defined(TKIT_ENABLE_INFO_LOGS) || defined(TKIT_ENABLE_ERROR_LOGS)
+    const bool vlayers = s_Instance.GetInfo().Flags & VKit::Instance::Flag_HasValidationLayers;
+#endif
+
+    TKIT_LOG_INFO_IF(vlayers, "[ONYX] Validation layers enabled");
+#ifdef ONYX_ENABLE_VALIDATION_LAYERS
+    TKIT_LOG_ERROR_IF(!vlayers, "[ONYX] Validation layers were requested, but could not be enabled");
+#else
+    TKIT_LOG_INFO_IF(!vlayers, "[ONYX] Validation layers disabled");
 #endif
     s_DeletionQueue.SubmitForDeletion(s_Instance);
 }

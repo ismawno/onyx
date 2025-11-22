@@ -187,11 +187,9 @@ void IApplication::initializeImGui(Window &p_Window)
 
     IMGUI_CHECKVERSION();
     ImGuiIO &io = ImGui::GetIO();
-    io.MouseDrawCursor = false;
 
-    io.ConfigFlags = ImGuiConfigFlags_NoMouseCursorChange | m_ImGuiConfigFlags;
+    io.ConfigFlags = m_ImGuiConfigFlags;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures | ImGuiBackendFlags_RendererHasVtxOffset;
-    ImGui::SetMouseCursor(ImGuiMouseCursor_None);
 
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     if (!(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
@@ -203,6 +201,14 @@ void IApplication::initializeImGui(Window &p_Window)
 
     const VKit::Instance &instance = Core::GetInstance();
     const VKit::LogicalDevice &device = Core::GetDevice();
+
+    TKIT_LOG_WARNING_IF(
+        (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) &&
+            instance.GetInfo().Flags & VKit::Instance::Flag_HasValidationLayers,
+        "[ONYX] Vulkan validation layers have become stricter regarding semaphore and fence usage when submitting to "
+        "queues. ImGui may not have caught up to this and may trigger validation errors when the "
+        "ImGuiConfigFlags_ViewportsEnable flag is set. If this is the case, either disable the flag or the vulkan "
+        "validation layers. If the application runs well, you may safely ignore this warning");
 
     ImGui_ImplVulkan_PipelineInfo pipelineInfo{};
     pipelineInfo.PipelineRenderingCreateInfo = p_Window.GetFrameScheduler()->CreateSceneRenderInfo();
