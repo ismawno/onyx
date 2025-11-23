@@ -6,13 +6,6 @@
 #include "tkit/profiling/clock.hpp"
 #include "tkit/memory/ptr.hpp"
 
-#ifdef ONYX_ENABLE_IMGUI
-struct ImGuiContext;
-#endif
-#ifdef ONYX_ENABLE_IMPLOT
-struct ImPlotContext;
-#endif
-
 #ifndef ONYX_MAX_WINDOWS
 #    define ONYX_MAX_WINDOWS 8
 #endif
@@ -189,7 +182,6 @@ class ONYX_API IApplication
 #ifdef ONYX_ENABLE_IMGUI
     void initializeImGui(Window &p_Window);
     void shutdownImGui();
-    void setImContexts();
 
     static void beginRenderImGui();
     void endRenderImGui(VkCommandBuffer p_CommandBuffer);
@@ -228,13 +220,6 @@ class ONYX_API IApplication
 
     UserLayer *m_UserLayer = nullptr;
     UserLayer *m_StagedUserLayer = nullptr;
-
-#ifdef ONYX_ENABLE_IMGUI
-    ImGuiContext *m_ImGuiContext = nullptr;
-#endif
-#ifdef ONYX_ENABLE_IMPLOT
-    ImPlotContext *m_ImPlotContext = nullptr;
-#endif
 
 #ifdef ONYX_ENABLE_IMGUI
     i32 m_ImGuiConfigFlags = 0;

@@ -180,9 +180,9 @@ void IApplication::initializeImGui(Window &p_Window)
     if (!m_Theme)
         m_Theme = TKit::Scope<BabyTheme>::Create();
 
-    m_ImGuiContext = ImGui::CreateContext();
+    ImGui::CreateContext();
 #    ifdef ONYX_ENABLE_IMPLOT
-    m_ImPlotContext = ImPlot::CreateContext();
+    ImPlot::CreateContext();
 #    endif
 
     IMGUI_CHECKVERSION();
@@ -252,14 +252,6 @@ void IApplication::shutdownImGui()
     ImPlot::DestroyContext();
 #    endif
 }
-
-void IApplication::setImContexts()
-{
-    ImGui::SetCurrentContext(m_ImGuiContext);
-#    ifdef ONYX_ENABLE_IMPLOT
-    ImPlot::SetCurrentContext(m_ImPlotContext);
-#    endif
-}
 #endif
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -306,9 +298,6 @@ static void endFrame()
 bool Application::NextFrame(TKit::Clock &p_Clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
-#ifdef ONYX_ENABLE_IMGUI
-    setImContexts();
-#endif
     if (m_QuitFlag) [[unlikely]]
     {
         m_QuitFlag = false;
@@ -417,9 +406,6 @@ void MultiWindowApplication::CloseWindow(const Window *p_Window)
 bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApplication::NextFrame");
-#ifdef ONYX_ENABLE_IMGUI
-    setImContexts();
-#endif
     if (m_Windows.IsEmpty() || m_QuitFlag) [[unlikely]]
     {
         m_QuitFlag = false;
