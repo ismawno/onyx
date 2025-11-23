@@ -7,6 +7,7 @@
 #include "vkit/pipeline/pipeline_layout.hpp"
 #include "vkit/core/core.hpp"
 #include "tkit/utils/debug.hpp"
+#include "tkit/profiling/macros.hpp"
 
 #include "onyx/core/glfw.hpp"
 #include "vkit/vulkan/allocator.hpp"
@@ -319,6 +320,7 @@ void Core::Initialize(const Specs &p_Specs)
     TKIT_LOG_INFO_IF(!vlayers, "[ONYX] Validation layers disabled");
 #endif
     s_DeletionQueue.SubmitForDeletion(s_Instance);
+    TKIT_PROFILE_PLOT_CONFIG("Draw calls", TKit::ProfilingPlotFormat::Number, false, true, 0);
 }
 
 void Core::Terminate()

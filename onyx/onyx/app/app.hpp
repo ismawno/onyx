@@ -36,11 +36,7 @@ using WindowArray = TKit::StaticArray<Window *, ONYX_MAX_WINDOWS>;
 class ONYX_API IApplication
 {
   public:
-#ifdef ONYX_ENABLE_IMGUI
-    IApplication(i32 p_ImGuiConfigFlags);
-#else
-    IApplication() = default;
-#endif
+    IApplication();
 
     virtual ~IApplication();
 
@@ -108,7 +104,7 @@ class ONYX_API IApplication
     template <std::derived_from<UserLayer> T, typename... LayerArgs> T *SetUserLayer(LayerArgs &&...p_Args)
     {
         T *layer = new T(std::forward<LayerArgs>(p_Args)...);
-        if (m_DeferFlag)
+        if (checkFlags(Flag_Defer))
         {
             delete m_StagedUserLayer;
             m_StagedUserLayer = layer;
@@ -144,11 +140,38 @@ class ONYX_API IApplication
     {
         return m_DeltaTime;
     }
+#ifdef ONYX_ENABLE_IMGUI
+    i32 GetImGuiConfigFlags() const;
+    i32 GetImGuiBackendFlags() const;
 
+    void SetImGuiConfigFlags(i32 p_Flags);
+    void SetImGuiBackendFlags(i32 p_Flags);
+
+    virtual void InitializeImGui() = 0;
+    virtual void ReloadImGui() = 0;
+#endif
   protected:
+    using Flags = u8;
+    enum FlagBit : Flags
+    {
+        Flag_Defer = 1 << 0,
+        Flag_Quit = 1 << 1,
+        Flag_WindowAlive = 1 << 2,
+        Flag_MustReloadImGui = 1 << 3,
+#ifdef ONYX_ENABLE_IMGUI
+        Flag_ImGuiRunning = 1 << 4
+#endif
+    };
+
+    bool checkFlags(Flags p_Flags) const;
+    void setFlags(Flags p_Flags);
+    void clearFlags(Flags p_Flags);
+
 #ifdef ONYX_ENABLE_IMGUI
     void initializeImGui(Window &p_Window);
     void shutdownImGui();
+    void reloadImGui(Window &p_Window);
+    void checkImGui();
 
     static void beginRenderImGui();
     void endRenderImGui(VkCommandBuffer p_CommandBuffer);
@@ -174,8 +197,7 @@ class ONYX_API IApplication
 #endif
 
     TKit::Timespan m_DeltaTime;
-    bool m_DeferFlag = false;
-    bool m_QuitFlag = false; // Contemplate adding onQuit?
+    Flags m_Flags = 0;
 
   private:
 #ifdef ONYX_ENABLE_IMGUI
@@ -187,11 +209,9 @@ class ONYX_API IApplication
 
 #ifdef ONYX_ENABLE_IMGUI
     i32 m_ImGuiConfigFlags = 0;
+    i32 m_ImGuiBackendFlags = 0;
 #endif
     TKit::Scope<Theme> m_Theme;
-
-    bool m_Started = false;
-    bool m_Terminated = false;
 };
 
 /**
@@ -203,13 +223,7 @@ class ONYX_API IApplication
 class ONYX_API Application final : public IApplication
 {
   public:
-#ifdef ONYX_ENABLE_IMGUI
-    Application(const Window::Specs &p_WindowSpecs = {}, i32 p_ImGuiConfigFlags = 0);
-    Application(i32 p_ImGuiConfigFlags);
-#else
     Application(const Window::Specs &p_WindowSpecs = {});
-#endif
-
     ~Application();
 
     /**
@@ -229,9 +243,13 @@ class ONYX_API Application final : public IApplication
         return m_Window.Get();
     }
 
+#ifdef ONYX_ENABLE_IMGUI
+    void InitializeImGui() override;
+    void ReloadImGui() override;
+#endif
+
   private:
     TKit::Storage<Window> m_Window;
-    bool m_WindowAlive = true;
 };
 
 /**
@@ -250,12 +268,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
 {
     TKIT_NON_COPYABLE(MultiWindowApplication)
   public:
-#ifdef ONYX_ENABLE_IMGUI
-    MultiWindowApplication(i32 p_ImGuiConfigFlags = 0);
-#else
     MultiWindowApplication() = default;
-#endif
-
     ~MultiWindowApplication();
 
     /**
@@ -342,6 +355,11 @@ class ONYX_API MultiWindowApplication final : public IApplication
      * @return true if the application should continue running, false otherwise.
      */
     bool NextFrame(TKit::Clock &p_Clock) override;
+
+#ifdef ONYX_ENABLE_IMGUI
+    void InitializeImGui() override;
+    void ReloadImGui() override;
+#endif
 
   private:
     void processFrame(u32 p_WindowIndex, const RenderCallbacks &p_Callbacks);

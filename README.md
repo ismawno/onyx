@@ -130,6 +130,7 @@ class MyLayer : public Onyx::UserLayer
 
 Onyx::Application app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
 app.SetUserLayer<MyLayer>();
+app.InitializeImGui();
 
 app.Run();
 ```

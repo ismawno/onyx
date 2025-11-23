@@ -9,14 +9,12 @@
 
 namespace Onyx
 {
-#ifdef ONYX_ENABLE_IMGUI
-IApplication::IApplication(const i32 p_ImGuiConfigFlags) : m_ImGuiConfigFlags(p_ImGuiConfigFlags)
+IApplication::IApplication()
 {
-    TKIT_ASSERT(!m_Terminated && !m_Started, "[ONYX] Application cannot be started more than once");
-    TKIT_PROFILE_PLOT_CONFIG("Draw calls", TKit::ProfilingPlotFormat::Number, false, true, 0);
-    m_Started = true;
-}
+#ifdef ONYX_ENABLE_IMGUI
+    m_ImGuiBackendFlags = ImGuiBackendFlags_RendererHasTextures;
 #endif
+}
 IApplication::~IApplication()
 {
     delete m_UserLayer;
@@ -24,7 +22,7 @@ IApplication::~IApplication()
 
 void IApplication::Quit()
 {
-    m_QuitFlag = true;
+    setFlags(Flag_Quit);
 }
 
 void IApplication::ApplyTheme()
@@ -149,8 +147,40 @@ static i32 createVkSurface(ImGuiViewport *, ImU64 p_Instance, const void *p_Call
                                    reinterpret_cast<VkSurfaceKHR *>(&p_Surface));
 }
 
+i32 IApplication::GetImGuiConfigFlags() const
+{
+    return m_ImGuiConfigFlags;
+}
+i32 IApplication::GetImGuiBackendFlags() const
+{
+    return m_ImGuiBackendFlags;
+}
+void IApplication::SetImGuiConfigFlags(const i32 p_Flags)
+{
+    m_ImGuiConfigFlags = p_Flags;
+}
+void IApplication::SetImGuiBackendFlags(const i32 p_Flags)
+{
+    m_ImGuiBackendFlags = p_Flags;
+}
+
+bool IApplication::checkFlags(const Flags p_Flags) const
+{
+    return m_Flags & p_Flags;
+}
+void IApplication::setFlags(const Flags p_Flags)
+{
+    m_Flags |= p_Flags;
+}
+void IApplication::clearFlags(const Flags p_Flags)
+{
+    m_Flags &= ~p_Flags;
+}
+
 void IApplication::initializeImGui(Window &p_Window)
 {
+    TKIT_ASSERT(!checkFlags(Flag_ImGuiRunning), "[ONYX] Trying to initialize ImGui when it is already running. If you "
+                                                "meant to reload ImGui, use ReloadImGui()");
     if (!m_Theme)
         m_Theme = TKit::Scope<BabyTheme>::Create();
 
@@ -162,8 +192,14 @@ void IApplication::initializeImGui(Window &p_Window)
     IMGUI_CHECKVERSION();
     ImGuiIO &io = ImGui::GetIO();
 
+    TKIT_LOG_WARNING_IF(!(m_ImGuiBackendFlags & ImGuiBackendFlags_RendererHasTextures),
+                        "[ONYX] ImGui may fail to initialize if ImGuiBackendFlags_RendererHasTextures is not set. If "
+                        "you experience issues, try setting it with SetImGuiBackendFlags()");
+
     io.ConfigFlags = m_ImGuiConfigFlags;
-    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures | ImGuiBackendFlags_RendererHasVtxOffset;
+    io.BackendFlags = m_ImGuiBackendFlags;
+
+    // io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures | ImGuiBackendFlags_RendererHasVtxOffset;
 
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     if (!(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
@@ -213,10 +249,14 @@ void IApplication::initializeImGui(Window &p_Window)
                                                        }),
                         true, "[ONYX] Failed to load ImGui Vulkan functions");
     TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true, "[ONYX] Failed to initialize ImGui Vulkan");
+    setFlags(Flag_ImGuiRunning);
 }
 
 void IApplication::shutdownImGui()
 {
+    TKIT_ASSERT(checkFlags(Flag_ImGuiRunning),
+                "[ONYX] Trying to shut down ImGui when it is not initialized to begin with");
+    clearFlags(Flag_ImGuiRunning);
     Core::DeviceWaitIdle();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
@@ -226,36 +266,44 @@ void IApplication::shutdownImGui()
     ImPlot::DestroyContext();
 #    endif
 }
+void IApplication::reloadImGui(Window &p_Window)
+{
+    if (checkFlags(Flag_Defer))
+    {
+        setFlags(Flag_MustReloadImGui);
+        return;
+    }
+    shutdownImGui();
+    initializeImGui(p_Window);
+}
+void IApplication::checkImGui()
+{
+    TKIT_LOG_WARNING_IF(!checkFlags(Flag_ImGuiRunning),
+                        "[ONYX] ImGui functionality has been enabled with ONYX_ENABLE_IMGUI, but ImGui has not been "
+                        "initialized with InitializeImGui(). This call is required if your application uses ImGui. If "
+                        "it does not, consider disabling ONYX_ENABLE_IMGUI");
+    if (checkFlags(Flag_MustReloadImGui))
+    {
+        ReloadImGui();
+        clearFlags(Flag_MustReloadImGui);
+    }
+}
 #endif
 
-#ifdef ONYX_ENABLE_IMGUI
-Application::Application(const Window::Specs &p_WindowSpecs, const i32 p_ImGuiConfigFlags)
-    : IApplication(p_ImGuiConfigFlags)
-{
-    m_Window.Construct(p_WindowSpecs);
-    initializeImGui(*m_Window);
-}
-Application::Application(const i32 p_ImGuiConfigFlags) : IApplication(p_ImGuiConfigFlags)
-{
-    m_Window.Construct();
-    initializeImGui(*m_Window);
-}
-#else
 Application::Application(const Window::Specs &p_WindowSpecs)
 {
     m_Window.Construct(p_WindowSpecs);
 }
-#endif
 
 Application::~Application()
 {
-    if (m_WindowAlive)
+    if (checkFlags(Flag_WindowAlive))
     {
 #ifdef ONYX_ENABLE_IMGUI
         shutdownImGui();
 #endif
         m_Window.Destruct();
-        m_WindowAlive = false;
+        clearFlags(Flag_WindowAlive);
     }
 }
 
@@ -272,14 +320,17 @@ static void endFrame()
 bool Application::NextFrame(TKit::Clock &p_Clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
-    if (m_QuitFlag) [[unlikely]]
+#ifdef ONYX_ENABLE_IMGUI
+    checkImGui();
+#endif
+    if (checkFlags(Flag_Quit)) [[unlikely]]
     {
-        m_QuitFlag = false;
+        clearFlags(Flag_Quit);
         endFrame();
         return false;
     }
 
-    m_DeferFlag = true;
+    setFlags(Flag_Defer);
     Input::PollEvents();
     for (const Event &event : m_Window->GetNewEvents())
         onEvent(event);
@@ -313,7 +364,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
 #endif
 
     m_Window->Render(callbacks);
-    m_DeferFlag = false;
+    clearFlags(Flag_Defer);
     updateUserLayerPointer();
 
     if (m_Window->ShouldClose()) [[unlikely]]
@@ -322,7 +373,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
         shutdownImGui();
 #endif
         m_Window.Destruct();
-        m_WindowAlive = false;
+        clearFlags(Flag_WindowAlive);
         endFrame();
         return false;
     }
@@ -332,8 +383,13 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-MultiWindowApplication::MultiWindowApplication(const i32 p_ImGuiConfigFlags) : IApplication(p_ImGuiConfigFlags)
+void Application::InitializeImGui()
 {
+    initializeImGui(*m_Window);
+}
+void Application::ReloadImGui()
+{
+    reloadImGui(*m_Window);
 }
 #endif
 
@@ -380,9 +436,13 @@ void MultiWindowApplication::CloseWindow(const Window *p_Window)
 bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApplication::NextFrame");
-    if (m_Windows.IsEmpty() || m_QuitFlag) [[unlikely]]
+#ifdef ONYX_ENABLE_IMGUI
+    checkImGui();
+#endif
+
+    if (m_Windows.IsEmpty() || checkFlags(Flag_Quit)) [[unlikely]]
     {
-        m_QuitFlag = false;
+        clearFlags(Flag_Quit);
         endFrame();
         return false;
     }
@@ -400,7 +460,7 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index)
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
 
     Window *window = m_Windows[p_Index];
-    if (m_DeferFlag)
+    if (checkFlags(Flag_Defer))
     {
         window->FlagShouldClose();
         return;
@@ -434,7 +494,7 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs)
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
-    if (m_DeferFlag)
+    if (checkFlags(Flag_Defer))
     {
         m_WindowsToAdd.Append(p_Specs);
         return;
@@ -453,9 +513,22 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs)
     onEvent(m_Windows.GetSize() - 1, event);
 }
 
+#ifdef ONYX_ENABLE_IMGUI
+void MultiWindowApplication::InitializeImGui()
+{
+    TKIT_ASSERT(!m_Windows.IsEmpty(), "[ONYX] Cannot initialize ImGui with no active windows. Open one first");
+    initializeImGui(*GetMainWindow());
+}
+void MultiWindowApplication::ReloadImGui()
+{
+    TKIT_ASSERT(!m_Windows.IsEmpty(), "[ONYX] Cannot reload ImGui with no active windows. Open one first");
+    reloadImGui(*GetMainWindow());
+}
+#endif
+
 void MultiWindowApplication::processWindows()
 {
-    m_DeferFlag = true;
+    setFlags(Flag_Defer);
     RenderCallbacks mainCbs{};
     mainCbs.OnFrameBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
         onFrameBegin(0, p_FrameIndex, p_CommandBuffer);
@@ -495,7 +568,7 @@ void MultiWindowApplication::processWindows()
         processFrame(i, secCbs);
     }
 
-    m_DeferFlag = false;
+    clearFlags(Flag_Defer);
     updateUserLayerPointer();
 
     for (u32 i = m_Windows.GetSize() - 1; i < m_Windows.GetSize(); --i)

@@ -12,6 +12,7 @@ void RunApp(const Onyx::Demo::Scene p_Scene)
 
     app.SetUserLayer<Onyx::Demo::MWExampleLayer>(&app, p_Scene);
     app.OpenWindow({.Name = "Main window"});
+    app.InitializeImGui();
     app.Run();
 }
 

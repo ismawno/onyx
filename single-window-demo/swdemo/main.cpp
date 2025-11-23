@@ -12,6 +12,7 @@ void RunApp(const Onyx::Demo::Scene p_Scene)
     spc.Name = "Single window demo app";
 
     Onyx::Application app{spc};
+    app.InitializeImGui();
     app.SetUserLayer<Onyx::Demo::SWExampleLayer>(&app, p_Scene);
     app.Run();
 }
