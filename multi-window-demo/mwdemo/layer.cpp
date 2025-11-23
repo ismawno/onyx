@@ -34,7 +34,7 @@ void MWExampleLayer::OnRenderBegin(const u32 p_WindowIndex, u32, VkCommandBuffer
 void MWExampleLayer::OnImGuiRender()
 {
     const auto ts = m_Application->GetDeltaTime();
-    WindowData::OnImGuiRenderGlobal(ts);
+    WindowData::OnImGuiRenderGlobal(m_Application, ts);
     if (ImGui::Begin("Editor"))
     {
         WindowData::RenderEditorText();

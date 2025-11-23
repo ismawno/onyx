@@ -9,6 +9,11 @@
 #include "tkit/profiling/timespan.hpp"
 #include "tkit/memory/ptr.hpp"
 
+namespace Onyx
+{
+class IApplication;
+}
+
 namespace Onyx::Demo
 {
 
@@ -122,7 +127,7 @@ class ONYX_API WindowData
     void OnImGuiRender();
     void OnEvent(const Event &p_Event);
 
-    static void OnImGuiRenderGlobal(TKit::Timespan p_Timestep);
+    static void OnImGuiRenderGlobal(IApplication *p_Application, TKit::Timespan p_Timestep);
     static void RenderEditorText();
 
   private:

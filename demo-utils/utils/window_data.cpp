@@ -1,6 +1,11 @@
 #include "utils/window_data.hpp"
 #include "onyx/core/shaders.hpp"
 #include "onyx/app/user_layer.hpp"
+#include "onyx/core/imgui.hpp"
+#include "onyx/app/app.hpp"
+#ifdef ONYX_ENABLE_IMPLOT
+#    include "onyx/core/implot.hpp"
+#endif
 #include "utils/shapes.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -8,10 +13,6 @@
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/limits.hpp"
-#include "onyx/core/imgui.hpp"
-#ifdef ONYX_ENABLE_IMPLOT
-#    include "onyx/core/implot.hpp"
-#endif
 
 // dirty macros as lazy enums lol
 #define MESH 0
@@ -279,7 +280,7 @@ template <Dimension D> static void renderMeshLoad(const char *p_Path)
     ImGui::PopID();
 }
 
-void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep)
+void WindowData::OnImGuiRenderGlobal(IApplication *p_Application, const TKit::Timespan p_Timestep)
 {
     ImGui::ShowDemoWindow();
 #ifdef ONYX_ENABLE_IMPLOT
@@ -288,6 +289,9 @@ void WindowData::OnImGuiRenderGlobal(const TKit::Timespan p_Timestep)
 
     if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {
+        if (ImGui::Button("Reload ImGui"))
+            p_Application->ReloadImGui();
+
         UserLayer::DisplayFrameTime(p_Timestep, UserLayer::Flag_DisplayHelp);
         ImGui::Text("Version: " ONYX_VERSION);
         ImGui::TextWrapped(

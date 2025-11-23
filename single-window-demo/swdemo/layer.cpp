@@ -13,7 +13,7 @@ void SWExampleLayer::OnUpdate()
 {
     const auto ts = m_Application->GetDeltaTime();
     m_Data.OnUpdate(ts);
-    WindowData::OnImGuiRenderGlobal(ts);
+    WindowData::OnImGuiRenderGlobal(m_Application, ts);
     if (ImGui::Begin("Editor"))
     {
         WindowData::RenderEditorText();
