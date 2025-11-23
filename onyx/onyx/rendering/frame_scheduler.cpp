@@ -93,11 +93,11 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window)
     }
 
     const auto &table = Core::GetDeviceTable();
-    TKIT_ASSERT_RETURNS(table.BeginCommandBuffer(cmd.GraphicsCommand, &beginInfo), VK_SUCCESS,
+    VKIT_ASSERT_SUCCESS(table.BeginCommandBuffer(cmd.GraphicsCommand, &beginInfo),
                         "[ONYX] Failed to begin command buffer");
     if (m_TransferMode == TransferMode::Separate)
     {
-        TKIT_ASSERT_RETURNS(table.BeginCommandBuffer(cmd.TransferCommand, &beginInfo), VK_SUCCESS,
+        VKIT_ASSERT_SUCCESS(table.BeginCommandBuffer(cmd.TransferCommand, &beginInfo),
                             "[ONYX] Failed to begin command buffer");
     }
 
@@ -117,8 +117,8 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
     if (isync.InFlightImage != VK_NULL_HANDLE)
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForImage");
-        TKIT_ASSERT_RETURNS(table.WaitForFences(Core::GetDevice(), 1, &isync.InFlightImage, VK_TRUE, UINT64_MAX),
-                            VK_SUCCESS, "[ONYX] Failed to wait for fences");
+        VKIT_ASSERT_SUCCESS(table.WaitForFences(Core::GetDevice(), 1, &isync.InFlightImage, VK_TRUE, UINT64_MAX),
+                            "[ONYX] Failed to wait for fences");
     }
 
     isync.InFlightImage = fsync.InFlightFence;
@@ -138,9 +138,8 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &isync.RenderFinishedSemaphore;
 
-    TKIT_ASSERT_RETURNS(table.ResetFences(Core::GetDevice(), 1, &fsync.InFlightFence), VK_SUCCESS,
-                        "[ONYX] Failed to reset fences");
-    TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, fsync.InFlightFence), VK_SUCCESS,
+    VKIT_ASSERT_SUCCESS(table.ResetFences(Core::GetDevice(), 1, &fsync.InFlightFence), "[ONYX] Failed to reset fences");
+    VKIT_ASSERT_SUCCESS(table.QueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, fsync.InFlightFence),
                         "[ONYX] Failed to submit graphics queue");
 }
 VkResult FrameScheduler::Present()
@@ -171,7 +170,7 @@ void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Fla
 
     const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
     const auto &table = Core::GetDeviceTable();
-    TKIT_ASSERT_RETURNS(table.EndCommandBuffer(cmd), VK_SUCCESS, "[ONYX] Failed to end command buffer");
+    VKIT_ASSERT_SUCCESS(table.EndCommandBuffer(cmd), "[ONYX] Failed to end command buffer");
 
     SubmitGraphicsQueue(p_Flags);
     const VkResult result = Present();
@@ -317,9 +316,9 @@ VkResult FrameScheduler::AcquireNextImage()
     const auto &table = Core::GetDeviceTable();
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForFrame");
-        TKIT_ASSERT_RETURNS(table.WaitForFences(Core::GetDevice(), 1, &m_SyncFrameData[m_FrameIndex].InFlightFence,
+        VKIT_ASSERT_SUCCESS(table.WaitForFences(Core::GetDevice(), 1, &m_SyncFrameData[m_FrameIndex].InFlightFence,
                                                 VK_TRUE, UINT64_MAX),
-                            VK_SUCCESS, "[ONYX] Failed to wait for fences");
+                            "[ONYX] Failed to wait for fences");
     }
     return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX,
                                      m_SyncFrameData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE,
@@ -329,7 +328,7 @@ VkResult FrameScheduler::AcquireNextImage()
 void FrameScheduler::SubmitTransferQueue()
 {
     const auto &table = Core::GetDeviceTable();
-    TKIT_ASSERT_RETURNS(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand), VK_SUCCESS,
+    VKIT_ASSERT_SUCCESS(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand),
                         "[ONYX] Failed to end command buffer");
 
     VkSubmitInfo submitInfo{};
@@ -341,7 +340,7 @@ void FrameScheduler::SubmitTransferQueue()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_SyncFrameData[m_FrameIndex].TransferCopyDoneSemaphore;
 
-    TKIT_ASSERT_RETURNS(table.QueueSubmit(Core::GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE), VK_SUCCESS,
+    VKIT_ASSERT_SUCCESS(table.QueueSubmit(Core::GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE),
                         "[ONYX] Failed to submit to transfer queue");
 }
 

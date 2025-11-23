@@ -38,8 +38,8 @@ void PostProcessing::Setup(const Specs &p_Specs)
     if (m_Sampler)
         table.DestroySampler(Core::GetDevice(), m_Sampler, nullptr);
 
-    TKIT_ASSERT_RETURNS(table.CreateSampler(Core::GetDevice(), &p_Specs.SamplerCreateInfo, nullptr, &m_Sampler),
-                        VK_SUCCESS, "[ONYX] Failed to create sampler");
+    VKIT_ASSERT_SUCCESS(table.CreateSampler(Core::GetDevice(), &p_Specs.SamplerCreateInfo, nullptr, &m_Sampler),
+                        "[ONYX] Failed to create sampler");
 
     const auto result = VKit::GraphicsPipeline::Builder(Core::GetDevice(), p_Specs.Layout, p_Specs.RenderInfo)
                             .AddShaderStage(p_Specs.VertexShader, VK_SHADER_STAGE_VERTEX_BIT)

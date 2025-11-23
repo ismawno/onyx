@@ -199,8 +199,6 @@ void IApplication::initializeImGui(Window &p_Window)
     io.ConfigFlags = m_ImGuiConfigFlags;
     io.BackendFlags = m_ImGuiBackendFlags;
 
-    // io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures | ImGuiBackendFlags_RendererHasVtxOffset;
-
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     if (!(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
         pio.Platform_CreateVkSurface = createVkSurface;
