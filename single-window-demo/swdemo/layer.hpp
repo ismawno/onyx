@@ -15,7 +15,6 @@ class SWExampleLayer final : public UserLayer
   public:
     SWExampleLayer(Application *p_Application, Scene p_Scene);
 
-    void OnStart() override;
     void OnUpdate() override;
     void OnRenderBegin(u32, VkCommandBuffer p_CommandBuffer) override;
     void OnEvent(const Event &p_Event) override;
@@ -23,6 +22,5 @@ class SWExampleLayer final : public UserLayer
   private:
     Application *m_Application = nullptr;
     WindowData m_Data;
-    Scene m_Scene;
 };
 } // namespace Onyx::Demo

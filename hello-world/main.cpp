@@ -136,7 +136,6 @@ static void RunAppExample2()
     app.GetMainWindow()->CreateCamera<D2>();
 
     TKit::Clock clock;
-    app.Startup();
     while (app.NextFrame(clock))
     {
         context->Flush();
@@ -145,7 +144,6 @@ static void RunAppExample2()
         context->Mesh(square);
     }
     square.Destroy();
-    app.Shutdown();
 }
 
 static void RunAppExample3()

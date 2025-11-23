@@ -21,12 +21,10 @@ void RunApp(const Onyx::Perf::ParseResult &p_Args)
         app.Run();
     else
     {
-        app.Startup();
         TKit::Clock frameClock{};
         TKit::Clock runTimeClock{};
         while (runTimeClock.GetElapsed().AsSeconds() < p_Args.RunTime && app.NextFrame(frameClock))
             ;
-        app.Shutdown();
     }
 }
 

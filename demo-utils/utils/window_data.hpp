@@ -115,7 +115,8 @@ template <Dimension D> struct ContextDataContainer
 class ONYX_API WindowData
 {
   public:
-    void OnStart(Window *p_Window, Scene p_Scene);
+    WindowData(Window *p_Window, Scene p_Scene);
+
     void OnUpdate(TKit::Timespan p_Timestep);
     void OnRenderBegin(VkCommandBuffer p_CommandBuffer);
     void OnImGuiRender();

@@ -45,25 +45,6 @@ class ONYX_API IApplication
     virtual ~IApplication();
 
     /**
-     * @brief Startup the application and call the `OnStart()` method of all layers.
-     *
-     * This method must be called before calling `NextFrame()`.
-     * Calling this method more than once will result in undefined behaviour or a crash.
-     *
-     */
-    void Startup();
-
-    /**
-     * @brief Shutdown the application, clean up some resources and call the `OnShutdown()` method of all layers.
-     *
-     * This method must be called after the `Startup()` call, after the last call to `NextFrame()`, once all windows
-     * have been closed. Failing to do so, or calling this method more than once will result in undefined behaviour or a
-     * crash. This method will close all remaining windows.
-     *
-     */
-    virtual void Shutdown();
-
-    /**
      * @brief Signals the application to stop the frame loop.
      *
      * This method will only tell the applicatio to return `false` in the next call to `NextFrame()`. It will not close
@@ -76,7 +57,6 @@ class ONYX_API IApplication
      * @brief This method is in charge of processing and presenting the next frame for all windows.
      *
      * This method should be called in a loop until it returns false, which means that all windows have been closed.
-     * All of its calls should reside between `Startup()` and `Shutdown()`.
      *
      * @param p_Clock A clock that lets both the API and the user to keep track of the frame time.
      * @return Whether the application still contains opened windows.
@@ -155,24 +135,11 @@ class ONYX_API IApplication
     /**
      * @brief Run the whole application in one go.
      *
-     * This method automatically calls `Startup()`, `NextFrame()` and `Shutdown()`. If you choose to run the application
-     * this way, you must not use any of the other 3 methods.
+     * This method automatically invokes an application loop, using `NextFrame()` under the hood.
      *
      */
     void Run();
 
-    bool IsStarted() const
-    {
-        return m_Started;
-    }
-    bool IsTerminated() const
-    {
-        return m_Terminated;
-    }
-    bool IsRunning() const
-    {
-        return m_Started && !m_Terminated;
-    }
     TKit::Timespan GetDeltaTime() const
     {
         return m_DeltaTime;
@@ -188,9 +155,6 @@ class ONYX_API IApplication
 #endif
 
     void updateUserLayerPointer();
-
-    void onStart();
-    void onShutdown();
 
     void onUpdate();
     void onFrameBegin(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
@@ -246,7 +210,7 @@ class ONYX_API Application final : public IApplication
     Application(const Window::Specs &p_WindowSpecs = {});
 #endif
 
-    void Shutdown() override;
+    ~Application();
 
     /**
      * @brief Process and present the next frame for the application.
@@ -292,7 +256,7 @@ class ONYX_API MultiWindowApplication final : public IApplication
     MultiWindowApplication() = default;
 #endif
 
-    void Shutdown() override;
+    ~MultiWindowApplication();
 
     /**
      * @brief Open a new window with the given specs.

@@ -62,10 +62,8 @@ static const VKit::Shader &getBlurShader()
     return shader;
 }
 
-void WindowData::OnStart(Window *p_Window, const Scene p_Scene)
+WindowData::WindowData(Window *p_Window, const Scene p_Scene) : m_Window(p_Window)
 {
-    m_Window = p_Window;
-
     FrameScheduler *fs = m_Window->GetFrameScheduler();
     const auto presult =
         VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowLayout(), fs->CreateSceneRenderInfo())

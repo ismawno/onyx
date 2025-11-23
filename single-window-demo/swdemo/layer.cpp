@@ -5,13 +5,8 @@
 namespace Onyx::Demo
 {
 SWExampleLayer::SWExampleLayer(Application *p_Application, const Scene p_Scene)
-    : m_Application(p_Application), m_Scene(p_Scene)
+    : m_Application(p_Application), m_Data(p_Application->GetMainWindow(), p_Scene)
 {
-}
-
-void SWExampleLayer::OnStart()
-{
-    m_Data.OnStart(m_Application->GetMainWindow(), m_Scene);
 }
 
 void SWExampleLayer::OnUpdate()

@@ -8,10 +8,6 @@ template <Dimension D>
 Layer<D>::Layer(Application *p_Application, const TKit::Span<const Lattice<D>> p_Lattices)
     : m_Application(p_Application), m_Lattices(p_Lattices.begin(), p_Lattices.end())
 {
-}
-
-template <Dimension D> void Layer<D>::OnStart()
-{
     m_Window = m_Application->GetMainWindow();
     m_Context = m_Window->CreateRenderContext<D>();
     m_Camera = m_Window->CreateCamera<D>();
@@ -36,6 +32,7 @@ template <Dimension D> void Layer<D>::OnStart()
             lattice.Mesh = mesh;
         }
 }
+
 template <Dimension D> void Layer<D>::OnUpdate()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Perf::OnUpdate");

@@ -12,28 +12,14 @@ namespace Onyx
 #ifdef ONYX_ENABLE_IMGUI
 IApplication::IApplication(const i32 p_ImGuiConfigFlags) : m_ImGuiConfigFlags(p_ImGuiConfigFlags)
 {
+    TKIT_ASSERT(!m_Terminated && !m_Started, "[ONYX] Application cannot be started more than once");
+    TKIT_PROFILE_PLOT_CONFIG("Draw calls", TKit::ProfilingPlotFormat::Number, false, true, 0);
+    m_Started = true;
 }
 #endif
 IApplication::~IApplication()
 {
-    if (!m_Terminated && m_Started)
-        Shutdown();
-}
-
-void IApplication::Startup()
-{
-    TKIT_ASSERT(!m_Terminated && !m_Started, "[ONYX] Application cannot be started more than once");
-    TKIT_PROFILE_PLOT_CONFIG("Draw calls", TKit::ProfilingPlotFormat::Number, false, true, 0);
-    m_Started = true;
-    onStart();
-}
-
-void IApplication::Shutdown()
-{
-    TKIT_ASSERT(!m_Terminated && m_Started, "[ONYX] Application cannot be terminated before it is started");
-    onShutdown();
     delete m_UserLayer;
-    m_Terminated = true;
 }
 
 void IApplication::Quit()
@@ -49,11 +35,9 @@ void IApplication::ApplyTheme()
 
 void IApplication::Run()
 {
-    Startup();
     TKit::Clock clock;
     while (NextFrame(clock))
         ;
-    Shutdown();
 }
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -91,16 +75,6 @@ void IApplication::updateUserLayerPointer()
     }
 }
 
-void IApplication::onStart()
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnStart();
-}
-void IApplication::onShutdown()
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnShutdown();
-}
 void IApplication::onUpdate()
 {
     if (m_UserLayer) [[likely]]
@@ -272,7 +246,8 @@ Application::Application(const Window::Specs &p_WindowSpecs)
     m_Window.Construct(p_WindowSpecs);
 }
 #endif
-void Application::Shutdown()
+
+Application::~Application()
 {
     if (m_WindowAlive)
     {
@@ -282,7 +257,6 @@ void Application::Shutdown()
         m_Window.Destruct();
         m_WindowAlive = false;
     }
-    IApplication::Shutdown();
 }
 
 static void endFrame()
@@ -362,6 +336,12 @@ MultiWindowApplication::MultiWindowApplication(const i32 p_ImGuiConfigFlags) : I
 {
 }
 #endif
+
+MultiWindowApplication::~MultiWindowApplication()
+{
+    CloseAllWindows();
+}
+
 void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderCallbacks &p_Callbacks)
 {
     Window *window = m_Windows[p_WindowIndex];
@@ -378,12 +358,6 @@ void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderC
 
     onUpdate(p_WindowIndex);
     window->Render(p_Callbacks);
-}
-
-void MultiWindowApplication::Shutdown()
-{
-    CloseAllWindows();
-    IApplication::Shutdown();
 }
 
 void MultiWindowApplication::CloseAllWindows()

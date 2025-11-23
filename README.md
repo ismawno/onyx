@@ -98,7 +98,6 @@ Note that this setup won’t do anything beyond opening a pitch-black window, wh
 Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
 
 TKit::Clock clock;
-app.Startup();
 
 Onyx::Window *window = app.GetMainWindow();
 Onyx::RenderContext<D2> *context = window->CreateRenderContext<D2>();
@@ -111,7 +110,6 @@ while (app.NextFrame(clock))
     context->Square();
 }
 
-app.Shutdown();
 ```
 
 This setup is more flexible than the previous one but still similar to the example shown in the [Windows](#window-api) section and not how an application is intended to be used. To take full advantage of the application interface, you will likely want to use the user layer to leverage its full capabilities:

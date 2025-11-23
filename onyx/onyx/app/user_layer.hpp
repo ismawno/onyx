@@ -47,30 +47,6 @@ class ONYX_API UserLayer
     virtual ~UserLayer() = default;
 
     /**
-     * @brief Called when the `Startup()` method of the application is called.
-     *
-     * If `Startup()` was already called, this method will never be called. If you wish a callback for when the layer is
-     * pushed into the application, you should use your layer's constructor. This method is called serially
-     * in all cases.
-     *
-     */
-    virtual void OnStart()
-    {
-    }
-
-    /**
-     * @brief Called when the `Shutdown()` method of the application is called.
-     *
-     * If you wish a callback for when the layer is popped from the application, you should use your layer's destructor.
-     *
-     * It is not possible to reference any window at this point.
-     *
-     */
-    virtual void OnShutdown()
-    {
-    }
-
-    /**
      * @brief Called every frame before the `OnFrameBegin()` method.
      *
      * This method is called outside the the frame loop, so you cannot issue any vulkan draw calls here. You can (and is

@@ -19,7 +19,7 @@ void MWExampleLayer::OnEvent(const u32 p_WindowIndex, const Event &p_Event)
     TKIT_ASSERT(p_Event.Type == Event::WindowOpened || p_WindowIndex < m_Data.GetSize(), "[ONYX] Index out of bounds");
 
     if (p_Event.Type == Event::WindowOpened)
-        m_Data.Append().OnStart(p_Event.Window, m_Scene);
+        m_Data.Append(p_Event.Window, m_Scene);
     else if (p_Event.Type == Event::WindowClosed)
         m_Data.RemoveOrdered(m_Data.begin() + p_WindowIndex);
     else
