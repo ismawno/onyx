@@ -1,6 +1,5 @@
 #include "perf/layer.hpp"
 #include "onyx/app/app.hpp"
-#include "vulkan/vulkan_core.h"
 #include "onyx/core/imgui.hpp"
 
 namespace Onyx::Perf
