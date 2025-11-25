@@ -56,33 +56,24 @@ namespace Onyx
 using Task = TKit::Task<void>;
 using TaskArray = TKit::StaticArray<Task, ONYX_MAX_TASKS>;
 
-class Initializer
+struct InitializationCallbacks
 {
-  public:
-    virtual ~Initializer() = default;
-
-    virtual void OnInstanceCreation(VKit::Instance::Builder &)
-    {
-    }
-    virtual void OnPhysicalDeviceCreation(VKit::PhysicalDevice::Selector &)
-    {
-    }
-    virtual void OnAllocatorCreation(VKit::AllocatorSpecs &)
-    {
-    }
+    std::function<void(VKit::Instance::Builder &)> OnInstanceCreation = nullptr;
+    std::function<void(VKit::PhysicalDevice::Selector &)> OnPhysicalDeviceCreation = nullptr;
+    std::function<void(VKit::AllocatorSpecs &)> OnAllocatorCreation = nullptr;
 };
 
 enum class TransferMode : u8
 {
-    Separate,
-    SameIndex,
-    SameQueue
+    Separate = 0,
+    SameIndex = 1,
+    SameQueue = 2
 };
 
 struct Specs
 {
     TKit::ITaskManager *TaskManager = nullptr;
-    Initializer *Initializer = nullptr;
+    InitializationCallbacks Callbacks{};
 };
 
 template <typename T> using PerFrameData = TKit::Array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;

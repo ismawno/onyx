@@ -230,7 +230,7 @@ void IApplication::initializeImGui(Window &p_Window)
     ImGui_ImplVulkan_InitInfo initInfo{};
     initInfo.ApiVersion = instance.GetInfo().ApiVersion;
     initInfo.Instance = instance;
-    initInfo.PhysicalDevice = device.GetPhysicalDevice();
+    initInfo.PhysicalDevice = device.GetInfo().PhysicalDevice;
     initInfo.Device = device;
     initInfo.Queue = Core::GetGraphicsQueue();
     initInfo.QueueFamily = Core::GetGraphicsIndex();

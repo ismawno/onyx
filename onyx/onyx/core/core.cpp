@@ -51,8 +51,7 @@ static VkQueue s_PresentQueue = VK_NULL_HANDLE;
 static VkQueue s_TransferQueue = VK_NULL_HANDLE;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
-
-static Initializer *s_Initializer;
+static InitializationCallbacks s_Callbacks{};
 
 static void createDevice(const VkSurfaceKHR p_Surface)
 {
@@ -69,8 +68,8 @@ static void createDevice(const VkSurfaceKHR p_Surface)
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 3, 0);
 
-    if (s_Initializer)
-        s_Initializer->OnPhysicalDeviceCreation(selector);
+    if (s_Callbacks.OnPhysicalDeviceCreation)
+        s_Callbacks.OnPhysicalDeviceCreation(selector);
 
     auto physres = selector.Select();
     VKIT_ASSERT_RESULT(physres);
@@ -94,17 +93,60 @@ static void createDevice(const VkSurfaceKHR p_Surface)
     phys.EnableExtensionBoundFeature(&drendering);
 #endif
 
-    const auto devres = VKit::LogicalDevice::Create(s_Instance, phys);
+    const auto devres = VKit::LogicalDevice::Builder(&s_Instance, &phys)
+                            .RequireQueue(VKit::QueueType::Graphics)
+                            .RequestQueue(VKit::QueueType::Present)
+                            .RequestQueue(VKit::QueueType::Transfer)
+                            .Build();
+
     VKIT_ASSERT_RESULT(devres);
     s_Device = devres.GetValue();
 
-    s_GraphicsQueue = s_Device.GetQueue(VKit::QueueType::Graphics);
-    s_PresentQueue = s_Device.GetQueue(VKit::QueueType::Present);
-    s_TransferQueue = s_Device.GetQueue(VKit::QueueType::Transfer);
     TKIT_LOG_INFO("[ONYX] Created Vulkan device: {}",
-                  s_Device.GetPhysicalDevice().GetInfo().Properties.Core.deviceName);
-    TKIT_LOG_WARNING_IF(!(s_Device.GetPhysicalDevice().GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal),
+                  s_Device.GetInfo().PhysicalDevice.GetInfo().Properties.Core.deviceName);
+    TKIT_LOG_WARNING_IF(!(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal),
                         "[ONYX] The device is suitable, but not optimal");
+    TKIT_LOG_INFO_IF(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal,
+                     "[ONYX] The device is optimal");
+
+    const auto chooseQueue = [&](const VKit::QueueType p_Type, u32 p_Index) {
+        VKit::Result<VkQueue> result = VKit::Result<VkQueue>::Error(
+            VK_ERROR_UNKNOWN, "It should be impossible for you to be seeing this error message");
+        do
+        {
+            result = s_Device.GetQueue(p_Type, p_Index);
+        } while (!result && p_Index-- != 0);
+        VKIT_ASSERT_RESULT(result);
+        return result.GetValue();
+    };
+
+    s_GraphicsQueue = chooseQueue(VKit::QueueType::Graphics, 0);
+    s_PresentQueue = chooseQueue(VKit::QueueType::Present, 1);
+    s_TransferQueue = chooseQueue(VKit::QueueType::Transfer, 2);
+
+#if defined(TKIT_ENABLE_INFO_LOGS) || defined(TKIT_ENABLE_WARNING_LOGS)
+    const TKit::Array<VkQueue, 3> queues{s_GraphicsQueue, s_PresentQueue, s_TransferQueue};
+    const TKit::Array<const char *, 3> names{"Graphics", "Present", "Transfer"};
+    const TKit::Array<u32, 3> indices{phys.GetInfo().GraphicsIndex, phys.GetInfo().PresentIndex,
+                                      phys.GetInfo().TransferIndex};
+    for (u32 i = 0; i < 3; ++i)
+        for (u32 j = i + 1; j < 3; ++j)
+        {
+            TKIT_LOG_WARNING_IF(
+                indices[i] == indices[j],
+                "[ONYX] The {} and {} queues share the same family index. This is fine, but not optimal", names[i],
+                names[j]);
+
+            TKIT_LOG_WARNING_IF(queues[i] == queues[j],
+                                "[ONYX] The {} and {} queues are the same. This is also fine, but even less optimal",
+                                names[i], names[j]);
+            TKIT_LOG_INFO_IF(queues[i] != queues[j], "[ONYX] The {} and {} queues are different. This is preferable",
+                             names[i], names[j]);
+            TKIT_LOG_INFO_IF(indices[i] != indices[j],
+                             "[ONYX] The {} and {} queues come from different families. This is optimal", names[i],
+                             names[j]);
+        }
+#endif
 
     if (s_GraphicsQueue == s_TransferQueue)
     {
@@ -128,8 +170,8 @@ static void createDevice(const VkSurfaceKHR p_Surface)
 static void createVulkanAllocator()
 {
     VKit::AllocatorSpecs specs{};
-    if (s_Initializer)
-        s_Initializer->OnAllocatorCreation(specs);
+    if (s_Callbacks.OnAllocatorCreation)
+        s_Callbacks.OnAllocatorCreation(specs);
 
     const auto result = VKit::CreateAllocator(s_Device);
     VKIT_ASSERT_RESULT(result);
@@ -171,7 +213,7 @@ static void createProfilingContext()
     s_ProfilingGraphicsCmd = cmdres.GetValue();
 
     s_GraphicsContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
-        s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_GraphicsQueue, s_ProfilingGraphicsCmd,
+        s_Instance, s_Device.GetInfo().PhysicalDevice, s_Device, s_GraphicsQueue, s_ProfilingGraphicsCmd,
         VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
 
     s_DeletionQueue.Push([] { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_GraphicsContext); });
@@ -273,7 +315,7 @@ void Core::Initialize(const Specs &p_Specs)
         s_TaskManager = s_DefaultManager.Get();
         s_DeletionQueue.Push([] { s_DefaultManager.Destruct(); });
     }
-    s_Initializer = p_Specs.Initializer;
+    s_Callbacks = p_Specs.Callbacks;
 
     const auto sysres = VKit::Core::Initialize();
     VKIT_ASSERT_RESULT(sysres);
@@ -297,8 +339,8 @@ void Core::Initialize(const Specs &p_Specs)
 #ifdef ONYX_ENABLE_VALIDATION_LAYERS
     builder.RequestValidationLayers();
 #endif
-    if (s_Initializer)
-        s_Initializer->OnInstanceCreation(builder);
+    if (s_Callbacks.OnInstanceCreation)
+        s_Callbacks.OnInstanceCreation(builder);
 
     const auto result = builder.Build();
     VKIT_ASSERT_RESULT(result);
@@ -373,7 +415,7 @@ const VKit::LogicalDevice &Core::GetDevice()
 }
 const VKit::Vulkan::DeviceTable &Core::GetDeviceTable()
 {
-    return s_Device.GetTable();
+    return s_Device.GetInfo().Table;
 };
 bool Core::IsDeviceCreated()
 {
@@ -439,15 +481,15 @@ VkQueue Core::GetTransferQueue()
 
 u32 Core::GetGraphicsIndex()
 {
-    return s_Device.GetPhysicalDevice().GetInfo().GraphicsIndex;
+    return s_Device.GetInfo().PhysicalDevice.GetInfo().GraphicsIndex;
 }
 u32 Core::GetPresentIndex()
 {
-    return s_Device.GetPhysicalDevice().GetInfo().PresentIndex;
+    return s_Device.GetInfo().PhysicalDevice.GetInfo().PresentIndex;
 }
 u32 Core::GetTransferIndex()
 {
-    return s_Device.GetPhysicalDevice().GetInfo().TransferIndex;
+    return s_Device.GetInfo().PhysicalDevice.GetInfo().TransferIndex;
 }
 
 TransferMode Core::GetTransferMode()

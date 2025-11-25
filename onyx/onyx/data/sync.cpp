@@ -6,7 +6,7 @@ namespace Onyx::Detail
 PerFrameData<SyncFrameData> CreatePerFrameSyncData()
 {
     const auto &device = Core::GetDevice();
-    const auto &table = device.GetTable();
+    const auto &table = device.GetInfo().Table;
 
     PerFrameData<SyncFrameData> syncs{};
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
@@ -32,7 +32,7 @@ PerFrameData<SyncFrameData> CreatePerFrameSyncData()
 PerImageData<SyncImageData> CreatePerImageSyncData(const u32 p_ImageCount)
 {
     const auto &device = Core::GetDevice();
-    const auto &table = device.GetTable();
+    const auto &table = device.GetInfo().Table;
 
     PerImageData<SyncImageData> syncs{};
     syncs.Resize(p_ImageCount);
@@ -50,7 +50,7 @@ PerImageData<SyncImageData> CreatePerImageSyncData(const u32 p_ImageCount)
 void DestroyPerFrameSyncData(const TKit::Span<const SyncFrameData> p_Objects)
 {
     const auto &device = Core::GetDevice();
-    const auto &table = device.GetTable();
+    const auto &table = device.GetInfo().Table;
     for (const SyncFrameData &data : p_Objects)
     {
         table.DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
@@ -61,7 +61,7 @@ void DestroyPerFrameSyncData(const TKit::Span<const SyncFrameData> p_Objects)
 void DestroyPerImageSyncData(const TKit::Span<const SyncImageData> p_Objects)
 {
     const auto &device = Core::GetDevice();
-    const auto &table = device.GetTable();
+    const auto &table = device.GetInfo().Table;
 
     for (const SyncImageData &data : p_Objects)
         table.DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);
