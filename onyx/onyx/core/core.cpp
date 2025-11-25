@@ -320,9 +320,7 @@ void Core::Initialize(const Specs &p_Specs)
     const auto sysres = VKit::Core::Initialize();
     VKIT_ASSERT_RESULT(sysres);
 
-#ifdef TKIT_OS_LINUX
-    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
-#endif
+    glfwInitHint(GLFW_PLATFORM, p_Specs.Platform);
     TKIT_ASSERT_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX] Failed to initialize GLFW");
     TKIT_LOG_WARNING_IF(!glfwVulkanSupported(), "[ONYX] Vulkan is not supported, according to GLFW");
 
