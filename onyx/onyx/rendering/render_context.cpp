@@ -736,10 +736,8 @@ template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &p_Start,
             return f32q{Math::Cosine(theta), Math::Normalize(r) * Math::Sine(theta)};
         if (dir[0] < 0.f)
             return f32q{0.f, 0.f, 1.f, 0.f};
+        return Detail::RotType<D>::Identity;
     }
-#ifndef TKIT_COMPILER_MSVC
-    return Detail::RotType<D>::Identity;
-#endif
 }
 
 void RenderContext<D2>::Line(const f32v2 &p_Start, const f32v2 &p_End, const f32 p_Thickness)
