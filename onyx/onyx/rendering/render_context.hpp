@@ -14,6 +14,9 @@
 #    define ONYX_MAX_RENDER_STATE_DEPTH 8
 #endif
 
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
+TKIT_MSVC_WARNING_IGNORE(4324)
+
 namespace Onyx
 {
 
@@ -1579,4 +1582,5 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void drawRoundedCube(const RenderState<D3> &p_State, const f32m4 &p_Transform, const f32v3 &p_Dimensions,
                          f32 p_Diameter, Resolution p_Res);
 };
+TKIT_COMPILER_WARNING_IGNORE_POP()
 } // namespace Onyx
