@@ -570,7 +570,7 @@ static Mouse toMouse(const i32 p_Mouse)
         // case GLFW_MOUSE_BUTTON_RIGHT:
         //     return Mouse::ButtonRight;
         // case GLFW_MOUSE_BUTTON_MIDDLE:
-        return Mouse::ButtonMiddle;
+        // return Mouse::ButtonMiddle;
     default:
         return Mouse::None;
     }
