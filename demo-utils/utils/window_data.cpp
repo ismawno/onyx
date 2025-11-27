@@ -626,9 +626,9 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
         UserLayer::HelpMarkerSameLine("You may choose to draw a lattice of shapes to stress test the rendering engine. "
                                       "I advice to build the engine "
                                       "in distribution mode to see meaningful results.");
-        const u32 mn = 1;
-        const u32 mx = ONYX_MAX_THREADS;
-        ImGui::SliderScalar("Partitions", ImGuiDataType_U32, &lattice.Partitions, &mn, &mx);
+        const u32 mnt = 1;
+        const u32 mxt = ONYX_MAX_THREADS;
+        ImGui::SliderScalar("Partitions", ImGuiDataType_U32, &lattice.Partitions, &mnt, &mxt);
 
         if constexpr (D == D2)
         {
