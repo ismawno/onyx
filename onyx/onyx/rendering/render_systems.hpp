@@ -6,6 +6,9 @@
 #include "onyx/data/options.hpp"
 #include "tkit/container/array.hpp"
 
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
+TKIT_MSVC_WARNING_IGNORE(4324)
+
 namespace Onyx::Detail
 {
 #ifdef TKIT_ENABLE_INSTRUMENTATION
@@ -379,5 +382,5 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer final : public R
     TKit::Array<CircleHostData, ONYX_MAX_THREADS> m_HostData{};
     DeviceData<CircleInstanceData> m_DeviceData{};
 };
-
+TKIT_COMPILER_WARNING_IGNORE_POP()
 } // namespace Onyx::Detail
