@@ -253,7 +253,7 @@ template <Dimension D> static void renderMeshLoad(const char *p_Path)
         constexpr u32 msize = 15;
 
         char input[msize + 1];
-        std::strncpy(input, cname.c_str(), msize);
+        TKit::Memory::ForwardCopy(input, cname.c_str(), msize);
         input[msize] = '\0';
 
         ImGui::PushID(&name);
