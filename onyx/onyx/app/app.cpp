@@ -1,8 +1,10 @@
+#define ONYX_IMGUI_INCLUDE_BACKEND
 #include "onyx/core/pch.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/core/glfw.hpp"
 #include "onyx/core/core.hpp"
+#include "onyx/core/imgui.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/debug.hpp"
 #include "vkit/vulkan/loader.hpp"

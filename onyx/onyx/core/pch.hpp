@@ -27,7 +27,5 @@
 #include <cstdlib>
 #include <filesystem>
 #include <vulkan/vulkan.h>
-#include "onyx/core/imgui.hpp"
-#include "onyx/core/implot.hpp"
 #include "vkit/vulkan/allocator.hpp"
 #include "onyx/core/math.hpp"
