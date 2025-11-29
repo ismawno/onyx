@@ -52,17 +52,17 @@ if(UNIX AND NOT APPLE)
       target_link_libraries(onyx PRIVATE ${FONTCONFIG_LIBRARIES})
       target_compile_definitions(onyx PUBLIC ONYX_FONTCONFIG)
     else()
-      message(STATUS "ONYX: Fontconfig not found")
+      message(STATUS "ONYX - Fontconfig not found")
     endif()
   else()
-    message(STATUS "ONYX: PkgConfig not found")
+    message(STATUS "ONYX - PkgConfig not found")
   endif()
 endif()
 
 find_package(glfw3 QUIET)
 
 if(NOT TARGET glfw)
-  message(STATUS "ONYX: GLFW not found. Fetching source...")
+  message(STATUS "ONYX - GLFW not found. Fetching source...")
   FetchContent_Declare(
     glfw
     GIT_REPOSITORY https://github.com/glfw/glfw.git
@@ -87,7 +87,7 @@ if(NOT TARGET glfw)
   tkit_configure_compile_link_options(glfw FORBID_SANITIZERS NO_EXCEPTIONS)
 
 else()
-  message(STATUS "ONYX: GLFW found")
+  message(STATUS "ONYX - GLFW found")
 endif()
 target_link_libraries(onyx PRIVATE glfw)
 

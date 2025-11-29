@@ -29,13 +29,13 @@ set(ONYX_ENABLE_VALIDATION_LAYERS
 set(ONYX_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(ONYX_ENABLE_IMPLOT AND NOT ONYX_ENABLE_IMGUI)
-  message(ERROR "ONYX: ImGui is required to use ImPlot. Enable ImGui as well")
+  message(ERROR "ONYX - ImGui is required to use ImPlot. Enable ImGui as well")
 endif()
 
-message(STATUS "ONYX: Build demos: ${ONYX_BUILD_DEMOS}")
-message(STATUS "ONYX: Use ImGui: ${ONYX_ENABLE_IMGUI}")
-message(STATUS "ONYX: Use ImPlot: ${ONYX_ENABLE_IMPLOT}")
-message(STATUS "ONYX: Validation layers: ${ONYX_ENABLE_VALIDATION_LAYERS}")
+message(STATUS "ONYX - Build demos: ${ONYX_BUILD_DEMOS}")
+message(STATUS "ONYX - Use ImGui: ${ONYX_ENABLE_IMGUI}")
+message(STATUS "ONYX - Use ImPlot: ${ONYX_ENABLE_IMPLOT}")
+message(STATUS "ONYX - Validation layers: ${ONYX_ENABLE_VALIDATION_LAYERS}")
 
 # Compiler flags, linker flags etcetera, those should all be handled when making
 # available the toolkit library through the global CMAKE flag variables
