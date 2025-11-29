@@ -10,7 +10,7 @@ tkit_default_configure(onyx-demo-utils)
 FetchContent_Declare(
   argparse
   GIT_REPOSITORY https://github.com/ismawno/argparse.git
-  GIT_TAG v3.2.x
+  GIT_TAG v3.2.0
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE)
 

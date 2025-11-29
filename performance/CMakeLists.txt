@@ -11,7 +11,7 @@ tkit_register_for_yaml_serialization(onyx-performance SOURCES perf/lattice.hpp)
 FetchContent_Declare(
   argparse
   GIT_REPOSITORY https://github.com/ismawno/argparse.git
-  GIT_TAG v3.2.x
+  GIT_TAG v3.2.0
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE)
 
