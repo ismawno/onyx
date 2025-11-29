@@ -501,10 +501,6 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs)
     }
 
     Window *window = m_WindowAllocator.Create<Window>(p_Specs);
-#ifdef ONYX_ENABLE_IMGUI
-    if (m_Windows.IsEmpty())
-        initializeImGui(*window);
-#endif
 
     m_Windows.Append(window);
     Event event;
