@@ -543,6 +543,9 @@ void MultiWindowApplication::processWindows()
         endRenderImGui(p_CommandBuffer);
 #endif
     };
+#ifdef ONYX_ENABLE_IMGUI
+    mainCbs.OnBadFrame = [](const u32) { ImGui::Render(); };
+#endif
 
     processFrame(0, mainCbs);
     for (u32 i = 1; i < m_Windows.GetSize(); ++i)
