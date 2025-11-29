@@ -21,7 +21,3 @@ target_link_libraries(onyx-performance PRIVATE onyx)
 target_include_directories(
   onyx-performance PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                            ${argparse_SOURCE_DIR}/include)
-
-if(UNIX AND APPLE)
-  vkit_add_vulkan_executable_macos_rpath(onyx-performance)
-endif()
