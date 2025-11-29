@@ -8,7 +8,7 @@
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
 
-namespace Onyx::Perf
+namespace Onyx::Demo
 {
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(Shapes2)
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(Shapes3)
@@ -67,7 +67,7 @@ template <Dimension D> struct Lattice
         {
             const u32 size = LatticeDims[0] * LatticeDims[1];
             const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
-                TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
+                TKIT_PROFILE_NSCOPE("Onyx::Demo::Lattice");
                 const Lattice<D> lattice = *this;
 
                 const f32v<D> offset = -0.5f * Separation * f32v<D>{LatticeDims - 1u};
@@ -95,7 +95,7 @@ template <Dimension D> struct Lattice
         {
             const u32 size = LatticeDims[0] * LatticeDims[1] * LatticeDims[2];
             const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
-                TKIT_PROFILE_NSCOPE("Onyx::Perf::Lattice");
+                TKIT_PROFILE_NSCOPE("Onyx::Demo::Lattice");
 
                 const Lattice<D> lattice = *this;
                 const u32 yz = LatticeDims[1] * LatticeDims[2];
@@ -148,4 +148,4 @@ template <Dimension D> struct Lattice
     u32 Tasks = 1;
     TKIT_YAML_SERIALIZE_GROUP_END()
 };
-} // namespace Onyx::Perf
+} // namespace Onyx::Demo

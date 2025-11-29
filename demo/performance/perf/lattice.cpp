@@ -1,6 +1,6 @@
 #include "perf/lattice.hpp"
 
-namespace Onyx::Perf
+namespace Onyx::Demo
 {
 template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) const
 {
@@ -148,4 +148,4 @@ template <Dimension D> void Lattice<D>::Render(RenderContext<D> *p_Context) cons
 }
 template struct Lattice<D2>;
 template struct Lattice<D3>;
-} // namespace Onyx::Perf
+} // namespace Onyx::Demo

@@ -10,7 +10,7 @@ namespace Onyx
 class Application;
 }
 
-namespace Onyx::Perf
+namespace Onyx::Demo
 {
 template <Dimension D> class Layer : public UserLayer
 {
@@ -27,4 +27,4 @@ template <Dimension D> class Layer : public UserLayer
     Camera<D> *m_Camera;
     TKit::StaticArray8<Lattice<D>> m_Lattices{};
 };
-} // namespace Onyx::Perf
+} // namespace Onyx::Demo

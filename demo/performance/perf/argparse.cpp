@@ -13,7 +13,7 @@
 
 #include <argparse/argparse.hpp>
 
-namespace Onyx::Perf
+namespace Onyx::Demo
 {
 template <Dimension D> void exportLatticeToFile(const Lattice<D> &p_Lattice, ParseResult &result)
 {
@@ -107,4 +107,4 @@ ParseResult ParseArguments(int argc, char **argv)
 
     return result;
 }
-} // namespace Onyx::Perf
+} // namespace Onyx::Demo

@@ -6,7 +6,7 @@
 
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
-void RunApp(const Onyx::Perf::ParseResult &p_Args)
+void RunApp(const Onyx::Demo::ParseResult &p_Args)
 {
     Onyx::Window::Specs spc;
     spc.Name = "Performance lattice";
@@ -15,9 +15,9 @@ void RunApp(const Onyx::Perf::ParseResult &p_Args)
     Onyx::Application app{spc};
     app.InitializeImGui();
     if (p_Args.Dim == Onyx::Dimension::D2)
-        app.SetUserLayer<Onyx::Perf::Layer<Onyx::Dimension::D2>>(&app, p_Args.Lattices2);
+        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D2>>(&app, p_Args.Lattices2);
     else
-        app.SetUserLayer<Onyx::Perf::Layer<Onyx::Dimension::D3>>(&app, p_Args.Lattices3);
+        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D3>>(&app, p_Args.Lattices3);
     if (!p_Args.HasRuntime)
         app.Run();
     else
@@ -32,7 +32,7 @@ void RunApp(const Onyx::Perf::ParseResult &p_Args)
 int main(int argc, char **argv)
 {
     TKIT_PROFILE_NOOP();
-    const Onyx::Perf::ParseResult args = Onyx::Perf::ParseArguments(argc, argv);
+    const Onyx::Demo::ParseResult args = Onyx::Demo::ParseArguments(argc, argv);
 
     TKit::ThreadPool threadPool{ONYX_MAX_WORKERS};
     Onyx::Core::Initialize(Onyx::Specs{.TaskManager = &threadPool});

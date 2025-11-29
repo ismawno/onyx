@@ -2,7 +2,7 @@
 
 #include "perf/lattice.hpp"
 
-namespace Onyx::Perf
+namespace Onyx::Demo
 {
 struct ParseResult
 {
@@ -15,4 +15,4 @@ struct ParseResult
 
 ParseResult ParseArguments(int argc, char **argv);
 
-} // namespace Onyx::Perf
+} // namespace Onyx::Demo

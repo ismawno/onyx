@@ -2,7 +2,7 @@
 #include "onyx/app/app.hpp"
 #include "onyx/core/imgui.hpp"
 
-namespace Onyx::Perf
+namespace Onyx::Demo
 {
 template <Dimension D>
 Layer<D>::Layer(Application *p_Application, const TKit::Span<const Lattice<D>> p_Lattices)
@@ -35,7 +35,7 @@ Layer<D>::Layer(Application *p_Application, const TKit::Span<const Lattice<D>> p
 
 template <Dimension D> void Layer<D>::OnUpdate()
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Perf::OnUpdate");
+    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
     const auto timestep = m_Application->GetDeltaTime();
     m_Camera->ControlMovementWithUserInput(3.f * timestep);
     if (ImGui::Begin("Info"))
@@ -70,4 +70,4 @@ template <Dimension D> void Layer<D>::OnEvent(const Event &p_Event)
 
 template class Layer<D2>;
 template class Layer<D3>;
-} // namespace Onyx::Perf
+} // namespace Onyx::Demo
