@@ -48,7 +48,7 @@ static const VKit::Shader &getRainbowShader()
     static VKit::Shader shader{};
     if (shader)
         return shader;
-    shader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
+    shader = CreateShader(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
     Core::GetDeletionQueue().SubmitForDeletion(shader);
     return shader;
 }
@@ -58,7 +58,7 @@ static const VKit::Shader &getBlurShader()
     static VKit::Shader shader{};
     if (shader)
         return shader;
-    shader = CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+    shader = CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
     Core::GetDeletionQueue().SubmitForDeletion(shader);
     return shader;
 }
@@ -305,8 +305,8 @@ void WindowData::OnImGuiRenderGlobal(IApplication *p_Application, const TKit::Ti
 
         ImGui::TextLinkOpenURL("My GitHub", "https://github.com/ismawno");
 
-        const char *path2 = ONYX_ROOT_PATH "/demo-utils/meshes2/";
-        const char *path3 = ONYX_ROOT_PATH "/demo-utils/meshes3/";
+        const char *path2 = ONYX_ROOT_PATH "/demo/meshes2/";
+        const char *path3 = ONYX_ROOT_PATH "/demo/meshes3/";
         ImGui::TextWrapped(
             "You may load meshes for this demo to use located in the '%s' and '%s' paths, for 2D and 3D "
             "meshes respectively. Take into account that meshes may have been created with a different coordinate "

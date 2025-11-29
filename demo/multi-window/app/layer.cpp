@@ -1,4 +1,4 @@
-#include "mwdemo/layer.hpp"
+#include "app/layer.hpp"
 #include "onyx/core/imgui.hpp"
 
 namespace Onyx::Demo

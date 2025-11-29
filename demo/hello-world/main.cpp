@@ -32,7 +32,7 @@ static void RunStandaloneWindow()
 
 static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
 {
-    VKit::Shader fragment = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/rainbow.frag");
+    VKit::Shader fragment = Onyx::CreateShader(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
 
     auto lresult = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
     VKIT_ASSERT_RESULT(lresult);
@@ -70,7 +70,7 @@ static void SetPostProcessing(Onyx::Window &p_Window)
         f32 Width = 800.f;
         f32 Height = 600.f;
     };
-    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo-utils/shaders/blur.frag");
+    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
 
     Onyx::FrameScheduler *fs = p_Window.GetFrameScheduler();
     VKit::PipelineLayout::Builder builder = fs->GetPostProcessing()->CreatePipelineLayoutBuilder();
@@ -122,12 +122,14 @@ static void RunStandaloneWindowCustomPipeline()
 static void RunAppExample1()
 {
     Onyx::Application app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
+    app.InitializeImGui();
     app.Run();
 }
 
 static void RunAppExample2()
 {
     Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
+    app.InitializeImGui();
 
     const auto result = Onyx::Mesh<D2>::Load(ONYX_ROOT_PATH "/onyx/meshes/square.obj");
     VKIT_ASSERT_RESULT(result);

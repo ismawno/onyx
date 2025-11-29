@@ -4,7 +4,8 @@
 *build*/
 setup/user-build.ini
 onyx/shaders/bin/
-demo-utils/meshes*/
+demo/shaders/bin/
+demo/meshes*/
 .venv/
 .DS_Store
 .clangd
@@ -13,9 +14,8 @@ imgui.ini
 docs/html/
 docs/latex/
 __pycache__/
-reminders.txt
-performance/*yaml
-performance/results/
+demo/performance/*yaml
+demo/performance/results/
 
 # Prerequisites
 *.d

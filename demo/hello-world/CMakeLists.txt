@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(hello-world)
+project(onyx-hello-world)
 
 set(SOURCES main.cpp)
 
