@@ -333,7 +333,6 @@ template <Dimension D> void WindowData::drawShapes(const ContextData<D> &p_Conte
 {
     m_Window->BackgroundColor = m_BackgroundColor;
     p_Context.Context->Flush();
-    p_Context.Context->TransformAxes(p_Context.AxesTransform.ComputeTransform());
 
     const LatticeData<D> &lattice = p_Context.Lattice;
     const u32v<D> &dims = lattice.Dimensions;
@@ -910,10 +909,6 @@ template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Context)
 
     if (ImGui::CollapsingHeader("Axes"))
     {
-        ImGui::TextWrapped(
-            "The axes are the coordinate system that the corresponding render context uses to draw objects in the "
-            "scene. All object positions will always be relative to the state the axes were in the moment the draw "
-            "command was issued.");
         ImGui::Text("Transform");
         ImGui::SameLine();
         UserLayer::TransformEditor<D>(p_Context.AxesTransform, UserLayer::Flag_DisplayHelp);

@@ -72,7 +72,6 @@ template <> struct ONYX_API RenderState<D2>
     TKIT_REFLECT_DECLARE(RenderState)
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
     f32m3 Transform = f32m3::Identity();
-    f32m3 Axes = f32m3::Identity();
     Color OutlineColor = Color::WHITE;
     MaterialData<D2> Material{};
     f32 OutlineWidth = 0.1f;
@@ -84,7 +83,6 @@ template <> struct ONYX_API RenderState<D3>
     TKIT_REFLECT_DECLARE(RenderState)
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
     f32m4 Transform = f32m4::Identity();
-    f32m4 Axes = f32m4::Identity();
     Color OutlineColor = Color::WHITE;
     Color LightColor = Color::WHITE;
     MaterialData<D3> Material{};

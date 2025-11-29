@@ -45,7 +45,6 @@ context->Translate(0.f, 10.f);
 context->Circle();
 context->Pop();
 
-context->TranslateAxes(-2.f, 0.f);
 context->RoundedSquare();
 ```
 

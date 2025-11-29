@@ -82,38 +82,6 @@ template <Dimension D> class IRenderContext
     void Transform(const f32v<D> &p_Translation, f32 p_Scale, const rot<D> &p_Rotation);
 
     /**
-     * @brief Transform subsequent shapes' coordinate system (axes) by the given transformation matrix.
-     *
-     * It corresponds to an intrinsic transformation applied to the coordinate system, which is then applied to all
-     * subsequent shapes extrinsically.
-     *
-     * @param p_Transform The transformation matrix.
-     */
-    void TransformAxes(const f32m<D> &p_Transform);
-
-    /**
-     * @brief Transform subsequent shapes' coordinate system (axes) by the given translation, scale, and rotation.
-     *
-     * It corresponds to an intrinsic transformation applied to the coordinate system, which is then applied to all
-     * subsequent shapes extrinsically.
-     *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The scale vector.
-     * @param p_Rotation The rotation object.
-     */
-    void TransformAxes(const f32v<D> &p_Translation, const f32v<D> &p_Scale, const rot<D> &p_Rotation);
-
-    /**
-     * @brief Transform subsequent shapes' coordinate system (axes) by the given translation, uniform scale, and
-     * rotation.
-     *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The uniform scale value.
-     * @param p_Rotation The rotation object.
-     */
-    void TransformAxes(const f32v<D> &p_Translation, f32 p_Scale, const rot<D> &p_Rotation);
-
-    /**
      * @brief Translate subsequent shapes by the given vector.
      *
      * This applies a translation transformation to all subsequent draw calls.
@@ -202,67 +170,6 @@ template <Dimension D> class IRenderContext
      * @param p_Y The scaling factor along the Y-axis.
      */
     void ScaleY(f32 p_Y);
-
-    /**
-     * @brief Translate the coordinate system (axes) by the given vector.
-     *
-     * This applies an intrinsic translation to the coordinate system, affecting all subsequent draw calls.
-     *
-     * @param p_Translation The translation vector.
-     */
-    void TranslateAxes(const f32v<D> &p_Translation);
-
-    /**
-     * @brief Scale the coordinate system (axes) by the given vector.
-     *
-     * This applies an intrinsic scaling to the coordinate system, affecting all subsequent draw calls.
-     *
-     * @param p_Scale The scaling vector.
-     */
-    void ScaleAxes(const f32v<D> &p_Scale);
-
-    /**
-     * @brief Scale the coordinate system (axes) uniformly by the given factor.
-     *
-     * @param p_Scale The uniform scaling factor.
-     */
-    void ScaleAxes(f32 p_Scale);
-
-    /**
-     * @brief Translate the coordinate system along the X-axis.
-     *
-     * Applies an intrinsic translation along the X-axis to the coordinate system.
-     *
-     * @param p_X The translation distance along the X-axis.
-     */
-    void TranslateXAxis(f32 p_X);
-
-    /**
-     * @brief Translate the coordinate system along the Y-axis.
-     *
-     * Applies an intrinsic translation along the Y-axis to the coordinate system.
-     *
-     * @param p_Y The translation distance along the Y-axis.
-     */
-    void TranslateYAxis(f32 p_Y);
-
-    /**
-     * @brief Scale the coordinate system along the X-axis.
-     *
-     * Applies an intrinsic scaling along the X-axis to the coordinate system.
-     *
-     * @param p_X The scaling factor along the X-axis.
-     */
-    void ScaleXAxis(f32 p_X);
-
-    /**
-     * @brief Scale the coordinate system along the Y-axis.
-     *
-     * Applies an intrinsic scaling along the Y-axis to the coordinate system.
-     *
-     * @param p_Y The scaling factor along the Y-axis.
-     */
-    void ScaleYAxis(f32 p_Y);
 
     /**
      * @brief Draw a unit triangle centered at the origin.
@@ -817,8 +724,6 @@ template <Dimension D> class IRenderContext
      */
     void ShareState(const RenderState<D> &p_State, u32 p_ThreadCount = ONYX_MAX_THREADS);
 
-    const f32m<D> &GetCurrentAxes() const;
-
     /**
      * @brief Get the current rendering state.
      *
@@ -978,13 +883,6 @@ template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderConte
     void Rotate(f32 p_Angle);
 
     /**
-     * @brief Rotates the coordinate system by the given angle.
-     *
-     * @param p_Angle The rotation angle in radians.
-     */
-    void RotateAxes(f32 p_Angle);
-
-    /**
      * @brief Draw a line between two points with the specified thickness.
      *
      * @param p_Start The starting point of the line.
@@ -1016,7 +914,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
   public:
     using IRenderContext<D3>::IRenderContext;
     using IRenderContext<D3>::Transform;
-    using IRenderContext<D3>::TransformAxes;
 
     /**
      * @brief Render the coordinate axes for visualization.
@@ -1052,24 +949,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void Transform(const f32v3 &p_Translation, f32 p_Scale, const f32v3 &p_Rotation);
 
     /**
-     * @brief Transforms the coordinate system by the given translation, scale, and rotation angles.
-     *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The scaling vector.
-     * @param p_Rotation The rotation angles (in radians) around the X, Y, and Z axes.
-     */
-    void TransformAxes(const f32v3 &p_Translation, const f32v3 &p_Scale, const f32v3 &p_Rotation);
-
-    /**
-     * @brief Transforms the coordinate system by the given translation, uniform scale, and rotation angles.
-     *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The uniform scaling factor.
-     * @param p_Rotation The rotation angles (in radians) around the X, Y, and Z axes.
-     */
-    void TransformAxes(const f32v3 &p_Translation, f32 p_Scale, const f32v3 &p_Rotation);
-
-    /**
      * @brief Translate subsequent shapes along the Z-axis.
      *
      * @param p_Z The translation distance along the Z-axis.
@@ -1091,20 +970,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Z The scaling factor along the Z-axis.
      */
     void ScaleZ(f32 p_Z);
-
-    /**
-     * @brief Translate the coordinate system along the Z-axis.
-     *
-     * @param p_Z The translation distance along the Z-axis.
-     */
-    void TranslateZAxis(f32 p_Z);
-
-    /**
-     * @brief Scale the coordinate system along the Z-axis.
-     *
-     * @param p_Z The scaling factor along the Z-axis.
-     */
-    void ScaleZAxis(f32 p_Z);
 
     /**
      * @brief Rotates subsequent shapes by the given quaternion.
@@ -1148,49 +1013,6 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
      * @param p_Z The rotation angle around the Z-axis in radians.
      */
     void RotateZ(f32 p_Z);
-
-    /**
-     * @brief Rotates the coordinate system by the given quaternion.
-     *
-     * @param p_Quaternion The quaternion representing the rotation.
-     */
-    void RotateAxes(const f32q &p_Quaternion);
-
-    /**
-     * @brief Rotates the coordinate system by the given Euler angles.
-     *
-     * @param p_Angles The rotation angles (in radians) around the X, Y, and Z axes.
-     */
-    void RotateAxes(const f32v3 &p_Angles);
-
-    /**
-     * @brief Rotates the coordinate system by the given angle around the specified axis.
-     *
-     * @param p_Angle The rotation angle in radians.
-     * @param p_Axis The axis to rotate around.
-     */
-    void RotateAxes(f32 p_Angle, const f32v3 &p_Axis);
-
-    /**
-     * @brief Rotates the coordinate system around the X-axis.
-     *
-     * @param p_X The rotation angle around the X-axis in radians.
-     */
-    void RotateXAxis(f32 p_X);
-
-    /**
-     * @brief Rotates the coordinate system around the Y-axis.
-     *
-     * @param p_Y The rotation angle around the Y-axis in radians.
-     */
-    void RotateYAxis(f32 p_Y);
-
-    /**
-     * @brief Rotates the coordinate system around the Z-axis.
-     *
-     * @param p_Z The rotation angle around the Z-axis in radians.
-     */
-    void RotateZAxis(f32 p_Z);
 
     /**
      * @brief Draw a line between two points with the specified thickness.

@@ -61,29 +61,6 @@ void RenderContext<D3>::Transform(const f32v3 &p_Translation, const f32 p_Scale,
     this->Transform(Onyx::Transform<D3>::ComputeTransform(p_Translation, f32v3{p_Scale}, f32q{p_Rotation}));
 }
 
-template <Dimension D> void IRenderContext<D>::TransformAxes(const f32m<D> &p_Axes)
-{
-    getState()->Axes *= p_Axes;
-}
-template <Dimension D>
-void IRenderContext<D>::TransformAxes(const f32v<D> &p_Translation, const f32v<D> &p_Scale, const rot<D> &p_Rotation)
-{
-    getState()->Axes *= Onyx::Transform<D>::ComputeReversedTransform(p_Translation, p_Scale, p_Rotation);
-}
-template <Dimension D>
-void IRenderContext<D>::TransformAxes(const f32v<D> &p_Translation, const f32 p_Scale, const rot<D> &p_Rotation)
-{
-    TransformAxes(p_Translation, f32v<D>{p_Scale}, p_Rotation);
-}
-void RenderContext<D3>::TransformAxes(const f32v3 &p_Translation, const f32v3 &p_Scale, const f32v3 &p_Rotation)
-{
-    TransformAxes(Onyx::Transform<D3>::ComputeReversedTransform(p_Translation, p_Scale, f32q{p_Rotation}));
-}
-void RenderContext<D3>::TransformAxes(const f32v3 &p_Translation, const f32 p_Scale, const f32v3 &p_Rotation)
-{
-    TransformAxes(Onyx::Transform<D3>::ComputeReversedTransform(p_Translation, f32v3{p_Scale}, f32q{p_Rotation}));
-}
-
 template <Dimension D> void IRenderContext<D>::Translate(const f32v<D> &p_Translation)
 {
     Onyx::Transform<D>::TranslateExtrinsic(getState()->Transform, p_Translation);
@@ -144,46 +121,6 @@ void RenderContext<D3>::ScaleZ(const f32 p_Z)
     Onyx::Transform<D3>::ScaleExtrinsic(getState()->Transform, 2, p_Z);
 }
 
-template <Dimension D> void IRenderContext<D>::TranslateXAxis(const f32 p_X)
-{
-    Onyx::Transform<D>::TranslateIntrinsic(getState()->Axes, 0, p_X);
-}
-template <Dimension D> void IRenderContext<D>::TranslateYAxis(const f32 p_Y)
-{
-    Onyx::Transform<D>::TranslateIntrinsic(getState()->Axes, 1, p_Y);
-}
-void RenderContext<D3>::TranslateZAxis(const f32 p_Z)
-{
-    Onyx::Transform<D3>::TranslateIntrinsic(getState()->Axes, 2, p_Z);
-}
-
-template <Dimension D> void IRenderContext<D>::ScaleXAxis(const f32 p_X)
-{
-    Onyx::Transform<D>::ScaleIntrinsic(getState()->Axes, 0, p_X);
-}
-template <Dimension D> void IRenderContext<D>::ScaleYAxis(const f32 p_Y)
-{
-    Onyx::Transform<D>::ScaleIntrinsic(getState()->Axes, 1, p_Y);
-}
-void RenderContext<D3>::ScaleZAxis(const f32 p_Z)
-{
-    Onyx::Transform<D3>::ScaleIntrinsic(getState()->Axes, 2, p_Z);
-}
-
-template <Dimension D> void IRenderContext<D>::TranslateAxes(const f32v<D> &p_Translation)
-{
-    Onyx::Transform<D>::TranslateIntrinsic(getState()->Axes, p_Translation);
-}
-
-template <Dimension D> void IRenderContext<D>::ScaleAxes(const f32v<D> &p_Scale)
-{
-    Onyx::Transform<D>::ScaleIntrinsic(getState()->Axes, p_Scale);
-}
-template <Dimension D> void IRenderContext<D>::ScaleAxes(const f32 p_Scale)
-{
-    ScaleAxes(f32v<D>{p_Scale});
-}
-
 void RenderContext<D2>::Rotate(const f32 p_Angle)
 {
     Onyx::Transform<D2>::RotateExtrinsic(getState()->Transform, p_Angle);
@@ -214,37 +151,6 @@ void RenderContext<D3>::RotateY(const f32 p_Angle)
 void RenderContext<D3>::RotateZ(const f32 p_Angle)
 {
     Rotate(f32v3{0.f, 0.f, p_Angle});
-}
-
-void RenderContext<D2>::RotateAxes(const f32 p_Angle)
-{
-    Onyx::Transform<D2>::RotateIntrinsic(getState()->Axes, p_Angle);
-}
-void RenderContext<D3>::RotateAxes(const f32q &p_Quaternion)
-{
-    Onyx::Transform<D3>::RotateIntrinsic(getState()->Axes, p_Quaternion);
-}
-void RenderContext<D3>::RotateAxes(const f32 p_Angle, const f32v3 &p_Axis)
-{
-    RotateAxes(f32q::FromAngleAxis(p_Angle, p_Axis));
-}
-void RenderContext<D3>::RotateAxes(const f32v3 &p_Angles)
-{
-    RotateAxes(f32q(p_Angles));
-}
-
-// This could be optimized a bit
-void RenderContext<D3>::RotateXAxis(const f32 p_Angle)
-{
-    RotateAxes(f32v3{p_Angle, 0.f, 0.f});
-}
-void RenderContext<D3>::RotateYAxis(const f32 p_Angle)
-{
-    RotateAxes(f32v3{0.f, p_Angle, 0.f});
-}
-void RenderContext<D3>::RotateZAxis(const f32 p_Angle)
-{
-    RotateAxes(f32v3{0.f, 0.f, p_Angle});
 }
 
 template <Dimension D, typename F1, typename F2>
@@ -283,14 +189,14 @@ void IRenderContext<D>::drawPrimitive(const RenderState<D> &p_State, const f32m<
                                       const u32 p_PrimitiveIndex)
 {
     const auto fill = [this, &p_State, &p_Transform, p_PrimitiveIndex](const DrawFlags p_Flags) {
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * p_Transform, p_PrimitiveIndex, p_Flags);
+        m_Renderer.DrawPrimitive(p_State, p_Transform, p_PrimitiveIndex, p_Flags);
     };
     const auto outline = [this, &p_State, &p_Transform, p_PrimitiveIndex](const DrawFlags p_Flags) {
         f32m<D> transform = p_Transform;
         const f32 thickness = 1.f + p_State.OutlineWidth;
         for (u32 i = 0; i < PDim; ++i)
             Onyx::Transform<D>::ScaleIntrinsic(transform, i, thickness);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, p_PrimitiveIndex, p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, p_PrimitiveIndex, p_Flags);
     };
     resolveDrawFlagsWithState(p_State, fill, outline);
 }
@@ -303,14 +209,14 @@ void IRenderContext<D>::drawPrimitive(const RenderState<D> &p_State, const f32m<
         f32m<D> transform = p_Transform;
         for (u32 i = 0; i < PDim; ++i)
             Onyx::Transform<D>::ScaleIntrinsic(transform, i, p_Dimensions[i]);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, p_PrimitiveIndex, p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, p_PrimitiveIndex, p_Flags);
     };
     const auto outline = [this, &p_State, &p_Transform, &p_Dimensions, p_PrimitiveIndex](const DrawFlags p_Flags) {
         f32m<D> transform = p_Transform;
         const f32 width = p_State.OutlineWidth;
         for (u32 i = 0; i < PDim; ++i)
             Onyx::Transform<D>::ScaleIntrinsic(transform, i, p_Dimensions[i] + width);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, p_PrimitiveIndex, p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, p_PrimitiveIndex, p_Flags);
     };
     resolveDrawFlagsWithState(p_State, fill, outline);
 }
@@ -408,7 +314,7 @@ void IRenderContext<D>::drawPolygon(const RenderState<D> &p_State, const f32m<D>
                                     const TKit::Span<const f32v2> p_Vertices)
 {
     const auto fill = [this, &p_State, &p_Transform, p_Vertices](const DrawFlags p_Flags) {
-        m_Renderer.DrawPolygon(p_State, p_State.Axes * p_Transform, p_Vertices, p_Flags);
+        m_Renderer.DrawPolygon(p_State, p_Transform, p_Vertices, p_Flags);
     };
     const auto outline = [this, &p_State, &p_Transform, p_Vertices](const DrawFlags p_Flags) {
         TKIT_ASSERT(p_Vertices.GetSize() < ONYX_MAX_POLYGON_VERTICES,
@@ -428,7 +334,7 @@ void IRenderContext<D>::drawPolygon(const RenderState<D> &p_State, const f32m<D>
             const f32v2 normal2 = Math::Normalize(f32v2{edge2[1], -edge2[0]});
             vertices.Append(p_Vertices[current] + width * Math::Normalize(normal1 + normal2));
         }
-        m_Renderer.DrawPolygon(p_State, p_State.Axes * p_Transform, vertices, p_Flags);
+        m_Renderer.DrawPolygon(p_State, p_Transform, vertices, p_Flags);
     };
     resolveDrawFlagsWithState(p_State, fill, outline);
 }
@@ -450,7 +356,7 @@ void IRenderContext<D>::drawCircle(const RenderState<D> &p_State, const f32m<D> 
                                    const CircleOptions &p_Options)
 {
     const auto fill = [this, &p_State, &p_Transform, &p_Options](const DrawFlags p_Flags) {
-        m_Renderer.DrawCircle(p_State, p_State.Axes * p_Transform, p_Options, p_Flags);
+        m_Renderer.DrawCircle(p_State, p_Transform, p_Options, p_Flags);
     };
     const auto outline = [this, &p_State, &p_Transform, &p_Options](const DrawFlags p_Flags) {
         f32m<D> transform = p_Transform;
@@ -458,7 +364,7 @@ void IRenderContext<D>::drawCircle(const RenderState<D> &p_State, const f32m<D> 
         Onyx::Transform<D>::ScaleIntrinsic(transform, 0, diameter);
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, diameter);
 
-        m_Renderer.DrawCircle(p_State, p_State.Axes * transform, p_Options, p_Flags);
+        m_Renderer.DrawCircle(p_State, transform, p_Options, p_Flags);
     };
     resolveDrawFlagsWithState(p_State, fill, outline);
 }
@@ -470,7 +376,7 @@ void IRenderContext<D>::drawCircle(const RenderState<D> &p_State, const f32m<D> 
         f32m<D> transform = p_Transform;
         Onyx::Transform<D>::ScaleIntrinsic(transform, 0, p_Dimensions[0]);
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, p_Dimensions[1]);
-        m_Renderer.DrawCircle(p_State, p_State.Axes * transform, p_Options, p_Flags);
+        m_Renderer.DrawCircle(p_State, transform, p_Options, p_Flags);
     };
     const auto outline = [this, &p_State, &p_Transform, &p_Options, &p_Dimensions](const DrawFlags p_Flags) {
         f32m<D> transform = p_Transform;
@@ -478,7 +384,7 @@ void IRenderContext<D>::drawCircle(const RenderState<D> &p_State, const f32m<D> 
         Onyx::Transform<D>::ScaleIntrinsic(transform, 0, diameter + p_Dimensions[0]);
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, diameter + p_Dimensions[1]);
 
-        m_Renderer.DrawCircle(p_State, p_State.Axes * transform, p_Options, p_Flags);
+        m_Renderer.DrawCircle(p_State, transform, p_Options, p_Flags);
     };
     resolveDrawFlagsWithState(p_State, fill, outline);
 }
@@ -519,7 +425,7 @@ void IRenderContext<D>::drawChildCircle(const RenderState<D> &p_State, f32m<D> p
                                         const CircleOptions &p_Options, const DrawFlags p_Flags)
 {
     Onyx::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
-    m_Renderer.DrawCircle(p_State, p_State.Axes * p_Transform, p_Options, p_Flags);
+    m_Renderer.DrawCircle(p_State, p_Transform, p_Options, p_Flags);
 }
 template <Dimension D>
 void IRenderContext<D>::drawChildCircle(const RenderState<D> &p_State, f32m<D> p_Transform, const f32v<D> &p_Position,
@@ -528,7 +434,7 @@ void IRenderContext<D>::drawChildCircle(const RenderState<D> &p_State, f32m<D> p
     Onyx::Transform<D>::TranslateIntrinsic(p_Transform, p_Position);
     Onyx::Transform<D>::ScaleIntrinsic(p_Transform, 0, p_Diameter);
     Onyx::Transform<D>::ScaleIntrinsic(p_Transform, 1, p_Diameter);
-    m_Renderer.DrawCircle(p_State, p_State.Axes * p_Transform, p_Options, p_Flags);
+    m_Renderer.DrawCircle(p_State, p_Transform, p_Options, p_Flags);
 }
 
 template <Dimension D>
@@ -559,14 +465,14 @@ void IRenderContext<D>::drawStadiumMoons(const RenderState<D> &p_State, const f3
 template <Dimension D> void IRenderContext<D>::drawStadium(const RenderState<D> &p_State, const f32m<D> &p_Transform)
 {
     const auto fill = [this, &p_State, &p_Transform](const DrawFlags p_Flags) {
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * p_Transform, Primitives<D>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, p_Transform, Primitives<D>::GetSquareIndex(), p_Flags);
         drawStadiumMoons(p_State, p_Transform, p_Flags);
     };
     const auto outline = [this, &p_State, &p_Transform](const DrawFlags p_Flags) {
         f32m<D> transform = p_Transform;
         const f32 diameter = 1.f + p_State.OutlineWidth;
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, diameter);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D>::GetSquareIndex(), p_Flags);
         drawStadiumMoons(p_State, p_Transform, 1.f, diameter, p_Flags);
     };
     resolveDrawFlagsWithState(p_State, fill, outline);
@@ -579,7 +485,7 @@ void IRenderContext<D>::drawStadium(const RenderState<D> &p_State, const f32m<D>
         f32m<D> transform = p_Transform;
         Onyx::Transform<D>::ScaleIntrinsic(transform, 0, p_Length);
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, p_Diameter);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D>::GetSquareIndex(), p_Flags);
         drawStadiumMoons(p_State, p_Transform, p_Length, p_Diameter, p_Flags);
     };
     const auto outline = [this, &p_State, &p_Transform, p_Length, p_Diameter](const DrawFlags p_Flags) {
@@ -587,7 +493,7 @@ void IRenderContext<D>::drawStadium(const RenderState<D> &p_State, const f32m<D>
         const f32 diameter = p_Diameter + p_State.OutlineWidth;
         Onyx::Transform<D>::ScaleIntrinsic(transform, 0, p_Length);
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, diameter);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D>::GetSquareIndex(), p_Flags);
         drawStadiumMoons(p_State, p_Transform, p_Length, diameter, p_Flags);
     };
     resolveDrawFlagsWithState(p_State, fill, outline);
@@ -638,7 +544,7 @@ void IRenderContext<D>::drawRoundedSquareMoons(const RenderState<D> &p_State, co
         Onyx::Transform<D>::TranslateIntrinsic(transform, index1, dim);
         Onyx::Transform<D>::ScaleIntrinsic(transform, index1, radius);
         Onyx::Transform<D>::ScaleIntrinsic(transform, index2, p_Dimensions[index2]);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D>::GetSquareIndex(), p_Flags);
 
         constexpr f32 hpi = 0.5f * Math::Pi<f32>();
         const f32 a1 = i * hpi;
@@ -653,7 +559,7 @@ template <Dimension D>
 void IRenderContext<D>::drawRoundedSquare(const RenderState<D> &p_State, const f32m<D> &p_Transform)
 {
     const auto fill = [this, &p_State, &p_Transform](const DrawFlags p_Flags) {
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * p_Transform, Primitives<D>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, p_Transform, Primitives<D>::GetSquareIndex(), p_Flags);
         drawRoundedSquareMoons(p_State, p_Transform, f32v2{1.f}, 1.f, p_Flags);
     };
     const auto outline = [this, &p_State, &p_Transform](const DrawFlags p_Flags) {
@@ -661,7 +567,7 @@ void IRenderContext<D>::drawRoundedSquare(const RenderState<D> &p_State, const f
         const f32 thickness = 1.f + p_State.OutlineWidth;
         Onyx::Transform<D>::ScaleIntrinsic(transform, 0, thickness);
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, thickness);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D>::GetSquareIndex(), p_Flags);
 
         drawRoundedSquareMoons(p_State, p_Transform, f32v2{1.f}, thickness, p_Flags);
     };
@@ -675,7 +581,7 @@ void IRenderContext<D>::drawRoundedSquare(const RenderState<D> &p_State, const f
         f32m<D> transform = p_Transform;
         Onyx::Transform<D>::ScaleIntrinsic(transform, 0, p_Dimensions[0]);
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, p_Dimensions[1]);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D>::GetSquareIndex(), p_Flags);
 
         drawRoundedSquareMoons(p_State, p_Transform, p_Dimensions, p_Diameter, p_Flags);
     };
@@ -684,7 +590,7 @@ void IRenderContext<D>::drawRoundedSquare(const RenderState<D> &p_State, const f
         const f32 width = p_State.OutlineWidth;
         Onyx::Transform<D>::ScaleIntrinsic(transform, 0, p_Dimensions[0] + width);
         Onyx::Transform<D>::ScaleIntrinsic(transform, 1, p_Dimensions[1] + width);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D>::GetSquareIndex(), p_Flags);
 
         drawRoundedSquareMoons(p_State, p_Transform, p_Dimensions, p_Diameter + width, p_Flags);
     };
@@ -888,20 +794,20 @@ void RenderContext<D3>::drawChildSphere(const RenderState<D3> &p_State, f32m4 p_
                                         const Resolution p_Res, const DrawFlags p_Flags)
 {
     Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
-    m_Renderer.DrawPrimitive(p_State, p_State.Axes * p_Transform, Primitives<D3>::GetSphereIndex(p_Res), p_Flags);
+    m_Renderer.DrawPrimitive(p_State, p_Transform, Primitives<D3>::GetSphereIndex(p_Res), p_Flags);
 }
 void RenderContext<D3>::drawChildSphere(const RenderState<D3> &p_State, f32m4 p_Transform, const f32v3 &p_Position,
                                         const f32 p_Diameter, const Resolution p_Res, const DrawFlags p_Flags)
 {
     Onyx::Transform<D3>::TranslateIntrinsic(p_Transform, p_Position);
     Onyx::Transform<D3>::ScaleIntrinsic(p_Transform, f32v3{p_Diameter});
-    m_Renderer.DrawPrimitive(p_State, p_State.Axes * p_Transform, Primitives<D3>::GetSphereIndex(p_Res), p_Flags);
+    m_Renderer.DrawPrimitive(p_State, p_Transform, Primitives<D3>::GetSphereIndex(p_Res), p_Flags);
 }
 
 void RenderContext<D3>::drawCapsule(const RenderState<D3> &p_State, const f32m4 &p_Transform, const Resolution p_Res)
 {
     const auto fill = [this, &p_State, &p_Transform, p_Res](const DrawFlags p_Flags) {
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * p_Transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, p_Transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
         f32v3 pos{0.f};
 
         pos[0] = -0.5f;
@@ -915,7 +821,7 @@ void RenderContext<D3>::drawCapsule(const RenderState<D3> &p_State, const f32m4 
 
         Onyx::Transform<D3>::ScaleIntrinsic(transform, 1, thickness);
         Onyx::Transform<D3>::ScaleIntrinsic(transform, 2, thickness);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
         f32v3 pos{0.f};
 
         pos[0] = -0.5f;
@@ -932,7 +838,7 @@ void RenderContext<D3>::drawCapsule(const RenderState<D3> &p_State, const f32m4 
         f32m4 transform = p_Transform;
         Onyx::Transform<D3>::ScaleIntrinsic(transform, f32v3{p_Length, p_Diameter, p_Diameter});
 
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
         f32v3 pos{0.f};
 
         pos[0] = -0.5f * p_Length;
@@ -944,7 +850,7 @@ void RenderContext<D3>::drawCapsule(const RenderState<D3> &p_State, const f32m4 
         const f32 diameter = p_Diameter + p_State.OutlineWidth;
         f32m4 transform = p_Transform;
         Onyx::Transform<D3>::ScaleIntrinsic(transform, f32v3{p_Length, diameter, diameter});
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
         f32v3 pos{0.f};
 
         pos[0] = -0.5f * p_Length;
@@ -995,7 +901,7 @@ void RenderContext<D3>::drawRoundedCubeMoons(const RenderState<D3> &p_State, con
         Onyx::Transform<D3>::ScaleIntrinsic(transform, index1, radius);
         Onyx::Transform<D3>::ScaleIntrinsic(transform, index2, p_Dimensions[index2]);
         Onyx::Transform<D3>::ScaleIntrinsic(transform, index3, p_Dimensions[index3]);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D3>::GetCubeIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D3>::GetCubeIndex(), p_Flags);
     }
     f32v3 pos = halfDims;
     for (u32 i = 0; i < 8; ++i)
@@ -1027,8 +933,7 @@ void RenderContext<D3>::drawRoundedCubeMoons(const RenderState<D3> &p_State, con
                 if (axis > 1)
                     Onyx::Transform<D3>::RotateYIntrinsic(transform, hpi);
                 Onyx::Transform<D3>::ScaleIntrinsic(transform, f32v3{p_Dimensions[axis], p_Diameter, p_Diameter});
-                m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D3>::GetCylinderIndex(p_Res),
-                                         p_Flags);
+                m_Renderer.DrawPrimitive(p_State, transform, Primitives<D3>::GetCylinderIndex(p_Res), p_Flags);
             }
     }
 }
@@ -1051,7 +956,7 @@ void RenderContext<D3>::drawRoundedCube(const RenderState<D3> &p_State, const f3
     const auto fill = [this, &p_State, &p_Transform, &p_Dimensions, p_Diameter, p_Res](const DrawFlags p_Flags) {
         f32m4 transform = p_Transform;
         Onyx::Transform<D3>::ScaleIntrinsic(transform, p_Dimensions);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D3>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D3>::GetSquareIndex(), p_Flags);
 
         drawRoundedCubeMoons(p_State, p_Transform, p_Dimensions, p_Diameter, p_Res, p_Flags);
     };
@@ -1059,7 +964,7 @@ void RenderContext<D3>::drawRoundedCube(const RenderState<D3> &p_State, const f3
         const f32 width = p_State.OutlineWidth;
         f32m4 transform = p_Transform;
         Onyx::Transform<D3>::ScaleIntrinsic(transform, p_Dimensions);
-        m_Renderer.DrawPrimitive(p_State, p_State.Axes * transform, Primitives<D3>::GetSquareIndex(), p_Flags);
+        m_Renderer.DrawPrimitive(p_State, transform, Primitives<D3>::GetSquareIndex(), p_Flags);
 
         drawRoundedCubeMoons(p_State, p_Transform, p_Dimensions, p_Diameter + width, p_Res, p_Flags);
     };
@@ -1113,7 +1018,7 @@ void RenderContext<D3>::AmbientIntensity(const f32 p_Intensity)
 void RenderContext<D3>::DirectionalLight(Onyx::DirectionalLight p_Light)
 {
     const RenderState<D3> *state = getState();
-    p_Light.Direction = Math::Normalize(state->Axes * state->Transform * f32v4{p_Light.Direction, 0.f});
+    p_Light.Direction = Math::Normalize(state->Transform * f32v4{p_Light.Direction, 0.f});
     m_Renderer.AddDirectionalLight(p_Light);
 }
 void RenderContext<D3>::DirectionalLight(const f32v3 &p_Direction, const f32 p_Intensity)
@@ -1128,7 +1033,7 @@ void RenderContext<D3>::DirectionalLight(const f32v3 &p_Direction, const f32 p_I
 void RenderContext<D3>::PointLight(Onyx::PointLight p_Light)
 {
     const RenderState<D3> *state = getState();
-    p_Light.Position = state->Axes * state->Transform * f32v4{p_Light.Position, 1.f};
+    p_Light.Position = state->Transform * f32v4{p_Light.Position, 1.f};
     m_Renderer.AddPointLight(p_Light);
 }
 void RenderContext<D3>::PointLight(const f32v3 &p_Position, const f32 p_Radius, const f32 p_Intensity)
@@ -1312,10 +1217,6 @@ template <Dimension D> void IRenderContext<D>::ShareState(const RenderState<D> &
         *m_StateStack[i].Current = p_State;
 }
 
-template <Dimension D> const f32m<D> &IRenderContext<D>::GetCurrentAxes() const
-{
-    return m_StateStack[getThreadIndex()].Current->Axes;
-}
 template <Dimension D> const RenderState<D> &IRenderContext<D>::GetCurrentState() const
 {
     return *m_StateStack[getThreadIndex()].Current;

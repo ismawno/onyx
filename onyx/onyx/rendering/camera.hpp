@@ -149,22 +149,19 @@ template <Dimension D> class ICamera
      * viewport, with the y axis pointing upwards. If in 3D, the z axis must be between [0, 1], mapping the near and far
      * planes or the orthographic size.
      *
-     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
-     *
      * @return The position in world coordinates.
      */
-    f32v<D> ViewportToWorld(f32v<D> p_ViewportPos, const f32m<D> *p_Axes = nullptr) const;
+    f32v<D> ViewportToWorld(f32v<D> p_ViewportPos) const;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from world to viewport coordinates.
      *
      * @param p_WorldPos The position to convert.
-     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      *
      * @return The position in viewport coordinates. Should be in the range [-1, 1] only if the provided point was
      * contained in the viewport, with the y axis pointing upwards.
      */
-    f32v2 WorldToViewport(const f32v<D> &p_WorldPos, const f32m<D> *p_Axes = nullptr) const;
+    f32v2 WorldToViewport(const f32v<D> &p_WorldPos) const;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from viewport to screen coordinates.
@@ -182,11 +179,10 @@ template <Dimension D> class ICamera
      * @param p_ScreenPos The position to convert. Should be in the range [-1, 1] for points contained in the screen,
      * with the y axis pointing upwards. If in 3D, the z axis must be between [0, 1], mapping the near and far planes or
      * the orthographic size.
-     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      *
      * @return The position in world coordinates.
      */
-    f32v<D> ScreenToWorld(const f32v<D> &p_ScreenPos, const f32m<D> *p_Axes = nullptr) const;
+    f32v<D> ScreenToWorld(const f32v<D> &p_ScreenPos) const;
 
     /**
      * @brief Compute the position of a point in the camera's rendering context from world to screen coordinates.
@@ -195,7 +191,7 @@ template <Dimension D> class ICamera
      * @return The position in screen coordinates. Should be in the range [-1, 1] only if the provided point was
      * contained in the screen, with the y axis pointing upwards.
      */
-    f32v2 WorldToScreen(const f32v<D> &p_WorldPos, const f32m<D> *p_Axes = nullptr) const;
+    f32v2 WorldToScreen(const f32v<D> &p_WorldPos) const;
 
     /**
      * @brief Compute the position of the mouse in the camera's rendering context from screen to viewport coordinates.
@@ -228,14 +224,6 @@ template <Dimension D> class ICamera
     {
         return m_Scissor;
     }
-
-    /**
-     * @brief Get the view transform of the camera.
-     *
-     * @param p_Axes The axes coordinates of the system.
-     * @return The view transform of the camera.
-     */
-    Onyx::Transform<D> GetViewTransform(const f32m<D> &p_Axes) const;
 
     void SetView(const Onyx::Transform<D> &p_View);
     void SetViewport(const ScreenViewport &p_Viewport);
@@ -276,10 +264,9 @@ template <> class ONYX_API Camera<D2> final : public Detail::ICamera<D2>
     /**
      * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
      *
-     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    f32v2 GetWorldMousePosition(const f32m3 *p_Axes = nullptr) const;
+    f32v2 GetWorldMousePosition() const;
 
     void SetSize(f32 p_Size);
 };
@@ -294,37 +281,23 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
     /**
      * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
      *
-     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
      * @param p_Depth The depth at which to get the mouse coordinates.
      *
      * @return The mouse position in the camera's rendering context coordinates.
      */
-    f32v3 GetWorldMousePosition(const f32m4 *p_Axes = nullptr, f32 p_Depth = 0.5f) const;
-
-    /**
-     * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
-     *
-     * @param p_Depth The depth at which to get the mouse coordinates.
-     *
-     * @return The mouse position in the camera's rendering context coordinates.
-     */
-    f32v3 GetWorldMousePosition(f32 p_Depth) const;
+    f32v3 GetWorldMousePosition(f32 p_Depth = 0.5f) const;
 
     /**
      * @brief Get the direction of the view.
      *
-     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
-     *
      */
-    f32v3 GetViewLookDirection(const f32m4 *p_Axes = nullptr) const;
+    f32v3 GetViewLookDirection() const;
 
     /**
      * @brief Get the direction of an imaginary ray cast from the mouse.
      *
-     * @param p_Axes an optional axes parameter to compatibilize with render contexts.
-     *
      */
-    f32v3 GetMouseRayCastDirection(const f32m4 *p_Axes = nullptr) const;
+    f32v3 GetMouseRayCastDirection() const;
 
     void SetProjection(const f32m4 &p_Projection);
 
