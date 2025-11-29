@@ -2,7 +2,6 @@
 .vscode/
 .vs/
 *build*/
-setup/user-build.ini
 onyx/shaders/bin/
 demo/shaders/bin/
 demo/meshes*/
