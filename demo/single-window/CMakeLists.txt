@@ -10,7 +10,3 @@ tkit_default_configure(onyx-single-window)
 target_link_libraries(onyx-single-window PRIVATE onyx-demo)
 target_include_directories(onyx-single-window
                            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-if(UNIX AND APPLE)
-  vkit_add_vulkan_executable_macos_rpath(onyx-single-window)
-endif()
