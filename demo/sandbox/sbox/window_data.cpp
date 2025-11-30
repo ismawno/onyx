@@ -286,6 +286,53 @@ QuitResult WindowData::OnImGuiRenderGlobal(IApplication *p_Application, const TK
 #endif
 
     QuitResult result;
+    if (ImGui::BeginMainMenuBar())
+    {
+        if (ImGui::BeginMenu("App"))
+        {
+            if (ImGui::MenuItem("Reload ImGui"))
+                p_Application->ReloadImGui();
+
+            if (ImGui::MenuItem("Reload sandbox"))
+            {
+                p_Application->Quit();
+                ImGui::EndMenu();
+                ImGui::EndMainMenuBar();
+                return {.Type = p_CurrentType, .Reload = true};
+            }
+            if (p_CurrentType == ApplicationType::SingleWindow)
+            {
+                if (ImGui::MenuItem("Switch to multi-window (requires reload)"))
+                {
+                    p_Application->Quit();
+                    ImGui::EndMenu();
+                    ImGui::EndMainMenuBar();
+                    return {.Type = ApplicationType::MultiWindow, .Reload = true};
+                }
+            }
+            else
+            {
+                if (ImGui::MenuItem("Switch to single-window (requires reload)"))
+                {
+                    p_Application->Quit();
+                    ImGui::EndMenu();
+                    ImGui::EndMainMenuBar();
+                    return {.Type = ApplicationType::SingleWindow, .Reload = true};
+                }
+            }
+            if (ImGui::MenuItem("Quit"))
+            {
+                p_Application->Quit();
+                result.Reload = false;
+                ImGui::EndMenu();
+                ImGui::EndMainMenuBar();
+                return result;
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+    }
+
     if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {
         UserLayer::DisplayFrameTime(p_Timestep, UserLayer::Flag_DisplayHelp);
@@ -315,41 +362,6 @@ QuitResult WindowData::OnImGuiRenderGlobal(IApplication *p_Application, const TK
             renderMeshLoad<D2>(path2);
         if (ImGui::CollapsingHeader("3D Meshes"))
             renderMeshLoad<D3>(path3);
-
-        if (ImGui::Button("Reload ImGui"))
-            p_Application->ReloadImGui();
-
-        if (ImGui::Button("Reload sandbox"))
-        {
-            p_Application->Quit();
-            ImGui::End();
-            return {.Type = p_CurrentType, .Reload = true};
-        }
-        if (ImGui::Button("Quit sandbox"))
-        {
-            p_Application->Quit();
-            result.Reload = false;
-            ImGui::End();
-            return result;
-        }
-        if (p_CurrentType == ApplicationType::SingleWindow)
-        {
-            if (ImGui::Button("Switch to multi-window (requires sandbox reload)"))
-            {
-                p_Application->Quit();
-                ImGui::End();
-                return {.Type = ApplicationType::MultiWindow, .Reload = true};
-            }
-        }
-        else
-        {
-            if (ImGui::Button("Switch to single-window (requires sandbox reload)"))
-            {
-                p_Application->Quit();
-                ImGui::End();
-                return {.Type = ApplicationType::SingleWindow, .Reload = true};
-            }
-        }
     }
     ImGui::End();
     return result;
