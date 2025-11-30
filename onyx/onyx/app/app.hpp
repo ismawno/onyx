@@ -30,7 +30,7 @@ using WindowArray = TKit::StaticArray<Window *, ONYX_MAX_WINDOWS>;
  * inconsistencies.
  *
  * The most common reason for a user to want to use multiple applications is to have different windows. In that case,
- * please use the `MultiWindowApplication` class, which is designed to handle multiple windows.
+ * please use the `MultiWindowApp` class, which is designed to handle multiple windows.
  *
  */
 class ONYX_API IApplication
@@ -220,11 +220,11 @@ class ONYX_API IApplication
  * It is the simplest form of an application available, and works as one would expect.
  *
  */
-class ONYX_API Application final : public IApplication
+class ONYX_API SingleWindowApp final : public IApplication
 {
   public:
-    Application(const Window::Specs &p_WindowSpecs = {});
-    ~Application();
+    SingleWindowApp(const Window::Specs &p_WindowSpecs = {});
+    ~SingleWindowApp();
 
     /**
      * @brief Process and present the next frame for the application.
@@ -249,6 +249,7 @@ class ONYX_API Application final : public IApplication
 #endif
 
   private:
+    void terminate();
     TKit::Storage<Window> m_Window;
 };
 
@@ -264,12 +265,12 @@ class ONYX_API Application final : public IApplication
  * corresponding events (`WindowOpened`, `WindowClosed`) to ensure synchronization between the API and the user.
  *
  */
-class ONYX_API MultiWindowApplication final : public IApplication
+class ONYX_API MultiWindowApp final : public IApplication
 {
-    TKIT_NON_COPYABLE(MultiWindowApplication)
+    TKIT_NON_COPYABLE(MultiWindowApp)
   public:
-    MultiWindowApplication() = default;
-    ~MultiWindowApplication();
+    MultiWindowApp() = default;
+    ~MultiWindowApp();
 
     /**
      * @brief Open a new window with the given specs.

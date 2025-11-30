@@ -1,11 +1,9 @@
-#include "utils/argparse.hpp"
-#include "onyx/core/core.hpp"
-
+#include "sbox/argparse.hpp"
 #include <argparse/argparse.hpp>
 
 namespace Onyx::Demo
 {
-Scene ParseArguments(int argc, char **argv)
+ArgResult ParseArguments(int argc, char **argv)
 {
     argparse::ArgumentParser parser{"onyx", ONYX_VERSION, argparse::default_arguments::all};
     parser.add_description(
@@ -17,16 +15,20 @@ Scene ParseArguments(int argc, char **argv)
 
     parser.add_epilog("For similar projects, visit my GitHub at https://github.com/ismawno");
 
-    auto &group = parser.add_mutually_exclusive_group();
-    group.add_argument("--2-scene").flag().help("Setup a default 2D scene.");
-    group.add_argument("--3-scene").flag().help("Setup a default 3D scene.");
+    auto &scene = parser.add_mutually_exclusive_group();
+    scene.add_argument("--2-scene").flag().help("Setup a default 2D scene.");
+    scene.add_argument("--3-scene").flag().help("Setup a default 3D scene.");
+
+    auto &appType = parser.add_mutually_exclusive_group();
+    appType.add_argument("-s", "--single", "--single-window").flag().help("Start a single window application.");
+    appType.add_argument("-m", "--multi", "--multi-window").flag().help("Start a multi window application.");
 
     parser.parse_args(argc, argv);
+    ArgResult result;
 
-    if (parser.get<bool>("--2-scene"))
-        return Scene::Setup2D;
-    if (parser.get<bool>("--3-scene"))
-        return Scene::Setup3D;
-    return Scene::None;
+    result.Dim = parser.get<bool>("--3-scene") ? D3 : D2;
+    result.AppType = parser.get<bool>("-m") ? ApplicationType::MultiWindow : ApplicationType::SingleWindow;
+
+    return result;
 }
 } // namespace Onyx::Demo

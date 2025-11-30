@@ -1,22 +1,15 @@
 #pragma once
 
-#include "utils/argparse.hpp"
-#include "utils/shapes.hpp"
+#include "sbox/shapes.hpp"
+#include "sbox/argparse.hpp"
 #include "onyx/core/dimension.hpp"
-#include "onyx/app/input.hpp"
-#include "onyx/app/window.hpp"
+#include "onyx/app/app.hpp"
 #include "tkit/container/static_array.hpp"
 #include "tkit/profiling/timespan.hpp"
 #include "tkit/memory/ptr.hpp"
 
-namespace Onyx
-{
-class IApplication;
-}
-
 namespace Onyx::Demo
 {
-
 template <Dimension D> struct LatticeData
 {
     u32v<D> Dimensions{2};
@@ -69,7 +62,6 @@ template <Dimension D> struct IContextData
 {
     RenderContext<D> *Context;
     TKit::DynamicArray<TKit::Scope<Shape<D>>> Shapes;
-    Transform<D> AxesTransform{};
     MaterialData<D> AxesMaterial{};
 
     PolygonVerticesArray PolygonVertices;
@@ -117,17 +109,25 @@ template <Dimension D> struct ContextDataContainer
     bool EmptyContext = false;
 };
 
+struct QuitResult
+{
+    ApplicationType Type;
+    bool Reload;
+};
+
 class ONYX_API WindowData
 {
   public:
-    WindowData(Window *p_Window, Scene p_Scene);
+    WindowData() = default;
+    WindowData(Window *p_Window, Dimension p_Dim);
 
     void OnUpdate(TKit::Timespan p_Timestep);
     void OnRenderBegin(VkCommandBuffer p_CommandBuffer);
     void OnImGuiRender();
     void OnEvent(const Event &p_Event);
 
-    static void OnImGuiRenderGlobal(IApplication *p_Application, TKit::Timespan p_Timestep);
+    static QuitResult OnImGuiRenderGlobal(IApplication *p_Application, TKit::Timespan p_Timestep,
+                                          ApplicationType p_CurrentType);
     static void RenderEditorText();
 
   private:

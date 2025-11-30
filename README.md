@@ -87,14 +87,14 @@ while (!window.ShouldClose())
 This feature grants the user high-level control of the flow of their application. One of the simplest use cases looks like this:
 
 ```cpp
-Onyx::Application app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
+Onyx::SingleWindowApp app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
 app.Run();
 ```
 
 Note that this setup won’t do anything beyond opening a pitch-black window, which may not be very useful. You can break down the `Application::Run()` method to insert your own logic into the frame loop:
 
 ```cpp
-Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
+Onyx::SingleWindowApp app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
 
 TKit::Clock clock;
 
@@ -127,7 +127,7 @@ class MyLayer : public Onyx::UserLayer
     }
 };
 
-Onyx::Application app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
+Onyx::SingleWindowApp app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
 app.SetUserLayer<MyLayer>();
 app.InitializeImGui();
 

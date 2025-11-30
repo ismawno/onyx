@@ -121,14 +121,14 @@ static void RunStandaloneWindowCustomPipeline()
 
 static void RunAppExample1()
 {
-    Onyx::Application app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
+    Onyx::SingleWindowApp app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
     app.InitializeImGui();
     app.Run();
 }
 
 static void RunAppExample2()
 {
-    Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
+    Onyx::SingleWindowApp app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
     app.InitializeImGui();
 
     const auto result = Onyx::Mesh<D2>::Load(ONYX_ROOT_PATH "/onyx/meshes/square.obj");
@@ -161,7 +161,7 @@ static void RunAppExample3()
         }
     };
 
-    Onyx::Application app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
+    Onyx::SingleWindowApp app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
     app.SetUserLayer<MyLayer>();
     app.InitializeImGui();
 

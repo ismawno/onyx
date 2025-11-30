@@ -290,12 +290,13 @@ void IApplication::checkImGui()
 }
 #endif
 
-Application::Application(const Window::Specs &p_WindowSpecs)
+SingleWindowApp::SingleWindowApp(const Window::Specs &p_WindowSpecs)
 {
     m_Window.Construct(p_WindowSpecs);
+    setFlags(Flag_WindowAlive);
 }
 
-Application::~Application()
+SingleWindowApp::~SingleWindowApp()
 {
     if (checkFlags(Flag_WindowAlive))
     {
@@ -317,18 +318,31 @@ static void endFrame()
     TKIT_PROFILE_MARK_FRAME();
 }
 
-bool Application::NextFrame(TKit::Clock &p_Clock)
+void SingleWindowApp::terminate()
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
+    if (!checkFlags(Flag_WindowAlive))
+        return;
+
 #ifdef ONYX_ENABLE_IMGUI
-    checkImGui();
+    shutdownImGui();
 #endif
+    m_Window.Destruct();
+    clearFlags(Flag_WindowAlive);
+}
+
+bool SingleWindowApp::NextFrame(TKit::Clock &p_Clock)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::SingleWindowApp::NextFrame");
     if (checkFlags(Flag_Quit)) [[unlikely]]
     {
+        terminate();
         clearFlags(Flag_Quit);
         endFrame();
         return false;
     }
+#ifdef ONYX_ENABLE_IMGUI
+    checkImGui();
+#endif
 
     setFlags(Flag_Defer);
     Input::PollEvents();
@@ -369,11 +383,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
 
     if (m_Window->ShouldClose()) [[unlikely]]
     {
-#ifdef ONYX_ENABLE_IMGUI
-        shutdownImGui();
-#endif
-        m_Window.Destruct();
-        clearFlags(Flag_WindowAlive);
+        terminate();
         endFrame();
         return false;
     }
@@ -383,22 +393,22 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-void Application::InitializeImGui()
+void SingleWindowApp::InitializeImGui()
 {
     initializeImGui(*m_Window);
 }
-void Application::ReloadImGui()
+void SingleWindowApp::ReloadImGui()
 {
     reloadImGui(*m_Window);
 }
 #endif
 
-MultiWindowApplication::~MultiWindowApplication()
+MultiWindowApp::~MultiWindowApp()
 {
     CloseAllWindows();
 }
 
-void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderCallbacks &p_Callbacks)
+void MultiWindowApp::processFrame(const u32 p_WindowIndex, const RenderCallbacks &p_Callbacks)
 {
     Window *window = m_Windows[p_WindowIndex];
     for (const Event &event : window->GetNewEvents())
@@ -416,13 +426,13 @@ void MultiWindowApplication::processFrame(const u32 p_WindowIndex, const RenderC
     window->Render(p_Callbacks);
 }
 
-void MultiWindowApplication::CloseAllWindows()
+void MultiWindowApp::CloseAllWindows()
 {
     for (u32 i = m_Windows.GetSize() - 1; i < m_Windows.GetSize(); --i)
         CloseWindow(i);
 }
 
-void MultiWindowApplication::CloseWindow(const Window *p_Window)
+void MultiWindowApp::CloseWindow(const Window *p_Window)
 {
     for (u32 i = 0; i < m_Windows.GetSize(); ++i)
         if (m_Windows[i] == p_Window)
@@ -433,19 +443,20 @@ void MultiWindowApplication::CloseWindow(const Window *p_Window)
     TKIT_FATAL("Window was not found");
 }
 
-bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock)
+bool MultiWindowApp::NextFrame(TKit::Clock &p_Clock)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApplication::NextFrame");
-#ifdef ONYX_ENABLE_IMGUI
-    checkImGui();
-#endif
+    TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApp::NextFrame");
 
     if (m_Windows.IsEmpty() || checkFlags(Flag_Quit)) [[unlikely]]
     {
         clearFlags(Flag_Quit);
+        CloseAllWindows();
         endFrame();
         return false;
     }
+#ifdef ONYX_ENABLE_IMGUI
+    checkImGui();
+#endif
 
     Input::PollEvents();
     processWindows();
@@ -455,7 +466,7 @@ bool MultiWindowApplication::NextFrame(TKit::Clock &p_Clock)
     return !m_Windows.IsEmpty();
 }
 
-void MultiWindowApplication::CloseWindow(const u32 p_Index)
+void MultiWindowApp::CloseWindow(const u32 p_Index)
 {
     TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
 
@@ -490,7 +501,7 @@ void MultiWindowApplication::CloseWindow(const u32 p_Index)
     }
 }
 
-void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs)
+void MultiWindowApp::OpenWindow(const Window::Specs &p_Specs)
 {
     // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
     // the GLFW ImGui backend limitations
@@ -509,19 +520,19 @@ void MultiWindowApplication::OpenWindow(const Window::Specs &p_Specs)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-void MultiWindowApplication::InitializeImGui()
+void MultiWindowApp::InitializeImGui()
 {
     TKIT_ASSERT(!m_Windows.IsEmpty(), "[ONYX] Cannot initialize ImGui with no active windows. Open one first");
     initializeImGui(*GetMainWindow());
 }
-void MultiWindowApplication::ReloadImGui()
+void MultiWindowApp::ReloadImGui()
 {
     TKIT_ASSERT(!m_Windows.IsEmpty(), "[ONYX] Cannot reload ImGui with no active windows. Open one first");
     reloadImGui(*GetMainWindow());
 }
 #endif
 
-void MultiWindowApplication::processWindows()
+void MultiWindowApp::processWindows()
 {
     setFlags(Flag_Defer);
     RenderCallbacks mainCbs{};

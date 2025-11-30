@@ -1,12 +1,10 @@
-#include "utils/window_data.hpp"
+#include "sbox/window_data.hpp"
 #include "onyx/core/shaders.hpp"
 #include "onyx/app/user_layer.hpp"
 #include "onyx/core/imgui.hpp"
 #include "onyx/app/app.hpp"
-#ifdef ONYX_ENABLE_IMPLOT
-#    include "onyx/core/implot.hpp"
-#endif
-#include "utils/shapes.hpp"
+#include "onyx/core/implot.hpp"
+#include "sbox/shapes.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
 #include "tkit/container/static_array.hpp"
@@ -63,7 +61,7 @@ static const VKit::Shader &getBlurShader()
     return shader;
 }
 
-WindowData::WindowData(Window *p_Window, const Scene p_Scene) : m_Window(p_Window)
+WindowData::WindowData(Window *p_Window, const Dimension p_Dim) : m_Window(p_Window)
 {
     FrameScheduler *fs = m_Window->GetFrameScheduler();
     const auto presult =
@@ -90,14 +88,13 @@ WindowData::WindowData(Window *p_Window, const Scene p_Scene) : m_Window(p_Windo
 
     Core::GetDeletionQueue().SubmitForDeletion(pipeline);
     Core::GetDeletionQueue().SubmitForDeletion(m_BlurLayout);
-
-    if (p_Scene == Scene::Setup2D)
+    if (p_Dim == D2)
     {
         ContextData<D2> &context = addContext(m_ContextData2);
         setupContext<D2>(context);
         addCamera(m_Cameras2);
     }
-    else if (p_Scene == Scene::Setup3D)
+    else if (p_Dim == D3)
     {
         ContextData<D3> &context = addContext(m_ContextData3);
         setupContext<D3>(context);
@@ -280,18 +277,17 @@ template <Dimension D> static void renderMeshLoad(const char *p_Path)
     ImGui::PopID();
 }
 
-void WindowData::OnImGuiRenderGlobal(IApplication *p_Application, const TKit::Timespan p_Timestep)
+QuitResult WindowData::OnImGuiRenderGlobal(IApplication *p_Application, const TKit::Timespan p_Timestep,
+                                           const ApplicationType p_CurrentType)
 {
     ImGui::ShowDemoWindow();
 #ifdef ONYX_ENABLE_IMPLOT
     ImPlot::ShowDemoWindow();
 #endif
 
+    QuitResult result;
     if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {
-        if (ImGui::Button("Reload ImGui"))
-            p_Application->ReloadImGui();
-
         UserLayer::DisplayFrameTime(p_Timestep, UserLayer::Flag_DisplayHelp);
         ImGui::Text("Version: " ONYX_VERSION);
         ImGui::TextWrapped(
@@ -319,8 +315,44 @@ void WindowData::OnImGuiRenderGlobal(IApplication *p_Application, const TKit::Ti
             renderMeshLoad<D2>(path2);
         if (ImGui::CollapsingHeader("3D Meshes"))
             renderMeshLoad<D3>(path3);
+
+        if (ImGui::Button("Reload ImGui"))
+            p_Application->ReloadImGui();
+
+        if (ImGui::Button("Reload sandbox"))
+        {
+            p_Application->Quit();
+            ImGui::End();
+            return {.Type = p_CurrentType, .Reload = true};
+        }
+        if (ImGui::Button("Quit sandbox"))
+        {
+            p_Application->Quit();
+            result.Reload = false;
+            ImGui::End();
+            return result;
+        }
+        if (p_CurrentType == ApplicationType::SingleWindow)
+        {
+            if (ImGui::Button("Switch to multi-window (requires sandbox reload)"))
+            {
+                p_Application->Quit();
+                ImGui::End();
+                return {.Type = ApplicationType::MultiWindow, .Reload = true};
+            }
+        }
+        else
+        {
+            if (ImGui::Button("Switch to single-window (requires sandbox reload)"))
+            {
+                p_Application->Quit();
+                ImGui::End();
+                return {.Type = ApplicationType::SingleWindow, .Reload = true};
+            }
+        }
     }
     ImGui::End();
+    return result;
 }
 void WindowData::RenderEditorText()
 {
@@ -909,10 +941,6 @@ template <Dimension D> void WindowData::renderUI(ContextData<D> &p_Context)
 
     if (ImGui::CollapsingHeader("Axes"))
     {
-        ImGui::Text("Transform");
-        ImGui::SameLine();
-        UserLayer::TransformEditor<D>(p_Context.AxesTransform, UserLayer::Flag_DisplayHelp);
-
         ImGui::Checkbox("Draw##Axes", &p_Context.DrawAxes);
         if (p_Context.DrawAxes)
             ImGui::SliderFloat("Axes thickness", &p_Context.AxesThickness, 0.001f, 0.1f);
