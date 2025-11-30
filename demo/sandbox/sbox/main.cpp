@@ -19,7 +19,6 @@ void RunApp(const Onyx::Demo::ArgResult p_Args)
             spc.Name = "Single window demo app";
 
             Onyx::SingleWindowApp app{spc};
-            app.InitializeImGui();
             const Onyx::Demo::SandboxLayer *layer = app.SetUserLayer<Onyx::Demo::SandboxLayer>(&app, p_Args.Dim);
             app.Run();
             quitResult = layer->QuitResult;
@@ -29,7 +28,6 @@ void RunApp(const Onyx::Demo::ArgResult p_Args)
             Onyx::MultiWindowApp app{};
             const Onyx::Demo::SandboxLayer *layer = app.SetUserLayer<Onyx::Demo::SandboxLayer>(&app, p_Args.Dim);
             app.OpenWindow();
-            app.InitializeImGui();
             app.Run();
             quitResult = layer->QuitResult;
         }

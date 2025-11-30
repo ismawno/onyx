@@ -278,10 +278,8 @@ void IApplication::reloadImGui(Window &p_Window)
 }
 void IApplication::checkImGui()
 {
-    TKIT_LOG_WARNING_IF(!checkFlags(Flag_ImGuiRunning),
-                        "[ONYX] ImGui functionality has been enabled with ONYX_ENABLE_IMGUI, but ImGui has not been "
-                        "initialized with InitializeImGui(). This call is required if your application uses ImGui. If "
-                        "it does not, consider disabling ONYX_ENABLE_IMGUI");
+    TKIT_ASSERT(checkFlags(Flag_ImGuiRunning), "[ONYX] ImGui is enabled with ONYX_ENABLE_IMGUI but no instance of "
+                                               "ImGui is running. This should not be possible");
     if (checkFlags(Flag_MustReloadImGui))
     {
         ReloadImGui();
@@ -294,6 +292,9 @@ SingleWindowApp::SingleWindowApp(const Window::Specs &p_WindowSpecs)
 {
     m_Window.Construct(p_WindowSpecs);
     setFlags(Flag_WindowAlive);
+#ifdef ONYX_ENABLE_IMGUI
+    initializeImGui(*m_Window);
+#endif
 }
 
 SingleWindowApp::~SingleWindowApp()
@@ -393,10 +394,6 @@ bool SingleWindowApp::NextFrame(TKit::Clock &p_Clock)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-void SingleWindowApp::InitializeImGui()
-{
-    initializeImGui(*m_Window);
-}
 void SingleWindowApp::ReloadImGui()
 {
     reloadImGui(*m_Window);
@@ -513,6 +510,9 @@ void MultiWindowApp::OpenWindow(const Window::Specs &p_Specs)
 
     Window *window = m_WindowAllocator.Create<Window>(p_Specs);
     m_Windows.Append(window);
+    if (m_Windows.GetSize() == 1)
+        initializeImGui(*window);
+
     Event event;
     event.Type = Event::WindowOpened;
     event.Window = window;
@@ -520,11 +520,6 @@ void MultiWindowApp::OpenWindow(const Window::Specs &p_Specs)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-void MultiWindowApp::InitializeImGui()
-{
-    TKIT_ASSERT(!m_Windows.IsEmpty(), "[ONYX] Cannot initialize ImGui with no active windows. Open one first");
-    initializeImGui(*GetMainWindow());
-}
 void MultiWindowApp::ReloadImGui()
 {
     TKIT_ASSERT(!m_Windows.IsEmpty(), "[ONYX] Cannot reload ImGui with no active windows. Open one first");

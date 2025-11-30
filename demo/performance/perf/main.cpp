@@ -13,7 +13,6 @@ void RunApp(const Onyx::Demo::ParseResult &p_Args)
     spc.PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
     Onyx::SingleWindowApp app{spc};
-    app.InitializeImGui();
     if (p_Args.Dim == Onyx::Dimension::D2)
         app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D2>>(&app, p_Args.Lattices2);
     else

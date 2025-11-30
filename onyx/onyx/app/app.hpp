@@ -147,7 +147,6 @@ class ONYX_API IApplication
     void SetImGuiConfigFlags(i32 p_Flags);
     void SetImGuiBackendFlags(i32 p_Flags);
 
-    virtual void InitializeImGui() = 0;
     virtual void ReloadImGui() = 0;
 #endif
   protected:
@@ -244,7 +243,6 @@ class ONYX_API SingleWindowApp final : public IApplication
     }
 
 #ifdef ONYX_ENABLE_IMGUI
-    void InitializeImGui() override;
     void ReloadImGui() override;
 #endif
 
@@ -358,7 +356,6 @@ class ONYX_API MultiWindowApp final : public IApplication
     bool NextFrame(TKit::Clock &p_Clock) override;
 
 #ifdef ONYX_ENABLE_IMGUI
-    void InitializeImGui() override;
     void ReloadImGui() override;
 #endif
 
