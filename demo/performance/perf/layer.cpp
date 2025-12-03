@@ -5,8 +5,8 @@
 namespace Onyx::Demo
 {
 template <Dimension D>
-Layer<D>::Layer(SingleWindowApp *p_Application, const TKit::Span<const Lattice<D>> p_Lattices)
-    : m_Application(p_Application), m_Lattices(p_Lattices.begin(), p_Lattices.end())
+Layer<D>::Layer(Application *p_Application, Window *p_Window, const TKit::Span<const Lattice<D>> p_Lattices)
+    : UserLayer(p_Application, p_Window), m_Lattices(p_Lattices.begin(), p_Lattices.end())
 {
     m_Window = m_Application->GetMainWindow();
     m_Context = m_Window->CreateRenderContext<D>();

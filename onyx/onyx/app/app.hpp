@@ -2,7 +2,9 @@
 
 #include "onyx/app/user_layer.hpp"
 #include "onyx/app/window.hpp"
-#include "onyx/app/theme.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include "onyx/app/theme.hpp"
+#endif
 #include "tkit/profiling/clock.hpp"
 #include "tkit/memory/ptr.hpp"
 
@@ -10,15 +12,29 @@
 #    define ONYX_MAX_WINDOWS 8
 #endif
 
+#if ONYX_MAX_WINDOWS < 1
+#    error "[ONYX] Onyx maximum windows must be at least 1";
+#endif
+
+#if ONYX_MAX_WINDOWS > 1
+#    define ONYX_MULTI_WINDOW
+#endif
+
+#ifdef ONYX_ENABLE_IMGUI
+struct ImGuiContext;
+#    ifdef ONYX_ENABLE_IMPLOT
+struct ImPlotContext;
+#    endif
+#endif
+
 namespace Onyx
 {
-using WindowArray = TKit::StaticArray<Window *, ONYX_MAX_WINDOWS>;
 /**
- * @brief This class provides a simple application interface, with some common functionality.
+ * @brief This class provides a simple application interface.
  *
- * This base class can represent a single or multi-window application. It is strongly discouraged (although technically
- * possible) to use multiple applications in the same program. If you do so, note that the following (among other
- * possible unknown things) may work incorrectly:
+ * It can support multiple windows, with a main window that is always opened at construction. It is discouraged
+ * (although technically possible) to use multiple applications in the same program. If you do so, note that the
+ * following (among other possible unknown things) may work incorrectly:
  *
  * - ImGui: Currently, the application manages an ImGui context, and although that context is set at
  * the beginning of each frame to ensure consistency, ImGui itself discourages using multiple.
@@ -27,18 +43,69 @@ using WindowArray = TKit::StaticArray<Window *, ONYX_MAX_WINDOWS>;
  * by each application in turn, yielding weird results.
  *
  * - `UserLayer::DisplayFrameTime()`: This method uses static variables. Using many applications would result in
- * inconsistencies.
+ * inconsistencies when using said method.
  *
  * The most common reason for a user to want to use multiple applications is to have different windows. In that case,
- * please use the `MultiWindowApp` class, which is designed to handle multiple windows.
+ * use a single application and open multiple windows within it.
+ *
+ * You may call state-altering calls to the application class anytime (such as `OpenWindow()` or `CloseWindow()`) but
+ * note that such calls may be deferred if called from within an ongoing frame. Never update your state based on the
+ * calls of these functions, but rather react to these events with the provided callbacks.
  *
  */
-class ONYX_API IApplication
+class ONYX_API Application
 {
-  public:
-    IApplication();
+    using Flags = u8;
+    enum FlagBit : Flags
+    {
+#ifdef ONYX_ENABLE_IMGUI
+        Flag_MustReloadImGui = 1 << 0,
+        Flag_ImGuiRunning = 1 << 1,
+#endif
+        Flag_Defer = 1 << 2,
+        Flag_Quit = 1 << 3,
+        Flag_MustDestroyLayer = 1 << 4,
+        Flag_MustReplaceLayer = 1 << 5
+    };
 
-    virtual ~IApplication();
+#ifdef ONYX_MULTI_WINDOW
+    struct BabyWindow
+    {
+        Window::Specs Specs{};
+        std::function<void(Window *)> CreationCallback = nullptr;
+    };
+#endif
+
+    struct WindowData
+    {
+        Window *Window = nullptr;
+        UserLayer *Layer = nullptr;
+        UserLayer *StagedLayer = nullptr;
+#ifdef ONYX_ENABLE_IMGUI
+        ImGuiContext *ImGuiContext = nullptr;
+#    ifdef ONYX_ENABLE_IMPLOT
+        ImPlotContext *ImPlotContext = nullptr;
+#    endif
+        Flags Flags = 0;
+
+        bool CheckFlags(const Application::Flags p_Flags) const
+        {
+            return Flags & p_Flags;
+        }
+        void SetFlags(const Application::Flags p_Flags)
+        {
+            Flags |= p_Flags;
+        }
+        void ClearFlags(const Application::Flags p_Flags)
+        {
+            Flags &= ~p_Flags;
+        }
+#endif
+    };
+
+  public:
+    Application(const Window::Specs &p_Specs = {});
+    ~Application();
 
     /**
      * @brief Signals the application to stop the frame loop.
@@ -55,24 +122,11 @@ class ONYX_API IApplication
      * This method should be called in a loop until it returns false, which means that all windows have been closed.
      *
      * @param p_Clock A clock that lets both the API and the user to keep track of the frame time.
-     * @return Whether the application still contains opened windows.
+     * @return Whether the application must keep running.
      */
-    virtual bool NextFrame(TKit::Clock &p_Clock) = 0;
+    bool NextFrame(TKit::Clock &p_Clock);
 
-    /**
-     * @brief Get the main window, which is always the window at index 0 in multi-window applications.
-     *
-     * @return The main window at index 0.
-     */
-    virtual const Window *GetMainWindow() const = 0;
-
-    /**
-     * @brief Get the main window, which is always the window at index 0.
-     *
-     * @return The main window at index 0.
-     */
-    virtual Window *GetMainWindow() = 0;
-
+#ifdef ONYX_ENABLE_IMGUI
     /**
      * @brief Set an object derived from Theme to apply an `ImGui` theme.
      *
@@ -91,10 +145,35 @@ class ONYX_API IApplication
     }
 
     /**
+     * @brief Apply the current theme to `ImGui`. Use `SetTheme()` to set a new theme.
+     *
+     */
+    void ApplyTheme();
+#endif
+
+    /**
      * @brief Set a new user layer to provide custom functionality.
      *
-     * This method will delete the current user layer and replace it with a new one. If called in the middle of a frame,
-     * the operation will be deferred until the end of the frame.
+     * This method will delete the current user layer for the given window and replace it with a new one. If called in
+     * the middle of a frame, the operation will be deferred until the end of the frame.
+     *
+     * @tparam T User defined layer.
+     * @tparam LayerArgs Arguments to pass to the layer constructor.
+     * @param p_Window The window for which to set the user layer.
+     * @param p_Args Arguments to pass to the layer constructor.
+     * @return Pointer to the new user layer.
+     */
+    template <std::derived_from<UserLayer> T, typename... LayerArgs>
+    T *SetUserLayer(Window *p_Window, LayerArgs &&...p_Args)
+    {
+        WindowData *data = getWindowData(p_Window);
+        return setUserLayer<T>(*data, std::forward<LayerArgs>(p_Args)...);
+    }
+    /**
+     * @brief Set a new user layer to provide custom functionality.
+     *
+     * This method will delete the current user layer for the main window and replace it with a new one. If called in
+     * the middle of a frame, the operation will be deferred until the end of the frame.
      *
      * @tparam T User defined layer.
      * @tparam LayerArgs Arguments to pass to the layer constructor.
@@ -103,30 +182,115 @@ class ONYX_API IApplication
      */
     template <std::derived_from<UserLayer> T, typename... LayerArgs> T *SetUserLayer(LayerArgs &&...p_Args)
     {
-        T *layer = new T(std::forward<LayerArgs>(p_Args)...);
-        if (checkFlags(Flag_Defer))
-        {
-            delete m_StagedUserLayer;
-            m_StagedUserLayer = layer;
-        }
-        else
-        {
-            delete m_UserLayer;
-            m_UserLayer = layer;
-        }
-        return layer;
-    }
-
-    template <std::derived_from<UserLayer> T = UserLayer> T *GetUserLayer()
-    {
-        return static_cast<T *>(m_UserLayer);
+        return setUserLayer<T>(m_MainWindow, std::forward<LayerArgs>(p_Args)...);
     }
 
     /**
-     * @brief Apply the current theme to `ImGui`. Use `SetTheme()` to set a new theme.
+     * @brief Remove a user layer without destroying the resource, detaching it from the application and releasing its
+     * ownership.
+     *
+     * This method will remove the current user layer for the given window. Ownership will be returned to the caller. If
+     * called in the middle of a frame, the operation will be deferred until the end of the frame. In those cases, it is
+     * UB to delete the resource until the current frame has finished.
+     *
+     * @tparam T User defined layer.
+     * @param p_Window The target window. If nullptr is passed, the main window will be affected.
+     * @return Pointer to the removed user layer.
+     */
+    template <std::derived_from<UserLayer> T = UserLayer> T *RemoveUserLayer(const Window *p_Window = nullptr)
+    {
+        WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        UserLayer *layer = data->Layer;
+        if (checkFlags(Flag_Defer))
+            data->SetFlags(Flag_MustReplaceLayer);
+        else
+            data->Layer = nullptr;
+        return static_cast<T>(layer);
+    }
+
+    /**
+     * @brief Destroy a user layer, freeing the resource and detaching it from the application.
+     *
+     * This method will destroy the current user layer for the given window. If called in the middle of a frame, the
+     * operation will be deferred until the end of the frame.
+     *
+     * @tparam T User defined layer.
+     * @param p_Window The target window. If nullptr is passed, the main window will be affected.
+     */
+    template <std::derived_from<UserLayer> T = UserLayer> void DestroyUserLayer(const Window *p_Window = nullptr)
+    {
+        WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        if (checkFlags(Flag_Defer))
+            data->SetFlags(Flag_MustDestroyLayer);
+        else
+            data->Layer = nullptr;
+    }
+
+    template <std::derived_from<UserLayer> T = UserLayer> const T *GetUserLayer(const Window *p_Window = nullptr) const
+    {
+        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        return static_cast<T>(data->Layer);
+    }
+    template <std::derived_from<UserLayer> T = UserLayer> T *GetUserLayer(const Window *p_Window = nullptr)
+    {
+        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        return static_cast<T>(data->Layer);
+    }
+
+    /**
+     * @brief Check if certain operations must wait until the end of the current frame to be executed.
      *
      */
-    void ApplyTheme();
+    bool MustDefer() const
+    {
+        return checkFlags(Flag_Defer);
+    }
+
+#ifdef ONYX_MULTI_WINDOW
+    /**
+     * @brief Open a new window with the given specs.
+     *
+     * @note The window addition may not take effect immediately if called in the middle of a frame. If you need to
+     * react to the window opening by, say, attaching a layer, use the provided callback argument.
+     *
+     * @param p_Specs The specification of the window to create.
+     * @param p_Callback A function callback that will execute as soon as the window is actually created.
+     * @return Whether the operation could execute immediately.
+     */
+    bool OpenWindow(const Window::Specs &p_Specs, const std::function<void(Window *)> &p_Callback = nullptr);
+
+    /**
+     * @brief Open a new window with the given specs.
+     *
+     * @note The window addition may not take effect immediately if called in the middle of a frame. If you need to
+     * react to the window opening by, say, attaching a layer, use the provided callback argument.
+     *
+     * @param p_Specs
+     * @return Whether the operation could execute immediately.
+     */
+    bool OpenWindow(const std::function<void(Window *)> &p_Callback = nullptr);
+
+    /**
+     * @brief Close the given window.
+     *
+     * @note The window removal may not take effect immediately if called in the middle of a frame. Only react to
+     * the window removal through the window's layer destructor, if any.
+     *
+     * @param p_Window The window to close.
+     * @return Whether the operation could execute immediately.
+     */
+    bool CloseWindow(Window *p_Window);
+#endif
+
+    const Window *GetMainWindow() const
+    {
+        return m_MainWindow.Window;
+    }
+
+    Window *GetMainWindow()
+    {
+        return m_MainWindow.Window;
+    }
 
     /**
      * @brief Run the whole application in one go.
@@ -141,231 +305,93 @@ class ONYX_API IApplication
         return m_DeltaTime;
     }
 #ifdef ONYX_ENABLE_IMGUI
-    i32 GetImGuiConfigFlags() const;
-    i32 GetImGuiBackendFlags() const;
-
-    void SetImGuiConfigFlags(i32 p_Flags);
-    void SetImGuiBackendFlags(i32 p_Flags);
-
-    virtual void ReloadImGui() = 0;
-#endif
-  protected:
-    using Flags = u8;
-    enum FlagBit : Flags
+    i32 GetImGuiConfigFlags() const
     {
-        Flag_Defer = 1 << 0,
-        Flag_Quit = 1 << 1,
-        Flag_WindowAlive = 1 << 2,
-        Flag_MustReloadImGui = 1 << 3,
-#ifdef ONYX_ENABLE_IMGUI
-        Flag_ImGuiRunning = 1 << 4
+        return m_ImGuiConfigFlags;
+    }
+    i32 GetImGuiBackendFlags() const
+    {
+        return m_ImGuiBackendFlags;
+    }
+
+    void SetImGuiConfigFlags(i32 p_Flags)
+    {
+        m_ImGuiConfigFlags = p_Flags;
+    }
+    void SetImGuiBackendFlags(i32 p_Flags)
+    {
+        m_ImGuiBackendFlags = p_Flags;
+    }
+
+    /**
+     * @bried Reload ImGui, useful to modify the active flags.
+     *
+     * @return Whether the operation could execute immediately.
+     */
+    bool ReloadImGui(Window *p_Window);
+
 #endif
-    };
+  private:
+    template <std::derived_from<UserLayer> T, typename... LayerArgs>
+    T *setUserLayer(WindowData &p_Data, LayerArgs &&...p_Args)
+    {
+        T *layer = new T(this, p_Data.Window, std::forward<LayerArgs>(p_Args)...);
+        if (checkFlags(Flag_Defer))
+        {
+            delete p_Data.StagedLayer;
+            p_Data.StagedLayer = layer;
+            p_Data.SetFlags(Flag_MustDestroyLayer | Flag_MustReplaceLayer);
+        }
+        else
+        {
+            delete p_Data.Layer;
+            p_Data.Layer = layer;
+        }
+        return layer;
+    }
+    bool checkFlags(const Flags p_Flags) const
+    {
+        return m_Flags & p_Flags;
+    }
+    void setFlags(const Flags p_Flags)
+    {
+        m_Flags |= p_Flags;
+    }
+    void clearFlags(const Flags p_Flags)
+    {
+        m_Flags &= ~p_Flags;
+    }
 
-    bool checkFlags(Flags p_Flags) const;
-    void setFlags(Flags p_Flags);
-    void clearFlags(Flags p_Flags);
+    WindowData *getWindowData(const Window *p_Window);
+    const WindowData *getWindowData(const Window *p_Window) const;
 
-#ifdef ONYX_ENABLE_IMGUI
-    void initializeImGui(Window &p_Window);
-    void shutdownImGui();
-    void reloadImGui(Window &p_Window);
-    void checkImGui();
-
-    static void beginRenderImGui();
-    void endRenderImGui(VkCommandBuffer p_CommandBuffer);
+    void processWindow(WindowData &p_Data);
+    void destroyWindow(WindowData &p_Data);
+    void closeAllWindows();
+#ifdef ONYX_MULTI_WINDOW
+    void openWindow(const BabyWindow &p_Baby);
 #endif
 
-    void updateUserLayerPointer();
-
-    void onUpdate();
-    void onFrameBegin(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
-    void onFrameEnd(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
-    void onRenderBegin(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
-    void onRenderEnd(u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
-    void onEvent(const Event &p_Event);
-
-    void onUpdate(u32 p_WindowIndex);
-    void onFrameBegin(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
-    void onFrameEnd(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
-    void onRenderBegin(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
-    void onRenderEnd(u32 p_WindowIndex, u32 p_FrameIndex, VkCommandBuffer p_CommandBuffer);
-    void onEvent(u32 p_WindowIndex, const Event &p_Event);
 #ifdef ONYX_ENABLE_IMGUI
-    void onImGuiRender();
+    void initializeImGui(WindowData &p_Data);
+    void shutdownImGui(WindowData &p_Data);
 #endif
 
+    WindowData m_MainWindow;
     TKit::Timespan m_DeltaTime;
     Flags m_Flags = 0;
 
-  private:
-#ifdef ONYX_ENABLE_IMGUI
-    void createImGuiPool();
+#ifdef ONYX_MULTI_WINDOW
+    TKit::StaticArray<WindowData, ONYX_MAX_WINDOWS - 1> m_Windows;
+    TKit::StaticArray4<BabyWindow> m_WindowsToAdd;
 #endif
-
-    UserLayer *m_UserLayer = nullptr;
-    UserLayer *m_StagedUserLayer = nullptr;
+    TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_MAX_WINDOWS);
 
 #ifdef ONYX_ENABLE_IMGUI
+    TKit::Scope<Theme> m_Theme;
     i32 m_ImGuiConfigFlags = 0;
     i32 m_ImGuiBackendFlags = 0;
 #endif
-    TKit::Scope<Theme> m_Theme;
-};
-
-/**
- * @brief A standard, single window application.
- *
- * It is the simplest form of an application available, and works as one would expect.
- *
- */
-class ONYX_API SingleWindowApp final : public IApplication
-{
-  public:
-    SingleWindowApp(const Window::Specs &p_WindowSpecs = {});
-    ~SingleWindowApp();
-
-    /**
-     * @brief Process and present the next frame for the application.
-     *
-     * @param p_Clock A clock to keep track of frame time.
-     * @return true if the application should continue running.
-     */
-    bool NextFrame(TKit::Clock &p_Clock) override;
-
-    const Window *GetMainWindow() const override
-    {
-        return m_Window.Get();
-    }
-    Window *GetMainWindow() override
-    {
-        return m_Window.Get();
-    }
-
-#ifdef ONYX_ENABLE_IMGUI
-    void ReloadImGui() override;
-#endif
-
-  private:
-    void terminate();
-    TKit::Storage<Window> m_Window;
-};
-
-/**
- * @brief A multi-window application.
- *
- * This class provides an implementation for a multi-window application. Because of the ability of having multiple
- * windows, the user must always explicitly open windows from the application's API, including the main (first) window
- * before entering the frame loop. Otherwise, the application will end immediately.
- *
- * To better manage window lifetimes, calls to `OpenWindow()` or `CloseWindow()` may be deferred if called from within
- * an ongoing frame. Never update your state based on the calls of these functions, but rather react to the
- * corresponding events (`WindowOpened`, `WindowClosed`) to ensure synchronization between the API and the user.
- *
- */
-class ONYX_API MultiWindowApp final : public IApplication
-{
-    TKIT_NON_COPYABLE(MultiWindowApp)
-  public:
-    MultiWindowApp() = default;
-    ~MultiWindowApp();
-
-    /**
-     * @brief Open a new window with the given specs.
-     *
-     * @note The window addition may not take effect immediately if called in the middle of a frame. Only react to
-     * the window addition through the corresponding event (WindowOpened) unless you are sure that the window is being
-     * added outside the frame loop.
-     *
-     * @param p_Specs
-     */
-    void OpenWindow(const Window::Specs &p_Specs = {});
-
-    /**
-     * @brief Close the window at the given index.
-     *
-     * @note The window removal may not take effect immediately if called in the middle of a frame. Only react to
-     * the window removal through the corresponding event (WindowClosed) unless you are sure that the window is being
-     * removed outside the frame loop.
-     *
-     * @param p_Index The index of the window to close.
-     */
-    void CloseWindow(u32 p_Index);
-
-    /**
-     * @brief Close the given window.
-     *
-     * @note The window removal may not take effect immediately if called in the middle of a frame. Only react to
-     * the window removal through the corresponding event (WindowClosed) unless you are sure that the window is being
-     * removed outside the frame loop.
-     *
-     * @param p_Window The window to close.
-     */
-    void CloseWindow(const Window *p_Window);
-
-    /**
-     * @brief Close all windows.
-     *
-     * @note The window removal may not take effect immediately if called in the middle of a frame. Only react to
-     * the window removal through the corresponding event (WindowClosed) unless you are sure that the window is being
-     * removed outside the frame loop.
-     *
-     */
-    void CloseAllWindows();
-
-    const Window *GetWindow(const u32 p_Index) const
-    {
-        return m_Windows[p_Index];
-    }
-    Window *GetWindow(const u32 p_Index)
-    {
-        return m_Windows[p_Index];
-    }
-
-    /**
-     * @brief Get a pointer to the main window (at `index = 0`).
-     *
-     * @return Pointer to the main window.
-     */
-    const Window *GetMainWindow() const override
-    {
-        return GetWindow(0);
-    }
-
-    /**
-     * @brief Get a pointer to the main window (at `index = 0`).
-     *
-     * @return Pointer to the main window.
-     */
-    Window *GetMainWindow() override
-    {
-        return GetWindow(0);
-    }
-
-    u32 GetWindowCount() const
-    {
-        return m_Windows.GetSize();
-    }
-
-    /**
-     * @brief Proceed to the next frame of the application.
-     *
-     * @param p_Clock The clock used to measure frame time.
-     * @return true if the application should continue running, false otherwise.
-     */
-    bool NextFrame(TKit::Clock &p_Clock) override;
-
-#ifdef ONYX_ENABLE_IMGUI
-    void ReloadImGui() override;
-#endif
-
-  private:
-    void processFrame(u32 p_WindowIndex, const RenderCallbacks &p_Callbacks);
-    void processWindows();
-
-    WindowArray m_Windows;
-    TKit::StaticArray4<Window::Specs> m_WindowsToAdd;
-    TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_MAX_WINDOWS);
 };
 
 } // namespace Onyx

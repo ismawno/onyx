@@ -10,14 +10,12 @@ namespace Onyx::Demo
 template <Dimension D> class Layer : public UserLayer
 {
   public:
-    Layer(SingleWindowApp *p_Application, TKit::Span<const Lattice<D>> p_Lattices);
+    Layer(Application *p_Application, Window *p_Window, TKit::Span<const Lattice<D>> p_Lattices);
 
     void OnUpdate() override;
     void OnEvent(const Event &p_Event) override;
 
   private:
-    SingleWindowApp *m_Application;
-    Window *m_Window;
     RenderContext<D> *m_Context;
     Camera<D> *m_Camera;
     TKit::StaticArray8<Lattice<D>> m_Lattices{};

@@ -11,11 +11,5 @@ enum class ApplicationType : u8
     MultiWindow
 };
 
-struct ArgResult
-{
-    Dimension Dim;
-    ApplicationType AppType;
-};
-
-ArgResult ParseArguments(int argc, char **argv);
+Dimension ParseArguments(int argc, char **argv);
 } // namespace Onyx::Demo

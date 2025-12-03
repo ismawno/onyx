@@ -3,7 +3,7 @@
 
 namespace Onyx::Demo
 {
-ArgResult ParseArguments(int argc, char **argv)
+Dimension ParseArguments(int argc, char **argv)
 {
     argparse::ArgumentParser parser{"onyx", ONYX_VERSION, argparse::default_arguments::all};
     parser.add_description(
@@ -19,16 +19,8 @@ ArgResult ParseArguments(int argc, char **argv)
     scene.add_argument("--2-scene").flag().help("Setup a default 2D scene.");
     scene.add_argument("--3-scene").flag().help("Setup a default 3D scene.");
 
-    auto &appType = parser.add_mutually_exclusive_group();
-    appType.add_argument("-s", "--single", "--single-window").flag().help("Start a single window application.");
-    appType.add_argument("-m", "--multi", "--multi-window").flag().help("Start a multi window application.");
-
     parser.parse_args(argc, argv);
-    ArgResult result;
 
-    result.Dim = parser.get<bool>("--3-scene") ? D3 : D2;
-    result.AppType = parser.get<bool>("-m") ? ApplicationType::MultiWindow : ApplicationType::SingleWindow;
-
-    return result;
+    return parser.get<bool>("--3-scene") ? D3 : D2;
 }
 } // namespace Onyx::Demo

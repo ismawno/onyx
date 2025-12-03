@@ -261,8 +261,6 @@ struct ONYX_API Event
         MouseLeft,
         Scrolled,
         WindowResized,
-        WindowClosed,
-        WindowOpened,
         WindowFocused,
         WindowUnfocused
     };

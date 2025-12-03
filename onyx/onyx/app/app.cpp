@@ -11,29 +11,26 @@
 
 namespace Onyx
 {
-IApplication::IApplication()
+Application::Application(const Window::Specs &p_Specs)
 {
+    m_MainWindow.Window = m_WindowAllocator.Create<Window>(p_Specs);
 #ifdef ONYX_ENABLE_IMGUI
     m_ImGuiBackendFlags = ImGuiBackendFlags_RendererHasTextures;
+    initializeImGui(m_MainWindow);
 #endif
 }
-IApplication::~IApplication()
+
+Application::~Application()
 {
-    delete m_UserLayer;
+    closeAllWindows();
 }
 
-void IApplication::Quit()
+void Application::Quit()
 {
     setFlags(Flag_Quit);
 }
 
-void IApplication::ApplyTheme()
-{
-    TKIT_ASSERT(m_Theme, "[ONYX] No theme has been set. Set one with SetTheme");
-    m_Theme->Apply();
-}
-
-void IApplication::Run()
+void Application::Run()
 {
     TKit::Clock clock;
     while (NextFrame(clock))
@@ -41,17 +38,23 @@ void IApplication::Run()
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-void IApplication::beginRenderImGui()
+void Application::ApplyTheme()
 {
-    TKIT_PROFILE_NSCOPE("Onyx::IApplication::BeginRenderImGui");
+    TKIT_ASSERT(m_Theme, "[ONYX] No theme has been set. Set one with SetTheme");
+    m_Theme->Apply();
+}
+
+static void beginRenderImGui()
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Application::BeginRenderImGui");
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 }
 
-void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer)
+static void endRenderImGui(VkCommandBuffer p_CommandBuffer)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::IApplication::EndRenderImGui");
+    TKIT_PROFILE_NSCOPE("Onyx::Application::EndRenderImGui");
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
 
@@ -63,84 +66,6 @@ void IApplication::endRenderImGui(VkCommandBuffer p_CommandBuffer)
         ImGui::RenderPlatformWindowsDefault();
     }
 }
-#endif
-
-void IApplication::updateUserLayerPointer()
-{
-    if (m_StagedUserLayer)
-    {
-        delete m_UserLayer;
-        m_UserLayer = m_StagedUserLayer;
-        m_StagedUserLayer = nullptr;
-    }
-}
-
-void IApplication::onUpdate()
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnUpdate();
-}
-void IApplication::onFrameBegin(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnFrameBegin(p_FrameIndex, p_CommandBuffer);
-}
-void IApplication::onFrameEnd(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnFrameEnd(p_FrameIndex, p_CommandBuffer);
-}
-void IApplication::onRenderBegin(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnRenderBegin(p_FrameIndex, p_CommandBuffer);
-}
-void IApplication::onRenderEnd(const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnRenderEnd(p_FrameIndex, p_CommandBuffer);
-}
-void IApplication::onEvent(const Event &p_Event)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnEvent(p_Event);
-}
-void IApplication::onUpdate(const u32 p_WindowIndex)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnUpdate(p_WindowIndex);
-}
-void IApplication::onFrameBegin(const u32 p_WindowIndex, const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnFrameBegin(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
-}
-void IApplication::onFrameEnd(const u32 p_WindowIndex, const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnFrameEnd(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
-}
-void IApplication::onRenderBegin(const u32 p_WindowIndex, const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnRenderBegin(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
-}
-void IApplication::onRenderEnd(const u32 p_WindowIndex, const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnRenderEnd(p_WindowIndex, p_FrameIndex, p_CommandBuffer);
-}
-void IApplication::onEvent(const u32 p_WindowIndex, const Event &p_Event)
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnEvent(p_WindowIndex, p_Event);
-}
-#ifdef ONYX_ENABLE_IMGUI
-void IApplication::onImGuiRender()
-{
-    if (m_UserLayer) [[likely]]
-        m_UserLayer->OnImGuiRender();
-}
 
 static i32 createVkSurface(ImGuiViewport *, ImU64 p_Instance, const void *p_Callbacks, ImU64 *p_Surface)
 {
@@ -149,51 +74,49 @@ static i32 createVkSurface(ImGuiViewport *, ImU64 p_Instance, const void *p_Call
                                    reinterpret_cast<VkSurfaceKHR *>(&p_Surface));
 }
 
-i32 IApplication::GetImGuiConfigFlags() const
+Application::WindowData *Application::getWindowData(const Window *p_Window)
 {
-    return m_ImGuiConfigFlags;
+    if (m_MainWindow.Window == p_Window)
+        return &m_MainWindow;
+#    ifdef ONYX_MULTI_WINDOW
+    for (WindowData &data : m_Windows)
+        if (data.Window == p_Window)
+            return &data;
+#    endif
+    TKIT_FATAL("[ONYX] No window data found");
+    return nullptr;
 }
-i32 IApplication::GetImGuiBackendFlags() const
+const Application::WindowData *Application::getWindowData(const Window *p_Window) const
 {
-    return m_ImGuiBackendFlags;
-}
-void IApplication::SetImGuiConfigFlags(const i32 p_Flags)
-{
-    m_ImGuiConfigFlags = p_Flags;
-}
-void IApplication::SetImGuiBackendFlags(const i32 p_Flags)
-{
-    m_ImGuiBackendFlags = p_Flags;
-}
-
-bool IApplication::checkFlags(const Flags p_Flags) const
-{
-    return m_Flags & p_Flags;
-}
-void IApplication::setFlags(const Flags p_Flags)
-{
-    m_Flags |= p_Flags;
-}
-void IApplication::clearFlags(const Flags p_Flags)
-{
-    m_Flags &= ~p_Flags;
+    if (m_MainWindow.Window == p_Window)
+        return &m_MainWindow;
+#    ifdef ONYX_MULTI_WINDOW
+    for (const WindowData &data : m_Windows)
+        if (data.Window == p_Window)
+            return &data;
+#    endif
+    TKIT_FATAL("[ONYX] No window data found");
+    return nullptr;
 }
 
-void IApplication::initializeImGui(Window &p_Window)
+void Application::initializeImGui(WindowData &p_Data)
 {
-    TKIT_ASSERT(!checkFlags(Flag_ImGuiRunning), "[ONYX] Trying to initialize ImGui when it is already running. If you "
-                                                "meant to reload ImGui, use ReloadImGui()");
+    TKIT_ASSERT(!p_Data.CheckFlags(Flag_ImGuiRunning),
+                "[ONYX] Trying to initialize ImGui when it is already running. If you "
+                "meant to reload ImGui, use ReloadImGui()");
+
+    IMGUI_CHECKVERSION();
     if (!m_Theme)
         m_Theme = TKit::Scope<BabyTheme>::Create();
 
-    ImGui::CreateContext();
+    p_Data.ImGuiContext = ImGui::CreateContext();
+    ImGui::SetCurrentContext(p_Data.ImGuiContext);
 #    ifdef ONYX_ENABLE_IMPLOT
     ImPlot::CreateContext();
+    ImPlot::SetCurrentContext(p_Data.ImPlotContext);
 #    endif
 
-    IMGUI_CHECKVERSION();
     ImGuiIO &io = ImGui::GetIO();
-
     TKIT_LOG_WARNING_IF(!(m_ImGuiBackendFlags & ImGuiBackendFlags_RendererHasTextures),
                         "[ONYX] ImGui may fail to initialize if ImGuiBackendFlags_RendererHasTextures is not set. If "
                         "you experience issues, try setting it with SetImGuiBackendFlags()");
@@ -206,7 +129,9 @@ void IApplication::initializeImGui(Window &p_Window)
         pio.Platform_CreateVkSurface = createVkSurface;
 
     m_Theme->Apply();
-    TKIT_ASSERT_RETURNS(ImGui_ImplGlfw_InitForVulkan(p_Window.GetWindowHandle(), true), true,
+
+    Window *window = p_Data.Window;
+    TKIT_ASSERT_RETURNS(ImGui_ImplGlfw_InitForVulkan(window->GetWindowHandle(), true), true,
                         "[ONYX] Failed to initialize ImGui GLFW");
 
     const VKit::Instance &instance = Core::GetInstance();
@@ -221,11 +146,11 @@ void IApplication::initializeImGui(Window &p_Window)
         "validation layers. If the application runs well, you may safely ignore this warning");
 
     ImGui_ImplVulkan_PipelineInfo pipelineInfo{};
-    pipelineInfo.PipelineRenderingCreateInfo = p_Window.GetFrameScheduler()->CreateSceneRenderInfo();
+    pipelineInfo.PipelineRenderingCreateInfo = window->GetFrameScheduler()->CreateSceneRenderInfo();
     pipelineInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
     const VkSurfaceCapabilitiesKHR &sc =
-        p_Window.GetFrameScheduler()->GetSwapChain().GetInfo().SupportDetails.Capabilities;
+        window->GetFrameScheduler()->GetSwapChain().GetInfo().SupportDetails.Capabilities;
 
     const u32 imageCount = sc.minImageCount != sc.maxImageCount ? sc.minImageCount + 1 : sc.minImageCount;
 
@@ -248,66 +173,48 @@ void IApplication::initializeImGui(Window &p_Window)
                                                                                                     p_Name);
                                                        }),
                         true, "[ONYX] Failed to load ImGui Vulkan functions");
+
     TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true, "[ONYX] Failed to initialize ImGui Vulkan");
-    setFlags(Flag_ImGuiRunning);
+
+    p_Data.SetFlags(Flag_ImGuiRunning);
 }
 
-void IApplication::shutdownImGui()
+void Application::shutdownImGui(WindowData &p_Data)
 {
-    TKIT_ASSERT(checkFlags(Flag_ImGuiRunning),
+    TKIT_ASSERT(p_Data.CheckFlags(Flag_ImGuiRunning),
                 "[ONYX] Trying to shut down ImGui when it is not initialized to begin with");
-    clearFlags(Flag_ImGuiRunning);
+
+    p_Data.ClearFlags(Flag_ImGuiRunning);
+
+    ImGui::SetCurrentContext(p_Data.ImGuiContext);
+#    ifdef ONYX_ENABLE_IMPLOT
+    ImPlot::SetCurrentContext(p_Data.ImPlotContext);
+#    endif
+
     Core::DeviceWaitIdle();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyPlatformWindows();
-    ImGui::DestroyContext();
+    ImGui::DestroyContext(p_Data.ImGuiContext);
+    p_Data.ImGuiContext = nullptr;
 #    ifdef ONYX_ENABLE_IMPLOT
-    ImPlot::DestroyContext();
+    ImPlot::DestroyContext(p_Data.ImPlotContext);
+    p_Data.ImPlotContext = nullptr;
 #    endif
 }
-void IApplication::reloadImGui(Window &p_Window)
+bool Application::ReloadImGui(Window *p_Window)
 {
+    WindowData *data = getWindowData(p_Window);
     if (checkFlags(Flag_Defer))
     {
-        setFlags(Flag_MustReloadImGui);
-        return;
+        data->SetFlags(Flag_MustReloadImGui);
+        return false;
     }
-    shutdownImGui();
-    initializeImGui(p_Window);
-}
-void IApplication::checkImGui()
-{
-    TKIT_ASSERT(checkFlags(Flag_ImGuiRunning), "[ONYX] ImGui is enabled with ONYX_ENABLE_IMGUI but no instance of "
-                                               "ImGui is running. This should not be possible");
-    if (checkFlags(Flag_MustReloadImGui))
-    {
-        ReloadImGui();
-        clearFlags(Flag_MustReloadImGui);
-    }
+    shutdownImGui(*data);
+    initializeImGui(*data);
+    return true;
 }
 #endif
-
-SingleWindowApp::SingleWindowApp(const Window::Specs &p_WindowSpecs)
-{
-    m_Window.Construct(p_WindowSpecs);
-    setFlags(Flag_WindowAlive);
-#ifdef ONYX_ENABLE_IMGUI
-    initializeImGui(*m_Window);
-#endif
-}
-
-SingleWindowApp::~SingleWindowApp()
-{
-    if (checkFlags(Flag_WindowAlive))
-    {
-#ifdef ONYX_ENABLE_IMGUI
-        shutdownImGui();
-#endif
-        m_Window.Destruct();
-        clearFlags(Flag_WindowAlive);
-    }
-}
 
 static void endFrame()
 {
@@ -319,268 +226,199 @@ static void endFrame()
     TKIT_PROFILE_MARK_FRAME();
 }
 
-void SingleWindowApp::terminate()
+void Application::processWindow(WindowData &p_Data)
 {
-    if (!checkFlags(Flag_WindowAlive))
-        return;
-
-#ifdef ONYX_ENABLE_IMGUI
-    shutdownImGui();
-#endif
-    m_Window.Destruct();
-    clearFlags(Flag_WindowAlive);
-}
-
-bool SingleWindowApp::NextFrame(TKit::Clock &p_Clock)
-{
-    TKIT_PROFILE_NSCOPE("Onyx::SingleWindowApp::NextFrame");
-    if (checkFlags(Flag_Quit)) [[unlikely]]
+    if (p_Data.CheckFlags(Flag_MustDestroyLayer))
     {
-        terminate();
-        clearFlags(Flag_Quit);
-        endFrame();
-        return false;
+        delete p_Data.Layer;
+        p_Data.Layer = nullptr;
+        p_Data.ClearFlags(Flag_MustDestroyLayer);
     }
+    if (p_Data.CheckFlags(Flag_MustReplaceLayer))
+    {
+        p_Data.Layer = p_Data.StagedLayer;
+        p_Data.StagedLayer = nullptr;
+        p_Data.ClearFlags(Flag_MustReplaceLayer);
+    }
+
+    if (p_Data.Layer)
+        for (const Event &event : p_Data.Window->GetNewEvents())
+            p_Data.Layer->OnEvent(event);
+
+    p_Data.Window->FlushEvents();
+
 #ifdef ONYX_ENABLE_IMGUI
-    checkImGui();
-#endif
+    TKIT_ASSERT(p_Data.CheckFlags(Flag_ImGuiRunning),
+                "[ONYX] ImGui is enabled with ONYX_ENABLE_IMGUI but no instance of "
+                "ImGui is running. This should not be possible");
 
-    setFlags(Flag_Defer);
-    Input::PollEvents();
-    for (const Event &event : m_Window->GetNewEvents())
-        onEvent(event);
+    ImGui::SetCurrentContext(p_Data.ImGuiContext);
+#    ifdef ONYX_IMPLOT
+    ImPlot::SetCurrentContext(p_Data.ImPlotContext);
+#    endif
 
-    m_Window->FlushEvents();
-    // Should maybe exit if window is closed at this point (triggered by event)
-
-#ifdef ONYX_ENABLE_IMGUI
+    if (p_Data.CheckFlags(Flag_MustReloadImGui))
+    {
+        shutdownImGui(p_Data);
+        initializeImGui(p_Data);
+        p_Data.ClearFlags(Flag_MustReloadImGui);
+    }
     beginRenderImGui();
 #endif
-    onUpdate();
 
-    RenderCallbacks callbacks{};
-    callbacks.OnFrameBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        onFrameBegin(p_FrameIndex, p_CommandBuffer);
-    };
-    callbacks.OnFrameEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        onFrameEnd(p_FrameIndex, p_CommandBuffer);
-    };
-    callbacks.OnRenderBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        onRenderBegin(p_FrameIndex, p_CommandBuffer);
-    };
-    callbacks.OnRenderEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        onRenderEnd(p_FrameIndex, p_CommandBuffer);
+    RenderCallbacks callbacks;
+    if (p_Data.Layer)
+    {
+        p_Data.Layer->OnUpdate();
+        callbacks.OnFrameBegin = [&p_Data](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+            p_Data.Layer->OnFrameBegin(p_FrameIndex, p_CommandBuffer);
+        };
+        callbacks.OnFrameEnd = [&p_Data](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+            p_Data.Layer->OnFrameEnd(p_FrameIndex, p_CommandBuffer);
+        };
+        callbacks.OnRenderBegin = [&p_Data](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+            p_Data.Layer->OnRenderBegin(p_FrameIndex, p_CommandBuffer);
+        };
+        callbacks.OnRenderEnd = [&p_Data](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
+            p_Data.Layer->OnRenderEnd(p_FrameIndex, p_CommandBuffer);
 #ifdef ONYX_ENABLE_IMGUI
-        endRenderImGui(p_CommandBuffer);
+            endRenderImGui(p_CommandBuffer);
 #endif
-    };
+        };
+    }
 #ifdef ONYX_ENABLE_IMGUI
+    else
+        callbacks.OnRenderEnd = [](const u32, const VkCommandBuffer p_CommandBuffer) {
+            endRenderImGui(p_CommandBuffer);
+        };
     callbacks.OnBadFrame = [](const u32) { ImGui::Render(); };
 #endif
+    p_Data.Window->Render(callbacks);
+}
 
-    m_Window->Render(callbacks);
-    clearFlags(Flag_Defer);
-    updateUserLayerPointer();
-
-    if (m_Window->ShouldClose()) [[unlikely]]
+bool Application::NextFrame(TKit::Clock &p_Clock)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
+    if (checkFlags(Flag_Quit)) [[unlikely]]
     {
-        terminate();
+        closeAllWindows();
+        clearFlags(Flag_Quit);
         endFrame();
+        m_DeltaTime = p_Clock.Restart();
         return false;
     }
-    m_DeltaTime = p_Clock.Restart();
+
+    setFlags(Flag_Defer);
+    Input::PollEvents();
+
+    processWindow(m_MainWindow);
+#ifdef ONYX_MULTI_WINDOW
+    for (WindowData &data : m_Windows)
+        processWindow(data);
+
+    for (const BabyWindow &baby : m_WindowsToAdd)
+        openWindow(baby);
+    m_WindowsToAdd.Clear();
+
+    for (u32 i = m_Windows.GetSize() - 1; i < m_Windows.GetSize(); --i)
+        if (m_Windows[i].Window->ShouldClose())
+        {
+            destroyWindow(m_Windows[i]);
+            m_Windows.RemoveUnordered(m_Windows.begin() + i);
+        }
+#endif
+    if (m_MainWindow.Window->ShouldClose())
+    {
+        destroyWindow(m_MainWindow);
+#ifdef ONYX_MULTI_WINDOW
+        if (!m_Windows.IsEmpty())
+        {
+            m_MainWindow = m_Windows[0];
+            m_Windows.RemoveUnordered(m_Windows.begin());
+        }
+#endif
+    }
+
+    clearFlags(Flag_Defer);
     endFrame();
+    m_DeltaTime = p_Clock.Restart();
+    return m_MainWindow.Window;
+}
+
+void Application::destroyWindow(WindowData &p_Data)
+{
+    delete p_Data.StagedLayer;
+    delete p_Data.Layer;
+
+    p_Data.StagedLayer = nullptr;
+    p_Data.Layer = nullptr;
+#ifdef ONYX_ENABLE_IMGUI
+    shutdownImGui(p_Data);
+#endif
+    m_WindowAllocator.Destroy(p_Data.Window);
+    p_Data.Window = nullptr;
+}
+
+void Application::closeAllWindows()
+{
+    if (m_MainWindow.Window)
+        destroyWindow(m_MainWindow);
+#ifdef ONYX_MULTI_WINDOW
+    for (WindowData &data : m_Windows)
+        destroyWindow(data);
+    m_Windows.Clear();
+#endif
+}
+
+#ifdef ONYX_MULTI_WINDOW
+bool Application::OpenWindow(const Window::Specs &p_Specs, const std::function<void(Window *)> &p_Callback)
+{
+    const BabyWindow baby{.Specs = p_Specs, .CreationCallback = p_Callback};
+    if (checkFlags(Flag_Defer))
+    {
+        m_WindowsToAdd.Append(baby);
+        return false;
+    }
+
+    openWindow(baby);
     return true;
 }
-
-#ifdef ONYX_ENABLE_IMGUI
-void SingleWindowApp::ReloadImGui()
+bool Application::OpenWindow(const std::function<void(Window *)> &p_Callback)
 {
-    reloadImGui(*m_Window);
+    return OpenWindow(Window::Specs{}, p_Callback);
 }
-#endif
-
-MultiWindowApp::~MultiWindowApp()
+bool Application::CloseWindow(Window *p_Window)
 {
-    CloseAllWindows();
-}
-
-void MultiWindowApp::processFrame(const u32 p_WindowIndex, const RenderCallbacks &p_Callbacks)
-{
-    Window *window = m_Windows[p_WindowIndex];
-    for (const Event &event : window->GetNewEvents())
-        onEvent(p_WindowIndex, event);
-
-    window->FlushEvents();
-    // Should maybe exit if window is closed at this point? (triggered by event)
-
-#ifdef ONYX_ENABLE_IMGUI
-    if (p_WindowIndex == 0)
-        beginRenderImGui();
-#endif
-
-    onUpdate(p_WindowIndex);
-    window->Render(p_Callbacks);
-}
-
-void MultiWindowApp::CloseAllWindows()
-{
-    for (u32 i = m_Windows.GetSize() - 1; i < m_Windows.GetSize(); --i)
-        CloseWindow(i);
-}
-
-void MultiWindowApp::CloseWindow(const Window *p_Window)
-{
-    for (u32 i = 0; i < m_Windows.GetSize(); ++i)
-        if (m_Windows[i] == p_Window)
-        {
-            CloseWindow(i);
-            return;
-        }
-    TKIT_FATAL("Window was not found");
-}
-
-bool MultiWindowApp::NextFrame(TKit::Clock &p_Clock)
-{
-    TKIT_PROFILE_NSCOPE("Onyx::MultiWindowApp::NextFrame");
-
-    if (m_Windows.IsEmpty() || checkFlags(Flag_Quit)) [[unlikely]]
+    if (checkFlags(Flag_Defer))
     {
-        clearFlags(Flag_Quit);
-        CloseAllWindows();
-        endFrame();
+        p_Window->FlagShouldClose();
         return false;
     }
-#ifdef ONYX_ENABLE_IMGUI
-    checkImGui();
-#endif
-
-    Input::PollEvents();
-    processWindows();
-
-    m_DeltaTime = p_Clock.Restart();
-    endFrame();
-    return !m_Windows.IsEmpty();
+    if (m_MainWindow.Window == p_Window)
+    {
+        destroyWindow(m_MainWindow);
+        return true;
+    }
+    for (u32 i = 0; i < m_Windows.GetSize(); ++i)
+        if (m_Windows[i].Window == p_Window)
+        {
+            destroyWindow(m_Windows[i]);
+            m_Windows.RemoveUnordered(m_Windows.begin() + i);
+            return true;
+        }
+    TKIT_FATAL("[ONYX] Failed to close window: Window not found");
+    return false;
 }
-
-void MultiWindowApp::CloseWindow(const u32 p_Index)
+void Application::openWindow(const BabyWindow &p_Baby)
 {
-    TKIT_ASSERT(p_Index < m_Windows.GetSize(), "[ONYX] Index out of bounds");
+    WindowData data;
+    data.Window = m_WindowAllocator.Create<Window>(p_Baby.Specs);
+    initializeImGui(data);
+    m_Windows.Append(data);
 
-    Window *window = m_Windows[p_Index];
-    if (checkFlags(Flag_Defer))
-    {
-        window->FlagShouldClose();
-        return;
-    }
-    Event event;
-    event.Type = Event::WindowClosed;
-    event.Window = window;
-    onEvent(p_Index, event);
-
-    // Check if the main window got removed. If so, imgui needs to be reinitialized with the new main window
-    if (p_Index == 0)
-    {
-#ifdef ONYX_ENABLE_IMGUI
-        shutdownImGui();
-#endif
-        m_WindowAllocator.Destroy(window);
-        m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
-#ifdef ONYX_ENABLE_IMGUI
-        if (!m_Windows.IsEmpty())
-            initializeImGui(*m_Windows[0]);
-#endif
-    }
-    else
-    {
-        m_WindowAllocator.Destroy(window);
-        m_Windows.RemoveOrdered(m_Windows.begin() + p_Index);
-    }
-}
-
-void MultiWindowApp::OpenWindow(const Window::Specs &p_Specs)
-{
-    // This application, although supports multiple GLFW windows, will only operate under a single ImGui context due to
-    // the GLFW ImGui backend limitations
-    if (checkFlags(Flag_Defer))
-    {
-        m_WindowsToAdd.Append(p_Specs);
-        return;
-    }
-
-    Window *window = m_WindowAllocator.Create<Window>(p_Specs);
-    m_Windows.Append(window);
-    if (m_Windows.GetSize() == 1)
-        initializeImGui(*window);
-
-    Event event;
-    event.Type = Event::WindowOpened;
-    event.Window = window;
-    onEvent(m_Windows.GetSize() - 1, event);
-}
-
-#ifdef ONYX_ENABLE_IMGUI
-void MultiWindowApp::ReloadImGui()
-{
-    TKIT_ASSERT(!m_Windows.IsEmpty(), "[ONYX] Cannot reload ImGui with no active windows. Open one first");
-    reloadImGui(*GetMainWindow());
+    if (p_Baby.CreationCallback)
+        p_Baby.CreationCallback(data.Window);
 }
 #endif
-
-void MultiWindowApp::processWindows()
-{
-    setFlags(Flag_Defer);
-    RenderCallbacks mainCbs{};
-    mainCbs.OnFrameBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        onFrameBegin(0, p_FrameIndex, p_CommandBuffer);
-    };
-    mainCbs.OnFrameEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        onFrameEnd(0, p_FrameIndex, p_CommandBuffer);
-    };
-    mainCbs.OnRenderBegin = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-#ifdef ONYX_ENABLE_IMGUI
-        onImGuiRender();
-#endif
-        onRenderBegin(0, p_FrameIndex, p_CommandBuffer);
-    };
-    mainCbs.OnRenderEnd = [this](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-        onRenderEnd(0, p_FrameIndex, p_CommandBuffer);
-#ifdef ONYX_ENABLE_IMGUI
-        endRenderImGui(p_CommandBuffer);
-#endif
-    };
-#ifdef ONYX_ENABLE_IMGUI
-    mainCbs.OnBadFrame = [](const u32) { ImGui::Render(); };
-#endif
-
-    processFrame(0, mainCbs);
-    for (u32 i = 1; i < m_Windows.GetSize(); ++i)
-    {
-        RenderCallbacks secCbs{};
-        secCbs.OnFrameBegin = [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-            onFrameBegin(i, p_FrameIndex, p_CommandBuffer);
-        };
-        secCbs.OnFrameEnd = [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-            onFrameEnd(i, p_FrameIndex, p_CommandBuffer);
-        };
-        secCbs.OnRenderBegin = [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-            onRenderBegin(i, p_FrameIndex, p_CommandBuffer);
-        };
-        secCbs.OnRenderEnd = [this, i](const u32 p_FrameIndex, const VkCommandBuffer p_CommandBuffer) {
-            onRenderEnd(i, p_FrameIndex, p_CommandBuffer);
-        };
-        processFrame(i, secCbs);
-    }
-
-    clearFlags(Flag_Defer);
-    updateUserLayerPointer();
-
-    for (u32 i = m_Windows.GetSize() - 1; i < m_Windows.GetSize(); --i)
-        if (m_Windows[i]->ShouldClose())
-            CloseWindow(i);
-    for (const auto &specs : m_WindowsToAdd)
-        OpenWindow(specs);
-    m_WindowsToAdd.Clear();
-}
 
 } // namespace Onyx

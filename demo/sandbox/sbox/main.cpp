@@ -6,43 +6,23 @@
 
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
-void RunApp(const Onyx::Demo::ArgResult p_Args)
+void RunApp(const Onyx::Dimension p_Dim)
 {
+    Onyx::Window::Specs spc;
+    spc.Name = "Onyx sandbox";
 
-    Onyx::Demo::QuitResult quitResult;
-    quitResult.Type = p_Args.AppType;
-    for (;;)
-    {
-        if (quitResult.Type == Onyx::Demo::ApplicationType::SingleWindow)
-        {
-            Onyx::Window::Specs spc;
-            spc.Name = "Single window demo app";
-
-            Onyx::SingleWindowApp app{spc};
-            const Onyx::Demo::SandboxLayer *layer = app.SetUserLayer<Onyx::Demo::SandboxLayer>(&app, p_Args.Dim);
-            app.Run();
-            quitResult = layer->QuitResult;
-        }
-        else
-        {
-            Onyx::MultiWindowApp app{};
-            const Onyx::Demo::SandboxLayer *layer = app.SetUserLayer<Onyx::Demo::SandboxLayer>(&app, p_Args.Dim);
-            app.OpenWindow();
-            app.Run();
-            quitResult = layer->QuitResult;
-        }
-        if (!quitResult.Reload)
-            break;
-    }
+    Onyx::Application app{spc};
+    app.SetUserLayer<Onyx::Demo::SandboxLayer>(p_Dim);
+    app.Run();
 }
 
 int main(int argc, char **argv)
 {
     TKIT_PROFILE_NOOP();
-    const Onyx::Demo::ArgResult result = Onyx::Demo::ParseArguments(argc, argv);
+    const Onyx::Dimension dim = Onyx::Demo::ParseArguments(argc, argv);
 
     TKit::ThreadPool threadPool{ONYX_MAX_WORKERS};
     Onyx::Core::Initialize(Onyx::Specs{.TaskManager = &threadPool});
-    RunApp(result);
+    RunApp(dim);
     Onyx::Core::Terminate();
 }

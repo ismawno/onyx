@@ -12,11 +12,11 @@ void RunApp(const Onyx::Demo::ParseResult &p_Args)
     spc.Name = "Performance lattice";
     spc.PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
-    Onyx::SingleWindowApp app{spc};
+    Onyx::Application app{spc};
     if (p_Args.Dim == Onyx::Dimension::D2)
-        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D2>>(&app, p_Args.Lattices2);
+        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D2>>(p_Args.Lattices2);
     else
-        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D3>>(&app, p_Args.Lattices3);
+        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D3>>(p_Args.Lattices3);
     if (!p_Args.HasRuntime)
         app.Run();
     else
