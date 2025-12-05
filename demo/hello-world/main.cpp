@@ -1,10 +1,10 @@
 #include "onyx/app/app.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/core/shaders.hpp"
+#include "onyx/core/imgui.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
-#include "onyx/core/imgui.hpp"
 
 using Onyx::D2;
 using namespace TKit::Alias;
@@ -154,9 +154,11 @@ static void RunAppExample3()
         using Onyx::UserLayer::UserLayer;
         void OnUpdate() override
         {
+#ifdef ONYX_ENABLE_IMGUI
             ImGui::Begin("Hello, World!");
             ImGui::Text("Hello, World from ImGui!");
             ImGui::End();
+#endif
         }
     };
 

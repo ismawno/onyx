@@ -86,6 +86,7 @@ class ONYX_API Application
 #    ifdef ONYX_ENABLE_IMPLOT
         ImPlotContext *ImPlotContext = nullptr;
 #    endif
+#endif
         Flags Flags = 0;
 
         bool CheckFlags(const Application::Flags p_Flags) const
@@ -100,7 +101,6 @@ class ONYX_API Application
         {
             Flags &= ~p_Flags;
         }
-#endif
     };
 
   public:

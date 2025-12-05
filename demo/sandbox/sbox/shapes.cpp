@@ -92,6 +92,7 @@ template <Dimension D> void Shape<D>::Draw(RenderContext<D> *p_Context, const On
     draw(p_Context, p_Transform);
 }
 
+#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void Shape<D>::Edit()
 {
     ImGui::PushID(this);
@@ -118,6 +119,7 @@ template <Dimension D> static void dimensionEditor(f32v<D> &p_Dimensions)
         ImGui::DragFloat3("Dimensions", Math::AsPointer(p_Dimensions), 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
 }
+#endif
 
 template <Dimension D> MeshShape<D>::MeshShape(const NamedMesh<D> &p_Mesh) : m_Mesh(p_Mesh)
 {
@@ -146,17 +148,21 @@ template <Dimension D> const char *Square<D>::GetName() const
 {
     return "Square";
 }
+#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void Square<D>::Edit()
 {
     Shape<D>::Edit();
     dimensionEditor<D2>(m_Dimensions);
 }
+#endif
 
+#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void MeshShape<D>::Edit()
 {
     Shape<D>::Edit();
     dimensionEditor<D>(m_Dimensions);
 }
+#endif
 template <Dimension D> void Square<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
     p_Context->Square(p_Transform.ComputeTransform(), m_Dimensions);
@@ -172,6 +178,7 @@ template <Dimension D> void Circle<D>::draw(RenderContext<D> *p_Context, const O
     p_Context->Circle(p_Transform.ComputeTransform(), m_Dimensions, m_Options);
 }
 
+#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void Circle<D>::Edit()
 {
     Shape<D>::Edit();
@@ -184,6 +191,7 @@ template <Dimension D> void Circle<D>::Edit()
     ImGui::SliderFloat("Hollowness", &m_Options.Hollowness, 0.f, 1.f, "%.2f");
     ImGui::PopID();
 }
+#endif
 
 template <Dimension D> const char *NGon<D>::GetName() const
 {
@@ -194,6 +202,7 @@ template <Dimension D> void NGon<D>::draw(RenderContext<D> *p_Context, const Ony
 {
     p_Context->NGon(p_Transform.ComputeTransform(), Sides, m_Dimensions);
 }
+#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void NGon<D>::Edit()
 {
     Shape<D>::Edit();
@@ -204,11 +213,13 @@ template <Dimension D> void NGon<D>::Edit()
     ImGui::SliderScalar("Sides", ImGuiDataType_U32, &Sides, &mn, &mx);
     ImGui::PopID();
 }
+#endif
 
 template <Dimension D> const char *Polygon<D>::GetName() const
 {
     return "Polygon";
 }
+#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void Polygon<D>::Edit()
 {
     Shape<D>::Edit();
@@ -230,6 +241,7 @@ template <Dimension D> void Polygon<D>::Edit()
         ImGui::PopID();
     }
 }
+#endif
 
 template <Dimension D> void Polygon<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
 {
@@ -246,6 +258,7 @@ template <Dimension D> void Stadium<D>::draw(RenderContext<D> *p_Context, const 
     p_Context->Stadium(p_Transform.ComputeTransform(), m_Length, m_Diameter);
 }
 
+#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void Stadium<D>::Edit()
 {
     Shape<D>::Edit();
@@ -254,6 +267,7 @@ template <Dimension D> void Stadium<D>::Edit()
     ImGui::DragFloat("Diameter", &m_Diameter, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
 }
+#endif
 
 template <Dimension D>
 void RoundedSquare<D>::draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const
@@ -266,6 +280,7 @@ template <Dimension D> const char *RoundedSquare<D>::GetName() const
     return "Rounded Square";
 }
 
+#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void RoundedSquare<D>::Edit()
 {
     Shape<D>::Edit();
@@ -274,6 +289,7 @@ template <Dimension D> void RoundedSquare<D>::Edit()
     ImGui::DragFloat("Diameter", &m_Diameter, 0.01f, 0.f, FLT_MAX);
     ImGui::PopID();
 }
+#endif
 
 const char *Cube::GetName() const
 {
@@ -284,11 +300,13 @@ void Cube::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Trans
 {
     p_Context->Cube(p_Transform.ComputeTransform(), m_Dimensions);
 }
+#ifdef ONYX_ENABLE_IMGUI
 void Cube::Edit()
 {
     Shape<D3>::Edit();
     dimensionEditor<D3>(m_Dimensions);
 }
+#endif
 
 const char *Sphere::GetName() const
 {
@@ -299,23 +317,27 @@ void Sphere::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Tra
 {
     p_Context->Sphere(p_Transform.ComputeTransform(), m_Dimensions, m_Res);
 }
+#ifdef ONYX_ENABLE_IMGUI
 void Sphere::Edit()
 {
     Shape<D3>::Edit();
     dimensionEditor<D3>(m_Dimensions);
     UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
+#endif
 
 const char *Cylinder::GetName() const
 {
     return "Cylinder";
 }
+#ifdef ONYX_ENABLE_IMGUI
 void Cylinder::Edit()
 {
     Shape<D3>::Edit();
     dimensionEditor<D3>(m_Dimensions);
     UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
+#endif
 
 void Cylinder::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const
 {
@@ -332,6 +354,7 @@ void Capsule::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Tr
     p_Context->Capsule(p_Transform.ComputeTransform(), m_Length, m_Diameter, m_Res);
 }
 
+#ifdef ONYX_ENABLE_IMGUI
 void Capsule::Edit()
 {
     Shape<D3>::Edit();
@@ -341,6 +364,7 @@ void Capsule::Edit()
     ImGui::PopID();
     UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
+#endif
 
 void RoundedCube::draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const
 {
@@ -352,6 +376,7 @@ const char *RoundedCube::GetName() const
     return "Rounded Cube";
 }
 
+#ifdef ONYX_ENABLE_IMGUI
 void RoundedCube::Edit()
 {
     Shape<D3>::Edit();
@@ -361,6 +386,7 @@ void RoundedCube::Edit()
     ImGui::PopID();
     UserLayer::ResolutionEditor("Resolution", m_Res, UserLayer::Flag_DisplayHelp);
 }
+#endif
 
 template struct ONYX_API NamedMesh<D2>;
 template struct ONYX_API NamedMesh<D3>;

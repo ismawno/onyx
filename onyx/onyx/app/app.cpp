@@ -414,7 +414,11 @@ void Application::openWindow(const BabyWindow &p_Baby)
 {
     WindowData data;
     data.Window = m_WindowAllocator.Create<Window>(p_Baby.Specs);
+
+#    ifdef ONYX_ENABLE_IMGUI
     initializeImGui(data);
+#    endif
+
     m_Windows.Append(data);
 
     if (p_Baby.CreationCallback)

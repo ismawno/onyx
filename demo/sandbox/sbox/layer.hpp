@@ -124,6 +124,8 @@ class SandboxLayer final : public UserLayer
 
     template <Dimension D> void drawShapes(const ContextData<D> &p_Context);
 
+#ifdef ONYX_ENABLE_IMGUI
+
     template <Dimension D> void renderUI(ContextDataContainer<D> &p_Contexts);
     template <Dimension D> void renderUI(ContextData<D> &p_Context);
 
@@ -131,6 +133,7 @@ class SandboxLayer final : public UserLayer
     template <Dimension D> void renderCamera(CameraData<D> &p_Camera);
 
     void renderLightSpawn(ContextData<D3> &p_Context);
+#endif
 
     template <Dimension D> ContextData<D> &addContext(ContextDataContainer<D> &p_Contexts);
     template <Dimension D> void setupContext(ContextData<D> &p_Context);

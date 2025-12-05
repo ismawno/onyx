@@ -38,10 +38,12 @@ template <Dimension D> void Layer<D>::OnUpdate()
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
     const auto timestep = m_Application->GetDeltaTime();
     m_Camera->ControlMovementWithUserInput(3.f * timestep);
+#ifdef ONYX_ENABLE_IMGUI
     if (ImGui::Begin("Info"))
         UserLayer::DisplayFrameTime(timestep);
     ImGui::Text("Version: " ONYX_VERSION);
     ImGui::End();
+#endif
     // static bool first = false;
     // if (first)
     //     return;
@@ -60,11 +62,11 @@ template <Dimension D> void Layer<D>::OnUpdate()
 }
 template <Dimension D> void Layer<D>::OnEvent(const Event &p_Event)
 {
-    if (ImGui::GetIO().WantCaptureMouse)
+#ifdef ONYX_ENABLE_IMGUI
+    if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard)
         return;
-    const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) && !ImGui::GetIO().WantCaptureKeyboard
-                           ? 0.05f
-                           : 0.005f;
+#endif
+    const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) ? 0.05f : 0.005f;
     m_Camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
 }
 

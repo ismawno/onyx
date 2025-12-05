@@ -49,16 +49,6 @@ static const VKit::Shader &getRainbowShader()
     return shader;
 }
 
-static const VKit::Shader &getBlurShader()
-{
-    static VKit::Shader shader{};
-    if (shader)
-        return shader;
-    shader = CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
-    Core::GetDeletionQueue().SubmitForDeletion(shader);
-    return shader;
-}
-
 SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const Dimension p_Dim)
     : UserLayer(p_Application, p_Window)
 {
@@ -102,18 +92,38 @@ SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const D
     }
 }
 
-static TKit::Array16<std::string> getEmptyStrings()
+void SandboxLayer::OnUpdate()
 {
-    TKit::Array16<std::string> customNames{};
-    for (u32 i = 0; i < 16; ++i)
-        customNames[i] = std::string{};
-    return customNames;
+    const TKit::Timespan ts = m_Application->GetDeltaTime();
+    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
+    if (m_PostProcessing)
+    {
+        m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
+        m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
+        m_Window->GetFrameScheduler()->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
+    }
+
+    if (!m_Cameras2.Cameras.IsEmpty())
+        m_Cameras2.Cameras[m_Cameras2.Active].Camera->ControlMovementWithUserInput(ts);
+    if (!m_Cameras3.Cameras.IsEmpty())
+        m_Cameras3.Cameras[m_Cameras3.Active].Camera->ControlMovementWithUserInput(ts);
+
+    for (u32 i = 0; i < m_ContextData2.Contexts.GetSize(); ++i)
+        drawShapes(m_ContextData2.Contexts[i]);
+
+    for (u32 i = 0; i < m_ContextData3.Contexts.GetSize(); ++i)
+        drawShapes(m_ContextData3.Contexts[i]);
+
+#ifdef ONYX_ENABLE_IMGUI
+    renderImGui();
+#endif
 }
 
+#ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> static void renderMeshLoad(const char *p_Path)
 {
     static Transform<D> transform{};
-    static TKit::Array16<std::string> customNames = getEmptyStrings();
+    static TKit::Array16<std::string> customNames{};
 
     const auto names = NamedMesh<D>::Query(p_Path);
     if (names.IsEmpty())
@@ -164,38 +174,23 @@ template <Dimension D> static void renderMeshLoad(const char *p_Path)
     ImGui::PopID();
 }
 
-void SandboxLayer::OnUpdate()
+static const VKit::Shader &getBlurShader()
 {
-    const TKit::Timespan ts = m_Application->GetDeltaTime();
-    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
-    if (m_PostProcessing)
-    {
-        m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
-        m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
-        m_Window->GetFrameScheduler()->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
-    }
-
-    if (!m_Cameras2.Cameras.IsEmpty())
-        m_Cameras2.Cameras[m_Cameras2.Active].Camera->ControlMovementWithUserInput(ts);
-    if (!m_Cameras3.Cameras.IsEmpty())
-        m_Cameras3.Cameras[m_Cameras3.Active].Camera->ControlMovementWithUserInput(ts);
-
-    for (u32 i = 0; i < m_ContextData2.Contexts.GetSize(); ++i)
-        drawShapes(m_ContextData2.Contexts[i]);
-
-    for (u32 i = 0; i < m_ContextData3.Contexts.GetSize(); ++i)
-        drawShapes(m_ContextData3.Contexts[i]);
-
-    renderImGui();
+    static VKit::Shader shader{};
+    if (shader)
+        return shader;
+    shader = CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
+    Core::GetDeletionQueue().SubmitForDeletion(shader);
+    return shader;
 }
 
 void SandboxLayer::renderImGui()
 {
     const TKit::Timespan ts = m_Application->GetDeltaTime();
     ImGui::ShowDemoWindow();
-#ifdef ONYX_ENABLE_IMPLOT
+#    ifdef ONYX_ENABLE_IMPLOT
     ImPlot::ShowDemoWindow();
-#endif
+#    endif
 
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnImGuiRender");
     if (ImGui::BeginMainMenuBar())
@@ -310,159 +305,6 @@ void SandboxLayer::renderImGui()
     }
     ImGui::End();
 }
-
-template <Dimension D>
-static void processEvent(ContextDataContainer<D> &p_Contexts, const CameraDataContainer<D> &p_Cameras,
-                         const Event &p_Event)
-{
-    if (ImGui::GetIO().WantCaptureMouse || p_Cameras.Cameras.IsEmpty() || p_Contexts.Contexts.IsEmpty())
-        return;
-
-    const CameraData<D> &cam = p_Cameras.Cameras[p_Cameras.Active];
-    ContextData<D> &context = p_Contexts.Contexts[p_Contexts.Active];
-
-    Camera<D> *camera = cam.Camera;
-    if (p_Event.Type == Event::MousePressed && context.ShapeToSpawn == POLYGON)
-    {
-        context.PolygonVertices.Append(camera->GetWorldMousePosition());
-        context.Lattice.NeedsUpdate = true;
-    }
-    else if (p_Event.Type == Event::Scrolled)
-    {
-        const f32 factor =
-            Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) && !ImGui::GetIO().WantCaptureKeyboard ? 0.05f
-                                                                                                              : 0.005f;
-        camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
-    }
-}
-
-void SandboxLayer::OnEvent(const Event &p_Event)
-{
-    processEvent(m_ContextData2, m_Cameras2, p_Event);
-    processEvent(m_ContextData3, m_Cameras3, p_Event);
-}
-
-void SandboxLayer::OnRenderBegin(u32, VkCommandBuffer p_CommandBuffer)
-{
-    if (m_RainbowBackground)
-    {
-        m_RainbowJob.Bind(p_CommandBuffer);
-        m_RainbowJob.Draw(p_CommandBuffer, 3);
-    }
-}
-
-template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Context)
-{
-    m_Window->BackgroundColor = m_BackgroundColor;
-    p_Context.Context->Flush();
-
-    const LatticeData<D> &lattice = p_Context.Lattice;
-    const u32v<D> &dims = lattice.Dimensions;
-    if (lattice.Enabled && lattice.Shape)
-    {
-        const f32v<D> separation =
-            lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : f32v<D>{lattice.Separation};
-        const f32v<D> midPoint = 0.5f * separation * f32v<D>{dims - 1u};
-
-        lattice.Shape->SetProperties(p_Context.Context);
-        p_Context.Context->ShareCurrentState();
-
-        TKit::ITaskManager *tm = Core::GetTaskManager();
-        if constexpr (D == D2)
-        {
-            const u32 size = dims[0] * dims[1];
-            const auto fn = [&](const u32 p_Start, const u32 p_End) {
-                Transform<D2> transform = lattice.Shape->Transform;
-                for (u32 i = p_Start; i < p_End; ++i)
-                {
-                    const u32 ix = i / dims[1];
-                    const u32 iy = i % dims[1];
-                    const f32 x = separation[0] * static_cast<f32>(ix);
-                    const f32 y = separation[1] * static_cast<f32>(iy);
-                    transform.Translation = f32v2{x, y} - midPoint;
-                    lattice.Shape->DrawRaw(p_Context.Context, transform);
-                }
-            };
-
-            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
-            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
-
-            const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
-            for (u32 i = 0; i < tcount; ++i)
-                tm->WaitUntilFinished(tasks[i]);
-        }
-        else
-        {
-            const u32 size = dims[0] * dims[1] * dims[2];
-            const u32 yz = dims[1] * dims[2];
-            const auto fn = [&, yz](const u32 p_Start, const u32 p_End) {
-                Transform<D3> transform = lattice.Shape->Transform;
-                for (u32 i = p_Start; i < p_End; ++i)
-                {
-                    const u32 ix = i / yz;
-                    const u32 j = ix * yz;
-                    const u32 iy = (i - j) / dims[2];
-                    const u32 iz = (i - j) % dims[2];
-                    const f32 x = separation[0] * static_cast<f32>(ix);
-                    const f32 y = separation[1] * static_cast<f32>(iy);
-                    const f32 z = separation[2] * static_cast<f32>(iz);
-                    transform.Translation = f32v3{x, y, z} - midPoint;
-                    lattice.Shape->DrawRaw(p_Context.Context, transform);
-                }
-            };
-            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
-            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
-
-            const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
-            for (u32 i = 0; i < tcount; ++i)
-                tm->WaitUntilFinished(tasks[i]);
-        }
-    }
-
-    for (const auto &shape : p_Context.Shapes)
-        shape->Draw(p_Context.Context);
-
-    p_Context.Context->Outline(false);
-    if (p_Context.DrawAxes)
-    {
-        p_Context.Context->Material(p_Context.AxesMaterial);
-        p_Context.Context->Fill();
-        p_Context.Context->Axes({.Thickness = p_Context.AxesThickness});
-    }
-
-    for (const f32v2 &vertex : p_Context.PolygonVertices)
-    {
-        p_Context.Context->Push();
-        p_Context.Context->Scale(0.02f);
-        if constexpr (D == D2)
-            p_Context.Context->Translate(vertex);
-        else
-            p_Context.Context->Translate(f32v3{vertex, 0.f});
-        p_Context.Context->Circle();
-        p_Context.Context->Pop();
-    }
-
-    if constexpr (D == D3)
-    {
-        p_Context.Context->AmbientColor(p_Context.Ambient);
-        for (const auto &light : p_Context.DirectionalLights)
-            p_Context.Context->DirectionalLight(light);
-        for (const auto &light : p_Context.PointLights)
-        {
-            if (p_Context.DrawLights)
-            {
-                p_Context.Context->Push();
-                p_Context.Context->Fill(Color::Unpack(light.Color));
-                p_Context.Context->Scale(0.01f);
-                p_Context.Context->Translate(light.Position);
-                p_Context.Context->Sphere();
-                p_Context.Context->Pop();
-            }
-            p_Context.Context->PointLight(light);
-        }
-    }
-}
-
 template <typename C, typename F1, typename F2>
 static void renderSelectableNoRemoval(const char *p_TreeName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
                                       F2 p_GetName)
@@ -839,40 +681,6 @@ template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &p_Camera)
                        "vision behaves. This is useful for 3D games or when you want to create a sense of depth in "
                        "your scene. In Onyx, this projection is only available in 3D scenes.");
 }
-
-template <Dimension D> ContextData<D> &SandboxLayer::addContext(ContextDataContainer<D> &p_Contexts)
-{
-    ContextData<D> &contextData = p_Contexts.Contexts.Append();
-    contextData.Context = m_Window->CreateRenderContext<D>();
-    return contextData;
-}
-template <Dimension D> void SandboxLayer::setupContext(ContextData<D> &p_Context)
-{
-    if constexpr (D == D3)
-    {
-        p_Context.DrawAxes = true;
-        p_Context.DirectionalLights.Append(f32v3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
-    }
-}
-template <Dimension D> CameraData<D> &SandboxLayer::addCamera(CameraDataContainer<D> &p_Cameras)
-{
-    Camera<D> *camera = m_Window->CreateCamera<D>();
-    camera->BackgroundColor = Color{0.1f};
-
-    CameraData<D> &camData = p_Cameras.Cameras.Append();
-    camData.Camera = camera;
-    return camData;
-}
-void SandboxLayer::setupCamera(CameraData<D3> &p_Camera)
-{
-    p_Camera.Perspective = true;
-    p_Camera.Camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
-    Transform<D3> transform{};
-    transform.Translation = f32v3{2.f, 0.75f, 2.f};
-    transform.Rotation = f32q{Math::Radians(f32v3{-15.f, 45.f, -4.f})};
-    p_Camera.Camera->SetView(transform);
-}
-
 template <Dimension D> void SandboxLayer::renderCameras(CameraDataContainer<D> &p_Cameras)
 {
     if (ImGui::CollapsingHeader("Cameras"))
@@ -968,6 +776,194 @@ void SandboxLayer::renderLightSpawn(ContextData<D3> &p_Context)
     renderSelectableNoRemoval(
         "Point lights", p_Context.PointLights, p_Context.SelectedPointLight,
         [](PointLight &p_Light) { UserLayer::PointLightEditor(p_Light); }, "Point");
+}
+#endif
+
+template <Dimension D>
+static void processEvent(ContextDataContainer<D> &p_Contexts, const CameraDataContainer<D> &p_Cameras,
+                         const Event &p_Event)
+{
+#ifdef ONYX_ENABLE_IMGUI
+    if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard)
+        return;
+#endif
+    if (p_Cameras.Cameras.IsEmpty() || p_Contexts.Contexts.IsEmpty())
+        return;
+
+    const CameraData<D> &cam = p_Cameras.Cameras[p_Cameras.Active];
+    ContextData<D> &context = p_Contexts.Contexts[p_Contexts.Active];
+
+    Camera<D> *camera = cam.Camera;
+    if (p_Event.Type == Event::MousePressed && context.ShapeToSpawn == POLYGON)
+    {
+        context.PolygonVertices.Append(camera->GetWorldMousePosition());
+        context.Lattice.NeedsUpdate = true;
+    }
+    else if (p_Event.Type == Event::Scrolled)
+    {
+        const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) ? 0.05f : 0.005f;
+        camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
+    }
+}
+
+void SandboxLayer::OnEvent(const Event &p_Event)
+{
+    processEvent(m_ContextData2, m_Cameras2, p_Event);
+    processEvent(m_ContextData3, m_Cameras3, p_Event);
+}
+
+void SandboxLayer::OnRenderBegin(u32, VkCommandBuffer p_CommandBuffer)
+{
+    if (m_RainbowBackground)
+    {
+        m_RainbowJob.Bind(p_CommandBuffer);
+        m_RainbowJob.Draw(p_CommandBuffer, 3);
+    }
+}
+
+template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Context)
+{
+    m_Window->BackgroundColor = m_BackgroundColor;
+    p_Context.Context->Flush();
+
+    const LatticeData<D> &lattice = p_Context.Lattice;
+    const u32v<D> &dims = lattice.Dimensions;
+    if (lattice.Enabled && lattice.Shape)
+    {
+        const f32v<D> separation =
+            lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : f32v<D>{lattice.Separation};
+        const f32v<D> midPoint = 0.5f * separation * f32v<D>{dims - 1u};
+
+        lattice.Shape->SetProperties(p_Context.Context);
+        p_Context.Context->ShareCurrentState();
+
+        TKit::ITaskManager *tm = Core::GetTaskManager();
+        if constexpr (D == D2)
+        {
+            const u32 size = dims[0] * dims[1];
+            const auto fn = [&](const u32 p_Start, const u32 p_End) {
+                Transform<D2> transform = lattice.Shape->Transform;
+                for (u32 i = p_Start; i < p_End; ++i)
+                {
+                    const u32 ix = i / dims[1];
+                    const u32 iy = i % dims[1];
+                    const f32 x = separation[0] * static_cast<f32>(ix);
+                    const f32 y = separation[1] * static_cast<f32>(iy);
+                    transform.Translation = f32v2{x, y} - midPoint;
+                    lattice.Shape->DrawRaw(p_Context.Context, transform);
+                }
+            };
+
+            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
+            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
+
+            const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
+            for (u32 i = 0; i < tcount; ++i)
+                tm->WaitUntilFinished(tasks[i]);
+        }
+        else
+        {
+            const u32 size = dims[0] * dims[1] * dims[2];
+            const u32 yz = dims[1] * dims[2];
+            const auto fn = [&, yz](const u32 p_Start, const u32 p_End) {
+                Transform<D3> transform = lattice.Shape->Transform;
+                for (u32 i = p_Start; i < p_End; ++i)
+                {
+                    const u32 ix = i / yz;
+                    const u32 j = ix * yz;
+                    const u32 iy = (i - j) / dims[2];
+                    const u32 iz = (i - j) % dims[2];
+                    const f32 x = separation[0] * static_cast<f32>(ix);
+                    const f32 y = separation[1] * static_cast<f32>(iy);
+                    const f32 z = separation[2] * static_cast<f32>(iz);
+                    transform.Translation = f32v3{x, y, z} - midPoint;
+                    lattice.Shape->DrawRaw(p_Context.Context, transform);
+                }
+            };
+            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
+            TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
+
+            const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
+            for (u32 i = 0; i < tcount; ++i)
+                tm->WaitUntilFinished(tasks[i]);
+        }
+    }
+
+    for (const auto &shape : p_Context.Shapes)
+        shape->Draw(p_Context.Context);
+
+    p_Context.Context->Outline(false);
+    if (p_Context.DrawAxes)
+    {
+        p_Context.Context->Material(p_Context.AxesMaterial);
+        p_Context.Context->Fill();
+        p_Context.Context->Axes({.Thickness = p_Context.AxesThickness});
+    }
+
+    for (const f32v2 &vertex : p_Context.PolygonVertices)
+    {
+        p_Context.Context->Push();
+        p_Context.Context->Scale(0.02f);
+        if constexpr (D == D2)
+            p_Context.Context->Translate(vertex);
+        else
+            p_Context.Context->Translate(f32v3{vertex, 0.f});
+        p_Context.Context->Circle();
+        p_Context.Context->Pop();
+    }
+
+    if constexpr (D == D3)
+    {
+        p_Context.Context->AmbientColor(p_Context.Ambient);
+        for (const auto &light : p_Context.DirectionalLights)
+            p_Context.Context->DirectionalLight(light);
+        for (const auto &light : p_Context.PointLights)
+        {
+            if (p_Context.DrawLights)
+            {
+                p_Context.Context->Push();
+                p_Context.Context->Fill(Color::Unpack(light.Color));
+                p_Context.Context->Scale(0.01f);
+                p_Context.Context->Translate(light.Position);
+                p_Context.Context->Sphere();
+                p_Context.Context->Pop();
+            }
+            p_Context.Context->PointLight(light);
+        }
+    }
+}
+
+template <Dimension D> ContextData<D> &SandboxLayer::addContext(ContextDataContainer<D> &p_Contexts)
+{
+    ContextData<D> &contextData = p_Contexts.Contexts.Append();
+    contextData.Context = m_Window->CreateRenderContext<D>();
+    return contextData;
+}
+template <Dimension D> void SandboxLayer::setupContext(ContextData<D> &p_Context)
+{
+    if constexpr (D == D3)
+    {
+        p_Context.DrawAxes = true;
+        p_Context.DirectionalLights.Append(f32v3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
+    }
+}
+template <Dimension D> CameraData<D> &SandboxLayer::addCamera(CameraDataContainer<D> &p_Cameras)
+{
+    Camera<D> *camera = m_Window->CreateCamera<D>();
+    camera->BackgroundColor = Color{0.1f};
+
+    CameraData<D> &camData = p_Cameras.Cameras.Append();
+    camData.Camera = camera;
+    return camData;
+}
+void SandboxLayer::setupCamera(CameraData<D3> &p_Camera)
+{
+    p_Camera.Perspective = true;
+    p_Camera.Camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
+    Transform<D3> transform{};
+    transform.Translation = f32v3{2.f, 0.75f, 2.f};
+    transform.Rotation = f32q{Math::Radians(f32v3{-15.f, 45.f, -4.f})};
+    p_Camera.Camera->SetView(transform);
 }
 
 } // namespace Onyx::Demo

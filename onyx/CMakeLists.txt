@@ -185,7 +185,7 @@ endif()
 
 target_link_libraries(
   onyx
-  PUBLIC toolkit vulkit imgui
+  PUBLIC toolkit vulkit
   PRIVATE tinyobjloader)
 
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

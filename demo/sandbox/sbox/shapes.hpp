@@ -35,7 +35,9 @@ template <Dimension D> class Shape
     void Draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform);
     void DrawRaw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const;
 
+#ifdef ONYX_ENABLE_IMGUI
     virtual void Edit();
+#endif
 
     Transform<D> Transform;
 
@@ -56,8 +58,9 @@ template <Dimension D> class MeshShape final : public Shape<D>
     MeshShape(const NamedMesh<D> &p_Mesh);
 
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
 
@@ -78,8 +81,9 @@ template <Dimension D> class Square final : public Shape<D>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
     f32v2 m_Dimensions{1.f};
@@ -89,8 +93,9 @@ template <Dimension D> class Circle final : public Shape<D>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
     f32v2 m_Dimensions{1.f};
@@ -102,8 +107,9 @@ template <Dimension D> class NGon final : public Shape<D>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
     u32 Sides = 3;
 
   private:
@@ -115,8 +121,9 @@ template <Dimension D> class Polygon final : public Shape<D>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
     PolygonVerticesArray Vertices;
 
   private:
@@ -127,8 +134,9 @@ template <Dimension D> class Stadium final : public Shape<D>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
     f32 m_Length = 1.f;
@@ -139,8 +147,9 @@ template <Dimension D> class RoundedSquare final : public Shape<D>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D> *p_Context, const Onyx::Transform<D> &p_Transform) const override;
     f32v2 m_Dimensions{1.f};
@@ -151,8 +160,9 @@ class ONYX_API Cube final : public Shape<D3>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const override;
     f32v3 m_Dimensions{1.f};
@@ -162,8 +172,9 @@ class ONYX_API Sphere final : public Shape<D3>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const override;
     Resolution m_Res = Resolution::Medium;
@@ -174,8 +185,9 @@ class ONYX_API Cylinder final : public Shape<D3>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const override;
     Resolution m_Res = Resolution::Medium;
@@ -186,8 +198,9 @@ class ONYX_API Capsule final : public Shape<D3>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const override;
     Resolution m_Res = Resolution::Medium;
@@ -199,8 +212,9 @@ class ONYX_API RoundedCube final : public Shape<D3>
 {
   public:
     const char *GetName() const override;
+#ifdef ONYX_ENABLE_IMGUI
     void Edit() override;
-
+#endif
   private:
     void draw(RenderContext<D3> *p_Context, const Onyx::Transform<D3> &p_Transform) const override;
 
