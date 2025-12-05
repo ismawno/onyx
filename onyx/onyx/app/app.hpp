@@ -384,7 +384,7 @@ class ONYX_API Application
 
 #ifdef __ONYX_MULTI_WINDOW
     TKit::StaticArray<WindowData, ONYX_MAX_WINDOWS - 1> m_Windows;
-    TKit::StaticArray4<WindowSpecs> m_WindowsToAdd;
+    TKit::StaticArray<WindowSpecs, ONYX_MAX_WINDOWS - 1> m_WindowsToAdd;
 #endif
     TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_MAX_WINDOWS);
 
