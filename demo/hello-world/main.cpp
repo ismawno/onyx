@@ -164,6 +164,9 @@ static void RunAppExample3()
 
     Onyx::Application app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
     app.SetUserLayer<MyLayer>();
+#if defined(__ONYX_MULTI_WINDOW) && defined(ONYX_ENABLE_IMGUI)
+    app.OpenWindow({.Specs = {.Name = "Who's this??", .Width = 800, .Height = 600}, .EnableImGui = false});
+#endif
 
     app.Run();
 }

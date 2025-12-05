@@ -201,12 +201,14 @@ void SandboxLayer::renderImGui()
             if (ImGui::BeginMenu("New"))
             {
                 if (ImGui::MenuItem("2D"))
-                    m_Application->OpenWindow(
-                        [this](Window *p_Window) { m_Application->SetUserLayer<SandboxLayer>(p_Window, D2); });
+                    m_Application->OpenWindow({.CreationCallback = [this](Window *p_Window) {
+                        m_Application->SetUserLayer<SandboxLayer>(p_Window, D2);
+                    }});
 
                 if (ImGui::MenuItem("3D"))
-                    m_Application->OpenWindow(
-                        [this](Window *p_Window) { m_Application->SetUserLayer<SandboxLayer>(p_Window, D3); });
+                    m_Application->OpenWindow({.CreationCallback = [this](Window *p_Window) {
+                        m_Application->SetUserLayer<SandboxLayer>(p_Window, D3);
+                    }});
 
                 ImGui::EndMenu();
             }

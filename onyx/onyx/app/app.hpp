@@ -59,22 +59,16 @@ class ONYX_API Application
     enum FlagBit : Flags
     {
 #ifdef ONYX_ENABLE_IMGUI
-        Flag_MustReloadImGui = 1 << 0,
-        Flag_ImGuiRunning = 1 << 1,
+        Flag_MustEnableImGui = 1 << 0,
+        Flag_MustDisableImGui = 1 << 1,
+        Flag_ImGuiRunning = 1 << 2,
+        Flag_ImGuiEnabled = 1 << 3,
 #endif
-        Flag_Defer = 1 << 2,
-        Flag_Quit = 1 << 3,
-        Flag_MustDestroyLayer = 1 << 4,
-        Flag_MustReplaceLayer = 1 << 5
+        Flag_Defer = 1 << 4,
+        Flag_Quit = 1 << 5,
+        Flag_MustDestroyLayer = 1 << 6,
+        Flag_MustReplaceLayer = 1 << 7
     };
-
-#ifdef __ONYX_MULTI_WINDOW
-    struct BabyWindow
-    {
-        Window::Specs Specs{};
-        std::function<void(Window *)> CreationCallback = nullptr;
-    };
-#endif
 
     struct WindowData
     {
@@ -104,7 +98,17 @@ class ONYX_API Application
     };
 
   public:
-    Application(const Window::Specs &p_Specs = {});
+    struct WindowSpecs
+    {
+        Window::Specs Specs{};
+        std::function<void(Window *)> CreationCallback = nullptr;
+#ifdef ONYX_ENABLE_IMGUI
+        bool EnableImGui = true;
+#endif
+    };
+
+    Application(const WindowSpecs &p_MainSpecs);
+    Application(const Window::Specs &p_MainSpecs = {});
     ~Application();
 
     /**
@@ -223,7 +227,11 @@ class ONYX_API Application
         if (checkFlags(Flag_Defer))
             data->SetFlags(Flag_MustDestroyLayer);
         else
+        {
+            delete data->Layer;
             data->Layer = nullptr;
+            data->ClearFlags(Flag_MustDestroyLayer);
+        }
     }
 
     template <std::derived_from<UserLayer> T = UserLayer> const T *GetUserLayer(const Window *p_Window = nullptr) const
@@ -254,10 +262,9 @@ class ONYX_API Application
      * react to the window opening by, say, attaching a layer, use the provided callback argument.
      *
      * @param p_Specs The specification of the window to create.
-     * @param p_Callback A function callback that will execute as soon as the window is actually created.
-     * @return Whether the operation could execute immediately.
+     * @return A window handle if the operation ran immediately, nullptr otherwise.
      */
-    bool OpenWindow(const Window::Specs &p_Specs, const std::function<void(Window *)> &p_Callback = nullptr);
+    Window *OpenWindow(const WindowSpecs &p_Specs);
 
     /**
      * @brief Open a new window with the given specs.
@@ -265,10 +272,10 @@ class ONYX_API Application
      * @note The window addition may not take effect immediately if called in the middle of a frame. If you need to
      * react to the window opening by, say, attaching a layer, use the provided callback argument.
      *
-     * @param p_Specs
-     * @return Whether the operation could execute immediately.
+     * @param p_Specs The specification of the window to create.
+     * @return A window handle if the operation ran immediately, nullptr otherwise.
      */
-    bool OpenWindow(const std::function<void(Window *)> &p_Callback = nullptr);
+    Window *OpenWindow(const Window::Specs &p_Specs = {});
 
     /**
      * @brief Close the given window.
@@ -305,6 +312,15 @@ class ONYX_API Application
         return m_DeltaTime;
     }
 #ifdef ONYX_ENABLE_IMGUI
+
+    bool EnableImGui(i32 p_Flags, Window *p_Window = nullptr);
+    bool EnableImGui(Window *p_Window = nullptr);
+
+    bool DisableImGui(Window *p_Window = nullptr);
+
+    bool ReloadImGui(i32 p_Flags, Window *p_Window = nullptr);
+    bool ReloadImGui(Window *p_Window = nullptr);
+
     i32 GetImGuiConfigFlags() const
     {
         return m_ImGuiConfigFlags;
@@ -313,22 +329,6 @@ class ONYX_API Application
     {
         return m_ImGuiBackendFlags;
     }
-
-    void SetImGuiConfigFlags(i32 p_Flags)
-    {
-        m_ImGuiConfigFlags = p_Flags;
-    }
-    void SetImGuiBackendFlags(i32 p_Flags)
-    {
-        m_ImGuiBackendFlags = p_Flags;
-    }
-
-    /**
-     * @bried Reload ImGui, useful to modify the active flags.
-     *
-     * @return Whether the operation could execute immediately.
-     */
-    bool ReloadImGui(Window *p_Window);
 
 #endif
   private:
@@ -346,6 +346,7 @@ class ONYX_API Application
         {
             delete p_Data.Layer;
             p_Data.Layer = layer;
+            p_Data.ClearFlags(Flag_MustDestroyLayer | Flag_MustReplaceLayer);
         }
         return layer;
     }
@@ -369,7 +370,7 @@ class ONYX_API Application
     void destroyWindow(WindowData &p_Data);
     void closeAllWindows();
 #ifdef __ONYX_MULTI_WINDOW
-    void openWindow(const BabyWindow &p_Baby);
+    Window *openWindow(const WindowSpecs &p_Specs);
 #endif
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -383,7 +384,7 @@ class ONYX_API Application
 
 #ifdef __ONYX_MULTI_WINDOW
     TKit::StaticArray<WindowData, ONYX_MAX_WINDOWS - 1> m_Windows;
-    TKit::StaticArray4<BabyWindow> m_WindowsToAdd;
+    TKit::StaticArray4<WindowSpecs> m_WindowsToAdd;
 #endif
     TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_MAX_WINDOWS);
 
