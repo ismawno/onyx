@@ -197,6 +197,7 @@ void SandboxLayer::renderImGui()
     {
         if (ImGui::BeginMenu("App"))
         {
+#    ifdef ONYX_MULTI_WINDOW
             if (ImGui::BeginMenu("New"))
             {
                 if (ImGui::MenuItem("2D"))
@@ -209,11 +210,18 @@ void SandboxLayer::renderImGui()
 
                 ImGui::EndMenu();
             }
+#    endif
             if (ImGui::MenuItem("Reload ImGui"))
                 m_Application->ReloadImGui(m_Window);
 
             if (ImGui::MenuItem("Quit"))
+
+#    ifdef ONYX_MULTI_WINDOW
                 m_Application->CloseWindow(m_Window);
+#    else
+                m_Application->Quit();
+#    endif
+
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();

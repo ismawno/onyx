@@ -9,7 +9,7 @@
 #include "tkit/memory/ptr.hpp"
 
 #ifndef ONYX_MAX_WINDOWS
-#    define ONYX_MAX_WINDOWS 8
+#    define ONYX_MAX_WINDOWS 1
 #endif
 
 #if ONYX_MAX_WINDOWS < 1
