@@ -9,7 +9,7 @@
 #include "tkit/memory/ptr.hpp"
 
 #ifndef ONYX_MAX_WINDOWS
-#    define ONYX_MAX_WINDOWS 1
+#    define ONYX_MAX_WINDOWS 8
 #endif
 
 #if ONYX_MAX_WINDOWS < 1
@@ -17,7 +17,7 @@
 #endif
 
 #if ONYX_MAX_WINDOWS > 1
-#    define ONYX_MULTI_WINDOW
+#    define __ONYX_MULTI_WINDOW
 #endif
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -68,7 +68,7 @@ class ONYX_API Application
         Flag_MustReplaceLayer = 1 << 5
     };
 
-#ifdef ONYX_MULTI_WINDOW
+#ifdef __ONYX_MULTI_WINDOW
     struct BabyWindow
     {
         Window::Specs Specs{};
@@ -246,7 +246,7 @@ class ONYX_API Application
         return checkFlags(Flag_Defer);
     }
 
-#ifdef ONYX_MULTI_WINDOW
+#ifdef __ONYX_MULTI_WINDOW
     /**
      * @brief Open a new window with the given specs.
      *
@@ -368,7 +368,7 @@ class ONYX_API Application
     void processWindow(WindowData &p_Data);
     void destroyWindow(WindowData &p_Data);
     void closeAllWindows();
-#ifdef ONYX_MULTI_WINDOW
+#ifdef __ONYX_MULTI_WINDOW
     void openWindow(const BabyWindow &p_Baby);
 #endif
 
@@ -381,7 +381,7 @@ class ONYX_API Application
     TKit::Timespan m_DeltaTime;
     Flags m_Flags = 0;
 
-#ifdef ONYX_MULTI_WINDOW
+#ifdef __ONYX_MULTI_WINDOW
     TKit::StaticArray<WindowData, ONYX_MAX_WINDOWS - 1> m_Windows;
     TKit::StaticArray4<BabyWindow> m_WindowsToAdd;
 #endif

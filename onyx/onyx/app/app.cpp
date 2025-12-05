@@ -79,7 +79,7 @@ Application::WindowData *Application::getWindowData(const Window *p_Window)
 {
     if (m_MainWindow.Window == p_Window)
         return &m_MainWindow;
-#    ifdef ONYX_MULTI_WINDOW
+#    ifdef __ONYX_MULTI_WINDOW
     for (WindowData &data : m_Windows)
         if (data.Window == p_Window)
             return &data;
@@ -91,7 +91,7 @@ const Application::WindowData *Application::getWindowData(const Window *p_Window
 {
     if (m_MainWindow.Window == p_Window)
         return &m_MainWindow;
-#    ifdef ONYX_MULTI_WINDOW
+#    ifdef __ONYX_MULTI_WINDOW
     for (const WindowData &data : m_Windows)
         if (data.Window == p_Window)
             return &data;
@@ -313,7 +313,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
     Input::PollEvents();
 
     processWindow(m_MainWindow);
-#ifdef ONYX_MULTI_WINDOW
+#ifdef __ONYX_MULTI_WINDOW
     for (WindowData &data : m_Windows)
         processWindow(data);
 
@@ -331,7 +331,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
     if (m_MainWindow.Window->ShouldClose())
     {
         destroyWindow(m_MainWindow);
-#ifdef ONYX_MULTI_WINDOW
+#ifdef __ONYX_MULTI_WINDOW
         if (!m_Windows.IsEmpty())
         {
             m_MainWindow = m_Windows[0];
@@ -364,14 +364,14 @@ void Application::closeAllWindows()
 {
     if (m_MainWindow.Window)
         destroyWindow(m_MainWindow);
-#ifdef ONYX_MULTI_WINDOW
+#ifdef __ONYX_MULTI_WINDOW
     for (WindowData &data : m_Windows)
         destroyWindow(data);
     m_Windows.Clear();
 #endif
 }
 
-#ifdef ONYX_MULTI_WINDOW
+#ifdef __ONYX_MULTI_WINDOW
 bool Application::OpenWindow(const Window::Specs &p_Specs, const std::function<void(Window *)> &p_Callback)
 {
     const BabyWindow baby{.Specs = p_Specs, .CreationCallback = p_Callback};
