@@ -22,13 +22,11 @@ A full sandbox of Onyx is available as a [demo](https://github.com/ismawno/onyx/
 
 The most straightforward way of using Onyx is through a standalone window. It is also the most versatile and customizable, as it gives you explicit control of the frame loop, but lacks out of the box features such as ImGui or ImPlot, which must be setup manually. Window management can be deferred to application objects (see [Applications](#applications)).
 
-Onyx supports the usage of multiple windows. Each of them is independent and can be run in different threads. The [multi window application](#multi-window-application) uses and manages multiple windows automatically for you.
+Onyx supports the usage of multiple windows. Each of them is independent to an extent, and can be run on different threads as long as they use different queues. The `Application` class may handle multiple windows for you. Control the maximum amount of windows with `ONYX_MAX_WINDOWS`. If set to 1, the API to open/close additional windows will be disabled.
 
 Creating an Onyx window looks like this:
 
-**Please note that, while all examples should pretty much work as-is, treat them as pseudocode. Onyx is under constant change and maintaining these examples in plain text may introduce errors. To check a working version of pretty much all of the examples in this README, check ()
-
-**Please note that, while all examples should pretty much work as-is, treat them as pseudocode. Onyx is under constant change and maintaining these examples in plain text may introduce errors. To check a working version of pretty much all of the examples in this README, check [this file](https://github.com/ismawno/onyx/blob/main/demo/hello-world/main.cpp)**
+**Please note that, while all examples should pretty much work as-is, treat them as pseudocode. Onyx is under constant change and maintaining these examples in plain text may introduce errors. To check a working version of pretty much all of the examples in this README, take a look at [this file](https://github.com/ismawno/onyx/blob/main/demo/hello-world/main.cpp)**
 
 ```cpp
 Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
@@ -141,13 +139,11 @@ app.Run();
 
 There is more to this system, such as additional layer callbacks like `OnEvent()` and `OnUpdate()`. All user-relevant parts of this library are documented in the source code. The documentation can also be built with Doxygen. As mentioned earlier, the full working example can be found at [hello-world](https://github.com/ismawno/onyx/blob/main/demo/hello-world/main.cpp).
 
-#### Multi-Window Application
-
-Onyx also supports a multi-window application interface, allowing many windows per application. The main difference with the standard application is that windows must be opened manually, including the main window. For more details, refer to the documentation [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/app.hpp) and [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/user_layer.hpp).
+Onyx also supports a multi-window application interface, allowing many windows per application by using the `OpenWindow()` and `CloseWindow()` methods and setting `ONYX_MAX_WINDOWS` to a value greater than 1. For more details, refer to the documentation [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/app.hpp) and [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/user_layer.hpp).
 
 ### ImGui/ImPlot Usage
 
-If enabled through `CMake`, ImGui and ImPlot support is built-in when using the application interface, as shown in the last example in the [Applications](#applications) section. You can use the ImGui API directly in the `OnUpdate()` or `OnRenderBegin()` callbacks for single-window applications or the `OnImGuiRender()` callback for multi-window applications.
+If enabled through `CMake`, ImGui and ImPlot support is built-in when using the application interface, as shown in the last example in the [Applications](#applications) section. You can use the ImGui API directly in the `OnUpdate()` or `OnRenderBegin()` callbacks.
 
 ## Dependencies and Third-Party Libraries
 
