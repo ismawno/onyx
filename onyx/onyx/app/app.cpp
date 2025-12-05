@@ -5,6 +5,7 @@
 #include "onyx/core/glfw.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/core/imgui.hpp"
+#include "onyx/core/implot.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/debug.hpp"
 #include "vkit/vulkan/loader.hpp"
@@ -112,7 +113,7 @@ void Application::initializeImGui(WindowData &p_Data)
     p_Data.ImGuiContext = ImGui::CreateContext();
     ImGui::SetCurrentContext(p_Data.ImGuiContext);
 #    ifdef ONYX_ENABLE_IMPLOT
-    ImPlot::CreateContext();
+    p_Data.ImPlotContext = ImPlot::CreateContext();
     ImPlot::SetCurrentContext(p_Data.ImPlotContext);
 #    endif
 
@@ -253,7 +254,7 @@ void Application::processWindow(WindowData &p_Data)
                 "ImGui is running. This should not be possible");
 
     ImGui::SetCurrentContext(p_Data.ImGuiContext);
-#    ifdef ONYX_IMPLOT
+#    ifdef ONYX_ENABLE_IMPLOT
     ImPlot::SetCurrentContext(p_Data.ImPlotContext);
 #    endif
 

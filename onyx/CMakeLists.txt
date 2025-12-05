@@ -163,7 +163,7 @@ if(ONYX_ENABLE_IMPLOT)
   FetchContent_Declare(
     implot
     GIT_REPOSITORY https://github.com/epezent/implot.git
-    GIT_TAG v0.16
+    GIT_TAG v0.17
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
 
