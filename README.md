@@ -16,6 +16,8 @@ Onyx seamlessly supports 2D and 3D rendering with a unified API that let's the u
 
 Although it will not be explicitly needed in most use cases, Onyx exposes the Vulkan API so that you can hook custom behaviour to the frame loop by recording any command directly into the main command buffer.
 
+A full sandbox of Onyx is available as a [demo](https://github.com/ismawno/onyx/tree/main/demo/sandbox). Be sure to set `ONYX_BUILD_DEMOS` to `ON` in `CMake` to be able to run it.
+
 ### Windows
 
 The most straightforward way of using Onyx is through a standalone window. It is also the most versatile and customizable, as it gives you explicit control of the frame loop, but lacks out of the box features such as ImGui or ImPlot, which must be setup manually. Window management can be deferred to application objects (see [Applications](#applications)).
@@ -23,6 +25,10 @@ The most straightforward way of using Onyx is through a standalone window. It is
 Onyx supports the usage of multiple windows. Each of them is independent and can be run in different threads. The [multi window application](#multi-window-application) uses and manages multiple windows automatically for you.
 
 Creating an Onyx window looks like this:
+
+**Please note that, while all examples should pretty much work as-is, treat them as pseudocode. Onyx is under constant change and maintaining these examples in plain text may introduce errors. To check a working version of pretty much all of the examples in this README, check ()
+
+**Please note that, while all examples should pretty much work as-is, treat them as pseudocode. Onyx is under constant change and maintaining these examples in plain text may introduce errors. To check a working version of pretty much all of the examples in this README, check [this file](https://github.com/ismawno/onyx/blob/main/demo/hello-world/main.cpp)**
 
 ```cpp
 Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
@@ -87,14 +93,14 @@ while (!window.ShouldClose())
 This feature grants the user high-level control of the flow of their application. One of the simplest use cases looks like this:
 
 ```cpp
-Onyx::SingleWindowApp app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
+Onyx::Application app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
 app.Run();
 ```
 
 Note that this setup won’t do anything beyond opening a pitch-black window, which may not be very useful. You can break down the `Application::Run()` method to insert your own logic into the frame loop:
 
 ```cpp
-Onyx::SingleWindowApp app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
+Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
 
 TKit::Clock clock;
 
@@ -127,7 +133,7 @@ class MyLayer : public Onyx::UserLayer
     }
 };
 
-Onyx::SingleWindowApp app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
+Onyx::Application app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
 app.SetUserLayer<MyLayer>();
 
 app.Run();
