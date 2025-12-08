@@ -38,13 +38,6 @@ static VKit::PipelineLayout s_DLevelComplexLayout{};
 static VKit::CommandPool s_GraphicsPool{};
 static VKit::CommandPool s_TransferPool{};
 
-#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-static TKit::VkProfilingContext s_GraphicsContext;
-// static TKit::VkProfilingContext s_TransferContext;
-static VkCommandBuffer s_ProfilingGraphicsCmd;
-// static VkCommandBuffer s_ProfilingTransferCmd;
-#endif
-
 static TKit::Array4<u32> s_QueueRequests;
 static TKit::Array4<TKit::StaticArray64<QueueHandle *>> s_Queues;
 
@@ -117,57 +110,6 @@ static void createDevice(const VkSurfaceKHR p_Surface)
     TKIT_LOG_INFO_IF(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal,
                      "[ONYX] The device is optimal");
 
-    const u32 maxCount = *std::max_element(s_QueueRequests.begin(), s_QueueRequests.end());
-    for (u32 i = 0; i < maxCount; ++i)
-    {
-        TKit::Array4<QueueHandle *> handles{nullptr, nullptr, nullptr, nullptr};
-
-        for (u32 j = 0; j < 4; ++j)
-        {
-            const u32 findex = phys.GetInfo().FamilyIndices[j];
-            const auto res = s_Device.GetQueue(findex, i);
-            if (!res)
-                continue;
-            const VkQueue queue = res.GetValue();
-            QueueHandle *qh = nullptr;
-            for (u32 k = 0; k < j; ++k)
-                if (handles[k] && handles[k]->Queue == queue)
-                {
-                    qh = handles[k];
-                    break;
-                }
-
-            if (!qh)
-            {
-                qh = s_QueueAllocator.Create<QueueHandle>();
-                qh->Queue = queue;
-                qh->Index = i;
-                qh->FamilyIndex = findex;
-                qh->UsageCount = 0;
-                handles[j] = qh;
-
-                TKIT_LOG_DEBUG("[ONYX] Retrieved {} queue <{}, {}>", VKit::ToString(static_cast<VKit::QueueType>(j)),
-                               findex, i);
-            }
-            s_Queues[j].Append(qh);
-        }
-    }
-
-#if defined(TKIT_ENABLE_INFO_LOGS) || defined(TKIT_ENABLE_WARNING_LOGS)
-    for (u32 i = 0; i < 4; ++i)
-    {
-        const char *name = VKit::ToString(static_cast<VKit::QueueType>(i));
-        TKIT_LOG_INFO("[ONYX] {} family index: {}", name, phys.GetInfo().FamilyIndices[i]);
-
-        const u32 count = s_QueueRequests[i];
-        TKIT_LOG_INFO_IF(count > 0 && count == s_Queues[i].GetSize(), "[ONYX] Successfully retrieved {} {} queues",
-                         count, name);
-        TKIT_LOG_WARNING_IF(count > 0 && count > s_Queues[i].GetSize(),
-                            "[ONYX] Could not retrieve {} {} queues. Only managed to obtain {}", count, name,
-                            s_Queues[i].GetSize());
-    }
-#endif
-
     s_DeletionQueue.SubmitForDeletion(s_Device);
 }
 
@@ -207,37 +149,6 @@ static void createCommandPool()
     else
         s_TransferPool = s_GraphicsPool;
 }
-
-#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-static void createProfilingContext()
-{
-    TKIT_LOG_INFO("[ONYX] Creating Vulkan profiling context");
-    auto cmdres = s_GraphicsPool.Allocate();
-    VKIT_ASSERT_RESULT(cmdres);
-    s_ProfilingGraphicsCmd = cmdres.GetValue();
-
-    s_GraphicsContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
-        s_Instance, s_Device.GetInfo().PhysicalDevice, s_Device, s_GraphicsQueue, s_ProfilingGraphicsCmd,
-        VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
-
-    s_DeletionQueue.Push([] { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_GraphicsContext); });
-
-    // if (s_TransferMode == TransferMode::Separate)
-    // {
-    //     cmdres = s_TransferPool.Allocate();
-    //     VKIT_ASSERT_RESULT(cmdres);
-    //     s_ProfilingTransferCmd = cmdres.GetValue();
-    //
-    //     s_TransferContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
-    //         s_Instance, s_Device.GetPhysicalDevice(), s_Device, s_TransferQueue, s_ProfilingTransferCmd,
-    //         VKit::Vulkan::vkGetInstanceProcAddr, s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
-    //
-    //     s_DeletionQueue.Push([] { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(s_TransferContext); });
-    // }
-    // else
-    //     s_TransferContext = s_GraphicsContext;
-}
-#endif
 
 static void createDescriptorData()
 {
@@ -302,6 +213,76 @@ static void createShaders()
     Shaders<D2, DrawMode::Stencil>::Initialize();
     Shaders<D3, DrawMode::Fill>::Initialize();
     Shaders<D3, DrawMode::Stencil>::Initialize();
+}
+
+static void retrieveDeviceQueues()
+{
+    const VKit::PhysicalDevice &phys = s_Device.GetInfo().PhysicalDevice;
+    const u32 maxCount = *std::max_element(s_QueueRequests.begin(), s_QueueRequests.end());
+    for (u32 i = 0; i < maxCount; ++i)
+    {
+        TKit::Array4<QueueHandle *> handles{nullptr, nullptr, nullptr, nullptr};
+
+        for (u32 j = 0; j < 4; ++j)
+        {
+            const VKit::QueueType qtype = static_cast<VKit::QueueType>(j);
+            const u32 findex = phys.GetInfo().FamilyIndices[qtype];
+            const auto res = s_Device.GetQueue(findex, i);
+            if (!res)
+                continue;
+            const VkQueue queue = res.GetValue();
+            QueueHandle *qh = nullptr;
+            for (u32 k = 0; k < j; ++k)
+                if (handles[k] && handles[k]->Queue == queue)
+                {
+                    qh = handles[k];
+                    break;
+                }
+
+            if (!qh)
+            {
+                qh = s_QueueAllocator.Create<QueueHandle>();
+                s_DeletionQueue.Push([qh] { s_QueueAllocator.Destroy(qh); });
+
+                qh->Queue = queue;
+                qh->Index = i;
+                qh->FamilyIndex = findex;
+                qh->UsageCount = 0;
+#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
+                if (qtype == VKit::Queue_Graphics)
+                {
+                    const auto cmdres = s_GraphicsPool.Allocate();
+                    VKIT_ASSERT_RESULT(cmdres);
+                    VkCommandBuffer cmd = cmdres.GetValue();
+
+                    qh->ProfilingContext = TKIT_PROFILE_CREATE_VULKAN_CONTEXT(
+                        s_Instance, phys, s_Device, qh->Queue, cmd, VKit::Vulkan::vkGetInstanceProcAddr,
+                        s_Instance.GetInfo().Table.vkGetDeviceProcAddr);
+
+                    s_DeletionQueue.Push([qh] { TKIT_PROFILE_DESTROY_VULKAN_CONTEXT(qh->ProfilingContext); });
+                }
+#endif
+                handles[j] = qh;
+                TKIT_LOG_DEBUG("[ONYX] Retrieved {} queue <{}, {}>", VKit::ToString(qtype), findex, i);
+            }
+            s_Queues[j].Append(qh);
+        }
+    }
+
+#if defined(TKIT_ENABLE_INFO_LOGS) || defined(TKIT_ENABLE_WARNING_LOGS)
+    for (u32 i = 0; i < 4; ++i)
+    {
+        const char *name = VKit::ToString(static_cast<VKit::QueueType>(i));
+        TKIT_LOG_INFO("[ONYX] {} family index: {}", name, phys.GetInfo().FamilyIndices[i]);
+
+        const u32 count = s_QueueRequests[i];
+        TKIT_LOG_INFO_IF(count > 0 && count == s_Queues[i].GetSize(), "[ONYX] Successfully retrieved {} {} queues",
+                         count, name);
+        TKIT_LOG_WARNING_IF(count > 0 && count > s_Queues[i].GetSize(),
+                            "[ONYX] Could not retrieve {} {} queues. Only managed to obtain {}", count, name,
+                            s_Queues[i].GetSize());
+    }
+#endif
 }
 
 void Core::Initialize(const Specs &p_Specs)
@@ -380,10 +361,6 @@ void Core::Initialize(const Specs &p_Specs)
 
 void Core::Terminate()
 {
-    for (const auto &stack : s_Queues)
-        for (QueueHandle *qh : stack)
-            s_QueueAllocator.Destroy(qh);
-
     if (IsDeviceCreated())
         DeviceWaitIdle();
 
@@ -399,13 +376,11 @@ void Core::CreateDevice(const VkSurfaceKHR p_Surface)
     createDevice(p_Surface);
     createVulkanAllocator();
     createCommandPool();
+    retrieveDeviceQueues();
     createDescriptorData();
     createPipelineLayouts();
     CreateCombinedPrimitiveBuffers();
     createShaders();
-#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-    createProfilingContext();
-#endif
 }
 TKit::ITaskManager *Core::GetTaskManager()
 {
@@ -553,16 +528,5 @@ void ReturnQueueData(const QueueData &p_Data)
     Core::ReturnQueue(p_Data.Present);
 }
 } // namespace Detail
-
-#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-TKit::VkProfilingContext Core::GetGraphicsContext()
-{
-    return s_GraphicsContext;
-}
-// TKit::VkProfilingContext Core::GetTransferContext()
-// {
-//     return s_TransferContext;
-// }
-#endif
 
 } // namespace Onyx

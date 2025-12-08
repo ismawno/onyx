@@ -82,6 +82,9 @@ struct QueueHandle
     u32 Index;
     u32 FamilyIndex;
     u32 UsageCount;
+#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
+    TKit::VkProfilingContext ProfilingContext;
+#endif
 };
 
 namespace Detail
@@ -156,10 +159,6 @@ void ReturnQueue(QueueHandle *p_Queue);
 VkPipelineLayout GetGraphicsPipelineLayoutSimple();
 VkPipelineLayout GetGraphicsPipelineLayoutComplex();
 
-#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-TKit::VkProfilingContext GetGraphicsContext();
-//  TKit::VkProfilingContext GetTransferContext();
-#endif
 }; // namespace Core
 
 } // namespace Onyx

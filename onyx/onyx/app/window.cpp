@@ -102,7 +102,6 @@ bool Window::Render(const RenderCallbacks &p_Callbacks)
 
     const VkCommandBuffer tcmd = m_FrameScheduler->GetTransferCommandBuffer();
     {
-        // TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Copy", Core::GetTransferContext(), tcmd);
         for (const auto &context : m_RenderContexts2D)
             transferFlags |= context->GetRenderer().RecordCopyCommands(frameIndex, gcmd, tcmd);
         for (const auto &context : m_RenderContexts3D)
@@ -113,7 +112,8 @@ bool Window::Render(const RenderCallbacks &p_Callbacks)
         m_FrameScheduler->SubmitTransferQueue();
 
     {
-        TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Render", Core::GetGraphicsContext(), gcmd);
+        TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Render",
+                                  m_FrameScheduler->GetQueueData().Graphics->ProfilingContext, gcmd);
         m_FrameScheduler->BeginRendering(BackgroundColor);
 
         if (p_Callbacks.OnRenderBegin)
@@ -138,12 +138,7 @@ bool Window::Render(const RenderCallbacks &p_Callbacks)
     {
         if (p_Callbacks.OnFrameEnd)
             p_Callbacks.OnFrameEnd(frameIndex, gcmd);
-        // #ifdef TKIT_ENABLE_VULKAN_PROFILING
-        //         static TKIT_PROFILE_DECLARE_MUTEX(std::mutex, mutex);
-        //         TKIT_PROFILE_MARK_LOCK(mutex);
-        // #endif
-        TKIT_PROFILE_VULKAN_COLLECT(Core::GetGraphicsContext(), gcmd);
-        // TKIT_PROFILE_VULKAN_COLLECT(Core::GetTransferContext(), tcmd);
+        TKIT_PROFILE_VULKAN_COLLECT(m_FrameScheduler->GetQueueData().Graphics->ProfilingContext, gcmd);
     }
     m_FrameScheduler->EndFrame(*this, transferFlags);
     return true;
