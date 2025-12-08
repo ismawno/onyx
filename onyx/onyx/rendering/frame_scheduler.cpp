@@ -9,9 +9,12 @@
 
 namespace Onyx
 {
-const VkFormat s_DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
+static const VkFormat s_DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
+
 FrameScheduler::FrameScheduler(Window &p_Window)
 {
+    m_QueueData = Detail::BorrowQueueData();
+
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     createSwapChain(p_Window, extent);
     m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetInfo().ImageData.GetSize());
@@ -38,6 +41,7 @@ FrameScheduler::~FrameScheduler()
     }
 
     m_SwapChain.Destroy();
+    Detail::ReturnQueueData(m_QueueData);
 }
 
 void FrameScheduler::handlePresentResult(Window &p_Window, const VkResult p_Result)
@@ -139,7 +143,7 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
     submitInfo.pSignalSemaphores = &isync.RenderFinishedSemaphore;
 
     VKIT_ASSERT_SUCCESS(table.ResetFences(Core::GetDevice(), 1, &fsync.InFlightFence), "[ONYX] Failed to reset fences");
-    VKIT_ASSERT_SUCCESS(table.QueueSubmit(Core::GetGraphicsQueue(), 1, &submitInfo, fsync.InFlightFence),
+    VKIT_ASSERT_SUCCESS(table.QueueSubmit(m_QueueData.Graphics->Queue, 1, &submitInfo, fsync.InFlightFence),
                         "[ONYX] Failed to submit graphics queue");
 }
 VkResult FrameScheduler::Present()
@@ -160,8 +164,7 @@ VkResult FrameScheduler::Present()
     presentInfo.pImageIndices = &m_ImageIndex;
 
     const auto &table = Core::GetDeviceTable();
-    const VkResult result = table.QueuePresentKHR(Core::GetPresentQueue(), &presentInfo);
-    return result;
+    return table.QueuePresentKHR(m_QueueData.Present->Queue, &presentInfo);
 }
 void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Flags)
 {
@@ -340,7 +343,7 @@ void FrameScheduler::SubmitTransferQueue()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_SyncFrameData[m_FrameIndex].TransferCopyDoneSemaphore;
 
-    VKIT_ASSERT_SUCCESS(table.QueueSubmit(Core::GetTransferQueue(), 1, &submitInfo, VK_NULL_HANDLE),
+    VKIT_ASSERT_SUCCESS(table.QueueSubmit(m_QueueData.Transfer->Queue, 1, &submitInfo, VK_NULL_HANDLE),
                         "[ONYX] Failed to submit to transfer queue");
 }
 
@@ -530,9 +533,15 @@ void FrameScheduler::createProcessingEffects()
 
 void FrameScheduler::createCommandData()
 {
-    m_TransferMode = Core::GetTransferMode();
-    const u32 gindex = Core::GetGraphicsIndex();
-    const u32 tindex = Core::GetTransferIndex();
+    const u32 gindex = Core::GetFamilyIndex(VKit::Queue_Graphics);
+    const u32 tindex = Core::GetFamilyIndex(VKit::Queue_Transfer);
+
+    if (gindex != tindex)
+        m_TransferMode = TransferMode::Separate;
+    else if (m_QueueData.Graphics->Queue != m_QueueData.Transfer->Queue)
+        m_TransferMode = TransferMode::SameIndex;
+    else
+        m_TransferMode = TransferMode::SameQueue;
 
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {

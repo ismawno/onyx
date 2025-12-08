@@ -7,7 +7,7 @@
 #include "vkit/pipeline/pipeline_layout.hpp"
 #include "vkit/core/core.hpp"
 #include "tkit/utils/debug.hpp"
-#include "tkit/profiling/macros.hpp"
+#include "tkit/memory/block_allocator.hpp"
 
 #include "onyx/core/glfw.hpp"
 #include "vkit/vulkan/allocator.hpp"
@@ -37,7 +37,6 @@ static VKit::PipelineLayout s_DLevelComplexLayout{};
 
 static VKit::CommandPool s_GraphicsPool{};
 static VKit::CommandPool s_TransferPool{};
-static TransferMode s_TransferMode;
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 static TKit::VkProfilingContext s_GraphicsContext;
@@ -46,12 +45,13 @@ static VkCommandBuffer s_ProfilingGraphicsCmd;
 // static VkCommandBuffer s_ProfilingTransferCmd;
 #endif
 
-static VkQueue s_GraphicsQueue = VK_NULL_HANDLE;
-static VkQueue s_PresentQueue = VK_NULL_HANDLE;
-static VkQueue s_TransferQueue = VK_NULL_HANDLE;
+static TKit::Array4<u32> s_QueueRequests;
+static TKit::Array4<TKit::StaticArray64<QueueHandle *>> s_Queues;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
-static InitializationCallbacks s_Callbacks{};
+static InitCallbacks s_Callbacks{};
+
+static TKit::BlockAllocator s_QueueAllocator = TKit::BlockAllocator::CreateFromType<QueueHandle>(128);
 
 static void createDevice(const VkSurfaceKHR p_Surface)
 {
@@ -93,11 +93,19 @@ static void createDevice(const VkSurfaceKHR p_Surface)
     phys.EnableExtensionBoundFeature(&drendering);
 #endif
 
-    const auto devres = VKit::LogicalDevice::Builder(&s_Instance, &phys)
-                            .RequireQueue(VKit::QueueType::Graphics)
-                            .RequestQueue(VKit::QueueType::Present)
-                            .RequestQueue(VKit::QueueType::Transfer)
-                            .Build();
+    VKit::LogicalDevice::Builder builder{&s_Instance, &phys};
+    builder.RequireQueue(VKit::Queue_Graphics)
+        .RequestQueue(VKit::Queue_Present, s_QueueRequests[VKit::Queue_Present])
+        .RequestQueue(VKit::Queue_Transfer, s_QueueRequests[VKit::Queue_Transfer])
+        .RequestQueue(VKit::Queue_Compute, s_QueueRequests[VKit::Queue_Compute]);
+
+    if (s_QueueRequests[VKit::Queue_Graphics] > 1)
+        builder.RequestQueue(VKit::Queue_Graphics, s_QueueRequests[VKit::Queue_Graphics] - 1);
+
+    if (s_Callbacks.OnLogicalDeviceCreation)
+        s_Callbacks.OnLogicalDeviceCreation(builder);
+
+    const auto devres = builder.Build();
 
     VKIT_ASSERT_RESULT(devres);
     s_Device = devres.GetValue();
@@ -109,60 +117,56 @@ static void createDevice(const VkSurfaceKHR p_Surface)
     TKIT_LOG_INFO_IF(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal,
                      "[ONYX] The device is optimal");
 
-    const auto chooseQueue = [&](const VKit::QueueType p_Type, u32 p_Index) {
-        VKit::Result<VkQueue> result = VKit::Result<VkQueue>::Error(
-            VK_ERROR_UNKNOWN, "It should be impossible for you to be seeing this error message");
-        do
-        {
-            result = s_Device.GetQueue(p_Type, p_Index);
-        } while (!result && p_Index-- != 0);
-        VKIT_ASSERT_RESULT(result);
-        return result.GetValue();
-    };
+    const u32 maxCount = *std::max_element(s_QueueRequests.begin(), s_QueueRequests.end());
+    for (u32 i = 0; i < maxCount; ++i)
+    {
+        TKit::Array4<QueueHandle *> handles{nullptr, nullptr, nullptr, nullptr};
 
-    s_GraphicsQueue = chooseQueue(VKit::QueueType::Graphics, 0);
-    s_PresentQueue = chooseQueue(VKit::QueueType::Present, 1);
-    s_TransferQueue = chooseQueue(VKit::QueueType::Transfer, 2);
+        for (u32 j = 0; j < 4; ++j)
+        {
+            const u32 findex = phys.GetInfo().FamilyIndices[j];
+            const auto res = s_Device.GetQueue(findex, i);
+            if (!res)
+                continue;
+            const VkQueue queue = res.GetValue();
+            QueueHandle *qh = nullptr;
+            for (u32 k = 0; k < j; ++k)
+                if (handles[k] && handles[k]->Queue == queue)
+                {
+                    qh = handles[k];
+                    break;
+                }
+
+            if (!qh)
+            {
+                qh = s_QueueAllocator.Create<QueueHandle>();
+                qh->Queue = queue;
+                qh->Index = i;
+                qh->FamilyIndex = findex;
+                qh->UsageCount = 0;
+                handles[j] = qh;
+
+                TKIT_LOG_DEBUG("[ONYX] Retrieved {} queue <{}, {}>", VKit::ToString(static_cast<VKit::QueueType>(j)),
+                               findex, i);
+            }
+            s_Queues[j].Append(qh);
+        }
+    }
 
 #if defined(TKIT_ENABLE_INFO_LOGS) || defined(TKIT_ENABLE_WARNING_LOGS)
-    const TKit::Array<VkQueue, 3> queues{s_GraphicsQueue, s_PresentQueue, s_TransferQueue};
-    const TKit::Array<const char *, 3> names{"Graphics", "Present", "Transfer"};
-    const TKit::Array<u32, 3> indices{phys.GetInfo().GraphicsIndex, phys.GetInfo().PresentIndex,
-                                      phys.GetInfo().TransferIndex};
-    for (u32 i = 0; i < 3; ++i)
-        for (u32 j = i + 1; j < 3; ++j)
-        {
-            TKIT_LOG_WARNING_IF(
-                indices[i] == indices[j],
-                "[ONYX] The {} and {} queues share the same family index. This is fine, but not optimal", names[i],
-                names[j]);
+    for (u32 i = 0; i < 4; ++i)
+    {
+        const char *name = VKit::ToString(static_cast<VKit::QueueType>(i));
+        TKIT_LOG_INFO("[ONYX] {} family index: {}", name, phys.GetInfo().FamilyIndices[i]);
 
-            TKIT_LOG_WARNING_IF(queues[i] == queues[j],
-                                "[ONYX] The {} and {} queues are the same. This is also fine, but even less optimal",
-                                names[i], names[j]);
-            TKIT_LOG_INFO_IF(queues[i] != queues[j], "[ONYX] The {} and {} queues are different. This is preferable",
-                             names[i], names[j]);
-            TKIT_LOG_INFO_IF(indices[i] != indices[j],
-                             "[ONYX] The {} and {} queues come from different families. This is optimal", names[i],
-                             names[j]);
-        }
+        const u32 count = s_QueueRequests[i];
+        TKIT_LOG_INFO_IF(count > 0 && count == s_Queues[i].GetSize(), "[ONYX] Successfully retrieved {} {} queues",
+                         count, name);
+        TKIT_LOG_WARNING_IF(count > 0 && count > s_Queues[i].GetSize(),
+                            "[ONYX] Could not retrieve {} {} queues. Only managed to obtain {}", count, name,
+                            s_Queues[i].GetSize());
+    }
 #endif
-
-    if (s_GraphicsQueue == s_TransferQueue)
-    {
-        s_TransferMode = TransferMode::SameQueue;
-        TKIT_LOG_INFO("[ONYX] Transfer mode is 'SameQueue'");
-    }
-    else if (Core::GetGraphicsIndex() == Core::GetTransferIndex())
-    {
-        s_TransferMode = TransferMode::SameIndex;
-        TKIT_LOG_INFO("[ONYX] Transfer mode is 'SameIndex'");
-    }
-    else
-    {
-        s_TransferMode = TransferMode::Separate;
-        TKIT_LOG_INFO("[ONYX] Transfer mode is 'Separate'");
-    }
 
     s_DeletionQueue.SubmitForDeletion(s_Device);
 }
@@ -184,18 +188,18 @@ static void createVulkanAllocator()
 static void createCommandPool()
 {
     TKIT_LOG_INFO("[ONYX] Creating global command pools");
-    auto poolres = VKit::CommandPool::Create(s_Device, Core::GetGraphicsIndex(),
-                                             VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
-                                                 VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+    const u32 gindex = Core::GetFamilyIndex(VKit::Queue_Graphics);
+    const u32 tindex = Core::GetFamilyIndex(VKit::Queue_Transfer);
+    auto poolres = VKit::CommandPool::Create(
+        s_Device, gindex, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 
     VKIT_ASSERT_RESULT(poolres);
     s_GraphicsPool = poolres.GetValue();
     s_DeletionQueue.SubmitForDeletion(s_GraphicsPool);
-    if (s_TransferMode == TransferMode::Separate)
+    if (gindex != tindex)
     {
-        poolres = VKit::CommandPool::Create(s_Device, Core::GetTransferIndex(),
-                                            VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT |
-                                                VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+        poolres = VKit::CommandPool::Create(
+            s_Device, tindex, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
         VKIT_ASSERT_RESULT(poolres);
         s_TransferPool = poolres.GetValue();
         s_DeletionQueue.SubmitForDeletion(s_TransferPool);
@@ -307,6 +311,17 @@ void Core::Initialize(const Specs &p_Specs)
     FcInit();
 #endif
 
+#ifdef TKIT_ENABLE_ASSERTS
+    for (u32 i = 0; i < 4; ++i)
+    {
+        TKIT_ASSERT(i == 1 || p_Specs.QueueRequests[i] > 0,
+                    "[ONYX] The queue request count for all queues must be at least 1 except for compute queues, "
+                    "which are not directly used by this framework");
+    }
+#endif
+
+    s_QueueRequests = p_Specs.QueueRequests;
+
     if (p_Specs.TaskManager)
         s_TaskManager = p_Specs.TaskManager;
     else
@@ -365,6 +380,10 @@ void Core::Initialize(const Specs &p_Specs)
 
 void Core::Terminate()
 {
+    for (const auto &stack : s_Queues)
+        for (QueueHandle *qh : stack)
+            s_QueueAllocator.Destroy(qh);
+
     if (IsDeviceCreated())
         DeviceWaitIdle();
 
@@ -464,36 +483,76 @@ VkPipelineLayout Core::GetGraphicsPipelineLayoutComplex()
     return s_DLevelComplexLayout;
 }
 
-VkQueue Core::GetGraphicsQueue()
+bool Core::IsSeparateTransferMode()
 {
-    return s_GraphicsQueue;
-}
-VkQueue Core::GetPresentQueue()
-{
-    return s_PresentQueue;
-}
-VkQueue Core::GetTransferQueue()
-{
-    return s_TransferQueue;
+    return GetFamilyIndex(VKit::Queue_Graphics) != GetFamilyIndex(VKit::Queue_Transfer);
 }
 
-u32 Core::GetGraphicsIndex()
+u32 Core::GetFamilyIndex(const VKit::QueueType p_Type)
 {
-    return s_Device.GetInfo().PhysicalDevice.GetInfo().GraphicsIndex;
-}
-u32 Core::GetPresentIndex()
-{
-    return s_Device.GetInfo().PhysicalDevice.GetInfo().PresentIndex;
-}
-u32 Core::GetTransferIndex()
-{
-    return s_Device.GetInfo().PhysicalDevice.GetInfo().TransferIndex;
+    return s_Device.GetInfo().PhysicalDevice.GetInfo().FamilyIndices[p_Type];
 }
 
-TransferMode Core::GetTransferMode()
+static QueueHandle *chooseQueue(const VKit::QueueType p_Type)
 {
-    return s_TransferMode;
+    const auto &stack = s_Queues[p_Type];
+    TKIT_ASSERT(!stack.IsEmpty(),
+                "[ONYX] There are no {} queues available. Ensure they are requested through Onyx's initialization "
+                "specification",
+                VKit::ToString(p_Type));
+
+    QueueHandle *qh = nullptr;
+    for (QueueHandle *q : stack)
+        if (!qh || q->UsageCount < qh->UsageCount)
+            qh = q;
+    TKIT_ASSERT(qh, "[ONYX] Failed to find a queue of type {}", VKit::ToString(p_Type));
+    return qh;
 }
+
+QueueHandle *Core::BorrowQueue(const VKit::QueueType p_Type)
+{
+    QueueHandle *qh = chooseQueue(p_Type);
+    ++qh->UsageCount;
+    return qh;
+}
+
+void Core::ReturnQueue(QueueHandle *p_Queue)
+{
+    TKIT_ASSERT(p_Queue->UsageCount != 0, "[ONYX] Cannot return a queue that has 0 usage count");
+    --p_Queue->UsageCount;
+}
+
+namespace Detail
+{
+QueueData BorrowQueueData()
+{
+    QueueData data;
+    data.Graphics = chooseQueue(VKit::Queue_Graphics);
+    data.Transfer = chooseQueue(VKit::Queue_Transfer);
+    data.Present = chooseQueue(VKit::Queue_Present);
+
+#ifdef TKIT_ENABLE_DEBUG_LOGS
+    TKit::Array<QueueHandle *, 3> handles{data.Graphics, data.Transfer, data.Present};
+    TKit::Array<VKit::QueueType, 3> types{VKit::Queue_Graphics, VKit::Queue_Transfer, VKit::Queue_Present};
+    for (u32 i = 0; i < 3; ++i)
+        TKIT_LOG_DEBUG("[ONYX] Borrowing {} queue <{}, {}>, which is being used in {} other instances",
+                       VKit::ToString(types[i]), handles[i]->FamilyIndex, handles[i]->Index, handles[i]->UsageCount);
+#endif
+
+    ++data.Graphics->UsageCount;
+    ++data.Transfer->UsageCount;
+    ++data.Present->UsageCount;
+
+    return data;
+}
+
+void ReturnQueueData(const QueueData &p_Data)
+{
+    Core::ReturnQueue(p_Data.Graphics);
+    Core::ReturnQueue(p_Data.Transfer);
+    Core::ReturnQueue(p_Data.Present);
+}
+} // namespace Detail
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 TKit::VkProfilingContext Core::GetGraphicsContext()

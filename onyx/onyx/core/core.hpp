@@ -13,6 +13,7 @@
 #include "vkit/vulkan/loader.hpp"
 #include "vkit/vulkan/logical_device.hpp"
 #include "vkit/vulkan/physical_device.hpp"
+#include "tkit/profiling/macros.hpp"
 
 #ifndef ONYX_MAX_DESCRIPTOR_SETS
 #    define ONYX_MAX_DESCRIPTOR_SETS 1024
@@ -75,76 +76,90 @@ namespace Onyx
 using Task = TKit::Task<void>;
 using TaskArray = TKit::StaticArray<Task, ONYX_MAX_TASKS>;
 
-struct InitializationCallbacks
+struct QueueHandle
+{
+    VkQueue Queue;
+    u32 Index;
+    u32 FamilyIndex;
+    u32 UsageCount;
+};
+
+namespace Detail
+{
+struct QueueData
+{
+    QueueHandle *Graphics;
+    QueueHandle *Transfer;
+    QueueHandle *Present;
+};
+
+QueueData BorrowQueueData();
+void ReturnQueueData(const QueueData &p_Data);
+
+} // namespace Detail
+
+struct InitCallbacks
 {
     std::function<void(VKit::Instance::Builder &)> OnInstanceCreation = nullptr;
     std::function<void(VKit::PhysicalDevice::Selector &)> OnPhysicalDeviceCreation = nullptr;
+    std::function<void(VKit::LogicalDevice::Builder &)> OnLogicalDeviceCreation = nullptr;
     std::function<void(VKit::AllocatorSpecs &)> OnAllocatorCreation = nullptr;
-};
-
-enum class TransferMode : u8
-{
-    Separate = 0,
-    SameIndex = 1,
-    SameQueue = 2
 };
 
 struct Specs
 {
     const char *VulkanLibraryPath = nullptr;
-    u32 Platform = ONYX_PLATFORM_AUTO;
     TKit::ITaskManager *TaskManager = nullptr;
-    InitializationCallbacks Callbacks{};
+    InitCallbacks Callbacks{};
+    TKit::Array4<u32> QueueRequests{4, 0, 4, 4};
+    u32 Platform = ONYX_PLATFORM_AUTO;
 };
 
 template <typename T> using PerFrameData = TKit::Array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
 template <typename T> using PerImageData = TKit::StaticArray8<T>;
-struct ONYX_API Core
+
+namespace Core
 {
-    static void Initialize(const Specs &p_Specs = {});
-    static void Terminate();
+void Initialize(const Specs &p_Specs = {});
+void Terminate();
 
-    static TKit::ITaskManager *GetTaskManager();
-    static void SetTaskManager(TKit::ITaskManager *p_TaskManager);
+TKit::ITaskManager *GetTaskManager();
+void SetTaskManager(TKit::ITaskManager *p_TaskManager);
 
-    static const VKit::Instance &GetInstance();
-    static const VKit::Vulkan::InstanceTable &GetInstanceTable();
+const VKit::Instance &GetInstance();
+const VKit::Vulkan::InstanceTable &GetInstanceTable();
 
-    static const VKit::LogicalDevice &GetDevice();
-    static const VKit::Vulkan::DeviceTable &GetDeviceTable();
+const VKit::LogicalDevice &GetDevice();
+const VKit::Vulkan::DeviceTable &GetDeviceTable();
 
-    static void CreateDevice(VkSurfaceKHR p_Surface);
+void CreateDevice(VkSurfaceKHR p_Surface);
 
-    static bool IsDeviceCreated();
-    static void DeviceWaitIdle();
+bool IsDeviceCreated();
+void DeviceWaitIdle();
 
-    static VKit::CommandPool &GetGraphicsPool();
-    static VKit::CommandPool &GetTransferPool();
-    static VmaAllocator GetVulkanAllocator();
+VKit::CommandPool &GetGraphicsPool();
+VKit::CommandPool &GetTransferPool();
+VmaAllocator GetVulkanAllocator();
 
-    static VKit::DeletionQueue &GetDeletionQueue();
+VKit::DeletionQueue &GetDeletionQueue();
 
-    static const VKit::DescriptorPool &GetDescriptorPool();
-    static const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout();
-    static const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout();
+const VKit::DescriptorPool &GetDescriptorPool();
+const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout();
+const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout();
 
-    static VkQueue GetGraphicsQueue();
-    static VkQueue GetPresentQueue();
-    static VkQueue GetTransferQueue();
+bool IsSeparateTransferMode();
 
-    static u32 GetGraphicsIndex();
-    static u32 GetPresentIndex();
-    static u32 GetTransferIndex();
+u32 GetFamilyIndex(VKit::QueueType p_Type);
+QueueHandle *BorrowQueue(VKit::QueueType p_Type);
+void ReturnQueue(QueueHandle *p_Queue);
 
-    static TransferMode GetTransferMode();
-
-    static VkPipelineLayout GetGraphicsPipelineLayoutSimple();
-    static VkPipelineLayout GetGraphicsPipelineLayoutComplex();
+VkPipelineLayout GetGraphicsPipelineLayoutSimple();
+VkPipelineLayout GetGraphicsPipelineLayoutComplex();
 
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-    static TKit::VkProfilingContext GetGraphicsContext();
-    // static TKit::VkProfilingContext GetTransferContext();
+TKit::VkProfilingContext GetGraphicsContext();
+//  TKit::VkProfilingContext GetTransferContext();
 #endif
-};
+}; // namespace Core
 
 } // namespace Onyx

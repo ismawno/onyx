@@ -27,12 +27,14 @@ Window::Window(const Specs &p_Specs)
     : m_Allocator(createAllocator()), m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height),
       m_Flags(p_Specs.Flags)
 {
+    TKIT_LOG_DEBUG("[ONYX] Window '{}' has been instantiated", p_Specs.Name);
     createWindow(p_Specs);
     m_FrameScheduler->SetPresentMode(p_Specs.PresentMode);
 }
 
 Window::~Window()
 {
+    TKIT_LOG_DEBUG("[ONYX] Window '{}' is about to be destroyed", m_Name);
     m_FrameScheduler.Destruct();
     for (RenderContext<D2> *context : m_RenderContexts2D)
         m_Allocator.Destroy(context);
@@ -107,7 +109,7 @@ bool Window::Render(const RenderCallbacks &p_Callbacks)
             transferFlags |= context->GetRenderer().RecordCopyCommands(frameIndex, gcmd, tcmd);
     }
 
-    if (Core::GetTransferMode() == TransferMode::Separate && transferFlags != 0)
+    if (Core::IsSeparateTransferMode() && transferFlags != 0)
         m_FrameScheduler->SubmitTransferQueue();
 
     {

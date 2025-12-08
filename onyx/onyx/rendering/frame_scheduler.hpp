@@ -11,6 +11,13 @@ namespace Onyx
 struct Color;
 class Window;
 
+enum class TransferMode : u8
+{
+    Separate = 0,
+    SameIndex = 1,
+    SameQueue = 2
+};
+
 /**
  * @brief Manages frame scheduling and rendering operations for a window.
  *
@@ -155,6 +162,10 @@ class ONYX_API FrameScheduler
      */
     void RemovePostProcessing();
 
+    const Detail::QueueData &GetQueueData() const
+    {
+        return m_QueueData;
+    }
     const VKit::SwapChain &GetSwapChain() const
     {
         return m_SwapChain;
@@ -204,10 +215,11 @@ class ONYX_API FrameScheduler
     PerFrameData<Detail::SyncFrameData> m_SyncFrameData{};
     PerImageData<Detail::SyncImageData> m_SyncImageData{};
 
+    Detail::QueueData m_QueueData;
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;
+    TransferMode m_TransferMode;
     bool m_FrameStarted = false;
     bool m_PresentModeChanged = false;
-    TransferMode m_TransferMode;
 };
 } // namespace Onyx

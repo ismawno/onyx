@@ -343,7 +343,7 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex)
 VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
                                                       const VkCommandBuffer p_TransferCommand)
 {
-    const bool separate = Core::GetTransferMode() == TransferMode::Separate;
+    const bool separate = Core::IsSeparateTransferMode();
     TKit::StaticArray16<VkBufferMemoryBarrier> sacquires{};
     TKit::StaticArray4<VkBufferMemoryBarrier> vacquires{};
     TKit::StaticArray32<VkBufferMemoryBarrier> releases{};
@@ -430,7 +430,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
 VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
                                                       const VkCommandBuffer p_TransferCommand)
 {
-    const bool separate = Core::GetTransferMode() == TransferMode::Separate;
+    const bool separate = Core::IsSeparateTransferMode();
     TKit::StaticArray16<VkBufferMemoryBarrier> sacquires{};
     TKit::StaticArray4<VkBufferMemoryBarrier> vacquires{};
     TKit::StaticArray32<VkBufferMemoryBarrier> releases{};

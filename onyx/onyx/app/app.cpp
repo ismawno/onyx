@@ -173,8 +173,8 @@ void Application::initializeImGui(WindowData &p_Data)
     initInfo.Instance = instance;
     initInfo.PhysicalDevice = device.GetInfo().PhysicalDevice;
     initInfo.Device = device;
-    initInfo.Queue = Core::GetGraphicsQueue();
-    initInfo.QueueFamily = Core::GetGraphicsIndex();
+    initInfo.Queue = window->GetFrameScheduler()->GetQueueData().Graphics->Queue;
+    initInfo.QueueFamily = Core::GetFamilyIndex(VKit::Queue_Graphics);
     initInfo.DescriptorPoolSize = 100;
     initInfo.MinImageCount = sc.minImageCount;
     initInfo.ImageCount = imageCount;

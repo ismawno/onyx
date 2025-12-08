@@ -50,11 +50,9 @@ template <Dimension D> struct IndexVertexHostData
 };
 
 template <Dimension D>
-VKit::FormattedResult<IndexVertexHostData<D>> Load(std::string_view p_Path,
-                                                   const f32m<D> *p_Transform = nullptr);
+VKit::FormattedResult<IndexVertexHostData<D>> Load(std::string_view p_Path, const f32m<D> *p_Transform = nullptr);
 
-template <Dimension D>
-DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices);
+template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices);
 ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Indices);
 
 template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(u32 p_Capacity);
@@ -66,9 +64,13 @@ template <typename T> DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer
     specs.Allocator = Core::GetVulkanAllocator();
     specs.Data = TKit::Span<const T>{nullptr, p_Capacity};
     specs.CommandPool = &Core::GetTransferPool();
-    specs.Queue = Core::GetTransferQueue();
 
+    QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
+    specs.Queue = queue->Queue;
     const auto result = VKit::DeviceLocalBuffer<T>::CreateStorageBuffer(Core::GetDevice(), specs);
+
+    Core::ReturnQueue(queue);
+
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }

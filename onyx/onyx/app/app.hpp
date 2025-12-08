@@ -8,15 +8,15 @@
 #include "tkit/profiling/clock.hpp"
 #include "tkit/memory/ptr.hpp"
 
-#ifndef ONYX_MAX_WINDOWS
-#    define ONYX_MAX_WINDOWS 8
+#ifndef ONYX_APP_MAX_WINDOWS
+#    define ONYX_APP_MAX_WINDOWS 8
 #endif
 
-#if ONYX_MAX_WINDOWS < 1
+#if ONYX_APP_MAX_WINDOWS < 1
 #    error "[ONYX] Onyx maximum windows must be at least 1";
 #endif
 
-#if ONYX_MAX_WINDOWS > 1
+#if ONYX_APP_MAX_WINDOWS > 1
 #    define __ONYX_MULTI_WINDOW
 #endif
 
@@ -383,10 +383,10 @@ class ONYX_API Application
     Flags m_Flags = 0;
 
 #ifdef __ONYX_MULTI_WINDOW
-    TKit::StaticArray<WindowData, ONYX_MAX_WINDOWS - 1> m_Windows;
-    TKit::StaticArray<WindowSpecs, ONYX_MAX_WINDOWS - 1> m_WindowsToAdd;
+    TKit::StaticArray<WindowData, ONYX_APP_MAX_WINDOWS - 1> m_Windows;
+    TKit::StaticArray<WindowSpecs, ONYX_APP_MAX_WINDOWS - 1> m_WindowsToAdd;
 #endif
-    TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_MAX_WINDOWS);
+    TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_APP_MAX_WINDOWS);
 
 #ifdef ONYX_ENABLE_IMGUI
     TKit::Scope<Theme> m_Theme;
