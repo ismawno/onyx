@@ -331,6 +331,9 @@ class ONYX_API Window
     Flags m_Flags;
 
     bool m_Resized = false;
+#ifdef TKIT_ENABLE_INSTRUMENTATION
+    u32 m_ColorIndex = 0;
+#endif
 
     friend class FrameScheduler;
 };

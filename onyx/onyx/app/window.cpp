@@ -9,6 +9,10 @@
 
 namespace Onyx
 {
+#ifdef TKIT_ENABLE_INSTRUMENTATION
+static u32 s_ColorIndex = 0;
+static u32 s_Colors[4] = {0x434E78, 0x607B8F, 0xF7E396, 0xE97F4A};
+#endif
 
 static TKit::BlockAllocator createAllocator()
 {
@@ -30,6 +34,7 @@ Window::Window(const Specs &p_Specs)
     TKIT_LOG_DEBUG("[ONYX] Window '{}' has been instantiated", p_Specs.Name);
     createWindow(p_Specs);
     m_FrameScheduler->SetPresentMode(p_Specs.PresentMode);
+    m_ColorIndex = s_ColorIndex++ & 3;
 }
 
 Window::~Window()
@@ -75,6 +80,8 @@ void Window::createWindow(const Specs &p_Specs)
 bool Window::Render(const RenderCallbacks &p_Callbacks)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
+    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
+
     const VkCommandBuffer gcmd = m_FrameScheduler->BeginFrame(*this);
     const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
     if (!gcmd)
