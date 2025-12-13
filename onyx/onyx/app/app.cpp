@@ -282,25 +282,6 @@ static void endFrame()
 
 void Application::processWindow(WindowData &p_Data)
 {
-    if (p_Data.CheckFlags(Flag_MustDestroyLayer))
-    {
-        delete p_Data.Layer;
-        p_Data.Layer = nullptr;
-        p_Data.ClearFlags(Flag_MustDestroyLayer);
-    }
-    if (p_Data.CheckFlags(Flag_MustReplaceLayer))
-    {
-        p_Data.Layer = p_Data.StagedLayer;
-        p_Data.StagedLayer = nullptr;
-        p_Data.ClearFlags(Flag_MustReplaceLayer);
-    }
-
-    if (p_Data.Layer)
-        for (const Event &event : p_Data.Window->GetNewEvents())
-            p_Data.Layer->OnEvent(event);
-
-    p_Data.Window->FlushEvents();
-
 #ifdef ONYX_ENABLE_IMGUI
     TKIT_ASSERT(!p_Data.CheckFlags(Flag_ImGuiEnabled) || p_Data.CheckFlags(Flag_ImGuiRunning),
                 "[ONYX] ImGui is enabled for window '{}' but no instance of "
@@ -316,23 +297,15 @@ void Application::processWindow(WindowData &p_Data)
 #    ifdef ONYX_ENABLE_IMPLOT
     ImPlot::SetCurrentContext(p_Data.ImPlotContext);
 #    endif
-
-    if (p_Data.CheckFlags(Flag_MustDisableImGui))
-    {
-        shutdownImGui(p_Data);
-        p_Data.ClearFlags(Flag_MustDisableImGui | Flag_ImGuiEnabled);
-    }
-
-    if (p_Data.CheckFlags(Flag_MustEnableImGui))
-    {
-        initializeImGui(p_Data);
-        p_Data.ClearFlags(Flag_MustEnableImGui);
-        p_Data.SetFlags(Flag_ImGuiEnabled);
-    }
     if (p_Data.CheckFlags(Flag_ImGuiEnabled))
         beginRenderImGui();
 #endif
 
+    if (p_Data.Layer)
+        for (const Event &event : p_Data.Window->GetNewEvents())
+            p_Data.Layer->OnEvent(event);
+
+    p_Data.Window->FlushEvents();
     RenderCallbacks callbacks;
     if (p_Data.Layer)
     {
@@ -374,25 +347,12 @@ void Application::processWindow(WindowData &p_Data)
     p_Data.Window->Render(callbacks);
 }
 
-bool Application::NextFrame(TKit::Clock &p_Clock)
+void Application::syncDeferredOperations()
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
-    if (checkFlags(Flag_Quit)) [[unlikely]]
-    {
-        closeAllWindows();
-        clearFlags(Flag_Quit);
-        endFrame();
-        m_DeltaTime = p_Clock.Restart();
-        return false;
-    }
-
-    setFlags(Flag_Defer);
-    Input::PollEvents();
-
-    processWindow(m_MainWindow);
+    syncDeferredOperations(m_MainWindow);
 #ifdef __ONYX_MULTI_WINDOW
     for (WindowData &data : m_Windows)
-        processWindow(data);
+        syncDeferredOperations(data);
 
     for (const WindowSpecs &specs : m_WindowsToAdd)
         openWindow(specs);
@@ -417,7 +377,61 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
 #endif
     }
 
+    if (checkFlags(Flag_Quit)) [[unlikely]]
+    {
+        closeAllWindows();
+        clearFlags(Flag_Quit);
+    }
+}
+
+void Application::syncDeferredOperations(WindowData &p_Data)
+{
+    if (p_Data.CheckFlags(Flag_MustDestroyLayer))
+    {
+        delete p_Data.Layer;
+        p_Data.Layer = nullptr;
+        p_Data.ClearFlags(Flag_MustDestroyLayer);
+    }
+    if (p_Data.CheckFlags(Flag_MustReplaceLayer))
+    {
+        p_Data.Layer = p_Data.StagedLayer;
+        p_Data.StagedLayer = nullptr;
+        p_Data.ClearFlags(Flag_MustReplaceLayer);
+    }
+
+#ifdef ONYX_ENABLE_IMGUI
+
+    if (p_Data.CheckFlags(Flag_MustDisableImGui))
+    {
+        shutdownImGui(p_Data);
+        p_Data.ClearFlags(Flag_MustDisableImGui | Flag_ImGuiEnabled);
+    }
+
+    if (p_Data.CheckFlags(Flag_MustEnableImGui))
+    {
+        initializeImGui(p_Data);
+        p_Data.ClearFlags(Flag_MustEnableImGui);
+        p_Data.SetFlags(Flag_ImGuiEnabled);
+    }
+#endif
+}
+
+bool Application::NextFrame(TKit::Clock &p_Clock)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
+
+    setFlags(Flag_Defer);
+    Input::PollEvents();
+
+    processWindow(m_MainWindow);
+#ifdef __ONYX_MULTI_WINDOW
+    for (WindowData &data : m_Windows)
+        processWindow(data);
+#endif
     clearFlags(Flag_Defer);
+
+    syncDeferredOperations();
+
     endFrame();
     m_DeltaTime = p_Clock.Restart();
     return m_MainWindow.Window;

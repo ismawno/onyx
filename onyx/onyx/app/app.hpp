@@ -368,6 +368,8 @@ class ONYX_API Application
 
     void processWindow(WindowData &p_Data);
     void destroyWindow(WindowData &p_Data);
+    void syncDeferredOperations();
+    void syncDeferredOperations(WindowData &p_Data);
     void closeAllWindows();
 #ifdef __ONYX_MULTI_WINDOW
     Window *openWindow(const WindowSpecs &p_Specs);
