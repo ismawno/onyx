@@ -415,7 +415,7 @@ bool Core::IsDeviceCreated()
 }
 void Core::DeviceWaitIdle()
 {
-    s_Device.WaitIdle();
+    VKIT_ASSERT_EXPRESSION(s_Device.WaitIdle());
 }
 
 VKit::CommandPool &Core::GetGraphicsPool()
