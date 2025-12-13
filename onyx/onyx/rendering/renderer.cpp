@@ -410,6 +410,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
         VKit::Buffer &devDirBuffer = m_DeviceLightData.StagingDirectionals[p_FrameIndex];
         const auto &hostDirBuffer = m_HostLightData.DirectionalLights;
         devDirBuffer.Write<DirectionalLight>(hostDirBuffer);
+        VKIT_ASSERT_EXPRESSION(devDirBuffer.Flush());
     }
 
     const u32 pcount = m_HostLightData.PointLights.GetSize();
@@ -418,6 +419,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
         VKit::Buffer &devPointBuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
         const auto &hostPointBuffer = m_HostLightData.PointLights;
         devPointBuffer.Write<PointLight>(hostPointBuffer);
+        VKIT_ASSERT_EXPRESSION(devPointBuffer.Flush());
     }
     if (!mainTask)
         return;

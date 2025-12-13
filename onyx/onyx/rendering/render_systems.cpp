@@ -100,6 +100,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
     mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
+    VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
 }
 
 template <DrawLevel DLevel> static VkPipelineLayout getLayout()
@@ -272,6 +273,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Sen
     mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
+    VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
 }
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
@@ -447,6 +449,9 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
     mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
+    VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
+    VKIT_ASSERT_EXPRESSION(vertexBuffer.Flush());
+    VKIT_ASSERT_EXPRESSION(indexBuffer.Flush());
 }
 
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
@@ -598,6 +603,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
     mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
+    VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
 }
 
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
