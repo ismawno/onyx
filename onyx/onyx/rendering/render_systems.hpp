@@ -50,15 +50,15 @@ template <Dimension D, PipelineMode PMode> class RenderSystem
  * This renderer uses instanced rendering to draw multiple instances of the same mesh in a single draw call.
  *
  */
-template <Dimension D, PipelineMode PMode> class MeshRenderer final : public RenderSystem<D, PMode>
+template <Dimension D, PipelineMode PMode> class MeshSystem final : public RenderSystem<D, PMode>
 {
-    TKIT_NON_COPYABLE(MeshRenderer)
+    TKIT_NON_COPYABLE(MeshSystem)
 
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
     using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
 
   public:
-    MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+    MeshSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Record and store the data needed to draw a mesh instance. This is an onyx draw call.
@@ -130,15 +130,15 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer final : public Ren
  * program.
  *
  */
-template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : public RenderSystem<D, PMode>
+template <Dimension D, PipelineMode PMode> class PrimitiveSystem final : public RenderSystem<D, PMode>
 {
-    TKIT_NON_COPYABLE(PrimitiveRenderer)
+    TKIT_NON_COPYABLE(PrimitiveSystem)
 
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
     using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
 
   public:
-    PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+    PrimitiveSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Record and store the data needed to draw a primitive instance. This is an onyx draw call.
@@ -212,15 +212,15 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : publi
  * polygons are drawn.
  *
  */
-template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public RenderSystem<D, PMode>
+template <Dimension D, PipelineMode PMode> class PolygonSystem final : public RenderSystem<D, PMode>
 {
-    TKIT_NON_COPYABLE(PolygonRenderer)
+    TKIT_NON_COPYABLE(PolygonSystem)
 
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
     using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
 
   public:
-    PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+    PolygonSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Record and store the data needed to draw a polygon instance. This is an onyx draw call.
@@ -296,9 +296,9 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public 
  * This renderer uses instanced rendering for all of its draw calls, as all circles share the same geometry.
  *
  */
-template <Dimension D, PipelineMode PMode> class CircleRenderer final : public RenderSystem<D, PMode>
+template <Dimension D, PipelineMode PMode> class CircleSystem final : public RenderSystem<D, PMode>
 {
-    TKIT_NON_COPYABLE(CircleRenderer)
+    TKIT_NON_COPYABLE(CircleSystem)
 
     using InstanceData = InstanceData<D, GetDrawMode<PMode>()>;
     using RenderInfo = RenderInfo<GetDrawLevel<D, PMode>()>;
@@ -306,7 +306,7 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer final : public R
     using CircleInstanceData = CircleInstanceData<D, GetDrawMode<PMode>()>;
 
   public:
-    CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+    CircleSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
     /**
      * @brief Record and store the data needed to draw a circle instance. This is an onyx draw call.

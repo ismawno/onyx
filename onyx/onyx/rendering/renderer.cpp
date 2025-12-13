@@ -90,8 +90,8 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
 
 template <Dimension D>
 IRenderer<D>::IRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
-    : m_MeshRenderer(p_RenderInfo), m_PrimitiveRenderer(p_RenderInfo), m_PolygonRenderer(p_RenderInfo),
-      m_CircleRenderer(p_RenderInfo)
+    : m_MeshSystem(p_RenderInfo), m_PrimitiveSystem(p_RenderInfo), m_PolygonSystem(p_RenderInfo),
+      m_CircleSystem(p_RenderInfo)
 {
 }
 
@@ -238,7 +238,7 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
         material.Color = p_State.OutlineColor.Pack();
         const auto instanceData = createInstanceData<D, DrawMode::Stencil>(p_Transform, material);
 
-        if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleRenderer>>)
+        if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleSystem>>)
             p_Renderer.DoStencilWriteNoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
         else
         {
@@ -253,7 +253,7 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
         material.Color = p_State.OutlineColor.Pack();
         const auto instanceData = createInstanceData<D, DrawMode::Stencil>(p_Transform, material);
 
-        if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleRenderer>>)
+        if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleSystem>>)
             p_Renderer.DoStencilTestNoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
         else
         {
@@ -269,43 +269,43 @@ template <Dimension D>
 void IRenderer<D>::DrawMesh(const RenderState<D> &p_State, const f32m<D> &p_Transform, const Mesh<D> &p_Mesh,
                             const DrawFlags p_Flags)
 {
-    draw(m_MeshRenderer, p_State, p_Transform, p_Mesh, p_Flags);
+    draw(m_MeshSystem, p_State, p_Transform, p_Mesh, p_Flags);
 }
 
 template <Dimension D>
 void IRenderer<D>::DrawPrimitive(const RenderState<D> &p_State, const f32m<D> &p_Transform, const u32 p_PrimitiveIndex,
                                  const DrawFlags p_Flags)
 {
-    draw(m_PrimitiveRenderer, p_State, p_Transform, p_PrimitiveIndex, p_Flags);
+    draw(m_PrimitiveSystem, p_State, p_Transform, p_PrimitiveIndex, p_Flags);
 }
 
 template <Dimension D>
 void IRenderer<D>::DrawPolygon(const RenderState<D> &p_State, const f32m<D> &p_Transform,
                                const TKit::Span<const f32v2> p_Vertices, const DrawFlags p_Flags)
 {
-    draw(m_PolygonRenderer, p_State, p_Transform, p_Vertices, p_Flags);
+    draw(m_PolygonSystem, p_State, p_Transform, p_Vertices, p_Flags);
 }
 
 template <Dimension D>
 void IRenderer<D>::DrawCircle(const RenderState<D> &p_State, const f32m<D> &p_Transform, const CircleOptions &p_Options,
                               const DrawFlags p_Flags)
 {
-    draw(m_CircleRenderer, p_State, p_Transform, p_Options, p_Flags);
+    draw(m_CircleSystem, p_State, p_Transform, p_Options, p_Flags);
 }
 
 void Renderer<D2>::Flush()
 {
-    m_MeshRenderer.Flush();
-    m_PrimitiveRenderer.Flush();
-    m_PolygonRenderer.Flush();
-    m_CircleRenderer.Flush();
+    m_MeshSystem.Flush();
+    m_PrimitiveSystem.Flush();
+    m_PolygonSystem.Flush();
+    m_CircleSystem.Flush();
 }
 void Renderer<D3>::Flush()
 {
-    m_MeshRenderer.Flush();
-    m_PrimitiveRenderer.Flush();
-    m_PolygonRenderer.Flush();
-    m_CircleRenderer.Flush();
+    m_MeshSystem.Flush();
+    m_PrimitiveSystem.Flush();
+    m_PolygonSystem.Flush();
+    m_CircleSystem.Flush();
 
     m_HostLightData.DirectionalLights.Clear();
     m_HostLightData.PointLights.Clear();
@@ -313,10 +313,10 @@ void Renderer<D3>::Flush()
 
 void Renderer<D2>::GrowToFit(const u32 p_FrameIndex)
 {
-    m_MeshRenderer.GrowToFit(p_FrameIndex);
-    m_PrimitiveRenderer.GrowToFit(p_FrameIndex);
-    m_PolygonRenderer.GrowToFit(p_FrameIndex);
-    m_CircleRenderer.GrowToFit(p_FrameIndex);
+    m_MeshSystem.GrowToFit(p_FrameIndex);
+    m_PrimitiveSystem.GrowToFit(p_FrameIndex);
+    m_PolygonSystem.GrowToFit(p_FrameIndex);
+    m_CircleSystem.GrowToFit(p_FrameIndex);
 }
 
 void Renderer<D2>::SendToDevice(const u32 p_FrameIndex)
@@ -328,10 +328,10 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex)
     info.MainTask = &mainTask;
     info.SubmissionIndex = 0;
 
-    m_MeshRenderer.SendToDevice(p_FrameIndex, info);
-    m_PrimitiveRenderer.SendToDevice(p_FrameIndex, info);
-    m_PolygonRenderer.SendToDevice(p_FrameIndex, info);
-    m_CircleRenderer.SendToDevice(p_FrameIndex, info);
+    m_MeshSystem.SendToDevice(p_FrameIndex, info);
+    m_PrimitiveSystem.SendToDevice(p_FrameIndex, info);
+    m_PolygonSystem.SendToDevice(p_FrameIndex, info);
+    m_CircleSystem.SendToDevice(p_FrameIndex, info);
 
     if (!mainTask)
         return;
@@ -356,10 +356,10 @@ VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, co
     info.ReleaseBarriers = separate ? &releases : nullptr;
     info.AcquireVertexBarriers = &vacquires;
 
-    m_MeshRenderer.RecordCopyCommands(info);
-    m_PrimitiveRenderer.RecordCopyCommands(info);
-    m_PolygonRenderer.RecordCopyCommands(info);
-    m_CircleRenderer.RecordCopyCommands(info);
+    m_MeshSystem.RecordCopyCommands(info);
+    m_PrimitiveSystem.RecordCopyCommands(info);
+    m_PolygonSystem.RecordCopyCommands(info);
+    m_CircleSystem.RecordCopyCommands(info);
 
     VkPipelineStageFlags flags = 0;
     if (!releases.IsEmpty())
@@ -380,10 +380,10 @@ VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, co
 
 void Renderer<D3>::GrowToFit(const u32 p_FrameIndex)
 {
-    m_MeshRenderer.GrowToFit(p_FrameIndex);
-    m_PrimitiveRenderer.GrowToFit(p_FrameIndex);
-    m_PolygonRenderer.GrowToFit(p_FrameIndex);
-    m_CircleRenderer.GrowToFit(p_FrameIndex);
+    m_MeshSystem.GrowToFit(p_FrameIndex);
+    m_PrimitiveSystem.GrowToFit(p_FrameIndex);
+    m_PolygonSystem.GrowToFit(p_FrameIndex);
+    m_CircleSystem.GrowToFit(p_FrameIndex);
 
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
     const u32 pcount = m_HostLightData.PointLights.GetSize();
@@ -399,10 +399,10 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
     info.MainTask = &mainTask;
     info.SubmissionIndex = 0;
 
-    m_MeshRenderer.SendToDevice(p_FrameIndex, info);
-    m_PrimitiveRenderer.SendToDevice(p_FrameIndex, info);
-    m_PolygonRenderer.SendToDevice(p_FrameIndex, info);
-    m_CircleRenderer.SendToDevice(p_FrameIndex, info);
+    m_MeshSystem.SendToDevice(p_FrameIndex, info);
+    m_PrimitiveSystem.SendToDevice(p_FrameIndex, info);
+    m_PolygonSystem.SendToDevice(p_FrameIndex, info);
+    m_CircleSystem.SendToDevice(p_FrameIndex, info);
 
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
     if (dcount > 0)
@@ -445,10 +445,10 @@ VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, co
     info.ReleaseBarriers = separate ? &releases : nullptr;
     info.AcquireVertexBarriers = &vacquires;
 
-    m_MeshRenderer.RecordCopyCommands(info);
-    m_PrimitiveRenderer.RecordCopyCommands(info);
-    m_PolygonRenderer.RecordCopyCommands(info);
-    m_CircleRenderer.RecordCopyCommands(info);
+    m_MeshSystem.RecordCopyCommands(info);
+    m_PrimitiveSystem.RecordCopyCommands(info);
+    m_PolygonSystem.RecordCopyCommands(info);
+    m_CircleSystem.RecordCopyCommands(info);
 
     const u32 dsize = m_HostLightData.DirectionalLights.GetSize() * sizeof(DirectionalLight);
     if (dsize > 0)
@@ -555,10 +555,10 @@ void Renderer<D2>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Comman
         setCameraViewport<D2>(p_CommandBuffer, camera);
 
         simpleDrawInfo.Camera = &camera;
-        noStencilWriteDoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-        doStencilWriteDoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-        doStencilWriteNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-        doStencilTestNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+        noStencilWriteDoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
+        doStencilWriteDoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
+        doStencilWriteNoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
+        doStencilTestNoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
     }
 }
 
@@ -591,12 +591,12 @@ void Renderer<D3>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Comman
         setCameraViewport<D3>(p_CommandBuffer, camera);
 
         complexDrawInfo.Camera = &camera;
-        noStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-        doStencilWriteDoFill(complexDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+        noStencilWriteDoFill(complexDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
+        doStencilWriteDoFill(complexDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
 
         simpleDrawInfo.Camera = &camera;
-        doStencilWriteNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
-        doStencilTestNoFill(simpleDrawInfo, m_MeshRenderer, m_PrimitiveRenderer, m_PolygonRenderer, m_CircleRenderer);
+        doStencilWriteNoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
+        doStencilTestNoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
     }
 }
 

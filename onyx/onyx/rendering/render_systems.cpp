@@ -38,13 +38,13 @@ template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::~RenderSystem
 }
 
 template <Dimension D, PipelineMode PMode>
-MeshRenderer<D, PMode>::MeshRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
+MeshSystem<D, PMode>::MeshSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
-void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh)
+void MeshSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh)
 {
     thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
     auto &hostData = m_HostData[threadIndex];
@@ -52,7 +52,7 @@ void MeshRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh
     ++hostData.Instances;
 }
 
-template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::GrowToFit(const u32 p_FrameIndex)
 {
     this->m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
@@ -60,7 +60,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::GrowToFi
 
     m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
 }
-template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
     TaskArray tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
@@ -83,7 +83,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
         for (const auto data : buffers)
         {
             const auto copy = [&, offset] {
-                TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
+                TKIT_PROFILE_NSCOPE("Onyx::MeshSystem::SendToDevice");
                 storageBuffer.Write<InstanceData>(*data, {.DstOffset = offset});
             };
 
@@ -145,7 +145,7 @@ static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescrip
     }
 }
 
-template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
@@ -159,12 +159,12 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::RecordCo
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
 
-template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(const RenderInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::Render(const RenderInfo &p_Info)
 {
     if (this->m_DeviceInstances == 0)
         return;
 
-    TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::MeshSystem::Render");
 
     this->m_Pipeline.Bind(p_Info.CommandBuffer);
 
@@ -200,7 +200,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     }
 }
 
-template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush()
+template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::Flush()
 {
     RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
@@ -212,13 +212,13 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Flush()
 }
 
 template <Dimension D, PipelineMode PMode>
-PrimitiveRenderer<D, PMode>::PrimitiveRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
+PrimitiveSystem<D, PMode>::PrimitiveSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
-void PrimitiveRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const u32 p_PrimitiveIndex)
+void PrimitiveSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const u32 p_PrimitiveIndex)
 {
     thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
     auto &hostData = m_HostData[threadIndex];
@@ -226,7 +226,7 @@ void PrimitiveRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const
     ++hostData.Instances;
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::GrowToFit(const u32 p_FrameIndex)
 {
     this->m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
@@ -235,7 +235,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Gro
     m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
     VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
@@ -256,7 +256,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Sen
             if (!data.IsEmpty())
             {
                 const auto copy = [&, offset] {
-                    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
+                    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveSystem::SendToDevice");
                     storageBuffer.Write<InstanceData>(data, {.DstOffset = offset});
                 };
                 if (!mainTask)
@@ -276,7 +276,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Sen
     VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
@@ -289,12 +289,12 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Rec
     if (p_Info.ReleaseBarriers)
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
-template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Render(const RenderInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::Render(const RenderInfo &p_Info)
 {
     if (this->m_DeviceInstances == 0)
         return;
 
-    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveSystem::Render");
 
     this->m_Pipeline.Bind(p_Info.CommandBuffer);
 
@@ -330,7 +330,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     }
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flush()
+template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::Flush()
 {
     RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
@@ -342,13 +342,13 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Flu
 }
 
 template <Dimension D, PipelineMode PMode>
-PolygonRenderer<D, PMode>::PolygonRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
+PolygonSystem<D, PMode>::PolygonSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
-void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const TKit::Span<const f32v2> p_Vertices)
+void PolygonSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const TKit::Span<const f32v2> p_Vertices)
 {
     TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX] A polygon must have at least 3 sides");
     thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
@@ -391,7 +391,7 @@ void PolygonRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const T
     }
 }
 
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::GrowToFit(const u32 p_FrameIndex)
 {
     this->m_DeviceInstances = 0;
     m_DeviceVertices = 0;
@@ -405,7 +405,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowT
 
     m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances, m_DeviceVertices, m_DeviceIndices);
 }
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
     VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     VKit::Buffer &vertexBuffer = m_DeviceData.StagingVertices[p_FrameIndex];
@@ -427,7 +427,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
         if (!hostData.Data.IsEmpty())
         {
             const auto copy = [&, offset, voffset, ioffset] {
-                TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
+                TKIT_PROFILE_NSCOPE("Onyx::PolygonSystem::SendToDevice");
                 storageBuffer.Write<InstanceData>(hostData.Data, {.DstOffset = offset});
                 vertexBuffer.Write<Vertex<D>>(hostData.Vertices, {.DstOffset = voffset});
                 indexBuffer.Write<Index>(hostData.Indices, {.DstOffset = ioffset});
@@ -454,7 +454,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
     VKIT_ASSERT_EXPRESSION(indexBuffer.Flush());
 }
 
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
@@ -483,11 +483,11 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Recor
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(ibuffer, isize));
     }
 }
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Render(const RenderInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::Render(const RenderInfo &p_Info)
 {
     if (this->m_DeviceInstances == 0)
         return;
-    TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::PolygonSystem::Render");
 
     this->m_Pipeline.Bind(p_Info.CommandBuffer);
 
@@ -517,7 +517,7 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
             }
 }
 
-template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush()
+template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::Flush()
 {
     RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
@@ -530,13 +530,13 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Flush
 }
 
 template <Dimension D, PipelineMode PMode>
-CircleRenderer<D, PMode>::CircleRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
+CircleSystem<D, PMode>::CircleSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
     this->m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderInfo);
 }
 
 template <Dimension D, PipelineMode PMode>
-void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Options)
+void CircleSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Options)
 {
     // if (TKit::Approximately(p_Options.LowerAngle, p_Options.UpperAngle) ||
     //     TKit::Approximately(p_Options.Hollowness, 1.f))
@@ -561,7 +561,7 @@ void CircleRenderer<D, PMode>::Draw(const InstanceData &p_InstanceData, const Ci
     hostData.Data.Append(instanceData);
 }
 
-template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowToFit(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::GrowToFit(const u32 p_FrameIndex)
 {
     this->m_DeviceInstances = 0;
     for (const auto &hostData : m_HostData)
@@ -569,7 +569,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowTo
 
     m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
 }
-template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
+template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
     VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
@@ -586,7 +586,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
         if (!hostData.Data.IsEmpty())
         {
             const auto copy = [&, offset] {
-                TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
+                TKIT_PROFILE_NSCOPE("Onyx::CircleSystem::SendToDevice");
                 storageBuffer.Write<CircleInstanceData>(hostData.Data, {.DstOffset = offset});
             };
             if (!mainTask)
@@ -606,7 +606,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
     VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
 }
 
-template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
 
@@ -621,11 +621,11 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Record
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
 
-template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render(const RenderInfo &p_Info)
+template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::Render(const RenderInfo &p_Info)
 {
     if (this->m_DeviceInstances == 0)
         return;
-    TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::CircleSystem::Render");
 
     this->m_Pipeline.Bind(p_Info.CommandBuffer);
     const VkDescriptorSet instanceDescriptor = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
@@ -646,7 +646,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Render
     INCREASE_DRAW_CALL_COUNT();
 }
 
-template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Flush()
+template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::Flush()
 {
     RenderSystem<D, PMode>::Flush();
     for (auto &hostData : m_HostData)
@@ -664,44 +664,44 @@ template class ONYX_API RenderSystem<D3, PipelineMode::DoStencilWriteDoFill>;
 template class ONYX_API RenderSystem<D3, PipelineMode::DoStencilWriteNoFill>;
 template class ONYX_API RenderSystem<D3, PipelineMode::DoStencilTestNoFill>;
 
-template class ONYX_API MeshRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API MeshRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API MeshRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API MeshRenderer<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API MeshSystem<D2, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API MeshSystem<D2, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API MeshSystem<D2, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API MeshSystem<D2, PipelineMode::DoStencilTestNoFill>;
 
-template class ONYX_API MeshRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API MeshRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API MeshRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API MeshRenderer<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API MeshSystem<D3, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API MeshSystem<D3, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API MeshSystem<D3, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API MeshSystem<D3, PipelineMode::DoStencilTestNoFill>;
 
-template class ONYX_API PrimitiveRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API PrimitiveRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API PrimitiveRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API PrimitiveRenderer<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API PrimitiveSystem<D2, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API PrimitiveSystem<D2, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API PrimitiveSystem<D2, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API PrimitiveSystem<D2, PipelineMode::DoStencilTestNoFill>;
 
-template class ONYX_API PrimitiveRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API PrimitiveRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API PrimitiveRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API PrimitiveRenderer<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API PrimitiveSystem<D3, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API PrimitiveSystem<D3, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API PrimitiveSystem<D3, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API PrimitiveSystem<D3, PipelineMode::DoStencilTestNoFill>;
 
-template class ONYX_API PolygonRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API PolygonRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API PolygonRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API PolygonRenderer<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API PolygonSystem<D2, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API PolygonSystem<D2, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API PolygonSystem<D2, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API PolygonSystem<D2, PipelineMode::DoStencilTestNoFill>;
 
-template class ONYX_API PolygonRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API PolygonRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API PolygonRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API PolygonRenderer<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API PolygonSystem<D3, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API PolygonSystem<D3, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API PolygonSystem<D3, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API PolygonSystem<D3, PipelineMode::DoStencilTestNoFill>;
 
-template class ONYX_API CircleRenderer<D2, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API CircleRenderer<D2, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API CircleRenderer<D2, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API CircleRenderer<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API CircleSystem<D2, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API CircleSystem<D2, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API CircleSystem<D2, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API CircleSystem<D2, PipelineMode::DoStencilTestNoFill>;
 
-template class ONYX_API CircleRenderer<D3, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API CircleRenderer<D3, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API CircleRenderer<D3, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API CircleRenderer<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API CircleSystem<D3, PipelineMode::NoStencilWriteDoFill>;
+template class ONYX_API CircleSystem<D3, PipelineMode::DoStencilWriteDoFill>;
+template class ONYX_API CircleSystem<D3, PipelineMode::DoStencilWriteNoFill>;
+template class ONYX_API CircleSystem<D3, PipelineMode::DoStencilTestNoFill>;
 
 } // namespace Onyx::Detail

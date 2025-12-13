@@ -17,7 +17,7 @@ struct SendInfo
  * allowing for different rendering passes such as filling and outlining shapes.
  *
  * @tparam D The dimensionality (`D2`or `D3`).
- * @tparam R The renderer type template (e.g., `MeshRenderer`, `PrimitiveRenderer`).
+ * @tparam R The renderer type template (e.g., `MeshSystem`, `PrimitiveSystem`).
  */
 template <Dimension D, template <Dimension, PipelineMode> typename Renderer> struct RenderGroup
 {
@@ -153,10 +153,10 @@ template <Dimension D> class IRenderer
                     DrawFlags p_Flags);
 
   protected:
-    RenderGroup<D, MeshRenderer> m_MeshRenderer;
-    RenderGroup<D, PrimitiveRenderer> m_PrimitiveRenderer;
-    RenderGroup<D, PolygonRenderer> m_PolygonRenderer;
-    RenderGroup<D, CircleRenderer> m_CircleRenderer;
+    RenderGroup<D, MeshSystem> m_MeshSystem;
+    RenderGroup<D, PrimitiveSystem> m_PrimitiveSystem;
+    RenderGroup<D, PolygonSystem> m_PolygonSystem;
+    RenderGroup<D, CircleSystem> m_CircleSystem;
 
   private:
     /**
