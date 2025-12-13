@@ -65,7 +65,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
     TaskArray tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
-    thread_local TKit::HashMap<Mesh<D>, TKit::StaticArray<const HostStorageBuffer<InstanceData> *, ONYX_MAX_THREADS>>
+    thread_local TKit::HashMap<Mesh<D>, TKit::StaticArray<const HostBuffer<InstanceData> *, ONYX_MAX_THREADS>>
         localData{};
     localData.clear();
 
@@ -74,7 +74,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
             if (!data.IsEmpty())
                 localData[mesh].Append(&data);
 
-    auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
+    VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
     u32 sindex = 0;
 
@@ -84,7 +84,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::SendToDe
         {
             const auto copy = [&, offset] {
                 TKIT_PROFILE_NSCOPE("Onyx::MeshRenderer::SendToDevice");
-                storageBuffer.Write(*data, offset);
+                storageBuffer.Write<InstanceData>(*data, {.DstOffset = offset});
             };
 
             if (!mainTask)
@@ -149,9 +149,9 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::RecordCo
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
 
-    const auto &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
-    const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
-    RecordCopy(p_Info.CommandBuffer, buffer, staging, size);
+    VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
+    VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
+    buffer.CopyFromBuffer(p_Info.CommandBuffer, staging, {.Size = size});
 
     p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
     if (p_Info.ReleaseBarriers)
@@ -173,7 +173,7 @@ template <Dimension D, PipelineMode PMode> void MeshRenderer<D, PMode>::Render(c
     bindDescriptorSets<dlevel>(p_Info, instanceDescriptor);
     pushConstantData<dlevel>(p_Info);
 
-    thread_local TKit::HashMap<Mesh<D>, TKit::StaticArray<const HostStorageBuffer<InstanceData> *, ONYX_MAX_THREADS>>
+    thread_local TKit::HashMap<Mesh<D>, TKit::StaticArray<const HostBuffer<InstanceData> *, ONYX_MAX_THREADS>>
         localData{};
     localData.clear();
 
@@ -236,7 +236,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Gro
 
 template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
-    auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
+    VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
 
     TaskArray tasks{};
@@ -256,7 +256,7 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Sen
             {
                 const auto copy = [&, offset] {
                     TKIT_PROFILE_NSCOPE("Onyx::PrimitiveRenderer::SendToDevice");
-                    storageBuffer.Write(data, offset);
+                    storageBuffer.Write<InstanceData>(data, {.DstOffset = offset});
                 };
                 if (!mainTask)
                     mainTask = copy;
@@ -279,9 +279,9 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Rec
     RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
 
-    const auto &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
-    const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
-    RecordCopy(p_Info.CommandBuffer, buffer, staging, size);
+    VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
+    VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
+    buffer.CopyFromBuffer(p_Info.CommandBuffer, staging, {.Size = size});
 
     p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
     if (p_Info.ReleaseBarriers)
@@ -301,11 +301,11 @@ template <Dimension D, PipelineMode PMode> void PrimitiveRenderer<D, PMode>::Ren
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
     bindDescriptorSets<dlevel>(p_Info, instanceDescriptor);
 
-    const auto &vbuffer = Primitives<D>::GetVertexBuffer();
-    const auto &ibuffer = Primitives<D>::GetIndexBuffer();
+    const VKit::Buffer &vbuffer = Primitives<D>::GetVertexBuffer();
+    const VKit::Buffer &ibuffer = Primitives<D>::GetIndexBuffer();
 
     vbuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
-    ibuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
+    ibuffer.BindAsIndexBuffer<Index>(p_Info.CommandBuffer);
 
     pushConstantData<dlevel>(p_Info);
     u32 firstInstance = 0;
@@ -405,9 +405,9 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::GrowT
 }
 template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
-    auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
-    auto &vertexBuffer = m_DeviceData.StagingVertices[p_FrameIndex];
-    auto &indexBuffer = m_DeviceData.StagingIndices[p_FrameIndex];
+    VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
+    VKit::Buffer &vertexBuffer = m_DeviceData.StagingVertices[p_FrameIndex];
+    VKit::Buffer &indexBuffer = m_DeviceData.StagingIndices[p_FrameIndex];
 
     u32 offset = 0;
     u32 voffset = 0;
@@ -426,9 +426,9 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::SendT
         {
             const auto copy = [&, offset, voffset, ioffset] {
                 TKIT_PROFILE_NSCOPE("Onyx::PolygonRenderer::SendToDevice");
-                storageBuffer.Write(hostData.Data, offset);
-                vertexBuffer.Write(hostData.Vertices, voffset);
-                indexBuffer.Write(hostData.Indices, ioffset);
+                storageBuffer.Write<InstanceData>(hostData.Data, {.DstOffset = offset});
+                vertexBuffer.Write<Vertex<D>>(hostData.Vertices, {.DstOffset = voffset});
+                indexBuffer.Write<Index>(hostData.Indices, {.DstOffset = ioffset});
             };
             if (!mainTask)
                 mainTask = copy;
@@ -456,17 +456,17 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Recor
     const u32 vsize = m_DeviceVertices * sizeof(Vertex<D>);
     const u32 isize = m_DeviceIndices * sizeof(Index);
 
-    const auto &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
-    const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
-    RecordCopy(p_Info.CommandBuffer, buffer, staging, size);
+    VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
+    VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
+    buffer.CopyFromBuffer(p_Info.CommandBuffer, staging, {.Size = size});
 
-    const auto &vbuffer = m_DeviceData.DeviceLocalVertices[p_Info.FrameIndex];
-    const auto &vstaging = m_DeviceData.StagingVertices[p_Info.FrameIndex];
-    RecordCopy(p_Info.CommandBuffer, vbuffer, vstaging, vsize);
+    VKit::Buffer &vbuffer = m_DeviceData.DeviceLocalVertices[p_Info.FrameIndex];
+    VKit::Buffer &vstaging = m_DeviceData.StagingVertices[p_Info.FrameIndex];
+    vbuffer.CopyFromBuffer(p_Info.CommandBuffer, vstaging, {.Size = vsize});
 
-    const auto &ibuffer = m_DeviceData.DeviceLocalIndices[p_Info.FrameIndex];
-    const auto &istaging = m_DeviceData.StagingIndices[p_Info.FrameIndex];
-    RecordCopy(p_Info.CommandBuffer, ibuffer, istaging, isize);
+    VKit::Buffer &ibuffer = m_DeviceData.DeviceLocalIndices[p_Info.FrameIndex];
+    VKit::Buffer &istaging = m_DeviceData.StagingIndices[p_Info.FrameIndex];
+    ibuffer.CopyFromBuffer(p_Info.CommandBuffer, istaging, {.Size = isize});
 
     p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
     p_Info.AcquireVertexBarriers->Append(CreateAcquireBarrier(vbuffer, vsize, VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT));
@@ -491,11 +491,11 @@ template <Dimension D, PipelineMode PMode> void PolygonRenderer<D, PMode>::Rende
     constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
     bindDescriptorSets<dlevel>(p_Info, instanceDescriptor);
 
-    const auto &vbuffer = m_DeviceData.DeviceLocalVertices[p_Info.FrameIndex];
-    const auto &ibuffer = m_DeviceData.DeviceLocalIndices[p_Info.FrameIndex];
+    const VKit::Buffer &vbuffer = m_DeviceData.DeviceLocalVertices[p_Info.FrameIndex];
+    const VKit::Buffer &ibuffer = m_DeviceData.DeviceLocalIndices[p_Info.FrameIndex];
 
     vbuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
-    ibuffer.BindAsIndexBuffer(p_Info.CommandBuffer);
+    ibuffer.BindAsIndexBuffer<Index>(p_Info.CommandBuffer);
 
     pushConstantData<dlevel>(p_Info);
     const auto &table = Core::GetDeviceTable();
@@ -566,7 +566,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::GrowTo
 }
 template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendToDevice(const u32 p_FrameIndex)
 {
-    auto &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
+    VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
 
     TaskArray tasks{};
@@ -582,7 +582,7 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::SendTo
         {
             const auto copy = [&, offset] {
                 TKIT_PROFILE_NSCOPE("Onyx::CircleRenderer::SendToDevice");
-                storageBuffer.Write(hostData.Data, offset);
+                storageBuffer.Write<CircleInstanceData>(hostData.Data, {.DstOffset = offset});
             };
             if (!mainTask)
                 mainTask = copy;
@@ -606,9 +606,9 @@ template <Dimension D, PipelineMode PMode> void CircleRenderer<D, PMode>::Record
 
     const u32 size = this->m_DeviceInstances * sizeof(CircleInstanceData);
 
-    const auto &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
-    const auto &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
-    RecordCopy(p_Info.CommandBuffer, buffer, staging, size);
+    VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
+    VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
+    buffer.CopyFromBuffer(p_Info.CommandBuffer, staging, {.Size = size});
 
     p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
     if (p_Info.ReleaseBarriers)

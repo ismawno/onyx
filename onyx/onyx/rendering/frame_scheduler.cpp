@@ -17,7 +17,7 @@ FrameScheduler::FrameScheduler(Window &p_Window)
 
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     createSwapChain(p_Window, extent);
-    m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetInfo().ImageData.GetSize());
+    m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetImageCount());
     m_Images = createImageData();
     createProcessingEffects();
     createCommandData();
@@ -97,12 +97,10 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window)
     }
 
     const auto &table = Core::GetDeviceTable();
-    VKIT_ASSERT_SUCCESS(table.BeginCommandBuffer(cmd.GraphicsCommand, &beginInfo),
-                        "[ONYX] Failed to begin command buffer");
+    VKIT_ASSERT_EXPRESSION(table.BeginCommandBuffer(cmd.GraphicsCommand, &beginInfo));
     if (m_TransferMode == TransferMode::Separate)
     {
-        VKIT_ASSERT_SUCCESS(table.BeginCommandBuffer(cmd.TransferCommand, &beginInfo),
-                            "[ONYX] Failed to begin command buffer");
+        VKIT_ASSERT_EXPRESSION(table.BeginCommandBuffer(cmd.TransferCommand, &beginInfo));
     }
 
     return cmd.GraphicsCommand;
@@ -121,8 +119,7 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
     if (isync.InFlightImage != VK_NULL_HANDLE)
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForImage");
-        VKIT_ASSERT_SUCCESS(table.WaitForFences(Core::GetDevice(), 1, &isync.InFlightImage, VK_TRUE, UINT64_MAX),
-                            "[ONYX] Failed to wait for fences");
+        VKIT_ASSERT_EXPRESSION(table.WaitForFences(Core::GetDevice(), 1, &isync.InFlightImage, VK_TRUE, UINT64_MAX));
     }
 
     isync.InFlightImage = fsync.InFlightFence;
@@ -142,9 +139,8 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &isync.RenderFinishedSemaphore;
 
-    VKIT_ASSERT_SUCCESS(table.ResetFences(Core::GetDevice(), 1, &fsync.InFlightFence), "[ONYX] Failed to reset fences");
-    VKIT_ASSERT_SUCCESS(table.QueueSubmit(m_QueueData.Graphics->Queue, 1, &submitInfo, fsync.InFlightFence),
-                        "[ONYX] Failed to submit graphics queue");
+    VKIT_ASSERT_EXPRESSION(table.ResetFences(Core::GetDevice(), 1, &fsync.InFlightFence));
+    VKIT_ASSERT_EXPRESSION(table.QueueSubmit(m_QueueData.Graphics->Queue, 1, &submitInfo, fsync.InFlightFence));
 }
 VkResult FrameScheduler::Present()
 {
@@ -173,7 +169,7 @@ void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Fla
 
     const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
     const auto &table = Core::GetDeviceTable();
-    VKIT_ASSERT_SUCCESS(table.EndCommandBuffer(cmd), "[ONYX] Failed to end command buffer");
+    VKIT_ASSERT_EXPRESSION(table.EndCommandBuffer(cmd));
 
     SubmitGraphicsQueue(p_Flags);
     const VkResult result = Present();
@@ -182,27 +178,6 @@ void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Fla
 
     m_FrameStarted = false;
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
-}
-
-static void transitionImage(const VKit::Vulkan::DeviceTable &p_Table, const VkCommandBuffer p_Cmd,
-                            FrameScheduler::Image &p_Image, const VkImageLayout p_NewLayout,
-                            const VkAccessFlags p_SrcAccess, const VkAccessFlags p_DstAccess,
-                            const VkPipelineStageFlags p_SrcStage, const VkPipelineStageFlags p_DstStage,
-                            const VkImageAspectFlags p_AspectMask = VK_IMAGE_ASPECT_COLOR_BIT)
-{
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = p_Image.Layout;
-    barrier.newLayout = p_NewLayout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = p_Image.Image.Image;
-    barrier.subresourceRange = {p_AspectMask, 0, 1, 0, 1};
-    barrier.srcAccessMask = p_SrcAccess;
-    barrier.dstAccessMask = p_DstAccess;
-
-    p_Table.CmdPipelineBarrier(p_Cmd, p_SrcStage, p_DstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-    p_Image.Layout = p_NewLayout;
 }
 
 void FrameScheduler::BeginRendering(const Color &p_ClearColor)
@@ -214,29 +189,32 @@ void FrameScheduler::BeginRendering(const Color &p_ClearColor)
 
     VkRenderingAttachmentInfoKHR intermediateColor{};
     intermediateColor.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    intermediateColor.imageView = m_Images[m_ImageIndex].Intermediate.Image.ImageView;
+    intermediateColor.imageView = m_Images[m_ImageIndex].Intermediate.GetImageView();
     intermediateColor.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     intermediateColor.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     intermediateColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     intermediateColor.clearValue.color = {
         {p_ClearColor.RGBA[0], p_ClearColor.RGBA[1], p_ClearColor.RGBA[2], p_ClearColor.RGBA[3]}};
 
-    transitionImage(table, cmd, m_Images[m_ImageIndex].Intermediate, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    m_Images[m_ImageIndex].Intermediate.TransitionLayout(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                                         {.SrcAccess = 0,
+                                                          .DstAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                                                          .SrcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                                          .DstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT});
 
     VkRenderingAttachmentInfoKHR depth{};
     depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    depth.imageView = m_Images[m_ImageIndex].DepthStencil.Image.ImageView;
+    depth.imageView = m_Images[m_ImageIndex].DepthStencil.GetImageView();
     depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depth.clearValue.depthStencil = {1.f, 0};
 
-    transitionImage(table, cmd, m_Images[m_ImageIndex].DepthStencil, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                    0, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                    VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
-                    VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
+    m_Images[m_ImageIndex].DepthStencil.TransitionLayout(cmd, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                                                         {.SrcAccess = 0,
+                                                          .DstAccess = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+                                                          .SrcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                                          .DstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT});
 
     const VkRenderingAttachmentInfoKHR stencil = depth;
 
@@ -278,18 +256,22 @@ void FrameScheduler::EndRendering()
 
     VkRenderingAttachmentInfoKHR finalColor{};
     finalColor.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    finalColor.imageView = m_Images[m_ImageIndex].Presentation.Image.ImageView;
+    finalColor.imageView = m_Images[m_ImageIndex].Presentation->GetImageView();
     finalColor.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     finalColor.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     finalColor.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
-    transitionImage(table, cmd, m_Images[m_ImageIndex].Presentation, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    m_Images[m_ImageIndex].Presentation->TransitionLayout(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                                          {.SrcAccess = 0,
+                                                           .DstAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                                                           .SrcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                                           .DstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT});
 
-    transitionImage(table, cmd, m_Images[m_ImageIndex].Intermediate, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+    m_Images[m_ImageIndex].Intermediate.TransitionLayout(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                                         {.SrcAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                                                          .DstAccess = VK_ACCESS_SHADER_READ_BIT,
+                                                          .SrcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                                          .DstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT});
 
     const VkExtent2D &extent = m_SwapChain.GetInfo().Extent;
     VkRenderingInfoKHR renderInfo{};
@@ -308,9 +290,11 @@ void FrameScheduler::EndRendering()
 
     table.CmdEndRenderingKHR(cmd);
 
-    transitionImage(table, cmd, m_Images[m_ImageIndex].Presentation, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                    VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 0, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+    m_Images[m_ImageIndex].Presentation->TransitionLayout(cmd, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                                                          {.SrcAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                                                           .DstAccess = 0,
+                                                           .SrcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                                           .DstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT});
 }
 
 VkResult FrameScheduler::AcquireNextImage()
@@ -319,9 +303,8 @@ VkResult FrameScheduler::AcquireNextImage()
     const auto &table = Core::GetDeviceTable();
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForFrame");
-        VKIT_ASSERT_SUCCESS(table.WaitForFences(Core::GetDevice(), 1, &m_SyncFrameData[m_FrameIndex].InFlightFence,
-                                                VK_TRUE, UINT64_MAX),
-                            "[ONYX] Failed to wait for fences");
+        VKIT_ASSERT_EXPRESSION(table.WaitForFences(Core::GetDevice(), 1, &m_SyncFrameData[m_FrameIndex].InFlightFence,
+                                                   VK_TRUE, UINT64_MAX));
     }
     return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX,
                                      m_SyncFrameData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE,
@@ -331,8 +314,7 @@ VkResult FrameScheduler::AcquireNextImage()
 void FrameScheduler::SubmitTransferQueue()
 {
     const auto &table = Core::GetDeviceTable();
-    VKIT_ASSERT_SUCCESS(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand),
-                        "[ONYX] Failed to end command buffer");
+    VKIT_ASSERT_EXPRESSION(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand));
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -343,8 +325,7 @@ void FrameScheduler::SubmitTransferQueue()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_SyncFrameData[m_FrameIndex].TransferCopyDoneSemaphore;
 
-    VKIT_ASSERT_SUCCESS(table.QueueSubmit(m_QueueData.Transfer->Queue, 1, &submitInfo, VK_NULL_HANDLE),
-                        "[ONYX] Failed to submit to transfer queue");
+    VKIT_ASSERT_EXPRESSION(table.QueueSubmit(m_QueueData.Transfer->Queue, 1, &submitInfo, VK_NULL_HANDLE));
 }
 
 PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,
@@ -429,7 +410,7 @@ void FrameScheduler::createSwapChain(Window &p_Window, const VkExtent2D &p_Windo
     VKIT_ASSERT_RESULT(result);
     m_SwapChain = result.GetValue();
 #ifdef TKIT_ENABLE_DEBUG_LOGS
-    const u32 icount = m_SwapChain.GetInfo().ImageData.GetSize();
+    const u32 icount = m_SwapChain.GetImageCount();
     TKIT_LOG_DEBUG("[ONYX] Created swapchain with {} images", icount);
 #endif
 }
@@ -466,7 +447,7 @@ void FrameScheduler::recreateResources()
 
     Detail::DestroyPerImageSyncData(m_SyncImageData);
     Detail::DestroyPerFrameSyncData(m_SyncFrameData);
-    m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetInfo().ImageData.GetSize());
+    m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetImageCount());
     m_SyncFrameData = Detail::CreatePerFrameSyncData();
 
     const PerImageData<VkImageView> imageViews = getIntermediateColorImageViews();
@@ -476,31 +457,28 @@ void FrameScheduler::recreateResources()
 
 PerImageData<FrameScheduler::ImageData> FrameScheduler::createImageData()
 {
-    const auto result = VKit::ImageHouse::Create(Core::GetDevice(), Core::GetVulkanAllocator());
-    VKIT_ASSERT_RESULT(result);
-    m_ImageHouse = result.GetValue();
-
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
     PerImageData<ImageData> images{};
-    for (u32 i = 0; i < info.ImageData.GetSize(); ++i)
+    for (u32 i = 0; i < m_SwapChain.GetImageCount(); ++i)
     {
         ImageData data{};
-        auto iresult = m_ImageHouse.CreateImage(info.ImageData[i].Image, info.ImageData[i].ImageView);
-        VKIT_ASSERT_RESULT(iresult);
-        data.Presentation.Image = iresult.GetValue();
-        data.Presentation.Layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        data.Presentation = &m_SwapChain.GetImage(i);
 
-        iresult = m_ImageHouse.CreateImage(info.SurfaceFormat.format, info.Extent,
-                                           VKit::AttachmentFlag_Color | VKit::AttachmentFlag_Sampled);
+        auto iresult =
+            VKit::Image::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, info.SurfaceFormat.format,
+                                 VKit::Image::Flag_ColorAttachment | VKit::Image::Flag_Sampled)
+                .WithImageView()
+                .Build();
         VKIT_ASSERT_RESULT(iresult);
-        data.Intermediate.Image = iresult.GetValue();
-        data.Intermediate.Layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        data.Intermediate = iresult.GetValue();
 
-        iresult = m_ImageHouse.CreateImage(s_DepthStencilFormat, info.Extent,
-                                           VKit::AttachmentFlag_Depth | VKit::AttachmentFlag_Stencil);
+        iresult =
+            VKit::Image::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, info.SurfaceFormat.format,
+                                 VKit::Image::Flag_DepthAttachment | VKit::Image::Flag_StencilAttachment)
+                .WithImageView()
+                .Build();
         VKIT_ASSERT_RESULT(iresult);
-        data.DepthStencil.Image = iresult.GetValue();
-        data.DepthStencil.Layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        data.DepthStencil = iresult.GetValue();
 
         images.Append(data);
     }
@@ -508,11 +486,10 @@ PerImageData<FrameScheduler::ImageData> FrameScheduler::createImageData()
 }
 void FrameScheduler::destroyImageData()
 {
-    for (const ImageData &data : m_Images)
+    for (ImageData &data : m_Images)
     {
-        m_ImageHouse.DestroyImage(data.Presentation.Image);
-        m_ImageHouse.DestroyImage(data.Intermediate.Image);
-        m_ImageHouse.DestroyImage(data.DepthStencil.Image);
+        data.Intermediate.Destroy();
+        data.DepthStencil.Destroy();
     }
 }
 
@@ -593,8 +570,8 @@ void FrameScheduler::setupNaivePostProcessing()
 PerImageData<VkImageView> FrameScheduler::getIntermediateColorImageViews() const
 {
     PerImageData<VkImageView> imageViews;
-    for (u32 i = 0; i < m_SwapChain.GetInfo().ImageData.GetSize(); ++i)
-        imageViews.Append(m_Images[i].Intermediate.Image.ImageView);
+    for (u32 i = 0; i < m_SwapChain.GetImageCount(); ++i)
+        imageViews.Append(m_Images[i].Intermediate.GetImageView());
     return imageViews;
 }
 

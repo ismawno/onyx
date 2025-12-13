@@ -63,8 +63,7 @@ void Window::createWindow(const Specs &p_Specs)
                                 nullptr, nullptr);
     TKIT_ASSERT(m_Window, "[ONYX] Failed to create a GLFW window");
 
-    VKIT_ASSERT_SUCCESS(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface),
-                        "[ONYX] Failed to create a window surface");
+    VKIT_ASSERT_EXPRESSION(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface));
     glfwSetWindowUserPointer(m_Window, this);
 
     if (!Core::IsDeviceCreated())
@@ -175,8 +174,7 @@ void Window::flagResizeDone()
 void Window::recreateSurface()
 {
     Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
-    VKIT_ASSERT_SUCCESS(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface),
-                        "[ONYX] Failed to create a window surface");
+    VKIT_ASSERT_EXPRESSION(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface));
 }
 
 void Window::FlagShouldClose()

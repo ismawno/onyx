@@ -112,7 +112,7 @@ template <Dimension D, PipelineMode PMode> class MeshRenderer final : public Ren
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) MeshHostData
     {
-        TKit::HashMap<Mesh<D>, HostStorageBuffer<InstanceData>> Data{};
+        TKit::HashMap<Mesh<D>, HostBuffer<InstanceData>> Data{};
         u32 Instances = 0;
     };
 
@@ -192,7 +192,7 @@ template <Dimension D, PipelineMode PMode> class PrimitiveRenderer final : publi
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) PrimitiveHostData
     {
-        TKit::Array<HostStorageBuffer<InstanceData>, Primitives<D>::Count> Data{};
+        TKit::Array<HostBuffer<InstanceData>, Primitives<D>::Count> Data{};
         u32 Instances = 0;
     };
 
@@ -274,8 +274,8 @@ template <Dimension D, PipelineMode PMode> class PolygonRenderer final : public 
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) PolygonHostData
     {
-        HostStorageBuffer<InstanceData> Data;
-        HostStorageBuffer<PrimitiveDataLayout> Layouts;
+        HostBuffer<InstanceData> Data;
+        HostBuffer<PrimitiveDataLayout> Layouts;
         HostVertexBuffer<D> Vertices;
         HostIndexBuffer Indices;
     };
@@ -376,7 +376,7 @@ template <Dimension D, PipelineMode PMode> class CircleRenderer final : public R
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) CircleHostData
     {
-        HostStorageBuffer<CircleInstanceData> Data;
+        HostBuffer<CircleInstanceData> Data;
     };
 
     TKit::Array<CircleHostData, ONYX_MAX_THREADS> m_HostData{};

@@ -4,7 +4,7 @@
 #include "onyx/data/sync.hpp"
 #include "vkit/rendering/swap_chain.hpp"
 #include "vkit/rendering/command_pool.hpp"
-#include "vkit/rendering/image.hpp"
+#include "vkit/resource/image.hpp"
 
 namespace Onyx
 {
@@ -29,16 +29,11 @@ class ONYX_API FrameScheduler
 {
     TKIT_NON_COPYABLE(FrameScheduler)
   public:
-    struct Image
-    {
-        VKit::Image Image;
-        VkImageLayout Layout;
-    };
     struct ImageData
     {
-        Image Presentation;
-        Image Intermediate;
-        Image DepthStencil;
+        VKit::Image *Presentation;
+        VKit::Image Intermediate;
+        VKit::Image DepthStencil;
     };
     struct CommandData
     {
@@ -206,8 +201,6 @@ class ONYX_API FrameScheduler
     VKit::Shader m_NaivePostProcessingFragmentShader;
 
     VKit::PipelineLayout m_NaivePostProcessingLayout;
-    VKit::ImageHouse m_ImageHouse;
-
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
     PerFrameData<CommandData> m_CommandData;

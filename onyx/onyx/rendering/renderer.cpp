@@ -109,10 +109,10 @@ DeviceLightData::DeviceLightData()
 {
     for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
     {
-        DeviceLocalDirectionals[i] = CreateDeviceLocalStorageBuffer<DirectionalLight>(ONYX_BUFFER_INITIAL_CAPACITY);
-        DeviceLocalPoints[i] = CreateDeviceLocalStorageBuffer<PointLight>(ONYX_BUFFER_INITIAL_CAPACITY);
-        StagingDirectionals[i] = CreateHostVisibleStorageBuffer<DirectionalLight>(ONYX_BUFFER_INITIAL_CAPACITY);
-        StagingPoints[i] = CreateHostVisibleStorageBuffer<PointLight>(ONYX_BUFFER_INITIAL_CAPACITY);
+        DeviceLocalDirectionals[i] = CreateDeviceBuffer<DirectionalLight>(VKit::Buffer::Flag_StorageBuffer);
+        DeviceLocalPoints[i] = CreateDeviceBuffer<PointLight>(VKit::Buffer::Flag_StorageBuffer);
+        StagingDirectionals[i] = CreateStagingBuffer<DirectionalLight>();
+        StagingPoints[i] = CreateStagingBuffer<PointLight>();
     }
 }
 DeviceLightData::~DeviceLightData()
@@ -133,27 +133,28 @@ void DeviceLightData::GrowToFit(const u32 p_FrameIndex, const u32 p_Directionals
     if (ldbuffer.GetInfo().InstanceCount < p_Directionals)
     {
         ldbuffer.Destroy();
-        ldbuffer = CreateDeviceLocalStorageBuffer<DirectionalLight>(1 + p_Directionals + p_Directionals / 2);
+        ldbuffer = CreateDeviceBuffer<DirectionalLight>(VKit::Buffer::Flag_StorageBuffer,
+                                                        1 + p_Directionals + p_Directionals / 2);
     }
 
     auto &sdbuffer = StagingDirectionals[p_FrameIndex];
     if (sdbuffer.GetInfo().InstanceCount < p_Directionals)
     {
         sdbuffer.Destroy();
-        sdbuffer = CreateHostVisibleStorageBuffer<DirectionalLight>(1 + p_Directionals + p_Directionals / 2);
+        sdbuffer = CreateStagingBuffer<DirectionalLight>(1 + p_Directionals + p_Directionals / 2);
     }
     auto &lpbuffer = DeviceLocalPoints[p_FrameIndex];
     if (lpbuffer.GetInfo().InstanceCount < p_Points)
     {
         lpbuffer.Destroy();
-        lpbuffer = CreateDeviceLocalStorageBuffer<PointLight>(1 + p_Points + p_Points / 2);
+        ldbuffer = CreateDeviceBuffer<PointLight>(VKit::Buffer::Flag_StorageBuffer, 1 + p_Points + p_Points / 2);
     }
 
     auto &spbuffer = StagingPoints[p_FrameIndex];
     if (spbuffer.GetInfo().InstanceCount < p_Points)
     {
         spbuffer.Destroy();
-        spbuffer = CreateHostVisibleStorageBuffer<PointLight>(1 + p_Points + p_Points / 2);
+        spbuffer = CreateStagingBuffer<PointLight>(1 + p_Directionals + p_Directionals / 2);
     }
 
     const VkDescriptorBufferInfo dirInfo = ldbuffer.GetDescriptorInfo();
@@ -406,17 +407,17 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
     if (dcount > 0)
     {
-        auto &devDirBuffer = m_DeviceLightData.StagingDirectionals[p_FrameIndex];
+        VKit::Buffer &devDirBuffer = m_DeviceLightData.StagingDirectionals[p_FrameIndex];
         const auto &hostDirBuffer = m_HostLightData.DirectionalLights;
-        devDirBuffer.Write(hostDirBuffer);
+        devDirBuffer.Write<DirectionalLight>(hostDirBuffer);
     }
 
     const u32 pcount = m_HostLightData.PointLights.GetSize();
     if (pcount > 0)
     {
-        auto &devPointBuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
+        VKit::Buffer &devPointBuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
         const auto &hostPointBuffer = m_HostLightData.PointLights;
-        devPointBuffer.Write(hostPointBuffer);
+        devPointBuffer.Write<PointLight>(hostPointBuffer);
     }
     if (!mainTask)
         return;
@@ -450,9 +451,9 @@ VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, co
     const u32 dsize = m_HostLightData.DirectionalLights.GetSize() * sizeof(DirectionalLight);
     if (dsize > 0)
     {
-        const auto &ldbuffer = m_DeviceLightData.DeviceLocalDirectionals[p_FrameIndex];
-        const auto &sdbuffer = m_DeviceLightData.StagingDirectionals[p_FrameIndex];
-        RecordCopy(p_TransferCommand, ldbuffer, sdbuffer, dsize);
+        VKit::Buffer &ldbuffer = m_DeviceLightData.DeviceLocalDirectionals[p_FrameIndex];
+        VKit::Buffer &sdbuffer = m_DeviceLightData.StagingDirectionals[p_FrameIndex];
+        ldbuffer.CopyFromBuffer(p_TransferCommand, sdbuffer, {.Size = dsize});
         sacquires.Append(CreateAcquireBarrier(ldbuffer, dsize));
         if (separate)
             releases.Append(CreateReleaseBarrier(ldbuffer, dsize));
@@ -461,9 +462,9 @@ VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, co
     const u32 psize = m_HostLightData.PointLights.GetSize() * sizeof(PointLight);
     if (psize > 0)
     {
-        const auto &lpbuffer = m_DeviceLightData.DeviceLocalPoints[p_FrameIndex];
-        const auto &spbuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
-        RecordCopy(p_TransferCommand, lpbuffer, spbuffer, psize);
+        VKit::Buffer &lpbuffer = m_DeviceLightData.DeviceLocalPoints[p_FrameIndex];
+        VKit::Buffer &spbuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
+        lpbuffer.CopyFromBuffer(p_TransferCommand, spbuffer, {.Size = psize});
         sacquires.Append(CreateAcquireBarrier(lpbuffer, dsize));
         if (separate)
             releases.Append(CreateReleaseBarrier(lpbuffer, dsize));

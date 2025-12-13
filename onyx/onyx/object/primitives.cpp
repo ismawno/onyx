@@ -12,8 +12,9 @@ template <Dimension D> struct IndexVertexBuffers
                        const BufferLayout<D> &p_Layout)
         : Layout{p_Layout}
     {
-        Vertices = CreateDeviceLocalVertexBuffer(p_Vertices);
-        Indices = CreateDeviceLocalIndexBuffer(p_Indices);
+        Vertices =
+            CreateBuffer<Vertex<D>>(VKit::Buffer::Flag_VertexBuffer | VKit::Buffer::Flag_DeviceLocal, p_Vertices);
+        Indices = CreateBuffer<Index>(VKit::Buffer::Flag_IndexBuffer | VKit::Buffer::Flag_DeviceLocal, p_Indices);
     }
     ~IndexVertexBuffers()
     {
@@ -21,8 +22,8 @@ template <Dimension D> struct IndexVertexBuffers
         Indices.Destroy();
     }
 
-    DeviceLocalVertexBuffer<D> Vertices;
-    DeviceLocalIndexBuffer Indices;
+    VKit::Buffer Vertices;
+    VKit::Buffer Indices;
     BufferLayout<D> Layout;
 };
 
@@ -37,11 +38,11 @@ template <Dimension D> static TKit::Storage<IndexVertexBuffers<D>> &getBuffers()
         return s_Buffers3D;
 }
 
-template <Dimension D> const DeviceLocalVertexBuffer<D> &IPrimitives<D>::GetVertexBuffer()
+template <Dimension D> const VKit::Buffer &IPrimitives<D>::GetVertexBuffer()
 {
     return getBuffers<D>()->Vertices;
 }
-template <Dimension D> const DeviceLocalIndexBuffer &IPrimitives<D>::GetIndexBuffer()
+template <Dimension D> const VKit::Buffer &IPrimitives<D>::GetIndexBuffer()
 {
     return getBuffers<D>()->Indices;
 }

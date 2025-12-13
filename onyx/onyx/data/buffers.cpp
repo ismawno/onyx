@@ -7,17 +7,6 @@ namespace Onyx
 {
 namespace Detail
 {
-void RecordCopy(const VkCommandBuffer p_CommandBuffer, const VkBuffer p_DeviceLocalBuffer,
-                const VkBuffer p_DeviceStagingBuffer, const u32 p_Size)
-{
-    VkBufferCopy copy{};
-    copy.dstOffset = 0;
-    copy.srcOffset = 0;
-    copy.size = p_Size;
-
-    Core::GetDeviceTable().CmdCopyBuffer(p_CommandBuffer, p_DeviceStagingBuffer, p_DeviceLocalBuffer, 1, &copy);
-}
-
 VkBufferMemoryBarrier CreateAcquireBarrier(const VkBuffer p_DeviceLocalBuffer, const u32 p_Size,
                                            const VkAccessFlags p_DstFlags)
 {
@@ -133,95 +122,6 @@ VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path
     return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
 }
 
-template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices)
-{
-    typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs specs{};
-    specs.Allocator = Core::GetVulkanAllocator();
-    specs.Data = p_Vertices;
-    specs.CommandPool = &Core::GetTransferPool();
-
-    QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-    specs.Queue = queue->Queue;
-
-    const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
-    Core::ReturnQueue(queue);
-
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Indices)
-{
-    typename VKit::DeviceLocalBuffer<Index>::Specs specs{};
-    specs.Allocator = Core::GetVulkanAllocator();
-    specs.Data = p_Indices;
-    specs.CommandPool = &Core::GetTransferPool();
-
-    QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-    specs.Queue = queue->Queue;
-
-    const auto result = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), specs);
-    Core::ReturnQueue(queue);
-
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const u32 p_Capacity)
-{
-    typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs specs{};
-    specs.Allocator = Core::GetVulkanAllocator();
-    specs.Data = TKit::Span<const Vertex<D>>{nullptr, p_Capacity};
-    specs.CommandPool = &Core::GetTransferPool();
-
-    QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-    specs.Queue = queue->Queue;
-
-    const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
-
-    Core::ReturnQueue(queue);
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const u32 p_Capacity)
-{
-    typename VKit::DeviceLocalBuffer<Index>::Specs specs{};
-    specs.Allocator = Core::GetVulkanAllocator();
-    specs.Data = TKit::Span<const Index>{nullptr, p_Capacity};
-    specs.CommandPool = &Core::GetTransferPool();
-
-    QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-    specs.Queue = queue->Queue;
-
-    const auto result = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), specs);
-
-    Core::ReturnQueue(queue);
-
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-
-template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(const u32 p_Capacity)
-{
-    typename VKit::HostVisibleBuffer<Vertex<D>>::Specs specs{};
-    specs.Allocator = Core::GetVulkanAllocator();
-    specs.Capacity = static_cast<VkDeviceSize>(p_Capacity);
-    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-    specs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    const auto result = VKit::HostVisibleBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(const u32 p_Capacity)
-{
-    typename VKit::HostVisibleBuffer<Index>::Specs specs{};
-    specs.Allocator = Core::GetVulkanAllocator();
-    specs.Capacity = static_cast<VkDeviceSize>(p_Capacity);
-    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-    specs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    const auto result = VKit::HostVisibleBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), specs);
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-
 template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path,
                                                                       const f32m<D2> *p_Transform);
 template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std::string_view p_Path,
@@ -229,14 +129,5 @@ template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std:
 
 template struct ONYX_API IndexVertexHostData<D2>;
 template struct ONYX_API IndexVertexHostData<D3>;
-
-template ONYX_API DeviceLocalVertexBuffer<D2> CreateDeviceLocalVertexBuffer<D2>(const HostVertexBuffer<D2> &);
-template ONYX_API DeviceLocalVertexBuffer<D3> CreateDeviceLocalVertexBuffer<D3>(const HostVertexBuffer<D3> &);
-
-template ONYX_API DeviceLocalVertexBuffer<D2> CreateDeviceLocalVertexBuffer<D2>(u32);
-template ONYX_API DeviceLocalVertexBuffer<D3> CreateDeviceLocalVertexBuffer<D3>(u32);
-
-template ONYX_API HostVisibleVertexBuffer<D2> CreateHostVisibleVertexBuffer<D2>(u32);
-template ONYX_API HostVisibleVertexBuffer<D3> CreateHostVisibleVertexBuffer<D3>(u32);
 
 } // namespace Onyx

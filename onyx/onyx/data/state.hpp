@@ -327,6 +327,16 @@ template <Dimension D, DrawMode DMode> struct CircleInstanceData
 ONYX_API VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
                                                          VkDescriptorSet p_OldSet = VK_NULL_HANDLE);
 
+template <typename T>
+VKit::Buffer CreateDeviceBuffer(const VKit::Buffer::Flags p_Flags, const u32 p_Capacity = ONYX_BUFFER_INITIAL_CAPACITY)
+{
+    return CreateBuffer<T>(p_Flags | VKit::Buffer::Flag_DeviceLocal, p_Capacity);
+}
+template <typename T> VKit::Buffer CreateStagingBuffer(const u32 p_Capacity = ONYX_BUFFER_INITIAL_CAPACITY)
+{
+    return CreateBuffer<T>(VKit::Buffer::Flag_StagingBuffer, p_Capacity);
+}
+
 /**
  * @brief The `DeviceData` is a convenience struct that helps organize the data that is sent to the device so
  * that each frame contains a dedicated set of storage buffers and descriptors.
@@ -340,8 +350,8 @@ template <typename T> struct DeviceData
     {
         for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
         {
-            DeviceLocalStorage[i] = CreateDeviceLocalStorageBuffer<T>(ONYX_BUFFER_INITIAL_CAPACITY);
-            StagingStorage[i] = CreateHostVisibleStorageBuffer<T>(ONYX_BUFFER_INITIAL_CAPACITY);
+            DeviceLocalStorage[i] = CreateDeviceBuffer<T>(VKit::Buffer::Flag_StorageBuffer);
+            StagingStorage[i] = CreateStagingBuffer<T>();
 
             const VkDescriptorBufferInfo info = DeviceLocalStorage[i].GetDescriptorInfo();
             DescriptorSets[i] = WriteStorageBufferDescriptorSet(info);
@@ -362,7 +372,7 @@ template <typename T> struct DeviceData
         if (lbuffer.GetInfo().InstanceCount < p_Instances)
         {
             lbuffer.Destroy();
-            lbuffer = CreateDeviceLocalStorageBuffer<T>(1 + p_Instances + p_Instances / 2);
+            lbuffer = CreateDeviceBuffer<T>(VKit::Buffer::Flag_StorageBuffer, 1 + p_Instances + p_Instances / 2);
 
             const VkDescriptorBufferInfo info = lbuffer.GetDescriptorInfo();
             DescriptorSets[p_FrameIndex] = WriteStorageBufferDescriptorSet(info, DescriptorSets[p_FrameIndex]);
@@ -372,12 +382,12 @@ template <typename T> struct DeviceData
         if (sbuffer.GetInfo().InstanceCount < p_Instances)
         {
             sbuffer.Destroy();
-            sbuffer = CreateHostVisibleStorageBuffer<T>(1 + p_Instances + p_Instances / 2);
+            sbuffer = CreateStagingBuffer<T>(1 + p_Instances + p_Instances / 2);
         }
     }
 
-    PerFrameData<DeviceLocalStorageBuffer<T>> DeviceLocalStorage;
-    PerFrameData<HostVisibleStorageBuffer<T>> StagingStorage;
+    PerFrameData<VKit::Buffer> DeviceLocalStorage;
+    PerFrameData<VKit::Buffer> StagingStorage;
     PerFrameData<VkDescriptorSet> DescriptorSets;
 };
 
@@ -395,11 +405,11 @@ template <Dimension D, DrawMode DMode> struct PolygonDeviceData : DeviceData<Ins
     PolygonDeviceData();
     ~PolygonDeviceData();
 
-    PerFrameData<DeviceLocalVertexBuffer<D>> DeviceLocalVertices;
-    PerFrameData<DeviceLocalIndexBuffer> DeviceLocalIndices;
+    PerFrameData<VKit::Buffer> DeviceLocalVertices;
+    PerFrameData<VKit::Buffer> DeviceLocalIndices;
 
-    PerFrameData<HostVisibleVertexBuffer<D>> StagingVertices;
-    PerFrameData<HostVisibleIndexBuffer> StagingIndices;
+    PerFrameData<VKit::Buffer> StagingVertices;
+    PerFrameData<VKit::Buffer> StagingIndices;
 
     void GrowToFit(u32 p_FrameIndex, u32 p_Instances, u32 p_Vertices, u32 p_Indices);
 };

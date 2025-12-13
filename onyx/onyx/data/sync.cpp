@@ -18,14 +18,11 @@ PerFrameData<SyncFrameData> CreatePerFrameSyncData()
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        VKIT_ASSERT_SUCCESS(table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore),
-                            "[ONYX] Failed to create image available semaphore");
-
-        VKIT_ASSERT_SUCCESS(table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].TransferCopyDoneSemaphore),
-                            "[ONYX] Failed to create transfer copy done semaphore");
-
-        VKIT_ASSERT_SUCCESS(table.CreateFence(device, &fenceInfo, nullptr, &syncs[i].InFlightFence),
-                            "[ONYX] Failed to create in flight fence");
+        VKIT_ASSERT_EXPRESSION(
+            table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore));
+        VKIT_ASSERT_EXPRESSION(
+            table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].TransferCopyDoneSemaphore));
+        VKIT_ASSERT_EXPRESSION(table.CreateFence(device, &fenceInfo, nullptr, &syncs[i].InFlightFence));
     }
     return syncs;
 }
@@ -42,8 +39,8 @@ PerImageData<SyncImageData> CreatePerImageSyncData(const u32 p_ImageCount)
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        VKIT_ASSERT_SUCCESS(table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore),
-                            "[ONYX] Failed to create render finished semaphore");
+        VKIT_ASSERT_EXPRESSION(
+            table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore));
     }
     return syncs;
 }

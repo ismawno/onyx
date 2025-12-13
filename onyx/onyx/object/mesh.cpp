@@ -2,62 +2,74 @@
 #include "onyx/object/mesh.hpp"
 #include "onyx/data/buffers.hpp"
 #include "onyx/core/core.hpp"
-#include "tkit/utils/hash.hpp"
 
 namespace Onyx
 {
 template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices)
 {
-    typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs specs{};
-    specs.Allocator = Core::GetVulkanAllocator();
-    specs.Data = p_Vertices;
-    specs.CommandPool = &Core::GetTransferPool();
+    auto vbres = VKit::Buffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
+                                       VKit::Buffer::Flag_VertexBuffer | VKit::Buffer::Flag_DeviceLocal)
+                     .SetSize<Vertex<D>>(p_Vertices.GetSize())
+                     .Build();
+    if (!vbres)
+        return VKit::Result<Mesh<D>>::Error(vbres.GetError());
 
+    VKit::Buffer &vbuffer = vbres.GetValue();
     QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-    specs.Queue = queue->Queue;
-    const auto result = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), specs);
-    Core::ReturnQueue(queue);
 
-    if (!result)
-        return VKit::Result<Mesh<D>>::Error(result.GetError());
+    const auto ures = vbuffer.UploadFromHost<Vertex<D>>(Core::GetTransferPool(), queue->Queue, p_Vertices);
+    if (!ures)
+    {
+        vbuffer.Destroy();
+        Core::ReturnQueue(queue);
+        return VKit::Result<Mesh<D>>::Error(ures.GetError());
+    }
 
-    return VKit::Result<Mesh<D>>::Ok(result.GetValue());
+    return VKit::Result<Mesh<D>>::Ok(vbuffer);
 }
 
 template <Dimension D>
 VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, const HostIndexBuffer &p_Indices)
 {
-    typename VKit::DeviceLocalBuffer<Vertex<D>>::Specs vspecs{};
-    vspecs.Allocator = Core::GetVulkanAllocator();
-    vspecs.Data = p_Vertices;
-    vspecs.CommandPool = &Core::GetTransferPool();
+    auto vbres = VKit::Buffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
+                                       VKit::Buffer::Flag_VertexBuffer | VKit::Buffer::Flag_DeviceLocal)
+                     .SetSize<Vertex<D>>(p_Vertices.GetSize())
+                     .Build();
+    if (!vbres)
+        return VKit::Result<Mesh<D>>::Error(vbres.GetError());
+
+    VKit::Buffer &vbuffer = vbres.GetValue();
+    auto ibres = VKit::Buffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
+                                       VKit::Buffer::Flag_IndexBuffer | VKit::Buffer::Flag_DeviceLocal)
+                     .SetSize<Index>(p_Indices.GetSize())
+                     .Build();
+    if (!ibres)
+    {
+        vbuffer.Destroy();
+        return VKit::Result<Mesh<D>>::Error(ibres.GetError());
+    }
+
+    VKit::Buffer &ibuffer = ibres.GetValue();
 
     QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-    vspecs.Queue = queue->Queue;
-
-    auto vresult = VKit::DeviceLocalBuffer<Vertex<D>>::CreateVertexBuffer(Core::GetDevice(), vspecs);
-    if (!vresult)
+    auto ures = vbuffer.UploadFromHost<Vertex<D>>(Core::GetTransferPool(), queue->Queue, p_Vertices);
+    if (!ures)
     {
+        vbuffer.Destroy();
+        ibuffer.Destroy();
         Core::ReturnQueue(queue);
-        return VKit::Result<Mesh<D>>::Error(vresult.GetError());
+        return VKit::Result<Mesh<D>>::Error(ures.GetError());
     }
-
-    typename VKit::DeviceLocalBuffer<Index>::Specs ispecs{};
-    ispecs.Allocator = Core::GetVulkanAllocator();
-    ispecs.Data = p_Indices;
-    ispecs.CommandPool = &Core::GetTransferPool();
-    ispecs.Queue = queue->Queue;
-
-    const auto iresult = VKit::DeviceLocalBuffer<Index>::CreateIndexBuffer(Core::GetDevice(), ispecs);
+    ures = ibuffer.UploadFromHost<Index>(Core::GetTransferPool(), queue->Queue, p_Indices);
     Core::ReturnQueue(queue);
-
-    if (!iresult)
+    if (!ures)
     {
-        vresult.GetValue().Destroy();
-        return VKit::Result<Mesh<D>>::Error(iresult.GetError());
+        vbuffer.Destroy();
+        ibuffer.Destroy();
+        return VKit::Result<Mesh<D>>::Error(ures.GetError());
     }
 
-    return VKit::Result<Mesh<D>>::Ok(vresult.GetValue(), iresult.GetValue());
+    return VKit::Result<Mesh<D>>::Ok(vbuffer, ibuffer);
 }
 
 template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const IndexVertexHostData<D> &p_Data)
@@ -65,11 +77,11 @@ template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const IndexVertexHo
     return Mesh<D>::Create(p_Data.Vertices, p_Data.Indices);
 }
 
-template <Dimension D> Mesh<D>::Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer) : m_VertexBuffer(p_VertexBuffer)
+template <Dimension D> Mesh<D>::Mesh(const VKit::Buffer &p_VertexBuffer) : m_VertexBuffer(p_VertexBuffer)
 {
 }
 template <Dimension D>
-Mesh<D>::Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer, const DeviceLocalIndexBuffer &p_IndexBuffer)
+Mesh<D>::Mesh(const VKit::Buffer &p_VertexBuffer, const VKit::Buffer &p_IndexBuffer)
     : m_VertexBuffer(p_VertexBuffer), m_IndexBuffer(p_IndexBuffer)
 {
 }
@@ -85,7 +97,7 @@ template <Dimension D> void Mesh<D>::Bind(const VkCommandBuffer p_CommandBuffer)
 {
     m_VertexBuffer.BindAsVertexBuffer(p_CommandBuffer);
     if (m_IndexBuffer)
-        m_IndexBuffer.BindAsIndexBuffer(p_CommandBuffer);
+        m_IndexBuffer.BindAsIndexBuffer<Index>(p_CommandBuffer);
 }
 
 template <Dimension D>

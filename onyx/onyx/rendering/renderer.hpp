@@ -281,17 +281,17 @@ struct ONYX_API DeviceLightData
 
     void GrowToFit(u32 p_FrameIndex, u32 p_Directionals, u32 p_Points);
 
-    PerFrameData<DeviceLocalStorageBuffer<DirectionalLight>> DeviceLocalDirectionals;
-    PerFrameData<DeviceLocalStorageBuffer<PointLight>> DeviceLocalPoints;
-    PerFrameData<HostVisibleStorageBuffer<DirectionalLight>> StagingDirectionals;
-    PerFrameData<HostVisibleStorageBuffer<PointLight>> StagingPoints;
+    PerFrameData<VKit::Buffer> DeviceLocalDirectionals;
+    PerFrameData<VKit::Buffer> DeviceLocalPoints;
+    PerFrameData<VKit::Buffer> StagingDirectionals;
+    PerFrameData<VKit::Buffer> StagingPoints;
     PerFrameData<VkDescriptorSet> DescriptorSets;
 };
 
 struct ONYX_API HostLightData
 {
-    HostStorageBuffer<DirectionalLight> DirectionalLights;
-    HostStorageBuffer<PointLight> PointLights;
+    HostBuffer<DirectionalLight> DirectionalLights;
+    HostBuffer<PointLight> PointLights;
 };
 
 /**

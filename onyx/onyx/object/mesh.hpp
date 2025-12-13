@@ -44,8 +44,8 @@ template <Dimension D> class Mesh
     static VKit::Result<Mesh> Create(const IndexVertexHostData<D> &p_Data);
 
     Mesh() = default;
-    Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer);
-    Mesh(const DeviceLocalVertexBuffer<D> &p_VertexBuffer, const DeviceLocalIndexBuffer &p_IndexBuffer);
+    Mesh(const VKit::Buffer &p_VertexBuffer);
+    Mesh(const VKit::Buffer &p_VertexBuffer, const VKit::Buffer &p_IndexBuffer);
 
     /**
      * @brief Destroys the mesh and releases its resources.
@@ -86,11 +86,11 @@ template <Dimension D> class Mesh
     {
         return m_IndexBuffer;
     }
-    const DeviceLocalVertexBuffer<D> &GetVertexBuffer() const
+    const VKit::Buffer &GetVertexBuffer() const
     {
         return m_VertexBuffer;
     }
-    const DeviceLocalIndexBuffer &GetIndexBuffer() const
+    const VKit::Buffer &GetIndexBuffer() const
     {
         return m_IndexBuffer;
     }
@@ -116,8 +116,8 @@ template <Dimension D> class Mesh
     }
 
   private:
-    DeviceLocalVertexBuffer<D> m_VertexBuffer{};
-    DeviceLocalIndexBuffer m_IndexBuffer{};
+    VKit::Buffer m_VertexBuffer{};
+    VKit::Buffer m_IndexBuffer{};
 };
 
 } // namespace Onyx

@@ -2,8 +2,7 @@
 
 #include "onyx/property/vertex.hpp"
 #include "onyx/core/core.hpp"
-#include "vkit/buffer/device_local_buffer.hpp"
-#include "vkit/buffer/host_visible_buffer.hpp"
+#include "vkit/resource/buffer.hpp"
 #include "tkit/container/dynamic_array.hpp"
 
 #ifndef ONYX_INDEX_TYPE
@@ -14,11 +13,7 @@ namespace Onyx
 {
 namespace Detail
 {
-
 // These change behaviour depending if the physical device has a transfer queue different to the graphics queue used.
-
-void RecordCopy(VkCommandBuffer p_CommandBuffer, VkBuffer p_DeviceLocalBuffer, VkBuffer p_DeviceStagingBuffer,
-                u32 p_Size);
 
 VkBufferMemoryBarrier CreateAcquireBarrier(VkBuffer p_DeviceLocalBuffer, u32 p_Size,
                                            VkAccessFlags p_DstFlags = VK_ACCESS_SHADER_READ_BIT);
@@ -31,17 +26,12 @@ void ApplyReleaseBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBuf
 
 using Index = ONYX_INDEX_TYPE;
 
-template <Dimension D> using DeviceLocalVertexBuffer = VKit::DeviceLocalBuffer<Vertex<D>>;
-using DeviceLocalIndexBuffer = VKit::DeviceLocalBuffer<Index>;
-template <typename T> using DeviceLocalStorageBuffer = VKit::DeviceLocalBuffer<T>;
+using DeviceLocalBuffer = VKit::Buffer;
+using HostVisibleBuffer = VKit::Buffer;
 
-template <Dimension D> using HostVisibleVertexBuffer = VKit::HostVisibleBuffer<Vertex<D>>;
-using HostVisibleIndexBuffer = VKit::HostVisibleBuffer<Index>;
-template <typename T> using HostVisibleStorageBuffer = VKit::HostVisibleBuffer<T>;
-
+template <typename T> using HostBuffer = TKit::DynamicArray<T>;
 template <Dimension D> using HostVertexBuffer = TKit::DynamicArray<Vertex<D>>;
 using HostIndexBuffer = TKit::DynamicArray<Index>;
-template <typename T> using HostStorageBuffer = TKit::DynamicArray<T>;
 
 template <Dimension D> struct IndexVertexHostData
 {
@@ -52,43 +42,29 @@ template <Dimension D> struct IndexVertexHostData
 template <Dimension D>
 VKit::FormattedResult<IndexVertexHostData<D>> Load(std::string_view p_Path, const f32m<D> *p_Transform = nullptr);
 
-template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(const HostVertexBuffer<D> &p_Vertices);
-ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(const HostIndexBuffer &p_Indices);
-
-template <Dimension D> DeviceLocalVertexBuffer<D> CreateDeviceLocalVertexBuffer(u32 p_Capacity);
-ONYX_API DeviceLocalIndexBuffer CreateDeviceLocalIndexBuffer(u32 p_Capacity);
-
-template <typename T> DeviceLocalStorageBuffer<T> CreateDeviceLocalStorageBuffer(const u32 p_Capacity)
+template <typename T> VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flags, const u32 p_Capacity)
 {
-    typename VKit::DeviceLocalBuffer<T>::Specs specs{};
-    specs.Allocator = Core::GetVulkanAllocator();
-    specs.Data = TKit::Span<const T>{nullptr, p_Capacity};
-    specs.CommandPool = &Core::GetTransferPool();
-
-    QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-    specs.Queue = queue->Queue;
-    const auto result = VKit::DeviceLocalBuffer<T>::CreateStorageBuffer(Core::GetDevice(), specs);
-
-    Core::ReturnQueue(queue);
-
+    const auto result =
+        VKit::Buffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), p_Flags).SetSize<T>(p_Capacity).Build();
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
 
-template <Dimension D> HostVisibleVertexBuffer<D> CreateHostVisibleVertexBuffer(u32 p_Capacity);
-ONYX_API HostVisibleIndexBuffer CreateHostVisibleIndexBuffer(u32 p_Capacity);
-
-template <typename T> HostVisibleStorageBuffer<T> CreateHostVisibleStorageBuffer(const u32 p_Capacity)
+template <typename T> VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flags, const HostBuffer<T> &p_Data)
 {
-    typename VKit::HostVisibleBuffer<T>::Specs specs{};
-    specs.Allocator = Core::GetVulkanAllocator();
-    specs.Capacity = p_Capacity;
-    specs.AllocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-    specs.Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-
-    const auto result = VKit::HostVisibleBuffer<T>::CreateStorageBuffer(Core::GetDevice(), specs);
+    auto result = VKit::Buffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), p_Flags)
+                      .SetSize<T>(p_Data.GetSize())
+                      .Build();
     VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
+    VKit::Buffer &buffer = result.GetValue();
+    if (buffer.GetInfo().Flags & VKit::Buffer::Flag_HostVisible)
+        buffer.Write<T>(p_Data);
+    else
+    {
+        QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
+        VKIT_ASSERT_EXPRESSION(buffer.UploadFromHost<T>(Core::GetTransferPool(), queue->Queue, p_Data));
+    }
+    return buffer;
 }
 
 } // namespace Onyx
