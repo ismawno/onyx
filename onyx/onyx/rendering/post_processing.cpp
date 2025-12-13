@@ -47,6 +47,7 @@ void PostProcessing::Setup(const Specs &p_Specs)
                             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
                             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
                             .AddDefaultColorAttachment()
+                            .Bake()
                             .Build();
 
     VKIT_ASSERT_RESULT(result);

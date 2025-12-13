@@ -472,11 +472,10 @@ PerImageData<FrameScheduler::ImageData> FrameScheduler::createImageData()
         VKIT_ASSERT_RESULT(iresult);
         data.Intermediate = iresult.GetValue();
 
-        iresult =
-            VKit::Image::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, info.SurfaceFormat.format,
-                                 VKit::Image::Flag_DepthAttachment | VKit::Image::Flag_StencilAttachment)
-                .WithImageView()
-                .Build();
+        iresult = VKit::Image::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, s_DepthStencilFormat,
+                                       VKit::Image::Flag_DepthAttachment | VKit::Image::Flag_StencilAttachment)
+                      .WithImageView()
+                      .Build();
         VKIT_ASSERT_RESULT(iresult);
         data.DepthStencil = iresult.GetValue();
 

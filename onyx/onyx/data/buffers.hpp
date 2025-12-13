@@ -63,6 +63,7 @@ template <typename T> VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flag
     {
         QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
         VKIT_ASSERT_EXPRESSION(buffer.UploadFromHost<T>(Core::GetTransferPool(), queue->Queue, p_Data));
+        Core::ReturnQueue(queue);
     }
     return buffer;
 }

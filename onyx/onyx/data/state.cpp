@@ -157,7 +157,7 @@ VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateMeshPipeline(
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex<D3>, Position))
             .AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex<D3>, Normal));
 
-    const auto result = builder.Build();
+    const auto result = builder.Bake().Build();
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }
@@ -172,7 +172,7 @@ VKit::GraphicsPipeline PipelineGenerator<D, PMode>::CreateCirclePipeline(
     VKit::GraphicsPipeline::Builder builder =
         defaultPipelineBuilder<D, PMode>(p_RenderInfo, vertexShader, fragmentShader);
 
-    const auto result = builder.Build();
+    const auto result = builder.Bake().Build();
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
 }

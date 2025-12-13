@@ -334,7 +334,7 @@ VKit::Buffer CreateDeviceBuffer(const VKit::Buffer::Flags p_Flags, const u32 p_C
 }
 template <typename T> VKit::Buffer CreateStagingBuffer(const u32 p_Capacity = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    return CreateBuffer<T>(VKit::Buffer::Flag_StagingBuffer, p_Capacity);
+    return CreateBuffer<T>(VKit::Buffer::Flag_StagingBuffer | VKit::Buffer::Flag_HostMapped, p_Capacity);
 }
 
 /**
