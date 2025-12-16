@@ -34,7 +34,9 @@ Window::Window(const Specs &p_Specs)
     TKIT_LOG_DEBUG("[ONYX] Window '{}' has been instantiated", p_Specs.Name);
     createWindow(p_Specs);
     m_FrameScheduler->SetPresentMode(p_Specs.PresentMode);
+#ifdef TKIT_ENABLE_INSTRUMENTATION
     m_ColorIndex = s_ColorIndex++ & 3;
+#endif
 }
 
 Window::~Window()
