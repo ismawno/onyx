@@ -84,7 +84,7 @@ if(NOT TARGET glfw)
       CACHE BOOL "" FORCE)
 
   FetchContent_MakeAvailable(glfw)
-  tkit_configure_compile_link_options(glfw FORBID_SANITIZERS NO_EXCEPTIONS)
+  tkit_configure_compile_link_options(glfw NO_EXCEPTIONS NO_RTTI)
 
 else()
   message(STATUS "ONYX - GLFW found")
@@ -154,7 +154,7 @@ if(ONYX_ENABLE_IMGUI)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMGUI)
   target_link_libraries(onyx PUBLIC imgui)
 
-  tkit_configure_compile_link_options(imgui FORBID_SANITIZERS NO_EXCEPTIONS)
+  tkit_configure_compile_link_options(imgui NO_EXCEPTIONS NO_RTTI)
 endif()
 
 # IMPLOT ###
@@ -180,7 +180,7 @@ if(ONYX_ENABLE_IMPLOT)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMPLOT)
   target_link_libraries(onyx PUBLIC implot)
 
-  tkit_configure_compile_link_options(implot FORBID_SANITIZERS NO_EXCEPTIONS)
+  tkit_configure_compile_link_options(implot NO_EXCEPTIONS NO_RTTI)
 endif()
 
 target_link_libraries(
@@ -196,8 +196,7 @@ target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 tkit_default_configure(onyx)
 
-tkit_configure_compile_link_options(tinyobjloader FORBID_SANITIZERS
-                                    NO_EXCEPTIONS)
+tkit_configure_compile_link_options(tinyobjloader NO_EXCEPTIONS NO_RTTI)
 
 # No need for more: toolkit handles the rest. As it is a library I develop, I
 # will be reusing its macros/configurations
