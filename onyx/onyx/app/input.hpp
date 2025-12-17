@@ -246,9 +246,6 @@ ONYX_API const char *GetKeyName(Key p_Key);
  */
 struct ONYX_API Event
 {
-    /**
-     * @brief An enum representing different action types for events.
-     */
     enum ActionType : u8
     {
         KeyPressed,
@@ -260,37 +257,42 @@ struct ONYX_API Event
         MouseEntered,
         MouseLeft,
         Scrolled,
+        WindowMoved,
         WindowResized,
         WindowFocused,
-        WindowUnfocused
+        WindowUnfocused,
+        WindowClosed,
+        WindowMinimized,
+        WindowRestored,
+        FramebufferResized,
+        CharInput,
     };
 
-    /**
-     * @brief Structure representing old and new dimensions when a window is resized.
-     */
-    struct WindowResizedDimensions
+    struct WindowMovedResized
     {
-        u32 OldWidth = 0;
-        u32 OldHeight = 0;
-        u32 NewWidth = 0;
-        u32 NewHeight = 0;
+        u32v2 Old;
+        u32v2 New;
     };
 
-    /**
-     * @brief Structure representing the mouse state including position and button pressed.
-     */
     struct MouseState
     {
         f32v2 Position{0.f};
         Input::Mouse Button;
     };
 
+    struct Char
+    {
+        u32 Codepoint;
+    };
+
     bool Empty = false;
     ActionType Type;
     Input::Key Key;
 
-    WindowResizedDimensions WindowResize;
+    WindowMovedResized WindowDelta;
+
     MouseState Mouse;
+    Char Character;
     f32v2 ScrollOffset{0.f};
     Window *Window = nullptr;
 
@@ -299,5 +301,4 @@ struct ONYX_API Event
         return !Empty;
     }
 };
-
 } // namespace Onyx
