@@ -869,6 +869,7 @@ static void windowMoveCallback(GLFWwindow *p_Window, const i32 p_X, const i32 p_
     event.WindowDelta.New = u32v2{static_cast<u32>(p_X), static_cast<u32>(p_Y)};
 
     window->PushEvent(event);
+    window->UpdateMonitorDeltaTime(window->GetMonitorDeltaTime());
 }
 
 static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_Height)
