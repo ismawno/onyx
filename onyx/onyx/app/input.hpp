@@ -266,6 +266,7 @@ struct ONYX_API Event
         WindowRestored,
         FramebufferResized,
         CharInput,
+        SwapChainRecreated,
     };
 
     struct WindowMovedResized

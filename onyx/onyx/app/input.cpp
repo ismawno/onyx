@@ -883,7 +883,7 @@ static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const 
     event.WindowDelta.Old = window->GetScreenDimensions();
     event.WindowDelta.New = u32v2{static_cast<u32>(p_Width), static_cast<u32>(p_Height)};
 
-    window->flagResize(event.WindowDelta.New);
+    window->m_Dimensions = event.WindowDelta.New;
     window->PushEvent(event);
 }
 
