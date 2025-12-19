@@ -363,20 +363,12 @@ class ONYX_API Application
     void SetUpdateDeltaTime(const TKit::Timespan p_Target, Window *p_Window = nullptr)
     {
         WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
-        data->UpdateClock.Delta.Time.Target = p_Target;
-        updateMinimumTargetDelta();
+        setUpdateDeltaTime(p_Target, *data);
     }
     void SetRenderDeltaTime(const TKit::Timespan p_Target, Window *p_Window = nullptr)
     {
         WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
-        TKIT_LOG_WARNING_IF(data->Window->IsVSync(),
-                            "[ONYX] When the present mode of the window is FIFO (V-Sync), setting the target delta "
-                            "time for said window is useless");
-        if (!data->Window->IsVSync())
-        {
-            data->UpdateClock.Delta.Time.Target = p_Target;
-            updateMinimumTargetDelta();
-        }
+        setRenderDeltaTime(p_Target, *data);
     }
 
     /**
@@ -446,6 +438,9 @@ class ONYX_API Application
 
     WindowData *getWindowData(const Window *p_Window);
     const WindowData *getWindowData(const Window *p_Window) const;
+
+    void setUpdateDeltaTime(TKit::Timespan p_Target, WindowData &p_Data);
+    void setRenderDeltaTime(TKit::Timespan p_Target, WindowData &p_Data);
 
     void processWindow(WindowData &p_Data);
     void destroyWindow(WindowData &p_Data);

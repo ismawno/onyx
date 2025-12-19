@@ -87,6 +87,23 @@ static i32 createVkSurface(ImGuiViewport *, ImU64 p_Instance, const void *p_Call
                                    reinterpret_cast<VkSurfaceKHR *>(&p_Surface));
 }
 
+void Application::setUpdateDeltaTime(TKit::Timespan p_Target, WindowData &p_Data)
+{
+    p_Data.UpdateClock.Delta.Time.Target = p_Target;
+    updateMinimumTargetDelta();
+}
+void Application::setRenderDeltaTime(TKit::Timespan p_Target, WindowData &p_Data)
+{
+    TKIT_LOG_WARNING_IF(p_Data.Window->IsVSync(),
+                        "[ONYX] When the present mode of the window is FIFO (V-Sync), setting the target delta "
+                        "time for said window is useless");
+    if (!p_Data.Window->IsVSync())
+    {
+        p_Data.RenderClock.Delta.Time.Target = p_Target;
+        updateMinimumTargetDelta();
+    }
+}
+
 Application::WindowData *Application::getWindowData(const Window *p_Window)
 {
     if (m_MainWindow.Window == p_Window)
@@ -246,6 +263,7 @@ static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLay
         const u32 mn = 30;
         const u32 mx = 240;
         changed = ImGui::SliderScalarN("Target hertz", ImGuiDataType_U32, &tfreq, 1, &mn, &mx);
+        p_Delta.Time.Target = ToDeltaTime(tfreq);
     }
     ImGui::Text("Measured hertz: %u", mfreq);
 
@@ -283,7 +301,7 @@ bool Application::DisplayUpdateDeltaTime(const UserLayer::Flags p_Flags)
 {
     if (displayDeltaTime(m_MainWindow.Window, m_MainWindow.UpdateClock.Delta, p_Flags, false))
     {
-        SetUpdateDeltaTime(m_MainWindow.UpdateClock.Delta.Time.Target);
+        setUpdateDeltaTime(m_MainWindow.UpdateClock.Delta.Time.Target, m_MainWindow);
         return true;
     }
     return false;
@@ -292,7 +310,7 @@ bool Application::DisplayRenderDeltaTime(const UserLayer::Flags p_Flags)
 {
     if (displayDeltaTime(m_MainWindow.Window, m_MainWindow.RenderClock.Delta, p_Flags, true))
     {
-        SetUpdateDeltaTime(m_MainWindow.RenderClock.Delta.Time.Target);
+        setRenderDeltaTime(m_MainWindow.RenderClock.Delta.Time.Target, m_MainWindow);
         return true;
     }
     return false;
@@ -303,7 +321,7 @@ bool Application::DisplayUpdateDeltaTime(Window *p_Window, const UserLayer::Flag
     WindowData *data = getWindowData(p_Window);
     if (displayDeltaTime(data->Window, data->UpdateClock.Delta, p_Flags, false))
     {
-        SetUpdateDeltaTime(data->UpdateClock.Delta.Time.Target);
+        setUpdateDeltaTime(data->UpdateClock.Delta.Time.Target, *data);
         return true;
     }
     return false;
@@ -313,7 +331,7 @@ bool Application::DisplayRenderDeltaTime(Window *p_Window, const UserLayer::Flag
     WindowData *data = getWindowData(p_Window);
     if (displayDeltaTime(data->Window, data->RenderClock.Delta, p_Flags, true))
     {
-        SetUpdateDeltaTime(data->RenderClock.Delta.Time.Target);
+        setRenderDeltaTime(data->RenderClock.Delta.Time.Target, *data);
         return true;
     }
     return false;

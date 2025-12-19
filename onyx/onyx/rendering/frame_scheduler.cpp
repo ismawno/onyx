@@ -46,7 +46,6 @@ FrameScheduler::~FrameScheduler()
 
 bool FrameScheduler::handleImageResult(Window &p_Window, const VkResult p_Result)
 {
-    m_RequestSwapchainRecreation = false;
     if (p_Result == VK_ERROR_SURFACE_LOST_KHR)
     {
         recreateSurface(p_Window);
@@ -394,6 +393,7 @@ void FrameScheduler::createSwapChain(Window &p_Window, const VkExtent2D &p_Windo
 void FrameScheduler::recreateSwapChain(Window &p_Window)
 {
     TKIT_LOG_DEBUG("[ONYX] Out of date swap chain. Re-creating swap chain and resources");
+    m_RequestSwapchainRecreation = false;
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     Core::DeviceWaitIdle();
 
@@ -410,6 +410,7 @@ void FrameScheduler::recreateSwapChain(Window &p_Window)
 void FrameScheduler::recreateSurface(Window &p_Window)
 {
     TKIT_LOG_WARNING("[ONYX] Surface lost... re-creating surface, swap chain and resources");
+    m_RequestSwapchainRecreation = false;
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     Core::DeviceWaitIdle();
 
