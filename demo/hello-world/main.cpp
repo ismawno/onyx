@@ -13,7 +13,7 @@ using namespace TKit::Alias;
 
 static void RunStandaloneWindow()
 {
-    Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
+    Onyx::Window window({.Name = "Standalone Hello, World!", .Dimensions = u32v2{800, 600}});
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
     window.CreateCamera<D2>();
 
@@ -21,6 +21,10 @@ static void RunStandaloneWindow()
     {
         Onyx::Input::PollEvents();
 
+        // This is simpler but not ideal. The default `Render()` method not always renders (some conditions must be
+        // met). In those cases, the context operations go to waste. It is better to manually begin and end the frame to
+        // avoid the context operations if the frame cannot start. Still, this is viable and suitable for simple use
+        // cases
         context->Flush();
 
         context->Fill(Onyx::Color::RED);
@@ -93,42 +97,44 @@ static void RunStandaloneWindowCustomPipeline()
 {
     Onyx::Window window(
         {.Name = "Standalone Hello, World! With a custom rainbow background and a post-processing effect!",
-         .Width = 800,
-         .Height = 600});
+         .Dimensions = u32v2{800, 600}});
 
     const VKit::GraphicsJob job = SetupCustomPipeline(window);
     SetPostProcessing(window);
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
     window.CreateCamera<D2>()->Transparent = true;
 
-    Onyx::RenderCallbacks cbs{};
-    cbs.OnRenderBegin = [&job](const u32, const VkCommandBuffer p_CommandBuffer) {
-        job.Bind(p_CommandBuffer);
-        job.Draw(p_CommandBuffer, 3);
-    };
-
     while (!window.ShouldClose())
     {
         Onyx::Input::PollEvents();
 
-        context->Flush();
+        if (const Onyx::FrameInfo info = window.BeginFrame())
+        {
+            context->Flush();
 
-        context->Fill(Onyx::Color::RED);
-        context->Square();
+            context->Fill(Onyx::Color::RED);
+            context->Square();
 
-        window.Render(cbs);
+            const auto flags = window.SubmitContextData(info);
+            window.BeginRendering();
+            job.Bind(info.GraphicsCommand);
+            job.Draw(info.GraphicsCommand, 3);
+            window.Render(info);
+            window.EndRendering();
+            window.EndFrame(flags);
+        }
     }
 }
 
 static void RunAppExample1()
 {
-    Onyx::Application app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
+    Onyx::Application app({.Name = "App1 Hello, World!", .Dimensions = u32v2{800, 600}});
     app.Run();
 }
 
 static void RunAppExample2()
 {
-    Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
+    Onyx::Application app({.Name = "App2 Hello, World!", .Dimensions = u32v2{800, 600}});
 
     const auto result = Onyx::Mesh<D2>::Load(ONYX_ROOT_PATH "/onyx/meshes/square.obj");
     VKIT_ASSERT_RESULT(result);
@@ -139,6 +145,8 @@ static void RunAppExample2()
     TKit::Clock clock;
     while (app.NextFrame(clock))
     {
+        // This is also not ideal, as the window not always renders in every iteration of the loop, so these operations
+        // may go to waste. Still, this is viable and suitable for simple use cases
         context->Flush();
 
         context->Fill(Onyx::Color::RED);
@@ -153,7 +161,7 @@ static void RunAppExample3()
     {
       public:
         using Onyx::UserLayer::UserLayer;
-        void OnUpdate() override
+        void OnFrameBegin(const Onyx::DeltaTime &, const Onyx::FrameInfo &) override
         {
 #ifdef ONYX_ENABLE_IMGUI
             ImGui::Begin("Hello, World!");
@@ -163,10 +171,10 @@ static void RunAppExample3()
         }
     };
 
-    Onyx::Application app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
+    Onyx::Application app({.Name = "App3 Hello, World!", .Dimensions = u32v2{800, 600}});
     app.SetUserLayer<MyLayer>();
 #if defined(__ONYX_MULTI_WINDOW) && defined(ONYX_ENABLE_IMGUI)
-    app.OpenWindow({.Specs = {.Name = "Who's this??", .Width = 800, .Height = 600}, .EnableImGui = false});
+    app.OpenWindow({.Specs = {.Name = "Who's this??", .Dimensions = u32v2{800, 600}}, .EnableImGui = false});
 #endif
 
     app.Run();

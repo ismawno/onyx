@@ -14,6 +14,15 @@ static u32 s_ColorIndex = 0;
 static u32 s_Colors[4] = {0x434E78, 0x607B8F, 0xF7E396, 0xE97F4A};
 #endif
 
+u32 ToFrequency(const TKit::Timespan p_DeltaTime)
+{
+    return static_cast<u32>(1.f / p_DeltaTime.AsSeconds());
+}
+TKit::Timespan ToDeltaTime(const u32 p_Frequency)
+{
+    return TKit::Timespan::FromSeconds(1.f / static_cast<f32>(p_Frequency));
+}
+
 static TKit::BlockAllocator createAllocator()
 {
     const u32 maxSize = static_cast<u32>(
@@ -28,8 +37,7 @@ Window::Window() : Window(Specs{})
 }
 
 Window::Window(const Specs &p_Specs)
-    : m_Allocator(createAllocator()), m_Name(p_Specs.Name), m_Width(p_Specs.Width), m_Height(p_Specs.Height),
-      m_Flags(p_Specs.Flags)
+    : m_Allocator(createAllocator()), m_Name(p_Specs.Name), m_Dimensions(p_Specs.Dimensions), m_Flags(p_Specs.Flags)
 {
     TKIT_LOG_DEBUG("[ONYX] Window '{}' has been instantiated", p_Specs.Name);
     createWindow(p_Specs);
@@ -37,6 +45,7 @@ Window::Window(const Specs &p_Specs)
 #ifdef TKIT_ENABLE_INSTRUMENTATION
     m_ColorIndex = s_ColorIndex++ & 3;
 #endif
+    UpdateMonitorDeltaTime();
 }
 
 Window::~Window()
@@ -66,9 +75,21 @@ void Window::createWindow(const Specs &p_Specs)
     glfwWindowHint(GLFW_FOCUSED, p_Specs.Flags & Flag_Focused);
     glfwWindowHint(GLFW_FLOATING, p_Specs.Flags & Flag_Floating);
 
-    m_Window = glfwCreateWindow(static_cast<i32>(p_Specs.Width), static_cast<i32>(p_Specs.Height), p_Specs.Name,
-                                nullptr, nullptr);
+    m_Window = glfwCreateWindow(static_cast<i32>(p_Specs.Dimensions[0]), static_cast<i32>(p_Specs.Dimensions[1]),
+                                p_Specs.Name, nullptr, nullptr);
     TKIT_ASSERT(m_Window, "[ONYX] Failed to create a GLFW window");
+
+    if (p_Specs.Position != u32v2{TKit::Limits<u32>::Max()})
+    {
+        glfwSetWindowPos(m_Window, static_cast<i32>(p_Specs.Position[0]), static_cast<i32>(p_Specs.Position[1]));
+        m_Position = p_Specs.Position;
+    }
+    else
+    {
+        i32 x, y;
+        glfwGetWindowPos(m_Window, &x, &y);
+        m_Position = u32v2{x, y};
+    }
 
     VKIT_ASSERT_EXPRESSION(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface));
     glfwSetWindowUserPointer(m_Window, this);
@@ -79,76 +100,92 @@ void Window::createWindow(const Specs &p_Specs)
     Input::InstallCallbacks(*this);
 }
 
-bool Window::Render(const RenderCallbacks &p_Callbacks)
+FrameInfo Window::BeginFrame()
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Window::BeginFrame");
+    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
+
+    FrameInfo info;
+    info.GraphicsCommand = m_FrameScheduler->BeginFrame(*this);
+    info.TransferCommand = info.GraphicsCommand ? m_FrameScheduler->GetTransferCommandBuffer() : VK_NULL_HANDLE;
+    info.FrameIndex = m_FrameScheduler->GetFrameIndex();
+    return info;
+}
+VkPipelineStageFlags Window::SubmitContextData(const FrameInfo &p_Info)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Window::SubmitContextData");
+    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
+    VkPipelineStageFlags transferFlags = 0;
+
+    for (RenderContext<D2> *context : m_RenderContexts2D)
+    {
+        context->GetRenderer().GrowToFit(p_Info.FrameIndex);
+        context->GetRenderer().SendToDevice(p_Info.FrameIndex);
+        transferFlags |= context->GetRenderer().RecordCopyCommands(p_Info.FrameIndex, p_Info.GraphicsCommand,
+                                                                   p_Info.TransferCommand);
+    }
+    for (RenderContext<D3> *context : m_RenderContexts3D)
+    {
+        context->GetRenderer().GrowToFit(p_Info.FrameIndex);
+        context->GetRenderer().SendToDevice(p_Info.FrameIndex);
+        transferFlags |= context->GetRenderer().RecordCopyCommands(p_Info.FrameIndex, p_Info.GraphicsCommand,
+                                                                   p_Info.TransferCommand);
+    }
+    if (Core::IsSeparateTransferMode() && transferFlags != 0)
+        m_FrameScheduler->SubmitTransferQueue();
+    return transferFlags;
+}
+void Window::BeginRendering()
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Window::BeginRendering");
+    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
+    m_FrameScheduler->BeginRendering(BackgroundColor);
+}
+
+void Window::Render(const FrameInfo &p_Info)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
+    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
+    TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Render",
+                              m_FrameScheduler->GetQueueData().Graphics->ProfilingContext, gcmd);
+    auto caminfos = getCameraInfos<D2>();
+    if (!caminfos.IsEmpty())
+        for (RenderContext<D2> *context : m_RenderContexts2D)
+            context->GetRenderer().Render(p_Info.FrameIndex, p_Info.GraphicsCommand, caminfos);
+
+    caminfos = getCameraInfos<D3>();
+    if (!caminfos.IsEmpty())
+        for (RenderContext<D3> *context : m_RenderContexts3D)
+            context->GetRenderer().Render(p_Info.FrameIndex, p_Info.GraphicsCommand, caminfos);
+}
+
+void Window::EndRendering()
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
+    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
+    m_FrameScheduler->EndRendering();
+}
+
+void Window::EndFrame(const VkPipelineStageFlags p_Flags)
+{
+    TKIT_PROFILE_VULKAN_COLLECT(m_FrameScheduler->GetQueueData().Graphics->ProfilingContext, gcmd);
+    m_FrameScheduler->EndFrame(*this, p_Flags);
+}
+
+bool Window::Render()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
     TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
 
-    const VkCommandBuffer gcmd = m_FrameScheduler->BeginFrame(*this);
-    const u32 frameIndex = m_FrameScheduler->GetFrameIndex();
-    if (!gcmd)
-    {
-        if (p_Callbacks.OnBadFrame)
-            p_Callbacks.OnBadFrame(frameIndex);
+    const FrameInfo info = BeginFrame();
+    if (!info)
         return false;
-    }
 
-    VkPipelineStageFlags transferFlags = 0;
-
-    if (p_Callbacks.OnFrameBegin)
-        p_Callbacks.OnFrameBegin(frameIndex, gcmd);
-
-    for (RenderContext<D2> *context : m_RenderContexts2D)
-        context->GetRenderer().GrowToFit(frameIndex);
-    for (RenderContext<D3> *context : m_RenderContexts3D)
-        context->GetRenderer().GrowToFit(frameIndex);
-
-    for (RenderContext<D2> *context : m_RenderContexts2D)
-        context->GetRenderer().SendToDevice(frameIndex);
-    for (RenderContext<D3> *context : m_RenderContexts3D)
-        context->GetRenderer().SendToDevice(frameIndex);
-
-    const VkCommandBuffer tcmd = m_FrameScheduler->GetTransferCommandBuffer();
-    {
-        for (const auto &context : m_RenderContexts2D)
-            transferFlags |= context->GetRenderer().RecordCopyCommands(frameIndex, gcmd, tcmd);
-        for (const auto &context : m_RenderContexts3D)
-            transferFlags |= context->GetRenderer().RecordCopyCommands(frameIndex, gcmd, tcmd);
-    }
-
-    if (Core::IsSeparateTransferMode() && transferFlags != 0)
-        m_FrameScheduler->SubmitTransferQueue();
-
-    {
-        TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Render",
-                                  m_FrameScheduler->GetQueueData().Graphics->ProfilingContext, gcmd);
-        m_FrameScheduler->BeginRendering(BackgroundColor);
-
-        if (p_Callbacks.OnRenderBegin)
-            p_Callbacks.OnRenderBegin(frameIndex, gcmd);
-
-        auto caminfos = getCameraInfos<D2>();
-        if (!caminfos.IsEmpty())
-            for (RenderContext<D2> *context : m_RenderContexts2D)
-                context->GetRenderer().Render(frameIndex, gcmd, caminfos);
-
-        caminfos = getCameraInfos<D3>();
-        if (!caminfos.IsEmpty())
-            for (RenderContext<D3> *context : m_RenderContexts3D)
-                context->GetRenderer().Render(frameIndex, gcmd, caminfos);
-
-        if (p_Callbacks.OnRenderEnd)
-            p_Callbacks.OnRenderEnd(frameIndex, gcmd);
-
-        m_FrameScheduler->EndRendering();
-    }
-
-    {
-        if (p_Callbacks.OnFrameEnd)
-            p_Callbacks.OnFrameEnd(frameIndex, gcmd);
-        TKIT_PROFILE_VULKAN_COLLECT(m_FrameScheduler->GetQueueData().Graphics->ProfilingContext, gcmd);
-    }
-    m_FrameScheduler->EndFrame(*this, transferFlags);
+    const VkPipelineStageFlags flags = SubmitContextData(info);
+    BeginRendering();
+    Render(info);
+    EndRendering();
+    EndFrame(flags);
     return true;
 }
 
@@ -157,29 +194,22 @@ bool Window::ShouldClose() const
     return glfwWindowShouldClose(m_Window);
 }
 
-std::pair<u32, u32> Window::GetPosition() const
+TKit::Timespan Window::UpdateMonitorDeltaTime(const TKit::Timespan p_Default)
 {
-    i32 x, y;
-    glfwGetWindowPos(m_Window, &x, &y);
-    return {static_cast<u32>(x), static_cast<u32>(y)};
+    GLFWmonitor *monitor = glfwGetWindowMonitor(m_Window);
+    if (!monitor)
+        monitor = glfwGetPrimaryMonitor();
+    if (!monitor)
+    {
+        m_MonitorDeltaTime = p_Default;
+        return p_Default;
+    }
+    const GLFWvidmode *mode = glfwGetVideoMode(monitor);
+
+    m_MonitorDeltaTime = TKit::Timespan::FromSeconds(1.f / static_cast<f32>(mode->refreshRate));
+    return m_MonitorDeltaTime;
 }
 
-bool Window::wasResized() const
-{
-    return m_Resized;
-}
-
-void Window::flagResize(const u32 p_Width, const u32 p_Height)
-{
-    m_Width = p_Width;
-    m_Height = p_Height;
-    m_Resized = true;
-}
-void Window::flagResizeDone()
-{
-    adaptCamerasToViewportAspect();
-    m_Resized = false;
-}
 void Window::recreateSurface()
 {
     Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);

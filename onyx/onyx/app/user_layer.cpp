@@ -1,7 +1,7 @@
 #ifdef ONYX_ENABLE_IMGUI
 #    include "onyx/core/pch.hpp"
 #    include "onyx/app/user_layer.hpp"
-#    include "onyx/app/window.hpp"
+#    include "onyx/app/app.hpp"
 #    include "onyx/rendering/render_context.hpp"
 #    include "onyx/property/transform.hpp"
 #    include "onyx/core/imgui.hpp"
@@ -132,56 +132,6 @@ template <Dimension D> void UserLayer::DisplayCameraControls(const CameraControl
 
 template void UserLayer::DisplayCameraControls<D2>(const CameraControls<D2> &p_Controls);
 template void UserLayer::DisplayCameraControls<D3>(const CameraControls<D3> &p_Controls);
-
-void UserLayer::DisplayFrameTime(const TKit::Timespan p_DeltaTime, const Flags p_Flags)
-{
-    // These statics may cause trouble with multiple applications
-    static TKit::Timespan maxDeltaTime{};
-    static TKit::Timespan smoothDeltaTime{};
-    static f32 smoothFactor = 0.f;
-    static i32 unit = 1;
-
-    if (p_DeltaTime > maxDeltaTime)
-        maxDeltaTime = p_DeltaTime;
-    smoothDeltaTime = smoothFactor * smoothDeltaTime + (1.f - smoothFactor) * p_DeltaTime;
-
-    ImGui::SliderFloat("Smoothing factor", &smoothFactor, 0.f, 0.999f);
-    if (p_Flags & Flag_DisplayHelp)
-        HelpMarkerSameLine(
-            "Because frames get dispatched so quickly, the frame time can vary a lot, be inconsistent, and hard to "
-            "see. This slider allows you to smooth out the frame time across frames, making it easier to see the "
-            "trend.");
-
-    ImGui::Combo("Unit", &unit, "s\0ms\0us\0ns\0");
-    if (unit == 0)
-        ImGui::Text("Frame time: %.4f s (max: %.4f s)", smoothDeltaTime.AsSeconds(), maxDeltaTime.AsSeconds());
-    else if (unit == 1)
-        ImGui::Text("Frame time: %.2f ms (max: %.2f ms)", smoothDeltaTime.AsMilliseconds(),
-                    maxDeltaTime.AsMilliseconds());
-    else if (unit == 2)
-        ImGui::Text("Frame time: %u us (max: %u us)", static_cast<u32>(smoothDeltaTime.AsMicroseconds()),
-                    static_cast<u32>(maxDeltaTime.AsMicroseconds()));
-    else
-#    ifndef TKIT_OS_LINUX
-        ImGui::Text("Frame time: %llu ns (max: %llu ns)", smoothDeltaTime.AsNanoseconds(),
-                    maxDeltaTime.AsNanoseconds());
-#    else
-        ImGui::Text("Frame time: %lu ns (max: %lu ns)", smoothDeltaTime.AsNanoseconds(), maxDeltaTime.AsNanoseconds());
-#    endif
-
-    if (p_Flags & Flag_DisplayHelp)
-        HelpMarkerSameLine(
-            "The frame time is a measure of the time it takes to process and render a frame, and it is one of the main "
-            "indicators of an application smoothness. It is also used to calculate the frames per second (FPS) of the "
-            "application. A good frame time is usually no larger than 16.67 ms (that is, 60 fps). It is also bound to "
-            "the present mode of the window.");
-
-    const u32 fps = static_cast<u32>(1.f / smoothDeltaTime.AsSeconds());
-    ImGui::Text("FPS: %u", fps);
-
-    if (ImGui::Button("Reset maximum"))
-        maxDeltaTime = TKit::Timespan{};
-}
 
 void UserLayer::HelpMarker(const char *p_Description, const char *p_Icon)
 {

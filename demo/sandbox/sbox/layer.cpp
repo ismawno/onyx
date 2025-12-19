@@ -93,10 +93,10 @@ SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const D
     }
 }
 
-void SandboxLayer::OnUpdate()
+void SandboxLayer::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
 {
-    const TKit::Timespan ts = m_Application->GetDeltaTime();
-    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
+    const TKit::Timespan ts = p_DeltaTime.Measured;
+    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnFrameBegin");
     if (m_PostProcessing)
     {
         m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
@@ -187,7 +187,6 @@ static const VKit::Shader &getBlurShader()
 
 void SandboxLayer::renderImGui()
 {
-    const TKit::Timespan ts = m_Application->GetDeltaTime();
     ImGui::ShowDemoWindow();
 #    ifdef ONYX_ENABLE_IMPLOT
     ImPlot::ShowDemoWindow();
@@ -232,7 +231,7 @@ void SandboxLayer::renderImGui()
 
     if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {
-        UserLayer::DisplayFrameTime(ts, UserLayer::Flag_DisplayHelp);
+        m_Application->DisplayRenderDeltaTime(UserLayer::Flag_DisplayHelp);
         ImGui::Text("Version: " ONYX_VERSION);
         ImGui::TextWrapped(
             "Onyx is a small application framework I have implemented to be used primarily in all projects I develop "
@@ -823,12 +822,12 @@ void SandboxLayer::OnEvent(const Event &p_Event)
     processEvent(m_ContextData3, m_Cameras3, p_Event);
 }
 
-void SandboxLayer::OnRenderBegin(u32, VkCommandBuffer p_CommandBuffer)
+void SandboxLayer::OnRenderBegin(const DeltaTime &, const FrameInfo &p_Info)
 {
     if (m_RainbowBackground)
     {
-        m_RainbowJob.Bind(p_CommandBuffer);
-        m_RainbowJob.Draw(p_CommandBuffer, 3);
+        m_RainbowJob.Bind(p_Info.GraphicsCommand);
+        m_RainbowJob.Draw(p_Info.GraphicsCommand, 3);
     }
 }
 

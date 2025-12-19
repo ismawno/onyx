@@ -3,7 +3,6 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/api.hpp"
 #include "onyx/core/dimension.hpp"
-#include "tkit/profiling/timespan.hpp"
 #include <vulkan/vulkan.h>
 
 namespace Onyx
@@ -20,6 +19,9 @@ struct PointLight;
 struct ScreenViewport;
 struct ScreenScissor;
 
+struct FrameInfo;
+struct DeltaTime;
+
 enum class Resolution : u32;
 
 class Application;
@@ -29,10 +31,12 @@ class Window;
  * @brief A base class that allows users to inject their own code into the application's lifecycle with different
  * callbacks.
  *
- * @note In multi-window applications, users must always react to a window opening/closing in the `OnEvent()` method
- * even when it was triggered by a direct `OpenWindow()` or `CloseWindow()` call. This is because the window
- * addition/removal mechanism is deferred until it can be performed safely. In that moment, the `OnEvent()` method is
- * finally called.
+ * Every user layer is assigned to a different window in an application, and there is only one `UserLayer` allowed per
+ * window.
+ *
+ * The type of operations allowed in each callback is different based on where in the rendering pipeline they get
+ * called. In addition, each of them can be called with different frequencies, depending on swap chain image
+ * availability and performance.
  *
  */
 class ONYX_API UserLayer
@@ -52,78 +56,60 @@ class ONYX_API UserLayer
     virtual ~UserLayer() = default;
 
     /**
-     * @brief Called every frame before the `OnFrameBegin()` method.
+     * @brief Called periodically outside of the rendering loop.
      *
-     * This method is called outside the the frame loop, so you cannot issue any vulkan draw calls here. You can (and is
-     * advised) to submit `RenderContext` draw calls from this callback, as it is cpu-side work only. You may also
-     * submit `ImGui` or `ImPlot` calls.
-     *
-     * Its purpose is to update the user's state as they see fit. Doing so in other render callbacks is not recommended,
-     * as some gpu operations can be performed at the same time `OnUpdate()` runs, but not at the same time the other
-     * callbacks run.
+     * Its purpose is to update the user's rendering-unrelated state. Its frequency is given by the target date time.
      *
      */
-    virtual void OnUpdate()
+    virtual void OnUpdate(const DeltaTime &)
     {
     }
 
     /**
-     * @brief Called every frame before the `OnRenderBegin()` method.
+     * @brief Called everytime a frame begins.
      *
-     * It may be used to issue `ImGui` or `ImPlot` calls or to record vulkan commands directly before the main scene
-     * rendering.
+     * It is the only callback where render context calls are allowed. `ImGui` and `ImPlot` calls are also allowed until
+     * `OnRenderEnd()` (exclusive).
      *
      * Take into account this method is not executed inside a `vkBeginRendering()`/`vkEndRendering()` pair call.
      *
-     * @param p_FrameIndex The index of the current frame.
-     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
-     *
      */
-    virtual void OnFrameBegin(u32, VkCommandBuffer)
+    virtual void OnFrameBegin(const DeltaTime &, const FrameInfo &)
     {
     }
 
     /**
-     * @brief Called every frame at the bottom of the frame loop.
+     * @brief Called everytime rendering begins.
+     *
+     * It is designed to submit direct vulkan commands before the main scene rendering. It is called in between a
+     * `vkBeginRendering()`/`vkEndRendering()` pair call. It may also be used to issue `ImGui` or `ImPlot` calls.
+     *
+     */
+    virtual void OnRenderBegin(const DeltaTime &, const FrameInfo &)
+    {
+    }
+
+    /**
+     * @brief Called everytime rendering ends.
+     *
+     * It is designed to submit direct vulkan commands after the main scene rendering. It is called in between a
+     * `vkBeginRendering()`/`vkEndRendering()` pair call. It may also be used to issue `ImGui` or `ImPlot` calls.
+     *
+     */
+    virtual void OnRenderEnd(const DeltaTime &, const FrameInfo &)
+    {
+    }
+
+    /**
+     * @brief Called everytime a frame ends.
      *
      * Its purpose is to contain direct vulkan draw calls that execute after the main scene rendering. The draw calls
      * must come from the Vulkan's API itself. It cannot be used to issue `ImGui` or `ImPlot` calls.
      *
      * Take into account this method is not executed inside a `vkBeginRendering()`/`vkEndRendering()` pair call.
      *
-     * @param p_FrameIndex The index of the current frame.
-     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
-     *
      */
-    virtual void OnFrameEnd(u32, VkCommandBuffer)
-    {
-    }
-
-    /**
-     * @brief Called every frame before the `OnRenderEnd()` method.
-     *
-     * It is designed to submit direct vulkan commands before the main scene rendering. It is called in between a
-     * `vkBeginRendering()`/`vkEndRendering()` pair call. It may also be used to issue `ImGui` or `ImPlot` calls.
-     *
-     * @param p_FrameIndex The index of the current frame.
-     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
-     *
-     */
-    virtual void OnRenderBegin(u32, VkCommandBuffer)
-    {
-    }
-
-    /**
-     * @brief Called every frame before the `OnFrameEnd()` method.
-     *
-     * It is designed to submit direct vulkan commands after the main scene rendering. It is called in between a
-     * `vkBeginRendering()`/`vkEndRendering()` pair call. It may also be used to issue `ImGui` or `ImPlot` calls.
-     *
-     * @param p_FrameIndex The index of the current frame.
-     * @param p_CommandBuffer The command buffer to issue draw calls to, if needed.
-     *
-     */
-    virtual void OnRenderEnd(u32, VkCommandBuffer)
+    virtual void OnFrameEnd(const DeltaTime &, const FrameInfo &)
     {
     }
 
@@ -141,8 +127,6 @@ class ONYX_API UserLayer
 
     template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, Flags p_Flags = 0);
     template <Dimension D> static void DisplayCameraControls(const CameraControls<D> &p_Controls = {});
-
-    static void DisplayFrameTime(TKit::Timespan p_DeltaTime, Flags p_Flags = 0);
 
     static bool DirectionalLightEditor(DirectionalLight &p_Light, Flags p_Flags = 0);
     static bool PointLightEditor(PointLight &p_Light, Flags p_Flags = 0);

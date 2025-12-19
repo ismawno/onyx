@@ -33,14 +33,14 @@ Layer<D>::Layer(Application *p_Application, Window *p_Window, const TKit::Span<c
         }
 }
 
-template <Dimension D> void Layer<D>::OnUpdate()
+template <Dimension D> void Layer<D>::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnUpdate");
-    const auto timestep = m_Application->GetDeltaTime();
+    TKIT_PROFILE_NSCOPE("Onyx::Demo::OnFrameBegin");
+    const TKit::Timespan timestep = p_DeltaTime.Measured;
     m_Camera->ControlMovementWithUserInput(3.f * timestep);
 #ifdef ONYX_ENABLE_IMGUI
     if (ImGui::Begin("Info"))
-        UserLayer::DisplayFrameTime(timestep);
+        m_Application->DisplayRenderDeltaTime(UserLayer::Flag_DisplayHelp);
     ImGui::Text("Version: " ONYX_VERSION);
     ImGui::End();
 #endif

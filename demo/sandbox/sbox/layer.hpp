@@ -113,8 +113,8 @@ class SandboxLayer final : public UserLayer
   public:
     SandboxLayer(Application *p_Application, Window *p_Window, Dimension p_Dim);
 
-    void OnUpdate() override;
-    void OnRenderBegin(u32, VkCommandBuffer p_CommandBuffer) override;
+    void OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &) override;
+    void OnRenderBegin(const DeltaTime &, const FrameInfo &p_Info) override;
     void OnEvent(const Event &p_Event) override;
 
     bool MustReload = false;

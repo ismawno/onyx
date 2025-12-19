@@ -44,45 +44,34 @@ FrameScheduler::~FrameScheduler()
     Detail::ReturnQueueData(m_QueueData);
 }
 
-void FrameScheduler::handlePresentResult(Window &p_Window, const VkResult p_Result)
+bool FrameScheduler::handleImageResult(Window &p_Window, const VkResult p_Result)
 {
+    m_RequestSwapchainRecreation = false;
     if (p_Result == VK_ERROR_SURFACE_LOST_KHR)
+    {
         recreateSurface(p_Window);
+        return false;
+    }
 
-    const bool resizeFixes = p_Result == VK_ERROR_OUT_OF_DATE_KHR || p_Result == VK_SUBOPTIMAL_KHR ||
-                             p_Window.wasResized() || m_PresentModeChanged;
+    const bool needRecreation =
+        p_Result == VK_ERROR_OUT_OF_DATE_KHR || p_Result == VK_SUBOPTIMAL_KHR || m_RequestSwapchainRecreation;
 
-    TKIT_ASSERT(resizeFixes || p_Result == VK_SUCCESS || p_Result == VK_ERROR_SURFACE_LOST_KHR,
+    TKIT_ASSERT(needRecreation || p_Result == VK_SUCCESS || p_Result == VK_ERROR_SURFACE_LOST_KHR,
                 "[ONYX] Failed to submit command buffers");
 
-    if (resizeFixes)
+    if (needRecreation)
     {
         recreateSwapChain(p_Window);
-        p_Window.flagResizeDone();
+        return false;
     }
-    m_PresentModeChanged = false;
+    return true;
 }
 
 VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::BeginFrame");
-    TKIT_ASSERT(!m_FrameStarted, "[ONYX] Cannot begin a new frame when there is already one in progress");
-
     const VkResult result = AcquireNextImage();
-    if (result == VK_ERROR_SURFACE_LOST_KHR)
-    {
-        recreateSurface(p_Window);
+    if (!handleImageResult(p_Window, result))
         return VK_NULL_HANDLE;
-    }
-
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-    {
-        recreateSwapChain(p_Window);
-        return VK_NULL_HANDLE;
-    }
-
-    TKIT_ASSERT(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR, "[ONYX] Failed to acquire swap chain image");
-    m_FrameStarted = true;
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -165,7 +154,6 @@ VkResult FrameScheduler::Present()
 void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Flags)
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::EndFrame");
-    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end a frame when there is no frame in progress");
 
     const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
     const auto &table = Core::GetDeviceTable();
@@ -174,16 +162,13 @@ void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Fla
     SubmitGraphicsQueue(p_Flags);
     const VkResult result = Present();
 
-    handlePresentResult(p_Window, result);
+    handleImageResult(p_Window, result);
 
-    m_FrameStarted = false;
     m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
 }
 
 void FrameScheduler::BeginRendering(const Color &p_ClearColor)
 {
-    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot begin rendering if a frame is not in progress");
-
     const auto &table = Core::GetDeviceTable();
     const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
 
@@ -248,7 +233,6 @@ void FrameScheduler::BeginRendering(const Color &p_ClearColor)
 
 void FrameScheduler::EndRendering()
 {
-    TKIT_ASSERT(m_FrameStarted, "[ONYX] Cannot end rendering if a frame is not in progress");
     const auto &table = Core::GetDeviceTable();
 
     const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
@@ -376,14 +360,6 @@ VkPipelineRenderingCreateInfoKHR FrameScheduler::CreatePostProcessingRenderInfo(
     return renderInfo;
 }
 
-void FrameScheduler::SetPresentMode(const VkPresentModeKHR p_PresentMode)
-{
-    if (m_PresentMode == p_PresentMode)
-        return;
-    m_PresentModeChanged = true;
-    m_PresentMode = p_PresentMode;
-}
-
 VkExtent2D FrameScheduler::waitGlfwEvents(Window &p_Window)
 {
     VkExtent2D windowExtent = {p_Window.GetScreenWidth(), p_Window.GetScreenHeight()};
@@ -425,6 +401,11 @@ void FrameScheduler::recreateSwapChain(Window &p_Window)
     createSwapChain(p_Window, extent);
     old.Destroy();
     recreateResources();
+    p_Window.adaptCamerasToViewportAspect();
+
+    Event event{};
+    event.Type = Event::SwapChainRecreated;
+    p_Window.PushEvent(event);
 }
 void FrameScheduler::recreateSurface(Window &p_Window)
 {

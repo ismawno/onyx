@@ -871,8 +871,12 @@ static void windowMoveCallback(GLFWwindow *p_Window, const i32 p_X, const i32 p_
     window->PushEvent(event);
     window->UpdateMonitorDeltaTime(window->GetMonitorDeltaTime());
 }
+} // namespace Onyx::Input
 
-static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_Height)
+namespace Onyx
+{
+using namespace Onyx::Input;
+void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_Height)
 {
     Event event{};
     event.Window = windowFromGLFW(p_Window);
@@ -886,6 +890,10 @@ static void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const 
     window->m_Dimensions = event.WindowDelta.New;
     window->PushEvent(event);
 }
+} // namespace Onyx
+
+namespace Onyx::Input
+{
 
 static void framebufferResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_Height)
 {

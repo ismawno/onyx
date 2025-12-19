@@ -29,7 +29,7 @@ Creating an Onyx window looks like this:
 **Please note that, while all examples should pretty much work as-is, treat them as pseudocode. Onyx is under constant change and maintaining these examples in plain text may introduce errors. To check a working version of pretty much all of the examples in this README, take a look at [this file](https://github.com/ismawno/onyx/blob/main/demo/hello-world/main.cpp)**
 
 ```cpp
-Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
+Onyx::Window window({.Name = "Standalone Hello, World!", .Dimensions = u32v2{800, 600}});
 ```
 
 But before moving forward and start rendering to the window, two more objects must be introduced.
@@ -70,7 +70,7 @@ Cameras don't usually require much interaction. They provide convenient methods 
 With these three ingredients, a very minimal working setup can be used to draw a simple primitive to the screen:
 
 ```cpp
-Onyx::Window window({.Name = "Standalone Hello, World!", .Width = 800, .Height = 600});
+Onyx::Window window({.Name = "Standalone Hello, World!", .Dimensions = u32v2{800, 600}});
 Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
 window.CreateCamera<D2>();
 
@@ -91,14 +91,14 @@ while (!window.ShouldClose())
 This feature grants the user high-level control of the flow of their application. One of the simplest use cases looks like this:
 
 ```cpp
-Onyx::Application app({.Name = "App1 Hello, World!", .Width = 800, .Height = 600});
+Onyx::Application app({.Name = "App1 Hello, World!", .Dimensions = u32v2{800, 600}});
 app.Run();
 ```
 
 Note that this setup won’t do anything beyond opening a pitch-black window, which may not be very useful. You can break down the `Application::Run()` method to insert your own logic into the frame loop:
 
 ```cpp
-Onyx::Application app({.Name = "App2 Hello, World!", .Width = 800, .Height = 600});
+Onyx::Application app({.Name = "App2 Hello, World!", .Dimensions = u32v2{800, 600}});
 
 TKit::Clock clock;
 
@@ -131,7 +131,7 @@ class MyLayer : public Onyx::UserLayer
     }
 };
 
-Onyx::Application app({.Name = "App3 Hello, World!", .Width = 800, .Height = 600});
+Onyx::Application app({.Name = "App3 Hello, World!", .Dimensions = u32v2{800, 600}});
 app.SetUserLayer<MyLayer>();
 
 app.Run();

@@ -9,8 +9,6 @@
 #include "tkit/container/storage.hpp"
 #include "tkit/memory/block_allocator.hpp"
 
-#include <functional>
-
 #ifndef ONYX_MAX_RENDER_CONTEXTS
 #    define ONYX_MAX_RENDER_CONTEXTS 16
 #endif
@@ -32,13 +30,19 @@ template <Dimension D> using CameraArray = TKit::StaticArray<Camera<D> *, ONYX_M
 
 using EventArray = TKit::StaticArray<Event, ONYX_MAX_EVENTS>;
 
-struct RenderCallbacks
+u32 ToFrequency(TKit::Timespan p_DeltaTime);
+TKit::Timespan ToDeltaTime(u32 p_FrameRate);
+
+struct FrameInfo
 {
-    std::function<void(u32, VkCommandBuffer)> OnFrameBegin = nullptr;
-    std::function<void(u32, VkCommandBuffer)> OnRenderBegin = nullptr;
-    std::function<void(u32, VkCommandBuffer)> OnRenderEnd = nullptr;
-    std::function<void(u32, VkCommandBuffer)> OnFrameEnd = nullptr;
-    std::function<void(u32)> OnBadFrame = nullptr;
+    VkCommandBuffer GraphicsCommand;
+    VkCommandBuffer TransferCommand;
+    u32 FrameIndex;
+
+    operator bool() const
+    {
+        return GraphicsCommand != VK_NULL_HANDLE;
+    }
 };
 
 /**
@@ -84,8 +88,8 @@ class ONYX_API Window
     struct Specs
     {
         const char *Name = "Onyx window";
-        u32 Width = 800;
-        u32 Height = 600;
+        u32v2 Position{TKit::Limits<u32>::Max()}; // u32 max means let it be decided automatically
+        u32v2 Dimensions{800, 600};
         VkPresentModeKHR PresentMode = VK_PRESENT_MODE_FIFO_KHR;
         Flags Flags = Flag_Resizable | Flag_Visible | Flag_Decorated | Flag_Focused;
     };
@@ -95,19 +99,53 @@ class ONYX_API Window
     ~Window();
 
     /**
-     * @brief Renders the window using the provided draw and UI callables.
+     * @brief Begin a frame for the given window.
      *
-     * This method begins a new frame, starts rendering with the vulkan API,
-     * executes the provided callbacks, and ends the rendering and frame.
+     * This method will wait for the next available swap chain image, so it may block for some time.
+     * After this call, `ImGui` and `ImPlot` may be used until the `EndRendering()` method.
      *
-     * Vulkan command recording outside the render callbacks may cause undefined behaviour.
-     *
-     * @param p_Callbacks Render callbacks to customize rendering behaviour and submit custom render commands within the
-     * frame loop.
-     *
-     * @return true if rendering was successful, false otherwise.
+     * @return Information about the new frame.
      */
-    bool Render(const RenderCallbacks &p_Callbacks = {});
+    FrameInfo BeginFrame();
+
+    /**
+     * @brief Submit all rendering context data to the device.
+     *
+     * After this method, calls to render contexts are not allowed until the beginning of the next frame. At best, they
+     * will have no effect.
+     *
+     * @return Stage flags governing transfer synchronization.
+     */
+    VkPipelineStageFlags SubmitContextData(const FrameInfo &p_Info);
+
+    /**
+     * @brief Begin rendering and recording the frame's command buffer.
+     *
+     * After this call command buffer dependent operations that require to be recorded in a
+     * `vkBeginRendering()`/`vkEndRendering()` pair may be submitted.
+     *
+     */
+    void BeginRendering();
+
+    /**
+     * @brief Record all window commands.
+     *
+     */
+    void Render(const FrameInfo &p_Info);
+
+    void EndRendering();
+    void EndFrame(VkPipelineStageFlags p_Flags);
+
+    /**
+     * @brief Executes the whole window rendering pipeline.
+     *
+     * Useful for simple rendering use-cases (no fancy usage of command buffers, just context-rendering) but non ideal.
+     * Rendering not always can go through, and previous operations (such as context rendering recording) may go to
+     * waste if this happens.
+     *
+     * @return `true` if the window managed to render, `false` otherwise.
+     */
+    bool Render();
 
     bool ShouldClose() const;
 
@@ -118,6 +156,20 @@ class ONYX_API Window
     GLFWwindow *GetWindowHandle()
     {
         return m_Window;
+    }
+
+    void EnableVSync()
+    {
+        m_FrameScheduler->SetPresentMode(VK_PRESENT_MODE_FIFO_KHR);
+    }
+    void DisableVSync(const VkPresentModeKHR p_PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR)
+    {
+        m_FrameScheduler->SetPresentMode(p_PresentMode);
+    }
+    bool IsVSync() const
+    {
+        const VkPresentModeKHR pm = m_FrameScheduler->GetPresentMode();
+        return pm == VK_PRESENT_MODE_FIFO_KHR || pm == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
     }
 
     const FrameScheduler *GetFrameScheduler() const
@@ -134,13 +186,22 @@ class ONYX_API Window
         return m_Name;
     }
 
+    const u32v2 &GetPosition() const
+    {
+        return m_Position;
+    }
+
+    const u32v2 &GetScreenDimensions() const
+    {
+        return m_Dimensions;
+    }
     u32 GetScreenWidth() const
     {
-        return m_Width;
+        return m_Dimensions[0];
     }
     u32 GetScreenHeight() const
     {
-        return m_Height;
+        return m_Dimensions[1];
     }
 
     u32 GetPixelWidth() const
@@ -151,12 +212,15 @@ class ONYX_API Window
     {
         return m_FrameScheduler->GetSwapChain().GetInfo().Extent.height;
     }
+    u32v2 GetPixelDimensions() const
+    {
+        return u32v2{GetPixelWidth(), GetPixelHeight()};
+    }
 
     f32 GetScreenAspect() const
     {
-        return static_cast<f32>(m_Width) / static_cast<f32>(m_Height);
+        return static_cast<f32>(m_Dimensions[0]) / static_cast<f32>(m_Dimensions[1]);
     }
-
     f32 GetPixelAspect() const
     {
         return static_cast<f32>(GetPixelWidth()) / static_cast<f32>(GetPixelHeight());
@@ -173,11 +237,20 @@ class ONYX_API Window
     }
 
     /**
-     * @brief Gets the position of the window on the screen.
+     * @brief Update the value of the delta time this window is currently in.
      *
-     * @return The (x, y) position of the window.
+     * This method gets called automatically and is exposed only if needed for some particular reason. If the window is
+     * not fullscreen (and thus not associated with a monitor), the primary monitor will be used.
+     *
+     * @param p_Default If no monitor is found, a user provided default.
+     * @return The delta time of the monitor.
      */
-    std::pair<u32, u32> GetPosition() const;
+    TKit::Timespan UpdateMonitorDeltaTime(TKit::Timespan p_Default = TKit::Timespan::FromSeconds(1.f / 60.f));
+
+    TKit::Timespan GetMonitorDeltaTime() const
+    {
+        return m_MonitorDeltaTime;
+    }
 
     void FlagShouldClose();
 
@@ -267,17 +340,10 @@ class ONYX_API Window
             }
     }
 
-    /// The background color used when clearing the window.
     Color BackgroundColor = Color::BLACK;
 
-    // Implementation detail but needs to be public
-    void flagResize(u32 p_Width, u32 p_Height);
-
   private:
-    bool wasResized() const;
-    void flagResizeDone();
     void recreateSurface();
-
     void createWindow(const Specs &p_Specs);
     /**
      * @brief Scale camera views to adapt to their viewport aspects.
@@ -325,16 +391,17 @@ class ONYX_API Window
     EventArray m_Events;
     VkSurfaceKHR m_Surface;
 
-    const char *m_Name;
-    u32 m_Width;
-    u32 m_Height;
-    Flags m_Flags;
+    TKit::Timespan m_MonitorDeltaTime{};
 
-    bool m_Resized = false;
+    const char *m_Name;
+    u32v2 m_Position;
+    u32v2 m_Dimensions;
 #ifdef TKIT_ENABLE_INSTRUMENTATION
     u32 m_ColorIndex = 0;
 #endif
+    Flags m_Flags;
 
     friend class FrameScheduler;
+    friend void windowResizeCallback(GLFWwindow *, const i32, const i32);
 };
 } // namespace Onyx

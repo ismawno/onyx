@@ -29,6 +29,21 @@ struct ImPlotContext;
 
 namespace Onyx
 {
+struct DeltaTime
+{
+    TKit::Timespan Target{};
+    TKit::Timespan Measured{};
+};
+
+struct DeltaInfo
+{
+    DeltaTime Time{};
+    TKit::Timespan Max{};
+    TKit::Timespan Smoothed{};
+    f32 Smoothness = 0.f;
+    i32 Unit = 1;
+};
+
 /**
  * @brief This class provides a simple application interface.
  *
@@ -36,14 +51,8 @@ namespace Onyx
  * (although technically possible) to use multiple applications in the same program. If you do so, note that the
  * following (among other possible unknown things) may work incorrectly:
  *
- * - ImGui: Currently, the application manages an ImGui context, and although that context is set at
- * the beginning of each frame to ensure consistency, ImGui itself discourages using multiple.
- *
  * - Draw call profile plot: The draw call count is global for the whole program, but it would be registered and reset
  * by each application in turn, yielding weird results.
- *
- * - `UserLayer::DisplayFrameTime()`: This method uses static variables. Using many applications would result in
- * inconsistencies when using said method.
  *
  * The most common reason for a user to want to use multiple applications is to have different windows. In that case,
  * use a single application and open multiple windows within it.
@@ -70,11 +79,27 @@ class ONYX_API Application
         Flag_MustReplaceLayer = 1 << 7
     };
 
+    struct StageClock
+    {
+        TKit::Clock Clock{};
+        DeltaInfo Delta{};
+        bool IsDue() const
+        {
+            return Clock.GetElapsed() >= Delta.Time.Target;
+        }
+        void Update()
+        {
+            Delta.Time.Measured = Clock.Restart();
+        }
+    };
+
     struct WindowData
     {
         Window *Window = nullptr;
         UserLayer *Layer = nullptr;
         UserLayer *StagedLayer = nullptr;
+        StageClock UpdateClock{};
+        StageClock RenderClock{};
 #ifdef ONYX_ENABLE_IMGUI
         ImGuiContext *ImGuiContext = nullptr;
 #    ifdef ONYX_ENABLE_IMPLOT
@@ -264,7 +289,16 @@ class ONYX_API Application
      * @param p_Specs The specification of the window to create.
      * @return A window handle if the operation ran immediately, nullptr otherwise.
      */
-    Window *OpenWindow(const WindowSpecs &p_Specs);
+    Window *OpenWindow(const WindowSpecs &p_Specs)
+    {
+        if (checkFlags(Flag_Defer))
+        {
+            m_WindowsToAdd.Append(p_Specs);
+            return nullptr;
+        }
+
+        return openWindow(p_Specs);
+    }
 
     /**
      * @brief Open a new window with the given specs.
@@ -275,7 +309,10 @@ class ONYX_API Application
      * @param p_Specs The specification of the window to create.
      * @return A window handle if the operation ran immediately, nullptr otherwise.
      */
-    Window *OpenWindow(const Window::Specs &p_Specs = {});
+    Window *OpenWindow(const Window::Specs &p_Specs = {})
+    {
+        return OpenWindow(WindowSpecs{.Specs = p_Specs});
+    }
 
     /**
      * @brief Close the given window.
@@ -300,6 +337,49 @@ class ONYX_API Application
     }
 
     /**
+     * @brief Get the global measured delta time of the whole application's loop.
+     *
+     * @note This delta time does not correspond to any window but to the combined delta time of the application and can
+     * give misleading values. To get the delta time of a specific window, use the other getters available.
+     *
+     * @return The delta time of the whole application loop.
+     */
+    TKit::Timespan GetDeltaTime() const
+    {
+        return m_DeltaTime;
+    }
+
+    const DeltaTime &GetUpdateDeltaTime(const Window *p_Window = nullptr) const
+    {
+        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        return data->UpdateClock.Delta.Time;
+    }
+    const DeltaTime &GetRenderDeltaTime(const Window *p_Window = nullptr) const
+    {
+        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        return data->RenderClock.Delta.Time;
+    }
+
+    void SetUpdateDeltaTime(const TKit::Timespan p_Target, Window *p_Window = nullptr)
+    {
+        WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        data->UpdateClock.Delta.Time.Target = p_Target;
+        updateMinimumTargetDelta();
+    }
+    void SetRenderDeltaTime(const TKit::Timespan p_Target, Window *p_Window = nullptr)
+    {
+        WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        TKIT_LOG_WARNING_IF(data->Window->IsVSync(),
+                            "[ONYX] When the present mode of the window is FIFO (V-Sync), setting the target delta "
+                            "time for said window is useless");
+        if (!data->Window->IsVSync())
+        {
+            data->UpdateClock.Delta.Time.Target = p_Target;
+            updateMinimumTargetDelta();
+        }
+    }
+
+    /**
      * @brief Run the whole application in one go.
      *
      * This method automatically invokes an application loop, using `NextFrame()` under the hood.
@@ -307,11 +387,12 @@ class ONYX_API Application
      */
     void Run();
 
-    TKit::Timespan GetDeltaTime() const
-    {
-        return m_DeltaTime;
-    }
 #ifdef ONYX_ENABLE_IMGUI
+    bool DisplayUpdateDeltaTime(UserLayer::Flags p_Flags = 0);
+    bool DisplayRenderDeltaTime(UserLayer::Flags p_Flags = 0);
+
+    bool DisplayUpdateDeltaTime(Window *p_Window, UserLayer::Flags p_Flags = 0);
+    bool DisplayRenderDeltaTime(Window *p_Window, UserLayer::Flags p_Flags = 0);
 
     bool EnableImGui(i32 p_Flags, Window *p_Window = nullptr);
     bool EnableImGui(Window *p_Window = nullptr);
@@ -370,6 +451,8 @@ class ONYX_API Application
     void destroyWindow(WindowData &p_Data);
     void syncDeferredOperations();
     void syncDeferredOperations(WindowData &p_Data);
+    void updateMinimumTargetDelta();
+
     void closeAllWindows();
 #ifdef __ONYX_MULTI_WINDOW
     Window *openWindow(const WindowSpecs &p_Specs);
@@ -380,15 +463,18 @@ class ONYX_API Application
     void shutdownImGui(WindowData &p_Data);
 #endif
 
-    WindowData m_MainWindow;
-    TKit::Timespan m_DeltaTime;
-    Flags m_Flags = 0;
+    WindowData m_MainWindow{};
 
 #ifdef __ONYX_MULTI_WINDOW
     TKit::StaticArray<WindowData, ONYX_APP_MAX_WINDOWS - 1> m_Windows;
     TKit::StaticArray<WindowSpecs, ONYX_APP_MAX_WINDOWS - 1> m_WindowsToAdd;
 #endif
     TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_APP_MAX_WINDOWS);
+
+    TKit::Timespan m_DeltaTime{};
+    TKit::Timespan m_MinimumTargetDelta{};
+
+    Flags m_Flags = 0;
 
 #ifdef ONYX_ENABLE_IMGUI
     TKit::Scope<Theme> m_Theme;

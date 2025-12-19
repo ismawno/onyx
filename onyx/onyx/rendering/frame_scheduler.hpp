@@ -174,7 +174,17 @@ class ONYX_API FrameScheduler
         return m_SwapChain.GetInfo().SupportDetails.PresentModes;
     }
 
-    void SetPresentMode(VkPresentModeKHR p_PresentMode);
+    void SetPresentMode(const VkPresentModeKHR p_PresentMode)
+    {
+        if (m_PresentMode == p_PresentMode)
+            return;
+        m_RequestSwapchainRecreation = true;
+        m_PresentMode = p_PresentMode;
+    }
+    void RequestSwapchainRecreation()
+    {
+        m_RequestSwapchainRecreation = true;
+    }
 
   private:
     void createSwapChain(Window &p_Window, const VkExtent2D &p_WindowExtent);
@@ -184,7 +194,7 @@ class ONYX_API FrameScheduler
     void createProcessingEffects();
     void createCommandData();
 
-    void handlePresentResult(Window &p_Window, VkResult p_Result);
+    bool handleImageResult(Window &p_Window, VkResult p_Result);
 
     PerImageData<ImageData> createImageData();
     void destroyImageData();
@@ -212,7 +222,6 @@ class ONYX_API FrameScheduler
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;
     TransferMode m_TransferMode;
-    bool m_FrameStarted = false;
-    bool m_PresentModeChanged = false;
+    bool m_RequestSwapchainRecreation = false;
 };
 } // namespace Onyx
