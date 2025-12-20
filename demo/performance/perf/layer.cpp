@@ -40,7 +40,7 @@ template <Dimension D> void Layer<D>::OnFrameBegin(const DeltaTime &p_DeltaTime,
     m_Camera->ControlMovementWithUserInput(3.f * timestep);
 #ifdef ONYX_ENABLE_IMGUI
     if (ImGui::Begin("Info"))
-        m_Application->DisplayRenderDeltaTime(UserLayer::Flag_DisplayHelp);
+        m_Application->DisplayDeltaTime(UserLayer::Flag_DisplayHelp);
     ImGui::Text("Version: " ONYX_VERSION);
     ImGui::End();
 #endif

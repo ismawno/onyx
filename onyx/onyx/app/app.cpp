@@ -74,7 +74,6 @@ static i32 createVkSurface(ImGuiViewport *, ImU64 p_Instance, const void *p_Call
 void Application::setUpdateDeltaTime(TKit::Timespan p_Target, WindowData &p_Data)
 {
     p_Data.UpdateClock.Delta.Time.Target = p_Target;
-    updateMinimumTargetDelta();
 }
 void Application::setRenderDeltaTime(TKit::Timespan p_Target, WindowData &p_Data)
 {
@@ -82,10 +81,7 @@ void Application::setRenderDeltaTime(TKit::Timespan p_Target, WindowData &p_Data
                         "[ONYX] When the present mode of the window is FIFO (V-Sync), setting the target delta "
                         "time for said window is useless");
     if (!p_Data.Window->IsVSync())
-    {
         p_Data.RenderClock.Delta.Time.Target = p_Target;
-        updateMinimumTargetDelta();
-    }
 }
 
 Application::WindowData *Application::getWindowData(const Window *p_Window)
@@ -291,44 +287,56 @@ static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLay
     return changed;
 }
 
-bool Application::DisplayUpdateDeltaTime(const UserLayer::Flags p_Flags)
+static bool displayDeltaTime(WindowData &p_Data, const UserLayer::Flags p_Flags)
 {
-    if (displayDeltaTime(m_MainWindow.Window, m_MainWindow.UpdateClock.Delta, p_Flags, false))
+    const auto sync = [](DeltaInfo &p_Dst, const DeltaInfo &p_Src) {
+        p_Dst.Time.Target = p_Src.Time.Target;
+        p_Dst.Smoothness = p_Src.Smoothness;
+        p_Dst.Unit = p_Src.Unit;
+        p_Dst.Limit = p_Src.Limit;
+    };
+    ImGui::Text("Delta time");
+    bool changed = ImGui::Button("Sync");
+    if (changed)
+        sync(p_Data.UpdateClock.Delta, p_Data.RenderClock.Delta);
+
+    if (!p_Data.Window->IsVSync())
     {
-        setUpdateDeltaTime(m_MainWindow.UpdateClock.Delta.Time.Target, m_MainWindow);
-        return true;
+        ImGui::SameLine();
+        changed |= ImGui::Checkbox("Mirror", &p_Data.MirrorDeltas);
     }
-    return false;
-}
-bool Application::DisplayRenderDeltaTime(const UserLayer::Flags p_Flags)
-{
-    if (displayDeltaTime(m_MainWindow.Window, m_MainWindow.RenderClock.Delta, p_Flags, true))
+    const bool mirror = !p_Data.Window->IsVSync() && p_Data.MirrorDeltas;
+    if (ImGui::TreeNode("Render"))
     {
-        setRenderDeltaTime(m_MainWindow.RenderClock.Delta.Time.Target, m_MainWindow);
-        return true;
+        if (displayDeltaTime(p_Data.Window, p_Data.RenderClock.Delta, p_Flags, true))
+        {
+            if (mirror)
+                sync(p_Data.UpdateClock.Delta, p_Data.RenderClock.Delta);
+            changed = true;
+        }
+        ImGui::TreePop();
     }
-    return false;
+    if (ImGui::TreeNode("Update"))
+    {
+        if (displayDeltaTime(p_Data.Window, p_Data.UpdateClock.Delta, p_Flags, false))
+        {
+            if (mirror)
+                sync(p_Data.RenderClock.Delta, p_Data.UpdateClock.Delta);
+            changed = true;
+        }
+        ImGui::TreePop();
+    }
+    return changed;
 }
 
-bool Application::DisplayUpdateDeltaTime(const Window *p_Window, const UserLayer::Flags p_Flags)
+bool Application::DisplayDeltaTime(const UserLayer::Flags p_Flags)
 {
-    WindowData *data = getWindowData(p_Window);
-    if (displayDeltaTime(data->Window, data->UpdateClock.Delta, p_Flags, false))
-    {
-        setUpdateDeltaTime(data->UpdateClock.Delta.Time.Target, *data);
-        return true;
-    }
-    return false;
+    return displayDeltaTime(m_MainWindow, p_Flags);
 }
-bool Application::DisplayRenderDeltaTime(const Window *p_Window, const UserLayer::Flags p_Flags)
+bool Application::DisplayDeltaTime(const Window *p_Window, const UserLayer::Flags p_Flags)
 {
     WindowData *data = getWindowData(p_Window);
-    if (displayDeltaTime(data->Window, data->RenderClock.Delta, p_Flags, true))
-    {
-        setRenderDeltaTime(data->RenderClock.Delta.Time.Target, *data);
-        return true;
-    }
-    return false;
+    return displayDeltaTime(*data, p_Flags);
 }
 
 bool Application::enableImGui(WindowData &p_Data, const ImGuiFlags p_Flags)
@@ -405,10 +413,11 @@ static void endFrame()
 
 void Application::processWindow(WindowData &p_Data)
 {
-    if (p_Data.Layer && p_Data.UpdateClock.IsDue())
+    if (p_Data.UpdateClock.IsDue())
     {
         p_Data.UpdateClock.Update();
-        p_Data.Layer->OnUpdate(p_Data.UpdateClock.Delta.Time);
+        if (p_Data.Layer)
+            p_Data.Layer->OnUpdate(p_Data.UpdateClock.Delta.Time);
     }
 
     if (!p_Data.RenderClock.IsDue())
@@ -439,11 +448,10 @@ void Application::processWindow(WindowData &p_Data)
 
     for (const Event &event : p_Data.Window->GetNewEvents())
     {
-        if (p_Data.Window->IsVSync() && event.Type == Event::SwapChainRecreated)
+        if (p_Data.Window->IsVSync() && (event.Type == Event::SwapChainRecreated || event.Type == Event::WindowMoved))
         {
             p_Data.RenderClock.Delta.Time.Target = p_Data.Window->GetMonitorDeltaTime();
             p_Data.RenderClock.Delta.Limit = true;
-            updateMinimumTargetDelta();
         }
 
         if (p_Data.Layer)
@@ -544,20 +552,6 @@ void Application::syncDeferredOperations()
     }
 }
 
-void Application::updateMinimumTargetDelta()
-{
-    m_MinimumTargetDelta =
-        std::min(m_MainWindow.UpdateClock.Delta.Time.Target, m_MainWindow.RenderClock.Delta.Time.Target);
-#ifdef __ONYX_MULTI_WINDOW
-    for (const WindowData &data : m_Windows)
-    {
-        const TKit::Timespan mn = std::min(data.UpdateClock.Delta.Time.Target, data.RenderClock.Delta.Time.Target);
-        if (mn < m_MinimumTargetDelta)
-            m_MinimumTargetDelta = mn;
-    }
-#endif
-}
-
 bool Application::NextFrame(TKit::Clock &p_Clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
@@ -574,10 +568,21 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
     syncDeferredOperations();
     endFrame();
 
-    const TKit::Timespan elapsed = p_Clock.GetElapsed();
-    if (elapsed < m_MinimumTargetDelta)
-        TKit::Timespan::Sleep(m_MinimumTargetDelta - elapsed);
+    const auto computeSleep = [](const WindowData &p_Data) {
+        return std::min(p_Data.RenderClock.Delta.Time.Target - p_Data.RenderClock.Clock.GetElapsed(),
+                        p_Data.UpdateClock.Delta.Time.Target - p_Data.UpdateClock.Clock.GetElapsed());
+    };
 
+    TKit::Timespan sleep = computeSleep(m_MainWindow);
+#ifdef __ONYX_MULTI_WINDOW
+    for (WindowData &data : m_Windows)
+    {
+        const TKit::Timespan s = computeSleep(data);
+        if (s < sleep)
+            sleep = s;
+    }
+#endif
+    TKit::Timespan::Sleep(sleep);
     m_DeltaTime = p_Clock.Restart();
     return m_MainWindow.Window;
 }
@@ -590,6 +595,7 @@ Application::WindowData Application::createWindow(const WindowSpecs &p_Specs)
     {
         data.RenderClock.Delta.Time.Target = data.Window->GetMonitorDeltaTime();
         data.RenderClock.Delta.Limit = true;
+        data.UpdateClock = data.RenderClock;
     }
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -656,7 +662,6 @@ bool Application::CloseWindow(Window *p_Window)
 Window *Application::openWindow(const WindowSpecs &p_Specs)
 {
     const WindowData &data = m_Windows.Append(createWindow(p_Specs));
-    updateMinimumTargetDelta();
     if (p_Specs.CreationCallback)
         p_Specs.CreationCallback(data.Window);
     return data.Window;

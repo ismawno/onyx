@@ -231,7 +231,10 @@ void SandboxLayer::renderImGui()
 
     if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {
-        m_Application->DisplayRenderDeltaTime(m_Window, UserLayer::Flag_DisplayHelp);
+        m_Application->DisplayDeltaTime(m_Window, UserLayer::Flag_DisplayHelp);
+        const TKit::Timespan ts = m_Application->GetDeltaTime();
+        ImGui::Text("Application delta time: %.2f ms", ts.AsMilliseconds());
+
         ImGui::Text("Version: " ONYX_VERSION);
         ImGui::TextWrapped(
             "Onyx is a small application framework I have implemented to be used primarily in all projects I develop "
