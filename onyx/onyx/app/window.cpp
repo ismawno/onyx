@@ -14,12 +14,23 @@ static u32 s_ColorIndex = 0;
 static u32 s_Colors[4] = {0x434E78, 0x607B8F, 0xF7E396, 0xE97F4A};
 #endif
 
+// edge cases a bit unrealistic yes
 u32 ToFrequency(const TKit::Timespan p_DeltaTime)
 {
-    return static_cast<u32>(1.f / p_DeltaTime.AsSeconds());
+    const f32 seconds = p_DeltaTime.AsSeconds();
+    if (TKit::ApproachesZero(seconds))
+        return TKit::Limits<u32>::Max();
+    if (seconds == TKit::Limits<f32>::Max())
+        return 0;
+
+    return static_cast<u32>(1.f / p_DeltaTime.AsSeconds()) + 1;
 }
 TKit::Timespan ToDeltaTime(const u32 p_Frequency)
 {
+    if (p_Frequency == 0)
+        return TKit::Timespan::FromSeconds(TKit::Limits<f32>::Max());
+    if (p_Frequency == TKit::Limits<u32>::Max())
+        return TKit::Timespan{};
     return TKit::Timespan::FromSeconds(1.f / static_cast<f32>(p_Frequency));
 }
 

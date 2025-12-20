@@ -222,11 +222,11 @@ static void shutdownImGui(WindowData &p_Data)
 static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLayer::Flags p_Flags,
                              const bool p_CheckVSync)
 {
-    DeltaTime &delta = p_Delta.Time;
+    DeltaTime &time = p_Delta.Time;
 
-    if (delta.Measured > p_Delta.Max)
-        p_Delta.Max = delta.Measured;
-    p_Delta.Smoothed = p_Delta.Smoothness * p_Delta.Smoothed + (1.f - p_Delta.Smoothness) * delta.Measured;
+    if (time.Measured > p_Delta.Max)
+        p_Delta.Max = time.Measured;
+    p_Delta.Smoothed = p_Delta.Smoothness * p_Delta.Smoothed + (1.f - p_Delta.Smoothness) * time.Measured;
 
     ImGui::SliderFloat("Smoothing factor", &p_Delta.Smoothness, 0.f, 0.999f);
     if (p_Flags & UserLayer::Flag_DisplayHelp)
@@ -244,10 +244,20 @@ static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLay
         ImGui::Text("Target hertz: %u", tfreq);
     else
     {
-        const u32 mn = 30;
-        const u32 mx = 240;
-        changed = ImGui::SliderScalarN("Target hertz", ImGuiDataType_U32, &tfreq, 1, &mn, &mx);
-        p_Delta.Time.Target = ToDeltaTime(tfreq);
+        changed = ImGui::Checkbox("Limit hertz", &p_Delta.Limit);
+        if (changed)
+            p_Delta.Time.Target = p_Delta.Limit ? p_Window->GetMonitorDeltaTime() : TKit::Timespan{};
+
+        if (p_Delta.Limit)
+        {
+            const u32 mn = 30;
+            const u32 mx = 240;
+            if (ImGui::SliderScalarN("Target hertz", ImGuiDataType_U32, &tfreq, 1, &mn, &mx))
+            {
+                p_Delta.Time.Target = ToDeltaTime(tfreq);
+                changed = true;
+            }
+        }
     }
     ImGui::Text("Measured hertz: %u", mfreq);
 
@@ -429,8 +439,12 @@ void Application::processWindow(WindowData &p_Data)
 
     for (const Event &event : p_Data.Window->GetNewEvents())
     {
-        if (event.Type == Event::SwapChainRecreated)
+        if (p_Data.Window->IsVSync() && event.Type == Event::SwapChainRecreated)
+        {
+            p_Data.RenderClock.Delta.Time.Target = p_Data.Window->GetMonitorDeltaTime();
+            p_Data.RenderClock.Delta.Limit = true;
             updateMinimumTargetDelta();
+        }
 
         if (p_Data.Layer)
             p_Data.Layer->OnEvent(event);
@@ -573,7 +587,10 @@ Application::WindowData Application::createWindow(const WindowSpecs &p_Specs)
     WindowData data;
     data.Window = m_WindowAllocator.Create<Window>(p_Specs.Specs);
     if (data.Window->IsVSync())
+    {
         data.RenderClock.Delta.Time.Target = data.Window->GetMonitorDeltaTime();
+        data.RenderClock.Delta.Limit = true;
+    }
 
 #ifdef ONYX_ENABLE_IMGUI
     data.ImGuiFlags.Backend = ImGuiBackendFlags_RendererHasTextures;
@@ -584,8 +601,6 @@ Application::WindowData Application::createWindow(const WindowSpecs &p_Specs)
     }
 #endif
 
-    if (p_Specs.CreationCallback)
-        p_Specs.CreationCallback(data.Window);
     return data;
 }
 
@@ -642,6 +657,8 @@ Window *Application::openWindow(const WindowSpecs &p_Specs)
 {
     const WindowData &data = m_Windows.Append(createWindow(p_Specs));
     updateMinimumTargetDelta();
+    if (p_Specs.CreationCallback)
+        p_Specs.CreationCallback(data.Window);
     return data.Window;
 }
 #endif
