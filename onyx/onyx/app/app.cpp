@@ -12,32 +12,7 @@
 
 namespace Onyx
 {
-Application::Application(const WindowSpecs &p_MainSpecs)
-{
-    m_MainWindow.Window = m_WindowAllocator.Create<Window>(p_MainSpecs.Specs);
-
-#ifdef ONYX_ENABLE_IMGUI
-    m_ImGuiBackendFlags = ImGuiBackendFlags_RendererHasTextures;
-    if (p_MainSpecs.EnableImGui)
-    {
-        initializeImGui(m_MainWindow);
-        m_MainWindow.SetFlags(Flag_ImGuiEnabled);
-    }
-#endif
-
-    // a bit useless in this case tbh
-    if (p_MainSpecs.CreationCallback)
-        p_MainSpecs.CreationCallback(m_MainWindow.Window);
-}
-Application::Application(const Window::Specs &p_MainSpecs) : Application(WindowSpecs{.Specs = p_MainSpecs})
-{
-}
-
-Application::~Application()
-{
-    closeAllWindows();
-}
-
+using WindowData = Application::WindowData;
 void Application::Quit()
 {
     setFlags(Flag_Quit);
@@ -51,10 +26,19 @@ void Application::Run()
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-void Application::ApplyTheme()
+void Application::applyTheme(const WindowData &p_Data)
 {
-    TKIT_ASSERT(m_Theme, "[ONYX] No theme has been set. Set one with SetTheme");
-    m_Theme->Apply();
+    TKIT_ASSERT(p_Data.Theme, "[ONYX] No theme has been set for the given windos. Set one with SetTheme()");
+    ImGuiContext *pcontext = ImGui::GetCurrentContext();
+    ImGui::SetCurrentContext(p_Data.ImGuiContext);
+    p_Data.Theme->Apply();
+    ImGui::SetCurrentContext(pcontext);
+}
+
+void Application::ApplyTheme(const Window *p_Window)
+{
+    const WindowData *data = getWindowData(p_Window);
+    applyTheme(*data);
 }
 
 static void beginRenderImGui()
@@ -129,17 +113,17 @@ const Application::WindowData *Application::getWindowData(const Window *p_Window
     return nullptr;
 }
 
-void Application::initializeImGui(WindowData &p_Data)
+static void initializeImGui(WindowData &p_Data)
 {
     Window *window = p_Data.Window;
-    TKIT_ASSERT(!p_Data.CheckFlags(Flag_ImGuiRunning),
+    TKIT_ASSERT(!p_Data.CheckFlags(Application::Flag_ImGuiRunning),
                 "[ONYX] Trying to initialize ImGui for window '{}' when it is already running. If you "
                 "meant to reload ImGui, use ReloadImGui()",
                 window->GetName());
 
     IMGUI_CHECKVERSION();
-    if (!m_Theme)
-        m_Theme = TKit::Scope<BabyTheme>::Create();
+    if (!p_Data.Theme)
+        p_Data.Theme = new BabyTheme;
 
     p_Data.ImGuiContext = ImGui::CreateContext();
     ImGui::SetCurrentContext(p_Data.ImGuiContext);
@@ -149,18 +133,18 @@ void Application::initializeImGui(WindowData &p_Data)
 #    endif
 
     ImGuiIO &io = ImGui::GetIO();
-    TKIT_LOG_WARNING_IF(!(m_ImGuiBackendFlags & ImGuiBackendFlags_RendererHasTextures),
+    TKIT_LOG_WARNING_IF(!(p_Data.ImGuiFlags.Backend & ImGuiBackendFlags_RendererHasTextures),
                         "[ONYX] ImGui may fail to initialize if ImGuiBackendFlags_RendererHasTextures is not set. If "
-                        "you experience issues, try setting it with SetImGuiBackendFlags()");
+                        "you experience issues, try reloading ImGui with them enabled");
 
-    io.ConfigFlags = m_ImGuiConfigFlags;
-    io.BackendFlags = m_ImGuiBackendFlags;
+    io.ConfigFlags = p_Data.ImGuiFlags.Config;
+    io.BackendFlags = p_Data.ImGuiFlags.Backend;
 
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     if (!(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
         pio.Platform_CreateVkSurface = createVkSurface;
 
-    m_Theme->Apply();
+    p_Data.Theme->Apply();
 
     TKIT_ASSERT_RETURNS(ImGui_ImplGlfw_InitForVulkan(window->GetWindowHandle(), true), true,
                         "[ONYX] Failed to initialize ImGui GLFW for window '{}'", window->GetName());
@@ -208,15 +192,15 @@ void Application::initializeImGui(WindowData &p_Data)
     TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true,
                         "[ONYX] Failed to initialize ImGui Vulkan for window '{}'", window->GetName());
 
-    p_Data.SetFlags(Flag_ImGuiRunning);
+    p_Data.SetFlags(Application::Flag_ImGuiRunning);
 }
 
-void Application::shutdownImGui(WindowData &p_Data)
+static void shutdownImGui(WindowData &p_Data)
 {
-    TKIT_ASSERT(p_Data.CheckFlags(Flag_ImGuiRunning),
+    TKIT_ASSERT(p_Data.CheckFlags(Application::Flag_ImGuiRunning),
                 "[ONYX] Trying to shut down ImGui when it is not initialized to begin with");
 
-    p_Data.ClearFlags(Flag_ImGuiRunning);
+    p_Data.ClearFlags(Application::Flag_ImGuiRunning);
 
     ImGui::SetCurrentContext(p_Data.ImGuiContext);
 #    ifdef ONYX_ENABLE_IMPLOT
@@ -316,7 +300,7 @@ bool Application::DisplayRenderDeltaTime(const UserLayer::Flags p_Flags)
     return false;
 }
 
-bool Application::DisplayUpdateDeltaTime(Window *p_Window, const UserLayer::Flags p_Flags)
+bool Application::DisplayUpdateDeltaTime(const Window *p_Window, const UserLayer::Flags p_Flags)
 {
     WindowData *data = getWindowData(p_Window);
     if (displayDeltaTime(data->Window, data->UpdateClock.Delta, p_Flags, false))
@@ -326,7 +310,7 @@ bool Application::DisplayUpdateDeltaTime(Window *p_Window, const UserLayer::Flag
     }
     return false;
 }
-bool Application::DisplayRenderDeltaTime(Window *p_Window, const UserLayer::Flags p_Flags)
+bool Application::DisplayRenderDeltaTime(const Window *p_Window, const UserLayer::Flags p_Flags)
 {
     WindowData *data = getWindowData(p_Window);
     if (displayDeltaTime(data->Window, data->RenderClock.Delta, p_Flags, true))
@@ -337,28 +321,33 @@ bool Application::DisplayRenderDeltaTime(Window *p_Window, const UserLayer::Flag
     return false;
 }
 
-bool Application::EnableImGui(const i32 p_Flags, Window *p_Window)
+bool Application::enableImGui(WindowData &p_Data, const ImGuiFlags p_Flags)
 {
-    m_ImGuiConfigFlags = p_Flags;
-    return EnableImGui(p_Window);
-}
-bool Application::EnableImGui(Window *p_Window)
-{
-    WindowData *data = getWindowData(p_Window);
+    p_Data.ImGuiFlags = p_Flags;
     if (checkFlags(Flag_Defer))
     {
-        data->SetFlags(Flag_MustEnableImGui);
+        p_Data.SetFlags(Flag_MustDisableImGui);
         return false;
     }
-    initializeImGui(*data);
-    data->ClearFlags(Flag_MustEnableImGui);
-    data->SetFlags(Flag_ImGuiEnabled);
+    shutdownImGui(p_Data);
+    p_Data.ClearFlags(Flag_MustDisableImGui | Flag_ImGuiEnabled);
     return true;
 }
 
-bool Application::DisableImGui(Window *p_Window)
+bool Application::EnableImGui(const Window *p_Window, const ImGuiFlags p_Flags)
 {
     WindowData *data = getWindowData(p_Window);
+    return enableImGui(*data, p_Flags);
+}
+
+bool Application::EnableImGui(const ImGuiFlags p_Flags)
+{
+    return enableImGui(m_MainWindow, p_Flags);
+}
+
+bool Application::DisableImGui(const Window *p_Window)
+{
+    WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
     if (checkFlags(Flag_Defer))
     {
         data->SetFlags(Flag_MustDisableImGui);
@@ -369,22 +358,27 @@ bool Application::DisableImGui(Window *p_Window)
     return true;
 }
 
-bool Application::ReloadImGui(const i32 p_Flags, Window *p_Window)
+bool Application::reloadImGui(WindowData &p_Data, const ImGuiFlags p_Flags)
 {
-    m_ImGuiConfigFlags = p_Flags;
-    return ReloadImGui(p_Window);
-}
-bool Application::ReloadImGui(Window *p_Window)
-{
-    WindowData *data = getWindowData(p_Window);
+    p_Data.ImGuiFlags = p_Flags;
     if (checkFlags(Flag_Defer))
     {
-        data->SetFlags(Flag_MustDisableImGui | Flag_MustEnableImGui);
+        p_Data.SetFlags(Flag_MustDisableImGui | Flag_MustEnableImGui);
         return false;
     }
-    shutdownImGui(*data);
-    initializeImGui(*data);
+    shutdownImGui(p_Data);
+    initializeImGui(p_Data);
     return true;
+}
+
+bool Application::ReloadImGui(const ImGuiFlags p_Flags)
+{
+    return reloadImGui(m_MainWindow, p_Flags);
+}
+bool Application::ReloadImGui(const Window *p_Window, const ImGuiFlags p_Flags)
+{
+    WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+    return reloadImGui(*data, p_Flags);
 }
 
 #endif
@@ -467,12 +461,44 @@ void Application::processWindow(WindowData &p_Data)
     p_Data.Window->EndFrame(transferFlags);
 }
 
+static void syncDeferredOperations(WindowData &p_Data)
+{
+    if (p_Data.CheckFlags(Application::Flag_MustDestroyLayer))
+    {
+        delete p_Data.Layer;
+        p_Data.Layer = nullptr;
+        p_Data.ClearFlags(Application::Flag_MustDestroyLayer);
+    }
+    if (p_Data.CheckFlags(Application::Flag_MustReplaceLayer))
+    {
+        p_Data.Layer = p_Data.StagedLayer;
+        p_Data.StagedLayer = nullptr;
+        p_Data.ClearFlags(Application::Flag_MustReplaceLayer);
+    }
+
+#ifdef ONYX_ENABLE_IMGUI
+
+    if (p_Data.CheckFlags(Application::Flag_MustDisableImGui))
+    {
+        shutdownImGui(p_Data);
+        p_Data.ClearFlags(Application::Flag_MustDisableImGui | Application::Flag_ImGuiEnabled);
+    }
+
+    if (p_Data.CheckFlags(Application::Flag_MustEnableImGui))
+    {
+        initializeImGui(p_Data);
+        p_Data.ClearFlags(Application::Flag_MustEnableImGui);
+        p_Data.SetFlags(Application::Flag_ImGuiEnabled);
+    }
+#endif
+}
+
 void Application::syncDeferredOperations()
 {
-    syncDeferredOperations(m_MainWindow);
+    ::Onyx::syncDeferredOperations(m_MainWindow);
 #ifdef __ONYX_MULTI_WINDOW
     for (WindowData &data : m_Windows)
-        syncDeferredOperations(data);
+        ::Onyx::syncDeferredOperations(data);
 
     for (const WindowSpecs &specs : m_WindowsToAdd)
         openWindow(specs);
@@ -502,38 +528,6 @@ void Application::syncDeferredOperations()
         closeAllWindows();
         clearFlags(Flag_Quit);
     }
-}
-
-void Application::syncDeferredOperations(WindowData &p_Data)
-{
-    if (p_Data.CheckFlags(Flag_MustDestroyLayer))
-    {
-        delete p_Data.Layer;
-        p_Data.Layer = nullptr;
-        p_Data.ClearFlags(Flag_MustDestroyLayer);
-    }
-    if (p_Data.CheckFlags(Flag_MustReplaceLayer))
-    {
-        p_Data.Layer = p_Data.StagedLayer;
-        p_Data.StagedLayer = nullptr;
-        p_Data.ClearFlags(Flag_MustReplaceLayer);
-    }
-
-#ifdef ONYX_ENABLE_IMGUI
-
-    if (p_Data.CheckFlags(Flag_MustDisableImGui))
-    {
-        shutdownImGui(p_Data);
-        p_Data.ClearFlags(Flag_MustDisableImGui | Flag_ImGuiEnabled);
-    }
-
-    if (p_Data.CheckFlags(Flag_MustEnableImGui))
-    {
-        initializeImGui(p_Data);
-        p_Data.ClearFlags(Flag_MustEnableImGui);
-        p_Data.SetFlags(Flag_ImGuiEnabled);
-    }
-#endif
 }
 
 void Application::updateMinimumTargetDelta()
@@ -572,6 +566,27 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
 
     m_DeltaTime = p_Clock.Restart();
     return m_MainWindow.Window;
+}
+
+Application::WindowData Application::createWindow(const WindowSpecs &p_Specs)
+{
+    WindowData data;
+    data.Window = m_WindowAllocator.Create<Window>(p_Specs.Specs);
+    if (data.Window->IsVSync())
+        data.RenderClock.Delta.Time.Target = data.Window->GetMonitorDeltaTime();
+
+#ifdef ONYX_ENABLE_IMGUI
+    data.ImGuiFlags.Backend = ImGuiBackendFlags_RendererHasTextures;
+    if (p_Specs.EnableImGui)
+    {
+        initializeImGui(data);
+        data.SetFlags(Flag_ImGuiEnabled);
+    }
+#endif
+
+    if (p_Specs.CreationCallback)
+        p_Specs.CreationCallback(data.Window);
+    return data;
 }
 
 void Application::destroyWindow(WindowData &p_Data)
@@ -625,24 +640,7 @@ bool Application::CloseWindow(Window *p_Window)
 }
 Window *Application::openWindow(const WindowSpecs &p_Specs)
 {
-    WindowData data;
-    data.Window = m_WindowAllocator.Create<Window>(p_Specs.Specs);
-    if (data.Window->IsVSync())
-        data.RenderClock.Delta.Time.Target = data.Window->GetMonitorDeltaTime();
-
-#    ifdef ONYX_ENABLE_IMGUI
-    if (p_Specs.EnableImGui)
-    {
-        initializeImGui(data);
-        data.SetFlags(Flag_ImGuiEnabled);
-    }
-#    endif
-
-    m_Windows.Append(data);
-
-    if (p_Specs.CreationCallback)
-        p_Specs.CreationCallback(data.Window);
-
+    const WindowData &data = m_Windows.Append(createWindow(p_Specs));
     updateMinimumTargetDelta();
     return data.Window;
 }

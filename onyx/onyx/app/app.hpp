@@ -6,7 +6,6 @@
 #    include "onyx/app/theme.hpp"
 #endif
 #include "tkit/profiling/clock.hpp"
-#include "tkit/memory/ptr.hpp"
 
 #ifndef ONYX_APP_MAX_WINDOWS
 #    define ONYX_APP_MAX_WINDOWS 8
@@ -64,6 +63,7 @@ struct DeltaInfo
  */
 class ONYX_API Application
 {
+  public:
     using Flags = u8;
     enum FlagBit : Flags
     {
@@ -93,6 +93,14 @@ class ONYX_API Application
         }
     };
 
+#ifdef ONYX_ENABLE_IMGUI
+    struct ImGuiFlags
+    {
+        i32 Config = 0;
+        i32 Backend = 0;
+    };
+#endif
+
     struct WindowData
     {
         Window *Window = nullptr;
@@ -105,6 +113,8 @@ class ONYX_API Application
 #    ifdef ONYX_ENABLE_IMPLOT
         ImPlotContext *ImPlotContext = nullptr;
 #    endif
+        ImGuiFlags ImGuiFlags{};
+        Theme *Theme = nullptr;
 #endif
         Flags Flags = 0;
 
@@ -122,7 +132,6 @@ class ONYX_API Application
         }
     };
 
-  public:
     struct WindowSpecs
     {
         Window::Specs Specs{};
@@ -132,9 +141,17 @@ class ONYX_API Application
 #endif
     };
 
-    Application(const WindowSpecs &p_MainSpecs);
-    Application(const Window::Specs &p_MainSpecs = {});
-    ~Application();
+    Application(const WindowSpecs &p_MainSpecs) : m_MainWindow(createWindow(p_MainSpecs))
+    {
+        updateMinimumTargetDelta();
+    }
+    Application(const Window::Specs &p_MainSpecs = {}) : Application({.Specs = p_MainSpecs})
+    {
+    }
+    ~Application()
+    {
+        closeAllWindows();
+    }
 
     /**
      * @brief Signals the application to stop the frame loop.
@@ -157,7 +174,28 @@ class ONYX_API Application
 
 #ifdef ONYX_ENABLE_IMGUI
     /**
-     * @brief Set an object derived from Theme to apply an `ImGui` theme.
+     * @brief Set an object derived from `Theme` to apply an ImGui theme to a given window.
+     *
+     * @tparam T User defined theme.
+     * @tparam ThemeArgs Arguments to pass to the theme constructor.
+     * @param p_Window The window for which the ImGui theme will be applied to.
+     * @param p_Args Arguments to pass to the theme constructor.
+     * @return Pointer to the theme object.
+     */
+    template <std::derived_from<Theme> T, typename... ThemeArgs>
+    T *SetTheme(const Window *p_Window, ThemeArgs &&...p_Args)
+    {
+        WindowData *data = getWindowData(p_Window);
+        if (data->Theme)
+            delete data->Theme;
+
+        T *theme = new T{std::forward<ThemeArgs>(p_Args)...};
+        data->Theme = theme;
+        applyTheme(*data);
+        return theme;
+    }
+    /**
+     * @brief Set an object derived from `Theme` to apply an ImGui theme to the main window.
      *
      * @tparam T User defined theme.
      * @tparam ThemeArgs Arguments to pass to the theme constructor.
@@ -166,18 +204,20 @@ class ONYX_API Application
      */
     template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args)
     {
-        auto theme = TKit::Scope<T>::Create(std::forward<ThemeArgs>(p_Args)...);
-        T *result = theme.Get();
-        m_Theme = std::move(theme);
-        m_Theme->Apply();
-        return result;
+        if (m_MainWindow.Theme)
+            delete m_MainWindow.Theme;
+
+        T *theme = new T{std::forward<ThemeArgs>(p_Args)...};
+        m_MainWindow.Theme = theme;
+        applyTheme(m_MainWindow);
+        return theme;
     }
 
     /**
      * @brief Apply the current theme to `ImGui`. Use `SetTheme()` to set a new theme.
      *
      */
-    void ApplyTheme();
+    void ApplyTheme(const Window *p_Window = nullptr);
 #endif
 
     /**
@@ -296,7 +336,6 @@ class ONYX_API Application
             m_WindowsToAdd.Append(p_Specs);
             return nullptr;
         }
-
         return openWindow(p_Specs);
     }
 
@@ -360,12 +399,12 @@ class ONYX_API Application
         return data->RenderClock.Delta.Time;
     }
 
-    void SetUpdateDeltaTime(const TKit::Timespan p_Target, Window *p_Window = nullptr)
+    void SetUpdateDeltaTime(const TKit::Timespan p_Target, const Window *p_Window = nullptr)
     {
         WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
         setUpdateDeltaTime(p_Target, *data);
     }
-    void SetRenderDeltaTime(const TKit::Timespan p_Target, Window *p_Window = nullptr)
+    void SetRenderDeltaTime(const TKit::Timespan p_Target, const Window *p_Window = nullptr)
     {
         WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
         setRenderDeltaTime(p_Target, *data);
@@ -383,26 +422,22 @@ class ONYX_API Application
     bool DisplayUpdateDeltaTime(UserLayer::Flags p_Flags = 0);
     bool DisplayRenderDeltaTime(UserLayer::Flags p_Flags = 0);
 
-    bool DisplayUpdateDeltaTime(Window *p_Window, UserLayer::Flags p_Flags = 0);
-    bool DisplayRenderDeltaTime(Window *p_Window, UserLayer::Flags p_Flags = 0);
+    bool DisplayUpdateDeltaTime(const Window *p_Window, UserLayer::Flags p_Flags = 0);
+    bool DisplayRenderDeltaTime(const Window *p_Window, UserLayer::Flags p_Flags = 0);
 
-    bool EnableImGui(i32 p_Flags, Window *p_Window = nullptr);
-    bool EnableImGui(Window *p_Window = nullptr);
+    bool EnableImGui(ImGuiFlags p_Flags = {0, 0});
+    bool EnableImGui(const Window *p_Window, ImGuiFlags p_Flags = {0, 0});
 
-    bool DisableImGui(Window *p_Window = nullptr);
+    bool DisableImGui(const Window *p_Window = nullptr);
 
-    bool ReloadImGui(i32 p_Flags, Window *p_Window = nullptr);
-    bool ReloadImGui(Window *p_Window = nullptr);
+    bool ReloadImGui(ImGuiFlags p_Flags = {0, 0});
+    bool ReloadImGui(const Window *p_Window, ImGuiFlags p_Flags = {0, 0});
 
-    i32 GetImGuiConfigFlags() const
+    ImGuiFlags GetImGuiFlags(const Window *p_Window = nullptr) const
     {
-        return m_ImGuiConfigFlags;
+        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        return data->ImGuiFlags;
     }
-    i32 GetImGuiBackendFlags() const
-    {
-        return m_ImGuiBackendFlags;
-    }
-
 #endif
   private:
     template <std::derived_from<UserLayer> T, typename... LayerArgs>
@@ -443,9 +478,9 @@ class ONYX_API Application
     void setRenderDeltaTime(TKit::Timespan p_Target, WindowData &p_Data);
 
     void processWindow(WindowData &p_Data);
+    WindowData createWindow(const WindowSpecs &p_Specs);
     void destroyWindow(WindowData &p_Data);
     void syncDeferredOperations();
-    void syncDeferredOperations(WindowData &p_Data);
     void updateMinimumTargetDelta();
 
     void closeAllWindows();
@@ -454,28 +489,23 @@ class ONYX_API Application
 #endif
 
 #ifdef ONYX_ENABLE_IMGUI
-    void initializeImGui(WindowData &p_Data);
-    void shutdownImGui(WindowData &p_Data);
+    bool enableImGui(WindowData &p_Data, ImGuiFlags p_Flags);
+    bool reloadImGui(WindowData &p_Data, ImGuiFlags p_Flags);
+    static void applyTheme(const WindowData &p_Data);
 #endif
 
-    WindowData m_MainWindow{};
+    TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_APP_MAX_WINDOWS);
 
+    WindowData m_MainWindow{};
 #ifdef __ONYX_MULTI_WINDOW
     TKit::StaticArray<WindowData, ONYX_APP_MAX_WINDOWS - 1> m_Windows;
     TKit::StaticArray<WindowSpecs, ONYX_APP_MAX_WINDOWS - 1> m_WindowsToAdd;
 #endif
-    TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_APP_MAX_WINDOWS);
 
     TKit::Timespan m_DeltaTime{};
     TKit::Timespan m_MinimumTargetDelta{};
 
     Flags m_Flags = 0;
-
-#ifdef ONYX_ENABLE_IMGUI
-    TKit::Scope<Theme> m_Theme;
-    i32 m_ImGuiConfigFlags = 0;
-    i32 m_ImGuiBackendFlags = 0;
-#endif
 };
 
 } // namespace Onyx
