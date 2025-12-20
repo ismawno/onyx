@@ -790,7 +790,7 @@ void SandboxLayer::renderLightSpawn(ContextData<D3> &p_Context)
 #endif
 
 template <Dimension D>
-static void processEvent(ContextDataContainer<D> &p_Contexts, const CameraDataContainer<D> &p_Cameras,
+static void processEvent(Window *p_Window, ContextDataContainer<D> &p_Contexts, const CameraDataContainer<D> &p_Cameras,
                          const Event &p_Event)
 {
 #ifdef ONYX_ENABLE_IMGUI
@@ -811,15 +811,15 @@ static void processEvent(ContextDataContainer<D> &p_Contexts, const CameraDataCo
     }
     else if (p_Event.Type == Event::Scrolled)
     {
-        const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) ? 0.05f : 0.005f;
+        const f32 factor = Input::IsKeyPressed(p_Window, Input::Key::LeftShift) ? 0.05f : 0.005f;
         camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
     }
 }
 
 void SandboxLayer::OnEvent(const Event &p_Event)
 {
-    processEvent(m_ContextData2, m_Cameras2, p_Event);
-    processEvent(m_ContextData3, m_Cameras3, p_Event);
+    processEvent(m_Window, m_ContextData2, m_Cameras2, p_Event);
+    processEvent(m_Window, m_ContextData3, m_Cameras3, p_Event);
 }
 
 void SandboxLayer::OnRenderBegin(const DeltaTime &, const FrameInfo &p_Info)

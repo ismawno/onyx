@@ -860,10 +860,8 @@ const char *GetKeyName(const Key p_Key)
 static void windowMoveCallback(GLFWwindow *p_Window, const i32 p_X, const i32 p_Y)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = Event::WindowMoved;
-
-    Window *window = event.Window;
 
     event.WindowDelta.Old = window->GetScreenDimensions();
     event.WindowDelta.New = u32v2{static_cast<u32>(p_X), static_cast<u32>(p_Y)};
@@ -879,10 +877,8 @@ using namespace Onyx::Input;
 void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_Height)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = Event::WindowResized;
-
-    Window *window = event.Window;
 
     event.WindowDelta.Old = window->GetScreenDimensions();
     event.WindowDelta.New = u32v2{static_cast<u32>(p_Width), static_cast<u32>(p_Height)};
@@ -899,42 +895,41 @@ namespace Onyx::Input
 static void framebufferResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_Height)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = Event::FramebufferResized;
 
     event.WindowDelta.New = u32v2{static_cast<u32>(p_Width), static_cast<u32>(p_Height)};
-
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 static void windowFocusCallback(GLFWwindow *p_Window, const i32 p_Focused)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = p_Focused ? Event::WindowFocused : Event::WindowUnfocused;
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 static void windowCloseCallback(GLFWwindow *p_Window)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = Event::WindowClosed;
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 static void windowIconifyCallback(GLFWwindow *p_Window, const i32 p_Iconified)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = p_Iconified ? Event::WindowMinimized : Event::WindowRestored;
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 static void keyCallback(GLFWwindow *p_Window, const i32 p_Key, const i32, const i32 p_Action, const i32)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
 
     switch (p_Action)
     {
@@ -952,51 +947,51 @@ static void keyCallback(GLFWwindow *p_Window, const i32 p_Key, const i32, const 
     }
 
     event.Key = toKey(p_Key);
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 static void charCallback(GLFWwindow *p_Window, const u32 p_Codepoint)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = Event::CharInput;
     event.Character.Codepoint = p_Codepoint;
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 static void cursorPositionCallback(GLFWwindow *p_Window, const f64 p_XPos, const f64 p_YPos)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = Event::MouseMoved;
     event.Mouse.Position = f32v2{static_cast<f32>(p_XPos), static_cast<f32>(p_YPos)};
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 static void cursorEnterCallback(GLFWwindow *p_Window, const i32 p_Entered)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = p_Entered ? Event::MouseEntered : Event::MouseLeft;
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 static void mouseButtonCallback(GLFWwindow *p_Window, const i32 p_Button, const i32 p_Action, const i32)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = p_Action == GLFW_PRESS ? Event::MousePressed : Event::MouseReleased;
     event.Mouse.Button = toMouse(p_Button);
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 static void scrollCallback(GLFWwindow *p_Window, const f64 p_XOffset, const f64 p_YOffset)
 {
     Event event{};
-    event.Window = windowFromGLFW(p_Window);
+    Window *window = windowFromGLFW(p_Window);
     event.Type = Event::Scrolled;
     event.ScrollOffset = f32v2{static_cast<f32>(p_XOffset), static_cast<f32>(p_YOffset)};
-    event.Window->PushEvent(event);
+    window->PushEvent(event);
 }
 
 void InstallCallbacks(Window &p_Window)

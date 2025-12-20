@@ -66,7 +66,7 @@ template <Dimension D> void Layer<D>::OnEvent(const Event &p_Event)
     if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard)
         return;
 #endif
-    const f32 factor = Input::IsKeyPressed(p_Event.Window, Input::Key::LeftShift) ? 0.05f : 0.005f;
+    const f32 factor = Input::IsKeyPressed(m_Window, Input::Key::LeftShift) ? 0.05f : 0.005f;
     m_Camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
 }
 

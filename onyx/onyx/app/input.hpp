@@ -295,7 +295,6 @@ struct ONYX_API Event
     MouseState Mouse;
     Char Character;
     f32v2 ScrollOffset{0.f};
-    Window *Window = nullptr;
 
     operator bool() const
     {
