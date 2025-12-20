@@ -404,6 +404,7 @@ void FrameScheduler::recreateSwapChain(Window &p_Window)
     p_Window.adaptCamerasToViewportAspect();
 
     Event event{};
+    event.Window = &p_Window;
     event.Type = Event::SwapChainRecreated;
     p_Window.PushEvent(event);
 }
