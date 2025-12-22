@@ -10,6 +10,8 @@
 namespace Onyx
 {
 static const VkFormat s_DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
+const WaitMode WaitMode::Block = WaitMode{TKit::Limits<u64>::Max(), TKit::Limits<u64>::Max()};
+const WaitMode WaitMode::Poll = WaitMode{0, 0};
 
 FrameScheduler::FrameScheduler(Window &p_Window)
 {
@@ -66,9 +68,9 @@ bool FrameScheduler::handleImageResult(Window &p_Window, const VkResult p_Result
     return true;
 }
 
-VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window)
+VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window, const WaitMode &p_WaitMode)
 {
-    const VkResult result = AcquireNextImage();
+    const VkResult result = AcquireNextImage(p_WaitMode);
     if (!handleImageResult(p_Window, result))
         return VK_NULL_HANDLE;
 
@@ -280,16 +282,16 @@ void FrameScheduler::EndRendering()
                                                            .DstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT});
 }
 
-VkResult FrameScheduler::AcquireNextImage()
+VkResult FrameScheduler::AcquireNextImage(const WaitMode &p_WaitMode)
 {
     TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::AcquireNextImage");
     const auto &table = Core::GetDeviceTable();
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForFrame");
         VKIT_ASSERT_EXPRESSION(table.WaitForFences(Core::GetDevice(), 1, &m_SyncFrameData[m_FrameIndex].InFlightFence,
-                                                   VK_TRUE, UINT64_MAX));
+                                                   VK_TRUE, p_WaitMode.WaitFenceTimeout));
     }
-    return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, UINT64_MAX,
+    return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, p_WaitMode.AcquireTimeout,
                                      m_SyncFrameData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE,
                                      &m_ImageIndex);
 }

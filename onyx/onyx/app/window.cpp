@@ -111,13 +111,13 @@ void Window::createWindow(const Specs &p_Specs)
     Input::InstallCallbacks(*this);
 }
 
-FrameInfo Window::BeginFrame()
+FrameInfo Window::BeginFrame(const WaitMode &p_WaitMode)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::BeginFrame");
     TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
 
     FrameInfo info;
-    info.GraphicsCommand = m_FrameScheduler->BeginFrame(*this);
+    info.GraphicsCommand = m_FrameScheduler->BeginFrame(*this, p_WaitMode);
     info.TransferCommand = info.GraphicsCommand ? m_FrameScheduler->GetTransferCommandBuffer() : VK_NULL_HANDLE;
     info.FrameIndex = m_FrameScheduler->GetFrameIndex();
     return info;

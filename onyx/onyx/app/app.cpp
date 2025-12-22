@@ -423,7 +423,7 @@ void Application::processWindow(WindowData &p_Data)
     if (!p_Data.RenderClock.IsDue())
         return;
     p_Data.RenderClock.Update();
-    const FrameInfo info = p_Data.Window->BeginFrame();
+    const FrameInfo info = p_Data.Window->BeginFrame(WaitMode::Poll);
     if (!info)
         return;
 

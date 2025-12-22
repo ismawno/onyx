@@ -18,6 +18,15 @@ enum class TransferMode : u8
     SameQueue = 2
 };
 
+struct WaitMode
+{
+    u64 WaitFenceTimeout;
+    u64 AcquireTimeout;
+
+    static const WaitMode Block;
+    static const WaitMode Poll;
+};
+
 /**
  * @brief Manages frame scheduling and rendering operations for a window.
  *
@@ -52,11 +61,12 @@ class ONYX_API FrameScheduler
      * Synchronizes with the GPU to ensure the next swap chain image is ready for rendering. Will wait for the present
      * task before proceeding.
      *
-     * @param p_Window The window associated with the rendering context.
+     * @param p_Window The window associated with the frame scheduler.
+     * @param p_WaitMode The timeouts when waiting for fences and acquiring next image.
      * @return A Vulkan command buffer for the current frame. May be a null handle if the swap chain needs to be
      * recreated.
      */
-    VkCommandBuffer BeginFrame(Window &p_Window);
+    VkCommandBuffer BeginFrame(Window &p_Window, const WaitMode &p_WaitMode);
 
     /**
      * @brief Finalizes the current frame and submits the rendering commands.
@@ -106,9 +116,10 @@ class ONYX_API FrameScheduler
      *
      * Synchronizes rendering with the presentation engine.
      *
+     * @param p_WaitMode The timeouts when waiting for fences and acquiring next image.
      * @return A Vulkan result indicating success or failure.
      */
-    VkResult AcquireNextImage();
+    VkResult AcquireNextImage(const WaitMode &p_WaitMode);
 
     void SubmitGraphicsQueue(VkPipelineStageFlags p_Flags);
     void SubmitTransferQueue();

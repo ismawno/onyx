@@ -104,9 +104,10 @@ class ONYX_API Window
      * This method will wait for the next available swap chain image, so it may block for some time.
      * After this call, `ImGui` and `ImPlot` may be used until the `EndRendering()` method.
      *
+     * @param p_WaitMode The timeouts when waiting for fences and acquiring next image.
      * @return Information about the new frame.
      */
-    FrameInfo BeginFrame();
+    FrameInfo BeginFrame(const WaitMode &p_WaitMode = WaitMode::Block);
 
     /**
      * @brief Submit all rendering context data to the device.
