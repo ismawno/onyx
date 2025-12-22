@@ -48,6 +48,9 @@ FrameScheduler::~FrameScheduler()
 
 bool FrameScheduler::handleImageResult(Window &p_Window, const VkResult p_Result)
 {
+    if (p_Result == VK_NOT_READY || p_Result == VK_TIMEOUT)
+        return false;
+
     if (p_Result == VK_ERROR_SURFACE_LOST_KHR)
     {
         recreateSurface(p_Window);
@@ -58,7 +61,8 @@ bool FrameScheduler::handleImageResult(Window &p_Window, const VkResult p_Result
         p_Result == VK_ERROR_OUT_OF_DATE_KHR || p_Result == VK_SUBOPTIMAL_KHR || m_RequestSwapchainRecreation;
 
     TKIT_ASSERT(needRecreation || p_Result == VK_SUCCESS || p_Result == VK_ERROR_SURFACE_LOST_KHR,
-                "[ONYX] Failed to submit command buffers");
+                "[ONYX] Failed to submit command buffers. The vulkan error is the following: {}",
+                VKit::ResultToString(p_Result));
 
     if (needRecreation)
     {
@@ -288,8 +292,11 @@ VkResult FrameScheduler::AcquireNextImage(const WaitMode &p_WaitMode)
     const auto &table = Core::GetDeviceTable();
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForFrame");
-        VKIT_ASSERT_EXPRESSION(table.WaitForFences(Core::GetDevice(), 1, &m_SyncFrameData[m_FrameIndex].InFlightFence,
-                                                   VK_TRUE, p_WaitMode.WaitFenceTimeout));
+        const VkResult result = table.WaitForFences(Core::GetDevice(), 1, &m_SyncFrameData[m_FrameIndex].InFlightFence,
+                                                    VK_TRUE, p_WaitMode.WaitFenceTimeout);
+        if (result == VK_NOT_READY || result == VK_TIMEOUT)
+            return result;
+        VKIT_ASSERT_RESULT(result);
     }
     return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, p_WaitMode.AcquireTimeout,
                                      m_SyncFrameData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE,

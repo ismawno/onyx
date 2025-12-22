@@ -46,6 +46,7 @@
           wayland-scanner
           libffi
           libxkbcommon
+          zenity
 
           fontconfig
           expat

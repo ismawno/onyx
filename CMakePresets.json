@@ -59,7 +59,8 @@
         "ONYX_BUILD_DEMOS": "ON",
         "ONYX_ENABLE_IMGUI": "ON",
         "ONYX_ENABLE_IMPLOT": "OFF",
-        "ONYX_ENABLE_VALIDATION_LAYERS": "OFF"
+        "ONYX_ENABLE_VALIDATION_LAYERS": "OFF",
+        "ONYX_ENABLE_NFD": "ON"
       }
     },
     {

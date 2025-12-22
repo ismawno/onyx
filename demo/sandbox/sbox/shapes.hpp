@@ -11,11 +11,9 @@ namespace Onyx::Demo
 template <Dimension D> struct NamedMesh
 {
     static const TKit::StaticArray16<NamedMesh<D>> &Get();
-    static TKit::StaticArray16<std::string> Query(std::string_view p_Directory);
 
     static bool IsLoaded(std::string_view p_Name);
-    static VKit::FormattedResult<NamedMesh<D>> Load(std::string_view p_Name, std::string_view p_Path,
-                                                    const f32m<D> &p_Transform);
+    static VKit::FormattedResult<> Load(std::string_view p_Name, std::string_view p_Path);
 
     std::string Name{};
     Mesh<D> Mesh{};

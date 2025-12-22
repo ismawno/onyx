@@ -2,13 +2,9 @@
 #include "onyx/app/user_layer.hpp"
 #include "tkit/utils/dimension.hpp"
 #include "onyx/core/imgui.hpp"
-#include <filesystem>
 
 namespace Onyx::Demo
 {
-
-namespace fs = std::filesystem;
-
 TKit::StaticArray16<NamedMesh<D2>> s_Meshes2{};
 TKit::StaticArray16<NamedMesh<D3>> s_Meshes3{};
 template <Dimension D> TKit::StaticArray16<NamedMesh<D>> &getMeshes()
@@ -24,21 +20,6 @@ template <Dimension D> const TKit::StaticArray16<NamedMesh<D>> &NamedMesh<D>::Ge
     return getMeshes<D>();
 }
 
-template <Dimension D> TKit::StaticArray16<std::string> NamedMesh<D>::Query(const std::string_view p_Directory)
-{
-    TKit::StaticArray16<std::string> names;
-    if (!fs::exists(p_Directory))
-        return names;
-
-    for (const auto &entry : fs::directory_iterator(p_Directory))
-    {
-        const auto &path = entry.path();
-        const std::string name = path.filename().string();
-        names.Append(name);
-    }
-    return names;
-}
-
 template <Dimension D> bool NamedMesh<D>::IsLoaded(const std::string_view p_Name)
 {
     const auto &meshes = getMeshes<D>();
@@ -48,10 +29,9 @@ template <Dimension D> bool NamedMesh<D>::IsLoaded(const std::string_view p_Name
     return false;
 }
 template <Dimension D>
-VKit::FormattedResult<NamedMesh<D>> NamedMesh<D>::Load(const std::string_view p_Name, const std::string_view p_Path,
-                                                       const f32m<D> &p_Transform)
+VKit::FormattedResult<> NamedMesh<D>::Load(const std::string_view p_Name, const std::string_view p_Path)
 {
-    const auto result = Onyx::Mesh<D>::Load(p_Path, &p_Transform);
+    const auto result = Onyx::Mesh<D>::Load(p_Path);
     if (!result)
         return VKit::FormattedResult<NamedMesh<D>>::Error(VKIT_FORMAT_ERROR(
             result.GetError().ErrorCode, "Failed to load mesh: '{}' - {}", p_Name, result.GetError().ToString()));
@@ -62,7 +42,7 @@ VKit::FormattedResult<NamedMesh<D>> NamedMesh<D>::Load(const std::string_view p_
 
     auto &meshes = getMeshes<D>();
     meshes.Append(nmesh);
-    return nmesh;
+    return VKit::FormattedResult<>::Ok();
 }
 template <Dimension D> void Shape<D>::SetProperties(RenderContext<D> *p_Context)
 {

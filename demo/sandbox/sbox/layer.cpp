@@ -4,6 +4,7 @@
 #include "onyx/core/imgui.hpp"
 #include "onyx/core/implot.hpp"
 #include "onyx/app/app.hpp"
+#include "onyx/core/dialog.hpp"
 #include "sbox/shapes.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -121,57 +122,30 @@ void SandboxLayer::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-template <Dimension D> static void renderMeshLoad(const char *p_Path)
+template <Dimension D> static VKit::FormattedResult<> loadMesh(const Dialog::Path &p_Path)
 {
-    static Transform<D> transform{};
-    static TKit::Array16<std::string> customNames{};
+    const std::string name = p_Path.filename().string();
+    const bool isLoaded = NamedMesh<D>::IsLoaded(name);
+    if (isLoaded)
+        return VKit::FormattedResult<>::Error(
+            VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "The mesh '{}' is already loaded", name));
 
-    const auto names = NamedMesh<D>::Query(p_Path);
-    if (names.IsEmpty())
+    const auto result = NamedMesh<D>::Load(name, p_Path.string());
+    TKIT_RETURN_ON_ERROR(result);
+    return VKit::FormattedResult<>::Ok();
+}
+template <Dimension D> static void renderMeshLoad(const char *p_Default)
+{
+    ImGui::PushID(p_Default);
+    if (ImGui::Button("Load"))
     {
-        ImGui::TextDisabled("No meshes found at %s", p_Path);
-        return;
+        const auto result = Dialog::OpenSingle({.Default = p_Default});
+        if (result)
+            loadMesh<D>(result.GetValue());
     }
-
-    UserLayer::TransformEditor(transform, UserLayer::Flag_DisplayHelp);
-
-    ImGui::PushID(&transform);
-    for (u32 i = 0; i < names.GetSize(); ++i)
-    {
-        const std::string &name = names[i];
-        std::string &cname = customNames[i];
-        if (cname.empty())
-            cname = name;
-
-        ImGui::Spacing();
-        ImGui::Text("%s", name.c_str());
-        constexpr u32 msize = 15;
-
-        char input[msize + 1];
-        TKit::Memory::ForwardCopy(input, cname.c_str(), msize);
-        input[msize] = '\0';
-
-        ImGui::PushID(&name);
-        if (ImGui::InputText("Mesh name", input, msize + 1))
-            cname = input;
-
-        // Should consider using fs::path
-        ImGui::SameLine();
-        const bool isLoaded = NamedMesh<D>::IsLoaded(cname);
-        if (!isLoaded && ImGui::Button("Load"))
-        {
-            const auto result =
-                NamedMesh<D>::Load(cname, std::string(p_Path) + "/" + name, transform.ComputeTransform());
-            if (!result)
-            {
-                const std::string error = result.GetError().ToString();
-                ImGui::Text("Failed to load mesh: %s. Cause: %s", name.c_str(), error.c_str());
-            }
-        }
-        else if (isLoaded)
-            ImGui::TextDisabled("Loaded");
-        ImGui::PopID();
-    }
+    const auto &meshes = NamedMesh<D>::Get();
+    for (const NamedMesh<D> &mesh : meshes)
+        ImGui::BulletText("%s", mesh.Name.c_str());
     ImGui::PopID();
 }
 
@@ -247,20 +221,17 @@ void SandboxLayer::renderImGui()
 
         ImGui::TextLinkOpenURL("My GitHub", "https://github.com/ismawno");
 
-        const char *path2 = ONYX_ROOT_PATH "/demo/meshes2/";
-        const char *path3 = ONYX_ROOT_PATH "/demo/meshes3/";
         ImGui::TextWrapped(
-            "You may load meshes for this demo to use located in the '%s' and '%s' paths, for 2D and 3D "
-            "meshes respectively. Take into account that meshes may have been created with a different coordinate "
+            "You may load meshes for this demo to use for both 2D and 3D. Take into account that meshes may "
+            "have been created with a different coordinate "
             "system or unit scaling values. In Onyx, shapes with unit transforms are supposed to be centered around "
             "zero with a cartesian coordinate system and size (from end to end) of 1. That is why you may apply a "
-            "transform before loading a specific mesh.",
-            path2, path3);
+            "transform before loading a specific mesh.");
 
         if (ImGui::CollapsingHeader("2D Meshes"))
-            renderMeshLoad<D2>(path2);
+            renderMeshLoad<D2>(ONYX_ROOT_PATH "/demo/meshes2/");
         if (ImGui::CollapsingHeader("3D Meshes"))
-            renderMeshLoad<D3>(path3);
+            renderMeshLoad<D3>(ONYX_ROOT_PATH "/demo/meshes3/");
     }
     ImGui::End();
 

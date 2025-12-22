@@ -26,6 +26,9 @@ set(SOURCES
 if(ONYX_ENABLE_IMGUI)
   list(APPEND SOURCES onyx/app/user_layer.cpp onyx/app/theme.cpp)
 endif()
+if(ONYX_ENABLE_NFD)
+  list(APPEND SOURCES onyx/core/dialog.cpp)
+endif()
 
 add_library(onyx STATIC ${SOURCES})
 target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.6.0\")
@@ -181,6 +184,44 @@ if(ONYX_ENABLE_IMPLOT)
   target_link_libraries(onyx PUBLIC implot)
 
   tkit_configure_compile_link_options(implot NO_EXCEPTIONS NO_RTTI)
+endif()
+
+if(ONYX_ENABLE_NFD)
+  FetchContent_Declare(
+    nfd
+    GIT_REPOSITORY https://github.com/mlabbe/nativefiledialog.git
+    GIT_TAG release_116
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
+
+  FetchContent_MakeAvailable(nfd)
+
+  set(NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_common.c)
+  if(WIN32)
+    list(APPEND NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_win.cpp)
+  elseif(APPLE)
+    list(APPEND NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_cocoa.m)
+  elseif(UNIX)
+    find_package(GTK)
+    if(GTK_FOUND)
+      message(STATUS "ONYX - Using GTK as NFD backend")
+      list(APPEND NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_gtk.c)
+
+    else()
+      message(STATUS "ONYX - Using Zenity as NFD backend")
+      list(APPEND NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_zenity.c)
+
+    endif()
+
+  else()
+    message(FATAL_ERROR "ONYX - No available platform to use NFD")
+  endif()
+
+  add_library(nfd STATIC ${NFD_SOURCES})
+
+  target_include_directories(nfd PUBLIC ${nfd_SOURCE_DIR}/src/include)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_NFD)
+  target_link_libraries(onyx PRIVATE nfd)
 endif()
 
 target_link_libraries(
