@@ -104,7 +104,7 @@ VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path
             buffers.Indices.Append(uniqueVertices[vertex]);
         }
     if (!p_Transform)
-        return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
+        return buffers;
 
     if constexpr (D == D3)
     {
@@ -119,7 +119,7 @@ VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path
         for (Vertex<D> &vertex : buffers.Vertices)
             if constexpr (D == D3)
                 vertex.Position = f32v2{*p_Transform * f32v3{vertex.Position, 1.f}};
-    return VKit::FormattedResult<IndexVertexHostData<D>>::Ok(buffers);
+    return buffers;
 }
 
 template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path,

@@ -11,8 +11,8 @@ template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuf
                                        VKit::Buffer::Flag_VertexBuffer | VKit::Buffer::Flag_DeviceLocal)
                      .SetSize<Vertex<D>>(p_Vertices.GetSize())
                      .Build();
-    if (!vbres)
-        return VKit::Result<Mesh<D>>::Error(vbres.GetError());
+
+    TKIT_RETURN_ON_ERROR(vbres);
 
     VKit::Buffer &vbuffer = vbres.GetValue();
     QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
@@ -22,7 +22,7 @@ template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuf
     {
         vbuffer.Destroy();
         Core::ReturnQueue(queue);
-        return VKit::Result<Mesh<D>>::Error(ures.GetError());
+        return ures;
     }
 
     return VKit::Result<Mesh<D>>::Ok(vbuffer);
@@ -35,8 +35,7 @@ VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, con
                                        VKit::Buffer::Flag_VertexBuffer | VKit::Buffer::Flag_DeviceLocal)
                      .SetSize<Vertex<D>>(p_Vertices.GetSize())
                      .Build();
-    if (!vbres)
-        return VKit::Result<Mesh<D>>::Error(vbres.GetError());
+    TKIT_RETURN_ON_ERROR(vbres);
 
     VKit::Buffer &vbuffer = vbres.GetValue();
     auto ibres = VKit::Buffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
@@ -46,7 +45,7 @@ VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, con
     if (!ibres)
     {
         vbuffer.Destroy();
-        return VKit::Result<Mesh<D>>::Error(ibres.GetError());
+        return ibres;
     }
 
     VKit::Buffer &ibuffer = ibres.GetValue();
@@ -58,7 +57,7 @@ VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, con
         vbuffer.Destroy();
         ibuffer.Destroy();
         Core::ReturnQueue(queue);
-        return VKit::Result<Mesh<D>>::Error(ures.GetError());
+        return ures;
     }
     ures = ibuffer.UploadFromHost<Index>(Core::GetTransferPool(), queue->Queue, p_Indices);
     Core::ReturnQueue(queue);
@@ -66,7 +65,7 @@ VKit::Result<Mesh<D>> Mesh<D>::Create(const HostVertexBuffer<D> &p_Vertices, con
     {
         vbuffer.Destroy();
         ibuffer.Destroy();
-        return VKit::Result<Mesh<D>>::Error(ures.GetError());
+        return ures;
     }
 
     return VKit::Result<Mesh<D>>::Ok(vbuffer, ibuffer);
@@ -122,8 +121,7 @@ template <Dimension D>
 VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, const f32m<D> *p_Transform)
 {
     const auto result = Onyx::Load<D>(p_Path, p_Transform);
-    if (!result)
-        return VKit::FormattedResult<Mesh>::Error(result.GetError());
+    TKIT_RETURN_ON_ERROR(result);
 
     const IndexVertexHostData<D> &data = result.GetValue();
 

@@ -62,7 +62,7 @@ VKit::FormattedResult<NamedMesh<D>> NamedMesh<D>::Load(const std::string_view p_
 
     auto &meshes = getMeshes<D>();
     meshes.Append(nmesh);
-    return VKit::FormattedResult<NamedMesh<D>>::Ok(nmesh);
+    return nmesh;
 }
 template <Dimension D> void Shape<D>::SetProperties(RenderContext<D> *p_Context)
 {
