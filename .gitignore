@@ -4,7 +4,6 @@
 *build*/
 onyx/shaders/bin/
 demo/shaders/bin/
-demo/meshes*/
 .venv/
 .DS_Store
 .clangd
