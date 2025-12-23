@@ -4,7 +4,9 @@
 #include "onyx/core/glfw.hpp"
 #include "onyx/imgui/imgui.hpp"
 #include "onyx/imgui/implot.hpp"
-#include "onyx/imgui/backend.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include "onyx/imgui/backend.hpp"
+#endif
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/debug.hpp"
 
