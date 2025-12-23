@@ -129,12 +129,7 @@ static void initializeImGui(WindowData &p_Data)
 #    endif
 
     ImGuiIO &io = ImGui::GetIO();
-    TKIT_LOG_WARNING_IF(!(p_Data.ImGuiFlags.Backend & ImGuiBackendFlags_RendererHasTextures),
-                        "[ONYX] ImGui may fail to initialize if ImGuiBackendFlags_RendererHasTextures is not set. If "
-                        "you experience issues, try reloading ImGui with them enabled");
-
-    io.ConfigFlags = p_Data.ImGuiFlags.Config;
-    io.BackendFlags = p_Data.ImGuiFlags.Backend;
+    io.ConfigFlags = p_Data.ImGuiConfigFlags;
 
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     if (!(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
@@ -187,6 +182,9 @@ static void initializeImGui(WindowData &p_Data)
 
     TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true,
                         "[ONYX] Failed to initialize ImGui Vulkan for window '{}'", window->GetName());
+
+    ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
+    io.FontDefault = font;
 
     p_Data.SetFlags(Application::Flag_ImGuiRunning);
 }
@@ -339,9 +337,9 @@ bool Application::DisplayDeltaTime(const Window *p_Window, const UserLayer::Flag
     return displayDeltaTime(*data, p_Flags);
 }
 
-bool Application::enableImGui(WindowData &p_Data, const ImGuiFlags p_Flags)
+bool Application::enableImGui(WindowData &p_Data, const i32 p_Flags)
 {
-    p_Data.ImGuiFlags = p_Flags;
+    p_Data.ImGuiConfigFlags = p_Flags;
     if (checkFlags(Flag_Defer))
     {
         p_Data.SetFlags(Flag_MustDisableImGui);
@@ -352,13 +350,13 @@ bool Application::enableImGui(WindowData &p_Data, const ImGuiFlags p_Flags)
     return true;
 }
 
-bool Application::EnableImGui(const Window *p_Window, const ImGuiFlags p_Flags)
+bool Application::EnableImGui(const Window *p_Window, const i32 p_Flags)
 {
     WindowData *data = getWindowData(p_Window);
     return enableImGui(*data, p_Flags);
 }
 
-bool Application::EnableImGui(const ImGuiFlags p_Flags)
+bool Application::EnableImGui(const i32 p_Flags)
 {
     return enableImGui(m_MainWindow, p_Flags);
 }
@@ -376,9 +374,9 @@ bool Application::DisableImGui(const Window *p_Window)
     return true;
 }
 
-bool Application::reloadImGui(WindowData &p_Data, const ImGuiFlags p_Flags)
+bool Application::reloadImGui(WindowData &p_Data, const i32 p_Flags)
 {
-    p_Data.ImGuiFlags = p_Flags;
+    p_Data.ImGuiConfigFlags = p_Flags;
     if (checkFlags(Flag_Defer))
     {
         p_Data.SetFlags(Flag_MustDisableImGui | Flag_MustEnableImGui);
@@ -389,11 +387,11 @@ bool Application::reloadImGui(WindowData &p_Data, const ImGuiFlags p_Flags)
     return true;
 }
 
-bool Application::ReloadImGui(const ImGuiFlags p_Flags)
+bool Application::ReloadImGui(const i32 p_Flags)
 {
     return reloadImGui(m_MainWindow, p_Flags);
 }
-bool Application::ReloadImGui(const Window *p_Window, const ImGuiFlags p_Flags)
+bool Application::ReloadImGui(const Window *p_Window, const i32 p_Flags)
 {
     WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
     return reloadImGui(*data, p_Flags);
@@ -599,7 +597,6 @@ Application::WindowData Application::createWindow(const WindowSpecs &p_Specs)
     }
 
 #ifdef ONYX_ENABLE_IMGUI
-    data.ImGuiFlags.Backend = ImGuiBackendFlags_RendererHasTextures;
     if (p_Specs.EnableImGui)
     {
         initializeImGui(data);

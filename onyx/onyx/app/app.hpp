@@ -96,14 +96,6 @@ class ONYX_API Application
         }
     };
 
-#ifdef ONYX_ENABLE_IMGUI
-    struct ImGuiFlags
-    {
-        i32 Config = 0;
-        i32 Backend = 0;
-    };
-#endif
-
     struct WindowData
     {
         Window *Window = nullptr;
@@ -116,7 +108,7 @@ class ONYX_API Application
 #    ifdef ONYX_ENABLE_IMPLOT
         ImPlotContext *ImPlotContext = nullptr;
 #    endif
-        ImGuiFlags ImGuiFlags{};
+        i32 ImGuiConfigFlags = 0;
         Theme *Theme = nullptr;
         // only relevant when displaying delta times, not for actual logic
         bool MirrorDeltas = true;
@@ -439,18 +431,18 @@ class ONYX_API Application
     bool DisplayDeltaTime(UserLayer::Flags p_Flags = 0);
     bool DisplayDeltaTime(const Window *p_Window, UserLayer::Flags p_Flags = 0);
 
-    bool EnableImGui(ImGuiFlags p_Flags = {0, 0});
-    bool EnableImGui(const Window *p_Window, ImGuiFlags p_Flags = {0, 0});
+    bool EnableImGui(i32 p_ConfigFlags = 0);
+    bool EnableImGui(const Window *p_Window, i32 p_ConfigFlags = 0);
 
     bool DisableImGui(const Window *p_Window = nullptr);
 
-    bool ReloadImGui(ImGuiFlags p_Flags = {0, 0});
-    bool ReloadImGui(const Window *p_Window, ImGuiFlags p_Flags = {0, 0});
+    bool ReloadImGui(i32 p_ConfigFlags = 0);
+    bool ReloadImGui(const Window *p_Window, i32 p_ConfigFlags = 0);
 
-    ImGuiFlags GetImGuiFlags(const Window *p_Window = nullptr) const
+    i32 GetImGuiConfigFlags(const Window *p_Window = nullptr) const
     {
         const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
-        return data->ImGuiFlags;
+        return data->ImGuiConfigFlags;
     }
 #endif
   private:
@@ -502,8 +494,8 @@ class ONYX_API Application
 #endif
 
 #ifdef ONYX_ENABLE_IMGUI
-    bool enableImGui(WindowData &p_Data, ImGuiFlags p_Flags);
-    bool reloadImGui(WindowData &p_Data, ImGuiFlags p_Flags);
+    bool enableImGui(WindowData &p_Data, i32 p_Flags);
+    bool reloadImGui(WindowData &p_Data, i32 p_Flags);
     static void applyTheme(const WindowData &p_Data);
 #endif
 

@@ -1,24 +1,12 @@
-#ifdef ONYX_ENABLE_IMGUI
-#    include "onyx/core/pch.hpp"
-#    include "onyx/app/theme.hpp"
-#    include "onyx/core/alias.hpp"
-
-#    include "onyx/core/imgui.hpp"
+#include "onyx/core/pch.hpp"
+#include "onyx/app/theme.hpp"
+#include "onyx/core/alias.hpp"
+#include "onyx/core/imgui.hpp"
 
 namespace Onyx
 {
-static void applyOpenSansFont()
-{
-    ImGuiIO &io = ImGui::GetIO();
-
-    io.Fonts->Clear();
-    auto font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
-    io.Fonts->Build();
-    io.FontDefault = font;
-}
 void CinderTheme::Apply() const
 {
-    applyOpenSansFont();
     ImGuiStyle &style = ImGui::GetStyle();
     style.WindowMinSize = ImVec2(160, 20);
     style.FramePadding = ImVec2(4, 2);
@@ -86,7 +74,6 @@ void CinderTheme::Apply() const
 
 void BabyTheme::Apply() const
 {
-    applyOpenSansFont();
     ImGuiStyle &style = ImGui::GetStyle();
     style.WindowMinSize = ImVec2(160, 20);
     style.FramePadding = ImVec2(4, 2);
@@ -148,7 +135,6 @@ void BabyTheme::Apply() const
 
 void DougBinksTheme::Apply() const
 {
-    applyOpenSansFont();
     ImGuiStyle &style = ImGui::GetStyle();
 
     const f32 alpha = 1.f;
@@ -211,7 +197,6 @@ void DougBinksTheme::Apply() const
 
 void LedSynthMasterTheme::Apply() const
 {
-    applyOpenSansFont();
 
     ImGuiStyle *style = &ImGui::GetStyle();
 
@@ -367,9 +352,7 @@ void HazelTheme::Apply() const
 
 void DefaultTheme::Apply() const
 {
-    applyOpenSansFont();
     ImGui::StyleColorsDark();
 }
 
 } // namespace Onyx
-#endif

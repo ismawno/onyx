@@ -1,10 +1,9 @@
-#ifdef ONYX_ENABLE_IMGUI
-#    include "onyx/core/pch.hpp"
-#    include "onyx/app/user_layer.hpp"
-#    include "onyx/app/app.hpp"
-#    include "onyx/rendering/render_context.hpp"
-#    include "onyx/property/transform.hpp"
-#    include "onyx/core/imgui.hpp"
+#include "onyx/core/pch.hpp"
+#include "onyx/app/user_layer.hpp"
+#include "onyx/app/app.hpp"
+#include "onyx/rendering/render_context.hpp"
+#include "onyx/property/transform.hpp"
+#include "onyx/core/imgui.hpp"
 
 namespace Onyx
 {
@@ -378,4 +377,3 @@ bool UserLayer::ScissorEditor(ScreenScissor &p_Scissor, const Flags p_Flags)
 }
 
 } // namespace Onyx
-#endif
