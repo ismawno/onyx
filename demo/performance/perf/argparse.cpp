@@ -22,12 +22,12 @@ template <Dimension D> void exportLatticeToFile(const Lattice<D> &p_Lattice, Par
     node["Lattices"].push_back(p_Lattice);
     if constexpr (D == D2)
     {
-        TKit::Yaml::ToFile(ONYX_ROOT_PATH "/performance/settings-2D.yaml", node);
+        TKit::Yaml::ToFile(ONYX_ROOT_PATH "/demo/performance/settings-2D.yaml", node);
         result.Lattices2.Append(p_Lattice);
     }
     else
     {
-        TKit::Yaml::ToFile(ONYX_ROOT_PATH "/performance/settings-3D.yaml", node);
+        TKit::Yaml::ToFile(ONYX_ROOT_PATH "/demo/performance/settings-3D.yaml", node);
         result.Lattices3.Append(p_Lattice);
     }
 }
