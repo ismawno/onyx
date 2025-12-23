@@ -24,7 +24,8 @@ set(SOURCES
     onyx/app/input.cpp)
 
 if(ONYX_ENABLE_IMGUI)
-  list(APPEND SOURCES onyx/app/user_layer.cpp onyx/app/theme.cpp)
+  list(APPEND SOURCES onyx/app/user_layer.cpp onyx/imgui/theme.cpp
+       onyx/imgui/backend.cpp)
 endif()
 if(ONYX_ENABLE_NFD)
   list(APPEND SOURCES onyx/core/dialog.cpp)
@@ -140,7 +141,7 @@ if(ONYX_ENABLE_IMGUI)
       ${imgui_SOURCE_DIR}/imgui_draw.cpp
       ${imgui_SOURCE_DIR}/imgui_tables.cpp
       ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-      onyx/vendor/imgui_impl_glfw.cpp
+      onyx/imgui/imgui_impl_glfw.cpp
       ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
 
   add_library(imgui STATIC ${IMGUI_SOURCES})

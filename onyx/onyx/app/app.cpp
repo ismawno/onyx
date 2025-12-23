@@ -1,14 +1,12 @@
-#define ONYX_IMGUI_INCLUDE_BACKEND
 #include "onyx/core/pch.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/core/glfw.hpp"
-#include "onyx/core/core.hpp"
 #include "onyx/imgui/imgui.hpp"
 #include "onyx/imgui/implot.hpp"
+#include "onyx/imgui/backend.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/debug.hpp"
-#include "vkit/vulkan/loader.hpp"
 
 namespace Onyx
 {
@@ -44,24 +42,15 @@ void Application::ApplyTheme(const Window *p_Window)
 static void beginRenderImGui()
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::BeginRenderImGui");
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
+    NewImGuiFrame();
 }
 
 static void endRenderImGui(const VkCommandBuffer p_CommandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::EndRenderImGui");
     ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), p_CommandBuffer);
-
-    const ImGuiIO &io = ImGui::GetIO();
-
-    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-    {
-        ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindowsDefault();
-    }
+    RenderImGuiData(ImGui::GetDrawData(), p_CommandBuffer);
+    RenderImGuiWindows();
 }
 
 void Application::setUpdateDeltaTime(const TKit::Timespan p_Target, WindowData &p_Data)
@@ -123,53 +112,7 @@ static void initializeImGui(WindowData &p_Data)
 
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags = p_Data.ImGuiConfigFlags;
-
-    TKIT_ASSERT_RETURNS(ImGui_ImplGlfw_InitForVulkan(window->GetWindowHandle(), true), true,
-                        "[ONYX] Failed to initialize ImGui GLFW for window '{}'", window->GetName());
-
-    const VKit::Instance &instance = Core::GetInstance();
-    const VKit::LogicalDevice &device = Core::GetDevice();
-
-    TKIT_LOG_WARNING_IF(
-        (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) &&
-            instance.GetInfo().Flags & VKit::Instance::Flag_HasValidationLayers,
-        "[ONYX] Vulkan validation layers have become stricter regarding semaphore and fence usage when submitting to "
-        "queues. ImGui may not have caught up to this and may trigger validation errors when the "
-        "ImGuiConfigFlags_ViewportsEnable flag is set. If this is the case, either disable the flag or the vulkan "
-        "validation layers. If the application runs well, you may safely ignore this warning");
-
-    ImGui_ImplVulkan_PipelineInfo pipelineInfo{};
-    pipelineInfo.PipelineRenderingCreateInfo = window->GetFrameScheduler()->CreateSceneRenderInfo();
-    pipelineInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-
-    const VkSurfaceCapabilitiesKHR &sc =
-        window->GetFrameScheduler()->GetSwapChain().GetInfo().SupportDetails.Capabilities;
-
-    const u32 imageCount = sc.minImageCount != sc.maxImageCount ? sc.minImageCount + 1 : sc.minImageCount;
-
-    ImGui_ImplVulkan_InitInfo initInfo{};
-    initInfo.ApiVersion = instance.GetInfo().ApiVersion;
-    initInfo.Instance = instance;
-    initInfo.PhysicalDevice = device.GetInfo().PhysicalDevice;
-    initInfo.Device = device;
-    initInfo.Queue = window->GetFrameScheduler()->GetQueueData().Graphics->Queue;
-    initInfo.QueueFamily = Core::GetFamilyIndex(VKit::Queue_Graphics);
-    initInfo.DescriptorPoolSize = 100;
-    initInfo.MinImageCount = sc.minImageCount;
-    initInfo.ImageCount = imageCount;
-    initInfo.UseDynamicRendering = true;
-    initInfo.PipelineInfoMain = pipelineInfo;
-
-    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_LoadFunctions(instance.GetInfo().ApiVersion,
-                                                       [](const char *p_Name, void *) -> PFN_vkVoidFunction {
-                                                           return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(),
-                                                                                                    p_Name);
-                                                       }),
-                        true, "[ONYX] Failed to load ImGui Vulkan functions");
-
-    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true,
-                        "[ONYX] Failed to initialize ImGui Vulkan for window '{}'", window->GetName());
-
+    InitializeImGui(window);
     ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
     io.FontDefault = font;
     p_Data.Theme->Apply();
@@ -189,10 +132,8 @@ static void shutdownImGui(WindowData &p_Data)
     ImPlot::SetCurrentContext(p_Data.ImPlotContext);
 #    endif
 
-    Core::DeviceWaitIdle();
-    ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyPlatformWindows();
+    ShutdownImGui();
+
     ImGui::DestroyContext(p_Data.ImGuiContext);
     p_Data.ImGuiContext = nullptr;
 #    ifdef ONYX_ENABLE_IMPLOT
