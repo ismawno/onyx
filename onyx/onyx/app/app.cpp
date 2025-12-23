@@ -518,12 +518,9 @@ Application::WindowData Application::createWindow(const WindowSpecs &p_Specs)
 {
     WindowData data;
     data.Window = m_WindowAllocator.Create<Window>(p_Specs.Specs);
-    if (data.Window->IsVSync())
-    {
-        data.RenderClock.Delta.Time.Target = data.Window->GetMonitorDeltaTime();
-        data.RenderClock.Delta.Limit = true;
-        data.UpdateClock = data.RenderClock;
-    }
+    data.RenderClock.Delta.Time.Target = data.Window->GetMonitorDeltaTime();
+    data.RenderClock.Delta.Limit = true;
+    data.UpdateClock = data.RenderClock;
 
 #ifdef ONYX_ENABLE_IMGUI
     if (p_Specs.EnableImGui)
