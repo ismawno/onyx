@@ -49,7 +49,7 @@ static void beginRenderImGui()
     ImGui::NewFrame();
 }
 
-static void endRenderImGui(VkCommandBuffer p_CommandBuffer)
+static void endRenderImGui(const VkCommandBuffer p_CommandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::EndRenderImGui");
     ImGui::Render();
@@ -64,18 +64,11 @@ static void endRenderImGui(VkCommandBuffer p_CommandBuffer)
     }
 }
 
-static i32 createVkSurface(ImGuiViewport *, ImU64 p_Instance, const void *p_Callbacks, ImU64 *p_Surface)
-{
-    return glfwCreateWindowSurface(reinterpret_cast<VkInstance>(p_Instance), nullptr,
-                                   static_cast<const VkAllocationCallbacks *>(p_Callbacks),
-                                   reinterpret_cast<VkSurfaceKHR *>(&p_Surface));
-}
-
-void Application::setUpdateDeltaTime(TKit::Timespan p_Target, WindowData &p_Data)
+void Application::setUpdateDeltaTime(const TKit::Timespan p_Target, WindowData &p_Data)
 {
     p_Data.UpdateClock.Delta.Time.Target = p_Target;
 }
-void Application::setRenderDeltaTime(TKit::Timespan p_Target, WindowData &p_Data)
+void Application::setRenderDeltaTime(const TKit::Timespan p_Target, WindowData &p_Data)
 {
     TKIT_LOG_WARNING_IF(p_Data.Window->IsVSync(),
                         "[ONYX] When the present mode of the window is FIFO (V-Sync), setting the target delta "
@@ -130,10 +123,6 @@ static void initializeImGui(WindowData &p_Data)
 
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags = p_Data.ImGuiConfigFlags;
-
-    ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
-    if (!(io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable))
-        pio.Platform_CreateVkSurface = createVkSurface;
 
     p_Data.Theme->Apply();
 
