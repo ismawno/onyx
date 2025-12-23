@@ -124,8 +124,6 @@ static void initializeImGui(WindowData &p_Data)
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags = p_Data.ImGuiConfigFlags;
 
-    p_Data.Theme->Apply();
-
     TKIT_ASSERT_RETURNS(ImGui_ImplGlfw_InitForVulkan(window->GetWindowHandle(), true), true,
                         "[ONYX] Failed to initialize ImGui GLFW for window '{}'", window->GetName());
 
@@ -174,6 +172,7 @@ static void initializeImGui(WindowData &p_Data)
 
     ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
     io.FontDefault = font;
+    p_Data.Theme->Apply();
 
     p_Data.SetFlags(Application::Flag_ImGuiRunning);
 }
