@@ -90,7 +90,7 @@ class ONYX_API Window
         const char *Name = "Onyx window";
         u32v2 Position{TKit::Limits<u32>::Max()}; // u32 max means let it be decided automatically
         u32v2 Dimensions{800, 600};
-        VkPresentModeKHR PresentMode = VK_PRESENT_MODE_FIFO_KHR;
+        VkPresentModeKHR PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
         Flags Flags = Flag_Resizable | Flag_Visible | Flag_Decorated | Flag_Focused;
     };
 
