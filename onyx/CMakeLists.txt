@@ -129,7 +129,7 @@ if(ONYX_ENABLE_IMGUI)
   FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.92.5-docking
+    GIT_TAG 396b33d0d011290f11915b6a2a2bf7737fb42dd7
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
 
@@ -141,7 +141,7 @@ if(ONYX_ENABLE_IMGUI)
       ${imgui_SOURCE_DIR}/imgui_draw.cpp
       ${imgui_SOURCE_DIR}/imgui_tables.cpp
       ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-      onyx/imgui/imgui_impl_glfw.cpp
+      ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
       ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
 
   add_library(imgui STATIC ${IMGUI_SOURCES})
@@ -154,7 +154,8 @@ if(ONYX_ENABLE_IMGUI)
     target_link_libraries(imgui PUBLIC Vulkan::Headers)
   endif()
   target_link_libraries(imgui PRIVATE glfw)
-  target_compile_definitions(imgui PUBLIC IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
+  target_compile_definitions(imgui PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
+                                           IMGUI_IMPL_GLFW_DISABLE_X11)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMGUI)
   target_link_libraries(onyx PUBLIC imgui)
 
