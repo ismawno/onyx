@@ -1,7 +1,7 @@
 #include "onyx/app/app.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/core/shaders.hpp"
-#include "onyx/core/imgui.hpp"
+#include "onyx/imgui/imgui.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"

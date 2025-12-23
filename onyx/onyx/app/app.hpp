@@ -3,7 +3,7 @@
 #include "onyx/app/user_layer.hpp"
 #include "onyx/app/window.hpp"
 #ifdef ONYX_ENABLE_IMGUI
-#    include "onyx/app/theme.hpp"
+#    include "onyx/imgui/theme.hpp"
 #endif
 #include "tkit/profiling/clock.hpp"
 

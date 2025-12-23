@@ -1,6 +1,6 @@
 #include "perf/layer.hpp"
 #include "onyx/app/app.hpp"
-#include "onyx/core/imgui.hpp"
+#include "onyx/imgui/imgui.hpp"
 
 namespace Onyx::Demo
 {

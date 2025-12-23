@@ -3,7 +3,7 @@
 #include "onyx/app/app.hpp"
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/property/transform.hpp"
-#include "onyx/core/imgui.hpp"
+#include "onyx/imgui/imgui.hpp"
 
 namespace Onyx
 {

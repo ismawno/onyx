@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/app/theme.hpp"
+#include "onyx/imgui/theme.hpp"
 #include "onyx/core/alias.hpp"
-#include "onyx/core/imgui.hpp"
+#include "onyx/imgui/imgui.hpp"
 
 namespace Onyx
 {
