@@ -13,7 +13,7 @@ set(SOURCES
     onyx/rendering/post_processing.cpp
     onyx/data/state.cpp
     onyx/data/sync.cpp
-    onyx/data/buffers.cpp
+    onyx/data/buffer.cpp
     onyx/property/vertex.cpp
     onyx/property/color.cpp
     onyx/property/transform.cpp

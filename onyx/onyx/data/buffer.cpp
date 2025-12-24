@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/property/vertex.hpp"
-#include "onyx/data/buffers.hpp"
+#include "onyx/data/buffer.hpp"
 #ifdef ONYX_ENABLE_OBJ
 #    include <tiny_obj_loader.h>
 #endif

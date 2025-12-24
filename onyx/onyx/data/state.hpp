@@ -3,7 +3,7 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/property/color.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/data/buffers.hpp"
+#include "onyx/data/buffer.hpp"
 #include "vkit/pipeline/graphics_pipeline.hpp"
 #include <vulkan/vulkan.h>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/data/buffers.hpp"
+#include "onyx/data/buffer.hpp"
 #include "tkit/serialization/yaml/serialize.hpp"
 
 #ifndef ONYX_MAX_REGULAR_POLYGON_SIDES

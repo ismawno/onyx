@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/object/mesh.hpp"
-#include "onyx/data/buffers.hpp"
+#include "onyx/data/buffer.hpp"
 #include "onyx/core/core.hpp"
 
 namespace Onyx
