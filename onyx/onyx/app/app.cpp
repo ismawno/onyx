@@ -511,7 +511,10 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
             sleep = s;
     }
 #endif
-    TKit::Timespan::Sleep(sleep);
+    {
+        TKIT_PROFILE_NSCOPE("Onyx::Application::Sleep");
+        TKit::Timespan::Sleep(sleep);
+    }
     m_DeltaTime = p_Clock.Restart();
     return m_MainWindow.Window;
 }
