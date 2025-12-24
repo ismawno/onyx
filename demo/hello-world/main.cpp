@@ -136,9 +136,6 @@ static void RunAppExample2()
 {
     Onyx::Application app({.Name = "App2 Hello, World!", .Dimensions = u32v2{800, 600}});
 
-    const auto result = Onyx::Mesh<D2>::Load(ONYX_ROOT_PATH "/onyx/meshes/square.obj");
-    VKIT_ASSERT_RESULT(result);
-    Onyx::Mesh<D2> square = result.GetValue();
     Onyx::RenderContext<D2> *context = app.GetMainWindow()->CreateRenderContext<D2>();
     app.GetMainWindow()->CreateCamera<D2>();
 
@@ -150,9 +147,8 @@ static void RunAppExample2()
         context->Flush();
 
         context->Fill(Onyx::Color::RED);
-        context->Mesh(square);
+        context->Circle();
     }
-    square.Destroy();
 }
 
 static void RunAppExample3()

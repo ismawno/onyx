@@ -95,6 +95,7 @@ template <Dimension D> class Mesh
         return m_IndexBuffer;
     }
 
+#ifdef ONYX_ENABLE_OBJ
     /**
      * @brief Loads a mesh from a file.
      *
@@ -103,6 +104,7 @@ template <Dimension D> class Mesh
      * @return A result containing the loaded mesh or an error.
      */
     static VKit::FormattedResult<Mesh> Load(std::string_view p_Path, const f32m<D> *p_Transform = nullptr);
+#endif
 
     friend bool operator==(const Mesh &p_Lhs, const Mesh &p_Rhs)
     {

@@ -60,7 +60,8 @@
         "ONYX_ENABLE_IMGUI": "ON",
         "ONYX_ENABLE_IMPLOT": "OFF",
         "ONYX_ENABLE_VALIDATION_LAYERS": "OFF",
-        "ONYX_ENABLE_NFD": "ON"
+        "ONYX_ENABLE_NFD": "ON",
+        "ONYX_ENABLE_OBJ": "ON"
       }
     },
     {

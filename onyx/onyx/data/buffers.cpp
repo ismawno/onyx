@@ -1,7 +1,9 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/property/vertex.hpp"
 #include "onyx/data/buffers.hpp"
-#include <tiny_obj_loader.h>
+#ifdef ONYX_ENABLE_OBJ
+#    include <tiny_obj_loader.h>
+#endif
 
 namespace Onyx
 {
@@ -68,6 +70,7 @@ void ApplyReleaseBarrier(const VkCommandBuffer p_CommandBuffer,
                                               p_Barriers.GetData(), 0, nullptr);
 }
 } // namespace Detail
+#ifdef ONYX_ENABLE_OBJ
 template <Dimension D>
 VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path, const f32m<D> *p_Transform)
 {
@@ -121,11 +124,11 @@ VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path
                 vertex.Position = f32v2{*p_Transform * f32v3{vertex.Position, 1.f}};
     return buffers;
 }
-
 template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path,
                                                                       const f32m<D2> *p_Transform);
 template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std::string_view p_Path,
                                                                       const f32m<D3> *p_Transform);
+#endif
 
 template struct ONYX_API IndexVertexHostData<D2>;
 template struct ONYX_API IndexVertexHostData<D3>;

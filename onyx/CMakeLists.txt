@@ -95,14 +95,20 @@ else()
 endif()
 target_link_libraries(onyx PRIVATE glfw)
 
-FetchContent_Declare(
-  tobjl
-  GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
-  GIT_TAG v2.0.0rc13
-  GIT_SHALLOW TRUE
-  GIT_PROGRESS TRUE)
+if(ONYX_ENABLE_OBJ)
+  FetchContent_Declare(
+    tobjl
+    GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
+    GIT_TAG v2.0.0rc13
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
 
-FetchContent_MakeAvailable(tobjl)
+  FetchContent_MakeAvailable(tobjl)
+
+  target_link_libraries(onyx PRIVATE tinyobjloader)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_OBJ)
+  tkit_configure_compile_link_options(tinyobjloader NO_EXCEPTIONS NO_RTTI)
+endif()
 
 tkit_register_for_yaml_serialization(
   onyx
@@ -226,11 +232,7 @@ if(ONYX_ENABLE_NFD)
   target_link_libraries(onyx PRIVATE nfd)
 endif()
 
-target_link_libraries(
-  onyx
-  PUBLIC toolkit vulkit
-  PRIVATE tinyobjloader)
-
+target_link_libraries(onyx PUBLIC toolkit vulkit)
 target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_precompile_headers(onyx PRIVATE
@@ -238,8 +240,6 @@ target_precompile_headers(onyx PRIVATE
 target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 tkit_default_configure(onyx)
-
-tkit_configure_compile_link_options(tinyobjloader NO_EXCEPTIONS NO_RTTI)
 
 # No need for more: toolkit handles the rest. As it is a library I develop, I
 # will be reusing its macros/configurations

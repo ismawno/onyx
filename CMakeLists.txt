@@ -28,6 +28,9 @@ set(ONYX_ENABLE_VALIDATION_LAYERS
 set(ONYX_ENABLE_NFD
     OFF
     CACHE BOOL "")
+set(ONYX_ENABLE_OBJ
+    OFF
+    CACHE BOOL "")
 
 set(ONYX_ROOT_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -39,6 +42,8 @@ message(STATUS "ONYX - Build demos: ${ONYX_BUILD_DEMOS}")
 message(STATUS "ONYX - Use ImGui: ${ONYX_ENABLE_IMGUI}")
 message(STATUS "ONYX - Use ImPlot: ${ONYX_ENABLE_IMPLOT}")
 message(STATUS "ONYX - Validation layers: ${ONYX_ENABLE_VALIDATION_LAYERS}")
+message(STATUS "ONYX - NFD: ${ONYX_ENABLE_NFD}")
+message(STATUS "ONYX - OBJ: ${ONYX_ENABLE_OBJ}")
 
 # Compiler flags, linker flags etcetera, those should all be handled when making
 # available the toolkit library through the global CMAKE flag variables

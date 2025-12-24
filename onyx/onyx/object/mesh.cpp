@@ -117,6 +117,7 @@ void Mesh<D>::DrawIndexed(const VkCommandBuffer p_CommandBuffer, const u32 p_Ins
                                           p_InstanceCount, p_FirstIndex, p_VertexOffset, p_FirstInstance);
 }
 
+#ifdef ONYX_ENABLE_OBJ
 template <Dimension D>
 VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, const f32m<D> *p_Transform)
 {
@@ -129,6 +130,7 @@ VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, cons
     const bool needsIndices = data.Indices.GetSize() > data.Vertices.GetSize();
     return VKit::ToFormatted(needsIndices ? Mesh<D>::Create(data) : Mesh<D>::Create(data.Vertices));
 }
+#endif
 
 template class ONYX_API Mesh<D2>;
 template class ONYX_API Mesh<D3>;

@@ -3,8 +3,8 @@ project(onyx-hello-world)
 
 set(SOURCES main.cpp)
 
-add_executable(hello-world ${SOURCES})
+add_executable(onyx-hello-world ${SOURCES})
 
-tkit_default_configure(hello-world)
+tkit_default_configure(onyx-hello-world)
 
-target_link_libraries(hello-world PRIVATE onyx)
+target_link_libraries(onyx-hello-world PRIVATE onyx)
