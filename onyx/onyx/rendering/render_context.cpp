@@ -1267,9 +1267,9 @@ void RenderContext<D3>::Axes(const AxesOptions<D3> &p_Options)
 
     color = Color{245u, 64u, 90u};
     Line(xLeft, xRight, {.Thickness = p_Options.Thickness, .Resolution = p_Options.Resolution});
-    color = Color{65u, 135u, 245u};
-    Line(yDown, yUp, {.Thickness = p_Options.Thickness, .Resolution = p_Options.Resolution});
     color = Color{180u, 245u, 65u};
+    Line(yDown, yUp, {.Thickness = p_Options.Thickness, .Resolution = p_Options.Resolution});
+    color = Color{65u, 135u, 245u};
     Line(zBack, zFront, {.Thickness = p_Options.Thickness, .Resolution = p_Options.Resolution});
     color = oldColor; // A cheap filthy pop
 }
