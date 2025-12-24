@@ -37,9 +37,9 @@ TKit::Timespan ToDeltaTime(const u32 p_Frequency)
 static TKit::BlockAllocator createAllocator()
 {
     const u32 maxSize = static_cast<u32>(
-        std::max({sizeof(RenderContext<D2>), sizeof(RenderContext<D3>), sizeof(Camera<D2>), sizeof(Camera<D3>)}));
+        Math::Max({sizeof(RenderContext<D2>), sizeof(RenderContext<D3>), sizeof(Camera<D2>), sizeof(Camera<D3>)}));
     const u32 alignment = static_cast<u32>(
-        std::max({alignof(RenderContext<D2>), alignof(RenderContext<D3>), alignof(Camera<D2>), alignof(Camera<D3>)}));
+        Math::Max({alignof(RenderContext<D2>), alignof(RenderContext<D3>), alignof(Camera<D2>), alignof(Camera<D3>)}));
     return TKit::BlockAllocator{maxSize * 2 * (ONYX_MAX_RENDER_CONTEXTS + ONYX_MAX_CAMERAS), maxSize, alignment};
 }
 

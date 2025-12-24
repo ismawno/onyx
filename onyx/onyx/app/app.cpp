@@ -498,8 +498,8 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
     endFrame();
 
     const auto computeSleep = [](const WindowData &p_Data) {
-        return std::min(p_Data.RenderClock.Delta.Time.Target - p_Data.RenderClock.Clock.GetElapsed(),
-                        p_Data.UpdateClock.Delta.Time.Target - p_Data.UpdateClock.Clock.GetElapsed());
+        return Math::Min(p_Data.RenderClock.Delta.Time.Target - p_Data.RenderClock.Clock.GetElapsed(),
+                         p_Data.UpdateClock.Delta.Time.Target - p_Data.UpdateClock.Clock.GetElapsed());
     };
 
     TKit::Timespan sleep = computeSleep(m_MainWindow);
