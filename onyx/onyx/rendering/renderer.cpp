@@ -467,9 +467,9 @@ VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, co
         VKit::Buffer &lpbuffer = m_DeviceLightData.DeviceLocalPoints[p_FrameIndex];
         VKit::Buffer &spbuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
         lpbuffer.CopyFromBuffer(p_TransferCommand, spbuffer, {.Size = psize});
-        sacquires.Append(CreateAcquireBarrier(lpbuffer, dsize));
+        sacquires.Append(CreateAcquireBarrier(lpbuffer, psize));
         if (separate)
-            releases.Append(CreateReleaseBarrier(lpbuffer, dsize));
+            releases.Append(CreateReleaseBarrier(lpbuffer, psize));
     }
 
     VkPipelineStageFlags flags = 0;
