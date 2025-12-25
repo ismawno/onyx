@@ -236,7 +236,7 @@ static IndexVertexHostData<D3> createSphere(const Index p_Rings, const Index p_S
     IndexVertexHostData<D3> data{};
     const auto addVertex = [&data](const f32 p_X, const f32 p_Y, const f32 p_Z) {
         const f32v3 vertex = f32v3{p_X, p_Y, p_Z};
-        data.Vertices.Append(Vertex<D3>{vertex, vertex});
+        data.Vertices.Append(Vertex<D3>{vertex, Math::Normalize(vertex)});
     };
     const auto addIndex = [&data, p_Sectors, rings](const Index p_Ring, const Index p_Sector) {
         Index idx;
@@ -309,7 +309,7 @@ static IndexVertexHostData<D3> createCylinder(const u32 p_Sides)
 
     const auto addVertex = [&data](const f32 p_X, const f32 p_Y, const f32 p_Z) {
         const f32v3 vertex = f32v3{p_X, p_Y, p_Z};
-        data.Vertices.Append(Vertex<D3>{vertex, vertex});
+        data.Vertices.Append(Vertex<D3>{vertex, Math::Normalize(vertex)});
     };
 
     const u32 offset = left.Vertices.GetSize() + right.Vertices.GetSize();
