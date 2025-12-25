@@ -13,7 +13,7 @@ template <Dimension D> struct NamedMesh
     static const TKit::StaticArray16<NamedMesh<D>> &Get();
 
     static bool IsLoaded(std::string_view p_Name);
-    static VKit::FormattedResult<> Load(std::string_view p_Name, std::string_view p_Path);
+    static VKit::Result<> Load(std::string_view p_Name, std::string_view p_Path);
 
     std::string Name{};
     Mesh<D> Mesh{};

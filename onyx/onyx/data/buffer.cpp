@@ -72,14 +72,14 @@ void ApplyReleaseBarrier(const VkCommandBuffer p_CommandBuffer,
 } // namespace Detail
 #ifdef ONYX_ENABLE_OBJ
 template <Dimension D>
-VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path, const f32m<D> *p_Transform)
+VKit::Result<IndexVertexHostData<D>> Load(const std::string_view p_Path, const f32m<D> *p_Transform)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;
 
     if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, p_Path.data()))
-        return VKit::FormattedResult<IndexVertexHostData<D>>::Error(
+        return VKit::Result<IndexVertexHostData<D>>::Error(
             VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load mesh: {}", err + warn));
 
     TKit::HashMap<Vertex<D>, Index> uniqueVertices;
@@ -124,9 +124,9 @@ VKit::FormattedResult<IndexVertexHostData<D>> Load(const std::string_view p_Path
                 vertex.Position = f32v2{*p_Transform * f32v3{vertex.Position, 1.f}};
     return buffers;
 }
-template ONYX_API VKit::FormattedResult<IndexVertexHostData<D2>> Load(const std::string_view p_Path,
+template ONYX_API VKit::Result<IndexVertexHostData<D2>> Load(const std::string_view p_Path,
                                                                       const f32m<D2> *p_Transform);
-template ONYX_API VKit::FormattedResult<IndexVertexHostData<D3>> Load(const std::string_view p_Path,
+template ONYX_API VKit::Result<IndexVertexHostData<D3>> Load(const std::string_view p_Path,
                                                                       const f32m<D3> *p_Transform);
 #endif
 

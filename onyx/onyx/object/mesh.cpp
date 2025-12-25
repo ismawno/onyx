@@ -118,8 +118,7 @@ void Mesh<D>::DrawIndexed(const VkCommandBuffer p_CommandBuffer, const u32 p_Ins
 }
 
 #ifdef ONYX_ENABLE_OBJ
-template <Dimension D>
-VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, const f32m<D> *p_Transform)
+template <Dimension D> VKit::Result<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, const f32m<D> *p_Transform)
 {
     const auto result = Onyx::Load<D>(p_Path, p_Transform);
     TKIT_RETURN_ON_ERROR(result);
@@ -128,7 +127,7 @@ VKit::FormattedResult<Mesh<D>> Mesh<D>::Load(const std::string_view p_Path, cons
 
     // a bit of an assumption here
     const bool needsIndices = data.Indices.GetSize() > data.Vertices.GetSize();
-    return VKit::ToFormatted(needsIndices ? Mesh<D>::Create(data) : Mesh<D>::Create(data.Vertices));
+    return needsIndices ? Mesh<D>::Create(data) : Mesh<D>::Create(data.Vertices);
 }
 #endif
 

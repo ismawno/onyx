@@ -122,17 +122,17 @@ void SandboxLayer::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-template <Dimension D> static VKit::FormattedResult<> loadMesh(const Dialog::Path &p_Path)
+template <Dimension D> static VKit::Result<> loadMesh(const Dialog::Path &p_Path)
 {
     const std::string name = p_Path.filename().string();
     const bool isLoaded = NamedMesh<D>::IsLoaded(name);
     if (isLoaded)
-        return VKit::FormattedResult<>::Error(
+        return VKit::Result<>::Error(
             VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "The mesh '{}' is already loaded", name));
 
     const auto result = NamedMesh<D>::Load(name, p_Path.string());
     TKIT_RETURN_ON_ERROR(result);
-    return VKit::FormattedResult<>::Ok();
+    return VKit::Result<>::Ok();
 }
 template <Dimension D> static void renderMeshLoad(const char *p_Default)
 {

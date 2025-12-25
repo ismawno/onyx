@@ -41,7 +41,7 @@ template <Dimension D> struct IndexVertexHostData
 
 #ifdef ONYX_ENABLE_OBJ
 template <Dimension D>
-VKit::FormattedResult<IndexVertexHostData<D>> Load(std::string_view p_Path, const f32m<D> *p_Transform = nullptr);
+VKit::Result<IndexVertexHostData<D>> Load(std::string_view p_Path, const f32m<D> *p_Transform = nullptr);
 #endif
 
 template <typename T> VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flags, const u32 p_Capacity)

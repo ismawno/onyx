@@ -29,11 +29,11 @@ template <Dimension D> bool NamedMesh<D>::IsLoaded(const std::string_view p_Name
     return false;
 }
 template <Dimension D>
-VKit::FormattedResult<> NamedMesh<D>::Load(const std::string_view p_Name, const std::string_view p_Path)
+VKit::Result<> NamedMesh<D>::Load(const std::string_view p_Name, const std::string_view p_Path)
 {
     const auto result = Onyx::Mesh<D>::Load(p_Path);
     if (!result)
-        return VKit::FormattedResult<NamedMesh<D>>::Error(VKIT_FORMAT_ERROR(
+        return VKit::Result<NamedMesh<D>>::Error(VKIT_FORMAT_ERROR(
             result.GetError().ErrorCode, "Failed to load mesh: '{}' - {}", p_Name, result.GetError().ToString()));
 
     Onyx::Mesh<D> mesh = result.GetValue();
@@ -42,7 +42,7 @@ VKit::FormattedResult<> NamedMesh<D>::Load(const std::string_view p_Name, const 
 
     auto &meshes = getMeshes<D>();
     meshes.Append(nmesh);
-    return VKit::FormattedResult<>::Ok();
+    return VKit::Result<>::Ok();
 }
 template <Dimension D> void Shape<D>::SetProperties(RenderContext<D> *p_Context)
 {
