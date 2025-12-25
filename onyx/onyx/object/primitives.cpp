@@ -309,7 +309,7 @@ static IndexVertexHostData<D3> createCylinder(const u32 p_Sides)
 
     const auto addVertex = [&data](const f32 p_X, const f32 p_Y, const f32 p_Z) {
         const f32v3 vertex = f32v3{p_X, p_Y, p_Z};
-        data.Vertices.Append(Vertex<D3>{vertex, Math::Normalize(vertex)});
+        data.Vertices.Append(Vertex<D3>{vertex, Math::Normalize(f32v3{0.f, p_Y, p_Z})});
     };
 
     const u32 offset = left.Vertices.GetSize() + right.Vertices.GetSize();
