@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_context.hpp"
-#include "tkit/multiprocessing/task_manager.hpp"
+#include "tkit/multiprocessing/topology.hpp"
 
 #include "tkit/math/math.hpp"
 
@@ -20,7 +20,7 @@ IRenderContext<D>::IRenderContext(const VkPipelineRenderingCreateInfoKHR &p_Rend
 
 static u32 getThreadIndex()
 {
-    thread_local u32 tindex = Core::GetTaskManager()->GetThreadIndex();
+    thread_local u32 tindex = TKit::Topology::GetThreadIndex();
     return tindex;
 }
 

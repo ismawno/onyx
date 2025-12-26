@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_systems.hpp"
 #include "vkit/descriptors/descriptor_set.hpp"
+#include "tkit/multiprocessing/topology.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/profiling/macros.hpp"
 
@@ -46,7 +47,7 @@ MeshSystem<D, PMode>::MeshSystem(const VkPipelineRenderingCreateInfoKHR &p_Rende
 template <Dimension D, PipelineMode PMode>
 void MeshSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh)
 {
-    thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
+    thread_local const u32 threadIndex = TKit::Topology::GetThreadIndex();
     auto &hostData = m_HostData[threadIndex];
     hostData.Data[p_Mesh].Append(p_InstanceData);
     ++hostData.Instances;
@@ -220,7 +221,7 @@ PrimitiveSystem<D, PMode>::PrimitiveSystem(const VkPipelineRenderingCreateInfoKH
 template <Dimension D, PipelineMode PMode>
 void PrimitiveSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const u32 p_PrimitiveIndex)
 {
-    thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
+    thread_local const u32 threadIndex = TKit::Topology::GetThreadIndex();
     auto &hostData = m_HostData[threadIndex];
     hostData.Data[p_PrimitiveIndex].Append(p_InstanceData);
     ++hostData.Instances;
@@ -351,7 +352,7 @@ template <Dimension D, PipelineMode PMode>
 void PolygonSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const TKit::Span<const f32v2> p_Vertices)
 {
     TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX] A polygon must have at least 3 sides");
-    thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
+    thread_local const u32 threadIndex = TKit::Topology::GetThreadIndex();
     auto &hostData = m_HostData[threadIndex];
 
     PrimitiveDataLayout layout;
@@ -542,7 +543,7 @@ void CircleSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const Circ
     //     TKit::Approximately(p_Options.Hollowness, 1.f))
     //     return;
 
-    thread_local const u32 threadIndex = Core::GetTaskManager()->GetThreadIndex();
+    thread_local const u32 threadIndex = TKit::Topology::GetThreadIndex();
     auto &hostData = m_HostData[threadIndex];
 
     CircleInstanceData instanceData;
