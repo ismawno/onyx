@@ -63,14 +63,14 @@ Window::~Window()
 {
     TKIT_LOG_DEBUG("[ONYX] Window '{}' is about to be destroyed", m_Name);
     m_FrameScheduler.Destruct();
-    for (RenderContext<D2> *context : m_RenderContexts2D)
+    for (RenderContext<D2> *context : m_RenderContexts2)
         m_Allocator.Destroy(context);
-    for (RenderContext<D3> *context : m_RenderContexts3D)
+    for (RenderContext<D3> *context : m_RenderContexts3)
         m_Allocator.Destroy(context);
 
-    for (Camera<D2> *context : m_Cameras2D)
+    for (Camera<D2> *context : m_Cameras2)
         m_Allocator.Destroy(context);
-    for (Camera<D3> *context : m_Cameras3D)
+    for (Camera<D3> *context : m_Cameras3)
         m_Allocator.Destroy(context);
 
     Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
@@ -128,14 +128,14 @@ VkPipelineStageFlags Window::SubmitContextData(const FrameInfo &p_Info)
     TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
     VkPipelineStageFlags transferFlags = 0;
 
-    for (RenderContext<D2> *context : m_RenderContexts2D)
+    for (RenderContext<D2> *context : m_RenderContexts2)
     {
         context->GetRenderer().GrowToFit(p_Info.FrameIndex);
         context->GetRenderer().SendToDevice(p_Info.FrameIndex);
         transferFlags |= context->GetRenderer().RecordCopyCommands(p_Info.FrameIndex, p_Info.GraphicsCommand,
                                                                    p_Info.TransferCommand);
     }
-    for (RenderContext<D3> *context : m_RenderContexts3D)
+    for (RenderContext<D3> *context : m_RenderContexts3)
     {
         context->GetRenderer().GrowToFit(p_Info.FrameIndex);
         context->GetRenderer().SendToDevice(p_Info.FrameIndex);
@@ -161,12 +161,12 @@ void Window::Render(const FrameInfo &p_Info)
                               m_FrameScheduler->GetQueueData().Graphics->ProfilingContext, gcmd);
     auto caminfos = getCameraInfos<D2>();
     if (!caminfos.IsEmpty())
-        for (RenderContext<D2> *context : m_RenderContexts2D)
+        for (RenderContext<D2> *context : m_RenderContexts2)
             context->GetRenderer().Render(p_Info.FrameIndex, p_Info.GraphicsCommand, caminfos);
 
     caminfos = getCameraInfos<D3>();
     if (!caminfos.IsEmpty())
-        for (RenderContext<D3> *context : m_RenderContexts3D)
+        for (RenderContext<D3> *context : m_RenderContexts3)
             context->GetRenderer().Render(p_Info.FrameIndex, p_Info.GraphicsCommand, caminfos);
 }
 
@@ -245,9 +245,9 @@ void Window::FlushEvents()
 
 void Window::adaptCamerasToViewportAspect()
 {
-    for (Camera<D2> *cam : m_Cameras2D)
+    for (Camera<D2> *cam : m_Cameras2)
         cam->adaptViewToViewportAspect();
-    for (Camera<D3> *cam : m_Cameras3D)
+    for (Camera<D3> *cam : m_Cameras3)
         cam->adaptViewToViewportAspect();
 }
 

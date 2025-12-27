@@ -356,16 +356,16 @@ class ONYX_API Window
     template <Dimension D> auto &getContextArray()
     {
         if constexpr (D == D2)
-            return m_RenderContexts2D;
+            return m_RenderContexts2;
         else
-            return m_RenderContexts3D;
+            return m_RenderContexts3;
     }
     template <Dimension D> auto &getCameraArray()
     {
         if constexpr (D == D2)
-            return m_Cameras2D;
+            return m_Cameras2;
         else
-            return m_Cameras3D;
+            return m_Cameras3;
     }
 
     template <Dimension D> TKit::StaticArray<Detail::CameraInfo, ONYX_MAX_CAMERAS> getCameraInfos()
@@ -381,11 +381,11 @@ class ONYX_API Window
 
     TKit::Storage<FrameScheduler> m_FrameScheduler;
 
-    RenderContextArray<D2> m_RenderContexts2D;
-    RenderContextArray<D3> m_RenderContexts3D;
+    RenderContextArray<D2> m_RenderContexts2;
+    RenderContextArray<D3> m_RenderContexts3;
 
-    CameraArray<D2> m_Cameras2D{};
-    CameraArray<D3> m_Cameras3D{};
+    CameraArray<D2> m_Cameras2{};
+    CameraArray<D3> m_Cameras3{};
 
     TKit::BlockAllocator m_Allocator;
 
