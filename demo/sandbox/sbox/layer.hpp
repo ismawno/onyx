@@ -103,7 +103,6 @@ template <Dimension D> struct IContextData
     u32 ImportedStatToSpawn = 0;
     f32 AxesThickness = 0.01f;
     u32 SelectedShape = 0;
-    f32v2 VertexToAdd{0.f};
 
     LatticeData<D> Lattice;
     LineTest<D> Line;
@@ -149,8 +148,6 @@ class SandboxLayer final : public UserLayer
     void OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &) override;
     void OnRenderBegin(const DeltaTime &, const FrameInfo &p_Info) override;
     void OnEvent(const Event &p_Event) override;
-
-    bool MustReload = false;
 
   private:
     void renderImGui();
