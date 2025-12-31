@@ -6,8 +6,9 @@ namespace Onyx::Demo
 {
 struct ParseResult
 {
-    TKit::StaticArray8<Lattice<D2>> Lattices2;
-    TKit::StaticArray8<Lattice<D3>> Lattices3;
+    Lattice<D2> Lattice2{};
+    Lattice<D3> Lattice3{};
+    ShapeSettings Settings{};
     Dimension Dim;
     f32 RunTime;
     bool HasRuntime;

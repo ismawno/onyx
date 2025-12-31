@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/core/core.hpp"
+#include "vkit/descriptors/descriptor_set_layout.hpp"
 #include "vkit/pipeline/pipeline_layout.hpp"
 #include "vkit/pipeline/graphics_pipeline.hpp"
 #include "vkit/pipeline/shader.hpp"
@@ -8,12 +9,6 @@
 
 namespace Onyx
 {
-/**
- * @brief Represents a post-processing effect that can be applied to the scene after the main rendering pass.
- *
- * A custom fragment shader can be provided to apply effects to the scene. The post-processing pipeline can also
- * read from the scene's data as a sampled texture, allowing for more complex effects.
- */
 class ONYX_API PostProcessing
 {
   public:

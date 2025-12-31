@@ -10,54 +10,41 @@
 
 namespace Onyx::Demo
 {
-TKIT_YAML_SERIALIZE_DECLARE_ENUM(Shapes2)
-TKIT_YAML_SERIALIZE_DECLARE_ENUM(Shapes3)
-enum class Shapes2 : u8
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(Shape)
+enum class Shape : u8
 {
     Triangle = 0,
     Square,
     NGon,
     Polygon,
     Circle,
-    Stadium,
-    RoundedSquare,
-    Mesh,
-};
-enum class Shapes3 : u8
-{
-    Triangle = 0,
-    Square,
-    NGon,
-    Polygon,
-    Circle,
-    Stadium,
-    RoundedSquare,
-    Mesh,
     Cube,
     Cylinder,
     Sphere,
-    Capsule,
-    RoundedCube,
+    ImportedStatic,
 };
-
-template <Dimension D> struct Shapes;
-
-template <> struct Shapes<D2>
+struct ShapeSettings
 {
-    using Type = Shapes2;
-};
-template <> struct Shapes<D3>
-{
-    using Type = Shapes3;
-};
-template <Dimension D> using ShapeType = Shapes<D>::Type;
+    TKIT_YAML_SERIALIZE_DECLARE(ShapeSettings)
+    Shape Shape = Shape::Triangle;
+    CircleOptions CircleOptions{};
+    TKit::Array8<f32v2> PolygonVertices{f32v2{0.5f, -0.3f}, f32v2{0.f, 0.3f}, f32v2{-0.5f, -0.3f}};
+    std::string MeshPath{};
 
+    u32 NGonSides = 3;
+    u32 SphereRings = 32;
+    u32 SphereSectors = 64;
+    u32 CylinderSides = 64;
+};
 template <Dimension D> struct Lattice
 {
     TKIT_REFLECT_DECLARE(Lattice)
     TKIT_YAML_SERIALIZE_DECLARE(Lattice)
 
     void Render(RenderContext<D> *p_Context) const;
+
+    void StaticMesh(RenderContext<D> *p_Context, Assets::Mesh p_Mesh) const;
+    void Circle(RenderContext<D> *p_Context, const CircleOptions &p_Options) const;
 
     template <typename F> void Run(F &&p_Func) const
     {
@@ -68,7 +55,6 @@ template <Dimension D> struct Lattice
             const u32 size = LatticeDims[0] * LatticeDims[1];
             const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
                 TKIT_PROFILE_NSCOPE("Onyx::Demo::Lattice");
-                const Lattice<D> lattice = *this;
 
                 const f32v<D> offset = -0.5f * Separation * f32v<D>{LatticeDims - 1u};
                 for (u32 i = p_Start; i < p_End; ++i)
@@ -79,15 +65,15 @@ template <Dimension D> struct Lattice
                     const f32 y = Separation * static_cast<f32>(iy);
 
                     const f32v2 pos = f32v2{x, y} + offset;
-                    std::forward<F>(p_Func)(pos, lattice);
+                    std::forward<F>(p_Func)(pos);
                 }
             };
 
-            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
+            TKit::FixedArray<Task, MaxTasks> tasks{};
             const u32 partitions = Tasks; // Unfortunate naming
             TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), partitions, fn);
 
-            const u32 tcount = (partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (partitions - 1);
+            const u32 tcount = (partitions - 1) >= MaxTasks ? MaxTasks : (partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
                 tm->WaitUntilFinished(tasks[i]);
         }
@@ -97,7 +83,6 @@ template <Dimension D> struct Lattice
             const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
                 TKIT_PROFILE_NSCOPE("Onyx::Demo::Lattice");
 
-                const Lattice<D> lattice = *this;
                 const u32 yz = LatticeDims[1] * LatticeDims[2];
                 const f32v<D> offset = Transform.Translation - 0.5f * Separation * f32v<D>{LatticeDims - 1u};
                 for (u32 i = p_Start; i < p_End; ++i)
@@ -110,40 +95,26 @@ template <Dimension D> struct Lattice
                     const f32 y = Separation * static_cast<f32>(iy);
                     const f32 z = Separation * static_cast<f32>(iz);
                     const f32v3 pos = f32v3{x, y, z} + offset;
-                    std::forward<F>(p_Func)(pos, lattice);
+                    std::forward<F>(p_Func)(pos);
                 }
             };
 
-            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
+            TKit::FixedArray<Task, MaxTasks> tasks{};
             const u32 partitions = Tasks; // Unfortunate naming
             TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), partitions, fn);
 
-            const u32 tcount = (partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (partitions - 1);
+            const u32 tcount = (partitions - 1) >= MaxTasks ? MaxTasks : (partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
                 tm->WaitUntilFinished(tasks[i]);
         }
     }
 
     Transform<D> Transform{};
-    ShapeType<D> Shape = ShapeType<D>::Triangle;
     Onyx::Color Color = Onyx::Color::WHITE;
-
-    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
-    Mesh<D> Mesh{};
-    TKIT_YAML_SERIALIZE_IGNORE_END()
 
     u32v<D> LatticeDims{10};
 
     TKIT_YAML_SERIALIZE_GROUP_BEGIN("Optionals", "--skip-if-missing")
-    std::string MeshPath{};
-    CircleOptions CircleOptions{};
-    f32v<D> ShapeSize{1.f};
-    PolygonVerticesArray Vertices{f32v2{0.5f, -0.3f}, f32v2{0.f, 0.3f}, f32v2{-0.5f, -0.3f}};
-    u32 NGonSides = 3;
-    f32 Diameter = 1.f;
-    f32 Length = 1.f;
-    Resolution Res = Resolution::Medium;
-
     f32 Separation = 2.5f;
     u32 Tasks = 1;
     TKIT_YAML_SERIALIZE_GROUP_END()

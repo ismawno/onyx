@@ -2,7 +2,7 @@
 #include "onyx/rendering/frame_scheduler.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/property/color.hpp"
-#include "onyx/core/shaders.hpp"
+#include "onyx/resource/pipelines.hpp"
 #include "tkit/utils/debug.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "onyx/core/glfw.hpp"
@@ -10,7 +10,7 @@
 namespace Onyx
 {
 static const VkFormat s_DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
-const WaitMode WaitMode::Block = WaitMode{TKit::Limits<u64>::Max(), TKit::Limits<u64>::Max()};
+const WaitMode WaitMode::Block = WaitMode{TKIT_U64_MAX, TKIT_U64_MAX};
 const WaitMode WaitMode::Poll = WaitMode{0, 0};
 
 FrameScheduler::FrameScheduler(Window &p_Window)
@@ -35,10 +35,10 @@ FrameScheduler::~FrameScheduler()
     m_NaivePostProcessingLayout.Destroy();
     Detail::DestroyPerFrameSyncData(m_SyncFrameData);
     Detail::DestroyPerImageSyncData(m_SyncImageData);
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < MaxFramesInFlight; ++i)
     {
         m_CommandData[i].GraphicsPool.Destroy();
-        if (m_TransferMode == TransferMode::Separate)
+        if (m_TransferMode == Transfer_Separate)
             m_CommandData[i].TransferPool.Destroy();
     }
 
@@ -84,7 +84,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window, const WaitMode &p_W
     const CommandData &cmd = m_CommandData[m_FrameIndex];
     auto cmdres = cmd.GraphicsPool.Reset();
     VKIT_ASSERT_RESULT(cmdres);
-    if (m_TransferMode == TransferMode::Separate)
+    if (m_TransferMode == Transfer_Separate)
     {
         cmdres = cmd.TransferPool.Reset();
         VKIT_ASSERT_RESULT(cmdres);
@@ -92,7 +92,7 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window, const WaitMode &p_W
 
     const auto &table = Core::GetDeviceTable();
     VKIT_ASSERT_EXPRESSION(table.BeginCommandBuffer(cmd.GraphicsCommand, &beginInfo));
-    if (m_TransferMode == TransferMode::Separate)
+    if (m_TransferMode == Transfer_Separate)
     {
         VKIT_ASSERT_EXPRESSION(table.BeginCommandBuffer(cmd.TransferCommand, &beginInfo));
     }
@@ -121,11 +121,11 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    const TKit::Array<VkSemaphore, 2> semaphores{fsync.ImageAvailableSemaphore, fsync.TransferCopyDoneSemaphore};
-    const TKit::Array<VkPipelineStageFlags, 2> stages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, p_Flags};
+    const TKit::FixedArray<VkSemaphore, 2> semaphores{fsync.ImageAvailableSemaphore, fsync.TransferCopyDoneSemaphore};
+    const TKit::FixedArray<VkPipelineStageFlags, 2> stages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, p_Flags};
     submitInfo.pWaitSemaphores = semaphores.GetData();
     submitInfo.pWaitDstStageMask = stages.GetData();
-    submitInfo.waitSemaphoreCount = (m_TransferMode == TransferMode::Separate && p_Flags != 0) ? 2 : 1;
+    submitInfo.waitSemaphoreCount = (m_TransferMode == Transfer_Separate && p_Flags != 0) ? 2 : 1;
 
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
@@ -169,7 +169,7 @@ void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Fla
 
     handleImageResult(p_Window, result);
 
-    m_FrameIndex = (m_FrameIndex + 1) % ONYX_MAX_FRAMES_IN_FLIGHT;
+    m_FrameIndex = (m_FrameIndex + 1) % MaxFramesInFlight;
 }
 
 void FrameScheduler::BeginRendering(const Color &p_ClearColor)
@@ -327,7 +327,7 @@ PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_
     PostProcessing::Specs specs{};
     specs.Layout = p_Layout;
     specs.FragmentShader = p_FragmentShader;
-    specs.VertexShader = p_Options.VertexShader ? *p_Options.VertexShader : GetFullPassVertexShader();
+    specs.VertexShader = p_Options.VertexShader ? *p_Options.VertexShader : Pipelines::GetFullPassVertexShader();
     specs.SamplerCreateInfo =
         p_Options.SamplerCreateInfo ? *p_Options.SamplerCreateInfo : PostProcessing::DefaultSamplerCreateInfo();
     specs.RenderInfo = CreatePostProcessingRenderInfo();
@@ -413,7 +413,7 @@ void FrameScheduler::recreateSwapChain(Window &p_Window)
     p_Window.adaptCamerasToViewportAspect();
 
     Event event{};
-    event.Type = Event::SwapChainRecreated;
+    event.Type = Event_SwapChainRecreated;
     p_Window.PushEvent(event);
 }
 void FrameScheduler::recreateSurface(Window &p_Window)
@@ -485,7 +485,7 @@ void FrameScheduler::destroyImageData()
 
 void FrameScheduler::createProcessingEffects()
 {
-    m_NaivePostProcessingFragmentShader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/pp-naive.frag");
+    m_NaivePostProcessingFragmentShader = Pipelines::CreateShader(ONYX_ROOT_PATH "/onyx/shaders/pp-naive.frag");
 
     const PerImageData<VkImageView> imageviews = getIntermediateColorImageViews();
     m_PostProcessing.Construct(imageviews);
@@ -504,13 +504,13 @@ void FrameScheduler::createCommandData()
     const u32 tindex = Core::GetFamilyIndex(VKit::Queue_Transfer);
 
     if (gindex != tindex)
-        m_TransferMode = TransferMode::Separate;
+        m_TransferMode = Transfer_Separate;
     else if (m_QueueData.Graphics->Queue != m_QueueData.Transfer->Queue)
-        m_TransferMode = TransferMode::SameIndex;
+        m_TransferMode = Transfer_SameIndex;
     else
-        m_TransferMode = TransferMode::SameQueue;
+        m_TransferMode = Transfer_SameQueue;
 
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < MaxFramesInFlight; ++i)
     {
         auto result = VKit::CommandPool::Create(Core::GetDevice(), gindex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 
@@ -521,12 +521,12 @@ void FrameScheduler::createCommandData()
         auto cmdres = cmd.GraphicsPool.Allocate();
         VKIT_ASSERT_RESULT(cmdres);
         cmd.GraphicsCommand = cmdres.GetValue();
-        if (m_TransferMode == TransferMode::SameQueue)
+        if (m_TransferMode == Transfer_SameQueue)
         {
             cmd.TransferPool = cmd.GraphicsPool;
             cmd.TransferCommand = cmd.GraphicsCommand;
         }
-        else if (m_TransferMode == TransferMode::SameIndex)
+        else if (m_TransferMode == Transfer_SameIndex)
         {
             cmd.TransferPool = cmd.GraphicsPool;
             cmdres = cmd.TransferPool.Allocate();
@@ -551,7 +551,7 @@ void FrameScheduler::setupNaivePostProcessing()
     PostProcessing::Specs specs{};
     specs.Layout = m_NaivePostProcessingLayout;
     specs.FragmentShader = m_NaivePostProcessingFragmentShader;
-    specs.VertexShader = GetFullPassVertexShader();
+    specs.VertexShader = Pipelines::GetFullPassVertexShader();
     specs.SamplerCreateInfo = PostProcessing::DefaultSamplerCreateInfo();
     specs.RenderInfo = CreatePostProcessingRenderInfo();
     m_PostProcessing->Setup(specs);

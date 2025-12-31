@@ -5,8 +5,9 @@
 namespace Onyx::Demo
 {
 template <Dimension D>
-Layer<D>::Layer(Application *p_Application, Window *p_Window, const TKit::Span<const Lattice<D>> p_Lattices)
-    : UserLayer(p_Application, p_Window), m_Lattices(p_Lattices.begin(), p_Lattices.end())
+Layer<D>::Layer(Application *p_Application, Window *p_Window, const Lattice<D> &p_Lattice,
+                const ShapeSettings &p_Options)
+    : UserLayer(p_Application, p_Window), m_Lattice(p_Lattice), m_Options(p_Options)
 {
     m_Window = m_Application->GetMainWindow();
     m_Context = m_Window->CreateRenderContext<D>();
@@ -21,16 +22,49 @@ Layer<D>::Layer(Application *p_Application, Window *p_Window, const TKit::Span<c
     }
     else
         m_Camera->SetSize(50.f);
-    for (Lattice<D> &lattice : m_Lattices)
-        if (lattice.Shape == ShapeType<D>::Mesh)
-        {
-            const auto result = Mesh<D>::Load(lattice.MeshPath);
-            VKIT_ASSERT_RESULT(result);
 
-            Mesh<D> mesh = result.GetValue();
-            Onyx::Core::GetDeletionQueue().Push([mesh]() mutable { mesh.Destroy(); });
-            lattice.Mesh = mesh;
+    switch (p_Options.Shape)
+    {
+    case Shape::Triangle:
+        m_Mesh = Assets::AddMesh(Assets::CreateTriangleMesh<D>());
+        break;
+    case Shape::Square:
+        m_Mesh = Assets::AddMesh(Assets::CreateSquareMesh<D>());
+        break;
+    case Shape::NGon:
+        m_Mesh = Assets::AddMesh(Assets::CreateRegularPolygonMesh<D>(p_Options.NGonSides));
+        break;
+    case Shape::Polygon:
+        m_Mesh = Assets::AddMesh(Assets::CreatePolygonMesh<D>(p_Options.PolygonVertices));
+        break;
+    case Shape::ImportedStatic: {
+        const auto result = Assets::LoadStaticMesh<D>(p_Options.MeshPath);
+        VKIT_ASSERT_RESULT(result);
+        m_Mesh = Assets::AddMesh(result.GetValue());
+        break;
+    }
+    default:
+        break;
+    }
+    if constexpr (D == D3)
+        switch (p_Options.Shape)
+        {
+        case Shape::Cube:
+            m_Mesh = Assets::AddMesh(Assets::CreateCubeMesh());
+            break;
+        case Shape::Sphere:
+            m_Mesh = Assets::AddMesh(Assets::CreateSphereMesh(p_Options.SphereRings, p_Options.SphereSectors));
+            break;
+        case Shape::Cylinder:
+            m_Mesh = Assets::AddMesh(Assets::CreateCylinderMesh(p_Options.CylinderSides));
+            break;
+        default:
+            break;
         }
+
+    if constexpr (D == D3)
+        m_AxesMesh = p_Options.Shape == Shape::Cylinder ? m_Mesh : Assets::AddMesh(Assets::CreateCylinderMesh(16));
+    Assets::Upload<D>();
 }
 
 template <Dimension D> void Layer<D>::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
@@ -50,15 +84,23 @@ template <Dimension D> void Layer<D>::OnFrameBegin(const DeltaTime &p_DeltaTime,
     // first = true;
 
     m_Context->Flush();
+    m_Context->ShareCurrentState();
     if constexpr (D == D3)
     {
-        m_Context->Axes({.Thickness = 0.05f});
+        m_Context->Axes(m_AxesMesh);
         m_Context->LightColor(Color::WHITE);
         m_Context->DirectionalLight(f32v3{1.f}, 0.55f);
     }
 
-    for (const Lattice<D> &lattice : m_Lattices)
-        lattice.Render(m_Context);
+    switch (m_Options.Shape)
+    {
+    case Shape::Circle:
+        m_Lattice.Circle(m_Context, m_Options.CircleOptions);
+        break;
+    default:
+        m_Lattice.StaticMesh(m_Context, m_Mesh);
+        break;
+    }
 }
 template <Dimension D> void Layer<D>::OnEvent(const Event &p_Event)
 {
@@ -66,7 +108,7 @@ template <Dimension D> void Layer<D>::OnEvent(const Event &p_Event)
     if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard)
         return;
 #endif
-    const f32 factor = Input::IsKeyPressed(m_Window, Input::Key::LeftShift) ? 0.05f : 0.005f;
+    const f32 factor = Input::IsKeyPressed(m_Window, Input::Key_LeftShift) ? 0.05f : 0.005f;
     m_Camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
 }
 

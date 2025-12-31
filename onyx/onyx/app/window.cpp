@@ -19,8 +19,8 @@ u32 ToFrequency(const TKit::Timespan p_DeltaTime)
 {
     const f32 seconds = p_DeltaTime.AsSeconds();
     if (TKit::ApproachesZero(seconds))
-        return TKit::Limits<u32>::Max();
-    if (seconds == TKit::Limits<f32>::Max())
+        return TKIT_U32_MAX;
+    if (seconds == TKIT_F32_MAX)
         return 0;
 
     return static_cast<u32>(1.f / p_DeltaTime.AsSeconds()) + 1;
@@ -28,8 +28,8 @@ u32 ToFrequency(const TKit::Timespan p_DeltaTime)
 TKit::Timespan ToDeltaTime(const u32 p_Frequency)
 {
     if (p_Frequency == 0)
-        return TKit::Timespan::FromSeconds(TKit::Limits<f32>::Max());
-    if (p_Frequency == TKit::Limits<u32>::Max())
+        return TKit::Timespan::FromSeconds(TKIT_F32_MAX);
+    if (p_Frequency == TKIT_U32_MAX)
         return TKit::Timespan{};
     return TKit::Timespan::FromSeconds(1.f / static_cast<f32>(p_Frequency));
 }
@@ -40,7 +40,7 @@ static TKit::BlockAllocator createAllocator()
         Math::Max({sizeof(RenderContext<D2>), sizeof(RenderContext<D3>), sizeof(Camera<D2>), sizeof(Camera<D3>)}));
     const u32 alignment = static_cast<u32>(
         Math::Max({alignof(RenderContext<D2>), alignof(RenderContext<D3>), alignof(Camera<D2>), alignof(Camera<D3>)}));
-    return TKit::BlockAllocator{maxSize * 2 * (ONYX_MAX_RENDER_CONTEXTS + ONYX_MAX_CAMERAS), maxSize, alignment};
+    return TKit::BlockAllocator{maxSize * 2 * (MaxRenderContexts + MaxCameras), maxSize, alignment};
 }
 
 Window::Window() : Window(Specs{})
@@ -90,7 +90,7 @@ void Window::createWindow(const Specs &p_Specs)
                                 p_Specs.Name, nullptr, nullptr);
     TKIT_ASSERT(m_Window, "[ONYX] Failed to create a GLFW window");
 
-    if (p_Specs.Position != u32v2{TKit::Limits<u32>::Max()})
+    if (p_Specs.Position != u32v2{TKIT_U32_MAX})
     {
         glfwSetWindowPos(m_Window, static_cast<i32>(p_Specs.Position[0]), static_cast<i32>(p_Specs.Position[1]));
         m_Position = p_Specs.Position;
@@ -130,14 +130,14 @@ VkPipelineStageFlags Window::SubmitContextData(const FrameInfo &p_Info)
 
     for (RenderContext<D2> *context : m_RenderContexts2)
     {
-        context->GetRenderer().GrowToFit(p_Info.FrameIndex);
+        context->GetRenderer().GrowDeviceBuffers(p_Info.FrameIndex);
         context->GetRenderer().SendToDevice(p_Info.FrameIndex);
         transferFlags |= context->GetRenderer().RecordCopyCommands(p_Info.FrameIndex, p_Info.GraphicsCommand,
                                                                    p_Info.TransferCommand);
     }
     for (RenderContext<D3> *context : m_RenderContexts3)
     {
-        context->GetRenderer().GrowToFit(p_Info.FrameIndex);
+        context->GetRenderer().GrowDeviceBuffers(p_Info.FrameIndex);
         context->GetRenderer().SendToDevice(p_Info.FrameIndex);
         transferFlags |= context->GetRenderer().RecordCopyCommands(p_Info.FrameIndex, p_Info.GraphicsCommand,
                                                                    p_Info.TransferCommand);
@@ -146,11 +146,11 @@ VkPipelineStageFlags Window::SubmitContextData(const FrameInfo &p_Info)
         m_FrameScheduler->SubmitTransferQueue();
     return transferFlags;
 }
-void Window::BeginRendering()
+void Window::BeginRendering(const Color &p_ClearColor)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::BeginRendering");
     TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
-    m_FrameScheduler->BeginRendering(BackgroundColor);
+    m_FrameScheduler->BeginRendering(p_ClearColor);
 }
 
 void Window::Render(const FrameInfo &p_Info)
@@ -183,7 +183,7 @@ void Window::EndFrame(const VkPipelineStageFlags p_Flags)
     m_FrameScheduler->EndFrame(*this, p_Flags);
 }
 
-bool Window::Render()
+bool Window::Render(const Color &p_ClearColor)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
     TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
@@ -193,7 +193,7 @@ bool Window::Render()
         return false;
 
     const VkPipelineStageFlags flags = SubmitContextData(info);
-    BeginRendering();
+    BeginRendering(p_ClearColor);
     Render(info);
     EndRendering();
     EndFrame(flags);

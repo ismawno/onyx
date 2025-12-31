@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(onyx-sandbox)
 
-set(SOURCES sbox/shapes.cpp sbox/argparse.cpp sbox/layer.cpp sbox/main.cpp)
+set(SOURCES sbox/argparse.cpp sbox/layer.cpp sbox/main.cpp)
 
 add_executable(onyx-sandbox ${SOURCES})
 

@@ -5,9 +5,8 @@
 #include "tkit/serialization/yaml/container.hpp"
 #include "tkit/serialization/yaml/tensor.hpp"
 #include "tkit/serialization/yaml/quaternion.hpp"
-#include "tkit/serialization/yaml/onyx/object/primitives.hpp"
 #include "tkit/serialization/yaml/onyx/rendering/camera.hpp"
-#include "tkit/serialization/yaml/onyx/data/options.hpp"
+#include "tkit/serialization/yaml/onyx/resource/options.hpp"
 #include "tkit/serialization/yaml/onyx/property/transform.hpp"
 #include "tkit/serialization/yaml/perf/lattice.hpp"
 
@@ -19,27 +18,22 @@ template <Dimension D> void exportLatticeToFile(const Lattice<D> &p_Lattice, Par
 {
     TKit::Yaml::Node node;
     node["Dimension"] = D;
-    node["Lattices"].push_back(p_Lattice);
+    node["Lattice"] = p_Lattice;
+    node["Settings"] = result.Settings;
     if constexpr (D == D2)
     {
         TKit::Yaml::ToFile(ONYX_ROOT_PATH "/demo/performance/settings-2D.yaml", node);
-        result.Lattices2.Append(p_Lattice);
+        result.Lattice2 = p_Lattice;
     }
     else
     {
         TKit::Yaml::ToFile(ONYX_ROOT_PATH "/demo/performance/settings-3D.yaml", node);
-        result.Lattices3.Append(p_Lattice);
+        result.Lattice3 = p_Lattice;
     }
 }
 ParseResult ParseArguments(int argc, char **argv)
 {
-    argparse::ArgumentParser parser{"onyx", ONYX_VERSION, argparse::default_arguments::all};
-    // parser.add_description(
-    //     "Onyx is a small application framework I have implemented to be used primarily in all projects I develop "
-    //     "that require some sort of rendering. It is built on top of the Vulkan API and provides a simple and "
-    //     "easy-to-use (or so I tried) interface for creating windows, rendering shapes, and handling input events. "
-    //     "The framework is still in its early stages, but I plan to expand it further in the future. This is a small "
-    //     "demo to showcase its features.");
+    argparse::ArgumentParser parser{"onyx-performance", ONYX_VERSION, argparse::default_arguments::all};
 
     parser.add_description("This is a small performance playground to stress test the Onyx engine. The main method of "
                            "testing the performance is by creating various lattices of objects to be rendered.");
@@ -75,11 +69,10 @@ ParseResult ParseArguments(int argc, char **argv)
         const auto settings = TKit::Yaml::FromFile(*path);
         result.Dim = settings["Dimension"].as<Dimension>();
         if (result.Dim == D2)
-            for (const TKit::Yaml::Node &node : settings["Lattices"])
-                result.Lattices2.Append(node.as<Lattice<D2>>());
+            result.Lattice2 = settings["Lattice"].as<Lattice<D2>>();
         else
-            for (const TKit::Yaml::Node &node : settings["Lattices"])
-                result.Lattices3.Append(node.as<Lattice<D3>>());
+            result.Lattice3 = settings["Lattice"].as<Lattice<D3>>();
+        result.Settings = settings["Settings"].as<ShapeSettings>();
     }
     else if (parser.get<bool>("--export"))
     {

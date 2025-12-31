@@ -30,23 +30,12 @@ ONYX_API void ApplyCoordinateSystemExtrinsic(f32m4 &p_Transform);
  */
 ONYX_API void ApplyCoordinateSystemIntrinsic(f32m4 &p_Transform);
 
-/**
- * @brief Interface for transformation operations in D-dimensional space.
- *
- * Provides methods for computing transformations, inverse transformations,
- * and extracting translation, scale, and rotation components from matrices.
- */
 template <Dimension D> struct ITransform
 {
     /**
      * @brief Compute a transformation matrix from translation, scale, and rotation.
      *
      * The order of transformations is scale -> rotate -> translate.
-     *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The scale vector.
-     * @param p_Rotation The rotation object.
-     * @return The resulting transformation matrix.
      */
     static f32m<D> ComputeTransform(const f32v<D> &p_Translation, const f32v<D> &p_Scale, const rot<D> &p_Rotation);
 
@@ -54,11 +43,6 @@ template <Dimension D> struct ITransform
      * @brief Compute a reversed transformation matrix from translation, scale, and rotation.
      *
      * The order of transformations is translate -> rotate -> scale, hence the reverse.
-     *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The scale vector.
-     * @param p_Rotation The rotation object.
-     * @return The resulting transformation matrix.
      */
     static f32m<D> ComputeReversedTransform(const f32v<D> &p_Translation, const f32v<D> &p_Scale,
                                             const rot<D> &p_Rotation);
@@ -66,10 +50,6 @@ template <Dimension D> struct ITransform
     /**
      * @brief Compute an inversed transformation matrix.
      *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The scale vector.
-     * @param p_Rotation The rotation object.
-     * @return The inverse transformation matrix.
      */
     static f32m<D> ComputeInverseTransform(const f32v<D> &p_Translation, const f32v<D> &p_Scale,
                                            const rot<D> &p_Rotation);
@@ -77,18 +57,10 @@ template <Dimension D> struct ITransform
     /**
      * @brief Compute an inversed and reversed transformation matrix.
      *
-     * @param p_Translation The translation vector.
-     * @param p_Scale The scale vector.
-     * @param p_Rotation The rotation object.
-     * @return The inverse transformation matrix.
      */
     static f32m<D> ComputeInverseReversedTransform(const f32v<D> &p_Translation, const f32v<D> &p_Scale,
                                                    const rot<D> &p_Rotation);
 
-    /**
-     * @brief Compute a rotation matrix.
-     *
-     */
     static auto ComputeRotationMatrix(const rot<D> &p_Rotation)
     {
         if constexpr (D == D2)
@@ -117,8 +89,6 @@ template <Dimension D> struct ITransform
      * @brief Compute the transformation matrix using the current object's translation, scale, and rotation.
      *
      * The order of transformations is scale -> rotate -> translate.
-     *
-     * @return The transformation matrix.
      */
     f32m<D> ComputeTransform() const;
 
@@ -126,22 +96,18 @@ template <Dimension D> struct ITransform
      * @brief Compute the reversed transformation matrix using the current object's translation, scale, and rotation.
      *
      * The order of transformations is translate -> rotate -> scale, hence the reverse.
-     *
-     * @return The transformation matrix.
      */
     f32m<D> ComputeReversedTransform() const;
 
     /**
      * @brief Compute the inverse of the transformation matrix using the current object's parameters.
      *
-     * @return The inverse transformation matrix.
      */
     f32m<D> ComputeInverseTransform() const;
 
     /**
      * @brief Compute the inverse of the axes transformation matrix using the current object's parameters.
      *
-     * @return The inverse transformation matrix.
      */
     f32m<D> ComputeInverseReversedTransform() const;
 
@@ -149,10 +115,6 @@ template <Dimension D> struct ITransform
      * @brief Applies an intrinsic translation to a transformation matrix along a specified axis.
      *
      * Intrinsic transformations are applied relative to the object's local coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Axis The axis index along which to translate.
-     * @param p_Translation The translation amount.
      */
     static void TranslateIntrinsic(f32m<D> &p_Transform, u32 p_Axis, f32 p_Translation);
 
@@ -160,9 +122,6 @@ template <Dimension D> struct ITransform
      * @brief Applies an intrinsic translation to a transformation matrix.
      *
      * Intrinsic transformations are applied relative to the object's local coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Translation The translation vector.
      */
     static void TranslateIntrinsic(f32m<D> &p_Transform, const f32v<D> &p_Translation);
 
@@ -170,10 +129,6 @@ template <Dimension D> struct ITransform
      * @brief Applies an extrinsic translation to a transformation matrix along a specified axis.
      *
      * Extrinsic transformations are applied relative to the global coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Axis The axis index along which to translate.
-     * @param p_Translation The translation amount.
      */
     static void TranslateExtrinsic(f32m<D> &p_Transform, u32 p_Axis, f32 p_Translation);
 
@@ -181,9 +136,6 @@ template <Dimension D> struct ITransform
      * @brief Applies an extrinsic translation to a transformation matrix.
      *
      * Extrinsic transformations are applied relative to the global coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Translation The translation vector.
      */
     static void TranslateExtrinsic(f32m<D> &p_Transform, const f32v<D> &p_Translation);
 
@@ -191,10 +143,6 @@ template <Dimension D> struct ITransform
      * @brief Applies an intrinsic scaling to a transformation matrix along a specified axis.
      *
      * Intrinsic transformations are applied relative to the object's local coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Axis The axis index along which to scale.
-     * @param p_Scale The scaling factor.
      */
     static void ScaleIntrinsic(f32m<D> &p_Transform, u32 p_Axis, f32 p_Scale);
 
@@ -202,9 +150,6 @@ template <Dimension D> struct ITransform
      * @brief Applies an intrinsic scaling to a transformation matrix.
      *
      * Intrinsic transformations are applied relative to the object's local coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Scale The scaling vector.
      */
     static void ScaleIntrinsic(f32m<D> &p_Transform, const f32v<D> &p_Scale);
 
@@ -212,10 +157,6 @@ template <Dimension D> struct ITransform
      * @brief Applies an extrinsic scaling to a transformation matrix along a specified axis.
      *
      * Extrinsic transformations are applied relative to the global coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Axis The axis index along which to scale.
-     * @param p_Scale The scaling factor.
      */
     static void ScaleExtrinsic(f32m<D> &p_Transform, u32 p_Axis, f32 p_Scale);
 
@@ -223,43 +164,30 @@ template <Dimension D> struct ITransform
      * @brief Applies an extrinsic scaling to a transformation matrix.
      *
      * Extrinsic transformations are applied relative to the global coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Scale The scaling vector.
      */
     static void ScaleExtrinsic(f32m<D> &p_Transform, const f32v<D> &p_Scale);
 
     /**
      * @brief Extracts translation, scale, and rotation components from a transformation matrix.
      *
-     * @param p_Transform The transformation matrix to extract from.
-     * @param p_Translation Output pointer for the translation vector.
-     * @param p_Scale Output pointer for the scale vector.
-     * @param p_Rotation Output pointer for the rotation object.
      */
     static void Extract(const f32m<D> &p_Transform, f32v<D> *p_Translation, f32v<D> *p_Scale, rot<D> *p_Rotation);
 
     /**
      * @brief Extracts the translation component from a transformation matrix.
      *
-     * @param p_Transform The transformation matrix.
-     * @return The extracted translation vector.
      */
     static f32v<D> ExtractTranslation(const f32m<D> &p_Transform);
 
     /**
      * @brief Extracts the scale component from a transformation matrix.
      *
-     * @param p_Transform The transformation matrix.
-     * @return The extracted scale vector.
      */
     static f32v<D> ExtractScale(const f32m<D> &p_Transform);
 
     /**
      * @brief Extracts the rotation component from a transformation matrix.
      *
-     * @param p_Transform The transformation matrix.
-     * @return The extracted rotation object.
      */
     static rot<D> ExtractRotation(const f32m<D> &p_Transform);
 
@@ -285,9 +213,6 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @brief Applies an intrinsic rotation around the X-axis to a 3D transformation matrix.
      *
      * Intrinsic rotations are applied relative to the object's local coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
      */
     static void RotateXIntrinsic(f32m4 &p_Transform, f32 p_Angle);
 
@@ -295,9 +220,6 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @brief Applies an intrinsic rotation around the Y-axis to a 3D transformation matrix.
      *
      * Intrinsic rotations are applied relative to the object's local coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
      */
     static void RotateYIntrinsic(f32m4 &p_Transform, f32 p_Angle);
 
@@ -305,9 +227,6 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @brief Applies an intrinsic rotation around the Z-axis to a 3D transformation matrix.
      *
      * Intrinsic rotations are applied relative to the object's local coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
      */
     static void RotateZIntrinsic(f32m4 &p_Transform, f32 p_Angle);
 
@@ -315,9 +234,6 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @brief Applies an extrinsic rotation around the X-axis to a 3D transformation matrix.
      *
      * Extrinsic rotations are applied relative to the global coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
      */
     static void RotateXExtrinsic(f32m4 &p_Transform, f32 p_Angle);
 
@@ -325,9 +241,6 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @brief Applies an extrinsic rotation around the Y-axis to a 3D transformation matrix.
      *
      * Extrinsic rotations are applied relative to the global coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
      */
     static void RotateYExtrinsic(f32m4 &p_Transform, f32 p_Angle);
 
@@ -335,9 +248,6 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @brief Applies an extrinsic rotation around the Z-axis to a 3D transformation matrix.
      *
      * Extrinsic rotations are applied relative to the global coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
      */
     static void RotateZExtrinsic(f32m4 &p_Transform, f32 p_Angle);
 
@@ -360,6 +270,8 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
      * @param p_Quaternion The quaternion representing the rotation.
      */
     static void RotateExtrinsic(f32m4 &p_Transform, const f32q &p_Quaternion);
+
+    static f32m4 ComputeLineTransform(const f32v3 &p_Start, const f32v3 &p_End, f32 p_Thickness = 1.f);
 
     /**
      * @brief Extracts a 3D Transform object from a transformation matrix.
@@ -385,9 +297,6 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @brief Applies an intrinsic rotation to a 2D transformation matrix.
      *
      * Intrinsic rotations are applied relative to the object's local coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
      */
     static void RotateIntrinsic(f32m3 &p_Transform, f32 p_Angle);
 
@@ -395,9 +304,6 @@ template <> struct ONYX_API Transform<D2> : ITransform<D2>
      * @brief Applies an extrinsic rotation to a 2D transformation matrix.
      *
      * Extrinsic rotations are applied relative to the global coordinate system.
-     *
-     * @param p_Transform The transformation matrix to modify.
-     * @param p_Angle The rotation angle in radians.
      */
     static void RotateExtrinsic(f32m3 &p_Transform, f32 p_Angle);
 

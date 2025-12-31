@@ -1,7 +1,7 @@
 #include "onyx/app/app.hpp"
 #include "onyx/app/window.hpp"
-#include "onyx/core/shaders.hpp"
 #include "onyx/imgui/imgui.hpp"
+#include "onyx/resource/pipelines.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -11,9 +11,16 @@ using namespace TKit::Alias;
 
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
+static Onyx::Assets::Mesh s_Square;
+
 static void RunStandaloneWindow()
 {
     Onyx::Window window({.Name = "Standalone Hello, World!", .Dimensions = u32v2{800, 600}});
+
+    const Onyx::Assets::StatMeshData<D2> square = Onyx::Assets::CreateSquareMesh<D2>();
+    s_Square = Onyx::Assets::AddMesh(square);
+    Onyx::Assets::Upload<D2>();
+
     Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
     window.CreateCamera<D2>();
 
@@ -28,7 +35,7 @@ static void RunStandaloneWindow()
         context->Flush();
 
         context->Fill(Onyx::Color::RED);
-        context->Square();
+        context->StaticMesh(s_Square);
 
         window.Render();
     }
@@ -36,7 +43,7 @@ static void RunStandaloneWindow()
 
 static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
 {
-    VKit::Shader fragment = Onyx::CreateShader(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
+    VKit::Shader fragment = Onyx::Pipelines::CreateShader(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
 
     auto lresult = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
     VKIT_ASSERT_RESULT(lresult);
@@ -45,7 +52,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
     const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout,
                                                          p_Window.GetFrameScheduler()->CreateSceneRenderInfo())
                              .SetViewportCount(1)
-                             .AddShaderStage(Onyx::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
+                             .AddShaderStage(Onyx::Pipelines::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
                              .AddShaderStage(fragment, VK_SHADER_STAGE_FRAGMENT_BIT)
                              .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
                              .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
@@ -75,7 +82,7 @@ static void SetPostProcessing(Onyx::Window &p_Window)
         f32 Width = 800.f;
         f32 Height = 600.f;
     };
-    VKit::Shader shader = Onyx::CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
+    VKit::Shader shader = Onyx::Pipelines::CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
 
     Onyx::FrameScheduler *fs = p_Window.GetFrameScheduler();
     VKit::PipelineLayout::Builder builder = fs->GetPostProcessing()->CreatePipelineLayoutBuilder();
@@ -113,7 +120,7 @@ static void RunStandaloneWindowCustomPipeline()
             context->Flush();
 
             context->Fill(Onyx::Color::RED);
-            context->Square();
+            context->StaticMesh(s_Square);
 
             const auto flags = window.SubmitContextData(info);
             window.BeginRendering();
@@ -181,6 +188,7 @@ int main()
     TKit::ThreadPool threadPool{ONYX_MAX_WORKERS};
 
     Onyx::Core::Initialize(Onyx::Specs{.TaskManager = &threadPool});
+
     RunStandaloneWindow();
     RunStandaloneWindowCustomPipeline();
     RunAppExample1();

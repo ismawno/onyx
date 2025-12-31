@@ -1,5 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_systems.hpp"
+#include "onyx/resource/pipelines.hpp"
 #include "vkit/descriptors/descriptor_set.hpp"
 #include "tkit/multiprocessing/topology.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
@@ -27,98 +28,24 @@ void ResetDrawCallCount()
 }
 #endif
 
-template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::RenderSystem()
+RenderSystem::RenderSystem()
 {
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < MaxFramesInFlight; ++i)
         m_DeviceSubmissionId[i] = 0;
 }
-template <Dimension D, PipelineMode PMode> RenderSystem<D, PMode>::~RenderSystem()
+RenderSystem::~RenderSystem()
 {
     Core::DeviceWaitIdle();
     m_Pipeline.Destroy();
 }
 
-template <Dimension D, PipelineMode PMode>
-MeshSystem<D, PMode>::MeshSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
+template <Shading S> static void pushConstantData(const RenderInfo<S> &p_Info)
 {
-    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
-}
-
-template <Dimension D, PipelineMode PMode>
-void MeshSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const Mesh<D> &p_Mesh)
-{
-    thread_local const u32 threadIndex = TKit::Topology::GetThreadIndex();
-    auto &hostData = m_HostData[threadIndex];
-    hostData.Data[p_Mesh].Append(p_InstanceData);
-    ++hostData.Instances;
-}
-
-template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::GrowToFit(const u32 p_FrameIndex)
-{
-    this->m_DeviceInstances = 0;
-    for (const auto &hostData : m_HostData)
-        this->m_DeviceInstances += hostData.Instances;
-
-    m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
-}
-template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::SendToDevice(const u32 p_FrameIndex)
-{
-    TaskArray tasks{};
-    TKit::ITaskManager *tm = Core::GetTaskManager();
-
-    thread_local TKit::HashMap<Mesh<D>, TKit::StaticArray<const HostBuffer<InstanceData> *, ONYX_MAX_THREADS>>
-        localData{};
-    localData.clear();
-
-    for (const auto &hostData : m_HostData)
-        for (const auto &[mesh, data] : hostData.Data)
-            if (!data.IsEmpty())
-                localData[mesh].Append(&data);
-
-    VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
-    u32 offset = 0;
-    u32 sindex = 0;
-
-    Task mainTask{};
-    for (const auto &[mesh, buffers] : localData)
-        for (const auto data : buffers)
-        {
-            const auto copy = [&, offset] {
-                TKIT_PROFILE_NSCOPE("Onyx::MeshSystem::SendToDevice");
-                storageBuffer.Write<InstanceData>(*data, {.DstOffset = offset});
-            };
-
-            if (!mainTask)
-                mainTask = copy;
-            else
-            {
-                Task &task = tasks.Append(copy);
-                sindex = tm->SubmitTask(&task, sindex);
-            }
-            offset += data->GetSize();
-        }
-
-    mainTask();
-    for (const Task &task : tasks)
-        tm->WaitUntilFinished(task);
-    VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
-}
-
-template <DrawLevel DLevel> static VkPipelineLayout getLayout()
-{
-    if constexpr (DLevel == DrawLevel::Simple)
-        return Core::GetGraphicsPipelineLayoutSimple();
-    else
-        return Core::GetGraphicsPipelineLayoutComplex();
-}
-
-template <DrawLevel DLevel> static void pushConstantData(const RenderInfo<DLevel> &p_Info)
-{
-    PushConstantData<DLevel> pdata{};
+    PushConstantData<S> pdata{};
     pdata.ProjectionView = p_Info.Camera->ProjectionView;
 
     VkShaderStageFlags stages = VK_SHADER_STAGE_VERTEX_BIT;
-    if constexpr (DLevel == DrawLevel::Complex)
+    if constexpr (S == Shading_Lit)
     {
         pdata.ViewPosition = f32v4(p_Info.Camera->ViewPosition, 1.f);
         pdata.AmbientColor = p_Info.Light.AmbientColor->RGBA;
@@ -127,116 +54,50 @@ template <DrawLevel DLevel> static void pushConstantData(const RenderInfo<DLevel
         stages |= VK_SHADER_STAGE_FRAGMENT_BIT;
     }
     const auto &table = Core::GetDeviceTable();
-    table.CmdPushConstants(p_Info.CommandBuffer, getLayout<DLevel>(), stages, 0, sizeof(PushConstantData<DLevel>),
-                           &pdata);
+    table.CmdPushConstants(p_Info.CommandBuffer, Pipelines::GetGraphicsPipelineLayout(S), stages, 0,
+                           sizeof(PushConstantData<S>), &pdata);
 }
 
-template <DrawLevel DLevel>
-static void bindDescriptorSets(const RenderInfo<DLevel> &p_Info, const VkDescriptorSet p_InstanceData)
+template <Shading S> static void bindDescriptorSets(const RenderInfo<S> &p_Info, const VkDescriptorSet p_InstanceData)
 {
-    if constexpr (DLevel == DrawLevel::Simple)
+    if constexpr (S == Shading_Unlit)
         VKit::DescriptorSet::Bind(Core::GetDevice(), p_Info.CommandBuffer, p_InstanceData,
-                                  VK_PIPELINE_BIND_POINT_GRAPHICS, getLayout<DrawLevel::Simple>());
+                                  VK_PIPELINE_BIND_POINT_GRAPHICS, Pipelines::GetGraphicsPipelineLayout(Shading_Unlit));
     else
     {
-        const TKit::Array<VkDescriptorSet, 2> sets = {p_InstanceData, p_Info.Light.DescriptorSet};
-        const TKit::Span<const VkDescriptorSet> span(sets);
-        VKit::DescriptorSet::Bind(Core::GetDevice(), p_Info.CommandBuffer, span, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                  getLayout<DrawLevel::Complex>());
+        const TKit::FixedArray<VkDescriptorSet, 2> sets = {p_InstanceData, p_Info.Light.DescriptorSet};
+        VKit::DescriptorSet::Bind(Core::GetDevice(), p_Info.CommandBuffer, sets, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  Pipelines::GetGraphicsPipelineLayout(Shading_Lit));
     }
 }
 
-template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, DrawMode DMode>
+StatMeshSystem<D, DMode>::StatMeshSystem(const PipelineMode p_Mode,
+                                         const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
-    RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
-    const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
-
-    VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
-    VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
-    buffer.CopyFromBuffer(p_Info.CommandBuffer, staging, {.Size = size});
-
-    p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
-    if (p_Info.ReleaseBarriers)
-        p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
+    TKIT_ASSERT(GetDrawMode(p_Mode) == DMode, "[ONYX] Draw and pipeline modes mismatch!");
+    m_Pipeline = Pipelines::CreateStaticMeshPipeline<D>(p_Mode, p_RenderInfo);
 }
 
-template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::Render(const RenderInfo &p_Info)
-{
-    if (this->m_DeviceInstances == 0)
-        return;
-
-    TKIT_PROFILE_NSCOPE("Onyx::MeshSystem::Render");
-
-    this->m_Pipeline.Bind(p_Info.CommandBuffer);
-
-    const VkDescriptorSet instanceDescriptor = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
-
-    constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-    bindDescriptorSets<dlevel>(p_Info, instanceDescriptor);
-    pushConstantData<dlevel>(p_Info);
-
-    thread_local TKit::HashMap<Mesh<D>, TKit::StaticArray<const HostBuffer<InstanceData> *, ONYX_MAX_THREADS>>
-        localData{};
-    localData.clear();
-
-    u32 firstInstance = 0;
-    for (const auto &hostData : m_HostData)
-        for (const auto &[mesh, data] : hostData.Data)
-            if (!data.IsEmpty())
-                localData[mesh].Append(&data);
-
-    for (const auto &[mesh, buffers] : localData)
-    {
-        u32 instanceCount = 0;
-        for (const auto data : buffers)
-            instanceCount += data->GetSize();
-
-        mesh.Bind(p_Info.CommandBuffer);
-        if (mesh.HasIndices())
-            mesh.DrawIndexed(p_Info.CommandBuffer, instanceCount, firstInstance);
-        else
-            mesh.Draw(p_Info.CommandBuffer, instanceCount, firstInstance);
-        INCREASE_DRAW_CALL_COUNT();
-        firstInstance += instanceCount;
-    }
-}
-
-template <Dimension D, PipelineMode PMode> void MeshSystem<D, PMode>::Flush()
-{
-    RenderSystem<D, PMode>::Flush();
-    for (auto &hostData : m_HostData)
-    {
-        for (auto &[model, data] : hostData.Data)
-            data.Clear();
-        hostData.Instances = 0;
-    }
-}
-
-template <Dimension D, PipelineMode PMode>
-PrimitiveSystem<D, PMode>::PrimitiveSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
-{
-    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
-}
-
-template <Dimension D, PipelineMode PMode>
-void PrimitiveSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const u32 p_PrimitiveIndex)
+template <Dimension D, DrawMode DMode>
+void StatMeshSystem<D, DMode>::Draw(const InstanceData &p_InstanceData, const Assets::Mesh p_Mesh)
 {
     thread_local const u32 threadIndex = TKit::Topology::GetThreadIndex();
-    auto &hostData = m_HostData[threadIndex];
-    hostData.Data[p_PrimitiveIndex].Append(p_InstanceData);
+    auto &hostData = m_ThreadHostData[threadIndex];
+    hostData.Data[p_Mesh].Append(p_InstanceData);
     ++hostData.Instances;
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::GrowToFit(const u32 p_FrameIndex)
+template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::GrowDeviceBuffers(const u32 p_FrameIndex)
 {
-    this->m_DeviceInstances = 0;
-    for (const auto &hostData : m_HostData)
-        this->m_DeviceInstances += hostData.Instances;
+    m_DeviceInstances = 0;
+    for (const auto &hostData : m_ThreadHostData)
+        m_DeviceInstances += hostData.Instances;
 
-    m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
+    m_DeviceData.GrowDeviceBuffers(p_FrameIndex, m_DeviceInstances);
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::SendToDevice(const u32 p_FrameIndex)
+template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::SendToDevice(const u32 p_FrameIndex)
 {
     VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
@@ -244,20 +105,19 @@ template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::SendT
     TaskArray tasks{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
-    constexpr u32 pcount = Primitives<D>::Count;
-    const u32 hcount = m_HostData.GetSize();
+    const u32 pcount = Assets::GetStaticMeshCount<D>();
 
     Task mainTask{};
     u32 sindex = 0;
     for (u32 i = 0; i < pcount; ++i)
-        for (u32 j = 0; j < hcount; ++j)
+        for (u32 j = 0; j < MaxThreads; ++j)
         {
-            const auto &hostData = m_HostData[j];
+            const auto &hostData = m_ThreadHostData[j];
             const auto &data = hostData.Data[i];
             if (!data.IsEmpty())
             {
                 const auto copy = [&, offset] {
-                    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveSystem::SendToDevice");
+                    TKIT_PROFILE_NSCOPE("Onyx::StatMeshSystem::SendToDevice");
                     storageBuffer.Write<InstanceData>(data, {.DstOffset = offset});
                 };
                 if (!mainTask)
@@ -277,10 +137,12 @@ template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::SendT
     VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
-    RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
-    const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
+    if (!HasInstances(p_Info.FrameIndex))
+        return;
+    RenderSystem::AcknowledgeSubmission(p_Info.FrameIndex);
+    const u32 size = m_DeviceInstances * sizeof(InstanceData);
 
     VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
     VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
@@ -290,261 +152,68 @@ template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::Recor
     if (p_Info.ReleaseBarriers)
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
-template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::Render(const RenderInfo &p_Info)
+template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::Render(const RenderInfo &p_Info)
 {
-    if (this->m_DeviceInstances == 0)
+    if (m_DeviceInstances == 0)
         return;
 
-    TKIT_PROFILE_NSCOPE("Onyx::PrimitiveSystem::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::StatMeshSystem::Render");
 
-    this->m_Pipeline.Bind(p_Info.CommandBuffer);
+    m_Pipeline.Bind(p_Info.CommandBuffer);
 
     const VkDescriptorSet instanceDescriptor = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
 
-    constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-    bindDescriptorSets<dlevel>(p_Info, instanceDescriptor);
+    constexpr Shading shading = GetShading<D>(DMode);
+    bindDescriptorSets<shading>(p_Info, instanceDescriptor);
 
-    const VKit::Buffer &vbuffer = Primitives<D>::GetVertexBuffer();
-    const VKit::Buffer &ibuffer = Primitives<D>::GetIndexBuffer();
+    Assets::BindStaticMeshes<D>(p_Info.CommandBuffer);
 
-    vbuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
-    ibuffer.BindAsIndexBuffer<Index>(p_Info.CommandBuffer);
-
-    pushConstantData<dlevel>(p_Info);
+    pushConstantData<shading>(p_Info);
     u32 firstInstance = 0;
-    const auto &table = Core::GetDeviceTable();
 
-    for (u32 i = 0; i < Primitives<D>::Count; ++i)
+    const u32 pcount = Assets::GetStaticMeshCount<D>();
+    for (u32 i = 0; i < pcount; ++i)
     {
         u32 instanceCount = 0;
-        for (const auto &hostData : m_HostData)
+        for (const auto &hostData : m_ThreadHostData)
             instanceCount += hostData.Data[i].GetSize();
         if (instanceCount == 0)
             continue;
 
-        const PrimitiveDataLayout &layout = Primitives<D>::GetDataLayout(i);
-
-        table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, instanceCount, layout.IndicesStart,
-                             layout.VerticesStart, firstInstance);
+        Assets::DrawStaticMesh<D>(p_Info.CommandBuffer, i, firstInstance, instanceCount);
         INCREASE_DRAW_CALL_COUNT();
         firstInstance += instanceCount;
     }
 }
 
-template <Dimension D, PipelineMode PMode> void PrimitiveSystem<D, PMode>::Flush()
+template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::Flush()
 {
-    RenderSystem<D, PMode>::Flush();
-    for (auto &hostData : m_HostData)
+    RenderSystem::Flush();
+    for (auto &hostData : m_ThreadHostData)
     {
         for (auto &data : hostData.Data)
             data.Clear();
+        hostData.Data.Resize(Onyx::Assets::GetStaticMeshCount<D>());
         hostData.Instances = 0;
     }
 }
 
-template <Dimension D, PipelineMode PMode>
-PolygonSystem<D, PMode>::PolygonSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
+template <Dimension D, DrawMode DMode>
+CircleSystem<D, DMode>::CircleSystem(const PipelineMode p_Mode, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
-    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateMeshPipeline(p_RenderInfo);
+    TKIT_ASSERT(GetDrawMode(p_Mode) == DMode, "[ONYX] Draw and pipeline modes mismatch!");
+    m_Pipeline = Pipelines::CreateCirclePipeline<D>(p_Mode, p_RenderInfo);
 }
 
-template <Dimension D, PipelineMode PMode>
-void PolygonSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const TKit::Span<const f32v2> p_Vertices)
-{
-    TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX] A polygon must have at least 3 sides");
-    thread_local const u32 threadIndex = TKit::Topology::GetThreadIndex();
-    auto &hostData = m_HostData[threadIndex];
-
-    PrimitiveDataLayout layout;
-    layout.VerticesStart = hostData.Vertices.GetSize();
-    layout.IndicesStart = hostData.Indices.GetSize();
-    layout.IndicesCount = p_Vertices.GetSize() * 3 - 6;
-
-    hostData.Data.Append(p_InstanceData);
-    hostData.Layouts.Append(layout);
-
-    const auto writeVertex = [&hostData](const f32v2 &p_Vertex) {
-        Vertex<D> vertex{};
-        if constexpr (D == D3)
-        {
-            vertex.Position = f32v3{p_Vertex, 0.f};
-            vertex.Normal = f32v3{0.f, 0.f, 1.f};
-        }
-        else
-            vertex.Position = p_Vertex;
-        hostData.Vertices.Append(vertex);
-    };
-
-    for (u32 i = 0; i < 3; ++i)
-    {
-        const Index index = static_cast<Index>(i);
-        hostData.Indices.Append(index);
-        writeVertex(p_Vertices[i]);
-    }
-
-    for (u32 i = 3; i < p_Vertices.GetSize(); ++i)
-    {
-        const Index index = static_cast<Index>(i);
-        hostData.Indices.Append(0);
-        hostData.Indices.Append(index - 1);
-        hostData.Indices.Append(index);
-        writeVertex(p_Vertices[i]);
-    }
-}
-
-template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::GrowToFit(const u32 p_FrameIndex)
-{
-    this->m_DeviceInstances = 0;
-    m_DeviceVertices = 0;
-    m_DeviceIndices = 0;
-    for (const auto &hostData : m_HostData)
-    {
-        this->m_DeviceInstances += hostData.Data.GetSize();
-        m_DeviceVertices += hostData.Vertices.GetSize();
-        m_DeviceIndices += hostData.Indices.GetSize();
-    }
-
-    m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances, m_DeviceVertices, m_DeviceIndices);
-}
-template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::SendToDevice(const u32 p_FrameIndex)
-{
-    VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
-    VKit::Buffer &vertexBuffer = m_DeviceData.StagingVertices[p_FrameIndex];
-    VKit::Buffer &indexBuffer = m_DeviceData.StagingIndices[p_FrameIndex];
-
-    u32 offset = 0;
-    u32 voffset = 0;
-    u32 ioffset = 0;
-
-    TaskArray tasks{};
-    TKit::ITaskManager *tm = Core::GetTaskManager();
-
-    u32 sindex = 0;
-    const u32 hcount = m_HostData.GetSize();
-    Task mainTask{};
-    for (u32 i = 0; i < hcount; ++i)
-    {
-        const auto &hostData = m_HostData[i];
-        if (!hostData.Data.IsEmpty())
-        {
-            const auto copy = [&, offset, voffset, ioffset] {
-                TKIT_PROFILE_NSCOPE("Onyx::PolygonSystem::SendToDevice");
-                storageBuffer.Write<InstanceData>(hostData.Data, {.DstOffset = offset});
-                vertexBuffer.Write<Vertex<D>>(hostData.Vertices, {.DstOffset = voffset});
-                indexBuffer.Write<Index>(hostData.Indices, {.DstOffset = ioffset});
-            };
-            if (!mainTask)
-                mainTask = copy;
-            else
-            {
-                Task &task = tasks.Append(copy);
-                sindex = tm->SubmitTask(&task, sindex);
-            }
-
-            offset += hostData.Data.GetSize();
-            voffset += hostData.Vertices.GetSize();
-            ioffset += hostData.Indices.GetSize();
-        }
-    }
-
-    mainTask();
-    for (const Task &task : tasks)
-        tm->WaitUntilFinished(task);
-    VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
-    VKIT_ASSERT_EXPRESSION(vertexBuffer.Flush());
-    VKIT_ASSERT_EXPRESSION(indexBuffer.Flush());
-}
-
-template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
-{
-    RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
-    const u32 size = this->m_DeviceInstances * sizeof(InstanceData);
-    const u32 vsize = m_DeviceVertices * sizeof(Vertex<D>);
-    const u32 isize = m_DeviceIndices * sizeof(Index);
-
-    VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
-    VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
-    buffer.CopyFromBuffer(p_Info.CommandBuffer, staging, {.Size = size});
-
-    VKit::Buffer &vbuffer = m_DeviceData.DeviceLocalVertices[p_Info.FrameIndex];
-    VKit::Buffer &vstaging = m_DeviceData.StagingVertices[p_Info.FrameIndex];
-    vbuffer.CopyFromBuffer(p_Info.CommandBuffer, vstaging, {.Size = vsize});
-
-    VKit::Buffer &ibuffer = m_DeviceData.DeviceLocalIndices[p_Info.FrameIndex];
-    VKit::Buffer &istaging = m_DeviceData.StagingIndices[p_Info.FrameIndex];
-    ibuffer.CopyFromBuffer(p_Info.CommandBuffer, istaging, {.Size = isize});
-
-    p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
-    p_Info.AcquireVertexBarriers->Append(CreateAcquireBarrier(vbuffer, vsize, VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT));
-    p_Info.AcquireVertexBarriers->Append(CreateAcquireBarrier(ibuffer, isize, VK_ACCESS_INDEX_READ_BIT));
-    if (p_Info.ReleaseBarriers)
-    {
-        p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
-        p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(vbuffer, vsize));
-        p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(ibuffer, isize));
-    }
-}
-template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::Render(const RenderInfo &p_Info)
-{
-    if (this->m_DeviceInstances == 0)
-        return;
-    TKIT_PROFILE_NSCOPE("Onyx::PolygonSystem::Render");
-
-    this->m_Pipeline.Bind(p_Info.CommandBuffer);
-
-    const VkDescriptorSet instanceDescriptor = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
-
-    constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-    bindDescriptorSets<dlevel>(p_Info, instanceDescriptor);
-
-    const VKit::Buffer &vbuffer = m_DeviceData.DeviceLocalVertices[p_Info.FrameIndex];
-    const VKit::Buffer &ibuffer = m_DeviceData.DeviceLocalIndices[p_Info.FrameIndex];
-
-    vbuffer.BindAsVertexBuffer(p_Info.CommandBuffer);
-    ibuffer.BindAsIndexBuffer<Index>(p_Info.CommandBuffer);
-
-    pushConstantData<dlevel>(p_Info);
-    const auto &table = Core::GetDeviceTable();
-    u32 firstInstance = 0;
-
-    for (const auto &hostData : m_HostData)
-        for (const PrimitiveDataLayout &layout : hostData.Layouts)
-            if (layout.IndicesCount > 0)
-            {
-                table.CmdDrawIndexed(p_Info.CommandBuffer, layout.IndicesCount, 1, layout.IndicesStart,
-                                     layout.VerticesStart, firstInstance);
-                INCREASE_DRAW_CALL_COUNT();
-                ++firstInstance;
-            }
-}
-
-template <Dimension D, PipelineMode PMode> void PolygonSystem<D, PMode>::Flush()
-{
-    RenderSystem<D, PMode>::Flush();
-    for (auto &hostData : m_HostData)
-    {
-        hostData.Data.Clear();
-        hostData.Layouts.Clear();
-        hostData.Vertices.Clear();
-        hostData.Indices.Clear();
-    }
-}
-
-template <Dimension D, PipelineMode PMode>
-CircleSystem<D, PMode>::CircleSystem(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
-{
-    this->m_Pipeline = PipelineGenerator<D, PMode>::CreateCirclePipeline(p_RenderInfo);
-}
-
-template <Dimension D, PipelineMode PMode>
-void CircleSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Options)
+template <Dimension D, DrawMode DMode>
+void CircleSystem<D, DMode>::Draw(const InstanceData &p_InstanceData, const CircleOptions &p_Options)
 {
     // if (TKit::Approximately(p_Options.LowerAngle, p_Options.UpperAngle) ||
     //     TKit::Approximately(p_Options.Hollowness, 1.f))
     //     return;
 
     thread_local const u32 threadIndex = TKit::Topology::GetThreadIndex();
-    auto &hostData = m_HostData[threadIndex];
+    auto &hostData = m_ThreadHostData[threadIndex];
 
     CircleInstanceData instanceData;
     instanceData.Base = p_InstanceData;
@@ -562,15 +231,15 @@ void CircleSystem<D, PMode>::Draw(const InstanceData &p_InstanceData, const Circ
     hostData.Data.Append(instanceData);
 }
 
-template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::GrowToFit(const u32 p_FrameIndex)
+template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::GrowDeviceBuffers(const u32 p_FrameIndex)
 {
-    this->m_DeviceInstances = 0;
-    for (const auto &hostData : m_HostData)
-        this->m_DeviceInstances += hostData.Data.GetSize();
+    m_DeviceInstances = 0;
+    for (const auto &hostData : m_ThreadHostData)
+        m_DeviceInstances += hostData.Data.GetSize();
 
-    m_DeviceData.GrowToFit(p_FrameIndex, this->m_DeviceInstances);
+    m_DeviceData.GrowDeviceBuffers(p_FrameIndex, m_DeviceInstances);
 }
-template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::SendToDevice(const u32 p_FrameIndex)
+template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::SendToDevice(const u32 p_FrameIndex)
 {
     VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
@@ -579,11 +248,10 @@ template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::SendToDe
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
     u32 sindex = 0;
-    const u32 hcount = m_HostData.GetSize();
     Task mainTask{};
-    for (u32 i = 0; i < hcount; ++i)
+    for (u32 i = 0; i < MaxThreads; ++i)
     {
-        const auto &hostData = m_HostData[i];
+        const auto &hostData = m_ThreadHostData[i];
         if (!hostData.Data.IsEmpty())
         {
             const auto copy = [&, offset] {
@@ -607,11 +275,13 @@ template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::SendToDe
     VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
 }
 
-template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::RecordCopyCommands(const CopyInfo &p_Info)
+template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::RecordCopyCommands(const CopyInfo &p_Info)
 {
-    RenderSystem<D, PMode>::AcknowledgeSubmission(p_Info.FrameIndex);
+    if (!HasInstances(p_Info.FrameIndex))
+        return;
+    RenderSystem::AcknowledgeSubmission(p_Info.FrameIndex);
 
-    const u32 size = this->m_DeviceInstances * sizeof(CircleInstanceData);
+    const u32 size = m_DeviceInstances * sizeof(CircleInstanceData);
 
     VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
     VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
@@ -622,23 +292,23 @@ template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::RecordCo
         p_Info.ReleaseBarriers->Append(CreateReleaseBarrier(buffer, size));
 }
 
-template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::Render(const RenderInfo &p_Info)
+template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::Render(const RenderInfo &p_Info)
 {
-    if (this->m_DeviceInstances == 0)
+    if (m_DeviceInstances == 0)
         return;
     TKIT_PROFILE_NSCOPE("Onyx::CircleSystem::Render");
 
-    this->m_Pipeline.Bind(p_Info.CommandBuffer);
+    m_Pipeline.Bind(p_Info.CommandBuffer);
     const VkDescriptorSet instanceDescriptor = m_DeviceData.DescriptorSets[p_Info.FrameIndex];
 
-    constexpr DrawLevel dlevel = GetDrawLevel<D, PMode>();
-    bindDescriptorSets<dlevel>(p_Info, instanceDescriptor);
-    pushConstantData<dlevel>(p_Info);
+    constexpr Shading shading = GetShading<D>(DMode);
+    bindDescriptorSets<shading>(p_Info, instanceDescriptor);
+    pushConstantData<shading>(p_Info);
 
     const auto &table = Core::GetDeviceTable();
 
     u32 instanceCount = 0;
-    for (const auto &hostData : m_HostData)
+    for (const auto &hostData : m_ThreadHostData)
         instanceCount += hostData.Data.GetSize();
     TKIT_ASSERT(instanceCount > 0,
                 "[ONYX] Circle renderer instance count is zero, which should have trigger an early return earlier");
@@ -647,62 +317,24 @@ template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::Render(c
     INCREASE_DRAW_CALL_COUNT();
 }
 
-template <Dimension D, PipelineMode PMode> void CircleSystem<D, PMode>::Flush()
+template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::Flush()
 {
-    RenderSystem<D, PMode>::Flush();
-    for (auto &hostData : m_HostData)
+    RenderSystem::Flush();
+    for (auto &hostData : m_ThreadHostData)
         hostData.Data.Clear();
 }
 
 // This is crazy
-template class ONYX_API RenderSystem<D2, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API RenderSystem<D2, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API RenderSystem<D2, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API RenderSystem<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API StatMeshSystem<D2, Draw_Fill>;
+template class ONYX_API StatMeshSystem<D2, Draw_Outline>;
 
-template class ONYX_API RenderSystem<D3, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API RenderSystem<D3, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API RenderSystem<D3, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API RenderSystem<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API StatMeshSystem<D3, Draw_Fill>;
+template class ONYX_API StatMeshSystem<D3, Draw_Outline>;
 
-template class ONYX_API MeshSystem<D2, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API MeshSystem<D2, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API MeshSystem<D2, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API MeshSystem<D2, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API CircleSystem<D2, Draw_Fill>;
+template class ONYX_API CircleSystem<D2, Draw_Outline>;
 
-template class ONYX_API MeshSystem<D3, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API MeshSystem<D3, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API MeshSystem<D3, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API MeshSystem<D3, PipelineMode::DoStencilTestNoFill>;
-
-template class ONYX_API PrimitiveSystem<D2, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API PrimitiveSystem<D2, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API PrimitiveSystem<D2, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API PrimitiveSystem<D2, PipelineMode::DoStencilTestNoFill>;
-
-template class ONYX_API PrimitiveSystem<D3, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API PrimitiveSystem<D3, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API PrimitiveSystem<D3, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API PrimitiveSystem<D3, PipelineMode::DoStencilTestNoFill>;
-
-template class ONYX_API PolygonSystem<D2, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API PolygonSystem<D2, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API PolygonSystem<D2, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API PolygonSystem<D2, PipelineMode::DoStencilTestNoFill>;
-
-template class ONYX_API PolygonSystem<D3, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API PolygonSystem<D3, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API PolygonSystem<D3, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API PolygonSystem<D3, PipelineMode::DoStencilTestNoFill>;
-
-template class ONYX_API CircleSystem<D2, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API CircleSystem<D2, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API CircleSystem<D2, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API CircleSystem<D2, PipelineMode::DoStencilTestNoFill>;
-
-template class ONYX_API CircleSystem<D3, PipelineMode::NoStencilWriteDoFill>;
-template class ONYX_API CircleSystem<D3, PipelineMode::DoStencilWriteDoFill>;
-template class ONYX_API CircleSystem<D3, PipelineMode::DoStencilWriteNoFill>;
-template class ONYX_API CircleSystem<D3, PipelineMode::DoStencilTestNoFill>;
+template class ONYX_API CircleSystem<D3, Draw_Fill>;
+template class ONYX_API CircleSystem<D3, Draw_Outline>;
 
 } // namespace Onyx::Detail

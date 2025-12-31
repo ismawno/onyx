@@ -9,26 +9,14 @@
 #include "tkit/container/storage.hpp"
 #include "tkit/memory/block_allocator.hpp"
 
-#ifndef ONYX_MAX_RENDER_CONTEXTS
-#    define ONYX_MAX_RENDER_CONTEXTS 16
-#endif
-
-#ifndef ONYX_MAX_CAMERAS
-#    define ONYX_MAX_CAMERAS 16
-#endif
-
-#ifndef ONYX_MAX_EVENTS
-#    define ONYX_MAX_EVENTS 32
-#endif
-
 struct GLFWwindow;
 
 namespace Onyx
 {
-template <Dimension D> using RenderContextArray = TKit::StaticArray<RenderContext<D> *, ONYX_MAX_RENDER_CONTEXTS>;
-template <Dimension D> using CameraArray = TKit::StaticArray<Camera<D> *, ONYX_MAX_CAMERAS>;
+template <Dimension D> using RenderContextArray = TKit::Array<RenderContext<D> *, MaxRenderContexts>;
+template <Dimension D> using CameraArray = TKit::Array<Camera<D> *, MaxCameras>;
 
-using EventArray = TKit::StaticArray<Event, ONYX_MAX_EVENTS>;
+using EventArray = TKit::Array<Event, MaxEvents>;
 
 u32 ToFrequency(TKit::Timespan p_DeltaTime);
 TKit::Timespan ToDeltaTime(u32 p_FrameRate);
@@ -45,50 +33,23 @@ struct FrameInfo
     }
 };
 
-/**
- * @brief Represents a window in the Onyx application.
- *
- * This class encapsulates the functionality of a window, including rendering, input handling,
- * and window properties like size, position, and visibility.
- */
 class ONYX_API Window
 {
     TKIT_NON_COPYABLE(Window)
   public:
     using Flags = u8;
-    /**
-     * @brief Flags representing window properties.
-     *
-     * These flags can be used to specify window attributes such as resizable, visible, decorated, etc.
-     *
-     * - Flag_Resizable: The window can be resized.
-     *
-     * - Flag_Visible: THe window will be visible when created.
-     *
-     * - Flag_Decorated: The window had decorations such as border, close button etc.
-     *
-     * - Flag_Focused: The window is focused upon creation.
-     *
-     * - Flag_Floating: The window is always on top of other windows.
-     */
     enum FlagBit : Flags
     {
-        Flag_None = 0,
         Flag_Resizable = 1 << 0,
         Flag_Visible = 1 << 1,
         Flag_Decorated = 1 << 2,
         Flag_Focused = 1 << 3,
         Flag_Floating = 1 << 4,
     };
-    /**
-     * @brief Specifications for creating a window.
-     *
-     * Contains parameters like name, dimensions, and flags.
-     */
     struct Specs
     {
         const char *Name = "Onyx window";
-        u32v2 Position{TKit::Limits<u32>::Max()}; // u32 max means let it be decided automatically
+        u32v2 Position{TKIT_U32_MAX}; // u32 max means let it be decided automatically
         u32v2 Dimensions{800, 600};
         VkPresentModeKHR PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
         Flags Flags = Flag_Resizable | Flag_Visible | Flag_Decorated | Flag_Focused;
@@ -98,15 +59,6 @@ class ONYX_API Window
     Window(const Specs &p_Specs);
     ~Window();
 
-    /**
-     * @brief Begin a frame for the given window.
-     *
-     * This method will wait for the next available swap chain image, so it may block for some time.
-     * After this call, `ImGui` and `ImPlot` may be used until the `EndRendering()` method.
-     *
-     * @param p_WaitMode The timeouts when waiting for fences and acquiring next image.
-     * @return Information about the new frame.
-     */
     FrameInfo BeginFrame(const WaitMode &p_WaitMode = WaitMode::Block);
 
     /**
@@ -126,10 +78,10 @@ class ONYX_API Window
      * `vkBeginRendering()`/`vkEndRendering()` pair may be submitted.
      *
      */
-    void BeginRendering();
+    void BeginRendering(const Color &p_ClearColor = Color::BLACK);
 
     /**
-     * @brief Record all window commands.
+     * @brief Record all window commands, should be called between `BeginRendering()` and `EndRendering()`.
      *
      */
     void Render(const FrameInfo &p_Info);
@@ -146,7 +98,7 @@ class ONYX_API Window
      *
      * @return `true` if the window managed to render, `false` otherwise.
      */
-    bool Render();
+    bool Render(const Color &p_ClearColor = Color::BLACK);
 
     bool ShouldClose() const;
 
@@ -257,11 +209,6 @@ class ONYX_API Window
 
     void PushEvent(const Event &p_Event);
 
-    /**
-     * @brief Gets the new events since the last call to `FlushEvents()`.
-     *
-     * @return The array of new events.
-     */
     const EventArray &GetNewEvents() const
     {
         return m_Events;
@@ -341,16 +288,9 @@ class ONYX_API Window
             }
     }
 
-    Color BackgroundColor = Color::BLACK;
-
   private:
     void recreateSurface();
     void createWindow(const Specs &p_Specs);
-    /**
-     * @brief Scale camera views to adapt to their viewport aspects.
-     *
-     * This method is called automatically on window resize events so that elements in the scene are not distorted.
-     */
     void adaptCamerasToViewportAspect();
 
     template <Dimension D> auto &getContextArray()
@@ -368,10 +308,10 @@ class ONYX_API Window
             return m_Cameras3;
     }
 
-    template <Dimension D> TKit::StaticArray<Detail::CameraInfo, ONYX_MAX_CAMERAS> getCameraInfos()
+    template <Dimension D> TKit::Array<Detail::CameraInfo, MaxCameras> getCameraInfos()
     {
         auto &array = getCameraArray<D>();
-        TKit::StaticArray<Detail::CameraInfo, ONYX_MAX_CAMERAS> cameras;
+        TKit::Array<Detail::CameraInfo, MaxCameras> cameras;
         for (const Camera<D> *cam : array)
             cameras.Append(cam->CreateCameraInfo());
         return cameras;

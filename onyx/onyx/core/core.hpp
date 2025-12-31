@@ -1,44 +1,16 @@
 #pragma once
 
 #include "onyx/core/api.hpp"
-#include "onyx/core/alias.hpp"
+#include "onyx/core/limits.hpp"
 #include "vkit/vulkan/allocator.hpp"
-#include "vkit/descriptors/descriptor_pool.hpp"
-#include "vkit/descriptors/descriptor_set_layout.hpp"
 #include "vkit/rendering/command_pool.hpp"
-#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-#    include "tkit/profiling/vulkan.hpp"
-#endif
 #include "vkit/vulkan/instance.hpp"
 #include "vkit/vulkan/loader.hpp"
 #include "vkit/vulkan/logical_device.hpp"
 #include "vkit/vulkan/physical_device.hpp"
-#include "tkit/profiling/macros.hpp"
-
-#ifndef ONYX_MAX_DESCRIPTOR_SETS
-#    define ONYX_MAX_DESCRIPTOR_SETS 1024
-#endif
-
-#ifndef ONYX_MAX_DESCRIPTORS
-#    define ONYX_MAX_DESCRIPTORS 1024
-#endif
-
-#ifndef ONYX_MAX_FRAMES_IN_FLIGHT
-#    define ONYX_MAX_FRAMES_IN_FLIGHT 2
-#endif
-
-#if ONYX_MAX_FRAMES_IN_FLIGHT < 2
-#    error "[ONYX] Maximum frames in flight must be greater than 2"
-#endif
-
-// The amount of active threads (accounting for the main thread as well) should not surpass this number. This means
-// thread pools should be created with LESS threads than this limit.
-#ifndef ONYX_MAX_THREADS
-#    define ONYX_MAX_THREADS 16
-#endif
-
-#ifndef ONYX_MAX_TASKS
-#    define ONYX_MAX_TASKS 256
+#include "tkit/multiprocessing/task.hpp"
+#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
+#    include "tkit/profiling/vulkan.hpp"
 #endif
 
 #define ONYX_PLATFORM_ANY 0x00060000
@@ -74,7 +46,7 @@ template <typename T> class Task;
 namespace Onyx
 {
 using Task = TKit::Task<void>;
-using TaskArray = TKit::StaticArray<Task, ONYX_MAX_TASKS>;
+using TaskArray = TKit::Array<Task, MaxTasks>;
 
 struct QueueHandle
 {
@@ -86,8 +58,9 @@ struct QueueHandle
     TKit::VkProfilingContext ProfilingContext;
 #endif
 };
+} // namespace Onyx
 
-namespace Detail
+namespace Onyx::Detail
 {
 struct QueueData
 {
@@ -99,8 +72,10 @@ struct QueueData
 QueueData BorrowQueueData();
 void ReturnQueueData(const QueueData &p_Data);
 
-} // namespace Detail
+} // namespace Onyx::Detail
 
+namespace Onyx
+{
 struct InitCallbacks
 {
     std::function<void(VKit::Instance::Builder &)> OnInstanceCreation = nullptr;
@@ -114,14 +89,15 @@ struct Specs
     const char *VulkanLibraryPath = nullptr;
     TKit::ITaskManager *TaskManager = nullptr;
     InitCallbacks Callbacks{};
-    TKit::Array4<u32> QueueRequests{4, 0, 4, 4};
+    TKit::FixedArray4<u32> QueueRequests{4, 0, 4, 4};
     u32 Platform = ONYX_PLATFORM_AUTO;
 };
 
-template <typename T> using PerFrameData = TKit::Array<T, ONYX_MAX_FRAMES_IN_FLIGHT>;
-template <typename T> using PerImageData = TKit::StaticArray8<T>;
+template <typename T> using PerFrameData = TKit::FixedArray<T, MaxFramesInFlight>;
+template <typename T> using PerImageData = TKit::Array8<T>;
+} // namespace Onyx
 
-namespace Core
+namespace Onyx::Core
 {
 void Initialize(const Specs &p_Specs = {});
 void Terminate();
@@ -146,19 +122,10 @@ VmaAllocator GetVulkanAllocator();
 
 VKit::DeletionQueue &GetDeletionQueue();
 
-const VKit::DescriptorPool &GetDescriptorPool();
-const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout();
-const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout();
-
 bool IsSeparateTransferMode();
 
 u32 GetFamilyIndex(VKit::QueueType p_Type);
 QueueHandle *BorrowQueue(VKit::QueueType p_Type);
 void ReturnQueue(QueueHandle *p_Queue);
 
-VkPipelineLayout GetGraphicsPipelineLayoutSimple();
-VkPipelineLayout GetGraphicsPipelineLayoutComplex();
-
-}; // namespace Core
-
-} // namespace Onyx
+}; // namespace Onyx::Core

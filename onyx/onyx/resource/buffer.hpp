@@ -9,9 +9,11 @@
 #    define ONYX_INDEX_TYPE TKit::Alias::u32
 #endif
 
-namespace Onyx
-{
-namespace Detail
+#ifndef ONYX_BUFFER_INITIAL_CAPACITY
+#    define ONYX_BUFFER_INITIAL_CAPACITY 4
+#endif
+
+namespace Onyx::Detail
 {
 // These change behaviour depending if the physical device has a transfer queue different to the graphics queue used.
 
@@ -22,7 +24,17 @@ VkBufferMemoryBarrier CreateReleaseBarrier(VkBuffer p_DeviceLocalBuffer, u32 p_S
 void ApplyAcquireBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers,
                          VkPipelineStageFlags p_DstFlags);
 void ApplyReleaseBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBufferMemoryBarrier> p_Barriers);
-} // namespace Detail
+} // namespace Onyx::Detail
+
+namespace Onyx
+{
+enum BufferFlags : VKit::Buffer::Flags
+{
+    Buffer_DeviceVertex = VKit::Buffer::Flag_VertexBuffer | VKit::Buffer::Flag_DeviceLocal,
+    Buffer_DeviceIndex = VKit::Buffer::Flag_IndexBuffer | VKit::Buffer::Flag_DeviceLocal,
+    Buffer_DeviceStorage = VKit::Buffer::Flag_StorageBuffer | VKit::Buffer::Flag_DeviceLocal,
+    Buffer_Staging = VKit::Buffer::Flag_StagingBuffer | VKit::Buffer::Flag_HostMapped,
+};
 
 using Index = ONYX_INDEX_TYPE;
 
@@ -30,21 +42,9 @@ using DeviceLocalBuffer = VKit::Buffer;
 using HostVisibleBuffer = VKit::Buffer;
 
 template <typename T> using HostBuffer = TKit::DynamicArray<T>;
-template <Dimension D> using HostVertexBuffer = TKit::DynamicArray<Vertex<D>>;
-using HostIndexBuffer = TKit::DynamicArray<Index>;
 
-template <Dimension D> struct IndexVertexHostData
-{
-    HostVertexBuffer<D> Vertices;
-    HostIndexBuffer Indices;
-};
-
-#ifdef ONYX_ENABLE_OBJ
-template <Dimension D>
-VKit::Result<IndexVertexHostData<D>> Load(std::string_view p_Path, const f32m<D> *p_Transform = nullptr);
-#endif
-
-template <typename T> VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flags, const u32 p_Capacity)
+template <typename T>
+VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flags, const u32 p_Capacity = ONYX_BUFFER_INITIAL_CAPACITY)
 {
     const auto result =
         VKit::Buffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), p_Flags).SetSize<T>(p_Capacity).Build();
@@ -68,6 +68,20 @@ template <typename T> VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flag
         Core::ReturnQueue(queue);
     }
     return buffer;
+}
+
+template <typename T>
+bool GrowBufferIfNeeded(VKit::Buffer &p_Buffer, const u32 p_Instances, const VKit::Buffer::Flags p_Flags,
+                        const f32 p_Factor = 1.5f)
+{
+    const u32 inst = p_Buffer.GetInfo().InstanceCount;
+    if (p_Buffer && p_Instances <= inst)
+        return false;
+
+    const u32 ninst = static_cast<u32>(p_Factor * static_cast<f32>(p_Instances));
+    p_Buffer.Destroy();
+    p_Buffer = CreateBuffer<T>(p_Flags, ninst);
+    return true;
 }
 
 } // namespace Onyx

@@ -14,9 +14,9 @@ void RunApp(const Onyx::Demo::ParseResult &p_Args)
 
     Onyx::Application app{spc};
     if (p_Args.Dim == Onyx::Dimension::D2)
-        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D2>>(p_Args.Lattices2);
+        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D2>>(p_Args.Lattice2, p_Args.Settings);
     else
-        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D3>>(p_Args.Lattices3);
+        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D3>>(p_Args.Lattice3, p_Args.Settings);
     if (!p_Args.HasRuntime)
         app.Run();
     else

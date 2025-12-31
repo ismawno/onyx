@@ -1,78 +1,17 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "vkit/descriptors/descriptor_set.hpp"
+#include "onyx/resource/assets.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 
 namespace Onyx::Detail
 {
-template <Dimension D, template <Dimension, PipelineMode> typename R>
-RenderGroup<D, R>::RenderGroup(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
-    : NoStencilWriteDoFill(p_RenderInfo), DoStencilWriteDoFill(p_RenderInfo), DoStencilWriteNoFill(p_RenderInfo),
-      DoStencilTestNoFill(p_RenderInfo)
-{
-}
-
-template <Dimension D, template <Dimension, PipelineMode> typename R> void RenderGroup<D, R>::Flush()
-{
-    NoStencilWriteDoFill.Flush();
-    DoStencilWriteDoFill.Flush();
-    DoStencilWriteNoFill.Flush();
-    DoStencilTestNoFill.Flush();
-}
-
-template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderGroup<D, R>::GrowToFit(const u32 p_FrameIndex)
-{
-    NoStencilWriteDoFill.GrowToFit(p_FrameIndex);
-    DoStencilWriteDoFill.GrowToFit(p_FrameIndex);
-    DoStencilWriteNoFill.GrowToFit(p_FrameIndex);
-    DoStencilTestNoFill.GrowToFit(p_FrameIndex);
-}
-template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderGroup<D, R>::SendToDevice(const u32 p_FrameIndex, SendInfo &p_Info)
-{
-    TKit::ITaskManager *tm = Core::GetTaskManager();
-    const auto send = [&p_Info, p_FrameIndex, tm](auto &p_System) {
-        if (!p_System.HasInstances(p_FrameIndex))
-            return;
-
-        const auto fn = [&p_System, p_FrameIndex]() { p_System.SendToDevice(p_FrameIndex); };
-        Task &mainTask = *p_Info.MainTask;
-        if (!mainTask)
-            mainTask = fn;
-        else
-        {
-            Task &task = p_Info.Tasks->Append(fn);
-            p_Info.SubmissionIndex = tm->SubmitTask(&task, p_Info.SubmissionIndex);
-        }
-    };
-
-    send(NoStencilWriteDoFill);
-    send(DoStencilWriteDoFill);
-    send(DoStencilWriteNoFill);
-    send(DoStencilTestNoFill);
-}
-
-template <Dimension D, template <Dimension, PipelineMode> typename R>
-void RenderGroup<D, R>::RecordCopyCommands(const CopyInfo &p_Info)
-{
-    if (NoStencilWriteDoFill.HasInstances(p_Info.FrameIndex))
-        NoStencilWriteDoFill.RecordCopyCommands(p_Info);
-    if (DoStencilWriteDoFill.HasInstances(p_Info.FrameIndex))
-        DoStencilWriteDoFill.RecordCopyCommands(p_Info);
-    if (DoStencilWriteNoFill.HasInstances(p_Info.FrameIndex))
-        DoStencilWriteNoFill.RecordCopyCommands(p_Info);
-    if (DoStencilTestNoFill.HasInstances(p_Info.FrameIndex))
-        DoStencilTestNoFill.RecordCopyCommands(p_Info);
-}
-
 static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInfo &p_DirectionalInfo,
                                                      const VkDescriptorBufferInfo &p_PointInfo,
                                                      VkDescriptorSet p_OldSet = VK_NULL_HANDLE)
 {
-    const VKit::DescriptorSetLayout &layout = Core::GetLightStorageDescriptorSetLayout();
-    const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
+    const VKit::DescriptorSetLayout &layout = Assets::GetLightStorageDescriptorSetLayout();
+    const VKit::DescriptorPool &pool = Assets::GetDescriptorPool();
 
     VKit::DescriptorSet::Writer writer(Core::GetDevice(), &layout);
     writer.WriteBuffer(0, p_DirectionalInfo);
@@ -90,14 +29,13 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
 
 template <Dimension D>
 IRenderer<D>::IRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
-    : m_MeshSystem(p_RenderInfo), m_PrimitiveSystem(p_RenderInfo), m_PolygonSystem(p_RenderInfo),
-      m_CircleSystem(p_RenderInfo)
+    : m_StatMeshSystem(p_RenderInfo), m_CircleSystem(p_RenderInfo)
 {
 }
 
 Renderer<D3>::Renderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) : IRenderer<D3>(p_RenderInfo)
 {
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < MaxFramesInFlight; ++i)
     {
         const VkDescriptorBufferInfo dirInfo = m_DeviceLightData.DeviceLocalDirectionals[i].GetDescriptorInfo();
         const VkDescriptorBufferInfo pointInfo = m_DeviceLightData.DeviceLocalPoints[i].GetDescriptorInfo();
@@ -107,18 +45,18 @@ Renderer<D3>::Renderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo) : I
 
 DeviceLightData::DeviceLightData()
 {
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < MaxFramesInFlight; ++i)
     {
-        DeviceLocalDirectionals[i] = CreateDeviceBuffer<DirectionalLight>(VKit::Buffer::Flag_StorageBuffer);
-        DeviceLocalPoints[i] = CreateDeviceBuffer<PointLight>(VKit::Buffer::Flag_StorageBuffer);
-        StagingDirectionals[i] = CreateStagingBuffer<DirectionalLight>();
-        StagingPoints[i] = CreateStagingBuffer<PointLight>();
+        DeviceLocalDirectionals[i] = CreateBuffer<DirectionalLight>(Buffer_DeviceStorage);
+        DeviceLocalPoints[i] = CreateBuffer<PointLight>(Buffer_DeviceStorage);
+        StagingDirectionals[i] = CreateBuffer<DirectionalLight>(Buffer_Staging);
+        StagingPoints[i] = CreateBuffer<PointLight>(Buffer_Staging);
     }
 }
 DeviceLightData::~DeviceLightData()
 {
     Core::DeviceWaitIdle();
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < MaxFramesInFlight; ++i)
     {
         DeviceLocalDirectionals[i].Destroy();
         DeviceLocalPoints[i].Destroy();
@@ -127,35 +65,17 @@ DeviceLightData::~DeviceLightData()
     }
 }
 
-void DeviceLightData::GrowToFit(const u32 p_FrameIndex, const u32 p_Directionals, const u32 p_Points)
+void DeviceLightData::GrowDeviceBuffers(const u32 p_FrameIndex, const u32 p_Directionals, const u32 p_Points)
 {
     auto &ldbuffer = DeviceLocalDirectionals[p_FrameIndex];
-    if (ldbuffer.GetInfo().InstanceCount < p_Directionals)
-    {
-        ldbuffer.Destroy();
-        ldbuffer = CreateDeviceBuffer<DirectionalLight>(VKit::Buffer::Flag_StorageBuffer,
-                                                        1 + p_Directionals + p_Directionals / 2);
-    }
-
     auto &sdbuffer = StagingDirectionals[p_FrameIndex];
-    if (sdbuffer.GetInfo().InstanceCount < p_Directionals)
-    {
-        sdbuffer.Destroy();
-        sdbuffer = CreateStagingBuffer<DirectionalLight>(1 + p_Directionals + p_Directionals / 2);
-    }
     auto &lpbuffer = DeviceLocalPoints[p_FrameIndex];
-    if (lpbuffer.GetInfo().InstanceCount < p_Points)
-    {
-        lpbuffer.Destroy();
-        ldbuffer = CreateDeviceBuffer<PointLight>(VKit::Buffer::Flag_StorageBuffer, 1 + p_Points + p_Points / 2);
-    }
-
     auto &spbuffer = StagingPoints[p_FrameIndex];
-    if (spbuffer.GetInfo().InstanceCount < p_Points)
-    {
-        spbuffer.Destroy();
-        spbuffer = CreateStagingBuffer<PointLight>(1 + p_Directionals + p_Directionals / 2);
-    }
+
+    GrowBufferIfNeeded<DirectionalLight>(ldbuffer, p_Directionals, Buffer_DeviceStorage);
+    GrowBufferIfNeeded<DirectionalLight>(sdbuffer, p_Directionals, Buffer_Staging);
+    GrowBufferIfNeeded<PointLight>(lpbuffer, p_Points, Buffer_DeviceStorage);
+    GrowBufferIfNeeded<PointLight>(spbuffer, p_Points, Buffer_Staging);
 
     const VkDescriptorBufferInfo dirInfo = ldbuffer.GetDescriptorInfo();
     const VkDescriptorBufferInfo pointInfo = lpbuffer.GetDescriptorInfo();
@@ -183,9 +103,9 @@ static InstanceData<D, DMode> createInstanceData(const f32m<D> &p_Transform, con
         instanceData.Color = p_Material.Color;
         return instanceData;
     }
-    else if constexpr (DMode == DrawMode::Fill)
+    else if constexpr (DMode == Draw_Fill)
     {
-        InstanceData<D3, DrawMode::Fill> instanceData{};
+        InstanceData<D3, Draw_Fill> instanceData{};
         instanceData.Basis1 = f32v4{p_Transform[0][0], p_Transform[1][0], p_Transform[2][0], p_Transform[3][0]};
         instanceData.Basis2 = f32v4{p_Transform[0][1], p_Transform[1][1], p_Transform[2][1], p_Transform[3][1]};
         instanceData.Basis3 = f32v4{p_Transform[0][2], p_Transform[1][2], p_Transform[2][2], p_Transform[3][2]};
@@ -197,7 +117,7 @@ static InstanceData<D, DMode> createInstanceData(const f32m<D> &p_Transform, con
     }
     else
     {
-        InstanceData<D3, DrawMode::Stencil> instanceData{};
+        InstanceData<D3, Draw_Outline> instanceData{};
         instanceData.Basis1 = f32v4{p_Transform[0][0], p_Transform[1][0], p_Transform[2][0], p_Transform[3][0]};
         instanceData.Basis2 = f32v4{p_Transform[0][1], p_Transform[1][1], p_Transform[2][1], p_Transform[3][1]};
         instanceData.Basis3 = f32v4{p_Transform[0][2], p_Transform[1][2], p_Transform[2][2], p_Transform[3][2]};
@@ -224,21 +144,21 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
     if (p_Flags & DrawFlag_NoStencilWriteDoFill)
     {
         material.Color = p_State.Material.Color.Pack();
-        const auto instanceData = createInstanceData<D, DrawMode::Fill>(p_Transform, material);
+        const auto instanceData = createInstanceData<D, Draw_Fill>(p_Transform, material);
         p_Renderer.NoStencilWriteDoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
     }
     if (p_Flags & DrawFlag_DoStencilWriteDoFill)
     {
         material.Color = p_State.Material.Color.Pack();
-        const auto instanceData = createInstanceData<D, DrawMode::Fill>(p_Transform, material);
+        const auto instanceData = createInstanceData<D, Draw_Fill>(p_Transform, material);
         p_Renderer.DoStencilWriteDoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
     }
     if (p_Flags & DrawFlag_DoStencilWriteNoFill)
     {
         material.Color = p_State.OutlineColor.Pack();
-        const auto instanceData = createInstanceData<D, DrawMode::Stencil>(p_Transform, material);
+        const auto instanceData = createInstanceData<D, Draw_Outline>(p_Transform, material);
 
-        if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleSystem>>)
+        if constexpr (!std::is_same_v<Renderer, Expand<CircleSystem>>)
             p_Renderer.DoStencilWriteNoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
         else
         {
@@ -251,9 +171,9 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
     if (p_Flags & DrawFlag_DoStencilTestNoFill)
     {
         material.Color = p_State.OutlineColor.Pack();
-        const auto instanceData = createInstanceData<D, DrawMode::Stencil>(p_Transform, material);
+        const auto instanceData = createInstanceData<D, Draw_Outline>(p_Transform, material);
 
-        if constexpr (!std::is_same_v<Renderer, RenderGroup<D, CircleSystem>>)
+        if constexpr (!std::is_same_v<Renderer, Expand<CircleSystem>>)
             p_Renderer.DoStencilTestNoFill.Draw(instanceData, std::forward<DrawArg>(p_Arg));
         else
         {
@@ -265,72 +185,36 @@ void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, con
     }
 }
 
-template <Dimension D>
-void IRenderer<D>::DrawMesh(const RenderState<D> &p_State, const f32m<D> &p_Transform, const Mesh<D> &p_Mesh,
-                            const DrawFlags p_Flags)
-{
-    draw(m_MeshSystem, p_State, p_Transform, p_Mesh, p_Flags);
-}
-
-template <Dimension D>
-void IRenderer<D>::DrawPrimitive(const RenderState<D> &p_State, const f32m<D> &p_Transform, const u32 p_PrimitiveIndex,
-                                 const DrawFlags p_Flags)
-{
-    draw(m_PrimitiveSystem, p_State, p_Transform, p_PrimitiveIndex, p_Flags);
-}
-
-template <Dimension D>
-void IRenderer<D>::DrawPolygon(const RenderState<D> &p_State, const f32m<D> &p_Transform,
-                               const TKit::Span<const f32v2> p_Vertices, const DrawFlags p_Flags)
-{
-    draw(m_PolygonSystem, p_State, p_Transform, p_Vertices, p_Flags);
-}
-
-template <Dimension D>
-void IRenderer<D>::DrawCircle(const RenderState<D> &p_State, const f32m<D> &p_Transform, const CircleOptions &p_Options,
-                              const DrawFlags p_Flags)
-{
-    draw(m_CircleSystem, p_State, p_Transform, p_Options, p_Flags);
-}
-
 void Renderer<D2>::Flush()
 {
-    m_MeshSystem.Flush();
-    m_PrimitiveSystem.Flush();
-    m_PolygonSystem.Flush();
+    m_StatMeshSystem.Flush();
     m_CircleSystem.Flush();
 }
 void Renderer<D3>::Flush()
 {
-    m_MeshSystem.Flush();
-    m_PrimitiveSystem.Flush();
-    m_PolygonSystem.Flush();
+    m_StatMeshSystem.Flush();
     m_CircleSystem.Flush();
 
     m_HostLightData.DirectionalLights.Clear();
     m_HostLightData.PointLights.Clear();
 }
 
-void Renderer<D2>::GrowToFit(const u32 p_FrameIndex)
+void Renderer<D2>::GrowDeviceBuffers(const u32 p_FrameIndex)
 {
-    m_MeshSystem.GrowToFit(p_FrameIndex);
-    m_PrimitiveSystem.GrowToFit(p_FrameIndex);
-    m_PolygonSystem.GrowToFit(p_FrameIndex);
-    m_CircleSystem.GrowToFit(p_FrameIndex);
+    m_StatMeshSystem.GrowDeviceBuffers(p_FrameIndex);
+    m_CircleSystem.GrowDeviceBuffers(p_FrameIndex);
 }
 
 void Renderer<D2>::SendToDevice(const u32 p_FrameIndex)
 {
     Task mainTask{};
-    TKit::StaticArray16<Task> tasks{};
+    TKit::Array16<Task> tasks{};
     SendInfo info{};
     info.Tasks = &tasks;
     info.MainTask = &mainTask;
     info.SubmissionIndex = 0;
 
-    m_MeshSystem.SendToDevice(p_FrameIndex, info);
-    m_PrimitiveSystem.SendToDevice(p_FrameIndex, info);
-    m_PolygonSystem.SendToDevice(p_FrameIndex, info);
+    m_StatMeshSystem.SendToDevice(p_FrameIndex, info);
     m_CircleSystem.SendToDevice(p_FrameIndex, info);
 
     if (!mainTask)
@@ -345,9 +229,9 @@ VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, co
                                                       const VkCommandBuffer p_TransferCommand)
 {
     const bool separate = Core::IsSeparateTransferMode();
-    TKit::StaticArray16<VkBufferMemoryBarrier> sacquires{};
-    TKit::StaticArray4<VkBufferMemoryBarrier> vacquires{};
-    TKit::StaticArray32<VkBufferMemoryBarrier> releases{};
+    TKit::Array16<VkBufferMemoryBarrier> sacquires{};
+    TKit::Array4<VkBufferMemoryBarrier> vacquires{};
+    TKit::Array32<VkBufferMemoryBarrier> releases{};
 
     CopyInfo info{};
     info.CommandBuffer = p_TransferCommand;
@@ -356,9 +240,7 @@ VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, co
     info.ReleaseBarriers = separate ? &releases : nullptr;
     info.AcquireVertexBarriers = &vacquires;
 
-    m_MeshSystem.RecordCopyCommands(info);
-    m_PrimitiveSystem.RecordCopyCommands(info);
-    m_PolygonSystem.RecordCopyCommands(info);
+    m_StatMeshSystem.RecordCopyCommands(info);
     m_CircleSystem.RecordCopyCommands(info);
 
     VkPipelineStageFlags flags = 0;
@@ -378,30 +260,26 @@ VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, co
     return flags;
 }
 
-void Renderer<D3>::GrowToFit(const u32 p_FrameIndex)
+void Renderer<D3>::GrowDeviceBuffers(const u32 p_FrameIndex)
 {
-    m_MeshSystem.GrowToFit(p_FrameIndex);
-    m_PrimitiveSystem.GrowToFit(p_FrameIndex);
-    m_PolygonSystem.GrowToFit(p_FrameIndex);
-    m_CircleSystem.GrowToFit(p_FrameIndex);
+    m_StatMeshSystem.GrowDeviceBuffers(p_FrameIndex);
+    m_CircleSystem.GrowDeviceBuffers(p_FrameIndex);
 
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
     const u32 pcount = m_HostLightData.PointLights.GetSize();
-    m_DeviceLightData.GrowToFit(p_FrameIndex, dcount, pcount);
+    m_DeviceLightData.GrowDeviceBuffers(p_FrameIndex, dcount, pcount);
 }
 
 void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
 {
     Task mainTask{};
-    TKit::StaticArray16<Task> tasks{};
+    TKit::Array16<Task> tasks{};
     SendInfo info{};
     info.Tasks = &tasks;
     info.MainTask = &mainTask;
     info.SubmissionIndex = 0;
 
-    m_MeshSystem.SendToDevice(p_FrameIndex, info);
-    m_PrimitiveSystem.SendToDevice(p_FrameIndex, info);
-    m_PolygonSystem.SendToDevice(p_FrameIndex, info);
+    m_StatMeshSystem.SendToDevice(p_FrameIndex, info);
     m_CircleSystem.SendToDevice(p_FrameIndex, info);
 
     const u32 dcount = m_HostLightData.DirectionalLights.GetSize();
@@ -434,9 +312,9 @@ VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, co
                                                       const VkCommandBuffer p_TransferCommand)
 {
     const bool separate = Core::IsSeparateTransferMode();
-    TKit::StaticArray16<VkBufferMemoryBarrier> sacquires{};
-    TKit::StaticArray4<VkBufferMemoryBarrier> vacquires{};
-    TKit::StaticArray32<VkBufferMemoryBarrier> releases{};
+    TKit::Array16<VkBufferMemoryBarrier> sacquires{};
+    TKit::Array4<VkBufferMemoryBarrier> vacquires{};
+    TKit::Array32<VkBufferMemoryBarrier> releases{};
 
     CopyInfo info{};
     info.CommandBuffer = p_TransferCommand;
@@ -445,9 +323,7 @@ VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, co
     info.ReleaseBarriers = separate ? &releases : nullptr;
     info.AcquireVertexBarriers = &vacquires;
 
-    m_MeshSystem.RecordCopyCommands(info);
-    m_PrimitiveSystem.RecordCopyCommands(info);
-    m_PolygonSystem.RecordCopyCommands(info);
+    m_StatMeshSystem.RecordCopyCommands(info);
     m_CircleSystem.RecordCopyCommands(info);
 
     const u32 dsize = m_HostLightData.DirectionalLights.GetSize() * sizeof(DirectionalLight);
@@ -489,37 +365,13 @@ VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, co
     return flags;
 }
 
-template <DrawLevel DLevel, typename... Renderers>
-static void noStencilWriteDoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderers &...p_Renderers)
-{
-    (p_Renderers.NoStencilWriteDoFill.Render(p_RenderInfo), ...);
-}
-
-template <DrawLevel DLevel, typename... Renderers>
-static void doStencilWriteDoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderers &...p_Renderers)
-{
-    (p_Renderers.DoStencilWriteDoFill.Render(p_RenderInfo), ...);
-}
-
-template <DrawLevel DLevel, typename... Renderers>
-static void doStencilWriteNoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderers &...p_Renderers)
-{
-    (p_Renderers.DoStencilWriteNoFill.Render(p_RenderInfo), ...);
-}
-
-template <DrawLevel DLevel, typename... Renderers>
-static void doStencilTestNoFill(const RenderInfo<DLevel> &p_RenderInfo, Renderers &...p_Renderers)
-{
-    (p_Renderers.DoStencilTestNoFill.Render(p_RenderInfo), ...);
-}
-
 template <Dimension D> static void setCameraViewport(const VkCommandBuffer p_CommandBuffer, const CameraInfo &p_Camera)
 {
     const auto &table = Core::GetDeviceTable();
     if (!p_Camera.Transparent)
     {
         const Color &bg = p_Camera.BackgroundColor;
-        TKit::Array<VkClearAttachment, D - 1> clearAttachments{};
+        TKit::FixedArray<VkClearAttachment, D - 1> clearAttachments{};
         clearAttachments[0].colorAttachment = 0;
         clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         clearAttachments[0].clearValue.color = {{bg.RGBA[0], bg.RGBA[1], bg.RGBA[2], bg.RGBA[3]}};
@@ -546,19 +398,17 @@ void Renderer<D2>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Comman
                           const TKit::Span<const CameraInfo> p_Cameras)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer<D2>::Render");
-    RenderInfo<DrawLevel::Simple> simpleDrawInfo;
-    simpleDrawInfo.CommandBuffer = p_CommandBuffer;
-    simpleDrawInfo.FrameIndex = p_FrameIndex;
+    RenderInfo<Shading_Unlit> unlitRenderInfo;
+    unlitRenderInfo.CommandBuffer = p_CommandBuffer;
+    unlitRenderInfo.FrameIndex = p_FrameIndex;
 
     for (const CameraInfo &camera : p_Cameras)
     {
         setCameraViewport<D2>(p_CommandBuffer, camera);
 
-        simpleDrawInfo.Camera = &camera;
-        noStencilWriteDoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
-        doStencilWriteDoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
-        doStencilWriteNoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
-        doStencilTestNoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
+        unlitRenderInfo.Camera = &camera;
+        renderFill(unlitRenderInfo);
+        renderOutline(unlitRenderInfo);
     }
 }
 
@@ -566,9 +416,9 @@ void Renderer<D3>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Comman
                           const TKit::Span<const CameraInfo> p_Cameras)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer<D3>::Render");
-    RenderInfo<DrawLevel::Complex> complexDrawInfo;
-    complexDrawInfo.CommandBuffer = p_CommandBuffer;
-    complexDrawInfo.FrameIndex = p_FrameIndex;
+    RenderInfo<Shading_Lit> litRenderInfo;
+    litRenderInfo.CommandBuffer = p_CommandBuffer;
+    litRenderInfo.FrameIndex = p_FrameIndex;
     LightData light;
 
     light.DescriptorSet = m_DeviceLightData.DescriptorSets[p_FrameIndex];
@@ -580,23 +430,21 @@ void Renderer<D3>::Render(const u32 p_FrameIndex, const VkCommandBuffer p_Comman
     light.DirectionalCount = dcount;
     light.PointCount = pcount;
 
-    complexDrawInfo.Light = light;
+    litRenderInfo.Light = light;
 
-    RenderInfo<DrawLevel::Simple> simpleDrawInfo;
-    simpleDrawInfo.CommandBuffer = p_CommandBuffer;
-    simpleDrawInfo.FrameIndex = p_FrameIndex;
+    RenderInfo<Shading_Unlit> unlitRenderInfo;
+    unlitRenderInfo.CommandBuffer = p_CommandBuffer;
+    unlitRenderInfo.FrameIndex = p_FrameIndex;
 
     for (const CameraInfo &camera : p_Cameras)
     {
         setCameraViewport<D3>(p_CommandBuffer, camera);
 
-        complexDrawInfo.Camera = &camera;
-        noStencilWriteDoFill(complexDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
-        doStencilWriteDoFill(complexDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
+        litRenderInfo.Camera = &camera;
+        renderFill(litRenderInfo);
 
-        simpleDrawInfo.Camera = &camera;
-        doStencilWriteNoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
-        doStencilTestNoFill(simpleDrawInfo, m_MeshSystem, m_PrimitiveSystem, m_PolygonSystem, m_CircleSystem);
+        unlitRenderInfo.Camera = &camera;
+        renderOutline(unlitRenderInfo);
     }
 }
 

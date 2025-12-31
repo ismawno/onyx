@@ -1,23 +1,27 @@
 #pragma once
 
-#include "onyx/data/state.hpp"
+#include "onyx/core/alias.hpp"
+#include "onyx/core/api.hpp"
+#include "onyx/resource/state.hpp"
+#include "vkit/pipeline/graphics_pipeline.hpp"
 #include "vkit/pipeline/shader.hpp"
 
-namespace Onyx::Detail
+namespace Onyx::Pipelines
 {
-template <Dimension D, DrawMode DMode> struct Shaders
-{
-    static void Initialize();
+ONYX_API void Initialize();
+ONYX_API void Terminate();
 
-    static const VKit::Shader &GetMeshVertexShader();
-    static const VKit::Shader &GetMeshFragmentShader();
-    static const VKit::Shader &GetCircleVertexShader();
-    static const VKit::Shader &GetCircleFragmentShader();
-};
-} // namespace Onyx::Detail
+ONYX_API VkPipelineLayout GetGraphicsPipelineLayout(Shading p_Shading);
 
-namespace Onyx
-{
+// consider exposing shader data
+
+template <Dimension D>
+VKit::GraphicsPipeline CreateStaticMeshPipeline(PipelineMode p_Mode,
+                                                const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+
+template <Dimension D>
+VKit::GraphicsPipeline CreateCirclePipeline(PipelineMode p_Mode, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+
 /**
  * @brief Create a default shader binary path from a source path.
  *
@@ -94,4 +98,5 @@ ONYX_API void CompileShader(std::string_view p_SourcePath, std::string_view p_Bi
  * @return The full pass vertex shader.
  */
 ONYX_API const VKit::Shader &GetFullPassVertexShader();
-} // namespace Onyx
+
+} // namespace Onyx::Pipelines

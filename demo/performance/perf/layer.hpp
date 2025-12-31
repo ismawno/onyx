@@ -10,7 +10,7 @@ namespace Onyx::Demo
 template <Dimension D> class Layer : public UserLayer
 {
   public:
-    Layer(Application *p_Application, Window *p_Window, TKit::Span<const Lattice<D>> p_Lattices);
+    Layer(Application *p_Application, Window *p_Window, const Lattice<D> &p_Lattice, const ShapeSettings &p_Options);
 
     void OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &) override;
     void OnEvent(const Event &p_Event) override;
@@ -18,6 +18,9 @@ template <Dimension D> class Layer : public UserLayer
   private:
     RenderContext<D> *m_Context;
     Camera<D> *m_Camera;
-    TKit::StaticArray8<Lattice<D>> m_Lattices{};
+    Lattice<D> m_Lattice;
+    ShapeSettings m_Options;
+    Assets::Mesh m_Mesh;
+    Assets::Mesh m_AxesMesh;
 };
 } // namespace Onyx::Demo

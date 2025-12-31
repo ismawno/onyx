@@ -1,45 +1,37 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/data/state.hpp"
-#include "onyx/core/shaders.hpp"
-#include "onyx/object/primitives.hpp"
-#include "tkit/multiprocessing/task_manager.hpp"
-#include "vkit/pipeline/pipeline_layout.hpp"
-#include "vkit/core/core.hpp"
-#include "tkit/utils/debug.hpp"
-#include "tkit/memory/block_allocator.hpp"
-
 #include "onyx/core/glfw.hpp"
+#include "onyx/resource/assets.hpp"
+#include "onyx/resource/pipelines.hpp"
+
+#include "vkit/core/core.hpp"
 #include "vkit/vulkan/allocator.hpp"
 #include "vkit/vulkan/vulkan.hpp"
+
+#include "tkit/multiprocessing/task_manager.hpp"
+#include "tkit/utils/debug.hpp"
+#include "tkit/memory/block_allocator.hpp"
+#include "tkit/profiling/macros.hpp"
 #ifdef ONYX_FONTCONFIG
 #    include <fontconfig/fontconfig.h>
 #endif
 
-namespace Onyx
+using namespace Onyx::Detail;
+namespace Onyx::Core
 {
-using namespace Detail;
-
 static TKit::ITaskManager *s_TaskManager;
-static TKit::Storage<TKit::TaskManager> s_DefaultManager;
+static TKit::Storage<TKit::TaskManager> s_DefaultTaskManager;
 
 static VKit::Instance s_Instance{};
 static VKit::LogicalDevice s_Device{};
 
 static VKit::DeletionQueue s_DeletionQueue{};
 
-static VKit::DescriptorPool s_DescriptorPool{};
-static VKit::DescriptorSetLayout s_InstanceDataStorageLayout{};
-static VKit::DescriptorSetLayout s_LightStorageLayout{};
-
-static VKit::PipelineLayout s_DLevelSimpleLayout{};
-static VKit::PipelineLayout s_DLevelComplexLayout{};
-
 static VKit::CommandPool s_GraphicsPool{};
 static VKit::CommandPool s_TransferPool{};
 
-static TKit::Array4<u32> s_QueueRequests;
-static TKit::Array4<TKit::StaticArray64<QueueHandle *>> s_Queues;
+static TKit::FixedArray4<u32> s_QueueRequests;
+static TKit::FixedArray4<TKit::Array64<QueueHandle *>> s_Queues;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 static InitCallbacks s_Callbacks{};
@@ -130,8 +122,8 @@ static void createVulkanAllocator()
 static void createCommandPool()
 {
     TKIT_LOG_INFO("[ONYX] Creating global command pools");
-    const u32 gindex = Core::GetFamilyIndex(VKit::Queue_Graphics);
-    const u32 tindex = Core::GetFamilyIndex(VKit::Queue_Transfer);
+    const u32 gindex = GetFamilyIndex(VKit::Queue_Graphics);
+    const u32 tindex = GetFamilyIndex(VKit::Queue_Transfer);
     auto poolres = VKit::CommandPool::Create(
         s_Device, gindex, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT | VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 
@@ -150,78 +142,13 @@ static void createCommandPool()
         s_TransferPool = s_GraphicsPool;
 }
 
-static void createDescriptorData()
-{
-    TKIT_LOG_INFO("[ONYX] Creating global descriptor data");
-    const auto poolResult = VKit::DescriptorPool::Builder(s_Device)
-                                .SetMaxSets(ONYX_MAX_DESCRIPTOR_SETS)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, ONYX_MAX_DESCRIPTORS)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, ONYX_MAX_DESCRIPTORS)
-                                .Build();
-
-    VKIT_ASSERT_RESULT(poolResult);
-    s_DescriptorPool = poolResult.GetValue();
-
-    auto layoutResult = VKit::DescriptorSetLayout::Builder(s_Device)
-                            .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-                            .Build();
-
-    VKIT_ASSERT_RESULT(layoutResult);
-    s_InstanceDataStorageLayout = layoutResult.GetValue();
-
-    layoutResult = VKit::DescriptorSetLayout::Builder(s_Device)
-                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-                       .Build();
-
-    VKIT_ASSERT_RESULT(layoutResult);
-    s_LightStorageLayout = layoutResult.GetValue();
-
-    s_DeletionQueue.SubmitForDeletion(s_DescriptorPool);
-    s_DeletionQueue.SubmitForDeletion(s_InstanceDataStorageLayout);
-    s_DeletionQueue.SubmitForDeletion(s_LightStorageLayout);
-}
-
-static void createPipelineLayouts()
-{
-    TKIT_LOG_INFO("[ONYX] Creating global pipeline layouts");
-    auto layoutResult = VKit::PipelineLayout::Builder(s_Device)
-                            .AddDescriptorSetLayout(s_InstanceDataStorageLayout)
-                            .AddPushConstantRange<PushConstantData<DrawLevel::Simple>>(VK_SHADER_STAGE_VERTEX_BIT)
-                            .Build();
-
-    VKIT_ASSERT_RESULT(layoutResult);
-    s_DLevelSimpleLayout = layoutResult.GetValue();
-    s_DeletionQueue.SubmitForDeletion(layoutResult.GetValue());
-
-    layoutResult = VKit::PipelineLayout::Builder(s_Device)
-                       .AddDescriptorSetLayout(s_InstanceDataStorageLayout)
-                       .AddDescriptorSetLayout(s_LightStorageLayout)
-                       .AddPushConstantRange<PushConstantData<DrawLevel::Complex>>(VK_SHADER_STAGE_VERTEX_BIT |
-                                                                                   VK_SHADER_STAGE_FRAGMENT_BIT)
-                       .Build();
-
-    VKIT_ASSERT_RESULT(layoutResult);
-    s_DLevelComplexLayout = layoutResult.GetValue();
-    s_DeletionQueue.SubmitForDeletion(layoutResult.GetValue());
-}
-
-static void createShaders()
-{
-    TKIT_LOG_INFO("[ONYX] Creating global shaders");
-    Shaders<D2, DrawMode::Fill>::Initialize();
-    Shaders<D2, DrawMode::Stencil>::Initialize();
-    Shaders<D3, DrawMode::Fill>::Initialize();
-    Shaders<D3, DrawMode::Stencil>::Initialize();
-}
-
 static void retrieveDeviceQueues()
 {
     const VKit::PhysicalDevice &phys = s_Device.GetInfo().PhysicalDevice;
     const u32 maxCount = *std::max_element(s_QueueRequests.begin(), s_QueueRequests.end());
     for (u32 i = 0; i < maxCount; ++i)
     {
-        TKit::Array4<QueueHandle *> handles{nullptr, nullptr, nullptr, nullptr};
+        TKit::FixedArray4<QueueHandle *> handles{nullptr, nullptr, nullptr, nullptr};
 
         for (u32 j = 0; j < 4; ++j)
         {
@@ -285,7 +212,7 @@ static void retrieveDeviceQueues()
 #endif
 }
 
-void Core::Initialize(const Specs &p_Specs)
+void Initialize(const Specs &p_Specs)
 {
     TKIT_LOG_INFO("[ONYX] Creating Vulkan instance");
 #ifdef ONYX_FONTCONFIG
@@ -307,9 +234,9 @@ void Core::Initialize(const Specs &p_Specs)
         s_TaskManager = p_Specs.TaskManager;
     else
     {
-        s_DefaultManager.Construct();
-        s_TaskManager = s_DefaultManager.Get();
-        s_DeletionQueue.Push([] { s_DefaultManager.Destruct(); });
+        s_DefaultTaskManager.Construct();
+        s_TaskManager = s_DefaultTaskManager.Get();
+        s_DeletionQueue.Push([] { s_DefaultTaskManager.Destruct(); });
     }
     s_Callbacks = p_Specs.Callbacks;
 
@@ -359,7 +286,7 @@ void Core::Initialize(const Specs &p_Specs)
     TKIT_PROFILE_PLOT_CONFIG("Draw calls", TKit::ProfilingPlotFormat::Number, false, true, 0);
 }
 
-void Core::Terminate()
+void Terminate()
 {
     if (IsDeviceCreated())
         DeviceWaitIdle();
@@ -368,7 +295,7 @@ void Core::Terminate()
     glfwTerminate();
 }
 
-void Core::CreateDevice(const VkSurfaceKHR p_Surface)
+void CreateDevice(const VkSurfaceKHR p_Surface)
 {
     TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     TKIT_ASSERT(!s_Device, "[ONYX] Device has already been created");
@@ -377,93 +304,73 @@ void Core::CreateDevice(const VkSurfaceKHR p_Surface)
     createVulkanAllocator();
     createCommandPool();
     retrieveDeviceQueues();
-    createDescriptorData();
-    createPipelineLayouts();
-    CreateCombinedPrimitiveBuffers();
-    createShaders();
+    Assets::Initialize();
+    Pipelines::Initialize();
+    s_DeletionQueue.Push([] {
+        Pipelines::Terminate();
+        Assets::Terminate();
+    });
 }
-TKit::ITaskManager *Core::GetTaskManager()
+TKit::ITaskManager *GetTaskManager()
 {
     return s_TaskManager;
 }
-void Core::SetTaskManager(TKit::ITaskManager *p_TaskManager)
+void SetTaskManager(TKit::ITaskManager *p_TaskManager)
 {
     s_TaskManager = p_TaskManager;
 }
 
-const VKit::Instance &Core::GetInstance()
+const VKit::Instance &GetInstance()
 {
     TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     return s_Instance;
 }
-const VKit::Vulkan::InstanceTable &Core::GetInstanceTable()
+const VKit::Vulkan::InstanceTable &GetInstanceTable()
 {
     TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     return s_Instance.GetInfo().Table;
 };
-const VKit::LogicalDevice &Core::GetDevice()
+const VKit::LogicalDevice &GetDevice()
 {
     return s_Device;
 }
-const VKit::Vulkan::DeviceTable &Core::GetDeviceTable()
+const VKit::Vulkan::DeviceTable &GetDeviceTable()
 {
     return s_Device.GetInfo().Table;
 };
-bool Core::IsDeviceCreated()
+bool IsDeviceCreated()
 {
     return s_Device;
 }
-void Core::DeviceWaitIdle()
+void DeviceWaitIdle()
 {
     VKIT_ASSERT_EXPRESSION(s_Device.WaitIdle());
 }
 
-VKit::CommandPool &Core::GetGraphicsPool()
+VKit::CommandPool &GetGraphicsPool()
 {
     return s_GraphicsPool;
 }
-VKit::CommandPool &Core::GetTransferPool()
+VKit::CommandPool &GetTransferPool()
 {
     return s_TransferPool;
 }
-VmaAllocator Core::GetVulkanAllocator()
+VmaAllocator GetVulkanAllocator()
 {
     return s_VulkanAllocator;
 }
 
-VKit::DeletionQueue &Core::GetDeletionQueue()
+VKit::DeletionQueue &GetDeletionQueue()
 {
     return s_DeletionQueue;
 }
 
-const VKit::DescriptorPool &Core::GetDescriptorPool()
-{
-    return s_DescriptorPool;
-}
-const VKit::DescriptorSetLayout &Core::GetInstanceDataStorageDescriptorSetLayout()
-{
-    return s_InstanceDataStorageLayout;
-}
-const VKit::DescriptorSetLayout &Core::GetLightStorageDescriptorSetLayout()
-{
-    return s_LightStorageLayout;
-}
-
-VkPipelineLayout Core::GetGraphicsPipelineLayoutSimple()
-{
-    return s_DLevelSimpleLayout;
-}
-VkPipelineLayout Core::GetGraphicsPipelineLayoutComplex()
-{
-    return s_DLevelComplexLayout;
-}
-
-bool Core::IsSeparateTransferMode()
+bool IsSeparateTransferMode()
 {
     return GetFamilyIndex(VKit::Queue_Graphics) != GetFamilyIndex(VKit::Queue_Transfer);
 }
 
-u32 Core::GetFamilyIndex(const VKit::QueueType p_Type)
+u32 GetFamilyIndex(const VKit::QueueType p_Type)
 {
     return s_Device.GetInfo().PhysicalDevice.GetInfo().FamilyIndices[p_Type];
 }
@@ -484,31 +391,31 @@ static QueueHandle *chooseQueue(const VKit::QueueType p_Type)
     return qh;
 }
 
-QueueHandle *Core::BorrowQueue(const VKit::QueueType p_Type)
+QueueHandle *BorrowQueue(const VKit::QueueType p_Type)
 {
     QueueHandle *qh = chooseQueue(p_Type);
     ++qh->UsageCount;
     return qh;
 }
 
-void Core::ReturnQueue(QueueHandle *p_Queue)
+void ReturnQueue(QueueHandle *p_Queue)
 {
     TKIT_ASSERT(p_Queue->UsageCount != 0, "[ONYX] Cannot return a queue that has 0 usage count");
     --p_Queue->UsageCount;
 }
-
-namespace Detail
+} // namespace Onyx::Core
+namespace Onyx::Detail
 {
 QueueData BorrowQueueData()
 {
     QueueData data;
-    data.Graphics = chooseQueue(VKit::Queue_Graphics);
-    data.Transfer = chooseQueue(VKit::Queue_Transfer);
-    data.Present = chooseQueue(VKit::Queue_Present);
+    data.Graphics = Core::chooseQueue(VKit::Queue_Graphics);
+    data.Transfer = Core::chooseQueue(VKit::Queue_Transfer);
+    data.Present = Core::chooseQueue(VKit::Queue_Present);
 
 #ifdef TKIT_ENABLE_DEBUG_LOGS
-    TKit::Array<QueueHandle *, 3> handles{data.Graphics, data.Transfer, data.Present};
-    TKit::Array<VKit::QueueType, 3> types{VKit::Queue_Graphics, VKit::Queue_Transfer, VKit::Queue_Present};
+    TKit::FixedArray<QueueHandle *, 3> handles{data.Graphics, data.Transfer, data.Present};
+    TKit::FixedArray<VKit::QueueType, 3> types{VKit::Queue_Graphics, VKit::Queue_Transfer, VKit::Queue_Present};
     for (u32 i = 0; i < 3; ++i)
         TKIT_LOG_DEBUG("[ONYX] Borrowing {} queue <{}, {}>, which is being used in {} other instances",
                        VKit::ToString(types[i]), handles[i]->FamilyIndex, handles[i]->Index, handles[i]->UsageCount);
@@ -527,6 +434,4 @@ void ReturnQueueData(const QueueData &p_Data)
     Core::ReturnQueue(p_Data.Transfer);
     Core::ReturnQueue(p_Data.Present);
 }
-} // namespace Detail
-
-} // namespace Onyx
+} // namespace Onyx::Detail

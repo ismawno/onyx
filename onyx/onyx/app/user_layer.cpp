@@ -230,25 +230,6 @@ bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags)
     return changed;
 }
 
-bool UserLayer::ResolutionEditor(const char *p_Name, Resolution &p_Res, const Flags p_Flags)
-{
-    ImGui::PushID(&p_Res);
-    i32 res = static_cast<i32>(p_Res);
-
-    const bool changed = ImGui::Combo(p_Name, &res, "Very Low\0Low\0Medium\0High\0Very High\0\0");
-    if (changed)
-        p_Res = static_cast<Resolution>(res);
-
-    if (p_Flags & Flag_DisplayHelp)
-        HelpMarkerSameLine(
-            "This setting allows you to control the resolution of certain 3D shapes that have smooth curved surfaces, "
-            "such as spheres and cylinders. The resolution is the number of segments that the shape is divided into. A "
-            "higher resolution will make the shape smoother, but it will also increase the number of vertices and the "
-            "computational cost of rendering the shape.");
-    ImGui::PopID();
-    return changed;
-}
-
 static const char *presentModeToString(const VkPresentModeKHR mode)
 {
     switch (mode)
@@ -276,10 +257,10 @@ bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags)
 {
     const FrameScheduler *fs = p_Window->GetFrameScheduler();
     const VkPresentModeKHR current = fs->GetPresentMode();
-    const TKit::StaticArray8<VkPresentModeKHR> &available = fs->GetAvailablePresentModes();
+    const TKit::Array8<VkPresentModeKHR> &available = fs->GetAvailablePresentModes();
 
     int index = -1;
-    TKit::StaticArray8<const char *> presentModes;
+    TKit::Array8<const char *> presentModes;
     for (u32 i = 0; i < available.GetSize(); ++i)
     {
         presentModes.Append(presentModeToString(available[i]));

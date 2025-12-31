@@ -8,13 +8,6 @@ class ONYX_API Theme
   public:
     virtual ~Theme() = default;
 
-    /**
-     * @brief Apply an ImGui theme.
-     *
-     * Modify the ImGui theme by grabbing the style with `ImGui::GetStyle()` and changing the colors and other
-     * properties.
-     *
-     */
     virtual void Apply() const = 0;
 };
 

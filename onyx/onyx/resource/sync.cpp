@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/data/sync.hpp"
+#include "onyx/resource/sync.hpp"
 
 namespace Onyx::Detail
 {
@@ -9,7 +9,7 @@ PerFrameData<SyncFrameData> CreatePerFrameSyncData()
     const auto &table = device.GetInfo().Table;
 
     PerFrameData<SyncFrameData> syncs{};
-    for (u32 i = 0; i < ONYX_MAX_FRAMES_IN_FLIGHT; ++i)
+    for (u32 i = 0; i < MaxFramesInFlight; ++i)
     {
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;

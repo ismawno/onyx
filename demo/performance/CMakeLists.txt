@@ -6,7 +6,6 @@ set(SOURCES perf/main.cpp perf/lattice.cpp perf/layer.cpp perf/argparse.cpp)
 add_executable(onyx-performance ${SOURCES})
 
 tkit_default_configure(onyx-performance)
-tkit_register_for_yaml_serialization(onyx-performance SOURCES perf/lattice.hpp)
 
 FetchContent_Declare(
   argparse

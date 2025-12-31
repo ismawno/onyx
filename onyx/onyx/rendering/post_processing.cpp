@@ -1,5 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/post_processing.hpp"
+#include "onyx/resource/assets.hpp"
 #include "vkit/descriptors/descriptor_set.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 
@@ -60,7 +61,7 @@ void PostProcessing::Setup(const Specs &p_Specs)
     m_Job = jresult.GetValue();
     if (m_SamplerDescriptors.IsEmpty())
     {
-        const VKit::DescriptorPool &pool = Core::GetDescriptorPool();
+        const VKit::DescriptorPool &pool = Assets::GetDescriptorPool();
         for (u32 i = 0; i < m_ImageViews.GetSize(); ++i)
         {
             const auto dresult = pool.Allocate(m_DescriptorSetLayout);

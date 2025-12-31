@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/data/state.hpp"
+#include "onyx/resource/state.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/property/transform.hpp"
 #include "tkit/profiling/timespan.hpp"
@@ -48,8 +48,7 @@ template <> struct ONYX_API ProjectionViewData<D3>
  * @brief The `ScreenViewport` struct holds screen viewport dimensions.
  *
  * It is represented as an axis-aligned rectangle with the `Min` and `Max` coordinates ranging from -1 to 1. The
- * `DepthBounds` are Math::Normalized, ranging from 0 to 1. The default values are set to cover the entire screen.
- *
+ * `DepthBounds` are normalized, ranging from 0 to 1. The default values are set to cover the entire screen.
  */
 struct ONYX_API ScreenViewport
 {
@@ -59,12 +58,6 @@ struct ONYX_API ScreenViewport
     f32v2 Max{1.f};
     f32v2 DepthBounds{0.f, 1.f};
 
-    /**
-     * @brief Convert the viewport to a Vulkan viewport given a Vulkan extent.
-     *
-     * @param p_Extent The Vulkan extent to use for the conversion.
-     * @return The Vulkan viewport.
-     */
     VkViewport AsVulkanViewport(const VkExtent2D &p_Extent) const;
 };
 
@@ -73,7 +66,6 @@ struct ONYX_API ScreenViewport
  *
  * It is represented as an axis-aligned rectangle with the `Min` and `Max` coordinates ranging from -1 to 1. The default
  * values are set to cover the entire screen.
- *
  */
 struct ONYX_API ScreenScissor
 {
@@ -82,14 +74,6 @@ struct ONYX_API ScreenScissor
     f32v2 Min{-1.f};
     f32v2 Max{1.f};
 
-    /**
-     * @brief Convert the scissor to a Vulkan scissor given a Vulkan extent and a viewport.
-     *
-     * The scissor will be adapted so its coordinates are relative to the viewport.
-     *
-     * @param p_Extent The Vulkan extent to use for the conversion.
-     * @return The Vulkan scissor.
-     */
     VkRect2D AsVulkanScissor(const VkExtent2D &p_Extent, const ScreenViewport &p_Viewport) const;
 };
 
@@ -99,26 +83,26 @@ template <> struct ONYX_API CameraControls<D2>
 {
     f32 TranslationStep = 1.f / 60.f;
     f32 RotationStep = 1.f / 60.f;
-    Input::Key Up = Input::Key::W;
-    Input::Key Down = Input::Key::S;
-    Input::Key Left = Input::Key::A;
-    Input::Key Right = Input::Key::D;
-    Input::Key RotateLeft = Input::Key::Q;
-    Input::Key RotateRight = Input::Key::E;
+    Input::Key Up = Input::Key_W;
+    Input::Key Down = Input::Key_S;
+    Input::Key Left = Input::Key_A;
+    Input::Key Right = Input::Key_D;
+    Input::Key RotateLeft = Input::Key_Q;
+    Input::Key RotateRight = Input::Key_E;
 };
 template <> struct ONYX_API CameraControls<D3>
 {
     f32 TranslationStep = 1.f / 60.f;
     f32 RotationStep = 1.f / 60.f;
-    Input::Key Forward = Input::Key::W;
-    Input::Key Backward = Input::Key::S;
-    Input::Key Left = Input::Key::A;
-    Input::Key Right = Input::Key::D;
-    Input::Key Up = Input::Key::Space;
-    Input::Key Down = Input::Key::LeftControl;
-    Input::Key RotateLeft = Input::Key::Q;
-    Input::Key RotateRight = Input::Key::E;
-    Input::Key ToggleLookAround = Input::Key::LeftShift;
+    Input::Key Forward = Input::Key_W;
+    Input::Key Backward = Input::Key_S;
+    Input::Key Left = Input::Key_A;
+    Input::Key Right = Input::Key_D;
+    Input::Key Up = Input::Key_Space;
+    Input::Key Down = Input::Key_LeftControl;
+    Input::Key RotateLeft = Input::Key_Q;
+    Input::Key RotateRight = Input::Key_E;
+    Input::Key ToggleLookAround = Input::Key_LeftShift;
 };
 
 } // namespace Onyx
@@ -133,71 +117,14 @@ template <Dimension D> class ICamera
   public:
     ICamera() = default;
 
-    /**
-     * @brief Compute the position of a point in the camera's rendering context from screen to viewport coordinates.
-     *
-     * @param p_ScreenPos The position to convert. Should be in the range [-1, 1] for points contained in the screen,
-     * with the y axis pointing upwards.
-     * @return The position in viewport coordinates.
-     */
     f32v2 ScreenToViewport(const f32v2 &p_ScreenPos) const;
-
-    /**
-     * @brief Compute the position of a point in the camera's rendering context from viewport to world coordinates.
-     *
-     * @param p_ViewportPos The position to convert. Should be in the range [-1, 1] for points contained in the
-     * viewport, with the y axis pointing upwards. If in 3D, the z axis must be between [0, 1], mapping the near and far
-     * planes or the orthographic size.
-     *
-     * @return The position in world coordinates.
-     */
     f32v<D> ViewportToWorld(f32v<D> p_ViewportPos) const;
-
-    /**
-     * @brief Compute the position of a point in the camera's rendering context from world to viewport coordinates.
-     *
-     * @param p_WorldPos The position to convert.
-     *
-     * @return The position in viewport coordinates. Should be in the range [-1, 1] only if the provided point was
-     * contained in the viewport, with the y axis pointing upwards.
-     */
     f32v2 WorldToViewport(const f32v<D> &p_WorldPos) const;
 
-    /**
-     * @brief Compute the position of a point in the camera's rendering context from viewport to screen coordinates.
-     *
-     * @param p_ViewportPos The position to convert. Should be in the range [-1, 1] for points contained in the
-     * viewport, with the y axis pointing upwards.
-     * @return The position in screen coordinates. Should be in the range [-1, 1] only if the provided point was
-     * contained in the screen, with the y axis pointing upwards.
-     */
     f32v2 ViewportToScreen(const f32v2 &p_ViewportPos) const;
-
-    /**
-     * @brief Compute the position of a point in the camera's rendering context from screen to world coordinates.
-     *
-     * @param p_ScreenPos The position to convert. Should be in the range [-1, 1] for points contained in the screen,
-     * with the y axis pointing upwards. If in 3D, the z axis must be between [0, 1], mapping the near and far planes or
-     * the orthographic size.
-     *
-     * @return The position in world coordinates.
-     */
     f32v<D> ScreenToWorld(const f32v<D> &p_ScreenPos) const;
-
-    /**
-     * @brief Compute the position of a point in the camera's rendering context from world to screen coordinates.
-     *
-     * @param p_WorldPos The position to convert.
-     * @return The position in screen coordinates. Should be in the range [-1, 1] only if the provided point was
-     * contained in the screen, with the y axis pointing upwards.
-     */
     f32v2 WorldToScreen(const f32v<D> &p_WorldPos) const;
 
-    /**
-     * @brief Compute the position of the mouse in the camera's rendering context from screen to viewport coordinates.
-     *
-     * @return The mouse position in the camera's viewport coordinates.
-     */
     f32v2 GetViewportMousePosition() const;
 
     void ControlMovementWithUserInput(const CameraControls<D> &p_Controls);
@@ -261,11 +188,6 @@ template <> class ONYX_API Camera<D2> final : public Detail::ICamera<D2>
   public:
     using ICamera<D2>::ICamera;
 
-    /**
-     * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
-     *
-     * @return The mouse position in the camera's rendering context coordinates.
-     */
     f32v2 GetWorldMousePosition() const;
 
     void SetSize(f32 p_Size);
@@ -278,48 +200,13 @@ template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
   public:
     using ICamera<D3>::ICamera;
 
-    /**
-     * @brief Compute the position of the mouse in the camera's rendering context from screen to world coordinates.
-     *
-     * @param p_Depth The depth at which to get the mouse coordinates.
-     *
-     * @return The mouse position in the camera's rendering context coordinates.
-     */
     f32v3 GetWorldMousePosition(f32 p_Depth = 0.5f) const;
-
-    /**
-     * @brief Get the direction of the view.
-     *
-     */
     f32v3 GetViewLookDirection() const;
-
-    /**
-     * @brief Get the direction of an imaginary ray cast from the mouse.
-     *
-     */
     f32v3 GetMouseRayCastDirection() const;
 
     void SetProjection(const f32m4 &p_Projection);
-
-    /**
-     * @brief Set a perspective projection with the given field of view and near/far planes.
-     *
-     * @param p_FieldOfView The field of view in radians.
-     * @param p_Near The near clipping plane.
-     * @param p_Far The far clipping plane.
-     */
     void SetPerspectiveProjection(f32 p_FieldOfView = Math::Radians(75.f), f32 p_Near = 0.1f, f32 p_Far = 100.f);
-
-    /**
-     * @brief Set a basic orthographic projection.
-     */
     void SetOrthographicProjection();
-
-    /**
-     * @brief Set a basic orthographic projection.
-     *
-     * @param p_Size The size of the camera, respecting the current aspect ratio.
-     */
     void SetOrthographicProjection(f32 p_Size);
 };
 } // namespace Onyx

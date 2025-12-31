@@ -4,21 +4,19 @@ project(onyx)
 set(SOURCES
     onyx/core/pch.cpp
     onyx/core/core.cpp
-    onyx/core/shaders.cpp
     onyx/rendering/camera.cpp
     onyx/rendering/render_context.cpp
     onyx/rendering/render_systems.cpp
     onyx/rendering/renderer.cpp
     onyx/rendering/frame_scheduler.cpp
     onyx/rendering/post_processing.cpp
-    onyx/data/state.cpp
-    onyx/data/sync.cpp
-    onyx/data/buffer.cpp
+    onyx/resource/sync.cpp
+    onyx/resource/buffer.cpp
+    onyx/resource/assets.cpp
+    onyx/resource/pipelines.cpp
     onyx/property/vertex.cpp
     onyx/property/color.cpp
     onyx/property/transform.cpp
-    onyx/object/primitives.cpp
-    onyx/object/mesh.cpp
     onyx/app/app.cpp
     onyx/app/window.cpp
     onyx/app/input.cpp)
@@ -122,18 +120,18 @@ tkit_register_for_yaml_serialization(
   SOURCES
   onyx/property/transform.hpp
   onyx/property/vertex.hpp
-  onyx/data/state.hpp
-  onyx/data/options.hpp
-  onyx/rendering/camera.hpp
-  onyx/object/primitives.hpp)
+  onyx/resource/state.hpp
+  onyx/resource/options.hpp
+  onyx/rendering/camera.hpp)
 
 tkit_register_for_reflection(
   onyx
   SOURCES
   onyx/property/transform.hpp
   onyx/property/vertex.hpp
-  onyx/data/state.hpp
-  onyx/data/options.hpp
+  onyx/resource/state.hpp
+  onyx/resource/options.hpp
+  onyx/app/input.hpp
   onyx/rendering/camera.hpp)
 
 # IMGUI ###

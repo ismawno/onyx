@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/rendering/post_processing.hpp"
-#include "onyx/data/sync.hpp"
+#include "onyx/resource/sync.hpp"
 #include "vkit/rendering/swap_chain.hpp"
 #include "vkit/rendering/command_pool.hpp"
 #include "vkit/resource/image.hpp"
@@ -11,11 +11,11 @@ namespace Onyx
 struct Color;
 class Window;
 
-enum class TransferMode : u8
+enum TransferMode : u8
 {
-    Separate = 0,
-    SameIndex = 1,
-    SameQueue = 2
+    Transfer_Separate = 0,
+    Transfer_SameIndex = 1,
+    Transfer_SameQueue = 2
 };
 
 struct WaitMode
@@ -27,13 +27,6 @@ struct WaitMode
     static const WaitMode Poll;
 };
 
-/**
- * @brief Manages frame scheduling and rendering operations for a window.
- *
- * The `FrameScheduler` class provides a high-level abstraction for managing Vulkan rendering
- * tasks, including frame synchronization, command buffer management, and rendering execution.
- *
- */
 class ONYX_API FrameScheduler
 {
     TKIT_NON_COPYABLE(FrameScheduler)
@@ -55,43 +48,11 @@ class ONYX_API FrameScheduler
     FrameScheduler(Window &p_Window);
     ~FrameScheduler();
 
-    /**
-     * @brief Begins a new frame and prepares a command buffer for rendering.
-     *
-     * Synchronizes with the GPU to ensure the next swap chain image is ready for rendering. Will wait for the present
-     * task before proceeding.
-     *
-     * @param p_Window The window associated with the frame scheduler.
-     * @param p_WaitMode The timeouts when waiting for fences and acquiring next image.
-     * @return A Vulkan command buffer for the current frame. May be a null handle if the swap chain needs to be
-     * recreated.
-     */
     VkCommandBuffer BeginFrame(Window &p_Window, const WaitMode &p_WaitMode);
 
-    /**
-     * @brief Finalizes the current frame and submits the rendering commands.
-     *
-     * Ensures all recorded commands for the frame are submitted for execution.
-     *
-     */
     void EndFrame(Window &p_Window, VkPipelineStageFlags p_Flags);
-
-    /**
-     * @brief Begins the main scene rendering with the specified clear color.
-     *
-     * It will clear the color attachment with the provided color and set dynamic viewport and scissor states.
-     *
-     * @param p_ClearColor The color to clear the framebuffer with.
-     */
     void BeginRendering(const Color &p_ClearColor);
 
-    /**
-     * @brief Ends the current rendering and runs the post processing pipeline.
-     *
-     * If not specified, the post-processing pipeline will be a naive one that simply blits the final image to the
-     * swap chain image.
-     *
-     */
     void EndRendering();
 
     u32 GetFrameIndex() const
@@ -99,26 +60,9 @@ class ONYX_API FrameScheduler
         return m_FrameIndex;
     }
 
-    /**
-     * @brief Creates information needed by pipelines that wish to render to the main scene.
-     *
-     */
     VkPipelineRenderingCreateInfoKHR CreateSceneRenderInfo() const;
-
-    /**
-     * @brief Creates information needed by pipelines that wish to act in post processing.
-     *
-     */
     VkPipelineRenderingCreateInfoKHR CreatePostProcessingRenderInfo() const;
 
-    /**
-     * @brief Acquires the next image from the swap chain for rendering.
-     *
-     * Synchronizes rendering with the presentation engine.
-     *
-     * @param p_WaitMode The timeouts when waiting for fences and acquiring next image.
-     * @return A Vulkan result indicating success or failure.
-     */
     VkResult AcquireNextImage(const WaitMode &p_WaitMode);
 
     void SubmitGraphicsQueue(VkPipelineStageFlags p_Flags);
@@ -162,10 +106,6 @@ class ONYX_API FrameScheduler
 
     PostProcessing *GetPostProcessing();
 
-    /**
-     * @brief Removes the post-processing pipeline and substitutes it with a naive one that simply blits the final
-     * image.
-     */
     void RemovePostProcessing();
 
     const Detail::QueueData &GetQueueData() const
@@ -180,7 +120,7 @@ class ONYX_API FrameScheduler
     {
         return m_PresentMode;
     }
-    const TKit::StaticArray8<VkPresentModeKHR> &GetAvailablePresentModes() const
+    const TKit::Array8<VkPresentModeKHR> &GetAvailablePresentModes() const
     {
         return m_SwapChain.GetInfo().SupportDetails.PresentModes;
     }

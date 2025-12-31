@@ -351,11 +351,11 @@ void Application::processWindow(WindowData &p_Data)
 
     if (!p_Data.RenderClock.IsDue())
         return;
-    p_Data.RenderClock.Update();
     const FrameInfo info = p_Data.Window->BeginFrame(WaitMode::Poll);
     if (!info)
         return;
 
+    p_Data.RenderClock.Update();
 #ifdef ONYX_ENABLE_IMGUI
     TKIT_ASSERT(!p_Data.CheckFlags(Flag_ImGuiEnabled) || p_Data.CheckFlags(Flag_ImGuiRunning),
                 "[ONYX] ImGui is enabled for window '{}' but no instance of "
@@ -377,7 +377,7 @@ void Application::processWindow(WindowData &p_Data)
 
     for (const Event &event : p_Data.Window->GetNewEvents())
     {
-        if (p_Data.Window->IsVSync() && (event.Type == Event::SwapChainRecreated || event.Type == Event::WindowMoved))
+        if (p_Data.Window->IsVSync() && (event.Type == Event_SwapChainRecreated || event.Type == Event_WindowMoved))
         {
             p_Data.RenderClock.Delta.Time.Target = p_Data.Window->GetMonitorDeltaTime();
             p_Data.RenderClock.Delta.Limit = true;

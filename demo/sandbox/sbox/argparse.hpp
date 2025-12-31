@@ -5,11 +5,5 @@
 
 namespace Onyx::Demo
 {
-enum class ApplicationType : u8
-{
-    SingleWindow = 0,
-    MultiWindow
-};
-
 Dimension ParseArguments(int argc, char **argv);
 } // namespace Onyx::Demo

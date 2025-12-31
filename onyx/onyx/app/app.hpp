@@ -5,19 +5,8 @@
 #ifdef ONYX_ENABLE_IMGUI
 #    include "onyx/imgui/theme.hpp"
 #endif
+#include "onyx/core/limits.hpp"
 #include "tkit/profiling/clock.hpp"
-
-#ifndef ONYX_APP_MAX_WINDOWS
-#    define ONYX_APP_MAX_WINDOWS 8
-#endif
-
-#if ONYX_APP_MAX_WINDOWS < 1
-#    error "[ONYX] Onyx maximum windows must be at least 1";
-#endif
-
-#if ONYX_APP_MAX_WINDOWS > 1
-#    define __ONYX_MULTI_WINDOW
-#endif
 
 #ifdef ONYX_ENABLE_IMGUI
 struct ImGuiContext;
@@ -171,15 +160,6 @@ class ONYX_API Application
     bool NextFrame(TKit::Clock &p_Clock);
 
 #ifdef ONYX_ENABLE_IMGUI
-    /**
-     * @brief Set an object derived from `Theme` to apply an ImGui theme to a given window.
-     *
-     * @tparam T User defined theme.
-     * @tparam ThemeArgs Arguments to pass to the theme constructor.
-     * @param p_Window The window for which the ImGui theme will be applied to.
-     * @param p_Args Arguments to pass to the theme constructor.
-     * @return Pointer to the theme object.
-     */
     template <std::derived_from<Theme> T, typename... ThemeArgs>
     T *SetTheme(const Window *p_Window, ThemeArgs &&...p_Args)
     {
@@ -192,14 +172,6 @@ class ONYX_API Application
         applyTheme(*data);
         return theme;
     }
-    /**
-     * @brief Set an object derived from `Theme` to apply an ImGui theme to the main window.
-     *
-     * @tparam T User defined theme.
-     * @tparam ThemeArgs Arguments to pass to the theme constructor.
-     * @param p_Args Arguments to pass to the theme constructor.
-     * @return Pointer to the theme object.
-     */
     template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args)
     {
         if (m_MainWindow.Theme)
@@ -211,10 +183,6 @@ class ONYX_API Application
         return theme;
     }
 
-    /**
-     * @brief Apply the current theme to `ImGui`. Use `SetTheme()` to set a new theme.
-     *
-     */
     void ApplyTheme(const Window *p_Window = nullptr);
 #endif
 
@@ -223,12 +191,6 @@ class ONYX_API Application
      *
      * This method will delete the current user layer for the given window and replace it with a new one. If called in
      * the middle of a frame, the operation will be deferred until the end of the frame.
-     *
-     * @tparam T User defined layer.
-     * @tparam LayerArgs Arguments to pass to the layer constructor.
-     * @param p_Window The window for which to set the user layer.
-     * @param p_Args Arguments to pass to the layer constructor.
-     * @return Pointer to the new user layer.
      */
     template <std::derived_from<UserLayer> T, typename... LayerArgs>
     T *SetUserLayer(Window *p_Window, LayerArgs &&...p_Args)
@@ -241,11 +203,6 @@ class ONYX_API Application
      *
      * This method will delete the current user layer for the main window and replace it with a new one. If called in
      * the middle of a frame, the operation will be deferred until the end of the frame.
-     *
-     * @tparam T User defined layer.
-     * @tparam LayerArgs Arguments to pass to the layer constructor.
-     * @param p_Args Arguments to pass to the layer constructor.
-     * @return Pointer to the new user layer.
      */
     template <std::derived_from<UserLayer> T, typename... LayerArgs> T *SetUserLayer(LayerArgs &&...p_Args)
     {
@@ -259,10 +216,6 @@ class ONYX_API Application
      * This method will remove the current user layer for the given window. Ownership will be returned to the caller. If
      * called in the middle of a frame, the operation will be deferred until the end of the frame. In those cases, it is
      * UB to delete the resource until the current frame has finished.
-     *
-     * @tparam T User defined layer.
-     * @param p_Window The target window. If nullptr is passed, the main window will be affected.
-     * @return Pointer to the removed user layer.
      */
     template <std::derived_from<UserLayer> T = UserLayer> T *RemoveUserLayer(const Window *p_Window = nullptr)
     {
@@ -280,9 +233,6 @@ class ONYX_API Application
      *
      * This method will destroy the current user layer for the given window. If called in the middle of a frame, the
      * operation will be deferred until the end of the frame.
-     *
-     * @tparam T User defined layer.
-     * @param p_Window The target window. If nullptr is passed, the main window will be affected.
      */
     template <std::derived_from<UserLayer> T = UserLayer> void DestroyUserLayer(const Window *p_Window = nullptr)
     {
@@ -308,10 +258,6 @@ class ONYX_API Application
         return static_cast<T>(data->Layer);
     }
 
-    /**
-     * @brief Check if certain operations must wait until the end of the current frame to be executed.
-     *
-     */
     bool MustDefer() const
     {
         return checkFlags(Flag_Defer);
@@ -323,9 +269,6 @@ class ONYX_API Application
      *
      * @note The window addition may not take effect immediately if called in the middle of a frame. If you need to
      * react to the window opening by, say, attaching a layer, use the provided callback argument.
-     *
-     * @param p_Specs The specification of the window to create.
-     * @return A window handle if the operation ran immediately, nullptr otherwise.
      */
     Window *OpenWindow(const WindowSpecs &p_Specs)
     {
@@ -342,9 +285,6 @@ class ONYX_API Application
      *
      * @note The window addition may not take effect immediately if called in the middle of a frame. If you need to
      * react to the window opening by, say, attaching a layer, use the provided callback argument.
-     *
-     * @param p_Specs The specification of the window to create.
-     * @return A window handle if the operation ran immediately, nullptr otherwise.
      */
     Window *OpenWindow(const Window::Specs &p_Specs = {})
     {
@@ -357,7 +297,6 @@ class ONYX_API Application
      * @note The window removal may not take effect immediately if called in the middle of a frame. Only react to
      * the window removal through the window's layer destructor, if any.
      *
-     * @param p_Window The window to close.
      * @return Whether the operation could execute immediately.
      */
     bool CloseWindow(Window *p_Window);
@@ -499,12 +438,12 @@ class ONYX_API Application
     static void applyTheme(const WindowData &p_Data);
 #endif
 
-    TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(ONYX_APP_MAX_WINDOWS);
+    TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(MaxWindows);
 
     WindowData m_MainWindow{};
 #ifdef __ONYX_MULTI_WINDOW
-    TKit::StaticArray<WindowData, ONYX_APP_MAX_WINDOWS - 1> m_Windows;
-    TKit::StaticArray<WindowSpecs, ONYX_APP_MAX_WINDOWS - 1> m_WindowsToAdd;
+    TKit::Array<WindowData, MaxWindows - 1> m_Windows;
+    TKit::Array<WindowSpecs, MaxWindows - 1> m_WindowsToAdd;
 #endif
 
     TKit::Timespan m_DeltaTime{};

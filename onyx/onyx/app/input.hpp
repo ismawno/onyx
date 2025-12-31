@@ -2,272 +2,203 @@
 
 #include "onyx/core/alias.hpp"
 #include "onyx/core/api.hpp"
+#include "tkit/reflection/reflect.hpp"
 
 namespace Onyx
 {
 class Window;
 
-/**
- * @brief The `Input` namespace handles all input events for the application.
- */
 namespace Input
 {
-/**
- * @brief Poll events.
- *
- * Calls `glfwPollEvents()` under the hood.
- *
- */
 ONYX_API void PollEvents();
-
-/**
- * @brief Install the input callbacks for the given window.
- *
- * This method is called automatically by the Window class. It is not meant to be called by the user.
- *
- * @param p_Window The window to install the callbacks to.
- */
 ONYX_API void InstallCallbacks(Window &p_Window);
 
-/**
- * @brief An enum listing all the keys that can be used in the application.
- *
- */
-enum class ONYX_API Key : u16
+TKIT_REFLECT_DECLARE_ENUM(Key)
+enum Key : u16
 {
-    Space,
-    Apostrophe,
-    Comma,
-    Minus,
-    Period,
-    Slash,
-    N0,
-    N1,
-    N2,
-    N3,
-    N4,
-    N5,
-    N6,
-    N7,
-    N8,
-    N9,
-    Semicolon,
-    Equal,
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-    LeftBracket,
-    Backslash,
-    RightBracket,
-    GraveAccent,
-    World_1,
-    World_2,
-    Escape,
-    Enter,
-    Tab,
-    Backspace,
-    Insert,
-    Delete,
-    Right,
-    Left,
-    Down,
-    Up,
-    PageUp,
-    PageDown,
-    Home,
-    End,
-    CapsLock,
-    ScrollLock,
-    NumLock,
-    PrintScreen,
-    Pause,
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-    F13,
-    F14,
-    F15,
-    F16,
-    F17,
-    F18,
-    F19,
-    F20,
-    F21,
-    F22,
-    F23,
-    F24,
-    F25,
-    KP_0,
-    KP_1,
-    KP_2,
-    KP_3,
-    KP_4,
-    KP_5,
-    KP_6,
-    KP_7,
-    KP_8,
-    KP_9,
-    KPDecimal,
-    KPDivide,
-    KPMultiply,
-    KPSubtract,
-    KPAdd,
-    KPEnter,
-    KPEqual,
-    LeftShift,
-    LeftControl,
-    LeftAlt,
-    LeftSuper,
-    RightShift,
-    RightControl,
-    RightAlt,
-    RightSuper,
-    Menu,
-    None
+    Key_Space,
+    Key_Apostrophe,
+    Key_Comma,
+    Key_Minus,
+    Key_Period,
+    Key_Slash,
+    Key_N0,
+    Key_N1,
+    Key_N2,
+    Key_N3,
+    Key_N4,
+    Key_N5,
+    Key_N6,
+    Key_N7,
+    Key_N8,
+    Key_N9,
+    Key_Semicolon,
+    Key_Equal,
+    Key_A,
+    Key_B,
+    Key_C,
+    Key_D,
+    Key_E,
+    Key_F,
+    Key_G,
+    Key_H,
+    Key_I,
+    Key_J,
+    Key_K,
+    Key_L,
+    Key_M,
+    Key_N,
+    Key_O,
+    Key_P,
+    Key_Q,
+    Key_R,
+    Key_S,
+    Key_T,
+    Key_U,
+    Key_V,
+    Key_W,
+    Key_X,
+    Key_Y,
+    Key_Z,
+    Key_LeftBracket,
+    Key_Backslash,
+    Key_RightBracket,
+    Key_GraveAccent,
+    Key_World_1,
+    Key_World_2,
+    Key_Escape,
+    Key_Enter,
+    Key_Tab,
+    Key_Backspace,
+    Key_Insert,
+    Key_Delete,
+    Key_Right,
+    Key_Left,
+    Key_Down,
+    Key_Up,
+    Key_PageUp,
+    Key_PageDown,
+    Key_Home,
+    Key_End,
+    Key_CapsLock,
+    Key_ScrollLock,
+    Key_NumLock,
+    Key_PrintScreen,
+    Key_Pause,
+    Key_F1,
+    Key_F2,
+    Key_F3,
+    Key_F4,
+    Key_F5,
+    Key_F6,
+    Key_F7,
+    Key_F8,
+    Key_F9,
+    Key_F10,
+    Key_F11,
+    Key_F12,
+    Key_F13,
+    Key_F14,
+    Key_F15,
+    Key_F16,
+    Key_F17,
+    Key_F18,
+    Key_F19,
+    Key_F20,
+    Key_F21,
+    Key_F22,
+    Key_F23,
+    Key_F24,
+    Key_F25,
+    Key_KP_0,
+    Key_KP_1,
+    Key_KP_2,
+    Key_KP_3,
+    Key_KP_4,
+    Key_KP_5,
+    Key_KP_6,
+    Key_KP_7,
+    Key_KP_8,
+    Key_KP_9,
+    Key_KPDecimal,
+    Key_KPDivide,
+    Key_KPMultiply,
+    Key_KPSubtract,
+    Key_KPAdd,
+    Key_KPEnter,
+    Key_KPEqual,
+    Key_LeftShift,
+    Key_LeftControl,
+    Key_LeftAlt,
+    Key_LeftSuper,
+    Key_RightShift,
+    Key_RightControl,
+    Key_RightAlt,
+    Key_RightSuper,
+    Key_Menu,
+    Key_None
 };
 
-/**
- * @brief An enum listing all the mouse buttons that can be used in the application.
- *
- */
-enum class Mouse : u8
+TKIT_REFLECT_DECLARE_ENUM(Mouse)
+enum Mouse : u8
 {
-    Button1,
-    Button2,
-    Button3,
-    Button4,
-    Button5,
-    Button6,
-    Button7,
-    Button8,
-    ButtonLast,
-    ButtonLeft,
-    ButtonRight,
-    ButtonMiddle,
-    None
+    Mouse_Button1,
+    Mouse_Button2,
+    Mouse_Button3,
+    Mouse_Button4,
+    Mouse_Button5,
+    Mouse_Button6,
+    Mouse_Button7,
+    Mouse_Button8,
+    Mouse_ButtonLast,
+    Mouse_ButtonLeft,
+    Mouse_ButtonRight,
+    Mouse_ButtonMiddle,
+    Mouse_None
 };
 
 /**
  * @brief Get the current mouse screen position, ranging between -1 and 1.
  *
- * The position follows a centered coordinate system, with the y axis pointing upwards. This coordinate system is
- * constant and is retrieved from the GLFW API, modified slightly so that it ranges between -1 and 1 and the y axis
- * points upwards.
- *
- * @param p_Window The window to get the mouse position from.
- * @return The mouse position.
  */
 ONYX_API f32v2 GetScreenMousePosition(Window *p_Window);
 
-/**
- * @brief Check if a key is currently pressed.
- *
- * @param p_Window The window to check the key for.
- * @param p_Key The key to check.
- * @return true if the key is currently pressed, false otherwise.
- */
 ONYX_API bool IsKeyPressed(Window *p_Window, Key p_Key);
 
-/**
- * @brief Check if a key was released in the current frame.
- *
- * @param p_Window The window to check the key for.
- * @param p_Key The key to check.
- * @return true if the key was released in the current frame, false otherwise.
- */
 ONYX_API bool IsKeyReleased(Window *p_Window, Key p_Key);
 
-/**
- * @brief Check if a mouse button is currently pressed.
- *
- * @param p_Window The window to check the button for.
- * @param p_Button The button to check.
- * @return true if the mouse button is currently pressed, false otherwise.
- */
 ONYX_API bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button);
 
-/**
- * @brief Check if a mouse button was released in the current frame.
- *
- * @param p_Window The window to check the button for.
- * @param p_Button The button to check.
- * @return true if the mouse button was released in the current frame, false otherwise.
- */
 ONYX_API bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button);
 
-/**
- * @brief Get the key enum value as a string.
- *
- * @param p_Key The key to get the name for.
- * @return The name of the key as a string.
- */
 ONYX_API const char *GetKeyName(Key p_Key);
 }; // namespace Input
+TKIT_REFLECT_DECLARE_ENUM(EventType)
+enum EventType : u8
+{
+    Event_KeyPressed,
+    Event_KeyReleased,
+    Event_KeyRepeat,
+    Event_MouseMoved,
+    Event_MousePressed,
+    Event_MouseReleased,
+    Event_MouseEntered,
+    Event_MouseLeft,
+    Event_Scrolled,
+    Event_WindowMoved,
+    Event_WindowResized,
+    Event_WindowFocused,
+    Event_WindowUnfocused,
+    Event_WindowClosed,
+    Event_WindowMinimized,
+    Event_WindowRestored,
+    Event_FramebufferResized,
+    Event_CharInput,
+    Event_SwapChainRecreated,
+};
 
-/**
- * @brief A struct that represents an event that can be processed by the application.
- *
- * The event type is stored in the Type field, and the event data is stored in the corresponding fields.
- * Accessing the fields of the event should be done according to the Type field. Failure to do so may result in
- * undefined behaviour.
- *
- */
 struct ONYX_API Event
 {
-    enum ActionType : u8
-    {
-        KeyPressed,
-        KeyReleased,
-        KeyRepeat,
-        MouseMoved,
-        MousePressed,
-        MouseReleased,
-        MouseEntered,
-        MouseLeft,
-        Scrolled,
-        WindowMoved,
-        WindowResized,
-        WindowFocused,
-        WindowUnfocused,
-        WindowClosed,
-        WindowMinimized,
-        WindowRestored,
-        FramebufferResized,
-        CharInput,
-        SwapChainRecreated,
-    };
 
     struct WindowMovedResized
     {
@@ -287,7 +218,7 @@ struct ONYX_API Event
     };
 
     bool Empty = false;
-    ActionType Type;
+    EventType Type;
     Input::Key Key;
 
     WindowMovedResized WindowDelta;

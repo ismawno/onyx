@@ -22,8 +22,6 @@ struct ScreenScissor;
 struct FrameInfo;
 struct DeltaTime;
 
-enum class Resolution : u32;
-
 class Application;
 class Window;
 
@@ -45,7 +43,6 @@ class ONYX_API UserLayer
     using Flags = u8;
     enum FlagBit : Flags
     {
-        Flag_None = 0,
         Flag_DisplayHelp = 1 << 0,
     };
 
@@ -131,7 +128,6 @@ class ONYX_API UserLayer
     static bool DirectionalLightEditor(DirectionalLight &p_Light, Flags p_Flags = 0);
     static bool PointLightEditor(PointLight &p_Light, Flags p_Flags = 0);
 
-    static bool ResolutionEditor(const char *p_Name, Resolution &p_Res, Flags p_Flags = 0);
     static bool PresentModeEditor(Window *p_Window, Flags p_Flags = 0);
 
     static bool ViewportEditor(ScreenViewport &p_Viewport, Flags p_Flags = 0);

@@ -1,31 +1,16 @@
 #include "sbox/layer.hpp"
-#include "onyx/core/shaders.hpp"
 #include "onyx/app/user_layer.hpp"
 #include "onyx/imgui/imgui.hpp"
 #include "onyx/imgui/implot.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/core/dialog.hpp"
-#include "sbox/shapes.hpp"
+#include "onyx/resource/pipelines.hpp"
+#include "onyx/rendering/camera.hpp"
 #include "vkit/pipeline/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/limits.hpp"
-
-// dirty macros as lazy enums lol
-#define MESH 0
-#define TRIANGLE 1
-#define SQUARE 2
-#define CIRCLE 3
-#define NGON 4
-#define POLYGON 5
-#define STADIUM 6
-#define ROUNDED_SQUARE 7
-#define CUBE 8
-#define SPHERE 9
-#define CYLINDER 10
-#define CAPSULE 11
-#define ROUNDED_CUBE 12
 
 namespace Onyx::Demo
 {
@@ -45,9 +30,29 @@ static const VKit::Shader &getRainbowShader()
     static VKit::Shader shader{};
     if (shader)
         return shader;
-    shader = CreateShader(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
+    shader = Pipelines::CreateShader(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
     Core::GetDeletionQueue().SubmitForDeletion(shader);
     return shader;
+}
+
+template <Dimension D> void addMeshes(MeshContainer &p_Meshes)
+{
+    const auto add = [&p_Meshes](const char *p_Name, const Assets::StatMeshData<D> &p_Mesh) {
+        const Assets::Mesh mesh = Assets::AddMesh(p_Mesh);
+        p_Meshes.StaticMeshes.Append(MeshId{p_Name, mesh});
+    };
+    add("Triangle", Assets::CreateTriangleMesh<D>());
+    add("Square", Assets::CreateSquareMesh<D>());
+    if constexpr (D == D3)
+    {
+        add("Cube", Assets::CreateCubeMesh());
+        add("Sphere", Assets::CreateSphereMesh(32, 64));
+        add("Cylinder", Assets::CreateCylinderMesh(64));
+        p_Meshes.StaticOffset = 5;
+    }
+    else
+        p_Meshes.StaticOffset = 2;
+    Assets::Upload<D>();
 }
 
 SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const Dimension p_Dim)
@@ -57,7 +62,7 @@ SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const D
     const auto presult =
         VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowLayout(), fs->CreateSceneRenderInfo())
             .SetViewportCount(1)
-            .AddShaderStage(GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
+            .AddShaderStage(Pipelines::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
             .AddShaderStage(getRainbowShader(), VK_SHADER_STAGE_FRAGMENT_BIT)
             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
@@ -92,6 +97,8 @@ SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const D
         CameraData<D3> camera = addCamera(m_Cameras3);
         setupCamera(camera);
     }
+    addMeshes<D2>(m_Meshes2);
+    addMeshes<D3>(m_Meshes3);
 }
 
 void SandboxLayer::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
@@ -122,30 +129,30 @@ void SandboxLayer::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-template <Dimension D> static VKit::Result<> loadMesh(const Dialog::Path &p_Path)
+template <Dimension D> static void loadMesh(MeshContainer &p_Meshes, const Dialog::Path &p_Path)
 {
-    const std::string name = p_Path.filename().string();
-    const bool isLoaded = NamedMesh<D>::IsLoaded(name);
-    if (isLoaded)
-        return VKit::Result<>::Error(
-            VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "The mesh '{}' is already loaded", name));
+    const auto result = Assets::LoadStaticMesh<D>(p_Path.string());
+    if (!result)
+        return;
 
-    const auto result = NamedMesh<D>::Load(name, p_Path.string());
-    TKIT_RETURN_ON_ERROR(result);
-    return VKit::Result<>::Ok();
+    const Assets::StatMeshData<D> &data = result.GetValue();
+    const Assets::Mesh mesh = Assets::AddMesh(data);
+    Assets::Upload<D>();
+
+    const std::string name = p_Path.filename().string();
+    p_Meshes.StaticMeshes.Append(MeshId{name, mesh});
 }
-template <Dimension D> static void renderMeshLoad(const char *p_Default)
+template <Dimension D> static void renderMeshLoad(MeshContainer &p_Meshes, const char *p_Default)
 {
     ImGui::PushID(p_Default);
     if (ImGui::Button("Load"))
     {
         const auto result = Dialog::OpenSingle({.Default = p_Default});
         if (result)
-            loadMesh<D>(result.GetValue());
+            loadMesh<D>(p_Meshes, result.GetValue());
     }
-    const auto &meshes = NamedMesh<D>::Get();
-    for (const NamedMesh<D> &mesh : meshes)
-        ImGui::BulletText("%s", mesh.Name.c_str());
+    for (u32 i = p_Meshes.StaticOffset; i < p_Meshes.StaticMeshes.GetSize(); ++i)
+        ImGui::BulletText("Static mesh: %s", p_Meshes.StaticMeshes[i].Name.c_str());
     ImGui::PopID();
 }
 
@@ -154,7 +161,7 @@ static const VKit::Shader &getBlurShader()
     static VKit::Shader shader{};
     if (shader)
         return shader;
-    shader = CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
+    shader = Pipelines::CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
     Core::GetDeletionQueue().SubmitForDeletion(shader);
     return shader;
 }
@@ -229,9 +236,9 @@ void SandboxLayer::renderImGui()
             "transform before loading a specific mesh.");
 
         if (ImGui::CollapsingHeader("2D Meshes"))
-            renderMeshLoad<D2>(ONYX_ROOT_PATH "/demo/meshes2/");
+            renderMeshLoad<D2>(m_Meshes2, ONYX_ROOT_PATH "/demo/meshes2/");
         if (ImGui::CollapsingHeader("3D Meshes"))
-            renderMeshLoad<D3>(ONYX_ROOT_PATH "/demo/meshes3/");
+            renderMeshLoad<D3>(m_Meshes3, ONYX_ROOT_PATH "/demo/meshes3/");
     }
     ImGui::End();
 
@@ -241,7 +248,6 @@ void SandboxLayer::renderImGui()
         ImGui::TextWrapped(
             "Onyx windows can draw shapes in 2D and 3D, and have a separate API for each even though the "
             "window is shared. Users interact with the rendering API through rendering contexts.");
-        ImGui::ColorEdit3("Window background", m_BackgroundColor.GetData());
         UserLayer::PresentModeEditor(m_Window, UserLayer::Flag_DisplayHelp);
 
         ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
@@ -327,8 +333,8 @@ static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Sele
                 break;
             }
             ImGui::SameLine();
-            const char *name = std::forward<F3>(p_GetName)(p_Container[i]);
-            if (ImGui::Selectable(name, i == p_Selected))
+            const std::string name = std::forward<F3>(p_GetName)(p_Container[i]);
+            if (ImGui::Selectable(name.c_str(), i == p_Selected))
                 p_Selected = i;
 
             ImGui::PopID();
@@ -340,128 +346,116 @@ static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Sele
     }
 }
 
-template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
+template <typename... Args> bool combo(const char *p_Name, u32 *p_Index, Args &&...p_Args)
 {
-    const auto createShape = [&p_Context]() -> TKit::Scope<Shape<D>> {
-        if (p_Context.ShapeToSpawn == MESH)
-            return p_Context.Mesh.Mesh ? TKit::Scope<MeshShape<D>>::Create(p_Context.Mesh) : nullptr;
-        else if (p_Context.ShapeToSpawn == TRIANGLE)
-            return TKit::Scope<Triangle<D>>::Create();
-        else if (p_Context.ShapeToSpawn == SQUARE)
-            return TKit::Scope<Square<D>>::Create();
-        else if (p_Context.ShapeToSpawn == CIRCLE)
-            return TKit::Scope<Circle<D>>::Create();
-        else if (p_Context.ShapeToSpawn == NGON)
-        {
-            auto ngon = TKit::Scope<NGon<D>>::Create();
-            ngon->Sides = static_cast<u32>(p_Context.NGonSides);
-            return std::move(ngon);
-        }
-        else if (p_Context.ShapeToSpawn == POLYGON)
-        {
-            if (p_Context.PolygonVertices.GetSize() < 3)
-                return nullptr;
+    i32 index = static_cast<i32>(*p_Index);
+    if (ImGui::Combo(p_Name, &index, std::forward<Args>(p_Args)...))
+    {
+        *p_Index = static_cast<u32>(index);
+        return true;
+    }
+    return false;
+}
 
-            auto polygon = TKit::Scope<Polygon<D>>::Create();
-            polygon->Vertices = p_Context.PolygonVertices;
-            return std::move(polygon);
-        }
-        else if (p_Context.ShapeToSpawn == STADIUM)
-            return TKit::Scope<Stadium<D>>::Create();
-        else if (p_Context.ShapeToSpawn == ROUNDED_SQUARE)
-            return TKit::Scope<RoundedSquare<D>>::Create();
+template <Dimension D> void editShape(Shape<D> &p_Shape)
+{
+    ImGui::PushID(&p_Shape);
+    ImGui::Text("Transform");
+    ImGui::SameLine();
+    UserLayer::TransformEditor<D>(p_Shape.Transform, UserLayer::Flag_DisplayHelp);
+    ImGui::Text("Material");
+    ImGui::SameLine();
+    UserLayer::MaterialEditor<D>(p_Shape.Material, UserLayer::Flag_DisplayHelp);
+    ImGui::Checkbox("Fill", &p_Shape.Fill);
+    ImGui::Checkbox("Outline", &p_Shape.Outline);
+    ImGui::SliderFloat("Outline Width", &p_Shape.OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    ImGui::ColorEdit4("Outline Color", p_Shape.OutlineColor.GetData());
+    if (p_Shape.Type == Shape_Circle)
+    {
+        ImGui::SliderFloat("Inner Fade", &p_Shape.CircleOptions.InnerFade, 0.f, 1.f, "%.2f");
+        ImGui::SliderFloat("Outer Fade", &p_Shape.CircleOptions.OuterFade, 0.f, 1.f, "%.2f");
+        ImGui::SliderAngle("Lower Angle", &p_Shape.CircleOptions.LowerAngle);
+        ImGui::SliderAngle("Upper Angle", &p_Shape.CircleOptions.UpperAngle);
+        ImGui::SliderFloat("Hollowness", &p_Shape.CircleOptions.Hollowness, 0.f, 1.f, "%.2f");
+    }
+    ImGui::PopID();
+}
+template <Dimension D> void setShapeProperties(RenderContext<D> *p_Context, const Shape<D> &p_Shape)
+{
+    p_Context->Material(p_Shape.Material);
+    p_Context->OutlineWidth(p_Shape.OutlineWidth);
+    p_Context->Outline(p_Shape.OutlineColor);
+    p_Context->Fill(p_Shape.Fill);
+    p_Context->Outline(p_Shape.Outline);
+}
+template <Dimension D>
+void drawShape(RenderContext<D> *p_Context, const Shape<D> &p_Shape, const Transform<D> *p_Transform = nullptr)
+{
+    if (p_Shape.Type == Shape_Circle)
+        p_Context->Circle((p_Transform ? *p_Transform : p_Shape.Transform).ComputeTransform(), p_Shape.CircleOptions);
+    else
+        p_Context->StaticMesh(p_Shape.Mesh, (p_Transform ? *p_Transform : p_Shape.Transform).ComputeTransform());
+}
 
-        else if constexpr (D == D3)
+template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, ContextData<D> &p_Context)
+{
+    const auto createShape = [&]() -> Shape<D> {
+        Shape<D> shape{};
+        shape.Type = static_cast<ShapeType>(p_Context.ShapeToSpawn);
+        if (p_Context.ShapeToSpawn == Shape_ImportedStatic)
         {
-            if (p_Context.ShapeToSpawn == CUBE)
-                return TKit::Scope<Cube>::Create();
-            else if (p_Context.ShapeToSpawn == SPHERE)
-                return TKit::Scope<Sphere>::Create();
-            else if (p_Context.ShapeToSpawn == CYLINDER)
-                return TKit::Scope<Cylinder>::Create();
-            else if (p_Context.ShapeToSpawn == CAPSULE)
-                return TKit::Scope<Capsule>::Create();
-            else if (p_Context.ShapeToSpawn == ROUNDED_CUBE)
-                return TKit::Scope<RoundedCube>::Create();
+            const MeshId &mesh = p_Meshes.StaticMeshes[p_Meshes.StaticOffset + p_Context.ImportedStatToSpawn];
+            shape.Name = mesh.Name;
+            shape.Mesh = mesh.Mesh;
         }
-        return nullptr;
+        else if (p_Context.ShapeToSpawn == Shape_Circle)
+            shape.Name = "Circle";
+        else
+        {
+            const MeshId &mesh = p_Meshes.StaticMeshes[p_Context.ShapeToSpawn];
+            shape.Name = mesh.Name;
+            shape.Mesh = mesh.Mesh;
+        }
+
+        return shape;
+    };
+    const auto isBadSpawnImportedStatic = [&] {
+        return p_Context.ShapeToSpawn == Shape_ImportedStatic &&
+               p_Context.ImportedStatToSpawn + p_Meshes.StaticOffset >= p_Meshes.StaticMeshes.GetSize();
     };
 
-    const bool canSpawnPoly = p_Context.ShapeToSpawn != POLYGON || p_Context.PolygonVertices.GetSize() >= 3;
-    const bool canSpawnMesh = p_Context.ShapeToSpawn != MESH || p_Context.Mesh.Mesh;
-    if (!canSpawnPoly)
-        ImGui::TextDisabled("A polygon must have at least 3 vertices to spawn!");
-    else if (!canSpawnMesh)
+    if (isBadSpawnImportedStatic())
         ImGui::TextDisabled("No valid mesh has been selected!");
+
     else if (ImGui::Button("Spawn##Shape"))
         p_Context.Shapes.Append(createShape());
 
-    if (canSpawnPoly && canSpawnMesh)
+    if (!isBadSpawnImportedStatic())
         ImGui::SameLine();
 
     LatticeData<D> &lattice = p_Context.Lattice;
     if constexpr (D == D2)
         lattice.NeedsUpdate |=
-            ImGui::Combo("Shape", &p_Context.ShapeToSpawn,
-                         "Mesh\0Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded Square\0\0");
+            combo("Shape", &p_Context.ShapeToSpawn, "Triangle\0Square\0Imported static meshes\0Circle\0\0");
     else
-        lattice.NeedsUpdate |= ImGui::Combo("Shape", &p_Context.ShapeToSpawn,
-                                            "Mesh\0Triangle\0Square\0Circle\0NGon\0Polygon\0Stadium\0Rounded "
-                                            "Square\0Cube\0Sphere\0Cylinder\0Capsule\0Rounded Cube\0\0");
+        lattice.NeedsUpdate |= combo("Shape", &p_Context.ShapeToSpawn,
+                                     "Triangle\0Square\0Cube\0Sphere\0Cylinder\0Imported static meshes\0Circle\0\0");
 
-    if (p_Context.ShapeToSpawn == MESH)
+    if (p_Context.ShapeToSpawn == Shape_ImportedStatic)
     {
-        const auto &meshes = NamedMesh<D>::Get();
-        if (!meshes.IsEmpty())
+        if (p_Meshes.StaticMeshes.GetSize() > p_Meshes.StaticOffset)
         {
-            TKit::StaticArray16<const char *> meshNames{};
-            for (const NamedMesh<D> &mesh : meshes)
-                meshNames.Append(mesh.Name.c_str());
-            lattice.NeedsUpdate |= ImGui::Combo("Mesh ID", &p_Context.MeshToSpawn, meshNames.GetData(),
-                                                static_cast<i32>(meshNames.GetSize()));
-            p_Context.Mesh = meshes[p_Context.MeshToSpawn];
+            TKit::Array16<const char *> meshNames{};
+            for (u32 i = p_Meshes.StaticOffset; i < p_Meshes.StaticMeshes.GetSize(); ++i)
+                meshNames.Append(p_Meshes.StaticMeshes[i].Name.c_str());
+
+            lattice.NeedsUpdate |= combo("Mesh ID", &p_Context.ImportedStatToSpawn, meshNames.GetData(),
+                                         static_cast<i32>(meshNames.GetSize()));
         }
         else
             ImGui::TextDisabled("No meshes have been loaded yet! Load from the welcome window.");
     }
-    else if (p_Context.ShapeToSpawn == NGON)
-        lattice.NeedsUpdate |= ImGui::SliderInt("Sides", &p_Context.NGonSides, 3, ONYX_MAX_REGULAR_POLYGON_SIDES);
-    else if (p_Context.ShapeToSpawn == POLYGON)
-    {
-        ImGui::Text("Vertices must be in counter clockwise order for outlines to work correctly");
-        ImGui::Text("Click on the screen or the 'Add' button to add vertices to the polygon.");
-        if (ImGui::Button("Clear"))
-        {
-            lattice.NeedsUpdate = true;
-            p_Context.PolygonVertices.Clear();
-        }
-
-        lattice.NeedsUpdate |= ImGui::DragFloat2("Vertex", Math::AsPointer(p_Context.VertexToAdd), 0.1f);
-
-        ImGui::SameLine();
-        if (ImGui::Button("Add"))
-        {
-            p_Context.PolygonVertices.Append(p_Context.VertexToAdd);
-            p_Context.VertexToAdd = f32v2{0.f};
-            lattice.NeedsUpdate = true;
-        }
-        for (u32 i = 0; i < p_Context.PolygonVertices.GetSize(); ++i)
-        {
-            ImGui::PushID(&p_Context.PolygonVertices[i]);
-            if (ImGui::Button("X"))
-            {
-                p_Context.PolygonVertices.RemoveOrdered(p_Context.PolygonVertices.begin() + i);
-                ImGui::PopID();
-                lattice.NeedsUpdate = true;
-                break;
-            }
-
-            ImGui::SameLine();
-            ImGui::Text("Vertex %u: (%.2f, %.2f)", i, p_Context.PolygonVertices[i][0], p_Context.PolygonVertices[i][1]);
-            ImGui::PopID();
-        }
-    }
-    if (lattice.Enabled && lattice.NeedsUpdate)
+    if (lattice.Enabled && lattice.NeedsUpdate && !isBadSpawnImportedStatic())
     {
         lattice.Shape = createShape();
         lattice.NeedsUpdate = false;
@@ -474,14 +468,14 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
                                       "I advice to build the engine "
                                       "in distribution mode to see meaningful results.");
         const u32 mnt = 1;
-        const u32 mxt = ONYX_MAX_THREADS;
+        const u32 mxt = MaxThreads;
         ImGui::SliderScalar("Partitions", ImGuiDataType_U32, &lattice.Partitions, &mnt, &mxt);
 
         if constexpr (D == D2)
         {
             ImGui::Text("Shape count: %u", lattice.Dimensions[0] * lattice.Dimensions[1]);
             const u32 mn = 1;
-            const u32 mx = TKit::Limits<u32>::Max();
+            const u32 mx = TKIT_U32_MAX;
             ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, Math::AsPointer(lattice.Dimensions), 2, 2.f,
                                &mn, &mx);
         }
@@ -489,17 +483,17 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
         {
             ImGui::Text("Shape count: %u", lattice.Dimensions[0] * lattice.Dimensions[1] * lattice.Dimensions[2]);
             const u32 mn = 1;
-            const u32 mx = TKit::Limits<u32>::Max();
+            const u32 mx = TKIT_U32_MAX;
             ImGui::DragScalarN("Lattice dimensions", ImGuiDataType_U32, Math::AsPointer(lattice.Dimensions), 3, 2.f,
                                &mn, &mx);
         }
 
         ImGui::Checkbox("Separation proportional to scale", &lattice.PropToScale);
         ImGui::DragFloat("Lattice separation", &lattice.Separation, 0.01f, 0.f, FLT_MAX);
-        if (lattice.Shape)
+        if (lattice.Shape.Type != Assets::NullMesh)
         {
             ImGui::Text("Lattice shape:");
-            lattice.Shape->Edit();
+            editShape(lattice.Shape);
         }
         ImGui::TreePop();
     }
@@ -507,7 +501,6 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
     {
         LineTest<D> &line = p_Context.Line;
 
-        ImGui::Checkbox("Rounded", &line.Rounded);
         ImGui::Checkbox("Outline", &line.Outline);
         ImGui::SliderFloat("Outline width", &line.OutlineWidth, 0.01f, 0.1f);
         ImGui::SliderFloat("Thickness", &line.Thickness, 0.01f, 0.1f);
@@ -535,27 +528,16 @@ template <Dimension D> static void renderShapeSpawn(ContextData<D> &p_Context)
         }
         p_Context.Context->Material(line.Material);
         if constexpr (D == D2)
-        {
-            if (line.Rounded)
-                p_Context.Context->RoundedLine(line.Start, line.End, line.Thickness);
-            else
-                p_Context.Context->Line(line.Start, line.End, line.Thickness);
-        }
+            p_Context.Context->Line(p_Meshes.StaticMeshes[Shape_Square].Mesh, line.Start, line.End, line.Thickness);
         else
-        {
-            if (line.Rounded)
-                p_Context.Context->RoundedLine(line.Start, line.End, {.Thickness = line.Thickness});
-            else
-                p_Context.Context->Line(line.Start, line.End, {.Thickness = line.Thickness});
-        }
+            p_Context.Context->Line(p_Meshes.StaticMeshes[Shape_Cylinder].Mesh, line.Start, line.End, line.Thickness);
         p_Context.Context->Pop();
         ImGui::TreePop();
     }
 
     renderSelectableNoRemoval(
-        "Shapes##Singular", p_Context.Shapes, p_Context.SelectedShape,
-        [](const TKit::Scope<Shape<D>> &p_Shape) { p_Shape->Edit(); },
-        [](const TKit::Scope<Shape<D>> &p_Shape) { return p_Shape->GetName(); });
+        "Shapes##Singular", p_Context.Shapes, p_Context.SelectedShape, [](Shape<D> &p_Shape) { editShape<D>(p_Shape); },
+        [](const Shape<D> &p_Shape) { return p_Shape.Name; });
 }
 
 template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &p_Camera)
@@ -716,7 +698,7 @@ template <Dimension D> void SandboxLayer::renderUI(ContextData<D> &p_Context)
 {
 
     if (ImGui::CollapsingHeader("Shapes"))
-        renderShapeSpawn(p_Context);
+        renderShapeSpawn(D == D2 ? m_Meshes2 : m_Meshes3, p_Context);
     if constexpr (D == D3)
         if (ImGui::CollapsingHeader("Lights"))
             renderLightSpawn(p_Context);
@@ -775,17 +757,10 @@ static void processEvent(Window *p_Window, ContextDataContainer<D> &p_Contexts, 
         return;
 
     const CameraData<D> &cam = p_Cameras.Cameras[p_Cameras.Active];
-    ContextData<D> &context = p_Contexts.Contexts[p_Contexts.Active];
-
     Camera<D> *camera = cam.Camera;
-    if (p_Event.Type == Event::MousePressed && context.ShapeToSpawn == POLYGON)
+    if (p_Event.Type == Event_Scrolled)
     {
-        context.PolygonVertices.Append(camera->GetWorldMousePosition());
-        context.Lattice.NeedsUpdate = true;
-    }
-    else if (p_Event.Type == Event::Scrolled)
-    {
-        const f32 factor = Input::IsKeyPressed(p_Window, Input::Key::LeftShift) ? 0.05f : 0.005f;
+        const f32 factor = Input::IsKeyPressed(p_Window, Input::Key_LeftShift) ? 0.05f : 0.005f;
         camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
     }
 }
@@ -807,18 +782,17 @@ void SandboxLayer::OnRenderBegin(const DeltaTime &, const FrameInfo &p_Info)
 
 template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Context)
 {
-    m_Window->BackgroundColor = m_BackgroundColor;
     p_Context.Context->Flush();
 
     const LatticeData<D> &lattice = p_Context.Lattice;
     const u32v<D> &dims = lattice.Dimensions;
-    if (lattice.Enabled && lattice.Shape)
+    if (lattice.Enabled && lattice.Shape.Mesh != Assets::NullMesh)
     {
         const f32v<D> separation =
-            lattice.PropToScale ? lattice.Shape->Transform.Scale * lattice.Separation : f32v<D>{lattice.Separation};
+            lattice.PropToScale ? lattice.Shape.Transform.Scale * lattice.Separation : f32v<D>{lattice.Separation};
         const f32v<D> midPoint = 0.5f * separation * f32v<D>{dims - 1u};
 
-        lattice.Shape->SetProperties(p_Context.Context);
+        setShapeProperties(p_Context.Context, lattice.Shape);
         p_Context.Context->ShareCurrentState();
 
         TKit::ITaskManager *tm = Core::GetTaskManager();
@@ -826,7 +800,7 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
         {
             const u32 size = dims[0] * dims[1];
             const auto fn = [&](const u32 p_Start, const u32 p_End) {
-                Transform<D2> transform = lattice.Shape->Transform;
+                Transform<D2> transform = lattice.Shape.Transform;
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
                     const u32 ix = i / dims[1];
@@ -834,14 +808,14 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
                     const f32 x = separation[0] * static_cast<f32>(ix);
                     const f32 y = separation[1] * static_cast<f32>(iy);
                     transform.Translation = f32v2{x, y} - midPoint;
-                    lattice.Shape->DrawRaw(p_Context.Context, transform);
+                    drawShape(p_Context.Context, lattice.Shape, &transform);
                 }
             };
 
-            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
+            TKit::FixedArray<Task, MaxTasks> tasks{};
             TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
 
-            const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
+            const u32 tcount = (lattice.Partitions - 1) >= MaxTasks ? MaxTasks : (lattice.Partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
                 tm->WaitUntilFinished(tasks[i]);
         }
@@ -850,7 +824,7 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
             const u32 size = dims[0] * dims[1] * dims[2];
             const u32 yz = dims[1] * dims[2];
             const auto fn = [&, yz](const u32 p_Start, const u32 p_End) {
-                Transform<D3> transform = lattice.Shape->Transform;
+                Transform<D3> transform = lattice.Shape.Transform;
                 for (u32 i = p_Start; i < p_End; ++i)
                 {
                     const u32 ix = i / yz;
@@ -861,39 +835,34 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
                     const f32 y = separation[1] * static_cast<f32>(iy);
                     const f32 z = separation[2] * static_cast<f32>(iz);
                     transform.Translation = f32v3{x, y, z} - midPoint;
-                    lattice.Shape->DrawRaw(p_Context.Context, transform);
+                    drawShape(p_Context.Context, lattice.Shape, &transform);
                 }
             };
-            TKit::Array<Task, ONYX_MAX_TASKS> tasks{};
+            TKit::FixedArray<Task, MaxTasks> tasks{};
             TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Partitions, fn);
 
-            const u32 tcount = (lattice.Partitions - 1) >= ONYX_MAX_TASKS ? ONYX_MAX_TASKS : (lattice.Partitions - 1);
+            const u32 tcount = (lattice.Partitions - 1) >= MaxTasks ? MaxTasks : (lattice.Partitions - 1);
             for (u32 i = 0; i < tcount; ++i)
                 tm->WaitUntilFinished(tasks[i]);
         }
     }
 
-    for (const auto &shape : p_Context.Shapes)
-        shape->Draw(p_Context.Context);
+    for (const Shape<D> &shape : p_Context.Shapes)
+    {
+        setShapeProperties(p_Context.Context, shape);
+        drawShape(p_Context.Context, shape);
+    }
 
     p_Context.Context->Outline(false);
     if (p_Context.DrawAxes)
     {
         p_Context.Context->Material(p_Context.AxesMaterial);
         p_Context.Context->Fill();
-        p_Context.Context->Axes({.Thickness = p_Context.AxesThickness});
-    }
-
-    for (const f32v2 &vertex : p_Context.PolygonVertices)
-    {
-        p_Context.Context->Push();
-        p_Context.Context->Scale(0.02f);
         if constexpr (D == D2)
-            p_Context.Context->Translate(vertex);
+            p_Context.Context->Axes(m_Meshes2.StaticMeshes[Shape_Square].Mesh, {.Thickness = p_Context.AxesThickness});
         else
-            p_Context.Context->Translate(f32v3{vertex, 0.f});
-        p_Context.Context->Circle();
-        p_Context.Context->Pop();
+            p_Context.Context->Axes(m_Meshes3.StaticMeshes[Shape_Cylinder].Mesh,
+                                    {.Thickness = p_Context.AxesThickness});
     }
 
     if constexpr (D == D3)
@@ -909,7 +878,7 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
                 p_Context.Context->Fill(Color::Unpack(light.Color));
                 p_Context.Context->Scale(0.01f);
                 p_Context.Context->Translate(light.Position);
-                p_Context.Context->Sphere();
+                p_Context.Context->StaticMesh(m_Meshes3.StaticMeshes[Shape_Sphere].Mesh);
                 p_Context.Context->Pop();
             }
             p_Context.Context->PointLight(light);

@@ -1,19 +1,59 @@
 #pragma once
 
-#include "sbox/shapes.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/app/app.hpp"
-#include "tkit/container/static_array.hpp"
-#include "tkit/memory/ptr.hpp"
 #include "onyx/app/user_layer.hpp"
+
+#ifndef ONYX_SANDBOX_MAX_SHAPES
+#    define ONYX_SANDBOX_MAX_SHAPES 64
+#endif
+#ifndef ONYX_SANDBOX_MAX_LIGHTS
+#    define ONYX_SANDBOX_MAX_LIGHTS 64
+#endif
 
 namespace Onyx::Demo
 {
+struct MeshId
+{
+    std::string Name;
+    Assets::Mesh Mesh;
+};
+struct MeshContainer
+{
+    TKit::Array<MeshId, ONYX_SANDBOX_MAX_SHAPES> StaticMeshes;
+    u32 StaticOffset;
+};
+
+// order matters here. meshes must go first
+enum ShapeType : u8
+{
+    Shape_Triangle = 0,
+    Shape_Square,
+    Shape_Cube,
+    Shape_Sphere,
+    Shape_Cylinder,
+    Shape_ImportedStatic,
+    Shape_Circle,
+};
+template <Dimension D> struct Shape
+{
+    ShapeType Type;
+    std::string Name;
+    Assets::Mesh Mesh = Assets::NullMesh;
+    Transform<D> Transform{};
+    CircleOptions CircleOptions{};
+    MaterialData<D> Material{};
+    bool Fill = true;
+    bool Outline = false;
+    f32 OutlineWidth = 0.01f;
+    Color OutlineColor = Color::ORANGE;
+};
+
 template <Dimension D> struct LatticeData
 {
     u32v<D> Dimensions{2};
     f32 Separation = 1.f;
-    TKit::Scope<Shape<D>> Shape;
+    Shape<D> Shape;
     u32 Partitions = 1;
     bool Enabled = false;
     bool PropToScale = true;
@@ -28,21 +68,17 @@ template <Dimension D> struct LineTest
     f32 Thickness = 0.05f;
     f32 OutlineWidth = 0.01f;
     Color OutlineColor = Color::ORANGE;
-    bool Rounded = false;
     bool Outline = false;
 };
 
-template <Dimension D> struct ICameraData
+template <Dimension D> struct CameraData;
+template <> struct CameraData<D2>
 {
-    Camera<D> *Camera;
+    Camera<D2> *Camera;
 };
-
-template <Dimension D> struct CameraData : ICameraData<D>
+template <> struct CameraData<D3>
 {
-};
-
-template <> struct ONYX_API CameraData<D3> : ICameraData<D3>
-{
+    Camera<D3> *Camera;
     f32 FieldOfView = Math::Radians(75.f);
     f32 Near = 0.1f;
     f32 Far = 100.f;
@@ -53,21 +89,18 @@ template <> struct ONYX_API CameraData<D3> : ICameraData<D3>
 
 template <Dimension D> struct CameraDataContainer
 {
-    TKit::StaticArray<CameraData<D>, ONYX_MAX_CAMERAS> Cameras;
+    TKit::Array<CameraData<D>, MaxCameras> Cameras;
     u32 Active = 0;
 };
 
 template <Dimension D> struct IContextData
 {
     RenderContext<D> *Context;
-    TKit::DynamicArray<TKit::Scope<Shape<D>>> Shapes;
+    TKit::Array<Shape<D>, ONYX_SANDBOX_MAX_SHAPES> Shapes;
     MaterialData<D> AxesMaterial{};
 
-    PolygonVerticesArray PolygonVertices;
-    NamedMesh<D> Mesh{};
-    i32 ShapeToSpawn = 0;
-    i32 MeshToSpawn = 0;
-    i32 NGonSides = 3;
+    u32 ShapeToSpawn = Shape_Triangle;
+    u32 ImportedStatToSpawn = 0;
     f32 AxesThickness = 0.01f;
     u32 SelectedShape = 0;
     f32v2 VertexToAdd{0.f};
@@ -84,8 +117,8 @@ template <Dimension D> struct ContextData : IContextData<D>
 
 template <> struct ONYX_API ContextData<D3> : IContextData<D3>
 {
-    TKit::DynamicArray<DirectionalLight> DirectionalLights;
-    TKit::DynamicArray<PointLight> PointLights;
+    TKit::Array<DirectionalLight, ONYX_SANDBOX_MAX_LIGHTS> DirectionalLights;
+    TKit::Array<PointLight, ONYX_SANDBOX_MAX_LIGHTS> PointLights;
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
 
     bool DrawLights = false;
@@ -94,7 +127,7 @@ template <> struct ONYX_API ContextData<D3> : IContextData<D3>
     u32 SelectedPointLight = 0;
 };
 
-struct ONYX_API BlurData
+struct BlurData
 {
     u32 KernelSize = 1;
     f32 Width = 1.f;
@@ -103,7 +136,7 @@ struct ONYX_API BlurData
 
 template <Dimension D> struct ContextDataContainer
 {
-    TKit::StaticArray<ContextData<D>, ONYX_MAX_RENDER_CONTEXTS> Contexts;
+    TKit::Array<ContextData<D>, MaxRenderContexts> Contexts;
     u32 Active = 0;
     bool EmptyContext = false;
 };
@@ -147,7 +180,8 @@ class SandboxLayer final : public UserLayer
     CameraDataContainer<D2> m_Cameras2{};
     CameraDataContainer<D3> m_Cameras3{};
 
-    Color m_BackgroundColor = Color::BLACK;
+    MeshContainer m_Meshes2;
+    MeshContainer m_Meshes3;
 
     BlurData m_BlurData{};
     VKit::GraphicsJob m_RainbowJob{};
