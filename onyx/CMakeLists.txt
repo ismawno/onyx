@@ -10,10 +10,10 @@ set(SOURCES
     onyx/rendering/renderer.cpp
     onyx/rendering/frame_scheduler.cpp
     onyx/rendering/post_processing.cpp
-    onyx/resource/sync.cpp
+    onyx/execution/sync.cpp
     onyx/resource/buffer.cpp
-    onyx/resource/assets.cpp
-    onyx/resource/pipelines.cpp
+    onyx/asset/assets.cpp
+    onyx/state/pipelines.cpp
     onyx/property/vertex.cpp
     onyx/property/color.cpp
     onyx/property/transform.cpp
@@ -120,8 +120,8 @@ tkit_register_for_yaml_serialization(
   SOURCES
   onyx/property/transform.hpp
   onyx/property/vertex.hpp
-  onyx/resource/state.hpp
-  onyx/resource/options.hpp
+  onyx/state/state.hpp
+  onyx/state/options.hpp
   onyx/property/camera.hpp)
 
 tkit_register_for_reflection(
@@ -129,8 +129,8 @@ tkit_register_for_reflection(
   SOURCES
   onyx/property/transform.hpp
   onyx/property/vertex.hpp
-  onyx/resource/state.hpp
-  onyx/resource/options.hpp
+  onyx/state/state.hpp
+  onyx/state/options.hpp
   onyx/app/input.hpp
   onyx/property/camera.hpp)
 

@@ -4,7 +4,7 @@
 #include "onyx/imgui/implot.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/core/dialog.hpp"
-#include "onyx/resource/pipelines.hpp"
+#include "onyx/state/pipelines.hpp"
 #include "onyx/property/camera.hpp"
 #include "vkit/state/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -37,8 +37,8 @@ static const VKit::Shader &getRainbowShader()
 
 template <Dimension D> void addMeshes(MeshContainer &p_Meshes)
 {
-    const auto add = [&p_Meshes](const char *p_Name, const Assets::StatMeshData<D> &p_Mesh) {
-        const Assets::Mesh mesh = Assets::AddMesh(p_Mesh);
+    const auto add = [&p_Meshes](const char *p_Name, const StatMeshData<D> &p_Mesh) {
+        const Mesh mesh = Assets::AddMesh(p_Mesh);
         p_Meshes.StaticMeshes.Append(MeshId{p_Name, mesh});
     };
     add("Triangle", Assets::CreateTriangleMesh<D>());
@@ -135,8 +135,8 @@ template <Dimension D> static void loadMesh(MeshContainer &p_Meshes, const Dialo
     if (!result)
         return;
 
-    const Assets::StatMeshData<D> &data = result.GetValue();
-    const Assets::Mesh mesh = Assets::AddMesh(data);
+    const StatMeshData<D> &data = result.GetValue();
+    const Mesh mesh = Assets::AddMesh(data);
     Assets::Upload<D>();
 
     const std::string name = p_Path.filename().string();
@@ -490,7 +490,7 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
 
         ImGui::Checkbox("Separation proportional to scale", &lattice.PropToScale);
         ImGui::DragFloat("Lattice separation", &lattice.Separation, 0.01f, 0.f, FLT_MAX);
-        if (lattice.Shape.Type != Assets::NullMesh)
+        if (lattice.Shape.Type != NullMesh)
         {
             ImGui::Text("Lattice shape:");
             editShape(lattice.Shape);
@@ -786,7 +786,7 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
 
     const LatticeData<D> &lattice = p_Context.Lattice;
     const u32v<D> &dims = lattice.Dimensions;
-    if (lattice.Enabled && lattice.Shape.Mesh != Assets::NullMesh)
+    if (lattice.Enabled && lattice.Shape.Mesh != NullMesh)
     {
         const f32v<D> separation =
             lattice.PropToScale ? lattice.Shape.Transform.Scale * lattice.Separation : f32v<D>{lattice.Separation};

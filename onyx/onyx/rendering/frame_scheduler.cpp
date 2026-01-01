@@ -2,7 +2,7 @@
 #include "onyx/rendering/frame_scheduler.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/property/color.hpp"
-#include "onyx/resource/pipelines.hpp"
+#include "onyx/state/pipelines.hpp"
 #include "tkit/utils/debug.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "onyx/core/glfw.hpp"

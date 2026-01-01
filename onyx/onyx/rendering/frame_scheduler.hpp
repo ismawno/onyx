@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/rendering/post_processing.hpp"
-#include "onyx/resource/sync.hpp"
+#include "onyx/execution/sync.hpp"
 #include "vkit/presentation/swap_chain.hpp"
 #include "vkit/execution/command_pool.hpp"
 #include "vkit/resource/image.hpp"

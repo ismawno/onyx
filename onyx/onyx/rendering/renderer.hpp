@@ -97,7 +97,7 @@ template <Dimension D> class IRenderer
   public:
     IRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
-    void DrawStaticMesh(const RenderState<D> &p_State, const f32m<D> &p_Transform, Assets::Mesh p_Mesh,
+    void DrawStaticMesh(const RenderState<D> &p_State, const f32m<D> &p_Transform, Mesh p_Mesh,
                         DrawFlags p_Flags)
     {
         draw(m_StatMeshSystem, p_State, p_Transform, p_Mesh, p_Flags);

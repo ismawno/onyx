@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/resource/assets.hpp"
+#include "onyx/asset/assets.hpp"
 #include "onyx/core/limits.hpp"
 #ifdef ONYX_ENABLE_OBJ
 #    include <tiny_obj_loader.h>

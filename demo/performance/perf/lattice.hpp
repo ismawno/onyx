@@ -43,7 +43,7 @@ template <Dimension D> struct Lattice
 
     void Render(RenderContext<D> *p_Context) const;
 
-    void StaticMesh(RenderContext<D> *p_Context, Assets::Mesh p_Mesh) const;
+    void StaticMesh(RenderContext<D> *p_Context, Mesh p_Mesh) const;
     void Circle(RenderContext<D> *p_Context, const CircleOptions &p_Options) const;
 
     template <typename F> void Run(F &&p_Func) const

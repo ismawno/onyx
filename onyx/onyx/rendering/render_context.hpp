@@ -2,7 +2,7 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/resource/options.hpp"
+#include "onyx/state/options.hpp"
 #include <vulkan/vulkan.h>
 
 // 2D objects that are drawn later will always be on top of earlier ones. HOWEVER, blending will only work expectedly
@@ -65,14 +65,14 @@ template <Dimension D> class IRenderContext
     void ScaleX(f32 p_X);
     void ScaleY(f32 p_Y);
 
-    void StaticMesh(Assets::Mesh p_Mesh);
-    void StaticMesh(Assets::Mesh p_Mesh, const f32m<D> &p_Transform);
+    void StaticMesh(Mesh p_Mesh);
+    void StaticMesh(Mesh p_Mesh, const f32m<D> &p_Transform);
 
     void Circle(const CircleOptions &p_Options = {});
     void Circle(const f32m<D> &p_Transform, const CircleOptions &p_Options = {});
 
-    void Line(Assets::Mesh p_Mesh, const f32v<D> &p_Start, const f32v<D> &p_End, f32 p_Thickness = 0.1f);
-    void Axes(Assets::Mesh p_Mesh, const AxesOptions &p_Options = {});
+    void Line(Mesh p_Mesh, const f32v<D> &p_Start, const f32v<D> &p_End, f32 p_Thickness = 0.1f);
+    void Axes(Mesh p_Mesh, const AxesOptions &p_Options = {});
 
     void Push();
     void Push(const RenderState<D> &p_State);

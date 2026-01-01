@@ -1,8 +1,8 @@
 #pragma once
 
-#include "onyx/resource/state.hpp"
-#include "onyx/resource/assets.hpp"
-#include "onyx/resource/options.hpp"
+#include "onyx/state/state.hpp"
+#include "onyx/asset/assets.hpp"
+#include "onyx/state/options.hpp"
 #include "vkit/state/graphics_pipeline.hpp"
 #include "tkit/container/fixed_array.hpp"
 
@@ -53,7 +53,7 @@ template <Dimension D, DrawMode DMode> class StatMeshSystem final : public Rende
   public:
     StatMeshSystem(PipelineMode p_Mode, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
-    void Draw(const InstanceData &p_InstanceData, Assets::Mesh p_Mesh);
+    void Draw(const InstanceData &p_InstanceData, Mesh p_Mesh);
 
     void GrowDeviceBuffers(u32 p_FrameIndex);
     void SendToDevice(u32 p_FrameIndex);

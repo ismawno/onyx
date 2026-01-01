@@ -2,7 +2,7 @@
 
 #include "onyx/core/alias.hpp"
 #include "onyx/core/api.hpp"
-#include "onyx/resource/state.hpp"
+#include "onyx/state/state.hpp"
 #include "vkit/state/graphics_pipeline.hpp"
 #include "vkit/state/shader.hpp"
 

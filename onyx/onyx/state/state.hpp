@@ -4,7 +4,7 @@
 #include "onyx/property/color.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/resource/buffer.hpp"
-#include "onyx/resource/assets.hpp"
+#include "onyx/asset/assets.hpp"
 #include <vulkan/vulkan.h>
 
 TKIT_COMPILER_WARNING_IGNORE_PUSH()

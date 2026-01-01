@@ -2,7 +2,7 @@
 
 namespace Onyx::Demo
 {
-template <Dimension D> void Lattice<D>::StaticMesh(RenderContext<D> *p_Context, const Assets::Mesh p_Mesh) const
+template <Dimension D> void Lattice<D>::StaticMesh(RenderContext<D> *p_Context, const Mesh p_Mesh) const
 {
     p_Context->Fill(Color);
     p_Context->Transform(Transform.ComputeTransform());

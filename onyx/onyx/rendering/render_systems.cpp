@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_systems.hpp"
-#include "onyx/resource/pipelines.hpp"
+#include "onyx/state/pipelines.hpp"
 #include "vkit/state/descriptor_set.hpp"
 #include "tkit/multiprocessing/topology.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
@@ -80,7 +80,7 @@ StatMeshSystem<D, DMode>::StatMeshSystem(const PipelineMode p_Mode,
 }
 
 template <Dimension D, DrawMode DMode>
-void StatMeshSystem<D, DMode>::Draw(const InstanceData &p_InstanceData, const Assets::Mesh p_Mesh)
+void StatMeshSystem<D, DMode>::Draw(const InstanceData &p_InstanceData, const Mesh p_Mesh)
 {
     thread_local const u32 threadIndex = TKit::Topology::GetThreadIndex();
     auto &hostData = m_ThreadHostData[threadIndex];

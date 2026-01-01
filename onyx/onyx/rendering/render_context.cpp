@@ -182,7 +182,7 @@ template <Dimension D> RenderState<D> *IRenderContext<D>::getState()
     return m_StateStack[getThreadIndex()].Current;
 }
 
-template <Dimension D> void IRenderContext<D>::StaticMesh(const Assets::Mesh p_Mesh)
+template <Dimension D> void IRenderContext<D>::StaticMesh(const Mesh p_Mesh)
 {
     const RenderState<D> &state = *getState();
     const auto draw = [&, p_Mesh](const DrawFlags p_Flags) {
@@ -190,7 +190,7 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Assets::Mesh p_M
     };
     resolveDrawFlagsWithState(state, draw);
 }
-template <Dimension D> void IRenderContext<D>::StaticMesh(const Assets::Mesh p_Mesh, const f32m<D> &p_Transform)
+template <Dimension D> void IRenderContext<D>::StaticMesh(const Mesh p_Mesh, const f32m<D> &p_Transform)
 {
     const RenderState<D> &state = *getState();
     const auto draw = [&, p_Mesh](const DrawFlags p_Flags) {
@@ -235,7 +235,7 @@ template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &p_Start,
 }
 
 template <Dimension D>
-void IRenderContext<D>::Line(const Assets::Mesh p_Mesh, const f32v<D> &p_Start, const f32v<D> &p_End,
+void IRenderContext<D>::Line(const Mesh p_Mesh, const f32v<D> &p_Start, const f32v<D> &p_End,
                              const f32 p_Thickness)
 {
     const f32v<D> delta = p_End - p_Start;
@@ -252,7 +252,7 @@ void IRenderContext<D>::Line(const Assets::Mesh p_Mesh, const f32v<D> &p_Start, 
     };
     resolveDrawFlagsWithState(state, draw);
 }
-template <Dimension D> void IRenderContext<D>::Axes(const Assets::Mesh p_Mesh, const AxesOptions &p_Options)
+template <Dimension D> void IRenderContext<D>::Axes(const Mesh p_Mesh, const AxesOptions &p_Options)
 {
     if constexpr (D == D2)
     {

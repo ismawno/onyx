@@ -1,7 +1,7 @@
 #include "onyx/app/app.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/imgui/imgui.hpp"
-#include "onyx/resource/pipelines.hpp"
+#include "onyx/state/pipelines.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "vkit/state/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -11,13 +11,13 @@ using namespace TKit::Alias;
 
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
-static Onyx::Assets::Mesh s_Square;
+static Onyx::Mesh s_Square;
 
 static void RunStandaloneWindow()
 {
     Onyx::Window window({.Name = "Standalone Hello, World!", .Dimensions = u32v2{800, 600}});
 
-    const Onyx::Assets::StatMeshData<D2> square = Onyx::Assets::CreateSquareMesh<D2>();
+    const Onyx::StatMeshData<D2> square = Onyx::Assets::CreateSquareMesh<D2>();
     s_Square = Onyx::Assets::AddMesh(square);
     Onyx::Assets::Upload<D2>();
 

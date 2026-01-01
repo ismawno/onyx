@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/resource/pipelines.hpp"
+#include "onyx/state/pipelines.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/resource/assets.hpp"
+#include "onyx/asset/assets.hpp"
 #include "vkit/state/pipeline_layout.hpp"
 #include "tkit/preprocessor/utils.hpp"
 

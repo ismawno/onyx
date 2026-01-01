@@ -16,7 +16,7 @@ namespace Onyx::Demo
 struct MeshId
 {
     std::string Name;
-    Assets::Mesh Mesh;
+    Mesh Mesh;
 };
 struct MeshContainer
 {
@@ -39,7 +39,7 @@ template <Dimension D> struct Shape
 {
     ShapeType Type;
     std::string Name;
-    Assets::Mesh Mesh = Assets::NullMesh;
+    Mesh Mesh = NullMesh;
     Transform<D> Transform{};
     CircleOptions CircleOptions{};
     MaterialData<D> Material{};

@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/post_processing.hpp"
-#include "onyx/resource/assets.hpp"
+#include "onyx/asset/assets.hpp"
 #include "vkit/state/descriptor_set.hpp"
 #include "vkit/state/pipeline_job.hpp"
 

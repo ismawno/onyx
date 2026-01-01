@@ -20,7 +20,7 @@ template <Dimension D> class Layer : public UserLayer
     Camera<D> *m_Camera;
     Lattice<D> m_Lattice;
     ShapeSettings m_Options;
-    Assets::Mesh m_Mesh;
-    Assets::Mesh m_AxesMesh;
+    Mesh m_Mesh;
+    Mesh m_AxesMesh;
 };
 } // namespace Onyx::Demo

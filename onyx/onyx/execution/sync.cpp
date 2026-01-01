@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/resource/sync.hpp"
+#include "onyx/execution/sync.hpp"
 
 namespace Onyx::Detail
 {

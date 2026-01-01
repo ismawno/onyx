@@ -1,8 +1,8 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/core/glfw.hpp"
-#include "onyx/resource/assets.hpp"
-#include "onyx/resource/pipelines.hpp"
+#include "onyx/asset/assets.hpp"
+#include "onyx/state/pipelines.hpp"
 
 #include "vkit/core/core.hpp"
 #include "vkit/memory/allocator.hpp"

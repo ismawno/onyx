@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/resource/assets.hpp"
+#include "onyx/asset/assets.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 
