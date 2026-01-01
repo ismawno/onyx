@@ -2,6 +2,7 @@
 #include "onyx/state/pipelines.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/asset/assets.hpp"
+#include "onyx/state/shaders.hpp"
 #include "vkit/state/pipeline_layout.hpp"
 #include "tkit/preprocessor/utils.hpp"
 
@@ -46,11 +47,11 @@ static bool utilsWasModified(const std::string &p_BinaryPath)
 }
 static VKit::Shader createShader(const char *p_SourcePath)
 {
-    const std::string binaryPath = CreateShaderDefaultBinaryPath(p_SourcePath);
+    const std::string binaryPath = Shaders::CreateShaderDefaultBinaryPath(p_SourcePath);
     if (utilsWasModified(binaryPath))
-        CompileShader(p_SourcePath, binaryPath);
+        Shaders::Compile(p_SourcePath, binaryPath);
 
-    return CreateShader(p_SourcePath);
+    return Shaders::Create(p_SourcePath);
 }
 
 static void createPipelineLayouts()
@@ -211,59 +212,6 @@ VKit::GraphicsPipeline CreateCirclePipeline(const PipelineMode p_Mode,
     const auto result = builder.Bake().Build();
     VKIT_ASSERT_RESULT(result);
     return result.GetValue();
-}
-
-std::string CreateShaderDefaultBinaryPath(const std::string_view p_SourcePath)
-{
-    namespace fs = std::filesystem;
-    fs::path binaryPath = p_SourcePath;
-    binaryPath = binaryPath.parent_path() / "bin" / binaryPath.filename();
-    binaryPath += ".spv";
-    return binaryPath.string();
-}
-
-VKit::Shader CreateShader(const std::string_view p_SourcePath)
-{
-    const std::string binaryPath = CreateShaderDefaultBinaryPath(p_SourcePath);
-    return CreateShader(p_SourcePath, binaryPath);
-}
-
-VKit::Shader CreateShader(const std::string_view p_SourcePath, const std::string_view p_BinaryPath,
-                          const std::string_view p_Arguments)
-{
-    if (VKit::Shader::MustCompile(p_SourcePath, p_BinaryPath))
-        CompileShader(p_SourcePath, p_BinaryPath, p_Arguments);
-
-    const auto result = VKit::Shader::Create(Core::GetDevice(), p_BinaryPath);
-    VKIT_ASSERT_RESULT(result);
-    return result.GetValue();
-}
-
-void CompileShader(const std::string_view p_SourcePath)
-{
-    const std::string binaryPath = CreateShaderDefaultBinaryPath(p_SourcePath);
-    CompileShader(p_SourcePath, binaryPath);
-}
-
-void CompileShader(const std::string_view p_SourcePath, const std::string_view p_BinaryPath,
-                   const std::string_view p_Arguments)
-{
-    const auto shresult = VKit::Shader::CompileFromFile(p_SourcePath, p_BinaryPath, p_Arguments);
-    TKIT_ASSERT(shresult, "[ONYX] Failed to compile shader at {}. Error code is: {}", p_SourcePath,
-                shresult.GetError());
-
-    TKIT_LOG_INFO_IF(shresult, "[ONYX] Compiled shader: {}", p_SourcePath);
-    TKIT_UNUSED(shresult);
-}
-
-const VKit::Shader &GetFullPassVertexShader()
-{
-    static VKit::Shader shader{};
-    if (shader)
-        return shader;
-    shader = CreateShader(ONYX_ROOT_PATH "/onyx/shaders/pp-full-pass.vert");
-    Core::GetDeletionQueue().SubmitForDeletion(shader);
-    return shader;
 }
 
 template VKit::GraphicsPipeline CreateStaticMeshPipeline<D2>(PipelineMode p_Mode,

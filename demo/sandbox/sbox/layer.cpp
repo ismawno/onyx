@@ -4,7 +4,7 @@
 #include "onyx/imgui/implot.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/core/dialog.hpp"
-#include "onyx/state/pipelines.hpp"
+#include "onyx/state/shaders.hpp"
 #include "onyx/property/camera.hpp"
 #include "vkit/state/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -30,7 +30,7 @@ static const VKit::Shader &getRainbowShader()
     static VKit::Shader shader{};
     if (shader)
         return shader;
-    shader = Pipelines::CreateShader(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
+    shader = Shaders::Create(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
     Core::GetDeletionQueue().SubmitForDeletion(shader);
     return shader;
 }
@@ -62,7 +62,7 @@ SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const D
     const auto presult =
         VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowLayout(), fs->CreateSceneRenderInfo())
             .SetViewportCount(1)
-            .AddShaderStage(Pipelines::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
+            .AddShaderStage(Shaders::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
             .AddShaderStage(getRainbowShader(), VK_SHADER_STAGE_FRAGMENT_BIT)
             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
@@ -161,7 +161,7 @@ static const VKit::Shader &getBlurShader()
     static VKit::Shader shader{};
     if (shader)
         return shader;
-    shader = Pipelines::CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
+    shader = Shaders::Create(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
     Core::GetDeletionQueue().SubmitForDeletion(shader);
     return shader;
 }

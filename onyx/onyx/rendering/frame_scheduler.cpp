@@ -2,7 +2,7 @@
 #include "onyx/rendering/frame_scheduler.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/property/color.hpp"
-#include "onyx/state/pipelines.hpp"
+#include "onyx/state/shaders.hpp"
 #include "tkit/utils/debug.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "onyx/core/glfw.hpp"
@@ -327,7 +327,7 @@ PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_
     PostProcessing::Specs specs{};
     specs.Layout = p_Layout;
     specs.FragmentShader = p_FragmentShader;
-    specs.VertexShader = p_Options.VertexShader ? *p_Options.VertexShader : Pipelines::GetFullPassVertexShader();
+    specs.VertexShader = p_Options.VertexShader ? *p_Options.VertexShader : Shaders::GetFullPassVertexShader();
     specs.SamplerCreateInfo =
         p_Options.SamplerCreateInfo ? *p_Options.SamplerCreateInfo : PostProcessing::DefaultSamplerCreateInfo();
     specs.RenderInfo = CreatePostProcessingRenderInfo();
@@ -485,7 +485,7 @@ void FrameScheduler::destroyImageData()
 
 void FrameScheduler::createProcessingEffects()
 {
-    m_NaivePostProcessingFragmentShader = Pipelines::CreateShader(ONYX_ROOT_PATH "/onyx/shaders/pp-naive.frag");
+    m_NaivePostProcessingFragmentShader = Shaders::Create(ONYX_ROOT_PATH "/onyx/shaders/pp-naive.frag");
 
     const PerImageData<VkImageView> imageviews = getIntermediateColorImageViews();
     m_PostProcessing.Construct(imageviews);
@@ -551,7 +551,7 @@ void FrameScheduler::setupNaivePostProcessing()
     PostProcessing::Specs specs{};
     specs.Layout = m_NaivePostProcessingLayout;
     specs.FragmentShader = m_NaivePostProcessingFragmentShader;
-    specs.VertexShader = Pipelines::GetFullPassVertexShader();
+    specs.VertexShader = Shaders::GetFullPassVertexShader();
     specs.SamplerCreateInfo = PostProcessing::DefaultSamplerCreateInfo();
     specs.RenderInfo = CreatePostProcessingRenderInfo();
     m_PostProcessing->Setup(specs);

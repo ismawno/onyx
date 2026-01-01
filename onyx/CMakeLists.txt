@@ -14,6 +14,7 @@ set(SOURCES
     onyx/resource/buffer.cpp
     onyx/asset/assets.cpp
     onyx/state/pipelines.cpp
+    onyx/state/shaders.cpp
     onyx/property/vertex.cpp
     onyx/property/color.cpp
     onyx/property/transform.cpp

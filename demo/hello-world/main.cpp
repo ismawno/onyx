@@ -1,7 +1,7 @@
 #include "onyx/app/app.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/imgui/imgui.hpp"
-#include "onyx/state/pipelines.hpp"
+#include "onyx/state/shaders.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "vkit/state/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -43,7 +43,7 @@ static void RunStandaloneWindow()
 
 static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
 {
-    VKit::Shader fragment = Onyx::Pipelines::CreateShader(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
+    VKit::Shader fragment = Onyx::Shaders::Create(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
 
     auto lresult = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
     VKIT_ASSERT_RESULT(lresult);
@@ -52,7 +52,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
     const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout,
                                                          p_Window.GetFrameScheduler()->CreateSceneRenderInfo())
                              .SetViewportCount(1)
-                             .AddShaderStage(Onyx::Pipelines::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
+                             .AddShaderStage(Onyx::Shaders::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
                              .AddShaderStage(fragment, VK_SHADER_STAGE_FRAGMENT_BIT)
                              .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
                              .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
@@ -82,7 +82,7 @@ static void SetPostProcessing(Onyx::Window &p_Window)
         f32 Width = 800.f;
         f32 Height = 600.f;
     };
-    VKit::Shader shader = Onyx::Pipelines::CreateShader(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
+    VKit::Shader shader = Onyx::Shaders::Create(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
 
     Onyx::FrameScheduler *fs = p_Window.GetFrameScheduler();
     VKit::PipelineLayout::Builder builder = fs->GetPostProcessing()->CreatePipelineLayoutBuilder();
