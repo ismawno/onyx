@@ -212,7 +212,7 @@ void SandboxLayer::renderImGui()
 
     if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {
-        m_Application->DisplayDeltaTime(m_Window, UserLayer::Flag_DisplayHelp);
+        m_Application->DisplayDeltaTime(m_Window, UserLayerFlag_DisplayHelp);
         const TKit::Timespan ts = m_Application->GetDeltaTime();
         ImGui::Text("Application delta time: %.2f ms", ts.AsMilliseconds());
 
@@ -248,7 +248,7 @@ void SandboxLayer::renderImGui()
         ImGui::TextWrapped(
             "Onyx windows can draw shapes in 2D and 3D, and have a separate API for each even though the "
             "window is shared. Users interact with the rendering API through rendering contexts.");
-        UserLayer::PresentModeEditor(m_Window, UserLayer::Flag_DisplayHelp);
+        UserLayer::PresentModeEditor(m_Window, UserLayerFlag_DisplayHelp);
 
         ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
         UserLayer::HelpMarkerSameLine("This is a small demonstration of how to hook-up your own pipelines to the Onyx "
@@ -362,10 +362,10 @@ template <Dimension D> void editShape(Shape<D> &p_Shape)
     ImGui::PushID(&p_Shape);
     ImGui::Text("Transform");
     ImGui::SameLine();
-    UserLayer::TransformEditor<D>(p_Shape.Transform, UserLayer::Flag_DisplayHelp);
+    UserLayer::TransformEditor<D>(p_Shape.Transform, UserLayerFlag_DisplayHelp);
     ImGui::Text("Material");
     ImGui::SameLine();
-    UserLayer::MaterialEditor<D>(p_Shape.Material, UserLayer::Flag_DisplayHelp);
+    UserLayer::MaterialEditor<D>(p_Shape.Material, UserLayerFlag_DisplayHelp);
     ImGui::Checkbox("Fill", &p_Shape.Fill);
     ImGui::Checkbox("Outline", &p_Shape.Outline);
     ImGui::SliderFloat("Outline Width", &p_Shape.OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
@@ -517,7 +517,7 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
         }
 
         ImGui::Text("Material");
-        UserLayer::MaterialEditor<D>(line.Material, UserLayer::Flag_DisplayHelp);
+        UserLayer::MaterialEditor<D>(line.Material, UserLayerFlag_DisplayHelp);
         ImGui::ColorEdit3("Outline color", line.OutlineColor.GetData());
 
         p_Context.Context->Push();
@@ -577,13 +577,13 @@ template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &p_Camera)
     ImGui::Text("Viewport");
     ImGui::SameLine();
     ScreenViewport viewport = camera->GetViewport();
-    if (UserLayer::ViewportEditor(viewport, UserLayer::Flag_DisplayHelp))
+    if (UserLayer::ViewportEditor(viewport, UserLayerFlag_DisplayHelp))
         camera->SetViewport(viewport);
 
     ImGui::Text("Scissor");
     ImGui::SameLine();
     ScreenScissor scissor = camera->GetScissor();
-    if (UserLayer::ScissorEditor(scissor, UserLayer::Flag_DisplayHelp))
+    if (UserLayer::ScissorEditor(scissor, UserLayerFlag_DisplayHelp))
         camera->SetScissor(scissor);
 
     const Transform<D> &view = camera->GetProjectionViewData().View;
@@ -591,7 +591,7 @@ template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &p_Camera)
     UserLayer::HelpMarkerSameLine(
         "The view transform are the coordinates of the camera, detached from any render context coordinate system.");
 
-    UserLayer::DisplayTransform(view, UserLayer::Flag_DisplayHelp);
+    UserLayer::DisplayTransform(view, UserLayerFlag_DisplayHelp);
     if constexpr (D == D3)
     {
         const f32v3 lookDir = camera->GetViewLookDirection();
@@ -712,7 +712,7 @@ template <Dimension D> void SandboxLayer::renderUI(ContextData<D> &p_Context)
         if (ImGui::TreeNode("Material"))
         {
             ImGui::SameLine();
-            UserLayer::MaterialEditor<D>(p_Context.AxesMaterial, UserLayer::Flag_DisplayHelp);
+            UserLayer::MaterialEditor<D>(p_Context.AxesMaterial, UserLayerFlag_DisplayHelp);
             ImGui::TreePop();
         }
     }

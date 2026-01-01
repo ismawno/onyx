@@ -80,11 +80,11 @@ Window::~Window()
 void Window::createWindow(const Specs &p_Specs)
 {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, p_Specs.Flags & Flag_Resizable);
-    glfwWindowHint(GLFW_VISIBLE, p_Specs.Flags & Flag_Visible);
-    glfwWindowHint(GLFW_DECORATED, p_Specs.Flags & Flag_Decorated);
-    glfwWindowHint(GLFW_FOCUSED, p_Specs.Flags & Flag_Focused);
-    glfwWindowHint(GLFW_FLOATING, p_Specs.Flags & Flag_Floating);
+    glfwWindowHint(GLFW_RESIZABLE, p_Specs.Flags & WindowFlag_Resizable);
+    glfwWindowHint(GLFW_VISIBLE, p_Specs.Flags & WindowFlag_Visible);
+    glfwWindowHint(GLFW_DECORATED, p_Specs.Flags & WindowFlag_Decorated);
+    glfwWindowHint(GLFW_FOCUSED, p_Specs.Flags & WindowFlag_Focused);
+    glfwWindowHint(GLFW_FLOATING, p_Specs.Flags & WindowFlag_Floating);
 
     m_Window = glfwCreateWindow(static_cast<i32>(p_Specs.Dimensions[0]), static_cast<i32>(p_Specs.Dimensions[1]),
                                 p_Specs.Name, nullptr, nullptr);

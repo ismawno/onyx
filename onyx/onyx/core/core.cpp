@@ -43,12 +43,10 @@ static void createDevice(const VkSurfaceKHR p_Surface)
     VKit::PhysicalDevice::Selector selector(&s_Instance);
 
     selector.SetSurface(p_Surface)
-        .PreferType(VKit::PhysicalDevice::Discrete)
-        .AddFlags(VKit::PhysicalDevice::Selector::Flag_AnyType |
-                  VKit::PhysicalDevice::Selector::Flag_PortabilitySubset |
-                  VKit::PhysicalDevice::Selector::Flag_RequireGraphicsQueue |
-                  VKit::PhysicalDevice::Selector::Flag_RequirePresentQueue |
-                  VKit::PhysicalDevice::Selector::Flag_RequireTransferQueue)
+        .PreferType(VKit::Device_Discrete)
+        .AddFlags(VKit::DeviceSelectorFlag_AnyType | VKit::DeviceSelectorFlag_PortabilitySubset |
+                  VKit::DeviceSelectorFlag_RequireGraphicsQueue | VKit::DeviceSelectorFlag_RequirePresentQueue |
+                  VKit::DeviceSelectorFlag_RequireTransferQueue)
         .RequireExtension("VK_KHR_dynamic_rendering")
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 3, 0);
@@ -97,9 +95,9 @@ static void createDevice(const VkSurfaceKHR p_Surface)
 
     TKIT_LOG_INFO("[ONYX] Created Vulkan device: {}",
                   s_Device.GetInfo().PhysicalDevice.GetInfo().Properties.Core.deviceName);
-    TKIT_LOG_WARNING_IF(!(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal),
+    TKIT_LOG_WARNING_IF(!(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::DeviceFlag_Optimal),
                         "[ONYX] The device is suitable, but not optimal");
-    TKIT_LOG_INFO_IF(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::PhysicalDevice::Flag_Optimal,
+    TKIT_LOG_INFO_IF(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::DeviceFlag_Optimal,
                      "[ONYX] The device is optimal");
 
     s_DeletionQueue.SubmitForDeletion(s_Device);
@@ -273,7 +271,7 @@ void Initialize(const Specs &p_Specs)
                   VKIT_API_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
 
 #if defined(TKIT_ENABLE_INFO_LOGS) || defined(TKIT_ENABLE_ERROR_LOGS)
-    const bool vlayers = s_Instance.GetInfo().Flags & VKit::Instance::Flag_HasValidationLayers;
+    const bool vlayers = s_Instance.GetInfo().Flags & VKit::InstanceFlag_HasValidationLayers;
 #endif
 
     TKIT_LOG_INFO_IF(vlayers, "[ONYX] Validation layers enabled");

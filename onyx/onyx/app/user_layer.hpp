@@ -25,6 +25,12 @@ struct DeltaTime;
 class Application;
 class Window;
 
+using UserLayerFlags = u8;
+enum UserLayerFlagBit : UserLayerFlags
+{
+    UserLayerFlag_DisplayHelp = 1 << 0,
+};
+
 /**
  * @brief A base class that allows users to inject their own code into the application's lifecycle with different
  * callbacks.
@@ -40,12 +46,6 @@ class Window;
 class ONYX_API UserLayer
 {
   public:
-    using Flags = u8;
-    enum FlagBit : Flags
-    {
-        Flag_DisplayHelp = 1 << 0,
-    };
-
     UserLayer(Application *p_Application, Window *p_Window) : m_Application(p_Application), m_Window(p_Window)
     {
     }
@@ -119,19 +119,19 @@ class ONYX_API UserLayer
     }
 
 #ifdef ONYX_ENABLE_IMGUI
-    template <Dimension D> static bool TransformEditor(Transform<D> &p_Transform, Flags p_Flags = 0);
-    template <Dimension D> static bool MaterialEditor(MaterialData<D> &p_Material, Flags p_Flags = 0);
+    template <Dimension D> static bool TransformEditor(Transform<D> &p_Transform, UserLayerFlags p_Flags = 0);
+    template <Dimension D> static bool MaterialEditor(MaterialData<D> &p_Material, UserLayerFlags p_Flags = 0);
 
-    template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, Flags p_Flags = 0);
+    template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, UserLayerFlags p_Flags = 0);
     template <Dimension D> static void DisplayCameraControls(const CameraControls<D> &p_Controls = {});
 
-    static bool DirectionalLightEditor(DirectionalLight &p_Light, Flags p_Flags = 0);
-    static bool PointLightEditor(PointLight &p_Light, Flags p_Flags = 0);
+    static bool DirectionalLightEditor(DirectionalLight &p_Light, UserLayerFlags p_Flags = 0);
+    static bool PointLightEditor(PointLight &p_Light, UserLayerFlags p_Flags = 0);
 
-    static bool PresentModeEditor(Window *p_Window, Flags p_Flags = 0);
+    static bool PresentModeEditor(Window *p_Window, UserLayerFlags p_Flags = 0);
 
-    static bool ViewportEditor(ScreenViewport &p_Viewport, Flags p_Flags = 0);
-    static bool ScissorEditor(ScreenScissor &p_Scissor, Flags p_Flags = 0);
+    static bool ViewportEditor(ScreenViewport &p_Viewport, UserLayerFlags p_Flags = 0);
+    static bool ScissorEditor(ScreenScissor &p_Scissor, UserLayerFlags p_Flags = 0);
 
     static void HelpMarker(const char *p_Description, const char *p_Icon = "(?)");
     static void HelpMarkerSameLine(const char *p_Description, const char *p_Icon = "(?)");

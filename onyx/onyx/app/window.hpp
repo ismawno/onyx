@@ -33,26 +33,27 @@ struct FrameInfo
     }
 };
 
+using WindowFlags = u8;
+enum WindowFlagBit : WindowFlags
+{
+    WindowFlag_Resizable = 1 << 0,
+    WindowFlag_Visible = 1 << 1,
+    WindowFlag_Decorated = 1 << 2,
+    WindowFlag_Focused = 1 << 3,
+    WindowFlag_Floating = 1 << 4,
+};
+
 class ONYX_API Window
 {
     TKIT_NON_COPYABLE(Window)
   public:
-    using Flags = u8;
-    enum FlagBit : Flags
-    {
-        Flag_Resizable = 1 << 0,
-        Flag_Visible = 1 << 1,
-        Flag_Decorated = 1 << 2,
-        Flag_Focused = 1 << 3,
-        Flag_Floating = 1 << 4,
-    };
     struct Specs
     {
         const char *Name = "Onyx window";
         u32v2 Position{TKIT_U32_MAX}; // u32 max means let it be decided automatically
         u32v2 Dimensions{800, 600};
         VkPresentModeKHR PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-        Flags Flags = Flag_Resizable | Flag_Visible | Flag_Decorated | Flag_Focused;
+        WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused;
     };
 
     Window();
@@ -179,7 +180,7 @@ class ONYX_API Window
         return static_cast<f32>(GetPixelWidth()) / static_cast<f32>(GetPixelHeight());
     }
 
-    Flags GetFlags() const
+    WindowFlags GetFlags() const
     {
         return m_Flags;
     }
@@ -340,7 +341,7 @@ class ONYX_API Window
 #ifdef TKIT_ENABLE_INSTRUMENTATION
     u32 m_ColorIndex = 0;
 #endif
-    Flags m_Flags;
+    WindowFlags m_Flags;
 
     friend class FrameScheduler;
     friend void windowResizeCallback(GLFWwindow *, const i32, const i32);

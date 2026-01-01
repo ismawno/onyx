@@ -144,8 +144,7 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const PipelineMode 
     else if (GetDrawMode(p_Mode) == Draw_Outline)
         colorBuilder.DisableBlending();
 
-    const auto stencilFlags =
-        VKit::GraphicsPipeline::Builder::Flag_StencilFront | VKit::GraphicsPipeline::Builder::Flag_StencilBack;
+    const auto stencilFlags = VKit::StencilOperationFlag_Front | VKit::StencilOperationFlag_Back;
 
     if (p_Mode == Pipeline_DoStencilWriteDoFill || p_Mode == Pipeline_DoStencilWriteNoFill)
         builder.EnableStencilTest()

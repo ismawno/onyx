@@ -15,7 +15,7 @@ namespace Onyx
 using WindowData = Application::WindowData;
 void Application::Quit()
 {
-    setFlags(Flag_Quit);
+    setFlags(ApplicationFlag_Quit);
 }
 
 void Application::Run()
@@ -96,7 +96,7 @@ const Application::WindowData *Application::getWindowData(const Window *p_Window
 static void initializeImGui(WindowData &p_Data)
 {
     Window *window = p_Data.Window;
-    TKIT_ASSERT(!p_Data.CheckFlags(Application::Flag_ImGuiRunning),
+    TKIT_ASSERT(!p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
                 "[ONYX] Trying to initialize ImGui for window '{}' when it is already running. If you "
                 "meant to reload ImGui, use ReloadImGui()",
                 window->GetName());
@@ -119,15 +119,15 @@ static void initializeImGui(WindowData &p_Data)
     io.FontDefault = font;
     p_Data.Theme->Apply();
 
-    p_Data.SetFlags(Application::Flag_ImGuiRunning);
+    p_Data.SetFlags(ApplicationFlag_ImGuiRunning);
 }
 
 static void shutdownImGui(WindowData &p_Data)
 {
-    TKIT_ASSERT(p_Data.CheckFlags(Application::Flag_ImGuiRunning),
+    TKIT_ASSERT(p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
                 "[ONYX] Trying to shut down ImGui when it is not initialized to begin with");
 
-    p_Data.ClearFlags(Application::Flag_ImGuiRunning);
+    p_Data.ClearFlags(ApplicationFlag_ImGuiRunning);
 
     ImGui::SetCurrentContext(p_Data.ImGuiContext);
 #    ifdef ONYX_ENABLE_IMPLOT
@@ -144,7 +144,7 @@ static void shutdownImGui(WindowData &p_Data)
 #    endif
 }
 
-static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLayer::Flags p_Flags,
+static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLayerFlags p_Flags,
                              const bool p_CheckVSync)
 {
     DeltaTime &time = p_Delta.Time;
@@ -154,7 +154,7 @@ static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLay
     p_Delta.Smoothed = p_Delta.Smoothness * p_Delta.Smoothed + (1.f - p_Delta.Smoothness) * time.Measured;
 
     ImGui::SliderFloat("Smoothing factor", &p_Delta.Smoothness, 0.f, 0.999f);
-    if (p_Flags & UserLayer::Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
         UserLayer::HelpMarkerSameLine(
             "Because frames get dispatched so quickly, the frame time can vary a lot, be inconsistent, and hard to "
             "see. This slider allows you to smooth out the frame time across frames, making it easier to see the "
@@ -203,7 +203,7 @@ static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLay
                     p_Delta.Max.AsNanoseconds());
 #    endif
 
-    if (p_Flags & UserLayer::Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
         UserLayer::HelpMarkerSameLine(
             "The delta time is a measure of the time it takes to complete a frame loop around a particular callback "
             "(which can be an update or render callback), and it is one of the main indicators of an application "
@@ -216,7 +216,7 @@ static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLay
     return changed;
 }
 
-static bool displayDeltaTime(WindowData &p_Data, const UserLayer::Flags p_Flags)
+static bool displayDeltaTime(WindowData &p_Data, const UserLayerFlags p_Flags)
 {
     const auto sync = [](DeltaInfo &p_Dst, const DeltaInfo &p_Src) {
         p_Dst.Time.Target = p_Src.Time.Target;
@@ -258,11 +258,11 @@ static bool displayDeltaTime(WindowData &p_Data, const UserLayer::Flags p_Flags)
     return changed;
 }
 
-bool Application::DisplayDeltaTime(const UserLayer::Flags p_Flags)
+bool Application::DisplayDeltaTime(const UserLayerFlags p_Flags)
 {
     return displayDeltaTime(m_MainWindow, p_Flags);
 }
-bool Application::DisplayDeltaTime(const Window *p_Window, const UserLayer::Flags p_Flags)
+bool Application::DisplayDeltaTime(const Window *p_Window, const UserLayerFlags p_Flags)
 {
     WindowData *data = getWindowData(p_Window);
     return displayDeltaTime(*data, p_Flags);
@@ -271,13 +271,13 @@ bool Application::DisplayDeltaTime(const Window *p_Window, const UserLayer::Flag
 bool Application::enableImGui(WindowData &p_Data, const i32 p_Flags)
 {
     p_Data.ImGuiConfigFlags = p_Flags;
-    if (checkFlags(Flag_Defer))
+    if (checkFlags(ApplicationFlag_Defer))
     {
-        p_Data.SetFlags(Flag_MustDisableImGui);
+        p_Data.SetFlags(ApplicationFlag_MustDisableImGui);
         return false;
     }
     shutdownImGui(p_Data);
-    p_Data.ClearFlags(Flag_MustDisableImGui | Flag_ImGuiEnabled);
+    p_Data.ClearFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_ImGuiEnabled);
     return true;
 }
 
@@ -295,22 +295,22 @@ bool Application::EnableImGui(const i32 p_Flags)
 bool Application::DisableImGui(const Window *p_Window)
 {
     WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
-    if (checkFlags(Flag_Defer))
+    if (checkFlags(ApplicationFlag_Defer))
     {
-        data->SetFlags(Flag_MustDisableImGui);
+        data->SetFlags(ApplicationFlag_MustDisableImGui);
         return false;
     }
     shutdownImGui(*data);
-    data->ClearFlags(Flag_MustDisableImGui | Flag_ImGuiEnabled);
+    data->ClearFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_ImGuiEnabled);
     return true;
 }
 
 bool Application::reloadImGui(WindowData &p_Data, const i32 p_Flags)
 {
     p_Data.ImGuiConfigFlags = p_Flags;
-    if (checkFlags(Flag_Defer))
+    if (checkFlags(ApplicationFlag_Defer))
     {
-        p_Data.SetFlags(Flag_MustDisableImGui | Flag_MustEnableImGui);
+        p_Data.SetFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_MustEnableImGui);
         return false;
     }
     shutdownImGui(p_Data);
@@ -357,12 +357,12 @@ void Application::processWindow(WindowData &p_Data)
 
     p_Data.RenderClock.Update();
 #ifdef ONYX_ENABLE_IMGUI
-    TKIT_ASSERT(!p_Data.CheckFlags(Flag_ImGuiEnabled) || p_Data.CheckFlags(Flag_ImGuiRunning),
+    TKIT_ASSERT(!p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled) || p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
                 "[ONYX] ImGui is enabled for window '{}' but no instance of "
                 "ImGui is running. This should not be possible",
                 p_Data.Window->GetName());
 
-    TKIT_ASSERT(p_Data.CheckFlags(Flag_ImGuiEnabled) || !p_Data.CheckFlags(Flag_ImGuiRunning),
+    TKIT_ASSERT(p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled) || !p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
                 "[ONYX] ImGui is disabled for window '{}' but an instance of "
                 "ImGui is running. This should not be possible",
                 p_Data.Window->GetName());
@@ -371,7 +371,7 @@ void Application::processWindow(WindowData &p_Data)
 #    ifdef ONYX_ENABLE_IMPLOT
     ImPlot::SetCurrentContext(p_Data.ImPlotContext);
 #    endif
-    if (p_Data.CheckFlags(Flag_ImGuiEnabled))
+    if (p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled))
         beginRenderImGui();
 #endif
 
@@ -399,7 +399,7 @@ void Application::processWindow(WindowData &p_Data)
 
     p_Data.Window->Render(info);
 #ifdef ONYX_ENABLE_IMGUI
-    if (p_Data.CheckFlags(Flag_ImGuiEnabled))
+    if (p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled))
         endRenderImGui(info.GraphicsCommand);
 #endif
 
@@ -414,32 +414,32 @@ void Application::processWindow(WindowData &p_Data)
 
 static void syncDeferredOperations(WindowData &p_Data)
 {
-    if (p_Data.CheckFlags(Application::Flag_MustDestroyLayer))
+    if (p_Data.CheckFlags(ApplicationFlag_MustDestroyLayer))
     {
         delete p_Data.Layer;
         p_Data.Layer = nullptr;
-        p_Data.ClearFlags(Application::Flag_MustDestroyLayer);
+        p_Data.ClearFlags(ApplicationFlag_MustDestroyLayer);
     }
-    if (p_Data.CheckFlags(Application::Flag_MustReplaceLayer))
+    if (p_Data.CheckFlags(ApplicationFlag_MustReplaceLayer))
     {
         p_Data.Layer = p_Data.StagedLayer;
         p_Data.StagedLayer = nullptr;
-        p_Data.ClearFlags(Application::Flag_MustReplaceLayer);
+        p_Data.ClearFlags(ApplicationFlag_MustReplaceLayer);
     }
 
 #ifdef ONYX_ENABLE_IMGUI
 
-    if (p_Data.CheckFlags(Application::Flag_MustDisableImGui))
+    if (p_Data.CheckFlags(ApplicationFlag_MustDisableImGui))
     {
         shutdownImGui(p_Data);
-        p_Data.ClearFlags(Application::Flag_MustDisableImGui | Application::Flag_ImGuiEnabled);
+        p_Data.ClearFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_ImGuiEnabled);
     }
 
-    if (p_Data.CheckFlags(Application::Flag_MustEnableImGui))
+    if (p_Data.CheckFlags(ApplicationFlag_MustEnableImGui))
     {
         initializeImGui(p_Data);
-        p_Data.ClearFlags(Application::Flag_MustEnableImGui);
-        p_Data.SetFlags(Application::Flag_ImGuiEnabled);
+        p_Data.ClearFlags(ApplicationFlag_MustEnableImGui);
+        p_Data.SetFlags(ApplicationFlag_ImGuiEnabled);
     }
 #endif
 }
@@ -474,10 +474,10 @@ void Application::syncDeferredOperations()
 #endif
     }
 
-    if (checkFlags(Flag_Quit)) [[unlikely]]
+    if (checkFlags(ApplicationFlag_Quit)) [[unlikely]]
     {
         closeAllWindows();
-        clearFlags(Flag_Quit);
+        clearFlags(ApplicationFlag_Quit);
     }
 }
 
@@ -485,7 +485,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
 
-    setFlags(Flag_Defer);
+    setFlags(ApplicationFlag_Defer);
     Input::PollEvents();
 
     processWindow(m_MainWindow);
@@ -493,7 +493,7 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
     for (WindowData &data : m_Windows)
         processWindow(data);
 #endif
-    clearFlags(Flag_Defer);
+    clearFlags(ApplicationFlag_Defer);
     syncDeferredOperations();
     endFrame();
 
@@ -531,7 +531,7 @@ Application::WindowData Application::createWindow(const WindowSpecs &p_Specs)
     if (p_Specs.EnableImGui)
     {
         initializeImGui(data);
-        data.SetFlags(Flag_ImGuiEnabled);
+        data.SetFlags(ApplicationFlag_ImGuiEnabled);
     }
 #endif
 
@@ -546,7 +546,7 @@ void Application::destroyWindow(WindowData &p_Data)
     p_Data.StagedLayer = nullptr;
     p_Data.Layer = nullptr;
 #ifdef ONYX_ENABLE_IMGUI
-    if (p_Data.CheckFlags(Flag_ImGuiEnabled))
+    if (p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled))
         shutdownImGui(p_Data);
 #endif
     m_WindowAllocator.Destroy(p_Data.Window);
@@ -567,7 +567,7 @@ void Application::closeAllWindows()
 #ifdef __ONYX_MULTI_WINDOW
 bool Application::CloseWindow(Window *p_Window)
 {
-    if (checkFlags(Flag_Defer))
+    if (checkFlags(ApplicationFlag_Defer))
     {
         p_Window->FlagShouldClose();
         return false;

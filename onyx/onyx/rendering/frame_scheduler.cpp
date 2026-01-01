@@ -381,15 +381,14 @@ VkExtent2D FrameScheduler::waitGlfwEvents(Window &p_Window)
 void FrameScheduler::createSwapChain(Window &p_Window, const VkExtent2D &p_WindowExtent)
 {
     const VKit::LogicalDevice &device = Core::GetDevice();
-    const auto result =
-        VKit::SwapChain::Builder(&device, p_Window.GetSurface())
-            .RequestSurfaceFormat({VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
-            .RequestPresentMode(m_PresentMode)
-            .RequestExtent(p_WindowExtent)
-            .RequestImageCount(3)
-            .SetOldSwapChain(m_SwapChain)
-            .AddFlags(VKit::SwapChain::Builder::Flag_Clipped | VKit::SwapChain::Builder::Flag_CreateImageViews)
-            .Build();
+    const auto result = VKit::SwapChain::Builder(&device, p_Window.GetSurface())
+                            .RequestSurfaceFormat({VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
+                            .RequestPresentMode(m_PresentMode)
+                            .RequestExtent(p_WindowExtent)
+                            .RequestImageCount(3)
+                            .SetOldSwapChain(m_SwapChain)
+                            .AddFlags(VKit::SwapChainBuilderFlag_Clipped | VKit::SwapChainBuilderFlag_CreateImageViews)
+                            .Build();
 
     VKIT_ASSERT_RESULT(result);
     m_SwapChain = result.GetValue();
@@ -457,14 +456,14 @@ PerImageData<FrameScheduler::ImageData> FrameScheduler::createImageData()
 
         auto iresult =
             VKit::Image::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, info.SurfaceFormat.format,
-                                 VKit::Image::Flag_ColorAttachment | VKit::Image::Flag_Sampled)
+                                 VKit::ImageFlag_ColorAttachment | VKit::ImageFlag_Sampled)
                 .WithImageView()
                 .Build();
         VKIT_ASSERT_RESULT(iresult);
         data.Intermediate = iresult.GetValue();
 
         iresult = VKit::Image::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, s_DepthStencilFormat,
-                                       VKit::Image::Flag_DepthAttachment | VKit::Image::Flag_StencilAttachment)
+                                       VKit::ImageFlag_DepthAttachment | VKit::ImageFlag_StencilAttachment)
                       .WithImageView()
                       .Build();
         VKIT_ASSERT_RESULT(iresult);

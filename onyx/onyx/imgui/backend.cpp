@@ -17,7 +17,7 @@ void InitializeImGui(Window *p_Window)
     ImGuiIO &io = ImGui::GetIO();
     TKIT_LOG_WARNING_IF(
         (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) &&
-            instance.GetInfo().Flags & VKit::Instance::Flag_HasValidationLayers,
+            instance.GetInfo().Flags & VKit::InstanceFlag_HasValidationLayers,
         "[ONYX] Vulkan validation layers have become stricter regarding semaphore and fence usage when submitting to "
         "queues. ImGui may not have caught up to this and may trigger validation errors when the "
         "ImGuiConfigFlags_ViewportsEnable flag is set. If this is the case, either disable the flag or the vulkan "

@@ -15,10 +15,10 @@ static void displayTransformHelp()
         "quaternion in 3D, or a rotation angle in 2D. Almost all objects in a scene have a transform.");
 }
 
-template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform, const Flags p_Flags)
+template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform, const UserLayerFlags p_Flags)
 {
     ImGui::PushID(&p_Transform);
-    if (p_Flags & Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
         displayTransformHelp();
     bool changed = false;
     if constexpr (D == D2)
@@ -75,15 +75,15 @@ template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &p_Transform
     return changed;
 }
 
-template bool UserLayer::TransformEditor<D2>(Transform<D2> &p_Transform, Flags p_Flags);
-template bool UserLayer::TransformEditor<D3>(Transform<D3> &p_Transform, Flags p_Flags);
+template bool UserLayer::TransformEditor<D2>(Transform<D2> &p_Transform, UserLayerFlags p_Flags);
+template bool UserLayer::TransformEditor<D3>(Transform<D3> &p_Transform, UserLayerFlags p_Flags);
 
-template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Transform, const Flags p_Flags)
+template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Transform, const UserLayerFlags p_Flags)
 {
     const f32v<D> &translation = p_Transform.Translation;
     const f32v<D> &scale = p_Transform.Scale;
 
-    if (p_Flags & Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
         displayTransformHelp();
     if constexpr (D == D2)
     {
@@ -101,8 +101,8 @@ template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &p_Tr
     }
 }
 
-template void UserLayer::DisplayTransform<D2>(const Transform<D2> &p_Transform, Flags p_Flags);
-template void UserLayer::DisplayTransform<D3>(const Transform<D3> &p_Transform, Flags p_Flags);
+template void UserLayer::DisplayTransform<D2>(const Transform<D2> &p_Transform, UserLayerFlags p_Flags);
+template void UserLayer::DisplayTransform<D3>(const Transform<D3> &p_Transform, UserLayerFlags p_Flags);
 
 template <Dimension D> void UserLayer::DisplayCameraControls(const CameraControls<D> &p_Controls)
 {
@@ -149,9 +149,9 @@ void UserLayer::HelpMarkerSameLine(const char *p_Description, const char *p_Icon
     HelpMarker(p_Description, p_Icon);
 }
 
-template <Dimension D> bool UserLayer::MaterialEditor(MaterialData<D> &p_Material, const Flags p_Flags)
+template <Dimension D> bool UserLayer::MaterialEditor(MaterialData<D> &p_Material, const UserLayerFlags p_Flags)
 {
-    if (p_Flags & Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
         HelpMarker(
             "The material of an object defines its basic properties, such as its color, its diffuse and specular "
             "contributions, and its specular sharpness. The material is used to calculate the final color of the "
@@ -177,13 +177,13 @@ template <Dimension D> bool UserLayer::MaterialEditor(MaterialData<D> &p_Materia
     return changed;
 }
 
-template bool UserLayer::MaterialEditor<D2>(MaterialData<D2> &p_Material, Flags p_Flags);
-template bool UserLayer::MaterialEditor<D3>(MaterialData<D3> &p_Material, Flags p_Flags);
+template bool UserLayer::MaterialEditor<D2>(MaterialData<D2> &p_Material, UserLayerFlags p_Flags);
+template bool UserLayer::MaterialEditor<D3>(MaterialData<D3> &p_Material, UserLayerFlags p_Flags);
 
-bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_Flags)
+bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const UserLayerFlags p_Flags)
 {
     bool changed = false;
-    if (p_Flags & Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
         HelpMarker(
             "Directional lights are lights that have no position, only a direction. They are used to simulate "
             "infinite light sources, such as the sun. They have a direction, an intensity, and a color. The "
@@ -204,10 +204,10 @@ bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const Flags p_
     return changed;
 }
 
-bool UserLayer::PointLightEditor(PointLight &p_Light, const Flags p_Flags)
+bool UserLayer::PointLightEditor(PointLight &p_Light, const UserLayerFlags p_Flags)
 {
     bool changed = false;
-    if (p_Flags & Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
         HelpMarker(
             "Point lights are lights that have a position and a radius. They are used to simulate light sources "
             "that emit light in all directions, such as light bulbs. They have a position, an intensity, a "
@@ -253,7 +253,7 @@ static const char *presentModeToString(const VkPresentModeKHR mode)
     }
 }
 
-bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags)
+bool UserLayer::PresentModeEditor(Window *p_Window, const UserLayerFlags p_Flags)
 {
     const FrameScheduler *fs = p_Window->GetFrameScheduler();
     const VkPresentModeKHR current = fs->GetPresentMode();
@@ -273,7 +273,7 @@ bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags)
     if (changed)
         p_Window->GetFrameScheduler()->SetPresentMode(available[index]);
 
-    if (p_Flags & Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
         HelpMarkerSameLine("Controls the frequency with which rendered images are sent to the screen. This setting "
                            "can be used to limit the frame rate of the application. The most common present mode is "
                            "Fifo, and uses V-Sync to synchronize the frame rate with the "
@@ -281,11 +281,11 @@ bool UserLayer::PresentModeEditor(Window *p_Window, const Flags p_Flags)
     return changed;
 }
 
-bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags)
+bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const UserLayerFlags p_Flags)
 {
     bool changed = false;
     ImGui::PushID(&p_Viewport);
-    if (p_Flags & Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
     {
         HelpMarker("The viewport is the area of the screen where the camera is rendered. It is defined as a "
                    "rectangle that is specified in Math::Normalized coordinates (0, 0) to (1, 1).");
@@ -337,11 +337,11 @@ bool UserLayer::ViewportEditor(ScreenViewport &p_Viewport, const Flags p_Flags)
     return changed;
 }
 
-bool UserLayer::ScissorEditor(ScreenScissor &p_Scissor, const Flags p_Flags)
+bool UserLayer::ScissorEditor(ScreenScissor &p_Scissor, const UserLayerFlags p_Flags)
 {
     bool changed = false;
     ImGui::PushID(&p_Scissor);
-    if (p_Flags & Flag_DisplayHelp)
+    if (p_Flags & UserLayerFlag_DisplayHelp)
     {
         HelpMarker("The scissor limits the area of the screen the camera is rendered to. It is defined as a "
                    "rectangle that is specified in Math::Normalized coordinates (0, 0) to (1, 1).");

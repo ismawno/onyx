@@ -27,12 +27,12 @@ void ApplyReleaseBarrier(VkCommandBuffer p_CommandBuffer, TKit::Span<const VkBuf
 
 namespace Onyx
 {
-enum BufferFlags : VKit::Buffer::Flags
+enum BufferFlags : VKit::BufferFlags
 {
-    Buffer_DeviceVertex = VKit::Buffer::Flag_VertexBuffer | VKit::Buffer::Flag_DeviceLocal,
-    Buffer_DeviceIndex = VKit::Buffer::Flag_IndexBuffer | VKit::Buffer::Flag_DeviceLocal,
-    Buffer_DeviceStorage = VKit::Buffer::Flag_StorageBuffer | VKit::Buffer::Flag_DeviceLocal,
-    Buffer_Staging = VKit::Buffer::Flag_StagingBuffer | VKit::Buffer::Flag_HostMapped,
+    Buffer_DeviceVertex = VKit::BufferFlag_Vertex | VKit::BufferFlag_DeviceLocal,
+    Buffer_DeviceIndex = VKit::BufferFlag_Index | VKit::BufferFlag_DeviceLocal,
+    Buffer_DeviceStorage = VKit::BufferFlag_Storage | VKit::BufferFlag_DeviceLocal,
+    Buffer_Staging = VKit::BufferFlag_Staging | VKit::BufferFlag_HostMapped,
 };
 
 using Index = ONYX_INDEX_TYPE;
@@ -43,7 +43,7 @@ using HostVisibleBuffer = VKit::Buffer;
 template <typename T> using HostBuffer = TKit::DynamicArray<T>;
 
 template <typename T>
-VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flags, const u32 p_Capacity = ONYX_BUFFER_INITIAL_CAPACITY)
+VKit::Buffer CreateBuffer(const VKit::BufferFlags p_Flags, const u32 p_Capacity = ONYX_BUFFER_INITIAL_CAPACITY)
 {
     const auto result =
         VKit::Buffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), p_Flags).SetSize<T>(p_Capacity).Build();
@@ -51,14 +51,14 @@ VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flags, const u32 p_Capacit
     return result.GetValue();
 }
 
-template <typename T> VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flags, const HostBuffer<T> &p_Data)
+template <typename T> VKit::Buffer CreateBuffer(const VKit::BufferFlags p_Flags, const HostBuffer<T> &p_Data)
 {
     auto result = VKit::Buffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), p_Flags)
                       .SetSize<T>(p_Data.GetSize())
                       .Build();
     VKIT_ASSERT_RESULT(result);
     VKit::Buffer &buffer = result.GetValue();
-    if (buffer.GetInfo().Flags & VKit::Buffer::Flag_HostVisible)
+    if (buffer.GetInfo().Flags & VKit::BufferFlag_HostVisible)
         buffer.Write<T>(p_Data);
     else
     {
@@ -70,7 +70,7 @@ template <typename T> VKit::Buffer CreateBuffer(const VKit::Buffer::Flags p_Flag
 }
 
 template <typename T>
-bool GrowBufferIfNeeded(VKit::Buffer &p_Buffer, const u32 p_Instances, const VKit::Buffer::Flags p_Flags,
+bool GrowBufferIfNeeded(VKit::Buffer &p_Buffer, const u32 p_Instances, const VKit::BufferFlags p_Flags,
                         const f32 p_Factor = 1.5f)
 {
     const u32 inst = p_Buffer.GetInfo().InstanceCount;
