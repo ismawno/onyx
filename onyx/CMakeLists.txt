@@ -4,7 +4,7 @@ project(onyx)
 set(SOURCES
     onyx/core/pch.cpp
     onyx/core/core.cpp
-    onyx/rendering/camera.cpp
+    onyx/property/camera.cpp
     onyx/rendering/render_context.cpp
     onyx/rendering/render_systems.cpp
     onyx/rendering/renderer.cpp
@@ -122,7 +122,7 @@ tkit_register_for_yaml_serialization(
   onyx/property/vertex.hpp
   onyx/resource/state.hpp
   onyx/resource/options.hpp
-  onyx/rendering/camera.hpp)
+  onyx/property/camera.hpp)
 
 tkit_register_for_reflection(
   onyx
@@ -132,7 +132,7 @@ tkit_register_for_reflection(
   onyx/resource/state.hpp
   onyx/resource/options.hpp
   onyx/app/input.hpp
-  onyx/rendering/camera.hpp)
+  onyx/property/camera.hpp)
 
 # IMGUI ###
 

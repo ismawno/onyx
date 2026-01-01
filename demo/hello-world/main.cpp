@@ -3,7 +3,7 @@
 #include "onyx/imgui/imgui.hpp"
 #include "onyx/resource/pipelines.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
-#include "vkit/pipeline/pipeline_job.hpp"
+#include "vkit/state/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
 
 using Onyx::D2;

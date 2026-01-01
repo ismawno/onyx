@@ -3,8 +3,8 @@
 #include "onyx/core/alias.hpp"
 #include "onyx/core/api.hpp"
 #include "onyx/resource/state.hpp"
-#include "vkit/pipeline/graphics_pipeline.hpp"
-#include "vkit/pipeline/shader.hpp"
+#include "vkit/state/graphics_pipeline.hpp"
+#include "vkit/state/shader.hpp"
 
 namespace Onyx::Pipelines
 {

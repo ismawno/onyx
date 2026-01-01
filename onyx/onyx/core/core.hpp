@@ -2,12 +2,12 @@
 
 #include "onyx/core/api.hpp"
 #include "onyx/core/limits.hpp"
-#include "vkit/vulkan/allocator.hpp"
-#include "vkit/rendering/command_pool.hpp"
+#include "vkit/memory/allocator.hpp"
+#include "vkit/execution/command_pool.hpp"
 #include "vkit/vulkan/instance.hpp"
 #include "vkit/vulkan/loader.hpp"
-#include "vkit/vulkan/logical_device.hpp"
-#include "vkit/vulkan/physical_device.hpp"
+#include "vkit/device/logical_device.hpp"
+#include "vkit/device/physical_device.hpp"
 #include "tkit/multiprocessing/task.hpp"
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 #    include "tkit/profiling/vulkan.hpp"

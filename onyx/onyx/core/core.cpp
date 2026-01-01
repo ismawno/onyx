@@ -5,7 +5,7 @@
 #include "onyx/resource/pipelines.hpp"
 
 #include "vkit/core/core.hpp"
-#include "vkit/vulkan/allocator.hpp"
+#include "vkit/memory/allocator.hpp"
 #include "vkit/vulkan/vulkan.hpp"
 
 #include "tkit/multiprocessing/task_manager.hpp"

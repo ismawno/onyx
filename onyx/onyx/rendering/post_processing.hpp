@@ -1,11 +1,11 @@
 #pragma once
 
 #include "onyx/core/core.hpp"
-#include "vkit/descriptors/descriptor_set_layout.hpp"
-#include "vkit/pipeline/pipeline_layout.hpp"
-#include "vkit/pipeline/graphics_pipeline.hpp"
-#include "vkit/pipeline/shader.hpp"
-#include "vkit/pipeline/pipeline_job.hpp"
+#include "vkit/state/descriptor_set_layout.hpp"
+#include "vkit/state/pipeline_layout.hpp"
+#include "vkit/state/graphics_pipeline.hpp"
+#include "vkit/state/shader.hpp"
+#include "vkit/state/pipeline_job.hpp"
 
 namespace Onyx
 {

@@ -2,7 +2,7 @@
 #include "onyx/resource/pipelines.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/resource/assets.hpp"
-#include "vkit/pipeline/pipeline_layout.hpp"
+#include "vkit/state/pipeline_layout.hpp"
 #include "tkit/preprocessor/utils.hpp"
 
 namespace Onyx::Pipelines

@@ -2,8 +2,8 @@
 
 #include "onyx/rendering/post_processing.hpp"
 #include "onyx/resource/sync.hpp"
-#include "vkit/rendering/swap_chain.hpp"
-#include "vkit/rendering/command_pool.hpp"
+#include "vkit/presentation/swap_chain.hpp"
+#include "vkit/execution/command_pool.hpp"
 #include "vkit/resource/image.hpp"
 
 namespace Onyx

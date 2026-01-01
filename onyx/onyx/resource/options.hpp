@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/rendering/camera.hpp"
+#include "onyx/property/camera.hpp"
 
 namespace Onyx
 {

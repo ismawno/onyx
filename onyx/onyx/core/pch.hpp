@@ -27,5 +27,5 @@
 #include <cstdlib>
 #include <filesystem>
 #include <vulkan/vulkan.h>
-#include "vkit/vulkan/allocator.hpp"
+#include "vkit/memory/allocator.hpp"
 #include "onyx/core/math.hpp"

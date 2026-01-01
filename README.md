@@ -65,7 +65,7 @@ The purpose of a camera is pretty self-explanatory in the context of graphics pr
 Onyx::Camera<D2> *camera = window.CreateCamera<D2>();
 ```
 
-Cameras don't usually require much interaction. They provide convenient methods to modify its view and projection matrices through code or even user input (see `ControlMovementWithUserInput()` and `CameraControls<D>`). More documentation is available in the [source code](https://github.com/ismawno/onyx/blob/main/onyx/onyx/rendering/camera.hpp).
+Cameras don't usually require much interaction. They provide convenient methods to modify its view and projection matrices through code or even user input (see `ControlMovementWithUserInput()` and `CameraControls<D>`). More documentation is available in the [source code](https://github.com/ismawno/onyx/blob/main/onyx/onyx/property/camera.hpp).
 
 With these three ingredients, a very minimal working setup can be used to draw a simple primitive to the screen:
 

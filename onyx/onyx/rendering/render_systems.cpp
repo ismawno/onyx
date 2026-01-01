@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/render_systems.hpp"
 #include "onyx/resource/pipelines.hpp"
-#include "vkit/descriptors/descriptor_set.hpp"
+#include "vkit/state/descriptor_set.hpp"
 #include "tkit/multiprocessing/topology.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/profiling/macros.hpp"

@@ -5,7 +5,7 @@
 #include "tkit/serialization/yaml/container.hpp"
 #include "tkit/serialization/yaml/tensor.hpp"
 #include "tkit/serialization/yaml/quaternion.hpp"
-#include "tkit/serialization/yaml/onyx/rendering/camera.hpp"
+#include "tkit/serialization/yaml/onyx/property/camera.hpp"
 #include "tkit/serialization/yaml/onyx/resource/options.hpp"
 #include "tkit/serialization/yaml/onyx/property/transform.hpp"
 #include "tkit/serialization/yaml/perf/lattice.hpp"

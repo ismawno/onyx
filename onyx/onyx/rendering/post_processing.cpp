@@ -1,8 +1,8 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/post_processing.hpp"
 #include "onyx/resource/assets.hpp"
-#include "vkit/descriptors/descriptor_set.hpp"
-#include "vkit/pipeline/pipeline_job.hpp"
+#include "vkit/state/descriptor_set.hpp"
+#include "vkit/state/pipeline_job.hpp"
 
 namespace Onyx
 {

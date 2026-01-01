@@ -2,7 +2,7 @@
 
 #include "onyx/resource/buffer.hpp"
 #include "onyx/property/vertex.hpp"
-#include "vkit/descriptors/descriptor_pool.hpp"
+#include "vkit/state/descriptor_pool.hpp"
 
 namespace Onyx::Assets
 {

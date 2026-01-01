@@ -3,7 +3,7 @@
 #include "onyx/resource/state.hpp"
 #include "onyx/resource/assets.hpp"
 #include "onyx/resource/options.hpp"
-#include "vkit/pipeline/graphics_pipeline.hpp"
+#include "vkit/state/graphics_pipeline.hpp"
 #include "tkit/container/fixed_array.hpp"
 
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
