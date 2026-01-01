@@ -1,6 +1,5 @@
 #pragma once
 
-#include "onyx/property/vertex.hpp"
 #include "onyx/core/core.hpp"
 #include "vkit/resource/buffer.hpp"
 #include "tkit/container/dynamic_array.hpp"
