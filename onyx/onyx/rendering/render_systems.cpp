@@ -99,7 +99,7 @@ template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::GrowDevice
 
 template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::SendToDevice(const u32 p_FrameIndex)
 {
-    VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
+    VKit::DeviceBuffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
 
     TaskArray tasks{};
@@ -144,8 +144,8 @@ template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::RecordCopy
     RenderSystem::AcknowledgeSubmission(p_Info.FrameIndex);
     const u32 size = m_DeviceInstances * sizeof(InstanceData);
 
-    VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
-    VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
+    VKit::DeviceBuffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
+    VKit::DeviceBuffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
     buffer.CopyFromBuffer(p_Info.CommandBuffer, staging, {.Size = size});
 
     p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));
@@ -241,7 +241,7 @@ template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::GrowDeviceBu
 }
 template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::SendToDevice(const u32 p_FrameIndex)
 {
-    VKit::Buffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
+    VKit::DeviceBuffer &storageBuffer = m_DeviceData.StagingStorage[p_FrameIndex];
     u32 offset = 0;
 
     TaskArray tasks{};
@@ -283,8 +283,8 @@ template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::RecordCopyCo
 
     const u32 size = m_DeviceInstances * sizeof(CircleInstanceData);
 
-    VKit::Buffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
-    VKit::Buffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
+    VKit::DeviceBuffer &buffer = m_DeviceData.DeviceLocalStorage[p_Info.FrameIndex];
+    VKit::DeviceBuffer &staging = m_DeviceData.StagingStorage[p_Info.FrameIndex];
     buffer.CopyFromBuffer(p_Info.CommandBuffer, staging, {.Size = size});
 
     p_Info.AcquireShaderBarriers->Append(CreateAcquireBarrier(buffer, size));

@@ -65,7 +65,7 @@ template <Dimension D, DrawMode DMode> class StatMeshSystem final : public Rende
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) MeshHostData
     {
-        TKit::Array<HostBuffer<InstanceData>, MaxStatMeshes> Data{};
+        TKit::Array<TKit::DynamicArray<InstanceData>, MaxStatMeshes> Data{};
         u32 Instances = 0;
     };
 
@@ -96,7 +96,7 @@ template <Dimension D, DrawMode DMode> class CircleSystem final : public RenderS
   private:
     struct alignas(TKIT_CACHE_LINE_SIZE) CircleHostData
     {
-        HostBuffer<CircleInstanceData> Data;
+        TKit::DynamicArray<CircleInstanceData> Data;
     };
 
     TKit::FixedArray<CircleHostData, MaxThreads> m_ThreadHostData{};

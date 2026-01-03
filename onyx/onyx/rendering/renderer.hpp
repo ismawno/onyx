@@ -180,10 +180,10 @@ struct ONYX_API DeviceLightData
 
     void GrowDeviceBuffers(u32 p_FrameIndex, u32 p_Directionals, u32 p_Points);
 
-    PerFrameData<VKit::Buffer> DeviceLocalDirectionals;
-    PerFrameData<VKit::Buffer> DeviceLocalPoints;
-    PerFrameData<VKit::Buffer> StagingDirectionals;
-    PerFrameData<VKit::Buffer> StagingPoints;
+    PerFrameData<VKit::DeviceBuffer> DeviceLocalDirectionals;
+    PerFrameData<VKit::DeviceBuffer> DeviceLocalPoints;
+    PerFrameData<VKit::DeviceBuffer> StagingDirectionals;
+    PerFrameData<VKit::DeviceBuffer> StagingPoints;
     PerFrameData<VkDescriptorSet> DescriptorSets;
 };
 

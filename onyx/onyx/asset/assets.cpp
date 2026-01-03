@@ -24,8 +24,8 @@ struct DataLayout
 
 template <typename Vertex> struct MeshInfo
 {
-    VKit::Buffer VertexBuffer{};
-    VKit::Buffer IndexBuffer{};
+    VKit::DeviceBuffer VertexBuffer{};
+    VKit::DeviceBuffer IndexBuffer{};
     TKit::Array<DataLayout, MaxStatMeshes> Layouts{};
     MeshData<Vertex> Meshes{};
 

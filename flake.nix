@@ -40,6 +40,7 @@
 
           spirv-tools
           shaderc
+          shader-slang
 
           glfw
           wayland

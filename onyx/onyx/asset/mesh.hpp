@@ -10,8 +10,8 @@ constexpr Mesh NullMesh = TKit::Limits<Mesh>::Max();
 
 template <typename Vertex> struct MeshData
 {
-    HostBuffer<Vertex> Vertices;
-    HostBuffer<Index> Indices;
+    TKit::DynamicArray<Vertex> Vertices;
+    TKit::DynamicArray<Index> Indices;
 };
 
 template <Dimension D> using StatMeshData = MeshData<StatVertex<D>>;
