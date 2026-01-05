@@ -9,7 +9,6 @@ set(SOURCES
     onyx/rendering/render_systems.cpp
     onyx/rendering/renderer.cpp
     onyx/rendering/frame_scheduler.cpp
-    onyx/rendering/post_processing.cpp
     onyx/execution/queues.cpp
     onyx/execution/sync.cpp
     onyx/resource/buffer.cpp

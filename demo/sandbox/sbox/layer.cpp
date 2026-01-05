@@ -6,7 +6,6 @@
 #include "onyx/core/dialog.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/property/camera.hpp"
-#include "vkit/state/pipeline_job.hpp"
 #include "vkit/vulkan/vulkan.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
@@ -14,27 +13,6 @@
 
 namespace Onyx::Demo
 {
-static const VKit::PipelineLayout &getRainbowLayout()
-{
-    static VKit::PipelineLayout layout{};
-    if (layout)
-        return layout;
-    const auto result = VKit::PipelineLayout::Builder(Core::GetDevice()).Build();
-    VKIT_CHECK_RESULT(result);
-    layout = result.GetValue();
-    Core::GetDeletionQueue().SubmitForDeletion(layout);
-    return layout;
-}
-static const VKit::Shader &getRainbowShader()
-{
-    static VKit::Shader shader{};
-    if (shader)
-        return shader;
-    shader = Shaders::Create(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
-    Core::GetDeletionQueue().SubmitForDeletion(shader);
-    return shader;
-}
-
 template <Dimension D> void addMeshes(MeshContainer &p_Meshes)
 {
     const auto add = [&p_Meshes](const char *p_Name, const StatMeshData<D> &p_Mesh) {
@@ -58,32 +36,6 @@ template <Dimension D> void addMeshes(MeshContainer &p_Meshes)
 SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const Dimension p_Dim)
     : UserLayer(p_Application, p_Window)
 {
-    FrameScheduler *fs = m_Window->GetFrameScheduler();
-    const auto presult =
-        VKit::GraphicsPipeline::Builder(Core::GetDevice(), getRainbowLayout(), fs->CreateSceneRenderInfo())
-            .SetViewportCount(1)
-            .AddShaderStage(Shaders::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
-            .AddShaderStage(getRainbowShader(), VK_SHADER_STAGE_FRAGMENT_BIT)
-            .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-            .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
-            .AddDefaultColorAttachment()
-            .Bake()
-            .Build();
-
-    VKIT_CHECK_RESULT(presult);
-    const VKit::GraphicsPipeline &pipeline = presult.GetValue();
-
-    const auto jresult = VKit::GraphicsJob::Create(presult.GetValue(), getRainbowLayout());
-    VKIT_CHECK_RESULT(jresult);
-    m_RainbowJob = jresult.GetValue();
-
-    VKit::PipelineLayout::Builder builder = fs->GetPostProcessing()->CreatePipelineLayoutBuilder();
-    const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
-    VKIT_CHECK_RESULT(result);
-    m_BlurLayout = result.GetValue();
-
-    Core::GetDeletionQueue().SubmitForDeletion(pipeline);
-    Core::GetDeletionQueue().SubmitForDeletion(m_BlurLayout);
     if (p_Dim == D2)
     {
         ContextData<D2> &context = addContext(m_ContextData2);
@@ -105,12 +57,6 @@ void SandboxLayer::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
 {
     const TKit::Timespan ts = p_DeltaTime.Measured;
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnFrameBegin");
-    if (m_PostProcessing)
-    {
-        m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
-        m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
-        m_Window->GetFrameScheduler()->GetPostProcessing()->UpdatePushConstantRange(0, &m_BlurData);
-    }
 
     if (!m_Cameras2.Cameras.IsEmpty())
         m_Cameras2.Cameras[m_Cameras2.Active].Camera->ControlMovementWithUserInput(ts);
@@ -154,16 +100,6 @@ template <Dimension D> static void renderMeshLoad(MeshContainer &p_Meshes, const
     for (u32 i = p_Meshes.StaticOffset; i < p_Meshes.StaticMeshes.GetSize(); ++i)
         ImGui::BulletText("Static mesh: %s", p_Meshes.StaticMeshes[i].Name.c_str());
     ImGui::PopID();
-}
-
-static const VKit::Shader &getBlurShader()
-{
-    static VKit::Shader shader{};
-    if (shader)
-        return shader;
-    shader = Shaders::Create(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
-    Core::GetDeletionQueue().SubmitForDeletion(shader);
-    return shader;
 }
 
 void SandboxLayer::renderImGui()
@@ -249,33 +185,6 @@ void SandboxLayer::renderImGui()
             "Onyx windows can draw shapes in 2D and 3D, and have a separate API for each even though the "
             "window is shared. Users interact with the rendering API through rendering contexts.");
         UserLayer::PresentModeEditor(m_Window, UserLayerFlag_DisplayHelp);
-
-        ImGui::Checkbox("Rainbow background", &m_RainbowBackground);
-        UserLayer::HelpMarkerSameLine("This is a small demonstration of how to hook-up your own pipelines to the Onyx "
-                                      "rendering context (in this case, to draw a nice rainbow background).");
-
-        if (ImGui::Checkbox("Blur", &m_PostProcessing))
-        {
-            FrameScheduler *fs = m_Window->GetFrameScheduler();
-            if (m_PostProcessing)
-            {
-                m_BlurData.Width = static_cast<f32>(m_Window->GetPixelWidth());
-                m_BlurData.Height = static_cast<f32>(m_Window->GetPixelHeight());
-                fs->SetPostProcessing(m_BlurLayout, getBlurShader())->UpdatePushConstantRange(0, &m_BlurData);
-            }
-            else
-                fs->RemovePostProcessing();
-        }
-        UserLayer::HelpMarkerSameLine("This is a small demonstration of how to hook-up a post-processing pipeline to "
-                                      "the Onyx rendering context to "
-                                      "apply transformations to the final image (in this case, a blur effect).");
-
-        if (m_PostProcessing)
-        {
-            const u32 mn = 0;
-            const u32 mx = 12;
-            ImGui::SliderScalar("Blur kernel size", ImGuiDataType_U32, &m_BlurData.KernelSize, &mn, &mx);
-        }
 
         ImGui::BeginTabBar("Dimension");
 
@@ -769,15 +678,6 @@ void SandboxLayer::OnEvent(const Event &p_Event)
 {
     processEvent(m_Window, m_ContextData2, m_Cameras2, p_Event);
     processEvent(m_Window, m_ContextData3, m_Cameras3, p_Event);
-}
-
-void SandboxLayer::OnRenderBegin(const DeltaTime &, const FrameInfo &p_Info)
-{
-    if (m_RainbowBackground)
-    {
-        m_RainbowJob.Bind(p_Info.GraphicsCommand);
-        m_RainbowJob.Draw(p_Info.GraphicsCommand, 3);
-    }
 }
 
 template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Context)

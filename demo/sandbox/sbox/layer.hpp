@@ -126,13 +126,6 @@ template <> struct ContextData<D3> : IContextData<D3>
     u32 SelectedPointLight = 0;
 };
 
-struct BlurData
-{
-    u32 KernelSize = 1;
-    f32 Width = 1.f;
-    f32 Height = 1.f;
-};
-
 template <Dimension D> struct ContextDataContainer
 {
     TKit::Array<ContextData<D>, MaxRenderContexts> Contexts;
@@ -146,7 +139,6 @@ class SandboxLayer final : public UserLayer
     SandboxLayer(Application *p_Application, Window *p_Window, Dimension p_Dim);
 
     void OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &) override;
-    void OnRenderBegin(const DeltaTime &, const FrameInfo &p_Info) override;
     void OnEvent(const Event &p_Event) override;
 
   private:
@@ -179,13 +171,5 @@ class SandboxLayer final : public UserLayer
 
     MeshContainer m_Meshes2;
     MeshContainer m_Meshes3;
-
-    BlurData m_BlurData{};
-    VKit::GraphicsJob m_RainbowJob{};
-
-    VKit::PipelineLayout m_BlurLayout{};
-
-    bool m_RainbowBackground = false;
-    bool m_PostProcessing = false;
 };
 } // namespace Onyx::Demo

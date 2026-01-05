@@ -1,10 +1,7 @@
 #include "onyx/app/app.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/imgui/imgui.hpp"
-#include "onyx/state/shaders.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
-#include "vkit/state/pipeline_job.hpp"
-#include "vkit/vulkan/vulkan.hpp"
 
 using Onyx::D2;
 using namespace TKit::Alias;
@@ -38,98 +35,6 @@ static void RunStandaloneWindow()
         context->StaticMesh(s_Square);
 
         window.Render();
-    }
-}
-
-static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
-{
-    VKit::Shader fragment = Onyx::Shaders::Create(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
-
-    auto lresult = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
-    VKIT_CHECK_RESULT(lresult);
-    VKit::PipelineLayout &layout = lresult.GetValue();
-
-    const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout,
-                                                         p_Window.GetFrameScheduler()->CreateSceneRenderInfo())
-                             .SetViewportCount(1)
-                             .AddShaderStage(Onyx::Shaders::GetFullPassVertexShader(), VK_SHADER_STAGE_VERTEX_BIT)
-                             .AddShaderStage(fragment, VK_SHADER_STAGE_FRAGMENT_BIT)
-                             .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-                             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
-                             .AddDefaultColorAttachment()
-                             .Bake()
-                             .Build();
-
-    VKIT_CHECK_RESULT(presult);
-    const VKit::GraphicsPipeline &pipeline = presult.GetValue();
-
-    fragment.Destroy();
-    Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
-    Onyx::Core::GetDeletionQueue().SubmitForDeletion(pipeline);
-
-    const auto jresult = VKit::GraphicsJob::Create(pipeline, layout);
-    VKIT_CHECK_RESULT(jresult);
-    return jresult.GetValue();
-}
-
-static void SetPostProcessing(Onyx::Window &p_Window)
-{
-    struct BlurData
-    {
-        u32 KernelSize = 8;
-
-        // Window dimensions
-        f32 Width = 800.f;
-        f32 Height = 600.f;
-    };
-    VKit::Shader shader = Onyx::Shaders::Create(ONYX_ROOT_PATH "/demo/shaders/blur.frag");
-
-    Onyx::FrameScheduler *fs = p_Window.GetFrameScheduler();
-    VKit::PipelineLayout::Builder builder = fs->GetPostProcessing()->CreatePipelineLayoutBuilder();
-
-    const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
-    VKIT_CHECK_RESULT(result);
-    const VKit::PipelineLayout &layout = result.GetValue();
-
-    fs->SetPostProcessing(layout, shader);
-    static BlurData blurData{};
-
-    fs->GetPostProcessing()->UpdatePushConstantRange(0, &blurData);
-
-    shader.Destroy();
-    Onyx::Core::GetDeletionQueue().SubmitForDeletion(layout);
-}
-
-static void RunStandaloneWindowCustomPipeline()
-{
-    Onyx::Window window(
-        {.Name = "Standalone Hello, World! With a custom rainbow background and a post-processing effect!",
-         .Dimensions = u32v2{800, 600}});
-
-    const VKit::GraphicsJob job = SetupCustomPipeline(window);
-    SetPostProcessing(window);
-    Onyx::RenderContext<D2> *context = window.CreateRenderContext<D2>();
-    window.CreateCamera<D2>()->Transparent = true;
-
-    while (!window.ShouldClose())
-    {
-        Onyx::Input::PollEvents();
-
-        if (const Onyx::FrameInfo info = window.BeginFrame())
-        {
-            context->Flush();
-
-            context->Fill(Onyx::Color::RED);
-            context->StaticMesh(s_Square);
-
-            const auto flags = window.SubmitContextData(info);
-            window.BeginRendering();
-            job.Bind(info.GraphicsCommand);
-            job.Draw(info.GraphicsCommand, 3);
-            window.Render(info);
-            window.EndRendering();
-            window.EndFrame(flags);
-        }
     }
 }
 
@@ -190,7 +95,6 @@ int main()
     Onyx::Core::Initialize(Onyx::Specs{.TaskManager = &threadPool});
 
     RunStandaloneWindow();
-    RunStandaloneWindowCustomPipeline();
     RunAppExample1();
     RunAppExample2();
     RunAppExample3();

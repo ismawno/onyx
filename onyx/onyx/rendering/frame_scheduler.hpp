@@ -1,6 +1,5 @@
 #pragma once
 
-#include "onyx/rendering/post_processing.hpp"
 #include "onyx/execution/sync.hpp"
 #include "vkit/presentation/swap_chain.hpp"
 #include "vkit/execution/command_pool.hpp"
@@ -34,7 +33,6 @@ class FrameScheduler
     struct ImageData
     {
         VKit::DeviceImage *Presentation;
-        VKit::DeviceImage Intermediate;
         VKit::DeviceImage DepthStencil;
     };
     struct CommandData
@@ -61,7 +59,6 @@ class FrameScheduler
     }
 
     VkPipelineRenderingCreateInfoKHR CreateSceneRenderInfo() const;
-    VkPipelineRenderingCreateInfoKHR CreatePostProcessingRenderInfo() const;
 
     VkResult AcquireNextImage(const WaitMode &p_WaitMode);
 
@@ -77,36 +74,6 @@ class FrameScheduler
     {
         return m_CommandData[m_FrameIndex].TransferCommand;
     }
-
-    struct PostProcessingOptions
-    {
-        const VKit::Shader *VertexShader = nullptr;
-        const VkSamplerCreateInfo *SamplerCreateInfo = nullptr;
-    };
-
-    /**
-     * @brief Sets up the post-processing pipeline, which is used to apply effects to the scene after the main rendering
-     * pass.
-     *
-     * If you wish to switch to a different post-processing pipeline, call this method again with the new
-     * specifications. Do not call `RemovePostProcessing()` before or after that in the same frame, as that call will
-     * override the setup.
-     *
-     * @param p_Layout The pipeline layout to use for the post-processing pipeline.
-     * @param p_FragmentShader The fragment shader to use for the post-processing pipeline.
-     *
-     * The following is specified through the `PostProcessingOptions` struct:
-     *
-     * @param p_VertexShader Optional vertex shader to use for the post-processing pipeline.
-     * @param p_Info Optional sampler information to use for the post-processing pipeline.
-     * @return A pointer to the post-processing pipeline.
-     */
-    PostProcessing *SetPostProcessing(const VKit::PipelineLayout &p_Layout, const VKit::Shader &p_FragmentShader,
-                                      const PostProcessingOptions &p_Options = {nullptr, nullptr});
-
-    PostProcessing *GetPostProcessing();
-
-    void RemovePostProcessing();
 
     VKit::Queue *GetGraphicsQueue() const
     {
@@ -143,7 +110,6 @@ class FrameScheduler
     void recreateSwapChain(Window &p_Window);
     void recreateSurface(Window &p_Window);
     void recreateResources();
-    void createProcessingEffects();
     void createCommandData();
 
     bool handleImageResult(Window &p_Window, VkResult p_Result);
@@ -151,18 +117,10 @@ class FrameScheduler
     PerImageData<ImageData> createImageData();
     void destroyImageData();
 
-    void setupNaivePostProcessing();
     VkExtent2D waitGlfwEvents(Window &p_Window);
-    PerImageData<VkImageView> getIntermediateColorImageViews() const;
-
     PerImageData<ImageData> m_Images{};
 
     VKit::SwapChain m_SwapChain;
-    TKit::Storage<PostProcessing> m_PostProcessing;
-
-    VKit::Shader m_NaivePostProcessingFragmentShader;
-
-    VKit::PipelineLayout m_NaivePostProcessingLayout;
     VkPresentModeKHR m_PresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
     PerFrameData<CommandData> m_CommandData;
