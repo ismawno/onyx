@@ -10,6 +10,7 @@ set(SOURCES
     onyx/rendering/renderer.cpp
     onyx/rendering/frame_scheduler.cpp
     onyx/rendering/post_processing.cpp
+    onyx/execution/queues.cpp
     onyx/execution/sync.cpp
     onyx/resource/buffer.cpp
     onyx/asset/assets.cpp
@@ -122,7 +123,7 @@ tkit_register_for_yaml_serialization(
   onyx/property/transform.hpp
   onyx/property/vertex.hpp
   onyx/state/state.hpp
-  onyx/state/options.hpp
+  onyx/property/options.hpp
   onyx/property/camera.hpp)
 
 tkit_register_for_reflection(
@@ -131,9 +132,70 @@ tkit_register_for_reflection(
   onyx/property/transform.hpp
   onyx/property/vertex.hpp
   onyx/state/state.hpp
-  onyx/state/options.hpp
+  onyx/property/options.hpp
   onyx/app/input.hpp
   onyx/property/camera.hpp)
+
+if(ONYX_ENABLE_SHADER_COMPILATION)
+  find_package(slang QUIET)
+  if(slang_FOUND)
+    message(STATUS "ONYX - Slang found")
+    target_link_libraries(onyx PRIVATE slang::slang)
+  else()
+    message(STATUS "ONYX - Slang not found... fetching source")
+
+    FetchContent_Declare(
+      slang
+      GIT_REPOSITORY https://github.com/shader-slang/slang.git
+      GIT_TAG vulkan-sdk-1.4.328.0
+      GIT_SHALLOW TRUE
+      GIT_SUBMODULES_RECURSE TRUE
+      GIT_PROGRESS TRUE)
+
+    set(SLANG_ENABLE_DXIL
+        OFF
+        CACHE BOOL "")
+    set(SLANG_ENABLE_GFX
+        OFF
+        CACHE BOOL "")
+    set(SLANG_ENABLE_SLANG_GLSLANG
+        TRUE
+        CACHE BOOL "")
+    set(SLANG_ENABLE_SLANGC
+        OFF
+        CACHE BOOL "")
+    set(SLANG_ENABLE_SLANGD
+        OFF
+        CACHE BOOL "")
+    set(SLANG_ENABLE_SLANGI
+        OFF
+        CACHE BOOL "")
+    set(SLANG_ENABLE_TESTS
+        OFF
+        CACHE BOOL "")
+    set(SLANG_ENABLE_EXAMPLES
+        OFF
+        CACHE BOOL "")
+    set(SLANG_ENABLE_RELEASE_DEBUG_INFO
+        OFF
+        CACHE BOOL "")
+    set(SLANG_ENABLE_SPLIT_DEBUG_INFO
+        OFF
+        CACHE BOOL "")
+    set(SLANG_ENABLE_SLANG_RHI
+        OFF
+        CACHE BOOL "")
+    set(SLANG_LIB_TYPE
+        "STATIC"
+        CACHE STRING "")
+
+    FetchContent_MakeAvailable(slang)
+    tkit_configure_compile_link_options(slang NO_EXCEPTIONS NO_RTTI)
+
+    target_link_libraries(onyx PRIVATE slang)
+  endif()
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_SHADER_COMPILATION)
+endif()
 
 # IMGUI ###
 

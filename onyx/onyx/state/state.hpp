@@ -2,7 +2,7 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/property/color.hpp"
-#include "onyx/core/core.hpp"
+#include "onyx/core/limits.hpp"
 #include "onyx/resource/buffer.hpp"
 #include "onyx/asset/assets.hpp"
 #include <vulkan/vulkan.h>
@@ -14,14 +14,14 @@ namespace Onyx
 {
 template <Dimension D> struct MaterialData;
 
-template <> struct ONYX_API MaterialData<D2>
+template <> struct MaterialData<D2>
 {
     TKIT_REFLECT_DECLARE(MaterialData)
     TKIT_YAML_SERIALIZE_DECLARE(MaterialData)
     Color Color = Onyx::Color::WHITE;
 };
 
-template <> struct ONYX_API MaterialData<D3>
+template <> struct MaterialData<D3>
 {
     TKIT_REFLECT_DECLARE(MaterialData)
     TKIT_YAML_SERIALIZE_DECLARE(MaterialData)
@@ -49,7 +49,7 @@ enum RenderStateFlagBit : RenderStateFlags
  */
 template <Dimension D> struct RenderState;
 
-template <> struct ONYX_API RenderState<D2>
+template <> struct RenderState<D2>
 {
     TKIT_REFLECT_DECLARE(RenderState)
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
@@ -60,7 +60,7 @@ template <> struct ONYX_API RenderState<D2>
     RenderStateFlags Flags = RenderStateFlag_Fill;
 };
 
-template <> struct ONYX_API RenderState<D3>
+template <> struct RenderState<D3>
 {
     TKIT_REFLECT_DECLARE(RenderState)
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
@@ -151,7 +151,7 @@ template <Dimension D> constexpr Shading GetShading(const PipelineMode p_Mode)
 namespace Onyx::Detail
 {
 
-struct ONYX_API CameraInfo
+struct CameraInfo
 {
     f32m4 ProjectionView;
     Color BackgroundColor;
@@ -179,14 +179,14 @@ struct LightData
  */
 template <Shading S> struct RenderInfo;
 
-template <> struct ONYX_API RenderInfo<Shading_Unlit>
+template <> struct RenderInfo<Shading_Unlit>
 {
     VkCommandBuffer CommandBuffer;
     const CameraInfo *Camera;
     u32 FrameIndex;
 };
 
-template <> struct ONYX_API RenderInfo<Shading_Lit>
+template <> struct RenderInfo<Shading_Lit>
 {
     VkCommandBuffer CommandBuffer;
     const CameraInfo *Camera;
@@ -195,7 +195,7 @@ template <> struct ONYX_API RenderInfo<Shading_Lit>
     LightData Light;
 };
 
-struct ONYX_API CopyInfo
+struct CopyInfo
 {
     u32 FrameIndex;
     VkCommandBuffer CommandBuffer;
@@ -224,7 +224,7 @@ struct ONYX_API CopyInfo
  */
 template <Dimension D, DrawMode DMode> struct InstanceData;
 
-template <DrawMode DMode> struct ONYX_API InstanceData<D2, DMode>
+template <DrawMode DMode> struct InstanceData<D2, DMode>
 {
     f32v2 Basis1;
     f32v2 Basis2;
@@ -232,7 +232,7 @@ template <DrawMode DMode> struct ONYX_API InstanceData<D2, DMode>
     u32 Color;
 };
 
-template <> struct ONYX_API InstanceData<D3, Draw_Fill>
+template <> struct InstanceData<D3, Draw_Fill>
 {
     f32v4 Basis1;
     f32v4 Basis2;
@@ -242,7 +242,7 @@ template <> struct ONYX_API InstanceData<D3, Draw_Fill>
     f32 SpecularContribution;
     f32 SpecularSharpness;
 };
-template <> struct ONYX_API InstanceData<D3, Draw_Outline>
+template <> struct InstanceData<D3, Draw_Outline>
 {
     f32v4 Basis1;
     f32v4 Basis2;
@@ -315,8 +315,8 @@ template <typename T> struct DeviceData
         GrowBufferIfNeeded<T>(sbuffer, p_Instances, Buffer_Staging);
     }
 
-    PerFrameData<VKit::Buffer> DeviceLocalStorage;
-    PerFrameData<VKit::Buffer> StagingStorage;
+    PerFrameData<VKit::DeviceBuffer> DeviceLocalStorage;
+    PerFrameData<VKit::DeviceBuffer> StagingStorage;
     PerFrameData<VkDescriptorSet> DescriptorSets;
 };
 
@@ -325,12 +325,12 @@ template <typename T> struct DeviceData
  */
 template <Shading Sh> struct PushConstantData;
 
-template <> struct ONYX_API PushConstantData<Shading_Unlit>
+template <> struct PushConstantData<Shading_Unlit>
 {
     f32m4 ProjectionView;
 };
 
-template <> struct ONYX_API PushConstantData<Shading_Lit>
+template <> struct PushConstantData<Shading_Lit>
 {
     f32m4 ProjectionView;
     f32v4 ViewPosition;

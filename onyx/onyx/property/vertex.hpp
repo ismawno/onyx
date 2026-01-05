@@ -2,7 +2,6 @@
 
 #include "onyx/core/math.hpp"
 #include "onyx/core/dimension.hpp"
-#include "onyx/core/api.hpp"
 #include "tkit/reflection/reflect.hpp"
 #include "tkit/serialization/yaml/serialize.hpp"
 #include "tkit/utils/hash.hpp"
@@ -18,7 +17,7 @@ namespace Onyx
 // object, so I dont need to store it in the vertex
 template <Dimension D> struct StatVertex;
 
-template <> struct ONYX_API StatVertex<D2>
+template <> struct StatVertex<D2>
 {
     TKIT_REFLECT_DECLARE(StatVertex)
     TKIT_YAML_SERIALIZE_DECLARE(StatVertex)
@@ -41,7 +40,7 @@ template <> struct ONYX_API StatVertex<D2>
     }
 };
 
-template <> struct ONYX_API StatVertex<D3>
+template <> struct StatVertex<D3>
 {
     TKIT_REFLECT_DECLARE(StatVertex)
     TKIT_YAML_SERIALIZE_DECLARE(StatVertex)
@@ -67,7 +66,7 @@ template <> struct ONYX_API StatVertex<D3>
 
 } // namespace Onyx
 
-template <> struct ONYX_API std::hash<Onyx::StatVertex<Onyx::D2>>
+template <> struct std::hash<Onyx::StatVertex<Onyx::D2>>
 {
     std::size_t operator()(const Onyx::StatVertex<Onyx::D2> &p_Vertex) const
     {
@@ -75,7 +74,7 @@ template <> struct ONYX_API std::hash<Onyx::StatVertex<Onyx::D2>>
     }
 };
 
-template <> struct ONYX_API std::hash<Onyx::StatVertex<Onyx::D3>>
+template <> struct std::hash<Onyx::StatVertex<Onyx::D3>>
 {
     std::size_t operator()(const Onyx::StatVertex<Onyx::D3> &p_Vertex) const
     {

@@ -9,7 +9,7 @@
 
 namespace Onyx
 {
-class ONYX_API PostProcessing
+class PostProcessing
 {
   public:
     struct Specs

@@ -27,15 +27,15 @@ struct WaitMode
     static const WaitMode Poll;
 };
 
-class ONYX_API FrameScheduler
+class FrameScheduler
 {
     TKIT_NON_COPYABLE(FrameScheduler)
   public:
     struct ImageData
     {
-        VKit::Image *Presentation;
-        VKit::Image Intermediate;
-        VKit::Image DepthStencil;
+        VKit::DeviceImage *Presentation;
+        VKit::DeviceImage Intermediate;
+        VKit::DeviceImage DepthStencil;
     };
     struct CommandData
     {
@@ -108,10 +108,11 @@ class ONYX_API FrameScheduler
 
     void RemovePostProcessing();
 
-    const Detail::QueueData &GetQueueData() const
+    VKit::Queue *GetGraphicsQueue() const
     {
-        return m_QueueData;
+        return m_Graphics;
     }
+
     const VKit::SwapChain &GetSwapChain() const
     {
         return m_SwapChain;
@@ -169,7 +170,10 @@ class ONYX_API FrameScheduler
     PerFrameData<Detail::SyncFrameData> m_SyncFrameData{};
     PerImageData<Detail::SyncImageData> m_SyncImageData{};
 
-    Detail::QueueData m_QueueData;
+    VKit::Queue *m_Graphics;
+    VKit::Queue *m_Transfer;
+    VKit::Queue *m_Present;
+
     u32 m_ImageIndex;
     u32 m_FrameIndex = 0;
     TransferMode m_TransferMode;

@@ -46,7 +46,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
     VKit::Shader fragment = Onyx::Shaders::Create(ONYX_ROOT_PATH "/demo/shaders/rainbow.frag");
 
     auto lresult = VKit::PipelineLayout::Builder(Onyx::Core::GetDevice()).Build();
-    VKIT_ASSERT_RESULT(lresult);
+    VKIT_CHECK_RESULT(lresult);
     VKit::PipelineLayout &layout = lresult.GetValue();
 
     const auto presult = VKit::GraphicsPipeline::Builder(Onyx::Core::GetDevice(), layout,
@@ -60,7 +60,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
                              .Bake()
                              .Build();
 
-    VKIT_ASSERT_RESULT(presult);
+    VKIT_CHECK_RESULT(presult);
     const VKit::GraphicsPipeline &pipeline = presult.GetValue();
 
     fragment.Destroy();
@@ -68,7 +68,7 @@ static VKit::GraphicsJob SetupCustomPipeline(Onyx::Window &p_Window)
     Onyx::Core::GetDeletionQueue().SubmitForDeletion(pipeline);
 
     const auto jresult = VKit::GraphicsJob::Create(pipeline, layout);
-    VKIT_ASSERT_RESULT(jresult);
+    VKIT_CHECK_RESULT(jresult);
     return jresult.GetValue();
 }
 
@@ -88,7 +88,7 @@ static void SetPostProcessing(Onyx::Window &p_Window)
     VKit::PipelineLayout::Builder builder = fs->GetPostProcessing()->CreatePipelineLayoutBuilder();
 
     const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     const VKit::PipelineLayout &layout = result.GetValue();
 
     fs->SetPostProcessing(layout, shader);

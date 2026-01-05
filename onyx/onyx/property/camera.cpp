@@ -299,7 +299,7 @@ f32v3 Camera<D3>::GetMouseRayCastDirection() const
     return Math::Normalize(GetWorldMousePosition(0.25f) - GetWorldMousePosition(0.f));
 }
 
-template class ONYX_API Detail::ICamera<D2>;
-template class ONYX_API Detail::ICamera<D3>;
+template class Detail::ICamera<D2>;
+template class Detail::ICamera<D3>;
 
 } // namespace Onyx

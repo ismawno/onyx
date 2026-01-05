@@ -97,8 +97,7 @@ template <Dimension D> class IRenderer
   public:
     IRenderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
-    void DrawStaticMesh(const RenderState<D> &p_State, const f32m<D> &p_Transform, Mesh p_Mesh,
-                        DrawFlags p_Flags)
+    void DrawStaticMesh(const RenderState<D> &p_State, const f32m<D> &p_Transform, Mesh p_Mesh, DrawFlags p_Flags)
     {
         draw(m_StatMeshSystem, p_State, p_Transform, p_Mesh, p_Flags);
     }
@@ -135,7 +134,7 @@ template <Dimension D> class IRenderer
 
 template <Dimension D> class Renderer;
 
-template <> class ONYX_API Renderer<D2> final : public IRenderer<D2>
+template <> class Renderer<D2> final : public IRenderer<D2>
 {
   public:
     using IRenderer<D2>::IRenderer;
@@ -171,7 +170,7 @@ struct PointLight
 
 namespace Onyx::Detail
 {
-struct ONYX_API DeviceLightData
+struct DeviceLightData
 {
     TKIT_NON_COPYABLE(DeviceLightData)
 
@@ -187,13 +186,13 @@ struct ONYX_API DeviceLightData
     PerFrameData<VkDescriptorSet> DescriptorSets;
 };
 
-struct ONYX_API HostLightData
+struct HostLightData
 {
-    HostBuffer<DirectionalLight> DirectionalLights;
-    HostBuffer<PointLight> PointLights;
+    TKit::DynamicArray<DirectionalLight> DirectionalLights;
+    TKit::DynamicArray<PointLight> PointLights;
 };
 
-template <> class ONYX_API Renderer<D3> final : public IRenderer<D3>
+template <> class Renderer<D3> final : public IRenderer<D3>
 {
   public:
     Renderer(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);

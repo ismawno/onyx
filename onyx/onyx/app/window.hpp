@@ -43,7 +43,7 @@ enum WindowFlagBit : WindowFlags
     WindowFlag_Floating = 1 << 4,
 };
 
-class ONYX_API Window
+class Window
 {
     TKIT_NON_COPYABLE(Window)
   public:

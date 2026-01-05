@@ -13,7 +13,7 @@ namespace Onyx::Demo
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(Shape)
 enum class Shape : u8
 {
-    Triangle = 0,
+    Triangle,
     Square,
     NGon,
     Polygon,
@@ -38,7 +38,6 @@ struct ShapeSettings
 };
 template <Dimension D> struct Lattice
 {
-    TKIT_REFLECT_DECLARE(Lattice)
     TKIT_YAML_SERIALIZE_DECLARE(Lattice)
 
     void Render(RenderContext<D> *p_Context) const;

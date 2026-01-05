@@ -1,7 +1,6 @@
 #pragma once
 
 #include "onyx/core/alias.hpp"
-#include "onyx/core/api.hpp"
 #include "tkit/reflection/reflect.hpp"
 
 namespace Onyx
@@ -10,8 +9,8 @@ class Window;
 
 namespace Input
 {
-ONYX_API void PollEvents();
-ONYX_API void InstallCallbacks(Window &p_Window);
+void PollEvents();
+void InstallCallbacks(Window &p_Window);
 
 TKIT_REFLECT_DECLARE_ENUM(Key)
 enum Key : u16
@@ -161,17 +160,17 @@ enum Mouse : u8
  * @brief Get the current mouse screen position, ranging between -1 and 1.
  *
  */
-ONYX_API f32v2 GetScreenMousePosition(Window *p_Window);
+f32v2 GetScreenMousePosition(Window *p_Window);
 
-ONYX_API bool IsKeyPressed(Window *p_Window, Key p_Key);
+bool IsKeyPressed(Window *p_Window, Key p_Key);
 
-ONYX_API bool IsKeyReleased(Window *p_Window, Key p_Key);
+bool IsKeyReleased(Window *p_Window, Key p_Key);
 
-ONYX_API bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button);
+bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button);
 
-ONYX_API bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button);
+bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button);
 
-ONYX_API const char *GetKeyName(Key p_Key);
+const char *GetKeyName(Key p_Key);
 }; // namespace Input
 TKIT_REFLECT_DECLARE_ENUM(EventType)
 enum EventType : u8
@@ -197,7 +196,7 @@ enum EventType : u8
     Event_SwapChainRecreated,
 };
 
-struct ONYX_API Event
+struct Event
 {
 
     struct WindowMovedResized

@@ -8,7 +8,7 @@ namespace Onyx
 {
 void InitializeImGui(Window *p_Window)
 {
-    TKIT_ASSERT_RETURNS(ImGui_ImplGlfw_InitForVulkan(p_Window->GetWindowHandle(), true), true,
+    TKIT_CHECK_RETURNS(ImGui_ImplGlfw_InitForVulkan(p_Window->GetWindowHandle(), true), true,
                         "[ONYX] Failed to initialize ImGui GLFW for window '{}'", p_Window->GetName());
 
     const VKit::Instance &instance = Core::GetInstance();
@@ -37,22 +37,22 @@ void InitializeImGui(Window *p_Window)
     initInfo.Instance = instance;
     initInfo.PhysicalDevice = device.GetInfo().PhysicalDevice;
     initInfo.Device = device;
-    initInfo.Queue = p_Window->GetFrameScheduler()->GetQueueData().Graphics->Queue;
-    initInfo.QueueFamily = Core::GetFamilyIndex(VKit::Queue_Graphics);
+    initInfo.Queue = p_Window->GetFrameScheduler()->GetGraphicsQueue()->GetHandle();
+    initInfo.QueueFamily = Queues::GetFamilyIndex(VKit::Queue_Graphics);
     initInfo.DescriptorPoolSize = 100;
     initInfo.MinImageCount = sc.minImageCount;
     initInfo.ImageCount = imageCount;
     initInfo.UseDynamicRendering = true;
     initInfo.PipelineInfoMain = pipelineInfo;
 
-    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_LoadFunctions(instance.GetInfo().ApiVersion,
+    TKIT_CHECK_RETURNS(ImGui_ImplVulkan_LoadFunctions(instance.GetInfo().ApiVersion,
                                                        [](const char *p_Name, void *) -> PFN_vkVoidFunction {
                                                            return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(),
                                                                                                     p_Name);
                                                        }),
                         true, "[ONYX] Failed to load ImGui Vulkan functions");
 
-    TKIT_ASSERT_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true,
+    TKIT_CHECK_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true,
                         "[ONYX] Failed to initialize ImGui Vulkan for window '{}'", p_Window->GetName());
 }
 

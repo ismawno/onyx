@@ -1,8 +1,7 @@
 #pragma once
 
 #include "onyx/state/state.hpp"
-#include "onyx/asset/assets.hpp"
-#include "onyx/state/options.hpp"
+#include "onyx/property/options.hpp"
 #include "vkit/state/graphics_pipeline.hpp"
 #include "tkit/container/fixed_array.hpp"
 

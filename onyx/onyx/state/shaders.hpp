@@ -1,83 +1,336 @@
 #pragma once
 
-#include "onyx/core/api.hpp"
+#include "onyx/core/alias.hpp"
 #include "vkit/state/shader.hpp"
+#include "tkit/utils/non_copyable.hpp"
+
+namespace Onyx
+{
+enum ShaderStage : u8
+{
+    ShaderStage_Vertex,
+    ShaderStage_Fragment,
+    ShaderStage_Compute,
+    ShaderStage_Geometry,
+    ShaderStage_Unknown,
+};
+enum ShaderArgumentName : u16
+{
+    ShaderArgument_MacroDefine, // stringValue0: macro name;  stringValue1: macro value
+    ShaderArgument_DepFile,
+    ShaderArgument_EntryPointName,
+    ShaderArgument_Specialize,
+    ShaderArgument_Help,
+    ShaderArgument_HelpStyle,
+    ShaderArgument_Include, // stringValue: additional include path.
+    ShaderArgument_Language,
+    ShaderArgument_MatrixLayoutColumn,         // bool
+    ShaderArgument_MatrixLayoutRow,            // bool
+    ShaderArgument_ZeroInitialize,             // bool
+    ShaderArgument_IgnoreCapabilities,         // bool
+    ShaderArgument_RestrictiveCapabilityCheck, // bool
+    ShaderArgument_ModuleName,                 // stringValue0: module name.
+    ShaderArgument_Output,
+    ShaderArgument_Profile, // intValue0: profile
+    ShaderArgument_Stage,   // intValue0: stage
+    ShaderArgument_Target,  // intValue0: CodeGenTarget
+    ShaderArgument_Version,
+    ShaderArgument_WarningsAsErrors, // stringValue0: "all" or comma separated list of warning codes or names.
+    ShaderArgument_DisableWarnings,  // stringValue0: comma separated list of warning codes or names.
+    ShaderArgument_EnableWarning,    // stringValue0: warning code or name.
+    ShaderArgument_DisableWarning,   // stringValue0: warning code or name.
+    ShaderArgument_DumpWarningDiagnostics,
+    ShaderArgument_InputFilesRemain,
+    ShaderArgument_EmitIr,                        // bool
+    ShaderArgument_ReportDownstreamTime,          // bool
+    ShaderArgument_ReportPerfBenchmark,           // bool
+    ShaderArgument_ReportCheckpointIntermediates, // bool
+    ShaderArgument_SkipSPIRVValidation,           // bool
+    ShaderArgument_SourceEmbedStyle,
+    ShaderArgument_SourceEmbedName,
+    ShaderArgument_SourceEmbedLanguage,
+    ShaderArgument_DisableShortCircuit,            // bool
+    ShaderArgument_MinimumSlangOptimization,       // bool
+    ShaderArgument_DisableNonEssentialValidations, // bool
+    ShaderArgument_DisableSourceMap,               // bool
+    ShaderArgument_UnscopedEnum,                   // bool
+    ShaderArgument_PreserveParameters,             // bool: preserve all resource parameters in the output code.
+                                                   // Target
+
+    ShaderArgument_Capability,                // intValue0: CapabilityName
+    ShaderArgument_DefaultImageFormatUnknown, // bool
+    ShaderArgument_DisableDynamicDispatch,    // bool
+    ShaderArgument_DisableSpecialization,     // bool
+    ShaderArgument_FloatingPointMode,         // intValue0: FloatingPointMode
+    ShaderArgument_DebugInformation,          // intValue0: DebugInfoLevel
+    ShaderArgument_LineDirectiveMode,
+    ShaderArgument_Optimization, // intValue0: OptimizationLevel
+    ShaderArgument_Obfuscate,    // bool
+
+    ShaderArgument_VulkanBindShift,         // intValue0 (higher 8 bits): kind; intValue0(lower bits): set; intValue1:
+                                            // shift
+    ShaderArgument_VulkanBindGlobals,       // intValue0: index; intValue1: set
+    ShaderArgument_VulkanInvertY,           // bool
+    ShaderArgument_VulkanUseDxPositionW,    // bool
+    ShaderArgument_VulkanUseEntryPointName, // bool
+    ShaderArgument_VulkanUseGLLayout,       // bool
+    ShaderArgument_VulkanEmitReflection,    // bool
+
+    ShaderArgument_GLSLForceScalarLayout,   // bool
+    ShaderArgument_EnableEffectAnnotations, // bool
+
+    ShaderArgument_EmitSpirvViaGLSL,     // bool (will be deprecated)
+    ShaderArgument_EmitSpirvDirectly,    // bool (will be deprecated)
+    ShaderArgument_SPIRVCoreGrammarJSON, // stringValue0: json path
+    ShaderArgument_IncompleteLibrary,    // bool, when set, will not issue an error when the linked program has
+                                         // unresolved extern function symbols.
+
+    // Downstream
+
+    ShaderArgument_CompilerPath,
+    ShaderArgument_DefaultDownstreamCompiler,
+    ShaderArgument_DownstreamArgs, // stringValue0: downstream compiler name. stringValue1: argument list, one
+                                   // per line.
+    ShaderArgument_PassThrough,
+
+    // Repro
+
+    ShaderArgument_DumpRepro,
+    ShaderArgument_DumpReproOnError,
+    ShaderArgument_ExtractRepro,
+    ShaderArgument_LoadRepro,
+    ShaderArgument_LoadReproDirectory,
+    ShaderArgument_ReproFallbackDirectory,
+
+    // Debugging
+
+    ShaderArgument_DumpAst,
+    ShaderArgument_DumpIntermediatePrefix,
+    ShaderArgument_DumpIntermediates, // bool
+    ShaderArgument_DumpIr,            // bool
+    ShaderArgument_DumpIrIds,
+    ShaderArgument_PreprocessorOutput,
+    ShaderArgument_OutputIncludes,
+    ShaderArgument_ReproFileSystem,
+    ShaderArgument_REMOVED_SerialIR, // deprecated and removed
+    ShaderArgument_SkipCodeGen,      // bool
+    ShaderArgument_ValidateIr,       // bool
+    ShaderArgument_VerbosePaths,
+    ShaderArgument_VerifyDebugSerialIr,
+    ShaderArgument_NoCodeGen, // Not used.
+
+    // Experimental
+
+    ShaderArgument_FileSystem,
+    ShaderArgument_Heterogeneous,
+    ShaderArgument_NoMangle,
+    ShaderArgument_NoHLSLBinding,
+    ShaderArgument_NoHLSLPackConstantBufferElements,
+    ShaderArgument_ValidateUniformity,
+    ShaderArgument_AllowGLSL,
+    ShaderArgument_EnableExperimentalPasses,
+    ShaderArgument_BindlessSpaceIndex, // int
+
+    // Internal
+
+    ShaderArgument_ArchiveType,
+    ShaderArgument_CompileCoreModule,
+    ShaderArgument_Doc,
+
+    ShaderArgument_IrCompression, //< deprecated
+
+    ShaderArgument_LoadCoreModule,
+    ShaderArgument_ReferenceModule,
+    ShaderArgument_SaveCoreModule,
+    ShaderArgument_SaveCoreModuleBinSource,
+    ShaderArgument_TrackLiveness,
+    ShaderArgument_LoopInversion, // bool, enable loop inversion optimization
+
+    ShaderArgument_ParameterBlocksUseRegisterSpaces, // Deprecated
+    ShaderArgument_LanguageVersion,                  // intValue0: SlangLanguageVersion
+    ShaderArgument_TypeConformance, // stringValue0: additional type conformance to link, in the format of
+                                    // "<TypeName>:<IInterfaceName>[=<sequentialId>]", for example
+                                    // "Impl:IFoo=3" or "Impl:IFoo".
+    ShaderArgument_EnableExperimentalDynamicDispatch, // bool, experimental
+    ShaderArgument_EmitReflectionJSON,                // bool
+
+    ShaderArgument_CountOfParsableOptions,
+
+    // Used in parsed options only.
+    ShaderArgument_DebugInformationFormat,  // intValue0: DebugInfoFormat
+    ShaderArgument_VulkanBindShiftAll,      // intValue0: kind; intValue1: shift
+    ShaderArgument_GenerateWholeProgram,    // bool
+    ShaderArgument_UseUpToDateBinaryModule, // bool, when set, will only load
+                                            // precompiled modules if it is up-to-date with its source.
+    ShaderArgument_EmbedDownstreamIR,       // bool
+    ShaderArgument_ForceDXLayout,           // bool
+
+    // Add this new option to the end of the list to avoid breaking ABI as much as possible.
+    // Setting of EmitSpirvDirectly or EmitSpirvViaGLSL will turn into this option internally.
+    ShaderArgument_EmitSpirvMethod, // enum SlangEmitSpirvMethod
+
+    ShaderArgument_SaveGLSLModuleBinSource,
+
+    ShaderArgument_SkipDownstreamLinking, // bool, experimental
+    ShaderArgument_DumpModule,
+
+    ShaderArgument_GetModuleInfo,              // Print serialized module version and name
+    ShaderArgument_GetSupportedModuleVersions, // Print the min and max module versions this compiler supports
+
+    ShaderArgument_EmitSeparateDebug, // bool
+
+    // Floating point denormal handling modes
+    ShaderArgument_DenormalModeFp16,
+    ShaderArgument_DenormalModeFp32,
+    ShaderArgument_DenormalModeFp64,
+
+    // Bitfield options
+    ShaderArgument_UseMSVCStyleBitfieldPacking, // bool
+    ShaderArgument_ForceCLayout,                // bool
+    ShaderArgument_ExperimentalFeature,         // bool, enable experimental features
+};
+
+} // namespace Onyx
+
+namespace Onyx::Detail
+{
+enum ShaderArgumentType : u8
+{
+    ShaderArgument_Integer,
+    ShaderArgument_String,
+};
+
+struct ShaderArgumentValue
+{
+    ShaderArgumentType Type;
+    const char *String0;
+    const char *String1;
+    i32 Value0;
+    i32 Value1;
+};
+
+struct ShaderArgument
+{
+    ShaderArgumentName Name;
+    ShaderArgumentValue Value;
+};
+
+struct SourceCode
+{
+    const char *Path;
+    const char *Source;
+};
+
+struct Macro
+{
+    const char *Name;
+    const char *Value;
+};
+} // namespace Onyx::Detail
 
 namespace Onyx::Shaders
 {
-/**
- * @brief Create a default shader binary path from a source path.
- *
- * The default binary path is `<source-parent>/bin/<shader-filename>.spv`.
- *
- * @param p_SourcePath The source path.
- * @return The binary path.
- */
-ONYX_API std::string CreateShaderDefaultBinaryPath(std::string_view p_SourcePath);
+struct EntryPoint
+{
+    const char *Name;
+    const char *Module;
+    ShaderStage Stage;
+};
 
-/**
- * @brief This is a high level function to create a compiled shader binary from a source glsl shader file.
- *
- * First, the function checks if an up-to-date binary file exists for the given source file at
- * `<source-parent>/bin/<shader-filename>.spv`. If it does, the function returns the shader module created from that
- * existing binary file. If it doesn't, the function compiles the source file into a binary file using the glslc
- * executable (its path stored in the `VKIT_GLSL_BINARY` macro), located at `<source-parent>/bin/<shader-filename>.spv`
- * and returns the shader module created from the binary file.
- *
- * @param p_SourcePath The path to the source file.
- * @return The created shader.
- */
-ONYX_API VKit::Shader Create(std::string_view p_SourcePath);
+// owned by compilation! if compilation is destroyed, this is no longer valid. user has to copy this if they want to
+// outlive compilation
+struct Spirv
+{
+    EntryPoint EntryPoint;
+    u32 *Data;
+    size_t Size;
+};
 
-/**
- * @brief This is a high level function to create a compiled shader binary from a source glsl shader file.
- *
- * This function is similar to the other `Create()` overload, but it allows the user to specify the binary path
- * and the arguments to pass to the `glslc` compiler.
- *
- * @param p_SourcePath The path to the source file.
- * @param p_BinaryPath The path to the binary file.
- * @param p_Arguments The arguments to pass to the `glslc` compiler.
- * @return The created shader.
- */
-ONYX_API VKit::Shader Create(std::string_view p_SourcePath, std::string_view p_BinaryPath,
-                             std::string_view p_Arguments = "");
+class Compilation
+{
+    TKIT_NON_COPYABLE(Compilation)
+  public:
+    Compilation(const TKit::Array32<Spirv> &p_CompiledSpirv) : m_CompiledSpirv(p_CompiledSpirv)
+    {
+    }
 
-/**
- * @brief This is a high level function to compile a shader from a source glsl shader file.
- *
- * The function compiles the source file into a binary file using the glslc executable (its path stored in the
- * `VKIT_GLSL_BINARY` macro), located at `<source-parent>/bin/<shader-filename>.spv`.
- *
- * This function, when built in Debug, will assert that the compilation was successful. If you wish to handle the error
- * yourself, use `VKit::Shader::Compile()`
- *
- * @param p_SourcePath The path to the source file.
- */
-ONYX_API void Compile(std::string_view p_SourcePath);
+    const Spirv &GetSpirv(const char *p_EntryPoint, const char *p_Module = nullptr) const;
+    const Spirv &GetSpirv(const char *p_EntryPoint, ShaderStage p_Stage, const char *p_Module = nullptr) const;
+    const Spirv &GetSpirv(const char *p_EntryPoint, const char *p_Module, ShaderStage p_Stage) const;
 
-/**
- * @brief This is a high level function to compile a shader from a source glsl shader file.
- *
- * This function is similar to the other `Compile()` overload, but it allows the user to specify the binary path
- * and the arguments to pass to the `glslc` compiler.
- *
- * This function, when built in Debug, will assert that the compilation was successful. If you wish to handle the error
- * yourself, use `VKit::Shader::Compile()`
- *
- * @param p_SourcePath The path to the source file.
- * @param p_BinaryPath The path to the binary file.
- * @param p_Arguments The arguments to pass to the `glslc` compiler.
- */
-ONYX_API void Compile(std::string_view p_SourcePath, std::string_view p_BinaryPath, std::string_view p_Arguments = "");
+    VKit::Shader CreateShader(const char *p_EntryPoint, const char *p_Module = nullptr) const;
+    VKit::Shader CreateShader(const char *p_EntryPoint, ShaderStage p_Stage, const char *p_Module = nullptr) const;
+    VKit::Shader CreateShader(const char *p_EntryPoint, const char *p_Module, ShaderStage p_Stage) const;
 
-/**
- * @brief Get a full pass vertex shader.
- *
- * This function returns an already available full pass vertex shader that outputs the UV coordinates of the whole
- * screen to the fragment shader.
- *
- * @return The full pass vertex shader.
- */
-ONYX_API const VKit::Shader &GetFullPassVertexShader();
+    void Destroy();
+
+  private:
+    TKit::Array32<Spirv> m_CompiledSpirv{};
+};
+
+class Compiler
+{
+    class Module
+    {
+      public:
+        Module(Compiler *p_Compiler, const char *p_Name, const char *p_SourceCode = nullptr,
+               const char *p_Path = nullptr)
+            : m_Compiler(p_Compiler), m_Name(p_Name), m_SourceCode(p_SourceCode), m_Path(p_Path)
+        {
+        }
+
+        Module &DeclareEntryPoint(const char *p_Name, ShaderStage p_Stage);
+        Compiler &Load() const;
+
+      private:
+        Compiler *m_Compiler;
+        const char *m_Name;
+        const char *m_SourceCode;
+        const char *m_Path;
+        TKit::Array8<EntryPoint> m_EntryPoints{};
+
+        friend class Compiler;
+    };
+
+  public:
+    Module &AddModule(const char *p_Name);
+    Module &AddModule(const char *p_Name, const char *p_SourceCode, const char *p_Path);
+
+    Compiler &AddIntegerArgument(ShaderArgumentName p_Name, i32 p_Value0, i32 p_Value1 = 0);
+    Compiler &AddStringArgument(ShaderArgumentName p_Name, const char *p_String0, const char *p_String1 = nullptr);
+    Compiler &AddBooleanArgument(ShaderArgumentName p_Name);
+
+    Compiler &AddPreprocessorMacro(const char *p_Name, const char *p_Value = nullptr);
+    Compiler &AddSearchPath(const char *p_Path);
+
+    Compiler &EnableEffectAnnotations();
+    Compiler &AllowGlslSyntax();
+    Compiler &SkipSpirvValidation();
+
+    Compilation Compile() const;
+
+  private:
+    TKit::Array8<Module> m_Modules{};
+    TKit::Array16<Detail::ShaderArgument> m_Arguments{};
+    TKit::Array16<Detail::Macro> m_Macros{};
+    TKit::Array16<const char *> m_SearchPaths{};
+
+    bool m_EnableEffectAnnotations = false;
+    bool m_AllowGlslSyntax = false;
+    bool m_SkipSpirvValidtion = false;
+};
+
+struct Specs
+{
+    bool EnableGlsl = false;
+};
+
+void Initialize(const Specs &p_Specs);
+void Terminate();
+
+VKit::Shader Create(const u32 *p_Spirv, size_t p_Size);
+VKit::Shader Create(const Spirv &p_Spirv);
+VKit::Shader Create(std::string_view p_SpirvPath);
+
+const VKit::Shader &GetFullPassVertexShader();
 } // namespace Onyx::Shaders

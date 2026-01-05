@@ -40,18 +40,9 @@ template <Dimension D> ShaderData &getShaders(const DrawMode p_Mode)
         return p_Mode == Draw_Fill ? s_FillShaders3 : s_OutlineShaders3;
 }
 
-static bool utilsWasModified(const std::string &p_BinaryPath)
+static VKit::Shader createShader(const char *)
 {
-    const char *sourcePath = ONYX_ROOT_PATH "/onyx/shaders/utils.glsl";
-    return VKit::Shader::MustCompile(sourcePath, p_BinaryPath);
-}
-static VKit::Shader createShader(const char *p_SourcePath)
-{
-    const std::string binaryPath = Shaders::CreateShaderDefaultBinaryPath(p_SourcePath);
-    if (utilsWasModified(binaryPath))
-        Shaders::Compile(p_SourcePath, binaryPath);
-
-    return Shaders::Create(p_SourcePath);
+    return VKit::Shader{};
 }
 
 static void createPipelineLayouts()
@@ -66,7 +57,7 @@ static void createPipelineLayouts()
                             .AddPushConstantRange<Detail::PushConstantData<Shading_Unlit>>(VK_SHADER_STAGE_VERTEX_BIT)
                             .Build();
 
-    VKIT_ASSERT_RESULT(layoutResult);
+    VKIT_CHECK_RESULT(layoutResult);
     s_UnlitLayout = layoutResult.GetValue();
 
     layoutResult = VKit::PipelineLayout::Builder(device)
@@ -76,7 +67,7 @@ static void createPipelineLayouts()
                                                                                     VK_SHADER_STAGE_FRAGMENT_BIT)
                        .Build();
 
-    VKIT_ASSERT_RESULT(layoutResult);
+    VKIT_CHECK_RESULT(layoutResult);
     s_LitLayout = layoutResult.GetValue();
 }
 
@@ -195,7 +186,7 @@ VKit::GraphicsPipeline CreateStaticMeshPipeline(const PipelineMode p_Mode,
             .AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Normal));
 
     const auto result = builder.Bake().Build();
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     return result.GetValue();
 }
 template <Dimension D>
@@ -209,7 +200,7 @@ VKit::GraphicsPipeline CreateCirclePipeline(const PipelineMode p_Mode,
         createPipelineBuilder<D>(p_Mode, p_RenderInfo, shaders.CircleVertexShader, shaders.CircleFragmentShader);
 
     const auto result = builder.Bake().Build();
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     return result.GetValue();
 }
 

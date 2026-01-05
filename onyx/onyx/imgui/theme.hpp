@@ -1,9 +1,8 @@
 #pragma once
 
-#include "onyx/core/api.hpp"
 namespace Onyx
 {
-class ONYX_API Theme
+class Theme
 {
   public:
     virtual ~Theme() = default;
@@ -11,37 +10,37 @@ class ONYX_API Theme
     virtual void Apply() const = 0;
 };
 
-class ONYX_API CinderTheme final : public Theme
+class CinderTheme final : public Theme
 {
   public:
     void Apply() const override;
 };
 
-class ONYX_API BabyTheme final : public Theme
+class BabyTheme final : public Theme
 {
   public:
     void Apply() const override;
 };
 
-class ONYX_API DougBinksTheme final : public Theme
+class DougBinksTheme final : public Theme
 {
   public:
     void Apply() const override;
 };
 
-class ONYX_API LedSynthMasterTheme final : public Theme
+class LedSynthMasterTheme final : public Theme
 {
   public:
     void Apply() const override;
 };
 
-class ONYX_API HazelTheme final : public Theme
+class HazelTheme final : public Theme
 {
   public:
     void Apply() const override;
 };
 
-class ONYX_API DefaultTheme final : public Theme
+class DefaultTheme final : public Theme
 {
   public:
     void Apply() const override;

@@ -18,11 +18,11 @@ PerFrameData<SyncFrameData> CreatePerFrameSyncData()
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        VKIT_ASSERT_EXPRESSION(
+        VKIT_CHECK_EXPRESSION(
             table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore));
-        VKIT_ASSERT_EXPRESSION(
+        VKIT_CHECK_EXPRESSION(
             table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].TransferCopyDoneSemaphore));
-        VKIT_ASSERT_EXPRESSION(table.CreateFence(device, &fenceInfo, nullptr, &syncs[i].InFlightFence));
+        VKIT_CHECK_EXPRESSION(table.CreateFence(device, &fenceInfo, nullptr, &syncs[i].InFlightFence));
     }
     return syncs;
 }
@@ -39,7 +39,7 @@ PerImageData<SyncImageData> CreatePerImageSyncData(const u32 p_ImageCount)
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        VKIT_ASSERT_EXPRESSION(
+        VKIT_CHECK_EXPRESSION(
             table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore));
     }
     return syncs;

@@ -6,7 +6,7 @@
 #include "tkit/serialization/yaml/tensor.hpp"
 #include "tkit/serialization/yaml/quaternion.hpp"
 #include "tkit/serialization/yaml/onyx/property/camera.hpp"
-#include "tkit/serialization/yaml/onyx/state/options.hpp"
+#include "tkit/serialization/yaml/onyx/property/options.hpp"
 #include "tkit/serialization/yaml/onyx/property/transform.hpp"
 #include "tkit/serialization/yaml/perf/lattice.hpp"
 

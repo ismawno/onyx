@@ -20,7 +20,7 @@ static const VKit::PipelineLayout &getRainbowLayout()
     if (layout)
         return layout;
     const auto result = VKit::PipelineLayout::Builder(Core::GetDevice()).Build();
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     layout = result.GetValue();
     Core::GetDeletionQueue().SubmitForDeletion(layout);
     return layout;
@@ -70,16 +70,16 @@ SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const D
             .Bake()
             .Build();
 
-    VKIT_ASSERT_RESULT(presult);
+    VKIT_CHECK_RESULT(presult);
     const VKit::GraphicsPipeline &pipeline = presult.GetValue();
 
     const auto jresult = VKit::GraphicsJob::Create(presult.GetValue(), getRainbowLayout());
-    VKIT_ASSERT_RESULT(jresult);
+    VKIT_CHECK_RESULT(jresult);
     m_RainbowJob = jresult.GetValue();
 
     VKit::PipelineLayout::Builder builder = fs->GetPostProcessing()->CreatePipelineLayoutBuilder();
     const auto result = builder.AddPushConstantRange<BlurData>(VK_SHADER_STAGE_FRAGMENT_BIT).Build();
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     m_BlurLayout = result.GetValue();
 
     Core::GetDeletionQueue().SubmitForDeletion(pipeline);
@@ -131,7 +131,7 @@ void SandboxLayer::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
 #ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> static void loadMesh(MeshContainer &p_Meshes, const Dialog::Path &p_Path)
 {
-    const auto result = Assets::LoadStaticMesh<D>(p_Path.string());
+    const auto result = Assets::LoadStaticMesh<D>(p_Path.c_str());
     if (!result)
         return;
 

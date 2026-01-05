@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/core/core.hpp"
+#include "onyx/execution/queues.hpp"
 #include "vkit/resource/device_buffer.hpp"
 #include "tkit/container/dynamic_array.hpp"
 
@@ -47,7 +48,7 @@ VKit::DeviceBuffer CreateBuffer(const VKit::DeviceBufferFlags p_Flags,
     const auto result = VKit::DeviceBuffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), p_Flags)
                             .SetSize<T>(p_Capacity)
                             .Build();
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     return result.GetValue();
 }
 
@@ -57,16 +58,13 @@ VKit::DeviceBuffer CreateBuffer(const VKit::DeviceBufferFlags p_Flags, const TKi
     auto result = VKit::DeviceBuffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), p_Flags)
                       .SetSize<T>(p_Data.GetSize())
                       .Build();
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     VKit::DeviceBuffer &buffer = result.GetValue();
     if (buffer.GetInfo().Flags & VKit::DeviceBufferFlag_HostVisible)
         buffer.Write<T>(p_Data);
     else
-    {
-        QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-        VKIT_ASSERT_EXPRESSION(buffer.UploadFromHost<T>(Core::GetTransferPool(), queue->Queue, p_Data));
-        Core::ReturnQueue(queue);
-    }
+        VKIT_CHECK_EXPRESSION(
+            buffer.UploadFromHost<T>(Queues::GetTransferPool(), *Queues::GetQueue(VKit::Queue_Transfer), p_Data));
     return buffer;
 }
 

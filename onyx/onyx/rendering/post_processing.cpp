@@ -11,7 +11,7 @@ PostProcessing::PostProcessing(const PerImageData<VkImageView> &p_ImageViews) : 
     const auto result = VKit::DescriptorSetLayout::Builder(Core::GetDevice())
                             .AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
                             .Build();
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     m_DescriptorSetLayout = result.GetValue();
 }
 PostProcessing::~PostProcessing()
@@ -39,7 +39,7 @@ void PostProcessing::Setup(const Specs &p_Specs)
     if (m_Sampler)
         table.DestroySampler(Core::GetDevice(), m_Sampler, nullptr);
 
-    VKIT_ASSERT_EXPRESSION(table.CreateSampler(Core::GetDevice(), &p_Specs.SamplerCreateInfo, nullptr, &m_Sampler));
+    VKIT_CHECK_EXPRESSION(table.CreateSampler(Core::GetDevice(), &p_Specs.SamplerCreateInfo, nullptr, &m_Sampler));
 
     const auto result = VKit::GraphicsPipeline::Builder(Core::GetDevice(), p_Specs.Layout, p_Specs.RenderInfo)
                             .AddShaderStage(p_Specs.VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
@@ -51,13 +51,13 @@ void PostProcessing::Setup(const Specs &p_Specs)
                             .Bake()
                             .Build();
 
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     if (m_Pipeline)
         m_Pipeline.Destroy();
     m_Pipeline = result.GetValue();
 
     const auto jresult = VKit::GraphicsJob::Create(m_Pipeline, p_Specs.Layout);
-    VKIT_ASSERT_RESULT(jresult);
+    VKIT_CHECK_RESULT(jresult);
     m_Job = jresult.GetValue();
     if (m_SamplerDescriptors.IsEmpty())
     {
@@ -65,7 +65,7 @@ void PostProcessing::Setup(const Specs &p_Specs)
         for (u32 i = 0; i < m_ImageViews.GetSize(); ++i)
         {
             const auto dresult = pool.Allocate(m_DescriptorSetLayout);
-            VKIT_ASSERT_RESULT(dresult);
+            VKIT_CHECK_RESULT(dresult);
             m_SamplerDescriptors.Append(dresult.GetValue());
         }
     }

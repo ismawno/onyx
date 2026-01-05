@@ -102,7 +102,7 @@ void Window::createWindow(const Specs &p_Specs)
         m_Position = u32v2{x, y};
     }
 
-    VKIT_ASSERT_EXPRESSION(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface));
+    VKIT_CHECK_EXPRESSION(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface));
     glfwSetWindowUserPointer(m_Window, this);
 
     if (!Core::IsDeviceCreated())
@@ -142,7 +142,7 @@ VkPipelineStageFlags Window::SubmitContextData(const FrameInfo &p_Info)
         transferFlags |= context->GetRenderer().RecordCopyCommands(p_Info.FrameIndex, p_Info.GraphicsCommand,
                                                                    p_Info.TransferCommand);
     }
-    if (Core::IsSeparateTransferMode() && transferFlags != 0)
+    if (Queues::IsSeparateTransferMode() && transferFlags != 0)
         m_FrameScheduler->SubmitTransferQueue();
     return transferFlags;
 }
@@ -224,7 +224,7 @@ TKit::Timespan Window::UpdateMonitorDeltaTime(const TKit::Timespan p_Default)
 void Window::recreateSurface()
 {
     Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
-    VKIT_ASSERT_EXPRESSION(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface));
+    VKIT_CHECK_EXPRESSION(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface));
 }
 
 void Window::FlagShouldClose()

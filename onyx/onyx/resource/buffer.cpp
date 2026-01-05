@@ -6,8 +6,8 @@ namespace Onyx::Detail
 VkBufferMemoryBarrier CreateAcquireBarrier(const VkBuffer p_DeviceLocalBuffer, const u32 p_Size,
                                            const VkAccessFlags p_DstFlags)
 {
-    const u32 qsrc = Core::GetFamilyIndex(VKit::Queue_Transfer);
-    const u32 qdst = Core::GetFamilyIndex(VKit::Queue_Graphics);
+    const u32 qsrc = Queues::GetFamilyIndex(VKit::Queue_Transfer);
+    const u32 qdst = Queues::GetFamilyIndex(VKit::Queue_Graphics);
 
     VkBufferMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -23,8 +23,8 @@ VkBufferMemoryBarrier CreateAcquireBarrier(const VkBuffer p_DeviceLocalBuffer, c
 }
 VkBufferMemoryBarrier CreateReleaseBarrier(const VkBuffer p_DeviceLocalBuffer, const u32 p_Size)
 {
-    const u32 qsrc = Core::GetFamilyIndex(VKit::Queue_Transfer);
-    const u32 qdst = Core::GetFamilyIndex(VKit::Queue_Graphics);
+    const u32 qsrc = Queues::GetFamilyIndex(VKit::Queue_Transfer);
+    const u32 qdst = Queues::GetFamilyIndex(VKit::Queue_Graphics);
     TKIT_ASSERT(qsrc != qdst,
                 "[ONYX] Cannot create a release barrier if the graphics and transfer queues belong to the same family");
 
@@ -45,7 +45,7 @@ void ApplyAcquireBarrier(const VkCommandBuffer p_CommandBuffer,
                          const TKit::Span<const VkBufferMemoryBarrier> p_Barriers,
                          const VkPipelineStageFlags p_DstFlags)
 {
-    const bool separate = Core::IsSeparateTransferMode();
+    const bool separate = Queues::IsSeparateTransferMode();
     const VkPipelineStageFlags src = separate ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT : VK_PIPELINE_STAGE_TRANSFER_BIT;
 
     Core::GetDeviceTable().CmdPipelineBarrier(p_CommandBuffer, src, p_DstFlags, 0, 0, nullptr, p_Barriers.GetSize(),
@@ -56,7 +56,7 @@ void ApplyReleaseBarrier(const VkCommandBuffer p_CommandBuffer,
                          const TKit::Span<const VkBufferMemoryBarrier> p_Barriers)
 {
     TKIT_ASSERT(
-        Core::IsSeparateTransferMode(),
+        Queues::IsSeparateTransferMode(),
         "[ONYX] Can only apply release barrier if the graphics and transfer queues dont belong to the same family");
 
     Core::GetDeviceTable().CmdPipelineBarrier(p_CommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,

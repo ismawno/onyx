@@ -134,7 +134,7 @@ template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::SendToDevi
     mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
-    VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
+    VKIT_CHECK_EXPRESSION(storageBuffer.Flush());
 }
 
 template <Dimension D, DrawMode DMode> void StatMeshSystem<D, DMode>::RecordCopyCommands(const CopyInfo &p_Info)
@@ -272,7 +272,7 @@ template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::SendToDevice
     mainTask();
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
-    VKIT_ASSERT_EXPRESSION(storageBuffer.Flush());
+    VKIT_CHECK_EXPRESSION(storageBuffer.Flush());
 }
 
 template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::RecordCopyCommands(const CopyInfo &p_Info)
@@ -325,16 +325,16 @@ template <Dimension D, DrawMode DMode> void CircleSystem<D, DMode>::Flush()
 }
 
 // This is crazy
-template class ONYX_API StatMeshSystem<D2, Draw_Fill>;
-template class ONYX_API StatMeshSystem<D2, Draw_Outline>;
+template class StatMeshSystem<D2, Draw_Fill>;
+template class StatMeshSystem<D2, Draw_Outline>;
 
-template class ONYX_API StatMeshSystem<D3, Draw_Fill>;
-template class ONYX_API StatMeshSystem<D3, Draw_Outline>;
+template class StatMeshSystem<D3, Draw_Fill>;
+template class StatMeshSystem<D3, Draw_Outline>;
 
-template class ONYX_API CircleSystem<D2, Draw_Fill>;
-template class ONYX_API CircleSystem<D2, Draw_Outline>;
+template class CircleSystem<D2, Draw_Fill>;
+template class CircleSystem<D2, Draw_Outline>;
 
-template class ONYX_API CircleSystem<D3, Draw_Fill>;
-template class ONYX_API CircleSystem<D3, Draw_Outline>;
+template class CircleSystem<D3, Draw_Fill>;
+template class CircleSystem<D3, Draw_Outline>;
 
 } // namespace Onyx::Detail

@@ -1,9 +1,8 @@
 #pragma once
 
-#include "onyx/core/api.hpp"
 #include "onyx/core/limits.hpp"
+#include "onyx/state/shaders.hpp"
 #include "vkit/memory/allocator.hpp"
-#include "vkit/execution/command_pool.hpp"
 #include "vkit/vulkan/instance.hpp"
 #include "vkit/vulkan/loader.hpp"
 #include "vkit/device/logical_device.hpp"
@@ -48,34 +47,6 @@ namespace Onyx
 using Task = TKit::Task<void>;
 using TaskArray = TKit::Array<Task, MaxTasks>;
 
-struct QueueHandle
-{
-    VkQueue Queue;
-    u32 Index;
-    u32 FamilyIndex;
-    u32 UsageCount;
-#ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
-    TKit::VkProfilingContext ProfilingContext;
-#endif
-};
-} // namespace Onyx
-
-namespace Onyx::Detail
-{
-struct QueueData
-{
-    QueueHandle *Graphics;
-    QueueHandle *Transfer;
-    QueueHandle *Present;
-};
-
-QueueData BorrowQueueData();
-void ReturnQueueData(const QueueData &p_Data);
-
-} // namespace Onyx::Detail
-
-namespace Onyx
-{
 struct InitCallbacks
 {
     std::function<void(VKit::Instance::Builder &)> OnInstanceCreation = nullptr;
@@ -91,6 +62,7 @@ struct Specs
     InitCallbacks Callbacks{};
     TKit::FixedArray4<u32> QueueRequests{4, 0, 4, 4};
     u32 Platform = ONYX_PLATFORM_AUTO;
+    Shaders::Specs Shaders{};
 };
 
 template <typename T> using PerFrameData = TKit::FixedArray<T, MaxFramesInFlight>;
@@ -116,16 +88,7 @@ void CreateDevice(VkSurfaceKHR p_Surface);
 bool IsDeviceCreated();
 void DeviceWaitIdle();
 
-VKit::CommandPool &GetGraphicsPool();
-VKit::CommandPool &GetTransferPool();
 VmaAllocator GetVulkanAllocator();
-
 VKit::DeletionQueue &GetDeletionQueue();
-
-bool IsSeparateTransferMode();
-
-u32 GetFamilyIndex(VKit::QueueType p_Type);
-QueueHandle *BorrowQueue(VKit::QueueType p_Type);
-void ReturnQueue(QueueHandle *p_Queue);
 
 }; // namespace Onyx::Core

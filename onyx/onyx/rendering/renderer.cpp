@@ -20,7 +20,7 @@ static VkDescriptorSet resetLightBufferDescriptorSet(const VkDescriptorBufferInf
     if (!p_OldSet)
     {
         const auto result = pool.Allocate(layout);
-        VKIT_ASSERT_RESULT(result);
+        VKIT_CHECK_RESULT(result);
         p_OldSet = result.GetValue();
     }
     writer.Overwrite(p_OldSet);
@@ -131,7 +131,7 @@ template <typename Renderer, typename DrawArg>
 void IRenderer<D>::draw(Renderer &p_Renderer, const RenderState<D> &p_State, const f32m<D> &p_Transform,
                         DrawArg &&p_Arg, DrawFlags p_Flags)
 {
-    TKIT_ASSERT(p_State.OutlineWidth >= 0.f, "[ONYX] Outline width must be non-negative");
+    TKIT_ASSERT(p_State.OutlineWidth >= 0.f, "[ONYX] Outline width ({}) must be non-negative", p_State.OutlineWidth);
 
     Material material;
     if constexpr (D == D3)
@@ -228,7 +228,7 @@ void Renderer<D2>::SendToDevice(const u32 p_FrameIndex)
 VkPipelineStageFlags Renderer<D2>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
                                                       const VkCommandBuffer p_TransferCommand)
 {
-    const bool separate = Core::IsSeparateTransferMode();
+    const bool separate = Queues::IsSeparateTransferMode();
     TKit::Array16<VkBufferMemoryBarrier> sacquires{};
     TKit::Array4<VkBufferMemoryBarrier> vacquires{};
     TKit::Array32<VkBufferMemoryBarrier> releases{};
@@ -288,7 +288,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
         VKit::DeviceBuffer &devDirBuffer = m_DeviceLightData.StagingDirectionals[p_FrameIndex];
         const auto &hostDirBuffer = m_HostLightData.DirectionalLights;
         devDirBuffer.Write<DirectionalLight>(hostDirBuffer);
-        VKIT_ASSERT_EXPRESSION(devDirBuffer.Flush());
+        VKIT_CHECK_EXPRESSION(devDirBuffer.Flush());
     }
 
     const u32 pcount = m_HostLightData.PointLights.GetSize();
@@ -297,7 +297,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
         VKit::DeviceBuffer &devPointBuffer = m_DeviceLightData.StagingPoints[p_FrameIndex];
         const auto &hostPointBuffer = m_HostLightData.PointLights;
         devPointBuffer.Write<PointLight>(hostPointBuffer);
-        VKIT_ASSERT_EXPRESSION(devPointBuffer.Flush());
+        VKIT_CHECK_EXPRESSION(devPointBuffer.Flush());
     }
     if (!mainTask)
         return;
@@ -311,7 +311,7 @@ void Renderer<D3>::SendToDevice(const u32 p_FrameIndex)
 VkPipelineStageFlags Renderer<D3>::RecordCopyCommands(const u32 p_FrameIndex, const VkCommandBuffer p_GraphicsCommand,
                                                       const VkCommandBuffer p_TransferCommand)
 {
-    const bool separate = Core::IsSeparateTransferMode();
+    const bool separate = Queues::IsSeparateTransferMode();
     TKit::Array16<VkBufferMemoryBarrier> sacquires{};
     TKit::Array4<VkBufferMemoryBarrier> vacquires{};
     TKit::Array32<VkBufferMemoryBarrier> releases{};
@@ -458,7 +458,7 @@ void Renderer<D3>::AddPointLight(const PointLight &p_Light)
     m_HostLightData.PointLights.Append(p_Light);
 }
 
-template class ONYX_API IRenderer<D2>;
-template class ONYX_API IRenderer<D3>;
+template class IRenderer<D2>;
+template class IRenderer<D3>;
 
 } // namespace Onyx::Detail

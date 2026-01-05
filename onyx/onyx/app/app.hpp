@@ -67,7 +67,7 @@ enum ApplicationFlagBit : ApplicationFlags
  * calls of these functions, but rather react to these events with the provided callbacks.
  *
  */
-class ONYX_API Application
+class Application
 {
   public:
     struct StageClock

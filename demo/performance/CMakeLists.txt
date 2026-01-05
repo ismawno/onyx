@@ -7,6 +7,8 @@ add_executable(onyx-performance ${SOURCES})
 
 tkit_default_configure(onyx-performance)
 
+tkit_register_for_yaml_serialization(onyx-performance SOURCES perf/lattice.hpp)
+
 FetchContent_Declare(
   argparse
   GIT_REPOSITORY https://github.com/ismawno/argparse.git

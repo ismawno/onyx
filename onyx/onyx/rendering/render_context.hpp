@@ -1,22 +1,15 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
+#include "onyx/property/options.hpp"
+#include "onyx/state/state.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/state/options.hpp"
 #include <vulkan/vulkan.h>
-
-// 2D objects that are drawn later will always be on top of earlier ones. HOWEVER, blending will only work expectedly
-// between objects of the same primitive
-
-// Because of batch rendering, draw order is not guaranteed
-
-TKIT_COMPILER_WARNING_IGNORE_PUSH()
-TKIT_MSVC_WARNING_IGNORE(4324)
 
 namespace Onyx
 {
 class Window;
-}
+} // namespace Onyx
 
 namespace Onyx::Detail
 {
@@ -27,23 +20,6 @@ template <Dimension D> class IRenderContext
   public:
     IRenderContext(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
 
-    /**
-     * @brief Flushes all cpu-stored draw data, signaling the context to draw from scratch, and resets the state for all
-     *threads.
-     *
-     * At the end of the frame, all cpu-stored data will be sent to the device and drawn. If this method is not called
-     * in the next frame, no new data will be sent and the device will keep rendering what was recorded last frame.
-     *
-     * New calls to `RenderContext` will have no effect and will be lost if at the start of a new frame `Flush()` is not
-     * called and draw commands are issued.
-     *
-     * This method is not thread-safe and should be called once from a single thread.
-     *
-     * @param p_ThreadCount The number of threads affected. The application may not be using all of the threads given by
-     * `MaxThreads`. This number may reflect how many threads are actually in use by your application to avoid
-     * extra work. The calling thread's index is thus expected to be lower than the count, although it is not required.
-     *
-     */
     void Flush(const u32 p_ThreadCount = MaxThreads);
 
     void Transform(const f32m<D> &p_Transform);
@@ -237,14 +213,14 @@ namespace Onyx
  */
 template <Dimension D> class RenderContext;
 
-template <> class ONYX_API RenderContext<D2> final : public Detail::IRenderContext<D2>
+template <> class RenderContext<D2> final : public Detail::IRenderContext<D2>
 {
   public:
     using IRenderContext<D2>::IRenderContext;
     void Rotate(f32 p_Angle);
 };
 
-template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderContext<D3>
+template <> class RenderContext<D3> final : public Detail::IRenderContext<D3>
 {
   public:
     using IRenderContext<D3>::IRenderContext;
@@ -296,5 +272,4 @@ template <> class ONYX_API RenderContext<D3> final : public Detail::IRenderConte
     void SpecularContribution(f32 p_Contribution);
     void SpecularSharpness(f32 p_Sharpness);
 };
-TKIT_COMPILER_WARNING_IGNORE_POP()
 } // namespace Onyx

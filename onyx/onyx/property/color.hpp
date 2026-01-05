@@ -1,12 +1,12 @@
 #pragma once
 
-#include "onyx/core/api.hpp"
+#include "onyx/core/alias.hpp"
 #include "onyx/core/math.hpp"
 #include "tkit/container/span.hpp"
 
 namespace Onyx
 {
-struct ONYX_API Color
+struct Color
 {
     Color(const f32v4 &p_RGBA);
     Color(const f32v3 &p_RGB, f32 p_Alpha = 1.f);
@@ -123,7 +123,7 @@ struct ONYX_API Color
     static const TKit::HashMap<std::string, Color> s_ColorMap;
 };
 
-class ONYX_API Gradient
+class Gradient
 {
   public:
     Gradient(TKit::Span<const Color> p_Colors);

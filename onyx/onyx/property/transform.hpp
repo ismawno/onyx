@@ -1,6 +1,5 @@
 #pragma once
 
-#include "onyx/core/api.hpp"
 #include "onyx/core/math.hpp"
 #include "onyx/core/dimension.hpp"
 #include "tkit/reflection/reflect.hpp"
@@ -16,7 +15,7 @@ namespace Onyx
  *
  * @param p_Transform The transform to modify.
  */
-ONYX_API void ApplyCoordinateSystemExtrinsic(f32m4 &p_Transform);
+void ApplyCoordinateSystemExtrinsic(f32m4 &p_Transform);
 
 /**
  * @brief Modify the transform to comply with a specific coordinate system intrinsically.
@@ -28,7 +27,7 @@ ONYX_API void ApplyCoordinateSystemExtrinsic(f32m4 &p_Transform);
  *
  * @param p_Transform The transform to modify.
  */
-ONYX_API void ApplyCoordinateSystemIntrinsic(f32m4 &p_Transform);
+void ApplyCoordinateSystemIntrinsic(f32m4 &p_Transform);
 
 template <Dimension D> struct ITransform
 {
@@ -203,7 +202,7 @@ template <Dimension D> struct Transform;
  *
  * Provides additional methods specific to 3D transformations.
  */
-template <> struct ONYX_API Transform<D3> : ITransform<D3>
+template <> struct Transform<D3> : ITransform<D3>
 {
     TKIT_REFLECT_DECLARE(Transform, ITransform<D3>)
     TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D3>)
@@ -287,7 +286,7 @@ template <> struct ONYX_API Transform<D3> : ITransform<D3>
  *
  * Provides additional methods specific to 2D transformations.
  */
-template <> struct ONYX_API Transform<D2> : ITransform<D2>
+template <> struct Transform<D2> : ITransform<D2>
 {
     TKIT_REFLECT_DECLARE(Transform, ITransform<D2>)
     TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D2>)

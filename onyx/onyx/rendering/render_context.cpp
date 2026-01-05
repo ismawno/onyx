@@ -235,8 +235,7 @@ template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &p_Start,
 }
 
 template <Dimension D>
-void IRenderContext<D>::Line(const Mesh p_Mesh, const f32v<D> &p_Start, const f32v<D> &p_End,
-                             const f32 p_Thickness)
+void IRenderContext<D>::Line(const Mesh p_Mesh, const f32v<D> &p_Start, const f32v<D> &p_End, const f32 p_Thickness)
 {
     const f32v<D> delta = p_End - p_Start;
     const RenderState<D> &state = *getState();
@@ -469,7 +468,7 @@ template <Dimension D> void IRenderContext<D>::SetCurrentState(const RenderState
     *m_StateStack[getThreadIndex()].Current = p_State;
 }
 
-template class ONYX_API Detail::IRenderContext<D2>;
-template class ONYX_API Detail::IRenderContext<D3>;
+template class Detail::IRenderContext<D2>;
+template class Detail::IRenderContext<D3>;
 
 } // namespace Onyx

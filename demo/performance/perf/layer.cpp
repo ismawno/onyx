@@ -38,8 +38,8 @@ Layer<D>::Layer(Application *p_Application, Window *p_Window, const Lattice<D> &
         m_Mesh = Assets::AddMesh(Assets::CreatePolygonMesh<D>(p_Options.PolygonVertices));
         break;
     case Shape::ImportedStatic: {
-        const auto result = Assets::LoadStaticMesh<D>(p_Options.MeshPath);
-        VKIT_ASSERT_RESULT(result);
+        const auto result = Assets::LoadStaticMesh<D>(p_Options.MeshPath.c_str());
+        VKIT_CHECK_RESULT(result);
         m_Mesh = Assets::AddMesh(result.GetValue());
         break;
     }

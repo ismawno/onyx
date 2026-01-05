@@ -1,7 +1,6 @@
 #pragma once
 
 #include "onyx/core/alias.hpp"
-#include "onyx/core/api.hpp"
 #include "onyx/core/dimension.hpp"
 #include <vulkan/vulkan.h>
 
@@ -43,7 +42,7 @@ enum UserLayerFlagBit : UserLayerFlags
  * availability and performance.
  *
  */
-class ONYX_API UserLayer
+class UserLayer
 {
   public:
     UserLayer(Application *p_Application, Window *p_Window) : m_Application(p_Application), m_Window(p_Window)

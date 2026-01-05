@@ -114,7 +114,7 @@ template <Dimension D> struct ContextData : IContextData<D>
 {
 };
 
-template <> struct ONYX_API ContextData<D3> : IContextData<D3>
+template <> struct ContextData<D3> : IContextData<D3>
 {
     TKit::Array<DirectionalLight, ONYX_SANDBOX_MAX_LIGHTS> DirectionalLights;
     TKit::Array<PointLight, ONYX_SANDBOX_MAX_LIGHTS> PointLights;

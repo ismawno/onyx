@@ -28,14 +28,14 @@ class Window;
  */
 template <Dimension D> struct ProjectionViewData;
 
-template <> struct ONYX_API ProjectionViewData<D2>
+template <> struct ProjectionViewData<D2>
 {
     TKIT_REFLECT_DECLARE(ProjectionViewData)
     TKIT_YAML_SERIALIZE_DECLARE(ProjectionViewData)
     Transform<D2> View{};
     f32m3 ProjectionView = f32m3::Identity();
 };
-template <> struct ONYX_API ProjectionViewData<D3>
+template <> struct ProjectionViewData<D3>
 {
     TKIT_REFLECT_DECLARE(ProjectionViewData)
     TKIT_YAML_SERIALIZE_DECLARE(ProjectionViewData)
@@ -50,7 +50,7 @@ template <> struct ONYX_API ProjectionViewData<D3>
  * It is represented as an axis-aligned rectangle with the `Min` and `Max` coordinates ranging from -1 to 1. The
  * `DepthBounds` are normalized, ranging from 0 to 1. The default values are set to cover the entire screen.
  */
-struct ONYX_API ScreenViewport
+struct ScreenViewport
 {
     TKIT_REFLECT_DECLARE(ScreenViewport)
     TKIT_YAML_SERIALIZE_DECLARE(ScreenViewport)
@@ -67,7 +67,7 @@ struct ONYX_API ScreenViewport
  * It is represented as an axis-aligned rectangle with the `Min` and `Max` coordinates ranging from -1 to 1. The default
  * values are set to cover the entire screen.
  */
-struct ONYX_API ScreenScissor
+struct ScreenScissor
 {
     TKIT_REFLECT_DECLARE(ScreenScissor)
     TKIT_YAML_SERIALIZE_DECLARE(ScreenScissor)
@@ -79,7 +79,7 @@ struct ONYX_API ScreenScissor
 
 template <Dimension D> struct CameraControls;
 
-template <> struct ONYX_API CameraControls<D2>
+template <> struct CameraControls<D2>
 {
     f32 TranslationStep = 1.f / 60.f;
     f32 RotationStep = 1.f / 60.f;
@@ -90,7 +90,7 @@ template <> struct ONYX_API CameraControls<D2>
     Input::Key RotateLeft = Input::Key_Q;
     Input::Key RotateRight = Input::Key_E;
 };
-template <> struct ONYX_API CameraControls<D3>
+template <> struct CameraControls<D3>
 {
     f32 TranslationStep = 1.f / 60.f;
     f32 RotationStep = 1.f / 60.f;
@@ -181,7 +181,7 @@ namespace Onyx
 {
 template <Dimension D> class Camera;
 
-template <> class ONYX_API Camera<D2> final : public Detail::ICamera<D2>
+template <> class Camera<D2> final : public Detail::ICamera<D2>
 {
     TKIT_NON_COPYABLE(Camera);
 
@@ -193,7 +193,7 @@ template <> class ONYX_API Camera<D2> final : public Detail::ICamera<D2>
     void SetSize(f32 p_Size);
 };
 
-template <> class ONYX_API Camera<D3> final : public Detail::ICamera<D3>
+template <> class Camera<D3> final : public Detail::ICamera<D3>
 {
     TKIT_NON_COPYABLE(Camera);
 

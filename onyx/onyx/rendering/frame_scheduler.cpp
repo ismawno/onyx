@@ -3,6 +3,7 @@
 #include "onyx/app/window.hpp"
 #include "onyx/property/color.hpp"
 #include "onyx/state/shaders.hpp"
+#include "onyx/execution/queues.hpp"
 #include "tkit/utils/debug.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "onyx/core/glfw.hpp"
@@ -15,7 +16,9 @@ const WaitMode WaitMode::Poll = WaitMode{0, 0};
 
 FrameScheduler::FrameScheduler(Window &p_Window)
 {
-    m_QueueData = Detail::BorrowQueueData();
+    m_Graphics = Queues::GetQueue(VKit::Queue_Graphics);
+    m_Transfer = Queues::GetQueue(VKit::Queue_Transfer);
+    m_Present = Queues::GetQueue(VKit::Queue_Present);
 
     const VkExtent2D extent = waitGlfwEvents(p_Window);
     createSwapChain(p_Window, extent);
@@ -43,7 +46,6 @@ FrameScheduler::~FrameScheduler()
     }
 
     m_SwapChain.Destroy();
-    Detail::ReturnQueueData(m_QueueData);
 }
 
 bool FrameScheduler::handleImageResult(Window &p_Window, const VkResult p_Result)
@@ -83,18 +85,18 @@ VkCommandBuffer FrameScheduler::BeginFrame(Window &p_Window, const WaitMode &p_W
 
     const CommandData &cmd = m_CommandData[m_FrameIndex];
     auto cmdres = cmd.GraphicsPool.Reset();
-    VKIT_ASSERT_RESULT(cmdres);
+    VKIT_CHECK_RESULT(cmdres);
     if (m_TransferMode == Transfer_Separate)
     {
         cmdres = cmd.TransferPool.Reset();
-        VKIT_ASSERT_RESULT(cmdres);
+        VKIT_CHECK_RESULT(cmdres);
     }
 
     const auto &table = Core::GetDeviceTable();
-    VKIT_ASSERT_EXPRESSION(table.BeginCommandBuffer(cmd.GraphicsCommand, &beginInfo));
+    VKIT_CHECK_EXPRESSION(table.BeginCommandBuffer(cmd.GraphicsCommand, &beginInfo));
     if (m_TransferMode == Transfer_Separate)
     {
-        VKIT_ASSERT_EXPRESSION(table.BeginCommandBuffer(cmd.TransferCommand, &beginInfo));
+        VKIT_CHECK_EXPRESSION(table.BeginCommandBuffer(cmd.TransferCommand, &beginInfo));
     }
 
     return cmd.GraphicsCommand;
@@ -113,7 +115,7 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
     if (isync.InFlightImage != VK_NULL_HANDLE)
     {
         TKIT_PROFILE_NSCOPE("Onyx::FrameScheduler::WaitForImage");
-        VKIT_ASSERT_EXPRESSION(table.WaitForFences(Core::GetDevice(), 1, &isync.InFlightImage, VK_TRUE, UINT64_MAX));
+        VKIT_CHECK_EXPRESSION(table.WaitForFences(Core::GetDevice(), 1, &isync.InFlightImage, VK_TRUE, UINT64_MAX));
     }
 
     isync.InFlightImage = fsync.InFlightFence;
@@ -133,8 +135,8 @@ void FrameScheduler::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &isync.RenderFinishedSemaphore;
 
-    VKIT_ASSERT_EXPRESSION(table.ResetFences(Core::GetDevice(), 1, &fsync.InFlightFence));
-    VKIT_ASSERT_EXPRESSION(table.QueueSubmit(m_QueueData.Graphics->Queue, 1, &submitInfo, fsync.InFlightFence));
+    VKIT_CHECK_EXPRESSION(table.ResetFences(Core::GetDevice(), 1, &fsync.InFlightFence));
+    VKIT_CHECK_EXPRESSION(table.QueueSubmit(*m_Graphics, 1, &submitInfo, fsync.InFlightFence));
 }
 VkResult FrameScheduler::Present()
 {
@@ -154,7 +156,7 @@ VkResult FrameScheduler::Present()
     presentInfo.pImageIndices = &m_ImageIndex;
 
     const auto &table = Core::GetDeviceTable();
-    return table.QueuePresentKHR(m_QueueData.Present->Queue, &presentInfo);
+    return table.QueuePresentKHR(*m_Present, &presentInfo);
 }
 void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Flags)
 {
@@ -162,7 +164,7 @@ void FrameScheduler::EndFrame(Window &p_Window, const VkPipelineStageFlags p_Fla
 
     const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
     const auto &table = Core::GetDeviceTable();
-    VKIT_ASSERT_EXPRESSION(table.EndCommandBuffer(cmd));
+    VKIT_CHECK_EXPRESSION(table.EndCommandBuffer(cmd));
 
     SubmitGraphicsQueue(p_Flags);
     const VkResult result = Present();
@@ -296,7 +298,7 @@ VkResult FrameScheduler::AcquireNextImage(const WaitMode &p_WaitMode)
                                                     VK_TRUE, p_WaitMode.WaitFenceTimeout);
         if (result == VK_NOT_READY || result == VK_TIMEOUT)
             return result;
-        VKIT_ASSERT_RESULT(result);
+        VKIT_CHECK_RESULT(result);
     }
     return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, p_WaitMode.AcquireTimeout,
                                      m_SyncFrameData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE,
@@ -306,7 +308,7 @@ VkResult FrameScheduler::AcquireNextImage(const WaitMode &p_WaitMode)
 void FrameScheduler::SubmitTransferQueue()
 {
     const auto &table = Core::GetDeviceTable();
-    VKIT_ASSERT_EXPRESSION(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand));
+    VKIT_CHECK_EXPRESSION(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand));
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -317,7 +319,7 @@ void FrameScheduler::SubmitTransferQueue()
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &m_SyncFrameData[m_FrameIndex].TransferCopyDoneSemaphore;
 
-    VKIT_ASSERT_EXPRESSION(table.QueueSubmit(m_QueueData.Transfer->Queue, 1, &submitInfo, VK_NULL_HANDLE));
+    VKIT_CHECK_EXPRESSION(table.QueueSubmit(*m_Transfer, 1, &submitInfo, VK_NULL_HANDLE));
 }
 
 PostProcessing *FrameScheduler::SetPostProcessing(const VKit::PipelineLayout &p_Layout,
@@ -390,7 +392,7 @@ void FrameScheduler::createSwapChain(Window &p_Window, const VkExtent2D &p_Windo
                             .AddFlags(VKit::SwapChainBuilderFlag_Clipped | VKit::SwapChainBuilderFlag_CreateImageViews)
                             .Build();
 
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     m_SwapChain = result.GetValue();
 #ifdef TKIT_ENABLE_DEBUG_LOGS
     const u32 icount = m_SwapChain.GetImageCount();
@@ -454,19 +456,20 @@ PerImageData<FrameScheduler::ImageData> FrameScheduler::createImageData()
         ImageData data{};
         data.Presentation = &m_SwapChain.GetImage(i);
 
-        auto iresult =
-            VKit::Image::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, info.SurfaceFormat.format,
-                                 VKit::ImageFlag_ColorAttachment | VKit::ImageFlag_Sampled)
-                .WithImageView()
-                .Build();
-        VKIT_ASSERT_RESULT(iresult);
+        auto iresult = VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent,
+                                                  info.SurfaceFormat.format,
+                                                  VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
+                           .WithImageView()
+                           .Build();
+        VKIT_CHECK_RESULT(iresult);
         data.Intermediate = iresult.GetValue();
 
-        iresult = VKit::Image::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, s_DepthStencilFormat,
-                                       VKit::ImageFlag_DepthAttachment | VKit::ImageFlag_StencilAttachment)
-                      .WithImageView()
-                      .Build();
-        VKIT_ASSERT_RESULT(iresult);
+        iresult =
+            VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, s_DepthStencilFormat,
+                                       VKit::DeviceImageFlag_DepthAttachment | VKit::DeviceImageFlag_StencilAttachment)
+                .WithImageView()
+                .Build();
+        VKIT_CHECK_RESULT(iresult);
         data.DepthStencil = iresult.GetValue();
 
         images.Append(data);
@@ -484,14 +487,21 @@ void FrameScheduler::destroyImageData()
 
 void FrameScheduler::createProcessingEffects()
 {
-    m_NaivePostProcessingFragmentShader = Shaders::Create(ONYX_ROOT_PATH "/onyx/shaders/pp-naive.frag");
+    const Shaders::Compilation cmp = Shaders::Compiler()
+                                         .AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders")
+                                         .AddModule("pp-naive")
+                                         .DeclareEntryPoint("main", ShaderStage_Fragment)
+                                         .Load()
+                                         .Compile();
+
+    m_NaivePostProcessingFragmentShader = cmp.CreateShader("main");
 
     const PerImageData<VkImageView> imageviews = getIntermediateColorImageViews();
     m_PostProcessing.Construct(imageviews);
 
     const VKit::PipelineLayout::Builder builder = m_PostProcessing->CreatePipelineLayoutBuilder();
     const auto result = builder.Build();
-    VKIT_ASSERT_RESULT(result);
+    VKIT_CHECK_RESULT(result);
     m_NaivePostProcessingLayout = result.GetValue();
 
     setupNaivePostProcessing();
@@ -499,12 +509,12 @@ void FrameScheduler::createProcessingEffects()
 
 void FrameScheduler::createCommandData()
 {
-    const u32 gindex = Core::GetFamilyIndex(VKit::Queue_Graphics);
-    const u32 tindex = Core::GetFamilyIndex(VKit::Queue_Transfer);
+    const u32 gindex = Queues::GetFamilyIndex(VKit::Queue_Graphics);
+    const u32 tindex = Queues::GetFamilyIndex(VKit::Queue_Transfer);
 
     if (gindex != tindex)
         m_TransferMode = Transfer_Separate;
-    else if (m_QueueData.Graphics->Queue != m_QueueData.Transfer->Queue)
+    else if (m_Graphics == m_Transfer)
         m_TransferMode = Transfer_SameIndex;
     else
         m_TransferMode = Transfer_SameQueue;
@@ -514,11 +524,11 @@ void FrameScheduler::createCommandData()
         auto result = VKit::CommandPool::Create(Core::GetDevice(), gindex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 
         CommandData &cmd = m_CommandData[i];
-        VKIT_ASSERT_RESULT(result);
+        VKIT_CHECK_RESULT(result);
         cmd.GraphicsPool = result.GetValue();
 
         auto cmdres = cmd.GraphicsPool.Allocate();
-        VKIT_ASSERT_RESULT(cmdres);
+        VKIT_CHECK_RESULT(cmdres);
         cmd.GraphicsCommand = cmdres.GetValue();
         if (m_TransferMode == Transfer_SameQueue)
         {
@@ -529,17 +539,17 @@ void FrameScheduler::createCommandData()
         {
             cmd.TransferPool = cmd.GraphicsPool;
             cmdres = cmd.TransferPool.Allocate();
-            VKIT_ASSERT_RESULT(cmdres);
+            VKIT_CHECK_RESULT(cmdres);
             cmd.TransferCommand = cmdres.GetValue();
         }
         else
         {
             result = VKit::CommandPool::Create(Core::GetDevice(), tindex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
-            VKIT_ASSERT_RESULT(result);
+            VKIT_CHECK_RESULT(result);
             cmd.TransferPool = result.GetValue();
 
             cmdres = cmd.TransferPool.Allocate();
-            VKIT_ASSERT_RESULT(cmdres);
+            VKIT_CHECK_RESULT(cmdres);
             cmd.TransferCommand = cmdres.GetValue();
         }
     }

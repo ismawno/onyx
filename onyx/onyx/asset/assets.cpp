@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/core/limits.hpp"
+#include "onyx/execution/queues.hpp"
 #ifdef ONYX_ENABLE_OBJ
 #    include <tiny_obj_loader.h>
 #endif
@@ -90,24 +91,20 @@ template <typename Vertex> static void uploadVertexData(MeshInfo<Vertex> &p_Info
     const u32 voffset = p_Info.GetVertexCount(p_Start);
     const u32 vcount = p_Info.GetVertexCount(p_End);
 
-    VKit::CommandPool &pool = Core::GetTransferPool();
-    QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-    p_Info.VertexBuffer.template UploadFromHost<Vertex>(pool, queue->Queue, p_Info.Meshes.Vertices,
-                                                        {.Size = vcount, .SrcOffset = voffset, .DstOffset = voffset});
-
-    Core::ReturnQueue(queue);
+    VKit::CommandPool &pool = Queues::GetTransferPool();
+    VKIT_CHECK_EXPRESSION(p_Info.VertexBuffer.template UploadFromHost<Vertex>(
+        pool, *Queues::GetQueue(VKit::Queue_Transfer), p_Info.Meshes.Vertices,
+        {.Size = vcount, .SrcOffset = voffset, .DstOffset = voffset}));
 }
 template <typename Vertex> static void uploadIndexData(MeshInfo<Vertex> &p_Info, const u32 p_Start, const u32 p_End)
 {
     const u32 ioffset = p_Info.GetIndexCount(p_Start);
     const u32 icount = p_Info.GetIndexCount(p_End);
 
-    VKit::CommandPool &pool = Core::GetTransferPool();
-    QueueHandle *queue = Core::BorrowQueue(VKit::Queue_Transfer);
-    p_Info.IndexBuffer.template UploadFromHost<Index>(pool, queue->Queue, p_Info.Meshes.Indices,
-                                                      {.Size = icount, .SrcOffset = ioffset, .DstOffset = ioffset});
-
-    Core::ReturnQueue(queue);
+    VKit::CommandPool &pool = Queues::GetTransferPool();
+    VKIT_CHECK_EXPRESSION(p_Info.IndexBuffer.template UploadFromHost<Index>(
+        pool, *Queues::GetQueue(VKit::Queue_Transfer), p_Info.Meshes.Indices,
+        {.Size = icount, .SrcOffset = ioffset, .DstOffset = ioffset}));
 }
 
 template <typename Vertex> static void uploadMeshData(MeshInfo<Vertex> &p_Info)
@@ -151,14 +148,14 @@ static void createDescriptorData()
                                 .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MaxDescriptors)
                                 .Build();
 
-    VKIT_ASSERT_RESULT(poolResult);
+    VKIT_CHECK_RESULT(poolResult);
     s_DescriptorPool = poolResult.GetValue();
 
     auto layoutResult = VKit::DescriptorSetLayout::Builder(device)
                             .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
                             .Build();
 
-    VKIT_ASSERT_RESULT(layoutResult);
+    VKIT_CHECK_RESULT(layoutResult);
     s_InstanceDataStorageLayout = layoutResult.GetValue();
 
     layoutResult = VKit::DescriptorSetLayout::Builder(device)
@@ -166,7 +163,7 @@ static void createDescriptorData()
                        .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
                        .Build();
 
-    VKIT_ASSERT_RESULT(layoutResult);
+    VKIT_CHECK_RESULT(layoutResult);
     s_LightStorageLayout = layoutResult.GetValue();
 }
 
@@ -234,7 +231,7 @@ VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_
     if (!p_OldSet)
     {
         const auto result = s_DescriptorPool.Allocate(s_InstanceDataStorageLayout);
-        VKIT_ASSERT_RESULT(result);
+        VKIT_CHECK_RESULT(result);
         p_OldSet = result.GetValue();
     }
     writer.Overwrite(p_OldSet);
@@ -321,15 +318,15 @@ void DrawStaticMesh(const VkCommandBuffer p_CommandBuffer, const Mesh p_Mesh, co
 }
 
 #ifdef ONYX_ENABLE_OBJ
-template <Dimension D> VKit::Result<StatMeshData<D>> LoadStaticMesh(const std::string_view p_Path)
+template <Dimension D> VKit::Result<StatMeshData<D>> LoadStaticMesh(const char *p_Path)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, p_Path.data()))
-        return VKit::Result<StatMeshData<D>>::Error(
-            VKIT_FORMAT_ERROR(VK_ERROR_INITIALIZATION_FAILED, "Failed to load mesh: {}", err + warn));
+    if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, p_Path))
+        return VKit::Result<StatMeshData<D>>::Error(VK_ERROR_INITIALIZATION_FAILED,
+                                                    TKit::Format("Failed to load mesh: {}", err + warn));
 
     TKit::HashMap<StatVertex<D>, Index> uniqueVertices;
     StatMeshData<D> data;
@@ -699,8 +696,8 @@ template void DrawStaticMesh<D3>(VkCommandBuffer p_CommandBuffer, Mesh p_Mesh, u
                                  u32 p_InstanceCount);
 
 #ifdef ONYX_ENABLE_OBJ
-template VKit::Result<StatMeshData<D2>> LoadStaticMesh<D2>(std::string_view p_Path);
-template VKit::Result<StatMeshData<D3>> LoadStaticMesh<D3>(std::string_view p_Path);
+template VKit::Result<StatMeshData<D2>> LoadStaticMesh<D2>(const char *p_Path);
+template VKit::Result<StatMeshData<D3>> LoadStaticMesh<D3>(const char *p_Path);
 #endif
 
 template StatMeshData<D2> CreateTriangleMesh<D2>();
