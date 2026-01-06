@@ -28,7 +28,7 @@ static VKit::LogicalDevice s_Device{};
 
 static VKit::DeletionQueue s_DeletionQueue{};
 
-static TKit::FixedArray4<u32> s_QueueRequests;
+static TKit::FixedArray<u32, VKit::Queue_Count> s_QueueRequests;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 static InitCallbacks s_Callbacks{};

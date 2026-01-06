@@ -60,7 +60,7 @@ struct Specs
     const char *VulkanLibraryPath = nullptr;
     TKit::ITaskManager *TaskManager = nullptr;
     InitCallbacks Callbacks{};
-    TKit::FixedArray4<u32> QueueRequests{4, 0, 4, 4};
+    TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{4, 0, 4, 4};
     u32 Platform = ONYX_PLATFORM_AUTO;
     Shaders::Specs Shaders{};
 };
