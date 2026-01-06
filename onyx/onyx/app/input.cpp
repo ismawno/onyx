@@ -884,7 +884,7 @@ void windowResizeCallback(GLFWwindow *p_Window, const i32 p_Width, const i32 p_H
     event.WindowDelta.New = u32v2{static_cast<u32>(p_Width), static_cast<u32>(p_Height)};
 
     window->m_Dimensions = event.WindowDelta.New;
-    window->m_FrameScheduler->RequestSwapchainRecreation();
+    window->RequestSwapchainRecreation();
     window->PushEvent(event);
 }
 } // namespace Onyx

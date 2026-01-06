@@ -9,7 +9,7 @@ namespace Onyx
 void InitializeImGui(Window *p_Window)
 {
     TKIT_CHECK_RETURNS(ImGui_ImplGlfw_InitForVulkan(p_Window->GetWindowHandle(), true), true,
-                        "[ONYX] Failed to initialize ImGui GLFW for window '{}'", p_Window->GetName());
+                       "[ONYX] Failed to initialize ImGui GLFW for window '{}'", p_Window->GetName());
 
     const VKit::Instance &instance = Core::GetInstance();
     const VKit::LogicalDevice &device = Core::GetDevice();
@@ -24,11 +24,10 @@ void InitializeImGui(Window *p_Window)
         "validation layers. If the application runs well, you may safely ignore this warning");
 
     ImGui_ImplVulkan_PipelineInfo pipelineInfo{};
-    pipelineInfo.PipelineRenderingCreateInfo = p_Window->GetFrameScheduler()->CreateSceneRenderInfo();
+    pipelineInfo.PipelineRenderingCreateInfo = p_Window->CreateSceneRenderInfo();
     pipelineInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
-    const VkSurfaceCapabilitiesKHR &sc =
-        p_Window->GetFrameScheduler()->GetSwapChain().GetInfo().SupportDetails.Capabilities;
+    const VkSurfaceCapabilitiesKHR &sc = p_Window->GetSwapChain().GetInfo().SupportDetails.Capabilities;
 
     const u32 imageCount = sc.minImageCount != sc.maxImageCount ? sc.minImageCount + 1 : sc.minImageCount;
 
@@ -37,7 +36,7 @@ void InitializeImGui(Window *p_Window)
     initInfo.Instance = instance;
     initInfo.PhysicalDevice = device.GetInfo().PhysicalDevice;
     initInfo.Device = device;
-    initInfo.Queue = p_Window->GetFrameScheduler()->GetGraphicsQueue()->GetHandle();
+    initInfo.Queue = p_Window->GetGraphicsQueue()->GetHandle();
     initInfo.QueueFamily = Queues::GetFamilyIndex(VKit::Queue_Graphics);
     initInfo.DescriptorPoolSize = 100;
     initInfo.MinImageCount = sc.minImageCount;
@@ -46,14 +45,14 @@ void InitializeImGui(Window *p_Window)
     initInfo.PipelineInfoMain = pipelineInfo;
 
     TKIT_CHECK_RETURNS(ImGui_ImplVulkan_LoadFunctions(instance.GetInfo().ApiVersion,
-                                                       [](const char *p_Name, void *) -> PFN_vkVoidFunction {
-                                                           return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(),
-                                                                                                    p_Name);
-                                                       }),
-                        true, "[ONYX] Failed to load ImGui Vulkan functions");
+                                                      [](const char *p_Name, void *) -> PFN_vkVoidFunction {
+                                                          return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(),
+                                                                                                   p_Name);
+                                                      }),
+                       true, "[ONYX] Failed to load ImGui Vulkan functions");
 
     TKIT_CHECK_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true,
-                        "[ONYX] Failed to initialize ImGui Vulkan for window '{}'", p_Window->GetName());
+                       "[ONYX] Failed to initialize ImGui Vulkan for window '{}'", p_Window->GetName());
 }
 
 void NewImGuiFrame()

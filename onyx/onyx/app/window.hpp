@@ -4,9 +4,9 @@
 #include "onyx/rendering/render_context.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/property/color.hpp"
-#include "onyx/rendering/frame_scheduler.hpp"
+#include "onyx/execution/sync.hpp"
+#include "vkit/presentation/swap_chain.hpp"
 
-#include "tkit/container/storage.hpp"
 #include "tkit/memory/block_allocator.hpp"
 
 struct GLFWwindow;
@@ -23,8 +23,8 @@ TKit::Timespan ToDeltaTime(u32 p_FrameRate);
 
 struct FrameInfo
 {
-    VkCommandBuffer GraphicsCommand;
-    VkCommandBuffer TransferCommand;
+    VkCommandBuffer GraphicsCommand = VK_NULL_HANDLE;
+    VkCommandBuffer TransferCommand = VK_NULL_HANDLE;
     u32 FrameIndex;
 
     operator bool() const
@@ -43,10 +43,38 @@ enum WindowFlagBit : WindowFlags
     WindowFlag_Floating = 1 << 4,
 };
 
+enum TransferMode : u8
+{
+    Transfer_Separate = 0,
+    Transfer_SameIndex = 1,
+    Transfer_SameQueue = 2
+};
+
+struct WaitMode
+{
+    u64 WaitFenceTimeout;
+    u64 AcquireTimeout;
+
+    static const WaitMode Block;
+    static const WaitMode Poll;
+};
+
 class Window
 {
     TKIT_NON_COPYABLE(Window)
   public:
+    struct ImageData
+    {
+        VKit::DeviceImage *Presentation;
+        VKit::DeviceImage DepthStencil;
+    };
+    struct CommandData
+    {
+        VKit::CommandPool GraphicsPool;
+        VKit::CommandPool TransferPool;
+        VkCommandBuffer GraphicsCommand;
+        VkCommandBuffer TransferCommand;
+    };
     struct Specs
     {
         const char *Name = "Onyx window";
@@ -114,25 +142,15 @@ class Window
 
     void EnableVSync()
     {
-        m_FrameScheduler->SetPresentMode(VK_PRESENT_MODE_FIFO_KHR);
+        SetPresentMode(VK_PRESENT_MODE_FIFO_KHR);
     }
     void DisableVSync(const VkPresentModeKHR p_PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR)
     {
-        m_FrameScheduler->SetPresentMode(p_PresentMode);
+        SetPresentMode(p_PresentMode);
     }
     bool IsVSync() const
     {
-        const VkPresentModeKHR pm = m_FrameScheduler->GetPresentMode();
-        return pm == VK_PRESENT_MODE_FIFO_KHR || pm == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
-    }
-
-    const FrameScheduler *GetFrameScheduler() const
-    {
-        return m_FrameScheduler.Get();
-    }
-    FrameScheduler *GetFrameScheduler()
-    {
-        return m_FrameScheduler.Get();
+        return m_PresentMode == VK_PRESENT_MODE_FIFO_KHR || m_PresentMode == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
     }
 
     const char *GetName() const
@@ -160,11 +178,11 @@ class Window
 
     u32 GetPixelWidth() const
     {
-        return m_FrameScheduler->GetSwapChain().GetInfo().Extent.width;
+        return m_SwapChain.GetInfo().Extent.width;
     }
     u32 GetPixelHeight() const
     {
-        return m_FrameScheduler->GetSwapChain().GetInfo().Extent.height;
+        return m_SwapChain.GetInfo().Extent.height;
     }
     u32v2 GetPixelDimensions() const
     {
@@ -219,7 +237,7 @@ class Window
 
     template <Dimension D> RenderContext<D> *CreateRenderContext()
     {
-        RenderContext<D> *context = m_Allocator.Create<RenderContext<D>>(m_FrameScheduler->CreateSceneRenderInfo());
+        RenderContext<D> *context = m_Allocator.Create<RenderContext<D>>(CreateSceneRenderInfo());
         auto &array = getContextArray<D>();
         array.Append(context);
         return context;
@@ -289,10 +307,74 @@ class Window
             }
     }
 
+    u32 GetFrameIndex() const
+    {
+        return m_FrameIndex;
+    }
+
+    VkPipelineRenderingCreateInfoKHR CreateSceneRenderInfo() const;
+
+    VkResult AcquireNextImage(const WaitMode &p_WaitMode);
+
+    void SubmitGraphicsQueue(VkPipelineStageFlags p_Flags);
+    void SubmitTransferQueue();
+    VkResult Present();
+
+    VkCommandBuffer GetGraphicsCommandBuffer() const
+    {
+        return m_CommandData[m_FrameIndex].GraphicsCommand;
+    }
+    VkCommandBuffer GetTransferCommandBuffer() const
+    {
+        return m_CommandData[m_FrameIndex].TransferCommand;
+    }
+
+    VKit::Queue *GetGraphicsQueue() const
+    {
+        return m_Graphics;
+    }
+
+    void RequestSwapchainRecreation()
+    {
+        m_MustRecreateSwapchain = true;
+    }
+
+    const VKit::SwapChain &GetSwapChain() const
+    {
+        return m_SwapChain;
+    }
+    VkPresentModeKHR GetPresentMode() const
+    {
+        return m_PresentMode;
+    }
+    const TKit::Array8<VkPresentModeKHR> &GetAvailablePresentModes() const
+    {
+        return m_SwapChain.GetInfo().SupportDetails.PresentModes;
+    }
+
+    void SetPresentMode(const VkPresentModeKHR p_PresentMode)
+    {
+        if (m_PresentMode == p_PresentMode)
+            return;
+        m_MustRecreateSwapchain = true;
+        m_PresentMode = p_PresentMode;
+    }
+
   private:
     void recreateSurface();
     void createWindow(const Specs &p_Specs);
     void adaptCamerasToViewportAspect();
+    void createSwapChain(const VkExtent2D &p_WindowExtent);
+    void recreateSwapChain();
+    void recreateResources();
+    void createCommandData();
+
+    bool handleImageResult(VkResult p_Result);
+
+    PerImageData<ImageData> createImageData();
+    void destroyImageData();
+
+    VkExtent2D waitGlfwEvents();
 
     template <Dimension D> auto &getContextArray()
     {
@@ -320,8 +402,6 @@ class Window
 
     GLFWwindow *m_Window;
 
-    TKit::Storage<FrameScheduler> m_FrameScheduler;
-
     RenderContextArray<D2> m_RenderContexts2;
     RenderContextArray<D3> m_RenderContexts3;
 
@@ -335,15 +415,34 @@ class Window
 
     TKit::Timespan m_MonitorDeltaTime{};
 
+    PerImageData<ImageData> m_Images{};
+
+    VKit::SwapChain m_SwapChain;
+
+    PerFrameData<CommandData> m_CommandData;
+
+    PerFrameData<Detail::SyncFrameData> m_SyncFrameData{};
+    PerImageData<Detail::SyncImageData> m_SyncImageData{};
+
+    VKit::Queue *m_Graphics;
+    VKit::Queue *m_Transfer;
+    VKit::Queue *m_Present;
+
+    u32 m_ImageIndex;
+    u32 m_FrameIndex = 0;
+    TransferMode m_TransferMode;
+
     const char *m_Name;
     u32v2 m_Position;
     u32v2 m_Dimensions;
 #ifdef TKIT_ENABLE_INSTRUMENTATION
     u32 m_ColorIndex = 0;
 #endif
-    WindowFlags m_Flags;
 
-    friend class FrameScheduler;
+    VkPresentModeKHR m_PresentMode;
+    WindowFlags m_Flags;
+    bool m_MustRecreateSwapchain = false;
+
     friend void windowResizeCallback(GLFWwindow *, const i32, const i32);
 };
 } // namespace Onyx
