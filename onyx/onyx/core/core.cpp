@@ -149,7 +149,7 @@ void Initialize(const Specs &p_Specs)
 #endif
 
 #ifdef TKIT_ENABLE_ASSERTS
-    for (u32 i = 0; i < 4; ++i)
+    for (u32 i = 0; i < VKit::Queue_Count; ++i)
     {
         TKIT_ASSERT(i == 1 || p_Specs.QueueRequests[i] > 0,
                     "[ONYX] The queue request count for all queues must be at least 1 except for compute queues, "
