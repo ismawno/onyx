@@ -89,7 +89,7 @@ template <typename Vertex> static void checkSize(MeshInfo<Vertex> &p_Info)
 template <typename Vertex> static void uploadVertexData(MeshInfo<Vertex> &p_Info, const u32 p_Start, const u32 p_End)
 {
     const u32 voffset = p_Info.GetVertexCount(p_Start);
-    const u32 vcount = p_Info.GetVertexCount(p_End);
+    const u32 vcount = p_Info.GetVertexCount(p_End) - voffset;
 
     VKit::CommandPool &pool = Queues::GetTransferPool();
     VKIT_CHECK_EXPRESSION(p_Info.VertexBuffer.template UploadFromHost<Vertex>(
@@ -99,7 +99,7 @@ template <typename Vertex> static void uploadVertexData(MeshInfo<Vertex> &p_Info
 template <typename Vertex> static void uploadIndexData(MeshInfo<Vertex> &p_Info, const u32 p_Start, const u32 p_End)
 {
     const u32 ioffset = p_Info.GetIndexCount(p_Start);
-    const u32 icount = p_Info.GetIndexCount(p_End);
+    const u32 icount = p_Info.GetIndexCount(p_End) - ioffset;
 
     VKit::CommandPool &pool = Queues::GetTransferPool();
     VKIT_CHECK_EXPRESSION(p_Info.IndexBuffer.template UploadFromHost<Index>(
@@ -284,6 +284,7 @@ template <Dimension D> u32 GetStaticMeshCount()
 
 template <Dimension D> void Upload()
 {
+    Core::DeviceWaitIdle();
     AssetData<D> &data = getData<D>();
     uploadMeshData(data.StaticMeshes);
 }

@@ -25,19 +25,38 @@ struct MeshContainer
 };
 
 // order matters here. meshes must go first
-enum ShapeType : u8
+enum class ShapeType2 : u8
 {
-    Shape_Triangle = 0,
-    Shape_Square,
-    Shape_Cube,
-    Shape_Sphere,
-    Shape_Cylinder,
-    Shape_ImportedStatic,
-    Shape_Circle,
+    Triangle = 0,
+    Square,
+    ImportedStatic,
+    Circle,
 };
+enum class ShapeType3 : u8
+{
+    Triangle = 0,
+    Square,
+    Cube,
+    Sphere,
+    Cylinder,
+    ImportedStatic,
+    Circle,
+};
+
+template <Dimension D> struct ShapeSelect;
+template <> struct ShapeSelect<D2>
+{
+    using Type = ShapeType2;
+};
+template <> struct ShapeSelect<D3>
+{
+    using Type = ShapeType3;
+};
+template <Dimension D> using ShapeType = typename ShapeSelect<D>::Type;
+
 template <Dimension D> struct Shape
 {
-    ShapeType Type;
+    ShapeType<D> Type;
     std::string Name;
     Mesh Mesh = NullMesh;
     Transform<D> Transform{};
@@ -99,7 +118,7 @@ template <Dimension D> struct IContextData
     TKit::Array<Shape<D>, ONYX_SANDBOX_MAX_SHAPES> Shapes;
     MaterialData<D> AxesMaterial{};
 
-    u32 ShapeToSpawn = Shape_Triangle;
+    u32 ShapeToSpawn = u32(ShapeType<D>::Triangle);
     u32 ImportedStatToSpawn = 0;
     f32 AxesThickness = 0.01f;
     u32 SelectedShape = 0;

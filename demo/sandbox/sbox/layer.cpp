@@ -4,15 +4,14 @@
 #include "onyx/imgui/implot.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/core/dialog.hpp"
-#include "onyx/state/shaders.hpp"
 #include "onyx/property/camera.hpp"
-#include "vkit/vulkan/vulkan.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/utils/limits.hpp"
 
 namespace Onyx::Demo
 {
+// this readds the meshes everytime. so it could blow up haha but idc
 template <Dimension D> void addMeshes(MeshContainer &p_Meshes)
 {
     const auto add = [&p_Meshes](const char *p_Name, const StatMeshData<D> &p_Mesh) {
@@ -279,7 +278,7 @@ template <Dimension D> void editShape(Shape<D> &p_Shape)
     ImGui::Checkbox("Outline", &p_Shape.Outline);
     ImGui::SliderFloat("Outline Width", &p_Shape.OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
     ImGui::ColorEdit4("Outline Color", p_Shape.OutlineColor.GetData());
-    if (p_Shape.Type == Shape_Circle)
+    if (p_Shape.Type == ShapeType<D>::Circle)
     {
         ImGui::SliderFloat("Inner Fade", &p_Shape.CircleOptions.InnerFade, 0.f, 1.f, "%.2f");
         ImGui::SliderFloat("Outer Fade", &p_Shape.CircleOptions.OuterFade, 0.f, 1.f, "%.2f");
@@ -300,7 +299,7 @@ template <Dimension D> void setShapeProperties(RenderContext<D> *p_Context, cons
 template <Dimension D>
 void drawShape(RenderContext<D> *p_Context, const Shape<D> &p_Shape, const Transform<D> *p_Transform = nullptr)
 {
-    if (p_Shape.Type == Shape_Circle)
+    if (p_Shape.Type == ShapeType<D>::Circle)
         p_Context->Circle((p_Transform ? *p_Transform : p_Shape.Transform).ComputeTransform(), p_Shape.CircleOptions);
     else
         p_Context->StaticMesh(p_Shape.Mesh, (p_Transform ? *p_Transform : p_Shape.Transform).ComputeTransform());
@@ -310,14 +309,14 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
 {
     const auto createShape = [&]() -> Shape<D> {
         Shape<D> shape{};
-        shape.Type = static_cast<ShapeType>(p_Context.ShapeToSpawn);
-        if (p_Context.ShapeToSpawn == Shape_ImportedStatic)
+        shape.Type = static_cast<ShapeType<D>>(p_Context.ShapeToSpawn);
+        if (p_Context.ShapeToSpawn == u32(ShapeType<D>::ImportedStatic))
         {
             const MeshId &mesh = p_Meshes.StaticMeshes[p_Meshes.StaticOffset + p_Context.ImportedStatToSpawn];
             shape.Name = mesh.Name;
             shape.Mesh = mesh.Mesh;
         }
-        else if (p_Context.ShapeToSpawn == Shape_Circle)
+        else if (p_Context.ShapeToSpawn == u32(ShapeType<D>::Circle))
             shape.Name = "Circle";
         else
         {
@@ -329,7 +328,7 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
         return shape;
     };
     const auto isBadSpawnImportedStatic = [&] {
-        return p_Context.ShapeToSpawn == Shape_ImportedStatic &&
+        return p_Context.ShapeToSpawn == u32(ShapeType<D>::ImportedStatic) &&
                p_Context.ImportedStatToSpawn + p_Meshes.StaticOffset >= p_Meshes.StaticMeshes.GetSize();
     };
 
@@ -350,7 +349,7 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
         lattice.NeedsUpdate |= combo("Shape", &p_Context.ShapeToSpawn,
                                      "Triangle\0Square\0Cube\0Sphere\0Cylinder\0Imported static meshes\0Circle\0\0");
 
-    if (p_Context.ShapeToSpawn == Shape_ImportedStatic)
+    if (p_Context.ShapeToSpawn == u32(ShapeType<D>::ImportedStatic))
     {
         if (p_Meshes.StaticMeshes.GetSize() > p_Meshes.StaticOffset)
         {
@@ -399,11 +398,10 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
 
         ImGui::Checkbox("Separation proportional to scale", &lattice.PropToScale);
         ImGui::DragFloat("Lattice separation", &lattice.Separation, 0.01f, 0.f, FLT_MAX);
-        if (lattice.Shape.Type != NullMesh)
-        {
-            ImGui::Text("Lattice shape:");
-            editShape(lattice.Shape);
-        }
+
+        ImGui::Text("Lattice shape:");
+        editShape(lattice.Shape);
+
         ImGui::TreePop();
     }
     if (ImGui::TreeNode("Line test"))
@@ -437,9 +435,11 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
         }
         p_Context.Context->Material(line.Material);
         if constexpr (D == D2)
-            p_Context.Context->Line(p_Meshes.StaticMeshes[Shape_Square].Mesh, line.Start, line.End, line.Thickness);
+            p_Context.Context->Line(p_Meshes.StaticMeshes[u32(ShapeType<D2>::Square)].Mesh, line.Start, line.End,
+                                    line.Thickness);
         else
-            p_Context.Context->Line(p_Meshes.StaticMeshes[Shape_Cylinder].Mesh, line.Start, line.End, line.Thickness);
+            p_Context.Context->Line(p_Meshes.StaticMeshes[u32(ShapeType<D3>::Cylinder)].Mesh, line.Start, line.End,
+                                    line.Thickness);
         p_Context.Context->Pop();
         ImGui::TreePop();
     }
@@ -759,9 +759,10 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
         p_Context.Context->Material(p_Context.AxesMaterial);
         p_Context.Context->Fill();
         if constexpr (D == D2)
-            p_Context.Context->Axes(m_Meshes2.StaticMeshes[Shape_Square].Mesh, {.Thickness = p_Context.AxesThickness});
+            p_Context.Context->Axes(m_Meshes2.StaticMeshes[u32(ShapeType<D2>::Square)].Mesh,
+                                    {.Thickness = p_Context.AxesThickness});
         else
-            p_Context.Context->Axes(m_Meshes3.StaticMeshes[Shape_Cylinder].Mesh,
+            p_Context.Context->Axes(m_Meshes3.StaticMeshes[u32(ShapeType<D3>::Cylinder)].Mesh,
                                     {.Thickness = p_Context.AxesThickness});
     }
 
@@ -778,7 +779,7 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
                 p_Context.Context->Fill(Color::Unpack(light.Color));
                 p_Context.Context->Scale(0.01f);
                 p_Context.Context->Translate(light.Position);
-                p_Context.Context->StaticMesh(m_Meshes3.StaticMeshes[Shape_Sphere].Mesh);
+                p_Context.Context->StaticMesh(m_Meshes3.StaticMeshes[u32(ShapeType<D3>::Sphere)].Mesh);
                 p_Context.Context->Pop();
             }
             p_Context.Context->PointLight(light);

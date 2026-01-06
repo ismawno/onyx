@@ -40,11 +40,6 @@ template <Dimension D> ShaderData &getShaders(const DrawMode p_Mode)
         return p_Mode == Draw_Fill ? s_FillShaders3 : s_OutlineShaders3;
 }
 
-static VKit::Shader createShader(const char *)
-{
-    return VKit::Shader{};
-}
-
 static void createPipelineLayouts()
 {
     TKIT_LOG_INFO("[ONYX] Creating pipeline layouts");
@@ -74,25 +69,54 @@ static void createPipelineLayouts()
 static void createShaders()
 {
     TKIT_LOG_INFO("[ONYX] Creating global shaders");
-    s_FillShaders2.MeshVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-2D.vert");
-    s_FillShaders2.MeshFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-2D.frag");
 
-    s_FillShaders2.CircleVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-2D.vert");
-    s_FillShaders2.CircleFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-2D.frag");
+    const Shaders::Compilation cmp = Shaders::Compiler()
+                                         .AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders")
+                                         .AddModule("mesh-2D")
+                                         .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                                         .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                                         .Load()
+                                         .AddModule("circle-2D")
+                                         .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                                         .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                                         .Load()
+                                         .AddModule("mesh-fill-3D")
+                                         .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                                         .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                                         .Load()
+                                         .AddModule("circle-fill-3D")
+                                         .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                                         .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                                         .Load()
+                                         .AddModule("mesh-stencil-3D")
+                                         .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                                         .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                                         .Load()
+                                         .AddModule("circle-stencil-3D")
+                                         .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                                         .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                                         .Load()
+                                         .Compile();
 
-    s_FillShaders3.MeshVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-fill-3D.vert");
-    s_FillShaders3.MeshFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-fill-3D.frag");
+    s_FillShaders2.MeshVertexShader = cmp.CreateShader("mainVS", "mesh-2D");
+    s_FillShaders2.MeshFragmentShader = cmp.CreateShader("mainFS", "mesh-2D");
 
-    s_FillShaders3.CircleVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-fill-3D.vert");
-    s_FillShaders3.CircleFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-fill-3D.frag");
+    s_FillShaders2.CircleVertexShader = cmp.CreateShader("mainVS", "circle-2D");
+    s_FillShaders2.CircleFragmentShader = cmp.CreateShader("mainFS", "circle-2D");
+
+    s_FillShaders3.MeshVertexShader = cmp.CreateShader("mainVS", "mesh-fill-3D");
+    s_FillShaders3.MeshFragmentShader = cmp.CreateShader("mainFS", "mesh-fill-3D");
+
+    s_FillShaders3.CircleVertexShader = cmp.CreateShader("mainVS", "circle-fill-3D");
+    s_FillShaders3.CircleFragmentShader = cmp.CreateShader("mainFS", "circle-fill-3D");
 
     s_OutlineShaders2 = s_FillShaders2;
 
-    s_OutlineShaders3.MeshVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-stencil-3D.vert");
-    s_OutlineShaders3.MeshFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/mesh-stencil-3D.frag");
+    s_OutlineShaders3.MeshVertexShader = cmp.CreateShader("mainVS", "mesh-stencil-3D");
+    s_OutlineShaders3.MeshFragmentShader = cmp.CreateShader("mainFS", "mesh-stencil-3D");
 
-    s_OutlineShaders3.CircleVertexShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-stencil-3D.vert");
-    s_OutlineShaders3.CircleFragmentShader = createShader(ONYX_ROOT_PATH "/onyx/shaders/circle-stencil-3D.frag");
+    s_OutlineShaders3.CircleVertexShader = cmp.CreateShader("mainVS", "circle-stencil-3D");
+    s_OutlineShaders3.CircleFragmentShader = cmp.CreateShader("mainFS", "circle-stencil-3D");
 }
 
 void Initialize()

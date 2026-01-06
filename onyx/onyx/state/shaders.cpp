@@ -472,22 +472,6 @@ static slang::CompilerOptionName getArgumentName(const ShaderArgumentName p_Arg)
     return SO::CountOf;
 }
 
-#ifdef TKIT_ENABLE_INFO_LOGS
-static void logDiagnostics(slang::IBlob *p_Diagnostics)
-{
-    if (!p_Diagnostics)
-        return;
-    const char *text = static_cast<const char *>(p_Diagnostics->getBufferPointer());
-    const size_t size = p_Diagnostics->getBufferSize();
-    const std::string message{text, size};
-
-    TKIT_LOG_INFO("[ONYX] Module added with the following diagnostics: {}", message);
-}
-#    define LOG_DIAGNOSTICS(p_Diagnostics) logDiagnostics(p_Diagnostics)
-#else
-#    define LOG_DIAGNOSTICS(p_Diagnostics)
-#endif
-
 #if defined(TKIT_ENABLE_ASSERTS) || defined(TKIT_ENABLE_INFO_LOGS)
 static void reportDiagnostics(const SlangResult p_Result, slang::IBlob *p_Diagnostics)
 {
@@ -518,6 +502,7 @@ Compilation Compiler::Compile() const
     slang::SessionDesc cdesc{};
     cdesc.targets = &tdesc;
     cdesc.targetCount = 1;
+    cdesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR;
 
     TKit::Array16<slang::PreprocessorMacroDesc> defines;
     if (!m_Macros.IsEmpty())
@@ -530,23 +515,25 @@ Compilation Compiler::Compile() const
     }
 
     TKit::Array16<slang::CompilerOptionEntry> coptions;
-    if (!m_Arguments.IsEmpty())
+
+    slang::CompilerOptionEntry entry;
+    entry.name = slang::CompilerOptionName::MatrixLayoutColumn;
+    coptions.Append(entry);
+
+    for (const ShaderArgument &sa : m_Arguments)
     {
-        for (const ShaderArgument &sa : m_Arguments)
-        {
-            slang::CompilerOptionEntry entry;
-            entry.name = getArgumentName(sa.Name);
-            entry.value.intValue0 = sa.Value.Value0;
-            entry.value.intValue1 = sa.Value.Value1;
-            entry.value.stringValue0 = sa.Value.String0;
-            entry.value.stringValue1 = sa.Value.String1;
+        slang::CompilerOptionEntry entry;
+        entry.name = getArgumentName(sa.Name);
+        entry.value.intValue0 = sa.Value.Value0;
+        entry.value.intValue1 = sa.Value.Value1;
+        entry.value.stringValue0 = sa.Value.String0;
+        entry.value.stringValue1 = sa.Value.String1;
 
-            coptions.Append(entry);
-        }
-
-        cdesc.compilerOptionEntries = coptions.GetData();
-        cdesc.compilerOptionEntryCount = coptions.GetSize();
+        coptions.Append(entry);
     }
+
+    cdesc.compilerOptionEntries = coptions.GetData();
+    cdesc.compilerOptionEntryCount = coptions.GetSize();
 
     if (!m_SearchPaths.IsEmpty())
     {
@@ -580,7 +567,7 @@ Compilation Compiler::Compile() const
         else
             module = session->loadModule(munit.m_Name, &diagnostics);
 
-        LOG_DIAGNOSTICS(diagnostics);
+        REPORT_DIAGNOSTICS(module ? 0 : -1, diagnostics);
         TKIT_LOG_INFO("[ONYX] Successfully loaded module '{}'", module->getName());
         release(diagnostics);
 
@@ -610,6 +597,7 @@ Compilation Compiler::Compile() const
             slang::IBlob *code;
             result = linkedProgram->getEntryPointCode(i, 0, &code, &diagnostics);
             REPORT_DIAGNOSTICS(result, diagnostics);
+            release(diagnostics);
 
             const size_t size = code->getBufferSize();
             void *mem = TKit::Memory::Allocate(size);
@@ -634,7 +622,6 @@ Compilation Compiler::Compile() const
             sp.Size = size;
 
             sprvs.Append(sp);
-            release(diagnostics);
         }
 
         release(linkedProgram);
