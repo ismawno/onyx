@@ -32,8 +32,8 @@ static const float2 g_Positions[6] =
     float2( 0.5,  0.5),
     float2(-0.5,  0.5),
     float2(-0.5, -0.5),
-    float2( 0.5,  0.5),
-    float2( 0.5, -0.5)
+    float2( 0.5, -0.5),
+    float2( 0.5,  0.5)
 };
 
 [shader("vertex")]

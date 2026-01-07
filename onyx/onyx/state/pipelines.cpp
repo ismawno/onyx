@@ -203,8 +203,8 @@ VKit::GraphicsPipeline CreateStaticMeshPipeline(const PipelineMode p_Mode,
         createPipelineBuilder<D>(p_Mode, p_RenderInfo, shaders.MeshVertexShader, shaders.MeshFragmentShader);
 
     builder.AddBindingDescription<StatVertex<D>>(VK_VERTEX_INPUT_RATE_VERTEX);
-    if constexpr (D == D2)
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, Position));
+    if (D == D2 || p_Mode == Pipeline_DoStencilWriteNoFill || p_Mode == Pipeline_DoStencilTestNoFill)
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D>, Position));
     else
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position))
             .AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Normal));
