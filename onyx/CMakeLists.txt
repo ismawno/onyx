@@ -40,7 +40,7 @@ include(FetchContent)
 FetchContent_Declare(
   vulkit
   GIT_REPOSITORY https://github.com/ismawno/vulkit.git
-  GIT_TAG main
+  GIT_TAG 8a6434597f15ebfd9a12819382c5d9c3e902f4d9
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE)
 FetchContent_MakeAvailable(vulkit)
