@@ -135,7 +135,8 @@ enum Key : u16
     Key_RightAlt,
     Key_RightSuper,
     Key_Menu,
-    Key_None
+    Key_None,
+    Key_Count
 };
 
 TKIT_REFLECT_DECLARE_ENUM(Mouse)
@@ -153,7 +154,8 @@ enum Mouse : u8
     Mouse_ButtonLeft,
     Mouse_ButtonRight,
     Mouse_ButtonMiddle,
-    Mouse_None
+    Mouse_None,
+    Mouse_Count
 };
 
 /**
@@ -194,11 +196,11 @@ enum EventType : u8
     Event_FramebufferResized,
     Event_CharInput,
     Event_SwapChainRecreated,
+    Event_Count,
 };
 
 struct Event
 {
-
     struct WindowMovedResized
     {
         u32v2 Old;

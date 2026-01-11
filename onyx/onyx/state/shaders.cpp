@@ -666,21 +666,4 @@ VKit::Shader Create(const std::string_view p_SpirvPath)
     VKIT_CHECK_RESULT(result);
     return result.GetValue();
 }
-
-const VKit::Shader &GetFullPassVertexShader()
-{
-    static VKit::Shader shader{};
-    if (shader)
-        return shader;
-    shader = Shaders::Compiler()
-                 .AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders")
-                 .AddModule("pp-full-pass")
-                 .DeclareEntryPoint("main", ShaderStage_Vertex)
-                 .Load()
-                 .Compile()
-                 .CreateShader("main");
-    Core::GetDeletionQueue().SubmitForDeletion(shader);
-    return shader;
-}
-
 } // namespace Onyx::Shaders

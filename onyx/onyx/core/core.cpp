@@ -116,7 +116,7 @@ static void createDevice(const VkSurfaceKHR p_Surface)
     VKIT_CHECK_RESULT(devres);
     s_Device = devres.GetValue();
 
-    TKIT_LOG_INFO("[ONYX] Created Vulkan device: {}",
+    TKIT_LOG_INFO("[ONYX] Created vulkan device: {}",
                   s_Device.GetInfo().PhysicalDevice.GetInfo().Properties.Core.deviceName);
     TKIT_LOG_WARNING_IF(!(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::DeviceFlag_Optimal),
                         "[ONYX] The device is suitable, but not optimal");
@@ -135,14 +135,14 @@ static void createVulkanAllocator()
     const auto result = VKit::CreateAllocator(s_Device);
     VKIT_CHECK_RESULT(result);
     s_VulkanAllocator = result.GetValue();
-    TKIT_LOG_INFO("[ONYX] Creating Vulkan allocator");
+    TKIT_LOG_INFO("[ONYX] Creating vulkan allocator");
 
     s_DeletionQueue.Push([] { VKit::DestroyAllocator(s_VulkanAllocator); });
 }
 
 void Initialize(const Specs &p_Specs)
 {
-    TKIT_LOG_INFO("[ONYX] Creating Vulkan instance");
+    TKIT_LOG_INFO("[ONYX] Initializing Onyx");
     s_Specs = p_Specs;
 #ifdef ONYX_FONTCONFIG
     FcInit();
@@ -169,13 +169,15 @@ void Initialize(const Specs &p_Specs)
     }
     s_Callbacks = p_Specs.Callbacks;
 
-    const auto sysres = VKit::Core::Initialize();
-    VKIT_CHECK_RESULT(sysres);
+    TKIT_LOG_INFO("[ONYX] Initializing Vulkit");
+    VKIT_CHECK_EXPRESSION(VKit::Core::Initialize());
 
+    TKIT_LOG_INFO("[ONYX] Initializing GLFW");
     glfwInitHint(GLFW_PLATFORM, p_Specs.Platform);
     TKIT_CHECK_RETURNS(glfwInit(), GLFW_TRUE, "[ONYX] Failed to initialize GLFW");
     TKIT_LOG_WARNING_IF(!glfwVulkanSupported(), "[ONYX] Vulkan is not supported, according to GLFW");
 
+    TKIT_LOG_INFO("[ONYX] Creating vulkan instance");
     u32 extensionCount;
     const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
     const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);
@@ -196,10 +198,8 @@ void Initialize(const Specs &p_Specs)
     VKIT_CHECK_RESULT(result);
 
     s_Instance = result.GetValue();
-    TKIT_LOG_INFO("[ONYX] Created Vulkan instance. API version: {}.{}.{}",
-                  VKIT_API_VERSION_MAJOR(s_Instance.GetInfo().ApiVersion),
-                  VKIT_API_VERSION_MINOR(s_Instance.GetInfo().ApiVersion),
-                  VKIT_API_VERSION_PATCH(s_Instance.GetInfo().ApiVersion));
+    TKIT_LOG_INFO("[ONYX] Created vulkan instance. API version: {}.{}.{}",
+                  VKIT_EXPAND_VERSION(s_Instance.GetInfo().ApiVersion));
 
 #if defined(TKIT_ENABLE_INFO_LOGS) || defined(TKIT_ENABLE_ERROR_LOGS)
     const bool vlayers = s_Instance.GetInfo().Flags & VKit::InstanceFlag_HasValidationLayers;

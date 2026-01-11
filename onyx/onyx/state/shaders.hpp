@@ -332,5 +332,4 @@ VKit::Shader Create(const u32 *p_Spirv, size_t p_Size);
 VKit::Shader Create(const Spirv &p_Spirv);
 VKit::Shader Create(std::string_view p_SpirvPath);
 
-const VKit::Shader &GetFullPassVertexShader();
 } // namespace Onyx::Shaders

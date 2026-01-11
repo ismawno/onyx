@@ -38,10 +38,7 @@
           vulkan-memory-allocator
           vulkan-validation-layers
 
-          spirv-tools
-          shaderc
           shader-slang
-
           glfw
           wayland
           wayland-protocols

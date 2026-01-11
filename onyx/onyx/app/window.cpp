@@ -359,12 +359,10 @@ FrameInfo Window::BeginFrame(const WaitMode &p_WaitMode)
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     const CommandData &cmd = m_CommandData[m_FrameIndex];
-    auto cmdres = cmd.GraphicsPool.Reset();
-    VKIT_CHECK_RESULT(cmdres);
+    VKIT_CHECK_EXPRESSION(cmd.GraphicsPool.Reset());
     if (m_TransferMode == Transfer_Separate)
     {
-        cmdres = cmd.TransferPool.Reset();
-        VKIT_CHECK_RESULT(cmdres);
+        VKIT_CHECK_EXPRESSION(cmd.TransferPool.Reset());
     }
 
     const auto &table = Core::GetDeviceTable();

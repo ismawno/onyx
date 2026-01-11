@@ -256,6 +256,8 @@ static i32 toGlfw(const Key p_Key)
         return GLFW_KEY_MENU;
     case Key_None:
         return GLFW_KEY_LAST + 1;
+    default:
+        return GLFW_KEY_LAST + 1;
     }
     return GLFW_KEY_LAST + 1;
 }
@@ -289,6 +291,8 @@ static i32 toGlfw(const Mouse p_Mouse)
     case Mouse_ButtonMiddle:
         return GLFW_MOUSE_BUTTON_MIDDLE;
     case Mouse_None:
+        return GLFW_MOUSE_BUTTON_LAST + 1;
+    default:
         return GLFW_MOUSE_BUTTON_LAST + 1;
     }
     return GLFW_MOUSE_BUTTON_LAST + 1;
