@@ -1,26 +1,71 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
+#include "onyx/property/instance.hpp"
 #include "onyx/property/options.hpp"
-#include "onyx/state/state.hpp"
-#include "onyx/rendering/renderer.hpp"
-#include <vulkan/vulkan.h>
+#include "onyx/asset/mesh.hpp"
+#include "onyx/core/limits.hpp"
+#include "onyx/app/window.hpp"
+#include "vkit/resource/host_buffer.hpp"
 
 namespace Onyx
 {
-class Window;
+using RenderStateFlags = u8;
+enum RenderStateFlagBit : RenderStateFlags
+{
+    RenderStateFlag_Fill = 1 << 0,
+    RenderStateFlag_Outline = 1 << 1,
+};
+
+template <Dimension D> struct RenderState;
+
+template <> struct RenderState<D2>
+{
+    TKIT_REFLECT_DECLARE(RenderState)
+    TKIT_YAML_SERIALIZE_DECLARE(RenderState)
+
+    f32m3 Transform = f32m3::Identity();
+    Color FillColor = Color::WHITE;
+    Color OutlineColor = Color::WHITE;
+    f32 OutlineWidth = 0.1f;
+    RenderStateFlags Flags = RenderStateFlag_Fill;
+};
+
+template <> struct RenderState<D3>
+{
+    TKIT_REFLECT_DECLARE(RenderState)
+    TKIT_YAML_SERIALIZE_DECLARE(RenderState)
+
+    f32m4 Transform = f32m4::Identity();
+    Color FillColor = Color::WHITE;
+    Color OutlineColor = Color::WHITE;
+    Color LightColor = Color::WHITE;
+    f32 OutlineWidth = 0.1f;
+    RenderStateFlags Flags = RenderStateFlag_Fill;
+};
+
 } // namespace Onyx
 
 namespace Onyx::Detail
 {
-template <Dimension D> using RenderStateStack = TKit::Array<RenderState<D>, MaxRenderStateDepth>;
-template <Dimension D> class IRenderContext
+enum BatchRanges : u32
+{
+    BatchRangeSize_StaticMesh = MaxBatches - 1,
+    BatchRangeStart_StaticMesh = 0,
+    BatchRangeEnd_StaticMesh = BatchRangeSize_StaticMesh + BatchRangeStart_StaticMesh,
+    BatchRangeSize_Circle = 1,
+    BatchRangeStart_Circle = BatchRangeEnd_StaticMesh,
+    BatchRangeEnd_Circle = BatchRangeSize_Circle + BatchRangeStart_Circle,
+};
+
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
+TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 {
     TKIT_NON_COPYABLE(IRenderContext)
   public:
-    IRenderContext(const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+    IRenderContext();
 
-    void Flush(const u32 p_ThreadCount = MaxThreads);
+    void Flush();
 
     void Transform(const f32m<D> &p_Transform);
     void Transform(const f32v<D> &p_Translation, const f32v<D> &p_Scale, const rot<D> &p_Rotation);
@@ -85,75 +130,59 @@ template <Dimension D> class IRenderContext
     }
 
     void OutlineWidth(f32 p_Width);
-    void Material(const MaterialData<D> &p_Material);
 
-    /**
-     * @brief Share this thread's state stack to all other threads.
-     *
-     * Useful when a global state is set from the main thread and is expected to be inherited by all threads. If
-     * `Push()` was called n times, all threads will have to `Pop()` n times as well. Take into account this will
-     * override previous `Push()`/`Pop()` calls for the other threads. This method is not thread-safe.
-     *
-     * @param p_ThreadCount The number of threads affected. The application may not be using all of the threads given by
-     * `MaxThreads`. Because this method shares the whole stack, this number should reflect how many threads are
-     * actually in use by your application. Failing to do so may result in assert errors from other threads state. The
-     * calling thread's index is thus expected to be lower than the count, although it is not required.
-     */
-    void ShareStateStack(u32 p_ThreadCount = MaxThreads);
+    const RenderState<D> &GetState() const;
+    RenderState<D> &GetState();
 
-    /**
-     * @brief Share this thread's current state to all other threads.
-     *
-     * Useful when a global state is set from the main thread and is expected to be inherited by all threads. The other
-     * threads will not inherit this thread's `Push()`/`Pop()` calls. This method is not thread-safe.
-     *
-     * @param p_ThreadCount The number of threads affected. The application may not be using all of the threads given by
-     * `MaxThreads`. This number may reflect how many threads are actually in use by your application to avoid
-     * extra work. The calling thread's index is thus expected to be lower than the count, although it is not required.
-     */
-    void ShareCurrentState(u32 p_ThreadCount = MaxThreads);
+    void SetState(const RenderState<D> &p_State);
 
-    /**
-     * @brief Sets the specified state to all threads.
-     *
-     * Useful when a global state is set from the main thread and is expected to be inherited by all threads. The other
-     * threads will not inherit this thread's `Push()`/`Pop()` calls. This method is not thread-safe.
-     *
-     * @param p_State The state all threads will have.
-     * @param p_ThreadCount The number of threads affected. The application may not be using all of the threads given by
-     * `MaxThreads`. This number may reflect how many threads are actually in use by your application to avoid
-     * extra work. The calling thread's index is thus expected to be lower than the count, although it is not required.
-     *
-     */
-    void ShareState(const RenderState<D> &p_State, u32 p_ThreadCount = MaxThreads);
+    void Render(const Window *p_Window);
 
-    const RenderState<D> &GetCurrentState() const;
-
-    RenderState<D> &GetCurrentState();
-
-    void SetCurrentState(const RenderState<D> &p_State);
-
-    const Renderer<D> &GetRenderer() const
+    const auto &GetInstanceData() const
     {
-        return m_Renderer;
+        return m_InstanceData;
     }
-    Renderer<D> &GetRenderer()
+
+    u64 GetViewMask() const
     {
-        return m_Renderer;
+        return m_ViewMask;
+    }
+    u64 GetGeneration() const
+    {
+        return m_Generation;
+    }
+
+    bool IsDirty(const u64 p_Generation) const
+    {
+        return m_Generation > p_Generation;
+    }
+
+    void AddTarget(const Window *p_Window)
+    {
+        m_ViewMask |= p_Window->GetViewBit();
+    }
+    void RemoveTarget(const Window *p_Window)
+    {
+        m_ViewMask &= ~p_Window->GetViewBit();
     }
 
   protected:
-    void updateState();
-    RenderState<D> *getState();
+    RenderState<D> *m_Current{};
 
-    struct alignas(TKIT_CACHE_LINE_SIZE) Stack
+  private:
+    void updateState();
+    void addStaticMeshData(Mesh p_Mesh, const f32m<D> &p_Transform, StencilPass p_Pass);
+    void addCircleData(const f32m<D> &p_Transform, const CircleOptions &p_Options, StencilPass p_Pass);
+    struct InstanceBuffer
     {
-        RenderStateStack<D> States{};
-        RenderState<D> *Current{};
+        VKit::HostBuffer Data{};
+        u32 Instances = 0;
     };
 
-    TKit::FixedArray<Stack, ONYX_MAX_THREADS> m_StateStack{};
-    Detail::Renderer<D> m_Renderer;
+    TKit::Array<RenderState<D>, MaxRenderStateDepth> m_StateStack;
+    TKit::FixedArray<TKit::FixedArray<InstanceBuffer, MaxBatches>, StencilPass_Count> m_InstanceData{};
+    u64 m_ViewMask = 0;
+    u64 m_Generation = 0;
 };
 } // namespace Onyx::Detail
 
@@ -213,14 +242,14 @@ namespace Onyx
  */
 template <Dimension D> class RenderContext;
 
-template <> class RenderContext<D2> final : public Detail::IRenderContext<D2>
+template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D2> final : public Detail::IRenderContext<D2>
 {
   public:
     using IRenderContext<D2>::IRenderContext;
     void Rotate(f32 p_Angle);
 };
 
-template <> class RenderContext<D3> final : public Detail::IRenderContext<D3>
+template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public Detail::IRenderContext<D3>
 {
   public:
     using IRenderContext<D3>::IRenderContext;
@@ -267,9 +296,6 @@ template <> class RenderContext<D3> final : public Detail::IRenderContext<D3>
     void PointLight(Onyx::PointLight p_Light);
     void PointLight(f32 p_Radius = 1.f, f32 p_Intensity = 1.f);
     void PointLight(const f32v3 &p_Position, f32 p_Radius = 1.f, f32 p_Intensity = 1.f);
-
-    void DiffuseContribution(f32 p_Contribution);
-    void SpecularContribution(f32 p_Contribution);
-    void SpecularSharpness(f32 p_Sharpness);
 };
+TKIT_COMPILER_WARNING_IGNORE_POP()
 } // namespace Onyx

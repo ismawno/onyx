@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/imgui/backend.hpp"
 #include "onyx/app/window.hpp"
+#include "onyx/rendering/renderer.hpp"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
 
@@ -19,12 +20,12 @@ void InitializeImGui(Window *p_Window)
         (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) &&
             instance.GetInfo().Flags & VKit::InstanceFlag_HasValidationLayers,
         "[ONYX] Vulkan validation layers have become stricter regarding semaphore and fence usage when submitting to "
-        "queues. ImGui may not have caught up to this and may trigger validation errors when the "
+        "Execution. ImGui may not have caught up to this and may trigger validation errors when the "
         "ImGuiConfigFlags_ViewportsEnable flag is set. If this is the case, either disable the flag or the vulkan "
         "validation layers. If the application runs well, you may safely ignore this warning");
 
     ImGui_ImplVulkan_PipelineInfo pipelineInfo{};
-    pipelineInfo.PipelineRenderingCreateInfo = p_Window->CreateSceneRenderInfo();
+    pipelineInfo.PipelineRenderingCreateInfo = Renderer::CreatePipelineRenderingCreateInfo();
     pipelineInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
     const VkSurfaceCapabilitiesKHR &sc = p_Window->GetSwapChain().GetInfo().SupportDetails.Capabilities;
@@ -36,8 +37,8 @@ void InitializeImGui(Window *p_Window)
     initInfo.Instance = instance;
     initInfo.PhysicalDevice = device.GetInfo().PhysicalDevice;
     initInfo.Device = device;
-    initInfo.Queue = p_Window->GetGraphicsQueue()->GetHandle();
-    initInfo.QueueFamily = Queues::GetFamilyIndex(VKit::Queue_Graphics);
+    initInfo.Queue = Execution::FindSuitableQueue(VKit::Queue_Graphics)->GetHandle();
+    initInfo.QueueFamily = Execution::GetFamilyIndex(VKit::Queue_Graphics);
     initInfo.DescriptorPoolSize = 100;
     initInfo.MinImageCount = sc.minImageCount;
     initInfo.ImageCount = imageCount;

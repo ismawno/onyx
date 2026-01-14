@@ -2,7 +2,7 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/core/math.hpp"
-#include "onyx/rendering/render_context.hpp"
+#include "onyx/rendering/context.hpp"
 #include "tkit/reflection/reflect.hpp"
 #include "tkit/serialization/yaml/serialize.hpp"
 #include "tkit/multiprocessing/for_each.hpp"

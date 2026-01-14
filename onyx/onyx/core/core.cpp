@@ -3,8 +3,10 @@
 #include "onyx/core/glfw.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/state/pipelines.hpp"
+#include "onyx/state/descriptors.hpp"
 #include "onyx/state/shaders.hpp"
-#include "onyx/execution/queues.hpp"
+#include "onyx/rendering/renderer.hpp"
+#include "onyx/execution/execution.hpp"
 
 #include "vkit/core/core.hpp"
 #include "vkit/memory/allocator.hpp"
@@ -45,6 +47,9 @@ static void createDevice(const VkSurfaceKHR p_Surface)
                   VKit::DeviceSelectorFlag_RequireGraphicsQueue | VKit::DeviceSelectorFlag_RequirePresentQueue |
                   VKit::DeviceSelectorFlag_RequireTransferQueue)
         .RequireExtension("VK_KHR_dynamic_rendering")
+        .RequireExtension("VK_KHR_timeline_semaphore")
+        .RequireExtension("VK_KHR_synchronization2")
+        .RequireExtension("VK_KHR_copy_commands2")
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 3, 0);
 
@@ -86,17 +91,27 @@ static void createDevice(const VkSurfaceKHR p_Surface)
     VkPhysicalDeviceDynamicRenderingFeaturesKHR drendering{};
     drendering.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
     drendering.dynamicRendering = VK_TRUE;
+
+    VkPhysicalDeviceSynchronization2FeaturesKHR sync2{};
+    sync2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR;
+    sync2.synchronization2 = VK_TRUE;
+
 #ifdef VKIT_API_VERSION_1_3
     if (apiVersion >= VKIT_API_VERSION_1_3)
     {
         VKit::DeviceFeatures features{};
         features.Vulkan13.dynamicRendering = VK_TRUE;
+        features.Vulkan13.synchronization2 = VK_TRUE;
         TKIT_CHECK_RETURNS(phys.EnableFeatures(features), true, "[ONYX] Failed to enable dynamic rendering");
     }
     else
+    {
         phys.EnableExtensionBoundFeature(&drendering);
+        phys.EnableExtensionBoundFeature(&sync2);
+    }
 #else
     phys.EnableExtensionBoundFeature(&drendering);
+    phys.EnableExtensionBoundFeature(&sync2);
 #endif
 
     VKit::LogicalDevice::Builder builder{&s_Instance, &phys};
@@ -152,7 +167,7 @@ void Initialize(const Specs &p_Specs)
     for (u32 i = 0; i < VKit::Queue_Count; ++i)
     {
         TKIT_ASSERT(i == 1 || p_Specs.QueueRequests[i] > 0,
-                    "[ONYX] The queue request count for all queues must be at least 1 except for compute queues, "
+                    "[ONYX] The queue request count for all Execution must be at least 1 except for compute Execution, "
                     "which are not directly used by this framework");
     }
 #endif
@@ -179,18 +194,17 @@ void Initialize(const Specs &p_Specs)
 
     TKIT_LOG_INFO("[ONYX] Creating vulkan instance");
     u32 extensionCount;
-    const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
-    const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);
 
     VKit::Instance::Builder builder{};
-    builder.SetApplicationName("Onyx")
-        .RequestApiVersion(1, 3, 0)
-        .RequireApiVersion(1, 2, 0)
-        .RequireExtensions(extensionSpan)
-        .SetApplicationVersion(1, 2, 0);
+    builder.SetApplicationName("Onyx").RequestApiVersion(1, 3, 0).RequireApiVersion(1, 2, 0).SetApplicationVersion(1, 2,
+                                                                                                                   0);
 #ifdef ONYX_ENABLE_VALIDATION_LAYERS
     builder.RequestValidationLayers();
 #endif
+    const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
+    const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);
+    for (u32 i = 0; i < extensionCount; ++i)
+        builder.RequireExtension(extensions[i]);
     if (s_Callbacks.OnInstanceCreation)
         s_Callbacks.OnInstanceCreation(builder);
 
@@ -231,14 +245,19 @@ void CreateDevice(const VkSurfaceKHR p_Surface)
 
     createDevice(p_Surface);
     createVulkanAllocator();
-    Queues::Initialize();
+    Execution::Initialize();
     Assets::Initialize();
+    Descriptors::Initialize();
     Shaders::Initialize(s_Specs.Shaders);
     Pipelines::Initialize();
+    Renderer::Initialize();
     s_DeletionQueue.Push([] {
+        Renderer::Terminate();
         Pipelines::Terminate();
+        Shaders::Terminate();
+        Descriptors::Terminate();
         Assets::Terminate();
-        Queues::Terminate();
+        Execution::Terminate();
     });
 }
 TKit::ITaskManager *GetTaskManager()

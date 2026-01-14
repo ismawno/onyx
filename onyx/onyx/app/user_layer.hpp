@@ -119,7 +119,6 @@ class UserLayer
 
 #ifdef ONYX_ENABLE_IMGUI
     template <Dimension D> static bool TransformEditor(Transform<D> &p_Transform, UserLayerFlags p_Flags = 0);
-    template <Dimension D> static bool MaterialEditor(MaterialData<D> &p_Material, UserLayerFlags p_Flags = 0);
 
     template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, UserLayerFlags p_Flags = 0);
     template <Dimension D> static void DisplayCameraControls(const CameraControls<D> &p_Controls = {});

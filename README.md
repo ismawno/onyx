@@ -56,7 +56,7 @@ Most of the calls to `RenderContext` modify its internal state or store draw com
 
 `RenderContext`s cannot be created out of thin air. They must be bound to a window. Each window may have multiple contexts of multiple dimensions. Before using a context for the first time in a given frame, the method `Flush()` must be called, which resets its state and render data, allowing the user to draw a new frame. `Flush()` should only be called when explicitly re-using the context to update the scene. If the context represents a static scene updated only in isolated scenarios, it should be left alone as the context will avoid re-creating and sending the data to the device, which can be a real bottleneck. This makes rendering static scenes much more efficient as there is no host-device communication. Because of this, the scene should be divided into different contexts based on update frequency.
 
-`RenderContext`s are documented in more detail in the [source code](https://github.com/ismawno/onyx/blob/main/onyx/onyx/rendering/render_context.hpp).
+`RenderContext`s are documented in more detail in the [source code](https://github.com/ismawno/onyx/blob/main/onyx/onyx/rendering/context.hpp).
 
 #### Cameras
 

@@ -857,6 +857,8 @@ const char *GetKeyName(const Key p_Key)
         return "Menu";
     case Key_None:
         return "None";
+    default:
+        return "Unknown";
     }
     return "Unknown";
 }

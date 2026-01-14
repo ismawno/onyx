@@ -45,7 +45,6 @@ template <typename T> class Task;
 namespace Onyx
 {
 using Task = TKit::Task<void>;
-using TaskArray = TKit::Array<Task, MaxTasks>;
 
 struct InitCallbacks
 {
@@ -60,12 +59,11 @@ struct Specs
     const char *VulkanLibraryPath = nullptr;
     TKit::ITaskManager *TaskManager = nullptr;
     InitCallbacks Callbacks{};
-    TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{4, 0, 4, 4};
+    TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{4, 0, 4, 1};
     u32 Platform = ONYX_PLATFORM_AUTO;
     Shaders::Specs Shaders{};
 };
 
-template <typename T> using PerFrameData = TKit::FixedArray<T, MaxFramesInFlight>;
 template <typename T> using PerImageData = TKit::Array8<T>;
 } // namespace Onyx
 

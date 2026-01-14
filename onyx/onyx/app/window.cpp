@@ -14,9 +14,19 @@ static u32 s_ColorIndex = 0;
 static u32 s_Colors[4] = {0x434E78, 0x607B8F, 0xF7E396, 0xE97F4A};
 #endif
 
-static constexpr VkFormat s_DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
-const WaitMode WaitMode::Block = WaitMode{TKIT_U64_MAX, TKIT_U64_MAX};
-const WaitMode WaitMode::Poll = WaitMode{0, 0};
+static u64 s_ViewCache = TKIT_U64_MAX;
+static u64 allocateViewBit()
+{
+    TKIT_ASSERT(s_ViewCache != 0, "[ONYX] Maximum number of windows exceeded!");
+    const u32 index = static_cast<u32>(std::countr_zero(s_ViewCache));
+    const u64 viewBit = 1 << index;
+    s_ViewCache &= ~viewBit;
+    return viewBit;
+}
+static void deallocateViewBit(const u64 p_ViewBit)
+{
+    s_ViewCache |= p_ViewBit;
+}
 
 // edge cases a bit unrealistic yes
 u32 ToFrequency(const TKit::Timespan p_DeltaTime)
@@ -40,11 +50,16 @@ TKit::Timespan ToDeltaTime(const u32 p_Frequency)
 
 static TKit::BlockAllocator createAllocator()
 {
-    const u32 maxSize = static_cast<u32>(
-        Math::Max({sizeof(RenderContext<D2>), sizeof(RenderContext<D3>), sizeof(Camera<D2>), sizeof(Camera<D3>)}));
-    const u32 alignment = static_cast<u32>(
-        Math::Max({alignof(RenderContext<D2>), alignof(RenderContext<D3>), alignof(Camera<D2>), alignof(Camera<D3>)}));
-    return TKit::BlockAllocator{maxSize * 2 * (MaxRenderContexts + MaxCameras), maxSize, alignment};
+    constexpr u32 size2 = static_cast<u32>(sizeof(Camera<D2>));
+    constexpr u32 size3 = static_cast<u32>(sizeof(Camera<D3>));
+
+    constexpr u32 align2 = static_cast<u32>(alignof(Camera<D2>));
+    constexpr u32 align3 = static_cast<u32>(alignof(Camera<D3>));
+
+    constexpr u32 size = Math::Max(size2, size3);
+    constexpr u32 alignment = Math::Max(align2, align3);
+
+    return TKit::BlockAllocator{size * 2 * MaxCameras, size, alignment};
 }
 
 Window::Window() : Window(Specs{})
@@ -56,43 +71,30 @@ Window::Window(const Specs &p_Specs)
       m_PresentMode(p_Specs.PresentMode), m_Flags(p_Specs.Flags)
 {
     TKIT_LOG_DEBUG("[ONYX] Window '{}' has been instantiated", p_Specs.Name);
+    m_ViewBit = allocateViewBit();
     createWindow(p_Specs);
-    m_Graphics = Queues::GetQueue(VKit::Queue_Graphics);
-    m_Transfer = Queues::GetQueue(VKit::Queue_Transfer);
-    m_Present = Queues::GetQueue(VKit::Queue_Present);
 
     const VkExtent2D extent = waitGlfwEvents();
     createSwapChain(extent);
-    m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetImageCount());
+    m_SyncData = Execution::CreateSyncData(m_SwapChain.GetImageCount());
     m_Images = createImageData();
-    createCommandData();
-    m_SyncFrameData = Detail::CreatePerFrameSyncData();
 #ifdef TKIT_ENABLE_INSTRUMENTATION
     m_ColorIndex = s_ColorIndex++ & 3;
 #endif
     UpdateMonitorDeltaTime();
+    m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
 }
 
 Window::~Window()
 {
     TKIT_LOG_DEBUG("[ONYX] Window '{}' is about to be destroyed", m_Name);
+    deallocateViewBit(m_ViewBit);
+    Renderer::ClearWindow(this);
     Core::DeviceWaitIdle();
     destroyImageData();
-    Detail::DestroyPerFrameSyncData(m_SyncFrameData);
-    Detail::DestroyPerImageSyncData(m_SyncImageData);
-    for (u32 i = 0; i < MaxFramesInFlight; ++i)
-    {
-        m_CommandData[i].GraphicsPool.Destroy();
-        if (m_TransferMode == Transfer_Separate)
-            m_CommandData[i].TransferPool.Destroy();
-    }
+    Execution::DestroySyncData(m_SyncData);
 
     m_SwapChain.Destroy();
-    for (RenderContext<D2> *context : m_RenderContexts2)
-        m_Allocator.Destroy(context);
-    for (RenderContext<D3> *context : m_RenderContexts3)
-        m_Allocator.Destroy(context);
-
     for (Camera<D2> *context : m_Cameras2)
         m_Allocator.Destroy(context);
     for (Camera<D3> *context : m_Cameras3)
@@ -161,51 +163,14 @@ bool Window::handleImageResult(const VkResult p_Result)
     return true;
 }
 
-void Window::SubmitGraphicsQueue(const VkPipelineStageFlags p_Flags)
-{
-    TKIT_PROFILE_NSCOPE("Onyx::Window::SubmitCurrentCommandBuffer");
-    const auto &table = Core::GetDeviceTable();
-
-    const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
-
-    const Detail::SyncFrameData &fsync = m_SyncFrameData[m_FrameIndex];
-    Detail::SyncImageData &isync = m_SyncImageData[m_ImageIndex];
-
-    if (isync.InFlightImage != VK_NULL_HANDLE)
-    {
-        TKIT_PROFILE_NSCOPE("Onyx::Window::WaitForImage");
-        VKIT_CHECK_EXPRESSION(table.WaitForFences(Core::GetDevice(), 1, &isync.InFlightImage, VK_TRUE, UINT64_MAX));
-    }
-
-    isync.InFlightImage = fsync.InFlightFence;
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-    const TKit::FixedArray<VkSemaphore, 2> semaphores{fsync.ImageAvailableSemaphore, fsync.TransferCopyDoneSemaphore};
-    const TKit::FixedArray<VkPipelineStageFlags, 2> stages{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, p_Flags};
-    submitInfo.pWaitSemaphores = semaphores.GetData();
-    submitInfo.pWaitDstStageMask = stages.GetData();
-    submitInfo.waitSemaphoreCount = (m_TransferMode == Transfer_Separate && p_Flags != 0) ? 2 : 1;
-
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &cmd;
-
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &isync.RenderFinishedSemaphore;
-
-    VKIT_CHECK_EXPRESSION(table.ResetFences(Core::GetDevice(), 1, &fsync.InFlightFence));
-    VKIT_CHECK_EXPRESSION(table.QueueSubmit(*m_Graphics, 1, &submitInfo, fsync.InFlightFence));
-}
-
-VkResult Window::Present()
+void Window::Present(const Renderer::RenderSubmitInfo &p_Info)
 {
     TKIT_PROFILE_NSCOPE("Onyx::FramwScheduler::Present");
 
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
-    const Detail::SyncImageData &sync = m_SyncImageData[m_ImageIndex];
+    const Execution::SyncData &sync = m_SyncData[m_ImageIndex];
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &sync.RenderFinishedSemaphore;
 
@@ -216,36 +181,45 @@ VkResult Window::Present()
     presentInfo.pImageIndices = &m_ImageIndex;
 
     const auto &table = Core::GetDeviceTable();
-    return table.QueuePresentKHR(*m_Present, &presentInfo);
+    const VkResult result = table.QueuePresentKHR(*m_Present, &presentInfo);
+    handleImageResult(result);
+
+    // a bit random that 0
+    m_LastGraphicsSubmission.Timeline = p_Info.SignalSemaphores[0].semaphore;
+    m_LastGraphicsSubmission.InFlightValue = p_Info.SignalSemaphores[0].value;
 }
 
-VkResult Window::AcquireNextImage(const WaitMode &p_WaitMode)
+bool Window::AcquireNextImage(const Timeout p_Timeout)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::AcquireNextImage");
     const auto &table = Core::GetDeviceTable();
-    {
-        TKIT_PROFILE_NSCOPE("Onyx::Window::WaitForFrame");
-        const VkResult result = table.WaitForFences(Core::GetDevice(), 1, &m_SyncFrameData[m_FrameIndex].InFlightFence,
-                                                    VK_TRUE, p_WaitMode.WaitFenceTimeout);
-        if (result == VK_NOT_READY || result == VK_TIMEOUT)
-            return result;
-        VKIT_CHECK_RESULT(result);
-    }
-    return table.AcquireNextImageKHR(Core::GetDevice(), m_SwapChain, p_WaitMode.AcquireTimeout,
-                                     m_SyncFrameData[m_FrameIndex].ImageAvailableSemaphore, VK_NULL_HANDLE,
-                                     &m_ImageIndex);
-}
+    const auto &device = Core::GetDevice();
+    const auto acquire = [&]() {
+        const VkResult result =
+            table.AcquireNextImageKHR(device, m_SwapChain, p_Timeout, m_SyncData[m_ImageIndex].ImageAvailableSemaphore,
+                                      VK_NULL_HANDLE, &m_ImageIndex);
+        return handleImageResult(result);
+    };
+    if (p_Timeout != Block)
+        return acquire();
 
-VkPipelineRenderingCreateInfoKHR Window::CreateSceneRenderInfo() const
-{
-    const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-    VkPipelineRenderingCreateInfoKHR renderInfo{};
-    renderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
-    renderInfo.colorAttachmentCount = 1;
-    renderInfo.pColorAttachmentFormats = &info.SurfaceFormat.format;
-    renderInfo.depthAttachmentFormat = s_DepthStencilFormat;
-    renderInfo.stencilAttachmentFormat = s_DepthStencilFormat;
-    return renderInfo;
+    if (m_LastGraphicsSubmission.Timeline)
+    {
+        VkSemaphoreWaitInfoKHR waitInfo{};
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
+        waitInfo.semaphoreCount = 1;
+        waitInfo.pSemaphores = &m_LastGraphicsSubmission.Timeline;
+        waitInfo.pValues = &m_LastGraphicsSubmission.InFlightValue;
+        m_LastGraphicsSubmission.Timeline = VK_NULL_HANDLE;
+        VKIT_CHECK_EXPRESSION(table.WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
+        return acquire();
+    }
+    if (!m_HasImage)
+    {
+        m_HasImage = true;
+        return acquire();
+    }
+    return true;
 }
 
 VkExtent2D Window::waitGlfwEvents()
@@ -263,7 +237,7 @@ void Window::createSwapChain(const VkExtent2D &p_WindowExtent)
 {
     const VKit::LogicalDevice &device = Core::GetDevice();
     const auto result = VKit::SwapChain::Builder(&device, GetSurface())
-                            .RequestSurfaceFormat({VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
+                            .RequestSurfaceFormat(SurfaceFormat)
                             .RequestPresentMode(m_PresentMode)
                             .RequestExtent(p_WindowExtent)
                             .RequestImageCount(3)
@@ -319,62 +293,9 @@ void Window::recreateResources()
     destroyImageData();
     m_Images = createImageData();
 
-    Detail::DestroyPerImageSyncData(m_SyncImageData);
-    Detail::DestroyPerFrameSyncData(m_SyncFrameData);
-    m_SyncImageData = Detail::CreatePerImageSyncData(m_SwapChain.GetImageCount());
-    m_SyncFrameData = Detail::CreatePerFrameSyncData();
-
+    Execution::DestroySyncData(m_SyncData);
+    m_SyncData = Execution::CreateSyncData(m_SwapChain.GetImageCount());
     m_ImageIndex = 0;
-}
-
-void Window::SubmitTransferQueue()
-{
-    const auto &table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table.EndCommandBuffer(m_CommandData[m_FrameIndex].TransferCommand));
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &m_CommandData[m_FrameIndex].TransferCommand;
-
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &m_SyncFrameData[m_FrameIndex].TransferCopyDoneSemaphore;
-
-    VKIT_CHECK_EXPRESSION(table.QueueSubmit(*m_Transfer, 1, &submitInfo, VK_NULL_HANDLE));
-}
-
-FrameInfo Window::BeginFrame(const WaitMode &p_WaitMode)
-{
-    TKIT_PROFILE_NSCOPE("Onyx::Window::BeginFrame");
-    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
-    FrameInfo info{};
-    info.FrameIndex = m_FrameIndex;
-
-    const VkResult result = AcquireNextImage(p_WaitMode);
-    if (!handleImageResult(result))
-        return info;
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-    const CommandData &cmd = m_CommandData[m_FrameIndex];
-    VKIT_CHECK_EXPRESSION(cmd.GraphicsPool.Reset());
-    if (m_TransferMode == Transfer_Separate)
-    {
-        VKIT_CHECK_EXPRESSION(cmd.TransferPool.Reset());
-    }
-
-    const auto &table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table.BeginCommandBuffer(cmd.GraphicsCommand, &beginInfo));
-    if (m_TransferMode == Transfer_Separate)
-    {
-        VKIT_CHECK_EXPRESSION(table.BeginCommandBuffer(cmd.TransferCommand, &beginInfo));
-    }
-
-    info.GraphicsCommand = cmd.GraphicsCommand;
-    info.TransferCommand = cmd.TransferCommand;
-    return info;
 }
 
 PerImageData<Window::ImageData> Window::createImageData()
@@ -387,7 +308,7 @@ PerImageData<Window::ImageData> Window::createImageData()
         data.Presentation = &m_SwapChain.GetImage(i);
 
         const auto iresult =
-            VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, s_DepthStencilFormat,
+            VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, DepthStencilFormat,
                                        VKit::DeviceImageFlag_DepthAttachment | VKit::DeviceImageFlag_StencilAttachment)
                 .WithImageView()
                 .Build();
@@ -406,83 +327,11 @@ void Window::destroyImageData()
         data.DepthStencil.Destroy();
 }
 
-void Window::createCommandData()
-{
-    const u32 gindex = Queues::GetFamilyIndex(VKit::Queue_Graphics);
-    const u32 tindex = Queues::GetFamilyIndex(VKit::Queue_Transfer);
-
-    if (gindex != tindex)
-        m_TransferMode = Transfer_Separate;
-    else if (m_Graphics == m_Transfer)
-        m_TransferMode = Transfer_SameIndex;
-    else
-        m_TransferMode = Transfer_SameQueue;
-
-    for (u32 i = 0; i < MaxFramesInFlight; ++i)
-    {
-        auto result = VKit::CommandPool::Create(Core::GetDevice(), gindex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
-
-        CommandData &cmd = m_CommandData[i];
-        VKIT_CHECK_RESULT(result);
-        cmd.GraphicsPool = result.GetValue();
-
-        auto cmdres = cmd.GraphicsPool.Allocate();
-        VKIT_CHECK_RESULT(cmdres);
-        cmd.GraphicsCommand = cmdres.GetValue();
-        if (m_TransferMode == Transfer_SameQueue)
-        {
-            cmd.TransferPool = cmd.GraphicsPool;
-            cmd.TransferCommand = cmd.GraphicsCommand;
-        }
-        else if (m_TransferMode == Transfer_SameIndex)
-        {
-            cmd.TransferPool = cmd.GraphicsPool;
-            cmdres = cmd.TransferPool.Allocate();
-            VKIT_CHECK_RESULT(cmdres);
-            cmd.TransferCommand = cmdres.GetValue();
-        }
-        else
-        {
-            result = VKit::CommandPool::Create(Core::GetDevice(), tindex, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
-            VKIT_CHECK_RESULT(result);
-            cmd.TransferPool = result.GetValue();
-
-            cmdres = cmd.TransferPool.Allocate();
-            VKIT_CHECK_RESULT(cmdres);
-            cmd.TransferCommand = cmdres.GetValue();
-        }
-    }
-}
-VkPipelineStageFlags Window::SubmitContextData(const FrameInfo &p_Info)
-{
-    TKIT_PROFILE_NSCOPE("Onyx::Window::SubmitContextData");
-    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
-    VkPipelineStageFlags transferFlags = 0;
-
-    for (RenderContext<D2> *context : m_RenderContexts2)
-    {
-        context->GetRenderer().GrowDeviceBuffers(p_Info.FrameIndex);
-        context->GetRenderer().SendToDevice(p_Info.FrameIndex);
-        transferFlags |= context->GetRenderer().RecordCopyCommands(p_Info.FrameIndex, p_Info.GraphicsCommand,
-                                                                   p_Info.TransferCommand);
-    }
-    for (RenderContext<D3> *context : m_RenderContexts3)
-    {
-        context->GetRenderer().GrowDeviceBuffers(p_Info.FrameIndex);
-        context->GetRenderer().SendToDevice(p_Info.FrameIndex);
-        transferFlags |= context->GetRenderer().RecordCopyCommands(p_Info.FrameIndex, p_Info.GraphicsCommand,
-                                                                   p_Info.TransferCommand);
-    }
-    if (Queues::IsSeparateTransferMode() && transferFlags != 0)
-        SubmitTransferQueue();
-    return transferFlags;
-}
-void Window::BeginRendering(const Color &p_ClearColor)
+void Window::BeginRendering(const VkCommandBuffer p_CommandBuffer, const Color &p_ClearColor)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::BeginRendering");
     TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
     const auto &table = Core::GetDeviceTable();
-    const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
 
     VkRenderingAttachmentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
@@ -493,7 +342,7 @@ void Window::BeginRendering(const Color &p_ClearColor)
     present.clearValue.color = {
         {p_ClearColor.RGBA[0], p_ClearColor.RGBA[1], p_ClearColor.RGBA[2], p_ClearColor.RGBA[3]}};
 
-    m_Images[m_ImageIndex].Presentation->TransitionLayout(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    m_Images[m_ImageIndex].Presentation->TransitionLayout(p_CommandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                                           {.SrcAccess = 0,
                                                            .DstAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                                                            .SrcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
@@ -507,7 +356,8 @@ void Window::BeginRendering(const Color &p_ClearColor)
     depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depth.clearValue.depthStencil = {1.f, 0};
 
-    m_Images[m_ImageIndex].DepthStencil.TransitionLayout(cmd, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    m_Images[m_ImageIndex].DepthStencil.TransitionLayout(p_CommandBuffer,
+                                                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                                                          {.SrcAccess = 0,
                                                           .DstAccess = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
                                                           .SrcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
@@ -537,76 +387,24 @@ void Window::BeginRendering(const Color &p_ClearColor)
     scissor.offset = {0, 0};
     scissor.extent = extent;
 
-    table.CmdSetViewport(cmd, 0, 1, &viewport);
-    table.CmdSetScissor(cmd, 0, 1, &scissor);
+    table.CmdSetViewport(p_CommandBuffer, 0, 1, &viewport);
+    table.CmdSetScissor(p_CommandBuffer, 0, 1, &scissor);
 
-    table.CmdBeginRenderingKHR(cmd, &renderInfo);
+    table.CmdBeginRenderingKHR(p_CommandBuffer, &renderInfo);
 }
 
-void Window::Render(const FrameInfo &p_Info)
+void Window::EndRendering(const VkCommandBuffer p_CommandBuffer)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
-    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
-    // TKIT_PROFILE_VULKAN_SCOPE("Onyx::Window::Vulkan::Render",
-    //                           m_FrameScheduler->GetQueueData().Graphics->ProfilingContext, gcmd);
-    auto caminfos = getCameraInfos<D2>();
-    if (!caminfos.IsEmpty())
-        for (RenderContext<D2> *context : m_RenderContexts2)
-            context->GetRenderer().Render(p_Info.FrameIndex, p_Info.GraphicsCommand, caminfos);
-
-    caminfos = getCameraInfos<D3>();
-    if (!caminfos.IsEmpty())
-        for (RenderContext<D3> *context : m_RenderContexts3)
-            context->GetRenderer().Render(p_Info.FrameIndex, p_Info.GraphicsCommand, caminfos);
-}
-
-void Window::EndRendering()
-{
-    TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
+    TKIT_PROFILE_NSCOPE("Onyx::Window::EndRendering");
     TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
     const auto &table = Core::GetDeviceTable();
 
-    const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
-    table.CmdEndRenderingKHR(cmd);
-
-    m_Images[m_ImageIndex].Presentation->TransitionLayout(cmd, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+    table.CmdEndRenderingKHR(p_CommandBuffer);
+    m_Images[m_ImageIndex].Presentation->TransitionLayout(p_CommandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                                                           {.SrcAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                                                            .DstAccess = 0,
                                                            .SrcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                                                            .DstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT});
-}
-
-void Window::EndFrame(const VkPipelineStageFlags p_Flags)
-{
-    // TKIT_PROFILE_VULKAN_COLLECT(m_FrameScheduler->GetQueueData().Graphics->ProfilingContext, gcmd);
-    TKIT_PROFILE_NSCOPE("Onyx::Window::EndFrame");
-
-    const VkCommandBuffer cmd = m_CommandData[m_FrameIndex].GraphicsCommand;
-    const auto &table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table.EndCommandBuffer(cmd));
-
-    SubmitGraphicsQueue(p_Flags);
-    const VkResult result = Present();
-
-    handleImageResult(result);
-    m_FrameIndex = (m_FrameIndex + 1) % MaxFramesInFlight;
-}
-
-bool Window::Render(const Color &p_ClearColor)
-{
-    TKIT_PROFILE_NSCOPE("Onyx::Window::Render");
-    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
-
-    const FrameInfo info = BeginFrame();
-    if (!info)
-        return false;
-
-    const VkPipelineStageFlags flags = SubmitContextData(info);
-    BeginRendering(p_ClearColor);
-    Render(info);
-    EndRendering();
-    EndFrame(flags);
-    return true;
 }
 
 bool Window::ShouldClose() const

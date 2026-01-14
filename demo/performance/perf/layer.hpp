@@ -3,7 +3,7 @@
 #include "perf/lattice.hpp"
 #include "onyx/app/app.hpp"
 #include "onyx/core/dimension.hpp"
-#include "onyx/rendering/render_context.hpp"
+#include "onyx/rendering/context.hpp"
 
 namespace Onyx::Demo
 {

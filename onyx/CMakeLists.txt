@@ -5,19 +5,19 @@ set(SOURCES
     onyx/core/pch.cpp
     onyx/core/core.cpp
     onyx/property/camera.cpp
-    onyx/rendering/render_context.cpp
-    onyx/rendering/render_systems.cpp
+    onyx/rendering/context.cpp
     onyx/rendering/renderer.cpp
-    onyx/execution/queues.cpp
-    onyx/execution/sync.cpp
-    onyx/resource/buffer.cpp
+    onyx/execution/execution.cpp
+    onyx/execution/command_pool.cpp
+    onyx/resource/resources.cpp
     onyx/asset/assets.cpp
     onyx/state/pipelines.cpp
+    onyx/state/descriptors.cpp
     onyx/state/shaders.cpp
     onyx/property/vertex.cpp
     onyx/property/color.cpp
     onyx/property/transform.cpp
-    onyx/app/app.cpp
+    # onyx/app/app.cpp
     onyx/app/window.cpp
     onyx/app/input.cpp)
 
@@ -116,23 +116,12 @@ if(ONYX_ENABLE_OBJ)
 endif()
 
 tkit_register_for_yaml_serialization(
-  onyx
-  SOURCES
-  onyx/property/transform.hpp
-  onyx/property/vertex.hpp
-  onyx/state/state.hpp
-  onyx/property/options.hpp
-  onyx/property/camera.hpp)
+  onyx SOURCES onyx/property/transform.hpp onyx/property/vertex.hpp
+  onyx/property/options.hpp onyx/property/camera.hpp)
 
 tkit_register_for_reflection(
-  onyx
-  SOURCES
-  onyx/property/transform.hpp
-  onyx/property/vertex.hpp
-  onyx/state/state.hpp
-  onyx/property/options.hpp
-  onyx/app/input.hpp
-  onyx/property/camera.hpp)
+  onyx SOURCES onyx/property/transform.hpp onyx/property/vertex.hpp
+  onyx/property/options.hpp onyx/property/camera.hpp)
 
 if(ONYX_ENABLE_SHADER_COMPILATION)
   find_package(slang QUIET)
@@ -201,7 +190,7 @@ if(ONYX_ENABLE_IMGUI)
   FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG 396b33d0d011290f11915b6a2a2bf7737fb42dd7
+    GIT_TAG 84a9d532b6f635a6017b90e65b627c36fd1afd20
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
 

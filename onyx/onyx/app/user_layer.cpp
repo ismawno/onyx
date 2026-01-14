@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/app/user_layer.hpp"
 #include "onyx/app/app.hpp"
-#include "onyx/rendering/render_context.hpp"
+#include "onyx/rendering/context.hpp"
 #include "onyx/property/transform.hpp"
 #include "onyx/imgui/imgui.hpp"
 
@@ -148,37 +148,6 @@ void UserLayer::HelpMarkerSameLine(const char *p_Description, const char *p_Icon
     ImGui::SameLine();
     HelpMarker(p_Description, p_Icon);
 }
-
-template <Dimension D> bool UserLayer::MaterialEditor(MaterialData<D> &p_Material, const UserLayerFlags p_Flags)
-{
-    if (p_Flags & UserLayerFlag_DisplayHelp)
-        HelpMarker(
-            "The material of an object defines its basic properties, such as its color, its diffuse and specular "
-            "contributions, and its specular sharpness. The material is used to calculate the final color of the "
-            "object, which is then used to render it. Onyx does not support 2D lights, so 2D materials are very "
-            "simple: a lone color.");
-    bool changed = false;
-    if constexpr (D == D3)
-    {
-        if (ImGui::SliderFloat("Diffuse contribution", &p_Material.DiffuseContribution, 0.f, 1.f))
-        {
-            p_Material.SpecularContribution = 1.f - p_Material.DiffuseContribution;
-            changed = true;
-        }
-        if (ImGui::SliderFloat("Specular contribution", &p_Material.SpecularContribution, 0.f, 1.f))
-        {
-            p_Material.DiffuseContribution = 1.f - p_Material.SpecularContribution;
-            changed = true;
-        }
-        changed |= ImGui::SliderFloat("Specular sharpness", &p_Material.SpecularSharpness, 0.f, 512.f, "%.2f",
-                                      ImGuiSliderFlags_Logarithmic);
-    }
-    changed |= ImGui::ColorEdit4("Color", p_Material.Color.GetData());
-    return changed;
-}
-
-template bool UserLayer::MaterialEditor<D2>(MaterialData<D2> &p_Material, UserLayerFlags p_Flags);
-template bool UserLayer::MaterialEditor<D3>(MaterialData<D3> &p_Material, UserLayerFlags p_Flags);
 
 bool UserLayer::DirectionalLightEditor(DirectionalLight &p_Light, const UserLayerFlags p_Flags)
 {

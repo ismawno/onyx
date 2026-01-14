@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/core/limits.hpp"
-#include "onyx/execution/queues.hpp"
+#include "onyx/resource/resources.hpp"
 #ifdef ONYX_ENABLE_OBJ
 #    include <tiny_obj_loader.h>
 #endif
@@ -14,6 +14,7 @@ enum LayoutFlagBit : LayoutFlags
     LayoutFlag_UpdateVertex = 1 << 0,
     LayoutFlag_UpdateIndex = 1 << 1,
 };
+
 struct DataLayout
 {
     u32 VertexStart;
@@ -58,10 +59,6 @@ template <Dimension D> struct AssetData
 static AssetData<D2> s_AssetData2{};
 static AssetData<D3> s_AssetData3{};
 
-static VKit::DescriptorPool s_DescriptorPool{};
-static VKit::DescriptorSetLayout s_InstanceDataStorageLayout{};
-static VKit::DescriptorSetLayout s_LightStorageLayout{};
-
 template <Dimension D> static AssetData<D> &getData()
 {
     if constexpr (D == D2)
@@ -75,11 +72,11 @@ template <typename Vertex> static void checkSize(MeshInfo<Vertex> &p_Info)
     LayoutFlags flags = 0;
 
     const u32 vcount = p_Info.GetVertexCount();
-    if (GrowBufferIfNeeded<Vertex>(p_Info.VertexBuffer, vcount, Buffer_DeviceVertex))
+    if (Resources::GrowBufferIfNeeded<Vertex>(p_Info.VertexBuffer, vcount, Buffer_DeviceVertex))
         flags = LayoutFlag_UpdateVertex;
 
     const u32 icount = p_Info.GetIndexCount();
-    if (GrowBufferIfNeeded<Index>(p_Info.IndexBuffer, icount, Buffer_DeviceIndex))
+    if (Resources::GrowBufferIfNeeded<Index>(p_Info.IndexBuffer, icount, Buffer_DeviceIndex))
         flags |= LayoutFlag_UpdateIndex;
     if (flags)
         for (DataLayout &layout : p_Info.Layouts)
@@ -88,23 +85,27 @@ template <typename Vertex> static void checkSize(MeshInfo<Vertex> &p_Info)
 
 template <typename Vertex> static void uploadVertexData(MeshInfo<Vertex> &p_Info, const u32 p_Start, const u32 p_End)
 {
-    const u32 voffset = p_Info.GetVertexCount(p_Start);
-    const u32 vcount = p_Info.GetVertexCount(p_End) - voffset;
+    constexpr VkDeviceSize size = sizeof(Vertex);
+    const VkDeviceSize voffset = p_Info.GetVertexCount(p_Start) * size;
+    const VkDeviceSize vsize = p_Info.GetVertexCount(p_End) * size - voffset;
 
-    VKit::CommandPool &pool = Queues::GetTransferPool();
-    VKIT_CHECK_EXPRESSION(p_Info.VertexBuffer.template UploadFromHost<Vertex>(
-        pool, *Queues::GetQueue(VKit::Queue_Transfer), p_Info.Meshes.Vertices,
-        {.Size = vcount, .SrcOffset = voffset, .DstOffset = voffset}));
+    VKit::CommandPool &pool = Execution::GetTransientTransferPool();
+    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
+    VKIT_CHECK_EXPRESSION(
+        p_Info.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), p_Info.Meshes.Vertices.GetData(),
+                                           {.srcOffset = voffset, .dstOffset = voffset, .size = vsize}));
 }
 template <typename Vertex> static void uploadIndexData(MeshInfo<Vertex> &p_Info, const u32 p_Start, const u32 p_End)
 {
-    const u32 ioffset = p_Info.GetIndexCount(p_Start);
-    const u32 icount = p_Info.GetIndexCount(p_End) - ioffset;
+    constexpr VkDeviceSize size = sizeof(Index);
+    const VkDeviceSize ioffset = p_Info.GetIndexCount(p_Start) * size;
+    const VkDeviceSize isize = p_Info.GetIndexCount(p_End) * size - ioffset;
 
-    VKit::CommandPool &pool = Queues::GetTransferPool();
-    VKIT_CHECK_EXPRESSION(p_Info.IndexBuffer.template UploadFromHost<Index>(
-        pool, *Queues::GetQueue(VKit::Queue_Transfer), p_Info.Meshes.Indices,
-        {.Size = icount, .SrcOffset = ioffset, .DstOffset = ioffset}));
+    VKit::CommandPool &pool = Execution::GetTransientTransferPool();
+    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
+    VKIT_CHECK_EXPRESSION(
+        p_Info.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), p_Info.Meshes.Indices.GetData(),
+                                           {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize}));
 }
 
 template <typename Vertex> static void uploadMeshData(MeshInfo<Vertex> &p_Info)
@@ -138,39 +139,10 @@ template <typename Vertex> static void uploadMeshData(MeshInfo<Vertex> &p_Info)
         layout.Flags = 0;
 }
 
-static void createDescriptorData()
-{
-    TKIT_LOG_INFO("[ONYX] Creating assets descriptor data");
-    const VKit::LogicalDevice &device = Core::GetDevice();
-    const auto poolResult = VKit::DescriptorPool::Builder(device)
-                                .SetMaxSets(MaxDescriptorSets)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MaxDescriptors)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MaxDescriptors)
-                                .Build();
-
-    VKIT_CHECK_RESULT(poolResult);
-    s_DescriptorPool = poolResult.GetValue();
-
-    auto layoutResult = VKit::DescriptorSetLayout::Builder(device)
-                            .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-                            .Build();
-
-    VKIT_CHECK_RESULT(layoutResult);
-    s_InstanceDataStorageLayout = layoutResult.GetValue();
-
-    layoutResult = VKit::DescriptorSetLayout::Builder(device)
-                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-                       .Build();
-
-    VKIT_CHECK_RESULT(layoutResult);
-    s_LightStorageLayout = layoutResult.GetValue();
-}
-
 template <typename Vertex> static void initialize(MeshInfo<Vertex> &p_Info)
 {
-    p_Info.VertexBuffer = CreateBuffer<Vertex>(Buffer_DeviceVertex);
-    p_Info.IndexBuffer = CreateBuffer<Index>(Buffer_DeviceIndex);
+    p_Info.VertexBuffer = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
+    p_Info.IndexBuffer = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
 }
 
 template <Dimension D> static void initialize()
@@ -196,7 +168,6 @@ template <Dimension D> static void terminate()
 
 void Initialize()
 {
-    createDescriptorData();
     initialize<D2>();
     initialize<D3>();
 }
@@ -205,37 +176,6 @@ void Terminate()
 {
     terminate<D2>();
     terminate<D3>();
-    s_DescriptorPool.Destroy();
-    s_InstanceDataStorageLayout.Destroy();
-    s_LightStorageLayout.Destroy();
-}
-
-const VKit::DescriptorPool &GetDescriptorPool()
-{
-    return s_DescriptorPool;
-}
-const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout()
-{
-    return s_InstanceDataStorageLayout;
-}
-const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout()
-{
-    return s_LightStorageLayout;
-}
-
-VkDescriptorSet WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info, VkDescriptorSet p_OldSet)
-{
-    VKit::DescriptorSet::Writer writer{Core::GetDevice(), &s_InstanceDataStorageLayout};
-    writer.WriteBuffer(0, p_Info);
-
-    if (!p_OldSet)
-    {
-        const auto result = s_DescriptorPool.Allocate(s_InstanceDataStorageLayout);
-        VKIT_CHECK_RESULT(result);
-        p_OldSet = result.GetValue();
-    }
-    writer.Overwrite(p_OldSet);
-    return p_OldSet;
 }
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &p_Data)
@@ -289,33 +229,20 @@ template <Dimension D> void Upload()
     uploadMeshData(data.StaticMeshes);
 }
 
-template <typename Vertex> void bind(const MeshInfo<Vertex> &p_Info, const VkCommandBuffer p_CommandBuffer)
+template <Dimension D> MeshDataLayout GetStaticMeshLayout(const Mesh p_Mesh)
 {
-    p_Info.VertexBuffer.BindAsVertexBuffer(p_CommandBuffer);
-    p_Info.IndexBuffer.template BindAsIndexBuffer<Index>(p_CommandBuffer);
-}
-template <typename Vertex>
-void draw(const MeshInfo<Vertex> &p_Info, const VkCommandBuffer p_CommandBuffer, const Mesh p_Mesh,
-          const u32 p_FirstInstance, const u32 p_InstanceCount)
-{
-    const auto &table = Core::GetDeviceTable();
-    const DataLayout &layout = p_Info.Layouts[p_Mesh];
-    table.CmdDrawIndexed(p_CommandBuffer, layout.IndexCount, p_InstanceCount, layout.IndexStart, layout.VertexStart,
-                         p_FirstInstance);
+    const DataLayout &layout = getData<D>().StaticMeshes.Layouts[p_Mesh];
+    return MeshDataLayout{
+        .VertexStart = layout.VertexStart, .IndexStart = layout.IndexStart, .IndexCount = layout.IndexCount};
 }
 
-template <Dimension D> void BindStaticMeshes(const VkCommandBuffer p_CommandBuffer)
+template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshVertexBuffer()
 {
-    const AssetData<D> &data = getData<D>();
-    bind(data.StaticMeshes, p_CommandBuffer);
+    return getData<D>().StaticMeshes.VertexBuffer;
 }
-
-template <Dimension D>
-void DrawStaticMesh(const VkCommandBuffer p_CommandBuffer, const Mesh p_Mesh, const u32 p_FirstInstance,
-                    const u32 p_InstanceCount)
+template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer()
 {
-    const AssetData<D> &data = getData<D>();
-    draw(data.StaticMeshes, p_CommandBuffer, p_Mesh, p_FirstInstance, p_InstanceCount);
+    return getData<D>().StaticMeshes.IndexBuffer;
 }
 
 #ifdef ONYX_ENABLE_OBJ
@@ -688,18 +615,19 @@ template u32 GetStaticMeshCount<D3>();
 template void Upload<D2>();
 template void Upload<D3>();
 
-template void BindStaticMeshes<D2>(VkCommandBuffer p_CommandBuffer);
-template void BindStaticMeshes<D3>(VkCommandBuffer p_CommandBuffer);
-
-template void DrawStaticMesh<D2>(VkCommandBuffer p_CommandBuffer, Mesh p_Mesh, u32 p_FirstInstance,
-                                 u32 p_InstanceCount);
-template void DrawStaticMesh<D3>(VkCommandBuffer p_CommandBuffer, Mesh p_Mesh, u32 p_FirstInstance,
-                                 u32 p_InstanceCount);
-
 #ifdef ONYX_ENABLE_OBJ
 template VKit::Result<StatMeshData<D2>> LoadStaticMesh<D2>(const char *p_Path);
 template VKit::Result<StatMeshData<D3>> LoadStaticMesh<D3>(const char *p_Path);
 #endif
+
+template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D2>();
+template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D3>();
+
+template const VKit::DeviceBuffer &GetStaticMeshIndexBuffer<D2>();
+template const VKit::DeviceBuffer &GetStaticMeshIndexBuffer<D3>();
+
+template MeshDataLayout GetStaticMeshLayout<D2>(Mesh p_Mesh);
+template MeshDataLayout GetStaticMeshLayout<D3>(Mesh p_Mesh);
 
 template StatMeshData<D2> CreateTriangleMesh<D2>();
 template StatMeshData<D3> CreateTriangleMesh<D3>();

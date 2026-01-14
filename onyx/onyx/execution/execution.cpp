@@ -1,0 +1,173 @@
+#include "onyx/core/pch.hpp"
+#include "onyx/execution/execution.hpp"
+#include "onyx/core/core.hpp"
+
+namespace Onyx::Execution
+{
+static VKit::CommandPool s_Graphics{};
+static VKit::CommandPool s_Transfer{};
+static TKit::Array16<CommandPool> s_CommandPools{};
+
+static VKit::CommandPool createCommandPool(const u32 p_Family)
+{
+    const VKit::LogicalDevice &device = Core::GetDevice();
+    const auto poolres = VKit::CommandPool::Create(device, p_Family, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+    VKIT_CHECK_RESULT(poolres);
+    return poolres.GetValue();
+}
+
+static void createTransientCommandPools()
+{
+    TKIT_LOG_INFO("[ONYX] Creating transient command pools");
+
+    const u32 gindex = GetFamilyIndex(VKit::Queue_Graphics);
+    const u32 tindex = GetFamilyIndex(VKit::Queue_Transfer);
+
+    s_Graphics = createCommandPool(gindex);
+    if (gindex != tindex)
+        s_Transfer = createCommandPool(tindex);
+    else
+        s_Transfer = s_Graphics;
+}
+
+CommandPool &FindSuitableCommandPool(const u32 p_Family)
+{
+    for (CommandPool &pool : s_CommandPools)
+        if ((!pool.Queue || pool.Queue->GetFamily() == p_Family) && !pool.InUse())
+        {
+            pool.Reset();
+            return pool;
+        }
+
+    CommandPool &pool = s_CommandPools.Append();
+    pool.Pool = createCommandPool(p_Family);
+    return pool;
+}
+CommandPool &FindSuitableCommandPool(const VKit::QueueType p_Type)
+{
+    return FindSuitableCommandPool(GetFamilyIndex(p_Type));
+}
+
+void BeginCommandBuffer(const VkCommandBuffer p_CommandBuffer)
+{
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+    const auto &table = Core::GetDeviceTable();
+    VKIT_CHECK_EXPRESSION(table.BeginCommandBuffer(p_CommandBuffer, &beginInfo));
+}
+void EndCommandBuffer(const VkCommandBuffer p_CommandBuffer)
+{
+    const auto &table = Core::GetDeviceTable();
+    VKIT_CHECK_EXPRESSION(table.EndCommandBuffer(p_CommandBuffer));
+}
+
+void Initialize()
+{
+    createTransientCommandPools();
+    const auto &device = Core::GetDevice();
+    const auto &table = Core::GetDeviceTable();
+    const auto &Queues = Core::GetDevice().GetInfo().Queues;
+    for (VKit::Queue *q : Queues)
+    {
+        VkSemaphoreTypeCreateInfoKHR typeInfo{};
+        typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+        typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        typeInfo.initialValue = 0;
+
+        VkSemaphoreCreateInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        info.pNext = &typeInfo;
+        VkSemaphore semaphore;
+        VKIT_CHECK_EXPRESSION(table.CreateSemaphore(device, &info, nullptr, &semaphore));
+        q->TakeTimelineSemaphoreOwnership(semaphore);
+    }
+    UpdateCompletedQueueTimelines();
+}
+void Terminate()
+{
+    s_Graphics.Destroy();
+    if (IsSeparateTransferMode())
+        s_Transfer.Destroy();
+}
+void UpdateCompletedQueueTimelines()
+{
+    const auto &Queues = Core::GetDevice().GetInfo().Queues;
+    for (VKit::Queue *q : Queues)
+        VKIT_CHECK_EXPRESSION(q->UpdateCompletedTimeline());
+}
+void RevokeUnsubmittedQueueTimelines()
+{
+    const auto &Queues = Core::GetDevice().GetInfo().Queues;
+    for (VKit::Queue *q : Queues)
+        q->RevokeUnsubmittedTimelineValues();
+}
+
+VKit::Queue *FindSuitableQueue(const VKit::QueueType p_Type)
+{
+    const auto &Queues = Core::GetDevice().GetInfo().QueuesPerType[p_Type];
+    u64 pending = TKIT_U64_MAX;
+    VKit::Queue *queue = nullptr;
+    for (VKit::Queue *q : Queues)
+    {
+        const u64 p = q->GetPendingTimeline();
+        if (p < pending)
+        {
+            pending = p;
+            queue = q;
+        }
+    }
+    TKIT_ASSERT(queue, "[ONYX] Queue is null. Some pending submissions returned U64 max. This is bad...");
+    return queue;
+}
+
+bool IsSeparateTransferMode()
+{
+    return GetFamilyIndex(VKit::Queue_Graphics) != GetFamilyIndex(VKit::Queue_Transfer);
+}
+u32 GetFamilyIndex(const VKit::QueueType p_Type)
+{
+    return Core::GetDevice().GetInfo().PhysicalDevice.GetInfo().FamilyIndices[p_Type];
+}
+
+VKit::CommandPool &GetTransientGraphicsPool()
+{
+    return s_Graphics;
+}
+VKit::CommandPool &GetTransientTransferPool()
+{
+    return s_Transfer;
+}
+
+PerImageData<SyncData> CreateSyncData(const u32 p_ImageCount)
+{
+    const auto &device = Core::GetDevice();
+    const auto &table = device.GetInfo().Table;
+
+    PerImageData<SyncData> syncs{};
+    syncs.Resize(p_ImageCount);
+    for (u32 i = 0; i < p_ImageCount; ++i)
+    {
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        VKIT_CHECK_EXPRESSION(
+            table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore));
+        VKIT_CHECK_EXPRESSION(
+            table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore));
+    }
+    return syncs;
+}
+void DestroySyncData(const TKit::Span<const SyncData> p_Objects)
+{
+    const auto &device = Core::GetDevice();
+    const auto &table = device.GetInfo().Table;
+
+    for (const SyncData &data : p_Objects)
+    {
+        table.DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
+        table.DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);
+    }
+}
+
+} // namespace Onyx::Execution

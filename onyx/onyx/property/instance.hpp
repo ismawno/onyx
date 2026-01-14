@@ -13,7 +13,6 @@ enum PrimitiveType : u8
 };
 
 template <Dimension D> struct InstanceData;
-
 template <> struct InstanceData<D2>
 {
     f32v2 Basis1;
@@ -78,17 +77,18 @@ struct PointLight
  * - `StencilPass_NoStencilWriteDoFill`: This pass will render the shape normally and corresponds to a shape being
  * rendered without an outline, thus not writing to the stencil buffer. This is important so that other shapes having
  * outlines can have theirs drawn on top of objects that do not have an outline. This way, an object's outline will
- * always be visible and on top of non-outlined shapes. The corresponding `DrawMode` is `Draw_Fill`.
+ * always be visible and on top of non-outlined shapes. The corresponding `DrawPass` is `DrawPass_Fill`.
  *
  * - `StencilPass_DoStencilWriteDoFill`: This pass will render the shape normally and write to the stencil buffer, which
- * corresponds to a shape being rendered both filled and with an outline. The corresponding `DrawMode` is `Draw_Fill`.
+ * corresponds to a shape being rendered both filled and with an outline. The corresponding `DrawPass` is
+ * `DrawPass_Fill`.
  *
  * - `StencilPass_DoStencilWriteNoFill`: This pass will only write to the stencil buffer and will not render the shape.
  * This step is necessary in case the user wants to render an outline only, without the shape being filled. The
- * corresponding `DrawMode` is `Draw_Outline`.
+ * corresponding `DrawPass` is `DrawPass_Outline`.
  *
  * - `StencilPass_DoStencilTestNoFill`: This pass will test the stencil buffer and render the shape only where the
- * stencil buffer is not set. The corresponding `DrawMode` is `Draw_Outline`.
+ * stencil buffer is not set. The corresponding `DrawPass` is `DrawPass_Outline`.
  *
  */
 enum StencilPass : u8
@@ -98,6 +98,55 @@ enum StencilPass : u8
     StencilPass_DoStencilWriteNoFill,
     StencilPass_DoStencilTestNoFill,
     StencilPass_Count
+};
+
+enum DrawPass : u8
+{
+    DrawPass_Fill,
+    DrawPass_Outline,
+    DrawPass_Count
+};
+
+enum Shading : u8
+{
+    Shading_Unlit,
+    Shading_Lit
+};
+
+constexpr DrawPass GetDrawMode(const StencilPass p_Pass)
+{
+    if (p_Pass == StencilPass_NoStencilWriteDoFill || p_Pass == StencilPass_DoStencilWriteDoFill)
+        return DrawPass_Fill;
+    return DrawPass_Outline;
+}
+
+template <Dimension D> constexpr Shading GetShading(const DrawPass p_Pass)
+{
+    if constexpr (D == D2)
+        return Shading_Unlit;
+    else
+        return p_Pass == DrawPass_Fill ? Shading_Lit : Shading_Unlit;
+}
+template <Dimension D> constexpr Shading GetShading(const StencilPass p_Pass)
+{
+    return GetShading<D>(GetDrawMode(p_Pass));
+}
+
+template <Shading Sh> struct PushConstantData;
+
+template <> struct PushConstantData<Shading_Unlit>
+{
+    f32m4 ProjectionView;
+};
+
+template <> struct PushConstantData<Shading_Lit>
+{
+    f32m4 ProjectionView;
+    f32v4 ViewPosition;
+    f32v4 AmbientColor;
+    u32 DirectionalLightCount;
+    u32 PointLightCount;
+    u32 _Padding[2];
 };
 
 } // namespace Onyx

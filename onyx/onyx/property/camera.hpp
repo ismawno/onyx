@@ -1,12 +1,37 @@
 #pragma once
 
-#include "onyx/state/state.hpp"
 #include "onyx/app/input.hpp"
 #include "onyx/property/transform.hpp"
+#include "onyx/property/color.hpp"
 #include "tkit/profiling/timespan.hpp"
 #include "tkit/utils/non_copyable.hpp"
 #include "tkit/reflection/reflect.hpp"
 #include "tkit/serialization/yaml/serialize.hpp"
+#include <vulkan/vulkan.h>
+
+namespace Onyx::Detail
+{
+template <Dimension D> struct CameraInfo;
+
+template <> struct CameraInfo<D2>
+{
+    f32m4 ProjectionView;
+    Color BackgroundColor;
+    VkViewport Viewport;
+    VkRect2D Scissor;
+    bool Transparent;
+};
+template <> struct CameraInfo<D3>
+{
+    f32m4 ProjectionView;
+    Color BackgroundColor;
+    f32v3 ViewPosition;
+    VkViewport Viewport;
+    VkRect2D Scissor;
+    bool Transparent;
+};
+
+} // namespace Onyx::Detail
 
 namespace Onyx
 {
@@ -156,7 +181,7 @@ template <Dimension D> class ICamera
     void SetViewport(const ScreenViewport &p_Viewport);
     void SetScissor(const ScreenScissor &p_Scissor);
 
-    CameraInfo CreateCameraInfo() const;
+    CameraInfo<D> CreateCameraInfo() const;
 
     Color BackgroundColor{Color::BLACK};
     bool Transparent = false;

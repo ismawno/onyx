@@ -269,10 +269,10 @@ template <Dimension D> void ICamera<D>::updateProjectionView()
     }
 }
 
-template <Dimension D> CameraInfo ICamera<D>::CreateCameraInfo() const
+template <Dimension D> CameraInfo<D> ICamera<D>::CreateCameraInfo() const
 {
     const VkExtent2D extent = {m_Window->GetPixelWidth(), m_Window->GetPixelHeight()};
-    CameraInfo info;
+    CameraInfo<D> info;
     if constexpr (D == D2)
     {
         info.ProjectionView = Transform<D2>::Promote(m_ProjectionView.ProjectionView);

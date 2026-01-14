@@ -1,7 +1,6 @@
 #pragma once
 
-#include "onyx/core/alias.hpp"
-#include "tkit/reflection/reflect.hpp"
+#include "onyx/core/math.hpp"
 
 namespace Onyx
 {
@@ -12,7 +11,6 @@ namespace Input
 void PollEvents();
 void InstallCallbacks(Window &p_Window);
 
-TKIT_REFLECT_DECLARE_ENUM(Key)
 enum Key : u16
 {
     Key_Space,
@@ -139,7 +137,6 @@ enum Key : u16
     Key_Count
 };
 
-TKIT_REFLECT_DECLARE_ENUM(Mouse)
 enum Mouse : u8
 {
     Mouse_Button1,
@@ -174,7 +171,6 @@ bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button);
 
 const char *GetKeyName(Key p_Key);
 }; // namespace Input
-TKIT_REFLECT_DECLARE_ENUM(EventType)
 enum EventType : u8
 {
     Event_KeyPressed,
