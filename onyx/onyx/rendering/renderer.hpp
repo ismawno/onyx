@@ -47,6 +47,8 @@ struct RenderSubmitInfo
 TransferSubmitInfo Transfer(VKit::Queue *p_Transfer, VkCommandBuffer p_Command);
 void SubmitTransfer(VKit::Queue *p_Transfer, CommandPool &p_Pool, TKit::Span<const TransferSubmitInfo> p_Info);
 
+void ApplyAcquireBarriers(VkCommandBuffer p_GraphicsCommand);
+
 RenderSubmitInfo Render(VKit::Queue *p_Graphics, VkCommandBuffer p_Command, const Window *p_Window);
 void SubmitRender(VKit::Queue *p_Graphics, CommandPool &p_Pool, TKit::Span<const RenderSubmitInfo> p_Info);
 

@@ -104,8 +104,8 @@ template <typename Vertex> static void uploadIndexData(MeshInfo<Vertex> &p_Info,
     VKit::CommandPool &pool = Execution::GetTransientTransferPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
     VKIT_CHECK_EXPRESSION(
-        p_Info.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), p_Info.Meshes.Indices.GetData(),
-                                           {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize}));
+        p_Info.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), p_Info.Meshes.Indices.GetData(),
+                                          {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize}));
 }
 
 template <typename Vertex> static void uploadMeshData(MeshInfo<Vertex> &p_Info)

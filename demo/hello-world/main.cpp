@@ -16,6 +16,8 @@ int main()
     {
         RenderContext<D2> *ctx = Renderer::CreateContext<D2>();
         Window window{};
+        ctx->AddTarget(&window);
+        window.CreateCamera<D2>();
         const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
         const Mesh mesh = Assets::AddMesh(data);
         Assets::Upload<D2>();
@@ -47,6 +49,8 @@ int main()
                     Renderer::SubmitTransfer(tqueue, tpool, tsinfo);
 
                 Execution::BeginCommandBuffer(gcmd);
+                Renderer::ApplyAcquireBarriers(gcmd);
+
                 window.BeginRendering(gcmd);
                 const Renderer::RenderSubmitInfo rsinfo = Renderer::Render(gqueue, gcmd, &window);
                 window.EndRendering(gcmd);

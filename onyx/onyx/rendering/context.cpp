@@ -10,6 +10,19 @@ using namespace Detail;
 template <Dimension D> IRenderContext<D>::IRenderContext()
 {
     m_Current = &m_StateStack.Append();
+    for (u32 i = 0; i < m_InstanceData.GetSize(); ++i)
+    {
+        for (u32 j = BatchRangeStart_StaticMesh; j < BatchRangeEnd_StaticMesh; ++j)
+        {
+            InstanceBuffer &buffer = m_InstanceData[i][j];
+            buffer.Data = VKit::HostBuffer::Create<InstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
+        }
+        for (u32 j = BatchRangeStart_Circle; j < BatchRangeEnd_Circle; ++j)
+        {
+            InstanceBuffer &buffer = m_InstanceData[i][j];
+            buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
+        }
+    }
 }
 
 template <Dimension D> void IRenderContext<D>::Flush()
@@ -19,8 +32,8 @@ template <Dimension D> void IRenderContext<D>::Flush()
 
     m_StateStack[0] = RenderState<D>{};
     m_Current = &m_StateStack.GetFront();
-    for (u32 i = 0; i < Primitive_Count; ++i)
-        for (u32 j = 0; j < StencilPass_Count; ++j)
+    for (u32 i = 0; i < m_InstanceData.GetSize(); ++i)
+        for (u32 j = 0; j < m_InstanceData[i].GetSize(); ++j)
             m_InstanceData[i][j].Instances = 0;
     ++m_Generation;
 }

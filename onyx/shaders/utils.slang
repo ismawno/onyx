@@ -25,6 +25,7 @@ public struct InstanceData2D
 {
     Basis2D Basis;
     uint Color;
+    uint TexIndex;
 };
 public struct InstanceDataFill3D
 {

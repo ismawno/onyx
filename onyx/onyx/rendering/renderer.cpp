@@ -580,6 +580,32 @@ void SubmitTransfer(VKit::Queue *p_Transfer, CommandPool &p_Pool, TKit::Span<con
     VKIT_CHECK_EXPRESSION(p_Transfer->Submit2(submits));
 }
 
+template <Dimension D> void applyAcquireBarriers(BarrierArray &p_Barriers)
+{
+    const RendererData<D> &rdata = getRendererData<D>();
+    for (const GraphicsArena &garena : rdata.GraphicsArenas)
+        for (const GraphicsMemoryRange &grange : garena.MemoryRanges)
+            if (grange.InUseByTransfer())
+                p_Barriers.Append(grange.Barrier);
+}
+
+void ApplyAcquireBarriers(const VkCommandBuffer p_GraphicsCommand)
+{
+    BarrierArray barriers{};
+    applyAcquireBarriers<D2>(barriers);
+    applyAcquireBarriers<D3>(barriers);
+    if (!barriers.IsEmpty())
+    {
+        const auto &table = Core::GetDeviceTable();
+        VkDependencyInfoKHR info{};
+        info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
+        info.bufferMemoryBarrierCount = barriers.GetSize();
+        info.pBufferMemoryBarriers = barriers.GetData();
+        info.dependencyFlags = 0;
+        table.CmdPipelineBarrier2KHR(p_GraphicsCommand, &info);
+    }
+}
+
 template <Dimension D>
 static void setCameraViewport(const VkCommandBuffer p_Command, const Detail::CameraInfo<D> &p_Camera)
 {
@@ -655,12 +681,9 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
         return;
 
     const u64 viewBit = p_Window->GetViewBit();
-    const auto &table = Core::GetDeviceTable();
     const auto &device = Core::GetDevice();
 
     RendererData<D> &rdata = getRendererData<D>();
-
-    TKit::Array<VkBufferMemoryBarrier2KHR, MaxRendererRanges> barriers{};
 
     u32 batches = 0;
     TKit::FixedArray<TKit::FixedArray<TKit::Array<InstanceDrawInfo, MaxDrawCallsPerBatch>, MaxBatches>,
@@ -710,7 +733,6 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
             ++batches;
             if (grange.InUseByTransfer())
             {
-                barriers.Append(grange.Barrier);
                 bool found = false;
                 for (TransferSyncPoint &sp : p_SyncPoints)
                 {
@@ -734,16 +756,6 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
 
     if (batches == 0)
         return;
-
-    if (!barriers.IsEmpty())
-    {
-        VkDependencyInfoKHR info{};
-        info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
-        info.bufferMemoryBarrierCount = barriers.GetSize();
-        info.pBufferMemoryBarriers = barriers.GetData();
-        info.dependencyFlags = 0;
-        table.CmdPipelineBarrier2KHR(p_GraphicsCommand, &info);
-    }
 
     for (const Detail::CameraInfo<D> &camInfo : camInfos)
     {
@@ -899,6 +911,8 @@ template <Dimension D> void coalesce()
         if (mergeRange.Size != 0)
             tranges.Append(mergeRange);
         tarena.MemoryRanges = tranges;
+        TKIT_ASSERT(!tranges.IsEmpty(),
+                    "[ONYX] All memory ranges for the transfer arena have been removed after coalesce operation!");
     }
     for (GraphicsArena &garena : rdata.GraphicsArenas)
     {
@@ -916,7 +930,7 @@ template <Dimension D> void coalesce()
                 }
                 granges.Append(grange);
             }
-            else
+            else if (!grange.ContextRanges.IsEmpty())
             {
                 TKit::Array<ContextRange, MaxRenderContexts> cranges{};
                 grange.Size = 0;
@@ -957,10 +971,15 @@ template <Dimension D> void coalesce()
                     granges.Append(grange);
                 }
             }
+            else
+                granges.Append(grange);
         }
         if (mergeRange.Size != 0)
             granges.Append(mergeRange);
         garena.MemoryRanges = granges;
+
+        TKIT_ASSERT(!granges.IsEmpty(),
+                    "[ONYX] All memory ranges for the graphics arena have been removed after coalesce operation");
     }
 }
 
