@@ -22,6 +22,7 @@ int main()
 
         while (!window.ShouldClose())
         {
+            Input::PollEvents();
             if (window.AcquireNextImage())
             {
                 ctx->Flush();
@@ -46,13 +47,13 @@ int main()
                     Renderer::SubmitTransfer(tqueue, tpool, tsinfo);
 
                 Execution::BeginCommandBuffer(gcmd);
+                window.BeginRendering(gcmd);
                 const Renderer::RenderSubmitInfo rsinfo = Renderer::Render(gqueue, gcmd, &window);
+                window.EndRendering(gcmd);
                 Execution::EndCommandBuffer(gcmd);
-                if (rsinfo)
-                {
-                    Renderer::SubmitRender(gqueue, gpool, rsinfo);
-                    window.Present(rsinfo);
-                }
+
+                Renderer::SubmitRender(gqueue, gpool, rsinfo);
+                window.Present(rsinfo);
             }
             Execution::RevokeUnsubmittedQueueTimelines();
         }

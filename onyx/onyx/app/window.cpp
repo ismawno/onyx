@@ -195,11 +195,13 @@ bool Window::AcquireNextImage(const Timeout p_Timeout)
     const auto &table = Core::GetDeviceTable();
     const auto &device = Core::GetDevice();
     const auto acquire = [&]() {
-        const VkResult result =
-            table.AcquireNextImageKHR(device, m_SwapChain, p_Timeout, m_SyncData[m_ImageIndex].ImageAvailableSemaphore,
-                                      VK_NULL_HANDLE, &m_ImageIndex);
+        m_ImageAvailableIndex = (m_ImageAvailableIndex + 1) % m_SyncData.GetSize();
+        const VkResult result = table.AcquireNextImageKHR(device, m_SwapChain, p_Timeout,
+                                                          m_SyncData[m_ImageAvailableIndex].ImageAvailableSemaphore,
+                                                          VK_NULL_HANDLE, &m_ImageIndex);
         return handleImageResult(result);
     };
+
     if (p_Timeout != Block)
         return acquire();
 
@@ -210,16 +212,10 @@ bool Window::AcquireNextImage(const Timeout p_Timeout)
         waitInfo.semaphoreCount = 1;
         waitInfo.pSemaphores = &m_LastGraphicsSubmission.Timeline;
         waitInfo.pValues = &m_LastGraphicsSubmission.InFlightValue;
-        m_LastGraphicsSubmission.Timeline = VK_NULL_HANDLE;
         VKIT_CHECK_EXPRESSION(table.WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
-        return acquire();
+        m_LastGraphicsSubmission.Timeline = VK_NULL_HANDLE;
     }
-    if (!m_HasImage)
-    {
-        m_HasImage = true;
-        return acquire();
-    }
-    return true;
+    return acquire();
 }
 
 VkExtent2D Window::waitGlfwEvents()

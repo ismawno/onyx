@@ -42,11 +42,6 @@ struct RenderSubmitInfo
     u64 InFlightValue = 0;
     TKit::FixedArray<VkSemaphoreSubmitInfoKHR, 2> SignalSemaphores{};
     TKit::Array<VkSemaphoreSubmitInfoKHR, MaxRendererRanges> WaitSemaphores{};
-
-    operator bool() const
-    {
-        return Command != VK_NULL_HANDLE;
-    }
 };
 
 TransferSubmitInfo Transfer(VKit::Queue *p_Transfer, VkCommandBuffer p_Command);

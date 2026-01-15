@@ -10,6 +10,7 @@ struct CommandPool
 {
     const VKit::Queue *Queue = nullptr;
     u64 InFlightValue = 0;
+    u32 Family;
     VKit::CommandPool Pool{};
     bool InUse() const
     {

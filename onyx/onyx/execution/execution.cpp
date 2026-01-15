@@ -33,7 +33,7 @@ static void createTransientCommandPools()
 CommandPool &FindSuitableCommandPool(const u32 p_Family)
 {
     for (CommandPool &pool : s_CommandPools)
-        if ((!pool.Queue || pool.Queue->GetFamily() == p_Family) && !pool.InUse())
+        if (pool.Family == p_Family && !pool.InUse())
         {
             pool.Reset();
             return pool;
@@ -41,6 +41,7 @@ CommandPool &FindSuitableCommandPool(const u32 p_Family)
 
     CommandPool &pool = s_CommandPools.Append();
     pool.Pool = createCommandPool(p_Family);
+    pool.Family = p_Family;
     return pool;
 }
 CommandPool &FindSuitableCommandPool(const VKit::QueueType p_Type)
@@ -89,6 +90,8 @@ void Terminate()
     s_Graphics.Destroy();
     if (IsSeparateTransferMode())
         s_Transfer.Destroy();
+    for (CommandPool &pool : s_CommandPools)
+        pool.Pool.Destroy();
 }
 void UpdateCompletedQueueTimelines()
 {

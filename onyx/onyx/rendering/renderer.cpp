@@ -648,7 +648,7 @@ using SyncArray = TKit::Array<TransferSyncPoint, MaxRendererRanges>;
 
 template <Dimension D>
 static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsCommand, const Window *p_Window,
-                   RenderSubmitInfo &p_Info, const u64 p_GraphicsFlightValue, SyncArray &p_SyncPoints)
+                   const u64 p_GraphicsFlightValue, SyncArray &p_SyncPoints)
 {
     const auto camInfos = p_Window->GetCameraInfos<D>();
     if (camInfos.IsEmpty())
@@ -734,7 +734,6 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
 
     if (batches == 0)
         return;
-    p_Info.Command = p_GraphicsCommand;
 
     if (!barriers.IsEmpty())
     {
@@ -775,47 +774,45 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
 RenderSubmitInfo Render(VKit::Queue *p_Graphics, const VkCommandBuffer p_Command, const Window *p_Window)
 {
     RenderSubmitInfo submitInfo{};
+    submitInfo.Command = p_Command;
     const u64 graphicsFlight = p_Graphics->NextTimelineValue();
     SyncArray syncPoints{};
-    render<D2>(p_Graphics, p_Command, p_Window, submitInfo, graphicsFlight, syncPoints);
-    render<D3>(p_Graphics, p_Command, p_Window, submitInfo, graphicsFlight, syncPoints);
-    if (submitInfo)
+    render<D2>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints);
+    render<D3>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints);
+
+    VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
+    rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
+    rendFinInfo.pNext = nullptr;
+    rendFinInfo.semaphore = p_Window->GetRenderFinishedSemaphore();
+    rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
+    rendFinInfo.deviceIndex = 0;
+
+    VkSemaphoreSubmitInfoKHR &imgInfo = submitInfo.WaitSemaphores.Append();
+    imgInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
+    imgInfo.pNext = nullptr;
+    imgInfo.semaphore = p_Window->GetImageAvailableSemaphore();
+    imgInfo.deviceIndex = 0;
+    imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
+
+    VkSemaphoreSubmitInfoKHR &gtimSemInfo = submitInfo.SignalSemaphores[0];
+    gtimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
+    gtimSemInfo.pNext = nullptr;
+    gtimSemInfo.value = graphicsFlight;
+    gtimSemInfo.deviceIndex = 0;
+    gtimSemInfo.semaphore = p_Graphics->GetTimelineSempahore();
+    gtimSemInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
+
+    for (const TransferSyncPoint &sp : syncPoints)
     {
-        const Execution::SyncData &sd = p_Window->GetSyncData();
-        VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
-        rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-        rendFinInfo.pNext = nullptr;
-        rendFinInfo.semaphore = sd.RenderFinishedSemaphore;
-        rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-        rendFinInfo.deviceIndex = 0;
-
-        VkSemaphoreSubmitInfoKHR &imgInfo = submitInfo.WaitSemaphores.Append();
-        imgInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-        imgInfo.pNext = nullptr;
-        imgInfo.semaphore = sd.ImageAvailableSemaphore;
-        imgInfo.deviceIndex = 0;
-        imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-
-        VkSemaphoreSubmitInfoKHR &gtimSemInfo = submitInfo.SignalSemaphores[0];
-        gtimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-        gtimSemInfo.pNext = nullptr;
-        gtimSemInfo.value = graphicsFlight;
-        gtimSemInfo.deviceIndex = 0;
-        gtimSemInfo.semaphore = p_Graphics->GetTimelineSempahore();
-        gtimSemInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
-
-        for (const TransferSyncPoint &sp : syncPoints)
-        {
-            VkSemaphoreSubmitInfoKHR &ttimSemInfo = submitInfo.WaitSemaphores.Append();
-            ttimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-            ttimSemInfo.pNext = nullptr;
-            ttimSemInfo.semaphore = sp.Transfer->GetTimelineSempahore();
-            ttimSemInfo.deviceIndex = 0;
-            ttimSemInfo.value = sp.TransferFlightValue;
-            ttimSemInfo.stageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR;
-        }
-        submitInfo.InFlightValue = graphicsFlight;
+        VkSemaphoreSubmitInfoKHR &ttimSemInfo = submitInfo.WaitSemaphores.Append();
+        ttimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
+        ttimSemInfo.pNext = nullptr;
+        ttimSemInfo.semaphore = sp.Transfer->GetTimelineSempahore();
+        ttimSemInfo.deviceIndex = 0;
+        ttimSemInfo.value = sp.TransferFlightValue;
+        ttimSemInfo.stageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR;
     }
+    submitInfo.InFlightValue = graphicsFlight;
     return submitInfo;
 }
 

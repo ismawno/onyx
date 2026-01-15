@@ -266,9 +266,13 @@ class Window
         return m_ViewBit;
     }
 
-    const Execution::SyncData &GetSyncData() const
+    VkSemaphore GetImageAvailableSemaphore() const
     {
-        return m_SyncData[m_ImageIndex];
+        return m_SyncData[m_ImageAvailableIndex].ImageAvailableSemaphore;
+    }
+    VkSemaphore GetRenderFinishedSemaphore() const
+    {
+        return m_SyncData[m_ImageIndex].RenderFinishedSemaphore;
     }
 
   private:
@@ -320,6 +324,7 @@ class Window
     VKit::Queue *m_Present;
 
     u32 m_ImageIndex;
+    u32 m_ImageAvailableIndex = 0;
     TransferMode m_TransferMode;
     u64 m_ViewBit;
 
@@ -339,7 +344,6 @@ class Window
     VkPresentModeKHR m_PresentMode;
     WindowFlags m_Flags;
     bool m_MustRecreateSwapchain = false;
-    bool m_HasImage = false;
 
     friend void windowResizeCallback(GLFWwindow *, const i32, const i32);
 };
