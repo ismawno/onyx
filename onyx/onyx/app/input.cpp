@@ -256,7 +256,7 @@ static i32 toGlfw(const Key p_Key)
         return GLFW_KEY_MENU;
     case Key_None:
         return GLFW_KEY_LAST + 1;
-    default:
+    case Key_Count:
         return GLFW_KEY_LAST + 1;
     }
     return GLFW_KEY_LAST + 1;
@@ -292,7 +292,7 @@ static i32 toGlfw(const Mouse p_Mouse)
         return GLFW_MOUSE_BUTTON_MIDDLE;
     case Mouse_None:
         return GLFW_MOUSE_BUTTON_LAST + 1;
-    default:
+    case Mouse_Count:
         return GLFW_MOUSE_BUTTON_LAST + 1;
     }
     return GLFW_MOUSE_BUTTON_LAST + 1;
@@ -857,7 +857,7 @@ const char *GetKeyName(const Key p_Key)
         return "Menu";
     case Key_None:
         return "None";
-    default:
+    case Key_Count:
         return "Unknown";
     }
     return "Unknown";

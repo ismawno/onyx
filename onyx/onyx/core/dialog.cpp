@@ -13,10 +13,11 @@ Status toStatus(const nfdresult_t p_Result)
         return Cancel;
     case NFD_ERROR:
         return Error;
+    case NFD_OKAY:
+        return Success;
     default:
         return Success;
     }
-    return Success;
 }
 
 Result<Path> OpenFolder(const char *p_Default)

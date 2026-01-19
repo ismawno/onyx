@@ -111,11 +111,12 @@ template <Dimension D> static VkDeviceSize getInstanceSize(const PrimitiveType p
         return sizeof(InstanceData<D>);
     case Primitive_Circle:
         return sizeof(CircleInstanceData<D>);
-    default:
+    case Primitive_Count:
         TKIT_FATAL("[ONYX] Unrecognized primitive type");
         return 0;
     }
     TKIT_FATAL("[ONYX] Unrecognized primitive type");
+    return 0;
 }
 
 VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo()
