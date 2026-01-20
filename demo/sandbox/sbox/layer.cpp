@@ -353,7 +353,7 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
     {
         if (p_Meshes.StaticMeshes.GetSize() > p_Meshes.StaticOffset)
         {
-            TKit::Array16<const char *> meshNames{};
+            TKit::StaticArray16<const char *> meshNames{};
             for (u32 i = p_Meshes.StaticOffset; i < p_Meshes.StaticMeshes.GetSize(); ++i)
                 meshNames.Append(p_Meshes.StaticMeshes[i].Name.c_str());
 

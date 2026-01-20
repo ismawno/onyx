@@ -3,6 +3,7 @@
 #include "onyx/core/alias.hpp"
 #include "vkit/state/shader.hpp"
 #include "tkit/utils/non_copyable.hpp"
+#include "tkit/container/static_array.hpp"
 
 namespace Onyx
 {
@@ -250,7 +251,7 @@ class Compilation
 {
     TKIT_NON_COPYABLE(Compilation)
   public:
-    Compilation(const TKit::Array32<Spirv> &p_CompiledSpirv) : m_CompiledSpirv(p_CompiledSpirv)
+    Compilation(const TKit::StaticArray32<Spirv> &p_CompiledSpirv) : m_CompiledSpirv(p_CompiledSpirv)
     {
     }
 
@@ -265,7 +266,7 @@ class Compilation
     void Destroy();
 
   private:
-    TKit::Array32<Spirv> m_CompiledSpirv{};
+    TKit::StaticArray32<Spirv> m_CompiledSpirv{};
 };
 
 class Compiler
@@ -287,7 +288,7 @@ class Compiler
         const char *m_Name;
         const char *m_SourceCode;
         const char *m_Path;
-        TKit::Array8<EntryPoint> m_EntryPoints{};
+        TKit::StaticArray8<EntryPoint> m_EntryPoints{};
 
         friend class Compiler;
     };
@@ -310,10 +311,10 @@ class Compiler
     Compilation Compile() const;
 
   private:
-    TKit::Array8<Module> m_Modules{};
-    TKit::Array16<Detail::ShaderArgument> m_Arguments{};
-    TKit::Array16<Detail::Macro> m_Macros{};
-    TKit::Array16<const char *> m_SearchPaths{};
+    TKit::StaticArray8<Module> m_Modules{};
+    TKit::StaticArray16<Detail::ShaderArgument> m_Arguments{};
+    TKit::StaticArray16<Detail::Macro> m_Macros{};
+    TKit::StaticArray16<const char *> m_SearchPaths{};
 
     bool m_EnableEffectAnnotations = false;
     bool m_AllowGlslSyntax = false;

@@ -3,16 +3,12 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/rendering/context.hpp"
-#include "tkit/multiprocessing/thread_pool.hpp"
 
 using namespace Onyx;
 
-#define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
-
 int main()
 {
-    TKit::ThreadPool threadPool{ONYX_MAX_WORKERS};
-    Core::Initialize(Specs{.TaskManager = &threadPool});
+    Core::Initialize();
     {
         RenderContext<D2> *ctx = Renderer::CreateContext<D2>();
         Window window{};

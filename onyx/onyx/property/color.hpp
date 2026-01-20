@@ -120,7 +120,7 @@ struct Color
 
   private:
     // This will be useful for serialization (not implemented yet)
-    static const TKit::HashMap<std::string, Color> s_ColorMap;
+    static const std::unordered_map<std::string, Color> s_ColorMap;
 };
 
 class Gradient

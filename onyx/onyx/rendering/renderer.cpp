@@ -54,7 +54,7 @@ struct GraphicsMemoryRange
     u64 ViewMask = 0;
     u32 BatchIndex = TKIT_U32_MAX;
     StencilPass Pass = StencilPass_Count;
-    TKit::Array<ContextRange, MaxRenderContexts> ContextRanges{};
+    TKit::StaticArray<ContextRange, MaxRenderContexts> ContextRanges{};
 
     bool InUseByTransfer() const
     {
@@ -73,19 +73,19 @@ struct GraphicsMemoryRange
 struct TransferArena
 {
     VKit::DeviceBuffer Buffer{};
-    TKit::Array<TransferMemoryRange, MaxRendererRanges> MemoryRanges{};
+    TKit::StaticArray<TransferMemoryRange, MaxRendererRanges> MemoryRanges{};
 };
 struct GraphicsArena
 {
     VKit::DeviceBuffer Buffer{};
-    TKit::Array<GraphicsMemoryRange, MaxRendererRanges> MemoryRanges{};
+    TKit::StaticArray<GraphicsMemoryRange, MaxRendererRanges> MemoryRanges{};
 };
 
 template <Dimension D> struct RendererData
 {
     TKit::BlockAllocator ContextAllocator = TKit::BlockAllocator::CreateFromType<RenderContext<D>>(MaxRenderContexts);
-    TKit::Array<RenderContext<D> *, MaxRenderContexts> Contexts{};
-    TKit::Array<u64, MaxRenderContexts> Generations{};
+    TKit::StaticArray<RenderContext<D> *, MaxRenderContexts> Contexts{};
+    TKit::StaticArray<u64, MaxRenderContexts> Generations{};
     TKit::FixedArray<TransferArena, Primitive_Count> TransferArenas{};
     TKit::FixedArray<GraphicsArena, Primitive_Count> GraphicsArenas{};
     TKit::FixedArray<VKit::GraphicsPipeline, StencilPass_Count> StatMeshPipelines{};
@@ -399,7 +399,7 @@ VkBufferMemoryBarrier2KHR createReleaseBarrier(const VkBuffer p_DeviceLocalBuffe
     return barrier;
 }
 
-using BarrierArray = TKit::Array<VkBufferMemoryBarrier2KHR, MaxBatches>;
+using BarrierArray = TKit::StaticArray<VkBufferMemoryBarrier2KHR, MaxBatches>;
 
 template <Dimension D>
 static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, TransferSubmitInfo &p_Info,
@@ -412,7 +412,7 @@ static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, T
     };
 
     RendererData<D> &rdata = getRendererData<D>();
-    TKit::Array<ContextInfo, MaxRenderContexts> dirtyContexts{};
+    TKit::StaticArray<ContextInfo, MaxRenderContexts> dirtyContexts{};
     for (u32 i = 0; i < rdata.Contexts.GetSize(); ++i)
     {
         const RenderContext<D> *ctx = rdata.Contexts[i];
@@ -426,10 +426,10 @@ static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, T
     if (dirtyContexts.IsEmpty())
         return;
 
-    TKit::Array<ContextRange, MaxRenderContexts> contextRanges{};
+    TKit::StaticArray<ContextRange, MaxRenderContexts> contextRanges{};
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
-    TKit::Array<Task, MaxTasks> tasks{};
+    TKit::StaticArray<Task, MaxTasks> tasks{};
     u32 sindex = 0;
 
     const auto processBatches = [&](const u32 p_Pass, const PrimitiveType p_Type, const u32 p_BatchStart,
@@ -437,7 +437,7 @@ static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, T
         TransferArena &tarena = rdata.TransferArenas[p_Type];
         GraphicsArena &garena = rdata.GraphicsArenas[p_Type];
 
-        TKit::Array<VkBufferCopy2KHR, MaxBatches> copies{};
+        TKit::StaticArray<VkBufferCopy2KHR, MaxBatches> copies{};
         for (u32 batch = p_BatchStart; batch < p_BatchEnd; ++batch)
         {
             contextRanges.Clear();
@@ -532,8 +532,8 @@ TransferSubmitInfo Transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Com
         info.bufferMemoryBarrierCount = release.GetSize();
         info.pBufferMemoryBarriers = release.GetData();
         info.dependencyFlags = 0;
-        const auto &table = Core::GetDeviceTable();
-        table.CmdPipelineBarrier2KHR(p_Command, &info);
+        const auto table = Core::GetDeviceTable();
+        table->CmdPipelineBarrier2KHR(p_Command, &info);
     }
     if (submitInfo)
     {
@@ -550,8 +550,8 @@ TransferSubmitInfo Transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Com
 
 void SubmitTransfer(VKit::Queue *p_Transfer, CommandPool &p_Pool, TKit::Span<const TransferSubmitInfo> p_Info)
 {
-    TKit::Array16<VkSubmitInfo2KHR> submits{};
-    TKit::Array16<VkCommandBufferSubmitInfoKHR> cmds{};
+    TKit::StaticArray16<VkSubmitInfo2KHR> submits{};
+    TKit::StaticArray16<VkCommandBufferSubmitInfoKHR> cmds{};
     u64 maxFlight = 0;
     for (const TransferSubmitInfo &info : p_Info)
     {
@@ -597,20 +597,20 @@ void ApplyAcquireBarriers(const VkCommandBuffer p_GraphicsCommand)
     applyAcquireBarriers<D3>(barriers);
     if (!barriers.IsEmpty())
     {
-        const auto &table = Core::GetDeviceTable();
+        const auto table = Core::GetDeviceTable();
         VkDependencyInfoKHR info{};
         info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
         info.bufferMemoryBarrierCount = barriers.GetSize();
         info.pBufferMemoryBarriers = barriers.GetData();
         info.dependencyFlags = 0;
-        table.CmdPipelineBarrier2KHR(p_GraphicsCommand, &info);
+        table->CmdPipelineBarrier2KHR(p_GraphicsCommand, &info);
     }
 }
 
 template <Dimension D>
 static void setCameraViewport(const VkCommandBuffer p_Command, const Detail::CameraInfo<D> &p_Camera)
 {
-    const auto &table = Core::GetDeviceTable();
+    const auto table = Core::GetDeviceTable();
     if (!p_Camera.Transparent)
     {
         const Color &bg = p_Camera.BackgroundColor;
@@ -631,10 +631,10 @@ static void setCameraViewport(const VkCommandBuffer p_Command, const Detail::Cam
         clearRect.layerCount = 1;
         clearRect.baseArrayLayer = 0;
 
-        table.CmdClearAttachments(p_Command, D - 1, clearAttachments.GetData(), 1, &clearRect);
+        table->CmdClearAttachments(p_Command, D - 1, clearAttachments.GetData(), 1, &clearRect);
     }
-    table.CmdSetViewport(p_Command, 0, 1, &p_Camera.Viewport);
-    table.CmdSetScissor(p_Command, 0, 1, &p_Camera.Scissor);
+    table->CmdSetViewport(p_Command, 0, 1, &p_Camera.Viewport);
+    table->CmdSetScissor(p_Command, 0, 1, &p_Camera.Scissor);
 }
 
 template <Dimension D>
@@ -652,8 +652,8 @@ static void pushConstantData(const VkCommandBuffer p_Command, const Detail::Came
     //     pdata.PointLightCount = p_Camera.Light.PointCount;
     //     stages |= VK_SHADER_STAGE_FRAGMENT_BIT;
     // }
-    const auto &table = Core::GetDeviceTable();
-    table.CmdPushConstants(p_Command, Pipelines::GetGraphicsPipelineLayout(Shading_Unlit), stages, 0,
+    const auto table = Core::GetDeviceTable();
+    table->CmdPushConstants(p_Command, Pipelines::GetGraphicsPipelineLayout(Shading_Unlit), stages, 0,
                            sizeof(PushConstantData<Shading_Unlit>), &pdata);
 }
 
@@ -671,7 +671,7 @@ struct TransferSyncPoint
     u64 TransferFlightValue;
 };
 
-using SyncArray = TKit::Array<TransferSyncPoint, MaxRendererRanges>;
+using SyncArray = TKit::StaticArray<TransferSyncPoint, MaxRendererRanges>;
 
 template <Dimension D>
 static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsCommand, const Window *p_Window,
@@ -687,7 +687,7 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
     RendererData<D> &rdata = getRendererData<D>();
 
     u32 batches = 0;
-    TKit::FixedArray<TKit::FixedArray<TKit::Array<InstanceDrawInfo, MaxDrawCallsPerBatch>, MaxBatches>,
+    TKit::FixedArray<TKit::FixedArray<TKit::StaticArray<InstanceDrawInfo, MaxDrawCallsPerBatch>, MaxBatches>,
                      StencilPass_Count>
         drawInfo{};
 
@@ -831,8 +831,8 @@ RenderSubmitInfo Render(VKit::Queue *p_Graphics, const VkCommandBuffer p_Command
 
 void SubmitRender(VKit::Queue *p_Graphics, CommandPool &p_Pool, const TKit::Span<const RenderSubmitInfo> p_Info)
 {
-    TKit::Array16<VkSubmitInfo2KHR> submits{};
-    TKit::Array16<VkCommandBufferSubmitInfoKHR> cmds{};
+    TKit::StaticArray16<VkSubmitInfo2KHR> submits{};
+    TKit::StaticArray16<VkCommandBufferSubmitInfoKHR> cmds{};
     u64 maxFlight = 0;
     for (const RenderSubmitInfo &info : p_Info)
     {
@@ -893,7 +893,7 @@ template <Dimension D> void coalesce()
     for (TransferArena &tarena : rdata.TransferArenas)
     {
         TransferMemoryRange mergeRange{};
-        TKit::Array<TransferMemoryRange, MaxRendererRanges> tranges{};
+        TKit::StaticArray<TransferMemoryRange, MaxRendererRanges> tranges{};
         for (TransferMemoryRange &trange : tarena.MemoryRanges)
         {
             if (trange.InUse())
@@ -918,7 +918,7 @@ template <Dimension D> void coalesce()
     for (GraphicsArena &garena : rdata.GraphicsArenas)
     {
         GraphicsMemoryRange mergeRange{};
-        TKit::Array<GraphicsMemoryRange, MaxRendererRanges> granges{};
+        TKit::StaticArray<GraphicsMemoryRange, MaxRendererRanges> granges{};
         for (GraphicsMemoryRange &grange : garena.MemoryRanges)
         {
             if (grange.InUse())
@@ -933,7 +933,7 @@ template <Dimension D> void coalesce()
             }
             else if (!grange.ContextRanges.IsEmpty())
             {
-                TKit::Array<ContextRange, MaxRenderContexts> cranges{};
+                TKit::StaticArray<ContextRange, MaxRenderContexts> cranges{};
                 grange.Size = 0;
                 grange.ViewMask = 0;
                 grange.Transfer = nullptr;
@@ -1004,8 +1004,8 @@ void DrawStaticMesh(const VkCommandBuffer p_Command, const Mesh p_Mesh, const u3
                     const u32 p_InstanceCount)
 {
     const MeshDataLayout layout = Assets::GetStaticMeshLayout<D>(p_Mesh);
-    const auto &table = Core::GetDeviceTable();
-    table.CmdDrawIndexed(p_Command, layout.IndexCount, p_InstanceCount, layout.IndexStart, layout.VertexStart,
+    const auto table = Core::GetDeviceTable();
+    table->CmdDrawIndexed(p_Command, layout.IndexCount, p_InstanceCount, layout.IndexStart, layout.VertexStart,
                          p_FirstInstance);
 }
 

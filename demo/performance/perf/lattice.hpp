@@ -28,7 +28,7 @@ struct ShapeSettings
     TKIT_YAML_SERIALIZE_DECLARE(ShapeSettings)
     Shape Shape = Shape::Triangle;
     CircleOptions CircleOptions{};
-    TKit::Array8<f32v2> PolygonVertices{f32v2{0.5f, -0.3f}, f32v2{0.f, 0.3f}, f32v2{-0.5f, -0.3f}};
+    TKit::StaticArray8<f32v2> PolygonVertices{f32v2{0.5f, -0.3f}, f32v2{0.f, 0.3f}, f32v2{-0.5f, -0.3f}};
     std::string MeshPath{};
 
     u32 NGonSides = 3;

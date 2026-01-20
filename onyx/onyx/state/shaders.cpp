@@ -504,7 +504,7 @@ Compilation Compiler::Compile() const
     cdesc.targetCount = 1;
     cdesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR;
 
-    TKit::Array16<slang::PreprocessorMacroDesc> defines;
+    TKit::StaticArray16<slang::PreprocessorMacroDesc> defines;
     if (!m_Macros.IsEmpty())
     {
         for (const Macro &def : m_Macros)
@@ -514,7 +514,7 @@ Compilation Compiler::Compile() const
         cdesc.preprocessorMacros = defines.GetData();
     }
 
-    TKit::Array16<slang::CompilerOptionEntry> coptions;
+    TKit::StaticArray16<slang::CompilerOptionEntry> coptions;
 
     slang::CompilerOptionEntry entry;
     entry.name = slang::CompilerOptionName::MatrixLayoutColumn;
@@ -549,7 +549,7 @@ Compilation Compiler::Compile() const
     TKIT_ASSERT(SLANG_SUCCEEDED(result), "[ONYX] Slang compile session creation failed");
 
     slang::IBlob *diagnostics = nullptr;
-    TKit::Array32<Spirv> sprvs{};
+    TKit::StaticArray32<Spirv> sprvs{};
     const auto release = [](auto &thing) {
         if (thing)
         {
@@ -560,7 +560,7 @@ Compilation Compiler::Compile() const
 
     for (const Module &munit : m_Modules)
     {
-        TKit::Array16<slang::IComponentType *> components{};
+        TKit::StaticArray16<slang::IComponentType *> components{};
         slang::IModule *module = nullptr;
         if (munit.m_SourceCode)
             module = session->loadModuleFromSourceString(munit.m_Name, munit.m_Path, munit.m_SourceCode, &diagnostics);

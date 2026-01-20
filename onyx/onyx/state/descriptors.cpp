@@ -10,7 +10,7 @@ namespace Onyx::Descriptors
 static VKit::DescriptorPool s_DescriptorPool{};
 static VKit::DescriptorSetLayout s_InstanceDataStorageLayout{};
 static VKit::DescriptorSetLayout s_LightStorageLayout{};
-static TKit::Array16<DescriptorSet> s_Sets{};
+static TKit::StaticArray16<DescriptorSet> s_Sets{};
 
 static void createDescriptorData()
 {

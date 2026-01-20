@@ -7,7 +7,9 @@
 #include "vkit/vulkan/loader.hpp"
 #include "vkit/device/logical_device.hpp"
 #include "vkit/device/physical_device.hpp"
+#include "vkit/core/core.hpp"
 #include "tkit/multiprocessing/task.hpp"
+#include "tkit/container/static_array.hpp"
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 #    include "tkit/profiling/vulkan.hpp"
 #endif
@@ -56,15 +58,16 @@ struct InitCallbacks
 
 struct Specs
 {
-    const char *VulkanLibraryPath = nullptr;
+    const char *VulkanLoaderPath = nullptr;
     TKit::ITaskManager *TaskManager = nullptr;
-    InitCallbacks Callbacks{};
     TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{4, 0, 4, 1};
-    u32 Platform = ONYX_PLATFORM_AUTO;
+    TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> Allocators{};
+    InitCallbacks Callbacks{};
     Shaders::Specs Shaders{};
+    u32 Platform = ONYX_PLATFORM_AUTO;
 };
 
-template <typename T> using PerImageData = TKit::Array8<T>;
+template <typename T> using PerImageData = TKit::StaticArray8<T>;
 } // namespace Onyx
 
 namespace Onyx::Core
@@ -76,10 +79,10 @@ TKit::ITaskManager *GetTaskManager();
 void SetTaskManager(TKit::ITaskManager *p_TaskManager);
 
 const VKit::Instance &GetInstance();
-const VKit::Vulkan::InstanceTable &GetInstanceTable();
+const VKit::Vulkan::InstanceTable *GetInstanceTable();
 
 const VKit::LogicalDevice &GetDevice();
-const VKit::Vulkan::DeviceTable &GetDeviceTable();
+const VKit::Vulkan::DeviceTable *GetDeviceTable();
 
 void CreateDevice(VkSurfaceKHR p_Surface);
 

@@ -225,10 +225,10 @@ static const char *presentModeToString(const VkPresentModeKHR mode)
 bool UserLayer::PresentModeEditor(Window *p_Window, const UserLayerFlags p_Flags)
 {
     const VkPresentModeKHR current = p_Window->GetPresentMode();
-    const TKit::Array8<VkPresentModeKHR> &available = p_Window->GetAvailablePresentModes();
+    const TKit::StaticArray8<VkPresentModeKHR> &available = p_Window->GetAvailablePresentModes();
 
     int index = -1;
-    TKit::Array8<const char *> presentModes;
+    TKit::StaticArray8<const char *> presentModes;
     for (u32 i = 0; i < available.GetSize(); ++i)
     {
         presentModes.Append(presentModeToString(available[i]));

@@ -8,11 +8,10 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/execution/execution.hpp"
 
-#include "vkit/core/core.hpp"
 #include "vkit/memory/allocator.hpp"
 #include "vkit/vulkan/vulkan.hpp"
 
-#include "tkit/multiprocessing/task_manager.hpp"
+#include "tkit/multiprocessing/thread_pool.hpp"
 #include "tkit/utils/debug.hpp"
 #include "tkit/profiling/macros.hpp"
 #ifdef ONYX_FONTCONFIG
@@ -22,10 +21,14 @@
 using namespace Onyx::Detail;
 namespace Onyx::Core
 {
+static TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> s_Allocation{};
+static TKit::FixedArray<u8, TKit::MaxThreads> s_DefaultAlloc{};
+
 static TKit::ITaskManager *s_TaskManager;
-static TKit::Storage<TKit::TaskManager> s_DefaultTaskManager;
+static TKit::Storage<TKit::ThreadPool> s_DefaultTaskManager;
 
 static VKit::Instance s_Instance{};
+static VKit::PhysicalDevice s_Physical{};
 static VKit::LogicalDevice s_Device{};
 
 static VKit::DeletionQueue s_DeletionQueue{};
@@ -59,8 +62,8 @@ static void createDevice(const VkSurfaceKHR p_Surface)
     auto physres = selector.Select();
     VKIT_CHECK_RESULT(physres);
 
-    VKit::PhysicalDevice &phys = physres.GetValue();
-    const u32 apiVersion = phys.GetInfo().ApiVersion;
+    s_Physical = physres.GetValue();
+    const u32 apiVersion = s_Physical.GetInfo().ApiVersion;
 
     VkPhysicalDeviceShaderDrawParameterFeatures drawParams{};
     drawParams.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
@@ -75,17 +78,17 @@ static void createDevice(const VkSurfaceKHR p_Surface)
         VKit::DeviceFeatures features{};
         features.Vulkan11.shaderDrawParameters = VK_TRUE;
         features.Vulkan12.timelineSemaphore = VK_TRUE;
-        TKIT_CHECK_RETURNS(phys.EnableFeatures(features), true,
+        TKIT_CHECK_RETURNS(s_Physical.EnableFeatures(features), true,
                            "[ONYX] Failed to enable timeline semaphores and shader draw parameters");
     }
     else
     {
-        phys.EnableExtensionBoundFeature(&drawParams);
-        phys.EnableExtensionBoundFeature(&tsem);
+        s_Physical.EnableExtensionBoundFeature(&drawParams);
+        s_Physical.EnableExtensionBoundFeature(&tsem);
     }
 #else
-    phys.EnableExtensionBoundFeature(&drawParams);
-    phys.EnableExtensionBoundFeature(&tsem);
+    s_Physical.EnableExtensionBoundFeature(&drawParams);
+    s_Physical.EnableExtensionBoundFeature(&tsem);
 #endif
 
     VkPhysicalDeviceDynamicRenderingFeaturesKHR drendering{};
@@ -102,19 +105,19 @@ static void createDevice(const VkSurfaceKHR p_Surface)
         VKit::DeviceFeatures features{};
         features.Vulkan13.dynamicRendering = VK_TRUE;
         features.Vulkan13.synchronization2 = VK_TRUE;
-        TKIT_CHECK_RETURNS(phys.EnableFeatures(features), true, "[ONYX] Failed to enable dynamic rendering");
+        TKIT_CHECK_RETURNS(s_Physical.EnableFeatures(features), true, "[ONYX] Failed to enable dynamic rendering");
     }
     else
     {
-        phys.EnableExtensionBoundFeature(&drendering);
-        phys.EnableExtensionBoundFeature(&sync2);
+        s_Physical.EnableExtensionBoundFeature(&drendering);
+        s_Physical.EnableExtensionBoundFeature(&sync2);
     }
 #else
-    phys.EnableExtensionBoundFeature(&drendering);
-    phys.EnableExtensionBoundFeature(&sync2);
+    s_Physical.EnableExtensionBoundFeature(&drendering);
+    s_Physical.EnableExtensionBoundFeature(&sync2);
 #endif
 
-    VKit::LogicalDevice::Builder builder{&s_Instance, &phys};
+    VKit::LogicalDevice::Builder builder{&s_Instance, &s_Physical};
     builder.RequireQueue(VKit::Queue_Graphics)
         .RequestQueue(VKit::Queue_Present, s_QueueRequests[VKit::Queue_Present])
         .RequestQueue(VKit::Queue_Transfer, s_QueueRequests[VKit::Queue_Transfer])
@@ -132,10 +135,10 @@ static void createDevice(const VkSurfaceKHR p_Surface)
     s_Device = devres.GetValue();
 
     TKIT_LOG_INFO("[ONYX] Created vulkan device: {}",
-                  s_Device.GetInfo().PhysicalDevice.GetInfo().Properties.Core.deviceName);
-    TKIT_LOG_WARNING_IF(!(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::DeviceFlag_Optimal),
+                  s_Device.GetInfo().PhysicalDevice->GetInfo().Properties.Core.deviceName);
+    TKIT_LOG_WARNING_IF(!(s_Device.GetInfo().PhysicalDevice->GetInfo().Flags & VKit::DeviceFlag_Optimal),
                         "[ONYX] The device is suitable, but not optimal");
-    TKIT_LOG_INFO_IF(s_Device.GetInfo().PhysicalDevice.GetInfo().Flags & VKit::DeviceFlag_Optimal,
+    TKIT_LOG_INFO_IF(s_Device.GetInfo().PhysicalDevice->GetInfo().Flags & VKit::DeviceFlag_Optimal,
                      "[ONYX] The device is optimal");
 
     s_DeletionQueue.SubmitForDeletion(s_Device);
@@ -155,10 +158,73 @@ static void createVulkanAllocator()
     s_DeletionQueue.Push([] { VKit::DestroyAllocator(s_VulkanAllocator); });
 }
 
+static void initializeAllocators()
+{
+    TKIT_LOG_INFO("[ONYX] Initializing allocators");
+    // these are purposefully leaked
+    for (u32 i = 0; i < TKit::MaxThreads; ++i)
+    {
+        VKit::Allocation &alloc = s_Specs.Allocators[i];
+        s_DefaultAlloc[i] = 0;
+        if (!alloc.Arena)
+        {
+            if (!s_Allocation[i].Arena)
+                s_Allocation[i].Arena =
+                    new TKit::ArenaAllocator(static_cast<u32>(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
+            alloc.Arena = s_Allocation[i].Arena;
+            s_DefaultAlloc[i] |= 1 << 0;
+        }
+        if (!alloc.Stack)
+        {
+            if (!s_Allocation[i].Stack)
+                s_Allocation[i].Stack =
+                    new TKit::StackAllocator(static_cast<u32>(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
+            alloc.Stack = s_Allocation[i].Stack;
+            s_DefaultAlloc[i] |= 1 << 1;
+        }
+        if (!alloc.Tier)
+        {
+            if (!s_Allocation[i].Tier)
+                s_Allocation[i].Tier =
+                    new TKit::TierAllocator(alloc.Arena, 64, static_cast<u32>(i == 0 ? 256_kib : 4_kib));
+            alloc.Tier = s_Allocation[i].Tier;
+            s_DefaultAlloc[i] |= 1 << 2;
+        }
+    }
+    if (s_DefaultAlloc[0] & 4)
+        TKit::Memory::PushTier(s_Allocation[0].Tier);
+    if (s_DefaultAlloc[0] & 2)
+        TKit::Memory::PushStack(s_Allocation[0].Stack);
+    if (s_DefaultAlloc[0] & 1)
+        TKit::Memory::PushArena(s_Allocation[0].Arena);
+
+    TKIT_ASSERT(TKit::Memory::GetArena(),
+                "[ONYX] If the main thread arena allocator is provided by the user (allocator at index 0), it "
+                "must have been pushed using TKit::Memory::PushArena(), as onyx depends on it");
+    TKIT_ASSERT(TKit::Memory::GetStack(),
+                "[ONYX] If the main thread stack allocator is provided by the user (allocator at index 0), it "
+                "must have been pushed using TKit::Memory::PushStack(), as onyx depends on it");
+    TKIT_ASSERT(TKit::Memory::GetTier(),
+                "[ONYX] If the main thread tier allocator is provided by the user (allocator at index 0), it "
+                "must have been pushed using TKit::Memory::PushTier(), as onyx depends on it");
+}
+
+void terminateAllocators()
+{
+    if (s_DefaultAlloc[0] & 4)
+        TKit::Memory::PopTier();
+    if (s_DefaultAlloc[0] & 2)
+        TKit::Memory::PopStack();
+    if (s_DefaultAlloc[0] & 1)
+        TKit::Memory::PopArena();
+}
+
 void Initialize(const Specs &p_Specs)
 {
     TKIT_LOG_INFO("[ONYX] Initializing Onyx");
+
     s_Specs = p_Specs;
+    initializeAllocators();
 #ifdef ONYX_FONTCONFIG
     FcInit();
 #endif
@@ -173,19 +239,21 @@ void Initialize(const Specs &p_Specs)
 #endif
 
     s_QueueRequests = p_Specs.QueueRequests;
+    TKIT_LOG_INFO("[ONYX] Initializing Vulkit");
+
+    VKit::Specs vspecs{};
+    vspecs.Allocators = s_Specs.Allocators[0];
+    VKIT_CHECK_EXPRESSION(VKit::Core::Initialize(vspecs));
 
     if (p_Specs.TaskManager)
         s_TaskManager = p_Specs.TaskManager;
     else
     {
-        s_DefaultTaskManager.Construct();
+        s_DefaultTaskManager.Construct(TKit::MaxThreads - 1);
         s_TaskManager = s_DefaultTaskManager.Get();
         s_DeletionQueue.Push([] { s_DefaultTaskManager.Destruct(); });
     }
     s_Callbacks = p_Specs.Callbacks;
-
-    TKIT_LOG_INFO("[ONYX] Initializing Vulkit");
-    VKIT_CHECK_EXPRESSION(VKit::Core::Initialize());
 
     TKIT_LOG_INFO("[ONYX] Initializing GLFW");
     glfwInitHint(GLFW_PLATFORM, p_Specs.Platform);
@@ -236,6 +304,7 @@ void Terminate()
 
     s_DeletionQueue.Flush();
     glfwTerminate();
+    terminateAllocators();
 }
 
 void CreateDevice(const VkSurfaceKHR p_Surface)
@@ -274,7 +343,7 @@ const VKit::Instance &GetInstance()
     TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     return s_Instance;
 }
-const VKit::Vulkan::InstanceTable &GetInstanceTable()
+const VKit::Vulkan::InstanceTable *GetInstanceTable()
 {
     TKIT_ASSERT(s_Instance, "[ONYX] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
     return s_Instance.GetInfo().Table;
@@ -283,7 +352,7 @@ const VKit::LogicalDevice &GetDevice()
 {
     return s_Device;
 }
-const VKit::Vulkan::DeviceTable &GetDeviceTable()
+const VKit::Vulkan::DeviceTable *GetDeviceTable()
 {
     return s_Device.GetInfo().Table;
 };

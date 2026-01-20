@@ -20,7 +20,7 @@ struct MeshId
 };
 struct MeshContainer
 {
-    TKit::Array<MeshId, ONYX_SANDBOX_MAX_SHAPES> StaticMeshes;
+    TKit::StaticArray<MeshId, ONYX_SANDBOX_MAX_SHAPES> StaticMeshes;
     u32 StaticOffset;
 };
 
@@ -108,14 +108,14 @@ template <> struct CameraData<D3>
 
 template <Dimension D> struct CameraDataContainer
 {
-    TKit::Array<CameraData<D>, MaxCameras> Cameras;
+    TKit::StaticArray<CameraData<D>, MaxCameras> Cameras;
     u32 Active = 0;
 };
 
 template <Dimension D> struct IContextData
 {
     RenderContext<D> *Context;
-    TKit::Array<Shape<D>, ONYX_SANDBOX_MAX_SHAPES> Shapes;
+    TKit::StaticArray<Shape<D>, ONYX_SANDBOX_MAX_SHAPES> Shapes;
     MaterialData<D> AxesMaterial{};
 
     u32 ShapeToSpawn = u32(ShapeType<D>::Triangle);
@@ -135,8 +135,8 @@ template <Dimension D> struct ContextData : IContextData<D>
 
 template <> struct ContextData<D3> : IContextData<D3>
 {
-    TKit::Array<DirectionalLight, ONYX_SANDBOX_MAX_LIGHTS> DirectionalLights;
-    TKit::Array<PointLight, ONYX_SANDBOX_MAX_LIGHTS> PointLights;
+    TKit::StaticArray<DirectionalLight, ONYX_SANDBOX_MAX_LIGHTS> DirectionalLights;
+    TKit::StaticArray<PointLight, ONYX_SANDBOX_MAX_LIGHTS> PointLights;
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
 
     bool DrawLights = false;
@@ -147,7 +147,7 @@ template <> struct ContextData<D3> : IContextData<D3>
 
 template <Dimension D> struct ContextDataContainer
 {
-    TKit::Array<ContextData<D>, MaxRenderContexts> Contexts;
+    TKit::StaticArray<ContextData<D>, MaxRenderContexts> Contexts;
     u32 Active = 0;
     bool EmptyContext = false;
 };

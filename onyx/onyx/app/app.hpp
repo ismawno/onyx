@@ -441,8 +441,8 @@ class Application
 
     WindowData m_MainWindow{};
 #ifdef __ONYX_MULTI_WINDOW
-    TKit::Array<WindowData, MaxWindows - 1> m_Windows;
-    TKit::Array<WindowSpecs, MaxWindows - 1> m_WindowsToAdd;
+    TKit::StaticArray<WindowData, MaxWindows - 1> m_Windows;
+    TKit::StaticArray<WindowSpecs, MaxWindows - 1> m_WindowsToAdd;
 #endif
 
     TKit::Timespan m_DeltaTime{};

@@ -27,18 +27,12 @@
 #    define ONYX_MAX_DESCRIPTORS 1024
 #endif
 
-// The amount of active threads (accounting for the main thread as well) should not surpass this number. This means
-// thread pools should be created with LESS threads than this limit.
-#ifndef ONYX_MAX_THREADS
-#    define ONYX_MAX_THREADS TKIT_MAX_THREADS
-#endif
-
 #ifndef ONYX_MAX_TASKS
 #    define ONYX_MAX_TASKS 256
 #endif
 
-#ifndef ONYX_MAX_contextS
-#    define ONYX_MAX_contextS 16
+#ifndef ONYX_MAX_RENDER_CONTEXTS
+#    define ONYX_MAX_RENDER_CONTEXTS 16
 #endif
 
 #ifndef ONYX_MAX_CAMERAS
@@ -68,10 +62,9 @@ constexpr u32 MaxDialogs = ONYX_MAX_DIALOGS;
 constexpr u32 MaxStatMeshes = ONYX_ASSETS_MAX_STATIC_MESHES;
 constexpr u32 MaxDescriptorSets = ONYX_MAX_DESCRIPTOR_SETS;
 constexpr u32 MaxDescriptors = ONYX_MAX_DESCRIPTORS;
-constexpr u32 MaxThreads = ONYX_MAX_THREADS; // hard limit
 constexpr u32 MaxTasks = ONYX_MAX_TASKS;
-constexpr u32 MaxRenderContexts = ONYX_MAX_contextS; // hard limit
-constexpr u32 MaxCameras = ONYX_MAX_CAMERAS;         // hard limit
+constexpr u32 MaxRenderContexts = ONYX_MAX_RENDER_CONTEXTS; // hard limit
+constexpr u32 MaxCameras = ONYX_MAX_CAMERAS;                // hard limit
 constexpr u32 MaxEvents = ONYX_MAX_EVENTS;
 constexpr u32 MaxRenderStateDepth = ONYX_MAX_RENDER_STATE_DEPTH;
 constexpr u32 MaxBatches = ONYX_MAX_BATCHES; // hard limit

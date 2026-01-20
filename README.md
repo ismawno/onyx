@@ -153,7 +153,7 @@ Onyx relies on some dependencies such as [toolkit](https://github.com/ismawno/to
 
 ## Versioning
 
-Try to always use a tagged commit when using the library, as I can guarantee those will build and be stable.
+Try to always use a tagged commit when using the library, as I can guarantee those will build and be stable->
 
 ## Building
 

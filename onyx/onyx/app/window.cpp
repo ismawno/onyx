@@ -100,7 +100,7 @@ Window::~Window()
     for (Camera<D3> *context : m_Cameras3)
         m_Allocator.Destroy(context);
 
-    Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
+    Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
 
@@ -180,8 +180,8 @@ void Window::Present(const Renderer::RenderSubmitInfo &p_Info)
     presentInfo.pSwapchains = &swapChain;
     presentInfo.pImageIndices = &m_ImageIndex;
 
-    const auto &table = Core::GetDeviceTable();
-    const VkResult result = table.QueuePresentKHR(*m_Present, &presentInfo);
+    const auto table = Core::GetDeviceTable();
+    const VkResult result = table->QueuePresentKHR(*m_Present, &presentInfo);
     handleImageResult(result);
 
     // a bit random that 0
@@ -192,13 +192,13 @@ void Window::Present(const Renderer::RenderSubmitInfo &p_Info)
 bool Window::AcquireNextImage(const Timeout p_Timeout)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::AcquireNextImage");
-    const auto &table = Core::GetDeviceTable();
+    const auto table = Core::GetDeviceTable();
     const auto &device = Core::GetDevice();
     const auto acquire = [&]() {
         m_ImageAvailableIndex = (m_ImageAvailableIndex + 1) % m_SyncData.GetSize();
-        const VkResult result = table.AcquireNextImageKHR(device, m_SwapChain, p_Timeout,
-                                                          m_SyncData[m_ImageAvailableIndex].ImageAvailableSemaphore,
-                                                          VK_NULL_HANDLE, &m_ImageIndex);
+        const VkResult result = table->AcquireNextImageKHR(device, m_SwapChain, p_Timeout,
+                                                           m_SyncData[m_ImageAvailableIndex].ImageAvailableSemaphore,
+                                                           VK_NULL_HANDLE, &m_ImageIndex);
         return handleImageResult(result);
     };
 
@@ -212,7 +212,7 @@ bool Window::AcquireNextImage(const Timeout p_Timeout)
         waitInfo.semaphoreCount = 1;
         waitInfo.pSemaphores = &m_LastGraphicsSubmission.Timeline;
         waitInfo.pValues = &m_LastGraphicsSubmission.InFlightValue;
-        VKIT_CHECK_EXPRESSION(table.WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
+        VKIT_CHECK_EXPRESSION(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
         m_LastGraphicsSubmission.Timeline = VK_NULL_HANDLE;
     }
     return acquire();
@@ -277,7 +277,7 @@ void Window::recreateSurface()
     m_SwapChain.Destroy();
     m_SwapChain = VKit::SwapChain{};
 
-    Core::GetInstanceTable().DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
+    Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     VKIT_CHECK_EXPRESSION(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface));
 
     createSwapChain(extent);
@@ -327,7 +327,7 @@ void Window::BeginRendering(const VkCommandBuffer p_CommandBuffer, const Color &
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::BeginRendering");
     TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
-    const auto &table = Core::GetDeviceTable();
+    const auto table = Core::GetDeviceTable();
 
     VkRenderingAttachmentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
@@ -383,19 +383,19 @@ void Window::BeginRendering(const VkCommandBuffer p_CommandBuffer, const Color &
     scissor.offset = {0, 0};
     scissor.extent = extent;
 
-    table.CmdSetViewport(p_CommandBuffer, 0, 1, &viewport);
-    table.CmdSetScissor(p_CommandBuffer, 0, 1, &scissor);
+    table->CmdSetViewport(p_CommandBuffer, 0, 1, &viewport);
+    table->CmdSetScissor(p_CommandBuffer, 0, 1, &scissor);
 
-    table.CmdBeginRenderingKHR(p_CommandBuffer, &renderInfo);
+    table->CmdBeginRenderingKHR(p_CommandBuffer, &renderInfo);
 }
 
 void Window::EndRendering(const VkCommandBuffer p_CommandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::EndRendering");
     TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
-    const auto &table = Core::GetDeviceTable();
+    const auto table = Core::GetDeviceTable();
 
-    table.CmdEndRenderingKHR(p_CommandBuffer);
+    table->CmdEndRenderingKHR(p_CommandBuffer);
     m_Images[m_ImageIndex].Presentation->TransitionLayout(p_CommandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                                                           {.SrcAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                                                            .DstAccess = 0,

@@ -5,6 +5,7 @@
 #include "onyx/asset/mesh.hpp"
 #include "onyx/execution/command_pool.hpp"
 #include "vkit/execution/queue.hpp"
+#include "tkit/container/static_array.hpp"
 
 namespace Onyx
 {
@@ -41,7 +42,7 @@ struct RenderSubmitInfo
     VkCommandBuffer Command = VK_NULL_HANDLE;
     u64 InFlightValue = 0;
     TKit::FixedArray<VkSemaphoreSubmitInfoKHR, 2> SignalSemaphores{};
-    TKit::Array<VkSemaphoreSubmitInfoKHR, MaxRendererRanges> WaitSemaphores{};
+    TKit::StaticArray<VkSemaphoreSubmitInfoKHR, MaxRendererRanges> WaitSemaphores{};
 };
 
 TransferSubmitInfo Transfer(VKit::Queue *p_Transfer, VkCommandBuffer p_Command);

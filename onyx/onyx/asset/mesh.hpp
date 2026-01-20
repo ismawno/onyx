@@ -2,6 +2,7 @@
 
 #include "onyx/resource/buffer.hpp"
 #include "onyx/property/vertex.hpp"
+#include "tkit/container/dynamic_array.hpp"
 
 namespace Onyx
 {

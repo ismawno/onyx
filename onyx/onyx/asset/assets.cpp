@@ -28,7 +28,7 @@ template <typename Vertex> struct MeshInfo
 {
     VKit::DeviceBuffer VertexBuffer{};
     VKit::DeviceBuffer IndexBuffer{};
-    TKit::Array<DataLayout, MaxStatMeshes> Layouts{};
+    TKit::StaticArray<DataLayout, MaxStatMeshes> Layouts{};
     MeshData<Vertex> Meshes{};
 
     u32 GetVertexCount(u32 p_Size = TKIT_U32_MAX) const
@@ -256,7 +256,7 @@ template <Dimension D> VKit::Result<StatMeshData<D>> LoadStaticMesh(const char *
         return VKit::Result<StatMeshData<D>>::Error(VK_ERROR_INITIALIZATION_FAILED,
                                                     TKit::Format("Failed to load mesh: {}", err + warn));
 
-    TKit::HashMap<StatVertex<D>, Index> uniqueVertices;
+    std::unordered_map<StatVertex<D>, Index> uniqueVertices;
     StatMeshData<D> data;
 
     const u32 vcount = static_cast<u32>(attrib.vertices.size());

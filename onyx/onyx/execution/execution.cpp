@@ -6,7 +6,7 @@ namespace Onyx::Execution
 {
 static VKit::CommandPool s_Graphics{};
 static VKit::CommandPool s_Transfer{};
-static TKit::Array16<CommandPool> s_CommandPools{};
+static TKit::StaticArray16<CommandPool> s_CommandPools{};
 
 static VKit::CommandPool createCommandPool(const u32 p_Family)
 {
@@ -54,20 +54,20 @@ void BeginCommandBuffer(const VkCommandBuffer p_CommandBuffer)
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-    const auto &table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table.BeginCommandBuffer(p_CommandBuffer, &beginInfo));
+    const auto table = Core::GetDeviceTable();
+    VKIT_CHECK_EXPRESSION(table->BeginCommandBuffer(p_CommandBuffer, &beginInfo));
 }
 void EndCommandBuffer(const VkCommandBuffer p_CommandBuffer)
 {
-    const auto &table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table.EndCommandBuffer(p_CommandBuffer));
+    const auto table = Core::GetDeviceTable();
+    VKIT_CHECK_EXPRESSION(table->EndCommandBuffer(p_CommandBuffer));
 }
 
 void Initialize()
 {
     createTransientCommandPools();
     const auto &device = Core::GetDevice();
-    const auto &table = Core::GetDeviceTable();
+    const auto table = Core::GetDeviceTable();
     const auto &Queues = Core::GetDevice().GetInfo().Queues;
     for (VKit::Queue *q : Queues)
     {
@@ -80,10 +80,10 @@ void Initialize()
         info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         info.pNext = &typeInfo;
         VkSemaphore semaphore;
-        VKIT_CHECK_EXPRESSION(table.CreateSemaphore(device, &info, nullptr, &semaphore));
+        VKIT_CHECK_EXPRESSION(table->CreateSemaphore(device, &info, nullptr, &semaphore));
         q->TakeTimelineSemaphoreOwnership(semaphore);
+        VKIT_CHECK_EXPRESSION(q->UpdateCompletedTimeline());
     }
-    UpdateCompletedQueueTimelines();
 }
 void Terminate()
 {
@@ -130,7 +130,7 @@ bool IsSeparateTransferMode()
 }
 u32 GetFamilyIndex(const VKit::QueueType p_Type)
 {
-    return Core::GetDevice().GetInfo().PhysicalDevice.GetInfo().FamilyIndices[p_Type];
+    return Core::GetDevice().GetInfo().PhysicalDevice->GetInfo().FamilyIndices[p_Type];
 }
 
 VKit::CommandPool &GetTransientGraphicsPool()
@@ -145,7 +145,7 @@ VKit::CommandPool &GetTransientTransferPool()
 PerImageData<SyncData> CreateSyncData(const u32 p_ImageCount)
 {
     const auto &device = Core::GetDevice();
-    const auto &table = device.GetInfo().Table;
+    const auto table = device.GetInfo().Table;
 
     PerImageData<SyncData> syncs{};
     syncs.Resize(p_ImageCount);
@@ -155,21 +155,21 @@ PerImageData<SyncData> CreateSyncData(const u32 p_ImageCount)
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
         VKIT_CHECK_EXPRESSION(
-            table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore));
+            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore));
         VKIT_CHECK_EXPRESSION(
-            table.CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore));
+            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore));
     }
     return syncs;
 }
 void DestroySyncData(const TKit::Span<const SyncData> p_Objects)
 {
     const auto &device = Core::GetDevice();
-    const auto &table = device.GetInfo().Table;
+    const auto table = device.GetInfo().Table;
 
     for (const SyncData &data : p_Objects)
     {
-        table.DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
-        table.DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);
+        table->DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
+        table->DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);
     }
 }
 

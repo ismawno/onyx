@@ -10,6 +10,7 @@
 #include "vkit/presentation/swap_chain.hpp"
 #include "tkit/memory/block_allocator.hpp"
 #include "tkit/profiling/timespan.hpp"
+#include "tkit/container/static_array.hpp"
 
 struct GLFWwindow;
 
@@ -173,7 +174,7 @@ class Window
     void FlagShouldClose();
     void PushEvent(const Event &p_Event);
 
-    const TKit::Array<Event, MaxEvents> &GetNewEvents() const
+    const TKit::StaticArray<Event, MaxEvents> &GetNewEvents() const
     {
         return m_Events;
     }
@@ -223,10 +224,10 @@ class Window
             }
     }
 
-    template <Dimension D> TKit::Array<Detail::CameraInfo<D>, MaxCameras> GetCameraInfos() const
+    template <Dimension D> TKit::StaticArray<Detail::CameraInfo<D>, MaxCameras> GetCameraInfos() const
     {
         auto &array = getCameraArray<D>();
-        TKit::Array<Detail::CameraInfo<D>, MaxCameras> cameras;
+        TKit::StaticArray<Detail::CameraInfo<D>, MaxCameras> cameras;
         for (const Camera<D> *cam : array)
             cameras.Append(cam->CreateCameraInfo());
         return cameras;
@@ -248,7 +249,7 @@ class Window
     {
         return m_PresentMode;
     }
-    const TKit::Array8<VkPresentModeKHR> &GetAvailablePresentModes() const
+    const TKit::TierArray<VkPresentModeKHR> &GetAvailablePresentModes() const
     {
         return m_SwapChain.GetInfo().SupportDetails.PresentModes;
     }
@@ -306,12 +307,12 @@ class Window
 
     GLFWwindow *m_Window;
 
-    TKit::Array<Camera<D2> *, MaxCameras> m_Cameras2{};
-    TKit::Array<Camera<D3> *, MaxCameras> m_Cameras3{};
+    TKit::StaticArray<Camera<D2> *, MaxCameras> m_Cameras2{};
+    TKit::StaticArray<Camera<D3> *, MaxCameras> m_Cameras3{};
 
     TKit::BlockAllocator m_Allocator;
 
-    TKit::Array<Event, MaxEvents> m_Events;
+    TKit::StaticArray<Event, MaxEvents> m_Events;
     VkSurfaceKHR m_Surface;
 
     TKit::Timespan m_MonitorDeltaTime{};

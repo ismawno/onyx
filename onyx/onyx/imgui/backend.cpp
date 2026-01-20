@@ -35,7 +35,7 @@ void InitializeImGui(Window *p_Window)
     ImGui_ImplVulkan_InitInfo initInfo{};
     initInfo.ApiVersion = instance.GetInfo().ApiVersion;
     initInfo.Instance = instance;
-    initInfo.PhysicalDevice = device.GetInfo().PhysicalDevice;
+    initInfo.PhysicalDevice = *device.GetInfo().PhysicalDevice;
     initInfo.Device = device;
     initInfo.Queue = Execution::FindSuitableQueue(VKit::Queue_Graphics)->GetHandle();
     initInfo.QueueFamily = Execution::GetFamilyIndex(VKit::Queue_Graphics);

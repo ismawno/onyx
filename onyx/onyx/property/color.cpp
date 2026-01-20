@@ -204,7 +204,7 @@ const Color Color::PURPLE{191u, 64u, 191u};
 const Color Color::WHITE{255u};
 const Color Color::TRANSPARENT{WHITE, 0u};
 
-const TKit::HashMap<std::string, Color> Color::s_ColorMap{
+const std::unordered_map<std::string, Color> Color::s_ColorMap{
     {"red", RED},   {"green", GREEN},   {"blue", BLUE},     {"magenta", MAGENTA},
     {"cyan", CYAN}, {"orange", ORANGE}, {"yellow", YELLOW}, {"black", BLACK},
     {"pink", PINK}, {"purple", PURPLE}, {"white", WHITE},   {"transparent", TRANSPARENT}};
