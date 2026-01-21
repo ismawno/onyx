@@ -4,7 +4,11 @@
 
 namespace Onyx::Assets
 {
-void Initialize();
+struct Specs
+{
+    u32 MaxStaticMeshes = 64;
+};
+void Initialize(const Specs &p_Specs);
 void Terminate();
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &p_Data);

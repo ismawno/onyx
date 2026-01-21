@@ -174,7 +174,7 @@ class Window
     void FlagShouldClose();
     void PushEvent(const Event &p_Event);
 
-    const TKit::StaticArray<Event, MaxEvents> &GetNewEvents() const
+    const TKit::TierArray<Event> &GetNewEvents() const
     {
         return m_Events;
     }
@@ -184,7 +184,8 @@ class Window
     template <Dimension D> Camera<D> *CreateCamera()
     {
         auto &array = getCameraArray<D>();
-        Camera<D> *camera = m_Allocator.Create<Camera<D>>();
+        TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+        Camera<D> *camera = alloc->Create<Camera<D>>();
         camera->m_Window = this;
         camera->adaptViewToViewportAspect();
 
@@ -209,7 +210,8 @@ class Window
     template <Dimension D> void DestroyCamera(const u32 p_Index = 0)
     {
         auto &array = getCameraArray<D>();
-        m_Allocator.Destroy(array[p_Index]);
+        TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+        alloc->Destroy(array[p_Index]);
         array.RemoveOrdered(array.begin() + p_Index);
     }
 
@@ -224,10 +226,10 @@ class Window
             }
     }
 
-    template <Dimension D> TKit::StaticArray<Detail::CameraInfo<D>, MaxCameras> GetCameraInfos() const
+    template <Dimension D> TKit::TierArray<Detail::CameraInfo<D>> GetCameraInfos() const
     {
         auto &array = getCameraArray<D>();
-        TKit::StaticArray<Detail::CameraInfo<D>, MaxCameras> cameras;
+        TKit::TierArray<Detail::CameraInfo<D>> cameras;
         for (const Camera<D> *cam : array)
             cameras.Append(cam->CreateCameraInfo());
         return cameras;
@@ -307,12 +309,10 @@ class Window
 
     GLFWwindow *m_Window;
 
-    TKit::StaticArray<Camera<D2> *, MaxCameras> m_Cameras2{};
-    TKit::StaticArray<Camera<D3> *, MaxCameras> m_Cameras3{};
+    TKit::TierArray<Camera<D2> *> m_Cameras2{};
+    TKit::TierArray<Camera<D3> *> m_Cameras3{};
 
-    TKit::BlockAllocator m_Allocator;
-
-    TKit::StaticArray<Event, MaxEvents> m_Events;
+    TKit::TierArray<Event> m_Events;
     VkSurfaceKHR m_Surface;
 
     TKit::Timespan m_MonitorDeltaTime{};

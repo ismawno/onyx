@@ -28,7 +28,7 @@ template <typename Vertex> struct MeshInfo
 {
     VKit::DeviceBuffer VertexBuffer{};
     VKit::DeviceBuffer IndexBuffer{};
-    TKit::StaticArray<DataLayout, MaxStatMeshes> Layouts{};
+    TKit::ArenaArray<DataLayout> Layouts{};
     MeshData<Vertex> Meshes{};
 
     u32 GetVertexCount(u32 p_Size = TKIT_U32_MAX) const
@@ -139,16 +139,17 @@ template <typename Vertex> static void uploadMeshData(MeshInfo<Vertex> &p_Info)
         layout.Flags = 0;
 }
 
-template <typename Vertex> static void initialize(MeshInfo<Vertex> &p_Info)
+template <typename Vertex> static void initialize(MeshInfo<Vertex> &p_Info, const u32 p_MaxLayouts)
 {
     p_Info.VertexBuffer = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
     p_Info.IndexBuffer = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
+    p_Info.Layouts.Reserve(p_MaxLayouts);
 }
 
-template <Dimension D> static void initialize()
+template <Dimension D> static void initialize(const Specs &p_Specs)
 {
     AssetData<D> &data = getData<D>();
-    initialize(data.StaticMeshes);
+    initialize(data.StaticMeshes, p_Specs.MaxStaticMeshes);
 }
 
 template <typename Vertex> static void terminate(MeshInfo<Vertex> &p_Info)
@@ -166,10 +167,10 @@ template <Dimension D> static void terminate()
     terminate(data.StaticMeshes);
 }
 
-void Initialize()
+void Initialize(const Specs &p_Specs)
 {
-    initialize<D2>();
-    initialize<D3>();
+    initialize<D2>(p_Specs);
+    initialize<D3>(p_Specs);
 }
 
 void Terminate()

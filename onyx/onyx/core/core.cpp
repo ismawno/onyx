@@ -1,7 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/core/glfw.hpp"
-#include "onyx/asset/assets.hpp"
 #include "onyx/state/pipelines.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/rendering/renderer.hpp"
@@ -313,7 +312,7 @@ void CreateDevice(const VkSurfaceKHR p_Surface)
     createDevice(p_Surface);
     createVulkanAllocator();
     Execution::Initialize(s_Specs.ExecutionSpecs);
-    Assets::Initialize();
+    Assets::Initialize(s_Specs.AssetSpecs);
     Descriptors::Initialize(s_Specs.DescriptorSpecs);
     Shaders::Initialize(s_Specs.ShadersSpecs);
     Pipelines::Initialize();

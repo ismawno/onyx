@@ -3,6 +3,7 @@
 #include "onyx/core/core.hpp"
 #include "tkit/preprocessor/utils.hpp"
 #include "tkit/utils/defer.hpp"
+#include "tkit/container/stack_array.hpp"
 #include <slang.h>
 
 namespace Onyx::Shaders
@@ -504,9 +505,10 @@ Compilation Compiler::Compile() const
     cdesc.targetCount = 1;
     cdesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR;
 
-    TKit::StaticArray16<slang::PreprocessorMacroDesc> defines;
+    TKit::StackArray<slang::PreprocessorMacroDesc> defines;
     if (!m_Macros.IsEmpty())
     {
+        defines.Reserve(m_Macros.GetSize());
         for (const Macro &def : m_Macros)
             defines.Append(def.Name, def.Value);
 
@@ -514,7 +516,8 @@ Compilation Compiler::Compile() const
         cdesc.preprocessorMacros = defines.GetData();
     }
 
-    TKit::StaticArray16<slang::CompilerOptionEntry> coptions;
+    TKit::StackArray<slang::CompilerOptionEntry> coptions;
+    coptions.Reserve(m_Arguments.GetSize() + 1);
 
     slang::CompilerOptionEntry entry;
     entry.name = slang::CompilerOptionName::MatrixLayoutColumn;
@@ -549,7 +552,7 @@ Compilation Compiler::Compile() const
     TKIT_ASSERT(SLANG_SUCCEEDED(result), "[ONYX] Slang compile session creation failed");
 
     slang::IBlob *diagnostics = nullptr;
-    TKit::StaticArray32<Spirv> sprvs{};
+    TKit::TierArray<Spirv> sprvs{};
     const auto release = [](auto &thing) {
         if (thing)
         {
@@ -560,7 +563,8 @@ Compilation Compiler::Compile() const
 
     for (const Module &munit : m_Modules)
     {
-        TKit::StaticArray16<slang::IComponentType *> components{};
+        TKit::StackArray<slang::IComponentType *> components{};
+        components.Reserve(munit.m_EntryPoints.GetSize() + 1);
         slang::IModule *module = nullptr;
         if (munit.m_SourceCode)
             module = session->loadModuleFromSourceString(munit.m_Name, munit.m_Path, munit.m_SourceCode, &diagnostics);

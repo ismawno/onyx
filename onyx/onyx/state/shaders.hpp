@@ -251,7 +251,7 @@ class Compilation
 {
     TKIT_NON_COPYABLE(Compilation)
   public:
-    Compilation(const TKit::StaticArray32<Spirv> &p_CompiledSpirv) : m_CompiledSpirv(p_CompiledSpirv)
+    Compilation(const TKit::TierArray<Spirv> &p_CompiledSpirv) : m_CompiledSpirv(p_CompiledSpirv)
     {
     }
 
@@ -266,7 +266,7 @@ class Compilation
     void Destroy();
 
   private:
-    TKit::StaticArray32<Spirv> m_CompiledSpirv{};
+    TKit::TierArray<Spirv> m_CompiledSpirv{};
 };
 
 class Compiler
@@ -288,7 +288,7 @@ class Compiler
         const char *m_Name;
         const char *m_SourceCode;
         const char *m_Path;
-        TKit::StaticArray8<EntryPoint> m_EntryPoints{};
+        TKit::TierArray<EntryPoint> m_EntryPoints{};
 
         friend class Compiler;
     };
@@ -311,10 +311,10 @@ class Compiler
     Compilation Compile() const;
 
   private:
-    TKit::StaticArray8<Module> m_Modules{};
-    TKit::StaticArray16<Detail::ShaderArgument> m_Arguments{};
-    TKit::StaticArray16<Detail::Macro> m_Macros{};
-    TKit::StaticArray16<const char *> m_SearchPaths{};
+    TKit::TierArray<Module> m_Modules{};
+    TKit::TierArray<Detail::ShaderArgument> m_Arguments{};
+    TKit::TierArray<Detail::Macro> m_Macros{};
+    TKit::TierArray<const char *> m_SearchPaths{};
 
     bool m_EnableEffectAnnotations = false;
     bool m_AllowGlslSyntax = false;

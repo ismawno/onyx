@@ -48,27 +48,12 @@ TKit::Timespan ToDeltaTime(const u32 p_Frequency)
     return TKit::Timespan::FromSeconds(1.f / static_cast<f32>(p_Frequency));
 }
 
-static TKit::BlockAllocator createAllocator()
-{
-    constexpr u32 size2 = static_cast<u32>(sizeof(Camera<D2>));
-    constexpr u32 size3 = static_cast<u32>(sizeof(Camera<D3>));
-
-    constexpr u32 align2 = static_cast<u32>(alignof(Camera<D2>));
-    constexpr u32 align3 = static_cast<u32>(alignof(Camera<D3>));
-
-    constexpr u32 size = Math::Max(size2, size3);
-    constexpr u32 alignment = Math::Max(align2, align3);
-
-    return TKit::BlockAllocator{size * 2 * MaxCameras, size, alignment};
-}
-
 Window::Window() : Window(Specs{})
 {
 }
 
 Window::Window(const Specs &p_Specs)
-    : m_Allocator(createAllocator()), m_Name(p_Specs.Name), m_Dimensions(p_Specs.Dimensions),
-      m_PresentMode(p_Specs.PresentMode), m_Flags(p_Specs.Flags)
+    : m_Name(p_Specs.Name), m_Dimensions(p_Specs.Dimensions), m_PresentMode(p_Specs.PresentMode), m_Flags(p_Specs.Flags)
 {
     TKIT_LOG_DEBUG("[ONYX] Window '{}' has been instantiated", p_Specs.Name);
     m_ViewBit = allocateViewBit();
@@ -95,10 +80,11 @@ Window::~Window()
     Execution::DestroySyncData(m_SyncData);
 
     m_SwapChain.Destroy();
-    for (Camera<D2> *context : m_Cameras2)
-        m_Allocator.Destroy(context);
-    for (Camera<D3> *context : m_Cameras3)
-        m_Allocator.Destroy(context);
+    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+    for (Camera<D2> *camera : m_Cameras2)
+        alloc->Destroy(camera);
+    for (Camera<D3> *camera : m_Cameras3)
+        alloc->Destroy(camera);
 
     Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);

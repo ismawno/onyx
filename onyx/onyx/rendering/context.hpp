@@ -179,7 +179,7 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
         u32 Instances = 0;
     };
 
-    TKit::StaticArray<RenderState<D>, MaxRenderStateDepth> m_StateStack;
+    TKit::TierArray<RenderState<D>> m_StateStack;
     TKit::FixedArray<TKit::FixedArray<InstanceBuffer, MaxBatches>, StencilPass_Count> m_InstanceData{};
     u64 m_ViewMask = 0;
     u64 m_Generation = 0;
