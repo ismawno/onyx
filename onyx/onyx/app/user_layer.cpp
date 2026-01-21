@@ -4,6 +4,7 @@
 #include "onyx/rendering/context.hpp"
 #include "onyx/property/transform.hpp"
 #include "onyx/imgui/imgui.hpp"
+#include "tkit/container/stack_array.hpp"
 
 namespace Onyx
 {
@@ -225,10 +226,11 @@ static const char *presentModeToString(const VkPresentModeKHR mode)
 bool UserLayer::PresentModeEditor(Window *p_Window, const UserLayerFlags p_Flags)
 {
     const VkPresentModeKHR current = p_Window->GetPresentMode();
-    const TKit::StaticArray8<VkPresentModeKHR> &available = p_Window->GetAvailablePresentModes();
+    const TKit::TierArray<VkPresentModeKHR> &available = p_Window->GetAvailablePresentModes();
 
     int index = -1;
-    TKit::StaticArray8<const char *> presentModes;
+    TKit::StackArray<const char *> presentModes;
+    presentModes.Reserve(available.GetSize());
     for (u32 i = 0; i < available.GetSize(); ++i)
     {
         presentModes.Append(presentModeToString(available[i]));

@@ -1,6 +1,5 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/state/descriptors.hpp"
-#include "onyx/core/limits.hpp"
 #include "onyx/core/core.hpp"
 #include "vkit/resource/device_buffer.hpp"
 
@@ -10,16 +9,16 @@ namespace Onyx::Descriptors
 static VKit::DescriptorPool s_DescriptorPool{};
 static VKit::DescriptorSetLayout s_InstanceDataStorageLayout{};
 static VKit::DescriptorSetLayout s_LightStorageLayout{};
-static TKit::StaticArray16<DescriptorSet> s_Sets{};
+static TKit::ArenaArray<DescriptorSet> s_Sets{};
 
-static void createDescriptorData()
+static void createDescriptorData(const Specs &p_Specs)
 {
     TKIT_LOG_INFO("[ONYX] Creating assets descriptor data");
     const VKit::LogicalDevice &device = Core::GetDevice();
     const auto poolResult = VKit::DescriptorPool::Builder(device)
-                                .SetMaxSets(MaxDescriptorSets)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, MaxDescriptors)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, MaxDescriptors)
+                                .SetMaxSets(p_Specs.MaxSets)
+                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, p_Specs.PoolSize)
+                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, p_Specs.PoolSize)
                                 .Build();
 
     VKIT_CHECK_RESULT(poolResult);
@@ -41,9 +40,10 @@ static void createDescriptorData()
     s_LightStorageLayout = layoutResult.GetValue();
 }
 
-void Initialize()
+void Initialize(const Specs &p_Specs)
 {
-    createDescriptorData();
+    s_Sets.Reserve(p_Specs.MaxSets);
+    createDescriptorData(p_Specs);
 }
 void Terminate()
 {

@@ -5,7 +5,12 @@
 
 namespace Onyx::Descriptors
 {
-void Initialize();
+struct Specs
+{
+    u32 MaxSets = 32;
+    u32 PoolSize = 1024;
+};
+void Initialize(const Specs &p_Specs);
 void Terminate();
 
 const VKit::DescriptorPool &GetDescriptorPool();

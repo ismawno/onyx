@@ -2,6 +2,7 @@
 
 #include "onyx/core/limits.hpp"
 #include "onyx/state/shaders.hpp"
+#include "onyx/state/descriptors.hpp"
 #include "vkit/memory/allocator.hpp"
 #include "vkit/vulkan/instance.hpp"
 #include "vkit/vulkan/loader.hpp"
@@ -63,7 +64,8 @@ struct Specs
     TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{4, 0, 4, 1};
     TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> Allocators{};
     InitCallbacks Callbacks{};
-    Shaders::Specs Shaders{};
+    Shaders::Specs ShadersSpecs{};
+    Descriptors::Specs DescriptorSpecs{};
     u32 Platform = ONYX_PLATFORM_AUTO;
 };
 

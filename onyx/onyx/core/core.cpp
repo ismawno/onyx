@@ -3,7 +3,6 @@
 #include "onyx/core/glfw.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/state/pipelines.hpp"
-#include "onyx/state/descriptors.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/execution/execution.hpp"
@@ -316,8 +315,8 @@ void CreateDevice(const VkSurfaceKHR p_Surface)
     createVulkanAllocator();
     Execution::Initialize();
     Assets::Initialize();
-    Descriptors::Initialize();
-    Shaders::Initialize(s_Specs.Shaders);
+    Descriptors::Initialize(s_Specs.DescriptorSpecs);
+    Shaders::Initialize(s_Specs.ShadersSpecs);
     Pipelines::Initialize();
     Renderer::Initialize();
     s_DeletionQueue.Push([] {
