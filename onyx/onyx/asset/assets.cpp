@@ -24,6 +24,14 @@ struct DataLayout
     LayoutFlags Flags;
 };
 
+struct BatchRange
+{
+    u32 BatchStart;
+    u32 BatchCount;
+};
+
+TKit::FixedArray<BatchRange, Geometry_Count> s_BatchRanges{};
+
 template <typename Vertex> struct MeshInfo
 {
     VKit::DeviceBuffer VertexBuffer{};
@@ -169,6 +177,9 @@ template <Dimension D> static void terminate()
 
 void Initialize(const Specs &p_Specs)
 {
+    s_BatchRanges[Geometry_Circle] = {.BatchStart = 0, .BatchCount = 1};
+    s_BatchRanges[Geometry_StaticMesh] = {.BatchStart = 1, .BatchCount = p_Specs.MaxStaticMeshes};
+
     initialize<D2>(p_Specs);
     initialize<D3>(p_Specs);
 }
@@ -177,6 +188,48 @@ void Terminate()
 {
     terminate<D2>();
     terminate<D3>();
+}
+
+u32 GetStaticMeshBatchIndex(const Mesh p_Mesh)
+{
+    TKIT_ASSERT(p_Mesh < s_BatchRanges[Geometry_StaticMesh].BatchCount,
+                "[ONYX] Mesh index overflow. The mesh index {} does not have a valid assigned batch. This may have "
+                "happened because the used mesh does not point to a valid static mesh, or the amount of static mesh "
+                "types exceeds the maximum of {}. Consider increasing such maximum from the Onyx initialization specs",
+                p_Mesh, s_BatchRanges[Geometry_StaticMesh].BatchCount);
+    return p_Mesh + s_BatchRanges[Geometry_StaticMesh].BatchStart;
+}
+u32 GetStaticMeshIndexFromBatch(const u32 p_Batch)
+{
+    TKIT_ASSERT(p_Batch < GetBatchEnd(Geometry_StaticMesh),
+                "[ONYX] Batch index overflow. The batch index {} does not have a valid assigned mesh. This may have "
+                "happened because the used batch does not point to a valid static mesh batch",
+                p_Batch, GetBatchEnd(Geometry_StaticMesh));
+    return p_Batch - s_BatchRanges[Geometry_StaticMesh].BatchStart;
+}
+u32 GetCircleBatchIndex()
+{
+    return s_BatchRanges[Geometry_Circle].BatchStart;
+}
+
+u32 GetBatchStart(const GeometryType p_Geo)
+{
+    return s_BatchRanges[p_Geo].BatchStart;
+}
+u32 GetBatchEnd(const GeometryType p_Geo)
+{
+    return s_BatchRanges[p_Geo].BatchStart + s_BatchRanges[p_Geo].BatchCount;
+}
+u32 GetBatchCount(const GeometryType p_Geo)
+{
+    return s_BatchRanges[p_Geo].BatchCount;
+}
+u32 GetBatchCount()
+{
+    u32 count = 0;
+    for (u32 i = 0; i < Geometry_Count; ++i)
+        count += s_BatchRanges[i].BatchCount;
+    return count;
 }
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &p_Data)

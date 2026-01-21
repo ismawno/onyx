@@ -194,6 +194,20 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
 }
 
 template <Dimension D>
+VKit::GraphicsPipeline CreateCirclePipeline(const StencilPass p_Pass,
+                                            const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
+{
+    const DrawPass dpass = GetDrawMode(p_Pass);
+    const ShaderData &shaders = getShaders<D>(dpass);
+
+    VKit::GraphicsPipeline::Builder builder =
+        createPipelineBuilder<D>(p_Pass, p_RenderInfo, shaders.CircleVertexShader, shaders.CircleFragmentShader);
+
+    const auto result = builder.Bake().Build();
+    VKIT_CHECK_RESULT(result);
+    return result.GetValue();
+}
+template <Dimension D>
 VKit::GraphicsPipeline CreateStaticMeshPipeline(const StencilPass p_Pass,
                                                 const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
 {
@@ -209,20 +223,6 @@ VKit::GraphicsPipeline CreateStaticMeshPipeline(const StencilPass p_Pass,
     else
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position))
             .AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Normal));
-
-    const auto result = builder.Bake().Build();
-    VKIT_CHECK_RESULT(result);
-    return result.GetValue();
-}
-template <Dimension D>
-VKit::GraphicsPipeline CreateCirclePipeline(const StencilPass p_Pass,
-                                            const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
-{
-    const DrawPass dpass = GetDrawMode(p_Pass);
-    const ShaderData &shaders = getShaders<D>(dpass);
-
-    VKit::GraphicsPipeline::Builder builder =
-        createPipelineBuilder<D>(p_Pass, p_RenderInfo, shaders.CircleVertexShader, shaders.CircleFragmentShader);
 
     const auto result = builder.Bake().Build();
     VKIT_CHECK_RESULT(result);

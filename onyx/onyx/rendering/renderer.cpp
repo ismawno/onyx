@@ -81,15 +81,19 @@ struct GraphicsArena
     TKit::StaticArray<GraphicsMemoryRange, MaxRendererRanges> MemoryRanges{};
 };
 
+struct Arena
+{
+    TransferArena Transfer{};
+    GraphicsArena Graphics{};
+};
+
 template <Dimension D> struct RendererData
 {
     TKit::BlockAllocator ContextAllocator = TKit::BlockAllocator::CreateFromType<RenderContext<D>>(MaxRenderContexts);
     TKit::StaticArray<RenderContext<D> *, MaxRenderContexts> Contexts{};
     TKit::StaticArray<u64, MaxRenderContexts> Generations{};
-    TKit::FixedArray<TransferArena, Primitive_Count> TransferArenas{};
-    TKit::FixedArray<GraphicsArena, Primitive_Count> GraphicsArenas{};
-    TKit::FixedArray<VKit::GraphicsPipeline, StencilPass_Count> StatMeshPipelines{};
-    TKit::FixedArray<VKit::GraphicsPipeline, StencilPass_Count> CirclePipelines{};
+    TKit::FixedArray<Arena, Geometry_Count> Arenas{};
+    TKit::FixedArray<TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count>, StencilPass_Count> Pipelines{};
 };
 
 static RendererData<D2> s_RendererData2{};
@@ -103,19 +107,19 @@ template <Dimension D> static RendererData<D> &getRendererData()
         return s_RendererData3;
 }
 
-template <Dimension D> static VkDeviceSize getInstanceSize(const PrimitiveType p_Type)
+template <Dimension D> static VkDeviceSize getInstanceSize(const GeometryType p_Geo)
 {
-    switch (p_Type)
+    switch (p_Geo)
     {
-    case Primitive_StaticMesh:
-        return sizeof(InstanceData<D>);
-    case Primitive_Circle:
+    case Geometry_Circle:
         return sizeof(CircleInstanceData<D>);
-    case Primitive_Count:
-        TKIT_FATAL("[ONYX] Unrecognized primitive type");
+    case Geometry_StaticMesh:
+        return sizeof(InstanceData<D>);
+    case Geometry_Count:
+        TKIT_FATAL("[ONYX] Unrecognized geometry type");
         return 0;
     }
-    TKIT_FATAL("[ONYX] Unrecognized primitive type");
+    TKIT_FATAL("[ONYX] Unrecognized geometry type");
     return 0;
 }
 
@@ -135,22 +139,22 @@ template <Dimension D> static void initialize()
     RendererData<D> &rdata = getRendererData<D>();
 
     const VkPipelineRenderingCreateInfoKHR renderInfo = CreatePipelineRenderingCreateInfo();
-    for (u32 i = 0; i < Primitive_Count; ++i)
+    for (u32 i = 0; i < Geometry_Count; ++i)
     {
-        const PrimitiveType type = static_cast<PrimitiveType>(i);
-        TransferArena &tarena = rdata.TransferArenas[type];
-        tarena.Buffer = Resources::CreateBuffer(Buffer_Staging, getInstanceSize<D>(type));
+        const GeometryType geo = static_cast<GeometryType>(i);
+        TransferArena &tarena = rdata.Arenas[geo].Transfer;
+        tarena.Buffer = Resources::CreateBuffer(Buffer_Staging, getInstanceSize<D>(geo));
         tarena.MemoryRanges.Append(TransferMemoryRange{.Size = tarena.Buffer.GetInfo().Size});
 
-        GraphicsArena &garena = rdata.GraphicsArenas[type];
-        garena.Buffer = Resources::CreateBuffer(Buffer_DeviceStorage, getInstanceSize<D>(type));
+        GraphicsArena &garena = rdata.Arenas[geo].Graphics;
+        garena.Buffer = Resources::CreateBuffer(Buffer_DeviceStorage, getInstanceSize<D>(geo));
         garena.MemoryRanges.Append(GraphicsMemoryRange{.Size = garena.Buffer.GetInfo().Size});
     }
     for (u32 i = 0; i < StencilPass_Count; ++i)
     {
         const StencilPass pass = static_cast<StencilPass>(i);
-        rdata.StatMeshPipelines[pass] = Pipelines::CreateStaticMeshPipeline<D>(pass, renderInfo);
-        rdata.CirclePipelines[pass] = Pipelines::CreateCirclePipeline<D>(pass, renderInfo);
+        rdata.Pipelines[pass][Geometry_Circle] = Pipelines::CreateCirclePipeline<D>(pass, renderInfo);
+        rdata.Pipelines[pass][Geometry_StaticMesh] = Pipelines::CreateStaticMeshPipeline<D>(pass, renderInfo);
     }
 }
 
@@ -158,18 +162,14 @@ template <Dimension D> static void terminate()
 {
     RendererData<D> &rdata = getRendererData<D>();
     Core::DeviceWaitIdle();
-    for (u32 prtype = 0; prtype < Primitive_Count; ++prtype)
+    for (Arena &arena : rdata.Arenas)
     {
-        TransferArena &tarena = rdata.TransferArenas[prtype];
-        tarena.Buffer.Destroy();
-        GraphicsArena &garena = rdata.GraphicsArenas[prtype];
-        garena.Buffer.Destroy();
+        arena.Transfer.Buffer.Destroy();
+        arena.Graphics.Buffer.Destroy();
     }
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
-    {
-        rdata.StatMeshPipelines[pass].Destroy();
-        rdata.CirclePipelines[pass].Destroy();
-    }
+        for (u32 geo = 0; geo < Geometry_Count; ++geo)
+            rdata.Pipelines[pass][geo].Destroy();
 }
 
 void Initialize()
@@ -203,8 +203,8 @@ template <Dimension D> void DestroyContext(const RenderContext<D> *p_Context)
             break;
         }
     TKIT_ASSERT(index != TKIT_U32_MAX, "[ONYX] Render context not found when attempting to destroy it");
-    for (GraphicsArena &garena : rdata.GraphicsArenas)
-        for (GraphicsMemoryRange &grange : garena.MemoryRanges)
+    for (Arena &arena : rdata.Arenas)
+        for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
             for (ContextRange &crange : grange.ContextRanges)
                 if (crange.ContextIndex > index)
                     --crange.ContextIndex;
@@ -219,8 +219,8 @@ template <Dimension D> static void clearWindow(const Window *p_Window)
     for (RenderContext<D> *ctx : rdata.Contexts)
         ctx->RemoveTarget(p_Window);
 
-    for (GraphicsArena &garena : rdata.GraphicsArenas)
-        for (GraphicsMemoryRange &grange : garena.MemoryRanges)
+    for (Arena &arena : rdata.Arenas)
+        for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
         {
             for (ContextRange &crange : grange.ContextRanges)
                 crange.ViewMask &= ~viewBit;
@@ -432,13 +432,15 @@ static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, T
     TKit::StaticArray<Task, MaxTasks> tasks{};
     u32 sindex = 0;
 
-    const auto processBatches = [&](const u32 p_Pass, const PrimitiveType p_Type, const u32 p_BatchStart,
-                                    const u32 p_BatchEnd) {
-        TransferArena &tarena = rdata.TransferArenas[p_Type];
-        GraphicsArena &garena = rdata.GraphicsArenas[p_Type];
+    const auto processBatches = [&](const u32 p_Pass, const GeometryType p_Geo) {
+        TransferArena &tarena = rdata.Arenas[p_Geo].Transfer;
+        GraphicsArena &garena = rdata.Arenas[p_Geo].Graphics;
+
+        const u32 bstart = Assets::GetBatchStart(p_Geo);
+        const u32 bend = Assets::GetBatchEnd(p_Geo);
 
         TKit::StaticArray<VkBufferCopy2KHR, MaxBatches> copies{};
-        for (u32 batch = p_BatchStart; batch < p_BatchEnd; ++batch)
+        for (u32 batch = bstart; batch < bend; ++batch)
         {
             contextRanges.Clear();
             VkDeviceSize requiredMem = 0;
@@ -505,9 +507,8 @@ static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, T
 
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
     {
-        processBatches(pass, Primitive_StaticMesh, BatchRangeStart_StaticMesh, BatchRangeEnd_StaticMesh);
-        // processBatches(pass, Primitive_Circle, BatchRangeStart_Circle, BatchRangeEnd_Circle,
-        //                );
+        // processBatches(pass, Geometry_Circle);
+        processBatches(pass, Geometry_StaticMesh);
     }
 
     p_Info.Command = p_Command;
@@ -584,8 +585,8 @@ void SubmitTransfer(VKit::Queue *p_Transfer, CommandPool &p_Pool, TKit::Span<con
 template <Dimension D> void applyAcquireBarriers(BarrierArray &p_Barriers)
 {
     const RendererData<D> &rdata = getRendererData<D>();
-    for (const GraphicsArena &garena : rdata.GraphicsArenas)
-        for (const GraphicsMemoryRange &grange : garena.MemoryRanges)
+    for (const Arena &arena : rdata.Arenas)
+        for (const GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
             if (grange.InUseByTransfer())
                 p_Barriers.Append(grange.Barrier);
 }
@@ -654,7 +655,7 @@ static void pushConstantData(const VkCommandBuffer p_Command, const Detail::Came
     // }
     const auto table = Core::GetDeviceTable();
     table->CmdPushConstants(p_Command, Pipelines::GetGraphicsPipelineLayout(Shading_Unlit), stages, 0,
-                           sizeof(PushConstantData<Shading_Unlit>), &pdata);
+                            sizeof(PushConstantData<Shading_Unlit>), &pdata);
 }
 
 struct InstanceDrawInfo
@@ -691,8 +692,8 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
                      StencilPass_Count>
         drawInfo{};
 
-    const auto collectDrawInfo = [&](const PrimitiveType p_Type) {
-        GraphicsArena &garena = rdata.GraphicsArenas[p_Type];
+    const auto collectDrawInfo = [&](const GeometryType p_Geo) {
+        GraphicsArena &garena = rdata.Arenas[p_Geo].Graphics;
         const VkDeviceSize instanceSize = garena.Buffer.GetInfo().InstanceSize;
         for (GraphicsMemoryRange &grange : garena.MemoryRanges)
         {
@@ -752,8 +753,8 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
         }
     };
 
-    collectDrawInfo(Primitive_StaticMesh);
-    // collectDrawInfo(Primitive_Circle);
+    // collectDrawInfo(Geometry_Circle);
+    collectDrawInfo(Geometry_StaticMesh);
 
     if (batches == 0)
         return;
@@ -764,9 +765,9 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
         for (u32 pass = 0; pass < StencilPass_Count; ++pass)
         {
             DescriptorSet &set =
-                Descriptors::FindSuitableDescriptorSet(rdata.GraphicsArenas[Primitive_StaticMesh].Buffer);
+                Descriptors::FindSuitableDescriptorSet(rdata.Arenas[Geometry_StaticMesh].Graphics.Buffer);
 
-            rdata.StatMeshPipelines[pass].Bind(p_GraphicsCommand);
+            rdata.Pipelines[pass][Geometry_StaticMesh].Bind(p_GraphicsCommand);
             BindStaticMeshes<D>(p_GraphicsCommand);
             pushConstantData(p_GraphicsCommand, camInfo);
 
@@ -774,10 +775,12 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
                                       Pipelines::GetGraphicsPipelineLayout(Shading_Unlit));
             set.MarkInUse(p_Graphics, p_GraphicsFlightValue);
 
-            for (u32 batch = BatchRangeStart_StaticMesh; batch < BatchRangeEnd_StaticMesh; ++batch)
+            const u32 bstart = Assets::GetBatchStart(Geometry_StaticMesh);
+            const u32 bend = Assets::GetBatchEnd(Geometry_StaticMesh);
+            for (u32 batch = bstart; batch < bend; ++batch)
                 for (const InstanceDrawInfo &draw : drawInfo[pass][batch])
                 {
-                    const Mesh mesh = batch - BatchRangeStart_StaticMesh;
+                    const Mesh mesh = Assets::GetStaticMeshIndexFromBatch(batch);
                     DrawStaticMesh<D>(p_GraphicsCommand, mesh, draw.FirstInstance, draw.InstanceCount);
                 }
         }
@@ -890,44 +893,43 @@ void SubmitRender(VKit::Queue *p_Graphics, CommandPool &p_Pool, const TKit::Span
 template <Dimension D> void coalesce()
 {
     RendererData<D> &rdata = getRendererData<D>();
-    for (TransferArena &tarena : rdata.TransferArenas)
+    for (Arena &arena : rdata.Arenas)
     {
-        TransferMemoryRange mergeRange{};
+        TransferArena &tarena = arena.Transfer;
+        TransferMemoryRange tmergeRange{};
         TKit::StaticArray<TransferMemoryRange, MaxRendererRanges> tranges{};
         for (TransferMemoryRange &trange : tarena.MemoryRanges)
         {
             if (trange.InUse())
             {
-                if (mergeRange.Size != 0)
+                if (tmergeRange.Size != 0)
                 {
-                    tranges.Append(mergeRange);
-                    mergeRange.Offset = mergeRange.Size + trange.Size;
-                    mergeRange.Size = 0;
+                    tranges.Append(tmergeRange);
+                    tmergeRange.Offset = tmergeRange.Size + trange.Size;
+                    tmergeRange.Size = 0;
                 }
                 tranges.Append(trange);
             }
             else
-                mergeRange.Size += trange.Size;
+                tmergeRange.Size += trange.Size;
         }
-        if (mergeRange.Size != 0)
-            tranges.Append(mergeRange);
+        if (tmergeRange.Size != 0)
+            tranges.Append(tmergeRange);
         tarena.MemoryRanges = tranges;
         TKIT_ASSERT(!tranges.IsEmpty(),
                     "[ONYX] All memory ranges for the transfer arena have been removed after coalesce operation!");
-    }
-    for (GraphicsArena &garena : rdata.GraphicsArenas)
-    {
-        GraphicsMemoryRange mergeRange{};
+        GraphicsArena &garena = arena.Graphics;
+        GraphicsMemoryRange gmergeRange{};
         TKit::StaticArray<GraphicsMemoryRange, MaxRendererRanges> granges{};
         for (GraphicsMemoryRange &grange : garena.MemoryRanges)
         {
             if (grange.InUse())
             {
-                if (mergeRange.Size != 0)
+                if (gmergeRange.Size != 0)
                 {
-                    granges.Append(mergeRange);
-                    mergeRange.Offset = mergeRange.Size + grange.Size;
-                    mergeRange.Size = 0;
+                    granges.Append(gmergeRange);
+                    gmergeRange.Offset = gmergeRange.Size + grange.Size;
+                    gmergeRange.Size = 0;
                 }
                 granges.Append(grange);
             }
@@ -944,12 +946,12 @@ template <Dimension D> void coalesce()
                     {
                         TKIT_ASSERT(grange.Size != 0, "[ONYX] Graphics memory range should not have reached a zero "
                                                       "size if there are context ranges left");
-                        if (mergeRange.Size != 0)
+                        if (gmergeRange.Size != 0)
                         {
-                            granges.Append(mergeRange);
-                            mergeRange.Size = 0;
+                            granges.Append(gmergeRange);
+                            gmergeRange.Size = 0;
                         }
-                        mergeRange.Offset += crange.Size;
+                        gmergeRange.Offset += crange.Size;
                         grange.Size += crange.Size;
                         grange.ViewMask |= crange.ViewMask;
                         cranges.Append(crange);
@@ -964,7 +966,7 @@ template <Dimension D> void coalesce()
                             cranges.Clear();
                         }
                         grange.Offset += crange.Size;
-                        mergeRange.Size += crange.Size;
+                        gmergeRange.Size += crange.Size;
                     }
                 if (grange.Size != 0)
                 {
@@ -975,8 +977,8 @@ template <Dimension D> void coalesce()
             else
                 granges.Append(grange);
         }
-        if (mergeRange.Size != 0)
-            granges.Append(mergeRange);
+        if (gmergeRange.Size != 0)
+            granges.Append(gmergeRange);
         garena.MemoryRanges = granges;
 
         TKIT_ASSERT(!granges.IsEmpty(),
@@ -1006,7 +1008,7 @@ void DrawStaticMesh(const VkCommandBuffer p_Command, const Mesh p_Mesh, const u3
     const MeshDataLayout layout = Assets::GetStaticMeshLayout<D>(p_Mesh);
     const auto table = Core::GetDeviceTable();
     table->CmdDrawIndexed(p_Command, layout.IndexCount, p_InstanceCount, layout.IndexStart, layout.VertexStart,
-                         p_FirstInstance);
+                          p_FirstInstance);
 }
 
 template RenderContext<D2> *CreateContext();

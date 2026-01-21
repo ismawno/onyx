@@ -48,15 +48,6 @@ template <> struct RenderState<D3>
 
 namespace Onyx::Detail
 {
-enum BatchRanges : u32
-{
-    BatchRangeSize_StaticMesh = MaxBatches - 1,
-    BatchRangeStart_StaticMesh = 0,
-    BatchRangeEnd_StaticMesh = BatchRangeSize_StaticMesh + BatchRangeStart_StaticMesh,
-    BatchRangeSize_Circle = 1,
-    BatchRangeStart_Circle = BatchRangeEnd_StaticMesh,
-    BatchRangeEnd_Circle = BatchRangeSize_Circle + BatchRangeStart_Circle,
-};
 
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
@@ -171,16 +162,16 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
 
   private:
     void updateState();
-    void addStaticMeshData(Mesh p_Mesh, const f32m<D> &p_Transform, StencilPass p_Pass);
     void addCircleData(const f32m<D> &p_Transform, const CircleOptions &p_Options, StencilPass p_Pass);
+    void addStaticMeshData(Mesh p_Mesh, const f32m<D> &p_Transform, StencilPass p_Pass);
     struct InstanceBuffer
     {
         VKit::HostBuffer Data{};
         u32 Instances = 0;
     };
 
-    TKit::TierArray<RenderState<D>> m_StateStack;
-    TKit::FixedArray<TKit::FixedArray<InstanceBuffer, MaxBatches>, StencilPass_Count> m_InstanceData{};
+    TKit::TierArray<RenderState<D>> m_StateStack{};
+    TKit::FixedArray<TKit::TierArray<InstanceBuffer>, StencilPass_Count> m_InstanceData{};
     u64 m_ViewMask = 0;
     u64 m_Generation = 0;
 };

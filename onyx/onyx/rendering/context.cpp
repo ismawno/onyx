@@ -1,5 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/context.hpp"
+#include "onyx/asset/assets.hpp"
 
 #include "tkit/math/math.hpp"
 
@@ -12,15 +13,18 @@ template <Dimension D> IRenderContext<D>::IRenderContext()
     m_Current = &m_StateStack.Append();
     for (u32 i = 0; i < m_InstanceData.GetSize(); ++i)
     {
-        for (u32 j = BatchRangeStart_StaticMesh; j < BatchRangeEnd_StaticMesh; ++j)
+        TKit::TierArray<InstanceBuffer> &data = m_InstanceData[i];
+        data.Resize(Assets::GetBatchCount());
+
+        for (u32 j = Assets::GetBatchStart(Geometry_Circle); j < Assets::GetBatchEnd(Geometry_Circle); ++j)
         {
-            InstanceBuffer &buffer = m_InstanceData[i][j];
-            buffer.Data = VKit::HostBuffer::Create<InstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
-        }
-        for (u32 j = BatchRangeStart_Circle; j < BatchRangeEnd_Circle; ++j)
-        {
-            InstanceBuffer &buffer = m_InstanceData[i][j];
+            InstanceBuffer &buffer = data[j];
             buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
+        }
+        for (u32 j = Assets::GetBatchStart(Geometry_StaticMesh); j < Assets::GetBatchEnd(Geometry_StaticMesh); ++j)
+        {
+            InstanceBuffer &buffer = data[j];
+            buffer.Data = VKit::HostBuffer::Create<InstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
         }
     }
 }
@@ -275,27 +279,22 @@ static void resizeBuffer(VKit::HostBuffer &p_Buffer, const u32 p_Instances)
 }
 
 template <Dimension D>
-void IRenderContext<D>::addStaticMeshData(const Mesh p_Mesh, const f32m<D> &p_Transform, const StencilPass p_Pass)
+void IRenderContext<D>::addCircleData(const f32m<D> &p_Transform, const CircleOptions &p_Options,
+                                      const StencilPass p_Pass)
 {
-    TKIT_ASSERT(p_Mesh < BatchRangeSize_StaticMesh,
-                "[ONYX] Instance overflow. The amount of static mesh types exceeds maximum of {}. Consider increasing "
-                "ONYX_MAX_BATCHES to a larger number",
-                u32(BatchRangeSize_StaticMesh));
-
-    const InstanceData<D> idata = createInstanceData(m_Current, p_Transform, p_Pass);
-    InstanceBuffer &buffer = m_InstanceData[p_Pass][p_Mesh + BatchRangeStart_StaticMesh];
-
+    const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, p_Transform, p_Options, p_Pass);
+    InstanceBuffer &buffer = m_InstanceData[p_Pass][Assets::GetCircleBatchIndex()];
     const u32 index = buffer.Instances++;
     resizeBuffer(buffer.Data, buffer.Instances);
     buffer.Data.WriteAt(index, &idata);
 }
 
 template <Dimension D>
-void IRenderContext<D>::addCircleData(const f32m<D> &p_Transform, const CircleOptions &p_Options,
-                                      const StencilPass p_Pass)
+void IRenderContext<D>::addStaticMeshData(const Mesh p_Mesh, const f32m<D> &p_Transform, const StencilPass p_Pass)
 {
-    const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, p_Transform, p_Options, p_Pass);
-    InstanceBuffer &buffer = m_InstanceData[p_Pass][BatchRangeStart_Circle];
+    const InstanceData<D> idata = createInstanceData(m_Current, p_Transform, p_Pass);
+    InstanceBuffer &buffer = m_InstanceData[p_Pass][Assets::GetStaticMeshBatchIndex(p_Mesh)];
+
     const u32 index = buffer.Instances++;
     resizeBuffer(buffer.Data, buffer.Instances);
     buffer.Data.WriteAt(index, &idata);

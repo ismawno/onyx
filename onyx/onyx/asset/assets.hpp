@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/asset/mesh.hpp"
+#include "onyx/property/instance.hpp"
 
 namespace Onyx::Assets
 {
@@ -10,6 +11,15 @@ struct Specs
 };
 void Initialize(const Specs &p_Specs);
 void Terminate();
+
+u32 GetStaticMeshBatchIndex(Mesh p_Mesh);
+u32 GetStaticMeshIndexFromBatch(u32 p_Batch);
+u32 GetCircleBatchIndex();
+
+u32 GetBatchStart(GeometryType p_Geo);
+u32 GetBatchEnd(GeometryType p_Geo);
+u32 GetBatchCount(GeometryType p_Geo);
+u32 GetBatchCount();
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &p_Data);
 template <Dimension D> void UpdateMesh(Mesh p_Mesh, const StatMeshData<D> &p_Data);

@@ -11,8 +11,9 @@ int main()
 {
     Core::Initialize();
     {
-        RenderContext<D2> *ctx = Renderer::CreateContext<D2>();
         Window window{};
+
+        RenderContext<D2> *ctx = Renderer::CreateContext<D2>();
         ctx->AddTarget(&window);
         window.CreateCamera<D2>();
         const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();

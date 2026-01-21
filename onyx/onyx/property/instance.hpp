@@ -5,11 +5,11 @@
 
 namespace Onyx
 {
-enum PrimitiveType : u8
+enum GeometryType : u8
 {
-    Primitive_StaticMesh,
-    Primitive_Circle,
-    Primitive_Count,
+    Geometry_Circle,
+    Geometry_StaticMesh,
+    Geometry_Count,
 };
 
 template <Dimension D> struct InstanceData;

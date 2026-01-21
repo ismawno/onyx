@@ -48,7 +48,7 @@
 #endif
 
 #ifndef ONYX_MAX_BATCHES
-#    define ONYX_MAX_BATCHES 32
+#    define ONYX_MAX_BATCHES 65
 #endif
 
 #ifndef ONYX_MAX_RENDERER_RANGES
