@@ -2,6 +2,7 @@
 #include "onyx/imgui/backend.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/rendering/renderer.hpp"
+#include "onyx/core/core.hpp"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
 

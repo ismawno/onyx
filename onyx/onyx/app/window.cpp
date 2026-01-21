@@ -294,10 +294,10 @@ void Window::recreateResources()
     m_ImageIndex = 0;
 }
 
-PerImageData<Window::ImageData> Window::createImageData()
+TKit::TierArray<Window::ImageData> Window::createImageData()
 {
     const VKit::SwapChain::Info &info = m_SwapChain.GetInfo();
-    PerImageData<ImageData> images{};
+    TKit::TierArray<ImageData> images{};
     for (u32 i = 0; i < m_SwapChain.GetImageCount(); ++i)
     {
         ImageData data{};

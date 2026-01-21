@@ -3,6 +3,7 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/rendering/context.hpp"
+#include "onyx/core/core.hpp"
 
 using namespace Onyx;
 

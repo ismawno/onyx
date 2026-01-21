@@ -3,6 +3,7 @@
 #include "onyx/core/limits.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/state/descriptors.hpp"
+#include "onyx/execution/execution.hpp"
 #include "vkit/memory/allocator.hpp"
 #include "vkit/vulkan/instance.hpp"
 #include "vkit/vulkan/loader.hpp"
@@ -64,12 +65,12 @@ struct Specs
     TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{4, 0, 4, 1};
     TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> Allocators{};
     InitCallbacks Callbacks{};
-    Shaders::Specs ShadersSpecs{};
+    Execution::Specs ExecutionSpecs{};
     Descriptors::Specs DescriptorSpecs{};
+    Shaders::Specs ShadersSpecs{};
     u32 Platform = ONYX_PLATFORM_AUTO;
 };
 
-template <typename T> using PerImageData = TKit::StaticArray8<T>;
 } // namespace Onyx
 
 namespace Onyx::Core

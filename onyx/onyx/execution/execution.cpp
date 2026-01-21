@@ -6,7 +6,7 @@ namespace Onyx::Execution
 {
 static VKit::CommandPool s_Graphics{};
 static VKit::CommandPool s_Transfer{};
-static TKit::StaticArray16<CommandPool> s_CommandPools{};
+static TKit::ArenaArray<CommandPool> s_CommandPools{};
 
 static VKit::CommandPool createCommandPool(const u32 p_Family)
 {
@@ -63,8 +63,9 @@ void EndCommandBuffer(const VkCommandBuffer p_CommandBuffer)
     VKIT_CHECK_EXPRESSION(table->EndCommandBuffer(p_CommandBuffer));
 }
 
-void Initialize()
+void Initialize(const Specs &p_Specs)
 {
+    s_CommandPools.Reserve(p_Specs.MaxCommandPools);
     createTransientCommandPools();
     const auto &device = Core::GetDevice();
     const auto table = Core::GetDeviceTable();
@@ -142,12 +143,12 @@ VKit::CommandPool &GetTransientTransferPool()
     return s_Transfer;
 }
 
-PerImageData<SyncData> CreateSyncData(const u32 p_ImageCount)
+TKit::TierArray<SyncData> CreateSyncData(const u32 p_ImageCount)
 {
     const auto &device = Core::GetDevice();
     const auto table = device.GetInfo().Table;
 
-    PerImageData<SyncData> syncs{};
+    TKit::TierArray<SyncData> syncs{};
     syncs.Resize(p_ImageCount);
     for (u32 i = 0; i < p_ImageCount; ++i)
     {

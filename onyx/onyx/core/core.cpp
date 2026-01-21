@@ -5,7 +5,6 @@
 #include "onyx/state/pipelines.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/execution/execution.hpp"
 
 #include "vkit/memory/allocator.hpp"
 #include "vkit/vulkan/vulkan.hpp"
@@ -313,7 +312,7 @@ void CreateDevice(const VkSurfaceKHR p_Surface)
 
     createDevice(p_Surface);
     createVulkanAllocator();
-    Execution::Initialize();
+    Execution::Initialize(s_Specs.ExecutionSpecs);
     Assets::Initialize();
     Descriptors::Initialize(s_Specs.DescriptorSpecs);
     Shaders::Initialize(s_Specs.ShadersSpecs);

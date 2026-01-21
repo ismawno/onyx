@@ -285,7 +285,7 @@ class Window
     void recreateResources();
     bool handleImageResult(VkResult p_Result);
 
-    PerImageData<ImageData> createImageData();
+    TKit::TierArray<ImageData> createImageData();
     void destroyImageData();
 
     VkExtent2D waitGlfwEvents();
@@ -317,10 +317,10 @@ class Window
 
     TKit::Timespan m_MonitorDeltaTime{};
 
-    PerImageData<ImageData> m_Images{};
+    TKit::TierArray<ImageData> m_Images{};
     VKit::SwapChain m_SwapChain;
 
-    PerImageData<Execution::SyncData> m_SyncData{};
+    TKit::TierArray<Execution::SyncData> m_SyncData{};
 
     VKit::Queue *m_Present;
 

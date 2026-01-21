@@ -1,11 +1,14 @@
 #pragma once
 
 #include "onyx/execution/command_pool.hpp"
-#include "onyx/core/core.hpp"
 
 namespace Onyx::Execution
 {
-void Initialize();
+struct Specs
+{
+    u32 MaxCommandPools = 16;
+};
+void Initialize(const Specs &p_Specs);
 void Terminate();
 
 void UpdateCompletedQueueTimelines();
@@ -32,7 +35,7 @@ struct SyncData
     VkSemaphore RenderFinishedSemaphore;
 };
 
-PerImageData<SyncData> CreateSyncData(u32 p_ImageCount);
+TKit::TierArray<SyncData> CreateSyncData(u32 p_ImageCount);
 void DestroySyncData(TKit::Span<const SyncData> p_Objects);
 
 } // namespace Onyx::Execution
