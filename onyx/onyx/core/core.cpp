@@ -18,8 +18,8 @@
 using namespace Onyx::Detail;
 namespace Onyx::Core
 {
+static u8 s_PushedAlloc = 0;
 static TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> s_Allocation{};
-static TKit::FixedArray<u8, TKit::MaxThreads> s_DefaultAlloc{};
 
 static TKit::ITaskManager *s_TaskManager;
 static TKit::Storage<TKit::ThreadPool> s_DefaultTaskManager;
@@ -161,58 +161,47 @@ static void initializeAllocators()
     // these are purposefully leaked
     for (u32 i = 0; i < TKit::MaxThreads; ++i)
     {
-        VKit::Allocation &alloc = s_Specs.Allocators[i];
-        s_DefaultAlloc[i] = 0;
-        if (!alloc.Arena)
-        {
-            if (!s_Allocation[i].Arena)
-                s_Allocation[i].Arena =
-                    new TKit::ArenaAllocator(static_cast<u32>(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
-            alloc.Arena = s_Allocation[i].Arena;
-            s_DefaultAlloc[i] |= 1 << 0;
-        }
-        if (!alloc.Stack)
-        {
-            if (!s_Allocation[i].Stack)
-                s_Allocation[i].Stack =
-                    new TKit::StackAllocator(static_cast<u32>(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
-            alloc.Stack = s_Allocation[i].Stack;
-            s_DefaultAlloc[i] |= 1 << 1;
-        }
-        if (!alloc.Tier)
-        {
-            if (!s_Allocation[i].Tier)
-                s_Allocation[i].Tier =
-                    new TKit::TierAllocator(alloc.Arena, 64, static_cast<u32>(i == 0 ? 256_kib : 4_kib));
-            alloc.Tier = s_Allocation[i].Tier;
-            s_DefaultAlloc[i] |= 1 << 2;
-        }
-    }
-    if (s_DefaultAlloc[0] & 4)
-        TKit::Memory::PushTier(s_Allocation[0].Tier);
-    if (s_DefaultAlloc[0] & 2)
-        TKit::Memory::PushStack(s_Allocation[0].Stack);
-    if (s_DefaultAlloc[0] & 1)
-        TKit::Memory::PushArena(s_Allocation[0].Arena);
+        VKit::Allocation &userAlloc = s_Specs.Allocators[i];
+        VKit::Allocation &libAlloc = s_Allocation[i];
+        if (userAlloc.Arena)
+            libAlloc.Arena = userAlloc.Arena;
+        else if (!libAlloc.Arena)
+            libAlloc.Arena = new TKit::ArenaAllocator(static_cast<u32>(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
+        if (userAlloc.Stack)
+            libAlloc.Stack = userAlloc.Stack;
+        else if (!libAlloc.Stack)
+            libAlloc.Stack = new TKit::StackAllocator(static_cast<u32>(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
 
-    TKIT_ASSERT(TKit::Memory::GetArena(),
-                "[ONYX] If the main thread arena allocator is provided by the user (allocator at index 0), it "
-                "must have been pushed using TKit::Memory::PushArena(), as onyx depends on it");
-    TKIT_ASSERT(TKit::Memory::GetStack(),
-                "[ONYX] If the main thread stack allocator is provided by the user (allocator at index 0), it "
-                "must have been pushed using TKit::Memory::PushStack(), as onyx depends on it");
-    TKIT_ASSERT(TKit::Memory::GetTier(),
-                "[ONYX] If the main thread tier allocator is provided by the user (allocator at index 0), it "
-                "must have been pushed using TKit::Memory::PushTier(), as onyx depends on it");
+        if (userAlloc.Tier)
+            libAlloc.Tier = userAlloc.Tier;
+        else if (!libAlloc.Tier)
+            libAlloc.Tier = new TKit::TierAllocator(libAlloc.Arena, 64, static_cast<u32>(i == 0 ? 256_kib : 4_kib));
+    }
+    VKit::Allocation &libAlloc = s_Allocation[0];
+    if (TKit::Memory::GetArena() != libAlloc.Arena)
+    {
+        TKit::Memory::PushArena(libAlloc.Arena);
+        s_PushedAlloc |= 1 << 0;
+    }
+    if (TKit::Memory::GetStack() != libAlloc.Stack)
+    {
+        TKit::Memory::PushStack(libAlloc.Stack);
+        s_PushedAlloc |= 1 << 1;
+    }
+    if (TKit::Memory::GetTier() != libAlloc.Tier)
+    {
+        TKit::Memory::PushTier(libAlloc.Tier);
+        s_PushedAlloc |= 1 << 2;
+    }
 }
 
 void terminateAllocators()
 {
-    if (s_DefaultAlloc[0] & 4)
+    if (s_PushedAlloc & 4)
         TKit::Memory::PopTier();
-    if (s_DefaultAlloc[0] & 2)
+    if (s_PushedAlloc & 2)
         TKit::Memory::PopStack();
-    if (s_DefaultAlloc[0] & 1)
+    if (s_PushedAlloc & 1)
         TKit::Memory::PopArena();
 }
 
@@ -239,7 +228,7 @@ void Initialize(const Specs &p_Specs)
     TKIT_LOG_INFO("[ONYX] Initializing Vulkit");
 
     VKit::Specs vspecs{};
-    vspecs.Allocators = s_Specs.Allocators[0];
+    vspecs.Allocators = s_Allocation[0];
     VKIT_CHECK_EXPRESSION(VKit::Core::Initialize(vspecs));
 
     if (p_Specs.TaskManager)
