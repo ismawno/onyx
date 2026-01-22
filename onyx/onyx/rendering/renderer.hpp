@@ -42,7 +42,7 @@ struct RenderSubmitInfo
     VkCommandBuffer Command = VK_NULL_HANDLE;
     u64 InFlightValue = 0;
     TKit::FixedArray<VkSemaphoreSubmitInfoKHR, 2> SignalSemaphores{};
-    TKit::StaticArray<VkSemaphoreSubmitInfoKHR, MaxRendererRanges> WaitSemaphores{};
+    TKit::TierArray<VkSemaphoreSubmitInfoKHR> WaitSemaphores{};
 };
 
 TransferSubmitInfo Transfer(VKit::Queue *p_Transfer, VkCommandBuffer p_Command);
