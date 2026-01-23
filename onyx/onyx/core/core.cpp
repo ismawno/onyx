@@ -4,6 +4,10 @@
 #include "onyx/state/pipelines.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/rendering/renderer.hpp"
+#include "onyx/state/shaders.hpp"
+#include "onyx/state/descriptors.hpp"
+#include "onyx/execution/execution.hpp"
+#include "onyx/asset/assets.hpp"
 
 #include "vkit/memory/allocator.hpp"
 
@@ -299,10 +303,10 @@ void CreateDevice(const VkSurfaceKHR p_Surface)
 
     createDevice(p_Surface);
     createVulkanAllocator();
-    Execution::Initialize(s_Specs.ExecutionSpecs);
-    Assets::Initialize(s_Specs.AssetSpecs);
-    Descriptors::Initialize(s_Specs.DescriptorSpecs);
-    Shaders::Initialize(s_Specs.ShadersSpecs);
+    Execution::Initialize(s_Specs.ExecutionSpecs ? *s_Specs.ExecutionSpecs : Execution::Specs{});
+    Assets::Initialize(s_Specs.AssetSpecs ? *s_Specs.AssetSpecs : Assets::Specs{});
+    Descriptors::Initialize(s_Specs.DescriptorSpecs ? *s_Specs.DescriptorSpecs : Descriptors::Specs{});
+    Shaders::Initialize(s_Specs.ShadersSpecs ? *s_Specs.ShadersSpecs : Shaders::Specs{});
     Pipelines::Initialize();
     Renderer::Initialize();
     s_DeletionQueue.Push([] {

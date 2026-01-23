@@ -1,19 +1,32 @@
 #pragma once
 
-#include "onyx/state/shaders.hpp"
-#include "onyx/state/descriptors.hpp"
-#include "onyx/execution/execution.hpp"
-#include "onyx/asset/assets.hpp"
 #include "vkit/memory/allocator.hpp"
 #include "vkit/vulkan/instance.hpp"
 #include "vkit/vulkan/loader.hpp"
 #include "vkit/device/logical_device.hpp"
 #include "vkit/device/physical_device.hpp"
 #include "vkit/core/core.hpp"
-#include "tkit/multiprocessing/task.hpp"
+#include "tkit/multiprocessing/task_manager.hpp"
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 #    include "tkit/profiling/vulkan.hpp"
 #endif
+
+#define ONYX_NO_DISCARD VKIT_NO_DISCARD
+
+#define ONYX_LOG_RESULT_DEBUG(...) VKIT_LOG_RESULT_DEBUG(__VA_ARGS__)
+#define ONYX_LOG_EXPRESSION_DEBUG(...) VKIT_LOG_EXPRESSION_DEBUG(__VA_ARGS__)
+
+#define ONYX_LOG_RESULT_INFO(...) VKIT_LOG_RESULT_INFO(__VA_ARGS__)
+#define ONYX_LOG_EXPRESSION_INFO(...) VKIT_LOG_EXPRESSION_INFO(__VA_ARGS__)
+
+#define ONYX_LOG_RESULT_WARNING(...) VKIT_LOG_RESULT_WARNING(__VA_ARGS__)
+#define ONYX_LOG_EXPRESSION_WARNING(...) VKIT_LOG_EXPRESSION_WARNING(__VA_ARGS__)
+
+#define ONYX_LOG_RESULT_ERROR(...) VKIT_LOG_RESULT_ERROR(__VA_ARGS__)
+#define ONYX_LOG_EXPRESSION_ERROR(...) VKIT_LOG_EXPRESSION_ERROR(__VA_ARGS__)
+
+#define ONYX_CHECK_RESULT(...) VKIT_CHECK_RESULT(__VA_ARGS__)
+#define ONYX_CHECK_EXPRESSION(...) VKIT_CHECK_EXPRESSION(__VA_ARGS__)
 
 #define ONYX_PLATFORM_ANY 0x00060000
 #define ONYX_PLATFORM_WIN32 0x00060001
@@ -34,13 +47,6 @@
 #    define ONYX_PLATFORM_AUTO ONYX_PLATFORM_ANY
 #endif
 
-namespace TKit
-{
-class StackAllocator;
-class ITaskManager;
-template <typename T> class Task;
-} // namespace TKit
-
 // This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
 // properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX
 // objects are alive at that point.
@@ -48,6 +54,8 @@ template <typename T> class Task;
 namespace Onyx
 {
 using Task = TKit::Task<void>;
+using ErrorCode = VKit::ErrorCode;
+template <typename T> using Result = VKit::Result<T>;
 
 struct InitCallbacks
 {
@@ -57,6 +65,23 @@ struct InitCallbacks
     std::function<void(VKit::AllocatorSpecs &)> OnAllocatorCreation = nullptr;
 };
 
+namespace Execution
+{
+struct Specs;
+}
+namespace Assets
+{
+struct Specs;
+}
+namespace Descriptors
+{
+struct Specs;
+}
+namespace Shaders
+{
+struct Specs;
+}
+
 struct Specs
 {
     const char *VulkanLoaderPath = nullptr;
@@ -64,10 +89,10 @@ struct Specs
     TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{4, 0, 4, 1};
     TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> Allocators{};
     InitCallbacks Callbacks{};
-    Execution::Specs ExecutionSpecs{};
-    Assets::Specs AssetSpecs{};
-    Descriptors::Specs DescriptorSpecs{};
-    Shaders::Specs ShadersSpecs{};
+    Execution::Specs *ExecutionSpecs = nullptr;
+    Assets::Specs *AssetSpecs = nullptr;
+    Descriptors::Specs *DescriptorSpecs = nullptr;
+    Shaders::Specs *ShadersSpecs = nullptr;
     u32 Platform = ONYX_PLATFORM_AUTO;
 };
 
