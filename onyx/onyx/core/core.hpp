@@ -1,6 +1,5 @@
 #pragma once
 
-#include "onyx/core/limits.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/state/descriptors.hpp"
 #include "onyx/execution/execution.hpp"

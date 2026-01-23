@@ -4,7 +4,6 @@
 #include "onyx/property/instance.hpp"
 #include "onyx/property/options.hpp"
 #include "onyx/asset/mesh.hpp"
-#include "onyx/core/limits.hpp"
 #include "onyx/app/window.hpp"
 #include "vkit/resource/host_buffer.hpp"
 

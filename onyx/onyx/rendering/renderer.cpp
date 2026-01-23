@@ -1,6 +1,5 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/core/limits.hpp"
 #include "onyx/property/instance.hpp"
 #include "onyx/app/window.hpp"
 #include "onyx/asset/assets.hpp"
@@ -10,7 +9,6 @@
 #include "onyx/resource/resources.hpp"
 #include "onyx/rendering/context.hpp"
 #include "vkit/resource/device_buffer.hpp"
-#include "tkit/memory/block_allocator.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/container/stack_array.hpp"
 
@@ -90,7 +88,6 @@ struct Arena
 
 template <Dimension D> struct RendererData
 {
-    TKit::BlockAllocator ContextAllocator = TKit::BlockAllocator::CreateFromType<RenderContext<D>>(MaxRenderContexts);
     TKit::TierArray<RenderContext<D> *> Contexts{};
     TKit::TierArray<u64> Generations{};
     TKit::FixedArray<Arena, Geometry_Count> Arenas{};
@@ -187,13 +184,14 @@ void Terminate()
 template <Dimension D> RenderContext<D> *CreateContext()
 {
     RendererData<D> &rdata = getRendererData<D>();
-    RenderContext<D> *ctx = rdata.ContextAllocator.template Create<RenderContext<D>>();
+    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+    RenderContext<D> *ctx = alloc->Create<RenderContext<D>>();
     rdata.Contexts.Append(ctx);
     rdata.Generations.Append(ctx->GetGeneration());
     return ctx;
 }
 
-template <Dimension D> void DestroyContext(const RenderContext<D> *p_Context)
+template <Dimension D> void DestroyContext(RenderContext<D> *p_Context)
 {
     RendererData<D> &rdata = getRendererData<D>();
     u32 index = TKIT_U32_MAX;
@@ -211,6 +209,10 @@ template <Dimension D> void DestroyContext(const RenderContext<D> *p_Context)
                     --crange.ContextIndex;
                 else if (crange.ContextIndex == index)
                     crange.ContextIndex = TKIT_U32_MAX;
+
+    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+    alloc->Destroy(p_Context);
+    rdata.Contexts.RemoveUnordered(rdata.Contexts.begin() + index);
 }
 
 template <Dimension D> static void clearWindow(const Window *p_Window)
@@ -1044,8 +1046,8 @@ void DrawStaticMesh(const VkCommandBuffer p_Command, const Mesh p_Mesh, const u3
 template RenderContext<D2> *CreateContext();
 template RenderContext<D3> *CreateContext();
 
-template void DestroyContext(const RenderContext<D2> *p_Context);
-template void DestroyContext(const RenderContext<D3> *p_Context);
+template void DestroyContext(RenderContext<D2> *p_Context);
+template void DestroyContext(RenderContext<D3> *p_Context);
 
 template void BindStaticMeshes<D2>(VkCommandBuffer p_Command);
 template void BindStaticMeshes<D3>(VkCommandBuffer p_Command);

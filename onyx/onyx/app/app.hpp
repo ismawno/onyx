@@ -5,7 +5,6 @@
 #ifdef ONYX_ENABLE_IMGUI
 #    include "onyx/imgui/theme.hpp"
 #endif
-#include "onyx/core/limits.hpp"
 #include "tkit/profiling/clock.hpp"
 
 #ifdef ONYX_ENABLE_IMGUI

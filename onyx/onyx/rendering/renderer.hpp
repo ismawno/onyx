@@ -1,7 +1,6 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/core/limits.hpp"
 #include "onyx/asset/mesh.hpp"
 #include "onyx/execution/command_pool.hpp"
 #include "vkit/execution/queue.hpp"
@@ -20,7 +19,7 @@ void Terminate();
 VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo();
 
 template <Dimension D> RenderContext<D> *CreateContext();
-template <Dimension D> void DestroyContext(const RenderContext<D> *p_Context);
+template <Dimension D> void DestroyContext(RenderContext<D> *p_Context);
 
 void ClearWindow(const Window *p_Window);
 
