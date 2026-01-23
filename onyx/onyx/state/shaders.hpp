@@ -3,7 +3,6 @@
 #include "onyx/core/alias.hpp"
 #include "vkit/state/shader.hpp"
 #include "tkit/utils/non_copyable.hpp"
-#include "tkit/container/static_array.hpp"
 
 namespace Onyx
 {

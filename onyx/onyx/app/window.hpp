@@ -8,9 +8,7 @@
 #include "onyx/execution/execution.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "vkit/presentation/swap_chain.hpp"
-#include "tkit/memory/block_allocator.hpp"
 #include "tkit/profiling/timespan.hpp"
-#include "tkit/container/static_array.hpp"
 
 struct GLFWwindow;
 

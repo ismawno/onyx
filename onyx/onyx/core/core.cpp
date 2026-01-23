@@ -6,7 +6,6 @@
 #include "onyx/rendering/renderer.hpp"
 
 #include "vkit/memory/allocator.hpp"
-#include "vkit/vulkan/vulkan.hpp"
 
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "tkit/utils/debug.hpp"

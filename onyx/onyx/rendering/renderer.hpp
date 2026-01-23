@@ -5,7 +5,6 @@
 #include "onyx/asset/mesh.hpp"
 #include "onyx/execution/command_pool.hpp"
 #include "vkit/execution/queue.hpp"
-#include "tkit/container/static_array.hpp"
 
 namespace Onyx
 {

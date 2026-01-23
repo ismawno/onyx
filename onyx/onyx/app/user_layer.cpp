@@ -1,8 +1,10 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/app/user_layer.hpp"
-#include "onyx/app/app.hpp"
-#include "onyx/rendering/context.hpp"
+#include "onyx/property/color.hpp"
 #include "onyx/property/transform.hpp"
+#include "onyx/property/instance.hpp"
+#include "onyx/app/window.hpp"
+#include "onyx/app/input.hpp"
 #include "onyx/imgui/imgui.hpp"
 #include "tkit/container/stack_array.hpp"
 

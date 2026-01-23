@@ -4,8 +4,7 @@
 #    error "[ONYX] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_NFD"
 #endif
 
-#include "onyx/core/limits.hpp"
-#include "tkit/container/static_array.hpp"
+#include "tkit/container/tier_array.hpp"
 #include <filesystem>
 
 namespace Onyx::Dialog
@@ -27,7 +26,7 @@ struct Options
 
 template <typename T> using Result = TKit::Result<T, Status>;
 using Path = fs::path;
-using Paths = TKit::StaticArray<Path, MaxDialogs>;
+using Paths = TKit::TierArray<Path>;
 
 Result<Path> Save(const Options &p_Options = {});
 Result<Path> OpenFolder(const char *p_Default = nullptr);

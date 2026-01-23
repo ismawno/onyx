@@ -12,7 +12,6 @@
 #include "vkit/device/physical_device.hpp"
 #include "vkit/core/core.hpp"
 #include "tkit/multiprocessing/task.hpp"
-#include "tkit/container/static_array.hpp"
 #ifdef TKIT_ENABLE_VULKAN_INSTRUMENTATION
 #    include "tkit/profiling/vulkan.hpp"
 #endif
