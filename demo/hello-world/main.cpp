@@ -9,6 +9,7 @@ using namespace Onyx;
 
 int main()
 {
+    Core::Terminate();
     ONYX_CHECK_EXPRESSION(Core::Initialize());
     const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
     const Mesh mesh = Assets::AddMesh(data);

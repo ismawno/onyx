@@ -22,9 +22,6 @@ set(ONYX_ENABLE_IMGUI
 set(ONYX_ENABLE_IMPLOT
     OFF
     CACHE BOOL "")
-set(ONYX_ENABLE_VALIDATION_LAYERS
-    OFF
-    CACHE BOOL "")
 set(ONYX_ENABLE_NFD
     OFF
     CACHE BOOL "")
@@ -44,7 +41,6 @@ endif()
 message(STATUS "ONYX - Build demos: ${ONYX_BUILD_DEMOS}")
 message(STATUS "ONYX - Use ImGui: ${ONYX_ENABLE_IMGUI}")
 message(STATUS "ONYX - Use ImPlot: ${ONYX_ENABLE_IMPLOT}")
-message(STATUS "ONYX - Validation layers: ${ONYX_ENABLE_VALIDATION_LAYERS}")
 message(STATUS "ONYX - NFD: ${ONYX_ENABLE_NFD}")
 message(STATUS "ONYX - OBJ: ${ONYX_ENABLE_OBJ}")
 

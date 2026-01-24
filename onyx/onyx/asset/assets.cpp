@@ -88,6 +88,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
     const u32 icount = p_Info.GetIndexCount();
     result = Resources::GrowBufferIfNeeded<Index>(p_Info.IndexBuffer, icount, Buffer_DeviceIndex);
     TKIT_RETURN_ON_ERROR(result);
+
     if (result.GetValue())
         flags |= LayoutFlag_UpdateIndex;
     if (flags)
@@ -130,8 +131,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshIn
         return p_Flags & p_Info.Layouts[p_Index].Flags;
     };
 
-    auto result = checkSize(p_Info);
-    TKIT_RETURN_ON_ERROR(result);
+    TKIT_RETURN_IF_FAILED(checkSize(p_Info));
 
     auto &layouts = p_Info.Layouts;
     for (u32 i = 0; i < layouts.GetSize(); ++i)
@@ -139,8 +139,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshIn
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
                 if (j == layouts.GetSize() || !checkFlags(j, LayoutFlag_UpdateVertex))
                 {
-                    result = uploadVertexData(p_Info, i, j);
-                    TKIT_RETURN_ON_ERROR(result);
+                    TKIT_RETURN_IF_FAILED(uploadVertexData(p_Info, i, j));
                     i = j;
                     break;
                 }
@@ -149,8 +148,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshIn
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
                 if (j == layouts.GetSize() || !checkFlags(j, LayoutFlag_UpdateIndex))
                 {
-                    result = uploadIndexData(p_Info, i, j);
-                    TKIT_RETURN_ON_ERROR(result);
+                    TKIT_RETURN_IF_FAILED(uploadIndexData(p_Info, i, j));
                     i = j;
                     break;
                 }
@@ -159,6 +157,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshIn
     return Result<>::Ok();
 }
 
+// terminate must be called if this fails (handled automatically when calling Core::Initialize())
 template <typename Vertex> ONYX_NO_DISCARD static Result<> initialize(MeshInfo<Vertex> &p_Info, const u32 p_MaxLayouts)
 {
     auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
@@ -199,8 +198,7 @@ Result<> Initialize(const Specs &p_Specs)
     s_BatchRanges[Geometry_Circle] = {.BatchStart = 0, .BatchCount = 1};
     s_BatchRanges[Geometry_StaticMesh] = {.BatchStart = 1, .BatchCount = p_Specs.MaxStaticMeshes};
 
-    const auto result = initialize<D2>(p_Specs);
-    TKIT_RETURN_ON_ERROR(result);
+    TKIT_RETURN_IF_FAILED(initialize<D2>(p_Specs));
     return initialize<D3>(p_Specs);
 }
 
@@ -301,8 +299,7 @@ template <Dimension D> u32 GetStaticMeshCount()
 
 template <Dimension D> Result<> Upload()
 {
-    const auto result = Core::DeviceWaitIdle();
-    TKIT_RETURN_ON_ERROR(result);
+    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
 
     AssetData<D> &data = getData<D>();
     return uploadMeshData(data.StaticMeshes);

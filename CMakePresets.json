@@ -60,7 +60,6 @@
         "ONYX_BUILD_DEMOS": "ON",
         "ONYX_ENABLE_IMGUI": "ON",
         "ONYX_ENABLE_IMPLOT": "OFF",
-        "ONYX_ENABLE_VALIDATION_LAYERS": "OFF",
         "ONYX_ENABLE_NFD": "ON",
         "ONYX_ENABLE_OBJ": "ON",
         "ONYX_ENABLE_SHADER_COMPILATION": "ON"
@@ -79,9 +78,7 @@
         "TOOLKIT_ENABLE_INFO_LOGS": "ON",
         "TOOLKIT_ENABLE_WARNING_LOGS": "ON",
         "TOOLKIT_ENABLE_ERROR_LOGS": "ON",
-        "TOOLKIT_ENABLE_ASSERTS": "ON",
-
-        "ONYX_ENABLE_VALIDATION_LAYERS": "ON"
+        "TOOLKIT_ENABLE_ASSERTS": "ON"
       }
     },
     {
@@ -97,9 +94,7 @@
         "TOOLKIT_ENABLE_INFO_LOGS": "ON",
         "TOOLKIT_ENABLE_WARNING_LOGS": "ON",
         "TOOLKIT_ENABLE_ERROR_LOGS": "ON",
-        "TOOLKIT_ENABLE_ASSERTS": "OFF",
-
-        "ONYX_ENABLE_VALIDATION_LAYERS": "OFF"
+        "TOOLKIT_ENABLE_ASSERTS": "OFF"
       }
     }
   ],

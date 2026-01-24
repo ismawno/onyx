@@ -31,10 +31,6 @@ endif()
 add_library(onyx STATIC ${SOURCES})
 target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.6.0\")
 
-if(ONYX_ENABLE_VALIDATION_LAYERS)
-  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_VALIDATION_LAYERS)
-endif()
-
 include(FetchContent)
 FetchContent_Declare(
   vulkit

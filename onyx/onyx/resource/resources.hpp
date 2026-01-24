@@ -33,7 +33,11 @@ ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBuffer
         const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
         const auto uresult = buffer.UploadFromHost(Execution::GetTransientTransferPool(), queue->GetHandle(),
                                                    p_Data.GetData(), {.size = p_Data.GetSize() * sizeof(T)});
-        TKIT_RETURN_ON_ERROR(uresult);
+        if (!uresult)
+        {
+            buffer.Destroy();
+            return uresult;
+        }
     }
     return buffer;
 }

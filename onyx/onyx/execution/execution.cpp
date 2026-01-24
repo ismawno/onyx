@@ -10,9 +10,7 @@ static TKit::ArenaArray<CommandPool> s_CommandPools{};
 ONYX_NO_DISCARD static Result<VKit::CommandPool> createCommandPool(const u32 p_Family)
 {
     const VKit::LogicalDevice &device = Core::GetDevice();
-    const auto poolres = VKit::CommandPool::Create(device, p_Family, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
-    TKIT_RETURN_ON_ERROR(poolres);
-    return poolres.GetValue();
+    return VKit::CommandPool::Create(device, p_Family, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 }
 
 ONYX_NO_DISCARD static Result<> createTransientCommandPools()
@@ -43,8 +41,7 @@ Result<CommandPool *> FindSuitableCommandPool(const u32 p_Family)
     for (CommandPool &pool : s_CommandPools)
         if (pool.Family == p_Family && !pool.InUse())
         {
-            const auto result = pool.Pool.Reset();
-            TKIT_RETURN_ON_ERROR(result);
+            TKIT_RETURN_IF_FAILED(pool.Pool.Reset());
             return &pool;
         }
 
@@ -83,8 +80,7 @@ Result<> EndCommandBuffer(const VkCommandBuffer p_CommandBuffer)
 Result<> Initialize(const Specs &p_Specs)
 {
     s_CommandPools.Reserve(p_Specs.MaxCommandPools);
-    const auto result = createTransientCommandPools();
-    TKIT_RETURN_ON_ERROR(result);
+    TKIT_RETURN_IF_FAILED(createTransientCommandPools());
 
     const auto &device = Core::GetDevice();
     const auto table = Core::GetDeviceTable();
@@ -106,8 +102,7 @@ Result<> Initialize(const Specs &p_Specs)
             return Result<>::Error(sresult);
 
         q->TakeTimelineSemaphoreOwnership(semaphore);
-        const auto uresult = q->UpdateCompletedTimeline();
-        TKIT_RETURN_ON_ERROR(uresult);
+        TKIT_RETURN_IF_FAILED(q->UpdateCompletedTimeline());
     }
     return Result<>::Ok();
 }
@@ -124,8 +119,7 @@ Result<> UpdateCompletedQueueTimelines()
     const auto &Queues = Core::GetDevice().GetInfo().Queues;
     for (VKit::Queue *q : Queues)
     {
-        const auto result = q->UpdateCompletedTimeline();
-        TKIT_RETURN_ON_ERROR(result);
+        TKIT_RETURN_IF_FAILED(q->UpdateCompletedTimeline());
     }
     return Result<>::Ok();
 }
@@ -186,10 +180,16 @@ Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 p_ImageCount)
 
         VkResult result = table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore);
         if (result != VK_SUCCESS)
+        {
+            DestroySyncData(syncs);
             return Result<>::Error(result);
+        }
         result = table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore);
         if (result != VK_SUCCESS)
+        {
+            DestroySyncData(syncs);
             return Result<>::Error(result);
+        }
     }
     return syncs;
 }

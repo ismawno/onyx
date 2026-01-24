@@ -187,8 +187,7 @@ template <Dimension D> static void terminate()
 
 Result<> Initialize()
 {
-    const auto result = initialize<D2>();
-    TKIT_RETURN_ON_ERROR(result);
+    TKIT_RETURN_IF_FAILED(initialize<D2>());
     return initialize<D3>();
 }
 void Terminate()
@@ -284,8 +283,7 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
     const VkDeviceSize icount = buffer.GetInfo().InstanceCount;
     const VkDeviceSize size = buffer.GetInfo().Size;
 
-    const auto wresult = Core::DeviceWaitIdle();
-    TKIT_RETURN_ON_ERROR(wresult);
+    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
 
     const auto bresult = Resources::CreateBuffer(Buffer_Staging, isize, 2 * icount);
     TKIT_RETURN_ON_ERROR(bresult);
@@ -342,8 +340,7 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(GraphicsA
     const VkDeviceSize icount = buffer.GetInfo().InstanceCount;
     const VkDeviceSize size = buffer.GetInfo().Size;
 
-    const auto wresult = Core::DeviceWaitIdle();
-    TKIT_RETURN_ON_ERROR(wresult);
+    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
 
     const auto bresult = Resources::CreateBuffer(Buffer_DeviceStorage, isize, 2 * icount);
     TKIT_RETURN_ON_ERROR(bresult);
@@ -538,8 +535,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkComman
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
     {
         // processBatches(pass, Geometry_Circle);
-        const auto result = processBatches(pass, Geometry_StaticMesh);
-        TKIT_RETURN_ON_ERROR(result);
+        TKIT_RETURN_IF_FAILED(processBatches(pass, Geometry_StaticMesh));
     }
 
     p_Info.Command = p_Command;
@@ -558,10 +554,10 @@ Result<TransferSubmitInfo> Transfer(VKit::Queue *p_Transfer, const VkCommandBuff
 
     const u64 transferFlight = p_Transfer->NextTimelineValue();
 
-    auto result = transfer<D2>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight);
-    TKIT_RETURN_ON_ERROR(result);
-    result = transfer<D3>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight);
-    TKIT_RETURN_ON_ERROR(result);
+    TKIT_RETURN_IF_FAILED(
+        transfer<D2>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight));
+    TKIT_RETURN_IF_FAILED(
+        transfer<D3>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight));
 
     if (separate)
     {
@@ -846,10 +842,8 @@ Result<RenderSubmitInfo> Render(VKit::Queue *p_Graphics, const VkCommandBuffer p
         maxSyncPoints += arena.Graphics.MemoryRanges.GetSize();
     syncPoints.Reserve(maxSyncPoints);
 
-    auto result = render<D2>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints);
-    TKIT_RETURN_ON_ERROR(result);
-    result = render<D3>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints);
-    TKIT_RETURN_ON_ERROR(result);
+    TKIT_RETURN_IF_FAILED(render<D2>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints));
+    TKIT_RETURN_IF_FAILED(render<D3>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints));
 
     VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
     rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;

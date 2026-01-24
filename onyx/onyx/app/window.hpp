@@ -289,7 +289,6 @@ class Window
     ONYX_NO_DISCARD Result<> recreateSurface();
 
     ONYX_NO_DISCARD Result<bool> handleImageResult(VkResult p_Result);
-    void destroyImageData();
 
     template <Dimension D> const auto &getCameraArray() const
     {

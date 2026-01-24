@@ -155,8 +155,7 @@ ONYX_NO_DISCARD static Result<> createShaders()
 
 Result<> Initialize()
 {
-    const auto result = createPipelineLayouts();
-    TKIT_RETURN_ON_ERROR(result);
+    TKIT_RETURN_IF_FAILED(createPipelineLayouts());
     return createShaders();
 }
 void Terminate()
