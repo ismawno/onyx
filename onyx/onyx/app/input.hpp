@@ -2,6 +2,8 @@
 
 #include "onyx/core/math.hpp"
 
+struct GLFWwindow;
+
 namespace Onyx
 {
 class Window;
@@ -9,7 +11,8 @@ class Window;
 namespace Input
 {
 void PollEvents();
-void InstallCallbacks(Window &p_Window);
+void InstallCallbacks(GLFWwindow *p_Window);
+void InstallCallbacks(Window *p_Window);
 
 enum Key : u16
 {

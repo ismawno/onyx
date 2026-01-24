@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/alias.hpp"
+#include "onyx/core/core.hpp"
 #include "vkit/state/shader.hpp"
 #include "tkit/utils/non_copyable.hpp"
 
@@ -248,19 +248,22 @@ struct Spirv
 
 class Compilation
 {
-    TKIT_NON_COPYABLE(Compilation)
   public:
     Compilation(const TKit::TierArray<Spirv> &p_CompiledSpirv) : m_CompiledSpirv(p_CompiledSpirv)
     {
     }
 
-    const Spirv &GetSpirv(const char *p_EntryPoint, const char *p_Module = nullptr) const;
-    const Spirv &GetSpirv(const char *p_EntryPoint, ShaderStage p_Stage, const char *p_Module = nullptr) const;
-    const Spirv &GetSpirv(const char *p_EntryPoint, const char *p_Module, ShaderStage p_Stage) const;
+    ONYX_NO_DISCARD Result<const Spirv *> GetSpirv(const char *p_EntryPoint, const char *p_Module = nullptr) const;
+    ONYX_NO_DISCARD Result<const Spirv *> GetSpirv(const char *p_EntryPoint, ShaderStage p_Stage,
+                                                   const char *p_Module = nullptr) const;
+    ONYX_NO_DISCARD Result<const Spirv *> GetSpirv(const char *p_EntryPoint, const char *p_Module,
+                                                   ShaderStage p_Stage) const;
 
-    VKit::Shader CreateShader(const char *p_EntryPoint, const char *p_Module = nullptr) const;
-    VKit::Shader CreateShader(const char *p_EntryPoint, ShaderStage p_Stage, const char *p_Module = nullptr) const;
-    VKit::Shader CreateShader(const char *p_EntryPoint, const char *p_Module, ShaderStage p_Stage) const;
+    ONYX_NO_DISCARD Result<VKit::Shader> CreateShader(const char *p_EntryPoint, const char *p_Module = nullptr) const;
+    ONYX_NO_DISCARD Result<VKit::Shader> CreateShader(const char *p_EntryPoint, ShaderStage p_Stage,
+                                                      const char *p_Module = nullptr) const;
+    ONYX_NO_DISCARD Result<VKit::Shader> CreateShader(const char *p_EntryPoint, const char *p_Module,
+                                                      ShaderStage p_Stage) const;
 
     void Destroy();
 
@@ -307,7 +310,7 @@ class Compiler
     Compiler &AllowGlslSyntax();
     Compiler &SkipSpirvValidation();
 
-    Compilation Compile() const;
+    ONYX_NO_DISCARD Result<Compilation> Compile() const;
 
   private:
     TKit::TierArray<Module> m_Modules{};
@@ -325,11 +328,11 @@ struct Specs
     bool EnableGlsl = false;
 };
 
-void Initialize(const Specs &p_Specs);
+ONYX_NO_DISCARD Result<> Initialize(const Specs &p_Specs);
 void Terminate();
 
-VKit::Shader Create(const u32 *p_Spirv, size_t p_Size);
-VKit::Shader Create(const Spirv &p_Spirv);
-VKit::Shader Create(std::string_view p_SpirvPath);
+ONYX_NO_DISCARD Result<VKit::Shader> Create(const u32 *p_Spirv, size_t p_Size);
+ONYX_NO_DISCARD Result<VKit::Shader> Create(const Spirv &p_Spirv);
+ONYX_NO_DISCARD Result<VKit::Shader> Create(std::string_view p_SpirvPath);
 
 } // namespace Onyx::Shaders

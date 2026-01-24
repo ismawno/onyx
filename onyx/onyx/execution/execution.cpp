@@ -1,6 +1,5 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/execution/execution.hpp"
-#include "onyx/core/core.hpp"
 
 namespace Onyx::Execution
 {
@@ -8,65 +7,85 @@ static VKit::CommandPool s_Graphics{};
 static VKit::CommandPool s_Transfer{};
 static TKit::ArenaArray<CommandPool> s_CommandPools{};
 
-static VKit::CommandPool createCommandPool(const u32 p_Family)
+ONYX_NO_DISCARD static Result<VKit::CommandPool> createCommandPool(const u32 p_Family)
 {
     const VKit::LogicalDevice &device = Core::GetDevice();
     const auto poolres = VKit::CommandPool::Create(device, p_Family, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
-    VKIT_CHECK_RESULT(poolres);
+    TKIT_RETURN_ON_ERROR(poolres);
     return poolres.GetValue();
 }
 
-static void createTransientCommandPools()
+ONYX_NO_DISCARD static Result<> createTransientCommandPools()
 {
-    TKIT_LOG_INFO("[ONYX] Creating transient command pools");
+    TKIT_LOG_INFO("[ONYX][EXECUTION] Creating transient command pools");
 
     const u32 gindex = GetFamilyIndex(VKit::Queue_Graphics);
     const u32 tindex = GetFamilyIndex(VKit::Queue_Transfer);
 
-    s_Graphics = createCommandPool(gindex);
+    const auto gresult = createCommandPool(gindex);
+    TKIT_RETURN_ON_ERROR(gresult);
+
+    s_Graphics = gresult.GetValue();
     if (gindex != tindex)
-        s_Transfer = createCommandPool(tindex);
+    {
+        const auto tresult = createCommandPool(tindex);
+        TKIT_RETURN_ON_ERROR(tresult);
+
+        s_Transfer = tresult.GetValue();
+    }
     else
         s_Transfer = s_Graphics;
+    return Result<>::Ok();
 }
 
-CommandPool &FindSuitableCommandPool(const u32 p_Family)
+Result<CommandPool *> FindSuitableCommandPool(const u32 p_Family)
 {
     for (CommandPool &pool : s_CommandPools)
         if (pool.Family == p_Family && !pool.InUse())
         {
-            pool.Reset();
-            return pool;
+            const auto result = pool.Pool.Reset();
+            TKIT_RETURN_ON_ERROR(result);
+            return &pool;
         }
 
     CommandPool &pool = s_CommandPools.Append();
-    pool.Pool = createCommandPool(p_Family);
+    const auto result = createCommandPool(p_Family);
+    TKIT_RETURN_ON_ERROR(result);
+    pool.Pool = result.GetValue();
     pool.Family = p_Family;
-    return pool;
+    return &pool;
 }
-CommandPool &FindSuitableCommandPool(const VKit::QueueType p_Type)
+Result<CommandPool *> FindSuitableCommandPool(const VKit::QueueType p_Type)
 {
     return FindSuitableCommandPool(GetFamilyIndex(p_Type));
 }
 
-void BeginCommandBuffer(const VkCommandBuffer p_CommandBuffer)
+Result<> BeginCommandBuffer(const VkCommandBuffer p_CommandBuffer)
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     const auto table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table->BeginCommandBuffer(p_CommandBuffer, &beginInfo));
+    const VkResult result = table->BeginCommandBuffer(p_CommandBuffer, &beginInfo);
+    if (result != VK_SUCCESS)
+        return Result<>::Error(result);
+    return Result<>::Ok();
 }
-void EndCommandBuffer(const VkCommandBuffer p_CommandBuffer)
+Result<> EndCommandBuffer(const VkCommandBuffer p_CommandBuffer)
 {
     const auto table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table->EndCommandBuffer(p_CommandBuffer));
+    const VkResult result = table->EndCommandBuffer(p_CommandBuffer);
+    if (result != VK_SUCCESS)
+        return Result<>::Error(result);
+    return Result<>::Ok();
 }
 
-void Initialize(const Specs &p_Specs)
+Result<> Initialize(const Specs &p_Specs)
 {
     s_CommandPools.Reserve(p_Specs.MaxCommandPools);
-    createTransientCommandPools();
+    const auto result = createTransientCommandPools();
+    TKIT_RETURN_ON_ERROR(result);
+
     const auto &device = Core::GetDevice();
     const auto table = Core::GetDeviceTable();
     const auto &Queues = Core::GetDevice().GetInfo().Queues;
@@ -81,10 +100,16 @@ void Initialize(const Specs &p_Specs)
         info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         info.pNext = &typeInfo;
         VkSemaphore semaphore;
-        VKIT_CHECK_EXPRESSION(table->CreateSemaphore(device, &info, nullptr, &semaphore));
+
+        const VkResult sresult = table->CreateSemaphore(device, &info, nullptr, &semaphore);
+        if (sresult != VK_SUCCESS)
+            return Result<>::Error(sresult);
+
         q->TakeTimelineSemaphoreOwnership(semaphore);
-        VKIT_CHECK_EXPRESSION(q->UpdateCompletedTimeline());
+        const auto uresult = q->UpdateCompletedTimeline();
+        TKIT_RETURN_ON_ERROR(uresult);
     }
+    return Result<>::Ok();
 }
 void Terminate()
 {
@@ -94,11 +119,15 @@ void Terminate()
     for (CommandPool &pool : s_CommandPools)
         pool.Pool.Destroy();
 }
-void UpdateCompletedQueueTimelines()
+Result<> UpdateCompletedQueueTimelines()
 {
     const auto &Queues = Core::GetDevice().GetInfo().Queues;
     for (VKit::Queue *q : Queues)
-        VKIT_CHECK_EXPRESSION(q->UpdateCompletedTimeline());
+    {
+        const auto result = q->UpdateCompletedTimeline();
+        TKIT_RETURN_ON_ERROR(result);
+    }
+    return Result<>::Ok();
 }
 void RevokeUnsubmittedQueueTimelines()
 {
@@ -121,7 +150,7 @@ VKit::Queue *FindSuitableQueue(const VKit::QueueType p_Type)
             queue = q;
         }
     }
-    TKIT_ASSERT(queue, "[ONYX] Queue is null. Some pending submissions returned U64 max. This is bad...");
+    TKIT_ASSERT(queue, "[ONYX] Queue is null. Some pending submissions returned u64 max. This is bad...");
     return queue;
 }
 
@@ -143,7 +172,7 @@ VKit::CommandPool &GetTransientTransferPool()
     return s_Transfer;
 }
 
-TKit::TierArray<SyncData> CreateSyncData(const u32 p_ImageCount)
+Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 p_ImageCount)
 {
     const auto &device = Core::GetDevice();
     const auto table = device.GetInfo().Table;
@@ -155,10 +184,12 @@ TKit::TierArray<SyncData> CreateSyncData(const u32 p_ImageCount)
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        VKIT_CHECK_EXPRESSION(
-            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore));
-        VKIT_CHECK_EXPRESSION(
-            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore));
+        VkResult result = table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore);
+        if (result != VK_SUCCESS)
+            return Result<>::Error(result);
+        result = table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore);
+        if (result != VK_SUCCESS)
+            return Result<>::Error(result);
     }
     return syncs;
 }

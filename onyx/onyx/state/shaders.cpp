@@ -2,7 +2,6 @@
 #include "onyx/state/shaders.hpp"
 #include "onyx/core/core.hpp"
 #include "tkit/preprocessor/utils.hpp"
-#include "tkit/utils/defer.hpp"
 #include "tkit/container/stack_array.hpp"
 #include <slang.h>
 
@@ -85,7 +84,7 @@ Compiler &Compiler::SkipSpirvValidation()
     return *this;
 }
 
-const Spirv &Compilation::GetSpirv(const char *p_EntryPoint, const char *p_Module) const
+Result<const Spirv *> Compilation::GetSpirv(const char *p_EntryPoint, const char *p_Module) const
 {
     u32 index = TKIT_U32_MAX;
     for (u32 i = 0; i < m_CompiledSpirv.GetSize(); ++i)
@@ -95,17 +94,23 @@ const Spirv &Compilation::GetSpirv(const char *p_EntryPoint, const char *p_Modul
         match &= !p_Module || strcmp(p_Module, spr.EntryPoint.Module) == 0;
         if (match)
         {
-            TKIT_ASSERT(index == TKIT_U32_MAX,
-                        "[ONYX] Found multiple endpoints named '{}'. If you have endpoints with the same name, the "
-                        "module name, the stage or both must be provided as well to resolve the ambiguity",
-                        p_EntryPoint);
+            if (index != TKIT_U32_MAX)
+                return Result<>::Error(
+                    Error_EntryPointNotFound,
+                    TKit::Format("[ONYX][SHADERS] Found multiple endpoints named '{}'. If you have endpoints with the "
+                                 "same name, the "
+                                 "module name, the stage or both must be provided as well to resolve the ambiguity",
+                                 p_EntryPoint));
             index = i;
         }
     }
-    TKIT_ASSERT(index != TKIT_U32_MAX, "[ONYX] Entry point named '{}' was not found", p_EntryPoint);
-    return m_CompiledSpirv[index];
+    if (index == TKIT_U32_MAX)
+        return Result<>::Error(Error_EntryPointNotFound,
+                               TKit::Format("Entry point named '{}' was not found", p_EntryPoint));
+    return &m_CompiledSpirv[index];
 }
-const Spirv &Compilation::GetSpirv(const char *p_EntryPoint, const ShaderStage p_Stage, const char *p_Module) const
+Result<const Spirv *> Compilation::GetSpirv(const char *p_EntryPoint, const ShaderStage p_Stage,
+                                            const char *p_Module) const
 {
     u32 index = TKIT_U32_MAX;
     for (u32 i = 0; i < m_CompiledSpirv.GetSize(); ++i)
@@ -116,41 +121,52 @@ const Spirv &Compilation::GetSpirv(const char *p_EntryPoint, const ShaderStage p
         match &= p_Stage == spr.EntryPoint.Stage;
         if (match)
         {
-            TKIT_ASSERT(index == TKIT_U32_MAX,
-                        "[ONYX] Found multiple endpoints named '{}'. If you have endpoints with the same name, the "
-                        "module name, the stage or both must be provided as well to resolve the ambiguity",
-                        p_EntryPoint);
+            if (index != TKIT_U32_MAX)
+                return Result<>::Error(
+                    Error_EntryPointNotFound,
+                    TKit::Format("Found multiple endpoints named '{}'. If you have endpoints with the same name, the "
+                                 "module name, the stage or both must be provided as well to resolve the ambiguity",
+                                 p_EntryPoint));
             index = i;
         }
     }
-    TKIT_ASSERT(index != TKIT_U32_MAX, "[ONYX] Entry point named '{}' was not found", p_EntryPoint);
-    return m_CompiledSpirv[index];
+    if (index == TKIT_U32_MAX)
+        return Result<>::Error(Error_EntryPointNotFound,
+                               TKit::Format("[ONYX][SHADERS] Entry point named '{}' was not found", p_EntryPoint));
+    return &m_CompiledSpirv[index];
 }
-const Spirv &Compilation::GetSpirv(const char *p_EntryPoint, const char *p_Module, const ShaderStage p_Stage) const
+Result<const Spirv *> Compilation::GetSpirv(const char *p_EntryPoint, const char *p_Module,
+                                            const ShaderStage p_Stage) const
 {
     return GetSpirv(p_EntryPoint, p_Stage, p_Module);
 }
 
-VKit::Shader Compilation::CreateShader(const char *p_EntryPoint, const char *p_Module) const
+Result<VKit::Shader> Compilation::CreateShader(const char *p_EntryPoint, const char *p_Module) const
 {
-    const Spirv &spr = GetSpirv(p_EntryPoint, p_Module);
-    return Create(spr);
+    const auto result = GetSpirv(p_EntryPoint, p_Module);
+    TKIT_RETURN_ON_ERROR(result);
+    return Create(*result.GetValue());
 }
-VKit::Shader Compilation::CreateShader(const char *p_EntryPoint, const ShaderStage p_Stage, const char *p_Module) const
+Result<VKit::Shader> Compilation::CreateShader(const char *p_EntryPoint, const ShaderStage p_Stage,
+                                               const char *p_Module) const
 {
-    const Spirv &spr = GetSpirv(p_EntryPoint, p_Stage, p_Module);
-    return Create(spr);
+    const auto result = GetSpirv(p_EntryPoint, p_Stage, p_Module);
+    TKIT_RETURN_ON_ERROR(result);
+    return Create(*result.GetValue());
 }
-VKit::Shader Compilation::CreateShader(const char *p_EntryPoint, const char *p_Module, const ShaderStage p_Stage) const
+Result<VKit::Shader> Compilation::CreateShader(const char *p_EntryPoint, const char *p_Module,
+                                               const ShaderStage p_Stage) const
 {
-    const Spirv &spr = GetSpirv(p_EntryPoint, p_Module, p_Stage);
-    return Create(spr);
+    const auto result = GetSpirv(p_EntryPoint, p_Module, p_Stage);
+    TKIT_RETURN_ON_ERROR(result);
+    return Create(*result.GetValue());
 }
 
 void Compilation::Destroy()
 {
+    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
     for (const Spirv &spr : m_CompiledSpirv)
-        TKit::Memory::Deallocate(spr.Data);
+        alloc->Deallocate(static_cast<void *>(spr.Data), spr.Size);
 }
 
 static SlangStage getSlangStage(const ShaderStage p_Stage)
@@ -473,27 +489,17 @@ static slang::CompilerOptionName getArgumentName(const ShaderArgumentName p_Arg)
     return SO::CountOf;
 }
 
-#if defined(TKIT_ENABLE_ASSERTS) || defined(TKIT_ENABLE_INFO_LOGS)
-static void reportDiagnostics(const SlangResult p_Result, slang::IBlob *p_Diagnostics)
+static std::string getDiagnostics(slang::IBlob *p_Diagnostics)
 {
-    TKIT_ASSERT(SLANG_SUCCEEDED(p_Result) || p_Diagnostics, "[ONYX] Module compilation failed with no diagnostics");
     if (!p_Diagnostics)
-        return;
+        return "No diagnostics available";
 
     const char *text = static_cast<const char *>(p_Diagnostics->getBufferPointer());
     const size_t size = p_Diagnostics->getBufferSize();
-    const std::string message{text, size};
-
-    TKIT_ASSERT(SLANG_SUCCEEDED(p_Result), "[ONYX] Module compilation failed with the following diagnostics: {}",
-                message);
-    TKIT_LOG_INFO_IF(SLANG_SUCCEEDED(p_Result),
-                     "[ONYX] Module compilation succeeded with the following diagnostics: {}", message);
+    return {text, size};
 }
-#    define REPORT_DIAGNOSTICS(p_Result, p_Diagnostics) reportDiagnostics(p_Result, p_Diagnostics)
-#else
-#    define REPORT_DIAGNOSTICS(p_Result, p_Diagnostics)
-#endif
-Compilation Compiler::Compile() const
+
+Result<Compilation> Compiler::Compile() const
 {
     slang::ISession *session;
     slang::TargetDesc tdesc{};
@@ -549,7 +555,8 @@ Compilation Compiler::Compile() const
     cdesc.skipSPIRVValidation = m_SkipSpirvValidtion;
 
     SlangResult result = s_Slang->createSession(cdesc, &session);
-    TKIT_ASSERT(SLANG_SUCCEEDED(result), "[ONYX] Slang compile session creation failed");
+    if (SLANG_FAILED(result))
+        return Result<>::Error(Error_ShaderCompilationFailed, "[ONYX][SHADERS] Slang compile session creation failed");
 
     slang::IBlob *diagnostics = nullptr;
     TKit::TierArray<Spirv> sprvs{};
@@ -571,8 +578,15 @@ Compilation Compiler::Compile() const
         else
             module = session->loadModule(munit.m_Name, &diagnostics);
 
-        REPORT_DIAGNOSTICS(module ? 0 : -1, diagnostics);
-        TKIT_LOG_INFO("[ONYX] Successfully loaded module '{}'", module->getName());
+        if (!module)
+            return Result<>::Error(Error_ShaderCompilationFailed,
+                                   TKit::Format("[ONYX][SHADERS] Failed to load shader module '{}': {}", munit.m_Name,
+                                                getDiagnostics(diagnostics)));
+
+        TKIT_LOG_WARNING_IF(diagnostics, "[ONYX][SHADERS] Shader module '{}' loaded with the following diagnostics: {}",
+                            munit.m_Name, getDiagnostics(diagnostics));
+        TKIT_LOG_INFO_IF(!diagnostics, "[ONYX][SHADERS] Successfully loaded module '{}'", munit.m_Name);
+
         release(diagnostics);
 
         components.Append(module);
@@ -580,34 +594,53 @@ Compilation Compiler::Compile() const
         {
             slang::IEntryPoint *entry = nullptr;
             result = module->findAndCheckEntryPoint(ep.Name, getSlangStage(ep.Stage), &entry, &diagnostics);
-            REPORT_DIAGNOSTICS(result, diagnostics);
+            if (SLANG_FAILED(result))
+                return Result<>::Error(
+                    Error_ShaderCompilationFailed,
+                    TKit::Format("[ONYX][SHADERS] Failed to check entry point '{}' from module '{}': {}", ep.Name,
+                                 munit.m_Name, getDiagnostics(diagnostics)));
+
+            TKIT_LOG_WARNING_IF(
+                diagnostics,
+                "[ONYX][SHADERS] Entry point '{}' from module '{}' checked with the following diagnostics: {}", ep.Name,
+                munit.m_Name, getDiagnostics(diagnostics));
+
             release(diagnostics);
             components.Append(entry);
         }
         slang::IComponentType *program;
         result =
             session->createCompositeComponentType(components.GetData(), components.GetSize(), &program, &diagnostics);
-        REPORT_DIAGNOSTICS(result, diagnostics);
+        if (SLANG_FAILED(result))
+            return Result<>::Error(
+                Error_ShaderCompilationFailed,
+                TKit::Format("[ONYX][SHADERS] Failed to create composite component type for module '{}': {}",
+                             munit.m_Name, getDiagnostics(diagnostics)));
+
+        TKIT_LOG_WARNING_IF(
+            diagnostics,
+            "[ONYX][SHADERS] Created composite component type for module '{}' with the following diagnostics: {}",
+            munit.m_Name, getDiagnostics(diagnostics));
+
         release(diagnostics);
 
         slang::IComponentType *linkedProgram;
         result = program->link(&linkedProgram, &diagnostics);
-        REPORT_DIAGNOSTICS(result, diagnostics);
+        if (SLANG_FAILED(result))
+            return Result<>::Error(Error_ShaderCompilationFailed,
+                                   TKit::Format("[ONYX][SHADERS] Failed to link final program for module '{}': {}",
+                                                munit.m_Name, getDiagnostics(diagnostics)));
+
+        TKIT_LOG_WARNING_IF(diagnostics,
+                            "[ONYX][SHADERS] Linked final program for module '{}' with the following diagnostics: {}",
+                            munit.m_Name, getDiagnostics(diagnostics));
+
         release(diagnostics);
 
         slang::ProgramLayout *layout = linkedProgram->getLayout();
         for (u32 i = 0; i < layout->getEntryPointCount(); ++i)
         {
-            slang::IBlob *code;
-            result = linkedProgram->getEntryPointCode(i, 0, &code, &diagnostics);
-            REPORT_DIAGNOSTICS(result, diagnostics);
-            release(diagnostics);
-
-            const size_t size = code->getBufferSize();
-            void *mem = TKit::Memory::Allocate(size);
-            TKit::Memory::ForwardCopy(mem, code->getBufferPointer(), size);
-
-            EntryPoint ep;
+            EntryPoint ep{};
             slang::EntryPointReflection *epr = layout->getEntryPointByIndex(i);
 
             ep.Module = munit.m_Name;
@@ -618,7 +651,30 @@ Compilation Compiler::Compile() const
                     ep.Name = mep.Name;
                     break;
                 }
-            TKIT_ASSERT(ep.Name, "[ONYX] Failed to recover entry point named '{}'", epr->getName());
+            TKIT_ASSERT(ep.Name, "[ONYX][SHADERS] Failed to recover entry point named '{}'", epr->getName());
+
+            slang::IBlob *code;
+            result = linkedProgram->getEntryPointCode(i, 0, &code, &diagnostics);
+
+            if (SLANG_FAILED(result))
+                return Result<>::Error(
+                    Error_ShaderCompilationFailed,
+                    TKit::Format(
+                        "[ONYX][SHADERS] Failed to retrieve final code from entry point '{}' and module '{}': {}",
+                        ep.Name, munit.m_Name, getDiagnostics(diagnostics)));
+
+            TKIT_LOG_WARNING_IF(diagnostics,
+                                "[ONYX][SHADERS] Retrieved final code for entry point '{}' and module '{}' with the "
+                                "following diagnostics: {}",
+                                ep.Name, munit.m_Name, getDiagnostics(diagnostics));
+
+            release(diagnostics);
+
+            const size_t size = code->getBufferSize();
+
+            TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+            void *mem = alloc->Allocate(size);
+            TKit::Memory::ForwardCopy(mem, code->getBufferPointer(), size);
 
             Spirv sp;
             sp.EntryPoint = ep;
@@ -638,15 +694,16 @@ Compilation Compiler::Compile() const
     return Compilation{sprvs};
 }
 
-void Initialize(const Specs &p_Specs)
+Result<> Initialize(const Specs &p_Specs)
 {
     SlangGlobalSessionDesc desc{};
     desc.enableGLSL = p_Specs.EnableGlsl;
 
-    SlangResult result = slang::createGlobalSession(&desc, &s_Slang);
-    TKIT_ASSERT(SLANG_SUCCEEDED(result), "[ONYX] Slang global session creation failed");
+    const SlangResult result = slang::createGlobalSession(&desc, &s_Slang);
+    if (SLANG_FAILED(result))
+        return Result<>::Error(Error_InitializationFailed, "[ONYX][SHADERS] Slang global session creation failed");
 
-    TKIT_UNUSED(result);
+    return Result<>::Ok();
 }
 void Terminate()
 {
@@ -654,20 +711,16 @@ void Terminate()
     slang::shutdown();
 }
 
-VKit::Shader Create(const u32 *p_Spirv, const size_t p_Size)
+Result<VKit::Shader> Create(const u32 *p_Spirv, const size_t p_Size)
 {
-    const auto result = VKit::Shader::Create(Core::GetDevice(), p_Spirv, p_Size);
-    VKIT_CHECK_RESULT(result);
-    return result.GetValue();
+    return VKit::Shader::Create(Core::GetDevice(), p_Spirv, p_Size);
 }
-VKit::Shader Create(const Spirv &p_Spirv)
+Result<VKit::Shader> Create(const Spirv &p_Spirv)
 {
     return Create(p_Spirv.Data, p_Spirv.Size);
 }
-VKit::Shader Create(const std::string_view p_SpirvPath)
+Result<VKit::Shader> Create(const std::string_view p_SpirvPath)
 {
-    const auto result = VKit::Shader::Create(Core::GetDevice(), p_SpirvPath);
-    VKIT_CHECK_RESULT(result);
-    return result.GetValue();
+    return VKit::Shader::Create(Core::GetDevice(), p_SpirvPath);
 }
 } // namespace Onyx::Shaders

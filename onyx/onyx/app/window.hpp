@@ -60,8 +60,12 @@ class Window
         WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused;
     };
 
-    Window();
-    Window(const Specs &p_Specs);
+    ONYX_NO_DISCARD static Result<Window *> Create(const Specs &p_Specs);
+    ONYX_NO_DISCARD static Result<Window *> Create();
+
+    static void Destroy(Window *p_Window);
+
+    Window() = default;
     ~Window();
 
     /**
@@ -76,11 +80,11 @@ class Window
 
     bool ShouldClose() const;
 
-    const GLFWwindow *GetWindowHandle() const
+    const GLFWwindow *GetHandle() const
     {
         return m_Window;
     }
-    GLFWwindow *GetWindowHandle()
+    GLFWwindow *GetHandle()
     {
         return m_Window;
     }
@@ -233,8 +237,8 @@ class Window
         return cameras;
     }
 
-    bool AcquireNextImage(Timeout p_Timeout = Block);
-    void Present(const Renderer::RenderSubmitInfo &p_Info);
+    ONYX_NO_DISCARD Result<bool> AcquireNextImage(Timeout p_Timeout = Block);
+    ONYX_NO_DISCARD Result<> Present(const Renderer::RenderSubmitInfo &p_Info);
 
     void RequestSwapchainRecreation()
     {
@@ -277,18 +281,16 @@ class Window
     }
 
   private:
-    void recreateSurface();
-    void createWindow(const Specs &p_Specs);
     void adaptCamerasToViewportAspect();
-    void createSwapChain(const VkExtent2D &p_WindowExtent);
-    void recreateSwapChain();
-    void recreateResources();
-    bool handleImageResult(VkResult p_Result);
 
-    TKit::TierArray<ImageData> createImageData();
+    ONYX_NO_DISCARD Result<> createSwapChain(const VkExtent2D &p_WindowExtent);
+    ONYX_NO_DISCARD Result<> recreateSwapChain();
+    ONYX_NO_DISCARD Result<> recreateResources();
+    ONYX_NO_DISCARD Result<> recreateSurface();
+
+    ONYX_NO_DISCARD Result<bool> handleImageResult(VkResult p_Result);
     void destroyImageData();
 
-    VkExtent2D waitGlfwEvents();
     template <Dimension D> const auto &getCameraArray() const
     {
         if constexpr (D == D2)
@@ -315,9 +317,8 @@ class Window
 
     TKit::Timespan m_MonitorDeltaTime{};
 
-    TKit::TierArray<ImageData> m_Images{};
     VKit::SwapChain m_SwapChain;
-
+    TKit::TierArray<ImageData> m_Images{};
     TKit::TierArray<Execution::SyncData> m_SyncData{};
 
     VKit::Queue *m_Present;

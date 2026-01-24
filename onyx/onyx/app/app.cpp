@@ -28,7 +28,8 @@ void Application::Run()
 #ifdef ONYX_ENABLE_IMGUI
 void Application::applyTheme(const WindowData &p_Data)
 {
-    TKIT_ASSERT(p_Data.Theme, "[ONYX] No theme has been set for the given windos. Set one with SetTheme()");
+    TKIT_ASSERT(p_Data.Theme,
+                "[ONYX][APPLICATION] No theme has been set for the given windos. Set one with SetTheme()");
     ImGuiContext *pcontext = ImGui::GetCurrentContext();
     ImGui::SetCurrentContext(p_Data.ImGuiContext);
     p_Data.Theme->Apply();
@@ -61,9 +62,10 @@ void Application::setUpdateDeltaTime(const TKit::Timespan p_Target, WindowData &
 }
 void Application::setRenderDeltaTime(const TKit::Timespan p_Target, WindowData &p_Data)
 {
-    TKIT_LOG_WARNING_IF(p_Data.Window->IsVSync(),
-                        "[ONYX] When the present mode of the window is FIFO (V-Sync), setting the target delta "
-                        "time for said window is useless");
+    TKIT_LOG_WARNING_IF(
+        p_Data.Window->IsVSync(),
+        "[ONYX][APPLICATION] When the present mode of the window is FIFO (V-Sync), setting the target delta "
+        "time for said window is useless");
     if (!p_Data.Window->IsVSync())
         p_Data.RenderClock.Delta.Time.Target = p_Target;
 }
@@ -77,7 +79,7 @@ Application::WindowData *Application::getWindowData(const Window *p_Window)
         if (data.Window == p_Window)
             return &data;
 #    endif
-    TKIT_FATAL("[ONYX] No window data found for '{}' window", p_Window->GetName());
+    TKIT_FATAL("[ONYX][APPLICATION] No window data found for '{}' window", p_Window->GetName());
     return nullptr;
 }
 const Application::WindowData *Application::getWindowData(const Window *p_Window) const
@@ -89,7 +91,7 @@ const Application::WindowData *Application::getWindowData(const Window *p_Window
         if (data.Window == p_Window)
             return &data;
 #    endif
-    TKIT_FATAL("[ONYX] No window data found for '{}' window", p_Window->GetName());
+    TKIT_FATAL("[ONYX][APPLICATION] No window data found for '{}' window", p_Window->GetName());
     return nullptr;
 }
 
@@ -97,7 +99,7 @@ static void initializeImGui(WindowData &p_Data)
 {
     Window *window = p_Data.Window;
     TKIT_ASSERT(!p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
-                "[ONYX] Trying to initialize ImGui for window '{}' when it is already running. If you "
+                "[ONYX][APPLICATION] Trying to initialize ImGui for window '{}' when it is already running. If you "
                 "meant to reload ImGui, use ReloadImGui()",
                 window->GetName());
 
@@ -125,7 +127,7 @@ static void initializeImGui(WindowData &p_Data)
 static void shutdownImGui(WindowData &p_Data)
 {
     TKIT_ASSERT(p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
-                "[ONYX] Trying to shut down ImGui when it is not initialized to begin with");
+                "[ONYX][APPLICATION] Trying to shut down ImGui when it is not initialized to begin with");
 
     p_Data.ClearFlags(ApplicationFlag_ImGuiRunning);
 
@@ -358,12 +360,12 @@ void Application::processWindow(WindowData &p_Data)
     p_Data.RenderClock.Update();
 #ifdef ONYX_ENABLE_IMGUI
     TKIT_ASSERT(!p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled) || p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
-                "[ONYX] ImGui is enabled for window '{}' but no instance of "
+                "[ONYX][APPLICATION] ImGui is enabled for window '{}' but no instance of "
                 "ImGui is running. This should not be possible",
                 p_Data.Window->GetName());
 
     TKIT_ASSERT(p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled) || !p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
-                "[ONYX] ImGui is disabled for window '{}' but an instance of "
+                "[ONYX][APPLICATION] ImGui is disabled for window '{}' but an instance of "
                 "ImGui is running. This should not be possible",
                 p_Data.Window->GetName());
 
@@ -584,7 +586,7 @@ bool Application::CloseWindow(Window *p_Window)
             m_Windows.RemoveUnordered(m_Windows.begin() + i);
             return true;
         }
-    TKIT_FATAL("[ONYX] Failed to close window: Window '{}' not found", p_Window->GetName());
+    TKIT_FATAL("[ONYX][APPLICATION] Failed to close window: Window '{}' not found", p_Window->GetName());
     return false;
 }
 Window *Application::openWindow(const WindowSpecs &p_Specs)

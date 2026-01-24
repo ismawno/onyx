@@ -586,7 +586,7 @@ void PollEvents()
 }
 f32v2 GetScreenMousePosition(Window *p_Window)
 {
-    GLFWwindow *window = p_Window->GetWindowHandle();
+    GLFWwindow *window = p_Window->GetHandle();
     f64 xPos, yPos;
     glfwGetCursorPos(window, &xPos, &yPos);
     return f32v2{2.f * static_cast<f32>(xPos) / p_Window->GetScreenWidth() - 1.f,
@@ -595,20 +595,20 @@ f32v2 GetScreenMousePosition(Window *p_Window)
 
 bool IsKeyPressed(Window *p_Window, const Key p_Key)
 {
-    return glfwGetKey(p_Window->GetWindowHandle(), toGlfw(p_Key)) == GLFW_PRESS;
+    return glfwGetKey(p_Window->GetHandle(), toGlfw(p_Key)) == GLFW_PRESS;
 }
 bool IsKeyReleased(Window *p_Window, const Key p_Key)
 {
-    return glfwGetKey(p_Window->GetWindowHandle(), toGlfw(p_Key)) == GLFW_RELEASE;
+    return glfwGetKey(p_Window->GetHandle(), toGlfw(p_Key)) == GLFW_RELEASE;
 }
 
 bool IsMouseButtonPressed(Window *p_Window, const Mouse p_Button)
 {
-    return glfwGetMouseButton(p_Window->GetWindowHandle(), toGlfw(p_Button)) == GLFW_PRESS;
+    return glfwGetMouseButton(p_Window->GetHandle(), toGlfw(p_Button)) == GLFW_PRESS;
 }
 bool IsMouseButtonReleased(Window *p_Window, const Mouse p_Button)
 {
-    return glfwGetMouseButton(p_Window->GetWindowHandle(), toGlfw(p_Button)) == GLFW_RELEASE;
+    return glfwGetMouseButton(p_Window->GetHandle(), toGlfw(p_Button)) == GLFW_RELEASE;
 }
 
 const char *GetKeyName(const Key p_Key)
@@ -1000,23 +1000,25 @@ static void scrollCallback(GLFWwindow *p_Window, const f64 p_XOffset, const f64 
     window->PushEvent(event);
 }
 
-void InstallCallbacks(Window &p_Window)
+void InstallCallbacks(Window *p_Window)
 {
-    GLFWwindow *window = p_Window.GetWindowHandle();
+    InstallCallbacks(p_Window->GetHandle());
+}
+void InstallCallbacks(GLFWwindow *p_Window)
+{
+    glfwSetWindowPosCallback(p_Window, windowMoveCallback);
+    glfwSetWindowSizeCallback(p_Window, windowResizeCallback);
+    glfwSetFramebufferSizeCallback(p_Window, framebufferResizeCallback);
+    glfwSetWindowFocusCallback(p_Window, windowFocusCallback);
+    glfwSetWindowCloseCallback(p_Window, windowCloseCallback);
+    glfwSetWindowIconifyCallback(p_Window, windowIconifyCallback);
 
-    glfwSetWindowPosCallback(window, windowMoveCallback);
-    glfwSetWindowSizeCallback(window, windowResizeCallback);
-    glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
-    glfwSetWindowFocusCallback(window, windowFocusCallback);
-    glfwSetWindowCloseCallback(window, windowCloseCallback);
-    glfwSetWindowIconifyCallback(window, windowIconifyCallback);
+    glfwSetKeyCallback(p_Window, keyCallback);
+    glfwSetCharCallback(p_Window, charCallback);
 
-    glfwSetKeyCallback(window, keyCallback);
-    glfwSetCharCallback(window, charCallback);
-
-    glfwSetCursorPosCallback(window, cursorPositionCallback);
-    glfwSetCursorEnterCallback(window, cursorEnterCallback);
-    glfwSetMouseButtonCallback(window, mouseButtonCallback);
-    glfwSetScrollCallback(window, scrollCallback);
+    glfwSetCursorPosCallback(p_Window, cursorPositionCallback);
+    glfwSetCursorEnterCallback(p_Window, cursorEnterCallback);
+    glfwSetMouseButtonCallback(p_Window, mouseButtonCallback);
+    glfwSetScrollCallback(p_Window, scrollCallback);
 }
 } // namespace Onyx::Input

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "onyx/core/core.hpp"
 #include "onyx/asset/mesh.hpp"
 #include "onyx/property/instance.hpp"
 
@@ -9,7 +10,7 @@ struct Specs
 {
     u32 MaxStaticMeshes = 64;
 };
-void Initialize(const Specs &p_Specs);
+ONYX_NO_DISCARD Result<> Initialize(const Specs &p_Specs);
 void Terminate();
 
 u32 GetStaticMeshBatchIndex(Mesh p_Mesh);
@@ -30,9 +31,9 @@ template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshVertexBuffer();
 template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer();
 template <Dimension D> u32 GetStaticMeshCount();
 
-template <Dimension D> void Upload();
+template <Dimension D> ONYX_NO_DISCARD Result<> Upload();
 #ifdef ONYX_ENABLE_OBJ
-template <Dimension D> VKit::Result<StatMeshData<D>> LoadStaticMesh(const char *p_Path);
+template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMesh(const char *p_Path);
 #endif
 
 template <Dimension D> StatMeshData<D> CreateTriangleMesh();

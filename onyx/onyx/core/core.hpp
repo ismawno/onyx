@@ -54,8 +54,8 @@
 namespace Onyx
 {
 using Task = TKit::Task<void>;
-using ErrorCode = VKit::ErrorCode;
-template <typename T> using Result = VKit::Result<T>;
+using enum VKit::ErrorCode;
+template <typename T = void> using Result = VKit::Result<T>;
 
 struct InitCallbacks
 {
@@ -100,7 +100,7 @@ struct Specs
 
 namespace Onyx::Core
 {
-void Initialize(const Specs &p_Specs = {});
+ONYX_NO_DISCARD Result<> Initialize(const Specs &p_Specs = {});
 void Terminate();
 
 TKit::ITaskManager *GetTaskManager();
@@ -112,10 +112,7 @@ const VKit::Vulkan::InstanceTable *GetInstanceTable();
 const VKit::LogicalDevice &GetDevice();
 const VKit::Vulkan::DeviceTable *GetDeviceTable();
 
-void CreateDevice(VkSurfaceKHR p_Surface);
-
-bool IsDeviceCreated();
-void DeviceWaitIdle();
+ONYX_NO_DISCARD Result<> DeviceWaitIdle();
 
 VmaAllocator GetVulkanAllocator();
 VKit::DeletionQueue &GetDeletionQueue();

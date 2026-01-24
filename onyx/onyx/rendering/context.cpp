@@ -32,7 +32,7 @@ template <Dimension D> IRenderContext<D>::IRenderContext()
 template <Dimension D> void IRenderContext<D>::Flush()
 {
     TKIT_ASSERT(m_StateStack.GetSize() == 1,
-                "[ONYX] Mismatched Push() call found. For every Push(), there must be a Pop()");
+                "[ONYX][CONTEXT] Mismatched Push() call found. For every Push(), there must be a Pop()");
 
     m_StateStack[0] = RenderState<D>{};
     m_Current = &m_StateStack.GetFront();
@@ -450,7 +450,7 @@ template <Dimension D> void IRenderContext<D>::Push()
 }
 template <Dimension D> void IRenderContext<D>::Pop()
 {
-    TKIT_ASSERT(m_StateStack.GetSize() > 1, "[ONYX] For every Push(), there must be a Pop()");
+    TKIT_ASSERT(m_StateStack.GetSize() > 1, "[ONYX][CONTEXT] For every Push(), there must be a Pop()");
     m_StateStack.Pop();
     updateState();
 }

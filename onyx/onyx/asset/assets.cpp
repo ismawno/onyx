@@ -74,23 +74,30 @@ template <Dimension D> static AssetData<D> &getData()
         return s_AssetData3;
 }
 
-template <typename Vertex> static void checkSize(MeshInfo<Vertex> &p_Info)
+template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Vertex> &p_Info)
 {
     LayoutFlags flags = 0;
 
     const u32 vcount = p_Info.GetVertexCount();
-    if (Resources::GrowBufferIfNeeded<Vertex>(p_Info.VertexBuffer, vcount, Buffer_DeviceVertex))
+    auto result = Resources::GrowBufferIfNeeded<Vertex>(p_Info.VertexBuffer, vcount, Buffer_DeviceVertex);
+    TKIT_RETURN_ON_ERROR(result);
+
+    if (result.GetValue())
         flags = LayoutFlag_UpdateVertex;
 
     const u32 icount = p_Info.GetIndexCount();
-    if (Resources::GrowBufferIfNeeded<Index>(p_Info.IndexBuffer, icount, Buffer_DeviceIndex))
+    result = Resources::GrowBufferIfNeeded<Index>(p_Info.IndexBuffer, icount, Buffer_DeviceIndex);
+    TKIT_RETURN_ON_ERROR(result);
+    if (result.GetValue())
         flags |= LayoutFlag_UpdateIndex;
     if (flags)
         for (DataLayout &layout : p_Info.Layouts)
             layout.Flags |= flags;
+    return Result<>::Ok();
 }
 
-template <typename Vertex> static void uploadVertexData(MeshInfo<Vertex> &p_Info, const u32 p_Start, const u32 p_End)
+template <typename Vertex>
+ONYX_NO_DISCARD static Result<> uploadVertexData(MeshInfo<Vertex> &p_Info, const u32 p_Start, const u32 p_End)
 {
     constexpr VkDeviceSize size = sizeof(Vertex);
     const VkDeviceSize voffset = p_Info.GetVertexCount(p_Start) * size;
@@ -98,11 +105,12 @@ template <typename Vertex> static void uploadVertexData(MeshInfo<Vertex> &p_Info
 
     VKit::CommandPool &pool = Execution::GetTransientTransferPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
-    VKIT_CHECK_EXPRESSION(
-        p_Info.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), p_Info.Meshes.Vertices.GetData(),
-                                           {.srcOffset = voffset, .dstOffset = voffset, .size = vsize}));
+
+    return p_Info.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), p_Info.Meshes.Vertices.GetData(),
+                                              {.srcOffset = voffset, .dstOffset = voffset, .size = vsize});
 }
-template <typename Vertex> static void uploadIndexData(MeshInfo<Vertex> &p_Info, const u32 p_Start, const u32 p_End)
+template <typename Vertex>
+ONYX_NO_DISCARD static Result<> uploadIndexData(MeshInfo<Vertex> &p_Info, const u32 p_Start, const u32 p_End)
 {
     constexpr VkDeviceSize size = sizeof(Index);
     const VkDeviceSize ioffset = p_Info.GetIndexCount(p_Start) * size;
@@ -110,26 +118,29 @@ template <typename Vertex> static void uploadIndexData(MeshInfo<Vertex> &p_Info,
 
     VKit::CommandPool &pool = Execution::GetTransientTransferPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
-    VKIT_CHECK_EXPRESSION(
-        p_Info.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), p_Info.Meshes.Indices.GetData(),
-                                          {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize}));
+
+    return p_Info.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), p_Info.Meshes.Indices.GetData(),
+                                             {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize});
 }
 
-template <typename Vertex> static void uploadMeshData(MeshInfo<Vertex> &p_Info)
+template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshInfo<Vertex> &p_Info)
 {
     TKIT_ASSERT(!p_Info.Layouts.IsEmpty(), "[ONYX][ASSETS] Cannot upload assets. Layouts is empty");
     const auto checkFlags = [&p_Info](const u32 p_Index, const LayoutFlags p_Flags) {
         return p_Flags & p_Info.Layouts[p_Index].Flags;
     };
 
-    checkSize(p_Info);
+    auto result = checkSize(p_Info);
+    TKIT_RETURN_ON_ERROR(result);
+
     auto &layouts = p_Info.Layouts;
     for (u32 i = 0; i < layouts.GetSize(); ++i)
         if (checkFlags(i, LayoutFlag_UpdateVertex))
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
                 if (j == layouts.GetSize() || !checkFlags(j, LayoutFlag_UpdateVertex))
                 {
-                    uploadVertexData(p_Info, i, j);
+                    result = uploadVertexData(p_Info, i, j);
+                    TKIT_RETURN_ON_ERROR(result);
                     i = j;
                     break;
                 }
@@ -138,25 +149,34 @@ template <typename Vertex> static void uploadMeshData(MeshInfo<Vertex> &p_Info)
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
                 if (j == layouts.GetSize() || !checkFlags(j, LayoutFlag_UpdateIndex))
                 {
-                    uploadIndexData(p_Info, i, j);
+                    result = uploadIndexData(p_Info, i, j);
+                    TKIT_RETURN_ON_ERROR(result);
                     i = j;
                     break;
                 }
     for (DataLayout &layout : layouts)
         layout.Flags = 0;
+    return Result<>::Ok();
 }
 
-template <typename Vertex> static void initialize(MeshInfo<Vertex> &p_Info, const u32 p_MaxLayouts)
+template <typename Vertex> ONYX_NO_DISCARD static Result<> initialize(MeshInfo<Vertex> &p_Info, const u32 p_MaxLayouts)
 {
-    p_Info.VertexBuffer = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
-    p_Info.IndexBuffer = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
+    auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
+    TKIT_RETURN_ON_ERROR(result);
+    p_Info.VertexBuffer = result.GetValue();
+
+    result = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
+    TKIT_RETURN_ON_ERROR(result);
+    p_Info.IndexBuffer = result.GetValue();
+
     p_Info.Layouts.Reserve(p_MaxLayouts);
+    return Result<>::Ok();
 }
 
-template <Dimension D> static void initialize(const Specs &p_Specs)
+template <Dimension D> ONYX_NO_DISCARD static Result<> initialize(const Specs &p_Specs)
 {
     AssetData<D> &data = getData<D>();
-    initialize(data.StaticMeshes, p_Specs.MaxStaticMeshes);
+    return initialize(data.StaticMeshes, p_Specs.MaxStaticMeshes);
 }
 
 template <typename Vertex> static void terminate(MeshInfo<Vertex> &p_Info)
@@ -174,13 +194,14 @@ template <Dimension D> static void terminate()
     terminate(data.StaticMeshes);
 }
 
-void Initialize(const Specs &p_Specs)
+Result<> Initialize(const Specs &p_Specs)
 {
     s_BatchRanges[Geometry_Circle] = {.BatchStart = 0, .BatchCount = 1};
     s_BatchRanges[Geometry_StaticMesh] = {.BatchStart = 1, .BatchCount = p_Specs.MaxStaticMeshes};
 
-    initialize<D2>(p_Specs);
-    initialize<D3>(p_Specs);
+    const auto result = initialize<D2>(p_Specs);
+    TKIT_RETURN_ON_ERROR(result);
+    return initialize<D3>(p_Specs);
 }
 
 void Terminate()
@@ -191,19 +212,21 @@ void Terminate()
 
 u32 GetStaticMeshBatchIndex(const Mesh p_Mesh)
 {
-    TKIT_ASSERT(p_Mesh < s_BatchRanges[Geometry_StaticMesh].BatchCount,
-                "[ONYX] Mesh index overflow. The mesh index {} does not have a valid assigned batch. This may have "
-                "happened because the used mesh does not point to a valid static mesh, or the amount of static mesh "
-                "types exceeds the maximum of {}. Consider increasing such maximum from the Onyx initialization specs",
-                p_Mesh, s_BatchRanges[Geometry_StaticMesh].BatchCount);
+    TKIT_ASSERT(
+        p_Mesh < s_BatchRanges[Geometry_StaticMesh].BatchCount,
+        "[ONYX][ASSETS] Mesh index overflow. The mesh index {} does not have a valid assigned batch. This may have "
+        "happened because the used mesh does not point to a valid static mesh, or the amount of static mesh "
+        "types exceeds the maximum of {}. Consider increasing such maximum from the Onyx initialization specs",
+        p_Mesh, s_BatchRanges[Geometry_StaticMesh].BatchCount);
     return p_Mesh + s_BatchRanges[Geometry_StaticMesh].BatchStart;
 }
 u32 GetStaticMeshIndexFromBatch(const u32 p_Batch)
 {
-    TKIT_ASSERT(p_Batch < GetBatchEnd(Geometry_StaticMesh),
-                "[ONYX] Batch index overflow. The batch index {} does not have a valid assigned mesh. This may have "
-                "happened because the used batch does not point to a valid static mesh batch",
-                p_Batch, GetBatchEnd(Geometry_StaticMesh));
+    TKIT_ASSERT(
+        p_Batch < GetBatchEnd(Geometry_StaticMesh),
+        "[ONYX][ASSETS] Batch index overflow. The batch index {} does not have a valid assigned mesh. This may have "
+        "happened because the used batch does not point to a valid static mesh batch",
+        p_Batch, GetBatchEnd(Geometry_StaticMesh));
     return p_Batch - s_BatchRanges[Geometry_StaticMesh].BatchStart;
 }
 u32 GetCircleBatchIndex()
@@ -258,9 +281,10 @@ template <Dimension D> void UpdateMesh(const Mesh p_Mesh, const StatMeshData<D> 
     StatMeshInfo<D> &data = getData<D>().StaticMeshes;
 
     DataLayout &layout = data.Layouts[p_Mesh];
-    TKIT_ASSERT(p_Data.Vertices.GetSize() == layout.VertexCount && p_Data.Indices.GetSize() == layout.IndexCount,
-                "[ONYX] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
-                "same. If they are not, you must create a new mesh");
+    TKIT_ASSERT(
+        p_Data.Vertices.GetSize() == layout.VertexCount && p_Data.Indices.GetSize() == layout.IndexCount,
+        "[ONYX][ASSETS] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
+        "same. If they are not, you must create a new mesh");
 
     TKit::Memory::ForwardCopy(data.Meshes.Vertices.begin() + layout.VertexStart, p_Data.Vertices.begin(),
                               p_Data.Vertices.end());
@@ -275,18 +299,22 @@ template <Dimension D> u32 GetStaticMeshCount()
     return getData<D>().StaticMeshes.Layouts.GetSize();
 }
 
-template <Dimension D> void Upload()
+template <Dimension D> Result<> Upload()
 {
-    Core::DeviceWaitIdle();
+    const auto result = Core::DeviceWaitIdle();
+    TKIT_RETURN_ON_ERROR(result);
+
     AssetData<D> &data = getData<D>();
-    uploadMeshData(data.StaticMeshes);
+    return uploadMeshData(data.StaticMeshes);
 }
 
 template <Dimension D> MeshDataLayout GetStaticMeshLayout(const Mesh p_Mesh)
 {
     const DataLayout &layout = getData<D>().StaticMeshes.Layouts[p_Mesh];
-    return MeshDataLayout{
-        .VertexStart = layout.VertexStart, .IndexStart = layout.IndexStart, .IndexCount = layout.IndexCount};
+    return MeshDataLayout{.VertexStart = layout.VertexStart,
+                          .VertexCount = layout.VertexCount,
+                          .IndexStart = layout.IndexStart,
+                          .IndexCount = layout.IndexCount};
 }
 
 template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshVertexBuffer()
@@ -299,15 +327,15 @@ template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer()
 }
 
 #ifdef ONYX_ENABLE_OBJ
-template <Dimension D> VKit::Result<StatMeshData<D>> LoadStaticMesh(const char *p_Path)
+template <Dimension D> Result<StatMeshData<D>> LoadStaticMesh(const char *p_Path)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::string warn, err;
 
     if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, p_Path))
-        return VKit::Result<StatMeshData<D>>::Error(VK_ERROR_INITIALIZATION_FAILED,
-                                                    TKit::Format("Failed to load mesh: {}", err + warn));
+        return Result<StatMeshData<D>>::Error(Error_FileNotFound,
+                                              TKit::Format("[ONYX][ASSETS] Failed to load mesh: {}", err + warn));
 
     std::unordered_map<StatVertex<D>, Index> uniqueVertices;
     StatMeshData<D> data;
@@ -346,10 +374,10 @@ template <Dimension D> static void validateMesh(const StatMeshData<D> &p_Data, c
             mx = i;
 
     mx -= static_cast<Index>(p_Offset);
-    TKIT_ASSERT(
-        mx < p_Data.Vertices.GetSize(),
-        "[ONYX] Index and vertex host data creation is invalid. An index exceeds vertex bounds. Index: {}, size: {}",
-        mx, p_Data.Vertices.GetSize());
+    TKIT_ASSERT(mx < p_Data.Vertices.GetSize(),
+                "[ONYX][ASSETS] Index and vertex host data creation is invalid. An index exceeds vertex bounds. Index: "
+                "{}, size: {}",
+                mx, p_Data.Vertices.GetSize());
 }
 #    define VALIDATE_MESH(...) validateMesh(__VA_ARGS__)
 #else
@@ -408,7 +436,7 @@ template <Dimension D, bool Inverted = false, bool Counter = true>
 static StatMeshData<D> createRegularPolygon(const u32 p_Sides, const f32v<D> &p_VertexOffset = f32v<D>{0.f},
                                             const u32 p_IndexOffset = 0, const f32v3 &p_Normal = f32v3{0.f, 0.f, 1.f})
 {
-    TKIT_ASSERT(p_Sides >= 3, "[ONYX] A regular polygon requires at least 3 sides");
+    TKIT_ASSERT(p_Sides >= 3, "[ONYX][ASSETS] A regular polygon requires at least 3 sides");
     StatMeshData<D> data{};
     const auto addVertex = [&](const f32v<D> &p_Vertex) {
         if constexpr (D == D2)
@@ -458,7 +486,7 @@ template <Dimension D> StatMeshData<D> CreateRegularPolygonMesh(const u32 p_Side
 
 template <Dimension D> StatMeshData<D> CreatePolygonMesh(const TKit::Span<const f32v2> p_Vertices)
 {
-    TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX] A polygon must have at least 3 vertices");
+    TKIT_ASSERT(p_Vertices.GetSize() >= 3, "[ONYX][ASSETS] A polygon must have at least 3 vertices");
     StatMeshData<D> data{};
 
     const auto addVertex = [&data](const f32v2 &p_Vertex) {
@@ -665,12 +693,12 @@ template void UpdateMesh(Mesh p_Mesh, const StatMeshData<D3> &p_Data);
 template u32 GetStaticMeshCount<D2>();
 template u32 GetStaticMeshCount<D3>();
 
-template void Upload<D2>();
-template void Upload<D3>();
+template Result<> Upload<D2>();
+template Result<> Upload<D3>();
 
 #ifdef ONYX_ENABLE_OBJ
-template VKit::Result<StatMeshData<D2>> LoadStaticMesh<D2>(const char *p_Path);
-template VKit::Result<StatMeshData<D3>> LoadStaticMesh<D3>(const char *p_Path);
+template Result<StatMeshData<D2>> LoadStaticMesh<D2>(const char *p_Path);
+template Result<StatMeshData<D3>> LoadStaticMesh<D3>(const char *p_Path);
 #endif
 
 template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D2>();

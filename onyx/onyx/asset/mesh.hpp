@@ -19,6 +19,7 @@ template <Dimension D> using StatMeshData = MeshData<StatVertex<D>>;
 struct MeshDataLayout
 {
     u32 VertexStart;
+    u32 VertexCount;
     u32 IndexStart;
     u32 IndexCount;
 };

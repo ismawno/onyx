@@ -21,8 +21,5 @@ struct CommandPool
         Queue = p_Queue;
         InFlightValue = p_InFlightValue;
     }
-
-    VkCommandBuffer Allocate();
-    void Reset();
 };
 } // namespace Onyx

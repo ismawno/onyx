@@ -114,10 +114,10 @@ template <Dimension D> static VkDeviceSize getInstanceSize(const GeometryType p_
     case Geometry_StaticMesh:
         return sizeof(InstanceData<D>);
     case Geometry_Count:
-        TKIT_FATAL("[ONYX] Unrecognized geometry type");
+        TKIT_FATAL("[ONYX][RENDERER] Unrecognized geometry type");
         return 0;
     }
-    TKIT_FATAL("[ONYX] Unrecognized geometry type");
+    TKIT_FATAL("[ONYX][RENDERER] Unrecognized geometry type");
     return 0;
 }
 
@@ -132,7 +132,7 @@ VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo()
     return renderInfo;
 }
 
-template <Dimension D> static void initialize()
+template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
 {
     RendererData<D> &rdata = getRendererData<D>();
 
@@ -141,25 +141,40 @@ template <Dimension D> static void initialize()
     {
         const GeometryType geo = static_cast<GeometryType>(i);
         TransferArena &tarena = rdata.Arenas[geo].Transfer;
-        tarena.Buffer = Resources::CreateBuffer(Buffer_Staging, getInstanceSize<D>(geo));
+
+        auto result = Resources::CreateBuffer(Buffer_Staging, getInstanceSize<D>(geo));
+        TKIT_RETURN_ON_ERROR(result);
+        tarena.Buffer = result.GetValue();
+
         tarena.MemoryRanges.Append(TransferMemoryRange{.Size = tarena.Buffer.GetInfo().Size});
 
         GraphicsArena &garena = rdata.Arenas[geo].Graphics;
-        garena.Buffer = Resources::CreateBuffer(Buffer_DeviceStorage, getInstanceSize<D>(geo));
+
+        result = Resources::CreateBuffer(Buffer_DeviceStorage, getInstanceSize<D>(geo));
+        TKIT_RETURN_ON_ERROR(result);
+        garena.Buffer = result.GetValue();
+
         garena.MemoryRanges.Append(GraphicsMemoryRange{.Size = garena.Buffer.GetInfo().Size});
     }
     for (u32 i = 0; i < StencilPass_Count; ++i)
     {
         const StencilPass pass = static_cast<StencilPass>(i);
-        rdata.Pipelines[pass][Geometry_Circle] = Pipelines::CreateCirclePipeline<D>(pass, renderInfo);
-        rdata.Pipelines[pass][Geometry_StaticMesh] = Pipelines::CreateStaticMeshPipeline<D>(pass, renderInfo);
+
+        auto result = Pipelines::CreateCirclePipeline<D>(pass, renderInfo);
+        TKIT_RETURN_ON_ERROR(result);
+        rdata.Pipelines[pass][Geometry_Circle] = result.GetValue();
+
+        result = Pipelines::CreateStaticMeshPipeline<D>(pass, renderInfo);
+        TKIT_RETURN_ON_ERROR(result);
+        rdata.Pipelines[pass][Geometry_StaticMesh] = result.GetValue();
     }
+    return Result<>::Ok();
 }
 
 template <Dimension D> static void terminate()
 {
     RendererData<D> &rdata = getRendererData<D>();
-    Core::DeviceWaitIdle();
+    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
     for (Arena &arena : rdata.Arenas)
     {
         arena.Transfer.Buffer.Destroy();
@@ -170,10 +185,11 @@ template <Dimension D> static void terminate()
             rdata.Pipelines[pass][geo].Destroy();
 }
 
-void Initialize()
+Result<> Initialize()
 {
-    initialize<D2>();
-    initialize<D3>();
+    const auto result = initialize<D2>();
+    TKIT_RETURN_ON_ERROR(result);
+    return initialize<D3>();
 }
 void Terminate()
 {
@@ -201,7 +217,7 @@ template <Dimension D> void DestroyContext(RenderContext<D> *p_Context)
             index = i;
             break;
         }
-    TKIT_ASSERT(index != TKIT_U32_MAX, "[ONYX] Render context not found when attempting to destroy it");
+    TKIT_ASSERT(index != TKIT_U32_MAX, "[ONYX][RENDERER] Render context not found when attempting to destroy it");
     for (Arena &arena : rdata.Arenas)
         for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
             for (ContextRange &crange : grange.ContextRanges)
@@ -237,10 +253,11 @@ void ClearWindow(const Window *p_Window)
     clearWindow<D3>(p_Window);
 }
 
-static TransferMemoryRange &findTransferRange(TransferArena &p_Arena, const VkDeviceSize p_RequiredMem)
+ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferArena &p_Arena,
+                                                                       const VkDeviceSize p_RequiredMem)
 {
     auto &ranges = p_Arena.MemoryRanges;
-    TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX] Memory ranges cannot be empty");
+    TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
 
     VKit::DeviceBuffer &buffer = p_Arena.Buffer;
     for (u32 i = 0; i < ranges.GetSize(); ++i)
@@ -249,7 +266,7 @@ static TransferMemoryRange &findTransferRange(TransferArena &p_Arena, const VkDe
         if (range.Size >= p_RequiredMem && !range.InUse())
         {
             if (range.Size == p_RequiredMem)
-                return range;
+                return &range;
 
             TransferMemoryRange child;
             child.Size = p_RequiredMem;
@@ -259,7 +276,7 @@ static TransferMemoryRange &findTransferRange(TransferArena &p_Arena, const VkDe
             range.Size -= p_RequiredMem;
 
             ranges.Insert(ranges.begin() + i, child);
-            return ranges[i];
+            return &ranges[i];
         }
     }
 
@@ -267,9 +284,14 @@ static TransferMemoryRange &findTransferRange(TransferArena &p_Arena, const VkDe
     const VkDeviceSize icount = buffer.GetInfo().InstanceCount;
     const VkDeviceSize size = buffer.GetInfo().Size;
 
-    Core::DeviceWaitIdle();
+    const auto wresult = Core::DeviceWaitIdle();
+    TKIT_RETURN_ON_ERROR(wresult);
+
+    const auto bresult = Resources::CreateBuffer(Buffer_Staging, isize, 2 * icount);
+    TKIT_RETURN_ON_ERROR(bresult);
+
     buffer.Destroy();
-    buffer = Resources::CreateBuffer(Buffer_Staging, isize, 2 * icount);
+    buffer = bresult.GetValue();
 
     TransferMemoryRange bigRange;
     bigRange.Transfer = nullptr;
@@ -284,22 +306,14 @@ static TransferMemoryRange &findTransferRange(TransferArena &p_Arena, const VkDe
     ranges.Append(smallRange);
     ranges.Append(bigRange);
 
-    return ranges[ranges.GetSize() - 2];
+    return &ranges[ranges.GetSize() - 2];
 }
 
-static TransferMemoryRange &assignTransferRange(const VKit::Queue *p_Transfer, TransferArena &p_Arena,
-                                                const VkDeviceSize p_RequiredMem, const u64 p_TransferFlightValue)
-{
-    TransferMemoryRange &range = findTransferRange(p_Arena, p_RequiredMem);
-    range.Transfer = p_Transfer;
-    range.TransferFlightValue = p_TransferFlightValue;
-    return range;
-}
-
-static GraphicsMemoryRange &findGraphicsRange(GraphicsArena &p_Arena, const VkDeviceSize p_RequiredMem)
+ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(GraphicsArena &p_Arena,
+                                                                       const VkDeviceSize p_RequiredMem)
 {
     auto &ranges = p_Arena.MemoryRanges;
-    TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX] Memory ranges cannot be empty");
+    TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
 
     VKit::DeviceBuffer &buffer = p_Arena.Buffer;
     for (u32 i = 0; i < ranges.GetSize(); ++i)
@@ -310,7 +324,7 @@ static GraphicsMemoryRange &findGraphicsRange(GraphicsArena &p_Arena, const VkDe
         if (range.Size >= p_RequiredMem && range.ContextRanges.IsEmpty() && !range.InUse())
         {
             if (range.Size == p_RequiredMem)
-                return range;
+                return &range;
 
             GraphicsMemoryRange child;
             child.Size = p_RequiredMem;
@@ -320,7 +334,7 @@ static GraphicsMemoryRange &findGraphicsRange(GraphicsArena &p_Arena, const VkDe
             range.Size -= p_RequiredMem;
 
             ranges.Insert(ranges.begin() + i, child);
-            return ranges[i];
+            return &ranges[i];
         }
     }
 
@@ -328,10 +342,14 @@ static GraphicsMemoryRange &findGraphicsRange(GraphicsArena &p_Arena, const VkDe
     const VkDeviceSize icount = buffer.GetInfo().InstanceCount;
     const VkDeviceSize size = buffer.GetInfo().Size;
 
-    Core::DeviceWaitIdle();
+    const auto wresult = Core::DeviceWaitIdle();
+    TKIT_RETURN_ON_ERROR(wresult);
+
+    const auto bresult = Resources::CreateBuffer(Buffer_DeviceStorage, isize, 2 * icount);
+    TKIT_RETURN_ON_ERROR(bresult);
 
     buffer.Destroy();
-    buffer = Resources::CreateBuffer(Buffer_DeviceStorage, isize, 2 * icount);
+    buffer = bresult.GetValue();
 
     GraphicsMemoryRange bigRange{};
     bigRange.Offset = size + p_RequiredMem;
@@ -344,16 +362,7 @@ static GraphicsMemoryRange &findGraphicsRange(GraphicsArena &p_Arena, const VkDe
     ranges.Append(smallRange);
     ranges.Append(bigRange);
 
-    return ranges[ranges.GetSize() - 2];
-}
-
-static GraphicsMemoryRange &assignGraphicsRange(const VKit::Queue *p_Transfer, GraphicsArena &p_Arena,
-                                                const VkDeviceSize p_RequiredMem, const u64 p_TransferFlightValue)
-{
-    GraphicsMemoryRange &range = findGraphicsRange(p_Arena, p_RequiredMem);
-    range.Transfer = p_Transfer;
-    range.TransferFlightValue = p_TransferFlightValue;
-    return range;
+    return &ranges[ranges.GetSize() - 2];
 }
 
 VkBufferMemoryBarrier2KHR createAcquireBarrier(const VkBuffer p_DeviceLocalBuffer, const VkDeviceSize p_Offset,
@@ -383,9 +392,8 @@ VkBufferMemoryBarrier2KHR createReleaseBarrier(const VkBuffer p_DeviceLocalBuffe
 {
     const u32 qsrc = Execution::GetFamilyIndex(VKit::Queue_Transfer);
     const u32 qdst = Execution::GetFamilyIndex(VKit::Queue_Graphics);
-    TKIT_ASSERT(
-        qsrc != qdst,
-        "[ONYX] Cannot create a release barrier if the graphics and transfer Execution belong to the same family");
+    TKIT_ASSERT(qsrc != qdst, "[ONYX][RENDERER] Cannot create a release barrier if the graphics and transfer Execution "
+                              "belong to the same family");
 
     VkBufferMemoryBarrier2KHR barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR;
@@ -403,8 +411,10 @@ VkBufferMemoryBarrier2KHR createReleaseBarrier(const VkBuffer p_DeviceLocalBuffe
 }
 
 template <Dimension D>
-static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, TransferSubmitInfo &p_Info,
-                     TKit::TierArray<VkBufferMemoryBarrier2KHR> *p_Release, const u64 p_TransferFlightValue)
+ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command,
+                                         TransferSubmitInfo &p_Info,
+                                         TKit::TierArray<VkBufferMemoryBarrier2KHR> *p_Release,
+                                         const u64 p_TransferFlightValue)
 {
     struct ContextInfo
     {
@@ -427,7 +437,7 @@ static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, T
     }
 
     if (dirtyContexts.IsEmpty())
-        return;
+        return Result<>::Ok();
 
     TKit::StackArray<ContextRange> contextRanges{};
     contextRanges.Reserve(dirtyContexts.GetSize());
@@ -442,7 +452,7 @@ static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, T
 
     u32 sindex = 0;
 
-    const auto processBatches = [&](const u32 p_Pass, const GeometryType p_Geo) {
+    const auto processBatches = [&](const u32 p_Pass, const GeometryType p_Geo) -> Result<> {
         TransferArena &tarena = rdata.Arenas[p_Geo].Transfer;
         GraphicsArena &garena = rdata.Arenas[p_Geo].Graphics;
 
@@ -477,13 +487,18 @@ static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, T
             if (requiredMem == 0)
                 continue;
 
-            TransferMemoryRange &trange = assignTransferRange(p_Transfer, tarena, requiredMem, p_TransferFlightValue);
+            const auto tresult = findTransferRange(tarena, requiredMem);
+            TKIT_RETURN_ON_ERROR(tresult);
+            TransferMemoryRange *trange = tresult.GetValue();
+            trange->Transfer = p_Transfer;
+            trange->TransferFlightValue = p_TransferFlightValue;
+
             for (const ContextRange &crange : contextRanges)
             {
                 const RenderContext<D> *ctx = rdata.Contexts[crange.ContextIndex];
 
                 const auto &idata = ctx->GetInstanceData()[p_Pass][batch];
-                const auto copy = [&, crange, trange] {
+                const auto copy = [&, crange, trange = *trange] {
                     tarena.Buffer.Write(
                         idata.Data.GetData(),
                         {.srcOffset = 0, .dstOffset = trange.Offset + crange.Offset, .size = crange.Size});
@@ -493,49 +508,61 @@ static void transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command, T
                 sindex = tm->SubmitTask(&task, sindex);
             }
 
-            GraphicsMemoryRange &grange = assignGraphicsRange(p_Transfer, garena, requiredMem, p_TransferFlightValue);
-            grange.BatchIndex = batch;
-            grange.ContextRanges = contextRanges;
-            grange.ViewMask = viewMask;
-            grange.Pass = static_cast<StencilPass>(p_Pass);
-            grange.Transfer = p_Transfer;
-            grange.Barrier = createAcquireBarrier(garena.Buffer, grange.Offset, requiredMem);
+            const auto gresult = findGraphicsRange(garena, requiredMem);
+            TKIT_RETURN_ON_ERROR(gresult);
+            GraphicsMemoryRange *grange = gresult.GetValue();
+
+            grange->BatchIndex = batch;
+            grange->ContextRanges = contextRanges;
+            grange->ViewMask = viewMask;
+            grange->Pass = static_cast<StencilPass>(p_Pass);
+            grange->Transfer = p_Transfer;
+            grange->Barrier = createAcquireBarrier(garena.Buffer, grange->Offset, requiredMem);
 
             VkBufferCopy2KHR &copy = copies.Append();
             copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
             copy.pNext = nullptr;
-            copy.srcOffset = trange.Offset;
-            copy.dstOffset = grange.Offset;
+            copy.srcOffset = trange->Offset;
+            copy.dstOffset = grange->Offset;
             copy.size = requiredMem;
 
             if (p_Release)
-                p_Release->Append(createReleaseBarrier(garena.Buffer, grange.Offset, requiredMem));
+                p_Release->Append(createReleaseBarrier(garena.Buffer, grange->Offset, requiredMem));
         }
         if (!copies.IsEmpty())
             garena.Buffer.CopyFromBuffer2(p_Command, tarena.Buffer, copies);
+
+        return Result<>::Ok();
     };
 
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
     {
         // processBatches(pass, Geometry_Circle);
-        processBatches(pass, Geometry_StaticMesh);
+        const auto result = processBatches(pass, Geometry_StaticMesh);
+        TKIT_RETURN_ON_ERROR(result);
     }
 
     p_Info.Command = p_Command;
 
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
+
+    return Result<>::Ok();
 }
 
-TransferSubmitInfo Transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command)
+Result<TransferSubmitInfo> Transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command)
 {
     TransferSubmitInfo submitInfo{};
     const bool separate = Execution::IsSeparateTransferMode();
     TKit::TierArray<VkBufferMemoryBarrier2KHR> release{};
 
     const u64 transferFlight = p_Transfer->NextTimelineValue();
-    transfer<D2>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight);
-    transfer<D3>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight);
+
+    auto result = transfer<D2>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight);
+    TKIT_RETURN_ON_ERROR(result);
+    result = transfer<D3>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight);
+    TKIT_RETURN_ON_ERROR(result);
+
     if (separate)
     {
         VkDependencyInfoKHR info{};
@@ -559,7 +586,7 @@ TransferSubmitInfo Transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Com
     return submitInfo;
 }
 
-void SubmitTransfer(VKit::Queue *p_Transfer, CommandPool &p_Pool, TKit::Span<const TransferSubmitInfo> p_Info)
+Result<> SubmitTransfer(VKit::Queue *p_Transfer, CommandPool *p_Pool, TKit::Span<const TransferSubmitInfo> p_Info)
 {
     TKit::StackArray<VkSubmitInfo2KHR> submits{};
     submits.Reserve(p_Info.GetSize());
@@ -570,7 +597,8 @@ void SubmitTransfer(VKit::Queue *p_Transfer, CommandPool &p_Pool, TKit::Span<con
     u64 maxFlight = 0;
     for (const TransferSubmitInfo &info : p_Info)
     {
-        TKIT_ASSERT(info.Command, "[ONYX] A submission must have a valid transfer command buffer to be submitted");
+        TKIT_ASSERT(info.Command,
+                    "[ONYX][RENDERER] A submission must have a valid transfer command buffer to be submitted");
         if (info.InFlightValue > maxFlight)
             maxFlight = info.InFlightValue;
 
@@ -592,11 +620,11 @@ void SubmitTransfer(VKit::Queue *p_Transfer, CommandPool &p_Pool, TKit::Span<con
         sinfo.flags = 0;
     }
 
-    p_Pool.MarkInUse(p_Transfer, maxFlight);
-    VKIT_CHECK_EXPRESSION(p_Transfer->Submit2(submits));
+    p_Pool->MarkInUse(p_Transfer, maxFlight);
+    return p_Transfer->Submit2(submits);
 }
 
-template <Dimension D> void applyAcquireBarriers(TKit::TierArray<VkBufferMemoryBarrier2KHR> &p_Barriers)
+template <Dimension D> void gatherAcquireBarriers(TKit::TierArray<VkBufferMemoryBarrier2KHR> &p_Barriers)
 {
     const RendererData<D> &rdata = getRendererData<D>();
     for (const Arena &arena : rdata.Arenas)
@@ -608,8 +636,8 @@ template <Dimension D> void applyAcquireBarriers(TKit::TierArray<VkBufferMemoryB
 void ApplyAcquireBarriers(const VkCommandBuffer p_GraphicsCommand)
 {
     TKit::TierArray<VkBufferMemoryBarrier2KHR> barriers{};
-    applyAcquireBarriers<D2>(barriers);
-    applyAcquireBarriers<D3>(barriers);
+    gatherAcquireBarriers<D2>(barriers);
+    gatherAcquireBarriers<D3>(barriers);
     if (!barriers.IsEmpty())
     {
         const auto table = Core::GetDeviceTable();
@@ -685,12 +713,13 @@ struct TransferSyncPoint
 };
 
 template <Dimension D>
-static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsCommand, const Window *p_Window,
-                   const u64 p_GraphicsFlightValue, TKit::StackArray<TransferSyncPoint> &p_SyncPoints)
+ONYX_NO_DISCARD static Result<> render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsCommand,
+                                       const Window *p_Window, const u64 p_GraphicsFlightValue,
+                                       TKit::StackArray<TransferSyncPoint> &p_SyncPoints)
 {
     const auto camInfos = p_Window->GetCameraInfos<D>();
     if (camInfos.IsEmpty())
-        return;
+        return Result<>::Ok();
 
     const u64 viewBit = p_Window->GetViewBit();
     const auto &device = Core::GetDevice();
@@ -712,7 +741,7 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
             if (!(grange.ViewMask & viewBit) || grange.InUseByGraphics())
                 continue;
             TKIT_ASSERT(!grange.ContextRanges.IsEmpty(),
-                        "[ONYX] Context ranges cannot be empty for a graphics memory range");
+                        "[ONYX][RENDERER] Context ranges cannot be empty for a graphics memory range");
             VkDeviceSize offset = grange.Offset;
             VkDeviceSize size = 0;
             for (const ContextRange &crange : grange.ContextRanges)
@@ -731,7 +760,8 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
                 }
             }
             TKIT_ASSERT(size != 0 || offset > grange.Offset,
-                        "[ONYX] Found labeled graphics memory arena range for window with view bit {} with no context "
+                        "[ONYX][RENDERER] Found labeled graphics memory arena range for window with view bit {} with "
+                        "no context "
                         "ranges targetting said view",
                         viewBit);
             if (size != 0)
@@ -769,23 +799,25 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
     collectDrawInfo(Geometry_StaticMesh);
 
     if (batches == 0)
-        return;
+        return Result<>::Ok();
 
     for (const Detail::CameraInfo<D> &camInfo : camInfos)
     {
         setCameraViewport<D>(p_GraphicsCommand, camInfo);
         for (u32 pass = 0; pass < StencilPass_Count; ++pass)
         {
-            DescriptorSet &set =
+            const auto result =
                 Descriptors::FindSuitableDescriptorSet(rdata.Arenas[Geometry_StaticMesh].Graphics.Buffer);
+            TKIT_RETURN_ON_ERROR(result);
+            DescriptorSet *set = result.GetValue();
 
             rdata.Pipelines[pass][Geometry_StaticMesh].Bind(p_GraphicsCommand);
             BindStaticMeshes<D>(p_GraphicsCommand);
             pushConstantData(p_GraphicsCommand, camInfo);
 
-            VKit::DescriptorSet::Bind(device, p_GraphicsCommand, set.Set, VK_PIPELINE_BIND_POINT_GRAPHICS,
+            VKit::DescriptorSet::Bind(device, p_GraphicsCommand, set->Set, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                       Pipelines::GetGraphicsPipelineLayout(Shading_Unlit));
-            set.MarkInUse(p_Graphics, p_GraphicsFlightValue);
+            set->MarkInUse(p_Graphics, p_GraphicsFlightValue);
 
             const u32 bstart = Assets::GetBatchStart(Geometry_StaticMesh);
             const u32 bend = Assets::GetBatchEnd(Geometry_StaticMesh);
@@ -797,9 +829,10 @@ static void render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsComm
                 }
         }
     }
+    return Result<>::Ok();
 }
 
-RenderSubmitInfo Render(VKit::Queue *p_Graphics, const VkCommandBuffer p_Command, const Window *p_Window)
+Result<RenderSubmitInfo> Render(VKit::Queue *p_Graphics, const VkCommandBuffer p_Command, const Window *p_Window)
 {
     RenderSubmitInfo submitInfo{};
     submitInfo.Command = p_Command;
@@ -813,8 +846,10 @@ RenderSubmitInfo Render(VKit::Queue *p_Graphics, const VkCommandBuffer p_Command
         maxSyncPoints += arena.Graphics.MemoryRanges.GetSize();
     syncPoints.Reserve(maxSyncPoints);
 
-    render<D2>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints);
-    render<D3>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints);
+    auto result = render<D2>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints);
+    TKIT_RETURN_ON_ERROR(result);
+    result = render<D3>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints);
+    TKIT_RETURN_ON_ERROR(result);
 
     VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
     rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
@@ -852,7 +887,7 @@ RenderSubmitInfo Render(VKit::Queue *p_Graphics, const VkCommandBuffer p_Command
     return submitInfo;
 }
 
-void SubmitRender(VKit::Queue *p_Graphics, CommandPool &p_Pool, const TKit::Span<const RenderSubmitInfo> p_Info)
+Result<> SubmitRender(VKit::Queue *p_Graphics, CommandPool *p_Pool, const TKit::Span<const RenderSubmitInfo> p_Info)
 {
     TKit::StackArray<VkSubmitInfo2KHR> submits{};
     submits.Reserve(p_Info.GetSize());
@@ -863,7 +898,8 @@ void SubmitRender(VKit::Queue *p_Graphics, CommandPool &p_Pool, const TKit::Span
     u64 maxFlight = 0;
     for (const RenderSubmitInfo &info : p_Info)
     {
-        TKIT_ASSERT(info.Command, "[ONYX] A submission must have a valid graphics command buffer to be submitted");
+        TKIT_ASSERT(info.Command,
+                    "[ONYX][RENDERER] A submission must have a valid graphics command buffer to be submitted");
         if (info.InFlightValue > maxFlight)
             maxFlight = info.InFlightValue;
 
@@ -890,8 +926,8 @@ void SubmitRender(VKit::Queue *p_Graphics, CommandPool &p_Pool, const TKit::Span
         sinfo.flags = 0;
     }
 
-    p_Pool.MarkInUse(p_Graphics, maxFlight);
-    VKIT_CHECK_EXPRESSION(p_Graphics->Submit2(submits));
+    p_Pool->MarkInUse(p_Graphics, maxFlight);
+    return p_Graphics->Submit2(submits);
 }
 
 // --when initializing:
@@ -943,8 +979,9 @@ template <Dimension D> void coalesce()
         if (tmergeRange.Size != 0)
             tranges.Append(tmergeRange);
         tarena.MemoryRanges = tranges;
-        TKIT_ASSERT(!tranges.IsEmpty(),
-                    "[ONYX] All memory ranges for the transfer arena have been removed after coalesce operation!");
+        TKIT_ASSERT(
+            !tranges.IsEmpty(),
+            "[ONYX][RENDERER] All memory ranges for the transfer arena have been removed after coalesce operation!");
         GraphicsArena &garena = arena.Graphics;
         GraphicsMemoryRange gmergeRange{};
 
@@ -976,8 +1013,9 @@ template <Dimension D> void coalesce()
                     if (crange.ViewMask != 0 && crange.ContextIndex != TKIT_U32_MAX &&
                         !rdata.Contexts[crange.ContextIndex]->IsDirty(crange.Generation))
                     {
-                        TKIT_ASSERT(grange.Size != 0, "[ONYX] Graphics memory range should not have reached a zero "
-                                                      "size if there are context ranges left");
+                        TKIT_ASSERT(grange.Size != 0,
+                                    "[ONYX][RENDERER] Graphics memory range should not have reached a zero "
+                                    "size if there are context ranges left");
                         if (gmergeRange.Size != 0)
                         {
                             granges.Append(gmergeRange);
@@ -1013,8 +1051,9 @@ template <Dimension D> void coalesce()
             granges.Append(gmergeRange);
         garena.MemoryRanges = granges;
 
-        TKIT_ASSERT(!granges.IsEmpty(),
-                    "[ONYX] All memory ranges for the graphics arena have been removed after coalesce operation");
+        TKIT_ASSERT(
+            !granges.IsEmpty(),
+            "[ONYX][RENDERER] All memory ranges for the graphics arena have been removed after coalesce operation");
     }
 }
 

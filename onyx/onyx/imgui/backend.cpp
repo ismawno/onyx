@@ -10,7 +10,7 @@ namespace Onyx
 {
 void InitializeImGui(Window *p_Window)
 {
-    TKIT_CHECK_RETURNS(ImGui_ImplGlfw_InitForVulkan(p_Window->GetWindowHandle(), true), true,
+    TKIT_CHECK_RETURNS(ImGui_ImplGlfw_InitForVulkan(p_Window->GetHandle(), true), true,
                        "[ONYX] Failed to initialize ImGui GLFW for window '{}'", p_Window->GetName());
 
     const VKit::Instance &instance = Core::GetInstance();
@@ -20,7 +20,8 @@ void InitializeImGui(Window *p_Window)
     TKIT_LOG_WARNING_IF(
         (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) &&
             instance.GetInfo().Flags & VKit::InstanceFlag_HasValidationLayers,
-        "[ONYX] Vulkan validation layers have become stricter regarding semaphore and fence usage when submitting to "
+        "[ONYX][IMGUI] Vulkan validation layers have become stricter regarding semaphore and fence usage when "
+        "submitting to "
         "Execution. ImGui may not have caught up to this and may trigger validation errors when the "
         "ImGuiConfigFlags_ViewportsEnable flag is set. If this is the case, either disable the flag or the vulkan "
         "validation layers. If the application runs well, you may safely ignore this warning");
@@ -76,7 +77,7 @@ void RenderImGuiWindows()
 
 void ShutdownImGui()
 {
-    Core::DeviceWaitIdle();
+    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyPlatformWindows();

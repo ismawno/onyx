@@ -8,7 +8,6 @@ set(SOURCES
     onyx/rendering/context.cpp
     onyx/rendering/renderer.cpp
     onyx/execution/execution.cpp
-    onyx/execution/command_pool.cpp
     onyx/resource/resources.cpp
     onyx/asset/assets.cpp
     onyx/state/pipelines.cpp

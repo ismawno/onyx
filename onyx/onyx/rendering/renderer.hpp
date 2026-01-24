@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/dimension.hpp"
+#include "onyx/core/core.hpp"
 #include "onyx/asset/mesh.hpp"
 #include "onyx/execution/command_pool.hpp"
 #include "vkit/execution/queue.hpp"
@@ -13,7 +13,7 @@ template <Dimension D> class RenderContext;
 
 namespace Onyx::Renderer
 {
-void Initialize();
+ONYX_NO_DISCARD Result<> Initialize();
 void Terminate();
 
 VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo();
@@ -43,13 +43,16 @@ struct RenderSubmitInfo
     TKit::TierArray<VkSemaphoreSubmitInfoKHR> WaitSemaphores{};
 };
 
-TransferSubmitInfo Transfer(VKit::Queue *p_Transfer, VkCommandBuffer p_Command);
-void SubmitTransfer(VKit::Queue *p_Transfer, CommandPool &p_Pool, TKit::Span<const TransferSubmitInfo> p_Info);
+ONYX_NO_DISCARD Result<TransferSubmitInfo> Transfer(VKit::Queue *p_Transfer, VkCommandBuffer p_Command);
+ONYX_NO_DISCARD Result<> SubmitTransfer(VKit::Queue *p_Transfer, CommandPool *p_Pool,
+                                        TKit::Span<const TransferSubmitInfo> p_Info);
 
 void ApplyAcquireBarriers(VkCommandBuffer p_GraphicsCommand);
 
-RenderSubmitInfo Render(VKit::Queue *p_Graphics, VkCommandBuffer p_Command, const Window *p_Window);
-void SubmitRender(VKit::Queue *p_Graphics, CommandPool &p_Pool, TKit::Span<const RenderSubmitInfo> p_Info);
+ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *p_Graphics, VkCommandBuffer p_Command,
+                                                const Window *p_Window);
+ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *p_Graphics, CommandPool *p_Pool,
+                                      TKit::Span<const RenderSubmitInfo> p_Info);
 
 void Coalesce();
 
