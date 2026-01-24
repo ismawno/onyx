@@ -3,7 +3,6 @@
 #include "onyx/app/input.hpp"
 #include "onyx/core/core.hpp"
 #include "tkit/profiling/macros.hpp"
-#include "tkit/utils/debug.hpp"
 #include "onyx/core/glfw.hpp"
 
 namespace Onyx
