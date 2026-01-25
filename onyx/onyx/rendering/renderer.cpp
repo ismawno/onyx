@@ -583,7 +583,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
 
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
     {
-        // processBatches(pass, Geometry_Circle);
+        TKIT_RETURN_IF_FAILED(processBatches(pass, Geometry_Circle));
         TKIT_RETURN_IF_FAILED(processBatches(pass, Geometry_StaticMesh));
     }
 
@@ -833,38 +833,56 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
         }
     };
 
-    // collectDrawInfo(Geometry_Circle);
+    collectDrawInfo(Geometry_Circle);
     collectDrawInfo(Geometry_StaticMesh);
 
     if (batches == 0)
         return Result<>::Ok();
 
+    const auto table = Core::GetDeviceTable();
     for (const Detail::CameraInfo<D> &camInfo : camInfos)
     {
         setCameraViewport<D>(graphicsCommand, camInfo);
         for (u32 pass = 0; pass < StencilPass_Count; ++pass)
         {
-            const auto result =
-                Descriptors::FindSuitableDescriptorSet(rdata.Arenas[Geometry_StaticMesh].Graphics.Buffer);
-            TKIT_RETURN_ON_ERROR(result);
-            DescriptorSet *set = result.GetValue();
+            {
+                const auto result =
+                    Descriptors::FindSuitableDescriptorSet(rdata.Arenas[Geometry_StaticMesh].Graphics.Buffer);
+                TKIT_RETURN_ON_ERROR(result);
+                DescriptorSet *set = result.GetValue();
 
-            rdata.Pipelines[pass][Geometry_StaticMesh].Bind(graphicsCommand);
-            BindStaticMeshes<D>(graphicsCommand);
-            pushConstantData(graphicsCommand, camInfo);
+                rdata.Pipelines[pass][Geometry_StaticMesh].Bind(graphicsCommand);
+                BindStaticMeshes<D>(graphicsCommand);
+                pushConstantData(graphicsCommand, camInfo);
 
-            VKit::DescriptorSet::Bind(device, graphicsCommand, set->Set, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                      Pipelines::GetGraphicsPipelineLayout(Shading_Unlit));
-            set->MarkInUse(graphics, graphicsFlightValue);
+                VKit::DescriptorSet::Bind(device, graphicsCommand, set->Set, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                          Pipelines::GetGraphicsPipelineLayout(Shading_Unlit));
+                set->MarkInUse(graphics, graphicsFlightValue);
 
-            const u32 bstart = Assets::GetBatchStart(Geometry_StaticMesh);
-            const u32 bend = Assets::GetBatchEnd(Geometry_StaticMesh);
-            for (u32 batch = bstart; batch < bend; ++batch)
-                for (const InstanceDrawInfo &draw : drawInfo[pass][batch])
-                {
-                    const Mesh mesh = Assets::GetStaticMeshIndexFromBatch(batch);
-                    DrawStaticMesh<D>(graphicsCommand, mesh, draw.FirstInstance, draw.InstanceCount);
-                }
+                const u32 bstart = Assets::GetBatchStart(Geometry_StaticMesh);
+                const u32 bend = Assets::GetBatchEnd(Geometry_StaticMesh);
+                for (u32 batch = bstart; batch < bend; ++batch)
+                    for (const InstanceDrawInfo &draw : drawInfo[pass][batch])
+                    {
+                        const Mesh mesh = Assets::GetStaticMeshIndexFromBatch(batch);
+                        DrawStaticMesh<D>(graphicsCommand, mesh, draw.FirstInstance, draw.InstanceCount);
+                    }
+            }
+            {
+                const auto result =
+                    Descriptors::FindSuitableDescriptorSet(rdata.Arenas[Geometry_Circle].Graphics.Buffer);
+                TKIT_RETURN_ON_ERROR(result);
+                DescriptorSet *set = result.GetValue();
+                rdata.Pipelines[pass][Geometry_Circle].Bind(graphicsCommand);
+                pushConstantData(graphicsCommand, camInfo);
+
+                VKit::DescriptorSet::Bind(device, graphicsCommand, set->Set, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                          Pipelines::GetGraphicsPipelineLayout(Shading_Unlit));
+                set->MarkInUse(graphics, graphicsFlightValue);
+
+                for (const InstanceDrawInfo &draw : drawInfo[pass][Assets::GetCircleBatchIndex()])
+                    table->CmdDraw(graphicsCommand, 6, draw.InstanceCount, 0, draw.FirstInstance);
+            }
         }
     }
     return Result<>::Ok();

@@ -24,7 +24,10 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
     {
         Input::PollEvents();
         ctx->Flush();
+        ctx->Fill(Color{255u, 255u, 0u});
         ctx->StaticMesh(mesh);
+        ctx->TranslateX(0.5f);
+        ctx->Circle();
 
         ONYX_CHECK_EXPRESSION(Execution::UpdateCompletedQueueTimelines());
         // Renderer::Coalesce();
@@ -89,7 +92,7 @@ int main()
     const Mesh mesh = Assets::AddMesh(data);
     ONYX_CHECK_EXPRESSION(Assets::Upload<D2>());
 
-    WindowExample(mesh);
+    WindowExample(mesh, 2);
 
     Core::Terminate();
 }
