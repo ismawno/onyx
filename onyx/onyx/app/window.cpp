@@ -150,11 +150,6 @@ Result<Window *> Window::Create(const Specs &specs)
     VKit::SwapChain &schain = sresult.GetValue();
     dqueue.Push([&schain] { schain.Destroy(); });
 
-    auto iresult = createImageData(schain);
-    TKIT_RETURN_ON_ERROR(iresult);
-    TKit::TierArray<ImageData> &imageData = iresult.GetValue();
-    dqueue.Push([&imageData] { destroyImageData(imageData); });
-
     auto syresult = Execution::CreateSyncData(schain.GetImageCount());
     TKIT_RETURN_ON_ERROR(syresult);
     TKit::TierArray<Execution::SyncData> &syncData = syresult.GetValue();
@@ -167,12 +162,19 @@ Result<Window *> Window::Create(const Specs &specs)
 
     TKit::TierAllocator *alloc = TKit::Memory::GetTier();
     Window *window = alloc->Create<Window>();
+
     window->m_Window = handle;
     window->m_Surface = surface;
     window->m_SwapChain = schain;
     window->m_Position = pos;
     window->m_Dimensions = specs.Dimensions;
+
+    auto iresult = createImageData(window->m_SwapChain);
+    TKIT_RETURN_ON_ERROR(iresult);
+    TKit::TierArray<ImageData> &imageData = iresult.GetValue();
+    dqueue.Push([&imageData] { destroyImageData(imageData); });
     window->m_Images = std::move(imageData);
+
     window->m_SyncData = std::move(syncData);
     window->m_ViewBit = allocateViewBit();
     window->m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);

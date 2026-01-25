@@ -4,8 +4,82 @@
 #include "onyx/asset/assets.hpp"
 #include "onyx/rendering/context.hpp"
 #include "onyx/core/core.hpp"
+#include "tkit/container/stack_array.hpp"
 
 using namespace Onyx;
+
+void WindowExample(const Mesh mesh, const u32 nwidows = 1)
+{
+    RenderContext<D2> *ctx = Renderer::CreateContext<D2>();
+    TKit::StackArray<Window *> windows{};
+    windows.Reserve(nwidows);
+    for (u32 i = 0; i < nwidows; ++i)
+    {
+        Window *win = windows.Append(ONYX_CHECK_EXPRESSION(Window::Create()));
+        ctx->AddTarget(win);
+        win->CreateCamera<D2>();
+    }
+
+    while (!windows.IsEmpty())
+    {
+        Input::PollEvents();
+        ctx->Flush();
+        ctx->StaticMesh(mesh);
+
+        ONYX_CHECK_EXPRESSION(Execution::UpdateCompletedQueueTimelines());
+        // Renderer::Coalesce();
+
+        VKit::Queue *tqueue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
+        VKit::Queue *gqueue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
+
+        CommandPool *tpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Transfer));
+        CommandPool *gpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Graphics));
+
+        const VkCommandBuffer tcmd = ONYX_CHECK_EXPRESSION(tpool->Pool.Allocate());
+
+        ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(tcmd));
+        const Renderer::TransferSubmitInfo tsinfo = ONYX_CHECK_EXPRESSION(Renderer::Transfer(tqueue, tcmd));
+        ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(tcmd));
+
+        if (tsinfo)
+            ONYX_CHECK_EXPRESSION(Renderer::SubmitTransfer(tqueue, tpool, tsinfo));
+
+        TKit::StackArray<Renderer::RenderSubmitInfo> rinfos{};
+        rinfos.Reserve(windows.GetSize());
+        u64 acquireMask = 0;
+        for (Window *win : windows)
+            if (ONYX_CHECK_EXPRESSION(win->AcquireNextImage()))
+            {
+                acquireMask |= win->GetViewBit();
+                const VkCommandBuffer gcmd = ONYX_CHECK_EXPRESSION(gpool->Pool.Allocate());
+                ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(gcmd));
+                Renderer::ApplyAcquireBarriers(gcmd);
+
+                win->BeginRendering(gcmd);
+                rinfos.Append(ONYX_CHECK_EXPRESSION(Renderer::Render(gqueue, gcmd, win)));
+                win->EndRendering(gcmd);
+
+                ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(gcmd));
+            }
+
+        if (!rinfos.IsEmpty())
+            ONYX_CHECK_EXPRESSION(Renderer::SubmitRender(gqueue, gpool, rinfos));
+
+        u32 index = 0;
+        for (Window *win : windows)
+            if (win->GetViewBit() & acquireMask)
+                ONYX_CHECK_EXPRESSION(win->Present(rinfos[index++]));
+
+        Execution::RevokeUnsubmittedQueueTimelines();
+        for (u32 i = windows.GetSize() - 1; i < windows.GetSize(); --i)
+            if (windows[i]->ShouldClose())
+            {
+                Window::Destroy(windows[i]);
+                windows.RemoveUnordered(windows.begin() + i);
+            }
+    }
+    Renderer::DestroyContext(ctx);
+}
 
 int main()
 {
@@ -15,55 +89,7 @@ int main()
     const Mesh mesh = Assets::AddMesh(data);
     ONYX_CHECK_EXPRESSION(Assets::Upload<D2>());
 
-    {
-        Window *window = ONYX_CHECK_EXPRESSION(Window::Create());
+    WindowExample(mesh);
 
-        RenderContext<D2> *ctx = Renderer::CreateContext<D2>();
-        ctx->AddTarget(window);
-        window->CreateCamera<D2>();
-
-        while (!window->ShouldClose())
-        {
-            Input::PollEvents();
-            if (ONYX_CHECK_EXPRESSION(window->AcquireNextImage()))
-            {
-                ctx->Flush();
-                ctx->StaticMesh(mesh);
-
-                ONYX_CHECK_EXPRESSION(Execution::UpdateCompletedQueueTimelines());
-                Renderer::Coalesce();
-
-                VKit::Queue *tqueue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
-                VKit::Queue *gqueue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
-
-                CommandPool *tpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Transfer));
-                CommandPool *gpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Graphics));
-
-                const VkCommandBuffer tcmd = ONYX_CHECK_EXPRESSION(tpool->Pool.Allocate());
-                const VkCommandBuffer gcmd = ONYX_CHECK_EXPRESSION(gpool->Pool.Allocate());
-
-                ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(tcmd));
-                const Renderer::TransferSubmitInfo tsinfo = ONYX_CHECK_EXPRESSION(Renderer::Transfer(tqueue, tcmd));
-                ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(tcmd));
-
-                if (tsinfo)
-                    ONYX_CHECK_EXPRESSION(Renderer::SubmitTransfer(tqueue, tpool, tsinfo));
-
-                ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(gcmd));
-                Renderer::ApplyAcquireBarriers(gcmd);
-
-                window->BeginRendering(gcmd);
-                const Renderer::RenderSubmitInfo rsinfo = ONYX_CHECK_EXPRESSION(Renderer::Render(gqueue, gcmd, window));
-                window->EndRendering(gcmd);
-
-                ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(gcmd));
-                ONYX_CHECK_EXPRESSION(Renderer::SubmitRender(gqueue, gpool, rsinfo));
-                ONYX_CHECK_EXPRESSION(window->Present(rsinfo));
-            }
-            Execution::RevokeUnsubmittedQueueTimelines();
-        }
-        Renderer::DestroyContext(ctx);
-        Window::Destroy(window);
-    }
     Core::Terminate();
 }

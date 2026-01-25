@@ -925,6 +925,7 @@ Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer com
 
 Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span<const RenderSubmitInfo> info)
 {
+    TKIT_ASSERT(!info.IsEmpty(), "[ONYX][RENDERER] Must at least provide one submission");
     TKit::StackArray<VkSubmitInfo2KHR> submits{};
     submits.Reserve(info.GetSize());
 
