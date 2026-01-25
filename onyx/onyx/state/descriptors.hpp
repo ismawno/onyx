@@ -11,16 +11,16 @@ struct Specs
     u32 MaxSets = 32;
     u32 PoolSize = 1024;
 };
-ONYX_NO_DISCARD Result<> Initialize(const Specs &p_Specs);
+ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
 const VKit::DescriptorPool &GetDescriptorPool();
 const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout();
 const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout();
 
-ONYX_NO_DISCARD Result<VkDescriptorSet> WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info,
-                                                                        VkDescriptorSet p_OldSet = VK_NULL_HANDLE);
+ONYX_NO_DISCARD Result<VkDescriptorSet> WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &info,
+                                                                        VkDescriptorSet oldSet = VK_NULL_HANDLE);
 
-ONYX_NO_DISCARD Result<DescriptorSet *> FindSuitableDescriptorSet(const VKit::DeviceBuffer &p_Buffer);
+ONYX_NO_DISCARD Result<DescriptorSet *> FindSuitableDescriptorSet(const VKit::DeviceBuffer &buffer);
 
 } // namespace Onyx::Descriptors

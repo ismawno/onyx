@@ -8,31 +8,31 @@
 
 namespace Onyx::Resources
 {
-ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(VKit::DeviceBufferFlags p_Flags, VkDeviceSize p_InstanceSize,
-                                                        VkDeviceSize p_Capacity = ONYX_BUFFER_INITIAL_CAPACITY);
+ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(VKit::DeviceBufferFlags flags, VkDeviceSize instanceSize,
+                                                        VkDeviceSize capacity = ONYX_BUFFER_INITIAL_CAPACITY);
 
 template <typename T>
-ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags p_Flags,
-                                                        const VkDeviceSize p_Capacity = ONYX_BUFFER_INITIAL_CAPACITY)
+ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags,
+                                                        const VkDeviceSize capacity = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    return CreateBuffer(p_Flags, sizeof(T), p_Capacity);
+    return CreateBuffer(flags, sizeof(T), capacity);
 }
 
 template <typename T>
-ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags p_Flags,
-                                                        const TKit::DynamicArray<T> &p_Data)
+ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags,
+                                                        const TKit::DynamicArray<T> &data)
 {
-    const auto bresult = CreateBuffer(p_Flags, sizeof(T), p_Data.GetSize());
+    const auto bresult = CreateBuffer(flags, sizeof(T), data.GetSize());
     TKIT_RETURN_ON_ERROR(bresult);
     VKit::DeviceBuffer &buffer = bresult.GetValue();
 
     if (buffer.GetInfo().Flags & VKit::DeviceBufferFlag_HostVisible)
-        buffer.Write(p_Data.GetData(), {.size = p_Data.GetSize() * sizeof(T)});
+        buffer.Write(data.GetData(), {.size = data.GetSize() * sizeof(T)});
     else
     {
         const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
         const auto uresult = buffer.UploadFromHost(Execution::GetTransientTransferPool(), queue->GetHandle(),
-                                                   p_Data.GetData(), {.size = p_Data.GetSize() * sizeof(T)});
+                                                   data.GetData(), {.size = data.GetSize() * sizeof(T)});
         if (!uresult)
         {
             buffer.Destroy();
@@ -43,19 +43,19 @@ ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBuffer
 }
 
 template <typename T>
-ONYX_NO_DISCARD Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &p_Buffer, const VkDeviceSize p_Instances,
-                                                const VKit::DeviceBufferFlags p_Flags, const f32 p_Factor = 1.5f)
+ONYX_NO_DISCARD Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const VkDeviceSize instances,
+                                                const VKit::DeviceBufferFlags flags, const f32 factor = 1.5f)
 {
-    const VkDeviceSize inst = p_Buffer.GetInfo().InstanceCount;
-    if (p_Buffer && p_Instances <= inst)
+    const VkDeviceSize inst = buffer.GetInfo().InstanceCount;
+    if (buffer && instances <= inst)
         return false;
 
-    const VkDeviceSize ninst = static_cast<VkDeviceSize>(p_Factor * static_cast<f32>(p_Instances));
-    const auto result = CreateBuffer<T>(p_Flags, ninst);
+    const VkDeviceSize ninst = static_cast<VkDeviceSize>(factor * static_cast<f32>(instances));
+    const auto result = CreateBuffer<T>(flags, ninst);
     TKIT_RETURN_ON_ERROR(result);
 
-    p_Buffer.Destroy();
-    p_Buffer = result.GetValue();
+    buffer.Destroy();
+    buffer = result.GetValue();
     return true;
 }
 

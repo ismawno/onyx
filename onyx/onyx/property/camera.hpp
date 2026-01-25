@@ -83,7 +83,7 @@ struct ScreenViewport
     f32v2 Max{1.f};
     f32v2 DepthBounds{0.f, 1.f};
 
-    VkViewport AsVulkanViewport(const VkExtent2D &p_Extent) const;
+    VkViewport AsVulkanViewport(const VkExtent2D &extent) const;
 };
 
 /**
@@ -99,7 +99,7 @@ struct ScreenScissor
     f32v2 Min{-1.f};
     f32v2 Max{1.f};
 
-    VkRect2D AsVulkanScissor(const VkExtent2D &p_Extent, const ScreenViewport &p_Viewport) const;
+    VkRect2D AsVulkanScissor(const VkExtent2D &extent, const ScreenViewport &viewport) const;
 };
 
 template <Dimension D> struct CameraControls;
@@ -142,27 +142,27 @@ template <Dimension D> class ICamera
   public:
     ICamera() = default;
 
-    f32v2 ScreenToViewport(const f32v2 &p_ScreenPos) const;
-    f32v<D> ViewportToWorld(f32v<D> p_ViewportPos) const;
-    f32v2 WorldToViewport(const f32v<D> &p_WorldPos) const;
+    f32v2 ScreenToViewport(const f32v2 &screenPos) const;
+    f32v<D> ViewportToWorld(f32v<D> viewportPos) const;
+    f32v2 WorldToViewport(const f32v<D> &worldPos) const;
 
-    f32v2 ViewportToScreen(const f32v2 &p_ViewportPos) const;
-    f32v<D> ScreenToWorld(const f32v<D> &p_ScreenPos) const;
-    f32v2 WorldToScreen(const f32v<D> &p_WorldPos) const;
+    f32v2 ViewportToScreen(const f32v2 &viewportPos) const;
+    f32v<D> ScreenToWorld(const f32v<D> &screenPos) const;
+    f32v2 WorldToScreen(const f32v<D> &worldPos) const;
 
     f32v2 GetViewportMousePosition() const;
 
-    void ControlMovementWithUserInput(const CameraControls<D> &p_Controls);
-    void ControlMovementWithUserInput(TKit::Timespan p_DeltaTime);
+    void ControlMovementWithUserInput(const CameraControls<D> &controls);
+    void ControlMovementWithUserInput(TKit::Timespan deltaTime);
 
     /**
      * @brief Control the view's scale of the camera with user input.
      *
      * Typically used in scroll events. Not recommended to use in 3D, specially with a perspective projection.
      *
-     * @param p_ScaleStep The step size for scaling.
+     * @param scaleStep The step size for scaling.
      */
-    void ControlScrollWithUserInput(f32 p_ScaleStep);
+    void ControlScrollWithUserInput(f32 scaleStep);
 
     const ProjectionViewData<D> &GetProjectionViewData() const
     {
@@ -177,9 +177,9 @@ template <Dimension D> class ICamera
         return m_Scissor;
     }
 
-    void SetView(const Onyx::Transform<D> &p_View);
-    void SetViewport(const ScreenViewport &p_Viewport);
-    void SetScissor(const ScreenScissor &p_Scissor);
+    void SetView(const Onyx::Transform<D> &view);
+    void SetViewport(const ScreenViewport &viewport);
+    void SetScissor(const ScreenScissor &scissor);
 
     CameraInfo<D> CreateCameraInfo() const;
 
@@ -215,7 +215,7 @@ template <> class Camera<D2> final : public Detail::ICamera<D2>
 
     f32v2 GetWorldMousePosition() const;
 
-    void SetSize(f32 p_Size);
+    void SetSize(f32 size);
 };
 
 template <> class Camera<D3> final : public Detail::ICamera<D3>
@@ -225,13 +225,13 @@ template <> class Camera<D3> final : public Detail::ICamera<D3>
   public:
     using ICamera<D3>::ICamera;
 
-    f32v3 GetWorldMousePosition(f32 p_Depth = 0.5f) const;
+    f32v3 GetWorldMousePosition(f32 depth = 0.5f) const;
     f32v3 GetViewLookDirection() const;
     f32v3 GetMouseRayCastDirection() const;
 
-    void SetProjection(const f32m4 &p_Projection);
-    void SetPerspectiveProjection(f32 p_FieldOfView = Math::Radians(75.f), f32 p_Near = 0.1f, f32 p_Far = 100.f);
+    void SetProjection(const f32m4 &projection);
+    void SetPerspectiveProjection(f32 fieldOfView = Math::Radians(75.f), f32 near = 0.1f, f32 far = 100.f);
     void SetOrthographicProjection();
-    void SetOrthographicProjection(f32 p_Size);
+    void SetOrthographicProjection(f32 size);
 };
 } // namespace Onyx

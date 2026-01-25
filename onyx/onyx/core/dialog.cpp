@@ -5,9 +5,9 @@
 namespace Onyx::Dialog
 {
 
-Status toStatus(const nfdresult_t p_Result)
+Status toStatus(const nfdresult_t result)
 {
-    switch (p_Result)
+    switch (result)
     {
     case NFD_CANCEL:
         return Cancel;
@@ -20,26 +20,26 @@ Status toStatus(const nfdresult_t p_Result)
     }
 }
 
-Result<Path> OpenFolder(const char *p_Default)
+Result<Path> OpenFolder(const char *fdefault)
 {
     char *path;
-    const Status result = toStatus(NFD_PickFolder(p_Default, &path));
+    const Status result = toStatus(NFD_PickFolder(fdefault, &path));
     if (result == Success)
         return Result<Path>::Ok(path);
     return Result<Path>::Error(result);
 }
-Result<Path> OpenSingle(const Options &p_Options)
+Result<Path> OpenSingle(const Options &options)
 {
     char *path;
-    const Status result = toStatus(NFD_OpenDialog(p_Options.Filter, p_Options.Default, &path));
+    const Status result = toStatus(NFD_OpenDialog(options.Filter, options.Default, &path));
     if (result == Success)
         return Result<Path>::Ok(path);
     return Result<Path>::Error(result);
 }
-Result<Paths> OpenMultiple(const Options &p_Options)
+Result<Paths> OpenMultiple(const Options &options)
 {
     nfdpathset_t set;
-    const Status result = toStatus(NFD_OpenDialogMultiple(p_Options.Filter, p_Options.Default, &set));
+    const Status result = toStatus(NFD_OpenDialogMultiple(options.Filter, options.Default, &set));
     if (result == Success)
     {
         Paths paths;
@@ -52,10 +52,10 @@ Result<Paths> OpenMultiple(const Options &p_Options)
     return Result<Paths>::Error(result);
 }
 
-Result<Path> Save(const Options &p_Options)
+Result<Path> Save(const Options &options)
 {
     char *path;
-    const Status result = toStatus(NFD_SaveDialog(p_Options.Filter, p_Options.Default, &path));
+    const Status result = toStatus(NFD_SaveDialog(options.Filter, options.Default, &path));
     if (result == Success)
         return Result<Path>::Ok(path);
     return Result<Path>::Error(result);

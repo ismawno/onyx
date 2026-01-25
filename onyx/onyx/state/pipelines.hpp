@@ -9,14 +9,14 @@ namespace Onyx::Pipelines
 ONYX_NO_DISCARD Result<> Initialize();
 void Terminate();
 
-VkPipelineLayout GetGraphicsPipelineLayout(Shading p_Shading);
+VkPipelineLayout GetGraphicsPipelineLayout(Shading shading);
 
 template <Dimension D>
-ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateCirclePipeline(
-    StencilPass p_Pass, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateCirclePipeline(StencilPass pass,
+                                                                    const VkPipelineRenderingCreateInfoKHR &renderInfo);
 
 template <Dimension D>
 ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(
-    StencilPass p_Pass, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
 
 } // namespace Onyx::Pipelines

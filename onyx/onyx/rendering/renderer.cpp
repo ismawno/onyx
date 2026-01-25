@@ -15,9 +15,9 @@
 namespace Onyx::Renderer
 {
 using namespace Detail;
-static bool inUse(const VKit::Queue *p_Queue, const u64 p_InFlightValue)
+static bool inUse(const VKit::Queue *queue, const u64 inFlightValue)
 {
-    return p_Queue && p_Queue->GetCompletedTimeline() < p_InFlightValue;
+    return queue && queue->GetCompletedTimeline() < inFlightValue;
 }
 struct ContextRange
 {
@@ -105,9 +105,9 @@ template <Dimension D> static RendererData<D> &getRendererData()
         return s_RendererData3;
 }
 
-template <Dimension D> static VkDeviceSize getInstanceSize(const GeometryType p_Geo)
+template <Dimension D> static VkDeviceSize getInstanceSize(const GeometryType geo)
 {
-    switch (p_Geo)
+    switch (geo)
     {
     case Geometry_Circle:
         return sizeof(CircleInstanceData<D>);
@@ -206,12 +206,12 @@ template <Dimension D> RenderContext<D> *CreateContext()
     return ctx;
 }
 
-template <Dimension D> void DestroyContext(RenderContext<D> *p_Context)
+template <Dimension D> void DestroyContext(RenderContext<D> *context)
 {
     RendererData<D> &rdata = getRendererData<D>();
     u32 index = TKIT_U32_MAX;
     for (u32 i = 0; i < rdata.Contexts.GetSize(); ++i)
-        if (rdata.Contexts[i] == p_Context)
+        if (rdata.Contexts[i] == context)
         {
             index = i;
             break;
@@ -226,16 +226,16 @@ template <Dimension D> void DestroyContext(RenderContext<D> *p_Context)
                     crange.ContextIndex = TKIT_U32_MAX;
 
     TKit::TierAllocator *alloc = TKit::Memory::GetTier();
-    alloc->Destroy(p_Context);
+    alloc->Destroy(context);
     rdata.Contexts.RemoveUnordered(rdata.Contexts.begin() + index);
 }
 
-template <Dimension D> static void clearWindow(const Window *p_Window)
+template <Dimension D> static void clearWindow(const Window *window)
 {
     RendererData<D> &rdata = getRendererData<D>();
-    const u64 viewBit = p_Window->GetViewBit();
+    const u64 viewBit = window->GetViewBit();
     for (RenderContext<D> *ctx : rdata.Contexts)
-        ctx->RemoveTarget(p_Window);
+        ctx->RemoveTarget(window);
 
     for (Arena &arena : rdata.Arenas)
         for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
@@ -246,33 +246,33 @@ template <Dimension D> static void clearWindow(const Window *p_Window)
         }
 }
 
-void ClearWindow(const Window *p_Window)
+void ClearWindow(const Window *window)
 {
-    clearWindow<D2>(p_Window);
-    clearWindow<D3>(p_Window);
+    clearWindow<D2>(window);
+    clearWindow<D3>(window);
 }
 
-ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferArena &p_Arena,
-                                                                       const VkDeviceSize p_RequiredMem)
+ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferArena &arena,
+                                                                       const VkDeviceSize requiredMem)
 {
-    auto &ranges = p_Arena.MemoryRanges;
+    auto &ranges = arena.MemoryRanges;
     TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
 
-    VKit::DeviceBuffer &buffer = p_Arena.Buffer;
+    VKit::DeviceBuffer &buffer = arena.Buffer;
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         TransferMemoryRange &range = ranges[i];
-        if (range.Size >= p_RequiredMem && !range.InUse())
+        if (range.Size >= requiredMem && !range.InUse())
         {
-            if (range.Size == p_RequiredMem)
+            if (range.Size == requiredMem)
                 return &range;
 
             TransferMemoryRange child;
-            child.Size = p_RequiredMem;
+            child.Size = requiredMem;
             child.Offset = range.Offset;
 
-            range.Offset += p_RequiredMem;
-            range.Size -= p_RequiredMem;
+            range.Offset += requiredMem;
+            range.Size -= requiredMem;
 
             ranges.Insert(ranges.begin() + i, child);
             return &ranges[i];
@@ -294,12 +294,12 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
     TransferMemoryRange bigRange;
     bigRange.Transfer = nullptr;
     bigRange.TransferFlightValue = 0;
-    bigRange.Offset = size + p_RequiredMem;
-    bigRange.Size = size - p_RequiredMem;
+    bigRange.Offset = size + requiredMem;
+    bigRange.Size = size - requiredMem;
 
     TransferMemoryRange smallRange;
     smallRange.Offset = size;
-    smallRange.Size = p_RequiredMem;
+    smallRange.Size = requiredMem;
 
     ranges.Append(smallRange);
     ranges.Append(bigRange);
@@ -307,29 +307,29 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
     return &ranges[ranges.GetSize() - 2];
 }
 
-ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(GraphicsArena &p_Arena,
-                                                                       const VkDeviceSize p_RequiredMem)
+ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(GraphicsArena &arena,
+                                                                       const VkDeviceSize requiredMem)
 {
-    auto &ranges = p_Arena.MemoryRanges;
+    auto &ranges = arena.MemoryRanges;
     TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
 
-    VKit::DeviceBuffer &buffer = p_Arena.Buffer;
+    VKit::DeviceBuffer &buffer = arena.Buffer;
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         GraphicsMemoryRange &range = ranges[i];
         // when reaching here, all free device memory ranges must have been curated. non dirty contexts now have a
         // memory range for themselves, and free memory ranges must have a u32 max batch index
-        if (range.Size >= p_RequiredMem && range.ContextRanges.IsEmpty() && !range.InUse())
+        if (range.Size >= requiredMem && range.ContextRanges.IsEmpty() && !range.InUse())
         {
-            if (range.Size == p_RequiredMem)
+            if (range.Size == requiredMem)
                 return &range;
 
             GraphicsMemoryRange child;
-            child.Size = p_RequiredMem;
+            child.Size = requiredMem;
             child.Offset = range.Offset;
 
-            range.Offset += p_RequiredMem;
-            range.Size -= p_RequiredMem;
+            range.Offset += requiredMem;
+            range.Size -= requiredMem;
 
             ranges.Insert(ranges.begin() + i, child);
             return &ranges[i];
@@ -349,12 +349,12 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(GraphicsA
     buffer = bresult.GetValue();
 
     GraphicsMemoryRange bigRange{};
-    bigRange.Offset = size + p_RequiredMem;
-    bigRange.Size = size - p_RequiredMem;
+    bigRange.Offset = size + requiredMem;
+    bigRange.Size = size - requiredMem;
 
     GraphicsMemoryRange smallRange{};
     smallRange.Offset = size;
-    smallRange.Size = p_RequiredMem;
+    smallRange.Size = requiredMem;
 
     ranges.Append(smallRange);
     ranges.Append(bigRange);
@@ -362,8 +362,8 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(GraphicsA
     return &ranges[ranges.GetSize() - 2];
 }
 
-VkBufferMemoryBarrier2KHR createAcquireBarrier(const VkBuffer p_DeviceLocalBuffer, const VkDeviceSize p_Offset,
-                                               const VkDeviceSize p_Size)
+VkBufferMemoryBarrier2KHR createAcquireBarrier(const VkBuffer deviceLocalBuffer, const VkDeviceSize offset,
+                                               const VkDeviceSize size)
 {
     const u32 qsrc = Execution::GetFamilyIndex(VKit::Queue_Transfer);
     const u32 qdst = Execution::GetFamilyIndex(VKit::Queue_Graphics);
@@ -378,14 +378,14 @@ VkBufferMemoryBarrier2KHR createAcquireBarrier(const VkBuffer p_DeviceLocalBuffe
 
     barrier.srcQueueFamilyIndex = needsTransfer ? qsrc : VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = needsTransfer ? qdst : VK_QUEUE_FAMILY_IGNORED;
-    barrier.buffer = p_DeviceLocalBuffer;
-    barrier.offset = p_Offset;
-    barrier.size = p_Size;
+    barrier.buffer = deviceLocalBuffer;
+    barrier.offset = offset;
+    barrier.size = size;
 
     return barrier;
 }
-VkBufferMemoryBarrier2KHR createReleaseBarrier(const VkBuffer p_DeviceLocalBuffer, const VkDeviceSize p_Offset,
-                                               const VkDeviceSize p_Size)
+VkBufferMemoryBarrier2KHR createReleaseBarrier(const VkBuffer deviceLocalBuffer, const VkDeviceSize offset,
+                                               const VkDeviceSize size)
 {
     const u32 qsrc = Execution::GetFamilyIndex(VKit::Queue_Transfer);
     const u32 qdst = Execution::GetFamilyIndex(VKit::Queue_Graphics);
@@ -400,18 +400,17 @@ VkBufferMemoryBarrier2KHR createReleaseBarrier(const VkBuffer p_DeviceLocalBuffe
     barrier.dstStageMask = VK_PIPELINE_STAGE_2_NONE_KHR;
     barrier.srcQueueFamilyIndex = qsrc;
     barrier.dstQueueFamilyIndex = qdst;
-    barrier.buffer = p_DeviceLocalBuffer;
-    barrier.offset = p_Offset;
-    barrier.size = p_Size;
+    barrier.buffer = deviceLocalBuffer;
+    barrier.offset = offset;
+    barrier.size = size;
 
     return barrier;
 }
 
 template <Dimension D>
-ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command,
-                                         TransferSubmitInfo &p_Info,
-                                         TKit::TierArray<VkBufferMemoryBarrier2KHR> *p_Release,
-                                         const u64 p_TransferFlightValue)
+ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandBuffer command, TransferSubmitInfo &info,
+                                         TKit::TierArray<VkBufferMemoryBarrier2KHR> *release,
+                                         const u64 transferFlightValue)
 {
     struct ContextInfo
     {
@@ -449,12 +448,12 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkComman
 
     u32 sindex = 0;
 
-    const auto processBatches = [&](const u32 p_Pass, const GeometryType p_Geo) -> Result<> {
-        TransferArena &tarena = rdata.Arenas[p_Geo].Transfer;
-        GraphicsArena &garena = rdata.Arenas[p_Geo].Graphics;
+    const auto processBatches = [&](const u32 pass, const GeometryType geo) -> Result<> {
+        TransferArena &tarena = rdata.Arenas[geo].Transfer;
+        GraphicsArena &garena = rdata.Arenas[geo].Graphics;
 
-        const u32 bstart = Assets::GetBatchStart(p_Geo);
-        const u32 bend = Assets::GetBatchEnd(p_Geo);
+        const u32 bstart = Assets::GetBatchStart(geo);
+        const u32 bend = Assets::GetBatchEnd(geo);
 
         copies.Clear();
         for (u32 batch = bstart; batch < bend; ++batch)
@@ -465,7 +464,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkComman
             for (const ContextInfo &cinfo : dirtyContexts)
             {
                 const RenderContext<D> *ctx = cinfo.Context;
-                const auto &idata = ctx->GetInstanceData()[p_Pass][batch];
+                const auto &idata = ctx->GetInstanceData()[pass][batch];
                 if (idata.Instances == 0)
                     continue;
 
@@ -487,14 +486,14 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkComman
             const auto tresult = findTransferRange(tarena, requiredMem);
             TKIT_RETURN_ON_ERROR(tresult);
             TransferMemoryRange *trange = tresult.GetValue();
-            trange->Transfer = p_Transfer;
-            trange->TransferFlightValue = p_TransferFlightValue;
+            trange->Transfer = transfer;
+            trange->TransferFlightValue = transferFlightValue;
 
             for (const ContextRange &crange : contextRanges)
             {
                 const RenderContext<D> *ctx = rdata.Contexts[crange.ContextIndex];
 
-                const auto &idata = ctx->GetInstanceData()[p_Pass][batch];
+                const auto &idata = ctx->GetInstanceData()[pass][batch];
                 const auto copy = [&, crange, trange = *trange] {
                     tarena.Buffer.Write(
                         idata.Data.GetData(),
@@ -512,8 +511,8 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkComman
             grange->BatchIndex = batch;
             grange->ContextRanges = contextRanges;
             grange->ViewMask = viewMask;
-            grange->Pass = static_cast<StencilPass>(p_Pass);
-            grange->Transfer = p_Transfer;
+            grange->Pass = static_cast<StencilPass>(pass);
+            grange->Transfer = transfer;
             grange->Barrier = createAcquireBarrier(garena.Buffer, grange->Offset, requiredMem);
 
             VkBufferCopy2KHR &copy = copies.Append();
@@ -523,11 +522,11 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkComman
             copy.dstOffset = grange->Offset;
             copy.size = requiredMem;
 
-            if (p_Release)
-                p_Release->Append(createReleaseBarrier(garena.Buffer, grange->Offset, requiredMem));
+            if (release)
+                release->Append(createReleaseBarrier(garena.Buffer, grange->Offset, requiredMem));
         }
         if (!copies.IsEmpty())
-            garena.Buffer.CopyFromBuffer2(p_Command, tarena.Buffer, copies);
+            garena.Buffer.CopyFromBuffer2(command, tarena.Buffer, copies);
 
         return Result<>::Ok();
     };
@@ -538,7 +537,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkComman
         TKIT_RETURN_IF_FAILED(processBatches(pass, Geometry_StaticMesh));
     }
 
-    p_Info.Command = p_Command;
+    info.Command = command;
 
     for (const Task &task : tasks)
         tm->WaitUntilFinished(task);
@@ -546,18 +545,16 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *p_Transfer, const VkComman
     return Result<>::Ok();
 }
 
-Result<TransferSubmitInfo> Transfer(VKit::Queue *p_Transfer, const VkCommandBuffer p_Command)
+Result<TransferSubmitInfo> Transfer(VKit::Queue *tqueue, const VkCommandBuffer command)
 {
     TransferSubmitInfo submitInfo{};
     const bool separate = Execution::IsSeparateTransferMode();
     TKit::TierArray<VkBufferMemoryBarrier2KHR> release{};
 
-    const u64 transferFlight = p_Transfer->NextTimelineValue();
+    const u64 transferFlight = tqueue->NextTimelineValue();
 
-    TKIT_RETURN_IF_FAILED(
-        transfer<D2>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight));
-    TKIT_RETURN_IF_FAILED(
-        transfer<D3>(p_Transfer, p_Command, submitInfo, separate ? &release : nullptr, transferFlight));
+    TKIT_RETURN_IF_FAILED(transfer<D2>(tqueue, command, submitInfo, separate ? &release : nullptr, transferFlight));
+    TKIT_RETURN_IF_FAILED(transfer<D3>(tqueue, command, submitInfo, separate ? &release : nullptr, transferFlight));
 
     if (separate)
     {
@@ -567,13 +564,13 @@ Result<TransferSubmitInfo> Transfer(VKit::Queue *p_Transfer, const VkCommandBuff
         info.pBufferMemoryBarriers = release.GetData();
         info.dependencyFlags = 0;
         const auto table = Core::GetDeviceTable();
-        table->CmdPipelineBarrier2KHR(p_Command, &info);
+        table->CmdPipelineBarrier2KHR(command, &info);
     }
     if (submitInfo)
     {
         VkSemaphoreSubmitInfoKHR semInfo{};
         semInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-        semInfo.semaphore = p_Transfer->GetTimelineSempahore();
+        semInfo.semaphore = tqueue->GetTimelineSempahore();
         semInfo.value = transferFlight;
         semInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
         submitInfo.SignalSemaphore = semInfo;
@@ -582,16 +579,16 @@ Result<TransferSubmitInfo> Transfer(VKit::Queue *p_Transfer, const VkCommandBuff
     return submitInfo;
 }
 
-Result<> SubmitTransfer(VKit::Queue *p_Transfer, CommandPool *p_Pool, TKit::Span<const TransferSubmitInfo> p_Info)
+Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<const TransferSubmitInfo> info)
 {
     TKit::StackArray<VkSubmitInfo2KHR> submits{};
-    submits.Reserve(p_Info.GetSize());
+    submits.Reserve(info.GetSize());
 
     TKit::StackArray<VkCommandBufferSubmitInfoKHR> cmds{};
-    cmds.Reserve(p_Info.GetSize());
+    cmds.Reserve(info.GetSize());
 
     u64 maxFlight = 0;
-    for (const TransferSubmitInfo &info : p_Info)
+    for (const TransferSubmitInfo &info : info)
     {
         TKIT_ASSERT(info.Command,
                     "[ONYX][RENDERER] A submission must have a valid transfer command buffer to be submitted");
@@ -616,20 +613,20 @@ Result<> SubmitTransfer(VKit::Queue *p_Transfer, CommandPool *p_Pool, TKit::Span
         sinfo.flags = 0;
     }
 
-    p_Pool->MarkInUse(p_Transfer, maxFlight);
-    return p_Transfer->Submit2(submits);
+    pool->MarkInUse(transfer, maxFlight);
+    return transfer->Submit2(submits);
 }
 
-template <Dimension D> void gatherAcquireBarriers(TKit::TierArray<VkBufferMemoryBarrier2KHR> &p_Barriers)
+template <Dimension D> void gatherAcquireBarriers(TKit::TierArray<VkBufferMemoryBarrier2KHR> &barriers)
 {
     const RendererData<D> &rdata = getRendererData<D>();
     for (const Arena &arena : rdata.Arenas)
         for (const GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
             if (grange.InUseByTransfer())
-                p_Barriers.Append(grange.Barrier);
+                barriers.Append(grange.Barrier);
 }
 
-void ApplyAcquireBarriers(const VkCommandBuffer p_GraphicsCommand)
+void ApplyAcquireBarriers(const VkCommandBuffer graphicsCommand)
 {
     TKit::TierArray<VkBufferMemoryBarrier2KHR> barriers{};
     gatherAcquireBarriers<D2>(barriers);
@@ -642,17 +639,16 @@ void ApplyAcquireBarriers(const VkCommandBuffer p_GraphicsCommand)
         info.bufferMemoryBarrierCount = barriers.GetSize();
         info.pBufferMemoryBarriers = barriers.GetData();
         info.dependencyFlags = 0;
-        table->CmdPipelineBarrier2KHR(p_GraphicsCommand, &info);
+        table->CmdPipelineBarrier2KHR(graphicsCommand, &info);
     }
 }
 
-template <Dimension D>
-static void setCameraViewport(const VkCommandBuffer p_Command, const Detail::CameraInfo<D> &p_Camera)
+template <Dimension D> static void setCameraViewport(const VkCommandBuffer command, const Detail::CameraInfo<D> &camera)
 {
     const auto table = Core::GetDeviceTable();
-    if (!p_Camera.Transparent)
+    if (!camera.Transparent)
     {
-        const Color &bg = p_Camera.BackgroundColor;
+        const Color &bg = camera.BackgroundColor;
         TKit::FixedArray<VkClearAttachment, D - 1> clearAttachments{};
         clearAttachments[0].colorAttachment = 0;
         clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -665,34 +661,33 @@ static void setCameraViewport(const VkCommandBuffer p_Command, const Detail::Cam
         }
 
         VkClearRect clearRect{};
-        clearRect.rect.offset = {static_cast<i32>(p_Camera.Viewport.x), static_cast<i32>(p_Camera.Viewport.y)};
-        clearRect.rect.extent = {static_cast<u32>(p_Camera.Viewport.width), static_cast<u32>(p_Camera.Viewport.height)};
+        clearRect.rect.offset = {static_cast<i32>(camera.Viewport.x), static_cast<i32>(camera.Viewport.y)};
+        clearRect.rect.extent = {static_cast<u32>(camera.Viewport.width), static_cast<u32>(camera.Viewport.height)};
         clearRect.layerCount = 1;
         clearRect.baseArrayLayer = 0;
 
-        table->CmdClearAttachments(p_Command, D - 1, clearAttachments.GetData(), 1, &clearRect);
+        table->CmdClearAttachments(command, D - 1, clearAttachments.GetData(), 1, &clearRect);
     }
-    table->CmdSetViewport(p_Command, 0, 1, &p_Camera.Viewport);
-    table->CmdSetScissor(p_Command, 0, 1, &p_Camera.Scissor);
+    table->CmdSetViewport(command, 0, 1, &camera.Viewport);
+    table->CmdSetScissor(command, 0, 1, &camera.Scissor);
 }
 
-template <Dimension D>
-static void pushConstantData(const VkCommandBuffer p_Command, const Detail::CameraInfo<D> &p_Camera)
+template <Dimension D> static void pushConstantData(const VkCommandBuffer command, const Detail::CameraInfo<D> &camera)
 {
     PushConstantData<Shading_Unlit> pdata{};
-    pdata.ProjectionView = p_Camera.ProjectionView;
+    pdata.ProjectionView = camera.ProjectionView;
 
     VkShaderStageFlags stages = VK_SHADER_STAGE_VERTEX_BIT;
     // if constexpr (Shade == Shading_Lit)
     // {
-    //     pdata.ViewPosition = f32v4(p_Camera.Camera->ViewPosition, 1.f);
-    //     pdata.AmbientColor = p_Camera.Light.AmbientColor->RGBA;
-    //     pdata.DirectionalLightCount = p_Camera.Light.DirectionalCount;
-    //     pdata.PointLightCount = p_Camera.Light.PointCount;
+    //     pdata.ViewPosition = f32v4(camera.Camera->ViewPosition, 1.f);
+    //     pdata.AmbientColor = camera.Light.AmbientColor->RGBA;
+    //     pdata.DirectionalLightCount = camera.Light.DirectionalCount;
+    //     pdata.PointLightCount = camera.Light.PointCount;
     //     stages |= VK_SHADER_STAGE_FRAGMENT_BIT;
     // }
     const auto table = Core::GetDeviceTable();
-    table->CmdPushConstants(p_Command, Pipelines::GetGraphicsPipelineLayout(Shading_Unlit), stages, 0,
+    table->CmdPushConstants(command, Pipelines::GetGraphicsPipelineLayout(Shading_Unlit), stages, 0,
                             sizeof(PushConstantData<Shading_Unlit>), &pdata);
 }
 
@@ -709,15 +704,15 @@ struct TransferSyncPoint
 };
 
 template <Dimension D>
-ONYX_NO_DISCARD static Result<> render(VKit::Queue *p_Graphics, const VkCommandBuffer p_GraphicsCommand,
-                                       const Window *p_Window, const u64 p_GraphicsFlightValue,
-                                       TKit::StackArray<TransferSyncPoint> &p_SyncPoints)
+ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuffer graphicsCommand,
+                                       const Window *window, const u64 graphicsFlightValue,
+                                       TKit::StackArray<TransferSyncPoint> &syncPoints)
 {
-    const auto camInfos = p_Window->GetCameraInfos<D>();
+    const auto camInfos = window->GetCameraInfos<D>();
     if (camInfos.IsEmpty())
         return Result<>::Ok();
 
-    const u64 viewBit = p_Window->GetViewBit();
+    const u64 viewBit = window->GetViewBit();
     const auto &device = Core::GetDevice();
 
     RendererData<D> &rdata = getRendererData<D>();
@@ -729,8 +724,8 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *p_Graphics, const VkCommandB
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
         drawInfo[pass].Resize(bcount);
 
-    const auto collectDrawInfo = [&](const GeometryType p_Geo) {
-        GraphicsArena &garena = rdata.Arenas[p_Geo].Graphics;
+    const auto collectDrawInfo = [&](const GeometryType geo) {
+        GraphicsArena &garena = rdata.Arenas[geo].Graphics;
         const VkDeviceSize instanceSize = garena.Buffer.GetInfo().InstanceSize;
         for (GraphicsMemoryRange &grange : garena.MemoryRanges)
         {
@@ -774,7 +769,7 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *p_Graphics, const VkCommandB
             if (grange.InUseByTransfer())
             {
                 bool found = false;
-                for (TransferSyncPoint &sp : p_SyncPoints)
+                for (TransferSyncPoint &sp : syncPoints)
                 {
                     if (sp.Transfer == grange.Transfer)
                     {
@@ -785,9 +780,9 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *p_Graphics, const VkCommandB
                     }
                 }
                 if (!found)
-                    p_SyncPoints.Append(grange.Transfer, grange.TransferFlightValue);
+                    syncPoints.Append(grange.Transfer, grange.TransferFlightValue);
             }
-            grange.GraphicsFlightValue = p_GraphicsFlightValue;
+            grange.GraphicsFlightValue = graphicsFlightValue;
         }
     };
 
@@ -799,7 +794,7 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *p_Graphics, const VkCommandB
 
     for (const Detail::CameraInfo<D> &camInfo : camInfos)
     {
-        setCameraViewport<D>(p_GraphicsCommand, camInfo);
+        setCameraViewport<D>(graphicsCommand, camInfo);
         for (u32 pass = 0; pass < StencilPass_Count; ++pass)
         {
             const auto result =
@@ -807,13 +802,13 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *p_Graphics, const VkCommandB
             TKIT_RETURN_ON_ERROR(result);
             DescriptorSet *set = result.GetValue();
 
-            rdata.Pipelines[pass][Geometry_StaticMesh].Bind(p_GraphicsCommand);
-            BindStaticMeshes<D>(p_GraphicsCommand);
-            pushConstantData(p_GraphicsCommand, camInfo);
+            rdata.Pipelines[pass][Geometry_StaticMesh].Bind(graphicsCommand);
+            BindStaticMeshes<D>(graphicsCommand);
+            pushConstantData(graphicsCommand, camInfo);
 
-            VKit::DescriptorSet::Bind(device, p_GraphicsCommand, set->Set, VK_PIPELINE_BIND_POINT_GRAPHICS,
+            VKit::DescriptorSet::Bind(device, graphicsCommand, set->Set, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                       Pipelines::GetGraphicsPipelineLayout(Shading_Unlit));
-            set->MarkInUse(p_Graphics, p_GraphicsFlightValue);
+            set->MarkInUse(graphics, graphicsFlightValue);
 
             const u32 bstart = Assets::GetBatchStart(Geometry_StaticMesh);
             const u32 bend = Assets::GetBatchEnd(Geometry_StaticMesh);
@@ -821,18 +816,18 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *p_Graphics, const VkCommandB
                 for (const InstanceDrawInfo &draw : drawInfo[pass][batch])
                 {
                     const Mesh mesh = Assets::GetStaticMeshIndexFromBatch(batch);
-                    DrawStaticMesh<D>(p_GraphicsCommand, mesh, draw.FirstInstance, draw.InstanceCount);
+                    DrawStaticMesh<D>(graphicsCommand, mesh, draw.FirstInstance, draw.InstanceCount);
                 }
         }
     }
     return Result<>::Ok();
 }
 
-Result<RenderSubmitInfo> Render(VKit::Queue *p_Graphics, const VkCommandBuffer p_Command, const Window *p_Window)
+Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer command, const Window *window)
 {
     RenderSubmitInfo submitInfo{};
-    submitInfo.Command = p_Command;
-    const u64 graphicsFlight = p_Graphics->NextTimelineValue();
+    submitInfo.Command = command;
+    const u64 graphicsFlight = graphics->NextTimelineValue();
     TKit::StackArray<TransferSyncPoint> syncPoints{};
 
     u32 maxSyncPoints = 0;
@@ -842,20 +837,20 @@ Result<RenderSubmitInfo> Render(VKit::Queue *p_Graphics, const VkCommandBuffer p
         maxSyncPoints += arena.Graphics.MemoryRanges.GetSize();
     syncPoints.Reserve(maxSyncPoints);
 
-    TKIT_RETURN_IF_FAILED(render<D2>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints));
-    TKIT_RETURN_IF_FAILED(render<D3>(p_Graphics, p_Command, p_Window, graphicsFlight, syncPoints));
+    TKIT_RETURN_IF_FAILED(render<D2>(graphics, command, window, graphicsFlight, syncPoints));
+    TKIT_RETURN_IF_FAILED(render<D3>(graphics, command, window, graphicsFlight, syncPoints));
 
     VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
     rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
     rendFinInfo.pNext = nullptr;
-    rendFinInfo.semaphore = p_Window->GetRenderFinishedSemaphore();
+    rendFinInfo.semaphore = window->GetRenderFinishedSemaphore();
     rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
     rendFinInfo.deviceIndex = 0;
 
     VkSemaphoreSubmitInfoKHR &imgInfo = submitInfo.WaitSemaphores.Append();
     imgInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
     imgInfo.pNext = nullptr;
-    imgInfo.semaphore = p_Window->GetImageAvailableSemaphore();
+    imgInfo.semaphore = window->GetImageAvailableSemaphore();
     imgInfo.deviceIndex = 0;
     imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
 
@@ -864,7 +859,7 @@ Result<RenderSubmitInfo> Render(VKit::Queue *p_Graphics, const VkCommandBuffer p
     gtimSemInfo.pNext = nullptr;
     gtimSemInfo.value = graphicsFlight;
     gtimSemInfo.deviceIndex = 0;
-    gtimSemInfo.semaphore = p_Graphics->GetTimelineSempahore();
+    gtimSemInfo.semaphore = graphics->GetTimelineSempahore();
     gtimSemInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
 
     for (const TransferSyncPoint &sp : syncPoints)
@@ -881,16 +876,16 @@ Result<RenderSubmitInfo> Render(VKit::Queue *p_Graphics, const VkCommandBuffer p
     return submitInfo;
 }
 
-Result<> SubmitRender(VKit::Queue *p_Graphics, CommandPool *p_Pool, const TKit::Span<const RenderSubmitInfo> p_Info)
+Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span<const RenderSubmitInfo> info)
 {
     TKit::StackArray<VkSubmitInfo2KHR> submits{};
-    submits.Reserve(p_Info.GetSize());
+    submits.Reserve(info.GetSize());
 
     TKit::StackArray<VkCommandBufferSubmitInfoKHR> cmds{};
-    cmds.Reserve(p_Info.GetSize());
+    cmds.Reserve(info.GetSize());
 
     u64 maxFlight = 0;
-    for (const RenderSubmitInfo &info : p_Info)
+    for (const RenderSubmitInfo &info : info)
     {
         TKIT_ASSERT(info.Command,
                     "[ONYX][RENDERER] A submission must have a valid graphics command buffer to be submitted");
@@ -920,8 +915,8 @@ Result<> SubmitRender(VKit::Queue *p_Graphics, CommandPool *p_Pool, const TKit::
         sinfo.flags = 0;
     }
 
-    p_Pool->MarkInUse(p_Graphics, maxFlight);
-    return p_Graphics->Submit2(submits);
+    pool->MarkInUse(graphics, maxFlight);
+    return graphics->Submit2(submits);
 }
 
 // --when initializing:
@@ -1057,35 +1052,34 @@ void Coalesce()
     coalesce<D3>();
 }
 
-template <Dimension D> void BindStaticMeshes(const VkCommandBuffer p_Command)
+template <Dimension D> void BindStaticMeshes(const VkCommandBuffer command)
 {
     const VKit::DeviceBuffer &vbuffer = Assets::GetStaticMeshVertexBuffer<D>();
     const VKit::DeviceBuffer &ibuffer = Assets::GetStaticMeshIndexBuffer<D>();
 
-    vbuffer.BindAsVertexBuffer(p_Command);
-    ibuffer.BindAsIndexBuffer<Index>(p_Command);
+    vbuffer.BindAsVertexBuffer(command);
+    ibuffer.BindAsIndexBuffer<Index>(command);
 }
 
 template <Dimension D>
-void DrawStaticMesh(const VkCommandBuffer p_Command, const Mesh p_Mesh, const u32 p_FirstInstance,
-                    const u32 p_InstanceCount)
+void DrawStaticMesh(const VkCommandBuffer command, const Mesh mesh, const u32 firstInstance, const u32 instanceCount)
 {
-    const MeshDataLayout layout = Assets::GetStaticMeshLayout<D>(p_Mesh);
+    const MeshDataLayout layout = Assets::GetStaticMeshLayout<D>(mesh);
     const auto table = Core::GetDeviceTable();
-    table->CmdDrawIndexed(p_Command, layout.IndexCount, p_InstanceCount, layout.IndexStart, layout.VertexStart,
-                          p_FirstInstance);
+    table->CmdDrawIndexed(command, layout.IndexCount, instanceCount, layout.IndexStart, layout.VertexStart,
+                          firstInstance);
 }
 
 template RenderContext<D2> *CreateContext();
 template RenderContext<D3> *CreateContext();
 
-template void DestroyContext(RenderContext<D2> *p_Context);
-template void DestroyContext(RenderContext<D3> *p_Context);
+template void DestroyContext(RenderContext<D2> *context);
+template void DestroyContext(RenderContext<D3> *context);
 
-template void BindStaticMeshes<D2>(VkCommandBuffer p_Command);
-template void BindStaticMeshes<D3>(VkCommandBuffer p_Command);
+template void BindStaticMeshes<D2>(VkCommandBuffer command);
+template void BindStaticMeshes<D3>(VkCommandBuffer command);
 
-template void DrawStaticMesh<D2>(VkCommandBuffer p_Command, Mesh p_Mesh, u32 p_FirstInstance, u32 p_InstanceCount);
-template void DrawStaticMesh<D3>(VkCommandBuffer p_Command, Mesh p_Mesh, u32 p_FirstInstance, u32 p_InstanceCount);
+template void DrawStaticMesh<D2>(VkCommandBuffer command, Mesh mesh, u32 firstInstance, u32 instanceCount);
+template void DrawStaticMesh<D3>(VkCommandBuffer command, Mesh mesh, u32 firstInstance, u32 instanceCount);
 
 } // namespace Onyx::Renderer

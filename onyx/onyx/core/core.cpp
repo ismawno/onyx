@@ -37,19 +37,19 @@ static TKit::FixedArray<u32, VKit::Queue_Count> s_QueueRequests;
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 static InitCallbacks s_Callbacks{};
 
-#define PUSH_DELETER(p_Code) s_DeletionQueue.Push([] { p_Code; })
-#define SUBMIT_DELETION(p_Object) s_DeletionQueue.SubmitForDeletion(p_Object)
+#define PUSH_DELETER(code) s_DeletionQueue.Push([] { code; })
+#define SUBMIT_DELETION(object) s_DeletionQueue.SubmitForDeletion(object)
 
-ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &p_QueueRequests)
+ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRequests)
 {
     for (u32 i = 0; i < VKit::Queue_Count; ++i)
-        if (i != VKit::Queue_Compute && p_QueueRequests[i] == 0)
+        if (i != VKit::Queue_Compute && queueRequests[i] == 0)
             return Result<>::Error(
                 Error_BadInput,
                 "[ONYX][CORE] The queue request count for all queues must be at least 1 except for compute queues, "
                 "which are not directly used by this framework");
 
-    s_QueueRequests = p_QueueRequests;
+    s_QueueRequests = queueRequests;
     TKIT_LOG_INFO("[ONYX][CORE] Initializing Vulkit");
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -192,7 +192,7 @@ ONYX_NO_DISCARD static Result<> createVulkanAllocator()
     return Result<>::Ok();
 }
 
-ONYX_NO_DISCARD static Result<> createInstance(const bool p_ValidationLayers)
+ONYX_NO_DISCARD static Result<> createInstance(const bool validationLayers)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Creating vulkan instance");
     u32 extensionCount;
@@ -200,7 +200,7 @@ ONYX_NO_DISCARD static Result<> createInstance(const bool p_ValidationLayers)
     VKit::Instance::Builder builder{};
     builder.SetApplicationName("Onyx").RequestApiVersion(1, 3, 0).RequireApiVersion(1, 2, 0).SetApplicationVersion(1, 2,
                                                                                                                    0);
-    if (p_ValidationLayers)
+    if (validationLayers)
         builder.RequestValidationLayers();
 
     const char **extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
@@ -222,20 +222,20 @@ ONYX_NO_DISCARD static Result<> createInstance(const bool p_ValidationLayers)
 #endif
 
     TKIT_LOG_INFO_IF(vlayers, "[ONYX][CORE] Validation layers enabled");
-    TKIT_LOG_ERROR_IF(p_ValidationLayers && !vlayers,
+    TKIT_LOG_ERROR_IF(validationLayers && !vlayers,
                       "[ONYX][CORE] Validation layers were requested, but could not be enabled");
     TKIT_LOG_INFO_IF(!vlayers, "[ONYX][CORE] Validation layers disabled");
     SUBMIT_DELETION(s_Instance);
     return Result<>::Ok();
 }
 
-static void initializeAllocators(const Specs &p_Specs)
+static void initializeAllocators(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Initializing allocators");
     // these are purposefully leaked
     for (u32 i = 0; i < TKit::MaxThreads; ++i)
     {
-        const VKit::Allocation &userAlloc = p_Specs.Allocators[i];
+        const VKit::Allocation &userAlloc = specs.Allocators[i];
         VKit::Allocation &libAlloc = s_Allocation[i];
         if (userAlloc.Arena)
             libAlloc.Arena = userAlloc.Arena;
@@ -270,20 +270,20 @@ static void initializeAllocators(const Specs &p_Specs)
 }
 
 #ifdef TKIT_ENABLE_ERROR_LOGS
-static void glfwErrorCallback(const i32 p_ErrorCode, const char *p_Description)
+static void glfwErrorCallback(const i32 errorCode, const char *description)
 {
-    TKIT_LOG_ERROR("[ONYX][GLFW] An error ocurred with code {} and the following description: {}", p_ErrorCode,
-                   p_Description);
+    TKIT_LOG_ERROR("[ONYX][GLFW] An error ocurred with code {} and the following description: {}", errorCode,
+                   description);
 }
 #endif
 
-ONYX_NO_DISCARD static Result<> initializeGlfw(const u32 p_Platform)
+ONYX_NO_DISCARD static Result<> initializeGlfw(const u32 platform)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Initializing GLFW");
 #ifdef TKIT_ENABLE_ERROR_LOGS
     glfwSetErrorCallback(glfwErrorCallback);
 #endif
-    glfwInitHint(GLFW_PLATFORM, p_Platform);
+    glfwInitHint(GLFW_PLATFORM, platform);
     if (glfwInit() != GLFW_TRUE)
         return Result<>::Error(Error_InitializationFailed, "[ONYX][CORE] GLFW failed to initialize");
 
@@ -302,11 +302,11 @@ void terminateAllocators()
         TKit::Memory::PopArena();
 }
 
-ONYX_NO_DISCARD static Result<> initialize(const Specs &p_Specs)
+ONYX_NO_DISCARD static Result<> initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Initializing Onyx");
 
-    initializeAllocators(p_Specs);
+    initializeAllocators(specs);
     PUSH_DELETER(terminateAllocators());
 #ifdef ONYX_FONTCONFIG
     FcInit();
@@ -318,33 +318,33 @@ ONYX_NO_DISCARD static Result<> initialize(const Specs &p_Specs)
     PUSH_DELETER(VKit::Core::Terminate());
     TKIT_RETURN_IF_FAILED(VKit::Core::Initialize(vspecs));
 
-    if (p_Specs.TaskManager)
-        s_TaskManager = p_Specs.TaskManager;
+    if (specs.TaskManager)
+        s_TaskManager = specs.TaskManager;
     else
     {
         s_DefaultTaskManager.Construct(TKit::MaxThreads - 1);
         s_TaskManager = s_DefaultTaskManager.Get();
         PUSH_DELETER(s_DefaultTaskManager.Destruct());
     }
-    s_Callbacks = p_Specs.Callbacks;
+    s_Callbacks = specs.Callbacks;
 
-    TKIT_RETURN_IF_FAILED(initializeGlfw(p_Specs.Platform));
-    TKIT_RETURN_IF_FAILED(createInstance(p_Specs.EnableValidationLayers));
-    TKIT_RETURN_IF_FAILED(createDevice(p_Specs.QueueRequests));
+    TKIT_RETURN_IF_FAILED(initializeGlfw(specs.Platform));
+    TKIT_RETURN_IF_FAILED(createInstance(specs.EnableValidationLayers));
+    TKIT_RETURN_IF_FAILED(createDevice(specs.QueueRequests));
     TKIT_RETURN_IF_FAILED(createVulkanAllocator());
 
     PUSH_DELETER(Execution::Terminate());
-    TKIT_RETURN_IF_FAILED(Execution::Initialize(p_Specs.ExecutionSpecs ? *p_Specs.ExecutionSpecs : Execution::Specs{}));
+    TKIT_RETURN_IF_FAILED(Execution::Initialize(specs.ExecutionSpecs ? *specs.ExecutionSpecs : Execution::Specs{}));
 
     PUSH_DELETER(Assets::Terminate());
-    TKIT_RETURN_IF_FAILED(Assets::Initialize(p_Specs.AssetSpecs ? *p_Specs.AssetSpecs : Assets::Specs{}));
+    TKIT_RETURN_IF_FAILED(Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{}));
 
     PUSH_DELETER(Descriptors::Terminate());
     TKIT_RETURN_IF_FAILED(
-        Descriptors::Initialize(p_Specs.DescriptorSpecs ? *p_Specs.DescriptorSpecs : Descriptors::Specs{}));
+        Descriptors::Initialize(specs.DescriptorSpecs ? *specs.DescriptorSpecs : Descriptors::Specs{}));
 
     PUSH_DELETER(Shaders::Terminate());
-    TKIT_RETURN_IF_FAILED(Shaders::Initialize(p_Specs.ShadersSpecs ? *p_Specs.ShadersSpecs : Shaders::Specs{}));
+    TKIT_RETURN_IF_FAILED(Shaders::Initialize(specs.ShadersSpecs ? *specs.ShadersSpecs : Shaders::Specs{}));
 
     PUSH_DELETER(Pipelines::Terminate());
     TKIT_RETURN_IF_FAILED(Pipelines::Initialize());
@@ -355,9 +355,9 @@ ONYX_NO_DISCARD static Result<> initialize(const Specs &p_Specs)
     return Result<>::Ok();
 }
 
-Result<> Initialize(const Specs &p_Specs)
+Result<> Initialize(const Specs &specs)
 {
-    const auto result = initialize(p_Specs);
+    const auto result = initialize(specs);
     if (!result)
         Terminate();
     return result;
@@ -374,9 +374,9 @@ TKit::ITaskManager *GetTaskManager()
 {
     return s_TaskManager;
 }
-void SetTaskManager(TKit::ITaskManager *p_TaskManager)
+void SetTaskManager(TKit::ITaskManager *taskManager)
 {
-    s_TaskManager = p_TaskManager;
+    s_TaskManager = taskManager;
 }
 
 const VKit::Instance &GetInstance()

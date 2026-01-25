@@ -32,12 +32,12 @@ static ShaderData s_FillShaders3;
 static ShaderData s_OutlineShaders2;
 static ShaderData s_OutlineShaders3;
 
-template <Dimension D> ShaderData &getShaders(const DrawPass p_Pass)
+template <Dimension D> ShaderData &getShaders(const DrawPass pass)
 {
     if constexpr (D == D2)
-        return p_Pass == DrawPass_Fill ? s_FillShaders2 : s_OutlineShaders2;
+        return pass == DrawPass_Fill ? s_FillShaders2 : s_OutlineShaders2;
     else
-        return p_Pass == DrawPass_Fill ? s_FillShaders3 : s_OutlineShaders3;
+        return pass == DrawPass_Fill ? s_FillShaders3 : s_OutlineShaders3;
 }
 
 ONYX_NO_DISCARD static Result<> createPipelineLayouts()
@@ -167,35 +167,35 @@ void Terminate()
     s_LitLayout.Destroy();
 }
 
-VkPipelineLayout GetGraphicsPipelineLayout(const Shading p_Shading)
+VkPipelineLayout GetGraphicsPipelineLayout(const Shading shading)
 {
-    return p_Shading == Shading_Unlit ? s_UnlitLayout : s_LitLayout;
+    return shading == Shading_Unlit ? s_UnlitLayout : s_LitLayout;
 }
 
 template <Dimension D>
-static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p_Pass,
-                                                             const VkPipelineRenderingCreateInfoKHR &p_RenderInfo,
-                                                             const VKit::Shader &p_VertexShader,
-                                                             const VKit::Shader &p_FragmentShader)
+static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass pass,
+                                                             const VkPipelineRenderingCreateInfoKHR &renderInfo,
+                                                             const VKit::Shader &vertexShader,
+                                                             const VKit::Shader &fragmentShader)
 {
-    const Shading shading = GetShading<D>(p_Pass);
-    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), GetGraphicsPipelineLayout(shading), p_RenderInfo};
+    const Shading shading = GetShading<D>(pass);
+    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), GetGraphicsPipelineLayout(shading), renderInfo};
     auto &colorBuilder = builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
                              .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
                              .SetViewportCount(1)
-                             .AddShaderStage(p_VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
-                             .AddShaderStage(p_FragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
+                             .AddShaderStage(vertexShader, VK_SHADER_STAGE_VERTEX_BIT)
+                             .AddShaderStage(fragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
                              .BeginColorAttachment()
                              .EnableBlending();
 
     if constexpr (D == D3)
         builder.EnableDepthTest().EnableDepthWrite();
-    else if (GetDrawMode(p_Pass) == DrawPass_Outline)
+    else if (GetDrawMode(pass) == DrawPass_Outline)
         colorBuilder.DisableBlending();
 
     const auto stencilFlags = VKit::StencilOperationFlag_Front | VKit::StencilOperationFlag_Back;
 
-    if (p_Pass == StencilPass_DoStencilWriteDoFill || p_Pass == StencilPass_DoStencilWriteNoFill)
+    if (pass == StencilPass_DoStencilWriteDoFill || pass == StencilPass_DoStencilWriteNoFill)
         builder.EnableStencilTest()
             .SetStencilFailOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
             .SetStencilPassOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
@@ -204,7 +204,7 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
             .SetStencilCompareMask(0xFF, stencilFlags)
             .SetStencilWriteMask(0xFF, stencilFlags)
             .SetStencilReference(1, stencilFlags);
-    else if (p_Pass == StencilPass_DoStencilTestNoFill)
+    else if (pass == StencilPass_DoStencilTestNoFill)
     {
         builder.EnableStencilTest()
             .DisableDepthWrite()
@@ -218,7 +218,7 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
         if constexpr (D == D3)
             builder.DisableDepthTest();
     }
-    if (p_Pass == StencilPass_DoStencilWriteNoFill)
+    if (pass == StencilPass_DoStencilWriteNoFill)
         colorBuilder.SetColorWriteMask(0);
 
     colorBuilder.EndColorAttachment();
@@ -227,29 +227,29 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
 }
 
 template <Dimension D>
-Result<VKit::GraphicsPipeline> CreateCirclePipeline(const StencilPass p_Pass,
-                                                    const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
+Result<VKit::GraphicsPipeline> CreateCirclePipeline(const StencilPass pass,
+                                                    const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
-    const DrawPass dpass = GetDrawMode(p_Pass);
+    const DrawPass dpass = GetDrawMode(pass);
     const ShaderData &shaders = getShaders<D>(dpass);
 
     VKit::GraphicsPipeline::Builder builder =
-        createPipelineBuilder<D>(p_Pass, p_RenderInfo, shaders.CircleVertexShader, shaders.CircleFragmentShader);
+        createPipelineBuilder<D>(pass, renderInfo, shaders.CircleVertexShader, shaders.CircleFragmentShader);
 
     return builder.Bake().Build();
 }
 template <Dimension D>
-Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(const StencilPass p_Pass,
-                                                        const VkPipelineRenderingCreateInfoKHR &p_RenderInfo)
+Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(const StencilPass pass,
+                                                        const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
-    const DrawPass dpass = GetDrawMode(p_Pass);
+    const DrawPass dpass = GetDrawMode(pass);
     const ShaderData &shaders = getShaders<D>(dpass);
 
     VKit::GraphicsPipeline::Builder builder =
-        createPipelineBuilder<D>(p_Pass, p_RenderInfo, shaders.MeshVertexShader, shaders.MeshFragmentShader);
+        createPipelineBuilder<D>(pass, renderInfo, shaders.MeshVertexShader, shaders.MeshFragmentShader);
 
     builder.AddBindingDescription<StatVertex<D>>(VK_VERTEX_INPUT_RATE_VERTEX);
-    if (D == D2 || p_Pass == StencilPass_DoStencilWriteNoFill || p_Pass == StencilPass_DoStencilTestNoFill)
+    if (D == D2 || pass == StencilPass_DoStencilWriteNoFill || pass == StencilPass_DoStencilTestNoFill)
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D>, Position));
     else
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position))
@@ -259,12 +259,12 @@ Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(const StencilPass p_Pass
 }
 
 template Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline<D2>(
-    StencilPass p_Pass, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
 template Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline<D3>(
-    StencilPass p_Pass, const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
 
-template Result<VKit::GraphicsPipeline> CreateCirclePipeline<D2>(StencilPass p_Pass,
-                                                                 const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
-template Result<VKit::GraphicsPipeline> CreateCirclePipeline<D3>(StencilPass p_Pass,
-                                                                 const VkPipelineRenderingCreateInfoKHR &p_RenderInfo);
+template Result<VKit::GraphicsPipeline> CreateCirclePipeline<D2>(StencilPass pass,
+                                                                 const VkPipelineRenderingCreateInfoKHR &renderInfo);
+template Result<VKit::GraphicsPipeline> CreateCirclePipeline<D3>(StencilPass pass,
+                                                                 const VkPipelineRenderingCreateInfoKHR &renderInfo);
 } // namespace Onyx::Pipelines

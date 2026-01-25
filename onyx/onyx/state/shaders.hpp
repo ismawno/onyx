@@ -249,21 +249,20 @@ struct Spirv
 class Compilation
 {
   public:
-    Compilation(const TKit::TierArray<Spirv> &p_CompiledSpirv) : m_CompiledSpirv(p_CompiledSpirv)
+    Compilation(const TKit::TierArray<Spirv> &compiledSpirv) : m_CompiledSpirv(compiledSpirv)
     {
     }
 
-    ONYX_NO_DISCARD Result<const Spirv *> GetSpirv(const char *p_EntryPoint, const char *p_Module = nullptr) const;
-    ONYX_NO_DISCARD Result<const Spirv *> GetSpirv(const char *p_EntryPoint, ShaderStage p_Stage,
-                                                   const char *p_Module = nullptr) const;
-    ONYX_NO_DISCARD Result<const Spirv *> GetSpirv(const char *p_EntryPoint, const char *p_Module,
-                                                   ShaderStage p_Stage) const;
+    ONYX_NO_DISCARD Result<const Spirv *> GetSpirv(const char *entryPoint, const char *module = nullptr) const;
+    ONYX_NO_DISCARD Result<const Spirv *> GetSpirv(const char *entryPoint, ShaderStage stage,
+                                                   const char *module = nullptr) const;
+    ONYX_NO_DISCARD Result<const Spirv *> GetSpirv(const char *entryPoint, const char *module, ShaderStage stage) const;
 
-    ONYX_NO_DISCARD Result<VKit::Shader> CreateShader(const char *p_EntryPoint, const char *p_Module = nullptr) const;
-    ONYX_NO_DISCARD Result<VKit::Shader> CreateShader(const char *p_EntryPoint, ShaderStage p_Stage,
-                                                      const char *p_Module = nullptr) const;
-    ONYX_NO_DISCARD Result<VKit::Shader> CreateShader(const char *p_EntryPoint, const char *p_Module,
-                                                      ShaderStage p_Stage) const;
+    ONYX_NO_DISCARD Result<VKit::Shader> CreateShader(const char *entryPoint, const char *module = nullptr) const;
+    ONYX_NO_DISCARD Result<VKit::Shader> CreateShader(const char *entryPoint, ShaderStage stage,
+                                                      const char *module = nullptr) const;
+    ONYX_NO_DISCARD Result<VKit::Shader> CreateShader(const char *entryPoint, const char *module,
+                                                      ShaderStage stage) const;
 
     void Destroy();
 
@@ -276,13 +275,12 @@ class Compiler
     class Module
     {
       public:
-        Module(Compiler *p_Compiler, const char *p_Name, const char *p_SourceCode = nullptr,
-               const char *p_Path = nullptr)
-            : m_Compiler(p_Compiler), m_Name(p_Name), m_SourceCode(p_SourceCode), m_Path(p_Path)
+        Module(Compiler *compiler, const char *name, const char *sourceCode = nullptr, const char *path = nullptr)
+            : m_Compiler(compiler), m_Name(name), m_SourceCode(sourceCode), m_Path(path)
         {
         }
 
-        Module &DeclareEntryPoint(const char *p_Name, ShaderStage p_Stage);
+        Module &DeclareEntryPoint(const char *name, ShaderStage stage);
         Compiler &Load() const;
 
       private:
@@ -296,15 +294,15 @@ class Compiler
     };
 
   public:
-    Module &AddModule(const char *p_Name);
-    Module &AddModule(const char *p_Name, const char *p_SourceCode, const char *p_Path);
+    Module &AddModule(const char *name);
+    Module &AddModule(const char *name, const char *sourceCode, const char *path);
 
-    Compiler &AddIntegerArgument(ShaderArgumentName p_Name, i32 p_Value0, i32 p_Value1 = 0);
-    Compiler &AddStringArgument(ShaderArgumentName p_Name, const char *p_String0, const char *p_String1 = nullptr);
-    Compiler &AddBooleanArgument(ShaderArgumentName p_Name);
+    Compiler &AddIntegerArgument(ShaderArgumentName name, i32 value0, i32 value1 = 0);
+    Compiler &AddStringArgument(ShaderArgumentName name, const char *string0, const char *string1 = nullptr);
+    Compiler &AddBooleanArgument(ShaderArgumentName name);
 
-    Compiler &AddPreprocessorMacro(const char *p_Name, const char *p_Value = nullptr);
-    Compiler &AddSearchPath(const char *p_Path);
+    Compiler &AddPreprocessorMacro(const char *name, const char *value = nullptr);
+    Compiler &AddSearchPath(const char *path);
 
     Compiler &EnableEffectAnnotations();
     Compiler &AllowGlslSyntax();
@@ -328,11 +326,11 @@ struct Specs
     bool EnableGlsl = false;
 };
 
-ONYX_NO_DISCARD Result<> Initialize(const Specs &p_Specs);
+ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
-ONYX_NO_DISCARD Result<VKit::Shader> Create(const u32 *p_Spirv, size_t p_Size);
-ONYX_NO_DISCARD Result<VKit::Shader> Create(const Spirv &p_Spirv);
-ONYX_NO_DISCARD Result<VKit::Shader> Create(std::string_view p_SpirvPath);
+ONYX_NO_DISCARD Result<VKit::Shader> Create(const u32 *spirv, size_t size);
+ONYX_NO_DISCARD Result<VKit::Shader> Create(const Spirv &spirv);
+ONYX_NO_DISCARD Result<VKit::Shader> Create(std::string_view spirvPath);
 
 } // namespace Onyx::Shaders

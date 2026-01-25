@@ -10,10 +10,10 @@ namespace Onyx::Demo
 template <Dimension D> class Layer : public UserLayer
 {
   public:
-    Layer(Application *p_Application, Window *p_Window, const Lattice<D> &p_Lattice, const ShapeSettings &p_Options);
+    Layer(Application *application, Window *window, const Lattice<D> &lattice, const ShapeSettings &options);
 
-    void OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &) override;
-    void OnEvent(const Event &p_Event) override;
+    void OnFrameBegin(const DeltaTime &deltaTime, const FrameInfo &) override;
+    void OnEvent(const Event &event) override;
 
   private:
     RenderContext<D> *m_Context;

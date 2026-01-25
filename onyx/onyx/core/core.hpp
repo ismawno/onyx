@@ -105,11 +105,11 @@ struct Specs
 
 namespace Onyx::Core
 {
-ONYX_NO_DISCARD Result<> Initialize(const Specs &p_Specs = {});
+ONYX_NO_DISCARD Result<> Initialize(const Specs &specs = {});
 void Terminate();
 
 TKit::ITaskManager *GetTaskManager();
-void SetTaskManager(TKit::ITaskManager *p_TaskManager);
+void SetTaskManager(TKit::ITaskManager *taskManager);
 
 const VKit::Instance &GetInstance();
 const VKit::Vulkan::InstanceTable *GetInstanceTable();

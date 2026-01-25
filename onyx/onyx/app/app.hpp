@@ -102,17 +102,17 @@ class Application
 #endif
         ApplicationFlags Flags = 0;
 
-        bool CheckFlags(const ApplicationFlags p_Flags) const
+        bool CheckFlags(const ApplicationFlags flags) const
         {
-            return Flags & p_Flags;
+            return Flags & flags;
         }
-        void SetFlags(const ApplicationFlags p_Flags)
+        void SetFlags(const ApplicationFlags flags)
         {
-            Flags |= p_Flags;
+            Flags |= flags;
         }
-        void ClearFlags(const ApplicationFlags p_Flags)
+        void ClearFlags(const ApplicationFlags flags)
         {
-            Flags &= ~p_Flags;
+            Flags &= ~flags;
         }
     };
 
@@ -125,12 +125,12 @@ class Application
 #endif
     };
 
-    Application(const WindowSpecs &p_MainSpecs) : m_MainWindow(createWindow(p_MainSpecs))
+    Application(const WindowSpecs &mainSpecs) : m_MainWindow(createWindow(mainSpecs))
     {
-        if (p_MainSpecs.CreationCallback)
-            p_MainSpecs.CreationCallback(m_MainWindow.Window);
+        if (mainSpecs.CreationCallback)
+            mainSpecs.CreationCallback(m_MainWindow.Window);
     }
-    Application(const Window::Specs &p_MainSpecs = {}) : Application({.Specs = p_MainSpecs})
+    Application(const Window::Specs &mainSpecs = {}) : Application({.Specs = mainSpecs})
     {
     }
     ~Application()
@@ -152,36 +152,35 @@ class Application
      *
      * This method should be called in a loop until it returns false, which means that all windows have been closed.
      *
-     * @param p_Clock A clock that lets both the API and the user to keep track of the frame time.
+     * @param clock A clock that lets both the API and the user to keep track of the frame time.
      * @return Whether the application must keep running.
      */
-    bool NextFrame(TKit::Clock &p_Clock);
+    bool NextFrame(TKit::Clock &clock);
 
 #ifdef ONYX_ENABLE_IMGUI
-    template <std::derived_from<Theme> T, typename... ThemeArgs>
-    T *SetTheme(const Window *p_Window, ThemeArgs &&...p_Args)
+    template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(const Window *window, ThemeArgs &&...args)
     {
-        WindowData *data = getWindowData(p_Window);
+        WindowData *data = getWindowData(window);
         if (data->Theme)
             delete data->Theme;
 
-        T *theme = new T{std::forward<ThemeArgs>(p_Args)...};
+        T *theme = new T{std::forward<ThemeArgs>(args)...};
         data->Theme = theme;
         applyTheme(*data);
         return theme;
     }
-    template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...p_Args)
+    template <std::derived_from<Theme> T, typename... ThemeArgs> T *SetTheme(ThemeArgs &&...args)
     {
         if (m_MainWindow.Theme)
             delete m_MainWindow.Theme;
 
-        T *theme = new T{std::forward<ThemeArgs>(p_Args)...};
+        T *theme = new T{std::forward<ThemeArgs>(args)...};
         m_MainWindow.Theme = theme;
         applyTheme(m_MainWindow);
         return theme;
     }
 
-    void ApplyTheme(const Window *p_Window = nullptr);
+    void ApplyTheme(const Window *window = nullptr);
 #endif
 
     /**
@@ -191,10 +190,10 @@ class Application
      * the middle of a frame, the operation will be deferred until the end of the frame.
      */
     template <std::derived_from<UserLayer> T, typename... LayerArgs>
-    T *SetUserLayer(Window *p_Window, LayerArgs &&...p_Args)
+    T *SetUserLayer(Window *window, LayerArgs &&...args)
     {
-        WindowData *data = getWindowData(p_Window);
-        return setUserLayer<T>(*data, std::forward<LayerArgs>(p_Args)...);
+        WindowData *data = getWindowData(window);
+        return setUserLayer<T>(*data, std::forward<LayerArgs>(args)...);
     }
     /**
      * @brief Set a new user layer to provide custom functionality.
@@ -202,9 +201,9 @@ class Application
      * This method will delete the current user layer for the main window and replace it with a new one. If called in
      * the middle of a frame, the operation will be deferred until the end of the frame.
      */
-    template <std::derived_from<UserLayer> T, typename... LayerArgs> T *SetUserLayer(LayerArgs &&...p_Args)
+    template <std::derived_from<UserLayer> T, typename... LayerArgs> T *SetUserLayer(LayerArgs &&...args)
     {
-        return setUserLayer<T>(m_MainWindow, std::forward<LayerArgs>(p_Args)...);
+        return setUserLayer<T>(m_MainWindow, std::forward<LayerArgs>(args)...);
     }
 
     /**
@@ -215,9 +214,9 @@ class Application
      * called in the middle of a frame, the operation will be deferred until the end of the frame. In those cases, it is
      * UB to delete the resource until the current frame has finished.
      */
-    template <std::derived_from<UserLayer> T = UserLayer> T *RemoveUserLayer(const Window *p_Window = nullptr)
+    template <std::derived_from<UserLayer> T = UserLayer> T *RemoveUserLayer(const Window *window = nullptr)
     {
-        WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        WindowData *data = window ? getWindowData(window) : &m_MainWindow;
         UserLayer *layer = data->Layer;
         if (checkFlags(ApplicationFlag_Defer))
             data->SetFlags(ApplicationFlag_MustReplaceLayer);
@@ -232,9 +231,9 @@ class Application
      * This method will destroy the current user layer for the given window. If called in the middle of a frame, the
      * operation will be deferred until the end of the frame.
      */
-    template <std::derived_from<UserLayer> T = UserLayer> void DestroyUserLayer(const Window *p_Window = nullptr)
+    template <std::derived_from<UserLayer> T = UserLayer> void DestroyUserLayer(const Window *window = nullptr)
     {
-        WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        WindowData *data = window ? getWindowData(window) : &m_MainWindow;
         if (checkFlags(ApplicationFlag_Defer))
             data->SetFlags(ApplicationFlag_MustDestroyLayer);
         else
@@ -245,14 +244,14 @@ class Application
         }
     }
 
-    template <std::derived_from<UserLayer> T = UserLayer> const T *GetUserLayer(const Window *p_Window = nullptr) const
+    template <std::derived_from<UserLayer> T = UserLayer> const T *GetUserLayer(const Window *window = nullptr) const
     {
-        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        const WindowData *data = window ? getWindowData(window) : &m_MainWindow;
         return static_cast<T>(data->Layer);
     }
-    template <std::derived_from<UserLayer> T = UserLayer> T *GetUserLayer(const Window *p_Window = nullptr)
+    template <std::derived_from<UserLayer> T = UserLayer> T *GetUserLayer(const Window *window = nullptr)
     {
-        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        const WindowData *data = window ? getWindowData(window) : &m_MainWindow;
         return static_cast<T>(data->Layer);
     }
 
@@ -268,14 +267,14 @@ class Application
      * @note The window addition may not take effect immediately if called in the middle of a frame. If you need to
      * react to the window opening by, say, attaching a layer, use the provided callback argument.
      */
-    Window *OpenWindow(const WindowSpecs &p_Specs)
+    Window *OpenWindow(const WindowSpecs &specs)
     {
         if (checkFlags(ApplicationFlag_Defer))
         {
-            m_WindowsToAdd.Append(p_Specs);
+            m_WindowsToAdd.Append(specs);
             return nullptr;
         }
-        return openWindow(p_Specs);
+        return openWindow(specs);
     }
 
     /**
@@ -284,9 +283,9 @@ class Application
      * @note The window addition may not take effect immediately if called in the middle of a frame. If you need to
      * react to the window opening by, say, attaching a layer, use the provided callback argument.
      */
-    Window *OpenWindow(const Window::Specs &p_Specs = {})
+    Window *OpenWindow(const Window::Specs &specs = {})
     {
-        return OpenWindow(WindowSpecs{.Specs = p_Specs});
+        return OpenWindow(WindowSpecs{.Specs = specs});
     }
 
     /**
@@ -297,7 +296,7 @@ class Application
      *
      * @return Whether the operation could execute immediately.
      */
-    bool CloseWindow(Window *p_Window);
+    bool CloseWindow(Window *window);
 #endif
 
     const Window *GetMainWindow() const
@@ -323,32 +322,32 @@ class Application
         return m_DeltaTime;
     }
 
-    const DeltaTime &GetRenderDeltaTime(const Window *p_Window = nullptr) const
+    const DeltaTime &GetRenderDeltaTime(const Window *window = nullptr) const
     {
-        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        const WindowData *data = window ? getWindowData(window) : &m_MainWindow;
         return data->RenderClock.Delta.Time;
     }
-    const DeltaTime &GetUpdateDeltaTime(const Window *p_Window = nullptr) const
+    const DeltaTime &GetUpdateDeltaTime(const Window *window = nullptr) const
     {
-        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        const WindowData *data = window ? getWindowData(window) : &m_MainWindow;
         return data->UpdateClock.Delta.Time;
     }
 
-    void SetDeltaTime(const TKit::Timespan p_Target, const Window *p_Window = nullptr)
+    void SetDeltaTime(const TKit::Timespan target, const Window *window = nullptr)
     {
-        WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
-        setRenderDeltaTime(p_Target, *data);
-        setUpdateDeltaTime(p_Target, *data);
+        WindowData *data = window ? getWindowData(window) : &m_MainWindow;
+        setRenderDeltaTime(target, *data);
+        setUpdateDeltaTime(target, *data);
     }
-    void SetRenderDeltaTime(const TKit::Timespan p_Target, const Window *p_Window = nullptr)
+    void SetRenderDeltaTime(const TKit::Timespan target, const Window *window = nullptr)
     {
-        WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
-        setRenderDeltaTime(p_Target, *data);
+        WindowData *data = window ? getWindowData(window) : &m_MainWindow;
+        setRenderDeltaTime(target, *data);
     }
-    void SetUpdateDeltaTime(const TKit::Timespan p_Target, const Window *p_Window = nullptr)
+    void SetUpdateDeltaTime(const TKit::Timespan target, const Window *window = nullptr)
     {
-        WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
-        setUpdateDeltaTime(p_Target, *data);
+        WindowData *data = window ? getWindowData(window) : &m_MainWindow;
+        setUpdateDeltaTime(target, *data);
     }
 
     /**
@@ -365,75 +364,75 @@ class Application
     // modifying the target directly inside the code by calling the delta time setter methods may interfere a bit with
     // the UI generated by these, but should not be much of a problem
 
-    bool DisplayDeltaTime(UserLayerFlags p_Flags = 0);
-    bool DisplayDeltaTime(const Window *p_Window, UserLayerFlags p_Flags = 0);
+    bool DisplayDeltaTime(UserLayerFlags flags = 0);
+    bool DisplayDeltaTime(const Window *window, UserLayerFlags flags = 0);
 
-    bool EnableImGui(i32 p_ConfigFlags = 0);
-    bool EnableImGui(const Window *p_Window, i32 p_ConfigFlags = 0);
+    bool EnableImGui(i32 configFlags = 0);
+    bool EnableImGui(const Window *window, i32 configFlags = 0);
 
-    bool DisableImGui(const Window *p_Window = nullptr);
+    bool DisableImGui(const Window *window = nullptr);
 
-    bool ReloadImGui(i32 p_ConfigFlags = 0);
-    bool ReloadImGui(const Window *p_Window, i32 p_ConfigFlags = 0);
+    bool ReloadImGui(i32 configFlags = 0);
+    bool ReloadImGui(const Window *window, i32 configFlags = 0);
 
-    i32 GetImGuiConfigFlags(const Window *p_Window = nullptr) const
+    i32 GetImGuiConfigFlags(const Window *window = nullptr) const
     {
-        const WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+        const WindowData *data = window ? getWindowData(window) : &m_MainWindow;
         return data->ImGuiConfigFlags;
     }
 #endif
   private:
     template <std::derived_from<UserLayer> T, typename... LayerArgs>
-    T *setUserLayer(WindowData &p_Data, LayerArgs &&...p_Args)
+    T *setUserLayer(WindowData &data, LayerArgs &&...args)
     {
-        T *layer = new T(this, p_Data.Window, std::forward<LayerArgs>(p_Args)...);
+        T *layer = new T(this, data.Window, std::forward<LayerArgs>(args)...);
         if (checkFlags(ApplicationFlag_Defer))
         {
-            delete p_Data.StagedLayer;
-            p_Data.StagedLayer = layer;
-            p_Data.SetFlags(ApplicationFlag_MustDestroyLayer | ApplicationFlag_MustReplaceLayer);
+            delete data.StagedLayer;
+            data.StagedLayer = layer;
+            data.SetFlags(ApplicationFlag_MustDestroyLayer | ApplicationFlag_MustReplaceLayer);
         }
         else
         {
-            delete p_Data.Layer;
-            p_Data.Layer = layer;
-            p_Data.ClearFlags(ApplicationFlag_MustDestroyLayer | ApplicationFlag_MustReplaceLayer);
+            delete data.Layer;
+            data.Layer = layer;
+            data.ClearFlags(ApplicationFlag_MustDestroyLayer | ApplicationFlag_MustReplaceLayer);
         }
         return layer;
     }
-    bool checkFlags(const ApplicationFlags p_Flags) const
+    bool checkFlags(const ApplicationFlags flags) const
     {
-        return m_Flags & p_Flags;
+        return m_Flags & flags;
     }
-    void setFlags(const ApplicationFlags p_Flags)
+    void setFlags(const ApplicationFlags flags)
     {
-        m_Flags |= p_Flags;
+        m_Flags |= flags;
     }
-    void clearFlags(const ApplicationFlags p_Flags)
+    void clearFlags(const ApplicationFlags flags)
     {
-        m_Flags &= ~p_Flags;
+        m_Flags &= ~flags;
     }
 
-    WindowData *getWindowData(const Window *p_Window);
-    const WindowData *getWindowData(const Window *p_Window) const;
+    WindowData *getWindowData(const Window *window);
+    const WindowData *getWindowData(const Window *window) const;
 
-    void setUpdateDeltaTime(TKit::Timespan p_Target, WindowData &p_Data);
-    void setRenderDeltaTime(TKit::Timespan p_Target, WindowData &p_Data);
+    void setUpdateDeltaTime(TKit::Timespan target, WindowData &data);
+    void setRenderDeltaTime(TKit::Timespan target, WindowData &data);
 
-    void processWindow(WindowData &p_Data);
-    WindowData createWindow(const WindowSpecs &p_Specs);
-    void destroyWindow(WindowData &p_Data);
+    void processWindow(WindowData &data);
+    WindowData createWindow(const WindowSpecs &specs);
+    void destroyWindow(WindowData &data);
     void syncDeferredOperations();
 
     void closeAllWindows();
 #ifdef __ONYX_MULTI_WINDOW
-    Window *openWindow(const WindowSpecs &p_Specs);
+    Window *openWindow(const WindowSpecs &specs);
 #endif
 
 #ifdef ONYX_ENABLE_IMGUI
-    bool enableImGui(WindowData &p_Data, i32 p_Flags);
-    bool reloadImGui(WindowData &p_Data, i32 p_Flags);
-    static void applyTheme(const WindowData &p_Data);
+    bool enableImGui(WindowData &data, i32 flags);
+    bool reloadImGui(WindowData &data, i32 flags);
+    static void applyTheme(const WindowData &data);
 #endif
 
     TKit::BlockAllocator m_WindowAllocator = TKit::BlockAllocator::CreateFromType<Window>(MaxWindows);

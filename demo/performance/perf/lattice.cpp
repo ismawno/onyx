@@ -2,26 +2,26 @@
 
 namespace Onyx::Demo
 {
-template <Dimension D> void Lattice<D>::StaticMesh(RenderContext<D> *p_Context, const Mesh p_Mesh) const
+template <Dimension D> void Lattice<D>::StaticMesh(RenderContext<D> *context, const Mesh mesh) const
 {
-    p_Context->Fill(Color);
-    p_Context->Transform(Transform.ComputeTransform());
-    p_Context->ShareCurrentState();
+    context->Fill(Color);
+    context->Transform(Transform.ComputeTransform());
+    context->ShareCurrentState();
 
-    Run([=](const f32v<D> &p_Pos) {
-        p_Context->SetTranslation(p_Pos);
-        p_Context->StaticMesh(p_Mesh);
+    Run([=](const f32v<D> &pos) {
+        context->SetTranslation(pos);
+        context->StaticMesh(mesh);
     });
 }
-template <Dimension D> void Lattice<D>::Circle(RenderContext<D> *p_Context, const CircleOptions &p_Options) const
+template <Dimension D> void Lattice<D>::Circle(RenderContext<D> *context, const CircleOptions &options) const
 {
-    p_Context->Fill(Color);
-    p_Context->Transform(Transform.ComputeTransform());
-    p_Context->ShareCurrentState();
+    context->Fill(Color);
+    context->Transform(Transform.ComputeTransform());
+    context->ShareCurrentState();
 
-    Run([p_Context, &p_Options](const f32v<D> &p_Pos) {
-        p_Context->SetTranslation(p_Pos);
-        p_Context->Circle(p_Options);
+    Run([context, &options](const f32v<D> &pos) {
+        context->SetTranslation(pos);
+        context->Circle(options);
     });
 }
 template struct Lattice<D2>;

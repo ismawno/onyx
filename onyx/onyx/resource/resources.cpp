@@ -3,11 +3,10 @@
 
 namespace Onyx::Resources
 {
-Result<VKit::DeviceBuffer> CreateBuffer(VKit::DeviceBufferFlags p_Flags, VkDeviceSize p_InstanceSize,
-                                        VkDeviceSize p_Capacity)
+Result<VKit::DeviceBuffer> CreateBuffer(VKit::DeviceBufferFlags flags, VkDeviceSize instanceSize, VkDeviceSize capacity)
 {
-    return VKit::DeviceBuffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), p_Flags)
-        .SetSize(p_Capacity, p_InstanceSize)
+    return VKit::DeviceBuffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), flags)
+        .SetSize(capacity, instanceSize)
         .Build();
 }
 } // namespace Onyx::Resources

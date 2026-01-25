@@ -8,17 +8,17 @@ namespace Onyx
 {
 struct Color
 {
-    Color(const f32v4 &p_RGBA);
-    Color(const f32v3 &p_RGB, f32 p_Alpha = 1.f);
+    Color(const f32v4 &rgba);
+    Color(const f32v3 &rgb, f32 alpha = 1.f);
 
-    Color(f32 p_Val = 1.f);
-    Color(u32 p_Val);
+    Color(f32 val = 1.f);
+    Color(u32 val);
 
-    Color(f32 p_Red, f32 p_Green, f32 p_Blue, f32 p_Alpha = 1.f);
-    Color(u32 p_Red, u32 p_Green, u32 p_Blue, u32 p_Alpha = 255);
+    Color(f32 red, f32 green, f32 blue, f32 alpha = 1.f);
+    Color(u32 red, u32 green, u32 blue, u32 alpha = 255);
 
-    Color(const Color &p_RGB, f32 p_Alpha);
-    Color(const Color &p_RGB, u32 p_Alpha);
+    Color(const Color &rgb, f32 alpha);
+    Color(const Color &rgb, u32 alpha);
 
     union {
         f32v4 RGBA;
@@ -30,20 +30,20 @@ struct Color
     u8 Blue() const;
     u8 Alpha() const;
 
-    void Red(u32 p_Red);
-    void Green(u32 p_Green);
-    void Blue(u32 p_Blue);
-    void Alpha(u32 p_Alpha);
+    void Red(u32 red);
+    void Green(u32 green);
+    void Blue(u32 blue);
+    void Alpha(u32 alpha);
 
     u32 Pack() const;
-    static Color Unpack(u32 p_Packed);
+    static Color Unpack(u32 packed);
 
-    template <typename T> T ToHexadecimal(bool p_Alpha = true) const;
+    template <typename T> T ToHexadecimal(bool alpha = true) const;
 
-    static Color FromHexadecimal(u32 p_Hex, bool p_Alpha = true);
-    static Color FromHexadecimal(std::string_view p_Hex);
+    static Color FromHexadecimal(u32 hex, bool alpha = true);
+    static Color FromHexadecimal(std::string_view hex);
 
-    static Color FromString(const std::string &p_Color);
+    static Color FromString(const std::string &color);
 
     const f32 *GetData() const;
     f32 *GetData();
@@ -51,58 +51,58 @@ struct Color
     operator const f32v4 &() const;
     operator const f32v3 &() const;
 
-    Color &operator+=(const Color &p_Right);
-    Color &operator-=(const Color &p_Right);
-    Color &operator*=(const Color &p_Right);
-    Color &operator/=(const Color &p_Right);
-    template <typename T> Color &operator*=(const T &p_Right)
+    Color &operator+=(const Color &right);
+    Color &operator-=(const Color &right);
+    Color &operator*=(const Color &right);
+    Color &operator/=(const Color &right);
+    template <typename T> Color &operator*=(const T &right)
     {
-        RGB = Math::Clamp(RGB * p_Right, 0.f, 1.f);
+        RGB = Math::Clamp(RGB * right, 0.f, 1.f);
         return *this;
     }
-    template <typename T> Color &operator/=(const T &p_Right)
+    template <typename T> Color &operator/=(const T &right)
     {
-        RGB = Math::Clamp(RGB / p_Right, 0.f, 1.f);
+        RGB = Math::Clamp(RGB / right, 0.f, 1.f);
         return *this;
     }
 
-    friend Color operator+(const Color &p_Left, const Color &p_Right)
+    friend Color operator+(const Color &left, const Color &right)
     {
-        Color result = p_Left;
-        result += p_Right;
+        Color result = left;
+        result += right;
         return result;
     }
 
-    friend Color operator-(const Color &p_Left, const Color &p_Right)
+    friend Color operator-(const Color &left, const Color &right)
     {
-        Color result = p_Left;
-        result -= p_Right;
+        Color result = left;
+        result -= right;
         return result;
     }
 
-    friend Color operator*(const Color &p_Left, const Color &p_Right)
+    friend Color operator*(const Color &left, const Color &right)
     {
-        Color result = p_Left;
-        result *= p_Right;
+        Color result = left;
+        result *= right;
         return result;
     }
 
-    friend Color operator/(const Color &p_Left, const Color &p_Right)
+    friend Color operator/(const Color &left, const Color &right)
     {
-        Color result = p_Left;
-        result /= p_Right;
+        Color result = left;
+        result /= right;
         return result;
     }
 
     // Sonarlint yells lol but this is a union like class and no default equality operator is provided
-    friend bool operator==(const Color &p_Left, const Color &p_Right)
+    friend bool operator==(const Color &left, const Color &right)
     {
-        return p_Left.RGBA == p_Right.RGBA;
+        return left.RGBA == right.RGBA;
     }
     // Sonarlint yells lol but this is a union like class and no default equality operator is provided
-    friend bool operator!=(const Color &p_Left, const Color &p_Right)
+    friend bool operator!=(const Color &left, const Color &right)
     {
-        return !(p_Left == p_Right);
+        return !(left == right);
     }
 
     static const Color RED;
@@ -126,9 +126,9 @@ struct Color
 class Gradient
 {
   public:
-    Gradient(TKit::Span<const Color> p_Colors);
+    Gradient(TKit::Span<const Color> colors);
 
-    Color Evaluate(f32 p_T) const;
+    Color Evaluate(f32 t) const;
 
   private:
     TKit::Span<const Color> m_Colors;

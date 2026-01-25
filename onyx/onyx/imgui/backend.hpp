@@ -11,11 +11,11 @@ namespace Onyx
 {
 class Window;
 
-void InitializeImGui(Window *p_Window);
+void InitializeImGui(Window *window);
 
 void NewImGuiFrame();
 
-void RenderImGuiData(ImDrawData *p_Data, VkCommandBuffer p_CommandBuffer);
+void RenderImGuiData(ImDrawData *data, VkCommandBuffer commandBuffer);
 void RenderImGuiWindows();
 
 void ShutdownImGui();

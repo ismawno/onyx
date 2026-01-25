@@ -14,21 +14,21 @@
 
 namespace Onyx::Demo
 {
-template <Dimension D> void exportLatticeToFile(const Lattice<D> &p_Lattice, ParseResult &result)
+template <Dimension D> void exportLatticeToFile(const Lattice<D> &lattice, ParseResult &result)
 {
     TKit::Yaml::Node node;
     node["Dimension"] = D;
-    node["Lattice"] = p_Lattice;
+    node["Lattice"] = lattice;
     node["Settings"] = result.Settings;
     if constexpr (D == D2)
     {
         TKit::Yaml::ToFile(ONYX_ROOT_PATH "/demo/performance/settings-2D.yaml", node);
-        result.Lattice2 = p_Lattice;
+        result.Lattice2 = lattice;
     }
     else
     {
         TKit::Yaml::ToFile(ONYX_ROOT_PATH "/demo/performance/settings-3D.yaml", node);
-        result.Lattice3 = p_Lattice;
+        result.Lattice3 = lattice;
     }
 }
 ParseResult ParseArguments(int argc, char **argv)

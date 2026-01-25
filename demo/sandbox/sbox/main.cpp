@@ -6,13 +6,13 @@
 
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
-void RunApp(const Onyx::Dimension p_Dim)
+void RunApp(const Onyx::Dimension dim)
 {
     Onyx::Window::Specs spc;
     spc.Name = "Onyx sandbox";
 
     Onyx::Application app{spc};
-    app.SetUserLayer<Onyx::Demo::SandboxLayer>(p_Dim);
+    app.SetUserLayer<Onyx::Demo::SandboxLayer>(dim);
     app.Run();
 }
 

@@ -11,8 +11,8 @@ class Window;
 namespace Input
 {
 void PollEvents();
-void InstallCallbacks(GLFWwindow *p_Window);
-void InstallCallbacks(Window *p_Window);
+void InstallCallbacks(GLFWwindow *window);
+void InstallCallbacks(Window *window);
 
 enum Key : u16
 {
@@ -162,17 +162,17 @@ enum Mouse : u8
  * @brief Get the current mouse screen position, ranging between -1 and 1.
  *
  */
-f32v2 GetScreenMousePosition(Window *p_Window);
+f32v2 GetScreenMousePosition(Window *window);
 
-bool IsKeyPressed(Window *p_Window, Key p_Key);
+bool IsKeyPressed(Window *window, Key key);
 
-bool IsKeyReleased(Window *p_Window, Key p_Key);
+bool IsKeyReleased(Window *window, Key key);
 
-bool IsMouseButtonPressed(Window *p_Window, Mouse p_Button);
+bool IsMouseButtonPressed(Window *window, Mouse button);
 
-bool IsMouseButtonReleased(Window *p_Window, Mouse p_Button);
+bool IsMouseButtonReleased(Window *window, Mouse button);
 
-const char *GetKeyName(Key p_Key);
+const char *GetKeyName(Key key);
 }; // namespace Input
 enum EventType : u8
 {

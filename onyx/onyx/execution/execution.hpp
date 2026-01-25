@@ -9,21 +9,21 @@ struct Specs
 {
     u32 MaxCommandPools = 16;
 };
-ONYX_NO_DISCARD Result<> Initialize(const Specs &p_Specs);
+ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
 ONYX_NO_DISCARD Result<> UpdateCompletedQueueTimelines();
 void RevokeUnsubmittedQueueTimelines();
 
-VKit::Queue *FindSuitableQueue(VKit::QueueType p_Type);
+VKit::Queue *FindSuitableQueue(VKit::QueueType type);
 
-ONYX_NO_DISCARD Result<CommandPool *> FindSuitableCommandPool(u32 p_Family);
-ONYX_NO_DISCARD Result<CommandPool *> FindSuitableCommandPool(VKit::QueueType p_Type);
+ONYX_NO_DISCARD Result<CommandPool *> FindSuitableCommandPool(u32 family);
+ONYX_NO_DISCARD Result<CommandPool *> FindSuitableCommandPool(VKit::QueueType type);
 
-ONYX_NO_DISCARD Result<> BeginCommandBuffer(VkCommandBuffer p_CommandBuffer);
-ONYX_NO_DISCARD Result<> EndCommandBuffer(VkCommandBuffer p_CommandBuffer);
+ONYX_NO_DISCARD Result<> BeginCommandBuffer(VkCommandBuffer commandBuffer);
+ONYX_NO_DISCARD Result<> EndCommandBuffer(VkCommandBuffer commandBuffer);
 
-u32 GetFamilyIndex(VKit::QueueType p_Type);
+u32 GetFamilyIndex(VKit::QueueType type);
 
 bool IsSeparateTransferMode();
 
@@ -36,7 +36,7 @@ struct SyncData
     VkSemaphore RenderFinishedSemaphore;
 };
 
-ONYX_NO_DISCARD Result<TKit::TierArray<SyncData>> CreateSyncData(u32 p_ImageCount);
-void DestroySyncData(TKit::Span<const SyncData> p_Objects);
+ONYX_NO_DISCARD Result<TKit::TierArray<SyncData>> CreateSyncData(u32 imageCount);
+void DestroySyncData(TKit::Span<const SyncData> objects);
 
 } // namespace Onyx::Execution

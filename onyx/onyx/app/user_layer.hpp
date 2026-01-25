@@ -45,7 +45,7 @@ enum UserLayerFlagBit : UserLayerFlags
 class UserLayer
 {
   public:
-    UserLayer(Application *p_Application, Window *p_Window) : m_Application(p_Application), m_Window(p_Window)
+    UserLayer(Application *application, Window *window) : m_Application(application), m_Window(window)
     {
     }
 
@@ -118,21 +118,21 @@ class UserLayer
     }
 
 #ifdef ONYX_ENABLE_IMGUI
-    template <Dimension D> static bool TransformEditor(Transform<D> &p_Transform, UserLayerFlags p_Flags = 0);
+    template <Dimension D> static bool TransformEditor(Transform<D> &transform, UserLayerFlags flags = 0);
 
-    template <Dimension D> static void DisplayTransform(const Transform<D> &p_Transform, UserLayerFlags p_Flags = 0);
-    template <Dimension D> static void DisplayCameraControls(const CameraControls<D> &p_Controls = {});
+    template <Dimension D> static void DisplayTransform(const Transform<D> &transform, UserLayerFlags flags = 0);
+    template <Dimension D> static void DisplayCameraControls(const CameraControls<D> &controls = {});
 
-    static bool DirectionalLightEditor(DirectionalLight &p_Light, UserLayerFlags p_Flags = 0);
-    static bool PointLightEditor(PointLight &p_Light, UserLayerFlags p_Flags = 0);
+    static bool DirectionalLightEditor(DirectionalLight &light, UserLayerFlags flags = 0);
+    static bool PointLightEditor(PointLight &light, UserLayerFlags flags = 0);
 
-    static bool PresentModeEditor(Window *p_Window, UserLayerFlags p_Flags = 0);
+    static bool PresentModeEditor(Window *window, UserLayerFlags flags = 0);
 
-    static bool ViewportEditor(ScreenViewport &p_Viewport, UserLayerFlags p_Flags = 0);
-    static bool ScissorEditor(ScreenScissor &p_Scissor, UserLayerFlags p_Flags = 0);
+    static bool ViewportEditor(ScreenViewport &viewport, UserLayerFlags flags = 0);
+    static bool ScissorEditor(ScreenScissor &scissor, UserLayerFlags flags = 0);
 
-    static void HelpMarker(const char *p_Description, const char *p_Icon = "(?)");
-    static void HelpMarkerSameLine(const char *p_Description, const char *p_Icon = "(?)");
+    static void HelpMarker(const char *description, const char *icon = "(?)");
+    static void HelpMarkerSameLine(const char *description, const char *icon = "(?)");
 #endif
   protected:
     Application *m_Application;

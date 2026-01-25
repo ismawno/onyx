@@ -35,7 +35,7 @@ PushConstants pdata;
 
 [shader("vertex")]
 VertexOutput mainVS(
-    const VertexInput p_Input,
+    const VertexInput input,
     const uint instanceId : SV_InstanceID,
     const uint baseInstance : SV_StartInstanceLocation)
 {
@@ -44,7 +44,7 @@ VertexOutput mainVS(
     const InstanceDataFill3D data = instanceBuffer[instanceIndex];
 
     const float4x4 transform = ComputeTransform3D(data.Basis);
-    const float4 worldPos = mul(transform, float4(p_Input.Position, 1.0));
+    const float4 worldPos = mul(transform, float4(input.Position, 1.0));
 
     VertexOutput output;
     output.Position = mul(worldPos, pdata.ProjectionView);
@@ -52,7 +52,7 @@ VertexOutput mainVS(
 
     const float3x3 normalMatrix = ComputeNormalMatrix(float3x3(transform));
 
-    output.FragNormal = normalize(mul(normalMatrix, p_Input.Normal));
+    output.FragNormal = normalize(mul(normalMatrix, input.Normal));
     output.WorldPosition = worldPos.xyz;
     output.Material.Color = unpackUnorm4x8ToFloat(data.Color);
     output.Material.Reflection = data.Reflection;
@@ -67,15 +67,15 @@ StructuredBuffer<PointLight, Std430DataLayout> pointLights;
 
 
 [shader("fragment")]
-float4 mainFS(const VertexOutput p_Input, const bool p_IsFrontFacing : SV_IsFrontFace)
+float4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
 {
-    float3 normal = normalize(p_Input.FragNormal);
-    if (!p_IsFrontFacing)
+    float3 normal = normalize(input.FragNormal);
+    if (!isFrontFacing)
         normal = -normal;
 
     const LightData3D ldata = pdata.LightData;
-    const float3 color = GetLightColor(ldata, normal, p_Input.Material.Reflection, p_Input.WorldPosition, directionalLights, pointLights);
+    const float3 color = GetLightColor(ldata, normal, input.Material.Reflection, input.WorldPosition, directionalLights, pointLights);
 
-    return min(p_Input.Material.Color * float4(color, 1.0), 1.0);
+    return min(input.Material.Color * float4(color, 1.0), 1.0);
 }
 

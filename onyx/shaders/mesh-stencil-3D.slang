@@ -27,7 +27,7 @@ PushConstants pdata;
 
 [shader("vertex")]
 VertexOutput mainVS(
-    const VertexInput p_Input,
+    const VertexInput input,
     const uint instanceId : SV_InstanceID,
     const uint baseInstance : SV_StartInstanceLocation)
 {
@@ -38,7 +38,7 @@ VertexOutput mainVS(
 
     VertexOutput output;
 
-    output.Position =  mul(mul(transform, float4(p_Input.Position, 1.0)), pdata.ProjectionView);
+    output.Position =  mul(mul(transform, float4(input.Position, 1.0)), pdata.ProjectionView);
     output.PointSize = 1.0;
 
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
@@ -46,7 +46,7 @@ VertexOutput mainVS(
 }
 
 [shader("fragment")]
-float4 mainFS(const VertexOutput p_Input)
+float4 mainFS(const VertexOutput input)
 {
-    return p_Input.FragColor;
+    return input.FragColor;
 }

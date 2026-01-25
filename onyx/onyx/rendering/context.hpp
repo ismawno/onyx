@@ -57,76 +57,76 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
 
     void Flush();
 
-    void Transform(const f32m<D> &p_Transform);
-    void Transform(const f32v<D> &p_Translation, const f32v<D> &p_Scale, const rot<D> &p_Rotation);
-    void Transform(const f32v<D> &p_Translation, f32 p_Scale, const rot<D> &p_Rotation);
+    void Transform(const f32m<D> &transform);
+    void Transform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation);
+    void Transform(const f32v<D> &translation, f32 scale, const rot<D> &rotation);
 
-    void Translate(const f32v<D> &p_Translation);
-    void SetTranslation(const f32v<D> &p_Translation);
+    void Translate(const f32v<D> &translation);
+    void SetTranslation(const f32v<D> &translation);
 
-    void Scale(const f32v<D> &p_Scale);
-    void Scale(f32 p_Scale);
+    void Scale(const f32v<D> &scale);
+    void Scale(f32 scale);
 
-    void TranslateX(f32 p_X);
-    void TranslateY(f32 p_Y);
+    void TranslateX(f32 x);
+    void TranslateY(f32 y);
 
-    void SetTranslationX(f32 p_X);
-    void SetTranslationY(f32 p_Y);
+    void SetTranslationX(f32 x);
+    void SetTranslationY(f32 y);
 
-    void ScaleX(f32 p_X);
-    void ScaleY(f32 p_Y);
+    void ScaleX(f32 x);
+    void ScaleY(f32 y);
 
-    void StaticMesh(Mesh p_Mesh);
-    void StaticMesh(Mesh p_Mesh, const f32m<D> &p_Transform);
+    void StaticMesh(Mesh mesh);
+    void StaticMesh(Mesh mesh, const f32m<D> &transform);
 
-    void Circle(const CircleOptions &p_Options = {});
-    void Circle(const f32m<D> &p_Transform, const CircleOptions &p_Options = {});
+    void Circle(const CircleOptions &options = {});
+    void Circle(const f32m<D> &transform, const CircleOptions &options = {});
 
-    void Line(Mesh p_Mesh, const f32v<D> &p_Start, const f32v<D> &p_End, f32 p_Thickness = 0.1f);
-    void Axes(Mesh p_Mesh, const AxesOptions &p_Options = {});
+    void Line(Mesh mesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
+    void Axes(Mesh mesh, const AxesOptions &options = {});
 
     void Push();
-    void Push(const RenderState<D> &p_State);
+    void Push(const RenderState<D> &state);
 
     void Pop();
 
-    void AddFlags(RenderStateFlags p_Flags);
-    void RemoveFlags(RenderStateFlags p_Flags);
+    void AddFlags(RenderStateFlags flags);
+    void RemoveFlags(RenderStateFlags flags);
 
-    void Fill(bool p_Enable = true);
-    void Fill(const Color &p_Color);
+    void Fill(bool enable = true);
+    void Fill(const Color &color);
 
     template <typename... ColorArgs>
         requires std::constructible_from<Color, ColorArgs...>
-    void Fill(ColorArgs &&...p_ColorArgs)
+    void Fill(ColorArgs &&...colorArgs)
     {
-        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        const Color color(std::forward<ColorArgs>(colorArgs)...);
         Fill(color);
     }
 
-    void Alpha(f32 p_Alpha);
-    void Alpha(u8 p_Alpha);
-    void Alpha(u32 p_Alpha);
+    void Alpha(f32 alpha);
+    void Alpha(u8 alpha);
+    void Alpha(u32 alpha);
 
-    void Outline(bool p_Enable = true);
-    void Outline(const Color &p_Color);
+    void Outline(bool enable = true);
+    void Outline(const Color &color);
 
     template <typename... ColorArgs>
         requires std::constructible_from<Color, ColorArgs...>
-    void Outline(ColorArgs &&...p_ColorArgs)
+    void Outline(ColorArgs &&...colorArgs)
     {
-        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        const Color color(std::forward<ColorArgs>(colorArgs)...);
         Outline(color);
     }
 
-    void OutlineWidth(f32 p_Width);
+    void OutlineWidth(f32 width);
 
     const RenderState<D> &GetState() const;
     RenderState<D> &GetState();
 
-    void SetState(const RenderState<D> &p_State);
+    void SetState(const RenderState<D> &state);
 
-    void Render(const Window *p_Window);
+    void Render(const Window *window);
 
     const auto &GetInstanceData() const
     {
@@ -142,18 +142,18 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
         return m_Generation;
     }
 
-    bool IsDirty(const u64 p_Generation) const
+    bool IsDirty(const u64 generation) const
     {
-        return m_Generation > p_Generation;
+        return m_Generation > generation;
     }
 
-    void AddTarget(const Window *p_Window)
+    void AddTarget(const Window *window)
     {
-        m_ViewMask |= p_Window->GetViewBit();
+        m_ViewMask |= window->GetViewBit();
     }
-    void RemoveTarget(const Window *p_Window)
+    void RemoveTarget(const Window *window)
     {
-        m_ViewMask &= ~p_Window->GetViewBit();
+        m_ViewMask &= ~window->GetViewBit();
     }
 
   protected:
@@ -161,8 +161,8 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
 
   private:
     void updateState();
-    void addCircleData(const f32m<D> &p_Transform, const CircleOptions &p_Options, StencilPass p_Pass);
-    void addStaticMeshData(Mesh p_Mesh, const f32m<D> &p_Transform, StencilPass p_Pass);
+    void addCircleData(const f32m<D> &transform, const CircleOptions &options, StencilPass pass);
+    void addStaticMeshData(Mesh mesh, const f32m<D> &transform, StencilPass pass);
     struct InstanceBuffer
     {
         VKit::HostBuffer Data{};
@@ -236,7 +236,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D2> final : public
 {
   public:
     using IRenderContext<D2>::IRenderContext;
-    void Rotate(f32 p_Angle);
+    void Rotate(f32 angle);
 };
 
 template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public Detail::IRenderContext<D3>
@@ -245,47 +245,47 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
     using IRenderContext<D3>::IRenderContext;
     using IRenderContext<D3>::Transform;
 
-    void Transform(const f32v3 &p_Translation, const f32v3 &p_Scale, const f32v3 &p_Rotation);
-    void Transform(const f32v3 &p_Translation, f32 p_Scale, const f32v3 &p_Rotation);
-    void TranslateZ(f32 p_Z);
+    void Transform(const f32v3 &translation, const f32v3 &scale, const f32v3 &rotation);
+    void Transform(const f32v3 &translation, f32 scale, const f32v3 &rotation);
+    void TranslateZ(f32 z);
 
-    void SetTranslationZ(f32 p_Z);
-    void ScaleZ(f32 p_Z);
+    void SetTranslationZ(f32 z);
+    void ScaleZ(f32 z);
 
-    void Rotate(const f32q &p_Quaternion);
-    void Rotate(const f32v3 &p_Angles);
-    void Rotate(f32 p_Angle, const f32v3 &p_Axis);
+    void Rotate(const f32q &quaternion);
+    void Rotate(const f32v3 &angles);
+    void Rotate(f32 angle, const f32v3 &axis);
 
-    void RotateX(f32 p_X);
-    void RotateY(f32 p_Y);
-    void RotateZ(f32 p_Z);
+    void RotateX(f32 x);
+    void RotateY(f32 y);
+    void RotateZ(f32 z);
 
-    void LightColor(const Color &p_Color);
+    void LightColor(const Color &color);
     template <typename... ColorArgs>
         requires std::constructible_from<Color, ColorArgs...>
-    void LightColor(ColorArgs &&...p_ColorArgs)
+    void LightColor(ColorArgs &&...colorArgs)
     {
-        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        const Color color(std::forward<ColorArgs>(colorArgs)...);
         LightColor(color);
     }
 
-    void AmbientColor(const Color &p_Color);
+    void AmbientColor(const Color &color);
     template <typename... ColorArgs>
         requires std::constructible_from<Color, ColorArgs...>
-    void AmbientColor(ColorArgs &&...p_ColorArgs)
+    void AmbientColor(ColorArgs &&...colorArgs)
     {
-        const Color color(std::forward<ColorArgs>(p_ColorArgs)...);
+        const Color color(std::forward<ColorArgs>(colorArgs)...);
         AmbientColor(color);
     }
 
-    void AmbientIntensity(f32 p_Intensity);
+    void AmbientIntensity(f32 intensity);
 
-    void DirectionalLight(Onyx::DirectionalLight p_Light);
-    void DirectionalLight(const f32v3 &p_Direction, f32 p_Intensity = 1.f);
+    void DirectionalLight(Onyx::DirectionalLight light);
+    void DirectionalLight(const f32v3 &direction, f32 intensity = 1.f);
 
-    void PointLight(Onyx::PointLight p_Light);
-    void PointLight(f32 p_Radius = 1.f, f32 p_Intensity = 1.f);
-    void PointLight(const f32v3 &p_Position, f32 p_Radius = 1.f, f32 p_Intensity = 1.f);
+    void PointLight(Onyx::PointLight light);
+    void PointLight(f32 radius = 1.f, f32 intensity = 1.f);
+    void PointLight(const f32v3 &position, f32 radius = 1.f, f32 intensity = 1.f);
 };
 TKIT_COMPILER_WARNING_IGNORE_POP()
 } // namespace Onyx

@@ -10,14 +10,14 @@ static VKit::DescriptorSetLayout s_InstanceDataStorageLayout{};
 static VKit::DescriptorSetLayout s_LightStorageLayout{};
 static TKit::ArenaArray<DescriptorSet> s_Sets{};
 
-ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &p_Specs)
+ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][DESCRIPTORS] Creating assets descriptor data");
     const VKit::LogicalDevice &device = Core::GetDevice();
     const auto poolResult = VKit::DescriptorPool::Builder(device)
-                                .SetMaxSets(p_Specs.MaxSets)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, p_Specs.PoolSize)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, p_Specs.PoolSize)
+                                .SetMaxSets(specs.MaxSets)
+                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, specs.PoolSize)
+                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, specs.PoolSize)
                                 .Build();
     TKIT_RETURN_ON_ERROR(poolResult);
     s_DescriptorPool = poolResult.GetValue();
@@ -39,10 +39,10 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &p_Specs)
     return Result<>::Ok();
 }
 
-Result<> Initialize(const Specs &p_Specs)
+Result<> Initialize(const Specs &specs)
 {
-    s_Sets.Reserve(p_Specs.MaxSets);
-    return createDescriptorData(p_Specs);
+    s_Sets.Reserve(specs.MaxSets);
+    return createDescriptorData(specs);
 }
 void Terminate()
 {
@@ -51,27 +51,27 @@ void Terminate()
     s_LightStorageLayout.Destroy();
 }
 
-Result<DescriptorSet *> FindSuitableDescriptorSet(const VKit::DeviceBuffer &p_Buffer)
+Result<DescriptorSet *> FindSuitableDescriptorSet(const VKit::DeviceBuffer &buffer)
 {
     for (DescriptorSet &set : s_Sets)
         if (!set.InUse())
         {
-            if (set.Buffer == p_Buffer)
+            if (set.Buffer == buffer)
                 return &set;
-            const VkDescriptorBufferInfo info = p_Buffer.CreateDescriptorInfo();
+            const VkDescriptorBufferInfo info = buffer.CreateDescriptorInfo();
             const auto result = WriteStorageBufferDescriptorSet(info, set.Set);
             TKIT_RETURN_ON_ERROR(result);
             set.Set = result.GetValue();
-            set.Buffer = p_Buffer;
+            set.Buffer = buffer;
         }
 
     DescriptorSet &set = s_Sets.Append();
-    const VkDescriptorBufferInfo info = p_Buffer.CreateDescriptorInfo();
+    const VkDescriptorBufferInfo info = buffer.CreateDescriptorInfo();
 
     const auto result = WriteStorageBufferDescriptorSet(info, set.Set);
     TKIT_RETURN_ON_ERROR(result);
     set.Set = result.GetValue();
-    set.Buffer = p_Buffer;
+    set.Buffer = buffer;
     return &set;
 }
 
@@ -88,18 +88,18 @@ const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout()
     return s_LightStorageLayout;
 }
 
-Result<VkDescriptorSet> WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &p_Info, VkDescriptorSet p_OldSet)
+Result<VkDescriptorSet> WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &info, VkDescriptorSet oldSet)
 {
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &s_InstanceDataStorageLayout};
-    writer.WriteBuffer(0, p_Info);
+    writer.WriteBuffer(0, info);
 
-    if (!p_OldSet)
+    if (!oldSet)
     {
         const auto result = s_DescriptorPool.Allocate(s_InstanceDataStorageLayout);
         TKIT_RETURN_ON_ERROR(result);
-        p_OldSet = result.GetValue();
+        oldSet = result.GetValue();
     }
-    writer.Overwrite(p_OldSet);
-    return p_OldSet;
+    writer.Overwrite(oldSet);
+    return oldSet;
 }
 } // namespace Onyx::Descriptors

@@ -19,9 +19,9 @@ void Terminate();
 VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo();
 
 template <Dimension D> RenderContext<D> *CreateContext();
-template <Dimension D> void DestroyContext(RenderContext<D> *p_Context);
+template <Dimension D> void DestroyContext(RenderContext<D> *context);
 
-void ClearWindow(const Window *p_Window);
+void ClearWindow(const Window *window);
 
 struct TransferSubmitInfo
 {
@@ -43,21 +43,19 @@ struct RenderSubmitInfo
     TKit::TierArray<VkSemaphoreSubmitInfoKHR> WaitSemaphores{};
 };
 
-ONYX_NO_DISCARD Result<TransferSubmitInfo> Transfer(VKit::Queue *p_Transfer, VkCommandBuffer p_Command);
-ONYX_NO_DISCARD Result<> SubmitTransfer(VKit::Queue *p_Transfer, CommandPool *p_Pool,
-                                        TKit::Span<const TransferSubmitInfo> p_Info);
+ONYX_NO_DISCARD Result<TransferSubmitInfo> Transfer(VKit::Queue *transfer, VkCommandBuffer command);
+ONYX_NO_DISCARD Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool,
+                                        TKit::Span<const TransferSubmitInfo> info);
 
-void ApplyAcquireBarriers(VkCommandBuffer p_GraphicsCommand);
+void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
 
-ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *p_Graphics, VkCommandBuffer p_Command,
-                                                const Window *p_Window);
-ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *p_Graphics, CommandPool *p_Pool,
-                                      TKit::Span<const RenderSubmitInfo> p_Info);
+ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *graphics, VkCommandBuffer command, const Window *window);
+ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool,
+                                      TKit::Span<const RenderSubmitInfo> info);
 
 void Coalesce();
 
-template <Dimension D> void BindStaticMeshes(VkCommandBuffer p_Command);
-template <Dimension D>
-void DrawStaticMesh(VkCommandBuffer p_Command, Mesh p_Mesh, u32 p_FirstInstance, u32 p_InstanceCount);
+template <Dimension D> void BindStaticMeshes(VkCommandBuffer command);
+template <Dimension D> void DrawStaticMesh(VkCommandBuffer command, Mesh mesh, u32 firstInstance, u32 instanceCount);
 
 } // namespace Onyx::Renderer

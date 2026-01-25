@@ -79,19 +79,19 @@ StructuredBuffer<DirectionalLight, Std430DataLayout> directionalLights;
 StructuredBuffer<PointLight, Std430DataLayout> pointLights;
 
 [shader("fragment")]
-float4 mainFS(const VertexOutput p_Input, const bool p_IsFrontFacing : SV_IsFrontFace)
+float4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
 {
-    const CircleBounds bounds = GetCircleBounds(p_Input.LocalPosition, p_Input.Arc.Hollowness);
-    if (!CheckOutsideCircle(bounds, p_Input.LocalPosition, p_Input.Arc)) discard;
+    const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
+    if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
 
-    float3 normal = p_Input.FragNormal;
-    if (!p_IsFrontFacing)
+    float3 normal = input.FragNormal;
+    if (!isFrontFacing)
         normal = -normal;
 
     const LightData3D ldata = pdata.Light;
-    const float3 lcolor = GetLightColor(ldata, normal, p_Input.Material.Reflection, p_Input.WorldPosition, directionalLights, pointLights);
+    const float3 lcolor = GetLightColor(ldata, normal, input.Material.Reflection, input.WorldPosition, directionalLights, pointLights);
 
-    const float alpha = CircleFade(p_Input.Material.Color.a, bounds, p_Input.Fade);
-    return p_Input.Material.Color * float4(lcolor, alpha);
+    const float alpha = CircleFade(input.Material.Color.a, bounds, input.Fade);
+    return input.Material.Color * float4(lcolor, alpha);
 }
 

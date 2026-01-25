@@ -26,19 +26,18 @@ void Application::Run()
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-void Application::applyTheme(const WindowData &p_Data)
+void Application::applyTheme(const WindowData &data)
 {
-    TKIT_ASSERT(p_Data.Theme,
-                "[ONYX][APPLICATION] No theme has been set for the given windos. Set one with SetTheme()");
+    TKIT_ASSERT(data.Theme, "[ONYX][APPLICATION] No theme has been set for the given windos. Set one with SetTheme()");
     ImGuiContext *pcontext = ImGui::GetCurrentContext();
-    ImGui::SetCurrentContext(p_Data.ImGuiContext);
-    p_Data.Theme->Apply();
+    ImGui::SetCurrentContext(data.ImGuiContext);
+    data.Theme->Apply();
     ImGui::SetCurrentContext(pcontext);
 }
 
-void Application::ApplyTheme(const Window *p_Window)
+void Application::ApplyTheme(const Window *window)
 {
-    const WindowData *data = getWindowData(p_Window);
+    const WindowData *data = getWindowData(window);
     applyTheme(*data);
 }
 
@@ -48,164 +47,163 @@ static void beginRenderImGui()
     NewImGuiFrame();
 }
 
-static void endRenderImGui(const VkCommandBuffer p_CommandBuffer)
+static void endRenderImGui(const VkCommandBuffer commandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::EndRenderImGui");
     ImGui::Render();
-    RenderImGuiData(ImGui::GetDrawData(), p_CommandBuffer);
+    RenderImGuiData(ImGui::GetDrawData(), commandBuffer);
     RenderImGuiWindows();
 }
 
-void Application::setUpdateDeltaTime(const TKit::Timespan p_Target, WindowData &p_Data)
+void Application::setUpdateDeltaTime(const TKit::Timespan target, WindowData &data)
 {
-    p_Data.UpdateClock.Delta.Time.Target = p_Target;
+    data.UpdateClock.Delta.Time.Target = target;
 }
-void Application::setRenderDeltaTime(const TKit::Timespan p_Target, WindowData &p_Data)
+void Application::setRenderDeltaTime(const TKit::Timespan target, WindowData &data)
 {
     TKIT_LOG_WARNING_IF(
-        p_Data.Window->IsVSync(),
+        data.Window->IsVSync(),
         "[ONYX][APPLICATION] When the present mode of the window is FIFO (V-Sync), setting the target delta "
         "time for said window is useless");
-    if (!p_Data.Window->IsVSync())
-        p_Data.RenderClock.Delta.Time.Target = p_Target;
+    if (!data.Window->IsVSync())
+        data.RenderClock.Delta.Time.Target = target;
 }
 
-Application::WindowData *Application::getWindowData(const Window *p_Window)
+Application::WindowData *Application::getWindowData(const Window *window)
 {
-    if (m_MainWindow.Window == p_Window)
+    if (m_MainWindow.Window == window)
         return &m_MainWindow;
 #    ifdef __ONYX_MULTI_WINDOW
     for (WindowData &data : m_Windows)
-        if (data.Window == p_Window)
+        if (data.Window == window)
             return &data;
 #    endif
-    TKIT_FATAL("[ONYX][APPLICATION] No window data found for '{}' window", p_Window->GetName());
+    TKIT_FATAL("[ONYX][APPLICATION] No window data found for '{}' window", window->GetName());
     return nullptr;
 }
-const Application::WindowData *Application::getWindowData(const Window *p_Window) const
+const Application::WindowData *Application::getWindowData(const Window *window) const
 {
-    if (m_MainWindow.Window == p_Window)
+    if (m_MainWindow.Window == window)
         return &m_MainWindow;
 #    ifdef __ONYX_MULTI_WINDOW
     for (const WindowData &data : m_Windows)
-        if (data.Window == p_Window)
+        if (data.Window == window)
             return &data;
 #    endif
-    TKIT_FATAL("[ONYX][APPLICATION] No window data found for '{}' window", p_Window->GetName());
+    TKIT_FATAL("[ONYX][APPLICATION] No window data found for '{}' window", window->GetName());
     return nullptr;
 }
 
-static void initializeImGui(WindowData &p_Data)
+static void initializeImGui(WindowData &data)
 {
-    Window *window = p_Data.Window;
-    TKIT_ASSERT(!p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
+    Window *window = data.Window;
+    TKIT_ASSERT(!data.CheckFlags(ApplicationFlag_ImGuiRunning),
                 "[ONYX][APPLICATION] Trying to initialize ImGui for window '{}' when it is already running. If you "
                 "meant to reload ImGui, use ReloadImGui()",
                 window->GetName());
 
     IMGUI_CHECKVERSION();
-    if (!p_Data.Theme)
-        p_Data.Theme = new BabyTheme;
+    if (!data.Theme)
+        data.Theme = new BabyTheme;
 
-    p_Data.ImGuiContext = ImGui::CreateContext();
-    ImGui::SetCurrentContext(p_Data.ImGuiContext);
+    data.ImGuiContext = ImGui::CreateContext();
+    ImGui::SetCurrentContext(data.ImGuiContext);
 #    ifdef ONYX_ENABLE_IMPLOT
-    p_Data.ImPlotContext = ImPlot::CreateContext();
-    ImPlot::SetCurrentContext(p_Data.ImPlotContext);
+    data.ImPlotContext = ImPlot::CreateContext();
+    ImPlot::SetCurrentContext(data.ImPlotContext);
 #    endif
 
     ImGuiIO &io = ImGui::GetIO();
-    io.ConfigFlags = p_Data.ImGuiConfigFlags;
+    io.ConfigFlags = data.ImGuiConfigFlags;
     InitializeImGui(window);
     ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
     io.FontDefault = font;
-    p_Data.Theme->Apply();
+    data.Theme->Apply();
 
-    p_Data.SetFlags(ApplicationFlag_ImGuiRunning);
+    data.SetFlags(ApplicationFlag_ImGuiRunning);
 }
 
-static void shutdownImGui(WindowData &p_Data)
+static void shutdownImGui(WindowData &data)
 {
-    TKIT_ASSERT(p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
+    TKIT_ASSERT(data.CheckFlags(ApplicationFlag_ImGuiRunning),
                 "[ONYX][APPLICATION] Trying to shut down ImGui when it is not initialized to begin with");
 
-    p_Data.ClearFlags(ApplicationFlag_ImGuiRunning);
+    data.ClearFlags(ApplicationFlag_ImGuiRunning);
 
-    ImGui::SetCurrentContext(p_Data.ImGuiContext);
+    ImGui::SetCurrentContext(data.ImGuiContext);
 #    ifdef ONYX_ENABLE_IMPLOT
-    ImPlot::SetCurrentContext(p_Data.ImPlotContext);
+    ImPlot::SetCurrentContext(data.ImPlotContext);
 #    endif
 
     ShutdownImGui();
 
-    ImGui::DestroyContext(p_Data.ImGuiContext);
-    p_Data.ImGuiContext = nullptr;
+    ImGui::DestroyContext(data.ImGuiContext);
+    data.ImGuiContext = nullptr;
 #    ifdef ONYX_ENABLE_IMPLOT
-    ImPlot::DestroyContext(p_Data.ImPlotContext);
-    p_Data.ImPlotContext = nullptr;
+    ImPlot::DestroyContext(data.ImPlotContext);
+    data.ImPlotContext = nullptr;
 #    endif
 }
 
-static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLayerFlags p_Flags,
-                             const bool p_CheckVSync)
+static bool displayDeltaTime(Window *window, DeltaInfo &delta, const UserLayerFlags flags, const bool checkVSync)
 {
-    DeltaTime &time = p_Delta.Time;
+    DeltaTime &time = delta.Time;
 
-    if (time.Measured > p_Delta.Max)
-        p_Delta.Max = time.Measured;
-    p_Delta.Smoothed = p_Delta.Smoothness * p_Delta.Smoothed + (1.f - p_Delta.Smoothness) * time.Measured;
+    if (time.Measured > delta.Max)
+        delta.Max = time.Measured;
+    delta.Smoothed = delta.Smoothness * delta.Smoothed + (1.f - delta.Smoothness) * time.Measured;
 
-    ImGui::SliderFloat("Smoothing factor", &p_Delta.Smoothness, 0.f, 0.999f);
-    if (p_Flags & UserLayerFlag_DisplayHelp)
+    ImGui::SliderFloat("Smoothing factor", &delta.Smoothness, 0.f, 0.999f);
+    if (flags & UserLayerFlag_DisplayHelp)
         UserLayer::HelpMarkerSameLine(
             "Because frames get dispatched so quickly, the frame time can vary a lot, be inconsistent, and hard to "
             "see. This slider allows you to smooth out the frame time across frames, making it easier to see the "
             "trend.");
 
-    ImGui::Combo("Unit", &p_Delta.Unit, "s\0ms\0us\0ns\0");
-    const u32 mfreq = ToFrequency(p_Delta.Smoothed);
-    u32 tfreq = ToFrequency(p_Delta.Time.Target);
+    ImGui::Combo("Unit", &delta.Unit, "s\0ms\0us\0ns\0");
+    const u32 mfreq = ToFrequency(delta.Smoothed);
+    u32 tfreq = ToFrequency(delta.Time.Target);
 
     bool changed = false;
-    if (p_CheckVSync && p_Window->IsVSync())
+    if (checkVSync && window->IsVSync())
         ImGui::Text("Target hertz: %u", tfreq);
     else
     {
-        changed = ImGui::Checkbox("Limit hertz", &p_Delta.Limit);
+        changed = ImGui::Checkbox("Limit hertz", &delta.Limit);
         if (changed)
-            p_Delta.Time.Target = p_Delta.Limit ? p_Window->GetMonitorDeltaTime() : TKit::Timespan{};
+            delta.Time.Target = delta.Limit ? window->GetMonitorDeltaTime() : TKit::Timespan{};
 
-        if (p_Delta.Limit)
+        if (delta.Limit)
         {
             const u32 mn = 30;
             const u32 mx = 240;
             if (ImGui::SliderScalarN("Target hertz", ImGuiDataType_U32, &tfreq, 1, &mn, &mx))
             {
-                p_Delta.Time.Target = ToDeltaTime(tfreq);
+                delta.Time.Target = ToDeltaTime(tfreq);
                 changed = true;
             }
         }
     }
     ImGui::Text("Measured hertz: %u", mfreq);
 
-    if (p_Delta.Unit == 0)
-        ImGui::Text("Measured delta time: %.4f s (max: %.4f s)", p_Delta.Smoothed.AsSeconds(), p_Delta.Max.AsSeconds());
-    else if (p_Delta.Unit == 1)
-        ImGui::Text("Measured delta time: %.2f ms (max: %.2f ms)", p_Delta.Smoothed.AsMilliseconds(),
-                    p_Delta.Max.AsMilliseconds());
-    else if (p_Delta.Unit == 2)
-        ImGui::Text("Measured delta time: %u us (max: %u us)", static_cast<u32>(p_Delta.Smoothed.AsMicroseconds()),
-                    static_cast<u32>(p_Delta.Max.AsMicroseconds()));
+    if (delta.Unit == 0)
+        ImGui::Text("Measured delta time: %.4f s (max: %.4f s)", delta.Smoothed.AsSeconds(), delta.Max.AsSeconds());
+    else if (delta.Unit == 1)
+        ImGui::Text("Measured delta time: %.2f ms (max: %.2f ms)", delta.Smoothed.AsMilliseconds(),
+                    delta.Max.AsMilliseconds());
+    else if (delta.Unit == 2)
+        ImGui::Text("Measured delta time: %u us (max: %u us)", static_cast<u32>(delta.Smoothed.AsMicroseconds()),
+                    static_cast<u32>(delta.Max.AsMicroseconds()));
     else
 #    ifndef TKIT_OS_LINUX
-        ImGui::Text("Measured delta time: %llu ns (max: %llu ns)", p_Delta.Smoothed.AsNanoseconds(),
-                    p_Delta.Max.AsNanoseconds());
+        ImGui::Text("Measured delta time: %llu ns (max: %llu ns)", delta.Smoothed.AsNanoseconds(),
+                    delta.Max.AsNanoseconds());
 #    else
-        ImGui::Text("Measured delta time: %lu ns (max: %lu ns)", p_Delta.Smoothed.AsNanoseconds(),
-                    p_Delta.Max.AsNanoseconds());
+        ImGui::Text("Measured delta time: %lu ns (max: %lu ns)", delta.Smoothed.AsNanoseconds(),
+                    delta.Max.AsNanoseconds());
 #    endif
 
-    if (p_Flags & UserLayerFlag_DisplayHelp)
+    if (flags & UserLayerFlag_DisplayHelp)
         UserLayer::HelpMarkerSameLine(
             "The delta time is a measure of the time it takes to complete a frame loop around a particular callback "
             "(which can be an update or render callback), and it is one of the main indicators of an application "
@@ -214,45 +212,45 @@ static bool displayDeltaTime(Window *p_Window, DeltaInfo &p_Delta, const UserLay
             "window.");
 
     if (ImGui::Button("Reset maximum"))
-        p_Delta.Max = TKit::Timespan{};
+        delta.Max = TKit::Timespan{};
     return changed;
 }
 
-static bool displayDeltaTime(WindowData &p_Data, const UserLayerFlags p_Flags)
+static bool displayDeltaTime(WindowData &data, const UserLayerFlags flags)
 {
-    const auto sync = [](DeltaInfo &p_Dst, const DeltaInfo &p_Src) {
-        p_Dst.Time.Target = p_Src.Time.Target;
-        p_Dst.Smoothness = p_Src.Smoothness;
-        p_Dst.Unit = p_Src.Unit;
-        p_Dst.Limit = p_Src.Limit;
+    const auto sync = [](DeltaInfo &dst, const DeltaInfo &src) {
+        dst.Time.Target = src.Time.Target;
+        dst.Smoothness = src.Smoothness;
+        dst.Unit = src.Unit;
+        dst.Limit = src.Limit;
     };
     ImGui::Text("Delta time");
     bool changed = ImGui::Button("Sync");
     if (changed)
-        sync(p_Data.UpdateClock.Delta, p_Data.RenderClock.Delta);
+        sync(data.UpdateClock.Delta, data.RenderClock.Delta);
 
-    if (!p_Data.Window->IsVSync())
+    if (!data.Window->IsVSync())
     {
         ImGui::SameLine();
-        changed |= ImGui::Checkbox("Mirror", &p_Data.MirrorDeltas);
+        changed |= ImGui::Checkbox("Mirror", &data.MirrorDeltas);
     }
-    const bool mirror = !p_Data.Window->IsVSync() && p_Data.MirrorDeltas;
+    const bool mirror = !data.Window->IsVSync() && data.MirrorDeltas;
     if (ImGui::TreeNode("Render"))
     {
-        if (displayDeltaTime(p_Data.Window, p_Data.RenderClock.Delta, p_Flags, true))
+        if (displayDeltaTime(data.Window, data.RenderClock.Delta, flags, true))
         {
             if (mirror)
-                sync(p_Data.UpdateClock.Delta, p_Data.RenderClock.Delta);
+                sync(data.UpdateClock.Delta, data.RenderClock.Delta);
             changed = true;
         }
         ImGui::TreePop();
     }
     if (ImGui::TreeNode("Update"))
     {
-        if (displayDeltaTime(p_Data.Window, p_Data.UpdateClock.Delta, p_Flags, false))
+        if (displayDeltaTime(data.Window, data.UpdateClock.Delta, flags, false))
         {
             if (mirror)
-                sync(p_Data.RenderClock.Delta, p_Data.UpdateClock.Delta);
+                sync(data.RenderClock.Delta, data.UpdateClock.Delta);
             changed = true;
         }
         ImGui::TreePop();
@@ -260,43 +258,43 @@ static bool displayDeltaTime(WindowData &p_Data, const UserLayerFlags p_Flags)
     return changed;
 }
 
-bool Application::DisplayDeltaTime(const UserLayerFlags p_Flags)
+bool Application::DisplayDeltaTime(const UserLayerFlags flags)
 {
-    return displayDeltaTime(m_MainWindow, p_Flags);
+    return displayDeltaTime(m_MainWindow, flags);
 }
-bool Application::DisplayDeltaTime(const Window *p_Window, const UserLayerFlags p_Flags)
+bool Application::DisplayDeltaTime(const Window *window, const UserLayerFlags flags)
 {
-    WindowData *data = getWindowData(p_Window);
-    return displayDeltaTime(*data, p_Flags);
+    WindowData *data = getWindowData(window);
+    return displayDeltaTime(*data, flags);
 }
 
-bool Application::enableImGui(WindowData &p_Data, const i32 p_Flags)
+bool Application::enableImGui(WindowData &data, const i32 flags)
 {
-    p_Data.ImGuiConfigFlags = p_Flags;
+    data.ImGuiConfigFlags = flags;
     if (checkFlags(ApplicationFlag_Defer))
     {
-        p_Data.SetFlags(ApplicationFlag_MustDisableImGui);
+        data.SetFlags(ApplicationFlag_MustDisableImGui);
         return false;
     }
-    shutdownImGui(p_Data);
-    p_Data.ClearFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_ImGuiEnabled);
+    shutdownImGui(data);
+    data.ClearFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_ImGuiEnabled);
     return true;
 }
 
-bool Application::EnableImGui(const Window *p_Window, const i32 p_Flags)
+bool Application::EnableImGui(const Window *window, const i32 flags)
 {
-    WindowData *data = getWindowData(p_Window);
-    return enableImGui(*data, p_Flags);
+    WindowData *data = getWindowData(window);
+    return enableImGui(*data, flags);
 }
 
-bool Application::EnableImGui(const i32 p_Flags)
+bool Application::EnableImGui(const i32 flags)
 {
-    return enableImGui(m_MainWindow, p_Flags);
+    return enableImGui(m_MainWindow, flags);
 }
 
-bool Application::DisableImGui(const Window *p_Window)
+bool Application::DisableImGui(const Window *window)
 {
-    WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
+    WindowData *data = window ? getWindowData(window) : &m_MainWindow;
     if (checkFlags(ApplicationFlag_Defer))
     {
         data->SetFlags(ApplicationFlag_MustDisableImGui);
@@ -307,27 +305,27 @@ bool Application::DisableImGui(const Window *p_Window)
     return true;
 }
 
-bool Application::reloadImGui(WindowData &p_Data, const i32 p_Flags)
+bool Application::reloadImGui(WindowData &data, const i32 flags)
 {
-    p_Data.ImGuiConfigFlags = p_Flags;
+    data.ImGuiConfigFlags = flags;
     if (checkFlags(ApplicationFlag_Defer))
     {
-        p_Data.SetFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_MustEnableImGui);
+        data.SetFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_MustEnableImGui);
         return false;
     }
-    shutdownImGui(p_Data);
-    initializeImGui(p_Data);
+    shutdownImGui(data);
+    initializeImGui(data);
     return true;
 }
 
-bool Application::ReloadImGui(const i32 p_Flags)
+bool Application::ReloadImGui(const i32 flags)
 {
-    return reloadImGui(m_MainWindow, p_Flags);
+    return reloadImGui(m_MainWindow, flags);
 }
-bool Application::ReloadImGui(const Window *p_Window, const i32 p_Flags)
+bool Application::ReloadImGui(const Window *window, const i32 flags)
 {
-    WindowData *data = p_Window ? getWindowData(p_Window) : &m_MainWindow;
-    return reloadImGui(*data, p_Flags);
+    WindowData *data = window ? getWindowData(window) : &m_MainWindow;
+    return reloadImGui(*data, flags);
 }
 
 #endif
@@ -342,106 +340,106 @@ static void endFrame()
     TKIT_PROFILE_MARK_FRAME();
 }
 
-void Application::processWindow(WindowData &p_Data)
+void Application::processWindow(WindowData &data)
 {
-    if (p_Data.UpdateClock.IsDue())
+    if (data.UpdateClock.IsDue())
     {
-        p_Data.UpdateClock.Update();
-        if (p_Data.Layer)
-            p_Data.Layer->OnUpdate(p_Data.UpdateClock.Delta.Time);
+        data.UpdateClock.Update();
+        if (data.Layer)
+            data.Layer->OnUpdate(data.UpdateClock.Delta.Time);
     }
 
-    if (!p_Data.RenderClock.IsDue())
+    if (!data.RenderClock.IsDue())
         return;
-    const FrameInfo info = p_Data.Window->BeginFrame(WaitMode::Poll);
+    const FrameInfo info = data.Window->BeginFrame(WaitMode::Poll);
     if (!info)
         return;
 
-    p_Data.RenderClock.Update();
+    data.RenderClock.Update();
 #ifdef ONYX_ENABLE_IMGUI
-    TKIT_ASSERT(!p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled) || p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
+    TKIT_ASSERT(!data.CheckFlags(ApplicationFlag_ImGuiEnabled) || data.CheckFlags(ApplicationFlag_ImGuiRunning),
                 "[ONYX][APPLICATION] ImGui is enabled for window '{}' but no instance of "
                 "ImGui is running. This should not be possible",
-                p_Data.Window->GetName());
+                data.Window->GetName());
 
-    TKIT_ASSERT(p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled) || !p_Data.CheckFlags(ApplicationFlag_ImGuiRunning),
+    TKIT_ASSERT(data.CheckFlags(ApplicationFlag_ImGuiEnabled) || !data.CheckFlags(ApplicationFlag_ImGuiRunning),
                 "[ONYX][APPLICATION] ImGui is disabled for window '{}' but an instance of "
                 "ImGui is running. This should not be possible",
-                p_Data.Window->GetName());
+                data.Window->GetName());
 
-    ImGui::SetCurrentContext(p_Data.ImGuiContext);
+    ImGui::SetCurrentContext(data.ImGuiContext);
 #    ifdef ONYX_ENABLE_IMPLOT
-    ImPlot::SetCurrentContext(p_Data.ImPlotContext);
+    ImPlot::SetCurrentContext(data.ImPlotContext);
 #    endif
-    if (p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled))
+    if (data.CheckFlags(ApplicationFlag_ImGuiEnabled))
         beginRenderImGui();
 #endif
 
-    for (const Event &event : p_Data.Window->GetNewEvents())
+    for (const Event &event : data.Window->GetNewEvents())
     {
-        if (p_Data.Window->IsVSync() && (event.Type == Event_SwapChainRecreated || event.Type == Event_WindowMoved))
+        if (data.Window->IsVSync() && (event.Type == Event_SwapChainRecreated || event.Type == Event_WindowMoved))
         {
-            p_Data.RenderClock.Delta.Time.Target = p_Data.Window->GetMonitorDeltaTime();
-            p_Data.RenderClock.Delta.Limit = true;
+            data.RenderClock.Delta.Time.Target = data.Window->GetMonitorDeltaTime();
+            data.RenderClock.Delta.Limit = true;
         }
 
-        if (p_Data.Layer)
-            p_Data.Layer->OnEvent(event);
+        if (data.Layer)
+            data.Layer->OnEvent(event);
     }
 
-    p_Data.Window->FlushEvents();
-    if (p_Data.Layer)
-        p_Data.Layer->OnFrameBegin(p_Data.RenderClock.Delta.Time, info);
+    data.Window->FlushEvents();
+    if (data.Layer)
+        data.Layer->OnFrameBegin(data.RenderClock.Delta.Time, info);
 
-    const VkPipelineStageFlags transferFlags = p_Data.Window->SubmitContextData(info);
+    const VkPipelineStageFlags transferFlags = data.Window->SubmitContextData(info);
 
-    p_Data.Window->BeginRendering();
-    if (p_Data.Layer)
-        p_Data.Layer->OnRenderBegin(p_Data.RenderClock.Delta.Time, info);
+    data.Window->BeginRendering();
+    if (data.Layer)
+        data.Layer->OnRenderBegin(data.RenderClock.Delta.Time, info);
 
-    p_Data.Window->Render(info);
+    data.Window->Render(info);
 #ifdef ONYX_ENABLE_IMGUI
-    if (p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled))
+    if (data.CheckFlags(ApplicationFlag_ImGuiEnabled))
         endRenderImGui(info.GraphicsCommand);
 #endif
 
-    if (p_Data.Layer)
-        p_Data.Layer->OnRenderEnd(p_Data.RenderClock.Delta.Time, info);
-    p_Data.Window->EndRendering();
+    if (data.Layer)
+        data.Layer->OnRenderEnd(data.RenderClock.Delta.Time, info);
+    data.Window->EndRendering();
 
-    if (p_Data.Layer)
-        p_Data.Layer->OnFrameEnd(p_Data.RenderClock.Delta.Time, info);
-    p_Data.Window->EndFrame(transferFlags);
+    if (data.Layer)
+        data.Layer->OnFrameEnd(data.RenderClock.Delta.Time, info);
+    data.Window->EndFrame(transferFlags);
 }
 
-static void syncDeferredOperations(WindowData &p_Data)
+static void syncDeferredOperations(WindowData &data)
 {
-    if (p_Data.CheckFlags(ApplicationFlag_MustDestroyLayer))
+    if (data.CheckFlags(ApplicationFlag_MustDestroyLayer))
     {
-        delete p_Data.Layer;
-        p_Data.Layer = nullptr;
-        p_Data.ClearFlags(ApplicationFlag_MustDestroyLayer);
+        delete data.Layer;
+        data.Layer = nullptr;
+        data.ClearFlags(ApplicationFlag_MustDestroyLayer);
     }
-    if (p_Data.CheckFlags(ApplicationFlag_MustReplaceLayer))
+    if (data.CheckFlags(ApplicationFlag_MustReplaceLayer))
     {
-        p_Data.Layer = p_Data.StagedLayer;
-        p_Data.StagedLayer = nullptr;
-        p_Data.ClearFlags(ApplicationFlag_MustReplaceLayer);
+        data.Layer = data.StagedLayer;
+        data.StagedLayer = nullptr;
+        data.ClearFlags(ApplicationFlag_MustReplaceLayer);
     }
 
 #ifdef ONYX_ENABLE_IMGUI
 
-    if (p_Data.CheckFlags(ApplicationFlag_MustDisableImGui))
+    if (data.CheckFlags(ApplicationFlag_MustDisableImGui))
     {
-        shutdownImGui(p_Data);
-        p_Data.ClearFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_ImGuiEnabled);
+        shutdownImGui(data);
+        data.ClearFlags(ApplicationFlag_MustDisableImGui | ApplicationFlag_ImGuiEnabled);
     }
 
-    if (p_Data.CheckFlags(ApplicationFlag_MustEnableImGui))
+    if (data.CheckFlags(ApplicationFlag_MustEnableImGui))
     {
-        initializeImGui(p_Data);
-        p_Data.ClearFlags(ApplicationFlag_MustEnableImGui);
-        p_Data.SetFlags(ApplicationFlag_ImGuiEnabled);
+        initializeImGui(data);
+        data.ClearFlags(ApplicationFlag_MustEnableImGui);
+        data.SetFlags(ApplicationFlag_ImGuiEnabled);
     }
 #endif
 }
@@ -483,7 +481,7 @@ void Application::syncDeferredOperations()
     }
 }
 
-bool Application::NextFrame(TKit::Clock &p_Clock)
+bool Application::NextFrame(TKit::Clock &clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextFrame");
 
@@ -499,9 +497,9 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
     syncDeferredOperations();
     endFrame();
 
-    const auto computeSleep = [](const WindowData &p_Data) {
-        return Math::Min(p_Data.RenderClock.Delta.Time.Target - p_Data.RenderClock.Clock.GetElapsed(),
-                         p_Data.UpdateClock.Delta.Time.Target - p_Data.UpdateClock.Clock.GetElapsed());
+    const auto computeSleep = [](const WindowData &data) {
+        return Math::Min(data.RenderClock.Delta.Time.Target - data.RenderClock.Clock.GetElapsed(),
+                         data.UpdateClock.Delta.Time.Target - data.UpdateClock.Clock.GetElapsed());
     };
 
     TKit::Timespan sleep = computeSleep(m_MainWindow);
@@ -517,20 +515,20 @@ bool Application::NextFrame(TKit::Clock &p_Clock)
         TKIT_PROFILE_NSCOPE("Onyx::Application::Sleep");
         TKit::Timespan::Sleep(sleep);
     }
-    m_DeltaTime = p_Clock.Restart();
+    m_DeltaTime = clock.Restart();
     return m_MainWindow.Window;
 }
 
-Application::WindowData Application::createWindow(const WindowSpecs &p_Specs)
+Application::WindowData Application::createWindow(const WindowSpecs &specs)
 {
     WindowData data;
-    data.Window = m_WindowAllocator.Create<Window>(p_Specs.Specs);
+    data.Window = m_WindowAllocator.Create<Window>(specs.Specs);
     data.RenderClock.Delta.Time.Target = data.Window->GetMonitorDeltaTime();
     data.RenderClock.Delta.Limit = true;
     data.UpdateClock = data.RenderClock;
 
 #ifdef ONYX_ENABLE_IMGUI
-    if (p_Specs.EnableImGui)
+    if (specs.EnableImGui)
     {
         initializeImGui(data);
         data.SetFlags(ApplicationFlag_ImGuiEnabled);
@@ -540,19 +538,19 @@ Application::WindowData Application::createWindow(const WindowSpecs &p_Specs)
     return data;
 }
 
-void Application::destroyWindow(WindowData &p_Data)
+void Application::destroyWindow(WindowData &data)
 {
-    delete p_Data.StagedLayer;
-    delete p_Data.Layer;
+    delete data.StagedLayer;
+    delete data.Layer;
 
-    p_Data.StagedLayer = nullptr;
-    p_Data.Layer = nullptr;
+    data.StagedLayer = nullptr;
+    data.Layer = nullptr;
 #ifdef ONYX_ENABLE_IMGUI
-    if (p_Data.CheckFlags(ApplicationFlag_ImGuiEnabled))
-        shutdownImGui(p_Data);
+    if (data.CheckFlags(ApplicationFlag_ImGuiEnabled))
+        shutdownImGui(data);
 #endif
-    m_WindowAllocator.Destroy(p_Data.Window);
-    p_Data.Window = nullptr;
+    m_WindowAllocator.Destroy(data.Window);
+    data.Window = nullptr;
 }
 
 void Application::closeAllWindows()
@@ -567,33 +565,33 @@ void Application::closeAllWindows()
 }
 
 #ifdef __ONYX_MULTI_WINDOW
-bool Application::CloseWindow(Window *p_Window)
+bool Application::CloseWindow(Window *window)
 {
     if (checkFlags(ApplicationFlag_Defer))
     {
-        p_Window->FlagShouldClose();
+        window->FlagShouldClose();
         return false;
     }
-    if (m_MainWindow.Window == p_Window)
+    if (m_MainWindow.Window == window)
     {
         destroyWindow(m_MainWindow);
         return true;
     }
     for (u32 i = 0; i < m_Windows.GetSize(); ++i)
-        if (m_Windows[i].Window == p_Window)
+        if (m_Windows[i].Window == window)
         {
             destroyWindow(m_Windows[i]);
             m_Windows.RemoveUnordered(m_Windows.begin() + i);
             return true;
         }
-    TKIT_FATAL("[ONYX][APPLICATION] Failed to close window: Window '{}' not found", p_Window->GetName());
+    TKIT_FATAL("[ONYX][APPLICATION] Failed to close window: Window '{}' not found", window->GetName());
     return false;
 }
-Window *Application::openWindow(const WindowSpecs &p_Specs)
+Window *Application::openWindow(const WindowSpecs &specs)
 {
-    const WindowData &data = m_Windows.Append(createWindow(p_Specs));
-    if (p_Specs.CreationCallback)
-        p_Specs.CreationCallback(data.Window);
+    const WindowData &data = m_Windows.Append(createWindow(specs));
+    if (specs.CreationCallback)
+        specs.CreationCallback(data.Window);
     return data.Window;
 }
 #endif

@@ -14,8 +14,8 @@ struct GLFWwindow;
 
 namespace Onyx
 {
-u32 ToFrequency(TKit::Timespan p_DeltaTime);
-TKit::Timespan ToDeltaTime(u32 p_FrameRate);
+u32 ToFrequency(TKit::Timespan deltaTime);
+TKit::Timespan ToDeltaTime(u32 frameRate);
 
 using WindowFlags = u8;
 enum WindowFlagBit : WindowFlags
@@ -60,10 +60,10 @@ class Window
         WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused;
     };
 
-    ONYX_NO_DISCARD static Result<Window *> Create(const Specs &p_Specs);
+    ONYX_NO_DISCARD static Result<Window *> Create(const Specs &specs);
     ONYX_NO_DISCARD static Result<Window *> Create();
 
-    static void Destroy(Window *p_Window);
+    static void Destroy(Window *window);
 
     Window() = default;
     ~Window();
@@ -75,8 +75,8 @@ class Window
      * `vkBeginRendering()`/`vkEndRendering()` pair may be submitted.
      *
      */
-    void BeginRendering(VkCommandBuffer p_CommandBuffer, const Color &p_ClearColor = Color::BLACK);
-    void EndRendering(VkCommandBuffer p_CommandBuffer);
+    void BeginRendering(VkCommandBuffer commandBuffer, const Color &clearColor = Color::BLACK);
+    void EndRendering(VkCommandBuffer commandBuffer);
 
     bool ShouldClose() const;
 
@@ -93,9 +93,9 @@ class Window
     {
         SetPresentMode(VK_PRESENT_MODE_FIFO_KHR);
     }
-    void DisableVSync(const VkPresentModeKHR p_PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR)
+    void DisableVSync(const VkPresentModeKHR presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR)
     {
-        SetPresentMode(p_PresentMode);
+        SetPresentMode(presentMode);
     }
     bool IsVSync() const
     {
@@ -163,10 +163,10 @@ class Window
      * This method gets called automatically and is exposed only if needed for some particular reason. If the window is
      * not fullscreen (and thus not associated with a monitor), the primary monitor will be used.
      *
-     * @param p_Default If no monitor is found, a user provided default.
+     * @param tdefault If no monitor is found, a user provided default.
      * @return The delta time of the monitor.
      */
-    TKit::Timespan UpdateMonitorDeltaTime(TKit::Timespan p_Default = TKit::Timespan::FromSeconds(1.f / 60.f));
+    TKit::Timespan UpdateMonitorDeltaTime(TKit::Timespan tdefault = TKit::Timespan::FromSeconds(1.f / 60.f));
 
     TKit::Timespan GetMonitorDeltaTime() const
     {
@@ -174,7 +174,7 @@ class Window
     }
 
     void FlagShouldClose();
-    void PushEvent(const Event &p_Event);
+    void PushEvent(const Event &event);
 
     const TKit::TierArray<Event> &GetNewEvents() const
     {
@@ -195,33 +195,33 @@ class Window
         return camera;
     }
 
-    template <Dimension D> Camera<D> *CreateCamera(const CameraOptions &p_Options)
+    template <Dimension D> Camera<D> *CreateCamera(const CameraOptions &options)
     {
         Camera<D> *camera = CreateCamera<D>();
-        camera->SetViewport(p_Options.Viewport);
-        camera->SetScissor(p_Options.Scissor);
+        camera->SetViewport(options.Viewport);
+        camera->SetScissor(options.Scissor);
         return camera;
     }
 
-    template <Dimension D> Camera<D> *GetCamera(const u32 p_Index = 0)
+    template <Dimension D> Camera<D> *GetCamera(const u32 index = 0)
     {
         auto &array = getCameraArray<D>();
-        return array[p_Index];
+        return array[index];
     }
 
-    template <Dimension D> void DestroyCamera(const u32 p_Index = 0)
+    template <Dimension D> void DestroyCamera(const u32 index = 0)
     {
         auto &array = getCameraArray<D>();
         TKit::TierAllocator *alloc = TKit::Memory::GetTier();
-        alloc->Destroy(array[p_Index]);
-        array.RemoveOrdered(array.begin() + p_Index);
+        alloc->Destroy(array[index]);
+        array.RemoveOrdered(array.begin() + index);
     }
 
-    template <Dimension D> void DestroyCamera(const Camera<D> *p_Camera)
+    template <Dimension D> void DestroyCamera(const Camera<D> *camera)
     {
         auto &array = getCameraArray<D>();
         for (u32 i = 0; i < array.GetSize(); ++i)
-            if (array[i] == p_Camera)
+            if (array[i] == camera)
             {
                 DestroyCamera<D>(i);
                 return;
@@ -237,8 +237,8 @@ class Window
         return cameras;
     }
 
-    ONYX_NO_DISCARD Result<bool> AcquireNextImage(Timeout p_Timeout = Block);
-    ONYX_NO_DISCARD Result<> Present(const Renderer::RenderSubmitInfo &p_Info);
+    ONYX_NO_DISCARD Result<bool> AcquireNextImage(Timeout timeout = Block);
+    ONYX_NO_DISCARD Result<> Present(const Renderer::RenderSubmitInfo &info);
 
     void RequestSwapchainRecreation()
     {
@@ -258,12 +258,12 @@ class Window
         return m_SwapChain.GetInfo().SupportDetails.PresentModes;
     }
 
-    void SetPresentMode(const VkPresentModeKHR p_PresentMode)
+    void SetPresentMode(const VkPresentModeKHR presentMode)
     {
-        if (m_PresentMode == p_PresentMode)
+        if (m_PresentMode == presentMode)
             return;
         m_MustRecreateSwapchain = true;
-        m_PresentMode = p_PresentMode;
+        m_PresentMode = presentMode;
     }
 
     u64 GetViewBit() const
@@ -283,12 +283,12 @@ class Window
   private:
     void adaptCamerasToViewportAspect();
 
-    ONYX_NO_DISCARD Result<> createSwapChain(const VkExtent2D &p_WindowExtent);
+    ONYX_NO_DISCARD Result<> createSwapChain(const VkExtent2D &windowExtent);
     ONYX_NO_DISCARD Result<> recreateSwapChain();
     ONYX_NO_DISCARD Result<> recreateResources();
     ONYX_NO_DISCARD Result<> recreateSurface();
 
-    ONYX_NO_DISCARD Result<bool> handleImageResult(VkResult p_Result);
+    ONYX_NO_DISCARD Result<bool> handleImageResult(VkResult result);
 
     template <Dimension D> const auto &getCameraArray() const
     {

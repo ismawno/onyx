@@ -10,62 +10,62 @@ namespace Onyx::Shaders
 using namespace Detail;
 static slang::IGlobalSession *s_Slang = nullptr;
 
-Compiler::Module &Compiler::Module::DeclareEntryPoint(const char *p_Name, const ShaderStage p_Stage)
+Compiler::Module &Compiler::Module::DeclareEntryPoint(const char *name, const ShaderStage stage)
 {
-    m_EntryPoints.Append(p_Name, m_Name, p_Stage);
+    m_EntryPoints.Append(name, m_Name, stage);
     return *this;
 }
 Compiler &Compiler::Module::Load() const
 {
     return *m_Compiler;
 }
-Compiler::Module &Compiler::AddModule(const char *p_Name)
+Compiler::Module &Compiler::AddModule(const char *name)
 {
-    return m_Modules.Append(this, p_Name);
+    return m_Modules.Append(this, name);
 }
-Compiler::Module &Compiler::AddModule(const char *p_Name, const char *p_SourceCode, const char *p_Path)
+Compiler::Module &Compiler::AddModule(const char *name, const char *sourceCode, const char *path)
 {
-    return m_Modules.Append(this, p_Name, p_SourceCode, p_Path);
+    return m_Modules.Append(this, name, sourceCode, path);
 }
-Compiler &Compiler::AddIntegerArgument(const ShaderArgumentName p_Name, const i32 p_Value0, const i32 p_Value1)
+Compiler &Compiler::AddIntegerArgument(const ShaderArgumentName name, const i32 value0, const i32 value1)
 {
     ShaderArgument arg;
-    arg.Name = p_Name;
+    arg.Name = name;
     ShaderArgumentValue val{};
     val.Type = ShaderArgument_Integer;
-    val.Value0 = p_Value0;
-    val.Value1 = p_Value1;
+    val.Value0 = value0;
+    val.Value1 = value1;
     arg.Value = val;
     m_Arguments.Append(arg);
     return *this;
 }
-Compiler &Compiler::AddStringArgument(const ShaderArgumentName p_Name, const char *p_String0, const char *p_String1)
+Compiler &Compiler::AddStringArgument(const ShaderArgumentName name, const char *string0, const char *string1)
 {
     ShaderArgument arg;
-    arg.Name = p_Name;
+    arg.Name = name;
     ShaderArgumentValue val{};
     val.Type = ShaderArgument_String;
-    val.String0 = p_String0;
-    val.String1 = p_String1;
+    val.String0 = string0;
+    val.String1 = string1;
     arg.Value = val;
     m_Arguments.Append(arg);
     return *this;
 }
-Compiler &Compiler::AddBooleanArgument(const ShaderArgumentName p_Name)
+Compiler &Compiler::AddBooleanArgument(const ShaderArgumentName name)
 {
     ShaderArgument arg;
-    arg.Name = p_Name;
+    arg.Name = name;
     m_Arguments.Append(arg);
     return *this;
 }
-Compiler &Compiler::AddPreprocessorMacro(const char *p_Name, const char *p_Value)
+Compiler &Compiler::AddPreprocessorMacro(const char *name, const char *value)
 {
-    m_Macros.Append(p_Name, p_Value);
+    m_Macros.Append(name, value);
     return *this;
 }
-Compiler &Compiler::AddSearchPath(const char *p_Path)
+Compiler &Compiler::AddSearchPath(const char *path)
 {
-    m_SearchPaths.Append(p_Path);
+    m_SearchPaths.Append(path);
     return *this;
 }
 Compiler &Compiler::EnableEffectAnnotations()
@@ -84,14 +84,14 @@ Compiler &Compiler::SkipSpirvValidation()
     return *this;
 }
 
-Result<const Spirv *> Compilation::GetSpirv(const char *p_EntryPoint, const char *p_Module) const
+Result<const Spirv *> Compilation::GetSpirv(const char *entryPoint, const char *module) const
 {
     u32 index = TKIT_U32_MAX;
     for (u32 i = 0; i < m_CompiledSpirv.GetSize(); ++i)
     {
         const Spirv &spr = m_CompiledSpirv[i];
-        bool match = strcmp(p_EntryPoint, spr.EntryPoint.Name) == 0;
-        match &= !p_Module || strcmp(p_Module, spr.EntryPoint.Module) == 0;
+        bool match = strcmp(entryPoint, spr.EntryPoint.Name) == 0;
+        match &= !module || strcmp(module, spr.EntryPoint.Module) == 0;
         if (match)
         {
             if (index != TKIT_U32_MAX)
@@ -100,25 +100,24 @@ Result<const Spirv *> Compilation::GetSpirv(const char *p_EntryPoint, const char
                     TKit::Format("[ONYX][SHADERS] Found multiple endpoints named '{}'. If you have endpoints with the "
                                  "same name, the "
                                  "module name, the stage or both must be provided as well to resolve the ambiguity",
-                                 p_EntryPoint));
+                                 entryPoint));
             index = i;
         }
     }
     if (index == TKIT_U32_MAX)
         return Result<>::Error(Error_EntryPointNotFound,
-                               TKit::Format("Entry point named '{}' was not found", p_EntryPoint));
+                               TKit::Format("Entry point named '{}' was not found", entryPoint));
     return &m_CompiledSpirv[index];
 }
-Result<const Spirv *> Compilation::GetSpirv(const char *p_EntryPoint, const ShaderStage p_Stage,
-                                            const char *p_Module) const
+Result<const Spirv *> Compilation::GetSpirv(const char *entryPoint, const ShaderStage stage, const char *module) const
 {
     u32 index = TKIT_U32_MAX;
     for (u32 i = 0; i < m_CompiledSpirv.GetSize(); ++i)
     {
         const Spirv &spr = m_CompiledSpirv[index];
-        bool match = strcmp(p_EntryPoint, spr.EntryPoint.Name) == 0;
-        match &= !p_Module || strcmp(p_Module, spr.EntryPoint.Module) == 0;
-        match &= p_Stage == spr.EntryPoint.Stage;
+        bool match = strcmp(entryPoint, spr.EntryPoint.Name) == 0;
+        match &= !module || strcmp(module, spr.EntryPoint.Module) == 0;
+        match &= stage == spr.EntryPoint.Stage;
         if (match)
         {
             if (index != TKIT_U32_MAX)
@@ -126,38 +125,37 @@ Result<const Spirv *> Compilation::GetSpirv(const char *p_EntryPoint, const Shad
                     Error_EntryPointNotFound,
                     TKit::Format("Found multiple endpoints named '{}'. If you have endpoints with the same name, the "
                                  "module name, the stage or both must be provided as well to resolve the ambiguity",
-                                 p_EntryPoint));
+                                 entryPoint));
             index = i;
         }
     }
     if (index == TKIT_U32_MAX)
         return Result<>::Error(Error_EntryPointNotFound,
-                               TKit::Format("[ONYX][SHADERS] Entry point named '{}' was not found", p_EntryPoint));
+                               TKit::Format("[ONYX][SHADERS] Entry point named '{}' was not found", entryPoint));
     return &m_CompiledSpirv[index];
 }
-Result<const Spirv *> Compilation::GetSpirv(const char *p_EntryPoint, const char *p_Module,
-                                            const ShaderStage p_Stage) const
+Result<const Spirv *> Compilation::GetSpirv(const char *entryPoint, const char *module, const ShaderStage stage) const
 {
-    return GetSpirv(p_EntryPoint, p_Stage, p_Module);
+    return GetSpirv(entryPoint, stage, module);
 }
 
-Result<VKit::Shader> Compilation::CreateShader(const char *p_EntryPoint, const char *p_Module) const
+Result<VKit::Shader> Compilation::CreateShader(const char *entryPoint, const char *module) const
 {
-    const auto result = GetSpirv(p_EntryPoint, p_Module);
+    const auto result = GetSpirv(entryPoint, module);
     TKIT_RETURN_ON_ERROR(result);
     return Create(*result.GetValue());
 }
-Result<VKit::Shader> Compilation::CreateShader(const char *p_EntryPoint, const ShaderStage p_Stage,
-                                               const char *p_Module) const
+Result<VKit::Shader> Compilation::CreateShader(const char *entryPoint, const ShaderStage stage,
+                                               const char *module) const
 {
-    const auto result = GetSpirv(p_EntryPoint, p_Stage, p_Module);
+    const auto result = GetSpirv(entryPoint, stage, module);
     TKIT_RETURN_ON_ERROR(result);
     return Create(*result.GetValue());
 }
-Result<VKit::Shader> Compilation::CreateShader(const char *p_EntryPoint, const char *p_Module,
-                                               const ShaderStage p_Stage) const
+Result<VKit::Shader> Compilation::CreateShader(const char *entryPoint, const char *module,
+                                               const ShaderStage stage) const
 {
-    const auto result = GetSpirv(p_EntryPoint, p_Module, p_Stage);
+    const auto result = GetSpirv(entryPoint, module, stage);
     TKIT_RETURN_ON_ERROR(result);
     return Create(*result.GetValue());
 }
@@ -169,9 +167,9 @@ void Compilation::Destroy()
         alloc->Deallocate(static_cast<void *>(spr.Data), spr.Size);
 }
 
-static SlangStage getSlangStage(const ShaderStage p_Stage)
+static SlangStage getSlangStage(const ShaderStage stage)
 {
-    switch (p_Stage)
+    switch (stage)
     {
     case ShaderStage_Vertex:
         return SLANG_STAGE_VERTEX;
@@ -186,9 +184,9 @@ static SlangStage getSlangStage(const ShaderStage p_Stage)
     }
     return SLANG_STAGE_NONE;
 }
-static ShaderStage getMyStage(const SlangStage p_Stage)
+static ShaderStage getMyStage(const SlangStage stage)
 {
-    switch (p_Stage)
+    switch (stage)
     {
     case SLANG_STAGE_VERTEX:
         return ShaderStage_Vertex;
@@ -204,11 +202,11 @@ static ShaderStage getMyStage(const SlangStage p_Stage)
 }
 
 // ahh yes
-static slang::CompilerOptionName getArgumentName(const ShaderArgumentName p_Arg)
+static slang::CompilerOptionName getArgumentName(const ShaderArgumentName arg)
 {
     using SO = slang::CompilerOptionName;
 
-    switch (p_Arg)
+    switch (arg)
     {
     case ShaderArgument_MacroDefine:
         return SO::MacroDefine;
@@ -489,16 +487,16 @@ static slang::CompilerOptionName getArgumentName(const ShaderArgumentName p_Arg)
     return SO::CountOf;
 }
 
-static std::string getDiagnostics(slang::IBlob *p_Diagnostics, const bool p_Release = false)
+static std::string getDiagnostics(slang::IBlob *diagnostics, const bool release = false)
 {
-    if (!p_Diagnostics)
+    if (!diagnostics)
         return "No diagnostics available";
 
-    const char *text = static_cast<const char *>(p_Diagnostics->getBufferPointer());
-    const size_t size = p_Diagnostics->getBufferSize();
+    const char *text = static_cast<const char *>(diagnostics->getBufferPointer());
+    const size_t size = diagnostics->getBufferSize();
     const std::string message{text, size};
-    if (p_Release)
-        p_Diagnostics->release();
+    if (release)
+        diagnostics->release();
     return message;
 }
 
@@ -707,10 +705,10 @@ Result<Compilation> Compiler::Compile() const
     return Compilation{sprvs};
 }
 
-Result<> Initialize(const Specs &p_Specs)
+Result<> Initialize(const Specs &specs)
 {
     SlangGlobalSessionDesc desc{};
-    desc.enableGLSL = p_Specs.EnableGlsl;
+    desc.enableGLSL = specs.EnableGlsl;
 
     const SlangResult result = slang::createGlobalSession(&desc, &s_Slang);
     if (SLANG_FAILED(result))
@@ -725,16 +723,16 @@ void Terminate()
     slang::shutdown();
 }
 
-Result<VKit::Shader> Create(const u32 *p_Spirv, const size_t p_Size)
+Result<VKit::Shader> Create(const u32 *spirv, const size_t size)
 {
-    return VKit::Shader::Create(Core::GetDevice(), p_Spirv, p_Size);
+    return VKit::Shader::Create(Core::GetDevice(), spirv, size);
 }
-Result<VKit::Shader> Create(const Spirv &p_Spirv)
+Result<VKit::Shader> Create(const Spirv &spirv)
 {
-    return Create(p_Spirv.Data, p_Spirv.Size);
+    return Create(spirv.Data, spirv.Size);
 }
-Result<VKit::Shader> Create(const std::string_view p_SpirvPath)
+Result<VKit::Shader> Create(const std::string_view spirvPath)
 {
-    return VKit::Shader::Create(Core::GetDevice(), p_SpirvPath);
+    return VKit::Shader::Create(Core::GetDevice(), spirvPath);
 }
 } // namespace Onyx::Shaders

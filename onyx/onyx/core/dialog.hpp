@@ -28,9 +28,9 @@ template <typename T> using Result = TKit::Result<T, Status>;
 using Path = fs::path;
 using Paths = TKit::TierArray<Path>;
 
-Result<Path> Save(const Options &p_Options = {});
-Result<Path> OpenFolder(const char *p_Default = nullptr);
-Result<Path> OpenSingle(const Options &p_Options = {});
-Result<Paths> OpenMultiple(const Options &p_Options = {});
+Result<Path> Save(const Options &options = {});
+Result<Path> OpenFolder(const char *fdefault = nullptr);
+Result<Path> OpenSingle(const Options &options = {});
+Result<Paths> OpenMultiple(const Options &options = {});
 
 } // namespace Onyx::Dialog

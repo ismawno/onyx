@@ -15,10 +15,10 @@ struct DescriptorSet
     {
         return Queue && Queue->GetCompletedTimeline() < InFlightValue;
     }
-    void MarkInUse(const VKit::Queue *p_Queue, const u64 p_InFlightValue)
+    void MarkInUse(const VKit::Queue *queue, const u64 inFlightValue)
     {
-        Queue = p_Queue;
-        InFlightValue = p_InFlightValue;
+        Queue = queue;
+        InFlightValue = inFlightValue;
     }
 };
 } // namespace Onyx

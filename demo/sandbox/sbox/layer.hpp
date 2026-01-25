@@ -155,32 +155,32 @@ template <Dimension D> struct ContextDataContainer
 class SandboxLayer final : public UserLayer
 {
   public:
-    SandboxLayer(Application *p_Application, Window *p_Window, Dimension p_Dim);
+    SandboxLayer(Application *application, Window *window, Dimension dim);
 
-    void OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &) override;
-    void OnEvent(const Event &p_Event) override;
+    void OnFrameBegin(const DeltaTime &deltaTime, const FrameInfo &) override;
+    void OnEvent(const Event &event) override;
 
   private:
     void renderImGui();
 
-    template <Dimension D> void drawShapes(const ContextData<D> &p_Context);
+    template <Dimension D> void drawShapes(const ContextData<D> &context);
 
 #ifdef ONYX_ENABLE_IMGUI
 
-    template <Dimension D> void renderUI(ContextDataContainer<D> &p_Contexts);
-    template <Dimension D> void renderUI(ContextData<D> &p_Context);
+    template <Dimension D> void renderUI(ContextDataContainer<D> &contexts);
+    template <Dimension D> void renderUI(ContextData<D> &context);
 
-    template <Dimension D> void renderCameras(CameraDataContainer<D> &p_Container);
-    template <Dimension D> void renderCamera(CameraData<D> &p_Camera);
+    template <Dimension D> void renderCameras(CameraDataContainer<D> &container);
+    template <Dimension D> void renderCamera(CameraData<D> &camera);
 
-    void renderLightSpawn(ContextData<D3> &p_Context);
+    void renderLightSpawn(ContextData<D3> &context);
 #endif
 
-    template <Dimension D> ContextData<D> &addContext(ContextDataContainer<D> &p_Contexts);
-    template <Dimension D> void setupContext(ContextData<D> &p_Context);
+    template <Dimension D> ContextData<D> &addContext(ContextDataContainer<D> &contexts);
+    template <Dimension D> void setupContext(ContextData<D> &context);
 
-    template <Dimension D> CameraData<D> &addCamera(CameraDataContainer<D> &p_Cameras);
-    void setupCamera(CameraData<D3> &p_Camera);
+    template <Dimension D> CameraData<D> &addCamera(CameraDataContainer<D> &cameras);
+    void setupCamera(CameraData<D3> &camera);
 
     ContextDataContainer<D2> m_ContextData2{};
     ContextDataContainer<D3> m_ContextData3{};

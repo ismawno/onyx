@@ -5,9 +5,8 @@
 namespace Onyx::Demo
 {
 template <Dimension D>
-Layer<D>::Layer(Application *p_Application, Window *p_Window, const Lattice<D> &p_Lattice,
-                const ShapeSettings &p_Options)
-    : UserLayer(p_Application, p_Window), m_Lattice(p_Lattice), m_Options(p_Options)
+Layer<D>::Layer(Application *application, Window *window, const Lattice<D> &lattice, const ShapeSettings &options)
+    : UserLayer(application, window), m_Lattice(lattice), m_Options(options)
 {
     m_Window = m_Application->GetMainWindow();
     m_Context = m_Window->CreateRenderContext<D>();
@@ -23,7 +22,7 @@ Layer<D>::Layer(Application *p_Application, Window *p_Window, const Lattice<D> &
     else
         m_Camera->SetSize(50.f);
 
-    switch (p_Options.Shape)
+    switch (options.Shape)
     {
     case Shape::Triangle:
         m_Mesh = Assets::AddMesh(Assets::CreateTriangleMesh<D>());
@@ -32,13 +31,13 @@ Layer<D>::Layer(Application *p_Application, Window *p_Window, const Lattice<D> &
         m_Mesh = Assets::AddMesh(Assets::CreateSquareMesh<D>());
         break;
     case Shape::NGon:
-        m_Mesh = Assets::AddMesh(Assets::CreateRegularPolygonMesh<D>(p_Options.NGonSides));
+        m_Mesh = Assets::AddMesh(Assets::CreateRegularPolygonMesh<D>(options.NGonSides));
         break;
     case Shape::Polygon:
-        m_Mesh = Assets::AddMesh(Assets::CreatePolygonMesh<D>(p_Options.PolygonVertices));
+        m_Mesh = Assets::AddMesh(Assets::CreatePolygonMesh<D>(options.PolygonVertices));
         break;
     case Shape::ImportedStatic: {
-        const auto result = Assets::LoadStaticMesh<D>(p_Options.MeshPath.c_str());
+        const auto result = Assets::LoadStaticMesh<D>(options.MeshPath.c_str());
         VKIT_CHECK_RESULT(result);
         m_Mesh = Assets::AddMesh(result.GetValue());
         break;
@@ -47,30 +46,30 @@ Layer<D>::Layer(Application *p_Application, Window *p_Window, const Lattice<D> &
         break;
     }
     if constexpr (D == D3)
-        switch (p_Options.Shape)
+        switch (options.Shape)
         {
         case Shape::Cube:
             m_Mesh = Assets::AddMesh(Assets::CreateCubeMesh());
             break;
         case Shape::Sphere:
-            m_Mesh = Assets::AddMesh(Assets::CreateSphereMesh(p_Options.SphereRings, p_Options.SphereSectors));
+            m_Mesh = Assets::AddMesh(Assets::CreateSphereMesh(options.SphereRings, options.SphereSectors));
             break;
         case Shape::Cylinder:
-            m_Mesh = Assets::AddMesh(Assets::CreateCylinderMesh(p_Options.CylinderSides));
+            m_Mesh = Assets::AddMesh(Assets::CreateCylinderMesh(options.CylinderSides));
             break;
         default:
             break;
         }
 
     if constexpr (D == D3)
-        m_AxesMesh = p_Options.Shape == Shape::Cylinder ? m_Mesh : Assets::AddMesh(Assets::CreateCylinderMesh(16));
+        m_AxesMesh = options.Shape == Shape::Cylinder ? m_Mesh : Assets::AddMesh(Assets::CreateCylinderMesh(16));
     Assets::Upload<D>();
 }
 
-template <Dimension D> void Layer<D>::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
+template <Dimension D> void Layer<D>::OnFrameBegin(const DeltaTime &deltaTime, const FrameInfo &)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnFrameBegin");
-    const TKit::Timespan timestep = p_DeltaTime.Measured;
+    const TKit::Timespan timestep = deltaTime.Measured;
     m_Camera->ControlMovementWithUserInput(3.f * timestep);
 #ifdef ONYX_ENABLE_IMGUI
     if (ImGui::Begin("Info"))
@@ -102,14 +101,14 @@ template <Dimension D> void Layer<D>::OnFrameBegin(const DeltaTime &p_DeltaTime,
         break;
     }
 }
-template <Dimension D> void Layer<D>::OnEvent(const Event &p_Event)
+template <Dimension D> void Layer<D>::OnEvent(const Event &event)
 {
 #ifdef ONYX_ENABLE_IMGUI
     if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard)
         return;
 #endif
     const f32 factor = Input::IsKeyPressed(m_Window, Input::Key_LeftShift) ? 0.05f : 0.005f;
-    m_Camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
+    m_Camera->ControlScrollWithUserInput(factor * event.ScrollOffset[1]);
 }
 
 template class Layer<D2>;

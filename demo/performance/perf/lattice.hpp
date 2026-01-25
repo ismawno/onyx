@@ -40,23 +40,23 @@ template <Dimension D> struct Lattice
 {
     TKIT_YAML_SERIALIZE_DECLARE(Lattice)
 
-    void Render(RenderContext<D> *p_Context) const;
+    void Render(RenderContext<D> *context) const;
 
-    void StaticMesh(RenderContext<D> *p_Context, Mesh p_Mesh) const;
-    void Circle(RenderContext<D> *p_Context, const CircleOptions &p_Options) const;
+    void StaticMesh(RenderContext<D> *context, Mesh mesh) const;
+    void Circle(RenderContext<D> *context, const CircleOptions &options) const;
 
-    template <typename F> void Run(F &&p_Func) const
+    template <typename F> void Run(F &&func) const
     {
         TKit::ITaskManager *tm = Core::GetTaskManager();
 
         if constexpr (D == D2)
         {
             const u32 size = LatticeDims[0] * LatticeDims[1];
-            const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
+            const auto fn = [this, &func](const u32 start, const u32 end) {
                 TKIT_PROFILE_NSCOPE("Onyx::Demo::Lattice");
 
                 const f32v<D> offset = -0.5f * Separation * f32v<D>{LatticeDims - 1u};
-                for (u32 i = p_Start; i < p_End; ++i)
+                for (u32 i = start; i < end; ++i)
                 {
                     const u32 ix = i / LatticeDims[1];
                     const u32 iy = i % LatticeDims[1];
@@ -64,7 +64,7 @@ template <Dimension D> struct Lattice
                     const f32 y = Separation * static_cast<f32>(iy);
 
                     const f32v2 pos = f32v2{x, y} + offset;
-                    std::forward<F>(p_Func)(pos);
+                    std::forward<F>(func)(pos);
                 }
             };
 
@@ -79,12 +79,12 @@ template <Dimension D> struct Lattice
         else
         {
             const u32 size = LatticeDims[0] * LatticeDims[1] * LatticeDims[2];
-            const auto fn = [this, &p_Func](const u32 p_Start, const u32 p_End) {
+            const auto fn = [this, &func](const u32 start, const u32 end) {
                 TKIT_PROFILE_NSCOPE("Onyx::Demo::Lattice");
 
                 const u32 yz = LatticeDims[1] * LatticeDims[2];
                 const f32v<D> offset = Transform.Translation - 0.5f * Separation * f32v<D>{LatticeDims - 1u};
-                for (u32 i = p_Start; i < p_End; ++i)
+                for (u32 i = start; i < end; ++i)
                 {
                     const u32 ix = i / yz;
                     const u32 j = ix * yz;
@@ -94,7 +94,7 @@ template <Dimension D> struct Lattice
                     const f32 y = Separation * static_cast<f32>(iy);
                     const f32 z = Separation * static_cast<f32>(iz);
                     const f32v3 pos = f32v3{x, y, z} + offset;
-                    std::forward<F>(p_Func)(pos);
+                    std::forward<F>(func)(pos);
                 }
             };
 

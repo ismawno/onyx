@@ -65,12 +65,12 @@ VertexOutput mainVS(
 }
 
 [shader("fragment")]
-float4 mainFS(const VertexOutput p_Input)
+float4 mainFS(const VertexOutput input)
 {
-    const CircleBounds bounds = GetCircleBounds(p_Input.LocalPosition, p_Input.Arc.Hollowness);
-    if (!CheckOutsideCircle(bounds, p_Input.LocalPosition, p_Input.Arc)) discard;
+    const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
+    if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
 
-    float4 color = p_Input.FragColor;
-    color.a = CircleFade(color.a, bounds, p_Input.Fade);
+    float4 color = input.FragColor;
+    color.a = CircleFade(color.a, bounds, input.Fade);
     return color;
 }

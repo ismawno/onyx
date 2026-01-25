@@ -7,10 +7,10 @@ static VKit::CommandPool s_Graphics{};
 static VKit::CommandPool s_Transfer{};
 static TKit::ArenaArray<CommandPool> s_CommandPools{};
 
-ONYX_NO_DISCARD static Result<VKit::CommandPool> createCommandPool(const u32 p_Family)
+ONYX_NO_DISCARD static Result<VKit::CommandPool> createCommandPool(const u32 family)
 {
     const VKit::LogicalDevice &device = Core::GetDevice();
-    return VKit::CommandPool::Create(device, p_Family, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
+    return VKit::CommandPool::Create(device, family, VK_COMMAND_POOL_CREATE_TRANSIENT_BIT);
 }
 
 ONYX_NO_DISCARD static Result<> createTransientCommandPools()
@@ -36,50 +36,50 @@ ONYX_NO_DISCARD static Result<> createTransientCommandPools()
     return Result<>::Ok();
 }
 
-Result<CommandPool *> FindSuitableCommandPool(const u32 p_Family)
+Result<CommandPool *> FindSuitableCommandPool(const u32 family)
 {
     for (CommandPool &pool : s_CommandPools)
-        if (pool.Family == p_Family && !pool.InUse())
+        if (pool.Family == family && !pool.InUse())
         {
             TKIT_RETURN_IF_FAILED(pool.Pool.Reset());
             return &pool;
         }
 
     CommandPool &pool = s_CommandPools.Append();
-    const auto result = createCommandPool(p_Family);
+    const auto result = createCommandPool(family);
     TKIT_RETURN_ON_ERROR(result);
     pool.Pool = result.GetValue();
-    pool.Family = p_Family;
+    pool.Family = family;
     return &pool;
 }
-Result<CommandPool *> FindSuitableCommandPool(const VKit::QueueType p_Type)
+Result<CommandPool *> FindSuitableCommandPool(const VKit::QueueType type)
 {
-    return FindSuitableCommandPool(GetFamilyIndex(p_Type));
+    return FindSuitableCommandPool(GetFamilyIndex(type));
 }
 
-Result<> BeginCommandBuffer(const VkCommandBuffer p_CommandBuffer)
+Result<> BeginCommandBuffer(const VkCommandBuffer commandBuffer)
 {
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     const auto table = Core::GetDeviceTable();
-    const VkResult result = table->BeginCommandBuffer(p_CommandBuffer, &beginInfo);
+    const VkResult result = table->BeginCommandBuffer(commandBuffer, &beginInfo);
     if (result != VK_SUCCESS)
         return Result<>::Error(result);
     return Result<>::Ok();
 }
-Result<> EndCommandBuffer(const VkCommandBuffer p_CommandBuffer)
+Result<> EndCommandBuffer(const VkCommandBuffer commandBuffer)
 {
     const auto table = Core::GetDeviceTable();
-    const VkResult result = table->EndCommandBuffer(p_CommandBuffer);
+    const VkResult result = table->EndCommandBuffer(commandBuffer);
     if (result != VK_SUCCESS)
         return Result<>::Error(result);
     return Result<>::Ok();
 }
 
-Result<> Initialize(const Specs &p_Specs)
+Result<> Initialize(const Specs &specs)
 {
-    s_CommandPools.Reserve(p_Specs.MaxCommandPools);
+    s_CommandPools.Reserve(specs.MaxCommandPools);
     TKIT_RETURN_IF_FAILED(createTransientCommandPools());
 
     const auto &device = Core::GetDevice();
@@ -130,9 +130,9 @@ void RevokeUnsubmittedQueueTimelines()
         q->RevokeUnsubmittedTimelineValues();
 }
 
-VKit::Queue *FindSuitableQueue(const VKit::QueueType p_Type)
+VKit::Queue *FindSuitableQueue(const VKit::QueueType type)
 {
-    const auto &Queues = Core::GetDevice().GetInfo().QueuesPerType[p_Type];
+    const auto &Queues = Core::GetDevice().GetInfo().QueuesPerType[type];
     u64 pending = TKIT_U64_MAX;
     VKit::Queue *queue = nullptr;
     for (VKit::Queue *q : Queues)
@@ -152,9 +152,9 @@ bool IsSeparateTransferMode()
 {
     return GetFamilyIndex(VKit::Queue_Graphics) != GetFamilyIndex(VKit::Queue_Transfer);
 }
-u32 GetFamilyIndex(const VKit::QueueType p_Type)
+u32 GetFamilyIndex(const VKit::QueueType type)
 {
-    return Core::GetDevice().GetInfo().PhysicalDevice->GetInfo().FamilyIndices[p_Type];
+    return Core::GetDevice().GetInfo().PhysicalDevice->GetInfo().FamilyIndices[type];
 }
 
 VKit::CommandPool &GetTransientGraphicsPool()
@@ -166,14 +166,14 @@ VKit::CommandPool &GetTransientTransferPool()
     return s_Transfer;
 }
 
-Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 p_ImageCount)
+Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 imageCount)
 {
     const auto &device = Core::GetDevice();
     const auto table = device.GetInfo().Table;
 
     TKit::TierArray<SyncData> syncs{};
-    syncs.Resize(p_ImageCount);
-    for (u32 i = 0; i < p_ImageCount; ++i)
+    syncs.Resize(imageCount);
+    for (u32 i = 0; i < imageCount; ++i)
     {
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -193,12 +193,12 @@ Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 p_ImageCount)
     }
     return syncs;
 }
-void DestroySyncData(const TKit::Span<const SyncData> p_Objects)
+void DestroySyncData(const TKit::Span<const SyncData> objects)
 {
     const auto &device = Core::GetDevice();
     const auto table = device.GetInfo().Table;
 
-    for (const SyncData &data : p_Objects)
+    for (const SyncData &data : objects)
     {
         table->DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
         table->DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);

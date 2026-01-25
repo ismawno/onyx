@@ -34,9 +34,9 @@ template <> struct StatVertex<D2>
 
     f32v2 Position;
 
-    friend bool operator==(const StatVertex<D2> &p_Left, const StatVertex<D2> &p_Right)
+    friend bool operator==(const StatVertex<D2> &left, const StatVertex<D2> &right)
     {
-        return p_Left.Position == p_Right.Position;
+        return left.Position == right.Position;
     }
 };
 
@@ -58,9 +58,9 @@ template <> struct StatVertex<D3>
     f32v3 Position;
     f32v3 Normal;
 
-    friend bool operator==(const StatVertex<D3> &p_Left, const StatVertex<D3> &p_Right)
+    friend bool operator==(const StatVertex<D3> &left, const StatVertex<D3> &right)
     {
-        return p_Left.Position == p_Right.Position && p_Left.Normal == p_Right.Normal;
+        return left.Position == right.Position && left.Normal == right.Normal;
     }
 };
 
@@ -68,16 +68,16 @@ template <> struct StatVertex<D3>
 
 template <> struct std::hash<Onyx::StatVertex<Onyx::D2>>
 {
-    std::size_t operator()(const Onyx::StatVertex<Onyx::D2> &p_Vertex) const
+    std::size_t operator()(const Onyx::StatVertex<Onyx::D2> &vertex) const
     {
-        return TKit::Hash(p_Vertex.Position);
+        return TKit::Hash(vertex.Position);
     }
 };
 
 template <> struct std::hash<Onyx::StatVertex<Onyx::D3>>
 {
-    std::size_t operator()(const Onyx::StatVertex<Onyx::D3> &p_Vertex) const
+    std::size_t operator()(const Onyx::StatVertex<Onyx::D3> &vertex) const
     {
-        return TKit::Hash(p_Vertex.Position, p_Vertex.Normal);
+        return TKit::Hash(vertex.Position, vertex.Normal);
     }
 };

@@ -12,11 +12,11 @@
 namespace Onyx::Demo
 {
 // this readds the meshes everytime. so it could blow up haha but idc
-template <Dimension D> void addMeshes(MeshContainer &p_Meshes)
+template <Dimension D> void addMeshes(MeshContainer &meshes)
 {
-    const auto add = [&p_Meshes](const char *p_Name, const StatMeshData<D> &p_Mesh) {
-        const Mesh mesh = Assets::AddMesh(p_Mesh);
-        p_Meshes.StaticMeshes.Append(MeshId{p_Name, mesh});
+    const auto add = [&meshes](const char *name, const StatMeshData<D> &mesh) {
+        const Mesh mesh = Assets::AddMesh(mesh);
+        meshes.StaticMeshes.Append(MeshId{name, mesh});
     };
     add("Triangle", Assets::CreateTriangleMesh<D>());
     add("Square", Assets::CreateSquareMesh<D>());
@@ -25,23 +25,23 @@ template <Dimension D> void addMeshes(MeshContainer &p_Meshes)
         add("Cube", Assets::CreateCubeMesh());
         add("Sphere", Assets::CreateSphereMesh(32, 64));
         add("Cylinder", Assets::CreateCylinderMesh(64));
-        p_Meshes.StaticOffset = 5;
+        meshes.StaticOffset = 5;
     }
     else
-        p_Meshes.StaticOffset = 2;
+        meshes.StaticOffset = 2;
     Assets::Upload<D>();
 }
 
-SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const Dimension p_Dim)
-    : UserLayer(p_Application, p_Window)
+SandboxLayer::SandboxLayer(Application *application, Window *window, const Dimension dim)
+    : UserLayer(application, window)
 {
-    if (p_Dim == D2)
+    if (dim == D2)
     {
         ContextData<D2> &context = addContext(m_ContextData2);
         setupContext<D2>(context);
         addCamera(m_Cameras2);
     }
-    else if (p_Dim == D3)
+    else if (dim == D3)
     {
         ContextData<D3> &context = addContext(m_ContextData3);
         setupContext<D3>(context);
@@ -52,9 +52,9 @@ SandboxLayer::SandboxLayer(Application *p_Application, Window *p_Window, const D
     addMeshes<D3>(m_Meshes3);
 }
 
-void SandboxLayer::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
+void SandboxLayer::OnFrameBegin(const DeltaTime &deltaTime, const FrameInfo &)
 {
-    const TKit::Timespan ts = p_DeltaTime.Measured;
+    const TKit::Timespan ts = deltaTime.Measured;
     TKIT_PROFILE_NSCOPE("Onyx::Demo::OnFrameBegin");
 
     if (!m_Cameras2.Cameras.IsEmpty())
@@ -74,9 +74,9 @@ void SandboxLayer::OnFrameBegin(const DeltaTime &p_DeltaTime, const FrameInfo &)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-template <Dimension D> static void loadMesh(MeshContainer &p_Meshes, const Dialog::Path &p_Path)
+template <Dimension D> static void loadMesh(MeshContainer &meshes, const Dialog::Path &path)
 {
-    const auto result = Assets::LoadStaticMesh<D>(p_Path.c_str());
+    const auto result = Assets::LoadStaticMesh<D>(path.c_str());
     if (!result)
         return;
 
@@ -84,20 +84,20 @@ template <Dimension D> static void loadMesh(MeshContainer &p_Meshes, const Dialo
     const Mesh mesh = Assets::AddMesh(data);
     Assets::Upload<D>();
 
-    const std::string name = p_Path.filename().string();
-    p_Meshes.StaticMeshes.Append(MeshId{name, mesh});
+    const std::string name = path.filename().string();
+    meshes.StaticMeshes.Append(MeshId{name, mesh});
 }
-template <Dimension D> static void renderMeshLoad(MeshContainer &p_Meshes, const char *p_Default)
+template <Dimension D> static void renderMeshLoad(MeshContainer &meshes, const char *default)
 {
-    ImGui::PushID(p_Default);
+    ImGui::PushID(default);
     if (ImGui::Button("Load"))
     {
-        const auto result = Dialog::OpenSingle({.Default = p_Default});
+        const auto result = Dialog::OpenSingle({.Default = default});
         if (result)
-            loadMesh<D>(p_Meshes, result.GetValue());
+            loadMesh<D>(meshes, result.GetValue());
     }
-    for (u32 i = p_Meshes.StaticOffset; i < p_Meshes.StaticMeshes.GetSize(); ++i)
-        ImGui::BulletText("Static mesh: %s", p_Meshes.StaticMeshes[i].Name.c_str());
+    for (u32 i = meshes.StaticOffset; i < meshes.StaticMeshes.GetSize(); ++i)
+        ImGui::BulletText("Static mesh: %s", meshes.StaticMeshes[i].Name.c_str());
     ImGui::PopID();
 }
 
@@ -117,13 +117,13 @@ void SandboxLayer::renderImGui()
             if (ImGui::BeginMenu("New"))
             {
                 if (ImGui::MenuItem("2D"))
-                    m_Application->OpenWindow({.CreationCallback = [this](Window *p_Window) {
-                        m_Application->SetUserLayer<SandboxLayer>(p_Window, D2);
+                    m_Application->OpenWindow({.CreationCallback = [this](Window *window) {
+                        m_Application->SetUserLayer<SandboxLayer>(window, D2);
                     }});
 
                 if (ImGui::MenuItem("3D"))
-                    m_Application->OpenWindow({.CreationCallback = [this](Window *p_Window) {
-                        m_Application->SetUserLayer<SandboxLayer>(p_Window, D3);
+                    m_Application->OpenWindow({.CreationCallback = [this](Window *window) {
+                        m_Application->SetUserLayer<SandboxLayer>(window, D3);
                     }});
 
                 ImGui::EndMenu();
@@ -204,123 +204,121 @@ void SandboxLayer::renderImGui()
     ImGui::End();
 }
 template <typename C, typename F1, typename F2>
-static void renderSelectableNoRemoval(const char *p_TreeName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
-                                      F2 p_GetName)
+static void renderSelectableNoRemoval(const char *treeName, C &container, u32 &selected, F1 &&onSelected, F2 getName)
 {
     if constexpr (std::is_same_v<F2, const char *>)
         renderSelectable(
-            p_TreeName, p_Container, p_Selected, std::forward<F1>(p_OnSelected), [](const auto &) {},
-            [p_GetName](const auto &) { return p_GetName; });
+            treeName, container, selected, std::forward<F1>(onSelected), [](const auto &) {},
+            [getName](const auto &) { return getName; });
     else
-        renderSelectable(
-            p_TreeName, p_Container, p_Selected, std::forward<F1>(p_OnSelected), [](const auto &) {}, p_GetName);
+        renderSelectable(treeName, container, selected, std::forward<F1>(onSelected), [](const auto &) {}, getName);
 }
 
 template <typename C, typename F1, typename F2>
-static void renderSelectableNoTree(const char *p_ElementName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
-                                   F2 &&p_OnRemoval)
+static void renderSelectableNoTree(const char *elementName, C &container, u32 &selected, F1 &&onSelected,
+                                   F2 &&onRemoval)
 {
-    renderSelectable(nullptr, p_Container, p_Selected, std::forward<F1>(p_OnSelected), std::forward<F2>(p_OnRemoval),
-                     [p_ElementName](const auto &) { return p_ElementName; });
+    renderSelectable(nullptr, container, selected, std::forward<F1>(onSelected), std::forward<F2>(onRemoval),
+                     [elementName](const auto &) { return elementName; });
 }
 
 template <typename C, typename F1, typename F2, typename F3>
-static void renderSelectable(const char *p_TreeName, C &p_Container, u32 &p_Selected, F1 &&p_OnSelected,
-                             F2 &&p_OnRemoval, F3 &&p_GetName)
+static void renderSelectable(const char *treeName, C &container, u32 &selected, F1 &&onSelected, F2 &&onRemoval,
+                             F3 &&getName)
 {
-    if (!p_Container.IsEmpty() && (!p_TreeName || ImGui::TreeNode(p_TreeName)))
+    if (!container.IsEmpty() && (!treeName || ImGui::TreeNode(treeName)))
     {
-        for (u32 i = 0; i < p_Container.GetSize(); ++i)
+        for (u32 i = 0; i < container.GetSize(); ++i)
         {
-            ImGui::PushID(&p_Container[i]);
+            ImGui::PushID(&container[i]);
             if (ImGui::Button("X"))
             {
-                std::forward<F2>(p_OnRemoval)(p_Container[i]);
-                p_Container.RemoveOrdered(p_Container.begin() + i);
+                std::forward<F2>(onRemoval)(container[i]);
+                container.RemoveOrdered(container.begin() + i);
                 ImGui::PopID();
                 break;
             }
             ImGui::SameLine();
-            const std::string name = std::forward<F3>(p_GetName)(p_Container[i]);
-            if (ImGui::Selectable(name.c_str(), i == p_Selected))
-                p_Selected = i;
+            const std::string name = std::forward<F3>(getName)(container[i]);
+            if (ImGui::Selectable(name.c_str(), i == selected))
+                selected = i;
 
             ImGui::PopID();
         }
-        if (p_Selected < p_Container.GetSize())
-            std::forward<F1>(p_OnSelected)(p_Container[p_Selected]);
-        if (p_TreeName)
+        if (selected < container.GetSize())
+            std::forward<F1>(onSelected)(container[selected]);
+        if (treeName)
             ImGui::TreePop();
     }
 }
 
-template <typename... Args> bool combo(const char *p_Name, u32 *p_Index, Args &&...p_Args)
+template <typename... Args> bool combo(const char *name, u32 *index, Args &&...args)
 {
-    i32 index = static_cast<i32>(*p_Index);
-    if (ImGui::Combo(p_Name, &index, std::forward<Args>(p_Args)...))
+    i32 index = static_cast<i32>(*index);
+    if (ImGui::Combo(name, &index, std::forward<Args>(args)...))
     {
-        *p_Index = static_cast<u32>(index);
+        *index = static_cast<u32>(index);
         return true;
     }
     return false;
 }
 
-template <Dimension D> void editShape(Shape<D> &p_Shape)
+template <Dimension D> void editShape(Shape<D> &shape)
 {
-    ImGui::PushID(&p_Shape);
+    ImGui::PushID(&shape);
     ImGui::Text("Transform");
     ImGui::SameLine();
-    UserLayer::TransformEditor<D>(p_Shape.Transform, UserLayerFlag_DisplayHelp);
+    UserLayer::TransformEditor<D>(shape.Transform, UserLayerFlag_DisplayHelp);
     ImGui::Text("Material");
     ImGui::SameLine();
-    UserLayer::MaterialEditor<D>(p_Shape.Material, UserLayerFlag_DisplayHelp);
-    ImGui::Checkbox("Fill", &p_Shape.Fill);
-    ImGui::Checkbox("Outline", &p_Shape.Outline);
-    ImGui::SliderFloat("Outline Width", &p_Shape.OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
-    ImGui::ColorEdit4("Outline Color", p_Shape.OutlineColor.GetData());
-    if (p_Shape.Type == ShapeType<D>::Circle)
+    UserLayer::MaterialEditor<D>(shape.Material, UserLayerFlag_DisplayHelp);
+    ImGui::Checkbox("Fill", &shape.Fill);
+    ImGui::Checkbox("Outline", &shape.Outline);
+    ImGui::SliderFloat("Outline Width", &shape.OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    ImGui::ColorEdit4("Outline Color", shape.OutlineColor.GetData());
+    if (shape.Type == ShapeType<D>::Circle)
     {
-        ImGui::SliderFloat("Inner Fade", &p_Shape.CircleOptions.InnerFade, 0.f, 1.f, "%.2f");
-        ImGui::SliderFloat("Outer Fade", &p_Shape.CircleOptions.OuterFade, 0.f, 1.f, "%.2f");
-        ImGui::SliderAngle("Lower Angle", &p_Shape.CircleOptions.LowerAngle);
-        ImGui::SliderAngle("Upper Angle", &p_Shape.CircleOptions.UpperAngle);
-        ImGui::SliderFloat("Hollowness", &p_Shape.CircleOptions.Hollowness, 0.f, 1.f, "%.2f");
+        ImGui::SliderFloat("Inner Fade", &shape.CircleOptions.InnerFade, 0.f, 1.f, "%.2f");
+        ImGui::SliderFloat("Outer Fade", &shape.CircleOptions.OuterFade, 0.f, 1.f, "%.2f");
+        ImGui::SliderAngle("Lower Angle", &shape.CircleOptions.LowerAngle);
+        ImGui::SliderAngle("Upper Angle", &shape.CircleOptions.UpperAngle);
+        ImGui::SliderFloat("Hollowness", &shape.CircleOptions.Hollowness, 0.f, 1.f, "%.2f");
     }
     ImGui::PopID();
 }
-template <Dimension D> void setShapeProperties(RenderContext<D> *p_Context, const Shape<D> &p_Shape)
+template <Dimension D> void setShapeProperties(RenderContext<D> *context, const Shape<D> &shape)
 {
-    p_Context->Material(p_Shape.Material);
-    p_Context->OutlineWidth(p_Shape.OutlineWidth);
-    p_Context->Outline(p_Shape.OutlineColor);
-    p_Context->Fill(p_Shape.Fill);
-    p_Context->Outline(p_Shape.Outline);
+    context->Material(shape.Material);
+    context->OutlineWidth(shape.OutlineWidth);
+    context->Outline(shape.OutlineColor);
+    context->Fill(shape.Fill);
+    context->Outline(shape.Outline);
 }
 template <Dimension D>
-void drawShape(RenderContext<D> *p_Context, const Shape<D> &p_Shape, const Transform<D> *p_Transform = nullptr)
+void drawShape(RenderContext<D> *context, const Shape<D> &shape, const Transform<D> *transform = nullptr)
 {
-    if (p_Shape.Type == ShapeType<D>::Circle)
-        p_Context->Circle((p_Transform ? *p_Transform : p_Shape.Transform).ComputeTransform(), p_Shape.CircleOptions);
+    if (shape.Type == ShapeType<D>::Circle)
+        context->Circle((transform ? *transform : shape.Transform).ComputeTransform(), shape.CircleOptions);
     else
-        p_Context->StaticMesh(p_Shape.Mesh, (p_Transform ? *p_Transform : p_Shape.Transform).ComputeTransform());
+        context->StaticMesh(shape.Mesh, (transform ? *transform : shape.Transform).ComputeTransform());
 }
 
-template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, ContextData<D> &p_Context)
+template <Dimension D> static void renderShapeSpawn(MeshContainer &meshes, ContextData<D> &context)
 {
     const auto createShape = [&]() -> Shape<D> {
         Shape<D> shape{};
-        shape.Type = static_cast<ShapeType<D>>(p_Context.ShapeToSpawn);
-        if (p_Context.ShapeToSpawn == u32(ShapeType<D>::ImportedStatic))
+        shape.Type = static_cast<ShapeType<D>>(context.ShapeToSpawn);
+        if (context.ShapeToSpawn == u32(ShapeType<D>::ImportedStatic))
         {
-            const MeshId &mesh = p_Meshes.StaticMeshes[p_Meshes.StaticOffset + p_Context.ImportedStatToSpawn];
+            const MeshId &mesh = meshes.StaticMeshes[meshes.StaticOffset + context.ImportedStatToSpawn];
             shape.Name = mesh.Name;
             shape.Mesh = mesh.Mesh;
         }
-        else if (p_Context.ShapeToSpawn == u32(ShapeType<D>::Circle))
+        else if (context.ShapeToSpawn == u32(ShapeType<D>::Circle))
             shape.Name = "Circle";
         else
         {
-            const MeshId &mesh = p_Meshes.StaticMeshes[p_Context.ShapeToSpawn];
+            const MeshId &mesh = meshes.StaticMeshes[context.ShapeToSpawn];
             shape.Name = mesh.Name;
             shape.Mesh = mesh.Mesh;
         }
@@ -328,36 +326,36 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
         return shape;
     };
     const auto isBadSpawnImportedStatic = [&] {
-        return p_Context.ShapeToSpawn == u32(ShapeType<D>::ImportedStatic) &&
-               p_Context.ImportedStatToSpawn + p_Meshes.StaticOffset >= p_Meshes.StaticMeshes.GetSize();
+        return context.ShapeToSpawn == u32(ShapeType<D>::ImportedStatic) &&
+               context.ImportedStatToSpawn + meshes.StaticOffset >= meshes.StaticMeshes.GetSize();
     };
 
     if (isBadSpawnImportedStatic())
         ImGui::TextDisabled("No valid mesh has been selected!");
 
     else if (ImGui::Button("Spawn##Shape"))
-        p_Context.Shapes.Append(createShape());
+        context.Shapes.Append(createShape());
 
     if (!isBadSpawnImportedStatic())
         ImGui::SameLine();
 
-    LatticeData<D> &lattice = p_Context.Lattice;
+    LatticeData<D> &lattice = context.Lattice;
     if constexpr (D == D2)
         lattice.NeedsUpdate |=
-            combo("Shape", &p_Context.ShapeToSpawn, "Triangle\0Square\0Imported static meshes\0Circle\0\0");
+            combo("Shape", &context.ShapeToSpawn, "Triangle\0Square\0Imported static meshes\0Circle\0\0");
     else
-        lattice.NeedsUpdate |= combo("Shape", &p_Context.ShapeToSpawn,
+        lattice.NeedsUpdate |= combo("Shape", &context.ShapeToSpawn,
                                      "Triangle\0Square\0Cube\0Sphere\0Cylinder\0Imported static meshes\0Circle\0\0");
 
-    if (p_Context.ShapeToSpawn == u32(ShapeType<D>::ImportedStatic))
+    if (context.ShapeToSpawn == u32(ShapeType<D>::ImportedStatic))
     {
-        if (p_Meshes.StaticMeshes.GetSize() > p_Meshes.StaticOffset)
+        if (meshes.StaticMeshes.GetSize() > meshes.StaticOffset)
         {
             TKit::StaticArray16<const char *> meshNames{};
-            for (u32 i = p_Meshes.StaticOffset; i < p_Meshes.StaticMeshes.GetSize(); ++i)
-                meshNames.Append(p_Meshes.StaticMeshes[i].Name.c_str());
+            for (u32 i = meshes.StaticOffset; i < meshes.StaticMeshes.GetSize(); ++i)
+                meshNames.Append(meshes.StaticMeshes[i].Name.c_str());
 
-            lattice.NeedsUpdate |= combo("Mesh ID", &p_Context.ImportedStatToSpawn, meshNames.GetData(),
+            lattice.NeedsUpdate |= combo("Mesh ID", &context.ImportedStatToSpawn, meshNames.GetData(),
                                          static_cast<i32>(meshNames.GetSize()));
         }
         else
@@ -406,7 +404,7 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
     }
     if (ImGui::TreeNode("Line test"))
     {
-        LineTest<D> &line = p_Context.Line;
+        LineTest<D> &line = context.Line;
 
         ImGui::Checkbox("Outline", &line.Outline);
         ImGui::SliderFloat("Outline width", &line.OutlineWidth, 0.01f, 0.1f);
@@ -427,31 +425,31 @@ template <Dimension D> static void renderShapeSpawn(MeshContainer &p_Meshes, Con
         UserLayer::MaterialEditor<D>(line.Material, UserLayerFlag_DisplayHelp);
         ImGui::ColorEdit3("Outline color", line.OutlineColor.GetData());
 
-        p_Context.Context->Push();
+        context.Context->Push();
         if (line.Outline)
         {
-            p_Context.Context->Outline(line.OutlineColor);
-            p_Context.Context->OutlineWidth(line.OutlineWidth);
+            context.Context->Outline(line.OutlineColor);
+            context.Context->OutlineWidth(line.OutlineWidth);
         }
-        p_Context.Context->Material(line.Material);
+        context.Context->Material(line.Material);
         if constexpr (D == D2)
-            p_Context.Context->Line(p_Meshes.StaticMeshes[u32(ShapeType<D2>::Square)].Mesh, line.Start, line.End,
-                                    line.Thickness);
+            context.Context->Line(meshes.StaticMeshes[u32(ShapeType<D2>::Square)].Mesh, line.Start, line.End,
+                                  line.Thickness);
         else
-            p_Context.Context->Line(p_Meshes.StaticMeshes[u32(ShapeType<D3>::Cylinder)].Mesh, line.Start, line.End,
-                                    line.Thickness);
-        p_Context.Context->Pop();
+            context.Context->Line(meshes.StaticMeshes[u32(ShapeType<D3>::Cylinder)].Mesh, line.Start, line.End,
+                                  line.Thickness);
+        context.Context->Pop();
         ImGui::TreePop();
     }
 
     renderSelectableNoRemoval(
-        "Shapes##Singular", p_Context.Shapes, p_Context.SelectedShape, [](Shape<D> &p_Shape) { editShape<D>(p_Shape); },
-        [](const Shape<D> &p_Shape) { return p_Shape.Name; });
+        "Shapes##Singular", context.Shapes, context.SelectedShape, [](Shape<D> &shape) { editShape<D>(shape); },
+        [](const Shape<D> &shape) { return shape.Name; });
 }
 
-template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &p_Camera)
+template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &camera)
 {
-    Camera<D> *camera = p_Camera.Camera;
+    Camera<D> *camera = camera.Camera;
     const f32v2 vpos = camera->GetViewportMousePosition();
     ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos[0], vpos[1]);
 
@@ -462,7 +460,7 @@ template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &p_Camera)
     }
     else
     {
-        ImGui::SliderFloat("Mouse Z offset", &p_Camera.ZOffset, 0.f, 1.f);
+        ImGui::SliderFloat("Mouse Z offset", &camera.ZOffset, 0.f, 1.f);
         UserLayer::HelpMarkerSameLine(
             "In 3D, the world mouse position can be ambiguous because of the extra dimension. This amibiguity needs to "
             "somehow be resolved. In most use-cases, ray casting is the best approach to fully define this position, "
@@ -470,7 +468,7 @@ template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &p_Camera)
             "(screen coordinates). Note that, if in perspective mode, 0 corresponds to the near plane and 1 to the "
             "far plane.");
 
-        const f32v3 mpos3 = camera->GetWorldMousePosition(p_Camera.ZOffset);
+        const f32v3 mpos3 = camera->GetWorldMousePosition(camera.ZOffset);
         const f32v2 vpos2 = camera->GetViewportMousePosition();
         ImGui::Text("World mouse position: (%.2f, %.2f, %.2f)", mpos3[0], mpos3[1], mpos3[2]);
         ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos2[0], vpos2[1]);
@@ -510,27 +508,27 @@ template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &p_Camera)
     }
     if constexpr (D == D3)
     {
-        i32 perspective = static_cast<i32>(p_Camera.Perspective);
+        i32 perspective = static_cast<i32>(camera.Perspective);
         if (ImGui::Combo("Projection", &perspective, "Orthographic\0Perspective\0\0"))
         {
-            p_Camera.Perspective = perspective == 1;
-            if (p_Camera.Perspective)
-                camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
+            camera.Perspective = perspective == 1;
+            if (camera.Perspective)
+                camera->SetPerspectiveProjection(camera.FieldOfView, camera.Near, camera.Far);
             else
                 camera->SetOrthographicProjection();
         }
 
-        if (p_Camera.Perspective)
+        if (camera.Perspective)
         {
-            f32 degs = Math::Degrees(p_Camera.FieldOfView);
+            f32 degs = Math::Degrees(camera.FieldOfView);
 
             bool changed = ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
-            changed |= ImGui::SliderFloat("Near", &p_Camera.Near, 0.1f, 10.f);
-            changed |= ImGui::SliderFloat("Far", &p_Camera.Far, 10.f, 100.f);
+            changed |= ImGui::SliderFloat("Near", &camera.Near, 0.1f, 10.f);
+            changed |= ImGui::SliderFloat("Far", &camera.Far, 10.f, 100.f);
             if (changed)
             {
-                p_Camera.FieldOfView = Math::Radians(degs);
-                camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
+                camera.FieldOfView = Math::Radians(degs);
+                camera->SetPerspectiveProjection(camera.FieldOfView, camera.Near, camera.Far);
             }
         }
     }
@@ -556,24 +554,24 @@ template <Dimension D> void SandboxLayer::renderCamera(CameraData<D> &p_Camera)
                        "vision behaves. This is useful for 3D games or when you want to create a sense of depth in "
                        "your scene. In Onyx, this projection is only available in 3D scenes.");
 }
-template <Dimension D> void SandboxLayer::renderCameras(CameraDataContainer<D> &p_Cameras)
+template <Dimension D> void SandboxLayer::renderCameras(CameraDataContainer<D> &cameras)
 {
     if (ImGui::CollapsingHeader("Cameras"))
     {
-        if (p_Cameras.Cameras.IsEmpty())
+        if (cameras.Cameras.IsEmpty())
             ImGui::TextDisabled(
                 "Window has no cameras for this dimension. At least one must be added to render anything 2D.");
 
         if (ImGui::Button("Add camera"))
-            addCamera(p_Cameras);
+            addCamera(cameras);
 
         renderSelectableNoTree(
-            "Camera", p_Cameras.Cameras, p_Cameras.Active, [this](CameraData<D> &p_Camera) { renderCamera(p_Camera); },
-            [this](const CameraData<D> &p_Camera) { m_Window->DestroyCamera(p_Camera.Camera); });
+            "Camera", cameras.Cameras, cameras.Active, [this](CameraData<D> &camera) { renderCamera(camera); },
+            [this](const CameraData<D> &camera) { m_Window->DestroyCamera(camera.Camera); });
     }
 }
 
-template <Dimension D> void SandboxLayer::renderUI(ContextDataContainer<D> &p_Contexts)
+template <Dimension D> void SandboxLayer::renderUI(ContextDataContainer<D> &contexts)
 {
     const f32v2 spos = Input::GetScreenMousePosition(m_Window);
     ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos[0], spos[1]);
@@ -581,7 +579,7 @@ template <Dimension D> void SandboxLayer::renderUI(ContextDataContainer<D> &p_Co
         "The screen mouse position is always Math::Normalized to the window size, always ranging "
         "from -1 to 1 for 'x' and 'y', and from 0 to 1 for 'z'.");
 
-    ImGui::Checkbox("Empty context", &p_Contexts.EmptyContext);
+    ImGui::Checkbox("Empty context", &contexts.EmptyContext);
     UserLayer::HelpMarkerSameLine(
         "A rendering context is always initialized empty by default. But for convenience reasons, this demo will "
         "create "
@@ -589,8 +587,8 @@ template <Dimension D> void SandboxLayer::renderUI(ContextDataContainer<D> &p_Co
 
     if (ImGui::Button("Add context"))
     {
-        ContextData<D> &data = addContext(p_Contexts);
-        if (!p_Contexts.EmptyContext)
+        ContextData<D> &data = addContext(contexts);
+        if (!contexts.EmptyContext)
             setupContext(data);
     }
 
@@ -599,92 +597,92 @@ template <Dimension D> void SandboxLayer::renderUI(ContextDataContainer<D> &p_Co
                                   "their own independent state.");
 
     renderSelectableNoTree(
-        "Context", p_Contexts.Contexts, p_Contexts.Active, [this](ContextData<D> &p_Context) { renderUI(p_Context); },
-        [this](const ContextData<D> &p_Context) { m_Window->DestroyRenderContext(p_Context.Context); });
+        "Context", contexts.Contexts, contexts.Active, [this](ContextData<D> &context) { renderUI(context); },
+        [this](const ContextData<D> &context) { m_Window->DestroyRenderContext(context.Context); });
 }
 
-template <Dimension D> void SandboxLayer::renderUI(ContextData<D> &p_Context)
+template <Dimension D> void SandboxLayer::renderUI(ContextData<D> &context)
 {
 
     if (ImGui::CollapsingHeader("Shapes"))
-        renderShapeSpawn(D == D2 ? m_Meshes2 : m_Meshes3, p_Context);
+        renderShapeSpawn(D == D2 ? m_Meshes2 : m_Meshes3, context);
     if constexpr (D == D3)
         if (ImGui::CollapsingHeader("Lights"))
-            renderLightSpawn(p_Context);
+            renderLightSpawn(context);
 
     if (ImGui::CollapsingHeader("Axes"))
     {
-        ImGui::Checkbox("Draw##Axes", &p_Context.DrawAxes);
-        if (p_Context.DrawAxes)
-            ImGui::SliderFloat("Axes thickness", &p_Context.AxesThickness, 0.001f, 0.1f);
+        ImGui::Checkbox("Draw##Axes", &context.DrawAxes);
+        if (context.DrawAxes)
+            ImGui::SliderFloat("Axes thickness", &context.AxesThickness, 0.001f, 0.1f);
 
         if (ImGui::TreeNode("Material"))
         {
             ImGui::SameLine();
-            UserLayer::MaterialEditor<D>(p_Context.AxesMaterial, UserLayerFlag_DisplayHelp);
+            UserLayer::MaterialEditor<D>(context.AxesMaterial, UserLayerFlag_DisplayHelp);
             ImGui::TreePop();
         }
     }
 }
 
-void SandboxLayer::renderLightSpawn(ContextData<D3> &p_Context)
+void SandboxLayer::renderLightSpawn(ContextData<D3> &context)
 {
-    ImGui::SliderFloat("Ambient intensity", &p_Context.Ambient[3], 0.f, 1.f);
-    ImGui::ColorEdit3("Color", Math::AsPointer(p_Context.Ambient));
+    ImGui::SliderFloat("Ambient intensity", &context.Ambient[3], 0.f, 1.f);
+    ImGui::ColorEdit3("Color", Math::AsPointer(context.Ambient));
 
     if (ImGui::Button("Spawn##Light"))
     {
-        if (p_Context.LightToSpawn == 0)
-            p_Context.DirectionalLights.Append(f32v3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
+        if (context.LightToSpawn == 0)
+            context.DirectionalLights.Append(f32v3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
         else
-            p_Context.PointLights.Append(f32v3{0.f, 0.f, 0.f}, 0.3f, 1.f, Color::WHITE.Pack());
+            context.PointLights.Append(f32v3{0.f, 0.f, 0.f}, 0.3f, 1.f, Color::WHITE.Pack());
     }
     ImGui::SameLine();
-    ImGui::Combo("Light", &p_Context.LightToSpawn, "Directional\0Point\0\0");
-    if (p_Context.LightToSpawn == 1)
-        ImGui::Checkbox("Draw##Light", &p_Context.DrawLights);
+    ImGui::Combo("Light", &context.LightToSpawn, "Directional\0Point\0\0");
+    if (context.LightToSpawn == 1)
+        ImGui::Checkbox("Draw##Light", &context.DrawLights);
 
     renderSelectableNoRemoval(
-        "Directional lights", p_Context.DirectionalLights, p_Context.SelectedDirLight,
-        [](DirectionalLight &p_Light) { UserLayer::DirectionalLightEditor(p_Light); }, "Directional");
+        "Directional lights", context.DirectionalLights, context.SelectedDirLight,
+        [](DirectionalLight &light) { UserLayer::DirectionalLightEditor(light); }, "Directional");
 
     renderSelectableNoRemoval(
-        "Point lights", p_Context.PointLights, p_Context.SelectedPointLight,
-        [](PointLight &p_Light) { UserLayer::PointLightEditor(p_Light); }, "Point");
+        "Point lights", context.PointLights, context.SelectedPointLight,
+        [](PointLight &light) { UserLayer::PointLightEditor(light); }, "Point");
 }
 #endif
 
 template <Dimension D>
-static void processEvent(Window *p_Window, ContextDataContainer<D> &p_Contexts, const CameraDataContainer<D> &p_Cameras,
-                         const Event &p_Event)
+static void processEvent(Window *window, ContextDataContainer<D> &contexts, const CameraDataContainer<D> &cameras,
+                         const Event &event)
 {
 #ifdef ONYX_ENABLE_IMGUI
     if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard)
         return;
 #endif
-    if (p_Cameras.Cameras.IsEmpty() || p_Contexts.Contexts.IsEmpty())
+    if (cameras.Cameras.IsEmpty() || contexts.Contexts.IsEmpty())
         return;
 
-    const CameraData<D> &cam = p_Cameras.Cameras[p_Cameras.Active];
+    const CameraData<D> &cam = cameras.Cameras[cameras.Active];
     Camera<D> *camera = cam.Camera;
-    if (p_Event.Type == Event_Scrolled)
+    if (event.Type == Event_Scrolled)
     {
-        const f32 factor = Input::IsKeyPressed(p_Window, Input::Key_LeftShift) ? 0.05f : 0.005f;
-        camera->ControlScrollWithUserInput(factor * p_Event.ScrollOffset[1]);
+        const f32 factor = Input::IsKeyPressed(window, Input::Key_LeftShift) ? 0.05f : 0.005f;
+        camera->ControlScrollWithUserInput(factor * event.ScrollOffset[1]);
     }
 }
 
-void SandboxLayer::OnEvent(const Event &p_Event)
+void SandboxLayer::OnEvent(const Event &event)
 {
-    processEvent(m_Window, m_ContextData2, m_Cameras2, p_Event);
-    processEvent(m_Window, m_ContextData3, m_Cameras3, p_Event);
+    processEvent(m_Window, m_ContextData2, m_Cameras2, event);
+    processEvent(m_Window, m_ContextData3, m_Cameras3, event);
 }
 
-template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Context)
+template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &context)
 {
-    p_Context.Context->Flush();
+    context.Context->Flush();
 
-    const LatticeData<D> &lattice = p_Context.Lattice;
+    const LatticeData<D> &lattice = context.Lattice;
     const u32v<D> &dims = lattice.Dimensions;
     if (lattice.Enabled && lattice.Shape.Mesh != NullMesh)
     {
@@ -692,23 +690,23 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
             lattice.PropToScale ? lattice.Shape.Transform.Scale * lattice.Separation : f32v<D>{lattice.Separation};
         const f32v<D> midPoint = 0.5f * separation * f32v<D>{dims - 1u};
 
-        setShapeProperties(p_Context.Context, lattice.Shape);
-        p_Context.Context->ShareCurrentState();
+        setShapeProperties(context.Context, lattice.Shape);
+        context.Context->ShareCurrentState();
 
         TKit::ITaskManager *tm = Core::GetTaskManager();
         if constexpr (D == D2)
         {
             const u32 size = dims[0] * dims[1];
-            const auto fn = [&](const u32 p_Start, const u32 p_End) {
+            const auto fn = [&](const u32 start, const u32 end) {
                 Transform<D2> transform = lattice.Shape.Transform;
-                for (u32 i = p_Start; i < p_End; ++i)
+                for (u32 i = start; i < end; ++i)
                 {
                     const u32 ix = i / dims[1];
                     const u32 iy = i % dims[1];
                     const f32 x = separation[0] * static_cast<f32>(ix);
                     const f32 y = separation[1] * static_cast<f32>(iy);
                     transform.Translation = f32v2{x, y} - midPoint;
-                    drawShape(p_Context.Context, lattice.Shape, &transform);
+                    drawShape(context.Context, lattice.Shape, &transform);
                 }
             };
 
@@ -723,9 +721,9 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
         {
             const u32 size = dims[0] * dims[1] * dims[2];
             const u32 yz = dims[1] * dims[2];
-            const auto fn = [&, yz](const u32 p_Start, const u32 p_End) {
+            const auto fn = [&, yz](const u32 start, const u32 end) {
                 Transform<D3> transform = lattice.Shape.Transform;
-                for (u32 i = p_Start; i < p_End; ++i)
+                for (u32 i = start; i < end; ++i)
                 {
                     const u32 ix = i / yz;
                     const u32 j = ix * yz;
@@ -735,7 +733,7 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
                     const f32 y = separation[1] * static_cast<f32>(iy);
                     const f32 z = separation[2] * static_cast<f32>(iz);
                     transform.Translation = f32v3{x, y, z} - midPoint;
-                    drawShape(p_Context.Context, lattice.Shape, &transform);
+                    drawShape(context.Context, lattice.Shape, &transform);
                 }
             };
             TKit::FixedArray<Task, MaxTasks> tasks{};
@@ -747,77 +745,77 @@ template <Dimension D> void SandboxLayer::drawShapes(const ContextData<D> &p_Con
         }
     }
 
-    for (const Shape<D> &shape : p_Context.Shapes)
+    for (const Shape<D> &shape : context.Shapes)
     {
-        setShapeProperties(p_Context.Context, shape);
-        drawShape(p_Context.Context, shape);
+        setShapeProperties(context.Context, shape);
+        drawShape(context.Context, shape);
     }
 
-    p_Context.Context->Outline(false);
-    if (p_Context.DrawAxes)
+    context.Context->Outline(false);
+    if (context.DrawAxes)
     {
-        p_Context.Context->Material(p_Context.AxesMaterial);
-        p_Context.Context->Fill();
+        context.Context->Material(context.AxesMaterial);
+        context.Context->Fill();
         if constexpr (D == D2)
-            p_Context.Context->Axes(m_Meshes2.StaticMeshes[u32(ShapeType<D2>::Square)].Mesh,
-                                    {.Thickness = p_Context.AxesThickness});
+            context.Context->Axes(m_Meshes2.StaticMeshes[u32(ShapeType<D2>::Square)].Mesh,
+                                  {.Thickness = context.AxesThickness});
         else
-            p_Context.Context->Axes(m_Meshes3.StaticMeshes[u32(ShapeType<D3>::Cylinder)].Mesh,
-                                    {.Thickness = p_Context.AxesThickness});
+            context.Context->Axes(m_Meshes3.StaticMeshes[u32(ShapeType<D3>::Cylinder)].Mesh,
+                                  {.Thickness = context.AxesThickness});
     }
 
     if constexpr (D == D3)
     {
-        p_Context.Context->AmbientColor(p_Context.Ambient);
-        for (const auto &light : p_Context.DirectionalLights)
-            p_Context.Context->DirectionalLight(light);
-        for (const auto &light : p_Context.PointLights)
+        context.Context->AmbientColor(context.Ambient);
+        for (const auto &light : context.DirectionalLights)
+            context.Context->DirectionalLight(light);
+        for (const auto &light : context.PointLights)
         {
-            if (p_Context.DrawLights)
+            if (context.DrawLights)
             {
-                p_Context.Context->Push();
-                p_Context.Context->Fill(Color::Unpack(light.Color));
-                p_Context.Context->Scale(0.01f);
-                p_Context.Context->Translate(light.Position);
-                p_Context.Context->StaticMesh(m_Meshes3.StaticMeshes[u32(ShapeType<D3>::Sphere)].Mesh);
-                p_Context.Context->Pop();
+                context.Context->Push();
+                context.Context->Fill(Color::Unpack(light.Color));
+                context.Context->Scale(0.01f);
+                context.Context->Translate(light.Position);
+                context.Context->StaticMesh(m_Meshes3.StaticMeshes[u32(ShapeType<D3>::Sphere)].Mesh);
+                context.Context->Pop();
             }
-            p_Context.Context->PointLight(light);
+            context.Context->PointLight(light);
         }
     }
 }
 
-template <Dimension D> ContextData<D> &SandboxLayer::addContext(ContextDataContainer<D> &p_Contexts)
+template <Dimension D> ContextData<D> &SandboxLayer::addContext(ContextDataContainer<D> &contexts)
 {
-    ContextData<D> &contextData = p_Contexts.Contexts.Append();
+    ContextData<D> &contextData = contexts.Contexts.Append();
     contextData.Context = m_Window->CreateRenderContext<D>();
     return contextData;
 }
-template <Dimension D> void SandboxLayer::setupContext(ContextData<D> &p_Context)
+template <Dimension D> void SandboxLayer::setupContext(ContextData<D> &context)
 {
     if constexpr (D == D3)
     {
-        p_Context.DrawAxes = true;
-        p_Context.DirectionalLights.Append(f32v3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
+        context.DrawAxes = true;
+        context.DirectionalLights.Append(f32v3{1.f, 1.f, 1.f}, 0.3f, Color::WHITE.Pack());
     }
 }
-template <Dimension D> CameraData<D> &SandboxLayer::addCamera(CameraDataContainer<D> &p_Cameras)
+template <Dimension D> CameraData<D> &SandboxLayer::addCamera(CameraDataContainer<D> &cameras)
 {
     Camera<D> *camera = m_Window->CreateCamera<D>();
     camera->BackgroundColor = Color{0.1f};
 
-    CameraData<D> &camData = p_Cameras.Cameras.Append();
+    CameraData<D> &camData = cameras.Cameras.Append();
     camData.Camera = camera;
     return camData;
 }
-void SandboxLayer::setupCamera(CameraData<D3> &p_Camera)
+void SandboxLayer::setupCamera(CameraData<D3> &camera)
 {
-    p_Camera.Perspective = true;
-    p_Camera.Camera->SetPerspectiveProjection(p_Camera.FieldOfView, p_Camera.Near, p_Camera.Far);
+    camera.Perspective = true;
+    camera.Camera->SetPerspectiveProjection(camera.FieldOfView, camera.Near, camera.Far);
     Transform<D3> transform{};
     transform.Translation = f32v3{2.f, 0.75f, 2.f};
     transform.Rotation = f32q{Math::Radians(f32v3{-15.f, 45.f, -4.f})};
-    p_Camera.Camera->SetView(transform);
+    camera.Camera->SetView(transform);
 }
 
 } // namespace Onyx::Demo

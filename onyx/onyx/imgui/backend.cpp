@@ -8,10 +8,10 @@
 
 namespace Onyx
 {
-void InitializeImGui(Window *p_Window)
+void InitializeImGui(Window *window)
 {
-    TKIT_CHECK_RETURNS(ImGui_ImplGlfw_InitForVulkan(p_Window->GetHandle(), true), true,
-                       "[ONYX] Failed to initialize ImGui GLFW for window '{}'", p_Window->GetName());
+    TKIT_CHECK_RETURNS(ImGui_ImplGlfw_InitForVulkan(window->GetHandle(), true), true,
+                       "[ONYX] Failed to initialize ImGui GLFW for window '{}'", window->GetName());
 
     const VKit::Instance &instance = Core::GetInstance();
     const VKit::LogicalDevice &device = Core::GetDevice();
@@ -30,7 +30,7 @@ void InitializeImGui(Window *p_Window)
     pipelineInfo.PipelineRenderingCreateInfo = Renderer::CreatePipelineRenderingCreateInfo();
     pipelineInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
-    const VkSurfaceCapabilitiesKHR &sc = p_Window->GetSwapChain().GetInfo().SupportDetails.Capabilities;
+    const VkSurfaceCapabilitiesKHR &sc = window->GetSwapChain().GetInfo().SupportDetails.Capabilities;
 
     const u32 imageCount = sc.minImageCount != sc.maxImageCount ? sc.minImageCount + 1 : sc.minImageCount;
 
@@ -48,14 +48,14 @@ void InitializeImGui(Window *p_Window)
     initInfo.PipelineInfoMain = pipelineInfo;
 
     TKIT_CHECK_RETURNS(ImGui_ImplVulkan_LoadFunctions(instance.GetInfo().ApiVersion,
-                                                      [](const char *p_Name, void *) -> PFN_vkVoidFunction {
+                                                      [](const char *name, void *) -> PFN_vkVoidFunction {
                                                           return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(),
-                                                                                                   p_Name);
+                                                                                                   name);
                                                       }),
                        true, "[ONYX] Failed to load ImGui Vulkan functions");
 
     TKIT_CHECK_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true,
-                       "[ONYX] Failed to initialize ImGui Vulkan for window '{}'", p_Window->GetName());
+                       "[ONYX] Failed to initialize ImGui Vulkan for window '{}'", window->GetName());
 }
 
 void NewImGuiFrame()
@@ -65,9 +65,9 @@ void NewImGuiFrame()
     ImGui::NewFrame();
 }
 
-void RenderImGuiData(ImDrawData *p_Data, const VkCommandBuffer p_CommandBuffer)
+void RenderImGuiData(ImDrawData *data, const VkCommandBuffer commandBuffer)
 {
-    ImGui_ImplVulkan_RenderDrawData(p_Data, p_CommandBuffer);
+    ImGui_ImplVulkan_RenderDrawData(data, commandBuffer);
 }
 void RenderImGuiWindows()
 {

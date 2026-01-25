@@ -113,23 +113,23 @@ enum Shading : u8
     Shading_Lit
 };
 
-constexpr DrawPass GetDrawMode(const StencilPass p_Pass)
+constexpr DrawPass GetDrawMode(const StencilPass pass)
 {
-    if (p_Pass == StencilPass_NoStencilWriteDoFill || p_Pass == StencilPass_DoStencilWriteDoFill)
+    if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
         return DrawPass_Fill;
     return DrawPass_Outline;
 }
 
-template <Dimension D> constexpr Shading GetShading(const DrawPass p_Pass)
+template <Dimension D> constexpr Shading GetShading(const DrawPass pass)
 {
     if constexpr (D == D2)
         return Shading_Unlit;
     else
-        return p_Pass == DrawPass_Fill ? Shading_Lit : Shading_Unlit;
+        return pass == DrawPass_Fill ? Shading_Lit : Shading_Unlit;
 }
-template <Dimension D> constexpr Shading GetShading(const StencilPass p_Pass)
+template <Dimension D> constexpr Shading GetShading(const StencilPass pass)
 {
-    return GetShading<D>(GetDrawMode(p_Pass));
+    return GetShading<D>(GetDrawMode(pass));
 }
 
 template <Shading Sh> struct PushConstantData;

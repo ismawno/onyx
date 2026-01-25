@@ -80,31 +80,31 @@ public struct MaterialData3D
     ReflectionData3D Reflection;
 };
 
-float4x4 ComputeTransform2D(const Basis2D p_Basis)
+float4x4 ComputeTransform2D(const Basis2D basis)
 {
     return float4x4(
-        float4(p_Basis.Basis11, p_Basis.Basis21, 0.0, p_Basis.Basis31),
-        float4(p_Basis.Basis12, p_Basis.Basis22, 0.0, p_Basis.Basis32),
+        float4(basis.Basis11, basis.Basis21, 0.0, basis.Basis31),
+        float4(basis.Basis12, basis.Basis22, 0.0, basis.Basis32),
         float4(0.0,               0.0,              1.0, 0.0),
         float4(0.0,               0.0,              0.0, 1.0)
     );
 }
 
-float4x4 ComputeTransform3D(const Basis3D p_Basis)
+float4x4 ComputeTransform3D(const Basis3D basis)
 {
     return float4x4(
-        float4(p_Basis.Basis11, p_Basis.Basis12, p_Basis.Basis13, p_Basis.Basis14),
-        float4(p_Basis.Basis21, p_Basis.Basis22, p_Basis.Basis23, p_Basis.Basis24),
-        float4(p_Basis.Basis31, p_Basis.Basis32, p_Basis.Basis33, p_Basis.Basis34),
+        float4(basis.Basis11, basis.Basis12, basis.Basis13, basis.Basis14),
+        float4(basis.Basis21, basis.Basis22, basis.Basis23, basis.Basis24),
+        float4(basis.Basis31, basis.Basis32, basis.Basis33, basis.Basis34),
         float4(0.0,               0.0,               0.0,               1.0)
     );
 }
 
-float3x3 ComputeNormalMatrix(const float3x3 p_Matrix)
+float3x3 ComputeNormalMatrix(const float3x3 matrix)
 {
-    const float3 c0 = p_Matrix[0];
-    const float3 c1 = p_Matrix[1];
-    const float3 c2 = p_Matrix[2];
+    const float3 c0 = matrix[0];
+    const float3 c1 = matrix[1];
+    const float3 c2 = matrix[2];
 
     const float3 r0 = cross(c1, c2);
     const float3 r1 = cross(c2, c0);
@@ -115,11 +115,11 @@ float3x3 ComputeNormalMatrix(const float3x3 p_Matrix)
 
     return float3x3(r0, r1, r2) * idet;
 }
-float3 ComputeTrivialWorldNormal(const float3x3 p_Matrix)
+float3 ComputeTrivialWorldNormal(const float3x3 matrix)
 {
-    const float3 c0 = p_Matrix[0];
-    const float3 c1 = p_Matrix[1];
-    const float3 c2 = p_Matrix[2];
+    const float3 c0 = matrix[0];
+    const float3 c1 = matrix[1];
+    const float3 c2 = matrix[2];
 
     const float3 r0 = cross(c1, c2);
     const float3 r2 = cross(c0, c1);
@@ -136,23 +136,23 @@ public struct CircleBounds
     float Radius;
 };
 
-CircleBounds GetCircleBounds(const float2 p_LocalPosition, const float p_Hollowness)
+CircleBounds GetCircleBounds(const float2 localPosition, const float hollowness)
 {
     CircleBounds bounds;
-    bounds.Hollowness = p_Hollowness * p_Hollowness;
-    bounds.Radius = 4.0 * dot(p_LocalPosition, p_LocalPosition);
+    bounds.Hollowness = hollowness * hollowness;
+    bounds.Radius = 4.0 * dot(localPosition, localPosition);
     return bounds;
 }
 
-bool CheckOutsideCircle(const CircleBounds p_Bounds, const float2 p_LocalPosition, const ArcData p_Arc)
+bool CheckOutsideCircle(const CircleBounds bounds, const float2 localPosition, const ArcData arc)
 {
-    if (p_Bounds.Radius > 1.0 || p_Bounds.Radius < p_Bounds.Hollowness)
+    if (bounds.Radius > 1.0 || bounds.Radius < bounds.Hollowness)
         return false;
 
-    const float crs1 = p_LocalPosition.x * p_Arc.LowerSin - p_LocalPosition.y * p_Arc.LowerCos;
-    const float crs2 = p_LocalPosition.x * p_Arc.UpperSin - p_LocalPosition.y * p_Arc.UpperCos;
+    const float crs1 = localPosition.x * arc.LowerSin - localPosition.y * arc.LowerCos;
+    const float crs2 = localPosition.x * arc.UpperSin - localPosition.y * arc.UpperCos;
 
-    if (p_Arc.AngleOverflow == 1)
+    if (arc.AngleOverflow == 1)
     {
         if (crs1 > 0.0 && crs2 < 0.0)
             return false;
@@ -165,18 +165,18 @@ bool CheckOutsideCircle(const CircleBounds p_Bounds, const float2 p_LocalPositio
     return true;
 }
 
-float CircleFade(float p_Alpha, const CircleBounds p_Bounds, const FadeData p_Fade)
+float CircleFade(float alpha, const CircleBounds bounds, const FadeData fade)
 {
-    const float innerFade = p_Fade.InnerFade * p_Fade.InnerFade;
-    const float outerFade = 1.0 - p_Fade.OuterFade * p_Fade.OuterFade;
-    const float shiftLen = (p_Bounds.Radius - p_Bounds.Hollowness) / (1.0 - p_Bounds.Hollowness);
+    const float innerFade = fade.InnerFade * fade.InnerFade;
+    const float outerFade = 1.0 - fade.OuterFade * fade.OuterFade;
+    const float shiftLen = (bounds.Radius - bounds.Hollowness) / (1.0 - bounds.Hollowness);
 
     if (shiftLen < innerFade)
-        p_Alpha *= shiftLen / innerFade;
+        alpha *= shiftLen / innerFade;
     if (shiftLen > outerFade)
-        p_Alpha *= 1.0 - (shiftLen - outerFade) / (1.0 - outerFade);
+        alpha *= 1.0 - (shiftLen - outerFade) / (1.0 - outerFade);
 
-    return clamp(p_Alpha, 0.0, 1.0);
+    return clamp(alpha, 0.0, 1.0);
 }
 
 public struct LightData3D
@@ -208,17 +208,17 @@ public struct PointLight
 };
 
 
-float3 GetLightColor(const LightData3D p_Data, const float3 p_Normal, const ReflectionData3D p_Reflection, const float3 p_WorldPosition, const StructuredBuffer<DirectionalLight, Std430DataLayout> p_Directionals, const StructuredBuffer<PointLight, Std430DataLayout> p_Points)
+float3 GetLightColor(const LightData3D data, const float3 normal, const ReflectionData3D reflection, const float3 worldPosition, const StructuredBuffer<DirectionalLight, Std430DataLayout> directionals, const StructuredBuffer<PointLight, Std430DataLayout> points)
 {
-    const float3 specularDirection = normalize(p_Data.ViewPosition.xyz - p_WorldPosition);
+    const float3 specularDirection = normalize(data.ViewPosition.xyz - worldPosition);
 
     float3 diffuseColor = float3(0.0);
     float3 specularColor = float3(0.0);
-    for (uint i = 0; i < p_Data.DirectionalLightCount; ++i)
+    for (uint i = 0; i < data.DirectionalLightCount; ++i)
     {
-        const DirectionalLight dlight = p_Directionals[i];
+        const DirectionalLight dlight = directionals[i];
         const float3 direction = float3(dlight.PosY, dlight.PosY, dlight.PosZ);
-        const float product = dot(p_Normal, direction);
+        const float product = dot(normal, direction);
 
         if (product > 0.0)
         {
@@ -227,16 +227,16 @@ float3 GetLightColor(const LightData3D p_Data, const float3 p_Normal, const Refl
             diffuseColor += intensity * lightColor * product;
 
             const float3 halfVector = normalize(direction + specularDirection);
-            const float specular = pow(max(dot(p_Normal, halfVector), 0.0), p_Reflection.SpecularSharpness);
+            const float specular = pow(max(dot(normal, halfVector), 0.0), reflection.SpecularSharpness);
             specularColor += intensity * specular * lightColor;
         }
     }
 
-    for (uint i = 0; i < p_Data.PointLightCount; ++i)
+    for (uint i = 0; i < data.PointLightCount; ++i)
     {
-        const PointLight plight = p_Points[i];
-        const float3 direction = float3(plight.PosX, plight.PosY, plight.PosZ) - p_WorldPosition;
-        const float product = dot(p_Normal, direction);
+        const PointLight plight = points[i];
+        const float3 direction = float3(plight.PosX, plight.PosY, plight.PosZ) - worldPosition;
+        const float product = dot(normal, direction);
 
         if (product > 0.0)
         {
@@ -245,15 +245,15 @@ float3 GetLightColor(const LightData3D p_Data, const float3 p_Normal, const Refl
             const float dirLen = dot(direction, direction);
             const float attenuation = radius / (dirLen + radius);
             const float intensity = attenuation * plight.Intensity;
-            diffuseColor += intensity * lightColor * max(dot(p_Normal, normalize(direction)), 0.0);
+            diffuseColor += intensity * lightColor * max(dot(normal, normalize(direction)), 0.0);
 
             const float3 halfVector = normalize(direction + specularDirection);
-            const float specular = pow(max(dot(p_Normal, halfVector), 0.0), p_Reflection.SpecularSharpness);
+            const float specular = pow(max(dot(normal, halfVector), 0.0), reflection.SpecularSharpness);
             specularColor += intensity * specular * lightColor;
         }
     }
 
-    return p_Data.AmbientColor.xyz * p_Data.AmbientColor.w +
-        p_Reflection.DiffuseContribution * diffuseColor + p_Reflection.SpecularContribution * specularColor;
+    return data.AmbientColor.xyz * data.AmbientColor.w +
+        reflection.DiffuseContribution * diffuseColor + reflection.SpecularContribution * specularColor;
 }
 

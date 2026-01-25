@@ -6,24 +6,24 @@
 
 #define ONYX_MAX_WORKERS (ONYX_MAX_THREADS - 1)
 
-void RunApp(const Onyx::Demo::ParseResult &p_Args)
+void RunApp(const Onyx::Demo::ParseResult &args)
 {
     Onyx::Window::Specs spc;
     spc.Name = "Performance lattice";
     spc.PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
     Onyx::Application app{spc};
-    if (p_Args.Dim == Onyx::Dimension::D2)
-        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D2>>(p_Args.Lattice2, p_Args.Settings);
+    if (args.Dim == Onyx::Dimension::D2)
+        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D2>>(args.Lattice2, args.Settings);
     else
-        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D3>>(p_Args.Lattice3, p_Args.Settings);
-    if (!p_Args.HasRuntime)
+        app.SetUserLayer<Onyx::Demo::Layer<Onyx::Dimension::D3>>(args.Lattice3, args.Settings);
+    if (!args.HasRuntime)
         app.Run();
     else
     {
         TKit::Clock frameClock{};
         TKit::Clock runTimeClock{};
-        while (runTimeClock.GetElapsed().AsSeconds() < p_Args.RunTime && app.NextFrame(frameClock))
+        while (runTimeClock.GetElapsed().AsSeconds() < args.RunTime && app.NextFrame(frameClock))
             ;
     }
 }
