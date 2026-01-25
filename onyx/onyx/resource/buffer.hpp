@@ -16,8 +16,10 @@ enum DeviceBufferFlags : VKit::DeviceBufferFlags
 {
     Buffer_DeviceVertex = VKit::DeviceBufferFlag_Vertex | VKit::DeviceBufferFlag_DeviceLocal,
     Buffer_DeviceIndex = VKit::DeviceBufferFlag_Index | VKit::DeviceBufferFlag_DeviceLocal,
-    Buffer_DeviceStorage = VKit::DeviceBufferFlag_Storage | VKit::DeviceBufferFlag_DeviceLocal,
-    Buffer_Staging = VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped,
+    Buffer_DeviceStorage =
+        VKit::DeviceBufferFlag_Storage | VKit::DeviceBufferFlag_DeviceLocal | VKit::DeviceBufferFlag_Source,
+    Buffer_Staging =
+        VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped | VKit::DeviceBufferFlag_Destination,
 };
 
 using Index = ONYX_INDEX_TYPE;

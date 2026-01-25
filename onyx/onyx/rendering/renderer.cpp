@@ -92,6 +92,24 @@ template <Dimension D> struct RendererData
     TKit::TierArray<u64> Generations{};
     TKit::FixedArray<Arena, Geometry_Count> Arenas{};
     TKit::FixedArray<TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count>, StencilPass_Count> Pipelines{};
+
+    bool IsContextRangeClean(const ContextRange &crange) const
+    {
+        return crange.ViewMask != 0 && crange.ContextIndex != TKIT_U32_MAX &&
+               !Contexts[crange.ContextIndex]->IsDirty(crange.Generation);
+    }
+    bool IsContextRangeClean(const u64 viewBit, const ContextRange &crange) const
+    {
+        return (crange.ViewMask & viewBit) && crange.ContextIndex != TKIT_U32_MAX &&
+               !Contexts[crange.ContextIndex]->IsDirty(crange.Generation);
+    }
+    bool AreContextRangesClean(const GraphicsMemoryRange &grange)
+    {
+        for (const ContextRange &crange : grange.ContextRanges)
+            if (IsContextRangeClean(crange))
+                return true;
+        return false;
+    }
 };
 
 static RendererData<D2> s_RendererData2{};
@@ -253,12 +271,12 @@ void ClearWindow(const Window *window)
 }
 
 ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferArena &arena,
-                                                                       const VkDeviceSize requiredMem)
+                                                                       const VkDeviceSize requiredMem,
+                                                                       TKit::StackArray<Task> &tasks)
 {
     auto &ranges = arena.MemoryRanges;
     TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
 
-    VKit::DeviceBuffer &buffer = arena.Buffer;
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         TransferMemoryRange &range = ranges[i];
@@ -279,23 +297,37 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
         }
     }
 
+    VKit::DeviceBuffer &buffer = arena.Buffer;
     const VkDeviceSize isize = buffer.GetInfo().InstanceSize;
-    const VkDeviceSize icount = buffer.GetInfo().InstanceCount;
+    const VkDeviceSize icount = Math::Max(requiredMem / isize, buffer.GetInfo().InstanceCount);
     const VkDeviceSize size = buffer.GetInfo().Size;
 
-    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable transfer range with {} bytes of memory. A new buffer "
+                   "will be created with more memory (from {} to {} bytes)",
+                   requiredMem, size, 2 * icount * isize);
 
-    const auto bresult = Resources::CreateBuffer(Buffer_Staging, isize, 2 * icount);
+    auto bresult = Resources::CreateBuffer(Buffer_Staging, isize, 2 * icount);
     TKIT_RETURN_ON_ERROR(bresult);
 
-    buffer.Destroy();
-    buffer = bresult.GetValue();
+    VKit::DeviceBuffer &nbuffer = bresult.GetValue();
 
+    const VkBufferCopy copy{.srcOffset = 0, .dstOffset = 0, .size = size};
+
+    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    for (const Task &task : tasks)
+        task.WaitUntilFinished();
+    tasks.Clear();
+
+    nbuffer.Write(buffer.GetData(), copy);
+    buffer.Destroy();
+    buffer = nbuffer;
+
+    const VkDeviceSize remSize = buffer.GetInfo().Size;
     TransferMemoryRange bigRange;
-    bigRange.Transfer = nullptr;
-    bigRange.TransferFlightValue = 0;
     bigRange.Offset = size + requiredMem;
-    bigRange.Size = size - requiredMem;
+    bigRange.Size = remSize - bigRange.Offset;
+
+    TKIT_ASSERT(bigRange.Size != 0, "[ONYX][RENDERER] Leftover transfer range final size is zero");
 
     TransferMemoryRange smallRange;
     smallRange.Offset = size;
@@ -307,19 +339,21 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
     return &ranges[ranges.GetSize() - 2];
 }
 
-ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(GraphicsArena &arena,
-                                                                       const VkDeviceSize requiredMem)
+template <Dimension D>
+ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(RendererData<D> &rdata, GraphicsArena &arena,
+                                                                       const VkDeviceSize requiredMem,
+                                                                       VKit::Queue *transfer,
+                                                                       TKit::StackArray<Task> &tasks)
 {
     auto &ranges = arena.MemoryRanges;
     TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
 
-    VKit::DeviceBuffer &buffer = arena.Buffer;
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         GraphicsMemoryRange &range = ranges[i];
         // when reaching here, all free device memory ranges must have been curated. non dirty contexts now have a
         // memory range for themselves, and free memory ranges must have a u32 max batch index
-        if (range.Size >= requiredMem && range.ContextRanges.IsEmpty() && !range.InUse())
+        if (range.Size >= requiredMem && !range.InUse() && !rdata.AreContextRangesClean(range))
         {
             if (range.Size == requiredMem)
                 return &range;
@@ -336,21 +370,37 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(GraphicsA
         }
     }
 
+    VKit::DeviceBuffer &buffer = arena.Buffer;
     const VkDeviceSize isize = buffer.GetInfo().InstanceSize;
-    const VkDeviceSize icount = buffer.GetInfo().InstanceCount;
+    const VkDeviceSize icount = Math::Max(requiredMem / isize, buffer.GetInfo().InstanceCount);
     const VkDeviceSize size = buffer.GetInfo().Size;
 
-    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable graphics range with {} bytes of memory. A new buffer "
+                   "will be created with more memory (from {} to {} bytes)",
+                   requiredMem, size, 2 * icount * isize);
 
-    const auto bresult = Resources::CreateBuffer(Buffer_DeviceStorage, isize, 2 * icount);
+    auto bresult = Resources::CreateBuffer(Buffer_DeviceStorage, isize, 2 * icount);
     TKIT_RETURN_ON_ERROR(bresult);
 
-    buffer.Destroy();
-    buffer = bresult.GetValue();
+    VKit::DeviceBuffer &nbuffer = bresult.GetValue();
 
+    const VkBufferCopy copy{.srcOffset = 0, .dstOffset = 0, .size = size};
+
+    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    for (const Task &task : tasks)
+        task.WaitUntilFinished();
+    tasks.Clear();
+    TKIT_RETURN_IF_FAILED(nbuffer.CopyFromBuffer(Execution::GetTransientTransferPool(), *transfer, buffer, copy));
+
+    buffer.Destroy();
+    buffer = nbuffer;
+
+    const VkDeviceSize remSize = buffer.GetInfo().Size;
     GraphicsMemoryRange bigRange{};
     bigRange.Offset = size + requiredMem;
-    bigRange.Size = size - requiredMem;
+    bigRange.Size = remSize - bigRange.Offset;
+
+    TKIT_ASSERT(bigRange.Size != 0, "[ONYX][RENDERER] Leftover graphics range final size is zero");
 
     GraphicsMemoryRange smallRange{};
     smallRange.Offset = size;
@@ -483,7 +533,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             if (requiredMem == 0)
                 continue;
 
-            const auto tresult = findTransferRange(tarena, requiredMem);
+            const auto tresult = findTransferRange(tarena, requiredMem, tasks);
             TKIT_RETURN_ON_ERROR(tresult);
             TransferMemoryRange *trange = tresult.GetValue();
             trange->Transfer = transfer;
@@ -504,7 +554,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
                 sindex = tm->SubmitTask(&task, sindex);
             }
 
-            const auto gresult = findGraphicsRange(garena, requiredMem);
+            const auto gresult = findGraphicsRange(rdata, garena, requiredMem, transfer, tasks);
             TKIT_RETURN_ON_ERROR(gresult);
             GraphicsMemoryRange *grange = gresult.GetValue();
 
@@ -737,8 +787,7 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
             VkDeviceSize size = 0;
             for (const ContextRange &crange : grange.ContextRanges)
             {
-                if ((crange.ViewMask & viewBit) && crange.ContextIndex != TKIT_U32_MAX &&
-                    !rdata.Contexts[crange.ContextIndex]->IsDirty(crange.Generation))
+                if (rdata.IsContextRangeClean(viewBit, crange))
                     size += crange.Size;
                 else if (size != 0)
                 {
@@ -750,11 +799,9 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
                     drawInfo[grange.Pass][grange.BatchIndex].Append(info);
                 }
             }
-            TKIT_ASSERT(size != 0 || offset > grange.Offset,
-                        "[ONYX][RENDERER] Found labeled graphics memory arena range for window with view bit {} with "
-                        "no context "
-                        "ranges targetting said view",
-                        viewBit);
+            // TKIT_ASSERT(size != 0 || offset > grange.Offset,
+            //             "[ONYX][RENDERER] Found labeled graphics memory arena range for window with view bit {} with
+            //             " "no context ranges targetting said view", viewBit);
             if (size != 0)
             {
                 InstanceDrawInfo info;
@@ -999,8 +1046,7 @@ template <Dimension D> void coalesce()
                 grange.Transfer = nullptr;
                 grange.Graphics = nullptr;
                 for (ContextRange &crange : grange.ContextRanges)
-                    if (crange.ViewMask != 0 && crange.ContextIndex != TKIT_U32_MAX &&
-                        !rdata.Contexts[crange.ContextIndex]->IsDirty(crange.Generation))
+                    if (rdata.IsContextRangeClean(crange))
                     {
                         TKIT_ASSERT(grange.Size != 0,
                                     "[ONYX][RENDERER] Graphics memory range should not have reached a zero "

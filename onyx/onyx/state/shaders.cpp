@@ -4,11 +4,14 @@
 #include "tkit/preprocessor/utils.hpp"
 #include "tkit/container/stack_array.hpp"
 #include <slang.h>
+#include <slang-com-ptr.h>
 
 namespace Onyx::Shaders
 {
 using namespace Detail;
-static slang::IGlobalSession *s_Slang = nullptr;
+using Slang::ComPtr;
+
+static ComPtr<slang::IGlobalSession> s_Slang = nullptr;
 
 Compiler::Module &Compiler::Module::DeclareEntryPoint(const char *name, const ShaderStage stage)
 {
@@ -487,7 +490,7 @@ static slang::CompilerOptionName getArgumentName(const ShaderArgumentName arg)
     return SO::CountOf;
 }
 
-static std::string getDiagnostics(slang::IBlob *diagnostics, const bool release = false)
+static std::string getDiagnostics(slang::IBlob *diagnostics)
 {
     if (!diagnostics)
         return "No diagnostics available";
@@ -495,14 +498,12 @@ static std::string getDiagnostics(slang::IBlob *diagnostics, const bool release 
     const char *text = static_cast<const char *>(diagnostics->getBufferPointer());
     const size_t size = diagnostics->getBufferSize();
     const std::string message{text, size};
-    if (release)
-        diagnostics->release();
     return message;
 }
 
 Result<Compilation> Compiler::Compile() const
 {
-    slang::ISession *session;
+    ComPtr<slang::ISession> session = nullptr;
     slang::TargetDesc tdesc{};
     tdesc.format = SLANG_SPIRV;
     tdesc.profile = s_Slang->findProfile("spirv_1_5");
@@ -555,56 +556,40 @@ Result<Compilation> Compiler::Compile() const
     cdesc.allowGLSLSyntax = m_AllowGlslSyntax;
     cdesc.skipSPIRVValidation = m_SkipSpirvValidtion;
 
-    SlangResult result = s_Slang->createSession(cdesc, &session);
+    SlangResult result = s_Slang->createSession(cdesc, session.writeRef());
     if (SLANG_FAILED(result))
         return Result<>::Error(Error_ShaderCompilationFailed, "[ONYX][SHADERS] Slang compile session creation failed");
 
-    VKit::DeletionQueue gqueue{};
-    gqueue.Push([session] { session->release(); });
-
-    slang::IBlob *diagnostics = nullptr;
+    ComPtr<slang::IBlob> diagnostics = nullptr;
     TKit::TierArray<Spirv> sprvs{};
-    const auto release = [](auto &thing) {
-        if (thing)
-        {
-            thing->Release();
-            thing = nullptr;
-        };
-    };
 
     for (const Module &munit : m_Modules)
     {
-        TKit::StackArray<slang::IComponentType *> components{};
+        TKit::StackArray<ComPtr<slang::IComponentType>> components{};
         components.Reserve(munit.m_EntryPoints.GetSize() + 1);
 
-        VKit::DeletionQueue lqueue{};
-        lqueue.Push([&components] {
-            for (slang::IComponentType *cmp : components)
-                cmp->release();
-        });
-
-        slang::IModule *module = nullptr;
+        ComPtr<slang::IModule> module = nullptr;
         if (munit.m_SourceCode)
-            module = session->loadModuleFromSourceString(munit.m_Name, munit.m_Path, munit.m_SourceCode, &diagnostics);
+            module = session->loadModuleFromSourceString(munit.m_Name, munit.m_Path, munit.m_SourceCode,
+                                                         diagnostics.writeRef());
         else
-            module = session->loadModule(munit.m_Name, &diagnostics);
+            module = session->loadModule(munit.m_Name, diagnostics.writeRef());
 
         if (!module)
             return Result<>::Error(Error_ShaderCompilationFailed,
                                    TKit::Format("[ONYX][SHADERS] Failed to load shader module '{}': {}", munit.m_Name,
-                                                getDiagnostics(diagnostics, true)));
+                                                getDiagnostics(diagnostics)));
 
         components.Append(module);
         TKIT_LOG_WARNING_IF(diagnostics, "[ONYX][SHADERS] Shader module '{}' loaded with the following diagnostics: {}",
                             munit.m_Name, getDiagnostics(diagnostics));
         TKIT_LOG_INFO_IF(!diagnostics, "[ONYX][SHADERS] Successfully loaded module '{}'", munit.m_Name);
 
-        release(diagnostics);
-
         for (const EntryPoint &ep : munit.m_EntryPoints)
         {
-            slang::IEntryPoint *entry = nullptr;
-            result = module->findAndCheckEntryPoint(ep.Name, getSlangStage(ep.Stage), &entry, &diagnostics);
+            ComPtr<slang::IEntryPoint> entry = nullptr;
+            result = module->findAndCheckEntryPoint(ep.Name, getSlangStage(ep.Stage), entry.writeRef(),
+                                                    diagnostics.writeRef());
             if (SLANG_FAILED(result))
                 return Result<>::Error(
                     Error_ShaderCompilationFailed,
@@ -616,41 +601,37 @@ Result<Compilation> Compiler::Compile() const
                 "[ONYX][SHADERS] Entry point '{}' from module '{}' checked with the following diagnostics: {}", ep.Name,
                 munit.m_Name, getDiagnostics(diagnostics));
 
-            release(diagnostics);
             components.Append(entry);
         }
-        slang::IComponentType *program;
-        result =
-            session->createCompositeComponentType(components.GetData(), components.GetSize(), &program, &diagnostics);
+        ComPtr<slang::IComponentType> program = nullptr;
+        TKit::StackArray<slang::IComponentType *> rawComponents;
+        rawComponents.Reserve(components.GetSize());
+        for (const auto &cmp : components)
+            rawComponents.Append(cmp);
+
+        result = session->createCompositeComponentType(rawComponents.GetData(), rawComponents.GetSize(),
+                                                       program.writeRef(), diagnostics.writeRef());
         if (SLANG_FAILED(result))
             return Result<>::Error(
                 Error_ShaderCompilationFailed,
                 TKit::Format("[ONYX][SHADERS] Failed to create composite component type for module '{}': {}",
                              munit.m_Name, getDiagnostics(diagnostics)));
 
-        lqueue.Push([program] { program->release(); });
-
         TKIT_LOG_WARNING_IF(
             diagnostics,
             "[ONYX][SHADERS] Created composite component type for module '{}' with the following diagnostics: {}",
             munit.m_Name, getDiagnostics(diagnostics));
 
-        release(diagnostics);
-
         slang::IComponentType *linkedProgram;
-        result = program->link(&linkedProgram, &diagnostics);
+        result = program->link(&linkedProgram, diagnostics.writeRef());
         if (SLANG_FAILED(result))
             return Result<>::Error(Error_ShaderCompilationFailed,
                                    TKit::Format("[ONYX][SHADERS] Failed to link final program for module '{}': {}",
                                                 munit.m_Name, getDiagnostics(diagnostics)));
 
-        lqueue.Push([linkedProgram] { linkedProgram->release(); });
-
         TKIT_LOG_WARNING_IF(diagnostics,
                             "[ONYX][SHADERS] Linked final program for module '{}' with the following diagnostics: {}",
                             munit.m_Name, getDiagnostics(diagnostics));
-
-        release(diagnostics);
 
         slang::ProgramLayout *layout = linkedProgram->getLayout();
         for (u32 i = 0; i < layout->getEntryPointCount(); ++i)
@@ -668,8 +649,8 @@ Result<Compilation> Compiler::Compile() const
                 }
             TKIT_ASSERT(ep.Name, "[ONYX][SHADERS] Failed to recover entry point named '{}'", epr->getName());
 
-            slang::IBlob *code;
-            result = linkedProgram->getEntryPointCode(i, 0, &code, &diagnostics);
+            ComPtr<slang::IBlob> code = nullptr;
+            result = linkedProgram->getEntryPointCode(i, 0, code.writeRef(), diagnostics.writeRef());
 
             if (SLANG_FAILED(result))
                 return Result<>::Error(
@@ -678,14 +659,10 @@ Result<Compilation> Compiler::Compile() const
                         "[ONYX][SHADERS] Failed to retrieve final code from entry point '{}' and module '{}': {}",
                         ep.Name, munit.m_Name, getDiagnostics(diagnostics)));
 
-            lqueue.Push([code] { code->release(); });
-
             TKIT_LOG_WARNING_IF(diagnostics,
                                 "[ONYX][SHADERS] Retrieved final code for entry point '{}' and module '{}' with the "
                                 "following diagnostics: {}",
                                 ep.Name, munit.m_Name, getDiagnostics(diagnostics));
-
-            release(diagnostics);
 
             const size_t size = code->getBufferSize();
 
@@ -710,7 +687,7 @@ Result<> Initialize(const Specs &specs)
     SlangGlobalSessionDesc desc{};
     desc.enableGLSL = specs.EnableGlsl;
 
-    const SlangResult result = slang::createGlobalSession(&desc, &s_Slang);
+    const SlangResult result = slang::createGlobalSession(&desc, s_Slang.writeRef());
     if (SLANG_FAILED(result))
         return Result<>::Error(Error_InitializationFailed, "[ONYX][SHADERS] Slang global session creation failed");
 
@@ -718,8 +695,6 @@ Result<> Initialize(const Specs &specs)
 }
 void Terminate()
 {
-    if (s_Slang)
-        s_Slang->Release();
     slang::shutdown();
 }
 

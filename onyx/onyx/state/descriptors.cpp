@@ -56,7 +56,7 @@ Result<DescriptorSet *> FindSuitableDescriptorSet(const VKit::DeviceBuffer &buff
     for (DescriptorSet &set : s_Sets)
         if (!set.InUse())
         {
-            if (set.Buffer == buffer)
+            if (set.Buffer == buffer.GetHandle())
                 return &set;
             const VkDescriptorBufferInfo info = buffer.CreateDescriptorInfo();
             const auto result = WriteStorageBufferDescriptorSet(info, set.Set);

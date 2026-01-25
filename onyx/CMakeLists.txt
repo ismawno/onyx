@@ -185,7 +185,7 @@ if(ONYX_ENABLE_IMGUI)
   FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG f89ef40cb2d0dda03702a9126af11163521f4b2c
+    GIT_TAG be2cfc26c9ae77de99e6eed8d5e97a5a99b0cf3f
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
 
