@@ -307,6 +307,7 @@ void terminateAllocators()
 ONYX_NO_DISCARD static Result<> initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Initializing Onyx");
+    TKIT_LOG_INFO("[ONYX][CORE] Vulkan headers version: {}.{}.{}", VKIT_EXPAND_VERSION(VK_HEADER_VERSION_COMPLETE));
 
     initializeAllocators(specs);
     PUSH_DELETER(terminateAllocators());
