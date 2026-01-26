@@ -83,14 +83,22 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())
+    {
         flags = LayoutFlag_UpdateVertex;
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient vertex buffer memory. Resized from {} to {} bytes",
+                       vcount * sizeof(Vertex), info.VertexBuffer.GetInfo().Size);
+    }
 
     const u32 icount = info.GetIndexCount();
     result = Resources::GrowBufferIfNeeded<Index>(info.IndexBuffer, icount, Buffer_DeviceIndex);
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())
+    {
         flags |= LayoutFlag_UpdateIndex;
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient index buffer memory. Resized from {} to {} bytes",
+                       icount * sizeof(Index), info.IndexBuffer.GetInfo().Size);
+    }
     if (flags)
         for (DataLayout &layout : info.Layouts)
             layout.Flags |= flags;
@@ -104,6 +112,9 @@ ONYX_NO_DISCARD static Result<> uploadVertexData(MeshInfo<Vertex> &info, const u
     const VkDeviceSize voffset = info.GetVertexCount(start) * size;
     const VkDeviceSize vsize = info.GetVertexCount(end) * size - voffset;
 
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading vertex range: {} - {} ({} bytes)", info.GetVertexCount(start),
+                   info.GetVertexCount(end), vsize);
+
     VKit::CommandPool &pool = Execution::GetTransientTransferPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
 
@@ -116,6 +127,9 @@ ONYX_NO_DISCARD static Result<> uploadIndexData(MeshInfo<Vertex> &info, const u3
     constexpr VkDeviceSize size = sizeof(Index);
     const VkDeviceSize ioffset = info.GetIndexCount(start) * size;
     const VkDeviceSize isize = info.GetIndexCount(end) * size - ioffset;
+
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading index range: {} - {} ({} bytes)", info.GetIndexCount(start),
+                   info.GetIndexCount(end), isize);
 
     VKit::CommandPool &pool = Execution::GetTransientTransferPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);

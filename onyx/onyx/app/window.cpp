@@ -141,7 +141,8 @@ Result<Window *> Window::Create(const Specs &specs)
         return Result<>::Error(Error_NoSurfaceCapabilities);
 
     dqueue.Push([surface] { Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), surface, nullptr); });
-    Input::InstallCallbacks(handle);
+    if (specs.Flags & WindowFlag_InstallCallbacks)
+        Input::InstallCallbacks(handle);
 
     const VkExtent2D extent = waitGlfwEvents(specs.Dimensions[0], specs.Dimensions[1]);
     auto sresult = Onyx::createSwapChain(specs.PresentMode, surface, extent);

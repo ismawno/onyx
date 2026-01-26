@@ -25,6 +25,7 @@ enum WindowFlagBit : WindowFlags
     WindowFlag_Decorated = 1 << 2,
     WindowFlag_Focused = 1 << 3,
     WindowFlag_Floating = 1 << 4,
+    WindowFlag_InstallCallbacks = 1 << 5
 };
 
 enum TransferMode : u8
@@ -57,7 +58,8 @@ class Window
         u32v2 Position{TKIT_U32_MAX}; // u32 max means let it be decided automatically
         u32v2 Dimensions{800, 600};
         VkPresentModeKHR PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-        WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused;
+        WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused |
+                            WindowFlag_InstallCallbacks;
     };
 
     ONYX_NO_DISCARD static Result<Window *> Create(const Specs &specs);

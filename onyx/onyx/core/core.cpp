@@ -92,6 +92,15 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     TKIT_RETURN_ON_ERROR(physres);
 
     s_Physical = physres.GetValue();
+    TKIT_LOG_INFO("[ONYX][CORE] Selected vulkan device: {}. API version: {}.{}.{}",
+                  s_Physical.GetInfo().Properties.Core.deviceName,
+                  VKIT_EXPAND_VERSION(s_Physical.GetInfo().ApiVersion));
+
+    TKIT_LOG_WARNING_IF(!(s_Physical.GetInfo().Flags & VKit::DeviceFlag_Optimal),
+                        "[ONYX][CORE] The device is suitable, but not optimal");
+
+    TKIT_LOG_INFO_IF(s_Physical.GetInfo().Flags & VKit::DeviceFlag_Optimal, "[ONYX][CORE] The device is optimal");
+
     const u32 apiVersion = s_Physical.GetInfo().ApiVersion;
 
     VkPhysicalDeviceShaderDrawParameterFeatures drawParams{};
@@ -166,13 +175,6 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     TKIT_RETURN_ON_ERROR(devres);
     s_Device = devres.GetValue();
 
-    TKIT_LOG_INFO("[ONYX][CORE] Created vulkan device: {}",
-                  s_Device.GetInfo().PhysicalDevice->GetInfo().Properties.Core.deviceName);
-    TKIT_LOG_WARNING_IF(!(s_Device.GetInfo().PhysicalDevice->GetInfo().Flags & VKit::DeviceFlag_Optimal),
-                        "[ONYX][CORE] The device is suitable, but not optimal");
-    TKIT_LOG_INFO_IF(s_Device.GetInfo().PhysicalDevice->GetInfo().Flags & VKit::DeviceFlag_Optimal,
-                     "[ONYX][CORE] The device is optimal");
-
     SUBMIT_DELETION(s_Device);
     return Result<>::Ok();
 }
@@ -198,7 +200,7 @@ ONYX_NO_DISCARD static Result<> createInstance(const bool validationLayers)
     u32 extensionCount;
 
     VKit::Instance::Builder builder{};
-    builder.SetApplicationName("Onyx").RequestApiVersion(1, 3, 0).RequireApiVersion(1, 2, 0).SetApplicationVersion(1, 2,
+    builder.SetApplicationName("Onyx").RequestApiVersion(1, 4, 0).RequireApiVersion(1, 2, 0).SetApplicationVersion(1, 2,
                                                                                                                    0);
     if (validationLayers)
         builder.RequestValidationLayers();
