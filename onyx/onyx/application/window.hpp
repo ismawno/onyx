@@ -345,7 +345,6 @@ class Window
     VkPresentModeKHR m_PresentMode;
     WindowFlags m_Flags;
     bool m_MustRecreateSwapchain = false;
-    bool m_Acquired = false;
 
     friend void windowResizeCallback(GLFWwindow *, const i32, const i32);
 };

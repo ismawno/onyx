@@ -260,7 +260,6 @@ Result<> Window::Present(const Renderer::RenderSubmitInfo &info)
     const VkResult result = table->QueuePresentKHR(*m_Present, &presentInfo);
 
     TKIT_RETURN_IF_FAILED(handleImageResult(result));
-    m_Acquired = false;
 
     // a bit random that 0
     m_LastGraphicsSubmission.Timeline = info.SignalSemaphores[0].semaphore;
@@ -271,18 +270,16 @@ Result<> Window::Present(const Renderer::RenderSubmitInfo &info)
 
 Result<bool> Window::AcquireNextImage(const Timeout timeout)
 {
-    if (m_Acquired)
-        return true;
-
     TKIT_PROFILE_NSCOPE("Onyx::Window::AcquireNextImage");
-    m_Acquired = true;
     const auto table = Core::GetDeviceTable();
     const auto &device = Core::GetDevice();
     const auto acquire = [&]() {
-        m_ImageAvailableIndex = (m_ImageAvailableIndex + 1) % m_SyncData.GetSize();
-        const VkResult result = table->AcquireNextImageKHR(device, m_SwapChain, timeout,
-                                                           m_SyncData[m_ImageAvailableIndex].ImageAvailableSemaphore,
-                                                           VK_NULL_HANDLE, &m_ImageIndex);
+        const u32 idx = (m_ImageAvailableIndex + 1) % m_SyncData.GetSize();
+        const VkResult result = table->AcquireNextImageKHR(
+            device, m_SwapChain, timeout, m_SyncData[idx].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
+
+        if (result != VK_NOT_READY && result != VK_TIMEOUT)
+            m_ImageAvailableIndex = idx;
         return handleImageResult(result);
     };
 
