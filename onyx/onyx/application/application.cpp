@@ -136,6 +136,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         if (layer->checkFlags(WindowLayerFlag_RequestEnableImGui))
             layer->initializeImGui();
 #endif
+        layer->clearFlags(WindowLayerFlag_RequestEnableImGui | WindowLayerFlag_RequestDisableImGui);
     }
 
     if (m_AppLayer->m_Replacement)
