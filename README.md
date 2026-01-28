@@ -141,7 +141,7 @@ Every window gets a user layer (must be explicitly added), ImGui and ImPlot cont
 
 There is more to this system, such as additional layer callbacks like `OnEvent()` and `OnUpdate()`. All user-relevant parts of this library are documented in the source code. The documentation can also be built with Doxygen. As mentioned earlier, the full working example can be found at [hello-world](https://github.com/ismawno/onyx/blob/main/demo/hello-world/main.cpp).
 
-Onyx also supports a multi-window application interface, allowing many windows per application by using the `OpenWindow()` and `CloseWindow()` methods and setting `ONYX_APP_MAX_WINDOWS` to a value greater than 1. For more details, refer to the documentation [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/app.hpp) and [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/app/user_layer.hpp).
+Onyx also supports a multi-window application interface, allowing many windows per application by using the `OpenWindow()` and `CloseWindow()` methods and setting `ONYX_APP_MAX_WINDOWS` to a value greater than 1. For more details, refer to the documentation [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/application/app.hpp) and [here](https://github.com/ismawno/onyx/blob/main/onyx/onyx/application/user_layer.hpp).
 
 ### ImGui/ImPlot Usage
 

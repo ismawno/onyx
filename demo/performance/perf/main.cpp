@@ -1,6 +1,6 @@
 #include "perf/argparse.hpp"
 #include "perf/layer.hpp"
-#include "onyx/app/app.hpp"
+#include "onyx/application/app.hpp"
 #include "tkit/multiprocessing/thread_pool.hpp"
 #include "tkit/profiling/macros.hpp"
 

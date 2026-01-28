@@ -1,27 +1,27 @@
-#include "onyx/core/pch.hpp"
-#include "onyx/app/user_layer.hpp"
-#include "onyx/property/color.hpp"
-#include "onyx/property/transform.hpp"
-#include "onyx/property/instance.hpp"
-#include "onyx/app/window.hpp"
-#include "onyx/app/input.hpp"
-#include "onyx/imgui/imgui.hpp"
-#include "tkit/container/stack_array.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include "onyx/core/pch.hpp"
+#    include "onyx/imgui/imgui.hpp"
+#    include "onyx/property/color.hpp"
+#    include "onyx/property/transform.hpp"
+#    include "onyx/property/instance.hpp"
+#    include "onyx/application/window.hpp"
+#    include "onyx/application/input.hpp"
+#    include "onyx/imgui/imgui.hpp"
+#    include "tkit/container/stack_array.hpp"
 
 namespace Onyx
 {
 static void displayTransformHelp()
 {
-    UserLayer::HelpMarker(
-        "The transform is the main component with which a shape or an object in a scene is positioned, "
-        "scaled, and rotated. It is composed of a translation vector, a scale vector, and a rotation "
-        "quaternion in 3D, or a rotation angle in 2D. Almost all objects in a scene have a transform.");
+    HelpMarker("The transform is the main component with which a shape or an object in a scene is positioned, "
+               "scaled, and rotated. It is composed of a translation vector, a scale vector, and a rotation "
+               "quaternion in 3D, or a rotation angle in 2D. Almost all objects in a scene have a transform.");
 }
 
-template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &transform, const UserLayerFlags flags)
+template <Dimension D> bool TransformEditor(Transform<D> &transform, const EditorFlags flags)
 {
     ImGui::PushID(&transform);
-    if (flags & UserLayerFlag_DisplayHelp)
+    if (flags & EditorFlag_DisplayHelp)
         displayTransformHelp();
     bool changed = false;
     if constexpr (D == D2)
@@ -78,15 +78,15 @@ template <Dimension D> bool UserLayer::TransformEditor(Transform<D> &transform, 
     return changed;
 }
 
-template bool UserLayer::TransformEditor<D2>(Transform<D2> &transform, UserLayerFlags flags);
-template bool UserLayer::TransformEditor<D3>(Transform<D3> &transform, UserLayerFlags flags);
+template bool TransformEditor<D2>(Transform<D2> &transform, EditorFlags flags);
+template bool TransformEditor<D3>(Transform<D3> &transform, EditorFlags flags);
 
-template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &transform, const UserLayerFlags flags)
+template <Dimension D> void DisplayTransform(const Transform<D> &transform, const EditorFlags flags)
 {
     const f32v<D> &translation = transform.Translation;
     const f32v<D> &scale = transform.Scale;
 
-    if (flags & UserLayerFlag_DisplayHelp)
+    if (flags & EditorFlag_DisplayHelp)
         displayTransformHelp();
     if constexpr (D == D2)
     {
@@ -104,10 +104,10 @@ template <Dimension D> void UserLayer::DisplayTransform(const Transform<D> &tran
     }
 }
 
-template void UserLayer::DisplayTransform<D2>(const Transform<D2> &transform, UserLayerFlags flags);
-template void UserLayer::DisplayTransform<D3>(const Transform<D3> &transform, UserLayerFlags flags);
+template void DisplayTransform<D2>(const Transform<D2> &transform, EditorFlags flags);
+template void DisplayTransform<D3>(const Transform<D3> &transform, EditorFlags flags);
 
-template <Dimension D> void UserLayer::DisplayCameraControls(const CameraControls<D> &controls)
+template <Dimension D> void DisplayCameraControls(const CameraControls<D> &controls)
 {
     if constexpr (D == D2)
     {
@@ -132,10 +132,10 @@ template <Dimension D> void UserLayer::DisplayCameraControls(const CameraControl
     }
 }
 
-template void UserLayer::DisplayCameraControls<D2>(const CameraControls<D2> &controls);
-template void UserLayer::DisplayCameraControls<D3>(const CameraControls<D3> &controls);
+template void DisplayCameraControls<D2>(const CameraControls<D2> &controls);
+template void DisplayCameraControls<D3>(const CameraControls<D3> &controls);
 
-void UserLayer::HelpMarker(const char *description, const char *icon)
+void HelpMarker(const char *description, const char *icon)
 {
     ImGui::TextDisabled("%s", icon);
     if (ImGui::BeginItemTooltip())
@@ -146,16 +146,16 @@ void UserLayer::HelpMarker(const char *description, const char *icon)
         ImGui::EndTooltip();
     }
 }
-void UserLayer::HelpMarkerSameLine(const char *description, const char *icon)
+void HelpMarkerSameLine(const char *description, const char *icon)
 {
     ImGui::SameLine();
     HelpMarker(description, icon);
 }
 
-bool UserLayer::DirectionalLightEditor(DirectionalLight &light, const UserLayerFlags flags)
+bool DirectionalLightEditor(DirectionalLight &light, const EditorFlags flags)
 {
     bool changed = false;
-    if (flags & UserLayerFlag_DisplayHelp)
+    if (flags & EditorFlag_DisplayHelp)
         HelpMarker(
             "Directional lights are lights that have no position, only a direction. They are used to simulate "
             "infinite light sources, such as the sun. They have a direction, an intensity, and a color. The "
@@ -176,10 +176,10 @@ bool UserLayer::DirectionalLightEditor(DirectionalLight &light, const UserLayerF
     return changed;
 }
 
-bool UserLayer::PointLightEditor(PointLight &light, const UserLayerFlags flags)
+bool PointLightEditor(PointLight &light, const EditorFlags flags)
 {
     bool changed = false;
-    if (flags & UserLayerFlag_DisplayHelp)
+    if (flags & EditorFlag_DisplayHelp)
         HelpMarker(
             "Point lights are lights that have a position and a radius. They are used to simulate light sources "
             "that emit light in all directions, such as light bulbs. They have a position, an intensity, a "
@@ -225,7 +225,7 @@ static const char *presentModeToString(const VkPresentModeKHR mode)
     }
 }
 
-bool UserLayer::PresentModeEditor(Window *window, const UserLayerFlags flags)
+bool PresentModeEditor(Window *window, const EditorFlags flags)
 {
     const VkPresentModeKHR current = window->GetPresentMode();
     const TKit::TierArray<VkPresentModeKHR> &available = window->GetAvailablePresentModes();
@@ -245,7 +245,7 @@ bool UserLayer::PresentModeEditor(Window *window, const UserLayerFlags flags)
     if (changed)
         window->SetPresentMode(available[index]);
 
-    if (flags & UserLayerFlag_DisplayHelp)
+    if (flags & EditorFlag_DisplayHelp)
         HelpMarkerSameLine("Controls the frequency with which rendered images are sent to the screen. This setting "
                            "can be used to limit the frame rate of the application. The most common present mode is "
                            "Fifo, and uses V-Sync to synchronize the frame rate with the "
@@ -253,11 +253,11 @@ bool UserLayer::PresentModeEditor(Window *window, const UserLayerFlags flags)
     return changed;
 }
 
-bool UserLayer::ViewportEditor(ScreenViewport &viewport, const UserLayerFlags flags)
+bool ViewportEditor(ScreenViewport &viewport, const EditorFlags flags)
 {
     bool changed = false;
     ImGui::PushID(&viewport);
-    if (flags & UserLayerFlag_DisplayHelp)
+    if (flags & EditorFlag_DisplayHelp)
     {
         HelpMarker("The viewport is the area of the screen where the camera is rendered. It is defined as a "
                    "rectangle that is specified in Math::Normalized coordinates (0, 0) to (1, 1).");
@@ -309,11 +309,11 @@ bool UserLayer::ViewportEditor(ScreenViewport &viewport, const UserLayerFlags fl
     return changed;
 }
 
-bool UserLayer::ScissorEditor(ScreenScissor &scissor, const UserLayerFlags flags)
+bool ScissorEditor(ScreenScissor &scissor, const EditorFlags flags)
 {
     bool changed = false;
     ImGui::PushID(&scissor);
-    if (flags & UserLayerFlag_DisplayHelp)
+    if (flags & EditorFlag_DisplayHelp)
     {
         HelpMarker("The scissor limits the area of the screen the camera is rendered to. It is defined as a "
                    "rectangle that is specified in Math::Normalized coordinates (0, 0) to (1, 1).");
@@ -328,5 +328,6 @@ bool UserLayer::ScissorEditor(ScreenScissor &scissor, const UserLayerFlags flags
     ImGui::PopID();
     return changed;
 }
-
 } // namespace Onyx
+
+#endif

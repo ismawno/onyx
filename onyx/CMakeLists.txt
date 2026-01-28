@@ -16,12 +16,13 @@ set(SOURCES
     onyx/property/vertex.cpp
     onyx/property/color.cpp
     onyx/property/transform.cpp
-    # onyx/app/app.cpp
-    onyx/app/window.cpp
-    onyx/app/input.cpp)
+    onyx/application/application.cpp
+    onyx/application/layer.cpp
+    onyx/application/window.cpp
+    onyx/application/input.cpp)
 
 if(ONYX_ENABLE_IMGUI)
-  list(APPEND SOURCES onyx/app/user_layer.cpp onyx/imgui/theme.cpp
+  list(APPEND SOURCES onyx/imgui/imgui.cpp onyx/imgui/theme.cpp
        onyx/imgui/backend.cpp)
 endif()
 if(ONYX_ENABLE_NFD)
@@ -185,7 +186,7 @@ if(ONYX_ENABLE_IMGUI)
   FetchContent_Declare(
     imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG be2cfc26c9ae77de99e6eed8d5e97a5a99b0cf3f
+    GIT_TAG 63e9fbc265118da8ee6ddb7aa18ddf1c30f93721
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
 

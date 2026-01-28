@@ -1,7 +1,7 @@
 #pragma once
 
 #include "perf/lattice.hpp"
-#include "onyx/app/app.hpp"
+#include "onyx/application/app.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/rendering/context.hpp"
 

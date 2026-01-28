@@ -1,49 +1,21 @@
 #pragma once
 
+#ifndef ONYX_ENABLE_IMGUI
+#    error                                                                                                             \
+        "[ONYX][IMGUI] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_IMGUI"
+#endif
+
 namespace Onyx
 {
-class Theme
+enum Theme : u8
 {
-  public:
-    virtual ~Theme() = default;
-
-    virtual void Apply() const = 0;
+    Theme_Default,
+    Theme_Cinder,
+    Theme_Baby,
+    Theme_DougBinks,
+    Theme_LedSynthMaster,
+    Theme_Hazel
 };
 
-class CinderTheme final : public Theme
-{
-  public:
-    void Apply() const override;
-};
-
-class BabyTheme final : public Theme
-{
-  public:
-    void Apply() const override;
-};
-
-class DougBinksTheme final : public Theme
-{
-  public:
-    void Apply() const override;
-};
-
-class LedSynthMasterTheme final : public Theme
-{
-  public:
-    void Apply() const override;
-};
-
-class HazelTheme final : public Theme
-{
-  public:
-    void Apply() const override;
-};
-
-class DefaultTheme final : public Theme
-{
-  public:
-    void Apply() const override;
-};
-
+void ApplyTheme(Theme theme);
 } // namespace Onyx

@@ -304,7 +304,7 @@ void terminateAllocators()
         TKit::Memory::PopArena();
 }
 
-ONYX_NO_DISCARD static Result<> initialize(const Specs &specs)
+Result<> Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Initializing Onyx");
     TKIT_LOG_INFO("[ONYX][CORE] Vulkan headers version: {}.{}.{}", VKIT_EXPAND_VERSION(VK_HEADER_VERSION_COMPLETE));
@@ -319,7 +319,7 @@ ONYX_NO_DISCARD static Result<> initialize(const Specs &specs)
     vspecs.Allocators = s_Allocation[0];
 
     PUSH_DELETER(VKit::Core::Terminate());
-    TKIT_RETURN_IF_FAILED(VKit::Core::Initialize(vspecs));
+    TKIT_RETURN_IF_FAILED(VKit::Core::Initialize(vspecs), Terminate());
 
     if (specs.TaskManager)
         s_TaskManager = specs.TaskManager;
@@ -331,39 +331,33 @@ ONYX_NO_DISCARD static Result<> initialize(const Specs &specs)
     }
     s_Callbacks = specs.Callbacks;
 
-    TKIT_RETURN_IF_FAILED(initializeGlfw(specs.Platform));
-    TKIT_RETURN_IF_FAILED(createInstance(specs.EnableValidationLayers));
-    TKIT_RETURN_IF_FAILED(createDevice(specs.QueueRequests));
-    TKIT_RETURN_IF_FAILED(createVulkanAllocator());
+    TKIT_RETURN_IF_FAILED(initializeGlfw(specs.Platform), Terminate());
+    TKIT_RETURN_IF_FAILED(createInstance(specs.EnableValidationLayers), Terminate());
+    TKIT_RETURN_IF_FAILED(createDevice(specs.QueueRequests), Terminate());
+    TKIT_RETURN_IF_FAILED(createVulkanAllocator(), Terminate());
 
     PUSH_DELETER(Execution::Terminate());
-    TKIT_RETURN_IF_FAILED(Execution::Initialize(specs.ExecutionSpecs ? *specs.ExecutionSpecs : Execution::Specs{}));
+    TKIT_RETURN_IF_FAILED(Execution::Initialize(specs.ExecutionSpecs ? *specs.ExecutionSpecs : Execution::Specs{}),
+                          Terminate());
 
     PUSH_DELETER(Assets::Terminate());
-    TKIT_RETURN_IF_FAILED(Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{}));
+    TKIT_RETURN_IF_FAILED(Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{}), Terminate());
 
     PUSH_DELETER(Descriptors::Terminate());
     TKIT_RETURN_IF_FAILED(
-        Descriptors::Initialize(specs.DescriptorSpecs ? *specs.DescriptorSpecs : Descriptors::Specs{}));
+        Descriptors::Initialize(specs.DescriptorSpecs ? *specs.DescriptorSpecs : Descriptors::Specs{}), Terminate());
 
     PUSH_DELETER(Shaders::Terminate());
-    TKIT_RETURN_IF_FAILED(Shaders::Initialize(specs.ShadersSpecs ? *specs.ShadersSpecs : Shaders::Specs{}));
+    TKIT_RETURN_IF_FAILED(Shaders::Initialize(specs.ShadersSpecs ? *specs.ShadersSpecs : Shaders::Specs{}),
+                          Terminate());
 
     PUSH_DELETER(Pipelines::Terminate());
-    TKIT_RETURN_IF_FAILED(Pipelines::Initialize());
+    TKIT_RETURN_IF_FAILED(Pipelines::Initialize(), Terminate());
 
     PUSH_DELETER(Renderer::Terminate());
-    TKIT_RETURN_IF_FAILED(Renderer::Initialize());
+    TKIT_RETURN_IF_FAILED(Renderer::Initialize(), Terminate());
 
     return Result<>::Ok();
-}
-
-Result<> Initialize(const Specs &specs)
-{
-    const auto result = initialize(specs);
-    if (!result)
-        Terminate();
-    return result;
 }
 
 void Terminate()

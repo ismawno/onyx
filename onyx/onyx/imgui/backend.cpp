@@ -1,8 +1,9 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/imgui/backend.hpp"
-#include "onyx/app/window.hpp"
+#include "onyx/application/window.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/core/core.hpp"
+#include "tkit/profiling/macros.hpp"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_vulkan.h"
 
@@ -60,6 +61,7 @@ void InitializeImGui(Window *window)
 
 void NewImGuiFrame()
 {
+    TKIT_PROFILE_NSCOPE("Onyx::ImGui::NewFrame");
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -67,10 +69,12 @@ void NewImGuiFrame()
 
 void RenderImGuiData(ImDrawData *data, const VkCommandBuffer commandBuffer)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::ImGui::RenderDrawData");
     ImGui_ImplVulkan_RenderDrawData(data, commandBuffer);
 }
 void RenderImGuiWindows()
 {
+    TKIT_PROFILE_NSCOPE("Onyx::ImGui::RenderWindows");
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault();
 }

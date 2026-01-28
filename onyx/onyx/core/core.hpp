@@ -1,5 +1,6 @@
 #pragma once
 
+#include "onyx/core/alias.hpp"
 #include "vkit/memory/allocator.hpp"
 #include "vkit/vulkan/instance.hpp"
 #include "vkit/vulkan/loader.hpp"

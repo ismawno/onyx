@@ -1,4 +1,4 @@
-#include "onyx/app/window.hpp"
+#include "onyx/application/application.hpp"
 #include "onyx/imgui/imgui.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/asset/assets.hpp"
@@ -84,15 +84,38 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
     Renderer::DestroyContext(ctx);
 }
 
+void ApplicationExample()
+{
+    class WinLayer final : public WindowLayer
+    {
+      public:
+        WinLayer(ApplicationLayer *appLayer, Window *window) : WindowLayer(appLayer, window)
+        {
+        }
+
+        Result<Renderer::RenderSubmitInfo> OnRender(const ExecutionInfo &info) override
+        {
+            ImGui::Begin("Hello");
+            if (ImGui::Button("Spawn"))
+                m_AppLayer->RequestOpenWindow<WinLayer>();
+            ImGui::End();
+            return Render(info);
+        }
+    };
+    Application app{};
+    ONYX_CHECK_EXPRESSION(app.OpenWindow<WinLayer>());
+    ONYX_CHECK_EXPRESSION(app.Run());
+}
+
 int main()
 {
-    Core::Terminate();
     ONYX_CHECK_EXPRESSION(Core::Initialize());
-    const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
-    const Mesh mesh = Assets::AddMesh(data);
-    ONYX_CHECK_EXPRESSION(Assets::Upload<D2>());
+    // const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
+    // const Mesh mesh = Assets::AddMesh(data);
+    // ONYX_CHECK_EXPRESSION(Assets::Upload<D2>());
 
-    WindowExample(mesh, 2);
+    // WindowExample(mesh, 2);
+    ApplicationExample();
 
     Core::Terminate();
 }

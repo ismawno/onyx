@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/property/instance.hpp"
-#include "onyx/app/window.hpp"
+#include "onyx/application/window.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/state/pipelines.hpp"
 #include "onyx/state/descriptors.hpp"

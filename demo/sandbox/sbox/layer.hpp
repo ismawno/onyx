@@ -1,8 +1,8 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/app/app.hpp"
-#include "onyx/app/user_layer.hpp"
+#include "onyx/application/app.hpp"
+#include "onyx/application/user_layer.hpp"
 
 #ifndef ONYX_SANDBOX_MAX_SHAPES
 #    define ONYX_SANDBOX_MAX_SHAPES 64

@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/app/window.hpp"
-#include "onyx/app/input.hpp"
+#include "onyx/application/window.hpp"
+#include "onyx/application/input.hpp"
 #include "onyx/core/core.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "onyx/core/glfw.hpp"
@@ -119,8 +119,8 @@ Result<Window *> Window::Create(const Specs &specs)
     if (!handle)
         return Result<>::Error(Error_RejectedWindow);
 
-    VKit::DeletionQueue dqueue{};
-    dqueue.Push([handle] { glfwDestroyWindow(handle); });
+    VKit::DeletionQueue cleanup{};
+    cleanup.Push([handle] { glfwDestroyWindow(handle); });
 
     u32v2 pos;
     if (specs.Position != u32v2{TKIT_U32_MAX})
@@ -140,7 +140,7 @@ Result<Window *> Window::Create(const Specs &specs)
     if (result != VK_SUCCESS)
         return Result<>::Error(Error_NoSurfaceCapabilities);
 
-    dqueue.Push([surface] { Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), surface, nullptr); });
+    cleanup.Push([surface] { Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), surface, nullptr); });
     if (specs.Flags & WindowFlag_InstallCallbacks)
         Input::InstallCallbacks(handle);
 
@@ -149,12 +149,12 @@ Result<Window *> Window::Create(const Specs &specs)
     TKIT_RETURN_ON_ERROR(sresult);
 
     VKit::SwapChain &schain = sresult.GetValue();
-    dqueue.Push([&schain] { schain.Destroy(); });
+    cleanup.Push([&schain] { schain.Destroy(); });
 
     auto syresult = Execution::CreateSyncData(schain.GetImageCount());
     TKIT_RETURN_ON_ERROR(syresult);
     TKit::TierArray<Execution::SyncData> &syncData = syresult.GetValue();
-    dqueue.Push([&syncData] { Execution::DestroySyncData(syncData); });
+    cleanup.Push([&syncData] { Execution::DestroySyncData(syncData); });
 
     if (s_ViewCache == 0)
         return Result<>::Error(
@@ -173,7 +173,7 @@ Result<Window *> Window::Create(const Specs &specs)
     auto iresult = createImageData(window->m_SwapChain);
     TKIT_RETURN_ON_ERROR(iresult);
     TKit::TierArray<ImageData> &imageData = iresult.GetValue();
-    dqueue.Push([&imageData] { destroyImageData(imageData); });
+    cleanup.Push([&imageData] { destroyImageData(imageData); });
     window->m_Images = std::move(imageData);
 
     window->m_SyncData = std::move(syncData);
@@ -185,7 +185,7 @@ Result<Window *> Window::Create(const Specs &specs)
     window->UpdateMonitorDeltaTime();
     glfwSetWindowUserPointer(handle, window);
 
-    dqueue.Clear();
+    cleanup.Clear();
     return window;
 }
 
@@ -260,6 +260,7 @@ Result<> Window::Present(const Renderer::RenderSubmitInfo &info)
     const VkResult result = table->QueuePresentKHR(*m_Present, &presentInfo);
 
     TKIT_RETURN_IF_FAILED(handleImageResult(result));
+    m_Acquired = false;
 
     // a bit random that 0
     m_LastGraphicsSubmission.Timeline = info.SignalSemaphores[0].semaphore;
@@ -270,7 +271,11 @@ Result<> Window::Present(const Renderer::RenderSubmitInfo &info)
 
 Result<bool> Window::AcquireNextImage(const Timeout timeout)
 {
+    if (m_Acquired)
+        return true;
+
     TKIT_PROFILE_NSCOPE("Onyx::Window::AcquireNextImage");
+    m_Acquired = true;
     const auto table = Core::GetDeviceTable();
     const auto &device = Core::GetDevice();
     const auto acquire = [&]() {

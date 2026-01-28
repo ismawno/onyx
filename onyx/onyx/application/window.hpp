@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/app/input.hpp"
+#include "onyx/application/input.hpp"
 #include "onyx/property/color.hpp"
 #include "onyx/property/camera.hpp"
 #include "onyx/property/options.hpp"
@@ -345,6 +345,7 @@ class Window
     VkPresentModeKHR m_PresentMode;
     WindowFlags m_Flags;
     bool m_MustRecreateSwapchain = false;
+    bool m_Acquired = false;
 
     friend void windowResizeCallback(GLFWwindow *, const i32, const i32);
 };

@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/app/input.hpp"
-#include "onyx/app/window.hpp"
+#include "onyx/application/input.hpp"
+#include "onyx/application/window.hpp"
 #include "onyx/core/glfw.hpp"
 
 namespace Onyx::Input

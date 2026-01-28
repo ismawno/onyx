@@ -5,7 +5,7 @@
 
 namespace Onyx
 {
-void CinderTheme::Apply() const
+static void applyCinderTheme()
 {
     ImGuiStyle &style = ImGui::GetStyle();
     style.WindowMinSize = ImVec2(160, 20);
@@ -72,7 +72,7 @@ void CinderTheme::Apply() const
     style.Colors[ImGuiCol_TableHeaderBg] = ImVec4(0.20f, 0.22f, 0.27f, 1.00f);
 }
 
-void BabyTheme::Apply() const
+static void applyBabyTheme()
 {
     ImGuiStyle &style = ImGui::GetStyle();
     style.WindowMinSize = ImVec2(160, 20);
@@ -133,7 +133,7 @@ void BabyTheme::Apply() const
     style.Colors[ImGuiCol_TabHovered] = ImVec4(0.26f, 0.54f, 0.85f, 0.78f);           // Adjusted Baby Blue
 }
 
-void DougBinksTheme::Apply() const
+static void applyDougBinksTheme()
 {
     ImGuiStyle &style = ImGui::GetStyle();
 
@@ -195,7 +195,7 @@ void DougBinksTheme::Apply() const
     }
 }
 
-void LedSynthMasterTheme::Apply() const
+static void applyLedSynthMasterTheme()
 {
 
     ImGuiStyle *style = &ImGui::GetStyle();
@@ -254,20 +254,16 @@ void LedSynthMasterTheme::Apply() const
     style->Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.25f, 1.00f, 0.00f, 0.43f);
 }
 
-namespace Colors::Theme
+static void applyHazelTheme()
 {
-constexpr auto highlight = IM_COL32(39, 185, 242, 255);
-constexpr auto background = IM_COL32(36, 36, 36, 255);
-constexpr auto backgroundDark = IM_COL32(26, 26, 26, 255);
-constexpr auto titlebar = IM_COL32(21, 21, 21, 255);
-constexpr auto propertyField = IM_COL32(15, 15, 15, 255);
-constexpr auto text = IM_COL32(192, 192, 192, 255);
-constexpr auto groupHeader = IM_COL32(47, 47, 47, 255);
-constexpr auto backgroundPopup = IM_COL32(50, 50, 50, 255);
-} // namespace Colors::Theme
-
-void HazelTheme::Apply() const
-{
+    constexpr auto highlight = IM_COL32(39, 185, 242, 255);
+    constexpr auto background = IM_COL32(36, 36, 36, 255);
+    constexpr auto backgroundDark = IM_COL32(26, 26, 26, 255);
+    constexpr auto titlebar = IM_COL32(21, 21, 21, 255);
+    constexpr auto propertyField = IM_COL32(15, 15, 15, 255);
+    constexpr auto text = IM_COL32(192, 192, 192, 255);
+    constexpr auto groupHeader = IM_COL32(47, 47, 47, 255);
+    constexpr auto backgroundPopup = IM_COL32(50, 50, 50, 255);
     auto &style = ImGui::GetStyle();
     auto &colors = ImGui::GetStyle().Colors;
 
@@ -275,9 +271,9 @@ void HazelTheme::Apply() const
     /// Colours
 
     // Headers
-    colors[ImGuiCol_Header] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::groupHeader);
-    colors[ImGuiCol_HeaderHovered] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::groupHeader);
-    colors[ImGuiCol_HeaderActive] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::groupHeader);
+    colors[ImGuiCol_Header] = ImGui::ColorConvertU32ToFloat4(groupHeader);
+    colors[ImGuiCol_HeaderHovered] = ImGui::ColorConvertU32ToFloat4(groupHeader);
+    colors[ImGuiCol_HeaderActive] = ImGui::ColorConvertU32ToFloat4(groupHeader);
 
     // Buttons
     colors[ImGuiCol_Button] = ImColor(56, 56, 56, 200);
@@ -285,20 +281,20 @@ void HazelTheme::Apply() const
     colors[ImGuiCol_ButtonActive] = ImColor(56, 56, 56, 150);
 
     // Frame BG
-    colors[ImGuiCol_FrameBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::propertyField);
-    colors[ImGuiCol_FrameBgHovered] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::propertyField);
-    colors[ImGuiCol_FrameBgActive] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::propertyField);
+    colors[ImGuiCol_FrameBg] = ImGui::ColorConvertU32ToFloat4(propertyField);
+    colors[ImGuiCol_FrameBgHovered] = ImGui::ColorConvertU32ToFloat4(propertyField);
+    colors[ImGuiCol_FrameBgActive] = ImGui::ColorConvertU32ToFloat4(propertyField);
 
     // Tabs
-    colors[ImGuiCol_Tab] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
+    colors[ImGuiCol_Tab] = ImGui::ColorConvertU32ToFloat4(titlebar);
     colors[ImGuiCol_TabHovered] = ImColor(255, 225, 135, 30);
     colors[ImGuiCol_TabActive] = ImColor(255, 225, 135, 60);
-    colors[ImGuiCol_TabUnfocused] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
+    colors[ImGuiCol_TabUnfocused] = ImGui::ColorConvertU32ToFloat4(titlebar);
     colors[ImGuiCol_TabUnfocusedActive] = colors[ImGuiCol_TabHovered];
 
     // Title
-    colors[ImGuiCol_TitleBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
-    colors[ImGuiCol_TitleBgActive] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
+    colors[ImGuiCol_TitleBg] = ImGui::ColorConvertU32ToFloat4(titlebar);
+    colors[ImGuiCol_TitleBgActive] = ImGui::ColorConvertU32ToFloat4(titlebar);
     colors[ImGuiCol_TitleBgCollapsed] = ImVec4{0.15f, 0.1505f, 0.151f, 1.0f};
 
     // Resize Grip
@@ -320,25 +316,25 @@ void HazelTheme::Apply() const
     colors[ImGuiCol_SliderGrabActive] = ImVec4(0.66f, 0.66f, 0.66f, 1.0f);
 
     // Text
-    colors[ImGuiCol_Text] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::text);
+    colors[ImGuiCol_Text] = ImGui::ColorConvertU32ToFloat4(text);
 
     // Checkbox
-    colors[ImGuiCol_CheckMark] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::text);
+    colors[ImGuiCol_CheckMark] = ImGui::ColorConvertU32ToFloat4(text);
 
     // Separator
-    colors[ImGuiCol_Separator] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::backgroundDark);
-    colors[ImGuiCol_SeparatorActive] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::highlight);
+    colors[ImGuiCol_Separator] = ImGui::ColorConvertU32ToFloat4(backgroundDark);
+    colors[ImGuiCol_SeparatorActive] = ImGui::ColorConvertU32ToFloat4(highlight);
     colors[ImGuiCol_SeparatorHovered] = ImColor(39, 185, 242, 150);
 
     // Window Background
-    colors[ImGuiCol_WindowBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::titlebar);
-    colors[ImGuiCol_ChildBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::background);
-    colors[ImGuiCol_PopupBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::backgroundPopup);
-    colors[ImGuiCol_Border] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::backgroundDark);
+    colors[ImGuiCol_WindowBg] = ImGui::ColorConvertU32ToFloat4(titlebar);
+    colors[ImGuiCol_ChildBg] = ImGui::ColorConvertU32ToFloat4(background);
+    colors[ImGuiCol_PopupBg] = ImGui::ColorConvertU32ToFloat4(backgroundPopup);
+    colors[ImGuiCol_Border] = ImGui::ColorConvertU32ToFloat4(backgroundDark);
 
     // Tables
-    colors[ImGuiCol_TableHeaderBg] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::groupHeader);
-    colors[ImGuiCol_TableBorderLight] = ImGui::ColorConvertU32ToFloat4(Colors::Theme::backgroundDark);
+    colors[ImGuiCol_TableHeaderBg] = ImGui::ColorConvertU32ToFloat4(groupHeader);
+    colors[ImGuiCol_TableBorderLight] = ImGui::ColorConvertU32ToFloat4(backgroundDark);
 
     // Menubar
     colors[ImGuiCol_MenuBarBg] = ImVec4{0.0f, 0.0f, 0.0f, 0.0f};
@@ -350,9 +346,34 @@ void HazelTheme::Apply() const
     style.IndentSpacing = 11.0f;
 }
 
-void DefaultTheme::Apply() const
+static void applyDefaultTheme()
 {
     ImGui::StyleColorsDark();
+}
+
+void ApplyTheme(const Theme theme)
+{
+    switch (theme)
+    {
+    case Theme_Default:
+        applyDefaultTheme();
+        break;
+    case Theme_Baby:
+        applyBabyTheme();
+        break;
+    case Theme_Cinder:
+        applyCinderTheme();
+        break;
+    case Theme_LedSynthMaster:
+        applyLedSynthMasterTheme();
+        break;
+    case Theme_Hazel:
+        applyHazelTheme();
+        break;
+    case Theme_DougBinks:
+        applyDougBinksTheme();
+        break;
+    }
 }
 
 } // namespace Onyx
