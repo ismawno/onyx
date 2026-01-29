@@ -4,7 +4,7 @@
 #    include "onyx/property/color.hpp"
 #    include "onyx/property/transform.hpp"
 #    include "onyx/property/instance.hpp"
-#    include "onyx/application/window.hpp"
+#    include "onyx/application/layer.hpp"
 #    include "onyx/application/input.hpp"
 #    include "onyx/imgui/imgui.hpp"
 #    include "tkit/container/stack_array.hpp"
@@ -134,6 +134,78 @@ template <Dimension D> void DisplayCameraControls(const CameraControls<D> &contr
 
 template void DisplayCameraControls<D2>(const CameraControls<D2> &controls);
 template void DisplayCameraControls<D3>(const CameraControls<D3> &controls);
+
+bool DeltaTimeEditor(DeltaTime &dt, DeltaInfo &di, const Window *window, const EditorFlags flags)
+{
+    if (dt.Measured > di.Max)
+        di.Max = dt.Measured;
+    di.Smoothed = di.Smoothness * di.Smoothed + (1.f - di.Smoothness) * dt.Measured;
+
+    ImGui::SliderFloat("Smoothing factor", &di.Smoothness, 0.f, 0.999f);
+    if (flags & EditorFlag_DisplayHelp)
+        HelpMarkerSameLine(
+            "Because frames get dispatched so quickly, the frame time can vary a lot, be inconsistent, and hard to "
+            "see. This slider allows you to smooth out the frame time across frames, making it easier to see the "
+            "trend.");
+
+    ImGui::Combo("Unit", &di.Unit, "s\0ms\0us\0ns\0");
+    const u32 mfreq = ToFrequency(di.Smoothed);
+    u32 tfreq = ToFrequency(dt.Target);
+
+    bool changed = false;
+    if (window && window->IsVSync())
+        ImGui::Text("Target hertz: %u", tfreq);
+    else
+    {
+        changed = ImGui::Checkbox("Limit hertz", &di.LimitHertz);
+        if (changed)
+        {
+            if (di.LimitHertz)
+                dt.Target = window ? window->GetMonitorDeltaTime() : ToDeltaTime(60);
+            else
+                dt.Target = TKit::Timespan{};
+        }
+
+        if (di.LimitHertz)
+        {
+            const u32 mn = 30;
+            const u32 mx = 240;
+            if (ImGui::SliderScalarN("Target hertz", ImGuiDataType_U32, &tfreq, 1, &mn, &mx))
+            {
+                dt.Target = ToDeltaTime(tfreq);
+                changed = true;
+            }
+        }
+    }
+    ImGui::Text("Measured hertz: %u", mfreq);
+
+    if (di.Unit == 0)
+        ImGui::Text("Measured delta time: %.4f s (max: %.4f s)", di.Smoothed.AsSeconds(), di.Max.AsSeconds());
+    else if (di.Unit == 1)
+        ImGui::Text("Measured delta time: %.2f ms (max: %.2f ms)", di.Smoothed.AsMilliseconds(),
+                    di.Max.AsMilliseconds());
+    else if (di.Unit == 2)
+        ImGui::Text("Measured delta time: %u us (max: %u us)", static_cast<u32>(di.Smoothed.AsMicroseconds()),
+                    static_cast<u32>(di.Max.AsMicroseconds()));
+    else
+#    ifndef TKIT_OS_LINUX
+        ImGui::Text("Measured delta time: %llu ns (max: %llu ns)", di.Smoothed.AsNanoseconds(), di.Max.AsNanoseconds());
+#    else
+        ImGui::Text("Measured delta time: %lu ns (max: %lu ns)", di.Smoothed.AsNanoseconds(), di.Max.AsNanoseconds());
+#    endif
+
+    if (flags & EditorFlag_DisplayHelp)
+        HelpMarkerSameLine(
+            "The delta time is a measure of the time it takes to complete a frame loop around a particular callback "
+            "(which can be an update or render callback), and it is one of the main indicators of an application "
+            "smoothness. It is also used to calculate the frames per second (FPS) of the application. A good frame "
+            "time is usually no larger than 16.67 ms (that is, 60 fps). It is also bound to the present mode of the "
+            "window.");
+
+    if (ImGui::Button("Reset maximum"))
+        di.Max = TKit::Timespan{};
+    return changed;
+}
 
 void HelpMarker(const char *description, const char *icon)
 {

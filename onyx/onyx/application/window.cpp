@@ -176,6 +176,7 @@ Result<Window *> Window::Create(const Specs &specs)
     cleanup.Push([&imageData] { destroyImageData(imageData); });
     window->m_Images = std::move(imageData);
 
+    window->m_PresentMode = specs.PresentMode;
     window->m_SyncData = std::move(syncData);
     window->m_ViewBit = allocateViewBit();
     window->m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);

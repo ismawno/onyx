@@ -6,6 +6,18 @@
 
 namespace Onyx
 {
+WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const TKit::Timespan targetDeltaTime)
+    : m_AppLayer(appLayer), m_Window(window)
+{
+#ifdef ONYX_ENABLE_IMGUI
+    initializeImGui();
+#endif
+    m_Delta.Target = window->IsVSync() ? window->GetMonitorDeltaTime() : targetDeltaTime;
+}
+WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window)
+    : WindowLayer(appLayer, window, window->GetMonitorDeltaTime())
+{
+}
 Result<Renderer::RenderSubmitInfo> WindowLayer::OnRender(const ExecutionInfo &info)
 {
     return Render(info);

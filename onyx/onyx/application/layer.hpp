@@ -4,6 +4,7 @@
 #include "onyx/application/window.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include "onyx/imgui/theme.hpp"
+#    include "onyx/imgui/imgui.hpp"
 #endif
 #include "tkit/profiling/timespan.hpp"
 #include "tkit/profiling/clock.hpp"
@@ -63,12 +64,8 @@ class WindowLayer
 {
     TKIT_NON_COPYABLE(WindowLayer)
   public:
-    WindowLayer(ApplicationLayer *appLayer, Window *window) : m_AppLayer(appLayer), m_Window(window)
-    {
-#ifdef ONYX_ENABLE_IMGUI
-        initializeImGui();
-#endif
-    }
+    WindowLayer(ApplicationLayer *appLayer, Window *window, TKit::Timespan targetDeltaTime);
+    WindowLayer(ApplicationLayer *appLayer, Window *window);
 
     virtual ~WindowLayer()
     {
@@ -116,6 +113,10 @@ class WindowLayer
         m_Flags |= WindowLayerFlag_RequestDisableImGui | WindowLayerFlag_RequestEnableImGui;
         m_ImGuiConfigFlags = configFlags;
     }
+    bool DeltaTimeEditor(const EditorFlags flags = 0)
+    {
+        return Onyx::DeltaTimeEditor(m_Delta, m_DeltaInfo, m_Window, flags);
+    }
 #endif
 
   protected:
@@ -160,6 +161,7 @@ class WindowLayer
 #    endif
     i32 m_ImGuiConfigFlags = 0;
     Theme *m_Theme = nullptr;
+    DeltaInfo m_DeltaInfo{};
 #endif
 
     std::function<WindowLayer *(ApplicationLayer *, Window *)> m_Replacement = nullptr;
@@ -189,7 +191,12 @@ class ApplicationLayer
 {
     TKIT_NON_COPYABLE(ApplicationLayer)
   public:
-    ApplicationLayer() = default;
+    ApplicationLayer(const TKit::Timespan targetDeltaTime = ToDeltaTime(60))
+    {
+        m_UpdateDelta.Target = targetDeltaTime;
+        m_TransferDelta.Target = targetDeltaTime;
+    }
+
     virtual ~ApplicationLayer() = default;
 
     virtual void OnUpdate(const DeltaTime &)
@@ -221,6 +228,17 @@ class ApplicationLayer
         const Window::Specs specs{};
         RequestOpenWindow<T>(specs, std::forward<LayerArgs>(args)...);
     }
+
+#ifdef ONYX_ENABLE_IMGUI
+    bool UpdateDeltaTimeEditor(const EditorFlags flags = 0)
+    {
+        return Onyx::DeltaTimeEditor(m_UpdateDelta, m_UpdateDeltaInfo, nullptr, flags);
+    }
+    bool TransferDeltaTimeEditor(const EditorFlags flags = 0)
+    {
+        return Onyx::DeltaTimeEditor(m_TransferDelta, m_TransferDeltaInfo, nullptr, flags);
+    }
+#endif
 
   protected:
     ONYX_NO_DISCARD Result<Renderer::TransferSubmitInfo> Transfer(const ExecutionInfo &info);
@@ -270,6 +288,11 @@ class ApplicationLayer
 
     DeltaTime m_UpdateDelta{};
     DeltaTime m_TransferDelta{};
+
+#ifdef ONYX_ENABLE_IMGUI
+    DeltaInfo m_UpdateDeltaInfo{};
+    DeltaInfo m_TransferDeltaInfo{};
+#endif
 
     std::function<ApplicationLayer *()> m_Replacement = nullptr;
     u32 m_Size = 0;

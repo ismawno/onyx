@@ -1,10 +1,20 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/state/descriptors.hpp"
+#include "onyx/execution/execution.hpp"
 #include "vkit/resource/device_buffer.hpp"
+
+namespace Onyx
+{
+struct DescriptorSet
+{
+    Execution::Tracker Tracker{};
+    VkDescriptorSet Set = VK_NULL_HANDLE;
+    VkBuffer Buffer = VK_NULL_HANDLE; // will have to generalize to any handle
+};
+} // namespace Onyx
 
 namespace Onyx::Descriptors
 {
-
 static VKit::DescriptorPool s_DescriptorPool{};
 static VKit::DescriptorSetLayout s_InstanceDataStorageLayout{};
 static VKit::DescriptorSetLayout s_LightStorageLayout{};
@@ -51,10 +61,19 @@ void Terminate()
     s_LightStorageLayout.Destroy();
 }
 
+void MarkInUse(DescriptorSet *set, const VKit::Queue *queue, u64 inFlightValue)
+{
+    set->Tracker.MarkInUse(queue, inFlightValue);
+}
+VkDescriptorSet GetSet(const DescriptorSet *set)
+{
+    return set->Set;
+}
+
 Result<DescriptorSet *> FindSuitableDescriptorSet(const VKit::DeviceBuffer &buffer)
 {
     for (DescriptorSet &set : s_Sets)
-        if (!set.InUse())
+        if (!set.Tracker.InUse())
         {
             if (set.Buffer == buffer.GetHandle())
                 return &set;

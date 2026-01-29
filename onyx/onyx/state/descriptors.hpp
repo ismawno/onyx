@@ -1,8 +1,13 @@
 #pragma once
 
-#include "onyx/state/descriptor_set.hpp"
 #include "onyx/core/core.hpp"
+#include "vkit/state/descriptor_set.hpp"
 #include "vkit/state/descriptor_pool.hpp"
+
+namespace Onyx
+{
+struct DescriptorSet;
+}
 
 namespace Onyx::Descriptors
 {
@@ -22,5 +27,7 @@ ONYX_NO_DISCARD Result<VkDescriptorSet> WriteStorageBufferDescriptorSet(const Vk
                                                                         VkDescriptorSet oldSet = VK_NULL_HANDLE);
 
 ONYX_NO_DISCARD Result<DescriptorSet *> FindSuitableDescriptorSet(const VKit::DeviceBuffer &buffer);
+void MarkInUse(DescriptorSet *set, const VKit::Queue *queue, u64 inFlightValue);
+VkDescriptorSet GetSet(const DescriptorSet *set);
 
 } // namespace Onyx::Descriptors

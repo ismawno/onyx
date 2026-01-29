@@ -11,14 +11,11 @@
 #include "vkit/resource/device_buffer.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/container/stack_array.hpp"
+#include "tkit/profiling/macros.hpp"
 
 namespace Onyx::Renderer
 {
 using namespace Detail;
-static bool inUse(const VKit::Queue *queue, const u64 inFlightValue)
-{
-    return queue && queue->GetCompletedTimeline() < inFlightValue;
-}
 struct ContextRange
 {
     VkDeviceSize Offset = 0;
@@ -30,22 +27,14 @@ struct ContextRange
 
 struct TransferMemoryRange
 {
-    const VKit::Queue *Transfer = nullptr;
-    u64 TransferFlightValue = 0;
+    Execution::Tracker Tracker{};
     VkDeviceSize Offset = 0;
     VkDeviceSize Size = 0;
-
-    bool InUse() const
-    {
-        return inUse(Transfer, TransferFlightValue);
-    }
 };
 struct GraphicsMemoryRange
 {
-    const VKit::Queue *Transfer = nullptr;
-    const VKit::Queue *Graphics = nullptr;
-    u64 GraphicsFlightValue = 0;
-    u64 TransferFlightValue = 0;
+    Execution::Tracker TransferTracker{};
+    Execution::Tracker GraphicsTracker{};
 
     VkBufferMemoryBarrier2KHR Barrier{};
     VkDeviceSize Offset = 0;
@@ -57,11 +46,11 @@ struct GraphicsMemoryRange
 
     bool InUseByTransfer() const
     {
-        return inUse(Transfer, TransferFlightValue);
+        return TransferTracker.InUse();
     }
     bool InUseByGraphics() const
     {
-        return inUse(Graphics, GraphicsFlightValue);
+        return GraphicsTracker.InUse();
     }
     bool InUse() const
     {
@@ -280,7 +269,7 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         TransferMemoryRange &range = ranges[i];
-        if (range.Size >= requiredMem && !range.InUse())
+        if (range.Size >= requiredMem && !range.Tracker.InUse())
         {
             if (range.Size == requiredMem)
                 return &range;
@@ -536,8 +525,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             const auto tresult = findTransferRange(tarena, requiredMem, tasks);
             TKIT_RETURN_ON_ERROR(tresult);
             TransferMemoryRange *trange = tresult.GetValue();
-            trange->Transfer = transfer;
-            trange->TransferFlightValue = transferFlightValue;
+            trange->Tracker.MarkInUse(transfer, transferFlightValue);
 
             for (const ContextRange &crange : contextRanges)
             {
@@ -562,7 +550,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             grange->ContextRanges = contextRanges;
             grange->ViewMask = viewMask;
             grange->Pass = static_cast<StencilPass>(pass);
-            grange->Transfer = transfer;
+            grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
             grange->Barrier = createAcquireBarrier(garena.Buffer, grange->Offset, requiredMem);
 
             VkBufferCopy2KHR &copy = copies.Append();
@@ -597,6 +585,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
 
 Result<TransferSubmitInfo> Transfer(VKit::Queue *tqueue, const VkCommandBuffer command)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer::Transfer");
     TransferSubmitInfo submitInfo{};
     const bool separate = Execution::IsSeparateTransferMode();
     TKit::TierArray<VkBufferMemoryBarrier2KHR> release{};
@@ -631,6 +620,7 @@ Result<TransferSubmitInfo> Transfer(VKit::Queue *tqueue, const VkCommandBuffer c
 
 Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<const TransferSubmitInfo> info)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer::SubmitTransfer");
     TKit::StackArray<VkSubmitInfo2KHR> submits{};
     submits.Reserve(info.GetSize());
 
@@ -663,7 +653,7 @@ Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<con
         sinfo.flags = 0;
     }
 
-    pool->MarkInUse(transfer, maxFlight);
+    Execution::MarkInUse(pool, transfer, maxFlight);
     return transfer->Submit2(submits);
 }
 
@@ -747,16 +737,10 @@ struct InstanceDrawInfo
     u32 InstanceCount;
 };
 
-struct TransferSyncPoint
-{
-    const VKit::Queue *Transfer;
-    u64 TransferFlightValue;
-};
-
 template <Dimension D>
 ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuffer graphicsCommand,
                                        const Window *window, const u64 graphicsFlightValue,
-                                       TKit::StackArray<TransferSyncPoint> &syncPoints)
+                                       TKit::StackArray<Execution::Tracker> &transferTrackers)
 {
     const auto camInfos = window->GetCameraInfos<D>();
     if (camInfos.IsEmpty())
@@ -815,21 +799,22 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
             ++batches;
             if (grange.InUseByTransfer())
             {
+                Execution::Tracker &tracker = grange.TransferTracker;
                 bool found = false;
-                for (TransferSyncPoint &sp : syncPoints)
+                for (Execution::Tracker &tr : transferTrackers)
                 {
-                    if (sp.Transfer == grange.Transfer)
+                    if (tr.Queue == tracker.Queue)
                     {
                         found = true;
-                        if (sp.TransferFlightValue < grange.TransferFlightValue)
-                            sp.TransferFlightValue = grange.TransferFlightValue;
+                        if (tr.InFlightValue < tracker.InFlightValue)
+                            tr.InFlightValue = tracker.InFlightValue;
                         break;
                     }
                 }
                 if (!found)
-                    syncPoints.Append(grange.Transfer, grange.TransferFlightValue);
+                    transferTrackers.Append(tracker);
             }
-            grange.GraphicsFlightValue = graphicsFlightValue;
+            grange.GraphicsTracker.InFlightValue = graphicsFlightValue;
         }
     };
 
@@ -849,15 +834,16 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
                 const auto result =
                     Descriptors::FindSuitableDescriptorSet(rdata.Arenas[Geometry_StaticMesh].Graphics.Buffer);
                 TKIT_RETURN_ON_ERROR(result);
-                DescriptorSet *set = result.GetValue();
+                DescriptorSet *handle = result.GetValue();
+                VkDescriptorSet set = Descriptors::GetSet(handle);
 
                 rdata.Pipelines[pass][Geometry_StaticMesh].Bind(graphicsCommand);
                 BindStaticMeshes<D>(graphicsCommand);
                 pushConstantData(graphicsCommand, camInfo);
 
-                VKit::DescriptorSet::Bind(device, graphicsCommand, set->Set, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                VKit::DescriptorSet::Bind(device, graphicsCommand, set, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                           Pipelines::GetGraphicsPipelineLayout(Shading_Unlit));
-                set->MarkInUse(graphics, graphicsFlightValue);
+                Descriptors::MarkInUse(handle, graphics, graphicsFlightValue);
 
                 const u32 bstart = Assets::GetBatchStart(Geometry_StaticMesh);
                 const u32 bend = Assets::GetBatchEnd(Geometry_StaticMesh);
@@ -872,13 +858,15 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
                 const auto result =
                     Descriptors::FindSuitableDescriptorSet(rdata.Arenas[Geometry_Circle].Graphics.Buffer);
                 TKIT_RETURN_ON_ERROR(result);
-                DescriptorSet *set = result.GetValue();
+                DescriptorSet *handle = result.GetValue();
+                VkDescriptorSet set = Descriptors::GetSet(handle);
+
                 rdata.Pipelines[pass][Geometry_Circle].Bind(graphicsCommand);
                 pushConstantData(graphicsCommand, camInfo);
 
-                VKit::DescriptorSet::Bind(device, graphicsCommand, set->Set, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                VKit::DescriptorSet::Bind(device, graphicsCommand, set, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                           Pipelines::GetGraphicsPipelineLayout(Shading_Unlit));
-                set->MarkInUse(graphics, graphicsFlightValue);
+                Descriptors::MarkInUse(handle, graphics, graphicsFlightValue);
 
                 for (const InstanceDrawInfo &draw : drawInfo[pass][Assets::GetCircleBatchIndex()])
                     table->CmdDraw(graphicsCommand, 6, draw.InstanceCount, 0, draw.FirstInstance);
@@ -890,20 +878,21 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
 
 Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer command, const Window *window)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer::Render");
     RenderSubmitInfo submitInfo{};
     submitInfo.Command = command;
     const u64 graphicsFlight = graphics->NextTimelineValue();
-    TKit::StackArray<TransferSyncPoint> syncPoints{};
+    TKit::StackArray<Execution::Tracker> transferTrackers{};
 
     u32 maxSyncPoints = 0;
     for (const Arena &arena : getRendererData<D2>().Arenas)
         maxSyncPoints += arena.Graphics.MemoryRanges.GetSize();
     for (const Arena &arena : getRendererData<D3>().Arenas)
         maxSyncPoints += arena.Graphics.MemoryRanges.GetSize();
-    syncPoints.Reserve(maxSyncPoints);
+    transferTrackers.Reserve(maxSyncPoints);
 
-    TKIT_RETURN_IF_FAILED(render<D2>(graphics, command, window, graphicsFlight, syncPoints));
-    TKIT_RETURN_IF_FAILED(render<D3>(graphics, command, window, graphicsFlight, syncPoints));
+    TKIT_RETURN_IF_FAILED(render<D2>(graphics, command, window, graphicsFlight, transferTrackers));
+    TKIT_RETURN_IF_FAILED(render<D3>(graphics, command, window, graphicsFlight, transferTrackers));
 
     VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
     rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
@@ -927,14 +916,14 @@ Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer com
     gtimSemInfo.semaphore = graphics->GetTimelineSempahore();
     gtimSemInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
 
-    for (const TransferSyncPoint &sp : syncPoints)
+    for (const Execution::Tracker &ttracker : transferTrackers)
     {
         VkSemaphoreSubmitInfoKHR &ttimSemInfo = submitInfo.WaitSemaphores.Append();
         ttimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
         ttimSemInfo.pNext = nullptr;
-        ttimSemInfo.semaphore = sp.Transfer->GetTimelineSempahore();
+        ttimSemInfo.semaphore = ttracker.Queue->GetTimelineSempahore();
         ttimSemInfo.deviceIndex = 0;
-        ttimSemInfo.value = sp.TransferFlightValue;
+        ttimSemInfo.value = ttracker.InFlightValue;
         ttimSemInfo.stageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR;
     }
     submitInfo.InFlightValue = graphicsFlight;
@@ -943,6 +932,7 @@ Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer com
 
 Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span<const RenderSubmitInfo> info)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer::SubmitRender");
     TKIT_ASSERT(!info.IsEmpty(), "[ONYX][RENDERER] Must at least provide one submission");
     TKit::StackArray<VkSubmitInfo2KHR> submits{};
     submits.Reserve(info.GetSize());
@@ -981,7 +971,7 @@ Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span
         sinfo.flags = 0;
     }
 
-    pool->MarkInUse(graphics, maxFlight);
+    Execution::MarkInUse(pool, graphics, maxFlight);
     return graphics->Submit2(submits);
 }
 
@@ -1018,7 +1008,7 @@ template <Dimension D> void coalesce()
 
         for (TransferMemoryRange &trange : tarena.MemoryRanges)
         {
-            if (trange.InUse())
+            if (trange.Tracker.InUse())
             {
                 if (tmergeRange.Size != 0)
                 {
@@ -1062,8 +1052,8 @@ template <Dimension D> void coalesce()
 
                 grange.Size = 0;
                 grange.ViewMask = 0;
-                grange.Transfer = nullptr;
-                grange.Graphics = nullptr;
+                grange.TransferTracker.Queue = nullptr;
+                grange.GraphicsTracker.Queue = nullptr;
                 for (ContextRange &crange : grange.ContextRanges)
                     if (rdata.IsContextRangeClean(crange))
                     {
@@ -1113,6 +1103,7 @@ template <Dimension D> void coalesce()
 
 void Coalesce()
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer::Coalesce");
     coalesce<D2>();
     coalesce<D3>();
 }

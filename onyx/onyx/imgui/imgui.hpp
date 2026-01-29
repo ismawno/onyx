@@ -7,6 +7,7 @@
 
 #include "onyx/core/alias.hpp"
 #include "onyx/core/dimension.hpp"
+#include "tkit/profiling/timespan.hpp"
 #include <imgui.h>
 
 namespace Onyx
@@ -20,6 +21,16 @@ struct PointLight;
 struct ScreenViewport;
 struct ScreenScissor;
 
+struct DeltaTime;
+struct DeltaInfo
+{
+    TKit::Timespan Max{};
+    TKit::Timespan Smoothed{};
+    f32 Smoothness = 0.f;
+    i32 Unit = 0;
+    bool LimitHertz = true;
+};
+
 class Window;
 
 using EditorFlags = u8;
@@ -32,6 +43,8 @@ template <Dimension D> bool TransformEditor(Transform<D> &transform, EditorFlags
 
 template <Dimension D> void DisplayTransform(const Transform<D> &transform, EditorFlags flags = 0);
 template <Dimension D> void DisplayCameraControls(const CameraControls<D> &controls = {});
+
+bool DeltaTimeEditor(DeltaTime &dt, DeltaInfo &di, const Window *window = nullptr, EditorFlags flags = 0);
 
 bool DirectionalLightEditor(DirectionalLight &light, EditorFlags flags = 0);
 bool PointLightEditor(PointLight &light, EditorFlags flags = 0);

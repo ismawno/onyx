@@ -38,7 +38,7 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
         CommandPool *tpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Transfer));
         CommandPool *gpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Graphics));
 
-        const VkCommandBuffer tcmd = ONYX_CHECK_EXPRESSION(tpool->Pool.Allocate());
+        const VkCommandBuffer tcmd = ONYX_CHECK_EXPRESSION(Execution::Allocate(tpool));
 
         ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(tcmd));
         const Renderer::TransferSubmitInfo tsinfo = ONYX_CHECK_EXPRESSION(Renderer::Transfer(tqueue, tcmd));
@@ -54,7 +54,7 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
             if (ONYX_CHECK_EXPRESSION(win->AcquireNextImage()))
             {
                 acquireMask |= win->GetViewBit();
-                const VkCommandBuffer gcmd = ONYX_CHECK_EXPRESSION(gpool->Pool.Allocate());
+                const VkCommandBuffer gcmd = ONYX_CHECK_EXPRESSION(Execution::Allocate(gpool));
                 ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(gcmd));
                 Renderer::ApplyAcquireBarriers(gcmd);
 
@@ -98,6 +98,8 @@ void ApplicationExample()
             ImGui::Begin("Hello");
             if (ImGui::Button("Spawn"))
                 m_AppLayer->RequestOpenWindow<WinLayer>();
+            PresentModeEditor(m_Window);
+            DeltaTimeEditor();
             ImGui::End();
             return Render(info);
         }

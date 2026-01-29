@@ -1,6 +1,18 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/execution/execution.hpp"
 
+namespace Onyx
+{
+struct CommandPool
+{
+    Execution::Tracker Tracker{};
+    u32 Family;
+    u32 NextCommand = 0;
+    VKit::CommandPool Pool{};
+    TKit::TierArray<VkCommandBuffer> CommandBuffers{};
+};
+} // namespace Onyx
+
 namespace Onyx::Execution
 {
 static VKit::CommandPool s_Graphics{};
@@ -39,9 +51,10 @@ ONYX_NO_DISCARD static Result<> createTransientCommandPools()
 Result<CommandPool *> FindSuitableCommandPool(const u32 family)
 {
     for (CommandPool &pool : s_CommandPools)
-        if (pool.Family == family && !pool.InUse())
+        if (pool.Family == family && !pool.Tracker.InUse())
         {
             TKIT_RETURN_IF_FAILED(pool.Pool.Reset());
+            pool.NextCommand = 0;
             return &pool;
         }
 
@@ -50,11 +63,28 @@ Result<CommandPool *> FindSuitableCommandPool(const u32 family)
     TKIT_RETURN_ON_ERROR(result);
     pool.Pool = result.GetValue();
     pool.Family = family;
+    pool.NextCommand = 0;
     return &pool;
 }
 Result<CommandPool *> FindSuitableCommandPool(const VKit::QueueType type)
 {
     return FindSuitableCommandPool(GetFamilyIndex(type));
+}
+
+Result<VkCommandBuffer> Allocate(CommandPool *pool)
+{
+    if (pool->NextCommand < pool->CommandBuffers.GetSize())
+        return pool->CommandBuffers[pool->NextCommand++];
+
+    const auto result = pool->Pool.Allocate();
+    TKIT_RETURN_ON_ERROR(result);
+    pool->CommandBuffers.Append(result.GetValue());
+    ++pool->NextCommand;
+    return result;
+}
+void MarkInUse(CommandPool *pool, const VKit::Queue *queue, const u64 inFlightValue)
+{
+    pool->Tracker.MarkInUse(queue, inFlightValue);
 }
 
 Result<> BeginCommandBuffer(const VkCommandBuffer commandBuffer)

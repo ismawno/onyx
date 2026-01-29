@@ -38,7 +38,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         TKIT_RETURN_ON_ERROR(tresult);
         CommandPool *tpool = tresult.GetValue();
 
-        const auto cmdres = tpool->Pool.Allocate();
+        const auto cmdres = Execution::Allocate(tpool);
 
         TKIT_RETURN_ON_ERROR(cmdres);
         const VkCommandBuffer cmd = cmdres.GetValue();
@@ -59,9 +59,23 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
     dueWindows.Reserve(m_WindowLayers.GetSize());
 
     for (WindowLayer *wlayer : m_WindowLayers)
+    {
+        Window *win = wlayer->m_Window;
+        for (const Event &event : win->GetNewEvents())
+        {
+            if (win->IsVSync() && (event.Type == Event_SwapChainRecreated || event.Type == Event_WindowMoved))
+            {
+                wlayer->m_Delta.Target = win->GetMonitorDeltaTime();
+#ifdef ONYX_ENABLE_IMGUI
+                wlayer->m_DeltaInfo.LimitHertz = true;
+#endif
+            }
+            wlayer->OnEvent(event);
+        }
+        win->FlushEvents();
         if (wlayer->isDue())
         {
-            const auto result = wlayer->m_Window->AcquireNextImage();
+            const auto result = win->AcquireNextImage();
             TKIT_RETURN_ON_ERROR(result);
             if (result.GetValue())
             {
@@ -69,6 +83,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
                 dueWindows.Append(wlayer);
             }
         }
+    }
 
     if (!dueWindows.IsEmpty())
     {
@@ -84,7 +99,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
 
         for (WindowLayer *wlayer : dueWindows)
         {
-            const auto cmdres = gpool->Pool.Allocate();
+            const auto cmdres = Execution::Allocate(gpool);
             TKIT_RETURN_ON_ERROR(cmdres, revoke());
             const VkCommandBuffer cmd = cmdres.GetValue();
 
