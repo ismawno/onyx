@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(onyx-sandbox)
 
-set(SOURCES sbox/argparse.cpp sbox/layer.cpp sbox/main.cpp)
+set(SOURCES sandbox/sandbox.cpp)
 
 add_executable(onyx-sandbox ${SOURCES})
 
@@ -17,5 +17,4 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(argparse)
 
 target_link_libraries(onyx-sandbox PUBLIC onyx)
-target_include_directories(onyx-sandbox PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-                                               ${argparse_SOURCE_DIR}/include)
+target_include_directories(onyx-sandbox PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

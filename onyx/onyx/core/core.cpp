@@ -254,19 +254,19 @@ static void initializeAllocators(const Specs &specs)
             libAlloc.Tier = new TKit::TierAllocator(libAlloc.Arena, 64, static_cast<u32>(i == 0 ? 256_kib : 4_kib));
     }
     VKit::Allocation &libAlloc = s_Allocation[0];
-    if (TKit::Memory::GetArena() != libAlloc.Arena)
+    if (TKit::GetArena() != libAlloc.Arena)
     {
-        TKit::Memory::PushArena(libAlloc.Arena);
+        TKit::PushArena(libAlloc.Arena);
         s_PushedAlloc |= 1 << 0;
     }
-    if (TKit::Memory::GetStack() != libAlloc.Stack)
+    if (TKit::GetStack() != libAlloc.Stack)
     {
-        TKit::Memory::PushStack(libAlloc.Stack);
+        TKit::PushStack(libAlloc.Stack);
         s_PushedAlloc |= 1 << 1;
     }
-    if (TKit::Memory::GetTier() != libAlloc.Tier)
+    if (TKit::GetTier() != libAlloc.Tier)
     {
-        TKit::Memory::PushTier(libAlloc.Tier);
+        TKit::PushTier(libAlloc.Tier);
         s_PushedAlloc |= 1 << 2;
     }
 }
@@ -297,11 +297,11 @@ ONYX_NO_DISCARD static Result<> initializeGlfw(const u32 platform)
 void terminateAllocators()
 {
     if (s_PushedAlloc & 4)
-        TKit::Memory::PopTier();
+        TKit::PopTier();
     if (s_PushedAlloc & 2)
-        TKit::Memory::PopStack();
+        TKit::PopStack();
     if (s_PushedAlloc & 1)
-        TKit::Memory::PopArena();
+        TKit::PopArena();
 }
 
 Result<> Initialize(const Specs &specs)

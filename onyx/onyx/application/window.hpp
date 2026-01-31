@@ -77,7 +77,7 @@ class Window
      * `vkBeginRendering()`/`vkEndRendering()` pair may be submitted.
      *
      */
-    void BeginRendering(VkCommandBuffer commandBuffer, const Color &clearColor = Color::BLACK);
+    void BeginRendering(VkCommandBuffer commandBuffer, const Color &clearColor = Color::Black);
     void EndRendering(VkCommandBuffer commandBuffer);
 
     bool ShouldClose() const;
@@ -188,7 +188,7 @@ class Window
     template <Dimension D> Camera<D> *CreateCamera()
     {
         auto &array = getCameraArray<D>();
-        TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+        TKit::TierAllocator *alloc = TKit::GetTier();
         Camera<D> *camera = alloc->Create<Camera<D>>();
         camera->m_Window = this;
         camera->adaptViewToViewportAspect();
@@ -214,7 +214,7 @@ class Window
     template <Dimension D> void DestroyCamera(const u32 index = 0)
     {
         auto &array = getCameraArray<D>();
-        TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+        TKit::TierAllocator *alloc = TKit::GetTier();
         alloc->Destroy(array[index]);
         array.RemoveOrdered(array.begin() + index);
     }

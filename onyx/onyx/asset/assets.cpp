@@ -246,15 +246,15 @@ u32 GetCircleBatchIndex()
     return s_BatchRanges[Geometry_Circle].BatchStart;
 }
 
-u32 GetBatchStart(const GeometryType geo)
+u32 GetBatchStart(const Geometry geo)
 {
     return s_BatchRanges[geo].BatchStart;
 }
-u32 GetBatchEnd(const GeometryType geo)
+u32 GetBatchEnd(const Geometry geo)
 {
     return s_BatchRanges[geo].BatchStart + s_BatchRanges[geo].BatchCount;
 }
-u32 GetBatchCount(const GeometryType geo)
+u32 GetBatchCount(const Geometry geo)
 {
     return s_BatchRanges[geo].BatchCount;
 }
@@ -298,9 +298,9 @@ template <Dimension D> void UpdateMesh(const Mesh mesh, const StatMeshData<D> &d
         "[ONYX][ASSETS] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
         "same. If they are not, you must create a new mesh");
 
-    TKit::Memory::ForwardCopy(meshes.Meshes.Vertices.begin() + layout.VertexStart, data.Vertices.begin(),
+    TKit::ForwardCopy(meshes.Meshes.Vertices.begin() + layout.VertexStart, data.Vertices.begin(),
                               data.Vertices.end());
-    TKit::Memory::ForwardCopy(meshes.Meshes.Indices.begin() + layout.IndexStart, data.Indices.begin(),
+    TKit::ForwardCopy(meshes.Meshes.Indices.begin() + layout.IndexStart, data.Indices.begin(),
                               data.Indices.end());
 
     layout.Flags |= LayoutFlag_UpdateVertex | LayoutFlag_UpdateIndex;

@@ -165,7 +165,7 @@ Result<VKit::Shader> Compilation::CreateShader(const char *entryPoint, const cha
 
 void Compilation::Destroy()
 {
-    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+    TKit::TierAllocator *alloc = TKit::GetTier();
     for (const Spirv &spr : m_CompiledSpirv)
         alloc->Deallocate(static_cast<void *>(spr.Data), spr.Size);
 }
@@ -666,9 +666,9 @@ Result<Compilation> Compiler::Compile() const
 
             const size_t size = code->getBufferSize();
 
-            TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+            TKit::TierAllocator *alloc = TKit::GetTier();
             void *mem = alloc->Allocate(size);
-            TKit::Memory::ForwardCopy(mem, code->getBufferPointer(), size);
+            TKit::ForwardCopy(mem, code->getBufferPointer(), size);
 
             Spirv sp;
             sp.EntryPoint = ep;

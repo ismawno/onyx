@@ -112,7 +112,7 @@ template <Dimension D> static RendererData<D> &getRendererData()
         return s_RendererData3;
 }
 
-template <Dimension D> static VkDeviceSize getInstanceSize(const GeometryType geo)
+template <Dimension D> static VkDeviceSize getInstanceSize(const Geometry geo)
 {
     switch (geo)
     {
@@ -146,7 +146,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
     const VkPipelineRenderingCreateInfoKHR renderInfo = CreatePipelineRenderingCreateInfo();
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
-        const GeometryType geo = static_cast<GeometryType>(i);
+        const Geometry geo = static_cast<Geometry>(i);
         TransferArena &tarena = rdata.Arenas[geo].Transfer;
 
         auto result = Resources::CreateBuffer(Buffer_Staging, getInstanceSize<D>(geo));
@@ -206,7 +206,7 @@ void Terminate()
 template <Dimension D> RenderContext<D> *CreateContext()
 {
     RendererData<D> &rdata = getRendererData<D>();
-    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+    TKit::TierAllocator *alloc = TKit::GetTier();
     RenderContext<D> *ctx = alloc->Create<RenderContext<D>>();
     rdata.Contexts.Append(ctx);
     rdata.Generations.Append(ctx->GetGeneration());
@@ -232,7 +232,7 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
                 else if (crange.ContextIndex == index)
                     crange.ContextIndex = TKIT_U32_MAX;
 
-    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+    TKit::TierAllocator *alloc = TKit::GetTier();
     alloc->Destroy(context);
     rdata.Contexts.RemoveUnordered(rdata.Contexts.begin() + index);
 }
@@ -487,7 +487,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
 
     u32 sindex = 0;
 
-    const auto processBatches = [&](const u32 pass, const GeometryType geo) -> Result<> {
+    const auto processBatches = [&](const u32 pass, const Geometry geo) -> Result<> {
         TransferArena &tarena = rdata.Arenas[geo].Transfer;
         GraphicsArena &garena = rdata.Arenas[geo].Graphics;
 
@@ -758,7 +758,7 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
         drawInfo[pass].Resize(bcount);
 
-    const auto collectDrawInfo = [&](const GeometryType geo) {
+    const auto collectDrawInfo = [&](const Geometry geo) {
         GraphicsArena &garena = rdata.Arenas[geo].Graphics;
         const VkDeviceSize instanceSize = garena.Buffer.GetInfo().InstanceSize;
         for (GraphicsMemoryRange &grange : garena.MemoryRanges)

@@ -24,9 +24,9 @@ class WindowLayer;
 template <typename Base, std::derived_from<Base> Derived, typename... LayerArgs>
 Derived *CreateLayer(LayerArgs &&...args)
 {
-    TKit::TierAllocator *tier = TKit::Memory::GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     Derived *layer = tier->Allocate<Derived>();
-    Base *base = TKit::Memory::Construct(layer, std::forward<LayerArgs>(args)...);
+    Base *base = TKit::Construct(layer, std::forward<LayerArgs>(args)...);
     base->m_Size = sizeof(Derived);
     return layer;
 }

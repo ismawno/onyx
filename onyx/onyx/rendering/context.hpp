@@ -24,8 +24,8 @@ template <> struct RenderState<D2>
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
 
     f32m3 Transform = f32m3::Identity();
-    Color FillColor = Color::WHITE;
-    Color OutlineColor = Color::WHITE;
+    Color FillColor = Color::White;
+    Color OutlineColor = Color::White;
     f32 OutlineWidth = 0.1f;
     RenderStateFlags Flags = RenderStateFlag_Fill;
 };
@@ -36,9 +36,9 @@ template <> struct RenderState<D3>
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
 
     f32m4 Transform = f32m4::Identity();
-    Color FillColor = Color::WHITE;
-    Color OutlineColor = Color::WHITE;
-    Color LightColor = Color::WHITE;
+    Color FillColor = Color::White;
+    Color OutlineColor = Color::White;
+    Color LightColor = Color::White;
     f32 OutlineWidth = 0.1f;
     RenderStateFlags Flags = RenderStateFlag_Fill;
 };

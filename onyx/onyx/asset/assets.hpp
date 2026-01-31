@@ -17,9 +17,9 @@ u32 GetStaticMeshBatchIndex(Mesh mesh);
 u32 GetStaticMeshIndexFromBatch(u32 batch);
 u32 GetCircleBatchIndex();
 
-u32 GetBatchStart(GeometryType geo);
-u32 GetBatchEnd(GeometryType geo);
-u32 GetBatchCount(GeometryType geo);
+u32 GetBatchStart(Geometry geo);
+u32 GetBatchEnd(Geometry geo);
+u32 GetBatchCount(Geometry geo);
 u32 GetBatchCount();
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data);

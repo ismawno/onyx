@@ -4,6 +4,24 @@
 #include "onyx/core/math.hpp"
 #include "tkit/container/span.hpp"
 
+namespace Onyx::Detail
+{
+template <Numeric T> constexpr T ToType(const f32 val)
+{
+    if constexpr (Float<T>)
+        return val;
+    else
+        return static_cast<T>(val * 255.f);
+}
+template <Numeric T> constexpr f32 FromType(const T val)
+{
+    if constexpr (Float<T>)
+        return val;
+    else
+        return static_cast<T>(val) / 255.f;
+}
+} // namespace Onyx::Detail
+
 namespace Onyx
 {
 struct Color
@@ -21,19 +39,43 @@ struct Color
     Color(const Color &rgb, u32 alpha);
 
     union {
-        f32v4 RGBA;
-        f32v3 RGB;
+        f32v4 rgba;
+        f32v3 rgb;
     };
 
-    u8 Red() const;
-    u8 Green() const;
-    u8 Blue() const;
-    u8 Alpha() const;
+    template <Numeric T = u8> T r() const
+    {
+        return Detail::ToType<T>(rgba[0]);
+    }
+    template <Numeric T = u8> T g() const
+    {
+        return Detail::ToType<T>(rgba[1]);
+    }
+    template <Numeric T = u8> T b() const
+    {
+        return Detail::ToType<T>(rgba[2]);
+    }
+    template <Numeric T = u8> T a() const
+    {
+        return Detail::ToType<T>(rgba[3]);
+    }
 
-    void Red(u32 red);
-    void Green(u32 green);
-    void Blue(u32 blue);
-    void Alpha(u32 alpha);
+    template <Numeric T> void r(const T val) const
+    {
+        rgba[0] = Detail::FromType(val);
+    }
+    template <Numeric T> void g(const T val) const
+    {
+        rgba[1] = Detail::FromType(val);
+    }
+    template <Numeric T> void b(const T val) const
+    {
+        rgba[2] = Detail::FromType(val);
+    }
+    template <Numeric T> void a(const T val) const
+    {
+        rgba[3] = Detail::FromType(val);
+    }
 
     u32 Pack() const;
     static Color Unpack(u32 packed);
@@ -57,12 +99,12 @@ struct Color
     Color &operator/=(const Color &right);
     template <typename T> Color &operator*=(const T &right)
     {
-        RGB = Math::Clamp(RGB * right, 0.f, 1.f);
+        rgb = Math::Clamp(rgb * right, 0.f, 1.f);
         return *this;
     }
     template <typename T> Color &operator/=(const T &right)
     {
-        RGB = Math::Clamp(RGB / right, 0.f, 1.f);
+        rgb = Math::Clamp(rgb / right, 0.f, 1.f);
         return *this;
     }
 
@@ -97,7 +139,7 @@ struct Color
     // Sonarlint yells lol but this is a union like class and no default equality operator is provided
     friend bool operator==(const Color &left, const Color &right)
     {
-        return left.RGBA == right.RGBA;
+        return left.rgba == right.rgba;
     }
     // Sonarlint yells lol but this is a union like class and no default equality operator is provided
     friend bool operator!=(const Color &left, const Color &right)
@@ -105,18 +147,18 @@ struct Color
         return !(left == right);
     }
 
-    static const Color RED;
-    static const Color GREEN;
-    static const Color BLUE;
-    static const Color MAGENTA;
-    static const Color CYAN;
-    static const Color ORANGE;
-    static const Color YELLOW;
-    static const Color BLACK;
-    static const Color PINK;
-    static const Color PURPLE;
-    static const Color WHITE;
-    static const Color TRANSPARENT;
+    static const Color Red;
+    static const Color Green;
+    static const Color Blue;
+    static const Color Magenta;
+    static const Color Cyan;
+    static const Color Orange;
+    static const Color Yellow;
+    static const Color Black;
+    static const Color Pink;
+    static const Color Purple;
+    static const Color White;
+    static const Color Transparent;
 
   private:
     // This will be useful for serialization (not implemented yet)
@@ -133,5 +175,4 @@ class Gradient
   private:
     TKit::Span<const Color> m_Colors;
 };
-
 } // namespace Onyx

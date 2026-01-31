@@ -161,7 +161,7 @@ Result<Window *> Window::Create(const Specs &specs)
             Error_InitializationFailed,
             "[ONYX][WINDOW] Maximum amount of windows exceeded. There is a hard limit of 64 windows");
 
-    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+    TKit::TierAllocator *alloc = TKit::GetTier();
     Window *window = alloc->Create<Window>();
 
     window->m_Window = handle;
@@ -192,7 +192,7 @@ Result<Window *> Window::Create(const Specs &specs)
 
 void Window::Destroy(Window *window)
 {
-    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+    TKit::TierAllocator *alloc = TKit::GetTier();
     alloc->Destroy(window);
 }
 
@@ -205,7 +205,7 @@ Window::~Window()
     Execution::DestroySyncData(m_SyncData);
 
     m_SwapChain.Destroy();
-    TKit::TierAllocator *alloc = TKit::Memory::GetTier();
+    TKit::TierAllocator *alloc = TKit::GetTier();
     for (Camera<D2> *camera : m_Cameras2)
         alloc->Destroy(camera);
     for (Camera<D3> *camera : m_Cameras3)

@@ -5,7 +5,7 @@
 
 namespace Onyx
 {
-enum GeometryType : u8
+enum Geometry : u8
 {
     Geometry_Circle,
     Geometry_StaticMesh,

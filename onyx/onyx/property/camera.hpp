@@ -183,7 +183,7 @@ template <Dimension D> class ICamera
 
     CameraInfo<D> CreateCameraInfo() const;
 
-    Color BackgroundColor{Color::BLACK};
+    Color BackgroundColor{Color::Black};
     bool Transparent = false;
 
   protected:
