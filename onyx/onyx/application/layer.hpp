@@ -64,8 +64,8 @@ class WindowLayer
 {
     TKIT_NON_COPYABLE(WindowLayer)
   public:
-    WindowLayer(ApplicationLayer *appLayer, Window *window, TKit::Timespan targetDeltaTime);
-    WindowLayer(ApplicationLayer *appLayer, Window *window);
+    WindowLayer(ApplicationLayer *appLayer, Window *window, TKit::Timespan targetDeltaTime, WindowLayerFlags flags = 0);
+    WindowLayer(ApplicationLayer *appLayer, Window *window, WindowLayerFlags flags = 0);
 
     virtual ~WindowLayer()
     {

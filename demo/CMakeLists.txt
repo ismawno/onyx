@@ -8,6 +8,6 @@ if(NOT ONYX_ENABLE_IMGUI)
   )
 endif()
 
-add_subdirectory(sandbox)
+# add_subdirectory(sandbox)
 add_subdirectory(hello-world)
 # add_subdirectory(performance)

@@ -106,8 +106,11 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             TKIT_RETURN_IF_FAILED(Execution::BeginCommandBuffer(cmd), revoke());
             Renderer::ApplyAcquireBarriers(cmd);
 #ifdef ONYX_ENABLE_IMGUI
-            ImGui::SetCurrentContext(wlayer->m_ImGuiContext);
-            NewImGuiFrame();
+            if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled))
+            {
+                ImGui::SetCurrentContext(wlayer->m_ImGuiContext);
+                NewImGuiFrame();
+            }
 #endif
             const auto rnres = wlayer->OnRender({.Queue = gqueue, .CommandBuffer = cmd});
             TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd), revoke());

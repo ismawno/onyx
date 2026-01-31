@@ -381,7 +381,7 @@ void RenderContext<D3>::LightColor(const Color &color)
 // }
 // void RenderContext<D3>::AmbientIntensity(const f32 intensity)
 // {
-//     m_Renderer.AmbientColor.RGBA[3] = intensity;
+//     m_Renderer.AmbientColor.rgba[3] = intensity;
 // }
 //
 // void RenderContext<D3>::DirectionalLight(Onyx::DirectionalLight light)
@@ -451,15 +451,15 @@ template <Dimension D> void IRenderContext<D>::Pop()
 
 template <Dimension D> void IRenderContext<D>::Alpha(const f32 alpha)
 {
-    m_Current->FillColor.RGBA[3] = alpha;
+    m_Current->FillColor.rgba[3] = alpha;
 }
 template <Dimension D> void IRenderContext<D>::Alpha(const u8 alpha)
 {
-    m_Current->FillColor.RGBA[3] = static_cast<f32>(alpha) / 255.f;
+    m_Current->FillColor.rgba[3] = static_cast<f32>(alpha) / 255.f;
 }
 template <Dimension D> void IRenderContext<D>::Alpha(const u32 alpha)
 {
-    m_Current->FillColor.RGBA[3] = static_cast<f32>(alpha) / 255.f;
+    m_Current->FillColor.rgba[3] = static_cast<f32>(alpha) / 255.f;
 }
 
 template <Dimension D> void IRenderContext<D>::Fill(const Color &color)

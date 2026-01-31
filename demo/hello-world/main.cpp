@@ -89,7 +89,8 @@ void ApplicationExample()
     class WinLayer final : public WindowLayer
     {
       public:
-        WinLayer(ApplicationLayer *appLayer, Window *window) : WindowLayer(appLayer, window)
+        WinLayer(ApplicationLayer *appLayer, Window *window)
+            : WindowLayer(appLayer, window, WindowLayerFlag_ImGuiEnabled)
         {
         }
 

@@ -6,16 +6,19 @@
 
 namespace Onyx
 {
-WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const TKit::Timespan targetDeltaTime)
+WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const TKit::Timespan targetDeltaTime,
+                         const WindowLayerFlags flags)
     : m_AppLayer(appLayer), m_Window(window)
 {
 #ifdef ONYX_ENABLE_IMGUI
-    initializeImGui();
+    if (flags & WindowLayerFlag_ImGuiEnabled)
+        initializeImGui();
 #endif
     m_Delta.Target = window->IsVSync() ? window->GetMonitorDeltaTime() : targetDeltaTime;
+    m_Flags = flags;
 }
-WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window)
-    : WindowLayer(appLayer, window, window->GetMonitorDeltaTime())
+WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const WindowLayerFlags flags)
+    : WindowLayer(appLayer, window, window->GetMonitorDeltaTime(), flags)
 {
 }
 Result<Renderer::RenderSubmitInfo> WindowLayer::OnRender(const ExecutionInfo &info)
@@ -43,7 +46,7 @@ Result<Renderer::RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info
 void WindowLayer::initializeImGui()
 {
     TKIT_ASSERT(!checkFlags(WindowLayerFlag_ImGuiEnabled),
-                "[ONYX][APPLICATION] Trying to initialize ImGui for window '{}' when it is already running. If you "
+                "[ONYX][APPLICATION] Trying to initialize ImGui for window '{}' when it is already enabled. If you "
                 "meant to reload ImGui, use ReloadImGui()",
                 m_Window->GetName());
 

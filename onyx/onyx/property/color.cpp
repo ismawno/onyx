@@ -6,11 +6,6 @@
 
 namespace Onyx
 {
-static constexpr u8 toInt(const f32 val)
-{
-    return static_cast<u8>(val * 255.f);
-}
-
 static constexpr f32 toFloat(const u32 val)
 {
     constexpr f32 oneOver255 = 1.f / 255.f;

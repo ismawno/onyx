@@ -165,6 +165,8 @@ Result<Window *> Window::Create(const Specs &specs)
     Window *window = alloc->Create<Window>();
 
     window->m_Window = handle;
+    window->m_Name = specs.Name;
+    window->m_Flags = specs.Flags;
     window->m_Surface = surface;
     window->m_SwapChain = schain;
     window->m_Position = pos;
@@ -388,7 +390,7 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
     present.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     present.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     present.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    present.clearValue.color = {{clearColor.RGBA[0], clearColor.RGBA[1], clearColor.RGBA[2], clearColor.RGBA[3]}};
+    present.clearValue.color = {{clearColor.rgba[0], clearColor.rgba[1], clearColor.rgba[2], clearColor.rgba[3]}};
 
     m_Images[m_ImageIndex].Presentation->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                                           {.SrcAccess = 0,

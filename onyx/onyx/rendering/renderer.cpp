@@ -692,7 +692,7 @@ template <Dimension D> static void setCameraViewport(const VkCommandBuffer comma
         TKit::FixedArray<VkClearAttachment, D - 1> clearAttachments{};
         clearAttachments[0].colorAttachment = 0;
         clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        clearAttachments[0].clearValue.color = {{bg.RGBA[0], bg.RGBA[1], bg.RGBA[2], bg.RGBA[3]}};
+        clearAttachments[0].clearValue.color = {{bg.rgb[0], bg.rgb[1], bg.rgb[2], bg.rgb[3]}};
 
         if constexpr (D == D3)
         {
@@ -721,7 +721,7 @@ template <Dimension D> static void pushConstantData(const VkCommandBuffer comman
     // if constexpr (Shade == Shading_Lit)
     // {
     //     pdata.ViewPosition = f32v4(camera.Camera->ViewPosition, 1.f);
-    //     pdata.AmbientColor = camera.Light.AmbientColor->RGBA;
+    //     pdata.AmbientColor = camera.Light.AmbientColor->rgb;
     //     pdata.DirectionalLightCount = camera.Light.DirectionalCount;
     //     pdata.PointLightCount = camera.Light.PointCount;
     //     stages |= VK_SHADER_STAGE_FRAGMENT_BIT;
