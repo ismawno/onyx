@@ -15,7 +15,7 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
     windows.Reserve(nwidows);
     for (u32 i = 0; i < nwidows; ++i)
     {
-        Window *win = windows.Append(ONYX_CHECK_EXPRESSION(Window::Create()));
+        Window *win = windows.Append(ONYX_CHECK_EXPRESSION(Platform::CreateWindow()));
         ctx->AddTarget(win);
         win->CreateCamera<D2>();
     }
@@ -77,11 +77,10 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
         for (u32 i = windows.GetSize() - 1; i < windows.GetSize(); --i)
             if (windows[i]->ShouldClose())
             {
-                Window::Destroy(windows[i]);
+                Platform::DestroyWindow(windows[i]);
                 windows.RemoveUnordered(windows.begin() + i);
             }
     }
-    Renderer::DestroyContext(ctx);
 }
 
 void ApplicationExample()
