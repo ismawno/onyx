@@ -4,7 +4,7 @@
 #include "onyx/property/instance.hpp"
 #include "onyx/property/options.hpp"
 #include "onyx/asset/mesh.hpp"
-#include "onyx/application/window.hpp"
+#include "onyx/platform/window.hpp"
 #include "vkit/resource/host_buffer.hpp"
 
 namespace Onyx

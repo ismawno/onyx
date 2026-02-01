@@ -5,7 +5,7 @@
 #    include "onyx/property/transform.hpp"
 #    include "onyx/property/instance.hpp"
 #    include "onyx/application/layer.hpp"
-#    include "onyx/application/input.hpp"
+#    include "onyx/platform/input.hpp"
 #    include "onyx/imgui/imgui.hpp"
 #    include "tkit/container/stack_array.hpp"
 

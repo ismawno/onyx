@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/property/camera.hpp"
-#include "onyx/application/window.hpp"
+#include "onyx/platform/window.hpp"
 
 namespace Onyx
 {

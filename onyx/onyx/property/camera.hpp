@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/application/input.hpp"
+#include "onyx/platform/input.hpp"
 #include "onyx/property/transform.hpp"
 #include "onyx/property/color.hpp"
 #include "tkit/profiling/timespan.hpp"

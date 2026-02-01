@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/property/instance.hpp"
-#include "onyx/application/window.hpp"
+#include "onyx/platform/window.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/state/pipelines.hpp"
 #include "onyx/state/descriptors.hpp"
@@ -101,15 +101,15 @@ template <Dimension D> struct RendererData
     }
 };
 
-static RendererData<D2> s_RendererData2{};
-static RendererData<D3> s_RendererData3{};
+static TKit::Storage<RendererData<D2>> s_RendererData2{};
+static TKit::Storage<RendererData<D3>> s_RendererData3{};
 
 template <Dimension D> static RendererData<D> &getRendererData()
 {
     if constexpr (D == D2)
-        return s_RendererData2;
+        return *s_RendererData2;
     else
-        return s_RendererData3;
+        return *s_RendererData3;
 }
 
 template <Dimension D> static VkDeviceSize getInstanceSize(const Geometry geo)
@@ -190,10 +190,17 @@ template <Dimension D> static void terminate()
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
         for (u32 geo = 0; geo < Geometry_Count; ++geo)
             rdata.Pipelines[pass][geo].Destroy();
+
+    TKit::TierAllocator *tier = TKit::GetTier();
+    for (RenderContext<D> *context : rdata.Contexts)
+        tier->Destroy(context);
 }
 
 Result<> Initialize()
 {
+    TKIT_LOG_INFO("[ONYX][RENDERER] Initializing");
+    s_RendererData2.Construct();
+    s_RendererData3.Construct();
     TKIT_RETURN_IF_FAILED(initialize<D2>());
     return initialize<D3>();
 }
@@ -201,13 +208,15 @@ void Terminate()
 {
     terminate<D2>();
     terminate<D3>();
+    s_RendererData2.Destruct();
+    s_RendererData3.Destruct();
 }
 
 template <Dimension D> RenderContext<D> *CreateContext()
 {
     RendererData<D> &rdata = getRendererData<D>();
-    TKit::TierAllocator *alloc = TKit::GetTier();
-    RenderContext<D> *ctx = alloc->Create<RenderContext<D>>();
+    TKit::TierAllocator *tier = TKit::GetTier();
+    RenderContext<D> *ctx = tier->Create<RenderContext<D>>();
     rdata.Contexts.Append(ctx);
     rdata.Generations.Append(ctx->GetGeneration());
     return ctx;
@@ -232,8 +241,8 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
                 else if (crange.ContextIndex == index)
                     crange.ContextIndex = TKIT_U32_MAX;
 
-    TKit::TierAllocator *alloc = TKit::GetTier();
-    alloc->Destroy(context);
+    TKit::TierAllocator *tier = TKit::GetTier();
+    tier->Destroy(context);
     rdata.Contexts.RemoveUnordered(rdata.Contexts.begin() + index);
 }
 

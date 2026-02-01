@@ -66,6 +66,10 @@ struct InitCallbacks
     std::function<void(VKit::AllocatorSpecs &)> OnAllocatorCreation = nullptr;
 };
 
+namespace Platform
+{
+struct Specs;
+}
 namespace Execution
 {
 struct Specs;
@@ -94,7 +98,7 @@ struct Specs
     Assets::Specs *AssetSpecs = nullptr;
     Descriptors::Specs *DescriptorSpecs = nullptr;
     Shaders::Specs *ShadersSpecs = nullptr;
-    u32 Platform = ONYX_PLATFORM_AUTO;
+    Platform::Specs *PlatformSpecs = nullptr;
 #ifdef TKIT_ENABLE_ASSERTS
     bool EnableValidationLayers = true;
 #else

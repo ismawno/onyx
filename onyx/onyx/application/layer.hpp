@@ -1,9 +1,8 @@
 #pragma once
 
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/application/window.hpp"
+#include "onyx/platform/window.hpp"
 #ifdef ONYX_ENABLE_IMGUI
-#    include "onyx/imgui/theme.hpp"
 #    include "onyx/imgui/imgui.hpp"
 #endif
 #include "tkit/profiling/timespan.hpp"
@@ -46,6 +45,7 @@ struct ExecutionInfo
 {
     VKit::Queue *Queue;
     VkCommandBuffer CommandBuffer;
+    DeltaTime DeltaTime;
 };
 
 using WindowLayerFlags = u8;
@@ -81,10 +81,19 @@ class WindowLayer
     }
 
     template <std::derived_from<WindowLayer> T = WindowLayer, typename... LayerArgs>
-    void RequestReplaceLayer(LayerArgs &&...args)
+    void RequestReplaceLayer(LayerArgs... args)
     {
         m_Replacement = [=](ApplicationLayer *appLayer, Window *window) {
-            return Detail::CreateLayer<WindowLayer, T>(appLayer, window, std::forward<LayerArgs>(args)...);
+            return Detail::CreateLayer<WindowLayer, T>(appLayer, window, args...);
+        };
+    }
+    template <std::derived_from<WindowLayer> T = WindowLayer, std::invocable<T *, Window *> F, typename... LayerArgs>
+    void RequestReplaceLayer(F fun, LayerArgs... args)
+    {
+        m_Replacement = [=](ApplicationLayer *appLayer, Window *window) {
+            T *layer = Detail::CreateLayer<WindowLayer, T>(appLayer, window, args...);
+            fun(layer, window);
+            return layer;
         };
     }
 
@@ -116,6 +125,10 @@ class WindowLayer
     bool DeltaTimeEditor(const EditorFlags flags = 0)
     {
         return Onyx::DeltaTimeEditor(m_Delta, m_DeltaInfo, m_Window, flags);
+    }
+    i32 GetImGuiConfigFlags() const
+    {
+        return m_ImGuiConfigFlags;
     }
 #endif
 
@@ -160,7 +173,6 @@ class WindowLayer
     ImPlotContext *m_ImPlotContext = nullptr;
 #    endif
     i32 m_ImGuiConfigFlags = 0;
-    Theme *m_Theme = nullptr;
     DeltaInfo m_DeltaInfo{};
 #endif
 
@@ -177,7 +189,7 @@ class WindowLayer
 
 struct OpenWindowRequest
 {
-    Window::Specs Specs{};
+    WindowSpecs Specs{};
     std::function<WindowLayer *(ApplicationLayer *, Window *)> LayerCreation = nullptr;
 };
 
@@ -206,9 +218,18 @@ class ApplicationLayer
     virtual Result<Renderer::TransferSubmitInfo> OnTransfer(const ExecutionInfo &info);
 
     template <std::derived_from<ApplicationLayer> T = ApplicationLayer, typename... LayerArgs>
-    void RequestReplaceLayer(LayerArgs &&...args)
+    void RequestReplaceLayer(LayerArgs... args)
     {
-        m_Replacement = [=]() { return Detail::CreateLayer<ApplicationLayer, T>(std::forward<LayerArgs>(args)...); };
+        m_Replacement = [=]() { return Detail::CreateLayer<ApplicationLayer, T>(args...); };
+    }
+    template <std::derived_from<ApplicationLayer> T = ApplicationLayer, std::invocable<T *> F, typename... LayerArgs>
+    void RequestReplaceLayer(F fun, LayerArgs... args)
+    {
+        m_Replacement = [=]() {
+            T *layer = Detail::CreateLayer<ApplicationLayer, T>(args...);
+            fun(layer);
+            return layer;
+        };
     }
 
     void RequestQuitApplication()
@@ -217,16 +238,33 @@ class ApplicationLayer
     }
 
     template <std::derived_from<WindowLayer> T = WindowLayer, typename... LayerArgs>
-    void RequestOpenWindow(const Window::Specs &specs, LayerArgs &&...args)
+    void RequestOpenWindow(const WindowSpecs &specs, LayerArgs... args)
     {
         m_WindowRequests.Append(specs, [=](ApplicationLayer *appLayer, Window *window) {
-            return Detail::CreateLayer<WindowLayer, T>(appLayer, window, std::forward<LayerArgs>(args)...);
+            return Detail::CreateLayer<WindowLayer, T>(appLayer, window, args...);
         });
     }
-    template <std::derived_from<WindowLayer> T, typename... LayerArgs> void RequestOpenWindow(LayerArgs &&...args)
+    template <std::derived_from<WindowLayer> T = WindowLayer, std::invocable<T *, Window *> F, typename... LayerArgs>
+    void RequestOpenWindow(F fun, const WindowSpecs &specs, LayerArgs... args)
     {
-        const Window::Specs specs{};
-        RequestOpenWindow<T>(specs, std::forward<LayerArgs>(args)...);
+        m_WindowRequests.Append(specs, [=](ApplicationLayer *appLayer, Window *window) {
+            T *layer = Detail::CreateLayer<WindowLayer, T>(appLayer, window, args...);
+            fun(layer, window);
+            return layer;
+        });
+    }
+
+    template <std::derived_from<WindowLayer> T = WindowLayer, typename... LayerArgs>
+    void RequestOpenWindow(LayerArgs... args)
+    {
+        const WindowSpecs specs{};
+        RequestOpenWindow<T>(specs, args...);
+    }
+    template <std::derived_from<WindowLayer> T = WindowLayer, std::invocable<T *, Window *> F, typename... LayerArgs>
+    void RequestOpenWindow(F fun, LayerArgs... args)
+    {
+        const WindowSpecs specs{};
+        RequestOpenWindow<T>(fun, specs, args...);
     }
 
 #ifdef ONYX_ENABLE_IMGUI

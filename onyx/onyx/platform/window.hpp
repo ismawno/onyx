@@ -1,7 +1,8 @@
 #pragma once
 
 #include "onyx/core/dimension.hpp"
-#include "onyx/application/input.hpp"
+#include "onyx/platform/input.hpp"
+#include "onyx/platform/platform.hpp"
 #include "onyx/property/color.hpp"
 #include "onyx/property/camera.hpp"
 #include "onyx/property/options.hpp"
@@ -17,24 +18,6 @@ namespace Onyx
 u32 ToFrequency(TKit::Timespan deltaTime);
 TKit::Timespan ToDeltaTime(u32 frameRate);
 
-using WindowFlags = u8;
-enum WindowFlagBit : WindowFlags
-{
-    WindowFlag_Resizable = 1 << 0,
-    WindowFlag_Visible = 1 << 1,
-    WindowFlag_Decorated = 1 << 2,
-    WindowFlag_Focused = 1 << 3,
-    WindowFlag_Floating = 1 << 4,
-    WindowFlag_InstallCallbacks = 1 << 5
-};
-
-enum TransferMode : u8
-{
-    Transfer_Separate = 0,
-    Transfer_SameIndex = 1,
-    Transfer_SameQueue = 2
-};
-
 using Timeout = u64;
 
 constexpr Timeout Block = TKIT_U64_MAX;
@@ -43,29 +26,15 @@ constexpr Timeout Poll = 0;
 class Window
 {
     TKIT_NON_COPYABLE(Window)
-  public:
-    static constexpr VkSurfaceFormatKHR SurfaceFormat = {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
-    static constexpr VkFormat DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
-
     struct ImageData
     {
         VKit::DeviceImage *Presentation;
         VKit::DeviceImage DepthStencil;
     };
-    struct Specs
-    {
-        const char *Name = "Onyx window";
-        u32v2 Position{TKIT_U32_MAX}; // u32 max means let it be decided automatically
-        u32v2 Dimensions{800, 600};
-        VkPresentModeKHR PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-        WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused |
-                            WindowFlag_InstallCallbacks;
-    };
 
-    ONYX_NO_DISCARD static Result<Window *> Create(const Specs &specs);
-    ONYX_NO_DISCARD static Result<Window *> Create();
-
-    static void Destroy(Window *window);
+  public:
+    static constexpr VkSurfaceFormatKHR SurfaceFormat = {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+    static constexpr VkFormat DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
 
     Window() = default;
     ~Window();
@@ -289,8 +258,15 @@ class Window
     ONYX_NO_DISCARD Result<> recreateSwapChain();
     ONYX_NO_DISCARD Result<> recreateResources();
     ONYX_NO_DISCARD Result<> recreateSurface();
-
     ONYX_NO_DISCARD Result<bool> handleImageResult(VkResult result);
+
+    ONYX_NO_DISCARD static Result<VKit::SwapChain> createSwapChain(VkPresentModeKHR presentMode, VkSurfaceKHR surface,
+                                                                   const VkExtent2D &windowExtent,
+                                                                   const VKit::SwapChain *old = nullptr);
+
+    ONYX_NO_DISCARD static Result<TKit::TierArray<Window::ImageData>> createImageData(VKit::SwapChain &swapChain);
+    static void destroyImageData(TKit::TierArray<Window::ImageData> &images);
+    static VkExtent2D waitGlfwEvents(u32 width, u32 height);
 
     template <Dimension D> const auto &getCameraArray() const
     {
@@ -326,15 +302,11 @@ class Window
 
     u32 m_ImageIndex;
     u32 m_ImageAvailableIndex = 0;
-    TransferMode m_TransferMode;
     u64 m_ViewBit;
 
     const char *m_Name;
     u32v2 m_Position;
     u32v2 m_Dimensions;
-#ifdef TKIT_ENABLE_INSTRUMENTATION
-    u32 m_ColorIndex = 0;
-#endif
 
     struct
     {
@@ -347,5 +319,6 @@ class Window
     bool m_MustRecreateSwapchain = false;
 
     friend void windowResizeCallback(GLFWwindow *, const i32, const i32);
+    friend Result<Window *> Platform::CreateWindow(const WindowSpecs &);
 };
 } // namespace Onyx

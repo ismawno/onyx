@@ -63,15 +63,15 @@ template <Dimension D> struct AssetData
     StatMeshInfo<D> StaticMeshes;
 };
 
-static AssetData<D2> s_AssetData2{};
-static AssetData<D3> s_AssetData3{};
+static TKit::Storage<AssetData<D2>> s_AssetData2{};
+static TKit::Storage<AssetData<D3>> s_AssetData3{};
 
 template <Dimension D> static AssetData<D> &getData()
 {
     if constexpr (D == D2)
-        return s_AssetData2;
+        return *s_AssetData2;
     else
-        return s_AssetData3;
+        return *s_AssetData3;
 }
 
 template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Vertex> &info)
@@ -209,6 +209,10 @@ template <Dimension D> static void terminate()
 
 Result<> Initialize(const Specs &specs)
 {
+    TKIT_LOG_INFO("[ONYX][ASSETS] Initializing");
+    s_AssetData2.Construct();
+    s_AssetData3.Construct();
+
     s_BatchRanges[Geometry_Circle] = {.BatchStart = 0, .BatchCount = 1};
     s_BatchRanges[Geometry_StaticMesh] = {.BatchStart = 1, .BatchCount = specs.MaxStaticMeshes};
 
@@ -220,6 +224,9 @@ void Terminate()
 {
     terminate<D2>();
     terminate<D3>();
+
+    s_AssetData2.Destruct();
+    s_AssetData3.Destruct();
 }
 
 u32 GetStaticMeshBatchIndex(const Mesh mesh)
@@ -298,10 +305,8 @@ template <Dimension D> void UpdateMesh(const Mesh mesh, const StatMeshData<D> &d
         "[ONYX][ASSETS] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
         "same. If they are not, you must create a new mesh");
 
-    TKit::ForwardCopy(meshes.Meshes.Vertices.begin() + layout.VertexStart, data.Vertices.begin(),
-                              data.Vertices.end());
-    TKit::ForwardCopy(meshes.Meshes.Indices.begin() + layout.IndexStart, data.Indices.begin(),
-                              data.Indices.end());
+    TKit::ForwardCopy(meshes.Meshes.Vertices.begin() + layout.VertexStart, data.Vertices.begin(), data.Vertices.end());
+    TKit::ForwardCopy(meshes.Meshes.Indices.begin() + layout.IndexStart, data.Indices.begin(), data.Indices.end());
 
     layout.Flags |= LayoutFlag_UpdateVertex | LayoutFlag_UpdateIndex;
 }

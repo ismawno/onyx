@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/imgui/backend.hpp"
-#include "onyx/application/window.hpp"
+#include "onyx/platform/window.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/core/core.hpp"
 #include "tkit/profiling/macros.hpp"

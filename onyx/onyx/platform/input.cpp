@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/application/input.hpp"
-#include "onyx/application/window.hpp"
-#include "onyx/core/glfw.hpp"
+#include "onyx/platform/input.hpp"
+#include "onyx/platform/window.hpp"
+#include "onyx/platform/glfw.hpp"
 
 namespace Onyx::Input
 {

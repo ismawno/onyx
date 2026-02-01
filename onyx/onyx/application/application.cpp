@@ -11,7 +11,7 @@ Application::~Application()
     for (WindowLayer *wlayer : m_WindowLayers)
     {
         destroyWindowLayer(wlayer);
-        Window::Destroy(wlayer->m_Window);
+        Platform::DestroyWindow(wlayer->m_Window);
     }
     destroyAppLayer();
 }
@@ -43,7 +43,8 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         TKIT_RETURN_ON_ERROR(cmdres);
         const VkCommandBuffer cmd = cmdres.GetValue();
         TKIT_RETURN_IF_FAILED(Execution::BeginCommandBuffer(cmd));
-        const auto result = m_AppLayer->OnTransfer({.Queue = tqueue, .CommandBuffer = cmd});
+        const auto result =
+            m_AppLayer->OnTransfer({.Queue = tqueue, .CommandBuffer = cmd, .DeltaTime = m_AppLayer->m_TransferDelta});
 
         TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd), revoke());
         TKIT_RETURN_IF_FAILED(result, revoke());
@@ -112,7 +113,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
                 NewImGuiFrame();
             }
 #endif
-            const auto rnres = wlayer->OnRender({.Queue = gqueue, .CommandBuffer = cmd});
+            const auto rnres = wlayer->OnRender({.Queue = gqueue, .CommandBuffer = cmd, .DeltaTime = wlayer->m_Delta});
             TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd), revoke());
 
             TKIT_RETURN_ON_ERROR(rnres, revoke());
@@ -137,6 +138,23 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         return false;
     }
 
+    for (const OpenWindowRequest &request : m_AppLayer->m_WindowRequests)
+    {
+        const auto result = Platform::CreateWindow(request.Specs);
+        TKIT_RETURN_ON_ERROR(result);
+        WindowLayer *wlayer = request.LayerCreation(m_AppLayer, result.GetValue());
+        m_WindowLayers.Append(wlayer);
+    }
+    m_AppLayer->m_WindowRequests.Clear();
+
+    if (m_AppLayer->m_Replacement)
+    {
+        ApplicationLayer *layer = m_AppLayer->m_Replacement();
+        destroyAppLayer();
+        m_AppLayer = layer;
+        m_AppLayer->m_Replacement = nullptr;
+        updateWindowLayers();
+    }
     for (u32 i = 0; i < m_WindowLayers.GetSize(); ++i)
     {
         WindowLayer *layer = m_WindowLayers[i];
@@ -144,7 +162,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         if (layer->checkFlags(WindowLayerFlag_RequestCloseWindow) || window->ShouldClose())
         {
             destroyWindowLayer(layer);
-            Window::Destroy(window);
+            Platform::DestroyWindow(window);
             m_WindowLayers.RemoveUnordered(m_WindowLayers.begin() + i);
             continue;
         }
@@ -155,25 +173,13 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             layer->initializeImGui();
 #endif
         layer->clearFlags(WindowLayerFlag_RequestEnableImGui | WindowLayerFlag_RequestDisableImGui);
+        if (layer->m_Replacement)
+        {
+            WindowLayer *nlayer = layer->m_Replacement(m_AppLayer, layer->m_Window);
+            destroyWindowLayer(nlayer);
+            m_WindowLayers[i] = nlayer;
+        }
     }
-
-    if (m_AppLayer->m_Replacement)
-    {
-        ApplicationLayer *layer = m_AppLayer->m_Replacement();
-        destroyAppLayer();
-        m_AppLayer = layer;
-        m_AppLayer->m_Replacement = nullptr;
-        updateWindowLayers();
-    }
-
-    for (const OpenWindowRequest &request : m_AppLayer->m_WindowRequests)
-    {
-        const auto result = Window::Create(request.Specs);
-        TKIT_RETURN_ON_ERROR(result);
-        WindowLayer *wlayer = request.LayerCreation(m_AppLayer, result.GetValue());
-        m_WindowLayers.Append(wlayer);
-    }
-    m_AppLayer->m_WindowRequests.Clear();
 
     if (m_WindowLayers.IsEmpty())
     {

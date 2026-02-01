@@ -15,9 +15,9 @@ struct CommandPool
 
 namespace Onyx::Execution
 {
-static VKit::CommandPool s_Graphics{};
-static VKit::CommandPool s_Transfer{};
-static TKit::ArenaArray<CommandPool> s_CommandPools{};
+static TKit::Storage<VKit::CommandPool> s_Graphics{};
+static TKit::Storage<VKit::CommandPool> s_Transfer{};
+static TKit::Storage<TKit::ArenaArray<CommandPool>> s_CommandPools{};
 
 ONYX_NO_DISCARD static Result<VKit::CommandPool> createCommandPool(const u32 family)
 {
@@ -27,8 +27,6 @@ ONYX_NO_DISCARD static Result<VKit::CommandPool> createCommandPool(const u32 fam
 
 ONYX_NO_DISCARD static Result<> createTransientCommandPools()
 {
-    TKIT_LOG_INFO("[ONYX][EXECUTION] Creating transient command pools");
-
     const u32 gindex = GetFamilyIndex(VKit::Queue_Graphics);
     const u32 tindex = GetFamilyIndex(VKit::Queue_Transfer);
 
@@ -50,7 +48,7 @@ ONYX_NO_DISCARD static Result<> createTransientCommandPools()
 
 Result<CommandPool *> FindSuitableCommandPool(const u32 family)
 {
-    for (CommandPool &pool : s_CommandPools)
+    for (CommandPool &pool : *s_CommandPools)
         if (pool.Family == family && !pool.Tracker.InUse())
         {
             TKIT_RETURN_IF_FAILED(pool.Pool.Reset());
@@ -58,7 +56,7 @@ Result<CommandPool *> FindSuitableCommandPool(const u32 family)
             return &pool;
         }
 
-    CommandPool &pool = s_CommandPools.Append();
+    CommandPool &pool = s_CommandPools->Append();
     const auto result = createCommandPool(family);
     TKIT_RETURN_ON_ERROR(result);
     pool.Pool = result.GetValue();
@@ -109,7 +107,11 @@ Result<> EndCommandBuffer(const VkCommandBuffer commandBuffer)
 
 Result<> Initialize(const Specs &specs)
 {
-    s_CommandPools.Reserve(specs.MaxCommandPools);
+    TKIT_LOG_INFO("[ONYX][EXECUTION] Initializing");
+    s_Graphics.Construct();
+    s_Transfer.Construct();
+    s_CommandPools.Construct();
+    s_CommandPools->Reserve(specs.MaxCommandPools);
     TKIT_RETURN_IF_FAILED(createTransientCommandPools());
 
     const auto &device = Core::GetDevice();
@@ -138,11 +140,15 @@ Result<> Initialize(const Specs &specs)
 }
 void Terminate()
 {
-    s_Graphics.Destroy();
+    s_Graphics->Destroy();
     if (IsSeparateTransferMode())
-        s_Transfer.Destroy();
-    for (CommandPool &pool : s_CommandPools)
+        s_Transfer->Destroy();
+    for (CommandPool &pool : *s_CommandPools)
         pool.Pool.Destroy();
+
+    s_Graphics.Destruct();
+    s_Transfer.Destruct();
+    s_CommandPools.Destruct();
 }
 Result<> UpdateCompletedQueueTimelines()
 {
@@ -189,11 +195,11 @@ u32 GetFamilyIndex(const VKit::QueueType type)
 
 VKit::CommandPool &GetTransientGraphicsPool()
 {
-    return s_Graphics;
+    return *s_Graphics;
 }
 VKit::CommandPool &GetTransientTransferPool()
 {
-    return s_Transfer;
+    return *s_Transfer;
 }
 
 Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 imageCount)

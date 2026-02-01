@@ -24,25 +24,24 @@ struct ShaderData
     }
 };
 
-static VKit::PipelineLayout s_UnlitLayout{};
-static VKit::PipelineLayout s_LitLayout{};
+static TKit::Storage<VKit::PipelineLayout> s_UnlitLayout{};
+static TKit::Storage<VKit::PipelineLayout> s_LitLayout{};
 
-static ShaderData s_FillShaders2;
-static ShaderData s_FillShaders3;
-static ShaderData s_OutlineShaders2;
-static ShaderData s_OutlineShaders3;
+static TKit::Storage<ShaderData> s_FillShaders2{};
+static TKit::Storage<ShaderData> s_FillShaders3{};
+static TKit::Storage<ShaderData> s_OutlineShaders2{};
+static TKit::Storage<ShaderData> s_OutlineShaders3{};
 
 template <Dimension D> ShaderData &getShaders(const DrawPass pass)
 {
     if constexpr (D == D2)
-        return pass == DrawPass_Fill ? s_FillShaders2 : s_OutlineShaders2;
+        return pass == DrawPass_Fill ? *s_FillShaders2 : *s_OutlineShaders2;
     else
-        return pass == DrawPass_Fill ? s_FillShaders3 : s_OutlineShaders3;
+        return pass == DrawPass_Fill ? *s_FillShaders3 : *s_OutlineShaders3;
 }
 
 ONYX_NO_DISCARD static Result<> createPipelineLayouts()
 {
-    TKIT_LOG_INFO("[ONYX][PIPELINES] Creating pipeline layouts");
     const VkDescriptorSetLayout slayout = Descriptors::GetInstanceDataStorageDescriptorSetLayout();
     const VkDescriptorSetLayout llayout = Descriptors::GetLightStorageDescriptorSetLayout();
 
@@ -69,7 +68,6 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
 
 ONYX_NO_DISCARD static Result<> createShaders()
 {
-    TKIT_LOG_INFO("[ONYX][PIPELINES] Creating main pipeline shaders");
     auto cmpres = Shaders::Compiler()
                       .AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders")
                       .AddModule("mesh-2D")
@@ -101,53 +99,53 @@ ONYX_NO_DISCARD static Result<> createShaders()
     Shaders::Compilation &cmp = cmpres.GetValue();
     auto result = cmp.CreateShader("mainVS", "mesh-2D");
     TKIT_RETURN_ON_ERROR(result);
-    s_FillShaders2.MeshVertexShader = result.GetValue();
+    s_FillShaders2->MeshVertexShader = result.GetValue();
 
     result = cmp.CreateShader("mainFS", "mesh-2D");
     TKIT_RETURN_ON_ERROR(result);
-    s_FillShaders2.MeshFragmentShader = result.GetValue();
+    s_FillShaders2->MeshFragmentShader = result.GetValue();
 
     result = cmp.CreateShader("mainVS", "circle-2D");
     TKIT_RETURN_ON_ERROR(result);
-    s_FillShaders2.CircleVertexShader = result.GetValue();
+    s_FillShaders2->CircleVertexShader = result.GetValue();
 
     result = cmp.CreateShader("mainFS", "circle-2D");
     TKIT_RETURN_ON_ERROR(result);
-    s_FillShaders2.CircleFragmentShader = result.GetValue();
+    s_FillShaders2->CircleFragmentShader = result.GetValue();
 
     result = cmp.CreateShader("mainVS", "mesh-fill-3D");
     TKIT_RETURN_ON_ERROR(result);
-    s_FillShaders3.MeshVertexShader = result.GetValue();
+    s_FillShaders3->MeshVertexShader = result.GetValue();
 
     result = cmp.CreateShader("mainFS", "mesh-fill-3D");
     TKIT_RETURN_ON_ERROR(result);
-    s_FillShaders3.MeshFragmentShader = result.GetValue();
+    s_FillShaders3->MeshFragmentShader = result.GetValue();
 
     result = cmp.CreateShader("mainVS", "circle-fill-3D");
     TKIT_RETURN_ON_ERROR(result);
-    s_FillShaders3.CircleVertexShader = result.GetValue();
+    s_FillShaders3->CircleVertexShader = result.GetValue();
 
     result = cmp.CreateShader("mainFS", "circle-fill-3D");
     TKIT_RETURN_ON_ERROR(result);
-    s_FillShaders3.CircleFragmentShader = result.GetValue();
+    s_FillShaders3->CircleFragmentShader = result.GetValue();
 
     s_OutlineShaders2 = s_FillShaders2;
 
     result = cmp.CreateShader("mainVS", "mesh-stencil-3D");
     TKIT_RETURN_ON_ERROR(result);
-    s_OutlineShaders3.MeshVertexShader = result.GetValue();
+    s_OutlineShaders3->MeshVertexShader = result.GetValue();
 
     result = cmp.CreateShader("mainFS", "mesh-stencil-3D");
     TKIT_RETURN_ON_ERROR(result);
-    s_OutlineShaders3.MeshFragmentShader = result.GetValue();
+    s_OutlineShaders3->MeshFragmentShader = result.GetValue();
 
     result = cmp.CreateShader("mainVS", "circle-stencil-3D");
     TKIT_RETURN_ON_ERROR(result);
-    s_OutlineShaders3.CircleVertexShader = result.GetValue();
+    s_OutlineShaders3->CircleVertexShader = result.GetValue();
 
     result = cmp.CreateShader("mainFS", "circle-stencil-3D");
     TKIT_RETURN_ON_ERROR(result);
-    s_OutlineShaders3.CircleFragmentShader = result.GetValue();
+    s_OutlineShaders3->CircleFragmentShader = result.GetValue();
 
     cmp.Destroy();
     return Result<>::Ok();
@@ -155,21 +153,37 @@ ONYX_NO_DISCARD static Result<> createShaders()
 
 Result<> Initialize()
 {
+    TKIT_LOG_INFO("[ONYX][PIPELINES] Initializing");
+    s_UnlitLayout.Construct();
+    s_LitLayout.Construct();
+
+    s_FillShaders2.Construct();
+    s_FillShaders3.Construct();
+    s_OutlineShaders2.Construct();
+    s_OutlineShaders3.Construct();
     TKIT_RETURN_IF_FAILED(createPipelineLayouts());
     return createShaders();
 }
 void Terminate()
 {
-    s_FillShaders2.Destroy();
-    s_FillShaders3.Destroy();
-    s_OutlineShaders3.Destroy();
-    s_UnlitLayout.Destroy();
-    s_LitLayout.Destroy();
+    s_FillShaders2->Destroy();
+    s_FillShaders3->Destroy();
+    s_OutlineShaders3->Destroy();
+    s_UnlitLayout->Destroy();
+    s_LitLayout->Destroy();
+
+    s_UnlitLayout.Destruct();
+    s_LitLayout.Destruct();
+
+    s_FillShaders2.Destruct();
+    s_FillShaders3.Destruct();
+    s_OutlineShaders2.Destruct();
+    s_OutlineShaders3.Destruct();
 }
 
 VkPipelineLayout GetGraphicsPipelineLayout(const Shading shading)
 {
-    return shading == Shading_Unlit ? s_UnlitLayout : s_LitLayout;
+    return shading == Shading_Unlit ? *s_UnlitLayout : *s_LitLayout;
 }
 
 template <Dimension D>

@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/application/layer.hpp"
 #ifdef ONYX_ENABLE_IMGUI
+#    include "onyx/imgui/theme.hpp"
 #    include "onyx/imgui/backend.hpp"
 #endif
 

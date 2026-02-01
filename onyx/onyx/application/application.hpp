@@ -4,6 +4,7 @@ namespace Onyx
 {
 class Application
 {
+    TKIT_NON_COPYABLE(Application)
   public:
     Application()
     {
@@ -44,9 +45,9 @@ class Application
     }
 
     template <std::derived_from<WindowLayer> T = WindowLayer, typename... LayerArgs>
-    ONYX_NO_DISCARD Result<T *> OpenWindow(const Window::Specs &specs, LayerArgs &&...args)
+    ONYX_NO_DISCARD Result<T *> OpenWindow(const WindowSpecs &specs, LayerArgs &&...args)
     {
-        const auto result = Window::Create(specs);
+        const auto result = Platform::CreateWindow(specs);
         TKIT_RETURN_ON_ERROR(result);
         Window *window = result.GetValue();
         T *layer = Detail::CreateLayer<WindowLayer, T>(m_AppLayer, window, std::forward<LayerArgs>(args)...);
@@ -56,7 +57,7 @@ class Application
     template <std::derived_from<WindowLayer> T = WindowLayer, typename... LayerArgs>
     ONYX_NO_DISCARD Result<T *> OpenWindow(LayerArgs &&...args)
     {
-        const Window::Specs specs{};
+        const WindowSpecs specs{};
         return OpenWindow<T>(specs, std::forward<LayerArgs>(args)...);
     }
 

@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/core/core.hpp"
-#include "onyx/core/glfw.hpp"
+#include "onyx/platform/glfw.hpp"
+#include "onyx/platform/platform.hpp"
 #include "onyx/state/pipelines.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/rendering/renderer.hpp"
@@ -26,19 +27,18 @@ static TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> s_Allocation{};
 static TKit::ITaskManager *s_TaskManager;
 static TKit::Storage<TKit::ThreadPool> s_DefaultTaskManager;
 
-static VKit::Instance s_Instance{};
-static VKit::PhysicalDevice s_Physical{};
-static VKit::LogicalDevice s_Device{};
-
-static VKit::DeletionQueue s_DeletionQueue{};
+static TKit::Storage<VKit::Instance> s_Instance{};
+static TKit::Storage<VKit::PhysicalDevice> s_Physical{};
+static TKit::Storage<VKit::LogicalDevice> s_Device{};
+static TKit::Storage<VKit::DeletionQueue> s_DeletionQueue{};
 
 static TKit::FixedArray<u32, VKit::Queue_Count> s_QueueRequests;
 
 static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
-static InitCallbacks s_Callbacks{};
+static TKit::Storage<InitCallbacks> s_Callbacks{};
 
-#define PUSH_DELETER(code) s_DeletionQueue.Push([] { code; })
-#define SUBMIT_DELETION(object) s_DeletionQueue.SubmitForDeletion(object)
+#define PUSH_DELETER(code) s_DeletionQueue->Push([] { code; })
+#define SUBMIT_DELETION(object) s_DeletionQueue->SubmitForDeletion(object)
 
 ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRequests)
 {
@@ -61,13 +61,13 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
             "[ONYX][CORE] Failed to create a dummy window so choose a device based on surface capabilities");
 
     VkSurfaceKHR surface;
-    const VkResult sresult = glfwCreateWindowSurface(s_Instance, dummy, nullptr, &surface);
+    const VkResult sresult = glfwCreateWindowSurface(*s_Instance, dummy, nullptr, &surface);
     if (sresult != VK_SUCCESS)
     {
         glfwDestroyWindow(dummy);
         return Result<>::Error(sresult);
     }
-    VKit::PhysicalDevice::Selector selector(&s_Instance);
+    VKit::PhysicalDevice::Selector selector(s_Instance.Get());
 
     selector.SetSurface(surface)
         .PreferType(VKit::Device_Discrete)
@@ -81,27 +81,27 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 3, 0);
 
-    if (s_Callbacks.OnPhysicalDeviceCreation)
-        s_Callbacks.OnPhysicalDeviceCreation(selector);
+    if (s_Callbacks->OnPhysicalDeviceCreation)
+        s_Callbacks->OnPhysicalDeviceCreation(selector);
 
     auto physres = selector.Select();
 
-    s_Instance.GetInfo().Table->DestroySurfaceKHR(s_Instance, surface, nullptr);
+    s_Instance->GetInfo().Table->DestroySurfaceKHR(*s_Instance, surface, nullptr);
     glfwDestroyWindow(dummy);
 
     TKIT_RETURN_ON_ERROR(physres);
 
     s_Physical = physres.GetValue();
     TKIT_LOG_INFO("[ONYX][CORE] Selected vulkan device: {}. API version: {}.{}.{}",
-                  s_Physical.GetInfo().Properties.Core.deviceName,
-                  VKIT_EXPAND_VERSION(s_Physical.GetInfo().ApiVersion));
+                  s_Physical->GetInfo().Properties.Core.deviceName,
+                  VKIT_EXPAND_VERSION(s_Physical->GetInfo().ApiVersion));
 
-    TKIT_LOG_WARNING_IF(!(s_Physical.GetInfo().Flags & VKit::DeviceFlag_Optimal),
+    TKIT_LOG_WARNING_IF(!(s_Physical->GetInfo().Flags & VKit::DeviceFlag_Optimal),
                         "[ONYX][CORE] The device is suitable, but not optimal");
 
-    TKIT_LOG_INFO_IF(s_Physical.GetInfo().Flags & VKit::DeviceFlag_Optimal, "[ONYX][CORE] The device is optimal");
+    TKIT_LOG_INFO_IF(s_Physical->GetInfo().Flags & VKit::DeviceFlag_Optimal, "[ONYX][CORE] The device is optimal");
 
-    const u32 apiVersion = s_Physical.GetInfo().ApiVersion;
+    const u32 apiVersion = s_Physical->GetInfo().ApiVersion;
 
     VkPhysicalDeviceShaderDrawParameterFeatures drawParams{};
     drawParams.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES;
@@ -116,18 +116,18 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
         VKit::DeviceFeatures features{};
         features.Vulkan11.shaderDrawParameters = VK_TRUE;
         features.Vulkan12.timelineSemaphore = VK_TRUE;
-        if (!s_Physical.EnableFeatures(features))
+        if (!s_Physical->EnableFeatures(features))
             return Result<>::Error(Error_MissingFeature,
                                    "[ONYX][CORE] Failed to enable timeline semaphores and shader draw parameters");
     }
     else
     {
-        s_Physical.EnableExtensionBoundFeature(&drawParams);
-        s_Physical.EnableExtensionBoundFeature(&tsem);
+        s_Physical->EnableExtensionBoundFeature(&drawParams);
+        s_Physical->EnableExtensionBoundFeature(&tsem);
     }
 #else
-    s_Physical.EnableExtensionBoundFeature(&drawParams);
-    s_Physical.EnableExtensionBoundFeature(&tsem);
+    s_Physical->EnableExtensionBoundFeature(&drawParams);
+    s_Physical->EnableExtensionBoundFeature(&tsem);
 #endif
 
     VkPhysicalDeviceDynamicRenderingFeaturesKHR drendering{};
@@ -144,21 +144,21 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
         VKit::DeviceFeatures features{};
         features.Vulkan13.dynamicRendering = VK_TRUE;
         features.Vulkan13.synchronization2 = VK_TRUE;
-        if (!s_Physical.EnableFeatures(features))
+        if (!s_Physical->EnableFeatures(features))
             return Result<>::Error(Error_MissingFeature,
                                    "[ONYX][CORE] Failed to enable dynamic rendering and synchronization2");
     }
     else
     {
-        s_Physical.EnableExtensionBoundFeature(&drendering);
-        s_Physical.EnableExtensionBoundFeature(&sync2);
+        s_Physical->EnableExtensionBoundFeature(&drendering);
+        s_Physical->EnableExtensionBoundFeature(&sync2);
     }
 #else
-    s_Physical.EnableExtensionBoundFeature(&drendering);
-    s_Physical.EnableExtensionBoundFeature(&sync2);
+    s_Physical->EnableExtensionBoundFeature(&drendering);
+    s_Physical->EnableExtensionBoundFeature(&sync2);
 #endif
 
-    VKit::LogicalDevice::Builder builder{&s_Instance, &s_Physical};
+    VKit::LogicalDevice::Builder builder{s_Instance.Get(), s_Physical.Get()};
     builder.RequireQueue(VKit::Queue_Graphics)
         .RequestQueue(VKit::Queue_Present, s_QueueRequests[VKit::Queue_Present])
         .RequestQueue(VKit::Queue_Transfer, s_QueueRequests[VKit::Queue_Transfer])
@@ -167,15 +167,15 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     if (s_QueueRequests[VKit::Queue_Graphics] > 1)
         builder.RequestQueue(VKit::Queue_Graphics, s_QueueRequests[VKit::Queue_Graphics] - 1);
 
-    if (s_Callbacks.OnLogicalDeviceCreation)
-        s_Callbacks.OnLogicalDeviceCreation(builder);
+    if (s_Callbacks->OnLogicalDeviceCreation)
+        s_Callbacks->OnLogicalDeviceCreation(builder);
 
     const auto devres = builder.Build();
 
     TKIT_RETURN_ON_ERROR(devres);
     s_Device = devres.GetValue();
 
-    SUBMIT_DELETION(s_Device);
+    SUBMIT_DELETION(*s_Device);
     return Result<>::Ok();
 }
 
@@ -183,10 +183,10 @@ ONYX_NO_DISCARD static Result<> createVulkanAllocator()
 {
     TKIT_LOG_INFO("[ONYX][CORE] Creating vulkan allocator");
     VKit::AllocatorSpecs specs{};
-    if (s_Callbacks.OnAllocatorCreation)
-        s_Callbacks.OnAllocatorCreation(specs);
+    if (s_Callbacks->OnAllocatorCreation)
+        s_Callbacks->OnAllocatorCreation(specs);
 
-    const auto result = VKit::CreateAllocator(s_Device);
+    const auto result = VKit::CreateAllocator(*s_Device);
     TKIT_RETURN_ON_ERROR(result);
     s_VulkanAllocator = result.GetValue();
 
@@ -209,25 +209,25 @@ ONYX_NO_DISCARD static Result<> createInstance(const bool validationLayers)
     const TKit::Span<const char *const> extensionSpan(extensions, extensionCount);
     for (u32 i = 0; i < extensionCount; ++i)
         builder.RequireExtension(extensions[i]);
-    if (s_Callbacks.OnInstanceCreation)
-        s_Callbacks.OnInstanceCreation(builder);
+    if (s_Callbacks->OnInstanceCreation)
+        s_Callbacks->OnInstanceCreation(builder);
 
     const auto iresult = builder.Build();
     TKIT_RETURN_ON_ERROR(iresult);
 
     s_Instance = iresult.GetValue();
     TKIT_LOG_INFO("[ONYX][CORE] Created vulkan instance. API version: {}.{}.{}",
-                  VKIT_EXPAND_VERSION(s_Instance.GetInfo().ApiVersion));
+                  VKIT_EXPAND_VERSION(s_Instance->GetInfo().ApiVersion));
 
 #if defined(TKIT_ENABLE_INFO_LOGS) || defined(TKIT_ENABLE_ERROR_LOGS)
-    const bool vlayers = s_Instance.GetInfo().Flags & VKit::InstanceFlag_HasValidationLayers;
+    const bool vlayers = s_Instance->GetInfo().Flags & VKit::InstanceFlag_HasValidationLayers;
 #endif
 
     TKIT_LOG_INFO_IF(vlayers, "[ONYX][CORE] Validation layers enabled");
     TKIT_LOG_ERROR_IF(validationLayers && !vlayers,
                       "[ONYX][CORE] Validation layers were requested, but could not be enabled");
     TKIT_LOG_INFO_IF(!vlayers, "[ONYX][CORE] Validation layers disabled");
-    SUBMIT_DELETION(s_Instance);
+    SUBMIT_DELETION(*s_Instance);
     return Result<>::Ok();
 }
 
@@ -271,29 +271,6 @@ static void initializeAllocators(const Specs &specs)
     }
 }
 
-#ifdef TKIT_ENABLE_ERROR_LOGS
-static void glfwErrorCallback(const i32 errorCode, const char *description)
-{
-    TKIT_LOG_ERROR("[ONYX][GLFW] An error ocurred with code {} and the following description: {}", errorCode,
-                   description);
-}
-#endif
-
-ONYX_NO_DISCARD static Result<> initializeGlfw(const u32 platform)
-{
-    TKIT_LOG_INFO("[ONYX][CORE] Initializing GLFW");
-#ifdef TKIT_ENABLE_ERROR_LOGS
-    glfwSetErrorCallback(glfwErrorCallback);
-#endif
-    glfwInitHint(GLFW_PLATFORM, platform);
-    if (glfwInit() != GLFW_TRUE)
-        return Result<>::Error(Error_InitializationFailed, "[ONYX][CORE] GLFW failed to initialize");
-
-    PUSH_DELETER(glfwTerminate());
-    TKIT_LOG_WARNING_IF(!glfwVulkanSupported(), "[ONYX][CORE] Vulkan is not supported, according to GLFW");
-    return Result<>::Ok();
-}
-
 void terminateAllocators()
 {
     if (s_PushedAlloc & 4)
@@ -306,8 +283,13 @@ void terminateAllocators()
 
 Result<> Initialize(const Specs &specs)
 {
-    TKIT_LOG_INFO("[ONYX][CORE] Initializing Onyx");
+    TKIT_LOG_INFO("[ONYX][CORE] Initializing");
     TKIT_LOG_INFO("[ONYX][CORE] Vulkan headers version: {}.{}.{}", VKIT_EXPAND_VERSION(VK_HEADER_VERSION_COMPLETE));
+    s_Instance.Construct();
+    s_Physical.Construct();
+    s_Device.Construct();
+    s_DeletionQueue.Construct();
+    s_Callbacks.Construct(specs.Callbacks);
 
     initializeAllocators(specs);
     PUSH_DELETER(terminateAllocators());
@@ -329,9 +311,11 @@ Result<> Initialize(const Specs &specs)
         s_TaskManager = s_DefaultTaskManager.Get();
         PUSH_DELETER(s_DefaultTaskManager.Destruct());
     }
-    s_Callbacks = specs.Callbacks;
 
-    TKIT_RETURN_IF_FAILED(initializeGlfw(specs.Platform), Terminate());
+    PUSH_DELETER(Platform::Terminate());
+    TKIT_RETURN_IF_FAILED(Platform::Initialize(specs.PlatformSpecs ? *specs.PlatformSpecs : Platform::Specs{}),
+                          Terminate());
+
     TKIT_RETURN_IF_FAILED(createInstance(specs.EnableValidationLayers), Terminate());
     TKIT_RETURN_IF_FAILED(createDevice(specs.QueueRequests), Terminate());
     TKIT_RETURN_IF_FAILED(createVulkanAllocator(), Terminate());
@@ -362,9 +346,14 @@ Result<> Initialize(const Specs &specs)
 
 void Terminate()
 {
-    if (s_Device)
+    if (*s_Device)
         ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
-    s_DeletionQueue.Flush();
+
+    s_Callbacks.Destruct();
+    s_DeletionQueue.Destruct();
+    s_Device.Destruct();
+    s_Physical.Destruct();
+    s_Instance.Destruct();
 }
 
 TKit::ITaskManager *GetTaskManager()
@@ -378,28 +367,28 @@ void SetTaskManager(TKit::ITaskManager *taskManager)
 
 const VKit::Instance &GetInstance()
 {
-    TKIT_ASSERT(s_Instance, "[ONYX][CORE] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
-    return s_Instance;
+    TKIT_ASSERT(*s_Instance, "[ONYX][CORE] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
+    return *s_Instance;
 }
 const VKit::Vulkan::InstanceTable *GetInstanceTable()
 {
-    TKIT_ASSERT(s_Instance, "[ONYX][CORE] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
-    return s_Instance.GetInfo().Table;
+    TKIT_ASSERT(*s_Instance, "[ONYX][CORE] Vulkan instance is not initialized! Forgot to call Onyx::Core::Initialize?");
+    return s_Instance->GetInfo().Table;
 };
 const VKit::LogicalDevice &GetDevice()
 {
-    TKIT_ASSERT(s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Core::Initialize?");
-    return s_Device;
+    TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Core::Initialize?");
+    return *s_Device;
 }
 const VKit::Vulkan::DeviceTable *GetDeviceTable()
 {
-    TKIT_ASSERT(s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Core::Initialize?");
-    return s_Device.GetInfo().Table;
+    TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Core::Initialize?");
+    return s_Device->GetInfo().Table;
 };
 Result<> DeviceWaitIdle()
 {
-    TKIT_ASSERT(s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Core::Initialize?");
-    return s_Device.WaitIdle();
+    TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Core::Initialize?");
+    return s_Device->WaitIdle();
 }
 
 VmaAllocator GetVulkanAllocator()
@@ -411,7 +400,7 @@ VmaAllocator GetVulkanAllocator()
 
 VKit::DeletionQueue &GetDeletionQueue()
 {
-    return s_DeletionQueue;
+    return *s_DeletionQueue;
 }
 
 } // namespace Onyx::Core

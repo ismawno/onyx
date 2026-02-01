@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/core/dialog.hpp"
+#include "onyx/platform/dialog.hpp"
 #include <nfd.h>
 
 namespace Onyx::Dialog

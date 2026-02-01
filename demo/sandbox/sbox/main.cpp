@@ -8,7 +8,7 @@
 
 void RunApp(const Onyx::Dimension dim)
 {
-    Onyx::Window::Specs spc;
+    Onyx::WindowSpecs spc;
     spc.Name = "Onyx sandbox";
 
     Onyx::Application app{spc};

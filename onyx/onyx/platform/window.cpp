@@ -1,29 +1,12 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/application/window.hpp"
-#include "onyx/application/input.hpp"
+#include "onyx/platform/window.hpp"
+#include "onyx/platform/input.hpp"
 #include "onyx/core/core.hpp"
+#include "onyx/platform/glfw.hpp"
 #include "tkit/profiling/macros.hpp"
-#include "onyx/core/glfw.hpp"
 
 namespace Onyx
 {
-#ifdef TKIT_ENABLE_INSTRUMENTATION
-static u32 s_ColorIndex = 0;
-static u32 s_Colors[4] = {0x434E78, 0x607B8F, 0xF7E396, 0xE97F4A};
-#endif
-
-static u64 s_ViewCache = TKIT_U64_MAX;
-static u64 allocateViewBit()
-{
-    const u32 index = static_cast<u32>(std::countr_zero(s_ViewCache));
-    const u64 viewBit = 1 << index;
-    s_ViewCache &= ~viewBit;
-    return viewBit;
-}
-static void deallocateViewBit(const u64 viewBit)
-{
-    s_ViewCache |= viewBit;
-}
 
 // edge cases a bit unrealistic yes
 u32 ToFrequency(const TKit::Timespan deltaTime)
@@ -45,7 +28,7 @@ TKit::Timespan ToDeltaTime(const u32 frequency)
     return TKit::Timespan::FromSeconds(1.f / static_cast<f32>(frequency));
 }
 
-static VkExtent2D waitGlfwEvents(const u32 width, const u32 height)
+VkExtent2D Window::waitGlfwEvents(const u32 width, const u32 height)
 {
     VkExtent2D windowExtent = {width, height};
     while (windowExtent.width == 0 || windowExtent.height == 0)
@@ -56,10 +39,8 @@ static VkExtent2D waitGlfwEvents(const u32 width, const u32 height)
     return windowExtent;
 }
 
-ONYX_NO_DISCARD static Result<VKit::SwapChain> createSwapChain(const VkPresentModeKHR presentMode,
-                                                               const VkSurfaceKHR surface,
-                                                               const VkExtent2D &windowExtent,
-                                                               const VKit::SwapChain *old = nullptr)
+Result<VKit::SwapChain> Window::createSwapChain(const VkPresentModeKHR presentMode, const VkSurfaceKHR surface,
+                                                const VkExtent2D &windowExtent, const VKit::SwapChain *old)
 {
     const VKit::LogicalDevice &device = Core::GetDevice();
     return VKit::SwapChain::Builder(&device, surface)
@@ -72,7 +53,7 @@ ONYX_NO_DISCARD static Result<VKit::SwapChain> createSwapChain(const VkPresentMo
         .Build();
 }
 
-ONYX_NO_DISCARD static Result<TKit::TierArray<Window::ImageData>> createImageData(VKit::SwapChain &swapChain)
+Result<TKit::TierArray<Window::ImageData>> Window::createImageData(VKit::SwapChain &swapChain)
 {
     const VKit::SwapChain::Info &info = swapChain.GetInfo();
     TKit::TierArray<Window::ImageData> images{};
@@ -95,112 +76,14 @@ ONYX_NO_DISCARD static Result<TKit::TierArray<Window::ImageData>> createImageDat
     return images;
 }
 
-static void destroyImageData(TKit::TierArray<Window::ImageData> &images)
+void Window::destroyImageData(TKit::TierArray<Window::ImageData> &images)
 {
     for (Window::ImageData &data : images)
         data.DepthStencil.Destroy();
 }
 
-Result<Window *> Window::Create()
-{
-    return Create({});
-}
-Result<Window *> Window::Create(const Specs &specs)
-{
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, specs.Flags & WindowFlag_Resizable);
-    glfwWindowHint(GLFW_VISIBLE, specs.Flags & WindowFlag_Visible);
-    glfwWindowHint(GLFW_DECORATED, specs.Flags & WindowFlag_Decorated);
-    glfwWindowHint(GLFW_FOCUSED, specs.Flags & WindowFlag_Focused);
-    glfwWindowHint(GLFW_FLOATING, specs.Flags & WindowFlag_Floating);
-
-    GLFWwindow *handle = glfwCreateWindow(static_cast<i32>(specs.Dimensions[0]), static_cast<i32>(specs.Dimensions[1]),
-                                          specs.Name, nullptr, nullptr);
-    if (!handle)
-        return Result<>::Error(Error_RejectedWindow);
-
-    VKit::DeletionQueue cleanup{};
-    cleanup.Push([handle] { glfwDestroyWindow(handle); });
-
-    u32v2 pos;
-    if (specs.Position != u32v2{TKIT_U32_MAX})
-    {
-        glfwSetWindowPos(handle, static_cast<i32>(specs.Position[0]), static_cast<i32>(specs.Position[1]));
-        pos = specs.Position;
-    }
-    else
-    {
-        i32 x, y;
-        glfwGetWindowPos(handle, &x, &y);
-        pos = u32v2{x, y};
-    }
-
-    VkSurfaceKHR surface;
-    const VkResult result = glfwCreateWindowSurface(Core::GetInstance(), handle, nullptr, &surface);
-    if (result != VK_SUCCESS)
-        return Result<>::Error(Error_NoSurfaceCapabilities);
-
-    cleanup.Push([surface] { Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), surface, nullptr); });
-    if (specs.Flags & WindowFlag_InstallCallbacks)
-        Input::InstallCallbacks(handle);
-
-    const VkExtent2D extent = waitGlfwEvents(specs.Dimensions[0], specs.Dimensions[1]);
-    auto sresult = Onyx::createSwapChain(specs.PresentMode, surface, extent);
-    TKIT_RETURN_ON_ERROR(sresult);
-
-    VKit::SwapChain &schain = sresult.GetValue();
-    cleanup.Push([&schain] { schain.Destroy(); });
-
-    auto syresult = Execution::CreateSyncData(schain.GetImageCount());
-    TKIT_RETURN_ON_ERROR(syresult);
-    TKit::TierArray<Execution::SyncData> &syncData = syresult.GetValue();
-    cleanup.Push([&syncData] { Execution::DestroySyncData(syncData); });
-
-    if (s_ViewCache == 0)
-        return Result<>::Error(
-            Error_InitializationFailed,
-            "[ONYX][WINDOW] Maximum amount of windows exceeded. There is a hard limit of 64 windows");
-
-    TKit::TierAllocator *alloc = TKit::GetTier();
-    Window *window = alloc->Create<Window>();
-
-    window->m_Window = handle;
-    window->m_Name = specs.Name;
-    window->m_Flags = specs.Flags;
-    window->m_Surface = surface;
-    window->m_SwapChain = schain;
-    window->m_Position = pos;
-    window->m_Dimensions = specs.Dimensions;
-
-    auto iresult = createImageData(window->m_SwapChain);
-    TKIT_RETURN_ON_ERROR(iresult);
-    TKit::TierArray<ImageData> &imageData = iresult.GetValue();
-    cleanup.Push([&imageData] { destroyImageData(imageData); });
-    window->m_Images = std::move(imageData);
-
-    window->m_PresentMode = specs.PresentMode;
-    window->m_SyncData = std::move(syncData);
-    window->m_ViewBit = allocateViewBit();
-    window->m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
-#ifdef TKIT_ENABLE_INSTRUMENTATION
-    window->m_ColorIndex = s_ColorIndex++ & 3;
-#endif
-    window->UpdateMonitorDeltaTime();
-    glfwSetWindowUserPointer(handle, window);
-
-    cleanup.Clear();
-    return window;
-}
-
-void Window::Destroy(Window *window)
-{
-    TKit::TierAllocator *alloc = TKit::GetTier();
-    alloc->Destroy(window);
-}
-
 Window::~Window()
 {
-    deallocateViewBit(m_ViewBit);
     Renderer::ClearWindow(this);
     ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
     destroyImageData(m_Images);
@@ -307,7 +190,7 @@ Result<bool> Window::AcquireNextImage(const Timeout timeout)
 
 Result<> Window::createSwapChain(const VkExtent2D &windowExtent)
 {
-    const auto result = Onyx::createSwapChain(m_PresentMode, m_Surface, windowExtent, &m_SwapChain);
+    const auto result = createSwapChain(m_PresentMode, m_Surface, windowExtent, &m_SwapChain);
     TKIT_RETURN_ON_ERROR(result);
     m_SwapChain = result.GetValue();
     return Result<>::Ok();
@@ -381,7 +264,6 @@ Result<> Window::recreateResources()
 void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &clearColor)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::BeginRendering");
-    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
     const auto table = Core::GetDeviceTable();
 
     VkRenderingAttachmentInfoKHR present{};
@@ -446,7 +328,6 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
 void Window::EndRendering(const VkCommandBuffer commandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::EndRendering");
-    TKIT_PROFILE_SCOPE_COLOR(s_Colors[m_ColorIndex]);
     const auto table = Core::GetDeviceTable();
 
     table->CmdEndRenderingKHR(commandBuffer);
