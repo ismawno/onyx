@@ -33,13 +33,13 @@ ONYX_NO_DISCARD static Result<> createTransientCommandPools()
     const auto gresult = createCommandPool(gindex);
     TKIT_RETURN_ON_ERROR(gresult);
 
-    s_Graphics = gresult.GetValue();
+    *s_Graphics = gresult.GetValue();
     if (gindex != tindex)
     {
         const auto tresult = createCommandPool(tindex);
         TKIT_RETURN_ON_ERROR(tresult);
 
-        s_Transfer = tresult.GetValue();
+        *s_Transfer = tresult.GetValue();
     }
     else
         s_Transfer = s_Graphics;

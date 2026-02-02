@@ -24,6 +24,7 @@ WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const Windo
 }
 Result<Renderer::RenderSubmitInfo> WindowLayer::OnRender(const ExecutionInfo &info)
 {
+    OnRender(info.DeltaTime);
     return Render(info);
 }
 
@@ -96,6 +97,7 @@ void WindowLayer::shutdownImGui()
 
 Result<Renderer::TransferSubmitInfo> ApplicationLayer::OnTransfer(const ExecutionInfo &info)
 {
+    OnTransfer(info.DeltaTime);
     return Transfer(info);
 }
 Result<Renderer::TransferSubmitInfo> ApplicationLayer::Transfer(const ExecutionInfo &info)

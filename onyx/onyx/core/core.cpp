@@ -91,7 +91,7 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
 
     TKIT_RETURN_ON_ERROR(physres);
 
-    s_Physical = physres.GetValue();
+    *s_Physical = physres.GetValue();
     TKIT_LOG_INFO("[ONYX][CORE] Selected vulkan device: {}. API version: {}.{}.{}",
                   s_Physical->GetInfo().Properties.Core.deviceName,
                   VKIT_EXPAND_VERSION(s_Physical->GetInfo().ApiVersion));
@@ -173,7 +173,7 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     const auto devres = builder.Build();
 
     TKIT_RETURN_ON_ERROR(devres);
-    s_Device = devres.GetValue();
+    *s_Device = devres.GetValue();
 
     SUBMIT_DELETION(*s_Device);
     return Result<>::Ok();
@@ -215,7 +215,7 @@ ONYX_NO_DISCARD static Result<> createInstance(const bool validationLayers)
     const auto iresult = builder.Build();
     TKIT_RETURN_ON_ERROR(iresult);
 
-    s_Instance = iresult.GetValue();
+    *s_Instance = iresult.GetValue();
     TKIT_LOG_INFO("[ONYX][CORE] Created vulkan instance. API version: {}.{}.{}",
                   VKIT_EXPAND_VERSION(s_Instance->GetInfo().ApiVersion));
 
@@ -388,7 +388,8 @@ const VKit::Vulkan::DeviceTable *GetDeviceTable()
 Result<> DeviceWaitIdle()
 {
     TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Core::Initialize?");
-    return s_Device->WaitIdle();
+    TKIT_RETURN_IF_FAILED(s_Device->WaitIdle());
+    return Execution::UpdateCompletedQueueTimelines();
 }
 
 VmaAllocator GetVulkanAllocator()

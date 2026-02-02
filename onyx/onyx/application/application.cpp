@@ -129,6 +129,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
     }
     const auto endFrame = [&] {
         m_AppLayer->m_Flags = 0;
+        m_AppLayer->m_ApplicationDeltaTime = clock.Restart();
         TKIT_PROFILE_MARK_FRAME();
     };
 
@@ -149,7 +150,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
 
     if (m_AppLayer->m_Replacement)
     {
-        ApplicationLayer *layer = m_AppLayer->m_Replacement();
+        ApplicationLayer *layer = m_AppLayer->m_Replacement(&m_WindowLayers);
         destroyAppLayer();
         m_AppLayer = layer;
         m_AppLayer->m_Replacement = nullptr;
@@ -201,8 +202,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         TKit::Timespan::Sleep(sleep);
     }
 
-    TKIT_PROFILE_MARK_FRAME();
-    m_DeltaTime = clock.Restart();
+    endFrame();
     return true;
 }
 

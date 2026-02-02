@@ -74,6 +74,10 @@ class WindowLayer
             shutdownImGui();
 #endif
     }
+
+    virtual void OnRender(const DeltaTime &)
+    {
+    }
     virtual Result<Renderer::RenderSubmitInfo> OnRender(const ExecutionInfo &info);
 
     virtual void OnEvent(const Event &)
@@ -132,11 +136,17 @@ class WindowLayer
     }
 #endif
 
+    ApplicationLayer *GetApplicationLayer() const
+    {
+        return m_AppLayer;
+    }
+    Window *GetWindow() const
+    {
+        return m_Window;
+    }
+
   protected:
     ONYX_NO_DISCARD Result<Renderer::RenderSubmitInfo> Render(const ExecutionInfo &info);
-
-    ApplicationLayer *m_AppLayer;
-    Window *m_Window;
 
   private:
 #ifdef ONYX_ENABLE_IMGUI
@@ -164,6 +174,9 @@ class WindowLayer
     {
         m_Flags &= ~flags;
     }
+
+    ApplicationLayer *m_AppLayer;
+    Window *m_Window;
 
     TKit::Clock m_Clock{};
     DeltaTime m_Delta{};
@@ -199,11 +212,13 @@ enum ApplicationLayerFlagBit : ApplicationLayerFlags
     ApplicationLayerFlag_RequestQuitApplication = 1 << 0,
 };
 
+using WindowLayers = TKit::TierArray<WindowLayer *>;
 class ApplicationLayer
 {
     TKIT_NON_COPYABLE(ApplicationLayer)
   public:
-    ApplicationLayer(const TKit::Timespan targetDeltaTime = ToDeltaTime(60))
+    ApplicationLayer(const WindowLayers *layers, const TKit::Timespan targetDeltaTime = ToDeltaTime(60))
+        : m_WindowLayers(layers)
     {
         m_UpdateDelta.Target = targetDeltaTime;
         m_TransferDelta.Target = targetDeltaTime;
@@ -215,18 +230,23 @@ class ApplicationLayer
     {
     }
 
+    virtual void OnTransfer(const DeltaTime &)
+    {
+    }
     virtual Result<Renderer::TransferSubmitInfo> OnTransfer(const ExecutionInfo &info);
 
     template <std::derived_from<ApplicationLayer> T = ApplicationLayer, typename... LayerArgs>
     void RequestReplaceLayer(LayerArgs... args)
     {
-        m_Replacement = [=]() { return Detail::CreateLayer<ApplicationLayer, T>(args...); };
+        m_Replacement = [=](const WindowLayers *layers) {
+            return Detail::CreateLayer<ApplicationLayer, T>(layers, args...);
+        };
     }
     template <std::derived_from<ApplicationLayer> T = ApplicationLayer, std::invocable<T *> F, typename... LayerArgs>
     void RequestReplaceLayer(F fun, LayerArgs... args)
     {
-        m_Replacement = [=]() {
-            T *layer = Detail::CreateLayer<ApplicationLayer, T>(args...);
+        m_Replacement = [=](const WindowLayers *layers) {
+            T *layer = Detail::CreateLayer<ApplicationLayer, T>(layers, args...);
             fun(layer);
             return layer;
         };
@@ -278,6 +298,15 @@ class ApplicationLayer
     }
 #endif
 
+    const WindowLayers *GetWindowLayers() const
+    {
+        return m_WindowLayers;
+    }
+    TKit::Timespan GetApplicationDeltaTime() const
+    {
+        return m_ApplicationDeltaTime;
+    }
+
   protected:
     ONYX_NO_DISCARD Result<Renderer::TransferSubmitInfo> Transfer(const ExecutionInfo &info);
 
@@ -319,6 +348,9 @@ class ApplicationLayer
         m_Flags &= ~flags;
     }
 
+    ApplicationLayer *m_AppLayer;
+    Window *m_Window;
+
     TKit::TierArray<OpenWindowRequest> m_WindowRequests{};
 
     TKit::Clock m_UpdateClock{};
@@ -332,7 +364,10 @@ class ApplicationLayer
     DeltaInfo m_TransferDeltaInfo{};
 #endif
 
-    std::function<ApplicationLayer *()> m_Replacement = nullptr;
+    const WindowLayers *m_WindowLayers;
+    TKit::Timespan m_ApplicationDeltaTime{};
+
+    std::function<ApplicationLayer *(const WindowLayers *)> m_Replacement = nullptr;
     u32 m_Size = 0;
 
     ApplicationLayerFlags m_Flags = 0;

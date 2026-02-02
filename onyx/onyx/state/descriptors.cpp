@@ -29,14 +29,14 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
                                 .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, specs.PoolSize)
                                 .Build();
     TKIT_RETURN_ON_ERROR(poolResult);
-    s_DescriptorPool = poolResult.GetValue();
+    *s_DescriptorPool = poolResult.GetValue();
 
     auto layoutResult = VKit::DescriptorSetLayout::Builder(device)
                             .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
                             .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);
-    s_InstanceDataStorageLayout = layoutResult.GetValue();
+    *s_InstanceDataStorageLayout = layoutResult.GetValue();
 
     layoutResult = VKit::DescriptorSetLayout::Builder(device)
                        .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -44,7 +44,7 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
                        .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);
-    s_LightStorageLayout = layoutResult.GetValue();
+    *s_LightStorageLayout = layoutResult.GetValue();
     return Result<>::Ok();
 }
 

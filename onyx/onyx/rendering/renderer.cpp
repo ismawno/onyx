@@ -668,18 +668,21 @@ Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<con
 
 template <Dimension D> void gatherAcquireBarriers(TKit::TierArray<VkBufferMemoryBarrier2KHR> &barriers)
 {
-    const RendererData<D> &rdata = getRendererData<D>();
-    for (const Arena &arena : rdata.Arenas)
-        for (const GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
-            if (grange.InUseByTransfer())
+    RendererData<D> &rdata = getRendererData<D>();
+    for (Arena &arena : rdata.Arenas)
+        for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
+            if (grange.Barrier.size != 0 && grange.InUseByTransfer())
+            {
                 barriers.Append(grange.Barrier);
+                grange.Barrier.size = 0;
+            }
 }
 
 void ApplyAcquireBarriers(const VkCommandBuffer graphicsCommand)
 {
     TKit::TierArray<VkBufferMemoryBarrier2KHR> barriers{};
     gatherAcquireBarriers<D2>(barriers);
-    gatherAcquireBarriers<D3>(barriers);
+    // gatherAcquireBarriers<D3>(barriers);
     if (!barriers.IsEmpty())
     {
         const auto table = Core::GetDeviceTable();
@@ -701,7 +704,7 @@ template <Dimension D> static void setCameraViewport(const VkCommandBuffer comma
         TKit::FixedArray<VkClearAttachment, D - 1> clearAttachments{};
         clearAttachments[0].colorAttachment = 0;
         clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        clearAttachments[0].clearValue.color = {{bg.rgb[0], bg.rgb[1], bg.rgb[2], bg.rgb[3]}};
+        clearAttachments[0].clearValue.color = {{bg.rgba[0], bg.rgba[1], bg.rgba[2], bg.rgba[3]}};
 
         if constexpr (D == D3)
         {
@@ -900,8 +903,8 @@ Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer com
         maxSyncPoints += arena.Graphics.MemoryRanges.GetSize();
     transferTrackers.Reserve(maxSyncPoints);
 
-    TKIT_RETURN_IF_FAILED(render<D2>(graphics, command, window, graphicsFlight, transferTrackers));
     TKIT_RETURN_IF_FAILED(render<D3>(graphics, command, window, graphicsFlight, transferTrackers));
+    TKIT_RETURN_IF_FAILED(render<D2>(graphics, command, window, graphicsFlight, transferTrackers));
 
     VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
     rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;

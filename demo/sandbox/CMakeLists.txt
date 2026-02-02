@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(onyx-sandbox)
 
-set(SOURCES sandbox/sandbox.cpp)
+set(SOURCES sandbox/sandbox.cpp sandbox/main.cpp)
 
 add_executable(onyx-sandbox ${SOURCES})
 

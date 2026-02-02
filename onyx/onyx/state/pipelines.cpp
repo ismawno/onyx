@@ -52,7 +52,7 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
                             .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);
-    s_UnlitLayout = layoutResult.GetValue();
+    *s_UnlitLayout = layoutResult.GetValue();
 
     layoutResult = VKit::PipelineLayout::Builder(device)
                        .AddDescriptorSetLayout(slayout)
@@ -62,7 +62,7 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
                        .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);
-    s_LitLayout = layoutResult.GetValue();
+    *s_LitLayout = layoutResult.GetValue();
     return Result<>::Ok();
 }
 

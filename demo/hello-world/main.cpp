@@ -17,7 +17,7 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
     {
         Window *win = windows.Append(ONYX_CHECK_EXPRESSION(Platform::CreateWindow()));
         ctx->AddTarget(win);
-        win->CreateCamera<D2>();
+        win->CreateCamera<D2>()->BackgroundColor = Color{0.1f};
     }
 
     while (!windows.IsEmpty())
@@ -93,15 +93,16 @@ void ApplicationExample()
         {
         }
 
-        Result<Renderer::RenderSubmitInfo> OnRender(const ExecutionInfo &info) override
+        void OnRender(const DeltaTime &) override
         {
+            ApplicationLayer *appLayer = GetApplicationLayer();
+            Window *window = GetWindow();
             ImGui::Begin("Hello");
             if (ImGui::Button("Spawn"))
-                m_AppLayer->RequestOpenWindow<WinLayer>();
-            PresentModeEditor(m_Window);
+                appLayer->RequestOpenWindow<WinLayer>();
+            PresentModeEditor(window);
             DeltaTimeEditor();
             ImGui::End();
-            return Render(info);
         }
     };
     Application app{};
@@ -112,12 +113,12 @@ void ApplicationExample()
 int main()
 {
     ONYX_CHECK_EXPRESSION(Core::Initialize());
-    // const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
-    // const Mesh mesh = Assets::AddMesh(data);
-    // ONYX_CHECK_EXPRESSION(Assets::Upload<D2>());
+    const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
+    const Mesh mesh = Assets::AddMesh(data);
+    ONYX_CHECK_EXPRESSION(Assets::Upload<D2>());
 
-    // WindowExample(mesh, 2);
-    ApplicationExample();
+    WindowExample(mesh, 8);
+    // ApplicationExample();
 
     Core::Terminate();
 }

@@ -13,7 +13,7 @@ namespace Onyx::Descriptors
 {
 struct Specs
 {
-    u32 MaxSets = 32;
+    u32 MaxSets = 256;
     u32 PoolSize = 1024;
 };
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);

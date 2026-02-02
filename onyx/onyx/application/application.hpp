@@ -1,3 +1,5 @@
+#pragma once
+
 #include "onyx/application/layer.hpp"
 
 namespace Onyx
@@ -29,7 +31,7 @@ class Application
     {
         if (m_AppLayer)
             destroyAppLayer();
-        T *layer = Detail::CreateLayer<ApplicationLayer, T>(std::forward<LayerArgs>(args)...);
+        T *layer = Detail::CreateLayer<ApplicationLayer, T>(&m_WindowLayers, std::forward<LayerArgs>(args)...);
         m_AppLayer = layer;
         updateWindowLayers();
         return layer;
@@ -70,7 +72,5 @@ class Application
 
     ApplicationLayer *m_AppLayer = nullptr;
     TKit::TierArray<WindowLayer *> m_WindowLayers{};
-
-    TKit::Timespan m_DeltaTime{};
 };
 } // namespace Onyx
