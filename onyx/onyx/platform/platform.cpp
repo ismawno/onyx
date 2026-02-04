@@ -88,8 +88,7 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
         return Result<>::Error(Error_NoSurfaceCapabilities);
 
     cleanup.Push([surface] { Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), surface, nullptr); });
-    if (specs.Flags & WindowFlag_InstallCallbacks)
-        Input::InstallCallbacks(handle);
+    Input::InstallCallbacks(handle);
 
     const VkExtent2D extent = Window::waitGlfwEvents(specs.Dimensions[0], specs.Dimensions[1]);
     auto sresult = Window::createSwapChain(specs.PresentMode, surface, extent);
@@ -118,6 +117,7 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     window->m_SwapChain = schain;
     window->m_Position = pos;
     window->m_Dimensions = specs.Dimensions;
+    window->Callbacks = specs.Callbacks;
 
     auto iresult = Window::createImageData(window->m_SwapChain);
     TKIT_RETURN_ON_ERROR(iresult);

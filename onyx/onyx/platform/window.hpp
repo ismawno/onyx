@@ -251,6 +251,8 @@ class Window
         return m_SyncData[m_ImageIndex].RenderFinishedSemaphore;
     }
 
+    WindowCallbacks Callbacks{};
+
   private:
     void adaptCamerasToViewportAspect();
 
@@ -318,7 +320,7 @@ class Window
     WindowFlags m_Flags;
     bool m_MustRecreateSwapchain = false;
 
-    friend void windowResizeCallback(GLFWwindow *, const i32, const i32);
+    friend void windowSizeCallback(GLFWwindow *, const i32, const i32);
     friend Result<Window *> Platform::CreateWindow(const WindowSpecs &);
 };
 } // namespace Onyx
