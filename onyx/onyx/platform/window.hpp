@@ -251,8 +251,6 @@ class Window
         return m_SyncData[m_ImageIndex].RenderFinishedSemaphore;
     }
 
-    WindowCallbacks Callbacks{};
-
   private:
     void adaptCamerasToViewportAspect();
 

@@ -117,7 +117,6 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     window->m_SwapChain = schain;
     window->m_Position = pos;
     window->m_Dimensions = specs.Dimensions;
-    window->Callbacks = specs.Callbacks;
 
     auto iresult = Window::createImageData(window->m_SwapChain);
     TKIT_RETURN_ON_ERROR(iresult);
