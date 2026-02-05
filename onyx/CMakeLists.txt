@@ -199,7 +199,7 @@ if(ONYX_ENABLE_IMGUI)
       ${imgui_SOURCE_DIR}/imgui_draw.cpp
       ${imgui_SOURCE_DIR}/imgui_tables.cpp
       ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-      ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+      # ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
       ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
 
   add_library(imgui STATIC ${IMGUI_SOURCES})
@@ -212,9 +212,11 @@ if(ONYX_ENABLE_IMGUI)
     target_link_libraries(imgui PUBLIC Vulkan::Headers)
   endif()
   target_link_libraries(imgui PRIVATE glfw)
-  target_compile_definitions(imgui PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
-                                           IMGUI_IMPL_GLFW_DISABLE_X11)
-  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMGUI)
+  target_compile_definitions(imgui PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
+  target_compile_definitions(
+    onyx
+    PUBLIC ONYX_ENABLE_IMGUI
+    PRIVATE ONYX_IMGUI_DISABLE_X11)
   target_link_libraries(onyx PUBLIC imgui)
 
   tkit_configure_compile_link_options(imgui NO_EXCEPTIONS NO_RTTI)
