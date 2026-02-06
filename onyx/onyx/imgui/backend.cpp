@@ -918,7 +918,7 @@ void RenderImGuiWindows()
 
 void ShutdownImGui()
 {
-    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
     ImGui_ImplVulkan_Shutdown();
     platformImGuiShutdown();
     ImGui::DestroyPlatformWindows();

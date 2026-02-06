@@ -45,7 +45,7 @@ template <Dimension D> void SandboxAppLayer::AddMeshes()
         addStatic("Sphere", Assets::CreateSphereMesh(32, 64));
         addStatic("Cylinder", Assets::CreateCylinderMesh(64));
     }
-    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+    VKIT_CHECK_EXPRESSION(Assets::Upload<D>());
 }
 
 template <Dimension D> static void setShapeProperties(RenderContext<D> *context, const Shape<D> &shape)

@@ -347,7 +347,7 @@ Result<> Initialize(const Specs &specs)
 void Terminate()
 {
     if (*s_Device)
-        ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
+        VKIT_CHECK_EXPRESSION(DeviceWaitIdle());
 
     s_Callbacks.Destruct();
     s_DeletionQueue.Destruct();

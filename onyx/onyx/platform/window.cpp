@@ -85,7 +85,7 @@ void Window::destroyImageData(TKit::TierArray<Window::ImageData> &images)
 Window::~Window()
 {
     Renderer::ClearWindow(this);
-    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
     destroyImageData(m_Images);
     Execution::DestroySyncData(m_SyncData);
 
