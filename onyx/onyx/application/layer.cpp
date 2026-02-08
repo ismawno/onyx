@@ -13,7 +13,9 @@ WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const TKit:
 {
 #ifdef ONYX_ENABLE_IMGUI
     if (flags & WindowLayerFlag_ImGuiEnabled)
-        initializeImGui();
+    {
+        VKIT_CHECK_EXPRESSION(initializeImGui());
+    }
 #endif
     m_Delta.Target = window->IsVSync() ? window->GetMonitorDeltaTime() : targetDeltaTime;
     m_Flags = flags;
@@ -36,8 +38,8 @@ Result<Renderer::RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info
     if (checkFlags(WindowLayerFlag_ImGuiEnabled))
     {
         ImGui::Render();
-        RenderImGuiData(ImGui::GetDrawData(), info.CommandBuffer);
-        RenderImGuiWindows();
+        TKIT_RETURN_IF_FAILED(ImGuiBackend::RenderData(ImGui::GetDrawData(), info.CommandBuffer));
+        ImGuiBackend::RenderWindows();
     }
 #endif
     m_Window->EndRendering(info.CommandBuffer);
@@ -45,7 +47,7 @@ Result<Renderer::RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-void WindowLayer::initializeImGui()
+Result<> WindowLayer::initializeImGui()
 {
     TKIT_ASSERT(!checkFlags(WindowLayerFlag_ImGuiEnabled),
                 "[ONYX][APPLICATION] Trying to initialize ImGui for window '{}' when it is already enabled. If you "
@@ -53,6 +55,14 @@ void WindowLayer::initializeImGui()
                 m_Window->GetName());
 
     IMGUI_CHECKVERSION();
+
+    if (m_ImGuiContext)
+        ImGui::DestroyContext(m_ImGuiContext);
+
+#    ifdef ONYX_ENABLE_IMPLOT
+    if (m_ImPlotContext)
+        ImPlot::DestroyContext(m_ImPlotContext);
+#    endif
 
     m_ImGuiContext = ImGui::CreateContext();
     ImGui::SetCurrentContext(m_ImGuiContext);
@@ -63,12 +73,13 @@ void WindowLayer::initializeImGui()
 
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags = m_ImGuiConfigFlags;
-    InitializeImGui(m_Window);
+    TKIT_RETURN_IF_FAILED(ImGuiBackend::Create(m_Window));
     ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
     io.FontDefault = font;
     ApplyTheme(Theme_Baby);
 
     setFlags(WindowLayerFlag_ImGuiEnabled);
+    return Result<>::Ok();
 }
 void WindowLayer::shutdownImGui()
 {
@@ -84,7 +95,7 @@ void WindowLayer::shutdownImGui()
     ImPlot::SetCurrentContext(m_ImPlotContext);
 #    endif
 
-    ShutdownImGui();
+    ImGuiBackend::Destroy();
 
     ImGui::DestroyContext(m_ImGuiContext);
     m_ImGuiContext = nullptr;

@@ -274,11 +274,11 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
     present.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     present.clearValue.color = {{clearColor.rgba[0], clearColor.rgba[1], clearColor.rgba[2], clearColor.rgba[3]}};
 
-    m_Images[m_ImageIndex].Presentation->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                                          {.SrcAccess = 0,
-                                                           .DstAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                                                           .SrcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                                           .DstStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT});
+    m_Images[m_ImageIndex].Presentation->TransitionLayout2(
+        commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+         .SrcStage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR,
+         .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
 
     VkRenderingAttachmentInfoKHR depth{};
     depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
@@ -288,12 +288,11 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
     depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depth.clearValue.depthStencil = {1.f, 0};
 
-    m_Images[m_ImageIndex].DepthStencil.TransitionLayout(commandBuffer,
-                                                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                                                         {.SrcAccess = 0,
-                                                          .DstAccess = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-                                                          .SrcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                                          .DstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT});
+    m_Images[m_ImageIndex].DepthStencil.TransitionLayout2(
+        commandBuffer, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        {.DstAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT_KHR,
+         .SrcStage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR,
+         .DstStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR});
 
     const VkRenderingAttachmentInfoKHR stencil = depth;
 
@@ -331,11 +330,11 @@ void Window::EndRendering(const VkCommandBuffer commandBuffer)
     const auto table = Core::GetDeviceTable();
 
     table->CmdEndRenderingKHR(commandBuffer);
-    m_Images[m_ImageIndex].Presentation->TransitionLayout(commandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-                                                          {.SrcAccess = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                                                           .DstAccess = 0,
-                                                           .SrcStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                                           .DstStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT});
+    m_Images[m_ImageIndex].Presentation->TransitionLayout2(
+        commandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        {.SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
+         .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+         .DstStage = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR});
 }
 
 bool Window::ShouldClose() const

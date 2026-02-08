@@ -150,7 +150,7 @@ class WindowLayer
 
   private:
 #ifdef ONYX_ENABLE_IMGUI
-    void initializeImGui();
+    ONYX_NO_DISCARD Result<> initializeImGui();
     void shutdownImGui();
 #endif
 

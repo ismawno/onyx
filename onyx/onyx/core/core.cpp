@@ -9,6 +9,9 @@
 #include "onyx/state/descriptors.hpp"
 #include "onyx/execution/execution.hpp"
 #include "onyx/asset/assets.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include "onyx/imgui/backend.hpp"
+#endif
 
 #include "vkit/memory/allocator.hpp"
 
@@ -340,6 +343,11 @@ Result<> Initialize(const Specs &specs)
 
     PUSH_DELETER(Renderer::Terminate());
     TKIT_RETURN_IF_FAILED(Renderer::Initialize(), Terminate());
+
+#ifdef ONYX_ENABLE_IMGUI
+    PUSH_DELETER(ImGuiBackend::Terminate());
+    TKIT_RETURN_IF_FAILED(ImGuiBackend::Initialize());
+#endif
 
     return Result<>::Ok();
 }

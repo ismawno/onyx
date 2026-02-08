@@ -117,7 +117,7 @@ int main()
     const Mesh mesh = Assets::AddMesh(data);
     VKIT_CHECK_EXPRESSION(Assets::Upload<D2>());
 
-    WindowExample(mesh, 10);
+    WindowExample(mesh, 2);
     // ApplicationExample();
 
     Core::Terminate();

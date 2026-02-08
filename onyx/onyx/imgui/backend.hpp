@@ -6,18 +6,25 @@
 #endif
 
 #include "onyx/imgui/imgui.hpp"
+#include "onyx/core/core.hpp"
 #include <vulkan/vulkan.h>
 
 namespace Onyx
 {
 class Window;
+}
 
-void InitializeImGui(Window *window);
+namespace Onyx::ImGuiBackend
+{
+ONYX_NO_DISCARD Result<> Initialize();
+void Terminate();
 
-void NewImGuiFrame();
+ONYX_NO_DISCARD Result<> Create(Window *window);
 
-void RenderImGuiData(ImDrawData *data, VkCommandBuffer commandBuffer);
-void RenderImGuiWindows();
+void NewFrame();
 
-void ShutdownImGui();
-} // namespace Onyx
+ONYX_NO_DISCARD Result<> RenderData(ImDrawData *data, VkCommandBuffer commandBuffer);
+void RenderWindows();
+
+void Destroy();
+} // namespace Onyx::ImGuiBackend

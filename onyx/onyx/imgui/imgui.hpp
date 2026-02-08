@@ -27,7 +27,7 @@ struct DeltaInfo
     TKit::Timespan Max{};
     TKit::Timespan Smoothed{};
     f32 Smoothness = 0.f;
-    i32 Unit = 0;
+    i32 Unit = 1;
     bool LimitHertz = true;
 };
 

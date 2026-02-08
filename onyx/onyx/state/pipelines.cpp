@@ -262,7 +262,7 @@ Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(const StencilPass pass,
     VKit::GraphicsPipeline::Builder builder =
         createPipelineBuilder<D>(pass, renderInfo, shaders.MeshVertexShader, shaders.MeshFragmentShader);
 
-    builder.AddBindingDescription<StatVertex<D>>(VK_VERTEX_INPUT_RATE_VERTEX);
+    builder.AddBindingDescription<StatVertex<D>>();
     if (D == D2 || pass == StencilPass_DoStencilWriteNoFill || pass == StencilPass_DoStencilTestNoFill)
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D>, Position));
     else

@@ -194,13 +194,9 @@ if(ONYX_ENABLE_IMGUI)
   FetchContent_MakeAvailable(imgui)
 
   set(IMGUI_SOURCES
-      ${imgui_SOURCE_DIR}/imgui.cpp
-      ${imgui_SOURCE_DIR}/imgui_demo.cpp
-      ${imgui_SOURCE_DIR}/imgui_draw.cpp
-      ${imgui_SOURCE_DIR}/imgui_tables.cpp
-      ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-      # ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
-      ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp)
+      ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp
+      ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp
+      ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
 
   add_library(imgui STATIC ${IMGUI_SOURCES})
 

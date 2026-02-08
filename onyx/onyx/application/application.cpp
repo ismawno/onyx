@@ -110,7 +110,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled))
             {
                 ImGui::SetCurrentContext(wlayer->m_ImGuiContext);
-                NewImGuiFrame();
+                ImGuiBackend::NewFrame();
             }
 #endif
             const auto rnres = wlayer->OnRender({.Queue = gqueue, .CommandBuffer = cmd, .DeltaTime = wlayer->m_Delta});
@@ -171,7 +171,9 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         if (layer->checkFlags(WindowLayerFlag_RequestDisableImGui))
             layer->shutdownImGui();
         if (layer->checkFlags(WindowLayerFlag_RequestEnableImGui))
-            layer->initializeImGui();
+        {
+            TKIT_RETURN_IF_FAILED(layer->initializeImGui());
+        }
 #endif
         layer->clearFlags(WindowLayerFlag_RequestEnableImGui | WindowLayerFlag_RequestDisableImGui);
         if (layer->m_Replacement)

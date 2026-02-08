@@ -3,10 +3,14 @@
 #include "onyx/platform/window.hpp"
 #include "onyx/platform/glfw.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/core/core.hpp"
+#include "onyx/resource/resources.hpp"
+#include "onyx/state/descriptors.hpp"
+#include "vkit/resource/sampler.hpp"
+#include "vkit/state/descriptor_set_layout.hpp"
+#include "vkit/state/pipeline_layout.hpp"
+#include "vkit/state/graphics_pipeline.hpp"
+#include "vkit/state/shader.hpp"
 #include "tkit/profiling/macros.hpp"
-// #include "backends/imgui_impl_glfw.h"
-#include "backends/imgui_impl_vulkan.h"
 
 #if !defined(ONYX_IMGUI_DISABLE_X11) && (defined(TKIT_OS_LINUX) || defined(__FreeBSD__) || defined(__OpenBSD__) ||     \
                                          defined(__NetBSD__) || defined(__DragonFly__))
@@ -23,13 +27,21 @@ namespace ImGui
 extern ImGuiIO &GetIO(ImGuiContext *);
 }
 
-namespace Onyx
+namespace Onyx::ImGuiBackend
 {
-struct ImGuiPlatformData
+struct Platform_GlobalData
+{
+    TKit::FixedArray<GLFWcursor *, ImGuiMouseCursor_COUNT> MouseCursors;
+#ifdef ONYX_GLFW_WAYLAND
+    bool IsWayland;
+#endif
+};
+static Platform_GlobalData s_PlatformData{};
+
+struct Platform_ContextData
 {
     ImGuiContext *Context;
     Window *Window;
-    GLFWcursor *MouseCursors[ImGuiMouseCursor_COUNT];
     GLFWcursor *LastMouseCursor;
 
     GLFWwindow *MouseWindow;
@@ -39,7 +51,6 @@ struct ImGuiPlatformData
 
     bool MouseIgnoreButtonUpWaitForFocusLoss;
     bool MouseIgnoreButtonUp;
-    bool IsWayland;
 
     f32v2 LastValidMousePos;
 
@@ -52,25 +63,25 @@ struct ImGuiPlatformData
     GLFWcharfun UserCbkChar;
 };
 
-static bool isWayland()
+#ifdef ONYX_GLFW_WAYLAND
+static bool platform_IsWayland()
 {
-#if !defined(ONYX_GLFW_WAYLAND)
-    return false;
-#elif defined(ONYX_GLFW_GETPLATFORM)
+#    ifdef ONYX_GLFW_GETPLATFORM
     return glfwGetPlatform() == GLFW_PLATFORM_WAYLAND;
-#else
+#    else
     const char *version = glfwGetVersionString();
     if (!strstr(version, "Wayland")) // e.g. Ubuntu 22.04 ships with GLFW 3.3.6 compiled without Wayland
         return false;
-#    ifdef GLFW_EXPOSE_NATIVE_X11
-    if (glfwGetX11Display())
-        return false;
-#    endif
+    // #        ifdef GLFW_EXPOSE_NATIVE_X11
+    //     if (glfwGetX11Display())
+    //         return false;
+    // #        endif
     return true;
-#endif
+#    endif
 }
+#endif
 
-ImGuiKey keyToImGuiKey(const i32 keycode)
+ImGuiKey platform_KeyToImGuiKey(const i32 keycode)
 {
     switch (keycode)
     {
@@ -320,11 +331,11 @@ ImGuiKey keyToImGuiKey(const i32 keycode)
 struct WindowDataPair
 {
     GLFWwindow *Window;
-    ImGuiPlatformData *Data;
+    Platform_ContextData *Data;
 };
 static TKit::TierArray<WindowDataPair> s_PlatformDataMap{};
 
-static ImGuiPlatformData *getPlatformData(GLFWwindow *window = nullptr)
+static Platform_ContextData *platform_GetData(GLFWwindow *window = nullptr)
 {
     if (window)
     {
@@ -333,13 +344,13 @@ static ImGuiPlatformData *getPlatformData(GLFWwindow *window = nullptr)
                 return dp.Data;
         TKIT_FATAL("[ONYX][IMGUI] Platform data not found for window");
     }
-    return ImGui::GetCurrentContext() ? static_cast<ImGuiPlatformData *>(ImGui::GetIO().BackendPlatformUserData)
+    return ImGui::GetCurrentContext() ? static_cast<Platform_ContextData *>(ImGui::GetIO().BackendPlatformUserData)
                                       : nullptr;
 }
 
-static void windowFocusCallback(GLFWwindow *window, const i32 focused)
+static void platform_WindowFocusCallback(GLFWwindow *window, const i32 focused)
 {
-    ImGuiPlatformData *pdata = getPlatformData(window);
+    Platform_ContextData *pdata = platform_GetData(window);
     if (pdata->UserCbkWindowFocus && window == pdata->Window->GetHandle())
         pdata->UserCbkWindowFocus(window, focused);
 
@@ -352,9 +363,9 @@ static void windowFocusCallback(GLFWwindow *window, const i32 focused)
     io.AddFocusEvent(focused != 0);
 }
 
-static void cursorPosCallback(GLFWwindow *window, f64 x, f64 y)
+static void platform_CursorPosCallback(GLFWwindow *window, f64 x, f64 y)
 {
-    ImGuiPlatformData *pdata = getPlatformData(window);
+    Platform_ContextData *pdata = platform_GetData(window);
     if (pdata->UserCbkCursorPos && window == pdata->Window->GetHandle())
         pdata->UserCbkCursorPos(window, x, y);
 
@@ -374,9 +385,9 @@ static void cursorPosCallback(GLFWwindow *window, f64 x, f64 y)
 
 // Workaround: X11 seems to send spurious Leave/Enter events which would make us lose our position,
 // so we back it up and restore on Leave/Enter (see https://github.com/ocornut/imgui/issues/4984)
-static void cursorEnterCallback(GLFWwindow *window, const i32 entered)
+static void platform_CursorEnterCallback(GLFWwindow *window, const i32 entered)
 {
-    ImGuiPlatformData *pdata = getPlatformData(window);
+    Platform_ContextData *pdata = platform_GetData(window);
     if (pdata->UserCbkCursorEnter && window == pdata->Window->GetHandle())
         pdata->UserCbkCursorEnter(window, entered);
 
@@ -394,7 +405,7 @@ static void cursorEnterCallback(GLFWwindow *window, const i32 entered)
     }
 }
 
-static void updateKeyModifiers(ImGuiIO &io, GLFWwindow *window)
+static void platform_UpdateKeyModifiers(ImGuiIO &io, GLFWwindow *window)
 {
     io.AddKeyEvent(ImGuiMod_Ctrl, (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) ||
                                       (glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS));
@@ -405,9 +416,9 @@ static void updateKeyModifiers(ImGuiIO &io, GLFWwindow *window)
     io.AddKeyEvent(ImGuiMod_Super, (glfwGetKey(window, GLFW_KEY_LEFT_SUPER) == GLFW_PRESS) ||
                                        (glfwGetKey(window, GLFW_KEY_RIGHT_SUPER) == GLFW_PRESS));
 }
-static void mouseButtonCallback(GLFWwindow *window, i32 button, i32 action, i32 mods)
+static void platform_MouseButtonCallback(GLFWwindow *window, i32 button, i32 action, i32 mods)
 {
-    ImGuiPlatformData *pdata = getPlatformData(window);
+    Platform_ContextData *pdata = platform_GetData(window);
     if (pdata->UserCbkMousebutton && window == pdata->Window->GetHandle())
         pdata->UserCbkMousebutton(window, button, action, mods);
 
@@ -416,14 +427,14 @@ static void mouseButtonCallback(GLFWwindow *window, i32 button, i32 action, i32 
         return;
 
     ImGuiIO &io = ImGui::GetIO(pdata->Context);
-    updateKeyModifiers(io, window);
+    platform_UpdateKeyModifiers(io, window);
     if (button >= 0 && button < ImGuiMouseButton_COUNT)
         io.AddMouseButtonEvent(button, action == GLFW_PRESS);
 }
 
-static void scrollCallback(GLFWwindow *window, const f64 xoffset, const f64 yoffset)
+static void platform_ScrollCallback(GLFWwindow *window, const f64 xoffset, const f64 yoffset)
 {
-    ImGuiPlatformData *pdata = getPlatformData(window);
+    Platform_ContextData *pdata = platform_GetData(window);
     if (pdata->UserCbkScroll && window == pdata->Window->GetHandle())
         pdata->UserCbkScroll(window, xoffset, yoffset);
 
@@ -431,7 +442,7 @@ static void scrollCallback(GLFWwindow *window, const f64 xoffset, const f64 yoff
     io.AddMouseWheelEvent(static_cast<f32>(xoffset), static_cast<f32>(yoffset));
 }
 
-static i32 translateUntranslatedKey(i32 key, const i32 scancode)
+static i32 platform_TranslateUntranslatedKey(i32 key, const i32 scancode)
 {
     // GLFW 3.1+ attempts to "untranslate" keys, which goes the opposite of what every other framework does, making
     // using lettered shortcuts difficult. (It had reasons to do so: namely GLFW is/was more likely to be used for
@@ -467,9 +478,9 @@ static i32 translateUntranslatedKey(i32 key, const i32 scancode)
     return key;
 }
 
-static void keyCallback(GLFWwindow *window, i32 keycode, const i32 scancode, const i32 action, const i32 mods)
+static void platform_KeyCallback(GLFWwindow *window, i32 keycode, const i32 scancode, const i32 action, const i32 mods)
 {
-    ImGuiPlatformData *pdata = getPlatformData(window);
+    Platform_ContextData *pdata = platform_GetData(window);
     if (pdata->UserCbkKey && window == pdata->Window->GetHandle())
         pdata->UserCbkKey(window, keycode, scancode, action, mods);
 
@@ -477,20 +488,20 @@ static void keyCallback(GLFWwindow *window, i32 keycode, const i32 scancode, con
         return;
 
     ImGuiIO &io = ImGui::GetIO(pdata->Context);
-    updateKeyModifiers(io, window);
+    platform_UpdateKeyModifiers(io, window);
 
-    if (keycode >= 0 && keycode < IM_COUNTOF(pdata->KeyOwnerWindows))
+    if (keycode >= 0 && keycode < GLFW_KEY_LAST)
         pdata->KeyOwnerWindows[keycode] = (action == GLFW_PRESS) ? window : nullptr;
 
-    keycode = translateUntranslatedKey(keycode, scancode);
-    const ImGuiKey imkey = keyToImGuiKey(keycode);
+    keycode = platform_TranslateUntranslatedKey(keycode, scancode);
+    const ImGuiKey imkey = platform_KeyToImGuiKey(keycode);
     io.AddKeyEvent(imkey, (action == GLFW_PRESS));
     io.SetKeyEventNativeData(imkey, keycode, scancode); // To support legacy indexing (<1.87 user code)
 }
 
-static void charCallback(GLFWwindow *window, const u32 code)
+static void platform_CharCallback(GLFWwindow *window, const u32 code)
 {
-    ImGuiPlatformData *pdata = getPlatformData(window);
+    Platform_ContextData *pdata = platform_GetData(window);
     if (pdata->UserCbkChar && window == pdata->Window->GetHandle())
         pdata->UserCbkChar(window, code);
 
@@ -498,21 +509,21 @@ static void charCallback(GLFWwindow *window, const u32 code)
     io.AddInputCharacter(code);
 }
 
-static void installCallbacks(ImGuiPlatformData *pdata, GLFWwindow *window)
+static void platform_InstallCallbacks(Platform_ContextData *pdata, GLFWwindow *window)
 {
-    pdata->UserCbkWindowFocus = glfwSetWindowFocusCallback(window, windowFocusCallback);
-    pdata->UserCbkCursorEnter = glfwSetCursorEnterCallback(window, cursorEnterCallback);
-    pdata->UserCbkCursorPos = glfwSetCursorPosCallback(window, cursorPosCallback);
-    pdata->UserCbkMousebutton = glfwSetMouseButtonCallback(window, mouseButtonCallback);
-    pdata->UserCbkScroll = glfwSetScrollCallback(window, scrollCallback);
-    pdata->UserCbkKey = glfwSetKeyCallback(window, keyCallback);
-    pdata->UserCbkChar = glfwSetCharCallback(window, charCallback);
+    pdata->UserCbkWindowFocus = glfwSetWindowFocusCallback(window, platform_WindowFocusCallback);
+    pdata->UserCbkCursorEnter = glfwSetCursorEnterCallback(window, platform_CursorEnterCallback);
+    pdata->UserCbkCursorPos = glfwSetCursorPosCallback(window, platform_CursorPosCallback);
+    pdata->UserCbkMousebutton = glfwSetMouseButtonCallback(window, platform_MouseButtonCallback);
+    pdata->UserCbkScroll = glfwSetScrollCallback(window, platform_ScrollCallback);
+    pdata->UserCbkKey = glfwSetKeyCallback(window, platform_KeyCallback);
+    pdata->UserCbkChar = glfwSetCharCallback(window, platform_CharCallback);
 }
 
-f32 getContentScaleForMonitor(GLFWmonitor *monitor)
+f32 platform_GetContentScaleForMonitor(GLFWmonitor *monitor)
 {
 #ifdef ONYX_GLFW_WAYLAND
-    if (isWayland())
+    if (s_PlatformData.IsWayland)
         return 1.f;
 #endif
 #if defined(ONYX_GLFW_PER_MONITOR_DPI) && !(defined(TKIT_OS_APPLE) || defined(TKIT_OS_ANDROID))
@@ -527,7 +538,7 @@ f32 getContentScaleForMonitor(GLFWmonitor *monitor)
 #endif
 }
 
-static void updateMonitors()
+static void platform_UpdateMonitors()
 {
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
 
@@ -557,7 +568,7 @@ static void updateMonitors()
             monitor.WorkSize = ImVec2((f32)w, (f32)h);
         }
 #endif
-        const f32 scale = getContentScaleForMonitor(monitors[n]);
+        const f32 scale = platform_GetContentScaleForMonitor(monitors[n]);
         if (scale == 0.f)
             continue;
         monitor.DpiScale = scale;
@@ -571,17 +582,16 @@ static void updateMonitors()
     }
 }
 
-static void platformImGuiInit(Window *window)
+static void platform_Init(Window *window)
 {
     ImGuiIO &io = ImGui::GetIO();
-    TKIT_ASSERT(!io.BackendPlatformUserData, "[ONYX][IMGUI] ImGui backend is already initialized");
+    TKIT_ASSERT(!io.BackendPlatformUserData, "[ONYX][IMGUI] Platform backend is already initialized");
 
     TKit::TierAllocator *tier = TKit::GetTier();
-    ImGuiPlatformData *pdata = tier->Create<ImGuiPlatformData>();
+    Platform_ContextData *pdata = tier->Create<Platform_ContextData>();
 
     pdata->Context = ImGui::GetCurrentContext();
     pdata->Window = window;
-    pdata->IsWayland = isWayland();
 
     s_PlatformDataMap.Append(window->GetHandle(), pdata);
 
@@ -608,32 +618,15 @@ static void platformImGuiInit(Window *window)
     pio.Platform_GetClipboardTextFn = [](ImGuiContext *) { return glfwGetClipboardString(nullptr); };
 #else
     pio.Platform_SetClipboardTextFn = [](ImGuiContext *, const char *text) {
-        glfwSetClipboardString(getPlatformData()->Window->GetHandle(), text);
+        glfwSetClipboardString(platform_GetData()->Window->GetHandle(), text);
     };
     pio.Platform_GetClipboardTextFn = [](ImGuiContext *) {
-        return glfwGetClipboardString(getPlatformData()->Window->GetHandle());
+        return glfwGetClipboardString(platform_GetData()->Window->GetHandle());
     };
 #endif
 
-    const GLFWerrorfun perror = glfwSetErrorCallback(nullptr);
-    pdata->MouseCursors[ImGuiMouseCursor_Arrow] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
-    pdata->MouseCursors[ImGuiMouseCursor_TextInput] = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
-    pdata->MouseCursors[ImGuiMouseCursor_ResizeNS] = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
-    pdata->MouseCursors[ImGuiMouseCursor_ResizeEW] = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
-    pdata->MouseCursors[ImGuiMouseCursor_Hand] = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
-#ifdef ONYX_GLFW_NEW_CURSORS
-    pdata->MouseCursors[ImGuiMouseCursor_ResizeAll] = glfwCreateStandardCursor(GLFW_RESIZE_ALL_CURSOR);
-    pdata->MouseCursors[ImGuiMouseCursor_ResizeNESW] = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
-    pdata->MouseCursors[ImGuiMouseCursor_ResizeNWSE] = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
-    pdata->MouseCursors[ImGuiMouseCursor_NotAllowed] = glfwCreateStandardCursor(GLFW_NOT_ALLOWED_CURSOR);
-#endif
-    glfwSetErrorCallback(perror);
-#ifdef ONYX_GLFW_GETERROR
-    TKIT_UNUSED(glfwGetError(nullptr));
-#endif
-
-    installCallbacks(pdata, window->GetHandle());
-    updateMonitors();
+    platform_InstallCallbacks(pdata, window->GetHandle());
+    platform_UpdateMonitors();
 
     ImGuiViewport *mviewport = ImGui::GetMainViewport();
     mviewport->PlatformHandle = static_cast<void *>(window);
@@ -642,7 +635,7 @@ static void platformImGuiInit(Window *window)
     //     initMultiViewportSupport();
 }
 
-static void getWindowSizeAndFramebufferScale(GLFWwindow *window, ImVec2 *size, ImVec2 *fbscale)
+static void platform_GetWindowSizeAndFramebufferScale(GLFWwindow *window, ImVec2 *size, ImVec2 *fbscale)
 {
     i32 w;
     i32 h;
@@ -656,8 +649,7 @@ static void getWindowSizeAndFramebufferScale(GLFWwindow *window, ImVec2 *size, I
     f32 fbscx = (w > 0) ? (f32)wdisp / (f32)w : 1.f;
     f32 fbscy = (h > 0) ? (f32)hdisp / (f32)h : 1.f;
 #ifdef ONYX_GLFW_WAYLAND
-    const ImGuiPlatformData *pdata = getPlatformData();
-    if (!pdata->IsWayland)
+    if (!s_PlatformData.IsWayland)
     {
         fbscx = 1.f;
         fbscy = 1.f;
@@ -669,7 +661,7 @@ static void getWindowSizeAndFramebufferScale(GLFWwindow *window, ImVec2 *size, I
         *fbscale = ImVec2(fbscx, fbscy);
 }
 
-static void updateMouseData(ImGuiPlatformData *pdata, ImGuiIO &io)
+static void platform_UpdateMouseData(Platform_ContextData *pdata, ImGuiIO &io)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
 
@@ -746,7 +738,7 @@ static void updateMouseData(ImGuiPlatformData *pdata, ImGuiIO &io)
         io.AddMouseViewportEvent(mouseViewportId);
 }
 
-static void updateMouseCursor(ImGuiPlatformData *pdata, ImGuiIO &io)
+static void platform_UpdateMouseCursor(Platform_ContextData *pdata, ImGuiIO &io)
 {
     if ((io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange) ||
         glfwGetInputMode(pdata->Window->GetHandle(), GLFW_CURSOR) == GLFW_CURSOR_DISABLED)
@@ -771,8 +763,9 @@ static void updateMouseCursor(ImGuiPlatformData *pdata, ImGuiIO &io)
             // Show OS mouse cursor
             // FIXME-PLATFORM: Unfocused windows seems to fail changing the mouse cursor with GLFW 3.2, but 3.3 works
             // here.
-            GLFWcursor *cursor = pdata->MouseCursors[imcursor] ? pdata->MouseCursors[imcursor]
-                                                               : pdata->MouseCursors[ImGuiMouseCursor_Arrow];
+            GLFWcursor *cursor = s_PlatformData.MouseCursors[imcursor]
+                                     ? s_PlatformData.MouseCursors[imcursor]
+                                     : s_PlatformData.MouseCursors[ImGuiMouseCursor_Arrow];
             if (pdata->LastMouseCursor != cursor)
             {
                 glfwSetCursor(window, cursor);
@@ -783,14 +776,14 @@ static void updateMouseCursor(ImGuiPlatformData *pdata, ImGuiIO &io)
     }
 }
 
-void platformImGuiNewFrame()
+static void platform_NewFrame()
 {
-    ImGuiPlatformData *pdata = getPlatformData();
+    Platform_ContextData *pdata = platform_GetData();
     TKIT_ASSERT(pdata, "[ONYX][IMGUI] Platform data has not been initialized");
 
     ImGuiIO &io = ImGui::GetIO();
-    getWindowSizeAndFramebufferScale(pdata->Window->GetHandle(), &io.DisplaySize, &io.DisplayFramebufferScale);
-    updateMonitors();
+    platform_GetWindowSizeAndFramebufferScale(pdata->Window->GetHandle(), &io.DisplaySize, &io.DisplayFramebufferScale);
+    platform_UpdateMonitors();
 
     f64 time = glfwGetTime();
     if (time < pdata->Time)
@@ -800,14 +793,14 @@ void platformImGuiNewFrame()
     pdata->Time = time;
 
     pdata->MouseIgnoreButtonUp = false;
-    updateMouseData(pdata, io);
-    updateMouseCursor(pdata, io);
+    platform_UpdateMouseData(pdata, io);
+    platform_UpdateMouseCursor(pdata, io);
 
     TKIT_ASSERT((io.ConfigFlags & ImGuiConfigFlags_NavEnableGamepad) == 0,
                 "[ONYX][IMGUI] Gamepad controls are not supported");
 }
 
-static void restoreCallbacks(ImGuiPlatformData *pdata)
+static void platform_RestoreCallbacks(Platform_ContextData *pdata)
 {
     GLFWwindow *window = pdata->Window->GetHandle();
     glfwSetWindowFocusCallback(window, pdata->UserCbkWindowFocus);
@@ -819,14 +812,12 @@ static void restoreCallbacks(ImGuiPlatformData *pdata)
     glfwSetCharCallback(window, pdata->UserCbkChar);
 }
 
-void platformImGuiShutdown()
+static void platform_Shutdown()
 {
-    ImGuiPlatformData *pdata = getPlatformData();
+    Platform_ContextData *pdata = platform_GetData();
     TKIT_ASSERT(pdata, "[ONYX][IMGUI] No platform data to shutdown");
 
-    restoreCallbacks(pdata);
-    for (ImGuiMouseCursor cursor = 0; cursor < ImGuiMouseCursor_COUNT; cursor++)
-        glfwDestroyCursor(pdata->MouseCursors[cursor]);
+    platform_RestoreCallbacks(pdata);
 
     ImGuiIO &io = ImGui::GetIO();
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
@@ -847,81 +838,593 @@ void platformImGuiShutdown()
     tier->Destroy(pdata);
 }
 
-void InitializeImGui(Window *window)
+static constexpr u32 s_VertexShader[] = {
+    0x07230203, 0x00010000, 0x00080001, 0x0000002e, 0x00000000, 0x00020011, 0x00000001, 0x0006000b, 0x00000001,
+    0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001, 0x000a000f, 0x00000000,
+    0x00000004, 0x6e69616d, 0x00000000, 0x0000000b, 0x0000000f, 0x00000015, 0x0000001b, 0x0000001c, 0x00030003,
+    0x00000002, 0x000001c2, 0x00040005, 0x00000004, 0x6e69616d, 0x00000000, 0x00030005, 0x00000009, 0x00000000,
+    0x00050006, 0x00000009, 0x00000000, 0x6f6c6f43, 0x00000072, 0x00040006, 0x00000009, 0x00000001, 0x00005655,
+    0x00030005, 0x0000000b, 0x0074754f, 0x00040005, 0x0000000f, 0x6c6f4361, 0x0000726f, 0x00030005, 0x00000015,
+    0x00565561, 0x00060005, 0x00000019, 0x505f6c67, 0x65567265, 0x78657472, 0x00000000, 0x00060006, 0x00000019,
+    0x00000000, 0x505f6c67, 0x7469736f, 0x006e6f69, 0x00030005, 0x0000001b, 0x00000000, 0x00040005, 0x0000001c,
+    0x736f5061, 0x00000000, 0x00060005, 0x0000001e, 0x73755075, 0x6e6f4368, 0x6e617473, 0x00000074, 0x00050006,
+    0x0000001e, 0x00000000, 0x61635375, 0x0000656c, 0x00060006, 0x0000001e, 0x00000001, 0x61725475, 0x616c736e,
+    0x00006574, 0x00030005, 0x00000020, 0x00006370, 0x00040047, 0x0000000b, 0x0000001e, 0x00000000, 0x00040047,
+    0x0000000f, 0x0000001e, 0x00000002, 0x00040047, 0x00000015, 0x0000001e, 0x00000001, 0x00050048, 0x00000019,
+    0x00000000, 0x0000000b, 0x00000000, 0x00030047, 0x00000019, 0x00000002, 0x00040047, 0x0000001c, 0x0000001e,
+    0x00000000, 0x00050048, 0x0000001e, 0x00000000, 0x00000023, 0x00000000, 0x00050048, 0x0000001e, 0x00000001,
+    0x00000023, 0x00000008, 0x00030047, 0x0000001e, 0x00000002, 0x00020013, 0x00000002, 0x00030021, 0x00000003,
+    0x00000002, 0x00030016, 0x00000006, 0x00000020, 0x00040017, 0x00000007, 0x00000006, 0x00000004, 0x00040017,
+    0x00000008, 0x00000006, 0x00000002, 0x0004001e, 0x00000009, 0x00000007, 0x00000008, 0x00040020, 0x0000000a,
+    0x00000003, 0x00000009, 0x0004003b, 0x0000000a, 0x0000000b, 0x00000003, 0x00040015, 0x0000000c, 0x00000020,
+    0x00000001, 0x0004002b, 0x0000000c, 0x0000000d, 0x00000000, 0x00040020, 0x0000000e, 0x00000001, 0x00000007,
+    0x0004003b, 0x0000000e, 0x0000000f, 0x00000001, 0x00040020, 0x00000011, 0x00000003, 0x00000007, 0x0004002b,
+    0x0000000c, 0x00000013, 0x00000001, 0x00040020, 0x00000014, 0x00000001, 0x00000008, 0x0004003b, 0x00000014,
+    0x00000015, 0x00000001, 0x00040020, 0x00000017, 0x00000003, 0x00000008, 0x0003001e, 0x00000019, 0x00000007,
+    0x00040020, 0x0000001a, 0x00000003, 0x00000019, 0x0004003b, 0x0000001a, 0x0000001b, 0x00000003, 0x0004003b,
+    0x00000014, 0x0000001c, 0x00000001, 0x0004001e, 0x0000001e, 0x00000008, 0x00000008, 0x00040020, 0x0000001f,
+    0x00000009, 0x0000001e, 0x0004003b, 0x0000001f, 0x00000020, 0x00000009, 0x00040020, 0x00000021, 0x00000009,
+    0x00000008, 0x0004002b, 0x00000006, 0x00000028, 0x00000000, 0x0004002b, 0x00000006, 0x00000029, 0x3f800000,
+    0x00050036, 0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8, 0x00000005, 0x0004003d, 0x00000007,
+    0x00000010, 0x0000000f, 0x00050041, 0x00000011, 0x00000012, 0x0000000b, 0x0000000d, 0x0003003e, 0x00000012,
+    0x00000010, 0x0004003d, 0x00000008, 0x00000016, 0x00000015, 0x00050041, 0x00000017, 0x00000018, 0x0000000b,
+    0x00000013, 0x0003003e, 0x00000018, 0x00000016, 0x0004003d, 0x00000008, 0x0000001d, 0x0000001c, 0x00050041,
+    0x00000021, 0x00000022, 0x00000020, 0x0000000d, 0x0004003d, 0x00000008, 0x00000023, 0x00000022, 0x00050085,
+    0x00000008, 0x00000024, 0x0000001d, 0x00000023, 0x00050041, 0x00000021, 0x00000025, 0x00000020, 0x00000013,
+    0x0004003d, 0x00000008, 0x00000026, 0x00000025, 0x00050081, 0x00000008, 0x00000027, 0x00000024, 0x00000026,
+    0x00050051, 0x00000006, 0x0000002a, 0x00000027, 0x00000000, 0x00050051, 0x00000006, 0x0000002b, 0x00000027,
+    0x00000001, 0x00070050, 0x00000007, 0x0000002c, 0x0000002a, 0x0000002b, 0x00000028, 0x00000029, 0x00050041,
+    0x00000011, 0x0000002d, 0x0000001b, 0x0000000d, 0x0003003e, 0x0000002d, 0x0000002c, 0x000100fd, 0x00010038};
+
+static constexpr u32 s_FragmentShader[] = {
+    0x07230203, 0x00010000, 0x00080001, 0x0000001e, 0x00000000, 0x00020011, 0x00000001, 0x0006000b, 0x00000001,
+    0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001, 0x0007000f, 0x00000004,
+    0x00000004, 0x6e69616d, 0x00000000, 0x00000009, 0x0000000d, 0x00030010, 0x00000004, 0x00000007, 0x00030003,
+    0x00000002, 0x000001c2, 0x00040005, 0x00000004, 0x6e69616d, 0x00000000, 0x00040005, 0x00000009, 0x6c6f4366,
+    0x0000726f, 0x00030005, 0x0000000b, 0x00000000, 0x00050006, 0x0000000b, 0x00000000, 0x6f6c6f43, 0x00000072,
+    0x00040006, 0x0000000b, 0x00000001, 0x00005655, 0x00030005, 0x0000000d, 0x00006e49, 0x00050005, 0x00000016,
+    0x78655473, 0x65727574, 0x00000000, 0x00040047, 0x00000009, 0x0000001e, 0x00000000, 0x00040047, 0x0000000d,
+    0x0000001e, 0x00000000, 0x00040047, 0x00000016, 0x00000022, 0x00000000, 0x00040047, 0x00000016, 0x00000021,
+    0x00000000, 0x00020013, 0x00000002, 0x00030021, 0x00000003, 0x00000002, 0x00030016, 0x00000006, 0x00000020,
+    0x00040017, 0x00000007, 0x00000006, 0x00000004, 0x00040020, 0x00000008, 0x00000003, 0x00000007, 0x0004003b,
+    0x00000008, 0x00000009, 0x00000003, 0x00040017, 0x0000000a, 0x00000006, 0x00000002, 0x0004001e, 0x0000000b,
+    0x00000007, 0x0000000a, 0x00040020, 0x0000000c, 0x00000001, 0x0000000b, 0x0004003b, 0x0000000c, 0x0000000d,
+    0x00000001, 0x00040015, 0x0000000e, 0x00000020, 0x00000001, 0x0004002b, 0x0000000e, 0x0000000f, 0x00000000,
+    0x00040020, 0x00000010, 0x00000001, 0x00000007, 0x00090019, 0x00000013, 0x00000006, 0x00000001, 0x00000000,
+    0x00000000, 0x00000000, 0x00000001, 0x00000000, 0x0003001b, 0x00000014, 0x00000013, 0x00040020, 0x00000015,
+    0x00000000, 0x00000014, 0x0004003b, 0x00000015, 0x00000016, 0x00000000, 0x0004002b, 0x0000000e, 0x00000018,
+    0x00000001, 0x00040020, 0x00000019, 0x00000001, 0x0000000a, 0x00050036, 0x00000002, 0x00000004, 0x00000000,
+    0x00000003, 0x000200f8, 0x00000005, 0x00050041, 0x00000010, 0x00000011, 0x0000000d, 0x0000000f, 0x0004003d,
+    0x00000007, 0x00000012, 0x00000011, 0x0004003d, 0x00000014, 0x00000017, 0x00000016, 0x00050041, 0x00000019,
+    0x0000001a, 0x0000000d, 0x00000018, 0x0004003d, 0x0000000a, 0x0000001b, 0x0000001a, 0x00050057, 0x00000007,
+    0x0000001c, 0x00000017, 0x0000001b, 0x00050085, 0x00000007, 0x0000001d, 0x00000012, 0x0000001c, 0x0003003e,
+    0x00000009, 0x0000001d, 0x000100fd, 0x00010038};
+
+struct Renderer_GlobalData
 {
-    platformImGuiInit(window);
+    VKit::Sampler Sampler;
+    VKit::DescriptorSetLayout DescriptorSetLayout{};
+    VKit::PipelineLayout PipelineLayout{};
+    VKit::GraphicsPipeline Pipeline{};
 
-    const VKit::Instance &instance = Core::GetInstance();
-    const VKit::LogicalDevice &device = Core::GetDevice();
+    VKit::Shader VertexShader{};
+    VKit::Shader FragmentShader{};
+};
+static TKit::Storage<Renderer_GlobalData> s_RendererData{};
 
-    const ImGuiIO &io = ImGui::GetIO();
-    TKIT_LOG_WARNING_IF(
-        (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) &&
-            instance.GetInfo().Flags & VKit::InstanceFlag_HasValidationLayers,
-        "[ONYX][IMGUI] Vulkan validation layers have become stricter regarding semaphore and fence usage when "
-        "submitting to "
-        "Execution. ImGui may not have caught up to this and may trigger validation errors when the "
-        "ImGuiConfigFlags_ViewportsEnable flag is set. If this is the case, either disable the flag or the vulkan "
-        "validation layers. If the application runs well, you may safely ignore this warning");
+struct Renderer_Buffers
+{
+    VKit::DeviceBuffer VertexBuffer{};
+    VKit::DeviceBuffer IndexBuffer{};
+};
 
-    ImGui_ImplVulkan_PipelineInfo pipelineInfo{};
-    pipelineInfo.PipelineRenderingCreateInfo = Renderer::CreatePipelineRenderingCreateInfo();
-    pipelineInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+struct Renderer_ViewportData
+{
+    TKit::TierArray<Renderer_Buffers> Buffers{};
+    u32 Index = 0;
+};
 
-    const VkSurfaceCapabilitiesKHR &sc = window->GetSwapChain().GetInfo().SupportDetails.Capabilities;
+struct Renderer_Texture
+{
+    VKit::DeviceImage Image{};
+    VkDescriptorSet Set;
+};
 
-    const u32 imageCount = sc.minImageCount != sc.maxImageCount ? sc.minImageCount + 1 : sc.minImageCount;
+ONYX_NO_DISCARD static Result<Renderer_ViewportData *> renderer_CreateViewportData(const u32 imageCount)
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    Renderer_ViewportData *data = tier->Create<Renderer_ViewportData>();
+    const auto cleanup = [&] {
+        for (Renderer_Buffers &buffers : data->Buffers)
+        {
+            buffers.VertexBuffer.Destroy();
+            buffers.IndexBuffer.Destroy();
+        }
+        tier->Destroy(data);
+    };
 
-    ImGui_ImplVulkan_InitInfo initInfo{};
-    initInfo.ApiVersion = instance.GetInfo().ApiVersion;
-    initInfo.Instance = instance;
-    initInfo.PhysicalDevice = *device.GetInfo().PhysicalDevice;
-    initInfo.Device = device;
-    initInfo.Queue = Execution::FindSuitableQueue(VKit::Queue_Graphics)->GetHandle();
-    initInfo.QueueFamily = Execution::GetFamilyIndex(VKit::Queue_Graphics);
-    initInfo.DescriptorPoolSize = 100;
-    initInfo.MinImageCount = sc.minImageCount;
-    initInfo.ImageCount = imageCount;
-    initInfo.UseDynamicRendering = true;
-    initInfo.PipelineInfoMain = pipelineInfo;
+    for (u32 i = 0; i < imageCount; ++i)
+    {
+        Renderer_Buffers &buffers = data->Buffers.Append();
+        auto result = Resources::CreateBuffer<ImDrawVert>(Buffer_HostVertex);
+        TKIT_RETURN_ON_ERROR(result, cleanup());
+        buffers.VertexBuffer = result.GetValue();
 
-    TKIT_CHECK_RETURNS(ImGui_ImplVulkan_LoadFunctions(instance.GetInfo().ApiVersion,
-                                                      [](const char *name, void *) -> PFN_vkVoidFunction {
-                                                          return VKit::Vulkan::GetInstanceProcAddr(Core::GetInstance(),
-                                                                                                   name);
-                                                      }),
-                       true, "[ONYX] Failed to load ImGui Vulkan functions");
-
-    TKIT_CHECK_RETURNS(ImGui_ImplVulkan_Init(&initInfo), true,
-                       "[ONYX] Failed to initialize ImGui Vulkan for window '{}'", window->GetName());
+        result = Resources::CreateBuffer<ImDrawIdx>(Buffer_HostIndex);
+        TKIT_RETURN_ON_ERROR(result, cleanup());
+        buffers.IndexBuffer = result.GetValue();
+    }
+    return data;
 }
 
-void NewImGuiFrame()
+static void renderer_DestroyViewportData(Renderer_ViewportData *data)
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    for (Renderer_Buffers &buffers : data->Buffers)
+    {
+        buffers.VertexBuffer.Destroy();
+        buffers.IndexBuffer.Destroy();
+    }
+    tier->Destroy(data);
+}
+
+ONYX_NO_DISCARD static Result<> renderer_CreateShaders()
+{
+    TKIT_ASSERT(!s_RendererData->VertexShader, "[ONYX][IMGUI] Vertex shader is already initialized");
+    TKIT_ASSERT(!s_RendererData->FragmentShader, "[ONYX][IMGUI] Fragment shader is already initialized");
+
+    const auto &device = Core::GetDevice();
+
+    auto result = VKit::Shader::Create(device, s_VertexShader, sizeof(s_VertexShader));
+    TKIT_RETURN_ON_ERROR(result);
+    s_RendererData->VertexShader = result.GetValue();
+
+    result = VKit::Shader::Create(device, s_FragmentShader, sizeof(s_FragmentShader));
+    TKIT_RETURN_ON_ERROR(result);
+    s_RendererData->FragmentShader = result.GetValue();
+    return Result<>::Ok();
+}
+
+ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> renderer_CreatePipeline(
+    const VkPipelineRenderingCreateInfoKHR &pipInfo)
+{
+    return VKit::GraphicsPipeline::Builder(Core::GetDevice(), s_RendererData->PipelineLayout, pipInfo)
+        .AddShaderStage(s_RendererData->VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
+        .AddShaderStage(s_RendererData->FragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
+        .AddBindingDescription<ImDrawVert>()
+        .AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos))
+        .AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv))
+        .AddAttributeDescription(0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col))
+        .BeginColorAttachment()
+        .EnableBlending()
+        .EndColorAttachment()
+        .SetViewportCount(1)
+        .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+        .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+        .Bake()
+        .Build();
+}
+
+ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects(const VkPipelineRenderingCreateInfoKHR &pipInfo)
+{
+    const auto &device = Core::GetDevice();
+    // Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or
+    // 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling.
+
+    {
+        const auto result = VKit::Sampler::Builder(device).SetLodRange(-1000.f, 1000.f).Build();
+        s_RendererData->Sampler = result.GetValue();
+    }
+
+    {
+        const auto result = VKit::DescriptorSetLayout::Builder(device)
+                                .AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+                                .Build();
+        TKIT_RETURN_ON_ERROR(result);
+        s_RendererData->DescriptorSetLayout = result.GetValue();
+    }
+
+    {
+        const auto result = VKit::PipelineLayout::Builder(device)
+                                .AddDescriptorSetLayout(s_RendererData->DescriptorSetLayout)
+                                .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 4 * sizeof(float))
+                                .Build();
+        s_RendererData->PipelineLayout = result.GetValue();
+    }
+
+    {
+        TKIT_RETURN_IF_FAILED(renderer_CreateShaders());
+
+        const auto result = renderer_CreatePipeline(pipInfo);
+        TKIT_RETURN_ON_ERROR(result);
+        s_RendererData->Pipeline = result.GetValue();
+    }
+
+    return Result<>::Ok();
+}
+
+ONYX_NO_DISCARD static Result<> renderer_Init(const u32 imageCount)
+{
+    ImGuiIO &io = ImGui::GetIO();
+
+    io.BackendRendererName = "imgui_impl_onyx";
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset; // We can honor the ImDrawCmd::VtxOffset field, allowing
+                                                               // for large meshes.
+    io.BackendFlags |=
+        ImGuiBackendFlags_RendererHasTextures; // We can honor ImGuiPlatformIO::Textures[] requests during render.
+    // io.BackendFlags |=
+    //     ImGuiBackendFlags_RendererHasViewports; // We can create multi-viewports on the Renderer side (optional)
+
+    const auto result = renderer_CreateViewportData(imageCount);
+    TKIT_RETURN_ON_ERROR(result);
+    ImGuiViewport *mviewport = ImGui::GetMainViewport();
+    mviewport->RendererUserData = result.GetValue();
+
+    return Result<>::Ok();
+}
+
+ONYX_NO_DISCARD static Result<VkDescriptorSet> renderer_AddTexture(const VKit::DeviceImage &image)
+{
+    const auto &device = Core::GetDevice();
+    const auto result = Descriptors::GetDescriptorPool().Allocate(s_RendererData->DescriptorSetLayout);
+    TKIT_RETURN_ON_ERROR(result);
+
+    VKit::DescriptorSet::Writer writer{device, &s_RendererData->DescriptorSetLayout};
+
+    VkDescriptorImageInfo info{};
+    info.sampler = s_RendererData->Sampler;
+    info.imageView = image.GetImageView();
+    info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    writer.WriteImage(0, info);
+
+    const VKit::DescriptorSet &set = result.GetValue();
+    writer.Overwrite(set);
+    return set.GetHandle();
+}
+
+static void renderer_DestroyTexture(ImTextureData *tex)
+{
+    Renderer_Texture *bckTex = reinterpret_cast<Renderer_Texture *>(tex->BackendUserData);
+    TKIT_ASSERT(bckTex, "[ONYX][IMGUI] Texture has no backend counterpart");
+    const VkDescriptorSet set = reinterpret_cast<VkDescriptorSet>(tex->TexID);
+    TKIT_ASSERT(bckTex->Set == set, "[ONYX][IMGUI] Backend texture descriptor set mismatch");
+
+    // TKIT_RETURN_IF_FAILED(Descriptors::GetDescriptorPool().Deallocate(set));
+
+    bckTex->Image.Destroy();
+    TKit::TierAllocator *tier = TKit::GetTier();
+    tier->Destroy(bckTex);
+
+    tex->SetTexID(ImTextureID_Invalid);
+    tex->BackendUserData = nullptr;
+    tex->SetStatus(ImTextureStatus_Destroyed);
+}
+
+ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
+{
+    const auto &device = Core::GetDevice();
+    const VmaAllocator allocator = Core::GetVulkanAllocator();
+    if (tex->Status == ImTextureStatus_WantCreate)
+    {
+        // Create and upload new texture to graphics system
+        // IMGUI_DEBUG_LOG("UpdateTexture #%03d: WantCreate %dx%d\n", tex->UniqueID, tex->Width, tex->Height);
+        TKIT_ASSERT(tex->TexID == ImTextureID_Invalid && !tex->BackendUserData);
+        TKIT_ASSERT(tex->Format == ImTextureFormat_RGBA32);
+
+        const auto imgresult =
+            VKit::DeviceImage::Builder(
+                device, allocator, VkExtent2D{static_cast<u32>(tex->Width), static_cast<u32>(tex->Height)},
+                VK_FORMAT_R8G8B8A8_UNORM,
+                VKit::DeviceImageFlag_Sampled | VKit::DeviceImageFlag_Destination | VKit::DeviceImageFlag_Color)
+                .WithImageView()
+                .Build();
+
+        TKIT_RETURN_ON_ERROR(imgresult);
+
+        TKit::TierAllocator *tier = TKit::GetTier();
+        Renderer_Texture *bckTex = tier->Create<Renderer_Texture>();
+        bckTex->Image = imgresult.GetValue();
+
+        const auto sresult = renderer_AddTexture(bckTex->Image);
+        TKIT_RETURN_ON_ERROR(sresult);
+        bckTex->Set = sresult.GetValue();
+
+        // Store identifiers
+        tex->SetTexID(reinterpret_cast<ImTextureID>(bckTex->Set));
+        tex->BackendUserData = bckTex;
+        TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{}'", tex->GetTexID());
+    }
+
+    if (tex->Status == ImTextureStatus_WantCreate || tex->Status == ImTextureStatus_WantUpdates)
+    {
+        TKIT_LOG_DEBUG("[ONYX][IMGUI] Updating texture with id '{}'", tex->GetTexID());
+        Renderer_Texture *bckTex = static_cast<Renderer_Texture *>(tex->BackendUserData);
+        TKIT_ASSERT(bckTex->Image.GetBytesPerPixel() == static_cast<VkDeviceSize>(tex->BytesPerPixel),
+                    "[ONYX][IMGUI] Bytes per pixel mismatch between VKit::DeviceImage and ImGui texture");
+
+        // Update full texture or selected blocks. We only ever write to textures regions which have never been used
+        // before! This backend choose to use tex->UpdateRect but you can use tex->Updates[] to upload individual
+        // regions. We could use the smaller rect on _WantCreate but using the full rect allows us to clear the texture.
+
+        const bool wantCreate = tex->Status == ImTextureStatus_WantCreate;
+        const u32 xupload = wantCreate ? 0 : tex->UpdateRect.x;
+        const u32 yupload = wantCreate ? 0 : tex->UpdateRect.y;
+        const u32 wupload = wantCreate ? tex->Width : tex->UpdateRect.w;
+        const u32 hupload = wantCreate ? tex->Height : tex->UpdateRect.h;
+
+        const VkDeviceSize wsize = wupload * tex->BytesPerPixel;
+        const VkDeviceSize size = hupload * wsize;
+        auto result =
+            Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, 1, size);
+        TKIT_RETURN_ON_ERROR(result);
+
+        VKit::DeviceBuffer &uploadBuffer = result.GetValue();
+        std::byte *mem = static_cast<std::byte *>(uploadBuffer.GetData());
+        for (u32 y = 0; y < hupload; ++y)
+            TKit::ForwardCopy(mem + wsize * y,
+                              tex->GetPixelsAt(static_cast<i32>(xupload), static_cast<i32>(yupload + y)), wsize);
+
+        TKIT_RETURN_IF_FAILED(uploadBuffer.Flush());
+        TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+
+        VKit::CommandPool &pool = Execution::GetTransientTransferPool();
+        const auto cmdres = pool.BeginSingleTimeCommands();
+        TKIT_RETURN_ON_ERROR(cmdres, uploadBuffer.Destroy());
+
+        const VkCommandBuffer cmd = cmdres.GetValue();
+
+        bckTex->Image.TransitionLayout2(
+            cmd, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            {.DstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+
+        VkBufferImageCopy2KHR copy{};
+        copy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2_KHR;
+        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copy.imageSubresource.layerCount = 1;
+        copy.imageExtent.width = wupload;
+        copy.imageExtent.height = hupload;
+        copy.imageExtent.depth = 1;
+        copy.imageOffset.x = xupload;
+        copy.imageOffset.y = yupload;
+
+        bckTex->Image.CopyFromBuffer2(cmd, uploadBuffer, copy);
+
+        bckTex->Image.TransitionLayout2(
+            cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+
+        const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
+        TKIT_RETURN_IF_FAILED(pool.EndSingleTimeCommands(cmd, queue->GetHandle()), uploadBuffer.Destroy());
+
+        uploadBuffer.Destroy();
+
+        tex->SetStatus(ImTextureStatus_OK);
+    }
+
+    if (tex->Status == ImTextureStatus_WantDestroy && static_cast<u32>(tex->UnusedFrames) >= imageCount)
+        renderer_DestroyTexture(tex);
+    return Result<>::Ok();
+}
+
+ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
+{
+    const f32v2 fb =
+        f32v2{ddata->DisplaySize.x * ddata->FramebufferScale.x, ddata->DisplaySize.y * ddata->FramebufferScale.y};
+
+    if (fb[0] <= 0.f || fb[1] <= 0.f)
+        return Result<>::Ok();
+
+    Renderer_ViewportData *vdata = reinterpret_cast<Renderer_ViewportData *>(ddata->OwnerViewport->RendererUserData);
+    TKIT_ASSERT(vdata, "[ONYX][IMGUI] Viewport ddata is null");
+    TKIT_ASSERT(!vdata->Buffers.IsEmpty(),
+                "[ONYX][IMGUI] Viewport ddata has no buffers. They should have been created prior to this call");
+
+    if (ddata->Textures)
+        for (ImTextureData *tex : *ddata->Textures)
+            if (tex->Status != ImTextureStatus_OK)
+            {
+                TKIT_RETURN_IF_FAILED(renderer_UpdateTexture(tex, vdata->Buffers.GetSize()));
+            }
+
+    s_RendererData->Pipeline.Bind(cmd);
+
+    vdata->Index = (vdata->Index + 1) % vdata->Buffers.GetSize();
+
+    Renderer_Buffers &buffers = vdata->Buffers[vdata->Index];
+    if (ddata->TotalVtxCount > 0)
+    {
+        const u32 vsize = static_cast<u32>(ddata->TotalVtxCount);
+        const u32 isize = static_cast<u32>(ddata->TotalIdxCount);
+
+        TKIT_RETURN_IF_FAILED(
+            Resources::GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vsize, Buffer_HostVertex));
+        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, isize, Buffer_HostIndex));
+
+        VkDeviceSize voffset = 0;
+        VkDeviceSize ioffset = 0;
+        for (const ImDrawList *dlist : ddata->CmdLists)
+        {
+            const VkDeviceSize lvsize = dlist->VtxBuffer.Size * sizeof(ImDrawVert);
+            const VkDeviceSize lisize = dlist->IdxBuffer.Size * sizeof(ImDrawIdx);
+
+            buffers.VertexBuffer.Write(dlist->VtxBuffer.Data, {.srcOffset = 0, .dstOffset = voffset, .size = lvsize});
+            buffers.IndexBuffer.Write(dlist->IdxBuffer.Data, {.srcOffset = 0, .dstOffset = ioffset, .size = lisize});
+
+            voffset += lvsize;
+            ioffset += lisize;
+        }
+
+        TKIT_RETURN_IF_FAILED(buffers.VertexBuffer.Flush());
+        TKIT_RETURN_IF_FAILED(buffers.IndexBuffer.Flush());
+
+        buffers.VertexBuffer.BindAsVertexBuffer(cmd);
+        buffers.IndexBuffer.BindAsIndexBuffer<ImDrawIdx>(cmd);
+    }
+
+    const auto table = Core::GetDeviceTable();
+    VkViewport viewport;
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = fb[0];
+    viewport.height = fb[1];
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    table->CmdSetViewport(cmd, 0, 1, &viewport);
+
+    struct PushConstant
+    {
+        f32v2 sc;
+        f32v2 t;
+    };
+
+    PushConstant pc;
+    pc.sc = f32v2{2.f / ddata->DisplaySize.x, 2.f / ddata->DisplaySize.y};
+    pc.t = f32v2{-1.f - ddata->DisplayPos.x * pc.sc[0], -1.f - ddata->DisplayPos.y * pc.sc[1]};
+
+    table->CmdPushConstants(cmd, s_RendererData->PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstant),
+                            &pc);
+
+    const f32v2 clipOff = f32v2{ddata->DisplayPos.x, ddata->DisplayPos.y};
+    const f32v2 clipScale = f32v2{ddata->FramebufferScale.x, ddata->FramebufferScale.y};
+
+    VkDescriptorSet lastSet = VK_NULL_HANDLE;
+
+    u32 voffset = 0;
+    u32 ioffset = 0;
+    for (const ImDrawList *dlist : ddata->CmdLists)
+    {
+        for (u32 i = 0; i < static_cast<u32>(dlist->CmdBuffer.Size); ++i)
+        {
+            const ImDrawCmd &icmd = dlist->CmdBuffer[i];
+
+            f32v2 clipMin{(icmd.ClipRect.x - clipOff[0]) * clipScale[0], (icmd.ClipRect.y - clipOff[1]) * clipScale[1]};
+            f32v2 clipMax{(icmd.ClipRect.z - clipOff[0]) * clipScale[0], (icmd.ClipRect.w - clipOff[1]) * clipScale[1]};
+
+            clipMin = Math::Max(clipMin, f32v2{0.f});
+            clipMax = Math::Min(clipMax, fb);
+            if (clipMax[0] <= clipMin[0] || clipMax[1] <= clipMin[1])
+                continue;
+
+            VkRect2D scissor;
+            scissor.offset.x = static_cast<i32>(clipMin[0]);
+            scissor.offset.y = static_cast<i32>(clipMin[1]);
+            scissor.extent.width = static_cast<u32>(clipMax[0] - clipMin[0]);
+            scissor.extent.height = static_cast<u32>(clipMax[1] - clipMin[1]);
+            table->CmdSetScissor(cmd, 0, 1, &scissor);
+
+            const VkDescriptorSet set = reinterpret_cast<VkDescriptorSet>(icmd.GetTexID());
+            if (set != lastSet)
+                table->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, s_RendererData->PipelineLayout, 0, 1,
+                                             &set, 0, nullptr);
+            lastSet = set;
+
+            table->CmdDrawIndexed(cmd, icmd.ElemCount, 1, icmd.IdxOffset + ioffset, icmd.VtxOffset + voffset, 1);
+        }
+        voffset += static_cast<u32>(dlist->VtxBuffer.Size);
+        ioffset += static_cast<u32>(dlist->IdxBuffer.Size);
+    }
+
+    VkRect2D scissor;
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent.width = static_cast<u32>(fb[0]);
+    scissor.extent.height = static_cast<u32>(fb[1]);
+    table->CmdSetScissor(cmd, 0, 1, &scissor);
+    return Result<>::Ok();
+}
+
+static void renderer_Shutdown()
+{
+    ImGuiViewport *mviewport = ImGui::GetMainViewport();
+    Renderer_ViewportData *vdata = reinterpret_cast<Renderer_ViewportData *>(mviewport->RendererUserData);
+
+    for (ImTextureData *tex : ImGui::GetPlatformIO().Textures)
+        if (tex->RefCount == 1)
+            renderer_DestroyTexture(tex);
+
+    renderer_DestroyViewportData(vdata);
+    mviewport->RendererUserData = nullptr;
+
+    ImGuiIO &io = ImGui::GetIO();
+    ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
+
+    io.BackendRendererName = nullptr;
+    io.BackendFlags &= ~(ImGuiBackendFlags_RendererHasVtxOffset | ImGuiBackendFlags_RendererHasTextures |
+                         ImGuiBackendFlags_RendererHasViewports);
+
+    pio.ClearRendererHandlers();
+}
+
+Result<> Create(Window *window)
+{
+    platform_Init(window);
+    return renderer_Init(window->GetSwapChain().GetImageCount());
+}
+
+void Destroy()
+{
+    VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    renderer_Shutdown();
+    platform_Shutdown();
+    ImGui::DestroyPlatformWindows();
+}
+
+Result<> Initialize()
+{
+    const GLFWerrorfun perror = glfwSetErrorCallback(nullptr);
+    s_PlatformData.MouseCursors[ImGuiMouseCursor_Arrow] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+    s_PlatformData.MouseCursors[ImGuiMouseCursor_TextInput] = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
+    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeNS] = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
+    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeEW] = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
+    s_PlatformData.MouseCursors[ImGuiMouseCursor_Hand] = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
+#ifdef ONYX_GLFW_NEW_CURSORS
+    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeAll] = glfwCreateStandardCursor(GLFW_RESIZE_ALL_CURSOR);
+    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeNESW] = glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
+    s_PlatformData.MouseCursors[ImGuiMouseCursor_ResizeNWSE] = glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
+    s_PlatformData.MouseCursors[ImGuiMouseCursor_NotAllowed] = glfwCreateStandardCursor(GLFW_NOT_ALLOWED_CURSOR);
+#endif
+    glfwSetErrorCallback(perror);
+#ifdef ONYX_GLFW_GETERROR
+    TKIT_UNUSED(glfwGetError(nullptr));
+#endif
+
+#ifdef ONYX_GLFW_WAYLAND
+    s_PlatformData.IsWayland = platform_IsWayland();
+#endif
+    s_RendererData.Construct();
+    return renderer_CreateDeviceObjects(Renderer::CreatePipelineRenderingCreateInfo());
+}
+void Terminate()
+{
+    s_RendererData->Pipeline.Destroy();
+    s_RendererData->Sampler.Destroy();
+    s_RendererData->PipelineLayout.Destroy();
+    s_RendererData->DescriptorSetLayout.Destroy();
+    s_RendererData->FragmentShader.Destroy();
+    s_RendererData->VertexShader.Destroy();
+    s_RendererData.Destruct();
+    for (ImGuiMouseCursor cursor = 0; cursor < ImGuiMouseCursor_COUNT; cursor++)
+        glfwDestroyCursor(s_PlatformData.MouseCursors[cursor]);
+}
+
+void NewFrame()
 {
     TKIT_PROFILE_NSCOPE("Onyx::ImGui::NewFrame");
-    ImGui_ImplVulkan_NewFrame();
-    platformImGuiNewFrame();
+    platform_NewFrame();
     ImGui::NewFrame();
 }
 
-void RenderImGuiData(ImDrawData *data, const VkCommandBuffer commandBuffer)
+Result<> RenderData(ImDrawData *data, const VkCommandBuffer commandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::ImGui::RenderDrawData");
-    ImGui_ImplVulkan_RenderDrawData(data, commandBuffer);
+    return renderer_Render(data, commandBuffer);
 }
-void RenderImGuiWindows()
+void RenderWindows()
 {
     TKIT_PROFILE_NSCOPE("Onyx::ImGui::RenderWindows");
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault();
 }
 
-void ShutdownImGui()
-{
-    VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
-    ImGui_ImplVulkan_Shutdown();
-    platformImGuiShutdown();
-    ImGui::DestroyPlatformWindows();
-}
-
-} // namespace Onyx
+} // namespace Onyx::ImGuiBackend
