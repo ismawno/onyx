@@ -62,9 +62,6 @@ enum WindowLayerFlagBit : WindowLayerFlags
 struct WindowLayerSpecs
 {
     WindowLayerFlags Flags = 0;
-#ifdef ONYX_ENABLE_IMGUI
-    i32 ImGuiConfigFlags = 0;
-#endif
 };
 
 class ApplicationLayer;
@@ -116,38 +113,32 @@ class WindowLayer
     }
 
 #ifdef ONYX_ENABLE_IMGUI
-    void RequestEnableImGui(const i32 configFlags)
+    void RequestEnableImGui()
     {
         TKIT_ASSERT(!checkFlags(WindowLayerFlag_ImGuiEnabled),
                     "[ONYX][WIN-LAYER] Imgui is already enabled. To reload imgui, use RequestReloadImGui()");
         m_Flags |= WindowLayerFlag_RequestEnableImGui;
-        m_ImGuiConfigFlags = configFlags;
     }
     void RequestDisableImGui()
     {
         TKIT_ASSERT(checkFlags(WindowLayerFlag_ImGuiEnabled), "[ONYX][WIN-LAYER] Imgui is already disabled");
         m_Flags |= WindowLayerFlag_RequestDisableImGui;
     }
-    void RequestReloadImGui(const i32 configFlags)
+    void RequestReloadImGui()
     {
         TKIT_ASSERT(checkFlags(WindowLayerFlag_ImGuiEnabled),
                     "[ONYX][WIN-LAYER] ImGui is not enabled. Enable it first with RequestEnableImGui()");
         m_Flags |= WindowLayerFlag_RequestDisableImGui | WindowLayerFlag_RequestEnableImGui;
-        m_ImGuiConfigFlags = configFlags;
     }
     bool DeltaTimeEditor(const EditorFlags flags = 0)
     {
         return Onyx::DeltaTimeEditor(m_Delta, m_DeltaInfo, m_Window, flags);
     }
-    i32 GetImGuiConfigFlags() const
-    {
-        return m_ImGuiConfigFlags;
-    }
 #endif
 
-    ApplicationLayer *GetApplicationLayer() const
+    template <std::derived_from<ApplicationLayer> T = ApplicationLayer> T *GetApplicationLayer() const
     {
-        return m_AppLayer;
+        return static_cast<T *>(m_AppLayer);
     }
     Window *GetWindow() const
     {
@@ -194,7 +185,6 @@ class WindowLayer
 #    ifdef ONYX_ENABLE_IMPLOT
     ImPlotContext *m_ImPlotContext = nullptr;
 #    endif
-    i32 m_ImGuiConfigFlags = 0;
     DeltaInfo m_DeltaInfo{};
 #endif
 

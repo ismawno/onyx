@@ -109,6 +109,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         TKit::StackArray<u32> platformWindowIndices{};
         platformWindowIndices.Reserve(10 * wlayerCount);
         u32 platformWindowStart = 0;
+        const auto multiViewports = [] { return ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable; };
 #endif
 
         TKit::StackArray<Renderer::RenderSubmitInfo> rinfos{};
@@ -136,8 +137,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             rinfos.Append(rnres.GetValue());
 
 #ifdef ONYX_ENABLE_IMGUI
-            if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled) &&
-                wlayer->m_ImGuiConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+            if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled) && multiViewports())
             {
                 acwin.PlatformWindowStart = platformWindowStart;
                 for (u32 i = 0; i < ImGuiBackend::GetPlatformWindowCount(); ++i)
@@ -177,8 +177,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             TKIT_RETURN_IF_FAILED(wlayer->m_Window->Present())
 #ifdef ONYX_ENABLE_IMGUI
             ImGui::SetCurrentContext(wlayer->m_ImGuiContext);
-            if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled) &&
-                wlayer->m_ImGuiConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+            if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled) && multiViewports())
                 for (u32 i = acwin.PlatformWindowStart; i < acwin.PlatformWindowEnd; ++i)
                 {
                     const u32 windowIndex = platformWindowIndices[i];
@@ -234,8 +233,8 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         {
             TKIT_RETURN_IF_FAILED(layer->initializeImGui());
         }
-#endif
         layer->clearFlags(WindowLayerFlag_RequestEnableImGui | WindowLayerFlag_RequestDisableImGui);
+#endif
         if (layer->m_Replacement)
         {
             WindowLayer *nlayer = layer->m_Replacement(m_AppLayer, layer->m_Window);

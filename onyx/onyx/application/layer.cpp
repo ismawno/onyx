@@ -12,7 +12,6 @@ WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const TKit:
     : m_AppLayer(appLayer), m_Window(window)
 {
 #ifdef ONYX_ENABLE_IMGUI
-    m_ImGuiConfigFlags = specs.ImGuiConfigFlags;
     if (specs.Flags & WindowLayerFlag_ImGuiEnabled)
     {
         VKIT_CHECK_EXPRESSION(initializeImGui());
@@ -74,7 +73,6 @@ Result<> WindowLayer::initializeImGui()
 #    endif
 
     ImGuiIO &io = ImGui::GetIO();
-    io.ConfigFlags = m_ImGuiConfigFlags;
     TKIT_RETURN_IF_FAILED(ImGuiBackend::Create(m_Window));
     ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
     io.FontDefault = font;

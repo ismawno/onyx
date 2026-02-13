@@ -56,4 +56,7 @@ bool ScissorEditor(ScreenScissor &scissor, EditorFlags flags = 0);
 
 void HelpMarker(const char *description, const char *icon = "(?)");
 void HelpMarkerSameLine(const char *description, const char *icon = "(?)");
+
+void ConfigurationEditor();
+
 } // namespace Onyx
