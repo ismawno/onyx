@@ -1240,6 +1240,7 @@ ONYX_NO_DISCARD static Result<Renderer_ViewportData *> renderer_CreateViewportDa
 static void renderer_DestroyViewportData(Renderer_ViewportData *data)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
+    VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
     for (Renderer_Buffers &buffers : data->Buffers)
     {
         buffers.VertexBuffer.Destroy();
