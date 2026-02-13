@@ -46,11 +46,16 @@ static TKit::Storage<InitCallbacks> s_Callbacks{};
 ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRequests)
 {
     for (u32 i = 0; i < VKit::Queue_Count; ++i)
+    {
+        TKIT_LOG_WARNING_IF(queueRequests[i] > 1,
+                            "[ONYX][CORE] Requesting more than one queue per type can expose instabilities in poorly "
+                            "supported platforms, specially when using multiple windows");
         if (i != VKit::Queue_Compute && queueRequests[i] == 0)
             return Result<>::Error(
                 Error_BadInput,
                 "[ONYX][CORE] The queue request count for all queues must be at least 1 except for compute queues, "
                 "which are not directly used by this framework");
+    }
 
     s_QueueRequests = queueRequests;
     TKIT_LOG_INFO("[ONYX][CORE] Initializing Vulkit");
@@ -162,18 +167,15 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
 #endif
 
     VKit::LogicalDevice::Builder builder{s_Instance.Get(), s_Physical.Get()};
-    builder.RequireQueue(VKit::Queue_Graphics)
-        .RequestQueue(VKit::Queue_Present, s_QueueRequests[VKit::Queue_Present])
-        .RequestQueue(VKit::Queue_Transfer, s_QueueRequests[VKit::Queue_Transfer])
-        .RequestQueue(VKit::Queue_Compute, s_QueueRequests[VKit::Queue_Compute]);
-
-    if (s_QueueRequests[VKit::Queue_Graphics] > 1)
-        builder.RequestQueue(VKit::Queue_Graphics, s_QueueRequests[VKit::Queue_Graphics] - 1);
+    const auto devres = builder.RequireQueue(VKit::Queue_Graphics)
+                            .RequestQueue(VKit::Queue_Present, s_QueueRequests[VKit::Queue_Present])
+                            .RequestQueue(VKit::Queue_Transfer, s_QueueRequests[VKit::Queue_Transfer])
+                            .RequestQueue(VKit::Queue_Compute, s_QueueRequests[VKit::Queue_Compute])
+                            .RequestQueue(VKit::Queue_Graphics, s_QueueRequests[VKit::Queue_Graphics] - 1)
+                            .Build();
 
     if (s_Callbacks->OnLogicalDeviceCreation)
         s_Callbacks->OnLogicalDeviceCreation(builder);
-
-    const auto devres = builder.Build();
 
     TKIT_RETURN_ON_ERROR(devres);
     *s_Device = devres.GetValue();

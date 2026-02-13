@@ -7,7 +7,6 @@
 
 namespace Onyx
 {
-
 // edge cases a bit unrealistic yes
 u32 ToFrequency(const TKit::Timespan deltaTime)
 {
@@ -28,15 +27,181 @@ TKit::Timespan ToDeltaTime(const u32 frequency)
     return TKit::Timespan::FromSeconds(1.f / static_cast<f32>(frequency));
 }
 
-VkExtent2D Window::waitGlfwEvents(const u32 width, const u32 height)
+Window *Window::FromHandle(GLFWwindow *window)
 {
-    VkExtent2D windowExtent = {width, height};
-    while (windowExtent.width == 0 || windowExtent.height == 0)
-    {
-        windowExtent = {width, height};
-        glfwWaitEvents();
-    }
-    return windowExtent;
+    return static_cast<Window *>(glfwGetWindowUserPointer(window));
+}
+
+void Window::Show()
+{
+    glfwShowWindow(m_Window);
+}
+void Window::Focus()
+{
+    glfwFocusWindow(m_Window);
+}
+
+bool Window::CanQueryOpacity() const
+{
+#ifdef ONYX_GLFW_WINDOW_OPACITY
+    return true;
+#else
+    return false;
+#endif
+}
+
+const char *Window::GetTitle() const
+{
+    return glfwGetWindowTitle(m_Window);
+}
+
+i32v2 Window::GetPosition() const
+{
+    i32 x;
+    i32 y;
+    glfwGetWindowPos(m_Window, &x, &y);
+    return i32v2{x, y};
+}
+
+u32v2 Window::GetScreenDimensions() const
+{
+    i32 w;
+    i32 h;
+    glfwGetWindowSize(m_Window, &w, &h);
+    return u32v2{w, h};
+}
+
+u32v2 Window::GetPixelDimensions() const
+{
+    i32 w;
+    i32 h;
+    glfwGetFramebufferSize(m_Window, &w, &h);
+    return u32v2{w, h};
+}
+
+f32 Window::GetAspect() const
+{
+    const u32v2 pdim = GetPixelDimensions();
+    return static_cast<f32>(pdim[1]) / static_cast<f32>(pdim[0]);
+}
+
+f32 Window::GetOpacity() const
+{
+#ifdef ONYX_GLFW_WINDOW_OPACITY
+    return glfwGetWindowOpacity(m_Window);
+#else
+    TKIT_FATAL("[ONYX][WINDOW] To query opacity, GLFW 3.3 or greater is required. Use CanQueryOpacity() to check if "
+               "the feature is available");
+    return 0.f;
+#endif
+}
+void Window::SetOpacity(const f32 opacity)
+{
+#ifdef ONYX_GLFW_WINDOW_OPACITY
+    glfwSetWindowOpacity(m_Window, opacity);
+#else
+    TKIT_FATAL("[ONYX][WINDOW] To query opacity, GLFW 3.3 or greater is required. Use CanQueryOpacity() to check if "
+               "the feature is available");
+#endif
+}
+
+WindowFlags Window::GetFlags() const
+{
+    WindowFlags flags = 0;
+    if (glfwGetWindowAttrib(m_Window, GLFW_RESIZABLE))
+        flags |= WindowFlag_Resizable;
+    if (glfwGetWindowAttrib(m_Window, GLFW_VISIBLE))
+        flags |= WindowFlag_Visible;
+    if (glfwGetWindowAttrib(m_Window, GLFW_DECORATED))
+        flags |= WindowFlag_Decorated;
+    if (glfwGetWindowAttrib(m_Window, GLFW_FOCUSED))
+        flags |= WindowFlag_Focused;
+    if (glfwGetWindowAttrib(m_Window, GLFW_FLOATING))
+        flags |= WindowFlag_Floating;
+    if (glfwGetWindowAttrib(m_Window, GLFW_ICONIFIED))
+        flags |= WindowFlag_Iconified;
+#ifdef ONYX_GLFW_FOCUS_ON_SHOW
+    if (glfwGetWindowAttrib(m_Window, GLFW_FOCUS_ON_SHOW))
+        flags |= WindowFlag_FocusOnShow;
+#endif
+    return flags;
+}
+void Window::SetFlags(const WindowFlags flags)
+{
+    glfwSetWindowAttrib(m_Window, GLFW_RESIZABLE, flags & WindowFlag_Resizable);
+    glfwSetWindowAttrib(m_Window, GLFW_VISIBLE, flags & WindowFlag_Visible);
+    glfwSetWindowAttrib(m_Window, GLFW_DECORATED, flags & WindowFlag_Decorated);
+    glfwSetWindowAttrib(m_Window, GLFW_FOCUSED, flags & WindowFlag_Focused);
+    glfwSetWindowAttrib(m_Window, GLFW_FLOATING, flags & WindowFlag_Floating);
+    glfwSetWindowAttrib(m_Window, GLFW_ICONIFIED, flags & WindowFlag_Iconified);
+}
+void Window::AddFlags(const WindowFlags flags)
+{
+    if (flags & WindowFlag_Resizable)
+        glfwSetWindowAttrib(m_Window, GLFW_RESIZABLE, GLFW_TRUE);
+    if (flags & WindowFlag_Visible)
+        glfwSetWindowAttrib(m_Window, GLFW_VISIBLE, GLFW_TRUE);
+    if (flags & WindowFlag_Decorated)
+        glfwSetWindowAttrib(m_Window, GLFW_DECORATED, GLFW_TRUE);
+    if (flags & WindowFlag_Focused)
+        glfwSetWindowAttrib(m_Window, GLFW_FOCUSED, GLFW_TRUE);
+    if (flags & WindowFlag_Floating)
+        glfwSetWindowAttrib(m_Window, GLFW_FLOATING, GLFW_TRUE);
+    if (flags & WindowFlag_Iconified)
+        glfwSetWindowAttrib(m_Window, GLFW_ICONIFIED, GLFW_TRUE);
+}
+void Window::RemoveFlags(const WindowFlags flags)
+{
+    if (flags & WindowFlag_Resizable)
+        glfwSetWindowAttrib(m_Window, GLFW_RESIZABLE, GLFW_FALSE);
+    if (flags & WindowFlag_Visible)
+        glfwSetWindowAttrib(m_Window, GLFW_VISIBLE, GLFW_FALSE);
+    if (flags & WindowFlag_Decorated)
+        glfwSetWindowAttrib(m_Window, GLFW_DECORATED, GLFW_FALSE);
+    if (flags & WindowFlag_Focused)
+        glfwSetWindowAttrib(m_Window, GLFW_FOCUSED, GLFW_FALSE);
+    if (flags & WindowFlag_Floating)
+        glfwSetWindowAttrib(m_Window, GLFW_FLOATING, GLFW_FALSE);
+    if (flags & WindowFlag_Iconified)
+        glfwSetWindowAttrib(m_Window, GLFW_ICONIFIED, GLFW_FALSE);
+}
+
+void Window::SetTitle(const char *title)
+{
+    glfwSetWindowTitle(m_Window, title);
+}
+void Window::SetPosition(const i32v2 &pos)
+{
+    glfwSetWindowPos(m_Window, pos[0], pos[1]);
+}
+void Window::SetScreenDimensions(const u32v2 &dim)
+{
+#if defined(TKIT_OS_APPLE) && !defined(ONYX_GLFW_OSX_WINDOW_POS_FIX)
+    i32 x;
+    i32 y;
+    i32 w;
+    i32 h;
+    glfwGetWindowPos(m_Window, &x, &y);
+    glfwGetWindowSize(m_Window, &w, &h);
+    glfwSetWindowPos(m_Window, x, y - h + static_cast<i32>(dim[1]));
+#endif
+    glfwSetWindowSize(m_Window, static_cast<i32>(dim[0]), static_cast<i32>(dim[1]));
+    m_MustRecreateSwapchain = true;
+}
+void Window::SetAspect(const u32 numer, const u32 denom)
+{
+    glfwSetWindowAspectRatio(m_Window, static_cast<i32>(numer), static_cast<i32>(denom));
+}
+
+VkExtent2D Window::getNewExtent(GLFWwindow *window)
+{
+    i32 w = 0;
+    i32 h = 0;
+
+    while (w == 0 || h == 0)
+        glfwGetFramebufferSize(window, &w, &h);
+
+    return VkExtent2D{static_cast<u32>(w), static_cast<u32>(h)};
 }
 
 Result<VKit::SwapChain> Window::createSwapChain(const VkPresentModeKHR presentMode, const VkSurfaceKHR surface,
@@ -86,6 +251,9 @@ Window::~Window()
 {
     Renderer::ClearWindow(this);
     VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+
+    const auto table = Core::GetDeviceTable();
+    VKIT_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
     destroyImageData(m_Images);
     Execution::DestroySyncData(m_SyncData);
 
@@ -125,7 +293,7 @@ Result<bool> Window::handleImageResult(const VkResult result)
     return true;
 }
 
-Result<> Window::Present(const Renderer::RenderSubmitInfo &info)
+Result<> Window::Present()
 {
     TKIT_PROFILE_NSCOPE("Onyx::FramwScheduler::Present");
 
@@ -147,10 +315,6 @@ Result<> Window::Present(const Renderer::RenderSubmitInfo &info)
 
     TKIT_RETURN_IF_FAILED(handleImageResult(result));
 
-    // a bit random that 0
-    m_LastGraphicsSubmission.Timeline = info.SignalSemaphores[0].semaphore;
-    m_LastGraphicsSubmission.InFlightValue = info.SignalSemaphores[0].value;
-
     return Result<>::Ok();
 }
 
@@ -159,33 +323,26 @@ Result<bool> Window::AcquireNextImage(const Timeout timeout)
     TKIT_PROFILE_NSCOPE("Onyx::Window::AcquireNextImage");
     const auto table = Core::GetDeviceTable();
     const auto &device = Core::GetDevice();
-    const auto acquire = [&]() {
-        const u32 idx = (m_ImageAvailableIndex + 1) % m_SyncData.GetSize();
-        const VkResult result = table->AcquireNextImageKHR(
-            device, m_SwapChain, timeout, m_SyncData[idx].ImageAvailableSemaphore, VK_NULL_HANDLE, &m_ImageIndex);
 
-        if (result != VK_NOT_READY && result != VK_TIMEOUT)
-            m_ImageAvailableIndex = idx;
-        return handleImageResult(result);
-    };
+    const u32 idx = (m_ImageAvailableIndex + 1) % m_SyncData.GetSize();
+    const Execution::SyncData &sync = m_SyncData[idx];
 
-    if (timeout != Block)
-        return acquire();
-
-    if (m_LastGraphicsSubmission.Timeline)
+    if (sync.InFlightSubmission)
     {
         VkSemaphoreWaitInfoKHR waitInfo{};
         waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
         waitInfo.semaphoreCount = 1;
-        waitInfo.pSemaphores = &m_LastGraphicsSubmission.Timeline;
-        waitInfo.pValues = &m_LastGraphicsSubmission.InFlightValue;
+        waitInfo.pSemaphores = &sync.InFlightSubmission;
+        waitInfo.pValues = &sync.InFlightValue;
 
-        const VkResult result = table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX);
-        if (result != VK_SUCCESS)
-            return Result<>::Error(result);
-        m_LastGraphicsSubmission.Timeline = VK_NULL_HANDLE;
+        VKIT_RETURN_IF_FAILED(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX), Result<>);
     }
-    return acquire();
+    const VkResult result = table->AcquireNextImageKHR(device, m_SwapChain, timeout, sync.ImageAvailableSemaphore,
+                                                       VK_NULL_HANDLE, &m_ImageIndex);
+
+    if (result != VK_NOT_READY && result != VK_TIMEOUT)
+        m_ImageAvailableIndex = idx;
+    return handleImageResult(result);
 }
 
 Result<> Window::createSwapChain(const VkExtent2D &windowExtent)
@@ -199,9 +356,11 @@ Result<> Window::createSwapChain(const VkExtent2D &windowExtent)
 Result<> Window::recreateSwapChain()
 {
     TKIT_LOG_DEBUG("[ONYX][WINDOW] Out of date swap chain. Re-creating swap chain and resources");
-    const VkExtent2D extent = waitGlfwEvents(GetScreenWidth(), GetScreenHeight());
+    const VkExtent2D extent = getNewExtent(m_Window);
 
     TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    const auto table = Core::GetDeviceTable();
+    VKIT_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
 
     VKit::SwapChain old = m_SwapChain;
     TKIT_RETURN_IF_FAILED(createSwapChain(extent));
@@ -221,9 +380,11 @@ Result<> Window::recreateSwapChain()
 Result<> Window::recreateSurface()
 {
     TKIT_LOG_WARNING("[ONYX][WINDOW] Surface lost... re-creating surface, swap chain and resources");
-    const VkExtent2D extent = waitGlfwEvents(GetScreenWidth(), GetScreenHeight());
+    const VkExtent2D extent = getNewExtent(m_Window);
 
     TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    const auto table = Core::GetDeviceTable();
+    VKIT_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
 
     m_SwapChain.Destroy();
     m_SwapChain = VKit::SwapChain{};

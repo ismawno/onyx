@@ -36,7 +36,6 @@ struct Tracker
 };
 
 ONYX_NO_DISCARD Result<> UpdateCompletedQueueTimelines();
-void RevokeUnsubmittedQueueTimelines();
 
 VKit::Queue *FindSuitableQueue(VKit::QueueType type);
 
@@ -60,6 +59,8 @@ struct SyncData
 {
     VkSemaphore ImageAvailableSemaphore;
     VkSemaphore RenderFinishedSemaphore;
+    VkSemaphore InFlightSubmission;
+    u64 InFlightValue;
 };
 
 ONYX_NO_DISCARD Result<TKit::TierArray<SyncData>> CreateSyncData(u32 imageCount);

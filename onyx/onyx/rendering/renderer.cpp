@@ -888,11 +888,9 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
     return Result<>::Ok();
 }
 
-Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer command, const Window *window)
+Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer command, Window *window)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::Render");
-    RenderSubmitInfo submitInfo{};
-    submitInfo.Command = command;
     const u64 graphicsFlight = graphics->NextTimelineValue();
     TKit::StackArray<Execution::Tracker> transferTrackers{};
 
@@ -906,12 +904,9 @@ Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer com
     TKIT_RETURN_IF_FAILED(render<D3>(graphics, command, window, graphicsFlight, transferTrackers));
     TKIT_RETURN_IF_FAILED(render<D2>(graphics, command, window, graphicsFlight, transferTrackers));
 
-    VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
-    rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
-    rendFinInfo.pNext = nullptr;
-    rendFinInfo.semaphore = window->GetRenderFinishedSemaphore();
-    rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-    rendFinInfo.deviceIndex = 0;
+    RenderSubmitInfo submitInfo{};
+    submitInfo.Command = command;
+    submitInfo.InFlightValue = graphicsFlight;
 
     VkSemaphoreSubmitInfoKHR &imgInfo = submitInfo.WaitSemaphores.Append();
     imgInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
@@ -928,6 +923,16 @@ Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer com
     gtimSemInfo.semaphore = graphics->GetTimelineSempahore();
     gtimSemInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
 
+    VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
+    rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
+    rendFinInfo.pNext = nullptr;
+    rendFinInfo.value = 0;
+    rendFinInfo.semaphore = window->GetRenderFinishedSemaphore();
+    rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
+    rendFinInfo.deviceIndex = 0;
+
+    window->MarkSubmission(graphics->GetTimelineSempahore(), graphicsFlight);
+
     for (const Execution::Tracker &ttracker : transferTrackers)
     {
         VkSemaphoreSubmitInfoKHR &ttimSemInfo = submitInfo.WaitSemaphores.Append();
@@ -938,7 +943,6 @@ Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer com
         ttimSemInfo.value = ttracker.InFlightValue;
         ttimSemInfo.stageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR;
     }
-    submitInfo.InFlightValue = graphicsFlight;
     return submitInfo;
 }
 
@@ -953,29 +957,29 @@ Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span
     cmds.Reserve(info.GetSize());
 
     u64 maxFlight = 0;
-    for (const RenderSubmitInfo &info : info)
+    for (const RenderSubmitInfo &rinfo : info)
     {
-        TKIT_ASSERT(info.Command,
+        TKIT_ASSERT(rinfo.Command,
                     "[ONYX][RENDERER] A submission must have a valid graphics command buffer to be submitted");
-        if (info.InFlightValue > maxFlight)
-            maxFlight = info.InFlightValue;
+        if (rinfo.InFlightValue > maxFlight)
+            maxFlight = rinfo.InFlightValue;
 
         VkSubmitInfo2KHR &sinfo = submits.Append();
         sinfo = {};
         sinfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2_KHR;
-        if (!info.WaitSemaphores.IsEmpty())
+        if (!rinfo.WaitSemaphores.IsEmpty())
         {
-            sinfo.waitSemaphoreInfoCount = info.WaitSemaphores.GetSize();
-            sinfo.pWaitSemaphoreInfos = info.WaitSemaphores.GetData();
+            sinfo.waitSemaphoreInfoCount = rinfo.WaitSemaphores.GetSize();
+            sinfo.pWaitSemaphoreInfos = rinfo.WaitSemaphores.GetData();
         }
 
-        sinfo.signalSemaphoreInfoCount = info.SignalSemaphores.GetSize();
-        sinfo.pSignalSemaphoreInfos = info.SignalSemaphores.GetData();
+        sinfo.signalSemaphoreInfoCount = rinfo.SignalSemaphores.GetSize();
+        sinfo.pSignalSemaphoreInfos = rinfo.SignalSemaphores.GetData();
 
         VkCommandBufferSubmitInfoKHR &cmd = cmds.Append();
         cmd.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO_KHR;
         cmd.pNext = nullptr;
-        cmd.commandBuffer = info.Command;
+        cmd.commandBuffer = rinfo.Command;
         cmd.deviceMask = 0;
 
         sinfo.commandBufferInfoCount = 1;

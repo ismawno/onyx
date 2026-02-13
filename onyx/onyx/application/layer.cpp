@@ -8,20 +8,21 @@
 namespace Onyx
 {
 WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const TKit::Timespan targetDeltaTime,
-                         const WindowLayerFlags flags)
+                         const WindowLayerSpecs &specs)
     : m_AppLayer(appLayer), m_Window(window)
 {
 #ifdef ONYX_ENABLE_IMGUI
-    if (flags & WindowLayerFlag_ImGuiEnabled)
+    m_ImGuiConfigFlags = specs.ImGuiConfigFlags;
+    if (specs.Flags & WindowLayerFlag_ImGuiEnabled)
     {
         VKIT_CHECK_EXPRESSION(initializeImGui());
     }
 #endif
     m_Delta.Target = window->IsVSync() ? window->GetMonitorDeltaTime() : targetDeltaTime;
-    m_Flags = flags;
+    m_Flags = specs.Flags;
 }
-WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const WindowLayerFlags flags)
-    : WindowLayer(appLayer, window, window->GetMonitorDeltaTime(), flags)
+WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const WindowLayerSpecs &specs)
+    : WindowLayer(appLayer, window, window->GetMonitorDeltaTime(), specs)
 {
 }
 Result<Renderer::RenderSubmitInfo> WindowLayer::OnRender(const ExecutionInfo &info)
@@ -38,8 +39,9 @@ Result<Renderer::RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info
     if (checkFlags(WindowLayerFlag_ImGuiEnabled))
     {
         ImGui::Render();
-        TKIT_RETURN_IF_FAILED(ImGuiBackend::RenderData(ImGui::GetDrawData(), info.CommandBuffer));
-        ImGuiBackend::RenderWindows();
+        TKIT_RETURN_IF_FAILED(ImGuiBackend::RenderData(ImGui::GetDrawData(), info.CommandBuffer),
+                              m_Window->EndRendering(info.CommandBuffer));
+        TKIT_RETURN_IF_FAILED(ImGuiBackend::UpdatePlatformWindows(), m_Window->EndRendering(info.CommandBuffer));
     }
 #endif
     m_Window->EndRendering(info.CommandBuffer);
@@ -52,7 +54,7 @@ Result<> WindowLayer::initializeImGui()
     TKIT_ASSERT(!checkFlags(WindowLayerFlag_ImGuiEnabled),
                 "[ONYX][APPLICATION] Trying to initialize ImGui for window '{}' when it is already enabled. If you "
                 "meant to reload ImGui, use ReloadImGui()",
-                m_Window->GetName());
+                m_Window->GetTitle());
 
     IMGUI_CHECKVERSION();
 
@@ -86,7 +88,7 @@ void WindowLayer::shutdownImGui()
     TKIT_ASSERT(
         checkFlags(WindowLayerFlag_ImGuiEnabled),
         "[ONYX][APPLICATION] Trying to shut down ImGui for window '{}' when it is not initialized to begin with",
-        m_Window->GetName());
+        m_Window->GetTitle());
 
     clearFlags(WindowLayerFlag_ImGuiEnabled);
 

@@ -76,7 +76,7 @@ struct Specs
 {
     const char *VulkanLoaderPath = nullptr;
     TKit::ITaskManager *TaskManager = nullptr;
-    TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{4, 0, 4, 1};
+    TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{1, 0, 1, 1};
     TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> Allocators{};
     InitCallbacks Callbacks{};
     Execution::Specs *ExecutionSpecs = nullptr;

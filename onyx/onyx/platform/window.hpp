@@ -39,6 +39,8 @@ class Window
     Window() = default;
     ~Window();
 
+    static Window *FromHandle(GLFWwindow *window);
+
     /**
      * @brief Begin rendering and recording the frame's command buffer.
      *
@@ -73,55 +75,27 @@ class Window
         return m_PresentMode == VK_PRESENT_MODE_FIFO_KHR || m_PresentMode == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
     }
 
-    const char *GetName() const
-    {
-        return m_Name;
-    }
+    void Show();
+    void Focus();
 
-    const u32v2 &GetPosition() const
-    {
-        return m_Position;
-    }
+    bool CanQueryOpacity() const;
 
-    const u32v2 &GetScreenDimensions() const
-    {
-        return m_Dimensions;
-    }
-    u32 GetScreenWidth() const
-    {
-        return m_Dimensions[0];
-    }
-    u32 GetScreenHeight() const
-    {
-        return m_Dimensions[1];
-    }
+    const char *GetTitle() const;
+    i32v2 GetPosition() const;
+    u32v2 GetScreenDimensions() const;
+    u32v2 GetPixelDimensions() const;
+    f32 GetAspect() const;
+    f32 GetOpacity() const;
+    WindowFlags GetFlags() const;
 
-    u32 GetPixelWidth() const
-    {
-        return m_SwapChain.GetInfo().Extent.width;
-    }
-    u32 GetPixelHeight() const
-    {
-        return m_SwapChain.GetInfo().Extent.height;
-    }
-    u32v2 GetPixelDimensions() const
-    {
-        return u32v2{GetPixelWidth(), GetPixelHeight()};
-    }
-
-    f32 GetScreenAspect() const
-    {
-        return static_cast<f32>(m_Dimensions[0]) / static_cast<f32>(m_Dimensions[1]);
-    }
-    f32 GetPixelAspect() const
-    {
-        return static_cast<f32>(GetPixelWidth()) / static_cast<f32>(GetPixelHeight());
-    }
-
-    WindowFlags GetFlags() const
-    {
-        return m_Flags;
-    }
+    void SetTitle(const char *title);
+    void SetPosition(const i32v2 &pos);
+    void SetScreenDimensions(const u32v2 &dim);
+    void SetAspect(u32 numer, u32 denom);
+    void SetFlags(WindowFlags flags);
+    void AddFlags(WindowFlags flags);
+    void RemoveFlags(WindowFlags flags);
+    void SetOpacity(f32 opacity);
 
     VkSurfaceKHR GetSurface() const
     {
@@ -209,7 +183,7 @@ class Window
     }
 
     ONYX_NO_DISCARD Result<bool> AcquireNextImage(Timeout timeout = Block);
-    ONYX_NO_DISCARD Result<> Present(const Renderer::RenderSubmitInfo &info);
+    ONYX_NO_DISCARD Result<> Present();
 
     void RequestSwapchainRecreation()
     {
@@ -220,6 +194,7 @@ class Window
     {
         return m_SwapChain;
     }
+
     VkPresentModeKHR GetPresentMode() const
     {
         return m_PresentMode;
@@ -250,6 +225,11 @@ class Window
     {
         return m_SyncData[m_ImageIndex].RenderFinishedSemaphore;
     }
+    void MarkSubmission(const VkSemaphore timeline, const u64 inFlightValue)
+    {
+        m_SyncData[m_ImageAvailableIndex].InFlightSubmission = timeline;
+        m_SyncData[m_ImageAvailableIndex].InFlightValue = inFlightValue;
+    }
 
   private:
     void adaptCamerasToViewportAspect();
@@ -266,7 +246,7 @@ class Window
 
     ONYX_NO_DISCARD static Result<TKit::TierArray<Window::ImageData>> createImageData(VKit::SwapChain &swapChain);
     static void destroyImageData(TKit::TierArray<Window::ImageData> &images);
-    static VkExtent2D waitGlfwEvents(u32 width, u32 height);
+    static VkExtent2D getNewExtent(GLFWwindow *window);
 
     template <Dimension D> const auto &getCameraArray() const
     {
@@ -304,21 +284,9 @@ class Window
     u32 m_ImageAvailableIndex = 0;
     u64 m_ViewBit;
 
-    const char *m_Name;
-    u32v2 m_Position;
-    u32v2 m_Dimensions;
-
-    struct
-    {
-        VkSemaphore Timeline = VK_NULL_HANDLE;
-        u64 InFlightValue = 0;
-    } m_LastGraphicsSubmission{};
-
     VkPresentModeKHR m_PresentMode;
-    WindowFlags m_Flags;
     bool m_MustRecreateSwapchain = false;
 
-    friend void windowSizeCallback(GLFWwindow *, const i32, const i32);
     friend Result<Window *> Platform::CreateWindow(const WindowSpecs &);
 };
 } // namespace Onyx

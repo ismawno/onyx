@@ -116,8 +116,8 @@ Result<> Initialize(const Specs &specs)
 
     const auto &device = Core::GetDevice();
     const auto table = Core::GetDeviceTable();
-    const auto &Queues = Core::GetDevice().GetInfo().Queues;
-    for (VKit::Queue *q : Queues)
+    const auto &queues = Core::GetDevice().GetInfo().Queues;
+    for (VKit::Queue *q : queues)
     {
         VkSemaphoreTypeCreateInfoKHR typeInfo{};
         typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
@@ -136,6 +136,15 @@ Result<> Initialize(const Specs &specs)
         q->TakeTimelineSemaphoreOwnership(semaphore);
         TKIT_RETURN_IF_FAILED(q->UpdateCompletedTimeline());
     }
+#ifdef TKIT_ENABLE_INFO_LOGS
+    const auto &qptype = Core::GetDevice().GetInfo().QueuesPerType;
+    for (u32 i = 0; i < qptype.GetSize(); ++i)
+    {
+        const auto &qs = qptype[i];
+        TKIT_LOG_INFO("[ONYX][EXECUTION] {} '{}' queue(s) have been retrieved from the device", qs.GetSize(),
+                      VKit::ToString(static_cast<VKit::QueueType>(i)));
+    }
+#endif
     return Result<>::Ok();
 }
 void Terminate()
@@ -152,26 +161,20 @@ void Terminate()
 }
 Result<> UpdateCompletedQueueTimelines()
 {
-    const auto &Queues = Core::GetDevice().GetInfo().Queues;
-    for (VKit::Queue *q : Queues)
+    const auto &queues = Core::GetDevice().GetInfo().Queues;
+    for (VKit::Queue *q : queues)
     {
         TKIT_RETURN_IF_FAILED(q->UpdateCompletedTimeline());
     }
     return Result<>::Ok();
 }
-void RevokeUnsubmittedQueueTimelines()
-{
-    const auto &Queues = Core::GetDevice().GetInfo().Queues;
-    for (VKit::Queue *q : Queues)
-        q->RevokeUnsubmittedTimelineValues();
-}
 
 VKit::Queue *FindSuitableQueue(const VKit::QueueType type)
 {
-    const auto &Queues = Core::GetDevice().GetInfo().QueuesPerType[type];
+    const auto &queues = Core::GetDevice().GetInfo().QueuesPerType[type];
     u64 pending = TKIT_U64_MAX;
     VKit::Queue *queue = nullptr;
-    for (VKit::Queue *q : Queues)
+    for (VKit::Queue *q : queues)
     {
         const u64 p = q->GetPendingTimeline();
         if (p < pending)
@@ -213,6 +216,9 @@ Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 imageCount)
     {
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        syncs[i].InFlightSubmission = VK_NULL_HANDLE;
+        syncs[i].InFlightValue = 0;
 
         VkResult result = table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore);
         if (result != VK_SUCCESS)

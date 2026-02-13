@@ -21,7 +21,6 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextTick");
     Input::PollEvents();
 
-    constexpr auto revoke = Execution::RevokeUnsubmittedQueueTimelines;
     if (m_AppLayer->isUpdateDue())
     {
         m_AppLayer->markUpdateTick();
@@ -46,18 +45,27 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         const auto result =
             m_AppLayer->OnTransfer({.Queue = tqueue, .CommandBuffer = cmd, .DeltaTime = m_AppLayer->m_TransferDelta});
 
-        TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd), revoke());
-        TKIT_RETURN_IF_FAILED(result, revoke());
+        TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd));
+        TKIT_RETURN_IF_FAILED(result);
 
         const Renderer::TransferSubmitInfo &info = result.GetValue();
         if (info)
         {
-            TKIT_RETURN_IF_FAILED(Renderer::SubmitTransfer(tqueue, tpool, info), revoke());
+            TKIT_RETURN_IF_FAILED(Renderer::SubmitTransfer(tqueue, tpool, info));
         }
     }
+    struct AcquiredWindow
+    {
+        WindowLayer *Layer;
+#ifdef ONYX_ENABLE_IMGUI
+        u32 PlatformWindowStart = 0;
+        u32 PlatformWindowEnd = 0;
+#endif
+    };
+    const u32 wlayerCount = m_WindowLayers.GetSize();
 
-    TKit::StackArray<WindowLayer *> dueWindows{};
-    dueWindows.Reserve(m_WindowLayers.GetSize());
+    TKit::StackArray<AcquiredWindow> acqWindows{};
+    acqWindows.Reserve(wlayerCount);
 
     for (WindowLayer *wlayer : m_WindowLayers)
     {
@@ -73,20 +81,22 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             }
             wlayer->OnEvent(event);
         }
+
         win->FlushEvents();
-        if (wlayer->isDue())
-        {
-            const auto result = win->AcquireNextImage();
-            TKIT_RETURN_ON_ERROR(result);
-            if (result.GetValue())
-            {
-                wlayer->markTick();
-                dueWindows.Append(wlayer);
-            }
-        }
+        if (!wlayer->isDue())
+            continue;
+
+        const auto result = win->AcquireNextImage(Poll);
+        TKIT_RETURN_ON_ERROR(result);
+        if (!result.GetValue())
+            continue;
+
+        wlayer->markTick();
+        AcquiredWindow &acwin = acqWindows.Append();
+        acwin.Layer = wlayer;
     }
 
-    if (!dueWindows.IsEmpty())
+    if (!acqWindows.IsEmpty())
     {
         VKit::Queue *gqueue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
         TKIT_RETURN_IF_FAILED(gqueue->UpdateCompletedTimeline());
@@ -95,16 +105,23 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         TKIT_RETURN_ON_ERROR(gresult);
         CommandPool *gpool = gresult.GetValue();
 
-        TKit::StackArray<Renderer::RenderSubmitInfo> rinfos{};
-        rinfos.Reserve(m_WindowLayers.GetSize());
+#ifdef ONYX_ENABLE_IMGUI
+        TKit::StackArray<u32> platformWindowIndices{};
+        platformWindowIndices.Reserve(10 * wlayerCount);
+        u32 platformWindowStart = 0;
+#endif
 
-        for (WindowLayer *wlayer : dueWindows)
+        TKit::StackArray<Renderer::RenderSubmitInfo> rinfos{};
+        rinfos.Reserve(10 * wlayerCount);
+
+        for (AcquiredWindow &acwin : acqWindows)
         {
-            const auto cmdres = Execution::Allocate(gpool);
-            TKIT_RETURN_ON_ERROR(cmdres, revoke());
+            WindowLayer *wlayer = acwin.Layer;
+            auto cmdres = Execution::Allocate(gpool);
+            TKIT_RETURN_ON_ERROR(cmdres);
             const VkCommandBuffer cmd = cmdres.GetValue();
 
-            TKIT_RETURN_IF_FAILED(Execution::BeginCommandBuffer(cmd), revoke());
+            TKIT_RETURN_IF_FAILED(Execution::BeginCommandBuffer(cmd));
             Renderer::ApplyAcquireBarriers(cmd);
 #ifdef ONYX_ENABLE_IMGUI
             if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled))
@@ -114,18 +131,61 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             }
 #endif
             const auto rnres = wlayer->OnRender({.Queue = gqueue, .CommandBuffer = cmd, .DeltaTime = wlayer->m_Delta});
-            TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd), revoke());
-
-            TKIT_RETURN_ON_ERROR(rnres, revoke());
+            TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd));
+            TKIT_RETURN_ON_ERROR(rnres);
             rinfos.Append(rnres.GetValue());
-        }
-        TKIT_RETURN_IF_FAILED(Renderer::SubmitRender(gqueue, gpool, rinfos), revoke());
-        for (u32 i = 0; i < rinfos.GetSize(); ++i)
-        {
-            TKIT_RETURN_IF_FAILED(dueWindows[i]->m_Window->Present(rinfos[i]), revoke())
+
+#ifdef ONYX_ENABLE_IMGUI
+            if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled) &&
+                wlayer->m_ImGuiConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+            {
+                acwin.PlatformWindowStart = platformWindowStart;
+                for (u32 i = 0; i < ImGuiBackend::GetPlatformWindowCount(); ++i)
+                {
+                    const auto result = ImGuiBackend::AcquirePlatformWindowImage(i, Poll);
+                    TKIT_RETURN_ON_ERROR(result);
+                    if (result.GetValue())
+                    {
+                        platformWindowIndices.Append(i);
+                        ++platformWindowStart;
+                    }
+                }
+
+                acwin.PlatformWindowEnd = platformWindowStart;
+                for (u32 i = acwin.PlatformWindowStart; i < acwin.PlatformWindowEnd; ++i)
+                {
+                    const u32 windowIndex = platformWindowIndices[i];
+                    cmdres = Execution::Allocate(gpool);
+                    TKIT_RETURN_ON_ERROR(cmdres);
+                    const VkCommandBuffer plcmd = cmdres.GetValue();
+
+                    TKIT_RETURN_IF_FAILED(Execution::BeginCommandBuffer(plcmd));
+                    const auto plrnres = ImGuiBackend::RenderPlatformWindow(windowIndex, gqueue, plcmd);
+                    TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(plcmd));
+                    TKIT_RETURN_ON_ERROR(plrnres);
+                    rinfos.Append(plrnres.GetValue());
+                }
+            }
+#endif
         }
 
-        revoke();
+        TKIT_RETURN_IF_FAILED(Renderer::SubmitRender(gqueue, gpool, rinfos));
+
+        for (const AcquiredWindow &acwin : acqWindows)
+        {
+            WindowLayer *wlayer = acwin.Layer;
+            TKIT_RETURN_IF_FAILED(wlayer->m_Window->Present())
+#ifdef ONYX_ENABLE_IMGUI
+            ImGui::SetCurrentContext(wlayer->m_ImGuiContext);
+            if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled) &&
+                wlayer->m_ImGuiConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+                for (u32 i = acwin.PlatformWindowStart; i < acwin.PlatformWindowEnd; ++i)
+                {
+                    const u32 windowIndex = platformWindowIndices[i];
+                    TKIT_RETURN_IF_FAILED(ImGuiBackend::PresentPlatformWindow(windowIndex));
+                }
+#endif
+        }
     }
     const auto endFrame = [&] {
         m_AppLayer->m_Flags = 0;
@@ -231,7 +291,7 @@ WindowLayer **Application::getLayerFromWindow(const Window *window)
         if (wlayer->m_Window == window)
             return &wlayer;
     TKIT_FATAL("[ONYX][APPLICATION] Failed to find a window layer with the window named '{}' attached",
-               window->GetName());
+               window->GetTitle());
     return nullptr;
 }
 

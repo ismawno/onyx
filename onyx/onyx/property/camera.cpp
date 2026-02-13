@@ -249,7 +249,7 @@ template <Dimension D> void ICamera<D>::ControlScrollWithUserInput(const f32 sca
 
 template <Dimension D> void ICamera<D>::adaptViewToViewportAspect()
 {
-    const VkExtent2D extent = {m_Window->GetPixelWidth(), m_Window->GetPixelHeight()};
+    const VkExtent2D &extent = m_Window->GetSwapChain().GetInfo().Extent;
     const VkViewport viewport = m_Viewport.AsVulkanViewport(extent);
     const f32 aspect = viewport.width / viewport.height;
 
@@ -270,7 +270,7 @@ template <Dimension D> void ICamera<D>::updateProjectionView()
 
 template <Dimension D> CameraInfo<D> ICamera<D>::CreateCameraInfo() const
 {
-    const VkExtent2D extent = {m_Window->GetPixelWidth(), m_Window->GetPixelHeight()};
+    const VkExtent2D &extent = m_Window->GetSwapChain().GetInfo().Extent;
     CameraInfo<D> info;
     if constexpr (D == D2)
     {

@@ -59,13 +59,22 @@ enum WindowLayerFlagBit : WindowLayerFlags
 #endif
 };
 
+struct WindowLayerSpecs
+{
+    WindowLayerFlags Flags = 0;
+#ifdef ONYX_ENABLE_IMGUI
+    i32 ImGuiConfigFlags = 0;
+#endif
+};
+
 class ApplicationLayer;
 class WindowLayer
 {
     TKIT_NON_COPYABLE(WindowLayer)
   public:
-    WindowLayer(ApplicationLayer *appLayer, Window *window, TKit::Timespan targetDeltaTime, WindowLayerFlags flags = 0);
-    WindowLayer(ApplicationLayer *appLayer, Window *window, WindowLayerFlags flags = 0);
+    WindowLayer(ApplicationLayer *appLayer, Window *window, TKit::Timespan targetDeltaTime,
+                const WindowLayerSpecs &specs = {});
+    WindowLayer(ApplicationLayer *appLayer, Window *window, const WindowLayerSpecs &specs = {});
 
     virtual ~WindowLayer()
     {
@@ -213,15 +222,20 @@ enum ApplicationLayerFlagBit : ApplicationLayerFlags
 };
 
 using WindowLayers = TKit::TierArray<WindowLayer *>;
+struct ApplicationLayerSpecs
+{
+    TKit::Timespan TargetUpdateDeltaTime = ToDeltaTime(60);
+    TKit::Timespan TargetTransferDeltaTime = ToDeltaTime(60);
+};
+
 class ApplicationLayer
 {
     TKIT_NON_COPYABLE(ApplicationLayer)
   public:
-    ApplicationLayer(const WindowLayers *layers, const TKit::Timespan targetDeltaTime = ToDeltaTime(60))
-        : m_WindowLayers(layers)
+    ApplicationLayer(const WindowLayers *layers, const ApplicationLayerSpecs &specs = {}) : m_WindowLayers(layers)
     {
-        m_UpdateDelta.Target = targetDeltaTime;
-        m_TransferDelta.Target = targetDeltaTime;
+        m_UpdateDelta.Target = specs.TargetUpdateDeltaTime;
+        m_TransferDelta.Target = specs.TargetTransferDeltaTime;
     }
 
     virtual ~ApplicationLayer() = default;

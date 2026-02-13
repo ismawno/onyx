@@ -23,6 +23,8 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context);
 
 void ClearWindow(const Window *window);
 
+// consider having arrays of semaphores to allow for some flexibility
+
 struct TransferSubmitInfo
 {
     VkCommandBuffer Command = VK_NULL_HANDLE;
@@ -49,7 +51,7 @@ ONYX_NO_DISCARD Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool
 
 void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
 
-ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *graphics, VkCommandBuffer command, const Window *window);
+ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *graphics, VkCommandBuffer command, Window *window);
 ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool,
                                       TKit::Span<const RenderSubmitInfo> info);
 

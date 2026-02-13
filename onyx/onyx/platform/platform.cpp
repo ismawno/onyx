@@ -60,9 +60,13 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     glfwWindowHint(GLFW_DECORATED, specs.Flags & WindowFlag_Decorated);
     glfwWindowHint(GLFW_FOCUSED, specs.Flags & WindowFlag_Focused);
     glfwWindowHint(GLFW_FLOATING, specs.Flags & WindowFlag_Floating);
+    // glfwWindowHint(GLFW_ICONIFIED, specs.Flags & WindowFlag_Iconified);
+#ifdef ONYX_GLFW_FOCUS_ON_SHOW
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, specs.Flags & WindowFlag_FocusOnShow);
+#endif
 
     GLFWwindow *handle = glfwCreateWindow(static_cast<i32>(specs.Dimensions[0]), static_cast<i32>(specs.Dimensions[1]),
-                                          specs.Name, nullptr, nullptr);
+                                          specs.Title, nullptr, nullptr);
     if (!handle)
         return Result<>::Error(Error_RejectedWindow);
 
@@ -70,9 +74,18 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     cleanup.Push([handle] { glfwDestroyWindow(handle); });
 
     u32v2 pos;
-    if (specs.Position != u32v2{TKIT_U32_MAX})
+    if (specs.Position != i32v2{TKIT_I32_MAX})
     {
-        glfwSetWindowPos(handle, static_cast<i32>(specs.Position[0]), static_cast<i32>(specs.Position[1]));
+        TKIT_ASSERT(specs.Position[0] < TKIT_I32_MAX,
+                    "[ONYX][PLATFORM] If component y of the window position is not "
+                    "TKIT_I32_MAX, component x must not be either. Passed position is ({}, {})",
+                    specs.Position[0], specs.Position[1]);
+        TKIT_ASSERT(specs.Position[1] < TKIT_I32_MAX,
+                    "[ONYX][PLATFORM] If component x of the window position is not "
+                    "TKIT_I32_MAX, component y must not be either. Passed position is ({}, {})",
+                    specs.Position[0], specs.Position[1]);
+
+        glfwSetWindowPos(handle, specs.Position[0], specs.Position[1]);
         pos = specs.Position;
     }
     else
@@ -88,9 +101,8 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
         return Result<>::Error(Error_NoSurfaceCapabilities);
 
     cleanup.Push([surface] { Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), surface, nullptr); });
-    Input::InstallCallbacks(handle);
 
-    const VkExtent2D extent = Window::waitGlfwEvents(specs.Dimensions[0], specs.Dimensions[1]);
+    const VkExtent2D extent = Window::getNewExtent(handle);
     auto sresult = Window::createSwapChain(specs.PresentMode, surface, extent);
     TKIT_RETURN_ON_ERROR(sresult);
 
@@ -111,12 +123,8 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     Window *window = alloc->Create<Window>();
 
     window->m_Window = handle;
-    window->m_Name = specs.Name;
-    window->m_Flags = specs.Flags;
     window->m_Surface = surface;
     window->m_SwapChain = schain;
-    window->m_Position = pos;
-    window->m_Dimensions = specs.Dimensions;
 
     auto iresult = Window::createImageData(window->m_SwapChain);
     TKIT_RETURN_ON_ERROR(iresult);
@@ -130,6 +138,8 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     window->m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
     window->UpdateMonitorDeltaTime();
     glfwSetWindowUserPointer(handle, window);
+    if (specs.Flags & WindowFlag_InstallCallbacks)
+        Input::InstallCallbacks(handle);
 
     cleanup.Dismiss();
     return window;

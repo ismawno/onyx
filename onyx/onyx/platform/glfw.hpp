@@ -13,7 +13,7 @@
 #endif
 
 #if ONYX_GLFW_VERSION_COMBINED >= 3300
-#    define ONYX_GLFW_WINDOW_ALPHA // 3.3+ glfwSetWindowOpacity()
+#    define ONYX_GLFW_WINDOW_OPACITY // 3.3+ glfwSetWindowOpacity()
 #endif
 
 #if ONYX_GLFW_VERSION_COMBINED >= 3300

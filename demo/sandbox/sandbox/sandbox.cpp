@@ -14,7 +14,7 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers) : ApplicationLayer(
     // RenderContext<D3> *ctx3 = AddContext<D3>();
 
     WindowSpecs wspecs{};
-    wspecs.Name = "Onyx sandbox window (2D)";
+    wspecs.Title = "Onyx sandbox window (2D)";
     RequestOpenWindow<SandboxWinLayer>([ctx2](SandboxWinLayer *, Window *window) { ctx2->AddTarget(window); }, wspecs,
                                        D2);
 
@@ -118,7 +118,8 @@ template <Dimension D> RenderContext<D> *SandboxAppLayer::AddContext()
     return context;
 }
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
-    : WindowLayer(appLayer, window, WindowLayerFlag_ImGuiEnabled)
+    : WindowLayer(appLayer, window,
+                  {.Flags = WindowLayerFlag_ImGuiEnabled, .ImGuiConfigFlags = ImGuiConfigFlags_ViewportsEnable})
 {
     if (dim == D2)
         AddCamera<D2>();

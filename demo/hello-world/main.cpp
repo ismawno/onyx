@@ -68,12 +68,10 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
         if (!rinfos.IsEmpty())
             VKIT_CHECK_EXPRESSION(Renderer::SubmitRender(gqueue, gpool, rinfos));
 
-        u32 index = 0;
         for (Window *win : windows)
             if (win->GetViewBit() & acquireMask)
-                VKIT_CHECK_EXPRESSION(win->Present(rinfos[index++]));
+                VKIT_CHECK_EXPRESSION(win->Present());
 
-        Execution::RevokeUnsubmittedQueueTimelines();
         for (u32 i = windows.GetSize() - 1; i < windows.GetSize(); --i)
             if (windows[i]->ShouldClose())
             {
@@ -89,7 +87,7 @@ void ApplicationExample()
     {
       public:
         WinLayer(ApplicationLayer *appLayer, Window *window)
-            : WindowLayer(appLayer, window, WindowLayerFlag_ImGuiEnabled)
+            : WindowLayer(appLayer, window, {.Flags = WindowLayerFlag_ImGuiEnabled})
         {
         }
 
@@ -117,7 +115,7 @@ int main()
     const Mesh mesh = Assets::AddMesh(data);
     VKIT_CHECK_EXPRESSION(Assets::Upload<D2>());
 
-    WindowExample(mesh, 2);
+    WindowExample(mesh, 8);
     // ApplicationExample();
 
     Core::Terminate();
