@@ -200,12 +200,6 @@ enum EventType : u8
 
 struct Event
 {
-    struct WindowMovedResized
-    {
-        u32v2 Old;
-        u32v2 New;
-    };
-
     struct MouseState
     {
         f32v2 Position{0.f};
@@ -221,7 +215,8 @@ struct Event
     EventType Type;
     Input::Key Key;
 
-    WindowMovedResized WindowDelta;
+    i32v2 WindowPos{0};
+    u32v2 WindowSize{0};
 
     MouseState Mouse;
     Char Character;

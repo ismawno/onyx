@@ -864,8 +864,7 @@ void windowMoveCallback(GLFWwindow *handle, const i32 x, const i32 y)
     Window *window = Window::FromHandle(handle);
     event.Type = Event_WindowMoved;
 
-    event.WindowDelta.Old = window->GetScreenDimensions();
-    event.WindowDelta.New = u32v2{static_cast<u32>(x), static_cast<u32>(y)};
+    event.WindowPos = i32v2{x, y};
 
     window->PushEvent(event);
     window->UpdateMonitorDeltaTime(window->GetMonitorDeltaTime());
@@ -877,9 +876,9 @@ void windowSizeCallback(GLFWwindow *handle, const i32 width, const i32 height)
     Window *window = Window::FromHandle(handle);
     event.Type = Event_WindowResized;
 
-    event.WindowDelta.Old = window->GetScreenDimensions();
-    event.WindowDelta.New = u32v2{static_cast<u32>(width), static_cast<u32>(height)};
+    event.WindowSize = u32v2{static_cast<u32>(width), static_cast<u32>(height)};
 
+    window->ResetResizeClock();
     window->PushEvent(event);
 }
 
@@ -889,7 +888,9 @@ static void framebufferSizeCallback(GLFWwindow *handle, const i32 width, const i
     Window *window = Window::FromHandle(handle);
     event.Type = Event_FramebufferResized;
 
-    event.WindowDelta.New = u32v2{static_cast<u32>(width), static_cast<u32>(height)};
+    event.WindowSize = u32v2{static_cast<u32>(width), static_cast<u32>(height)};
+
+    window->ResetResizeClock();
     window->PushEvent(event);
 }
 

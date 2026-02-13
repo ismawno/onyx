@@ -9,7 +9,7 @@
 #include "onyx/execution/execution.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "vkit/presentation/swap_chain.hpp"
-#include "tkit/profiling/timespan.hpp"
+#include "tkit/profiling/clock.hpp"
 
 struct GLFWwindow;
 
@@ -77,6 +77,10 @@ class Window
 
     void Show();
     void Focus();
+    void ResetResizeClock()
+    {
+        m_TimeSinceResize.Restart();
+    }
 
     bool CanQueryOpacity() const;
 
@@ -238,7 +242,7 @@ class Window
     ONYX_NO_DISCARD Result<> recreateSwapChain();
     ONYX_NO_DISCARD Result<> recreateResources();
     ONYX_NO_DISCARD Result<> recreateSurface();
-    ONYX_NO_DISCARD Result<bool> handleImageResult(VkResult result);
+    ONYX_NO_DISCARD Result<bool> handlePresentOrAcquireResult(VkResult result);
 
     ONYX_NO_DISCARD static Result<VKit::SwapChain> createSwapChain(VkPresentModeKHR presentMode, VkSurfaceKHR surface,
                                                                    const VkExtent2D &windowExtent,
@@ -273,6 +277,7 @@ class Window
     VkSurfaceKHR m_Surface;
 
     TKit::Timespan m_MonitorDeltaTime{};
+    TKit::Clock m_TimeSinceResize{};
 
     VKit::SwapChain m_SwapChain;
     TKit::TierArray<ImageData> m_Images{};

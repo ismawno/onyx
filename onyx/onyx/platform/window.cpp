@@ -268,10 +268,10 @@ Window::~Window()
     glfwDestroyWindow(m_Window);
 }
 
-Result<bool> Window::handleImageResult(const VkResult result)
+Result<bool> Window::handlePresentOrAcquireResult(const VkResult result)
 {
-    if (result == VK_NOT_READY || result == VK_TIMEOUT)
-        return false;
+    TKIT_LOG_DEBUG_IF(result != VK_SUCCESS, "[ONYX][WINDOW] Present() or AcquireNextImage() returned '{}'",
+                      VKit::VulkanResultToString(result));
 
     if (result == VK_ERROR_SURFACE_LOST_KHR)
     {
@@ -279,17 +279,16 @@ Result<bool> Window::handleImageResult(const VkResult result)
         return false;
     }
 
-    const bool needRecreation =
-        result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_MustRecreateSwapchain;
-
-    if (!needRecreation && result != VK_SUCCESS)
-        return Result<>::Error(result);
-
-    if (needRecreation)
+    if (m_MustRecreateSwapchain || result == VK_ERROR_OUT_OF_DATE_KHR ||
+        (result == VK_SUBOPTIMAL_KHR && m_TimeSinceResize.GetElapsed().As<TKit::Timespan::Milliseconds, u64>() > 350))
     {
         TKIT_RETURN_IF_FAILED(recreateSwapChain());
         return false;
     }
+    else if (result == VK_SUBOPTIMAL_KHR)
+        return true;
+
+    VKIT_RETURN_IF_FAILED(result, Result<bool>);
     return true;
 }
 
@@ -313,7 +312,7 @@ Result<> Window::Present()
     const auto table = Core::GetDeviceTable();
     const VkResult result = table->QueuePresentKHR(*m_Present, &presentInfo);
 
-    TKIT_RETURN_IF_FAILED(handleImageResult(result));
+    TKIT_RETURN_IF_FAILED(handlePresentOrAcquireResult(result));
 
     return Result<>::Ok();
 }
@@ -341,8 +340,11 @@ Result<bool> Window::AcquireNextImage(const Timeout timeout)
                                                        VK_NULL_HANDLE, &m_ImageIndex);
 
     if (result != VK_NOT_READY && result != VK_TIMEOUT)
+    {
         m_ImageAvailableIndex = idx;
-    return handleImageResult(result);
+        return handlePresentOrAcquireResult(result);
+    }
+    return false;
 }
 
 Result<> Window::createSwapChain(const VkExtent2D &windowExtent)
