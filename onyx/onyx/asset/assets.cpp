@@ -343,7 +343,7 @@ template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer()
 }
 
 #ifdef ONYX_ENABLE_OBJ
-template <Dimension D> Result<StatMeshData<D>> LoadStaticMesh(const char *path)
+template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObj(const char *path)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -352,6 +352,13 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMesh(const char *path)
     if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, path))
         return Result<StatMeshData<D>>::Error(Error_FileNotFound,
                                               TKit::Format("[ONYX][ASSETS] Failed to load mesh: {}", err + warn));
+    TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][ASSETS] {}", warn);
+    if (!err.empty())
+        return Result<StatMeshData<D>>::Error(Error_LoadFailed,
+                                              TKit::Format("[ONYX][ASSETS] Failed to load mesh: {}", err));
+    if (shapes.empty())
+        return Result<StatMeshData<D>>::Error(Error_LoadFailed,
+                                              "[ONYX][ASSETS] Failed to load mesh. Shapes container was empty");
 
     std::unordered_map<StatVertex<D>, Index> uniqueVertices;
     StatMeshData<D> data;
@@ -710,8 +717,8 @@ template Result<> Upload<D2>();
 template Result<> Upload<D3>();
 
 #ifdef ONYX_ENABLE_OBJ
-template Result<StatMeshData<D2>> LoadStaticMesh<D2>(const char *path);
-template Result<StatMeshData<D3>> LoadStaticMesh<D3>(const char *path);
+template Result<StatMeshData<D2>> LoadStaticMeshFromObj<D2>(const char *path);
+template Result<StatMeshData<D3>> LoadStaticMeshFromObj<D3>(const char *path);
 #endif
 
 template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D2>();

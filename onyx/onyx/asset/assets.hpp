@@ -33,7 +33,7 @@ template <Dimension D> u32 GetStaticMeshCount();
 
 template <Dimension D> ONYX_NO_DISCARD Result<> Upload();
 #ifdef ONYX_ENABLE_OBJ
-template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMesh(const char *path);
+template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshFromObj(const char *path);
 #endif
 
 template <Dimension D> StatMeshData<D> CreateTriangleMesh();
