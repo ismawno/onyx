@@ -392,9 +392,7 @@ Result<> Window::recreateSurface()
     m_SwapChain = VKit::SwapChain{};
 
     Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
-    const VkResult sresult = glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface);
-    if (sresult != VK_SUCCESS)
-        return Result<>::Error(sresult);
+    VKIT_RETURN_IF_FAILED(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface), Result<>);
 
     TKIT_RETURN_IF_FAILED(createSwapChain(extent));
     TKIT_RETURN_IF_FAILED(recreateResources());

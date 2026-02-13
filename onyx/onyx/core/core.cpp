@@ -69,12 +69,8 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
             "[ONYX][CORE] Failed to create a dummy window so choose a device based on surface capabilities");
 
     VkSurfaceKHR surface;
-    const VkResult sresult = glfwCreateWindowSurface(*s_Instance, dummy, nullptr, &surface);
-    if (sresult != VK_SUCCESS)
-    {
-        glfwDestroyWindow(dummy);
-        return Result<>::Error(sresult);
-    }
+    VKIT_RETURN_IF_FAILED(glfwCreateWindowSurface(*s_Instance, dummy, nullptr, &surface), Result<>,
+                          glfwDestroyWindow(dummy));
     VKit::PhysicalDevice::Selector selector(s_Instance.Get());
 
     selector.SetSurface(surface)

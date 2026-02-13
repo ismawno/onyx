@@ -96,10 +96,7 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     }
 
     VkSurfaceKHR surface;
-    const VkResult result = glfwCreateWindowSurface(Core::GetInstance(), handle, nullptr, &surface);
-    if (result != VK_SUCCESS)
-        return Result<>::Error(Error_NoSurfaceCapabilities);
-
+    VKIT_RETURN_IF_FAILED(glfwCreateWindowSurface(Core::GetInstance(), handle, nullptr, &surface), Result<Window *>);
     cleanup.Push([surface] { Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), surface, nullptr); });
 
     const VkExtent2D extent = Window::getNewExtent(handle);

@@ -91,17 +91,13 @@ Result<> BeginCommandBuffer(const VkCommandBuffer commandBuffer)
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
     const auto table = Core::GetDeviceTable();
-    const VkResult result = table->BeginCommandBuffer(commandBuffer, &beginInfo);
-    if (result != VK_SUCCESS)
-        return Result<>::Error(result);
+    VKIT_RETURN_IF_FAILED(table->BeginCommandBuffer(commandBuffer, &beginInfo), Result<>);
     return Result<>::Ok();
 }
 Result<> EndCommandBuffer(const VkCommandBuffer commandBuffer)
 {
     const auto table = Core::GetDeviceTable();
-    const VkResult result = table->EndCommandBuffer(commandBuffer);
-    if (result != VK_SUCCESS)
-        return Result<>::Error(result);
+    VKIT_RETURN_IF_FAILED(table->EndCommandBuffer(commandBuffer), Result<>);
     return Result<>::Ok();
 }
 
@@ -129,10 +125,7 @@ Result<> Initialize(const Specs &specs)
         info.pNext = &typeInfo;
         VkSemaphore semaphore;
 
-        const VkResult sresult = table->CreateSemaphore(device, &info, nullptr, &semaphore);
-        if (sresult != VK_SUCCESS)
-            return Result<>::Error(sresult);
-
+        VKIT_RETURN_IF_FAILED(table->CreateSemaphore(device, &info, nullptr, &semaphore), Result<>);
         q->TakeTimelineSemaphoreOwnership(semaphore);
         TKIT_RETURN_IF_FAILED(q->UpdateCompletedTimeline());
     }
@@ -220,18 +213,12 @@ Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 imageCount)
         syncs[i].InFlightSubmission = VK_NULL_HANDLE;
         syncs[i].InFlightValue = 0;
 
-        VkResult result = table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore);
-        if (result != VK_SUCCESS)
-        {
-            DestroySyncData(syncs);
-            return Result<>::Error(result);
-        }
-        result = table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore);
-        if (result != VK_SUCCESS)
-        {
-            DestroySyncData(syncs);
-            return Result<>::Error(result);
-        }
+        VKIT_RETURN_IF_FAILED(
+            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore), Result<>,
+            DestroySyncData(syncs));
+        VKIT_RETURN_IF_FAILED(
+            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore), Result<>,
+            DestroySyncData(syncs));
     }
     return syncs;
 }
