@@ -24,7 +24,7 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
     {
         Input::PollEvents();
         ctx->Flush();
-        ctx->Fill(Color{255u, 255u, 0u});
+        ctx->FillColor(Color{255u, 255u, 0u});
         ctx->StaticMesh(mesh);
         ctx->TranslateX(0.5f);
         ctx->Circle();

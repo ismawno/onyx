@@ -94,14 +94,14 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
     void RemoveFlags(RenderStateFlags flags);
 
     void Fill(bool enable = true);
-    void Fill(const Color &color);
+    void FillColor(const Color &color);
 
     template <typename... ColorArgs>
         requires std::constructible_from<Color, ColorArgs...>
-    void Fill(ColorArgs &&...colorArgs)
+    void FillColor(ColorArgs &&...colorArgs)
     {
         const Color color(std::forward<ColorArgs>(colorArgs)...);
-        Fill(color);
+        FillColor(color);
     }
 
     void Alpha(f32 alpha);
@@ -109,14 +109,14 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
     void Alpha(u32 alpha);
 
     void Outline(bool enable = true);
-    void Outline(const Color &color);
+    void OutlineColor(const Color &color);
 
     template <typename... ColorArgs>
         requires std::constructible_from<Color, ColorArgs...>
-    void Outline(ColorArgs &&...colorArgs)
+    void OutlineColor(ColorArgs &&...colorArgs)
     {
         const Color color(std::forward<ColorArgs>(colorArgs)...);
-        Outline(color);
+        OutlineColor(color);
     }
 
     void OutlineWidth(f32 width);
@@ -145,6 +145,15 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
     bool IsDirty(const u64 generation) const
     {
         return m_Generation > generation;
+    }
+
+    void AddTarget(const u64 viewMask)
+    {
+        m_ViewMask |= viewMask;
+    }
+    void RemoveTarget(const u64 viewMask)
+    {
+        m_ViewMask &= ~viewMask;
     }
 
     void AddTarget(const Window *window)

@@ -526,8 +526,7 @@ void Window::FlagShouldClose()
 
 void Window::PushEvent(const Event &event)
 {
-    if (!m_Events.IsFull())
-        m_Events.Append(event);
+    m_Events.Append(event);
 }
 
 void Window::FlushEvents()

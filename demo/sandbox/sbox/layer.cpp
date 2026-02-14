@@ -76,7 +76,7 @@ void SandboxLayer::OnFrameBegin(const DeltaTime &deltaTime, const FrameInfo &)
 #ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> static void loadMesh(MeshContainer &meshes, const Dialog::Path &path)
 {
-    const auto result = Assets::LoadStaticMesh<D>(path.c_str());
+    const auto result = Assets::LoadStaticMeshFromObj<D>(path.c_str());
     if (!result)
         return;
 

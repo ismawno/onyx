@@ -496,14 +496,38 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
 
     u32 sindex = 0;
 
-    const auto processBatches = [&](const u32 pass, const Geometry geo) -> Result<> {
+    struct RangePair
+    {
+        GraphicsMemoryRange *GraphicsRange;
+        VKit::DeviceBuffer *GraphicsBuffer;
+        VkDeviceSize RequiredMemory;
+    };
+
+    struct CopyCommands
+    {
+        VKit::DeviceBuffer *Transfer;
+        VKit::DeviceBuffer *Graphics;
+        u32 Offset;
+        u32 Size;
+    };
+
+    TKit::StackArray<RangePair> ranges{};
+    ranges.Reserve(StencilPass_Count * Assets::GetBatchCount());
+
+    TKit::StackArray<CopyCommands> copyCmds{};
+    copyCmds.Reserve(StencilPass_Count * static_cast<u32>(Geometry_Count));
+
+    const auto findRanges = [&](const u32 pass, const Geometry geo) -> Result<> {
         TransferArena &tarena = rdata.Arenas[geo].Transfer;
         GraphicsArena &garena = rdata.Arenas[geo].Graphics;
 
         const u32 bstart = Assets::GetBatchStart(geo);
         const u32 bend = Assets::GetBatchEnd(geo);
 
-        copies.Clear();
+        CopyCommands copyCmd{};
+        copyCmd.Transfer = &tarena.Buffer;
+        copyCmd.Graphics = &garena.Buffer;
+        copyCmd.Offset = copies.GetSize();
         for (u32 batch = bstart; batch < bend; ++batch)
         {
             contextRanges.Clear();
@@ -560,7 +584,6 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             grange->ViewMask = viewMask;
             grange->Pass = static_cast<StencilPass>(pass);
             grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
-            grange->Barrier = createAcquireBarrier(garena.Buffer, grange->Offset, requiredMem);
 
             VkBufferCopy2KHR &copy = copies.Append();
             copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
@@ -569,19 +592,32 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             copy.dstOffset = grange->Offset;
             copy.size = requiredMem;
 
-            if (release)
-                release->Append(createReleaseBarrier(garena.Buffer, grange->Offset, requiredMem));
+            ranges.Append(grange, &garena.Buffer, requiredMem);
         }
-        if (!copies.IsEmpty())
-            garena.Buffer.CopyFromBuffer2(command, tarena.Buffer, copies);
+        copyCmd.Size = copies.GetSize() - copyCmd.Offset;
+        if (copyCmd.Size != 0)
+            copyCmds.Append(copyCmd);
 
         return Result<>::Ok();
     };
 
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
     {
-        TKIT_RETURN_IF_FAILED(processBatches(pass, Geometry_Circle));
-        TKIT_RETURN_IF_FAILED(processBatches(pass, Geometry_StaticMesh));
+        TKIT_RETURN_IF_FAILED(findRanges(pass, Geometry_Circle));
+        TKIT_RETURN_IF_FAILED(findRanges(pass, Geometry_StaticMesh));
+    }
+    for (const RangePair &range : ranges)
+    {
+        GraphicsMemoryRange *grange = range.GraphicsRange;
+        grange->Barrier = createAcquireBarrier(*range.GraphicsBuffer, grange->Offset, range.RequiredMemory);
+
+        if (release)
+            release->Append(createReleaseBarrier(*range.GraphicsBuffer, grange->Offset, range.RequiredMemory));
+    }
+    for (const CopyCommands &cmd : copyCmds)
+    {
+        const TKit::Span<const VkBufferCopy2KHR> cpspan{copies.GetData() + cmd.Offset, cmd.Size};
+        cmd.Graphics->CopyFromBuffer2(command, *cmd.Transfer, cpspan);
     }
 
     info.Command = command;
@@ -763,8 +799,6 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
 
     RendererData<D> &rdata = getRendererData<D>();
 
-    u32 batches = 0;
-
     TKit::FixedArray<TKit::TierArray<TKit::TierArray<InstanceDrawInfo>>, StencilPass_Count> drawInfo{};
     const u32 bcount = Assets::GetBatchCount();
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
@@ -808,7 +842,6 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
             else if (offset == grange.Offset)
                 continue;
 
-            ++batches;
             if (grange.InUseByTransfer())
             {
                 Execution::Tracker &tracker = grange.TransferTracker;
@@ -832,9 +865,6 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
 
     collectDrawInfo(Geometry_Circle);
     collectDrawInfo(Geometry_StaticMesh);
-
-    if (batches == 0)
-        return Result<>::Ok();
 
     const auto table = Core::GetDeviceTable();
     for (const Detail::CameraInfo<D> &camInfo : camInfos)
@@ -1066,6 +1096,8 @@ template <Dimension D> void coalesce()
                 TKit::StackArray<ContextRange> cranges{};
                 cranges.Reserve(grange.ContextRanges.GetSize());
 
+                TKIT_ASSERT(grange.Size != 0, "[ONYX][RENDERER] Graphics memory range should not have reached a zero "
+                                              "size if there are context ranges left");
                 grange.Size = 0;
                 grange.ViewMask = 0;
                 grange.TransferTracker.Queue = nullptr;
@@ -1073,9 +1105,6 @@ template <Dimension D> void coalesce()
                 for (ContextRange &crange : grange.ContextRanges)
                     if (rdata.IsContextRangeClean(crange))
                     {
-                        TKIT_ASSERT(grange.Size != 0,
-                                    "[ONYX][RENDERER] Graphics memory range should not have reached a zero "
-                                    "size if there are context ranges left");
                         if (gmergeRange.Size != 0)
                         {
                             granges.Append(gmergeRange);

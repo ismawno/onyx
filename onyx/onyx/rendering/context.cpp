@@ -213,11 +213,9 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
         instanceData.Basis1 = f32v2{transform[0]};
         instanceData.Basis2 = f32v2{transform[1]};
         instanceData.Basis3 = f32v2{transform[2]};
+        instanceData.TexIndex = TKIT_U32_MAX;
         if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
-        {
             instanceData.BaseColor = state->FillColor.Pack();
-            instanceData.TexIndex = TKIT_U32_MAX;
-        }
         else
         {
             instanceData.BaseColor = state->OutlineColor.Pack();
@@ -462,9 +460,8 @@ template <Dimension D> void IRenderContext<D>::Alpha(const u32 alpha)
     m_Current->FillColor.rgba[3] = static_cast<f32>(alpha) / 255.f;
 }
 
-template <Dimension D> void IRenderContext<D>::Fill(const Color &color)
+template <Dimension D> void IRenderContext<D>::FillColor(const Color &color)
 {
-    Fill(true);
     m_Current->FillColor = color;
 }
 template <Dimension D> void IRenderContext<D>::Outline(const bool enabled)
@@ -474,14 +471,12 @@ template <Dimension D> void IRenderContext<D>::Outline(const bool enabled)
     else
         RemoveFlags(RenderStateFlag_Outline);
 }
-template <Dimension D> void IRenderContext<D>::Outline(const Color &color)
+template <Dimension D> void IRenderContext<D>::OutlineColor(const Color &color)
 {
-    Outline(true);
     m_Current->OutlineColor = color;
 }
 template <Dimension D> void IRenderContext<D>::OutlineWidth(const f32 width)
 {
-    Outline(true);
     m_Current->OutlineWidth = width;
 }
 

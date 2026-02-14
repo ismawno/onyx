@@ -5,7 +5,7 @@
 #endif
 
 #ifndef ONYX_BUFFER_INITIAL_CAPACITY
-#    define ONYX_BUFFER_INITIAL_CAPACITY 4
+#    define ONYX_BUFFER_INITIAL_CAPACITY 16
 #endif
 
 #include "vkit/resource/device_buffer.hpp"
