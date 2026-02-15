@@ -236,7 +236,7 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
     for (Arena &arena : rdata.Arenas)
         for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
             for (ContextRange &crange : grange.ContextRanges)
-                if (crange.ContextIndex > index)
+                if (crange.ContextIndex != TKIT_U32_MAX && crange.ContextIndex > index)
                     --crange.ContextIndex;
                 else if (crange.ContextIndex == index)
                     crange.ContextIndex = TKIT_U32_MAX;
@@ -815,6 +815,7 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
                         "[ONYX][RENDERER] Context ranges cannot be empty for a graphics memory range");
             VkDeviceSize offset = grange.Offset;
             VkDeviceSize size = 0;
+            bool found = false;
             for (const ContextRange &crange : grange.ContextRanges)
             {
                 if (rdata.IsContextRangeClean(viewBit, crange))
@@ -827,7 +828,10 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
                     offset += size;
                     size = 0;
                     drawInfo[grange.Pass][grange.BatchIndex].Append(info);
+                    found = true;
                 }
+                else
+                    offset += crange.Size;
             }
             // TKIT_ASSERT(size != 0 || offset > grange.Offset,
             //             "[ONYX][RENDERER] Found labeled graphics memory arena range for window with view bit {} with
@@ -839,7 +843,7 @@ ONYX_NO_DISCARD static Result<> render(VKit::Queue *graphics, const VkCommandBuf
                 info.InstanceCount = size / instanceSize;
                 drawInfo[grange.Pass][grange.BatchIndex].Append(info);
             }
-            else if (offset == grange.Offset)
+            else if (!found)
                 continue;
 
             if (grange.InUseByTransfer())
@@ -1062,6 +1066,8 @@ template <Dimension D> void coalesce()
                     tmergeRange.Offset = tmergeRange.Size + trange.Size;
                     tmergeRange.Size = 0;
                 }
+                else
+                    tmergeRange.Offset += trange.Size;
                 tranges.Append(trange);
             }
             else
@@ -1069,6 +1075,7 @@ template <Dimension D> void coalesce()
         }
         if (tmergeRange.Size != 0)
             tranges.Append(tmergeRange);
+
         tarena.MemoryRanges = tranges;
         TKIT_ASSERT(
             !tranges.IsEmpty(),
@@ -1089,6 +1096,9 @@ template <Dimension D> void coalesce()
                     gmergeRange.Offset = gmergeRange.Size + grange.Size;
                     gmergeRange.Size = 0;
                 }
+                else
+                    gmergeRange.Offset += grange.Size;
+
                 granges.Append(grange);
             }
             else if (!grange.ContextRanges.IsEmpty())
@@ -1134,7 +1144,7 @@ template <Dimension D> void coalesce()
                 }
             }
             else
-                granges.Append(grange);
+                gmergeRange.Size += grange.Size;
         }
         if (gmergeRange.Size != 0)
             granges.Append(gmergeRange);
