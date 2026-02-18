@@ -249,9 +249,9 @@ float3 GetLightColor2D(const LightData2D data, const float2 worldPosition, const
 
 float3 GetLightColor3D(const LightData3D data, const float3 normal, const float3 worldPosition, const PointLights3D plights, const DirectionalLights dlights)
 {
-    const float DiffuseContribution = 0.8f;
-    const float SpecularContribution = 0.2f;
-    const float SpecularSharpness = 8;
+    const float DiffuseContribution = 0.8;
+    const float SpecularContribution = 0.2;
+    const float SpecularSharpness = 8.0;
 
     const float4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
     const float3 specularDirection = normalize(data.ViewPosition.xyz - worldPosition);

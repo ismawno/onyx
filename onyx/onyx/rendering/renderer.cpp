@@ -80,6 +80,13 @@ struct LightBuffers
     u32 InstanceCount = 0;
 };
 
+using RendererFlags = u8;
+enum RendererFlagBit : RendererFlags
+{
+    RendererFlag_MustReloadPointLights = 1 << 0,
+    RendererFlag_MustReloadDirectionalLights = 1 << 1,
+};
+
 template <Dimension D> struct RendererData
 {
     TKit::TierArray<RenderContext<D> *> Contexts{};
@@ -89,6 +96,7 @@ template <Dimension D> struct RendererData
     TKit::FixedArray<TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count>, StencilPass_Count> Pipelines{};
     TKit::FixedArray<LightBuffers, LightTypeCount<D>> LightData{};
     TKit::FixedArray<TKit::FixedArray<VkDescriptorSet, Geometry_Count>, Shading_Count> Descriptors{};
+    RendererFlags Flags = 0;
 
     bool IsContextRangeClean(const ContextRange &crange) const
     {
@@ -349,13 +357,24 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
 {
     RendererData<D> &rdata = getRendererData<D>();
     const u32 index = getContextIndex(context);
+    rdata.Generations.RemoveOrdered(rdata.Generations.begin() + index);
     for (Arena &arena : rdata.Arenas)
         for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
             for (ContextRange &crange : grange.ContextRanges)
                 if (crange.ContextIndex != TKIT_U32_MAX && crange.ContextIndex > index)
                     --crange.ContextIndex;
                 else if (crange.ContextIndex == index)
-                    crange.ContextIndex = TKIT_U32_MAX;
+                    crange = ContextRange{};
+
+    if (!context->GetPointLights().IsEmpty())
+        rdata.Flags |= RendererFlag_MustReloadPointLights;
+    context->RemoveAllPointLights();
+    if constexpr (D == D3)
+    {
+        if (!context->GetDirectionalLights().IsEmpty())
+            rdata.Flags |= RendererFlag_MustReloadDirectionalLights;
+        context->RemoveAllDirectionalLights();
+    }
 
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(context);
@@ -624,11 +643,11 @@ template <> struct LightStagingData<D3>
 
 template <typename Light, typename LightData>
 static void gatherRanges(const TKit::TierArray<Light *> &lights, LightCopyData<LightData> &copyData,
-                         const LightFlags mustResize, const LightFlags flags, LightRange &lrange)
+                         const LightFlags lightsToReload, const LightFlags flags, LightRange &lrange)
 {
     for (Light *light : lights)
     {
-        if (mustResize & flags)
+        if (lightsToReload & flags)
             copyData.Data.Append(light->CreateInstanceData());
         else if (light->IsDirty())
         {
@@ -646,6 +665,13 @@ static void gatherRanges(const TKit::TierArray<Light *> &lights, LightCopyData<L
             lrange.DstOffset += sizeof(LightData);
 
         light->MarkNonDirty();
+    }
+    if (lrange.Size != 0)
+    {
+        copyData.Ranges.Append(lrange);
+        lrange.SrcOffset += lrange.Size;
+        lrange.DstOffset += lrange.Size;
+        lrange.Size = 0;
     }
 }
 
@@ -683,13 +709,14 @@ void transferPartialLightBuffers(const VkCommandBuffer cmd, LightBuffers &buffer
 {
     RendererData<D> &rdata = getRendererData<D>();
     TKit::StackArray<VkBufferCopy2KHR> copies{};
+    copies.Reserve(ranges.GetSize());
     for (const LightRange &range : ranges)
     {
         buffers.Transfer.Write(data, {.srcOffset = range.SrcOffset, .dstOffset = range.DstOffset, .size = range.Size});
         VkBufferCopy2KHR &copy = copies.Append();
         copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
         copy.pNext = nullptr;
-        copy.srcOffset = range.SrcOffset;
+        copy.srcOffset = range.DstOffset;
         copy.dstOffset = range.DstOffset;
         copy.size = range.Size;
 
@@ -712,7 +739,6 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     };
 
     RendererData<D> &rdata = getRendererData<D>();
-
     const TKit::TierArray<RenderContext<D> *> &contexts = rdata.Contexts;
     if (contexts.IsEmpty())
         return Result<>::Ok();
@@ -720,7 +746,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     TKit::StackArray<ContextInfo> dirtyContexts{};
     dirtyContexts.Reserve(rdata.Contexts.GetSize());
 
-    LightFlags mustResize = 0;
+    LightFlags lightsToReload = 0;
     LightStagingData<D> lightStaging{};
 
     for (u32 i = 0; i < contexts.GetSize(); ++i)
@@ -732,8 +758,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             rdata.Generations[i] = ctx->GetGeneration();
         }
 
-        const LightFlags updateFlags = ctx->GetUpdateLightFlags();
-        mustResize |= updateFlags;
+        lightsToReload |= ctx->GetUpdateLightFlags();
         lightStaging.Points.Count += ctx->GetPointLights().GetSize();
         if constexpr (D == D3)
             lightStaging.Dirs.Count += ctx->GetDirectionalLights().GetSize();
@@ -741,35 +766,45 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         ctx->MarkLightsUpdated();
     }
 
-    rdata.LightData[Light_Point].InstanceCount = lightStaging.Points.Count;
+    if (rdata.Flags & RendererFlag_MustReloadPointLights)
+        lightsToReload |= LightFlag_Point;
     if constexpr (D == D3)
+        if (rdata.Flags & RendererFlag_MustReloadDirectionalLights)
+            lightsToReload |= LightFlag_Directional;
+
+    rdata.LightData[Light_Point].InstanceCount = lightStaging.Points.Count;
+    lightStaging.Points.Data.Reserve(lightStaging.Points.Count);
+    lightStaging.Points.Ranges.Reserve(lightStaging.Points.Count);
+
+    if constexpr (D == D3)
+    {
         rdata.LightData[Light_Directional].InstanceCount = lightStaging.Dirs.Count;
+        lightStaging.Dirs.Data.Reserve(lightStaging.Dirs.Count);
+        lightStaging.Dirs.Ranges.Reserve(lightStaging.Dirs.Count);
+    }
 
     const auto transferLights = [&]() -> Result<> {
-        lightStaging.Points.Data.Reserve(lightStaging.Points.Count);
-        if constexpr (D == D3)
-            lightStaging.Dirs.Data.Reserve(lightStaging.Dirs.Count);
-
         LightRange prange{};
         LightRange drange{};
         for (const RenderContext<D> *ctx : contexts)
         {
-            gatherRanges(ctx->GetPointLights(), lightStaging.Points, mustResize, LightFlag_Point, prange);
+            gatherRanges(ctx->GetPointLights(), lightStaging.Points, lightsToReload, LightFlag_Point, prange);
             if constexpr (D == D3)
-                gatherRanges(ctx->GetDirectionalLights(), lightStaging.Dirs, mustResize, LightFlag_Directional, drange);
+                gatherRanges(ctx->GetDirectionalLights(), lightStaging.Dirs, lightsToReload, LightFlag_Directional,
+                             drange);
         }
 
         if constexpr (D == D3)
             if (lightStaging.Dirs.Count != 0)
             {
                 info.Command = command;
-                if (mustResize & LightFlag_Directional)
+                if (lightsToReload & LightFlag_Directional)
                 {
                     TKIT_RETURN_IF_FAILED(transferFullLightBuffers<D>(Light_Directional, command,
                                                                       lightStaging.Dirs.Count,
                                                                       lightStaging.Dirs.Data.GetData(), release));
                 }
-                else
+                else if (!lightStaging.Dirs.Ranges.IsEmpty())
                     transferPartialLightBuffers<D>(command, rdata.LightData[Light_Directional],
                                                    lightStaging.Dirs.Data.GetData(), lightStaging.Dirs.Ranges, release);
             }
@@ -777,12 +812,13 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         if (lightStaging.Points.Count != 0)
         {
             info.Command = command;
-            if ((mustResize & LightFlag_Point) && lightStaging.Points.Count != 0)
+            if (lightsToReload & LightFlag_Point)
                 return transferFullLightBuffers<D>(Light_Point, command, lightStaging.Points.Count,
                                                    lightStaging.Points.Data.GetData(), release);
 
-            transferPartialLightBuffers<D>(command, rdata.LightData[Light_Point], lightStaging.Points.Data.GetData(),
-                                           lightStaging.Points.Ranges, release);
+            if (!lightStaging.Points.Ranges.IsEmpty())
+                transferPartialLightBuffers<D>(command, rdata.LightData[Light_Point],
+                                               lightStaging.Points.Data.GetData(), lightStaging.Points.Ranges, release);
         }
         return Result<>::Ok();
     };

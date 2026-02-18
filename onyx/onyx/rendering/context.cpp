@@ -452,6 +452,26 @@ void RenderContext<D3>::RemoveDirectionalLight(DirectionalLight *light)
     TKIT_FATAL("[ONYX][CONTEXT] Directional light '{}' not found", static_cast<void *>(light));
 }
 
+template <Dimension D> void IRenderContext<D>::RemoveAllPointLights()
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    for (PointLight<D> *light : m_PointLights)
+        tier->Destroy(light);
+
+    m_NeedToUpdateLights |= LightFlag_Point;
+    m_PointLights.Clear();
+}
+
+void RenderContext<D3>::RemoveAllDirectionalLights()
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    for (DirectionalLight *light : m_DirectionalLights)
+        tier->Destroy(light);
+
+    m_NeedToUpdateLights |= LightFlag_Directional;
+    m_DirectionalLights.Clear();
+}
+
 template class Detail::IRenderContext<D2>;
 template class Detail::IRenderContext<D3>;
 

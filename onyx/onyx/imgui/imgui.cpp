@@ -30,7 +30,7 @@ template <Dimension D> bool TransformEditor(Transform<D> &transform, const Edito
         changed |= ImGui::DragFloat2("Scale", Math::AsPointer(transform.Scale), 0.03f);
 
         f32 degrees = Math::Degrees(transform.Rotation);
-        if (ImGui::DragFloat("Rotation", &degrees, 0.3f, 0.f, 0.f, "%.1f deg"))
+        if (ImGui::DragFloat("Rotation", &degrees, 0.1f, 0.f, 0.f, "%.1f deg"))
         {
             transform.Rotation = Math::Radians(degrees);
             changed = true;
@@ -51,13 +51,13 @@ template <Dimension D> bool TransformEditor(Transform<D> &transform, const Edito
         }
 
         f32v3 angles{0.f};
-        if (ImGui::DragFloat3("Rotate (global)", Math::AsPointer(angles), 0.3f, 0.f, 0.f, "Slide!"))
+        if (ImGui::DragFloat3("Rotate (global)", Math::AsPointer(angles), 0.1f, 0.f, 0.f, "Slide!"))
         {
             transform.Rotation = Math::Normalize(f32q(Math::Radians(angles)) * transform.Rotation);
             changed = true;
         }
 
-        if (ImGui::DragFloat3("Rotate (Local)", Math::AsPointer(angles), 0.3f, 0.f, 0.f, "Slide!"))
+        if (ImGui::DragFloat3("Rotate (Local)", Math::AsPointer(angles), 0.1f, 0.f, 0.f, "Slide!"))
         {
             transform.Rotation = Math::Normalize(transform.Rotation * f32q(Math::Radians(angles)));
             changed = true;
@@ -280,7 +280,7 @@ template <Dimension D> bool PointLightEditor(PointLight<D> &light, const EditorF
     if constexpr (D == D2)
     {
         f32v2 position = light.GetPosition();
-        if (ImGui::DragFloat2("Direction", Math::AsPointer(position), 0.f, 1.f))
+        if (ImGui::DragFloat2("Position", Math::AsPointer(position), 0.1f))
         {
             light.SetPosition(position);
             changed = true;
@@ -289,16 +289,16 @@ template <Dimension D> bool PointLightEditor(PointLight<D> &light, const EditorF
     else
     {
         f32v3 position = light.GetPosition();
-        if (ImGui::DragFloat3("Direction", Math::AsPointer(position), 0.f, 1.f))
+        if (ImGui::DragFloat3("Position", Math::AsPointer(position), 0.1f))
         {
             light.SetPosition(position);
             changed = true;
         }
     }
     f32 radius = light.GetRadius();
-    if (ImGui::SliderFloat("Radius", &radius, 0.f, 1.f))
+    if (ImGui::DragFloat("Radius", &radius, 0.01f, 0.f, TKIT_F32_MAX))
     {
-        light.SetIntensity(radius);
+        light.SetRadius(radius);
         changed = true;
     }
 

@@ -10,27 +10,20 @@ namespace Onyx
 
 // black magic
 template <typename C, typename F1, typename F2>
-static void renderSelectableNoRemoval(const char *treeName, C &container, u32 &selected, F1 &&onSelected, F2 getName)
+static void renderSelectableNoRemoval(const char *treeName, C &container, u32 &selected, F1 onSelected, F2 getName)
 {
-    if constexpr (std::is_same_v<F2, const char *>)
-        renderSelectable(
-            treeName, container, selected, std::forward<F1>(onSelected), [](const auto &) {},
-            [getName](const auto &) { return getName; });
-    else
-        renderSelectable(treeName, container, selected, std::forward<F1>(onSelected), [](const auto &) {}, getName);
+    renderSelectable(treeName, container, selected, onSelected, [](const auto &) {}, getName);
 }
 
 template <typename C, typename F1, typename F2>
-static void renderSelectableNoTree(const char *elementName, C &container, u32 &selected, F1 &&onSelected,
-                                   F2 &&onRemoval)
+static void renderSelectableNoTree(const char *elementName, C &container, u32 &selected, F1 onSelected, F2 onRemoval)
 {
-    renderSelectable(nullptr, container, selected, std::forward<F1>(onSelected), std::forward<F2>(onRemoval),
+    renderSelectable(nullptr, container, selected, onSelected, onRemoval,
                      [elementName](const auto &) { return elementName; });
 }
 
 template <typename C, typename F1, typename F2, typename F3>
-static void renderSelectable(const char *treeName, C &container, u32 &selected, F1 &&onSelected, F2 &&onRemoval,
-                             F3 &&getName)
+static void renderSelectable(const char *treeName, C &container, u32 &selected, F1 onSelected, F2 onRemoval, F3 getName)
 {
     if (!container.IsEmpty() && (!treeName || ImGui::TreeNode(treeName)))
     {
@@ -39,20 +32,25 @@ static void renderSelectable(const char *treeName, C &container, u32 &selected, 
             ImGui::PushID(&container[i]);
             if (ImGui::Button("X"))
             {
-                std::forward<F2>(onRemoval)(container[i]);
+                onRemoval(container[i]);
                 container.RemoveOrdered(container.begin() + i);
                 ImGui::PopID();
                 break;
             }
             ImGui::SameLine();
-            const std::string name = std::forward<F3>(getName)(container[i]);
+            std::string name;
+            if constexpr (std::is_same_v<F3, const char *>)
+                name = getName;
+            else
+                name = getName(container[i]);
+
             if (ImGui::Selectable(name.c_str(), i == selected))
                 selected = i;
 
             ImGui::PopID();
         }
         if (selected < container.GetSize())
-            std::forward<F1>(onSelected)(container[selected]);
+            onSelected(container[selected]);
         if (treeName)
             ImGui::TreePop();
     }
@@ -64,17 +62,16 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers) : ApplicationLayer(
     AddMeshes<D3>();
 
     RenderContext<D2> *ctx2 = AddContext<D2>();
-    // RenderContext<D3> *ctx3 = AddContext<D3>();
+    RenderContext<D3> *ctx3 = AddContext<D3>();
 
     WindowSpecs wspecs{};
     wspecs.Title = "Onyx sandbox window (2D)";
     RequestOpenWindow<SandboxWinLayer>([ctx2](SandboxWinLayer *, Window *window) { ctx2->AddTarget(window); }, wspecs,
                                        D2);
 
-    // wspecs.Name = "Onyx sandbox window (3D)";
-    // RequestOpenWindow<SandboxWinLayer>([ctx3](SandboxWinLayer *, Window *window) { ctx3->AddTarget(window); },
-    // wspecs,
-    //                                    D3);
+    wspecs.Title = "Onyx sandbox window (3D)";
+    RequestOpenWindow<SandboxWinLayer>([ctx3](SandboxWinLayer *, Window *window) { ctx3->AddTarget(window); }, wspecs,
+                                       D3);
 }
 void SandboxAppLayer::OnTransfer(const DeltaTime &)
 {
@@ -194,7 +191,7 @@ template <Dimension D> RenderContext<D> *SandboxAppLayer::AddContext()
     if constexpr (D == D3)
     {
         data.Flags = SandboxFlag_DrawAxes;
-        data.DirLights.Append(f32v3{1.f, 1.f, 1.f}, 0.3f, Color::White.Pack());
+        data.DirLights.Append(context->AddDirectionalLight());
     }
     return context;
 }
@@ -527,10 +524,11 @@ template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &conte
         RenderShapePicker<D>(context);
         ImGui::TreePop();
     }
-
-    // if constexpr (D == D3)
-    //     if (ImGui::CollapsingHeader("Lights"))
-    //         RenderLightPicker();
+    if (ImGui::TreeNode("Lights"))
+    {
+        RenderLightPicker<D>(context);
+        ImGui::TreePop();
+    }
 }
 
 template <Dimension D> void editShape(Shape<D> &shape)
@@ -578,6 +576,37 @@ template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &c
     renderSelectableNoRemoval(
         "Shapes", context.Shapes, context.SelectedShape, [](Shape<D> &shape) { editShape<D>(shape); },
         [](const Shape<D> &shape) { return shape.Name; });
+}
+
+template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &context)
+{
+    Color ambient = context.Context->GetAmbientLight();
+    if (ImGui::ColorEdit4("Ambient light", ambient.GetData()))
+        context.Context->SetAmbientLight(ambient);
+
+    if constexpr (D == D2)
+        combo("Light type", &context.LightToSpawn, "Point\0\0");
+    else
+        combo("Light type", &context.LightToSpawn, "Point\0Directional\0\0");
+    if (ImGui::Button("Spawn"))
+    {
+        const LightType ltype = static_cast<LightType>(context.LightToSpawn);
+        if (ltype == Light_Point)
+            context.PointLights.Append(context.Context->AddPointLight());
+        if constexpr (D == D3)
+            if (ltype == Light_Directional)
+                context.DirLights.Append(context.Context->AddDirectionalLight());
+    }
+
+    renderSelectable(
+        "Point lights", context.PointLights, context.SelectedPointLight,
+        [](PointLight<D> *light) { PointLightEditor(*light, EditorFlag_DisplayHelp); },
+        [&context](PointLight<D> *light) { context.Context->RemovePointLight(light); }, "Point");
+    if constexpr (D == D3)
+        renderSelectable(
+            "Directional lights", context.DirLights, context.SelectedDirLight,
+            [](DirectionalLight *light) { DirectionalLightEditor(*light, EditorFlag_DisplayHelp); },
+            [&context](DirectionalLight *light) { context.Context->RemoveDirectionalLight(light); }, "Directional");
 }
 
 template <Dimension D> void SandboxWinLayer::RenderMeshLoad()

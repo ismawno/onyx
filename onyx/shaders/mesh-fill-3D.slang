@@ -58,9 +58,9 @@ VertexOutput mainVS(
 }
 
 [[vk::binding(1, 0)]]
-StructuredBuffer<DirectionalLight, Std430DataLayout> directionalLights;
-[[vk::binding(2, 0)]]
 StructuredBuffer<PointLight3D, Std430DataLayout> pointLights;
+[[vk::binding(2, 0)]]
+StructuredBuffer<DirectionalLight, Std430DataLayout> directionalLights;
 
 
 [shader("fragment")]

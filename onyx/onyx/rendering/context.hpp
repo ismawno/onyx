@@ -98,7 +98,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void OutlineColor(const Color &color);
     void OutlineWidth(f32 width);
 
-    void SetAmbientColor(const Color &color)
+    void SetAmbientLight(const Color &color)
     {
         m_AmbientLight = color;
     }
@@ -123,12 +123,12 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
 
     void RemovePointLight(PointLight<D> *light);
+    void RemoveAllPointLights();
 
     const TKit::TierArray<PointLight<D> *> &GetPointLights() const
     {
         return m_PointLights;
     }
-    bool UpdateLightData();
 
     const RenderState<D> &GetState() const;
     RenderState<D> &GetState();
@@ -208,7 +208,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     TKit::TierArray<RenderState<D>> m_StateStack{};
     TKit::FixedArray<TKit::TierArray<InstanceBuffer>, StencilPass_Count> m_InstanceData{};
     TKit::TierArray<PointLight<D> *> m_PointLights{};
-    Color m_AmbientLight = Color::White;
+    Color m_AmbientLight = Color{Color::White, 0.4f};
     u64 m_Generation = 0;
 };
 } // namespace Onyx::Detail
@@ -308,6 +308,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
     }
 
     void RemoveDirectionalLight(DirectionalLight *light);
+    void RemoveAllDirectionalLights();
 
     const TKit::TierArray<DirectionalLight *> &GetDirectionalLights() const
     {
