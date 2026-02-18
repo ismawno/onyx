@@ -76,11 +76,15 @@ template <Dimension D> struct ContextData
 {
     RenderContext<D> *Context;
     TKit::TierArray<Shape<D>> Shapes;
+    TKit::TierArray<PointLight<D>> PointLights{};
     u32 GeometryToSpawn = Geometry_Circle;
     u32 StatMeshToSpawn = 0;
-
-    u32 SelectedShape = 0;
     f32 AxesThickness = 0.01f;
+
+    f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
+    u32 SelectedShape = 0;
+    u32 SelectedPointLight = 0;
+    u32 LightToSpawn = 0;
 
     SandboxFlags Flags = 0;
 };
@@ -89,13 +93,12 @@ template <> struct ContextData<D3>
 {
     RenderContext<D3> *Context;
     TKit::TierArray<Shape<D3>> Shapes;
+    TKit::TierArray<PointLight<D3>> PointLights{};
+    TKit::TierArray<DirectionalLight> DirLights{};
     u32 GeometryToSpawn = Geometry_Circle;
     u32 StatMeshToSpawn = 0;
     u32 SelectedShape = 0;
     f32 AxesThickness = 0.01f;
-
-    TKit::TierArray<DirectionalLight> DirLights{};
-    TKit::TierArray<PointLight> PointLights{};
 
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 LightToSpawn = 0;

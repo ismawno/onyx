@@ -1,4 +1,5 @@
 #include "utils.slang"
+
 struct VertexOutput
 {
     [[vk::location(0)]]
@@ -15,7 +16,7 @@ struct VertexOutput
 };
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<CircleInstanceDataStencil3D, Std430DataLayout> instanceBuffer;
+StructuredBuffer<CircleInstanceData2D, Std430DataLayout> instanceBuffer;
 
 struct PushConstants
 {
@@ -24,7 +25,6 @@ struct PushConstants
 
 [[vk::push_constant]]
 PushConstants pdata;
-
 
 static const float2 g_Positions[6] =
 {
@@ -46,11 +46,11 @@ VertexOutput mainVS(
     const uint vertexIndex = vertexId + baseVertex;
     const uint instanceIndex = instanceId + baseInstance;
 
-    const CircleInstanceDataStencil3D data = instanceBuffer[instanceIndex];
-    const float4x4 transform = ComputeTransform3D(data.Data.Basis);
+    CircleInstanceData2D data = instanceBuffer[instanceIndex];
+    float4x4 transform = ComputeTransform2D(data.Data.Basis);
 
-    const float2 localPos = g_Positions[vertexIndex];
-    const float4 pos = float4(localPos, 0.0, 1.0);
+    float2 localPos = g_Positions[vertexIndex];
+    float4 pos = float4(localPos, 0.0, 1.0);
 
     VertexOutput output;
     output.Position = mul(mul(transform, pos), pdata.ProjectionView);
@@ -74,6 +74,3 @@ float4 mainFS(const VertexOutput input)
     color.a = CircleFade(color.a, bounds, input.Fade);
     return color;
 }
-
-
-

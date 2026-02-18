@@ -1469,9 +1469,8 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
         const u32 vsize = static_cast<u32>(ddata->TotalVtxCount);
         const u32 isize = static_cast<u32>(ddata->TotalIdxCount);
 
-        TKIT_RETURN_IF_FAILED(
-            Resources::GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vsize, Buffer_HostVertex));
-        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, isize, Buffer_HostIndex));
+        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded(buffers.VertexBuffer, vsize));
+        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded(buffers.IndexBuffer, isize));
 
         VkDeviceSize voffset = 0;
         VkDeviceSize ioffset = 0;

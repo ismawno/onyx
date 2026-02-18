@@ -1,13 +1,8 @@
 #pragma once
 
 #include "onyx/core/core.hpp"
-#include "vkit/state/descriptor_set.hpp"
+#include "onyx/property/instance.hpp"
 #include "vkit/state/descriptor_pool.hpp"
-
-namespace Onyx
-{
-struct DescriptorSet;
-}
 
 namespace Onyx::Descriptors
 {
@@ -20,14 +15,9 @@ ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
 const VKit::DescriptorPool &GetDescriptorPool();
-const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout();
-const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout();
 
-ONYX_NO_DISCARD Result<VkDescriptorSet> WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &info,
-                                                                        VkDescriptorSet oldSet = VK_NULL_HANDLE);
-
-ONYX_NO_DISCARD Result<DescriptorSet *> FindSuitableDescriptorSet(const VKit::DeviceBuffer &buffer);
-void MarkInUse(DescriptorSet *set, const VKit::Queue *queue, u64 inFlightValue);
-VkDescriptorSet GetSet(const DescriptorSet *set);
+const VKit::DescriptorSetLayout &GetUnlitDescriptorSetLayout();
+template <Dimension D> const VKit::DescriptorSetLayout &GetLitDescriptorSetLayout();
+template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorSetLayout(Shading shading);
 
 } // namespace Onyx::Descriptors

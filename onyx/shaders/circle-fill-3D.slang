@@ -13,7 +13,7 @@ struct VertexOutput
     [[vk::location(9)]]
     nointerpolation FadeData Fade;
     [[vk::location(11)]]
-    nointerpolation MaterialData3D Material;
+    nointerpolation float4 FragColor;
 
     float4 Position : SV_Position;
     float  PointSize : SV_PointSize;
@@ -62,21 +62,21 @@ VertexOutput mainVS(
     output.Position   = mul(worldPos, pdata.ProjectionView);
     output.PointSize  = 1.0;
 
-    output.FragNormal     = ComputeTrivialWorldNormal(float3x3(transform));
+    output.FragNormal = ComputeTrivialWorldNormal(float3x3(transform));
     output.LocalPosition = localPos;
     output.WorldPosition = worldPos.xyz;
-    output.Arc           = data.Arc;
-    output.Fade          = data.Fade;
-    output.Material.Color = unpackUnorm4x8ToFloat(data.Data.Color);
-    output.Material.Reflection = data.Data.Reflection;
+    output.Arc = data.Arc;
+    output.Fade = data.Fade;
+    output.FragColor = unpackUnorm4x8ToFloat(data.Data.Color);
 
     return output;
 }
 
-[[vk::binding(0, 1)]]
+[[vk::binding(1, 0)]]
+StructuredBuffer<PointLight3D, Std430DataLayout> pointLights;
+
+[[vk::binding(2, 0)]]
 StructuredBuffer<DirectionalLight, Std430DataLayout> directionalLights;
-[[vk::binding(1, 1)]]
-StructuredBuffer<PointLight, Std430DataLayout> pointLights;
 
 [shader("fragment")]
 float4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
@@ -88,10 +88,8 @@ float4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFac
     if (!isFrontFacing)
         normal = -normal;
 
-    const LightData3D ldata = pdata.Light;
-    const float3 lcolor = GetLightColor(ldata, normal, input.Material.Reflection, input.WorldPosition, directionalLights, pointLights);
-
-    const float alpha = CircleFade(input.Material.Color.a, bounds, input.Fade);
-    return input.Material.Color * float4(lcolor, alpha);
+    const float3 lcolor = GetLightColor3D(pdata.Light, normal, input.WorldPosition, pointLights, directionalLights);
+    const float alpha = CircleFade(input.FragColor.a, bounds, input.Fade);
+    return input.FragColor * float4(lcolor, alpha);
 }
 

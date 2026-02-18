@@ -39,15 +39,15 @@ void Terminate()
     s_Windows.Destruct();
 }
 
-static u64 s_ViewCache = TKIT_U64_MAX;
-static u64 allocateViewBit()
+static ViewMask s_ViewCache = TKit::Limits<ViewMask>::Max();
+static ViewMask allocateViewBit()
 {
     const u32 index = static_cast<u32>(std::countr_zero(s_ViewCache));
-    const u64 viewBit = 1 << index;
+    const ViewMask viewBit = 1 << index;
     s_ViewCache &= ~viewBit;
     return viewBit;
 }
-static void deallocateViewBit(const u64 viewBit)
+static void deallocateViewBit(const ViewMask viewBit)
 {
     s_ViewCache |= viewBit;
 }
@@ -114,10 +114,11 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     if (s_ViewCache == 0)
         return Result<>::Error(
             Error_InitializationFailed,
-            "[ONYX][WINDOW] Maximum amount of windows exceeded. There is a hard limit of 64 windows");
+            TKit::Format("[ONYX][WINDOW] Maximum amount of windows exceeded. There is a hard limit of {} windows",
+                         8 * sizeof(ViewMask)));
 
-    TKit::TierAllocator *alloc = TKit::GetTier();
-    Window *window = alloc->Create<Window>();
+    TKit::TierAllocator *tier = TKit::GetTier();
+    Window *window = tier->Create<Window>();
 
     window->m_Window = handle;
     window->m_Surface = surface;
@@ -144,8 +145,8 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
 void DestroyWindow(Window *window)
 {
     deallocateViewBit(window->GetViewBit());
-    TKit::TierAllocator *alloc = TKit::GetTier();
-    alloc->Destroy(window);
+    TKit::TierAllocator *tier = TKit::GetTier();
+    tier->Destroy(window);
 }
 
 } // namespace Onyx::Platform

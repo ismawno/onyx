@@ -16,10 +16,8 @@ enum DeviceBufferFlags : VKit::DeviceBufferFlags
 {
     Buffer_DeviceVertex = VKit::DeviceBufferFlag_Vertex | VKit::DeviceBufferFlag_DeviceLocal,
     Buffer_DeviceIndex = VKit::DeviceBufferFlag_Index | VKit::DeviceBufferFlag_DeviceLocal,
-    Buffer_DeviceStorage =
-        VKit::DeviceBufferFlag_Storage | VKit::DeviceBufferFlag_DeviceLocal | VKit::DeviceBufferFlag_Source,
-    Buffer_Staging =
-        VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped | VKit::DeviceBufferFlag_Destination,
+    Buffer_DeviceStorage = VKit::DeviceBufferFlag_Storage | VKit::DeviceBufferFlag_DeviceLocal,
+    Buffer_Staging = VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped,
     Buffer_HostVertex = VKit::DeviceBufferFlag_Vertex | VKit::DeviceBufferFlag_HostMapped,
     Buffer_HostIndex = VKit::DeviceBufferFlag_Index | VKit::DeviceBufferFlag_HostMapped,
 };

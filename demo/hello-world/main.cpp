@@ -10,7 +10,7 @@ using namespace Onyx;
 
 void WindowExample(const Mesh mesh, const u32 nwidows = 1)
 {
-    RenderContext<D2> *ctx = Renderer::CreateContext<D2>();
+    RenderContext<D2> *ctx = VKIT_CHECK_EXPRESSION(Renderer::CreateContext<D2>());
     TKit::StackArray<Window *> windows{};
     windows.Reserve(nwidows);
     for (u32 i = 0; i < nwidows; ++i)
@@ -59,7 +59,10 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
                 Renderer::ApplyAcquireBarriers(gcmd);
 
                 win->BeginRendering(gcmd);
-                rinfos.Append(VKIT_CHECK_EXPRESSION(Renderer::Render(gqueue, gcmd, win)));
+                const Renderer::RenderSubmitInfo rinfo =
+                    VKIT_CHECK_EXPRESSION(Renderer::Render(gqueue, gcmd, win->CreateViewInfo()));
+                win->MarkSubmission(gqueue->GetTimelineSempahore(), rinfo.InFlightValue);
+                rinfos.Append(rinfo);
                 win->EndRendering(gcmd);
 
                 VKIT_CHECK_EXPRESSION(Execution::EndCommandBuffer(gcmd));
@@ -115,7 +118,7 @@ int main()
     const Mesh mesh = Assets::AddMesh(data);
     VKIT_CHECK_EXPRESSION(Assets::Upload<D2>());
 
-    WindowExample(mesh, 8);
+    WindowExample(mesh, 1);
     // ApplicationExample();
 
     Core::Terminate();

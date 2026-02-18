@@ -51,20 +51,31 @@ template <Dimension D> struct CircleInstanceData
     f32 OuterFade;
 };
 
-struct DirectionalLight
+enum LightType : u8
+{
+    Light_Point,
+    Light_Directional,
+    Light_Count
+};
+
+template <Dimension D> struct PointLightData
+{
+    f32v<D> Position;
+    f32 Intensity;
+    f32 Radius;
+    u32 Color;
+    ViewMask ViewMask;
+};
+
+struct DirectionalLightData
 {
     f32v3 Direction;
     f32 Intensity;
     u32 Color;
+    ViewMask ViewMask;
 };
 
-struct PointLight
-{
-    f32v3 Position;
-    f32 Intensity;
-    f32 Radius;
-    u32 Color;
-};
+template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 2 : 3;
 
 /**
  * @brief The `StencilPass` enum represents a grouping of pipelines with slightly different settings that all renderers
@@ -110,7 +121,8 @@ enum DrawPass : u8
 enum Shading : u8
 {
     Shading_Unlit,
-    Shading_Lit
+    Shading_Lit,
+    Shading_Count
 };
 
 constexpr DrawPass GetDrawMode(const StencilPass pass)
@@ -120,33 +132,34 @@ constexpr DrawPass GetDrawMode(const StencilPass pass)
     return DrawPass_Outline;
 }
 
-template <Dimension D> constexpr Shading GetShading(const DrawPass pass)
+constexpr Shading GetShading(const DrawPass pass)
 {
-    if constexpr (D == D2)
-        return Shading_Unlit;
-    else
-        return pass == DrawPass_Fill ? Shading_Lit : Shading_Unlit;
-}
-template <Dimension D> constexpr Shading GetShading(const StencilPass pass)
-{
-    return GetShading<D>(GetDrawMode(pass));
+    return pass == DrawPass_Fill ? Shading_Lit : Shading_Unlit;
 }
 
-template <Shading Sh> struct PushConstantData;
+constexpr Shading GetShading(const StencilPass pass)
+{
+    return GetShading(GetDrawMode(pass));
+}
 
-template <> struct PushConstantData<Shading_Unlit>
+template <Dimension D> struct PushConstantData;
+
+template <> struct PushConstantData<D2>
 {
     f32m4 ProjectionView;
+    u32 PointLightCount;
+    u32 AmbientColor;
+    ViewMask ViewBit;
 };
 
-template <> struct PushConstantData<Shading_Lit>
+template <> struct PushConstantData<D3>
 {
     f32m4 ProjectionView;
     f32v4 ViewPosition;
-    f32v4 AmbientColor;
-    u32 DirectionalLightCount;
     u32 PointLightCount;
-    u32 _Padding[2];
+    u32 DirectionalLightCount;
+    u32 AmbientColor;
+    ViewMask ViewBit;
 };
 
 } // namespace Onyx

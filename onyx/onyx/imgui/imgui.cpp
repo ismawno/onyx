@@ -3,7 +3,7 @@
 #    include "onyx/imgui/imgui.hpp"
 #    include "onyx/property/color.hpp"
 #    include "onyx/property/transform.hpp"
-#    include "onyx/property/instance.hpp"
+#    include "onyx/rendering/light.hpp"
 #    include "onyx/application/layer.hpp"
 #    include "onyx/platform/input.hpp"
 #    include "onyx/imgui/imgui.hpp"
@@ -234,13 +234,24 @@ bool DirectionalLightEditor(DirectionalLight &light, const EditorFlags flags)
             "direction is a Math::Normalized vector that points in the direction of the light, the intensity is the "
             "brightness of the light, and the color is the color of the light.");
     ImGui::PushID(&light);
-    changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
-    changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), 0.f, 1.f);
 
-    Color color = Color::Unpack(light.Color);
+    f32 intensity = light.GetIntensity();
+    if (ImGui::SliderFloat("Intensity", &intensity, 0.f, 1.f))
+    {
+        light.SetIntensity(intensity);
+        changed = true;
+    }
+    f32v3 direction = light.GetDirection();
+    if (ImGui::SliderFloat3("Direction", Math::AsPointer(direction), 0.f, 1.f))
+    {
+        light.SetDirection(direction);
+        changed = true;
+    }
+
+    Color color = light.GetColor();
     if (ImGui::ColorEdit3("Color", color.GetData()))
     {
-        light.Color = color.Pack();
+        light.SetColor(color);
         changed = true;
     }
     ImGui::PopID();
@@ -248,7 +259,7 @@ bool DirectionalLightEditor(DirectionalLight &light, const EditorFlags flags)
     return changed;
 }
 
-bool PointLightEditor(PointLight &light, const EditorFlags flags)
+template <Dimension D> bool PointLightEditor(PointLight<D> &light, const EditorFlags flags)
 {
     bool changed = false;
     if (flags & EditorFlag_DisplayHelp)
@@ -260,19 +271,49 @@ bool PointLightEditor(PointLight &light, const EditorFlags flags)
             "of the light.");
     ImGui::PushID(&light);
 
-    changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
-    changed |= ImGui::DragFloat3("Position", Math::AsPointer(light.Position), 0.01f);
-    changed |= ImGui::SliderFloat("Radius", &light.Radius, 0.1f, 10.f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    f32 intensity = light.GetIntensity();
+    if (ImGui::SliderFloat("Intensity", &intensity, 0.f, 1.f))
+    {
+        light.SetIntensity(intensity);
+        changed = true;
+    }
+    if constexpr (D == D2)
+    {
+        f32v2 position = light.GetPosition();
+        if (ImGui::DragFloat2("Direction", Math::AsPointer(position), 0.f, 1.f))
+        {
+            light.SetPosition(position);
+            changed = true;
+        }
+    }
+    else
+    {
+        f32v3 position = light.GetPosition();
+        if (ImGui::DragFloat3("Direction", Math::AsPointer(position), 0.f, 1.f))
+        {
+            light.SetPosition(position);
+            changed = true;
+        }
+    }
+    f32 radius = light.GetRadius();
+    if (ImGui::SliderFloat("Radius", &radius, 0.f, 1.f))
+    {
+        light.SetIntensity(radius);
+        changed = true;
+    }
 
-    Color color = Color::Unpack(light.Color);
+    Color color = light.GetColor();
     if (ImGui::ColorEdit3("Color", color.GetData()))
     {
-        light.Color = color.Pack();
+        light.SetColor(color);
         changed = true;
     }
     ImGui::PopID();
     return changed;
 }
+
+template bool PointLightEditor<D2>(PointLight<D2> &light, EditorFlags flags);
+template bool PointLightEditor<D3>(PointLight<D3> &light, EditorFlags flags);
 
 static const char *presentModeToString(const VkPresentModeKHR mode)
 {

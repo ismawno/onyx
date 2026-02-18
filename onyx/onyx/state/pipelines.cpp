@@ -3,7 +3,6 @@
 #include "onyx/state/descriptors.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/property/vertex.hpp"
-#include "vkit/state/pipeline_layout.hpp"
 #include "tkit/preprocessor/utils.hpp"
 
 namespace Onyx::Pipelines
@@ -24,8 +23,9 @@ struct ShaderData
     }
 };
 
-static TKit::Storage<VKit::PipelineLayout> s_UnlitLayout{};
-static TKit::Storage<VKit::PipelineLayout> s_LitLayout{};
+static TKit::Storage<VKit::PipelineLayout> s_UnlitPipLayout{};
+static TKit::Storage<VKit::PipelineLayout> s_LitPipLayout2{};
+static TKit::Storage<VKit::PipelineLayout> s_LitPipLayout3{};
 
 static TKit::Storage<ShaderData> s_FillShaders2{};
 static TKit::Storage<ShaderData> s_FillShaders3{};
@@ -42,27 +42,37 @@ template <Dimension D> ShaderData &getShaders(const DrawPass pass)
 
 ONYX_NO_DISCARD static Result<> createPipelineLayouts()
 {
-    const VkDescriptorSetLayout slayout = Descriptors::GetInstanceDataStorageDescriptorSetLayout();
-    const VkDescriptorSetLayout llayout = Descriptors::GetLightStorageDescriptorSetLayout();
+    const VKit::DescriptorSetLayout &ulayout = Descriptors::GetUnlitDescriptorSetLayout();
+
+    const VKit::DescriptorSetLayout &llayout2 = Descriptors::GetLitDescriptorSetLayout<D2>();
+    const VKit::DescriptorSetLayout &llayout3 = Descriptors::GetLitDescriptorSetLayout<D3>();
 
     const VKit::LogicalDevice &device = Core::GetDevice();
     auto layoutResult = VKit::PipelineLayout::Builder(device)
-                            .AddDescriptorSetLayout(slayout)
-                            .AddPushConstantRange<PushConstantData<Shading_Unlit>>(VK_SHADER_STAGE_VERTEX_BIT)
+                            .AddDescriptorSetLayout(ulayout)
+                            .AddPushConstantRange<f32m4>(VK_SHADER_STAGE_VERTEX_BIT)
                             .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);
-    *s_UnlitLayout = layoutResult.GetValue();
+    *s_UnlitPipLayout = layoutResult.GetValue();
 
-    layoutResult = VKit::PipelineLayout::Builder(device)
-                       .AddDescriptorSetLayout(slayout)
-                       .AddDescriptorSetLayout(llayout)
-                       .AddPushConstantRange<PushConstantData<Shading_Lit>>(VK_SHADER_STAGE_VERTEX_BIT |
-                                                                            VK_SHADER_STAGE_FRAGMENT_BIT)
-                       .Build();
+    layoutResult =
+        VKit::PipelineLayout::Builder(device)
+            .AddDescriptorSetLayout(llayout2)
+            .AddPushConstantRange<PushConstantData<D2>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);
-    *s_LitLayout = layoutResult.GetValue();
+    *s_LitPipLayout2 = layoutResult.GetValue();
+
+    layoutResult =
+        VKit::PipelineLayout::Builder(device)
+            .AddDescriptorSetLayout(llayout3)
+            .AddPushConstantRange<PushConstantData<D3>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .Build();
+
+    TKIT_RETURN_ON_ERROR(layoutResult);
+    *s_LitPipLayout3 = layoutResult.GetValue();
     return Result<>::Ok();
 }
 
@@ -70,11 +80,19 @@ ONYX_NO_DISCARD static Result<> createShaders()
 {
     auto cmpres = Shaders::Compiler()
                       .AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders")
-                      .AddModule("mesh-2D")
+                      .AddModule("mesh-fill-2D")
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
-                      .AddModule("circle-2D")
+                      .AddModule("circle-fill-2D")
+                      .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                      .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                      .Load()
+                      .AddModule("mesh-stencil-2D")
+                      .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                      .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                      .Load()
+                      .AddModule("circle-stencil-2D")
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
@@ -97,19 +115,19 @@ ONYX_NO_DISCARD static Result<> createShaders()
                       .Compile();
 
     Shaders::Compilation &cmp = cmpres.GetValue();
-    auto result = cmp.CreateShader("mainVS", "mesh-2D");
+    auto result = cmp.CreateShader("mainVS", "mesh-fill-2D");
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders2->MeshVertexShader = result.GetValue();
 
-    result = cmp.CreateShader("mainFS", "mesh-2D");
+    result = cmp.CreateShader("mainFS", "mesh-fill-2D");
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders2->MeshFragmentShader = result.GetValue();
 
-    result = cmp.CreateShader("mainVS", "circle-2D");
+    result = cmp.CreateShader("mainVS", "circle-fill-2D");
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders2->CircleVertexShader = result.GetValue();
 
-    result = cmp.CreateShader("mainFS", "circle-2D");
+    result = cmp.CreateShader("mainFS", "circle-fill-2D");
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders2->CircleFragmentShader = result.GetValue();
 
@@ -129,7 +147,21 @@ ONYX_NO_DISCARD static Result<> createShaders()
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders3->CircleFragmentShader = result.GetValue();
 
-    s_OutlineShaders2 = s_FillShaders2;
+    result = cmp.CreateShader("mainVS", "mesh-stencil-2D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_OutlineShaders2->MeshVertexShader = result.GetValue();
+
+    result = cmp.CreateShader("mainFS", "mesh-stencil-2D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_OutlineShaders2->MeshFragmentShader = result.GetValue();
+
+    result = cmp.CreateShader("mainVS", "circle-stencil-2D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_OutlineShaders2->CircleVertexShader = result.GetValue();
+
+    result = cmp.CreateShader("mainFS", "circle-stencil-2D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_OutlineShaders2->CircleFragmentShader = result.GetValue();
 
     result = cmp.CreateShader("mainVS", "mesh-stencil-3D");
     TKIT_RETURN_ON_ERROR(result);
@@ -154,8 +186,9 @@ ONYX_NO_DISCARD static Result<> createShaders()
 Result<> Initialize()
 {
     TKIT_LOG_INFO("[ONYX][PIPELINES] Initializing");
-    s_UnlitLayout.Construct();
-    s_LitLayout.Construct();
+    s_UnlitPipLayout.Construct();
+    s_LitPipLayout2.Construct();
+    s_LitPipLayout3.Construct();
 
     s_FillShaders2.Construct();
     s_FillShaders3.Construct();
@@ -168,12 +201,15 @@ void Terminate()
 {
     s_FillShaders2->Destroy();
     s_FillShaders3->Destroy();
+    s_OutlineShaders2->Destroy();
     s_OutlineShaders3->Destroy();
-    s_UnlitLayout->Destroy();
-    s_LitLayout->Destroy();
+    s_UnlitPipLayout->Destroy();
+    s_LitPipLayout2->Destroy();
+    s_LitPipLayout3->Destroy();
 
-    s_UnlitLayout.Destruct();
-    s_LitLayout.Destruct();
+    s_UnlitPipLayout.Destruct();
+    s_LitPipLayout2.Destruct();
+    s_LitPipLayout3.Destruct();
 
     s_FillShaders2.Destruct();
     s_FillShaders3.Destruct();
@@ -181,9 +217,26 @@ void Terminate()
     s_OutlineShaders3.Destruct();
 }
 
-VkPipelineLayout GetGraphicsPipelineLayout(const Shading shading)
+const VKit::PipelineLayout &GetUnlitPipelineLayout()
 {
-    return shading == Shading_Unlit ? *s_UnlitLayout : *s_LitLayout;
+    return *s_UnlitPipLayout;
+}
+
+template <Dimension D> const VKit::PipelineLayout &GetLitPipelineLayout()
+{
+    if constexpr (D == D2)
+        return *s_LitPipLayout2;
+    else
+        return *s_LitPipLayout3;
+}
+template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(const Shading shading)
+{
+    if (shading == Shading_Unlit)
+        return *s_UnlitPipLayout;
+    if constexpr (D == D2)
+        return *s_LitPipLayout2;
+    else
+        return *s_LitPipLayout3;
 }
 
 template <Dimension D>
@@ -192,8 +245,8 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
                                                              const VKit::Shader &vertexShader,
                                                              const VKit::Shader &fragmentShader)
 {
-    const Shading shading = GetShading<D>(pass);
-    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), GetGraphicsPipelineLayout(shading), renderInfo};
+    const Shading shading = GetShading(pass);
+    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), GetPipelineLayout<D>(shading), renderInfo};
     auto &colorBuilder = builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
                              .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
                              .SetViewportCount(1)
@@ -271,6 +324,12 @@ Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(const StencilPass pass,
 
     return builder.Bake().Build();
 }
+
+template const VKit::PipelineLayout &GetLitPipelineLayout<D2>();
+template const VKit::PipelineLayout &GetLitPipelineLayout<D3>();
+
+template const VKit::PipelineLayout &GetPipelineLayout<D2>(Shading shading);
+template const VKit::PipelineLayout &GetPipelineLayout<D3>(Shading shading);
 
 template Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline<D2>(
     StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);

@@ -135,8 +135,8 @@ class Window
     template <Dimension D> Camera<D> *CreateCamera()
     {
         auto &array = getCameraArray<D>();
-        TKit::TierAllocator *alloc = TKit::GetTier();
-        Camera<D> *camera = alloc->Create<Camera<D>>();
+        TKit::TierAllocator *tier = TKit::GetTier();
+        Camera<D> *camera = tier->Create<Camera<D>>();
         camera->m_Window = this;
         camera->adaptViewToViewportAspect();
 
@@ -152,38 +152,38 @@ class Window
         return camera;
     }
 
-    template <Dimension D> Camera<D> *GetCamera(const u32 index = 0)
-    {
-        auto &array = getCameraArray<D>();
-        return array[index];
-    }
-
-    template <Dimension D> void DestroyCamera(const u32 index = 0)
-    {
-        auto &array = getCameraArray<D>();
-        TKit::TierAllocator *alloc = TKit::GetTier();
-        alloc->Destroy(array[index]);
-        array.RemoveOrdered(array.begin() + index);
-    }
-
     template <Dimension D> void DestroyCamera(const Camera<D> *camera)
     {
         auto &array = getCameraArray<D>();
         for (u32 i = 0; i < array.GetSize(); ++i)
             if (array[i] == camera)
             {
-                DestroyCamera<D>(i);
+                TKit::TierAllocator *tier = TKit::GetTier();
+                tier->Destroy(array[i]);
+                array.RemoveOrdered(array.begin() + i);
                 return;
             }
+        TKIT_FATAL("[ONYX][WINDOW] Camera '{}' not found", static_cast<const void *>(camera));
     }
 
-    template <Dimension D> TKit::TierArray<Detail::CameraInfo<D>> GetCameraInfos() const
+    template <Dimension D> TKit::TierArray<CameraInfo<D>> GetCameraInfos() const
     {
         auto &array = getCameraArray<D>();
-        TKit::TierArray<Detail::CameraInfo<D>> cameras;
+        TKit::TierArray<CameraInfo<D>> cameras;
         for (const Camera<D> *cam : array)
             cameras.Append(cam->CreateCameraInfo());
         return cameras;
+    }
+
+    ViewInfo CreateViewInfo() const
+    {
+        ViewInfo info;
+        info.ViewBit = m_ViewBit;
+        info.Cameras2 = GetCameraInfos<D2>();
+        info.Cameras3 = GetCameraInfos<D3>();
+        info.ImageAvailableSemaphore = GetImageAvailableSemaphore();
+        info.RenderFinishedSemaphore = GetRenderFinishedSemaphore();
+        return info;
     }
 
     ONYX_NO_DISCARD Result<bool> AcquireNextImage(Timeout timeout = Block);
@@ -216,7 +216,7 @@ class Window
         m_PresentMode = presentMode;
     }
 
-    u64 GetViewBit() const
+    ViewMask GetViewBit() const
     {
         return m_ViewBit;
     }
@@ -287,7 +287,7 @@ class Window
 
     u32 m_ImageIndex;
     u32 m_ImageAvailableIndex = 0;
-    u64 m_ViewBit;
+    ViewMask m_ViewBit;
 
     VkPresentModeKHR m_PresentMode;
     bool m_MustRecreateSwapchain = false;

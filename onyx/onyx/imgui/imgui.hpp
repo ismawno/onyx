@@ -15,8 +15,8 @@ namespace Onyx
 template <Dimension D> struct Transform;
 template <Dimension D> struct CameraControls;
 
-struct DirectionalLight;
-struct PointLight;
+class DirectionalLight;
+template <Dimension D> class PointLight;
 
 struct ScreenViewport;
 struct ScreenScissor;
@@ -47,7 +47,8 @@ template <Dimension D> void DisplayCameraControls(const CameraControls<D> &contr
 bool DeltaTimeEditor(DeltaTime &dt, DeltaInfo &di, const Window *window = nullptr, EditorFlags flags = 0);
 
 bool DirectionalLightEditor(DirectionalLight &light, EditorFlags flags = 0);
-bool PointLightEditor(PointLight &light, EditorFlags flags = 0);
+
+template <Dimension D> bool PointLightEditor(PointLight<D> &light, EditorFlags flags = 0);
 
 bool PresentModeEditor(Window *window, EditorFlags flags = 0);
 

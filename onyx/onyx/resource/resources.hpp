@@ -5,6 +5,7 @@
 #include "onyx/resource/buffer.hpp"
 #include "onyx/core/core.hpp"
 #include "tkit/container/dynamic_array.hpp"
+#include "tkit/utils/optional.hpp"
 
 namespace Onyx::Resources
 {
@@ -42,21 +43,9 @@ ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBuffer
     return buffer;
 }
 
-template <typename T>
-ONYX_NO_DISCARD Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const VkDeviceSize instances,
-                                                const VKit::DeviceBufferFlags flags, const f32 factor = 1.5f)
-{
-    const VkDeviceSize inst = buffer.GetInfo().InstanceCount;
-    if (buffer && instances <= inst)
-        return false;
-
-    const VkDeviceSize ninst = static_cast<VkDeviceSize>(factor * static_cast<f32>(instances));
-    const auto result = CreateBuffer<T>(flags, ninst);
-    TKIT_RETURN_ON_ERROR(result);
-
-    buffer.Destroy();
-    buffer = result.GetValue();
-    return true;
-}
+Result<TKit::Optional<VKit::DeviceBuffer>> CreateEnlargedBufferIfNeeded(const VKit::DeviceBuffer &buffer,
+                                                                        VkDeviceSize instances,
+                                                                        const f32 factor = 1.5f);
+Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, VkDeviceSize instances, const f32 factor = 1.5f);
 
 } // namespace Onyx::Resources

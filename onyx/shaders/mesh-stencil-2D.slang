@@ -2,7 +2,7 @@
 
 struct VertexInput
 {
-    float3 Position : POSITION;
+    float2 Position : POSITION;
 };
 
 struct VertexOutput
@@ -15,7 +15,7 @@ struct VertexOutput
 };
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<InstanceDataStencil3D, Std430DataLayout> instanceBuffer;
+StructuredBuffer<InstanceData2D, Std430DataLayout> instanceBuffer;
 
 struct PushConstants
 {
@@ -33,15 +33,15 @@ VertexOutput mainVS(
 {
     const uint instanceIndex = instanceId + baseInstance;
 
-    const InstanceDataStencil3D data = instanceBuffer[instanceIndex];
-    const float4x4 transform = ComputeTransform3D(data.Basis);
+    const InstanceData2D data = instanceBuffer[instanceIndex];
 
+    const float4x4 transform = ComputeTransform2D(data.Basis);
     VertexOutput output;
 
-    output.Position = mul(mul(transform, float4(input.Position, 1.0)), pdata.ProjectionView);
+    output.Position = mul(mul(transform, float4(input.Position, 0.0, 1.0)), pdata.ProjectionView);
     output.PointSize = 1.0;
-
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
+
     return output;
 }
 

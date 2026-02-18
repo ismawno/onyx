@@ -9,7 +9,7 @@
 #include "tkit/serialization/yaml/serialize.hpp"
 #include <vulkan/vulkan.h>
 
-namespace Onyx::Detail
+namespace Onyx
 {
 template <Dimension D> struct CameraInfo;
 
@@ -31,10 +31,6 @@ template <> struct CameraInfo<D3>
     bool Transparent;
 };
 
-} // namespace Onyx::Detail
-
-namespace Onyx
-{
 class Window;
 /**
  * @brief The `ProjectionViewData` struct is a simple struct that holds the view and projection matrices.

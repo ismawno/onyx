@@ -5,6 +5,7 @@
 #include "onyx/property/options.hpp"
 #include "onyx/asset/mesh.hpp"
 #include "onyx/platform/window.hpp"
+#include "onyx/rendering/light.hpp"
 #include "vkit/resource/host_buffer.hpp"
 
 namespace Onyx
@@ -16,30 +17,24 @@ enum RenderStateFlagBit : RenderStateFlags
     RenderStateFlag_Outline = 1 << 1,
 };
 
-template <Dimension D> struct RenderState;
-
-template <> struct RenderState<D2>
+using LightFlags = u8;
+enum LightFlagBit : LightFlags
 {
-    TKIT_REFLECT_DECLARE(RenderState)
-    TKIT_YAML_SERIALIZE_DECLARE(RenderState)
-
-    f32m3 Transform = f32m3::Identity();
-    Color FillColor = Color::White;
-    Color OutlineColor = Color::White;
-    f32 OutlineWidth = 0.1f;
-    RenderStateFlags Flags = RenderStateFlag_Fill;
+    LightFlag_Point = 1 << 0,
+    LightFlag_Directional = 1 << 1,
 };
 
-template <> struct RenderState<D3>
+template <Dimension D> struct RenderState
 {
     TKIT_REFLECT_DECLARE(RenderState)
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
 
-    f32m4 Transform = f32m4::Identity();
+    f32m<D> Transform = f32m<D>::Identity();
     Color FillColor = Color::White;
     Color OutlineColor = Color::White;
-    Color LightColor = Color::White;
+
     f32 OutlineWidth = 0.1f;
+    f32 AmbientIntensity = 0.4f;
     RenderStateFlags Flags = RenderStateFlag_Fill;
 };
 
@@ -49,9 +44,12 @@ namespace Onyx::Detail
 {
 
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
-TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
+TKIT_MSVC_WARNING_IGNORE(4324)
+
+template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 {
     TKIT_NON_COPYABLE(IRenderContext)
+
   public:
     IRenderContext();
 
@@ -96,30 +94,41 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
     void Fill(bool enable = true);
     void FillColor(const Color &color);
 
-    template <typename... ColorArgs>
-        requires std::constructible_from<Color, ColorArgs...>
-    void FillColor(ColorArgs &&...colorArgs)
-    {
-        const Color color(std::forward<ColorArgs>(colorArgs)...);
-        FillColor(color);
-    }
-
-    void Alpha(f32 alpha);
-    void Alpha(u8 alpha);
-    void Alpha(u32 alpha);
-
     void Outline(bool enable = true);
     void OutlineColor(const Color &color);
+    void OutlineWidth(f32 width);
 
-    template <typename... ColorArgs>
-        requires std::constructible_from<Color, ColorArgs...>
-    void OutlineColor(ColorArgs &&...colorArgs)
+    void SetAmbientColor(const Color &color)
     {
-        const Color color(std::forward<ColorArgs>(colorArgs)...);
-        OutlineColor(color);
+        m_AmbientLight = color;
+    }
+    void SetAmbientIntensity(const f32 intensity)
+    {
+        m_AmbientLight.rgba[3] = intensity;
     }
 
-    void OutlineWidth(f32 width);
+    const Color &GetAmbientLight() const
+    {
+        return m_AmbientLight;
+    }
+
+    template <typename... LightArgs> PointLight<D> *AddPointLight(LightArgs &&...args)
+    {
+        TKit::TierAllocator *tier = TKit::GetTier();
+        PointLight<D> *pl = tier->Create<PointLight<D>>(std::forward<LightArgs>(args)...);
+        pl->SetViewMask(m_ViewMask);
+        m_PointLights.Append(pl);
+        m_NeedToUpdateLights |= LightFlag_Point;
+        return pl;
+    }
+
+    void RemovePointLight(PointLight<D> *light);
+
+    const TKit::TierArray<PointLight<D> *> &GetPointLights() const
+    {
+        return m_PointLights;
+    }
+    bool UpdateLightData();
 
     const RenderState<D> &GetState() const;
     RenderState<D> &GetState();
@@ -147,40 +156,59 @@ TKIT_MSVC_WARNING_IGNORE(4324) template <Dimension D> class alignas(TKIT_CACHE_L
         return m_Generation > generation;
     }
 
-    void AddTarget(const u64 viewMask)
+    void AddTarget(const ViewMask viewMask)
     {
         m_ViewMask |= viewMask;
+        Renderer::UpdateViewMask(static_cast<RenderContext<D> *>(this)); //:(
     }
-    void RemoveTarget(const u64 viewMask)
+    void RemoveTarget(const ViewMask viewMask)
     {
         m_ViewMask &= ~viewMask;
+        Renderer::UpdateViewMask(static_cast<RenderContext<D> *>(this));
     }
 
     void AddTarget(const Window *window)
     {
-        m_ViewMask |= window->GetViewBit();
+        AddTarget(window->GetViewBit());
     }
     void RemoveTarget(const Window *window)
     {
-        m_ViewMask &= ~window->GetViewBit();
+        RemoveTarget(window->GetViewBit());
+    }
+
+    LightFlags GetUpdateLightFlags() const
+    {
+        return m_NeedToUpdateLights;
+    }
+    void MarkLightsUpdated()
+    {
+        m_NeedToUpdateLights = 0;
     }
 
   protected:
     RenderState<D> *m_Current{};
+    LightFlags m_NeedToUpdateLights = 0;
+    ViewMask m_ViewMask = 0;
 
   private:
-    void updateState();
-    void addCircleData(const f32m<D> &transform, const CircleOptions &options, StencilPass pass);
-    void addStaticMeshData(Mesh mesh, const f32m<D> &transform, StencilPass pass);
     struct InstanceBuffer
     {
         VKit::HostBuffer Data{};
         u32 Instances = 0;
     };
 
+    void updateState();
+
+    void resizeBuffer(InstanceBuffer &buffer);
+    template <typename T> void addInstanceData(InstanceBuffer &buffer, const T &data);
+
+    void addCircleData(const f32m<D> &transform, const CircleOptions &options, StencilPass pass);
+    void addStaticMeshData(Mesh mesh, const f32m<D> &transform, StencilPass pass);
+
     TKit::TierArray<RenderState<D>> m_StateStack{};
     TKit::FixedArray<TKit::TierArray<InstanceBuffer>, StencilPass_Count> m_InstanceData{};
-    u64 m_ViewMask = 0;
+    TKit::TierArray<PointLight<D> *> m_PointLights{};
+    Color m_AmbientLight = Color::White;
     u64 m_Generation = 0;
 };
 } // namespace Onyx::Detail
@@ -269,32 +297,25 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
     void RotateY(f32 y);
     void RotateZ(f32 z);
 
-    void LightColor(const Color &color);
-    template <typename... ColorArgs>
-        requires std::constructible_from<Color, ColorArgs...>
-    void LightColor(ColorArgs &&...colorArgs)
+    template <typename... LightArgs> DirectionalLight *AddDirectionalLight(LightArgs &&...args)
     {
-        const Color color(std::forward<ColorArgs>(colorArgs)...);
-        LightColor(color);
+        TKit::TierAllocator *tier = TKit::GetTier();
+        DirectionalLight *dl = tier->Create<DirectionalLight>(std::forward<LightArgs>(args)...);
+        dl->SetViewMask(m_ViewMask);
+        m_DirectionalLights.Append(dl);
+        m_NeedToUpdateLights |= LightFlag_Directional;
+        return dl;
     }
 
-    void AmbientColor(const Color &color);
-    template <typename... ColorArgs>
-        requires std::constructible_from<Color, ColorArgs...>
-    void AmbientColor(ColorArgs &&...colorArgs)
+    void RemoveDirectionalLight(DirectionalLight *light);
+
+    const TKit::TierArray<DirectionalLight *> &GetDirectionalLights() const
     {
-        const Color color(std::forward<ColorArgs>(colorArgs)...);
-        AmbientColor(color);
+        return m_DirectionalLights;
     }
 
-    void AmbientIntensity(f32 intensity);
-
-    void DirectionalLight(Onyx::DirectionalLight light);
-    void DirectionalLight(const f32v3 &direction, f32 intensity = 1.f);
-
-    void PointLight(Onyx::PointLight light);
-    void PointLight(f32 radius = 1.f, f32 intensity = 1.f);
-    void PointLight(const f32v3 &position, f32 radius = 1.f, f32 intensity = 1.f);
+  private:
+    TKit::TierArray<DirectionalLight *> m_DirectionalLights{};
 };
 TKIT_COMPILER_WARNING_IGNORE_POP()
 } // namespace Onyx

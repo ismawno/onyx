@@ -165,9 +165,9 @@ Result<VKit::Shader> Compilation::CreateShader(const char *entryPoint, const cha
 
 void Compilation::Destroy()
 {
-    TKit::TierAllocator *alloc = TKit::GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     for (const Spirv &spr : m_CompiledSpirv)
-        alloc->Deallocate(static_cast<void *>(spr.Data), spr.Size);
+        tier->Deallocate(static_cast<void *>(spr.Data), spr.Size);
 }
 
 static SlangStage getSlangStage(const ShaderStage stage)
@@ -666,8 +666,8 @@ Result<Compilation> Compiler::Compile() const
 
             const size_t size = code->getBufferSize();
 
-            TKit::TierAllocator *alloc = TKit::GetTier();
-            void *mem = alloc->Allocate(size);
+            TKit::TierAllocator *tier = TKit::GetTier();
+            void *mem = tier->Allocate(size);
             TKit::ForwardCopy(mem, code->getBufferPointer(), size);
 
             Spirv sp;

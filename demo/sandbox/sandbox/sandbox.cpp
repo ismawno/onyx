@@ -187,7 +187,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const ContextData<D
 
 template <Dimension D> RenderContext<D> *SandboxAppLayer::AddContext()
 {
-    RenderContext<D> *context = Renderer::CreateContext<D>();
+    RenderContext<D> *context = VKIT_CHECK_EXPRESSION(Renderer::CreateContext<D>());
     auto &contexts = GetContexts<D>();
     ContextData<D> &data = contexts.Contexts.Append();
     data.Context = context;
@@ -508,7 +508,7 @@ template <Dimension D> void SandboxWinLayer::RenderContexts()
 template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &context)
 {
     const Window *window = GetWindow();
-    const u64 viewBit = window->GetViewBit();
+    const ViewMask viewBit = window->GetViewBit();
     bool targets = viewBit & context.Context->GetViewMask();
     if (ImGui::Checkbox("Target this window", &targets))
     {

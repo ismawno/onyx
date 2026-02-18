@@ -1,7 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/context.hpp"
 #include "onyx/asset/assets.hpp"
-
 #include "tkit/math/math.hpp"
 
 namespace Onyx
@@ -262,13 +261,22 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
     return instanceData;
 }
 
-static void resizeBuffer(VKit::HostBuffer &buffer, const u32 instances)
+template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceBuffer &buffer)
 {
-    if (instances > buffer.GetInstanceCount())
+    if (buffer.Instances > buffer.Data.GetInstanceCount())
     {
-        const u32 ninst = static_cast<u32>(1.5f * static_cast<f32>(instances));
-        buffer.Resize(ninst);
+        const u32 ninst = static_cast<u32>(1.5f * static_cast<f32>(buffer.Instances));
+        buffer.Data.Resize(ninst);
     }
+}
+
+template <Dimension D>
+template <typename T>
+void IRenderContext<D>::addInstanceData(InstanceBuffer &buffer, const T &data)
+{
+    const u32 index = buffer.Instances++;
+    resizeBuffer(buffer);
+    buffer.Data.WriteAt(index, &data);
 }
 
 template <Dimension D>
@@ -276,9 +284,7 @@ void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleOpti
 {
     const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, options, pass);
     InstanceBuffer &buffer = m_InstanceData[pass][Assets::GetCircleBatchIndex()];
-    const u32 index = buffer.Instances++;
-    resizeBuffer(buffer.Data, buffer.Instances);
-    buffer.Data.WriteAt(index, &idata);
+    addInstanceData(buffer, idata);
 }
 
 template <Dimension D>
@@ -286,10 +292,7 @@ void IRenderContext<D>::addStaticMeshData(const Mesh mesh, const f32m<D> &transf
 {
     const InstanceData<D> idata = createInstanceData(m_Current, transform, pass);
     InstanceBuffer &buffer = m_InstanceData[pass][Assets::GetStaticMeshBatchIndex(mesh)];
-
-    const u32 index = buffer.Instances++;
-    resizeBuffer(buffer.Data, buffer.Instances);
-    buffer.Data.WriteAt(index, &idata);
+    addInstanceData(buffer, idata);
 }
 
 template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, const f32v<D> &end)
@@ -369,52 +372,6 @@ template <Dimension D> void IRenderContext<D>::Axes(const Mesh mesh, const AxesO
     }
 }
 
-void RenderContext<D3>::LightColor(const Color &color)
-{
-    m_Current->LightColor = color;
-}
-// void RenderContext<D3>::AmbientColor(const Color &color)
-// {
-//     m_Renderer.AmbientColor = color;
-// }
-// void RenderContext<D3>::AmbientIntensity(const f32 intensity)
-// {
-//     m_Renderer.AmbientColor.rgba[3] = intensity;
-// }
-//
-// void RenderContext<D3>::DirectionalLight(Onyx::DirectionalLight light)
-// {
-//     light.Direction = Math::Normalize(m_Current->Transform * f32v4{light.Direction, 0.f});
-//     m_Renderer.AddDirectionalLight(light);
-// }
-// void RenderContext<D3>::DirectionalLight(const f32v3 &direction, const f32 intensity)
-// {
-//     Onyx::DirectionalLight light;
-//     light.Direction = direction;
-//     light.Intensity = intensity;
-//     light.Color = m_Current->LightColor.Pack();
-//     DirectionalLight(light);
-// }
-
-// void RenderContext<D3>::PointLight(Onyx::PointLight light)
-// {
-//     light.Position = m_Current->Transform * f32v4{light.Position, 1.f};
-//     m_Renderer.AddPointLight(light);
-// }
-// void RenderContext<D3>::PointLight(const f32v3 &position, const f32 radius, const f32 intensity)
-// {
-//     Onyx::PointLight light;
-//     light.Position = position;
-//     light.Radius = radius;
-//     light.Intensity = intensity;
-//     light.Color = m_Current->LightColor.Pack();
-//     PointLight(light);
-// }
-// void RenderContext<D3>::PointLight(const f32 radius, const f32 intensity)
-// {
-//     PointLight(f32v3{0.f}, radius, intensity);
-// }
-
 template <Dimension D> void IRenderContext<D>::AddFlags(const RenderStateFlags flags)
 {
     m_Current->Flags |= flags;
@@ -447,19 +404,6 @@ template <Dimension D> void IRenderContext<D>::Pop()
     updateState();
 }
 
-template <Dimension D> void IRenderContext<D>::Alpha(const f32 alpha)
-{
-    m_Current->FillColor.rgba[3] = alpha;
-}
-template <Dimension D> void IRenderContext<D>::Alpha(const u8 alpha)
-{
-    m_Current->FillColor.rgba[3] = static_cast<f32>(alpha) / 255.f;
-}
-template <Dimension D> void IRenderContext<D>::Alpha(const u32 alpha)
-{
-    m_Current->FillColor.rgba[3] = static_cast<f32>(alpha) / 255.f;
-}
-
 template <Dimension D> void IRenderContext<D>::FillColor(const Color &color)
 {
     m_Current->FillColor = color;
@@ -478,6 +422,34 @@ template <Dimension D> void IRenderContext<D>::OutlineColor(const Color &color)
 template <Dimension D> void IRenderContext<D>::OutlineWidth(const f32 width)
 {
     m_Current->OutlineWidth = width;
+}
+
+template <Dimension D> void IRenderContext<D>::RemovePointLight(PointLight<D> *light)
+{
+    for (u32 i = 0; i < m_PointLights.GetSize(); ++i)
+        if (m_PointLights[i] == light)
+        {
+            TKit::TierAllocator *tier = TKit::GetTier();
+            tier->Destroy(light);
+            m_PointLights.RemoveUnordered(m_PointLights.begin() + i);
+            m_NeedToUpdateLights |= LightFlag_Point;
+            return;
+        }
+    TKIT_FATAL("[ONYX][CONTEXT] Point light '{}' not found", static_cast<void *>(light));
+}
+
+void RenderContext<D3>::RemoveDirectionalLight(DirectionalLight *light)
+{
+    for (u32 i = 0; i < m_DirectionalLights.GetSize(); ++i)
+        if (m_DirectionalLights[i] == light)
+        {
+            TKit::TierAllocator *tier = TKit::GetTier();
+            tier->Destroy(light);
+            m_DirectionalLights.RemoveUnordered(m_DirectionalLights.begin() + i);
+            m_NeedToUpdateLights |= LightFlag_Directional;
+            return;
+        }
+    TKIT_FATAL("[ONYX][CONTEXT] Directional light '{}' not found", static_cast<void *>(light));
 }
 
 template class Detail::IRenderContext<D2>;

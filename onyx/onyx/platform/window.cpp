@@ -249,7 +249,7 @@ void Window::destroyImageData(TKit::TierArray<Window::ImageData> &images)
 
 Window::~Window()
 {
-    Renderer::ClearWindow(this);
+    Renderer::ClearViews(m_ViewBit);
     VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
 
     const auto table = Core::GetDeviceTable();
@@ -258,11 +258,11 @@ Window::~Window()
     Execution::DestroySyncData(m_SyncData);
 
     m_SwapChain.Destroy();
-    TKit::TierAllocator *alloc = TKit::GetTier();
+    TKit::TierAllocator *tier = TKit::GetTier();
     for (Camera<D2> *camera : m_Cameras2)
-        alloc->Destroy(camera);
+        tier->Destroy(camera);
     for (Camera<D3> *camera : m_Cameras3)
-        alloc->Destroy(camera);
+        tier->Destroy(camera);
 
     Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
@@ -334,7 +334,11 @@ Result<bool> Window::AcquireNextImage(const Timeout timeout)
         waitInfo.pSemaphores = &sync.InFlightSubmission;
         waitInfo.pValues = &sync.InFlightValue;
 
-        VKIT_RETURN_IF_FAILED(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX), Result<>);
+        const VkResult result = table->WaitSemaphoresKHR(device, &waitInfo, timeout);
+        if (result == VK_NOT_READY || result == VK_TIMEOUT)
+            return false;
+
+        VKIT_RETURN_ON_ERROR(result, Result<>);
     }
     const VkResult result = table->AcquireNextImageKHR(device, m_SwapChain, timeout, sync.ImageAvailableSemaphore,
                                                        VK_NULL_HANDLE, &m_ImageIndex);

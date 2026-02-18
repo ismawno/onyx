@@ -1,24 +1,12 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/state/descriptors.hpp"
-#include "onyx/execution/execution.hpp"
-#include "vkit/resource/device_buffer.hpp"
-
-namespace Onyx
-{
-struct DescriptorSet
-{
-    Execution::Tracker Tracker{};
-    VkDescriptorSet Set = VK_NULL_HANDLE;
-    VkBuffer Buffer = VK_NULL_HANDLE; // will have to generalize to any handle
-};
-} // namespace Onyx
 
 namespace Onyx::Descriptors
 {
 static TKit::Storage<VKit::DescriptorPool> s_DescriptorPool{};
-static TKit::Storage<VKit::DescriptorSetLayout> s_InstanceDataStorageLayout{};
-static TKit::Storage<VKit::DescriptorSetLayout> s_LightStorageLayout{};
-static TKit::Storage<TKit::ArenaArray<DescriptorSet>> s_Sets{};
+static TKit::Storage<VKit::DescriptorSetLayout> s_UnlitDescLayout{};
+static TKit::Storage<VKit::DescriptorSetLayout> s_LitDescLayout2{};
+static TKit::Storage<VKit::DescriptorSetLayout> s_LitDescLayout3{};
 
 ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
 {
@@ -32,19 +20,30 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
     *s_DescriptorPool = poolResult.GetValue();
 
     auto layoutResult = VKit::DescriptorSetLayout::Builder(device)
-                            .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                            .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
                             .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);
-    *s_InstanceDataStorageLayout = layoutResult.GetValue();
+    *s_UnlitDescLayout = layoutResult.GetValue();
 
     layoutResult = VKit::DescriptorSetLayout::Builder(device)
-                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)   // instance
+                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // point lights
+                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // ambient lights
                        .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);
-    *s_LightStorageLayout = layoutResult.GetValue();
+    *s_LitDescLayout2 = layoutResult.GetValue();
+
+    layoutResult = VKit::DescriptorSetLayout::Builder(device)
+                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)   // instance
+                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // point lights
+                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // ambient lights
+                       .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // dir lights
+                       .Build();
+
+    *s_LitDescLayout3 = layoutResult.GetValue();
+
     return Result<>::Ok();
 }
 
@@ -52,83 +51,55 @@ Result<> Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][DESCRIPTORS] Initializing");
     s_DescriptorPool.Construct();
-    s_InstanceDataStorageLayout.Construct();
-    s_LightStorageLayout.Construct();
-    s_Sets.Construct();
-
-    s_Sets->Reserve(specs.MaxSets);
+    s_UnlitDescLayout.Construct();
+    s_LitDescLayout2.Construct();
+    s_LitDescLayout3.Construct();
     return createDescriptorData(specs);
 }
 void Terminate()
 {
     s_DescriptorPool->Destroy();
-    s_InstanceDataStorageLayout->Destroy();
-    s_LightStorageLayout->Destroy();
+    s_UnlitDescLayout->Destroy();
+    s_LitDescLayout2->Destroy();
+    s_LitDescLayout3->Destroy();
 
     s_DescriptorPool.Destruct();
-    s_InstanceDataStorageLayout.Destruct();
-    s_LightStorageLayout.Destruct();
-    s_Sets.Destruct();
-}
-
-void MarkInUse(DescriptorSet *set, const VKit::Queue *queue, u64 inFlightValue)
-{
-    set->Tracker.MarkInUse(queue, inFlightValue);
-}
-VkDescriptorSet GetSet(const DescriptorSet *set)
-{
-    return set->Set;
-}
-
-Result<DescriptorSet *> FindSuitableDescriptorSet(const VKit::DeviceBuffer &buffer)
-{
-    for (DescriptorSet &set : *s_Sets)
-        if (!set.Tracker.InUse())
-        {
-            if (set.Buffer == buffer.GetHandle())
-                return &set;
-            const VkDescriptorBufferInfo info = buffer.CreateDescriptorInfo();
-            const auto result = WriteStorageBufferDescriptorSet(info, set.Set);
-            TKIT_RETURN_ON_ERROR(result);
-            set.Set = result.GetValue();
-            set.Buffer = buffer;
-        }
-
-    DescriptorSet &set = s_Sets->Append();
-    const VkDescriptorBufferInfo info = buffer.CreateDescriptorInfo();
-
-    const auto result = WriteStorageBufferDescriptorSet(info, set.Set);
-    TKIT_RETURN_ON_ERROR(result);
-    set.Set = result.GetValue();
-    set.Buffer = buffer;
-    return &set;
+    s_UnlitDescLayout.Destruct();
+    s_LitDescLayout2.Destruct();
+    s_LitDescLayout3.Destruct();
 }
 
 const VKit::DescriptorPool &GetDescriptorPool()
 {
     return *s_DescriptorPool;
 }
-const VKit::DescriptorSetLayout &GetInstanceDataStorageDescriptorSetLayout()
+
+const VKit::DescriptorSetLayout &GetUnlitDescriptorSetLayout()
 {
-    return *s_InstanceDataStorageLayout;
-}
-const VKit::DescriptorSetLayout &GetLightStorageDescriptorSetLayout()
-{
-    return *s_LightStorageLayout;
+    return *s_UnlitDescLayout;
 }
 
-Result<VkDescriptorSet> WriteStorageBufferDescriptorSet(const VkDescriptorBufferInfo &info, VkDescriptorSet oldSet)
+template <Dimension D> const VKit::DescriptorSetLayout &GetLitDescriptorSetLayout()
 {
-    VKit::DescriptorSet::Writer writer{Core::GetDevice(), s_InstanceDataStorageLayout.Get()};
-    writer.WriteBuffer(0, info);
-
-    if (!oldSet)
-    {
-        const auto result = s_DescriptorPool->Allocate(*s_InstanceDataStorageLayout);
-        TKIT_RETURN_ON_ERROR(result);
-        oldSet = result.GetValue();
-    }
-    writer.Overwrite(oldSet);
-    return oldSet;
+    if constexpr (D == D2)
+        return *s_LitDescLayout2;
+    else
+        return *s_LitDescLayout3;
 }
+
+template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorSetLayout(const Shading shading)
+{
+    if (shading == Shading_Unlit)
+        return *s_UnlitDescLayout;
+    if constexpr (D == D2)
+        return *s_LitDescLayout2;
+    else
+        return *s_LitDescLayout3;
+}
+
+template const VKit::DescriptorSetLayout &GetLitDescriptorSetLayout<D2>();
+template const VKit::DescriptorSetLayout &GetLitDescriptorSetLayout<D3>();
+
+template const VKit::DescriptorSetLayout &GetDescriptorSetLayout<D2>(Shading shading);
+template const VKit::DescriptorSetLayout &GetDescriptorSetLayout<D3>(Shading shading);
 } // namespace Onyx::Descriptors

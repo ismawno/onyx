@@ -79,7 +79,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
     LayoutFlags flags = 0;
 
     const u32 vcount = info.GetVertexCount();
-    auto result = Resources::GrowBufferIfNeeded<Vertex>(info.VertexBuffer, vcount, Buffer_DeviceVertex);
+    auto result = Resources::GrowBufferIfNeeded(info.VertexBuffer, vcount);
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())
@@ -90,7 +90,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
     }
 
     const u32 icount = info.GetIndexCount();
-    result = Resources::GrowBufferIfNeeded<Index>(info.IndexBuffer, icount, Buffer_DeviceIndex);
+    result = Resources::GrowBufferIfNeeded(info.IndexBuffer, icount);
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())

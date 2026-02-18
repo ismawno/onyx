@@ -46,7 +46,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             m_AppLayer->OnTransfer({.Queue = tqueue, .CommandBuffer = cmd, .DeltaTime = m_AppLayer->m_TransferDelta});
 
         TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd));
-        TKIT_RETURN_IF_FAILED(result);
+        TKIT_RETURN_ON_ERROR(result);
 
         const Renderer::TransferSubmitInfo &info = result.GetValue();
         if (info)
@@ -134,7 +134,11 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             const auto rnres = wlayer->OnRender({.Queue = gqueue, .CommandBuffer = cmd, .DeltaTime = wlayer->m_Delta});
             TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd));
             TKIT_RETURN_ON_ERROR(rnres);
-            rinfos.Append(rnres.GetValue());
+
+            const Renderer::RenderSubmitInfo &rinfo = rnres.GetValue();
+            wlayer->m_Window->MarkSubmission(gqueue->GetTimelineSempahore(), rinfo.InFlightValue);
+
+            rinfos.Append(rinfo);
 
 #ifdef ONYX_ENABLE_IMGUI
             if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled) && multiViewports())

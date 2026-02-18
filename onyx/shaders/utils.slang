@@ -1,12 +1,5 @@
 #pragma once
 
-public struct ReflectionData3D
-{
-    float DiffuseContribution;
-    float SpecularContribution;
-    float SpecularSharpness;
-};
-
 public struct Basis2D
 {
     float Basis11, Basis12;
@@ -31,12 +24,13 @@ public struct InstanceDataFill3D
 {
     Basis3D Basis;
     uint Color;
-    ReflectionData3D Reflection;
+    uint MatIndex;
 };
 public struct InstanceDataStencil3D
 {
     Basis3D Basis;
     uint Color;
+    float OutlineWidth;
 };
 
 public struct ArcData
@@ -72,12 +66,6 @@ public struct CircleInstanceDataStencil3D
     InstanceDataStencil3D Data;
     ArcData Arc;
     FadeData Fade;
-};
-
-public struct MaterialData3D
-{
-    float4 Color;
-    ReflectionData3D Reflection;
 };
 
 float4x4 ComputeTransform2D(const Basis2D basis)
@@ -179,14 +167,48 @@ float CircleFade(float alpha, const CircleBounds bounds, const FadeData fade)
     return clamp(alpha, 0.0, 1.0);
 }
 
+public struct LightData2D
+{
+    uint PointLightCount;
+    uint AmbientColor;
+    uint ViewBit;
+};
+
 public struct LightData3D
 {
     float4 ViewPosition;
-    float4 AmbientColor;
-    uint DirectionalLightCount;
     uint PointLightCount;
+    uint DirectionalLightCount;
+    uint AmbientColor;
+    uint ViewBit;
 };
 
+public struct PointLight2D
+{
+    float PosX;
+    float PosY;
+    float Intensity;
+    float Radius;
+    uint Color;
+    uint ViewMask;
+};
+
+public struct PointLight3D
+{
+    float PosX;
+    float PosY;
+    float PosZ;
+    float Intensity;
+    float Radius;
+    uint Color;
+    uint ViewMask;
+};
+
+public struct AmbientLight
+{
+    uint Color;
+    uint ViewMask;
+};
 
 public struct DirectionalLight
 {
@@ -195,28 +217,53 @@ public struct DirectionalLight
     float PosZ;
     float Intensity;
     uint Color;
+    uint ViewMask;
 };
 
-public struct PointLight
-{
-    float PosX;
-    float PosY;
-    float PosZ;
-    float Intensity;
-    float Radius;
-    uint Color;
-};
+typedef StructuredBuffer<PointLight2D, Std430DataLayout> PointLights2D;
+typedef StructuredBuffer<PointLight3D, Std430DataLayout> PointLights3D;
 
+typedef StructuredBuffer<DirectionalLight, Std430DataLayout> DirectionalLights;
 
-float3 GetLightColor(const LightData3D data, const float3 normal, const ReflectionData3D reflection, const float3 worldPosition, const StructuredBuffer<DirectionalLight, Std430DataLayout> directionals, const StructuredBuffer<PointLight, Std430DataLayout> points)
+float3 GetLightColor2D(const LightData2D data, const float2 worldPosition, const PointLights2D plights)
 {
+    float3 diffuseColor = float3(0.0);
+    const float4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
+    for (uint i = 0; i < data.PointLightCount; ++i)
+    {
+        const PointLight2D plight = plights[i];
+        if (!bool(plight.ViewMask & data.ViewBit))
+            continue;
+
+        const float2 direction = float2(plight.PosX, plight.PosY) - worldPosition;
+        const float dist = dot(direction, direction);
+        const float3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
+        const float radius = plight.Radius * plight.Radius;
+        const float attenuation = radius / (dist + radius);
+        const float intensity = attenuation * plight.Intensity;
+        diffuseColor += intensity * lightColor;
+    }
+
+    return ambientColor.xyz * ambientColor.w + diffuseColor;
+}
+
+float3 GetLightColor3D(const LightData3D data, const float3 normal, const float3 worldPosition, const PointLights3D plights, const DirectionalLights dlights)
+{
+    const float DiffuseContribution = 0.8f;
+    const float SpecularContribution = 0.2f;
+    const float SpecularSharpness = 8;
+
+    const float4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
     const float3 specularDirection = normalize(data.ViewPosition.xyz - worldPosition);
 
     float3 diffuseColor = float3(0.0);
     float3 specularColor = float3(0.0);
     for (uint i = 0; i < data.DirectionalLightCount; ++i)
     {
-        const DirectionalLight dlight = directionals[i];
+        const DirectionalLight dlight = dlights[i];
+        if (!bool(dlight.ViewMask & data.ViewBit))
+            continue;
+
         const float3 direction = float3(dlight.PosY, dlight.PosY, dlight.PosZ);
         const float product = dot(normal, direction);
 
@@ -227,14 +274,17 @@ float3 GetLightColor(const LightData3D data, const float3 normal, const Reflecti
             diffuseColor += intensity * lightColor * product;
 
             const float3 halfVector = normalize(direction + specularDirection);
-            const float specular = pow(max(dot(normal, halfVector), 0.0), reflection.SpecularSharpness);
+            const float specular = pow(max(dot(normal, halfVector), 0.0), SpecularSharpness);
             specularColor += intensity * specular * lightColor;
         }
     }
 
     for (uint i = 0; i < data.PointLightCount; ++i)
     {
-        const PointLight plight = points[i];
+        const PointLight3D plight = plights[i];
+        if (!bool(plight.ViewMask & data.ViewBit))
+            continue;
+
         const float3 direction = float3(plight.PosX, plight.PosY, plight.PosZ) - worldPosition;
         const float product = dot(normal, direction);
 
@@ -245,15 +295,15 @@ float3 GetLightColor(const LightData3D data, const float3 normal, const Reflecti
             const float dirLen = dot(direction, direction);
             const float attenuation = radius / (dirLen + radius);
             const float intensity = attenuation * plight.Intensity;
-            diffuseColor += intensity * lightColor * max(dot(normal, normalize(direction)), 0.0);
+            diffuseColor += intensity * lightColor * dot(normal, normalize(direction));
 
             const float3 halfVector = normalize(direction + specularDirection);
-            const float specular = pow(max(dot(normal, halfVector), 0.0), reflection.SpecularSharpness);
+            const float specular = pow(max(dot(normal, halfVector), 0.0), SpecularSharpness);
             specularColor += intensity * specular * lightColor;
         }
     }
 
-    return data.AmbientColor.xyz * data.AmbientColor.w +
-        reflection.DiffuseContribution * diffuseColor + reflection.SpecularContribution * specularColor;
+    return ambientColor.xyz * ambientColor.w +
+        DiffuseContribution * diffuseColor + SpecularContribution * specularColor;
 }
 

@@ -33,7 +33,7 @@ Result<Renderer::RenderSubmitInfo> WindowLayer::OnRender(const ExecutionInfo &in
 Result<Renderer::RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info)
 {
     m_Window->BeginRendering(info.CommandBuffer);
-    const auto result = Renderer::Render(info.Queue, info.CommandBuffer, m_Window);
+    const auto result = Renderer::Render(info.Queue, info.CommandBuffer, m_Window->CreateViewInfo());
 #ifdef ONYX_ENABLE_IMGUI
     if (checkFlags(WindowLayerFlag_ImGuiEnabled))
     {
