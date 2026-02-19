@@ -18,7 +18,7 @@ struct VertexOutput
 };
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<CircleInstanceData2D, Std430DataLayout> instanceBuffer;
+StructuredBuffer<CircleInstanceDataFill2D, Std430DataLayout> instanceBuffer;
 
 struct PushConstants
 {
@@ -49,7 +49,7 @@ VertexOutput mainVS(
     const uint vertexIndex = vertexId + baseVertex;
     const uint instanceIndex = instanceId + baseInstance;
 
-    const CircleInstanceData2D data = instanceBuffer[instanceIndex];
+    const CircleInstanceDataFill2D data = instanceBuffer[instanceIndex];
     const float4x4 transform = ComputeTransform2D(data.Data.Basis);
 
     const float2 localPos = g_Positions[vertexIndex];

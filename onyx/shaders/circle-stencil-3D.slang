@@ -50,7 +50,10 @@ VertexOutput mainVS(
     const float4x4 transform = ComputeTransform3D(data.Data.Basis);
 
     const float2 localPos = g_Positions[vertexIndex];
-    const float4 pos = float4(localPos, 0.0, 1.0);
+    const float2 scale = ComputeStencilScale3D(transform).xy;
+    const float2 extruded = localPos + (normalize(localPos) * data.Data.OutlineWidth) / scale;
+
+    const float4 pos = float4(extruded, 0.0, 1.0);
 
     VertexOutput output;
     output.Position = mul(mul(transform, pos), pdata.ProjectionView);

@@ -61,17 +61,12 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers) : ApplicationLayer(
     AddMeshes<D2>();
     AddMeshes<D3>();
 
-    RenderContext<D2> *ctx2 = AddContext<D2>();
-    RenderContext<D3> *ctx3 = AddContext<D3>();
-
     WindowSpecs wspecs{};
     wspecs.Title = "Onyx sandbox window (2D)";
-    RequestOpenWindow<SandboxWinLayer>([ctx2](SandboxWinLayer *, Window *window) { ctx2->AddTarget(window); }, wspecs,
-                                       D2);
+    RequestOpenWindow<SandboxWinLayer>(wspecs, D2);
 
     wspecs.Title = "Onyx sandbox window (3D)";
-    RequestOpenWindow<SandboxWinLayer>([ctx3](SandboxWinLayer *, Window *window) { ctx3->AddTarget(window); }, wspecs,
-                                       D3);
+    RequestOpenWindow<SandboxWinLayer>(wspecs, D3);
 }
 void SandboxAppLayer::OnTransfer(const DeltaTime &)
 {
@@ -182,7 +177,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const ContextData<D
     }
 }
 
-template <Dimension D> RenderContext<D> *SandboxAppLayer::AddContext()
+template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
 {
     RenderContext<D> *context = VKIT_CHECK_EXPRESSION(Renderer::CreateContext<D>());
     auto &contexts = GetContexts<D>();
@@ -193,15 +188,23 @@ template <Dimension D> RenderContext<D> *SandboxAppLayer::AddContext()
         data.Flags = SandboxFlag_DrawAxes;
         data.DirLights.Append(context->AddDirectionalLight());
     }
-    return context;
+    if (window)
+        context->AddTarget(window);
 }
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
     : WindowLayer(appLayer, window, {.Flags = WindowLayerFlag_ImGuiEnabled})
 {
+    SandboxAppLayer *alayer = GetApplicationLayer<SandboxAppLayer>();
     if (dim == D2)
+    {
         AddCamera<D2>();
+        alayer->AddContext<D2>(window);
+    }
     else
+    {
         AddCamera<D3>();
+        alayer->AddContext<D3>(window);
+    }
 }
 
 void SandboxWinLayer::OnRender(const DeltaTime &deltaTime)
@@ -519,16 +522,12 @@ template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &conte
     if (context.Flags & SandboxFlag_DrawAxes)
         ImGui::SliderFloat("Axes thickness", &context.AxesThickness, 0.001f, 0.1f);
 
-    if (ImGui::TreeNode("Shapes"))
-    {
-        RenderShapePicker<D>(context);
-        ImGui::TreePop();
-    }
-    if (ImGui::TreeNode("Lights"))
-    {
-        RenderLightPicker<D>(context);
-        ImGui::TreePop();
-    }
+    ImGui::Spacing();
+    ImGui::Text("Shape picker");
+    RenderShapePicker<D>(context);
+    ImGui::Spacing();
+    ImGui::Text("Light picker");
+    RenderLightPicker<D>(context);
 }
 
 template <Dimension D> void editShape(Shape<D> &shape)
@@ -570,7 +569,7 @@ template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &c
         combo("Shape", &context.StatMeshToSpawn, names);
     }
 
-    if (ImGui::Button("Spawn"))
+    if (ImGui::Button("Spawn##Shape"))
         context.Shapes.Append(appLayer->CreateShape<D>(context));
 
     renderSelectableNoRemoval(
@@ -588,7 +587,7 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
         combo("Light type", &context.LightToSpawn, "Point\0\0");
     else
         combo("Light type", &context.LightToSpawn, "Point\0Directional\0\0");
-    if (ImGui::Button("Spawn"))
+    if (ImGui::Button("Spawn##Light"))
     {
         const LightType ltype = static_cast<LightType>(context.LightToSpawn);
         if (ltype == Light_Point)

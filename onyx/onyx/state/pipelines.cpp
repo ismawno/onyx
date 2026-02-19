@@ -114,6 +114,7 @@ ONYX_NO_DISCARD static Result<> createShaders()
                       .Load()
                       .Compile();
 
+    TKIT_RETURN_ON_ERROR(cmpres);
     Shaders::Compilation &cmp = cmpres.GetValue();
     auto result = cmp.CreateShader("mainVS", "mesh-fill-2D");
     TKIT_RETURN_ON_ERROR(result);
@@ -316,11 +317,14 @@ Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(const StencilPass pass,
         createPipelineBuilder<D>(pass, renderInfo, shaders.MeshVertexShader, shaders.MeshFragmentShader);
 
     builder.AddBindingDescription<StatVertex<D>>();
-    if (D == D2 || pass == StencilPass_DoStencilWriteNoFill || pass == StencilPass_DoStencilTestNoFill)
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D>, Position));
+    if constexpr (D == D2)
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, Position));
     else
-        builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position))
-            .AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Normal));
+    {
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position));
+        if (pass != StencilPass_DoStencilWriteNoFill && pass != StencilPass_DoStencilTestNoFill)
+            builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Normal));
+    }
 
     return builder.Bake().Build();
 }

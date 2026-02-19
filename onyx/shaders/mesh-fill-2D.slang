@@ -17,7 +17,7 @@ struct VertexOutput
 };
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<InstanceData2D, Std430DataLayout> instanceBuffer;
+StructuredBuffer<InstanceDataFill2D, Std430DataLayout> instanceBuffer;
 
 struct PushConstants
 {
@@ -36,10 +36,11 @@ VertexOutput mainVS(
 {
     const uint instanceIndex = instanceId + baseInstance;
 
-    const InstanceData2D data = instanceBuffer[instanceIndex];
+    const InstanceDataFill2D data = instanceBuffer[instanceIndex];
 
     const float4x4 transform = ComputeTransform2D(data.Basis);
     const float4 worldPos = mul(transform, float4(input.Position, 0.0, 1.0));
+
     VertexOutput output;
     output.Position =  mul(worldPos, pdata.ProjectionView);
     output.PointSize = 1.0;

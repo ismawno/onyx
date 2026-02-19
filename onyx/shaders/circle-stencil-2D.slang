@@ -16,7 +16,7 @@ struct VertexOutput
 };
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<CircleInstanceData2D, Std430DataLayout> instanceBuffer;
+StructuredBuffer<CircleInstanceDataStencil2D, Std430DataLayout> instanceBuffer;
 
 struct PushConstants
 {
@@ -46,11 +46,14 @@ VertexOutput mainVS(
     const uint vertexIndex = vertexId + baseVertex;
     const uint instanceIndex = instanceId + baseInstance;
 
-    CircleInstanceData2D data = instanceBuffer[instanceIndex];
-    float4x4 transform = ComputeTransform2D(data.Data.Basis);
+    const CircleInstanceDataStencil2D data = instanceBuffer[instanceIndex];
+    const float4x4 transform = ComputeTransform2D(data.Data.Basis);
 
-    float2 localPos = g_Positions[vertexIndex];
-    float4 pos = float4(localPos, 0.0, 1.0);
+    const float2 localPos = g_Positions[vertexIndex];
+    const float2 scale = ComputeStencilScale2D(transform);
+    const float2 extruded = localPos + (normalize(localPos) * data.Data.OutlineWidth) / scale;
+
+    const float4 pos = float4(extruded, 0.0, 1.0);
 
     VertexOutput output;
     output.Position = mul(mul(transform, pos), pdata.ProjectionView);

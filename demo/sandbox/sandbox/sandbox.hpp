@@ -149,7 +149,7 @@ class SandboxAppLayer final : public ApplicationLayer
 
     template <Dimension D> void DrawShapes();
     template <Dimension D> Shape<D> CreateShape(const ContextData<D> &context);
-    template <Dimension D> RenderContext<D> *AddContext();
+    template <Dimension D> void AddContext(const Window *window = nullptr);
     template <Dimension D> auto &GetContexts()
     {
         if constexpr (D == D2)

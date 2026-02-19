@@ -36,9 +36,12 @@ VertexOutput mainVS(
     const InstanceDataStencil3D data = instanceBuffer[instanceIndex];
     const float4x4 transform = ComputeTransform3D(data.Basis);
 
+    const float3 scale = ComputeStencilScale3D(transform);
+    const float3 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth) / scale;
+
     VertexOutput output;
 
-    output.Position = mul(mul(transform, float4(input.Position, 1.0)), pdata.ProjectionView);
+    output.Position = mul(mul(transform, float4(extruded, 1.0)), pdata.ProjectionView);
     output.PointSize = 1.0;
 
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);

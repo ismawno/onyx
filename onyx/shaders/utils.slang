@@ -14,11 +14,17 @@ public struct Basis3D
     float Basis31, Basis32, Basis33, Basis34;
 };
 
-public struct InstanceData2D
+public struct InstanceDataFill2D
 {
     Basis2D Basis;
     uint Color;
     uint TexIndex;
+};
+public struct InstanceDataStencil2D
+{
+    Basis2D Basis;
+    uint Color;
+    float OutlineWidth;
 };
 public struct InstanceDataFill3D
 {
@@ -49,9 +55,15 @@ public struct FadeData
     float OuterFade;
 };
 
-public struct CircleInstanceData2D
+public struct CircleInstanceDataFill2D
 {
-    InstanceData2D Data;
+    InstanceDataFill2D Data;
+    ArcData Arc;
+    FadeData Fade;
+};
+public struct CircleInstanceDataStencil2D
+{
+    InstanceDataStencil2D Data;
     ArcData Arc;
     FadeData Fade;
 };
@@ -86,6 +98,15 @@ float4x4 ComputeTransform3D(const Basis3D basis)
         float4(basis.Basis31, basis.Basis32, basis.Basis33, basis.Basis34),
         float4(0.0,               0.0,               0.0,               1.0)
     );
+}
+
+float2 ComputeStencilScale2D(const float4x4 transform)
+{
+    return float2(length(float2(transform[0][0], transform[1][0])), length(float2(transform[0][1], transform[1][1])));
+}
+float3 ComputeStencilScale3D(const float4x4 transform)
+{
+    return float3(length(float3(transform[0][0], transform[1][0], transform[2][0])), length(float3(transform[0][1], transform[1][1], transform[2][1])), length(float3(transform[0][2], transform[1][2], transform[2][2])));
 }
 
 float3x3 ComputeNormalMatrix(const float3x3 matrix)

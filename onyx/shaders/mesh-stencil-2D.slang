@@ -15,7 +15,7 @@ struct VertexOutput
 };
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<InstanceData2D, Std430DataLayout> instanceBuffer;
+StructuredBuffer<InstanceDataStencil2D, Std430DataLayout> instanceBuffer;
 
 struct PushConstants
 {
@@ -33,12 +33,14 @@ VertexOutput mainVS(
 {
     const uint instanceIndex = instanceId + baseInstance;
 
-    const InstanceData2D data = instanceBuffer[instanceIndex];
-
+    const InstanceDataStencil2D data = instanceBuffer[instanceIndex];
     const float4x4 transform = ComputeTransform2D(data.Basis);
-    VertexOutput output;
 
-    output.Position = mul(mul(transform, float4(input.Position, 0.0, 1.0)), pdata.ProjectionView);
+    const float2 scale = ComputeStencilScale2D(transform);
+    const float2 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth) / scale;
+
+    VertexOutput output;
+    output.Position = mul(mul(transform, float4(extruded, 0.0, 1.0)), pdata.ProjectionView);
     output.PointSize = 1.0;
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
 

@@ -218,7 +218,7 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
         else
         {
             instanceData.BaseColor = state->OutlineColor.Pack();
-            instanceData.OutlineWidth = state->OutlineWidth;
+            instanceData.OutlineWidth = pass == StencilPass_DoStencilWriteNoFill ? 0.f : state->OutlineWidth;
         }
         return instanceData;
     }
@@ -236,7 +236,7 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
         else
         {
             instanceData.BaseColor = state->OutlineColor.Pack();
-            instanceData.OutlineWidth = state->OutlineWidth;
+            instanceData.OutlineWidth = pass == StencilPass_DoStencilWriteNoFill ? 0.f : state->OutlineWidth;
         }
         return instanceData;
     }
