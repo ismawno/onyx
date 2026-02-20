@@ -459,8 +459,8 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
     const VkDeviceSize icount = Math::Max(requiredMem / isize, buffer.GetInfo().InstanceCount);
     const VkDeviceSize size = buffer.GetInfo().Size;
 
-    TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable transfer range with {} bytes of memory. A new buffer "
-                   "will be created with more memory (from {} to {} bytes)",
+    TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable transfer range with {:L} bytes of memory. A new buffer "
+                   "will be created with more memory (from {:L} to {:L} bytes)",
                    requiredMem, size, 2 * icount * isize);
 
     auto bresult = Resources::CreateBuffer(getStageFlags(), isize, 2 * icount);
@@ -533,8 +533,8 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
     const VkDeviceSize icount = Math::Max(requiredMem / isize, buffer.GetInfo().InstanceCount);
     const VkDeviceSize size = buffer.GetInfo().Size;
 
-    TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable graphics range with {} bytes of memory. A new buffer "
-                   "will be created with more memory (from {} to {} bytes)",
+    TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable graphics range with {:L} bytes of memory. A new buffer "
+                   "will be created with more memory (from {:L} to {:L} bytes)",
                    requiredMem, size, 2 * icount * isize);
 
     auto bresult = Resources::CreateBuffer(getDeviceLocalFlags(), isize, 2 * icount);

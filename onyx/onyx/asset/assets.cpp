@@ -85,7 +85,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
     if (result.GetValue())
     {
         flags = LayoutFlag_UpdateVertex;
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient vertex buffer memory. Resized from {} to {} bytes",
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient vertex buffer memory. Resized from {:L} to {:L} bytes",
                        vcount * sizeof(Vertex), info.VertexBuffer.GetInfo().Size);
     }
 
@@ -96,7 +96,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
     if (result.GetValue())
     {
         flags |= LayoutFlag_UpdateIndex;
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient index buffer memory. Resized from {} to {} bytes",
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient index buffer memory. Resized from {:L} to {:L} bytes",
                        icount * sizeof(Index), info.IndexBuffer.GetInfo().Size);
     }
     if (flags)
@@ -112,7 +112,7 @@ ONYX_NO_DISCARD static Result<> uploadVertexData(MeshInfo<Vertex> &info, const u
     const VkDeviceSize voffset = info.GetVertexCount(start) * size;
     const VkDeviceSize vsize = info.GetVertexCount(end) * size - voffset;
 
-    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading vertex range: {} - {} ({} bytes)", info.GetVertexCount(start),
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading vertex range: {} - {} ({:L} bytes)", info.GetVertexCount(start),
                    info.GetVertexCount(end), vsize);
 
     VKit::CommandPool &pool = Execution::GetTransientTransferPool();
@@ -128,7 +128,7 @@ ONYX_NO_DISCARD static Result<> uploadIndexData(MeshInfo<Vertex> &info, const u3
     const VkDeviceSize ioffset = info.GetIndexCount(start) * size;
     const VkDeviceSize isize = info.GetIndexCount(end) * size - ioffset;
 
-    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading index range: {} - {} ({} bytes)", info.GetIndexCount(start),
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading index range: {} - {} ({:L} bytes)", info.GetIndexCount(start),
                    info.GetIndexCount(end), isize);
 
     VKit::CommandPool &pool = Execution::GetTransientTransferPool();

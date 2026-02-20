@@ -2,7 +2,6 @@
 
 #include "onyx/resource/buffer.hpp"
 #include "onyx/property/vertex.hpp"
-#include "tkit/container/dynamic_array.hpp"
 
 namespace Onyx
 {
@@ -11,8 +10,8 @@ constexpr Mesh NullMesh = TKit::Limits<Mesh>::Max();
 
 template <typename Vertex> struct MeshData
 {
-    TKit::DynamicArray<Vertex> Vertices;
-    TKit::DynamicArray<Index> Indices;
+    TKit::TierArray<Vertex> Vertices;
+    TKit::TierArray<Index> Indices;
 };
 
 template <Dimension D> using StatMeshData = MeshData<StatVertex<D>>;

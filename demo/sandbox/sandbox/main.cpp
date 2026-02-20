@@ -6,7 +6,7 @@ using namespace Onyx;
 
 int main()
 {
-    TKIT_PROFILE_NOOP()
+    TKIT_PROFILE_NOOP();
     VKIT_CHECK_EXPRESSION(Core::Initialize());
     {
         Onyx::Application app{};

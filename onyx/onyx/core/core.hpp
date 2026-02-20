@@ -79,6 +79,7 @@ struct Specs
     TKit::FixedArray<u32, VKit::Queue_Count> QueueRequests{1, 0, 1, 1};
     TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> Allocators{};
     InitCallbacks Callbacks{};
+    const char *Locale = "en_US.UTF-8";
     Execution::Specs *ExecutionSpecs = nullptr;
     Assets::Specs *AssetSpecs = nullptr;
     Descriptors::Specs *DescriptorSpecs = nullptr;

@@ -252,7 +252,22 @@ static void initializeAllocators(const Specs &specs)
         if (userAlloc.Tier)
             libAlloc.Tier = userAlloc.Tier;
         else if (!libAlloc.Tier)
-            libAlloc.Tier = new TKit::TierAllocator(libAlloc.Arena, 64, static_cast<u32>(i == 0 ? 256_kib : 4_kib));
+        {
+            const TKit::TierDescriptions desc{
+                {.Allocator = libAlloc.Arena, .MaxAllocation = static_cast<u32>(i == 0 ? 1_mib : 4_kib)}};
+            if (i == 0)
+            {
+                TKIT_LOG_INFO("[ONYX][CORE] Tier allocator for the main thread has allocated {:L} bytes of memory",
+                              desc.GetBufferSize());
+            }
+            else
+            {
+                TKIT_LOG_INFO("[ONYX][CORE] Tier allocators for each of the secondary threads have allocated {:L} "
+                              "bytes of memory",
+                              desc.GetBufferSize());
+            }
+            libAlloc.Tier = new TKit::TierAllocator(desc);
+        }
     }
     VKit::Allocation &libAlloc = s_Allocation[0];
     if (TKit::GetArena() != libAlloc.Arena)
@@ -286,6 +301,8 @@ Result<> Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Initializing");
     TKIT_LOG_INFO("[ONYX][CORE] Vulkan headers version: {}.{}.{}", VKIT_EXPAND_VERSION(VK_HEADER_VERSION_COMPLETE));
+    if (specs.Locale)
+        std::locale::global(std::locale(specs.Locale));
     s_Instance.Construct();
     s_Physical.Construct();
     s_Device.Construct();
