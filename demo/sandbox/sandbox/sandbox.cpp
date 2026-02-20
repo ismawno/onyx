@@ -115,42 +115,24 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
 {
     const auto &contexts = GetContexts<D>();
     for (const ContextData<D> &ctx : contexts.Contexts)
-    {
-        ctx.Context->Flush();
-        for (const Shape<D> &shape : ctx.Shapes)
+        if (ctx.Flags & SandboxFlag_ContextShouldUpdate)
         {
-            setShapeProperties(ctx.Context, shape);
-            drawShape(ctx.Context, shape);
+            ctx.Context->Flush();
+            for (const Shape<D> &shape : ctx.Shapes)
+            {
+                setShapeProperties(ctx.Context, shape);
+                drawShape(ctx.Context, shape);
+            }
+            if (ctx.Flags & SandboxFlag_DrawAxes)
+            {
+                ctx.Context->Outline(false);
+                ctx.Context->Fill(true);
+                if constexpr (D == D2)
+                    ctx.Context->Axes(Meshes2.StaticMeshes[StaticMesh_Square].Mesh, {.Thickness = ctx.AxesThickness});
+                else
+                    ctx.Context->Axes(Meshes3.StaticMeshes[StaticMesh_Cylinder].Mesh, {.Thickness = ctx.AxesThickness});
+            }
         }
-        if (ctx.Flags & SandboxFlag_DrawAxes)
-        {
-            ctx.Context->Outline(false);
-            ctx.Context->Fill(true);
-            if constexpr (D == D2)
-                ctx.Context->Axes(Meshes2.StaticMeshes[StaticMesh_Square].Mesh, {.Thickness = ctx.AxesThickness});
-            else
-                ctx.Context->Axes(Meshes3.StaticMeshes[StaticMesh_Cylinder].Mesh, {.Thickness = ctx.AxesThickness});
-        }
-        // if constexpr (D == D3)
-        // {
-        //     ctx.Context->AmbientColor(ctx.Ambient);
-        //     for (const auto &light : ctx.DirLights)
-        //         ctx.Context->DirectionalLight(light);
-        //     for (const auto &light : ctx.PointLights)
-        //     {
-        //         if (ctx.Flags & SandboxFlag_DrawLights)
-        //         {
-        //             ctx.Context->Push();
-        //             ctx.Context->Fill(Color::Unpack(light.Color));
-        //             ctx.Context->Scale(0.01f);
-        //             ctx.Context->Translate(light.Position);
-        //             ctx.Context->StaticMesh(Meshes3.StaticMeshes[StaticMesh_Sphere].Mesh);
-        //             ctx.Context->Pop();
-        //         }
-        //         ctx.Context->PointLight(light);
-        //     }
-        // };
-    }
 }
 
 template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const ContextData<D> &context)
@@ -185,7 +167,7 @@ template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
     data.Context = context;
     if constexpr (D == D3)
     {
-        data.Flags = SandboxFlag_DrawAxes;
+        data.Flags |= SandboxFlag_DrawAxes;
         data.DirLights.Append(context->AddDirectionalLight());
     }
     if (window)
@@ -510,6 +492,7 @@ template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &conte
     const Window *window = GetWindow();
     const ViewMask viewBit = window->GetViewBit();
     bool targets = viewBit & context.Context->GetViewMask();
+    ImGui::CheckboxFlags("Continuous update", &context.Flags, SandboxFlag_ContextShouldUpdate);
     if (ImGui::Checkbox("Target this window", &targets))
     {
         if (targets)

@@ -13,6 +13,7 @@ enum SandboxFlagBit : SandboxFlags
     SandboxFlag_Outline = 1 << 1,
     SandboxFlag_DrawLights = 1 << 2,
     SandboxFlag_DrawAxes = 1 << 3,
+    SandboxFlag_ContextShouldUpdate = 1 << 4,
 };
 
 template <Dimension D> struct CameraData
@@ -86,7 +87,7 @@ template <Dimension D> struct ContextData
     u32 SelectedPointLight = 0;
     u32 LightToSpawn = 0;
 
-    SandboxFlags Flags = 0;
+    SandboxFlags Flags = SandboxFlag_ContextShouldUpdate;
 };
 
 template <> struct ContextData<D3>
@@ -105,7 +106,7 @@ template <> struct ContextData<D3>
     u32 SelectedPointLight = 0;
     u32 SelectedDirLight = 0;
 
-    SandboxFlags Flags = 0;
+    SandboxFlags Flags = SandboxFlag_ContextShouldUpdate;
 };
 
 template <Dimension D> struct Contexts
