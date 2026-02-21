@@ -9,6 +9,9 @@
 #include "onyx/core/dimension.hpp"
 #include "tkit/profiling/timespan.hpp"
 #include <imgui.h>
+#ifdef ONYX_ENABLE_IMPLOT
+#    include <implot.h>
+#endif
 
 namespace Onyx
 {

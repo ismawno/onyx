@@ -64,7 +64,7 @@ template <Dimension D> struct Shape
 {
     ShapeType Type;
     std::string Name;
-    Mesh Mesh = NullMesh;
+    Mesh StatMesh = NullMesh;
     Transform<D> Transform{};
     CircleOptions CircleOptions{};
     SandboxFlags Flags = SandboxFlag_Fill;
@@ -118,7 +118,7 @@ template <Dimension D> struct Contexts
 template <Dimension D> struct Meshes
 {
     TKit::TierArray<MeshId> StaticMeshes{};
-    u32 GeoToLoad = 0;
+    u32 GeometryToLoad = 0;
     u32 StatMeshToLoad = 0;
 
     u32 RegularPolySides = 3;
@@ -129,7 +129,7 @@ template <Dimension D> struct Meshes
 template <> struct Meshes<D3>
 {
     TKit::TierArray<MeshId> StaticMeshes{};
-    u32 GeoToLoad = 0;
+    u32 GeometryToLoad = 0;
     u32 StatMeshToLoad = 0;
 
     u32 RegularPolySides = 3;
@@ -141,6 +141,25 @@ template <> struct Meshes<D3>
     u32 CylinderSides = 64;
 };
 
+template <Dimension D> struct LatticeData
+{
+    TKit::FixedArray<RenderContext<D> *, TKit::MaxThreads> Contexts{};
+    Shape<D> Shape{};
+    f32v<D> Position{0.f};
+    u32v<D> Dimensions{4};
+    f32 Separation = 1.5f;
+    u32 GeometryToRender = 0;
+    u32 StatMeshToRender = 0;
+    u32 Threads = 1;
+    SandboxFlags Flags = SandboxFlag_ContextShouldUpdate;
+};
+
+template <Dimension D> struct Lattices
+{
+    TKit::TierArray<LatticeData<D>> Lattices{};
+    u32 Active = 0;
+};
+
 class SandboxAppLayer final : public ApplicationLayer
 {
   public:
@@ -149,8 +168,22 @@ class SandboxAppLayer final : public ApplicationLayer
     void OnTransfer(const DeltaTime &deltaTime) override;
 
     template <Dimension D> void DrawShapes();
-    template <Dimension D> Shape<D> CreateShape(const ContextData<D> &context);
+    template <Dimension D> void DrawLattices();
+    template <Dimension D, typename F> void DrawLattice(const LatticeData<D> &lattice, F &&fun);
+
+    template <Dimension D> Shape<D> CreateShape(u32 geometry, u32 statMesh);
+    template <Dimension D> Shape<D> CreateShape(const ContextData<D> &context)
+    {
+        return CreateShape<D>(context.GeometryToSpawn, context.StatMeshToSpawn);
+    }
+    template <Dimension D> Shape<D> CreateShape(const LatticeData<D> &lattice)
+    {
+        return CreateShape<D>(lattice.GeometryToRender, lattice.StatMeshToRender);
+    }
+
     template <Dimension D> void AddContext(const Window *window = nullptr);
+    template <Dimension D> void AddLattice(const Window *window = nullptr);
+
     template <Dimension D> auto &GetContexts()
     {
         if constexpr (D == D2)
@@ -165,6 +198,13 @@ class SandboxAppLayer final : public ApplicationLayer
         else
             return Meshes3;
     }
+    template <Dimension D> auto &GetLattices()
+    {
+        if constexpr (D == D2)
+            return Lattices2;
+        else
+            return Lattices3;
+    }
 
     template <Dimension D> void AddStaticMesh(const char *name, const StatMeshData<D> &data);
     template <Dimension D> void AddMeshes();
@@ -174,6 +214,9 @@ class SandboxAppLayer final : public ApplicationLayer
 
     Meshes<D2> Meshes2{};
     Meshes<D3> Meshes3{};
+
+    Lattices<D2> Lattices2{};
+    Lattices<D3> Lattices3{};
 };
 
 class SandboxWinLayer final : public WindowLayer
@@ -192,6 +235,8 @@ class SandboxWinLayer final : public WindowLayer
     template <Dimension D> void RenderContext(ContextData<D> &context);
     template <Dimension D> void RenderShapePicker(ContextData<D> &context);
     template <Dimension D> void RenderLightPicker(ContextData<D> &context);
+    template <Dimension D> void RenderLattices();
+    template <Dimension D> void RenderLattice(LatticeData<D> &lattice);
     template <Dimension D> void RenderMeshLoad();
 #endif
 

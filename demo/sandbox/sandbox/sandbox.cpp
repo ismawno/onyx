@@ -4,6 +4,9 @@
 #include "onyx/platform/dialog.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
+#include "tkit/multiprocessing/topology.hpp"
+#include "tkit/multiprocessing/for_each.hpp"
+#include "tkit/multiprocessing/task_manager.hpp"
 
 namespace Onyx
 {
@@ -73,6 +76,9 @@ void SandboxAppLayer::OnTransfer(const DeltaTime &)
     TKIT_PROFILE_NSCOPE("Onyx::Sandbox::OnTransfer");
     DrawShapes<D2>();
     DrawShapes<D3>();
+
+    DrawLattices<D2>();
+    DrawLattices<D3>();
 }
 
 template <Dimension D> void SandboxAppLayer::AddStaticMesh(const char *name, const StatMeshData<D> &data)
@@ -108,7 +114,7 @@ template <Dimension D> static void drawShape(RenderContext<D> *context, const Sh
     if (shape.Type.Geo == Geometry_Circle)
         context->Circle(shape.Transform.ComputeTransform(), shape.CircleOptions);
     else
-        context->StaticMesh(shape.Mesh, shape.Transform.ComputeTransform());
+        context->StaticMesh(shape.StatMesh, shape.Transform.ComputeTransform());
 }
 
 template <Dimension D> void SandboxAppLayer::DrawShapes()
@@ -135,9 +141,110 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
         }
 }
 
-template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const ContextData<D> &context)
+template <Dimension D> void SandboxAppLayer::DrawLattices()
 {
-    const Geometry geo = static_cast<Geometry>(context.GeometryToSpawn);
+    const auto &lattices = GetLattices<D>();
+    for (const LatticeData<D> &lattice : lattices.Lattices)
+        if (lattice.Flags & SandboxFlag_ContextShouldUpdate)
+        {
+            const Geometry geo = static_cast<Geometry>(lattice.Shape.Type.Geo);
+            switch (geo)
+            {
+            case Geometry_Circle: {
+                const CircleOptions opts = lattice.Shape.CircleOptions;
+                DrawLattice(lattice, [opts](const f32v<D> &pos, RenderContext<D> *context) {
+                    context->SetTranslation(pos);
+                    context->Circle(opts);
+                });
+                break;
+            }
+            case Geometry_StaticMesh: {
+                const Mesh mesh = lattice.Shape.StatMesh;
+                DrawLattice(lattice, [mesh](const f32v<D> &pos, RenderContext<D> *context) {
+                    context->SetTranslation(pos);
+                    context->StaticMesh(mesh);
+                });
+                break;
+            }
+            default:
+                break;
+            };
+        }
+}
+
+template <Dimension D, typename F> void SandboxAppLayer::DrawLattice(const LatticeData<D> &lattice, F &&fun)
+{
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+    if constexpr (D == D2)
+    {
+        const u32 size = lattice.Dimensions[0] * lattice.Dimensions[1];
+        const auto parallel = [&fun, &lattice](const u32 start, const u32 end) {
+            TKIT_PROFILE_NSCOPE("Onyx::Sandbox::Lattice");
+
+            const u32 tindex = TKit::Topology::GetThreadIndex();
+            RenderContext<D> *context = lattice.Contexts[tindex];
+            context->Flush();
+            const f32v2 offset = lattice.Position - 0.5f * lattice.Separation * f32v2{lattice.Dimensions - 1u};
+
+            setShapeProperties(context, lattice.Shape);
+            context->Transform(lattice.Shape.Transform.ComputeTransform());
+            for (u32 i = start; i < end; ++i)
+            {
+                const u32 ix = i / lattice.Dimensions[1];
+                const u32 iy = i % lattice.Dimensions[1];
+                const f32 x = lattice.Separation * static_cast<f32>(ix);
+                const f32 y = lattice.Separation * static_cast<f32>(iy);
+
+                const f32v2 pos = f32v2{x, y} + offset;
+                std::forward<F>(fun)(pos, context);
+            }
+        };
+
+        TKit::StackArray<Task> tasks{};
+        tasks.Resize(lattice.Threads - 1);
+        TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Threads, parallel);
+        for (u32 i = lattice.Threads; i < lattice.Contexts.GetSize(); ++i)
+            lattice.Contexts[i]->Flush();
+
+        for (u32 i = 0; i < lattice.Threads - 1; ++i)
+            tm->WaitUntilFinished(tasks[i]);
+    }
+    else
+    {
+        const u32 size = lattice.Dimensions[0] * lattice.Dimensions[1] * lattice.Dimensions[2];
+        const u32 yz = lattice.Dimensions[1] * lattice.Dimensions[2];
+        const auto parallel = [yz, &fun, &lattice](const u32 start, const u32 end) {
+            TKIT_PROFILE_NSCOPE("Onyx::Sandbox::Lattice");
+
+            const u32 tindex = TKit::Topology::GetThreadIndex();
+            RenderContext<D> *context = lattice.Contexts[tindex];
+            const f32v3 offset = lattice.Position - 0.5f * lattice.Separation * f32v3{lattice.Dimensions - 1u};
+
+            for (u32 i = start; i < end; ++i)
+            {
+                const u32 ix = i / yz;
+                const u32 j = ix * yz;
+                const u32 iy = (i - j) / lattice.Dimensions[2];
+                const u32 iz = (i - j) % lattice.Dimensions[2];
+                const f32 x = lattice.Separation * static_cast<f32>(ix);
+                const f32 y = lattice.Separation * static_cast<f32>(iy);
+                const f32 z = lattice.Separation * static_cast<f32>(iz);
+                const f32v3 pos = f32v3{x, y, z} + offset;
+                std::forward<F>(fun)(pos, context);
+            }
+        };
+
+        TKit::StackArray<Task> tasks{};
+        tasks.Resize(lattice.Threads - 1);
+        TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Threads, parallel);
+        for (u32 i = 0; i < lattice.Threads - 1; ++i)
+            tm->WaitUntilFinished(tasks[i]);
+    }
+}
+
+template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const u32 geometry, const u32 statMesh)
+{
+    const Geometry geo = static_cast<Geometry>(geometry);
     Shape<D> shape{};
     shape.Type.Geo = geo;
     switch (geo)
@@ -147,10 +254,10 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const ContextData<D
         return shape;
     case Geometry_StaticMesh: {
         const Meshes<D> &meshes = GetMeshes<D>();
-        const MeshId &mesh = meshes.StaticMeshes[context.StatMeshToSpawn];
+        const MeshId &mesh = meshes.StaticMeshes[statMesh];
         shape.Name = mesh.Name;
-        shape.Mesh = mesh.Mesh;
-        shape.Type.StaticMesh = context.StatMeshToSpawn;
+        shape.StatMesh = mesh.Mesh;
+        shape.Type.StaticMesh = statMesh;
         return shape;
     }
     default:
@@ -173,6 +280,21 @@ template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
     if (window)
         context->AddTarget(window);
 }
+
+template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window)
+{
+    auto &lattices = GetLattices<D>();
+    LatticeData<D> &data = lattices.Lattices.Append();
+    for (u32 i = 0; i < TKit::MaxThreads; ++i)
+    {
+        RenderContext<D> *ctx = VKIT_CHECK_EXPRESSION(Renderer::CreateContext<D>());
+        if (window)
+            ctx->AddTarget(window);
+        data.Contexts[i] = ctx;
+    }
+    data.Shape = CreateShape(data);
+}
+
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
     : WindowLayer(appLayer, window, {.Flags = WindowLayerFlag_ImGuiEnabled})
 {
@@ -293,6 +415,9 @@ void SandboxWinLayer::RenderImGui()
 
         ImGui::TextLinkOpenURL("My GitHub", "https://github.com/ismawno");
         ImGui::Checkbox("Toggle ImGui demo window", &ImGuiDemoWindow);
+#    ifdef ONYX_ENABLE_IMPLOT
+        ImGui::Checkbox("Toggle ImPlot demo window", &ImPlotDemoWindow);
+#    endif
 
         ImGui::TextWrapped(
             "You may load meshes for this demo to use for both 2D and 3D. Take into account that meshes may "
@@ -327,12 +452,14 @@ void SandboxWinLayer::RenderImGui()
         {
             RenderContexts<D2>();
             RenderCameras<D2>();
+            RenderLattices<D2>();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("3D"))
         {
             RenderContexts<D3>();
             RenderCameras<D3>();
+            RenderLattices<D3>();
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -491,8 +618,9 @@ template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &conte
 {
     const Window *window = GetWindow();
     const ViewMask viewBit = window->GetViewBit();
-    bool targets = viewBit & context.Context->GetViewMask();
+
     ImGui::CheckboxFlags("Continuous update", &context.Flags, SandboxFlag_ContextShouldUpdate);
+    bool targets = viewBit & context.Context->GetViewMask();
     if (ImGui::Checkbox("Target this window", &targets))
     {
         if (targets)
@@ -591,12 +719,86 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
             [&context](DirectionalLight *light) { context.Context->RemoveDirectionalLight(light); }, "Directional");
 }
 
+template <Dimension D> void SandboxWinLayer::RenderLattices()
+{
+    if (ImGui::CollapsingHeader("Performance"))
+    {
+        SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+        auto &lattices = appLayer->GetLattices<D>();
+
+        if (ImGui::Button("Add lattice"))
+            appLayer->AddLattice<D>(GetWindow());
+
+        renderSelectableNoTree(
+            "Lattice", lattices.Lattices, lattices.Active, [this](LatticeData<D> &lattice) { RenderLattice(lattice); },
+            [](const LatticeData<D> &lattice) {
+                for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
+                    Renderer::DestroyContext(ctx);
+            });
+    }
+}
+
+template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &lattice)
+{
+    const Window *window = GetWindow();
+    const ViewMask viewBit = window->GetViewBit();
+
+    ImGui::CheckboxFlags("Continuous update", &lattice.Flags, SandboxFlag_ContextShouldUpdate);
+
+    bool targets = viewBit & lattice.Contexts[0]->GetViewMask();
+    if (ImGui::Checkbox("Target this window", &targets))
+    {
+        if (targets)
+            for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
+                ctx->AddTarget(viewBit);
+        else
+            for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
+                ctx->RemoveTarget(viewBit);
+    }
+    bool updateShape = combo("Geometry", &lattice.GeometryToRender, "Circle\0Static mesh\0\0");
+
+    const Geometry geo = static_cast<Geometry>(lattice.GeometryToRender);
+
+    SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+    if (geo == Geometry_StaticMesh)
+    {
+        const Meshes<D> &meshes = appLayer->GetMeshes<D>();
+        TKit::StackArray<const char *> names{};
+        names.Reserve(meshes.StaticMeshes.GetSize());
+        for (const MeshId &mid : meshes.StaticMeshes)
+            names.Append(mid.Name.c_str());
+        updateShape |= combo("Shape", &lattice.StatMeshToRender, names);
+    }
+
+    if (updateShape)
+        lattice.Shape = appLayer->CreateShape(lattice);
+
+    if constexpr (D == D2)
+    {
+        ImGui::DragFloat2("Position", lattice.Position.GetData(), 0.1f);
+        ImGui::DragScalarN("Dimensions", ImGuiDataType_U32, lattice.Dimensions.GetData(), 2, 0.1f);
+    }
+    else
+    {
+        ImGui::DragFloat3("Position", lattice.Position.GetData(), 0.1f);
+        ImGui::DragScalarN("Dimensions", ImGuiDataType_U32, lattice.Dimensions.GetData(), 3, 0.1f);
+    }
+    ImGui::DragFloat("Separation", &lattice.Separation, 0.1f);
+    const u32 mn = 1;
+    const u32 mx = TKit::MaxThreads;
+    ImGui::SliderScalar("Threads", ImGuiDataType_U32, &lattice.Threads, &mn, &mx);
+
+    ImGui::Spacing();
+    ImGui::Text("Shape");
+    editShape(lattice.Shape);
+}
+
 template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
 {
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     Meshes<D> &meshes = appLayer->GetMeshes<D>();
-    combo("Geometry", &meshes.GeoToLoad, "Static mesh\0\0");
-    const Geometry geo = static_cast<Geometry>(meshes.GeoToLoad + 1); // skip circles
+    combo("Geometry", &meshes.GeometryToLoad, "Static mesh\0\0");
+    const Geometry geo = static_cast<Geometry>(meshes.GeometryToLoad + 1); // skip circles
     if (geo == Geometry_StaticMesh)
     {
         const u32 importedIndex = D == D2 ? 2 : 4;

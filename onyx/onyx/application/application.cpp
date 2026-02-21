@@ -128,6 +128,9 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled))
             {
                 ImGui::SetCurrentContext(wlayer->m_ImGuiContext);
+#    ifdef ONYX_ENABLE_IMPLOT
+                ImPlot::SetCurrentContext(wlayer->m_ImPlotContext);
+#    endif
                 ImGuiBackend::NewFrame();
             }
 #endif
@@ -181,6 +184,9 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             TKIT_RETURN_IF_FAILED(wlayer->m_Window->Present())
 #ifdef ONYX_ENABLE_IMGUI
             ImGui::SetCurrentContext(wlayer->m_ImGuiContext);
+#    ifdef ONYX_ENABLE_IMPLOT
+            ImPlot::SetCurrentContext(wlayer->m_ImPlotContext);
+#    endif
             if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled) && multiViewports())
                 for (u32 i = acwin.PlatformWindowStart; i < acwin.PlatformWindowEnd; ++i)
                 {

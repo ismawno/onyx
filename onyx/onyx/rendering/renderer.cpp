@@ -15,7 +15,7 @@
 namespace Onyx::Renderer
 {
 using namespace Detail;
-struct ContextRange
+struct ContextMemoryRange
 {
     VkDeviceSize Offset = 0;
     VkDeviceSize Size = 0;
@@ -40,7 +40,7 @@ struct GraphicsMemoryRange
     ViewMask ViewMask = 0;
     u32 BatchIndex = TKIT_U32_MAX;
     StencilPass Pass = StencilPass_Count;
-    TKit::TierArray<ContextRange> ContextRanges{};
+    TKit::TierArray<ContextMemoryRange> ContextRanges{};
 
     bool InUseByTransfer() const
     {
@@ -98,18 +98,18 @@ template <Dimension D> struct RendererData
     TKit::FixedArray<TKit::FixedArray<VkDescriptorSet, Geometry_Count>, Shading_Count> Descriptors{};
     RendererFlags Flags = 0;
 
-    bool IsContextRangeClean(const ContextRange &crange) const
+    bool IsContextRangeClean(const ContextMemoryRange &crange) const
     {
         return crange.ContextIndex != TKIT_U32_MAX && !Contexts[crange.ContextIndex]->IsDirty(crange.Generation);
     }
-    bool IsContextRangeClean(const ViewMask viewBit, const ContextRange &crange) const
+    bool IsContextRangeClean(const ViewMask viewBit, const ContextMemoryRange &crange) const
     {
         return (crange.ViewMask & viewBit) && crange.ContextIndex != TKIT_U32_MAX &&
                !Contexts[crange.ContextIndex]->IsDirty(crange.Generation);
     }
     bool AreContextRangesClean(const GraphicsMemoryRange &grange)
     {
-        for (const ContextRange &crange : grange.ContextRanges)
+        for (const ContextMemoryRange &crange : grange.ContextRanges)
             if (IsContextRangeClean(crange))
                 return true;
         return false;
@@ -360,11 +360,11 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
     rdata.Generations.RemoveOrdered(rdata.Generations.begin() + index);
     for (Arena &arena : rdata.Arenas)
         for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
-            for (ContextRange &crange : grange.ContextRanges)
+            for (ContextMemoryRange &crange : grange.ContextRanges)
                 if (crange.ContextIndex != TKIT_U32_MAX && crange.ContextIndex > index)
                     --crange.ContextIndex;
                 else if (crange.ContextIndex == index)
-                    crange = ContextRange{};
+                    crange = ContextMemoryRange{};
 
     if (!context->GetPointLights().IsEmpty())
         rdata.Flags |= RendererFlag_MustReloadPointLights;
@@ -390,7 +390,7 @@ template <Dimension D> void UpdateViewMask(const RenderContext<D> *context)
         for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
         {
             ViewMask gmask = 0;
-            for (ContextRange &crange : grange.ContextRanges)
+            for (ContextMemoryRange &crange : grange.ContextRanges)
             {
                 if (crange.ContextIndex == index)
                     crange.ViewMask = vmask;
@@ -415,7 +415,7 @@ template <Dimension D> static void clearViews(const ViewMask viewMask)
     for (Arena &arena : rdata.Arenas)
         for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
         {
-            for (ContextRange &crange : grange.ContextRanges)
+            for (ContextMemoryRange &crange : grange.ContextRanges)
                 crange.ViewMask &= ~viewMask;
             grange.ViewMask &= ~viewMask;
         }
@@ -426,6 +426,111 @@ void ClearViews(const ViewMask viewMask)
     clearViews<D2>(viewMask);
     clearViews<D3>(viewMask);
 }
+
+#ifdef TKIT_ENABLE_ASSERTS
+template <Dimension D> void validateRanges(const bool requireTightFit = false)
+{
+    const RendererData<D> &rdata = getRendererData<D>();
+    for (const Arena &arena : rdata.Arenas)
+    {
+        const TransferArena &tarena = arena.Transfer;
+        const auto &tranges = tarena.MemoryRanges;
+        const VKit::DeviceBuffer::Info &tinfo = tarena.Buffer.GetInfo();
+        VkDeviceSize tsize = 0;
+        for (u32 i = 0; i < tranges.GetSize(); ++i)
+        {
+            const TransferMemoryRange &trange = tranges[i];
+            TKIT_ASSERT(tinfo.Size >= trange.Offset + trange.Size,
+                        "[ONYX][RENDERER] A transfer memory range with index {} ({} total) exceeds transfer buffer "
+                        "size. Buffer size is {} bytes, which is smaller than offset + size = {} + {} = {}",
+                        i, tranges.GetSize(), tinfo.Size, trange.Offset, trange.Size, trange.Offset + trange.Size);
+            if (i != 0)
+            {
+                const TransferMemoryRange &ptrange = tranges[i - 1];
+                TKIT_ASSERT(
+                    ptrange.Offset + ptrange.Size == trange.Offset,
+                    "[ONYX][RENDERER] A transfer memory range pair with indices {} and {} ({} total) are not perfectly "
+                    "next to each other, meaning offset{} + size{} != offset{} -> {} + {} = {} != {}",
+                    i, i - 1, tranges.GetSize(), i - 1, i - 1, i, ptrange.Offset, ptrange.Size,
+                    ptrange.Offset + ptrange.Size, trange.Offset);
+            }
+            tsize += trange.Size;
+        }
+        TKIT_ASSERT(tsize == tinfo.Size,
+                    "[ONYX][RENDERER] The sum of the transfer memory range sizes ({:L}) does not equal the one of the "
+                    "transfer buffer ({:L})",
+                    tsize, tinfo.Size);
+
+        const GraphicsArena &garena = arena.Graphics;
+        const auto &granges = garena.MemoryRanges;
+        const VKit::DeviceBuffer::Info &ginfo = garena.Buffer.GetInfo();
+        VkDeviceSize gsize = 0;
+        for (u32 i = 0; i < granges.GetSize(); ++i)
+        {
+            const GraphicsMemoryRange &grange = granges[i];
+            TKIT_ASSERT(ginfo.Size >= grange.Offset + grange.Size,
+                        "[ONYX][RENDERER] A graphics memory range with index {} ({} total) exceeds graphics buffer size"
+                        ". Buffer size is {:L} bytes, which is smaller than offset + size = {:L} + {:L} = {:L}",
+                        i, granges.GetSize(), ginfo.Size, grange.Offset, grange.Size, grange.Offset + grange.Size);
+            if (i != 0)
+            {
+                const GraphicsMemoryRange &pgrange = granges[i - 1];
+                TKIT_ASSERT(
+                    pgrange.Offset + pgrange.Size == grange.Offset,
+                    "[ONYX][RENDERER] A graphics memory range pair with indices {} and {} ({} total) are not perfectly "
+                    "next to each other, meaning offset{} + size{} != offset{} -> {:L} + {:L} = {:L} != {:L}",
+                    i, i - 1, granges.GetSize(), i - 1, i - 1, i, pgrange.Offset, pgrange.Size,
+                    pgrange.Offset + pgrange.Size, grange.Offset);
+            }
+            const auto &cranges = grange.ContextRanges;
+            VkDeviceSize csize = 0;
+            for (u32 j = 0; j < cranges.GetSize(); ++j)
+            {
+                const ContextMemoryRange &crange = cranges[j];
+                TKIT_ASSERT(
+                    j != 0 || crange.Offset == 0,
+                    "[ONYX][RENDERER] First context range offset of a graphics range offset must be zero, but is {:L}",
+                    crange.Offset);
+
+                TKIT_ASSERT(!requireTightFit || j != cranges.GetSize() - 1 ||
+                                crange.Offset + crange.Size == grange.Size,
+                            "[ONYX][RENDERER] Last context expression: offset + size = {} + {} = {} must be equal to "
+                            "graphics context size of {}",
+                            crange.Offset, crange.Size, crange.Offset + crange.Size, grange.Size);
+
+                const VKit::DeviceBuffer::Info &ginfo = tarena.Buffer.GetInfo();
+                TKIT_ASSERT(
+                    ginfo.Size >= crange.Offset + crange.Size,
+                    "[ONYX][RENDERER] A context memory range with index {} ({} total) exceeds context buffer size. "
+                    "Buffer size is {:L} bytes, which is smaller than offset + size = {:L} + {:L} = {:L}",
+                    j, cranges.GetSize(), ginfo.Size, crange.Offset, crange.Size, crange.Offset + crange.Size);
+                if (j != 0)
+                {
+                    const ContextMemoryRange &pcrange = cranges[j - 1];
+                    TKIT_ASSERT(
+                        pcrange.Offset + pcrange.Size == crange.Offset,
+                        "[ONYX][RENDERER] A context memory range pair with indices {} and {} ({} total) are not "
+                        "perfectly "
+                        "next to each other, meaning offset{} + size{} != offset{} -> {:L} + {:L} = {:L} != {:L}",
+                        j, j - 1, cranges.GetSize(), j - 1, j - 1, j, pcrange.Offset, pcrange.Size,
+                        pcrange.Offset + pcrange.Size, crange.Offset);
+                }
+                csize += crange.Size;
+            }
+
+            TKIT_ASSERT(csize <= grange.Size,
+                        "[ONYX][RENDERER] The sum of the context memory range sizes ({:L}) exceeds the size of its "
+                        "parent range ({:L})",
+                        csize, grange.Size);
+            gsize += grange.Size;
+        }
+        TKIT_ASSERT(gsize == ginfo.Size,
+                    "[ONYX][RENDERER] The sum of the graphics memory range sizes ({:L}) does not equal the one of the "
+                    "graphics buffer ({:L})",
+                    gsize, ginfo.Size);
+    }
+}
+#endif
 
 ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferArena &arena,
                                                                        const VkDeviceSize requiredMem,
@@ -455,9 +560,10 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
     }
 
     VKit::DeviceBuffer &buffer = arena.Buffer;
-    const VkDeviceSize isize = buffer.GetInfo().InstanceSize;
-    const VkDeviceSize icount = Math::Max(requiredMem / isize, buffer.GetInfo().InstanceCount);
-    const VkDeviceSize size = buffer.GetInfo().Size;
+    const VKit::DeviceBuffer::Info &binfo = buffer.GetInfo();
+    const VkDeviceSize isize = binfo.InstanceSize;
+    const VkDeviceSize icount = Math::Max(requiredMem / isize, binfo.InstanceCount);
+    const VkDeviceSize size = binfo.Size;
 
     TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable transfer range with {:L} bytes of memory. A new buffer "
                    "will be created with more memory (from {:L} to {:L} bytes)",
@@ -479,18 +585,20 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
     buffer.Destroy();
     buffer = nbuffer;
 
-    const VkDeviceSize remSize = buffer.GetInfo().Size;
-    TransferMemoryRange bigRange;
-    bigRange.Offset = size + requiredMem;
-    bigRange.Size = remSize - bigRange.Offset;
-
-    TKIT_ASSERT(bigRange.Size != 0, "[ONYX][RENDERER] Leftover transfer range final size is zero");
-
     TransferMemoryRange smallRange;
     smallRange.Offset = size;
     smallRange.Size = requiredMem;
 
     ranges.Append(smallRange);
+    const VkDeviceSize nsize = nbuffer.GetInfo().Size;
+    const VkDeviceSize offset = size + requiredMem;
+    if (nsize == offset)
+        return &ranges[ranges.GetSize() - 1];
+
+    TransferMemoryRange bigRange{};
+    bigRange.Offset = offset;
+    bigRange.Size = nsize - offset;
+
     ranges.Append(bigRange);
 
     return &ranges[ranges.GetSize() - 2];
@@ -509,19 +617,23 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         GraphicsMemoryRange &range = ranges[i];
-        // when reaching here, all free device memory ranges must have been curated. non dirty contexts now have a
-        // memory range for themselves, and free memory ranges must have a u32 max batch index
         if (range.Size >= requiredMem && !range.InUse() && !rdata.AreContextRangesClean(range))
         {
             if (range.Size == requiredMem)
                 return &range;
 
-            GraphicsMemoryRange child;
+            GraphicsMemoryRange child{};
             child.Size = requiredMem;
             child.Offset = range.Offset;
 
             range.Offset += requiredMem;
             range.Size -= requiredMem;
+            range.TransferTracker = {};
+            range.GraphicsTracker = {};
+            range.ViewMask = 0;
+            range.BatchIndex = TKIT_U32_MAX;
+            range.Pass = StencilPass_Count;
+            range.ContextRanges.Clear();
 
             ranges.Insert(ranges.begin() + i, child);
             return &ranges[i];
@@ -529,9 +641,10 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
     }
 
     VKit::DeviceBuffer &buffer = arena.Buffer;
-    const VkDeviceSize isize = buffer.GetInfo().InstanceSize;
-    const VkDeviceSize icount = Math::Max(requiredMem / isize, buffer.GetInfo().InstanceCount);
-    const VkDeviceSize size = buffer.GetInfo().Size;
+    const VKit::DeviceBuffer::Info &binfo = buffer.GetInfo();
+    const VkDeviceSize isize = binfo.InstanceSize;
+    const VkDeviceSize icount = Math::Max(requiredMem / isize, binfo.InstanceCount);
+    const VkDeviceSize size = binfo.Size;
 
     TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable graphics range with {:L} bytes of memory. A new buffer "
                    "will be created with more memory (from {:L} to {:L} bytes)",
@@ -554,18 +667,20 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
     buffer = nbuffer;
     updateInstanceDescriptorSets<D>(geo);
 
-    const VkDeviceSize remSize = buffer.GetInfo().Size;
-    GraphicsMemoryRange bigRange{};
-    bigRange.Offset = size + requiredMem;
-    bigRange.Size = remSize - bigRange.Offset;
-
-    TKIT_ASSERT(bigRange.Size != 0, "[ONYX][RENDERER] Leftover graphics range final size is zero");
-
     GraphicsMemoryRange smallRange{};
     smallRange.Offset = size;
     smallRange.Size = requiredMem;
 
     ranges.Append(smallRange);
+    const VkDeviceSize nsize = nbuffer.GetInfo().Size;
+    const VkDeviceSize offset = size + requiredMem;
+    if (nsize == offset)
+        return &ranges[ranges.GetSize() - 1];
+
+    GraphicsMemoryRange bigRange{};
+    bigRange.Offset = offset;
+    bigRange.Size = nsize - offset;
+
     ranges.Append(bigRange);
 
     return &ranges[ranges.GetSize() - 2];
@@ -829,7 +944,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     TKit::StackArray<VkBufferCopy2KHR> copies{};
     copies.Reserve(Assets::GetBatchCount());
 
-    TKit::StackArray<ContextRange> contextRanges{};
+    TKit::StackArray<ContextMemoryRange> contextRanges{};
     contextRanges.Reserve(dirtyContexts.GetSize());
 
     TKit::ITaskManager *tm = Core::GetTaskManager();
@@ -841,8 +956,8 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
 
     struct RangePair
     {
-        GraphicsMemoryRange *GraphicsRange;
         VKit::DeviceBuffer *GraphicsBuffer;
+        VkDeviceSize GraphicsOffset;
         VkDeviceSize RequiredMemory;
     };
 
@@ -888,7 +1003,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
                 if (idata.Instances == 0)
                     continue;
 
-                ContextRange &crange = contextRanges.Append();
+                ContextMemoryRange &crange = contextRanges.Append();
                 crange.ContextIndex = cinfo.Index;
                 crange.Offset = requiredMem;
                 crange.Size = idata.Instances * idata.Data.GetInstanceSize();
@@ -908,7 +1023,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             TransferMemoryRange *trange = tresult.GetValue();
             trange->Tracker.MarkInUse(transfer, transferFlightValue);
 
-            for (const ContextRange &crange : contextRanges)
+            for (const ContextMemoryRange &crange : contextRanges)
             {
                 const RenderContext<D> *ctx = contexts[crange.ContextIndex];
 
@@ -926,7 +1041,6 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             const auto gresult = findGraphicsRange(geo, rdata, garena, requiredMem, transfer, tasks);
             TKIT_RETURN_ON_ERROR(gresult);
             GraphicsMemoryRange *grange = gresult.GetValue();
-
             grange->BatchIndex = batch;
             grange->ContextRanges = contextRanges;
             grange->ViewMask = viewMask;
@@ -940,7 +1054,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             copy.dstOffset = grange->Offset;
             copy.size = requiredMem;
 
-            ranges.Append(grange, &garena.Buffer, requiredMem);
+            ranges.Append(&garena.Buffer, grange->Offset, requiredMem);
         }
         copyCmd.Size = copies.GetSize() - copyCmd.Offset;
         if (copyCmd.Size != 0)
@@ -956,15 +1070,20 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     }
     for (const RangePair &range : ranges)
     {
-        GraphicsMemoryRange *grange = range.GraphicsRange;
-        rdata.AcquireBarriers.Append(createAcquireBarrier(*range.GraphicsBuffer, grange->Offset, range.RequiredMemory));
+        rdata.AcquireBarriers.Append(
+            createAcquireBarrier(*range.GraphicsBuffer, range.GraphicsOffset, range.RequiredMemory));
 
         if (release)
-            release->Append(createReleaseBarrier(*range.GraphicsBuffer, grange->Offset, range.RequiredMemory));
+            release->Append(createReleaseBarrier(*range.GraphicsBuffer, range.GraphicsOffset, range.RequiredMemory));
     }
     for (const CopyCommands &cmd : copyCmds)
     {
         const TKit::Span<const VkBufferCopy2KHR> cpspan{copies.GetData() + cmd.Offset, cmd.Size};
+        for (const VkBufferCopy2KHR &copy : cpspan)
+        {
+            TKIT_ASSERT(copy.size <= (cmd.Graphics->GetInfo().Size - copy.dstOffset), "{} {} {}", copy.size,
+                        cmd.Graphics->GetInfo().Size, copy.dstOffset);
+        }
         cmd.Graphics->CopyFromBuffer2(command, *cmd.Transfer, cpspan);
     }
 
@@ -988,6 +1107,11 @@ Result<TransferSubmitInfo> Transfer(VKit::Queue *tqueue, const VkCommandBuffer c
 
     TKIT_RETURN_IF_FAILED(transfer<D2>(tqueue, command, submitInfo, separate ? &release : nullptr, transferFlight));
     TKIT_RETURN_IF_FAILED(transfer<D3>(tqueue, command, submitInfo, separate ? &release : nullptr, transferFlight));
+
+#ifdef TKIT_ENABLE_ASSERTS
+    validateRanges<D2>();
+    validateRanges<D3>();
+#endif
 
     if (separate)
     {
@@ -1183,7 +1307,7 @@ ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, co
             VkDeviceSize offset = grange.Offset;
             VkDeviceSize size = 0;
             bool found = false;
-            for (const ContextRange &crange : grange.ContextRanges)
+            for (const ContextMemoryRange &crange : grange.ContextRanges)
             {
                 if (rdata.IsContextRangeClean(viewBit, crange))
                     size += crange.Size;
@@ -1378,28 +1502,11 @@ Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span
     return graphics->Submit2(submits);
 }
 
-// --when initializing:
-// -create memories and assign Execution
-// --when coalescing:
-// -merge free transfer ranges into one
-// -merge free graphics ranges into one
-// -non-dirty context ranges get their own memory range (if 2 contiguous, they share it)
-// -the view masks of non-dirty device ranges get updated to reflect the orred context ranges
-// -all memory ranges get their transfer queue set to null
-// -all memory ranges view mask == 0 get set to free
-// -all context ranges view mask == 0: removed and split/shrink if necessary
-// -all context index == max u32 get set to free
-// --when removing context:
-// -traverse all context ranges, removing the ones belonging to the context. split/shrink device memory ranges based on
-// -local buffer barriers must be cleaned out
-// what was removed
-// -all other context with index > removal, get decremented by one
-// --when removing window:
-// -traverse all context ranges, removing the window bit. if context range becomes empty of view masks, remove it,
-// splitting/shrinking if necessary
-
 template <Dimension D> void coalesce()
 {
+#ifdef TKIT_ENABLE_ASSERTS
+    validateRanges<D>();
+#endif
     RendererData<D> &rdata = getRendererData<D>();
     for (Arena &arena : rdata.Arenas)
     {
@@ -1409,14 +1516,14 @@ template <Dimension D> void coalesce()
         TKit::StackArray<TransferMemoryRange> tranges{};
         tranges.Reserve(tarena.MemoryRanges.GetSize());
 
-        for (TransferMemoryRange &trange : tarena.MemoryRanges)
+        for (const TransferMemoryRange &trange : tarena.MemoryRanges)
         {
             if (trange.Tracker.InUse())
             {
                 if (tmergeRange.Size != 0)
                 {
                     tranges.Append(tmergeRange);
-                    tmergeRange.Offset = tmergeRange.Size + trange.Size;
+                    tmergeRange.Offset += tmergeRange.Size + trange.Size;
                     tmergeRange.Size = 0;
                 }
                 else
@@ -1433,80 +1540,101 @@ template <Dimension D> void coalesce()
         TKIT_ASSERT(
             !tranges.IsEmpty(),
             "[ONYX][RENDERER] All memory ranges for the transfer arena have been removed after coalesce operation!");
+
         GraphicsArena &garena = arena.Graphics;
         GraphicsMemoryRange gmergeRange{};
 
         TKit::StackArray<GraphicsMemoryRange> granges{};
-        granges.Reserve(garena.MemoryRanges.GetSize());
+        granges.Reserve(512); // this is a time bomb TODO(Isma): handle this
 
-        for (GraphicsMemoryRange &grange : garena.MemoryRanges)
+        for (const GraphicsMemoryRange &grange : garena.MemoryRanges)
         {
             if (grange.InUse())
             {
                 if (gmergeRange.Size != 0)
                 {
                     granges.Append(gmergeRange);
-                    gmergeRange.Offset = gmergeRange.Size + grange.Size;
+                    gmergeRange.Offset += gmergeRange.Size + grange.Size;
                     gmergeRange.Size = 0;
                 }
                 else
                     gmergeRange.Offset += grange.Size;
-
                 granges.Append(grange);
             }
             else if (!grange.ContextRanges.IsEmpty())
             {
-                TKit::StackArray<ContextRange> cranges{};
+                TKit::StackArray<ContextMemoryRange> cranges{};
                 cranges.Reserve(grange.ContextRanges.GetSize());
 
                 TKIT_ASSERT(grange.Size != 0, "[ONYX][RENDERER] Graphics memory range should not have reached a zero "
                                               "size if there are context ranges left");
-                grange.Size = 0;
-                grange.ViewMask = 0;
-                grange.TransferTracker.Queue = nullptr;
-                grange.GraphicsTracker.Queue = nullptr;
-                for (ContextRange &crange : grange.ContextRanges)
+                GraphicsMemoryRange ngrange{};
+                ngrange.Offset = grange.Offset;
+                ngrange.Pass = grange.Pass;
+                ngrange.BatchIndex = grange.BatchIndex;
+
+                VkDeviceSize leftover = grange.Size;
+                VkDeviceSize relativization = 0;
+                for (const ContextMemoryRange &crange : grange.ContextRanges)
+                {
+                    leftover -= crange.Size;
                     if (rdata.IsContextRangeClean(crange))
                     {
                         if (gmergeRange.Size != 0)
                         {
                             granges.Append(gmergeRange);
+                            gmergeRange.Offset += gmergeRange.Size + crange.Size;
                             gmergeRange.Size = 0;
                         }
-                        gmergeRange.Offset += crange.Size;
-                        grange.Size += crange.Size;
-                        grange.ViewMask |= crange.ViewMask;
-                        cranges.Append(crange);
+                        else
+                            gmergeRange.Offset += crange.Size;
+
+                        ngrange.Size += crange.Size;
+                        ngrange.ViewMask |= crange.ViewMask;
+                        ContextMemoryRange &ncrange = cranges.Append(crange);
+                        ncrange.Offset -= relativization;
                     }
                     else
                     {
-                        if (grange.Size != 0)
+                        if (ngrange.Size != 0)
                         {
-                            grange.ContextRanges = cranges;
-                            granges.Append(grange);
-                            grange.Size = 0;
+                            ngrange.ContextRanges = cranges;
+                            granges.Append(ngrange);
+                            ngrange.Offset = grange.Offset + ngrange.Size + crange.Size;
+                            ngrange.Size = 0;
+                            ngrange.ViewMask = 0;
                             cranges.Clear();
                         }
-                        grange.Offset += crange.Size;
+                        else
+                            ngrange.Offset += crange.Size;
+
+                        relativization += crange.Size;
                         gmergeRange.Size += crange.Size;
                     }
-                if (grange.Size != 0)
-                {
-                    grange.ContextRanges = cranges;
-                    granges.Append(grange);
                 }
+                if (ngrange.Size != 0)
+                {
+                    ngrange.ContextRanges = cranges;
+                    granges.Append(ngrange);
+                }
+                gmergeRange.Size += leftover;
             }
             else
                 gmergeRange.Size += grange.Size;
         }
         if (gmergeRange.Size != 0)
             granges.Append(gmergeRange);
+
         garena.MemoryRanges = granges;
 
         TKIT_ASSERT(
             !granges.IsEmpty(),
             "[ONYX][RENDERER] All memory ranges for the graphics arena have been removed after coalesce operation");
     }
+
+#ifdef TKIT_ENABLE_ASSERTS
+    validateRanges<D>(true);
+#endif
 }
 
 void Coalesce()
