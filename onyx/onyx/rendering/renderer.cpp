@@ -364,7 +364,10 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
                 if (crange.ContextIndex != TKIT_U32_MAX && crange.ContextIndex > index)
                     --crange.ContextIndex;
                 else if (crange.ContextIndex == index)
-                    crange = ContextMemoryRange{};
+                {
+                    crange.ViewMask = 0;
+                    crange.ContextIndex = TKIT_U32_MAX;
+                }
 
     if (!context->GetPointLights().IsEmpty())
         rdata.Flags |= RendererFlag_MustReloadPointLights;
