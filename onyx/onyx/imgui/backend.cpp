@@ -1364,12 +1364,12 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         // Store identifiers
         tex->SetTexID(reinterpret_cast<ImTextureID>(bckTex->Set));
         tex->BackendUserData = bckTex;
-        TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{}'", tex->GetTexID());
+        TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{:#x}'", tex->GetTexID());
     }
 
     if (tex->Status == ImTextureStatus_WantCreate || tex->Status == ImTextureStatus_WantUpdates)
     {
-        TKIT_LOG_DEBUG("[ONYX][IMGUI] Updating texture with id '{}'", tex->GetTexID());
+        TKIT_LOG_DEBUG("[ONYX][IMGUI] Updating texture with id '{:#x}'", tex->GetTexID());
         Renderer_Texture *bckTex = renderer_GetTexture(tex);
         TKIT_ASSERT(bckTex->Image.GetBytesPerPixel() == static_cast<VkDeviceSize>(tex->BytesPerPixel),
                     "[ONYX][IMGUI] Bytes per pixel mismatch between VKit::DeviceImage and ImGui texture");

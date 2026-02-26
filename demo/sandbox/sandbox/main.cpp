@@ -7,11 +7,11 @@ using namespace Onyx;
 int main()
 {
     TKIT_PROFILE_NOOP();
-    VKIT_CHECK_EXPRESSION(Core::Initialize());
+    VKIT_CHECK_EXPRESSION(Initialize());
     {
         Onyx::Application app{};
         app.SetApplicationLayer<SandboxAppLayer>();
         VKIT_CHECK_EXPRESSION(app.Run());
     }
-    Core::Terminate();
+    Terminate();
 }

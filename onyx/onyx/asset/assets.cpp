@@ -171,7 +171,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshIn
     return Result<>::Ok();
 }
 
-// terminate must be called if this fails (handled automatically when calling Core::Initialize())
+// terminate must be called if this fails (handled automatically when calling Initialize())
 template <typename Vertex> ONYX_NO_DISCARD static Result<> initialize(MeshInfo<Vertex> &info, const u32 maxLayouts)
 {
     auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);

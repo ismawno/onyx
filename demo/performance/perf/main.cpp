@@ -34,7 +34,7 @@ int main(int argc, char **argv)
     const Onyx::Demo::ParseResult args = Onyx::Demo::ParseArguments(argc, argv);
 
     TKit::ThreadPool threadPool{ONYX_MAX_WORKERS};
-    Onyx::Core::Initialize(Onyx::Specs{.TaskManager = &threadPool});
+    Onyx::Initialize(Onyx::Specs{.TaskManager = &threadPool});
     RunApp(args);
-    Onyx::Core::Terminate();
+    Onyx::Terminate();
 }

@@ -113,7 +113,7 @@ void ApplicationExample()
 
 int main()
 {
-    VKIT_CHECK_EXPRESSION(Core::Initialize());
+    VKIT_CHECK_EXPRESSION(Initialize());
     const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
     const Mesh mesh = Assets::AddMesh(data);
     VKIT_CHECK_EXPRESSION(Assets::Upload<D2>());
@@ -121,5 +121,5 @@ int main()
     WindowExample(mesh, 1);
     // ApplicationExample();
 
-    Core::Terminate();
+    Terminate();
 }
