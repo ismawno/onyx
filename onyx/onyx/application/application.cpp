@@ -79,6 +79,15 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
                 wlayer->m_DeltaInfo.LimitHertz = true;
 #endif
             }
+#ifdef ONYX_ENABLE_IMGUI
+            if (wlayer->checkFlags(WindowLayerFlag_ImGuiEnabled))
+            {
+                ImGui::SetCurrentContext(wlayer->m_ImGuiContext);
+#    ifdef ONYX_ENABLE_IMPLOT
+                ImPlot::SetCurrentContext(wlayer->m_ImPlotContext);
+#    endif
+            }
+#endif
             wlayer->OnEvent(event);
         }
 
