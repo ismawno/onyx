@@ -1233,6 +1233,14 @@ ONYX_NO_DISCARD static Result<Renderer_ViewportData *> renderer_CreateViewportDa
         result = Resources::CreateBuffer<ImDrawIdx>(Buffer_HostIndex);
         TKIT_RETURN_ON_ERROR(result, cleanup());
         buffers.IndexBuffer = result.GetValue();
+
+        if (Core::CanNameObjects())
+        {
+            const std::string vbuffer = TKit::Format("onyx-imgui-vbuffer-image-index-{}", i);
+            const std::string ibuffer = TKit::Format("onyx-imgui-ibuffer-image-index-{}", i);
+            TKIT_RETURN_IF_FAILED(buffers.VertexBuffer.SetName(vbuffer.c_str()));
+            TKIT_RETURN_IF_FAILED(buffers.IndexBuffer.SetName(ibuffer.c_str()));
+        }
     }
     return vdata;
 }
@@ -1363,6 +1371,14 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
 
         // Store identifiers
         tex->SetTexID(reinterpret_cast<ImTextureID>(bckTex->Set));
+        if (Core::CanNameObjects())
+        {
+            const std::string tname = TKit::Format("onyx-imgui-texture-id-{:#x}", tex->GetTexID());
+            const std::string sname = TKit::Format("onyx-imgui-tex-descriptor-id-{:#x}", tex->GetTexID());
+            TKIT_RETURN_IF_FAILED(bckTex->Image.SetName(tname.c_str()));
+            TKIT_RETURN_IF_FAILED(
+                Core::GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.c_str()));
+        }
         tex->BackendUserData = bckTex;
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{:#x}'", tex->GetTexID());
     }
@@ -1391,6 +1407,11 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         TKIT_RETURN_ON_ERROR(result);
 
         VKit::DeviceBuffer &uploadBuffer = result.GetValue();
+        if (Core::CanNameObjects())
+        {
+            TKIT_RETURN_IF_FAILED(uploadBuffer.SetName("onyx-imgui-upload-buffer"));
+        }
+
         std::byte *mem = static_cast<std::byte *>(uploadBuffer.GetData());
         for (u32 y = 0; y < hupload; ++y)
             TKit::ForwardCopy(mem + wsize * y,
@@ -1399,7 +1420,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         TKIT_RETURN_IF_FAILED(uploadBuffer.Flush());
         TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
 
-        VKit::CommandPool &pool = Execution::GetTransientTransferPool();
+        VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
         const auto cmdres = pool.BeginSingleTimeCommands();
         TKIT_RETURN_ON_ERROR(cmdres, uploadBuffer.Destroy());
 
@@ -1425,7 +1446,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
             cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
 
-        const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
+        const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
         TKIT_RETURN_IF_FAILED(pool.EndSingleTimeCommands(cmd, queue->GetHandle()), uploadBuffer.Destroy());
 
         uploadBuffer.Destroy();
@@ -1599,6 +1620,16 @@ ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects(const VkPipelineRen
         const auto result = renderer_CreatePipeline(pipInfo);
         TKIT_RETURN_ON_ERROR(result);
         s_RendererData->Pipeline = result.GetValue();
+    }
+
+    if (Core::CanNameObjects())
+    {
+        TKIT_RETURN_IF_FAILED(s_RendererData->Sampler.SetName("onyx-imgui-sampler"));
+        TKIT_RETURN_IF_FAILED(s_RendererData->DescriptorSetLayout.SetName("onyx-imgui-descriptor-set-layout"));
+        TKIT_RETURN_IF_FAILED(s_RendererData->PipelineLayout.SetName("onyx-imgui-pipeline-layout"));
+        TKIT_RETURN_IF_FAILED(s_RendererData->VertexShader.SetName("onyx-imgui-vertex-shader"));
+        TKIT_RETURN_IF_FAILED(s_RendererData->FragmentShader.SetName("onyx-imgui-fragment-shader"));
+        return s_RendererData->Pipeline.SetName("onyx-imgui-pipeline");
     }
 
     return Result<>::Ok();

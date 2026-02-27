@@ -243,6 +243,10 @@ class Window
     ONYX_NO_DISCARD Result<> recreateResources();
     ONYX_NO_DISCARD Result<> recreateSurface();
     ONYX_NO_DISCARD Result<bool> handlePresentOrAcquireResult(VkResult result);
+    ONYX_NO_DISCARD Result<> nameSurface();
+    ONYX_NO_DISCARD Result<> nameSwapChain();
+    ONYX_NO_DISCARD Result<> nameSyncData();
+    ONYX_NO_DISCARD Result<> nameImageData();
 
     ONYX_NO_DISCARD static Result<VKit::SwapChain> createSwapChain(VkPresentModeKHR presentMode, VkSurfaceKHR surface,
                                                                    const VkExtent2D &windowExtent,
@@ -281,7 +285,7 @@ class Window
 
     VKit::SwapChain m_SwapChain;
     TKit::TierArray<ImageData> m_Images{};
-    TKit::TierArray<Execution::SyncData> m_SyncData{};
+    TKit::TierArray<Execution::ViewSyncData> m_SyncData{};
 
     VKit::Queue *m_Present;
 

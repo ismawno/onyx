@@ -11,20 +11,6 @@ Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags, con
         .Build();
 }
 
-Result<TKit::Optional<VKit::DeviceBuffer>> CreateEnlargedBufferIfNeeded(const VKit::DeviceBuffer &buffer,
-                                                                        const VkDeviceSize instances, const f32 factor)
-{
-    const VKit::DeviceBuffer::Info &info = buffer.GetInfo();
-    const VkDeviceSize inst = info.InstanceCount;
-    if (buffer && inst >= instances)
-        return TKit::Optional<VKit::DeviceBuffer>::None();
-
-    const VkDeviceSize ninst = static_cast<VkDeviceSize>(factor * static_cast<f32>(instances));
-    const auto result = CreateBuffer(info.Flags, info.InstanceSize, ninst);
-    TKIT_RETURN_ON_ERROR(result);
-    return TKit::Optional<VKit::DeviceBuffer>::Some(result.GetValue());
-}
-
 Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const VkDeviceSize instances, const f32 factor)
 {
     const VKit::DeviceBuffer::Info &info = buffer.GetInfo();
@@ -32,7 +18,7 @@ Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const VkDeviceSize i
     if (buffer && inst >= instances)
         return false;
 
-    const VkDeviceSize ninst = static_cast<VkDeviceSize>(factor * static_cast<f32>(instances));
+    const VkDeviceSize ninst = GrowCapacity(instances, factor);
     const auto result = CreateBuffer(info.Flags, info.InstanceSize, ninst);
     TKIT_RETURN_ON_ERROR(result);
     buffer.Destroy();

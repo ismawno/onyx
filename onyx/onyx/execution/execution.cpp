@@ -43,6 +43,12 @@ ONYX_NO_DISCARD static Result<> createTransientCommandPools()
     }
     else
         s_Transfer = s_Graphics;
+    if (Core::CanNameObjects())
+    {
+        TKIT_RETURN_IF_FAILED(s_Graphics->SetName("onyx-transient-graphics-command-pool"));
+        if (gindex != tindex)
+            return s_Transfer->SetName("onyx-transient-transfer-command-pool");
+    }
     return Result<>::Ok();
 }
 
@@ -62,6 +68,12 @@ Result<CommandPool *> FindSuitableCommandPool(const u32 family)
     pool.Pool = result.GetValue();
     pool.Family = family;
     pool.NextCommand = 0;
+    if (Core::CanNameObjects())
+    {
+        const std::string name =
+            TKit::Format("onyx-ring-command-pool-index-{}-family-{}", s_CommandPools->GetSize() - 1, family);
+        TKIT_RETURN_IF_FAILED(pool.Pool.SetName(name.c_str()));
+    }
     return &pool;
 }
 Result<CommandPool *> FindSuitableCommandPool(const VKit::QueueType type)
@@ -113,8 +125,9 @@ Result<> Initialize(const Specs &specs)
     const auto &device = Core::GetDevice();
     const auto table = Core::GetDeviceTable();
     const auto &queues = Core::GetDevice().GetInfo().Queues;
-    for (VKit::Queue *q : queues)
+    for (u32 i = 0; i < queues.GetSize(); ++i)
     {
+        VKit::Queue *q = queues[i];
         VkSemaphoreTypeCreateInfoKHR typeInfo{};
         typeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
         typeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
@@ -128,6 +141,12 @@ Result<> Initialize(const Specs &specs)
         VKIT_RETURN_IF_FAILED(table->CreateSemaphore(device, &info, nullptr, &semaphore), Result<>);
         q->TakeTimelineSemaphoreOwnership(semaphore);
         TKIT_RETURN_IF_FAILED(q->UpdateCompletedTimeline());
+        if (Core::CanNameObjects())
+        {
+            const std::string name =
+                TKit::Format("onyx-timeline-semaphore-queue-index-{}-family-{}", i, q->GetFamily());
+            TKIT_RETURN_IF_FAILED(device.SetObjectName(semaphore, VK_OBJECT_TYPE_SEMAPHORE, name.c_str()));
+        }
     }
 #ifdef TKIT_ENABLE_INFO_LOGS
     const auto &qptype = Core::GetDevice().GetInfo().QueuesPerType;
@@ -198,12 +217,12 @@ VKit::CommandPool &GetTransientTransferPool()
     return *s_Transfer;
 }
 
-Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 imageCount)
+Result<TKit::TierArray<ViewSyncData>> CreateViewSyncData(const u32 imageCount)
 {
     const auto &device = Core::GetDevice();
     const auto table = device.GetInfo().Table;
 
-    TKit::TierArray<SyncData> syncs{};
+    TKit::TierArray<ViewSyncData> syncs{};
     syncs.Resize(imageCount);
     for (u32 i = 0; i < imageCount; ++i)
     {
@@ -215,19 +234,19 @@ Result<TKit::TierArray<SyncData>> CreateSyncData(const u32 imageCount)
 
         VKIT_RETURN_IF_FAILED(
             table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore), Result<>,
-            DestroySyncData(syncs));
+            DestroyViewSyncData(syncs));
         VKIT_RETURN_IF_FAILED(
             table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore), Result<>,
-            DestroySyncData(syncs));
+            DestroyViewSyncData(syncs));
     }
     return syncs;
 }
-void DestroySyncData(const TKit::Span<const SyncData> objects)
+void DestroyViewSyncData(const TKit::Span<const ViewSyncData> objects)
 {
     const auto &device = Core::GetDevice();
     const auto table = device.GetInfo().Table;
 
-    for (const SyncData &data : objects)
+    for (const ViewSyncData &data : objects)
     {
         table->DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
         table->DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);

@@ -255,7 +255,7 @@ Window::~Window()
     const auto table = Core::GetDeviceTable();
     VKIT_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
     destroyImageData(m_Images);
-    Execution::DestroySyncData(m_SyncData);
+    Execution::DestroyViewSyncData(m_SyncData);
 
     m_SwapChain.Destroy();
     TKit::TierAllocator *tier = TKit::GetTier();
@@ -292,6 +292,48 @@ Result<bool> Window::handlePresentOrAcquireResult(const VkResult result)
     return true;
 }
 
+Result<> Window::nameSurface()
+{
+    const auto &device = Core::GetDevice();
+    const std::string name = TKit::Format("onyx-surface-window-'{}'", GetTitle());
+    return device.SetObjectName(m_Surface, VK_OBJECT_TYPE_SURFACE_KHR, name.c_str());
+}
+
+Result<> Window::nameSwapChain()
+{
+    const std::string name = TKit::Format("onyx-swapchain-window-'{}'", GetTitle());
+    return m_SwapChain.SetName(name.c_str());
+}
+
+Result<> Window::nameSyncData()
+{
+    const auto &device = Core::GetDevice();
+    const char *title = GetTitle();
+    for (u32 i = 0; i < m_SwapChain.GetImageCount(); ++i)
+    {
+        const std::string rfinish = TKit::Format("onyx-render-finished-semaphore-window-'{}'-image-index-{}", title, i);
+        const std::string iavail = TKit::Format("onyx-image-available-semaphore-index-{}-window-'{}'", i, title);
+        TKIT_RETURN_IF_FAILED(
+            device.SetObjectName(m_SyncData[i].RenderFinishedSemaphore, VK_OBJECT_TYPE_SEMAPHORE, rfinish.c_str()));
+        TKIT_RETURN_IF_FAILED(
+            device.SetObjectName(m_SyncData[i].ImageAvailableSemaphore, VK_OBJECT_TYPE_SEMAPHORE, iavail.c_str()));
+    }
+    return Result<>::Ok();
+}
+
+Result<> Window::nameImageData()
+{
+    const char *title = GetTitle();
+    for (u32 i = 0; i < m_SwapChain.GetImageCount(); ++i)
+    {
+        const std::string pres = TKit::Format("onyx-presentation-image-index-{}-window-'{}'", i, title);
+        const std::string depth = TKit::Format("onyx-depth-image-index-{}-window-'{}'", i, title);
+        TKIT_RETURN_IF_FAILED(m_Images[i].Presentation->SetName(pres.c_str()));
+        TKIT_RETURN_IF_FAILED(m_Images[i].DepthStencil.SetName(depth.c_str()));
+    }
+    return Result<>::Ok();
+}
+
 Result<> Window::Present()
 {
     TKIT_PROFILE_NSCOPE("Onyx::FramwScheduler::Present");
@@ -299,7 +341,7 @@ Result<> Window::Present()
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
-    const Execution::SyncData &sync = m_SyncData[m_ImageIndex];
+    const Execution::ViewSyncData &sync = m_SyncData[m_ImageIndex];
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &sync.RenderFinishedSemaphore;
 
@@ -324,7 +366,7 @@ Result<bool> Window::AcquireNextImage(const Timeout timeout)
     const auto &device = Core::GetDevice();
 
     const u32 idx = (m_ImageAvailableIndex + 1) % m_SyncData.GetSize();
-    const Execution::SyncData &sync = m_SyncData[idx];
+    const Execution::ViewSyncData &sync = m_SyncData[idx];
 
     if (sync.InFlightSubmission)
     {
@@ -380,6 +422,13 @@ Result<> Window::recreateSwapChain()
     PushEvent(event);
 
     m_MustRecreateSwapchain = false;
+
+    if (Core::CanNameObjects())
+    {
+        TKIT_RETURN_IF_FAILED(nameSwapChain());
+        TKIT_RETURN_IF_FAILED(nameSyncData());
+        return nameImageData();
+    }
     return Result<>::Ok();
 }
 
@@ -407,6 +456,13 @@ Result<> Window::recreateSurface()
     PushEvent(event);
 
     m_MustRecreateSwapchain = false;
+    if (Core::CanNameObjects())
+    {
+        TKIT_RETURN_IF_FAILED(nameSurface());
+        TKIT_RETURN_IF_FAILED(nameSwapChain());
+        TKIT_RETURN_IF_FAILED(nameSyncData());
+        return nameImageData();
+    }
     return Result<>::Ok();
 }
 
@@ -417,9 +473,9 @@ Result<> Window::recreateResources()
     destroyImageData(m_Images);
     m_Images = iresult.GetValue();
 
-    const auto sresult = Execution::CreateSyncData(m_SwapChain.GetImageCount());
+    const auto sresult = Execution::CreateViewSyncData(m_SwapChain.GetImageCount());
     TKIT_RETURN_ON_ERROR(sresult);
-    Execution::DestroySyncData(m_SyncData);
+    Execution::DestroyViewSyncData(m_SyncData);
     m_SyncData = sresult.GetValue();
 
     m_ImageIndex = 0;
@@ -442,7 +498,7 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
     m_Images[m_ImageIndex].Presentation->TransitionLayout2(
         commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
-         .SrcStage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT_KHR,
+         .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
          .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
 
     VkRenderingAttachmentInfoKHR depth{};
@@ -499,7 +555,7 @@ void Window::EndRendering(const VkCommandBuffer commandBuffer)
         commandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         {.SrcAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,
          .SrcStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-         .DstStage = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT_KHR});
+         .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
 }
 
 bool Window::ShouldClose() const

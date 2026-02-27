@@ -173,18 +173,12 @@ template <Dimension D> static void updateInstanceDescriptorSets(const Geometry g
     }
 }
 
-template <Dimension D> static void updateLightDescriptorSets(const u32 binding)
-{
-    TKIT_ASSERT(binding != 0, "[ONYX][RENDERER] Light binding cannot be zero");
-    RendererData<D> &rdata = getRendererData<D>();
-    for (u32 i = 0; i < Geometry_Count; ++i)
-        updateDescriptorSet(rdata.Descriptors[Shading_Lit][i], binding,
-                            Descriptors::GetDescriptorSetLayout<D>(Shading_Lit), rdata.LightData[binding - 1].Graphics);
-}
-
 template <Dimension D> static void updateLightDescriptorSets(const LightType light)
 {
-    updateLightDescriptorSets<D>(light + 1);
+    RendererData<D> &rdata = getRendererData<D>();
+    for (u32 i = 0; i < Geometry_Count; ++i)
+        updateDescriptorSet(rdata.Descriptors[Shading_Lit][i], light + 1,
+                            Descriptors::GetDescriptorSetLayout<D>(Shading_Lit), rdata.LightData[light].Graphics);
 }
 
 static constexpr VKit::DeviceBufferFlags getStageFlags()
@@ -196,20 +190,65 @@ static constexpr VKit::DeviceBufferFlags getDeviceLocalFlags()
     return static_cast<VKit::DeviceBufferFlags>(Buffer_DeviceStorage) | VKit::DeviceBufferFlag_Source;
 }
 
-template <Dimension D, typename T>
-ONYX_NO_DISCARD static Result<> createLightBuffers(LightBuffers &buffers, const u32 binding,
-                                                   const VKit::DeviceBufferFlags stageFlags = Buffer_Staging,
-                                                   const VKit::DeviceBufferFlags devLocalFlags = Buffer_DeviceStorage)
+template <Dimension D>
+ONYX_NO_DISCARD static Result<> createLightBuffers(const LightType light, const VkDeviceSize instanceSize,
+                                                   const VkDeviceSize instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    auto result = Resources::CreateBuffer<T>(stageFlags);
+    RendererData<D> &rdata = getRendererData<D>();
+    auto result = Resources::CreateBuffer(Buffer_Staging, instanceSize, instances);
     TKIT_RETURN_ON_ERROR(result);
-    buffers.Transfer = result.GetValue();
+    rdata.LightData[light].Transfer = result.GetValue();
 
-    result = Resources::CreateBuffer<T>(devLocalFlags);
+    result = Resources::CreateBuffer(Buffer_DeviceStorage, instanceSize, instances);
     TKIT_RETURN_ON_ERROR(result);
-    buffers.Graphics = result.GetValue();
-    updateLightDescriptorSets<D>(binding);
+    rdata.LightData[light].Graphics = result.GetValue();
+    updateLightDescriptorSets<D>(light);
+
+    if (Core::CanNameObjects())
+    {
+        const std::string transfer =
+            TKit::Format("onyx-renderer-transfer-light-buffer-{}D-light-{}", u8(D), ToString(light));
+        const std::string graphics =
+            TKit::Format("onyx-renderer-graphics-light-buffer-{}D-light-{}", u8(D), ToString(light));
+
+        TKIT_RETURN_IF_FAILED(rdata.LightData[light].Transfer.SetName(transfer.c_str()));
+        return rdata.LightData[light].Graphics.SetName(graphics.c_str());
+    }
     return Result<>::Ok();
+}
+
+template <Dimension D>
+ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createTransferInstanceBuffer(
+    const Geometry geo, const VkDeviceSize instances = ONYX_BUFFER_INITIAL_CAPACITY)
+{
+    auto result = Resources::CreateBuffer(getStageFlags(), getInstanceSize<D>(geo), instances);
+    TKIT_RETURN_ON_ERROR(result);
+    VKit::DeviceBuffer &buffer = result.GetValue();
+
+    if (Core::CanNameObjects())
+    {
+        const std::string name =
+            TKit::Format("onyx-renderer-transfer-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
+        TKIT_RETURN_IF_FAILED(buffer.SetName(name.c_str()));
+    }
+    return result;
+}
+
+template <Dimension D>
+ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createGraphicsInstanceBuffer(
+    const Geometry geo, const VkDeviceSize instances = ONYX_BUFFER_INITIAL_CAPACITY)
+{
+    auto result = Resources::CreateBuffer(getDeviceLocalFlags(), getInstanceSize<D>(geo), instances);
+    TKIT_RETURN_ON_ERROR(result);
+    VKit::DeviceBuffer &buffer = result.GetValue();
+
+    if (Core::CanNameObjects())
+    {
+        const std::string name =
+            TKit::Format("onyx-renderer-graphics-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
+        TKIT_RETURN_IF_FAILED(buffer.SetName(name.c_str()));
+    }
+    return result;
 }
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
@@ -222,7 +261,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
         const Geometry geo = static_cast<Geometry>(i);
         TransferArena &tarena = rdata.Arenas[geo].Transfer;
 
-        auto result = Resources::CreateBuffer(getStageFlags(), getInstanceSize<D>(geo));
+        auto result = createTransferInstanceBuffer<D>(geo);
         TKIT_RETURN_ON_ERROR(result);
         tarena.Buffer = result.GetValue();
 
@@ -230,7 +269,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
 
         GraphicsArena &garena = rdata.Arenas[geo].Graphics;
 
-        result = Resources::CreateBuffer(getDeviceLocalFlags(), getInstanceSize<D>(geo));
+        result = createGraphicsInstanceBuffer<D>(geo);
         TKIT_RETURN_ON_ERROR(result);
         garena.Buffer = result.GetValue();
 
@@ -242,6 +281,14 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
             const auto dresult = Descriptors::GetDescriptorPool().Allocate(layout);
             TKIT_RETURN_ON_ERROR(dresult);
             const VkDescriptorSet set = dresult.GetValue();
+            if (Core::CanNameObjects())
+            {
+                const auto &device = Core::GetDevice();
+                const std::string name = TKit::Format("onyx-renderer-descriptor-set-{}D-geometry-{}-shading-{}", u8(D),
+                                                      ToString(geo), ToString(shading));
+                TKIT_RETURN_IF_FAILED(device.SetObjectName(set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name.c_str()));
+            }
+
             updateDescriptorSet(set, 0, layout, garena.Buffer);
             rdata.Descriptors[j][i] = set;
         }
@@ -257,15 +304,26 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
         result = Pipelines::CreateStaticMeshPipeline<D>(pass, renderInfo);
         TKIT_RETURN_ON_ERROR(result);
         rdata.Pipelines[pass][Geometry_StaticMesh] = result.GetValue();
+
+        if (Core::CanNameObjects())
+        {
+            const std::string circle =
+                TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-Geometry_Circle", u8(D), ToString(pass));
+            const std::string mesh = TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_StaticMesh'",
+                                                  u8(D), ToString(pass));
+
+            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Circle].SetName(circle.c_str()));
+            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_StaticMesh].SetName(mesh.c_str()));
+        }
     }
 
-    TKIT_RETURN_IF_FAILED((createLightBuffers<D, PointLightData<D>>(rdata.LightData[Light_Point], 1)));
-    if constexpr (D == D3)
+    if constexpr (D == D2)
+        return createLightBuffers<D2>(Light_Point, sizeof(PointLightData<D2>));
+    else
     {
-        TKIT_RETURN_IF_FAILED((createLightBuffers<D, DirectionalLightData>(rdata.LightData[Light_Directional], 2)))
+        TKIT_RETURN_IF_FAILED((createLightBuffers<D3>(Light_Point, sizeof(PointLightData<D3>))));
+        return createLightBuffers<D3>(Light_Directional, sizeof(DirectionalLightData));
     }
-
-    return Result<>::Ok();
 }
 
 template <Dimension D> static void terminate()
@@ -311,25 +369,17 @@ void Terminate()
 template <Dimension D> ONYX_NO_DISCARD static Result<> resizeLightBuffers(const LightType light, const u32 instances)
 {
     LightBuffers &buffers = getRendererData<D>().LightData[light];
-    const auto tresult = Resources::CreateEnlargedBufferIfNeeded(buffers.Transfer, instances);
-    const auto gresult = Resources::CreateEnlargedBufferIfNeeded(buffers.Graphics, instances);
-    TKIT_RETURN_ON_ERROR(tresult);
-    TKIT_RETURN_ON_ERROR(gresult);
 
-    if (tresult.GetValue() || gresult.GetValue())
+    // both buffers should have the exact same size
+    if (buffers.Transfer.GetInfo().InstanceCount < instances || buffers.Graphics.GetInfo().InstanceCount < instances)
     {
         TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
-    }
-    if (tresult.GetValue())
-    {
         buffers.Transfer.Destroy();
-        buffers.Transfer = tresult.GetValue().GetValue();
-    }
-    if (gresult.GetValue())
-    {
         buffers.Graphics.Destroy();
-        buffers.Graphics = gresult.GetValue().GetValue();
+        return createLightBuffers<D>(light, buffers.Transfer.GetInfo().InstanceSize,
+                                     Resources::GrowCapacity(instances));
     }
+
     return Result<>::Ok();
 }
 
@@ -535,7 +585,8 @@ template <Dimension D> void validateRanges(const bool requireTightFit = false)
 }
 #endif
 
-ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferArena &arena,
+template <Dimension D>
+ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(const Geometry geo, TransferArena &arena,
                                                                        const VkDeviceSize requiredMem,
                                                                        TKit::StackArray<Task> &tasks)
 {
@@ -572,7 +623,7 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(TransferA
                    "will be created with more memory (from {:L} to {:L} bytes)",
                    requiredMem, size, 2 * icount * isize);
 
-    auto bresult = Resources::CreateBuffer(getStageFlags(), isize, 2 * icount);
+    auto bresult = createTransferInstanceBuffer<D>(geo, 2 * icount);
     TKIT_RETURN_ON_ERROR(bresult);
 
     VKit::DeviceBuffer &nbuffer = bresult.GetValue();
@@ -653,7 +704,7 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
                    "will be created with more memory (from {:L} to {:L} bytes)",
                    requiredMem, size, 2 * icount * isize);
 
-    auto bresult = Resources::CreateBuffer(getDeviceLocalFlags(), isize, 2 * icount);
+    auto bresult = createGraphicsInstanceBuffer<D>(geo, 2 * icount);
     TKIT_RETURN_ON_ERROR(bresult);
 
     VKit::DeviceBuffer &nbuffer = bresult.GetValue();
@@ -1021,7 +1072,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             if (requiredMem == 0)
                 continue;
 
-            const auto tresult = findTransferRange(tarena, requiredMem, tasks);
+            const auto tresult = findTransferRange<D>(geo, tarena, requiredMem, tasks);
             TKIT_RETURN_ON_ERROR(tresult);
             TransferMemoryRange *trange = tresult.GetValue();
             trange->Tracker.MarkInUse(transfer, transferFlightValue);

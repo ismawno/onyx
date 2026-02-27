@@ -183,6 +183,15 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> initialize(MeshInfo<V
     info.IndexBuffer = result.GetValue();
 
     info.Layouts.Reserve(maxLayouts);
+
+    if (Core::CanNameObjects())
+    {
+        TKIT_RETURN_IF_FAILED(info.VertexBuffer.SetName(Vertex::Dim == D2 ? "onyx-assets-2D-vertex-buffer"
+                                                                          : "onyx-assets-3D-vertex-buffer"));
+        return info.IndexBuffer.SetName(Vertex::Dim == D3 ? "onyx-assets-2D-index-buffer"
+                                                          : "onyx-assets-3D-index-buffer");
+    }
+
     return Result<>::Ok();
 }
 

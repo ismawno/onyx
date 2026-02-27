@@ -19,6 +19,7 @@ template <Dimension D> struct StatVertex;
 
 template <> struct StatVertex<D2>
 {
+    static constexpr Dimension Dim = D2;
     TKIT_REFLECT_DECLARE(StatVertex)
     TKIT_YAML_SERIALIZE_DECLARE(StatVertex)
 
@@ -42,6 +43,7 @@ template <> struct StatVertex<D2>
 
 template <> struct StatVertex<D3>
 {
+    static constexpr Dimension Dim = D2;
     TKIT_REFLECT_DECLARE(StatVertex)
     TKIT_YAML_SERIALIZE_DECLARE(StatVertex)
 

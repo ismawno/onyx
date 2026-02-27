@@ -135,7 +135,8 @@ struct Specs
     Shaders::Specs *ShadersSpecs = nullptr;
     Platform::Specs *PlatformSpecs = nullptr;
 #ifdef TKIT_ENABLE_ASSERTS
-    Flags Flags = Flag_EnableValidationLayers | Flag_EnableDebugUtilsExtension | Flag_EnableSyncValidationDebugFeature;
+    Flags Flags = Flag_EnableValidationLayers | Flag_EnableDebugUtilsExtension | Flag_EnableBestPracticesDebugFeature |
+                  Flag_EnableSyncValidationDebugFeature | Flag_EnableDeviceAssistedDebugFeature;
 #else
     Flags Flags = 0;
 #endif
@@ -155,6 +156,8 @@ const VKit::Vulkan::InstanceTable *GetInstanceTable();
 
 const VKit::LogicalDevice &GetDevice();
 const VKit::Vulkan::DeviceTable *GetDeviceTable();
+
+bool CanNameObjects();
 
 ONYX_NO_DISCARD Result<> DeviceWaitIdle();
 

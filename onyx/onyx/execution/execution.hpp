@@ -55,7 +55,7 @@ bool IsSeparateTransferMode();
 VKit::CommandPool &GetTransientGraphicsPool();
 VKit::CommandPool &GetTransientTransferPool();
 
-struct SyncData
+struct ViewSyncData
 {
     VkSemaphore ImageAvailableSemaphore;
     VkSemaphore RenderFinishedSemaphore;
@@ -63,7 +63,7 @@ struct SyncData
     u64 InFlightValue;
 };
 
-ONYX_NO_DISCARD Result<TKit::TierArray<SyncData>> CreateSyncData(u32 imageCount);
-void DestroySyncData(TKit::Span<const SyncData> objects);
+ONYX_NO_DISCARD Result<TKit::TierArray<ViewSyncData>> CreateViewSyncData(u32 imageCount);
+void DestroyViewSyncData(TKit::Span<const ViewSyncData> objects);
 
 } // namespace Onyx::Execution

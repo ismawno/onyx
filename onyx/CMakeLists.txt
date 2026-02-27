@@ -17,6 +17,7 @@ set(SOURCES
     onyx/property/vertex.cpp
     onyx/property/color.cpp
     onyx/property/transform.cpp
+    onyx/property/instance.cpp
     onyx/application/application.cpp
     onyx/application/layer.cpp
     onyx/platform/window.cpp

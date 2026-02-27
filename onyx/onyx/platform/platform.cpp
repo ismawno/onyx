@@ -106,10 +106,11 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     VKit::SwapChain &schain = sresult.GetValue();
     cleanup.Push([&schain] { schain.Destroy(); });
 
-    auto syresult = Execution::CreateSyncData(schain.GetImageCount());
+    auto syresult = Execution::CreateViewSyncData(schain.GetImageCount());
     TKIT_RETURN_ON_ERROR(syresult);
-    TKit::TierArray<Execution::SyncData> &syncData = syresult.GetValue();
-    cleanup.Push([&syncData] { Execution::DestroySyncData(syncData); });
+    TKit::TierArray<Execution::ViewSyncData> &syncData = syresult.GetValue();
+
+    cleanup.Push([&syncData] { Execution::DestroyViewSyncData(syncData); });
 
     if (s_ViewCache == 0)
         return Result<>::Error(
@@ -129,12 +130,18 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     TKit::TierArray<Window::ImageData> &imageData = iresult.GetValue();
     cleanup.Push([&imageData] { Window::destroyImageData(imageData); });
     window->m_Images = std::move(imageData);
-
     window->m_PresentMode = specs.PresentMode;
     window->m_SyncData = std::move(syncData);
     window->m_ViewBit = allocateViewBit();
     window->m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
     window->UpdateMonitorDeltaTime();
+    if (Core::CanNameObjects())
+    {
+        TKIT_RETURN_IF_FAILED(window->nameSurface());
+        TKIT_RETURN_IF_FAILED(window->nameSwapChain());
+        TKIT_RETURN_IF_FAILED(window->nameSyncData());
+        TKIT_RETURN_IF_FAILED(window->nameImageData());
+    }
     glfwSetWindowUserPointer(handle, window);
     if (specs.Flags & WindowFlag_InstallCallbacks)
         Input::InstallCallbacks(handle);

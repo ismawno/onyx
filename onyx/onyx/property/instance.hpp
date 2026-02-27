@@ -5,13 +5,6 @@
 
 namespace Onyx
 {
-enum Geometry : u8
-{
-    Geometry_Circle,
-    Geometry_StaticMesh,
-    Geometry_Count,
-};
-
 template <Dimension D> struct InstanceData;
 template <> struct InstanceData<D2>
 {
@@ -49,6 +42,13 @@ template <Dimension D> struct CircleInstanceData
     f32 Hollowness;
     f32 InnerFade;
     f32 OuterFade;
+};
+
+enum Geometry : u8
+{
+    Geometry_Circle,
+    Geometry_StaticMesh,
+    Geometry_Count,
 };
 
 enum LightType : u8
@@ -124,6 +124,12 @@ enum Shading : u8
     Shading_Lit,
     Shading_Count
 };
+
+const char *ToString(Geometry geo);
+const char *ToString(LightType light);
+const char *ToString(StencilPass pass);
+const char *ToString(DrawPass pass);
+const char *ToString(Shading shading);
 
 constexpr DrawPass GetDrawMode(const StencilPass pass)
 {

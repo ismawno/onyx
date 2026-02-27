@@ -28,6 +28,7 @@ using namespace Onyx::Detail;
 namespace Onyx::Core
 {
 static u8 s_PushedAlloc = 0;
+static Flags s_Flags = 0;
 static TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> s_Allocation{};
 
 static TKit::ITaskManager *s_TaskManager;
@@ -194,6 +195,8 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     *s_Device = devres.GetValue();
 
     SUBMIT_DELETION(*s_Device);
+    if (CanNameObjects())
+        return s_Device->SetName("onyx-device");
     return Result<>::Ok();
 }
 
@@ -392,6 +395,10 @@ const VKit::Vulkan::DeviceTable *GetDeviceTable()
     TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Initialize?");
     return s_Device->GetInfo().Table;
 };
+bool CanNameObjects()
+{
+    return s_Flags & Flag_EnableDebugUtilsExtension;
+}
 Result<> DeviceWaitIdle()
 {
     TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Initialize?");
@@ -539,6 +546,7 @@ Result<> Initialize(const Specs &specs)
     TKIT_LOG_INFO("[ONYX][CORE] Vulkan headers version: {}.{}.{}", VKIT_EXPAND_VERSION(VK_HEADER_VERSION_COMPLETE));
     if (specs.Locale)
         std::locale::global(std::locale(specs.Locale));
+    s_Flags = specs.Flags;
     s_DumpPath = specs.DeviceFaultCrashDump;
     s_Instance.Construct();
     s_Physical.Construct();

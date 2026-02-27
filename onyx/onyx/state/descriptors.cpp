@@ -44,6 +44,14 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
 
     *s_LitDescLayout3 = layoutResult.GetValue();
 
+    if (Core::CanNameObjects())
+    {
+        TKIT_RETURN_IF_FAILED(s_DescriptorPool->SetName("onyx-descriptor-pool"));
+        TKIT_RETURN_IF_FAILED(s_UnlitDescLayout->SetName("onyx-unlit-descriptor-set-layout"));
+        TKIT_RETURN_IF_FAILED(s_LitDescLayout2->SetName("onyx-lit-descriptor-set-layout-2D"));
+        return s_LitDescLayout3->SetName("onyx-lit-descriptor-set-layout-3D");
+    }
+
     return Result<>::Ok();
 }
 

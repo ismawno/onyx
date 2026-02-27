@@ -73,6 +73,13 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
 
     TKIT_RETURN_ON_ERROR(layoutResult);
     *s_LitPipLayout3 = layoutResult.GetValue();
+
+    if (Core::CanNameObjects())
+    {
+        TKIT_RETURN_IF_FAILED(s_UnlitPipLayout->SetName("onyx-unlit-pipeline-layout"));
+        TKIT_RETURN_IF_FAILED(s_LitPipLayout2->SetName("onyx-lit-pipeline-layout-2D"));
+        return s_LitPipLayout3->SetName("onyx-lit-pipeline-layout-3D");
+    }
     return Result<>::Ok();
 }
 
@@ -181,6 +188,31 @@ ONYX_NO_DISCARD static Result<> createShaders()
     s_OutlineShaders3->CircleFragmentShader = result.GetValue();
 
     cmp.Destroy();
+
+    if (Core::CanNameObjects())
+    {
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshVertexShader.SetName("onyx-2D-vertex-shader-mesh-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshFragmentShader.SetName("onyx-2D-fragment-shader-mesh-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->CircleVertexShader.SetName("onyx--D vertex-shader-circle-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->CircleFragmentShader.SetName("onyx-2D-fragment-shader-circle-fill-2D"));
+
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshVertexShader.SetName("onyx--D vertex-shader-mesh-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshFragmentShader.SetName("onyx-3D-fragment-shader-mesh-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->CircleVertexShader.SetName("onyx--D vertex-shader-circle-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->CircleFragmentShader.SetName("onyx-3D-fragment-shader-circle-fill-2D"));
+
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshVertexShader.SetName("onyx--D vertex-shader-mesh-stencil-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshFragmentShader.SetName("onyx-2D-fragment-shader-mesh-stencil-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->CircleVertexShader.SetName("onyx--D vertex-shader-circle-stencil-2D"));
+        TKIT_RETURN_IF_FAILED(
+            s_FillShaders2->CircleFragmentShader.SetName("onyx-2D-fragment-shader-circle-stencil-2D"));
+
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshVertexShader.SetName("onyx--D vertex-shader-mesh-stencil-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshFragmentShader.SetName("onyx-3D-fragment-shader-mesh-stencil-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->CircleVertexShader.SetName("onyx--D vertex-shader-circle-stencil-2D"));
+        return s_FillShaders3->CircleFragmentShader.SetName("onyx-3D-fragment-shader-circle-stencil-2D");
+    }
+
     return Result<>::Ok();
 }
 
