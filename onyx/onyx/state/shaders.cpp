@@ -501,6 +501,31 @@ static std::string getDiagnostics(slang::IBlob *diagnostics)
     return message;
 }
 
+static bool isOldMesa()
+{
+    const auto &device = Core::GetDevice();
+    const VKit::PhysicalDevice *phys = device.GetInfo().PhysicalDevice;
+
+    const VkPhysicalDeviceVulkan12Properties &props = phys->GetInfo().Properties.Vulkan12;
+    if (props.driverID != VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA_KHR && props.driverID != VK_DRIVER_ID_MESA_LLVMPIPE)
+        return false;
+
+    u32 major;
+    u32 minor;
+    u32 patch;
+
+    if (std::sscanf(props.driverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
+        return false;
+
+    if (major > 25)
+        return false;
+    if (major == 25 && minor > 3)
+        return false;
+    if (major == 25 && minor == 3 && patch >= 3)
+        return false;
+    return true;
+}
+
 Result<Compilation> Compiler::Compile() const
 {
     ComPtr<slang::ISession> session = nullptr;
@@ -524,12 +549,22 @@ Result<Compilation> Compiler::Compile() const
         cdesc.preprocessorMacros = defines.GetData();
     }
 
+    const bool oldMesa = isOldMesa();
     TKit::StackArray<slang::CompilerOptionEntry> coptions;
-    coptions.Reserve(m_Arguments.GetSize() + 1);
+    coptions.Reserve(m_Arguments.GetSize() + 1 + oldMesa);
 
     slang::CompilerOptionEntry entry;
     entry.name = slang::CompilerOptionName::MatrixLayoutColumn;
     coptions.Append(entry);
+
+    if (oldMesa)
+    {
+        entry.name = slang::CompilerOptionName::Optimization;
+        entry.value.intValue0 = 0;
+        coptions.Append(entry);
+        TKIT_LOG_WARNING("[ONYX][SHADERS] Old mesa version detected (pre-25.3.3) which contains a bug regarding "
+                         "optimized spir-v code. Setting optimizations to 0 as a fix");
+    }
 
     for (const ShaderArgument &sa : m_Arguments)
     {
