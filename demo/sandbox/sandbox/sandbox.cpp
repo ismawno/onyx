@@ -97,7 +97,7 @@ template <Dimension D> void SandboxAppLayer::AddMeshes()
         AddStaticMesh("Sphere", Assets::CreateSphereMesh(32, 64));
         AddStaticMesh("Cylinder", Assets::CreateCylinderMesh(64));
     }
-    VKIT_CHECK_EXPRESSION(Assets::Upload<D>());
+    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
 }
 
 template <Dimension D> static void setShapeProperties(RenderContext<D> *context, const Shape<D> &shape)
@@ -268,7 +268,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const u32 geometry,
 
 template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
 {
-    RenderContext<D> *context = VKIT_CHECK_EXPRESSION(Renderer::CreateContext<D>());
+    RenderContext<D> *context = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D>());
     auto &contexts = GetContexts<D>();
     ContextData<D> &data = contexts.Contexts.Append();
     data.Context = context;
@@ -287,7 +287,7 @@ template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window)
     LatticeData<D> &data = lattices.Lattices.Append();
     for (u32 i = 0; i < TKit::MaxThreads; ++i)
     {
-        RenderContext<D> *ctx = VKIT_CHECK_EXPRESSION(Renderer::CreateContext<D>());
+        RenderContext<D> *ctx = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D>());
         if (window)
             ctx->AddTarget(window);
         data.Contexts[i] = ctx;
@@ -818,7 +818,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
             {
                 appLayer->AddStaticMesh<D>(name[0] ? name : "Regular polygon",
                                            Assets::CreateRegularPolygonMesh<D>(meshes.RegularPolySides));
-                VKIT_CHECK_EXPRESSION(Assets::Upload<D>());
+                ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
             }
         }
         else if (meshes.StatMeshToLoad == 1)
@@ -847,7 +847,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
             {
                 appLayer->AddStaticMesh<D>(name[0] ? name : "Polygon",
                                            Assets::CreatePolygonMesh<D>(meshes.PolyVertices));
-                VKIT_CHECK_EXPRESSION(Assets::Upload<D>());
+                ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
             }
         }
         else if (meshes.StatMeshToLoad == importedIndex)
@@ -862,7 +862,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
 
                     const StatMeshData<D> &data = lres.GetValue();
                     appLayer->AddStaticMesh(name[0] ? name : path.filename().c_str(), data);
-                    VKIT_CHECK_EXPRESSION(Assets::Upload<D>());
+                    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
                 };
                 const char *path = D == D2 ? (ONYX_ROOT_PATH "/demo/meshes2/") : (ONYX_ROOT_PATH "/demo/meshes3/");
                 const auto result = Dialog::OpenSingle({.Default = path});
@@ -883,7 +883,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 {
                     appLayer->AddStaticMesh<D>(name[0] ? name : "Sphere",
                                                Assets::CreateSphereMesh(m3.Rings, m3.Sectors));
-                    VKIT_CHECK_EXPRESSION(Assets::Upload<D>());
+                    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
                 }
             }
             else if (meshes.StatMeshToLoad == 3)
@@ -895,7 +895,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 {
                     appLayer->AddStaticMesh<D>(name[0] ? name : "Cylinder",
                                                Assets::CreateCylinderMesh(m3.CylinderSides));
-                    VKIT_CHECK_EXPRESSION(Assets::Upload<D>());
+                    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
                 }
             }
         }

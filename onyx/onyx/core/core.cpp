@@ -130,8 +130,17 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     if ((flags & Flag_EnableDeviceFaultExtension) && s_Physical->IsExtensionEnabled("VK_EXT_device_fault"))
     {
         faultFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT;
-        faultFeatures.deviceFault = VK_TRUE;
-        faultFeatures.deviceFaultVendorBinary = VK_TRUE;
+
+        const auto table = GetInstanceTable();
+        VkPhysicalDeviceFeatures2KHR features2{};
+        features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
+        features2.pNext = &faultFeatures;
+        table->GetPhysicalDeviceFeatures2KHR(*s_Physical, &features2);
+
+        TKIT_LOG_WARNING_IF(!faultFeatures.deviceFaultVendorBinary,
+                            "[ONYX][CORE] The 'deviceFaultVendorBinary' feature is not supported");
+        TKIT_LOG_ERROR_IF(!faultFeatures.deviceFault, "[ONYX][CORE] The 'deviceFault' feature is not supported. The "
+                                                      "extension 'VK_EXT_device_fault' is virtually useless");
         s_Physical->EnableExtensionBoundFeature(&faultFeatures);
     }
 
@@ -142,20 +151,12 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     tsem.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES_KHR;
     tsem.timelineSemaphore = VK_TRUE;
 
-    if (apiVersion >= VKIT_API_VERSION_1_2)
-    {
-        VKit::DeviceFeatures features{};
-        features.Vulkan11.shaderDrawParameters = VK_TRUE;
-        features.Vulkan12.timelineSemaphore = VK_TRUE;
-        if (!s_Physical->EnableFeatures(features))
-            return Result<>::Error(Error_MissingFeature,
-                                   "[ONYX][CORE] Failed to enable timeline semaphores and shader draw parameters");
-    }
-    else
-    {
-        s_Physical->EnableExtensionBoundFeature(&drawParams);
-        s_Physical->EnableExtensionBoundFeature(&tsem);
-    }
+    VKit::DeviceFeatures features{};
+    features.Vulkan11.shaderDrawParameters = VK_TRUE;
+    features.Vulkan12.timelineSemaphore = VK_TRUE;
+    if (!s_Physical->EnableFeatures(features))
+        return Result<>::Error(Error_MissingFeature,
+                               "[ONYX][CORE] Failed to enable timeline semaphores and shader draw parameters");
 
     VkPhysicalDeviceDynamicRenderingFeaturesKHR drendering{};
     drendering.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
@@ -221,8 +222,12 @@ ONYX_NO_DISCARD static Result<> createInstance(Flags flags)
     u32 extensionCount;
 
     VKit::Instance::Builder builder{};
-    builder.SetApplicationName("Onyx").RequestApiVersion(1, 4, 0).RequireApiVersion(1, 2, 0).SetApplicationVersion(1, 2,
-                                                                                                                   0);
+    builder.SetApplicationName("Onyx")
+        .RequestApiVersion(1, 4, 0)
+        .RequireApiVersion(1, 2, 0)
+        .SetApplicationVersion(1, 2, 0)
+        .RequestExtension("VK_KHR_get_physical_device_properties2")
+        .RequestExtension("VK_KHR_portability_enumeration");
 
     const Flags debugFeatFlags = Flag_EnableDeviceAssistedDebugFeature | Flag_EnableBestPracticesDebugFeature |
                                  Flag_EnableSyncValidationDebugFeature | Flag_EnablePrintfDebugFeature;
@@ -622,7 +627,7 @@ Result<> Initialize(const Specs &specs)
 void Terminate()
 {
     if (*s_Device)
-        VKIT_CHECK_EXPRESSION(DeviceWaitIdle());
+        ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
 
     s_Callbacks.Destruct();
     s_DeletionQueue.Destruct();

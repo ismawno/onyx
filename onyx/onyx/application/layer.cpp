@@ -14,7 +14,7 @@ WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const TKit:
 #ifdef ONYX_ENABLE_IMGUI
     if (specs.Flags & WindowLayerFlag_ImGuiEnabled)
     {
-        VKIT_CHECK_EXPRESSION(initializeImGui());
+        ONYX_CHECK_EXPRESSION(initializeImGui());
     }
 #endif
     m_Delta.Target = window->IsVSync() ? window->GetMonitorDeltaTime() : targetDeltaTime;

@@ -329,7 +329,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
 template <Dimension D> static void terminate()
 {
     RendererData<D> &rdata = getRendererData<D>();
-    VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
     for (Arena &arena : rdata.Arenas)
     {
         arena.Transfer.Buffer.Destroy();

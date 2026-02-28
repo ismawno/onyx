@@ -842,7 +842,7 @@ static void platform_SetWindowOpacity(const ImGuiViewport *viewport, const f32 o
 static void platform_InitMultiViewportSupport()
 {
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
-    pio.Platform_CreateWindow = [](ImGuiViewport *v) { VKIT_CHECK_EXPRESSION(platform_CreateWindow(v)); };
+    pio.Platform_CreateWindow = [](ImGuiViewport *v) { ONYX_CHECK_EXPRESSION(platform_CreateWindow(v)); };
     pio.Platform_DestroyWindow = platform_DestroyWindow;
     pio.Platform_ShowWindow = [](ImGuiViewport *v) { platform_ShowWindow(v); };
     pio.Platform_SetWindowPos = [](ImGuiViewport *v, const ImVec2 pos) {
@@ -1248,7 +1248,7 @@ ONYX_NO_DISCARD static Result<Renderer_ViewportData *> renderer_CreateViewportDa
 static void renderer_DestroyViewportData(Renderer_ViewportData *data)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
-    VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
     for (Renderer_Buffers &buffers : data->Buffers)
     {
         buffers.VertexBuffer.Destroy();
@@ -1724,9 +1724,9 @@ ONYX_NO_DISCARD static Result<> renderer_PresentWindow(const ImGuiViewport *view
 static void renderer_InitMultiViewportSupport()
 {
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
-    pio.Renderer_CreateWindow = [](ImGuiViewport *v) { VKIT_CHECK_EXPRESSION(renderer_CreateWindow(v)); };
+    pio.Renderer_CreateWindow = [](ImGuiViewport *v) { ONYX_CHECK_EXPRESSION(renderer_CreateWindow(v)); };
     pio.Renderer_DestroyWindow = [](ImGuiViewport *v) { renderer_DestroyWindow(v); };
-    // pio.Renderer_RenderWindow = [](ImGuiViewport *v) { VKIT_CHECK_EXPRESSION(renderer_RenderWindow(v)); };
+    // pio.Renderer_RenderWindow = [](ImGuiViewport *v) { ONYX_CHECK_EXPRESSION(renderer_RenderWindow(v)); };
 }
 
 static void renderer_ShutdownMultiViewportSupport()
@@ -1792,7 +1792,7 @@ Result<> Create(Window *window)
 
 void Destroy()
 {
-    VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
     renderer_Shutdown();
     platform_Shutdown();
     ImGui::DestroyPlatformWindows();

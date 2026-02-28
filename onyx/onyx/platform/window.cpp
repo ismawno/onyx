@@ -250,10 +250,10 @@ void Window::destroyImageData(TKit::TierArray<Window::ImageData> &images)
 Window::~Window()
 {
     Renderer::ClearViews(m_ViewBit);
-    VKIT_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
 
     const auto table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
+    ONYX_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
     destroyImageData(m_Images);
     Execution::DestroyViewSyncData(m_SyncData);
 
@@ -408,7 +408,7 @@ Result<> Window::recreateSwapChain()
 
     TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
     const auto table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
+    ONYX_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
 
     VKit::SwapChain old = m_SwapChain;
     TKIT_RETURN_IF_FAILED(createSwapChain(extent));
@@ -439,7 +439,7 @@ Result<> Window::recreateSurface()
 
     TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
     const auto table = Core::GetDeviceTable();
-    VKIT_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
+    ONYX_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
 
     m_SwapChain.Destroy();
     m_SwapChain = VKit::SwapChain{};

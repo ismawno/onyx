@@ -13,6 +13,7 @@
 #endif
 
 #define ONYX_NO_DISCARD VKIT_NO_DISCARD
+#define ONYX_CHECK_EXPRESSION(expression) Onyx::CheckExpression(expression)
 
 #define ONYX_PLATFORM_ANY 0x00060000
 #define ONYX_PLATFORM_WIN32 0x00060001
@@ -76,7 +77,7 @@ template <typename T, typename E> T CheckExpression(TKit::Result<T, E> &&result)
 inline void CheckExpression(const VkResult result)
 {
     const auto res = HandleVulkanResult(result);
-    VKIT_LOG_RESULT_ERROR(result);
+    VKIT_LOG_RESULT_ERROR(res);
     VKIT_CHECK_RESULT(result);
 }
 #else
@@ -136,7 +137,8 @@ struct Specs
     Platform::Specs *PlatformSpecs = nullptr;
 #ifdef TKIT_ENABLE_ASSERTS
     Flags Flags = Flag_EnableValidationLayers | Flag_EnableDebugUtilsExtension | Flag_EnableBestPracticesDebugFeature |
-                  Flag_EnableSyncValidationDebugFeature | Flag_EnableDeviceAssistedDebugFeature;
+                  Flag_EnableSyncValidationDebugFeature | Flag_EnableDeviceAssistedDebugFeature |
+                  Flag_EnableDeviceFaultExtension;
 #else
     Flags Flags = 0;
 #endif
