@@ -10,4 +10,3 @@ endif()
 
 add_subdirectory(sandbox)
 add_subdirectory(hello-world)
-# add_subdirectory(performance)
