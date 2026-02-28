@@ -90,7 +90,7 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
         .RequireExtension("VK_KHR_synchronization2")
         .RequireExtension("VK_KHR_copy_commands2")
         .RequireApiVersion(1, 2, 0)
-        .RequestApiVersion(1, 3, 0);
+        .RequestApiVersion(1, 4, 0);
     if (flags & Flag_EnableDeviceFaultExtension)
         selector.RequestExtension("VK_EXT_device_fault");
 
@@ -589,6 +589,7 @@ Result<> Initialize(const Specs &specs)
     TKIT_RETURN_IF_FAILED(createDevice(specs.QueueRequests, specs.Flags), Terminate());
     TKIT_RETURN_IF_FAILED(createVulkanAllocator(), Terminate());
 
+    PUSH_DELETER(Platform::DestroyWindows());
     PUSH_DELETER(Execution::Terminate());
     TKIT_RETURN_IF_FAILED(Execution::Initialize(specs.ExecutionSpecs ? *specs.ExecutionSpecs : Execution::Specs{}),
                           Terminate());

@@ -33,8 +33,7 @@ Result<> Initialize(const Specs &specs)
 
 void Terminate()
 {
-    for (Window *window : *s_Windows)
-        DestroyWindow(window);
+    DestroyWindows();
     glfwTerminate();
     s_Windows.Destruct();
 }
@@ -147,13 +146,38 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
         Input::InstallCallbacks(handle);
 
     cleanup.Dismiss();
+    s_Windows->Append(window);
     return window;
 }
+
+static void removeWindow(const Window *window)
+{
+    for (u32 i = 0; i < s_Windows->GetSize(); ++i)
+        if (s_Windows->At(i) == window)
+        {
+            s_Windows->RemoveUnordered(s_Windows->begin() + i);
+            return;
+        }
+    TKIT_FATAL("[ONYX][PLATFORM] Window '{}' not found", window->GetTitle());
+}
+
 void DestroyWindow(Window *window)
 {
+    removeWindow(window);
     deallocateViewBit(window->GetViewBit());
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(window);
+}
+
+void DestroyWindows()
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    for (Window *window : *s_Windows)
+    {
+        deallocateViewBit(window->GetViewBit());
+        tier->Destroy(window);
+    }
+    s_Windows->Clear();
 }
 
 } // namespace Onyx::Platform

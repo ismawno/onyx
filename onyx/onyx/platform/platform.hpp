@@ -42,5 +42,6 @@ void Terminate();
 
 ONYX_NO_DISCARD Result<Window *> CreateWindow(const WindowSpecs &specs = {});
 void DestroyWindow(Window *window);
+void DestroyWindows();
 
 } // namespace Onyx::Platform
