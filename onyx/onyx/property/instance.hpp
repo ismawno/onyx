@@ -44,6 +44,10 @@ template <Dimension D> struct CircleInstanceData
     f32 OuterFade;
 };
 
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(Geometry)
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(LightType)
+TKIT_REFLECT_DECLARE_ENUM(Geometry)
+TKIT_REFLECT_DECLARE_ENUM(LightType)
 enum Geometry : u8
 {
     Geometry_Circle,

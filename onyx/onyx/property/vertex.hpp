@@ -12,19 +12,16 @@
 
 namespace Onyx
 {
-
-// Vertices have no color because they limit my ability to re use a mesh. I plan to have a single color per rendered
-// object, so I dont need to store it in the vertex
 template <Dimension D> struct StatVertex;
 
 template <> struct StatVertex<D2>
 {
-    static constexpr Dimension Dim = D2;
     TKIT_REFLECT_DECLARE(StatVertex)
     TKIT_YAML_SERIALIZE_DECLARE(StatVertex)
 
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
+    static constexpr Dimension Dim = D2;
     static constexpr u32 Bindings = 1;
     static constexpr u32 Attributes = 1;
     TKIT_YAML_SERIALIZE_IGNORE_END()
@@ -43,12 +40,12 @@ template <> struct StatVertex<D2>
 
 template <> struct StatVertex<D3>
 {
-    static constexpr Dimension Dim = D2;
     TKIT_REFLECT_DECLARE(StatVertex)
     TKIT_YAML_SERIALIZE_DECLARE(StatVertex)
 
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
+    static constexpr Dimension Dim = D2;
     static constexpr u32 Bindings = 1;
     static constexpr u32 Attributes = 2;
     TKIT_YAML_SERIALIZE_IGNORE_END()

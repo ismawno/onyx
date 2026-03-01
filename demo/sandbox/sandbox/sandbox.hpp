@@ -44,6 +44,7 @@ struct MeshId
     Mesh Mesh;
 };
 
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(StaticMeshType)
 enum StaticMeshType : u8
 {
     StaticMesh_Triangle,
@@ -143,15 +144,24 @@ template <> struct Meshes<D3>
 
 template <Dimension D> struct LatticeData
 {
+    TKIT_YAML_SERIALIZE_DECLARE(LatticeData)
+    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     TKit::FixedArray<RenderContext<D> *, TKit::MaxThreads> Contexts{};
     Shape<D> Shape{};
+    TKIT_YAML_SERIALIZE_IGNORE_END()
     f32v<D> Position{0.f};
     u32v<D> Dimensions{4};
     f32 Separation = 1.5f;
-    u32 GeometryToRender = 0;
-    u32 StatMeshToRender = 0;
+    TKIT_YAML_SERIALIZE_GROUP_BEGIN("Geo", "--deserialize-as Geometry")
+    u32 Geometry = 0;
+    TKIT_YAML_SERIALIZE_GROUP_END()
+    TKIT_YAML_SERIALIZE_GROUP_BEGIN("StatMesh", "--deserialize-as StaticMeshType")
+    u32 StatMesh = 0;
+    TKIT_YAML_SERIALIZE_GROUP_END()
     u32 Threads = 1;
+    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     SandboxFlags Flags = SandboxFlag_ContextShouldUpdate;
+    TKIT_YAML_SERIALIZE_IGNORE_END()
 };
 
 template <Dimension D> struct Lattices
@@ -160,10 +170,11 @@ template <Dimension D> struct Lattices
     u32 Active = 0;
 };
 
+struct ParseData;
 class SandboxAppLayer final : public ApplicationLayer
 {
   public:
-    SandboxAppLayer(const WindowLayers *layers);
+    SandboxAppLayer(const WindowLayers *layers, const ParseData *data);
 
     void OnTransfer(const DeltaTime &deltaTime) override;
 
@@ -178,11 +189,11 @@ class SandboxAppLayer final : public ApplicationLayer
     }
     template <Dimension D> Shape<D> CreateShape(const LatticeData<D> &lattice)
     {
-        return CreateShape<D>(lattice.GeometryToRender, lattice.StatMeshToRender);
+        return CreateShape<D>(lattice.Geometry, lattice.StatMesh);
     }
 
     template <Dimension D> void AddContext(const Window *window = nullptr);
-    template <Dimension D> void AddLattice(const Window *window = nullptr);
+    template <Dimension D> void AddLattice(const Window *window = nullptr, const LatticeData<D> &lattice = {});
 
     template <Dimension D> auto &GetContexts()
     {

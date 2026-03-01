@@ -114,12 +114,22 @@ if(ONYX_ENABLE_OBJ)
 endif()
 
 tkit_register_for_yaml_serialization(
-  onyx SOURCES onyx/property/transform.hpp onyx/property/vertex.hpp
-  onyx/property/options.hpp onyx/property/camera.hpp)
+  onyx
+  SOURCES
+  onyx/property/transform.hpp
+  onyx/property/instance.hpp
+  onyx/property/vertex.hpp
+  onyx/property/options.hpp
+  onyx/property/camera.hpp)
 
 tkit_register_for_reflection(
-  onyx SOURCES onyx/property/transform.hpp onyx/property/vertex.hpp
-  onyx/property/options.hpp onyx/property/camera.hpp)
+  onyx
+  SOURCES
+  onyx/property/transform.hpp
+  onyx/property/instance.hpp
+  onyx/property/vertex.hpp
+  onyx/property/options.hpp
+  onyx/property/camera.hpp)
 
 if(ONYX_ENABLE_SHADER_COMPILATION)
   find_package(slang QUIET)

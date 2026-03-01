@@ -7,6 +7,7 @@
 #include "tkit/multiprocessing/topology.hpp"
 #include "tkit/multiprocessing/for_each.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
+#include "sandbox/argparse.hpp"
 
 namespace Onyx
 {
@@ -59,17 +60,32 @@ static void renderSelectable(const char *treeName, C &container, u32 &selected, 
     }
 }
 
-SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers) : ApplicationLayer(layers)
+SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *data) : ApplicationLayer(layers)
 {
     AddMeshes<D2>();
     AddMeshes<D3>();
 
-    WindowSpecs wspecs{};
-    wspecs.Title = "Onyx sandbox window (2D)";
-    RequestOpenWindow<SandboxWinLayer>(wspecs, D2);
+    if (data->Flags & ParseFlag_D2)
+    {
+        WindowSpecs wspecs{};
+        wspecs.Title = "Onyx sandbox window (2D)";
+        if (data->Flags & ParseFlag_AddLattice)
+            RequestOpenWindow<SandboxWinLayer>(
+                [this, data](const WindowLayer *, Window *window) { AddLattice(window, data->Lattice2); }, wspecs, D2);
+        else
+            RequestOpenWindow<SandboxWinLayer>(wspecs, D2);
+    }
 
-    wspecs.Title = "Onyx sandbox window (3D)";
-    RequestOpenWindow<SandboxWinLayer>(wspecs, D3);
+    if (data->Flags & ParseFlag_D3)
+    {
+        WindowSpecs wspecs{};
+        wspecs.Title = "Onyx sandbox window (3D)";
+        if (data->Flags & ParseFlag_AddLattice)
+            RequestOpenWindow<SandboxWinLayer>(
+                [this, data](const WindowLayer *, Window *window) { AddLattice(window, data->Lattice3); }, wspecs, D2);
+        else
+            RequestOpenWindow<SandboxWinLayer>(wspecs, D3);
+    }
 }
 void SandboxAppLayer::OnTransfer(const DeltaTime &)
 {
@@ -281,10 +297,10 @@ template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
         context->AddTarget(window);
 }
 
-template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window)
+template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window, const LatticeData<D> &lattice)
 {
     auto &lattices = GetLattices<D>();
-    LatticeData<D> &data = lattices.Lattices.Append();
+    LatticeData<D> &data = lattices.Lattices.Append(lattice);
     for (u32 i = 0; i < TKit::MaxThreads; ++i)
     {
         RenderContext<D> *ctx = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D>());
@@ -791,9 +807,9 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
             for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
                 ctx->RemoveTarget(viewBit);
     }
-    bool updateShape = combo("Geometry#Lattice", &lattice.GeometryToRender, "Circle\0Static mesh\0\0");
+    bool updateShape = combo("Geometry#Lattice", &lattice.Geometry, "Circle\0Static mesh\0\0");
 
-    const Geometry geo = static_cast<Geometry>(lattice.GeometryToRender);
+    const Geometry geo = static_cast<Geometry>(lattice.Geometry);
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     if (geo == Geometry_StaticMesh)
@@ -803,7 +819,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
         names.Reserve(meshes.StaticMeshes.GetSize());
         for (const MeshId &mid : meshes.StaticMeshes)
             names.Append(mid.Name.c_str());
-        updateShape |= combo("Shape", &lattice.StatMeshToRender, names);
+        updateShape |= combo("Shape", &lattice.StatMesh, names);
     }
 
     if (updateShape)

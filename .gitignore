@@ -3,7 +3,7 @@
 .vs/
 *build*/
 onyx/shaders/bin/
-demo/shaders/bin/
+demo/sandbox/lattice*
 .venv/
 .DS_Store
 .clangd
