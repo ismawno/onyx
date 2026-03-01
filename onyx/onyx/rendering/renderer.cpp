@@ -13,6 +13,9 @@
 #include "tkit/profiling/macros.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include <imgui.h>
+#    ifdef ONYX_ENABLE_IMPLOT
+#        include <implot.h>
+#    endif
 #endif
 
 namespace Onyx::Renderer
@@ -634,6 +637,7 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(const Geo
                                                                        const VkDeviceSize requiredMem,
                                                                        TKit::StackArray<Task> &tasks)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindTransferRange");
     auto &ranges = arena.MemoryRanges;
     TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
 
@@ -709,6 +713,7 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
                                                                        VKit::Queue *transfer,
                                                                        TKit::StackArray<Task> &tasks)
 {
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindGraphicsRange");
     auto &ranges = arena.MemoryRanges;
     TKIT_ASSERT(!ranges.IsEmpty(), "[ONYX][RENDERER] Memory ranges cannot be empty");
 
@@ -1003,6 +1008,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     }
 
     const auto transferLights = [&]() -> Result<> {
+        TKIT_PROFILE_NSCOPE("Onyx::Renderer::TransferLights");
         LightRange prange{};
         LightRange drange{};
         for (const RenderContext<D> *ctx : contexts)
@@ -1085,6 +1091,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     };
 
     const auto findRanges = [&](const u32 pass, const Geometry geo) -> Result<> {
+        TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindRanges");
         TransferArena &tarena = rdata.Arenas[geo].Transfer;
         GraphicsArena &garena = rdata.Arenas[geo].Graphics;
 
@@ -1766,8 +1773,21 @@ void DrawStaticMesh(const VkCommandBuffer command, const Mesh mesh, const u32 fi
 template <Dimension D> void DisplayMemoryLayout()
 {
     const RendererData<D> &rdata = getRendererData<D>();
+    ImGui::PushID(&rdata);
     if (ImGui::Button("Coalesce##Button"))
         coalesce<D>();
+
+    const auto fmts = [](const VkDeviceSize bytes) -> std::string {
+        if (bytes > 1_gib)
+            return TKit::Format("{:.2f} gib", static_cast<f32>(bytes) / static_cast<f32>(1_gib));
+        if (bytes > 1_mib)
+            return TKit::Format("{:.2f} mib", static_cast<f32>(bytes) / static_cast<f32>(1_mib));
+        if (bytes > 1_kib)
+            return TKit::Format("{:.2f} kib", static_cast<f32>(bytes) / static_cast<f32>(1_kib));
+        return TKit::Format("{:L} b", bytes);
+    };
+
+    const auto fmtb = [](const VkDeviceSize bytes) -> std::string { return TKit::Format("{:L} b", bytes); };
 
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
@@ -1778,10 +1798,11 @@ template <Dimension D> void DisplayMemoryLayout()
             const TransferArena &tarena = arena.Transfer;
             if (ImGui::TreeNode(&tarena, "Transfer arena ranges (%u)", tarena.MemoryRanges.GetSize()))
             {
-                ImGui::Text("Buffer size: %lu", tarena.Buffer.GetInfo().Size);
+                ImGui::Text("Buffer size: %s", fmts(tarena.Buffer.GetInfo().Size).c_str());
                 for (const TransferMemoryRange &trange : tarena.MemoryRanges)
-                    ImGui::Text("%s (%lu): %lu - %lu", trange.Tracker.InUse() ? "IN-USE" : "FREE", trange.Size,
-                                trange.Offset, trange.Offset + trange.Size);
+                    ImGui::Text("%s (%s): %s - %s", trange.Tracker.InUse() ? "IN-USE" : "FREE",
+                                fmts(trange.Size).c_str(), fmtb(trange.Offset).c_str(),
+                                fmtb(trange.Offset + trange.Size).c_str());
                 ImGui::TreePop();
                 ImGui::Spacing();
             }
@@ -1789,15 +1810,16 @@ template <Dimension D> void DisplayMemoryLayout()
             const GraphicsArena &garena = arena.Graphics;
             if (ImGui::TreeNode(&garena, "Graphics arena ranges (%u)", garena.MemoryRanges.GetSize()))
             {
-                ImGui::Text("Buffer size: %lu", garena.Buffer.GetInfo().Size);
+                ImGui::Text("Buffer size: %s", fmts(garena.Buffer.GetInfo().Size).c_str());
                 for (const GraphicsMemoryRange &grange : garena.MemoryRanges)
-                    if (ImGui::TreeNode(&grange, "%s (%lu): %lu - %lu",
+                    if (ImGui::TreeNode(&grange, "%s (%s): %s - %s",
                                         grange.InUse()
                                             ? "IN-USE"
                                             : (rdata.AreAllContextRangesDirty(grange)
                                                    ? "FREE"
                                                    : (rdata.AreAllContextRangesClean(grange) ? "CLEAN" : "FRAGMENTED")),
-                                        grange.Size, grange.Offset, grange.Offset + grange.Size))
+                                        fmts(grange.Size).c_str(), fmtb(grange.Offset).c_str(),
+                                        fmtb(grange.Offset + grange.Size).c_str()))
                     {
                         ImGui::Text("In use by transfer queue: %s", grange.TransferTracker.InUse() ? "YES" : "NO");
                         ImGui::Text("In use by graphics queue: %s", grange.GraphicsTracker.InUse() ? "YES" : "NO");
@@ -1809,9 +1831,10 @@ template <Dimension D> void DisplayMemoryLayout()
                                             grange.ContextRanges.GetSize()))
                         {
                             for (const ContextMemoryRange &crange : grange.ContextRanges)
-                                if (ImGui::TreeNode(&crange, "%s (%lu): %lu - %lu",
-                                                    rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY", crange.Size,
-                                                    crange.Offset, crange.Offset + crange.Size))
+                                if (ImGui::TreeNode(&crange, "%s (%s): %s - %s",
+                                                    rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY",
+                                                    fmts(crange.Size).c_str(), fmtb(crange.Offset).c_str(),
+                                                    fmtb(crange.Offset + crange.Size).c_str()))
                                 {
                                     if (crange.ContextIndex != TKIT_U32_MAX)
                                     {
@@ -1839,6 +1862,11 @@ template <Dimension D> void DisplayMemoryLayout()
             ImGui::Spacing();
         }
     }
+#    ifdef ONYX_ENABLE_IMPLOT
+    static bool plot = false;
+    ImGui::Checkbox("Plot", &plot);
+#    endif
+    ImGui::PopID();
 }
 
 template void DisplayMemoryLayout<D2>();
