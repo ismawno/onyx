@@ -29,7 +29,10 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
     if (m_AppLayer->isTransferDue())
     {
         m_AppLayer->markTransferTick();
-        Renderer::Coalesce();
+        const u32 cper = m_AppLayer->m_CoalescePeriod;
+        if (cper != 0 && m_TransferCount++ % cper == 0)
+            Renderer::Coalesce();
+
         VKit::Queue *tqueue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
         TKIT_RETURN_IF_FAILED(tqueue->UpdateCompletedTimeline());
 

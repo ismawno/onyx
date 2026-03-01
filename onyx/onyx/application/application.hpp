@@ -72,5 +72,6 @@ class Application
 
     ApplicationLayer *m_AppLayer = nullptr;
     TKit::TierArray<WindowLayer *> m_WindowLayers{};
+    u64 m_TransferCount = 0;
 };
 } // namespace Onyx

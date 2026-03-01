@@ -14,7 +14,7 @@ namespace Onyx::Execution
 {
 struct Specs
 {
-    u32 MaxCommandPools = 16;
+    u32 MaxCommandPools = 1024;
 };
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();

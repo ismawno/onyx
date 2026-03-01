@@ -310,6 +310,14 @@ class ApplicationLayer
     {
         return m_ApplicationDeltaTime;
     }
+    u32 GetCoalescePeriod() const
+    {
+        return m_CoalescePeriod;
+    }
+    void SetCoalescePeriod(const u32 freq)
+    {
+        m_CoalescePeriod = freq;
+    }
 
   protected:
     ONYX_NO_DISCARD Result<Renderer::TransferSubmitInfo> Transfer(const ExecutionInfo &info);
@@ -373,6 +381,7 @@ class ApplicationLayer
 
     std::function<ApplicationLayer *(const WindowLayers *)> m_Replacement = nullptr;
     u32 m_Size = 0;
+    u32 m_CoalescePeriod = 1;
 
     ApplicationLayerFlags m_Flags = 0;
 

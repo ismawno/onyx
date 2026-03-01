@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/core/core.hpp"
+#include "tkit/math/tensor.hpp"
 
 namespace Onyx
 {

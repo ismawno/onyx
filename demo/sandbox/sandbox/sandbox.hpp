@@ -236,6 +236,7 @@ class SandboxWinLayer final : public WindowLayer
     template <Dimension D> void RenderShapePicker(ContextData<D> &context);
     template <Dimension D> void RenderLightPicker(ContextData<D> &context);
     template <Dimension D> void RenderLattices();
+    template <Dimension D> void RenderRenderer();
     template <Dimension D> void RenderLattice(LatticeData<D> &lattice);
     template <Dimension D> void RenderMeshLoad();
 #endif

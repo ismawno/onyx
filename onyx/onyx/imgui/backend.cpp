@@ -11,6 +11,7 @@
 #include "vkit/state/graphics_pipeline.hpp"
 #include "vkit/state/shader.hpp"
 #include "tkit/profiling/macros.hpp"
+#include "tkit/utils/debug.hpp"
 #include <imgui_internal.h>
 
 #if !defined(ONYX_IMGUI_DISABLE_X11) && (defined(TKIT_OS_LINUX) || defined(__FreeBSD__) || defined(__OpenBSD__) ||     \
@@ -1315,7 +1316,7 @@ ONYX_NO_DISCARD static Result<VkDescriptorSet> renderer_AddTexture(const VKit::D
     info.sampler = s_RendererData->Sampler;
     info.imageView = image.GetImageView();
     info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    writer.WriteImage(0, info);
+    writer.WriteImage(0, &info);
 
     const VKit::DescriptorSet &set = result.GetValue();
     writer.Overwrite(set);
@@ -1326,8 +1327,8 @@ static void renderer_DestroyTexture(ImTextureData *tex)
 {
     Renderer_Texture *bckTex = renderer_GetTexture(tex);
     TKIT_ASSERT(bckTex, "[ONYX][IMGUI] Texture has no backend counterpart");
-    const VkDescriptorSet set = reinterpret_cast<VkDescriptorSet>(tex->TexID);
-    TKIT_ASSERT(bckTex->Set == set, "[ONYX][IMGUI] Backend texture descriptor set mismatch");
+    TKIT_ASSERT(bckTex->Set == reinterpret_cast<VkDescriptorSet>(tex->TexID),
+                "[ONYX][IMGUI] Backend texture descriptor set mismatch");
 
     // TKIT_RETURN_IF_FAILED(Descriptors::GetDescriptorPool().Deallocate(set));
 

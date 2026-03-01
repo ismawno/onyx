@@ -11,6 +11,9 @@
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/profiling/macros.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include <imgui.h>
+#endif
 
 namespace Onyx::Renderer
 {
@@ -107,12 +110,33 @@ template <Dimension D> struct RendererData
         return (crange.ViewMask & viewBit) && crange.ContextIndex != TKIT_U32_MAX &&
                !Contexts[crange.ContextIndex]->IsDirty(crange.Generation);
     }
-    bool AreContextRangesClean(const GraphicsMemoryRange &grange)
+    bool IsAnyContextRangeClean(const GraphicsMemoryRange &grange) const
     {
         for (const ContextMemoryRange &crange : grange.ContextRanges)
             if (IsContextRangeClean(crange))
                 return true;
         return false;
+    }
+    bool IsAnyContextRangeDirty(const GraphicsMemoryRange &grange) const
+    {
+        for (const ContextMemoryRange &crange : grange.ContextRanges)
+            if (!IsContextRangeClean(crange))
+                return true;
+        return false;
+    }
+    bool AreAllContextRangesClean(const GraphicsMemoryRange &grange) const
+    {
+        for (const ContextMemoryRange &crange : grange.ContextRanges)
+            if (!IsContextRangeClean(crange))
+                return false;
+        return true;
+    }
+    bool AreAllContextRangesDirty(const GraphicsMemoryRange &grange) const
+    {
+        for (const ContextMemoryRange &crange : grange.ContextRanges)
+            if (IsContextRangeClean(crange))
+                return false;
+        return true;
     }
 };
 
@@ -158,7 +182,8 @@ static void updateDescriptorSet(const VkDescriptorSet set, const u32 binding, co
                                 const VKit::DeviceBuffer &buffer)
 {
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
-    writer.WriteBuffer(binding, buffer.CreateDescriptorInfo());
+    const VkDescriptorBufferInfo info = buffer.CreateDescriptorInfo();
+    writer.WriteBuffer(binding, &info);
     writer.Overwrite(set);
 }
 
@@ -410,7 +435,10 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
     rdata.Generations.RemoveOrdered(rdata.Generations.begin() + index);
     for (Arena &arena : rdata.Arenas)
         for (GraphicsMemoryRange &grange : arena.Graphics.MemoryRanges)
+        {
+            ViewMask vmask = 0;
             for (ContextMemoryRange &crange : grange.ContextRanges)
+            {
                 if (crange.ContextIndex != TKIT_U32_MAX && crange.ContextIndex > index)
                     --crange.ContextIndex;
                 else if (crange.ContextIndex == index)
@@ -418,6 +446,10 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
                     crange.ViewMask = 0;
                     crange.ContextIndex = TKIT_U32_MAX;
                 }
+                vmask |= crange.ViewMask;
+            }
+            grange.ViewMask = vmask;
+        }
 
     if (!context->GetPointLights().IsEmpty())
         rdata.Flags |= RendererFlag_MustReloadPointLights;
@@ -537,9 +569,17 @@ template <Dimension D> void validateRanges(const bool requireTightFit = false)
             }
             const auto &cranges = grange.ContextRanges;
             VkDeviceSize csize = 0;
+            ViewMask vmask = 0;
             for (u32 j = 0; j < cranges.GetSize(); ++j)
             {
                 const ContextMemoryRange &crange = cranges[j];
+                TKIT_ASSERT(
+                    (crange.ViewMask & grange.ViewMask) || crange.ViewMask == grange.ViewMask || crange.ViewMask == 0,
+                    "[ONYX][RENDERER] A context memory range with index {} ({} total) has one or more view bits not "
+                    "present in graphics range view mask (context range has {:032b} while graphics range has {:032b})",
+                    i, cranges.GetSize(), crange.ViewMask, grange.ViewMask);
+
+                vmask |= crange.ViewMask;
                 TKIT_ASSERT(
                     j != 0 || crange.Offset == 0,
                     "[ONYX][RENDERER] First context range offset of a graphics range offset must be zero, but is {:L}",
@@ -570,6 +610,10 @@ template <Dimension D> void validateRanges(const bool requireTightFit = false)
                 }
                 csize += crange.Size;
             }
+            TKIT_ASSERT(vmask == grange.ViewMask,
+                        "[ONYX][RENDERER] Combined context range viewmasks ({:032b}) does not match the view mask of "
+                        "the graphics range ({:032b})",
+                        vmask, grange.ViewMask);
 
             TKIT_ASSERT(csize <= grange.Size,
                         "[ONYX][RENDERER] The sum of the context memory range sizes ({:L}) exceeds the size of its "
@@ -671,7 +715,7 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         GraphicsMemoryRange &range = ranges[i];
-        if (range.Size >= requiredMem && !range.InUse() && !rdata.AreContextRangesClean(range))
+        if (range.Size >= requiredMem && !range.InUse() && !rdata.IsAnyContextRangeClean(range))
         {
             if (range.Size == requiredMem)
                 return &range;
@@ -708,6 +752,12 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
     TKIT_RETURN_ON_ERROR(bresult);
 
     VKit::DeviceBuffer &nbuffer = bresult.GetValue();
+    for (u32 i = rdata.AcquireBarriers.GetSize() - 1; i < rdata.AcquireBarriers.GetSize(); --i)
+    {
+        const VkBufferMemoryBarrier2KHR &barrier = rdata.AcquireBarriers[i];
+        if (barrier.buffer == buffer.GetHandle())
+            rdata.AcquireBarriers.RemoveUnordered(rdata.AcquireBarriers.begin() + i);
+    }
 
     const VkBufferCopy copy{.srcOffset = 0, .dstOffset = 0, .size = size};
 
@@ -1083,6 +1133,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
 
                 const auto &idata = ctx->GetInstanceData()[pass][batch];
                 const auto copy = [&, crange, trange = *trange] {
+                    TKIT_PROFILE_NSCOPE("Onyx::Renderer::HostCopy");
                     tarena.Buffer.Write(
                         idata.Data.GetData(),
                         {.srcOffset = 0, .dstOffset = trange.Offset + crange.Offset, .size = crange.Size});
@@ -1133,11 +1184,6 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     for (const CopyCommands &cmd : copyCmds)
     {
         const TKit::Span<const VkBufferCopy2KHR> cpspan{copies.GetData() + cmd.Offset, cmd.Size};
-        for (const VkBufferCopy2KHR &copy : cpspan)
-        {
-            TKIT_ASSERT(copy.size <= (cmd.Graphics->GetInfo().Size - copy.dstOffset), "{} {} {}", copy.size,
-                        cmd.Graphics->GetInfo().Size, copy.dstOffset);
-        }
         cmd.Graphics->CopyFromBuffer2(command, *cmd.Transfer, cpspan);
     }
 
@@ -1715,6 +1761,89 @@ void DrawStaticMesh(const VkCommandBuffer command, const Mesh mesh, const u32 fi
     table->CmdDrawIndexed(command, layout.IndexCount, instanceCount, layout.IndexStart, layout.VertexStart,
                           firstInstance);
 }
+
+#ifdef ONYX_ENABLE_IMGUI
+template <Dimension D> void DisplayMemoryLayout()
+{
+    const RendererData<D> &rdata = getRendererData<D>();
+    if (ImGui::Button("Coalesce##Button"))
+        coalesce<D>();
+
+    for (u32 i = 0; i < Geometry_Count; ++i)
+    {
+        const Geometry geo = static_cast<Geometry>(i);
+        const Arena &arena = rdata.Arenas[geo];
+        if (ImGui::TreeNode(&arena, "%s", ToString(geo)))
+        {
+            const TransferArena &tarena = arena.Transfer;
+            if (ImGui::TreeNode(&tarena, "Transfer arena ranges (%u)", tarena.MemoryRanges.GetSize()))
+            {
+                ImGui::Text("Buffer size: %lu", tarena.Buffer.GetInfo().Size);
+                for (const TransferMemoryRange &trange : tarena.MemoryRanges)
+                    ImGui::Text("%s (%lu): %lu - %lu", trange.Tracker.InUse() ? "IN-USE" : "FREE", trange.Size,
+                                trange.Offset, trange.Offset + trange.Size);
+                ImGui::TreePop();
+                ImGui::Spacing();
+            }
+
+            const GraphicsArena &garena = arena.Graphics;
+            if (ImGui::TreeNode(&garena, "Graphics arena ranges (%u)", garena.MemoryRanges.GetSize()))
+            {
+                ImGui::Text("Buffer size: %lu", garena.Buffer.GetInfo().Size);
+                for (const GraphicsMemoryRange &grange : garena.MemoryRanges)
+                    if (ImGui::TreeNode(&grange, "%s (%lu): %lu - %lu",
+                                        grange.InUse()
+                                            ? "IN-USE"
+                                            : (rdata.AreAllContextRangesDirty(grange)
+                                                   ? "FREE"
+                                                   : (rdata.AreAllContextRangesClean(grange) ? "CLEAN" : "FRAGMENTED")),
+                                        grange.Size, grange.Offset, grange.Offset + grange.Size))
+                    {
+                        ImGui::Text("In use by transfer queue: %s", grange.TransferTracker.InUse() ? "YES" : "NO");
+                        ImGui::Text("In use by graphics queue: %s", grange.GraphicsTracker.InUse() ? "YES" : "NO");
+                        ImGui::Text("Batch index: %u", grange.BatchIndex);
+                        ImGui::Text("Pass: %s", ToString(grange.Pass));
+                        const std::string vmask = TKit::Format("{:032b}", grange.ViewMask);
+                        ImGui::Text("View mask: %s", vmask.c_str());
+                        if (ImGui::TreeNode(&grange.ContextRanges, "Context ranges (%u)",
+                                            grange.ContextRanges.GetSize()))
+                        {
+                            for (const ContextMemoryRange &crange : grange.ContextRanges)
+                                if (ImGui::TreeNode(&crange, "%s (%lu): %lu - %lu",
+                                                    rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY", crange.Size,
+                                                    crange.Offset, crange.Offset + crange.Size))
+                                {
+                                    if (crange.ContextIndex != TKIT_U32_MAX)
+                                    {
+                                        ImGui::Text("Context index: %u", crange.ContextIndex);
+                                        ImGui::Text("Context generation: %lu", crange.Generation);
+                                    }
+                                    else
+                                        ImGui::Text("Context index: None");
+
+                                    const std::string cvmask = TKit::Format("{:032b}", crange.ViewMask);
+                                    ImGui::Text("View mask: %s", cvmask.c_str());
+                                    ImGui::TreePop();
+                                    ImGui::Spacing();
+                                }
+                            ImGui::TreePop();
+                            ImGui::Spacing();
+                        }
+                        ImGui::TreePop();
+                        ImGui::Spacing();
+                    }
+                ImGui::TreePop();
+                ImGui::Spacing();
+            }
+            ImGui::TreePop();
+            ImGui::Spacing();
+        }
+    }
+}
+
+template void DisplayMemoryLayout<D2>();
+template void DisplayMemoryLayout<D3>();
+#endif
 
 template Result<RenderContext<D2> *> CreateContext();
 template Result<RenderContext<D3> *> CreateContext();

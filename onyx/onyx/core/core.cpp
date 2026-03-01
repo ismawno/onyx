@@ -304,7 +304,7 @@ ONYX_NO_DISCARD static Result<> createInstance(Flags flags)
                       "[ONYX][CORE] Validation layers (VK_LAYER_KHRONOS_validation) could not be enabled");
     TKIT_LOG_ERROR_IF((flags & Flag_EnableDebugUtilsExtension) && !s_Instance->IsExtensionEnabled("VK_EXT_debug_utils"),
                       "[ONYX][CORE] Debug utils extension (VK_EXT_debug_utils) could not be enabled");
-    TKIT_LOG_ERROR_IF(debugFeatFlags && !s_Instance->IsExtensionEnabled("VK_EXT_validation_features"),
+    TKIT_LOG_ERROR_IF((flags & debugFeatFlags) && !s_Instance->IsExtensionEnabled("VK_EXT_validation_features"),
                       "[ONYX][CORE] Validation features extension (VK_EXT_validation_features) could not be enabled");
     SUBMIT_DELETION(*s_Instance);
     return Result<>::Ok();

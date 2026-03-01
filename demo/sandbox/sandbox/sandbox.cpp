@@ -397,7 +397,17 @@ void SandboxWinLayer::RenderImGui()
     }
     if (ImGui::Begin("Welcome to Onyx, my Vulkan application framework!"))
     {
-        DeltaTimeEditor();
+        DeltaTimeEditor(EditorFlag_DisplayHelp);
+        if (ImGui::TreeNode("Update delta time"))
+        {
+            appLayer->UpdateDeltaTimeEditor(EditorFlag_DisplayHelp);
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNode("Transfer delta time"))
+        {
+            appLayer->TransferDeltaTimeEditor(EditorFlag_DisplayHelp);
+            ImGui::TreePop();
+        }
         const TKit::Timespan ts = appLayer->GetApplicationDeltaTime();
         ImGui::Text("Application delta time: %.2f ms", ts.AsMilliseconds());
 
@@ -453,6 +463,7 @@ void SandboxWinLayer::RenderImGui()
             RenderContexts<D2>();
             RenderCameras<D2>();
             RenderLattices<D2>();
+            RenderRenderer<D2>();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("3D"))
@@ -460,6 +471,7 @@ void SandboxWinLayer::RenderImGui()
             RenderContexts<D3>();
             RenderCameras<D3>();
             RenderLattices<D3>();
+            RenderRenderer<D3>();
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -619,9 +631,9 @@ template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &conte
     const Window *window = GetWindow();
     const ViewMask viewBit = window->GetViewBit();
 
-    ImGui::CheckboxFlags("Continuous update", &context.Flags, SandboxFlag_ContextShouldUpdate);
+    ImGui::CheckboxFlags("Continuous update##Context", &context.Flags, SandboxFlag_ContextShouldUpdate);
     bool targets = viewBit & context.Context->GetViewMask();
-    if (ImGui::Checkbox("Target this window", &targets))
+    if (ImGui::Checkbox("Target this window##Context", &targets))
     {
         if (targets)
             context.Context->AddTarget(viewBit);
@@ -665,7 +677,7 @@ template <Dimension D> void editShape(Shape<D> &shape)
 
 template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &context)
 {
-    combo("Geometry", &context.GeometryToSpawn, "Circle\0Static mesh\0\0");
+    combo("Geometry##Picker", &context.GeometryToSpawn, "Circle\0Static mesh\0\0");
     const Geometry geo = static_cast<Geometry>(context.GeometryToSpawn);
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
@@ -738,15 +750,39 @@ template <Dimension D> void SandboxWinLayer::RenderLattices()
     }
 }
 
+template <Dimension D> void SandboxWinLayer::RenderRenderer()
+{
+    if (ImGui::CollapsingHeader("Renderer"))
+    {
+        SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+        bool coalesce = appLayer->GetCoalescePeriod() != 0;
+        if (ImGui::Checkbox("Coalesce##Checkbox", &coalesce))
+        {
+            if (coalesce)
+                appLayer->SetCoalescePeriod(1);
+            else
+                appLayer->SetCoalescePeriod(0);
+        }
+        if (coalesce)
+        {
+            u32 freq = appLayer->GetCoalescePeriod();
+            u32 mn = 1;
+            u32 mx = 128;
+            ImGui::SliderScalar("Coalesce period", ImGuiDataType_U32, &freq, &mn, &mx);
+        }
+        Renderer::DisplayMemoryLayout<D>();
+    }
+}
+
 template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &lattice)
 {
     const Window *window = GetWindow();
     const ViewMask viewBit = window->GetViewBit();
 
-    ImGui::CheckboxFlags("Continuous update", &lattice.Flags, SandboxFlag_ContextShouldUpdate);
+    ImGui::CheckboxFlags("Continuous update##Lattice", &lattice.Flags, SandboxFlag_ContextShouldUpdate);
 
     bool targets = viewBit & lattice.Contexts[0]->GetViewMask();
-    if (ImGui::Checkbox("Target this window", &targets))
+    if (ImGui::Checkbox("Target this window##Lattice", &targets))
     {
         if (targets)
             for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
@@ -755,7 +791,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
             for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
                 ctx->RemoveTarget(viewBit);
     }
-    bool updateShape = combo("Geometry", &lattice.GeometryToRender, "Circle\0Static mesh\0\0");
+    bool updateShape = combo("Geometry#Lattice", &lattice.GeometryToRender, "Circle\0Static mesh\0\0");
 
     const Geometry geo = static_cast<Geometry>(lattice.GeometryToRender);
 
@@ -797,7 +833,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
 {
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     Meshes<D> &meshes = appLayer->GetMeshes<D>();
-    combo("Geometry", &meshes.GeometryToLoad, "Static mesh\0\0");
+    combo("Geometry#Load", &meshes.GeometryToLoad, "Static mesh\0\0");
     const Geometry geo = static_cast<Geometry>(meshes.GeometryToLoad + 1); // skip circles
     if (geo == Geometry_StaticMesh)
     {
