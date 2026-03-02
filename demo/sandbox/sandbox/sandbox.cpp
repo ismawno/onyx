@@ -234,8 +234,11 @@ template <Dimension D, typename F> void SandboxAppLayer::DrawLattice(const Latti
 
             const u32 tindex = TKit::Topology::GetThreadIndex();
             RenderContext<D> *context = lattice.Contexts[tindex];
+            context->Flush();
             const f32v3 offset = lattice.Position - 0.5f * lattice.Separation * f32v3{lattice.Dimensions - 1u};
 
+            setShapeProperties(context, lattice.Shape);
+            context->Transform(lattice.Shape.Transform.ComputeTransform());
             for (u32 i = start; i < end; ++i)
             {
                 const u32 ix = i / yz;
@@ -253,6 +256,10 @@ template <Dimension D, typename F> void SandboxAppLayer::DrawLattice(const Latti
         TKit::StackArray<Task> tasks{};
         tasks.Resize(lattice.Threads - 1);
         TKit::BlockingForEach(*tm, 0u, size, tasks.begin(), lattice.Threads, parallel);
+
+        for (u32 i = lattice.Threads; i < lattice.Contexts.GetSize(); ++i)
+            lattice.Contexts[i]->Flush();
+
         for (u32 i = 0; i < lattice.Threads - 1; ++i)
             tm->WaitUntilFinished(tasks[i]);
     }

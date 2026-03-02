@@ -10,12 +10,12 @@ using namespace Onyx;
 
 void WindowExample(const Mesh mesh, const u32 nwidows = 1)
 {
-    RenderContext<D2> *ctx = VKIT_CHECK_EXPRESSION(Renderer::CreateContext<D2>());
+    RenderContext<D2> *ctx = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D2>());
     TKit::StackArray<Window *> windows{};
     windows.Reserve(nwidows);
     for (u32 i = 0; i < nwidows; ++i)
     {
-        Window *win = windows.Append(VKIT_CHECK_EXPRESSION(Platform::CreateWindow()));
+        Window *win = windows.Append(ONYX_CHECK_EXPRESSION(Platform::CreateWindow()));
         ctx->AddTarget(win);
         win->CreateCamera<D2>()->BackgroundColor = Color{0.1f};
     }
@@ -29,51 +29,51 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
         ctx->TranslateX(0.5f);
         ctx->Circle();
 
-        VKIT_CHECK_EXPRESSION(Execution::UpdateCompletedQueueTimelines());
+        ONYX_CHECK_EXPRESSION(Execution::UpdateCompletedQueueTimelines());
         // Renderer::Coalesce();
 
         VKit::Queue *tqueue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
         VKit::Queue *gqueue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-        CommandPool *tpool = VKIT_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Transfer));
-        CommandPool *gpool = VKIT_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Graphics));
+        CommandPool *tpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Transfer));
+        CommandPool *gpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Graphics));
 
-        const VkCommandBuffer tcmd = VKIT_CHECK_EXPRESSION(Execution::Allocate(tpool));
+        const VkCommandBuffer tcmd = ONYX_CHECK_EXPRESSION(Execution::Allocate(tpool));
 
-        VKIT_CHECK_EXPRESSION(Execution::BeginCommandBuffer(tcmd));
-        const Renderer::TransferSubmitInfo tsinfo = VKIT_CHECK_EXPRESSION(Renderer::Transfer(tqueue, tcmd));
-        VKIT_CHECK_EXPRESSION(Execution::EndCommandBuffer(tcmd));
+        ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(tcmd));
+        const Renderer::TransferSubmitInfo tsinfo = ONYX_CHECK_EXPRESSION(Renderer::Transfer(tqueue, tcmd));
+        ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(tcmd));
 
         if (tsinfo)
-            VKIT_CHECK_EXPRESSION(Renderer::SubmitTransfer(tqueue, tpool, tsinfo));
+            ONYX_CHECK_EXPRESSION(Renderer::SubmitTransfer(tqueue, tpool, tsinfo));
 
         TKit::StackArray<Renderer::RenderSubmitInfo> rinfos{};
         rinfos.Reserve(windows.GetSize());
         u64 acquireMask = 0;
         for (Window *win : windows)
-            if (VKIT_CHECK_EXPRESSION(win->AcquireNextImage()))
+            if (ONYX_CHECK_EXPRESSION(win->AcquireNextImage()))
             {
                 acquireMask |= win->GetViewBit();
-                const VkCommandBuffer gcmd = VKIT_CHECK_EXPRESSION(Execution::Allocate(gpool));
-                VKIT_CHECK_EXPRESSION(Execution::BeginCommandBuffer(gcmd));
+                const VkCommandBuffer gcmd = ONYX_CHECK_EXPRESSION(Execution::Allocate(gpool));
+                ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(gcmd));
                 Renderer::ApplyAcquireBarriers(gcmd);
 
                 win->BeginRendering(gcmd);
                 const Renderer::RenderSubmitInfo rinfo =
-                    VKIT_CHECK_EXPRESSION(Renderer::Render(gqueue, gcmd, win->CreateViewInfo()));
+                    ONYX_CHECK_EXPRESSION(Renderer::Render(gqueue, gcmd, win->CreateViewInfo()));
                 win->MarkSubmission(gqueue->GetTimelineSempahore(), rinfo.InFlightValue);
                 rinfos.Append(rinfo);
                 win->EndRendering(gcmd);
 
-                VKIT_CHECK_EXPRESSION(Execution::EndCommandBuffer(gcmd));
+                ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(gcmd));
             }
 
         if (!rinfos.IsEmpty())
-            VKIT_CHECK_EXPRESSION(Renderer::SubmitRender(gqueue, gpool, rinfos));
+            ONYX_CHECK_EXPRESSION(Renderer::SubmitRender(gqueue, gpool, rinfos));
 
         for (Window *win : windows)
             if (win->GetViewBit() & acquireMask)
-                VKIT_CHECK_EXPRESSION(win->Present());
+                ONYX_CHECK_EXPRESSION(win->Present());
 
         for (u32 i = windows.GetSize() - 1; i < windows.GetSize(); --i)
             if (windows[i]->ShouldClose())
@@ -107,16 +107,16 @@ void ApplicationExample()
         }
     };
     Application app{};
-    VKIT_CHECK_EXPRESSION(app.OpenWindow<WinLayer>());
-    VKIT_CHECK_EXPRESSION(app.Run());
+    ONYX_CHECK_EXPRESSION(app.OpenWindow<WinLayer>());
+    ONYX_CHECK_EXPRESSION(app.Run());
 }
 
 int main()
 {
-    VKIT_CHECK_EXPRESSION(Initialize());
+    ONYX_CHECK_EXPRESSION(Initialize());
     const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
     const Mesh mesh = Assets::AddMesh(data);
-    VKIT_CHECK_EXPRESSION(Assets::Upload<D2>());
+    ONYX_CHECK_EXPRESSION(Assets::Upload<D2>());
 
     WindowExample(mesh, 1);
     // ApplicationExample();

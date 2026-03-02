@@ -233,9 +233,9 @@ public struct AmbientLight
 
 public struct DirectionalLight
 {
-    float PosX;
-    float PosY;
-    float PosZ;
+    float DirX;
+    float DirY;
+    float DirZ;
     float Intensity;
     uint Color;
     uint ViewMask;
@@ -270,12 +270,13 @@ float3 GetLightColor2D(const LightData2D data, const float2 worldPosition, const
 
 float3 GetLightColor3D(const LightData3D data, const float3 normal, const float3 worldPosition, const PointLights3D plights, const DirectionalLights dlights)
 {
-    const float DiffuseContribution = 0.8;
-    const float SpecularContribution = 0.2;
-    const float SpecularSharpness = 8.0;
 
     const float4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
     const float3 specularDirection = normalize(data.ViewPosition.xyz - worldPosition);
+
+    const float diffuseContribution = 0.8;
+    const float specularContribution = 0.2;
+    const float specularSharpness = 32.0;
 
     float3 diffuseColor = float3(0.0);
     float3 specularColor = float3(0.0);
@@ -285,7 +286,7 @@ float3 GetLightColor3D(const LightData3D data, const float3 normal, const float3
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
-        const float3 direction = float3(dlight.PosY, dlight.PosY, dlight.PosZ);
+        const float3 direction = float3(dlight.DirX, dlight.DirY, dlight.DirZ);
         const float product = dot(normal, direction);
 
         if (product > 0.0)
@@ -295,7 +296,7 @@ float3 GetLightColor3D(const LightData3D data, const float3 normal, const float3
             diffuseColor += intensity * lightColor * product;
 
             const float3 halfVector = normalize(direction + specularDirection);
-            const float specular = pow(max(dot(normal, halfVector), 0.0), SpecularSharpness);
+            const float specular = pow(max(dot(normal, halfVector), 0.0), specularSharpness);
             specularColor += intensity * specular * lightColor;
         }
     }
@@ -307,7 +308,7 @@ float3 GetLightColor3D(const LightData3D data, const float3 normal, const float3
             continue;
 
         const float3 direction = float3(plight.PosX, plight.PosY, plight.PosZ) - worldPosition;
-        const float product = dot(normal, direction);
+        const float product = dot(normal, normalize(direction));
 
         if (product > 0.0)
         {
@@ -316,15 +317,16 @@ float3 GetLightColor3D(const LightData3D data, const float3 normal, const float3
             const float dirLen = dot(direction, direction);
             const float attenuation = radius / (dirLen + radius);
             const float intensity = attenuation * plight.Intensity;
-            diffuseColor += intensity * lightColor * dot(normal, normalize(direction));
+            diffuseColor += intensity * lightColor * product;
 
             const float3 halfVector = normalize(direction + specularDirection);
-            const float specular = pow(max(dot(normal, halfVector), 0.0), SpecularSharpness);
+            const float specular = pow(max(dot(normal, halfVector), 0.0), specularSharpness);
             specularColor += intensity * specular * lightColor;
         }
     }
 
-    return ambientColor.xyz * ambientColor.w +
-        DiffuseContribution * diffuseColor + SpecularContribution * specularColor;
+    const float3 color = ambientColor.xyz * ambientColor.w +
+        diffuseContribution * diffuseColor + specularContribution * specularColor;
+    return min(float3(1.0), color);
 }
 
