@@ -705,7 +705,7 @@ template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &c
         names.Reserve(meshes.StaticMeshes.GetSize());
         for (const MeshId &mid : meshes.StaticMeshes)
             names.Append(mid.Name.c_str());
-        combo("Shape", &context.StatMeshToSpawn, names);
+        combo("Shape##Picker", &context.StatMeshToSpawn, names);
     }
 
     if (ImGui::Button("Spawn##Shape"))
@@ -807,7 +807,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
             for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
                 ctx->RemoveTarget(viewBit);
     }
-    bool updateShape = combo("Geometry#Lattice", &lattice.Geometry, "Circle\0Static mesh\0\0");
+    bool updateShape = combo("Geometry##Lattice", &lattice.Geometry, "Circle\0Static mesh\0\0");
 
     const Geometry geo = static_cast<Geometry>(lattice.Geometry);
 
@@ -819,7 +819,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
         names.Reserve(meshes.StaticMeshes.GetSize());
         for (const MeshId &mid : meshes.StaticMeshes)
             names.Append(mid.Name.c_str());
-        updateShape |= combo("Shape", &lattice.StatMesh, names);
+        updateShape |= combo("Shape##Lattice", &lattice.StatMesh, names);
     }
 
     if (updateShape)

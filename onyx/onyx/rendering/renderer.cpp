@@ -1858,14 +1858,115 @@ template <Dimension D> void DisplayMemoryLayout()
                 ImGui::TreePop();
                 ImGui::Spacing();
             }
+#    ifdef ONYX_ENABLE_IMPLOT
+            const VkDeviceSize maxSize = Math::Max(tarena.Buffer.GetInfo().Size, garena.Buffer.GetInfo().Size);
+            ImPlot::SetNextAxesLimits(0.0, static_cast<f64>(maxSize), -1, 3, ImGuiCond_Always);
+
+            if (ImPlot::BeginPlot("Memory ranges", ImVec2(-1, -1)))
+            {
+                constexpr TKit::FixedArray<const char *, 5> status = {"FREE", "IN-USE", "CLEAN", "DIRTY", "FRAGMENTED"};
+                const TKit::FixedArray<u32, 5> colors = {
+                    Color::FromHexadecimal(0x6B7280B3).Pack(), Color::FromHexadecimal(0x22C55EB3).Pack(),
+                    Color::FromHexadecimal(0x3B82F6B3).Pack(), Color::FromHexadecimal(0xF59E0BB3).Pack(),
+                    Color::FromHexadecimal(0xF97316B3).Pack()};
+
+                ImPlot::SetupAxes("Offset", nullptr, 0, ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_Lock);
+                ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, 3.0, ImGuiCond_Always);
+                ImDrawList *dl = ImPlot::GetPlotDrawList();
+
+                const f32 height = 1.f;
+                const f32 separation = 0.1f;
+                const auto drawPlot = [&](const u32 bindex, const VkDeviceSize offset, const VkDeviceSize size,
+                                          const u32 idx) {
+                    const ImVec2 mnpix = ImPlot::PlotToPixels(offset, bindex * height + separation);
+                    const ImVec2 mxpix = ImPlot::PlotToPixels(offset + size, (bindex + 1) * height - separation);
+
+                    dl->AddRectFilled(mnpix, mxpix, colors[idx]);
+                    dl->AddRect(mnpix, mxpix, IM_COL32(50, 50, 50, 180));
+
+                    const char *lbl = status[idx];
+                    if (ImPlot::IsPlotHovered())
+                    {
+                        const ImPlotPoint mouse = ImPlot::GetPlotMousePos();
+                        if (mouse.x >= offset && mouse.x <= offset + size && mouse.y >= bindex &&
+                            mouse.y <= bindex + 1.0)
+                        {
+                            ImGui::BeginTooltip();
+                            ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).c_str(), fmts(size).c_str());
+                            ImGui::EndTooltip();
+                        }
+                    }
+                };
+
+                const auto drawLabel = [&dl](const char *name, const u32 bindex) {
+                    const ImVec2 labelPos = ImPlot::PlotToPixels(0, (bindex + 0.5));
+                    dl->AddText(ImVec2(labelPos.x + 4, labelPos.y - ImGui::GetTextLineHeight() * 0.5f),
+                                IM_COL32(255, 255, 255, 255), name);
+                };
+
+                for (const TransferMemoryRange &trange : tarena.MemoryRanges)
+                    drawPlot(2, trange.Offset, trange.Size, trange.Tracker.InUse() ? 1 : 0);
+
+                for (const GraphicsMemoryRange &grange : garena.MemoryRanges)
+                {
+                    const u32 idx = grange.InUse() ? 1
+                                                   : (rdata.AreAllContextRangesDirty(grange)
+                                                          ? 0
+                                                          : (rdata.AreAllContextRangesClean(grange) ? 2 : 4));
+                    drawPlot(1, grange.Offset, grange.Size, idx);
+                    for (const ContextMemoryRange &crange : grange.ContextRanges)
+                        drawPlot(0, grange.Offset + crange.Offset, crange.Size,
+                                 rdata.IsContextRangeClean(crange) ? 2 : 3);
+                }
+                drawLabel("Transfer", 2);
+                drawLabel("Graphics", 1);
+                drawLabel("Context", 0);
+
+                if (ImPlot::IsPlotHovered())
+                {
+                    const ImVec2 plotPos = ImPlot::GetPlotPos();
+                    const ImVec2 plotSize = ImPlot::GetPlotSize();
+
+                    constexpr f32 legendPadding = 8.f;
+                    constexpr f32 swatchSize = 12.f;
+                    constexpr f32 swatchSpacing = 4.f;
+
+                    f32 totalWidth = legendPadding;
+                    for (u32 i = 0; i < status.GetSize(); ++i)
+                        totalWidth += swatchSize + swatchSpacing + ImGui::CalcTextSize(status[i]).x + legendPadding;
+
+                    const f32 legendHeight = swatchSize + legendPadding * 2.f;
+
+                    const ImVec2 legendMin = ImVec2(plotPos.x + (plotSize.x - totalWidth) * 0.5f,
+                                                    plotPos.y + plotSize.y - legendHeight - legendPadding);
+                    const ImVec2 legendMax = ImVec2(legendMin.x + totalWidth, legendMin.y + legendHeight);
+
+                    dl->AddRectFilled(legendMin, legendMax, IM_COL32(30, 30, 30, 200));
+                    dl->AddRect(legendMin, legendMax, IM_COL32(255, 255, 255, 80));
+
+                    f32 cursorX = legendMin.x + legendPadding;
+                    const f32 itemY = legendMin.y + legendPadding;
+
+                    for (u32 i = 0; i < status.GetSize(); ++i)
+                    {
+                        const ImVec2 swatchMin = ImVec2(cursorX, itemY);
+                        const ImVec2 swatchMax = ImVec2(cursorX + swatchSize, itemY + swatchSize);
+                        dl->AddRectFilled(swatchMin, swatchMax, colors[i]);
+                        dl->AddRect(swatchMin, swatchMax, IM_COL32(0, 0, 0, 255));
+                        cursorX += swatchSize + swatchSpacing;
+
+                        dl->AddText(ImVec2(cursorX, itemY + swatchSize * 0.5f - ImGui::GetTextLineHeight() * 0.5f),
+                                    IM_COL32(255, 255, 255, 255), status[i]);
+                        cursorX += ImGui::CalcTextSize(status[i]).x + legendPadding;
+                    }
+                }
+                ImPlot::EndPlot();
+            }
+#    endif
             ImGui::TreePop();
             ImGui::Spacing();
         }
     }
-#    ifdef ONYX_ENABLE_IMPLOT
-    static bool plot = false;
-    ImGui::Checkbox("Plot", &plot);
-#    endif
     ImGui::PopID();
 }
 
