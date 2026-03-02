@@ -13,7 +13,7 @@ template <> struct InstanceData<D2>
     f32v2 Basis3;
     u32 BaseColor;
     union {
-        u32 TexIndex;
+        u32 MatIndex;
         f32 OutlineWidth;
     };
 };

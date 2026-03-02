@@ -66,6 +66,7 @@ template <Dimension D> struct Shape
     ShapeType Type;
     std::string Name;
     Mesh StatMesh = NullMesh;
+    Material Material = NullMaterial;
     Transform<D> Transform{};
     CircleOptions CircleOptions{};
     SandboxFlags Flags = SandboxFlag_Fill;
@@ -82,6 +83,7 @@ template <Dimension D> struct ContextData
     u32 GeometryToSpawn = Geometry_Circle;
     u32 StatMeshToSpawn = 0;
     f32 AxesThickness = 0.01f;
+    Material AxesMaterial = NullMaterial;
 
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 SelectedShape = 0;
@@ -101,6 +103,7 @@ template <> struct ContextData<D3>
     u32 StatMeshToSpawn = 0;
     u32 SelectedShape = 0;
     f32 AxesThickness = 0.01f;
+    Material AxesMaterial = NullMaterial;
 
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 LightToSpawn = 0;
@@ -164,6 +167,19 @@ template <Dimension D> struct LatticeData
     TKIT_YAML_SERIALIZE_IGNORE_END()
 };
 
+template <Dimension D> struct MatData
+{
+    std::string Name{};
+    Material Material = NullMaterial;
+    MaterialData<D> Data{};
+};
+
+template <Dimension D> struct Materials
+{
+    TKit::TierArray<MatData<D>> Materials{};
+    u32 Active = 0;
+};
+
 template <Dimension D> struct Lattices
 {
     TKit::TierArray<LatticeData<D>> Lattices{};
@@ -194,6 +210,7 @@ class SandboxAppLayer final : public ApplicationLayer
 
     template <Dimension D> void AddContext(const Window *window = nullptr);
     template <Dimension D> void AddLattice(const Window *window = nullptr, const LatticeData<D> &lattice = {});
+    template <Dimension D> void AddMaterial();
 
     template <Dimension D> auto &GetContexts()
     {
@@ -216,6 +233,13 @@ class SandboxAppLayer final : public ApplicationLayer
         else
             return Lattices3;
     }
+    template <Dimension D> auto &GetMaterials()
+    {
+        if constexpr (D == D2)
+            return Materials2;
+        else
+            return Materials3;
+    }
 
     template <Dimension D> void AddStaticMesh(const char *name, const StatMeshData<D> &data);
     template <Dimension D> void AddMeshes();
@@ -228,6 +252,9 @@ class SandboxAppLayer final : public ApplicationLayer
 
     Lattices<D2> Lattices2{};
     Lattices<D3> Lattices3{};
+
+    Materials<D2> Materials2;
+    Materials<D3> Materials3;
 };
 
 class SandboxWinLayer final : public WindowLayer
@@ -247,8 +274,10 @@ class SandboxWinLayer final : public WindowLayer
     template <Dimension D> void RenderShapePicker(ContextData<D> &context);
     template <Dimension D> void RenderLightPicker(ContextData<D> &context);
     template <Dimension D> void RenderLattices();
-    template <Dimension D> void RenderRenderer();
     template <Dimension D> void RenderLattice(LatticeData<D> &lattice);
+    template <Dimension D> void RenderMaterials();
+    template <Dimension D> void RenderMaterial(MatData<D> &material);
+    template <Dimension D> void RenderRenderer();
     template <Dimension D> void RenderMeshLoad();
 #endif
 

@@ -4,6 +4,7 @@
 #include "onyx/property/instance.hpp"
 #include "onyx/property/options.hpp"
 #include "onyx/asset/mesh.hpp"
+#include "onyx/asset/material.hpp"
 #include "onyx/platform/window.hpp"
 #include "onyx/rendering/light.hpp"
 #include "vkit/resource/host_buffer.hpp"
@@ -35,6 +36,7 @@ template <Dimension D> struct RenderState
 
     f32 OutlineWidth = 0.1f;
     f32 AmbientIntensity = 0.4f;
+    Material Material = NullMaterial;
     RenderStateFlags Flags = RenderStateFlag_Fill;
 };
 
@@ -42,7 +44,6 @@ template <Dimension D> struct RenderState
 
 namespace Onyx::Detail
 {
-
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_MSVC_WARNING_IGNORE(4324)
 
@@ -55,24 +56,76 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Flush();
 
-    void Transform(const f32m<D> &transform);
-    void Transform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation);
-    void Transform(const f32v<D> &translation, f32 scale, const rot<D> &rotation);
+    void Transform(const f32m<D> &transform)
+    {
+        m_Current->Transform = transform * m_Current->Transform;
+    }
 
-    void Translate(const f32v<D> &translation);
-    void SetTranslation(const f32v<D> &translation);
+    void Transform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation)
+    {
+        this->Transform(Onyx::Transform<D>::ComputeTransform(translation, scale, rotation));
+    }
+    void Transform(const f32v<D> &translation, const f32 scale, const rot<D> &rotation)
+    {
+        this->Transform(Onyx::Transform<D>::ComputeTransform(translation, f32v<D>{scale}, rotation));
+    }
 
-    void Scale(const f32v<D> &scale);
-    void Scale(f32 scale);
+    void Translate(const f32v<D> &translation)
+    {
+        Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, translation);
+    }
 
-    void TranslateX(f32 x);
-    void TranslateY(f32 y);
+    void SetTranslation(const f32v<D> &translation)
+    {
+        m_Current->Transform[D][0] = translation[0];
+        m_Current->Transform[D][1] = translation[1];
+        if constexpr (D == D3)
+            m_Current->Transform[D][2] = translation[2];
+    }
 
-    void SetTranslationX(f32 x);
-    void SetTranslationY(f32 y);
+    void Scale(const f32v<D> &scale)
+    {
+        Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, scale);
+    }
+    void Scale(const f32 scale)
+    {
+        Scale(f32v<D>{scale});
+    }
 
-    void ScaleX(f32 x);
-    void ScaleY(f32 y);
+    void TranslateX(const f32 x)
+    {
+        Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 0, x);
+    }
+
+    void TranslateY(const f32 y)
+    {
+        Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 1, y);
+    }
+
+    void SetTranslationX(const f32 x)
+    {
+        m_Current->Transform[D][0] = x;
+    }
+
+    void SetTranslationY(const f32 y)
+    {
+        m_Current->Transform[D][1] = y;
+    }
+
+    void ScaleX(const f32 x)
+    {
+        Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 0, x);
+    }
+
+    void ScaleY(const f32 y)
+    {
+        Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 1, y);
+    }
+
+    void Material(const Material material)
+    {
+        m_Current->Material = material;
+    }
 
     void StaticMesh(Mesh mesh);
     void StaticMesh(Mesh mesh, const f32m<D> &transform);
@@ -273,7 +326,10 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D2> final : public
 {
   public:
     using IRenderContext<D2>::IRenderContext;
-    void Rotate(f32 angle);
+    void Rotate(f32 angle)
+    {
+        Onyx::Transform<D2>::RotateExtrinsic(m_Current->Transform, angle);
+    }
 };
 
 template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public Detail::IRenderContext<D3>
@@ -282,20 +338,58 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
     using IRenderContext<D3>::IRenderContext;
     using IRenderContext<D3>::Transform;
 
-    void Transform(const f32v3 &translation, const f32v3 &scale, const f32v3 &rotation);
-    void Transform(const f32v3 &translation, f32 scale, const f32v3 &rotation);
-    void TranslateZ(f32 z);
+    void Transform(const f32v3 &translation, const f32v3 &scale, const f32v3 &rotation)
+    {
+        this->Transform(Onyx::Transform<D3>::ComputeTransform(translation, scale, f32q{rotation}));
+    }
 
-    void SetTranslationZ(f32 z);
-    void ScaleZ(f32 z);
+    void Transform(const f32v3 &translation, f32 scale, const f32v3 &rotation)
+    {
+        this->Transform(Onyx::Transform<D3>::ComputeTransform(translation, f32v3{scale}, f32q{rotation}));
+    }
 
-    void Rotate(const f32q &quaternion);
-    void Rotate(const f32v3 &angles);
-    void Rotate(f32 angle, const f32v3 &axis);
+    void TranslateZ(f32 z)
+    {
+        Onyx::Transform<D3>::TranslateExtrinsic(m_Current->Transform, 2, z);
+    }
 
-    void RotateX(f32 x);
-    void RotateY(f32 y);
-    void RotateZ(f32 z);
+    void SetTranslationZ(f32 z)
+    {
+        m_Current->Transform[D3][2] = z;
+    }
+
+    void ScaleZ(f32 z)
+    {
+        Onyx::Transform<D3>::ScaleExtrinsic(m_Current->Transform, 2, z);
+    }
+
+    void Rotate(const f32q &quaternion)
+    {
+        Onyx::Transform<D3>::RotateExtrinsic(m_Current->Transform, quaternion);
+    }
+
+    void Rotate(const f32v3 &angles)
+    {
+        Rotate(f32q(angles));
+    }
+
+    void Rotate(f32 angle, const f32v3 &axis)
+    {
+        Rotate(f32q::FromAngleAxis(angle, axis));
+    }
+
+    void RotateX(const f32 angle)
+    {
+        Rotate(f32v3{angle, 0.f, 0.f});
+    }
+    void RotateY(const f32 angle)
+    {
+        Rotate(f32v3{0.f, angle, 0.f});
+    }
+    void RotateZ(const f32 angle)
+    {
+        Rotate(f32v3{0.f, 0.f, angle});
+    }
 
     template <typename... LightArgs> DirectionalLight *AddDirectionalLight(LightArgs &&...args)
     {

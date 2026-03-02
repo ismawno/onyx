@@ -1,6 +1,5 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/property/instance.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/state/pipelines.hpp"
 #include "onyx/state/descriptors.hpp"
@@ -205,7 +204,7 @@ template <Dimension D> static void updateLightDescriptorSets(const LightType lig
 {
     RendererData<D> &rdata = getRendererData<D>();
     for (u32 i = 0; i < Geometry_Count; ++i)
-        updateDescriptorSet(rdata.Descriptors[Shading_Lit][i], light + 1,
+        updateDescriptorSet(rdata.Descriptors[Shading_Lit][i], light + 2,
                             Descriptors::GetDescriptorSetLayout<D>(Shading_Lit), rdata.LightData[light].Graphics);
 }
 
@@ -492,6 +491,11 @@ template <Dimension D> void UpdateViewMask(const RenderContext<D> *context)
     if constexpr (D == D3)
         for (DirectionalLight *dl : context->GetDirectionalLights())
             dl->SetViewMask(vmask);
+}
+
+template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(const Shading shading)
+{
+    return getRendererData<D>().Descriptors[shading];
 }
 
 template <Dimension D> static void clearViews(const ViewMask viewMask)
@@ -1973,6 +1977,9 @@ template <Dimension D> void DisplayMemoryLayout()
 template void DisplayMemoryLayout<D2>();
 template void DisplayMemoryLayout<D3>();
 #endif
+
+template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D2>(Shading shading);
+template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D3>(Shading shading);
 
 template Result<RenderContext<D2> *> CreateContext();
 template Result<RenderContext<D3> *> CreateContext();

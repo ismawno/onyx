@@ -41,120 +41,6 @@ template <Dimension D> void IRenderContext<D>::Flush()
     ++m_Generation;
 }
 
-template <Dimension D> void IRenderContext<D>::Transform(const f32m<D> &transform)
-{
-    m_Current->Transform = transform * m_Current->Transform;
-}
-template <Dimension D>
-void IRenderContext<D>::Transform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation)
-{
-    this->Transform(Onyx::Transform<D>::ComputeTransform(translation, scale, rotation));
-}
-template <Dimension D>
-void IRenderContext<D>::Transform(const f32v<D> &translation, const f32 scale, const rot<D> &rotation)
-{
-    this->Transform(Onyx::Transform<D>::ComputeTransform(translation, f32v<D>{scale}, rotation));
-}
-void RenderContext<D3>::Transform(const f32v3 &translation, const f32v3 &scale, const f32v3 &rotation)
-{
-    this->Transform(Onyx::Transform<D3>::ComputeTransform(translation, scale, f32q{rotation}));
-}
-void RenderContext<D3>::Transform(const f32v3 &translation, const f32 scale, const f32v3 &rotation)
-{
-    this->Transform(Onyx::Transform<D3>::ComputeTransform(translation, f32v3{scale}, f32q{rotation}));
-}
-
-template <Dimension D> void IRenderContext<D>::Translate(const f32v<D> &translation)
-{
-    Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, translation);
-}
-template <Dimension D> void IRenderContext<D>::SetTranslation(const f32v<D> &translation)
-{
-    m_Current->Transform[D][0] = translation[0];
-    m_Current->Transform[D][1] = translation[1];
-    if constexpr (D == D3)
-        m_Current->Transform[D][2] = translation[2];
-}
-
-template <Dimension D> void IRenderContext<D>::Scale(const f32v<D> &scale)
-{
-    Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, scale);
-}
-template <Dimension D> void IRenderContext<D>::Scale(const f32 scale)
-{
-    Scale(f32v<D>{scale});
-}
-
-template <Dimension D> void IRenderContext<D>::TranslateX(const f32 x)
-{
-    Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 0, x);
-}
-template <Dimension D> void IRenderContext<D>::TranslateY(const f32 y)
-{
-    Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 1, y);
-}
-void RenderContext<D3>::TranslateZ(const f32 z)
-{
-    Onyx::Transform<D3>::TranslateExtrinsic(m_Current->Transform, 2, z);
-}
-
-template <Dimension D> void IRenderContext<D>::SetTranslationX(const f32 x)
-{
-    m_Current->Transform[D][0] = x;
-}
-template <Dimension D> void IRenderContext<D>::SetTranslationY(const f32 y)
-{
-    m_Current->Transform[D][1] = y;
-}
-void RenderContext<D3>::SetTranslationZ(const f32 z)
-{
-    m_Current->Transform[D3][2] = z;
-}
-template <Dimension D> void IRenderContext<D>::ScaleX(const f32 x)
-{
-    Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 0, x);
-}
-template <Dimension D> void IRenderContext<D>::ScaleY(const f32 y)
-{
-    Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 1, y);
-}
-void RenderContext<D3>::ScaleZ(const f32 z)
-{
-    Onyx::Transform<D3>::ScaleExtrinsic(m_Current->Transform, 2, z);
-}
-
-void RenderContext<D2>::Rotate(const f32 angle)
-{
-    Onyx::Transform<D2>::RotateExtrinsic(m_Current->Transform, angle);
-}
-
-void RenderContext<D3>::Rotate(const f32q &quaternion)
-{
-    Onyx::Transform<D3>::RotateExtrinsic(m_Current->Transform, quaternion);
-}
-void RenderContext<D3>::Rotate(const f32 angle, const f32v3 &axis)
-{
-    Rotate(f32q::FromAngleAxis(angle, axis));
-}
-void RenderContext<D3>::Rotate(const f32v3 &angles)
-{
-    Rotate(f32q(angles));
-}
-
-// This could be optimized a bit
-void RenderContext<D3>::RotateX(const f32 angle)
-{
-    Rotate(f32v3{angle, 0.f, 0.f});
-}
-void RenderContext<D3>::RotateY(const f32 angle)
-{
-    Rotate(f32v3{0.f, angle, 0.f});
-}
-void RenderContext<D3>::RotateZ(const f32 angle)
-{
-    Rotate(f32v3{0.f, 0.f, angle});
-}
-
 template <Dimension D, typename F> static void resolveStencilPassWithState(const RenderState<D> *state, F &&draw)
 {
     if (state->Flags & RenderStateFlag_Fill)
@@ -212,7 +98,7 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
         instanceData.Basis1 = f32v2{transform[0]};
         instanceData.Basis2 = f32v2{transform[1]};
         instanceData.Basis3 = f32v2{transform[2]};
-        instanceData.TexIndex = TKIT_U32_MAX;
+        instanceData.MatIndex = state->Material;
         if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
             instanceData.BaseColor = state->FillColor.Pack();
         else
@@ -231,7 +117,7 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
         if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
         {
             instanceData.BaseColor = state->FillColor.Pack();
-            instanceData.MatIndex = TKIT_U32_MAX;
+            instanceData.MatIndex = state->Material;
         }
         else
         {

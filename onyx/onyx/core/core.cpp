@@ -28,7 +28,6 @@ using namespace Onyx::Detail;
 namespace Onyx::Core
 {
 static u8 s_PushedAlloc = 0;
-static Flags s_Flags = 0;
 static TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> s_Allocation{};
 
 static TKit::ITaskManager *s_TaskManager;
@@ -402,7 +401,7 @@ const VKit::Vulkan::DeviceTable *GetDeviceTable()
 };
 bool CanNameObjects()
 {
-    return s_Flags & Flag_EnableDebugUtilsExtension;
+    return s_Instance->IsExtensionEnabled("VK_EXT_debug_utils");
 }
 Result<> DeviceWaitIdle()
 {
@@ -551,7 +550,6 @@ Result<> Initialize(const Specs &specs)
     TKIT_LOG_INFO("[ONYX][CORE] Vulkan headers version: {}.{}.{}", VKIT_EXPAND_VERSION(VK_HEADER_VERSION_COMPLETE));
     if (specs.Locale)
         std::locale::global(std::locale(specs.Locale));
-    s_Flags = specs.Flags;
     s_DumpPath = specs.DeviceFaultCrashDump;
     s_Instance.Construct();
     s_Physical.Construct();
@@ -599,9 +597,6 @@ Result<> Initialize(const Specs &specs)
     TKIT_RETURN_IF_FAILED(Execution::Initialize(specs.ExecutionSpecs ? *specs.ExecutionSpecs : Execution::Specs{}),
                           Terminate());
 
-    PUSH_DELETER(Assets::Terminate());
-    TKIT_RETURN_IF_FAILED(Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{}), Terminate());
-
     PUSH_DELETER(Descriptors::Terminate());
     TKIT_RETURN_IF_FAILED(
         Descriptors::Initialize(specs.DescriptorSpecs ? *specs.DescriptorSpecs : Descriptors::Specs{}), Terminate());
@@ -615,6 +610,9 @@ Result<> Initialize(const Specs &specs)
 
     PUSH_DELETER(Renderer::Terminate());
     TKIT_RETURN_IF_FAILED(Renderer::Initialize(), Terminate());
+
+    PUSH_DELETER(Assets::Terminate());
+    TKIT_RETURN_IF_FAILED(Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{}), Terminate());
 
 #ifdef ONYX_ENABLE_IMGUI
     PUSH_DELETER(ImGuiBackend::Terminate());

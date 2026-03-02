@@ -7,10 +7,12 @@ struct VertexOutput
     [[vk::location(1)]]
     float2 WorldPosition;
     [[vk::location(2)]]
+    nointerpolation uint MatIndex;
+    [[vk::location(3)]]
     nointerpolation ArcData Arc;
-    [[vk::location(8)]]
+    [[vk::location(9)]]
     nointerpolation FadeData Fade;
-    [[vk::location(10)]]
+    [[vk::location(11)]]
     nointerpolation float4 FragColor;
 
     float4 Position : SV_Position;
@@ -61,6 +63,7 @@ VertexOutput mainVS(
 
     output.LocalPosition = localPos;
     output.WorldPosition = worldPos.xy;
+    output.MatIndex = data.Data.MatIndex;
     output.Arc = data.Arc;
     output.Fade = data.Fade;
     output.FragColor = unpackUnorm4x8ToFloat(data.Data.Color);
@@ -69,6 +72,9 @@ VertexOutput mainVS(
 }
 
 [[vk::binding(1, 0)]]
+StructuredBuffer<Material2D, Std430DataLayout> materials;
+
+[[vk::binding(2, 0)]]
 StructuredBuffer<PointLight2D, Std430DataLayout> pointLights;
 
 [shader("fragment")]
@@ -80,5 +86,7 @@ float4 mainFS(const VertexOutput input)
 
     const float3 lcolor = GetLightColor2D(pdata.Light, input.WorldPosition, pointLights);
     const float alpha = CircleFade(input.FragColor.a, bounds, input.Fade);
+    if (input.MatIndex != uint(-1))
+        return input.FragColor * unpackUnorm4x8ToFloat(materials[input.MatIndex].ColorFactor) * float4(lcolor, alpha);
     return input.FragColor * float4(lcolor, alpha);
 }

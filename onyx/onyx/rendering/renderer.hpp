@@ -4,6 +4,7 @@
 #include "onyx/asset/mesh.hpp"
 #include "onyx/execution/execution.hpp"
 #include "onyx/property/camera.hpp"
+#include "onyx/property/instance.hpp"
 #include "vkit/execution/queue.hpp"
 
 namespace Onyx
@@ -37,6 +38,8 @@ VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo();
 template <Dimension D> ONYX_NO_DISCARD Result<RenderContext<D> *> CreateContext();
 template <Dimension D> void DestroyContext(RenderContext<D> *context);
 template <Dimension D> void UpdateViewMask(const RenderContext<D> *context);
+
+template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(Shading shading);
 
 void ClearViews(ViewMask viewMask);
 

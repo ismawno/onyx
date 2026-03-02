@@ -10,6 +10,8 @@ struct VertexOutput
     [[vk::location(0)]]
     float2 WorldPosition;
     [[vk::location(1)]]
+    nointerpolation uint MatIndex;
+    [[vk::location(2)]]
     nointerpolation float4 FragColor;
 
     float4 Position : SV_Position;
@@ -46,17 +48,23 @@ VertexOutput mainVS(
     output.PointSize = 1.0;
 
     output.WorldPosition = worldPos.xy;
+    output.MatIndex = data.MatIndex;
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
 
     return output;
 }
 
 [[vk::binding(1, 0)]]
+StructuredBuffer<Material2D, Std430DataLayout> materials;
+
+[[vk::binding(2, 0)]]
 StructuredBuffer<PointLight2D, Std430DataLayout> pointLights;
 
 [shader("fragment")]
 float4 mainFS(const VertexOutput input)
 {
     const float3 lcolor = GetLightColor2D(pdata.Light, input.WorldPosition, pointLights);
+    if (input.MatIndex != uint(-1))
+        return input.FragColor * unpackUnorm4x8ToFloat(materials[input.MatIndex].ColorFactor) * float4(lcolor, 1.f);
     return input.FragColor * float4(lcolor, 1.f);
 }

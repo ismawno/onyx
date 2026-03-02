@@ -18,7 +18,7 @@ public struct InstanceDataFill2D
 {
     Basis2D Basis;
     uint Color;
-    uint TexIndex;
+    uint MatIndex;
 };
 public struct InstanceDataStencil2D
 {
@@ -79,6 +79,31 @@ public struct CircleInstanceDataStencil3D
     ArcData Arc;
     FadeData Fade;
 };
+
+public struct Material2D
+{
+    uint ColorFactor;
+    // uint Texture;
+}
+
+public struct Material3D
+{
+    float EmissiveFactorX;
+    float EmissiveFactorY;
+    float EmissiveFactorZ;
+    uint AlbedoFactor;
+    float MetallicFactor;
+    float RoughnessFactor;
+    float OcclusionStrength;
+    // float NormalScale;
+    // uint AlbedoTex;
+    // uint MetallicRoughnessTex;
+    // uint NormalTex;
+    // uint OcclusionTex;
+    // uint EmissiveTex;
+    // uint Flags;
+}
+
 
 float4x4 ComputeTransform2D(const Basis2D basis)
 {
@@ -268,37 +293,67 @@ float3 GetLightColor2D(const LightData2D data, const float2 worldPosition, const
     return ambientColor.xyz * ambientColor.w + diffuseColor;
 }
 
-float3 GetLightColor3D(const LightData3D data, const float3 normal, const float3 worldPosition, const PointLights3D plights, const DirectionalLights dlights)
+// i admit lol ia generated
+float3 GetLightColor3D(const LightData3D data, const Material3D material, const float3 normal, const float3 worldPosition, const PointLights3D plights, const DirectionalLights dlights)
 {
-
     const float4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
-    const float3 specularDirection = normalize(data.ViewPosition.xyz - worldPosition);
+    const float3 V = normalize(data.ViewPosition.xyz - worldPosition);
 
-    const float diffuseContribution = 0.8;
-    const float specularContribution = 0.2;
-    const float specularSharpness = 32.0;
+    // Unpack albedo factor from packed uint (RGBA8)
+    const float4 albedo = unpackUnorm4x8ToFloat(material.AlbedoFactor);
+    const float3 baseColor = albedo.xyz;
 
-    float3 diffuseColor = float3(0.0);
-    float3 specularColor = float3(0.0);
+    // PBR material params
+    const float metallic  = material.MetallicFactor;
+    const float roughness = material.RoughnessFactor;
+    const float alpha     = roughness * roughness; // perceptual -> linear roughness
+    const float alpha2    = alpha * alpha;
+
+    // F0: base reflectance at normal incidence
+    const float3 F0 = lerp(float3(0.04), baseColor, metallic);
+
+    // Diffuse component (Lambert), metals have no diffuse
+    const float3 diffuseBase = baseColor * (1.0 - metallic);
+
+    float3 Lo = float3(0.0);
+
+    // --- Helper lambdas (inlined below) ---
+    // GGX NDF, Smith geometry, Schlick Fresnel
+
     for (uint i = 0; i < data.DirectionalLightCount; ++i)
     {
         const DirectionalLight dlight = dlights[i];
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
-        const float3 direction = float3(dlight.DirX, dlight.DirY, dlight.DirZ);
-        const float product = dot(normal, direction);
+        const float3 L = float3(dlight.DirX, dlight.DirY, dlight.DirZ);
+        const float NdotL = dot(normal, L);
+        if (NdotL <= 0.0) continue;
 
-        if (product > 0.0)
-        {
-            const float intensity = dlight.Intensity;
-            const float3 lightColor = unpackUnorm4x8ToFloat(dlight.Color).xyz;
-            diffuseColor += intensity * lightColor * product;
+        const float3 H = normalize(L + V);
+        const float NdotV = max(dot(normal, V), 1e-4);
+        const float NdotH = max(dot(normal, H), 0.0);
+        const float VdotH = max(dot(V, H), 0.0);
 
-            const float3 halfVector = normalize(direction + specularDirection);
-            const float specular = pow(max(dot(normal, halfVector), 0.0), specularSharpness);
-            specularColor += intensity * specular * lightColor;
-        }
+        // GGX NDF
+        const float denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
+        const float D = alpha2 / (3.14159265 * denom * denom);
+
+        // Smith GGX geometry
+        const float k = alpha * 0.5;
+        const float G = (NdotV / (NdotV * (1.0 - k) + k)) *
+                        (NdotL / (NdotL * (1.0 - k) + k));
+
+        // Schlick Fresnel
+        const float3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+
+        const float3 specular = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
+        const float3 diffuse  = diffuseBase / 3.14159265;
+
+        const float3 lightColor = unpackUnorm4x8ToFloat(dlight.Color).xyz;
+        const float  radiance   = dlight.Intensity;
+
+        Lo += (diffuse * (1.0 - F) + specular) * lightColor * radiance * NdotL;
     }
 
     for (uint i = 0; i < data.PointLightCount; ++i)
@@ -307,26 +362,51 @@ float3 GetLightColor3D(const LightData3D data, const float3 normal, const float3
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
-        const float3 direction = float3(plight.PosX, plight.PosY, plight.PosZ) - worldPosition;
-        const float product = dot(normal, normalize(direction));
+        const float3 dir    = float3(plight.PosX, plight.PosY, plight.PosZ) - worldPosition;
+        const float3 L      = normalize(dir);
+        const float  NdotL  = dot(normal, L);
+        if (NdotL <= 0.0) continue;
 
-        if (product > 0.0)
-        {
-            const float3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
-            const float radius = plight.Radius * plight.Radius;
-            const float dirLen = dot(direction, direction);
-            const float attenuation = radius / (dirLen + radius);
-            const float intensity = attenuation * plight.Intensity;
-            diffuseColor += intensity * lightColor * product;
+        const float3 H     = normalize(L + V);
+        const float NdotV  = max(dot(normal, V), 1e-4);
+        const float NdotH  = max(dot(normal, H), 0.0);
+        const float VdotH  = max(dot(V, H), 0.0);
 
-            const float3 halfVector = normalize(direction + specularDirection);
-            const float specular = pow(max(dot(normal, halfVector), 0.0), specularSharpness);
-            specularColor += intensity * specular * lightColor;
-        }
+        // GGX NDF
+        const float denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
+        const float D = alpha2 / (3.14159265 * denom * denom);
+
+        // Smith GGX geometry
+        const float k = alpha * 0.5;
+        const float G = (NdotV / (NdotV * (1.0 - k) + k)) *
+                        (NdotL / (NdotL * (1.0 - k) + k));
+
+        // Schlick Fresnel
+        const float3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+
+        const float3 specular = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
+        const float3 diffuse  = diffuseBase / 3.14159265;
+
+        // Distance attenuation (your existing scheme)
+        const float radius  = plight.Radius * plight.Radius;
+        const float dirLen  = dot(dir, dir);
+        const float atten   = radius / (dirLen + radius);
+        const float radiance = atten * plight.Intensity;
+
+        const float3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
+
+        Lo += (diffuse * (1.0 - F) + specular) * lightColor * radiance * NdotL;
     }
 
-    const float3 color = ambientColor.xyz * ambientColor.w +
-        diffuseContribution * diffuseColor + specularContribution * specularColor;
-    return min(float3(1.0), color);
-}
+    // Ambient: occlusion-modulated, split into diffuse/specular approximation
+    const float3 ambient = ambientColor.xyz * ambientColor.w
+                         * diffuseBase
+                         * material.OcclusionStrength;
 
+    // Emissive
+    const float3 emissive = float3(material.EmissiveFactorX,
+                                   material.EmissiveFactorY,
+                                   material.EmissiveFactorZ);
+
+    return min(float3(1.0), ambient + Lo + emissive);
+}

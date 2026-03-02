@@ -1,17 +1,21 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/asset/assets.hpp"
 #include "onyx/resource/resources.hpp"
+#include "onyx/rendering/renderer.hpp"
+#include "onyx/state/descriptors.hpp"
+#include "vkit/state/descriptor_set.hpp"
 #ifdef ONYX_ENABLE_OBJ
 #    include <tiny_obj_loader.h>
 #endif
 
 namespace Onyx::Assets
 {
-using LayoutFlags = u8;
-enum LayoutFlagBit : LayoutFlags
+using StatusFlags = u8;
+enum StatusFlagBit : StatusFlags
 {
-    LayoutFlag_UpdateVertex = 1 << 0,
-    LayoutFlag_UpdateIndex = 1 << 1,
+    StatusFlag_UpdateVertex = 1 << 0,
+    StatusFlag_UpdateIndex = 1 << 1,
+    StatusFlag_UpdateMaterial = 1 << 2,
 };
 
 struct DataLayout
@@ -20,7 +24,7 @@ struct DataLayout
     u32 VertexCount;
     u32 IndexStart;
     u32 IndexCount;
-    LayoutFlags Flags;
+    StatusFlags Flags;
 };
 
 struct BatchRange
@@ -56,11 +60,19 @@ template <typename Vertex> struct MeshInfo
     }
 };
 
+template <Dimension D> struct MaterialInfo
+{
+    VKit::DeviceBuffer Buffer{};
+    TKit::ArenaArray<StatusFlags> Flags{};
+    TKit::ArenaArray<MaterialData<D>> Materials{};
+};
+
 template <Dimension D> using StatMeshInfo = MeshInfo<StatVertex<D>>;
 
 template <Dimension D> struct AssetData
 {
-    StatMeshInfo<D> StaticMeshes;
+    StatMeshInfo<D> StaticMeshes{};
+    MaterialInfo<D> Materials{};
 };
 
 static TKit::Storage<AssetData<D2>> s_AssetData2{};
@@ -76,7 +88,7 @@ template <Dimension D> static AssetData<D> &getData()
 
 template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Vertex> &info)
 {
-    LayoutFlags flags = 0;
+    StatusFlags flags = 0;
 
     const u32 vcount = info.GetVertexCount();
     auto result = Resources::GrowBufferIfNeeded(info.VertexBuffer, vcount);
@@ -84,7 +96,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
 
     if (result.GetValue())
     {
-        flags = LayoutFlag_UpdateVertex;
+        flags = StatusFlag_UpdateVertex;
         TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient vertex buffer memory. Resized from {:L} to {:L} bytes",
                        vcount * sizeof(Vertex), info.VertexBuffer.GetInfo().Size);
     }
@@ -95,7 +107,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
 
     if (result.GetValue())
     {
-        flags |= LayoutFlag_UpdateIndex;
+        flags |= StatusFlag_UpdateIndex;
         TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient index buffer memory. Resized from {:L} to {:L} bytes",
                        icount * sizeof(Index), info.IndexBuffer.GetInfo().Size);
     }
@@ -105,8 +117,37 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
     return Result<>::Ok();
 }
 
+template <Dimension D> void updateMaterialDescriptorSet()
+{
+    MaterialInfo<D> &info = getData<D>().Materials;
+    const VkDescriptorBufferInfo binfo = info.Buffer.CreateDescriptorInfo();
+    const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(Shading_Lit);
+
+    VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
+    writer.WriteBuffer(1, &binfo);
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D>(Shading_Lit))
+        writer.Overwrite(set);
+}
+
+template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize()
+{
+    MaterialInfo<D> &info = getData<D>().Materials;
+    const u32 mcount = info.Materials.GetSize();
+    const auto result = Resources::GrowBufferIfNeeded(info.Buffer, mcount);
+    TKIT_RETURN_ON_ERROR(result);
+    if (result.GetValue())
+    {
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient material buffer memory. Resized from {:L} to {:L} bytes",
+                       mcount * sizeof(MaterialData<D>), info.Buffer.GetInfo().Size);
+        for (StatusFlags &flags : info.Flags)
+            flags = StatusFlag_UpdateMaterial;
+        updateMaterialDescriptorSet<D>();
+    }
+    return Result<>::Ok();
+}
+
 template <typename Vertex>
-ONYX_NO_DISCARD static Result<> uploadVertexData(MeshInfo<Vertex> &info, const u32 start, const u32 end)
+ONYX_NO_DISCARD static Result<> uploadVertexRange(MeshInfo<Vertex> &info, const u32 start, const u32 end)
 {
     constexpr VkDeviceSize size = sizeof(Vertex);
     const VkDeviceSize voffset = info.GetVertexCount(start) * size;
@@ -115,14 +156,14 @@ ONYX_NO_DISCARD static Result<> uploadVertexData(MeshInfo<Vertex> &info, const u
     TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading vertex range: {} - {} ({:L} bytes)", info.GetVertexCount(start),
                    info.GetVertexCount(end), vsize);
 
-    VKit::CommandPool &pool = Execution::GetTransientTransferPool();
-    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
+    VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
+    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
     return info.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), info.Meshes.Vertices.GetData(),
                                             {.srcOffset = voffset, .dstOffset = voffset, .size = vsize});
 }
 template <typename Vertex>
-ONYX_NO_DISCARD static Result<> uploadIndexData(MeshInfo<Vertex> &info, const u32 start, const u32 end)
+ONYX_NO_DISCARD static Result<> uploadIndexRange(MeshInfo<Vertex> &info, const u32 start, const u32 end)
 {
     constexpr VkDeviceSize size = sizeof(Index);
     const VkDeviceSize ioffset = info.GetIndexCount(start) * size;
@@ -131,8 +172,8 @@ ONYX_NO_DISCARD static Result<> uploadIndexData(MeshInfo<Vertex> &info, const u3
     TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading index range: {} - {} ({:L} bytes)", info.GetIndexCount(start),
                    info.GetIndexCount(end), isize);
 
-    VKit::CommandPool &pool = Execution::GetTransientTransferPool();
-    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
+    VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
+    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
     return info.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), info.Meshes.Indices.GetData(),
                                            {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize});
@@ -140,8 +181,9 @@ ONYX_NO_DISCARD static Result<> uploadIndexData(MeshInfo<Vertex> &info, const u3
 
 template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshInfo<Vertex> &info)
 {
-    TKIT_ASSERT(!info.Layouts.IsEmpty(), "[ONYX][ASSETS] Cannot upload assets. Layouts is empty");
-    const auto checkFlags = [&info](const u32 index, const LayoutFlags flags) {
+    if (info.Layouts.IsEmpty())
+        return Result<>::Ok();
+    const auto checkFlags = [&info](const u32 index, const StatusFlags flags) {
         return flags & info.Layouts[index].Flags;
     };
 
@@ -149,25 +191,68 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshIn
 
     auto &layouts = info.Layouts;
     for (u32 i = 0; i < layouts.GetSize(); ++i)
-        if (checkFlags(i, LayoutFlag_UpdateVertex))
+        if (checkFlags(i, StatusFlag_UpdateVertex))
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
-                if (j == layouts.GetSize() || !checkFlags(j, LayoutFlag_UpdateVertex))
+                if (j == layouts.GetSize() || !checkFlags(j, StatusFlag_UpdateVertex))
                 {
-                    TKIT_RETURN_IF_FAILED(uploadVertexData(info, i, j));
+                    TKIT_RETURN_IF_FAILED(uploadVertexRange(info, i, j));
                     i = j;
                     break;
                 }
     for (u32 i = 0; i < layouts.GetSize(); ++i)
-        if (checkFlags(i, LayoutFlag_UpdateIndex))
+        if (checkFlags(i, StatusFlag_UpdateIndex))
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
-                if (j == layouts.GetSize() || !checkFlags(j, LayoutFlag_UpdateIndex))
+                if (j == layouts.GetSize() || !checkFlags(j, StatusFlag_UpdateIndex))
                 {
-                    TKIT_RETURN_IF_FAILED(uploadIndexData(info, i, j));
+                    TKIT_RETURN_IF_FAILED(uploadIndexRange(info, i, j));
                     i = j;
                     break;
                 }
     for (DataLayout &layout : layouts)
         layout.Flags = 0;
+    return Result<>::Ok();
+}
+
+template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialRange(const u32 start, const u32 end)
+{
+    MaterialInfo<D> &info = getData<D>().Materials;
+    const VkDeviceSize offset = start * sizeof(MaterialData<D>);
+    const VkDeviceSize size = end * sizeof(MaterialData<D>) - offset;
+
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading material range: {} - {} ({:L} bytes)", start, end, size);
+
+    VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
+    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
+
+    return info.Buffer.UploadFromHost(pool, queue->GetHandle(), info.Materials.GetData(),
+                                      {.srcOffset = offset, .dstOffset = offset, .size = size});
+}
+
+template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
+{
+    MaterialInfo<D> &info = getData<D>().Materials;
+    TKIT_ASSERT(info.Materials.GetSize() == info.Flags.GetSize(),
+                "[ONYX][ASSETS] Materials and must update arrays mismatch");
+    if (info.Materials.IsEmpty())
+        return Result<>::Ok();
+
+    const auto mustUpdate = [&info](const u32 index) { return StatusFlag_UpdateMaterial & info.Flags[index]; };
+
+    TKIT_RETURN_IF_FAILED(checkMaterialBufferSize<D>());
+
+    auto &flags = info.Flags;
+    for (u32 i = 0; i < flags.GetSize(); ++i)
+        if (mustUpdate(i))
+            for (u32 j = i + 1; j <= flags.GetSize(); ++j)
+                if (j == flags.GetSize() || !mustUpdate(j))
+                {
+                    TKIT_RETURN_IF_FAILED(uploadMaterialRange<D>(i, j));
+                    i = j;
+                    break;
+                }
+
+    for (StatusFlags &flags : flags)
+        flags = 0;
     return Result<>::Ok();
 }
 
@@ -181,7 +266,6 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> initialize(MeshInfo<V
     result = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
     TKIT_RETURN_ON_ERROR(result);
     info.IndexBuffer = result.GetValue();
-
     info.Layouts.Reserve(maxLayouts);
 
     if (Core::CanNameObjects())
@@ -195,24 +279,46 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> initialize(MeshInfo<V
     return Result<>::Ok();
 }
 
+template <Dimension D> ONYX_NO_DISCARD static Result<> initializeMaterials(const u32 maxMaterials)
+{
+    MaterialInfo<D> &info = getData<D>().Materials;
+    const auto result = Resources::CreateBuffer<MaterialData<D>>(Buffer_DeviceStorage);
+    TKIT_RETURN_ON_ERROR(result);
+    info.Buffer = result.GetValue();
+    info.Materials.Reserve(maxMaterials);
+    info.Flags.Reserve(maxMaterials);
+
+    updateMaterialDescriptorSet<D>();
+
+    if (Core::CanNameObjects())
+        return info.Buffer.SetName(D == D2 ? "onyx-assets-2D-material-buffer" : "onyx-assets-3D-material-buffer");
+
+    return Result<>::Ok();
+}
+
 template <Dimension D> ONYX_NO_DISCARD static Result<> initialize(const Specs &specs)
 {
     AssetData<D> &data = getData<D>();
-    return initialize(data.StaticMeshes, specs.MaxStaticMeshes);
+    TKIT_RETURN_IF_FAILED(initialize(data.StaticMeshes, specs.MaxStaticMeshes));
+    return initializeMaterials<D>(specs.MaxMaterials);
 }
 
 template <typename Vertex> static void terminate(MeshInfo<Vertex> &info)
 {
     info.VertexBuffer.Destroy();
     info.IndexBuffer.Destroy();
-    info.Layouts.Clear();
-    info.Meshes.Indices.Clear();
-    info.Meshes.Vertices.Clear();
+}
+
+template <Dimension D> static void terminateMaterials()
+{
+    MaterialInfo<D> &info = getData<D>().Materials;
+    info.Buffer.Destroy();
 }
 
 template <Dimension D> static void terminate()
 {
     AssetData<D> &data = getData<D>();
+    terminateMaterials<D>();
     terminate(data.StaticMeshes);
 }
 
@@ -292,7 +398,7 @@ template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data)
     layout.VertexCount = data.Vertices.GetSize();
     layout.IndexStart = meshes.GetIndexCount();
     layout.IndexCount = data.Indices.GetSize();
-    layout.Flags = LayoutFlag_UpdateVertex | LayoutFlag_UpdateIndex;
+    layout.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
 
     meshes.Layouts.Append(layout);
 
@@ -317,7 +423,26 @@ template <Dimension D> void UpdateMesh(const Mesh mesh, const StatMeshData<D> &d
     TKit::ForwardCopy(meshes.Meshes.Vertices.begin() + layout.VertexStart, data.Vertices.begin(), data.Vertices.end());
     TKit::ForwardCopy(meshes.Meshes.Indices.begin() + layout.IndexStart, data.Indices.begin(), data.Indices.end());
 
-    layout.Flags |= LayoutFlag_UpdateVertex | LayoutFlag_UpdateIndex;
+    layout.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+}
+
+template <Dimension D> Material AddMaterial(const MaterialData<D> &data)
+{
+    MaterialInfo<D> &materials = getData<D>().Materials;
+
+    const Material material = materials.Materials.GetSize();
+    materials.Materials.Append(data);
+    materials.Flags.Append(StatusFlag_UpdateMaterial);
+
+    return material;
+}
+
+template <Dimension D> void UpdateMaterial(const Material material, const MaterialData<D> &data)
+{
+    MaterialInfo<D> &materials = getData<D>().Materials;
+
+    materials.Materials[material] = data;
+    materials.Flags[material] = StatusFlag_UpdateMaterial;
 }
 
 template <Dimension D> u32 GetStaticMeshCount()
@@ -330,7 +455,8 @@ template <Dimension D> Result<> Upload()
     TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
 
     AssetData<D> &data = getData<D>();
-    return uploadMeshData(data.StaticMeshes);
+    TKIT_RETURN_IF_FAILED(uploadMeshData(data.StaticMeshes));
+    return uploadMaterialData<D>();
 }
 
 template <Dimension D> MeshDataLayout GetStaticMeshLayout(const Mesh mesh)
@@ -712,6 +838,12 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
     VALIDATE_MESH(data);
     return data;
 }
+
+template Material AddMaterial(const MaterialData<D2> &data);
+template Material AddMaterial(const MaterialData<D3> &data);
+
+template void UpdateMaterial(Material mesh, const MaterialData<D2> &data);
+template void UpdateMaterial(Material mesh, const MaterialData<D3> &data);
 
 template Mesh AddMesh(const StatMeshData<D2> &data);
 template Mesh AddMesh(const StatMeshData<D3> &data);

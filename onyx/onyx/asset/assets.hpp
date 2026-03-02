@@ -2,6 +2,7 @@
 
 #include "onyx/core/core.hpp"
 #include "onyx/asset/mesh.hpp"
+#include "onyx/asset/material.hpp"
 #include "onyx/property/instance.hpp"
 
 namespace Onyx::Assets
@@ -9,7 +10,9 @@ namespace Onyx::Assets
 struct Specs
 {
     u32 MaxStaticMeshes = 64;
+    u32 MaxMaterials = 1024;
 };
+
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
@@ -24,6 +27,9 @@ u32 GetBatchCount();
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data);
 template <Dimension D> void UpdateMesh(Mesh mesh, const StatMeshData<D> &data);
+
+template <Dimension D> Material AddMaterial(const MaterialData<D> &data);
+template <Dimension D> void UpdateMaterial(Material material, const MaterialData<D> &data);
 
 template <Dimension D> MeshDataLayout GetStaticMeshLayout(Mesh mesh);
 

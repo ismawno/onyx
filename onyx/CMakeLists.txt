@@ -205,9 +205,12 @@ if(ONYX_ENABLE_IMGUI)
   FetchContent_MakeAvailable(imgui)
 
   set(IMGUI_SOURCES
-      ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp
-      ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp
-      ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
+      ${imgui_SOURCE_DIR}/imgui.cpp
+      ${imgui_SOURCE_DIR}/imgui_demo.cpp
+      ${imgui_SOURCE_DIR}/imgui_draw.cpp
+      ${imgui_SOURCE_DIR}/imgui_tables.cpp
+      ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+      ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp)
 
   add_library(imgui STATIC ${IMGUI_SOURCES})
 

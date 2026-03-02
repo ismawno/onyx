@@ -7,6 +7,7 @@
 #    include "onyx/application/layer.hpp"
 #    include "onyx/platform/input.hpp"
 #    include "onyx/imgui/imgui.hpp"
+#    include "onyx/asset/material.hpp"
 #    include "tkit/container/stack_array.hpp"
 
 namespace Onyx
@@ -134,6 +135,44 @@ template <Dimension D> void DisplayCameraControls(const CameraControls<D> &contr
 
 template void DisplayCameraControls<D2>(const CameraControls<D2> &controls);
 template void DisplayCameraControls<D3>(const CameraControls<D3> &controls);
+
+template <Dimension D> bool MaterialEditor(MaterialData<D> &data, const EditorFlags flags)
+{
+    if (flags & EditorFlag_DisplayHelp)
+        HelpMarker("Materials define surface properties like color, diffuse/specular response, and specular sharpness. "
+                   "These are combined with lighting to produce the final rendered color. ");
+    bool changed = false;
+    if constexpr (D == D2)
+    {
+        MaterialData<D2> &d2 = data;
+        Color color = Color::Unpack(d2.ColorFactor);
+        if (ImGui::ColorEdit4("Color factor", color.GetData()))
+            d2.ColorFactor = color.Pack();
+        changed |= ImGui::IsItemDeactivatedAfterEdit();
+    }
+    else
+    {
+        MaterialData<D3> &d3 = data;
+        Color albedo = Color::Unpack(d3.AlbedoFactor);
+        if (ImGui::ColorEdit4("Albedo factor", albedo.GetData()))
+            d3.AlbedoFactor = albedo.Pack();
+        changed |= ImGui::IsItemDeactivatedAfterEdit();
+        ImGui::DragFloat3("Emissive factor", d3.EmissiveFactor.GetData(), 0.01f);
+        changed |= ImGui::IsItemDeactivatedAfterEdit();
+        ImGui::DragFloat("Metallic factor", &d3.MetallicFactor, 0.01f);
+        changed |= ImGui::IsItemDeactivatedAfterEdit();
+        ImGui::DragFloat("Roughness factor", &d3.RoughnessFactor, 0.01f);
+        changed |= ImGui::IsItemDeactivatedAfterEdit();
+        // ImGui::DragFloat("Normal scale", &d3.NormalScale, 0.01f);
+        // changed |= ImGui::IsItemDeactivatedAfterEdit();
+        ImGui::DragFloat("Occlusion strength", &d3.OcclusionStrength, 0.01f);
+        changed |= ImGui::IsItemDeactivatedAfterEdit();
+    }
+    return changed;
+}
+
+template bool MaterialEditor<D2>(MaterialData<D2> &data, const EditorFlags flags);
+template bool MaterialEditor<D3>(MaterialData<D3> &data, const EditorFlags flags);
 
 bool DeltaTimeEditor(DeltaTime &dt, DeltaInfo &di, const Window *window, const EditorFlags flags)
 {

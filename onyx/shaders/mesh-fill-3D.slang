@@ -11,8 +11,10 @@ struct VertexOutput
     [[vk::location(0)]]
     float3 WorldPosition;
     [[vk::location(1)]]
-    float3 FragNormal;
+    nointerpolation uint MatIndex;
     [[vk::location(2)]]
+    float3 FragNormal;
+    [[vk::location(3)]]
     float4 FragColor;
 
     float4 Position : SV_Position;
@@ -51,6 +53,7 @@ VertexOutput mainVS(
     const float3x3 normalMatrix = ComputeNormalMatrix(float3x3(transform));
 
     output.WorldPosition = worldPos.xyz;
+    output.MatIndex = data.MatIndex;
     output.FragNormal = normalize(mul(normalMatrix, input.Normal));
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
 
@@ -58,8 +61,12 @@ VertexOutput mainVS(
 }
 
 [[vk::binding(1, 0)]]
-StructuredBuffer<PointLight3D, Std430DataLayout> pointLights;
+StructuredBuffer<Material3D, Std430DataLayout> materials;
+
 [[vk::binding(2, 0)]]
+StructuredBuffer<PointLight3D, Std430DataLayout> pointLights;
+
+[[vk::binding(3, 0)]]
 StructuredBuffer<DirectionalLight, Std430DataLayout> directionalLights;
 
 
@@ -70,8 +77,12 @@ float4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFac
     if (!isFrontFacing)
         normal = -normal;
 
-    const LightData3D ldata = pdata.LightData;
-    const float3 lcolor = GetLightColor3D(ldata, normal, input.WorldPosition, pointLights, directionalLights);
-    return input.FragColor * float4(lcolor, 1.0);
+    if (input.MatIndex != uint(-1))
+    {
+        const LightData3D ldata = pdata.LightData;
+        const float3 lcolor = GetLightColor3D(ldata, materials[input.MatIndex], normal, input.WorldPosition, pointLights, directionalLights);
+        return input.FragColor * float4(lcolor, 1.0);
+    }
+    return input.FragColor;
 }
 

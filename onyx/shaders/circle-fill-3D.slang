@@ -9,10 +9,12 @@ struct VertexOutput
     [[vk::location(2)]]
     float3 WorldPosition;
     [[vk::location(3)]]
+    nointerpolation uint MatIndex;
+    [[vk::location(4)]]
     nointerpolation ArcData Arc;
-    [[vk::location(9)]]
+    [[vk::location(10)]]
     nointerpolation FadeData Fade;
-    [[vk::location(11)]]
+    [[vk::location(12)]]
     nointerpolation float4 FragColor;
 
     float4 Position : SV_Position;
@@ -65,6 +67,7 @@ VertexOutput mainVS(
     output.FragNormal = ComputeTrivialWorldNormal(float3x3(transform));
     output.LocalPosition = localPos;
     output.WorldPosition = worldPos.xyz;
+    output.MatIndex = data.Data.MatIndex;
     output.Arc = data.Arc;
     output.Fade = data.Fade;
     output.FragColor = unpackUnorm4x8ToFloat(data.Data.Color);
@@ -73,9 +76,12 @@ VertexOutput mainVS(
 }
 
 [[vk::binding(1, 0)]]
-StructuredBuffer<PointLight3D, Std430DataLayout> pointLights;
+StructuredBuffer<Material3D, Std430DataLayout> materials;
 
 [[vk::binding(2, 0)]]
+StructuredBuffer<PointLight3D, Std430DataLayout> pointLights;
+
+[[vk::binding(3, 0)]]
 StructuredBuffer<DirectionalLight, Std430DataLayout> directionalLights;
 
 [shader("fragment")]
@@ -88,8 +94,12 @@ float4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFac
     if (!isFrontFacing)
         normal = -normal;
 
-    const float3 lcolor = GetLightColor3D(pdata.Light, normal, input.WorldPosition, pointLights, directionalLights);
-    const float alpha = CircleFade(input.FragColor.a, bounds, input.Fade);
-    return input.FragColor * float4(lcolor, alpha);
+    if (input.MatIndex != uint(-1))
+    {
+        const float3 lcolor = GetLightColor3D(pdata.Light, materials[input.MatIndex], normal, input.WorldPosition, pointLights, directionalLights);
+        const float alpha = CircleFade(input.FragColor.a, bounds, input.Fade);
+        return input.FragColor * float4(lcolor, alpha);
+    }
+    return input.FragColor;
 }
 

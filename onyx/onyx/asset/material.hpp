@@ -1,28 +1,35 @@
 #pragma once
 
+#include "onyx/asset/texture.hpp"
 #include "onyx/core/math.hpp"
 
 namespace Onyx
 {
-TKIT_COMPILER_WARNING_IGNORE_PUSH()
-TKIT_MSVC_WARNING_IGNORE(4324)
-struct alignas(16) Material
+using Material = u32;
+constexpr Material NullMaterial = TKit::Limits<Material>::Max();
+
+template <Dimension D> struct MaterialData;
+
+template <> struct MaterialData<D2>
 {
-    u32 AlbedoFactor;
-    f32 MetallicFactor;
-    f32 RoughnessFactor;
-    f32 NormalScale;
-    f32 OcclusionStrength;
-
-    u32 AlbedoTex;
-    u32 MetallicRoughnessTex;
-    u32 NormalTex;
-    u32 OcclusionTex;
-    u32 EmissiveTex;
-
-    f32v3 EmissiveFactor;
-    u32 Flags;
+    u32 ColorFactor = 0xFFFFFFFF;
+    // Texture Texture = NullTexture;
 };
-TKIT_COMPILER_WARNING_IGNORE_POP()
+
+template <> struct MaterialData<D3>
+{
+    f32v3 EmissiveFactor{0.f};
+    u32 AlbedoFactor = 0xFFFFFFFF;
+    f32 MetallicFactor = 0.f;
+    f32 RoughnessFactor = 0.5f;
+    f32 OcclusionStrength = 1.f;
+    // f32 NormalScale = 1.f;
+    // Texture AlbedoTex = NullTexture;
+    // Texture MetallicRoughnessTex = 0;
+    // Texture NormalTex = 0;
+    // Texture OcclusionTex = 0;
+    // Texture EmissiveTex = 0;
+    // Texture Flags = 0;
+};
 
 } // namespace Onyx

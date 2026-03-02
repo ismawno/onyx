@@ -1,6 +1,9 @@
 #include "sandbox/sandbox.hpp"
 #include "onyx/asset/assets.hpp"
-#include "onyx/imgui/imgui.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include "onyx/imgui/imgui.hpp"
+#    include <misc/cpp/imgui_stdlib.h>
+#endif
 #include "onyx/platform/dialog.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
@@ -13,35 +16,24 @@ namespace Onyx
 {
 
 // black magic
-template <typename C, typename F1, typename F2>
-static void renderSelectableNoRemoval(const char *treeName, C &container, u32 &selected, F1 onSelected, F2 getName)
-{
-    renderSelectable(treeName, container, selected, onSelected, [](const auto &) {}, getName);
-}
-
-template <typename C, typename F1, typename F2>
-static void renderSelectableNoTree(const char *elementName, C &container, u32 &selected, F1 onSelected, F2 onRemoval)
-{
-    renderSelectable(nullptr, container, selected, onSelected, onRemoval,
-                     [elementName](const auto &) { return elementName; });
-}
-
 template <typename C, typename F1, typename F2, typename F3>
-static void renderSelectable(const char *treeName, C &container, u32 &selected, F1 onSelected, F2 onRemoval, F3 getName)
+static void renderSelectable(const char *treeName, C &container, u32 &selected, F1 onSelected, F2 onRemoval, F3 getName,
+                             const bool removeButton = true)
 {
     if (!container.IsEmpty() && (!treeName || ImGui::TreeNode(treeName)))
     {
         for (u32 i = 0; i < container.GetSize(); ++i)
         {
             ImGui::PushID(&container[i]);
-            if (ImGui::Button("X"))
+            if (removeButton && ImGui::Button("X"))
             {
                 onRemoval(container[i]);
                 container.RemoveOrdered(container.begin() + i);
                 ImGui::PopID();
                 break;
             }
-            ImGui::SameLine();
+            if (removeButton)
+                ImGui::SameLine();
             std::string name;
             if constexpr (std::is_same_v<F3, const char *>)
                 name = getName;
@@ -58,6 +50,19 @@ static void renderSelectable(const char *treeName, C &container, u32 &selected, 
         if (treeName)
             ImGui::TreePop();
     }
+}
+template <typename C, typename F1, typename F2>
+static void renderSelectableNoRemoval(const char *treeName, C &container, u32 &selected, F1 onSelected, F2 getName,
+                                      const bool removeButton = true)
+{
+    renderSelectable(treeName, container, selected, onSelected, [](const auto &) {}, getName, removeButton);
+}
+
+template <typename C, typename F1, typename F2>
+static void renderSelectableNoTree(const char *elementName, C &container, u32 &selected, F1 onSelected, F2 onRemoval)
+{
+    renderSelectable(nullptr, container, selected, onSelected, onRemoval,
+                     [elementName](const auto &) { return elementName; });
 }
 
 SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *data) : ApplicationLayer(layers)
@@ -124,6 +129,7 @@ template <Dimension D> static void setShapeProperties(RenderContext<D> *context,
     context->Outline(shape.Flags & SandboxFlag_Outline);
     context->OutlineWidth(shape.OutlineWidth);
     context->OutlineColor(shape.OutlineColor);
+    context->Material(shape.Material);
 }
 template <Dimension D> static void drawShape(RenderContext<D> *context, const Shape<D> &shape)
 {
@@ -149,6 +155,7 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
             {
                 ctx.Context->Outline(false);
                 ctx.Context->Fill(true);
+                ctx.Context->Material(ctx.AxesMaterial);
                 if constexpr (D == D2)
                     ctx.Context->Axes(Meshes2.StaticMeshes[StaticMesh_Square].Mesh, {.Thickness = ctx.AxesThickness});
                 else
@@ -318,6 +325,16 @@ template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window, co
     data.Shape = CreateShape(data);
 }
 
+template <Dimension D> void SandboxAppLayer::AddMaterial()
+{
+    auto &materials = GetMaterials<D>();
+    const u32 size = materials.Materials.GetSize();
+    MatData<D> &data = materials.Materials.Append();
+    data.Name = TKit::Format("Material {}", size);
+    data.Material = Assets::AddMaterial(data.Data);
+    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+}
+
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
     : WindowLayer(appLayer, window, {.Flags = WindowLayerFlag_ImGuiEnabled})
 {
@@ -485,6 +502,7 @@ void SandboxWinLayer::RenderImGui()
         {
             RenderContexts<D2>();
             RenderCameras<D2>();
+            RenderMaterials<D2>();
             RenderLattices<D2>();
             RenderRenderer<D2>();
             ImGui::EndTabItem();
@@ -493,6 +511,7 @@ void SandboxWinLayer::RenderImGui()
         {
             RenderContexts<D3>();
             RenderCameras<D3>();
+            RenderMaterials<D3>();
             RenderLattices<D3>();
             RenderRenderer<D3>();
             ImGui::EndTabItem();
@@ -649,6 +668,16 @@ template <Dimension D> void SandboxWinLayer::RenderContexts()
     }
 }
 
+template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, u32 *toSpawn)
+{
+    TKit::StackArray<const char *> names{};
+    const auto &materials = appLayer->GetMaterials<D>();
+    names.Reserve(materials.Materials.GetSize());
+    for (const MatData<D> &mat : materials.Materials)
+        names.Append(mat.Name.c_str());
+    return combo(name, toSpawn, names);
+}
+
 template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &context)
 {
     const Window *window = GetWindow();
@@ -666,7 +695,10 @@ template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &conte
 
     ImGui::CheckboxFlags("Draw axes", &context.Flags, SandboxFlag_DrawAxes);
     if (context.Flags & SandboxFlag_DrawAxes)
+    {
         ImGui::SliderFloat("Axes thickness", &context.AxesThickness, 0.001f, 0.1f);
+        matNameCombo<D>("Axes material", GetApplicationLayer<SandboxAppLayer>(), &context.AxesMaterial);
+    }
 
     ImGui::Spacing();
     ImGui::Text("Shape picker");
@@ -676,7 +708,7 @@ template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &conte
     RenderLightPicker<D>(context);
 }
 
-template <Dimension D> void editShape(Shape<D> &shape)
+template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *appLayer)
 {
     ImGui::PushID(&shape);
     ImGui::Text("Transform");
@@ -687,6 +719,9 @@ template <Dimension D> void editShape(Shape<D> &shape)
     ImGui::ColorEdit4("Fill color", shape.FillColor.GetData());
     ImGui::ColorEdit4("Outline color", shape.OutlineColor.GetData());
     ImGui::SliderFloat("Outline width", &shape.OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
+
+    matNameCombo<D>("Material##Shape", appLayer, &shape.Material);
+
     if (shape.Type.Geo == Geometry_Circle)
     {
         ImGui::SliderFloat("Inner fade", &shape.CircleOptions.InnerFade, 0.f, 1.f, "%.2f");
@@ -698,28 +733,31 @@ template <Dimension D> void editShape(Shape<D> &shape)
     ImGui::PopID();
 }
 
+template <Dimension D> static bool shapeNameCombo(const char *name, SandboxAppLayer *appLayer, u32 *toSpawn)
+{
+    TKit::StackArray<const char *> names{};
+    const Meshes<D> &meshes = appLayer->GetMeshes<D>();
+    names.Reserve(meshes.StaticMeshes.GetSize());
+    for (const MeshId &mid : meshes.StaticMeshes)
+        names.Append(mid.Name.c_str());
+    return combo(name, toSpawn, names);
+}
+
 template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &context)
 {
     combo("Geometry##Picker", &context.GeometryToSpawn, "Circle\0Static mesh\0\0");
     const Geometry geo = static_cast<Geometry>(context.GeometryToSpawn);
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
-    TKit::StackArray<const char *> names{};
 
     if (geo == Geometry_StaticMesh)
-    {
-        const Meshes<D> &meshes = appLayer->GetMeshes<D>();
-        names.Reserve(meshes.StaticMeshes.GetSize());
-        for (const MeshId &mid : meshes.StaticMeshes)
-            names.Append(mid.Name.c_str());
-        combo("Shape##Picker", &context.StatMeshToSpawn, names);
-    }
+        shapeNameCombo<D>("Shape##Picker", appLayer, &context.StatMeshToSpawn);
 
     if (ImGui::Button("Spawn##Shape"))
         context.Shapes.Append(appLayer->CreateShape<D>(context));
 
     renderSelectableNoRemoval(
-        "Shapes", context.Shapes, context.SelectedShape, [](Shape<D> &shape) { editShape<D>(shape); },
+        "Shapes", context.Shapes, context.SelectedShape, [appLayer](Shape<D> &shape) { editShape<D>(shape, appLayer); },
         [](const Shape<D> &shape) { return shape.Name; });
 }
 
@@ -773,6 +811,33 @@ template <Dimension D> void SandboxWinLayer::RenderLattices()
     }
 }
 
+template <Dimension D> void SandboxWinLayer::RenderMaterials()
+{
+    if (ImGui::CollapsingHeader("Materials"))
+    {
+        SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+        auto &materials = appLayer->GetMaterials<D>();
+
+        if (ImGui::Button("Add material"))
+            appLayer->AddMaterial<D>();
+
+        renderSelectableNoRemoval(
+            nullptr, materials.Materials, materials.Active, [this](MatData<D> &material) { RenderMaterial(material); },
+            [](MatData<D> &material) { return material.Name.c_str(); }, false);
+    }
+}
+
+template <Dimension D> void SandboxWinLayer::RenderMaterial(MatData<D> &material)
+{
+    ImGui::InputText("Name", &material.Name);
+    ImGui::Text("Material id: %u", material.Material);
+    if (MaterialEditor(material.Data, EditorFlag_DisplayHelp))
+    {
+        Assets::UpdateMaterial(material.Material, material.Data);
+        ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+    }
+}
+
 template <Dimension D> void SandboxWinLayer::RenderRenderer()
 {
     if (ImGui::CollapsingHeader("Renderer"))
@@ -820,14 +885,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     if (geo == Geometry_StaticMesh)
-    {
-        const Meshes<D> &meshes = appLayer->GetMeshes<D>();
-        TKit::StackArray<const char *> names{};
-        names.Reserve(meshes.StaticMeshes.GetSize());
-        for (const MeshId &mid : meshes.StaticMeshes)
-            names.Append(mid.Name.c_str());
-        updateShape |= combo("Shape##Lattice", &lattice.StatMesh, names);
-    }
+        updateShape |= shapeNameCombo<D>("Shape##Lattice", appLayer, &lattice.StatMesh);
 
     if (updateShape)
         lattice.Shape = appLayer->CreateShape(lattice);
@@ -849,7 +907,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
 
     ImGui::Spacing();
     ImGui::Text("Shape");
-    editShape(lattice.Shape);
+    editShape(lattice.Shape, appLayer);
 }
 
 template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
