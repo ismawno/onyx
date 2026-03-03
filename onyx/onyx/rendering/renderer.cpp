@@ -520,7 +520,7 @@ void ClearViews(const ViewMask viewMask)
 }
 
 #ifdef TKIT_ENABLE_ASSERTS
-template <Dimension D> void validateRanges(const bool requireTightFit = false)
+template <Dimension D> void validateRanges()
 {
     const RendererData<D> &rdata = getRendererData<D>();
     for (const Arena &arena : rdata.Arenas)
@@ -592,8 +592,7 @@ template <Dimension D> void validateRanges(const bool requireTightFit = false)
                     "[ONYX][RENDERER] First context range offset of a graphics range offset must be zero, but is {:L}",
                     crange.Offset);
 
-                TKIT_ASSERT(!requireTightFit || j != cranges.GetSize() - 1 ||
-                                crange.Offset + crange.Size == grange.Size,
+                TKIT_ASSERT(j != cranges.GetSize() - 1 || crange.Offset + crange.Size == grange.Size,
                             "[ONYX][RENDERER] Last context expression: offset + size = {} + {} = {} must be equal to "
                             "graphics context size of {}",
                             crange.Offset, crange.Size, crange.Offset + crange.Size, grange.Size);
@@ -724,7 +723,7 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         GraphicsMemoryRange &range = ranges[i];
-        if (range.Size >= requiredMem && !range.InUse() && !rdata.IsAnyContextRangeClean(range))
+        if (range.Size >= requiredMem && !range.InUse() && rdata.AreAllContextRangesDirty(range))
         {
             if (range.Size == requiredMem)
                 return &range;
@@ -1684,10 +1683,10 @@ template <Dimension D> void coalesce()
                 ngrange.Pass = grange.Pass;
                 ngrange.BatchIndex = grange.BatchIndex;
 
-                VkDeviceSize leftover = grange.Size;
+                // VkDeviceSize leftover = grange.Size;
                 for (const ContextMemoryRange &crange : grange.ContextRanges)
                 {
-                    leftover -= crange.Size;
+                    // leftover -= crange.Size;
                     if (rdata.IsContextRangeClean(crange))
                     {
                         if (gmergeRange.Size != 0)
@@ -1725,7 +1724,7 @@ template <Dimension D> void coalesce()
                     ngrange.ContextRanges = cranges;
                     granges.Append(ngrange);
                 }
-                gmergeRange.Size += leftover;
+                // gmergeRange.Size += leftover;
             }
             else
                 gmergeRange.Size += grange.Size;
@@ -1741,7 +1740,7 @@ template <Dimension D> void coalesce()
     }
 
 #ifdef TKIT_ENABLE_ASSERTS
-    validateRanges<D>(true);
+    validateRanges<D>();
 #endif
 }
 
