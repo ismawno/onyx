@@ -465,7 +465,7 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
 
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(context);
-    rdata.Contexts.RemoveUnordered(rdata.Contexts.begin() + index);
+    rdata.Contexts.RemoveOrdered(rdata.Contexts.begin() + index);
 }
 
 template <Dimension D> void UpdateViewMask(const RenderContext<D> *context)
@@ -1685,7 +1685,6 @@ template <Dimension D> void coalesce()
                 ngrange.BatchIndex = grange.BatchIndex;
 
                 VkDeviceSize leftover = grange.Size;
-                VkDeviceSize relativization = 0;
                 for (const ContextMemoryRange &crange : grange.ContextRanges)
                 {
                     leftover -= crange.Size;
@@ -1700,10 +1699,10 @@ template <Dimension D> void coalesce()
                         else
                             gmergeRange.Offset += crange.Size;
 
+                        ContextMemoryRange &ncrange = cranges.Append(crange);
+                        ncrange.Offset = ngrange.Size;
                         ngrange.Size += crange.Size;
                         ngrange.ViewMask |= crange.ViewMask;
-                        ContextMemoryRange &ncrange = cranges.Append(crange);
-                        ncrange.Offset -= relativization;
                     }
                     else
                     {
@@ -1711,15 +1710,13 @@ template <Dimension D> void coalesce()
                         {
                             ngrange.ContextRanges = cranges;
                             granges.Append(ngrange);
-                            ngrange.Offset = grange.Offset + ngrange.Size + crange.Size;
+                            ngrange.Offset += ngrange.Size + crange.Size;
                             ngrange.Size = 0;
                             ngrange.ViewMask = 0;
                             cranges.Clear();
                         }
                         else
                             ngrange.Offset += crange.Size;
-
-                        relativization += crange.Size;
                         gmergeRange.Size += crange.Size;
                     }
                 }
