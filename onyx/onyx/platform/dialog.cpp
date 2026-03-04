@@ -150,4 +150,8 @@ Result<Path> Save(const Options &options)
     }
     return Result<Path>::Error(result);
 }
+const char *GetError()
+{
+    return NFD_GetError();
+}
 } // namespace Onyx::Dialog

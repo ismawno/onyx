@@ -50,5 +50,6 @@ Result<Path> Save(const Options &options = {});
 Result<Path> OpenFolder(const Options &options = {});
 Result<Path> OpenSingle(const Options &options = {});
 Result<Paths> OpenMultiple(const Options &options = {});
+const char *GetError();
 
 } // namespace Onyx::Dialog
