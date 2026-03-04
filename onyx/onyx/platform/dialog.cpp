@@ -47,18 +47,18 @@ struct Guard
 Result<Path> OpenFolder(const Options &options)
 {
     Guard g{};
-    nfdu8char_t *path;
-    nfdpickfolderu8args_t args{};
+    nfdnchar_t *path;
+    nfdpickfoldernargs_t args{};
 #ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
     args.defaultPath = options.DefaultPath;
-    const Status result = toStatus(NFD_PickFolderU8_With(&path, &args));
+    const Status result = toStatus(NFD_PickFolderN_With(&path, &args));
     if (result == Success)
     {
         const fs::path p = path;
-        NFD_FreePathU8(path);
+        NFD_FreePathN(path);
         return p;
     }
     return Result<Path>::Error(result);
@@ -66,28 +66,28 @@ Result<Path> OpenFolder(const Options &options)
 Result<Path> OpenSingle(const Options &options)
 {
     Guard g{};
-    nfdu8char_t *path;
-    nfdopendialogu8args_t args{};
+    nfdnchar_t *path;
+    nfdopendialognargs_t args{};
 #ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
-    TKit::StackArray<nfdu8filteritem_t> filters{};
+    TKit::StackArray<nfdnfilteritem_t> filters{};
     if (options.Filters)
     {
         filters.Reserve(options.Filters.GetSize());
         for (const Filter &filter : options.Filters)
-            filters.Append(nfdu8filteritem_t{filter.Name, filter.Extensions});
+            filters.Append(nfdnfilteritem_t{filter.Name, filter.Extensions});
         args.filterList = filters.GetData();
         args.filterCount = filters.GetSize();
     }
 
     args.defaultPath = options.DefaultPath;
-    Status result = toStatus(NFD_OpenDialogU8_With(&path, &args));
+    Status result = toStatus(NFD_OpenDialogN_With(&path, &args));
     if (result == Success)
     {
         const fs::path p = path;
-        NFD_FreePathU8(path);
+        NFD_FreePathN(path);
         return Result<Path>::Ok(p);
     }
     return Result<Path>::Error(result);
@@ -96,22 +96,22 @@ Result<Paths> OpenMultiple(const Options &options)
 {
     Guard g{};
     const nfdpathset_t *set;
-    nfdopendialogu8args_t args{};
+    nfdopendialognargs_t args{};
 #ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
-    TKit::StackArray<nfdu8filteritem_t> filters{};
+    TKit::StackArray<nfdnfilteritem_t> filters{};
     if (options.Filters)
     {
         filters.Reserve(options.Filters.GetSize());
         for (const Filter &filter : options.Filters)
-            filters.Append(nfdu8filteritem_t{filter.Name, filter.Extensions});
+            filters.Append(nfdnfilteritem_t{filter.Name, filter.Extensions});
         args.filterList = filters.GetData();
         args.filterCount = filters.GetSize();
     }
 
-    const Status result = toStatus(NFD_OpenDialogMultipleU8_With(&set, &args));
+    const Status result = toStatus(NFD_OpenDialogMultipleN_With(&set, &args));
     if (result == Success)
     {
         Paths paths;
@@ -119,10 +119,10 @@ Result<Paths> OpenMultiple(const Options &options)
         toStatus(NFD_PathSet_GetCount(set, &count));
         for (nfdpathsetsize_t i = 0; i < count; ++i)
         {
-            nfdu8char_t *path;
-            NFD_PathSet_GetPathU8(set, i, &path);
+            nfdnchar_t *path;
+            NFD_PathSet_GetPathN(set, i, &path);
             paths.Append(path);
-            NFD_PathSet_FreePathU8(path);
+            NFD_PathSet_FreePathN(path);
         }
         NFD_PathSet_Free(set);
         return Result<Paths>::Ok(paths);
@@ -133,19 +133,19 @@ Result<Paths> OpenMultiple(const Options &options)
 Result<Path> Save(const Options &options)
 {
     Guard g{};
-    nfdu8char_t *path;
-    nfdsavedialogu8args_t args{};
+    nfdnchar_t *path;
+    nfdsavedialognargs_t args{};
 #ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
 #endif
     args.defaultPath = options.DefaultPath;
     args.defaultName = options.DefaultName;
-    const Status result = toStatus(NFD_SaveDialogU8_With(&path, &args));
+    const Status result = toStatus(NFD_SaveDialogN_With(&path, &args));
     if (result == Success)
     {
         const fs::path p = path;
-        NFD_FreePathU8(path);
+        NFD_FreePathN(path);
         return Result<Path>::Ok(p);
     }
     return Result<Path>::Error(result);

@@ -15,6 +15,12 @@ namespace Onyx::Dialog
 {
 namespace fs = std::filesystem;
 
+#ifndef TKIT_OS_WINDOWS
+using Char = char;
+#else
+using Char = wchar_t
+#endif
+
 enum Status : u8
 {
     Success = 0,
@@ -24,15 +30,15 @@ enum Status : u8
 
 struct Filter
 {
-    const char *Name = nullptr;
-    const char *Extensions = nullptr;
+    const Char *Name = nullptr;
+    const Char *Extensions = nullptr;
 };
 
 struct Options
 {
     GLFWwindow *Window = nullptr;
-    const char *DefaultName = nullptr;
-    const char *DefaultPath = nullptr;
+    const Char *DefaultName = nullptr;
+    const Char *DefaultPath = nullptr;
     TKit::Span<const Filter> Filters{};
 };
 
