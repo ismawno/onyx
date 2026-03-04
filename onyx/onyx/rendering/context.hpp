@@ -196,7 +196,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         return m_InstanceData;
     }
 
-    u64 GetViewMask() const
+    ViewMask GetViewMask() const
     {
         return m_ViewMask;
     }

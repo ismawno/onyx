@@ -166,6 +166,9 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     {
         features.Vulkan13.dynamicRendering = VK_TRUE;
         features.Vulkan13.synchronization2 = VK_TRUE;
+        if (!s_Physical->EnableFeatures(features))
+            return Result<>::Error(Error_MissingFeature,
+                                   "[ONYX][CORE] Failed to enable dynamic rendering and synchronization2");
     }
     else
     {
@@ -473,7 +476,7 @@ Result<> HandleVulkanResult(const VkResult result)
 
     addresses.Resize(counts.addressInfoCount);
     vendors.Resize(counts.vendorInfoCount);
-    vendorBinary.Resize(counts.vendorBinarySize);
+    vendorBinary.Resize(static_cast<u32>(counts.vendorBinarySize));
 
     VkDeviceFaultInfoEXT faultInfo{};
     faultInfo.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_INFO_EXT;
