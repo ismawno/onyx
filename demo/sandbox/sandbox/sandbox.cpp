@@ -979,7 +979,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
         else if (meshes.StatMeshToLoad == importedIndex)
         {
             const auto load = [&](const Dialog::Path &path) {
-                const auto lres = Assets::LoadStaticMeshFromObj<D>(path.c_str());
+                const auto lres = Assets::LoadStaticMeshFromObj<D>(path.string().c_str());
                 VKIT_LOG_RESULT_ERROR(lres);
                 if (!lres)
                     return;
