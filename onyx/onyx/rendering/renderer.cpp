@@ -1839,7 +1839,11 @@ template <Dimension D> void DisplayMemoryLayout()
                                     if (crange.ContextIndex != TKIT_U32_MAX)
                                     {
                                         ImGui::Text("Context index: %u", crange.ContextIndex);
+#    ifndef TKIT_OS_LINUX
+                                        ImGui::Text("Context generation: %llu", crange.Generation);
+#    else
                                         ImGui::Text("Context generation: %lu", crange.Generation);
+#    endif
                                     }
                                     else
                                         ImGui::Text("Context index: None");
