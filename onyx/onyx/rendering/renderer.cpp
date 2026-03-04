@@ -1256,24 +1256,24 @@ Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<con
     cmds.Reserve(info.GetSize());
 
     u64 maxFlight = 0;
-    for (const TransferSubmitInfo &info : info)
+    for (const TransferSubmitInfo &inf : info)
     {
-        TKIT_ASSERT(info.Command,
+        TKIT_ASSERT(inf.Command,
                     "[ONYX][RENDERER] A submission must have a valid transfer command buffer to be submitted");
-        if (info.InFlightValue > maxFlight)
-            maxFlight = info.InFlightValue;
+        if (inf.InFlightValue > maxFlight)
+            maxFlight = inf.InFlightValue;
 
         VkSubmitInfo2KHR &sinfo = submits.Append();
         sinfo = {};
         sinfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2_KHR;
 
         sinfo.signalSemaphoreInfoCount = 1;
-        sinfo.pSignalSemaphoreInfos = &info.SignalSemaphore;
+        sinfo.pSignalSemaphoreInfos = &inf.SignalSemaphore;
 
         VkCommandBufferSubmitInfoKHR &cmd = cmds.Append();
         cmd.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO_KHR;
         cmd.pNext = nullptr;
-        cmd.commandBuffer = info.Command;
+        cmd.commandBuffer = inf.Command;
         cmd.deviceMask = 0;
 
         sinfo.commandBufferInfoCount = 1;

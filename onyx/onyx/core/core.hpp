@@ -43,8 +43,8 @@ template <typename T, typename E> T CheckExpression(TKit::Result<T, E> &&result)
         const auto &error = result.GetError();
         if (error.GetCode() == Error_VulkanError)
         {
-            const auto result = HandleVulkanResult(error.GetVulkanResult());
-            VKIT_LOG_RESULT_ERROR(result);
+            const auto r = HandleVulkanResult(error.GetVulkanResult());
+            VKIT_LOG_RESULT_ERROR(r);
         }
 
         TKIT_FATAL("{}", error.ToString());

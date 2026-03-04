@@ -251,8 +251,8 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
                     break;
                 }
 
-    for (StatusFlags &flags : flags)
-        flags = 0;
+    for (StatusFlags &f : flags)
+        f = 0;
     return Result<>::Ok();
 }
 

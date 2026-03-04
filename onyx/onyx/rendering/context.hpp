@@ -46,6 +46,7 @@ namespace Onyx::Detail
 {
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_MSVC_WARNING_IGNORE(4324)
+TKIT_MSVC_WARNING_IGNORE(4661)
 
 template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 {

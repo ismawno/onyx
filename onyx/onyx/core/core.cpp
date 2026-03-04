@@ -153,9 +153,6 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     VKit::DeviceFeatures features{};
     features.Vulkan11.shaderDrawParameters = VK_TRUE;
     features.Vulkan12.timelineSemaphore = VK_TRUE;
-    if (!s_Physical->EnableFeatures(features))
-        return Result<>::Error(Error_MissingFeature,
-                               "[ONYX][CORE] Failed to enable timeline semaphores and shader draw parameters");
 
     VkPhysicalDeviceDynamicRenderingFeaturesKHR drendering{};
     drendering.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
@@ -167,18 +164,18 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
 
     if (apiVersion >= VKIT_API_VERSION_1_3)
     {
-        VKit::DeviceFeatures features{};
         features.Vulkan13.dynamicRendering = VK_TRUE;
         features.Vulkan13.synchronization2 = VK_TRUE;
-        if (!s_Physical->EnableFeatures(features))
-            return Result<>::Error(Error_MissingFeature,
-                                   "[ONYX][CORE] Failed to enable dynamic rendering and synchronization2");
     }
     else
     {
         s_Physical->EnableExtensionBoundFeature(&drendering);
         s_Physical->EnableExtensionBoundFeature(&sync2);
     }
+
+    if (!s_Physical->EnableFeatures(features))
+        return Result<>::Error(Error_MissingFeature,
+                               "[ONYX][CORE] Failed to enable timeline semaphores and shader draw parameters");
 
     VKit::LogicalDevice::Builder builder{s_Instance.Get(), s_Physical.Get()};
     const auto devres = builder.RequireQueue(VKit::Queue_Graphics)
