@@ -103,7 +103,7 @@ void SandboxAppLayer::OnTransfer(const DeltaTime &)
 
 template <Dimension D> void SandboxAppLayer::AddStaticMesh(const char *name, const StatMeshData<D> &data)
 {
-    Meshes<D> &meshes = GetMeshes<D>();
+    MeshArray<D> &meshes = GetMeshes<D>();
     const Mesh mesh = Assets::AddMesh(data);
     meshes.StaticMeshes.Append(name, mesh);
 }
@@ -282,7 +282,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const u32 geometry,
         shape.Name = "Circle";
         return shape;
     case Geometry_StaticMesh: {
-        const Meshes<D> &meshes = GetMeshes<D>();
+        const MeshArray<D> &meshes = GetMeshes<D>();
         const MeshId &mesh = meshes.StaticMeshes[statMesh];
         shape.Name = mesh.Name;
         shape.StatMesh = mesh.Mesh;
@@ -745,7 +745,7 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
 template <Dimension D> static bool shapeNameCombo(const char *name, SandboxAppLayer *appLayer, u32 *toSpawn)
 {
     TKit::StackArray<const char *> names{};
-    const Meshes<D> &meshes = appLayer->GetMeshes<D>();
+    const MeshArray<D> &meshes = appLayer->GetMeshes<D>();
     names.Reserve(meshes.StaticMeshes.GetSize());
     for (const MeshId &mid : meshes.StaticMeshes)
         names.Append(mid.Name.c_str());
@@ -922,7 +922,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
 template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
 {
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
-    Meshes<D> &meshes = appLayer->GetMeshes<D>();
+    MeshArray<D> &meshes = appLayer->GetMeshes<D>();
     combo("Geometry#Load", &meshes.GeometryToLoad, "Static mesh\0\0");
     const Geometry geo = static_cast<Geometry>(meshes.GeometryToLoad + 1); // skip circles
     if (geo == Geometry_StaticMesh)
@@ -1022,7 +1022,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
         }
         if constexpr (D == D3)
         {
-            Meshes<D3> &m3 = meshes;
+            MeshArray<D3> &m3 = meshes;
             if (meshes.StatMeshToLoad == 2)
             {
                 const u32 mn = 8;

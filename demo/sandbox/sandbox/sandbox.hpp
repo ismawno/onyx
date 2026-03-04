@@ -33,7 +33,7 @@ template <> struct CameraData<D3>
     bool Perspective = false;
 };
 
-template <Dimension D> struct Cameras
+template <Dimension D> struct CameraArray
 {
     TKit::TierArray<CameraData<D>> Cameras{};
     u32 Active = 0;
@@ -114,13 +114,13 @@ template <> struct ContextData<D3>
     SandboxFlags Flags = SandboxFlag_ContextShouldUpdate;
 };
 
-template <Dimension D> struct Contexts
+template <Dimension D> struct ContextArray
 {
     TKit::TierArray<ContextData<D>> Contexts{};
     u32 Active = 0;
 };
 
-template <Dimension D> struct Meshes
+template <Dimension D> struct MeshArray
 {
     TKit::TierArray<MeshId> StaticMeshes{};
     u32 GeometryToLoad = 0;
@@ -131,7 +131,7 @@ template <Dimension D> struct Meshes
     f32v2 VertexToAdd{0.f};
 };
 
-template <> struct Meshes<D3>
+template <> struct MeshArray<D3>
 {
     TKit::TierArray<MeshId> StaticMeshes{};
     u32 GeometryToLoad = 0;
@@ -245,11 +245,11 @@ class SandboxAppLayer final : public ApplicationLayer
     template <Dimension D> void AddStaticMesh(const char *name, const StatMeshData<D> &data);
     template <Dimension D> void AddMeshes();
 
-    Contexts<D2> Contexts2{};
-    Contexts<D3> Contexts3{};
+    ContextArray<D2> Contexts2{};
+    ContextArray<D3> Contexts3{};
 
-    Meshes<D2> Meshes2{};
-    Meshes<D3> Meshes3{};
+    MeshArray<D2> Meshes2{};
+    MeshArray<D3> Meshes3{};
 
     Lattices<D2> Lattices2{};
     Lattices<D3> Lattices3{};
@@ -294,8 +294,8 @@ class SandboxWinLayer final : public WindowLayer
             return Cameras3;
     }
 
-    Cameras<D2> Cameras2{};
-    Cameras<D3> Cameras3{};
+    CameraArray<D2> Cameras2{};
+    CameraArray<D3> Cameras3{};
 
 #ifndef TKIT_OS_APPLE
     TKit::Task<Dialog::Result<Dialog::Path>> DialogTask{};
