@@ -47,7 +47,7 @@ struct Guard
 Result<Path> OpenFolder(const Options &options)
 {
     Guard g{};
-    nfdchar_t *path;
+    nfdu8char_t *path;
     nfdpickfolderu8args_t args{};
 #ifdef USE_GLFW
     if (options.Window)
@@ -66,7 +66,7 @@ Result<Path> OpenFolder(const Options &options)
 Result<Path> OpenSingle(const Options &options)
 {
     Guard g{};
-    nfdchar_t *path;
+    nfdu8char_t *path;
     nfdopendialogu8args_t args{};
 #ifdef USE_GLFW
     if (options.Window)
@@ -119,7 +119,7 @@ Result<Paths> OpenMultiple(const Options &options)
         toStatus(NFD_PathSet_GetCount(set, &count));
         for (nfdpathsetsize_t i = 0; i < count; ++i)
         {
-            nfdchar_t *path;
+            nfdu8char_t *path;
             NFD_PathSet_GetPathU8(set, i, &path);
             paths.Append(path);
             NFD_PathSet_FreePathU8(path);
@@ -133,7 +133,7 @@ Result<Paths> OpenMultiple(const Options &options)
 Result<Path> Save(const Options &options)
 {
     Guard g{};
-    nfdchar_t *path;
+    nfdu8char_t *path;
     nfdsavedialognargs_t args{};
 #ifdef USE_GLFW
     if (options.Window)
