@@ -157,7 +157,7 @@ if(ONYX_ENABLE_SHADER_COMPILATION)
         TRUE
         CACHE BOOL "")
     set(SLANG_ENABLE_SLANGC
-        OFF
+        ON
         CACHE BOOL "")
     set(SLANG_ENABLE_SLANGD
         OFF
