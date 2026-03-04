@@ -154,7 +154,7 @@ if(ONYX_ENABLE_SHADER_COMPILATION)
         OFF
         CACHE BOOL "")
     set(SLANG_ENABLE_SLANG_GLSLANG
-        TRUE
+        OFF
         CACHE BOOL "")
     set(SLANG_ENABLE_SLANGC
         ON
