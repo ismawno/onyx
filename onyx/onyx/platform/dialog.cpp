@@ -108,9 +108,9 @@ Result<Paths> OpenMultiple(const Options &options)
     if (result == Success)
     {
         Paths paths;
-        u32 count;
+        nfdpathsetsize_t count;
         toStatus(NFD_PathSet_GetCount(set, &count));
-        for (u32 i = 0; i < count; ++i)
+        for (nfdpathsetsize_t i = 0; i < count; ++i)
         {
             nfdchar_t *path;
             NFD_PathSet_GetPathU8(set, i, &path);
