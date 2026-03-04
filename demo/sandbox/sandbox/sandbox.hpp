@@ -175,13 +175,13 @@ template <Dimension D> struct MatData
     MaterialData<D> Data{};
 };
 
-template <Dimension D> struct Materials
+template <Dimension D> struct MaterialArray
 {
     TKit::TierArray<MatData<D>> Materials{};
     u32 Active = 0;
 };
 
-template <Dimension D> struct Lattices
+template <Dimension D> struct LatticeArray
 {
     TKit::TierArray<LatticeData<D>> Lattices{};
     u32 Active = 0;
@@ -251,11 +251,11 @@ class SandboxAppLayer final : public ApplicationLayer
     MeshArray<D2> Meshes2{};
     MeshArray<D3> Meshes3{};
 
-    Lattices<D2> Lattices2{};
-    Lattices<D3> Lattices3{};
+    LatticeArray<D2> Lattices2{};
+    LatticeArray<D3> Lattices3{};
 
-    Materials<D2> Materials2;
-    Materials<D3> Materials3;
+    MaterialArray<D2> Materials2;
+    MaterialArray<D3> Materials3;
 };
 
 class SandboxWinLayer final : public WindowLayer
