@@ -276,9 +276,6 @@ if(ONYX_ENABLE_NFD)
 
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_NFD)
   target_link_libraries(onyx PRIVATE nfd)
-  if(WIN32)
-    target_link_libraries(nfd PRIVATE ole32 uuid shell32)
-  endif()
 endif()
 
 target_link_libraries(onyx PUBLIC toolkit vulkit)
