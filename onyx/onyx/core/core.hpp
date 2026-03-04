@@ -117,9 +117,14 @@ struct Specs
     Shaders::Specs *ShadersSpecs = nullptr;
     Platform::Specs *PlatformSpecs = nullptr;
 #ifdef TKIT_ENABLE_ASSERTS
+#    ifdef TKIT_OS_APPLE
+    Flags Flags = Flag_EnableValidationLayers | Flag_EnableDebugUtilsExtension | Flag_EnableBestPracticesDebugFeature |
+                  Flag_EnableSyncValidationDebugFeature | Flag_EnableDeviceFaultExtension;
+#    else
     Flags Flags = Flag_EnableValidationLayers | Flag_EnableDebugUtilsExtension | Flag_EnableBestPracticesDebugFeature |
                   Flag_EnableSyncValidationDebugFeature | Flag_EnableDeviceAssistedDebugFeature |
                   Flag_EnableDeviceFaultExtension;
+#    endif
 #else
     Flags Flags = 0;
 #endif

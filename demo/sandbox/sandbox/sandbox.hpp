@@ -297,7 +297,9 @@ class SandboxWinLayer final : public WindowLayer
     Cameras<D2> Cameras2{};
     Cameras<D3> Cameras3{};
 
+#ifndef TKIT_OS_APPLE
     TKit::Task<Dialog::Result<Dialog::Path>> DialogTask{};
+#endif
 
 #ifdef ONYX_ENABLE_IMGUI
     bool ImGuiDemoWindow = false;

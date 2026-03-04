@@ -351,11 +351,13 @@ SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, con
 }
 SandboxWinLayer::~SandboxWinLayer()
 {
+#ifndef TKIT_OS_APPLE
     if (DialogTask)
     {
         TKit::ITaskManager *tm = Core::GetTaskManager();
         tm->WaitUntilFinished(DialogTask);
     }
+#endif
 }
 
 void SandboxWinLayer::OnRender(const DeltaTime &deltaTime)
@@ -976,35 +978,47 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
         }
         else if (meshes.StatMeshToLoad == importedIndex)
         {
+            const auto load = [&](const Dialog::Path &path) {
+                const auto lres = Assets::LoadStaticMeshFromObj<D>(path.c_str());
+                VKIT_LOG_RESULT_ERROR(lres);
+                if (!lres)
+                    return;
+
+                const StatMeshData<D> &data = lres.GetValue();
+                appLayer->AddStaticMesh(name[0] ? name : path.filename().c_str(), data);
+                ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+            };
+#    ifndef TKIT_OS_APPLE
             ImGui::BeginDisabled(DialogTask && !DialogTask.IsFinished());
+#    endif
             TKit::ITaskManager *tm = Core::GetTaskManager();
             if (ImGui::Button("Load"))
             {
-                DialogTask.Reset();
-                DialogTask = [this]() {
+                const auto openDialog = [this]() {
                     const char *path = D == D2 ? (ONYX_ROOT_PATH "/demo/meshes2/") : (ONYX_ROOT_PATH "/demo/meshes3/");
                     return Dialog::OpenSingle({.Window = GetWindow()->GetHandle(), .DefaultPath = path});
                 };
+
+#    ifndef TKIT_OS_APPLE
+                DialogTask.Reset();
+                DialogTask = openDialog;
                 tm->SubmitTask(&DialogTask);
+#    else
+                const auto result = openDialog();
+                if (result)
+                    load(result.GetValue());
+#    endif
             }
+#    ifndef TKIT_OS_APPLE
             ImGui::EndDisabled();
             if (DialogTask && DialogTask.IsFinished())
             {
-                const auto load = [&](const Dialog::Path &path) {
-                    const auto lres = Assets::LoadStaticMeshFromObj<D>(path.c_str());
-                    VKIT_LOG_RESULT_ERROR(lres);
-                    if (!lres)
-                        return;
-
-                    const StatMeshData<D> &data = lres.GetValue();
-                    appLayer->AddStaticMesh(name[0] ? name : path.filename().c_str(), data);
-                    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
-                };
                 const auto result = tm->WaitForResult(DialogTask);
                 if (result)
                     load(result.GetValue());
                 DialogTask = nullptr;
             }
+#    endif
         }
         if constexpr (D == D3)
         {
