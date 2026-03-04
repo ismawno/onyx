@@ -297,7 +297,7 @@ class SandboxWinLayer final : public WindowLayer
     CameraArray<D2> Cameras2{};
     CameraArray<D3> Cameras3{};
 
-#ifdef TKIT_OS_LINUX
+#ifndef TKIT_OS_APPLE
     TKit::Task<Dialog::Result<Dialog::Path>> DialogTask{};
 #endif
 
