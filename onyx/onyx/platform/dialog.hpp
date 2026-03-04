@@ -18,7 +18,7 @@ namespace fs = std::filesystem;
 #ifndef TKIT_OS_WINDOWS
 using Char = char;
 #else
-using Char = wchar_t
+using Char = wchar_t;
 #endif
 
 enum Status : u8
