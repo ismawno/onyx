@@ -168,6 +168,9 @@ if(ONYX_ENABLE_SHADER_COMPILATION)
     set(SLANG_ENABLE_TESTS
         OFF
         CACHE BOOL "")
+    set(SLANG_ENABLE_CUDA
+        OFF
+        CACHE BOOL "")
     set(SLANG_ENABLE_EXAMPLES
         OFF
         CACHE BOOL "")
