@@ -571,7 +571,7 @@ Result<Compilation> Compiler::Compile() const
 
     for (const ShaderArgument &sa : m_Arguments)
     {
-        slang::CompilerOptionEntry entry;
+        entry = {};
         entry.name = getArgumentName(sa.Name);
         entry.value.intValue0 = sa.Value.Value0;
         entry.value.intValue1 = sa.Value.Value1;
