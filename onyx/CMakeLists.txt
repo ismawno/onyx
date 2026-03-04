@@ -142,7 +142,7 @@ if(ONYX_ENABLE_SHADER_COMPILATION)
     FetchContent_Declare(
       slang
       GIT_REPOSITORY https://github.com/shader-slang/slang.git
-      GIT_TAG vulkan-sdk-1.4.328.0
+      GIT_TAG vulkan-sdk-1.4.341.0
       GIT_SHALLOW TRUE
       GIT_SUBMODULES_RECURSE TRUE
       GIT_PROGRESS TRUE)
