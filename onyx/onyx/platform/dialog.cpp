@@ -134,7 +134,7 @@ Result<Path> Save(const Options &options)
 {
     Guard g{};
     nfdu8char_t *path;
-    nfdsavedialognargs_t args{};
+    nfdsavedialogu8args_t args{};
 #ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
