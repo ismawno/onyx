@@ -351,7 +351,7 @@ SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, con
 }
 SandboxWinLayer::~SandboxWinLayer()
 {
-#ifndef TKIT_OS_APPLE
+#ifdef TKIT_OS_LINUX
     if (DialogTask)
     {
         TKit::ITaskManager *tm = Core::GetTaskManager();
@@ -988,7 +988,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 appLayer->AddStaticMesh(name[0] ? name : path.filename().string().c_str(), data);
                 ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
             };
-#    ifndef TKIT_OS_APPLE
+#    ifdef TKIT_OS_LINUX
             ImGui::BeginDisabled(DialogTask && !DialogTask.IsFinished());
             TKit::ITaskManager *tm = Core::GetTaskManager();
 #    endif
@@ -1000,7 +1000,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                     return Dialog::OpenSingle({.Window = GetWindow()->GetHandle(), .DefaultPath = path.c_str()});
                 };
 
-#    ifndef TKIT_OS_APPLE
+#    ifdef TKIT_OS_LINUX
                 DialogTask.Reset();
                 DialogTask = openDialog;
                 tm->SubmitTask(&DialogTask);
@@ -1010,7 +1010,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                     load(result.GetValue());
 #    endif
             }
-#    ifndef TKIT_OS_APPLE
+#    ifdef TKIT_OS_LINUX
             ImGui::EndDisabled();
             if (DialogTask && DialogTask.IsFinished())
             {
