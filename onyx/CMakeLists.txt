@@ -261,37 +261,16 @@ endif()
 if(ONYX_ENABLE_NFD)
   FetchContent_Declare(
     nfd
-    GIT_REPOSITORY https://github.com/mlabbe/nativefiledialog.git
-    GIT_TAG release_116
+    GIT_REPOSITORY https://github.com/btzy/nativefiledialog-extended.git
+    GIT_TAG v1.3.0
     GIT_SHALLOW TRUE
     GIT_PROGRESS TRUE)
 
+  set(NFD_PORTAL
+      ON
+      CACHE BOOL "")
   FetchContent_MakeAvailable(nfd)
 
-  set(NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_common.c)
-  if(WIN32)
-    list(APPEND NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_win.cpp)
-  elseif(APPLE)
-    list(APPEND NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_cocoa.m)
-  elseif(UNIX)
-    find_package(GTK)
-    if(GTK_FOUND)
-      message(STATUS "ONYX - Using GTK as NFD backend")
-      list(APPEND NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_gtk.c)
-
-    else()
-      message(STATUS "ONYX - Using Zenity as NFD backend")
-      list(APPEND NFD_SOURCES ${nfd_SOURCE_DIR}/src/nfd_zenity.c)
-
-    endif()
-
-  else()
-    message(FATAL_ERROR "ONYX - No available platform to use NFD")
-  endif()
-
-  add_library(nfd STATIC ${NFD_SOURCES})
-
-  target_include_directories(nfd PUBLIC ${nfd_SOURCE_DIR}/src/include)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_NFD)
   target_link_libraries(onyx PRIVATE nfd)
 endif()

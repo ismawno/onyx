@@ -4,7 +4,6 @@
 #    include "onyx/imgui/imgui.hpp"
 #    include <misc/cpp/imgui_stdlib.h>
 #endif
-#include "onyx/platform/dialog.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/multiprocessing/topology.hpp"
@@ -348,6 +347,14 @@ SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, con
     {
         AddCamera<D3>();
         alayer->AddContext<D3>(window);
+    }
+}
+SandboxWinLayer::~SandboxWinLayer()
+{
+    if (DialogTask)
+    {
+        TKit::ITaskManager *tm = Core::GetTaskManager();
+        tm->WaitUntilFinished(DialogTask);
     }
 }
 
@@ -969,7 +976,19 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
         }
         else if (meshes.StatMeshToLoad == importedIndex)
         {
+            ImGui::BeginDisabled(DialogTask && !DialogTask.IsFinished());
+            TKit::ITaskManager *tm = Core::GetTaskManager();
             if (ImGui::Button("Load"))
+            {
+                DialogTask.Reset();
+                DialogTask = [this]() {
+                    const char *path = D == D2 ? (ONYX_ROOT_PATH "/demo/meshes2/") : (ONYX_ROOT_PATH "/demo/meshes3/");
+                    return Dialog::OpenSingle({.Window = GetWindow()->GetHandle(), .DefaultPath = path});
+                };
+                tm->SubmitTask(&DialogTask);
+            }
+            ImGui::EndDisabled();
+            if (DialogTask && DialogTask.IsFinished())
             {
                 const auto load = [&](const Dialog::Path &path) {
                     const auto lres = Assets::LoadStaticMeshFromObj<D>(path.c_str());
@@ -981,10 +1000,10 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                     appLayer->AddStaticMesh(name[0] ? name : path.filename().c_str(), data);
                     ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
                 };
-                const char *path = D == D2 ? (ONYX_ROOT_PATH "/demo/meshes2/") : (ONYX_ROOT_PATH "/demo/meshes3/");
-                const auto result = Dialog::OpenSingle({.Default = path});
+                const auto result = tm->WaitForResult(DialogTask);
                 if (result)
                     load(result.GetValue());
+                DialogTask = nullptr;
             }
         }
         if constexpr (D == D3)

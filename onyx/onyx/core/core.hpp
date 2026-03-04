@@ -15,25 +15,6 @@
 #define ONYX_NO_DISCARD VKIT_NO_DISCARD
 #define ONYX_CHECK_EXPRESSION(expression) Onyx::CheckExpression(expression)
 
-#define ONYX_PLATFORM_ANY 0x00060000
-#define ONYX_PLATFORM_WIN32 0x00060001
-#define ONYX_PLATFORM_COCOA 0x00060002
-#define ONYX_PLATFORM_WAYLAND 0x00060003
-#define ONYX_PLATFORM_X11 0x00060004
-#define ONYX_PLATFORM_NULL 0x00060005
-
-#ifdef TKIT_OS_LINUX
-#    define ONYX_PLATFORM_AUTO ONYX_PLATFORM_X11
-#elif defined(TKIT_OS_APPLE)
-#    define ONYX_PLATFORM_AUTO ONYX_PLATFORM_COCOA
-#elif defined(TKIT_OS_WINDOWS)
-#    define ONYX_PLATFORM_AUTO ONYX_PLATFORM_WIN32
-#endif
-
-#ifndef ONYX_PLATFORM_AUTO
-#    define ONYX_PLATFORM_AUTO ONYX_PLATFORM_ANY
-#endif
-
 // This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
 // properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX
 // objects are alive at that point.

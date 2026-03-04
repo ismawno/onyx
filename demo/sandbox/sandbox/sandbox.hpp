@@ -3,6 +3,7 @@
 #include "onyx/application/layer.hpp"
 #include "onyx/rendering/context.hpp"
 #include "onyx/property/instance.hpp"
+#include "onyx/platform/dialog.hpp"
 
 namespace Onyx
 {
@@ -261,6 +262,7 @@ class SandboxWinLayer final : public WindowLayer
 {
   public:
     SandboxWinLayer(ApplicationLayer *appLayer, Window *window, Dimension dim);
+    ~SandboxWinLayer();
 
     void OnRender(const DeltaTime &deltaTime) override;
     void OnEvent(const Event &event) override;
@@ -294,6 +296,8 @@ class SandboxWinLayer final : public WindowLayer
 
     Cameras<D2> Cameras2{};
     Cameras<D3> Cameras3{};
+
+    TKit::Task<Dialog::Result<Dialog::Path>> DialogTask{};
 
 #ifdef ONYX_ENABLE_IMGUI
     bool ImGuiDemoWindow = false;

@@ -1,10 +1,21 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/platform/dialog.hpp"
+#include "tkit/container/stack_array.hpp"
 #include <nfd.h>
+#ifdef TKIT_OS_LINUX
+#    define GLFW_EXPOSE_NATIVE_X11
+#    define GLFW_EXPOSE_NATIVE_WAYLAND
+#elif defined(TKIT_OS_APPLE)
+#    define GLFW_EXPOSE_NATIVE_COCOA
+#elif defined(TKIT_OS_WINDOWS)
+#    define GLFW_EXPOSE_NATIVE_WIN32
+#endif
+#include <nfd_glfw3.h>
+#undef Status
+#undef Success
 
 namespace Onyx::Dialog
 {
-
 Status toStatus(const nfdresult_t result)
 {
     switch (result)
@@ -16,37 +27,97 @@ Status toStatus(const nfdresult_t result)
     case NFD_OKAY:
         return Success;
     default:
-        return Success;
+        return Error;
     }
 }
 
-Result<Path> OpenFolder(const char *fdefault)
+struct Guard
 {
-    char *path;
-    const Status result = toStatus(NFD_PickFolder(fdefault, &path));
+    Guard()
+    {
+        NFD_Init();
+    }
+    ~Guard()
+    {
+        NFD_Quit();
+    }
+};
+
+Result<Path> OpenFolder(const Options &options)
+{
+    Guard g{};
+    nfdchar_t *path;
+    nfdpickfolderu8args_t args{};
+    if (options.Window)
+        NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
+    args.defaultPath = options.DefaultPath;
+    const Status result = toStatus(NFD_PickFolderU8_With(&path, &args));
     if (result == Success)
-        return Result<Path>::Ok(path);
+    {
+        const fs::path p = path;
+        NFD_FreePathU8(path);
+        return p;
+    }
     return Result<Path>::Error(result);
 }
 Result<Path> OpenSingle(const Options &options)
 {
-    char *path;
-    const Status result = toStatus(NFD_OpenDialog(options.Filter, options.Default, &path));
+    Guard g{};
+    nfdchar_t *path;
+    nfdopendialogu8args_t args{};
+    if (options.Window)
+        NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
+    TKit::StackArray<nfdu8filteritem_t> filters{};
+    if (options.Filters)
+    {
+        filters.Reserve(options.Filters.GetSize());
+        for (const Filter &filter : options.Filters)
+            filters.Append(nfdu8filteritem_t{filter.Name, filter.Extensions});
+        args.filterList = filters.GetData();
+        args.filterCount = filters.GetSize();
+    }
+
+    args.defaultPath = options.DefaultPath;
+    Status result = toStatus(NFD_OpenDialogU8_With(&path, &args));
     if (result == Success)
-        return Result<Path>::Ok(path);
+    {
+        const fs::path p = path;
+        NFD_FreePathU8(path);
+        return Result<Path>::Ok(p);
+    }
     return Result<Path>::Error(result);
 }
 Result<Paths> OpenMultiple(const Options &options)
 {
-    nfdpathset_t set;
-    const Status result = toStatus(NFD_OpenDialogMultiple(options.Filter, options.Default, &set));
+    Guard g{};
+    const nfdpathset_t *set;
+    nfdopendialogu8args_t args{};
+    if (options.Window)
+        NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
+    TKit::StackArray<nfdu8filteritem_t> filters{};
+    if (options.Filters)
+    {
+        filters.Reserve(options.Filters.GetSize());
+        for (const Filter &filter : options.Filters)
+            filters.Append(nfdu8filteritem_t{filter.Name, filter.Extensions});
+        args.filterList = filters.GetData();
+        args.filterCount = filters.GetSize();
+    }
+
+    const Status result = toStatus(NFD_OpenDialogMultipleU8_With(&set, &args));
     if (result == Success)
     {
         Paths paths;
-        const u32 count = static_cast<u32>(NFD_PathSet_GetCount(&set));
+        u32 count;
+        toStatus(NFD_PathSet_GetCount(set, &count));
         for (u32 i = 0; i < count; ++i)
-            paths.Append(NFD_PathSet_GetPath(&set, i));
-
+        {
+            nfdchar_t *path;
+            NFD_PathSet_GetPathU8(set, i, &path);
+            paths.Append(path);
+            NFD_PathSet_FreePathU8(path);
+        }
+        NFD_PathSet_Free(set);
         return Result<Paths>::Ok(paths);
     }
     return Result<Paths>::Error(result);
@@ -54,10 +125,20 @@ Result<Paths> OpenMultiple(const Options &options)
 
 Result<Path> Save(const Options &options)
 {
-    char *path;
-    const Status result = toStatus(NFD_SaveDialog(options.Filter, options.Default, &path));
+    Guard g{};
+    nfdchar_t *path;
+    nfdsavedialognargs_t args{};
+    if (options.Window)
+        NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
+    args.defaultPath = options.DefaultPath;
+    args.defaultName = options.DefaultName;
+    const Status result = toStatus(NFD_SaveDialogU8_With(&path, &args));
     if (result == Success)
-        return Result<Path>::Ok(path);
+    {
+        const fs::path p = path;
+        NFD_FreePathU8(path);
+        return Result<Path>::Ok(p);
+    }
     return Result<Path>::Error(result);
 }
 } // namespace Onyx::Dialog
