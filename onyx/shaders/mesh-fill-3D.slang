@@ -18,7 +18,6 @@ struct VertexOutput
     float4 FragColor;
 
     float4 Position : SV_Position;
-    float  PointSize : SV_PointSize;
 };
 
 [[vk::binding(0, 0)]]
@@ -48,7 +47,6 @@ VertexOutput mainVS(
 
     VertexOutput output;
     output.Position = mul(worldPos, pdata.ProjectionView);
-    output.PointSize = 1.0;
 
     const float3x3 normalMatrix = ComputeNormalMatrix(float3x3(transform));
 
