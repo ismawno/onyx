@@ -985,7 +985,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                     return;
 
                 const StatMeshData<D> &data = lres.GetValue();
-                appLayer->AddStaticMesh(name[0] ? name : path.filename().c_str(), data);
+                appLayer->AddStaticMesh(name[0] ? name : path.filename().string().c_str(), data);
                 ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
             };
 #    ifndef TKIT_OS_APPLE
