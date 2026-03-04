@@ -2,15 +2,16 @@
 #include "onyx/platform/dialog.hpp"
 #include "tkit/container/stack_array.hpp"
 #include <nfd.h>
-#ifdef TKIT_OS_LINUX
-#    define GLFW_EXPOSE_NATIVE_X11
-#    define GLFW_EXPOSE_NATIVE_WAYLAND
-#elif defined(TKIT_OS_APPLE)
+#ifdef TKIT_OS_APPLE
 #    define GLFW_EXPOSE_NATIVE_COCOA
+#    define USE_GLFW
+#    include <nfd_glfw3.h>
 #elif defined(TKIT_OS_WINDOWS)
 #    define GLFW_EXPOSE_NATIVE_WIN32
+#    define USE_GLFW
+#    include <nfd_glfw3.h>
 #endif
-#include <nfd_glfw3.h>
+
 #undef Status
 #undef Success
 
@@ -48,8 +49,10 @@ Result<Path> OpenFolder(const Options &options)
     Guard g{};
     nfdchar_t *path;
     nfdpickfolderu8args_t args{};
+#ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
+#endif
     args.defaultPath = options.DefaultPath;
     const Status result = toStatus(NFD_PickFolderU8_With(&path, &args));
     if (result == Success)
@@ -65,8 +68,10 @@ Result<Path> OpenSingle(const Options &options)
     Guard g{};
     nfdchar_t *path;
     nfdopendialogu8args_t args{};
+#ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
+#endif
     TKit::StackArray<nfdu8filteritem_t> filters{};
     if (options.Filters)
     {
@@ -92,8 +97,10 @@ Result<Paths> OpenMultiple(const Options &options)
     Guard g{};
     const nfdpathset_t *set;
     nfdopendialogu8args_t args{};
+#ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
+#endif
     TKit::StackArray<nfdu8filteritem_t> filters{};
     if (options.Filters)
     {
@@ -128,8 +135,10 @@ Result<Path> Save(const Options &options)
     Guard g{};
     nfdchar_t *path;
     nfdsavedialognargs_t args{};
+#ifdef USE_GLFW
     if (options.Window)
         NFD_GetNativeWindowFromGLFWWindow(options.Window, &args.parentWindow);
+#endif
     args.defaultPath = options.DefaultPath;
     args.defaultName = options.DefaultName;
     const Status result = toStatus(NFD_SaveDialogU8_With(&path, &args));

@@ -45,6 +45,7 @@
           wayland-scanner
           libffi
           libxkbcommon
+          dbus
 
           fontconfig
           expat
