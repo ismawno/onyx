@@ -995,8 +995,9 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
             if (ImGui::Button("Load"))
             {
                 const auto openDialog = [this]() {
-                    const char *path = D == D2 ? (ONYX_ROOT_PATH "/demo/meshes2/") : (ONYX_ROOT_PATH "/demo/meshes3/");
-                    return Dialog::OpenSingle({.Window = GetWindow()->GetHandle(), .DefaultPath = path});
+                    const Dialog::Path path =
+                        D == D2 ? (ONYX_ROOT_PATH "/demo/meshes2/") : (ONYX_ROOT_PATH "/demo/meshes3/");
+                    return Dialog::OpenSingle({.Window = GetWindow()->GetHandle(), .DefaultPath = path.c_str()});
                 };
 
 #    ifndef TKIT_OS_APPLE
