@@ -514,8 +514,11 @@ static bool isOldMesa()
     u32 minor;
     u32 patch;
 
+    TKIT_COMPILER_WARNING_IGNORE_PUSH()
+    TKIT_MSVC_WARNING_IGNORE(4996)
     if (std::sscanf(props.driverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
         return false;
+    TKIT_COMPILER_WARNING_IGNORE_POP()
 
     if (major > 25)
         return false;
@@ -622,8 +625,8 @@ Result<Compilation> Compiler::Compile() const
 
         for (const EntryPoint &ep : munit.m_EntryPoints)
         {
-            ComPtr<slang::IEntryPoint> entry = nullptr;
-            result = module->findAndCheckEntryPoint(ep.Name, getSlangStage(ep.Stage), entry.writeRef(),
+            ComPtr<slang::IEntryPoint> epoint = nullptr;
+            result = module->findAndCheckEntryPoint(ep.Name, getSlangStage(ep.Stage), epoint.writeRef(),
                                                     diagnostics.writeRef());
             if (SLANG_FAILED(result))
                 return Result<>::Error(
@@ -636,7 +639,7 @@ Result<Compilation> Compiler::Compile() const
                 "[ONYX][SHADERS] Entry point '{}' from module '{}' checked with the following diagnostics: {}", ep.Name,
                 munit.m_Name, getDiagnostics(diagnostics));
 
-            components.Append(entry);
+            components.Append(epoint);
         }
         ComPtr<slang::IComponentType> program = nullptr;
         TKit::StackArray<slang::IComponentType *> rawComponents;
@@ -702,7 +705,7 @@ Result<Compilation> Compiler::Compile() const
             const size_t size = code->getBufferSize();
 
             TKit::TierAllocator *tier = TKit::GetTier();
-            void *mem = tier->Allocate(size);
+            void *mem = tier->Allocate(static_cast<u32>(size));
             TKit::ForwardCopy(mem, code->getBufferPointer(), size);
 
             Spirv sp;

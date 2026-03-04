@@ -597,10 +597,14 @@ template <Dimension D> void validateRanges()
                             "graphics context size of {}",
                             crange.Offset, crange.Size, crange.Offset + crange.Size, grange.Size);
 
-                const VKit::DeviceBuffer::Info &ginfo = tarena.Buffer.GetInfo();
+                TKIT_ASSERT(
+                    grange.Size >= crange.Offset + crange.Size,
+                    "[ONYX][RENDERER] A context memory range with index {} ({} total) exceeds graphics range size. "
+                    "Range size is {:L} bytes, which is smaller than offset + size = {:L} + {:L} = {:L}",
+                    j, cranges.GetSize(), grange.Size, crange.Offset, crange.Size, crange.Offset + crange.Size);
                 TKIT_ASSERT(
                     ginfo.Size >= crange.Offset + crange.Size,
-                    "[ONYX][RENDERER] A context memory range with index {} ({} total) exceeds context buffer size. "
+                    "[ONYX][RENDERER] A context memory range with index {} ({} total) exceeds graphics buffer size. "
                     "Buffer size is {:L} bytes, which is smaller than offset + size = {:L} + {:L} = {:L}",
                     j, cranges.GetSize(), ginfo.Size, crange.Offset, crange.Size, crange.Offset + crange.Size);
                 if (j != 0)
@@ -1424,8 +1428,8 @@ ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, co
                 else if (size != 0)
                 {
                     InstanceDrawInfo info;
-                    info.FirstInstance = offset / instanceSize;
-                    info.InstanceCount = size / instanceSize;
+                    info.FirstInstance = static_cast<u32>(offset / instanceSize);
+                    info.InstanceCount = static_cast<u32>(size / instanceSize);
                     offset += size;
                     size = 0;
                     drawInfo[grange.Pass][grange.BatchIndex].Append(info);
@@ -1440,8 +1444,8 @@ ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, co
             if (size != 0)
             {
                 InstanceDrawInfo info;
-                info.FirstInstance = offset / instanceSize;
-                info.InstanceCount = size / instanceSize;
+                info.FirstInstance = static_cast<u32>(offset / instanceSize);
+                info.InstanceCount = static_cast<u32>(size / instanceSize);
                 drawInfo[grange.Pass][grange.BatchIndex].Append(info);
             }
             else if (!found)
@@ -1450,7 +1454,7 @@ ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, co
             if (grange.InUseByTransfer())
             {
                 Execution::Tracker &tracker = grange.TransferTracker;
-                bool found = false;
+                found = false;
                 for (Execution::Tracker &tr : transferTrackers)
                 {
                     if (tr.Queue == tracker.Queue)
@@ -1882,8 +1886,10 @@ template <Dimension D> void DisplayMemoryLayout()
                 const f32 separation = 0.1f;
                 const auto drawPlot = [&](const u32 bindex, const VkDeviceSize offset, const VkDeviceSize size,
                                           const u32 idx) {
-                    const ImVec2 mnpix = ImPlot::PlotToPixels(offset, bindex * height + separation);
-                    const ImVec2 mxpix = ImPlot::PlotToPixels(offset + size, (bindex + 1) * height - separation);
+                    const ImVec2 mnpix =
+                        ImPlot::PlotToPixels(static_cast<f64>(offset), static_cast<f64>(bindex * height + separation));
+                    const ImVec2 mxpix = ImPlot::PlotToPixels(static_cast<f64>(offset + size),
+                                                              static_cast<f64>((bindex + 1) * height - separation));
 
                     dl->AddRectFilled(mnpix, mxpix, colors[idx]);
                     dl->AddRect(mnpix, mxpix, IM_COL32(50, 50, 50, 180));
@@ -1936,8 +1942,8 @@ template <Dimension D> void DisplayMemoryLayout()
                     constexpr f32 swatchSpacing = 4.f;
 
                     f32 totalWidth = legendPadding;
-                    for (u32 i = 0; i < status.GetSize(); ++i)
-                        totalWidth += swatchSize + swatchSpacing + ImGui::CalcTextSize(status[i]).x + legendPadding;
+                    for (u32 j = 0; j < status.GetSize(); ++j)
+                        totalWidth += swatchSize + swatchSpacing + ImGui::CalcTextSize(status[j]).x + legendPadding;
 
                     const f32 legendHeight = swatchSize + legendPadding * 2.f;
 
@@ -1951,16 +1957,16 @@ template <Dimension D> void DisplayMemoryLayout()
                     f32 cursorX = legendMin.x + legendPadding;
                     const f32 itemY = legendMin.y + legendPadding;
 
-                    for (u32 i = 0; i < status.GetSize(); ++i)
+                    for (u32 j = 0; j < status.GetSize(); ++j)
                     {
                         const ImVec2 swatchMin = ImVec2(cursorX, itemY);
                         const ImVec2 swatchMax = ImVec2(cursorX + swatchSize, itemY + swatchSize);
-                        dl->AddRectFilled(swatchMin, swatchMax, colors[i]);
+                        dl->AddRectFilled(swatchMin, swatchMax, colors[j]);
                         dl->AddRect(swatchMin, swatchMax, IM_COL32(0, 0, 0, 255));
                         cursorX += swatchSize + swatchSpacing;
 
                         dl->AddText(ImVec2(cursorX, itemY + swatchSize * 0.5f - ImGui::GetTextLineHeight() * 0.5f),
-                                    IM_COL32(255, 255, 255, 255), status[i]);
+                                    IM_COL32(255, 255, 255, 255), status[j]);
                         cursorX += ImGui::CalcTextSize(status[i]).x + legendPadding;
                     }
                 }
