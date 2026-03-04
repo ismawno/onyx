@@ -1008,6 +1008,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 const auto result = openDialog();
                 if (result)
                     load(result.GetValue());
+                TKIT_LOG_ERROR_IF(!result, "[ONYX][SANDBOX] Error opening dialog");
 #    endif
             }
 #    ifdef TKIT_OS_LINUX
@@ -1017,6 +1018,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 const auto result = tm->WaitForResult(DialogTask);
                 if (result)
                     load(result.GetValue());
+                TKIT_LOG_ERROR_IF(!result, "[ONYX][SANDBOX] Error opening dialog");
                 DialogTask = nullptr;
             }
 #    endif
