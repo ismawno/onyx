@@ -708,7 +708,7 @@ Result<Compilation> Compiler::Compile() const
             Spirv sp;
             sp.EntryPoint = ep;
             sp.Data = static_cast<u32 *>(mem);
-            sp.Size = size;
+            sp.Size = static_cast<u32>(size);
 
             sprvs.Append(sp);
         }
@@ -734,7 +734,7 @@ void Terminate()
     slang::shutdown();
 }
 
-Result<VKit::Shader> Create(const u32 *spirv, const size_t size)
+Result<VKit::Shader> Create(const u32 *spirv, const u32 size)
 {
     return VKit::Shader::Create(Core::GetDevice(), spirv, size);
 }

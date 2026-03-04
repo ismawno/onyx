@@ -243,7 +243,7 @@ struct Spirv
 {
     EntryPoint EntryPoint;
     u32 *Data;
-    size_t Size;
+    u32 Size;
 };
 
 class Compilation
@@ -329,7 +329,7 @@ struct Specs
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
-ONYX_NO_DISCARD Result<VKit::Shader> Create(const u32 *spirv, size_t size);
+ONYX_NO_DISCARD Result<VKit::Shader> Create(const u32 *spirv, u32 size);
 ONYX_NO_DISCARD Result<VKit::Shader> Create(const Spirv &spirv);
 ONYX_NO_DISCARD Result<VKit::Shader> Create(std::string_view spirvPath);
 
