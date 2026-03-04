@@ -990,8 +990,8 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
             };
 #    ifndef TKIT_OS_APPLE
             ImGui::BeginDisabled(DialogTask && !DialogTask.IsFinished());
-#    endif
             TKit::ITaskManager *tm = Core::GetTaskManager();
+#    endif
             if (ImGui::Button("Load"))
             {
                 const auto openDialog = [this]() {
