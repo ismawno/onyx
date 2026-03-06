@@ -44,9 +44,6 @@ template <Dimension D> struct RenderState
 
 namespace Onyx::Detail
 {
-TKIT_COMPILER_WARNING_IGNORE_PUSH()
-TKIT_MSVC_WARNING_IGNORE(4324)
-TKIT_MSVC_WARNING_IGNORE(4661)
 
 template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 {
@@ -413,5 +410,4 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
   private:
     TKit::TierArray<DirectionalLight *> m_DirectionalLights{};
 };
-TKIT_COMPILER_WARNING_IGNORE_POP()
 } // namespace Onyx
