@@ -213,12 +213,12 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void AddTarget(const ViewMask viewMask)
     {
         m_ViewMask |= viewMask;
-        Renderer::UpdateViewMask(static_cast<RenderContext<D> *>(this)); //:(
+        Renderer::UpdateViewMask(scast<RenderContext<D> *>(this)); //:(
     }
     void RemoveTarget(const ViewMask viewMask)
     {
         m_ViewMask &= ~viewMask;
-        Renderer::UpdateViewMask(static_cast<RenderContext<D> *>(this));
+        Renderer::UpdateViewMask(scast<RenderContext<D> *>(this));
     }
 
     void AddTarget(const Window *window)

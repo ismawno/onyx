@@ -151,7 +151,7 @@ template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceBuffer &buff
 {
     if (buffer.Instances > buffer.Data.GetInstanceCount())
     {
-        const u32 ninst = static_cast<u32>(1.5f * static_cast<f32>(buffer.Instances));
+        const u32 ninst = u32(1.5f * f32(buffer.Instances));
         buffer.Data.Resize(ninst);
     }
 }
@@ -321,7 +321,7 @@ template <Dimension D> void IRenderContext<D>::RemovePointLight(PointLight<D> *l
             m_NeedToUpdateLights |= LightFlag_Point;
             return;
         }
-    TKIT_FATAL("[ONYX][CONTEXT] Point light '{}' not found", static_cast<void *>(light));
+    TKIT_FATAL("[ONYX][CONTEXT] Point light '{}' not found", scast<void *>(light));
 }
 
 void RenderContext<D3>::RemoveDirectionalLight(DirectionalLight *light)
@@ -335,7 +335,7 @@ void RenderContext<D3>::RemoveDirectionalLight(DirectionalLight *light)
             m_NeedToUpdateLights |= LightFlag_Directional;
             return;
         }
-    TKIT_FATAL("[ONYX][CONTEXT] Directional light '{}' not found", static_cast<void *>(light));
+    TKIT_FATAL("[ONYX][CONTEXT] Directional light '{}' not found", scast<void *>(light));
 }
 
 template <Dimension D> void IRenderContext<D>::RemoveAllPointLights()

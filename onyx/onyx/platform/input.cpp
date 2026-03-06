@@ -585,7 +585,7 @@ f32v2 GetScreenMousePosition(Window *window)
     f64 xpos, ypos;
     glfwGetCursorPos(handle, &xpos, &ypos);
     const f32v2 dims = window->GetScreenDimensions();
-    return f32v2{2.f * static_cast<f32>(xpos) / dims[0] - 1.f, 1.f - 2.f * static_cast<f32>(ypos) / dims[1]};
+    return f32v2{2.f * f32(xpos) / dims[0] - 1.f, 1.f - 2.f * f32(ypos) / dims[1]};
 }
 
 bool IsKeyPressed(Window *window, const Key key)
@@ -876,7 +876,7 @@ void windowSizeCallback(GLFWwindow *handle, const i32 width, const i32 height)
     Window *window = Window::FromHandle(handle);
     event.Type = Event_WindowResized;
 
-    event.WindowSize = u32v2{static_cast<u32>(width), static_cast<u32>(height)};
+    event.WindowSize = u32v2{u32(width), u32(height)};
 
     window->ResetResizeClock();
     window->PushEvent(event);
@@ -888,7 +888,7 @@ static void framebufferSizeCallback(GLFWwindow *handle, const i32 width, const i
     Window *window = Window::FromHandle(handle);
     event.Type = Event_FramebufferResized;
 
-    event.WindowSize = u32v2{static_cast<u32>(width), static_cast<u32>(height)};
+    event.WindowSize = u32v2{u32(width), u32(height)};
 
     window->ResetResizeClock();
     window->PushEvent(event);
@@ -956,7 +956,7 @@ static void cursorPositionCallback(GLFWwindow *handle, const f64 xpos, const f64
     Event event{};
     Window *window = Window::FromHandle(handle);
     event.Type = Event_MouseMoved;
-    event.Mouse.Position = f32v2{static_cast<f32>(xpos), static_cast<f32>(ypos)};
+    event.Mouse.Position = f32v2{f32(xpos), f32(ypos)};
     window->PushEvent(event);
 }
 
@@ -982,7 +982,7 @@ static void scrollCallback(GLFWwindow *handle, const f64 xoffset, const f64 yoff
     Event event{};
     Window *window = Window::FromHandle(handle);
     event.Type = Event_Scrolled;
-    event.ScrollOffset = f32v2{static_cast<f32>(xoffset), static_cast<f32>(yoffset)};
+    event.ScrollOffset = f32v2{f32(xoffset), f32(yoffset)};
     window->PushEvent(event);
 }
 

@@ -154,7 +154,7 @@ Result<> Initialize(const Specs &specs)
     {
         const auto &qs = qptype[i];
         TKIT_LOG_INFO("[ONYX][EXECUTION] {} '{}' queue(s) have been retrieved from the device", qs.GetSize(),
-                      VKit::ToString(static_cast<VKit::QueueType>(i)));
+                      VKit::ToString(VKit::QueueType(i)));
     }
 #endif
     return Result<>::Ok();

@@ -194,7 +194,7 @@ template <Dimension D> static void updateInstanceDescriptorSets(const Geometry g
     RendererData<D> &rdata = getRendererData<D>();
     for (u32 i = 0; i < Shading_Count; ++i)
     {
-        const Shading shading = static_cast<Shading>(i);
+        const Shading shading = Shading(i);
         updateDescriptorSet(rdata.Descriptors[i][geo], 0, Descriptors::GetDescriptorSetLayout<D>(shading),
                             rdata.Arenas[geo].Graphics.Buffer);
     }
@@ -210,11 +210,11 @@ template <Dimension D> static void updateLightDescriptorSets(const LightType lig
 
 static constexpr VKit::DeviceBufferFlags getStageFlags()
 {
-    return static_cast<VKit::DeviceBufferFlags>(Buffer_Staging) | VKit::DeviceBufferFlag_Destination;
+    return VKit::DeviceBufferFlags(Buffer_Staging) | VKit::DeviceBufferFlag_Destination;
 }
 static constexpr VKit::DeviceBufferFlags getDeviceLocalFlags()
 {
-    return static_cast<VKit::DeviceBufferFlags>(Buffer_DeviceStorage) | VKit::DeviceBufferFlag_Source;
+    return VKit::DeviceBufferFlags(Buffer_DeviceStorage) | VKit::DeviceBufferFlag_Source;
 }
 
 template <Dimension D>
@@ -285,7 +285,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
     const VkPipelineRenderingCreateInfoKHR renderInfo = CreatePipelineRenderingCreateInfo();
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
-        const Geometry geo = static_cast<Geometry>(i);
+        const Geometry geo = Geometry(i);
         TransferArena &tarena = rdata.Arenas[geo].Transfer;
 
         auto result = createTransferInstanceBuffer<D>(geo);
@@ -303,7 +303,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
         garena.MemoryRanges.Append(GraphicsMemoryRange{.Size = garena.Buffer.GetInfo().Size});
         for (u32 j = 0; j < Shading_Count; ++j)
         {
-            const Shading shading = static_cast<Shading>(j);
+            const Shading shading = Shading(j);
             const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(shading);
             const auto dresult = Descriptors::GetDescriptorPool().Allocate(layout);
             TKIT_RETURN_ON_ERROR(dresult);
@@ -322,7 +322,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
     }
     for (u32 i = 0; i < StencilPass_Count; ++i)
     {
-        const StencilPass pass = static_cast<StencilPass>(i);
+        const StencilPass pass = StencilPass(i);
 
         auto result = Pipelines::CreateCirclePipeline<D>(pass, renderInfo);
         TKIT_RETURN_ON_ERROR(result);
@@ -426,7 +426,7 @@ template <Dimension D> static u32 getContextIndex(const RenderContext<D> *contex
     for (u32 i = 0; i < rdata.Contexts.GetSize(); ++i)
         if (rdata.Contexts[i] == context)
             return i;
-    TKIT_FATAL("[ONYX][RENDERER] Render context ({}) index not found", static_cast<const void *>(context));
+    TKIT_FATAL("[ONYX][RENDERER] Render context ({}) index not found", scast<const void *>(context));
     return TKIT_U32_MAX;
 }
 
@@ -1090,7 +1090,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     ranges.Reserve(StencilPass_Count * Assets::GetBatchCount());
 
     TKit::StackArray<CopyCommands> copyCmds{};
-    copyCmds.Reserve(StencilPass_Count * static_cast<u32>(Geometry_Count));
+    copyCmds.Reserve(StencilPass_Count * u32(Geometry_Count));
 
     const auto finishTasks = [&] {
         for (const Task &task : tasks)
@@ -1163,7 +1163,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             grange->BatchIndex = batch;
             grange->ContextRanges = contextRanges;
             grange->ViewMask = viewMask;
-            grange->Pass = static_cast<StencilPass>(pass);
+            grange->Pass = StencilPass(pass);
             grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
 
             VkBufferCopy2KHR &copy = copies.Append();
@@ -1332,8 +1332,8 @@ template <Dimension D> static void setCameraViewport(const VkCommandBuffer comma
         }
 
         VkClearRect clearRect{};
-        clearRect.rect.offset = {static_cast<i32>(camera.Viewport.x), static_cast<i32>(camera.Viewport.y)};
-        clearRect.rect.extent = {static_cast<u32>(camera.Viewport.width), static_cast<u32>(camera.Viewport.height)};
+        clearRect.rect.offset = {i32(camera.Viewport.x), i32(camera.Viewport.y)};
+        clearRect.rect.extent = {u32(camera.Viewport.width), u32(camera.Viewport.height)};
         clearRect.layerCount = 1;
         clearRect.baseArrayLayer = 0;
 
@@ -1428,8 +1428,8 @@ ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, co
                 else if (size != 0)
                 {
                     InstanceDrawInfo info;
-                    info.FirstInstance = static_cast<u32>(offset / instanceSize);
-                    info.InstanceCount = static_cast<u32>(size / instanceSize);
+                    info.FirstInstance = u32(offset / instanceSize);
+                    info.InstanceCount = u32(size / instanceSize);
                     offset += size;
                     size = 0;
                     drawInfo[grange.Pass][grange.BatchIndex].Append(info);
@@ -1444,8 +1444,8 @@ ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, co
             if (size != 0)
             {
                 InstanceDrawInfo info;
-                info.FirstInstance = static_cast<u32>(offset / instanceSize);
-                info.InstanceCount = static_cast<u32>(size / instanceSize);
+                info.FirstInstance = u32(offset / instanceSize);
+                info.InstanceCount = u32(size / instanceSize);
                 drawInfo[grange.Pass][grange.BatchIndex].Append(info);
             }
             else if (!found)
@@ -1481,7 +1481,7 @@ ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, co
         setCameraViewport<D>(graphicsCommand, camInfo);
         for (u32 i = 0; i < StencilPass_Count; ++i)
         {
-            const StencilPass pass = static_cast<StencilPass>(i);
+            const StencilPass pass = StencilPass(i);
             const Shading shading = GetShading(pass);
 
             const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(shading);
@@ -1783,11 +1783,11 @@ template <Dimension D> void DisplayMemoryLayout()
 
     const auto fmts = [](const VkDeviceSize bytes) -> std::string {
         if (bytes > 1_gib)
-            return TKit::Format("{:.2f} gib", static_cast<f32>(bytes) / static_cast<f32>(1_gib));
+            return TKit::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
         if (bytes > 1_mib)
-            return TKit::Format("{:.2f} mib", static_cast<f32>(bytes) / static_cast<f32>(1_mib));
+            return TKit::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
         if (bytes > 1_kib)
-            return TKit::Format("{:.2f} kib", static_cast<f32>(bytes) / static_cast<f32>(1_kib));
+            return TKit::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
         return TKit::Format("{:L} b", bytes);
     };
 
@@ -1795,7 +1795,7 @@ template <Dimension D> void DisplayMemoryLayout()
 
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
-        const Geometry geo = static_cast<Geometry>(i);
+        const Geometry geo = Geometry(i);
         const Arena &arena = rdata.Arenas[geo];
         if (ImGui::TreeNode(&arena, "%s", ToString(geo)))
         {
@@ -1868,7 +1868,7 @@ template <Dimension D> void DisplayMemoryLayout()
             }
 #    ifdef ONYX_ENABLE_IMPLOT
             const VkDeviceSize maxSize = Math::Max(tarena.Buffer.GetInfo().Size, garena.Buffer.GetInfo().Size);
-            ImPlot::SetNextAxesLimits(0.0, static_cast<f64>(maxSize), -1, 3, ImGuiCond_Always);
+            ImPlot::SetNextAxesLimits(0.0, f64(maxSize), -1, 3, ImGuiCond_Always);
 
             if (ImPlot::BeginPlot("Memory ranges", ImVec2(-1, -1)))
             {
@@ -1886,10 +1886,9 @@ template <Dimension D> void DisplayMemoryLayout()
                 const f32 separation = 0.1f;
                 const auto drawPlot = [&](const u32 bindex, const VkDeviceSize offset, const VkDeviceSize size,
                                           const u32 idx) {
-                    const ImVec2 mnpix =
-                        ImPlot::PlotToPixels(static_cast<f64>(offset), static_cast<f64>(bindex * height + separation));
-                    const ImVec2 mxpix = ImPlot::PlotToPixels(static_cast<f64>(offset + size),
-                                                              static_cast<f64>((bindex + 1) * height - separation));
+                    const ImVec2 mnpix = ImPlot::PlotToPixels(f64(offset), f64(bindex * height + separation));
+                    const ImVec2 mxpix =
+                        ImPlot::PlotToPixels(f64(offset + size), f64((bindex + 1) * height - separation));
 
                     dl->AddRectFilled(mnpix, mxpix, colors[idx]);
                     dl->AddRect(mnpix, mxpix, IM_COL32(50, 50, 50, 180));

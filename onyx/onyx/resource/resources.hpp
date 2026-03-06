@@ -45,7 +45,7 @@ ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBuffer
 
 inline VkDeviceSize GrowCapacity(const VkDeviceSize instances, const f32 factor = 1.5f)
 {
-    return static_cast<VkDeviceSize>(factor * static_cast<f32>(instances));
+    return VkDeviceSize(factor * f32(instances));
 }
 
 Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, VkDeviceSize instances, const f32 factor = 1.5f);

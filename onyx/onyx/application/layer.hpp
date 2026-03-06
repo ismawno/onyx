@@ -138,7 +138,7 @@ class WindowLayer
 
     template <std::derived_from<ApplicationLayer> T = ApplicationLayer> T *GetApplicationLayer() const
     {
-        return static_cast<T *>(m_AppLayer);
+        return scast<T *>(m_AppLayer);
     }
     Window *GetWindow() const
     {

@@ -169,7 +169,7 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
     for (const LatticeData<D> &lattice : lattices.Lattices)
         if (lattice.Flags & SandboxFlag_ContextShouldUpdate)
         {
-            const Geometry geo = static_cast<Geometry>(lattice.Shape.Type.Geo);
+            const Geometry geo = Geometry(lattice.Shape.Type.Geo);
             switch (geo)
             {
             case Geometry_Circle: {
@@ -214,8 +214,8 @@ template <Dimension D, typename F> void SandboxAppLayer::DrawLattice(const Latti
             {
                 const u32 ix = i / lattice.Dimensions[1];
                 const u32 iy = i % lattice.Dimensions[1];
-                const f32 x = lattice.Separation * static_cast<f32>(ix);
-                const f32 y = lattice.Separation * static_cast<f32>(iy);
+                const f32 x = lattice.Separation * f32(ix);
+                const f32 y = lattice.Separation * f32(iy);
 
                 const f32v2 pos = f32v2{x, y} + offset;
                 std::forward<F>(fun)(pos, context);
@@ -251,9 +251,9 @@ template <Dimension D, typename F> void SandboxAppLayer::DrawLattice(const Latti
                 const u32 j = ix * yz;
                 const u32 iy = (i - j) / lattice.Dimensions[2];
                 const u32 iz = (i - j) % lattice.Dimensions[2];
-                const f32 x = lattice.Separation * static_cast<f32>(ix);
-                const f32 y = lattice.Separation * static_cast<f32>(iy);
-                const f32 z = lattice.Separation * static_cast<f32>(iz);
+                const f32 x = lattice.Separation * f32(ix);
+                const f32 y = lattice.Separation * f32(iy);
+                const f32 z = lattice.Separation * f32(iz);
                 const f32v3 pos = f32v3{x, y, z} + offset;
                 std::forward<F>(fun)(pos, context);
             }
@@ -273,7 +273,7 @@ template <Dimension D, typename F> void SandboxAppLayer::DrawLattice(const Latti
 
 template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const u32 geometry, const u32 statMesh)
 {
-    const Geometry geo = static_cast<Geometry>(geometry);
+    const Geometry geo = Geometry(geometry);
     Shape<D> shape{};
     shape.Type.Geo = geo;
     switch (geo)
@@ -388,21 +388,21 @@ void SandboxWinLayer::OnEvent(const Event &event)
 #ifdef ONYX_ENABLE_IMGUI
 static bool combo(const char *name, u32 *index, const char *items)
 {
-    i32 idx = static_cast<i32>(*index);
+    i32 idx = i32(*index);
     if (ImGui::Combo(name, &idx, items))
     {
-        *index = static_cast<u32>(idx);
+        *index = u32(idx);
         return true;
     }
     return false;
 }
 static bool combo(const char *name, u32 *index, const TKit::Span<const char *const> items)
 {
-    i32 idx = static_cast<i32>(*index);
-    const i32 size = static_cast<i32>(items.GetSize());
+    i32 idx = i32(*index);
+    const i32 size = i32(items.GetSize());
     if (ImGui::Combo(name, &idx, items.GetData(), size))
     {
-        *index = static_cast<u32>(idx);
+        *index = u32(idx);
         return true;
     }
     return false;
@@ -610,7 +610,7 @@ template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
     }
     if constexpr (D == D3)
     {
-        i32 perspective = static_cast<i32>(camera.Perspective);
+        i32 perspective = i32(camera.Perspective);
         if (ImGui::Combo("Projection", &perspective, "Orthographic\0Perspective\0\0"))
         {
             camera.Perspective = perspective == 1;
@@ -755,7 +755,7 @@ template <Dimension D> static bool shapeNameCombo(const char *name, SandboxAppLa
 template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &context)
 {
     combo("Geometry##Picker", &context.GeometryToSpawn, "Circle\0Static mesh\0\0");
-    const Geometry geo = static_cast<Geometry>(context.GeometryToSpawn);
+    const Geometry geo = Geometry(context.GeometryToSpawn);
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
 
@@ -782,7 +782,7 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
         combo("Light type", &context.LightToSpawn, "Point\0Directional\0\0");
     if (ImGui::Button("Spawn##Light"))
     {
-        const LightType ltype = static_cast<LightType>(context.LightToSpawn);
+        const LightType ltype = LightType(context.LightToSpawn);
         if (ltype == Light_Point)
             context.PointLights.Append(context.Context->AddPointLight());
         if constexpr (D == D3)
@@ -890,7 +890,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
     }
     bool updateShape = combo("Geometry##Lattice", &lattice.Geometry, "Circle\0Static mesh\0\0");
 
-    const Geometry geo = static_cast<Geometry>(lattice.Geometry);
+    const Geometry geo = Geometry(lattice.Geometry);
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     if (geo == Geometry_StaticMesh)
@@ -924,7 +924,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     MeshArray<D> &meshes = appLayer->GetMeshes<D>();
     combo("Geometry#Load", &meshes.GeometryToLoad, "Static mesh\0\0");
-    const Geometry geo = static_cast<Geometry>(meshes.GeometryToLoad + 1); // skip circles
+    const Geometry geo = Geometry(meshes.GeometryToLoad + 1); // skip circles
     if (geo == Geometry_StaticMesh)
     {
         const u32 importedIndex = D == D2 ? 2 : 4;

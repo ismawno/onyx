@@ -163,7 +163,7 @@ class Window
                 array.RemoveOrdered(array.begin() + i);
                 return;
             }
-        TKIT_FATAL("[ONYX][WINDOW] Camera '{}' not found", static_cast<const void *>(camera));
+        TKIT_FATAL("[ONYX][WINDOW] Camera '{}' not found", scast<const void *>(camera));
     }
 
     template <Dimension D> TKit::TierArray<CameraInfo<D>> GetCameraInfos() const

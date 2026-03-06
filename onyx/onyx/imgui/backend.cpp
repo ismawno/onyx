@@ -377,13 +377,12 @@ static Platform_ContextData *platform_GetContextData(GLFWwindow *window = nullpt
     if (window)
         return platform_MapGet(window);
 
-    return ImGui::GetCurrentContext() ? static_cast<Platform_ContextData *>(ImGui::GetIO().BackendPlatformUserData)
-                                      : nullptr;
+    return ImGui::GetCurrentContext() ? scast<Platform_ContextData *>(ImGui::GetIO().BackendPlatformUserData) : nullptr;
 }
 
 static Platform_ViewportData *platform_GetViewportData(const ImGuiViewport *viewport)
 {
-    return static_cast<Platform_ViewportData *>(viewport->PlatformUserData);
+    return scast<Platform_ViewportData *>(viewport->PlatformUserData);
 }
 
 static void platform_WindowFocusCallback(GLFWwindow *window, const i32 focused)
@@ -413,12 +412,12 @@ static void platform_CursorPosCallback(GLFWwindow *window, f64 x, f64 y)
         i32 winx;
         i32 winy;
         glfwGetWindowPos(window, &winx, &winy);
-        x += static_cast<f64>(winx);
-        y += static_cast<f64>(winy);
+        x += f64(winx);
+        y += f64(winy);
     }
 
-    io.AddMousePosEvent(static_cast<f32>(x), static_cast<f32>(y));
-    pdata->LastValidMousePos = f32v2(static_cast<f32>(x), static_cast<f32>(y));
+    io.AddMousePosEvent(f32(x), f32(y));
+    pdata->LastValidMousePos = f32v2(f32(x), f32(y));
 }
 
 // Workaround: X11 seems to send spurious Leave/Enter events which would make us lose our position,
@@ -477,7 +476,7 @@ static void platform_ScrollCallback(GLFWwindow *window, const f64 xoffset, const
         pdata->UserCbkScroll(window, xoffset, yoffset);
 
     ImGuiIO &io = ImGui::GetIO(pdata->Context);
-    io.AddMouseWheelEvent(static_cast<f32>(xoffset), static_cast<f32>(yoffset));
+    io.AddMouseWheelEvent(f32(xoffset), f32(yoffset));
 }
 
 static i32 platform_TranslateUntranslatedKey(i32 key, const i32 scancode)
@@ -566,7 +565,7 @@ static void platform_WindowPosCallback(GLFWwindow *window, const i32, const i32)
         Platform_ViewportData *vdata = platform_GetViewportData(viewport);
         TKIT_ASSERT(vdata, "[ONYX][IMGUI] Platform viewport data is null. Consider checking instead of asserting");
 
-        const u32 frameCount = static_cast<u32>(ImGui::GetFrameCount());
+        const u32 frameCount = u32(ImGui::GetFrameCount());
         if (frameCount > vdata->IgnoreWindowPosEventFrame + 1)
             viewport->PlatformRequestMove = true;
     }
@@ -578,7 +577,7 @@ static void platform_WindowSizeCallback(GLFWwindow *window, const i32, const i32
         Platform_ViewportData *vdata = platform_GetViewportData(viewport);
         TKIT_ASSERT(vdata, "[ONYX][IMGUI] Platform viewport data is null. Consider checking instead of asserting");
 
-        const u32 frameCount = static_cast<u32>(ImGui::GetFrameCount());
+        const u32 frameCount = u32(ImGui::GetFrameCount());
         if (frameCount > vdata->IgnoreWindowPosEventFrame + 1)
             viewport->PlatformRequestResize = true;
     }
@@ -647,8 +646,8 @@ static void platform_UpdateMonitors()
         if (scale == 0.f)
             continue;
         monitor.DpiScale = scale;
-        monitor.PlatformHandle = static_cast<void *>(monitors[n]); // [...] GLFW doc states: "guaranteed to be valid
-                                                                   // only until the monitor configuration changes"
+        monitor.PlatformHandle = scast<void *>(monitors[n]); // [...] GLFW doc states: "guaranteed to be valid
+                                                             // only until the monitor configuration changes"
 
         if (!updated_monitors)
             pio.Monitors.resize(0);
@@ -777,7 +776,7 @@ static i32v2 platform_GetWindowPos(const ImGuiViewport *viewport)
 static void platform_SetWindowPos(const ImGuiViewport *viewport, const f32v2 &pos)
 {
     Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    vdata->IgnoreWindowPosEventFrame = static_cast<u32>(ImGui::GetFrameCount());
+    vdata->IgnoreWindowPosEventFrame = u32(ImGui::GetFrameCount());
     vdata->Window->SetPosition(pos);
 }
 
@@ -790,7 +789,7 @@ static u32v2 platform_GetWindowSize(const ImGuiViewport *viewport)
 static void platform_SetWindowSize(const ImGuiViewport *viewport, const f32v2 &pos)
 {
     Platform_ViewportData *vdata = platform_GetViewportData(viewport);
-    vdata->IgnoreWindowPosEventFrame = static_cast<u32>(ImGui::GetFrameCount());
+    vdata->IgnoreWindowPosEventFrame = u32(ImGui::GetFrameCount());
     vdata->Window->SetScreenDimensions(pos);
 }
 
@@ -851,14 +850,14 @@ static void platform_InitMultiViewportSupport()
     };
     pio.Platform_GetWindowPos = [](ImGuiViewport *v) {
         const i32v2 pos = platform_GetWindowPos(v);
-        return ImVec2{static_cast<f32>(pos[0]), static_cast<f32>(pos[1])};
+        return ImVec2{f32(pos[0]), f32(pos[1])};
     };
     pio.Platform_SetWindowSize = [](ImGuiViewport *v, const ImVec2 size) {
         platform_SetWindowSize(v, u32v2{size.x, size.y});
     };
     pio.Platform_GetWindowSize = [](ImGuiViewport *v) {
         const u32v2 size = platform_GetWindowSize(v);
-        return ImVec2{static_cast<f32>(size[0]), static_cast<f32>(size[1])};
+        return ImVec2{f32(size[0]), f32(size[1])};
     };
     pio.Platform_GetWindowFramebufferScale = [](ImGuiViewport *v) { return platform_GetWindowFrameBufferScale(v); };
     pio.Platform_SetWindowFocus = [](ImGuiViewport *v) { platform_SetWindowFocus(v); };
@@ -878,7 +877,7 @@ static void platform_InitMultiViewportSupport()
 static void platform_ShutdownMultiViewportSupport()
 {
     const ImGuiContext *ctx = GImGui;
-    const u32 size = static_cast<u32>(ctx->Viewports.Size);
+    const u32 size = u32(ctx->Viewports.Size);
     for (u32 i = 1; i < size; ++i)
     {
         ImGuiViewportP *viewport = ctx->Viewports[i];
@@ -907,7 +906,7 @@ static void platform_Init(Window *window)
 
     platform_MapAdd(window->GetHandle(), pdata);
 
-    io.BackendPlatformUserData = static_cast<void *>(pdata);
+    io.BackendPlatformUserData = scast<void *>(pdata);
     io.BackendPlatformName = "imgui_impl_onyx";
     io.BackendFlags |=
         ImGuiBackendFlags_HasMouseCursors | ImGuiBackendFlags_HasSetMousePos | ImGuiBackendFlags_PlatformHasViewports;
@@ -944,11 +943,11 @@ static void platform_UpdateMouseData(Platform_ContextData *pdata, ImGuiIO &io)
 
     ImGuiID mouseViewportId = 0;
     const ImVec2 prevmpos = io.MousePos;
-    const u32 size = static_cast<u32>(pio.Viewports.Size);
+    const u32 size = u32(pio.Viewports.Size);
     for (u32 n = 0; n < size; n++)
     {
         ImGuiViewport *viewport = pio.Viewports[n];
-        GLFWwindow *window = static_cast<Window *>(viewport->PlatformHandle)->GetHandle();
+        GLFWwindow *window = scast<Window *>(viewport->PlatformHandle)->GetHandle();
 
         const bool windowFocused = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
         if (windowFocused)
@@ -1026,7 +1025,7 @@ static void platform_UpdateMouseCursor(Platform_ContextData *pdata, ImGuiIO &io)
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     for (i32 n = 0; n < pio.Viewports.Size; n++)
     {
-        GLFWwindow *window = static_cast<Window *>(pio.Viewports[n]->PlatformHandle)->GetHandle();
+        GLFWwindow *window = scast<Window *>(pio.Viewports[n]->PlatformHandle)->GetHandle();
         if (imcursor == ImGuiMouseCursor_None || io.MouseDrawCursor)
         {
             if (pdata->LastMouseCursor != nullptr)
@@ -1067,7 +1066,7 @@ static void platform_NewFrame()
     if (time < pdata->Time)
         time = pdata->Time + 1.f / 60.f;
 
-    io.DeltaTime = static_cast<f32>(time - pdata->Time);
+    io.DeltaTime = f32(time - pdata->Time);
     pdata->Time = time;
 
     pdata->MouseIgnoreButtonUp = false;
@@ -1260,11 +1259,11 @@ static void renderer_DestroyViewportData(Renderer_ViewportData *data)
 
 static Renderer_ViewportData *renderer_GetViewportData(const ImGuiViewport *viewport)
 {
-    return static_cast<Renderer_ViewportData *>(viewport->RendererUserData);
+    return scast<Renderer_ViewportData *>(viewport->RendererUserData);
 }
 static Renderer_Texture *renderer_GetTexture(const ImTextureData *tex)
 {
-    return static_cast<Renderer_Texture *>(tex->BackendUserData);
+    return scast<Renderer_Texture *>(tex->BackendUserData);
 }
 
 ONYX_NO_DISCARD static Result<> renderer_CreateShaders()
@@ -1354,8 +1353,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
 
         const auto imgresult =
             VKit::DeviceImage::Builder(
-                device, allocator, VkExtent2D{static_cast<u32>(tex->Width), static_cast<u32>(tex->Height)},
-                VK_FORMAT_R8G8B8A8_UNORM,
+                device, allocator, VkExtent2D{u32(tex->Width), u32(tex->Height)}, VK_FORMAT_R8G8B8A8_UNORM,
                 VKit::DeviceImageFlag_Sampled | VKit::DeviceImageFlag_Destination | VKit::DeviceImageFlag_Color)
                 .WithImageView()
                 .Build();
@@ -1388,7 +1386,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
     {
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Updating texture with id '{:#x}'", tex->GetTexID());
         Renderer_Texture *bckTex = renderer_GetTexture(tex);
-        TKIT_ASSERT(bckTex->Image.GetBytesPerPixel() == static_cast<VkDeviceSize>(tex->BytesPerPixel),
+        TKIT_ASSERT(bckTex->Image.GetBytesPerPixel() == VkDeviceSize(tex->BytesPerPixel),
                     "[ONYX][IMGUI] Bytes per pixel mismatch between VKit::DeviceImage and ImGui texture");
 
         // Update full texture or selected blocks. We only ever write to textures regions which have never been used
@@ -1413,10 +1411,9 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
             TKIT_RETURN_IF_FAILED(uploadBuffer.SetName("onyx-imgui-upload-buffer"));
         }
 
-        std::byte *mem = static_cast<std::byte *>(uploadBuffer.GetData());
+        std::byte *mem = scast<std::byte *>(uploadBuffer.GetData());
         for (u32 y = 0; y < hupload; ++y)
-            TKit::ForwardCopy(mem + wsize * y,
-                              tex->GetPixelsAt(static_cast<i32>(xupload), static_cast<i32>(yupload + y)), wsize);
+            TKit::ForwardCopy(mem + wsize * y, tex->GetPixelsAt(i32(xupload), i32(yupload + y)), wsize);
 
         TKIT_RETURN_IF_FAILED(uploadBuffer.Flush());
         TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
@@ -1455,7 +1452,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         tex->SetStatus(ImTextureStatus_OK);
     }
 
-    if (tex->Status == ImTextureStatus_WantDestroy && static_cast<u32>(tex->UnusedFrames) >= imageCount)
+    if (tex->Status == ImTextureStatus_WantDestroy && u32(tex->UnusedFrames) >= imageCount)
         renderer_DestroyTexture(tex);
     return Result<>::Ok();
 }
@@ -1488,8 +1485,8 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
     Renderer_Buffers &buffers = vdata->Buffers[vdata->Index];
     if (ddata->TotalVtxCount > 0)
     {
-        const u32 vsize = static_cast<u32>(ddata->TotalVtxCount);
-        const u32 isize = static_cast<u32>(ddata->TotalIdxCount);
+        const u32 vsize = u32(ddata->TotalVtxCount);
+        const u32 isize = u32(ddata->TotalIdxCount);
 
         TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded(buffers.VertexBuffer, vsize));
         TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded(buffers.IndexBuffer, isize));
@@ -1548,7 +1545,7 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
     u32 ioffset = 0;
     for (const ImDrawList *dlist : ddata->CmdLists)
     {
-        for (u32 i = 0; i < static_cast<u32>(dlist->CmdBuffer.Size); ++i)
+        for (u32 i = 0; i < u32(dlist->CmdBuffer.Size); ++i)
         {
             const ImDrawCmd &icmd = dlist->CmdBuffer[i];
 
@@ -1561,10 +1558,10 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
                 continue;
 
             VkRect2D scissor;
-            scissor.offset.x = static_cast<i32>(clipMin[0]);
-            scissor.offset.y = static_cast<i32>(clipMin[1]);
-            scissor.extent.width = static_cast<u32>(clipMax[0] - clipMin[0]);
-            scissor.extent.height = static_cast<u32>(clipMax[1] - clipMin[1]);
+            scissor.offset.x = i32(clipMin[0]);
+            scissor.offset.y = i32(clipMin[1]);
+            scissor.extent.width = u32(clipMax[0] - clipMin[0]);
+            scissor.extent.height = u32(clipMax[1] - clipMin[1]);
             table->CmdSetScissor(cmd, 0, 1, &scissor);
 
             const VkDescriptorSet set = reinterpret_cast<VkDescriptorSet>(icmd.GetTexID());
@@ -1575,15 +1572,15 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
 
             table->CmdDrawIndexed(cmd, icmd.ElemCount, 1, icmd.IdxOffset + ioffset, icmd.VtxOffset + voffset, 1);
         }
-        voffset += static_cast<u32>(dlist->VtxBuffer.Size);
-        ioffset += static_cast<u32>(dlist->IdxBuffer.Size);
+        voffset += u32(dlist->VtxBuffer.Size);
+        ioffset += u32(dlist->IdxBuffer.Size);
     }
 
     VkRect2D scissor;
     scissor.offset.x = 0;
     scissor.offset.y = 0;
-    scissor.extent.width = static_cast<u32>(fb[0]);
-    scissor.extent.height = static_cast<u32>(fb[1]);
+    scissor.extent.width = u32(fb[0]);
+    scissor.extent.height = u32(fb[1]);
     table->CmdSetScissor(cmd, 0, 1, &scissor);
     return Result<>::Ok();
 }
@@ -1733,7 +1730,7 @@ static void renderer_InitMultiViewportSupport()
 static void renderer_ShutdownMultiViewportSupport()
 {
     const ImGuiContext *ctx = GImGui;
-    const u32 size = static_cast<u32>(ctx->Viewports.Size);
+    const u32 size = u32(ctx->Viewports.Size);
     for (u32 i = 1; i < size; ++i)
     {
         ImGuiViewportP *viewport = ctx->Viewports[i];
@@ -1861,7 +1858,7 @@ Result<> UpdatePlatformWindows()
     if (!(ctx->ConfigFlagsCurrFrame & ImGuiConfigFlags_ViewportsEnable))
         return Result<>::Ok();
 
-    const u32 size = static_cast<u32>(ctx->Viewports.size());
+    const u32 size = u32(ctx->Viewports.size());
     for (u32 i = 1; i < size; ++i)
     {
         ImGuiViewportP *viewport = ctx->Viewports[i];
@@ -1951,7 +1948,7 @@ Result<> UpdatePlatformWindows()
 u32 GetPlatformWindowCount()
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
-    return static_cast<u32>(pio.Viewports.Size - 1);
+    return u32(pio.Viewports.Size - 1);
 }
 
 Result<bool> AcquirePlatformWindowImage(const u32 windowIndex, const Timeout timeout)

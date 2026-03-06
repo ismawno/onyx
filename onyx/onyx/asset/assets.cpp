@@ -498,7 +498,7 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObj(const char 
     std::unordered_map<StatVertex<D>, Index> uniqueVertices;
     StatMeshData<D> data;
 
-    const u32 vcount = static_cast<u32>(attrib.vertices.size());
+    const u32 vcount = u32(attrib.vertices.size());
 
     data.Vertices.Reserve(vcount);
     data.Indices.Reserve(vcount);
@@ -514,7 +514,7 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObj(const char 
 
             if (!uniqueVertices.contains(vertex))
             {
-                uniqueVertices[vertex] = static_cast<Index>(uniqueVertices.size());
+                uniqueVertices[vertex] = Index(uniqueVertices.size());
                 data.Vertices.Append(vertex);
             }
             data.Indices.Append(uniqueVertices[vertex]);
@@ -531,7 +531,7 @@ template <Dimension D> static void validateMesh(const StatMeshData<D> &data, con
         if (i > mx)
             mx = i;
 
-    mx -= static_cast<Index>(offset);
+    mx -= Index(offset);
     TKIT_ASSERT(mx < data.Vertices.GetSize(),
                 "[ONYX][ASSETS] Index and vertex host data creation is invalid. An index exceeds vertex bounds. Index: "
                 "{}, size: {}",
@@ -551,7 +551,7 @@ template <Dimension D> StatMeshData<D> CreateTriangleMesh()
         else
             data.Vertices.Append(StatVertex<D3>{f32v3{x, y, 0.f}, f32v3{0.f, 0.f, 1.f}});
     };
-    const auto addIndex = [&data](const u32 index) { data.Indices.Append(static_cast<Index>(index)); };
+    const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
     addVertex(0.f, 0.5f);
     addVertex(-0.433013f, -0.25f);
@@ -572,7 +572,7 @@ template <Dimension D> StatMeshData<D> CreateSquareMesh()
         else
             data.Vertices.Append(StatVertex<D3>{f32v3{x, y, 0.f}, f32v3{0.f, 0.f, 1.f}});
     };
-    const auto addIndex = [&data](const u32 index) { data.Indices.Append(static_cast<Index>(index)); };
+    const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
     addVertex(-0.5f, -0.5f);
     addVertex(0.5f, -0.5f);
@@ -602,9 +602,7 @@ static StatMeshData<D> createRegularPolygon(const u32 sides, const f32v<D> &vert
         else
             data.Vertices.Append(StatVertex<D3>{vertex + vertexOffset, normal});
     };
-    const auto addIndex = [&data, indexOffset](const u32 index) {
-        data.Indices.Append(static_cast<Index>(index + indexOffset));
-    };
+    const auto addIndex = [&data, indexOffset](const u32 index) { data.Indices.Append(Index(index + indexOffset)); };
 
     addVertex(f32v<D>{0.f});
     const f32 angle = 2.f * Math::Pi<f32>() / sides;
@@ -653,7 +651,7 @@ template <Dimension D> StatMeshData<D> CreatePolygonMesh(const TKit::Span<const 
         else
             data.Vertices.Append(StatVertex<D2>{vertex});
     };
-    const auto addIndex = [&data](const u32 index) { data.Indices.Append(static_cast<Index>(index)); };
+    const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
     addVertex(f32v<D>{0.f});
     const u32 size = vertices.GetSize();
@@ -749,13 +747,13 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
             idx = 1 + (rings - 2) * sectors;
         else
             idx = 1 + sector + (ring - 1) * sectors;
-        data.Indices.Append(static_cast<Index>(idx));
+        data.Indices.Append(Index(idx));
     };
 
     addVertex(0.f, 0.5f, 0.f);
     for (u32 i = 1; i < rings - 1; ++i)
     {
-        const f32 v = static_cast<f32>(i) / rings;
+        const f32 v = f32(i) / rings;
         const f32 phi = v * Math::Pi<f32>();
 
         const f32 pc = Math::Cosine(phi);
@@ -763,7 +761,7 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
 
         for (u32 j = 0; j < sectors; ++j)
         {
-            const f32 u = static_cast<f32>(j) / sectors;
+            const f32 u = f32(j) / sectors;
             const f32 th = 2.f * u * Math::Pi<f32>();
 
             const f32 tc = Math::Cosine(th);
@@ -815,7 +813,7 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
     };
 
     const u32 offset = left.Vertices.GetSize() + right.Vertices.GetSize();
-    const auto addIndex = [&data, offset](const u32 index) { data.Indices.Append(static_cast<Index>(index + offset)); };
+    const auto addIndex = [&data, offset](const u32 index) { data.Indices.Append(Index(index + offset)); };
 
     const f32 angle = 2.f * Math::Pi<f32>() / sides;
     for (u32 i = 0; i < sides; ++i)

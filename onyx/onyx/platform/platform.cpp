@@ -41,7 +41,7 @@ void Terminate()
 static ViewMask s_ViewCache = TKit::Limits<ViewMask>::Max();
 static ViewMask allocateViewBit()
 {
-    const u32 index = static_cast<u32>(std::countr_zero(s_ViewCache));
+    const u32 index = u32(std::countr_zero(s_ViewCache));
     const ViewMask viewBit = 1 << index;
     s_ViewCache &= ~viewBit;
     return viewBit;
@@ -64,7 +64,7 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, specs.Flags & WindowFlag_FocusOnShow);
 #endif
 
-    GLFWwindow *handle = glfwCreateWindow(static_cast<i32>(specs.Dimensions[0]), static_cast<i32>(specs.Dimensions[1]),
+    GLFWwindow *handle = glfwCreateWindow(i32(specs.Dimensions[0]), i32(specs.Dimensions[1]),
                                           specs.Title, nullptr, nullptr);
     if (!handle)
         return Result<>::Error(Error_RejectedWindow);

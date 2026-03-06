@@ -167,7 +167,7 @@ void Compilation::Destroy()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     for (const Spirv &spr : m_CompiledSpirv)
-        tier->Deallocate(static_cast<void *>(spr.Data), spr.Size);
+        tier->Deallocate(scast<void *>(spr.Data), spr.Size);
 }
 
 static SlangStage getSlangStage(const ShaderStage stage)
@@ -495,7 +495,7 @@ static std::string getDiagnostics(slang::IBlob *diagnostics)
     if (!diagnostics)
         return "No diagnostics available";
 
-    const char *text = static_cast<const char *>(diagnostics->getBufferPointer());
+    const char *text = scast<const char *>(diagnostics->getBufferPointer());
     const size_t size = diagnostics->getBufferSize();
     const std::string message{text, size};
     return message;
@@ -705,13 +705,13 @@ Result<Compilation> Compiler::Compile() const
             const size_t size = code->getBufferSize();
 
             TKit::TierAllocator *tier = TKit::GetTier();
-            void *mem = tier->Allocate(static_cast<u32>(size));
+            void *mem = tier->Allocate(u32(size));
             TKit::ForwardCopy(mem, code->getBufferPointer(), size);
 
             Spirv sp;
             sp.EntryPoint = ep;
-            sp.Data = static_cast<u32 *>(mem);
-            sp.Size = static_cast<u32>(size);
+            sp.Data = scast<u32 *>(mem);
+            sp.Size = u32(size);
 
             sprvs.Append(sp);
         }

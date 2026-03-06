@@ -320,18 +320,18 @@ static void initializeAllocators(const Specs &specs)
         if (userAlloc.Arena)
             libAlloc.Arena = userAlloc.Arena;
         else if (!libAlloc.Arena)
-            libAlloc.Arena = new TKit::ArenaAllocator(static_cast<u32>(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
+            libAlloc.Arena = new TKit::ArenaAllocator(u32(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
         if (userAlloc.Stack)
             libAlloc.Stack = userAlloc.Stack;
         else if (!libAlloc.Stack)
-            libAlloc.Stack = new TKit::StackAllocator(static_cast<u32>(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
+            libAlloc.Stack = new TKit::StackAllocator(u32(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
 
         if (userAlloc.Tier)
             libAlloc.Tier = userAlloc.Tier;
         else if (!libAlloc.Tier)
         {
             const TKit::TierDescriptions desc{
-                {.Allocator = libAlloc.Arena, .MaxAllocation = static_cast<u32>(i == 0 ? 1_mib : 4_kib)}};
+                {.Allocator = libAlloc.Arena, .MaxAllocation = u32(i == 0 ? 1_mib : 4_kib)}};
             if (i == 0)
             {
                 TKIT_LOG_INFO("[ONYX][CORE] Tier allocator for the main thread has allocated {:L} bytes of memory",
@@ -476,7 +476,7 @@ Result<> HandleVulkanResult(const VkResult result)
 
     addresses.Resize(counts.addressInfoCount);
     vendors.Resize(counts.vendorInfoCount);
-    vendorBinary.Resize(static_cast<u32>(counts.vendorBinarySize));
+    vendorBinary.Resize(u32(counts.vendorBinarySize));
 
     VkDeviceFaultInfoEXT faultInfo{};
     faultInfo.sType = VK_STRUCTURE_TYPE_DEVICE_FAULT_INFO_EXT;
@@ -536,8 +536,7 @@ Result<> HandleVulkanResult(const VkResult result)
         TKIT_LOG_ERROR("[ONYX][CORE] Failed to open file at '{}' to write device fault dump", path.string());
         return Result<>::Ok();
     }
-    f.write(reinterpret_cast<const char *>(vendorBinary.GetData()),
-            static_cast<std::streamsize>(vendorBinary.GetSize()));
+    f.write(reinterpret_cast<const char *>(vendorBinary.GetData()), std::streamsize(vendorBinary.GetSize()));
 
     TKIT_LOG_ERROR("[ONYX][CORE] Wrote crash dump to '{}'", path.string());
 

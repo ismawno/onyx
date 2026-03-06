@@ -9,7 +9,7 @@ namespace Onyx
 static constexpr f32 toFloat(const u32 val)
 {
     constexpr f32 oneOver255 = 1.f / 255.f;
-    return static_cast<f32>(val) * oneOver255;
+    return f32(val) * oneOver255;
 }
 
 Color::Color(const f32 val) : Color(val, val, val, 1.f)
@@ -184,9 +184,9 @@ Color Gradient::Evaluate(const f32 t) const
         return m_Colors.GetBack();
 
     const f32 loc = t * (m_Colors.GetSize() - 1);
-    const u32 index1 = static_cast<u32>(loc);
+    const u32 index1 = u32(loc);
 
-    const f32 tt = loc - static_cast<f32>(index1);
+    const f32 tt = loc - f32(index1);
     return Color{m_Colors[index1].rgba * (1.f - tt) + m_Colors[index1 + 1].rgba * tt};
 }
 

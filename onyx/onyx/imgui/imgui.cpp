@@ -224,8 +224,8 @@ bool DeltaTimeEditor(DeltaTime &dt, DeltaInfo &di, const Window *window, const E
         ImGui::Text("Measured delta time: %.2f ms (max: %.2f ms)", di.Smoothed.AsMilliseconds(),
                     di.Max.AsMilliseconds());
     else if (di.Unit == 2)
-        ImGui::Text("Measured delta time: %u us (max: %u us)", static_cast<u32>(di.Smoothed.AsMicroseconds()),
-                    static_cast<u32>(di.Max.AsMicroseconds()));
+        ImGui::Text("Measured delta time: %u us (max: %u us)", u32(di.Smoothed.AsMicroseconds()),
+                    u32(di.Max.AsMicroseconds()));
     else
 #    ifndef TKIT_OS_LINUX
         ImGui::Text("Measured delta time: %llu ns (max: %llu ns)", di.Smoothed.AsNanoseconds(), di.Max.AsNanoseconds());
@@ -382,18 +382,17 @@ bool PresentModeEditor(Window *window, const EditorFlags flags)
     const VkPresentModeKHR current = window->GetPresentMode();
     const TKit::TierArray<VkPresentModeKHR> &available = window->GetAvailablePresentModes();
 
-    int index = -1;
+    i32 index = -1;
     TKit::StackArray<const char *> presentModes;
     presentModes.Reserve(available.GetSize());
     for (u32 i = 0; i < available.GetSize(); ++i)
     {
         presentModes.Append(presentModeToString(available[i]));
         if (available[i] == current)
-            index = static_cast<int>(i);
+            index = i32(i);
     }
 
-    const bool changed =
-        ImGui::Combo("Present mode", &index, presentModes.GetData(), static_cast<int>(available.GetSize()));
+    const bool changed = ImGui::Combo("Present mode", &index, presentModes.GetData(), i32(available.GetSize()));
     if (changed)
         window->SetPresentMode(available[index]);
 

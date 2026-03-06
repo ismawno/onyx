@@ -16,7 +16,7 @@ u32 ToFrequency(const TKit::Timespan deltaTime)
     if (seconds == TKIT_F32_MAX)
         return 0;
 
-    return static_cast<u32>(1.f / deltaTime.AsSeconds()) + 1;
+    return u32(1.f / deltaTime.AsSeconds()) + 1;
 }
 TKit::Timespan ToDeltaTime(const u32 frequency)
 {
@@ -24,12 +24,12 @@ TKit::Timespan ToDeltaTime(const u32 frequency)
         return TKit::Timespan::FromSeconds(TKIT_F32_MAX);
     if (frequency == TKIT_U32_MAX)
         return TKit::Timespan{};
-    return TKit::Timespan::FromSeconds(1.f / static_cast<f32>(frequency));
+    return TKit::Timespan::FromSeconds(1.f / f32(frequency));
 }
 
 Window *Window::FromHandle(GLFWwindow *window)
 {
-    return static_cast<Window *>(glfwGetWindowUserPointer(window));
+    return scast<Window *>(glfwGetWindowUserPointer(window));
 }
 
 void Window::Show()
@@ -82,7 +82,7 @@ u32v2 Window::GetPixelDimensions() const
 f32 Window::GetAspect() const
 {
     const u32v2 pdim = GetPixelDimensions();
-    return static_cast<f32>(pdim[1]) / static_cast<f32>(pdim[0]);
+    return f32(pdim[1]) / f32(pdim[0]);
 }
 
 f32 Window::GetOpacity() const
@@ -183,14 +183,14 @@ void Window::SetScreenDimensions(const u32v2 &dim)
     i32 h;
     glfwGetWindowPos(m_Window, &x, &y);
     glfwGetWindowSize(m_Window, &w, &h);
-    glfwSetWindowPos(m_Window, x, y - h + static_cast<i32>(dim[1]));
+    glfwSetWindowPos(m_Window, x, y - h + i32(dim[1]));
 #endif
-    glfwSetWindowSize(m_Window, static_cast<i32>(dim[0]), static_cast<i32>(dim[1]));
+    glfwSetWindowSize(m_Window, i32(dim[0]), i32(dim[1]));
     m_MustRecreateSwapchain = true;
 }
 void Window::SetAspect(const u32 numer, const u32 denom)
 {
-    glfwSetWindowAspectRatio(m_Window, static_cast<i32>(numer), static_cast<i32>(denom));
+    glfwSetWindowAspectRatio(m_Window, i32(numer), i32(denom));
 }
 
 VkExtent2D Window::getNewExtent(GLFWwindow *window)
@@ -201,7 +201,7 @@ VkExtent2D Window::getNewExtent(GLFWwindow *window)
     while (w == 0 || h == 0)
         glfwGetFramebufferSize(window, &w, &h);
 
-    return VkExtent2D{static_cast<u32>(w), static_cast<u32>(h)};
+    return VkExtent2D{u32(w), u32(h)};
 }
 
 Result<VKit::SwapChain> Window::createSwapChain(const VkPresentModeKHR presentMode, const VkSurfaceKHR surface,
@@ -530,8 +530,8 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
     VkViewport viewport{};
     viewport.x = 0.f;
     viewport.y = 0.f;
-    viewport.width = static_cast<f32>(extent.width);
-    viewport.height = static_cast<f32>(extent.height);
+    viewport.width = f32(extent.width);
+    viewport.height = f32(extent.height);
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
 
@@ -575,7 +575,7 @@ TKit::Timespan Window::UpdateMonitorDeltaTime(const TKit::Timespan tdefault)
     }
     const GLFWvidmode *mode = glfwGetVideoMode(monitor);
 
-    m_MonitorDeltaTime = TKit::Timespan::FromSeconds(1.f / static_cast<f32>(mode->refreshRate));
+    m_MonitorDeltaTime = TKit::Timespan::FromSeconds(1.f / f32(mode->refreshRate));
     return m_MonitorDeltaTime;
 }
 

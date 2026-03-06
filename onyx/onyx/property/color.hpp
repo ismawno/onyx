@@ -11,14 +11,14 @@ template <Numeric T> constexpr T ToType(const f32 val)
     if constexpr (Float<T>)
         return val;
     else
-        return static_cast<T>(val * 255.f);
+        return T(val * 255.f);
 }
 template <Numeric T> constexpr f32 FromType(const T val)
 {
     if constexpr (Float<T>)
         return val;
     else
-        return static_cast<T>(val) / 255.f;
+        return T(val) / 255.f;
 }
 } // namespace Onyx::Detail
 

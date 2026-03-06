@@ -321,13 +321,13 @@ void Application::destroyWindowLayer(WindowLayer *layer)
     TKit::TierAllocator *tier = TKit::GetTier();
     const u32 size = layer->m_Size;
     layer->~WindowLayer();
-    tier->Deallocate(static_cast<void *>(layer), size);
+    tier->Deallocate(scast<void *>(layer), size);
 }
 void Application::destroyAppLayer()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     const u32 size = m_AppLayer->m_Size;
     m_AppLayer->~ApplicationLayer();
-    tier->Deallocate(static_cast<void *>(m_AppLayer), size);
+    tier->Deallocate(scast<void *>(m_AppLayer), size);
 }
 } // namespace Onyx
