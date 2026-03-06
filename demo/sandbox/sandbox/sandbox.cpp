@@ -923,7 +923,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
 {
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     MeshArray<D> &meshes = appLayer->GetMeshes<D>();
-    combo("Geometry#Load", &meshes.GeometryToLoad, "Static mesh\0\0");
+    combo("Geometry##Load", &meshes.GeometryToLoad, "Static mesh\0\0");
     const Geometry geo = Geometry(meshes.GeometryToLoad + 1); // skip circles
     if (geo == Geometry_StaticMesh)
     {
@@ -1012,7 +1012,16 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 const auto result = openDialog();
                 if (result)
                     load(result.GetValue());
-                TKIT_LOG_ERROR_IF(!result, "[ONYX][SANDBOX] Error opening dialog: {}", Dialog::GetError());
+#        ifdef TKIT_ENABLE_ERROR_LOGS
+                else
+                {
+                    const char *error = Dialog::GetError();
+                    TKIT_LOG_ERROR_IF(error, "[ONYX][SANDBOX] Error opening dialog: {}", error);
+                    TKIT_LOG_ERROR_IF(!error, "[ONYX][SANDBOX] Error opening dialog");
+                    if (error)
+                        Dialog::ClearError();
+                }
+#        endif
 #    endif
             }
 #    ifndef TKIT_OS_APPLE
@@ -1022,7 +1031,16 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 const auto result = tm->WaitForResult(DialogTask);
                 if (result)
                     load(result.GetValue());
-                TKIT_LOG_ERROR_IF(!result, "[ONYX][SANDBOX] Error opening dialog: {}", Dialog::GetError());
+#        ifdef TKIT_ENABLE_ERROR_LOGS
+                else
+                {
+                    const char *error = Dialog::GetError();
+                    TKIT_LOG_ERROR_IF(error, "[ONYX][SANDBOX] Error opening dialog: {}", error);
+                    TKIT_LOG_ERROR_IF(!error, "[ONYX][SANDBOX] Error opening dialog");
+                    if (error)
+                        Dialog::ClearError();
+                }
+#        endif
                 DialogTask = nullptr;
             }
 #    endif

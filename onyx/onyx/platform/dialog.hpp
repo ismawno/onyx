@@ -6,6 +6,7 @@
 
 #include "onyx/core/alias.hpp"
 #include "tkit/container/tier_array.hpp"
+#include "tkit/container/span.hpp"
 #include "tkit/utils/result.hpp"
 #include <filesystem>
 
@@ -51,5 +52,6 @@ Result<Path> OpenFolder(const Options &options = {});
 Result<Path> OpenSingle(const Options &options = {});
 Result<Paths> OpenMultiple(const Options &options = {});
 const char *GetError();
+void ClearError();
 
 } // namespace Onyx::Dialog

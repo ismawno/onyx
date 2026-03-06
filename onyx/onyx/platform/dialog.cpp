@@ -154,4 +154,8 @@ const char *GetError()
 {
     return NFD_GetError();
 }
+void ClearError()
+{
+    NFD_ClearError();
+}
 } // namespace Onyx::Dialog
