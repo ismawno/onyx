@@ -988,6 +988,24 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 appLayer->AddStaticMesh(name[0] ? name : path.filename().string().c_str(), data);
                 ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
             };
+            const auto handleError = [](const Dialog::Status status) {
+                switch (status)
+                {
+                case Dialog::Success:
+                    return;
+                case Dialog::Cancel:
+                    TKIT_LOG_WARNING("[ONYX][SANDBOX] Selection canceled");
+                    return;
+                case Dialog::Error: {
+                    const char *error = Dialog::GetError();
+                    TKIT_LOG_ERROR_IF(error, "[ONYX][SANDBOX] Error opening dialog: {}", error);
+                    TKIT_LOG_ERROR_IF(!error, "[ONYX][SANDBOX] Error opening dialog");
+                    if (error)
+                        Dialog::ClearError();
+                    return;
+                }
+                }
+            };
 #    ifndef TKIT_OS_APPLE
             ImGui::BeginDisabled(DialogTask && !DialogTask.IsFinished());
             TKit::ITaskManager *tm = Core::GetTaskManager();
@@ -1012,16 +1030,8 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 const auto result = openDialog();
                 if (result)
                     load(result.GetValue());
-#        ifdef TKIT_ENABLE_ERROR_LOGS
                 else
-                {
-                    const char *error = Dialog::GetError();
-                    TKIT_LOG_ERROR_IF(error, "[ONYX][SANDBOX] Error opening dialog: {}", error);
-                    TKIT_LOG_ERROR_IF(!error, "[ONYX][SANDBOX] Error opening dialog");
-                    if (error)
-                        Dialog::ClearError();
-                }
-#        endif
+                    handleError(result.GetError());
 #    endif
             }
 #    ifndef TKIT_OS_APPLE
@@ -1031,16 +1041,8 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 const auto result = tm->WaitForResult(DialogTask);
                 if (result)
                     load(result.GetValue());
-#        ifdef TKIT_ENABLE_ERROR_LOGS
                 else
-                {
-                    const char *error = Dialog::GetError();
-                    TKIT_LOG_ERROR_IF(error, "[ONYX][SANDBOX] Error opening dialog: {}", error);
-                    TKIT_LOG_ERROR_IF(!error, "[ONYX][SANDBOX] Error opening dialog");
-                    if (error)
-                        Dialog::ClearError();
-                }
-#        endif
+                    handleError(result.GetError());
                 DialogTask = nullptr;
             }
 #    endif
