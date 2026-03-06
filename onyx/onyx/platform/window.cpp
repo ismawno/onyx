@@ -186,7 +186,7 @@ void Window::SetScreenDimensions(const u32v2 &dim)
     glfwSetWindowPos(m_Window, x, y - h + i32(dim[1]));
 #endif
     glfwSetWindowSize(m_Window, i32(dim[0]), i32(dim[1]));
-    m_MustRecreateSwapchain = true;
+    // m_MustRecreateSwapchain = true;
 }
 void Window::SetAspect(const u32 numer, const u32 denom)
 {
