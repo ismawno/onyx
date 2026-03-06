@@ -133,9 +133,15 @@ tkit_register_for_reflection(
 
 if(ONYX_ENABLE_SHADER_COMPILATION)
   find_package(slang QUIET)
+  find_path(SLANG_INCLUDE_DIR slang.h)
+  find_library(SLANG_LIB slang)
   if(slang_FOUND)
     message(STATUS "ONYX - Slang found")
     target_link_libraries(onyx PRIVATE slang::slang)
+  elseif(SLANG_INCLUDE_DIR AND SLANG_LIB)
+    message(STATUS "ONYX - Slang found")
+    target_include_directories(onyx PRIVATE ${SLANG_INCLUDE_DIR})
+    target_link_libraries(onyx PRIVATE ${SLANG_LIB})
   else()
     message(STATUS "ONYX - Slang not found... fetching source")
 
