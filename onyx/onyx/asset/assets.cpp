@@ -466,7 +466,10 @@ Result<> Unlock()
 {
     s_Flags &= ~AssetsFlag_Locked;
     if (s_Flags & AssetsFlag_MustUpload)
+    {
+        s_Flags &= ~AssetsFlag_MustUpload;
         return Upload();
+    }
 
     return Result<>::Ok();
 }
