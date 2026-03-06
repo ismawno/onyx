@@ -514,7 +514,7 @@ static bool isOldMesa()
     u32 minor;
     u32 patch;
 
-#if defined(TKIT_COMPILER_MSVC) || defined(TKIT_COMPILER_CLANGCL)
+#ifdef TKIT_COMPILER_MSVC
     if (sscanf_s(props.driverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
         return false;
 #else
