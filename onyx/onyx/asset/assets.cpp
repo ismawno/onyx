@@ -33,6 +33,14 @@ struct BatchRange
     u32 BatchCount;
 };
 
+using AssetsFlags = u8;
+enum AssetsFlagBit : AssetsFlags
+{
+    AssetsFlag_Locked = 1 << 0,
+    AssetsFlag_MustUpload = 1 << 1,
+};
+
+AssetsFlags s_Flags = 0;
 TKit::FixedArray<BatchRange, Geometry_Count> s_BatchRanges{};
 
 template <typename Vertex> struct MeshInfo
@@ -450,13 +458,47 @@ template <Dimension D> u32 GetStaticMeshCount()
     return getData<D>().StaticMeshes.Layouts.GetSize();
 }
 
-template <Dimension D> Result<> Upload()
+void Lock()
+{
+    s_Flags |= AssetsFlag_Locked;
+}
+Result<> Unlock()
+{
+    s_Flags &= ~AssetsFlag_Locked;
+    if (s_Flags & AssetsFlag_MustUpload)
+        return Upload();
+
+    return Result<>::Ok();
+}
+
+template <Dimension D> ONYX_NO_DISCARD static Result<> upload()
 {
     TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
 
     AssetData<D> &data = getData<D>();
     TKIT_RETURN_IF_FAILED(uploadMeshData(data.StaticMeshes));
     return uploadMaterialData<D>();
+}
+
+Result<> Upload()
+{
+    if (s_Flags & AssetsFlag_Locked)
+        return Result<>::Error(Error_LockedAssets,
+                               "[ONYX][ASSETS] Cannot upload/mutate asset data because they are locked, either by the "
+                               "user or by Onyx. If using the application class, this happens automatically in-between "
+                               "frames to avoid having dangling references in command buffers");
+    TKIT_RETURN_IF_FAILED(upload<D2>());
+    return upload<D3>();
+}
+
+Result<bool> RequestUpload()
+{
+    if (s_Flags & AssetsFlag_Locked)
+    {
+        s_Flags |= AssetsFlag_MustUpload;
+        return false;
+    }
+    return Upload();
 }
 
 template <Dimension D> MeshDataLayout GetStaticMeshLayout(const Mesh mesh)
@@ -851,9 +893,6 @@ template void UpdateMesh(Mesh mesh, const StatMeshData<D3> &data);
 
 template u32 GetStaticMeshCount<D2>();
 template u32 GetStaticMeshCount<D3>();
-
-template Result<> Upload<D2>();
-template Result<> Upload<D3>();
 
 #ifdef ONYX_ENABLE_OBJ
 template Result<StatMeshData<D2>> LoadStaticMeshFromObj<D2>(const char *path);

@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/application/application.hpp"
 #include "onyx/imgui/backend.hpp"
+#include "onyx/asset/assets.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
 
@@ -127,6 +128,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         TKit::StackArray<Renderer::RenderSubmitInfo> rinfos{};
         rinfos.Reserve(10 * wlayerCount);
 
+        Assets::Lock();
         for (AcquiredWindow &acwin : acqWindows)
         {
             WindowLayer *wlayer = acwin.Layer;
@@ -207,6 +209,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
                 }
 #endif
         }
+        TKIT_RETURN_IF_FAILED(Assets::Unlock());
     }
     const auto endFrame = [&] {
         m_AppLayer->m_Flags = 0;

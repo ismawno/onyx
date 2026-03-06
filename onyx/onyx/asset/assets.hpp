@@ -37,7 +37,12 @@ template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshVertexBuffer();
 template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer();
 template <Dimension D> u32 GetStaticMeshCount();
 
-template <Dimension D> ONYX_NO_DISCARD Result<> Upload();
+void Lock();
+ONYX_NO_DISCARD Result<> Unlock();
+
+ONYX_NO_DISCARD Result<bool> RequestUpload();
+ONYX_NO_DISCARD Result<> Upload();
+
 #ifdef ONYX_ENABLE_OBJ
 template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshFromObj(const char *path);
 #endif

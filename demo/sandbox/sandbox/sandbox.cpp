@@ -68,6 +68,7 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *da
 {
     AddMeshes<D2>();
     AddMeshes<D3>();
+    ONYX_CHECK_EXPRESSION(Assets::Upload());
 
     if (data->Flags & ParseFlag_D2)
     {
@@ -117,7 +118,6 @@ template <Dimension D> void SandboxAppLayer::AddMeshes()
         AddStaticMesh("Sphere", Assets::CreateSphereMesh(32, 64));
         AddStaticMesh("Cylinder", Assets::CreateCylinderMesh(64));
     }
-    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
 }
 
 template <Dimension D> static void setShapeProperties(RenderContext<D> *context, const Shape<D> &shape)
@@ -331,7 +331,7 @@ template <Dimension D> void SandboxAppLayer::AddMaterial()
     MatData<D> &data = materials.Materials.Append();
     data.Name = TKit::Format("Material {}", size);
     data.Material = Assets::AddMaterial(data.Data);
-    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
 }
 
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
@@ -843,7 +843,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterial(MatData<D> &material
     if (MaterialEditor(material.Data, EditorFlag_DisplayHelp))
     {
         Assets::UpdateMaterial(material.Material, material.Data);
-        ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
     }
 }
 
@@ -944,7 +944,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
             {
                 appLayer->AddStaticMesh<D>(name[0] ? name : "Regular polygon",
                                            Assets::CreateRegularPolygonMesh<D>(meshes.RegularPolySides));
-                ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
             }
         }
         else if (meshes.StatMeshToLoad == 1)
@@ -973,7 +973,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
             {
                 appLayer->AddStaticMesh<D>(name[0] ? name : "Polygon",
                                            Assets::CreatePolygonMesh<D>(meshes.PolyVertices));
-                ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
             }
         }
         else if (meshes.StatMeshToLoad == importedIndex)
@@ -986,7 +986,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
 
                 const StatMeshData<D> &data = lres.GetValue();
                 appLayer->AddStaticMesh(name[0] ? name : path.filename().string().c_str(), data);
-                ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
             };
             const auto handleError = [](const Dialog::Status status) {
                 switch (status)
@@ -1060,7 +1060,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 {
                     appLayer->AddStaticMesh<D>(name[0] ? name : "Sphere",
                                                Assets::CreateSphereMesh(m3.Rings, m3.Sectors));
-                    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+                    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
                 }
             }
             else if (meshes.StatMeshToLoad == 3)
@@ -1072,7 +1072,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshLoad()
                 {
                     appLayer->AddStaticMesh<D>(name[0] ? name : "Cylinder",
                                                Assets::CreateCylinderMesh(m3.CylinderSides));
-                    ONYX_CHECK_EXPRESSION(Assets::Upload<D>());
+                    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
                 }
             }
         }

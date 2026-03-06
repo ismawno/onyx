@@ -116,7 +116,7 @@ int main()
     ONYX_CHECK_EXPRESSION(Initialize());
     const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
     const Mesh mesh = Assets::AddMesh(data);
-    ONYX_CHECK_EXPRESSION(Assets::Upload<D2>());
+    ONYX_CHECK_EXPRESSION(Assets::Upload());
 
     WindowExample(mesh, 1);
     // ApplicationExample();
