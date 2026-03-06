@@ -487,9 +487,10 @@ Result<> Upload()
                                "[ONYX][ASSETS] Cannot upload/mutate asset data because they are locked, either by the "
                                "user or by Onyx. If using the application class, this happens automatically in-between "
                                "frames to avoid having dangling references in command buffers");
-    s_Flags &= ~AssetsFlag_MustUpload;
     TKIT_RETURN_IF_FAILED(upload<D2>());
-    return upload<D3>();
+    TKIT_RETURN_IF_FAILED(upload<D3>());
+    s_Flags &= ~AssetsFlag_MustUpload;
+    return Result<>::Ok();
 }
 
 Result<bool> RequestUpload()
