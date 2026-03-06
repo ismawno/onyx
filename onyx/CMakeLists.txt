@@ -189,7 +189,6 @@ if(ONYX_ENABLE_SHADER_COMPILATION)
 
     FetchContent_MakeAvailable(slang)
     tkit_configure_compile_link_options(slang NO_EXCEPTIONS NO_RTTI)
-    target_compile_definitions(slang PRIVATE SLANG_HAS_EXCEPTIONS=0)
 
     target_link_libraries(onyx PRIVATE slang)
   endif()
