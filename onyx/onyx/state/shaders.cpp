@@ -514,11 +514,13 @@ static bool isOldMesa()
     u32 minor;
     u32 patch;
 
-    TKIT_COMPILER_WARNING_IGNORE_PUSH()
-    TKIT_MSVC_WARNING_IGNORE(4996)
+#if defined(TKIT_COMPILER_MSVC) || defined(TKIT_COMPILER_CLANGCL)
+    if (sscanf_s(props.driverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
+        return false;
+#else
     if (std::sscanf(props.driverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
         return false;
-    TKIT_COMPILER_WARNING_IGNORE_POP()
+#endif
 
     if (major > 25)
         return false;
