@@ -30,7 +30,7 @@ ONYX_NO_DISCARD Result<> UpdatePlatformWindows();
 
 u32 GetPlatformWindowCount();
 
-ONYX_NO_DISCARD Result<bool> AcquirePlatformWindowImage(u32 windowIndex, Timeout timeout = Block);
+ONYX_NO_DISCARD Result<bool> AcquirePlatformWindowImage(u32 windowIndex, Timeout timeout);
 ONYX_NO_DISCARD Result<Renderer::RenderSubmitInfo> RenderPlatformWindow(u32 windowIndex, VKit::Queue *graphics,
                                                                         VkCommandBuffer cmd);
 ONYX_NO_DISCARD Result<> PresentPlatformWindow(u32 windowIndex);

@@ -186,7 +186,7 @@ class Window
         return info;
     }
 
-    ONYX_NO_DISCARD Result<bool> AcquireNextImage(Timeout timeout = Block);
+    ONYX_NO_DISCARD Result<bool> AcquireNextImage(Timeout timeout);
     ONYX_NO_DISCARD Result<> Present();
 
     void RequestSwapchainRecreation()

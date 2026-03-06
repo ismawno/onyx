@@ -51,7 +51,7 @@ void WindowExample(const Mesh mesh, const u32 nwidows = 1)
         rinfos.Reserve(windows.GetSize());
         u64 acquireMask = 0;
         for (Window *win : windows)
-            if (ONYX_CHECK_EXPRESSION(win->AcquireNextImage()))
+            if (ONYX_CHECK_EXPRESSION(win->AcquireNextImage(Block)))
             {
                 acquireMask |= win->GetViewBit();
                 const VkCommandBuffer gcmd = ONYX_CHECK_EXPRESSION(Execution::Allocate(gpool));
