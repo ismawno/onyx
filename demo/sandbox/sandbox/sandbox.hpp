@@ -39,10 +39,11 @@ template <Dimension D> struct CameraArray
     u32 Active = 0;
 };
 
-struct MeshId
+template <Dimension D> struct StatMeshId
 {
     std::string Name;
     Mesh Mesh;
+    StatMeshData<D> Data;
 };
 
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(StaticMeshType)
@@ -122,7 +123,8 @@ template <Dimension D> struct ContextArray
 
 template <Dimension D> struct MeshArray
 {
-    TKit::TierArray<MeshId> StaticMeshes{};
+    TKit::TierArray<StatMeshId<D>> StaticMeshes{};
+    u32 Active = 0;
     u32 GeometryToLoad = 0;
     u32 StatMeshToLoad = 0;
 
@@ -133,7 +135,8 @@ template <Dimension D> struct MeshArray
 
 template <> struct MeshArray<D3>
 {
-    TKit::TierArray<MeshId> StaticMeshes{};
+    TKit::TierArray<StatMeshId<D3>> StaticMeshes{};
+    u32 Active = 0;
     u32 GeometryToLoad = 0;
     u32 StatMeshToLoad = 0;
 
@@ -168,7 +171,7 @@ template <Dimension D> struct LatticeData
     TKIT_YAML_SERIALIZE_IGNORE_END()
 };
 
-template <Dimension D> struct MatData
+template <Dimension D> struct MaterialId
 {
     std::string Name{};
     Material Material = NullMaterial;
@@ -177,7 +180,7 @@ template <Dimension D> struct MatData
 
 template <Dimension D> struct MaterialArray
 {
-    TKit::TierArray<MatData<D>> Materials{};
+    TKit::TierArray<MaterialId<D>> Materials{};
     u32 Active = 0;
 };
 
@@ -211,7 +214,7 @@ class SandboxAppLayer final : public ApplicationLayer
 
     template <Dimension D> void AddContext(const Window *window = nullptr);
     template <Dimension D> void AddLattice(const Window *window = nullptr, const LatticeData<D> &lattice = {});
-    template <Dimension D> void AddMaterial();
+    template <Dimension D> void AddMaterial(const char *name = nullptr);
 
     template <Dimension D> auto &GetContexts()
     {
@@ -278,9 +281,10 @@ class SandboxWinLayer final : public WindowLayer
     template <Dimension D> void RenderLattices();
     template <Dimension D> void RenderLattice(LatticeData<D> &lattice);
     template <Dimension D> void RenderMaterials();
-    template <Dimension D> void RenderMaterial(MatData<D> &material);
+    template <Dimension D> void RenderMaterial(MaterialId<D> &material);
+    template <Dimension D> void RenderMeshes();
+    template <Dimension D> void RenderMesh(StatMeshId<D> &mesh);
     template <Dimension D> void RenderRenderer();
-    template <Dimension D> void RenderMeshLoad();
 #endif
 
     template <Dimension D> void ProcessEvent(const Event &event);
