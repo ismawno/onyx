@@ -500,7 +500,8 @@ Result<bool> RequestUpload()
         s_Flags |= AssetsFlag_MustUpload;
         return false;
     }
-    return Upload();
+    TKIT_RETURN_IF_FAILED(Upload());
+    return true;
 }
 
 template <Dimension D> MeshDataLayout GetStaticMeshLayout(const Mesh mesh)
