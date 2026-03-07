@@ -32,7 +32,7 @@ if(ONYX_ENABLE_NFD)
 endif()
 
 add_library(onyx STATIC ${SOURCES})
-target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.6.0\")
+target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.8.x\")
 
 include(FetchContent)
 FetchContent_Declare(
