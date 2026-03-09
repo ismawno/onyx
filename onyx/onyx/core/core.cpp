@@ -88,6 +88,7 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
         .RequireExtension("VK_KHR_timeline_semaphore")
         .RequireExtension("VK_KHR_synchronization2")
         .RequireExtension("VK_KHR_copy_commands2")
+        .RequireExtension("VK_EXT_descriptor_indexing")
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 4, 0);
     if (flags & Flag_EnableDeviceFaultExtension)
@@ -153,6 +154,11 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     VKit::DeviceFeatures features{};
     features.Vulkan11.shaderDrawParameters = VK_TRUE;
     features.Vulkan12.timelineSemaphore = VK_TRUE;
+    features.Vulkan12.descriptorBindingPartiallyBound = VK_TRUE;
+    features.Vulkan12.runtimeDescriptorArray = VK_TRUE;
+    features.Vulkan12.descriptorIndexing = VK_TRUE;
+    // features.Vulkan12.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    features.Vulkan12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 
     VkPhysicalDeviceDynamicRenderingFeaturesKHR drendering{};
     drendering.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;

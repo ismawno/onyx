@@ -6,16 +6,16 @@ struct VertexOutput
     float2 LocalPosition;
     [[vk::location(1)]]
     nointerpolation ArcData Arc;
-    [[vk::location(7)]]
-    nointerpolation FadeData Fade;
-    [[vk::location(9)]]
+    [[vk::location(4)]]
+    nointerpolation float2 Fade;
+    [[vk::location(5)]]
     nointerpolation float4 FragColor;
 
     float4 Position : SV_Position;
 };
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<CircleInstanceDataStencil2D, Std430DataLayout> instanceBuffer;
+StructuredBuffer<CircleInstanceDataStencil2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -23,7 +23,7 @@ struct PushConstants
 };
 
 [[vk::push_constant]]
-PushConstants pdata;
+PushConstants g_PushData;
 
 static const float2 g_Positions[6] =
 {
@@ -45,7 +45,7 @@ VertexOutput mainVS(
     const uint vertexIndex = vertexId + baseVertex;
     const uint instanceIndex = instanceId + baseInstance;
 
-    const CircleInstanceDataStencil2D data = instanceBuffer[instanceIndex];
+    const CircleInstanceDataStencil2D data = g_Instances[instanceIndex];
     const float4x4 transform = ComputeTransform2D(data.Data.Basis);
 
     const float2 localPos = g_Positions[vertexIndex];
@@ -55,11 +55,16 @@ VertexOutput mainVS(
     const float4 pos = float4(extruded, 0.0, 1.0);
 
     VertexOutput output;
-    output.Position = mul(mul(transform, pos), pdata.ProjectionView);
+    output.Position = mul(mul(pos, transform), g_PushData.ProjectionView);
 
     output.LocalPosition = localPos;
-    output.Arc = data.Arc;
-    output.Fade = data.Fade;
+
+    output.Arc.CosSin = float4(data.Arc.LowerCos, data.Arc.LowerSin, data.Arc.UpperCos, data.Arc.UpperSin);
+    output.Arc.AngleOverflow = data.Arc.AngleOverflow;
+    output.Arc.Hollowness = data.Arc.Hollowness;
+
+    output.Fade = float2(data.Fade.InnerFade, data.Fade.OuterFade);
+
     output.FragColor = unpackUnorm4x8ToFloat(data.Data.Color);
 
     return output;

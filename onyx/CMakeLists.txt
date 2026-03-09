@@ -98,7 +98,7 @@ else()
 endif()
 target_link_libraries(onyx PRIVATE glfw)
 
-if(ONYX_ENABLE_OBJ)
+if(ONYX_ENABLE_OBJ_LOAD)
   FetchContent_Declare(
     tobjl
     GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
@@ -109,8 +109,33 @@ if(ONYX_ENABLE_OBJ)
   FetchContent_MakeAvailable(tobjl)
 
   target_link_libraries(onyx PRIVATE tinyobjloader)
-  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_OBJ)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_OBJ_LOAD)
   tkit_configure_compile_link_options(tinyobjloader NO_EXCEPTIONS NO_RTTI)
+endif()
+
+if(ONYX_ENABLE_GLTF_LOAD)
+  FetchContent_Declare(
+    tgltf
+    GIT_REPOSITORY https://github.com/syoyo/tinygltf.git
+    GIT_TAG v2.9.7
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
+
+  set(TINYGLTF_HEADER_ONLY
+      ON
+      CACHE BOOL "" FORCE)
+  set(TINYGLTF_INSTALL
+      OFF
+      CACHE BOOL "" FORCE)
+  set(TINYGLTF_NOEXCEPTION
+      ON
+      CACHE BOOL "" FORCE)
+
+  FetchContent_MakeAvailable(tgltf)
+
+  target_link_libraries(onyx PRIVATE tinygltf)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_GLTF_LOAD)
+  # tkit_configure_compile_link_options(tinygltf NO_EXCEPTIONS NO_RTTI)
 endif()
 
 tkit_register_for_yaml_serialization(
@@ -131,7 +156,7 @@ tkit_register_for_reflection(
   onyx/property/options.hpp
   onyx/property/camera.hpp)
 
-if(ONYX_ENABLE_SHADER_COMPILATION)
+if(ONYX_ENABLE_SHADER_API)
   if(DEFINED ENV{VCPKG_ROOT})
     include($ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
   endif()
@@ -201,7 +226,7 @@ if(ONYX_ENABLE_SHADER_COMPILATION)
 
     target_link_libraries(onyx PRIVATE slang)
   endif()
-  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_SHADER_COMPILATION)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_SHADER_API)
 endif()
 
 # IMGUI ###

@@ -26,10 +26,13 @@ set(ONYX_ENABLE_IMPLOT
 set(ONYX_ENABLE_NFD
     OFF
     CACHE BOOL "")
-set(ONYX_ENABLE_OBJ
+set(ONYX_ENABLE_OBJ_LOAD
     OFF
     CACHE BOOL "")
-set(ONYX_ENABLE_SHADER_COMPILATION
+set(ONYX_ENABLE_GLTF_LOAD
+    OFF
+    CACHE BOOL "")
+set(ONYX_ENABLE_SHADER_API
     OFF
     CACHE BOOL "")
 
@@ -43,7 +46,9 @@ message(STATUS "ONYX - Build demos: ${ONYX_BUILD_DEMOS}")
 message(STATUS "ONYX - Use ImGui: ${ONYX_ENABLE_IMGUI}")
 message(STATUS "ONYX - Use ImPlot: ${ONYX_ENABLE_IMPLOT}")
 message(STATUS "ONYX - NFD: ${ONYX_ENABLE_NFD}")
-message(STATUS "ONYX - OBJ: ${ONYX_ENABLE_OBJ}")
+message(STATUS "ONYX - OBJ: ${ONYX_ENABLE_OBJ_LOAD}")
+message(STATUS "ONYX - GLTF: ${ONYX_ENABLE_GLTF_LOAD}")
+message(STATUS "ONYX - Shader API: ${ONYX_ENABLE_SHADER_API}")
 
 # Compiler flags, linker flags etcetera, those should all be handled when making
 # available the toolkit library through the global CMAKE flag variables

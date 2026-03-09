@@ -4,12 +4,17 @@
 #include "onyx/property/instance.hpp"
 #include "vkit/state/descriptor_pool.hpp"
 
+#define ONYX_MAX_SAMPLERS 8
+#define ONYX_MAX_SAMPLED_IMAGES 1024
+
 namespace Onyx::Descriptors
 {
 struct Specs
 {
     u32 MaxSets = 256;
-    u32 PoolSize = 1024;
+    u32 StorageBufferPoolSize = 64;
+    u32 SamplerPoolSize = 64;
+    u32 SampledImagePoolSize = 4096;
 };
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();

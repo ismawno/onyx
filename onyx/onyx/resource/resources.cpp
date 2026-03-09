@@ -11,6 +11,11 @@ Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags, con
         .Build();
 }
 
+Result<VKit::Sampler> CreateDefaultSampler()
+{
+    return VKit::Sampler::Builder(Core::GetDevice()).Build();
+}
+
 Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const VkDeviceSize instances, const f32 factor)
 {
     const VKit::DeviceBuffer::Info &info = buffer.GetInfo();

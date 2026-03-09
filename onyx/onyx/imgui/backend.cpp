@@ -1408,15 +1408,15 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         VKit::DeviceBuffer &uploadBuffer = result.GetValue();
         if (Core::CanNameObjects())
         {
-            TKIT_RETURN_IF_FAILED(uploadBuffer.SetName("onyx-imgui-upload-buffer"));
+            TKIT_RETURN_IF_FAILED(uploadBuffer.SetName("onyx-imgui-upload-buffer"), uploadBuffer.Destroy());
         }
 
         std::byte *mem = scast<std::byte *>(uploadBuffer.GetData());
         for (u32 y = 0; y < hupload; ++y)
             TKit::ForwardCopy(mem + wsize * y, tex->GetPixelsAt(i32(xupload), i32(yupload + y)), wsize);
 
-        TKIT_RETURN_IF_FAILED(uploadBuffer.Flush());
-        TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+        TKIT_RETURN_IF_FAILED(uploadBuffer.Flush(), uploadBuffer.Destroy());
+        TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle(), uploadBuffer.Destroy());
 
         VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
         const auto cmdres = pool.BeginSingleTimeCommands();

@@ -4,8 +4,23 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/state/descriptors.hpp"
 #include "vkit/state/descriptor_set.hpp"
-#ifdef ONYX_ENABLE_OBJ
+#include "vkit/resource/device_image.hpp"
+#include "tkit/container/stack_array.hpp"
+#ifdef ONYX_ENABLE_OBJ_LOAD
+#    define TINYOBJLOADER_IMPLEMENTATION
 #    include <tiny_obj_loader.h>
+#endif
+#ifdef ONYX_ENABLE_GLTF_LOAD
+#    define TINYGLTF_IMPLEMENTATION
+#    define STB_IMAGE_IMPLEMENTATION
+#    define STB_IMAGE_WRITE_IMPLEMENTATION
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
+TKIT_CLANG_WARNING_IGNORE("-Wdeprecated-literal-operator")
+TKIT_CLANG_WARNING_IGNORE("-Wmissing-field-initializers")
+TKIT_GCC_WARNING_IGNORE("-Wdeprecated-literal-operator")
+TKIT_GCC_WARNING_IGNORE("-Wmissing-field-initializers")
+#    include <tiny_gltf.h>
+TKIT_COMPILER_WARNING_IGNORE_POP()
 #endif
 
 namespace Onyx::Assets
@@ -16,6 +31,8 @@ enum StatusFlagBit : StatusFlags
     StatusFlag_UpdateVertex = 1 << 0,
     StatusFlag_UpdateIndex = 1 << 1,
     StatusFlag_UpdateMaterial = 1 << 2,
+    StatusFlag_UpdateTexture = 1 << 3,
+    StatusFlag_MustFreeTexture = 1 << 4,
 };
 
 struct DataLayout
@@ -31,13 +48,6 @@ struct BatchRange
 {
     u32 BatchStart;
     u32 BatchCount;
-};
-
-using AssetsFlags = u8;
-enum AssetsFlagBit : AssetsFlags
-{
-    AssetsFlag_Locked = 1 << 0,
-    AssetsFlag_MustUpload = 1 << 1,
 };
 
 AssetsFlags s_Flags = 0;
@@ -75,6 +85,19 @@ template <Dimension D> struct MaterialInfo
     TKit::ArenaArray<MaterialData<D>> Materials{};
 };
 
+struct SamplerInfo
+{
+    TKit::ArenaArray<VKit::Sampler> Samplers{};
+    u32 Uploaded = 0;
+};
+
+struct TextureInfo
+{
+    TKit::ArenaArray<VKit::DeviceImage> Images{};
+    TKit::ArenaArray<StatusFlags> Flags{};
+    TKit::ArenaArray<TextureData> Textures{};
+};
+
 template <Dimension D> using StatMeshInfo = MeshInfo<StatVertex<D>>;
 
 template <Dimension D> struct AssetData
@@ -85,6 +108,8 @@ template <Dimension D> struct AssetData
 
 static TKit::Storage<AssetData<D2>> s_AssetData2{};
 static TKit::Storage<AssetData<D3>> s_AssetData3{};
+static TKit::Storage<TextureInfo> s_TextureData{};
+static TKit::Storage<SamplerInfo> s_SamplerData{};
 
 template <Dimension D> static AssetData<D> &getData()
 {
@@ -264,7 +289,6 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
     return Result<>::Ok();
 }
 
-// terminate must be called if this fails (handled automatically when calling Initialize())
 template <typename Vertex> ONYX_NO_DISCARD static Result<> initialize(MeshInfo<Vertex> &info, const u32 maxLayouts)
 {
     auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
@@ -335,6 +359,14 @@ Result<> Initialize(const Specs &specs)
     TKIT_LOG_INFO("[ONYX][ASSETS] Initializing");
     s_AssetData2.Construct();
     s_AssetData3.Construct();
+    s_SamplerData.Construct();
+    s_TextureData.Construct();
+
+    s_SamplerData->Samplers.Reserve(specs.MaxSamplers);
+
+    s_TextureData->Textures.Reserve(specs.MaxTextures);
+    s_TextureData->Images.Reserve(specs.MaxTextures);
+    s_TextureData->Flags.Reserve(specs.MaxTextures);
 
     s_BatchRanges[Geometry_Circle] = {.BatchStart = 0, .BatchCount = 1};
     s_BatchRanges[Geometry_StaticMesh] = {.BatchStart = 1, .BatchCount = specs.MaxStaticMeshes};
@@ -348,6 +380,21 @@ void Terminate()
     terminate<D2>();
     terminate<D3>();
 
+    for (VKit::DeviceImage &img : s_TextureData->Images)
+        img.Destroy();
+
+    TKIT_ASSERT(s_TextureData->Textures.GetSize() == s_TextureData->Flags.GetSize(),
+                "[ONYX][ASSETS] Texture and flags size mismatch! {} != {}", s_TextureData->Textures.GetSize(),
+                s_TextureData->Flags.GetSize());
+
+#ifdef ONYX_ENABLE_GLTF_LOAD
+    for (u32 i = 0; i < s_TextureData->Textures.GetSize(); ++i)
+        if (s_TextureData->Flags[i] & StatusFlag_MustFreeTexture)
+            stbi_image_free(s_TextureData->Textures[i].Data);
+#endif
+
+    s_SamplerData.Construct();
+    s_TextureData.Destruct();
     s_AssetData2.Destruct();
     s_AssetData3.Destruct();
 }
@@ -394,6 +441,62 @@ u32 GetBatchCount()
     for (u32 i = 0; i < Geometry_Count; ++i)
         count += s_BatchRanges[i].BatchCount;
     return count;
+}
+
+void AddSampler(const VKit::Sampler &sampler)
+{
+    s_SamplerData->Samplers.Append(sampler);
+}
+
+Result<> AddSampler()
+{
+    const auto result = Resources::CreateDefaultSampler();
+    TKIT_RETURN_ON_ERROR(result);
+    AddSampler(result.GetValue());
+    return Result<>::Ok();
+}
+
+Texture AddTexture(const TextureData &data, const AssetsFlags flags)
+{
+#ifndef ONYX_ENABLE_GLTF_LOAD
+    TKIT_ASSERT(flags & AssetsFlag_UserHandledMemory,
+                "[ONYX][ASSETS] If GLTF load is disabled, all texture data CPU memory must be handled by the user. "
+                "This must be reflected by passing the AssetsFlag_UserHandledMemory flag");
+#endif
+    const Texture tex = s_TextureData->Textures.GetSize();
+    s_TextureData->Textures.Append(data);
+    StatusFlags sflags = StatusFlag_UpdateTexture;
+#ifdef ONYX_ENABLE_GLTF_LOAD
+    if (!(flags & AssetsFlag_UserHandledMemory))
+        sflags |= StatusFlag_MustFreeTexture;
+#endif
+    s_TextureData->Flags.Append(sflags);
+    return tex;
+}
+void UpdateTexture(const Texture tex, const TextureData &data, const AssetsFlags flags)
+{
+#ifndef ONYX_ENABLE_GLTF_LOAD
+    TKIT_ASSERT(flags & AssetsFlag_UserHandledMemory,
+                "[ONYX][ASSETS] If GLTF load is disabled, all texture data CPU memory must be handled by the user. "
+                "This must be reflected by passing the AssetsFlag_UserHandledMemory flag");
+#endif
+
+    TKIT_ASSERT(
+        data.GetSize() == s_TextureData->Textures[tex].GetSize(),
+        "[ONYX][ASSETS] When updating a texture, the size of the data of the previous and updated texture must be the "
+        "same. If they are not, you must create a new texture");
+
+#ifdef ONYX_ENABLE_GLTF_LOAD
+    if (s_TextureData->Flags[tex] & StatusFlag_MustFreeTexture)
+        stbi_image_free(data.Data);
+#endif
+
+    s_TextureData->Textures[tex] = data;
+    s_TextureData->Flags[tex] = StatusFlag_UpdateTexture;
+#ifdef ONYX_ENABLE_GLTF_LOAD
+    if (!(flags & AssetsFlag_UserHandledMemory))
+        s_TextureData->Flags[tex] |= StatusFlag_MustFreeTexture;
+#endif
 }
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data)
@@ -480,15 +583,181 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> upload()
     return uploadMaterialData<D>();
 }
 
+static VkFormat getFormat(const TextureType tex)
+{
+    switch (tex)
+    {
+    case Texture_Color:
+        return VK_FORMAT_R8G8B8A8_SRGB;
+    case Texture_Linear:
+        return VK_FORMAT_R8G8B8A8_UNORM;
+    default:
+        return VK_FORMAT_UNDEFINED;
+    }
+}
+
+ONYX_NO_DISCARD static Result<> uploadTextures()
+{
+    const auto &texs = s_TextureData->Textures;
+    const auto &flags = s_TextureData->Flags;
+    auto &imgs = s_TextureData->Images;
+    TKIT_ASSERT(texs.GetSize() >= imgs.GetSize(),
+                "[ONYX][ASSETS] Number of textures must be greater or equal than created images");
+
+    StatusFlags sflags = 0;
+    for (const StatusFlags f : flags)
+        sflags |= f;
+
+    TKIT_ASSERT((sflags & StatusFlag_UpdateTexture) || texs.GetSize() == imgs.GetSize(),
+                "[ONYX][ASSETS] If there are no texture update requests, texture and image arrays must be the same "
+                "size, but found {} and {}",
+                texs.GetSize(), imgs.GetSize());
+
+    if (!(sflags & StatusFlag_UpdateTexture))
+        return Result<>::Ok();
+
+    if (texs.GetSize() > imgs.GetSize())
+    {
+        const VKit::DescriptorSetLayout &layout2 = Descriptors::GetDescriptorSetLayout<D2>(Shading_Lit);
+        VKit::DescriptorSet::Writer writer2{Core::GetDevice(), &layout2};
+
+        const VKit::DescriptorSetLayout &layout3 = Descriptors::GetDescriptorSetLayout<D3>(Shading_Lit);
+        VKit::DescriptorSet::Writer writer3{Core::GetDevice(), &layout3};
+
+        TKit::StackArray<VkDescriptorImageInfo> imageInfos{};
+        imageInfos.Reserve(texs.GetSize() - imgs.GetSize());
+        for (u32 i = imgs.GetSize(); i < texs.GetSize(); ++i)
+        {
+            const TextureData &tdata = texs[i];
+
+            TKIT_LOG_DEBUG("[ONYX][ASSETS] Creating new texture with dimensions {}x{} and {} channels", tdata.Width,
+                           tdata.Height, tdata.Channels);
+
+            auto result = VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
+                                                     VkExtent2D{tdata.Width, tdata.Height}, getFormat(tdata.Type),
+                                                     VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled)
+                              .WithImageView()
+                              .Build();
+            TKIT_RETURN_ON_ERROR(result);
+            VKit::DeviceImage &img = result.GetValue();
+            imgs.Append(img);
+            if (Core::CanNameObjects())
+            {
+                const std::string name = TKit::Format("onyx-assets-texture-image-{}", i);
+                TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()));
+            }
+            const VkDescriptorImageInfo &info = imageInfos.Append(img.CreateDescriptorInfo());
+            writer2.WriteImage(3, &info);
+            writer3.WriteImage(3, &info);
+        }
+
+        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
+            writer2.Overwrite(set);
+        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Lit))
+            writer3.Overwrite(set);
+    }
+
+    VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
+    const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
+
+    for (u32 i = 0; i < texs.GetSize(); ++i)
+        if (s_TextureData->Flags[i] & StatusFlag_UpdateTexture)
+        {
+            s_TextureData->Flags[i] &= ~StatusFlag_UpdateTexture;
+            const TextureData &tdata = texs[i];
+            VKit::DeviceImage &img = imgs[i];
+
+            const VkDeviceSize size = img.ComputeSize();
+
+            TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading new texture of size {:L} bytes", size);
+
+            auto result =
+                Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, 1, size);
+            TKIT_RETURN_ON_ERROR(result);
+
+            VKit::DeviceBuffer &uploadBuffer = result.GetValue();
+            if (Core::CanNameObjects())
+            {
+                TKIT_RETURN_IF_FAILED(uploadBuffer.SetName("onyx-assets-texture-upload-buffer"),
+                                      uploadBuffer.Destroy());
+            }
+            uploadBuffer.Write(tdata.Data, {.srcOffset = 0, .dstOffset = 0, .size = size});
+
+            TKIT_RETURN_IF_FAILED(uploadBuffer.Flush(), uploadBuffer.Destroy());
+            const auto cmdres = pool.BeginSingleTimeCommands();
+            TKIT_RETURN_ON_ERROR(cmdres, uploadBuffer.Destroy());
+
+            const VkCommandBuffer cmd = cmdres.GetValue();
+            img.TransitionLayout2(
+                cmd, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                {.DstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+
+            VkBufferImageCopy2KHR copy{};
+            copy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2_KHR;
+            copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            copy.imageSubresource.layerCount = 1;
+            copy.imageExtent.width = tdata.Width;
+            copy.imageExtent.height = tdata.Height;
+            copy.imageExtent.depth = 1;
+
+            img.CopyFromBuffer2(cmd, uploadBuffer, copy);
+
+            img.TransitionLayout2(
+                cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+
+            TKIT_RETURN_IF_FAILED(pool.EndSingleTimeCommands(cmd, queue->GetHandle()), uploadBuffer.Destroy());
+            uploadBuffer.Destroy();
+        }
+    return Result<>::Ok();
+}
+
+static void uploadSamplers()
+{
+    const u32 uploaded = s_SamplerData->Uploaded;
+    const auto &samplers = s_SamplerData->Samplers;
+    if (uploaded == samplers.GetSize())
+        return;
+
+    TKIT_ASSERT(uploaded < samplers.GetSize(),
+                "[ONYX][ASSETS] Cannot have more uploaded samplers ({}) than samplers themselves ({})", uploaded,
+                samplers.GetSize());
+
+    const VKit::DescriptorSetLayout &layout2 = Descriptors::GetDescriptorSetLayout<D2>(Shading_Lit);
+    VKit::DescriptorSet::Writer writer2{Core::GetDevice(), &layout2};
+
+    const VKit::DescriptorSetLayout &layout3 = Descriptors::GetDescriptorSetLayout<D3>(Shading_Lit);
+    VKit::DescriptorSet::Writer writer3{Core::GetDevice(), &layout3};
+
+    TKit::StackArray<VkDescriptorImageInfo> imageInfos{};
+    imageInfos.Reserve(samplers.GetSize() - uploaded);
+    for (u32 i = uploaded; i < samplers.GetSize(); ++i)
+    {
+        const VkDescriptorImageInfo &info = imageInfos.Append(VkDescriptorImageInfo{
+            .sampler = samplers[i], .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED});
+        writer2.WriteImage(2, &info);
+        writer3.WriteImage(2, &info);
+    }
+
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
+        writer2.Overwrite(set);
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Lit))
+        writer3.Overwrite(set);
+
+    s_SamplerData->Uploaded = samplers.GetSize();
+}
+
 Result<> Upload()
 {
     if (s_Flags & AssetsFlag_Locked)
         return Result<>::Error(Error_LockedAssets,
-                               "[ONYX][ASSETS] Cannot upload/mutate asset data because they are locked, either by the "
+                               "[ONYX][ASSETS] Cannot upload/mutate asset data because it is locked, either by the "
                                "user or by Onyx. If using the application class, this happens automatically in-between "
                                "frames to avoid having dangling references in command buffers");
     TKIT_RETURN_IF_FAILED(upload<D2>());
     TKIT_RETURN_IF_FAILED(upload<D3>());
+    TKIT_RETURN_IF_FAILED(uploadTextures());
+    uploadSamplers();
     s_Flags &= ~AssetsFlag_MustUpload;
     return Result<>::Ok();
 }
@@ -522,8 +791,8 @@ template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer()
     return getData<D>().StaticMeshes.IndexBuffer;
 }
 
-#ifdef ONYX_ENABLE_OBJ
-template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObj(const char *path)
+#ifdef ONYX_ENABLE_OBJ_LOAD
+template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const char *path)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -568,6 +837,25 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObj(const char 
 }
 #endif
 
+#ifdef ONYX_ENABLE_GLTF_LOAD
+Result<TextureData> LoadTextureDataFromImageFile(const char *path)
+{
+    TextureData data{};
+    i32 w;
+    i32 h;
+    i32 c;
+    data.Data = rcast<std::byte *>(stbi_load(path, &w, &h, &c, STBI_rgb_alpha));
+    if (!data.Data)
+        return Result<TextureData>::Error(
+            Error_LoadFailed, TKit::Format("[ONYX][ASSETS] Failed to load image data: {}", stbi_failure_reason()));
+
+    data.Width = u32(w);
+    data.Height = u32(h);
+    data.Channels = u32(c);
+    return data;
+}
+#endif
+
 #ifdef TKIT_ENABLE_ASSERTS
 template <Dimension D> static void validateMesh(const StatMeshData<D> &data, const u32 offset = 0)
 {
@@ -590,17 +878,18 @@ template <Dimension D> static void validateMesh(const StatMeshData<D> &data, con
 template <Dimension D> StatMeshData<D> CreateTriangleMesh()
 {
     StatMeshData<D> data{};
-    const auto addVertex = [&data](const f32 x, const f32 y) {
+    const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v) {
         if constexpr (D == D2)
-            data.Vertices.Append(StatVertex<D2>{f32v2{x, y}});
+            data.Vertices.Append(StatVertex<D2>{f32v2{x, y}, f32v2{u, v}});
         else
-            data.Vertices.Append(StatVertex<D3>{f32v3{x, y, 0.f}, f32v3{0.f, 0.f, 1.f}});
+            data.Vertices.Append(
+                StatVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    addVertex(0.f, 0.5f);
-    addVertex(-0.433013f, -0.25f);
-    addVertex(0.433013f, -0.25f);
+    addVertex(0.f, 0.5f, 0.5f, 1.f);
+    addVertex(-0.433013f, -0.25f, 0.f, 0.f);
+    addVertex(0.433013f, -0.25f, 1.f, 0.f);
 
     addIndex(0);
     addIndex(1);
@@ -611,18 +900,19 @@ template <Dimension D> StatMeshData<D> CreateTriangleMesh()
 template <Dimension D> StatMeshData<D> CreateSquareMesh()
 {
     StatMeshData<D> data{};
-    const auto addVertex = [&data](const f32 x, const f32 y) {
+    const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v) {
         if constexpr (D == D2)
-            data.Vertices.Append(StatVertex<D2>{f32v2{x, y}});
+            data.Vertices.Append(StatVertex<D2>{f32v2{x, y}, f32v2{u, v}});
         else
-            data.Vertices.Append(StatVertex<D3>{f32v3{x, y, 0.f}, f32v3{0.f, 0.f, 1.f}});
+            data.Vertices.Append(
+                StatVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    addVertex(-0.5f, -0.5f);
-    addVertex(0.5f, -0.5f);
-    addVertex(-0.5f, 0.5f);
-    addVertex(0.5f, 0.5f);
+    addVertex(-0.5f, -0.5f, 0.f, 0.f);
+    addVertex(0.5f, -0.5f, 1.f, 0.f);
+    addVertex(-0.5f, 0.5f, 0.f, 1.f);
+    addVertex(0.5f, 0.5f, 1.f, 1.f);
 
     addIndex(0);
     addIndex(1);
@@ -637,30 +927,32 @@ template <Dimension D> StatMeshData<D> CreateSquareMesh()
 
 template <Dimension D, bool Inverted = false, bool Counter = true>
 static StatMeshData<D> createRegularPolygon(const u32 sides, const f32v<D> &vertexOffset = f32v<D>{0.f},
-                                            const u32 indexOffset = 0, const f32v3 &normal = f32v3{0.f, 0.f, 1.f})
+                                            const u32 indexOffset = 0, const f32v3 &normal = f32v3{0.f, 0.f, 1.f},
+                                            const f32v4 &tangent = f32v4{1.f, 0.f, 0.f, 1.f})
 {
     TKIT_ASSERT(sides >= 3, "[ONYX][ASSETS] A regular polygon requires at least 3 sides");
     StatMeshData<D> data{};
-    const auto addVertex = [&](const f32v<D> &vertex) {
+    const auto addVertex = [&](const f32v<D> &vertex, const f32v2 &uv) {
         if constexpr (D == D2)
-            data.Vertices.Append(StatVertex<D2>{vertex + vertexOffset});
+            data.Vertices.Append(StatVertex<D2>{vertex + vertexOffset, uv});
         else
-            data.Vertices.Append(StatVertex<D3>{vertex + vertexOffset, normal});
+            data.Vertices.Append(StatVertex<D3>{vertex + vertexOffset, uv, normal, tangent});
     };
     const auto addIndex = [&data, indexOffset](const u32 index) { data.Indices.Append(Index(index + indexOffset)); };
 
-    addVertex(f32v<D>{0.f});
+    addVertex(f32v<D>{0.f}, f32v2{0.5f});
     const f32 angle = 2.f * Math::Pi<f32>() / sides;
     for (u32 i = 0; i < sides; ++i)
     {
         const f32 c = 0.5f * Math::Cosine(i * angle);
         const f32 s = 0.5f * Math::Sine(i * angle);
+        const f32v2 uv{c + 0.5f, s + 0.5f};
         if constexpr (D == D2)
-            addVertex(f32v2{c, s});
+            addVertex(f32v2{c, s}, uv);
         else if constexpr (Inverted)
-            addVertex(f32v3{0.f, c, s});
+            addVertex(f32v3{0.f, c, s}, uv);
         else
-            addVertex(f32v3{c, s, 0.f});
+            addVertex(f32v3{c, s, 0.f}, uv);
         if constexpr (Counter)
         {
             addIndex(0);
@@ -690,20 +982,32 @@ template <Dimension D> StatMeshData<D> CreatePolygonMesh(const TKit::Span<const 
     TKIT_ASSERT(vertices.GetSize() >= 3, "[ONYX][ASSETS] A polygon must have at least 3 vertices");
     StatMeshData<D> data{};
 
-    const auto addVertex = [&data](const f32v2 &vertex) {
-        if constexpr (D == D3)
-            data.Vertices.Append(StatVertex<D3>{f32v3{vertex, 0.f}, f32v3{0.f, 0.f, 1.f}});
+    const auto addVertex = [&data](const f32v2 &vertex, const f32v2 &uv) {
+        if constexpr (D == D2)
+            data.Vertices.Append(StatVertex<D2>{vertex, uv});
         else
-            data.Vertices.Append(StatVertex<D2>{vertex});
+            data.Vertices.Append(
+                StatVertex<D3>{f32v3{vertex, 0.f}, uv, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    addVertex(f32v<D>{0.f});
+    f32v2 minv = vertices[0], maxv = vertices[0];
+    for (const f32v2 &v : vertices)
+    {
+        minv = Math::Min(minv, v);
+        maxv = Math::Max(maxv, v);
+    }
+    const f32v2 range = maxv - minv;
+    const auto toTex = [&](const f32v2 &v) -> f32v2 {
+        return (range[0] > 0.f && range[1] > 0.f) ? (v - minv) / range : f32v2{0.5f};
+    };
+
+    addVertex(f32v<D>{0.f}, f32v2{0.5f});
     const u32 size = vertices.GetSize();
     for (u32 i = 0; i < size; ++i)
     {
         const f32v2 &vertex = vertices[i];
-        addVertex(vertex);
+        addVertex(vertex, toTex(vertex));
         addIndex(0);
         addIndex(i + 1);
 
@@ -716,61 +1020,60 @@ template <Dimension D> StatMeshData<D> CreatePolygonMesh(const TKit::Span<const 
 StatMeshData<D3> CreateCubeMesh()
 {
     StatMeshData<D3> data{};
-    const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 n0, const f32 n1, const f32 n2) {
-        data.Vertices.Append(StatVertex<D3>{f32v3{x, y, z}, f32v3{n0, n1, n2}});
+    const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 n0, const f32 n1, const f32 n2,
+                                   const f32 u, const f32 v, const f32v4 &tangent) {
+        data.Vertices.Append(StatVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, f32v3{n0, n1, n2}, tangent});
     };
-
     const auto addQuad = [&data](const Index a, const Index b, const Index c, const Index d) {
         data.Indices.Append(a);
         data.Indices.Append(b);
         data.Indices.Append(c);
-
         data.Indices.Append(a);
         data.Indices.Append(c);
         data.Indices.Append(d);
     };
+    const f32v4 tPosZ{0.f, 0.f, 1.f, 1.f};  // -X face: U goes along +Z
+    const f32v4 tPosX{1.f, 0.f, 0.f, 1.f};  // +Z face: U goes along +X
+    const f32v4 tNegZ{0.f, 0.f, -1.f, 1.f}; // +X face: U goes along -Z
+    const f32v4 tNegX{-1.f, 0.f, 0.f, 1.f}; // -Z face: U goes along -X
+    const f32v4 tTopX{1.f, 0.f, 0.f, 1.f};  // +Y face: U goes along +X
+    const f32v4 tBotX{-1.f, 0.f, 0.f, 1.f}; // -Y face: U goes along -X
 
     Index base = 0;
-
-    addVertex(-0.5f, 0.5f, -0.5f, -1.f, 0.f, 0.f);
-    addVertex(-0.5f, -0.5f, -0.5f, -1.f, 0.f, 0.f);
-    addVertex(-0.5f, -0.5f, 0.5f, -1.f, 0.f, 0.f);
-    addVertex(-0.5f, 0.5f, 0.5f, -1.f, 0.f, 0.f);
+    addVertex(-0.5f, 0.5f, -0.5f, -1.f, 0.f, 0.f, 0.f, 0.f, tPosZ);
+    addVertex(-0.5f, -0.5f, -0.5f, -1.f, 0.f, 0.f, 0.f, 1.f, tPosZ);
+    addVertex(-0.5f, -0.5f, 0.5f, -1.f, 0.f, 0.f, 1.f, 1.f, tPosZ);
+    addVertex(-0.5f, 0.5f, 0.5f, -1.f, 0.f, 0.f, 1.f, 0.f, tPosZ);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-
-    addVertex(-0.5f, 0.5f, 0.5f, 0.f, 0.f, 1.f);
-    addVertex(-0.5f, -0.5f, 0.5f, 0.f, 0.f, 1.f);
-    addVertex(0.5f, -0.5f, 0.5f, 0.f, 0.f, 1.f);
-    addVertex(0.5f, 0.5f, 0.5f, 0.f, 0.f, 1.f);
+    addVertex(-0.5f, 0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, tPosX);
+    addVertex(-0.5f, -0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 1.f, tPosX);
+    addVertex(0.5f, -0.5f, 0.5f, 0.f, 0.f, 1.f, 1.f, 1.f, tPosX);
+    addVertex(0.5f, 0.5f, 0.5f, 0.f, 0.f, 1.f, 1.f, 0.f, tPosX);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-
-    addVertex(0.5f, 0.5f, 0.5f, 1.f, 0.f, 0.f);
-    addVertex(0.5f, -0.5f, 0.5f, 1.f, 0.f, 0.f);
-    addVertex(0.5f, -0.5f, -0.5f, 1.f, 0.f, 0.f);
-    addVertex(0.5f, 0.5f, -0.5f, 1.f, 0.f, 0.f);
+    addVertex(0.5f, 0.5f, 0.5f, 1.f, 0.f, 0.f, 0.f, 0.f, tNegZ);
+    addVertex(0.5f, -0.5f, 0.5f, 1.f, 0.f, 0.f, 0.f, 1.f, tNegZ);
+    addVertex(0.5f, -0.5f, -0.5f, 1.f, 0.f, 0.f, 1.f, 1.f, tNegZ);
+    addVertex(0.5f, 0.5f, -0.5f, 1.f, 0.f, 0.f, 1.f, 0.f, tNegZ);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-
-    addVertex(0.5f, 0.5f, -0.5f, 0.f, 0.f, -1.f);
-    addVertex(0.5f, -0.5f, -0.5f, 0.f, 0.f, -1.f);
-    addVertex(-0.5f, -0.5f, -0.5f, 0.f, 0.f, -1.f);
-    addVertex(-0.5f, 0.5f, -0.5f, 0.f, 0.f, -1.f);
+    addVertex(0.5f, 0.5f, -0.5f, 0.f, 0.f, -1.f, 0.f, 0.f, tNegX);
+    addVertex(0.5f, -0.5f, -0.5f, 0.f, 0.f, -1.f, 0.f, 1.f, tNegX);
+    addVertex(-0.5f, -0.5f, -0.5f, 0.f, 0.f, -1.f, 1.f, 1.f, tNegX);
+    addVertex(-0.5f, 0.5f, -0.5f, 0.f, 0.f, -1.f, 1.f, 0.f, tNegX);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-
-    addVertex(-0.5f, 0.5f, 0.5f, 0.f, 1.f, 0.f);
-    addVertex(0.5f, 0.5f, 0.5f, 0.f, 1.f, 0.f);
-    addVertex(0.5f, 0.5f, -0.5f, 0.f, 1.f, 0.f);
-    addVertex(-0.5f, 0.5f, -0.5f, 0.f, 1.f, 0.f);
+    addVertex(-0.5f, 0.5f, 0.5f, 0.f, 1.f, 0.f, 0.f, 0.f, tTopX);
+    addVertex(0.5f, 0.5f, 0.5f, 0.f, 1.f, 0.f, 1.f, 0.f, tTopX);
+    addVertex(0.5f, 0.5f, -0.5f, 0.f, 1.f, 0.f, 1.f, 1.f, tTopX);
+    addVertex(-0.5f, 0.5f, -0.5f, 0.f, 1.f, 0.f, 0.f, 1.f, tTopX);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-
-    addVertex(0.5f, -0.5f, 0.5f, 0.f, -1.f, 0.f);
-    addVertex(-0.5f, -0.5f, 0.5f, 0.f, -1.f, 0.f);
-    addVertex(-0.5f, -0.5f, -0.5f, 0.f, -1.f, 0.f);
-    addVertex(0.5f, -0.5f, -0.5f, 0.f, -1.f, 0.f);
+    addVertex(0.5f, -0.5f, 0.5f, 0.f, -1.f, 0.f, 0.f, 0.f, tBotX);
+    addVertex(-0.5f, -0.5f, 0.5f, 0.f, -1.f, 0.f, 1.f, 0.f, tBotX);
+    addVertex(-0.5f, -0.5f, -0.5f, 0.f, -1.f, 0.f, 1.f, 1.f, tBotX);
+    addVertex(0.5f, -0.5f, -0.5f, 0.f, -1.f, 0.f, 0.f, 1.f, tBotX);
     addQuad(base + 0, base + 1, base + 2, base + 3);
 
     VALIDATE_MESH(data);
@@ -780,9 +1083,10 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
 {
     rings += 2;
     StatMeshData<D3> data{};
-    const auto addVertex = [&data](const f32 x, const f32 y, const f32 z) {
+    const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
+                                   const f32v4 &tangent) {
         const f32v3 vertex = f32v3{x, y, z};
-        data.Vertices.Append(StatVertex<D3>{vertex, Math::Normalize(vertex)});
+        data.Vertices.Append(StatVertex<D3>{vertex, f32v2{u, v}, Math::Normalize(vertex), tangent});
     };
     const auto addIndex = [&data, sectors, rings](const u32 ring, const u32 sector) {
         u32 idx;
@@ -795,7 +1099,7 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
         data.Indices.Append(Index(idx));
     };
 
-    addVertex(0.f, 0.5f, 0.f);
+    addVertex(0.f, 0.5f, 0.f, 0.5f, 0.f, f32v4{1.f, 0.f, 0.f, 1.f});
     for (u32 i = 1; i < rings - 1; ++i)
     {
         const f32 v = f32(i) / rings;
@@ -811,7 +1115,7 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
 
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
-            addVertex(0.5f * ps * tc, 0.5f * pc, 0.5f * ps * ts);
+            addVertex(0.5f * ps * tc, 0.5f * pc, 0.5f * ps * ts, u, v, f32v4{-ts, 0.f, tc, 1.f});
 
             const u32 ii = i - 1;
             const u32 jj = (j + 1) % sectors;
@@ -826,7 +1130,8 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
             }
         }
     }
-    addVertex(0.f, -0.5f, 0.f);
+    addVertex(0.f, -0.5f, 0.f, 0.5f, 1.f, f32v4{1.f, 0.f, 0.f, 1.f});
+
     for (u32 j = 0; j < sectors; ++j)
     {
         addIndex(rings - 2, j);
@@ -839,11 +1144,11 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
 }
 StatMeshData<D3> CreateCylinderMesh(const u32 sides)
 {
-    const StatMeshData<D3> left =
-        createRegularPolygon<D3, true, false>(sides, f32v3{-0.5f, 0.f, 0.f}, 0, f32v3{-1.f, 0.f, 0.f});
+    const StatMeshData<D3> left = createRegularPolygon<D3, true, false>(
+        sides, f32v3{-0.5f, 0.f, 0.f}, 0, f32v3{-1.f, 0.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
 
-    const StatMeshData<D3> right = createRegularPolygon<D3, true, true>(sides, f32v3{0.5f, 0.f, 0.f},
-                                                                        left.Vertices.GetSize(), f32v3{1.f, 0.f, 0.f});
+    const StatMeshData<D3> right = createRegularPolygon<D3, true, true>(
+        sides, f32v3{0.5f, 0.f, 0.f}, left.Vertices.GetSize(), f32v3{1.f, 0.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
 
     StatMeshData<D3> data{};
     data.Indices.Insert(data.Indices.end(), left.Indices.begin(), left.Indices.end());
@@ -852,22 +1157,28 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
     data.Vertices.Insert(data.Vertices.end(), left.Vertices.begin(), left.Vertices.end());
     data.Vertices.Insert(data.Vertices.end(), right.Vertices.begin(), right.Vertices.end());
 
-    const auto addVertex = [&data](const f32 x, const f32 y, const f32 z) {
+    const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
+                                   const f32v4 &tangent) {
         const f32v3 vertex = f32v3{x, y, z};
-        data.Vertices.Append(StatVertex<D3>{vertex, Math::Normalize(f32v3{0.f, y, z})});
+        data.Vertices.Append(StatVertex<D3>{vertex, f32v2{u, v}, Math::Normalize(f32v3{0.f, y, z}), tangent});
     };
-
     const u32 offset = left.Vertices.GetSize() + right.Vertices.GetSize();
     const auto addIndex = [&data, offset](const u32 index) { data.Indices.Append(Index(index + offset)); };
 
     const f32 angle = 2.f * Math::Pi<f32>() / sides;
     for (u32 i = 0; i < sides; ++i)
     {
-        const f32 c = 0.5f * Math::Cosine(i * angle);
-        const f32 s = 0.5f * Math::Sine(i * angle);
+        const f32 cc = Math::Cosine(i * angle);
+        const f32 ss = Math::Sine(i * angle);
+        const f32v4 tangent = f32v4{0.f, -ss, cc, 1.f};
 
-        addVertex(-0.5f, c, s);
-        addVertex(0.5f, c, s);
+        const f32 c = 0.5f * cc;
+        const f32 s = 0.5f * ss;
+
+        const f32 u = f32(i) / sides;
+        addVertex(-0.5f, c, s, u, 0.f, tangent);
+        addVertex(0.5f, c, s, u, 1.f, tangent);
+
         const u32 ii = 2 * i;
         addIndex(ii);
         addIndex((ii + 2) % (2 * sides));
@@ -897,9 +1208,9 @@ template void UpdateMesh(Mesh mesh, const StatMeshData<D3> &data);
 template u32 GetStaticMeshCount<D2>();
 template u32 GetStaticMeshCount<D3>();
 
-#ifdef ONYX_ENABLE_OBJ
-template Result<StatMeshData<D2>> LoadStaticMeshFromObj<D2>(const char *path);
-template Result<StatMeshData<D3>> LoadStaticMeshFromObj<D3>(const char *path);
+#ifdef ONYX_ENABLE_OBJ_LOAD
+template Result<StatMeshData<D2>> LoadStaticMeshFromObjFile<D2>(const char *path);
+template Result<StatMeshData<D3>> LoadStaticMeshFromObjFile<D3>(const char *path);
 #endif
 
 template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D2>();

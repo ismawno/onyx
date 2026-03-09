@@ -279,6 +279,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const u32 geometry,
     const Geometry geo = Geometry(geometry);
     Shape<D> shape{};
     shape.Type.Geo = geo;
+    shape.Material = 0; // assuming at least a material is automatically added
     switch (geo)
     {
     case Geometry_Circle:
@@ -290,7 +291,6 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const u32 geometry,
         shape.Name = mesh.Name;
         shape.StatMesh = mesh.Mesh;
         shape.Type.StaticMesh = statMesh;
-        shape.Material = 0; // assuming at least a material is automatically added
         return shape;
     }
     default:
@@ -305,6 +305,7 @@ template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
     auto &contexts = GetContexts<D>();
     ContextData<D> &data = contexts.Contexts.Append();
     data.Context = context;
+    data.AxesMaterial = 0;
     if constexpr (D == D3)
     {
         data.Flags |= SandboxFlag_DrawAxes;
@@ -907,7 +908,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshes()
             else if (meshes.StatMeshToLoad == importedIndex)
             {
                 const auto load = [&](const Dialog::Path &path) {
-                    const auto lres = Assets::LoadStaticMeshFromObj<D>(path.string().c_str());
+                    const auto lres = Assets::LoadStaticMeshFromObjFile<D>(path.string().c_str());
                     VKIT_LOG_RESULT_ERROR(lres);
                     if (!lres)
                         return;

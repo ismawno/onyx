@@ -13,7 +13,8 @@ template <Dimension D> struct MaterialData;
 template <> struct MaterialData<D2>
 {
     u32 ColorFactor = 0xFFFFFFFF;
-    // Texture Texture = NullTexture;
+    Texture Texture = NullTexture;
+    Sampler Sampler = NullSampler;
 };
 
 template <> struct MaterialData<D3>
@@ -23,13 +24,13 @@ template <> struct MaterialData<D3>
     f32 MetallicFactor = 0.f;
     f32 RoughnessFactor = 0.5f;
     f32 OcclusionStrength = 1.f;
-    // f32 NormalScale = 1.f;
-    // Texture AlbedoTex = NullTexture;
-    // Texture MetallicRoughnessTex = 0;
-    // Texture NormalTex = 0;
-    // Texture OcclusionTex = 0;
-    // Texture EmissiveTex = 0;
-    // Texture Flags = 0;
+    f32 NormalScale = 1.f;
+    Sampler Sampler = NullSampler;
+    Texture AlbedoTex = NullTexture;
+    Texture MetallicRoughnessTex = 0;
+    Texture NormalTex = 0;
+    Texture OcclusionTex = 0;
+    Texture EmissiveTex = 0;
 };
 
 } // namespace Onyx

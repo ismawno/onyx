@@ -204,7 +204,7 @@ template <Dimension D> static void updateLightDescriptorSets(const LightType lig
 {
     RendererData<D> &rdata = getRendererData<D>();
     for (u32 i = 0; i < Geometry_Count; ++i)
-        updateDescriptorSet(rdata.Descriptors[Shading_Lit][i], light + 2,
+        updateDescriptorSet(rdata.Descriptors[Shading_Lit][i], light + 4,
                             Descriptors::GetDescriptorSetLayout<D>(Shading_Lit), rdata.LightData[light].Graphics);
 }
 

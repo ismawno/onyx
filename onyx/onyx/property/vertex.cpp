@@ -26,20 +26,36 @@ static const TKit::FixedArray<VkVertexInputAttributeDescription, StatVertex<D>::
     position.location = 0;
     position.offset = offsetof(StatVertex<D>, Position);
 
+    VkVertexInputAttributeDescription texCoord{};
+    texCoord.format = VK_FORMAT_R32G32_SFLOAT;
+    texCoord.binding = 0;
+    texCoord.offset = offsetof(StatVertex<D>, TexCoord);
+    texCoord.location = 1;
+
     if constexpr (D == D2)
         position.format = VK_FORMAT_R32G32_SFLOAT;
     else
     {
         position.format = VK_FORMAT_R32G32B32_SFLOAT;
+        texCoord.location = 2;
         VkVertexInputAttributeDescription normal{};
         normal.binding = 0;
-        normal.location = 1;
+        normal.location = 2;
         normal.offset = offsetof(StatVertex<D>, Normal);
         normal.format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1] = normal;
+
+        VkVertexInputAttributeDescription tangent{};
+        normal.binding = 0;
+        normal.location = 3;
+        normal.offset = offsetof(StatVertex<D>, Tangent);
+        normal.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+
+        attributeDescriptions[2] = normal;
+        attributeDescriptions[3] = tangent;
     }
 
     attributeDescriptions[0] = position;
+    attributeDescriptions[1] = texCoord;
     return attributeDescriptions;
 }
 

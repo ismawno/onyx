@@ -324,7 +324,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D2> final : public
 {
   public:
     using IRenderContext<D2>::IRenderContext;
-    void Rotate(f32 angle)
+    void Rotate(const f32 angle)
     {
         Onyx::Transform<D2>::RotateExtrinsic(m_Current->Transform, angle);
     }

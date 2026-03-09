@@ -4,8 +4,8 @@
 #include "onyx/execution/execution.hpp"
 #include "onyx/resource/buffer.hpp"
 #include "onyx/core/core.hpp"
+#include "vkit/resource/sampler.hpp"
 #include "tkit/container/dynamic_array.hpp"
-#include "tkit/utils/optional.hpp"
 
 namespace Onyx::Resources
 {
@@ -18,6 +18,8 @@ ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBuffer
 {
     return CreateBuffer(flags, sizeof(T), capacity);
 }
+
+ONYX_NO_DISCARD Result<VKit::Sampler> CreateDefaultSampler();
 
 template <typename T>
 ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags,

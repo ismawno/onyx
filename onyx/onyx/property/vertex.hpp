@@ -23,7 +23,7 @@ template <> struct StatVertex<D2>
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Dimension Dim = D2;
     static constexpr u32 Bindings = 1;
-    static constexpr u32 Attributes = 1;
+    static constexpr u32 Attributes = 2;
     TKIT_YAML_SERIALIZE_IGNORE_END()
     TKIT_REFLECT_IGNORE_END()
 
@@ -31,10 +31,11 @@ template <> struct StatVertex<D2>
     static const TKit::FixedArray<VkVertexInputAttributeDescription, Attributes> &GetAttributeDescriptions();
 
     f32v2 Position;
+    f32v2 TexCoord;
 
     friend bool operator==(const StatVertex<D2> &left, const StatVertex<D2> &right)
     {
-        return left.Position == right.Position;
+        return left.Position == right.Position && left.TexCoord == right.TexCoord;
     }
 };
 
@@ -47,7 +48,7 @@ template <> struct StatVertex<D3>
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Dimension Dim = D2;
     static constexpr u32 Bindings = 1;
-    static constexpr u32 Attributes = 2;
+    static constexpr u32 Attributes = 3;
     TKIT_YAML_SERIALIZE_IGNORE_END()
     TKIT_REFLECT_IGNORE_END()
 
@@ -55,11 +56,14 @@ template <> struct StatVertex<D3>
     static const TKit::FixedArray<VkVertexInputAttributeDescription, Attributes> &GetAttributeDescriptions();
 
     f32v3 Position;
+    f32v2 TexCoord;
     f32v3 Normal;
+    f32v4 Tangent;
 
     friend bool operator==(const StatVertex<D3> &left, const StatVertex<D3> &right)
     {
-        return left.Position == right.Position && left.Normal == right.Normal;
+        return left.Position == right.Position && left.TexCoord == right.TexCoord && left.Normal == right.Normal &&
+               left.Tangent == right.Tangent;
     }
 };
 

@@ -2,16 +2,16 @@
 
 public struct Basis2D
 {
-    float Basis11, Basis12;
-    float Basis21, Basis22;
-    float Basis31, Basis32;
+    float Basis00, Basis01;
+    float Basis10, Basis11;
+    float Basis30, Basis31;
 };
 
 public struct Basis3D
 {
-    float Basis11, Basis12, Basis13, Basis14;
-    float Basis21, Basis22, Basis23, Basis24;
-    float Basis31, Basis32, Basis33, Basis34;
+    float Basis00, Basis10, Basis20, Basis30;
+    float Basis01, Basis11, Basis21, Basis31;
+    float Basis02, Basis12, Basis22, Basis32;
 };
 
 public struct InstanceDataFill2D
@@ -41,6 +41,13 @@ public struct InstanceDataStencil3D
 
 public struct ArcData
 {
+    float4 CosSin;
+    uint AngleOverflow;
+    float Hollowness;
+};
+
+public struct ArcDataPacked
+{
     float LowerCos;
     float LowerSin;
     float UpperCos;
@@ -58,32 +65,33 @@ public struct FadeData
 public struct CircleInstanceDataFill2D
 {
     InstanceDataFill2D Data;
-    ArcData Arc;
+    ArcDataPacked Arc;
     FadeData Fade;
 };
 public struct CircleInstanceDataStencil2D
 {
     InstanceDataStencil2D Data;
-    ArcData Arc;
+    ArcDataPacked Arc;
     FadeData Fade;
 };
 public struct CircleInstanceDataFill3D
 {
     InstanceDataFill3D Data;
-    ArcData Arc;
+    ArcDataPacked Arc;
     FadeData Fade;
 };
 public struct CircleInstanceDataStencil3D
 {
     InstanceDataStencil3D Data;
-    ArcData Arc;
+    ArcDataPacked Arc;
     FadeData Fade;
 };
 
 public struct Material2D
 {
     uint ColorFactor;
-    // uint Texture;
+    uint Texture;
+    uint Sampler;
 }
 
 public struct Material3D
@@ -95,36 +103,35 @@ public struct Material3D
     float MetallicFactor;
     float RoughnessFactor;
     float OcclusionStrength;
-    // float NormalScale;
-    // uint AlbedoTex;
-    // uint MetallicRoughnessTex;
-    // uint NormalTex;
-    // uint OcclusionTex;
-    // uint EmissiveTex;
-    // uint Flags;
+    float NormalScale;
+    uint Sampler;
+    uint AlbedoTex;
+    uint MetallicRoughnessTex;
+    uint NormalTex;
+    uint OcclusionTex;
+    uint EmissiveTex;
 }
 
 
 float4x4 ComputeTransform2D(const Basis2D basis)
 {
     return float4x4(
-        float4(basis.Basis11, basis.Basis21, 0.0, basis.Basis31),
-        float4(basis.Basis12, basis.Basis22, 0.0, basis.Basis32),
-        float4(0.0,               0.0,              1.0, 0.0),
-        float4(0.0,               0.0,              0.0, 1.0)
+        float4(basis.Basis00, basis.Basis01, 0.0, 0.0),
+        float4(basis.Basis10, basis.Basis11, 0.0, 0.0),
+        float4(0.0,           0.0,           1.0, 0.0),
+        float4(basis.Basis30, basis.Basis31, 0.0, 1.0)
     );
 }
 
 float4x4 ComputeTransform3D(const Basis3D basis)
 {
     return float4x4(
-        float4(basis.Basis11, basis.Basis12, basis.Basis13, basis.Basis14),
-        float4(basis.Basis21, basis.Basis22, basis.Basis23, basis.Basis24),
-        float4(basis.Basis31, basis.Basis32, basis.Basis33, basis.Basis34),
-        float4(0.0,               0.0,               0.0,               1.0)
+        float4(basis.Basis00, basis.Basis01, basis.Basis02, 0.0),
+        float4(basis.Basis10, basis.Basis11, basis.Basis12, 0.0),
+        float4(basis.Basis20, basis.Basis21, basis.Basis22, 0.0),
+        float4(basis.Basis30, basis.Basis31, basis.Basis32, 1.0)
     );
 }
-
 float2 ComputeStencilScale2D(const float4x4 transform)
 {
     return float2(length(float2(transform[0][0], transform[1][0])), length(float2(transform[0][1], transform[1][1])));
@@ -149,20 +156,6 @@ float3x3 ComputeNormalMatrix(const float3x3 matrix)
 
     return float3x3(r0, r1, r2) * idet;
 }
-float3 ComputeTrivialWorldNormal(const float3x3 matrix)
-{
-    const float3 c0 = matrix[0];
-    const float3 c1 = matrix[1];
-    const float3 c2 = matrix[2];
-
-    const float3 r0 = cross(c1, c2);
-    const float3 r2 = cross(c0, c1);
-
-    const float det = dot(c0, r0);
-    const float idet = sign(det) / max(abs(det), 1e-12);
-
-    return r2 * idet;
-}
 
 public struct CircleBounds
 {
@@ -183,8 +176,8 @@ bool CheckOutsideCircle(const CircleBounds bounds, const float2 localPosition, c
     if (bounds.Radius > 1.0 || bounds.Radius < bounds.Hollowness)
         return false;
 
-    const float crs1 = localPosition.x * arc.LowerSin - localPosition.y * arc.LowerCos;
-    const float crs2 = localPosition.x * arc.UpperSin - localPosition.y * arc.UpperCos;
+    const float crs1 = localPosition.x * arc.CosSin[1] - localPosition.y * arc.CosSin[0];
+    const float crs2 = localPosition.x * arc.CosSin[3] - localPosition.y * arc.CosSin[2];
 
     if (arc.AngleOverflow == 1)
     {
@@ -199,10 +192,10 @@ bool CheckOutsideCircle(const CircleBounds bounds, const float2 localPosition, c
     return true;
 }
 
-float CircleFade(float alpha, const CircleBounds bounds, const FadeData fade)
+float CircleFade(float alpha, const CircleBounds bounds, const float2 fade)
 {
-    const float innerFade = fade.InnerFade * fade.InnerFade;
-    const float outerFade = 1.0 - fade.OuterFade * fade.OuterFade;
+    const float innerFade = fade[0] * fade[0];
+    const float outerFade = 1.0 - fade[1] * fade[1];
     const float shiftLen = (bounds.Radius - bounds.Hollowness) / (1.0 - bounds.Hollowness);
 
     if (shiftLen < innerFade)
@@ -269,6 +262,9 @@ public struct DirectionalLight
 typedef StructuredBuffer<PointLight2D, Std430DataLayout> PointLights2D;
 typedef StructuredBuffer<PointLight3D, Std430DataLayout> PointLights3D;
 
+typedef StructuredBuffer<Material2D, Std430DataLayout> Materials2D;
+typedef StructuredBuffer<Material3D, Std430DataLayout> Materials3D;
+
 typedef StructuredBuffer<DirectionalLight, Std430DataLayout> DirectionalLights;
 
 float3 GetLightColor2D(const LightData2D data, const float2 worldPosition, const PointLights2D plights)
@@ -293,120 +289,99 @@ float3 GetLightColor2D(const LightData2D data, const float2 worldPosition, const
     return ambientColor.xyz * ambientColor.w + diffuseColor;
 }
 
+struct MaterialInfo3D
+{
+    PointLights3D Points;
+    DirectionalLights Directionals;
+    float4 Albedo;
+    float3 WorldPosition;
+    float3 Normal;
+    float3 Emissive;
+    float Roughness;
+    float Metallic;
+    float Occlusion;
+};
+
 // i admit lol ia generated
-float3 GetLightColor3D(const LightData3D data, const Material3D material, const float3 normal, const float3 worldPosition, const PointLights3D plights, const DirectionalLights dlights)
+float3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
 {
     const float4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
-    const float3 V = normalize(data.ViewPosition.xyz - worldPosition);
+    const float3 V = normalize(data.ViewPosition.xyz - info.WorldPosition);
 
-    // Unpack albedo factor from packed uint (RGBA8)
-    const float4 albedo = unpackUnorm4x8ToFloat(material.AlbedoFactor);
-    const float3 baseColor = albedo.xyz;
+    const float3 baseColor = info.Albedo.xyz;
+    const float metallic   = info.Metallic;
+    const float roughness  = info.Roughness;
+    const float alpha      = roughness * roughness;
+    const float alpha2     = alpha * alpha;
 
-    // PBR material params
-    const float metallic  = material.MetallicFactor;
-    const float roughness = material.RoughnessFactor;
-    const float alpha     = roughness * roughness; // perceptual -> linear roughness
-    const float alpha2    = alpha * alpha;
-
-    // F0: base reflectance at normal incidence
-    const float3 F0 = lerp(float3(0.04), baseColor, metallic);
-
-    // Diffuse component (Lambert), metals have no diffuse
+    const float3 F0          = lerp(float3(0.04), baseColor, metallic);
     const float3 diffuseBase = baseColor * (1.0 - metallic);
 
     float3 Lo = float3(0.0);
 
-    // --- Helper lambdas (inlined below) ---
-    // GGX NDF, Smith geometry, Schlick Fresnel
-
     for (uint i = 0; i < data.DirectionalLightCount; ++i)
     {
-        const DirectionalLight dlight = dlights[i];
+        const DirectionalLight dlight = info.Directionals[i];
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
-        const float3 L = float3(dlight.DirX, dlight.DirY, dlight.DirZ);
-        const float NdotL = dot(normal, L);
+        const float3 L    = float3(dlight.DirX, dlight.DirY, dlight.DirZ);
+        const float NdotL = dot(info.Normal, L);
         if (NdotL <= 0.0) continue;
 
-        const float3 H = normalize(L + V);
-        const float NdotV = max(dot(normal, V), 1e-4);
-        const float NdotH = max(dot(normal, H), 0.0);
+        const float3 H    = normalize(L + V);
+        const float NdotV = max(dot(info.Normal, V), 1e-4);
+        const float NdotH = max(dot(info.Normal, H), 0.0);
         const float VdotH = max(dot(V, H), 0.0);
 
-        // GGX NDF
         const float denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
-        const float D = alpha2 / (3.14159265 * denom * denom);
+        const float D     = alpha2 / (3.14159265 * denom * denom);
+        const float k     = alpha * 0.5;
+        const float G     = (NdotV / (NdotV * (1.0 - k) + k)) *
+                            (NdotL / (NdotL * (1.0 - k) + k));
+        const float3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
 
-        // Smith GGX geometry
-        const float k = alpha * 0.5;
-        const float G = (NdotV / (NdotV * (1.0 - k) + k)) *
-                        (NdotL / (NdotL * (1.0 - k) + k));
-
-        // Schlick Fresnel
-        const float3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
-
-        const float3 specular = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
-        const float3 diffuse  = diffuseBase / 3.14159265;
-
+        const float3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
+        const float3 diffuse    = diffuseBase / 3.14159265;
         const float3 lightColor = unpackUnorm4x8ToFloat(dlight.Color).xyz;
-        const float  radiance   = dlight.Intensity;
 
-        Lo += (diffuse * (1.0 - F) + specular) * lightColor * radiance * NdotL;
+        Lo += (diffuse * (1.0 - F) + specular) * lightColor * dlight.Intensity * NdotL;
     }
 
     for (uint i = 0; i < data.PointLightCount; ++i)
     {
-        const PointLight3D plight = plights[i];
+        const PointLight3D plight = info.Points[i];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
-        const float3 dir    = float3(plight.PosX, plight.PosY, plight.PosZ) - worldPosition;
-        const float3 L      = normalize(dir);
-        const float  NdotL  = dot(normal, L);
+        const float3 dir  = float3(plight.PosX, plight.PosY, plight.PosZ) - info.WorldPosition;
+        const float3 L    = normalize(dir);
+        const float NdotL = dot(info.Normal, L);
         if (NdotL <= 0.0) continue;
 
-        const float3 H     = normalize(L + V);
-        const float NdotV  = max(dot(normal, V), 1e-4);
-        const float NdotH  = max(dot(normal, H), 0.0);
-        const float VdotH  = max(dot(V, H), 0.0);
+        const float3 H    = normalize(L + V);
+        const float NdotV = max(dot(info.Normal, V), 1e-4);
+        const float NdotH = max(dot(info.Normal, H), 0.0);
+        const float VdotH = max(dot(V, H), 0.0);
 
-        // GGX NDF
         const float denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
-        const float D = alpha2 / (3.14159265 * denom * denom);
+        const float D     = alpha2 / (3.14159265 * denom * denom);
+        const float k     = alpha * 0.5;
+        const float G     = (NdotV / (NdotV * (1.0 - k) + k)) *
+                            (NdotL / (NdotL * (1.0 - k) + k));
+        const float3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
 
-        // Smith GGX geometry
-        const float k = alpha * 0.5;
-        const float G = (NdotV / (NdotV * (1.0 - k) + k)) *
-                        (NdotL / (NdotL * (1.0 - k) + k));
-
-        // Schlick Fresnel
-        const float3 F = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
-
-        const float3 specular = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
-        const float3 diffuse  = diffuseBase / 3.14159265;
-
-        // Distance attenuation (your existing scheme)
-        const float radius  = plight.Radius * plight.Radius;
-        const float dirLen  = dot(dir, dir);
-        const float atten   = radius / (dirLen + radius);
-        const float radiance = atten * plight.Intensity;
-
+        const float3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
+        const float3 diffuse    = diffuseBase / 3.14159265;
+        const float  radius     = plight.Radius * plight.Radius;
+        const float  dirLen     = dot(dir, dir);
+        const float  atten      = radius / (dirLen + radius);
         const float3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
 
-        Lo += (diffuse * (1.0 - F) + specular) * lightColor * radiance * NdotL;
+        Lo += (diffuse * (1.0 - F) + specular) * lightColor * atten * plight.Intensity * NdotL;
     }
 
-    // Ambient: occlusion-modulated, split into diffuse/specular approximation
-    const float3 ambient = ambientColor.xyz * ambientColor.w
-                         * diffuseBase
-                         * material.OcclusionStrength;
+    const float3 ambient = ambientColor.xyz * ambientColor.w * diffuseBase * info.Occlusion;
 
-    // Emissive
-    const float3 emissive = float3(material.EmissiveFactorX,
-                                   material.EmissiveFactorY,
-                                   material.EmissiveFactorZ);
-
-    return min(float3(1.0), ambient + Lo + emissive);
+    return min(float3(1.0), ambient + Lo + info.Emissive);
 }

@@ -8,9 +8,9 @@ namespace Onyx
 template <Dimension D> struct InstanceData;
 template <> struct InstanceData<D2>
 {
-    f32v2 Basis1;
-    f32v2 Basis2;
-    f32v2 Basis3;
+    f32v2 Column0;
+    f32v2 Column1;
+    f32v2 Column3;
     u32 BaseColor;
     union {
         u32 MatIndex;
@@ -20,9 +20,9 @@ template <> struct InstanceData<D2>
 
 template <> struct InstanceData<D3>
 {
-    f32v4 Basis1;
-    f32v4 Basis2;
-    f32v4 Basis3;
+    f32v4 Row0;
+    f32v4 Row1;
+    f32v4 Row2;
     u32 BaseColor;
     union {
         u32 MatIndex;

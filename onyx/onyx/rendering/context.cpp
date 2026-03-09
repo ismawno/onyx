@@ -95,9 +95,9 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
     if constexpr (D == D2)
     {
         InstanceData<D2> instanceData{};
-        instanceData.Basis1 = f32v2{transform[0]};
-        instanceData.Basis2 = f32v2{transform[1]};
-        instanceData.Basis3 = f32v2{transform[2]};
+        instanceData.Column0 = f32v2{transform[0]};
+        instanceData.Column1 = f32v2{transform[1]};
+        instanceData.Column3 = f32v2{transform[2]};
         instanceData.MatIndex = state->Material;
         if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
             instanceData.BaseColor = state->FillColor.Pack();
@@ -111,9 +111,9 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
     else
     {
         InstanceData<D3> instanceData{};
-        instanceData.Basis1 = f32v4{transform[0][0], transform[1][0], transform[2][0], transform[3][0]};
-        instanceData.Basis2 = f32v4{transform[0][1], transform[1][1], transform[2][1], transform[3][1]};
-        instanceData.Basis3 = f32v4{transform[0][2], transform[1][2], transform[2][2], transform[3][2]};
+        instanceData.Row0 = f32v4{transform[0][0], transform[1][0], transform[2][0], transform[3][0]};
+        instanceData.Row1 = f32v4{transform[0][1], transform[1][1], transform[2][1], transform[3][1]};
+        instanceData.Row2 = f32v4{transform[0][2], transform[1][2], transform[2][2], transform[3][2]};
         if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
         {
             instanceData.BaseColor = state->FillColor.Pack();
