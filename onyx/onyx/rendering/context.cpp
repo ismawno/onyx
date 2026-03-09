@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/context.hpp"
 #include "onyx/asset/assets.hpp"
+#include "onyx/resource/resources.hpp"
 #include "tkit/math/math.hpp"
 
 namespace Onyx
@@ -19,11 +20,15 @@ template <Dimension D> IRenderContext<D>::IRenderContext()
         {
             InstanceBuffer &buffer = data[j];
             buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
+            buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+            buffer.InstanceSize = sizeof(CircleInstanceData<D>);
         }
         for (u32 j = Assets::GetBatchStart(Geometry_StaticMesh); j < Assets::GetBatchEnd(Geometry_StaticMesh); ++j)
         {
             InstanceBuffer &buffer = data[j];
             buffer.Data = VKit::HostBuffer::Create<InstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
+            buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+            buffer.InstanceSize = sizeof(InstanceData<D>);
         }
     }
 }
@@ -149,10 +154,11 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
 
 template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceBuffer &buffer)
 {
-    if (buffer.Instances > buffer.Data.GetInstanceCount())
+    if (buffer.Instances > buffer.Capacity)
     {
-        const u32 ninst = u32(1.5f * f32(buffer.Instances));
-        buffer.Data.Resize(ninst);
+        const u32 ninst = Resources::GrowCapacity(buffer.Instances);
+        buffer.Data.Resize(ninst * buffer.InstanceSize);
+        buffer.Capacity = ninst;
     }
 }
 
@@ -162,7 +168,7 @@ void IRenderContext<D>::addInstanceData(InstanceBuffer &buffer, const T &data)
 {
     const u32 index = buffer.Instances++;
     resizeBuffer(buffer);
-    buffer.Data.WriteAt(index, &data);
+    buffer.Data.Write(&data, {.srcOffset = 0, .dstOffset = index * sizeof(T), .size = sizeof(T)});
 }
 
 template <Dimension D>

@@ -3,12 +3,9 @@
 
 namespace Onyx::Resources
 {
-Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags, const VkDeviceSize instanceSize,
-                                        const VkDeviceSize capacity)
+Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags, const VkDeviceSize size)
 {
-    return VKit::DeviceBuffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), flags)
-        .SetSize(capacity, instanceSize)
-        .Build();
+    return VKit::DeviceBuffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), flags).SetSize(size).Build();
 }
 
 Result<VKit::Sampler> CreateDefaultSampler()
@@ -16,15 +13,16 @@ Result<VKit::Sampler> CreateDefaultSampler()
     return VKit::Sampler::Builder(Core::GetDevice()).Build();
 }
 
-Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const VkDeviceSize instances, const f32 factor)
+Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const u32 instances, const u32 instanceSize,
+                                const f32 factor)
 {
     const VKit::DeviceBuffer::Info &info = buffer.GetInfo();
-    const VkDeviceSize inst = info.InstanceCount;
+    const u32 inst = u32(info.Size / instanceSize);
     if (buffer && inst >= instances)
         return false;
 
-    const VkDeviceSize ninst = GrowCapacity(instances, factor);
-    const auto result = CreateBuffer(info.Flags, info.InstanceSize, ninst);
+    const u32 ninst = GrowCapacity(instances, factor);
+    const auto result = CreateBuffer(info.Flags, ninst * instanceSize);
     TKIT_RETURN_ON_ERROR(result);
     buffer.Destroy();
     buffer = result.GetValue();
@@ -32,5 +30,3 @@ Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const VkDeviceSize i
 }
 
 } // namespace Onyx::Resources
-
-// namespace Onyx::Detail

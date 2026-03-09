@@ -1401,8 +1401,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
 
         const VkDeviceSize wsize = wupload * tex->BytesPerPixel;
         const VkDeviceSize size = hupload * wsize;
-        auto result =
-            Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, 1, size);
+        auto result = Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, size);
         TKIT_RETURN_ON_ERROR(result);
 
         VKit::DeviceBuffer &uploadBuffer = result.GetValue();
@@ -1485,11 +1484,11 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
     Renderer_Buffers &buffers = vdata->Buffers[vdata->Index];
     if (ddata->TotalVtxCount > 0)
     {
-        const u32 vsize = u32(ddata->TotalVtxCount);
-        const u32 isize = u32(ddata->TotalIdxCount);
+        const u32 vcount = u32(ddata->TotalVtxCount);
+        const u32 icount = u32(ddata->TotalIdxCount);
 
-        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded(buffers.VertexBuffer, vsize));
-        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded(buffers.IndexBuffer, isize));
+        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount));
+        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount));
 
         VkDeviceSize voffset = 0;
         VkDeviceSize ioffset = 0;

@@ -153,7 +153,7 @@ template <Dimension D> static RendererData<D> &getRendererData()
         return *s_RendererData3;
 }
 
-template <Dimension D> static VkDeviceSize getInstanceSize(const Geometry geo)
+template <Dimension D> static u32 getInstanceSize(const Geometry geo)
 {
     switch (geo)
     {
@@ -161,12 +161,24 @@ template <Dimension D> static VkDeviceSize getInstanceSize(const Geometry geo)
         return sizeof(CircleInstanceData<D>);
     case Geometry_StaticMesh:
         return sizeof(InstanceData<D>);
-    case Geometry_Count:
+    default:
         TKIT_FATAL("[ONYX][RENDERER] Unrecognized geometry type");
         return 0;
     }
-    TKIT_FATAL("[ONYX][RENDERER] Unrecognized geometry type");
-    return 0;
+}
+
+template <Dimension D> static u32 getLightSize(const LightType light)
+{
+    switch (light)
+    {
+    case Light_Point:
+        return sizeof(PointLightData<D>);
+    case Light_Directional:
+        return sizeof(DirectionalLightData);
+    default:
+        TKIT_FATAL("[ONYX][RENDERER] Unrecognized light type");
+        return 0;
+    }
 }
 
 VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo()
@@ -218,15 +230,16 @@ static constexpr VKit::DeviceBufferFlags getDeviceLocalFlags()
 }
 
 template <Dimension D>
-ONYX_NO_DISCARD static Result<> createLightBuffers(const LightType light, const VkDeviceSize instanceSize,
-                                                   const VkDeviceSize instances = ONYX_BUFFER_INITIAL_CAPACITY)
+ONYX_NO_DISCARD static Result<> createLightBuffers(const LightType light,
+                                                   const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
+    const u32 instanceSize = getLightSize<D>(light);
     RendererData<D> &rdata = getRendererData<D>();
-    auto result = Resources::CreateBuffer(Buffer_Staging, instanceSize, instances);
+    auto result = Resources::CreateBuffer(Buffer_Staging, instanceSize * instances);
     TKIT_RETURN_ON_ERROR(result);
     rdata.LightData[light].Transfer = result.GetValue();
 
-    result = Resources::CreateBuffer(Buffer_DeviceStorage, instanceSize, instances);
+    result = Resources::CreateBuffer(Buffer_DeviceStorage, instanceSize * instances);
     TKIT_RETURN_ON_ERROR(result);
     rdata.LightData[light].Graphics = result.GetValue();
     updateLightDescriptorSets<D>(light);
@@ -246,9 +259,9 @@ ONYX_NO_DISCARD static Result<> createLightBuffers(const LightType light, const 
 
 template <Dimension D>
 ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createTransferInstanceBuffer(
-    const Geometry geo, const VkDeviceSize instances = ONYX_BUFFER_INITIAL_CAPACITY)
+    const Geometry geo, const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    auto result = Resources::CreateBuffer(getStageFlags(), getInstanceSize<D>(geo), instances);
+    auto result = Resources::CreateBuffer(getStageFlags(), getInstanceSize<D>(geo) * instances);
     TKIT_RETURN_ON_ERROR(result);
     VKit::DeviceBuffer &buffer = result.GetValue();
 
@@ -263,9 +276,9 @@ ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createTransferInstanceBuffer(
 
 template <Dimension D>
 ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createGraphicsInstanceBuffer(
-    const Geometry geo, const VkDeviceSize instances = ONYX_BUFFER_INITIAL_CAPACITY)
+    const Geometry geo, const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    auto result = Resources::CreateBuffer(getDeviceLocalFlags(), getInstanceSize<D>(geo), instances);
+    auto result = Resources::CreateBuffer(getDeviceLocalFlags(), instances * getInstanceSize<D>(geo));
     TKIT_RETURN_ON_ERROR(result);
     VKit::DeviceBuffer &buffer = result.GetValue();
 
@@ -345,11 +358,11 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
     }
 
     if constexpr (D == D2)
-        return createLightBuffers<D2>(Light_Point, sizeof(PointLightData<D2>));
+        return createLightBuffers<D2>(Light_Point);
     else
     {
-        TKIT_RETURN_IF_FAILED((createLightBuffers<D3>(Light_Point, sizeof(PointLightData<D3>))));
-        return createLightBuffers<D3>(Light_Directional, sizeof(DirectionalLightData));
+        TKIT_RETURN_IF_FAILED((createLightBuffers<D3>(Light_Point)));
+        return createLightBuffers<D3>(Light_Directional);
     }
 }
 
@@ -396,15 +409,17 @@ void Terminate()
 template <Dimension D> ONYX_NO_DISCARD static Result<> resizeLightBuffers(const LightType light, const u32 instances)
 {
     LightBuffers &buffers = getRendererData<D>().LightData[light];
+    const u32 instanceSize = getLightSize<D>(light);
+    const u32 ntinst = u32(buffers.Transfer.GetInfo().Size / instanceSize);
+    const u32 nginst = u32(buffers.Graphics.GetInfo().Size / instanceSize);
 
     // both buffers should have the exact same size
-    if (buffers.Transfer.GetInfo().InstanceCount < instances || buffers.Graphics.GetInfo().InstanceCount < instances)
+    if (ntinst < instances || nginst < instances)
     {
         TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
         buffers.Transfer.Destroy();
         buffers.Graphics.Destroy();
-        return createLightBuffers<D>(light, buffers.Transfer.GetInfo().InstanceSize,
-                                     Resources::GrowCapacity(instances));
+        return createLightBuffers<D>(light, Resources::GrowCapacity(instances));
     }
 
     return Result<>::Ok();
@@ -670,9 +685,10 @@ ONYX_NO_DISCARD static Result<TransferMemoryRange *> findTransferRange(const Geo
 
     VKit::DeviceBuffer &buffer = arena.Buffer;
     const VKit::DeviceBuffer::Info &binfo = buffer.GetInfo();
-    const VkDeviceSize isize = binfo.InstanceSize;
-    const VkDeviceSize icount = Math::Max(requiredMem / isize, binfo.InstanceCount);
+
+    const u32 isize = getInstanceSize<D>(geo);
     const VkDeviceSize size = binfo.Size;
+    const u32 icount = u32(Math::Max(requiredMem, size) / isize);
 
     TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable transfer range with {:L} bytes of memory. A new buffer "
                    "will be created with more memory (from {:L} to {:L} bytes)",
@@ -752,9 +768,10 @@ ONYX_NO_DISCARD static Result<GraphicsMemoryRange *> findGraphicsRange(const Geo
 
     VKit::DeviceBuffer &buffer = arena.Buffer;
     const VKit::DeviceBuffer::Info &binfo = buffer.GetInfo();
-    const VkDeviceSize isize = binfo.InstanceSize;
-    const VkDeviceSize icount = Math::Max(requiredMem / isize, binfo.InstanceCount);
+
+    const u32 isize = getInstanceSize<D>(geo);
     const VkDeviceSize size = binfo.Size;
+    const u32 icount = u32(Math::Max(requiredMem, size) / isize);
 
     TKIT_LOG_DEBUG("[ONYX][RENDERER] Failed to find a suitable graphics range with {:L} bytes of memory. A new buffer "
                    "will be created with more memory (from {:L} to {:L} bytes)",
@@ -915,7 +932,7 @@ ONYX_NO_DISCARD static Result<> transferFullLightBuffers(const LightType light, 
     LightBuffers &buffers = rdata.LightData[light];
     TKIT_RETURN_IF_FAILED(resizeLightBuffers<D>(light, instances));
 
-    const VkDeviceSize size = instances * buffers.Transfer.GetInfo().InstanceSize;
+    const VkDeviceSize size = instances * getLightSize<D>(light);
     VkBufferCopy2KHR copy{};
     copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
     copy.pNext = nullptr;
@@ -1109,6 +1126,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         copyCmd.Transfer = &tarena.Buffer;
         copyCmd.Graphics = &garena.Buffer;
         copyCmd.Offset = copies.GetSize();
+
         for (u32 batch = bstart; batch < bend; ++batch)
         {
             contextRanges.Clear();
@@ -1124,7 +1142,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
                 ContextMemoryRange &crange = contextRanges.Append();
                 crange.ContextIndex = cinfo.Index;
                 crange.Offset = requiredMem;
-                crange.Size = idata.Instances * idata.Data.GetInstanceSize();
+                crange.Size = idata.Instances * idata.InstanceSize;
                 crange.Generation = ctx->GetGeneration();
 
                 const ViewMask vm = ctx->GetViewMask();
@@ -1411,7 +1429,7 @@ ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, co
 
     const auto collectDrawInfo = [&](const Geometry geo) {
         GraphicsArena &garena = rdata.Arenas[geo].Graphics;
-        const VkDeviceSize instanceSize = garena.Buffer.GetInfo().InstanceSize;
+        const VkDeviceSize instanceSize = getInstanceSize<D>(geo);
         for (GraphicsMemoryRange &grange : garena.MemoryRanges)
         {
             if (!(grange.ViewMask & viewBit) || grange.InUseByGraphics())

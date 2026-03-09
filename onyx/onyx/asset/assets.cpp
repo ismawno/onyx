@@ -124,7 +124,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
     StatusFlags flags = 0;
 
     const u32 vcount = info.GetVertexCount();
-    auto result = Resources::GrowBufferIfNeeded(info.VertexBuffer, vcount);
+    auto result = Resources::GrowBufferIfNeeded<Vertex>(info.VertexBuffer, vcount);
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())
@@ -135,7 +135,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Ve
     }
 
     const u32 icount = info.GetIndexCount();
-    result = Resources::GrowBufferIfNeeded(info.IndexBuffer, icount);
+    result = Resources::GrowBufferIfNeeded<Index>(info.IndexBuffer, icount);
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())
@@ -166,7 +166,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize()
 {
     MaterialInfo<D> &info = getData<D>().Materials;
     const u32 mcount = info.Materials.GetSize();
-    const auto result = Resources::GrowBufferIfNeeded(info.Buffer, mcount);
+    const auto result = Resources::GrowBufferIfNeeded<MaterialData<D>>(info.Buffer, mcount);
     TKIT_RETURN_ON_ERROR(result);
     if (result.GetValue())
     {
@@ -672,7 +672,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
             TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading new texture of size {:L} bytes", size);
 
             auto result =
-                Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, 1, size);
+                Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, size);
             TKIT_RETURN_ON_ERROR(result);
 
             VKit::DeviceBuffer &uploadBuffer = result.GetValue();

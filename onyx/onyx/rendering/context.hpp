@@ -245,7 +245,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     struct InstanceBuffer
     {
         VKit::HostBuffer Data{};
+        u32 InstanceSize = 0;
         u32 Instances = 0;
+        u32 Capacity = 0;
     };
 
     void updateState();
