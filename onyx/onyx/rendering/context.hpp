@@ -18,13 +18,6 @@ enum RenderStateFlagBit : RenderStateFlags
     RenderStateFlag_Outline = 1 << 1,
 };
 
-using LightFlags = u8;
-enum LightFlagBit : LightFlags
-{
-    LightFlag_Point = 1 << 0,
-    LightFlag_Directional = 1 << 1,
-};
-
 template <Dimension D> struct RenderState
 {
     TKIT_REFLECT_DECLARE(RenderState)
@@ -169,7 +162,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         PointLight<D> *pl = tier->Create<PointLight<D>>(std::forward<LightArgs>(args)...);
         pl->SetViewMask(m_ViewMask);
         m_PointLights.Append(pl);
-        m_NeedToUpdateLights |= LightFlag_Point;
         return pl;
     }
 
@@ -227,18 +219,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         RemoveTarget(window->GetViewBit());
     }
 
-    LightFlags GetUpdateLightFlags() const
-    {
-        return m_NeedToUpdateLights;
-    }
-    void MarkLightsUpdated()
-    {
-        m_NeedToUpdateLights = 0;
-    }
-
   protected:
     RenderState<D> *m_Current{};
-    LightFlags m_NeedToUpdateLights = 0;
     ViewMask m_ViewMask = 0;
 
   private:
@@ -397,7 +379,6 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
         DirectionalLight *dl = tier->Create<DirectionalLight>(std::forward<LightArgs>(args)...);
         dl->SetViewMask(m_ViewMask);
         m_DirectionalLights.Append(dl);
-        m_NeedToUpdateLights |= LightFlag_Directional;
         return dl;
     }
 

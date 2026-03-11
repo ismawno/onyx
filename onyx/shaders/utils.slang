@@ -208,6 +208,7 @@ float CircleFade(float alpha, const CircleBounds bounds, const float2 fade)
 
 public struct LightData2D
 {
+    uint PointLightOffset;
     uint PointLightCount;
     uint AmbientColor;
     uint ViewBit;
@@ -216,7 +217,9 @@ public struct LightData2D
 public struct LightData3D
 {
     float4 ViewPosition;
+    uint PointLightOffset;
     uint PointLightCount;
+    uint DirectionalLightOffset;
     uint DirectionalLightCount;
     uint AmbientColor;
     uint ViewBit;
@@ -273,7 +276,7 @@ float3 GetLightColor2D(const LightData2D data, const float2 worldPosition, const
     const float4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
     for (uint i = 0; i < data.PointLightCount; ++i)
     {
-        const PointLight2D plight = plights[i];
+        const PointLight2D plight = plights[i + data.PointLightOffset];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
@@ -321,7 +324,7 @@ float3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
 
     for (uint i = 0; i < data.DirectionalLightCount; ++i)
     {
-        const DirectionalLight dlight = info.Directionals[i];
+        const DirectionalLight dlight = info.Directionals[i + data.DirectionalLightOffset];
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
@@ -350,7 +353,7 @@ float3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
 
     for (uint i = 0; i < data.PointLightCount; ++i)
     {
-        const PointLight3D plight = info.Points[i];
+        const PointLight3D plight = info.Points[i + data.PointLightOffset];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 

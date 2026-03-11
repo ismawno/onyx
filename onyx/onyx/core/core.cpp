@@ -326,18 +326,17 @@ static void initializeAllocators(const Specs &specs)
         if (userAlloc.Arena)
             libAlloc.Arena = userAlloc.Arena;
         else if (!libAlloc.Arena)
-            libAlloc.Arena = new TKit::ArenaAllocator(u32(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
+            libAlloc.Arena = new TKit::ArenaAllocator(i == 0 ? 1_mib : 32_kib, TKIT_CACHE_LINE_SIZE);
         if (userAlloc.Stack)
             libAlloc.Stack = userAlloc.Stack;
         else if (!libAlloc.Stack)
-            libAlloc.Stack = new TKit::StackAllocator(u32(i == 0 ? 1_mib : 4_kib), TKIT_CACHE_LINE_SIZE);
+            libAlloc.Stack = new TKit::StackAllocator(i == 0 ? 1_mib : 32_kib, TKIT_CACHE_LINE_SIZE);
 
         if (userAlloc.Tier)
             libAlloc.Tier = userAlloc.Tier;
         else if (!libAlloc.Tier)
         {
-            const TKit::TierDescriptions desc{
-                {.Allocator = libAlloc.Arena, .MaxAllocation = u32(i == 0 ? 1_mib : 4_kib)}};
+            const TKit::TierDescriptions desc{{.Allocator = libAlloc.Arena, .MaxAllocation = i == 0 ? 1_mib : 32_kib}};
             if (i == 0)
             {
                 TKIT_LOG_INFO("[ONYX][CORE] Tier allocator for the main thread has allocated {:L} bytes of memory",

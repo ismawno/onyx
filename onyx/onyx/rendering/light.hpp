@@ -9,6 +9,7 @@ namespace Onyx
 template <Dimension D> class PointLight
 {
   public:
+    using InstanceData = PointLightData<D>;
     PointLight(const f32v<D> &pos = f32v<D>{0.f}, const f32 radius = 1.f, const f32 intensity = 0.8f,
                const Color &color = Color::White)
         : m_Position(pos), m_Radius(radius), m_Intensity(intensity), m_Color(color)
@@ -92,6 +93,7 @@ template <Dimension D> class PointLight
 class DirectionalLight
 {
   public:
+    using InstanceData = DirectionalLightData;
     DirectionalLight(const f32v3 &dir = f32v3{1.f}, const f32 intensity = 0.8f, const Color &color = Color::White)
         : m_Direction(Math::Normalize(dir)), m_Intensity(intensity), m_Color(color)
     {

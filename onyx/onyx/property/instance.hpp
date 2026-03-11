@@ -79,7 +79,7 @@ struct DirectionalLightData
     ViewMask ViewMask;
 };
 
-template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 2 : 3;
+template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 1 : 2;
 
 /**
  * @brief The `StencilPass` enum represents a grouping of pipelines with slightly different settings that all renderers
@@ -152,12 +152,26 @@ constexpr Shading GetShading(const StencilPass pass)
     return GetShading(GetDrawMode(pass));
 }
 
+template <Dimension D> struct LightRange
+{
+    u32 PointLightOffset = 0;
+    u32 PointLightCount = 0;
+};
+
+template <> struct LightRange<D3>
+{
+    u32 PointLightOffset = 0;
+    u32 PointLightCount = 0;
+    u32 DirectionalLightOffset = 0;
+    u32 DirectionalLightCount = 0;
+};
+
 template <Dimension D> struct PushConstantData;
 
 template <> struct PushConstantData<D2>
 {
     f32m4 ProjectionView;
-    u32 PointLightCount;
+    LightRange<D2> LightRange;
     u32 AmbientColor;
     ViewMask ViewBit;
 };
@@ -166,8 +180,7 @@ template <> struct PushConstantData<D3>
 {
     f32m4 ProjectionView;
     f32v4 ViewPosition;
-    u32 PointLightCount;
-    u32 DirectionalLightCount;
+    LightRange<D3> LightRange;
     u32 AmbientColor;
     ViewMask ViewBit;
 };
