@@ -73,7 +73,7 @@ template <> struct std::hash<Onyx::StatVertex<Onyx::D2>>
 {
     std::size_t operator()(const Onyx::StatVertex<Onyx::D2> &vertex) const
     {
-        return TKit::Hash(vertex.Position);
+        return TKit::Hash(vertex.Position, vertex.TexCoord);
     }
 };
 
@@ -81,6 +81,6 @@ template <> struct std::hash<Onyx::StatVertex<Onyx::D3>>
 {
     std::size_t operator()(const Onyx::StatVertex<Onyx::D3> &vertex) const
     {
-        return TKit::Hash(vertex.Position, vertex.Normal);
+        return TKit::Hash(vertex.Position, vertex.TexCoord, vertex.Normal, vertex.Tangent);
     }
 };

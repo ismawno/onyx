@@ -390,7 +390,7 @@ void Terminate()
 #ifdef ONYX_ENABLE_GLTF_LOAD
     for (u32 i = 0; i < s_TextureData->Textures.GetSize(); ++i)
         if (s_TextureData->Flags[i] & StatusFlag_MustFreeTexture)
-            stbi_image_free(s_TextureData->Textures[i].Data);
+            TKit::Deallocate(s_TextureData->Textures[i].Data);
 #endif
 
     s_SamplerData.Construct();
@@ -443,17 +443,53 @@ u32 GetBatchCount()
     return count;
 }
 
-void AddSampler(const VKit::Sampler &sampler)
+Sampler AddSampler(const VKit::Sampler &sampler)
 {
+    const Sampler handle = s_SamplerData->Samplers.GetSize();
     s_SamplerData->Samplers.Append(sampler);
+    return handle;
 }
 
-Result<> AddSampler()
+Result<Sampler> AddSampler()
 {
     const auto result = Resources::CreateDefaultSampler();
     TKIT_RETURN_ON_ERROR(result);
-    AddSampler(result.GetValue());
-    return Result<>::Ok();
+    return AddSampler(result.GetValue());
+}
+
+template <Dimension D> GltfHandles AddGltfData(const GltfData<D> &data, const Sampler defaultSampler)
+{
+    GltfHandles handles;
+    handles.StaticMeshes.Reserve(data.StaticMeshes.GetSize());
+    handles.Materials.Reserve(data.Materials.GetSize());
+    handles.Textures.Reserve(data.Textures.GetSize());
+    for (const StatMeshData<D> &smesh : data.StaticMeshes)
+        handles.StaticMeshes.Append(AddMesh(smesh));
+
+    const u32 texOffset = s_TextureData->Textures.GetSize();
+
+    MaterialInfo<D> &minfo = getData<D>().Materials;
+    for (const MaterialData<D> &mdata : data.Materials)
+    {
+        handles.Materials.Append(AddMaterial(mdata));
+        MaterialData<D> &added = minfo.Materials.GetBack();
+        if (added.Sampler == NullSampler)
+            added.Sampler = defaultSampler;
+        if constexpr (D == D2)
+            added.Texture += texOffset;
+        else
+        {
+            added.AlbedoTex += texOffset;
+            added.MetallicRoughnessTex += texOffset;
+            added.NormalTex += texOffset;
+            added.OcclusionTex += texOffset;
+            added.EmissiveTex += texOffset;
+        }
+    }
+    for (const TextureData &tdata : data.Textures)
+        handles.Textures.Append(AddTexture(tdata));
+
+    return handles;
 }
 
 Texture AddTexture(const TextureData &data, const AssetsFlags flags)
@@ -556,6 +592,34 @@ template <Dimension D> void UpdateMaterial(const Material material, const Materi
     materials.Flags[material] = StatusFlag_UpdateMaterial;
 }
 
+template <Dimension D> StatMeshData<D> GetStaticMeshData(const Mesh mesh)
+{
+    StatMeshInfo<D> &meshes = getData<D>().StaticMeshes;
+    StatMeshData<D> data{};
+    const DataLayout &layout = meshes.Layouts[mesh];
+
+    const u32 vstart = layout.VertexStart;
+    const u32 vend = vstart + layout.VertexCount;
+
+    const u32 istart = layout.IndexStart;
+    const u32 iend = vstart + layout.IndexCount;
+
+    const auto &m = meshes.Meshes;
+    data.Vertices.Insert(data.Vertices.end(), m.Vertices.begin() + vstart, m.Vertices.begin() + vend);
+    data.Indices.Insert(data.Indices.end(), m.Indices.begin() + istart, m.Indices.begin() + iend);
+
+    return data;
+}
+template <Dimension D> const MaterialData<D> &GetMaterialData(const Material material)
+{
+    MaterialInfo<D> &materials = getData<D>().Materials;
+    return materials.Materials[material];
+}
+const TextureData &GetTextureData(const Texture texture)
+{
+    return s_TextureData->Textures[texture];
+}
+
 template <Dimension D> u32 GetStaticMeshCount()
 {
     return getData<D>().StaticMeshes.Layouts.GetSize();
@@ -581,19 +645,6 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> upload()
     AssetData<D> &data = getData<D>();
     TKIT_RETURN_IF_FAILED(uploadMeshData(data.StaticMeshes));
     return uploadMaterialData<D>();
-}
-
-static VkFormat getFormat(const TextureType tex)
-{
-    switch (tex)
-    {
-    case Texture_Color:
-        return VK_FORMAT_R8G8B8A8_SRGB;
-    case Texture_Linear:
-        return VK_FORMAT_R8G8B8A8_UNORM;
-    default:
-        return VK_FORMAT_UNDEFINED;
-    }
 }
 
 ONYX_NO_DISCARD static Result<> uploadTextures()
@@ -631,10 +682,10 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
             const TextureData &tdata = texs[i];
 
             TKIT_LOG_DEBUG("[ONYX][ASSETS] Creating new texture with dimensions {}x{} and {} channels", tdata.Width,
-                           tdata.Height, tdata.Channels);
+                           tdata.Height, tdata.Components);
 
             auto result = VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
-                                                     VkExtent2D{tdata.Width, tdata.Height}, getFormat(tdata.Type),
+                                                     VkExtent2D{tdata.Width, tdata.Height}, tdata.Format,
                                                      VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled)
                               .WithImageView()
                               .Build();
@@ -838,20 +889,258 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const c
 #endif
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
-Result<TextureData> LoadTextureDataFromImageFile(const char *path)
+static VkFormat getFormat(const i32 components, const i32 pixelType, const bool isSrgb)
+{
+    switch (pixelType)
+    {
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+        switch (components)
+        {
+        case 1:
+            return isSrgb ? VK_FORMAT_R8_SRGB : VK_FORMAT_R8_UNORM;
+        case 2:
+            return isSrgb ? VK_FORMAT_R8G8_SRGB : VK_FORMAT_R8G8_UNORM;
+        case 3:
+            return isSrgb ? VK_FORMAT_R8G8B8_SRGB : VK_FORMAT_R8G8B8_UNORM;
+        case 4:
+            return isSrgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
+        }
+    case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+        switch (components)
+        {
+        case 1:
+            return VK_FORMAT_R16_UNORM;
+        case 2:
+            return VK_FORMAT_R16G16_UNORM;
+        case 3:
+            return VK_FORMAT_R16G16B16_UNORM;
+        case 4:
+            return VK_FORMAT_R16G16B16A16_UNORM;
+        }
+    case TINYGLTF_COMPONENT_TYPE_FLOAT:
+        switch (components)
+        {
+        case 1:
+            return VK_FORMAT_R32_SFLOAT;
+        case 2:
+            return VK_FORMAT_R32G32_SFLOAT;
+        case 3:
+            return VK_FORMAT_R32G32B32_SFLOAT;
+        case 4:
+            return VK_FORMAT_R32G32B32A32_SFLOAT;
+        }
+    default:
+        return VK_FORMAT_UNDEFINED;
+    }
+}
+template <Dimension D> Result<GltfData<D>> LoadGltfFile(const char *path, const AssetsFlags flags)
+{
+    tinygltf::Model model;
+    tinygltf::TinyGLTF loader;
+    std::string warn, err;
+
+    loader.SetPreserveImageChannels(!(flags & AssetsFlag_LoadImageForceRGBA));
+    const bool ok = loader.LoadASCIIFromFile(&model, &err, &warn, path);
+    TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][ASSETS] {}", warn);
+    if (!ok)
+        return Result<GltfData<D>>::Error(Error_LoadFailed,
+                                          TKit::Format("[ONYX][ASSETS] Failed to load gltf: {}", err));
+    GltfData<D> data{};
+
+    for (const auto &mesh : model.meshes)
+        for (const auto &prim : mesh.primitives)
+        {
+            StatMeshData<D> meshData{};
+
+            const auto &posAccessor = model.accessors[prim.attributes.at("POSITION")];
+            const auto &posView = model.bufferViews[posAccessor.bufferView];
+            const auto &posBuf = model.buffers[posView.buffer];
+            const f32 *positions = rcast<const f32 *>(posBuf.data.data() + posView.byteOffset + posAccessor.byteOffset);
+
+            const f32 *normals = nullptr;
+            if (prim.attributes.contains("NORMAL"))
+            {
+                const auto &normAccessor = model.accessors[prim.attributes.at("NORMAL")];
+                const auto &normView = model.bufferViews[normAccessor.bufferView];
+                normals = rcast<const f32 *>(model.buffers[normView.buffer].data.data() + normView.byteOffset +
+                                             normAccessor.byteOffset);
+            }
+
+            const f32 *texcoords = nullptr;
+            const f32 *tangents = nullptr;
+            if constexpr (D == D3)
+            {
+                if (prim.attributes.contains("TEXCOORD_0"))
+                {
+                    const auto &uvAccessor = model.accessors[prim.attributes.at("TEXCOORD_0")];
+                    const auto &uvView = model.bufferViews[uvAccessor.bufferView];
+                    texcoords = rcast<const f32 *>(model.buffers[uvView.buffer].data.data() + uvView.byteOffset +
+                                                   uvAccessor.byteOffset);
+                }
+
+                if (prim.attributes.contains("TANGENT"))
+                {
+                    const auto &tanAccessor = model.accessors[prim.attributes.at("TANGENT")];
+                    const auto &tanView = model.bufferViews[tanAccessor.bufferView];
+                    tangents = rcast<const f32 *>(model.buffers[tanView.buffer].data.data() + tanView.byteOffset +
+                                                  tanAccessor.byteOffset);
+                }
+            }
+
+            const u32 vertexCount = u32(posAccessor.count);
+            std::unordered_map<StatVertex<D>, Index> uniqueVertices;
+            for (u32 i = 0; i < vertexCount; ++i)
+            {
+                StatVertex<D> vertex{};
+                for (u32 j = 0; j < D; ++j)
+                    vertex.Position[j] = positions[3 * i + j];
+                if constexpr (D == D3)
+                {
+                    if (normals)
+                        for (u32 j = 0; j < 3; ++j)
+                            vertex.Normal[j] = normals[3 * i + j];
+                    if (tangents)
+                        for (u32 j = 0; j < 4; ++j)
+                            vertex.Tangent[j] = tangents[4 * i + j];
+                }
+                if (texcoords)
+                    for (u32 j = 0; j < 2; ++j)
+                        vertex.TexCoord[j] = texcoords[2 * i + j];
+
+                if (!uniqueVertices.contains(vertex))
+                {
+                    uniqueVertices[vertex] = Index(uniqueVertices.size());
+                    meshData.Vertices.Append(vertex);
+                }
+                meshData.Indices.Append(uniqueVertices[vertex]);
+            }
+            data.StaticMeshes.Append(meshData);
+        }
+
+    std::unordered_set<u32> srgbTexs;
+    for (const auto &mat : model.materials)
+    {
+        const i32 albedoIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
+        const i32 emissiveIdx = mat.emissiveTexture.index;
+        if (albedoIdx >= 0)
+            srgbTexs.insert(u32(model.textures[albedoIdx].source));
+        if (emissiveIdx)
+            srgbTexs.insert(u32(model.textures[emissiveIdx].source));
+
+        if constexpr (D == D2)
+        {
+            MaterialData<D2> matData{};
+            const auto &pbr = mat.pbrMetallicRoughness;
+            const auto &color = pbr.baseColorFactor;
+            const u8 r = u8(color[0] * 255.f);
+            const u8 g = u8(color[1] * 255.f);
+            const u8 b = u8(color[2] * 255.f);
+            const u8 a = u8(color[3] * 255.f);
+            matData.ColorFactor = (a << 24) | (b << 16) | (g << 8) | r; // ABGR packed
+
+            const i32 texIdx = pbr.baseColorTexture.index;
+            if (texIdx >= 0)
+                matData.Texture = Texture(model.textures[texIdx].source);
+
+            data.Materials.Append(matData);
+        }
+        else
+        {
+            MaterialData<D3> matData{};
+            const auto &pbr = mat.pbrMetallicRoughness;
+
+            const auto &color = pbr.baseColorFactor;
+            const u8 r = u8(color[0] * 255.f);
+            const u8 g = u8(color[1] * 255.f);
+            const u8 b = u8(color[2] * 255.f);
+            const u8 a = u8(color[3] * 255.f);
+            matData.AlbedoFactor = (a << 24) | (b << 16) | (g << 8) | r;
+
+            matData.MetallicFactor = f32(pbr.metallicFactor);
+            matData.RoughnessFactor = f32(pbr.roughnessFactor);
+            matData.NormalScale = f32(mat.normalTexture.scale);
+            matData.OcclusionStrength = f32(mat.occlusionTexture.strength);
+
+            const auto &emissive = mat.emissiveFactor;
+            matData.EmissiveFactor = f32v3{f32(emissive[0]), f32(emissive[1]), f32(emissive[2])};
+
+            const int albedoIdx = pbr.baseColorTexture.index;
+            if (albedoIdx >= 0)
+                matData.AlbedoTex = Texture(model.textures[albedoIdx].source);
+
+            const int mrIdx = pbr.metallicRoughnessTexture.index;
+            if (mrIdx >= 0)
+                matData.MetallicRoughnessTex = Texture(model.textures[mrIdx].source);
+
+            const int normalIdx = mat.normalTexture.index;
+            if (normalIdx >= 0)
+                matData.NormalTex = Texture(model.textures[normalIdx].source);
+
+            const int occlusionIdx = mat.occlusionTexture.index;
+            if (occlusionIdx >= 0)
+                matData.OcclusionTex = Texture(model.textures[occlusionIdx].source);
+
+            const int emissiveIdx = mat.emissiveTexture.index;
+            if (emissiveIdx >= 0)
+                matData.EmissiveTex = Texture(model.textures[emissiveIdx].source);
+
+            data.Materials.Append(matData);
+        }
+    }
+
+    for (u32 i = 0; i < u32(model.images.size()); ++i)
+    {
+        const auto &image = model.images[i];
+        TextureData tex{};
+        tex.Width = u32(image.width);
+        tex.Height = u32(image.height);
+        tex.Components = u32(image.component);
+        tex.Format = getFormat(image.component, image.pixel_type, srgbTexs.contains(i));
+        data.Textures.Append(tex);
+    }
+
+    return data;
+}
+Result<TextureData> LoadTextureDataFromImageFile(const char *path, const u32 requiredComponents,
+                                                 const AssetsFlags flags)
 {
     TextureData data{};
     i32 w;
     i32 h;
     i32 c;
-    data.Data = rcast<std::byte *>(stbi_load(path, &w, &h, &c, STBI_rgb_alpha));
-    if (!data.Data)
+
+    i32 pixelType;
+    void *img;
+
+    if (stbi_is_hdr(path))
+    {
+        pixelType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+        img = stbi_loadf(path, &w, &h, &c, i32(requiredComponents));
+    }
+    else if (stbi_is_16_bit(path))
+    {
+        pixelType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
+        img = stbi_load_16(path, &w, &h, &c, i32(requiredComponents));
+    }
+    else
+    {
+        pixelType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+        img = stbi_load(path, &w, &h, &c, i32(requiredComponents));
+    }
+
+    if (!img)
         return Result<TextureData>::Error(
             Error_LoadFailed, TKit::Format("[ONYX][ASSETS] Failed to load image data: {}", stbi_failure_reason()));
 
     data.Width = u32(w);
     data.Height = u32(h);
-    data.Channels = u32(c);
+    data.Components = u32(c);
+    data.Format = getFormat(c, pixelType, !(flags & AssetsFlag_LoadAsLinearImage));
+    const usz size = data.GetSize();
+
+    data.Data = scast<std::byte *>(TKit::Allocate(size));
+    TKit::ForwardCopy(data.Data, img, size);
+    stbi_image_free(img);
     return data;
 }
 #endif
@@ -1211,6 +1500,20 @@ template u32 GetStaticMeshCount<D3>();
 #ifdef ONYX_ENABLE_OBJ_LOAD
 template Result<StatMeshData<D2>> LoadStaticMeshFromObjFile<D2>(const char *path);
 template Result<StatMeshData<D3>> LoadStaticMeshFromObjFile<D3>(const char *path);
+#endif
+
+template StatMeshData<D2> GetStaticMeshData(Mesh mesh);
+template StatMeshData<D3> GetStaticMeshData(Mesh mesh);
+
+template const MaterialData<D2> &GetMaterialData(Material material);
+template const MaterialData<D3> &GetMaterialData(Material material);
+
+#ifdef ONYX_ENABLE_GLTF_LOAD
+template GltfHandles AddGltfData(const GltfData<D2> &data, Sampler defaultSampler = NullSampler);
+template GltfHandles AddGltfData(const GltfData<D3> &data, Sampler defaultSampler = NullSampler);
+
+template Result<GltfData<D2>> LoadGltfFile(const char *path, AssetsFlags flags);
+template Result<GltfData<D3>> LoadGltfFile(const char *path, AssetsFlags flags);
 #endif
 
 template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D2>();

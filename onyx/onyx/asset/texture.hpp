@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/core/alias.hpp"
+#include "vkit/resource/device_image.hpp"
 #include "tkit/utils/limits.hpp"
 
 namespace Onyx
@@ -10,23 +11,17 @@ using Sampler = u32;
 constexpr Texture NullTexture = TKit::Limits<Texture>::Max();
 constexpr Sampler NullSampler = TKit::Limits<Sampler>::Max();
 
-enum TextureType : u8
-{
-    Texture_Color,
-    Texture_Linear
-};
-
 struct TextureData
 {
     std::byte *Data = nullptr;
     u32 Width = 0;
     u32 Height = 0;
-    u32 Channels = 0;
-    TextureType Type = Texture_Color;
+    u32 Components = 0;
+    VkFormat Format = VK_FORMAT_UNDEFINED;
 
-    u64 GetSize(const u32 bytesPerChannel = 1) const
+    usz GetSize() const
     {
-        return Width * Height * Channels * bytesPerChannel;
+        return Width * Height * Components * VKit::DeviceImage::GetBytesPerPixel(Format);
     }
 };
 

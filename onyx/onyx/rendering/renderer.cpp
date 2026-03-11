@@ -1660,12 +1660,12 @@ template <typename Range> static void coalesceRanges(Pool<Range> &pool)
     coalesceRanges(pool, [](const Range &range) { return range.Tracker.InUse(); });
 }
 
-template <Dimension D> static void coalesceGraphicsInstanceRanges(GraphicsInstancePool &gpool)
+template <Dimension D> static void coalesceGraphicsInstanceRanges(GraphicsInstancePool &gpool, const u32 maxRanges)
 {
     const RendererData<D> &rdata = getRendererData<D>();
     GraphicsInstanceRange gmergeRange{};
     TKit::StackArray<GraphicsInstanceRange> granges{};
-    granges.Reserve(512); // this is a time bomb TODO(Isma): handle this
+    granges.Reserve(maxRanges);
 
     for (const GraphicsInstanceRange &grange : gpool.Ranges)
     {
@@ -1747,7 +1747,7 @@ template <Dimension D> static void coalesceGraphicsInstanceRanges(GraphicsInstan
     gpool.Ranges = granges;
 }
 
-template <Dimension D> void coalesce()
+template <Dimension D> void coalesce(const u32 maxRanges)
 {
 #ifdef TKIT_ENABLE_ASSERTS
     validateRanges<D>();
@@ -1756,7 +1756,7 @@ template <Dimension D> void coalesce()
     for (InstanceArena &arena : rdata.InstanceArenas)
     {
         coalesceRanges(arena.Transfer);
-        coalesceGraphicsInstanceRanges<D>(arena.Graphics);
+        coalesceGraphicsInstanceRanges<D>(arena.Graphics, maxRanges);
     }
     for (LightArena &arena : rdata.LightArenas)
     {
@@ -1771,11 +1771,11 @@ template <Dimension D> void coalesce()
 #endif
 }
 
-void Coalesce()
+void Coalesce(const u32 maxRanges)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::Coalesce");
-    coalesce<D2>();
-    coalesce<D3>();
+    coalesce<D2>(maxRanges);
+    coalesce<D3>(maxRanges);
 }
 
 template <Dimension D> void BindStaticMeshes(const VkCommandBuffer command)
@@ -2017,7 +2017,7 @@ template <Dimension D> void DisplayMemoryLayout()
     const RendererData<D> &rdata = getRendererData<D>();
     ImGui::PushID(&rdata);
     if (ImGui::Button("Coalesce##Button"))
-        coalesce<D>();
+        coalesce<D>(512);
 
     for (u32 i = 0; i < Geometry_Count; ++i)
     {

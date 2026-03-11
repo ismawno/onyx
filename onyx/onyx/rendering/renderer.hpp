@@ -76,7 +76,7 @@ ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *graphics, VkCommand
 ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool,
                                       TKit::Span<const RenderSubmitInfo> info);
 
-void Coalesce();
+void Coalesce(u32 maxRanges = 512);
 
 template <Dimension D> void BindStaticMeshes(VkCommandBuffer command);
 template <Dimension D> void DrawStaticMesh(VkCommandBuffer command, Mesh mesh, u32 firstInstance, u32 instanceCount);
