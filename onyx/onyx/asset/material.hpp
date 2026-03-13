@@ -27,10 +27,10 @@ template <> struct MaterialData<D3>
     f32 NormalScale = 1.f;
     Sampler Sampler = NullSampler;
     Texture AlbedoTex = NullTexture;
-    Texture MetallicRoughnessTex = 0;
-    Texture NormalTex = 0;
-    Texture OcclusionTex = 0;
-    Texture EmissiveTex = 0;
+    Texture MetallicRoughnessTex = NullTexture;
+    Texture NormalTex = NullTexture;
+    Texture OcclusionTex = NullTexture;
+    Texture EmissiveTex = NullTexture;
 };
 
 } // namespace Onyx

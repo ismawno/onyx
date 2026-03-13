@@ -19,9 +19,9 @@ struct TextureData
     u32 Components = 0;
     VkFormat Format = VK_FORMAT_UNDEFINED;
 
-    usz GetSize() const
+    usz ComputeSize() const
     {
-        return Width * Height * Components * VKit::DeviceImage::GetBytesPerPixel(Format);
+        return Width * Height * VKit::DeviceImage::GetBytesPerPixel(Format);
     }
 };
 

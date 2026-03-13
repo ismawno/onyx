@@ -18,13 +18,40 @@ enum AssetsFlagBit : AssetsFlags
     AssetsFlag_LoadAsLinearImage = 1 << 4,  // relevant when loading image
     // AssetsFlag_IncludeSampler = 1 << 5,     // relevant when loading gltf
 };
+
+enum ImageComponent : u8
+{
+    ImageComponent_Auto = 0,
+    ImageComponent_Grey = 1,
+    ImageComponent_GreyAlpha = 2,
+    ImageComponent_RGB = 3,
+    ImageComponent_RGBA = 4,
+};
+#ifdef ONYX_ENABLE_GLTF_LOAD
+// samplers are not supported for now
+template <Dimension D> struct GltfData
+{
+    TKit::TierArray<StatMeshData<D>> StaticMeshes{};
+    // here texture handles refer to the Textures attribute in GltfData, not to any Asset handle!! AddGltfData modifies
+    // material data so that it actually points to real textures
+    TKit::TierArray<MaterialData<D>> Materials{};
+    TKit::TierArray<TextureData> Textures{};
+};
+
+struct GltfHandles
+{
+    TKit::TierArray<Mesh> StaticMeshes{};
+    TKit::TierArray<Material> Materials{};
+    TKit::TierArray<Texture> Textures{};
+};
+#endif
 } // namespace Onyx
 
 namespace Onyx::Assets
 {
 struct Specs
 {
-    u32 MaxStaticMeshes = 64;
+    u32 MaxStaticMeshes = 256;
     u32 MaxMaterials = 1024;
     u32 MaxTextures = 1024;
     u32 MaxSamplers = 8;
@@ -46,23 +73,8 @@ Sampler AddSampler(const VKit::Sampler &sampler);
 ONYX_NO_DISCARD Result<Sampler> AddDefaultSampler();
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
-// samplers are not supported for now
-template <Dimension D> struct GltfData
-{
-    TKit::TierArray<StatMeshData<D>> StaticMeshes{};
-    // here texture handles refer to the Textures attribute in GltfData, not to any Asset handle!!
-    TKit::TierArray<MaterialData<D>> Materials{};
-    TKit::TierArray<TextureData> Textures{};
-};
 
-struct GltfHandles
-{
-    TKit::TierArray<Mesh> StaticMeshes{};
-    TKit::TierArray<Material> Materials{};
-    TKit::TierArray<Texture> Textures{};
-};
-
-template <Dimension D> GltfHandles AddGltfData(const GltfData<D> &data, Sampler defaultSampler = NullSampler);
+template <Dimension D> GltfHandles AddGltfData(GltfData<D> &data, Sampler defaultSampler = NullSampler);
 
 Texture AddTexture(const TextureData &data, AssetsFlags flags = 0);
 void UpdateTexture(Texture tex, const TextureData &data, AssetsFlags flags = 0);
@@ -97,9 +109,9 @@ ONYX_NO_DISCARD Result<> Upload();
 template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const char *path);
 #endif
 #ifdef ONYX_ENABLE_GLTF_LOAD
-template <Dimension D> ONYX_NO_DISCARD Result<GltfData<D>> LoadGltfFile(const char *path, AssetsFlags flags);
-ONYX_NO_DISCARD Result<TextureData> LoadTextureDataFromImageFile(const char *path, const u32 requiredComponents = 0,
-                                                                 AssetsFlags flags = 0);
+template <Dimension D> ONYX_NO_DISCARD Result<GltfData<D>> LoadGltfFile(const std::string &path, AssetsFlags flags = 0);
+ONYX_NO_DISCARD Result<TextureData> LoadTextureDataFromImageFile(
+    const char *path, const ImageComponent requiredComponents = ImageComponent_Auto, AssetsFlags flags = 0);
 #endif
 
 template <Dimension D> StatMeshData<D> CreateTriangleMesh();

@@ -184,6 +184,12 @@ template <Dimension D> struct MaterialArray
     u32 Active = 0;
 };
 
+struct TextureId
+{
+    std::string Name{};
+    Texture Texture = NullTexture;
+};
+
 template <Dimension D> struct LatticeArray
 {
     TKit::TierArray<LatticeData<D>> Lattices{};
@@ -214,7 +220,9 @@ class SandboxAppLayer final : public ApplicationLayer
 
     template <Dimension D> void AddContext(const Window *window = nullptr);
     template <Dimension D> void AddLattice(const Window *window = nullptr, const LatticeData<D> &lattice = {});
+    template <Dimension D> void AddStaticMesh(const char *name, const StatMeshData<D> &data, const bool upload = false);
     template <Dimension D> void AddMaterial(const char *name = nullptr);
+    void AddTexture(const TextureData &data, const char *name = nullptr);
 
     template <Dimension D> auto &GetContexts()
     {
@@ -245,7 +253,6 @@ class SandboxAppLayer final : public ApplicationLayer
             return Materials3;
     }
 
-    template <Dimension D> void AddStaticMesh(const char *name, const StatMeshData<D> &data);
     template <Dimension D> void AddMeshes();
 
     ContextArray<D2> Contexts2{};
@@ -257,8 +264,11 @@ class SandboxAppLayer final : public ApplicationLayer
     LatticeArray<D2> Lattices2{};
     LatticeArray<D3> Lattices3{};
 
-    MaterialArray<D2> Materials2;
-    MaterialArray<D3> Materials3;
+    MaterialArray<D2> Materials2{};
+    MaterialArray<D3> Materials3{};
+
+    TKit::TierArray<TextureId> Textures{};
+    Sampler DefaultSampler = NullSampler;
 };
 
 class SandboxWinLayer final : public WindowLayer
@@ -282,9 +292,14 @@ class SandboxWinLayer final : public WindowLayer
     template <Dimension D> void RenderLattice(LatticeData<D> &lattice);
     template <Dimension D> void RenderMaterials();
     template <Dimension D> void RenderMaterial(MaterialId<D> &material);
+    void RenderTextures();
+    template <Dimension D> void RenderGltf();
     template <Dimension D> void RenderMeshes();
     template <Dimension D> void RenderMesh(StatMeshId<D> &mesh);
     template <Dimension D> void RenderRenderer();
+
+    template <typename F>
+    void HandleLoadDialog(TKit::Task<Dialog::Result<Dialog::Path>> &task, F load, const char *name = "Load##Dialog");
 #endif
 
     template <Dimension D> void ProcessEvent(const Event &event);
@@ -301,9 +316,9 @@ class SandboxWinLayer final : public WindowLayer
     CameraArray<D2> Cameras2{};
     CameraArray<D3> Cameras3{};
 
-#ifndef TKIT_OS_APPLE
-    TKit::Task<Dialog::Result<Dialog::Path>> DialogTask{};
-#endif
+    TKit::Task<Dialog::Result<Dialog::Path>> StatMeshTask{};
+    TKit::Task<Dialog::Result<Dialog::Path>> TexTask{};
+    TKit::Task<Dialog::Result<Dialog::Path>> GltfTask{};
 
 #ifdef ONYX_ENABLE_IMGUI
     bool ImGuiDemoWindow = false;

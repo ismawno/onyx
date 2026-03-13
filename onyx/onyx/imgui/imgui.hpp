@@ -47,7 +47,7 @@ template <Dimension D> bool TransformEditor(Transform<D> &transform, EditorFlags
 
 template <Dimension D> void DisplayTransform(const Transform<D> &transform, EditorFlags flags = 0);
 template <Dimension D> void DisplayCameraControls(const CameraControls<D> &controls = {});
-template <Dimension D> bool MaterialEditor(MaterialData<D> &data, EditorFlags flags = 0);
+template <Dimension D> bool MaterialPropertiesEditor(MaterialData<D> &data, EditorFlags flags = 0);
 
 bool DeltaTimeEditor(DeltaTime &dt, DeltaInfo &di, const Window *window = nullptr, EditorFlags flags = 0);
 

@@ -13,8 +13,7 @@
 
 namespace Onyx
 {
-
-// black magic
+// lol
 template <typename C, typename F1, typename F2, typename F3>
 static void renderSelectable(const char *treeName, C &container, u32 &selected, F1 onSelected, F2 onRemoval, F3 getName,
                              const bool removeButton = true)
@@ -66,11 +65,14 @@ static void renderSelectableNoTree(const char *elementName, C &container, u32 &s
 
 SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *data) : ApplicationLayer(layers)
 {
+    DefaultSampler = ONYX_CHECK_EXPRESSION(Assets::AddDefaultSampler());
+
     AddMeshes<D2>();
     AddMeshes<D3>();
 
     AddMaterial<D2>("Default material 2D");
     AddMaterial<D3>("Default material 3D");
+
     ONYX_CHECK_EXPRESSION(Assets::Upload());
 
     if (data->Flags & ParseFlag_D2)
@@ -105,11 +107,16 @@ void SandboxAppLayer::OnTransfer(const DeltaTime &)
     DrawLattices<D3>();
 }
 
-template <Dimension D> void SandboxAppLayer::AddStaticMesh(const char *name, const StatMeshData<D> &data)
+template <Dimension D>
+void SandboxAppLayer::AddStaticMesh(const char *name, const StatMeshData<D> &data, const bool upload)
 {
-    MeshArray<D> &meshes = GetMeshes<D>();
+    auto &meshes = GetMeshes<D>();
     const Mesh mesh = Assets::AddMesh(data);
     meshes.StaticMeshes.Append(name, mesh, data);
+    if (upload)
+    {
+        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+    }
 }
 template <Dimension D> void SandboxAppLayer::AddMeshes()
 {
@@ -286,7 +293,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const u32 geometry,
         shape.Name = "Circle";
         return shape;
     case Geometry_StaticMesh: {
-        const MeshArray<D> &meshes = GetMeshes<D>();
+        const auto &meshes = GetMeshes<D>();
         const StatMeshId<D> &mesh = meshes.StaticMeshes[statMesh];
         shape.Name = mesh.Name;
         shape.StatMesh = mesh.Mesh;
@@ -333,9 +340,19 @@ template <Dimension D> void SandboxAppLayer::AddMaterial(const char *name)
 {
     auto &materials = GetMaterials<D>();
     const u32 size = materials.Materials.GetSize();
-    MaterialId<D> &data = materials.Materials.Append();
-    data.Name = name ? name : TKit::Format("Material {}", size);
-    data.Material = Assets::AddMaterial(data.Data);
+    MaterialId<D> &mat = materials.Materials.Append();
+    mat.Data.Sampler = DefaultSampler;
+    mat.Name = name ? name : TKit::Format("Material-{}", size);
+    mat.Material = Assets::AddMaterial(mat.Data);
+    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+}
+
+void SandboxAppLayer::AddTexture(const TextureData &data, const char *name)
+{
+    const u32 size = Textures.GetSize();
+    TextureId &tex = Textures.Append();
+    tex.Name = name ? name : TKit::Format("Texture-{}", size);
+    tex.Texture = Assets::AddTexture(data);
     ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
 }
 
@@ -356,13 +373,16 @@ SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, con
 }
 SandboxWinLayer::~SandboxWinLayer()
 {
-#ifndef TKIT_OS_APPLE
-    if (DialogTask)
-    {
-        TKit::ITaskManager *tm = Core::GetTaskManager();
-        tm->WaitUntilFinished(DialogTask);
-    }
-#endif
+    const auto wait = [](TKit::Task<Dialog::Result<Dialog::Path>> &task) {
+        if (task)
+        {
+            TKit::ITaskManager *tm = Core::GetTaskManager();
+            tm->WaitUntilFinished(task);
+        }
+    };
+    wait(StatMeshTask);
+    wait(TexTask);
+    wait(GltfTask);
 }
 
 void SandboxWinLayer::OnRender(const DeltaTime &deltaTime)
@@ -505,8 +525,10 @@ void SandboxWinLayer::RenderImGui()
             RenderCameras<D2>();
             RenderMeshes<D2>();
             RenderMaterials<D2>();
+            RenderTextures();
             RenderLattices<D2>();
             RenderRenderer<D2>();
+            RenderGltf<D2>();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("3D"))
@@ -515,8 +537,10 @@ void SandboxWinLayer::RenderImGui()
             RenderCameras<D3>();
             RenderMeshes<D3>();
             RenderMaterials<D3>();
+            RenderTextures();
             RenderLattices<D3>();
             RenderRenderer<D3>();
+            RenderGltf<D3>();
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -673,12 +697,42 @@ template <Dimension D> void SandboxWinLayer::RenderContexts()
 
 template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, u32 *toSpawn)
 {
+    ImGui::PushID(toSpawn);
     TKit::StackArray<const char *> names{};
     const auto &materials = appLayer->GetMaterials<D>();
     names.Reserve(materials.Materials.GetSize());
     for (const MaterialId<D> &mat : materials.Materials)
         names.Append(mat.Name.c_str());
-    return combo(name, toSpawn, names);
+    bool changed = false;
+    if (*toSpawn != TKIT_U32_MAX)
+    {
+        changed |= ImGui::Button("X");
+        if (changed)
+            *toSpawn = TKIT_U32_MAX;
+        ImGui::SameLine();
+    }
+    ImGui::PopID();
+    return combo(name, toSpawn, names) || changed;
+}
+
+static bool texNameCombo(const char *name, SandboxAppLayer *appLayer, u32 *toSpawn)
+{
+    ImGui::PushID(toSpawn);
+    TKit::StackArray<const char *> names{};
+    const auto &textures = appLayer->Textures;
+    names.Reserve(textures.GetSize());
+    for (const TextureId &tex : textures)
+        names.Append(tex.Name.c_str());
+    bool changed = false;
+    if (*toSpawn != TKIT_U32_MAX)
+    {
+        changed |= ImGui::Button("X");
+        if (changed)
+            *toSpawn = TKIT_U32_MAX;
+        ImGui::SameLine();
+    }
+    ImGui::PopID();
+    return combo(name, toSpawn, names) || changed;
 }
 
 template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &context)
@@ -739,7 +793,7 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
 template <Dimension D> static bool shapeNameCombo(const char *name, SandboxAppLayer *appLayer, u32 *toSpawn)
 {
     TKit::StackArray<const char *> names{};
-    const MeshArray<D> &meshes = appLayer->GetMeshes<D>();
+    const auto &meshes = appLayer->GetMeshes<D>();
     names.Reserve(meshes.StaticMeshes.GetSize());
     for (const StatMeshId<D> &mid : meshes.StaticMeshes)
         names.Append(mid.Name.c_str());
@@ -835,11 +889,149 @@ template <Dimension D> void SandboxWinLayer::RenderMaterial(MaterialId<D> &mater
 {
     ImGui::InputText("Name", &material.Name);
     ImGui::Text("Material id: %u", material.Material);
-    if (MaterialEditor(material.Data, EditorFlag_DisplayHelp))
+    ImGui::Text("Sampler id: %u", material.Data.Sampler);
+    SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+    bool changed = MaterialPropertiesEditor(material.Data, EditorFlag_DisplayHelp);
+    if constexpr (D == D2)
+        changed |= texNameCombo("Texture", appLayer, &material.Data.Texture);
+    else
+    {
+        changed |= texNameCombo("Albedo tex", appLayer, &material.Data.AlbedoTex);
+        changed |= texNameCombo("Metallic roughness tex", appLayer, &material.Data.MetallicRoughnessTex);
+        changed |= texNameCombo("Normal tex", appLayer, &material.Data.NormalTex);
+        changed |= texNameCombo("Occlusion tex", appLayer, &material.Data.OcclusionTex);
+        changed |= texNameCombo("Emissive tex", appLayer, &material.Data.EmissiveTex);
+    }
+    if (changed)
     {
         Assets::UpdateMaterial(material.Material, material.Data);
         ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
     }
+}
+
+template <typename F>
+void SandboxWinLayer::HandleLoadDialog([[maybe_unused]] TKit::Task<Dialog::Result<Dialog::Path>> &task, const F load,
+                                       const char *name)
+{
+    const auto handleError = [](const Dialog::Status status) {
+        switch (status)
+        {
+        case Dialog::Success:
+            return;
+        case Dialog::Cancel:
+            TKIT_LOG_WARNING("[ONYX][SANDBOX] Selection canceled");
+            return;
+        case Dialog::Error: {
+            const char *error = Dialog::GetError();
+            TKIT_LOG_ERROR_IF(error, "[ONYX][SANDBOX] Error opening dialog: {}", error);
+            TKIT_LOG_ERROR_IF(!error, "[ONYX][SANDBOX] Error opening dialog");
+            if (error)
+                Dialog::ClearError();
+            return;
+        }
+        }
+    };
+#    ifndef TKIT_OS_APPLE
+    ImGui::BeginDisabled(task && !task.IsFinished());
+    TKit::ITaskManager *tm = Core::GetTaskManager();
+#    endif
+    ImGui::PushID(&load);
+    if (ImGui::Button(name))
+    {
+        const auto openDialog = [this]() { return Dialog::OpenSingle({.Window = GetWindow()->GetHandle()}); };
+#    ifndef TKIT_OS_APPLE
+        task.Reset();
+        task = openDialog;
+        tm->SubmitTask(&task);
+#    else
+        const auto result = openDialog();
+        if (result)
+            load(result.GetValue());
+        else
+            handleError(result.GetError());
+#    endif
+    }
+#    ifndef TKIT_OS_APPLE
+    ImGui::EndDisabled();
+    if (task && task.IsFinished())
+    {
+        const auto result = tm->WaitForResult(task);
+        if (result)
+            load(result.GetValue());
+        else
+            handleError(result.GetError());
+        task = nullptr;
+    }
+#    endif
+    ImGui::PopID();
+}
+
+void SandboxWinLayer::RenderTextures()
+{
+    if (ImGui::CollapsingHeader("Textures"))
+    {
+        SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+        HandleLoadDialog(TexTask, [&](const Dialog::Path &path) {
+            const auto res = Assets::LoadTextureDataFromImageFile(path.string().c_str(), ImageComponent_RGBA);
+            VKIT_LOG_RESULT_ERROR(res);
+            if (!res)
+                return;
+
+            const TextureData &data = res.GetValue();
+            appLayer->AddTexture(data, path.filename().string().c_str());
+            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        });
+        for (const TextureId &tex : appLayer->Textures)
+            ImGui::BulletText("%s", tex.Name.c_str());
+    }
+}
+
+template <Dimension D> void SandboxWinLayer::RenderGltf()
+{
+    SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+    HandleLoadDialog(
+        GltfTask,
+        [&](const Dialog::Path &path) {
+            auto res = Assets::LoadGltfFile<D>(path.string(), AssetsFlag_LoadImageForceRGBA);
+            VKIT_LOG_RESULT_ERROR(res);
+            if (!res)
+                return;
+
+            GltfData<D> &data = res.GetValue();
+            const GltfHandles handles = Assets::AddGltfData(data, appLayer->DefaultSampler);
+            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+
+            auto &meshes = appLayer->GetMeshes<D>();
+            for (u32 i = 0; i < handles.StaticMeshes.GetSize(); ++i)
+            {
+                const Mesh mesh = handles.StaticMeshes[i];
+                const StatMeshData<D> &mdat = data.StaticMeshes[i];
+                StatMeshId<D> &mid = meshes.StaticMeshes.Append();
+                mid.Name = TKit::Format("GLTF-Mesh-{}", mesh);
+                mid.Mesh = mesh;
+                mid.Data = mdat;
+            }
+
+            auto &materials = appLayer->GetMaterials<D>();
+            for (u32 i = 0; i < handles.Materials.GetSize(); ++i)
+            {
+                const Material mat = handles.Materials[i];
+                const MaterialData<D> &mdat = data.Materials[i];
+                MaterialId<D> &mid = materials.Materials.Append();
+                mid.Name = TKit::Format("GLTF-Material-{}", mat);
+                mid.Material = mat;
+                mid.Data = mdat;
+            }
+
+            auto &textures = appLayer->Textures;
+            for (const Texture tex : handles.Textures)
+            {
+                TextureId &tid = textures.Append();
+                tid.Name = TKit::Format("GLTF-Texture-{}", tex);
+                tid.Texture = tex;
+            }
+        },
+        "Load GLTF file");
 }
 
 template <Dimension D> void SandboxWinLayer::RenderMeshes()
@@ -847,7 +1039,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshes()
     if (ImGui::CollapsingHeader("Meshes"))
     {
         SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
-        MeshArray<D> &meshes = appLayer->GetMeshes<D>();
+        auto &meshes = appLayer->GetMeshes<D>();
         renderSelectableNoRemoval(
             "Static meshes", meshes.StaticMeshes, meshes.Active, [this](StatMeshId<D> &mesh) { RenderMesh(mesh); },
             [](StatMeshId<D> &mesh) { return mesh.Name.c_str(); }, false);
@@ -869,12 +1061,9 @@ template <Dimension D> void SandboxWinLayer::RenderMeshes()
                 const u32 mn = 3;
                 const u32 mx = 128;
                 ImGui::SliderScalar("Sides", ImGuiDataType_U32, &meshes.RegularPolySides, &mn, &mx);
-                if (ImGui::Button("Load"))
-                {
+                if (ImGui::Button("Create##Regular"))
                     appLayer->AddStaticMesh<D>(name[0] ? name : "Regular polygon",
-                                               Assets::CreateRegularPolygonMesh<D>(meshes.RegularPolySides));
-                    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
-                }
+                                               Assets::CreateRegularPolygonMesh<D>(meshes.RegularPolySides), true);
             }
             else if (meshes.StatMeshToLoad == 1)
             {
@@ -898,84 +1087,20 @@ template <Dimension D> void SandboxWinLayer::RenderMeshes()
                     meshes.PolyVertices.Append(meshes.VertexToAdd);
                 ImGui::SameLine();
                 ImGui::DragFloat2("New vertex", meshes.VertexToAdd.GetData(), 0.4f);
-                if (ImGui::Button("Load"))
-                {
+                if (ImGui::Button("Create##Polygon"))
                     appLayer->AddStaticMesh<D>(name[0] ? name : "Polygon",
                                                Assets::CreatePolygonMesh<D>(meshes.PolyVertices));
-                    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
-                }
             }
             else if (meshes.StatMeshToLoad == importedIndex)
-            {
-                const auto load = [&](const Dialog::Path &path) {
-                    const auto lres = Assets::LoadStaticMeshFromObjFile<D>(path.string().c_str());
-                    VKIT_LOG_RESULT_ERROR(lres);
-                    if (!lres)
+                HandleLoadDialog(StatMeshTask, [&](const Dialog::Path &path) {
+                    const auto res = Assets::LoadStaticMeshFromObjFile<D>(path.string().c_str());
+                    VKIT_LOG_RESULT_ERROR(res);
+                    if (!res)
                         return;
 
-                    const StatMeshData<D> &data = lres.GetValue();
-                    appLayer->AddStaticMesh(name[0] ? name : path.filename().string().c_str(), data);
-                    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
-                };
-                const auto handleError = [](const Dialog::Status status) {
-                    switch (status)
-                    {
-                    case Dialog::Success:
-                        return;
-                    case Dialog::Cancel:
-                        TKIT_LOG_WARNING("[ONYX][SANDBOX] Selection canceled");
-                        return;
-                    case Dialog::Error: {
-                        const char *error = Dialog::GetError();
-                        TKIT_LOG_ERROR_IF(error, "[ONYX][SANDBOX] Error opening dialog: {}", error);
-                        TKIT_LOG_ERROR_IF(!error, "[ONYX][SANDBOX] Error opening dialog");
-                        if (error)
-                            Dialog::ClearError();
-                        return;
-                    }
-                    }
-                };
-#    ifndef TKIT_OS_APPLE
-                ImGui::BeginDisabled(DialogTask && !DialogTask.IsFinished());
-                TKit::ITaskManager *tm = Core::GetTaskManager();
-#    endif
-                if (ImGui::Button("Load"))
-                {
-                    const auto openDialog = [this]() {
-#    ifdef TKIT_OS_WINDOWS
-                        return Dialog::OpenSingle({.Window = GetWindow()->GetHandle()});
-#    else
-                        const Dialog::Path path =
-                            D == D2 ? (ONYX_ROOT_PATH "/demo/meshes2/") : (ONYX_ROOT_PATH "/demo/meshes3/");
-                        return Dialog::OpenSingle({.Window = GetWindow()->GetHandle(), .DefaultPath = path.c_str()});
-#    endif
-                    };
-
-#    ifndef TKIT_OS_APPLE
-                    DialogTask.Reset();
-                    DialogTask = openDialog;
-                    tm->SubmitTask(&DialogTask);
-#    else
-                    const auto result = openDialog();
-                    if (result)
-                        load(result.GetValue());
-                    else
-                        handleError(result.GetError());
-#    endif
-                }
-#    ifndef TKIT_OS_APPLE
-                ImGui::EndDisabled();
-                if (DialogTask && DialogTask.IsFinished())
-                {
-                    const auto result = tm->WaitForResult(DialogTask);
-                    if (result)
-                        load(result.GetValue());
-                    else
-                        handleError(result.GetError());
-                    DialogTask = nullptr;
-                }
-#    endif
-            }
+                    const StatMeshData<D> &data = res.GetValue();
+                    appLayer->AddStaticMesh(name[0] ? name : path.filename().string().c_str(), data, true);
+                });
             if constexpr (D == D3)
             {
                 MeshArray<D3> &m3 = meshes;
@@ -985,24 +1110,18 @@ template <Dimension D> void SandboxWinLayer::RenderMeshes()
                     const u32 mx = 256;
                     ImGui::SliderScalar("Rings", ImGuiDataType_U32, &m3.Rings, &mn, &mx);
                     ImGui::SliderScalar("Sectors", ImGuiDataType_U32, &m3.Sectors, &mn, &mx);
-                    if (ImGui::Button("Load"))
-                    {
+                    if (ImGui::Button("Create##Sphere"))
                         appLayer->AddStaticMesh<D>(name[0] ? name : "Sphere",
-                                                   Assets::CreateSphereMesh(m3.Rings, m3.Sectors));
-                        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
-                    }
+                                                   Assets::CreateSphereMesh(m3.Rings, m3.Sectors), true);
                 }
                 else if (meshes.StatMeshToLoad == 3)
                 {
                     const u32 mn = 8;
                     const u32 mx = 256;
                     ImGui::SliderScalar("Sides", ImGuiDataType_U32, &m3.CylinderSides, &mn, &mx);
-                    if (ImGui::Button("Load"))
-                    {
+                    if (ImGui::Button("Create##Cylinder"))
                         appLayer->AddStaticMesh<D>(name[0] ? name : "Cylinder",
-                                                   Assets::CreateCylinderMesh(m3.CylinderSides));
-                        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
-                    }
+                                                   Assets::CreateCylinderMesh(m3.CylinderSides), true);
                 }
             }
         }

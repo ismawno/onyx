@@ -157,7 +157,7 @@ template <Dimension D> void updateMaterialDescriptorSet()
     const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(Shading_Lit);
 
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
-    writer.WriteBuffer(1, &binfo);
+    writer.WriteBuffer(1, binfo);
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D>(Shading_Lit))
         writer.Overwrite(set);
 }
@@ -382,6 +382,8 @@ void Terminate()
 
     for (VKit::DeviceImage &img : s_TextureData->Images)
         img.Destroy();
+    for (VKit::Sampler &sampler : s_SamplerData->Samplers)
+        sampler.Destroy();
 
     TKIT_ASSERT(s_TextureData->Textures.GetSize() == s_TextureData->Flags.GetSize(),
                 "[ONYX][ASSETS] Texture and flags size mismatch! {} != {}", s_TextureData->Textures.GetSize(),
@@ -450,14 +452,14 @@ Sampler AddSampler(const VKit::Sampler &sampler)
     return handle;
 }
 
-Result<Sampler> AddSampler()
+Result<Sampler> AddDefaultSampler()
 {
     const auto result = Resources::CreateDefaultSampler();
     TKIT_RETURN_ON_ERROR(result);
     return AddSampler(result.GetValue());
 }
 
-template <Dimension D> GltfHandles AddGltfData(const GltfData<D> &data, const Sampler defaultSampler)
+template <Dimension D> GltfHandles AddGltfData(GltfData<D> &data, const Sampler defaultSampler)
 {
     GltfHandles handles;
     handles.StaticMeshes.Reserve(data.StaticMeshes.GetSize());
@@ -468,23 +470,21 @@ template <Dimension D> GltfHandles AddGltfData(const GltfData<D> &data, const Sa
 
     const u32 texOffset = s_TextureData->Textures.GetSize();
 
-    MaterialInfo<D> &minfo = getData<D>().Materials;
-    for (const MaterialData<D> &mdata : data.Materials)
+    for (MaterialData<D> &mdata : data.Materials)
     {
-        handles.Materials.Append(AddMaterial(mdata));
-        MaterialData<D> &added = minfo.Materials.GetBack();
-        if (added.Sampler == NullSampler)
-            added.Sampler = defaultSampler;
+        if (mdata.Sampler == NullSampler)
+            mdata.Sampler = defaultSampler;
         if constexpr (D == D2)
-            added.Texture += texOffset;
+            mdata.Texture += texOffset;
         else
         {
-            added.AlbedoTex += texOffset;
-            added.MetallicRoughnessTex += texOffset;
-            added.NormalTex += texOffset;
-            added.OcclusionTex += texOffset;
-            added.EmissiveTex += texOffset;
+            mdata.AlbedoTex += texOffset;
+            mdata.MetallicRoughnessTex += texOffset;
+            mdata.NormalTex += texOffset;
+            mdata.OcclusionTex += texOffset;
+            mdata.EmissiveTex += texOffset;
         }
+        handles.Materials.Append(AddMaterial(mdata));
     }
     for (const TextureData &tdata : data.Textures)
         handles.Textures.Append(AddTexture(tdata));
@@ -518,7 +518,7 @@ void UpdateTexture(const Texture tex, const TextureData &data, const AssetsFlags
 #endif
 
     TKIT_ASSERT(
-        data.GetSize() == s_TextureData->Textures[tex].GetSize(),
+        data.ComputeSize() == s_TextureData->Textures[tex].ComputeSize(),
         "[ONYX][ASSETS] When updating a texture, the size of the data of the previous and updated texture must be the "
         "same. If they are not, you must create a new texture");
 
@@ -680,13 +680,13 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
         for (u32 i = imgs.GetSize(); i < texs.GetSize(); ++i)
         {
             const TextureData &tdata = texs[i];
-
-            TKIT_LOG_DEBUG("[ONYX][ASSETS] Creating new texture with dimensions {}x{} and {} channels", tdata.Width,
-                           tdata.Height, tdata.Components);
+            TKIT_LOG_DEBUG("[ONYX][ASSETS] Creating new texture with dimensions {}x{} and {} channels, with size {:L}",
+                           tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
 
             auto result = VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
                                                      VkExtent2D{tdata.Width, tdata.Height}, tdata.Format,
-                                                     VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled)
+                                                     VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled |
+                                                         VKit::DeviceImageFlag_Destination)
                               .WithImageView()
                               .Build();
             TKIT_RETURN_ON_ERROR(result);
@@ -697,9 +697,10 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 const std::string name = TKit::Format("onyx-assets-texture-image-{}", i);
                 TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()));
             }
-            const VkDescriptorImageInfo &info = imageInfos.Append(img.CreateDescriptorInfo());
-            writer2.WriteImage(3, &info);
-            writer3.WriteImage(3, &info);
+            const VkDescriptorImageInfo &info =
+                imageInfos.Append(img.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+            writer2.WriteImage(3, info, i);
+            writer3.WriteImage(3, info, i);
         }
 
         for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
@@ -719,6 +720,10 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
             VKit::DeviceImage &img = imgs[i];
 
             const VkDeviceSize size = img.ComputeSize();
+            TKIT_ASSERT(
+                size == tdata.ComputeSize(),
+                "[ONYX][ASSETS] Size mismatch. Device image reports {:L} bytes while texture data reports {:L} bytes",
+                size, tdata.ComputeSize());
 
             TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading new texture of size {:L} bytes", size);
 
@@ -786,8 +791,8 @@ static void uploadSamplers()
     {
         const VkDescriptorImageInfo &info = imageInfos.Append(VkDescriptorImageInfo{
             .sampler = samplers[i], .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED});
-        writer2.WriteImage(2, &info);
-        writer3.WriteImage(2, &info);
+        writer2.WriteImage(2, info, i);
+        writer3.WriteImage(2, info, i);
     }
 
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
@@ -933,20 +938,21 @@ static VkFormat getFormat(const i32 components, const i32 pixelType, const bool 
         return VK_FORMAT_UNDEFINED;
     }
 }
-template <Dimension D> Result<GltfData<D>> LoadGltfFile(const char *path, const AssetsFlags flags)
+template <Dimension D> Result<GltfData<D>> LoadGltfFile(const std::string &path, const AssetsFlags flags)
 {
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string warn, err;
 
     loader.SetPreserveImageChannels(!(flags & AssetsFlag_LoadImageForceRGBA));
-    const bool ok = loader.LoadASCIIFromFile(&model, &err, &warn, path);
+    const bool ok = path.ends_with(".bin") || path.ends_with(".glb")
+                        ? loader.LoadBinaryFromFile(&model, &err, &warn, path)
+                        : loader.LoadASCIIFromFile(&model, &err, &warn, path);
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][ASSETS] {}", warn);
     if (!ok)
         return Result<GltfData<D>>::Error(Error_LoadFailed,
                                           TKit::Format("[ONYX][ASSETS] Failed to load gltf: {}", err));
     GltfData<D> data{};
-
     for (const auto &mesh : model.meshes)
         for (const auto &prim : mesh.primitives)
         {
@@ -1096,12 +1102,14 @@ template <Dimension D> Result<GltfData<D>> LoadGltfFile(const char *path, const 
         tex.Height = u32(image.height);
         tex.Components = u32(image.component);
         tex.Format = getFormat(image.component, image.pixel_type, srgbTexs.contains(i));
+        tex.Data = scast<std::byte *>(TKit::Allocate(tex.ComputeSize()));
+        TKIT_ASSERT(tex.Data, "[ONYX][ASSETS] Failed to allocate texture data of size {:L} bytes", tex.ComputeSize());
         data.Textures.Append(tex);
     }
 
     return data;
 }
-Result<TextureData> LoadTextureDataFromImageFile(const char *path, const u32 requiredComponents,
+Result<TextureData> LoadTextureDataFromImageFile(const char *path, const ImageComponent requiredComponents,
                                                  const AssetsFlags flags)
 {
     TextureData data{};
@@ -1110,11 +1118,11 @@ Result<TextureData> LoadTextureDataFromImageFile(const char *path, const u32 req
     i32 c;
 
     i32 pixelType;
-    void *img;
+    void *img = nullptr;
 
     if (stbi_is_hdr(path))
     {
-        pixelType = TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
+        pixelType = TINYGLTF_COMPONENT_TYPE_FLOAT;
         img = stbi_loadf(path, &w, &h, &c, i32(requiredComponents));
     }
     else if (stbi_is_16_bit(path))
@@ -1134,11 +1142,12 @@ Result<TextureData> LoadTextureDataFromImageFile(const char *path, const u32 req
 
     data.Width = u32(w);
     data.Height = u32(h);
-    data.Components = u32(c);
-    data.Format = getFormat(c, pixelType, !(flags & AssetsFlag_LoadAsLinearImage));
-    const usz size = data.GetSize();
+    data.Components = requiredComponents > 0 ? requiredComponents : u32(c);
+    data.Format = getFormat(i32(data.Components), pixelType, !(flags & AssetsFlag_LoadAsLinearImage));
+    const usz size = data.ComputeSize();
 
     data.Data = scast<std::byte *>(TKit::Allocate(size));
+    TKIT_ASSERT(data.Data, "[ONYX][ASSETS] Failed to allocate image data with size {:L} bytes", size);
     TKit::ForwardCopy(data.Data, img, size);
     stbi_image_free(img);
     return data;
@@ -1509,11 +1518,11 @@ template const MaterialData<D2> &GetMaterialData(Material material);
 template const MaterialData<D3> &GetMaterialData(Material material);
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
-template GltfHandles AddGltfData(const GltfData<D2> &data, Sampler defaultSampler = NullSampler);
-template GltfHandles AddGltfData(const GltfData<D3> &data, Sampler defaultSampler = NullSampler);
+template GltfHandles AddGltfData(GltfData<D2> &data, Sampler defaultSampler = NullSampler);
+template GltfHandles AddGltfData(GltfData<D3> &data, Sampler defaultSampler = NullSampler);
 
-template Result<GltfData<D2>> LoadGltfFile(const char *path, AssetsFlags flags);
-template Result<GltfData<D3>> LoadGltfFile(const char *path, AssetsFlags flags);
+template Result<GltfData<D2>> LoadGltfFile(const std::string &path, AssetsFlags flags);
+template Result<GltfData<D3>> LoadGltfFile(const std::string &path, AssetsFlags flags);
 #endif
 
 template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D2>();

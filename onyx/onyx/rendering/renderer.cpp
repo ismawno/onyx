@@ -228,7 +228,7 @@ static void updateDescriptorSet(const VkDescriptorSet set, const u32 binding, co
 {
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
     const VkDescriptorBufferInfo info = buffer.CreateDescriptorInfo();
-    writer.WriteBuffer(binding, &info);
+    writer.WriteBuffer(binding, info);
     writer.Overwrite(set);
 }
 

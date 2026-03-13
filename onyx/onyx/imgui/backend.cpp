@@ -1315,7 +1315,7 @@ ONYX_NO_DISCARD static Result<VkDescriptorSet> renderer_AddTexture(const VKit::D
     info.sampler = s_RendererData->Sampler;
     info.imageView = image.GetImageView();
     info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    writer.WriteImage(0, &info);
+    writer.WriteImage(0, info);
 
     const VKit::DescriptorSet &set = result.GetValue();
     writer.Overwrite(set);

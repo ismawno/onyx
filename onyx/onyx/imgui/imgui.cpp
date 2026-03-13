@@ -136,7 +136,7 @@ template <Dimension D> void DisplayCameraControls(const CameraControls<D> &contr
 template void DisplayCameraControls<D2>(const CameraControls<D2> &controls);
 template void DisplayCameraControls<D3>(const CameraControls<D3> &controls);
 
-template <Dimension D> bool MaterialEditor(MaterialData<D> &data, const EditorFlags flags)
+template <Dimension D> bool MaterialPropertiesEditor(MaterialData<D> &data, const EditorFlags flags)
 {
     if (flags & EditorFlag_DisplayHelp)
         HelpMarker("Materials define surface properties like color, diffuse/specular response, and specular sharpness. "
@@ -171,8 +171,8 @@ template <Dimension D> bool MaterialEditor(MaterialData<D> &data, const EditorFl
     return changed;
 }
 
-template bool MaterialEditor<D2>(MaterialData<D2> &data, const EditorFlags flags);
-template bool MaterialEditor<D3>(MaterialData<D3> &data, const EditorFlags flags);
+template bool MaterialPropertiesEditor<D2>(MaterialData<D2> &data, const EditorFlags flags);
+template bool MaterialPropertiesEditor<D3>(MaterialData<D3> &data, const EditorFlags flags);
 
 bool DeltaTimeEditor(DeltaTime &dt, DeltaInfo &di, const Window *window, const EditorFlags flags)
 {
