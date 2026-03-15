@@ -123,13 +123,16 @@ if(ONYX_ENABLE_GLTF_LOAD)
 
   set(TINYGLTF_HEADER_ONLY
       ON
-      CACHE BOOL "" FORCE)
+      CACHE BOOL "")
   set(TINYGLTF_INSTALL
       OFF
-      CACHE BOOL "" FORCE)
+      CACHE BOOL "")
   set(TINYGLTF_NOEXCEPTION
       ON
-      CACHE BOOL "" FORCE)
+      CACHE BOOL "")
+  set(TINYGLTF_BUILD_LOADER_EXAMPLE
+      OFF
+      CACHE BOOL "")
 
   FetchContent_MakeAvailable(tgltf)
 
