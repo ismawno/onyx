@@ -163,8 +163,8 @@ template <Dimension D> bool MaterialPropertiesEditor(MaterialData<D> &data, cons
         changed |= ImGui::IsItemDeactivatedAfterEdit();
         ImGui::DragFloat("Roughness factor", &d3.RoughnessFactor, 0.01f);
         changed |= ImGui::IsItemDeactivatedAfterEdit();
-        // ImGui::DragFloat("Normal scale", &d3.NormalScale, 0.01f);
-        // changed |= ImGui::IsItemDeactivatedAfterEdit();
+        ImGui::DragFloat("Normal scale", &d3.NormalScale, 0.01f);
+        changed |= ImGui::IsItemDeactivatedAfterEdit();
         ImGui::DragFloat("Occlusion strength", &d3.OcclusionStrength, 0.01f);
         changed |= ImGui::IsItemDeactivatedAfterEdit();
     }
@@ -173,6 +173,35 @@ template <Dimension D> bool MaterialPropertiesEditor(MaterialData<D> &data, cons
 
 template bool MaterialPropertiesEditor<D2>(MaterialData<D2> &data, const EditorFlags flags);
 template bool MaterialPropertiesEditor<D3>(MaterialData<D3> &data, const EditorFlags flags);
+
+template <typename Integer> static bool combo(const char *name, Integer *item, const char *items)
+{
+    i32 idx = i32(*item);
+    if (ImGui::Combo(name, &idx, items))
+    {
+        *item = Integer(idx);
+        return true;
+    }
+    return false;
+}
+
+bool SamplerEditor(SamplerData &data, const EditorFlags flags)
+{
+    if (flags & EditorFlag_DisplayHelp)
+        HelpMarker("Materials define surface properties like color, diffuse/specular response, and specular sharpness. "
+                   "These are combined with lighting to produce the final rendered color.");
+
+    bool changed = combo("Mode", &data.Mode, "Linear\0Nearest\0\0");
+
+    changed |= combo("Min filter", &data.MinFilter, "Linear\0Nearest\0Cubic\0\0");
+    changed |= combo("Mag filter", &data.MagFilter, "Linear\0Nearest\0Cubic\0\0");
+
+    changed |= combo("Wrap U", &data.WrapU, "Repeat\0Clamp to edge\0Mirrored repeat\0\0");
+    changed |= combo("Wrap V", &data.WrapV, "Repeat\0Clamp to edge\0Mirrored repeat\0\0");
+    changed |= combo("Wrap W", &data.WrapW, "Repeat\0Clamp to edge\0Mirrored repeat\0\0");
+
+    return changed;
+}
 
 bool DeltaTimeEditor(DeltaTime &dt, DeltaInfo &di, const Window *window, const EditorFlags flags)
 {

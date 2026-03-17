@@ -1,15 +1,12 @@
 #pragma once
 
-#include "onyx/core/alias.hpp"
+#include "onyx/asset/handle.hpp"
 #include "vkit/resource/device_image.hpp"
-#include "tkit/utils/limits.hpp"
 
 namespace Onyx
 {
-using Texture = u32;
-using Sampler = u32;
-constexpr Texture NullTexture = TKit::Limits<Texture>::Max();
-constexpr Sampler NullSampler = TKit::Limits<Sampler>::Max();
+using Texture = Handle;
+constexpr Texture NullTexture = NullHandle;
 
 struct TextureData
 {

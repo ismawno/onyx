@@ -8,11 +8,6 @@ Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags, con
     return VKit::DeviceBuffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), flags).SetSize(size).Build();
 }
 
-Result<VKit::Sampler> CreateDefaultSampler()
-{
-    return VKit::Sampler::Builder(Core::GetDevice()).Build();
-}
-
 Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const u32 instances, const u32 instanceSize,
                                 const f32 factor)
 {

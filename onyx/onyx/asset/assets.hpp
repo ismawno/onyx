@@ -4,7 +4,6 @@
 #include "onyx/asset/mesh.hpp"
 #include "onyx/asset/material.hpp"
 #include "onyx/property/instance.hpp"
-#include "vkit/resource/sampler.hpp"
 
 namespace Onyx
 {
@@ -16,7 +15,6 @@ enum AssetsFlagBit : AssetsFlags
     AssetsFlag_UserHandledMemory = 1 << 2,  // relevant in AddTexture
     AssetsFlag_LoadImageForceRGBA = 1 << 3, // relevant when loading gltf
     AssetsFlag_LoadAsLinearImage = 1 << 4,  // relevant when loading image
-    // AssetsFlag_IncludeSampler = 1 << 5,     // relevant when loading gltf
 };
 
 enum ImageComponent : u8
@@ -28,13 +26,13 @@ enum ImageComponent : u8
     ImageComponent_RGBA = 4,
 };
 #ifdef ONYX_ENABLE_GLTF_LOAD
-// samplers are not supported for now
-template <Dimension D> struct GltfData
+template <Dimension D> struct GltfAssets
 {
     TKit::TierArray<StatMeshData<D>> StaticMeshes{};
-    // here texture handles refer to the Textures attribute in GltfData, not to any Asset handle!! AddGltfData modifies
-    // material data so that it actually points to real textures
+    // here texture handles refer to the Textures attribute in GltfAssets, not to any Asset handle!! AddGltfAssets
+    // modifies material data so that it actually points to real textures
     TKit::TierArray<MaterialData<D>> Materials{};
+    TKit::TierArray<SamplerData> Samplers{};
     TKit::TierArray<TextureData> Textures{};
 };
 
@@ -42,8 +40,10 @@ struct GltfHandles
 {
     TKit::TierArray<Mesh> StaticMeshes{};
     TKit::TierArray<Material> Materials{};
+    TKit::TierArray<Sampler> Samplers{};
     TKit::TierArray<Texture> Textures{};
 };
+
 #endif
 } // namespace Onyx
 
@@ -60,7 +60,7 @@ struct Specs
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
-u32 GetStaticMeshBatchIndex(Mesh mesh);
+u32 GetStaticMeshBatchIndex(Mesh handle);
 u32 GetStaticMeshIndexFromBatch(u32 batch);
 u32 GetCircleBatchIndex();
 
@@ -69,31 +69,33 @@ u32 GetBatchEnd(Geometry geo);
 u32 GetBatchCount(Geometry geo);
 u32 GetBatchCount();
 
-Sampler AddSampler(const VKit::Sampler &sampler);
-ONYX_NO_DISCARD Result<Sampler> AddDefaultSampler();
+Sampler AddSampler(const SamplerData &data);
+void UpdateSampler(Sampler handle, const SamplerData &data);
+void RemoveSampler(Sampler handle);
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
 
-template <Dimension D> GltfHandles AddGltfData(GltfData<D> &data, Sampler defaultSampler = NullSampler);
+template <Dimension D> GltfHandles AddGltfAssets(GltfAssets<D> &data);
 
 Texture AddTexture(const TextureData &data, AssetsFlags flags = 0);
-void UpdateTexture(Texture tex, const TextureData &data, AssetsFlags flags = 0);
+void UpdateTexture(Texture handle, const TextureData &data, AssetsFlags flags = 0);
+void RemoveTexture(Texture handle);
 #else
 Texture AddTexture(const TextureData &data, AssetsFlags flags = AssetsFlag_UserHandledMemory);
-void UpdateTexture(Texture tex, const TextureData &data, AssetsFlags flags = AssetsFlag_UserHandledMemory);
+void UpdateTexture(Texture handle, const TextureData &data, AssetsFlags flags = AssetsFlag_UserHandledMemory);
 #endif
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data);
-template <Dimension D> void UpdateMesh(Mesh mesh, const StatMeshData<D> &data);
+template <Dimension D> void UpdateMesh(Mesh handle, const StatMeshData<D> &data);
 
 template <Dimension D> Material AddMaterial(const MaterialData<D> &data);
-template <Dimension D> void UpdateMaterial(Material material, const MaterialData<D> &data);
+template <Dimension D> void UpdateMaterial(Material handle, const MaterialData<D> &data);
 
-template <Dimension D> StatMeshData<D> GetStaticMeshData(Mesh mesh);
-template <Dimension D> const MaterialData<D> &GetMaterialData(Material material);
-const TextureData &GetTextureData(Texture texture);
+template <Dimension D> StatMeshData<D> GetStaticMeshData(Mesh handle);
+template <Dimension D> const MaterialData<D> &GetMaterialData(Material handle);
+const TextureData &GetTextureData(Texture handle);
 
-template <Dimension D> MeshDataLayout GetStaticMeshLayout(Mesh mesh);
+template <Dimension D> MeshDataLayout GetStaticMeshLayout(Mesh handle);
 
 template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshVertexBuffer();
 template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer();
@@ -109,7 +111,13 @@ ONYX_NO_DISCARD Result<> Upload();
 template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const char *path);
 #endif
 #ifdef ONYX_ENABLE_GLTF_LOAD
-template <Dimension D> ONYX_NO_DISCARD Result<GltfData<D>> LoadGltfFile(const std::string &path, AssetsFlags flags = 0);
+
+template <Dimension D>
+ONYX_NO_DISCARD Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, AssetsFlags flags = 0);
+
+// template <Dimension D>
+// ONYX_NO_DISCARD Result<GltfData<D>> LoadGltfSceneFromFile(const std::string &path, AssetsFlags flags = 0);
+
 ONYX_NO_DISCARD Result<TextureData> LoadTextureDataFromImageFile(
     const char *path, const ImageComponent requiredComponents = ImageComponent_Auto, AssetsFlags flags = 0);
 #endif

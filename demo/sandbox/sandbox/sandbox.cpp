@@ -13,62 +13,67 @@
 
 namespace Onyx
 {
-// lol
-template <typename C, typename F1, typename F2, typename F3>
-static void renderSelectable(const char *treeName, C &container, u32 &selected, F1 onSelected, F2 onRemoval, F3 getName,
-                             const bool removeButton = true)
+template <typename T> struct EntriesOptions
 {
-    if (!container.IsEmpty() && (!treeName || ImGui::TreeNode(treeName)))
+    const char *TreeName = nullptr;
+    const char *EntryName = nullptr;
+    u32 *Selected = nullptr;
+    std::function<void(T &)> OnSelected = nullptr;
+    std::function<void(T &)> OnRemoval = nullptr;
+    std::function<const char *(const T &)> GetName = nullptr;
+    u32 ScrollLimit = 6;
+    bool RemoveButton = true;
+};
+
+template <typename C, typename T> static void renderEntries(C &entries, const EntriesOptions<T> &options)
+{
+    if (!entries.IsEmpty() && (!options.TreeName || ImGui::TreeNode(options.TreeName)))
     {
-        for (u32 i = 0; i < container.GetSize(); ++i)
+        const u32 count = entries.GetSize();
+        ImGui::PushID(&entries);
+        if (count > options.ScrollLimit)
+            ImGui::BeginChild("##Scroll", ImVec2{0, 150});
+        for (u32 i = 0; i < entries.GetSize(); ++i)
         {
-            ImGui::PushID(&container[i]);
-            if (removeButton && ImGui::Button("X"))
+            ImGui::PushID(&entries[i]);
+            if (options.RemoveButton && ImGui::Button("X"))
             {
-                onRemoval(container[i]);
-                container.RemoveOrdered(container.begin() + i);
+                if (options.OnRemoval)
+                    options.OnRemoval(entries[i]);
+                entries.RemoveOrdered(entries.begin() + i);
                 ImGui::PopID();
                 break;
             }
-            if (removeButton)
+            if (options.RemoveButton)
                 ImGui::SameLine();
-            std::string name;
-            if constexpr (std::is_same_v<F3, const char *>)
-                name = getName;
+            const char *name = options.GetName ? options.GetName(entries[i]) : options.EntryName;
+            const std::string coolName = TKit::Format("{} - {}", i, name);
+            if (options.Selected)
+            {
+                if (ImGui::Selectable(coolName.c_str(), i == *options.Selected))
+                    *options.Selected = i;
+            }
             else
-                name = getName(container[i]);
-
-            if (ImGui::Selectable(name.c_str(), i == selected))
-                selected = i;
+                ImGui::BulletText("%s", coolName.c_str());
 
             ImGui::PopID();
         }
-        if (selected < container.GetSize())
-            onSelected(container[selected]);
-        if (treeName)
+        if (count > options.ScrollLimit)
+            ImGui::EndChild();
+        if (options.Selected && *options.Selected < entries.GetSize())
+            options.OnSelected(entries[*options.Selected]);
+        ImGui::PopID();
+        if (options.TreeName)
             ImGui::TreePop();
     }
-}
-template <typename C, typename F1, typename F2>
-static void renderSelectableNoRemoval(const char *treeName, C &container, u32 &selected, F1 onSelected, F2 getName,
-                                      const bool removeButton = true)
-{
-    renderSelectable(treeName, container, selected, onSelected, [](const auto &) {}, getName, removeButton);
-}
-
-template <typename C, typename F1, typename F2>
-static void renderSelectableNoTree(const char *elementName, C &container, u32 &selected, F1 onSelected, F2 onRemoval)
-{
-    renderSelectable(nullptr, container, selected, onSelected, onRemoval,
-                     [elementName](const auto &) { return elementName; });
 }
 
 SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *data) : ApplicationLayer(layers)
 {
-    DefaultSampler = ONYX_CHECK_EXPRESSION(Assets::AddDefaultSampler());
-
     AddMeshes<D2>();
     AddMeshes<D3>();
+
+    AddSampler("Default sampler");
 
     AddMaterial<D2>("Default material 2D");
     AddMaterial<D3>("Default material 3D");
@@ -339,21 +344,33 @@ template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window, co
 template <Dimension D> void SandboxAppLayer::AddMaterial(const char *name)
 {
     auto &materials = GetMaterials<D>();
-    const u32 size = materials.Materials.GetSize();
     MaterialId<D> &mat = materials.Materials.Append();
-    mat.Data.Sampler = DefaultSampler;
-    mat.Name = name ? name : TKit::Format("Material-{}", size);
     mat.Material = Assets::AddMaterial(mat.Data);
+    mat.Name = name ? name : TKit::Format("Material-{}", mat.Material);
+    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+}
+
+void SandboxAppLayer::AddSampler(const char *name)
+{
+    SamplerId &sampler = Samplers.Append();
+    sampler.Sampler = Assets::AddSampler(sampler.Data);
+    sampler.Name = name ? name : TKit::Format("Sampler-{}", sampler.Sampler);
     ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
 }
 
 void SandboxAppLayer::AddTexture(const TextureData &data, const char *name)
 {
-    const u32 size = Textures.GetSize();
     TextureId &tex = Textures.Append();
-    tex.Name = name ? name : TKit::Format("Texture-{}", size);
     tex.Texture = Assets::AddTexture(data);
+    tex.Name = name ? name : TKit::Format("Texture-{}", tex.Texture);
     ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+}
+
+template <Dimension D> void SandboxAppLayer::UpdateMaterialData()
+{
+    auto &materials = GetMaterials<D>();
+    for (MaterialId<D> &mat : materials.Materials)
+        mat.Data = Assets::GetMaterialData<D>(mat.Material);
 }
 
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
@@ -525,6 +542,7 @@ void SandboxWinLayer::RenderImGui()
             RenderCameras<D2>();
             RenderMeshes<D2>();
             RenderMaterials<D2>();
+            RenderSamplers();
             RenderTextures();
             RenderLattices<D2>();
             RenderRenderer<D2>();
@@ -537,6 +555,7 @@ void SandboxWinLayer::RenderImGui()
             RenderCameras<D3>();
             RenderMeshes<D3>();
             RenderMaterials<D3>();
+            RenderSamplers();
             RenderTextures();
             RenderLattices<D3>();
             RenderRenderer<D3>();
@@ -561,9 +580,12 @@ template <Dimension D> void SandboxWinLayer::RenderCameras()
         if (ImGui::Button("Add camera"))
             AddCamera<D>();
 
-        renderSelectableNoTree(
-            "Camera", cameras.Cameras, cameras.Active, [this](CameraData<D> &camera) { RenderCamera(camera); },
-            [window](const CameraData<D> &camera) { window->DestroyCamera(camera.Camera); });
+        EntriesOptions<CameraData<D>> opts{};
+        opts.EntryName = "Camera";
+        opts.Selected = &cameras.Active;
+        opts.OnSelected = [this](CameraData<D> &camera) { RenderCamera(camera); };
+        opts.OnRemoval = [window](const CameraData<D> &camera) { window->DestroyCamera(camera.Camera); };
+        renderEntries(cameras.Cameras, opts);
     }
 }
 
@@ -689,13 +711,16 @@ template <Dimension D> void SandboxWinLayer::RenderContexts()
                            "different objects in a window. Multiple contexts may exist per window, each with "
                            "their own independent state.");
 
-        renderSelectableNoTree(
-            "Context", contexts.Contexts, contexts.Active, [this](ContextData<D> &context) { RenderContext(context); },
-            [](const ContextData<D> &context) { Renderer::DestroyContext(context.Context); });
+        EntriesOptions<ContextData<D>> opts{};
+        opts.EntryName = "Context";
+        opts.Selected = &contexts.Active;
+        opts.OnSelected = [this](ContextData<D> &context) { RenderContext(context); };
+        opts.OnRemoval = [](const ContextData<D> &context) { Renderer::DestroyContext(context.Context); };
+        renderEntries(contexts.Contexts, opts);
     }
 }
 
-template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, u32 *toSpawn)
+template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, Material *toSpawn)
 {
     ImGui::PushID(toSpawn);
     TKit::StackArray<const char *> names{};
@@ -704,35 +729,70 @@ template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLaye
     for (const MaterialId<D> &mat : materials.Materials)
         names.Append(mat.Name.c_str());
     bool changed = false;
-    if (*toSpawn != TKIT_U32_MAX)
+    if (*toSpawn != NullMaterial)
     {
         changed |= ImGui::Button("X");
         if (changed)
-            *toSpawn = TKIT_U32_MAX;
+            *toSpawn = NullMaterial;
         ImGui::SameLine();
     }
     ImGui::PopID();
     return combo(name, toSpawn, names) || changed;
 }
 
-static bool texNameCombo(const char *name, SandboxAppLayer *appLayer, u32 *toSpawn)
+template <typename T> static bool nameCombo(const char *name, const TKit::TierArray<T> &container, Handle *handle)
 {
-    ImGui::PushID(toSpawn);
+    ImGui::PushID(handle);
     TKit::StackArray<const char *> names{};
-    const auto &textures = appLayer->Textures;
-    names.Reserve(textures.GetSize());
-    for (const TextureId &tex : textures)
-        names.Append(tex.Name.c_str());
-    bool changed = false;
-    if (*toSpawn != TKIT_U32_MAX)
+    names.Reserve(container.GetSize());
+    u32 idx = TKIT_U32_MAX;
+    for (u32 i = 0; i < container.GetSize(); ++i)
     {
+        const T &elm = container[i];
+        names.Append(elm.Name.c_str());
+        if constexpr (std::is_same_v<T, TextureId>)
+        {
+            if (elm.Texture == *handle)
+                idx = i;
+        }
+        else
+        {
+            if (elm.Sampler == *handle)
+                idx = i;
+        }
+    }
+    bool changed = false;
+    if (*handle != NullHandle)
+    {
+        ImGui::Text("id: %u", *handle);
+        ImGui::SameLine();
         changed |= ImGui::Button("X");
         if (changed)
-            *toSpawn = TKIT_U32_MAX;
+        {
+            *handle = NullHandle;
+            idx = TKIT_U32_MAX;
+        }
         ImGui::SameLine();
     }
     ImGui::PopID();
-    return combo(name, toSpawn, names) || changed;
+    if (combo(name, &idx, names))
+    {
+        if constexpr (std::is_same_v<T, TextureId>)
+            *handle = container[idx].Texture;
+        else
+            *handle = container[idx].Sampler;
+        changed = true;
+    }
+    return changed;
+}
+
+static bool texNameCombo(const char *name, SandboxAppLayer *appLayer, Texture *toSpawn)
+{
+    return nameCombo(name, appLayer->Textures, toSpawn);
+}
+static bool sampNameCombo(const char *name, SandboxAppLayer *appLayer, Sampler *toSpawn)
+{
+    return nameCombo(name, appLayer->Samplers, toSpawn);
 }
 
 template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &context)
@@ -813,9 +873,12 @@ template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &c
     if (ImGui::Button("Spawn##Shape"))
         context.Shapes.Append(appLayer->CreateShape<D>(context));
 
-    renderSelectableNoRemoval(
-        "Shapes", context.Shapes, context.SelectedShape, [appLayer](Shape<D> &shape) { editShape<D>(shape, appLayer); },
-        [](const Shape<D> &shape) { return shape.Name; });
+    EntriesOptions<Shape<D>> opts{};
+    opts.TreeName = "Shapes";
+    opts.Selected = &context.SelectedShape;
+    opts.OnSelected = [appLayer](Shape<D> &shape) { editShape<D>(shape, appLayer); };
+    opts.GetName = [](const Shape<D> &shape) { return shape.Name.c_str(); };
+    renderEntries(context.Shapes, opts);
 }
 
 template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &context)
@@ -838,15 +901,24 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
                 context.DirLights.Append(context.Context->AddDirectionalLight());
     }
 
-    renderSelectable(
-        "Point lights", context.PointLights, context.SelectedPointLight,
-        [](PointLight<D> *light) { PointLightEditor(*light, EditorFlag_DisplayHelp); },
-        [&context](PointLight<D> *light) { context.Context->RemovePointLight(light); }, "Point");
+    EntriesOptions<PointLight<D> *> popts{};
+    popts.TreeName = "Point lights";
+    popts.EntryName = "Point light";
+    popts.Selected = &context.SelectedPointLight;
+    popts.OnSelected = [](PointLight<D> *light) { PointLightEditor(*light, EditorFlag_DisplayHelp); };
+    popts.OnRemoval = [&context](PointLight<D> *light) { context.Context->RemovePointLight(light); };
+    renderEntries(context.PointLights, popts);
+
     if constexpr (D == D3)
-        renderSelectable(
-            "Directional lights", context.DirLights, context.SelectedDirLight,
-            [](DirectionalLight *light) { DirectionalLightEditor(*light, EditorFlag_DisplayHelp); },
-            [&context](DirectionalLight *light) { context.Context->RemoveDirectionalLight(light); }, "Directional");
+    {
+        EntriesOptions<DirectionalLight *> dopts{};
+        dopts.TreeName = "Directional lights";
+        dopts.EntryName = "Directional light";
+        dopts.Selected = &context.SelectedDirLight;
+        dopts.OnSelected = [](DirectionalLight *light) { DirectionalLightEditor(*light, EditorFlag_DisplayHelp); };
+        dopts.OnRemoval = [&context](DirectionalLight *light) { context.Context->RemoveDirectionalLight(light); };
+        renderEntries(context.DirLights, dopts);
+    }
 }
 
 template <Dimension D> void SandboxWinLayer::RenderLattices()
@@ -859,12 +931,15 @@ template <Dimension D> void SandboxWinLayer::RenderLattices()
         if (ImGui::Button("Add lattice"))
             appLayer->AddLattice<D>(GetWindow());
 
-        renderSelectableNoTree(
-            "Lattice", lattices.Lattices, lattices.Active, [this](LatticeData<D> &lattice) { RenderLattice(lattice); },
-            [](const LatticeData<D> &lattice) {
-                for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
-                    Renderer::DestroyContext(ctx);
-            });
+        EntriesOptions<LatticeData<D>> opts{};
+        opts.EntryName = "Lattice";
+        opts.Selected = &lattices.Active;
+        opts.OnSelected = [this](LatticeData<D> &lattice) { RenderLattice(lattice); };
+        opts.OnRemoval = [](const LatticeData<D> &lattice) {
+            for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
+                Renderer::DestroyContext(ctx);
+        };
+        renderEntries(lattices.Lattices, opts);
     }
 }
 
@@ -878,29 +953,38 @@ template <Dimension D> void SandboxWinLayer::RenderMaterials()
         if (ImGui::Button("Add material"))
             appLayer->AddMaterial<D>();
 
-        renderSelectableNoRemoval(
-            nullptr, materials.Materials, materials.Active,
-            [this](MaterialId<D> &material) { RenderMaterial(material); },
-            [](MaterialId<D> &material) { return material.Name.c_str(); }, false);
+        EntriesOptions<MaterialId<D>> opts{};
+        opts.Selected = &materials.Active;
+        opts.OnSelected = [this](MaterialId<D> &material) { RenderMaterial(material); };
+        opts.GetName = [](const MaterialId<D> &material) { return material.Name.c_str(); };
+        opts.RemoveButton = false;
+        renderEntries(materials.Materials, opts);
     }
 }
 
 template <Dimension D> void SandboxWinLayer::RenderMaterial(MaterialId<D> &material)
 {
-    ImGui::InputText("Name", &material.Name);
+    ImGui::InputText("Name##Material", &material.Name);
     ImGui::Text("Material id: %u", material.Material);
-    ImGui::Text("Sampler id: %u", material.Data.Sampler);
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     bool changed = MaterialPropertiesEditor(material.Data, EditorFlag_DisplayHelp);
     if constexpr (D == D2)
+    {
+        changed |= sampNameCombo("Sampler", appLayer, &material.Data.Sampler);
         changed |= texNameCombo("Texture", appLayer, &material.Data.Texture);
+    }
     else
     {
-        changed |= texNameCombo("Albedo tex", appLayer, &material.Data.AlbedoTex);
-        changed |= texNameCombo("Metallic roughness tex", appLayer, &material.Data.MetallicRoughnessTex);
-        changed |= texNameCombo("Normal tex", appLayer, &material.Data.NormalTex);
-        changed |= texNameCombo("Occlusion tex", appLayer, &material.Data.OcclusionTex);
-        changed |= texNameCombo("Emissive tex", appLayer, &material.Data.EmissiveTex);
+        constexpr TKit::FixedArray<const char *, TextureSlot_Count> texNames = {
+            "Albedo tex", "Metallic roughness tex", "Normal tex", "Occlusion tex", "Emissive tex"};
+        constexpr TKit::FixedArray<const char *, TextureSlot_Count> sampNames = {
+            "Albedo sampler", "Metallic roughness sampler", "Normal sampler", "Occlusion sampler", "Emissive sampler"};
+        for (u32 i = 0; i < TextureSlot_Count; ++i)
+        {
+            changed |= texNameCombo(texNames[i], appLayer, &material.Data.Textures[i]);
+            changed |= sampNameCombo(sampNames[i], appLayer, &material.Data.Samplers[i]);
+            ImGui::Spacing();
+        }
     }
     if (changed)
     {
@@ -966,6 +1050,39 @@ void SandboxWinLayer::HandleLoadDialog([[maybe_unused]] TKit::Task<Dialog::Resul
     ImGui::PopID();
 }
 
+void SandboxWinLayer::RenderSamplers()
+{
+    if (ImGui::CollapsingHeader("Samplers"))
+    {
+        SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+        if (ImGui::Button("Create"))
+            appLayer->AddSampler();
+
+        EntriesOptions<SamplerId> opts{};
+        opts.GetName = [](const SamplerId &samp) { return samp.Name.c_str(); };
+        opts.OnRemoval = [appLayer](SamplerId &samp) {
+            Assets::RemoveSampler(samp.Sampler);
+            appLayer->UpdateMaterialData<D2>();
+            appLayer->UpdateMaterialData<D3>();
+            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        };
+        opts.OnSelected = [this](SamplerId &samp) { RenderSampler(samp); };
+        opts.Selected = &appLayer->SelectedSampler;
+        renderEntries(appLayer->Samplers, opts);
+    }
+}
+
+void SandboxWinLayer::RenderSampler(SamplerId &sampler)
+{
+    ImGui::InputText("Name##Sampler", &sampler.Name);
+    ImGui::Text("Sampler id: %u", sampler.Sampler);
+    if (SamplerEditor(sampler.Data, EditorFlag_DisplayHelp))
+    {
+        Assets::UpdateSampler(sampler.Sampler, sampler.Data);
+        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+    }
+}
+
 void SandboxWinLayer::RenderTextures()
 {
     if (ImGui::CollapsingHeader("Textures"))
@@ -981,8 +1098,16 @@ void SandboxWinLayer::RenderTextures()
             appLayer->AddTexture(data, path.filename().string().c_str());
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
         });
-        for (const TextureId &tex : appLayer->Textures)
-            ImGui::BulletText("%s", tex.Name.c_str());
+
+        EntriesOptions<TextureId> opts{};
+        opts.GetName = [](const TextureId &tex) { return tex.Name.c_str(); };
+        opts.OnRemoval = [appLayer](TextureId &tex) {
+            Assets::RemoveTexture(tex.Texture);
+            appLayer->UpdateMaterialData<D2>();
+            appLayer->UpdateMaterialData<D3>();
+            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        };
+        renderEntries(appLayer->Textures, opts);
     }
 }
 
@@ -992,20 +1117,20 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
     HandleLoadDialog(
         GltfTask,
         [&](const Dialog::Path &path) {
-            auto res = Assets::LoadGltfFile<D>(path.string(), AssetsFlag_LoadImageForceRGBA);
+            auto res = Assets::LoadGltfAssetsFromFile<D>(path.string(), AssetsFlag_LoadImageForceRGBA);
             VKIT_LOG_RESULT_ERROR(res);
             if (!res)
                 return;
 
-            GltfData<D> &data = res.GetValue();
-            const GltfHandles handles = Assets::AddGltfData(data, appLayer->DefaultSampler);
+            GltfAssets<D> &assets = res.GetValue();
+            const GltfHandles handles = Assets::AddGltfAssets(assets);
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
 
             auto &meshes = appLayer->GetMeshes<D>();
             for (u32 i = 0; i < handles.StaticMeshes.GetSize(); ++i)
             {
                 const Mesh mesh = handles.StaticMeshes[i];
-                const StatMeshData<D> &mdat = data.StaticMeshes[i];
+                const StatMeshData<D> &mdat = assets.StaticMeshes[i];
                 StatMeshId<D> &mid = meshes.StaticMeshes.Append();
                 mid.Name = TKit::Format("GLTF-Mesh-{}", mesh);
                 mid.Mesh = mesh;
@@ -1016,11 +1141,22 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
             for (u32 i = 0; i < handles.Materials.GetSize(); ++i)
             {
                 const Material mat = handles.Materials[i];
-                const MaterialData<D> &mdat = data.Materials[i];
+                const MaterialData<D> &mdat = assets.Materials[i];
                 MaterialId<D> &mid = materials.Materials.Append();
                 mid.Name = TKit::Format("GLTF-Material-{}", mat);
                 mid.Material = mat;
                 mid.Data = mdat;
+            }
+
+            auto &samplers = appLayer->Samplers;
+            for (u32 i = 0; i < handles.Samplers.GetSize(); ++i)
+            {
+                const Sampler samp = handles.Samplers[i];
+                const SamplerData &sdata = assets.Samplers[i];
+                SamplerId &sid = samplers.Append();
+                sid.Name = TKit::Format("GLTF-Sampler-{}", samp);
+                sid.Sampler = samp;
+                sid.Data = sdata;
             }
 
             auto &textures = appLayer->Textures;
@@ -1040,9 +1176,14 @@ template <Dimension D> void SandboxWinLayer::RenderMeshes()
     {
         SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
         auto &meshes = appLayer->GetMeshes<D>();
-        renderSelectableNoRemoval(
-            "Static meshes", meshes.StaticMeshes, meshes.Active, [this](StatMeshId<D> &mesh) { RenderMesh(mesh); },
-            [](StatMeshId<D> &mesh) { return mesh.Name.c_str(); }, false);
+
+        EntriesOptions<StatMeshId<D>> opts{};
+        opts.TreeName = "Static meshes";
+        opts.Selected = &meshes.Active;
+        opts.OnSelected = [this](StatMeshId<D> &mesh) { RenderMesh(mesh); };
+        opts.GetName = [](const StatMeshId<D> &mesh) { return mesh.Name.c_str(); };
+        opts.RemoveButton = false;
+        renderEntries(meshes.StaticMeshes, opts);
 
         combo("Geometry##Load", &meshes.GeometryToLoad, "Static mesh\0\0");
         const Geometry geo = Geometry(meshes.GeometryToLoad + 1); // skip circles
@@ -1144,18 +1285,23 @@ template <Dimension D> void SandboxWinLayer::RenderMesh(StatMeshId<D> &mesh)
         {
             StatVertex<D> &vx = mesh.Data.Vertices[i];
             ImGui::Text("Vertex %u: ", i);
-            ImGui::SameLine();
             ImGui::PushID(i);
             if constexpr (D == D2)
             {
                 ImGui::DragFloat2("Position", vx.Position.GetData(), 0.1f);
+                changed |= ImGui::IsItemDeactivatedAfterEdit();
+                ImGui::DragFloat2("UV", vx.TexCoord.GetData(), 0.05f);
                 changed |= ImGui::IsItemDeactivatedAfterEdit();
             }
             else
             {
                 ImGui::DragFloat3("Position", vx.Position.GetData(), 0.1f);
                 changed |= ImGui::IsItemDeactivatedAfterEdit();
+                ImGui::DragFloat2("UV", vx.TexCoord.GetData(), 0.05f);
+                changed |= ImGui::IsItemDeactivatedAfterEdit();
                 ImGui::DragFloat3("Normal", vx.Normal.GetData(), 0.1f);
+                changed |= ImGui::IsItemDeactivatedAfterEdit();
+                ImGui::DragFloat4("Tangent", vx.Tangent.GetData(), 0.1f);
                 changed |= ImGui::IsItemDeactivatedAfterEdit();
             }
             ImGui::PopID();

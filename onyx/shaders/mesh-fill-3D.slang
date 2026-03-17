@@ -100,25 +100,14 @@ float4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFac
         info.Metallic = mat.MetallicFactor;
         info.Occlusion = 1.0;
 
-        if (mat.Sampler == uint(-1))
-        {
-            info.Normal = input.TBN[2];
-            if (!isFrontFacing)
-                info.Normal = -info.Normal;
-            const float3 lcolor = GetLightColor3D(g_PushData.LightData, info);
-            return input.FragColor * float4(lcolor, 1.0);
-        }
-
-        const SamplerState samp = g_Samplers[mat.Sampler];
-
         // Albedo
-        if (mat.AlbedoTex != uint(-1))
-            info.Albedo *= g_Textures[mat.AlbedoTex].Sample(samp, input.TexCoord);
+        if (mat.AlbedoSamp != uint(-1) && mat.AlbedoTex != uint(-1))
+            info.Albedo *= g_Textures[mat.AlbedoTex].Sample(g_Samplers[mat.AlbedoSamp], input.TexCoord);
 
         // Normal map
-        if (mat.NormalTex != uint(-1))
+        if (mat.NormalSamp != uint(-1) && mat.NormalTex != uint(-1))
         {
-            float3 sampledNormal = g_Textures[mat.NormalTex].Sample(samp, input.TexCoord).xyz;
+            float3 sampledNormal = g_Textures[mat.NormalTex].Sample(g_Samplers[mat.NormalSamp], input.TexCoord).xyz;
             sampledNormal = sampledNormal * 2.0 - 1.0; // unpack from [0,1] to [-1,1]
             sampledNormal.xy *= mat.NormalScale;
             info.Normal = normalize(mul(sampledNormal, input.TBN)); // requires TBN matrix in VertexOutput
@@ -129,23 +118,23 @@ float4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFac
             info.Normal = -info.Normal;
 
         // Metallic/Roughness (glTF convention: G = roughness, B = metallic)
-        if (mat.MetallicRoughnessTex != uint(-1))
+        if (mat.MetallicRoughnessSamp != uint(-1) && mat.MetallicRoughnessTex != uint(-1))
         {
-            const float4 mr = g_Textures[mat.MetallicRoughnessTex].Sample(samp, input.TexCoord);
+            const float4 mr = g_Textures[mat.MetallicRoughnessTex].Sample(g_Samplers[mat.MetallicRoughnessSamp], input.TexCoord);
             info.Roughness *= mr.g;
             info.Metallic *= mr.b;
         }
 
         // Occlusion (R channel)
-        if (mat.OcclusionTex != uint(-1))
+        if (mat.OcclusionSamp != uint(-1) && mat.OcclusionTex != uint(-1))
         {
-            const float sampledOcclusion = g_Textures[mat.OcclusionTex].Sample(samp, input.TexCoord).r;
+            const float sampledOcclusion = g_Textures[mat.OcclusionTex].Sample(g_Samplers[mat.OcclusionSamp], input.TexCoord).r;
             info.Occlusion = 1.0 + mat.OcclusionStrength * (sampledOcclusion - 1.0);
         }
 
         // Emissive
-        if (mat.EmissiveTex != uint(-1))
-            info.Emissive *= g_Textures[mat.EmissiveTex].Sample(samp, input.TexCoord).rgb;
+        if (mat.EmissiveSamp != uint(-1) && mat.EmissiveTex != uint(-1))
+            info.Emissive *= g_Textures[mat.EmissiveTex].Sample(g_Samplers[mat.EmissiveSamp], input.TexCoord).rgb;
 
         const float3 lcolor = GetLightColor3D(g_PushData.LightData, info);
         return input.FragColor * float4(lcolor, info.Albedo.w);

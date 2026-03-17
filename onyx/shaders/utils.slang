@@ -90,8 +90,8 @@ public struct CircleInstanceDataStencil3D
 public struct Material2D
 {
     uint ColorFactor;
-    uint Texture;
     uint Sampler;
+    uint Texture;
 }
 
 public struct Material3D
@@ -99,12 +99,19 @@ public struct Material3D
     float EmissiveFactorX;
     float EmissiveFactorY;
     float EmissiveFactorZ;
+
     uint AlbedoFactor;
     float MetallicFactor;
     float RoughnessFactor;
     float OcclusionStrength;
     float NormalScale;
-    uint Sampler;
+
+    uint AlbedoSamp;
+    uint MetallicRoughnessSamp;
+    uint NormalSamp;
+    uint OcclusionSamp;
+    uint EmissiveSamp;
+
     uint AlbedoTex;
     uint MetallicRoughnessTex;
     uint NormalTex;

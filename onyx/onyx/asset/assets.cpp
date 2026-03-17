@@ -4,7 +4,9 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/state/descriptors.hpp"
 #include "vkit/state/descriptor_set.hpp"
+#include "vkit/resource/sampler.hpp"
 #include "vkit/resource/device_image.hpp"
+#include "tkit/container/arena_hive.hpp"
 #include "tkit/container/stack_array.hpp"
 #ifdef ONYX_ENABLE_OBJ_LOAD
 #    define TINYOBJLOADER_IMPLEMENTATION
@@ -32,7 +34,9 @@ enum StatusFlagBit : StatusFlags
     StatusFlag_UpdateIndex = 1 << 1,
     StatusFlag_UpdateMaterial = 1 << 2,
     StatusFlag_UpdateTexture = 1 << 3,
-    StatusFlag_MustFreeTexture = 1 << 4,
+    StatusFlag_CreateTexture = 1 << 4,
+    StatusFlag_UpdateSampler = 1 << 5,
+    StatusFlag_MustFreeTexture = 1 << 6,
 };
 
 struct DataLayout
@@ -53,7 +57,7 @@ struct BatchRange
 AssetsFlags s_Flags = 0;
 TKit::FixedArray<BatchRange, Geometry_Count> s_BatchRanges{};
 
-template <typename Vertex> struct MeshInfo
+template <typename Vertex> struct MeshAssetData
 {
     VKit::DeviceBuffer VertexBuffer{};
     VKit::DeviceBuffer IndexBuffer{};
@@ -78,38 +82,53 @@ template <typename Vertex> struct MeshInfo
     }
 };
 
-template <Dimension D> struct MaterialInfo
+template <Dimension D> using StatMeshAssetData = MeshAssetData<StatVertex<D>>;
+
+template <Dimension D> struct MaterialAssetData
 {
     VKit::DeviceBuffer Buffer{};
-    TKit::ArenaArray<StatusFlags> Flags{};
     TKit::ArenaArray<MaterialData<D>> Materials{};
+    TKit::ArenaArray<StatusFlags> Flags{};
 };
 
 struct SamplerInfo
 {
-    TKit::ArenaArray<VKit::Sampler> Samplers{};
-    u32 Uploaded = 0;
+    VKit::Sampler Sampler{};
+    Onyx::Sampler Id = NullSampler;
+    SamplerData Data{};
+    AssetsFlags Flags = 0;
+};
+
+struct SamplerAssetData
+{
+    TKit::ArenaHive<SamplerInfo> Samplers{};
+    TKit::ArenaArray<Sampler> ToRemove{};
 };
 
 struct TextureInfo
 {
-    TKit::ArenaArray<VKit::DeviceImage> Images{};
-    TKit::ArenaArray<StatusFlags> Flags{};
-    TKit::ArenaArray<TextureData> Textures{};
+    VKit::DeviceImage Image{};
+    TextureData Data{};
+    Texture Id = NullTexture;
+    StatusFlags Flags{};
 };
 
-template <Dimension D> using StatMeshInfo = MeshInfo<StatVertex<D>>;
+struct TextureAssetData
+{
+    TKit::ArenaHive<TextureInfo> Textures{};
+    TKit::ArenaArray<Texture> ToRemove{};
+};
 
 template <Dimension D> struct AssetData
 {
-    StatMeshInfo<D> StaticMeshes{};
-    MaterialInfo<D> Materials{};
+    StatMeshAssetData<D> StaticMeshes{};
+    MaterialAssetData<D> Materials{};
 };
 
 static TKit::Storage<AssetData<D2>> s_AssetData2{};
 static TKit::Storage<AssetData<D3>> s_AssetData3{};
-static TKit::Storage<TextureInfo> s_TextureData{};
-static TKit::Storage<SamplerInfo> s_SamplerData{};
+static TKit::Storage<SamplerAssetData> s_SamplerData{};
+static TKit::Storage<TextureAssetData> s_TextureData{};
 
 template <Dimension D> static AssetData<D> &getData()
 {
@@ -119,41 +138,41 @@ template <Dimension D> static AssetData<D> &getData()
         return *s_AssetData3;
 }
 
-template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshInfo<Vertex> &info)
+template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshAssetData<Vertex> &meshData)
 {
     StatusFlags flags = 0;
 
-    const u32 vcount = info.GetVertexCount();
-    auto result = Resources::GrowBufferIfNeeded<Vertex>(info.VertexBuffer, vcount);
+    const u32 vcount = meshData.GetVertexCount();
+    auto result = Resources::GrowBufferIfNeeded<Vertex>(meshData.VertexBuffer, vcount);
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())
     {
         flags = StatusFlag_UpdateVertex;
         TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient vertex buffer memory. Resized from {:L} to {:L} bytes",
-                       vcount * sizeof(Vertex), info.VertexBuffer.GetInfo().Size);
+                       vcount * sizeof(Vertex), meshData.VertexBuffer.GetInfo().Size);
     }
 
-    const u32 icount = info.GetIndexCount();
-    result = Resources::GrowBufferIfNeeded<Index>(info.IndexBuffer, icount);
+    const u32 icount = meshData.GetIndexCount();
+    result = Resources::GrowBufferIfNeeded<Index>(meshData.IndexBuffer, icount);
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())
     {
         flags |= StatusFlag_UpdateIndex;
         TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient index buffer memory. Resized from {:L} to {:L} bytes",
-                       icount * sizeof(Index), info.IndexBuffer.GetInfo().Size);
+                       icount * sizeof(Index), meshData.IndexBuffer.GetInfo().Size);
     }
     if (flags)
-        for (DataLayout &layout : info.Layouts)
+        for (DataLayout &layout : meshData.Layouts)
             layout.Flags |= flags;
     return Result<>::Ok();
 }
 
 template <Dimension D> void updateMaterialDescriptorSet()
 {
-    MaterialInfo<D> &info = getData<D>().Materials;
-    const VkDescriptorBufferInfo binfo = info.Buffer.CreateDescriptorInfo();
+    MaterialAssetData<D> &matData = getData<D>().Materials;
+    const VkDescriptorBufferInfo binfo = matData.Buffer.CreateDescriptorInfo();
     const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(Shading_Lit);
 
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
@@ -164,15 +183,15 @@ template <Dimension D> void updateMaterialDescriptorSet()
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize()
 {
-    MaterialInfo<D> &info = getData<D>().Materials;
-    const u32 mcount = info.Materials.GetSize();
-    const auto result = Resources::GrowBufferIfNeeded<MaterialData<D>>(info.Buffer, mcount);
+    MaterialAssetData<D> &matData = getData<D>().Materials;
+    const u32 mcount = matData.Materials.GetSize();
+    const auto result = Resources::GrowBufferIfNeeded<MaterialData<D>>(matData.Buffer, mcount);
     TKIT_RETURN_ON_ERROR(result);
     if (result.GetValue())
     {
         TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient material buffer memory. Resized from {:L} to {:L} bytes",
-                       mcount * sizeof(MaterialData<D>), info.Buffer.GetInfo().Size);
-        for (StatusFlags &flags : info.Flags)
+                       mcount * sizeof(MaterialData<D>), matData.Buffer.GetInfo().Size);
+        for (StatusFlags &flags : matData.Flags)
             flags = StatusFlag_UpdateMaterial;
         updateMaterialDescriptorSet<D>();
     }
@@ -180,55 +199,55 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize()
 }
 
 template <typename Vertex>
-ONYX_NO_DISCARD static Result<> uploadVertexRange(MeshInfo<Vertex> &info, const u32 start, const u32 end)
+ONYX_NO_DISCARD static Result<> uploadVertexRange(MeshAssetData<Vertex> &meshData, const u32 start, const u32 end)
 {
     constexpr VkDeviceSize size = sizeof(Vertex);
-    const VkDeviceSize voffset = info.GetVertexCount(start) * size;
-    const VkDeviceSize vsize = info.GetVertexCount(end) * size - voffset;
+    const VkDeviceSize voffset = meshData.GetVertexCount(start) * size;
+    const VkDeviceSize vsize = meshData.GetVertexCount(end) * size - voffset;
 
-    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading vertex range: {} - {} ({:L} bytes)", info.GetVertexCount(start),
-                   info.GetVertexCount(end), vsize);
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading vertex range: {} - {} ({:L} bytes)", meshData.GetVertexCount(start),
+                   meshData.GetVertexCount(end), vsize);
 
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    return info.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), info.Meshes.Vertices.GetData(),
-                                            {.srcOffset = voffset, .dstOffset = voffset, .size = vsize});
+    return meshData.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), meshData.Meshes.Vertices.GetData(),
+                                                {.srcOffset = voffset, .dstOffset = voffset, .size = vsize});
 }
 template <typename Vertex>
-ONYX_NO_DISCARD static Result<> uploadIndexRange(MeshInfo<Vertex> &info, const u32 start, const u32 end)
+ONYX_NO_DISCARD static Result<> uploadIndexRange(MeshAssetData<Vertex> &meshData, const u32 start, const u32 end)
 {
     constexpr VkDeviceSize size = sizeof(Index);
-    const VkDeviceSize ioffset = info.GetIndexCount(start) * size;
-    const VkDeviceSize isize = info.GetIndexCount(end) * size - ioffset;
+    const VkDeviceSize ioffset = meshData.GetIndexCount(start) * size;
+    const VkDeviceSize isize = meshData.GetIndexCount(end) * size - ioffset;
 
-    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading index range: {} - {} ({:L} bytes)", info.GetIndexCount(start),
-                   info.GetIndexCount(end), isize);
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading index range: {} - {} ({:L} bytes)", meshData.GetIndexCount(start),
+                   meshData.GetIndexCount(end), isize);
 
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    return info.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), info.Meshes.Indices.GetData(),
-                                           {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize});
+    return meshData.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), meshData.Meshes.Indices.GetData(),
+                                               {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize});
 }
 
-template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshInfo<Vertex> &info)
+template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshAssetData<Vertex> &meshData)
 {
-    if (info.Layouts.IsEmpty())
+    if (meshData.Layouts.IsEmpty())
         return Result<>::Ok();
-    const auto checkFlags = [&info](const u32 index, const StatusFlags flags) {
-        return flags & info.Layouts[index].Flags;
+    const auto checkFlags = [&meshData](const u32 index, const StatusFlags flags) {
+        return flags & meshData.Layouts[index].Flags;
     };
 
-    TKIT_RETURN_IF_FAILED(checkSize(info));
+    TKIT_RETURN_IF_FAILED(checkSize(meshData));
 
-    auto &layouts = info.Layouts;
+    auto &layouts = meshData.Layouts;
     for (u32 i = 0; i < layouts.GetSize(); ++i)
         if (checkFlags(i, StatusFlag_UpdateVertex))
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
                 if (j == layouts.GetSize() || !checkFlags(j, StatusFlag_UpdateVertex))
                 {
-                    TKIT_RETURN_IF_FAILED(uploadVertexRange(info, i, j));
+                    TKIT_RETURN_IF_FAILED(uploadVertexRange(meshData, i, j));
                     i = j;
                     break;
                 }
@@ -237,7 +256,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshIn
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
                 if (j == layouts.GetSize() || !checkFlags(j, StatusFlag_UpdateIndex))
                 {
-                    TKIT_RETURN_IF_FAILED(uploadIndexRange(info, i, j));
+                    TKIT_RETURN_IF_FAILED(uploadIndexRange(meshData, i, j));
                     i = j;
                     break;
                 }
@@ -248,7 +267,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshIn
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialRange(const u32 start, const u32 end)
 {
-    MaterialInfo<D> &info = getData<D>().Materials;
+    MaterialAssetData<D> &materials = getData<D>().Materials;
     const VkDeviceSize offset = start * sizeof(MaterialData<D>);
     const VkDeviceSize size = end * sizeof(MaterialData<D>) - offset;
 
@@ -257,55 +276,61 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialRange(const
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    return info.Buffer.UploadFromHost(pool, queue->GetHandle(), info.Materials.GetData(),
-                                      {.srcOffset = offset, .dstOffset = offset, .size = size});
+    return materials.Buffer.UploadFromHost(pool, queue->GetHandle(), materials.Materials.GetData(),
+                                           {.srcOffset = offset, .dstOffset = offset, .size = size});
 }
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
 {
-    MaterialInfo<D> &info = getData<D>().Materials;
-    TKIT_ASSERT(info.Materials.GetSize() == info.Flags.GetSize(),
-                "[ONYX][ASSETS] Materials and must update arrays mismatch");
-    if (info.Materials.IsEmpty())
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    if (materials.Materials.IsEmpty())
         return Result<>::Ok();
 
-    const auto mustUpdate = [&info](const u32 index) { return StatusFlag_UpdateMaterial & info.Flags[index]; };
+    TKIT_ASSERT(materials.Materials.GetSize() == materials.Flags.GetSize(),
+                "[ONYX][ASSETS] Material data size ({}) and flags size ({}) mismatch", materials.Materials.GetSize(),
+                materials.Flags.GetSize());
+
+    const auto mustUpdate = [&materials](const u32 index) {
+        return StatusFlag_UpdateMaterial & materials.Flags[index];
+    };
 
     TKIT_RETURN_IF_FAILED(checkMaterialBufferSize<D>());
 
-    auto &flags = info.Flags;
-    for (u32 i = 0; i < flags.GetSize(); ++i)
+    const u32 size = materials.Materials.GetSize();
+    for (u32 i = 0; i < size; ++i)
         if (mustUpdate(i))
-            for (u32 j = i + 1; j <= flags.GetSize(); ++j)
-                if (j == flags.GetSize() || !mustUpdate(j))
+            for (u32 j = i + 1; j <= size; ++j)
+                if (j == size || !mustUpdate(j))
                 {
                     TKIT_RETURN_IF_FAILED(uploadMaterialRange<D>(i, j));
                     i = j;
                     break;
                 }
 
-    for (StatusFlags &f : flags)
-        f = 0;
+    for (StatusFlags &flags : materials.Flags)
+        flags = 0;
+
     return Result<>::Ok();
 }
 
-template <typename Vertex> ONYX_NO_DISCARD static Result<> initialize(MeshInfo<Vertex> &info, const u32 maxLayouts)
+template <typename Vertex>
+ONYX_NO_DISCARD static Result<> initialize(MeshAssetData<Vertex> &meshData, const u32 maxLayouts)
 {
     auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
     TKIT_RETURN_ON_ERROR(result);
-    info.VertexBuffer = result.GetValue();
+    meshData.VertexBuffer = result.GetValue();
 
     result = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
     TKIT_RETURN_ON_ERROR(result);
-    info.IndexBuffer = result.GetValue();
-    info.Layouts.Reserve(maxLayouts);
+    meshData.IndexBuffer = result.GetValue();
+    meshData.Layouts.Reserve(maxLayouts);
 
     if (Core::CanNameObjects())
     {
-        TKIT_RETURN_IF_FAILED(info.VertexBuffer.SetName(Vertex::Dim == D2 ? "onyx-assets-2D-vertex-buffer"
-                                                                          : "onyx-assets-3D-vertex-buffer"));
-        return info.IndexBuffer.SetName(Vertex::Dim == D2 ? "onyx-assets-2D-index-buffer"
-                                                          : "onyx-assets-3D-index-buffer");
+        TKIT_RETURN_IF_FAILED(meshData.VertexBuffer.SetName(Vertex::Dim == D2 ? "onyx-assets-2D-vertex-buffer"
+                                                                              : "onyx-assets-3D-vertex-buffer"));
+        return meshData.IndexBuffer.SetName(Vertex::Dim == D2 ? "onyx-assets-2D-index-buffer"
+                                                              : "onyx-assets-3D-index-buffer");
     }
 
     return Result<>::Ok();
@@ -313,17 +338,17 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> initialize(MeshInfo<V
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> initializeMaterials(const u32 maxMaterials)
 {
-    MaterialInfo<D> &info = getData<D>().Materials;
+    MaterialAssetData<D> &matData = getData<D>().Materials;
     const auto result = Resources::CreateBuffer<MaterialData<D>>(Buffer_DeviceStorage);
     TKIT_RETURN_ON_ERROR(result);
-    info.Buffer = result.GetValue();
-    info.Materials.Reserve(maxMaterials);
-    info.Flags.Reserve(maxMaterials);
+    matData.Buffer = result.GetValue();
+    matData.Materials.Reserve(maxMaterials);
+    matData.Flags.Reserve(maxMaterials);
 
     updateMaterialDescriptorSet<D>();
 
     if (Core::CanNameObjects())
-        return info.Buffer.SetName(D == D2 ? "onyx-assets-2D-material-buffer" : "onyx-assets-3D-material-buffer");
+        return matData.Buffer.SetName(D == D2 ? "onyx-assets-2D-material-buffer" : "onyx-assets-3D-material-buffer");
 
     return Result<>::Ok();
 }
@@ -335,16 +360,16 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize(const Specs &s
     return initializeMaterials<D>(specs.MaxMaterials);
 }
 
-template <typename Vertex> static void terminate(MeshInfo<Vertex> &info)
+template <typename Vertex> static void terminate(MeshAssetData<Vertex> &meshData)
 {
-    info.VertexBuffer.Destroy();
-    info.IndexBuffer.Destroy();
+    meshData.VertexBuffer.Destroy();
+    meshData.IndexBuffer.Destroy();
 }
 
 template <Dimension D> static void terminateMaterials()
 {
-    MaterialInfo<D> &info = getData<D>().Materials;
-    info.Buffer.Destroy();
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    materials.Buffer.Destroy();
 }
 
 template <Dimension D> static void terminate()
@@ -363,10 +388,10 @@ Result<> Initialize(const Specs &specs)
     s_TextureData.Construct();
 
     s_SamplerData->Samplers.Reserve(specs.MaxSamplers);
+    s_SamplerData->ToRemove.Reserve(specs.MaxSamplers);
 
     s_TextureData->Textures.Reserve(specs.MaxTextures);
-    s_TextureData->Images.Reserve(specs.MaxTextures);
-    s_TextureData->Flags.Reserve(specs.MaxTextures);
+    s_TextureData->ToRemove.Reserve(specs.MaxTextures);
 
     s_BatchRanges[Geometry_Circle] = {.BatchStart = 0, .BatchCount = 1};
     s_BatchRanges[Geometry_StaticMesh] = {.BatchStart = 1, .BatchCount = specs.MaxStaticMeshes};
@@ -380,20 +405,17 @@ void Terminate()
     terminate<D2>();
     terminate<D3>();
 
-    for (VKit::DeviceImage &img : s_TextureData->Images)
-        img.Destroy();
-    for (VKit::Sampler &sampler : s_SamplerData->Samplers)
-        sampler.Destroy();
-
-    TKIT_ASSERT(s_TextureData->Textures.GetSize() == s_TextureData->Flags.GetSize(),
-                "[ONYX][ASSETS] Texture and flags size mismatch! {} != {}", s_TextureData->Textures.GetSize(),
-                s_TextureData->Flags.GetSize());
-
+    for (TextureInfo &tinfo : s_TextureData->Textures)
+    {
+        tinfo.Image.Destroy();
 #ifdef ONYX_ENABLE_GLTF_LOAD
-    for (u32 i = 0; i < s_TextureData->Textures.GetSize(); ++i)
-        if (s_TextureData->Flags[i] & StatusFlag_MustFreeTexture)
-            TKit::Deallocate(s_TextureData->Textures[i].Data);
+        if (tinfo.Flags & StatusFlag_MustFreeTexture)
+            TKit::Deallocate(tinfo.Data.Data);
 #endif
+    }
+
+    for (SamplerInfo &sinfo : s_SamplerData->Samplers)
+        sinfo.Sampler.Destroy();
 
     s_SamplerData.Construct();
     s_TextureData.Destruct();
@@ -401,15 +423,15 @@ void Terminate()
     s_AssetData3.Destruct();
 }
 
-u32 GetStaticMeshBatchIndex(const Mesh mesh)
+u32 GetStaticMeshBatchIndex(const Mesh handle)
 {
     TKIT_ASSERT(
-        mesh < s_BatchRanges[Geometry_StaticMesh].BatchCount,
+        handle < s_BatchRanges[Geometry_StaticMesh].BatchCount,
         "[ONYX][ASSETS] Mesh index overflow. The mesh index {} does not have a valid assigned batch. This may have "
         "happened because the used mesh does not point to a valid static mesh, or the amount of static mesh "
         "types exceeds the maximum of {}. Consider increasing such maximum from the Onyx initialization specs",
-        mesh, s_BatchRanges[Geometry_StaticMesh].BatchCount);
-    return mesh + s_BatchRanges[Geometry_StaticMesh].BatchStart;
+        handle, s_BatchRanges[Geometry_StaticMesh].BatchCount);
+    return handle + s_BatchRanges[Geometry_StaticMesh].BatchStart;
 }
 u32 GetStaticMeshIndexFromBatch(const u32 batch)
 {
@@ -445,49 +467,94 @@ u32 GetBatchCount()
     return count;
 }
 
-Sampler AddSampler(const VKit::Sampler &sampler)
+Sampler AddSampler(const SamplerData &data)
 {
-    const Sampler handle = s_SamplerData->Samplers.GetSize();
-    s_SamplerData->Samplers.Append(sampler);
+    const Sampler handle = s_SamplerData->Samplers.Insert();
+    SamplerInfo &sinfo = s_SamplerData->Samplers[handle];
+    sinfo.Id = handle;
+    sinfo.Data = data;
+
+    sinfo.Flags |= StatusFlag_UpdateSampler;
     return handle;
 }
 
-Result<Sampler> AddDefaultSampler()
+void UpdateSampler(const Sampler handle, const SamplerData &data)
 {
-    const auto result = Resources::CreateDefaultSampler();
-    TKIT_RETURN_ON_ERROR(result);
-    return AddSampler(result.GetValue());
+    SamplerInfo &sinfo = s_SamplerData->Samplers[handle];
+    sinfo.Data = data;
+    sinfo.Flags |= StatusFlag_UpdateSampler;
 }
 
-template <Dimension D> GltfHandles AddGltfData(GltfData<D> &data, const Sampler defaultSampler)
+template <Dimension D> static void removeSamplerReferences(const Sampler handle)
+{
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    const auto updateRef = [handle](Sampler &toUpdate) -> StatusFlags {
+        if (toUpdate == handle)
+        {
+            toUpdate = NullSampler;
+            return StatusFlag_UpdateMaterial;
+        }
+        return 0;
+    };
+    auto &matData = materials.Materials;
+    auto &flags = materials.Flags;
+
+    TKIT_ASSERT(matData.GetSize() == flags.GetSize(),
+                "[ONYX][ASSETS] Material data size ({}) and flags size ({}) mismatch", matData.GetSize(),
+                flags.GetSize());
+
+    for (u32 i = 0; i < matData.GetSize(); ++i)
+        if constexpr (D == D2)
+            flags[i] |= updateRef(matData[i].Sampler);
+        else
+            for (Sampler &handle : matData[i].Samplers)
+                flags[i] |= updateRef(handle);
+}
+
+void RemoveSampler(const Sampler handle)
+{
+    s_SamplerData->ToRemove.Append(handle);
+    removeSamplerReferences<D2>(handle);
+    removeSamplerReferences<D3>(handle);
+}
+
+template <Dimension D> GltfHandles AddGltfAssets(GltfAssets<D> &assets)
 {
     GltfHandles handles;
-    handles.StaticMeshes.Reserve(data.StaticMeshes.GetSize());
-    handles.Materials.Reserve(data.Materials.GetSize());
-    handles.Textures.Reserve(data.Textures.GetSize());
-    for (const StatMeshData<D> &smesh : data.StaticMeshes)
+    handles.StaticMeshes.Reserve(assets.StaticMeshes.GetSize());
+    handles.Materials.Reserve(assets.Materials.GetSize());
+    handles.Samplers.Reserve(assets.Samplers.GetSize());
+    handles.Textures.Reserve(assets.Textures.GetSize());
+
+    for (const StatMeshData<D> &smesh : assets.StaticMeshes)
         handles.StaticMeshes.Append(AddMesh(smesh));
 
-    const u32 texOffset = s_TextureData->Textures.GetSize();
+    for (const SamplerData &sdata : assets.Samplers)
+        handles.Samplers.Append(AddSampler(sdata));
 
-    for (MaterialData<D> &mdata : data.Materials)
+    for (const TextureData &tdata : assets.Textures)
+        handles.Textures.Append(AddTexture(tdata));
+
+    for (MaterialData<D> &mdata : assets.Materials)
     {
-        if (mdata.Sampler == NullSampler)
-            mdata.Sampler = defaultSampler;
         if constexpr (D == D2)
-            mdata.Texture += texOffset;
+        {
+            if (mdata.Sampler != NullSampler)
+                mdata.Sampler = handles.Samplers[mdata.Sampler];
+            if (mdata.Texture != NullTexture)
+                mdata.Texture = handles.Textures[mdata.Texture];
+        }
         else
         {
-            mdata.AlbedoTex += texOffset;
-            mdata.MetallicRoughnessTex += texOffset;
-            mdata.NormalTex += texOffset;
-            mdata.OcclusionTex += texOffset;
-            mdata.EmissiveTex += texOffset;
+            for (Sampler &sampler : mdata.Samplers)
+                if (sampler != NullSampler)
+                    sampler = handles.Samplers[sampler];
+            for (Texture &tex : mdata.Textures)
+                if (tex != NullSampler)
+                    tex = handles.Textures[tex];
         }
         handles.Materials.Append(AddMaterial(mdata));
     }
-    for (const TextureData &tdata : data.Textures)
-        handles.Textures.Append(AddTexture(tdata));
 
     return handles;
 }
@@ -499,14 +566,17 @@ Texture AddTexture(const TextureData &data, const AssetsFlags flags)
                 "[ONYX][ASSETS] If GLTF load is disabled, all texture data CPU memory must be handled by the user. "
                 "This must be reflected by passing the AssetsFlag_UserHandledMemory flag");
 #endif
-    const Texture tex = s_TextureData->Textures.GetSize();
-    s_TextureData->Textures.Append(data);
-    StatusFlags sflags = StatusFlag_UpdateTexture;
+    const Texture tex = s_TextureData->Textures.Insert();
+    TextureInfo &tinfo = s_TextureData->Textures[tex];
+    tinfo.Data = data;
+    tinfo.Id = tex;
+
+    StatusFlags sflags = StatusFlag_UpdateTexture | StatusFlag_CreateTexture;
 #ifdef ONYX_ENABLE_GLTF_LOAD
     if (!(flags & AssetsFlag_UserHandledMemory))
         sflags |= StatusFlag_MustFreeTexture;
 #endif
-    s_TextureData->Flags.Append(sflags);
+    tinfo.Flags = sflags;
     return tex;
 }
 void UpdateTexture(const Texture tex, const TextureData &data, const AssetsFlags flags)
@@ -517,29 +587,63 @@ void UpdateTexture(const Texture tex, const TextureData &data, const AssetsFlags
                 "This must be reflected by passing the AssetsFlag_UserHandledMemory flag");
 #endif
 
+    TextureInfo &tinfo = s_TextureData->Textures[tex];
     TKIT_ASSERT(
-        data.ComputeSize() == s_TextureData->Textures[tex].ComputeSize(),
+        data.ComputeSize() == tinfo.Data.ComputeSize(),
         "[ONYX][ASSETS] When updating a texture, the size of the data of the previous and updated texture must be the "
         "same. If they are not, you must create a new texture");
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
-    if (s_TextureData->Flags[tex] & StatusFlag_MustFreeTexture)
+    if (tinfo.Flags & StatusFlag_MustFreeTexture)
         stbi_image_free(data.Data);
 #endif
 
-    s_TextureData->Textures[tex] = data;
-    s_TextureData->Flags[tex] = StatusFlag_UpdateTexture;
+    tinfo.Data = data;
+    tinfo.Flags |= StatusFlag_UpdateTexture;
 #ifdef ONYX_ENABLE_GLTF_LOAD
     if (!(flags & AssetsFlag_UserHandledMemory))
-        s_TextureData->Flags[tex] |= StatusFlag_MustFreeTexture;
+        tinfo.Flags |= StatusFlag_MustFreeTexture;
 #endif
+}
+
+template <Dimension D> static void removeTextureReferences(const Texture handle)
+{
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    const auto updateRef = [handle](Texture &toUpdate) -> StatusFlags {
+        if (toUpdate == handle)
+        {
+            toUpdate = NullTexture;
+            return StatusFlag_UpdateMaterial;
+        }
+        return 0;
+    };
+    auto &matData = materials.Materials;
+    auto &flags = materials.Flags;
+
+    TKIT_ASSERT(matData.GetSize() == flags.GetSize(),
+                "[ONYX][ASSETS] Material data size ({}) and flags size ({}) mismatch", matData.GetSize(),
+                flags.GetSize());
+
+    for (u32 i = 0; i < matData.GetSize(); ++i)
+        if constexpr (D == D2)
+            flags[i] |= updateRef(matData[i].Texture);
+        else
+            for (Texture &handle : matData[i].Textures)
+                flags[i] |= updateRef(handle);
+}
+
+void RemoveTexture(const Texture tex)
+{
+    s_TextureData->ToRemove.Append(tex);
+    removeTextureReferences<D2>(tex);
+    removeTextureReferences<D3>(tex);
 }
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data)
 {
-    StatMeshInfo<D> &meshes = getData<D>().StaticMeshes;
+    StatMeshAssetData<D> &meshes = getData<D>().StaticMeshes;
 
-    const Mesh mesh = meshes.Layouts.GetSize();
+    const Mesh handle = meshes.Layouts.GetSize();
     DataLayout layout;
     layout.VertexStart = meshes.GetVertexCount();
     layout.VertexCount = data.Vertices.GetSize();
@@ -554,14 +658,14 @@ template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data)
     vertices.Insert(vertices.end(), data.Vertices.begin(), data.Vertices.end());
     indices.Insert(indices.end(), data.Indices.begin(), data.Indices.end());
 
-    return mesh;
+    return handle;
 }
 
-template <Dimension D> void UpdateMesh(const Mesh mesh, const StatMeshData<D> &data)
+template <Dimension D> void UpdateMesh(const Mesh handle, const StatMeshData<D> &data)
 {
-    StatMeshInfo<D> &meshes = getData<D>().StaticMeshes;
+    StatMeshAssetData<D> &meshes = getData<D>().StaticMeshes;
 
-    DataLayout &layout = meshes.Layouts[mesh];
+    DataLayout &layout = meshes.Layouts[handle];
     TKIT_ASSERT(
         data.Vertices.GetSize() == layout.VertexCount && data.Indices.GetSize() == layout.IndexCount,
         "[ONYX][ASSETS] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
@@ -575,28 +679,27 @@ template <Dimension D> void UpdateMesh(const Mesh mesh, const StatMeshData<D> &d
 
 template <Dimension D> Material AddMaterial(const MaterialData<D> &data)
 {
-    MaterialInfo<D> &materials = getData<D>().Materials;
+    MaterialAssetData<D> &materials = getData<D>().Materials;
 
-    const Material material = materials.Materials.GetSize();
+    const Material handle = materials.Materials.GetSize();
     materials.Materials.Append(data);
     materials.Flags.Append(StatusFlag_UpdateMaterial);
 
-    return material;
+    return handle;
 }
 
-template <Dimension D> void UpdateMaterial(const Material material, const MaterialData<D> &data)
+template <Dimension D> void UpdateMaterial(const Material handle, const MaterialData<D> &data)
 {
-    MaterialInfo<D> &materials = getData<D>().Materials;
-
-    materials.Materials[material] = data;
-    materials.Flags[material] = StatusFlag_UpdateMaterial;
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    materials.Materials[handle] = data;
+    materials.Flags[handle] = StatusFlag_UpdateMaterial;
 }
 
-template <Dimension D> StatMeshData<D> GetStaticMeshData(const Mesh mesh)
+template <Dimension D> StatMeshData<D> GetStaticMeshData(const Mesh handle)
 {
-    StatMeshInfo<D> &meshes = getData<D>().StaticMeshes;
+    StatMeshAssetData<D> &meshes = getData<D>().StaticMeshes;
     StatMeshData<D> data{};
-    const DataLayout &layout = meshes.Layouts[mesh];
+    const DataLayout &layout = meshes.Layouts[handle];
 
     const u32 vstart = layout.VertexStart;
     const u32 vend = vstart + layout.VertexCount;
@@ -610,14 +713,14 @@ template <Dimension D> StatMeshData<D> GetStaticMeshData(const Mesh mesh)
 
     return data;
 }
-template <Dimension D> const MaterialData<D> &GetMaterialData(const Material material)
+template <Dimension D> const MaterialData<D> &GetMaterialData(const Material handle)
 {
-    MaterialInfo<D> &materials = getData<D>().Materials;
-    return materials.Materials[material];
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    return materials.Materials[handle];
 }
 const TextureData &GetTextureData(const Texture texture)
 {
-    return s_TextureData->Textures[texture];
+    return s_TextureData->Textures[texture].Data;
 }
 
 template <Dimension D> u32 GetStaticMeshCount()
@@ -649,25 +752,30 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> upload()
 
 ONYX_NO_DISCARD static Result<> uploadTextures()
 {
-    const auto &texs = s_TextureData->Textures;
-    const auto &flags = s_TextureData->Flags;
-    auto &imgs = s_TextureData->Images;
-    TKIT_ASSERT(texs.GetSize() >= imgs.GetSize(),
-                "[ONYX][ASSETS] Number of textures must be greater or equal than created images");
+    for (const Texture handle : s_TextureData->ToRemove)
+    {
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying texture with handle {}", handle);
+        TextureInfo &tinfo = s_TextureData->Textures[handle];
+        tinfo.Image.Destroy();
+#ifdef ONYX_ENABLE_GLTF_LOAD
+        if (tinfo.Flags & StatusFlag_MustFreeTexture)
+            TKit::Deallocate(tinfo.Data.Data);
+#endif
+        s_TextureData->Textures.Remove(handle);
+    }
+    s_TextureData->ToRemove.Clear();
 
     StatusFlags sflags = 0;
-    for (const StatusFlags f : flags)
-        sflags |= f;
+    for (const TextureInfo &tinfo : s_TextureData->Textures)
+        sflags |= tinfo.Flags;
 
-    TKIT_ASSERT((sflags & StatusFlag_UpdateTexture) || texs.GetSize() == imgs.GetSize(),
-                "[ONYX][ASSETS] If there are no texture update requests, texture and image arrays must be the same "
-                "size, but found {} and {}",
-                texs.GetSize(), imgs.GetSize());
+    TKIT_ASSERT((sflags & StatusFlag_UpdateTexture) || !(sflags & StatusFlag_CreateTexture),
+                "[ONYX][ASSETS] If a texture needs to be created, it also needs to be updated");
 
     if (!(sflags & StatusFlag_UpdateTexture))
         return Result<>::Ok();
 
-    if (texs.GetSize() > imgs.GetSize())
+    if (sflags & StatusFlag_CreateTexture)
     {
         const VKit::DescriptorSetLayout &layout2 = Descriptors::GetDescriptorSetLayout<D2>(Shading_Lit);
         VKit::DescriptorSet::Writer writer2{Core::GetDevice(), &layout2};
@@ -676,32 +784,39 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
         VKit::DescriptorSet::Writer writer3{Core::GetDevice(), &layout3};
 
         TKit::StackArray<VkDescriptorImageInfo> imageInfos{};
-        imageInfos.Reserve(texs.GetSize() - imgs.GetSize());
-        for (u32 i = imgs.GetSize(); i < texs.GetSize(); ++i)
-        {
-            const TextureData &tdata = texs[i];
-            TKIT_LOG_DEBUG("[ONYX][ASSETS] Creating new texture with dimensions {}x{} and {} channels, with size {:L}",
-                           tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
+        imageInfos.Reserve(s_TextureData->Textures.GetSize());
 
-            auto result = VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
-                                                     VkExtent2D{tdata.Width, tdata.Height}, tdata.Format,
-                                                     VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled |
-                                                         VKit::DeviceImageFlag_Destination)
-                              .WithImageView()
-                              .Build();
-            TKIT_RETURN_ON_ERROR(result);
-            VKit::DeviceImage &img = result.GetValue();
-            imgs.Append(img);
-            if (Core::CanNameObjects())
+        for (TextureInfo &tinfo : s_TextureData->Textures)
+            if (tinfo.Flags & StatusFlag_CreateTexture)
             {
-                const std::string name = TKit::Format("onyx-assets-texture-image-{}", i);
-                TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()));
+                tinfo.Flags &= ~StatusFlag_CreateTexture;
+                const TextureData &tdata = tinfo.Data;
+                TKIT_LOG_DEBUG("[ONYX][ASSETS] Creating new texture (handle={}) with dimensions {}x{} and {} channels, "
+                               "with size {:L}",
+                               tinfo.Id, tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
+
+                TKIT_ASSERT(!tinfo.Image,
+                            "[ONYX][ASSETS] To create a texture, it is underlying image must not exist yet");
+
+                auto result = VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
+                                                         VkExtent2D{tdata.Width, tdata.Height}, tdata.Format,
+                                                         VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled |
+                                                             VKit::DeviceImageFlag_Destination)
+                                  .WithImageView()
+                                  .Build();
+                TKIT_RETURN_ON_ERROR(result);
+                VKit::DeviceImage &img = result.GetValue();
+                tinfo.Image = img;
+                if (Core::CanNameObjects())
+                {
+                    const std::string name = TKit::Format("onyx-assets-texture-image-{}", tinfo.Id);
+                    TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()));
+                }
+                const VkDescriptorImageInfo &info =
+                    imageInfos.Append(img.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+                writer2.WriteImage(3, info, tinfo.Id);
+                writer3.WriteImage(3, info, tinfo.Id);
             }
-            const VkDescriptorImageInfo &info =
-                imageInfos.Append(img.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-            writer2.WriteImage(3, info, i);
-            writer3.WriteImage(3, info, i);
-        }
 
         for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
             writer2.Overwrite(set);
@@ -712,12 +827,12 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    for (u32 i = 0; i < texs.GetSize(); ++i)
-        if (s_TextureData->Flags[i] & StatusFlag_UpdateTexture)
+    for (TextureInfo &tinfo : s_TextureData->Textures)
+        if (tinfo.Flags & StatusFlag_UpdateTexture)
         {
-            s_TextureData->Flags[i] &= ~StatusFlag_UpdateTexture;
-            const TextureData &tdata = texs[i];
-            VKit::DeviceImage &img = imgs[i];
+            tinfo.Flags &= ~StatusFlag_UpdateTexture;
+            const TextureData &tdata = tinfo.Data;
+            VKit::DeviceImage &img = tinfo.Image;
 
             const VkDeviceSize size = img.ComputeSize();
             TKIT_ASSERT(
@@ -767,17 +882,58 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
         }
     return Result<>::Ok();
 }
-
-static void uploadSamplers()
+static VkSamplerMipmapMode toVulkan(const SamplerMode mode)
 {
-    const u32 uploaded = s_SamplerData->Uploaded;
-    const auto &samplers = s_SamplerData->Samplers;
-    if (uploaded == samplers.GetSize())
-        return;
+    switch (mode)
+    {
+    case SamplerMode_Linear:
+        return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    case SamplerMode_Nearest:
+        return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    }
+}
+static VkFilter toVulkan(const SamplerFilter filter)
+{
+    switch (filter)
+    {
+    case SamplerFilter_Linear:
+        return VK_FILTER_LINEAR;
+    case SamplerFilter_Nearest:
+        return VK_FILTER_NEAREST;
+    case SamplerFilter_Cubic:
+        return VK_FILTER_CUBIC_EXT;
+    }
+}
+static VkSamplerAddressMode toVulkan(const SamplerWrap wrap)
+{
+    switch (wrap)
+    {
+    case SamplerWrap_Repeat:
+        return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    case SamplerWrap_ClampToEdge:
+        return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    case SamplerWrap_MirroredRepeat:
+        return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    }
+}
 
-    TKIT_ASSERT(uploaded < samplers.GetSize(),
-                "[ONYX][ASSETS] Cannot have more uploaded samplers ({}) than samplers themselves ({})", uploaded,
-                samplers.GetSize());
+ONYX_NO_DISCARD static Result<> uploadSamplers()
+{
+    for (const Sampler handle : s_SamplerData->ToRemove)
+    {
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying sampler with handle {}", handle);
+        SamplerInfo &sinfo = s_SamplerData->Samplers[handle];
+        sinfo.Sampler.Destroy();
+        s_SamplerData->Samplers.Remove(handle);
+    }
+    s_SamplerData->ToRemove.Clear();
+
+    StatusFlags sflags = 0;
+    for (const SamplerInfo &sinfo : s_SamplerData->Samplers)
+        sflags |= sinfo.Flags;
+
+    if (!(sflags & StatusFlag_UpdateSampler))
+        return Result<>::Ok();
 
     const VKit::DescriptorSetLayout &layout2 = Descriptors::GetDescriptorSetLayout<D2>(Shading_Lit);
     VKit::DescriptorSet::Writer writer2{Core::GetDevice(), &layout2};
@@ -786,21 +942,35 @@ static void uploadSamplers()
     VKit::DescriptorSet::Writer writer3{Core::GetDevice(), &layout3};
 
     TKit::StackArray<VkDescriptorImageInfo> imageInfos{};
-    imageInfos.Reserve(samplers.GetSize() - uploaded);
-    for (u32 i = uploaded; i < samplers.GetSize(); ++i)
-    {
-        const VkDescriptorImageInfo &info = imageInfos.Append(VkDescriptorImageInfo{
-            .sampler = samplers[i], .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED});
-        writer2.WriteImage(2, info, i);
-        writer3.WriteImage(2, info, i);
-    }
+    imageInfos.Reserve(s_SamplerData->Samplers.GetSize());
+    for (SamplerInfo &sinfo : s_SamplerData->Samplers)
+        if (sinfo.Flags & StatusFlag_UpdateSampler)
+        {
+            sinfo.Flags &= ~StatusFlag_UpdateSampler;
+            const auto result = VKit::Sampler::Builder(Core::GetDevice())
+                                    .SetMipmapMode(toVulkan(sinfo.Data.Mode))
+                                    .SetMinFilter(toVulkan(sinfo.Data.MinFilter))
+                                    .SetMagFilter(toVulkan(sinfo.Data.MagFilter))
+                                    .SetAddressModeU(toVulkan(sinfo.Data.WrapU))
+                                    .SetAddressModeV(toVulkan(sinfo.Data.WrapV))
+                                    .SetAddressModeW(toVulkan(sinfo.Data.WrapW))
+                                    .Build();
+            TKIT_RETURN_ON_ERROR(result);
+
+            sinfo.Sampler = result.GetValue();
+            TKIT_LOG_DEBUG("[ONYX][ASSETS] Updating sampler with handle {}", sinfo.Id);
+            const VkDescriptorImageInfo &info = imageInfos.Append(VkDescriptorImageInfo{
+                .sampler = sinfo.Sampler, .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED});
+            writer2.WriteImage(2, info, sinfo.Id);
+            writer3.WriteImage(2, info, sinfo.Id);
+        }
 
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
         writer2.Overwrite(set);
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Lit))
         writer3.Overwrite(set);
 
-    s_SamplerData->Uploaded = samplers.GetSize();
+    return Result<>::Ok();
 }
 
 Result<> Upload()
@@ -813,7 +983,7 @@ Result<> Upload()
     TKIT_RETURN_IF_FAILED(upload<D2>());
     TKIT_RETURN_IF_FAILED(upload<D3>());
     TKIT_RETURN_IF_FAILED(uploadTextures());
-    uploadSamplers();
+    TKIT_RETURN_IF_FAILED(uploadSamplers());
     s_Flags &= ~AssetsFlag_MustUpload;
     return Result<>::Ok();
 }
@@ -829,9 +999,9 @@ Result<bool> RequestUpload()
     return true;
 }
 
-template <Dimension D> MeshDataLayout GetStaticMeshLayout(const Mesh mesh)
+template <Dimension D> MeshDataLayout GetStaticMeshLayout(const Mesh handle)
 {
-    const DataLayout &layout = getData<D>().StaticMeshes.Layouts[mesh];
+    const DataLayout &layout = getData<D>().StaticMeshes.Layouts[handle];
     return MeshDataLayout{.VertexStart = layout.VertexStart,
                           .VertexCount = layout.VertexCount,
                           .IndexStart = layout.IndexStart,
@@ -938,7 +1108,7 @@ static VkFormat getFormat(const i32 components, const i32 pixelType, const bool 
         return VK_FORMAT_UNDEFINED;
     }
 }
-template <Dimension D> Result<GltfData<D>> LoadGltfFile(const std::string &path, const AssetsFlags flags)
+template <Dimension D> Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, const AssetsFlags flags)
 {
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
@@ -950,19 +1120,31 @@ template <Dimension D> Result<GltfData<D>> LoadGltfFile(const std::string &path,
                         : loader.LoadASCIIFromFile(&model, &err, &warn, path);
     TKIT_LOG_WARNING_IF(!warn.empty(), "[ONYX][ASSETS] {}", warn);
     if (!ok)
-        return Result<GltfData<D>>::Error(Error_LoadFailed,
-                                          TKit::Format("[ONYX][ASSETS] Failed to load gltf: {}", err));
-    GltfData<D> data{};
+        return Result<GltfAssets<D>>::Error(Error_LoadFailed,
+                                            TKit::Format("[ONYX][ASSETS] Failed to load gltf: {}", err));
+    GltfAssets<D> assets{};
     for (const auto &mesh : model.meshes)
+    {
+        std::unordered_map<i32, u32> primToMeshIndex;
         for (const auto &prim : mesh.primitives)
         {
+            const i32 posAccessorIdx = prim.attributes.at("POSITION");
+            if (primToMeshIndex.contains(posAccessorIdx))
+                continue;
+
             StatMeshData<D> meshData{};
 
-            const auto &posAccessor = model.accessors[prim.attributes.at("POSITION")];
+            u32 posStride;
+            u32 normStride;
+            u32 uvStride;
+            u32 tanStride;
+
+            const auto &posAccessor = model.accessors[posAccessorIdx];
             const auto &posView = model.bufferViews[posAccessor.bufferView];
             const auto &posBuf = model.buffers[posView.buffer];
             const f32 *positions = rcast<const f32 *>(posBuf.data.data() + posView.byteOffset + posAccessor.byteOffset);
 
+            posStride = posView.byteStride ? posView.byteStride / sizeof(f32) : 3;
             const f32 *normals = nullptr;
             if (prim.attributes.contains("NORMAL"))
             {
@@ -970,58 +1152,76 @@ template <Dimension D> Result<GltfData<D>> LoadGltfFile(const std::string &path,
                 const auto &normView = model.bufferViews[normAccessor.bufferView];
                 normals = rcast<const f32 *>(model.buffers[normView.buffer].data.data() + normView.byteOffset +
                                              normAccessor.byteOffset);
+                normStride = normView.byteStride ? normView.byteStride / sizeof(f32) : 3;
             }
 
             const f32 *texcoords = nullptr;
+            if (prim.attributes.contains("TEXCOORD_0"))
+            {
+                const auto &uvAccessor = model.accessors[prim.attributes.at("TEXCOORD_0")];
+                const auto &uvView = model.bufferViews[uvAccessor.bufferView];
+                texcoords = rcast<const f32 *>(model.buffers[uvView.buffer].data.data() + uvView.byteOffset +
+                                               uvAccessor.byteOffset);
+                uvStride = uvView.byteStride ? uvView.byteStride / sizeof(f32) : 2;
+            }
+
             const f32 *tangents = nullptr;
             if constexpr (D == D3)
             {
-                if (prim.attributes.contains("TEXCOORD_0"))
-                {
-                    const auto &uvAccessor = model.accessors[prim.attributes.at("TEXCOORD_0")];
-                    const auto &uvView = model.bufferViews[uvAccessor.bufferView];
-                    texcoords = rcast<const f32 *>(model.buffers[uvView.buffer].data.data() + uvView.byteOffset +
-                                                   uvAccessor.byteOffset);
-                }
-
                 if (prim.attributes.contains("TANGENT"))
                 {
                     const auto &tanAccessor = model.accessors[prim.attributes.at("TANGENT")];
                     const auto &tanView = model.bufferViews[tanAccessor.bufferView];
                     tangents = rcast<const f32 *>(model.buffers[tanView.buffer].data.data() + tanView.byteOffset +
                                                   tanAccessor.byteOffset);
+                    tanStride = tanView.byteStride ? tanView.byteStride / sizeof(f32) : 4;
                 }
             }
 
             const u32 vertexCount = u32(posAccessor.count);
-            std::unordered_map<StatVertex<D>, Index> uniqueVertices;
             for (u32 i = 0; i < vertexCount; ++i)
             {
                 StatVertex<D> vertex{};
                 for (u32 j = 0; j < D; ++j)
-                    vertex.Position[j] = positions[3 * i + j];
+                    vertex.Position[j] = positions[posStride * i + j];
                 if constexpr (D == D3)
                 {
                     if (normals)
                         for (u32 j = 0; j < 3; ++j)
-                            vertex.Normal[j] = normals[3 * i + j];
+                            vertex.Normal[j] = normals[normStride * i + j];
                     if (tangents)
                         for (u32 j = 0; j < 4; ++j)
-                            vertex.Tangent[j] = tangents[4 * i + j];
+                            vertex.Tangent[j] = tangents[tanStride * i + j];
                 }
                 if (texcoords)
                     for (u32 j = 0; j < 2; ++j)
-                        vertex.TexCoord[j] = texcoords[2 * i + j];
+                        vertex.TexCoord[j] = texcoords[uvStride * i + j];
 
-                if (!uniqueVertices.contains(vertex))
-                {
-                    uniqueVertices[vertex] = Index(uniqueVertices.size());
-                    meshData.Vertices.Append(vertex);
-                }
-                meshData.Indices.Append(uniqueVertices[vertex]);
+                meshData.Vertices.Append(vertex);
             }
-            data.StaticMeshes.Append(meshData);
+
+            const auto &idxAccessor = model.accessors[prim.indices];
+            const auto &idxView = model.bufferViews[idxAccessor.bufferView];
+            const u8 *idxBuf = model.buffers[idxView.buffer].data.data() + idxView.byteOffset + idxAccessor.byteOffset;
+            const u32 indexCount = u32(idxAccessor.count);
+            for (u32 i = 0; i < indexCount; ++i)
+            {
+                switch (idxAccessor.componentType)
+                {
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+                    meshData.Indices.Append(Index(idxBuf[i]));
+                    break;
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+                    meshData.Indices.Append(Index(rcast<const u16 *>(idxBuf)[i]));
+                    break;
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+                    meshData.Indices.Append(Index(rcast<const u32 *>(idxBuf)[i]));
+                    break;
+                }
+            }
+            assets.StaticMeshes.Append(meshData);
         }
+    }
 
     std::unordered_set<u32> srgbTexs;
     for (const auto &mat : model.materials)
@@ -1030,7 +1230,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfFile(const std::string &path,
         const i32 emissiveIdx = mat.emissiveTexture.index;
         if (albedoIdx >= 0)
             srgbTexs.insert(u32(model.textures[albedoIdx].source));
-        if (emissiveIdx)
+        if (emissiveIdx >= 0)
             srgbTexs.insert(u32(model.textures[emissiveIdx].source));
 
         if constexpr (D == D2)
@@ -1046,9 +1246,12 @@ template <Dimension D> Result<GltfData<D>> LoadGltfFile(const std::string &path,
 
             const i32 texIdx = pbr.baseColorTexture.index;
             if (texIdx >= 0)
+            {
+                matData.Sampler = Sampler(model.textures[texIdx].sampler);
                 matData.Texture = Texture(model.textures[texIdx].source);
+            }
 
-            data.Materials.Append(matData);
+            assets.Materials.Append(matData);
         }
         else
         {
@@ -1070,28 +1273,99 @@ template <Dimension D> Result<GltfData<D>> LoadGltfFile(const std::string &path,
             const auto &emissive = mat.emissiveFactor;
             matData.EmissiveFactor = f32v3{f32(emissive[0]), f32(emissive[1]), f32(emissive[2])};
 
-            const int albedoIdx = pbr.baseColorTexture.index;
+            const i32 albedoIdx = pbr.baseColorTexture.index;
             if (albedoIdx >= 0)
-                matData.AlbedoTex = Texture(model.textures[albedoIdx].source);
+            {
+                matData.Samplers[TextureSlot_Albedo] = Sampler(model.textures[albedoIdx].sampler);
+                matData.Textures[TextureSlot_Albedo] = Texture(model.textures[albedoIdx].source);
+            }
 
-            const int mrIdx = pbr.metallicRoughnessTexture.index;
+            const i32 mrIdx = pbr.metallicRoughnessTexture.index;
             if (mrIdx >= 0)
-                matData.MetallicRoughnessTex = Texture(model.textures[mrIdx].source);
+            {
+                matData.Samplers[TextureSlot_MetallicRoughness] = Sampler(model.textures[mrIdx].sampler);
+                matData.Textures[TextureSlot_MetallicRoughness] = Texture(model.textures[mrIdx].source);
+            }
 
-            const int normalIdx = mat.normalTexture.index;
+            const i32 normalIdx = mat.normalTexture.index;
             if (normalIdx >= 0)
-                matData.NormalTex = Texture(model.textures[normalIdx].source);
+            {
+                matData.Samplers[TextureSlot_Normal] = Sampler(model.textures[normalIdx].sampler);
+                matData.Textures[TextureSlot_Normal] = Texture(model.textures[normalIdx].source);
+            }
 
-            const int occlusionIdx = mat.occlusionTexture.index;
+            const i32 occlusionIdx = mat.occlusionTexture.index;
             if (occlusionIdx >= 0)
-                matData.OcclusionTex = Texture(model.textures[occlusionIdx].source);
+            {
+                matData.Samplers[TextureSlot_Occlusion] = Sampler(model.textures[occlusionIdx].sampler);
+                matData.Textures[TextureSlot_Occlusion] = Texture(model.textures[occlusionIdx].source);
+            }
 
-            const int emissiveIdx = mat.emissiveTexture.index;
+            const i32 emissiveIdx = mat.emissiveTexture.index;
             if (emissiveIdx >= 0)
-                matData.EmissiveTex = Texture(model.textures[emissiveIdx].source);
+            {
+                matData.Samplers[TextureSlot_Emissive] = Sampler(model.textures[emissiveIdx].sampler);
+                matData.Textures[TextureSlot_Emissive] = Texture(model.textures[emissiveIdx].source);
+            }
 
-            data.Materials.Append(matData);
+            assets.Materials.Append(matData);
         }
+    }
+
+    for (const auto &sampler : model.samplers)
+    {
+        SamplerData samplerData{};
+
+        switch (sampler.minFilter)
+        {
+        case TINYGLTF_TEXTURE_FILTER_NEAREST:
+        case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+            samplerData.MinFilter = SamplerFilter_Nearest;
+            samplerData.Mode = SamplerMode_Nearest;
+            break;
+        case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
+            samplerData.MinFilter = SamplerFilter_Linear;
+            samplerData.Mode = SamplerMode_Nearest;
+            break;
+        case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
+            samplerData.MinFilter = SamplerFilter_Nearest;
+            samplerData.Mode = SamplerMode_Linear;
+            break;
+        case TINYGLTF_TEXTURE_FILTER_LINEAR:
+        case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
+        default:
+            samplerData.MinFilter = SamplerFilter_Linear;
+            samplerData.Mode = SamplerMode_Linear;
+            break;
+        }
+
+        switch (sampler.magFilter)
+        {
+        case TINYGLTF_TEXTURE_FILTER_NEAREST:
+            samplerData.MagFilter = SamplerFilter_Nearest;
+            break;
+        case TINYGLTF_TEXTURE_FILTER_LINEAR:
+        default:
+            samplerData.MagFilter = SamplerFilter_Linear;
+            break;
+        }
+
+        const auto toWrap = [](const i32 wrap) -> SamplerWrap {
+            switch (wrap)
+            {
+            case TINYGLTF_TEXTURE_WRAP_CLAMP_TO_EDGE:
+                return SamplerWrap_ClampToEdge;
+            case TINYGLTF_TEXTURE_WRAP_MIRRORED_REPEAT:
+                return SamplerWrap_MirroredRepeat;
+            case TINYGLTF_TEXTURE_WRAP_REPEAT:
+            default:
+                return SamplerWrap_Repeat;
+            }
+        };
+
+        samplerData.WrapU = toWrap(sampler.wrapS);
+        samplerData.WrapV = toWrap(sampler.wrapT);
+        assets.Samplers.Append(samplerData);
     }
 
     for (u32 i = 0; i < u32(model.images.size()); ++i)
@@ -1102,12 +1376,21 @@ template <Dimension D> Result<GltfData<D>> LoadGltfFile(const std::string &path,
         tex.Height = u32(image.height);
         tex.Components = u32(image.component);
         tex.Format = getFormat(image.component, image.pixel_type, srgbTexs.contains(i));
-        tex.Data = scast<std::byte *>(TKit::Allocate(tex.ComputeSize()));
+
+        const usz size = tex.ComputeSize();
+        tex.Data = scast<std::byte *>(TKit::Allocate(size));
+        TKIT_ASSERT(
+            size == image.image.size(),
+            "[ONYX][ASSETS] Texture size mismatch between gltf ({:L}) and computed size based on components and "
+            "format ({:L})",
+            image.image.size(), size);
         TKIT_ASSERT(tex.Data, "[ONYX][ASSETS] Failed to allocate texture data of size {:L} bytes", tex.ComputeSize());
-        data.Textures.Append(tex);
+
+        TKit::ForwardCopy(tex.Data, image.image.data(), size);
+        assets.Textures.Append(tex);
     }
 
-    return data;
+    return assets;
 }
 Result<TextureData> LoadTextureDataFromImageFile(const char *path, const ImageComponent requiredComponents,
                                                  const AssetsFlags flags)
@@ -1207,10 +1490,10 @@ template <Dimension D> StatMeshData<D> CreateSquareMesh()
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    addVertex(-0.5f, -0.5f, 0.f, 0.f);
-    addVertex(0.5f, -0.5f, 1.f, 0.f);
-    addVertex(-0.5f, 0.5f, 0.f, 1.f);
-    addVertex(0.5f, 0.5f, 1.f, 1.f);
+    addVertex(-0.5f, -0.5f, 0.f, 1.f);
+    addVertex(0.5f, -0.5f, 1.f, 1.f);
+    addVertex(-0.5f, 0.5f, 0.f, 0.f);
+    addVertex(0.5f, 0.5f, 1.f, 0.f);
 
     addIndex(0);
     addIndex(1);
@@ -1500,8 +1783,8 @@ template void UpdateMaterial(Material mesh, const MaterialData<D3> &data);
 template Mesh AddMesh(const StatMeshData<D2> &data);
 template Mesh AddMesh(const StatMeshData<D3> &data);
 
-template void UpdateMesh(Mesh mesh, const StatMeshData<D2> &data);
-template void UpdateMesh(Mesh mesh, const StatMeshData<D3> &data);
+template void UpdateMesh(Mesh handle, const StatMeshData<D2> &data);
+template void UpdateMesh(Mesh handle, const StatMeshData<D3> &data);
 
 template u32 GetStaticMeshCount<D2>();
 template u32 GetStaticMeshCount<D3>();
@@ -1511,18 +1794,18 @@ template Result<StatMeshData<D2>> LoadStaticMeshFromObjFile<D2>(const char *path
 template Result<StatMeshData<D3>> LoadStaticMeshFromObjFile<D3>(const char *path);
 #endif
 
-template StatMeshData<D2> GetStaticMeshData(Mesh mesh);
-template StatMeshData<D3> GetStaticMeshData(Mesh mesh);
+template StatMeshData<D2> GetStaticMeshData(Mesh handle);
+template StatMeshData<D3> GetStaticMeshData(Mesh handle);
 
-template const MaterialData<D2> &GetMaterialData(Material material);
-template const MaterialData<D3> &GetMaterialData(Material material);
+template const MaterialData<D2> &GetMaterialData(Material handle);
+template const MaterialData<D3> &GetMaterialData(Material handle);
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
-template GltfHandles AddGltfData(GltfData<D2> &data, Sampler defaultSampler = NullSampler);
-template GltfHandles AddGltfData(GltfData<D3> &data, Sampler defaultSampler = NullSampler);
+template GltfHandles AddGltfAssets(GltfAssets<D2> &assets);
+template GltfHandles AddGltfAssets(GltfAssets<D3> &assets);
 
-template Result<GltfData<D2>> LoadGltfFile(const std::string &path, AssetsFlags flags);
-template Result<GltfData<D3>> LoadGltfFile(const std::string &path, AssetsFlags flags);
+template Result<GltfAssets<D2>> LoadGltfAssetsFromFile(const std::string &path, AssetsFlags flags);
+template Result<GltfAssets<D3>> LoadGltfAssetsFromFile(const std::string &path, AssetsFlags flags);
 #endif
 
 template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D2>();
@@ -1531,8 +1814,8 @@ template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D3>();
 template const VKit::DeviceBuffer &GetStaticMeshIndexBuffer<D2>();
 template const VKit::DeviceBuffer &GetStaticMeshIndexBuffer<D3>();
 
-template MeshDataLayout GetStaticMeshLayout<D2>(Mesh mesh);
-template MeshDataLayout GetStaticMeshLayout<D3>(Mesh mesh);
+template MeshDataLayout GetStaticMeshLayout<D2>(Mesh handle);
+template MeshDataLayout GetStaticMeshLayout<D3>(Mesh handle);
 
 template StatMeshData<D2> CreateTriangleMesh<D2>();
 template StatMeshData<D3> CreateTriangleMesh<D3>();

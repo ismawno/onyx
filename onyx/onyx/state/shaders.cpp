@@ -556,7 +556,7 @@ Result<Compilation> Compiler::Compile() const
 
     const bool oldMesa = isOldMesa();
     TKit::StackArray<slang::CompilerOptionEntry> coptions;
-    coptions.Reserve(m_Arguments.GetSize() + 1 + oldMesa);
+    coptions.Reserve(m_Arguments.GetSize() + 3);
 
     slang::CompilerOptionEntry entry;
     entry.name = slang::CompilerOptionName::MatrixLayoutColumn;
@@ -569,6 +569,12 @@ Result<Compilation> Compiler::Compile() const
         coptions.Append(entry);
         TKIT_LOG_WARNING("[ONYX][SHADERS] Old mesa version detected (pre-25.3.3) which contains a bug regarding "
                          "optimized spir-v code. Setting optimizations to 0 as a fix");
+    }
+
+    if (Core::GetInstance().IsExtensionEnabled("VK_EXT_debug_utils"))
+    {
+        entry.name = slang::CompilerOptionName::DebugInformation;
+        coptions.Append(entry);
     }
 
     for (const ShaderArgument &sa : m_Arguments)

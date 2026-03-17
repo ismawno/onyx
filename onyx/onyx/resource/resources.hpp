@@ -3,7 +3,6 @@
 #include "onyx/core/core.hpp"
 #include "onyx/resource/buffer.hpp"
 #include "onyx/core/core.hpp"
-#include "vkit/resource/sampler.hpp"
 
 namespace Onyx::Resources
 {
@@ -15,7 +14,6 @@ ONYX_NO_DISCARD Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBuffer
 {
     return CreateBuffer(flags, capacity * sizeof(T));
 }
-ONYX_NO_DISCARD Result<VKit::Sampler> CreateDefaultSampler();
 
 inline u32 GrowCapacity(const u32 instances, const f32 factor = 1.5f)
 {
