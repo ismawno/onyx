@@ -1132,7 +1132,8 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
     HandleLoadDialog(
         GltfTask,
         [&](const Dialog::Path &path) {
-            auto res = Assets::LoadGltfAssetsFromFile<D>(path.string(), AssetsFlag_LoadImageForceRGBA);
+            auto res = Assets::LoadGltfAssetsFromFile<D>(
+                path.string(), LoadGltfDataFlag_ForceRGBA | LoadGltfDataFlag_CenterVerticesAroundOrigin);
             VKIT_LOG_RESULT_ERROR(res);
             if (!res)
                 return;

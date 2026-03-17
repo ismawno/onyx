@@ -27,6 +27,12 @@ TKIT_COMPILER_WARNING_IGNORE_POP()
 
 namespace Onyx::Assets
 {
+using AssetsFlags = u8;
+enum AssetsFlagBit : AssetsFlags
+{
+    AssetsFlag_Locked = 1 << 0,     // internal
+    AssetsFlag_MustUpload = 1 << 1, // internal
+};
 using StatusFlags = u8;
 enum StatusFlagBit : StatusFlags
 {
@@ -559,12 +565,12 @@ template <Dimension D> GltfHandles AddGltfAssets(GltfAssets<D> &assets)
     return handles;
 }
 
-Texture AddTexture(const TextureData &data, const AssetsFlags flags)
+Texture AddTexture(const TextureData &data, const AddTextureFlags flags)
 {
 #ifndef ONYX_ENABLE_GLTF_LOAD
-    TKIT_ASSERT(flags & AssetsFlag_UserHandledMemory,
+    TKIT_ASSERT(flags & AddTextureFlag_ManuallyHandledMemory,
                 "[ONYX][ASSETS] If GLTF load is disabled, all texture data CPU memory must be handled by the user. "
-                "This must be reflected by passing the AssetsFlag_UserHandledMemory flag");
+                "This must be reflected by passing the AddTextureFlag_ManuallyHandledMemory flag");
 #endif
     const Texture tex = s_TextureData->Textures.Insert();
     TextureInfo &tinfo = s_TextureData->Textures[tex];
@@ -573,18 +579,18 @@ Texture AddTexture(const TextureData &data, const AssetsFlags flags)
 
     StatusFlags sflags = StatusFlag_UpdateTexture | StatusFlag_CreateTexture;
 #ifdef ONYX_ENABLE_GLTF_LOAD
-    if (!(flags & AssetsFlag_UserHandledMemory))
+    if (!(flags & AddTextureFlag_ManuallyHandledMemory))
         sflags |= StatusFlag_MustFreeTexture;
 #endif
     tinfo.Flags = sflags;
     return tex;
 }
-void UpdateTexture(const Texture tex, const TextureData &data, const AssetsFlags flags)
+void UpdateTexture(const Texture tex, const TextureData &data, const AddTextureFlags flags)
 {
 #ifndef ONYX_ENABLE_GLTF_LOAD
-    TKIT_ASSERT(flags & AssetsFlag_UserHandledMemory,
+    TKIT_ASSERT(flags & AddTextureFlag_ManuallyHandledMemory,
                 "[ONYX][ASSETS] If GLTF load is disabled, all texture data CPU memory must be handled by the user. "
-                "This must be reflected by passing the AssetsFlag_UserHandledMemory flag");
+                "This must be reflected by passing the AddTextureFlag_ManuallyHandledMemory flag");
 #endif
 
     TextureInfo &tinfo = s_TextureData->Textures[tex];
@@ -601,7 +607,7 @@ void UpdateTexture(const Texture tex, const TextureData &data, const AssetsFlags
     tinfo.Data = data;
     tinfo.Flags |= StatusFlag_UpdateTexture;
 #ifdef ONYX_ENABLE_GLTF_LOAD
-    if (!(flags & AssetsFlag_UserHandledMemory))
+    if (!(flags & AddTextureFlag_ManuallyHandledMemory))
         tinfo.Flags |= StatusFlag_MustFreeTexture;
 #endif
 }
@@ -1108,13 +1114,14 @@ static VkFormat getFormat(const i32 components, const i32 pixelType, const bool 
         return VK_FORMAT_UNDEFINED;
     }
 }
-template <Dimension D> Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, const AssetsFlags flags)
+template <Dimension D>
+Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, const LoadGltfDataFlags flags)
 {
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string warn, err;
 
-    loader.SetPreserveImageChannels(!(flags & AssetsFlag_LoadImageForceRGBA));
+    loader.SetPreserveImageChannels(!(flags & LoadGltfDataFlag_ForceRGBA));
     const bool ok = path.ends_with(".bin") || path.ends_with(".glb")
                         ? loader.LoadBinaryFromFile(&model, &err, &warn, path)
                         : loader.LoadASCIIFromFile(&model, &err, &warn, path);
@@ -1198,6 +1205,15 @@ template <Dimension D> Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::s
                         vertex.TexCoord[j] = texcoords[uvStride * i + j];
 
                 meshData.Vertices.Append(vertex);
+            }
+            if (!meshData.Vertices.IsEmpty() && (flags & LoadGltfDataFlag_CenterVerticesAroundOrigin))
+            {
+                f32v<D> center{0.f};
+                for (const StatVertex<D> &vx : meshData.Vertices)
+                    center += vx.Position;
+                center /= meshData.Vertices.GetSize();
+                for (StatVertex<D> &vx : meshData.Vertices)
+                    vx.Position -= center;
             }
 
             const auto &idxAccessor = model.accessors[prim.indices];
@@ -1393,7 +1409,7 @@ template <Dimension D> Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::s
     return assets;
 }
 Result<TextureData> LoadTextureDataFromImageFile(const char *path, const ImageComponent requiredComponents,
-                                                 const AssetsFlags flags)
+                                                 const LoadTextureDataFlags flags)
 {
     TextureData data{};
     i32 w;
@@ -1426,7 +1442,7 @@ Result<TextureData> LoadTextureDataFromImageFile(const char *path, const ImageCo
     data.Width = u32(w);
     data.Height = u32(h);
     data.Components = requiredComponents > 0 ? requiredComponents : u32(c);
-    data.Format = getFormat(i32(data.Components), pixelType, !(flags & AssetsFlag_LoadAsLinearImage));
+    data.Format = getFormat(i32(data.Components), pixelType, !(flags & LoadTextureDataFlag_AsLinearImage));
     const usz size = data.ComputeSize();
 
     data.Data = scast<std::byte *>(TKit::Allocate(size));

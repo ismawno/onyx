@@ -7,14 +7,23 @@
 
 namespace Onyx
 {
-using AssetsFlags = u8;
-enum AssetsFlagBit : AssetsFlags
+using AddTextureFlags = u8;
+enum AddTextureFlagBit : AddTextureFlags
 {
-    AssetsFlag_Locked = 1 << 0,             // internal
-    AssetsFlag_MustUpload = 1 << 1,         // internal
-    AssetsFlag_UserHandledMemory = 1 << 2,  // relevant in AddTexture
-    AssetsFlag_LoadImageForceRGBA = 1 << 3, // relevant when loading gltf
-    AssetsFlag_LoadAsLinearImage = 1 << 4,  // relevant when loading image
+    AddTextureFlag_ManuallyHandledMemory = 1 << 0,
+};
+
+using LoadGltfDataFlags = u8;
+enum LoadGltfDataFlagBit : LoadGltfDataFlags
+{
+    LoadGltfDataFlag_ForceRGBA = 1 << 0,
+    LoadGltfDataFlag_CenterVerticesAroundOrigin = 1 << 1,
+};
+
+using LoadTextureDataFlags = u8;
+enum LoadTextureDataFlagBit : LoadTextureDataFlags
+{
+    LoadTextureDataFlag_AsLinearImage = 1 << 0,
 };
 
 enum ImageComponent : u8
@@ -77,12 +86,13 @@ void RemoveSampler(Sampler handle);
 
 template <Dimension D> GltfHandles AddGltfAssets(GltfAssets<D> &data);
 
-Texture AddTexture(const TextureData &data, AssetsFlags flags = 0);
-void UpdateTexture(Texture handle, const TextureData &data, AssetsFlags flags = 0);
+Texture AddTexture(const TextureData &data, AddTextureFlags flags = 0);
+void UpdateTexture(Texture handle, const TextureData &data, AddTextureFlags flags = 0);
 void RemoveTexture(Texture handle);
 #else
-Texture AddTexture(const TextureData &data, AssetsFlags flags = AssetsFlag_UserHandledMemory);
-void UpdateTexture(Texture handle, const TextureData &data, AssetsFlags flags = AssetsFlag_UserHandledMemory);
+Texture AddTexture(const TextureData &data, AddTAddTextureFlags flags = AddTextureFlag_ManuallyHandledMemory);
+void UpdateTexture(Texture handle, const TextureData &data,
+                   AddTAddTextureFlags flags = AddTextureFlag_ManuallyHandledMemory);
 #endif
 
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data);
@@ -113,13 +123,13 @@ template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshFro
 #ifdef ONYX_ENABLE_GLTF_LOAD
 
 template <Dimension D>
-ONYX_NO_DISCARD Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, AssetsFlags flags = 0);
+ONYX_NO_DISCARD Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, LoadGltfDataFlags flags = 0);
 
 // template <Dimension D>
-// ONYX_NO_DISCARD Result<GltfData<D>> LoadGltfSceneFromFile(const std::string &path, AssetsFlags flags = 0);
+// ONYX_NO_DISCARD Result<GltfData<D>> LoadGltfSceneFromFile(const std::string &path, LoadGltfDataFlags flags = 0);
 
 ONYX_NO_DISCARD Result<TextureData> LoadTextureDataFromImageFile(
-    const char *path, const ImageComponent requiredComponents = ImageComponent_Auto, AssetsFlags flags = 0);
+    const char *path, const ImageComponent requiredComponents = ImageComponent_Auto, LoadTextureDataFlags flags = 0);
 #endif
 
 template <Dimension D> StatMeshData<D> CreateTriangleMesh();
