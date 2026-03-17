@@ -1361,8 +1361,8 @@ template <Dimension D> static void setCameraViewport(const VkCommandBuffer comma
 }
 
 template <Dimension D>
-ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, const ViewInfo &vinfo,
-                                       const u64 graphicsFlightValue,
+ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkCommandBuffer graphicsCommand,
+                                       const ViewInfo &vinfo, const u64 graphicsFlightValue,
                                        TKit::StackArray<Execution::Tracker> &transferTrackers)
 {
     const auto &camInfos = vinfo.GetCameraInfos<D>();
@@ -1446,7 +1446,7 @@ ONYX_NO_DISCARD static Result<> render(const VkCommandBuffer graphicsCommand, co
                 if (!found)
                     transferTrackers.Append(tracker);
             }
-            grange.GraphicsTracker.InFlightValue = graphicsFlightValue;
+            grange.GraphicsTracker.MarkInUse(graphics, graphicsFlightValue);
         }
     };
 
@@ -1536,8 +1536,8 @@ Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer com
         maxSyncPoints += arena.Graphics.Ranges.GetSize();
     transferTrackers.Reserve(maxSyncPoints);
 
-    TKIT_RETURN_IF_FAILED(render<D3>(command, vinfo, graphicsFlight, transferTrackers));
-    TKIT_RETURN_IF_FAILED(render<D2>(command, vinfo, graphicsFlight, transferTrackers));
+    TKIT_RETURN_IF_FAILED(render<D3>(graphics, command, vinfo, graphicsFlight, transferTrackers));
+    TKIT_RETURN_IF_FAILED(render<D2>(graphics, command, vinfo, graphicsFlight, transferTrackers));
 
     RenderSubmitInfo submitInfo{};
     submitInfo.Command = command;
