@@ -13,6 +13,15 @@ enum AddTextureFlagBit : AddTextureFlags
     AddTextureFlag_ManuallyHandledMemory = 1 << 0,
 };
 
+#ifdef ONYX_ENABLE_OBJ_LOAD
+using LoadObjDataFlags = u8;
+enum LoadObjDataFlagBit : LoadObjDataFlags
+{
+    LoadObjDataFlag_CenterVerticesAroundOrigin = 1 << 0,
+};
+#endif
+
+#ifdef ONYX_ENABLE_GLTF_LOAD
 using LoadGltfDataFlags = u8;
 enum LoadGltfDataFlagBit : LoadGltfDataFlags
 {
@@ -25,16 +34,6 @@ enum LoadTextureDataFlagBit : LoadTextureDataFlags
 {
     LoadTextureDataFlag_AsLinearImage = 1 << 0,
 };
-
-enum ImageComponent : u8
-{
-    ImageComponent_Auto = 0,
-    ImageComponent_Grey = 1,
-    ImageComponent_GreyAlpha = 2,
-    ImageComponent_RGB = 3,
-    ImageComponent_RGBA = 4,
-};
-#ifdef ONYX_ENABLE_GLTF_LOAD
 template <Dimension D> struct GltfAssets
 {
     TKit::TierArray<StatMeshData<D>> StaticMeshes{};
@@ -52,8 +51,16 @@ struct GltfHandles
     TKit::TierArray<Sampler> Samplers{};
     TKit::TierArray<Texture> Textures{};
 };
-
 #endif
+
+enum ImageComponent : u8
+{
+    ImageComponent_Auto = 0,
+    ImageComponent_Grey = 1,
+    ImageComponent_GreyAlpha = 2,
+    ImageComponent_RGB = 3,
+    ImageComponent_RGBA = 4,
+};
 } // namespace Onyx
 
 namespace Onyx::Assets
@@ -118,7 +125,8 @@ ONYX_NO_DISCARD Result<bool> RequestUpload();
 ONYX_NO_DISCARD Result<> Upload();
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const char *path);
+template <Dimension D>
+ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const char *path, const LoadObjDataFlags flags = 0);
 #endif
 #ifdef ONYX_ENABLE_GLTF_LOAD
 

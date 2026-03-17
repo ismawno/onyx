@@ -1250,7 +1250,8 @@ template <Dimension D> void SandboxWinLayer::RenderMeshes()
             }
             else if (meshes.StatMeshToLoad == importedIndex)
                 HandleLoadDialog(StatMeshTask, [&](const Dialog::Path &path) {
-                    const auto res = Assets::LoadStaticMeshFromObjFile<D>(path.string().c_str());
+                    const auto res = Assets::LoadStaticMeshFromObjFile<D>(path.string().c_str(),
+                                                                          LoadObjDataFlag_CenterVerticesAroundOrigin);
                     VKIT_LOG_RESULT_ERROR(res);
                     if (!res)
                         return;

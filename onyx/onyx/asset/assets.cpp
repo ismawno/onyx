@@ -1024,7 +1024,7 @@ template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer()
 }
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const char *path)
+template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const char *path, const LoadObjDataFlags flags)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -1065,6 +1065,15 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const c
             }
             data.Indices.Append(uniqueVertices[vertex]);
         }
+    if (flags & LoadObjDataFlag_CenterVerticesAroundOrigin)
+    {
+        f32v<D> center{0.f};
+        for (const StatVertex<D> &vx : data.Vertices)
+            center += vx.Position;
+        center /= data.Vertices.GetSize();
+        for (StatVertex<D> &vx : data.Vertices)
+            vx.Position -= center;
+    }
     return data;
 }
 #endif
@@ -1206,7 +1215,7 @@ Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, const Load
 
                 meshData.Vertices.Append(vertex);
             }
-            if (!meshData.Vertices.IsEmpty() && (flags & LoadGltfDataFlag_CenterVerticesAroundOrigin))
+            if (flags & LoadGltfDataFlag_CenterVerticesAroundOrigin)
             {
                 f32v<D> center{0.f};
                 for (const StatVertex<D> &vx : meshData.Vertices)
@@ -1806,8 +1815,8 @@ template u32 GetStaticMeshCount<D2>();
 template u32 GetStaticMeshCount<D3>();
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template Result<StatMeshData<D2>> LoadStaticMeshFromObjFile<D2>(const char *path);
-template Result<StatMeshData<D3>> LoadStaticMeshFromObjFile<D3>(const char *path);
+template Result<StatMeshData<D2>> LoadStaticMeshFromObjFile<D2>(const char *path, LoadObjDataFlags flags);
+template Result<StatMeshData<D3>> LoadStaticMeshFromObjFile<D3>(const char *path, LoadObjDataFlags flags);
 #endif
 
 template StatMeshData<D2> GetStaticMeshData(Mesh handle);
