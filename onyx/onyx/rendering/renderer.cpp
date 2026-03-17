@@ -1330,10 +1330,10 @@ template <Dimension D> void gatherAcquireBarriers(TKit::StackArray<VkBufferMemor
     rdata.AcquireBarriers.Clear();
 }
 
-void ApplyAcquireBarriers(const VkCommandBuffer graphicsCommand, const u32 maxAcquireBarriers)
+void ApplyAcquireBarriers(const VkCommandBuffer graphicsCommand)
 {
     TKit::StackArray<VkBufferMemoryBarrier2KHR> barriers{};
-    barriers.Reserve(maxAcquireBarriers);
+    barriers.Reserve(s_RendererData2->AcquireBarriers.GetSize() + s_RendererData3->AcquireBarriers.GetSize());
     gatherAcquireBarriers<D2>(barriers);
     gatherAcquireBarriers<D3>(barriers);
     if (!barriers.IsEmpty())

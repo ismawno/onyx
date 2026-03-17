@@ -70,7 +70,7 @@ ONYX_NO_DISCARD Result<TransferSubmitInfo> Transfer(VKit::Queue *transfer, VkCom
 ONYX_NO_DISCARD Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool,
                                         TKit::Span<const TransferSubmitInfo> info);
 
-void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand, u32 maxAcquireBarriers = 256);
+void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
 
 ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *graphics, VkCommandBuffer command, const ViewInfo &vinfo);
 ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool,
