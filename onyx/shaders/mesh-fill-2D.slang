@@ -2,22 +2,22 @@
 
 struct VertexInput
 {
-    float2 Position : POSITION;
-    float2 TexCoord : TEXCOORD0;
+    f32v2 Position : POSITION;
+    f32v2 TexCoord : TEXCOORD0;
 };
 
 struct VertexOutput
 {
     [[vk::location(0)]]
-    float2 WorldPosition;
+    f32v2 WorldPosition;
     [[vk::location(1)]]
-    float2 TexCoord;
+    f32v2 TexCoord;
     [[vk::location(2)]]
-    nointerpolation uint MatIndex;
+    nointerpolation u32 MatIndex;
     [[vk::location(3)]]
-    nointerpolation float4 FragColor;
+    nointerpolation f32v4 FragColor;
 
-    float4 Position : SV_Position;
+    f32v4 Position : SV_Position;
 };
 
 [[vk::binding(0, 0)]]
@@ -25,7 +25,7 @@ StructuredBuffer<InstanceDataFill2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
-    float4x4 ProjectionView;
+    f32m4 ProjectionView;
     LightData2D Light;
 };
 
@@ -35,15 +35,15 @@ PushConstants g_PushData;
 [shader("vertex")]
 VertexOutput mainVS(
     const VertexInput input,
-    const uint instanceId : SV_InstanceID,
-    const uint baseInstance : SV_StartInstanceLocation)
+    const u32 instanceId : SV_InstanceID,
+    const u32 baseInstance : SV_StartInstanceLocation)
 {
-    const uint instanceIndex = instanceId + baseInstance;
+    const u32 instanceIndex = instanceId + baseInstance;
 
     const InstanceDataFill2D data = g_Instances[instanceIndex];
 
-    const float4x4 transform = ComputeTransform2D(data.Basis);
-    const float4 worldPos = mul(float4(input.Position, 0.0, 1.0), transform);
+    const f32m4 transform = ComputeTransform2D(data.Basis);
+    const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
@@ -69,17 +69,17 @@ Texture2D g_Textures[1024];
 PointLights2D g_PointLights;
 
 [shader("fragment")]
-float4 mainFS(const VertexOutput input)
+f32v4 mainFS(const VertexOutput input)
 {
-    const float3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
-    if (input.MatIndex != uint(-1))
+    const f32v3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
+    if (input.MatIndex != u32(-1))
     {
         const Material2D mat = g_Materials[input.MatIndex];
-        if (mat.Texture == uint(-1) || mat.Sampler == uint(-1))
-            return input.FragColor * unpackUnorm4x8ToFloat(g_Materials[input.MatIndex].ColorFactor) * float4(lcolor, 1.f);
+        if (mat.Texture == u32(-1) || mat.Sampler == u32(-1))
+            return input.FragColor * unpackUnorm4x8ToFloat(g_Materials[input.MatIndex].ColorFactor) * f32v4(lcolor, 1.f);
 
-        const float4 tex = g_Textures[mat.Texture].Sample(g_Samplers[mat.Sampler], input.TexCoord);
-        return tex * input.FragColor * unpackUnorm4x8ToFloat(g_Materials[input.MatIndex].ColorFactor) * float4(lcolor, 1.f);
+        const f32v4 tex = g_Textures[mat.Texture].Sample(g_Samplers[mat.Sampler], input.TexCoord);
+        return tex * input.FragColor * unpackUnorm4x8ToFloat(g_Materials[input.MatIndex].ColorFactor) * f32v4(lcolor, 1.f);
     }
-    return input.FragColor * float4(lcolor, 1.f);
+    return input.FragColor * f32v4(lcolor, 1.f);
 }

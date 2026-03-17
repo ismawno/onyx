@@ -2,15 +2,15 @@
 
 struct VertexInput
 {
-    float3 Position : POSITION;
+    f32v3 Position : POSITION;
 };
 
 struct VertexOutput
 {
     [[vk::location(0)]]
-    nointerpolation float4 FragColor;
+    nointerpolation f32v4 FragColor;
 
-    float4 Position : SV_Position;
+    f32v4 Position : SV_Position;
 };
 
 [[vk::binding(0, 0)]]
@@ -18,7 +18,7 @@ StructuredBuffer<InstanceDataStencil3D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
-    float4x4 ProjectionView;
+    f32m4 ProjectionView;
 };
 
 [[vk::push_constant]]
@@ -27,27 +27,27 @@ PushConstants g_PushData;
 [shader("vertex")]
 VertexOutput mainVS(
     const VertexInput input,
-    const uint instanceId : SV_InstanceID,
-    const uint baseInstance : SV_StartInstanceLocation)
+    const u32 instanceId : SV_InstanceID,
+    const u32 baseInstance : SV_StartInstanceLocation)
 {
-    const uint instanceIndex = instanceId + baseInstance;
+    const u32 instanceIndex = instanceId + baseInstance;
 
     const InstanceDataStencil3D data = g_Instances[instanceIndex];
-    const float4x4 transform = ComputeTransform3D(data.Basis);
+    const f32m4 transform = ComputeTransform3D(data.Basis);
 
-    const float3 scale = ComputeStencilScale3D(transform);
-    const float3 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth) / scale;
+    const f32v3 scale = ComputeStencilScale3D(transform);
+    const f32v3 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth) / scale;
 
     VertexOutput output;
 
-    output.Position = mul(mul(float4(extruded, 1.0), transform), g_PushData.ProjectionView);
+    output.Position = mul(mul(f32v4(extruded, 1.0), transform), g_PushData.ProjectionView);
 
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
     return output;
 }
 
 [shader("fragment")]
-float4 mainFS(const VertexOutput input)
+f32v4 mainFS(const VertexOutput input)
 {
     return input.FragColor;
 }

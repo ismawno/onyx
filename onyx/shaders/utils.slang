@@ -1,65 +1,67 @@
 #pragma once
 
+#include "alias.slang"
+
 public struct Basis2D
 {
-    float Basis00, Basis01;
-    float Basis10, Basis11;
-    float Basis30, Basis31;
+    f32 Basis00, Basis01;
+    f32 Basis10, Basis11;
+    f32 Basis30, Basis31;
 };
 
 public struct Basis3D
 {
-    float Basis00, Basis10, Basis20, Basis30;
-    float Basis01, Basis11, Basis21, Basis31;
-    float Basis02, Basis12, Basis22, Basis32;
+    f32 Basis00, Basis10, Basis20, Basis30;
+    f32 Basis01, Basis11, Basis21, Basis31;
+    f32 Basis02, Basis12, Basis22, Basis32;
 };
 
 public struct InstanceDataFill2D
 {
     Basis2D Basis;
-    uint Color;
-    uint MatIndex;
+    u32 Color;
+    u32 MatIndex;
 };
 public struct InstanceDataStencil2D
 {
     Basis2D Basis;
-    uint Color;
-    float OutlineWidth;
+    u32 Color;
+    f32 OutlineWidth;
 };
 public struct InstanceDataFill3D
 {
     Basis3D Basis;
-    uint Color;
-    uint MatIndex;
+    u32 Color;
+    u32 MatIndex;
 };
 public struct InstanceDataStencil3D
 {
     Basis3D Basis;
-    uint Color;
-    float OutlineWidth;
+    u32 Color;
+    f32 OutlineWidth;
 };
 
 public struct ArcData
 {
-    float4 CosSin;
-    uint AngleOverflow;
-    float Hollowness;
+    f32v4 CosSin;
+    u32 AngleOverflow;
+    f32 Hollowness;
 };
 
 public struct ArcDataPacked
 {
-    float LowerCos;
-    float LowerSin;
-    float UpperCos;
-    float UpperSin;
-    uint AngleOverflow;
-    float Hollowness;
+    f32 LowerCos;
+    f32 LowerSin;
+    f32 UpperCos;
+    f32 UpperSin;
+    u32 AngleOverflow;
+    f32 Hollowness;
 };
 
 public struct FadeData
 {
-    float InnerFade;
-    float OuterFade;
+    f32 InnerFade;
+    f32 OuterFade;
 };
 
 public struct CircleInstanceDataFill2D
@@ -89,88 +91,88 @@ public struct CircleInstanceDataStencil3D
 
 public struct Material2D
 {
-    uint ColorFactor;
-    uint Sampler;
-    uint Texture;
+    u32 ColorFactor;
+    u32 Sampler;
+    u32 Texture;
 }
 
 public struct Material3D
 {
-    float EmissiveFactorX;
-    float EmissiveFactorY;
-    float EmissiveFactorZ;
+    f32 EmissiveFactorX;
+    f32 EmissiveFactorY;
+    f32 EmissiveFactorZ;
 
-    uint AlbedoFactor;
-    float MetallicFactor;
-    float RoughnessFactor;
-    float OcclusionStrength;
-    float NormalScale;
+    u32 AlbedoFactor;
+    f32 MetallicFactor;
+    f32 RoughnessFactor;
+    f32 OcclusionStrength;
+    f32 NormalScale;
 
-    uint AlbedoSamp;
-    uint MetallicRoughnessSamp;
-    uint NormalSamp;
-    uint OcclusionSamp;
-    uint EmissiveSamp;
+    u32 AlbedoSamp;
+    u32 MetallicRoughnessSamp;
+    u32 NormalSamp;
+    u32 OcclusionSamp;
+    u32 EmissiveSamp;
 
-    uint AlbedoTex;
-    uint MetallicRoughnessTex;
-    uint NormalTex;
-    uint OcclusionTex;
-    uint EmissiveTex;
+    u32 AlbedoTex;
+    u32 MetallicRoughnessTex;
+    u32 NormalTex;
+    u32 OcclusionTex;
+    u32 EmissiveTex;
 }
 
 
-float4x4 ComputeTransform2D(const Basis2D basis)
+f32m4 ComputeTransform2D(const Basis2D basis)
 {
-    return float4x4(
-        float4(basis.Basis00, basis.Basis01, 0.0, 0.0),
-        float4(basis.Basis10, basis.Basis11, 0.0, 0.0),
-        float4(0.0,           0.0,           1.0, 0.0),
-        float4(basis.Basis30, basis.Basis31, 0.0, 1.0)
+    return f32m4(
+        f32v4(basis.Basis00, basis.Basis01, 0.0, 0.0),
+        f32v4(basis.Basis10, basis.Basis11, 0.0, 0.0),
+        f32v4(0.0,           0.0,           1.0, 0.0),
+        f32v4(basis.Basis30, basis.Basis31, 0.0, 1.0)
     );
 }
 
-float4x4 ComputeTransform3D(const Basis3D basis)
+f32m4 ComputeTransform3D(const Basis3D basis)
 {
-    return float4x4(
-        float4(basis.Basis00, basis.Basis01, basis.Basis02, 0.0),
-        float4(basis.Basis10, basis.Basis11, basis.Basis12, 0.0),
-        float4(basis.Basis20, basis.Basis21, basis.Basis22, 0.0),
-        float4(basis.Basis30, basis.Basis31, basis.Basis32, 1.0)
+    return f32m4(
+        f32v4(basis.Basis00, basis.Basis01, basis.Basis02, 0.0),
+        f32v4(basis.Basis10, basis.Basis11, basis.Basis12, 0.0),
+        f32v4(basis.Basis20, basis.Basis21, basis.Basis22, 0.0),
+        f32v4(basis.Basis30, basis.Basis31, basis.Basis32, 1.0)
     );
 }
-float2 ComputeStencilScale2D(const float4x4 transform)
+f32v2 ComputeStencilScale2D(const f32m4 transform)
 {
-    return float2(length(float2(transform[0][0], transform[1][0])), length(float2(transform[0][1], transform[1][1])));
+    return f32v2(length(f32v2(transform[0][0], transform[1][0])), length(f32v2(transform[0][1], transform[1][1])));
 }
-float3 ComputeStencilScale3D(const float4x4 transform)
+f32v3 ComputeStencilScale3D(const f32m4 transform)
 {
-    return float3(length(float3(transform[0][0], transform[1][0], transform[2][0])), length(float3(transform[0][1], transform[1][1], transform[2][1])), length(float3(transform[0][2], transform[1][2], transform[2][2])));
+    return f32v3(length(f32v3(transform[0][0], transform[1][0], transform[2][0])), length(f32v3(transform[0][1], transform[1][1], transform[2][1])), length(f32v3(transform[0][2], transform[1][2], transform[2][2])));
 }
 
-float3x3 ComputeNormalMatrix(const float3x3 matrix)
+f32m3 ComputeNormalMatrix(const f32m3 matrix)
 {
-    const float3 c0 = matrix[0];
-    const float3 c1 = matrix[1];
-    const float3 c2 = matrix[2];
+    const f32v3 c0 = matrix[0];
+    const f32v3 c1 = matrix[1];
+    const f32v3 c2 = matrix[2];
 
-    const float3 r0 = cross(c1, c2);
-    const float3 r1 = cross(c2, c0);
-    const float3 r2 = cross(c0, c1);
+    const f32v3 r0 = cross(c1, c2);
+    const f32v3 r1 = cross(c2, c0);
+    const f32v3 r2 = cross(c0, c1);
 
-    const float det = dot(c0, r0);
-    const float idet = sign(det) / max(abs(det), 1e-12);
+    const f32 det = dot(c0, r0);
+    const f32 idet = sign(det) / max(abs(det), 1e-12);
 
-    return float3x3(r0, r1, r2) * idet;
+    return f32m3(r0, r1, r2) * idet;
 }
 
 public struct CircleBounds
 {
-    float Hollowness;
-    float Radius;
+    f32 Hollowness;
+    f32 Radius;
 };
 
-CircleBounds GetCircleBounds(const float2 localPosition, const float hollowness)
+CircleBounds GetCircleBounds(const f32v2 localPosition, const f32 hollowness)
 {
     CircleBounds bounds;
     bounds.Hollowness = hollowness * hollowness;
@@ -178,13 +180,13 @@ CircleBounds GetCircleBounds(const float2 localPosition, const float hollowness)
     return bounds;
 }
 
-bool CheckOutsideCircle(const CircleBounds bounds, const float2 localPosition, const ArcData arc)
+bool CheckOutsideCircle(const CircleBounds bounds, const f32v2 localPosition, const ArcData arc)
 {
     if (bounds.Radius > 1.0 || bounds.Radius < bounds.Hollowness)
         return false;
 
-    const float crs1 = localPosition.x * arc.CosSin[1] - localPosition.y * arc.CosSin[0];
-    const float crs2 = localPosition.x * arc.CosSin[3] - localPosition.y * arc.CosSin[2];
+    const f32 crs1 = localPosition.x * arc.CosSin[1] - localPosition.y * arc.CosSin[0];
+    const f32 crs2 = localPosition.x * arc.CosSin[3] - localPosition.y * arc.CosSin[2];
 
     if (arc.AngleOverflow == 1)
     {
@@ -199,11 +201,11 @@ bool CheckOutsideCircle(const CircleBounds bounds, const float2 localPosition, c
     return true;
 }
 
-float CircleFade(float alpha, const CircleBounds bounds, const float2 fade)
+f32 CircleFade(f32 alpha, const CircleBounds bounds, const f32v2 fade)
 {
-    const float innerFade = fade[0] * fade[0];
-    const float outerFade = 1.0 - fade[1] * fade[1];
-    const float shiftLen = (bounds.Radius - bounds.Hollowness) / (1.0 - bounds.Hollowness);
+    const f32 innerFade = fade[0] * fade[0];
+    const f32 outerFade = 1.0 - fade[1] * fade[1];
+    const f32 shiftLen = (bounds.Radius - bounds.Hollowness) / (1.0 - bounds.Hollowness);
 
     if (shiftLen < innerFade)
         alpha *= shiftLen / innerFade;
@@ -215,58 +217,58 @@ float CircleFade(float alpha, const CircleBounds bounds, const float2 fade)
 
 public struct LightData2D
 {
-    uint PointLightOffset;
-    uint PointLightCount;
-    uint AmbientColor;
-    uint ViewBit;
+    u32 PointLightOffset;
+    u32 PointLightCount;
+    u32 AmbientColor;
+    u32 ViewBit;
 };
 
 public struct LightData3D
 {
-    float4 ViewPosition;
-    uint PointLightOffset;
-    uint PointLightCount;
-    uint DirectionalLightOffset;
-    uint DirectionalLightCount;
-    uint AmbientColor;
-    uint ViewBit;
+    f32v4 ViewPosition;
+    u32 PointLightOffset;
+    u32 PointLightCount;
+    u32 DirectionalLightOffset;
+    u32 DirectionalLightCount;
+    u32 AmbientColor;
+    u32 ViewBit;
 };
 
 public struct PointLight2D
 {
-    float PosX;
-    float PosY;
-    float Intensity;
-    float Radius;
-    uint Color;
-    uint ViewMask;
+    f32 PosX;
+    f32 PosY;
+    f32 Intensity;
+    f32 Radius;
+    u32 Color;
+    u32 ViewMask;
 };
 
 public struct PointLight3D
 {
-    float PosX;
-    float PosY;
-    float PosZ;
-    float Intensity;
-    float Radius;
-    uint Color;
-    uint ViewMask;
+    f32 PosX;
+    f32 PosY;
+    f32 PosZ;
+    f32 Intensity;
+    f32 Radius;
+    u32 Color;
+    u32 ViewMask;
 };
 
 public struct AmbientLight
 {
-    uint Color;
-    uint ViewMask;
+    u32 Color;
+    u32 ViewMask;
 };
 
 public struct DirectionalLight
 {
-    float DirX;
-    float DirY;
-    float DirZ;
-    float Intensity;
-    uint Color;
-    uint ViewMask;
+    f32 DirX;
+    f32 DirY;
+    f32 DirZ;
+    f32 Intensity;
+    u32 Color;
+    u32 ViewMask;
 };
 
 typedef StructuredBuffer<PointLight2D, Std430DataLayout> PointLights2D;
@@ -277,22 +279,22 @@ typedef StructuredBuffer<Material3D, Std430DataLayout> Materials3D;
 
 typedef StructuredBuffer<DirectionalLight, Std430DataLayout> DirectionalLights;
 
-float3 GetLightColor2D(const LightData2D data, const float2 worldPosition, const PointLights2D plights)
+f32v3 GetLightColor2D(const LightData2D data, const f32v2 worldPosition, const PointLights2D plights)
 {
-    float3 diffuseColor = float3(0.0);
-    const float4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
-    for (uint i = 0; i < data.PointLightCount; ++i)
+    f32v3 diffuseColor = f32v3(0.0);
+    const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
+    for (u32 i = 0; i < data.PointLightCount; ++i)
     {
         const PointLight2D plight = plights[i + data.PointLightOffset];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
-        const float2 direction = float2(plight.PosX, plight.PosY) - worldPosition;
-        const float dist = dot(direction, direction);
-        const float3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
-        const float radius = plight.Radius * plight.Radius;
-        const float attenuation = radius / (dist + radius);
-        const float intensity = attenuation * plight.Intensity;
+        const f32v2 direction = f32v2(plight.PosX, plight.PosY) - worldPosition;
+        const f32 dist = dot(direction, direction);
+        const f32v3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
+        const f32 radius = plight.Radius * plight.Radius;
+        const f32 attenuation = radius / (dist + radius);
+        const f32 intensity = attenuation * plight.Intensity;
         diffuseColor += intensity * lightColor;
     }
 
@@ -303,95 +305,95 @@ struct MaterialInfo3D
 {
     PointLights3D Points;
     DirectionalLights Directionals;
-    float4 Albedo;
-    float3 WorldPosition;
-    float3 Normal;
-    float3 Emissive;
-    float Roughness;
-    float Metallic;
-    float Occlusion;
+    f32v4 Albedo;
+    f32v3 WorldPosition;
+    f32v3 Normal;
+    f32v3 Emissive;
+    f32 Roughness;
+    f32 Metallic;
+    f32 Occlusion;
 };
 
 // i admit lol ia generated
-float3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
+f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
 {
-    const float4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
-    const float3 V = normalize(data.ViewPosition.xyz - info.WorldPosition);
+    const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
+    const f32v3 V = normalize(data.ViewPosition.xyz - info.WorldPosition);
 
-    const float3 baseColor = info.Albedo.xyz;
-    const float metallic   = info.Metallic;
-    const float roughness  = info.Roughness;
-    const float alpha      = roughness * roughness;
-    const float alpha2     = alpha * alpha;
+    const f32v3 baseColor = info.Albedo.xyz;
+    const f32 metallic   = info.Metallic;
+    const f32 roughness  = info.Roughness;
+    const f32 alpha      = roughness * roughness;
+    const f32 alpha2     = alpha * alpha;
 
-    const float3 F0          = lerp(float3(0.04), baseColor, metallic);
-    const float3 diffuseBase = baseColor * (1.0 - metallic);
+    const f32v3 F0          = lerp(f32v3(0.04), baseColor, metallic);
+    const f32v3 diffuseBase = baseColor * (1.0 - metallic);
 
-    float3 Lo = float3(0.0);
+    f32v3 Lo = f32v3(0.0);
 
-    for (uint i = 0; i < data.DirectionalLightCount; ++i)
+    for (u32 i = 0; i < data.DirectionalLightCount; ++i)
     {
         const DirectionalLight dlight = info.Directionals[i + data.DirectionalLightOffset];
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
-        const float3 L    = float3(dlight.DirX, dlight.DirY, dlight.DirZ);
-        const float NdotL = dot(info.Normal, L);
+        const f32v3 L    = f32v3(dlight.DirX, dlight.DirY, dlight.DirZ);
+        const f32 NdotL = dot(info.Normal, L);
         if (NdotL <= 0.0) continue;
 
-        const float3 H    = normalize(L + V);
-        const float NdotV = max(dot(info.Normal, V), 1e-4);
-        const float NdotH = max(dot(info.Normal, H), 0.0);
-        const float VdotH = max(dot(V, H), 0.0);
+        const f32v3 H    = normalize(L + V);
+        const f32 NdotV = max(dot(info.Normal, V), 1e-4);
+        const f32 NdotH = max(dot(info.Normal, H), 0.0);
+        const f32 VdotH = max(dot(V, H), 0.0);
 
-        const float denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
-        const float D     = alpha2 / (3.14159265 * denom * denom);
-        const float k     = alpha * 0.5;
-        const float G     = (NdotV / (NdotV * (1.0 - k) + k)) *
+        const f32 denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
+        const f32 D     = alpha2 / (3.14159265 * denom * denom);
+        const f32 k     = alpha * 0.5;
+        const f32 G     = (NdotV / (NdotV * (1.0 - k) + k)) *
                             (NdotL / (NdotL * (1.0 - k) + k));
-        const float3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+        const f32v3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
 
-        const float3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
-        const float3 diffuse    = diffuseBase / 3.14159265;
-        const float3 lightColor = unpackUnorm4x8ToFloat(dlight.Color).xyz;
+        const f32v3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
+        const f32v3 diffuse    = diffuseBase / 3.14159265;
+        const f32v3 lightColor = unpackUnorm4x8ToFloat(dlight.Color).xyz;
 
         Lo += (diffuse * (1.0 - F) + specular) * lightColor * dlight.Intensity * NdotL;
     }
 
-    for (uint i = 0; i < data.PointLightCount; ++i)
+    for (u32 i = 0; i < data.PointLightCount; ++i)
     {
         const PointLight3D plight = info.Points[i + data.PointLightOffset];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
-        const float3 dir  = float3(plight.PosX, plight.PosY, plight.PosZ) - info.WorldPosition;
-        const float3 L    = normalize(dir);
-        const float NdotL = dot(info.Normal, L);
+        const f32v3 dir  = f32v3(plight.PosX, plight.PosY, plight.PosZ) - info.WorldPosition;
+        const f32v3 L    = normalize(dir);
+        const f32 NdotL = dot(info.Normal, L);
         if (NdotL <= 0.0) continue;
 
-        const float3 H    = normalize(L + V);
-        const float NdotV = max(dot(info.Normal, V), 1e-4);
-        const float NdotH = max(dot(info.Normal, H), 0.0);
-        const float VdotH = max(dot(V, H), 0.0);
+        const f32v3 H    = normalize(L + V);
+        const f32 NdotV = max(dot(info.Normal, V), 1e-4);
+        const f32 NdotH = max(dot(info.Normal, H), 0.0);
+        const f32 VdotH = max(dot(V, H), 0.0);
 
-        const float denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
-        const float D     = alpha2 / (3.14159265 * denom * denom);
-        const float k     = alpha * 0.5;
-        const float G     = (NdotV / (NdotV * (1.0 - k) + k)) *
+        const f32 denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
+        const f32 D     = alpha2 / (3.14159265 * denom * denom);
+        const f32 k     = alpha * 0.5;
+        const f32 G     = (NdotV / (NdotV * (1.0 - k) + k)) *
                             (NdotL / (NdotL * (1.0 - k) + k));
-        const float3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+        const f32v3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
 
-        const float3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
-        const float3 diffuse    = diffuseBase / 3.14159265;
-        const float  radius     = plight.Radius * plight.Radius;
-        const float  dirLen     = dot(dir, dir);
-        const float  atten      = radius / (dirLen + radius);
-        const float3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
+        const f32v3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
+        const f32v3 diffuse    = diffuseBase / 3.14159265;
+        const f32  radius     = plight.Radius * plight.Radius;
+        const f32  dirLen     = dot(dir, dir);
+        const f32  atten      = radius / (dirLen + radius);
+        const f32v3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
 
         Lo += (diffuse * (1.0 - F) + specular) * lightColor * atten * plight.Intensity * NdotL;
     }
 
-    const float3 ambient = ambientColor.xyz * ambientColor.w * diffuseBase * info.Occlusion;
+    const f32v3 ambient = ambientColor.xyz * ambientColor.w * diffuseBase * info.Occlusion;
 
-    return min(float3(1.0), ambient + Lo + info.Emissive);
+    return min(f32v3(1.0), ambient + Lo + info.Emissive);
 }
