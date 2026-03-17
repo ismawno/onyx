@@ -160,11 +160,26 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
         if (ctx.Flags & SandboxFlag_ContextShouldUpdate)
         {
             ctx.Context->Flush();
+            ctx.Context->Push();
             for (const Shape<D> &shape : ctx.Shapes)
             {
                 setShapeProperties(ctx.Context, shape);
                 drawShape(ctx.Context, shape);
             }
+            ctx.Context->Pop();
+            ctx.Context->Push();
+            for (const PointLight<D> *pl : ctx.PointLights)
+            {
+                ctx.Context->Scale(0.01f);
+                ctx.Context->Translate(pl->GetPosition());
+                ctx.Context->FillColor(pl->GetColor());
+                if constexpr (D == D2)
+                    ctx.Context->Circle();
+                else
+                    ctx.Context->StaticMesh(Meshes3.StaticMeshes[StaticMesh_Sphere].Mesh);
+            }
+            ctx.Context->Pop();
+
             if (ctx.Flags & SandboxFlag_DrawAxes)
             {
                 ctx.Context->Outline(false);
