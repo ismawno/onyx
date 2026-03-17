@@ -67,7 +67,7 @@ namespace Onyx::Assets
 {
 struct Specs
 {
-    u32 MaxStaticMeshes = 256;
+    u32 MaxStaticMeshes = 64;
     u32 MaxMaterials = 1024;
     u32 MaxTextures = 1024;
     u32 MaxSamplers = 8;
@@ -77,7 +77,7 @@ ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
 u32 GetStaticMeshBatchIndex(Mesh handle);
-u32 GetStaticMeshIndexFromBatch(u32 batch);
+u32 GetStaticMeshHandleFromBatch(u32 batch);
 u32 GetCircleBatchIndex();
 
 u32 GetBatchStart(Geometry geo);

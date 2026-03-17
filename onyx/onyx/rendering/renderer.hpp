@@ -78,9 +78,6 @@ ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool,
 
 void Coalesce(u32 maxRanges = 512);
 
-template <Dimension D> void BindStaticMeshes(VkCommandBuffer command);
-template <Dimension D> void DrawStaticMesh(VkCommandBuffer command, Mesh mesh, u32 firstInstance, u32 instanceCount);
-
 #ifdef ONYX_ENABLE_IMGUI
 template <Dimension D> void DisplayMemoryLayout();
 #endif

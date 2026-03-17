@@ -755,7 +755,7 @@ template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLaye
     return combo(name, toSpawn, names) || changed;
 }
 
-template <typename T> static bool nameCombo(const char *name, const TKit::TierArray<T> &container, Handle *handle)
+template <typename T> static bool nameCombo(const char *name, const TKit::TierArray<T> &container, Asset *handle)
 {
     ImGui::PushID(handle);
     TKit::StackArray<const char *> names{};
@@ -777,14 +777,14 @@ template <typename T> static bool nameCombo(const char *name, const TKit::TierAr
         }
     }
     bool changed = false;
-    if (*handle != NullHandle)
+    if (*handle != NullAsset)
     {
         ImGui::Text("id: %u", *handle);
         ImGui::SameLine();
         changed |= ImGui::Button("X");
         if (changed)
         {
-            *handle = NullHandle;
+            *handle = NullAsset;
             idx = TKIT_U32_MAX;
         }
         ImGui::SameLine();

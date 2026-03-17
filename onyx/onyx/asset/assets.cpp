@@ -439,7 +439,7 @@ u32 GetStaticMeshBatchIndex(const Mesh handle)
         handle, s_BatchRanges[Geometry_StaticMesh].BatchCount);
     return handle + s_BatchRanges[Geometry_StaticMesh].BatchStart;
 }
-u32 GetStaticMeshIndexFromBatch(const u32 batch)
+u32 GetStaticMeshHandleFromBatch(const u32 batch)
 {
     TKIT_ASSERT(
         batch < GetBatchEnd(Geometry_StaticMesh),

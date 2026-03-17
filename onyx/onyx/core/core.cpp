@@ -152,6 +152,8 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     tsem.timelineSemaphore = VK_TRUE;
 
     VKit::DeviceFeatures features{};
+    features.Core.drawIndirectFirstInstance = VK_TRUE;
+    features.Core.multiDrawIndirect = VK_TRUE;
     features.Vulkan11.shaderDrawParameters = VK_TRUE;
     features.Vulkan12.timelineSemaphore = VK_TRUE;
     features.Vulkan12.descriptorBindingPartiallyBound = VK_TRUE;

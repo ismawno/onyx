@@ -173,6 +173,15 @@ template <Dimension D> struct RendererData
     }
 };
 
+struct DrawBuffer
+{
+    Execution::Tracker Tracker{};
+    VKit::DeviceBuffer Buffer{};
+};
+
+static TKit::Storage<TKit::TierArray<DrawBuffer>> s_DrawBuffers{};
+static TKit::Storage<TKit::TierArray<DrawBuffer>> s_IndexedDrawBuffers{};
+
 static TKit::Storage<RendererData<D2>> s_RendererData2{};
 static TKit::Storage<RendererData<D3>> s_RendererData3{};
 
@@ -450,6 +459,8 @@ template <Dimension D> static void terminate()
 Result<> Initialize()
 {
     TKIT_LOG_INFO("[ONYX][RENDERER] Initializing");
+    s_DrawBuffers.Construct();
+    s_IndexedDrawBuffers.Construct();
     s_RendererData2.Construct();
     s_RendererData3.Construct();
     TKIT_RETURN_IF_FAILED(initialize<D2>());
@@ -459,8 +470,14 @@ void Terminate()
 {
     terminate<D2>();
     terminate<D3>();
+    for (DrawBuffer &buffer : *s_DrawBuffers)
+        buffer.Buffer.Destroy();
+    for (DrawBuffer &buffer : *s_IndexedDrawBuffers)
+        buffer.Buffer.Destroy();
     s_RendererData2.Destruct();
     s_RendererData3.Destruct();
+    s_IndexedDrawBuffers.Destruct();
+    s_DrawBuffers.Destruct();
 }
 
 template <Dimension D> Result<RenderContext<D> *> CreateContext()
@@ -1360,6 +1377,90 @@ template <Dimension D> static void setCameraViewport(const VkCommandBuffer comma
     table->CmdSetScissor(command, 0, 1, &camera.Scissor);
 }
 
+template <typename T>
+ONYX_NO_DISCARD static Result<VKit::DeviceBuffer *> findSuitableDrawBuffer(TKit::TierArray<DrawBuffer> &buffers,
+                                                                           const u32 drawCount,
+                                                                           const VKit::Queue *graphics,
+                                                                           const u64 inFlightValue)
+{
+    for (DrawBuffer &db : buffers)
+        if (!db.Tracker.InUse())
+        {
+            VKit::DeviceBuffer &buffer = db.Buffer;
+            const auto result = Resources::GrowBufferIfNeeded<T>(buffer, drawCount);
+            TKIT_RETURN_ON_ERROR(result);
+            db.Tracker.MarkInUse(graphics, inFlightValue);
+            return &buffer;
+        }
+
+    const auto result = Resources::CreateBuffer<T>(
+        VKit::DeviceBufferFlag_HostMapped | VKit::DeviceBufferFlag_HostRandomAccess | VKit::DeviceBufferFlag_Indirect,
+        drawCount);
+    TKIT_RETURN_ON_ERROR(result);
+
+    DrawBuffer &db = buffers.Append();
+    db.Buffer = result.GetValue();
+    db.Tracker.MarkInUse(graphics, inFlightValue);
+    return &db.Buffer;
+}
+
+ONYX_NO_DISCARD static Result<VKit::DeviceBuffer *> findSuitableDrawBuffer(const u32 drawCount,
+                                                                           const VKit::Queue *graphics,
+                                                                           const u64 inFlightValue)
+{
+    return findSuitableDrawBuffer<VkDrawIndirectCommand>(*s_DrawBuffers, drawCount, graphics, inFlightValue);
+}
+ONYX_NO_DISCARD static Result<VKit::DeviceBuffer *> findSuitableIndexedDrawBuffer(const u32 drawCount,
+                                                                                  const VKit::Queue *graphics,
+                                                                                  const u64 inFlightValue)
+{
+    return findSuitableDrawBuffer<VkDrawIndexedIndirectCommand>(*s_IndexedDrawBuffers, drawCount, graphics,
+                                                                inFlightValue);
+}
+
+template <Dimension D> static void bindStaticMeshBuffers(const VkCommandBuffer command)
+{
+    const VKit::DeviceBuffer &vbuffer = Assets::GetStaticMeshVertexBuffer<D>();
+    const VKit::DeviceBuffer &ibuffer = Assets::GetStaticMeshIndexBuffer<D>();
+
+    vbuffer.BindAsVertexBuffer(command);
+    ibuffer.BindAsIndexBuffer<Index>(command);
+}
+
+static VkDrawIndirectCommand createCircleCommand(const u32 firstInstance, const u32 instanceCount)
+{
+    VkDrawIndirectCommand cmd;
+    cmd.firstInstance = firstInstance;
+    cmd.instanceCount = instanceCount;
+    cmd.firstVertex = 0;
+    cmd.vertexCount = 6;
+    return cmd;
+}
+
+template <Dimension D>
+static VkDrawIndexedIndirectCommand createCommand(const Geometry geo, const u32 batchIndex, const u32 firstInstance,
+                                                  const u32 instanceCount)
+{
+    TKIT_ASSERT(geo != Geometry_Circle && batchIndex != 0);
+    VkDrawIndexedIndirectCommand cmd;
+    cmd.firstInstance = firstInstance;
+    cmd.instanceCount = instanceCount;
+    switch (geo)
+    {
+    case Geometry_StaticMesh: {
+        const Mesh mesh = Assets::GetStaticMeshHandleFromBatch(batchIndex);
+        const MeshDataLayout layout = Assets::GetStaticMeshLayout<D>(mesh);
+        cmd.firstIndex = layout.IndexStart;
+        cmd.indexCount = layout.IndexCount;
+        cmd.vertexOffset = layout.VertexStart;
+        return cmd;
+    }
+    default:
+        TKIT_UNREACHABLE();
+        return cmd;
+    }
+}
+
 template <Dimension D>
 ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkCommandBuffer graphicsCommand,
                                        const ViewInfo &vinfo, const u64 graphicsFlightValue,
@@ -1382,10 +1483,10 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         }
     const u32 ambientColor = ambient.Pack();
 
-    TKit::FixedArray<TKit::TierArray<TKit::TierArray<InstanceDrawInfo>>, StencilPass_Count> drawInfo{};
-    const u32 bcount = Assets::GetBatchCount();
-    for (u32 pass = 0; pass < StencilPass_Count; ++pass)
-        drawInfo[pass].Resize(bcount);
+    TKit::FixedArray<TKit::TierArray<VkDrawIndirectCommand>, StencilPass_Count> circleDrawCmds{};
+    TKit::FixedArray<TKit::FixedArray<TKit::TierArray<VkDrawIndexedIndirectCommand>, Geometry_Count - 1>,
+                     StencilPass_Count>
+        drawCmds{};
 
     const auto collectDrawInfo = [&](const Geometry geo) {
         GraphicsInstancePool &gpool = rdata.InstanceArenas[geo].Graphics;
@@ -1394,10 +1495,17 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         {
             if (!(grange.ViewMask & viewBit) || grange.InUseByGraphics())
                 continue;
+
             TKIT_ASSERT(!grange.ContextRanges.IsEmpty(),
                         "[ONYX][RENDERER] Context ranges cannot be empty for a graphics memory range");
+
+            TKIT_ASSERT((geo == Geometry_Circle && grange.BatchIndex == 0) ||
+                            (geo != Geometry_Circle && grange.BatchIndex != 0),
+                        "[ONYX][RENDERER] Only circle geometry is allowed (and required) to have a batch index of 0");
+
             VkDeviceSize offset = grange.Offset;
             VkDeviceSize size = 0;
+
             bool found = false;
             for (const ContextInstanceRange &crange : grange.ContextRanges)
             {
@@ -1405,12 +1513,15 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                     size += crange.Size;
                 else if (size != 0)
                 {
-                    InstanceDrawInfo info;
-                    info.FirstInstance = u32(offset / instanceSize);
-                    info.InstanceCount = u32(size / instanceSize);
+                    const u32 fi = u32(offset / instanceSize);
+                    const u32 ic = u32(size / instanceSize);
+
                     offset += size;
                     size = 0;
-                    drawInfo[grange.Pass][grange.BatchIndex].Append(info);
+                    if (geo == Geometry_Circle)
+                        circleDrawCmds[grange.Pass].Append(createCircleCommand(fi, ic));
+                    else
+                        drawCmds[grange.Pass][geo - 1].Append(createCommand<D>(geo, grange.BatchIndex, fi, ic));
                     found = true;
                 }
                 else
@@ -1421,10 +1532,13 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
             //             " "no context ranges targetting said view", viewBit);
             if (size != 0)
             {
-                InstanceDrawInfo info;
-                info.FirstInstance = u32(offset / instanceSize);
-                info.InstanceCount = u32(size / instanceSize);
-                drawInfo[grange.Pass][grange.BatchIndex].Append(info);
+                const u32 fi = u32(offset / instanceSize);
+                const u32 ic = u32(size / instanceSize);
+
+                if (geo == Geometry_Circle)
+                    circleDrawCmds[grange.Pass].Append(createCircleCommand(fi, ic));
+                else
+                    drawCmds[grange.Pass][geo - 1].Append(createCommand<D>(geo, grange.BatchIndex, fi, ic));
             }
             else if (!found)
                 continue;
@@ -1504,20 +1618,41 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                                         sizeof(PushConstantData<D>), &pdata);
             }
 
-            setupState(Geometry_Circle);
-            for (const InstanceDrawInfo &draw : drawInfo[pass][Assets::GetCircleBatchIndex()])
-                table->CmdDraw(graphicsCommand, 6, draw.InstanceCount, 0, draw.FirstInstance);
+            u32 drawCount = circleDrawCmds[pass].GetSize();
 
-            setupState(Geometry_StaticMesh);
-            BindStaticMeshes<D>(graphicsCommand);
-            const u32 bstart = Assets::GetBatchStart(Geometry_StaticMesh);
-            const u32 bend = Assets::GetBatchEnd(Geometry_StaticMesh);
-            for (u32 batch = bstart; batch < bend; ++batch)
-                for (const InstanceDrawInfo &draw : drawInfo[pass][batch])
-                {
-                    const Mesh mesh = Assets::GetStaticMeshIndexFromBatch(batch);
-                    DrawStaticMesh<D>(graphicsCommand, mesh, draw.FirstInstance, draw.InstanceCount);
-                }
+            if (drawCount != 0)
+            {
+                setupState(Geometry_Circle);
+                const auto dresult = findSuitableDrawBuffer(drawCount, graphics, graphicsFlightValue);
+                TKIT_RETURN_ON_ERROR(dresult);
+                VKit::DeviceBuffer *dbuffer = dresult.GetValue();
+
+                dbuffer->Write(circleDrawCmds[pass].GetData(),
+                               {.srcOffset = 0, .dstOffset = 0, .size = drawCount * sizeof(VkDrawIndirectCommand)});
+
+                TKIT_RETURN_IF_FAILED(dbuffer->Flush());
+                table->CmdDrawIndirect(graphicsCommand, *dbuffer, 0, drawCount, sizeof(VkDrawIndirectCommand));
+            }
+
+            drawCount = drawCmds[pass][Geometry_StaticMesh - 1].GetSize();
+
+            if (drawCount != 0)
+            {
+                setupState(Geometry_StaticMesh);
+                bindStaticMeshBuffers<D>(graphicsCommand);
+
+                const auto dresult = findSuitableIndexedDrawBuffer(drawCount, graphics, graphicsFlightValue);
+
+                VKit::DeviceBuffer *dbuffer = dresult.GetValue();
+
+                dbuffer->Write(
+                    drawCmds[pass][Geometry_StaticMesh - 1].GetData(),
+                    {.srcOffset = 0, .dstOffset = 0, .size = drawCount * sizeof(VkDrawIndexedIndirectCommand)});
+
+                table->CmdDrawIndexedIndirect(graphicsCommand, *dbuffer, 0, drawCount,
+                                              sizeof(VkDrawIndexedIndirectCommand));
+                TKIT_RETURN_IF_FAILED(dbuffer->Flush());
+            }
         }
     }
     return Result<>::Ok();
@@ -1776,24 +1911,6 @@ void Coalesce(const u32 maxRanges)
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::Coalesce");
     coalesce<D2>(maxRanges);
     coalesce<D3>(maxRanges);
-}
-
-template <Dimension D> void BindStaticMeshes(const VkCommandBuffer command)
-{
-    const VKit::DeviceBuffer &vbuffer = Assets::GetStaticMeshVertexBuffer<D>();
-    const VKit::DeviceBuffer &ibuffer = Assets::GetStaticMeshIndexBuffer<D>();
-
-    vbuffer.BindAsVertexBuffer(command);
-    ibuffer.BindAsIndexBuffer<Index>(command);
-}
-
-template <Dimension D>
-void DrawStaticMesh(const VkCommandBuffer command, const Mesh mesh, const u32 firstInstance, const u32 instanceCount)
-{
-    const MeshDataLayout layout = Assets::GetStaticMeshLayout<D>(mesh);
-    const auto table = Core::GetDeviceTable();
-    table->CmdDrawIndexed(command, layout.IndexCount, instanceCount, layout.IndexStart, layout.VertexStart,
-                          firstInstance);
 }
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -2060,11 +2177,5 @@ template Result<RenderContext<D3> *> CreateContext();
 
 template void DestroyContext(RenderContext<D2> *context);
 template void DestroyContext(RenderContext<D3> *context);
-
-template void BindStaticMeshes<D2>(VkCommandBuffer command);
-template void BindStaticMeshes<D3>(VkCommandBuffer command);
-
-template void DrawStaticMesh<D2>(VkCommandBuffer command, Mesh mesh, u32 firstInstance, u32 instanceCount);
-template void DrawStaticMesh<D3>(VkCommandBuffer command, Mesh mesh, u32 firstInstance, u32 instanceCount);
 
 } // namespace Onyx::Renderer

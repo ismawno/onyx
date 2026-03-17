@@ -5,8 +5,8 @@
 
 namespace Onyx
 {
-using Texture = Handle;
-constexpr Texture NullTexture = NullHandle;
+using Texture = Asset;
+constexpr Texture NullTexture = NullAsset;
 
 struct TextureData
 {

@@ -4,8 +4,8 @@
 
 namespace Onyx
 {
-using Sampler = Handle;
-constexpr Sampler NullSampler = NullHandle;
+using Sampler = Asset;
+constexpr Sampler NullSampler = NullAsset;
 
 enum SamplerMode : u8
 {

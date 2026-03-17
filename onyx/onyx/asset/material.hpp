@@ -6,8 +6,11 @@
 
 namespace Onyx
 {
-using Material = Handle;
-constexpr Material NullMaterial = NullHandle;
+using Material = Asset;
+using MaterialPool = AssetPool;
+
+constexpr Material NullMaterial = NullAsset;
+constexpr MaterialPool NullMaterialPool = NullAssetPool;
 
 template <Dimension D> struct MaterialData;
 

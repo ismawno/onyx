@@ -2,12 +2,13 @@
 
 #include "onyx/resource/buffer.hpp"
 #include "onyx/property/vertex.hpp"
+#include "onyx/asset/handle.hpp"
 #include "tkit/container/dynamic_array.hpp"
 
 namespace Onyx
 {
-using Mesh = u32;
-constexpr Mesh NullMesh = TKit::Limits<Mesh>::Max();
+using Mesh = Asset;
+constexpr Mesh NullMesh = NullAsset;
 
 template <typename Vertex> struct MeshData
 {

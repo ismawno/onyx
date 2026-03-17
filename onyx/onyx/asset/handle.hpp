@@ -5,6 +5,9 @@
 
 namespace Onyx
 {
-using Handle = u32;
-constexpr Handle NullHandle = TKit::Limits<Handle>::Max();
+using Asset = u32;
+constexpr Asset NullAsset = TKit::Limits<Asset>::Max();
+
+using AssetPool = u8;
+constexpr AssetPool NullAssetPool = TKit::Limits<AssetPool>::Max();
 } // namespace Onyx
