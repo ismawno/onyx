@@ -7,6 +7,7 @@
 #include "vkit/resource/sampler.hpp"
 #include "vkit/resource/device_image.hpp"
 #include "tkit/container/arena_hive.hpp"
+#include "tkit/container/static_hive.hpp"
 #include "tkit/container/stack_array.hpp"
 #ifdef ONYX_ENABLE_OBJ_LOAD
 #    define TINYOBJLOADER_IMPLEMENTATION
@@ -90,11 +91,17 @@ template <typename Vertex> struct MeshAssetData
 
 template <Dimension D> using StatMeshAssetData = MeshAssetData<StatVertex<D>>;
 
-template <Dimension D> struct MaterialAssetData
+template <Dimension D> struct MaterialPoolData
 {
     VKit::DeviceBuffer Buffer{};
-    TKit::ArenaArray<MaterialData<D>> Materials{};
-    TKit::ArenaArray<StatusFlags> Flags{};
+    TKit::TierArray<MaterialData<D>> Materials{};
+    TKit::TierArray<StatusFlags> Flags{};
+};
+
+template <Dimension D> struct MaterialAssetData
+{
+    TKit::StaticHive<MaterialPoolData<D>, NullMaterialPool - 1> Pools{};
+    TKit::StaticArray<MaterialPool, NullMaterialPool - 1> ToRemove{};
 };
 
 struct SamplerInfo
@@ -175,31 +182,34 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshAssetDa
     return Result<>::Ok();
 }
 
-template <Dimension D> void updateMaterialDescriptorSet()
+template <Dimension D> void updateMaterialDescriptorSet(const MaterialPool pool)
 {
-    MaterialAssetData<D> &matData = getData<D>().Materials;
-    const VkDescriptorBufferInfo binfo = matData.Buffer.CreateDescriptorInfo();
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+
+    const VkDescriptorBufferInfo binfo = mpool.Buffer.CreateDescriptorInfo();
     const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(Shading_Lit);
 
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
-    writer.WriteBuffer(1, binfo);
+    writer.WriteBuffer(1, binfo, pool);
+
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D>(Shading_Lit))
         writer.Overwrite(set);
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize()
+template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize(const MaterialPool pool)
 {
-    MaterialAssetData<D> &matData = getData<D>().Materials;
-    const u32 mcount = matData.Materials.GetSize();
-    const auto result = Resources::GrowBufferIfNeeded<MaterialData<D>>(matData.Buffer, mcount);
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+
+    const u32 mcount = mpool.Materials.GetSize();
+    const auto result = Resources::GrowBufferIfNeeded<MaterialData<D>>(mpool.Buffer, mcount);
     TKIT_RETURN_ON_ERROR(result);
     if (result.GetValue())
     {
         TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient material buffer memory. Resized from {:L} to {:L} bytes",
-                       mcount * sizeof(MaterialData<D>), matData.Buffer.GetInfo().Size);
-        for (StatusFlags &flags : matData.Flags)
+                       mcount * sizeof(MaterialData<D>), mpool.Buffer.GetInfo().Size);
+        for (StatusFlags &flags : mpool.Flags)
             flags = StatusFlag_UpdateMaterial;
-        updateMaterialDescriptorSet<D>();
+        updateMaterialDescriptorSet<D>(pool);
     }
     return Result<>::Ok();
 }
@@ -271,50 +281,72 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshAs
     return Result<>::Ok();
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialRange(const u32 start, const u32 end)
+template <Dimension D>
+ONYX_NO_DISCARD static Result<> uploadMaterialRange(const MaterialPool pool, const u32 start, const u32 end)
 {
-    MaterialAssetData<D> &materials = getData<D>().Materials;
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
     const VkDeviceSize offset = start * sizeof(MaterialData<D>);
     const VkDeviceSize size = end * sizeof(MaterialData<D>) - offset;
 
-    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading material range: {} - {} ({:L} bytes)", start, end, size);
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading material range for pool {}: {} - {} ({:L} bytes)", pool, start, end, size);
 
-    VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
+    VKit::CommandPool &cpool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    return materials.Buffer.UploadFromHost(pool, queue->GetHandle(), materials.Materials.GetData(),
-                                           {.srcOffset = offset, .dstOffset = offset, .size = size});
+    return mpool.Buffer.UploadFromHost(cpool, queue->GetHandle(), mpool.Materials.GetData(),
+                                       {.srcOffset = offset, .dstOffset = offset, .size = size});
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
+template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialPool(const MaterialPool pool)
 {
-    MaterialAssetData<D> &materials = getData<D>().Materials;
-    if (materials.Materials.IsEmpty())
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+    if (mpool.Materials.IsEmpty())
         return Result<>::Ok();
 
-    TKIT_ASSERT(materials.Materials.GetSize() == materials.Flags.GetSize(),
-                "[ONYX][ASSETS] Material data size ({}) and flags size ({}) mismatch", materials.Materials.GetSize(),
-                materials.Flags.GetSize());
+    TKIT_ASSERT(mpool.Materials.GetSize() == mpool.Flags.GetSize(),
+                "[ONYX][ASSETS] Material data size ({}) and flags size ({}) mismatch", mpool.Materials.GetSize(),
+                mpool.Flags.GetSize());
 
-    const auto mustUpdate = [&materials](const u32 index) {
-        return StatusFlag_UpdateMaterial & materials.Flags[index];
-    };
+    const auto mustUpdate = [&mpool](const u32 index) { return StatusFlag_UpdateMaterial & mpool.Flags[index]; };
 
-    TKIT_RETURN_IF_FAILED(checkMaterialBufferSize<D>());
+    TKIT_RETURN_IF_FAILED(checkMaterialBufferSize<D>(pool));
 
-    const u32 size = materials.Materials.GetSize();
+    const u32 size = mpool.Materials.GetSize();
     for (u32 i = 0; i < size; ++i)
         if (mustUpdate(i))
             for (u32 j = i + 1; j <= size; ++j)
                 if (j == size || !mustUpdate(j))
                 {
-                    TKIT_RETURN_IF_FAILED(uploadMaterialRange<D>(i, j));
+                    TKIT_RETURN_IF_FAILED(uploadMaterialRange<D>(pool, i, j));
                     i = j;
                     break;
                 }
 
-    for (StatusFlags &flags : materials.Flags)
+    for (StatusFlags &flags : mpool.Flags)
         flags = 0;
+
+    return Result<>::Ok();
+}
+
+template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
+{
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    if (!materials.ToRemove.IsEmpty())
+        Renderer::FlushAllContexts<D>();
+
+    for (const MaterialPool pool : materials.ToRemove)
+    {
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying material pool with handle {}", pool);
+        MaterialPoolData<D> &mpool = materials.Pools[pool];
+        mpool.Buffer.Destroy();
+        materials.Pools.Remove(pool);
+    }
+    materials.ToRemove.Clear();
+
+    for (const MaterialPool pool : materials.Pools.GetValidIds())
+    {
+        TKIT_RETURN_IF_FAILED(uploadMaterialPool<D>(pool));
+    }
 
     return Result<>::Ok();
 }
@@ -362,8 +394,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initializeMaterials(const
 template <Dimension D> ONYX_NO_DISCARD static Result<> initialize(const Specs &specs)
 {
     AssetData<D> &data = getData<D>();
-    TKIT_RETURN_IF_FAILED(initialize(data.StaticMeshes, specs.MaxStaticMeshes));
-    return initializeMaterials<D>(specs.MaxMaterials);
+    return initialize(data.StaticMeshes, specs.MaxStaticMeshes);
 }
 
 template <typename Vertex> static void terminate(MeshAssetData<Vertex> &meshData)
@@ -375,7 +406,8 @@ template <typename Vertex> static void terminate(MeshAssetData<Vertex> &meshData
 template <Dimension D> static void terminateMaterials()
 {
     MaterialAssetData<D> &materials = getData<D>().Materials;
-    materials.Buffer.Destroy();
+    for (MaterialPoolData<D> &mpool : materials.Pools)
+        mpool.Buffer.Destroy();
 }
 
 template <Dimension D> static void terminate()
@@ -493,7 +525,6 @@ void UpdateSampler(const Sampler handle, const SamplerData &data)
 
 template <Dimension D> static void removeSamplerReferences(const Sampler handle)
 {
-    MaterialAssetData<D> &materials = getData<D>().Materials;
     const auto updateRef = [handle](Sampler &toUpdate) -> StatusFlags {
         if (toUpdate == handle)
         {
@@ -502,19 +533,24 @@ template <Dimension D> static void removeSamplerReferences(const Sampler handle)
         }
         return 0;
     };
-    auto &matData = materials.Materials;
-    auto &flags = materials.Flags;
 
-    TKIT_ASSERT(matData.GetSize() == flags.GetSize(),
-                "[ONYX][ASSETS] Material data size ({}) and flags size ({}) mismatch", matData.GetSize(),
-                flags.GetSize());
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    for (MaterialPoolData<D> &mpool : materials.Pools)
+    {
+        auto &matData = mpool.Materials;
+        auto &flags = mpool.Flags;
 
-    for (u32 i = 0; i < matData.GetSize(); ++i)
-        if constexpr (D == D2)
-            flags[i] |= updateRef(matData[i].Sampler);
-        else
-            for (Sampler &handle : matData[i].Samplers)
-                flags[i] |= updateRef(handle);
+        TKIT_ASSERT(matData.GetSize() == flags.GetSize(),
+                    "[ONYX][ASSETS] Material data size ({}) and flags size ({}) mismatch", matData.GetSize(),
+                    flags.GetSize());
+
+        for (u32 i = 0; i < matData.GetSize(); ++i)
+            if constexpr (D == D2)
+                flags[i] |= updateRef(matData[i].Sampler);
+            else
+                for (Sampler &handle : matData[i].Samplers)
+                    flags[i] |= updateRef(handle);
+    }
 }
 
 void RemoveSampler(const Sampler handle)
@@ -524,7 +560,7 @@ void RemoveSampler(const Sampler handle)
     removeSamplerReferences<D3>(handle);
 }
 
-template <Dimension D> GltfHandles AddGltfAssets(GltfAssets<D> &assets)
+template <Dimension D> GltfHandles AddGltfAssets(const MaterialPool pool, GltfAssets<D> &assets)
 {
     GltfHandles handles;
     handles.StaticMeshes.Reserve(assets.StaticMeshes.GetSize());
@@ -559,7 +595,7 @@ template <Dimension D> GltfHandles AddGltfAssets(GltfAssets<D> &assets)
                 if (tex != NullSampler)
                     tex = handles.Textures[tex];
         }
-        handles.Materials.Append(AddMaterial(mdata));
+        handles.Materials.Append(AddMaterial(pool, mdata));
     }
 
     return handles;
@@ -614,7 +650,6 @@ void UpdateTexture(const Texture tex, const TextureData &data, const AddTextureF
 
 template <Dimension D> static void removeTextureReferences(const Texture handle)
 {
-    MaterialAssetData<D> &materials = getData<D>().Materials;
     const auto updateRef = [handle](Texture &toUpdate) -> StatusFlags {
         if (toUpdate == handle)
         {
@@ -623,19 +658,23 @@ template <Dimension D> static void removeTextureReferences(const Texture handle)
         }
         return 0;
     };
-    auto &matData = materials.Materials;
-    auto &flags = materials.Flags;
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    for (MaterialPoolData<D> &mpool : materials.Pools)
+    {
+        auto &matData = mpool.Materials;
+        auto &flags = mpool.Flags;
 
-    TKIT_ASSERT(matData.GetSize() == flags.GetSize(),
-                "[ONYX][ASSETS] Material data size ({}) and flags size ({}) mismatch", matData.GetSize(),
-                flags.GetSize());
+        TKIT_ASSERT(matData.GetSize() == flags.GetSize(),
+                    "[ONYX][ASSETS] Material data size ({}) and flags size ({}) mismatch", matData.GetSize(),
+                    flags.GetSize());
 
-    for (u32 i = 0; i < matData.GetSize(); ++i)
-        if constexpr (D == D2)
-            flags[i] |= updateRef(matData[i].Texture);
-        else
-            for (Texture &handle : matData[i].Textures)
-                flags[i] |= updateRef(handle);
+        for (u32 i = 0; i < matData.GetSize(); ++i)
+            if constexpr (D == D2)
+                flags[i] |= updateRef(matData[i].Texture);
+            else
+                for (Texture &handle : matData[i].Textures)
+                    flags[i] |= updateRef(handle);
+    }
 }
 
 void RemoveTexture(const Texture tex)
@@ -683,22 +722,67 @@ template <Dimension D> void UpdateMesh(const Mesh handle, const StatMeshData<D> 
     layout.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
 }
 
-template <Dimension D> Material AddMaterial(const MaterialData<D> &data)
+template <Dimension D> Result<MaterialPool> CreateMaterialPool()
+{
+    const auto result = Resources::CreateBuffer<MaterialData<D>>(Buffer_DeviceStorage);
+    TKIT_RETURN_ON_ERROR(result);
+
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    const MaterialPool pool = MaterialPool(materials.Pools.Insert());
+
+    MaterialPoolData<D> &mpool = materials.Pools[pool];
+    mpool.Buffer = result.GetValue();
+
+    updateMaterialDescriptorSet<D>(pool);
+
+    if (Core::CanNameObjects())
+    {
+        const std::string name = TKit::Format("onyx-assets-{}D-material-pool-buffer-{}", u8(D), pool);
+        TKIT_RETURN_IF_FAILED(mpool.Buffer.SetName(name.c_str()));
+    }
+
+    return pool;
+}
+
+template <Dimension D> void DestroyMaterialPool(const MaterialPool handle)
 {
     MaterialAssetData<D> &materials = getData<D>().Materials;
+    materials.ToRemove.Append(handle);
+}
 
-    const Material handle = materials.Materials.GetSize();
-    materials.Materials.Append(data);
-    materials.Flags.Append(StatusFlag_UpdateMaterial);
+static Material createMaterialHandle(const u32 pool, const u32 matIndex)
+{
+    return (pool << 24) | matIndex;
+}
+static u32 getMaterialIndex(const Material handle)
+{
+    return handle & 0x00FFFFFF;
+}
 
-    return handle;
+MaterialPool GetMaterialPoolHandle(const Material handle)
+{
+    return MaterialPool(handle >> 24);
+}
+
+template <Dimension D> Material AddMaterial(const MaterialPool pool, const MaterialData<D> &data)
+{
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+
+    const Material idx = mpool.Materials.GetSize();
+    mpool.Materials.Append(data);
+    mpool.Flags.Append(StatusFlag_UpdateMaterial);
+
+    return createMaterialHandle(pool, idx);
 }
 
 template <Dimension D> void UpdateMaterial(const Material handle, const MaterialData<D> &data)
 {
-    MaterialAssetData<D> &materials = getData<D>().Materials;
-    materials.Materials[handle] = data;
-    materials.Flags[handle] = StatusFlag_UpdateMaterial;
+    const u32 idx = getMaterialIndex(handle);
+    const MaterialPool pool = GetMaterialPoolHandle(handle);
+
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+    mpool.Materials[idx] = data;
+    mpool.Flags[idx] = StatusFlag_UpdateMaterial;
 }
 
 template <Dimension D> StatMeshData<D> GetStaticMeshData(const Mesh handle)
@@ -721,8 +805,11 @@ template <Dimension D> StatMeshData<D> GetStaticMeshData(const Mesh handle)
 }
 template <Dimension D> const MaterialData<D> &GetMaterialData(const Material handle)
 {
-    MaterialAssetData<D> &materials = getData<D>().Materials;
-    return materials.Materials[handle];
+    const u32 idx = getMaterialIndex(handle);
+    const MaterialPool pool = GetMaterialPoolHandle(handle);
+
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+    return mpool.Materials[idx];
 }
 const TextureData &GetTextureData(const Texture texture)
 {
@@ -1799,8 +1886,14 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
     return data;
 }
 
-template Material AddMaterial(const MaterialData<D2> &data);
-template Material AddMaterial(const MaterialData<D3> &data);
+template Material AddMaterial(MaterialPool pool, const MaterialData<D2> &data);
+template Material AddMaterial(MaterialPool pool, const MaterialData<D3> &data);
+
+template Result<MaterialPool> CreateMaterialPool<D2>();
+template Result<MaterialPool> CreateMaterialPool<D3>();
+
+template void DestroyMaterialPool<D2>(MaterialPool pool);
+template void DestroyMaterialPool<D3>(MaterialPool pool);
 
 template void UpdateMaterial(Material mesh, const MaterialData<D2> &data);
 template void UpdateMaterial(Material mesh, const MaterialData<D3> &data);
@@ -1826,8 +1919,8 @@ template const MaterialData<D2> &GetMaterialData(Material handle);
 template const MaterialData<D3> &GetMaterialData(Material handle);
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
-template GltfHandles AddGltfAssets(GltfAssets<D2> &assets);
-template GltfHandles AddGltfAssets(GltfAssets<D3> &assets);
+template GltfHandles AddGltfAssets(MaterialPool pool, GltfAssets<D2> &assets);
+template GltfHandles AddGltfAssets(MaterialPool pool, GltfAssets<D3> &assets);
 
 template Result<GltfAssets<D2>> LoadGltfAssetsFromFile(const std::string &path, AssetsFlags flags);
 template Result<GltfAssets<D3>> LoadGltfAssetsFromFile(const std::string &path, AssetsFlags flags);

@@ -6,13 +6,14 @@
 
 #define ONYX_MAX_SAMPLERS 8
 #define ONYX_MAX_SAMPLED_IMAGES 1024
+#define ONYX_MAX_MATERIAL_POOLS 255
 
 namespace Onyx::Descriptors
 {
 struct Specs
 {
     u32 MaxSets = 256;
-    u32 StorageBufferPoolSize = 64;
+    u32 StorageBufferPoolSize = 2048;
     u32 SamplerPoolSize = 64;
     u32 SampledImagePoolSize = 4096;
 };

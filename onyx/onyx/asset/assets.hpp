@@ -67,8 +67,7 @@ namespace Onyx::Assets
 {
 struct Specs
 {
-    u32 MaxStaticMeshes = 64;
-    u32 MaxMaterials = 1024;
+    u32 MaxStaticMeshes = 128;
     u32 MaxTextures = 1024;
     u32 MaxSamplers = 8;
 };
@@ -91,7 +90,7 @@ void RemoveSampler(Sampler handle);
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
 
-template <Dimension D> GltfHandles AddGltfAssets(GltfAssets<D> &data);
+template <Dimension D> GltfHandles AddGltfAssets(MaterialPool pool, GltfAssets<D> &data);
 
 Texture AddTexture(const TextureData &data, AddTextureFlags flags = 0);
 void UpdateTexture(Texture handle, const TextureData &data, AddTextureFlags flags = 0);
@@ -105,8 +104,12 @@ void UpdateTexture(Texture handle, const TextureData &data,
 template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data);
 template <Dimension D> void UpdateMesh(Mesh handle, const StatMeshData<D> &data);
 
-template <Dimension D> Material AddMaterial(const MaterialData<D> &data);
+template <Dimension D> ONYX_NO_DISCARD Result<MaterialPool> CreateMaterialPool();
+template <Dimension D> void DestroyMaterialPool(MaterialPool handle);
+
+template <Dimension D> Material AddMaterial(MaterialPool pool, const MaterialData<D> &data);
 template <Dimension D> void UpdateMaterial(Material handle, const MaterialData<D> &data);
+MaterialPool GetMaterialPoolHandle(Material handle);
 
 template <Dimension D> StatMeshData<D> GetStaticMeshData(Mesh handle);
 template <Dimension D> const MaterialData<D> &GetMaterialData(Material handle);

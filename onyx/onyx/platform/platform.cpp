@@ -2,10 +2,11 @@
 #include "onyx/platform/platform.hpp"
 #include "onyx/platform/window.hpp"
 #include "onyx/platform/glfw.hpp"
+#include "tkit/container/static_array.hpp"
 
 namespace Onyx::Platform
 {
-static TKit::Storage<TKit::ArenaArray<Window *>> s_Windows{};
+static TKit::Storage<TKit::StaticArray<Window *, ONYX_MAX_WINDOWS>> s_Windows{};
 
 #ifdef TKIT_ENABLE_ERROR_LOGS
 static void glfwErrorCallback(const i32 errorCode, const char *description)
@@ -27,7 +28,6 @@ Result<> Initialize(const Specs &specs)
 
     TKIT_LOG_WARNING_IF(!glfwVulkanSupported(), "[ONYX][PLATFORM] Vulkan is not supported, according to GLFW");
 
-    s_Windows->Reserve(64);
     return Result<>::Ok();
 }
 
@@ -64,8 +64,8 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, specs.Flags & WindowFlag_FocusOnShow);
 #endif
 
-    GLFWwindow *handle = glfwCreateWindow(i32(specs.Dimensions[0]), i32(specs.Dimensions[1]),
-                                          specs.Title, nullptr, nullptr);
+    GLFWwindow *handle =
+        glfwCreateWindow(i32(specs.Dimensions[0]), i32(specs.Dimensions[1]), specs.Title, nullptr, nullptr);
     if (!handle)
         return Result<>::Error(Error_RejectedWindow);
 

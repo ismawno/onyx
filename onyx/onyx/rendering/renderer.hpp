@@ -37,6 +37,9 @@ VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo();
 
 template <Dimension D> ONYX_NO_DISCARD Result<RenderContext<D> *> CreateContext();
 template <Dimension D> void DestroyContext(RenderContext<D> *context);
+template <Dimension D> void FlushAllContexts();
+void FlushAllContexts();
+
 template <Dimension D> void UpdateViewMask(const RenderContext<D> *context);
 
 template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(Shading shading);

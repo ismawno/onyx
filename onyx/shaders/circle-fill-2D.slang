@@ -9,7 +9,7 @@ struct VertexOutput
     [[vk::location(2)]]
     f32v2 WorldPosition;
     [[vk::location(3)]]
-    nointerpolation u32 MatIndex;
+    nointerpolation u32 MatHandle;
     [[vk::location(4)]]
     nointerpolation ArcData Arc;
     [[vk::location(7)]]
@@ -74,7 +74,7 @@ VertexOutput mainVS(
 
     output.LocalPosition = localPos;
     output.WorldPosition = worldPos.xy;
-    output.MatIndex = data.Data.MatIndex;
+    output.MatHandle = data.Data.MatHandle;
 
     output.Arc.CosSin = f32v4(data.Arc.LowerCos, data.Arc.LowerSin, data.Arc.UpperCos, data.Arc.UpperSin);
     output.Arc.AngleOverflow = data.Arc.AngleOverflow;
@@ -87,7 +87,7 @@ VertexOutput mainVS(
 }
 
 [[vk::binding(1, 0)]]
-Materials2D g_Materials;
+Materials2D g_Materials[255];
 
 [[vk::binding(2, 0)]]
 SamplerState g_Samplers[8];
@@ -107,14 +107,17 @@ f32v4 mainFS(const VertexOutput input)
 
     const f32v3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
     const f32 alpha = CircleFade(input.FragColor.a, bounds, input.Fade);
-    if (input.MatIndex != u32(-1))
+    if (input.MatHandle != u32(-1))
     {
-        const Material2D mat = g_Materials[input.MatIndex];
+        const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
+        const u32 matIdx = GetMaterialIndex(input.MatHandle);
+
+        const Material2D mat = g_Materials[poolIdx][matIdx];
         if (mat.Texture == u32(-1) || mat.Sampler == u32(-1))
-            return input.FragColor * unpackUnorm4x8ToFloat(g_Materials[input.MatIndex].ColorFactor) * f32v4(lcolor, alpha);
+            return input.FragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, alpha);
 
         const f32v4 tex = g_Textures[mat.Texture].Sample(g_Samplers[mat.Sampler], input.TexCoord);
-        return tex * input.FragColor * unpackUnorm4x8ToFloat(g_Materials[input.MatIndex].ColorFactor) * f32v4(lcolor, alpha);
+        return tex * input.FragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, alpha);
     }
     return input.FragColor * f32v4(lcolor, alpha);
 }

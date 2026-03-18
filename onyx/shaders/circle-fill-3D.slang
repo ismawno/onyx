@@ -9,7 +9,7 @@ struct VertexOutput
     [[vk::location(2)]]
     f32v3 WorldPosition;
     [[vk::location(3)]]
-    nointerpolation u32 MatIndex;
+    nointerpolation u32 MatHandle;
     [[vk::location(4)]]
     nointerpolation ArcData Arc;
     [[vk::location(7)]]
@@ -83,7 +83,7 @@ VertexOutput mainVS(
 
     output.LocalPosition = localPos;
     output.WorldPosition = worldPos.xyz;
-    output.MatIndex = data.Data.MatIndex;
+    output.MatHandle = data.Data.MatHandle;
 
     output.Arc.CosSin = f32v4(data.Arc.LowerCos, data.Arc.LowerSin, data.Arc.UpperCos, data.Arc.UpperSin);
     output.Arc.AngleOverflow = data.Arc.AngleOverflow;
@@ -97,7 +97,7 @@ VertexOutput mainVS(
 }
 
 [[vk::binding(1, 0)]]
-Materials3D g_Materials;
+Materials3D g_Materials[255];
 
 [[vk::binding(2, 0)]]
 SamplerState g_Samplers[8];
@@ -117,9 +117,13 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
     if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
 
-    if (input.MatIndex != u32(-1))
+    if (input.MatHandle != u32(-1))
     {
-        const Material3D mat = g_Materials[input.MatIndex];
+        const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
+        const u32 matIdx = GetMaterialIndex(input.MatHandle);
+
+        const Material3D mat = g_Materials[poolIdx][matIdx];
+
         MaterialInfo3D info;
         info.Points = g_PointLights;
         info.Directionals = g_DirLights;

@@ -75,8 +75,11 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *da
 
     AddSampler("Default sampler");
 
-    AddMaterial<D2>("Default material 2D");
-    AddMaterial<D3>("Default material 3D");
+    MaterialPoolId<D2> &pool2 = AddMaterialPool<D2>("Default material pool 2D");
+    MaterialPoolId<D3> &pool3 = AddMaterialPool<D3>("Default material pool 3D");
+
+    AddMaterial<D2>(pool2, "Default material");
+    AddMaterial<D3>(pool3, "Default material");
 
     ONYX_CHECK_EXPRESSION(Assets::Upload());
 
@@ -356,11 +359,20 @@ template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window, co
     data.Shape = CreateShape(data);
 }
 
-template <Dimension D> void SandboxAppLayer::AddMaterial(const char *name)
+template <Dimension D> MaterialPoolId<D> &SandboxAppLayer::AddMaterialPool(const char *name)
 {
     auto &materials = GetMaterials<D>();
+    MaterialPoolId<D> &pool = materials.Pools.Append();
+    pool.Pool = ONYX_CHECK_EXPRESSION(Assets::CreateMaterialPool<D>());
+    pool.Name = name ? name : TKit::Format("Material-pool-{}", pool.Pool);
+    return pool;
+}
+
+template <Dimension D> void SandboxAppLayer::AddMaterial(MaterialPoolId<D> &pool, const char *name)
+{
+    auto &materials = pool.Data;
     MaterialId<D> &mat = materials.Materials.Append();
-    mat.Material = Assets::AddMaterial(mat.Data);
+    mat.Material = Assets::AddMaterial(pool.Pool, mat.Data);
     mat.Name = name ? name : TKit::Format("Material-{}", mat.Material);
     ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
 }
@@ -384,8 +396,9 @@ void SandboxAppLayer::AddTexture(const TextureData &data, const char *name)
 template <Dimension D> void SandboxAppLayer::UpdateMaterialData()
 {
     auto &materials = GetMaterials<D>();
-    for (MaterialId<D> &mat : materials.Materials)
-        mat.Data = Assets::GetMaterialData<D>(mat.Material);
+    for (MaterialPoolId<D> &pool : materials.Pools)
+        for (MaterialId<D> &mat : pool.Data.Materials)
+            mat.Data = Assets::GetMaterialData<D>(mat.Material);
 }
 
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
@@ -556,7 +569,7 @@ void SandboxWinLayer::RenderImGui()
             RenderContexts<D2>();
             RenderCameras<D2>();
             RenderMeshes<D2>();
-            RenderMaterials<D2>();
+            RenderMaterialPools<D2>();
             RenderSamplers();
             RenderTextures();
             RenderLattices<D2>();
@@ -569,7 +582,7 @@ void SandboxWinLayer::RenderImGui()
             RenderContexts<D3>();
             RenderCameras<D3>();
             RenderMeshes<D3>();
-            RenderMaterials<D3>();
+            RenderMaterialPools<D3>();
             RenderSamplers();
             RenderTextures();
             RenderLattices<D3>();
@@ -735,24 +748,55 @@ template <Dimension D> void SandboxWinLayer::RenderContexts()
     }
 }
 
-template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, Material *toSpawn)
+template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, Material *material)
 {
-    ImGui::PushID(toSpawn);
+    ImGui::PushID(material);
     TKit::StackArray<const char *> names{};
     const auto &materials = appLayer->GetMaterials<D>();
-    names.Reserve(materials.Materials.GetSize());
-    for (const MaterialId<D> &mat : materials.Materials)
-        names.Append(mat.Name.c_str());
+
+    u32 size = 0;
+    for (const MaterialPoolId<D> &pool : materials.Pools)
+        size += pool.Data.Materials.GetSize();
+
+    names.Reserve(size);
+
+    u32 idx = TKIT_U32_MAX;
+    u32 gidx = 0;
+    for (const MaterialPoolId<D> &pool : materials.Pools)
+        for (const MaterialId<D> &mat : pool.Data.Materials)
+        {
+            names.Append(mat.Name.c_str());
+            if (mat.Material == *material)
+                idx = gidx;
+            ++gidx;
+        }
+
     bool changed = false;
-    if (*toSpawn != NullMaterial)
+    if (*material != NullMaterial)
     {
         changed |= ImGui::Button("X");
         if (changed)
-            *toSpawn = NullMaterial;
+        {
+            *material = NullMaterial;
+            idx = TKIT_U32_MAX;
+        }
         ImGui::SameLine();
     }
     ImGui::PopID();
-    return combo(name, toSpawn, names) || changed;
+    if (combo(name, &idx, names))
+    {
+        for (const MaterialPoolId<D> &pool : materials.Pools)
+            if (idx < pool.Data.Materials.GetSize())
+            {
+                *material = pool.Data.Materials[idx].Material;
+                break;
+            }
+            else
+                idx -= pool.Data.Materials.GetSize();
+
+        changed = true;
+    }
+    return changed;
 }
 
 template <typename T> static bool nameCombo(const char *name, const TKit::TierArray<T> &container, Asset *handle)
@@ -779,8 +823,6 @@ template <typename T> static bool nameCombo(const char *name, const TKit::TierAr
     bool changed = false;
     if (*handle != NullAsset)
     {
-        ImGui::Text("id: %u", *handle);
-        ImGui::SameLine();
         changed |= ImGui::Button("X");
         if (changed)
         {
@@ -957,24 +999,50 @@ template <Dimension D> void SandboxWinLayer::RenderLattices()
         renderEntries(lattices.Lattices, opts);
     }
 }
-
-template <Dimension D> void SandboxWinLayer::RenderMaterials()
+template <Dimension D> void SandboxWinLayer::RenderMaterialPools()
 {
     if (ImGui::CollapsingHeader("Materials"))
     {
         SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
         auto &materials = appLayer->GetMaterials<D>();
+        if (ImGui::Button("Add pool"))
+            appLayer->AddMaterialPool<D>();
 
-        if (ImGui::Button("Add material"))
-            appLayer->AddMaterial<D>();
-
-        EntriesOptions<MaterialId<D>> opts{};
+        EntriesOptions<MaterialPoolId<D>> opts{};
         opts.Selected = &materials.Active;
-        opts.OnSelected = [this](MaterialId<D> &material) { RenderMaterial(material); };
-        opts.GetName = [](const MaterialId<D> &material) { return material.Name.c_str(); };
-        opts.RemoveButton = false;
-        renderEntries(materials.Materials, opts);
+        opts.OnSelected = [this](MaterialPoolId<D> &pool) { RenderMaterialPool(pool); };
+        opts.GetName = [](const MaterialPoolId<D> &pool) { return pool.Name.c_str(); };
+        opts.OnRemoval = [appLayer](MaterialPoolId<D> &pool) {
+            Assets::DestroyMaterialPool<D>(pool.Pool);
+
+            auto &contexts = appLayer->GetContexts<D>();
+            for (ContextData<D> &ctx : contexts.Contexts)
+            {
+                for (Shape<D> &shape : ctx.Shapes)
+                    if (Assets::GetMaterialPoolHandle(shape.Material) == pool.Pool)
+                        shape.Material = NullMaterial;
+                if (Assets::GetMaterialPoolHandle(ctx.AxesMaterial) == pool.Pool)
+                    ctx.AxesMaterial = NullMaterial;
+            }
+            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        };
+        renderEntries(materials.Pools, opts);
     }
+}
+template <Dimension D> void SandboxWinLayer::RenderMaterialPool(MaterialPoolId<D> &pool)
+{
+    SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+    auto &materials = pool.Data;
+
+    if (ImGui::Button("Add material"))
+        appLayer->AddMaterial<D>(pool);
+
+    EntriesOptions<MaterialId<D>> opts{};
+    opts.Selected = &materials.Active;
+    opts.OnSelected = [this](MaterialId<D> &material) { RenderMaterial(material); };
+    opts.GetName = [](const MaterialId<D> &material) { return material.Name.c_str(); };
+    opts.RemoveButton = false;
+    renderEntries(materials.Materials, opts);
 }
 
 template <Dimension D> void SandboxWinLayer::RenderMaterial(MaterialId<D> &material)
@@ -1138,8 +1206,10 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
             if (!res)
                 return;
 
+            MaterialPoolId<D> &pool = appLayer->AddMaterialPool<D>();
+
             GltfAssets<D> &assets = res.GetValue();
-            const GltfHandles handles = Assets::AddGltfAssets(assets);
+            const GltfHandles handles = Assets::AddGltfAssets(pool.Pool, assets);
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
 
             auto &meshes = appLayer->GetMeshes<D>();
@@ -1153,12 +1223,11 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
                 mid.Data = mdat;
             }
 
-            auto &materials = appLayer->GetMaterials<D>();
             for (u32 i = 0; i < handles.Materials.GetSize(); ++i)
             {
                 const Material mat = handles.Materials[i];
                 const MaterialData<D> &mdat = assets.Materials[i];
-                MaterialId<D> &mid = materials.Materials.Append();
+                MaterialId<D> &mid = pool.Data.Materials.Append();
                 mid.Name = TKit::Format("GLTF-Material-{}", mat);
                 mid.Material = mat;
                 mid.Data = mdat;

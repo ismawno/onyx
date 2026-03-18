@@ -13,7 +13,7 @@ template <> struct InstanceData<D2>
     f32v2 Column3;
     u32 BaseColor;
     union {
-        u32 MatIndex;
+        u32 MatHandle;
         f32 OutlineWidth;
     };
 };
@@ -25,7 +25,7 @@ template <> struct InstanceData<D3>
     f32v4 Row2;
     u32 BaseColor;
     union {
-        u32 MatIndex;
+        u32 MatHandle;
         f32 OutlineWidth;
     };
 };

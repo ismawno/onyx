@@ -184,6 +184,19 @@ template <Dimension D> struct MaterialArray
     u32 Active = 0;
 };
 
+template <Dimension D> struct MaterialPoolId
+{
+    std::string Name{};
+    MaterialPool Pool = NullMaterialPool;
+    MaterialArray<D> Data{};
+};
+
+template <Dimension D> struct MaterialPoolArray
+{
+    TKit::TierArray<MaterialPoolId<D>> Pools{};
+    u32 Active = 0;
+};
+
 struct SamplerId
 {
     std::string Name{};
@@ -228,7 +241,8 @@ class SandboxAppLayer final : public ApplicationLayer
     template <Dimension D> void AddContext(const Window *window = nullptr);
     template <Dimension D> void AddLattice(const Window *window = nullptr, const LatticeData<D> &lattice = {});
     template <Dimension D> void AddStaticMesh(const char *name, const StatMeshData<D> &data, const bool upload = false);
-    template <Dimension D> void AddMaterial(const char *name = nullptr);
+    template <Dimension D> MaterialPoolId<D> &AddMaterialPool(const char *name = nullptr);
+    template <Dimension D> void AddMaterial(MaterialPoolId<D> &pool, const char *name = nullptr);
 
     void AddSampler(const char *name = nullptr);
     void AddTexture(const TextureData &data, const char *name = nullptr);
@@ -275,8 +289,8 @@ class SandboxAppLayer final : public ApplicationLayer
     LatticeArray<D2> Lattices2{};
     LatticeArray<D3> Lattices3{};
 
-    MaterialArray<D2> Materials2{};
-    MaterialArray<D3> Materials3{};
+    MaterialPoolArray<D2> Materials2{};
+    MaterialPoolArray<D3> Materials3{};
 
     TKit::TierArray<SamplerId> Samplers{};
     TKit::TierArray<TextureId> Textures{};
@@ -302,7 +316,8 @@ class SandboxWinLayer final : public WindowLayer
     template <Dimension D> void RenderLightPicker(ContextData<D> &context);
     template <Dimension D> void RenderLattices();
     template <Dimension D> void RenderLattice(LatticeData<D> &lattice);
-    template <Dimension D> void RenderMaterials();
+    template <Dimension D> void RenderMaterialPools();
+    template <Dimension D> void RenderMaterialPool(MaterialPoolId<D> &pool);
     template <Dimension D> void RenderMaterial(MaterialId<D> &material);
     void RenderSamplers();
     void RenderSampler(SamplerId &sampler);

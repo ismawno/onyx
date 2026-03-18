@@ -348,7 +348,7 @@ template <Dimension D> bool PointLightEditor(PointLight<D> &light, const EditorF
     if constexpr (D == D2)
     {
         f32v2 position = light.GetPosition();
-        if (ImGui::DragFloat2("Position", Math::AsPointer(position), 0.1f))
+        if (ImGui::DragFloat2("Position", Math::AsPointer(position), 0.02f))
         {
             light.SetPosition(position);
             changed = true;
@@ -357,7 +357,7 @@ template <Dimension D> bool PointLightEditor(PointLight<D> &light, const EditorF
     else
     {
         f32v3 position = light.GetPosition();
-        if (ImGui::DragFloat3("Position", Math::AsPointer(position), 0.1f))
+        if (ImGui::DragFloat3("Position", Math::AsPointer(position), 0.02f))
         {
             light.SetPosition(position);
             changed = true;

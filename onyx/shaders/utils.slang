@@ -20,7 +20,7 @@ public struct InstanceDataFill2D
 {
     Basis2D Basis;
     u32 Color;
-    u32 MatIndex;
+    u32 MatHandle;
 };
 public struct InstanceDataStencil2D
 {
@@ -32,7 +32,7 @@ public struct InstanceDataFill3D
 {
     Basis3D Basis;
     u32 Color;
-    u32 MatIndex;
+    u32 MatHandle;
 };
 public struct InstanceDataStencil3D
 {
@@ -121,6 +121,14 @@ public struct Material3D
     u32 EmissiveTex;
 }
 
+u32 GetMaterialIndex(const u32 handle)
+{
+    return handle & 0x00FFFFFF;
+}
+u32 GetMaterialPoolIndex(const u32 handle)
+{
+    return u32(handle >> 24);
+}
 
 f32m4 ComputeTransform2D(const Basis2D basis)
 {

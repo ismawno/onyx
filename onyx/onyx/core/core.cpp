@@ -159,6 +159,7 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     features.Vulkan12.descriptorBindingPartiallyBound = VK_TRUE;
     features.Vulkan12.runtimeDescriptorArray = VK_TRUE;
     features.Vulkan12.descriptorIndexing = VK_TRUE;
+    features.Vulkan12.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
     // features.Vulkan12.descriptorBindingVariableDescriptorCount = VK_TRUE;
     features.Vulkan12.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
 

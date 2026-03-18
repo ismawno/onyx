@@ -15,7 +15,7 @@ struct VertexOutput
     [[vk::location(1)]]
     f32v2 TexCoord;
     [[vk::location(2)]]
-    nointerpolation u32 MatIndex;
+    nointerpolation u32 MatHandle;
     [[vk::location(3)]]
     f32v4 FragColor;
     [[vk::location(4)]]
@@ -62,14 +62,14 @@ VertexOutput mainVS(
 
     output.WorldPosition = worldPos.xyz;
     output.TexCoord = input.TexCoord;
-    output.MatIndex = data.MatIndex;
+    output.MatHandle = data.MatHandle;
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
 
     return output;
 }
 
 [[vk::binding(1, 0)]]
-Materials3D g_Materials;
+Materials3D g_Materials[255];
 
 [[vk::binding(2, 0)]]
 SamplerState g_Samplers[8];
@@ -83,13 +83,15 @@ PointLights3D g_PointLights;
 [[vk::binding(5, 0)]]
 DirectionalLights g_DirLights;
 
-
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
 {
-    if (input.MatIndex != u32(-1))
+    if (input.MatHandle != u32(-1))
     {
-        const Material3D mat = g_Materials[input.MatIndex];
+        const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
+        const u32 matIdx = GetMaterialIndex(input.MatHandle);
+
+        const Material3D mat = g_Materials[poolIdx][matIdx];
         MaterialInfo3D info;
         info.Points = g_PointLights;
         info.Directionals = g_DirLights;

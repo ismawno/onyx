@@ -103,7 +103,7 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
         instanceData.Column0 = f32v2{transform[0]};
         instanceData.Column1 = f32v2{transform[1]};
         instanceData.Column3 = f32v2{transform[2]};
-        instanceData.MatIndex = state->Material;
+        instanceData.MatHandle = state->Material;
         if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
             instanceData.BaseColor = state->FillColor.Pack();
         else
@@ -122,7 +122,7 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
         if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
         {
             instanceData.BaseColor = state->FillColor.Pack();
-            instanceData.MatIndex = state->Material;
+            instanceData.MatHandle = state->Material;
         }
         else
         {

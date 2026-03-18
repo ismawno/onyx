@@ -528,6 +528,19 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
     rdata.Contexts.RemoveOrdered(rdata.Contexts.begin() + index);
 }
 
+template <Dimension D> void FlushAllContexts()
+{
+    RendererData<D> &rdata = getRendererData<D>();
+    for (RenderContext<D> *ctx : rdata.Contexts)
+        ctx->Flush();
+}
+
+void FlushAllContexts()
+{
+    FlushAllContexts<D2>();
+    FlushAllContexts<D3>();
+}
+
 template <Dimension D> void UpdateViewMask(const RenderContext<D> *context)
 {
     RendererData<D> &rdata = getRendererData<D>();
@@ -1493,7 +1506,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         const u32 instanceSize = getInstanceSize<D>(geo);
         for (GraphicsInstanceRange &grange : gpool.Ranges)
         {
-            if (!(grange.ViewMask & viewBit) || grange.InUseByGraphics())
+            if (!(grange.ViewMask & viewBit))
                 continue;
 
             TKIT_ASSERT(!grange.ContextRanges.IsEmpty(),
@@ -2174,6 +2187,9 @@ template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorS
 
 template Result<RenderContext<D2> *> CreateContext();
 template Result<RenderContext<D3> *> CreateContext();
+
+template void FlushAllContexts<D2>();
+template void FlushAllContexts<D3>();
 
 template void DestroyContext(RenderContext<D2> *context);
 template void DestroyContext(RenderContext<D3> *context);
