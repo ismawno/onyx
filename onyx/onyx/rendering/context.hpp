@@ -232,6 +232,10 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         u32 Capacity = 0;
     };
 
+    struct InstanceData
+    {
+    };
+
     void updateState();
 
     void resizeBuffer(InstanceBuffer &buffer);
@@ -241,6 +245,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addStaticMeshData(Mesh mesh, const f32m<D> &transform, StencilPass pass);
 
     TKit::TierArray<RenderState<D>> m_StateStack{};
+    TKit::FixedArray<InstanceBuffer, StencilPass_Count> m_CircleInstanceData{};
+    TKit::FixedArray<TKit::FixedArray<TKit::TierArray<InstanceBuffer>, NullMaterialPool - 1>, StencilPass_Count>
+        m_Lol{};
     TKit::FixedArray<TKit::TierArray<InstanceBuffer>, StencilPass_Count> m_InstanceData{};
     TKit::TierArray<PointLight<D> *> m_PointLights{};
     Color m_AmbientLight = Color{Color::White, 0.4f};

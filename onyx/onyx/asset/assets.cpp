@@ -100,8 +100,8 @@ template <Dimension D> struct MaterialPoolData
 
 template <Dimension D> struct MaterialAssetData
 {
-    TKit::StaticHive<MaterialPoolData<D>, NullMaterialPool - 1> Pools{};
-    TKit::StaticArray<MaterialPool, NullMaterialPool - 1> ToRemove{};
+    TKit::StaticHive<MaterialPoolData<D>, ONYX_MAX_MATERIAL_POOLS> Pools{};
+    TKit::StaticArray<MaterialPool, ONYX_MAX_MATERIAL_POOLS> ToRemove{};
 };
 
 struct SamplerInfo
@@ -759,11 +759,6 @@ static u32 getMaterialIndex(const Material handle)
     return handle & 0x00FFFFFF;
 }
 
-MaterialPool GetMaterialPoolHandle(const Material handle)
-{
-    return MaterialPool(handle >> 24);
-}
-
 template <Dimension D> Material AddMaterial(const MaterialPool pool, const MaterialData<D> &data)
 {
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
@@ -778,7 +773,7 @@ template <Dimension D> Material AddMaterial(const MaterialPool pool, const Mater
 template <Dimension D> void UpdateMaterial(const Material handle, const MaterialData<D> &data)
 {
     const u32 idx = getMaterialIndex(handle);
-    const MaterialPool pool = GetMaterialPoolHandle(handle);
+    const MaterialPool pool = GetPoolHandle(handle);
 
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
     mpool.Materials[idx] = data;
@@ -806,7 +801,7 @@ template <Dimension D> StatMeshData<D> GetStaticMeshData(const Mesh handle)
 template <Dimension D> const MaterialData<D> &GetMaterialData(const Material handle)
 {
     const u32 idx = getMaterialIndex(handle);
-    const MaterialPool pool = GetMaterialPoolHandle(handle);
+    const MaterialPool pool = GetPoolHandle(handle);
 
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
     return mpool.Materials[idx];

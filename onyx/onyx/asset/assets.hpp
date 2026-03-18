@@ -109,7 +109,11 @@ template <Dimension D> void DestroyMaterialPool(MaterialPool handle);
 
 template <Dimension D> Material AddMaterial(MaterialPool pool, const MaterialData<D> &data);
 template <Dimension D> void UpdateMaterial(Material handle, const MaterialData<D> &data);
-MaterialPool GetMaterialPoolHandle(Material handle);
+
+inline AssetPool GetPoolHandle(const Asset handle)
+{
+    return AssetPool(handle >> 24);
+}
 
 template <Dimension D> StatMeshData<D> GetStaticMeshData(Mesh handle);
 template <Dimension D> const MaterialData<D> &GetMaterialData(Material handle);

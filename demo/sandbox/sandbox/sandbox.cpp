@@ -1019,9 +1019,9 @@ template <Dimension D> void SandboxWinLayer::RenderMaterialPools()
             for (ContextData<D> &ctx : contexts.Contexts)
             {
                 for (Shape<D> &shape : ctx.Shapes)
-                    if (Assets::GetMaterialPoolHandle(shape.Material) == pool.Pool)
+                    if (Assets::GetPoolHandle(shape.Material) == pool.Pool)
                         shape.Material = NullMaterial;
-                if (Assets::GetMaterialPoolHandle(ctx.AxesMaterial) == pool.Pool)
+                if (Assets::GetPoolHandle(ctx.AxesMaterial) == pool.Pool)
                     ctx.AxesMaterial = NullMaterial;
             }
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
