@@ -1496,10 +1496,24 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         }
     const u32 ambientColor = ambient.Pack();
 
-    TKit::FixedArray<TKit::TierArray<VkDrawIndirectCommand>, StencilPass_Count> circleDrawCmds{};
-    TKit::FixedArray<TKit::FixedArray<TKit::TierArray<VkDrawIndexedIndirectCommand>, Geometry_Count - 1>,
-                     StencilPass_Count>
-        drawCmds{};
+    TKit::FixedArray<TKit::FixedArray<TKit::TierArray<std::byte>, Geometry_Count>, StencilPass_Count> drawCmds{};
+
+    const auto insertCommand = [&](const Geometry geo, const GraphicsInstanceRange &grange, const u32 fi,
+                                   const u32 ic) {
+        TKit::TierArray<std::byte> &cmds = drawCmds[grange.Pass][geo];
+        if (geo == Geometry_Circle)
+        {
+            const VkDrawIndirectCommand cmd = createCircleCommand(fi, ic);
+            const std::byte *data = rcast<const std::byte *>(&cmd);
+            cmds.Insert(cmds.end(), data, data + sizeof(VkDrawIndirectCommand));
+        }
+        else
+        {
+            const VkDrawIndexedIndirectCommand cmd = createCommand<D>(geo, grange.BatchIndex, fi, ic);
+            const std::byte *data = rcast<const std::byte *>(&cmd);
+            cmds.Insert(cmds.end(), data, data + sizeof(VkDrawIndexedIndirectCommand));
+        }
+    };
 
     const auto collectDrawInfo = [&](const Geometry geo) {
         GraphicsInstancePool &gpool = rdata.InstanceArenas[geo].Graphics;
@@ -1531,10 +1545,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
 
                     offset += size;
                     size = 0;
-                    if (geo == Geometry_Circle)
-                        circleDrawCmds[grange.Pass].Append(createCircleCommand(fi, ic));
-                    else
-                        drawCmds[grange.Pass][geo - 1].Append(createCommand<D>(geo, grange.BatchIndex, fi, ic));
+                    insertCommand(geo, grange, fi, ic);
                     found = true;
                 }
                 else
@@ -1547,11 +1558,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
             {
                 const u32 fi = u32(offset / instanceSize);
                 const u32 ic = u32(size / instanceSize);
-
-                if (geo == Geometry_Circle)
-                    circleDrawCmds[grange.Pass].Append(createCircleCommand(fi, ic));
-                else
-                    drawCmds[grange.Pass][geo - 1].Append(createCommand<D>(geo, grange.BatchIndex, fi, ic));
+                insertCommand(geo, grange, fi, ic);
             }
             else if (!found)
                 continue;
@@ -1631,8 +1638,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                                         sizeof(PushConstantData<D>), &pdata);
             }
 
-            u32 drawCount = circleDrawCmds[pass].GetSize();
-
+            u32 drawCount = drawCmds[pass][Geometry_Circle].GetSize() / sizeof(VkDrawIndirectCommand);
             if (drawCount != 0)
             {
                 setupState(Geometry_Circle);
@@ -1640,15 +1646,14 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                 TKIT_RETURN_ON_ERROR(dresult);
                 VKit::DeviceBuffer *dbuffer = dresult.GetValue();
 
-                dbuffer->Write(circleDrawCmds[pass].GetData(),
+                dbuffer->Write(drawCmds[pass][Geometry_Circle].GetData(),
                                {.srcOffset = 0, .dstOffset = 0, .size = drawCount * sizeof(VkDrawIndirectCommand)});
 
                 TKIT_RETURN_IF_FAILED(dbuffer->Flush());
                 table->CmdDrawIndirect(graphicsCommand, *dbuffer, 0, drawCount, sizeof(VkDrawIndirectCommand));
             }
 
-            drawCount = drawCmds[pass][Geometry_StaticMesh - 1].GetSize();
-
+            drawCount = drawCmds[pass][Geometry_StaticMesh].GetSize() / sizeof(VkDrawIndexedIndirectCommand);
             if (drawCount != 0)
             {
                 setupState(Geometry_StaticMesh);
@@ -1659,7 +1664,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                 VKit::DeviceBuffer *dbuffer = dresult.GetValue();
 
                 dbuffer->Write(
-                    drawCmds[pass][Geometry_StaticMesh - 1].GetData(),
+                    drawCmds[pass][Geometry_StaticMesh].GetData(),
                     {.srcOffset = 0, .dstOffset = 0, .size = drawCount * sizeof(VkDrawIndexedIndirectCommand)});
 
                 table->CmdDrawIndexedIndirect(graphicsCommand, *dbuffer, 0, drawCount,
