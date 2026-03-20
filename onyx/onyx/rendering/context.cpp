@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/context.hpp"
-#include "onyx/asset/assets.hpp"
 #include "onyx/resource/resources.hpp"
+#include "onyx/asset/assets.hpp"
 #include "tkit/math/math.hpp"
 
 namespace Onyx
@@ -72,11 +72,19 @@ template <Dimension D> void IRenderContext<D>::updateState()
 
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
 {
+    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_StaticMesh, mesh),
+                "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
+                "it references is not a static mesh",
+                mesh);
     const auto draw = [&, mesh](const StencilPass pass) { addStaticMeshData(mesh, m_Current->Transform, pass); };
     resolveStencilPassWithState(m_Current, draw);
 }
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, const f32m<D> &transform)
 {
+    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_StaticMesh, mesh),
+                "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
+                "it references is not a static mesh",
+                mesh);
     const auto draw = [&, mesh](const StencilPass pass) {
         addStaticMeshData(mesh, transform * m_Current->Transform, pass);
     };
@@ -216,6 +224,29 @@ void IRenderContext<D>::addStaticMeshData(const Asset mesh, const f32m<D> &trans
     InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Geometry_StaticMesh - 1][pool][idx];
     addInstanceData(buffer, idata);
 }
+
+#ifdef TKIT_ENABLE_ASSERTS
+template <Dimension D> void IRenderContext<D>::checkMaterial(const Asset material)
+{
+    TKIT_ASSERT(material == NullAsset || Assets::IsMaterialHandleValid<D>(material),
+                "[ONYX][CONTEX] The material handle {} is invalid and is not an explicit null material", material);
+    if (material != NullAsset)
+    {
+        const MaterialData<D> &data = Assets::GetMaterialData<D>(material);
+        if constexpr (D == D2)
+        {
+            TKIT_ASSERT(data.Texture == NullAsset || Assets::IsTextureHandleValid(data.Texture),
+                        "[ONYX][CONTEXT] The texture handle {} from the material handle {} is invalid and is not "
+                        "an explicit null texture",
+                        data.Texture, material);
+            TKIT_ASSERT(data.Sampler == NullAsset || Assets::IsSamplerHandleValid(data.Sampler),
+                        "[ONYX][CONTEXT] The sampler handle {} from the material handle {} is invalid and is not "
+                        "an explicit null sampler",
+                        data.Sampler, material);
+        }
+    }
+}
+#endif
 
 template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, const f32v<D> &end)
 {

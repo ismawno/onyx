@@ -93,6 +93,14 @@ void UpdateTexture(Asset handle, const TextureData &data,
                    AddTAddTextureFlags flags = AddTextureFlag_ManuallyHandledMemory);
 #endif
 
+template <Dimension D> bool IsMeshPoolHandleValid(Geometry geo, AssetPool handle);
+template <Dimension D> bool IsMeshHandleValid(Geometry geo, Asset handle);
+template <Dimension D> bool IsMaterialPoolHandleValid(AssetPool handle);
+template <Dimension D> bool IsMaterialHandleValid(Asset handle);
+
+bool IsSamplerHandleValid(Asset handle);
+bool IsTextureHandleValid(Asset handle);
+
 template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateMeshPool(Geometry geo);
 template <Dimension D> void DestroyMeshPool(Geometry geo, AssetPool pool);
 

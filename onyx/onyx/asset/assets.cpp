@@ -616,6 +616,46 @@ void RemoveTexture(const Asset tex)
     removeTextureReferences<D3>(tex);
 }
 
+template <Dimension D> bool IsMeshPoolHandleValid(const Geometry geo, const AssetPool handle)
+{
+    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
+    if (geo == Geometry_StaticMesh)
+        return getData<D>().StaticMeshes.Pools.Contains(handle);
+    return false;
+}
+
+template <Dimension D> bool IsMeshHandleValid(const Geometry geo, const Asset handle)
+{
+    const AssetPool pool = GetPoolHandle(handle);
+    if (!IsMeshPoolHandleValid<D>(geo, pool))
+        return false;
+    const u32 idx = GetAssetIndex(handle);
+    if (geo == Geometry_StaticMesh)
+        return idx < getData<D>().StaticMeshes.Pools[pool].Layouts.GetSize();
+    return false;
+}
+
+template <Dimension D> bool IsMaterialPoolHandleValid(const AssetPool handle)
+{
+    return getData<D>().Materials.Pools.Contains(handle);
+}
+
+template <Dimension D> bool IsMaterialHandleValid(const Asset handle)
+{
+    const AssetPool pool = GetPoolHandle(handle);
+    const u32 idx = GetAssetIndex(handle);
+    return IsMaterialPoolHandleValid<D>(pool) && idx < getData<D>().Materials.Pools[pool].Materials.GetSize();
+}
+
+bool IsSamplerHandleValid(const Asset handle)
+{
+    return s_SamplerData->Samplers.Contains(handle);
+}
+bool IsTextureHandleValid(const Asset handle)
+{
+    return s_TextureData->Textures.Contains(handle);
+}
+
 template <typename Vertex> ONYX_NO_DISCARD static Result<AssetPool> createMeshPool(MeshAssetData<Vertex> &data)
 {
     auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
@@ -1949,6 +1989,16 @@ template void DestroyMeshPool<D3>(Geometry geo, AssetPool pool);
 template Result<StatMeshData<D2>> LoadStaticMeshFromObjFile<D2>(const char *path, LoadObjDataFlags flags);
 template Result<StatMeshData<D3>> LoadStaticMeshFromObjFile<D3>(const char *path, LoadObjDataFlags flags);
 #endif
+
+template bool IsMeshPoolHandleValid<D2>(Geometry geo, AssetPool handle);
+template bool IsMeshHandleValid<D2>(Geometry geo, Asset handle);
+template bool IsMaterialPoolHandleValid<D2>(AssetPool handle);
+template bool IsMaterialHandleValid<D2>(Asset handle);
+
+template bool IsMeshPoolHandleValid<D3>(Geometry geo, AssetPool handle);
+template bool IsMeshHandleValid<D3>(Geometry geo, Asset handle);
+template bool IsMaterialPoolHandleValid<D3>(AssetPool handle);
+template bool IsMaterialHandleValid<D3>(Asset handle);
 
 template StatMeshData<D2> GetStaticMeshData(Asset handle);
 template StatMeshData<D3> GetStaticMeshData(Asset handle);

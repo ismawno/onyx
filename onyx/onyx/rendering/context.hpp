@@ -8,7 +8,6 @@
 #include "onyx/rendering/light.hpp"
 #include "onyx/state/descriptors.hpp"
 #include "vkit/resource/host_buffer.hpp"
-#include "tkit/container/static_array.hpp"
 
 namespace Onyx
 {
@@ -116,6 +115,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Material(const Asset material)
     {
+#ifdef TKIT_ENABLE_ASSERTS
+        checkMaterial(material);
+#endif
         m_Current->Material = material;
     }
 
@@ -250,6 +252,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void addCircleData(const f32m<D> &transform, const CircleOptions &options, StencilPass pass);
     void addStaticMeshData(Asset mesh, const f32m<D> &transform, StencilPass pass);
+#ifdef TKIT_ENABLE_ASSERTS
+    void checkMaterial(Asset material);
+#endif
 
     TKit::TierArray<RenderState<D>> m_StateStack{};
     TKit::FixedArray<InstanceDataArrays, StencilPass_Count> m_InstanceData{};
