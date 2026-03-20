@@ -27,6 +27,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         m_AppLayer->markUpdateTick();
         m_AppLayer->OnUpdate(m_AppLayer->m_UpdateDelta);
     }
+    TKIT_RETURN_IF_FAILED(Execution::UpdateCompletedQueueTimelines());
     if (m_AppLayer->isTransferDue())
     {
         m_AppLayer->markTransferTick();
@@ -35,7 +36,6 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             Renderer::Coalesce();
 
         VKit::Queue *tqueue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
-        TKIT_RETURN_IF_FAILED(tqueue->UpdateCompletedTimeline());
 
         const auto tresult = Execution::FindSuitableCommandPool(VKit::Queue_Transfer);
         TKIT_RETURN_ON_ERROR(tresult);
@@ -112,8 +112,6 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
     if (!acqWindows.IsEmpty())
     {
         VKit::Queue *gqueue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
-        TKIT_RETURN_IF_FAILED(gqueue->UpdateCompletedTimeline());
-
         const auto gresult = Execution::FindSuitableCommandPool(VKit::Queue_Graphics);
         TKIT_RETURN_ON_ERROR(gresult);
         CommandPool *gpool = gresult.GetValue();
