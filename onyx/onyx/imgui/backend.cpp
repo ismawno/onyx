@@ -1415,7 +1415,6 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
             TKit::ForwardCopy(mem + wsize * y, tex->GetPixelsAt(i32(xupload), i32(yupload + y)), wsize);
 
         TKIT_RETURN_IF_FAILED(uploadBuffer.Flush(), uploadBuffer.Destroy());
-        TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle(), uploadBuffer.Destroy());
 
         VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
         const auto cmdres = pool.BeginSingleTimeCommands();
@@ -1423,9 +1422,33 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
 
         const VkCommandBuffer cmd = cmdres.GetValue();
 
-        bckTex->Image.TransitionLayout2(
-            cmd, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            {.DstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+        VkBufferMemoryBarrier2KHR uploadBarrier{};
+        uploadBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR;
+        uploadBarrier.srcAccessMask = VK_ACCESS_2_HOST_WRITE_BIT_KHR;
+        uploadBarrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT_KHR;
+        uploadBarrier.srcStageMask = VK_PIPELINE_STAGE_2_HOST_BIT_KHR;
+        uploadBarrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR;
+        uploadBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        uploadBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        uploadBarrier.buffer = uploadBuffer;
+        uploadBarrier.offset = 0;
+        uploadBarrier.size = size;
+
+        const VkImageMemoryBarrier2KHR imgBarrier = bckTex->Image.CreateTransitionLayoutBarrier2(
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, {.DstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+                                                   .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                                   .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+
+        VkDependencyInfoKHR dep{};
+        dep.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
+        dep.bufferMemoryBarrierCount = 1;
+        dep.pBufferMemoryBarriers = &uploadBarrier;
+        dep.imageMemoryBarrierCount = 1;
+        dep.pImageMemoryBarriers = &imgBarrier;
+
+        const auto table = Core::GetDeviceTable();
+        table->CmdPipelineBarrier2KHR(cmd, &dep);
+        bckTex->Image.SetLayout(imgBarrier.newLayout);
 
         VkBufferImageCopy2KHR copy{};
         copy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2_KHR;
@@ -1439,9 +1462,11 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
 
         bckTex->Image.CopyFromBuffer2(cmd, uploadBuffer, copy);
 
-        bckTex->Image.TransitionLayout2(
-            cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
+        bckTex->Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                        {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR,
+                                         .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                         .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR,
+                                         .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR});
 
         const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
         TKIT_RETURN_IF_FAILED(pool.EndSingleTimeCommands(cmd, queue->GetHandle()), uploadBuffer.Destroy());
