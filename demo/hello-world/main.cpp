@@ -8,7 +8,7 @@
 
 using namespace Onyx;
 
-void WindowExample(const Mesh mesh, const u32 nwidows = 1)
+void WindowExample(const Asset mesh, const u32 nwidows = 1)
 {
     RenderContext<D2> *ctx = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D2>());
     TKit::StackArray<Window *> windows{};
@@ -115,7 +115,9 @@ int main()
 {
     ONYX_CHECK_EXPRESSION(Initialize());
     const StatMeshData<D2> data = Assets::CreateSquareMesh<D2>();
-    const Mesh mesh = Assets::AddMesh(data);
+
+    const AssetPool pool = ONYX_CHECK_EXPRESSION(Assets::CreateMeshPool<D2>(Onyx::Geometry_StaticMesh));
+    const Asset mesh = Assets::AddMesh(pool, data);
     ONYX_CHECK_EXPRESSION(Assets::Upload());
 
     WindowExample(mesh, 1);

@@ -6,7 +6,7 @@
 
 #define ONYX_MAX_SAMPLERS 8
 #define ONYX_MAX_SAMPLED_IMAGES 1024
-#define ONYX_MAX_MATERIAL_POOLS 255
+#define ONYX_MAX_ASSET_POOLS 255
 
 namespace Onyx::Descriptors
 {

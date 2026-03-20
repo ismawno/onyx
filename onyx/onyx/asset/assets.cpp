@@ -62,13 +62,12 @@ struct BatchRange
 };
 
 AssetsFlags s_Flags = 0;
-TKit::FixedArray<BatchRange, Geometry_Count> s_BatchRanges{};
 
-template <typename Vertex> struct MeshAssetData
+template <typename Vertex> struct MeshPoolData
 {
     VKit::DeviceBuffer VertexBuffer{};
     VKit::DeviceBuffer IndexBuffer{};
-    TKit::ArenaArray<DataLayout> Layouts{};
+    TKit::TierArray<DataLayout> Layouts{};
     MeshData<Vertex> Meshes{};
 
     u32 GetVertexCount(u32 size = TKIT_U32_MAX) const
@@ -89,6 +88,13 @@ template <typename Vertex> struct MeshAssetData
     }
 };
 
+template <typename Vertex> struct MeshAssetData
+{
+    TKit::StaticHive<MeshPoolData<Vertex>, ONYX_MAX_ASSET_POOLS> Pools{};
+    TKit::StaticArray<AssetPool, ONYX_MAX_ASSET_POOLS> ToRemove{};
+};
+
+template <Dimension D> using StatMeshPoolData = MeshPoolData<StatVertex<D>>;
 template <Dimension D> using StatMeshAssetData = MeshAssetData<StatVertex<D>>;
 
 template <Dimension D> struct MaterialPoolData
@@ -100,14 +106,14 @@ template <Dimension D> struct MaterialPoolData
 
 template <Dimension D> struct MaterialAssetData
 {
-    TKit::StaticHive<MaterialPoolData<D>, ONYX_MAX_MATERIAL_POOLS> Pools{};
-    TKit::StaticArray<MaterialPool, ONYX_MAX_MATERIAL_POOLS> ToRemove{};
+    TKit::StaticHive<MaterialPoolData<D>, ONYX_MAX_ASSET_POOLS> Pools{};
+    TKit::StaticArray<AssetPool, ONYX_MAX_ASSET_POOLS> ToRemove{};
 };
 
 struct SamplerInfo
 {
     VKit::Sampler Sampler{};
-    Onyx::Sampler Id = NullSampler;
+    Asset Handle = NullAsset;
     SamplerData Data{};
     AssetsFlags Flags = 0;
 };
@@ -115,21 +121,21 @@ struct SamplerInfo
 struct SamplerAssetData
 {
     TKit::ArenaHive<SamplerInfo> Samplers{};
-    TKit::ArenaArray<Sampler> ToRemove{};
+    TKit::ArenaArray<Asset> ToRemove{};
 };
 
 struct TextureInfo
 {
     VKit::DeviceImage Image{};
     TextureData Data{};
-    Texture Id = NullTexture;
+    Asset Handle = NullAsset;
     StatusFlags Flags{};
 };
 
 struct TextureAssetData
 {
     TKit::ArenaHive<TextureInfo> Textures{};
-    TKit::ArenaArray<Texture> ToRemove{};
+    TKit::ArenaArray<Asset> ToRemove{};
 };
 
 template <Dimension D> struct AssetData
@@ -151,38 +157,38 @@ template <Dimension D> static AssetData<D> &getData()
         return *s_AssetData3;
 }
 
-template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshAssetData<Vertex> &meshData)
+template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshPoolData<Vertex> &mpool)
 {
     StatusFlags flags = 0;
 
-    const u32 vcount = meshData.GetVertexCount();
-    auto result = Resources::GrowBufferIfNeeded<Vertex>(meshData.VertexBuffer, vcount);
+    const u32 vcount = mpool.GetVertexCount();
+    auto result = Resources::GrowBufferIfNeeded<Vertex>(mpool.VertexBuffer, vcount);
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())
     {
         flags = StatusFlag_UpdateVertex;
         TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient vertex buffer memory. Resized from {:L} to {:L} bytes",
-                       vcount * sizeof(Vertex), meshData.VertexBuffer.GetInfo().Size);
+                       vcount * sizeof(Vertex), mpool.VertexBuffer.GetInfo().Size);
     }
 
-    const u32 icount = meshData.GetIndexCount();
-    result = Resources::GrowBufferIfNeeded<Index>(meshData.IndexBuffer, icount);
+    const u32 icount = mpool.GetIndexCount();
+    result = Resources::GrowBufferIfNeeded<Index>(mpool.IndexBuffer, icount);
     TKIT_RETURN_ON_ERROR(result);
 
     if (result.GetValue())
     {
         flags |= StatusFlag_UpdateIndex;
         TKIT_LOG_DEBUG("[ONYX][ASSETS] Insufficient index buffer memory. Resized from {:L} to {:L} bytes",
-                       icount * sizeof(Index), meshData.IndexBuffer.GetInfo().Size);
+                       icount * sizeof(Index), mpool.IndexBuffer.GetInfo().Size);
     }
     if (flags)
-        for (DataLayout &layout : meshData.Layouts)
+        for (DataLayout &layout : mpool.Layouts)
             layout.Flags |= flags;
     return Result<>::Ok();
 }
 
-template <Dimension D> void updateMaterialDescriptorSet(const MaterialPool pool)
+template <Dimension D> void updateMaterialDescriptorSet(const AssetPool pool)
 {
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
 
@@ -196,7 +202,7 @@ template <Dimension D> void updateMaterialDescriptorSet(const MaterialPool pool)
         writer.Overwrite(set);
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize(const MaterialPool pool)
+template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize(const AssetPool pool)
 {
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
 
@@ -215,55 +221,55 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize(c
 }
 
 template <typename Vertex>
-ONYX_NO_DISCARD static Result<> uploadVertexRange(MeshAssetData<Vertex> &meshData, const u32 start, const u32 end)
+ONYX_NO_DISCARD static Result<> uploadVertexRange(MeshPoolData<Vertex> &mpool, const u32 start, const u32 end)
 {
     constexpr VkDeviceSize size = sizeof(Vertex);
-    const VkDeviceSize voffset = meshData.GetVertexCount(start) * size;
-    const VkDeviceSize vsize = meshData.GetVertexCount(end) * size - voffset;
+    const VkDeviceSize voffset = mpool.GetVertexCount(start) * size;
+    const VkDeviceSize vsize = mpool.GetVertexCount(end) * size - voffset;
 
-    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading vertex range: {} - {} ({:L} bytes)", meshData.GetVertexCount(start),
-                   meshData.GetVertexCount(end), vsize);
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading vertex range: {} - {} ({:L} bytes)", mpool.GetVertexCount(start),
+                   mpool.GetVertexCount(end), vsize);
 
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    return meshData.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), meshData.Meshes.Vertices.GetData(),
-                                                {.srcOffset = voffset, .dstOffset = voffset, .size = vsize});
+    return mpool.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), mpool.Meshes.Vertices.GetData(),
+                                             {.srcOffset = voffset, .dstOffset = voffset, .size = vsize});
 }
 template <typename Vertex>
-ONYX_NO_DISCARD static Result<> uploadIndexRange(MeshAssetData<Vertex> &meshData, const u32 start, const u32 end)
+ONYX_NO_DISCARD static Result<> uploadIndexRange(MeshPoolData<Vertex> &mpool, const u32 start, const u32 end)
 {
     constexpr VkDeviceSize size = sizeof(Index);
-    const VkDeviceSize ioffset = meshData.GetIndexCount(start) * size;
-    const VkDeviceSize isize = meshData.GetIndexCount(end) * size - ioffset;
+    const VkDeviceSize ioffset = mpool.GetIndexCount(start) * size;
+    const VkDeviceSize isize = mpool.GetIndexCount(end) * size - ioffset;
 
-    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading index range: {} - {} ({:L} bytes)", meshData.GetIndexCount(start),
-                   meshData.GetIndexCount(end), isize);
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading index range: {} - {} ({:L} bytes)", mpool.GetIndexCount(start),
+                   mpool.GetIndexCount(end), isize);
 
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    return meshData.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), meshData.Meshes.Indices.GetData(),
-                                               {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize});
+    return mpool.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), mpool.Meshes.Indices.GetData(),
+                                            {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize});
 }
 
-template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshAssetData<Vertex> &meshData)
+template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshPool(MeshPoolData<Vertex> &mpool)
 {
-    if (meshData.Layouts.IsEmpty())
+    if (mpool.Layouts.IsEmpty())
         return Result<>::Ok();
-    const auto checkFlags = [&meshData](const u32 index, const StatusFlags flags) {
-        return flags & meshData.Layouts[index].Flags;
+    const auto checkFlags = [&mpool](const u32 index, const StatusFlags flags) {
+        return flags & mpool.Layouts[index].Flags;
     };
 
-    TKIT_RETURN_IF_FAILED(checkSize(meshData));
+    TKIT_RETURN_IF_FAILED(checkSize(mpool));
 
-    auto &layouts = meshData.Layouts;
+    auto &layouts = mpool.Layouts;
     for (u32 i = 0; i < layouts.GetSize(); ++i)
         if (checkFlags(i, StatusFlag_UpdateVertex))
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
                 if (j == layouts.GetSize() || !checkFlags(j, StatusFlag_UpdateVertex))
                 {
-                    TKIT_RETURN_IF_FAILED(uploadVertexRange(meshData, i, j));
+                    TKIT_RETURN_IF_FAILED(uploadVertexRange(mpool, i, j));
                     i = j;
                     break;
                 }
@@ -272,7 +278,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshAs
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
                 if (j == layouts.GetSize() || !checkFlags(j, StatusFlag_UpdateIndex))
                 {
-                    TKIT_RETURN_IF_FAILED(uploadIndexRange(meshData, i, j));
+                    TKIT_RETURN_IF_FAILED(uploadIndexRange(mpool, i, j));
                     i = j;
                     break;
                 }
@@ -281,8 +287,29 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshAs
     return Result<>::Ok();
 }
 
+template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshAssetData<Vertex> &meshes)
+{
+    for (const AssetPool pool : meshes.ToRemove)
+    {
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying mesh pool with id {}", pool);
+        MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
+        mpool.VertexBuffer.Destroy();
+        mpool.IndexBuffer.Destroy();
+
+        meshes.Pools.Remove(pool);
+    }
+    meshes.ToRemove.Clear();
+
+    for (MeshPoolData<Vertex> &mpool : meshes.Pools)
+    {
+        TKIT_RETURN_IF_FAILED(uploadMeshPool(mpool));
+    }
+
+    return Result<>::Ok();
+}
+
 template <Dimension D>
-ONYX_NO_DISCARD static Result<> uploadMaterialRange(const MaterialPool pool, const u32 start, const u32 end)
+ONYX_NO_DISCARD static Result<> uploadMaterialRange(const AssetPool pool, const u32 start, const u32 end)
 {
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
     const VkDeviceSize offset = start * sizeof(MaterialData<D>);
@@ -297,7 +324,7 @@ ONYX_NO_DISCARD static Result<> uploadMaterialRange(const MaterialPool pool, con
                                        {.srcOffset = offset, .dstOffset = offset, .size = size});
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialPool(const MaterialPool pool)
+template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialPool(const AssetPool pool)
 {
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
     if (mpool.Materials.IsEmpty())
@@ -331,19 +358,16 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialPool(const 
 template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
 {
     MaterialAssetData<D> &materials = getData<D>().Materials;
-    if (!materials.ToRemove.IsEmpty())
-        Renderer::FlushAllContexts<D>();
-
-    for (const MaterialPool pool : materials.ToRemove)
+    for (const AssetPool pool : materials.ToRemove)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying material pool with handle {}", pool);
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying material pool with id {}", pool);
         MaterialPoolData<D> &mpool = materials.Pools[pool];
         mpool.Buffer.Destroy();
         materials.Pools.Remove(pool);
     }
     materials.ToRemove.Clear();
 
-    for (const MaterialPool pool : materials.Pools.GetValidIds())
+    for (const AssetPool pool : materials.Pools.GetValidIds())
     {
         TKIT_RETURN_IF_FAILED(uploadMaterialPool<D>(pool));
     }
@@ -351,56 +375,13 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
     return Result<>::Ok();
 }
 
-template <typename Vertex>
-ONYX_NO_DISCARD static Result<> initialize(MeshAssetData<Vertex> &meshData, const u32 maxLayouts)
-{
-    auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
-    TKIT_RETURN_ON_ERROR(result);
-    meshData.VertexBuffer = result.GetValue();
-
-    result = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
-    TKIT_RETURN_ON_ERROR(result);
-    meshData.IndexBuffer = result.GetValue();
-    meshData.Layouts.Reserve(maxLayouts);
-
-    if (Core::CanNameObjects())
-    {
-        TKIT_RETURN_IF_FAILED(meshData.VertexBuffer.SetName(Vertex::Dim == D2 ? "onyx-assets-2D-vertex-buffer"
-                                                                              : "onyx-assets-3D-vertex-buffer"));
-        return meshData.IndexBuffer.SetName(Vertex::Dim == D2 ? "onyx-assets-2D-index-buffer"
-                                                              : "onyx-assets-3D-index-buffer");
-    }
-
-    return Result<>::Ok();
-}
-
-template <Dimension D> ONYX_NO_DISCARD static Result<> initializeMaterials(const u32 maxMaterials)
-{
-    MaterialAssetData<D> &matData = getData<D>().Materials;
-    const auto result = Resources::CreateBuffer<MaterialData<D>>(Buffer_DeviceStorage);
-    TKIT_RETURN_ON_ERROR(result);
-    matData.Buffer = result.GetValue();
-    matData.Materials.Reserve(maxMaterials);
-    matData.Flags.Reserve(maxMaterials);
-
-    updateMaterialDescriptorSet<D>();
-
-    if (Core::CanNameObjects())
-        return matData.Buffer.SetName(D == D2 ? "onyx-assets-2D-material-buffer" : "onyx-assets-3D-material-buffer");
-
-    return Result<>::Ok();
-}
-
-template <Dimension D> ONYX_NO_DISCARD static Result<> initialize(const Specs &specs)
-{
-    AssetData<D> &data = getData<D>();
-    return initialize(data.StaticMeshes, specs.MaxStaticMeshes);
-}
-
 template <typename Vertex> static void terminate(MeshAssetData<Vertex> &meshData)
 {
-    meshData.VertexBuffer.Destroy();
-    meshData.IndexBuffer.Destroy();
+    for (MeshPoolData<Vertex> &pool : meshData.Pools)
+    {
+        pool.VertexBuffer.Destroy();
+        pool.IndexBuffer.Destroy();
+    }
 }
 
 template <Dimension D> static void terminateMaterials()
@@ -417,7 +398,7 @@ template <Dimension D> static void terminate()
     terminate(data.StaticMeshes);
 }
 
-Result<> Initialize(const Specs &specs)
+void Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][ASSETS] Initializing");
     s_AssetData2.Construct();
@@ -430,12 +411,6 @@ Result<> Initialize(const Specs &specs)
 
     s_TextureData->Textures.Reserve(specs.MaxTextures);
     s_TextureData->ToRemove.Reserve(specs.MaxTextures);
-
-    s_BatchRanges[Geometry_Circle] = {.BatchStart = 0, .BatchCount = 1};
-    s_BatchRanges[Geometry_StaticMesh] = {.BatchStart = 1, .BatchCount = specs.MaxStaticMeshes};
-
-    TKIT_RETURN_IF_FAILED(initialize<D2>(specs));
-    return initialize<D3>(specs);
 }
 
 void Terminate()
@@ -461,74 +436,30 @@ void Terminate()
     s_AssetData3.Destruct();
 }
 
-u32 GetStaticMeshBatchIndex(const Mesh handle)
+Asset AddSampler(const SamplerData &data)
 {
-    TKIT_ASSERT(
-        handle < s_BatchRanges[Geometry_StaticMesh].BatchCount,
-        "[ONYX][ASSETS] Mesh index overflow. The mesh index {} does not have a valid assigned batch. This may have "
-        "happened because the used mesh does not point to a valid static mesh, or the amount of static mesh "
-        "types exceeds the maximum of {}. Consider increasing such maximum from the Onyx initialization specs",
-        handle, s_BatchRanges[Geometry_StaticMesh].BatchCount);
-    return handle + s_BatchRanges[Geometry_StaticMesh].BatchStart;
-}
-u32 GetStaticMeshHandleFromBatch(const u32 batch)
-{
-    TKIT_ASSERT(
-        batch < GetBatchEnd(Geometry_StaticMesh),
-        "[ONYX][ASSETS] Batch index overflow. The batch index {} does not have a valid assigned mesh. This may have "
-        "happened because the used batch does not point to a valid static mesh batch",
-        batch, GetBatchEnd(Geometry_StaticMesh));
-    return batch - s_BatchRanges[Geometry_StaticMesh].BatchStart;
-}
-u32 GetCircleBatchIndex()
-{
-    return s_BatchRanges[Geometry_Circle].BatchStart;
-}
-
-u32 GetBatchStart(const Geometry geo)
-{
-    return s_BatchRanges[geo].BatchStart;
-}
-u32 GetBatchEnd(const Geometry geo)
-{
-    return s_BatchRanges[geo].BatchStart + s_BatchRanges[geo].BatchCount;
-}
-u32 GetBatchCount(const Geometry geo)
-{
-    return s_BatchRanges[geo].BatchCount;
-}
-u32 GetBatchCount()
-{
-    u32 count = 0;
-    for (u32 i = 0; i < Geometry_Count; ++i)
-        count += s_BatchRanges[i].BatchCount;
-    return count;
-}
-
-Sampler AddSampler(const SamplerData &data)
-{
-    const Sampler handle = s_SamplerData->Samplers.Insert();
+    const Asset handle = s_SamplerData->Samplers.Insert();
     SamplerInfo &sinfo = s_SamplerData->Samplers[handle];
-    sinfo.Id = handle;
+    sinfo.Handle = handle;
     sinfo.Data = data;
 
     sinfo.Flags |= StatusFlag_UpdateSampler;
     return handle;
 }
 
-void UpdateSampler(const Sampler handle, const SamplerData &data)
+void UpdateSampler(const Asset handle, const SamplerData &data)
 {
     SamplerInfo &sinfo = s_SamplerData->Samplers[handle];
     sinfo.Data = data;
     sinfo.Flags |= StatusFlag_UpdateSampler;
 }
 
-template <Dimension D> static void removeSamplerReferences(const Sampler handle)
+template <Dimension D> static void removeSamplerReferences(const Asset handle)
 {
-    const auto updateRef = [handle](Sampler &toUpdate) -> StatusFlags {
+    const auto updateRef = [handle](Asset &toUpdate) -> StatusFlags {
         if (toUpdate == handle)
         {
-            toUpdate = NullSampler;
+            toUpdate = NullAsset;
             return StatusFlag_UpdateMaterial;
         }
         return 0;
@@ -548,19 +479,20 @@ template <Dimension D> static void removeSamplerReferences(const Sampler handle)
             if constexpr (D == D2)
                 flags[i] |= updateRef(matData[i].Sampler);
             else
-                for (Sampler &handle : matData[i].Samplers)
+                for (Asset &handle : matData[i].Samplers)
                     flags[i] |= updateRef(handle);
     }
 }
 
-void RemoveSampler(const Sampler handle)
+void RemoveSampler(const Asset handle)
 {
     s_SamplerData->ToRemove.Append(handle);
     removeSamplerReferences<D2>(handle);
     removeSamplerReferences<D3>(handle);
 }
 
-template <Dimension D> GltfHandles AddGltfAssets(const MaterialPool pool, GltfAssets<D> &assets)
+template <Dimension D>
+GltfHandles AddGltfAssets(const AssetPool meshPool, const AssetPool materialPool, GltfAssets<D> &assets)
 {
     GltfHandles handles;
     handles.StaticMeshes.Reserve(assets.StaticMeshes.GetSize());
@@ -569,7 +501,7 @@ template <Dimension D> GltfHandles AddGltfAssets(const MaterialPool pool, GltfAs
     handles.Textures.Reserve(assets.Textures.GetSize());
 
     for (const StatMeshData<D> &smesh : assets.StaticMeshes)
-        handles.StaticMeshes.Append(AddMesh(smesh));
+        handles.StaticMeshes.Append(AddMesh(meshPool, smesh));
 
     for (const SamplerData &sdata : assets.Samplers)
         handles.Samplers.Append(AddSampler(sdata));
@@ -581,37 +513,37 @@ template <Dimension D> GltfHandles AddGltfAssets(const MaterialPool pool, GltfAs
     {
         if constexpr (D == D2)
         {
-            if (mdata.Sampler != NullSampler)
+            if (mdata.Sampler != NullAsset)
                 mdata.Sampler = handles.Samplers[mdata.Sampler];
-            if (mdata.Texture != NullTexture)
+            if (mdata.Texture != NullAsset)
                 mdata.Texture = handles.Textures[mdata.Texture];
         }
         else
         {
-            for (Sampler &sampler : mdata.Samplers)
-                if (sampler != NullSampler)
+            for (Asset &sampler : mdata.Samplers)
+                if (sampler != NullAsset)
                     sampler = handles.Samplers[sampler];
-            for (Texture &tex : mdata.Textures)
-                if (tex != NullSampler)
+            for (Asset &tex : mdata.Textures)
+                if (tex != NullAsset)
                     tex = handles.Textures[tex];
         }
-        handles.Materials.Append(AddMaterial(pool, mdata));
+        handles.Materials.Append(AddMaterial(materialPool, mdata));
     }
 
     return handles;
 }
 
-Texture AddTexture(const TextureData &data, const AddTextureFlags flags)
+Asset AddTexture(const TextureData &data, const AddTextureFlags flags)
 {
 #ifndef ONYX_ENABLE_GLTF_LOAD
     TKIT_ASSERT(flags & AddTextureFlag_ManuallyHandledMemory,
                 "[ONYX][ASSETS] If GLTF load is disabled, all texture data CPU memory must be handled by the user. "
                 "This must be reflected by passing the AddTextureFlag_ManuallyHandledMemory flag");
 #endif
-    const Texture tex = s_TextureData->Textures.Insert();
+    const Asset tex = s_TextureData->Textures.Insert();
     TextureInfo &tinfo = s_TextureData->Textures[tex];
     tinfo.Data = data;
-    tinfo.Id = tex;
+    tinfo.Handle = tex;
 
     StatusFlags sflags = StatusFlag_UpdateTexture | StatusFlag_CreateTexture;
 #ifdef ONYX_ENABLE_GLTF_LOAD
@@ -621,7 +553,7 @@ Texture AddTexture(const TextureData &data, const AddTextureFlags flags)
     tinfo.Flags = sflags;
     return tex;
 }
-void UpdateTexture(const Texture tex, const TextureData &data, const AddTextureFlags flags)
+void UpdateTexture(const Asset tex, const TextureData &data, const AddTextureFlags flags)
 {
 #ifndef ONYX_ENABLE_GLTF_LOAD
     TKIT_ASSERT(flags & AddTextureFlag_ManuallyHandledMemory,
@@ -648,12 +580,12 @@ void UpdateTexture(const Texture tex, const TextureData &data, const AddTextureF
 #endif
 }
 
-template <Dimension D> static void removeTextureReferences(const Texture handle)
+template <Dimension D> static void removeTextureReferences(const Asset handle)
 {
-    const auto updateRef = [handle](Texture &toUpdate) -> StatusFlags {
+    const auto updateRef = [handle](Asset &toUpdate) -> StatusFlags {
         if (toUpdate == handle)
         {
-            toUpdate = NullTexture;
+            toUpdate = NullAsset;
             return StatusFlag_UpdateMaterial;
         }
         return 0;
@@ -672,119 +604,179 @@ template <Dimension D> static void removeTextureReferences(const Texture handle)
             if constexpr (D == D2)
                 flags[i] |= updateRef(matData[i].Texture);
             else
-                for (Texture &handle : matData[i].Textures)
+                for (Asset &handle : matData[i].Textures)
                     flags[i] |= updateRef(handle);
     }
 }
 
-void RemoveTexture(const Texture tex)
+void RemoveTexture(const Asset tex)
 {
     s_TextureData->ToRemove.Append(tex);
     removeTextureReferences<D2>(tex);
     removeTextureReferences<D3>(tex);
 }
 
-template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data)
+template <typename Vertex> ONYX_NO_DISCARD static Result<AssetPool> createMeshPool(MeshAssetData<Vertex> &data)
 {
-    StatMeshAssetData<D> &meshes = getData<D>().StaticMeshes;
-
-    const Mesh handle = meshes.Layouts.GetSize();
-    DataLayout layout;
-    layout.VertexStart = meshes.GetVertexCount();
-    layout.VertexCount = data.Vertices.GetSize();
-    layout.IndexStart = meshes.GetIndexCount();
-    layout.IndexCount = data.Indices.GetSize();
-    layout.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
-
-    meshes.Layouts.Append(layout);
-
-    auto &vertices = meshes.Meshes.Vertices;
-    auto &indices = meshes.Meshes.Indices;
-    vertices.Insert(vertices.end(), data.Vertices.begin(), data.Vertices.end());
-    indices.Insert(indices.end(), data.Indices.begin(), data.Indices.end());
-
-    return handle;
-}
-
-template <Dimension D> void UpdateMesh(const Mesh handle, const StatMeshData<D> &data)
-{
-    StatMeshAssetData<D> &meshes = getData<D>().StaticMeshes;
-
-    DataLayout &layout = meshes.Layouts[handle];
-    TKIT_ASSERT(
-        data.Vertices.GetSize() == layout.VertexCount && data.Indices.GetSize() == layout.IndexCount,
-        "[ONYX][ASSETS] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
-        "same. If they are not, you must create a new mesh");
-
-    TKit::ForwardCopy(meshes.Meshes.Vertices.begin() + layout.VertexStart, data.Vertices.begin(), data.Vertices.end());
-    TKit::ForwardCopy(meshes.Meshes.Indices.begin() + layout.IndexStart, data.Indices.begin(), data.Indices.end());
-
-    layout.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
-}
-
-template <Dimension D> Result<MaterialPool> CreateMaterialPool()
-{
-    const auto result = Resources::CreateBuffer<MaterialData<D>>(Buffer_DeviceStorage);
+    auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
     TKIT_RETURN_ON_ERROR(result);
+    VKit::DeviceBuffer vbuffer = result.GetValue();
 
-    MaterialAssetData<D> &materials = getData<D>().Materials;
-    const MaterialPool pool = MaterialPool(materials.Pools.Insert());
+    result = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
+    TKIT_RETURN_ON_ERROR(result, vbuffer.Destroy());
+    VKit::DeviceBuffer ibuffer = result.GetValue();
 
-    MaterialPoolData<D> &mpool = materials.Pools[pool];
-    mpool.Buffer = result.GetValue();
-
-    updateMaterialDescriptorSet<D>(pool);
+    AssetPool pool = data.Pools.Insert();
+    MeshPoolData<Vertex> &mpool = data.Pools[pool];
+    mpool.VertexBuffer = vbuffer;
+    mpool.IndexBuffer = ibuffer;
 
     if (Core::CanNameObjects())
     {
-        const std::string name = TKit::Format("onyx-assets-{}D-material-pool-buffer-{}", u8(D), pool);
-        TKIT_RETURN_IF_FAILED(mpool.Buffer.SetName(name.c_str()));
+        const std::string vb = TKit::Format("onyx-assets-{}D-vertex-buffer-{}", u8(Vertex::Dim), pool);
+        const std::string ib = TKit::Format("onyx-assets-{}D-index-buffer-{}", u8(Vertex::Dim), pool);
+
+        TKIT_RETURN_IF_FAILED(vbuffer.SetName(vb.c_str()), vbuffer.Destroy(); data.Pools.Remove(pool));
+        TKIT_RETURN_IF_FAILED(ibuffer.SetName(ib.c_str()), ibuffer.Destroy(); data.Pools.Remove(pool));
     }
 
     return pool;
 }
 
-template <Dimension D> void DestroyMaterialPool(const MaterialPool handle)
+template <typename Vertex> static void destroyMeshPool(const AssetPool pool, MeshAssetData<Vertex> &meshes)
+{
+    meshes.ToRemove.Append(pool);
+}
+
+template <Dimension D> Result<AssetPool> CreateMeshPool(const Geometry geo)
+{
+    if (geo == Geometry_Circle)
+        return Result<AssetPool>::Error(Error_BadInput, "[ONYX][ASSETS] Circles are not considered meshes");
+    if (geo == Geometry_StaticMesh)
+    {
+        StatMeshAssetData<D> &meshes = getData<D>().StaticMeshes;
+        return createMeshPool(meshes);
+    }
+    return NullAssetPool;
+}
+
+template <Dimension D> void DestroyMeshPool(const Geometry geo, const AssetPool pool)
+{
+    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
+    if (geo == Geometry_StaticMesh)
+        getData<D>().StaticMeshes.ToRemove.Append(pool);
+}
+
+template <typename Vertex>
+static Asset addMesh(const AssetPool pool, MeshAssetData<Vertex> &meshes, const MeshData<Vertex> &data)
+{
+    MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
+    const u32 idx = mpool.Layouts.GetSize();
+    DataLayout layout;
+    layout.VertexStart = mpool.GetVertexCount();
+    layout.VertexCount = data.Vertices.GetSize();
+    layout.IndexStart = mpool.GetIndexCount();
+    layout.IndexCount = data.Indices.GetSize();
+    layout.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+
+    mpool.Layouts.Append(layout);
+
+    auto &vertices = mpool.Meshes.Vertices;
+    auto &indices = mpool.Meshes.Indices;
+    vertices.Insert(vertices.end(), data.Vertices.begin(), data.Vertices.end());
+    indices.Insert(indices.end(), data.Indices.begin(), data.Indices.end());
+
+    return GetAssetHandle(pool, idx);
+}
+
+template <Dimension D> Asset AddMesh(const AssetPool pool, const StatMeshData<D> &data)
+{
+    return addMesh(pool, getData<D>().StaticMeshes, data);
+}
+
+template <typename Vertex>
+static void updateMesh(const Asset handle, MeshAssetData<Vertex> &meshes, const MeshData<Vertex> &data)
+{
+    const u32 idx = GetAssetIndex(handle);
+    const AssetPool pool = GetPoolHandle(handle);
+
+    MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
+
+    DataLayout &layout = mpool.Layouts[idx];
+    TKIT_ASSERT(
+        data.Vertices.GetSize() == layout.VertexCount && data.Indices.GetSize() == layout.IndexCount,
+        "[ONYX][ASSETS] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
+        "same. If they are not, you must create a new mesh");
+
+    TKit::ForwardCopy(mpool.Meshes.Vertices.begin() + layout.VertexStart, data.Vertices.begin(), data.Vertices.end());
+    TKit::ForwardCopy(mpool.Meshes.Indices.begin() + layout.IndexStart, data.Indices.begin(), data.Indices.end());
+
+    layout.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+}
+
+template <Dimension D> void UpdateMesh(const Asset handle, const StatMeshData<D> &data)
+{
+    return updateMesh(handle, getData<D>().StaticMeshes, data);
+}
+
+template <Dimension D> Result<AssetPool> CreateMaterialPool()
+{
+    const auto result = Resources::CreateBuffer<MaterialData<D>>(Buffer_DeviceStorage);
+    TKIT_RETURN_ON_ERROR(result);
+
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    const AssetPool pool = AssetPool(materials.Pools.Insert());
+
+    MaterialPoolData<D> &mpool = materials.Pools[pool];
+    mpool.Buffer = result.GetValue();
+
+    if (Core::CanNameObjects())
+    {
+        const std::string name = TKit::Format("onyx-assets-{}D-material-pool-buffer-{}", u8(D), pool);
+        TKIT_RETURN_IF_FAILED(mpool.Buffer.SetName(name.c_str()), mpool.Buffer.Destroy(); materials.Pools.Remove(pool));
+    }
+
+    updateMaterialDescriptorSet<D>(pool);
+
+    return pool;
+}
+
+template <Dimension D> void DestroyMaterialPool(const AssetPool handle)
 {
     MaterialAssetData<D> &materials = getData<D>().Materials;
     materials.ToRemove.Append(handle);
 }
 
-static Material createMaterialHandle(const u32 pool, const u32 matIndex)
-{
-    return (pool << 24) | matIndex;
-}
-static u32 getMaterialIndex(const Material handle)
-{
-    return handle & 0x00FFFFFF;
-}
-
-template <Dimension D> Material AddMaterial(const MaterialPool pool, const MaterialData<D> &data)
+template <Dimension D> Asset AddMaterial(const AssetPool pool, const MaterialData<D> &data)
 {
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
 
-    const Material idx = mpool.Materials.GetSize();
+    const u32 idx = mpool.Materials.GetSize();
     mpool.Materials.Append(data);
     mpool.Flags.Append(StatusFlag_UpdateMaterial);
 
-    return createMaterialHandle(pool, idx);
+    return GetAssetHandle(pool, idx);
 }
 
-template <Dimension D> void UpdateMaterial(const Material handle, const MaterialData<D> &data)
+template <Dimension D> void UpdateMaterial(const Asset handle, const MaterialData<D> &data)
 {
-    const u32 idx = getMaterialIndex(handle);
-    const MaterialPool pool = GetPoolHandle(handle);
+    const u32 idx = GetAssetIndex(handle);
+    const AssetPool pool = GetPoolHandle(handle);
 
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
     mpool.Materials[idx] = data;
     mpool.Flags[idx] = StatusFlag_UpdateMaterial;
 }
 
-template <Dimension D> StatMeshData<D> GetStaticMeshData(const Mesh handle)
+template <typename Vertex> static MeshData<Vertex> getMeshData(const Asset handle, MeshAssetData<Vertex> &meshes)
 {
-    StatMeshAssetData<D> &meshes = getData<D>().StaticMeshes;
-    StatMeshData<D> data{};
-    const DataLayout &layout = meshes.Layouts[handle];
+    const u32 idx = GetAssetIndex(handle);
+    const AssetPool pool = GetPoolHandle(handle);
+
+    MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
+
+    MeshData<Vertex> data{};
+    const DataLayout &layout = mpool.Layouts[idx];
 
     const u32 vstart = layout.VertexStart;
     const u32 vend = vstart + layout.VertexCount;
@@ -792,28 +784,28 @@ template <Dimension D> StatMeshData<D> GetStaticMeshData(const Mesh handle)
     const u32 istart = layout.IndexStart;
     const u32 iend = vstart + layout.IndexCount;
 
-    const auto &m = meshes.Meshes;
+    const auto &m = mpool.Meshes;
     data.Vertices.Insert(data.Vertices.end(), m.Vertices.begin() + vstart, m.Vertices.begin() + vend);
     data.Indices.Insert(data.Indices.end(), m.Indices.begin() + istart, m.Indices.begin() + iend);
 
     return data;
 }
-template <Dimension D> const MaterialData<D> &GetMaterialData(const Material handle)
+
+template <Dimension D> StatMeshData<D> GetStaticMeshData(const Asset handle)
 {
-    const u32 idx = getMaterialIndex(handle);
-    const MaterialPool pool = GetPoolHandle(handle);
+    return getMeshData(handle, getData<D>().StaticMeshes);
+}
+template <Dimension D> const MaterialData<D> &GetMaterialData(const Asset handle)
+{
+    const u32 idx = GetAssetIndex(handle);
+    const AssetPool pool = GetPoolHandle(handle);
 
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
     return mpool.Materials[idx];
 }
-const TextureData &GetTextureData(const Texture texture)
+const TextureData &GetTextureData(const Asset texture)
 {
     return s_TextureData->Textures[texture].Data;
-}
-
-template <Dimension D> u32 GetStaticMeshCount()
-{
-    return getData<D>().StaticMeshes.Layouts.GetSize();
 }
 
 void Lock()
@@ -831,18 +823,15 @@ Result<> Unlock()
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> upload()
 {
-    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
-
-    AssetData<D> &data = getData<D>();
-    TKIT_RETURN_IF_FAILED(uploadMeshData(data.StaticMeshes));
+    TKIT_RETURN_IF_FAILED(uploadMeshData(getData<D>().StaticMeshes));
     return uploadMaterialData<D>();
 }
 
 ONYX_NO_DISCARD static Result<> uploadTextures()
 {
-    for (const Texture handle : s_TextureData->ToRemove)
+    for (const Asset handle : s_TextureData->ToRemove)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying texture with handle {}", handle);
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying texture with id {}", handle);
         TextureInfo &tinfo = s_TextureData->Textures[handle];
         tinfo.Image.Destroy();
 #ifdef ONYX_ENABLE_GLTF_LOAD
@@ -881,7 +870,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 const TextureData &tdata = tinfo.Data;
                 TKIT_LOG_DEBUG("[ONYX][ASSETS] Creating new texture (handle={}) with dimensions {}x{} and {} channels, "
                                "with size {:L}",
-                               tinfo.Id, tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
+                               tinfo.Handle, tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
 
                 TKIT_ASSERT(!tinfo.Image,
                             "[ONYX][ASSETS] To create a texture, it is underlying image must not exist yet");
@@ -897,13 +886,13 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 tinfo.Image = img;
                 if (Core::CanNameObjects())
                 {
-                    const std::string name = TKit::Format("onyx-assets-texture-image-{}", tinfo.Id);
+                    const std::string name = TKit::Format("onyx-assets-texture-image-{}", tinfo.Handle);
                     TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()));
                 }
                 const VkDescriptorImageInfo &info =
                     imageInfos.Append(img.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-                writer2.WriteImage(3, info, tinfo.Id);
-                writer3.WriteImage(3, info, tinfo.Id);
+                writer2.WriteImage(3, info, tinfo.Handle);
+                writer3.WriteImage(3, info, tinfo.Handle);
             }
 
         for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
@@ -1007,9 +996,9 @@ static VkSamplerAddressMode toVulkan(const SamplerWrap wrap)
 
 ONYX_NO_DISCARD static Result<> uploadSamplers()
 {
-    for (const Sampler handle : s_SamplerData->ToRemove)
+    for (const Asset handle : s_SamplerData->ToRemove)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying sampler with handle {}", handle);
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying sampler with id {}", handle);
         SamplerInfo &sinfo = s_SamplerData->Samplers[handle];
         sinfo.Sampler.Destroy();
         s_SamplerData->Samplers.Remove(handle);
@@ -1046,11 +1035,11 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
             TKIT_RETURN_ON_ERROR(result);
 
             sinfo.Sampler = result.GetValue();
-            TKIT_LOG_DEBUG("[ONYX][ASSETS] Updating sampler with handle {}", sinfo.Id);
+            TKIT_LOG_DEBUG("[ONYX][ASSETS] Updating sampler with id {}", sinfo.Handle);
             const VkDescriptorImageInfo &info = imageInfos.Append(VkDescriptorImageInfo{
                 .sampler = sinfo.Sampler, .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED});
-            writer2.WriteImage(2, info, sinfo.Id);
-            writer3.WriteImage(2, info, sinfo.Id);
+            writer2.WriteImage(2, info, sinfo.Handle);
+            writer3.WriteImage(2, info, sinfo.Handle);
         }
 
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
@@ -1068,11 +1057,13 @@ Result<> Upload()
                                "[ONYX][ASSETS] Cannot upload/mutate asset data because it is locked, either by the "
                                "user or by Onyx. If using the application class, this happens automatically in-between "
                                "frames to avoid having dangling references in command buffers");
+    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
     TKIT_RETURN_IF_FAILED(upload<D2>());
     TKIT_RETURN_IF_FAILED(upload<D3>());
     TKIT_RETURN_IF_FAILED(uploadTextures());
     TKIT_RETURN_IF_FAILED(uploadSamplers());
     s_Flags &= ~AssetsFlag_MustUpload;
+    Renderer::FlushAllContexts();
     return Result<>::Ok();
 }
 
@@ -1087,22 +1078,71 @@ Result<bool> RequestUpload()
     return true;
 }
 
-template <Dimension D> MeshDataLayout GetStaticMeshLayout(const Mesh handle)
+template <typename Vertex> static MeshDataLayout getMeshLayout(const Asset handle, MeshAssetData<Vertex> &meshes)
 {
-    const DataLayout &layout = getData<D>().StaticMeshes.Layouts[handle];
+    const u32 idx = GetAssetIndex(handle);
+    const AssetPool pool = GetPoolHandle(handle);
+
+    const DataLayout &layout = meshes.Pools[pool].Layouts[idx];
     return MeshDataLayout{.VertexStart = layout.VertexStart,
                           .VertexCount = layout.VertexCount,
                           .IndexStart = layout.IndexStart,
                           .IndexCount = layout.IndexCount};
 }
 
-template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshVertexBuffer()
+template <Dimension D> MeshDataLayout GetMeshLayout(const Geometry geo, const Asset handle)
 {
-    return getData<D>().StaticMeshes.VertexBuffer;
+    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
+
+    if (geo == Geometry_StaticMesh)
+        return getMeshLayout(handle, getData<D>().StaticMeshes);
+    return MeshDataLayout{};
 }
-template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer()
+
+template <Dimension D> TKit::Span<const u32> GetMeshAssetPools(const Geometry geo)
 {
-    return getData<D>().StaticMeshes.IndexBuffer;
+    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
+    if (geo == Geometry_StaticMesh)
+        return getData<D>().StaticMeshes.Pools.GetValidIds();
+
+    return TKit::Span<const u32>{};
+}
+
+template <typename Vertex> static u32 getMeshBatchCount(const MeshAssetData<Vertex> &meshes)
+{
+    u32 count = 0;
+    for (const MeshPoolData<Vertex> &mpool : meshes.Pools)
+        count += mpool.Layouts.GetSize();
+    return count;
+}
+
+u32 GetBatchCount()
+{
+    u32 count = 1;
+    count += getMeshBatchCount(getData<D2>().StaticMeshes);
+    count += getMeshBatchCount(getData<D3>().StaticMeshes);
+    return count;
+}
+template <Dimension D> u32 GetMeshCount(const Geometry geo, const AssetPool pool)
+{
+    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
+    if (geo == Geometry_StaticMesh)
+        return getData<D>().StaticMeshes.Pools[pool].Layouts.GetSize();
+    return 0;
+}
+template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(const Geometry geo, const AssetPool pool)
+{
+    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
+    if (geo == Geometry_StaticMesh)
+        return &getData<D>().StaticMeshes.Pools[pool].VertexBuffer;
+    return nullptr;
+}
+template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(const Geometry geo, const AssetPool pool)
+{
+    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
+    if (geo == Geometry_StaticMesh)
+        return &getData<D>().StaticMeshes.Pools[pool].IndexBuffer;
+    return nullptr;
 }
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
@@ -1354,8 +1394,8 @@ Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, const Load
             const i32 texIdx = pbr.baseColorTexture.index;
             if (texIdx >= 0)
             {
-                matData.Sampler = Sampler(model.textures[texIdx].sampler);
-                matData.Texture = Texture(model.textures[texIdx].source);
+                matData.Sampler = Asset(model.textures[texIdx].sampler);
+                matData.Texture = Asset(model.textures[texIdx].source);
             }
 
             assets.Materials.Append(matData);
@@ -1383,36 +1423,36 @@ Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, const Load
             const i32 albedoIdx = pbr.baseColorTexture.index;
             if (albedoIdx >= 0)
             {
-                matData.Samplers[TextureSlot_Albedo] = Sampler(model.textures[albedoIdx].sampler);
-                matData.Textures[TextureSlot_Albedo] = Texture(model.textures[albedoIdx].source);
+                matData.Samplers[TextureSlot_Albedo] = Asset(model.textures[albedoIdx].sampler);
+                matData.Textures[TextureSlot_Albedo] = Asset(model.textures[albedoIdx].source);
             }
 
             const i32 mrIdx = pbr.metallicRoughnessTexture.index;
             if (mrIdx >= 0)
             {
-                matData.Samplers[TextureSlot_MetallicRoughness] = Sampler(model.textures[mrIdx].sampler);
-                matData.Textures[TextureSlot_MetallicRoughness] = Texture(model.textures[mrIdx].source);
+                matData.Samplers[TextureSlot_MetallicRoughness] = Asset(model.textures[mrIdx].sampler);
+                matData.Textures[TextureSlot_MetallicRoughness] = Asset(model.textures[mrIdx].source);
             }
 
             const i32 normalIdx = mat.normalTexture.index;
             if (normalIdx >= 0)
             {
-                matData.Samplers[TextureSlot_Normal] = Sampler(model.textures[normalIdx].sampler);
-                matData.Textures[TextureSlot_Normal] = Texture(model.textures[normalIdx].source);
+                matData.Samplers[TextureSlot_Normal] = Asset(model.textures[normalIdx].sampler);
+                matData.Textures[TextureSlot_Normal] = Asset(model.textures[normalIdx].source);
             }
 
             const i32 occlusionIdx = mat.occlusionTexture.index;
             if (occlusionIdx >= 0)
             {
-                matData.Samplers[TextureSlot_Occlusion] = Sampler(model.textures[occlusionIdx].sampler);
-                matData.Textures[TextureSlot_Occlusion] = Texture(model.textures[occlusionIdx].source);
+                matData.Samplers[TextureSlot_Occlusion] = Asset(model.textures[occlusionIdx].sampler);
+                matData.Textures[TextureSlot_Occlusion] = Asset(model.textures[occlusionIdx].source);
             }
 
             const i32 emissiveIdx = mat.emissiveTexture.index;
             if (emissiveIdx >= 0)
             {
-                matData.Samplers[TextureSlot_Emissive] = Sampler(model.textures[emissiveIdx].sampler);
-                matData.Textures[TextureSlot_Emissive] = Texture(model.textures[emissiveIdx].source);
+                matData.Samplers[TextureSlot_Emissive] = Asset(model.textures[emissiveIdx].sampler);
+                matData.Textures[TextureSlot_Emissive] = Asset(model.textures[emissiveIdx].source);
             }
 
             assets.Materials.Append(matData);
@@ -1881,54 +1921,63 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
     return data;
 }
 
-template Material AddMaterial(MaterialPool pool, const MaterialData<D2> &data);
-template Material AddMaterial(MaterialPool pool, const MaterialData<D3> &data);
+template Asset AddMaterial(AssetPool pool, const MaterialData<D2> &data);
+template Asset AddMaterial(AssetPool pool, const MaterialData<D3> &data);
 
-template Result<MaterialPool> CreateMaterialPool<D2>();
-template Result<MaterialPool> CreateMaterialPool<D3>();
+template Result<AssetPool> CreateMaterialPool<D2>();
+template Result<AssetPool> CreateMaterialPool<D3>();
 
-template void DestroyMaterialPool<D2>(MaterialPool pool);
-template void DestroyMaterialPool<D3>(MaterialPool pool);
+template void DestroyMaterialPool<D2>(AssetPool pool);
+template void DestroyMaterialPool<D3>(AssetPool pool);
 
-template void UpdateMaterial(Material mesh, const MaterialData<D2> &data);
-template void UpdateMaterial(Material mesh, const MaterialData<D3> &data);
+template void UpdateMaterial(Asset mesh, const MaterialData<D2> &data);
+template void UpdateMaterial(Asset mesh, const MaterialData<D3> &data);
 
-template Mesh AddMesh(const StatMeshData<D2> &data);
-template Mesh AddMesh(const StatMeshData<D3> &data);
+template Asset AddMesh(AssetPool pool, const StatMeshData<D2> &data);
+template Asset AddMesh(AssetPool pool, const StatMeshData<D3> &data);
 
-template void UpdateMesh(Mesh handle, const StatMeshData<D2> &data);
-template void UpdateMesh(Mesh handle, const StatMeshData<D3> &data);
+template void UpdateMesh(Asset handle, const StatMeshData<D2> &data);
+template void UpdateMesh(Asset handle, const StatMeshData<D3> &data);
 
-template u32 GetStaticMeshCount<D2>();
-template u32 GetStaticMeshCount<D3>();
+template Result<AssetPool> CreateMeshPool<D2>(Geometry geo);
+template Result<AssetPool> CreateMeshPool<D3>(Geometry geo);
+
+template void DestroyMeshPool<D2>(Geometry geo, AssetPool pool);
+template void DestroyMeshPool<D3>(Geometry geo, AssetPool pool);
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
 template Result<StatMeshData<D2>> LoadStaticMeshFromObjFile<D2>(const char *path, LoadObjDataFlags flags);
 template Result<StatMeshData<D3>> LoadStaticMeshFromObjFile<D3>(const char *path, LoadObjDataFlags flags);
 #endif
 
-template StatMeshData<D2> GetStaticMeshData(Mesh handle);
-template StatMeshData<D3> GetStaticMeshData(Mesh handle);
+template StatMeshData<D2> GetStaticMeshData(Asset handle);
+template StatMeshData<D3> GetStaticMeshData(Asset handle);
 
-template const MaterialData<D2> &GetMaterialData(Material handle);
-template const MaterialData<D3> &GetMaterialData(Material handle);
+template const MaterialData<D2> &GetMaterialData(Asset handle);
+template const MaterialData<D3> &GetMaterialData(Asset handle);
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
-template GltfHandles AddGltfAssets(MaterialPool pool, GltfAssets<D2> &assets);
-template GltfHandles AddGltfAssets(MaterialPool pool, GltfAssets<D3> &assets);
+template GltfHandles AddGltfAssets(AssetPool meshPool, AssetPool materialPool, GltfAssets<D2> &assets);
+template GltfHandles AddGltfAssets(AssetPool meshPool, AssetPool materialPool, GltfAssets<D3> &assets);
 
 template Result<GltfAssets<D2>> LoadGltfAssetsFromFile(const std::string &path, AssetsFlags flags);
 template Result<GltfAssets<D3>> LoadGltfAssetsFromFile(const std::string &path, AssetsFlags flags);
 #endif
 
-template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D2>();
-template const VKit::DeviceBuffer &GetStaticMeshVertexBuffer<D3>();
+template TKit::Span<const u32> GetMeshAssetPools<D2>(Geometry geo);
+template TKit::Span<const u32> GetMeshAssetPools<D3>(Geometry geo);
 
-template const VKit::DeviceBuffer &GetStaticMeshIndexBuffer<D2>();
-template const VKit::DeviceBuffer &GetStaticMeshIndexBuffer<D3>();
+template u32 GetMeshCount<D2>(Geometry geo, AssetPool pool);
+template u32 GetMeshCount<D3>(Geometry geo, AssetPool pool);
 
-template MeshDataLayout GetStaticMeshLayout<D2>(Mesh handle);
-template MeshDataLayout GetStaticMeshLayout<D3>(Mesh handle);
+template const VKit::DeviceBuffer *GetMeshVertexBuffer<D2>(Geometry geo, AssetPool pool);
+template const VKit::DeviceBuffer *GetMeshVertexBuffer<D3>(Geometry geo, AssetPool pool);
+
+template const VKit::DeviceBuffer *GetMeshIndexBuffer<D2>(Geometry geo, AssetPool pool);
+template const VKit::DeviceBuffer *GetMeshIndexBuffer<D3>(Geometry geo, AssetPool pool);
+
+template MeshDataLayout GetMeshLayout<D2>(Geometry geo, Asset handle);
+template MeshDataLayout GetMeshLayout<D3>(Geometry geo, Asset handle);
 
 template StatMeshData<D2> CreateTriangleMesh<D2>();
 template StatMeshData<D3> CreateTriangleMesh<D3>();

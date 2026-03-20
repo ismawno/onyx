@@ -3,11 +3,12 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/property/instance.hpp"
 #include "onyx/property/options.hpp"
-#include "onyx/asset/mesh.hpp"
-#include "onyx/asset/material.hpp"
+#include "onyx/asset/handle.hpp"
 #include "onyx/platform/window.hpp"
 #include "onyx/rendering/light.hpp"
+#include "onyx/state/descriptors.hpp"
 #include "vkit/resource/host_buffer.hpp"
+#include "tkit/container/static_array.hpp"
 
 namespace Onyx
 {
@@ -29,7 +30,7 @@ template <Dimension D> struct RenderState
 
     f32 OutlineWidth = 0.1f;
     f32 AmbientIntensity = 0.4f;
-    Material Material = NullMaterial;
+    Asset Material = NullAsset;
     RenderStateFlags Flags = RenderStateFlag_Fill;
 };
 
@@ -113,19 +114,19 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 1, y);
     }
 
-    void Material(const Material material)
+    void Material(const Asset material)
     {
         m_Current->Material = material;
     }
 
-    void StaticMesh(Mesh mesh);
-    void StaticMesh(Mesh mesh, const f32m<D> &transform);
+    void StaticMesh(Asset mesh);
+    void StaticMesh(Asset mesh, const f32m<D> &transform);
 
     void Circle(const CircleOptions &options = {});
     void Circle(const f32m<D> &transform, const CircleOptions &options = {});
 
-    void Line(Mesh mesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
-    void Axes(Mesh mesh, const AxesOptions &options = {});
+    void Line(Asset mesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
+    void Axes(Asset mesh, const AxesOptions &options = {});
 
     void Push();
     void Push(const RenderState<D> &state);
@@ -224,7 +225,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     ViewMask m_ViewMask = 0;
 
   private:
-    struct InstanceBuffer
+    struct InstanceDataBuffer
     {
         VKit::HostBuffer Data{};
         u32 InstanceSize = 0;
@@ -232,23 +233,26 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         u32 Capacity = 0;
     };
 
-    struct InstanceData
+    struct InstanceDataArrays
     {
+        InstanceDataBuffer Circles{};
+        TKit::FixedArray<TKit::FixedArray<TKit::TierArray<InstanceDataBuffer>, ONYX_MAX_ASSET_POOLS>,
+                         Geometry_Count - 1>
+            Meshes{};
     };
 
     void updateState();
 
-    void resizeBuffer(InstanceBuffer &buffer);
-    template <typename T> void addInstanceData(InstanceBuffer &buffer, const T &data);
+    void resizeBuffer(InstanceDataBuffer &buffer);
+    void resizeBufferArrays();
+
+    template <typename T> void addInstanceData(InstanceDataBuffer &buffer, const T &data);
 
     void addCircleData(const f32m<D> &transform, const CircleOptions &options, StencilPass pass);
-    void addStaticMeshData(Mesh mesh, const f32m<D> &transform, StencilPass pass);
+    void addStaticMeshData(Asset mesh, const f32m<D> &transform, StencilPass pass);
 
     TKit::TierArray<RenderState<D>> m_StateStack{};
-    TKit::FixedArray<InstanceBuffer, StencilPass_Count> m_CircleInstanceData{};
-    TKit::FixedArray<TKit::FixedArray<TKit::TierArray<InstanceBuffer>, NullMaterialPool - 1>, StencilPass_Count>
-        m_Lol{};
-    TKit::FixedArray<TKit::TierArray<InstanceBuffer>, StencilPass_Count> m_InstanceData{};
+    TKit::FixedArray<InstanceDataArrays, StencilPass_Count> m_InstanceData{};
     TKit::TierArray<PointLight<D> *> m_PointLights{};
     Color m_AmbientLight = Color{Color::White, 0.4f};
     u64 m_Generation = 0;

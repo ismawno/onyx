@@ -1,24 +1,17 @@
 #pragma once
 
-#include "onyx/asset/sampler.hpp"
-#include "onyx/asset/texture.hpp"
+#include "onyx/asset/handle.hpp"
 #include "onyx/core/math.hpp"
 
 namespace Onyx
 {
-using Material = Asset;
-using MaterialPool = AssetPool;
-
-constexpr Material NullMaterial = NullAsset;
-constexpr MaterialPool NullMaterialPool = NullAssetPool;
-
 template <Dimension D> struct MaterialData;
 
 template <> struct MaterialData<D2>
 {
     u32 ColorFactor = 0xFFFFFFFF;
-    Sampler Sampler = NullSampler;
-    Texture Texture = NullTexture;
+    Asset Sampler = NullAsset;
+    Asset Texture = NullAsset;
 };
 
 enum TextureSlot : u8
@@ -40,10 +33,8 @@ template <> struct MaterialData<D3>
     f32 OcclusionStrength = 1.f;
     f32 NormalScale = 1.f;
 
-    TKit::FixedArray<Sampler, TextureSlot_Count> Samplers{NullSampler, NullSampler, NullSampler, NullSampler,
-                                                          NullSampler};
-    TKit::FixedArray<Texture, TextureSlot_Count> Textures{NullTexture, NullTexture, NullTexture, NullTexture,
-                                                          NullTexture};
+    TKit::FixedArray<Asset, TextureSlot_Count> Samplers{NullAsset, NullAsset, NullAsset, NullAsset, NullAsset};
+    TKit::FixedArray<Asset, TextureSlot_Count> Textures{NullAsset, NullAsset, NullAsset, NullAsset, NullAsset};
 };
 
 } // namespace Onyx

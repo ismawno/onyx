@@ -11,26 +11,14 @@ using namespace Detail;
 template <Dimension D> IRenderContext<D>::IRenderContext()
 {
     m_Current = &m_StateStack.Append();
-    for (u32 i = 0; i < m_InstanceData.GetSize(); ++i)
+    for (InstanceDataArrays &instanceData : m_InstanceData)
     {
-        TKit::TierArray<InstanceBuffer> &data = m_InstanceData[i];
-        data.Resize(Assets::GetBatchCount());
-
-        for (u32 j = Assets::GetBatchStart(Geometry_Circle); j < Assets::GetBatchEnd(Geometry_Circle); ++j)
-        {
-            InstanceBuffer &buffer = data[j];
-            buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
-            buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
-            buffer.InstanceSize = sizeof(CircleInstanceData<D>);
-        }
-        for (u32 j = Assets::GetBatchStart(Geometry_StaticMesh); j < Assets::GetBatchEnd(Geometry_StaticMesh); ++j)
-        {
-            InstanceBuffer &buffer = data[j];
-            buffer.Data = VKit::HostBuffer::Create<InstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
-            buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
-            buffer.InstanceSize = sizeof(InstanceData<D>);
-        }
+        InstanceDataBuffer &buffer = instanceData.Circles;
+        buffer.Data = VKit::HostBuffer::Create<CircleInstanceData<D>>(ONYX_BUFFER_INITIAL_CAPACITY);
+        buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+        buffer.InstanceSize = sizeof(CircleInstanceData<D>);
     }
+    resizeBufferArrays();
 }
 
 template <Dimension D> void IRenderContext<D>::Flush()
@@ -40,9 +28,21 @@ template <Dimension D> void IRenderContext<D>::Flush()
 
     m_StateStack[0] = RenderState<D>{};
     m_Current = &m_StateStack.GetFront();
-    for (u32 i = 0; i < m_InstanceData.GetSize(); ++i)
-        for (u32 j = 0; j < m_InstanceData[i].GetSize(); ++j)
-            m_InstanceData[i][j].Instances = 0;
+    for (InstanceDataArrays &instanceData : m_InstanceData)
+    {
+        instanceData.Circles.Instances = 0;
+        for (u32 j = Geometry_StaticMesh; j < Geometry_Count; ++j)
+        {
+            const Geometry geo = Geometry(j);
+            const auto pools = Assets::GetMeshAssetPools<D>(geo);
+
+            auto &ipools = instanceData.Meshes[j - 1];
+            for (const AssetPool pool : pools)
+                for (InstanceDataBuffer &buffer : ipools[pool])
+                    buffer.Instances = 0;
+        }
+    }
+    resizeBufferArrays();
     ++m_Generation;
 }
 
@@ -70,12 +70,12 @@ template <Dimension D> void IRenderContext<D>::updateState()
     m_Current = &m_StateStack.GetBack();
 }
 
-template <Dimension D> void IRenderContext<D>::StaticMesh(const Mesh mesh)
+template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
 {
     const auto draw = [&, mesh](const StencilPass pass) { addStaticMeshData(mesh, m_Current->Transform, pass); };
     resolveStencilPassWithState(m_Current, draw);
 }
-template <Dimension D> void IRenderContext<D>::StaticMesh(const Mesh mesh, const f32m<D> &transform)
+template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, const f32m<D> &transform)
 {
     const auto draw = [&, mesh](const StencilPass pass) {
         addStaticMeshData(mesh, transform * m_Current->Transform, pass);
@@ -152,7 +152,7 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
     return instanceData;
 }
 
-template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceBuffer &buffer)
+template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceDataBuffer &buffer)
 {
     if (buffer.Instances > buffer.Capacity)
     {
@@ -162,9 +162,36 @@ template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceBuffer &buff
     }
 }
 
+template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
+{
+    for (InstanceDataArrays &instanceData : m_InstanceData)
+        for (u32 j = Geometry_StaticMesh; j < Geometry_Count; ++j)
+        {
+            const Geometry geo = Geometry(j);
+            const auto pools = Assets::GetMeshAssetPools<D>(geo);
+
+            auto &ipools = instanceData.Meshes[j - 1];
+            for (const AssetPool pool : pools)
+            {
+                auto &buffers = ipools[pool];
+                const u32 count = buffers.GetSize();
+                const u32 ncount = Assets::GetMeshCount<D>(geo, pool);
+                for (u32 k = count; k < ncount; ++k)
+                {
+                    InstanceDataBuffer &buffer = buffers.Append();
+                    const u32 isize = GetInstanceSize<D>(geo);
+                    buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
+                    buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
+                    buffer.InstanceSize = isize;
+                    buffer.Instances = 0;
+                }
+            }
+        }
+}
+
 template <Dimension D>
 template <typename T>
-void IRenderContext<D>::addInstanceData(InstanceBuffer &buffer, const T &data)
+void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &data)
 {
     const u32 index = buffer.Instances++;
     resizeBuffer(buffer);
@@ -175,15 +202,18 @@ template <Dimension D>
 void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleOptions &options, const StencilPass pass)
 {
     const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, options, pass);
-    InstanceBuffer &buffer = m_InstanceData[pass][Assets::GetCircleBatchIndex()];
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Circles;
     addInstanceData(buffer, idata);
 }
 
 template <Dimension D>
-void IRenderContext<D>::addStaticMeshData(const Mesh mesh, const f32m<D> &transform, const StencilPass pass)
+void IRenderContext<D>::addStaticMeshData(const Asset mesh, const f32m<D> &transform, const StencilPass pass)
 {
+    const u32 idx = Assets::GetAssetIndex(mesh);
+    const AssetPool pool = Assets::GetPoolHandle(mesh);
+
     const InstanceData<D> idata = createInstanceData(m_Current, transform, pass);
-    InstanceBuffer &buffer = m_InstanceData[pass][Assets::GetStaticMeshBatchIndex(mesh)];
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Geometry_StaticMesh - 1][pool][idx];
     addInstanceData(buffer, idata);
 }
 
@@ -206,7 +236,7 @@ template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, c
 }
 
 template <Dimension D>
-void IRenderContext<D>::Line(const Mesh mesh, const f32v<D> &start, const f32v<D> &end, const f32 thickness)
+void IRenderContext<D>::Line(const Asset mesh, const f32v<D> &start, const f32v<D> &end, const f32 thickness)
 {
     const f32v<D> delta = end - start;
 
@@ -220,7 +250,7 @@ void IRenderContext<D>::Line(const Mesh mesh, const f32v<D> &start, const f32v<D
     const auto draw = [&, mesh](const StencilPass pass) { addStaticMeshData(mesh, transform, pass); };
     resolveStencilPassWithState(m_Current, draw);
 }
-template <Dimension D> void IRenderContext<D>::Axes(const Mesh mesh, const AxesOptions &options)
+template <Dimension D> void IRenderContext<D>::Axes(const Asset mesh, const AxesOptions &options)
 {
     if constexpr (D == D2)
     {

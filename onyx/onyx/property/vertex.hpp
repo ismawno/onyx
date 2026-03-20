@@ -2,10 +2,10 @@
 
 #include "onyx/core/math.hpp"
 #include "onyx/core/dimension.hpp"
+#include "onyx/property/instance.hpp"
 #include "tkit/reflection/reflect.hpp"
 #include "tkit/serialization/yaml/serialize.hpp"
 #include "tkit/utils/hash.hpp"
-#include "tkit/container/fixed_array.hpp"
 #include "tkit/math/hash.hpp"
 
 #include <vulkan/vulkan.h>
@@ -21,14 +21,10 @@ template <> struct StatVertex<D2>
 
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
+    static constexpr Geometry Geo = Geometry_StaticMesh;
     static constexpr Dimension Dim = D2;
-    static constexpr u32 Bindings = 1;
-    static constexpr u32 Attributes = 2;
     TKIT_YAML_SERIALIZE_IGNORE_END()
     TKIT_REFLECT_IGNORE_END()
-
-    static const TKit::FixedArray<VkVertexInputBindingDescription, Bindings> &GetBindingDescriptions();
-    static const TKit::FixedArray<VkVertexInputAttributeDescription, Attributes> &GetAttributeDescriptions();
 
     f32v2 Position;
     f32v2 TexCoord;
@@ -46,14 +42,10 @@ template <> struct StatVertex<D3>
 
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
-    static constexpr Dimension Dim = D2;
-    static constexpr u32 Bindings = 1;
-    static constexpr u32 Attributes = 3;
+    static constexpr Geometry Geo = Geometry_StaticMesh;
+    static constexpr Dimension Dim = D3;
     TKIT_YAML_SERIALIZE_IGNORE_END()
     TKIT_REFLECT_IGNORE_END()
-
-    static const TKit::FixedArray<VkVertexInputBindingDescription, Bindings> &GetBindingDescriptions();
-    static const TKit::FixedArray<VkVertexInputAttributeDescription, Attributes> &GetAttributeDescriptions();
 
     f32v3 Position;
     f32v2 TexCoord;

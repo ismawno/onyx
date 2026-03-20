@@ -1,13 +1,9 @@
 #pragma once
 
-#include "onyx/asset/handle.hpp"
 #include "vkit/resource/device_image.hpp"
 
 namespace Onyx
 {
-using Texture = Asset;
-constexpr Texture NullTexture = NullAsset;
-
 struct TextureData
 {
     std::byte *Data = nullptr;

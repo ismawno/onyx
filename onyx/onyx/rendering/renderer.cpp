@@ -45,7 +45,7 @@ struct GraphicsInstanceRange
     VkDeviceSize Offset = 0;
     VkDeviceSize Size = 0;
     ViewMask ViewMask = 0;
-    u32 BatchIndex = TKIT_U32_MAX;
+    Asset MeshHandle = NullAsset;
     StencilPass Pass = StencilPass_Count;
     TKit::TierArray<ContextInstanceRange> ContextRanges{};
 
@@ -193,20 +193,6 @@ template <Dimension D> static RendererData<D> &getRendererData()
         return *s_RendererData3;
 }
 
-template <Dimension D> static u32 getInstanceSize(const Geometry geo)
-{
-    switch (geo)
-    {
-    case Geometry_Circle:
-        return sizeof(CircleInstanceData<D>);
-    case Geometry_StaticMesh:
-        return sizeof(InstanceData<D>);
-    default:
-        TKIT_FATAL("[ONYX][RENDERER] Unrecognized geometry type");
-        return 0;
-    }
-}
-
 template <Dimension D> static u32 getLightSize(const LightType light)
 {
     switch (light)
@@ -279,7 +265,7 @@ template <Dimension D>
 ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createTransferInstanceBuffer(
     const Geometry geo, const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    auto result = Resources::CreateBuffer(getStageFlags(), getInstanceSize<D>(geo) * instances);
+    auto result = Resources::CreateBuffer(getStageFlags(), GetInstanceSize<D>(geo) * instances);
     TKIT_RETURN_ON_ERROR(result);
     VKit::DeviceBuffer &buffer = result.GetValue();
 
@@ -296,7 +282,7 @@ template <Dimension D>
 ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createGraphicsInstanceBuffer(
     const Geometry geo, const u32 instances = ONYX_BUFFER_INITIAL_CAPACITY)
 {
-    auto result = Resources::CreateBuffer(getDeviceLocalFlags(), instances * getInstanceSize<D>(geo));
+    auto result = Resources::CreateBuffer(getDeviceLocalFlags(), instances * GetInstanceSize<D>(geo));
     TKIT_RETURN_ON_ERROR(result);
     VKit::DeviceBuffer &buffer = result.GetValue();
 
@@ -528,7 +514,7 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
     rdata.Contexts.RemoveOrdered(rdata.Contexts.begin() + index);
 }
 
-template <Dimension D> void FlushAllContexts()
+template <Dimension D> void flushAllContexts()
 {
     RendererData<D> &rdata = getRendererData<D>();
     for (RenderContext<D> *ctx : rdata.Contexts)
@@ -537,8 +523,8 @@ template <Dimension D> void FlushAllContexts()
 
 void FlushAllContexts()
 {
-    FlushAllContexts<D2>();
-    FlushAllContexts<D3>();
+    flushAllContexts<D2>();
+    flushAllContexts<D3>();
 }
 
 template <Dimension D> void UpdateViewMask(const RenderContext<D> *context)
@@ -797,7 +783,7 @@ static Range *splitRange(const u32 index, TKit::TierArray<Range> &ranges, const 
     if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
     {
         range.ViewMask = 0;
-        range.BatchIndex = TKIT_U32_MAX;
+        range.MeshHandle = NullAsset;
         range.Pass = StencilPass_Count;
         range.ContextRanges.Clear();
     }
@@ -832,7 +818,7 @@ ONYX_NO_DISCARD static Result<TransferInstanceRange *> findTransferInstanceRange
             return splitRange(i, ranges, requiredMem);
 
     VKit::DeviceBuffer &buffer = pool.Buffer;
-    const u32 icount = computeNewInstanceCount(getInstanceSize<D>(geo), buffer, requiredMem);
+    const u32 icount = computeNewInstanceCount(GetInstanceSize<D>(geo), buffer, requiredMem);
 
     auto bresult = createTransferInstanceBuffer<D>(geo, icount);
     return handlePoolResize<D>(requiredMem, bresult, buffer, ranges, &tasks);
@@ -858,7 +844,7 @@ ONYX_NO_DISCARD static Result<GraphicsInstanceRange *> findGraphicsInstanceRange
     }
 
     VKit::DeviceBuffer &buffer = pool.Buffer;
-    const u32 icount = computeNewInstanceCount(getInstanceSize<D>(geo), buffer, requiredMem);
+    const u32 icount = computeNewInstanceCount(GetInstanceSize<D>(geo), buffer, requiredMem);
     for (u32 i = rdata.AcquireBarriers.GetSize() - 1; i < rdata.AcquireBarriers.GetSize(); --i)
     {
         const VkBufferMemoryBarrier2KHR &barrier = rdata.AcquireBarriers[i];
@@ -1106,7 +1092,8 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         return Result<>::Ok();
 
     TKit::StackArray<VkBufferCopy2KHR> copies{};
-    copies.Reserve(Assets::GetBatchCount());
+    const u32 bcount = Assets::GetBatchCount();
+    copies.Reserve(bcount);
 
     TKit::StackArray<ContextInstanceRange> contextRanges{};
     contextRanges.Reserve(dirtyContexts.GetSize());
@@ -1114,7 +1101,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     TKit::ITaskManager *tm = Core::GetTaskManager();
 
     TKit::StackArray<Task> tasks{};
-    tasks.Reserve(dirtyContexts.GetSize() * Assets::GetBatchCount());
+    tasks.Reserve(dirtyContexts.GetSize() * bcount);
 
     u32 sindex = 0;
 
@@ -1134,7 +1121,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     };
 
     TKit::StackArray<RangePair> ranges{};
-    ranges.Reserve(StencilPass_Count * Assets::GetBatchCount());
+    ranges.Reserve(StencilPass_Count * bcount);
 
     TKit::StackArray<CopyCommands> copyCmds{};
     copyCmds.Reserve(StencilPass_Count * u32(Geometry_Count));
@@ -1144,86 +1131,109 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
             tm->WaitUntilFinished(task);
     };
 
-    const auto findInstanceRanges = [&](const u32 pass, const Geometry geo) -> Result<> {
-        TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindRanges");
+    const auto findInstanceRanges = [&](const u32 pass, const Geometry geo, const Asset handle,
+                                        const auto getInstanceData) -> Result<> {
         TransferInstancePool &tpool = rdata.InstanceArenas[geo].Transfer;
         GraphicsInstancePool &gpool = rdata.InstanceArenas[geo].Graphics;
 
-        const u32 bstart = Assets::GetBatchStart(geo);
-        const u32 bend = Assets::GetBatchEnd(geo);
+        contextRanges.Clear();
+        VkDeviceSize requiredMem = 0;
+        ViewMask viewMask = 0;
+        for (const ContextInfo &cinfo : dirtyContexts)
+        {
+            const RenderContext<D> *ctx = cinfo.Context;
+            const auto &idata = getInstanceData(ctx);
+            if (idata.Instances == 0)
+                continue;
+
+            ContextInstanceRange &crange = contextRanges.Append();
+            crange.ContextIndex = cinfo.Index;
+            crange.Offset = requiredMem;
+            crange.Size = idata.Instances * idata.InstanceSize;
+            crange.Generation = ctx->GetGeneration();
+
+            const ViewMask vm = ctx->GetViewMask();
+            viewMask |= vm;
+            crange.ViewMask = vm;
+
+            requiredMem += crange.Size;
+        }
+        if (requiredMem == 0)
+            return Result<>::Ok();
+
+        const auto tresult = findTransferInstanceRange<D>(geo, tpool, requiredMem, tasks);
+        TKIT_RETURN_ON_ERROR(tresult);
+        TransferInstanceRange *trange = tresult.GetValue();
+        trange->Tracker.MarkInUse(transfer, transferFlightValue);
+
+        for (const ContextInstanceRange &crange : contextRanges)
+        {
+            const RenderContext<D> *ctx = contexts[crange.ContextIndex];
+
+            const auto &idata = getInstanceData(ctx);
+            const auto copy = [&, crange, trange = *trange] {
+                TKIT_PROFILE_NSCOPE("Onyx::Renderer::HostCopy");
+                tpool.Buffer.Write(idata.Data.GetData(),
+                                   {.srcOffset = 0, .dstOffset = trange.Offset + crange.Offset, .size = crange.Size});
+            };
+
+            Task &task = tasks.Append(copy);
+            sindex = tm->SubmitTask(&task, sindex);
+        }
+        const auto gresult = findGraphicsInstanceRange<D>(geo, gpool, requiredMem, transfer, tasks);
+        TKIT_RETURN_ON_ERROR(gresult);
+        GraphicsInstanceRange *grange = gresult.GetValue();
+        grange->MeshHandle = handle;
+        grange->ContextRanges = contextRanges;
+        grange->ViewMask = viewMask;
+        grange->Pass = StencilPass(pass);
+        grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
+        grange->GraphicsTracker = {};
+
+        VkBufferCopy2KHR &copy = copies.Append();
+        copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
+        copy.pNext = nullptr;
+        copy.srcOffset = trange->Offset;
+        copy.dstOffset = grange->Offset;
+        copy.size = requiredMem;
+
+        ranges.Append(&gpool.Buffer, grange->Offset, requiredMem);
+        return Result<>::Ok();
+    };
+
+    const auto gatherInstanceRanges = [&](const u32 pass, const Geometry geo) -> Result<> {
+        TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindRanges");
+        TransferInstancePool &tpool = rdata.InstanceArenas[geo].Transfer;
+        GraphicsInstancePool &gpool = rdata.InstanceArenas[geo].Graphics;
 
         CopyCommands copyCmd{};
         copyCmd.Transfer = &tpool.Buffer;
         copyCmd.Graphics = &gpool.Buffer;
         copyCmd.Offset = copies.GetSize();
 
-        for (u32 batch = bstart; batch < bend; ++batch)
+        if (geo == Geometry_Circle)
         {
-            contextRanges.Clear();
-            VkDeviceSize requiredMem = 0;
-            ViewMask viewMask = 0;
-            for (const ContextInfo &cinfo : dirtyContexts)
-            {
-                const RenderContext<D> *ctx = cinfo.Context;
-                const auto &idata = ctx->GetInstanceData()[pass][batch];
-                if (idata.Instances == 0)
-                    continue;
-
-                ContextInstanceRange &crange = contextRanges.Append();
-                crange.ContextIndex = cinfo.Index;
-                crange.Offset = requiredMem;
-                crange.Size = idata.Instances * idata.InstanceSize;
-                crange.Generation = ctx->GetGeneration();
-
-                const ViewMask vm = ctx->GetViewMask();
-                viewMask |= vm;
-                crange.ViewMask = vm;
-
-                requiredMem += crange.Size;
-            }
-            if (requiredMem == 0)
-                continue;
-
-            const auto tresult = findTransferInstanceRange<D>(geo, tpool, requiredMem, tasks);
-            TKIT_RETURN_ON_ERROR(tresult);
-            TransferInstanceRange *trange = tresult.GetValue();
-            trange->Tracker.MarkInUse(transfer, transferFlightValue);
-
-            for (const ContextInstanceRange &crange : contextRanges)
-            {
-                const RenderContext<D> *ctx = contexts[crange.ContextIndex];
-
-                const auto &idata = ctx->GetInstanceData()[pass][batch];
-                const auto copy = [&, crange, trange = *trange] {
-                    TKIT_PROFILE_NSCOPE("Onyx::Renderer::HostCopy");
-                    tpool.Buffer.Write(
-                        idata.Data.GetData(),
-                        {.srcOffset = 0, .dstOffset = trange.Offset + crange.Offset, .size = crange.Size});
-                };
-
-                Task &task = tasks.Append(copy);
-                sindex = tm->SubmitTask(&task, sindex);
-            }
-
-            const auto gresult = findGraphicsInstanceRange<D>(geo, gpool, requiredMem, transfer, tasks);
-            TKIT_RETURN_ON_ERROR(gresult);
-            GraphicsInstanceRange *grange = gresult.GetValue();
-            grange->BatchIndex = batch;
-            grange->ContextRanges = contextRanges;
-            grange->ViewMask = viewMask;
-            grange->Pass = StencilPass(pass);
-            grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
-            grange->GraphicsTracker = {};
-
-            VkBufferCopy2KHR &copy = copies.Append();
-            copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
-            copy.pNext = nullptr;
-            copy.srcOffset = trange->Offset;
-            copy.dstOffset = grange->Offset;
-            copy.size = requiredMem;
-
-            ranges.Append(&gpool.Buffer, grange->Offset, requiredMem);
+            TKIT_RETURN_IF_FAILED(findInstanceRanges(
+                pass, Geometry_Circle, NullAsset,
+                [pass](const RenderContext<D> *ctx) -> const auto & { return ctx->GetInstanceData()[pass].Circles; }));
         }
+        else
+        {
+            const TKit::Span<const u32> pools = Assets::GetMeshAssetPools<D>(geo);
+            for (const AssetPool pool : pools)
+            {
+                const u32 mcount = Assets::GetMeshCount<D>(geo, pool);
+                for (u32 i = 0; i < mcount; ++i)
+                {
+                    TKIT_RETURN_IF_FAILED(
+                        findInstanceRanges(pass, geo, Assets::GetAssetHandle(pool, i),
+                                           [geo, pass, pool, i](const RenderContext<D> *ctx) -> const auto & {
+                                               return ctx->GetInstanceData()[pass].Meshes[geo - 1][pool][i];
+                                           }));
+                }
+            }
+        }
+
         copyCmd.Size = copies.GetSize() - copyCmd.Offset;
         if (copyCmd.Size != 0)
             copyCmds.Append(copyCmd);
@@ -1233,8 +1243,8 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
 
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
     {
-        TKIT_RETURN_IF_FAILED(findInstanceRanges(pass, Geometry_Circle), finishTasks());
-        TKIT_RETURN_IF_FAILED(findInstanceRanges(pass, Geometry_StaticMesh), finishTasks());
+        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Circle), finishTasks());
+        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_StaticMesh), finishTasks());
     }
     for (const RangePair &range : ranges)
     {
@@ -1431,13 +1441,14 @@ ONYX_NO_DISCARD static Result<VKit::DeviceBuffer *> findSuitableIndexedDrawBuffe
                                                                 inFlightValue);
 }
 
-template <Dimension D> static void bindStaticMeshBuffers(const VkCommandBuffer command)
+template <Dimension D>
+static void bindMeshBuffers(const Geometry geo, const AssetPool pool, const VkCommandBuffer command)
 {
-    const VKit::DeviceBuffer &vbuffer = Assets::GetStaticMeshVertexBuffer<D>();
-    const VKit::DeviceBuffer &ibuffer = Assets::GetStaticMeshIndexBuffer<D>();
+    const VKit::DeviceBuffer *vbuffer = Assets::GetMeshVertexBuffer<D>(geo, pool);
+    const VKit::DeviceBuffer *ibuffer = Assets::GetMeshIndexBuffer<D>(geo, pool);
 
-    vbuffer.BindAsVertexBuffer(command);
-    ibuffer.BindAsIndexBuffer<Index>(command);
+    vbuffer->BindAsVertexBuffer(command);
+    ibuffer->BindAsIndexBuffer<Index>(command);
 }
 
 static VkDrawIndirectCommand createCircleCommand(const u32 firstInstance, const u32 instanceCount)
@@ -1451,27 +1462,17 @@ static VkDrawIndirectCommand createCircleCommand(const u32 firstInstance, const 
 }
 
 template <Dimension D>
-static VkDrawIndexedIndirectCommand createCommand(const Geometry geo, const u32 batchIndex, const u32 firstInstance,
+static VkDrawIndexedIndirectCommand createCommand(const Geometry geo, const Asset mesh, const u32 firstInstance,
                                                   const u32 instanceCount)
 {
-    TKIT_ASSERT(geo != Geometry_Circle && batchIndex != 0);
+    const MeshDataLayout layout = Assets::GetMeshLayout<D>(geo, mesh);
     VkDrawIndexedIndirectCommand cmd;
     cmd.firstInstance = firstInstance;
     cmd.instanceCount = instanceCount;
-    switch (geo)
-    {
-    case Geometry_StaticMesh: {
-        const Mesh mesh = Assets::GetStaticMeshHandleFromBatch(batchIndex);
-        const MeshDataLayout layout = Assets::GetStaticMeshLayout<D>(mesh);
-        cmd.firstIndex = layout.IndexStart;
-        cmd.indexCount = layout.IndexCount;
-        cmd.vertexOffset = layout.VertexStart;
-        return cmd;
-    }
-    default:
-        TKIT_UNREACHABLE();
-        return cmd;
-    }
+    cmd.firstIndex = layout.IndexStart;
+    cmd.indexCount = layout.IndexCount;
+    cmd.vertexOffset = layout.VertexStart;
+    return cmd;
 }
 
 template <Dimension D>
@@ -1496,28 +1497,48 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         }
     const u32 ambientColor = ambient.Pack();
 
-    TKit::FixedArray<TKit::FixedArray<TKit::TierArray<std::byte>, Geometry_Count>, StencilPass_Count> drawCmds{};
+    struct MeshDrawCommands
+    {
+        TKit::TierArray<TKit::TierArray<VkDrawIndexedIndirectCommand>> Commands{};
+        u32 Count = 0;
+    };
+
+    TKit::FixedArray<TKit::TierArray<VkDrawIndirectCommand>, StencilPass_Count> circleCmds{};
+    TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<MeshDrawCommands, ONYX_MAX_ASSET_POOLS>, Geometry_Count - 1>,
+                     StencilPass_Count>
+        drawCmds{};
+
+    for (auto &geos : drawCmds)
+        for (u32 i = Geometry_StaticMesh; i < Geometry_Count; ++i)
+        {
+            const Geometry geo = Geometry(i);
+            const TKit::Span<const u32> pools = Assets::GetMeshAssetPools<D>(geo);
+            for (const AssetPool pool : pools)
+                geos[i - 1][pool].Commands.Resize(Assets::GetMeshCount<D>(geo, pool));
+        }
 
     const auto insertCommand = [&](const Geometry geo, const GraphicsInstanceRange &grange, const u32 fi,
                                    const u32 ic) {
-        TKit::TierArray<std::byte> &cmds = drawCmds[grange.Pass][geo];
         if (geo == Geometry_Circle)
         {
-            const VkDrawIndirectCommand cmd = createCircleCommand(fi, ic);
-            const std::byte *data = rcast<const std::byte *>(&cmd);
-            cmds.Insert(cmds.end(), data, data + sizeof(VkDrawIndirectCommand));
+            TKit::TierArray<VkDrawIndirectCommand> &cmds = circleCmds[grange.Pass];
+            cmds.Append(createCircleCommand(fi, ic));
         }
         else
         {
-            const VkDrawIndexedIndirectCommand cmd = createCommand<D>(geo, grange.BatchIndex, fi, ic);
-            const std::byte *data = rcast<const std::byte *>(&cmd);
-            cmds.Insert(cmds.end(), data, data + sizeof(VkDrawIndexedIndirectCommand));
+            const AssetPool pool = Assets::GetPoolHandle(grange.MeshHandle);
+            const u32 idx = Assets::GetAssetIndex(grange.MeshHandle);
+
+            auto &meshCmds = drawCmds[grange.Pass][geo - 1][pool];
+            ++meshCmds.Count;
+            TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds = meshCmds.Commands[idx];
+            cmds.Append(createCommand<D>(geo, grange.MeshHandle, fi, ic));
         }
     };
 
     const auto collectDrawInfo = [&](const Geometry geo) {
         GraphicsInstancePool &gpool = rdata.InstanceArenas[geo].Graphics;
-        const u32 instanceSize = getInstanceSize<D>(geo);
+        const u32 instanceSize = GetInstanceSize<D>(geo);
         for (GraphicsInstanceRange &grange : gpool.Ranges)
         {
             if (!(grange.ViewMask & viewBit))
@@ -1526,8 +1547,8 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
             TKIT_ASSERT(!grange.ContextRanges.IsEmpty(),
                         "[ONYX][RENDERER] Context ranges cannot be empty for a graphics memory range");
 
-            TKIT_ASSERT((geo == Geometry_Circle && grange.BatchIndex == 0) ||
-                            (geo != Geometry_Circle && grange.BatchIndex != 0),
+            TKIT_ASSERT((geo == Geometry_Circle && grange.MeshHandle == NullAsset) ||
+                            (geo != Geometry_Circle && grange.MeshHandle != NullAsset),
                         "[ONYX][RENDERER] Only circle geometry is allowed (and required) to have a batch index of 0");
 
             VkDeviceSize offset = grange.Offset;
@@ -1638,38 +1659,49 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                                         sizeof(PushConstantData<D>), &pdata);
             }
 
-            u32 drawCount = drawCmds[pass][Geometry_Circle].GetSize() / sizeof(VkDrawIndirectCommand);
+            u32 drawCount = circleCmds[pass].GetSize();
             if (drawCount != 0)
             {
                 setupState(Geometry_Circle);
                 const auto dresult = findSuitableDrawBuffer(drawCount, graphics, graphicsFlightValue);
                 TKIT_RETURN_ON_ERROR(dresult);
+
                 VKit::DeviceBuffer *dbuffer = dresult.GetValue();
 
-                dbuffer->Write(drawCmds[pass][Geometry_Circle].GetData(),
+                dbuffer->Write(circleCmds[pass].GetData(),
                                {.srcOffset = 0, .dstOffset = 0, .size = drawCount * sizeof(VkDrawIndirectCommand)});
 
                 TKIT_RETURN_IF_FAILED(dbuffer->Flush());
                 table->CmdDrawIndirect(graphicsCommand, *dbuffer, 0, drawCount, sizeof(VkDrawIndirectCommand));
             }
 
-            drawCount = drawCmds[pass][Geometry_StaticMesh].GetSize() / sizeof(VkDrawIndexedIndirectCommand);
-            if (drawCount != 0)
+            setupState(Geometry_StaticMesh);
+            const TKit::Span<const u32> stpools = Assets::GetMeshAssetPools<D>(Geometry_StaticMesh);
+            for (const AssetPool pool : stpools)
             {
-                setupState(Geometry_StaticMesh);
-                bindStaticMeshBuffers<D>(graphicsCommand);
+                const auto &bcmds = drawCmds[pass][Geometry_StaticMesh - 1][pool];
+                drawCount = bcmds.Count;
+                if (drawCount == 0)
+                    continue;
 
+                bindMeshBuffers<D>(Geometry_StaticMesh, pool, graphicsCommand);
                 const auto dresult = findSuitableIndexedDrawBuffer(drawCount, graphics, graphicsFlightValue);
+                TKIT_RETURN_ON_ERROR(dresult);
 
                 VKit::DeviceBuffer *dbuffer = dresult.GetValue();
 
-                dbuffer->Write(
-                    drawCmds[pass][Geometry_StaticMesh].GetData(),
-                    {.srcOffset = 0, .dstOffset = 0, .size = drawCount * sizeof(VkDrawIndexedIndirectCommand)});
+                u32 offset = 0;
+                for (const auto &cmds : bcmds.Commands)
+                    if (!cmds.IsEmpty())
+                    {
+                        const u32 size = cmds.GetSize() * sizeof(VkDrawIndexedIndirectCommand);
+                        dbuffer->Write(cmds.GetData(), {.srcOffset = 0, .dstOffset = offset, .size = size});
+                        offset += size;
+                    }
+                TKIT_RETURN_IF_FAILED(dbuffer->Flush());
 
                 table->CmdDrawIndexedIndirect(graphicsCommand, *dbuffer, 0, drawCount,
                                               sizeof(VkDrawIndexedIndirectCommand));
-                TKIT_RETURN_IF_FAILED(dbuffer->Flush());
             }
         }
     }
@@ -1844,7 +1876,7 @@ template <Dimension D> static void coalesceGraphicsInstanceRanges(GraphicsInstan
             GraphicsInstanceRange ngrange{};
             ngrange.Offset = grange.Offset;
             ngrange.Pass = grange.Pass;
-            ngrange.BatchIndex = grange.BatchIndex;
+            ngrange.MeshHandle = grange.MeshHandle;
 
             // VkDeviceSize leftover = grange.Size;
             for (const ContextInstanceRange &crange : grange.ContextRanges)
@@ -1967,7 +1999,9 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
                 {
                     ImGui::Text("In use by transfer queue: %s", range.TransferTracker.InUse() ? "YES" : "NO");
                     ImGui::Text("In use by graphics queue: %s", range.GraphicsTracker.InUse() ? "YES" : "NO");
-                    ImGui::Text("Batch index: %u", range.BatchIndex);
+                    if (range.MeshHandle != NullAsset)
+                        ImGui::Text("Mesh handle: %u", range.MeshHandle);
+
                     ImGui::Text("Pass: %s", ToString(range.Pass));
                     const std::string vmask = TKit::Format("{:032b}", range.ViewMask);
                     ImGui::Text("View mask: %s", vmask.c_str());
@@ -2047,7 +2081,7 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
         const f32 height = 1.f;
         const f32 separation = 0.1f;
         const auto drawPlot = [&](const u32 bindex, const VkDeviceSize offset, const VkDeviceSize size, const u32 idx,
-                                  const u32 batchIndex = TKIT_U32_MAX, const StencilPass pass = StencilPass_Count) {
+                                  const Asset meshHandle = NullAsset, const StencilPass pass = StencilPass_Count) {
             const ImVec2 mnpix = ImPlot::PlotToPixels(f64(offset), f64(bindex * height + separation));
             const ImVec2 mxpix = ImPlot::PlotToPixels(f64(offset + size), f64((bindex + 1) * height - separation));
 
@@ -2062,10 +2096,10 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
                 {
                     ImGui::BeginTooltip();
                     ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).c_str(), fmts(size).c_str());
-                    if (batchIndex != TKIT_U32_MAX && pass != StencilPass_Count)
+                    if (pass != StencilPass_Count)
                     {
                         ImGui::SameLine();
-                        ImGui::Text("- Batch index: %u - Pass: %s", batchIndex, ToString(pass));
+                        ImGui::Text("- Batch index: %u - Pass: %s", meshHandle, ToString(pass));
                     }
                     ImGui::EndTooltip();
                 }
@@ -2088,7 +2122,7 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
                     range.InUse()
                         ? 1
                         : (rdata.AreAllContextRangesDirty(range) ? 0 : (rdata.AreAllContextRangesClean(range) ? 2 : 4));
-                drawPlot(1, range.Offset, range.Size, idx, range.BatchIndex, range.Pass);
+                drawPlot(1, range.Offset, range.Size, idx, range.MeshHandle, range.Pass);
                 for (const ContextInstanceRange &crange : range.ContextRanges)
                     drawPlot(0, range.Offset + crange.Offset, crange.Size, rdata.IsContextRangeClean(crange) ? 2 : 3);
             }
@@ -2192,9 +2226,6 @@ template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorS
 
 template Result<RenderContext<D2> *> CreateContext();
 template Result<RenderContext<D3> *> CreateContext();
-
-template void FlushAllContexts<D2>();
-template void FlushAllContexts<D3>();
 
 template void DestroyContext(RenderContext<D2> *context);
 template void DestroyContext(RenderContext<D3> *context);

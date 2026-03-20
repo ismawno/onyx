@@ -621,7 +621,7 @@ Result<> Initialize(const Specs &specs)
     TKIT_RETURN_IF_FAILED(Renderer::Initialize(), Terminate());
 
     PUSH_DELETER(Assets::Terminate());
-    TKIT_RETURN_IF_FAILED(Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{}), Terminate());
+    Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{});
 
 #ifdef ONYX_ENABLE_IMGUI
     PUSH_DELETER(ImGuiBackend::Terminate());

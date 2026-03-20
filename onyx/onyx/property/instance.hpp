@@ -81,6 +81,20 @@ struct DirectionalLightData
 
 template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 1 : 2;
 
+template <Dimension D> u32 GetInstanceSize(const Geometry geo)
+{
+    switch (geo)
+    {
+    case Geometry_Circle:
+        return sizeof(CircleInstanceData<D>);
+    case Geometry_StaticMesh:
+        return sizeof(InstanceData<D>);
+    default:
+        TKIT_FATAL("[ONYX][INSTANCE] Unrecognized geometry type");
+        return 0;
+    }
+}
+
 /**
  * @brief The `StencilPass` enum represents a grouping of pipelines with slightly different settings that all renderers
  * use.

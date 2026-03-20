@@ -1,12 +1,9 @@
 #pragma once
 
-#include "onyx/asset/handle.hpp"
+#include "onyx/core/alias.hpp"
 
 namespace Onyx
 {
-using Sampler = Asset;
-constexpr Sampler NullSampler = NullAsset;
-
 enum SamplerMode : u8
 {
     SamplerMode_Linear,

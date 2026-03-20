@@ -3,6 +3,8 @@
 #include "onyx/core/core.hpp"
 #include "onyx/asset/mesh.hpp"
 #include "onyx/asset/material.hpp"
+#include "onyx/asset/sampler.hpp"
+#include "onyx/asset/texture.hpp"
 #include "onyx/property/instance.hpp"
 
 namespace Onyx
@@ -46,10 +48,10 @@ template <Dimension D> struct GltfAssets
 
 struct GltfHandles
 {
-    TKit::TierArray<Mesh> StaticMeshes{};
-    TKit::TierArray<Material> Materials{};
-    TKit::TierArray<Sampler> Samplers{};
-    TKit::TierArray<Texture> Textures{};
+    TKit::TierArray<Asset> StaticMeshes{};
+    TKit::TierArray<Asset> Materials{};
+    TKit::TierArray<Asset> Samplers{};
+    TKit::TierArray<Asset> Textures{};
 };
 #endif
 
@@ -67,63 +69,67 @@ namespace Onyx::Assets
 {
 struct Specs
 {
-    u32 MaxStaticMeshes = 128;
     u32 MaxTextures = 1024;
     u32 MaxSamplers = 8;
 };
 
-ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
+void Initialize(const Specs &specs);
 void Terminate();
 
-u32 GetStaticMeshBatchIndex(Mesh handle);
-u32 GetStaticMeshHandleFromBatch(u32 batch);
-u32 GetCircleBatchIndex();
-
-u32 GetBatchStart(Geometry geo);
-u32 GetBatchEnd(Geometry geo);
-u32 GetBatchCount(Geometry geo);
-u32 GetBatchCount();
-
-Sampler AddSampler(const SamplerData &data);
-void UpdateSampler(Sampler handle, const SamplerData &data);
-void RemoveSampler(Sampler handle);
+Asset AddSampler(const SamplerData &data);
+void UpdateSampler(Asset handle, const SamplerData &data);
+void RemoveSampler(Asset handle);
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
 
-template <Dimension D> GltfHandles AddGltfAssets(MaterialPool pool, GltfAssets<D> &data);
+template <Dimension D> GltfHandles AddGltfAssets(AssetPool meshPool, AssetPool materialPool, GltfAssets<D> &data);
 
-Texture AddTexture(const TextureData &data, AddTextureFlags flags = 0);
-void UpdateTexture(Texture handle, const TextureData &data, AddTextureFlags flags = 0);
-void RemoveTexture(Texture handle);
+Asset AddTexture(const TextureData &data, AddTextureFlags flags = 0);
+void UpdateTexture(Asset handle, const TextureData &data, AddTextureFlags flags = 0);
+void RemoveTexture(Asset handle);
 #else
-Texture AddTexture(const TextureData &data, AddTAddTextureFlags flags = AddTextureFlag_ManuallyHandledMemory);
-void UpdateTexture(Texture handle, const TextureData &data,
+Asset AddTexture(const TextureData &data, AddTAddTextureFlags flags = AddTextureFlag_ManuallyHandledMemory);
+void UpdateTexture(Asset handle, const TextureData &data,
                    AddTAddTextureFlags flags = AddTextureFlag_ManuallyHandledMemory);
 #endif
 
-template <Dimension D> Mesh AddMesh(const StatMeshData<D> &data);
-template <Dimension D> void UpdateMesh(Mesh handle, const StatMeshData<D> &data);
+template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateMeshPool(Geometry geo);
+template <Dimension D> void DestroyMeshPool(Geometry geo, AssetPool pool);
 
-template <Dimension D> ONYX_NO_DISCARD Result<MaterialPool> CreateMaterialPool();
-template <Dimension D> void DestroyMaterialPool(MaterialPool handle);
+template <Dimension D> Asset AddMesh(AssetPool pool, const StatMeshData<D> &data);
+template <Dimension D> void UpdateMesh(Asset handle, const StatMeshData<D> &data);
 
-template <Dimension D> Material AddMaterial(MaterialPool pool, const MaterialData<D> &data);
-template <Dimension D> void UpdateMaterial(Material handle, const MaterialData<D> &data);
+template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateMaterialPool();
+template <Dimension D> void DestroyMaterialPool(AssetPool handle);
 
+template <Dimension D> Asset AddMaterial(AssetPool pool, const MaterialData<D> &data);
+template <Dimension D> void UpdateMaterial(Asset handle, const MaterialData<D> &data);
+
+// only valid for meshes and materials
+inline u32 GetAssetIndex(const Asset handle)
+{
+    return handle & 0x00FFFFFF;
+}
 inline AssetPool GetPoolHandle(const Asset handle)
 {
     return AssetPool(handle >> 24);
 }
+inline Asset GetAssetHandle(const AssetPool pool, const u32 assetIdx)
+{
+    return (u32(pool) << 24) | assetIdx;
+}
 
-template <Dimension D> StatMeshData<D> GetStaticMeshData(Mesh handle);
-template <Dimension D> const MaterialData<D> &GetMaterialData(Material handle);
-const TextureData &GetTextureData(Texture handle);
+template <Dimension D> StatMeshData<D> GetStaticMeshData(Asset handle);
+template <Dimension D> const MaterialData<D> &GetMaterialData(Asset handle);
+const TextureData &GetTextureData(Asset handle);
 
-template <Dimension D> MeshDataLayout GetStaticMeshLayout(Mesh handle);
+template <Dimension D> TKit::Span<const u32> GetMeshAssetPools(Geometry geo);
 
-template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshVertexBuffer();
-template <Dimension D> const VKit::DeviceBuffer &GetStaticMeshIndexBuffer();
-template <Dimension D> u32 GetStaticMeshCount();
+u32 GetBatchCount();
+template <Dimension D> u32 GetMeshCount(Geometry geo, AssetPool pool);
+template <Dimension D> MeshDataLayout GetMeshLayout(Geometry geo, Asset handle);
+template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(Geometry geo, AssetPool pool);
+template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(Geometry geo, AssetPool pool);
 
 void Lock();
 ONYX_NO_DISCARD Result<> Unlock();

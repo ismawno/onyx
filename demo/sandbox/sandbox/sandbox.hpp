@@ -4,6 +4,8 @@
 #include "onyx/rendering/context.hpp"
 #include "onyx/property/instance.hpp"
 #include "onyx/platform/dialog.hpp"
+#include "onyx/asset/sampler.hpp"
+#include "onyx/asset/texture.hpp"
 
 namespace Onyx
 {
@@ -39,11 +41,60 @@ template <Dimension D> struct CameraArray
     u32 Active = 0;
 };
 
-template <Dimension D> struct StatMeshId
+template <typename Vertex> struct MeshId
 {
-    std::string Name;
-    Mesh Mesh;
-    StatMeshData<D> Data;
+    std::string Name{};
+    Asset Handle = NullAsset;
+    MeshData<Vertex> Data{};
+};
+
+template <typename Vertex> struct MeshArray
+{
+    TKit::TierArray<MeshId<Vertex>> Elements{};
+    u32 Active = 0;
+};
+
+template <typename Vertex> struct MeshPoolId
+{
+    std::string Name{};
+    AssetPool Handle = NullAssetPool;
+    MeshArray<Vertex> Data{};
+};
+
+template <Dimension D> using StatMeshId = MeshId<StatVertex<D>>;
+template <Dimension D> using StatMeshPoolId = MeshPoolId<StatVertex<D>>;
+
+template <Dimension D> struct MeshPoolArray
+{
+    TKit::TierArray<StatMeshPoolId<D>> StatPools{};
+    u32 Active = 0;
+    u32 GeometryToLoad = 0;
+    u32 StatMeshToLoad = 0;
+
+    u32 RegularPolySides = 3;
+    TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
+    f32v2 VertexToAdd{0.f};
+
+    Asset DefaultAxesMesh = NullAsset;
+};
+
+template <> struct MeshPoolArray<D3>
+{
+    TKit::TierArray<StatMeshPoolId<D3>> StatPools{};
+    u32 Active = 0;
+    u32 GeometryToLoad = 0;
+    u32 StatMeshToLoad = 0;
+
+    u32 RegularPolySides = 3;
+    TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
+    f32v2 VertexToAdd{0.f};
+
+    Asset DefaultAxesMesh = NullAsset;
+    Asset DefaultLightMesh = NullAsset;
+
+    u32 Rings = 32;
+    u32 Sectors = 64;
+    u32 CylinderSides = 64;
 };
 
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(StaticMeshType)
@@ -57,18 +108,12 @@ enum StaticMeshType : u8
     StaticMesh_Count,
 };
 
-struct ShapeType
-{
-    Geometry Geo;
-    u32 StaticMesh;
-};
-
 template <Dimension D> struct Shape
 {
-    ShapeType Type;
+    Geometry Geo = Geometry_Count;
+    Asset Mesh = NullAsset;
     std::string Name;
-    Mesh StatMesh = NullMesh;
-    Material Material = NullMaterial;
+    Asset Material = NullAsset;
     Transform<D> Transform{};
     CircleOptions CircleOptions{};
     SandboxFlags Flags = SandboxFlag_Fill;
@@ -82,17 +127,20 @@ template <Dimension D> struct ContextData
     RenderContext<D> *Context;
     TKit::TierArray<Shape<D>> Shapes;
     TKit::TierArray<PointLight<D> *> PointLights{};
-    u32 GeometryToSpawn = Geometry_Circle;
-    u32 StatMeshToSpawn = 0;
+    Geometry GeometryToSpawn = Geometry_Circle;
+    Asset StatMeshToSpawn = 0;
     f32 AxesThickness = 0.01f;
-    Material AxesMaterial = NullMaterial;
+
+    Asset AxesMesh = NullAsset;
+    Asset AxesMaterial = NullAsset;
+    Asset LightMaterial = NullAsset;
 
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 SelectedShape = 0;
     u32 SelectedPointLight = 0;
     u32 LightToSpawn = 0;
 
-    SandboxFlags Flags = SandboxFlag_ContextShouldUpdate;
+    SandboxFlags Flags = SandboxFlag_DrawLights | SandboxFlag_ContextShouldUpdate;
 };
 
 template <> struct ContextData<D3>
@@ -101,52 +149,29 @@ template <> struct ContextData<D3>
     TKit::TierArray<Shape<D3>> Shapes;
     TKit::TierArray<PointLight<D3> *> PointLights{};
     TKit::TierArray<DirectionalLight *> DirLights{};
-    u32 GeometryToSpawn = Geometry_Circle;
-    u32 StatMeshToSpawn = 0;
+    Geometry GeometryToSpawn = Geometry_Circle;
+    Asset StatMeshToSpawn = 0;
+
     u32 SelectedShape = 0;
     f32 AxesThickness = 0.01f;
-    Material AxesMaterial = NullMaterial;
+
+    Asset AxesMesh = NullAsset;
+    Asset AxesMaterial = NullAsset;
+    Asset LightMaterial = NullAsset;
+    Asset LightMesh = NullAsset;
 
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 LightToSpawn = 0;
     u32 SelectedPointLight = 0;
     u32 SelectedDirLight = 0;
 
-    SandboxFlags Flags = SandboxFlag_ContextShouldUpdate;
+    SandboxFlags Flags = SandboxFlag_DrawLights | SandboxFlag_ContextShouldUpdate;
 };
 
 template <Dimension D> struct ContextArray
 {
     TKit::TierArray<ContextData<D>> Contexts{};
     u32 Active = 0;
-};
-
-template <Dimension D> struct MeshArray
-{
-    TKit::TierArray<StatMeshId<D>> StaticMeshes{};
-    u32 Active = 0;
-    u32 GeometryToLoad = 0;
-    u32 StatMeshToLoad = 0;
-
-    u32 RegularPolySides = 3;
-    TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
-    f32v2 VertexToAdd{0.f};
-};
-
-template <> struct MeshArray<D3>
-{
-    TKit::TierArray<StatMeshId<D3>> StaticMeshes{};
-    u32 Active = 0;
-    u32 GeometryToLoad = 0;
-    u32 StatMeshToLoad = 0;
-
-    u32 RegularPolySides = 3;
-    TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
-    f32v2 VertexToAdd{0.f};
-
-    u32 Rings = 32;
-    u32 Sectors = 64;
-    u32 CylinderSides = 64;
 };
 
 template <Dimension D> struct LatticeData
@@ -159,11 +184,9 @@ template <Dimension D> struct LatticeData
     f32v<D> Position{0.f};
     u32v<D> Dimensions{4};
     f32 Separation = 1.5f;
-    TKIT_YAML_SERIALIZE_GROUP_BEGIN("Geo", "--deserialize-as Geometry")
-    u32 Geometry = 0;
-    TKIT_YAML_SERIALIZE_GROUP_END()
+    Geometry Geo = Geometry_Circle;
     TKIT_YAML_SERIALIZE_GROUP_BEGIN("StatMesh", "--deserialize-as StaticMeshType")
-    u32 StatMesh = 0;
+    Asset StatMesh = 0;
     TKIT_YAML_SERIALIZE_GROUP_END()
     u32 Threads = 1;
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
@@ -174,20 +197,20 @@ template <Dimension D> struct LatticeData
 template <Dimension D> struct MaterialId
 {
     std::string Name{};
-    Material Material = NullMaterial;
+    Asset Handle = NullAsset;
     MaterialData<D> Data{};
 };
 
 template <Dimension D> struct MaterialArray
 {
-    TKit::TierArray<MaterialId<D>> Materials{};
+    TKit::TierArray<MaterialId<D>> Elements{};
     u32 Active = 0;
 };
 
 template <Dimension D> struct MaterialPoolId
 {
     std::string Name{};
-    MaterialPool Pool = NullMaterialPool;
+    AssetPool Handle = NullAssetPool;
     MaterialArray<D> Data{};
 };
 
@@ -195,19 +218,21 @@ template <Dimension D> struct MaterialPoolArray
 {
     TKit::TierArray<MaterialPoolId<D>> Pools{};
     u32 Active = 0;
+    Asset DefaultAxesMaterial = NullAsset;
+    Asset DefaultLightMaterial = NullAsset;
 };
 
 struct SamplerId
 {
     std::string Name{};
-    Sampler Sampler = NullSampler;
+    Asset Handle = NullAsset;
     SamplerData Data{};
 };
 
 struct TextureId
 {
     std::string Name{};
-    Texture Texture = NullTexture;
+    Asset Handle = NullAsset;
 };
 
 template <Dimension D> struct LatticeArray
@@ -228,21 +253,28 @@ class SandboxAppLayer final : public ApplicationLayer
     template <Dimension D> void DrawLattices();
     template <Dimension D, typename F> void DrawLattice(const LatticeData<D> &lattice, F &&fun);
 
-    template <Dimension D> Shape<D> CreateShape(u32 geometry, u32 statMesh);
+    template <Dimension D> Shape<D> CreateShape(Geometry geo, Asset mesh = NullAsset);
     template <Dimension D> Shape<D> CreateShape(const ContextData<D> &context)
     {
-        return CreateShape<D>(context.GeometryToSpawn, context.StatMeshToSpawn);
+        return CreateShape<D>(context.GeometryToSpawn,
+                              context.StatMeshToSpawn); // add more args when parametrized arrive
     }
     template <Dimension D> Shape<D> CreateShape(const LatticeData<D> &lattice)
     {
-        return CreateShape<D>(lattice.Geometry, lattice.StatMesh);
+        return CreateShape<D>(lattice.Geo, lattice.StatMesh); // add more args when parametrized arrive
     }
 
     template <Dimension D> void AddContext(const Window *window = nullptr);
     template <Dimension D> void AddLattice(const Window *window = nullptr, const LatticeData<D> &lattice = {});
-    template <Dimension D> void AddStaticMesh(const char *name, const StatMeshData<D> &data, const bool upload = false);
+
+    template <typename Vertex>
+    MeshPoolId<Vertex> &AddMeshPool(TKit::TierArray<MeshPoolId<Vertex>> &pools, const char *name = nullptr);
+
+    template <typename Vertex>
+    MeshId<Vertex> &AddMesh(MeshPoolId<Vertex> &pool, const MeshData<Vertex> &data, const char *name = nullptr);
+
     template <Dimension D> MaterialPoolId<D> &AddMaterialPool(const char *name = nullptr);
-    template <Dimension D> void AddMaterial(MaterialPoolId<D> &pool, const char *name = nullptr);
+    template <Dimension D> MaterialId<D> &AddMaterial(MaterialPoolId<D> &pool, const char *name = nullptr);
 
     void AddSampler(const char *name = nullptr);
     void AddTexture(const TextureData &data, const char *name = nullptr);
@@ -278,13 +310,14 @@ class SandboxAppLayer final : public ApplicationLayer
             return Materials3;
     }
 
-    template <Dimension D> void AddMeshes();
+    template <Dimension D> void AddDefaultMeshes();
+    template <Dimension D> void AddDefaultMaterial();
 
     ContextArray<D2> Contexts2{};
     ContextArray<D3> Contexts3{};
 
-    MeshArray<D2> Meshes2{};
-    MeshArray<D3> Meshes3{};
+    MeshPoolArray<D2> Meshes2{};
+    MeshPoolArray<D3> Meshes3{};
 
     LatticeArray<D2> Lattices2{};
     LatticeArray<D3> Lattices3{};
@@ -316,6 +349,9 @@ class SandboxWinLayer final : public WindowLayer
     template <Dimension D> void RenderLightPicker(ContextData<D> &context);
     template <Dimension D> void RenderLattices();
     template <Dimension D> void RenderLattice(LatticeData<D> &lattice);
+    template <Dimension D> void RenderMeshPools();
+    template <typename Vertex> void RenderMeshPool(MeshPoolId<Vertex> &pool);
+    template <typename Vertex> void RenderMesh(MeshId<Vertex> &mesh);
     template <Dimension D> void RenderMaterialPools();
     template <Dimension D> void RenderMaterialPool(MaterialPoolId<D> &pool);
     template <Dimension D> void RenderMaterial(MaterialId<D> &material);
@@ -323,8 +359,6 @@ class SandboxWinLayer final : public WindowLayer
     void RenderSampler(SamplerId &sampler);
     void RenderTextures();
     template <Dimension D> void RenderGltf();
-    template <Dimension D> void RenderMeshes();
-    template <Dimension D> void RenderMesh(StatMeshId<D> &mesh);
     template <Dimension D> void RenderRenderer();
 
     template <typename F>
@@ -349,6 +383,7 @@ class SandboxWinLayer final : public WindowLayer
     TKit::Task<Dialog::Result<Dialog::Path>> TexTask{};
     TKit::Task<Dialog::Result<Dialog::Path>> GltfTask{};
 
+    bool CreatePoolOnLoad = true;
 #ifdef ONYX_ENABLE_IMGUI
     bool ImGuiDemoWindow = false;
 #    ifdef ONYX_ENABLE_IMPLOT
