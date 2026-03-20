@@ -404,24 +404,24 @@ Result<> Window::createSwapChain(const VkExtent2D &windowExtent)
 
 Result<> Window::drainWork()
 {
-    TKit::StackArray<VkSemaphore> sempahores{};
-    sempahores.Reserve(m_SyncData.GetSize());
+    TKit::StackArray<VkSemaphore> semaphores{};
+    semaphores.Reserve(m_SyncData.GetSize());
     TKit::StackArray<u64> values{};
     values.Reserve(m_SyncData.GetSize());
     for (const Execution::ViewSyncData &sync : m_SyncData)
         if (sync.InFlightSubmission)
         {
-            sempahores.Append(sync.InFlightSubmission);
+            semaphores.Append(sync.InFlightSubmission);
             values.Append(sync.InFlightValue);
         }
 
     const auto table = Core::GetDeviceTable();
-    if (!sempahores.IsEmpty())
+    if (!semaphores.IsEmpty())
     {
         VkSemaphoreWaitInfoKHR waitInfo{};
         waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
-        waitInfo.semaphoreCount = sempahores.GetSize();
-        waitInfo.pSemaphores = sempahores.GetData();
+        waitInfo.semaphoreCount = semaphores.GetSize();
+        waitInfo.pSemaphores = semaphores.GetData();
         waitInfo.pValues = values.GetData();
 
         const auto &device = Core::GetDevice();

@@ -724,10 +724,6 @@ ONYX_NO_DISCARD static Result<Range *> handlePoolResize(const VkDeviceSize requi
 {
     TKIT_RETURN_ON_ERROR(result);
 
-    VKit::DeviceBuffer &nbuffer = result.GetValue();
-    const VkDeviceSize size = buffer.GetInfo().Size;
-    const VkBufferCopy copy{.srcOffset = 0, .dstOffset = 0, .size = size};
-
     if (tasks)
     {
         for (const Task &task : *tasks)
@@ -735,7 +731,47 @@ ONYX_NO_DISCARD static Result<Range *> handlePoolResize(const VkDeviceSize requi
         tasks->Clear();
     }
 
-    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    TKit::StackArray<VkSemaphore> semaphores{};
+    semaphores.Reserve(2 * ranges.GetSize());
+    TKit::StackArray<u64> values{};
+    values.Reserve(2 * ranges.GetSize());
+
+    for (const Range &range : ranges)
+        if constexpr (std::is_same_v<Range, GraphicsInstanceRange> || std::is_same_v<Range, GraphicsLightRange>)
+        {
+            if (range.TransferTracker.Queue)
+            {
+                semaphores.Append(range.TransferTracker.Queue->GetTimelineSempahore());
+                values.Append(range.TransferTracker.InFlightValue);
+            }
+
+            if (range.GraphicsTracker.Queue)
+            {
+                semaphores.Append(range.GraphicsTracker.Queue->GetTimelineSempahore());
+                values.Append(range.GraphicsTracker.InFlightValue);
+            }
+        }
+        else if (range.Tracker.Queue)
+        {
+            semaphores.Append(range.Tracker.Queue->GetTimelineSempahore());
+            values.Append(range.Tracker.InFlightValue);
+        }
+    if (!semaphores.IsEmpty())
+    {
+        VkSemaphoreWaitInfoKHR waitInfo{};
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
+        waitInfo.semaphoreCount = semaphores.GetSize();
+        waitInfo.pSemaphores = semaphores.GetData();
+        waitInfo.pValues = values.GetData();
+
+        const auto &device = Core::GetDevice();
+        const auto table = Core::GetDeviceTable();
+        VKIT_RETURN_IF_FAILED(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX), Result<Range *>);
+    }
+
+    VKit::DeviceBuffer &nbuffer = result.GetValue();
+    const VkDeviceSize size = buffer.GetInfo().Size;
+    const VkBufferCopy copy{.srcOffset = 0, .dstOffset = 0, .size = size};
 
     if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
     {
