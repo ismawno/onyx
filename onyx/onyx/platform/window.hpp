@@ -239,6 +239,7 @@ class Window
     void adaptCamerasToViewportAspect();
 
     ONYX_NO_DISCARD Result<> createSwapChain(const VkExtent2D &windowExtent);
+    ONYX_NO_DISCARD Result<> drainWork();
     ONYX_NO_DISCARD Result<> recreateSwapChain();
     ONYX_NO_DISCARD Result<> recreateResources();
     ONYX_NO_DISCARD Result<> recreateSurface();

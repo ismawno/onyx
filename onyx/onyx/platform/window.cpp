@@ -4,6 +4,7 @@
 #include "onyx/core/core.hpp"
 #include "onyx/platform/glfw.hpp"
 #include "tkit/profiling/macros.hpp"
+#include "tkit/container/stack_array.hpp"
 
 namespace Onyx
 {
@@ -401,14 +402,41 @@ Result<> Window::createSwapChain(const VkExtent2D &windowExtent)
     return Result<>::Ok();
 }
 
+Result<> Window::drainWork()
+{
+    TKit::StackArray<VkSemaphore> sempahores{};
+    sempahores.Reserve(m_SyncData.GetSize());
+    TKit::StackArray<u64> values{};
+    values.Reserve(m_SyncData.GetSize());
+    for (const Execution::ViewSyncData &sync : m_SyncData)
+        if (sync.InFlightSubmission)
+        {
+            sempahores.Append(sync.InFlightSubmission);
+            values.Append(sync.InFlightValue);
+        }
+
+    const auto table = Core::GetDeviceTable();
+    if (!sempahores.IsEmpty())
+    {
+        VkSemaphoreWaitInfoKHR waitInfo{};
+        waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO_KHR;
+        waitInfo.semaphoreCount = sempahores.GetSize();
+        waitInfo.pSemaphores = sempahores.GetData();
+        waitInfo.pValues = values.GetData();
+
+        const auto &device = Core::GetDevice();
+        VKIT_RETURN_IF_FAILED(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX), Result<>);
+    }
+
+    return m_Present->WaitIdle();
+}
+
 Result<> Window::recreateSwapChain()
 {
     TKIT_LOG_DEBUG("[ONYX][WINDOW] Out of date swap chain. Re-creating swap chain and resources");
-    const VkExtent2D extent = getNewExtent(m_Window);
 
-    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
-    const auto table = Core::GetDeviceTable();
-    ONYX_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
+    TKIT_RETURN_IF_FAILED(drainWork());
+    const VkExtent2D extent = getNewExtent(m_Window);
 
     VKit::SwapChain old = m_SwapChain;
     TKIT_RETURN_IF_FAILED(createSwapChain(extent));
@@ -435,11 +463,9 @@ Result<> Window::recreateSwapChain()
 Result<> Window::recreateSurface()
 {
     TKIT_LOG_WARNING("[ONYX][WINDOW] Surface lost... re-creating surface, swap chain and resources");
-    const VkExtent2D extent = getNewExtent(m_Window);
+    TKIT_RETURN_IF_FAILED(drainWork());
 
-    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
-    const auto table = Core::GetDeviceTable();
-    ONYX_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
+    const VkExtent2D extent = getNewExtent(m_Window);
 
     m_SwapChain.Destroy();
     m_SwapChain = VKit::SwapChain{};
