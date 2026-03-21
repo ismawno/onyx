@@ -21,7 +21,7 @@ struct VertexOutput
 };
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<InstanceDataFill2D, Std430DataLayout> g_Instances;
+StructuredBuffer<StaticInstanceDataFill2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -40,7 +40,7 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const InstanceDataFill2D data = g_Instances[instanceIndex];
+    const StaticInstanceDataFill2D data = g_Instances[instanceIndex];
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
     const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);

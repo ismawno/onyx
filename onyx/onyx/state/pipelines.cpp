@@ -87,7 +87,7 @@ ONYX_NO_DISCARD static Result<> createShaders()
 {
     auto cmpres = Shaders::Compiler()
                       .AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders")
-                      .AddModule("mesh-fill-2D")
+                      .AddModule("static-fill-2D")
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
@@ -95,7 +95,7 @@ ONYX_NO_DISCARD static Result<> createShaders()
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
-                      .AddModule("mesh-stencil-2D")
+                      .AddModule("static-stencil-2D")
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
@@ -103,7 +103,7 @@ ONYX_NO_DISCARD static Result<> createShaders()
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
-                      .AddModule("mesh-fill-3D")
+                      .AddModule("static-fill-3D")
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
@@ -111,7 +111,7 @@ ONYX_NO_DISCARD static Result<> createShaders()
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
-                      .AddModule("mesh-stencil-3D")
+                      .AddModule("static-stencil-3D")
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
@@ -123,11 +123,11 @@ ONYX_NO_DISCARD static Result<> createShaders()
 
     TKIT_RETURN_ON_ERROR(cmpres);
     Shaders::Compilation &cmp = cmpres.GetValue();
-    auto result = cmp.CreateShader("mainVS", "mesh-fill-2D");
+    auto result = cmp.CreateShader("mainVS", "static-fill-2D");
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders2->MeshVertexShader = result.GetValue();
 
-    result = cmp.CreateShader("mainFS", "mesh-fill-2D");
+    result = cmp.CreateShader("mainFS", "static-fill-2D");
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders2->MeshFragmentShader = result.GetValue();
 
@@ -139,11 +139,11 @@ ONYX_NO_DISCARD static Result<> createShaders()
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders2->CircleFragmentShader = result.GetValue();
 
-    result = cmp.CreateShader("mainVS", "mesh-fill-3D");
+    result = cmp.CreateShader("mainVS", "static-fill-3D");
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders3->MeshVertexShader = result.GetValue();
 
-    result = cmp.CreateShader("mainFS", "mesh-fill-3D");
+    result = cmp.CreateShader("mainFS", "static-fill-3D");
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders3->MeshFragmentShader = result.GetValue();
 
@@ -155,11 +155,11 @@ ONYX_NO_DISCARD static Result<> createShaders()
     TKIT_RETURN_ON_ERROR(result);
     s_FillShaders3->CircleFragmentShader = result.GetValue();
 
-    result = cmp.CreateShader("mainVS", "mesh-stencil-2D");
+    result = cmp.CreateShader("mainVS", "static-stencil-2D");
     TKIT_RETURN_ON_ERROR(result);
     s_OutlineShaders2->MeshVertexShader = result.GetValue();
 
-    result = cmp.CreateShader("mainFS", "mesh-stencil-2D");
+    result = cmp.CreateShader("mainFS", "static-stencil-2D");
     TKIT_RETURN_ON_ERROR(result);
     s_OutlineShaders2->MeshFragmentShader = result.GetValue();
 
@@ -171,11 +171,11 @@ ONYX_NO_DISCARD static Result<> createShaders()
     TKIT_RETURN_ON_ERROR(result);
     s_OutlineShaders2->CircleFragmentShader = result.GetValue();
 
-    result = cmp.CreateShader("mainVS", "mesh-stencil-3D");
+    result = cmp.CreateShader("mainVS", "static-stencil-3D");
     TKIT_RETURN_ON_ERROR(result);
     s_OutlineShaders3->MeshVertexShader = result.GetValue();
 
-    result = cmp.CreateShader("mainFS", "mesh-stencil-3D");
+    result = cmp.CreateShader("mainFS", "static-stencil-3D");
     TKIT_RETURN_ON_ERROR(result);
     s_OutlineShaders3->MeshFragmentShader = result.GetValue();
 
@@ -191,24 +191,24 @@ ONYX_NO_DISCARD static Result<> createShaders()
 
     if (Core::CanNameObjects())
     {
-        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshVertexShader.SetName("onyx-2D-vertex-shader-mesh-fill-2D"));
-        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshFragmentShader.SetName("onyx-2D-fragment-shader-mesh-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshVertexShader.SetName("onyx-2D-vertex-shader-static-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshFragmentShader.SetName("onyx-2D-fragment-shader-static-fill-2D"));
         TKIT_RETURN_IF_FAILED(s_FillShaders2->CircleVertexShader.SetName("onyx--D vertex-shader-circle-fill-2D"));
         TKIT_RETURN_IF_FAILED(s_FillShaders2->CircleFragmentShader.SetName("onyx-2D-fragment-shader-circle-fill-2D"));
 
-        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshVertexShader.SetName("onyx--D vertex-shader-mesh-fill-2D"));
-        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshFragmentShader.SetName("onyx-3D-fragment-shader-mesh-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshVertexShader.SetName("onyx--D vertex-shader-static-fill-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshFragmentShader.SetName("onyx-3D-fragment-shader-static-fill-2D"));
         TKIT_RETURN_IF_FAILED(s_FillShaders3->CircleVertexShader.SetName("onyx--D vertex-shader-circle-fill-2D"));
         TKIT_RETURN_IF_FAILED(s_FillShaders3->CircleFragmentShader.SetName("onyx-3D-fragment-shader-circle-fill-2D"));
 
-        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshVertexShader.SetName("onyx--D vertex-shader-mesh-stencil-2D"));
-        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshFragmentShader.SetName("onyx-2D-fragment-shader-mesh-stencil-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshVertexShader.SetName("onyx--D vertex-shader-static-stencil-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->MeshFragmentShader.SetName("onyx-2D-fragment-shader-static-stencil-2D"));
         TKIT_RETURN_IF_FAILED(s_FillShaders2->CircleVertexShader.SetName("onyx--D vertex-shader-circle-stencil-2D"));
         TKIT_RETURN_IF_FAILED(
             s_FillShaders2->CircleFragmentShader.SetName("onyx-2D-fragment-shader-circle-stencil-2D"));
 
-        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshVertexShader.SetName("onyx--D vertex-shader-mesh-stencil-2D"));
-        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshFragmentShader.SetName("onyx-3D-fragment-shader-mesh-stencil-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshVertexShader.SetName("onyx--D vertex-shader-static-stencil-2D"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->MeshFragmentShader.SetName("onyx-3D-fragment-shader-static-stencil-2D"));
         TKIT_RETURN_IF_FAILED(s_FillShaders3->CircleVertexShader.SetName("onyx--D vertex-shader-circle-stencil-2D"));
         return s_FillShaders3->CircleFragmentShader.SetName("onyx-3D-fragment-shader-circle-stencil-2D");
     }

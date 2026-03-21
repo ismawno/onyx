@@ -103,11 +103,12 @@ template <Dimension D> void IRenderContext<D>::Circle(const f32m<D> &transform, 
 }
 
 template <Dimension D>
-static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32m<D> &transform, const StencilPass pass)
+static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *state, const f32m<D> &transform,
+                                                      const StencilPass pass)
 {
     if constexpr (D == D2)
     {
-        InstanceData<D2> instanceData{};
+        StaticInstanceData<D2> instanceData{};
         instanceData.Column0 = f32v2{transform[0]};
         instanceData.Column1 = f32v2{transform[1]};
         instanceData.Column3 = f32v2{transform[2]};
@@ -123,7 +124,7 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
     }
     else
     {
-        InstanceData<D3> instanceData{};
+        StaticInstanceData<D3> instanceData{};
         instanceData.Row0 = f32v4{transform[0][0], transform[1][0], transform[2][0], transform[3][0]};
         instanceData.Row1 = f32v4{transform[0][1], transform[1][1], transform[2][1], transform[3][1]};
         instanceData.Row2 = f32v4{transform[0][2], transform[1][2], transform[2][2], transform[3][2]};
@@ -146,16 +147,16 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
                                                       const CircleOptions &options, const StencilPass pass)
 {
     CircleInstanceData<D> instanceData;
-    instanceData.BaseData = createInstanceData(state, transform, pass);
-    instanceData.LowerCos = Math::Cosine(options.LowerAngle);
-    instanceData.LowerSin = Math::Sine(options.LowerAngle);
-    instanceData.UpperCos = Math::Cosine(options.UpperAngle);
-    instanceData.UpperSin = Math::Sine(options.UpperAngle);
+    instanceData.Data = createStaticInstanceData(state, transform, pass);
+    instanceData.Arc.LowerCos = Math::Cosine(options.LowerAngle);
+    instanceData.Arc.LowerSin = Math::Sine(options.LowerAngle);
+    instanceData.Arc.UpperCos = Math::Cosine(options.UpperAngle);
+    instanceData.Arc.UpperSin = Math::Sine(options.UpperAngle);
 
-    instanceData.AngleOverflow = Math::Absolute(options.UpperAngle - options.LowerAngle) > Math::Pi<f32>() ? 1 : 0;
-    instanceData.Hollowness = options.Hollowness;
-    instanceData.InnerFade = options.InnerFade;
-    instanceData.OuterFade = options.OuterFade;
+    instanceData.Fade.AngleOverflow = Math::Absolute(options.UpperAngle - options.LowerAngle) > Math::Pi<f32>() ? 1 : 0;
+    instanceData.Fade.Hollowness = options.Hollowness;
+    instanceData.Fade.InnerFade = options.InnerFade;
+    instanceData.Fade.OuterFade = options.OuterFade;
 
     return instanceData;
 }
@@ -220,7 +221,7 @@ void IRenderContext<D>::addStaticMeshData(const Asset mesh, const f32m<D> &trans
     const u32 idx = Assets::GetAssetIndex(mesh);
     const AssetPool pool = Assets::GetPoolHandle(mesh);
 
-    const InstanceData<D> idata = createInstanceData(m_Current, transform, pass);
+    const StaticInstanceData<D> idata = createStaticInstanceData(m_Current, transform, pass);
     InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Geometry_Static - 1][pool][idx];
     addInstanceData(buffer, idata);
 }

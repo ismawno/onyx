@@ -16,25 +16,25 @@ public struct Basis3D
     f32 Basis02, Basis12, Basis22, Basis32;
 };
 
-public struct InstanceDataFill2D
+public struct StaticInstanceDataFill2D
 {
     Basis2D Basis;
     u32 Color;
     u32 MatHandle;
 };
-public struct InstanceDataStencil2D
+public struct StaticInstanceDataStencil2D
 {
     Basis2D Basis;
     u32 Color;
     f32 OutlineWidth;
 };
-public struct InstanceDataFill3D
+public struct StaticInstanceDataFill3D
 {
     Basis3D Basis;
     u32 Color;
     u32 MatHandle;
 };
-public struct InstanceDataStencil3D
+public struct StaticInstanceDataStencil3D
 {
     Basis3D Basis;
     u32 Color;
@@ -66,25 +66,25 @@ public struct FadeData
 
 public struct CircleInstanceDataFill2D
 {
-    InstanceDataFill2D Data;
+    StaticInstanceDataFill2D Data;
     ArcDataPacked Arc;
     FadeData Fade;
 };
 public struct CircleInstanceDataStencil2D
 {
-    InstanceDataStencil2D Data;
+    StaticInstanceDataStencil2D Data;
     ArcDataPacked Arc;
     FadeData Fade;
 };
 public struct CircleInstanceDataFill3D
 {
-    InstanceDataFill3D Data;
+    StaticInstanceDataFill3D Data;
     ArcDataPacked Arc;
     FadeData Fade;
 };
 public struct CircleInstanceDataStencil3D
 {
-    InstanceDataStencil3D Data;
+    StaticInstanceDataStencil3D Data;
     ArcDataPacked Arc;
     FadeData Fade;
 };

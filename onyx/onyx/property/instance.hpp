@@ -5,8 +5,8 @@
 
 namespace Onyx
 {
-template <Dimension D> struct InstanceData;
-template <> struct InstanceData<D2>
+template <Dimension D> struct StaticInstanceData;
+template <> struct StaticInstanceData<D2>
 {
     f32v2 Column0;
     f32v2 Column1;
@@ -18,7 +18,7 @@ template <> struct InstanceData<D2>
     };
 };
 
-template <> struct InstanceData<D3>
+template <> struct StaticInstanceData<D3>
 {
     f32v4 Row0;
     f32v4 Row1;
@@ -30,18 +30,26 @@ template <> struct InstanceData<D3>
     };
 };
 
-template <Dimension D> struct CircleInstanceData
+struct ArcData
 {
-    InstanceData<D> BaseData;
     f32 LowerCos;
     f32 LowerSin;
     f32 UpperCos;
     f32 UpperSin;
-
+};
+struct FadeData
+{
     u32 AngleOverflow;
     f32 Hollowness;
     f32 InnerFade;
     f32 OuterFade;
+};
+
+template <Dimension D> struct CircleInstanceData
+{
+    StaticInstanceData<D> Data;
+    ArcData Arc;
+    FadeData Fade;
 };
 
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(Geometry)
@@ -88,7 +96,7 @@ template <Dimension D> u32 GetInstanceSize(const Geometry geo)
     case Geometry_Circle:
         return sizeof(CircleInstanceData<D>);
     case Geometry_Static:
-        return sizeof(InstanceData<D>);
+        return sizeof(StaticInstanceData<D>);
     default:
         TKIT_FATAL("[ONYX][INSTANCE] Unrecognized geometry type");
         return 0;
