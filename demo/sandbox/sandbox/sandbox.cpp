@@ -237,7 +237,7 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
                 });
                 break;
             }
-            case Geometry_StaticMesh: {
+            case Geometry_Static: {
                 const Asset mesh = lattice.Shape.Mesh;
                 if (mesh != NullAsset)
                     DrawLattice(lattice, [mesh](const f32v<D> &pos, RenderContext<D> *context) {
@@ -345,7 +345,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
     case Geometry_Circle:
         shape.Name = "Circle";
         return shape;
-    case Geometry_StaticMesh: {
+    case Geometry_Static: {
         const auto &meshes = GetMeshes<D>();
         shape.Name = "Unknown";
         for (const StatMeshPoolId<D> &pool : meshes.StatPools)
@@ -959,7 +959,7 @@ template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &c
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
 
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         statMeshNameCombo<D>("Shape##Picker", appLayer, &context.StatMeshToSpawn);
 
     if (ImGui::Button("Spawn##Shape"))
@@ -1049,7 +1049,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
         opts.OnSelected = [this](StatMeshPoolId<D> &pool) { RenderMeshPool(pool); };
         opts.GetName = [](const StatMeshPoolId<D> &pool) { return pool.Name.c_str(); };
         opts.OnRemoval = [&meshes, appLayer](StatMeshPoolId<D> &pool) {
-            Assets::DestroyMeshPool<D>(Geometry_StaticMesh, pool.Handle);
+            Assets::DestroyMeshPool<D>(Geometry_Static, pool.Handle);
             auto &contexts = appLayer->GetContexts<D>();
             for (ContextData<D> &ctx : contexts.Contexts)
             {
@@ -1572,7 +1572,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
     const Geometry geo = lattice.Geo;
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         updateShape |= statMeshNameCombo<D>("Shape##Lattice", appLayer, &lattice.StatMesh);
 
     if (updateShape)

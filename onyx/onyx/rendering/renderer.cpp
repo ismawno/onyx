@@ -381,17 +381,17 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
 
         result = Pipelines::CreateStaticMeshPipeline<D>(pass, renderInfo);
         TKIT_RETURN_ON_ERROR(result);
-        rdata.Pipelines[pass][Geometry_StaticMesh] = result.GetValue();
+        rdata.Pipelines[pass][Geometry_Static] = result.GetValue();
 
         if (Core::CanNameObjects())
         {
             const std::string circle =
                 TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-Geometry_Circle", u8(D), ToString(pass));
-            const std::string mesh = TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_StaticMesh'",
+            const std::string mesh = TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Static'",
                                                   u8(D), ToString(pass));
 
             TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Circle].SetName(circle.c_str()));
-            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_StaticMesh].SetName(mesh.c_str()));
+            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Static].SetName(mesh.c_str()));
         }
     }
 
@@ -1280,7 +1280,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     for (u32 pass = 0; pass < StencilPass_Count; ++pass)
     {
         TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Circle), finishTasks());
-        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_StaticMesh), finishTasks());
+        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Static), finishTasks());
     }
     for (const RangePair &range : ranges)
     {
@@ -1545,7 +1545,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         drawCmds{};
 
     for (auto &geos : drawCmds)
-        for (u32 i = Geometry_StaticMesh; i < Geometry_Count; ++i)
+        for (u32 i = Geometry_Static; i < Geometry_Count; ++i)
         {
             const Geometry geo = Geometry(i);
             const TKit::Span<const u32> pools = Assets::GetMeshAssetPools<D>(geo);
@@ -1642,7 +1642,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
     };
 
     collectDrawInfo(Geometry_Circle);
-    collectDrawInfo(Geometry_StaticMesh);
+    collectDrawInfo(Geometry_Static);
 
     LightRange<D> lranges;
 
@@ -1711,16 +1711,16 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                 table->CmdDrawIndirect(graphicsCommand, *dbuffer, 0, drawCount, sizeof(VkDrawIndirectCommand));
             }
 
-            setupState(Geometry_StaticMesh);
-            const TKit::Span<const u32> stpools = Assets::GetMeshAssetPools<D>(Geometry_StaticMesh);
+            setupState(Geometry_Static);
+            const TKit::Span<const u32> stpools = Assets::GetMeshAssetPools<D>(Geometry_Static);
             for (const AssetPool pool : stpools)
             {
-                const auto &bcmds = drawCmds[pass][Geometry_StaticMesh - 1][pool];
+                const auto &bcmds = drawCmds[pass][Geometry_Static - 1][pool];
                 drawCount = bcmds.Count;
                 if (drawCount == 0)
                     continue;
 
-                bindMeshBuffers<D>(Geometry_StaticMesh, pool, graphicsCommand);
+                bindMeshBuffers<D>(Geometry_Static, pool, graphicsCommand);
                 const auto dresult = findSuitableIndexedDrawBuffer(drawCount, graphics, graphicsFlightValue);
                 TKIT_RETURN_ON_ERROR(dresult);
 

@@ -31,7 +31,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
     for (InstanceDataArrays &instanceData : m_InstanceData)
     {
         instanceData.Circles.Instances = 0;
-        for (u32 j = Geometry_StaticMesh; j < Geometry_Count; ++j)
+        for (u32 j = Geometry_Static; j < Geometry_Count; ++j)
         {
             const Geometry geo = Geometry(j);
             const auto pools = Assets::GetMeshAssetPools<D>(geo);
@@ -72,7 +72,7 @@ template <Dimension D> void IRenderContext<D>::updateState()
 
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
 {
-    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_StaticMesh, mesh),
+    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Static, mesh),
                 "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
                 "it references is not a static mesh",
                 mesh);
@@ -81,7 +81,7 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
 }
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, const f32m<D> &transform)
 {
-    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_StaticMesh, mesh),
+    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Static, mesh),
                 "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
                 "it references is not a static mesh",
                 mesh);
@@ -173,7 +173,7 @@ template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceDataBuffer &
 template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
 {
     for (InstanceDataArrays &instanceData : m_InstanceData)
-        for (u32 j = Geometry_StaticMesh; j < Geometry_Count; ++j)
+        for (u32 j = Geometry_Static; j < Geometry_Count; ++j)
         {
             const Geometry geo = Geometry(j);
             const auto pools = Assets::GetMeshAssetPools<D>(geo);
@@ -221,7 +221,7 @@ void IRenderContext<D>::addStaticMeshData(const Asset mesh, const f32m<D> &trans
     const AssetPool pool = Assets::GetPoolHandle(mesh);
 
     const InstanceData<D> idata = createInstanceData(m_Current, transform, pass);
-    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Geometry_StaticMesh - 1][pool][idx];
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Geometry_Static - 1][pool][idx];
     addInstanceData(buffer, idata);
 }
 

@@ -619,7 +619,7 @@ void RemoveTexture(const Asset tex)
 template <Dimension D> bool IsMeshPoolHandleValid(const Geometry geo, const AssetPool handle)
 {
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         return getData<D>().StaticMeshes.Pools.Contains(handle);
     return false;
 }
@@ -630,7 +630,7 @@ template <Dimension D> bool IsMeshHandleValid(const Geometry geo, const Asset ha
     if (!IsMeshPoolHandleValid<D>(geo, pool))
         return false;
     const u32 idx = GetAssetIndex(handle);
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         return idx < getData<D>().StaticMeshes.Pools[pool].Layouts.GetSize();
     return false;
 }
@@ -692,7 +692,7 @@ template <Dimension D> Result<AssetPool> CreateMeshPool(const Geometry geo)
 {
     if (geo == Geometry_Circle)
         return Result<AssetPool>::Error(Error_BadInput, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
     {
         StatMeshAssetData<D> &meshes = getData<D>().StaticMeshes;
         return createMeshPool(meshes);
@@ -703,7 +703,7 @@ template <Dimension D> Result<AssetPool> CreateMeshPool(const Geometry geo)
 template <Dimension D> void DestroyMeshPool(const Geometry geo, const AssetPool pool)
 {
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         getData<D>().StaticMeshes.ToRemove.Append(pool);
 }
 
@@ -1134,7 +1134,7 @@ template <Dimension D> MeshDataLayout GetMeshLayout(const Geometry geo, const As
 {
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
 
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         return getMeshLayout(handle, getData<D>().StaticMeshes);
     return MeshDataLayout{};
 }
@@ -1142,7 +1142,7 @@ template <Dimension D> MeshDataLayout GetMeshLayout(const Geometry geo, const As
 template <Dimension D> TKit::Span<const u32> GetMeshAssetPools(const Geometry geo)
 {
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         return getData<D>().StaticMeshes.Pools.GetValidIds();
 
     return TKit::Span<const u32>{};
@@ -1166,21 +1166,21 @@ u32 GetBatchCount()
 template <Dimension D> u32 GetMeshCount(const Geometry geo, const AssetPool pool)
 {
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         return getData<D>().StaticMeshes.Pools[pool].Layouts.GetSize();
     return 0;
 }
 template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(const Geometry geo, const AssetPool pool)
 {
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         return &getData<D>().StaticMeshes.Pools[pool].VertexBuffer;
     return nullptr;
 }
 template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(const Geometry geo, const AssetPool pool)
 {
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_StaticMesh)
+    if (geo == Geometry_Static)
         return &getData<D>().StaticMeshes.Pools[pool].IndexBuffer;
     return nullptr;
 }

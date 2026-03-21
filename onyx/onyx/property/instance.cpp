@@ -9,8 +9,8 @@ const char *ToString(Geometry geo)
     {
     case Geometry_Circle:
         return "Geometry_Circle";
-    case Geometry_StaticMesh:
-        return "Geometry_StaticMesh";
+    case Geometry_Static:
+        return "Geometry_Static";
     default:
         return "Unknown";
     }

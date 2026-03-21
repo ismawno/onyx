@@ -51,7 +51,7 @@ TKIT_REFLECT_DECLARE_ENUM(LightType)
 enum Geometry : u8
 {
     Geometry_Circle,
-    Geometry_StaticMesh,
+    Geometry_Static,
     Geometry_Count,
 };
 
@@ -87,7 +87,7 @@ template <Dimension D> u32 GetInstanceSize(const Geometry geo)
     {
     case Geometry_Circle:
         return sizeof(CircleInstanceData<D>);
-    case Geometry_StaticMesh:
+    case Geometry_Static:
         return sizeof(InstanceData<D>);
     default:
         TKIT_FATAL("[ONYX][INSTANCE] Unrecognized geometry type");
