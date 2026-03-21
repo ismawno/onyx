@@ -1861,9 +1861,9 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
         if (ring == 0)
             idx = 0;
         else if (ring == rings - 1)
-            idx = 1 + (rings - 2) * sectors;
+            idx = 1 + (rings - 2) * (sectors + 1);
         else
-            idx = 1 + sector + (ring - 1) * sectors;
+            idx = 1 + sector + (ring - 1) * (sectors + 1);
         data.Indices.Append(Index(idx));
     };
 
@@ -1886,7 +1886,7 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
             addVertex(0.5f * ps * tc, 0.5f * pc, 0.5f * ps * ts, u, v, f32v4{-ts, 0.f, tc, 1.f});
 
             const u32 ii = i - 1;
-            const u32 jj = (j + 1) % sectors;
+            const u32 jj = j + 1;
             addIndex(i, jj);
             addIndex(i, j);
             addIndex(ii, j);
@@ -1897,13 +1897,14 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
                 addIndex(ii, jj);
             }
         }
+        addVertex(0.5f * ps, 0.5f * pc, 0.f, 1.0f, v, f32v4{0.f, 0.f, 1.f, 1.f});
     }
     addVertex(0.f, -0.5f, 0.f, 0.5f, 1.f, f32v4{1.f, 0.f, 0.f, 1.f});
 
     for (u32 j = 0; j < sectors; ++j)
     {
         addIndex(rings - 2, j);
-        addIndex(rings - 2, (j + 1) % sectors);
+        addIndex(rings - 2, j + 1);
         addIndex(rings - 1, j);
     }
 
@@ -1949,13 +1950,15 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
 
         const u32 ii = 2 * i;
         addIndex(ii);
-        addIndex((ii + 2) % (2 * sides));
+        addIndex(ii + 2);
         addIndex(ii + 1);
 
         addIndex(ii + 1);
-        addIndex((ii + 2) % (2 * sides));
-        addIndex((ii + 3) % (2 * sides));
+        addIndex(ii + 2);
+        addIndex(ii + 3);
     }
+    addVertex(-0.5f, 0.5f, 0.f, 1.f, 0.f, f32v4{0.f, 0.f, 1.f, 1.f});
+    addVertex(0.5f, 0.5f, 0.f, 1.f, 1.f, f32v4{0.f, 0.f, 1.f, 1.f});
 
     VALIDATE_MESH(data);
     return data;
