@@ -239,10 +239,14 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
             }
             case Geometry_StaticMesh: {
                 const Asset mesh = lattice.Shape.Mesh;
-                DrawLattice(lattice, [mesh](const f32v<D> &pos, RenderContext<D> *context) {
-                    context->SetTranslation(pos);
-                    context->StaticMesh(mesh);
-                });
+                if (mesh != NullAsset)
+                    DrawLattice(lattice, [mesh](const f32v<D> &pos, RenderContext<D> *context) {
+                        context->SetTranslation(pos);
+                        context->StaticMesh(mesh);
+                    });
+                else
+                    for (RenderContext<D> *ctx : lattice.Contexts)
+                        ctx->Flush();
                 break;
             }
             default:
@@ -1062,6 +1066,14 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
                     if (Assets::GetPoolHandle(ctx.LightMesh) == pool.Handle)
                         ctx.LightMesh = NullAsset;
             }
+            auto &lattices = appLayer->GetLattices<D>();
+            for (LatticeData<D> &lattice : lattices.Lattices)
+            {
+                if (Assets::GetPoolHandle(lattice.StatMesh) == pool.Handle)
+                    lattice.StatMesh = NullAsset;
+                if (Assets::GetPoolHandle(lattice.Shape.Mesh) == pool.Handle)
+                    lattice.Shape.Mesh = NullAsset;
+            }
             if (Assets::GetPoolHandle(meshes.DefaultAxesMesh) == pool.Handle)
                 meshes.DefaultAxesMesh = NullAsset;
             if constexpr (D == D3)
@@ -1100,6 +1112,10 @@ template <Dimension D> void SandboxWinLayer::RenderMaterialPools()
                 if (Assets::GetPoolHandle(ctx.AxesMaterial) == pool.Handle)
                     ctx.AxesMaterial = NullAsset;
             }
+            auto &lattices = appLayer->GetLattices<D>();
+            for (LatticeData<D> &lattice : lattices.Lattices)
+                if (Assets::GetPoolHandle(lattice.Shape.Material) == pool.Handle)
+                    lattice.Shape.Material = NullAsset;
             if (Assets::GetPoolHandle(materials.DefaultAxesMaterial) == pool.Handle)
                 materials.DefaultAxesMaterial = NullAsset;
             if (Assets::GetPoolHandle(materials.DefaultLightMaterial) == pool.Handle)
