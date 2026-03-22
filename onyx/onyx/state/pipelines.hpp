@@ -14,6 +14,8 @@ const VKit::PipelineLayout &GetUnlitPipelineLayout();
 template <Dimension D> const VKit::PipelineLayout &GetLitPipelineLayout();
 template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(Shading shading);
 
+ONYX_NO_DISCARD Result<> ReloadShaders();
+
 template <Dimension D>
 ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateCirclePipeline(StencilPass pass,
                                                                     const VkPipelineRenderingCreateInfoKHR &renderInfo);

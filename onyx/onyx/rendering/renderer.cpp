@@ -329,11 +329,55 @@ ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createGraphicsLightBuffer(
     return result;
 }
 
+template <Dimension D> ONYX_NO_DISCARD static Result<> createPipelines()
+{
+    RendererData<D> &rdata = getRendererData<D>();
+    const VkPipelineRenderingCreateInfoKHR renderInfo = CreatePipelineRenderingCreateInfo();
+    for (u32 i = 0; i < StencilPass_Count; ++i)
+    {
+        const StencilPass pass = StencilPass(i);
+
+        auto result = Pipelines::CreateCirclePipeline<D>(pass, renderInfo);
+        TKIT_RETURN_ON_ERROR(result);
+        rdata.Pipelines[pass][Geometry_Circle] = result.GetValue();
+
+        result = Pipelines::CreateStaticMeshPipeline<D>(pass, renderInfo);
+        TKIT_RETURN_ON_ERROR(result);
+        rdata.Pipelines[pass][Geometry_Static] = result.GetValue();
+
+        result = Pipelines::CreateParametricMeshPipeline<D>(pass, renderInfo);
+        TKIT_RETURN_ON_ERROR(result);
+        rdata.Pipelines[pass][Geometry_Parametric] = result.GetValue();
+
+        if (Core::CanNameObjects())
+        {
+            const std::string circle =
+                TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-Geometry_Circle", u8(D), ToString(pass));
+            const std::string stat =
+                TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Static'", u8(D), ToString(pass));
+            const std::string para = TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Parametric'",
+                                                  u8(D), ToString(pass));
+
+            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Circle].SetName(circle.c_str()));
+            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Static].SetName(stat.c_str()));
+            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Parametric].SetName(para.c_str()));
+        }
+    }
+    return Result<>::Ok();
+}
+
+template <Dimension D> static void destroyPipelines()
+{
+    RendererData<D> &rdata = getRendererData<D>();
+    for (u32 pass = 0; pass < StencilPass_Count; ++pass)
+        for (u32 geo = 0; geo < Geometry_Count; ++geo)
+            if (rdata.Pipelines[pass][geo])
+                rdata.Pipelines[pass][geo].Destroy();
+}
+
 template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
 {
     RendererData<D> &rdata = getRendererData<D>();
-
-    const VkPipelineRenderingCreateInfoKHR renderInfo = CreatePipelineRenderingCreateInfo();
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
         const Geometry geo = Geometry(i);
@@ -371,36 +415,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
             rdata.Descriptors[j][i] = set;
         }
     }
-    for (u32 i = 0; i < StencilPass_Count; ++i)
-    {
-        const StencilPass pass = StencilPass(i);
-
-        auto result = Pipelines::CreateCirclePipeline<D>(pass, renderInfo);
-        TKIT_RETURN_ON_ERROR(result);
-        rdata.Pipelines[pass][Geometry_Circle] = result.GetValue();
-
-        result = Pipelines::CreateStaticMeshPipeline<D>(pass, renderInfo);
-        TKIT_RETURN_ON_ERROR(result);
-        rdata.Pipelines[pass][Geometry_Static] = result.GetValue();
-
-        result = Pipelines::CreateParametricMeshPipeline<D>(pass, renderInfo);
-        TKIT_RETURN_ON_ERROR(result);
-        rdata.Pipelines[pass][Geometry_Parametric] = result.GetValue();
-
-        if (Core::CanNameObjects())
-        {
-            const std::string circle =
-                TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-Geometry_Circle", u8(D), ToString(pass));
-            const std::string stat =
-                TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Static'", u8(D), ToString(pass));
-            const std::string para = TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Parametric'",
-                                                  u8(D), ToString(pass));
-
-            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Circle].SetName(circle.c_str()));
-            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Static].SetName(stat.c_str()));
-            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Parametric].SetName(para.c_str()));
-        }
-    }
+    TKIT_RETURN_IF_FAILED(createPipelines<D>());
 
     for (u32 i = 0; i < LightTypeCount<D>; ++i)
     {
@@ -440,10 +455,7 @@ template <Dimension D> static void terminate()
         arena.Transfer.Buffer.Destroy();
         arena.Graphics.Buffer.Destroy();
     }
-    for (u32 pass = 0; pass < StencilPass_Count; ++pass)
-        for (u32 geo = 0; geo < Geometry_Count; ++geo)
-            if (rdata.Pipelines[pass][geo])
-                rdata.Pipelines[pass][geo].Destroy();
+    destroyPipelines<D>();
 
     TKit::TierAllocator *tier = TKit::GetTier();
     for (RenderContext<D> *context : rdata.Contexts)
@@ -533,6 +545,19 @@ void FlushAllContexts()
 {
     flushAllContexts<D2>();
     flushAllContexts<D3>();
+}
+
+template <Dimension D> ONYX_NO_DISCARD static Result<> reloadPipelines()
+{
+    destroyPipelines<D>();
+    return createPipelines<D>();
+}
+
+Result<> ReloadPipelines()
+{
+    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    TKIT_RETURN_IF_FAILED(reloadPipelines<D2>());
+    return reloadPipelines<D3>();
 }
 
 template <Dimension D> void UpdateViewMask(const RenderContext<D> *context)

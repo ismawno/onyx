@@ -4,6 +4,7 @@
 #    include "onyx/imgui/imgui.hpp"
 #    include <misc/cpp/imgui_stdlib.h>
 #endif
+#include "onyx/state/pipelines.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/multiprocessing/topology.hpp"
@@ -598,6 +599,11 @@ void SandboxWinLayer::RenderImGui()
 #    ifdef ONYX_ENABLE_IMPLOT
         ImGui::Checkbox("Toggle ImPlot demo window", &ImPlotDemoWindow);
 #    endif
+        if (ImGui::Button("Reload shaders"))
+        {
+            ONYX_CHECK_EXPRESSION(Pipelines::ReloadShaders());
+            ONYX_CHECK_EXPRESSION(Renderer::ReloadPipelines());
+        }
     }
     ImGui::End();
 

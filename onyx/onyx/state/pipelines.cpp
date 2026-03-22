@@ -336,6 +336,20 @@ ONYX_NO_DISCARD static Result<> createShaders()
     return Result<>::Ok();
 }
 
+static void destroyShaders()
+{
+    s_FillShaders2->Destroy();
+    s_FillShaders3->Destroy();
+    s_StencilShaders2->Destroy();
+    s_StencilShaders3->Destroy();
+}
+
+Result<> ReloadShaders()
+{
+    destroyShaders();
+    return createShaders();
+}
+
 Result<> Initialize()
 {
     TKIT_LOG_INFO("[ONYX][PIPELINES] Initializing");
@@ -352,10 +366,7 @@ Result<> Initialize()
 }
 void Terminate()
 {
-    s_FillShaders2->Destroy();
-    s_FillShaders3->Destroy();
-    s_StencilShaders2->Destroy();
-    s_StencilShaders3->Destroy();
+    destroyShaders();
     s_UnlitPipLayout->Destroy();
     s_LitPipLayout2->Destroy();
     s_LitPipLayout3->Destroy();

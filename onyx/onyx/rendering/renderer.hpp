@@ -38,6 +38,7 @@ VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo();
 template <Dimension D> ONYX_NO_DISCARD Result<RenderContext<D> *> CreateContext();
 template <Dimension D> void DestroyContext(RenderContext<D> *context);
 void FlushAllContexts();
+ONYX_NO_DISCARD Result<> ReloadPipelines();
 
 template <Dimension D> void UpdateViewMask(const RenderContext<D> *context);
 
