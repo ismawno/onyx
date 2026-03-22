@@ -5,7 +5,7 @@
 #include "onyx/platform/platform.hpp"
 #include "onyx/property/color.hpp"
 #include "onyx/property/camera.hpp"
-#include "onyx/property/options.hpp"
+#include "onyx/property/parameters.hpp"
 #include "onyx/execution/execution.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "vkit/presentation/swap_chain.hpp"
@@ -144,7 +144,7 @@ class Window
         return camera;
     }
 
-    template <Dimension D> Camera<D> *CreateCamera(const CameraOptions &options)
+    template <Dimension D> Camera<D> *CreateCamera(const CameraParameters &options)
     {
         Camera<D> *camera = CreateCamera<D>();
         camera->SetViewport(options.Viewport);

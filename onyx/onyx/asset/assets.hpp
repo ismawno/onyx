@@ -39,8 +39,9 @@ enum LoadTextureDataFlagBit : LoadTextureDataFlags
 template <Dimension D> struct GltfAssets
 {
     TKit::TierArray<StatMeshData<D>> StaticMeshes{};
-    // here texture handles refer to the Textures attribute in GltfAssets, not to any Asset handle!! AddGltfAssets
-    // modifies material data so that it actually points to real textures
+    // here texture handles inside materials refer to the Textures attribute in GltfAssets, not to any real Asset
+    // handle!! AddGltfAssets modifies this material data so that it actually points to real textures (thats why it is
+    // taken as a non-const lvalue)
     TKit::TierArray<MaterialData<D>> Materials{};
     TKit::TierArray<SamplerData> Samplers{};
     TKit::TierArray<TextureData> Textures{};
@@ -105,7 +106,10 @@ template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateMeshPool(Geometry
 template <Dimension D> void DestroyMeshPool(Geometry geo, AssetPool pool);
 
 template <Dimension D> Asset AddMesh(AssetPool pool, const StatMeshData<D> &data);
+template <Dimension D> Asset AddMesh(AssetPool pool, const ParaMeshData<D> &data);
+
 template <Dimension D> void UpdateMesh(Asset handle, const StatMeshData<D> &data);
+template <Dimension D> void UpdateMesh(Asset handle, const ParaMeshData<D> &data);
 
 template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateMaterialPool();
 template <Dimension D> void DestroyMaterialPool(AssetPool handle);
@@ -128,6 +132,9 @@ inline Asset GetAssetHandle(const AssetPool pool, const u32 assetIdx)
 }
 
 template <Dimension D> StatMeshData<D> GetStaticMeshData(Asset handle);
+template <Dimension D> ParaMeshData<D> GetParametricMeshData(Asset handle);
+template <Dimension D> ParametricShape GetParametricShape(Asset handle);
+
 template <Dimension D> const MaterialData<D> &GetMaterialData(Asset handle);
 const TextureData &GetTextureData(Asset handle);
 
@@ -162,14 +169,14 @@ ONYX_NO_DISCARD Result<TextureData> LoadTextureDataFromImageFile(
 #endif
 
 template <Dimension D> StatMeshData<D> CreateTriangleMesh();
-template <Dimension D> StatMeshData<D> CreateSquareMesh();
+template <Dimension D> StatMeshData<D> CreateQuadMesh();
 template <Dimension D> StatMeshData<D> CreateRegularPolygonMesh(u32 sides);
 template <Dimension D> StatMeshData<D> CreatePolygonMesh(TKit::Span<const f32v2> vertices);
 
-StatMeshData<D3> CreateCubeMesh();
+StatMeshData<D3> CreateBoxMesh();
 StatMeshData<D3> CreateSphereMesh(u32 rings = 16, u32 sectors = 32);
 StatMeshData<D3> CreateCylinderMesh(u32 sides = 32);
 
-// move to renderer
+template <Dimension D> ParaMeshData<D> CreateStadiumMesh(u32 sides = 16);
 
 } // namespace Onyx::Assets

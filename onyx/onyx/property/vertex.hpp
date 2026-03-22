@@ -59,6 +59,53 @@ template <> struct StatVertex<D3>
     }
 };
 
+enum StadiumTag : u32
+{
+    StadiumTag_Body,
+    StadiumTag_Moon
+};
+
+union ParametricTag {
+    StadiumTag Stadium;
+};
+
+template <Dimension D> struct ParaVertex;
+template <> struct ParaVertex<D2>
+{
+    TKIT_REFLECT_DECLARE(ParaVertex)
+    TKIT_YAML_SERIALIZE_DECLARE(ParaVertex)
+
+    TKIT_REFLECT_IGNORE_BEGIN()
+    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
+    static constexpr Geometry Geo = Geometry_Parametric;
+    static constexpr Dimension Dim = D2;
+    TKIT_YAML_SERIALIZE_IGNORE_END()
+    TKIT_REFLECT_IGNORE_END()
+
+    f32v2 Position;
+    f32v2 TexCoord;
+    ParametricTag Tag;
+};
+
+template <> struct ParaVertex<D3>
+{
+    TKIT_REFLECT_DECLARE(ParaVertex)
+    TKIT_YAML_SERIALIZE_DECLARE(ParaVertex)
+
+    TKIT_REFLECT_IGNORE_BEGIN()
+    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
+    static constexpr Geometry Geo = Geometry_Parametric;
+    static constexpr Dimension Dim = D3;
+    TKIT_YAML_SERIALIZE_IGNORE_END()
+    TKIT_REFLECT_IGNORE_END()
+
+    f32v3 Position;
+    f32v2 TexCoord;
+    f32v3 Normal;
+    f32v4 Tangent;
+    ParametricTag Tag;
+};
+
 } // namespace Onyx
 
 template <> struct std::hash<Onyx::StatVertex<Onyx::D2>>

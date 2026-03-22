@@ -4,6 +4,7 @@ struct VertexInput
 {
     f32v2 Position : POSITION;
     f32v2 TexCoord : TEXCOORD0;
+    u32 Shape;
 }
 
 struct VertexOutput
@@ -21,7 +22,7 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<StaticInstanceDataFill2D, Std430DataLayout> g_Instances;
+StructuredBuffer<ParametricInstanceDataFill2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -40,7 +41,7 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const StaticInstanceDataFill2D data = g_Instances[instanceIndex];
+    const StaticInstanceDataFill2D data = g_Instances[instanceIndex].Data;
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
     const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
@@ -72,14 +73,14 @@ PointLights2D g_PointLights;
 f32v4 mainFS(const VertexOutput input)
 {
     const f32v3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
-    if (input.MatHandle != NullAsset)
+    if (input.MatHandle != u32(-1))
     {
         const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
         const u32 matIdx = GetMaterialIndex(input.MatHandle);
 
         const Material2D mat = g_Materials[poolIdx][matIdx];
 
-        if (mat.Texture == NullAsset || mat.Sampler == NullAsset)
+        if (mat.Texture == u32(-1) || mat.Sampler == u32(-1))
             return input.FragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, 1.f);
 
         const f32v4 tex = g_Textures[mat.Texture].Sample(g_Samplers[mat.Sampler], input.TexCoord);

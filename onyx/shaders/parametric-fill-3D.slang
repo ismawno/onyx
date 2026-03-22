@@ -1,29 +1,32 @@
 #include "utils.slang"
 
+struct VertexInput
+{
+    f32v3 Position : POSITION;
+    f32v2 TexCoord : TEXCOORD0;
+    f32v3 Normal : NORMAL;
+    f32v4 Tangent : TANGENT;
+    u32 Shape;
+}
+
 struct VertexOutput
 {
     [[vk::location(0)]]
-    f32v2 LocalPosition;
+    f32v3 WorldPosition;
     [[vk::location(1)]]
     f32v2 TexCoord;
     [[vk::location(2)]]
-    f32v3 WorldPosition;
-    [[vk::location(3)]]
     nointerpolation u32 MatHandle;
+    [[vk::location(3)]]
+    f32v4 FragColor;
     [[vk::location(4)]]
-    nointerpolation ArcData Arc;
-    [[vk::location(7)]]
-    nointerpolation f32v2 Fade;
-    [[vk::location(8)]]
-    nointerpolation f32v4 FragColor;
-    [[vk::location(9)]]
     f32m3 TBN;
 
     f32v4 Position : SV_Position;
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<CircleInstanceDataFill3D, Std430DataLayout> g_InstanceBuffer;
+StructuredBuffer<ParametricInstanceDataFill3D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -34,64 +37,34 @@ struct PushConstants
 [[vk::push_constant]]
 PushConstants g_PushData;
 
-
-static const f32v2 g_Positions[6] =
-{
-    f32v2(-0.5, -0.5),
-    f32v2( 0.5, -0.5),
-    f32v2(-0.5,  0.5),
-    f32v2( 0.5, -0.5),
-    f32v2( 0.5,  0.5),
-    f32v2(-0.5,  0.5),
-};
-
-static const f32v2 g_TexCoords[6] =
-{
-    f32v2(0.0, 1.0),
-    f32v2(1.0, 1.0),
-    f32v2(0.0, 0.0),
-    f32v2(1.0, 1.0),
-    f32v2(1.0, 0.0),
-    f32v2(0.0, 0.0)
-};
-
 [shader("vertex")]
 VertexOutput mainVS(
-    const u32 vertexId : SV_VertexID,
-    const u32 baseVertex : SV_StartVertexLocation,
+    const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
 {
-    const u32 vertexIndex = vertexId + baseVertex;
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const CircleInstanceDataFill3D data = g_InstanceBuffer[instanceIndex];
-    const f32m4 transform = ComputeTransform3D(data.Data.Basis);
+    const StaticInstanceDataFill3D data = g_Instances[instanceIndex].Data;
 
-    const f32v2 localPos = g_Positions[vertexIndex];
-    const f32v4 worldPos = mul(f32v4(localPos, 0.0, 1.0), transform);
+    const f32m4 transform = ComputeTransform3D(data.Basis);
+    const f32v4 worldPos = mul(f32v4(input.Position, 1.0), transform);
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
-    output.TexCoord = g_TexCoords[vertexIndex];
 
     const f32m3 normalMatrix = ComputeNormalMatrix(f32m3(transform));
-    const f32v3 N = normalize(normalMatrix[2]);
-    const f32v3 T = normalize(normalMatrix[0]);
-    const f32v3 B = cross(N, T);
+
+    const f32v3 N = normalize(mul(input.Normal, normalMatrix));
+    const f32v3 T = normalize(mul(input.Tangent.xyz, normalMatrix));
+
+    const f32v3 B = cross(N, T) * input.Tangent.w;
     output.TBN = f32m3(T, B, N);
 
-    output.LocalPosition = localPos;
     output.WorldPosition = worldPos.xyz;
-    output.MatHandle = data.Data.MatHandle;
-
-    output.Arc.CosSin = f32v4(data.Arc.LowerCos, data.Arc.LowerSin, data.Arc.UpperCos, data.Arc.UpperSin);
-    output.Arc.AngleOverflow = data.Arc.AngleOverflow;
-    output.Arc.Hollowness = data.Arc.Hollowness;
-
-    output.Fade = f32v2(data.Fade.InnerFade, data.Fade.OuterFade);
-
-    output.FragColor = unpackUnorm4x8ToFloat(data.Data.Color);
+    output.TexCoord = input.TexCoord;
+    output.MatHandle = data.MatHandle;
+    output.FragColor = unpackUnorm4x8ToFloat(data.Color);
 
     return output;
 }
@@ -114,16 +87,12 @@ DirectionalLights g_DirLights;
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
 {
-    const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
-    if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
-
-    if (input.MatHandle != NullAsset)
+    if (input.MatHandle != u32(-1))
     {
         const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
         const u32 matIdx = GetMaterialIndex(input.MatHandle);
 
         const Material3D mat = g_Materials[poolIdx][matIdx];
-
         MaterialInfo3D info;
         info.Points = g_PointLights;
         info.Directionals = g_DirLights;
@@ -135,11 +104,11 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
         info.Occlusion = 1.0;
 
         // Albedo
-        if (mat.AlbedoSamp != NullAsset && mat.AlbedoTex != NullAsset)
+        if (mat.AlbedoSamp != u32(-1) && mat.AlbedoTex != u32(-1))
             info.Albedo *= g_Textures[mat.AlbedoTex].Sample(g_Samplers[mat.AlbedoSamp], input.TexCoord);
 
         // Normal map
-        if (mat.NormalSamp != NullAsset && mat.NormalTex != NullAsset)
+        if (mat.NormalSamp != u32(-1) && mat.NormalTex != u32(-1))
         {
             f32v3 sampledNormal = g_Textures[mat.NormalTex].Sample(g_Samplers[mat.NormalSamp], input.TexCoord).xyz;
             sampledNormal = sampledNormal * 2.0 - 1.0; // unpack from [0,1] to [-1,1]
@@ -152,7 +121,7 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
             info.Normal = -info.Normal;
 
         // Metallic/Roughness (glTF convention: G = roughness, B = metallic)
-        if (mat.MetallicRoughnessSamp != NullAsset && mat.MetallicRoughnessTex != NullAsset)
+        if (mat.MetallicRoughnessSamp != u32(-1) && mat.MetallicRoughnessTex != u32(-1))
         {
             const f32v4 mr = g_Textures[mat.MetallicRoughnessTex].Sample(g_Samplers[mat.MetallicRoughnessSamp], input.TexCoord);
             info.Roughness *= mr.g;
@@ -160,21 +129,19 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
         }
 
         // Occlusion (R channel)
-        if (mat.OcclusionSamp != NullAsset && mat.OcclusionTex != NullAsset)
+        if (mat.OcclusionSamp != u32(-1) && mat.OcclusionTex != u32(-1))
         {
             const f32 sampledOcclusion = g_Textures[mat.OcclusionTex].Sample(g_Samplers[mat.OcclusionSamp], input.TexCoord).r;
             info.Occlusion = 1.0 + mat.OcclusionStrength * (sampledOcclusion - 1.0);
         }
 
         // Emissive
-        if (mat.EmissiveSamp != NullAsset && mat.EmissiveTex != NullAsset)
+        if (mat.EmissiveSamp != u32(-1) && mat.EmissiveTex != u32(-1))
             info.Emissive *= g_Textures[mat.EmissiveTex].Sample(g_Samplers[mat.EmissiveSamp], input.TexCoord).rgb;
 
         const f32v3 lcolor = GetLightColor3D(g_PushData.LightData, info);
-        const f32 alpha = CircleFade(input.FragColor.a, bounds, input.Fade);
-        return input.FragColor * f32v4(lcolor, info.Albedo.w * alpha);
+        return input.FragColor * f32v4(lcolor, info.Albedo.w);
     }
-
     return input.FragColor;
 }
 

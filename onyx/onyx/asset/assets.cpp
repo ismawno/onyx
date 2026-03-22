@@ -9,6 +9,7 @@
 #include "tkit/container/arena_hive.hpp"
 #include "tkit/container/static_hive.hpp"
 #include "tkit/container/stack_array.hpp"
+#include "tkit/container/dynamic_array.hpp"
 #ifdef ONYX_ENABLE_OBJ_LOAD
 #    define TINYOBJLOADER_IMPLEMENTATION
 #    include <tiny_obj_loader.h>
@@ -46,13 +47,26 @@ enum StatusFlagBit : StatusFlags
     StatusFlag_MustFreeTexture = 1 << 6,
 };
 
-struct DataLayout
+template <typename Vertex> struct MeshDataInfo
 {
     u32 VertexStart;
     u32 VertexCount;
     u32 IndexStart;
     u32 IndexCount;
     StatusFlags Flags;
+};
+
+template <Dimension D> using StatMeshDataInfo = MeshDataInfo<StatVertex<D>>;
+template <Dimension D> using ParaMeshDataInfo = MeshDataInfo<ParaVertex<D>>;
+
+template <Dimension D> struct MeshDataInfo<ParaVertex<D>>
+{
+    u32 VertexStart;
+    u32 VertexCount;
+    u32 IndexStart;
+    u32 IndexCount;
+    StatusFlags Flags;
+    ParametricShape Shape;
 };
 
 struct BatchRange
@@ -67,24 +81,25 @@ template <typename Vertex> struct MeshPoolData
 {
     VKit::DeviceBuffer VertexBuffer{};
     VKit::DeviceBuffer IndexBuffer{};
-    TKit::TierArray<DataLayout> Layouts{};
-    MeshData<Vertex> Meshes{};
+    TKit::TierArray<MeshDataInfo<Vertex>> Info{};
+    TKit::DynamicArray<Vertex> Vertices{};
+    TKit::DynamicArray<Index> Indices{};
 
     u32 GetVertexCount(u32 size = TKIT_U32_MAX) const
     {
-        if (Layouts.IsEmpty() || size == 0)
+        if (Info.IsEmpty() || size == 0)
             return 0;
         if (size == TKIT_U32_MAX)
-            size = Layouts.GetSize();
-        return Layouts[size - 1].VertexStart + Layouts[size - 1].VertexCount;
+            size = Info.GetSize();
+        return Info[size - 1].VertexStart + Info[size - 1].VertexCount;
     }
     u32 GetIndexCount(u32 size = TKIT_U32_MAX) const
     {
-        if (Layouts.IsEmpty() || size == 0)
+        if (Info.IsEmpty() || size == 0)
             return 0;
         if (size == TKIT_U32_MAX)
-            size = Layouts.GetSize();
-        return Layouts[size - 1].IndexStart + Layouts[size - 1].IndexCount;
+            size = Info.GetSize();
+        return Info[size - 1].IndexStart + Info[size - 1].IndexCount;
     }
 };
 
@@ -96,6 +111,9 @@ template <typename Vertex> struct MeshAssetData
 
 template <Dimension D> using StatMeshPoolData = MeshPoolData<StatVertex<D>>;
 template <Dimension D> using StatMeshAssetData = MeshAssetData<StatVertex<D>>;
+
+template <Dimension D> using ParaMeshPoolData = MeshPoolData<ParaVertex<D>>;
+template <Dimension D> using ParaMeshAssetData = MeshAssetData<ParaVertex<D>>;
 
 template <Dimension D> struct MaterialPoolData
 {
@@ -141,6 +159,7 @@ struct TextureAssetData
 template <Dimension D> struct AssetData
 {
     StatMeshAssetData<D> StaticMeshes{};
+    ParaMeshAssetData<D> ParametricMeshes{};
     MaterialAssetData<D> Materials{};
 };
 
@@ -183,8 +202,8 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshPoolDat
                        icount * sizeof(Index), mpool.IndexBuffer.GetInfo().Size);
     }
     if (flags)
-        for (DataLayout &layout : mpool.Layouts)
-            layout.Flags |= flags;
+        for (MeshDataInfo<Vertex> &info : mpool.Info)
+            info.Flags |= flags;
     return Result<>::Ok();
 }
 
@@ -233,7 +252,7 @@ ONYX_NO_DISCARD static Result<> uploadVertexRange(MeshPoolData<Vertex> &mpool, c
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    return mpool.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), mpool.Meshes.Vertices.GetData(),
+    return mpool.VertexBuffer.UploadFromHost(pool, queue->GetHandle(), mpool.Vertices.GetData(),
                                              {.srcOffset = voffset, .dstOffset = voffset, .size = vsize});
 }
 template <typename Vertex>
@@ -249,21 +268,21 @@ ONYX_NO_DISCARD static Result<> uploadIndexRange(MeshPoolData<Vertex> &mpool, co
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    return mpool.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), mpool.Meshes.Indices.GetData(),
+    return mpool.IndexBuffer.UploadFromHost(pool, queue->GetHandle(), mpool.Indices.GetData(),
                                             {.srcOffset = ioffset, .dstOffset = ioffset, .size = isize});
 }
 
 template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshPool(MeshPoolData<Vertex> &mpool)
 {
-    if (mpool.Layouts.IsEmpty())
+    if (mpool.Info.IsEmpty())
         return Result<>::Ok();
     const auto checkFlags = [&mpool](const u32 index, const StatusFlags flags) {
-        return flags & mpool.Layouts[index].Flags;
+        return flags & mpool.Info[index].Flags;
     };
 
     TKIT_RETURN_IF_FAILED(checkSize(mpool));
 
-    auto &layouts = mpool.Layouts;
+    auto &layouts = mpool.Info;
     for (u32 i = 0; i < layouts.GetSize(); ++i)
         if (checkFlags(i, StatusFlag_UpdateVertex))
             for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
@@ -282,8 +301,8 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshPool(MeshPo
                     i = j;
                     break;
                 }
-    for (DataLayout &layout : layouts)
-        layout.Flags = 0;
+    for (MeshDataInfo<Vertex> &info : layouts)
+        info.Flags = 0;
     return Result<>::Ok();
 }
 
@@ -395,6 +414,7 @@ template <Dimension D> static void terminate()
 {
     AssetData<D> &data = getData<D>();
     terminateMaterials<D>();
+    terminate(data.ParametricMeshes);
     terminate(data.StaticMeshes);
 }
 
@@ -621,6 +641,8 @@ template <Dimension D> bool IsMeshPoolHandleValid(const Geometry geo, const Asse
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
     if (geo == Geometry_Static)
         return getData<D>().StaticMeshes.Pools.Contains(handle);
+    else if (geo == Geometry_Parametric)
+        return getData<D>().ParametricMeshes.Pools.Contains(handle);
     return false;
 }
 
@@ -631,7 +653,9 @@ template <Dimension D> bool IsMeshHandleValid(const Geometry geo, const Asset ha
         return false;
     const u32 idx = GetAssetIndex(handle);
     if (geo == Geometry_Static)
-        return idx < getData<D>().StaticMeshes.Pools[pool].Layouts.GetSize();
+        return idx < getData<D>().StaticMeshes.Pools[pool].Info.GetSize();
+    else if (geo == Geometry_Parametric)
+        return idx < getData<D>().ParametricMeshes.Pools[pool].Info.GetSize();
     return false;
 }
 
@@ -693,10 +717,9 @@ template <Dimension D> Result<AssetPool> CreateMeshPool(const Geometry geo)
     if (geo == Geometry_Circle)
         return Result<AssetPool>::Error(Error_BadInput, "[ONYX][ASSETS] Circles are not considered meshes");
     if (geo == Geometry_Static)
-    {
-        StatMeshAssetData<D> &meshes = getData<D>().StaticMeshes;
-        return createMeshPool(meshes);
-    }
+        return createMeshPool(getData<D>().StaticMeshes);
+    else if (geo == Geometry_Parametric)
+        return createMeshPool(getData<D>().ParametricMeshes);
     return NullAssetPool;
 }
 
@@ -705,24 +728,28 @@ template <Dimension D> void DestroyMeshPool(const Geometry geo, const AssetPool 
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
     if (geo == Geometry_Static)
         getData<D>().StaticMeshes.ToRemove.Append(pool);
+    else if (geo == Geometry_Parametric)
+        getData<D>().ParametricMeshes.ToRemove.Append(pool);
 }
 
 template <typename Vertex>
 static Asset addMesh(const AssetPool pool, MeshAssetData<Vertex> &meshes, const MeshData<Vertex> &data)
 {
     MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
-    const u32 idx = mpool.Layouts.GetSize();
-    DataLayout layout;
-    layout.VertexStart = mpool.GetVertexCount();
-    layout.VertexCount = data.Vertices.GetSize();
-    layout.IndexStart = mpool.GetIndexCount();
-    layout.IndexCount = data.Indices.GetSize();
-    layout.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+    const u32 idx = mpool.Info.GetSize();
+    MeshDataInfo<Vertex> info;
+    info.VertexStart = mpool.GetVertexCount();
+    info.VertexCount = data.Vertices.GetSize();
+    info.IndexStart = mpool.GetIndexCount();
+    info.IndexCount = data.Indices.GetSize();
+    info.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+    if constexpr (Vertex::Geo == Geometry_Parametric)
+        info.Shape = data.Shape;
 
-    mpool.Layouts.Append(layout);
+    mpool.Info.Append(info);
 
-    auto &vertices = mpool.Meshes.Vertices;
-    auto &indices = mpool.Meshes.Indices;
+    auto &vertices = mpool.Vertices;
+    auto &indices = mpool.Indices;
     vertices.Insert(vertices.end(), data.Vertices.begin(), data.Vertices.end());
     indices.Insert(indices.end(), data.Indices.begin(), data.Indices.end());
 
@@ -733,6 +760,10 @@ template <Dimension D> Asset AddMesh(const AssetPool pool, const StatMeshData<D>
 {
     return addMesh(pool, getData<D>().StaticMeshes, data);
 }
+template <Dimension D> Asset AddMesh(const AssetPool pool, const ParaMeshData<D> &data)
+{
+    return addMesh(pool, getData<D>().ParametricMeshes, data);
+}
 
 template <typename Vertex>
 static void updateMesh(const Asset handle, MeshAssetData<Vertex> &meshes, const MeshData<Vertex> &data)
@@ -742,21 +773,28 @@ static void updateMesh(const Asset handle, MeshAssetData<Vertex> &meshes, const 
 
     MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
 
-    DataLayout &layout = mpool.Layouts[idx];
+    MeshDataInfo<Vertex> &info = mpool.Info[idx];
     TKIT_ASSERT(
-        data.Vertices.GetSize() == layout.VertexCount && data.Indices.GetSize() == layout.IndexCount,
+        data.Vertices.GetSize() == info.VertexCount && data.Indices.GetSize() == info.IndexCount,
         "[ONYX][ASSETS] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
         "same. If they are not, you must create a new mesh");
 
-    TKit::ForwardCopy(mpool.Meshes.Vertices.begin() + layout.VertexStart, data.Vertices.begin(), data.Vertices.end());
-    TKit::ForwardCopy(mpool.Meshes.Indices.begin() + layout.IndexStart, data.Indices.begin(), data.Indices.end());
+    TKit::ForwardCopy(mpool.Vertices.begin() + info.VertexStart, data.Vertices.begin(), data.Vertices.end());
+    TKit::ForwardCopy(mpool.Indices.begin() + info.IndexStart, data.Indices.begin(), data.Indices.end());
 
-    layout.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+    if constexpr (Vertex::Geo == Geometry_Parametric)
+        info.Shape = data.Shape;
+
+    info.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
 }
 
 template <Dimension D> void UpdateMesh(const Asset handle, const StatMeshData<D> &data)
 {
     return updateMesh(handle, getData<D>().StaticMeshes, data);
+}
+template <Dimension D> void UpdateMesh(const Asset handle, const ParaMeshData<D> &data)
+{
+    return updateMesh(handle, getData<D>().ParametricMeshes, data);
 }
 
 template <Dimension D> Result<AssetPool> CreateMaterialPool()
@@ -816,17 +854,18 @@ template <typename Vertex> static MeshData<Vertex> getMeshData(const Asset handl
     MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
 
     MeshData<Vertex> data{};
-    const DataLayout &layout = mpool.Layouts[idx];
+    const MeshDataInfo<Vertex> &info = mpool.Info[idx];
 
-    const u32 vstart = layout.VertexStart;
-    const u32 vend = vstart + layout.VertexCount;
+    const u32 vstart = info.VertexStart;
+    const u32 vend = vstart + info.VertexCount;
 
-    const u32 istart = layout.IndexStart;
-    const u32 iend = vstart + layout.IndexCount;
+    const u32 istart = info.IndexStart;
+    const u32 iend = vstart + info.IndexCount;
 
-    const auto &m = mpool.Meshes;
-    data.Vertices.Insert(data.Vertices.end(), m.Vertices.begin() + vstart, m.Vertices.begin() + vend);
-    data.Indices.Insert(data.Indices.end(), m.Indices.begin() + istart, m.Indices.begin() + iend);
+    data.Vertices.Insert(data.Vertices.end(), mpool.Vertices.begin() + vstart, mpool.Vertices.begin() + vend);
+    data.Indices.Insert(data.Indices.end(), mpool.Indices.begin() + istart, mpool.Indices.begin() + iend);
+    if constexpr (Vertex::Geo == Geometry_Parametric)
+        data.Shape = info.Shape;
 
     return data;
 }
@@ -834,6 +873,18 @@ template <typename Vertex> static MeshData<Vertex> getMeshData(const Asset handl
 template <Dimension D> StatMeshData<D> GetStaticMeshData(const Asset handle)
 {
     return getMeshData(handle, getData<D>().StaticMeshes);
+}
+template <Dimension D> ParaMeshData<D> GetParametricMeshData(const Asset handle)
+{
+    return getMeshData(handle, getData<D>().ParametricMeshes);
+}
+template <Dimension D> ParametricShape GetParametricShape(const Asset handle)
+{
+    const u32 idx = GetAssetIndex(handle);
+    const AssetPool pool = GetPoolHandle(handle);
+
+    ParaMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pool];
+    return mpool.Info[idx].Shape;
 }
 template <Dimension D> const MaterialData<D> &GetMaterialData(const Asset handle)
 {
@@ -864,6 +915,7 @@ Result<> Unlock()
 template <Dimension D> ONYX_NO_DISCARD static Result<> upload()
 {
     TKIT_RETURN_IF_FAILED(uploadMeshData(getData<D>().StaticMeshes));
+    TKIT_RETURN_IF_FAILED(uploadMeshData(getData<D>().ParametricMeshes));
     return uploadMaterialData<D>();
 }
 
@@ -1123,11 +1175,11 @@ template <typename Vertex> static MeshDataLayout getMeshLayout(const Asset handl
     const u32 idx = GetAssetIndex(handle);
     const AssetPool pool = GetPoolHandle(handle);
 
-    const DataLayout &layout = meshes.Pools[pool].Layouts[idx];
-    return MeshDataLayout{.VertexStart = layout.VertexStart,
-                          .VertexCount = layout.VertexCount,
-                          .IndexStart = layout.IndexStart,
-                          .IndexCount = layout.IndexCount};
+    const MeshDataInfo<Vertex> &info = meshes.Pools[pool].Info[idx];
+    return MeshDataLayout{.VertexStart = info.VertexStart,
+                          .VertexCount = info.VertexCount,
+                          .IndexStart = info.IndexStart,
+                          .IndexCount = info.IndexCount};
 }
 
 template <Dimension D> MeshDataLayout GetMeshLayout(const Geometry geo, const Asset handle)
@@ -1136,15 +1188,19 @@ template <Dimension D> MeshDataLayout GetMeshLayout(const Geometry geo, const As
 
     if (geo == Geometry_Static)
         return getMeshLayout(handle, getData<D>().StaticMeshes);
+    else if (geo == Geometry_Parametric)
+        return getMeshLayout(handle, getData<D>().ParametricMeshes);
     return MeshDataLayout{};
 }
 
 template <Dimension D> TKit::Span<const u32> GetMeshAssetPools(const Geometry geo)
 {
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
+
     if (geo == Geometry_Static)
         return getData<D>().StaticMeshes.Pools.GetValidIds();
-
+    else if (geo == Geometry_Parametric)
+        return getData<D>().ParametricMeshes.Pools.GetValidIds();
     return TKit::Span<const u32>{};
 }
 
@@ -1152,22 +1208,27 @@ template <typename Vertex> static u32 getMeshBatchCount(const MeshAssetData<Vert
 {
     u32 count = 0;
     for (const MeshPoolData<Vertex> &mpool : meshes.Pools)
-        count += mpool.Layouts.GetSize();
+        count += mpool.Info.GetSize();
     return count;
 }
 
 u32 GetBatchCount()
 {
-    u32 count = 1;
+    u32 count = 1; // circles
     count += getMeshBatchCount(getData<D2>().StaticMeshes);
     count += getMeshBatchCount(getData<D3>().StaticMeshes);
+
+    count += getMeshBatchCount(getData<D2>().ParametricMeshes);
+    count += getMeshBatchCount(getData<D3>().ParametricMeshes);
     return count;
 }
 template <Dimension D> u32 GetMeshCount(const Geometry geo, const AssetPool pool)
 {
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
     if (geo == Geometry_Static)
-        return getData<D>().StaticMeshes.Pools[pool].Layouts.GetSize();
+        return getData<D>().StaticMeshes.Pools[pool].Info.GetSize();
+    else if (geo == Geometry_Parametric)
+        return getData<D>().ParametricMeshes.Pools[pool].Info.GetSize();
     return 0;
 }
 template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(const Geometry geo, const AssetPool pool)
@@ -1175,6 +1236,8 @@ template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(const Geome
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
     if (geo == Geometry_Static)
         return &getData<D>().StaticMeshes.Pools[pool].VertexBuffer;
+    else if (geo == Geometry_Parametric)
+        return &getData<D>().ParametricMeshes.Pools[pool].VertexBuffer;
     return nullptr;
 }
 template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(const Geometry geo, const AssetPool pool)
@@ -1182,6 +1245,8 @@ template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(const Geomet
     TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
     if (geo == Geometry_Static)
         return &getData<D>().StaticMeshes.Pools[pool].IndexBuffer;
+    else if (geo == Geometry_Parametric)
+        return &getData<D>().ParametricMeshes.Pools[pool].IndexBuffer;
     return nullptr;
 }
 
@@ -1665,7 +1730,7 @@ template <Dimension D> StatMeshData<D> CreateTriangleMesh()
     VALIDATE_MESH(data);
     return data;
 }
-template <Dimension D> StatMeshData<D> CreateSquareMesh()
+template <Dimension D> StatMeshData<D> CreateQuadMesh()
 {
     StatMeshData<D> data{};
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v) {
@@ -1785,7 +1850,7 @@ template <Dimension D> StatMeshData<D> CreatePolygonMesh(const TKit::Span<const 
     return data;
 }
 
-StatMeshData<D3> CreateCubeMesh()
+StatMeshData<D3> CreateBoxMesh()
 {
     StatMeshData<D3> data{};
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 n0, const f32 n1, const f32 n2,
@@ -1964,6 +2029,62 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
     return data;
 }
 
+template <Dimension D> ParaMeshData<D> CreateStadiumMesh(const u32 sides)
+{
+    TKIT_ASSERT(sides >= 3, "[ONYX][ASSETS] A stadium requires at least 3 sides");
+    ParaMeshData<D> data{};
+    data.Shape = ParametricShape_Stadium;
+    const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v, const StadiumTag tag) {
+        if constexpr (D == D2)
+            data.Vertices.Append(ParaVertex<D2>{f32v2{x, y}, f32v2{u, v}, {.Stadium = tag}});
+        else
+            data.Vertices.Append(ParaVertex<D3>{
+                f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}, {.Stadium = tag}});
+    };
+    const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
+
+    addVertex(-0.5f, -0.5f, 0.f, 1.f, StadiumTag_Body);
+    addVertex(0.5f, -0.5f, 0.75f, 1.f, StadiumTag_Body);
+    addVertex(-0.5f, 0.5f, 0.f, 0.f, StadiumTag_Body);
+    addVertex(0.5f, 0.5f, 0.25f, 0.f, StadiumTag_Body);
+
+    addIndex(0);
+    addIndex(1);
+    addIndex(2);
+    addIndex(1);
+    addIndex(3);
+    addIndex(2);
+
+    addVertex(0.5f, 0.f, 0.5f, 0.5f, StadiumTag_Moon);
+    const f32 angle = Math::Pi<f32>() / sides;
+    const f32 offset = 0.5f * Math::Pi<f32>();
+    u32 voffset = 4;
+    for (u32 i = 0; i < sides - 1; ++i)
+    {
+        const f32 c = 0.5f * Math::Cosine(-(i * angle + offset));
+        const f32 s = 0.5f * Math::Sine(-(i * angle + offset));
+        const f32 u = 0.5f * c + 0.25f;
+        const f32 v = s + 0.5f;
+        addVertex(c - 0.5f, s, u, v, StadiumTag_Moon);
+        addIndex(voffset);
+        addIndex(i + 1 + voffset);
+        addIndex(i + 2 + voffset);
+    }
+    voffset += sides;
+    for (u32 i = 0; i < sides; ++i)
+    {
+        const f32 c = 0.5f * Math::Cosine(i * angle + offset);
+        const f32 s = 0.5f * Math::Sine(i * angle + offset);
+        const f32 u = 0.5f * c + 0.75f;
+        const f32 v = s + 0.5f;
+        addVertex(c + 0.5f, s, u, v, StadiumTag_Moon);
+        addIndex(voffset);
+        addIndex(i + 1 + voffset);
+        addIndex(i + 2 + voffset);
+    }
+    return data;
+}
+
 template Asset AddMaterial(AssetPool pool, const MaterialData<D2> &data);
 template Asset AddMaterial(AssetPool pool, const MaterialData<D3> &data);
 
@@ -2035,8 +2156,8 @@ template MeshDataLayout GetMeshLayout<D3>(Geometry geo, Asset handle);
 template StatMeshData<D2> CreateTriangleMesh<D2>();
 template StatMeshData<D3> CreateTriangleMesh<D3>();
 
-template StatMeshData<D2> CreateSquareMesh<D2>();
-template StatMeshData<D3> CreateSquareMesh<D3>();
+template StatMeshData<D2> CreateQuadMesh<D2>();
+template StatMeshData<D3> CreateQuadMesh<D3>();
 
 template StatMeshData<D2> CreateRegularPolygonMesh<D2>(u32);
 template StatMeshData<D3> CreateRegularPolygonMesh<D3>(u32);

@@ -64,9 +64,13 @@ template <typename Vertex> struct MeshPoolId
 template <Dimension D> using StatMeshId = MeshId<StatVertex<D>>;
 template <Dimension D> using StatMeshPoolId = MeshPoolId<StatVertex<D>>;
 
+template <Dimension D> using ParaMeshId = MeshId<ParaVertex<D>>;
+template <Dimension D> using ParaMeshPoolId = MeshPoolId<ParaVertex<D>>;
+
 template <Dimension D> struct MeshPoolArray
 {
     TKit::TierArray<StatMeshPoolId<D>> StatPools{};
+    TKit::TierArray<ParaMeshPoolId<D>> ParaPools{};
     u32 Active = 0;
     u32 GeometryToLoad = 0;
     u32 StatMeshToLoad = 0;
@@ -81,6 +85,7 @@ template <Dimension D> struct MeshPoolArray
 template <> struct MeshPoolArray<D3>
 {
     TKit::TierArray<StatMeshPoolId<D3>> StatPools{};
+    TKit::TierArray<ParaMeshPoolId<D3>> ParaPools{};
     u32 Active = 0;
     u32 GeometryToLoad = 0;
     u32 StatMeshToLoad = 0;
@@ -101,8 +106,8 @@ TKIT_YAML_SERIALIZE_DECLARE_ENUM(StaticMeshType)
 enum StaticMeshType : u8
 {
     StaticMesh_Triangle,
-    StaticMesh_Square,
-    StaticMesh_Cube,
+    StaticMesh_Quad,
+    StaticMesh_Box,
     StaticMesh_Sphere,
     StaticMesh_Cylinder,
     StaticMesh_Count,
@@ -115,7 +120,8 @@ template <Dimension D> struct Shape
     std::string Name;
     Asset Material = NullAsset;
     Transform<D> Transform{};
-    CircleOptions CircleOptions{};
+    CircleParameters CircleParameters{};
+    InstanceParameters Parameters{};
     SandboxFlags Flags = SandboxFlag_Fill;
     Color FillColor = Color::White;
     Color OutlineColor = Color::Orange;
@@ -129,6 +135,7 @@ template <Dimension D> struct ContextData
     TKit::TierArray<PointLight<D> *> PointLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
     Asset StatMeshToSpawn = 0;
+    Asset ParaMeshToSpawn = 0;
     f32 AxesThickness = 0.01f;
 
     Asset AxesMesh = NullAsset;
@@ -151,9 +158,10 @@ template <> struct ContextData<D3>
     TKit::TierArray<DirectionalLight *> DirLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
     Asset StatMeshToSpawn = 0;
+    Asset ParaMeshToSpawn = 0;
+    f32 AxesThickness = 0.01f;
 
     u32 SelectedShape = 0;
-    f32 AxesThickness = 0.01f;
 
     Asset AxesMesh = NullAsset;
     Asset AxesMaterial = NullAsset;

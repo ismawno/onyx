@@ -21,3 +21,7 @@ typedef float32_t4 f32v4;
 typedef float32_t2x2 f32m2;
 typedef float32_t3x3 f32m3;
 typedef float32_t4x4 f32m4;
+
+typedef u32 ViewMask;
+
+static constexpr u32 NullAsset = u32(-1);
