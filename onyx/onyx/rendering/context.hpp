@@ -2,7 +2,6 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/property/instance.hpp"
-#include "onyx/property/options.hpp"
 #include "onyx/asset/handle.hpp"
 #include "onyx/platform/window.hpp"
 #include "onyx/rendering/light.hpp"
@@ -124,11 +123,29 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void StaticMesh(Asset mesh);
     void StaticMesh(Asset mesh, const f32m<D> &transform);
 
-    void Circle(const CircleOptions &options = {});
-    void Circle(const f32m<D> &transform, const CircleOptions &options = {});
+    void ParametricMesh(Asset mesh, const InstanceParameters &params);
+    void ParametricMesh(Asset mesh, const InstanceParameters &params, const f32m<D> &transform);
+
+    template <typename T> void ParametricMesh(const Asset mesh, const T &params)
+    {
+        if constexpr (std::is_same_v<T, StadiumParameters>)
+            ParametricMesh(mesh, InstanceParameters{.Stadium = params});
+        else
+            static_assert(false, "[ONYX][CONTEXT] Type T is not a valid instance parameters type");
+    }
+    template <typename T> void ParametricMesh(const Asset mesh, const T &params, const f32m<D> &transform)
+    {
+        if constexpr (std::is_same_v<T, StadiumParameters>)
+            ParametricMesh(mesh, InstanceParameters{.Stadium = params}, transform);
+        else
+            static_assert(false, "[ONYX][CONTEXT] Type T is not a valid instance parameters type");
+    }
+
+    void Circle(const CircleParameters &params = {});
+    void Circle(const f32m<D> &transform, const CircleParameters &params = {});
 
     void Line(Asset mesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
-    void Axes(Asset mesh, const AxesOptions &options = {});
+    void Axes(Asset mesh, const AxesParameters &params = {});
 
     void Push();
     void Push(const RenderState<D> &state);
@@ -250,8 +267,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     template <typename T> void addInstanceData(InstanceDataBuffer &buffer, const T &data);
 
-    void addCircleData(const f32m<D> &transform, const CircleOptions &options, StencilPass pass);
-    void addStaticMeshData(Asset mesh, const f32m<D> &transform, StencilPass pass);
+    void addCircleData(const f32m<D> &transform, const CircleParameters &params, StencilPass pass);
+    void addStaticData(Asset mesh, const f32m<D> &transform, StencilPass pass);
+    void addParametricData(Asset mesh, const f32m<D> &transform, const InstanceParameters &params, StencilPass pass);
 #ifdef TKIT_ENABLE_ASSERTS
     void checkMaterial(Asset material);
 #endif

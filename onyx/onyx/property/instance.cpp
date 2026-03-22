@@ -11,6 +11,8 @@ const char *ToString(Geometry geo)
         return "Geometry_Circle";
     case Geometry_Static:
         return "Geometry_Static";
+    case Geometry_Parametric:
+        return "Geometry_Parametric";
     default:
         return "Unknown";
     }
@@ -52,8 +54,8 @@ const char *ToString(DrawPass pass)
     {
     case DrawPass_Fill:
         return "DrawPass_Fill";
-    case DrawPass_Outline:
-        return "DrawPass_Outline";
+    case DrawPass_Stencil:
+        return "DrawPass_Stencil";
     default:
         return "Unknown";
     }

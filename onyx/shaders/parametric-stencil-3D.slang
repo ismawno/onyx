@@ -3,6 +3,8 @@
 struct VertexInput
 {
     f32v3 Position : POSITION;
+    f32v2 TexCoord : TEXCOORD0;
+    u32 Shape;
 }
 
 struct VertexOutput
@@ -14,7 +16,7 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<StaticInstanceDataStencil3D, Std430DataLayout> g_Instances;
+StructuredBuffer<ParametricInstanceDataStencil3D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -32,7 +34,7 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const StaticInstanceDataStencil3D data = g_Instances[instanceIndex];
+    const StaticInstanceDataStencil3D data = g_Instances[instanceIndex].Data;
     const f32m4 transform = ComputeTransform3D(data.Basis);
 
     const f32v3 scale = ComputeStencilScale3D(transform);

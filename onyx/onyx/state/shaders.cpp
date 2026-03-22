@@ -32,7 +32,7 @@ Compiler::Module &Compiler::AddModule(const char *name, const char *sourceCode, 
 }
 Compiler &Compiler::AddIntegerArgument(const ShaderArgumentName name, const i32 value0, const i32 value1)
 {
-    ShaderArgument arg;
+    ShaderArgument arg{};
     arg.Name = name;
     ShaderArgumentValue val{};
     val.Type = ShaderArgument_Integer;
@@ -44,7 +44,7 @@ Compiler &Compiler::AddIntegerArgument(const ShaderArgumentName name, const i32 
 }
 Compiler &Compiler::AddStringArgument(const ShaderArgumentName name, const char *string0, const char *string1)
 {
-    ShaderArgument arg;
+    ShaderArgument arg{};
     arg.Name = name;
     ShaderArgumentValue val{};
     val.Type = ShaderArgument_String;
@@ -56,8 +56,9 @@ Compiler &Compiler::AddStringArgument(const ShaderArgumentName name, const char 
 }
 Compiler &Compiler::AddBooleanArgument(const ShaderArgumentName name)
 {
-    ShaderArgument arg;
+    ShaderArgument arg{};
     arg.Name = name;
+    arg.Value.Value0 = 1;
     m_Arguments.Append(arg);
     return *this;
 }
@@ -501,36 +502,6 @@ static std::string getDiagnostics(slang::IBlob *diagnostics)
     return message;
 }
 
-static bool isOldMesa()
-{
-    const auto &device = Core::GetDevice();
-    const VKit::PhysicalDevice *phys = device.GetInfo().PhysicalDevice;
-
-    const VkPhysicalDeviceVulkan12Properties &props = phys->GetInfo().Properties.Vulkan12;
-    if (props.driverID != VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA_KHR && props.driverID != VK_DRIVER_ID_MESA_LLVMPIPE)
-        return false;
-
-    u32 major;
-    u32 minor;
-    u32 patch;
-
-#ifdef TKIT_COMPILER_MSVC
-    if (sscanf_s(props.driverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
-        return false;
-#else
-    if (std::sscanf(props.driverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
-        return false;
-#endif
-
-    if (major > 25)
-        return false;
-    if (major == 25 && minor > 3)
-        return false;
-    if (major == 25 && minor == 3 && patch >= 3)
-        return false;
-    return true;
-}
-
 Result<Compilation> Compiler::Compile() const
 {
     ComPtr<slang::ISession> session = nullptr;
@@ -541,45 +512,24 @@ Result<Compilation> Compiler::Compile() const
     slang::SessionDesc cdesc{};
     cdesc.targets = &tdesc;
     cdesc.targetCount = 1;
-    cdesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR;
 
     TKit::StackArray<slang::PreprocessorMacroDesc> defines;
-    if (!m_Macros.IsEmpty())
-    {
-        defines.Reserve(m_Macros.GetSize());
-        for (const Macro &def : m_Macros)
-            defines.Append(def.Name, def.Value);
+    defines.Reserve(m_Macros.GetSize());
+    for (const Macro &def : m_Macros)
+        defines.Append(def.Name, def.Value);
 
+    if (!defines.IsEmpty())
+    {
         cdesc.preprocessorMacroCount = m_Macros.GetSize();
         cdesc.preprocessorMacros = defines.GetData();
     }
 
-    const bool oldMesa = isOldMesa();
-    TKit::StackArray<slang::CompilerOptionEntry> coptions;
-    coptions.Reserve(m_Arguments.GetSize() + 3);
-
-    slang::CompilerOptionEntry entry;
-    entry.name = slang::CompilerOptionName::MatrixLayoutColumn;
-    coptions.Append(entry);
-
-    if (oldMesa)
-    {
-        entry.name = slang::CompilerOptionName::Optimization;
-        entry.value.intValue0 = 0;
-        coptions.Append(entry);
-        TKIT_LOG_WARNING("[ONYX][SHADERS] Old mesa version detected (pre-25.3.3) which contains a bug regarding "
-                         "optimized spir-v code. Setting optimizations to 0 as a fix");
-    }
-
-    if (Core::GetInstance().IsExtensionEnabled("VK_EXT_debug_utils"))
-    {
-        entry.name = slang::CompilerOptionName::DebugInformation;
-        coptions.Append(entry);
-    }
+    TKit::StackArray<slang::CompilerOptionEntry> coptions{};
+    coptions.Reserve(m_Arguments.GetSize());
 
     for (const ShaderArgument &sa : m_Arguments)
     {
-        entry = {};
+        slang::CompilerOptionEntry entry{};
         entry.name = getArgumentName(sa.Name);
         entry.value.intValue0 = sa.Value.Value0;
         entry.value.intValue1 = sa.Value.Value1;
@@ -589,8 +539,11 @@ Result<Compilation> Compiler::Compile() const
         coptions.Append(entry);
     }
 
-    cdesc.compilerOptionEntries = coptions.GetData();
-    cdesc.compilerOptionEntryCount = coptions.GetSize();
+    if (!coptions.IsEmpty())
+    {
+        cdesc.compilerOptionEntries = coptions.GetData();
+        cdesc.compilerOptionEntryCount = coptions.GetSize();
+    }
 
     if (!m_SearchPaths.IsEmpty())
     {

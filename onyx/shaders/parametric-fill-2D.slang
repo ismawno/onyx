@@ -4,6 +4,7 @@ struct VertexInput
 {
     f32v2 Position : POSITION;
     f32v2 TexCoord : TEXCOORD0;
+    u32 Region;
 }
 
 struct VertexOutput
@@ -11,17 +12,23 @@ struct VertexOutput
     [[vk::location(0)]]
     f32v2 WorldPosition;
     [[vk::location(1)]]
-    f32v2 TexCoord;
+    f32v2 LocalPosition;
     [[vk::location(2)]]
-    nointerpolation u32 MatHandle;
+    f32v2 TexCoord;
     [[vk::location(3)]]
+    nointerpolation u32 MatHandle;
+    [[vk::location(4)]]
     nointerpolation f32v4 FragColor;
+    [[vk::location(5)]]
+    nointerpolation u32v2 ShapeInfo;
+    [[vk::location(6)]]
+    nointerpolation f32v2 ShapeParams;
 
     f32v4 Position : SV_Position;
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<StaticInstanceDataFill2D, Std430DataLayout> g_Instances;
+StructuredBuffer<ParametricInstanceDataFill2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -40,16 +47,41 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const StaticInstanceDataFill2D data = g_Instances[instanceIndex];
+    const ParametricInstanceDataFill2D pdata = g_Instances[instanceIndex];
+    const StaticInstanceDataFill2D data = pdata.Data;
+    const InstanceParameters params = pdata.Parameters;
+
+    f32v2 pos = input.Position;
+    if (params.Shape == ParametricShape_Stadium)
+    {
+        if (input.Region == StadiumRegion_Body)
+        {
+            pos[0] *= params.Payload[0];
+            pos[1] *= params.Payload[1];
+        }
+        else
+        {
+            const f32 s = sign(pos[0]);
+            pos[0] += (0.5f * params.Payload[0] - 0.5f) * s;
+
+            if (input.Region == StadiumRegion_Moon)
+                pos[0] += (0.5f * params.Payload[1] - 0.5f) * s;
+
+            pos[1] += (0.5f * params.Payload[1] - 0.5f) * sign(pos[1]);
+        }
+    }
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
-    const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
+    const f32v4 worldPos = mul(f32v4(pos, 0.0, 1.0), transform);
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
     output.TexCoord = input.TexCoord;
 
     output.WorldPosition = worldPos.xy;
+    output.LocalPosition = input.Position;
+    output.ShapeInfo = u32v2(params.Shape, input.Region);
+    output.ShapeParams = f32v2(params.Payload[0], params.Payload[1]);
     output.MatHandle = data.MatHandle;
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
 
@@ -71,15 +103,26 @@ PointLights2D g_PointLights;
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input)
 {
+    const u32 shape = input.ShapeInfo.x;
+    const u32 region = input.ShapeInfo.y;
+    if (shape == ParametricShape_Stadium && (region == StadiumRegion_Boundary || region == StadiumRegion_Moon))
+    {
+        f32v2 pos = input.LocalPosition;
+        pos.x -= 0.5f * sign(pos.x);
+        const f32 len = 4.f * dot(pos, pos);
+        if (len > 1.f)
+            discard;
+    }
+
     const f32v3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
-    if (input.MatHandle != NullAsset)
+    if (input.MatHandle != u32(-1))
     {
         const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
         const u32 matIdx = GetMaterialIndex(input.MatHandle);
 
         const Material2D mat = g_Materials[poolIdx][matIdx];
 
-        if (mat.Texture == NullAsset || mat.Sampler == NullAsset)
+        if (mat.Texture == u32(-1) || mat.Sampler == u32(-1))
             return input.FragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, 1.f);
 
         const f32v4 tex = g_Textures[mat.Texture].Sample(g_Samplers[mat.Sampler], input.TexCoord);

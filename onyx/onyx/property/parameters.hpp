@@ -22,10 +22,10 @@ namespace Onyx
  * `LowerAngle` The angle from which the arc starts.
  * `UpperAngle` The angle at which the arc ends.
  */
-struct CircleOptions
+struct CircleParameters
 {
-    TKIT_REFLECT_DECLARE(CircleOptions)
-    TKIT_YAML_SERIALIZE_DECLARE(CircleOptions)
+    TKIT_REFLECT_DECLARE(CircleParameters)
+    TKIT_YAML_SERIALIZE_DECLARE(CircleParameters)
     f32 InnerFade = 0.f;
     f32 OuterFade = 0.f;
     f32 Hollowness = 0.f;
@@ -33,18 +33,18 @@ struct CircleOptions
     f32 UpperAngle = 2.f * Math::Pi<f32>();
 };
 
-struct CameraOptions
+struct CameraParameters
 {
-    TKIT_REFLECT_DECLARE(CameraOptions)
-    TKIT_YAML_SERIALIZE_DECLARE(CameraOptions)
+    TKIT_REFLECT_DECLARE(CameraParameters)
+    TKIT_YAML_SERIALIZE_DECLARE(CameraParameters)
     ScreenViewport Viewport{};
     ScreenScissor Scissor{};
 };
 
-struct AxesOptions
+struct AxesParameters
 {
-    TKIT_REFLECT_DECLARE(AxesOptions)
-    TKIT_YAML_SERIALIZE_DECLARE(AxesOptions)
+    TKIT_REFLECT_DECLARE(AxesParameters)
+    TKIT_YAML_SERIALIZE_DECLARE(AxesParameters)
     f32 Thickness = 0.1f;
     f32 Size = 50.f;
 };

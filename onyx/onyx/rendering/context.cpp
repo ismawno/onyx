@@ -76,7 +76,7 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
                 "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
                 "it references is not a static mesh",
                 mesh);
-    const auto draw = [&, mesh](const StencilPass pass) { addStaticMeshData(mesh, m_Current->Transform, pass); };
+    const auto draw = [&, mesh](const StencilPass pass) { addStaticData(mesh, m_Current->Transform, pass); };
     resolveStencilPassWithState(m_Current, draw);
 }
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, const f32m<D> &transform)
@@ -86,19 +86,43 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, cons
                 "it references is not a static mesh",
                 mesh);
     const auto draw = [&, mesh](const StencilPass pass) {
-        addStaticMeshData(mesh, transform * m_Current->Transform, pass);
+        addStaticData(mesh, transform * m_Current->Transform, pass);
     };
     resolveStencilPassWithState(m_Current, draw);
 }
 
-template <Dimension D> void IRenderContext<D>::Circle(const CircleOptions &options)
+template <Dimension D> void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params)
 {
-    const auto draw = [&](const StencilPass pass) { addCircleData(m_Current->Transform, options, pass); };
+    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Parametric, mesh),
+                "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
+                "it references is not a parametric mesh",
+                mesh);
+    const auto draw = [&, mesh](const StencilPass pass) {
+        addParametricData(mesh, m_Current->Transform, params, pass);
+    };
     resolveStencilPassWithState(m_Current, draw);
 }
-template <Dimension D> void IRenderContext<D>::Circle(const f32m<D> &transform, const CircleOptions &options)
+template <Dimension D>
+void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params, const f32m<D> &transform)
 {
-    const auto draw = [&](const StencilPass pass) { addCircleData(transform * m_Current->Transform, options, pass); };
+    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Parametric, mesh),
+                "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
+                "it references is not a parametric mesh",
+                mesh);
+    const auto draw = [&, mesh](const StencilPass pass) {
+        addParametricData(mesh, transform * m_Current->Transform, params, pass);
+    };
+    resolveStencilPassWithState(m_Current, draw);
+}
+
+template <Dimension D> void IRenderContext<D>::Circle(const CircleParameters &params)
+{
+    const auto draw = [&](const StencilPass pass) { addCircleData(m_Current->Transform, params, pass); };
+    resolveStencilPassWithState(m_Current, draw);
+}
+template <Dimension D> void IRenderContext<D>::Circle(const f32m<D> &transform, const CircleParameters &params)
+{
+    const auto draw = [&](const StencilPass pass) { addCircleData(transform * m_Current->Transform, params, pass); };
     resolveStencilPassWithState(m_Current, draw);
 }
 
@@ -144,20 +168,32 @@ static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *stat
 
 template <Dimension D>
 static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                      const CircleOptions &options, const StencilPass pass)
+                                                      const CircleParameters &params, const StencilPass pass)
 {
     CircleInstanceData<D> instanceData;
     instanceData.Data = createStaticInstanceData(state, transform, pass);
-    instanceData.Arc.LowerCos = Math::Cosine(options.LowerAngle);
-    instanceData.Arc.LowerSin = Math::Sine(options.LowerAngle);
-    instanceData.Arc.UpperCos = Math::Cosine(options.UpperAngle);
-    instanceData.Arc.UpperSin = Math::Sine(options.UpperAngle);
+    instanceData.Arc.LowerCos = Math::Cosine(params.LowerAngle);
+    instanceData.Arc.LowerSin = Math::Sine(params.LowerAngle);
+    instanceData.Arc.UpperCos = Math::Cosine(params.UpperAngle);
+    instanceData.Arc.UpperSin = Math::Sine(params.UpperAngle);
 
-    instanceData.Fade.AngleOverflow = Math::Absolute(options.UpperAngle - options.LowerAngle) > Math::Pi<f32>() ? 1 : 0;
-    instanceData.Fade.Hollowness = options.Hollowness;
-    instanceData.Fade.InnerFade = options.InnerFade;
-    instanceData.Fade.OuterFade = options.OuterFade;
+    instanceData.Fade.AngleOverflow = Math::Absolute(params.UpperAngle - params.LowerAngle) > Math::Pi<f32>() ? 1 : 0;
+    instanceData.Fade.Hollowness = params.Hollowness;
+    instanceData.Fade.InnerFade = params.InnerFade;
+    instanceData.Fade.OuterFade = params.OuterFade;
 
+    return instanceData;
+}
+
+template <Dimension D>
+static ParametricInstanceData<D> createParametricInstanceData(const RenderState<D> *state, const f32m<D> &transform,
+                                                              const ParametricShape shape,
+                                                              const InstanceParameters &params, const StencilPass pass)
+{
+    ParametricInstanceData<D> instanceData;
+    instanceData.Data = createStaticInstanceData(state, transform, pass);
+    instanceData.Shape = shape;
+    instanceData.Parameters = params;
     return instanceData;
 }
 
@@ -208,21 +244,33 @@ void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &dat
 }
 
 template <Dimension D>
-void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleOptions &options, const StencilPass pass)
+void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleParameters &params, const StencilPass pass)
 {
-    const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, options, pass);
+    const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, params, pass);
     InstanceDataBuffer &buffer = m_InstanceData[pass].Circles;
     addInstanceData(buffer, idata);
 }
 
 template <Dimension D>
-void IRenderContext<D>::addStaticMeshData(const Asset mesh, const f32m<D> &transform, const StencilPass pass)
+void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform, const StencilPass pass)
 {
     const u32 idx = Assets::GetAssetIndex(mesh);
     const AssetPool pool = Assets::GetPoolHandle(mesh);
 
     const StaticInstanceData<D> idata = createStaticInstanceData(m_Current, transform, pass);
     InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Geometry_Static - 1][pool][idx];
+    addInstanceData(buffer, idata);
+}
+template <Dimension D>
+void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &transform, const InstanceParameters &params,
+                                          const StencilPass pass)
+{
+    const u32 idx = Assets::GetAssetIndex(mesh);
+    const AssetPool pool = Assets::GetPoolHandle(mesh);
+    const ParametricShape shape = Assets::GetParametricShape<D>(mesh);
+
+    const ParametricInstanceData<D> idata = createParametricInstanceData(m_Current, transform, shape, params, pass);
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Geometry_Parametric - 1][pool][idx];
     addInstanceData(buffer, idata);
 }
 
@@ -279,26 +327,26 @@ void IRenderContext<D>::Line(const Asset mesh, const f32v<D> &start, const f32v<
         Onyx::Transform<D>::ScaleIntrinsic(transform, f32v2{Math::Norm(delta), thickness});
     else
         Onyx::Transform<D>::ScaleIntrinsic(transform, f32v3{Math::Norm(delta), thickness, thickness});
-    const auto draw = [&, mesh](const StencilPass pass) { addStaticMeshData(mesh, transform, pass); };
+    const auto draw = [&, mesh](const StencilPass pass) { addStaticData(mesh, transform, pass); };
     resolveStencilPassWithState(m_Current, draw);
 }
-template <Dimension D> void IRenderContext<D>::Axes(const Asset mesh, const AxesOptions &options)
+template <Dimension D> void IRenderContext<D>::Axes(const Asset mesh, const AxesParameters &params)
 {
     if constexpr (D == D2)
     {
         Color &color = m_Current->FillColor;
         const Color oldColor = color; // A cheap filthy push
 
-        const f32v2 xLeft = f32v2{-options.Size, 0.f};
-        const f32v2 xRight = f32v2{options.Size, 0.f};
+        const f32v2 xLeft = f32v2{-params.Size, 0.f};
+        const f32v2 xRight = f32v2{params.Size, 0.f};
 
-        const f32v2 yDown = f32v2{0.f, -options.Size};
-        const f32v2 yUp = f32v2{0.f, options.Size};
+        const f32v2 yDown = f32v2{0.f, -params.Size};
+        const f32v2 yUp = f32v2{0.f, params.Size};
 
         color = Color{245u, 64u, 90u};
-        Line(mesh, xLeft, xRight, options.Thickness);
+        Line(mesh, xLeft, xRight, params.Thickness);
         color = Color{65u, 135u, 245u};
-        Line(mesh, yDown, yUp, options.Thickness);
+        Line(mesh, yDown, yUp, params.Thickness);
 
         color = oldColor; // A cheap filthy pop
     }
@@ -307,21 +355,21 @@ template <Dimension D> void IRenderContext<D>::Axes(const Asset mesh, const Axes
         Color &color = m_Current->FillColor;
         const Color oldColor = color; // A cheap filthy push
 
-        const f32v3 xLeft = f32v3{-options.Size, 0.f, 0.f};
-        const f32v3 xRight = f32v3{options.Size, 0.f, 0.f};
+        const f32v3 xLeft = f32v3{-params.Size, 0.f, 0.f};
+        const f32v3 xRight = f32v3{params.Size, 0.f, 0.f};
 
-        const f32v3 yDown = f32v3{0.f, -options.Size, 0.f};
-        const f32v3 yUp = f32v3{0.f, options.Size, 0.f};
+        const f32v3 yDown = f32v3{0.f, -params.Size, 0.f};
+        const f32v3 yUp = f32v3{0.f, params.Size, 0.f};
 
-        const f32v3 zBack = f32v3{0.f, 0.f, -options.Size};
-        const f32v3 zFront = f32v3{0.f, 0.f, options.Size};
+        const f32v3 zBack = f32v3{0.f, 0.f, -params.Size};
+        const f32v3 zFront = f32v3{0.f, 0.f, params.Size};
 
         color = Color{245u, 64u, 90u};
-        Line(mesh, xLeft, xRight, options.Thickness);
+        Line(mesh, xLeft, xRight, params.Thickness);
         color = Color{180u, 245u, 65u};
-        Line(mesh, yDown, yUp, options.Thickness);
+        Line(mesh, yDown, yUp, params.Thickness);
         color = Color{65u, 135u, 245u};
-        Line(mesh, zBack, zFront, options.Thickness);
+        Line(mesh, zBack, zFront, params.Thickness);
         color = oldColor; // A cheap filthy pop
     }
 }

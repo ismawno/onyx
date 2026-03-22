@@ -340,8 +340,8 @@ static void initializeAllocators(const Specs &specs)
         else if (!libAlloc.Tier)
         {
             const TKit::TierDescriptions desc{{.Allocator = libAlloc.Arena,
-                                               .MaxAllocation = i == 0 ? 128_kib : 4_kib,
-                                               .TierSlotDecay = i == 0 ? 0.6f : 0.85f}};
+                                               .MaxAllocation = i == 0 ? 1_mib : 4_kib,
+                                               .TierSlotDecay = i == 0 ? 0.8f : 0.85f}};
             if (i == 0)
             {
                 TKIT_LOG_INFO("[ONYX][CORE] Tier allocator for the main thread has allocated {:L} bytes of memory",

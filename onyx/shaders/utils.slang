@@ -2,53 +2,53 @@
 
 #include "alias.slang"
 
-public struct Basis2D
+struct Basis2D
 {
     f32 Basis00, Basis01;
     f32 Basis10, Basis11;
     f32 Basis30, Basis31;
-};
+}
 
-public struct Basis3D
+struct Basis3D
 {
     f32 Basis00, Basis10, Basis20, Basis30;
     f32 Basis01, Basis11, Basis21, Basis31;
     f32 Basis02, Basis12, Basis22, Basis32;
-};
+}
 
-public struct StaticInstanceDataFill2D
+struct StaticInstanceDataFill2D
 {
     Basis2D Basis;
     u32 Color;
     u32 MatHandle;
-};
-public struct StaticInstanceDataStencil2D
+}
+struct StaticInstanceDataStencil2D
 {
     Basis2D Basis;
     u32 Color;
     f32 OutlineWidth;
-};
-public struct StaticInstanceDataFill3D
+}
+struct StaticInstanceDataFill3D
 {
     Basis3D Basis;
     u32 Color;
     u32 MatHandle;
-};
-public struct StaticInstanceDataStencil3D
+}
+struct StaticInstanceDataStencil3D
 {
     Basis3D Basis;
     u32 Color;
     f32 OutlineWidth;
-};
+}
 
-public struct ArcData
+struct ArcData
 {
     f32v4 CosSin;
     u32 AngleOverflow;
     f32 Hollowness;
-};
+}
 
-public struct ArcDataPacked
+struct ArcDataPacked
 {
     f32 LowerCos;
     f32 LowerSin;
@@ -56,47 +56,93 @@ public struct ArcDataPacked
     f32 UpperSin;
     u32 AngleOverflow;
     f32 Hollowness;
-};
+}
 
-public struct FadeData
+struct FadeData
 {
     f32 InnerFade;
     f32 OuterFade;
-};
+}
 
-public struct CircleInstanceDataFill2D
+struct CircleInstanceDataFill2D
 {
     StaticInstanceDataFill2D Data;
     ArcDataPacked Arc;
     FadeData Fade;
-};
-public struct CircleInstanceDataStencil2D
+}
+struct CircleInstanceDataStencil2D
 {
     StaticInstanceDataStencil2D Data;
     ArcDataPacked Arc;
     FadeData Fade;
-};
-public struct CircleInstanceDataFill3D
+}
+struct CircleInstanceDataFill3D
 {
     StaticInstanceDataFill3D Data;
     ArcDataPacked Arc;
     FadeData Fade;
-};
-public struct CircleInstanceDataStencil3D
+}
+struct CircleInstanceDataStencil3D
 {
     StaticInstanceDataStencil3D Data;
     ArcDataPacked Arc;
     FadeData Fade;
+}
+
+[UnscopedEnum]
+enum ParametricShape : u32
+{
+    ParametricShape_Stadium,
+    ParametricShape_RoundedQuad,
+    ParametricShape_Capsule,
+    ParametricShape_RoundedBox,
+    ParametricShape_Torus,
+    ParametricShape_Ring,
 };
 
-public struct Material2D
+[UnscopedEnum]
+enum StadiumRegion : u32
+{
+    StadiumRegion_Body,
+    StadiumRegion_Boundary,
+    StadiumRegion_Moon,
+}
+
+struct InstanceParameters
+{
+    f32 Payload[2];
+    ParametricShape Shape;
+}
+
+struct ParametricInstanceDataFill2D
+{
+    StaticInstanceDataFill2D Data;
+    InstanceParameters Parameters;
+}
+struct ParametricInstanceDataFill3D
+{
+    StaticInstanceDataFill3D Data;
+    InstanceParameters Parameters;
+}
+struct ParametricInstanceDataStencil2D
+{
+    StaticInstanceDataStencil2D Data;
+    InstanceParameters Parameters;
+}
+struct ParametricInstanceDataStencil3D
+{
+    StaticInstanceDataStencil3D Data;
+    InstanceParameters Parameters;
+}
+
+struct Material2D
 {
     u32 ColorFactor;
     u32 Sampler;
     u32 Texture;
 }
 
-public struct Material3D
+struct Material3D
 {
     f32 EmissiveFactorX;
     f32 EmissiveFactorY;
@@ -174,11 +220,11 @@ f32m3 ComputeNormalMatrix(const f32m3 matrix)
     return f32m3(r0, r1, r2) * idet;
 }
 
-public struct CircleBounds
+struct CircleBounds
 {
     f32 Hollowness;
     f32 Radius;
-};
+}
 
 CircleBounds GetCircleBounds(const f32v2 localPosition, const f32 hollowness)
 {
@@ -190,7 +236,7 @@ CircleBounds GetCircleBounds(const f32v2 localPosition, const f32 hollowness)
 
 bool CheckOutsideCircle(const CircleBounds bounds, const f32v2 localPosition, const ArcData arc)
 {
-    if (bounds.Radius > 1.0 || bounds.Radius < bounds.Hollowness)
+    if (bounds.Radius > 1.f || bounds.Radius < bounds.Hollowness)
         return false;
 
     const f32 crs1 = localPosition.x * arc.CosSin[1] - localPosition.y * arc.CosSin[0];
@@ -198,12 +244,12 @@ bool CheckOutsideCircle(const CircleBounds bounds, const f32v2 localPosition, co
 
     if (arc.AngleOverflow == 1)
     {
-        if (crs1 > 0.0 && crs2 < 0.0)
+        if (crs1 > 0.f && crs2 < 0.f)
             return false;
     }
     else
     {
-        if (crs1 > 0.0 || crs2 < 0.0)
+        if (crs1 > 0.f || crs2 < 0.f)
             return false;
     }
     return true;
@@ -223,15 +269,15 @@ f32 CircleFade(f32 alpha, const CircleBounds bounds, const f32v2 fade)
     return clamp(alpha, 0.0, 1.0);
 }
 
-public struct LightData2D
+struct LightData2D
 {
     u32 PointLightOffset;
     u32 PointLightCount;
     u32 AmbientColor;
-    u32 ViewBit;
-};
+    ViewMask ViewBit;
+}
 
-public struct LightData3D
+struct LightData3D
 {
     f32v4 ViewPosition;
     u32 PointLightOffset;
@@ -239,20 +285,20 @@ public struct LightData3D
     u32 DirectionalLightOffset;
     u32 DirectionalLightCount;
     u32 AmbientColor;
-    u32 ViewBit;
-};
+    ViewMask ViewBit;
+}
 
-public struct PointLight2D
+struct PointLight2D
 {
     f32 PosX;
     f32 PosY;
     f32 Intensity;
     f32 Radius;
     u32 Color;
-    u32 ViewMask;
-};
+    ViewMask ViewMask;
+}
 
-public struct PointLight3D
+struct PointLight3D
 {
     f32 PosX;
     f32 PosY;
@@ -260,24 +306,24 @@ public struct PointLight3D
     f32 Intensity;
     f32 Radius;
     u32 Color;
-    u32 ViewMask;
-};
+    ViewMask ViewMask;
+}
 
-public struct AmbientLight
+struct AmbientLight
 {
     u32 Color;
-    u32 ViewMask;
-};
+    ViewMask ViewMask;
+}
 
-public struct DirectionalLight
+struct DirectionalLight
 {
     f32 DirX;
     f32 DirY;
     f32 DirZ;
     f32 Intensity;
     u32 Color;
-    u32 ViewMask;
-};
+    ViewMask ViewMask;
+}
 
 typedef StructuredBuffer<PointLight2D, Std430DataLayout> PointLights2D;
 typedef StructuredBuffer<PointLight3D, Std430DataLayout> PointLights3D;
@@ -320,7 +366,7 @@ struct MaterialInfo3D
     f32 Roughness;
     f32 Metallic;
     f32 Occlusion;
-};
+}
 
 // i admit lol ia generated
 f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)

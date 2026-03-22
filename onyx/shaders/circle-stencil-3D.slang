@@ -11,7 +11,7 @@ struct VertexOutput
     nointerpolation f32v4 FragColor;
 
     f32v4 Position : SV_Position;
-};
+}
 
 [[vk::binding(0, 0)]]
 StructuredBuffer<CircleInstanceDataStencil3D, Std430DataLayout> g_Instances;
@@ -19,7 +19,7 @@ StructuredBuffer<CircleInstanceDataStencil3D, Std430DataLayout> g_Instances;
 struct PushConstants
 {
     f32m4 ProjectionView;
-};
+}
 
 [[vk::push_constant]]
 PushConstants g_PushData;

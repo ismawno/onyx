@@ -136,19 +136,22 @@ MeshId<Vertex> &SandboxAppLayer::AddMesh(MeshPoolId<Vertex> &pool, const MeshDat
 template <Dimension D> void SandboxAppLayer::AddDefaultMeshes()
 {
     auto &meshes = GetMeshes<D>();
-    StatMeshPoolId<D> &pool = AddMeshPool(meshes.StatPools, "Default mesh pool");
-    AddMesh(pool, Assets::CreateTriangleMesh<D>(), "Triangle");
-    const StatMeshId<D> &square = AddMesh(pool, Assets::CreateSquareMesh<D>(), "Square");
+    StatMeshPoolId<D> &spool = AddMeshPool(meshes.StatPools, "Default static spool");
+    AddMesh(spool, Assets::CreateTriangleMesh<D>(), "Triangle");
+    const StatMeshId<D> &quad = AddMesh(spool, Assets::CreateQuadMesh<D>(), "Quad");
     if constexpr (D == D3)
     {
-        AddMesh(pool, Assets::CreateCubeMesh(), "Cube");
-        const StatMeshId<D> &sphere = AddMesh(pool, Assets::CreateSphereMesh(32, 64), "Sphere");
-        const StatMeshId<D> &cylinder = AddMesh(pool, Assets::CreateCylinderMesh(64), "Cylinder");
+        AddMesh(spool, Assets::CreateBoxMesh(), "Box");
+        const StatMeshId<D> &sphere = AddMesh(spool, Assets::CreateSphereMesh(32, 64), "Sphere");
+        const StatMeshId<D> &cylinder = AddMesh(spool, Assets::CreateCylinderMesh(64), "Cylinder");
         meshes.DefaultAxesMesh = cylinder.Handle;
         meshes.DefaultLightMesh = sphere.Handle;
     }
     else
-        meshes.DefaultAxesMesh = square.Handle;
+        meshes.DefaultAxesMesh = quad.Handle;
+
+    ParaMeshPoolId<D> &ppool = AddMeshPool(meshes.ParaPools, "Default parametric pool");
+    AddMesh(ppool, Assets::CreateStadiumMesh<D>(), "Stadium");
 }
 template <Dimension D> void SandboxAppLayer::AddDefaultMaterial()
 {
@@ -172,9 +175,11 @@ template <Dimension D> static void setShapeProperties(RenderContext<D> *context,
 template <Dimension D> static void drawShape(RenderContext<D> *context, const Shape<D> &shape)
 {
     if (shape.Geo == Geometry_Circle)
-        context->Circle(shape.Transform.ComputeTransform(), shape.CircleOptions);
-    else
+        context->Circle(shape.Transform.ComputeTransform(), shape.CircleParameters);
+    else if (shape.Geo == Geometry_Static)
         context->StaticMesh(shape.Mesh, shape.Transform.ComputeTransform());
+    else if (shape.Geo == Geometry_Parametric)
+        context->ParametricMesh(shape.Mesh, shape.Parameters, shape.Transform.ComputeTransform());
 }
 
 template <Dimension D> void SandboxAppLayer::DrawShapes()
@@ -230,7 +235,7 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
             switch (geo)
             {
             case Geometry_Circle: {
-                const CircleOptions opts = lattice.Shape.CircleOptions;
+                const CircleParameters opts = lattice.Shape.CircleParameters;
                 DrawLattice(lattice, [opts](const f32v<D> &pos, RenderContext<D> *context) {
                     context->SetTranslation(pos);
                     context->Circle(opts);
@@ -332,6 +337,16 @@ template <Dimension D, typename F> void SandboxAppLayer::DrawLattice(const Latti
     }
 }
 
+template <typename Vertex>
+static std::string getName(const Asset mesh, const TKit::TierArray<MeshPoolId<Vertex>> &pools)
+{
+    for (const MeshPoolId<Vertex> &pool : pools)
+        for (const MeshId<Vertex> &mid : pool.Data.Elements)
+            if (mid.Handle == mesh)
+                return mid.Name;
+    return "Unknown";
+}
+
 template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo, const Asset mesh)
 {
     Shape<D> shape{};
@@ -340,22 +355,22 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
     const auto &mpools = GetMaterials<D>().Pools;
     shape.Material = mpools.IsEmpty() ? NullAsset : mpools.GetFront().Handle;
 
+    shape.Name = "Unknown";
+    const auto &meshes = GetMeshes<D>();
     switch (geo)
     {
     case Geometry_Circle:
         shape.Name = "Circle";
         return shape;
     case Geometry_Static: {
-        const auto &meshes = GetMeshes<D>();
-        shape.Name = "Unknown";
-        for (const StatMeshPoolId<D> &pool : meshes.StatPools)
-            for (const StatMeshId<D> &mid : pool.Data.Elements)
-                if (mid.Handle == mesh)
-                {
-                    shape.Name = mid.Name;
-                    break;
-                }
-
+        shape.Name = getName(mesh, meshes.StatPools);
+        return shape;
+    }
+    case Geometry_Parametric: {
+        shape.Name = getName(mesh, meshes.ParaPools);
+        const ParametricShape stype = Assets::GetParametricShape<D>(mesh);
+        if (stype == ParametricShape_Stadium)
+            shape.Parameters.Stadium = StadiumParameters{1.f, 1.f};
         return shape;
     }
     default:
@@ -839,6 +854,10 @@ template <Dimension D> static bool statMeshNameCombo(const char *name, SandboxAp
 {
     return poolMemberNameCombo(name, appLayer->GetMeshes<D>().StatPools, mesh);
 }
+template <Dimension D> static bool paraMeshNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *mesh)
+{
+    return poolMemberNameCombo(name, appLayer->GetMeshes<D>().ParaPools, mesh);
+}
 
 template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *material)
 {
@@ -943,24 +962,41 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
 
     if (shape.Geo == Geometry_Circle)
     {
-        ImGui::SliderFloat("Inner fade", &shape.CircleOptions.InnerFade, 0.f, 1.f, "%.2f");
-        ImGui::SliderFloat("Outer fade", &shape.CircleOptions.OuterFade, 0.f, 1.f, "%.2f");
-        ImGui::SliderAngle("Lower angle", &shape.CircleOptions.LowerAngle);
-        ImGui::SliderAngle("Upper angle", &shape.CircleOptions.UpperAngle);
-        ImGui::SliderFloat("Hollowness", &shape.CircleOptions.Hollowness, 0.f, 1.f, "%.2f");
+        ImGui::SliderFloat("Inner fade", &shape.CircleParameters.InnerFade, 0.f, 1.f, "%.2f");
+        ImGui::SliderFloat("Outer fade", &shape.CircleParameters.OuterFade, 0.f, 1.f, "%.2f");
+        ImGui::SliderAngle("Lower angle", &shape.CircleParameters.LowerAngle);
+        ImGui::SliderAngle("Upper angle", &shape.CircleParameters.UpperAngle);
+        ImGui::SliderFloat("Hollowness", &shape.CircleParameters.Hollowness, 0.f, 1.f, "%.2f");
+    }
+    else if (shape.Geo == Geometry_Parametric)
+    {
+        const ParametricShape stype = Assets::GetParametricShape<D>(shape.Mesh);
+        switch (stype)
+        {
+        case ParametricShape_Stadium: {
+            StadiumParameters &params = shape.Parameters.Stadium;
+            ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
+            break;
+        }
+        default:
+            TKIT_FATAL("[ONYX][SANDBOX] Unrecognized shape");
+        }
     }
     ImGui::PopID();
 }
 
 template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &context)
 {
-    combo("Geometry##Picker", &context.GeometryToSpawn, "Circle\0Static mesh\0\0");
+    combo("Geometry##Picker", &context.GeometryToSpawn, "Circle\0Static mesh\0Parametric mesh\0\0");
     const Geometry geo = context.GeometryToSpawn;
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
 
     if (geo == Geometry_Static)
         statMeshNameCombo<D>("Shape##Picker", appLayer, &context.StatMeshToSpawn);
+    else if (geo == Geometry_Parametric)
+        paraMeshNameCombo<D>("Shape##Picker", appLayer, &context.StatMeshToSpawn);
 
     if (ImGui::Button("Spawn##Shape"))
         context.Shapes.Append(appLayer->CreateShape<D>(context));
@@ -1041,50 +1077,69 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
     {
         SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
         auto &meshes = appLayer->GetMeshes<D>();
-        if (ImGui::Button("Add static mesh pool"))
-            appLayer->AddMeshPool(meshes.StatPools);
+        if (ImGui::TreeNode("Static mesh pools"))
+        {
+            if (ImGui::Button("Add##Static"))
+                appLayer->AddMeshPool(meshes.StatPools);
 
-        EntriesOptions<StatMeshPoolId<D>> opts{};
-        opts.Selected = &meshes.Active;
-        opts.OnSelected = [this](StatMeshPoolId<D> &pool) { RenderMeshPool(pool); };
-        opts.GetName = [](const StatMeshPoolId<D> &pool) { return pool.Name.c_str(); };
-        opts.OnRemoval = [&meshes, appLayer](StatMeshPoolId<D> &pool) {
-            Assets::DestroyMeshPool<D>(Geometry_Static, pool.Handle);
-            auto &contexts = appLayer->GetContexts<D>();
-            for (ContextData<D> &ctx : contexts.Contexts)
-            {
-                for (u32 i = ctx.Shapes.GetSize() - 1; i < ctx.Shapes.GetSize(); --i)
-                    if (Assets::GetPoolHandle(ctx.Shapes[i].Mesh) == pool.Handle)
-                        ctx.Shapes.RemoveOrdered(ctx.Shapes.begin() + i);
-                if (Assets::GetPoolHandle(ctx.AxesMesh) == pool.Handle)
-                    ctx.AxesMesh = NullAsset;
+            EntriesOptions<StatMeshPoolId<D>> opts{};
+            opts.Selected = &meshes.Active;
+            opts.OnSelected = [this](StatMeshPoolId<D> &pool) { RenderMeshPool(pool); };
+            opts.GetName = [](const StatMeshPoolId<D> &pool) { return pool.Name.c_str(); };
+            opts.OnRemoval = [&meshes, appLayer](const StatMeshPoolId<D> &pool) {
+                Assets::DestroyMeshPool<D>(Geometry_Static, pool.Handle);
+                auto &contexts = appLayer->GetContexts<D>();
+                for (ContextData<D> &ctx : contexts.Contexts)
+                {
+                    for (u32 i = ctx.Shapes.GetSize() - 1; i < ctx.Shapes.GetSize(); --i)
+                        if (Assets::GetPoolHandle(ctx.Shapes[i].Mesh) == pool.Handle)
+                            ctx.Shapes.RemoveOrdered(ctx.Shapes.begin() + i);
+                    if (Assets::GetPoolHandle(ctx.AxesMesh) == pool.Handle)
+                        ctx.AxesMesh = NullAsset;
 
-                if (Assets::GetPoolHandle(ctx.LightMaterial) == pool.Handle)
-                    ctx.LightMaterial = NullAsset;
+                    if (Assets::GetPoolHandle(ctx.LightMaterial) == pool.Handle)
+                        ctx.LightMaterial = NullAsset;
 
+                    if constexpr (D == D3)
+                        if (Assets::GetPoolHandle(ctx.LightMesh) == pool.Handle)
+                            ctx.LightMesh = NullAsset;
+                }
+                auto &lattices = appLayer->GetLattices<D>();
+                for (LatticeData<D> &lattice : lattices.Lattices)
+                {
+                    if (Assets::GetPoolHandle(lattice.StatMesh) == pool.Handle)
+                        lattice.StatMesh = NullAsset;
+                    if (Assets::GetPoolHandle(lattice.Shape.Mesh) == pool.Handle)
+                        lattice.Shape.Mesh = NullAsset;
+                }
+                if (Assets::GetPoolHandle(meshes.DefaultAxesMesh) == pool.Handle)
+                    meshes.DefaultAxesMesh = NullAsset;
                 if constexpr (D == D3)
-                    if (Assets::GetPoolHandle(ctx.LightMesh) == pool.Handle)
-                        ctx.LightMesh = NullAsset;
-            }
-            auto &lattices = appLayer->GetLattices<D>();
-            for (LatticeData<D> &lattice : lattices.Lattices)
-            {
-                if (Assets::GetPoolHandle(lattice.StatMesh) == pool.Handle)
-                    lattice.StatMesh = NullAsset;
-                if (Assets::GetPoolHandle(lattice.Shape.Mesh) == pool.Handle)
-                    lattice.Shape.Mesh = NullAsset;
-            }
-            if (Assets::GetPoolHandle(meshes.DefaultAxesMesh) == pool.Handle)
-                meshes.DefaultAxesMesh = NullAsset;
-            if constexpr (D == D3)
-                if (Assets::GetPoolHandle(meshes.DefaultLightMesh) == pool.Handle)
-                    meshes.DefaultLightMesh = NullAsset;
+                    if (Assets::GetPoolHandle(meshes.DefaultLightMesh) == pool.Handle)
+                        meshes.DefaultLightMesh = NullAsset;
 
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
-        };
-        ImGui::SameLine();
-        ImGui::TextDisabled("Removing the default mesh pool may lead to weird behaviour!");
-        renderEntries(meshes.StatPools, opts);
+                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            };
+            ImGui::SameLine();
+            ImGui::TextDisabled("Removing the default mesh pool may lead to weird behaviour!");
+            renderEntries(meshes.StatPools, opts);
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Parametric mesh pools"))
+        {
+            if (ImGui::Button("Add##Parametric"))
+                appLayer->AddMeshPool(meshes.ParaPools);
+            EntriesOptions<ParaMeshPoolId<D>> opts{};
+            opts.Selected = &meshes.Active;
+            opts.OnSelected = [this](ParaMeshPoolId<D> &pool) { RenderMeshPool(pool); };
+            opts.GetName = [](const ParaMeshPoolId<D> &pool) { return pool.Name.c_str(); };
+            opts.OnRemoval = [](const ParaMeshPoolId<D> &pool) {
+                Assets::DestroyMeshPool<D>(Geometry_Parametric, pool.Handle);
+            };
+            renderEntries(meshes.ParaPools, opts);
+            ImGui::TreePop();
+        }
     }
 }
 
@@ -1373,7 +1428,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
     opts.RemoveButton = false;
     renderEntries(pool.Data.Elements, opts);
 
-    if (std::is_same_v<Vertex, StatVertex<D>>)
+    if constexpr (std::is_same_v<Vertex, StatVertex<D>>)
     {
         const u32 importedIndex = D == D2 ? 2 : 4;
         if constexpr (D == D2)
@@ -1463,14 +1518,14 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
                 }
             }
         }
+        ImGui::TextWrapped(
+            "You may load meshes for this demo to use for both 2D and 3D. Take into account that meshes may "
+            "have been created with a different coordinate "
+            "system or unit scaling values. In Onyx, shapes with unit transforms are supposed to be centered "
+            "around "
+            "zero with a cartesian coordinate system and size (from end to end) of one. That is why you may apply a "
+            "transform before loading a specific mesh.");
     }
-    ImGui::TextWrapped(
-        "You may load meshes for this demo to use for both 2D and 3D. Take into account that meshes may "
-        "have been created with a different coordinate "
-        "system or unit scaling values. In Onyx, shapes with unit transforms are supposed to be centered "
-        "around "
-        "zero with a cartesian coordinate system and size (from end to end) of one. That is why you may apply a "
-        "transform before loading a specific mesh.");
 }
 
 template <typename Vertex> void SandboxWinLayer::RenderMesh(MeshId<Vertex> &mesh)
@@ -1481,7 +1536,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMesh(MeshId<Vertex> &mesh
     {
         for (u32 i = 0; i < mesh.Data.Vertices.GetSize(); ++i)
         {
-            StatVertex<D> &vx = mesh.Data.Vertices[i];
+            Vertex &vx = mesh.Data.Vertices[i];
             ImGui::Text("Vertex %u: ", i);
             ImGui::PushID(i);
             if constexpr (D == D2)

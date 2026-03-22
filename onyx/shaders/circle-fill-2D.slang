@@ -18,7 +18,7 @@ struct VertexOutput
     nointerpolation f32v4 FragColor;
 
     f32v4 Position : SV_Position;
-};
+}
 
 [[vk::binding(0, 0)]]
 StructuredBuffer<CircleInstanceDataFill2D, Std430DataLayout> g_Instances;
@@ -27,7 +27,7 @@ struct PushConstants
 {
     f32m4 ProjectionView;
     LightData2D Light;
-};
+}
 
 [[vk::push_constant]]
 PushConstants g_PushData;
@@ -107,13 +107,13 @@ f32v4 mainFS(const VertexOutput input)
 
     const f32v3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
     const f32 alpha = CircleFade(input.FragColor.a, bounds, input.Fade);
-    if (input.MatHandle != u32(-1))
+    if (input.MatHandle != NullAsset)
     {
         const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
         const u32 matIdx = GetMaterialIndex(input.MatHandle);
 
         const Material2D mat = g_Materials[poolIdx][matIdx];
-        if (mat.Texture == u32(-1) || mat.Sampler == u32(-1))
+        if (mat.Texture == NullAsset || mat.Sampler == NullAsset)
             return input.FragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, alpha);
 
         const f32v4 tex = g_Textures[mat.Texture].Sample(g_Samplers[mat.Sampler], input.TexCoord);

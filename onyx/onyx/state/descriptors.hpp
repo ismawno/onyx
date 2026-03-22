@@ -15,7 +15,7 @@ struct Specs
     u32 MaxSets = 256;
     u32 StorageBufferPoolSize = 2048;
     u32 SamplerPoolSize = 64;
-    u32 SampledImagePoolSize = 4096;
+    u32 SampledImagePoolSize = 8192;
 };
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();

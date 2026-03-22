@@ -52,6 +52,33 @@ template <Dimension D> struct CircleInstanceData
     FadeData Fade;
 };
 
+enum ParametricShape : u32
+{
+    ParametricShape_Stadium,
+    ParametricShape_RoundedQuad,
+    ParametricShape_Capsule,
+    ParametricShape_RoundedBox,
+    ParametricShape_Torus,
+    ParametricShape_Ring,
+};
+
+struct StadiumParameters
+{
+    f32 Width;
+    f32 Height;
+};
+
+union InstanceParameters {
+    StadiumParameters Stadium;
+};
+
+template <Dimension D> struct ParametricInstanceData
+{
+    StaticInstanceData<D> Data;
+    InstanceParameters Parameters;
+    ParametricShape Shape;
+};
+
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(Geometry)
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(LightType)
 TKIT_REFLECT_DECLARE_ENUM(Geometry)
@@ -60,6 +87,7 @@ enum Geometry : u8
 {
     Geometry_Circle,
     Geometry_Static,
+    Geometry_Parametric,
     Geometry_Count,
 };
 
@@ -97,6 +125,8 @@ template <Dimension D> u32 GetInstanceSize(const Geometry geo)
         return sizeof(CircleInstanceData<D>);
     case Geometry_Static:
         return sizeof(StaticInstanceData<D>);
+    case Geometry_Parametric:
+        return sizeof(ParametricInstanceData<D>);
     default:
         TKIT_FATAL("[ONYX][INSTANCE] Unrecognized geometry type");
         return 0;
@@ -122,10 +152,10 @@ template <Dimension D> u32 GetInstanceSize(const Geometry geo)
  *
  * - `StencilPass_DoStencilWriteNoFill`: This pass will only write to the stencil buffer and will not render the shape.
  * This step is necessary in case the user wants to render an outline only, without the shape being filled. The
- * corresponding `DrawPass` is `DrawPass_Outline`.
+ * corresponding `DrawPass` is `DrawPass_Stencil`.
  *
  * - `StencilPass_DoStencilTestNoFill`: This pass will test the stencil buffer and render the shape only where the
- * stencil buffer is not set. The corresponding `DrawPass` is `DrawPass_Outline`.
+ * stencil buffer is not set. The corresponding `DrawPass` is `DrawPass_Stencil`.
  *
  */
 enum StencilPass : u8
@@ -140,7 +170,7 @@ enum StencilPass : u8
 enum DrawPass : u8
 {
     DrawPass_Fill,
-    DrawPass_Outline,
+    DrawPass_Stencil,
     DrawPass_Count
 };
 
@@ -161,7 +191,7 @@ constexpr DrawPass GetDrawMode(const StencilPass pass)
 {
     if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
         return DrawPass_Fill;
-    return DrawPass_Outline;
+    return DrawPass_Stencil;
 }
 
 constexpr Shading GetShading(const DrawPass pass)
