@@ -747,19 +747,19 @@ ONYX_NO_DISCARD static Result<Range *> handlePoolResize(const VkDeviceSize requi
     for (const Range &range : ranges)
         if constexpr (std::is_same_v<Range, GraphicsInstanceRange> || std::is_same_v<Range, GraphicsLightRange>)
         {
-            if (range.TransferTracker.Queue)
+            if (range.TransferTracker.Submitted())
             {
                 semaphores.Append(range.TransferTracker.Queue->GetTimelineSempahore());
                 values.Append(range.TransferTracker.InFlightValue);
             }
 
-            if (range.GraphicsTracker.Queue)
+            if (range.GraphicsTracker.Submitted())
             {
                 semaphores.Append(range.GraphicsTracker.Queue->GetTimelineSempahore());
                 values.Append(range.GraphicsTracker.InFlightValue);
             }
         }
-        else if (range.Tracker.Queue)
+        else if (range.Tracker.Submitted())
         {
             semaphores.Append(range.Tracker.Queue->GetTimelineSempahore());
             values.Append(range.Tracker.InFlightValue);

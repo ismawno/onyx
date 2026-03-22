@@ -28,6 +28,10 @@ struct Tracker
     {
         return Queue && Queue->GetCompletedTimeline() < InFlightValue;
     }
+    bool Submitted() const
+    {
+        return Queue && Queue->GetTimelineSubmissions() >= InFlightValue;
+    }
     void MarkInUse(const VKit::Queue *queue, const u64 inFlightValue)
     {
         Queue = queue;
