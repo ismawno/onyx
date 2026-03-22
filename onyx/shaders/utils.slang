@@ -269,6 +269,71 @@ f32 CircleFade(f32 alpha, const CircleBounds bounds, const f32v2 fade)
     return clamp(alpha, 0.0, 1.0);
 }
 
+f32v2 GetParametricPosition2D(f32v2 pos, const InstanceParameters params, const u32 region)
+{
+    if (params.Shape == ParametricShape_Stadium)
+    {
+        const f32v2 dims = f32v2(params.Payload[0], params.Payload[1]);
+        if (region == StadiumRegion_Body)
+            pos *= dims;
+        else
+        {
+            const f32v2 s = sign(pos);
+            pos += (0.5f * dims - 0.5f) * s;
+            if (region == StadiumRegion_Moon)
+                pos[0] += (0.5f * dims[1] - 0.5f) * s[0];
+        }
+    }
+    return pos;
+}
+
+f32v3 GetParametricPosition3D(f32v3 pos, const InstanceParameters params, const u32 region)
+{
+    if (params.Shape == ParametricShape_Stadium)
+    {
+        const f32v2 dims = f32v2(params.Payload[0], params.Payload[1]);
+        if (region == StadiumRegion_Body)
+            pos.xy *= dims;
+        else
+        {
+            const f32v2 s = sign(pos.xy);
+            pos.xy += (0.5f * dims - 0.5f) * s;
+            if (region == StadiumRegion_Moon)
+                pos[0] += (0.5f * dims[1] - 0.5f) * s[0];
+        }
+    }
+    return pos;
+}
+
+bool CheckParametricFragment2D(f32v2 pos, const u32v2 shapeInfo)
+{
+    const u32 shape = shapeInfo.x;
+    const u32 region = shapeInfo.y;
+    if (shape == ParametricShape_Stadium && (region == StadiumRegion_Boundary || region == StadiumRegion_Moon))
+    {
+        pos.x -= 0.5f * sign(pos.x);
+        const f32 len = 4.f * dot(pos, pos);
+        if (len > 1.f)
+            return false;
+    }
+    return true;
+}
+
+bool CheckParametricFragment3D(f32v3 pos, const u32v2 shapeInfo)
+{
+    const u32 shape = shapeInfo.x;
+    const u32 region = shapeInfo.y;
+    if (shape == ParametricShape_Stadium && (region == StadiumRegion_Boundary || region == StadiumRegion_Moon))
+    {
+        f32v2 p = pos.xy;
+        p.x -= 0.5f * sign(p.x);
+        const f32 len = 4.f * dot(p, p);
+        if (len > 1.f)
+            return false;
+    }
+    return true;
+}
+
 struct LightData2D
 {
     u32 PointLightOffset;

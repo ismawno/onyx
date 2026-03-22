@@ -6,7 +6,7 @@ struct VertexInput
     f32v2 TexCoord : TEXCOORD0;
     f32v3 Normal : NORMAL;
     f32v4 Tangent : TANGENT;
-    u32 Shape;
+    u32 Region;
 }
 
 struct VertexOutput
@@ -14,12 +14,16 @@ struct VertexOutput
     [[vk::location(0)]]
     f32v3 WorldPosition;
     [[vk::location(1)]]
-    f32v2 TexCoord;
+    f32v3 LocalPosition;
     [[vk::location(2)]]
-    nointerpolation u32 MatHandle;
+    f32v2 TexCoord;
     [[vk::location(3)]]
-    f32v4 FragColor;
+    nointerpolation u32 MatHandle;
     [[vk::location(4)]]
+    f32v4 FragColor;
+    [[vk::location(5)]]
+    nointerpolation u32v2 ShapeInfo;
+    [[vk::location(6)]]
     f32m3 TBN;
 
     f32v4 Position : SV_Position;
@@ -45,10 +49,14 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const StaticInstanceDataFill3D data = g_Instances[instanceIndex].Data;
+    const ParametricInstanceDataFill3D pdata = g_Instances[instanceIndex];
+    const StaticInstanceDataFill3D data = pdata.Data;
+    const InstanceParameters params = pdata.Parameters;
+
+    const f32v3 pos = GetParametricPosition3D(input.Position, params, input.Region);
 
     const f32m4 transform = ComputeTransform3D(data.Basis);
-    const f32v4 worldPos = mul(f32v4(input.Position, 1.0), transform);
+    const f32v4 worldPos = mul(f32v4(pos, 1.0), transform);
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
@@ -62,6 +70,8 @@ VertexOutput mainVS(
     output.TBN = f32m3(T, B, N);
 
     output.WorldPosition = worldPos.xyz;
+    output.LocalPosition = input.Position;
+    output.ShapeInfo = u32v2(params.Shape, input.Region);
     output.TexCoord = input.TexCoord;
     output.MatHandle = data.MatHandle;
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
@@ -87,6 +97,9 @@ DirectionalLights g_DirLights;
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
 {
+    if (!CheckParametricFragment3D(input.LocalPosition, input.ShapeInfo))
+        discard;
+
     if (input.MatHandle != u32(-1))
     {
         const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);

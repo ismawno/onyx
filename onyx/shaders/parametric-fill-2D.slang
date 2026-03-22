@@ -21,8 +21,6 @@ struct VertexOutput
     nointerpolation f32v4 FragColor;
     [[vk::location(5)]]
     nointerpolation u32v2 ShapeInfo;
-    [[vk::location(6)]]
-    nointerpolation f32v2 ShapeParams;
 
     f32v4 Position : SV_Position;
 }
@@ -51,25 +49,7 @@ VertexOutput mainVS(
     const StaticInstanceDataFill2D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
-    f32v2 pos = input.Position;
-    if (params.Shape == ParametricShape_Stadium)
-    {
-        if (input.Region == StadiumRegion_Body)
-        {
-            pos[0] *= params.Payload[0];
-            pos[1] *= params.Payload[1];
-        }
-        else
-        {
-            const f32 s = sign(pos[0]);
-            pos[0] += (0.5f * params.Payload[0] - 0.5f) * s;
-
-            if (input.Region == StadiumRegion_Moon)
-                pos[0] += (0.5f * params.Payload[1] - 0.5f) * s;
-
-            pos[1] += (0.5f * params.Payload[1] - 0.5f) * sign(pos[1]);
-        }
-    }
+    const f32v2 pos = GetParametricPosition2D(input.Position, params, input.Region);
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
     const f32v4 worldPos = mul(f32v4(pos, 0.0, 1.0), transform);
@@ -81,7 +61,6 @@ VertexOutput mainVS(
     output.WorldPosition = worldPos.xy;
     output.LocalPosition = input.Position;
     output.ShapeInfo = u32v2(params.Shape, input.Region);
-    output.ShapeParams = f32v2(params.Payload[0], params.Payload[1]);
     output.MatHandle = data.MatHandle;
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
 
@@ -103,16 +82,8 @@ PointLights2D g_PointLights;
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input)
 {
-    const u32 shape = input.ShapeInfo.x;
-    const u32 region = input.ShapeInfo.y;
-    if (shape == ParametricShape_Stadium && (region == StadiumRegion_Boundary || region == StadiumRegion_Moon))
-    {
-        f32v2 pos = input.LocalPosition;
-        pos.x -= 0.5f * sign(pos.x);
-        const f32 len = 4.f * dot(pos, pos);
-        if (len > 1.f)
-            discard;
-    }
+    if (!CheckParametricFragment2D(input.LocalPosition, input.ShapeInfo))
+        discard;
 
     const f32v3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
     if (input.MatHandle != u32(-1))
