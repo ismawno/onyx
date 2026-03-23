@@ -61,7 +61,6 @@ enum ParametricShape : u32
     ParametricShape_Capsule,
     ParametricShape_RoundedBox,
     ParametricShape_Torus,
-    ParametricShape_Ring,
 };
 
 struct StadiumParameters
