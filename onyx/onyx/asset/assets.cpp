@@ -11,19 +11,17 @@
 #include "tkit/container/stack_array.hpp"
 #include "tkit/container/dynamic_array.hpp"
 #ifdef ONYX_ENABLE_OBJ_LOAD
-#    define TINYOBJLOADER_IMPLEMENTATION
 #    include <tiny_obj_loader.h>
 #endif
 #ifdef ONYX_ENABLE_GLTF_LOAD
-#    define TINYGLTF_IMPLEMENTATION
-#    define STB_IMAGE_IMPLEMENTATION
-#    define STB_IMAGE_WRITE_IMPLEMENTATION
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_CLANG_WARNING_IGNORE("-Wdeprecated-literal-operator")
 TKIT_CLANG_WARNING_IGNORE("-Wmissing-field-initializers")
 TKIT_GCC_WARNING_IGNORE("-Wdeprecated-literal-operator")
 TKIT_GCC_WARNING_IGNORE("-Wmissing-field-initializers")
 #    include <tiny_gltf.h>
+#    include <stb_image.h>
+#    include <stb_image_write.h>
 TKIT_COMPILER_WARNING_IGNORE_POP()
 #endif
 
@@ -2031,83 +2029,125 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
 
 template <Dimension D> ParaMeshData<D> CreateStadiumMesh()
 {
-    // TKIT_ASSERT(sides >= 3, "[ONYX][ASSETS] A stadium requires at least 3 sides");
     ParaMeshData<D> data{};
     data.Shape = ParametricShape_Stadium;
-    const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v, const StadiumRegion tag) {
+    const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v,
+                                   const ParametricRegionFlags region) {
         if constexpr (D == D2)
-            data.Vertices.Append(ParaVertex<D2>{f32v2{x, y}, f32v2{u, v}, {.Stadium = tag}});
+            data.Vertices.Append(ParaVertex<D2>{f32v2{x, y}, f32v2{u, v}, region});
         else
-            data.Vertices.Append(ParaVertex<D3>{
-                f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}, {.Stadium = tag}});
+            data.Vertices.Append(
+                ParaVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}, region});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    addVertex(-0.5f, -0.5f, 0.25f, 1.f, StadiumRegion_Body);
-    addVertex(0.5f, -0.5f, 0.75f, 1.f, StadiumRegion_Body);
-    addVertex(-0.5f, 0.5f, 0.25f, 0.f, StadiumRegion_Body);
-    addVertex(0.5f, 0.5f, 0.75f, 0.f, StadiumRegion_Body);
+    constexpr u32 body = StadiumRegion_Body;
+    constexpr u32 edge = StadiumRegion_Edge;
+    constexpr u32 moon = StadiumRegion_Moon;
 
-    addVertex(-1.f, -0.5f, 0.f, 1.f, StadiumRegion_Moon);
-    addVertex(-0.5f, -0.5f, 0.25f, 1.f, StadiumRegion_Boundary);
-    addVertex(-1.f, 0.5f, 0.f, 0.f, StadiumRegion_Moon);
-    addVertex(-0.5f, 0.5f, 0.25f, 0.f, StadiumRegion_Boundary);
+    addVertex(-0.5f, -0.5f, 0.25f, 1.f, body);
+    addVertex(0.5f, -0.5f, 0.75f, 1.f, body);
+    addVertex(-0.5f, 0.5f, 0.25f, 0.f, body);
+    addVertex(0.5f, 0.5f, 0.75f, 0.f, body);
 
-    addVertex(0.5f, -0.5f, 0.75f, 1.f, StadiumRegion_Boundary);
-    addVertex(1.f, -0.5f, 1.f, 1.f, StadiumRegion_Moon);
-    addVertex(0.5f, 0.5f, 0.75f, 0.f, StadiumRegion_Boundary);
-    addVertex(1.f, 0.5f, 1.f, 0.f, StadiumRegion_Moon);
+    addVertex(-1.f, -0.5f, 0.f, 1.f, edge | moon);
+    addVertex(-0.5f, -0.5f, 0.25f, 1.f, moon);
+    addVertex(-1.f, 0.5f, 0.f, 0.f, edge | moon);
+    addVertex(-0.5f, 0.5f, 0.25f, 0.f, moon);
 
-    addIndex(0);
-    addIndex(1);
-    addIndex(2);
-    addIndex(1);
-    addIndex(3);
-    addIndex(2);
+    addVertex(0.5f, -0.5f, 0.75f, 1.f, moon);
+    addVertex(1.f, -0.5f, 1.f, 1.f, edge | moon);
+    addVertex(0.5f, 0.5f, 0.75f, 0.f, moon);
+    addVertex(1.f, 0.5f, 1.f, 0.f, edge | moon);
 
-    addIndex(4);
-    addIndex(5);
-    addIndex(6);
-    addIndex(5);
-    addIndex(7);
-    addIndex(6);
-
-    addIndex(8);
-    addIndex(9);
-    addIndex(10);
-    addIndex(9);
-    addIndex(11);
-    addIndex(10);
-
-    // addVertex(0.5f, 0.f, 0.5f, 0.5f, StadiumRegion_Moon);
-    // const f32 angle = Math::Pi<f32>() / sides;
-    // const f32 offset = 0.5f * Math::Pi<f32>();
-    // u32 voffset = 4;
-    // for (u32 i = 0; i < sides - 1; ++i)
-    // {
-    //     const f32 c = 0.5f * Math::Cosine(-(i * angle + offset));
-    //     const f32 s = 0.5f * Math::Sine(-(i * angle + offset));
-    //     const f32 u = 0.5f * c + 0.25f;
-    //     const f32 v = s + 0.5f;
-    //     addVertex(c - 0.5f, s, u, v, StadiumRegion_Moon);
-    //     addIndex(voffset);
-    //     addIndex(i + 1 + voffset);
-    //     addIndex(i + 2 + voffset);
-    // }
-    // voffset += sides;
-    // for (u32 i = 0; i < sides; ++i)
-    // {
-    //     const f32 c = 0.5f * Math::Cosine(i * angle + offset);
-    //     const f32 s = 0.5f * Math::Sine(i * angle + offset);
-    //     const f32 u = 0.5f * c + 0.75f;
-    //     const f32 v = s + 0.5f;
-    //     addVertex(c + 0.5f, s, u, v, StadiumRegion_Moon);
-    //     addIndex(voffset);
-    //     addIndex(i + 1 + voffset);
-    //     addIndex(i + 2 + voffset);
-    // }
+    for (u32 i = 0; i < 3; ++i)
+    {
+        addIndex(0 + i * 4);
+        addIndex(1 + i * 4);
+        addIndex(2 + i * 4);
+        addIndex(1 + i * 4);
+        addIndex(3 + i * 4);
+        addIndex(2 + i * 4);
+    }
 
     VALIDATE_MESH(data);
+    return data;
+}
+
+template <Dimension D> ParaMeshData<D> CreateRoundedQuadMesh()
+{
+    ParaMeshData<D> data{};
+    data.Shape = ParametricShape_RoundedQuad;
+    const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v,
+                                   const ParametricRegionFlags region = 0) {
+        if constexpr (D == D2)
+            data.Vertices.Append(ParaVertex<D2>{f32v2{x, y}, f32v2{u, v}, region});
+        else
+            data.Vertices.Append(
+                ParaVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}, region});
+    };
+    const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
+
+    constexpr u32 body = RoundedQuadRegion_Body;
+    constexpr u32 hedge = RoundedQuadRegion_HorizontalEdge;
+    constexpr u32 vedge = RoundedQuadRegion_VerticalEdge;
+    constexpr u32 moon = RoundedQuadRegion_Moon;
+
+    addVertex(-0.5f, -0.5f, 0.25f, 0.75f, body);
+    addVertex(0.5f, -0.5f, 0.75f, 0.75f, body);
+    addVertex(-0.5f, 0.5f, 0.25f, 0.25f, body);
+    addVertex(0.5f, 0.5f, 0.75f, 0.25f, body);
+
+    addVertex(-1.f, -0.5f, 0.f, 0.75f, hedge);
+    addVertex(-0.5f, -0.5f, 0.25f, 0.75f);
+    addVertex(-1.f, 0.5f, 0.f, 0.25f, hedge);
+    addVertex(-0.5f, 0.5f, 0.25f, 0.25f);
+
+    addVertex(0.5f, -0.5f, 0.75f, 0.75f);
+    addVertex(1.f, -0.5f, 1.f, 0.75f, hedge);
+    addVertex(0.5f, 0.5f, 0.75f, 0.25f);
+    addVertex(1.f, 0.5f, 1.f, 0.25f, hedge);
+
+    addVertex(-0.5f, -0.5f, 0.25f, 0.75f);
+    addVertex(-0.5f, -1.f, 0.25f, 1.f, vedge);
+    addVertex(0.5f, -0.5f, 0.75f, 0.75f);
+    addVertex(0.5f, -1.f, 0.75f, 1.f, vedge);
+
+    addVertex(-0.5f, 1.f, 0.25f, 0.f, vedge);
+    addVertex(-0.5f, 0.5f, 0.25f, 0.25f);
+    addVertex(0.5f, 1.f, 0.75f, 0.f, vedge);
+    addVertex(0.5f, 0.5f, 0.75f, 0.25f);
+
+    addVertex(-1.f, -0.5f, 0.f, 0.75f, moon | hedge);
+    addVertex(-1.f, -1.f, 0.f, 1.f, moon | hedge | vedge);
+    addVertex(-0.5f, -0.5f, 0.25f, 0.75f, moon);
+    addVertex(-0.5f, -1.f, 0.25f, 1.f, moon | vedge);
+
+    addVertex(0.5f, -1.f, 0.75f, 1.f, moon | vedge);
+    addVertex(1.f, -1.f, 1.f, 1.f, moon | hedge | vedge);
+    addVertex(0.5f, -0.5f, 0.75f, 0.75f, moon);
+    addVertex(1.f, -0.5f, 1.f, 0.75f, moon | hedge);
+
+    addVertex(-0.5f, 1.f, 0.25f, 0.f, moon | vedge);
+    addVertex(-1.f, 1.f, 0.f, 0.f, moon | hedge | vedge);
+    addVertex(-0.5f, 0.5f, 0.25f, 0.25f, moon);
+    addVertex(-1.f, 0.5f, 0.f, 0.25f, moon | hedge);
+
+    addVertex(1.f, 0.5f, 1.f, 0.25f, moon | hedge);
+    addVertex(1.f, 1.f, 1.f, 0.f, moon | hedge | vedge);
+    addVertex(0.5f, 0.5f, 0.75f, 0.25f, moon);
+    addVertex(0.5f, 1.f, 0.75f, 0.f, moon | vedge);
+
+    for (u32 i = 0; i < 9; ++i)
+    {
+        addIndex(0 + i * 4);
+        addIndex(1 + i * 4);
+        addIndex(2 + i * 4);
+        addIndex(1 + i * 4);
+        addIndex(3 + i * 4);
+        addIndex(2 + i * 4);
+    }
+
     return data;
 }
 
@@ -2205,5 +2245,8 @@ template StatMeshData<D3> CreatePolygonMesh<D3>(TKit::Span<const f32v2>);
 
 template ParaMeshData<D2> CreateStadiumMesh<D2>();
 template ParaMeshData<D3> CreateStadiumMesh<D3>();
+
+template ParaMeshData<D2> CreateRoundedQuadMesh<D2>();
+template ParaMeshData<D3> CreateRoundedQuadMesh<D3>();
 
 } // namespace Onyx::Assets

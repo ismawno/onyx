@@ -6,7 +6,7 @@ struct VertexInput
     f32v2 TexCoord : TEXCOORD0;
     f32v3 Normal : NORMAL;
     f32v4 Tangent : TANGENT;
-    u32 Region;
+    ParametricRegionFlags Region;
 }
 
 struct VertexOutput

@@ -100,17 +100,28 @@ enum ParametricShape : u32
     ParametricShape_Ring,
 };
 
+typedef u32 ParametricRegionFlags;
+
 [UnscopedEnum]
-enum StadiumRegion : u32
+enum StadiumRegion : ParametricRegionFlags
 {
-    StadiumRegion_Body,
-    StadiumRegion_Boundary,
-    StadiumRegion_Moon,
-}
+    StadiumRegion_Body = 1 << 0,
+    StadiumRegion_Edge = 1 << 1,
+    StadiumRegion_Moon = 1 << 2,
+};
+
+[UnscopedEnum]
+enum RoundedQuadRegion : ParametricRegionFlags
+{
+    RoundedQuadRegion_Body = 1 << 0,
+    RoundedQuadRegion_HorizontalEdge = 1 << 1,
+    RoundedQuadRegion_VerticalEdge = 1 << 2,
+    RoundedQuadRegion_Moon = 1 << 3,
+};
 
 struct InstanceParameters
 {
-    f32 Payload[2];
+    f32 Payload[3];
     ParametricShape Shape;
 }
 
@@ -269,37 +280,69 @@ f32 CircleFade(f32 alpha, const CircleBounds bounds, const f32v2 fade)
     return clamp(alpha, 0.0, 1.0);
 }
 
-f32v2 GetParametricPosition2D(f32v2 pos, const InstanceParameters params, const u32 region)
+f32v2 GetParametricPosition2D(f32v2 pos, const InstanceParameters params, const ParametricRegionFlags region)
 {
     if (params.Shape == ParametricShape_Stadium)
     {
         const f32v2 dims = f32v2(params.Payload[0], params.Payload[1]);
-        if (region == StadiumRegion_Body)
+        if (bool(region & StadiumRegion_Body))
             pos *= dims;
         else
         {
             const f32v2 s = sign(pos);
             pos += (0.5f * dims - 0.5f) * s;
-            if (region == StadiumRegion_Moon)
+            if (bool(region & StadiumRegion_Edge))
                 pos[0] += (0.5f * dims[1] - 0.5f) * s[0];
+        }
+    }
+    else if (params.Shape == ParametricShape_RoundedQuad)
+    {
+        const f32v2 dims = f32v2(params.Payload[0], params.Payload[1]);
+        const f32 radius = params.Payload[2];
+        if (bool(region & RoundedQuadRegion_Body))
+            pos *= dims;
+        else
+        {
+            const f32v2 s = sign(pos);
+            pos += (0.5f * dims - 0.5f) * s;
+            if (bool(region & RoundedQuadRegion_HorizontalEdge))
+                pos[0] += (0.5f * radius - 0.5f) * s[0];
+            if (bool(region & RoundedQuadRegion_VerticalEdge))
+                pos[1] += (0.5f * radius - 0.5f) * s[1];
         }
     }
     return pos;
 }
 
-f32v3 GetParametricPosition3D(f32v3 pos, const InstanceParameters params, const u32 region)
+f32v3 GetParametricPosition3D(f32v3 pos, const InstanceParameters params, const ParametricRegionFlags region)
 {
     if (params.Shape == ParametricShape_Stadium)
     {
         const f32v2 dims = f32v2(params.Payload[0], params.Payload[1]);
-        if (region == StadiumRegion_Body)
+        if (bool(region & StadiumRegion_Body))
             pos.xy *= dims;
         else
         {
             const f32v2 s = sign(pos.xy);
             pos.xy += (0.5f * dims - 0.5f) * s;
-            if (region == StadiumRegion_Moon)
+            if (bool(region & StadiumRegion_Edge))
                 pos[0] += (0.5f * dims[1] - 0.5f) * s[0];
+        }
+    }
+    else if (params.Shape == ParametricShape_RoundedQuad)
+    {
+        const f32v2 dims = f32v2(params.Payload[0], params.Payload[1]);
+        const f32 radius = params.Payload[2];
+        if (bool(region & RoundedQuadRegion_Body))
+            pos.xy *= dims;
+        else
+        {
+            const f32v2 s = sign(pos.xy);
+            pos.xy += (0.5f * dims - 0.5f) * s;
+            if (bool(region & RoundedQuadRegion_HorizontalEdge))
+                pos[0] += (0.5f * radius - 0.5f) * s[0];
+            if (bool(region & RoundedQuadRegion_VerticalEdge))
+                pos[1] += (0.5f * radius - 0.5f) * s[1];
         }
     }
     return pos;
@@ -309,13 +352,21 @@ bool CheckParametricFragment2D(f32v2 pos, const u32v2 shapeInfo)
 {
     const u32 shape = shapeInfo.x;
     const u32 region = shapeInfo.y;
-    if (shape == ParametricShape_Stadium && (region == StadiumRegion_Boundary || region == StadiumRegion_Moon))
+    if (shape == ParametricShape_Stadium && bool(region & StadiumRegion_Moon))
     {
         pos.x -= 0.5f * sign(pos.x);
         const f32 len = 4.f * dot(pos, pos);
         if (len > 1.f)
             return false;
     }
+    else if (shape == ParametricShape_RoundedQuad && bool(region & RoundedQuadRegion_Moon))
+    {
+        pos -= 0.5f * sign(pos);
+        const f32 len = 4.f * dot(pos, pos);
+        if (len > 1.f)
+            return false;
+    }
+
     return true;
 }
 
@@ -323,10 +374,18 @@ bool CheckParametricFragment3D(f32v3 pos, const u32v2 shapeInfo)
 {
     const u32 shape = shapeInfo.x;
     const u32 region = shapeInfo.y;
-    if (shape == ParametricShape_Stadium && (region == StadiumRegion_Boundary || region == StadiumRegion_Moon))
+    if (shape == ParametricShape_Stadium && bool(region & StadiumRegion_Moon))
     {
         f32v2 p = pos.xy;
         p.x -= 0.5f * sign(p.x);
+        const f32 len = 4.f * dot(p, p);
+        if (len > 1.f)
+            return false;
+    }
+    else if (shape == ParametricShape_RoundedQuad && bool(region & RoundedQuadRegion_Moon))
+    {
+        f32v2 p = pos.xy;
+        p -= 0.5f * sign(p);
         const f32 len = 4.f * dot(p, p);
         if (len > 1.f)
             return false;

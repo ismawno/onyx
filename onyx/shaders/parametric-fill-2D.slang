@@ -4,7 +4,7 @@ struct VertexInput
 {
     f32v2 Position : POSITION;
     f32v2 TexCoord : TEXCOORD0;
-    u32 Region;
+    ParametricRegionFlags Region;
 }
 
 struct VertexOutput

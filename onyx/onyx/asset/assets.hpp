@@ -178,5 +178,6 @@ StatMeshData<D3> CreateSphereMesh(u32 rings = 16, u32 sectors = 32);
 StatMeshData<D3> CreateCylinderMesh(u32 sides = 32);
 
 template <Dimension D> ParaMeshData<D> CreateStadiumMesh();
+template <Dimension D> ParaMeshData<D> CreateRoundedQuadMesh();
 
 } // namespace Onyx::Assets

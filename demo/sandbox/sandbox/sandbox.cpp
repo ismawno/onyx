@@ -153,6 +153,7 @@ template <Dimension D> void SandboxAppLayer::AddDefaultMeshes()
 
     ParaMeshPoolId<D> &ppool = AddMeshPool(meshes.ParaPools, "Default parametric pool");
     AddMesh(ppool, Assets::CreateStadiumMesh<D>(), "Stadium");
+    AddMesh(ppool, Assets::CreateRoundedQuadMesh<D>(), "Rounded quad");
 }
 template <Dimension D> void SandboxAppLayer::AddDefaultMaterial()
 {
@@ -249,6 +250,19 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
                     DrawLattice(lattice, [mesh](const f32v<D> &pos, RenderContext<D> *context) {
                         context->SetTranslation(pos);
                         context->StaticMesh(mesh);
+                    });
+                else
+                    for (RenderContext<D> *ctx : lattice.Contexts)
+                        ctx->Flush();
+                break;
+            }
+            case Geometry_Parametric: {
+                const Shape<D> shape = lattice.Shape;
+                const Asset mesh = shape.Mesh;
+                if (mesh != NullAsset)
+                    DrawLattice(lattice, [mesh, shape](const f32v<D> &pos, RenderContext<D> *context) {
+                        context->SetTranslation(pos);
+                        context->ParametricMesh(mesh, shape.Parameters);
                     });
                 else
                     for (RenderContext<D> *ctx : lattice.Contexts)
@@ -372,6 +386,8 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
         const ParametricShape stype = Assets::GetParametricShape<D>(mesh);
         if (stype == ParametricShape_Stadium)
             shape.Parameters.Stadium = StadiumParameters{1.f, 1.f};
+        else if (stype == ParametricShape_RoundedQuad)
+            shape.Parameters.RoundedQuad = RoundedQuadParameters{1.f, 1.f, 0.5f};
         return shape;
     }
     default:
@@ -983,6 +999,13 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
             StadiumParameters &params = shape.Parameters.Stadium;
             ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
             ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
+            break;
+        }
+        case ParametricShape_RoundedQuad: {
+            RoundedQuadParameters &params = shape.Parameters.RoundedQuad;
+            ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
             break;
         }
         default:
@@ -1629,15 +1652,17 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
             for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
                 ctx->RemoveTarget(viewBit);
     }
-    bool updateShape = combo("Geometry##Lattice", &lattice.Geo, "Circle\0Static mesh\0\0");
+    bool updateShape = combo("Geometry##Lattice", &lattice.Geo, "Circle\0Static mesh\0Parametric mesh\0\0");
     const Geometry geo = lattice.Geo;
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     if (geo == Geometry_Static)
         updateShape |= statMeshNameCombo<D>("Shape##Lattice", appLayer, &lattice.StatMesh);
+    else if (geo == Geometry_Parametric)
+        updateShape |= paraMeshNameCombo<D>("Shape##Lattice", appLayer, &lattice.ParaMesh);
 
     if (updateShape)
-        lattice.Shape = appLayer->CreateShape(lattice);
+        lattice.Shape = appLayer->CreateShape(lattice, geo == Geometry_Static ? lattice.StatMesh : lattice.ParaMesh);
 
     if constexpr (D == D2)
     {

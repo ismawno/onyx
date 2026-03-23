@@ -196,6 +196,9 @@ template <Dimension D> struct LatticeData
     TKIT_YAML_SERIALIZE_GROUP_BEGIN("StatMesh", "--deserialize-as StaticMeshType")
     Asset StatMesh = 0;
     TKIT_YAML_SERIALIZE_GROUP_END()
+    TKIT_YAML_SERIALIZE_GROUP_BEGIN("ParaMesh", "--deserialize-as ParametricShape")
+    Asset ParaMesh = 0;
+    TKIT_YAML_SERIALIZE_GROUP_END()
     u32 Threads = 1;
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     SandboxFlags Flags = SandboxFlag_ContextShouldUpdate;
@@ -264,12 +267,11 @@ class SandboxAppLayer final : public ApplicationLayer
     template <Dimension D> Shape<D> CreateShape(Geometry geo, Asset mesh = NullAsset);
     template <Dimension D> Shape<D> CreateShape(const ContextData<D> &context)
     {
-        return CreateShape<D>(context.GeometryToSpawn,
-                              context.StatMeshToSpawn); // add more args when parametrized arrive
+        return CreateShape<D>(context.GeometryToSpawn, context.StatMeshToSpawn);
     }
-    template <Dimension D> Shape<D> CreateShape(const LatticeData<D> &lattice)
+    template <Dimension D> Shape<D> CreateShape(const LatticeData<D> &lattice, const Asset mesh = NullAsset)
     {
-        return CreateShape<D>(lattice.Geo, lattice.StatMesh); // add more args when parametrized arrive
+        return CreateShape<D>(lattice.Geo, mesh);
     }
 
     template <Dimension D> void AddContext(const Window *window = nullptr);

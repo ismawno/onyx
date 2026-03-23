@@ -59,15 +59,20 @@ template <> struct StatVertex<D3>
     }
 };
 
-enum StadiumRegion : u32
+using ParametricRegionFlags = u32;
+enum StadiumRegion : ParametricRegionFlags
 {
-    StadiumRegion_Body,
-    StadiumRegion_Boundary,
-    StadiumRegion_Moon,
+    StadiumRegion_Body = 1 << 0,
+    StadiumRegion_Edge = 1 << 1,
+    StadiumRegion_Moon = 1 << 2,
 };
 
-union ParametricRegion {
-    StadiumRegion Stadium;
+enum RoundedQuadRegion : ParametricRegionFlags
+{
+    RoundedQuadRegion_Body = 1 << 0,
+    RoundedQuadRegion_HorizontalEdge = 1 << 1,
+    RoundedQuadRegion_VerticalEdge = 1 << 2,
+    RoundedQuadRegion_Moon = 1 << 3,
 };
 
 template <Dimension D> struct ParaVertex;
@@ -85,7 +90,7 @@ template <> struct ParaVertex<D2>
 
     f32v2 Position;
     f32v2 TexCoord;
-    ParametricRegion Region;
+    ParametricRegionFlags Region;
 };
 
 template <> struct ParaVertex<D3>
@@ -104,7 +109,7 @@ template <> struct ParaVertex<D3>
     f32v2 TexCoord;
     f32v3 Normal;
     f32v4 Tangent;
-    ParametricRegion Region;
+    ParametricRegionFlags Region;
 };
 
 } // namespace Onyx

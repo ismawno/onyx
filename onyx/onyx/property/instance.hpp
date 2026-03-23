@@ -52,6 +52,8 @@ template <Dimension D> struct CircleInstanceData
     FadeData Fade;
 };
 
+TKIT_YAML_SERIALIZE_DECLARE_ENUM(ParametricShape)
+TKIT_REFLECT_DECLARE_ENUM(ParametricShape)
 enum ParametricShape : u32
 {
     ParametricShape_Stadium,
@@ -68,8 +70,16 @@ struct StadiumParameters
     f32 Height;
 };
 
+struct RoundedQuadParameters
+{
+    f32 Width;
+    f32 Height;
+    f32 Radius;
+};
+
 union InstanceParameters {
     StadiumParameters Stadium;
+    RoundedQuadParameters RoundedQuad;
 };
 
 template <Dimension D> struct ParametricInstanceData

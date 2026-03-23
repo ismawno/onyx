@@ -29,8 +29,7 @@ VkRect2D ScreenScissor::AsVulkanScissor(const VkExtent2D &extent, const ScreenVi
     scissor.offset.x = i32(0.5f * (1.f + min[0]) * extent.width);
     scissor.offset.y = i32(0.5f * (1.f - max[1]) * extent.height);
     scissor.extent.width = u32(0.5f * (1.f + max[0]) * extent.width) - u32(scissor.offset.x);
-    scissor.extent.height =
-        u32(0.5f * (1.f - min[1]) * extent.height) - u32(scissor.offset.y);
+    scissor.extent.height = u32(0.5f * (1.f - min[1]) * extent.height) - u32(scissor.offset.y);
 
     return scissor;
 }

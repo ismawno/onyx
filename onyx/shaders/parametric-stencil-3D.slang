@@ -3,7 +3,7 @@
 struct VertexInput
 {
     f32v3 Position : POSITION;
-    u32 Region;
+    ParametricRegionFlags Region;
 }
 
 struct VertexOutput
