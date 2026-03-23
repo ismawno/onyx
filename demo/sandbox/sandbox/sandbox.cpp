@@ -154,6 +154,10 @@ template <Dimension D> void SandboxAppLayer::AddDefaultMeshes()
     ParaMeshPoolId<D> &ppool = AddMeshPool(meshes.ParaPools, "Default parametric pool");
     AddMesh(ppool, Assets::CreateStadiumMesh<D>(), "Stadium");
     AddMesh(ppool, Assets::CreateRoundedQuadMesh<D>(), "Rounded quad");
+    if constexpr (D == D3)
+    {
+        AddMesh(ppool, Assets::CreateCapsuleMesh(), "Capsule");
+    }
 }
 template <Dimension D> void SandboxAppLayer::AddDefaultMaterial()
 {
@@ -201,12 +205,12 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
             if (ctx.Flags & SandboxFlag_DrawLights)
             {
                 ctx.Context->Push();
+                ctx.Context->Scale(0.01f);
+                ctx.Context->Material(ctx.LightMaterial);
                 for (const PointLight<D> *pl : ctx.PointLights)
                 {
-                    ctx.Context->Scale(0.01f);
-                    ctx.Context->Translate(pl->GetPosition());
+                    ctx.Context->SetTranslation(pl->GetPosition());
                     ctx.Context->FillColor(pl->GetColor());
-                    ctx.Context->Material(ctx.LightMaterial);
                     if constexpr (D == D2)
                         ctx.Context->Circle();
                     else if (ctx.LightMesh != NullAsset)
@@ -385,9 +389,11 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
         shape.Name = getName(mesh, meshes.ParaPools);
         const ParametricShape stype = Assets::GetParametricShape<D>(mesh);
         if (stype == ParametricShape_Stadium)
-            shape.Parameters.Stadium = StadiumParameters{1.f, 1.f};
+            shape.Parameters.Stadium = StadiumParameters{1.f, 0.5f};
         else if (stype == ParametricShape_RoundedQuad)
             shape.Parameters.RoundedQuad = RoundedQuadParameters{1.f, 1.f, 0.5f};
+        else if (stype == ParametricShape_Capsule)
+            shape.Parameters.Capsule = CapsuleParameters{1.f, 0.5f};
         return shape;
     }
     default:
@@ -426,7 +432,7 @@ template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window, co
             ctx->AddTarget(window);
         data.Contexts[i] = ctx;
     }
-    data.Shape = CreateShape(data);
+    data.Shape = CreateShape<D>(data.Geo);
 }
 
 template <Dimension D> MaterialPoolId<D> &SandboxAppLayer::AddMaterialPool(const char *name)
@@ -998,13 +1004,19 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
         case ParametricShape_Stadium: {
             StadiumParameters &params = shape.Parameters.Stadium;
             ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
-            ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
             break;
         }
         case ParametricShape_RoundedQuad: {
             RoundedQuadParameters &params = shape.Parameters.RoundedQuad;
             ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
             ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
+            break;
+        }
+        case ParametricShape_Capsule: {
+            CapsuleParameters &params = shape.Parameters.Capsule;
+            ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
             ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
             break;
         }
@@ -1023,12 +1035,12 @@ template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &c
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
 
     if (geo == Geometry_Static)
-        statMeshNameCombo<D>("Shape##Picker", appLayer, &context.StatMeshToSpawn);
+        statMeshNameCombo<D>("Shape##Picker", appLayer, &context.MeshToSpawn[geo]);
     else if (geo == Geometry_Parametric)
-        paraMeshNameCombo<D>("Shape##Picker", appLayer, &context.StatMeshToSpawn);
+        paraMeshNameCombo<D>("Shape##Picker", appLayer, &context.MeshToSpawn[geo]);
 
     if (ImGui::Button("Spawn##Shape"))
-        context.Shapes.Append(appLayer->CreateShape<D>(context));
+        context.Shapes.Append(appLayer->CreateShape<D>(geo, context.MeshToSpawn[geo]));
 
     EntriesOptions<Shape<D>> opts{};
     opts.TreeName = "Shapes";
@@ -1662,7 +1674,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &latti
         updateShape |= paraMeshNameCombo<D>("Shape##Lattice", appLayer, &lattice.ParaMesh);
 
     if (updateShape)
-        lattice.Shape = appLayer->CreateShape(lattice, geo == Geometry_Static ? lattice.StatMesh : lattice.ParaMesh);
+        lattice.Shape = appLayer->CreateShape<D>(geo, geo == Geometry_Static ? lattice.StatMesh : lattice.ParaMesh);
 
     if constexpr (D == D2)
     {

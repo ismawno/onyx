@@ -114,14 +114,13 @@ struct DrawInfo
 };
 
 using InstanceDrawInfo = DrawInfo;
-using LightDrawInfo = DrawInfo;
 
 struct LightArena
 {
     TransferLightPool Transfer{};
     GraphicsLightPool Graphics{};
     u64 Generation = 1;
-    LightDrawInfo DrawInfo{};
+    u32 LightCount = 0;
 };
 
 template <Dimension D> struct RendererData
@@ -772,19 +771,19 @@ ONYX_NO_DISCARD static Result<Range *> handlePoolResize(const VkDeviceSize requi
     for (const Range &range : ranges)
         if constexpr (std::is_same_v<Range, GraphicsInstanceRange> || std::is_same_v<Range, GraphicsLightRange>)
         {
-            if (range.TransferTracker.Submitted())
+            if (range.TransferTracker.Submitted() && range.TransferTracker.InUse())
             {
                 semaphores.Append(range.TransferTracker.Queue->GetTimelineSempahore());
                 values.Append(range.TransferTracker.InFlightValue);
             }
 
-            if (range.GraphicsTracker.Submitted())
+            if (range.GraphicsTracker.Submitted() && range.GraphicsTracker.InUse())
             {
                 semaphores.Append(range.GraphicsTracker.Queue->GetTimelineSempahore());
                 values.Append(range.GraphicsTracker.InFlightValue);
             }
         }
-        else if (range.Tracker.Submitted())
+        else if (range.Tracker.Submitted() && range.Tracker.InUse())
         {
             semaphores.Append(range.Tracker.Queue->GetTimelineSempahore());
             values.Append(range.Tracker.InFlightValue);
@@ -1088,7 +1087,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     }
 
     const u32 npcount = lights.Points.GetSize();
-    u32 &pcount = rdata.LightArenas[Light_Point].DrawInfo.InstanceCount;
+    u32 &pcount = rdata.LightArenas[Light_Point].LightCount;
     if (pcount != npcount)
     {
         toUpdate |= LightFlag_Point;
@@ -1097,7 +1096,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     if constexpr (D == D3)
     {
         const u32 ndcount = lights.Dirs.GetSize();
-        u32 &dcount = rdata.LightArenas[Light_Directional].DrawInfo.InstanceCount;
+        u32 &dcount = rdata.LightArenas[Light_Directional].LightCount;
         if (dcount != ndcount)
         {
             toUpdate |= LightFlag_Directional;
@@ -1133,7 +1132,6 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
         grange->GraphicsTracker = {};
         grange->Generation = ++arena.Generation;
-        arena.DrawInfo.FirstInstance = grange->Offset / getLightSize<D>(light);
 
         VkBufferCopy2KHR copy{};
         copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2_KHR;
@@ -1679,19 +1677,22 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
     collectDrawInfo(Geometry_Static);
     collectDrawInfo(Geometry_Parametric);
 
-    LightRange<D> lranges;
-
+    TKit::FixedArray<LightRange, LightTypeCount<D>> lranges{};
+    for (u32 i = 0; i < rdata.LightArenas.GetSize(); ++i)
     {
-        const DrawInfo &dinfo = rdata.LightArenas[Light_Point].DrawInfo;
-        lranges.PointLightOffset = dinfo.FirstInstance;
-        lranges.PointLightCount = dinfo.InstanceCount;
-    }
-
-    if constexpr (D == D3)
-    {
-        const DrawInfo &dinfo = rdata.LightArenas[Light_Directional].DrawInfo;
-        lranges.DirectionalLightOffset = dinfo.FirstInstance;
-        lranges.DirectionalLightCount = dinfo.InstanceCount;
+        LightArena &arena = rdata.LightArenas[i];
+        if (arena.LightCount != 0)
+            for (GraphicsLightRange &grange : arena.Graphics.Ranges)
+                if (grange.Generation == arena.Generation)
+                {
+                    grange.GraphicsTracker.MarkInUse(graphics, graphicsFlightValue);
+                    const u32 isize = getLightSize<D>(LightType(i));
+                    TKIT_ASSERT(arena.LightCount == grange.Size / isize,
+                                "[ONYX][RENDERER] Light count mismatch between cached arena value and graphics range");
+                    lranges[i].LightCount = arena.LightCount;
+                    lranges[i].LightOffset = grange.Offset / isize;
+                    break;
+                }
     }
 
     const auto table = Core::GetDeviceTable();
@@ -1722,7 +1723,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                 pdata.ProjectionView = camInfo.ProjectionView;
                 if constexpr (D == D3)
                     pdata.ViewPosition = f32v4{camInfo.ViewPosition, 1.f};
-                pdata.LightRange = lranges;
+                pdata.LightRanges = lranges;
                 pdata.ViewBit = viewBit;
                 pdata.AmbientColor = ambientColor;
                 table->CmdPushConstants(graphicsCommand, playout,

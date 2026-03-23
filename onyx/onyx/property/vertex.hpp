@@ -75,6 +75,12 @@ enum RoundedQuadRegion : ParametricRegionFlags
     RoundedQuadRegion_Moon = 1 << 3,
 };
 
+enum CapsuleRegion : ParametricRegionFlags
+{
+    CapsuleRegion_Body = 1 << 0,
+    CapsuleRegion_Cap = 1 << 1,
+};
+
 template <Dimension D> struct ParaVertex;
 template <> struct ParaVertex<D2>
 {

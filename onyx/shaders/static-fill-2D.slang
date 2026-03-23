@@ -71,9 +71,9 @@ PointLights2D g_PointLights;
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input)
 {
-    const f32v3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
     if (input.MatHandle != NullAsset)
     {
+        const f32v3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
         const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
         const u32 matIdx = GetMaterialIndex(input.MatHandle);
 
@@ -85,5 +85,5 @@ f32v4 mainFS(const VertexOutput input)
         const f32v4 tex = g_Textures[mat.Texture].Sample(g_Samplers[mat.Sampler], input.TexCoord);
         return tex * input.FragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, 1.f);
     }
-    return input.FragColor * f32v4(lcolor, 1.f);
+    return input.FragColor;
 }

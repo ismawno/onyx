@@ -173,11 +173,15 @@ template <Dimension D> StatMeshData<D> CreateQuadMesh();
 template <Dimension D> StatMeshData<D> CreateRegularPolygonMesh(u32 sides);
 template <Dimension D> StatMeshData<D> CreatePolygonMesh(TKit::Span<const f32v2> vertices);
 
+// rings and sectors should be even
+
 StatMeshData<D3> CreateBoxMesh();
 StatMeshData<D3> CreateSphereMesh(u32 rings = 16, u32 sectors = 32);
 StatMeshData<D3> CreateCylinderMesh(u32 sides = 32);
 
 template <Dimension D> ParaMeshData<D> CreateStadiumMesh();
 template <Dimension D> ParaMeshData<D> CreateRoundedQuadMesh();
+
+ParaMeshData<D3> CreateCapsuleMesh(u32 rings = 16, u32 sectors = 32);
 
 } // namespace Onyx::Assets

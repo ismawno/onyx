@@ -134,8 +134,7 @@ template <Dimension D> struct ContextData
     TKit::TierArray<Shape<D>> Shapes;
     TKit::TierArray<PointLight<D> *> PointLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
-    Asset StatMeshToSpawn = 0;
-    Asset ParaMeshToSpawn = 0;
+    TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullAsset, 0, 0};
     f32 AxesThickness = 0.01f;
 
     Asset AxesMesh = NullAsset;
@@ -157,8 +156,7 @@ template <> struct ContextData<D3>
     TKit::TierArray<PointLight<D3> *> PointLights{};
     TKit::TierArray<DirectionalLight *> DirLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
-    Asset StatMeshToSpawn = 0;
-    Asset ParaMeshToSpawn = 0;
+    TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullAsset, 0, 0};
     f32 AxesThickness = 0.01f;
 
     u32 SelectedShape = 0;
@@ -265,14 +263,6 @@ class SandboxAppLayer final : public ApplicationLayer
     template <Dimension D, typename F> void DrawLattice(const LatticeData<D> &lattice, F &&fun);
 
     template <Dimension D> Shape<D> CreateShape(Geometry geo, Asset mesh = NullAsset);
-    template <Dimension D> Shape<D> CreateShape(const ContextData<D> &context)
-    {
-        return CreateShape<D>(context.GeometryToSpawn, context.StatMeshToSpawn);
-    }
-    template <Dimension D> Shape<D> CreateShape(const LatticeData<D> &lattice, const Asset mesh = NullAsset)
-    {
-        return CreateShape<D>(lattice.Geo, mesh);
-    }
 
     template <Dimension D> void AddContext(const Window *window = nullptr);
     template <Dimension D> void AddLattice(const Window *window = nullptr, const LatticeData<D> &lattice = {});

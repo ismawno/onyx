@@ -67,7 +67,7 @@ enum ParametricShape : u32
 struct StadiumParameters
 {
     f32 Width;
-    f32 Height;
+    f32 Radius;
 };
 
 struct RoundedQuadParameters
@@ -77,9 +77,16 @@ struct RoundedQuadParameters
     f32 Radius;
 };
 
+struct CapsuleParameters
+{
+    f32 Width;
+    f32 Radius;
+};
+
 union InstanceParameters {
     StadiumParameters Stadium;
     RoundedQuadParameters RoundedQuad;
+    CapsuleParameters Capsule;
 };
 
 template <Dimension D> struct ParametricInstanceData
@@ -214,18 +221,10 @@ constexpr Shading GetShading(const StencilPass pass)
     return GetShading(GetDrawMode(pass));
 }
 
-template <Dimension D> struct LightRange
+struct LightRange
 {
-    u32 PointLightOffset = 0;
-    u32 PointLightCount = 0;
-};
-
-template <> struct LightRange<D3>
-{
-    u32 PointLightOffset = 0;
-    u32 PointLightCount = 0;
-    u32 DirectionalLightOffset = 0;
-    u32 DirectionalLightCount = 0;
+    u32 LightOffset = 0;
+    u32 LightCount = 0;
 };
 
 template <Dimension D> struct PushConstantData;
@@ -233,7 +232,7 @@ template <Dimension D> struct PushConstantData;
 template <> struct PushConstantData<D2>
 {
     f32m4 ProjectionView;
-    LightRange<D2> LightRange;
+    TKit::FixedArray<LightRange, LightTypeCount<D2>> LightRanges{};
     u32 AmbientColor;
     ViewMask ViewBit;
 };
@@ -242,7 +241,7 @@ template <> struct PushConstantData<D3>
 {
     f32m4 ProjectionView;
     f32v4 ViewPosition;
-    LightRange<D3> LightRange;
+    TKit::FixedArray<LightRange, LightTypeCount<D3>> LightRanges{};
     u32 AmbientColor;
     ViewMask ViewBit;
 };
