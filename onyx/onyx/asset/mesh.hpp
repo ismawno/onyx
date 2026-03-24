@@ -2,20 +2,20 @@
 
 #include "onyx/resource/buffer.hpp"
 #include "onyx/property/vertex.hpp"
-#include "tkit/container/tier_array.hpp"
+#include "tkit/container/dynamic_array.hpp"
 
 namespace Onyx
 {
 template <typename Vertex> struct MeshData
 {
-    TKit::TierArray<Vertex> Vertices{};
-    TKit::TierArray<Index> Indices{};
+    TKit::DynamicArray<Vertex> Vertices{};
+    TKit::DynamicArray<Index> Indices{};
 };
 
 template <Dimension D> struct MeshData<ParaVertex<D>>
 {
-    TKit::TierArray<ParaVertex<D>> Vertices{};
-    TKit::TierArray<Index> Indices{};
+    TKit::DynamicArray<ParaVertex<D>> Vertices{};
+    TKit::DynamicArray<Index> Indices{};
     ParametricShape Shape{};
 };
 

@@ -65,7 +65,7 @@ enum ParametricShape : u32
 
 struct StadiumParameters
 {
-    f32 Width;
+    f32 Height;
     f32 Radius;
 };
 
@@ -78,7 +78,7 @@ struct RoundedQuadParameters
 
 struct CapsuleParameters
 {
-    f32 Width;
+    f32 Height;
     f32 Radius;
 };
 

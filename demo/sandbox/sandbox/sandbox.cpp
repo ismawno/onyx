@@ -1003,7 +1003,7 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
         {
         case ParametricShape_Stadium: {
             StadiumParameters &params = shape.Parameters.Stadium;
-            ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
             ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
             break;
         }
@@ -1016,7 +1016,7 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
         }
         case ParametricShape_Capsule: {
             CapsuleParameters &params = shape.Parameters.Capsule;
-            ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
             ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
             break;
         }

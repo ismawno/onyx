@@ -1,7 +1,6 @@
 #pragma once
 
 #include "onyx/core/core.hpp"
-#include "onyx/asset/mesh.hpp"
 #include "onyx/execution/execution.hpp"
 #include "onyx/property/camera.hpp"
 #include "onyx/property/instance.hpp"

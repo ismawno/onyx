@@ -1781,7 +1781,7 @@ static StatMeshData<D> createRegularPolygon(const u32 sides, const f32v<D> &vert
         if constexpr (D == D2)
             addVertex(f32v2{c, s}, uv);
         else if constexpr (Inverted)
-            addVertex(f32v3{0.f, c, s}, uv);
+            addVertex(f32v3{c, 0.f, s}, uv);
         else
             addVertex(f32v3{c, s, 0.f}, uv);
         if constexpr (Counter)
@@ -1976,11 +1976,11 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
 }
 StatMeshData<D3> CreateCylinderMesh(const u32 sides)
 {
-    const StatMeshData<D3> left = createRegularPolygon<D3, true, false>(
-        sides, f32v3{-0.5f, 0.f, 0.f}, 0, f32v3{-1.f, 0.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
+    const StatMeshData<D3> left = createRegularPolygon<D3, true, true>(
+        sides, f32v3{0.f, -0.5f, 0.f}, 0, f32v3{0.f, -1.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
 
-    const StatMeshData<D3> right = createRegularPolygon<D3, true, true>(
-        sides, f32v3{0.5f, 0.f, 0.f}, left.Vertices.GetSize(), f32v3{1.f, 0.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
+    const StatMeshData<D3> right = createRegularPolygon<D3, true, false>(
+        sides, f32v3{0.f, 0.5f, 0.f}, left.Vertices.GetSize(), f32v3{0.f, 1.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
 
     StatMeshData<D3> data{};
     data.Indices.Insert(data.Indices.end(), left.Indices.begin(), left.Indices.end());
@@ -1991,8 +1991,7 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
 
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
                                    const f32v4 &tangent) {
-        const f32v3 vertex = f32v3{x, y, z};
-        data.Vertices.Append(StatVertex<D3>{vertex, f32v2{u, v}, Math::Normalize(f32v3{0.f, y, z}), tangent});
+        data.Vertices.Append(StatVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(f32v3{x, 0.f, z}), tangent});
     };
     const u32 offset = left.Vertices.GetSize() + right.Vertices.GetSize();
     const auto addIndex = [&data, offset](const u32 index) { data.Indices.Append(Index(index + offset)); };
@@ -2002,26 +2001,27 @@ StatMeshData<D3> CreateCylinderMesh(const u32 sides)
     {
         const f32 cc = Math::Cosine(i * angle);
         const f32 ss = Math::Sine(i * angle);
-        const f32v4 tangent = f32v4{0.f, -ss, cc, 1.f};
 
-        const f32 c = 0.5f * cc;
-        const f32 s = 0.5f * ss;
+        const f32v4 tangent = f32v4{-ss, 0.f, cc, 1.f};
+
+        const f32 x = 0.5f * cc;
+        const f32 z = 0.5f * ss;
 
         const f32 u = f32(i) / sides;
-        addVertex(-0.5f, c, s, u, 0.f, tangent);
-        addVertex(0.5f, c, s, u, 1.f, tangent);
+        addVertex(x, -0.5f, z, u, 1.f, tangent);
+        addVertex(x, 0.5f, z, u, 0.f, tangent);
 
         const u32 ii = 2 * i;
         addIndex(ii);
-        addIndex(ii + 2);
         addIndex(ii + 1);
+        addIndex(ii + 2);
 
         addIndex(ii + 1);
-        addIndex(ii + 2);
         addIndex(ii + 3);
+        addIndex(ii + 2);
     }
-    addVertex(-0.5f, 0.5f, 0.f, 1.f, 0.f, f32v4{0.f, 0.f, 1.f, 1.f});
-    addVertex(0.5f, 0.5f, 0.f, 1.f, 1.f, f32v4{0.f, 0.f, 1.f, 1.f});
+    addVertex(0.5f, -0.5f, 0.f, 1.f, 1.f, f32v4{0.f, 0.f, 1.f, 1.f});
+    addVertex(0.5f, 0.5f, 0.f, 1.f, 0.f, f32v4{0.f, 0.f, 1.f, 1.f});
 
     VALIDATE_MESH(data);
     return data;
@@ -2040,25 +2040,24 @@ template <Dimension D> ParaMeshData<D> CreateStadiumMesh()
                 ParaVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}, region});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
-
     constexpr u32 body = StadiumRegion_Body;
     constexpr u32 edge = StadiumRegion_Edge;
     constexpr u32 moon = StadiumRegion_Moon;
 
-    addVertex(-0.5f, -0.5f, 0.25f, 1.f, body);
-    addVertex(0.5f, -0.5f, 0.75f, 1.f, body);
-    addVertex(-0.5f, 0.5f, 0.25f, 0.f, body);
-    addVertex(0.5f, 0.5f, 0.75f, 0.f, body);
+    addVertex(-0.5f, -0.5f, 0.f, 0.75f, body);
+    addVertex(0.5f, -0.5f, 1.f, 0.75f, body);
+    addVertex(-0.5f, 0.5f, 0.f, 0.25f, body);
+    addVertex(0.5f, 0.5f, 1.f, 0.25f, body);
 
-    addVertex(-1.f, -0.5f, 0.f, 1.f, edge | moon);
-    addVertex(-0.5f, -0.5f, 0.25f, 1.f, moon);
-    addVertex(-1.f, 0.5f, 0.f, 0.f, edge | moon);
-    addVertex(-0.5f, 0.5f, 0.25f, 0.f, moon);
+    addVertex(-0.5f, -1.f, 0.f, 1.f, edge | moon);
+    addVertex(0.5f, -1.f, 1.f, 1.f, edge | moon);
+    addVertex(-0.5f, -0.5f, 0.f, 0.75f, moon);
+    addVertex(0.5f, -0.5f, 1.f, 0.75f, moon);
 
-    addVertex(0.5f, -0.5f, 0.75f, 1.f, moon);
-    addVertex(1.f, -0.5f, 1.f, 1.f, edge | moon);
-    addVertex(0.5f, 0.5f, 0.75f, 0.f, moon);
-    addVertex(1.f, 0.5f, 1.f, 0.f, edge | moon);
+    addVertex(-0.5f, 0.5f, 0.f, 0.25f, moon);
+    addVertex(0.5f, 0.5f, 1.f, 0.25f, moon);
+    addVertex(-0.5f, 1.f, 0.f, 0.f, edge | moon);
+    addVertex(0.5f, 1.f, 1.f, 0.f, edge | moon);
 
     for (u32 i = 0; i < 3; ++i)
     {
@@ -2069,7 +2068,6 @@ template <Dimension D> ParaMeshData<D> CreateStadiumMesh()
         addIndex(3 + i * 4);
         addIndex(2 + i * 4);
     }
-
     VALIDATE_MESH(data);
     return data;
 }
@@ -2159,17 +2157,18 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
     data.Shape = ParametricShape_Capsule;
 
     const auto addCylinderVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
-                                           const f32v3 &normal, const f32v4 &tangent) {
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, normal, tangent, CapsuleRegion_Body});
+                                           const f32v4 &tangent) {
+        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(f32v3{x, 0.f, z}), tangent,
+                                            CapsuleRegion_Body});
     };
     u32 coffset = 0;
     const auto addSphereVertex = [&data, &coffset](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
                                                    const f32v4 &tangent) {
         f32v3 normal = f32v3{x, y, z};
-        if (x < 0.f)
-            normal[0] += 0.5f;
+        if (y < 0.f)
+            normal[1] += 0.5f;
         else
-            normal[0] -= 0.5f;
+            normal[1] -= 0.5f;
         data.Vertices.Append(
             ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, CapsuleRegion_Cap});
         ++coffset;
@@ -2189,7 +2188,7 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
 
     const u32 halfRings = rings / 2;
 
-    addSphereVertex(-1.f, 0.f, 0.f, 0.f, 0.f, f32v4{0.f, 1.f, 0.f, 1.f});
+    addSphereVertex(0.f, 1.f, 0.f, 0.f, 0.f, f32v4{1.f, 0.f, 0.f, 1.f});
     for (u32 i = 1; i < halfRings + 1; ++i)
     {
         const f32 v = f32(i) / rings;
@@ -2205,7 +2204,7 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
 
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
-            addSphereVertex(-0.5f * (1.f + pc), 0.5f * ps * tc, 0.5f * ps * ts, 0.25f * v, u, f32v4{0.f, -ts, tc, 1.f});
+            addSphereVertex(0.5f * ps * tc, 0.5f * (1.f + pc), 0.5f * ps * ts, u, 0.5f * v, f32v4{-ts, 0.f, tc, 1.f});
 
             const u32 ii = i - 1;
             const u32 jj = j + 1;
@@ -2219,7 +2218,7 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
                 addSphereIndex(ii, jj);
             }
         }
-        addSphereVertex(-0.5f * (1.f + pc), 0.5f * ps, 0.f, 0.25f * v, 1.0f, f32v4{0.f, 0.f, 1.f, 1.f});
+        addSphereVertex(0.5f * ps, 0.5f * (1.f + pc), 0.f, 1.f, 0.25f, f32v4{0.f, 0.f, 1.f, 1.f});
     }
 
     for (u32 i = halfRings; i < rings - 1; ++i)
@@ -2238,8 +2237,8 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
 
-            addSphereVertex(0.5f * (1.f - pc), 0.5f * ps * tc, 0.5f * ps * ts, 0.75f * (1.f - v), u,
-                            f32v4{0.f, -ts, tc, 1.f});
+            addSphereVertex(0.5f * ps * tc, -0.5f * (1.f - pc), 0.5f * ps * ts, u, 0.75f + (0.5f * v - 0.25f),
+                            f32v4{-ts, 0.f, tc, 1.f});
 
             const u32 ii = i + 1;
             const u32 jj = j + 1;
@@ -2254,10 +2253,10 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
                 addSphereIndex(i, jj);
             }
         }
-        addSphereVertex(0.5f * (1.f - pc), 0.5f * ps, 0.f, 0.75f + 0.5f * (v - 0.5f), 1.f, f32v4{0.f, 0.f, 1.f, 1.f});
+        addSphereVertex(0.5f * ps, -0.5f * (1.f - pc), 0.f, 1.f, 0.75f + (0.5f * v - 0.25f), f32v4{0.f, 0.f, 1.f, 1.f});
     }
 
-    addSphereVertex(1.f, 0.f, 0.f, 1.f, 0.5f, f32v4{0.f, 1.f, 0.f, 1.f});
+    addSphereVertex(0.f, -1.f, 0.f, 1.f, 0.5f, f32v4{0.f, 1.f, 0.f, 1.f});
 
     for (u32 j = 0; j < sectors; ++j)
     {
@@ -2266,32 +2265,32 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
         addSphereIndex(rings, j);
     }
 
+    const f32 angle = 2.f * Math::Pi<f32>() / sectors;
+    for (u32 j = 0; j < sectors; ++j)
     {
-        const f32 v = 0.5f;
-        const f32 angle = 2.f * Math::Pi<f32>() / sectors;
-        for (u32 j = 0; j < sectors; ++j)
-        {
-            const f32 u = f32(j) / sectors;
-            const f32 cc = Math::Cosine(j * angle);
-            const f32 ss = Math::Sine(j * angle);
-            const f32v4 tangent = f32v4{0.f, -ss, cc, 1.f};
-            const f32 y = 0.5f * cc;
-            const f32 z = 0.5f * ss;
+        const f32 cc = Math::Cosine(j * angle);
+        const f32 ss = Math::Sine(j * angle);
 
-            addCylinderVertex(-0.5f, y, z, u, v, f32v3{0.f, cc, ss}, tangent);
-            addCylinderVertex(0.5f, y, z, u, v, f32v3{0.f, cc, ss}, tangent);
+        const f32v4 tangent = f32v4{-ss, 0.f, cc, 1.f};
 
-            const u32 ii = 2 * j;
-            addCylinderIndex(ii);
-            addCylinderIndex(ii + 2);
-            addCylinderIndex(ii + 1);
-            addCylinderIndex(ii + 1);
-            addCylinderIndex(ii + 2);
-            addCylinderIndex(ii + 3);
-        }
-        addCylinderVertex(-0.5f, 0.5f, 0.f, 1.f, v, f32v3{0.f, 1.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
-        addCylinderVertex(0.5f, 0.5f, 0.f, 1.f, v, f32v3{0.f, 1.f, 0.f}, f32v4{0.f, 0.f, 1.f, 1.f});
+        const f32 x = 0.5f * cc;
+        const f32 z = 0.5f * ss;
+
+        const f32 u = f32(j) / sectors;
+        addCylinderVertex(x, -0.5f, z, u, 0.75f, tangent);
+        addCylinderVertex(x, 0.5f, z, u, 0.25f, tangent);
+
+        const u32 ii = 2 * j;
+        addCylinderIndex(ii);
+        addCylinderIndex(ii + 1);
+        addCylinderIndex(ii + 2);
+
+        addCylinderIndex(ii + 1);
+        addCylinderIndex(ii + 3);
+        addCylinderIndex(ii + 2);
     }
+    addCylinderVertex(0.5f, -0.5f, 0.f, 1.f, 0.75f, f32v4{0.f, 0.f, 1.f, 1.f});
+    addCylinderVertex(0.5f, 0.5f, 0.f, 1.f, 0.25f, f32v4{0.f, 0.f, 1.f, 1.f});
 
     VALIDATE_MESH(data);
     return data;

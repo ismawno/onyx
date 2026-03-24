@@ -6,6 +6,7 @@
 #include "onyx/platform/dialog.hpp"
 #include "onyx/asset/sampler.hpp"
 #include "onyx/asset/texture.hpp"
+#include "onyx/asset/mesh.hpp"
 
 namespace Onyx
 {

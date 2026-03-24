@@ -291,7 +291,7 @@ f32v2 GetParametricPosition2D(f32v2 pos, const InstanceParameters params, const 
 {
     if (params.Shape == ParametricShape_Stadium)
     {
-        const f32v2 dims = f32v2(params.Payload[0], 2.f * params.Payload[1]);
+        const f32v2 dims = f32v2(2.f * params.Payload[1], params.Payload[0]);
         if (bool(region & StadiumRegion_Body))
             pos *= dims;
         else
@@ -299,7 +299,7 @@ f32v2 GetParametricPosition2D(f32v2 pos, const InstanceParameters params, const 
             const f32v2 s = sign(pos);
             pos += (0.5f * dims - 0.5f) * s;
             if (bool(region & StadiumRegion_Edge))
-                pos[0] += (params.Payload[1] - 0.5f) * s[0];
+                pos[1] += (params.Payload[1] - 0.5f) * s[1];
         }
     }
     else if (params.Shape == ParametricShape_RoundedQuad)
@@ -325,7 +325,7 @@ f32v3 GetParametricPosition3D(f32v3 pos, const InstanceParameters params, const 
 {
     if (params.Shape == ParametricShape_Stadium)
     {
-        const f32v2 dims = f32v2(params.Payload[0], 2.f * params.Payload[1]);
+        const f32v2 dims = f32v2(2.f * params.Payload[1], params.Payload[0]);
         if (bool(region & StadiumRegion_Body))
             pos.xy *= dims;
         else
@@ -333,7 +333,7 @@ f32v3 GetParametricPosition3D(f32v3 pos, const InstanceParameters params, const 
             const f32v2 s = sign(pos.xy);
             pos.xy += (0.5f * dims - 0.5f) * s;
             if (bool(region & StadiumRegion_Edge))
-                pos[0] += (params.Payload[1] - 0.5f) * s[0];
+                pos[1] += (params.Payload[1] - 0.5f) * s[1];
         }
     }
     else if (params.Shape == ParametricShape_RoundedQuad)
@@ -355,16 +355,16 @@ f32v3 GetParametricPosition3D(f32v3 pos, const InstanceParameters params, const 
     else if (params.Shape == ParametricShape_Capsule)
     {
         const f32 diam = 2.f * params.Payload[1];
-        const f32v3 dims = f32v3(params.Payload[0], diam, diam);
+        const f32v3 dims = f32v3(diam, params.Payload[0], diam);
         if (bool(region & CapsuleRegion_Body))
             pos *= dims;
         else
         {
             f32v3 dir = pos;
-            const f32 s = sign(dir.x);
-            dir.x -= 0.5f * s;
+            const f32 s = sign(dir.y);
+            dir.y -= 0.5f * s;
             pos += (params.Payload[1] - 0.5f) * normalize(dir);
-            pos[0] += (0.5f * dims[0] - 0.5f) * s;
+            pos[1] += (0.5f * dims[1] - 0.5f) * s;
         }
     }
     return pos;
@@ -372,11 +372,11 @@ f32v3 GetParametricPosition3D(f32v3 pos, const InstanceParameters params, const 
 
 bool CheckParametricFragment2D(f32v2 pos, const u32v2 shapeInfo)
 {
-    const u32 shape = shapeInfo.x;
-    const u32 region = shapeInfo.y;
+    const u32 shape = shapeInfo[0];
+    const u32 region = shapeInfo[1];
     if (shape == ParametricShape_Stadium && bool(region & StadiumRegion_Moon))
     {
-        pos.x -= 0.5f * sign(pos.x);
+        pos.y -= 0.5f * sign(pos.y);
         const f32 len = 4.f * dot(pos, pos);
         if (len > 1.f)
             return false;
@@ -394,12 +394,12 @@ bool CheckParametricFragment2D(f32v2 pos, const u32v2 shapeInfo)
 
 bool CheckParametricFragment3D(f32v3 pos, const u32v2 shapeInfo)
 {
-    const u32 shape = shapeInfo.x;
-    const u32 region = shapeInfo.y;
+    const u32 shape = shapeInfo[0];
+    const u32 region = shapeInfo[1];
     if (shape == ParametricShape_Stadium && bool(region & StadiumRegion_Moon))
     {
         f32v2 p = pos.xy;
-        p.x -= 0.5f * sign(p.x);
+        p.y -= 0.5f * sign(p.y);
         const f32 len = 4.f * dot(p, p);
         if (len > 1.f)
             return false;
