@@ -157,6 +157,7 @@ template <Dimension D> void SandboxAppLayer::AddDefaultMeshes()
     if constexpr (D == D3)
     {
         AddMesh(ppool, Assets::CreateCapsuleMesh(), "Capsule");
+        AddMesh(ppool, Assets::CreateRoundedBoxMesh(), "Rounded box");
     }
 }
 template <Dimension D> void SandboxAppLayer::AddDefaultMaterial()
@@ -394,6 +395,8 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
             shape.Parameters.RoundedQuad = RoundedQuadParameters{1.f, 1.f, 0.5f};
         else if (stype == ParametricShape_Capsule)
             shape.Parameters.Capsule = CapsuleParameters{1.f, 0.5f};
+        else if (stype == ParametricShape_RoundedBox)
+            shape.Parameters.RoundedBox = RoundedBoxParameters{1.f, 1.f, 1.f, 0.5f};
         return shape;
     }
     default:
@@ -1017,6 +1020,14 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
         case ParametricShape_Capsule: {
             CapsuleParameters &params = shape.Parameters.Capsule;
             ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
+            break;
+        }
+        case ParametricShape_RoundedBox: {
+            RoundedBoxParameters &params = shape.Parameters.RoundedBox;
+            ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Length", &params.Length, 0.04f, 0.f, TKIT_F32_MAX);
             ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
             break;
         }

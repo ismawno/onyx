@@ -82,10 +82,19 @@ struct CapsuleParameters
     f32 Radius;
 };
 
+struct RoundedBoxParameters
+{
+    f32 Width;
+    f32 Height;
+    f32 Length;
+    f32 Radius;
+};
+
 union InstanceParameters {
     StadiumParameters Stadium;
     RoundedQuadParameters RoundedQuad;
     CapsuleParameters Capsule;
+    RoundedBoxParameters RoundedBox;
 };
 
 template <Dimension D> struct ParametricInstanceData

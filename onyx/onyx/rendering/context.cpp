@@ -301,20 +301,19 @@ template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, c
 {
     const f32v<D> delta = end - start;
     if constexpr (D == D2)
-        return Math::AntiTangent(delta[1], delta[0]);
+        return Math::AntiTangent(delta[1], delta[0]) - 0.5f * Math::Pi<f32>();
     else
     {
         const f32v3 dir = Math::Normalize(delta);
-        const f32v3 r{0.f, -dir[2], dir[1]};
-        const f32 theta = 0.5f * Math::AntiCosine(dir[0]);
+        const f32v3 r{dir[2], 0.f, -dir[0]};
+        const f32 theta = 0.5f * Math::AntiCosine(dir[1]);
         if (!TKit::ApproachesZero(Math::NormSquared(r)))
             return f32q{Math::Cosine(theta), Math::Normalize(r) * Math::Sine(theta)};
-        if (dir[0] < 0.f)
-            return f32q{0.f, 0.f, 1.f, 0.f};
+        if (dir[1] < 0.f)
+            return f32q{0.f, 1.f, 0.f, 0.f};
         return Detail::RotType<D>::Identity;
     }
 }
-
 template <Dimension D>
 void IRenderContext<D>::Line(const Asset mesh, const f32v<D> &start, const f32v<D> &end, const f32 thickness)
 {
@@ -323,10 +322,12 @@ void IRenderContext<D>::Line(const Asset mesh, const f32v<D> &start, const f32v<
     f32m<D> transform = m_Current->Transform;
     Onyx::Transform<D>::TranslateIntrinsic(transform, 0.5f * (start + end));
     Onyx::Transform<D>::RotateIntrinsic(transform, computeLineRotation<D>(start, end));
+
     if constexpr (D == D2)
-        Onyx::Transform<D>::ScaleIntrinsic(transform, f32v2{Math::Norm(delta), thickness});
+        Onyx::Transform<D>::ScaleIntrinsic(transform, f32v2{thickness, Math::Norm(delta)});
     else
-        Onyx::Transform<D>::ScaleIntrinsic(transform, f32v3{Math::Norm(delta), thickness, thickness});
+        Onyx::Transform<D>::ScaleIntrinsic(transform, f32v3{thickness, Math::Norm(delta), thickness});
+
     const auto draw = [&, mesh](const StencilPass pass) { addStaticData(mesh, transform, pass); };
     resolveStencilPassWithState(m_Current, draw);
 }

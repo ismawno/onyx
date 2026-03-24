@@ -53,7 +53,7 @@ VertexOutput mainVS(
     const StaticInstanceDataFill3D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
-    const f32v3 pos = GetParametricPosition3D(input.Position, params, input.Region);
+    const f32v3 pos = GetParametricPosition3D(input.Position, input.Normal, params, input.Region);
 
     const f32m4 transform = ComputeTransform3D(data.Basis);
     const f32v4 worldPos = mul(f32v4(pos, 1.0), transform);

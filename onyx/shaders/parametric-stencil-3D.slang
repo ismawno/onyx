@@ -3,6 +3,7 @@
 struct VertexInput
 {
     f32v3 Position : POSITION;
+    f32v3 Normal : NORMAL;
     ParametricRegionFlags Region;
 }
 
@@ -41,7 +42,7 @@ VertexOutput mainVS(
     const StaticInstanceDataStencil3D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
-    const f32v3 pos = GetParametricPosition3D(input.Position, params, input.Region);
+    const f32v3 pos = GetParametricPosition3D(input.Position, input.Normal, params, input.Region);
 
     const f32m4 transform = ComputeTransform3D(data.Basis);
 

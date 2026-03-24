@@ -1687,8 +1687,25 @@ Result<TextureData> LoadTextureDataFromImageFile(const char *path, const ImageCo
 }
 #endif
 
+template <typename Vertex> static void removeUnusedVertices(MeshData<Vertex> &data, const u32 offset = 0)
+{
+    TKit::StackArray<u32> counts{};
+    counts.Resize(data.Vertices.GetSize(), 0);
+
+    for (const Index i : data.Indices)
+        counts[i - Index(offset)]++;
+    for (u32 i = counts.GetSize() - 1; i < counts.GetSize(); --i)
+        if (counts[i] == 0)
+        {
+            data.Vertices.RemoveOrdered(data.Vertices.begin() + i);
+            for (Index &j : data.Indices)
+                if (j > i)
+                    --j;
+        }
+}
+
 #ifdef TKIT_ENABLE_ASSERTS
-template <typename Vertex> static void validateMesh(const MeshData<Vertex> &data, const u32 offset = 0)
+template <typename Vertex> static void validateMesh(MeshData<Vertex> &data, const u32 offset = 0)
 {
     Index mx = 0;
     for (const Index i : data.Indices)
@@ -1700,10 +1717,20 @@ template <typename Vertex> static void validateMesh(const MeshData<Vertex> &data
                 "[ONYX][ASSETS] Index and vertex host data creation is invalid. An index exceeds vertex bounds. Index: "
                 "{}, size: {}",
                 mx, data.Vertices.GetSize());
+    removeUnusedVertices(data, offset);
+    TKit::StackArray<u32> counts{};
+    counts.Resize(data.Vertices.GetSize(), 0);
+
+    for (const Index i : data.Indices)
+        counts[i - Index(offset)]++;
+    for (const u32 c : counts)
+    {
+        TKIT_ASSERT(c != 0, "[ONYX][ASSETS] Found unused vertices in a mesh");
+    }
 }
 #    define VALIDATE_MESH(...) validateMesh(__VA_ARGS__)
 #else
-#    define VALIDATE_MESH(...)
+#    define VALIDATE_MESH(...) removeUnusedVertices(__VA_ARGS__)
 #endif
 
 template <Dimension D> StatMeshData<D> CreateTriangleMesh()
@@ -1848,20 +1875,20 @@ template <Dimension D> StatMeshData<D> CreatePolygonMesh(const TKit::Span<const 
     return data;
 }
 
-StatMeshData<D3> CreateBoxMesh()
+static StatMeshData<D3> createBoxMesh(const u32 offset = 0, const f32 push = 0.5f)
 {
     StatMeshData<D3> data{};
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 n0, const f32 n1, const f32 n2,
                                    const f32 u, const f32 v, const f32v4 &tangent) {
         data.Vertices.Append(StatVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, f32v3{n0, n1, n2}, tangent});
     };
-    const auto addQuad = [&data](const Index a, const Index b, const Index c, const Index d) {
-        data.Indices.Append(a);
-        data.Indices.Append(b);
-        data.Indices.Append(c);
-        data.Indices.Append(a);
-        data.Indices.Append(c);
-        data.Indices.Append(d);
+    const auto addQuad = [&data, offset](const Index a, const Index b, const Index c, const Index d) {
+        data.Indices.Append(a + offset);
+        data.Indices.Append(b + offset);
+        data.Indices.Append(c + offset);
+        data.Indices.Append(a + offset);
+        data.Indices.Append(c + offset);
+        data.Indices.Append(d + offset);
     };
     const f32v4 tPosZ{0.f, 0.f, 1.f, 1.f};  // -X face: U goes along +Z
     const f32v4 tPosX{1.f, 0.f, 0.f, 1.f};  // +Z face: U goes along +X
@@ -1871,44 +1898,49 @@ StatMeshData<D3> CreateBoxMesh()
     const f32v4 tBotX{-1.f, 0.f, 0.f, 1.f}; // -Y face: U goes along -X
 
     Index base = 0;
-    addVertex(-0.5f, 0.5f, -0.5f, -1.f, 0.f, 0.f, 0.f, 0.f, tPosZ);
-    addVertex(-0.5f, -0.5f, -0.5f, -1.f, 0.f, 0.f, 0.f, 1.f, tPosZ);
-    addVertex(-0.5f, -0.5f, 0.5f, -1.f, 0.f, 0.f, 1.f, 1.f, tPosZ);
-    addVertex(-0.5f, 0.5f, 0.5f, -1.f, 0.f, 0.f, 1.f, 0.f, tPosZ);
+    addVertex(-push, 0.5f, -0.5f, -1.f, 0.f, 0.f, 0.f, 0.f, tPosZ);
+    addVertex(-push, -0.5f, -0.5f, -1.f, 0.f, 0.f, 0.f, 1.f, tPosZ);
+    addVertex(-push, -0.5f, 0.5f, -1.f, 0.f, 0.f, 1.f, 1.f, tPosZ);
+    addVertex(-push, 0.5f, 0.5f, -1.f, 0.f, 0.f, 1.f, 0.f, tPosZ);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-    addVertex(-0.5f, 0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 0.f, tPosX);
-    addVertex(-0.5f, -0.5f, 0.5f, 0.f, 0.f, 1.f, 0.f, 1.f, tPosX);
-    addVertex(0.5f, -0.5f, 0.5f, 0.f, 0.f, 1.f, 1.f, 1.f, tPosX);
-    addVertex(0.5f, 0.5f, 0.5f, 0.f, 0.f, 1.f, 1.f, 0.f, tPosX);
+    addVertex(-0.5f, 0.5f, push, 0.f, 0.f, 1.f, 0.f, 0.f, tPosX);
+    addVertex(-0.5f, -0.5f, push, 0.f, 0.f, 1.f, 0.f, 1.f, tPosX);
+    addVertex(0.5f, -0.5f, push, 0.f, 0.f, 1.f, 1.f, 1.f, tPosX);
+    addVertex(0.5f, 0.5f, push, 0.f, 0.f, 1.f, 1.f, 0.f, tPosX);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-    addVertex(0.5f, 0.5f, 0.5f, 1.f, 0.f, 0.f, 0.f, 0.f, tNegZ);
-    addVertex(0.5f, -0.5f, 0.5f, 1.f, 0.f, 0.f, 0.f, 1.f, tNegZ);
-    addVertex(0.5f, -0.5f, -0.5f, 1.f, 0.f, 0.f, 1.f, 1.f, tNegZ);
-    addVertex(0.5f, 0.5f, -0.5f, 1.f, 0.f, 0.f, 1.f, 0.f, tNegZ);
+    addVertex(push, 0.5f, 0.5f, 1.f, 0.f, 0.f, 0.f, 0.f, tNegZ);
+    addVertex(push, -0.5f, 0.5f, 1.f, 0.f, 0.f, 0.f, 1.f, tNegZ);
+    addVertex(push, -0.5f, -0.5f, 1.f, 0.f, 0.f, 1.f, 1.f, tNegZ);
+    addVertex(push, 0.5f, -0.5f, 1.f, 0.f, 0.f, 1.f, 0.f, tNegZ);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-    addVertex(0.5f, 0.5f, -0.5f, 0.f, 0.f, -1.f, 0.f, 0.f, tNegX);
-    addVertex(0.5f, -0.5f, -0.5f, 0.f, 0.f, -1.f, 0.f, 1.f, tNegX);
-    addVertex(-0.5f, -0.5f, -0.5f, 0.f, 0.f, -1.f, 1.f, 1.f, tNegX);
-    addVertex(-0.5f, 0.5f, -0.5f, 0.f, 0.f, -1.f, 1.f, 0.f, tNegX);
+    addVertex(0.5f, 0.5f, -push, 0.f, 0.f, -1.f, 0.f, 0.f, tNegX);
+    addVertex(0.5f, -0.5f, -push, 0.f, 0.f, -1.f, 0.f, 1.f, tNegX);
+    addVertex(-0.5f, -0.5f, -push, 0.f, 0.f, -1.f, 1.f, 1.f, tNegX);
+    addVertex(-0.5f, 0.5f, -push, 0.f, 0.f, -1.f, 1.f, 0.f, tNegX);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-    addVertex(-0.5f, 0.5f, 0.5f, 0.f, 1.f, 0.f, 0.f, 0.f, tTopX);
-    addVertex(0.5f, 0.5f, 0.5f, 0.f, 1.f, 0.f, 1.f, 0.f, tTopX);
-    addVertex(0.5f, 0.5f, -0.5f, 0.f, 1.f, 0.f, 1.f, 1.f, tTopX);
-    addVertex(-0.5f, 0.5f, -0.5f, 0.f, 1.f, 0.f, 0.f, 1.f, tTopX);
+    addVertex(-0.5f, push, 0.5f, 0.f, 1.f, 0.f, 0.f, 0.f, tTopX);
+    addVertex(0.5f, push, 0.5f, 0.f, 1.f, 0.f, 1.f, 0.f, tTopX);
+    addVertex(0.5f, push, -0.5f, 0.f, 1.f, 0.f, 1.f, 1.f, tTopX);
+    addVertex(-0.5f, push, -0.5f, 0.f, 1.f, 0.f, 0.f, 1.f, tTopX);
     addQuad(base + 0, base + 1, base + 2, base + 3);
     base += 4;
-    addVertex(0.5f, -0.5f, 0.5f, 0.f, -1.f, 0.f, 0.f, 0.f, tBotX);
-    addVertex(-0.5f, -0.5f, 0.5f, 0.f, -1.f, 0.f, 1.f, 0.f, tBotX);
-    addVertex(-0.5f, -0.5f, -0.5f, 0.f, -1.f, 0.f, 1.f, 1.f, tBotX);
-    addVertex(0.5f, -0.5f, -0.5f, 0.f, -1.f, 0.f, 0.f, 1.f, tBotX);
+    addVertex(0.5f, -push, 0.5f, 0.f, -1.f, 0.f, 0.f, 0.f, tBotX);
+    addVertex(-0.5f, -push, 0.5f, 0.f, -1.f, 0.f, 1.f, 0.f, tBotX);
+    addVertex(-0.5f, -push, -0.5f, 0.f, -1.f, 0.f, 1.f, 1.f, tBotX);
+    addVertex(0.5f, -push, -0.5f, 0.f, -1.f, 0.f, 0.f, 1.f, tBotX);
     addQuad(base + 0, base + 1, base + 2, base + 3);
 
-    VALIDATE_MESH(data);
+    VALIDATE_MESH(data, offset);
     return data;
+}
+
+StatMeshData<D3> CreateBoxMesh()
+{
+    return createBoxMesh();
 }
 StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
 {
@@ -1939,6 +1971,7 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
         const f32 pc = Math::Cosine(phi);
         const f32 ps = Math::Sine(phi);
 
+        const f32 y = 0.5f * pc;
         for (u32 j = 0; j < sectors; ++j)
         {
             const f32 u = f32(j) / sectors;
@@ -1946,7 +1979,7 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
 
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
-            addVertex(0.5f * ps * tc, 0.5f * pc, 0.5f * ps * ts, u, v, f32v4{-ts, 0.f, tc, 1.f});
+            addVertex(0.5f * ps * tc, y, 0.5f * ps * ts, u, v, f32v4{-ts, 0.f, tc, 1.f});
 
             const u32 ii = i - 1;
             const u32 jj = j + 1;
@@ -2032,7 +2065,7 @@ template <Dimension D> ParaMeshData<D> CreateStadiumMesh()
     ParaMeshData<D> data{};
     data.Shape = ParametricShape_Stadium;
     const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v,
-                                   const ParametricRegionFlags region) {
+                                   const ParametricRegionFlags region = 0) {
         if constexpr (D == D2)
             data.Vertices.Append(ParaVertex<D2>{f32v2{x, y}, f32v2{u, v}, region});
         else
@@ -2040,14 +2073,13 @@ template <Dimension D> ParaMeshData<D> CreateStadiumMesh()
                 ParaVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}, region});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
-    constexpr u32 body = StadiumRegion_Body;
     constexpr u32 edge = StadiumRegion_Edge;
     constexpr u32 moon = StadiumRegion_Moon;
 
-    addVertex(-0.5f, -0.5f, 0.f, 0.75f, body);
-    addVertex(0.5f, -0.5f, 1.f, 0.75f, body);
-    addVertex(-0.5f, 0.5f, 0.f, 0.25f, body);
-    addVertex(0.5f, 0.5f, 1.f, 0.25f, body);
+    addVertex(-0.5f, -0.5f, 0.f, 0.75f);
+    addVertex(0.5f, -0.5f, 1.f, 0.75f);
+    addVertex(-0.5f, 0.5f, 0.f, 0.25f);
+    addVertex(0.5f, 0.5f, 1.f, 0.25f);
 
     addVertex(-0.5f, -1.f, 0.f, 1.f, edge | moon);
     addVertex(0.5f, -1.f, 1.f, 1.f, edge | moon);
@@ -2086,15 +2118,14 @@ template <Dimension D> ParaMeshData<D> CreateRoundedQuadMesh()
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    constexpr u32 body = RoundedQuadRegion_Body;
     constexpr u32 hedge = RoundedQuadRegion_HorizontalEdge;
     constexpr u32 vedge = RoundedQuadRegion_VerticalEdge;
     constexpr u32 moon = RoundedQuadRegion_Moon;
 
-    addVertex(-0.5f, -0.5f, 0.25f, 0.75f, body);
-    addVertex(0.5f, -0.5f, 0.75f, 0.75f, body);
-    addVertex(-0.5f, 0.5f, 0.25f, 0.25f, body);
-    addVertex(0.5f, 0.5f, 0.75f, 0.25f, body);
+    addVertex(-0.5f, -0.5f, 0.25f, 0.75f);
+    addVertex(0.5f, -0.5f, 0.75f, 0.75f);
+    addVertex(-0.5f, 0.5f, 0.25f, 0.25f);
+    addVertex(0.5f, 0.5f, 0.75f, 0.25f);
 
     addVertex(-1.f, -0.5f, 0.f, 0.75f, hedge);
     addVertex(-0.5f, -0.5f, 0.25f, 0.75f);
@@ -2169,8 +2200,7 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
             normal[1] += 0.5f;
         else
             normal[1] -= 0.5f;
-        data.Vertices.Append(
-            ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, CapsuleRegion_Cap});
+        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
         ++coffset;
     };
 
@@ -2197,6 +2227,8 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
         const f32 pc = Math::Cosine(phi);
         const f32 ps = Math::Sine(phi);
 
+        const f32 y = Math::Map(pc, 0.f, 1.f, 0.5f, 1.f);
+        const f32 vv = Math::Map(v, 0.f, 0.5f, 0.f, 0.25f);
         for (u32 j = 0; j < sectors; ++j)
         {
             const f32 u = f32(j) / sectors;
@@ -2204,7 +2236,8 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
 
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
-            addSphereVertex(0.5f * ps * tc, 0.5f * (1.f + pc), 0.5f * ps * ts, u, 0.5f * v, f32v4{-ts, 0.f, tc, 1.f});
+
+            addSphereVertex(0.5f * ps * tc, y, 0.5f * ps * ts, u, vv, f32v4{-ts, 0.f, tc, 1.f});
 
             const u32 ii = i - 1;
             const u32 jj = j + 1;
@@ -2218,7 +2251,7 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
                 addSphereIndex(ii, jj);
             }
         }
-        addSphereVertex(0.5f * ps, 0.5f * (1.f + pc), 0.f, 1.f, 0.25f, f32v4{0.f, 0.f, 1.f, 1.f});
+        addSphereVertex(0.5f * ps, y, 0.f, 1.f, vv, f32v4{0.f, 0.f, 1.f, 1.f});
     }
 
     for (u32 i = halfRings; i < rings - 1; ++i)
@@ -2229,6 +2262,8 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
         const f32 pc = Math::Cosine(phi);
         const f32 ps = Math::Sine(phi);
 
+        const f32 y = Math::Map(pc, 0.f, -1.f, -0.5f, -1.f);
+        const f32 vv = Math::Map(v, 0.5f, 1.f, 0.75f, 1.f);
         for (u32 j = 0; j < sectors; ++j)
         {
             const f32 u = f32(j) / sectors;
@@ -2237,14 +2272,13 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
 
-            addSphereVertex(0.5f * ps * tc, -0.5f * (1.f - pc), 0.5f * ps * ts, u, 0.75f + (0.5f * v - 0.25f),
-                            f32v4{-ts, 0.f, tc, 1.f});
-
-            const u32 ii = i + 1;
-            const u32 jj = j + 1;
+            addSphereVertex(0.5f * ps * tc, y, 0.5f * ps * ts, u, vv, f32v4{-ts, 0.f, tc, 1.f});
 
             if (i != halfRings)
             {
+                const u32 ii = i + 1;
+                const u32 jj = j + 1;
+
                 addSphereIndex(ii, jj);
                 addSphereIndex(ii, j);
                 addSphereIndex(i, j);
@@ -2253,7 +2287,7 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
                 addSphereIndex(i, jj);
             }
         }
-        addSphereVertex(0.5f * ps, -0.5f * (1.f - pc), 0.f, 1.f, 0.75f + (0.5f * v - 0.25f), f32v4{0.f, 0.f, 1.f, 1.f});
+        addSphereVertex(0.5f * ps, y, 0.f, 1.f, vv, f32v4{0.f, 0.f, 1.f, 1.f});
     }
 
     addSphereVertex(0.f, -1.f, 0.f, 1.f, 0.5f, f32v4{0.f, 1.f, 0.f, 1.f});
@@ -2291,6 +2325,380 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
     }
     addCylinderVertex(0.5f, -0.5f, 0.f, 1.f, 0.75f, f32v4{0.f, 0.f, 1.f, 1.f});
     addCylinderVertex(0.5f, 0.5f, 0.f, 1.f, 0.25f, f32v4{0.f, 0.f, 1.f, 1.f});
+
+    VALIDATE_MESH(data);
+    return data;
+}
+
+ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
+{
+    rings += 2;
+    ParaMeshData<D3> data{};
+    data.Shape = ParametricShape_RoundedBox;
+
+    const auto addCylinderVertex02 = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
+                                             const f32v4 &tangent) {
+        f32v3 normal = f32v3{x, 0.f, z};
+        if (x > 0.f)
+            normal[0] -= 0.5f;
+        else
+            normal[0] += 0.5f;
+        if (z > 0.f)
+            normal[2] -= 0.5f;
+        else
+            normal[2] += 0.5f;
+        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
+    };
+    const auto addCylinderVertex12 = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
+                                             const f32v4 &tangent) {
+        f32v3 normal = f32v3{0, y, z};
+        if (y > 0.f)
+            normal[1] -= 0.5f;
+        else
+            normal[1] += 0.5f;
+        if (z > 0.f)
+            normal[2] -= 0.5f;
+        else
+            normal[2] += 0.5f;
+        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
+    };
+    const auto addCylinderVertex01 = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
+                                             const f32v4 &tangent) {
+        f32v3 normal = f32v3{x, y, 0.f};
+        if (x > 0.f)
+            normal[0] -= 0.5f;
+        else
+            normal[0] += 0.5f;
+        if (y > 0.f)
+            normal[1] -= 0.5f;
+        else
+            normal[1] += 0.5f;
+        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
+    };
+    const auto addSphereVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
+                                         const f32v4 &tangent) {
+        f32v3 normal = f32v3{x, y, z};
+        for (u32 i = 0; i < 3; ++i)
+            if (normal[i] > 0.f)
+                normal[i] -= 0.5f;
+            else
+                normal[i] += 0.5f;
+
+        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
+    };
+
+    const u32 quartSectors = sectors / 4;
+    u32 offset = 0;
+    const auto addSphereIndex = [&data, quartSectors, rings, &offset](const u32 ring, const u32 sector) {
+        u32 idx;
+        if (ring == 0)
+            idx = 0;
+        else if (ring == rings)
+            idx = 1 + (rings - 1) * (quartSectors + 1);
+        else
+            idx = 1 + sector + (ring - 1) * (quartSectors + 1);
+        data.Indices.Append(Index(idx + offset));
+    };
+
+    const auto addCylinderIndex = [&data, &offset](const u32 index) { data.Indices.Append(Index(index + offset)); };
+
+    const u32 halfRings = rings / 2;
+
+    const auto addEdge02 = [&](const f32 sx, const f32 sz) {
+        const f32 mnx = 0.5f * sx;
+        const f32 mxx = sx;
+
+        const f32 mnz = 0.5f * sz;
+        const f32 mxz = sz;
+
+        addSphereVertex(mnx, 1.f, mnz, 0.f, 0.f, f32v4{1.f, 0.f, 0.f, 1.f});
+        for (u32 i = 1; i < halfRings + 1; ++i)
+        {
+            const f32 v = f32(i) / rings;
+            const f32 phi = v * Math::Pi<f32>();
+
+            const f32 pc = Math::Cosine(phi);
+            const f32 ps = Math::Sine(phi);
+
+            const f32 tx = Math::Map(ps, 0.f, 1.f, mnx, mxx);
+            const f32 y = Math::Map(pc, 0.f, 1.f, 0.5f, 1.f);
+            const f32 tz = Math::Map(ps, 0.f, 1.f, mnz, mxz);
+            for (u32 j = 0; j < quartSectors + 1; ++j)
+            {
+                const f32 u = f32(j) / sectors;
+                const f32 th = 2.f * u * Math::Pi<f32>();
+
+                const f32 tc = Math::Cosine(th);
+                const f32 ts = Math::Sine(th);
+
+                const f32 x = Math::Map(ps * tc, ps, 0.f, tx, sx * 0.5f);
+                const f32 z = Math::Map(ps * ts, ps, 0.f, tz, sz * 0.5f);
+                addSphereVertex(x, y, z, u, 0.5f * v, f32v4{-ts, 0.f, tc, 1.f});
+
+                if (j < quartSectors)
+                {
+                    const u32 ii = i - 1;
+                    const u32 jj = j + 1;
+                    if (sx * sz > 0.f)
+                    {
+                        addSphereIndex(i, jj);
+                        addSphereIndex(i, j);
+                        addSphereIndex(ii, j);
+                    }
+                    else
+                    {
+                        addSphereIndex(i, jj);
+                        addSphereIndex(ii, j);
+                        addSphereIndex(i, j);
+                    }
+
+                    if (i != 1)
+                    {
+                        if (sx * sz > 0.f)
+                        {
+                            addSphereIndex(i, jj);
+                            addSphereIndex(ii, j);
+                            addSphereIndex(ii, jj);
+                        }
+                        else
+                        {
+                            addSphereIndex(i, jj);
+                            addSphereIndex(ii, jj);
+                            addSphereIndex(ii, j);
+                        }
+                    }
+                }
+            }
+            // addSphereVertex(w, y, 0.5f, 1.0f, v, f32v4{0.f, 0.f, 1.f, 1.f});
+        }
+
+        for (u32 i = halfRings; i < rings - 1; ++i)
+        {
+            const f32 v = f32(i) / rings;
+            const f32 phi = v * Math::Pi<f32>();
+
+            const f32 pc = Math::Cosine(phi);
+            const f32 ps = Math::Sine(phi);
+
+            const f32 tx = Math::Map(ps, 0.f, 1.f, mnx, mxx);
+            const f32 y = Math::Map(pc, 0.f, -1.f, -0.5f, -1.f);
+            const f32 tz = Math::Map(ps, 0.f, 1.f, mnz, mxz);
+            for (u32 j = 0; j < quartSectors + 1; ++j)
+            {
+                const f32 u = f32(j) / sectors;
+                const f32 th = 2.f * u * Math::Pi<f32>();
+
+                const f32 tc = Math::Cosine(th);
+                const f32 ts = Math::Sine(th);
+
+                const f32 x = Math::Map(ps * tc, ps, 0.f, tx, sx * 0.5f);
+                const f32 z = Math::Map(ps * ts, ps, 0.f, tz, sz * 0.5f);
+                addSphereVertex(x, y, z, u, 0.5f * v, f32v4{-ts, 0.f, tc, 1.f});
+
+                if (j < quartSectors && i != halfRings)
+                {
+                    const u32 ii = i + 1;
+                    const u32 jj = j + 1;
+
+                    if (sx * sz > 0.f)
+                    {
+                        addSphereIndex(ii, jj);
+                        addSphereIndex(ii, j);
+                        addSphereIndex(i, j);
+                        addSphereIndex(ii, jj);
+                        addSphereIndex(i, j);
+                        addSphereIndex(i, jj);
+                    }
+                    else
+                    {
+                        addSphereIndex(ii, jj);
+                        addSphereIndex(i, j);
+                        addSphereIndex(ii, j);
+                        addSphereIndex(ii, jj);
+                        addSphereIndex(i, jj);
+                        addSphereIndex(i, j);
+                    }
+                }
+            }
+        }
+
+        addSphereVertex(mnx, -1.f, mnz, 1.f, 0.5f, f32v4{0.f, 1.f, 0.f, 1.f});
+
+        for (u32 j = 0; j < quartSectors; ++j)
+            if (sx * sz > 0.f)
+            {
+                addSphereIndex(rings - 1, j);
+                addSphereIndex(rings - 1, j + 1);
+                addSphereIndex(rings, j);
+            }
+            else
+            {
+                addSphereIndex(rings - 1, j);
+                addSphereIndex(rings, j);
+                addSphereIndex(rings - 1, j + 1);
+            }
+
+        offset = data.Vertices.GetSize();
+        const f32 angle = 2.f * Math::Pi<f32>() / sectors;
+        for (u32 j = 0; j < quartSectors; ++j)
+        {
+            const f32 cc = Math::Cosine(j * angle);
+            const f32 ss = Math::Sine(j * angle);
+
+            const f32v4 tangent = f32v4{-ss, 0.f, cc, 1.f};
+
+            const f32 u = f32(j) / sectors;
+            const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
+            const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
+            addCylinderVertex02(x, -0.5f, z, u, 0.75f, tangent);
+            addCylinderVertex02(x, 0.5f, z, u, 0.25f, tangent);
+
+            const u32 ii = 2 * j;
+            if (sx * sz > 0.f)
+            {
+                addCylinderIndex(ii);
+                addCylinderIndex(ii + 1);
+                addCylinderIndex(ii + 2);
+
+                addCylinderIndex(ii + 1);
+                addCylinderIndex(ii + 3);
+                addCylinderIndex(ii + 2);
+            }
+            else
+            {
+                addCylinderIndex(ii);
+                addCylinderIndex(ii + 2);
+                addCylinderIndex(ii + 1);
+
+                addCylinderIndex(ii + 1);
+                addCylinderIndex(ii + 2);
+                addCylinderIndex(ii + 3);
+            }
+        }
+
+        addCylinderVertex02(mnx, -0.5f, mxz, 1.f, 0.75f, f32v4{-1.f, 0.f, 0.f, 1.f});
+        addCylinderVertex02(mnx, 0.5f, mxz, 1.f, 0.25f, f32v4{-1.f, 0.f, 0.f, 1.f});
+        offset = data.Vertices.GetSize();
+    };
+
+    const auto addEdge12 = [&](const f32 sy, const f32 sz) {
+        const f32 mny = 0.5f * sy;
+        const f32 mxy = sy;
+
+        const f32 mnz = 0.5f * sz;
+        const f32 mxz = sz;
+        const f32 angle = 2.f * Math::Pi<f32>() / sectors;
+
+        for (u32 j = 0; j < quartSectors; ++j)
+        {
+            const f32 cc = Math::Cosine(j * angle);
+            const f32 ss = Math::Sine(j * angle);
+
+            const f32v4 tangent = f32v4{1.f, 0.f, 0.f, 1.f};
+
+            const f32 v = f32(j) / sectors;
+            const f32 y = Math::Map(cc, 0.f, 1.f, mny, mxy);
+            const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
+            addCylinderVertex12(-0.5f, y, z, 0.75f, v, tangent);
+            addCylinderVertex12(0.5f, y, z, 0.25f, v, tangent);
+
+            const u32 ii = 2 * j;
+            if (sy * sz < 0.f)
+            {
+                addCylinderIndex(ii);
+                addCylinderIndex(ii + 1);
+                addCylinderIndex(ii + 2);
+
+                addCylinderIndex(ii + 1);
+                addCylinderIndex(ii + 3);
+                addCylinderIndex(ii + 2);
+            }
+            else
+            {
+                addCylinderIndex(ii);
+                addCylinderIndex(ii + 2);
+                addCylinderIndex(ii + 1);
+
+                addCylinderIndex(ii + 1);
+                addCylinderIndex(ii + 2);
+                addCylinderIndex(ii + 3);
+            }
+        }
+
+        addCylinderVertex12(-0.5f, mny, mxz, 1.f, 0.75f, f32v4{1.f, 0.f, 0.f, 1.f});
+        addCylinderVertex12(0.5f, mny, mxz, 1.f, 0.25f, f32v4{1.f, 0.f, 0.f, 1.f});
+        offset = data.Vertices.GetSize();
+    };
+
+    const auto addEdge01 = [&](const f32 sx, const f32 sy) {
+        const f32 mnx = 0.5f * sx;
+        const f32 mxx = sx;
+
+        const f32 mny = 0.5f * sy;
+        const f32 mxy = sy;
+
+        const f32 angle = 2.f * Math::Pi<f32>() / sectors;
+
+        for (u32 j = 0; j < quartSectors; ++j)
+        {
+            const f32 cc = Math::Cosine(j * angle);
+            const f32 ss = Math::Sine(j * angle);
+
+            const f32v4 tangent = f32v4{1.f, 0.f, 0.f, 1.f};
+
+            const f32 v = f32(j) / sectors;
+            const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
+            const f32 y = Math::Map(ss, 0.f, 1.f, mny, mxy);
+            addCylinderVertex01(x, y, -0.5f, 0.75f, v, tangent);
+            addCylinderVertex01(x, y, 0.5f, 0.25f, v, tangent);
+
+            const u32 ii = 2 * j;
+            if (sx * sy < 0.f)
+            {
+                addCylinderIndex(ii);
+                addCylinderIndex(ii + 1);
+                addCylinderIndex(ii + 2);
+
+                addCylinderIndex(ii + 1);
+                addCylinderIndex(ii + 3);
+                addCylinderIndex(ii + 2);
+            }
+            else
+            {
+                addCylinderIndex(ii);
+                addCylinderIndex(ii + 2);
+                addCylinderIndex(ii + 1);
+
+                addCylinderIndex(ii + 1);
+                addCylinderIndex(ii + 2);
+                addCylinderIndex(ii + 3);
+            }
+        }
+
+        addCylinderVertex01(mnx, mxy, -0.5f, 1.f, 0.75f, f32v4{1.f, 0.f, 0.f, 1.f});
+        addCylinderVertex01(mnx, mxy, 0.5f, 1.f, 0.25f, f32v4{1.f, 0.f, 0.f, 1.f});
+        offset = data.Vertices.GetSize();
+    };
+
+    addEdge02(1.f, 1.f);
+    addEdge02(-1.f, 1.f);
+    addEdge02(1.f, -1.f);
+    addEdge02(-1.f, -1.f);
+
+    addEdge12(1.f, 1.f);
+    addEdge12(-1.f, 1.f);
+    addEdge12(1.f, -1.f);
+    addEdge12(-1.f, -1.f);
+
+    addEdge01(1.f, 1.f);
+    addEdge01(-1.f, 1.f);
+    addEdge01(1.f, -1.f);
+    addEdge01(-1.f, -1.f);
+
+    const StatMeshData<D3> cdata = createBoxMesh(offset, 1.f);
+    for (const StatVertex<D3> &vx : cdata.Vertices)
+        data.Vertices.Append(ParaVertex<D3>{vx.Position, vx.TexCoord, vx.Normal, vx.Tangent, 0});
+    data.Indices.Insert(data.Indices.end(), cdata.Indices.begin(), cdata.Indices.end());
 
     VALIDATE_MESH(data);
     return data;

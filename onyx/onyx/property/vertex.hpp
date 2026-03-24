@@ -62,23 +62,20 @@ template <> struct StatVertex<D3>
 using ParametricRegionFlags = u32;
 enum StadiumRegion : ParametricRegionFlags
 {
-    StadiumRegion_Body = 1 << 0,
-    StadiumRegion_Edge = 1 << 1,
-    StadiumRegion_Moon = 1 << 2,
+    StadiumRegion_Edge = 1 << 0,
+    StadiumRegion_Moon = 1 << 1,
 };
 
 enum RoundedQuadRegion : ParametricRegionFlags
 {
-    RoundedQuadRegion_Body = 1 << 0,
-    RoundedQuadRegion_HorizontalEdge = 1 << 1,
-    RoundedQuadRegion_VerticalEdge = 1 << 2,
-    RoundedQuadRegion_Moon = 1 << 3,
+    RoundedQuadRegion_HorizontalEdge = 1 << 0,
+    RoundedQuadRegion_VerticalEdge = 1 << 1,
+    RoundedQuadRegion_Moon = 1 << 2,
 };
 
 enum CapsuleRegion : ParametricRegionFlags
 {
     CapsuleRegion_Body = 1 << 0,
-    CapsuleRegion_Cap = 1 << 1,
 };
 
 template <Dimension D> struct ParaVertex;
