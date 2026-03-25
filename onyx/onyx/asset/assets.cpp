@@ -1954,15 +1954,19 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
     const auto addIndex = [&data, sectors, rings](const u32 ring, const u32 sector) {
         u32 idx;
         if (ring == 0)
-            idx = 0;
+            idx = sector;
         else if (ring == rings - 1)
-            idx = 1 + (rings - 2) * (sectors + 1);
+            idx = sectors + (rings - 2) * (sectors + 1) + sector;
         else
-            idx = 1 + sector + (ring - 1) * (sectors + 1);
+            idx = sectors + sector + (ring - 1) * (sectors + 1);
         data.Indices.Append(Index(idx));
     };
 
-    addVertex(0.f, 0.5f, 0.f, 0.5f, 0.f, f32v4{1.f, 0.f, 0.f, 1.f});
+    for (u32 j = 0; j < sectors; ++j)
+    {
+        const f32 u = (f32(j) + 0.5f) / sectors;
+        addVertex(0.f, 0.5f, 0.f, u, 0.f, f32v4{1.f, 0.f, 0.f, 1.f});
+    }
     for (u32 i = 1; i < rings - 1; ++i)
     {
         const f32 v = f32(i) / rings;
@@ -1995,7 +1999,11 @@ StatMeshData<D3> CreateSphereMesh(u32 rings, const u32 sectors)
         }
         addVertex(0.5f * ps, 0.5f * pc, 0.f, 1.0f, v, f32v4{0.f, 0.f, 1.f, 1.f});
     }
-    addVertex(0.f, -0.5f, 0.f, 0.5f, 1.f, f32v4{1.f, 0.f, 0.f, 1.f});
+    for (u32 j = 0; j < sectors; ++j)
+    {
+        const f32 u = (f32(j) + 0.5f) / sectors;
+        addVertex(0.f, -0.5f, 0.f, u, 1.f, f32v4{1.f, 0.f, 0.f, 1.f});
+    }
 
     for (u32 j = 0; j < sectors; ++j)
     {
@@ -2207,18 +2215,23 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
     const auto addSphereIndex = [&data, sectors, rings](const u32 ring, const u32 sector) {
         u32 idx;
         if (ring == 0)
-            idx = 0;
+            idx = sector;
         else if (ring == rings)
-            idx = 1 + (rings - 1) * (sectors + 1);
+            idx = sectors + (rings - 1) * (sectors + 1) + sector;
         else
-            idx = 1 + sector + (ring - 1) * (sectors + 1);
+            idx = sectors + sector + (ring - 1) * (sectors + 1);
         data.Indices.Append(Index(idx));
     };
     const auto addCylinderIndex = [&data, &coffset](const u32 index) { data.Indices.Append(Index(index + coffset)); };
 
     const u32 halfRings = rings / 2;
 
-    addSphereVertex(0.f, 1.f, 0.f, 0.f, 0.f, f32v4{1.f, 0.f, 0.f, 1.f});
+    for (u32 j = 0; j < sectors; ++j)
+    {
+        const f32 u = (f32(j) + 0.5f) / sectors;
+        addSphereVertex(0.f, 1.f, 0.f, u, 0.f, f32v4{1.f, 0.f, 0.f, 1.f});
+    }
+
     for (u32 i = 1; i < halfRings + 1; ++i)
     {
         const f32 v = f32(i) / rings;
@@ -2290,8 +2303,11 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
         addSphereVertex(0.5f * ps, y, 0.f, 1.f, vv, f32v4{0.f, 0.f, 1.f, 1.f});
     }
 
-    addSphereVertex(0.f, -1.f, 0.f, 1.f, 0.5f, f32v4{0.f, 1.f, 0.f, 1.f});
-
+    for (u32 j = 0; j < sectors; ++j)
+    {
+        const f32 u = (f32(j) + 0.5f) / sectors;
+        addSphereVertex(0.f, -1.f, 0.f, u, 1.f, f32v4{0.f, 1.f, 0.f, 1.f});
+    }
     for (u32 j = 0; j < sectors; ++j)
     {
         addSphereIndex(rings - 1, j);
