@@ -184,5 +184,6 @@ template <Dimension D> ParaMeshData<D> CreateRoundedQuadMesh();
 
 ParaMeshData<D3> CreateCapsuleMesh(u32 rings = 16, u32 sectors = 32);
 ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings = 16, u32 sectors = 32);
+ParaMeshData<D3> CreateTorusMesh(u32 rings = 32, u32 sectors = 32);
 
 } // namespace Onyx::Assets

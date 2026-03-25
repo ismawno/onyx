@@ -90,11 +90,18 @@ struct RoundedBoxParameters
     f32 Radius;
 };
 
+struct TorusParameters
+{
+    f32 InnerRadius;
+    f32 OuterRadius;
+};
+
 union InstanceParameters {
     StadiumParameters Stadium;
     RoundedQuadParameters RoundedQuad;
     CapsuleParameters Capsule;
     RoundedBoxParameters RoundedBox;
+    TorusParameters Torus;
 };
 
 template <Dimension D> struct ParametricInstanceData

@@ -144,8 +144,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void Circle(const CircleParameters &params = {});
     void Circle(const f32m<D> &transform, const CircleParameters &params = {});
 
-    void Line(Asset mesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
-    void Axes(Asset mesh, const AxesParameters &params = {});
+    void Line(Asset staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
+    void Axes(Asset staticMesh, const AxesParameters &params = {});
 
     void Push();
     void Push(const RenderState<D> &state);

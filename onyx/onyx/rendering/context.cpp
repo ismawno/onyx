@@ -73,7 +73,7 @@ template <Dimension D> void IRenderContext<D>::updateState()
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
 {
     TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Static, mesh),
-                "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
+                "[ONYX][CONTEXT] The mesh handle {} is invalid, maybe because its mesh pool was destroyed or the mesh "
                 "it references is not a static mesh",
                 mesh);
     const auto draw = [&, mesh](const StencilPass pass) { addStaticData(mesh, m_Current->Transform, pass); };
@@ -82,7 +82,7 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, const f32m<D> &transform)
 {
     TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Static, mesh),
-                "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
+                "[ONYX][CONTEXT] The mesh handle {} is invalid, maybe because its mesh pool was destroyed or the mesh "
                 "it references is not a static mesh",
                 mesh);
     const auto draw = [&, mesh](const StencilPass pass) {
@@ -94,7 +94,7 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, cons
 template <Dimension D> void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params)
 {
     TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Parametric, mesh),
-                "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
+                "[ONYX][CONTEXT] The mesh handle {} is invalid, maybe because its mesh pool was destroyed or the mesh "
                 "it references is not a parametric mesh",
                 mesh);
     const auto draw = [&, mesh](const StencilPass pass) {
@@ -106,7 +106,7 @@ template <Dimension D>
 void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params, const f32m<D> &transform)
 {
     TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Parametric, mesh),
-                "[ONYX][CONTEXT] The mesh handle {} is invalid, likely because its mesh pool was destroyed or the mesh "
+                "[ONYX][CONTEXT] The mesh handle {} is invalid, maybe because its mesh pool was destroyed or the mesh "
                 "it references is not a parametric mesh",
                 mesh);
     const auto draw = [&, mesh](const StencilPass pass) {

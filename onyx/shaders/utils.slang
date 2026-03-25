@@ -353,6 +353,16 @@ f32v3 GetParametricPosition3D(f32v3 pos, const f32v3 normal, const InstanceParam
         pos += 0.5f * (dims - 1.f) * sign(pos);
         pos += (radius - 0.5f) * normal;
     }
+    else if (params.Shape == ParametricShape_Torus)
+    {
+        const f32 iradius = params.Payload[0];
+        const f32 oradius = params.Payload[1];
+
+        const f32v2 dir = pos.xz;
+
+        pos.xz += (oradius - 0.5f) * normalize(dir);
+        pos += (iradius - 0.5f) * normal;
+    }
     return pos;
 }
 
@@ -500,7 +510,7 @@ struct MaterialInfo3D
     f32 Occlusion;
 }
 
-// i admit lol ia generated
+// this is ia generated. im not familiar with lighting techniques
 f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
 {
     const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);

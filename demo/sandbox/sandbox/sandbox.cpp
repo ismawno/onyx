@@ -158,6 +158,7 @@ template <Dimension D> void SandboxAppLayer::AddDefaultMeshes()
     {
         AddMesh(ppool, Assets::CreateCapsuleMesh(), "Capsule");
         AddMesh(ppool, Assets::CreateRoundedBoxMesh(), "Rounded box");
+        AddMesh(ppool, Assets::CreateTorusMesh(), "Torus");
     }
 }
 template <Dimension D> void SandboxAppLayer::AddDefaultMaterial()
@@ -397,6 +398,8 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
             shape.Parameters.Capsule = CapsuleParameters{1.f, 0.5f};
         else if (stype == ParametricShape_RoundedBox)
             shape.Parameters.RoundedBox = RoundedBoxParameters{1.f, 1.f, 1.f, 0.5f};
+        else if (stype == ParametricShape_Torus)
+            shape.Parameters.Torus = TorusParameters{0.5f, 0.5f};
         return shape;
     }
     default:
@@ -1012,23 +1015,29 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
         }
         case ParametricShape_RoundedQuad: {
             RoundedQuadParameters &params = shape.Parameters.RoundedQuad;
-            ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
-            ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
-            ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Width", &params.Width, 0.01f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Height", &params.Height, 0.01f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Radius", &params.Radius, 0.01f, 0.f, TKIT_F32_MAX);
             break;
         }
         case ParametricShape_Capsule: {
             CapsuleParameters &params = shape.Parameters.Capsule;
-            ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
-            ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Height", &params.Height, 0.01f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Radius", &params.Radius, 0.01f, 0.f, TKIT_F32_MAX);
             break;
         }
         case ParametricShape_RoundedBox: {
             RoundedBoxParameters &params = shape.Parameters.RoundedBox;
-            ImGui::DragFloat("Width", &params.Width, 0.04f, 0.f, TKIT_F32_MAX);
-            ImGui::DragFloat("Height", &params.Height, 0.04f, 0.f, TKIT_F32_MAX);
-            ImGui::DragFloat("Length", &params.Length, 0.04f, 0.f, TKIT_F32_MAX);
-            ImGui::DragFloat("Radius", &params.Radius, 0.04f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Width", &params.Width, 0.01f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Height", &params.Height, 0.01f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Length", &params.Length, 0.01f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("Radius", &params.Radius, 0.01f, 0.f, TKIT_F32_MAX);
+            break;
+        }
+        case ParametricShape_Torus: {
+            TorusParameters &params = shape.Parameters.Torus;
+            ImGui::DragFloat("InnerRadius", &params.InnerRadius, 0.01f, 0.f, TKIT_F32_MAX);
+            ImGui::DragFloat("OuterRadius", &params.OuterRadius, 0.01f, 0.f, TKIT_F32_MAX);
             break;
         }
         default:
@@ -1144,7 +1153,8 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
                 for (ContextData<D> &ctx : contexts.Contexts)
                 {
                     for (u32 i = ctx.Shapes.GetSize() - 1; i < ctx.Shapes.GetSize(); --i)
-                        if (Assets::GetPoolHandle(ctx.Shapes[i].Mesh) == pool.Handle)
+                        if (ctx.Shapes[i].Geo == Geometry_Static &&
+                            Assets::GetPoolHandle(ctx.Shapes[i].Mesh) == pool.Handle)
                             ctx.Shapes.RemoveOrdered(ctx.Shapes.begin() + i);
                     if (Assets::GetPoolHandle(ctx.AxesMesh) == pool.Handle)
                         ctx.AxesMesh = NullAsset;
@@ -1161,7 +1171,8 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
                 {
                     if (Assets::GetPoolHandle(lattice.StatMesh) == pool.Handle)
                         lattice.StatMesh = NullAsset;
-                    if (Assets::GetPoolHandle(lattice.Shape.Mesh) == pool.Handle)
+                    if (lattice.Shape.Geo == Geometry_Static &&
+                        Assets::GetPoolHandle(lattice.Shape.Mesh) == pool.Handle)
                         lattice.Shape.Mesh = NullAsset;
                 }
                 if (Assets::GetPoolHandle(meshes.DefaultAxesMesh) == pool.Handle)
@@ -1186,8 +1197,21 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
             opts.Selected = &meshes.Active;
             opts.OnSelected = [this](ParaMeshPoolId<D> &pool) { RenderMeshPool(pool); };
             opts.GetName = [](const ParaMeshPoolId<D> &pool) { return pool.Name.c_str(); };
-            opts.OnRemoval = [](const ParaMeshPoolId<D> &pool) {
+            opts.OnRemoval = [appLayer](const ParaMeshPoolId<D> &pool) {
                 Assets::DestroyMeshPool<D>(Geometry_Parametric, pool.Handle);
+                auto &contexts = appLayer->GetContexts<D>();
+                for (ContextData<D> &ctx : contexts.Contexts)
+                    for (u32 i = ctx.Shapes.GetSize() - 1; i < ctx.Shapes.GetSize(); --i)
+                        if (ctx.Shapes[i].Geo == Geometry_Parametric &&
+                            Assets::GetPoolHandle(ctx.Shapes[i].Mesh) == pool.Handle)
+                            ctx.Shapes.RemoveOrdered(ctx.Shapes.begin() + i);
+
+                auto &lattices = appLayer->GetLattices<D>();
+                for (LatticeData<D> &lattice : lattices.Lattices)
+                    if (lattice.Shape.Geo == Geometry_Parametric &&
+                        Assets::GetPoolHandle(lattice.Shape.Mesh) == pool.Handle)
+                        lattice.Shape.Mesh = NullAsset;
+                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
             };
             renderEntries(meshes.ParaPools, opts);
             ImGui::TreePop();
