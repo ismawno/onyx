@@ -2330,14 +2330,108 @@ ParaMeshData<D3> CreateCapsuleMesh(u32 rings, const u32 sectors)
     return data;
 }
 
+// this is ai generated
+static f32v2 computeRoundedBoxTexCoords(const f32v3 &pos, const f32v3 &normal) noexcept
+{
+    // Determine dominant face from normal
+    const f32 ax = Math::Absolute(normal[0]);
+    const f32 ay = Math::Absolute(normal[1]);
+    const f32 az = Math::Absolute(normal[2]);
+
+    // Local 2D coordinates on the face, in [-1, 1]
+    f32 lu, lv;
+
+    // Face origin in UV cross layout
+    f32 baseU, baseV;
+
+    // Face cell size in UV space
+    constexpr f32 cellW = 0.25f; // 1/4
+    constexpr f32 cellH = 1.f / 3.f;
+
+    if (ay >= ax && ay >= az)
+    {
+        // Y-dominant: top (+Y) or bottom (-Y) face
+        // Local axes: X -> u, Z -> v
+        lu = pos[0]; // [-1, 1]
+        lv = pos[2]; // [-1, 1]
+
+        if (normal[1] > 0.f)
+        {
+            // +Y face: row 0, col 1
+            baseU = cellW; // 1/4
+            baseV = 0.f;   // 0/3
+            // +Y looks down from above: X right, Z down
+            // lu = x, lv = z (z increases downward in UV)
+        }
+        else
+        {
+            // -Y face: row 2, col 1
+            baseU = cellW;       // 1/4
+            baseV = 2.f * cellH; // 2/3
+            // -Y looks up from below: X right, Z up (flip Z for continuity)
+            lv = -lv;
+        }
+    }
+    else if (ax >= ay && ax >= az)
+    {
+        // X-dominant: left (-X) or right (+X) face
+        // Local axes: Z -> u, Y -> v
+        if (normal[0] > 0.f)
+        {
+            // +X face: row 1, col 2
+            baseU = 2.f * cellW; // 2/4
+            baseV = cellH;       // 1/3
+            // +X: looking from +X, Z goes left (negative u), Y goes up (negative v)
+            lu = -pos[2];
+            lv = -pos[1];
+        }
+        else
+        {
+            // -X face: row 1, col 0
+            baseU = 0.f;   // 0/4
+            baseV = cellH; // 1/3
+            // -X: looking from -X, Z goes right, Y goes up
+            lu = pos[2];
+            lv = -pos[1];
+        }
+    }
+    else
+    {
+        // Z-dominant: front (+Z) or back (-Z) face
+        // Local axes: X -> u, Y -> v
+        if (normal[2] > 0.f)
+        {
+            // +Z face: row 1, col 1
+            baseU = cellW; // 1/4
+            baseV = cellH; // 1/3
+            lu = pos[0];
+            lv = -pos[1]; // Y up -> V down
+        }
+        else
+        {
+            // -Z face: row 1, col 3
+            baseU = 3.f * cellW; // 3/4
+            baseV = cellH;       // 1/3
+            lu = -pos[0];        // mirror X for back face continuity
+            lv = -pos[1];
+        }
+    }
+
+    // Map local [-1, 1] to [0, 1] within the cell
+    const f32 cu = (lu + 1.f) * 0.5f; // [0, 1]
+    const f32 cv = (lv + 1.f) * 0.5f; // [0, 1]
+
+    // Place within the cross layout
+    return f32v2{baseU + cu * cellW, baseV + cv * cellH};
+}
+
 ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
 {
     rings += 2;
     ParaMeshData<D3> data{};
     data.Shape = ParametricShape_RoundedBox;
 
-    const auto addCylinderVertex02 = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
-                                             const f32v4 &tangent) {
+    const auto addCylinderVertex02 = [&data](const f32 x, const f32 y, const f32 z, const f32v4 &tangent) {
         f32v3 normal = f32v3{x, 0.f, z};
         if (x > 0.f)
             normal[0] -= 0.5f;
@@ -2347,10 +2441,11 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
             normal[2] -= 0.5f;
         else
             normal[2] += 0.5f;
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
+        const f32v3 pos = f32v3{x, y, z};
+        normal = Math::Normalize(normal);
+        data.Vertices.Append(ParaVertex<D3>{pos, computeRoundedBoxTexCoords(pos, normal), normal, tangent, 0});
     };
-    const auto addCylinderVertex12 = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
-                                             const f32v4 &tangent) {
+    const auto addCylinderVertex12 = [&data](const f32 x, const f32 y, const f32 z, const f32v4 &tangent) {
         f32v3 normal = f32v3{0, y, z};
         if (y > 0.f)
             normal[1] -= 0.5f;
@@ -2360,10 +2455,11 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
             normal[2] -= 0.5f;
         else
             normal[2] += 0.5f;
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
+        const f32v3 pos = f32v3{x, y, z};
+        normal = Math::Normalize(normal);
+        data.Vertices.Append(ParaVertex<D3>{pos, computeRoundedBoxTexCoords(pos, normal), normal, tangent, 0});
     };
-    const auto addCylinderVertex01 = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
-                                             const f32v4 &tangent) {
+    const auto addCylinderVertex01 = [&data](const f32 x, const f32 y, const f32 z, const f32v4 &tangent) {
         f32v3 normal = f32v3{x, y, 0.f};
         if (x > 0.f)
             normal[0] -= 0.5f;
@@ -2373,10 +2469,11 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
             normal[1] -= 0.5f;
         else
             normal[1] += 0.5f;
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
+        const f32v3 pos = f32v3{x, y, z};
+        normal = Math::Normalize(normal);
+        data.Vertices.Append(ParaVertex<D3>{pos, computeRoundedBoxTexCoords(pos, normal), normal, tangent, 0});
     };
-    const auto addSphereVertex = [&data](const f32 x, const f32 y, const f32 z, const f32 u, const f32 v,
-                                         const f32v4 &tangent) {
+    const auto addSphereVertex = [&data](const f32 x, const f32 y, const f32 z, const f32v4 &tangent) {
         f32v3 normal = f32v3{x, y, z};
         for (u32 i = 0; i < 3; ++i)
             if (normal[i] > 0.f)
@@ -2384,7 +2481,9 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
             else
                 normal[i] += 0.5f;
 
-        data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, f32v2{u, v}, Math::Normalize(normal), tangent, 0});
+        const f32v3 pos = f32v3{x, y, z};
+        normal = Math::Normalize(normal);
+        data.Vertices.Append(ParaVertex<D3>{pos, computeRoundedBoxTexCoords(pos, normal), normal, tangent, 0});
     };
 
     const u32 quartSectors = sectors / 4;
@@ -2411,7 +2510,7 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
         const f32 mnz = 0.5f * sz;
         const f32 mxz = sz;
 
-        addSphereVertex(mnx, 1.f, mnz, 0.f, 0.f, f32v4{1.f, 0.f, 0.f, 1.f});
+        addSphereVertex(mnx, 1.f, mnz, f32v4{1.f, 0.f, 0.f, 1.f});
         for (u32 i = 1; i < halfRings + 1; ++i)
         {
             const f32 v = f32(i) / rings;
@@ -2433,7 +2532,7 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
 
                 const f32 x = Math::Map(ps * tc, ps, 0.f, tx, sx * 0.5f);
                 const f32 z = Math::Map(ps * ts, ps, 0.f, tz, sz * 0.5f);
-                addSphereVertex(x, y, z, u, 0.5f * v, f32v4{-ts, 0.f, tc, 1.f});
+                addSphereVertex(x, y, z, f32v4{-ts, 0.f, tc, 1.f});
 
                 if (j < quartSectors)
                 {
@@ -2493,7 +2592,7 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
 
                 const f32 x = Math::Map(ps * tc, ps, 0.f, tx, sx * 0.5f);
                 const f32 z = Math::Map(ps * ts, ps, 0.f, tz, sz * 0.5f);
-                addSphereVertex(x, y, z, u, 0.5f * v, f32v4{-ts, 0.f, tc, 1.f});
+                addSphereVertex(x, y, z, f32v4{-ts, 0.f, tc, 1.f});
 
                 if (j < quartSectors && i != halfRings)
                 {
@@ -2522,7 +2621,7 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
             }
         }
 
-        addSphereVertex(mnx, -1.f, mnz, 1.f, 0.5f, f32v4{0.f, 1.f, 0.f, 1.f});
+        addSphereVertex(mnx, -1.f, mnz, f32v4{0.f, 1.f, 0.f, 1.f});
 
         for (u32 j = 0; j < quartSectors; ++j)
             if (sx * sz > 0.f)
@@ -2547,11 +2646,10 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
 
             const f32v4 tangent = f32v4{-ss, 0.f, cc, 1.f};
 
-            const f32 u = f32(j) / sectors;
             const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
             const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
-            addCylinderVertex02(x, -0.5f, z, u, 0.75f, tangent);
-            addCylinderVertex02(x, 0.5f, z, u, 0.25f, tangent);
+            addCylinderVertex02(x, -0.5f, z, tangent);
+            addCylinderVertex02(x, 0.5f, z, tangent);
 
             const u32 ii = 2 * j;
             if (sx * sz > 0.f)
@@ -2576,8 +2674,8 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
             }
         }
 
-        addCylinderVertex02(mnx, -0.5f, mxz, 1.f, 0.75f, f32v4{-1.f, 0.f, 0.f, 1.f});
-        addCylinderVertex02(mnx, 0.5f, mxz, 1.f, 0.25f, f32v4{-1.f, 0.f, 0.f, 1.f});
+        addCylinderVertex02(mnx, -0.5f, mxz, f32v4{-1.f, 0.f, 0.f, 1.f});
+        addCylinderVertex02(mnx, 0.5f, mxz, f32v4{-1.f, 0.f, 0.f, 1.f});
         offset = data.Vertices.GetSize();
     };
 
@@ -2598,11 +2696,10 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
 
             const f32v4 tangent = f32v4{1.f, 0.f, 0.f, 1.f};
 
-            const f32 v = f32(j) / whole;
             const f32 y = Math::Map(cc, 0.f, 1.f, mny, mxy);
             const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
-            addCylinderVertex12(-0.5f, y, z, 0.75f, v, tangent);
-            addCylinderVertex12(0.5f, y, z, 0.25f, v, tangent);
+            addCylinderVertex12(-0.5f, y, z, tangent);
+            addCylinderVertex12(0.5f, y, z, tangent);
 
             const u32 ii = 2 * j;
             if (sy * sz < 0.f)
@@ -2627,8 +2724,8 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
             }
         }
 
-        addCylinderVertex12(-0.5f, mny, mxz, 1.f, 0.75f, f32v4{1.f, 0.f, 0.f, 1.f});
-        addCylinderVertex12(0.5f, mny, mxz, 1.f, 0.25f, f32v4{1.f, 0.f, 0.f, 1.f});
+        addCylinderVertex12(-0.5f, mny, mxz, f32v4{1.f, 0.f, 0.f, 1.f});
+        addCylinderVertex12(0.5f, mny, mxz, f32v4{1.f, 0.f, 0.f, 1.f});
         offset = data.Vertices.GetSize();
     };
 
@@ -2648,11 +2745,10 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
 
             const f32v4 tangent = f32v4{1.f, 0.f, 0.f, 1.f};
 
-            const f32 v = f32(j) / whole;
             const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
             const f32 y = Math::Map(ss, 0.f, 1.f, mny, mxy);
-            addCylinderVertex01(x, y, -0.5f, 0.75f, v, tangent);
-            addCylinderVertex01(x, y, 0.5f, 0.25f, v, tangent);
+            addCylinderVertex01(x, y, -0.5f, tangent);
+            addCylinderVertex01(x, y, 0.5f, tangent);
 
             const u32 ii = 2 * j;
             if (sx * sy < 0.f)
@@ -2677,8 +2773,8 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
             }
         }
 
-        addCylinderVertex01(mnx, mxy, -0.5f, 1.f, 0.75f, f32v4{1.f, 0.f, 0.f, 1.f});
-        addCylinderVertex01(mnx, mxy, 0.5f, 1.f, 0.25f, f32v4{1.f, 0.f, 0.f, 1.f});
+        addCylinderVertex01(mnx, mxy, -0.5f, f32v4{1.f, 0.f, 0.f, 1.f});
+        addCylinderVertex01(mnx, mxy, 0.5f, f32v4{1.f, 0.f, 0.f, 1.f});
         offset = data.Vertices.GetSize();
     };
 
@@ -2699,7 +2795,10 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
 
     const StatMeshData<D3> cdata = createBoxMesh(offset, 1.f);
     for (const StatVertex<D3> &vx : cdata.Vertices)
-        data.Vertices.Append(ParaVertex<D3>{vx.Position, vx.TexCoord, vx.Normal, vx.Tangent, 0});
+    {
+        const f32v2 uv = computeRoundedBoxTexCoords(vx.Position, vx.Normal);
+        data.Vertices.Append(ParaVertex<D3>{vx.Position, uv, vx.Normal, vx.Tangent, 0});
+    }
     data.Indices.Insert(data.Indices.end(), cdata.Indices.begin(), cdata.Indices.end());
 
     VALIDATE_MESH(data);
