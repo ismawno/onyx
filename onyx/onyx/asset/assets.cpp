@@ -2581,22 +2581,24 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
         offset = data.Vertices.GetSize();
     };
 
+    const u32 whole = 2 * rings;
+    const u32 part = halfRings;
     const auto addEdge12 = [&](const f32 sy, const f32 sz) {
         const f32 mny = 0.5f * sy;
         const f32 mxy = sy;
 
         const f32 mnz = 0.5f * sz;
         const f32 mxz = sz;
-        const f32 angle = 2.f * Math::Pi<f32>() / sectors;
+        const f32 angle = 2.f * Math::Pi<f32>() / whole;
 
-        for (u32 j = 0; j < quartSectors; ++j)
+        for (u32 j = 0; j < part; ++j)
         {
             const f32 cc = Math::Cosine(j * angle);
             const f32 ss = Math::Sine(j * angle);
 
             const f32v4 tangent = f32v4{1.f, 0.f, 0.f, 1.f};
 
-            const f32 v = f32(j) / sectors;
+            const f32 v = f32(j) / whole;
             const f32 y = Math::Map(cc, 0.f, 1.f, mny, mxy);
             const f32 z = Math::Map(ss, 0.f, 1.f, mnz, mxz);
             addCylinderVertex12(-0.5f, y, z, 0.75f, v, tangent);
@@ -2637,16 +2639,16 @@ ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings, const u32 sectors)
         const f32 mny = 0.5f * sy;
         const f32 mxy = sy;
 
-        const f32 angle = 2.f * Math::Pi<f32>() / sectors;
+        const f32 angle = 2.f * Math::Pi<f32>() / whole;
 
-        for (u32 j = 0; j < quartSectors; ++j)
+        for (u32 j = 0; j < part; ++j)
         {
             const f32 cc = Math::Cosine(j * angle);
             const f32 ss = Math::Sine(j * angle);
 
             const f32v4 tangent = f32v4{1.f, 0.f, 0.f, 1.f};
 
-            const f32 v = f32(j) / sectors;
+            const f32 v = f32(j) / whole;
             const f32 x = Math::Map(cc, 0.f, 1.f, mnx, mxx);
             const f32 y = Math::Map(ss, 0.f, 1.f, mny, mxy);
             addCylinderVertex01(x, y, -0.5f, 0.75f, v, tangent);
