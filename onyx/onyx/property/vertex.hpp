@@ -3,6 +3,7 @@
 #include "onyx/core/math.hpp"
 #include "onyx/core/dimension.hpp"
 #include "onyx/property/instance.hpp"
+#include "onyx/asset/handle.hpp"
 #include "tkit/reflection/reflect.hpp"
 #include "tkit/serialization/yaml/serialize.hpp"
 #include "tkit/utils/hash.hpp"
@@ -22,6 +23,7 @@ template <> struct StatVertex<D2>
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Geometry Geo = Geometry_Static;
+    static constexpr AssetType Asset = Asset_StaticMesh;
     static constexpr Dimension Dim = D2;
     TKIT_YAML_SERIALIZE_IGNORE_END()
     TKIT_REFLECT_IGNORE_END()
@@ -43,6 +45,7 @@ template <> struct StatVertex<D3>
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Geometry Geo = Geometry_Static;
+    static constexpr AssetType Asset = Asset_StaticMesh;
     static constexpr Dimension Dim = D3;
     TKIT_YAML_SERIALIZE_IGNORE_END()
     TKIT_REFLECT_IGNORE_END()
@@ -87,6 +90,7 @@ template <> struct ParaVertex<D2>
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Geometry Geo = Geometry_Parametric;
+    static constexpr AssetType Asset = Asset_ParametricMesh;
     static constexpr Dimension Dim = D2;
     TKIT_YAML_SERIALIZE_IGNORE_END()
     TKIT_REFLECT_IGNORE_END()
@@ -104,6 +108,7 @@ template <> struct ParaVertex<D3>
     TKIT_REFLECT_IGNORE_BEGIN()
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Geometry Geo = Geometry_Parametric;
+    static constexpr AssetType Asset = Asset_ParametricMesh;
     static constexpr Dimension Dim = D3;
     TKIT_YAML_SERIALIZE_IGNORE_END()
     TKIT_REFLECT_IGNORE_END()

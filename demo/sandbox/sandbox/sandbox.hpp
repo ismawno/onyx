@@ -45,7 +45,7 @@ template <Dimension D> struct CameraArray
 template <typename Vertex> struct MeshId
 {
     std::string Name{};
-    Asset Handle = NullAsset;
+    Asset Handle = NullHandle;
     MeshData<Vertex> Data{};
 };
 
@@ -58,7 +58,7 @@ template <typename Vertex> struct MeshArray
 template <typename Vertex> struct MeshPoolId
 {
     std::string Name{};
-    AssetPool Handle = NullAssetPool;
+    AssetPool Handle = NullHandle;
     MeshArray<Vertex> Data{};
 };
 
@@ -80,7 +80,7 @@ template <Dimension D> struct MeshPoolArray
     TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
     f32v2 VertexToAdd{0.f};
 
-    Asset DefaultAxesMesh = NullAsset;
+    Asset DefaultAxesMesh = NullHandle;
 };
 
 template <> struct MeshPoolArray<D3>
@@ -95,8 +95,8 @@ template <> struct MeshPoolArray<D3>
     TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
     f32v2 VertexToAdd{0.f};
 
-    Asset DefaultAxesMesh = NullAsset;
-    Asset DefaultLightMesh = NullAsset;
+    Asset DefaultAxesMesh = NullHandle;
+    Asset DefaultLightMesh = NullHandle;
 
     u32 Rings = 32;
     u32 Sectors = 64;
@@ -117,9 +117,9 @@ enum StaticMeshType : u8
 template <Dimension D> struct Shape
 {
     Geometry Geo = Geometry_Count;
-    Asset Mesh = NullAsset;
+    Asset Mesh = NullHandle;
     std::string Name;
-    Asset Material = NullAsset;
+    Asset Material = NullHandle;
     Transform<D> Transform{};
     CircleParameters CircleParameters{};
     InstanceParameters Parameters{};
@@ -135,12 +135,12 @@ template <Dimension D> struct ContextData
     TKit::TierArray<Shape<D>> Shapes;
     TKit::TierArray<PointLight<D> *> PointLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
-    TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullAsset, 0, 0};
+    TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
     f32 AxesThickness = 0.01f;
 
-    Asset AxesMesh = NullAsset;
-    Asset AxesMaterial = NullAsset;
-    Asset LightMaterial = NullAsset;
+    Asset AxesMesh = NullHandle;
+    Asset AxesMaterial = NullHandle;
+    Asset LightMaterial = NullHandle;
 
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 SelectedShape = 0;
@@ -157,15 +157,15 @@ template <> struct ContextData<D3>
     TKit::TierArray<PointLight<D3> *> PointLights{};
     TKit::TierArray<DirectionalLight *> DirLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
-    TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullAsset, 0, 0};
+    TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
     f32 AxesThickness = 0.01f;
 
     u32 SelectedShape = 0;
 
-    Asset AxesMesh = NullAsset;
-    Asset AxesMaterial = NullAsset;
-    Asset LightMaterial = NullAsset;
-    Asset LightMesh = NullAsset;
+    Asset AxesMesh = NullHandle;
+    Asset AxesMaterial = NullHandle;
+    Asset LightMaterial = NullHandle;
+    Asset LightMesh = NullHandle;
 
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 LightToSpawn = 0;
@@ -207,7 +207,7 @@ template <Dimension D> struct LatticeData
 template <Dimension D> struct MaterialId
 {
     std::string Name{};
-    Asset Handle = NullAsset;
+    Asset Handle = NullHandle;
     MaterialData<D> Data{};
 };
 
@@ -220,7 +220,7 @@ template <Dimension D> struct MaterialArray
 template <Dimension D> struct MaterialPoolId
 {
     std::string Name{};
-    AssetPool Handle = NullAssetPool;
+    AssetPool Handle = NullHandle;
     MaterialArray<D> Data{};
 };
 
@@ -228,21 +228,20 @@ template <Dimension D> struct MaterialPoolArray
 {
     TKit::TierArray<MaterialPoolId<D>> Pools{};
     u32 Active = 0;
-    Asset DefaultAxesMaterial = NullAsset;
-    Asset DefaultLightMaterial = NullAsset;
+    Asset DefaultMaterial = NullHandle;
 };
 
 struct SamplerId
 {
     std::string Name{};
-    Asset Handle = NullAsset;
+    Asset Handle = NullHandle;
     SamplerData Data{};
 };
 
 struct TextureId
 {
     std::string Name{};
-    Asset Handle = NullAsset;
+    Asset Handle = NullHandle;
 };
 
 template <Dimension D> struct LatticeArray
@@ -263,7 +262,7 @@ class SandboxAppLayer final : public ApplicationLayer
     template <Dimension D> void DrawLattices();
     template <Dimension D, typename F> void DrawLattice(const LatticeData<D> &lattice, F &&fun);
 
-    template <Dimension D> Shape<D> CreateShape(Geometry geo, Asset mesh = NullAsset);
+    template <Dimension D> Shape<D> CreateShape(Geometry geo, Asset mesh = NullHandle);
 
     template <Dimension D> void AddContext(const Window *window = nullptr);
     template <Dimension D> void AddLattice(const Window *window = nullptr, const LatticeData<D> &lattice = {});
@@ -391,6 +390,7 @@ class SandboxWinLayer final : public WindowLayer
     bool ImPlotDemoWindow = false;
 #    endif
 #endif
+    u32 TabSelect = 0;
 };
 
 } // namespace Onyx

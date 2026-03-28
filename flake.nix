@@ -46,6 +46,7 @@
           libffi
           libxkbcommon
           dbus
+          freetype
 
           fontconfig
           expat

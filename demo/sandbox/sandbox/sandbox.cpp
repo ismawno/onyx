@@ -117,9 +117,9 @@ template <typename Vertex>
 MeshPoolId<Vertex> &SandboxAppLayer::AddMeshPool(TKit::TierArray<MeshPoolId<Vertex>> &pool, const char *name)
 {
     constexpr Dimension D = Vertex::Dim;
-    constexpr Geometry geo = Vertex::Geo;
+    constexpr AssetPoolType ptype = AssetPoolType(Vertex::Asset);
     MeshPoolId<Vertex> &mid = pool.Append();
-    mid.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateMeshPool<D>(geo));
+    mid.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D>(ptype));
     mid.Name = name ? name : TKit::Format("Mesh-pool-{}", mid.Handle);
     return mid;
 }
@@ -166,8 +166,7 @@ template <Dimension D> void SandboxAppLayer::AddDefaultMaterial()
     MaterialPoolId<D> &pool = AddMaterialPool<D>("Default material pool");
     MaterialId<D> &mid = AddMaterial(pool, "Default material");
 
-    GetMaterials<D>().DefaultAxesMaterial = mid.Handle;
-    GetMaterials<D>().DefaultLightMaterial = mid.Handle;
+    GetMaterials<D>().DefaultMaterial = mid.Handle;
 }
 
 template <Dimension D> static void setShapeProperties(RenderContext<D> *context, const Shape<D> &shape)
@@ -215,7 +214,7 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
                     ctx.Context->FillColor(pl->GetColor());
                     if constexpr (D == D2)
                         ctx.Context->Circle();
-                    else if (ctx.LightMesh != NullAsset)
+                    else if (!Assets::IsAssetNull(ctx.LightMesh))
                         ctx.Context->StaticMesh(ctx.LightMesh);
                 }
                 ctx.Context->Pop();
@@ -227,7 +226,7 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
                 ctx.Context->Outline(false);
                 ctx.Context->Fill(true);
                 ctx.Context->Material(ctx.AxesMaterial);
-                if (ctx.AxesMesh != NullAsset)
+                if (!Assets::IsAssetNull(ctx.AxesMesh))
                     ctx.Context->Axes(ctx.AxesMesh, {.Thickness = ctx.AxesThickness});
             }
         }
@@ -252,7 +251,7 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
             }
             case Geometry_Static: {
                 const Asset mesh = lattice.Shape.Mesh;
-                if (mesh != NullAsset)
+                if (!Assets::IsAssetNull(mesh))
                     DrawLattice(lattice, [mesh](const f32v<D> &pos, RenderContext<D> *context) {
                         context->SetTranslation(pos);
                         context->StaticMesh(mesh);
@@ -265,7 +264,7 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
             case Geometry_Parametric: {
                 const Shape<D> shape = lattice.Shape;
                 const Asset mesh = shape.Mesh;
-                if (mesh != NullAsset)
+                if (!Assets::IsAssetNull(mesh))
                     DrawLattice(lattice, [mesh, shape](const f32v<D> &pos, RenderContext<D> *context) {
                         context->SetTranslation(pos);
                         context->ParametricMesh(mesh, shape.Parameters);
@@ -373,8 +372,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
     Shape<D> shape{};
     shape.Geo = geo;
     shape.Mesh = mesh;
-    const auto &mpools = GetMaterials<D>().Pools;
-    shape.Material = mpools.IsEmpty() ? NullAsset : mpools.GetFront().Handle;
+    shape.Material = GetMaterials<D>().DefaultMaterial;
 
     shape.Name = "Unknown";
     const auto &meshes = GetMeshes<D>();
@@ -414,8 +412,8 @@ template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
     auto &contexts = GetContexts<D>();
     ContextData<D> &data = contexts.Contexts.Append();
     data.Context = context;
-    data.AxesMaterial = GetMaterials<D>().DefaultAxesMaterial;
-    data.LightMaterial = GetMaterials<D>().DefaultLightMaterial;
+    data.AxesMaterial = GetMaterials<D>().DefaultMaterial;
+    data.LightMaterial = GetMaterials<D>().DefaultMaterial;
     data.AxesMesh = GetMeshes<D>().DefaultAxesMesh;
     if constexpr (D == D3)
     {
@@ -445,7 +443,7 @@ template <Dimension D> MaterialPoolId<D> &SandboxAppLayer::AddMaterialPool(const
 {
     auto &materials = GetMaterials<D>();
     MaterialPoolId<D> &pool = materials.Pools.Append();
-    pool.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateMaterialPool<D>());
+    pool.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D>(AssetPool_Material));
     pool.Name = name ? name : TKit::Format("Material-pool-{}", pool.Handle);
     return pool;
 }
@@ -489,11 +487,13 @@ SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, con
     {
         AddCamera<D2>();
         alayer->AddContext<D2>(window);
+        TabSelect = 1;
     }
     else
     {
         AddCamera<D3>();
         alayer->AddContext<D3>(window);
+        TabSelect = 2;
     }
 }
 SandboxWinLayer::~SandboxWinLayer()
@@ -568,7 +568,7 @@ void SandboxWinLayer::RenderImGui()
         ImPlot::ShowDemoWindow();
 #    endif
 
-    ApplicationLayer *appLayer = GetApplicationLayer();
+    SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     Window *window = GetWindow();
     if (ImGui::BeginMainMenuBar())
     {
@@ -649,7 +649,7 @@ void SandboxWinLayer::RenderImGui()
                            "from -1 to 1 for 'x' and 'y', and from 0 to 1 for 'z'.");
 
         ImGui::BeginTabBar("Dimension");
-        if (ImGui::BeginTabItem("2D"))
+        if (ImGui::BeginTabItem("2D", nullptr, TabSelect == 1 ? ImGuiTabItemFlags_SetSelected : 0))
         {
             RenderContexts<D2>();
             RenderCameras<D2>();
@@ -662,7 +662,7 @@ void SandboxWinLayer::RenderImGui()
             RenderGltf<D2>();
             ImGui::EndTabItem();
         }
-        if (ImGui::BeginTabItem("3D"))
+        if (ImGui::BeginTabItem("3D", nullptr, TabSelect == 2 ? ImGuiTabItemFlags_SetSelected : 0))
         {
             RenderContexts<D3>();
             RenderCameras<D3>();
@@ -676,6 +676,7 @@ void SandboxWinLayer::RenderImGui()
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
+        TabSelect = 0;
     }
     ImGui::End();
 }
@@ -857,12 +858,12 @@ static bool poolMemberNameCombo(const char *name, const TKit::TierArray<T> &cont
         }
 
     bool changed = false;
-    if (*handle != NullAsset)
+    if (!Assets::IsAssetNull(*handle))
     {
         changed |= ImGui::Button("X");
         if (changed)
         {
-            *handle = NullAsset;
+            *handle = NullHandle;
             idx = TKIT_U32_MAX;
         }
         ImGui::SameLine();
@@ -912,12 +913,12 @@ template <typename T> static bool nameCombo(const char *name, const TKit::TierAr
             idx = i;
     }
     bool changed = false;
-    if (*handle != NullAsset)
+    if (!Assets::IsAssetNull(*handle))
     {
         changed |= ImGui::Button("X");
         if (changed)
         {
-            *handle = NullAsset;
+            *handle = NullHandle;
             idx = TKIT_U32_MAX;
         }
         ImGui::SameLine();
@@ -1059,8 +1060,10 @@ template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &c
     else if (geo == Geometry_Parametric)
         paraMeshNameCombo<D>("Shape##Picker", appLayer, &context.MeshToSpawn[geo]);
 
+    ImGui::BeginDisabled(geo != Geometry_Circle && Assets::IsAssetNull(context.MeshToSpawn[geo]));
     if (ImGui::Button("Spawn##Shape"))
         context.Shapes.Append(appLayer->CreateShape<D>(geo, context.MeshToSpawn[geo]));
+    ImGui::EndDisabled();
 
     EntriesOptions<Shape<D>> opts{};
     opts.TreeName = "Shapes";
@@ -1148,37 +1151,32 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
             opts.OnSelected = [this](StatMeshPoolId<D> &pool) { RenderMeshPool(pool); };
             opts.GetName = [](const StatMeshPoolId<D> &pool) { return pool.Name.c_str(); };
             opts.OnRemoval = [&meshes, appLayer](const StatMeshPoolId<D> &pool) {
-                Assets::DestroyMeshPool<D>(Geometry_Static, pool.Handle);
+                Assets::DestroyAssetPool<D>(pool.Handle);
                 auto &contexts = appLayer->GetContexts<D>();
                 for (ContextData<D> &ctx : contexts.Contexts)
                 {
                     for (u32 i = ctx.Shapes.GetSize() - 1; i < ctx.Shapes.GetSize(); --i)
-                        if (ctx.Shapes[i].Geo == Geometry_Static &&
-                            Assets::GetPoolHandle(ctx.Shapes[i].Mesh) == pool.Handle)
+                        if (Assets::GetAssetPool(ctx.Shapes[i].Mesh) == pool.Handle)
                             ctx.Shapes.RemoveOrdered(ctx.Shapes.begin() + i);
-                    if (Assets::GetPoolHandle(ctx.AxesMesh) == pool.Handle)
+                    if (Assets::GetAssetPool(ctx.AxesMesh) == pool.Handle)
                         ctx.AxesMesh = NullAsset;
 
-                    if (Assets::GetPoolHandle(ctx.LightMaterial) == pool.Handle)
-                        ctx.LightMaterial = NullAsset;
-
                     if constexpr (D == D3)
-                        if (Assets::GetPoolHandle(ctx.LightMesh) == pool.Handle)
+                        if (Assets::GetAssetPool(ctx.LightMesh) == pool.Handle)
                             ctx.LightMesh = NullAsset;
                 }
                 auto &lattices = appLayer->GetLattices<D>();
                 for (LatticeData<D> &lattice : lattices.Lattices)
                 {
-                    if (Assets::GetPoolHandle(lattice.StatMesh) == pool.Handle)
+                    if (Assets::GetAssetPool(lattice.StatMesh) == pool.Handle)
                         lattice.StatMesh = NullAsset;
-                    if (lattice.Shape.Geo == Geometry_Static &&
-                        Assets::GetPoolHandle(lattice.Shape.Mesh) == pool.Handle)
+                    if (Assets::GetAssetPool(lattice.Shape.Mesh) == pool.Handle)
                         lattice.Shape.Mesh = NullAsset;
                 }
-                if (Assets::GetPoolHandle(meshes.DefaultAxesMesh) == pool.Handle)
+                if (Assets::GetAssetPool(meshes.DefaultAxesMesh) == pool.Handle)
                     meshes.DefaultAxesMesh = NullAsset;
                 if constexpr (D == D3)
-                    if (Assets::GetPoolHandle(meshes.DefaultLightMesh) == pool.Handle)
+                    if (Assets::GetAssetPool(meshes.DefaultLightMesh) == pool.Handle)
                         meshes.DefaultLightMesh = NullAsset;
 
                 ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
@@ -1198,18 +1196,16 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
             opts.OnSelected = [this](ParaMeshPoolId<D> &pool) { RenderMeshPool(pool); };
             opts.GetName = [](const ParaMeshPoolId<D> &pool) { return pool.Name.c_str(); };
             opts.OnRemoval = [appLayer](const ParaMeshPoolId<D> &pool) {
-                Assets::DestroyMeshPool<D>(Geometry_Parametric, pool.Handle);
+                Assets::DestroyAssetPool<D>(pool.Handle);
                 auto &contexts = appLayer->GetContexts<D>();
                 for (ContextData<D> &ctx : contexts.Contexts)
                     for (u32 i = ctx.Shapes.GetSize() - 1; i < ctx.Shapes.GetSize(); --i)
-                        if (ctx.Shapes[i].Geo == Geometry_Parametric &&
-                            Assets::GetPoolHandle(ctx.Shapes[i].Mesh) == pool.Handle)
+                        if (Assets::GetAssetPool(ctx.Shapes[i].Mesh) == pool.Handle)
                             ctx.Shapes.RemoveOrdered(ctx.Shapes.begin() + i);
 
                 auto &lattices = appLayer->GetLattices<D>();
                 for (LatticeData<D> &lattice : lattices.Lattices)
-                    if (lattice.Shape.Geo == Geometry_Parametric &&
-                        Assets::GetPoolHandle(lattice.Shape.Mesh) == pool.Handle)
+                    if (Assets::GetAssetPool(lattice.Shape.Mesh) == pool.Handle)
                         lattice.Shape.Mesh = NullAsset;
                 ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
             };
@@ -1233,24 +1229,24 @@ template <Dimension D> void SandboxWinLayer::RenderMaterialPools()
         opts.OnSelected = [this](MaterialPoolId<D> &pool) { RenderMaterialPool(pool); };
         opts.GetName = [](const MaterialPoolId<D> &pool) { return pool.Name.c_str(); };
         opts.OnRemoval = [&materials, appLayer](MaterialPoolId<D> &pool) {
-            Assets::DestroyMaterialPool<D>(pool.Handle);
+            Assets::DestroyAssetPool<D>(pool.Handle);
             auto &contexts = appLayer->GetContexts<D>();
             for (ContextData<D> &ctx : contexts.Contexts)
             {
                 for (Shape<D> &shape : ctx.Shapes)
-                    if (Assets::GetPoolHandle(shape.Material) == pool.Handle)
+                    if (Assets::GetAssetPool(shape.Material) == pool.Handle)
                         shape.Material = NullAsset;
-                if (Assets::GetPoolHandle(ctx.AxesMaterial) == pool.Handle)
+                if (Assets::GetAssetPool(ctx.AxesMaterial) == pool.Handle)
                     ctx.AxesMaterial = NullAsset;
+                if (Assets::GetAssetPool(ctx.LightMaterial) == pool.Handle)
+                    ctx.LightMaterial = NullAsset;
             }
             auto &lattices = appLayer->GetLattices<D>();
             for (LatticeData<D> &lattice : lattices.Lattices)
-                if (Assets::GetPoolHandle(lattice.Shape.Material) == pool.Handle)
+                if (Assets::GetAssetPool(lattice.Shape.Material) == pool.Handle)
                     lattice.Shape.Material = NullAsset;
-            if (Assets::GetPoolHandle(materials.DefaultAxesMaterial) == pool.Handle)
-                materials.DefaultAxesMaterial = NullAsset;
-            if (Assets::GetPoolHandle(materials.DefaultLightMaterial) == pool.Handle)
-                materials.DefaultLightMaterial = NullAsset;
+            if (Assets::GetAssetPool(materials.DefaultMaterial) == pool.Handle)
+                materials.DefaultMaterial = NullAsset;
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
         };
         renderEntries(materials.Pools, opts);

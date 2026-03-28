@@ -28,7 +28,7 @@ template <Dimension D> struct RenderState
 
     f32 OutlineWidth = 0.1f;
     f32 AmbientIntensity = 0.4f;
-    Asset Material = NullAsset;
+    Asset Material = NullHandle;
     RenderStateFlags Flags = RenderStateFlag_Fill;
 };
 
@@ -256,7 +256,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         InstanceDataBuffer Circles{};
         TKit::FixedArray<TKit::FixedArray<TKit::TierArray<InstanceDataBuffer>, ONYX_MAX_ASSET_POOLS>,
-                         Geometry_Count - 1>
+                         AssetPool_MeshCount>
             Meshes{};
     };
 

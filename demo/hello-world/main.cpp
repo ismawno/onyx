@@ -116,7 +116,7 @@ int main()
     ONYX_CHECK_EXPRESSION(Initialize());
     const StatMeshData<D2> data = Assets::CreateQuadMesh<D2>();
 
-    const AssetPool pool = ONYX_CHECK_EXPRESSION(Assets::CreateMeshPool<D2>(Onyx::Geometry_Static));
+    const AssetPool pool = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D2>(AssetPool_StaticMesh));
     const Asset mesh = Assets::AddMesh(pool, data);
     ONYX_CHECK_EXPRESSION(Assets::Upload());
 

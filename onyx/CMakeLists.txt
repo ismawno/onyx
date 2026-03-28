@@ -16,7 +16,7 @@ set(SOURCES
     onyx/state/shaders.cpp
     onyx/property/color.cpp
     onyx/property/transform.cpp
-    onyx/property/instance.cpp
+    onyx/property/property.cpp
     onyx/application/application.cpp
     onyx/application/layer.cpp
     onyx/platform/window.cpp
@@ -138,6 +138,94 @@ if(ONYX_ENABLE_GLTF_LOAD)
   target_link_libraries(onyx PRIVATE tinygltf)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_GLTF_LOAD)
   # tkit_configure_compile_link_options(tinygltf NO_EXCEPTIONS NO_RTTI)
+endif()
+
+if(ONYX_ENABLE_FONT_LOAD)
+  find_package(Freetype QUIET)
+  if(Freetype_FOUND)
+    message(STATUS "ONYX - FreeType found")
+    target_link_libraries(onyx PRIVATE Freetype::Freetype)
+    target_compile_definitions(onyx PUBLIC ONYX_ENABLE_FONT_LOAD)
+  else()
+    message(STATUS "ONYX - FreeType not found. Fetching source...")
+    FetchContent_Declare(
+      ft
+      GIT_REPOSITORY https://gitlab.freedesktop.org/freetype/freetype.git
+      GIT_TAG VER-2-14-3
+      GIT_SHALLOW TRUE
+      GIT_PROGRESS TRUE)
+
+    set(SKIP_INSTALL_ALL
+        TRUE
+        CACHE BOOL "")
+
+    set(FT_DISABLE_ZLIB
+        TRUE
+        CACHE BOOL "")
+    set(FT_DISABLE_BZIP2
+        TRUE
+        CACHE BOOL "")
+    set(FT_DISABLE_PNG
+        TRUE
+        CACHE BOOL "")
+    set(FT_DISABLE_HARFBUZZ
+        TRUE
+        CACHE BOOL "")
+    set(FT_DISABLE_BROTLI
+        TRUE
+        CACHE BOOL "")
+    set(FT_DISABLE_HVF
+        TRUE
+        CACHE BOOL "")
+    FetchContent_MakeAvailable(ft)
+    target_link_libraries(onyx PRIVATE freetype)
+    target_compile_definitions(onyx PUBLIC ONYX_ENABLE_FONT_LOAD)
+    tkit_configure_compile_link_options(freetype NO_EXCEPTIONS NO_RTTI)
+
+    if(NOT TARGET Freetype::Freetype)
+      add_library(Freetype::Freetype ALIAS freetype)
+    endif()
+  endif()
+  FetchContent_Declare(
+    msdfgen
+    GIT_REPOSITORY https://github.com/Chlumsky/msdfgen.git
+    GIT_TAG v1.13
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
+  set(MSDFGEN_CORE_ONLY
+      OFF
+      CACHE BOOL "")
+  set(MSDFGEN_BUILD_STANDALONE
+      OFF
+      CACHE BOOL "")
+  set(MSDFGEN_USE_VCPKG
+      OFF
+      CACHE BOOL "")
+  set(MSDFGEN_USE_OPENMP
+      OFF
+      CACHE BOOL "")
+  set(MSDFGEN_USE_CPP11
+      ON
+      CACHE BOOL "")
+  set(MSDFGEN_USE_SKIA
+      OFF
+      CACHE BOOL "")
+  set(MSDFGEN_DISABLE_SVG
+      ON
+      CACHE BOOL "")
+  set(MSDFGEN_DISABLE_PNG
+      ON
+      CACHE BOOL "")
+  set(MSDFGEN_INSTALL
+      OFF
+      CACHE BOOL "")
+  set(MSDFGEN_DYNAMIC_RUNTIME
+      OFF
+      CACHE BOOL "")
+  FetchContent_MakeAvailable(msdfgen)
+
+  target_link_libraries(onyx PRIVATE msdfgen::msdfgen-ext)
+  tkit_configure_compile_link_options(msdfgen-ext NO_EXCEPTIONS NO_RTTI)
 endif()
 
 tkit_register_for_yaml_serialization(

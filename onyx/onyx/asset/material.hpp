@@ -10,8 +10,8 @@ template <Dimension D> struct MaterialData;
 template <> struct MaterialData<D2>
 {
     u32 ColorFactor = 0xFFFFFFFF;
-    Asset Sampler = NullAsset;
-    Asset Texture = NullAsset;
+    Asset Sampler = NullHandle;
+    Asset Texture = NullHandle;
 };
 
 enum TextureSlot : u8
@@ -33,8 +33,10 @@ template <> struct MaterialData<D3>
     f32 OcclusionStrength = 1.f;
     f32 NormalScale = 1.f;
 
-    TKit::FixedArray<Asset, TextureSlot_Count> Samplers{NullAsset, NullAsset, NullAsset, NullAsset, NullAsset};
-    TKit::FixedArray<Asset, TextureSlot_Count> Textures{NullAsset, NullAsset, NullAsset, NullAsset, NullAsset};
+    TKit::FixedArray<Asset, TextureSlot_Count> Samplers{NullHandle, NullHandle, NullHandle, NullHandle, NullHandle};
+    TKit::FixedArray<Asset, TextureSlot_Count> Textures{NullHandle, NullHandle, NullHandle, NullHandle, NullHandle};
 };
+
+const char *ToString(TextureSlot slot);
 
 } // namespace Onyx

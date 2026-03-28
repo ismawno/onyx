@@ -31,14 +31,14 @@ template <Dimension D> void IRenderContext<D>::Flush()
     for (InstanceDataArrays &instanceData : m_InstanceData)
     {
         instanceData.Circles.Instances = 0;
-        for (u32 j = Geometry_Static; j < Geometry_Count; ++j)
+        for (u32 j = 0; j < AssetPool_MeshCount; ++j)
         {
-            const Geometry geo = Geometry(j);
-            const auto pools = Assets::GetMeshAssetPools<D>(geo);
+            const AssetPoolType ptype = AssetPoolType(j);
+            const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(ptype);
 
-            auto &ipools = instanceData.Meshes[j - 1];
-            for (const AssetPool pool : pools)
-                for (InstanceDataBuffer &buffer : ipools[pool])
+            auto &ipools = instanceData.Meshes[j];
+            for (const u32 pid : poolIds)
+                for (InstanceDataBuffer &buffer : ipools[pid])
                     buffer.Instances = 0;
         }
     }
@@ -70,21 +70,23 @@ template <Dimension D> void IRenderContext<D>::updateState()
     m_Current = &m_StateStack.GetBack();
 }
 
+#define CHECK_HANDLE(handle, ptype, dim)                                                                               \
+    ONYX_CHECK_ASSET_IS_NOT_NULL(handle);                                                                              \
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(handle);                                                                         \
+    ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(handle, ptype, dim);                                                       \
+    ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(handle, AssetType(ptype), dim);
+
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
 {
-    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Static, mesh),
-                "[ONYX][CONTEXT] The mesh handle {} is invalid, maybe because its mesh pool was destroyed or the mesh "
-                "it references is not a static mesh",
-                mesh);
+    CHECK_HANDLE(mesh, AssetPool_StaticMesh, D);
+
     const auto draw = [&, mesh](const StencilPass pass) { addStaticData(mesh, m_Current->Transform, pass); };
     resolveStencilPassWithState(m_Current, draw);
 }
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, const f32m<D> &transform)
 {
-    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Static, mesh),
-                "[ONYX][CONTEXT] The mesh handle {} is invalid, maybe because its mesh pool was destroyed or the mesh "
-                "it references is not a static mesh",
-                mesh);
+    CHECK_HANDLE(mesh, AssetPool_StaticMesh, D);
+
     const auto draw = [&, mesh](const StencilPass pass) {
         addStaticData(mesh, transform * m_Current->Transform, pass);
     };
@@ -93,10 +95,8 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, cons
 
 template <Dimension D> void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params)
 {
-    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Parametric, mesh),
-                "[ONYX][CONTEXT] The mesh handle {} is invalid, maybe because its mesh pool was destroyed or the mesh "
-                "it references is not a parametric mesh",
-                mesh);
+    CHECK_HANDLE(mesh, AssetPool_ParametricMesh, D);
+
     const auto draw = [&, mesh](const StencilPass pass) {
         addParametricData(mesh, m_Current->Transform, params, pass);
     };
@@ -105,10 +105,8 @@ template <Dimension D> void IRenderContext<D>::ParametricMesh(const Asset mesh, 
 template <Dimension D>
 void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params, const f32m<D> &transform)
 {
-    TKIT_ASSERT(Assets::IsMeshHandleValid<D>(Geometry_Parametric, mesh),
-                "[ONYX][CONTEXT] The mesh handle {} is invalid, maybe because its mesh pool was destroyed or the mesh "
-                "it references is not a parametric mesh",
-                mesh);
+    CHECK_HANDLE(mesh, AssetPool_ParametricMesh, D);
+
     const auto draw = [&, mesh](const StencilPass pass) {
         addParametricData(mesh, transform * m_Current->Transform, params, pass);
     };
@@ -207,24 +205,39 @@ template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceDataBuffer &
     }
 }
 
+static Geometry getGeometry(const AssetPoolType ptype)
+{
+    TKIT_ASSERT(ptype != AssetPool_Material, "[ONYX][RENDERER] Materials do not have geometry");
+    switch (ptype)
+    {
+    case AssetPool_StaticMesh:
+        return Geometry_Static;
+    case AssetPool_ParametricMesh:
+        return Geometry_Parametric;
+    default:
+        return Geometry_Count;
+        TKIT_FATAL("[ONYX][RENDERER] Unrecognized geometry {}", ToString(ptype));
+    }
+}
+
 template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
 {
     for (InstanceDataArrays &instanceData : m_InstanceData)
-        for (u32 j = Geometry_Static; j < Geometry_Count; ++j)
+        for (u32 j = AssetPool_StaticMesh; j < AssetPool_Material; ++j)
         {
-            const Geometry geo = Geometry(j);
-            const auto pools = Assets::GetMeshAssetPools<D>(geo);
+            const AssetPoolType ptype = AssetPoolType(j);
+            const auto poolIds = Assets::GetAssetPoolIds<D>(ptype);
 
-            auto &ipools = instanceData.Meshes[j - 1];
-            for (const AssetPool pool : pools)
+            auto &ipools = instanceData.Meshes[j];
+            for (const u32 pid : poolIds)
             {
-                auto &buffers = ipools[pool];
+                auto &buffers = ipools[pid];
                 const u32 count = buffers.GetSize();
-                const u32 ncount = Assets::GetMeshCount<D>(geo, pool);
+                const u32 ncount = Assets::GetAssetCount<D>(Assets::CreateAssetPoolHandle(ptype, pid));
                 for (u32 k = count; k < ncount; ++k)
                 {
                     InstanceDataBuffer &buffer = buffers.Append();
-                    const u32 isize = GetInstanceSize<D>(geo);
+                    const u32 isize = GetInstanceSize<D>(getGeometry(ptype));
                     buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
                     buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
                     buffer.InstanceSize = isize;
@@ -254,45 +267,67 @@ void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CirclePara
 template <Dimension D>
 void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform, const StencilPass pass)
 {
-    const u32 idx = Assets::GetAssetIndex(mesh);
-    const AssetPool pool = Assets::GetPoolHandle(mesh);
+    const u32 aid = Assets::GetAssetId(mesh);
+    const u32 pid = Assets::GetAssetPoolId(mesh);
 
     const StaticInstanceData<D> idata = createStaticInstanceData(m_Current, transform, pass);
-    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Geometry_Static - 1][pool][idx];
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[AssetPool_StaticMesh][pid][aid];
     addInstanceData(buffer, idata);
 }
 template <Dimension D>
 void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &transform, const InstanceParameters &params,
                                           const StencilPass pass)
 {
-    const u32 idx = Assets::GetAssetIndex(mesh);
-    const AssetPool pool = Assets::GetPoolHandle(mesh);
+    const u32 aid = Assets::GetAssetId(mesh);
+    const u32 pid = Assets::GetAssetPoolId(mesh);
+
     const ParametricShape shape = Assets::GetParametricShape<D>(mesh);
 
     const ParametricInstanceData<D> idata = createParametricInstanceData(m_Current, transform, shape, params, pass);
-    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Geometry_Parametric - 1][pool][idx];
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[AssetPool_ParametricMesh][pid][aid];
     addInstanceData(buffer, idata);
 }
 
 #ifdef TKIT_ENABLE_ASSERTS
 template <Dimension D> void IRenderContext<D>::checkMaterial(const Asset material)
 {
-    TKIT_ASSERT(material == NullAsset || Assets::IsMaterialHandleValid<D>(material),
-                "[ONYX][CONTEX] The material handle {} is invalid and is not an explicit null material", material);
-    if (material != NullAsset)
+    TKIT_ASSERT(Assets::IsAssetNull(material) || Assets::IsAssetValid<D>(material, Asset_Material),
+                "[ONYX][CONTEX] The material handle {:#010x} is invalid and is not an explicit null material",
+                material);
+    if (!Assets::IsAssetNull(material))
     {
         const MaterialData<D> &data = Assets::GetMaterialData<D>(material);
         if constexpr (D == D2)
         {
-            TKIT_ASSERT(data.Texture == NullAsset || Assets::IsTextureHandleValid(data.Texture),
-                        "[ONYX][CONTEXT] The texture handle {} from the material handle {} is invalid and is not "
-                        "an explicit null texture",
-                        data.Texture, material);
-            TKIT_ASSERT(data.Sampler == NullAsset || Assets::IsSamplerHandleValid(data.Sampler),
-                        "[ONYX][CONTEXT] The sampler handle {} from the material handle {} is invalid and is not "
-                        "an explicit null sampler",
-                        data.Sampler, material);
+            TKIT_ASSERT(
+                Assets::IsAssetNull(data.Sampler) || Assets::IsAssetValid<D>(data.Sampler, Asset_Sampler),
+                "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
+                "an explicit null sampler",
+                data.Sampler, material);
+            TKIT_ASSERT(
+                Assets::IsAssetNull(data.Texture) || Assets::IsAssetValid<D>(data.Texture, Asset_Texture),
+                "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
+                "an explicit null texture",
+                data.Texture, material);
         }
+        else
+            for (u32 i = 0; i < TextureSlot_Count; ++i)
+            {
+                const TextureSlot slot = TextureSlot(i);
+                const Asset sampler = data.Samplers[i];
+                const Asset texture = data.Textures[i];
+
+                TKIT_ASSERT(Assets::IsAssetNull(sampler) || Assets::IsAssetValid<D>(sampler, Asset_Sampler),
+                            "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
+                            "slot '{}' is "
+                            "invalid and is not an explicit null sampler",
+                            sampler, material, ToString(slot));
+                TKIT_ASSERT(Assets::IsAssetNull(texture) || Assets::IsAssetValid<D>(texture, Asset_Texture),
+                            "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
+                            "slot '{}' is "
+                            "invalid and is not an explicit null texture",
+                            texture, material, ToString(slot));
+            }
     }
 }
 #endif

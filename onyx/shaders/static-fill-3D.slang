@@ -30,7 +30,7 @@ StructuredBuffer<StaticInstanceDataFill3D, Std430DataLayout> g_Instances;
 struct PushConstants
 {
     f32m4 ProjectionView;
-    LightData3D LightData;
+    LightData3D Light;
 }
 
 [[vk::push_constant]]
@@ -69,13 +69,13 @@ VertexOutput mainVS(
 }
 
 [[vk::binding(1, 0)]]
-Materials3D g_Materials[255];
+Materials3D g_Materials[ONYX_MAX_ASSET_POOLS];
 
 [[vk::binding(2, 0)]]
-SamplerState g_Samplers[8];
+SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 
 [[vk::binding(3, 0)]]
-Texture2D g_Textures[1024];
+Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
 [[vk::binding(4, 0)]]
 PointLights3D g_PointLights;
@@ -86,61 +86,12 @@ DirectionalLights g_DirLights;
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
 {
-    if (input.MatHandle != NullAsset)
-    {
-        const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
-        const u32 matIdx = GetMaterialIndex(input.MatHandle);
-
-        const Material3D mat = g_Materials[poolIdx][matIdx];
-        MaterialInfo3D info;
-        info.Points = g_PointLights;
-        info.Directionals = g_DirLights;
-        info.Albedo = unpackUnorm4x8ToFloat(mat.AlbedoFactor);
-        info.WorldPosition = input.WorldPosition;
-        info.Emissive = f32v3(mat.EmissiveFactorX, mat.EmissiveFactorY, mat.EmissiveFactorZ);
-        info.Roughness = mat.RoughnessFactor;
-        info.Metallic = mat.MetallicFactor;
-        info.Occlusion = 1.0;
-
-        // Albedo
-        if (mat.AlbedoSamp != NullAsset && mat.AlbedoTex != NullAsset)
-            info.Albedo *= g_Textures[mat.AlbedoTex].Sample(g_Samplers[mat.AlbedoSamp], input.TexCoord);
-
-        // Normal map
-        if (mat.NormalSamp != NullAsset && mat.NormalTex != NullAsset)
-        {
-            f32v3 sampledNormal = g_Textures[mat.NormalTex].Sample(g_Samplers[mat.NormalSamp], input.TexCoord).xyz;
-            sampledNormal = sampledNormal * 2.0 - 1.0; // unpack from [0,1] to [-1,1]
-            sampledNormal.xy *= mat.NormalScale;
-            info.Normal = normalize(mul(sampledNormal, input.TBN)); // requires TBN matrix in VertexOutput
-        } else
-            info.Normal = input.TBN[2];
-
-        if (!isFrontFacing)
-            info.Normal = -info.Normal;
-
-        // Metallic/Roughness (glTF convention: G = roughness, B = metallic)
-        if (mat.MetallicRoughnessSamp != NullAsset && mat.MetallicRoughnessTex != NullAsset)
-        {
-            const f32v4 mr = g_Textures[mat.MetallicRoughnessTex].Sample(g_Samplers[mat.MetallicRoughnessSamp], input.TexCoord);
-            info.Roughness *= mr.g;
-            info.Metallic *= mr.b;
-        }
-
-        // Occlusion (R channel)
-        if (mat.OcclusionSamp != NullAsset && mat.OcclusionTex != NullAsset)
-        {
-            const f32 sampledOcclusion = g_Textures[mat.OcclusionTex].Sample(g_Samplers[mat.OcclusionSamp], input.TexCoord).r;
-            info.Occlusion = 1.0 + mat.OcclusionStrength * (sampledOcclusion - 1.0);
-        }
-
-        // Emissive
-        if (mat.EmissiveSamp != NullAsset && mat.EmissiveTex != NullAsset)
-            info.Emissive *= g_Textures[mat.EmissiveTex].Sample(g_Samplers[mat.EmissiveSamp], input.TexCoord).rgb;
-
-        const f32v3 lcolor = GetLightColor3D(g_PushData.LightData, info);
-        return input.FragColor * f32v4(lcolor, info.Albedo.w);
-    }
-    return input.FragColor;
+    ResourceTable3D resources;
+    resources.Materials = g_Materials;
+    resources.Samplers = g_Samplers;
+    resources.Textures = g_Textures;
+    resources.PointLights = g_PointLights;
+    resources.DirLights = g_DirLights;
+    return ComputeColor3D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f, input.TBN, isFrontFacing);
 }
 

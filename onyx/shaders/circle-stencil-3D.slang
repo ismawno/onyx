@@ -80,6 +80,3 @@ f32v4 mainFS(const VertexOutput input)
     color.a = CircleFade(color.a, bounds, input.Fade);
     return color;
 }
-
-
-

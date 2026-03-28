@@ -24,6 +24,12 @@ TKIT_GCC_WARNING_IGNORE("-Wmissing-field-initializers")
 #    include <stb_image_write.h>
 TKIT_COMPILER_WARNING_IGNORE_POP()
 #endif
+#ifdef ONYX_ENABLE_FONT_LOAD
+#    define MSDFGEN_PUBLIC
+#    include <msdfgen.h>
+#    include <msdfgen-ext.h>
+#    include <freetype/freetype.h>
+#endif
 
 namespace Onyx::Assets
 {
@@ -74,6 +80,9 @@ struct BatchRange
 };
 
 AssetsFlags s_Flags = 0;
+#ifdef ONYX_ENABLE_FONT_LOAD
+msdfgen::FreetypeHandle *s_FreeType;
+#endif
 
 template <typename Vertex> struct MeshPoolData
 {
@@ -129,8 +138,8 @@ template <Dimension D> struct MaterialAssetData
 struct SamplerInfo
 {
     VKit::Sampler Sampler{};
-    Asset Handle = NullAsset;
     SamplerData Data{};
+    Asset Handle = NullAsset;
     AssetsFlags Flags = 0;
 };
 
@@ -205,23 +214,23 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshPoolDat
     return Result<>::Ok();
 }
 
-template <Dimension D> void updateMaterialDescriptorSet(const AssetPool pool)
+template <Dimension D> void updateMaterialDescriptorSet(const u32 pid)
 {
-    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pid];
 
     const VkDescriptorBufferInfo binfo = mpool.Buffer.CreateDescriptorInfo();
     const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(Shading_Lit);
 
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
-    writer.WriteBuffer(1, binfo, pool);
+    writer.WriteBuffer(1, binfo, pid);
 
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D>(Shading_Lit))
         writer.Overwrite(set);
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize(const AssetPool pool)
+template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize(const u32 pid)
 {
-    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pid];
 
     const u32 mcount = mpool.Materials.GetSize();
     const auto result = Resources::GrowBufferIfNeeded<MaterialData<D>>(mpool.Buffer, mcount);
@@ -232,7 +241,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> checkMaterialBufferSize(c
                        mcount * sizeof(MaterialData<D>), mpool.Buffer.GetInfo().Size);
         for (StatusFlags &flags : mpool.Flags)
             flags = StatusFlag_UpdateMaterial;
-        updateMaterialDescriptorSet<D>(pool);
+        updateMaterialDescriptorSet<D>(pid);
     }
     return Result<>::Ok();
 }
@@ -308,12 +317,13 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshAs
 {
     for (const AssetPool pool : meshes.ToRemove)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying mesh pool with id {}", pool);
-        MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying mesh pool with handle {:#010x}", pool);
+        const u32 pid = GetAssetPoolId(pool);
+        MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
         mpool.VertexBuffer.Destroy();
         mpool.IndexBuffer.Destroy();
 
-        meshes.Pools.Remove(pool);
+        meshes.Pools.Remove(pid);
     }
     meshes.ToRemove.Clear();
 
@@ -326,13 +336,13 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshAs
 }
 
 template <Dimension D>
-ONYX_NO_DISCARD static Result<> uploadMaterialRange(const AssetPool pool, const u32 start, const u32 end)
+ONYX_NO_DISCARD static Result<> uploadMaterialRange(const u32 pid, const u32 start, const u32 end)
 {
-    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pid];
     const VkDeviceSize offset = start * sizeof(MaterialData<D>);
     const VkDeviceSize size = end * sizeof(MaterialData<D>) - offset;
 
-    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading material range for pool {}: {} - {} ({:L} bytes)", pool, start, end, size);
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading material range {} - {} ({:L} bytes)", start, end, size);
 
     VKit::CommandPool &cpool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
@@ -341,9 +351,9 @@ ONYX_NO_DISCARD static Result<> uploadMaterialRange(const AssetPool pool, const 
                                        {.srcOffset = offset, .dstOffset = offset, .size = size});
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialPool(const AssetPool pool)
+template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialPool(const u32 pid)
 {
-    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pid];
     if (mpool.Materials.IsEmpty())
         return Result<>::Ok();
 
@@ -353,7 +363,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialPool(const 
 
     const auto mustUpdate = [&mpool](const u32 index) { return StatusFlag_UpdateMaterial & mpool.Flags[index]; };
 
-    TKIT_RETURN_IF_FAILED(checkMaterialBufferSize<D>(pool));
+    TKIT_RETURN_IF_FAILED(checkMaterialBufferSize<D>(pid));
 
     const u32 size = mpool.Materials.GetSize();
     for (u32 i = 0; i < size; ++i)
@@ -361,7 +371,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialPool(const 
             for (u32 j = i + 1; j <= size; ++j)
                 if (j == size || !mustUpdate(j))
                 {
-                    TKIT_RETURN_IF_FAILED(uploadMaterialRange<D>(pool, i, j));
+                    TKIT_RETURN_IF_FAILED(uploadMaterialRange<D>(pid, i, j));
                     i = j;
                     break;
                 }
@@ -377,16 +387,18 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
     MaterialAssetData<D> &materials = getData<D>().Materials;
     for (const AssetPool pool : materials.ToRemove)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying material pool with id {}", pool);
-        MaterialPoolData<D> &mpool = materials.Pools[pool];
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying material pool with handle {:#010x}", pool);
+
+        const u32 pid = GetAssetPoolId(pool);
+        MaterialPoolData<D> &mpool = materials.Pools[pid];
         mpool.Buffer.Destroy();
-        materials.Pools.Remove(pool);
+        materials.Pools.Remove(pid);
     }
     materials.ToRemove.Clear();
 
-    for (const AssetPool pool : materials.Pools.GetValidIds())
+    for (const u32 pid : materials.Pools.GetValidIds())
     {
-        TKIT_RETURN_IF_FAILED(uploadMaterialPool<D>(pool));
+        TKIT_RETURN_IF_FAILED(uploadMaterialPool<D>(pid));
     }
 
     return Result<>::Ok();
@@ -416,7 +428,7 @@ template <Dimension D> static void terminate()
     terminate(data.StaticMeshes);
 }
 
-void Initialize(const Specs &specs)
+Result<> Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][ASSETS] Initializing");
     s_AssetData2.Construct();
@@ -429,10 +441,19 @@ void Initialize(const Specs &specs)
 
     s_TextureData->Textures.Reserve(specs.MaxTextures);
     s_TextureData->ToRemove.Reserve(specs.MaxTextures);
+#ifdef ONYX_ENABLE_FONT_LOAD
+    s_FreeType = msdfgen::initializeFreetype();
+    if (!s_FreeType)
+        return Result<>::Error(Error_InitializationFailed, "[ONYX][ASSETS] Failed to initialize FreeType");
+#endif
+    return Result<>::Ok();
 }
 
 void Terminate()
 {
+#ifdef ONYX_ENABLE_FONT_LOAD
+    msdfgen::deinitializeFreetype(s_FreeType);
+#endif
     terminate<D2>();
     terminate<D3>();
 
@@ -454,10 +475,28 @@ void Terminate()
     s_AssetData3.Destruct();
 }
 
+#define CHECK_POOL_HANDLE(pool, ptype, dim)                                                                            \
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);                                                                           \
+    ONYX_CHECK_HANDLE_HAS_ASSET_POOL_TYPE(pool, ptype);                                                                \
+    ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(pool, ptype, dim)
+
+#define CHECK_ASSET_HANDLE(handle, atype)                                                                              \
+    ONYX_CHECK_ASSET_IS_NOT_NULL(handle);                                                                              \
+    ONYX_CHECK_HANDLE_HAS_ASSET_TYPE(handle, atype);                                                                   \
+    ONYX_CHECK_ASSET_IS_VALID(handle, atype);
+
+#define CHECK_ASSET_AND_POOL_HANDLES(handle, atype, dim)                                                               \
+    ONYX_CHECK_ASSET_IS_NOT_NULL(handle);                                                                              \
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(handle);                                                                         \
+    ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(handle, AssetPoolType(atype), dim);                                        \
+    ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(handle, atype, dim);
+
 Asset AddSampler(const SamplerData &data)
 {
-    const Asset handle = s_SamplerData->Samplers.Insert();
-    SamplerInfo &sinfo = s_SamplerData->Samplers[handle];
+    const u32 sid = s_SamplerData->Samplers.Insert();
+    SamplerInfo &sinfo = s_SamplerData->Samplers[sid];
+
+    const Asset handle = CreateAssetHandle(Asset_Sampler, sid);
     sinfo.Handle = handle;
     sinfo.Data = data;
 
@@ -467,7 +506,11 @@ Asset AddSampler(const SamplerData &data)
 
 void UpdateSampler(const Asset handle, const SamplerData &data)
 {
-    SamplerInfo &sinfo = s_SamplerData->Samplers[handle];
+    CHECK_ASSET_HANDLE(handle, Asset_Sampler);
+
+    const u32 sid = GetAssetId(handle);
+
+    SamplerInfo &sinfo = s_SamplerData->Samplers[sid];
     sinfo.Data = data;
     sinfo.Flags |= StatusFlag_UpdateSampler;
 }
@@ -504,6 +547,8 @@ template <Dimension D> static void removeSamplerReferences(const Asset handle)
 
 void RemoveSampler(const Asset handle)
 {
+    CHECK_ASSET_HANDLE(handle, Asset_Sampler);
+
     s_SamplerData->ToRemove.Append(handle);
     removeSamplerReferences<D2>(handle);
     removeSamplerReferences<D3>(handle);
@@ -531,19 +576,19 @@ GltfHandles AddGltfAssets(const AssetPool meshPool, const AssetPool materialPool
     {
         if constexpr (D == D2)
         {
-            if (mdata.Sampler != NullAsset)
+            if (mdata.Sampler != TKIT_U32_MAX)
                 mdata.Sampler = handles.Samplers[mdata.Sampler];
-            if (mdata.Texture != NullAsset)
+            if (mdata.Texture != TKIT_U32_MAX)
                 mdata.Texture = handles.Textures[mdata.Texture];
         }
         else
         {
             for (Asset &sampler : mdata.Samplers)
-                if (sampler != NullAsset)
+                if (sampler != TKIT_U32_MAX)
                     sampler = handles.Samplers[sampler];
-            for (Asset &tex : mdata.Textures)
-                if (tex != NullAsset)
-                    tex = handles.Textures[tex];
+            for (Asset &texture : mdata.Textures)
+                if (texture != TKIT_U32_MAX)
+                    texture = handles.Textures[texture];
         }
         handles.Materials.Append(AddMaterial(materialPool, mdata));
     }
@@ -558,10 +603,13 @@ Asset AddTexture(const TextureData &data, const AddTextureFlags flags)
                 "[ONYX][ASSETS] If GLTF load is disabled, all texture data CPU memory must be handled by the user. "
                 "This must be reflected by passing the AddTextureFlag_ManuallyHandledMemory flag");
 #endif
-    const Asset tex = s_TextureData->Textures.Insert();
-    TextureInfo &tinfo = s_TextureData->Textures[tex];
+
+    const u32 tid = s_TextureData->Textures.Insert();
+    const Asset handle = CreateAssetHandle(Asset_Texture, tid);
+
+    TextureInfo &tinfo = s_TextureData->Textures[tid];
     tinfo.Data = data;
-    tinfo.Handle = tex;
+    tinfo.Handle = handle;
 
     StatusFlags sflags = StatusFlag_UpdateTexture | StatusFlag_CreateTexture;
 #ifdef ONYX_ENABLE_GLTF_LOAD
@@ -569,9 +617,9 @@ Asset AddTexture(const TextureData &data, const AddTextureFlags flags)
         sflags |= StatusFlag_MustFreeTexture;
 #endif
     tinfo.Flags = sflags;
-    return tex;
+    return handle;
 }
-void UpdateTexture(const Asset tex, const TextureData &data, const AddTextureFlags flags)
+void UpdateTexture(const Asset handle, const TextureData &data, const AddTextureFlags flags)
 {
 #ifndef ONYX_ENABLE_GLTF_LOAD
     TKIT_ASSERT(flags & AddTextureFlag_ManuallyHandledMemory,
@@ -579,7 +627,11 @@ void UpdateTexture(const Asset tex, const TextureData &data, const AddTextureFla
                 "This must be reflected by passing the AddTextureFlag_ManuallyHandledMemory flag");
 #endif
 
-    TextureInfo &tinfo = s_TextureData->Textures[tex];
+    CHECK_ASSET_HANDLE(handle, Asset_Texture);
+
+    const u32 tid = GetAssetId(handle);
+
+    TextureInfo &tinfo = s_TextureData->Textures[tid];
     TKIT_ASSERT(
         data.ComputeSize() == tinfo.Data.ComputeSize(),
         "[ONYX][ASSETS] When updating a texture, the size of the data of the previous and updated texture must be the "
@@ -627,58 +679,17 @@ template <Dimension D> static void removeTextureReferences(const Asset handle)
     }
 }
 
-void RemoveTexture(const Asset tex)
+void RemoveTexture(const Asset handle)
 {
-    s_TextureData->ToRemove.Append(tex);
-    removeTextureReferences<D2>(tex);
-    removeTextureReferences<D3>(tex);
+    CHECK_ASSET_HANDLE(handle, Asset_Texture);
+
+    s_TextureData->ToRemove.Append(handle);
+    removeTextureReferences<D2>(handle);
+    removeTextureReferences<D3>(handle);
 }
 
-template <Dimension D> bool IsMeshPoolHandleValid(const Geometry geo, const AssetPool handle)
-{
-    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_Static)
-        return getData<D>().StaticMeshes.Pools.Contains(handle);
-    else if (geo == Geometry_Parametric)
-        return getData<D>().ParametricMeshes.Pools.Contains(handle);
-    return false;
-}
-
-template <Dimension D> bool IsMeshHandleValid(const Geometry geo, const Asset handle)
-{
-    const AssetPool pool = GetPoolHandle(handle);
-    if (!IsMeshPoolHandleValid<D>(geo, pool))
-        return false;
-    const u32 idx = GetAssetIndex(handle);
-    if (geo == Geometry_Static)
-        return idx < getData<D>().StaticMeshes.Pools[pool].Info.GetSize();
-    else if (geo == Geometry_Parametric)
-        return idx < getData<D>().ParametricMeshes.Pools[pool].Info.GetSize();
-    return false;
-}
-
-template <Dimension D> bool IsMaterialPoolHandleValid(const AssetPool handle)
-{
-    return getData<D>().Materials.Pools.Contains(handle);
-}
-
-template <Dimension D> bool IsMaterialHandleValid(const Asset handle)
-{
-    const AssetPool pool = GetPoolHandle(handle);
-    const u32 idx = GetAssetIndex(handle);
-    return IsMaterialPoolHandleValid<D>(pool) && idx < getData<D>().Materials.Pools[pool].Materials.GetSize();
-}
-
-bool IsSamplerHandleValid(const Asset handle)
-{
-    return s_SamplerData->Samplers.Contains(handle);
-}
-bool IsTextureHandleValid(const Asset handle)
-{
-    return s_TextureData->Textures.Contains(handle);
-}
-
-template <typename Vertex> ONYX_NO_DISCARD static Result<AssetPool> createMeshPool(MeshAssetData<Vertex> &data)
+template <typename Vertex>
+ONYX_NO_DISCARD static Result<AssetPool> createMeshPool(const AssetPoolType ptype, MeshAssetData<Vertex> &data)
 {
     auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
     TKIT_RETURN_ON_ERROR(result);
@@ -688,53 +699,98 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<AssetPool> createMeshPo
     TKIT_RETURN_ON_ERROR(result, vbuffer.Destroy());
     VKit::DeviceBuffer ibuffer = result.GetValue();
 
-    AssetPool pool = data.Pools.Insert();
-    MeshPoolData<Vertex> &mpool = data.Pools[pool];
+    const u32 pid = data.Pools.Insert();
+    MeshPoolData<Vertex> &mpool = data.Pools[pid];
     mpool.VertexBuffer = vbuffer;
     mpool.IndexBuffer = ibuffer;
 
+    const AssetPool pool = CreateAssetPoolHandle(ptype, pid);
     if (Core::CanNameObjects())
     {
-        const std::string vb = TKit::Format("onyx-assets-{}D-vertex-buffer-{}", u8(Vertex::Dim), pool);
-        const std::string ib = TKit::Format("onyx-assets-{}D-index-buffer-{}", u8(Vertex::Dim), pool);
+        const std::string vb = TKit::Format("onyx-assets-{}D-vertex-buffer-{:#010x}", u8(Vertex::Dim), pool);
+        const std::string ib = TKit::Format("onyx-assets-{}D-index-buffer-{:#010x}", u8(Vertex::Dim), pool);
 
-        TKIT_RETURN_IF_FAILED(vbuffer.SetName(vb.c_str()), vbuffer.Destroy(); data.Pools.Remove(pool));
-        TKIT_RETURN_IF_FAILED(ibuffer.SetName(ib.c_str()), ibuffer.Destroy(); data.Pools.Remove(pool));
+        TKIT_RETURN_IF_FAILED(vbuffer.SetName(vb.c_str()), vbuffer.Destroy(); data.Pools.Remove(pid));
+        TKIT_RETURN_IF_FAILED(ibuffer.SetName(ib.c_str()), ibuffer.Destroy(); data.Pools.Remove(pid));
     }
 
     return pool;
 }
 
-template <typename Vertex> static void destroyMeshPool(const AssetPool pool, MeshAssetData<Vertex> &meshes)
+template <Dimension D> ONYX_NO_DISCARD static Result<AssetPool> createMaterialPool()
 {
-    meshes.ToRemove.Append(pool);
+    const auto result = Resources::CreateBuffer<MaterialData<D>>(Buffer_DeviceStorage);
+    TKIT_RETURN_ON_ERROR(result);
+
+    MaterialAssetData<D> &materials = getData<D>().Materials;
+    const u32 pid = materials.Pools.Insert();
+
+    MaterialPoolData<D> &mpool = materials.Pools[pid];
+    mpool.Buffer = result.GetValue();
+
+    const AssetPool pool = CreateAssetPoolHandle(AssetPool_Material, pid);
+    if (Core::CanNameObjects())
+    {
+        const std::string name = TKit::Format("onyx-assets-{}D-material-pool-buffer-{:#010x}", u8(D), pool);
+        TKIT_RETURN_IF_FAILED(mpool.Buffer.SetName(name.c_str()), mpool.Buffer.Destroy(); materials.Pools.Remove(pid));
+    }
+
+    updateMaterialDescriptorSet<D>(pid);
+    return pool;
 }
 
-template <Dimension D> Result<AssetPool> CreateMeshPool(const Geometry geo)
+template <Dimension D> Result<AssetPool> CreateAssetPool(const AssetPoolType ptype)
 {
-    if (geo == Geometry_Circle)
-        return Result<AssetPool>::Error(Error_BadInput, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_Static)
-        return createMeshPool(getData<D>().StaticMeshes);
-    else if (geo == Geometry_Parametric)
-        return createMeshPool(getData<D>().ParametricMeshes);
-    return NullAssetPool;
+    switch (ptype)
+    {
+    case AssetPool_StaticMesh:
+        return createMeshPool(AssetPool_StaticMesh, getData<D>().StaticMeshes);
+    case AssetPool_ParametricMesh:
+        return createMeshPool(AssetPool_ParametricMesh, getData<D>().ParametricMeshes);
+    case AssetPool_Material:
+        return createMaterialPool<D>();
+    default:
+        return Result<AssetPool>::Error(Error_BadInput,
+                                        TKit::Format("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype)));
+    }
 }
 
-template <Dimension D> void DestroyMeshPool(const Geometry geo, const AssetPool pool)
+template <Dimension D> void DestroyAssetPool(const AssetPool pool)
 {
-    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_Static)
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(pool);
+
+    const AssetPoolType ptype = GetAssetPoolType(pool);
+    switch (ptype)
+    {
+    case AssetPool_StaticMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_StaticMesh);
         getData<D>().StaticMeshes.ToRemove.Append(pool);
-    else if (geo == Geometry_Parametric)
+        return;
+    case AssetPool_ParametricMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_ParametricMesh);
         getData<D>().ParametricMeshes.ToRemove.Append(pool);
+        return;
+    case AssetPool_Material:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_Material);
+        getData<D>().Materials.ToRemove.Append(pool);
+        return;
+    default:
+        TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
+    }
 }
 
 template <typename Vertex>
 static Asset addMesh(const AssetPool pool, MeshAssetData<Vertex> &meshes, const MeshData<Vertex> &data)
 {
-    MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
-    const u32 idx = mpool.Info.GetSize();
+    constexpr AssetType atype = Vertex::Asset;
+
+    CHECK_POOL_HANDLE(pool, AssetPoolType(atype), Vertex::Dim);
+
+    const u32 pid = GetAssetPoolId(pool);
+
+    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
+    const u32 mid = mpool.Info.GetSize();
     MeshDataInfo<Vertex> info;
     info.VertexStart = mpool.GetVertexCount();
     info.VertexCount = data.Vertices.GetSize();
@@ -750,8 +806,7 @@ static Asset addMesh(const AssetPool pool, MeshAssetData<Vertex> &meshes, const 
     auto &indices = mpool.Indices;
     vertices.Insert(vertices.end(), data.Vertices.begin(), data.Vertices.end());
     indices.Insert(indices.end(), data.Indices.begin(), data.Indices.end());
-
-    return GetAssetHandle(pool, idx);
+    return CreateAssetHandle(atype, mid, pid);
 }
 
 template <Dimension D> Asset AddMesh(const AssetPool pool, const StatMeshData<D> &data)
@@ -766,12 +821,13 @@ template <Dimension D> Asset AddMesh(const AssetPool pool, const ParaMeshData<D>
 template <typename Vertex>
 static void updateMesh(const Asset handle, MeshAssetData<Vertex> &meshes, const MeshData<Vertex> &data)
 {
-    const u32 idx = GetAssetIndex(handle);
-    const AssetPool pool = GetPoolHandle(handle);
+    CHECK_ASSET_AND_POOL_HANDLES(handle, Vertex::Asset, Vertex::Dim);
 
-    MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 mid = GetAssetId(handle);
 
-    MeshDataInfo<Vertex> &info = mpool.Info[idx];
+    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
+    MeshDataInfo<Vertex> &info = mpool.Info[mid];
     TKIT_ASSERT(
         data.Vertices.GetSize() == info.VertexCount && data.Indices.GetSize() == info.IndexCount,
         "[ONYX][ASSETS] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
@@ -795,64 +851,46 @@ template <Dimension D> void UpdateMesh(const Asset handle, const ParaMeshData<D>
     return updateMesh(handle, getData<D>().ParametricMeshes, data);
 }
 
-template <Dimension D> Result<AssetPool> CreateMaterialPool()
-{
-    const auto result = Resources::CreateBuffer<MaterialData<D>>(Buffer_DeviceStorage);
-    TKIT_RETURN_ON_ERROR(result);
-
-    MaterialAssetData<D> &materials = getData<D>().Materials;
-    const AssetPool pool = AssetPool(materials.Pools.Insert());
-
-    MaterialPoolData<D> &mpool = materials.Pools[pool];
-    mpool.Buffer = result.GetValue();
-
-    if (Core::CanNameObjects())
-    {
-        const std::string name = TKit::Format("onyx-assets-{}D-material-pool-buffer-{}", u8(D), pool);
-        TKIT_RETURN_IF_FAILED(mpool.Buffer.SetName(name.c_str()), mpool.Buffer.Destroy(); materials.Pools.Remove(pool));
-    }
-
-    updateMaterialDescriptorSet<D>(pool);
-
-    return pool;
-}
-
-template <Dimension D> void DestroyMaterialPool(const AssetPool handle)
-{
-    MaterialAssetData<D> &materials = getData<D>().Materials;
-    materials.ToRemove.Append(handle);
-}
-
 template <Dimension D> Asset AddMaterial(const AssetPool pool, const MaterialData<D> &data)
 {
-    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
+    constexpr AssetType atype = Asset_Material;
 
-    const u32 idx = mpool.Materials.GetSize();
+    CHECK_POOL_HANDLE(pool, AssetPoolType(atype), D);
+
+    const u32 pid = GetAssetPoolId(pool);
+
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pid];
+
+    const u32 mid = mpool.Materials.GetSize();
     mpool.Materials.Append(data);
     mpool.Flags.Append(StatusFlag_UpdateMaterial);
 
-    return GetAssetHandle(pool, idx);
+    return CreateAssetHandle(atype, mid, pid);
 }
 
 template <Dimension D> void UpdateMaterial(const Asset handle, const MaterialData<D> &data)
 {
-    const u32 idx = GetAssetIndex(handle);
-    const AssetPool pool = GetPoolHandle(handle);
+    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_Material, D);
 
-    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
-    mpool.Materials[idx] = data;
-    mpool.Flags[idx] = StatusFlag_UpdateMaterial;
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 mid = GetAssetId(handle);
+
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pid];
+    mpool.Materials[mid] = data;
+    mpool.Flags[mid] = StatusFlag_UpdateMaterial;
 }
 
 template <typename Vertex> static MeshData<Vertex> getMeshData(const Asset handle, MeshAssetData<Vertex> &meshes)
 {
-    const u32 idx = GetAssetIndex(handle);
-    const AssetPool pool = GetPoolHandle(handle);
+    CHECK_ASSET_AND_POOL_HANDLES(handle, Vertex::Asset, Vertex::Dim);
 
-    MeshPoolData<Vertex> &mpool = meshes.Pools[pool];
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 mid = GetAssetId(handle);
+
+    MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
 
     MeshData<Vertex> data{};
-    const MeshDataInfo<Vertex> &info = mpool.Info[idx];
+    const MeshDataInfo<Vertex> &info = mpool.Info[mid];
 
     const u32 vstart = info.VertexStart;
     const u32 vend = vstart + info.VertexCount;
@@ -878,23 +916,36 @@ template <Dimension D> ParaMeshData<D> GetParametricMeshData(const Asset handle)
 }
 template <Dimension D> ParametricShape GetParametricShape(const Asset handle)
 {
-    const u32 idx = GetAssetIndex(handle);
-    const AssetPool pool = GetPoolHandle(handle);
+    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_ParametricMesh, D);
 
-    ParaMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pool];
-    return mpool.Info[idx].Shape;
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 mid = GetAssetId(handle);
+
+    ParaMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pid];
+    return mpool.Info[mid].Shape;
 }
 template <Dimension D> const MaterialData<D> &GetMaterialData(const Asset handle)
 {
-    const u32 idx = GetAssetIndex(handle);
-    const AssetPool pool = GetPoolHandle(handle);
+    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_Material, D);
 
-    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pool];
-    return mpool.Materials[idx];
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 mid = GetAssetId(handle);
+
+    MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pid];
+    return mpool.Materials[mid];
 }
-const TextureData &GetTextureData(const Asset texture)
+
+const SamplerData &GetSamplerData(const Asset handle)
 {
-    return s_TextureData->Textures[texture].Data;
+    CHECK_ASSET_HANDLE(handle, Asset_Texture);
+    const u32 sid = GetAssetId(handle);
+    return s_SamplerData->Samplers[sid].Data;
+}
+const TextureData &GetTextureData(const Asset handle)
+{
+    CHECK_ASSET_HANDLE(handle, Asset_Texture);
+    const u32 tid = GetAssetId(handle);
+    return s_TextureData->Textures[tid].Data;
 }
 
 void Lock()
@@ -921,14 +972,16 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
 {
     for (const Asset handle : s_TextureData->ToRemove)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying texture with id {}", handle);
-        TextureInfo &tinfo = s_TextureData->Textures[handle];
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying texture with handle {:#010x}", handle);
+        const u32 tid = GetAssetId(handle);
+
+        TextureInfo &tinfo = s_TextureData->Textures[tid];
         tinfo.Image.Destroy();
 #ifdef ONYX_ENABLE_GLTF_LOAD
         if (tinfo.Flags & StatusFlag_MustFreeTexture)
             TKit::Deallocate(tinfo.Data.Data);
 #endif
-        s_TextureData->Textures.Remove(handle);
+        s_TextureData->Textures.Remove(tid);
     }
     s_TextureData->ToRemove.Clear();
 
@@ -958,9 +1011,11 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
             {
                 tinfo.Flags &= ~StatusFlag_CreateTexture;
                 const TextureData &tdata = tinfo.Data;
-                TKIT_LOG_DEBUG("[ONYX][ASSETS] Creating new texture (handle={}) with dimensions {}x{} and {} channels, "
-                               "with size {:L}",
-                               tinfo.Handle, tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
+
+                TKIT_LOG_DEBUG(
+                    "[ONYX][ASSETS] Creating new texture (handle={:#010x}) with dimensions {}x{} and {} channels, "
+                    "with size {:L}",
+                    tinfo.Handle, tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
 
                 TKIT_ASSERT(!tinfo.Image,
                             "[ONYX][ASSETS] To create a texture, it is underlying image must not exist yet");
@@ -976,13 +1031,15 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 tinfo.Image = img;
                 if (Core::CanNameObjects())
                 {
-                    const std::string name = TKit::Format("onyx-assets-texture-image-{}", tinfo.Handle);
-                    TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()));
+                    const std::string name = TKit::Format("onyx-assets-texture-image-{:#010x}", tinfo.Handle);
+                    TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()), img.Destroy());
                 }
                 const VkDescriptorImageInfo &info =
                     imageInfos.Append(img.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-                writer2.WriteImage(3, info, tinfo.Handle);
-                writer3.WriteImage(3, info, tinfo.Handle);
+
+                const u32 tid = GetAssetId(tinfo.Handle);
+                writer2.WriteImage(3, info, tid);
+                writer3.WriteImage(3, info, tid);
             }
 
         for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
@@ -1016,8 +1073,10 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
             VKit::DeviceBuffer &uploadBuffer = result.GetValue();
             if (Core::CanNameObjects())
             {
-                TKIT_RETURN_IF_FAILED(uploadBuffer.SetName("onyx-assets-texture-upload-buffer"),
-                                      uploadBuffer.Destroy());
+                TKIT_RETURN_IF_FAILED(
+                    uploadBuffer.SetName(
+                        TKit::Format("onyx-assets-texture-upload-buffer-{:#010x}", tinfo.Handle).c_str()),
+                    uploadBuffer.Destroy());
             }
             uploadBuffer.Write(tdata.Data, {.srcOffset = 0, .dstOffset = 0, .size = size});
 
@@ -1088,10 +1147,12 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
 {
     for (const Asset handle : s_SamplerData->ToRemove)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying sampler with id {}", handle);
-        SamplerInfo &sinfo = s_SamplerData->Samplers[handle];
+        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying sampler with handle {:#010x}", handle);
+        const u32 sid = GetAssetId(handle);
+
+        SamplerInfo &sinfo = s_SamplerData->Samplers[sid];
         sinfo.Sampler.Destroy();
-        s_SamplerData->Samplers.Remove(handle);
+        s_SamplerData->Samplers.Remove(sid);
     }
     s_SamplerData->ToRemove.Clear();
 
@@ -1125,11 +1186,21 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
             TKIT_RETURN_ON_ERROR(result);
 
             sinfo.Sampler = result.GetValue();
-            TKIT_LOG_DEBUG("[ONYX][ASSETS] Updating sampler with id {}", sinfo.Handle);
+            TKIT_LOG_DEBUG("[ONYX][ASSETS] Updating sampler with handle {:#010x}", sinfo.Handle);
+
+            if (Core::CanNameObjects())
+            {
+                TKIT_RETURN_IF_FAILED(
+                    sinfo.Sampler.SetName(TKit::Format("onyx-assets-sampler-{:#010x}", sinfo.Handle).c_str()),
+                    sinfo.Sampler.Destroy());
+            }
+
             const VkDescriptorImageInfo &info = imageInfos.Append(VkDescriptorImageInfo{
                 .sampler = sinfo.Sampler, .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED});
-            writer2.WriteImage(2, info, sinfo.Handle);
-            writer3.WriteImage(2, info, sinfo.Handle);
+
+            const u32 sid = GetAssetId(sinfo.Handle);
+            writer2.WriteImage(2, info, sid);
+            writer3.WriteImage(2, info, sid);
         }
 
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
@@ -1170,36 +1241,52 @@ Result<bool> RequestUpload()
 
 template <typename Vertex> static MeshDataLayout getMeshLayout(const Asset handle, MeshAssetData<Vertex> &meshes)
 {
-    const u32 idx = GetAssetIndex(handle);
-    const AssetPool pool = GetPoolHandle(handle);
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 mid = GetAssetId(handle);
 
-    const MeshDataInfo<Vertex> &info = meshes.Pools[pool].Info[idx];
+    const MeshDataInfo<Vertex> &info = meshes.Pools[pid].Info[mid];
     return MeshDataLayout{.VertexStart = info.VertexStart,
                           .VertexCount = info.VertexCount,
                           .IndexStart = info.IndexStart,
                           .IndexCount = info.IndexCount};
 }
 
-template <Dimension D> MeshDataLayout GetMeshLayout(const Geometry geo, const Asset handle)
+template <Dimension D> MeshDataLayout GetMeshLayout(const Asset handle)
 {
-    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
+    ONYX_CHECK_ASSET_IS_NOT_NULL(handle);
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(handle);
+    ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(handle);
 
-    if (geo == Geometry_Static)
+    const AssetPoolType ptype = GetAssetPoolType(handle);
+    TKIT_ASSERT(ptype != AssetPool_Material, "[ONYX][ASSETS] Materials are not meshes");
+
+    switch (ptype)
+    {
+    case AssetPool_StaticMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(handle, AssetPool_StaticMesh);
         return getMeshLayout(handle, getData<D>().StaticMeshes);
-    else if (geo == Geometry_Parametric)
+    case AssetPool_ParametricMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(handle, AssetPool_ParametricMesh);
         return getMeshLayout(handle, getData<D>().ParametricMeshes);
-    return MeshDataLayout{};
+    default:
+        TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
+        return MeshDataLayout{};
+    }
 }
 
-template <Dimension D> TKit::Span<const u32> GetMeshAssetPools(const Geometry geo)
+template <Dimension D> TKit::Span<const u32> GetAssetPoolIds(const AssetPoolType ptype)
 {
-    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-
-    if (geo == Geometry_Static)
+    TKIT_ASSERT(ptype != AssetPool_Material, "[ONYX][ASSETS] Materials are not meshes");
+    switch (ptype)
+    {
+    case AssetPool_StaticMesh:
         return getData<D>().StaticMeshes.Pools.GetValidIds();
-    else if (geo == Geometry_Parametric)
+    case AssetPool_ParametricMesh:
         return getData<D>().ParametricMeshes.Pools.GetValidIds();
-    return TKit::Span<const u32>{};
+    default:
+        TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
+        return TKit::Span<const u32>{};
+    }
 }
 
 template <typename Vertex> static u32 getMeshBatchCount(const MeshAssetData<Vertex> &meshes)
@@ -1220,32 +1307,130 @@ u32 GetBatchCount()
     count += getMeshBatchCount(getData<D3>().ParametricMeshes);
     return count;
 }
-template <Dimension D> u32 GetMeshCount(const Geometry geo, const AssetPool pool)
+template <Dimension D> u32 GetAssetCount(const AssetPool pool)
 {
-    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_Static)
-        return getData<D>().StaticMeshes.Pools[pool].Info.GetSize();
-    else if (geo == Geometry_Parametric)
-        return getData<D>().ParametricMeshes.Pools[pool].Info.GetSize();
-    return 0;
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(pool);
+
+    const AssetPoolType ptype = GetAssetPoolType(pool);
+    const u32 pid = GetAssetPoolId(pool);
+
+    switch (ptype)
+    {
+    case AssetPool_StaticMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_StaticMesh);
+        return getData<D>().StaticMeshes.Pools[pid].Info.GetSize();
+    case AssetPool_ParametricMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_ParametricMesh);
+        return getData<D>().ParametricMeshes.Pools[pid].Info.GetSize();
+    case AssetPool_Material:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_Material);
+        return getData<D>().Materials.Pools[pid].Materials.GetSize();
+    default:
+        TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
+        return 0;
+    }
 }
-template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(const Geometry geo, const AssetPool pool)
+template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(const AssetPool pool)
 {
-    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_Static)
-        return &getData<D>().StaticMeshes.Pools[pool].VertexBuffer;
-    else if (geo == Geometry_Parametric)
-        return &getData<D>().ParametricMeshes.Pools[pool].VertexBuffer;
-    return nullptr;
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(pool);
+
+    const AssetPoolType ptype = GetAssetPoolType(pool);
+    TKIT_ASSERT(ptype != AssetPool_Material, "[ONYX][ASSETS] Materials are not meshes");
+
+    const u32 pid = GetAssetPoolId(pool);
+    switch (ptype)
+    {
+    case AssetPool_StaticMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_StaticMesh);
+        return &getData<D>().StaticMeshes.Pools[pid].VertexBuffer;
+    case AssetPool_ParametricMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_ParametricMesh);
+        return &getData<D>().ParametricMeshes.Pools[pid].VertexBuffer;
+    default:
+        TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
+        return nullptr;
+    }
 }
-template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(const Geometry geo, const AssetPool pool)
+template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(const AssetPool pool)
 {
-    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][ASSETS] Circles are not considered meshes");
-    if (geo == Geometry_Static)
-        return &getData<D>().StaticMeshes.Pools[pool].IndexBuffer;
-    else if (geo == Geometry_Parametric)
-        return &getData<D>().ParametricMeshes.Pools[pool].IndexBuffer;
-    return nullptr;
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(pool);
+
+    const AssetPoolType ptype = GetAssetPoolType(pool);
+    TKIT_ASSERT(ptype != AssetPool_Material, "[ONYX][ASSETS] Materials are not meshes");
+
+    const u32 pid = GetAssetPoolId(pool);
+    switch (ptype)
+    {
+    case AssetPool_StaticMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_StaticMesh);
+        return &getData<D>().StaticMeshes.Pools[pid].IndexBuffer;
+    case AssetPool_ParametricMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_ParametricMesh);
+        return &getData<D>().ParametricMeshes.Pools[pid].IndexBuffer;
+    default:
+        TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
+        return nullptr;
+    }
+}
+
+template <Dimension D> bool IsAssetValid(const Asset handle, const AssetType atype)
+{
+    const u32 itype = GetAssetTypeAsInteger(handle);
+    if (itype >= Asset_Count || itype != atype)
+        return false;
+
+    const u32 aid = GetAssetId(handle);
+    const u32 pid = GetAssetPoolId(handle);
+    switch (atype)
+    {
+    case Asset_StaticMesh:
+        return IsAssetPoolValid<D>(handle, AssetPool_StaticMesh) &&
+               aid < getData<D>().StaticMeshes.Pools[pid].Info.GetSize();
+    case Asset_ParametricMesh:
+        return IsAssetPoolValid<D>(handle, AssetPool_ParametricMesh) &&
+               aid < getData<D>().ParametricMeshes.Pools[pid].Info.GetSize();
+    case Asset_Material:
+        return IsAssetPoolValid<D>(handle, AssetPool_Material) &&
+               aid < getData<D>().Materials.Pools[pid].Materials.GetSize();
+    // case Asset_Font:
+    case Asset_Sampler:
+        return IsAssetPoolNull(handle) && s_SamplerData->Samplers.Contains(aid);
+    case Asset_Texture:
+        return IsAssetPoolNull(handle) && s_TextureData->Textures.Contains(aid);
+    default:
+        return false;
+    }
+}
+template <Dimension D> bool IsAssetPoolValid(const Handle handle, const AssetPoolType ptype)
+{
+    const u32 itype = GetAssetTypeAsInteger(handle);
+    if (itype >= AssetPool_Count || itype != ptype)
+        return false;
+
+    const u32 pid = GetAssetPoolId(handle);
+    switch (ptype)
+    {
+    case AssetPool_StaticMesh:
+        return getData<D>().StaticMeshes.Pools.Contains(pid);
+    case AssetPool_ParametricMesh:
+        return getData<D>().ParametricMeshes.Pools.Contains(pid);
+    case AssetPool_Material:
+        return getData<D>().Materials.Pools.Contains(pid);
+    default:
+        return false;
+    }
+}
+
+bool IsAssetValid(const Asset handle, const AssetType atype)
+{
+    return IsAssetValid<D2>(handle, atype) || IsAssetValid<D3>(handle, atype);
+}
+bool IsAssetPoolValid(const Handle handle, const AssetPoolType ptype)
+{
+    return IsAssetPoolValid<D2>(handle, ptype) || IsAssetPoolValid<D3>(handle, ptype);
 }
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
@@ -1683,6 +1868,126 @@ Result<TextureData> LoadTextureDataFromImageFile(const char *path, const ImageCo
     TKIT_ASSERT(data.Data, "[ONYX][ASSETS] Failed to allocate image data with size {:L} bytes", size);
     TKit::ForwardCopy(data.Data, img, size);
     stbi_image_free(img);
+    return data;
+}
+#endif
+
+#ifdef ONYX_ENABLE_FONT_LOAD
+Result<FontData> LoadFontFromFile(const char *path, const FontLoadOptions &opts)
+{
+    VKit::DeletionQueue dqueue{};
+    msdfgen::FontHandle *font = msdfgen::loadFont(s_FreeType, path);
+    if (!font)
+        return Result<FontData>::Error(
+            Error_Unknown,
+            TKit::Format(
+                "[ONYX][ASSETS] Failed to load font at {} because of an unknown reason (msdfgen does not expose why)",
+                path));
+    dqueue.Push([font] { msdfgen::destroyFont(font); });
+
+    FontData data{};
+    const TKit::Span<const CodePointRange> ranges = opts.CharSets;
+
+    data.CharSetCount = ranges.GetSize();
+
+    TextureData tdata{};
+    tdata.Width = opts.AtlasWidth;
+    tdata.Components = 4;
+    tdata.Format = VK_FORMAT_R32G32B32A32_SFLOAT;
+
+    u32 xatlas = 0;
+    u32 yatlas = 0;
+    u32 rowHeight = 0;
+
+    const u32 w = opts.GlyphSize[0];
+    const u32 h = opts.GlyphSize[1];
+
+    for (u32 i = 0; i < ranges.GetSize(); ++i)
+    {
+        const CodePointRange &range = ranges[i];
+        TKIT_ASSERT(range.First < range.Last,
+                    "[ONYX][ASSETS] Code point range must not be empty or contain a negative range, but found First = "
+                    "{} and Last = {}",
+                    range.First, range.Last);
+        TKIT_ASSERT(i == 0 || (range.First > ranges[i - 1].First && range.Last > ranges[i - 1].Last),
+                    "[ONYX][ASSETS] Code point ranges must not interleave and must be sorted, but found range {} with "
+                    "First = {}, Last = {} and range {} with First = {}, Last = {}",
+                    i, range.First, range.Last, i - 1, ranges[i - 1].First, ranges[i - 1].Last);
+        for (u32 j = range.First; j <= range.Last; ++j)
+        {
+            if (xatlas + w > opts.AtlasWidth)
+            {
+                xatlas = 0;
+                yatlas += rowHeight;
+                rowHeight = 0;
+            }
+            xatlas += w;
+            rowHeight = Math::Max(rowHeight, h);
+        }
+    }
+    tdata.Height = yatlas + rowHeight;
+
+    const usz size = tdata.ComputeSize();
+    tdata.Data = scast<std::byte *>(TKit::Allocate(size));
+    dqueue.Push([tdata] { TKit::Deallocate(tdata.Data); });
+
+    xatlas = 0;
+    yatlas = 0;
+    rowHeight = 0;
+
+    const f32v2 scale = opts.GlyphSize - 2.f * opts.Padding;
+    const f32v2 translate = opts.Padding / scale;
+    const msdfgen::Projection proj{{scale[0], scale[1]}, {translate[0], translate[1]}};
+    for (const CodePointRange &range : ranges)
+    {
+        for (u32 j = range.First; j <= range.Last; ++j)
+        {
+            msdfgen::Shape shape;
+            f64 advance;
+            if (!msdfgen::loadGlyph(shape, font, j, msdfgen::FONT_SCALING_EM_NORMALIZED, &advance))
+                return Result<FontData>::Error(
+                    Error_Unknown,
+                    "[ONYX][ASSETS] Failed to load glyph because of an unknown reason (msdfgen does not expose why)");
+
+            shape.normalize();
+            msdfgen::edgeColoringSimple(shape, 3.0);
+            msdfgen::Bitmap<f32, 4> mtsdf{i32(w), i32(h)};
+            msdfgen::generateMTSDF(mtsdf, shape, proj, opts.SDFRange);
+            if (xatlas + w > opts.AtlasWidth)
+            {
+                xatlas = 0;
+                yatlas += rowHeight;
+                rowHeight = 0;
+            }
+            for (u32 k = 0; k < h; ++k)
+            {
+                const usz offset = ((yatlas + k) * tdata.Width + xatlas) * 4 * sizeof(f32);
+                TKit::ForwardCopy(tdata.Data + offset, mtsdf(0, i32(k)), w * 4 * sizeof(f32));
+            }
+
+            GlyphData glyph{};
+            glyph.MinTexCoord = f32v2{f32(xatlas) / tdata.Width, f32(yatlas) / tdata.Height};
+            glyph.MaxTexCoord = f32v2{f32(xatlas + w) / tdata.Width, f32(yatlas + h) / tdata.Height};
+            glyph.Advance = f32(advance);
+
+            const msdfgen::Shape::Bounds bounds = shape.getBounds();
+            glyph.Bearing = f32v2{f32(bounds.l), f32(bounds.t)};
+            glyph.Size = f32v2{f32(bounds.r - bounds.l), f32(bounds.t - bounds.b)};
+
+            data.Glyphs.Append(glyph);
+            xatlas += w;
+            rowHeight = Math::Max(rowHeight, h);
+        }
+        data.CodePoints.Append(range);
+    }
+    msdfgen::FontMetrics metrics;
+    msdfgen::getFontMetrics(metrics, font);
+
+    data.AtlasData = tdata;
+    data.Ascender = f32(metrics.ascenderY);
+    data.Descender = f32(metrics.descenderY);
+    data.LineHeight = f32(metrics.lineHeight);
+
     return data;
 }
 #endif
@@ -3160,12 +3465,6 @@ ParaMeshData<D3> CreateTorusMesh(const u32 rings, const u32 sectors)
 template Asset AddMaterial(AssetPool pool, const MaterialData<D2> &data);
 template Asset AddMaterial(AssetPool pool, const MaterialData<D3> &data);
 
-template Result<AssetPool> CreateMaterialPool<D2>();
-template Result<AssetPool> CreateMaterialPool<D3>();
-
-template void DestroyMaterialPool<D2>(AssetPool pool);
-template void DestroyMaterialPool<D3>(AssetPool pool);
-
 template void UpdateMaterial(Asset mesh, const MaterialData<D2> &data);
 template void UpdateMaterial(Asset mesh, const MaterialData<D3> &data);
 
@@ -3181,26 +3480,16 @@ template Asset AddMesh(AssetPool pool, const ParaMeshData<D3> &data);
 template void UpdateMesh(Asset handle, const ParaMeshData<D2> &data);
 template void UpdateMesh(Asset handle, const ParaMeshData<D3> &data);
 
-template Result<AssetPool> CreateMeshPool<D2>(Geometry geo);
-template Result<AssetPool> CreateMeshPool<D3>(Geometry geo);
+template Result<AssetPool> CreateAssetPool<D2>(AssetPoolType ptype);
+template Result<AssetPool> CreateAssetPool<D3>(AssetPoolType ptype);
 
-template void DestroyMeshPool<D2>(Geometry geo, AssetPool pool);
-template void DestroyMeshPool<D3>(Geometry geo, AssetPool pool);
+template void DestroyAssetPool<D2>(AssetPool pool);
+template void DestroyAssetPool<D3>(AssetPool pool);
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
 template Result<StatMeshData<D2>> LoadStaticMeshFromObjFile<D2>(const char *path, LoadObjDataFlags flags);
 template Result<StatMeshData<D3>> LoadStaticMeshFromObjFile<D3>(const char *path, LoadObjDataFlags flags);
 #endif
-
-template bool IsMeshPoolHandleValid<D2>(Geometry geo, AssetPool handle);
-template bool IsMeshHandleValid<D2>(Geometry geo, Asset handle);
-template bool IsMaterialPoolHandleValid<D2>(AssetPool handle);
-template bool IsMaterialHandleValid<D2>(Asset handle);
-
-template bool IsMeshPoolHandleValid<D3>(Geometry geo, AssetPool handle);
-template bool IsMeshHandleValid<D3>(Geometry geo, Asset handle);
-template bool IsMaterialPoolHandleValid<D3>(AssetPool handle);
-template bool IsMaterialHandleValid<D3>(Asset handle);
 
 template StatMeshData<D2> GetStaticMeshData(Asset handle);
 template StatMeshData<D3> GetStaticMeshData(Asset handle);
@@ -3222,20 +3511,26 @@ template Result<GltfAssets<D2>> LoadGltfAssetsFromFile(const std::string &path, 
 template Result<GltfAssets<D3>> LoadGltfAssetsFromFile(const std::string &path, AssetsFlags flags);
 #endif
 
-template TKit::Span<const u32> GetMeshAssetPools<D2>(Geometry geo);
-template TKit::Span<const u32> GetMeshAssetPools<D3>(Geometry geo);
+template TKit::Span<const u32> GetAssetPoolIds<D2>(AssetPoolType ptype);
+template TKit::Span<const u32> GetAssetPoolIds<D3>(AssetPoolType ptype);
 
-template u32 GetMeshCount<D2>(Geometry geo, AssetPool pool);
-template u32 GetMeshCount<D3>(Geometry geo, AssetPool pool);
+template u32 GetAssetCount<D2>(AssetPool pool);
+template u32 GetAssetCount<D3>(AssetPool pool);
 
-template const VKit::DeviceBuffer *GetMeshVertexBuffer<D2>(Geometry geo, AssetPool pool);
-template const VKit::DeviceBuffer *GetMeshVertexBuffer<D3>(Geometry geo, AssetPool pool);
+template const VKit::DeviceBuffer *GetMeshVertexBuffer<D2>(AssetPool pool);
+template const VKit::DeviceBuffer *GetMeshVertexBuffer<D3>(AssetPool pool);
 
-template const VKit::DeviceBuffer *GetMeshIndexBuffer<D2>(Geometry geo, AssetPool pool);
-template const VKit::DeviceBuffer *GetMeshIndexBuffer<D3>(Geometry geo, AssetPool pool);
+template const VKit::DeviceBuffer *GetMeshIndexBuffer<D2>(AssetPool pool);
+template const VKit::DeviceBuffer *GetMeshIndexBuffer<D3>(AssetPool pool);
 
-template MeshDataLayout GetMeshLayout<D2>(Geometry geo, Asset handle);
-template MeshDataLayout GetMeshLayout<D3>(Geometry geo, Asset handle);
+template bool IsAssetValid<D2>(Asset handle, AssetType atype);
+template bool IsAssetValid<D3>(Asset handle, AssetType atype);
+
+template bool IsAssetPoolValid<D2>(Handle handle, AssetPoolType ptype);
+template bool IsAssetPoolValid<D3>(Handle handle, AssetPoolType ptype);
+
+template MeshDataLayout GetMeshLayout<D2>(Asset handle);
+template MeshDataLayout GetMeshLayout<D3>(Asset handle);
 
 template StatMeshData<D2> CreateTriangleMesh<D2>();
 template StatMeshData<D3> CreateTriangleMesh<D3>();

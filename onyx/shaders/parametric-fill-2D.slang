@@ -68,13 +68,13 @@ VertexOutput mainVS(
 }
 
 [[vk::binding(1, 0)]]
-Materials2D g_Materials[255];
+Materials2D g_Materials[ONYX_MAX_ASSET_POOLS];
 
 [[vk::binding(2, 0)]]
-SamplerState g_Samplers[8];
+SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 
 [[vk::binding(3, 0)]]
-Texture2D g_Textures[1024];
+Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
 [[vk::binding(4, 0)]]
 PointLights2D g_PointLights;
@@ -85,19 +85,10 @@ f32v4 mainFS(const VertexOutput input)
     if (!CheckParametricFragment2D(input.LocalPosition, input.ShapeInfo))
         discard;
 
-    if (input.MatHandle != u32(-1))
-    {
-        const f32v3 lcolor = GetLightColor2D(g_PushData.Light, input.WorldPosition, g_PointLights);
-        const u32 poolIdx = GetMaterialPoolIndex(input.MatHandle);
-        const u32 matIdx = GetMaterialIndex(input.MatHandle);
-
-        const Material2D mat = g_Materials[poolIdx][matIdx];
-
-        if (mat.Texture == u32(-1) || mat.Sampler == u32(-1))
-            return input.FragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, 1.f);
-
-        const f32v4 tex = g_Textures[mat.Texture].Sample(g_Samplers[mat.Sampler], input.TexCoord);
-        return tex * input.FragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, 1.f);
-    }
-    return input.FragColor;
+    ResourceTable2D resources;
+    resources.Materials = g_Materials;
+    resources.Samplers = g_Samplers;
+    resources.Textures = g_Textures;
+    resources.PointLights = g_PointLights;
+    return ComputeColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f);
 }

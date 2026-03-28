@@ -502,14 +502,14 @@ Result<> HandleVulkanResult(const VkResult result)
     {
         const VkDeviceFaultAddressInfoEXT &info = addresses[i];
         TKIT_LOG_ERROR("[ONYX][CORE]    Address[{}]: {}", i, toString(info.addressType));
-        TKIT_LOG_ERROR("[ONYX][CORE]        addr={:#x}", info.reportedAddress);
+        TKIT_LOG_ERROR("[ONYX][CORE]        addr={:#18X}", info.reportedAddress);
         TKIT_LOG_ERROR("[ONYX][CORE]        precision={}", info.addressPrecision);
 
         if (info.addressPrecision > 1)
         {
             const u64 lo = info.reportedAddress & ~(info.addressPrecision - 1);
             const u64 hi = lo + info.addressPrecision;
-            TKIT_LOG_ERROR("        Actual address in range [{:#x}, {:#x}]", lo, hi);
+            TKIT_LOG_ERROR("        Actual address in range [{:#18X}, {:#18X}]", lo, hi);
         }
     }
 
@@ -517,8 +517,8 @@ Result<> HandleVulkanResult(const VkResult result)
     {
         const VkDeviceFaultVendorInfoEXT &info = vendors[i];
         TKIT_LOG_ERROR("[ONYX][CORE]    Vendor[{}]: {}", i, info.description);
-        TKIT_LOG_ERROR("[ONYX][CORE]        faultcode={:#x}", info.vendorFaultCode);
-        TKIT_LOG_ERROR("[ONYX][CORE]        faultdata={:#x}", info.vendorFaultData);
+        TKIT_LOG_ERROR("[ONYX][CORE]        faultcode={:#18X}", info.vendorFaultCode);
+        TKIT_LOG_ERROR("[ONYX][CORE]        faultdata={:#18X}", info.vendorFaultData);
     }
     if (counts.vendorBinarySize == 0)
         return Result<>::Ok();
@@ -535,8 +535,8 @@ Result<> HandleVulkanResult(const VkResult result)
 #endif
 
     TKIT_LOG_ERROR("[ONYX][CORE] Vendor binary ({:L} bytes)", vendorBinary.GetSize());
-    TKIT_LOG_ERROR("[ONYX][CORE]    vendor={:#x}", header->vendorID);
-    TKIT_LOG_ERROR("[ONYX][CORE]    device={:#x}", header->deviceID);
+    TKIT_LOG_ERROR("[ONYX][CORE]    vendor={:#010x}", header->vendorID);
+    TKIT_LOG_ERROR("[ONYX][CORE]    device={:#010x}", header->deviceID);
 
     namespace fs = std::filesystem;
     const auto path = s_DumpPath ? fs::path(s_DumpPath) : fs::temp_directory_path();
@@ -621,7 +621,7 @@ Result<> Initialize(const Specs &specs)
     TKIT_RETURN_IF_FAILED(Renderer::Initialize(), Terminate());
 
     PUSH_DELETER(Assets::Terminate());
-    Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{});
+    TKIT_RETURN_IF_FAILED(Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{}));
 
 #ifdef ONYX_ENABLE_IMGUI
     PUSH_DELETER(ImGuiBackend::Terminate());
