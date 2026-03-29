@@ -111,6 +111,13 @@ template <Dimension D> struct ParametricInstanceData
     ParametricShape Shape;
 };
 
+template <Dimension D> struct GlyphInstanceData
+{
+    StaticInstanceData<D> Data;
+    u32 SamplerHandle;
+    u32 AtlasHandle;
+};
+
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(Geometry)
 TKIT_YAML_SERIALIZE_DECLARE_ENUM(LightType)
 TKIT_REFLECT_DECLARE_ENUM(Geometry)
@@ -120,6 +127,7 @@ enum Geometry : u8
     Geometry_Circle,
     Geometry_Static,
     Geometry_Parametric,
+    Geometry_Glyph,
     Geometry_Count,
 };
 
@@ -159,6 +167,8 @@ template <Dimension D> u32 GetInstanceSize(const Geometry geo)
         return sizeof(StaticInstanceData<D>);
     case Geometry_Parametric:
         return sizeof(ParametricInstanceData<D>);
+    case Geometry_Glyph:
+        return sizeof(GlyphInstanceData<D>);
     default:
         TKIT_FATAL("[ONYX][INSTANCE] Unrecognized geometry type");
         return 0;

@@ -150,6 +150,31 @@ struct ParametricInstanceDataStencil3D
     InstanceParameters Parameters;
 }
 
+struct GlyphInstanceDataFill2D
+{
+    StaticInstanceDataFill2D Data;
+    u32 AtlasHandle;
+    u32 SamplerHandle;
+}
+struct GlyphInstanceDataFill3D
+{
+    StaticInstanceDataFill3D Data;
+    u32 AtlasHandle;
+    u32 SamplerHandle;
+}
+struct GlyphInstanceDataStencil2D
+{
+    StaticInstanceDataStencil2D Data;
+    u32 AtlasHandle;
+    u32 SamplerHandle;
+}
+struct GlyphInstanceDataStencil3D
+{
+    StaticInstanceDataStencil3D Data;
+    u32 AtlasHandle;
+    u32 SamplerHandle;
+}
+
 struct Material2D
 {
     u32 ColorFactor;
@@ -525,6 +550,23 @@ f32v4 ComputeColor2D(const f32v4 fragColor, const LightData2D light, const u32 m
         return tex * fragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, alpha);
     }
     return f32v4(fragColor.rgb, fragColor.a * alpha);
+}
+
+f32 ComputeMTSDFCoverage(const SamplerState samplers[ONYX_MAX_SAMPLERS], const Texture2D textures[ONYX_MAX_TEXTURES], const u32 samplerId, const u32 atlasId, const f32v2 uv)
+{
+    // Sample the MTSDF atlas
+    const f32v4 mtsdf = textures[atlasId].Sample(samplers[samplerId], uv);
+
+    // Median of RGB channels for MTSDF
+    const f32 median = max(min(mtsdf.r, mtsdf.g), min(max(mtsdf.r, mtsdf.g), mtsdf.b));
+
+    // Screen-space derivative for adaptive smoothing
+    const f32 smoothing = fwidth(median) * 0.5;
+    const f32 coverage = smoothstep(0.5 - smoothing, 0.5 + smoothing, median);
+
+    // Also use the alpha channel (MTSDF has true SDF in alpha)
+    const f32 alphaCoverage = smoothstep(0.5 - smoothing, 0.5 + smoothing, mtsdf.a);
+    return min(coverage, alphaCoverage);
 }
 
 struct MaterialInfo3D

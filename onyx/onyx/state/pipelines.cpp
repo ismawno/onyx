@@ -15,6 +15,8 @@ struct ShaderData
     VKit::Shader StaticFragmentShader{};
     VKit::Shader ParametricVertexShader{};
     VKit::Shader ParametricFragmentShader{};
+    VKit::Shader GlyphVertexShader{};
+    VKit::Shader GlyphFragmentShader{};
 
     void Destroy()
     {
@@ -24,6 +26,8 @@ struct ShaderData
         StaticFragmentShader.Destroy();
         ParametricVertexShader.Destroy();
         ParametricFragmentShader.Destroy();
+        GlyphVertexShader.Destroy();
+        GlyphFragmentShader.Destroy();
     }
 };
 
@@ -181,6 +185,22 @@ ONYX_NO_DISCARD static Result<> createShaders()
                       .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                       .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                       .Load()
+                      .AddModule("glyph-fill-2D")
+                      .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                      .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                      .Load()
+                      .AddModule("glyph-stencil-2D")
+                      .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                      .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                      .Load()
+                      .AddModule("glyph-fill-3D")
+                      .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                      .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                      .Load()
+                      .AddModule("glyph-stencil-3D")
+                      .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                      .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                      .Load()
                       .Compile();
 
     TKIT_RETURN_ON_ERROR(cmpres);
@@ -282,6 +302,38 @@ ONYX_NO_DISCARD static Result<> createShaders()
     TKIT_RETURN_ON_ERROR(result);
     s_StencilShaders3->ParametricFragmentShader = result.GetValue();
 
+    result = cmp.CreateShader("mainVS", "glyph-fill-2D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_FillShaders2->GlyphVertexShader = result.GetValue();
+
+    result = cmp.CreateShader("mainFS", "glyph-fill-2D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_FillShaders2->GlyphFragmentShader = result.GetValue();
+
+    result = cmp.CreateShader("mainVS", "glyph-fill-3D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_FillShaders3->GlyphVertexShader = result.GetValue();
+
+    result = cmp.CreateShader("mainFS", "glyph-fill-3D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_FillShaders3->GlyphFragmentShader = result.GetValue();
+
+    result = cmp.CreateShader("mainVS", "glyph-stencil-2D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_StencilShaders2->GlyphVertexShader = result.GetValue();
+
+    result = cmp.CreateShader("mainFS", "glyph-stencil-2D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_StencilShaders2->GlyphFragmentShader = result.GetValue();
+
+    result = cmp.CreateShader("mainVS", "glyph-stencil-3D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_StencilShaders3->GlyphVertexShader = result.GetValue();
+
+    result = cmp.CreateShader("mainFS", "glyph-stencil-3D");
+    TKIT_RETURN_ON_ERROR(result);
+    s_StencilShaders3->GlyphFragmentShader = result.GetValue();
+
     cmp.Destroy();
 
     if (Core::CanNameObjects())
@@ -314,13 +366,13 @@ ONYX_NO_DISCARD static Result<> createShaders()
         TKIT_RETURN_IF_FAILED(
             s_StencilShaders3->StaticFragmentShader.SetName("onyx-3D-fragment-shader-static-stencil"));
 
-        TKIT_RETURN_IF_FAILED(s_FillShaders3->ParametricVertexShader.SetName("onyx-3D-vertex-shader-parametric-fill"));
-        TKIT_RETURN_IF_FAILED(
-            s_FillShaders3->ParametricFragmentShader.SetName("onyx-3D-fragment-shader-parametric-fill"));
-
         TKIT_RETURN_IF_FAILED(s_FillShaders2->ParametricVertexShader.SetName("onyx-2D-vertex-shader-parametric-fill"));
         TKIT_RETURN_IF_FAILED(
             s_FillShaders2->ParametricFragmentShader.SetName("onyx-2D-fragment-shader-parametric-fill"));
+
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->ParametricVertexShader.SetName("onyx-3D-vertex-shader-parametric-fill"));
+        TKIT_RETURN_IF_FAILED(
+            s_FillShaders3->ParametricFragmentShader.SetName("onyx-3D-fragment-shader-parametric-fill"));
 
         TKIT_RETURN_IF_FAILED(
             s_StencilShaders2->ParametricVertexShader.SetName("onyx-2D-vertex-shader-parametric-stencil"));
@@ -331,6 +383,18 @@ ONYX_NO_DISCARD static Result<> createShaders()
             s_StencilShaders3->ParametricVertexShader.SetName("onyx-3D-vertex-shader-parametric-stencil"));
         TKIT_RETURN_IF_FAILED(
             s_StencilShaders3->ParametricFragmentShader.SetName("onyx-3D-fragment-shader-parametric-stencil"));
+
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->GlyphVertexShader.SetName("onyx-2D-vertex-shader-glyph-fill"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders2->GlyphFragmentShader.SetName("onyx-2D-fragment-shader-glyph-fill"));
+
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->GlyphVertexShader.SetName("onyx-3D-vertex-shader-glyph-fill"));
+        TKIT_RETURN_IF_FAILED(s_FillShaders3->GlyphFragmentShader.SetName("onyx-3D-fragment-shader-glyph-fill"));
+
+        TKIT_RETURN_IF_FAILED(s_StencilShaders2->GlyphVertexShader.SetName("onyx-2D-vertex-shader-glyph-stencil"));
+        TKIT_RETURN_IF_FAILED(s_StencilShaders2->GlyphFragmentShader.SetName("onyx-2D-fragment-shader-glyph-stencil"));
+
+        TKIT_RETURN_IF_FAILED(s_StencilShaders3->GlyphVertexShader.SetName("onyx-3D-vertex-shader-glyph-stencil"));
+        TKIT_RETURN_IF_FAILED(s_StencilShaders3->GlyphFragmentShader.SetName("onyx-3D-fragment-shader-glyph-stencil"));
     }
 
     return Result<>::Ok();
@@ -535,6 +599,22 @@ Result<VKit::GraphicsPipeline> CreateParametricMeshPipeline(const StencilPass pa
     return builder.Bake().Build();
 }
 
+template <Dimension D>
+Result<VKit::GraphicsPipeline> CreateGlyphMeshPipeline(const StencilPass pass,
+                                                       const VkPipelineRenderingCreateInfoKHR &renderInfo)
+{
+    const DrawPass dpass = GetDrawMode(pass);
+    const ShaderData &shaders = getShaders<D>(dpass);
+
+    VKit::GraphicsPipeline::Builder builder =
+        createPipelineBuilder<D>(pass, renderInfo, shaders.GlyphVertexShader, shaders.GlyphFragmentShader);
+    builder.AddBindingDescription<GlyphVertex>();
+    builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, Position));
+    builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, AtlasCoord));
+
+    return builder.Bake().Build();
+}
+
 template const VKit::PipelineLayout &GetLitPipelineLayout<D2>();
 template const VKit::PipelineLayout &GetLitPipelineLayout<D3>();
 
@@ -555,5 +635,10 @@ template Result<VKit::GraphicsPipeline> CreateParametricMeshPipeline<D2>(
     StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
 template Result<VKit::GraphicsPipeline> CreateParametricMeshPipeline<D3>(
     StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
+
+template Result<VKit::GraphicsPipeline> CreateGlyphMeshPipeline<D2>(StencilPass pass,
+                                                                    const VkPipelineRenderingCreateInfoKHR &renderInfo);
+template Result<VKit::GraphicsPipeline> CreateGlyphMeshPipeline<D3>(StencilPass pass,
+                                                                    const VkPipelineRenderingCreateInfoKHR &renderInfo);
 
 } // namespace Onyx::Pipelines

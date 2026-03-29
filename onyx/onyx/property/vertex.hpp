@@ -120,6 +120,22 @@ template <> struct ParaVertex<D3>
     ParametricRegionFlags Region;
 };
 
+struct GlyphVertex
+{
+    TKIT_REFLECT_DECLARE(GlyphVertex)
+    TKIT_YAML_SERIALIZE_DECLARE(GlyphVertex)
+
+    TKIT_REFLECT_IGNORE_BEGIN()
+    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
+    static constexpr Geometry Geo = Geometry_Glyph;
+    static constexpr AssetType Asset = Asset_Font;
+    TKIT_YAML_SERIALIZE_IGNORE_END()
+    TKIT_REFLECT_IGNORE_END()
+
+    f32v2 Position;
+    f32v2 AtlasCoord;
+};
+
 } // namespace Onyx
 
 template <> struct std::hash<Onyx::StatVertex<Onyx::D2>>

@@ -122,6 +122,32 @@ template <Dimension D> using StatMeshAssetData = MeshAssetData<StatVertex<D>>;
 template <Dimension D> using ParaMeshPoolData = MeshPoolData<ParaVertex<D>>;
 template <Dimension D> using ParaMeshAssetData = MeshAssetData<ParaVertex<D>>;
 
+struct FontDataInfo
+{
+    FontData Data{};
+    Asset Atlas = NullHandle;
+    u32 VertexStart;
+    u32 VertexCount;
+    u32 IndexStart;
+    u32 IndexCount;
+    StatusFlags Flags;
+};
+
+struct FontPoolData
+{
+    VKit::DeviceBuffer VertexBuffer{};
+    VKit::DeviceBuffer IndexBuffer{};
+    TKit::DynamicArray<GlyphVertex> Vertices{};
+    TKit::DynamicArray<Index> Indices{};
+    TKit::TierArray<FontDataInfo> FontData{};
+};
+
+struct FontAssetData
+{
+    TKit::StaticHive<FontPoolData, ONYX_MAX_TEXTURES> Pools{};
+    TKit::StaticArray<AssetPool, ONYX_MAX_ASSET_POOLS> ToRemove{};
+};
+
 template <Dimension D> struct MaterialPoolData
 {
     VKit::DeviceBuffer Buffer{};
@@ -172,6 +198,7 @@ template <Dimension D> struct AssetData
 
 static TKit::Storage<AssetData<D2>> s_AssetData2{};
 static TKit::Storage<AssetData<D3>> s_AssetData3{};
+static TKit::Storage<FontAssetData> s_FontData{};
 static TKit::Storage<SamplerAssetData> s_SamplerData{};
 static TKit::Storage<TextureAssetData> s_TextureData{};
 
@@ -222,7 +249,7 @@ template <Dimension D> void updateMaterialDescriptorSet(const u32 pid)
     const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(Shading_Lit);
 
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
-    writer.WriteBuffer(1, binfo, pid);
+    writer.WriteBuffer(3, binfo, pid);
 
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D>(Shading_Lit))
         writer.Overwrite(set);
@@ -433,6 +460,7 @@ Result<> Initialize(const Specs &specs)
     TKIT_LOG_INFO("[ONYX][ASSETS] Initializing");
     s_AssetData2.Construct();
     s_AssetData3.Construct();
+    s_FontData.Construct();
     s_SamplerData.Construct();
     s_TextureData.Construct();
 
@@ -460,10 +488,8 @@ void Terminate()
     for (TextureInfo &tinfo : s_TextureData->Textures)
     {
         tinfo.Image.Destroy();
-#ifdef ONYX_ENABLE_GLTF_LOAD
         if (tinfo.Flags & StatusFlag_MustFreeTexture)
             TKit::Deallocate(tinfo.Data.Data);
-#endif
     }
 
     for (SamplerInfo &sinfo : s_SamplerData->Samplers)
@@ -471,11 +497,17 @@ void Terminate()
 
     s_SamplerData.Construct();
     s_TextureData.Destruct();
+    s_FontData.Destruct();
     s_AssetData2.Destruct();
     s_AssetData3.Destruct();
 }
 
-#define CHECK_POOL_HANDLE(pool, ptype, dim)                                                                            \
+#define CHECK_POOL_HANDLE(pool, ptype)                                                                                 \
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);                                                                           \
+    ONYX_CHECK_HANDLE_HAS_ASSET_POOL_TYPE(pool, ptype);                                                                \
+    ONYX_CHECK_ASSET_POOL_IS_VALID(pool, ptype)
+
+#define CHECK_POOL_HANDLE_WITH_DIM(pool, ptype, dim)                                                                   \
     ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);                                                                           \
     ONYX_CHECK_HANDLE_HAS_ASSET_POOL_TYPE(pool, ptype);                                                                \
     ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(pool, ptype, dim)
@@ -485,7 +517,13 @@ void Terminate()
     ONYX_CHECK_HANDLE_HAS_ASSET_TYPE(handle, atype);                                                                   \
     ONYX_CHECK_ASSET_IS_VALID(handle, atype);
 
-#define CHECK_ASSET_AND_POOL_HANDLES(handle, atype, dim)                                                               \
+#define CHECK_ASSET_AND_POOL_HANDLES(handle, atype)                                                                    \
+    ONYX_CHECK_ASSET_IS_NOT_NULL(handle);                                                                              \
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(handle);                                                                         \
+    ONYX_CHECK_ASSET_POOL_IS_VALID(handle, AssetPoolType(atype));                                                      \
+    ONYX_CHECK_ASSET_IS_VALID(handle, atype);
+
+#define CHECK_ASSET_AND_POOL_HANDLES_WITH_DIM(handle, atype, dim)                                                      \
     ONYX_CHECK_ASSET_IS_NOT_NULL(handle);                                                                              \
     ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(handle);                                                                         \
     ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(handle, AssetPoolType(atype), dim);                                        \
@@ -598,12 +636,6 @@ GltfHandles AddGltfAssets(const AssetPool meshPool, const AssetPool materialPool
 
 Asset AddTexture(const TextureData &data, const AddTextureFlags flags)
 {
-#ifndef ONYX_ENABLE_GLTF_LOAD
-    TKIT_ASSERT(flags & AddTextureFlag_ManuallyHandledMemory,
-                "[ONYX][ASSETS] If GLTF load is disabled, all texture data CPU memory must be handled by the user. "
-                "This must be reflected by passing the AddTextureFlag_ManuallyHandledMemory flag");
-#endif
-
     const u32 tid = s_TextureData->Textures.Insert();
     const Asset handle = CreateAssetHandle(Asset_Texture, tid);
 
@@ -612,21 +644,13 @@ Asset AddTexture(const TextureData &data, const AddTextureFlags flags)
     tinfo.Handle = handle;
 
     StatusFlags sflags = StatusFlag_UpdateTexture | StatusFlag_CreateTexture;
-#ifdef ONYX_ENABLE_GLTF_LOAD
     if (!(flags & AddTextureFlag_ManuallyHandledMemory))
         sflags |= StatusFlag_MustFreeTexture;
-#endif
     tinfo.Flags = sflags;
     return handle;
 }
 void UpdateTexture(const Asset handle, const TextureData &data, const AddTextureFlags flags)
 {
-#ifndef ONYX_ENABLE_GLTF_LOAD
-    TKIT_ASSERT(flags & AddTextureFlag_ManuallyHandledMemory,
-                "[ONYX][ASSETS] If GLTF load is disabled, all texture data CPU memory must be handled by the user. "
-                "This must be reflected by passing the AddTextureFlag_ManuallyHandledMemory flag");
-#endif
-
     CHECK_ASSET_HANDLE(handle, Asset_Texture);
 
     const u32 tid = GetAssetId(handle);
@@ -637,10 +661,8 @@ void UpdateTexture(const Asset handle, const TextureData &data, const AddTexture
         "[ONYX][ASSETS] When updating a texture, the size of the data of the previous and updated texture must be the "
         "same. If they are not, you must create a new texture");
 
-#ifdef ONYX_ENABLE_GLTF_LOAD
     if (tinfo.Flags & StatusFlag_MustFreeTexture)
-        stbi_image_free(data.Data);
-#endif
+        TKit::Deallocate(tinfo.Data.Data);
 
     tinfo.Data = data;
     tinfo.Flags |= StatusFlag_UpdateTexture;
@@ -739,6 +761,35 @@ template <Dimension D> ONYX_NO_DISCARD static Result<AssetPool> createMaterialPo
     return pool;
 }
 
+Result<AssetPool> CreateFontPool()
+{
+    auto result = Resources::CreateBuffer<GlyphVertex>(Buffer_DeviceVertex);
+    TKIT_RETURN_ON_ERROR(result);
+    VKit::DeviceBuffer vbuffer = result.GetValue();
+
+    result = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
+    TKIT_RETURN_ON_ERROR(result, vbuffer.Destroy());
+    VKit::DeviceBuffer ibuffer = result.GetValue();
+
+    const u32 pid = s_FontData->Pools.Insert();
+    FontPoolData &fpool = s_FontData->Pools[pid];
+
+    fpool.VertexBuffer = vbuffer;
+    fpool.IndexBuffer = ibuffer;
+
+    const AssetPool pool = CreateAssetPoolHandle(AssetPool_Font, pid);
+    if (Core::CanNameObjects())
+    {
+        const std::string vb = TKit::Format("onyx-assets-font-vertex-buffer-{:#010x}", pool);
+        const std::string ib = TKit::Format("onyx-assets-font-index-buffer-{:#010x}", pool);
+
+        TKIT_RETURN_IF_FAILED(vbuffer.SetName(vb.c_str()), vbuffer.Destroy(); s_FontData->Pools.Remove(pid));
+        TKIT_RETURN_IF_FAILED(ibuffer.SetName(ib.c_str()), ibuffer.Destroy(); s_FontData->Pools.Remove(pid));
+    }
+
+    return pool;
+}
+
 template <Dimension D> Result<AssetPool> CreateAssetPool(const AssetPoolType ptype)
 {
     switch (ptype)
@@ -749,10 +800,21 @@ template <Dimension D> Result<AssetPool> CreateAssetPool(const AssetPoolType pty
         return createMeshPool(AssetPool_ParametricMesh, getData<D>().ParametricMeshes);
     case AssetPool_Material:
         return createMaterialPool<D>();
+    case AssetPool_Font:
+    case AssetPool_GlyphMesh:
+        return CreateFontPool();
     default:
         return Result<AssetPool>::Error(Error_BadInput,
                                         TKit::Format("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype)));
     }
+}
+
+void DestroyFontPool(const AssetPool pool)
+{
+    const u32 pid = GetAssetPoolId(pool);
+    for (const FontDataInfo &info : s_FontData->Pools[pid].FontData)
+        RemoveTexture(info.Atlas);
+    s_FontData->ToRemove.Append(pool);
 }
 
 template <Dimension D> void DestroyAssetPool(const AssetPool pool)
@@ -775,6 +837,11 @@ template <Dimension D> void DestroyAssetPool(const AssetPool pool)
         ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_Material);
         getData<D>().Materials.ToRemove.Append(pool);
         return;
+    case AssetPool_Font:
+    case AssetPool_GlyphMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_Font);
+        DestroyFontPool(pool);
+        return;
     default:
         TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
     }
@@ -785,7 +852,7 @@ static Asset addMesh(const AssetPool pool, MeshAssetData<Vertex> &meshes, const 
 {
     constexpr AssetType atype = Vertex::Asset;
 
-    CHECK_POOL_HANDLE(pool, AssetPoolType(atype), Vertex::Dim);
+    CHECK_POOL_HANDLE_WITH_DIM(pool, AssetPoolType(atype), Vertex::Dim);
 
     const u32 pid = GetAssetPoolId(pool);
 
@@ -818,10 +885,90 @@ template <Dimension D> Asset AddMesh(const AssetPool pool, const ParaMeshData<D>
     return addMesh(pool, getData<D>().ParametricMeshes, data);
 }
 
+template <typename F1, typename F2>
+static void buildFontBuffers(const FontData &data, const F1 addVertex, const F2 addIndex)
+{
+    for (u32 i = 0; i < data.Glyphs.GetSize(); ++i)
+    {
+        const GlyphData &glyph = data.Glyphs[i];
+        const f32v2 min = f32v2{glyph.Bearing[0], glyph.Bearing[1] - glyph.Size[1]};
+        const f32v2 max = f32v2{glyph.Bearing[0] + glyph.Size[0], glyph.Bearing[1]};
+
+        const f32v2 mnuv = glyph.MinTexCoord;
+        const f32v2 mxuv = glyph.MaxTexCoord;
+
+        addVertex(min[0], min[1], mnuv[0], mxuv[1]);
+        addVertex(max[0], min[1], mxuv[0], mxuv[1]);
+        addVertex(min[0], max[1], mnuv[0], mnuv[1]);
+        addVertex(max[0], max[1], mxuv[0], mnuv[1]);
+
+        addIndex(i);
+        addIndex(i + 1);
+        addIndex(i + 2);
+        addIndex(i + 1);
+        addIndex(i + 3);
+        addIndex(i + 2);
+    }
+}
+
+Asset AddFont(const AssetPool pool, const FontData &data)
+{
+    CHECK_POOL_HANDLE(pool, AssetPool_Font);
+
+    const u32 pid = GetAssetPoolId(pool);
+    FontPoolData &fpool = s_FontData->Pools[pid];
+    FontDataInfo info;
+    info.Data = data;
+    info.Atlas = AddTexture(data.AtlasData);
+
+    const u32 gsize = data.Glyphs.GetSize();
+    info.VertexStart = fpool.Vertices.GetSize();
+    info.VertexCount = gsize * 4;
+    info.IndexStart = fpool.Indices.GetSize();
+    info.IndexCount = gsize * 6;
+    info.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+
+    const u32 fid = fpool.FontData.GetSize();
+
+    const auto addVertex = [&fpool](const f32 x, const f32 y, const f32 u, const f32 v) {
+        fpool.Vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{u, v}});
+    };
+
+    const auto addIndex = [&fpool, &info](const u32 idx) { fpool.Indices.Append(Index(idx + info.VertexStart)); };
+    buildFontBuffers(data, addVertex, addIndex);
+    return CreateAssetHandle(Asset_Font, fid, pid);
+}
+
+void UpdateFont(const Asset handle, const FontData &data)
+{
+    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_Font);
+
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 fid = GetAssetId(handle);
+
+    FontPoolData &fpool = s_FontData->Pools[pid];
+    FontDataInfo &info = fpool.FontData[fid];
+    info.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+
+    TKIT_ASSERT(info.VertexCount == 4 * data.Glyphs.GetSize() && info.IndexCount == 6 * data.Glyphs.GetSize(),
+                "[ONYX][ASSETS] When updating a font, the amount of glyphs must match with the old one. If they do "
+                "not, you must create a new font");
+
+    u32 vidx = info.VertexStart;
+    u32 iidx = info.IndexStart;
+    const auto addVertex = [&fpool, &vidx](const f32 x, const f32 y, const f32 u, const f32 v) {
+        fpool.Vertices[vidx++] = GlyphVertex{f32v2{x, y}, f32v2{u, v}};
+    };
+    const auto addIndex = [&fpool, &info, &iidx](const u32 idx) {
+        fpool.Indices[iidx++] = Index(idx + info.VertexStart);
+    };
+    buildFontBuffers(data, addVertex, addIndex);
+}
+
 template <typename Vertex>
 static void updateMesh(const Asset handle, MeshAssetData<Vertex> &meshes, const MeshData<Vertex> &data)
 {
-    CHECK_ASSET_AND_POOL_HANDLES(handle, Vertex::Asset, Vertex::Dim);
+    CHECK_ASSET_AND_POOL_HANDLES_WITH_DIM(handle, Vertex::Asset, Vertex::Dim);
 
     const u32 pid = GetAssetPoolId(handle);
     const u32 mid = GetAssetId(handle);
@@ -855,7 +1002,7 @@ template <Dimension D> Asset AddMaterial(const AssetPool pool, const MaterialDat
 {
     constexpr AssetType atype = Asset_Material;
 
-    CHECK_POOL_HANDLE(pool, AssetPoolType(atype), D);
+    CHECK_POOL_HANDLE_WITH_DIM(pool, AssetPoolType(atype), D);
 
     const u32 pid = GetAssetPoolId(pool);
 
@@ -870,7 +1017,7 @@ template <Dimension D> Asset AddMaterial(const AssetPool pool, const MaterialDat
 
 template <Dimension D> void UpdateMaterial(const Asset handle, const MaterialData<D> &data)
 {
-    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_Material, D);
+    CHECK_ASSET_AND_POOL_HANDLES_WITH_DIM(handle, Asset_Material, D);
 
     const u32 pid = GetAssetPoolId(handle);
     const u32 mid = GetAssetId(handle);
@@ -882,7 +1029,7 @@ template <Dimension D> void UpdateMaterial(const Asset handle, const MaterialDat
 
 template <typename Vertex> static MeshData<Vertex> getMeshData(const Asset handle, MeshAssetData<Vertex> &meshes)
 {
-    CHECK_ASSET_AND_POOL_HANDLES(handle, Vertex::Asset, Vertex::Dim);
+    CHECK_ASSET_AND_POOL_HANDLES_WITH_DIM(handle, Vertex::Asset, Vertex::Dim);
 
     const u32 pid = GetAssetPoolId(handle);
     const u32 mid = GetAssetId(handle);
@@ -916,7 +1063,7 @@ template <Dimension D> ParaMeshData<D> GetParametricMeshData(const Asset handle)
 }
 template <Dimension D> ParametricShape GetParametricShape(const Asset handle)
 {
-    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_ParametricMesh, D);
+    CHECK_ASSET_AND_POOL_HANDLES_WITH_DIM(handle, Asset_ParametricMesh, D);
 
     const u32 pid = GetAssetPoolId(handle);
     const u32 mid = GetAssetId(handle);
@@ -926,7 +1073,7 @@ template <Dimension D> ParametricShape GetParametricShape(const Asset handle)
 }
 template <Dimension D> const MaterialData<D> &GetMaterialData(const Asset handle)
 {
-    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_Material, D);
+    CHECK_ASSET_AND_POOL_HANDLES_WITH_DIM(handle, Asset_Material, D);
 
     const u32 pid = GetAssetPoolId(handle);
     const u32 mid = GetAssetId(handle);
@@ -937,7 +1084,7 @@ template <Dimension D> const MaterialData<D> &GetMaterialData(const Asset handle
 
 const SamplerData &GetSamplerData(const Asset handle)
 {
-    CHECK_ASSET_HANDLE(handle, Asset_Texture);
+    CHECK_ASSET_HANDLE(handle, Asset_Sampler);
     const u32 sid = GetAssetId(handle);
     return s_SamplerData->Samplers[sid].Data;
 }
@@ -946,6 +1093,30 @@ const TextureData &GetTextureData(const Asset handle)
     CHECK_ASSET_HANDLE(handle, Asset_Texture);
     const u32 tid = GetAssetId(handle);
     return s_TextureData->Textures[tid].Data;
+}
+const FontData &GetFontData(const Asset handle)
+{
+    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_Font);
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 fid = GetAssetId(handle);
+
+    return s_FontData->Pools[pid].FontData[fid].Data;
+}
+const GlyphData *GetGlyphData(const Asset font, const u32 codePoint)
+{
+    CHECK_ASSET_AND_POOL_HANDLES(font, Asset_Font);
+
+    const u32 pid = GetAssetPoolId(font);
+    const u32 fid = GetAssetId(font);
+
+    const FontDataInfo &info = s_FontData->Pools[pid].FontData[fid];
+    const TKit::TierArray<CodePointRange> &ranges = info.Data.CodePoints;
+    for (const CodePointRange &range : ranges)
+        if (codePoint < range.Last)
+            return &info.Data.Glyphs[codePoint - range.First];
+
+    TKIT_FATAL("[ONYX][ASSETS] The code point {} was not found", codePoint);
+    return nullptr;
 }
 
 void Lock()
@@ -977,10 +1148,8 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
 
         TextureInfo &tinfo = s_TextureData->Textures[tid];
         tinfo.Image.Destroy();
-#ifdef ONYX_ENABLE_GLTF_LOAD
         if (tinfo.Flags & StatusFlag_MustFreeTexture)
             TKit::Deallocate(tinfo.Data.Data);
-#endif
         s_TextureData->Textures.Remove(tid);
     }
     s_TextureData->ToRemove.Clear();
@@ -1038,10 +1207,14 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                     imageInfos.Append(img.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
 
                 const u32 tid = GetAssetId(tinfo.Handle);
-                writer2.WriteImage(3, info, tid);
-                writer3.WriteImage(3, info, tid);
+                writer2.WriteImage(2, info, tid);
+                writer3.WriteImage(2, info, tid);
             }
 
+        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Unlit))
+            writer2.Overwrite(set);
+        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Unlit))
+            writer3.Overwrite(set);
         for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
             writer2.Overwrite(set);
         for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Lit))
@@ -1199,10 +1372,14 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
                 .sampler = sinfo.Sampler, .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED});
 
             const u32 sid = GetAssetId(sinfo.Handle);
-            writer2.WriteImage(2, info, sid);
-            writer3.WriteImage(2, info, sid);
+            writer2.WriteImage(1, info, sid);
+            writer3.WriteImage(1, info, sid);
         }
 
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Unlit))
+        writer2.Overwrite(set);
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Unlit))
+        writer3.Overwrite(set);
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
         writer2.Overwrite(set);
     for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Lit))
@@ -1251,6 +1428,12 @@ template <typename Vertex> static MeshDataLayout getMeshLayout(const Asset handl
                           .IndexCount = info.IndexCount};
 }
 
+MeshDataLayout GetGlyphLayout(const Asset handle)
+{
+    const u32 gid = GetAssetId(handle);
+    return MeshDataLayout{.VertexStart = 4 * gid, .VertexCount = 4, .IndexStart = 6 * gid, .IndexCount = 6};
+}
+
 template <Dimension D> MeshDataLayout GetMeshLayout(const Asset handle)
 {
     ONYX_CHECK_ASSET_IS_NOT_NULL(handle);
@@ -1268,10 +1451,18 @@ template <Dimension D> MeshDataLayout GetMeshLayout(const Asset handle)
     case AssetPool_ParametricMesh:
         ONYX_CHECK_ASSET_POOL_IS_VALID(handle, AssetPool_ParametricMesh);
         return getMeshLayout(handle, getData<D>().ParametricMeshes);
+    case AssetPool_GlyphMesh:
+        ONYX_CHECK_ASSET_POOL_IS_VALID(handle, AssetPool_GlyphMesh);
+        return GetGlyphLayout(handle);
     default:
         TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
         return MeshDataLayout{};
     }
+}
+
+TKit::Span<const u32> GetFontPoolIds()
+{
+    return s_FontData->Pools.GetValidIds();
 }
 
 template <Dimension D> TKit::Span<const u32> GetAssetPoolIds(const AssetPoolType ptype)
@@ -1283,6 +1474,9 @@ template <Dimension D> TKit::Span<const u32> GetAssetPoolIds(const AssetPoolType
         return getData<D>().StaticMeshes.Pools.GetValidIds();
     case AssetPool_ParametricMesh:
         return getData<D>().ParametricMeshes.Pools.GetValidIds();
+    case AssetPool_Font:
+    case AssetPool_GlyphMesh:
+        return GetFontPoolIds();
     default:
         TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
         return TKit::Span<const u32>{};
@@ -1307,6 +1501,27 @@ u32 GetBatchCount()
     count += getMeshBatchCount(getData<D3>().ParametricMeshes);
     return count;
 }
+
+u32 GetFontCount(const AssetPool pool)
+{
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(pool);
+    ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_Font);
+
+    const u32 pid = GetAssetPoolId(pool);
+    return s_FontData->Pools[pid].FontData.GetSize();
+}
+
+u32 GetGlyphCount(const AssetPool pool)
+{
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(pool);
+    ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_GlyphMesh);
+
+    const u32 pid = GetAssetPoolId(pool);
+    return s_FontData->Pools[pid].Vertices.GetSize() / 4;
+}
+
 template <Dimension D> u32 GetAssetCount(const AssetPool pool)
 {
     ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
@@ -1326,11 +1541,37 @@ template <Dimension D> u32 GetAssetCount(const AssetPool pool)
     case AssetPool_Material:
         ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_Material);
         return getData<D>().Materials.Pools[pid].Materials.GetSize();
+    case AssetPool_Font:
+        return GetFontCount(pool);
+    case AssetPool_GlyphMesh:
+        return GetGlyphCount(pool);
     default:
         TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
         return 0;
     }
 }
+
+const VKit::DeviceBuffer *GetGlyphVertexBuffer(const AssetPool pool)
+{
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(pool);
+    ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_GlyphMesh);
+
+    const u32 pid = GetAssetPoolId(pool);
+
+    return &s_FontData->Pools[pid].VertexBuffer;
+}
+const VKit::DeviceBuffer *GetGlyphIndexBuffer(const AssetPool pool)
+{
+    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
+    ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(pool);
+    ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_GlyphMesh);
+
+    const u32 pid = GetAssetPoolId(pool);
+
+    return &s_FontData->Pools[pid].IndexBuffer;
+}
+
 template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(const AssetPool pool)
 {
     ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(pool);
@@ -1348,6 +1589,9 @@ template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(const Asset
     case AssetPool_ParametricMesh:
         ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_ParametricMesh);
         return &getData<D>().ParametricMeshes.Pools[pid].VertexBuffer;
+    case AssetPool_Font:
+    case AssetPool_GlyphMesh:
+        return GetGlyphVertexBuffer(pool);
     default:
         TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
         return nullptr;
@@ -1370,6 +1614,9 @@ template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(const AssetP
     case AssetPool_ParametricMesh:
         ONYX_CHECK_ASSET_POOL_IS_VALID(pool, AssetPool_ParametricMesh);
         return &getData<D>().ParametricMeshes.Pools[pid].IndexBuffer;
+    case AssetPool_Font:
+    case AssetPool_GlyphMesh:
+        return GetGlyphIndexBuffer(pool);
     default:
         TKIT_FATAL("[ONYX][ASSETS] Unrecognized asset pool type {}", u8(ptype));
         return nullptr;
@@ -1395,7 +1642,12 @@ template <Dimension D> bool IsAssetValid(const Asset handle, const AssetType aty
     case Asset_Material:
         return IsAssetPoolValid<D>(handle, AssetPool_Material) &&
                aid < getData<D>().Materials.Pools[pid].Materials.GetSize();
-    // case Asset_Font:
+    case Asset_Font:
+        return IsAssetPoolValid<D>(handle, AssetPool_Font) && aid < s_FontData->Pools[pid].FontData.GetSize();
+    case Asset_GlyphMesh:
+        return IsAssetPoolValid<D>(handle, AssetPool_GlyphMesh) &&
+               aid < 4 * s_FontData->Pools[pid].Vertices.GetSize() &&
+               aid < 6 * s_FontData->Pools[pid].Indices.GetSize();
     case Asset_Sampler:
         return IsAssetPoolNull(handle) && s_SamplerData->Samplers.Contains(aid);
     case Asset_Texture:
@@ -1419,6 +1671,9 @@ template <Dimension D> bool IsAssetPoolValid(const Handle handle, const AssetPoo
         return getData<D>().ParametricMeshes.Pools.Contains(pid);
     case AssetPool_Material:
         return getData<D>().Materials.Pools.Contains(pid);
+    case AssetPool_Font:
+    case AssetPool_GlyphMesh:
+        return s_FontData->Pools.Contains(pid);
     default:
         return false;
     }

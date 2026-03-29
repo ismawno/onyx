@@ -28,4 +28,8 @@ template <Dimension D>
 ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateParametricMeshPipeline(
     StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
 
+template <Dimension D>
+ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateGlyphMeshPipeline(
+    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
+
 } // namespace Onyx::Pipelines

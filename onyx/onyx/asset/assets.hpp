@@ -96,38 +96,34 @@ void UpdateSampler(Asset handle, const SamplerData &data);
 void RemoveSampler(Asset handle);
 
 template <Dimension D> GltfHandles AddGltfAssets(AssetPool meshPool, AssetPool materialPool, GltfAssets<D> &data);
-void RemoveTexture(Asset handle);
 
 #ifdef ONYX_ENABLE_GLTF_LOAD
-
-Asset AddTexture(const TextureData &data, AddTextureFlags flags = 0);
-void UpdateTexture(Asset handle, const TextureData &data, AddTextureFlags flags = 0);
 
 template <Dimension D>
 ONYX_NO_DISCARD Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, LoadGltfDataFlags flags = 0);
 
 ONYX_NO_DISCARD Result<TextureData> LoadTextureDataFromImageFile(
     const char *path, const ImageComponent requiredComponents = ImageComponent_Auto, LoadTextureDataFlags flags = 0);
-#else
-Asset AddTexture(const TextureData &data, AddTAddTextureFlags flags = AddTextureFlag_ManuallyHandledMemory);
-void UpdateTexture(Asset handle, const TextureData &data,
-                   AddTAddTextureFlags flags = AddTextureFlag_ManuallyHandledMemory);
 #endif
 
 template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateAssetPool(AssetPoolType ptype);
 template <Dimension D> void DestroyAssetPool(AssetPool pool);
 
+ONYX_NO_DISCARD Result<AssetPool> CreateFontPool();
+void DestroyFontPool(AssetPool pool);
+
 template <Dimension D> Asset AddMesh(AssetPool pool, const StatMeshData<D> &data);
 template <Dimension D> Asset AddMesh(AssetPool pool, const ParaMeshData<D> &data);
 
+Asset AddFont(AssetPool pool, const FontData &data);
+Asset AddTexture(const TextureData &data, AddTextureFlags flags = 0);
+
 template <Dimension D> void UpdateMesh(Asset handle, const StatMeshData<D> &data);
 template <Dimension D> void UpdateMesh(Asset handle, const ParaMeshData<D> &data);
-
-ONYX_NO_DISCARD Result<AssetPool> CreateFontPool();
-void DestroyFontPool();
-
-Asset AddFont(const FontData &data);
 void UpdateFont(Asset handle, const FontData &data);
+void UpdateTexture(Asset handle, const TextureData &data, AddTextureFlags flags = 0);
+
+void RemoveTexture(Asset handle);
 
 #ifdef ONYX_ENABLE_FONT_LOAD
 ONYX_NO_DISCARD Result<FontData> LoadFontFromFile(const char *path, const FontLoadOptions &opts = {});
@@ -143,14 +139,25 @@ template <Dimension D> ParametricShape GetParametricShape(Asset handle);
 template <Dimension D> const MaterialData<D> &GetMaterialData(Asset handle);
 template <Dimension D> TKit::Span<const u32> GetAssetPoolIds(AssetPoolType ptype);
 
+TKit::Span<const u32> GetFontPoolIds();
+
 const SamplerData &GetSamplerData(Asset handle);
 const TextureData &GetTextureData(Asset handle);
+const FontData &GetFontData(Asset handle);
+const GlyphData *GetGlyphData(Asset font, u32 codePoint);
 
 u32 GetBatchCount();
 template <Dimension D> u32 GetAssetCount(AssetPool pool);
 template <Dimension D> MeshDataLayout GetMeshLayout(Asset handle);
 template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(AssetPool pool);
 template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(AssetPool pool);
+
+const VKit::DeviceBuffer *GetGlyphVertexBuffer(AssetPool pool);
+const VKit::DeviceBuffer *GetGlyphIndexBuffer(AssetPool pool);
+
+u32 GetFontCount(AssetPool pool);
+u32 GetGlyphCount(AssetPool pool);
+MeshDataLayout GetGlyphLayout(Asset handle);
 
 template <Dimension D> bool IsAssetValid(Asset handle, AssetType atype);
 template <Dimension D> bool IsAssetPoolValid(Handle handle, AssetPoolType ptype);

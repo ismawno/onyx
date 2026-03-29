@@ -109,6 +109,7 @@ enum AssetType : u8
 {
     Asset_StaticMesh,
     Asset_ParametricMesh,
+    Asset_GlyphMesh,
     Asset_Material,
     Asset_Font,
     Asset_Sampler,
@@ -120,8 +121,9 @@ enum AssetPoolType : u8
 {
     AssetPool_StaticMesh,
     AssetPool_ParametricMesh,
-    // AssetPool_Font,
+    AssetPool_GlyphMesh,
     AssetPool_Material,
+    AssetPool_Font,
     AssetPool_Count,
     AssetPool_MeshCount = AssetPool_Material
 };

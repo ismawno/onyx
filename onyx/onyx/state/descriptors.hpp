@@ -12,9 +12,9 @@ namespace Onyx::Descriptors
 struct Specs
 {
     u32 MaxSets = 256;
-    u32 StorageBufferPoolSize = 2048;
-    u32 SamplerPoolSize = 64;
-    u32 SampledImagePoolSize = 8192;
+    u32 StorageBufferPoolSize = 4096;
+    u32 SamplerPoolSize = 128;
+    u32 SampledImagePoolSize = 16384;
 };
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();

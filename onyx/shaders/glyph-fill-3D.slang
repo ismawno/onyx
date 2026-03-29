@@ -2,10 +2,8 @@
 
 struct VertexInput
 {
-    f32v3 Position : POSITION;
-    f32v2 TexCoord : TEXCOORD0;
-    f32v3 Normal : NORMAL;
-    f32v4 Tangent : TANGENT;
+    f32v2 Position : POSITION;
+    f32v2 AtlasCoord : TEXCOORD0;
 }
 
 struct VertexOutput
@@ -13,19 +11,23 @@ struct VertexOutput
     [[vk::location(0)]]
     f32v3 WorldPosition;
     [[vk::location(1)]]
-    f32v2 TexCoord;
+    f32v2 AtlasCoord;
     [[vk::location(2)]]
     nointerpolation u32 MatHandle;
     [[vk::location(3)]]
-    f32v4 FragColor;
+    nointerpolation u32 SamplerId;
     [[vk::location(4)]]
+    nointerpolation u32 AtlasId;
+    [[vk::location(5)]]
+    f32v4 FragColor;
+    [[vk::location(6)]]
     f32m3 TBN;
 
     f32v4 Position : SV_Position;
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<StaticInstanceDataFill3D, Std430DataLayout> g_Instances;
+StructuredBuffer<GlyphInstanceDataFill3D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -44,25 +46,28 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const StaticInstanceDataFill3D data = g_Instances[instanceIndex];
+    const GlyphInstanceDataFill3D gdata = g_Instances[instanceIndex];
+    const StaticInstanceDataFill3D data = gdata.Data;
 
     const f32m4 transform = ComputeTransform3D(data.Basis);
-    const f32v4 worldPos = mul(f32v4(input.Position, 1.0), transform);
+    const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
 
     const f32m3 normalMatrix = ComputeNormalMatrix(f32m3(transform));
 
-    const f32v3 N = normalize(mul(input.Normal, normalMatrix));
-    const f32v3 T = normalize(mul(input.Tangent.xyz, normalMatrix));
+    const f32v3 N = normalize(normalMatrix[2]);
+    const f32v3 T = normalize(normalMatrix[0]);
 
-    const f32v3 B = cross(N, T) * input.Tangent.w;
+    const f32v3 B = cross(N, T);
     output.TBN = f32m3(T, B, N);
 
     output.WorldPosition = worldPos.xyz;
-    output.TexCoord = input.TexCoord;
+    output.AtlasCoord = input.AtlasCoord;
     output.MatHandle = data.MatHandle;
+    output.SamplerId = GetAssetId(gdata.SamplerHandle);
+    output.AtlasId = GetAssetId(gdata.AtlasHandle);
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
 
     return output;
@@ -92,6 +97,8 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
     resources.DirLights = g_DirLights;
-    return ComputeColor3D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f, input.TBN, isFrontFacing);
+
+    const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
+    return ComputeColor3D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.AtlasCoord, resources, coverage, input.TBN, isFrontFacing);
 }
 

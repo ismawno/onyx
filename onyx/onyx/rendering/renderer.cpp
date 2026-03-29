@@ -348,6 +348,10 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> createPipelines()
         TKIT_RETURN_ON_ERROR(result);
         rdata.Pipelines[pass][Geometry_Parametric] = result.GetValue();
 
+        result = Pipelines::CreateGlyphMeshPipeline<D>(pass, renderInfo);
+        TKIT_RETURN_ON_ERROR(result);
+        rdata.Pipelines[pass][Geometry_Glyph] = result.GetValue();
+
         if (Core::CanNameObjects())
         {
             const std::string circle =
@@ -356,10 +360,13 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> createPipelines()
                 TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Static'", u8(D), ToString(pass));
             const std::string para = TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Parametric'",
                                                   u8(D), ToString(pass));
+            const std::string glyph =
+                TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Glyph'", u8(D), ToString(pass));
 
             TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Circle].SetName(circle.c_str()));
             TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Static].SetName(stat.c_str()));
             TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Parametric].SetName(para.c_str()));
+            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Glyph].SetName(glyph.c_str()));
         }
     }
     return Result<>::Ok();
@@ -1043,6 +1050,8 @@ static AssetPoolType getAssetPoolType(const Geometry geo)
         return AssetPool_StaticMesh;
     case Geometry_Parametric:
         return AssetPool_ParametricMesh;
+    case Geometry_Glyph:
+        return AssetPool_GlyphMesh;
     default:
         return AssetPool_Count;
         TKIT_FATAL("[ONYX][RENDERER] Unrecognized geometry {}", ToString(geo));
@@ -1329,6 +1338,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Circle), finishTasks());
         TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Static), finishTasks());
         TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Parametric), finishTasks());
+        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Glyph), finishTasks());
     }
     for (const RangePair &range : ranges)
     {
@@ -1695,6 +1705,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
     collectDrawInfo(Geometry_Circle);
     collectDrawInfo(Geometry_Static);
     collectDrawInfo(Geometry_Parametric);
+    collectDrawInfo(Geometry_Glyph);
 
     TKit::FixedArray<LightRange, LightTypeCount<D>> lranges{};
     for (u32 i = 0; i < rdata.LightArenas.GetSize(); ++i)
@@ -1801,6 +1812,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
             };
             TKIT_RETURN_IF_FAILED(renderMesh(Geometry_Static));
             TKIT_RETURN_IF_FAILED(renderMesh(Geometry_Parametric));
+            TKIT_RETURN_IF_FAILED(renderMesh(Geometry_Glyph));
         }
     }
     return Result<>::Ok();

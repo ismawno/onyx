@@ -68,13 +68,13 @@ VertexOutput mainVS(
 }
 
 [[vk::binding(1, 0)]]
-Materials2D g_Materials[ONYX_MAX_ASSET_POOLS];
-
-[[vk::binding(2, 0)]]
 SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 
-[[vk::binding(3, 0)]]
+[[vk::binding(2, 0)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
+
+[[vk::binding(3, 0)]]
+Materials2D g_Materials[ONYX_MAX_ASSET_POOLS];
 
 [[vk::binding(4, 0)]]
 PointLights2D g_PointLights;

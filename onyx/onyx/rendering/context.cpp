@@ -223,7 +223,7 @@ static Geometry getGeometry(const AssetPoolType ptype)
 template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
 {
     for (InstanceDataArrays &instanceData : m_InstanceData)
-        for (u32 j = AssetPool_StaticMesh; j < AssetPool_Material; ++j)
+        for (u32 j = AssetPool_StaticMesh; j < AssetPool_MeshCount; ++j)
         {
             const AssetPoolType ptype = AssetPoolType(j);
             const auto poolIds = Assets::GetAssetPoolIds<D>(ptype);

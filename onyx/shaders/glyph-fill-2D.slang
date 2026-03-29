@@ -3,7 +3,7 @@
 struct VertexInput
 {
     f32v2 Position : POSITION;
-    f32v2 TexCoord : TEXCOORD0;
+    f32v2 AtlasCoord : TEXCOORD0;
 }
 
 struct VertexOutput
@@ -11,17 +11,21 @@ struct VertexOutput
     [[vk::location(0)]]
     f32v2 WorldPosition;
     [[vk::location(1)]]
-    f32v2 TexCoord;
+    f32v2 AtlasCoord;
     [[vk::location(2)]]
     nointerpolation u32 MatHandle;
     [[vk::location(3)]]
+    nointerpolation u32 SamplerId;
+    [[vk::location(4)]]
+    nointerpolation u32 AtlasId;
+    [[vk::location(5)]]
     nointerpolation f32v4 FragColor;
 
     f32v4 Position : SV_Position;
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<StaticInstanceDataFill2D, Std430DataLayout> g_Instances;
+StructuredBuffer<GlyphInstanceDataFill2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -40,14 +44,17 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const StaticInstanceDataFill2D data = g_Instances[instanceIndex];
+    const GlyphInstanceDataFill2D gdata = g_Instances[instanceIndex];
+    const StaticInstanceDataFill2D data = gdata.Data;
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
     const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
-    output.TexCoord = input.TexCoord;
+    output.AtlasCoord = input.AtlasCoord;
+    output.SamplerId = GetAssetId(gdata.SamplerHandle);
+    output.AtlasId = GetAssetId(gdata.AtlasHandle);
 
     output.WorldPosition = worldPos.xy;
     output.MatHandle = data.MatHandle;
@@ -76,5 +83,7 @@ f32v4 mainFS(const VertexOutput input)
     resources.Samplers = g_Samplers;
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
-    return ComputeColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f);
+
+    const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
+    return ComputeColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.AtlasCoord, resources, coverage);
 }

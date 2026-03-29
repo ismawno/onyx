@@ -4,7 +4,6 @@
 
 namespace Onyx
 {
-
 struct GlyphData
 {
     f32v2 MinTexCoord{0.f};
