@@ -5,7 +5,9 @@
 #include "onyx/state/pipelines.hpp"
 #include "onyx/state/shaders.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/state/shaders.hpp"
+#ifdef ONYX_ENABLE_SHADER_API
+#    include "onyx/state/shaders.hpp"
+#endif
 #include "onyx/state/descriptors.hpp"
 #include "onyx/execution/execution.hpp"
 #include "onyx/asset/assets.hpp"
@@ -610,9 +612,11 @@ Result<> Initialize(const Specs &specs)
     TKIT_RETURN_IF_FAILED(
         Descriptors::Initialize(specs.DescriptorSpecs ? *specs.DescriptorSpecs : Descriptors::Specs{}), Terminate());
 
+#ifdef ONYX_ENABLE_SHADER_API
     PUSH_DELETER(Shaders::Terminate());
     TKIT_RETURN_IF_FAILED(Shaders::Initialize(specs.ShadersSpecs ? *specs.ShadersSpecs : Shaders::Specs{}),
                           Terminate());
+#endif
 
     PUSH_DELETER(Pipelines::Terminate());
     TKIT_RETURN_IF_FAILED(Pipelines::Initialize(), Terminate());

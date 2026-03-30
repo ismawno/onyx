@@ -83,10 +83,12 @@ namespace Descriptors
 {
 struct Specs;
 }
+#ifdef ONYX_ENABLE_SHADER_API
 namespace Shaders
 {
 struct Specs;
 }
+#endif
 
 using Flags = u8;
 enum FlagBit : Flags
@@ -114,7 +116,9 @@ struct Specs
     Execution::Specs *ExecutionSpecs = nullptr;
     Assets::Specs *AssetSpecs = nullptr;
     Descriptors::Specs *DescriptorSpecs = nullptr;
+#ifdef ONYX_ENABLE_SHADER_API
     Shaders::Specs *ShadersSpecs = nullptr;
+#endif
     Platform::Specs *PlatformSpecs = nullptr;
 #ifdef TKIT_ENABLE_ASSERTS
 #    ifdef TKIT_OS_APPLE

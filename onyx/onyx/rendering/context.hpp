@@ -42,6 +42,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
   public:
     IRenderContext();
+    ~IRenderContext();
 
     void Flush();
 

@@ -20,6 +20,17 @@ template <Dimension D> IRenderContext<D>::IRenderContext()
     }
     resizeBufferArrays();
 }
+template <Dimension D> IRenderContext<D>::~IRenderContext()
+{
+    for (InstanceDataArrays &instanceData : m_InstanceData)
+    {
+        instanceData.Circles.Data.Destroy();
+        for (auto &meshes : instanceData.Meshes)
+            for (auto &pools : meshes)
+                for (InstanceDataBuffer &buffer : pools)
+                    buffer.Data.Destroy();
+    }
+}
 
 template <Dimension D> void IRenderContext<D>::Flush()
 {
