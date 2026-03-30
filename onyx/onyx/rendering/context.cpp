@@ -57,11 +57,13 @@ template <Dimension D> void IRenderContext<D>::Flush()
     ++m_Generation;
 }
 
-template <Dimension D, typename F> static void resolveStencilPassWithState(const RenderState<D> *state, F &&draw)
+template <Dimension D> template <typename F> void IRenderContext<D>::resolveStencilPassWithState(F &&draw)
 {
-    if (state->Flags & RenderStateFlag_Fill)
+    if constexpr (D == D2)
+        ++m_DepthCounter;
+    if (m_Current->Flags & RenderStateFlag_Fill)
     {
-        if (state->Flags & RenderStateFlag_Outline)
+        if (m_Current->Flags & RenderStateFlag_Outline)
         {
             std::forward<F>(draw)(StencilPass_DoStencilWriteDoFill);
             std::forward<F>(draw)(StencilPass_DoStencilTestNoFill);
@@ -69,7 +71,7 @@ template <Dimension D, typename F> static void resolveStencilPassWithState(const
         else
             std::forward<F>(draw)(StencilPass_NoStencilWriteDoFill);
     }
-    else if (state->Flags & RenderStateFlag_Outline)
+    else if (m_Current->Flags & RenderStateFlag_Outline)
     {
         std::forward<F>(draw)(StencilPass_DoStencilWriteNoFill);
         std::forward<F>(draw)(StencilPass_DoStencilTestNoFill);
@@ -92,7 +94,7 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
     CHECK_HANDLE(mesh, Asset_StaticMesh, D);
 
     const auto draw = [&, mesh](const StencilPass pass) { addStaticData(mesh, m_Current->Transform, pass); };
-    resolveStencilPassWithState(m_Current, draw);
+    resolveStencilPassWithState(draw);
 }
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, const f32m<D> &transform)
 {
@@ -101,7 +103,7 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, cons
     const auto draw = [&, mesh](const StencilPass pass) {
         addStaticData(mesh, transform * m_Current->Transform, pass);
     };
-    resolveStencilPassWithState(m_Current, draw);
+    resolveStencilPassWithState(draw);
 }
 
 template <Dimension D> void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params)
@@ -111,7 +113,7 @@ template <Dimension D> void IRenderContext<D>::ParametricMesh(const Asset mesh, 
     const auto draw = [&, mesh](const StencilPass pass) {
         addParametricData(mesh, m_Current->Transform, params, pass);
     };
-    resolveStencilPassWithState(m_Current, draw);
+    resolveStencilPassWithState(draw);
 }
 template <Dimension D>
 void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params, const f32m<D> &transform)
@@ -121,23 +123,23 @@ void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameter
     const auto draw = [&, mesh](const StencilPass pass) {
         addParametricData(mesh, transform * m_Current->Transform, params, pass);
     };
-    resolveStencilPassWithState(m_Current, draw);
+    resolveStencilPassWithState(draw);
 }
 
 template <Dimension D> void IRenderContext<D>::Circle(const CircleParameters &params)
 {
     const auto draw = [&](const StencilPass pass) { addCircleData(m_Current->Transform, params, pass); };
-    resolveStencilPassWithState(m_Current, draw);
+    resolveStencilPassWithState(draw);
 }
 template <Dimension D> void IRenderContext<D>::Circle(const f32m<D> &transform, const CircleParameters &params)
 {
     const auto draw = [&](const StencilPass pass) { addCircleData(transform * m_Current->Transform, params, pass); };
-    resolveStencilPassWithState(m_Current, draw);
+    resolveStencilPassWithState(draw);
 }
 
 template <Dimension D>
 static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                      const StencilPass pass)
+                                                      const StencilPass pass, const u32 depthCounter)
 {
     if constexpr (D == D2)
     {
@@ -153,6 +155,7 @@ static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *stat
             instanceData.BaseColor = state->OutlineColor.Pack();
             instanceData.OutlineWidth = pass == StencilPass_DoStencilWriteNoFill ? 0.f : state->OutlineWidth;
         }
+        instanceData.DepthCounter = depthCounter;
         return instanceData;
     }
     else
@@ -177,10 +180,11 @@ static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *stat
 
 template <Dimension D>
 static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                      const CircleParameters &params, const StencilPass pass)
+                                                      const CircleParameters &params, const StencilPass pass,
+                                                      const u32 depthCounter)
 {
     CircleInstanceData<D> instanceData;
-    instanceData.Data = createStaticInstanceData(state, transform, pass);
+    instanceData.Data = createStaticInstanceData(state, transform, pass, depthCounter);
     instanceData.Arc.LowerCos = Math::Cosine(params.LowerAngle);
     instanceData.Arc.LowerSin = Math::Sine(params.LowerAngle);
     instanceData.Arc.UpperCos = Math::Cosine(params.UpperAngle);
@@ -197,10 +201,11 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
 template <Dimension D>
 static ParametricInstanceData<D> createParametricInstanceData(const RenderState<D> *state, const f32m<D> &transform,
                                                               const ParametricShape shape,
-                                                              const InstanceParameters &params, const StencilPass pass)
+                                                              const InstanceParameters &params, const StencilPass pass,
+                                                              const u32 depthCounter)
 {
     ParametricInstanceData<D> instanceData;
-    instanceData.Data = createStaticInstanceData(state, transform, pass);
+    instanceData.Data = createStaticInstanceData(state, transform, pass, depthCounter);
     instanceData.Shape = shape;
     instanceData.Parameters = params;
     return instanceData;
@@ -271,7 +276,7 @@ void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &dat
 template <Dimension D>
 void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleParameters &params, const StencilPass pass)
 {
-    const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, params, pass);
+    const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, params, pass, m_DepthCounter);
     InstanceDataBuffer &buffer = m_InstanceData[pass].Circles;
     addInstanceData(buffer, idata);
 }
@@ -282,7 +287,7 @@ void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform
     const u32 aid = Assets::GetAssetId(mesh);
     const u32 pid = Assets::GetAssetPoolId(mesh);
 
-    const StaticInstanceData<D> idata = createStaticInstanceData(m_Current, transform, pass);
+    const StaticInstanceData<D> idata = createStaticInstanceData(m_Current, transform, pass, m_DepthCounter);
     InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Asset_StaticMesh][pid][aid];
     addInstanceData(buffer, idata);
 }
@@ -295,7 +300,8 @@ void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &trans
 
     const ParametricShape shape = Assets::GetParametricShape<D>(mesh);
 
-    const ParametricInstanceData<D> idata = createParametricInstanceData(m_Current, transform, shape, params, pass);
+    const ParametricInstanceData<D> idata =
+        createParametricInstanceData(m_Current, transform, shape, params, pass, m_DepthCounter);
     InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Asset_ParametricMesh][pid][aid];
     addInstanceData(buffer, idata);
 }
@@ -376,7 +382,7 @@ void IRenderContext<D>::Line(const Asset mesh, const f32v<D> &start, const f32v<
         Onyx::Transform<D>::ScaleIntrinsic(transform, f32v3{thickness, Math::Norm(delta), thickness});
 
     const auto draw = [&, mesh](const StencilPass pass) { addStaticData(mesh, transform, pass); };
-    resolveStencilPassWithState(m_Current, draw);
+    resolveStencilPassWithState(draw);
 }
 template <Dimension D> void IRenderContext<D>::Axes(const Asset mesh, const AxesParameters &params)
 {

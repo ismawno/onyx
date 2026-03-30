@@ -20,12 +20,14 @@ struct StaticInstanceDataFill2D
 {
     Basis2D Basis;
     u32 Color;
+    u32 DepthCounter;
     u32 MatHandle;
 }
 struct StaticInstanceDataStencil2D
 {
     Basis2D Basis;
     u32 Color;
+    u32 DepthCounter;
     f32 OutlineWidth;
 }
 struct StaticInstanceDataFill3D
@@ -219,20 +221,25 @@ u32 GetAssetPoolId(const u32 handle)
 f32m4 ComputeTransform2D(const Basis2D basis)
 {
     return f32m4(
-        f32v4(basis.Basis00, basis.Basis01, 0.0, 0.0),
-        f32v4(basis.Basis10, basis.Basis11, 0.0, 0.0),
-        f32v4(0.0,           0.0,           1.0, 0.0),
-        f32v4(basis.Basis30, basis.Basis31, 0.0, 1.0)
+        f32v4(basis.Basis00, basis.Basis01, 0.f, 0.f),
+        f32v4(basis.Basis10, basis.Basis11, 0.f, 0.f),
+        f32v4(0.f,           0.f,           0.f, 0.f),
+        f32v4(basis.Basis30, basis.Basis31, 0.f, 1.f)
     );
+}
+
+f32 ComputeDepth(const u32 depthCounter)
+{
+    return 1.f - f32(depthCounter) / f32(u16(-1));
 }
 
 f32m4 ComputeTransform3D(const Basis3D basis)
 {
     return f32m4(
-        f32v4(basis.Basis00, basis.Basis01, basis.Basis02, 0.0),
-        f32v4(basis.Basis10, basis.Basis11, basis.Basis12, 0.0),
-        f32v4(basis.Basis20, basis.Basis21, basis.Basis22, 0.0),
-        f32v4(basis.Basis30, basis.Basis31, basis.Basis32, 1.0)
+        f32v4(basis.Basis00, basis.Basis01, basis.Basis02, 0.f),
+        f32v4(basis.Basis10, basis.Basis11, basis.Basis12, 0.f),
+        f32v4(basis.Basis20, basis.Basis21, basis.Basis22, 0.f),
+        f32v4(basis.Basis30, basis.Basis31, basis.Basis32, 1.f)
     );
 }
 f32v2 ComputeStencilScale2D(const f32m4 transform)

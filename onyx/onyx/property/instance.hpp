@@ -12,6 +12,7 @@ template <> struct StaticInstanceData<D2>
     f32v2 Column1;
     f32v2 Column3;
     u32 BaseColor;
+    u32 DepthCounter;
     union {
         u32 MatHandle;
         f32 OutlineWidth;

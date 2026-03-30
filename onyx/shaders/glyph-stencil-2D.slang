@@ -49,6 +49,8 @@ VertexOutput mainVS(
 
     VertexOutput output;
     output.Position = mul(mul(f32v4(extruded, 0.0, 1.0), transform), g_PushData.ProjectionView);
+    output.Position.z = ComputeDepth(data.DepthCounter);
+
     output.AtlasCoord = input.AtlasCoord;
     output.FragColor = unpackUnorm4x8ToFloat(data.Color);
     output.SamplerId = GetAssetId(gdata.SamplerHandle);

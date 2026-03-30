@@ -70,6 +70,7 @@ VertexOutput mainVS(
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
+    output.Position.z = ComputeDepth(data.Data.DepthCounter);
     output.TexCoord = g_TexCoords[vertexIndex];
 
     output.LocalPosition = localPos;

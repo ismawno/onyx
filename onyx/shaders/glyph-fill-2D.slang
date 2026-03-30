@@ -52,6 +52,7 @@ VertexOutput mainVS(
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
+    output.Position.z = ComputeDepth(data.DepthCounter);
     output.AtlasCoord = input.AtlasCoord;
     output.SamplerId = GetAssetId(gdata.SamplerHandle);
     output.AtlasId = GetAssetId(gdata.AtlasHandle);

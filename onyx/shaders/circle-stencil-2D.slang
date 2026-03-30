@@ -56,6 +56,7 @@ VertexOutput mainVS(
 
     VertexOutput output;
     output.Position = mul(mul(pos, transform), g_PushData.ProjectionView);
+    output.Position.z = ComputeDepth(data.Data.DepthCounter);
 
     output.LocalPosition = localPos;
 

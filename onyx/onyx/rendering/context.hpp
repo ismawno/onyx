@@ -239,6 +239,15 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         RemoveTarget(window->GetViewBit());
     }
 
+    u32 GetDepthCounter() const
+    {
+        return m_DepthCounter;
+    }
+    void SetDepthCounter(const u32 counter)
+    {
+        m_DepthCounter = counter;
+    }
+
   protected:
     RenderState<D> *m_Current{};
     ViewMask m_ViewMask = 0;
@@ -264,6 +273,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void resizeBuffer(InstanceDataBuffer &buffer);
     void resizeBufferArrays();
 
+    template <typename F> void resolveStencilPassWithState(F &&draw);
     template <typename T> void addInstanceData(InstanceDataBuffer &buffer, const T &data);
 
     void addCircleData(const f32m<D> &transform, const CircleParameters &params, StencilPass pass);
@@ -277,6 +287,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     TKit::FixedArray<InstanceDataArrays, StencilPass_Count> m_InstanceData{};
     TKit::TierArray<PointLight<D> *> m_PointLights{};
     Color m_AmbientLight = Color{Color::White, 0.4f};
+    u32 m_DepthCounter = 0;
     u64 m_Generation = 0;
 };
 } // namespace Onyx::Detail

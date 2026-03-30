@@ -483,9 +483,9 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
                              .BeginColorAttachment()
                              .EnableBlending();
 
-    if constexpr (D == D3)
+    if (D == D2 || GetDrawMode(pass) == DrawPass_Fill)
         builder.EnableDepthTest().EnableDepthWrite();
-    else if (GetDrawMode(pass) == DrawPass_Stencil)
+    else
         colorBuilder.DisableBlending();
 
     const auto stencilFlags = VKit::StencilOperationFlag_Front | VKit::StencilOperationFlag_Back;
@@ -510,8 +510,6 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
             .SetStencilCompareMask(0xFF, stencilFlags)
             .SetStencilWriteMask(0, stencilFlags)
             .SetStencilReference(1, stencilFlags);
-        if constexpr (D == D3)
-            builder.DisableDepthTest();
     }
     if (pass == StencilPass_DoStencilWriteNoFill)
         colorBuilder.SetColorWriteMask(0);
