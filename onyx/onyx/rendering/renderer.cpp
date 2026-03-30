@@ -2190,7 +2190,8 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
                     if (pass != StencilPass_Count)
                     {
                         ImGui::SameLine();
-                        ImGui::Text("- Batch index: %u - Pass: %s", meshHandle, ToString(pass));
+                        ImGui::Text("- Mesh handle: %s - Pass: %s", TKit::Format("{:#010x}", meshHandle).c_str(),
+                                    ToString(pass));
                     }
                     ImGui::EndTooltip();
                 }

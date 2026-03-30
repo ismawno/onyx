@@ -327,7 +327,9 @@ class SandboxAppLayer final : public ApplicationLayer
 
     TKit::TierArray<SamplerId> Samplers{};
     TKit::TierArray<TextureId> Textures{};
+
     u32 SelectedSampler = 0;
+    u32 SelectedTexture = 0;
 };
 
 class SandboxWinLayer final : public WindowLayer

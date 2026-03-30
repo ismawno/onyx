@@ -14,6 +14,8 @@ const char *ToString(const Geometry geo)
         return "Geometry_Static";
     case Geometry_Parametric:
         return "Geometry_Parametric";
+    case Geometry_Glyph:
+        return "Geometry_Glyph";
     default:
         return "Unknown";
     }

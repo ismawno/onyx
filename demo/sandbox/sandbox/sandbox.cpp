@@ -21,7 +21,7 @@ template <typename T> struct EntriesOptions
     u32 *Selected = nullptr;
     std::function<void(T &)> OnSelected = nullptr;
     std::function<void(T &)> OnRemoval = nullptr;
-    std::function<const char *(const T &)> GetName = nullptr;
+    std::function<std::string(const T &)> GetName = nullptr;
     u32 ScrollLimit = 6;
     bool RemoveButton = true;
 };
@@ -47,15 +47,15 @@ template <typename C, typename T> static void renderEntries(C &entries, const En
             }
             if (options.RemoveButton)
                 ImGui::SameLine();
-            const char *name = options.GetName ? options.GetName(entries[i]) : options.EntryName;
-            const std::string coolName = TKit::Format("{} - {}", i, name);
+            std::string name = options.GetName ? options.GetName(entries[i]) : options.EntryName;
+            name = TKit::Format("{} - {}", i, name);
             if (options.Selected)
             {
-                if (ImGui::Selectable(coolName.c_str(), i == *options.Selected))
+                if (ImGui::Selectable(name.c_str(), i == *options.Selected))
                     *options.Selected = i;
             }
             else
-                ImGui::BulletText("%s", coolName.c_str());
+                ImGui::Text("%s", name.c_str());
 
             ImGui::PopID();
         }
@@ -443,7 +443,7 @@ template <Dimension D> MaterialPoolId<D> &SandboxAppLayer::AddMaterialPool(const
     auto &materials = GetMaterials<D>();
     MaterialPoolId<D> &pool = materials.Pools.Append();
     pool.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D>(Asset_Material));
-    pool.Name = name ? name : TKit::Format("Material-pool-{}", pool.Handle);
+    pool.Name = name ? name : TKit::Format("Material-pool-{:#010x}", pool.Handle);
     return pool;
 }
 
@@ -452,7 +452,7 @@ template <Dimension D> MaterialId<D> &SandboxAppLayer::AddMaterial(MaterialPoolI
     auto &materials = pool.Data;
     MaterialId<D> &mat = materials.Elements.Append();
     mat.Handle = Assets::CreateMaterial(pool.Handle, mat.Data);
-    mat.Name = name ? name : TKit::Format("Material-{}", mat.Handle);
+    mat.Name = name ? name : TKit::Format("Material-{:#010x}", mat.Handle);
     return mat;
 }
 
@@ -460,14 +460,14 @@ void SandboxAppLayer::AddSampler(const char *name)
 {
     SamplerId &sampler = Samplers.Append();
     sampler.Handle = Assets::CreateSampler(sampler.Data);
-    sampler.Name = name ? name : TKit::Format("Sampler-{}", sampler.Handle);
+    sampler.Name = name ? name : TKit::Format("Sampler-{:#010x}", sampler.Handle);
 }
 
 void SandboxAppLayer::AddTexture(const TextureData &data, const char *name)
 {
     TextureId &tex = Textures.Append();
     tex.Handle = Assets::CreateTexture(data);
-    tex.Name = name ? name : TKit::Format("Texture-{}", tex.Handle);
+    tex.Name = name ? name : TKit::Format("Texture-{:#010x}", tex.Handle);
 }
 
 template <Dimension D> void SandboxAppLayer::UpdateMaterialData()
@@ -1068,7 +1068,7 @@ template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &c
     opts.TreeName = "Shapes";
     opts.Selected = &context.SelectedShape;
     opts.OnSelected = [appLayer](Shape<D> &shape) { editShape<D>(shape, appLayer); };
-    opts.GetName = [](const Shape<D> &shape) { return shape.Name.c_str(); };
+    opts.GetName = [](const Shape<D> &shape) { return shape.Name; };
     renderEntries(context.Shapes, opts);
 }
 
@@ -1148,7 +1148,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
             EntriesOptions<StatMeshPoolId<D>> opts{};
             opts.Selected = &meshes.Active;
             opts.OnSelected = [this](StatMeshPoolId<D> &pool) { RenderMeshPool(pool); };
-            opts.GetName = [](const StatMeshPoolId<D> &pool) { return pool.Name.c_str(); };
+            opts.GetName = [](const StatMeshPoolId<D> &pool) { return pool.Name; };
             opts.OnRemoval = [&meshes, appLayer](const StatMeshPoolId<D> &pool) {
                 Assets::DestroyAssetPool<D>(pool.Handle);
                 auto &contexts = appLayer->GetContexts<D>();
@@ -1193,7 +1193,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
             EntriesOptions<ParaMeshPoolId<D>> opts{};
             opts.Selected = &meshes.Active;
             opts.OnSelected = [this](ParaMeshPoolId<D> &pool) { RenderMeshPool(pool); };
-            opts.GetName = [](const ParaMeshPoolId<D> &pool) { return pool.Name.c_str(); };
+            opts.GetName = [](const ParaMeshPoolId<D> &pool) { return pool.Name; };
             opts.OnRemoval = [appLayer](const ParaMeshPoolId<D> &pool) {
                 Assets::DestroyAssetPool<D>(pool.Handle);
                 auto &contexts = appLayer->GetContexts<D>();
@@ -1226,7 +1226,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterialPools()
         EntriesOptions<MaterialPoolId<D>> opts{};
         opts.Selected = &materials.Active;
         opts.OnSelected = [this](MaterialPoolId<D> &pool) { RenderMaterialPool(pool); };
-        opts.GetName = [](const MaterialPoolId<D> &pool) { return pool.Name.c_str(); };
+        opts.GetName = [](const MaterialPoolId<D> &pool) { return pool.Name; };
         opts.OnRemoval = [&materials, appLayer](MaterialPoolId<D> &pool) {
             Assets::DestroyAssetPool<D>(pool.Handle);
             auto &contexts = appLayer->GetContexts<D>();
@@ -1265,7 +1265,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterialPool(MaterialPoolId<D
     EntriesOptions<MaterialId<D>> opts{};
     opts.Selected = &materials.Active;
     opts.OnSelected = [this](MaterialId<D> &material) { RenderMaterial(material); };
-    opts.GetName = [](const MaterialId<D> &material) { return material.Name.c_str(); };
+    opts.GetName = [](const MaterialId<D> &material) { return material.Name; };
     opts.RemoveButton = false;
     renderEntries(materials.Elements, opts);
 }
@@ -1273,7 +1273,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterialPool(MaterialPoolId<D
 template <Dimension D> void SandboxWinLayer::RenderMaterial(MaterialId<D> &material)
 {
     ImGui::InputText("Name##Material", &material.Name);
-    ImGui::Text("Material id: %u", material.Handle);
+    ImGui::Text("Material handle: %s", TKit::Format("{:#010x}", material.Handle).c_str());
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     bool changed = MaterialPropertiesEditor(material.Data, EditorFlag_DisplayHelp);
     if constexpr (D == D2)
@@ -1370,7 +1370,7 @@ void SandboxWinLayer::RenderSamplers()
         }
 
         EntriesOptions<SamplerId> opts{};
-        opts.GetName = [](const SamplerId &samp) { return samp.Name.c_str(); };
+        opts.GetName = [](const SamplerId &samp) { return samp.Name; };
         opts.OnRemoval = [appLayer](SamplerId &samp) {
             Assets::DestroySampler(samp.Handle);
             appLayer->UpdateMaterialData<D2>();
@@ -1386,7 +1386,7 @@ void SandboxWinLayer::RenderSamplers()
 void SandboxWinLayer::RenderSampler(SamplerId &sampler)
 {
     ImGui::InputText("Name##Sampler", &sampler.Name);
-    ImGui::Text("Sampler id: %u", sampler.Handle);
+    ImGui::Text("Sampler handle: %s", TKit::Format("{:#010x}", sampler.Handle).c_str());
     if (SamplerEditor(sampler.Data, EditorFlag_DisplayHelp))
     {
         Assets::UpdateSampler(sampler.Handle, sampler.Data);
@@ -1411,7 +1411,12 @@ void SandboxWinLayer::RenderTextures()
         });
 
         EntriesOptions<TextureId> opts{};
-        opts.GetName = [](const TextureId &tex) { return tex.Name.c_str(); };
+        opts.GetName = [](const TextureId &tex) { return tex.Name; };
+        opts.OnSelected = [](TextureId &tex) {
+            ImGui::Text("Texture handle: %s", TKit::Format("{:#010x}", tex.Handle).c_str());
+        };
+
+        opts.Selected = &appLayer->SelectedTexture;
         opts.OnRemoval = [appLayer](TextureId &tex) {
             Assets::DestroyTexture(tex.Handle);
             appLayer->UpdateMaterialData<D2>();
@@ -1446,7 +1451,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
                 const Asset mesh = handles.StaticMeshes[i];
                 const StatMeshData<D> &mdat = data.StaticMeshes[i];
                 StatMeshId<D> &mid = mspool.Data.Elements.Append();
-                mid.Name = TKit::Format("GLTF-Mesh-{}", mesh);
+                mid.Name = TKit::Format("GLTF-Mesh-{:#010x}", mesh);
                 mid.Handle = mesh;
                 mid.Data = mdat;
             }
@@ -1456,7 +1461,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
                 const Asset mat = handles.Materials[i];
                 const MaterialData<D> &mdat = data.Materials[i];
                 MaterialId<D> &mid = mtpool.Data.Elements.Append();
-                mid.Name = TKit::Format("GLTF-Material-{}", mat);
+                mid.Name = TKit::Format("GLTF-Material-{:#010x}", mat);
                 mid.Handle = mat;
                 mid.Data = mdat;
             }
@@ -1467,7 +1472,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
                 const Asset samp = handles.Samplers[i];
                 const SamplerData &sdata = data.Samplers[i];
                 SamplerId &sid = samplers.Append();
-                sid.Name = TKit::Format("GLTF-Sampler-{}", samp);
+                sid.Name = TKit::Format("GLTF-Sampler-{:#010x}", samp);
                 sid.Handle = samp;
                 sid.Data = sdata;
             }
@@ -1476,7 +1481,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
             for (const Asset tex : handles.Textures)
             {
                 TextureId &tid = textures.Append();
-                tid.Name = TKit::Format("GLTF-Texture-{}", tex);
+                tid.Name = TKit::Format("GLTF-Texture-{:#010x}", tex);
                 tid.Handle = tex;
             }
         },
@@ -1495,7 +1500,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
     // opts.TreeName = "Meshes";
     opts.Selected = &pool.Data.Active;
     opts.OnSelected = [this](MeshId<Vertex> &mesh) { RenderMesh(mesh); };
-    opts.GetName = [](const MeshId<Vertex> &mesh) { return mesh.Name.c_str(); };
+    opts.GetName = [](const MeshId<Vertex> &mesh) { return mesh.Name; };
     opts.RemoveButton = false;
     renderEntries(pool.Data.Elements, opts);
 
@@ -1602,6 +1607,8 @@ template <typename Vertex> void SandboxWinLayer::RenderMesh(MeshId<Vertex> &mesh
 {
     constexpr Dimension D = Vertex::Dim;
     bool changed = false;
+
+    ImGui::Text("Mesh handle: %s", TKit::Format("{:#010x}", mesh.Handle).c_str());
     if (ImGui::TreeNode("Vertex buffer"))
     {
         for (u32 i = 0; i < mesh.Data.Vertices.GetSize(); ++i)
