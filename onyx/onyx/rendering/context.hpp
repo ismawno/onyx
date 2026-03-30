@@ -5,7 +5,6 @@
 #include "onyx/asset/handle.hpp"
 #include "onyx/platform/window.hpp"
 #include "onyx/rendering/light.hpp"
-#include "onyx/state/descriptors.hpp"
 #include "vkit/resource/host_buffer.hpp"
 
 namespace Onyx
@@ -255,8 +254,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     struct InstanceDataArrays
     {
         InstanceDataBuffer Circles{};
-        TKit::FixedArray<TKit::FixedArray<TKit::TierArray<InstanceDataBuffer>, ONYX_MAX_ASSET_POOLS>,
-                         AssetPool_MeshCount>
+        TKit::FixedArray<TKit::FixedArray<TKit::TierArray<InstanceDataBuffer>, ONYX_MAX_ASSET_POOLS>, Asset_MeshCount>
             Meshes{};
     };
 

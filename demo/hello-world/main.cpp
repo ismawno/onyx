@@ -114,10 +114,11 @@ void ApplicationExample()
 int main()
 {
     ONYX_CHECK_EXPRESSION(Initialize());
-    const StatMeshData<D2> data = Assets::CreateQuadMesh<D2>();
+    const StatMeshData<D2> data = CreateQuadMeshData<D2>();
 
-    const AssetPool pool = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D2>(AssetPool_StaticMesh));
-    const Asset mesh = Assets::AddMesh(pool, data);
+    const AssetPool pool = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D2>(Asset_StaticMesh));
+
+    const Asset mesh = Assets::CreateMesh(pool, data);
     ONYX_CHECK_EXPRESSION(Assets::Upload());
 
     WindowExample(mesh, 1);

@@ -11,9 +11,9 @@ set(SOURCES
     onyx/execution/execution.cpp
     onyx/resource/resources.cpp
     onyx/asset/assets.cpp
+    onyx/asset/mesh.cpp
     onyx/state/pipelines.cpp
     onyx/state/descriptors.cpp
-    onyx/state/shaders.cpp
     onyx/property/color.cpp
     onyx/property/transform.cpp
     onyx/property/property.cpp
@@ -28,6 +28,18 @@ if(ONYX_ENABLE_IMGUI)
 endif()
 if(ONYX_ENABLE_NFD)
   list(APPEND SOURCES onyx/platform/dialog.cpp)
+endif()
+if(ONYX_ENABLE_IMAGE_LOAD)
+  list(APPEND SOURCES onyx/asset/texture.cpp)
+endif()
+if(ONYX_ENABLE_GLTF_LOAD)
+  list(APPEND SOURCES onyx/asset/gltf.cpp)
+endif()
+if(ONYX_ENABLE_FONT_LOAD)
+  list(APPEND SOURCES onyx/asset/font.cpp)
+endif()
+if(ONYX_ENABLE_SHADER_API)
+  list(APPEND SOURCES onyx/state/shaders.cpp)
 endif()
 
 add_library(onyx STATIC ${SOURCES})
@@ -110,6 +122,10 @@ if(ONYX_ENABLE_OBJ_LOAD)
   target_link_libraries(onyx PRIVATE tinyobjloader)
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_OBJ_LOAD)
   tkit_configure_compile_link_options(tinyobjloader NO_EXCEPTIONS NO_RTTI)
+endif()
+
+if(ONYX_ENABLE_IMAGE_LOAD)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMAGE_LOAD)
 endif()
 
 if(ONYX_ENABLE_GLTF_LOAD)

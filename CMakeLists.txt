@@ -29,7 +29,13 @@ set(ONYX_ENABLE_NFD
 set(ONYX_ENABLE_OBJ_LOAD
     OFF
     CACHE BOOL "")
+set(ONYX_ENABLE_IMAGE_LOAD
+    OFF
+    CACHE BOOL "")
 set(ONYX_ENABLE_GLTF_LOAD
+    OFF
+    CACHE BOOL "")
+set(ONYX_ENABLE_FONT_LOAD
     OFF
     CACHE BOOL "")
 set(ONYX_ENABLE_SHADER_API
@@ -46,8 +52,9 @@ message(STATUS "ONYX - Build demos: ${ONYX_BUILD_DEMOS}")
 message(STATUS "ONYX - Use ImGui: ${ONYX_ENABLE_IMGUI}")
 message(STATUS "ONYX - Use ImPlot: ${ONYX_ENABLE_IMPLOT}")
 message(STATUS "ONYX - NFD: ${ONYX_ENABLE_NFD}")
-message(STATUS "ONYX - OBJ: ${ONYX_ENABLE_OBJ_LOAD}")
-message(STATUS "ONYX - GLTF: ${ONYX_ENABLE_GLTF_LOAD}")
+message(STATUS "ONYX - OBJ LOAD: ${ONYX_ENABLE_OBJ_LOAD}")
+message(STATUS "ONYX - IMAGE LOAD: ${ONYX_ENABLE_IMAGE_LOAD}")
+message(STATUS "ONYX - GLTF LOAD: ${ONYX_ENABLE_GLTF_LOAD}")
 message(STATUS "ONYX - Shader API: ${ONYX_ENABLE_SHADER_API}")
 
 # Compiler flags, linker flags etcetera, those should all be handled when making

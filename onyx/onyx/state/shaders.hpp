@@ -1,8 +1,11 @@
 #pragma once
 
+#ifndef ONYX_ENABLE_SHADER_API
+#    error "[ONYX] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_SHADER_API"
+#endif
+
 #include "onyx/core/core.hpp"
 #include "vkit/state/shader.hpp"
-#include "tkit/utils/non_copyable.hpp"
 
 namespace Onyx
 {

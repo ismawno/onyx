@@ -1,5 +1,6 @@
 #pragma once
 
+#include "onyx/core/math.hpp"
 #include "onyx/asset/texture.hpp"
 
 namespace Onyx
@@ -31,4 +32,16 @@ struct FontData
     f32 Descender = 0.f;
     f32 LineHeight = 0.f;
 };
+
+#ifdef ONYX_ENABLE_FONT_LOAD
+struct FontLoadOptions
+{
+    TKit::Span<const CodePointRange> CharSets = FontCharSet_ASCII;
+    u32v2 GlyphSize{32, 32};
+    f32 SDFRange = 4.f;
+    f32 Padding = 2.f;
+    u32 AtlasWidth = 512;
+};
+ONYX_NO_DISCARD Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &opts = {});
+#endif
 } // namespace Onyx

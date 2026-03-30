@@ -82,6 +82,8 @@ const char *ToString(const AssetType atype)
         return "Asset_StaticMesh";
     case Asset_ParametricMesh:
         return "Asset_ParametricMesh";
+    case Asset_GlyphMesh:
+        return "Asset_GlyphMesh";
     case Asset_Material:
         return "Asset_Material";
     case Asset_Font:
@@ -97,24 +99,6 @@ const char *ToString(const AssetType atype)
     }
 }
 
-const char *ToString(const AssetPoolType atype)
-{
-    switch (atype)
-    {
-    case AssetPool_StaticMesh:
-        return "AssetPool_StaticMesh";
-    case AssetPool_ParametricMesh:
-        return "AssetPool_ParametricMesh";
-    case AssetPool_Material:
-        return "AssetPool_Material";
-    // case AssetPool_Font:
-    //     return "AssetPool_Font";
-    case AssetPool_Count:
-        return "AssetPool_Count";
-    default:
-        return "Unknown";
-    }
-}
 const char *ToString(const TextureSlot slot)
 {
     switch (slot)

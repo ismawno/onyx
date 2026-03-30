@@ -1,83 +1,17 @@
 #pragma once
 
-#include "onyx/core/core.hpp"
-#include "onyx/asset/mesh.hpp"
-#include "onyx/asset/material.hpp"
-#include "onyx/asset/sampler.hpp"
-#include "onyx/asset/texture.hpp"
+#include "onyx/asset/gltf.hpp"
 #include "onyx/asset/font.hpp"
 #include "onyx/property/instance.hpp"
 
 namespace Onyx
 {
-using AddTextureFlags = u8;
-enum AddTextureFlagBit : AddTextureFlags
+using CreateTextureFlags = u8;
+enum CreateTextureFlagBit : CreateTextureFlags
 {
-    AddTextureFlag_ManuallyHandledMemory = 1 << 0,
+    CreateTextureFlag_ManuallyHandledMemory = 1 << 0,
 };
 
-#ifdef ONYX_ENABLE_OBJ_LOAD
-using LoadObjDataFlags = u8;
-enum LoadObjDataFlagBit : LoadObjDataFlags
-{
-    LoadObjDataFlag_CenterVerticesAroundOrigin = 1 << 0,
-};
-#endif
-
-#ifdef ONYX_ENABLE_GLTF_LOAD
-using LoadGltfDataFlags = u8;
-enum LoadGltfDataFlagBit : LoadGltfDataFlags
-{
-    LoadGltfDataFlag_ForceRGBA = 1 << 0,
-    LoadGltfDataFlag_CenterVerticesAroundOrigin = 1 << 1,
-};
-
-using LoadTextureDataFlags = u8;
-enum LoadTextureDataFlagBit : LoadTextureDataFlags
-{
-    LoadTextureDataFlag_AsLinearImage = 1 << 0,
-};
-#endif
-
-template <Dimension D> struct GltfAssets
-{
-    TKit::TierArray<StatMeshData<D>> StaticMeshes{};
-
-    // here texture handles inside materials refer to the Textures attribute in GltfAssets, not to any real Asset
-    // handle!! AddGltfAssets modifies this material data so that it actually points to real textures (thats why it is
-    // taken as a non-const lvalue)
-    TKit::TierArray<MaterialData<D>> Materials{};
-    TKit::TierArray<SamplerData> Samplers{};
-    TKit::TierArray<TextureData> Textures{};
-};
-
-struct GltfHandles
-{
-    TKit::TierArray<Asset> StaticMeshes{};
-    TKit::TierArray<Asset> Materials{};
-    TKit::TierArray<Asset> Samplers{};
-    TKit::TierArray<Asset> Textures{};
-};
-
-#ifdef ONYX_ENABLE_FONT_LOAD
-struct FontLoadOptions
-{
-    TKit::Span<const CodePointRange> CharSets = FontCharSet_ASCII;
-    u32v2 GlyphSize{32, 32};
-    f32 SDFRange = 4.f;
-    f32 Padding = 2.f;
-    u32 AtlasWidth = 512;
-};
-#endif
-
-enum ImageComponent : u8
-{
-    ImageComponent_Auto = 0,
-    ImageComponent_Grey = 1,
-    ImageComponent_GreyAlpha = 2,
-    ImageComponent_RGB = 3,
-    ImageComponent_RGBA = 4,
-};
 } // namespace Onyx
 
 namespace Onyx::Assets
@@ -91,107 +25,78 @@ struct Specs
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
-Asset AddSampler(const SamplerData &data);
-void UpdateSampler(Asset handle, const SamplerData &data);
-void RemoveSampler(Asset handle);
-
-template <Dimension D> GltfHandles AddGltfAssets(AssetPool meshPool, AssetPool materialPool, GltfAssets<D> &data);
-
-#ifdef ONYX_ENABLE_GLTF_LOAD
-
-template <Dimension D>
-ONYX_NO_DISCARD Result<GltfAssets<D>> LoadGltfAssetsFromFile(const std::string &path, LoadGltfDataFlags flags = 0);
-
-ONYX_NO_DISCARD Result<TextureData> LoadTextureDataFromImageFile(
-    const char *path, const ImageComponent requiredComponents = ImageComponent_Auto, LoadTextureDataFlags flags = 0);
-#endif
-
-template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateAssetPool(AssetPoolType ptype);
-template <Dimension D> void DestroyAssetPool(AssetPool pool);
-
+template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateAssetPool(AssetType atype);
 ONYX_NO_DISCARD Result<AssetPool> CreateFontPool();
+
+Asset CreateSampler(const SamplerData &data);
+Asset CreateTexture(const TextureData &data, CreateTextureFlags flags = 0);
+
+template <Dimension D> Asset CreateMesh(AssetPool pool, const StatMeshData<D> &data);
+template <Dimension D> Asset CreateMesh(AssetPool pool, const ParaMeshData<D> &data);
+template <Dimension D> Asset CreateMaterial(AssetPool pool, const MaterialData<D> &data);
+
+Asset CreateFont(AssetPool pool, const FontData &data);
+template <Dimension D> GltfHandles CreateGltfAssets(AssetPool meshPool, AssetPool materialPool, GltfData<D> &data);
+
+void UpdateSampler(Asset sampler, const SamplerData &data);
+void UpdateTexture(Asset texture, const TextureData &data, CreateTextureFlags flags = 0);
+
+template <Dimension D> void UpdateMesh(Asset mesh, const StatMeshData<D> &data);
+template <Dimension D> void UpdateMesh(Asset mesh, const ParaMeshData<D> &data);
+template <Dimension D> void UpdateMaterial(Asset material, const MaterialData<D> &data);
+
+void UpdateFont(Asset font, const FontData &data);
+
+template <Dimension D> void DestroyAssetPool(AssetPool pool);
 void DestroyFontPool(AssetPool pool);
 
-template <Dimension D> Asset AddMesh(AssetPool pool, const StatMeshData<D> &data);
-template <Dimension D> Asset AddMesh(AssetPool pool, const ParaMeshData<D> &data);
+void DestroySampler(Asset sampler);
+void DestroyTexture(Asset texture);
 
-Asset AddFont(AssetPool pool, const FontData &data);
-Asset AddTexture(const TextureData &data, AddTextureFlags flags = 0);
+template <Dimension D> StatMeshData<D> GetStaticMeshData(Asset mesh);
+template <Dimension D> ParaMeshData<D> GetParametricMeshData(Asset mesh);
+template <Dimension D> ParametricShape GetParametricShape(Asset mesh);
 
-template <Dimension D> void UpdateMesh(Asset handle, const StatMeshData<D> &data);
-template <Dimension D> void UpdateMesh(Asset handle, const ParaMeshData<D> &data);
-void UpdateFont(Asset handle, const FontData &data);
-void UpdateTexture(Asset handle, const TextureData &data, AddTextureFlags flags = 0);
-
-void RemoveTexture(Asset handle);
-
-#ifdef ONYX_ENABLE_FONT_LOAD
-ONYX_NO_DISCARD Result<FontData> LoadFontFromFile(const char *path, const FontLoadOptions &opts = {});
-#endif
-
-template <Dimension D> Asset AddMaterial(AssetPool pool, const MaterialData<D> &data);
-template <Dimension D> void UpdateMaterial(Asset handle, const MaterialData<D> &data);
-
-template <Dimension D> StatMeshData<D> GetStaticMeshData(Asset handle);
-template <Dimension D> ParaMeshData<D> GetParametricMeshData(Asset handle);
-template <Dimension D> ParametricShape GetParametricShape(Asset handle);
-
-template <Dimension D> const MaterialData<D> &GetMaterialData(Asset handle);
-template <Dimension D> TKit::Span<const u32> GetAssetPoolIds(AssetPoolType ptype);
+template <Dimension D> const MaterialData<D> &GetMaterialData(Asset material);
+template <Dimension D> TKit::Span<const u32> GetAssetPoolIds(AssetType atype);
 
 TKit::Span<const u32> GetFontPoolIds();
 
-const SamplerData &GetSamplerData(Asset handle);
-const TextureData &GetTextureData(Asset handle);
-const FontData &GetFontData(Asset handle);
+const SamplerData &GetSamplerData(Asset sampler);
+const TextureData &GetTextureData(Asset texture);
+const FontData &GetFontData(Asset font);
 const GlyphData *GetGlyphData(Asset font, u32 codePoint);
 
 u32 GetBatchCount();
 template <Dimension D> u32 GetAssetCount(AssetPool pool);
-template <Dimension D> MeshDataLayout GetMeshLayout(Asset handle);
-template <Dimension D> const VKit::DeviceBuffer *GetMeshVertexBuffer(AssetPool pool);
-template <Dimension D> const VKit::DeviceBuffer *GetMeshIndexBuffer(AssetPool pool);
+template <Dimension D> MeshDataLayout GetMeshLayout(Asset mesh);
 
-const VKit::DeviceBuffer *GetGlyphVertexBuffer(AssetPool pool);
-const VKit::DeviceBuffer *GetGlyphIndexBuffer(AssetPool pool);
+struct MeshBuffers
+{
+    const VKit::DeviceBuffer *VertexBuffer = nullptr;
+    const VKit::DeviceBuffer *IndexBuffer = nullptr;
+};
+
+template <Dimension D> MeshBuffers GetMeshBuffers(AssetPool pool);
+MeshBuffers GetFontBuffers(AssetPool pool);
+MeshBuffers GetGlyphBuffers(AssetPool pool);
 
 u32 GetFontCount(AssetPool pool);
 u32 GetGlyphCount(AssetPool pool);
-MeshDataLayout GetGlyphLayout(Asset handle);
+
+MeshDataLayout GetFontLayout(Asset font);
+MeshDataLayout GetGlyphLayout(Asset glyph);
 
 template <Dimension D> bool IsAssetValid(Asset handle, AssetType atype);
-template <Dimension D> bool IsAssetPoolValid(Handle handle, AssetPoolType ptype);
+template <Dimension D> bool IsAssetPoolValid(Handle handle, AssetType atype);
 
 bool IsAssetValid(Asset handle, AssetType atype);
-bool IsAssetPoolValid(Handle handle, AssetPoolType ptype);
+bool IsAssetPoolValid(Handle handle, AssetType atype);
 
 void Lock();
 ONYX_NO_DISCARD Result<> Unlock();
 
 ONYX_NO_DISCARD Result<bool> RequestUpload();
 ONYX_NO_DISCARD Result<> Upload();
-
-#ifdef ONYX_ENABLE_OBJ_LOAD
-template <Dimension D>
-ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshFromObjFile(const char *path, const LoadObjDataFlags flags = 0);
-#endif
-
-template <Dimension D> StatMeshData<D> CreateTriangleMesh();
-template <Dimension D> StatMeshData<D> CreateQuadMesh();
-template <Dimension D> StatMeshData<D> CreateRegularPolygonMesh(u32 sides);
-template <Dimension D> StatMeshData<D> CreatePolygonMesh(TKit::Span<const f32v2> vertices);
-
-// rings and sectors should be even
-
-StatMeshData<D3> CreateBoxMesh();
-StatMeshData<D3> CreateSphereMesh(u32 rings = 16, u32 sectors = 32);
-StatMeshData<D3> CreateCylinderMesh(u32 sides = 32);
-
-template <Dimension D> ParaMeshData<D> CreateStadiumMesh();
-template <Dimension D> ParaMeshData<D> CreateRoundedQuadMesh();
-
-ParaMeshData<D3> CreateCapsuleMesh(u32 rings = 16, u32 sectors = 32);
-ParaMeshData<D3> CreateRoundedBoxMesh(u32 rings = 16, u32 sectors = 32);
-ParaMeshData<D3> CreateTorusMesh(u32 rings = 32, u32 sectors = 32);
 
 } // namespace Onyx::Assets

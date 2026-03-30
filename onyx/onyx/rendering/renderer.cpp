@@ -1041,20 +1041,19 @@ template <> struct LightStagingData<D3>
     TKit::TierArray<const DirectionalLight *> Dirs{};
 };
 
-static AssetPoolType getAssetPoolType(const Geometry geo)
+static AssetType getAssetType(const Geometry geo)
 {
-    TKIT_ASSERT(geo != Geometry_Circle, "[ONYX][RENDERER] Circles do not have asset pools");
     switch (geo)
     {
     case Geometry_Static:
-        return AssetPool_StaticMesh;
+        return Asset_StaticMesh;
     case Geometry_Parametric:
-        return AssetPool_ParametricMesh;
+        return Asset_ParametricMesh;
     case Geometry_Glyph:
-        return AssetPool_GlyphMesh;
+        return Asset_GlyphMesh;
     default:
-        return AssetPool_Count;
-        TKIT_FATAL("[ONYX][RENDERER] Unrecognized geometry {}", ToString(geo));
+        return Asset_Count;
+        TKIT_FATAL("[ONYX][RENDERER] The geometry '{}' does not have an asset type associated", ToString(geo));
     }
 }
 
@@ -1310,17 +1309,17 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         }
         else
         {
-            const AssetPoolType ptype = getAssetPoolType(geo);
-            const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(ptype);
+            const AssetType atype = getAssetType(geo);
+            const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(atype);
             for (const u32 pid : poolIds)
             {
-                const u32 mcount = Assets::GetAssetCount<D>(Assets::CreateAssetPoolHandle(ptype, pid));
+                const u32 mcount = Assets::GetAssetCount<D>(Assets::CreateAssetPoolHandle(atype, pid));
                 for (u32 i = 0; i < mcount; ++i)
                 {
                     TKIT_RETURN_IF_FAILED(
-                        findInstanceRanges(pass, geo, Assets::CreateAssetHandle(AssetType(ptype), i, pid),
-                                           [ptype, pass, pid, i](const RenderContext<D> *ctx) -> const auto & {
-                                               return ctx->GetInstanceData()[pass].Meshes[ptype][pid][i];
+                        findInstanceRanges(pass, geo, Assets::CreateAssetHandle(atype, i, pid),
+                                           [atype, pass, pid, i](const RenderContext<D> *ctx) -> const auto & {
+                                               return ctx->GetInstanceData()[pass].Meshes[atype][pid][i];
                                            }));
                 }
             }
@@ -1537,11 +1536,10 @@ ONYX_NO_DISCARD static Result<VKit::DeviceBuffer *> findSuitableIndexedDrawBuffe
 
 template <Dimension D> static void bindMeshBuffers(const AssetPool pool, const VkCommandBuffer command)
 {
-    const VKit::DeviceBuffer *vbuffer = Assets::GetMeshVertexBuffer<D>(pool);
-    const VKit::DeviceBuffer *ibuffer = Assets::GetMeshIndexBuffer<D>(pool);
+    const Assets::MeshBuffers buffers = Assets::GetMeshBuffers<D>(pool);
 
-    vbuffer->BindAsVertexBuffer(command);
-    ibuffer->BindAsIndexBuffer<Index>(command);
+    buffers.VertexBuffer->BindAsVertexBuffer(command);
+    buffers.IndexBuffer->BindAsIndexBuffer<Index>(command);
 }
 
 static VkDrawIndirectCommand createCircleCommand(const u32 firstInstance, const u32 instanceCount)
@@ -1596,22 +1594,22 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
     };
 
     TKit::FixedArray<TKit::TierArray<VkDrawIndirectCommand>, StencilPass_Count> circleCmds{};
-    TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<MeshDrawCommands, ONYX_MAX_ASSET_POOLS>, AssetPool_MeshCount>,
+    TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<MeshDrawCommands, ONYX_MAX_ASSET_POOLS>, Asset_MeshCount>,
                      StencilPass_Count>
         drawCmds{};
 
     for (auto &geos : drawCmds)
-        for (u32 i = 0; i < AssetPool_MeshCount; ++i)
+        for (u32 i = 0; i < Asset_MeshCount; ++i)
         {
-            const AssetPoolType ptype = AssetPoolType(i);
-            const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(ptype);
+            const AssetType atype = AssetType(i);
+            const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(atype);
             for (const u32 pid : poolIds)
-                geos[i][pid].Commands.Resize(Assets::GetAssetCount<D>(Assets::CreateAssetPoolHandle(ptype, pid)));
+                geos[i][pid].Commands.Resize(Assets::GetAssetCount<D>(Assets::CreateAssetPoolHandle(atype, pid)));
         }
 
-    const auto insertCommand = [&](const AssetPoolType ptype, const GraphicsInstanceRange &grange, const u32 fi,
+    const auto insertCommand = [&](const AssetType atype, const GraphicsInstanceRange &grange, const u32 fi,
                                    const u32 ic) {
-        if (ptype == AssetPool_Count) // circles sentry
+        if (atype == Asset_PoolCount) // circles sentry
         {
             TKit::TierArray<VkDrawIndirectCommand> &cmds = circleCmds[grange.Pass];
             cmds.Append(createCircleCommand(fi, ic));
@@ -1620,13 +1618,13 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         {
             ONYX_CHECK_ASSET_IS_NOT_NULL(grange.MeshHandle);
             ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(grange.MeshHandle);
-            ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, ptype, D);
-            ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(grange.MeshHandle, AssetType(ptype), D);
+            ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
+            ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
 
             const u32 pid = Assets::GetAssetPoolId(grange.MeshHandle);
             const u32 mid = Assets::GetAssetId(grange.MeshHandle);
 
-            auto &meshCmds = drawCmds[grange.Pass][ptype][pid];
+            auto &meshCmds = drawCmds[grange.Pass][atype][pid];
             ++meshCmds.Count;
             TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds = meshCmds.Commands[mid];
             cmds.Append(createCommand<D>(grange.MeshHandle, fi, ic));
@@ -1636,7 +1634,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
     const auto collectDrawInfo = [&](const Geometry geo) {
         GraphicsInstancePool &gpool = rdata.InstanceArenas[geo].Graphics;
         const u32 instanceSize = GetInstanceSize<D>(geo);
-        const AssetPoolType ptype = geo == Geometry_Circle ? AssetPool_Count : getAssetPoolType(geo);
+        const AssetType atype = geo == Geometry_Circle ? Asset_PoolCount : getAssetType(geo);
         for (GraphicsInstanceRange &grange : gpool.Ranges)
         {
             if (!(grange.ViewMask & viewBit))
@@ -1663,7 +1661,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
 
                     offset += size;
                     size = 0;
-                    insertCommand(ptype, grange, fi, ic);
+                    insertCommand(atype, grange, fi, ic);
                     found = true;
                 }
                 else
@@ -1676,7 +1674,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
             {
                 const u32 fi = u32(offset / instanceSize);
                 const u32 ic = u32(size / instanceSize);
-                insertCommand(ptype, grange, fi, ic);
+                insertCommand(atype, grange, fi, ic);
             }
             else if (!found)
                 continue;
@@ -1780,16 +1778,16 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
             const auto renderMesh = [&](const Geometry geo) -> Result<> {
                 setupState(geo);
 
-                const AssetPoolType ptype = getAssetPoolType(geo);
-                const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(ptype);
+                const AssetType atype = getAssetType(geo);
+                const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(atype);
                 for (const AssetPool pid : poolIds)
                 {
-                    const auto &bcmds = drawCmds[pass][ptype][pid];
+                    const auto &bcmds = drawCmds[pass][atype][pid];
                     drawCount = bcmds.Count;
                     if (drawCount == 0)
                         continue;
 
-                    bindMeshBuffers<D>(Assets::CreateAssetPoolHandle(ptype, pid), graphicsCommand);
+                    bindMeshBuffers<D>(Assets::CreateAssetPoolHandle(atype, pid), graphicsCommand);
                     const auto dresult = findSuitableIndexedDrawBuffer(drawCount, graphics, graphicsFlightValue);
                     TKIT_RETURN_ON_ERROR(dresult);
 

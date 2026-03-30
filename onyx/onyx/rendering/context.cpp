@@ -31,10 +31,10 @@ template <Dimension D> void IRenderContext<D>::Flush()
     for (InstanceDataArrays &instanceData : m_InstanceData)
     {
         instanceData.Circles.Instances = 0;
-        for (u32 j = 0; j < AssetPool_MeshCount; ++j)
+        for (u32 j = 0; j < Asset_MeshCount; ++j)
         {
-            const AssetPoolType ptype = AssetPoolType(j);
-            const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(ptype);
+            const AssetType atype = AssetType(j);
+            const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(atype);
 
             auto &ipools = instanceData.Meshes[j];
             for (const u32 pid : poolIds)
@@ -70,22 +70,22 @@ template <Dimension D> void IRenderContext<D>::updateState()
     m_Current = &m_StateStack.GetBack();
 }
 
-#define CHECK_HANDLE(handle, ptype, dim)                                                                               \
+#define CHECK_HANDLE(handle, atype, dim)                                                                               \
     ONYX_CHECK_ASSET_IS_NOT_NULL(handle);                                                                              \
     ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(handle);                                                                         \
-    ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(handle, ptype, dim);                                                       \
-    ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(handle, AssetType(ptype), dim);
+    ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(handle, atype, dim);                                                       \
+    ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(handle, atype, dim);
 
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
 {
-    CHECK_HANDLE(mesh, AssetPool_StaticMesh, D);
+    CHECK_HANDLE(mesh, Asset_StaticMesh, D);
 
     const auto draw = [&, mesh](const StencilPass pass) { addStaticData(mesh, m_Current->Transform, pass); };
     resolveStencilPassWithState(m_Current, draw);
 }
 template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, const f32m<D> &transform)
 {
-    CHECK_HANDLE(mesh, AssetPool_StaticMesh, D);
+    CHECK_HANDLE(mesh, Asset_StaticMesh, D);
 
     const auto draw = [&, mesh](const StencilPass pass) {
         addStaticData(mesh, transform * m_Current->Transform, pass);
@@ -95,7 +95,7 @@ template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, cons
 
 template <Dimension D> void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params)
 {
-    CHECK_HANDLE(mesh, AssetPool_ParametricMesh, D);
+    CHECK_HANDLE(mesh, Asset_ParametricMesh, D);
 
     const auto draw = [&, mesh](const StencilPass pass) {
         addParametricData(mesh, m_Current->Transform, params, pass);
@@ -105,7 +105,7 @@ template <Dimension D> void IRenderContext<D>::ParametricMesh(const Asset mesh, 
 template <Dimension D>
 void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params, const f32m<D> &transform)
 {
-    CHECK_HANDLE(mesh, AssetPool_ParametricMesh, D);
+    CHECK_HANDLE(mesh, Asset_ParametricMesh, D);
 
     const auto draw = [&, mesh](const StencilPass pass) {
         addParametricData(mesh, transform * m_Current->Transform, params, pass);
@@ -205,39 +205,40 @@ template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceDataBuffer &
     }
 }
 
-static Geometry getGeometry(const AssetPoolType ptype)
+static Geometry getGeometry(const AssetType atype)
 {
-    TKIT_ASSERT(ptype != AssetPool_Material, "[ONYX][RENDERER] Materials do not have geometry");
-    switch (ptype)
+    switch (atype)
     {
-    case AssetPool_StaticMesh:
+    case Asset_StaticMesh:
         return Geometry_Static;
-    case AssetPool_ParametricMesh:
+    case Asset_ParametricMesh:
         return Geometry_Parametric;
+    case Asset_GlyphMesh:
+        return Geometry_Glyph;
     default:
         return Geometry_Count;
-        TKIT_FATAL("[ONYX][RENDERER] Unrecognized geometry {}", ToString(ptype));
+        TKIT_FATAL("[ONYX][RENDERER] The asset type '{}' does not have a geometry associated", ToString(atype));
     }
 }
 
 template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
 {
     for (InstanceDataArrays &instanceData : m_InstanceData)
-        for (u32 j = AssetPool_StaticMesh; j < AssetPool_MeshCount; ++j)
+        for (u32 j = 0; j < Asset_MeshCount; ++j)
         {
-            const AssetPoolType ptype = AssetPoolType(j);
-            const auto poolIds = Assets::GetAssetPoolIds<D>(ptype);
+            const AssetType atype = AssetType(j);
+            const auto poolIds = Assets::GetAssetPoolIds<D>(atype);
 
             auto &ipools = instanceData.Meshes[j];
             for (const u32 pid : poolIds)
             {
                 auto &buffers = ipools[pid];
                 const u32 count = buffers.GetSize();
-                const u32 ncount = Assets::GetAssetCount<D>(Assets::CreateAssetPoolHandle(ptype, pid));
+                const u32 ncount = Assets::GetAssetCount<D>(Assets::CreateAssetPoolHandle(atype, pid));
                 for (u32 k = count; k < ncount; ++k)
                 {
                     InstanceDataBuffer &buffer = buffers.Append();
-                    const u32 isize = GetInstanceSize<D>(getGeometry(ptype));
+                    const u32 isize = GetInstanceSize<D>(getGeometry(atype));
                     buffer.Data = VKit::HostBuffer{isize * ONYX_BUFFER_INITIAL_CAPACITY};
                     buffer.Capacity = ONYX_BUFFER_INITIAL_CAPACITY;
                     buffer.InstanceSize = isize;
@@ -271,7 +272,7 @@ void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform
     const u32 pid = Assets::GetAssetPoolId(mesh);
 
     const StaticInstanceData<D> idata = createStaticInstanceData(m_Current, transform, pass);
-    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[AssetPool_StaticMesh][pid][aid];
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Asset_StaticMesh][pid][aid];
     addInstanceData(buffer, idata);
 }
 template <Dimension D>
@@ -284,7 +285,7 @@ void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &trans
     const ParametricShape shape = Assets::GetParametricShape<D>(mesh);
 
     const ParametricInstanceData<D> idata = createParametricInstanceData(m_Current, transform, shape, params, pass);
-    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[AssetPool_ParametricMesh][pid][aid];
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Asset_ParametricMesh][pid][aid];
     addInstanceData(buffer, idata);
 }
 

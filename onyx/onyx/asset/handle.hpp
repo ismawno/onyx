@@ -31,21 +31,22 @@
 #    define ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(hndl)                                                          \
         ONYX_CHECK_HANDLE_HAS_VALID_ASSET_TYPE(hndl);                                                                  \
         TKIT_ASSERT(                                                                                                   \
-            Onyx::Assets::GetAssetTypeAsInteger(hndl) < Onyx::AssetPool_Count,                                         \
+            Onyx::Assets::GetAssetTypeAsInteger(hndl) < Onyx::Asset_PoolCount,                                         \
             "[ONYX][ASSETS] The handle {:#010x} is a '{}' handle, which does not have any asset pool associated",      \
             hndl, Onyx::ToString(Onyx::Assets::GetAssetType(hndl)))
 
-#    define ONYX_CHECK_HANDLE_HAS_ASSET_TYPE(hndl, atype)                                                              \
-        ONYX_CHECK_HANDLE_HAS_VALID_ASSET_TYPE(hndl);                                                                  \
+#    define __ONYX_CHECK_HANDLE_HAS_ASSET_TYPE(hndl, atype)                                                            \
         TKIT_ASSERT(Onyx::Assets::GetAssetType(hndl) == atype,                                                         \
                     "[ONYX][ASSETS] The handle {:#010x} is not a '{}' handle, but rather a '{}' handle", hndl,         \
                     Onyx::ToString(atype), Onyx::ToString(Onyx::Assets::GetAssetType(hndl)))
 
+#    define ONYX_CHECK_HANDLE_HAS_ASSET_TYPE(hndl, atype)                                                              \
+        ONYX_CHECK_HANDLE_HAS_VALID_ASSET_TYPE(hndl);                                                                  \
+        __ONYX_CHECK_HANDLE_HAS_ASSET_TYPE(hndl, atype)
+
 #    define ONYX_CHECK_HANDLE_HAS_ASSET_POOL_TYPE(hndl, atype)                                                         \
         ONYX_CHECK_HANDLE_HAS_VALID_ASSET_POOL_TYPE(hndl);                                                             \
-        TKIT_ASSERT(Onyx::Assets::GetAssetPoolType(hndl) == atype,                                                     \
-                    "[ONYX][ASSETS] The handle {:#010x} is not a '{}' handle, but rather a '{}' handle", hndl,         \
-                    Onyx::ToString(atype), Onyx::ToString(Onyx::Assets::GetAssetPoolType(hndl)))
+        __ONYX_CHECK_HANDLE_HAS_ASSET_TYPE(hndl, atype)
 
 #    define ONYX_CHECK_ASSET_IS_NOT_NULL(hndl)                                                                         \
         TKIT_ASSERT(!Onyx::Assets::IsAssetNull(hndl), "[ONYX][ASSETS] The handle {:#010x} has a null asset id", hndl)
@@ -115,21 +116,13 @@ enum AssetType : u8
     Asset_Sampler,
     Asset_Texture,
     Asset_Count,
-};
 
-enum AssetPoolType : u8
-{
-    AssetPool_StaticMesh,
-    AssetPool_ParametricMesh,
-    AssetPool_GlyphMesh,
-    AssetPool_Material,
-    AssetPool_Font,
-    AssetPool_Count,
-    AssetPool_MeshCount = AssetPool_Material
+    // not ideal to have them here but idc too much
+    Asset_MeshCount = Asset_Material,
+    Asset_PoolCount = Asset_Sampler
 };
 
 const char *ToString(AssetType atype);
-const char *ToString(AssetPoolType atype);
 
 } // namespace Onyx
 
@@ -146,10 +139,6 @@ inline u32 GetAssetTypeAsInteger(const Handle handle)
 inline AssetType GetAssetType(const Handle handle)
 {
     return AssetType(GetAssetTypeAsInteger(handle));
-}
-inline AssetPoolType GetAssetPoolType(const Handle handle)
-{
-    return AssetPoolType(GetAssetTypeAsInteger(handle));
 }
 
 inline bool IsAssetNull(const Asset handle)
@@ -181,10 +170,9 @@ inline AssetPool GetAssetPool(const Asset handle)
     return (handle & ONYX_ASSET_POOL_MASK) | NullAsset;
 }
 
-inline Asset CreateAssetHandle(const AssetType assetType, const u32 assetId, const u32 poolId = ONYX_MAX_ASSET_POOLS)
+inline Asset CreateAssetHandle(const AssetType atype, const u32 assetId, const u32 poolId = ONYX_MAX_ASSET_POOLS)
 {
-    TKIT_ASSERT(u32(assetType) < Asset_Count,
-                "[ONYX][ASSETS] Cannot create an asset handle with an invalid asset type");
+    TKIT_ASSERT(atype < Asset_Count, "[ONYX][ASSETS] Cannot create an asset handle with an invalid asset type");
     TKIT_ASSERT(assetId <= ONYX_MAX_ASSETS,
                 "[ONYX][ASSETS] Cannot create an asset handle with an asset id ({:#010x}) "
                 "that exceeds the maximum bits allocated "
@@ -195,19 +183,18 @@ inline Asset CreateAssetHandle(const AssetType assetType, const u32 assetId, con
                 "allocated "
                 "for it, as it would break the handle",
                 poolId);
-    return (u32(assetType) << ONYX_ASSET_TYPE_SHIFT) | (poolId << ONYX_ASSET_POOL_SHIFT) | assetId;
+    return (u32(atype) << ONYX_ASSET_TYPE_SHIFT) | (poolId << ONYX_ASSET_POOL_SHIFT) | assetId;
 }
 
-inline AssetPool CreateAssetPoolHandle(const AssetPoolType poolType, const u32 poolId)
+inline AssetPool CreateAssetPoolHandle(const AssetType atype, const u32 poolId)
 {
-    TKIT_ASSERT(u32(poolType) < AssetPool_Count,
-                "[ONYX][ASSETS] Cannot create an asset handle with an invalid asset type");
+    TKIT_ASSERT(atype < Asset_PoolCount, "[ONYX][ASSETS] Cannot create an asset handle with an invalid asset type");
     TKIT_ASSERT(poolId <= ONYX_MAX_ASSET_POOLS,
                 "[ONYX][ASSETS] Cannot create an asset handle with a pool id ({:#010x}) that exceeds the maximum bits "
                 "allocated "
                 "for it, as it would break the handle",
                 poolId);
-    return (u32(poolType) << ONYX_ASSET_TYPE_SHIFT) | (poolId << ONYX_ASSET_POOL_SHIFT) | NullAsset;
+    return (u32(atype) << ONYX_ASSET_TYPE_SHIFT) | (poolId << ONYX_ASSET_POOL_SHIFT) | NullAsset;
 }
 
 } // namespace Onyx::Assets

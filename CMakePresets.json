@@ -63,6 +63,7 @@
         "ONYX_ENABLE_IMPLOT": "ON",
         "ONYX_ENABLE_NFD": "ON",
         "ONYX_ENABLE_OBJ_LOAD": "ON",
+        "ONYX_ENABLE_IMAGE_LOAD": "ON",
         "ONYX_ENABLE_GLTF_LOAD": "ON",
         "ONYX_ENABLE_FONT_LOAD": "ON",
         "ONYX_ENABLE_SHADER_API": "ON"
