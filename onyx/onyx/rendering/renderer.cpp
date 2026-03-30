@@ -1570,25 +1570,12 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         }
     const u32 ambientColor = ambient.Pack();
 
-    struct MeshDrawCommands
-    {
-        TKit::TierArray<TKit::TierArray<VkDrawIndexedIndirectCommand>> Commands{};
-        u32 Count = 0;
-    };
-
     TKit::FixedArray<TKit::TierArray<VkDrawIndirectCommand>, StencilPass_Count> circleCmds{};
-    TKit::FixedArray<TKit::FixedArray<TKit::FixedArray<MeshDrawCommands, ONYX_MAX_ASSET_POOLS>, Asset_MeshCount>,
-                     StencilPass_Count>
+    TKit::FixedArray<
+        TKit::FixedArray<TKit::FixedArray<TKit::TierArray<VkDrawIndexedIndirectCommand>, ONYX_MAX_ASSET_POOLS>,
+                         Asset_MeshCount>,
+        StencilPass_Count>
         drawCmds{};
-
-    for (auto &geos : drawCmds)
-        for (u32 i = 0; i < Asset_MeshCount; ++i)
-        {
-            const AssetType atype = AssetType(i);
-            const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(atype);
-            for (const u32 pid : poolIds)
-                geos[i][pid].Commands.Resize(Assets::GetAssetCount<D>(Assets::CreateAssetPoolHandle(atype, pid)));
-        }
 
     const auto insertCommand = [&](const AssetType atype, const GraphicsInstanceRange &grange, const u32 fi,
                                    const u32 ic) {
@@ -1605,12 +1592,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
             ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
 
             const u32 pid = Assets::GetAssetPoolId(grange.MeshHandle);
-            const u32 mid = Assets::GetAssetId(grange.MeshHandle);
-
-            auto &meshCmds = drawCmds[grange.Pass][atype][pid];
-            ++meshCmds.Count;
-            TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds = meshCmds.Commands[mid];
-            cmds.Append(createCommand<D>(grange.MeshHandle, fi, ic));
+            drawCmds[grange.Pass][atype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
         }
     };
 
@@ -1765,8 +1747,8 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                 const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(atype);
                 for (const AssetPool pid : poolIds)
                 {
-                    const auto &bcmds = drawCmds[pass][atype][pid];
-                    drawCount = bcmds.Count;
+                    const TKit::TierArray<VkDrawIndexedIndirectCommand> &cmds = drawCmds[pass][atype][pid];
+                    drawCount = cmds.GetSize();
                     if (drawCount == 0)
                         continue;
 
@@ -1775,15 +1757,9 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                     TKIT_RETURN_ON_ERROR(dresult);
 
                     VKit::DeviceBuffer *dbuffer = dresult.GetValue();
-
-                    u32 offset = 0;
-                    for (const auto &cmds : bcmds.Commands)
-                        if (!cmds.IsEmpty())
-                        {
-                            const u32 size = cmds.GetSize() * sizeof(VkDrawIndexedIndirectCommand);
-                            dbuffer->Write(cmds.GetData(), {.srcOffset = 0, .dstOffset = offset, .size = size});
-                            offset += size;
-                        }
+                    dbuffer->Write(
+                        cmds.GetData(),
+                        {.srcOffset = 0, .dstOffset = 0, .size = drawCount * sizeof(VkDrawIndexedIndirectCommand)});
                     TKIT_RETURN_IF_FAILED(dbuffer->Flush());
 
                     table->CmdDrawIndexedIndirect(graphicsCommand, *dbuffer, 0, drawCount,
