@@ -119,7 +119,7 @@ MeshPoolId<Vertex> &SandboxAppLayer::AddMeshPool(TKit::TierArray<MeshPoolId<Vert
     constexpr Dimension D = Vertex::Dim;
     MeshPoolId<Vertex> &mid = pool.Append();
     mid.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D>(Vertex::Asset));
-    mid.Name = name ? name : TKit::Format("Mesh-pool-{}", mid.Handle);
+    mid.Name = name ? name : TKit::Format("Mesh-pool-{:#010x}", mid.Handle);
     return mid;
 }
 
@@ -130,7 +130,7 @@ MeshId<Vertex> &SandboxAppLayer::AddMesh(MeshPoolId<Vertex> &pool, const MeshDat
     MeshId<Vertex> &mid = pool.Data.Elements.Append();
     mid.Handle = mesh;
     mid.Data = data;
-    mid.Name = name ? name : TKit::Format("Mesh-{}", mesh);
+    mid.Name = name ? name : TKit::Format("Mesh-{:#010x}", mesh);
     return mid;
 }
 template <Dimension D> void SandboxAppLayer::AddDefaultMeshes()
@@ -1600,6 +1600,27 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
             "around "
             "zero with a cartesian coordinate system and size (from end to end) of one. That is why you may apply a "
             "transform before loading a specific mesh.");
+    }
+    else if constexpr (std::is_same_v<Vertex, ParaVertex<D3>>)
+    {
+        combo("Mesh", &meshes.ParaMeshToLoad, "Capsule\0Rounded box\0Torus\0");
+        char name[256] = {0};
+        ImGui::InputTextWithHint("Name", "Will default to mesh name", name, 256);
+        const u32 mn = 3;
+        const u32 mx = 128;
+        ImGui::SliderScalar("Rings", ImGuiDataType_U32, &meshes.Rings, &mn, &mx);
+        ImGui::SliderScalar("Sectors", ImGuiDataType_U32, &meshes.Sectors, &mn, &mx);
+        if (ImGui::Button("Create##Parametric"))
+        {
+            if (meshes.ParaMeshToLoad == 0)
+                appLayer->AddMesh(pool, CreateCapsuleMeshData(meshes.Rings, meshes.Sectors));
+            else if (meshes.ParaMeshToLoad == 1)
+                appLayer->AddMesh(pool, CreateRoundedBoxMeshData(meshes.Rings, meshes.Sectors));
+            else if (meshes.ParaMeshToLoad == 2)
+                appLayer->AddMesh(pool, CreateTorusMeshData(meshes.Rings, meshes.Sectors));
+
+            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        }
     }
 }
 

@@ -75,6 +75,7 @@ template <Dimension D> struct MeshPoolArray
     u32 Active = 0;
     u32 GeometryToLoad = 0;
     u32 StatMeshToLoad = 0;
+    u32 ParaMeshToLoad = 0;
 
     u32 RegularPolySides = 3;
     TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
@@ -90,6 +91,7 @@ template <> struct MeshPoolArray<D3>
     u32 Active = 0;
     u32 GeometryToLoad = 0;
     u32 StatMeshToLoad = 0;
+    u32 ParaMeshToLoad = 0;
 
     u32 RegularPolySides = 3;
     TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
