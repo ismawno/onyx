@@ -1165,7 +1165,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         return Result<>::Ok();
 
     TKit::StackArray<VkBufferCopy2KHR> copies{};
-    const u32 bcount = Assets::GetBatchCount();
+    const u32 bcount = Assets::GetDistinctBatchDrawCount<D>();
     copies.Reserve(bcount);
 
     TKit::StackArray<ContextInstanceRange> contextRanges{};

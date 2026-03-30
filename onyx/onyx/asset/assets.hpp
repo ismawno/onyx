@@ -67,7 +67,8 @@ const TextureData &GetTextureData(Asset texture);
 const FontData &GetFontData(Asset font);
 const GlyphData *GetGlyphData(Asset font, u32 codePoint);
 
-u32 GetBatchCount();
+template <Dimension D> u32 GetDistinctBatchDrawCount();
+
 template <Dimension D> u32 GetAssetCount(AssetPool pool);
 template <Dimension D> MeshDataLayout GetMeshLayout(Asset mesh);
 

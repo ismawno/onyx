@@ -1474,14 +1474,21 @@ template <typename Vertex> static u32 getMeshBatchCount(const MeshAssetData<Vert
     return count;
 }
 
-u32 GetBatchCount()
+static u32 getGlyphBatchCount()
+{
+    u32 count = 0;
+    for (const FontPoolData &fpool : s_FontData->Pools)
+        count += fpool.Vertices.GetSize() / 4;
+
+    return count;
+}
+
+template <Dimension D> u32 GetDistinctBatchDrawCount()
 {
     u32 count = 1; // circles
-    count += getMeshBatchCount(getData<D2>().StaticMeshes);
-    count += getMeshBatchCount(getData<D3>().StaticMeshes);
-
-    count += getMeshBatchCount(getData<D2>().ParametricMeshes);
-    count += getMeshBatchCount(getData<D3>().ParametricMeshes);
+    count += getMeshBatchCount(getData<D>().StaticMeshes);
+    count += getMeshBatchCount(getData<D>().ParametricMeshes);
+    count += getGlyphBatchCount();
     return count;
 }
 
@@ -1704,6 +1711,9 @@ template bool IsAssetValid<D3>(Asset handle, AssetType atype);
 
 template bool IsAssetPoolValid<D2>(Handle handle, AssetType atype);
 template bool IsAssetPoolValid<D3>(Handle handle, AssetType atype);
+
+template u32 GetDistinctBatchDrawCount<D2>();
+template u32 GetDistinctBatchDrawCount<D3>();
 
 template MeshDataLayout GetMeshLayout<D2>(Asset handle);
 template MeshDataLayout GetMeshLayout<D3>(Asset handle);
