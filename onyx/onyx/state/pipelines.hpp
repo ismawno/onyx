@@ -17,19 +17,7 @@ template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(Shading sha
 ONYX_NO_DISCARD Result<> ReloadShaders();
 
 template <Dimension D>
-ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateCirclePipeline(StencilPass pass,
-                                                                    const VkPipelineRenderingCreateInfoKHR &renderInfo);
-
-template <Dimension D>
-ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(
-    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
-
-template <Dimension D>
-ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateParametricMeshPipeline(
-    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
-
-template <Dimension D>
-ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateGlyphMeshPipeline(
-    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
+Result<VKit::GraphicsPipeline> CreatePipeline(StencilPass pass, Geometry geo,
+                                              const VkPipelineRenderingCreateInfoKHR &renderInfo);
 
 } // namespace Onyx::Pipelines

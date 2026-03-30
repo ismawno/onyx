@@ -522,8 +522,8 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
 }
 
 template <Dimension D>
-Result<VKit::GraphicsPipeline> CreateCirclePipeline(const StencilPass pass,
-                                                    const VkPipelineRenderingCreateInfoKHR &renderInfo)
+ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> createCirclePipeline(
+    const StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
     const DrawPass dpass = GetDrawMode(pass);
     const ShaderData &shaders = getShaders<D>(dpass);
@@ -534,8 +534,8 @@ Result<VKit::GraphicsPipeline> CreateCirclePipeline(const StencilPass pass,
     return builder.Bake().Build();
 }
 template <Dimension D>
-Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(const StencilPass pass,
-                                                        const VkPipelineRenderingCreateInfoKHR &renderInfo)
+ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> createStaticMeshPipeline(
+    const StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
     const DrawPass dpass = GetDrawMode(pass);
     const ShaderData &shaders = getShaders<D>(dpass);
@@ -565,8 +565,8 @@ Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline(const StencilPass pass,
 }
 
 template <Dimension D>
-Result<VKit::GraphicsPipeline> CreateParametricMeshPipeline(const StencilPass pass,
-                                                            const VkPipelineRenderingCreateInfoKHR &renderInfo)
+ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> createParametricMeshPipeline(
+    const StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
     const DrawPass dpass = GetDrawMode(pass);
     const ShaderData &shaders = getShaders<D>(dpass);
@@ -600,8 +600,8 @@ Result<VKit::GraphicsPipeline> CreateParametricMeshPipeline(const StencilPass pa
 }
 
 template <Dimension D>
-Result<VKit::GraphicsPipeline> CreateGlyphMeshPipeline(const StencilPass pass,
-                                                       const VkPipelineRenderingCreateInfoKHR &renderInfo)
+ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> createGlyphMeshPipeline(
+    const StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
     const DrawPass dpass = GetDrawMode(pass);
     const ShaderData &shaders = getShaders<D>(dpass);
@@ -615,30 +615,35 @@ Result<VKit::GraphicsPipeline> CreateGlyphMeshPipeline(const StencilPass pass,
     return builder.Bake().Build();
 }
 
+template <Dimension D>
+Result<VKit::GraphicsPipeline> CreatePipeline(const StencilPass pass, const Geometry geo,
+                                              const VkPipelineRenderingCreateInfoKHR &renderInfo)
+{
+    switch (geo)
+    {
+    case Geometry_Circle:
+        return createCirclePipeline<D>(pass, renderInfo);
+    case Geometry_Static:
+        return createStaticMeshPipeline<D>(pass, renderInfo);
+    case Geometry_Parametric:
+        return createParametricMeshPipeline<D>(pass, renderInfo);
+    case Geometry_Glyph:
+        return createGlyphMeshPipeline<D>(pass, renderInfo);
+    default:
+        return Result<VKit::GraphicsPipeline>::Error(
+            Error_BadInput, TKit::Format("[ONYX][PIPELINES] Unrecognized geometry {}", u8(geo)));
+    }
+}
+
 template const VKit::PipelineLayout &GetLitPipelineLayout<D2>();
 template const VKit::PipelineLayout &GetLitPipelineLayout<D3>();
 
 template const VKit::PipelineLayout &GetPipelineLayout<D2>(Shading shading);
 template const VKit::PipelineLayout &GetPipelineLayout<D3>(Shading shading);
 
-template Result<VKit::GraphicsPipeline> CreateCirclePipeline<D2>(StencilPass pass,
-                                                                 const VkPipelineRenderingCreateInfoKHR &renderInfo);
-template Result<VKit::GraphicsPipeline> CreateCirclePipeline<D3>(StencilPass pass,
-                                                                 const VkPipelineRenderingCreateInfoKHR &renderInfo);
-
-template Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline<D2>(
-    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
-template Result<VKit::GraphicsPipeline> CreateStaticMeshPipeline<D3>(
-    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
-
-template Result<VKit::GraphicsPipeline> CreateParametricMeshPipeline<D2>(
-    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
-template Result<VKit::GraphicsPipeline> CreateParametricMeshPipeline<D3>(
-    StencilPass pass, const VkPipelineRenderingCreateInfoKHR &renderInfo);
-
-template Result<VKit::GraphicsPipeline> CreateGlyphMeshPipeline<D2>(StencilPass pass,
-                                                                    const VkPipelineRenderingCreateInfoKHR &renderInfo);
-template Result<VKit::GraphicsPipeline> CreateGlyphMeshPipeline<D3>(StencilPass pass,
-                                                                    const VkPipelineRenderingCreateInfoKHR &renderInfo);
+template Result<VKit::GraphicsPipeline> CreatePipeline<D2>(StencilPass pass, Geometry geo,
+                                                           const VkPipelineRenderingCreateInfoKHR &renderInfo);
+template Result<VKit::GraphicsPipeline> CreatePipeline<D3>(StencilPass pass, Geometry geo,
+                                                           const VkPipelineRenderingCreateInfoKHR &renderInfo);
 
 } // namespace Onyx::Pipelines

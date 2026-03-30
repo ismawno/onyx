@@ -336,37 +336,20 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> createPipelines()
     {
         const StencilPass pass = StencilPass(i);
 
-        auto result = Pipelines::CreateCirclePipeline<D>(pass, renderInfo);
-        TKIT_RETURN_ON_ERROR(result);
-        rdata.Pipelines[pass][Geometry_Circle] = result.GetValue();
-
-        result = Pipelines::CreateStaticMeshPipeline<D>(pass, renderInfo);
-        TKIT_RETURN_ON_ERROR(result);
-        rdata.Pipelines[pass][Geometry_Static] = result.GetValue();
-
-        result = Pipelines::CreateParametricMeshPipeline<D>(pass, renderInfo);
-        TKIT_RETURN_ON_ERROR(result);
-        rdata.Pipelines[pass][Geometry_Parametric] = result.GetValue();
-
-        result = Pipelines::CreateGlyphMeshPipeline<D>(pass, renderInfo);
-        TKIT_RETURN_ON_ERROR(result);
-        rdata.Pipelines[pass][Geometry_Glyph] = result.GetValue();
-
-        if (Core::CanNameObjects())
+        for (u32 j = 0; j < Geometry_Count; ++j)
         {
-            const std::string circle =
-                TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-Geometry_Circle", u8(D), ToString(pass));
-            const std::string stat =
-                TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Static'", u8(D), ToString(pass));
-            const std::string para = TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Parametric'",
-                                                  u8(D), ToString(pass));
-            const std::string glyph =
-                TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'Geometry_Glyph'", u8(D), ToString(pass));
+            const Geometry geo = Geometry(j);
 
-            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Circle].SetName(circle.c_str()));
-            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Static].SetName(stat.c_str()));
-            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Parametric].SetName(para.c_str()));
-            TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][Geometry_Glyph].SetName(glyph.c_str()));
+            const auto result = Pipelines::CreatePipeline<D>(pass, geo, renderInfo);
+            TKIT_RETURN_ON_ERROR(result);
+            rdata.Pipelines[pass][geo] = result.GetValue();
+
+            if (Core::CanNameObjects())
+            {
+                const std::string name = TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'{}'", u8(D),
+                                                      ToString(pass), ToString(geo));
+                TKIT_RETURN_IF_FAILED(rdata.Pipelines[pass][geo].SetName(name.c_str()));
+            }
         }
     }
     return Result<>::Ok();
