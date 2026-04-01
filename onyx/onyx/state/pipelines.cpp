@@ -471,8 +471,7 @@ template <Dimension D>
 static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass pass,
                                                              const VkPipelineRenderingCreateInfoKHR &renderInfo,
                                                              const VKit::Shader &vertexShader,
-                                                             const VKit::Shader &fragmentShader,
-                                                             const bool depthWrite = true)
+                                                             const VKit::Shader &fragmentShader)
 {
     const Shading shading = GetShading(pass);
     VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), GetPipelineLayout<D>(shading), renderInfo};
@@ -485,11 +484,7 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
                              .EnableBlending();
 
     if (D == D2 || GetDrawMode(pass) == DrawPass_Fill)
-    {
-        builder.EnableDepthTest();
-        if (depthWrite)
-            builder.EnableDepthWrite();
-    }
+        builder.EnableDepthTest().EnableDepthWrite();
     else
         colorBuilder.DisableBlending();
 
