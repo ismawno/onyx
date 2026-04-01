@@ -68,5 +68,5 @@ Texture2D g_Textures[ONYX_MAX_TEXTURES];
 f32v4 mainFS(const VertexOutput input)
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
-    return f32v4(input.FragColor.rbg, input.FragColor.a * coverage);
+    return f32v4(input.FragColor.rgb, input.FragColor.a * coverage);
 }

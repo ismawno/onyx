@@ -40,9 +40,6 @@ template <typename Vertex> struct MeshDataInfo
     StatusFlags Flags;
 };
 
-template <Dimension D> using StatMeshDataInfo = MeshDataInfo<StatVertex<D>>;
-template <Dimension D> using ParaMeshDataInfo = MeshDataInfo<ParaVertex<D>>;
-
 template <Dimension D> struct MeshDataInfo<ParaVertex<D>>
 {
     u32 VertexStart;
@@ -61,29 +58,40 @@ struct BatchRange
 
 AssetsFlags s_Flags = 0;
 
+template <typename Vertex>
+u32 getVertexCount(const TKit::TierArray<MeshDataInfo<Vertex>> &meshes, u32 size = TKIT_U32_MAX)
+{
+    if (meshes.IsEmpty() || size == 0)
+        return 0;
+    if (size == TKIT_U32_MAX)
+        size = meshes.GetSize();
+    return meshes[size - 1].VertexStart + meshes[size - 1].VertexCount;
+}
+template <typename Vertex>
+u32 getIndexCount(const TKit::TierArray<MeshDataInfo<Vertex>> &meshes, u32 size = TKIT_U32_MAX)
+{
+    if (meshes.IsEmpty() || size == 0)
+        return 0;
+    if (size == TKIT_U32_MAX)
+        size = meshes.GetSize();
+    return meshes[size - 1].IndexStart + meshes[size - 1].IndexCount;
+}
+
 template <typename Vertex> struct MeshPoolData
 {
     VKit::DeviceBuffer VertexBuffer{};
     VKit::DeviceBuffer IndexBuffer{};
-    TKit::TierArray<MeshDataInfo<Vertex>> Info{};
     TKit::DynamicArray<Vertex> Vertices{};
     TKit::DynamicArray<Index> Indices{};
+    TKit::TierArray<MeshDataInfo<Vertex>> Meshes{};
 
     u32 GetVertexCount(u32 size = TKIT_U32_MAX) const
     {
-        if (Info.IsEmpty() || size == 0)
-            return 0;
-        if (size == TKIT_U32_MAX)
-            size = Info.GetSize();
-        return Info[size - 1].VertexStart + Info[size - 1].VertexCount;
+        return getVertexCount(Meshes, size);
     }
     u32 GetIndexCount(u32 size = TKIT_U32_MAX) const
     {
-        if (Info.IsEmpty() || size == 0)
-            return 0;
-        if (size == TKIT_U32_MAX)
-            size = Info.GetSize();
-        return Info[size - 1].IndexStart + Info[size - 1].IndexCount;
+        return getIndexCount(Meshes, size);
     }
 };
 
@@ -93,13 +101,7 @@ template <typename Vertex> struct MeshAssetData
     TKit::StaticArray<AssetPool, ONYX_MAX_ASSET_POOLS> ToDestroy{};
 };
 
-template <Dimension D> using StatMeshPoolData = MeshPoolData<StatVertex<D>>;
-template <Dimension D> using StatMeshAssetData = MeshAssetData<StatVertex<D>>;
-
-template <Dimension D> using ParaMeshPoolData = MeshPoolData<ParaVertex<D>>;
-template <Dimension D> using ParaMeshAssetData = MeshAssetData<ParaVertex<D>>;
-
-struct FontDataInfo
+template <> struct MeshDataInfo<GlyphVertex>
 {
     FontData Data{};
     Asset Atlas = NullHandle;
@@ -110,20 +112,36 @@ struct FontDataInfo
     StatusFlags Flags;
 };
 
-struct FontPoolData
+template <> struct MeshPoolData<GlyphVertex>
 {
     VKit::DeviceBuffer VertexBuffer{};
     VKit::DeviceBuffer IndexBuffer{};
-    TKit::DynamicArray<GlyphVertex> Vertices{};
-    TKit::DynamicArray<Index> Indices{};
-    TKit::TierArray<FontDataInfo> FontData{};
+    TKit::TierArray<GlyphVertex> Vertices{};
+    TKit::TierArray<Index> Indices{};
+    TKit::TierArray<Glyph> Glyphs{};
+    TKit::TierArray<MeshDataInfo<GlyphVertex>> Meshes{};
+
+    u32 GetVertexCount(u32 size = TKIT_U32_MAX) const
+    {
+        return getVertexCount(Meshes, size);
+    }
+    u32 GetIndexCount(u32 size = TKIT_U32_MAX) const
+    {
+        return getVertexCount(Meshes, size);
+    }
 };
 
-struct FontAssetData
-{
-    TKit::StaticHive<FontPoolData, ONYX_MAX_TEXTURES> Pools{};
-    TKit::StaticArray<AssetPool, ONYX_MAX_ASSET_POOLS> ToDestroy{};
-};
+template <Dimension D> using StatMeshAssetData = MeshAssetData<StatVertex<D>>;
+template <Dimension D> using StatMeshPoolData = MeshPoolData<StatVertex<D>>;
+template <Dimension D> using StatMeshDataInfo = MeshDataInfo<StatVertex<D>>;
+
+template <Dimension D> using ParaMeshAssetData = MeshAssetData<ParaVertex<D>>;
+template <Dimension D> using ParaMeshPoolData = MeshPoolData<ParaVertex<D>>;
+template <Dimension D> using ParaMeshDataInfo = MeshDataInfo<ParaVertex<D>>;
+
+using FontAssetData = MeshAssetData<GlyphVertex>;
+using FontPoolData = MeshPoolData<GlyphVertex>;
+using FontDataInfo = MeshDataInfo<GlyphVertex>;
 
 template <Dimension D> struct MaterialPoolData
 {
@@ -213,8 +231,8 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> checkSize(MeshPoolDat
                        icount * sizeof(Index), mpool.IndexBuffer.GetInfo().Size);
     }
     if (flags)
-        for (MeshDataInfo<Vertex> &info : mpool.Info)
-            info.Flags |= flags;
+        for (MeshDataInfo<Vertex> &minfo : mpool.Meshes)
+            minfo.Flags |= flags;
     return Result<>::Ok();
 }
 
@@ -285,39 +303,39 @@ ONYX_NO_DISCARD static Result<> uploadIndexRange(MeshPoolData<Vertex> &mpool, co
 
 template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshPool(MeshPoolData<Vertex> &mpool)
 {
-    if (mpool.Info.IsEmpty())
+    if (mpool.Meshes.IsEmpty())
         return Result<>::Ok();
     const auto checkFlags = [&mpool](const u32 index, const StatusFlags flags) {
-        return flags & mpool.Info[index].Flags;
+        return flags & mpool.Meshes[index].Flags;
     };
 
     TKIT_RETURN_IF_FAILED(checkSize(mpool));
 
-    auto &layouts = mpool.Info;
-    for (u32 i = 0; i < layouts.GetSize(); ++i)
+    auto &meshes = mpool.Meshes;
+    for (u32 i = 0; i < meshes.GetSize(); ++i)
         if (checkFlags(i, StatusFlag_UpdateVertex))
-            for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
-                if (j == layouts.GetSize() || !checkFlags(j, StatusFlag_UpdateVertex))
+            for (u32 j = i + 1; j <= meshes.GetSize(); ++j)
+                if (j == meshes.GetSize() || !checkFlags(j, StatusFlag_UpdateVertex))
                 {
                     TKIT_RETURN_IF_FAILED(uploadVertexRange(mpool, i, j));
                     i = j;
                     break;
                 }
-    for (u32 i = 0; i < layouts.GetSize(); ++i)
+    for (u32 i = 0; i < meshes.GetSize(); ++i)
         if (checkFlags(i, StatusFlag_UpdateIndex))
-            for (u32 j = i + 1; j <= layouts.GetSize(); ++j)
-                if (j == layouts.GetSize() || !checkFlags(j, StatusFlag_UpdateIndex))
+            for (u32 j = i + 1; j <= meshes.GetSize(); ++j)
+                if (j == meshes.GetSize() || !checkFlags(j, StatusFlag_UpdateIndex))
                 {
                     TKIT_RETURN_IF_FAILED(uploadIndexRange(mpool, i, j));
                     i = j;
                     break;
                 }
-    for (MeshDataInfo<Vertex> &info : layouts)
-        info.Flags = 0;
+    for (MeshDataInfo<Vertex> &minfo : meshes)
+        minfo.Flags = 0;
     return Result<>::Ok();
 }
 
-template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshData(MeshAssetData<Vertex> &meshes)
+template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshes(MeshAssetData<Vertex> &meshes)
 {
     for (const AssetPool pool : meshes.ToDestroy)
     {
@@ -386,7 +404,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialPool(const 
     return Result<>::Ok();
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterialData()
+template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterials()
 {
     MaterialAssetData<D> &materials = getData<D>().Materials;
     for (const AssetPool pool : materials.ToDestroy)
@@ -453,6 +471,7 @@ void Terminate()
 {
     terminate<D2>();
     terminate<D3>();
+    terminate(*s_FontData);
 
     for (TextureInfo &tinfo : s_TextureData->Textures)
     {
@@ -698,8 +717,8 @@ ONYX_NO_DISCARD static Result<AssetPool> createMeshPool(const AssetType atype, M
     const AssetPool pool = CreateAssetPoolHandle(atype, pid);
     if (Core::CanNameObjects())
     {
-        const std::string vb = TKit::Format("onyx-assets-{}D-vertex-buffer-{:#010x}", u8(Vertex::Dim), pool);
-        const std::string ib = TKit::Format("onyx-assets-{}D-index-buffer-{:#010x}", u8(Vertex::Dim), pool);
+        const std::string vb = TKit::Format("onyx-assets-vertex-buffer-{:#010x}", pool);
+        const std::string ib = TKit::Format("onyx-assets-index-buffer-{:#010x}", pool);
 
         TKIT_RETURN_IF_FAILED(vbuffer.SetName(vb.c_str()), vbuffer.Destroy(); data.Pools.Remove(pid));
         TKIT_RETURN_IF_FAILED(ibuffer.SetName(ib.c_str()), ibuffer.Destroy(); data.Pools.Remove(pid));
@@ -732,31 +751,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<AssetPool> createMaterialPo
 
 Result<AssetPool> CreateFontPool()
 {
-    auto result = Resources::CreateBuffer<GlyphVertex>(Buffer_DeviceVertex);
-    TKIT_RETURN_ON_ERROR(result);
-    VKit::DeviceBuffer vbuffer = result.GetValue();
-
-    result = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
-    TKIT_RETURN_ON_ERROR(result, vbuffer.Destroy());
-    VKit::DeviceBuffer ibuffer = result.GetValue();
-
-    const u32 pid = s_FontData->Pools.Insert();
-    FontPoolData &fpool = s_FontData->Pools[pid];
-
-    fpool.VertexBuffer = vbuffer;
-    fpool.IndexBuffer = ibuffer;
-
-    const AssetPool pool = CreateAssetPoolHandle(Asset_Font, pid);
-    if (Core::CanNameObjects())
-    {
-        const std::string vb = TKit::Format("onyx-assets-font-vertex-buffer-{:#010x}", pool);
-        const std::string ib = TKit::Format("onyx-assets-font-index-buffer-{:#010x}", pool);
-
-        TKIT_RETURN_IF_FAILED(vbuffer.SetName(vb.c_str()), vbuffer.Destroy(); s_FontData->Pools.Remove(pid));
-        TKIT_RETURN_IF_FAILED(ibuffer.SetName(ib.c_str()), ibuffer.Destroy(); s_FontData->Pools.Remove(pid));
-    }
-
-    return pool;
+    return createMeshPool(Asset_Font, *s_FontData);
 }
 
 template <Dimension D> Result<AssetPool> CreateAssetPool(const AssetType atype)
@@ -782,8 +777,8 @@ template <Dimension D> Result<AssetPool> CreateAssetPool(const AssetType atype)
 void DestroyFontPool(const AssetPool pool)
 {
     const u32 pid = GetAssetPoolId(pool);
-    for (const FontDataInfo &info : s_FontData->Pools[pid].FontData)
-        DestroyTexture(info.Atlas);
+    for (const FontDataInfo &finfo : s_FontData->Pools[pid].Meshes)
+        DestroyTexture(finfo.Atlas);
     s_FontData->ToDestroy.Append(pool);
 }
 
@@ -818,7 +813,7 @@ template <Dimension D> void DestroyAssetPool(const AssetPool pool)
 }
 
 template <typename Vertex>
-static Asset addMesh(const AssetPool pool, MeshAssetData<Vertex> &meshes, const MeshData<Vertex> &data)
+static Asset createMesh(const AssetPool pool, MeshAssetData<Vertex> &meshes, const MeshData<Vertex> &data)
 {
     constexpr AssetType atype = Vertex::Asset;
 
@@ -827,17 +822,19 @@ static Asset addMesh(const AssetPool pool, MeshAssetData<Vertex> &meshes, const 
     const u32 pid = GetAssetPoolId(pool);
 
     MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
-    const u32 mid = mpool.Info.GetSize();
-    MeshDataInfo<Vertex> info;
-    info.VertexStart = mpool.GetVertexCount();
-    info.VertexCount = data.Vertices.GetSize();
-    info.IndexStart = mpool.GetIndexCount();
-    info.IndexCount = data.Indices.GetSize();
-    info.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
-    if constexpr (Vertex::Geo == Geometry_Parametric)
-        info.Shape = data.Shape;
 
-    mpool.Info.Append(info);
+    const u32 mid = mpool.Meshes.GetSize();
+    const u32 vcount = mpool.GetVertexCount();
+    const u32 icount = mpool.GetIndexCount();
+
+    MeshDataInfo<Vertex> &minfo = mpool.Meshes.Append();
+    minfo.VertexStart = vcount;
+    minfo.VertexCount = data.Vertices.GetSize();
+    minfo.IndexStart = icount;
+    minfo.IndexCount = data.Indices.GetSize();
+    minfo.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+    if constexpr (Vertex::Geo == Geometry_Parametric)
+        minfo.Shape = data.Shape;
 
     auto &vertices = mpool.Vertices;
     auto &indices = mpool.Indices;
@@ -848,36 +845,39 @@ static Asset addMesh(const AssetPool pool, MeshAssetData<Vertex> &meshes, const 
 
 template <Dimension D> Asset CreateMesh(const AssetPool pool, const StatMeshData<D> &data)
 {
-    return addMesh(pool, getData<D>().StaticMeshes, data);
+    return createMesh(pool, getData<D>().StaticMeshes, data);
 }
 template <Dimension D> Asset CreateMesh(const AssetPool pool, const ParaMeshData<D> &data)
 {
-    return addMesh(pool, getData<D>().ParametricMeshes, data);
+    return createMesh(pool, getData<D>().ParametricMeshes, data);
 }
 
-template <typename F1, typename F2>
-static void buildFontBuffers(const FontData &data, const F1 addVertex, const F2 addIndex)
+template <typename F1, typename F2, typename F3>
+static void buildFontBuffers(const FontData &data, const F1 addGlyph, const F2 addVertex, const F3 addIndex)
 {
     for (u32 i = 0; i < data.Glyphs.GetSize(); ++i)
     {
         const GlyphData &glyph = data.Glyphs[i];
-        const f32v2 min = f32v2{glyph.Bearing[0], glyph.Bearing[1] - glyph.Size[1]};
-        const f32v2 max = f32v2{glyph.Bearing[0] + glyph.Size[0], glyph.Bearing[1]};
+        const f32v2 &min = glyph.Min;
+        const f32v2 &max = glyph.Max;
 
-        const f32v2 mnuv = glyph.MinTexCoord;
-        const f32v2 mxuv = glyph.MaxTexCoord;
+        const f32v2 &mnuv = glyph.MinTexCoord;
+        const f32v2 &mxuv = glyph.MaxTexCoord;
 
-        addVertex(min[0], min[1], mnuv[0], mxuv[1]);
-        addVertex(max[0], min[1], mxuv[0], mxuv[1]);
-        addVertex(min[0], max[1], mnuv[0], mnuv[1]);
-        addVertex(max[0], max[1], mxuv[0], mnuv[1]);
+        addGlyph(i, glyph);
 
-        addIndex(i);
-        addIndex(i + 1);
-        addIndex(i + 2);
-        addIndex(i + 1);
-        addIndex(i + 3);
-        addIndex(i + 2);
+        addVertex(min[0], min[1], mnuv[0], mnuv[1]);
+        addVertex(max[0], min[1], mxuv[0], mnuv[1]);
+        addVertex(min[0], max[1], mnuv[0], mxuv[1]);
+        addVertex(max[0], max[1], mxuv[0], mxuv[1]);
+
+        const u32 base = i * 4;
+        addIndex(base);
+        addIndex(base + 1);
+        addIndex(base + 2);
+        addIndex(base + 1);
+        addIndex(base + 3);
+        addIndex(base + 2);
     }
 }
 
@@ -887,25 +887,29 @@ Asset CreateFont(const AssetPool pool, const FontData &data)
 
     const u32 pid = GetAssetPoolId(pool);
     FontPoolData &fpool = s_FontData->Pools[pid];
-    FontDataInfo info;
-    info.Data = data;
-    info.Atlas = CreateTexture(data.AtlasData);
+
+    const u32 fid = fpool.Meshes.GetSize();
+    FontDataInfo &finfo = fpool.Meshes.Append();
+    finfo.Data = data;
+    finfo.Atlas = CreateTexture(data.AtlasData);
 
     const u32 gsize = data.Glyphs.GetSize();
-    info.VertexStart = fpool.Vertices.GetSize();
-    info.VertexCount = gsize * 4;
-    info.IndexStart = fpool.Indices.GetSize();
-    info.IndexCount = gsize * 6;
-    info.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+    finfo.VertexStart = fpool.Vertices.GetSize();
+    finfo.VertexCount = gsize * 4;
+    finfo.IndexStart = fpool.Indices.GetSize();
+    finfo.IndexCount = gsize * 6;
+    finfo.Flags = StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
 
-    const u32 fid = fpool.FontData.GetSize();
-
+    const u32 goffset = fpool.Glyphs.GetSize();
+    const auto addGlyph = [&fpool, goffset](const u32 id, const GlyphData &data) {
+        fpool.Glyphs.Append(data, id + goffset);
+    };
     const auto addVertex = [&fpool](const f32 x, const f32 y, const f32 u, const f32 v) {
         fpool.Vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{u, v}});
     };
 
-    const auto addIndex = [&fpool, &info](const u32 idx) { fpool.Indices.Append(Index(idx + info.VertexStart)); };
-    buildFontBuffers(data, addVertex, addIndex);
+    const auto addIndex = [&fpool, &finfo](const u32 idx) { fpool.Indices.Append(Index(idx + finfo.VertexStart)); };
+    buildFontBuffers(data, addGlyph, addVertex, addIndex);
     return CreateAssetHandle(Asset_Font, fid, pid);
 }
 
@@ -917,22 +921,26 @@ void UpdateFont(const Asset handle, const FontData &data)
     const u32 fid = GetAssetId(handle);
 
     FontPoolData &fpool = s_FontData->Pools[pid];
-    FontDataInfo &info = fpool.FontData[fid];
-    info.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
 
-    TKIT_ASSERT(info.VertexCount == 4 * data.Glyphs.GetSize() && info.IndexCount == 6 * data.Glyphs.GetSize(),
-                "[ONYX][ASSETS] When updating a font, the amount of glyphs must match with the old one. If they do "
-                "not, you must create a new font");
+    FontDataInfo &finfo = fpool.Meshes[fid];
+    finfo.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
 
-    u32 vidx = info.VertexStart;
-    u32 iidx = info.IndexStart;
+    TKIT_ASSERT(finfo.VertexCount == 4 * data.Glyphs.GetSize() && finfo.IndexCount == 6 * data.Glyphs.GetSize(),
+                "[ONYX][ASSETS] When updating a finfo, the amount of glyphs must match with the old one. If they do "
+                "not, you must create a new finfo");
+
+    u32 vidx = finfo.VertexStart;
+    u32 iidx = finfo.IndexStart;
+    u32 gidx = finfo.VertexStart / 4;
+
+    const auto addGlyph = [&fpool, &gidx](const u32, const GlyphData &data) { fpool.Glyphs[gidx++].Data = data; };
     const auto addVertex = [&fpool, &vidx](const f32 x, const f32 y, const f32 u, const f32 v) {
         fpool.Vertices[vidx++] = GlyphVertex{f32v2{x, y}, f32v2{u, v}};
     };
-    const auto addIndex = [&fpool, &info, &iidx](const u32 idx) {
-        fpool.Indices[iidx++] = Index(idx + info.VertexStart);
+    const auto addIndex = [&fpool, &finfo, &iidx](const u32 idx) {
+        fpool.Indices[iidx++] = Index(idx + finfo.VertexStart);
     };
-    buildFontBuffers(data, addVertex, addIndex);
+    buildFontBuffers(data, addGlyph, addVertex, addIndex);
 }
 
 template <typename Vertex>
@@ -944,19 +952,19 @@ static void updateMesh(const Asset handle, MeshAssetData<Vertex> &meshes, const 
     const u32 mid = GetAssetId(handle);
 
     MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
-    MeshDataInfo<Vertex> &info = mpool.Info[mid];
-    TKIT_ASSERT(
-        data.Vertices.GetSize() == info.VertexCount && data.Indices.GetSize() == info.IndexCount,
-        "[ONYX][ASSETS] When updating a mesh, the vertex and index count of the previous and updated mesh must be the "
-        "same. If they are not, you must create a new mesh");
+    MeshDataInfo<Vertex> &minfo = mpool.Meshes[mid];
+    TKIT_ASSERT(data.Vertices.GetSize() == minfo.VertexCount && data.Indices.GetSize() == minfo.IndexCount,
+                "[ONYX][ASSETS] When updating a minfo, the vertex and index count of the previous and updated minfo "
+                "must be the "
+                "same. If they are not, you must create a new minfo");
 
-    TKit::ForwardCopy(mpool.Vertices.begin() + info.VertexStart, data.Vertices.begin(), data.Vertices.end());
-    TKit::ForwardCopy(mpool.Indices.begin() + info.IndexStart, data.Indices.begin(), data.Indices.end());
+    TKit::ForwardCopy(mpool.Vertices.begin() + minfo.VertexStart, data.Vertices.begin(), data.Vertices.end());
+    TKit::ForwardCopy(mpool.Indices.begin() + minfo.IndexStart, data.Indices.begin(), data.Indices.end());
 
     if constexpr (Vertex::Geo == Geometry_Parametric)
-        info.Shape = data.Shape;
+        minfo.Shape = data.Shape;
 
-    info.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
+    minfo.Flags |= StatusFlag_UpdateVertex | StatusFlag_UpdateIndex;
 }
 
 template <Dimension D> void UpdateMesh(const Asset handle, const StatMeshData<D> &data)
@@ -1005,18 +1013,18 @@ template <typename Vertex> static MeshData<Vertex> getMeshData(const Asset handl
     MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
 
     MeshData<Vertex> data{};
-    const MeshDataInfo<Vertex> &info = mpool.Info[mid];
+    const MeshDataInfo<Vertex> &minfo = mpool.Meshes[mid];
 
-    const u32 vstart = info.VertexStart;
-    const u32 vend = vstart + info.VertexCount;
+    const u32 vstart = minfo.VertexStart;
+    const u32 vend = vstart + minfo.VertexCount;
 
-    const u32 istart = info.IndexStart;
-    const u32 iend = vstart + info.IndexCount;
+    const u32 istart = minfo.IndexStart;
+    const u32 iend = vstart + minfo.IndexCount;
 
     data.Vertices.Insert(data.Vertices.end(), mpool.Vertices.begin() + vstart, mpool.Vertices.begin() + vend);
     data.Indices.Insert(data.Indices.end(), mpool.Indices.begin() + istart, mpool.Indices.begin() + iend);
     if constexpr (Vertex::Geo == Geometry_Parametric)
-        data.Shape = info.Shape;
+        data.Shape = minfo.Shape;
 
     return data;
 }
@@ -1037,7 +1045,7 @@ template <Dimension D> ParametricShape GetParametricShape(const Asset handle)
     const u32 mid = GetAssetId(handle);
 
     ParaMeshPoolData<D> &mpool = getData<D>().ParametricMeshes.Pools[pid];
-    return mpool.Info[mid].Shape;
+    return mpool.Meshes[mid].Shape;
 }
 template <Dimension D> const MaterialData<D> &GetMaterialData(const Asset handle)
 {
@@ -1068,22 +1076,37 @@ const FontData &GetFontData(const Asset handle)
     const u32 pid = GetAssetPoolId(handle);
     const u32 fid = GetAssetId(handle);
 
-    return s_FontData->Pools[pid].FontData[fid].Data;
+    return s_FontData->Pools[pid].Meshes[fid].Data;
 }
-const GlyphData *GetGlyphData(const Asset font, const u32 codePoint)
+Asset GetFontAtlas(const Asset handle)
 {
-    CHECK_ASSET_AND_POOL_HANDLES(font, Asset_Font);
+    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_Font);
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 fid = GetAssetId(handle);
 
-    const u32 pid = GetAssetPoolId(font);
-    const u32 fid = GetAssetId(font);
+    return s_FontData->Pools[pid].Meshes[fid].Atlas;
+}
+const Glyph *GetGlyph(const Asset handle, const u32 codePoint)
+{
+    CHECK_ASSET_AND_POOL_HANDLES(handle, Asset_Font);
 
-    const FontDataInfo &info = s_FontData->Pools[pid].FontData[fid];
-    const TKit::TierArray<CodePointRange> &ranges = info.Data.CodePoints;
+    const u32 pid = GetAssetPoolId(handle);
+    const u32 fid = GetAssetId(handle);
+
+    const FontPoolData &fpool = s_FontData->Pools[pid];
+    const FontDataInfo &finfo = fpool.Meshes[fid];
+    const u32 gstart = finfo.VertexStart / 4;
+
+    const TKit::TierArray<CodePointRange> &ranges = finfo.Data.CodePoints;
+    u32 csize = 0;
     for (const CodePointRange &range : ranges)
-        if (codePoint < range.Last)
-            return &info.Data.Glyphs[codePoint - range.First];
+    {
+        if (codePoint >= range.First && codePoint <= range.Last)
+            return &fpool.Glyphs[gstart + codePoint - range.First + csize];
+        csize += range.Last - range.First + 1;
+    }
 
-    TKIT_FATAL("[ONYX][ASSETS] The code point {} was not found", codePoint);
+    TKIT_FATAL("[ONYX][ASSETS] The code point '{}' was not found", codePoint);
     return nullptr;
 }
 
@@ -1102,9 +1125,9 @@ Result<> Unlock()
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> upload()
 {
-    TKIT_RETURN_IF_FAILED(uploadMeshData(getData<D>().StaticMeshes));
-    TKIT_RETURN_IF_FAILED(uploadMeshData(getData<D>().ParametricMeshes));
-    return uploadMaterialData<D>();
+    TKIT_RETURN_IF_FAILED(uploadMeshes(getData<D>().StaticMeshes));
+    TKIT_RETURN_IF_FAILED(uploadMeshes(getData<D>().ParametricMeshes));
+    return uploadMaterials<D>();
 }
 
 ONYX_NO_DISCARD static Result<> uploadTextures()
@@ -1249,6 +1272,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
         }
     return Result<>::Ok();
 }
+
 static VkSamplerMipmapMode toVulkan(const SamplerMode mode)
 {
     switch (mode)
@@ -1368,6 +1392,7 @@ Result<> Upload()
     TKIT_RETURN_IF_FAILED(upload<D3>());
     TKIT_RETURN_IF_FAILED(uploadTextures());
     TKIT_RETURN_IF_FAILED(uploadSamplers());
+    TKIT_RETURN_IF_FAILED(uploadMeshes(*s_FontData));
     s_Flags &= ~AssetsFlag_MustUpload;
     Renderer::FlushAllContexts();
     return Result<>::Ok();
@@ -1389,7 +1414,7 @@ template <typename Vertex> static MeshDataLayout getMeshLayout(const Asset handl
     const u32 pid = GetAssetPoolId(handle);
     const u32 mid = GetAssetId(handle);
 
-    const MeshDataInfo<Vertex> &info = meshes.Pools[pid].Info[mid];
+    const MeshDataInfo<Vertex> &info = meshes.Pools[pid].Meshes[mid];
     return MeshDataLayout{.VertexStart = info.VertexStart,
                           .VertexCount = info.VertexCount,
                           .IndexStart = info.IndexStart,
@@ -1398,20 +1423,13 @@ template <typename Vertex> static MeshDataLayout getMeshLayout(const Asset handl
 
 MeshDataLayout GetFontLayout(const Asset handle)
 {
-    const u32 pid = GetAssetPoolId(handle);
-    const u32 fid = GetAssetId(handle);
-
-    const FontDataInfo &info = s_FontData->Pools[pid].FontData[fid];
-    return MeshDataLayout{.VertexStart = info.VertexStart,
-                          .VertexCount = info.VertexCount,
-                          .IndexStart = info.IndexStart,
-                          .IndexCount = info.IndexCount};
+    return getMeshLayout(handle, *s_FontData);
 }
 
 MeshDataLayout GetGlyphLayout(const Asset handle)
 {
     const u32 gid = GetAssetId(handle);
-    return MeshDataLayout{.VertexStart = 4 * gid, .VertexCount = 4, .IndexStart = 6 * gid, .IndexCount = 6};
+    return MeshDataLayout{.VertexStart = 4 * gid, .VertexCount = 4, .IndexStart = 0, .IndexCount = 6};
 }
 
 template <Dimension D> MeshDataLayout GetMeshLayout(const Asset handle)
@@ -1437,7 +1455,7 @@ template <Dimension D> MeshDataLayout GetMeshLayout(const Asset handle)
         ONYX_CHECK_ASSET_POOL_IS_VALID(handle, Asset_GlyphMesh);
         return GetGlyphLayout(handle);
     default:
-        TKIT_FATAL("[ONYX][ASSETS] An asset of type '{}' does not have a mesh layout", ToString(atype));
+        TKIT_FATAL("[ONYX][ASSETS] An asset of type '{}' does not have a minfo layout", ToString(atype));
         return MeshDataLayout{};
     }
 }
@@ -1470,7 +1488,7 @@ template <typename Vertex> static u32 getMeshBatchCount(const MeshAssetData<Vert
 {
     u32 count = 0;
     for (const MeshPoolData<Vertex> &mpool : meshes.Pools)
-        count += mpool.Info.GetSize();
+        count += mpool.Meshes.GetSize();
     return count;
 }
 
@@ -1478,7 +1496,7 @@ static u32 getGlyphBatchCount()
 {
     u32 count = 0;
     for (const FontPoolData &fpool : s_FontData->Pools)
-        count += fpool.Vertices.GetSize() / 4;
+        count += fpool.Glyphs.GetSize();
 
     return count;
 }
@@ -1499,7 +1517,7 @@ u32 GetFontCount(const AssetPool pool)
     ONYX_CHECK_ASSET_POOL_IS_VALID(pool, Asset_Font);
 
     const u32 pid = GetAssetPoolId(pool);
-    return s_FontData->Pools[pid].FontData.GetSize();
+    return s_FontData->Pools[pid].Meshes.GetSize();
 }
 
 u32 GetGlyphCount(const AssetPool pool)
@@ -1509,7 +1527,7 @@ u32 GetGlyphCount(const AssetPool pool)
     ONYX_CHECK_ASSET_POOL_IS_VALID(pool, Asset_GlyphMesh);
 
     const u32 pid = GetAssetPoolId(pool);
-    return s_FontData->Pools[pid].Vertices.GetSize() / 4;
+    return s_FontData->Pools[pid].Glyphs.GetSize();
 }
 
 template <Dimension D> u32 GetAssetCount(const AssetPool pool)
@@ -1524,10 +1542,10 @@ template <Dimension D> u32 GetAssetCount(const AssetPool pool)
     {
     case Asset_StaticMesh:
         ONYX_CHECK_ASSET_POOL_IS_VALID(pool, Asset_StaticMesh);
-        return getData<D>().StaticMeshes.Pools[pid].Info.GetSize();
+        return getData<D>().StaticMeshes.Pools[pid].Meshes.GetSize();
     case Asset_ParametricMesh:
         ONYX_CHECK_ASSET_POOL_IS_VALID(pool, Asset_ParametricMesh);
-        return getData<D>().ParametricMeshes.Pools[pid].Info.GetSize();
+        return getData<D>().ParametricMeshes.Pools[pid].Meshes.GetSize();
     case Asset_Material:
         ONYX_CHECK_ASSET_POOL_IS_VALID(pool, Asset_Material);
         return getData<D>().Materials.Pools[pid].Materials.GetSize();
@@ -1606,15 +1624,15 @@ template <Dimension D> bool IsAssetValid(const Asset handle, const AssetType aty
     {
     case Asset_StaticMesh:
         return IsAssetPoolValid<D>(handle, Asset_StaticMesh) &&
-               aid < getData<D>().StaticMeshes.Pools[pid].Info.GetSize();
+               aid < getData<D>().StaticMeshes.Pools[pid].Meshes.GetSize();
     case Asset_ParametricMesh:
         return IsAssetPoolValid<D>(handle, Asset_ParametricMesh) &&
-               aid < getData<D>().ParametricMeshes.Pools[pid].Info.GetSize();
+               aid < getData<D>().ParametricMeshes.Pools[pid].Meshes.GetSize();
     case Asset_Material:
         return IsAssetPoolValid<D>(handle, Asset_Material) &&
                aid < getData<D>().Materials.Pools[pid].Materials.GetSize();
     case Asset_Font:
-        return IsAssetPoolValid<D>(handle, Asset_Font) && aid < s_FontData->Pools[pid].FontData.GetSize();
+        return IsAssetPoolValid<D>(handle, Asset_Font) && aid < s_FontData->Pools[pid].Meshes.GetSize();
     case Asset_GlyphMesh:
         return IsAssetPoolValid<D>(handle, Asset_GlyphMesh) && aid < 4 * s_FontData->Pools[pid].Vertices.GetSize() &&
                aid < 6 * s_FontData->Pools[pid].Indices.GetSize();

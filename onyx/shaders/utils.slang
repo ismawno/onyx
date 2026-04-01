@@ -155,26 +155,26 @@ struct ParametricInstanceDataStencil3D
 struct GlyphInstanceDataFill2D
 {
     StaticInstanceDataFill2D Data;
-    u32 AtlasHandle;
     u32 SamplerHandle;
+    u32 AtlasHandle;
 }
 struct GlyphInstanceDataFill3D
 {
     StaticInstanceDataFill3D Data;
-    u32 AtlasHandle;
     u32 SamplerHandle;
+    u32 AtlasHandle;
 }
 struct GlyphInstanceDataStencil2D
 {
     StaticInstanceDataStencil2D Data;
-    u32 AtlasHandle;
     u32 SamplerHandle;
+    u32 AtlasHandle;
 }
 struct GlyphInstanceDataStencil3D
 {
     StaticInstanceDataStencil3D Data;
-    u32 AtlasHandle;
     u32 SamplerHandle;
+    u32 AtlasHandle;
 }
 
 struct Material2D
@@ -553,7 +553,7 @@ f32v4 ComputeColor2D(const f32v4 fragColor, const LightData2D light, const u32 m
         if (sampId == NullAsset || texId == NullAsset)
             return fragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, alpha);
 
-        const f32v4 tex = resources.Textures[texId].Sample(resources.Samplers[matId], uv);
+        const f32v4 tex = resources.Textures[texId].Sample(resources.Samplers[sampId], uv);
         return tex * fragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, alpha);
     }
     return f32v4(fragColor.rgb, fragColor.a * alpha);

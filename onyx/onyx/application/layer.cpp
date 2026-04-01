@@ -72,8 +72,8 @@ Result<> WindowLayer::initializeImGui()
     ImPlot::SetCurrentContext(m_ImPlotContext);
 #    endif
 
-    ImGuiIO &io = ImGui::GetIO();
     TKIT_RETURN_IF_FAILED(ImGuiBackend::Create(m_Window));
+    ImGuiIO &io = ImGui::GetIO();
     ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
     io.FontDefault = font;
     ApplyTheme(Theme_Baby);

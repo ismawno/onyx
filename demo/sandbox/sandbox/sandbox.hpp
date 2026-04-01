@@ -6,6 +6,7 @@
 #include "onyx/platform/dialog.hpp"
 #include "onyx/asset/sampler.hpp"
 #include "onyx/asset/texture.hpp"
+#include "onyx/asset/font.hpp"
 #include "onyx/asset/mesh.hpp"
 
 namespace Onyx
@@ -49,17 +50,12 @@ template <typename Vertex> struct MeshId
     MeshData<Vertex> Data{};
 };
 
-template <typename Vertex> struct MeshArray
-{
-    TKit::TierArray<MeshId<Vertex>> Elements{};
-    u32 Active = 0;
-};
-
 template <typename Vertex> struct MeshPoolId
 {
     std::string Name{};
     AssetPool Handle = NullHandle;
-    MeshArray<Vertex> Data{};
+    TKit::TierArray<MeshId<Vertex>> Elements{};
+    u32 Active = 0;
 };
 
 template <Dimension D> using StatMeshId = MeshId<StatVertex<D>>;
@@ -120,11 +116,15 @@ template <Dimension D> struct Shape
 {
     Geometry Geo = Geometry_Count;
     Asset Mesh = NullHandle;
-    std::string Name;
     Asset Material = NullHandle;
+    Asset Font = NullHandle;
+
+    std::string Name{};
     Transform<D> Transform{};
-    CircleParameters CircleParameters{};
+    CircleParameters CircleParams{};
     InstanceParameters Parameters{};
+    TextParameters TextParams{};
+    std::string Text{};
     SandboxFlags Flags = SandboxFlag_Fill;
     Color FillColor = Color::White;
     Color OutlineColor = Color::Orange;
@@ -213,17 +213,12 @@ template <Dimension D> struct MaterialId
     MaterialData<D> Data{};
 };
 
-template <Dimension D> struct MaterialArray
-{
-    TKit::TierArray<MaterialId<D>> Elements{};
-    u32 Active = 0;
-};
-
 template <Dimension D> struct MaterialPoolId
 {
     std::string Name{};
     AssetPool Handle = NullHandle;
-    MaterialArray<D> Data{};
+    TKit::TierArray<MaterialId<D>> Elements{};
+    u32 Active = 0;
 };
 
 template <Dimension D> struct MaterialPoolArray
@@ -244,6 +239,20 @@ struct TextureId
 {
     std::string Name{};
     Asset Handle = NullHandle;
+};
+
+struct FontId
+{
+    std::string Name{};
+    Asset Handle = NullHandle;
+};
+
+struct FontPoolId
+{
+    std::string Name{};
+    AssetPool Handle = NullHandle;
+    TKit::TierArray<FontId> Elements{};
+    u32 Active = 0;
 };
 
 template <Dimension D> struct LatticeArray
@@ -278,8 +287,11 @@ class SandboxAppLayer final : public ApplicationLayer
     template <Dimension D> MaterialPoolId<D> &AddMaterialPool(const char *name = nullptr);
     template <Dimension D> MaterialId<D> &AddMaterial(MaterialPoolId<D> &pool, const char *name = nullptr);
 
-    void AddSampler(const char *name = nullptr);
+    SamplerId &AddSampler(const char *name = nullptr);
     void AddTexture(const TextureData &data, const char *name = nullptr);
+
+    void AddFontPool(const char *name = nullptr);
+    void AddFont(FontPoolId &pool, const FontData &data, const char *name = nullptr);
 
     template <Dimension D> void UpdateMaterialData();
 
@@ -329,9 +341,12 @@ class SandboxAppLayer final : public ApplicationLayer
 
     TKit::TierArray<SamplerId> Samplers{};
     TKit::TierArray<TextureId> Textures{};
+    TKit::TierArray<FontPoolId> FontPools{};
 
     u32 SelectedSampler = 0;
     u32 SelectedTexture = 0;
+    u32 SelectedFontPool = 0;
+    Asset DefaultSampler = NullHandle;
 };
 
 class SandboxWinLayer final : public WindowLayer
@@ -362,6 +377,8 @@ class SandboxWinLayer final : public WindowLayer
     void RenderSamplers();
     void RenderSampler(SamplerId &sampler);
     void RenderTextures();
+    void RenderFontPools();
+    void RenderFontPool(FontPoolId &pool);
     template <Dimension D> void RenderGltf();
     template <Dimension D> void RenderRenderer();
 
@@ -385,6 +402,7 @@ class SandboxWinLayer final : public WindowLayer
 
     TKit::Task<Dialog::Result<Dialog::Path>> StatMeshTask{};
     TKit::Task<Dialog::Result<Dialog::Path>> TexTask{};
+    TKit::Task<Dialog::Result<Dialog::Path>> FontTask{};
     TKit::Task<Dialog::Result<Dialog::Path>> GltfTask{};
 
     bool CreatePoolOnLoad = true;

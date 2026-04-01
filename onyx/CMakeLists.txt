@@ -11,6 +11,7 @@ set(SOURCES
     onyx/execution/execution.cpp
     onyx/resource/resources.cpp
     onyx/asset/assets.cpp
+    onyx/asset/font.cpp
     onyx/asset/mesh.cpp
     onyx/state/pipelines.cpp
     onyx/state/descriptors.cpp
@@ -34,9 +35,6 @@ if(ONYX_ENABLE_IMAGE_LOAD)
 endif()
 if(ONYX_ENABLE_GLTF_LOAD)
   list(APPEND SOURCES onyx/asset/gltf.cpp)
-endif()
-if(ONYX_ENABLE_FONT_LOAD)
-  list(APPEND SOURCES onyx/asset/font.cpp)
 endif()
 if(ONYX_ENABLE_SHADER_API)
   list(APPEND SOURCES onyx/state/shaders.cpp)
@@ -240,8 +238,38 @@ if(ONYX_ENABLE_FONT_LOAD)
       CACHE BOOL "")
   FetchContent_MakeAvailable(msdfgen)
 
-  target_link_libraries(onyx PRIVATE msdfgen::msdfgen-ext)
+  FetchContent_Declare(
+    msdfgen-atlas
+    GIT_REPOSITORY https://github.com/Chlumsky/msdf-atlas-gen.git
+    GIT_TAG v1.4
+    GIT_SHALLOW TRUE
+    GIT_PROGRESS TRUE)
+  set(MSDF_ATLAS_BUILD_STANDALONE
+      OFF
+      CACHE BOOL "")
+  set(MSDF_ATLAS_USE_VCPKG
+      OFF
+      CACHE BOOL "")
+  set(MSDF_ATLAS_USE_SKIA
+      OFF
+      CACHE BOOL "")
+  set(MSDF_ATLAS_NO_ARTERY_FONT
+      ON
+      CACHE BOOL "")
+  set(MSDF_ATLAS_INSTALL
+      OFF
+      CACHE BOOL "")
+  set(MSDF_ATLAS_DYNAMIC_RUNTIME
+      OFF
+      CACHE BOOL "")
+  set(MSDF_ATLAS_MSDFGEN_EXTERNAL
+      ON
+      CACHE BOOL "")
+  FetchContent_MakeAvailable(msdfgen-atlas)
+
+  target_link_libraries(onyx PRIVATE msdfgen-ext msdf-atlas-gen)
   tkit_configure_compile_link_options(msdfgen-ext NO_EXCEPTIONS NO_RTTI)
+  tkit_configure_compile_link_options(msdf-atlas-gen NO_EXCEPTIONS NO_RTTI)
 endif()
 
 tkit_register_for_yaml_serialization(

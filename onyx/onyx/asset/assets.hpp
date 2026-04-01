@@ -65,7 +65,8 @@ TKit::Span<const u32> GetFontPoolIds();
 const SamplerData &GetSamplerData(Asset sampler);
 const TextureData &GetTextureData(Asset texture);
 const FontData &GetFontData(Asset font);
-const GlyphData *GetGlyphData(Asset font, u32 codePoint);
+Asset GetFontAtlas(Asset font);
+const Glyph *GetGlyph(Asset font, u32 codePoint);
 
 template <Dimension D> u32 GetDistinctBatchDrawCount();
 

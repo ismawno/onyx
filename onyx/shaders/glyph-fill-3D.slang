@@ -91,6 +91,9 @@ DirectionalLights g_DirLights;
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
 {
+    const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
+    if (coverage <= 0.f) // so that transparent parts do not touch depth/stencil buffers
+        discard;
     ResourceTable3D resources;
     resources.Materials = g_Materials;
     resources.Samplers = g_Samplers;
@@ -98,7 +101,6 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
     resources.PointLights = g_PointLights;
     resources.DirLights = g_DirLights;
 
-    const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
     return ComputeColor3D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.AtlasCoord, resources, coverage, input.TBN, isFrontFacing);
 }
 

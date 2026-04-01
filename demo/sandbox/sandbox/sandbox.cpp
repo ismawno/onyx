@@ -77,7 +77,7 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *da
     AddDefaultMaterial<D2>();
     AddDefaultMaterial<D3>();
 
-    AddSampler("Default sampler");
+    DefaultSampler = AddSampler("Default sampler").Handle;
 
     ONYX_CHECK_EXPRESSION(Assets::Upload());
 
@@ -127,7 +127,7 @@ template <typename Vertex>
 MeshId<Vertex> &SandboxAppLayer::AddMesh(MeshPoolId<Vertex> &pool, const MeshData<Vertex> &data, const char *name)
 {
     const Asset mesh = Assets::CreateMesh(pool.Handle, data);
-    MeshId<Vertex> &mid = pool.Data.Elements.Append();
+    MeshId<Vertex> &mid = pool.Elements.Append();
     mid.Handle = mesh;
     mid.Data = data;
     mid.Name = name ? name : TKit::Format("Mesh-{:#010x}", mesh);
@@ -177,15 +177,19 @@ template <Dimension D> static void setShapeProperties(RenderContext<D> *context,
     context->OutlineWidth(shape.OutlineWidth);
     context->OutlineColor(shape.OutlineColor);
     context->Material(shape.Material);
+
+    context->Font(shape.Font);
 }
 template <Dimension D> static void drawShape(RenderContext<D> *context, const Shape<D> &shape)
 {
     if (shape.Geo == Geometry_Circle)
-        context->Circle(shape.Transform.ComputeTransform(), shape.CircleParameters);
+        context->Circle(shape.Transform.ComputeTransform(), shape.CircleParams);
     else if (shape.Geo == Geometry_Static)
         context->StaticMesh(shape.Mesh, shape.Transform.ComputeTransform());
     else if (shape.Geo == Geometry_Parametric)
         context->ParametricMesh(shape.Mesh, shape.Parameters, shape.Transform.ComputeTransform());
+    else if (shape.Geo == Geometry_Glyph && !Assets::IsAssetNull(context->GetState().Font))
+        context->Text(shape.Text, shape.Transform.ComputeTransform(), shape.TextParams);
 }
 
 template <Dimension D> void SandboxAppLayer::DrawShapes()
@@ -195,12 +199,14 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
         if (ctx.Flags & SandboxFlag_ContextShouldUpdate)
         {
             ctx.Context->Flush();
+            ctx.Context->FontSampler(DefaultSampler);
             ctx.Context->Push();
             for (const Shape<D> &shape : ctx.Shapes)
-            {
-                setShapeProperties(ctx.Context, shape);
-                drawShape(ctx.Context, shape);
-            }
+                if (shape.Geo != Geometry_Glyph || !Assets::IsAssetNull(DefaultSampler))
+                {
+                    setShapeProperties(ctx.Context, shape);
+                    drawShape(ctx.Context, shape);
+                }
             ctx.Context->Pop();
             if (ctx.Flags & SandboxFlag_DrawLights)
             {
@@ -241,7 +247,7 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
             switch (geo)
             {
             case Geometry_Circle: {
-                const CircleParameters opts = lattice.Shape.CircleParameters;
+                const CircleParameters opts = lattice.Shape.CircleParams;
                 DrawLattice(lattice, [opts](const f32v<D> &pos, RenderContext<D> *context) {
                     context->SetTranslation(pos);
                     context->Circle(opts);
@@ -360,7 +366,7 @@ template <typename Vertex>
 static std::string getName(const Asset mesh, const TKit::TierArray<MeshPoolId<Vertex>> &pools)
 {
     for (const MeshPoolId<Vertex> &pool : pools)
-        for (const MeshId<Vertex> &mid : pool.Data.Elements)
+        for (const MeshId<Vertex> &mid : pool.Elements)
             if (mid.Handle == mesh)
                 return mid.Name;
     return "Unknown";
@@ -399,6 +405,9 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
             shape.Parameters.Torus = TorusParameters{0.5f, 0.5f};
         return shape;
     }
+    case Geometry_Glyph:
+        shape.Name = "Text";
+        return shape;
     default:
         TKIT_FATAL("[ONYX][SANDBOX] Unknown geometry");
         return shape;
@@ -449,18 +458,18 @@ template <Dimension D> MaterialPoolId<D> &SandboxAppLayer::AddMaterialPool(const
 
 template <Dimension D> MaterialId<D> &SandboxAppLayer::AddMaterial(MaterialPoolId<D> &pool, const char *name)
 {
-    auto &materials = pool.Data;
-    MaterialId<D> &mat = materials.Elements.Append();
+    MaterialId<D> &mat = pool.Elements.Append();
     mat.Handle = Assets::CreateMaterial(pool.Handle, mat.Data);
     mat.Name = name ? name : TKit::Format("Material-{:#010x}", mat.Handle);
     return mat;
 }
 
-void SandboxAppLayer::AddSampler(const char *name)
+SamplerId &SandboxAppLayer::AddSampler(const char *name)
 {
     SamplerId &sampler = Samplers.Append();
     sampler.Handle = Assets::CreateSampler(sampler.Data);
     sampler.Name = name ? name : TKit::Format("Sampler-{:#010x}", sampler.Handle);
+    return sampler;
 }
 
 void SandboxAppLayer::AddTexture(const TextureData &data, const char *name)
@@ -470,11 +479,29 @@ void SandboxAppLayer::AddTexture(const TextureData &data, const char *name)
     tex.Name = name ? name : TKit::Format("Texture-{:#010x}", tex.Handle);
 }
 
+void SandboxAppLayer::AddFontPool(const char *name)
+{
+    FontPoolId &pool = FontPools.Append();
+    pool.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateFontPool());
+    pool.Name = name ? name : TKit::Format("Font-pool-{:#010x}", pool.Handle);
+}
+
+void SandboxAppLayer::AddFont(FontPoolId &pool, const FontData &data, const char *name)
+{
+    FontId &font = pool.Elements.Append();
+    font.Handle = Assets::CreateFont(pool.Handle, data);
+    font.Name = name ? name : TKit::Format("Font-{:#010x}", font.Handle);
+
+    TextureId &tex = Textures.Append();
+    tex.Handle = Assets::GetFontAtlas(font.Handle);
+    tex.Name = TKit::Format("Font-atlas-{:#010x}", tex.Handle);
+}
+
 template <Dimension D> void SandboxAppLayer::UpdateMaterialData()
 {
     auto &materials = GetMaterials<D>();
     for (MaterialPoolId<D> &pool : materials.Pools)
-        for (MaterialId<D> &mat : pool.Data.Elements)
+        for (MaterialId<D> &mat : pool.Elements)
             mat.Data = Assets::GetMaterialData<D>(mat.Handle);
 }
 
@@ -506,6 +533,7 @@ SandboxWinLayer::~SandboxWinLayer()
     };
     wait(StatMeshTask);
     wait(TexTask);
+    wait(FontTask);
     wait(GltfTask);
 }
 
@@ -515,12 +543,14 @@ void SandboxWinLayer::OnRender(const DeltaTime &deltaTime)
     if (!Cameras2.Cameras.IsEmpty())
     {
         Cameras2.Active = Math::Min(Cameras2.Cameras.GetSize() - 1, Cameras2.Active);
-        Cameras2.Cameras[Cameras2.Active].Camera->ControlMovementWithUserInput(deltaTime.Measured);
+        if (!ImGui::GetIO().WantCaptureKeyboard)
+            Cameras2.Cameras[Cameras2.Active].Camera->ControlMovementWithUserInput(deltaTime.Measured);
     }
     if (!Cameras3.Cameras.IsEmpty())
     {
         Cameras3.Active = Math::Min(Cameras3.Cameras.GetSize() - 1, Cameras3.Active);
-        Cameras3.Cameras[Cameras3.Active].Camera->ControlMovementWithUserInput(deltaTime.Measured);
+        if (!ImGui::GetIO().WantCaptureKeyboard)
+            Cameras3.Cameras[Cameras3.Active].Camera->ControlMovementWithUserInput(deltaTime.Measured);
     }
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -656,6 +686,7 @@ void SandboxWinLayer::RenderImGui()
             RenderMaterialPools<D2>();
             RenderSamplers();
             RenderTextures();
+            RenderFontPools();
             RenderLattices<D2>();
             RenderRenderer<D2>();
             RenderGltf<D2>();
@@ -669,6 +700,7 @@ void SandboxWinLayer::RenderImGui()
             RenderMaterialPools<D3>();
             RenderSamplers();
             RenderTextures();
+            RenderFontPools();
             RenderLattices<D3>();
             RenderRenderer<D3>();
             RenderGltf<D3>();
@@ -841,14 +873,14 @@ static bool poolMemberNameCombo(const char *name, const TKit::TierArray<T> &cont
 
     u32 size = 0;
     for (const T &pool : container)
-        size += pool.Data.Elements.GetSize();
+        size += pool.Elements.GetSize();
 
     names.Reserve(size);
 
     u32 idx = TKIT_U32_MAX;
     u32 gidx = 0;
     for (const T &pool : container)
-        for (const auto &elm : pool.Data.Elements)
+        for (const auto &elm : pool.Elements)
         {
             names.Append(elm.Name.c_str());
             if (elm.Handle == *handle)
@@ -871,13 +903,13 @@ static bool poolMemberNameCombo(const char *name, const TKit::TierArray<T> &cont
     if (combo(name, &idx, names))
     {
         for (const T &pool : container)
-            if (idx < pool.Data.Elements.GetSize())
+            if (idx < pool.Elements.GetSize())
             {
-                *handle = pool.Data.Elements[idx].Handle;
+                *handle = pool.Elements[idx].Handle;
                 break;
             }
             else
-                idx -= pool.Data.Elements.GetSize();
+                idx -= pool.Elements.GetSize();
 
         changed = true;
     }
@@ -896,6 +928,11 @@ template <Dimension D> static bool paraMeshNameCombo(const char *name, SandboxAp
 template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *material)
 {
     return poolMemberNameCombo(name, appLayer->GetMaterials<D>().Pools, material);
+}
+
+static bool fontNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *font)
+{
+    return poolMemberNameCombo(name, appLayer->FontPools, font);
 }
 
 template <typename T> static bool nameCombo(const char *name, const TKit::TierArray<T> &container, Asset *handle)
@@ -996,11 +1033,11 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
 
     if (shape.Geo == Geometry_Circle)
     {
-        ImGui::SliderFloat("Inner fade", &shape.CircleParameters.InnerFade, 0.f, 1.f, "%.2f");
-        ImGui::SliderFloat("Outer fade", &shape.CircleParameters.OuterFade, 0.f, 1.f, "%.2f");
-        ImGui::SliderAngle("Lower angle", &shape.CircleParameters.LowerAngle);
-        ImGui::SliderAngle("Upper angle", &shape.CircleParameters.UpperAngle);
-        ImGui::SliderFloat("Hollowness", &shape.CircleParameters.Hollowness, 0.f, 1.f, "%.2f");
+        ImGui::SliderFloat("Inner fade", &shape.CircleParams.InnerFade, 0.f, 1.f, "%.2f");
+        ImGui::SliderFloat("Outer fade", &shape.CircleParams.OuterFade, 0.f, 1.f, "%.2f");
+        ImGui::SliderAngle("Lower angle", &shape.CircleParams.LowerAngle);
+        ImGui::SliderAngle("Upper angle", &shape.CircleParams.UpperAngle);
+        ImGui::SliderFloat("Hollowness", &shape.CircleParams.Hollowness, 0.f, 1.f, "%.2f");
     }
     else if (shape.Geo == Geometry_Parametric)
     {
@@ -1044,12 +1081,24 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
             TKIT_FATAL("[ONYX][SANDBOX] Unrecognized shape");
         }
     }
+    else if (shape.Geo == Geometry_Glyph)
+    {
+        fontNameCombo("Font", appLayer, &shape.Font);
+        ImGui::BeginDisabled(Assets::IsAssetNull(shape.Font));
+        ImGui::InputText("Text", &shape.Text);
+        ImGui::EndDisabled();
+
+        ImGui::DragFloat("Kerning", &shape.TextParams.Kerning, 0.01f);
+        ImGui::DragFloat("Line spacing", &shape.TextParams.LineSpacing, 0.01f);
+        ImGui::DragFloat("Width", &shape.TextParams.Width, 0.01f);
+        combo("Text alignment", &shape.TextParams.Alignment, "Center\0Left\0Right\0\0");
+    }
     ImGui::PopID();
 }
 
 template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &context)
 {
-    combo("Geometry##Picker", &context.GeometryToSpawn, "Circle\0Static mesh\0Parametric mesh\0\0");
+    combo("Geometry##Picker", &context.GeometryToSpawn, "Circle\0Static mesh\0Parametric mesh\0Text\0\0");
     const Geometry geo = context.GeometryToSpawn;
 
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
@@ -1220,7 +1269,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterialPools()
     {
         SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
         auto &materials = appLayer->GetMaterials<D>();
-        if (ImGui::Button("Add pool"))
+        if (ImGui::Button("Add pool##Material"))
             appLayer->AddMaterialPool<D>();
 
         EntriesOptions<MaterialPoolId<D>> opts{};
@@ -1254,8 +1303,6 @@ template <Dimension D> void SandboxWinLayer::RenderMaterialPools()
 template <Dimension D> void SandboxWinLayer::RenderMaterialPool(MaterialPoolId<D> &pool)
 {
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
-    auto &materials = pool.Data;
-
     if (ImGui::Button("Add material"))
     {
         appLayer->AddMaterial(pool);
@@ -1263,11 +1310,11 @@ template <Dimension D> void SandboxWinLayer::RenderMaterialPool(MaterialPoolId<D
     }
 
     EntriesOptions<MaterialId<D>> opts{};
-    opts.Selected = &materials.Active;
+    opts.Selected = &pool.Active;
     opts.OnSelected = [this](MaterialId<D> &material) { RenderMaterial(material); };
     opts.GetName = [](const MaterialId<D> &material) { return material.Name; };
     opts.RemoveButton = false;
-    renderEntries(materials.Elements, opts);
+    renderEntries(pool.Elements, opts);
 }
 
 template <Dimension D> void SandboxWinLayer::RenderMaterial(MaterialId<D> &material)
@@ -1369,12 +1416,17 @@ void SandboxWinLayer::RenderSamplers()
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
         }
 
+        ImGui::TextDisabled(
+            "The default sampler is used to render text! Removing it will prevent text from being rendered");
+
         EntriesOptions<SamplerId> opts{};
         opts.GetName = [](const SamplerId &samp) { return samp.Name; };
         opts.OnRemoval = [appLayer](SamplerId &samp) {
             Assets::DestroySampler(samp.Handle);
             appLayer->UpdateMaterialData<D2>();
             appLayer->UpdateMaterialData<D3>();
+            if (appLayer->DefaultSampler == samp.Handle)
+                appLayer->DefaultSampler = NullHandle;
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
         };
         opts.OnSelected = [this](SamplerId &samp) { RenderSampler(samp); };
@@ -1427,6 +1479,60 @@ void SandboxWinLayer::RenderTextures()
     }
 }
 
+void SandboxWinLayer::RenderFontPools()
+{
+    if (ImGui::CollapsingHeader("Fonts"))
+    {
+        SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+        if (ImGui::Button("Add pool##Font"))
+            appLayer->AddFontPool();
+
+        EntriesOptions<FontPoolId> opts{};
+        opts.Selected = &appLayer->SelectedFontPool;
+        opts.OnSelected = [this](FontPoolId &pool) { RenderFontPool(pool); };
+        opts.GetName = [](const FontPoolId &pool) { return pool.Name; };
+        opts.OnRemoval = [appLayer](FontPoolId &pool) {
+            Assets::DestroyFontPool(pool.Handle);
+            auto &ctx2 = appLayer->GetContexts<D2>();
+            for (ContextData<D2> &ctx : ctx2.Contexts)
+                for (Shape<D2> &shape : ctx.Shapes)
+                    if (Assets::GetAssetPool(shape.Font) == pool.Handle)
+                        shape.Font = NullHandle;
+            auto &ctx3 = appLayer->GetContexts<D3>();
+            for (ContextData<D3> &ctx : ctx3.Contexts)
+                for (Shape<D3> &shape : ctx.Shapes)
+                    if (Assets::GetAssetPool(shape.Font) == pool.Handle)
+                        shape.Font = NullHandle;
+            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        };
+        renderEntries(appLayer->FontPools, opts);
+    }
+}
+
+void SandboxWinLayer::RenderFontPool(FontPoolId &pool)
+{
+    SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+    HandleLoadDialog(FontTask, [&](const Dialog::Path &path) {
+        const auto res = LoadFontDataFromFile(path.string().c_str());
+        VKIT_LOG_RESULT_ERROR(res);
+        if (!res)
+            return;
+
+        const FontData &data = res.GetValue();
+        appLayer->AddFont(pool, data, path.filename().string().c_str());
+        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+    });
+
+    EntriesOptions<FontId> opts{};
+    opts.GetName = [](const FontId &font) { return font.Name; };
+    opts.OnSelected = [](FontId &font) {
+        ImGui::Text("Font handle: %s", TKit::Format("{:#010x}", font.Handle).c_str());
+    };
+    opts.Selected = &appLayer->SelectedTexture;
+    opts.RemoveButton = false;
+    renderEntries(pool.Elements, opts);
+}
+
 template <Dimension D> void SandboxWinLayer::RenderGltf()
 {
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
@@ -1450,7 +1556,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
             {
                 const Asset mesh = handles.StaticMeshes[i];
                 const StatMeshData<D> &mdat = data.StaticMeshes[i];
-                StatMeshId<D> &mid = mspool.Data.Elements.Append();
+                StatMeshId<D> &mid = mspool.Elements.Append();
                 mid.Name = TKit::Format("GLTF-Mesh-{:#010x}", mesh);
                 mid.Handle = mesh;
                 mid.Data = mdat;
@@ -1460,7 +1566,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
             {
                 const Asset mat = handles.Materials[i];
                 const MaterialData<D> &mdat = data.Materials[i];
-                MaterialId<D> &mid = mtpool.Data.Elements.Append();
+                MaterialId<D> &mid = mtpool.Elements.Append();
                 mid.Name = TKit::Format("GLTF-Material-{:#010x}", mat);
                 mid.Handle = mat;
                 mid.Data = mdat;
@@ -1498,11 +1604,11 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
 
     EntriesOptions<MeshId<Vertex>> opts{};
     // opts.TreeName = "Meshes";
-    opts.Selected = &pool.Data.Active;
+    opts.Selected = &pool.Active;
     opts.OnSelected = [this](MeshId<Vertex> &mesh) { RenderMesh(mesh); };
     opts.GetName = [](const MeshId<Vertex> &mesh) { return mesh.Name; };
     opts.RemoveButton = false;
-    renderEntries(pool.Data.Elements, opts);
+    renderEntries(pool.Elements, opts);
 
     if constexpr (std::is_same_v<Vertex, StatVertex<D>>)
     {

@@ -137,10 +137,71 @@ template <Dimension D> void IRenderContext<D>::Circle(const f32m<D> &transform, 
     resolveStencilPassWithState(draw);
 }
 
+template <Dimension D> void IRenderContext<D>::Text(const std::string_view text, const TextParameters &params)
+{
+    const auto draw = [&](const StencilPass pass) { addGlyphData(text, m_Current->Transform, params, pass); };
+    resolveStencilPassWithState(draw);
+}
+template <Dimension D>
+void IRenderContext<D>::Text(const std::string_view text, const f32m<D> &transform, const TextParameters &params)
+{
+    const auto draw = [&](const StencilPass pass) {
+        addGlyphData(text, transform * m_Current->Transform, params, pass);
+    };
+    resolveStencilPassWithState(draw);
+}
+
+#ifdef TKIT_ENABLE_ASSERTS
+template <Dimension D> void checkMaterial(const Asset material)
+{
+    TKIT_ASSERT(Assets::IsAssetNull(material) || Assets::IsAssetValid<D>(material, Asset_Material),
+                "[ONYX][CONTEX] The material handle {:#010x} is invalid and is not an explicit null material",
+                material);
+    if (!Assets::IsAssetNull(material))
+    {
+        const MaterialData<D> &data = Assets::GetMaterialData<D>(material);
+        if constexpr (D == D2)
+        {
+            TKIT_ASSERT(
+                Assets::IsAssetNull(data.Sampler) || Assets::IsAssetValid<D>(data.Sampler, Asset_Sampler),
+                "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
+                "an explicit null sampler",
+                data.Sampler, material);
+            TKIT_ASSERT(
+                Assets::IsAssetNull(data.Texture) || Assets::IsAssetValid<D>(data.Texture, Asset_Texture),
+                "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
+                "an explicit null texture",
+                data.Texture, material);
+        }
+        else
+            for (u32 i = 0; i < TextureSlot_Count; ++i)
+            {
+                const TextureSlot slot = TextureSlot(i);
+                const Asset sampler = data.Samplers[i];
+                const Asset texture = data.Textures[i];
+
+                TKIT_ASSERT(Assets::IsAssetNull(sampler) || Assets::IsAssetValid<D>(sampler, Asset_Sampler),
+                            "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
+                            "slot '{}' is "
+                            "invalid and is not an explicit null sampler",
+                            sampler, material, ToString(slot));
+                TKIT_ASSERT(Assets::IsAssetNull(texture) || Assets::IsAssetValid<D>(texture, Asset_Texture),
+                            "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
+                            "slot '{}' is "
+                            "invalid and is not an explicit null texture",
+                            texture, material, ToString(slot));
+            }
+    }
+}
+#endif
+
 template <Dimension D>
 static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *state, const f32m<D> &transform,
                                                       const StencilPass pass, const u32 depthCounter)
 {
+#ifdef TKIT_ENABLE_ASSERTS
+    checkMaterial<D>(state->Material);
+#endif
     if constexpr (D == D2)
     {
         StaticInstanceData<D2> instanceData{};
@@ -208,6 +269,17 @@ static ParametricInstanceData<D> createParametricInstanceData(const RenderState<
     instanceData.Data = createStaticInstanceData(state, transform, pass, depthCounter);
     instanceData.Shape = shape;
     instanceData.Parameters = params;
+    return instanceData;
+}
+
+template <Dimension D>
+static GlyphInstanceData<D> createGlyphInstanceData(const RenderState<D> *state, const f32m<D> &transform,
+                                                    const StencilPass pass, const u32 depthCounter)
+{
+    GlyphInstanceData<D> instanceData;
+    instanceData.Data = createStaticInstanceData(state, transform, pass, depthCounter);
+    instanceData.AtlasHandle = Assets::GetFontAtlas(state->Font);
+    instanceData.SamplerHandle = state->FontSampler;
     return instanceData;
 }
 
@@ -284,71 +356,150 @@ void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CirclePara
 template <Dimension D>
 void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform, const StencilPass pass)
 {
-    const u32 aid = Assets::GetAssetId(mesh);
     const u32 pid = Assets::GetAssetPoolId(mesh);
+    const u32 mid = Assets::GetAssetId(mesh);
 
     const StaticInstanceData<D> idata = createStaticInstanceData(m_Current, transform, pass, m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Asset_StaticMesh][pid][aid];
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Asset_StaticMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
 template <Dimension D>
 void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &transform, const InstanceParameters &params,
                                           const StencilPass pass)
 {
-    const u32 aid = Assets::GetAssetId(mesh);
     const u32 pid = Assets::GetAssetPoolId(mesh);
+    const u32 mid = Assets::GetAssetId(mesh);
 
     const ParametricShape shape = Assets::GetParametricShape<D>(mesh);
 
     const ParametricInstanceData<D> idata =
         createParametricInstanceData(m_Current, transform, shape, params, pass, m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Asset_ParametricMesh][pid][aid];
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Asset_ParametricMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
-
-#ifdef TKIT_ENABLE_ASSERTS
-template <Dimension D> void IRenderContext<D>::checkMaterial(const Asset material)
+template <Dimension D>
+void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> &transform,
+                                     const TextParameters &params, const StencilPass pass)
 {
-    TKIT_ASSERT(Assets::IsAssetNull(material) || Assets::IsAssetValid<D>(material, Asset_Material),
-                "[ONYX][CONTEX] The material handle {:#010x} is invalid and is not an explicit null material",
-                material);
-    if (!Assets::IsAssetNull(material))
-    {
-        const MaterialData<D> &data = Assets::GetMaterialData<D>(material);
-        if constexpr (D == D2)
-        {
-            TKIT_ASSERT(
-                Assets::IsAssetNull(data.Sampler) || Assets::IsAssetValid<D>(data.Sampler, Asset_Sampler),
-                "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
-                "an explicit null sampler",
-                data.Sampler, material);
-            TKIT_ASSERT(
-                Assets::IsAssetNull(data.Texture) || Assets::IsAssetValid<D>(data.Texture, Asset_Texture),
-                "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
-                "an explicit null texture",
-                data.Texture, material);
-        }
-        else
-            for (u32 i = 0; i < TextureSlot_Count; ++i)
-            {
-                const TextureSlot slot = TextureSlot(i);
-                const Asset sampler = data.Samplers[i];
-                const Asset texture = data.Textures[i];
+    CHECK_HANDLE(m_Current->Font, Asset_Font, D);
+    ONYX_CHECK_ASSET_IS_NOT_NULL(m_Current->FontSampler);
+    ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(m_Current->FontSampler, Asset_Sampler, D);
 
-                TKIT_ASSERT(Assets::IsAssetNull(sampler) || Assets::IsAssetValid<D>(sampler, Asset_Sampler),
-                            "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
-                            "slot '{}' is "
-                            "invalid and is not an explicit null sampler",
-                            sampler, material, ToString(slot));
-                TKIT_ASSERT(Assets::IsAssetNull(texture) || Assets::IsAssetValid<D>(texture, Asset_Texture),
-                            "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
-                            "slot '{}' is "
-                            "invalid and is not an explicit null texture",
-                            texture, material, ToString(slot));
+    const FontData &fdata = Assets::GetFontData(m_Current->Font);
+    const u32 size = u32(text.size());
+    f32m<D> t = transform;
+
+    const auto wordWidth = [&](const std::string_view str) {
+        f32 width = 0.f;
+        const u32 size = u32(str.size());
+        for (u32 i = 0; i < size; ++i)
+        {
+            const char c = str[i];
+            if (c == '\n' || c == ' ')
+                return width;
+
+            if (i > 0)
+                width += fdata.GetKerning(text[i - 1], c);
+
+            const Glyph *glyph = Assets::GetGlyph(m_Current->Font, c);
+            width += glyph->Data.Advance + params.Kerning;
+        }
+        return width;
+    };
+
+    const auto lineWidth = [&](const std::string_view str) {
+        f32 width = 0.f;
+        const u32 size = u32(str.size());
+
+        for (u32 i = 0; i < size; ++i)
+        {
+            const char c = str[i];
+            if (c == '\n')
+                return params.Alignment == TextAlignment_Center ? (0.5f * width) : width;
+
+            if (c == ' ')
+            {
+                const f32 wwidth = wordWidth(str.substr(i + 1));
+                if (width + wwidth > params.Width)
+                    return params.Alignment == TextAlignment_Center ? (0.5f * width) : width;
             }
+
+            if (i > 0)
+                width += fdata.GetKerning(text[i - 1], c);
+
+            const Glyph *glyph = Assets::GetGlyph(m_Current->Font, c);
+            width += glyph->Data.Advance;
+        }
+        return params.Alignment == TextAlignment_Center ? (0.5f * width) : width;
+    };
+
+    f32v2 pos{0.f};
+    const auto updateTransform = [&] {
+        f32v<D + 1> p = transform[D];
+        for (u32 i = 0; i < 2; ++i)
+            for (u32 j = 0; j < D; ++j)
+            {
+                p[j] += t[i][j] * pos[i];
+                t[D][j] += t[i][j] * pos[i];
+            }
+        t[D] = p;
+    };
+
+    f32 width = 0.f;
+    if (params.Alignment != TextAlignment_Left)
+        pos[0] = -lineWidth(text);
+
+    const f32 yscale = 1.f / (fdata.Ascender - fdata.Descender);
+    const auto reset = [&](const std::string_view substr) {
+        pos[0] = params.Alignment == TextAlignment_Left ? 0.f : -lineWidth(substr);
+        pos[1] -= fdata.LineHeight * yscale + params.LineSpacing;
+        width = 0.f;
+    };
+
+    for (u32 i = 0; i < size; ++i)
+    {
+        const char c = text[i];
+
+        if (c == '\n')
+        {
+            reset(text.substr(i + 1));
+            continue;
+        }
+
+        if (c == ' ')
+        {
+            const std::string_view substr = text.substr(i + 1);
+            const f32 wwidth = wordWidth(substr);
+            if (width + wwidth > params.Width)
+            {
+                reset(substr);
+                continue;
+            }
+        }
+
+        f32 kerning = 0.f;
+        if (i > 0)
+            kerning = fdata.GetKerning(text[i - 1], c);
+
+        const Glyph *glyph = Assets::GetGlyph(m_Current->Font, c);
+
+        updateTransform();
+        addGlyphData(glyph->Id, t, pass);
+
+        const f32 displacement = glyph->Data.Advance + kerning + params.Kerning;
+        pos[0] += displacement;
+        width += displacement;
     }
 }
-#endif
+template <Dimension D>
+void IRenderContext<D>::addGlyphData(const u32 gid, const f32m<D> &transform, const StencilPass pass)
+{
+    const u32 pid = Assets::GetAssetPoolId(m_Current->Font);
+
+    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, pass, m_DepthCounter);
+    InstanceDataBuffer &buffer = m_InstanceData[pass].Meshes[Asset_GlyphMesh][pid][gid];
+    addInstanceData(buffer, idata);
+}
 
 template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, const f32v<D> &end)
 {

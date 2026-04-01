@@ -79,12 +79,14 @@ PointLights2D g_PointLights;
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input)
 {
+    const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
+    if (coverage <= 0.f) // so that transparent parts do not touch depth/stencil buffers
+        discard;
     ResourceTable2D resources;
     resources.Materials = g_Materials;
     resources.Samplers = g_Samplers;
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
 
-    const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
     return ComputeColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.AtlasCoord, resources, coverage);
 }

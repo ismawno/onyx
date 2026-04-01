@@ -1,47 +1,43 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/asset/font.hpp"
 
-#define MSDFGEN_PUBLIC
-#include <msdfgen.h>
-#include <msdfgen-ext.h>
+#ifdef ONYX_ENABLE_FONT_LOAD
+TKIT_COMPILER_WARNING_IGNORE_PUSH()
+TKIT_CLANG_WARNING_IGNORE("-Wint-in-bool-context")
+TKIT_CLANG_WARNING_IGNORE("-Wunused-function")
+TKIT_GCC_WARNING_IGNORE("-Wint-in-bool-context")
+TKIT_GCC_WARNING_IGNORE("-Wunused-function")
+#    define MSDFGEN_PUBLIC
+#    include <msdf-atlas-gen/msdf-atlas-gen.h>
+TKIT_COMPILER_WARNING_IGNORE_POP()
+#endif
 
 namespace Onyx
 {
+#ifdef ONYX_ENABLE_FONT_LOAD
 Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &opts)
 {
-    VKit::DeletionQueue dqueue{};
     msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
     if (!ft)
         return Result<>::Error(Error_InitializationFailed, "[ONYX][FONT] Failed to initialize FreeType");
 
-    dqueue.Push([ft] { msdfgen::deinitializeFreetype(ft); });
-
     msdfgen::FontHandle *font = msdfgen::loadFont(ft, path);
     if (!font)
+    {
+        msdfgen::deinitializeFreetype(ft);
         return Result<FontData>::Error(
             Error_Unknown,
             TKit::Format(
                 "[ONYX][FONT] Failed to load font at {} because of an unknown reason (msdfgen does not expose why)",
                 path));
-    dqueue.Push([font] { msdfgen::destroyFont(font); });
-
-    FontData data{};
+    }
     const TKit::Span<const CodePointRange> ranges = opts.CharSets;
 
-    data.CharSetCount = ranges.GetSize();
+    std::vector<msdf_atlas::GlyphGeometry> glyphs;
+    msdf_atlas::FontGeometry fgeo{&glyphs};
+    msdf_atlas::Charset chset{};
 
-    TextureData tdata{};
-    tdata.Width = opts.AtlasWidth;
-    tdata.Components = 4;
-    tdata.Format = VK_FORMAT_R32G32B32A32_SFLOAT;
-
-    u32 xatlas = 0;
-    u32 yatlas = 0;
-    u32 rowHeight = 0;
-
-    const u32 w = opts.GlyphSize[0];
-    const u32 h = opts.GlyphSize[1];
-
+    FontData data{};
     for (u32 i = 0; i < ranges.GetSize(); ++i)
     {
         const CodePointRange &range = ranges[i];
@@ -54,72 +50,96 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
                     "First = {}, Last = {} and range {} with First = {}, Last = {}",
                     i, range.First, range.Last, i - 1, ranges[i - 1].First, ranges[i - 1].Last);
         for (u32 j = range.First; j <= range.Last; ++j)
-        {
-            if (xatlas + w > opts.AtlasWidth)
-            {
-                xatlas = 0;
-                yatlas += rowHeight;
-                rowHeight = 0;
-            }
-            xatlas += w;
-            rowHeight = Math::Max(rowHeight, h);
-        }
-    }
-    tdata.Height = yatlas + rowHeight;
-
-    const usz size = tdata.ComputeSize();
-    tdata.Data = scast<std::byte *>(TKit::Allocate(size));
-    dqueue.Push([tdata] { TKit::Deallocate(tdata.Data); });
-
-    xatlas = 0;
-    yatlas = 0;
-    rowHeight = 0;
-
-    const f32v2 scale = opts.GlyphSize - 2.f * opts.Padding;
-    const f32v2 translate = opts.Padding / scale;
-    const msdfgen::Projection proj{{scale[0], scale[1]}, {translate[0], translate[1]}};
-    for (const CodePointRange &range : ranges)
-    {
-        for (u32 j = range.First; j <= range.Last; ++j)
-        {
-            msdfgen::Shape shape;
-            f64 advance;
-            if (!msdfgen::loadGlyph(shape, font, j, msdfgen::FONT_SCALING_EM_NORMALIZED, &advance))
-                return Result<FontData>::Error(
-                    Error_Unknown,
-                    "[ONYX][FONT] Failed to load glyph because of an unknown reason (msdfgen does not expose why)");
-
-            shape.normalize();
-            msdfgen::edgeColoringSimple(shape, 3.0);
-            msdfgen::Bitmap<f32, 4> mtsdf{i32(w), i32(h)};
-            msdfgen::generateMTSDF(mtsdf, shape, proj, opts.SDFRange);
-            if (xatlas + w > opts.AtlasWidth)
-            {
-                xatlas = 0;
-                yatlas += rowHeight;
-                rowHeight = 0;
-            }
-            for (u32 k = 0; k < h; ++k)
-            {
-                const usz offset = ((yatlas + k) * tdata.Width + xatlas) * 4 * sizeof(f32);
-                TKit::ForwardCopy(tdata.Data + offset, mtsdf(0, i32(k)), w * 4 * sizeof(f32));
-            }
-
-            GlyphData glyph{};
-            glyph.MinTexCoord = f32v2{f32(xatlas) / tdata.Width, f32(yatlas) / tdata.Height};
-            glyph.MaxTexCoord = f32v2{f32(xatlas + w) / tdata.Width, f32(yatlas + h) / tdata.Height};
-            glyph.Advance = f32(advance);
-
-            const msdfgen::Shape::Bounds bounds = shape.getBounds();
-            glyph.Bearing = f32v2{f32(bounds.l), f32(bounds.t)};
-            glyph.Size = f32v2{f32(bounds.r - bounds.l), f32(bounds.t - bounds.b)};
-
-            data.Glyphs.Append(glyph);
-            xatlas += w;
-            rowHeight = Math::Max(rowHeight, h);
-        }
+            chset.add(j);
         data.CodePoints.Append(range);
     }
+    const u32 count = u32(fgeo.loadCharset(font, opts.FontScale, chset));
+    TKIT_LOG_DEBUG("[ONYX][FONT] Loaded {}/{} glyphs", count, chset.size());
+
+    msdf_atlas::TightAtlasPacker packer{};
+    packer.setPixelRange(opts.SDFRange);
+    packer.setMiterLimit(1.0);
+    packer.setInnerPixelPadding(msdf_atlas::Padding{opts.Padding});
+    packer.setScale(opts.EmSize);
+    TKIT_CHECK_RETURNS(packer.pack(glyphs.data(), glyphs.size()), 0,
+                       "[ONYX][FONT] Atlas packer did not pack all the glyphs!");
+
+    i32 w;
+    i32 h;
+    packer.getDimensions(w, h);
+
+    u64 seed = 0;
+    for (msdf_atlas::GlyphGeometry &glyph : glyphs)
+        glyph.edgeColoring(&msdfgen::edgeColoringInkTrap, opts.MaxCornerAngle, seed++);
+
+    msdf_atlas::ImmediateAtlasGenerator<f32, 4, msdf_atlas::mtsdfGenerator,
+                                        msdf_atlas::BitmapAtlasStorage<msdf_atlas::byte, 4>>
+        generator{w, h};
+
+    msdf_atlas::GeneratorAttributes att;
+    att.config.overlapSupport = true;
+    att.scanlinePass = true;
+    generator.setAttributes(att);
+    generator.setThreadCount(TKIT_MAX_THREADS);
+    generator.generate(glyphs.data(), i32(glyphs.size()));
+
+    const msdfgen::BitmapConstRef<u8, 4> bitmap = generator.atlasStorage();
+    TextureData tdata;
+    tdata.Width = u32(bitmap.width);
+    tdata.Height = u32(bitmap.height);
+    tdata.Format = VK_FORMAT_R8G8B8A8_UNORM;
+
+    TKit::TierArray<u8> flipped{};
+    flipped.Reserve(tdata.Width * tdata.Height * 4);
+
+    for (u32 i = 0; i < tdata.Height; ++i)
+    {
+        const u8 *src = bitmap(0, tdata.Height - i - 1);
+        u8 *dst = flipped.GetData() + i * tdata.Width * 4;
+        TKit::ForwardCopy(dst, src, tdata.Width * 4);
+    }
+
+    const usz size = tdata.Width * tdata.Height * 4;
+    tdata.Data = scast<std::byte *>(TKit::Allocate(size));
+    TKit::ForwardCopy(tdata.Data, flipped.GetData(), size);
+
+    data.AtlasData = tdata;
+
+    for (const msdf_atlas::GlyphGeometry &glyph : glyphs)
+    {
+        GlyphData gdata{};
+        gdata.Advance = f32(glyph.getAdvance());
+
+        f64 pl, pb, pr, pt;
+        glyph.getQuadPlaneBounds(pl, pb, pr, pt);
+        const f32v2 quadMin{f32(pl), f32(pb)};
+        const f32v2 quadMax{f32(pr), f32(pt)};
+
+        f64 al, ab, ar, at;
+        glyph.getQuadAtlasBounds(al, ab, ar, at);
+        const f32v2 texCoordMin{f32(al), tdata.Height - f32(ab)};
+        const f32v2 texCoordMax{f32(ar), tdata.Height - f32(at)};
+
+        gdata.Min = quadMin;
+        gdata.Max = quadMax;
+
+        gdata.MinTexCoord = texCoordMin / tdata.Width;
+        gdata.MaxTexCoord = texCoordMax / tdata.Height;
+
+        data.Glyphs.Append(gdata);
+    }
+    for (msdf_atlas::unicode_t a : chset)
+        for (msdf_atlas::unicode_t b : chset)
+        {
+            const u64 key = u64(a) << 32 | u64(b);
+            f64 kerning = 0.;
+            msdfgen::getKerning(kerning, font, a, b, msdfgen::FONT_SCALING_EM_NORMALIZED);
+            if (kerning != 0.)
+                data.Kerning.Append(key, f32(kerning));
+        }
+    std::sort(data.Kerning.begin(), data.Kerning.end(),
+              [](const GlyphKerning &a, const GlyphKerning &b) { return a.Key < b.Key; });
+
     msdfgen::FontMetrics metrics;
     msdfgen::getFontMetrics(metrics, font);
 
@@ -128,6 +148,20 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
     data.Descender = f32(metrics.descenderY);
     data.LineHeight = f32(metrics.lineHeight);
 
+    msdfgen::destroyFont(font);
+    msdfgen::deinitializeFreetype(ft);
     return data;
 }
+#endif
+
+f32 FontData::GetKerning(const u32 code0, const u32 code1) const
+{
+    const u64 key = u64(code0) << 32 | u64(code1);
+    auto it = std::lower_bound(Kerning.begin(), Kerning.end(), key,
+                               [](const GlyphKerning &glyphs, const u64 k) { return glyphs.Key < k; });
+    if (it != Kerning.end() && it->Key == key)
+        return it->Kerning;
+    return 0.0f;
+}
+
 } // namespace Onyx

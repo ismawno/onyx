@@ -7,11 +7,23 @@ namespace Onyx
 {
 struct GlyphData
 {
+    f32v2 Min{0.f};
+    f32v2 Max{0.f};
     f32v2 MinTexCoord{0.f};
     f32v2 MaxTexCoord{0.f};
-    f32v2 Bearing{0.f};
-    f32v2 Size{0.f};
     f32 Advance = 0.f;
+};
+
+struct GlyphKerning
+{
+    u64 Key;
+    f32 Kerning;
+};
+
+struct Glyph
+{
+    GlyphData Data;
+    u32 Id;
 };
 
 struct CodePointRange
@@ -26,21 +38,24 @@ struct FontData
 {
     TKit::TierArray<CodePointRange> CodePoints{};
     TKit::TierArray<GlyphData> Glyphs{};
+    TKit::TierArray<GlyphKerning> Kerning{};
     TextureData AtlasData{};
-    u32 CharSetCount = 0;
     f32 Ascender = 0.f;
     f32 Descender = 0.f;
     f32 LineHeight = 0.f;
+
+    f32 GetKerning(u32 code0, u32 code1) const;
 };
 
 #ifdef ONYX_ENABLE_FONT_LOAD
 struct FontLoadOptions
 {
     TKit::Span<const CodePointRange> CharSets = FontCharSet_ASCII;
-    u32v2 GlyphSize{32, 32};
-    f32 SDFRange = 4.f;
     f32 Padding = 2.f;
-    u32 AtlasWidth = 512;
+    f32 SDFRange = 4.f;
+    f32 FontScale = 1.f;
+    f32 MaxCornerAngle = 3.f;
+    f32 EmSize = 40.f;
 };
 ONYX_NO_DISCARD Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &opts = {});
 #endif

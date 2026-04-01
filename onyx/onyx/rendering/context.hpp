@@ -28,6 +28,8 @@ template <Dimension D> struct RenderState
     f32 OutlineWidth = 0.1f;
     f32 AmbientIntensity = 0.4f;
     Asset Material = NullHandle;
+    Asset Font = NullHandle;
+    Asset FontSampler = NullHandle;
     RenderStateFlags Flags = RenderStateFlag_Fill;
 };
 
@@ -114,10 +116,16 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Material(const Asset material)
     {
-#ifdef TKIT_ENABLE_ASSERTS
-        checkMaterial(material);
-#endif
         m_Current->Material = material;
+    }
+
+    void Font(const Asset font)
+    {
+        m_Current->Font = font;
+    }
+    void FontSampler(const Asset sampler)
+    {
+        m_Current->FontSampler = sampler;
     }
 
     void StaticMesh(Asset mesh);
@@ -130,6 +138,14 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         if constexpr (std::is_same_v<T, StadiumParameters>)
             ParametricMesh(mesh, InstanceParameters{.Stadium = params});
+        else if constexpr (std::is_same_v<T, RoundedQuadParameters>)
+            ParametricMesh(mesh, InstanceParameters{.RoundedQuad = params});
+        else if constexpr (D == D3 && std::is_same_v<T, CapsuleParameters>)
+            ParametricMesh(mesh, InstanceParameters{.Capsule = params});
+        else if constexpr (D == D3 && std::is_same_v<T, RoundedBoxParameters>)
+            ParametricMesh(mesh, InstanceParameters{.RoundedBox = params});
+        else if constexpr (D == D3 && std::is_same_v<T, TorusParameters>)
+            ParametricMesh(mesh, InstanceParameters{.Torus = params});
         else
             static_assert(false, "[ONYX][CONTEXT] Type T is not a valid instance parameters type");
     }
@@ -137,12 +153,23 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         if constexpr (std::is_same_v<T, StadiumParameters>)
             ParametricMesh(mesh, InstanceParameters{.Stadium = params}, transform);
+        else if constexpr (std::is_same_v<T, RoundedQuadParameters>)
+            ParametricMesh(mesh, InstanceParameters{.RoundedQuad = params}, transform);
+        else if constexpr (D == D3 && std::is_same_v<T, CapsuleParameters>)
+            ParametricMesh(mesh, InstanceParameters{.Capsule = params}, transform);
+        else if constexpr (D == D3 && std::is_same_v<T, RoundedBoxParameters>)
+            ParametricMesh(mesh, InstanceParameters{.RoundedBox = params}, transform);
+        else if constexpr (D == D3 && std::is_same_v<T, TorusParameters>)
+            ParametricMesh(mesh, InstanceParameters{.Torus = params}, transform);
         else
             static_assert(false, "[ONYX][CONTEXT] Type T is not a valid instance parameters type");
     }
 
     void Circle(const CircleParameters &params = {});
     void Circle(const f32m<D> &transform, const CircleParameters &params = {});
+
+    void Text(std::string_view text, const TextParameters &params = {});
+    void Text(std::string_view text, const f32m<D> &transform, const TextParameters &params = {});
 
     void Line(Asset staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
     void Axes(Asset staticMesh, const AxesParameters &params = {});
@@ -193,8 +220,14 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         return m_PointLights;
     }
 
-    const RenderState<D> &GetState() const;
-    RenderState<D> &GetState();
+    const RenderState<D> &GetState() const
+    {
+        return *m_Current;
+    }
+    RenderState<D> &GetState()
+    {
+        return *m_Current;
+    }
 
     void SetState(const RenderState<D> &state);
 
@@ -279,6 +312,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addCircleData(const f32m<D> &transform, const CircleParameters &params, StencilPass pass);
     void addStaticData(Asset mesh, const f32m<D> &transform, StencilPass pass);
     void addParametricData(Asset mesh, const f32m<D> &transform, const InstanceParameters &params, StencilPass pass);
+    void addGlyphData(std::string_view text, const f32m<D> &transform, const TextParameters &params, StencilPass pass);
+    void addGlyphData(u32 gid, const f32m<D> &transform, StencilPass pass);
 #ifdef TKIT_ENABLE_ASSERTS
     void checkMaterial(Asset material);
 #endif
