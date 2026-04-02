@@ -16,30 +16,21 @@ struct Basis3D
     f32 Basis02, Basis12, Basis22, Basis32;
 }
 
-struct StaticInstanceDataFill2D
+struct StaticInstanceData2D
 {
     Basis2D Basis;
-    u32 Color;
+    u32 FillColor;
+    u32 OutlineColor;
     u32 DepthCounter;
     u32 MatHandle;
-}
-struct StaticInstanceDataStencil2D
-{
-    Basis2D Basis;
-    u32 Color;
-    u32 DepthCounter;
     f32 OutlineWidth;
 }
-struct StaticInstanceDataFill3D
+struct StaticInstanceData3D
 {
     Basis3D Basis;
-    u32 Color;
+    u32 FillColor;
+    u32 OutlineColor;
     u32 MatHandle;
-}
-struct StaticInstanceDataStencil3D
-{
-    Basis3D Basis;
-    u32 Color;
     f32 OutlineWidth;
 }
 
@@ -66,27 +57,15 @@ struct FadeData
     f32 OuterFade;
 }
 
-struct CircleInstanceDataFill2D
+struct CircleInstanceData2D
 {
-    StaticInstanceDataFill2D Data;
+    StaticInstanceData2D Data;
     ArcDataPacked Arc;
     FadeData Fade;
 }
-struct CircleInstanceDataStencil2D
+struct CircleInstanceData3D
 {
-    StaticInstanceDataStencil2D Data;
-    ArcDataPacked Arc;
-    FadeData Fade;
-}
-struct CircleInstanceDataFill3D
-{
-    StaticInstanceDataFill3D Data;
-    ArcDataPacked Arc;
-    FadeData Fade;
-}
-struct CircleInstanceDataStencil3D
-{
-    StaticInstanceDataStencil3D Data;
+    StaticInstanceData3D Data;
     ArcDataPacked Arc;
     FadeData Fade;
 }
@@ -131,48 +110,26 @@ struct InstanceParameters
     ParametricShape Shape;
 }
 
-struct ParametricInstanceDataFill2D
+struct ParametricInstanceData2D
 {
-    StaticInstanceDataFill2D Data;
+    StaticInstanceData2D Data;
     InstanceParameters Parameters;
 }
-struct ParametricInstanceDataFill3D
+struct ParametricInstanceData3D
 {
-    StaticInstanceDataFill3D Data;
-    InstanceParameters Parameters;
-}
-struct ParametricInstanceDataStencil2D
-{
-    StaticInstanceDataStencil2D Data;
-    InstanceParameters Parameters;
-}
-struct ParametricInstanceDataStencil3D
-{
-    StaticInstanceDataStencil3D Data;
+    StaticInstanceData3D Data;
     InstanceParameters Parameters;
 }
 
-struct GlyphInstanceDataFill2D
+struct GlyphInstanceData2D
 {
-    StaticInstanceDataFill2D Data;
+    StaticInstanceData2D Data;
     u32 SamplerHandle;
     u32 AtlasHandle;
 }
-struct GlyphInstanceDataFill3D
+struct GlyphInstanceData3D
 {
-    StaticInstanceDataFill3D Data;
-    u32 SamplerHandle;
-    u32 AtlasHandle;
-}
-struct GlyphInstanceDataStencil2D
-{
-    StaticInstanceDataStencil2D Data;
-    u32 SamplerHandle;
-    u32 AtlasHandle;
-}
-struct GlyphInstanceDataStencil3D
-{
-    StaticInstanceDataStencil3D Data;
+    StaticInstanceData3D Data;
     u32 SamplerHandle;
     u32 AtlasHandle;
 }

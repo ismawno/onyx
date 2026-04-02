@@ -241,12 +241,12 @@ template <Dimension D> void updateMaterialDescriptorSet(const u32 pid)
     MaterialPoolData<D> &mpool = getData<D>().Materials.Pools[pid];
 
     const VkDescriptorBufferInfo binfo = mpool.Buffer.CreateDescriptorInfo();
-    const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(Shading_Lit);
+    const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(DrawPass_Fill);
 
     VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
     writer.WriteBuffer(3, binfo, pid);
 
-    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D>(Shading_Lit))
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D>(DrawPass_Fill))
         writer.Overwrite(set);
 }
 
@@ -1157,10 +1157,10 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
 
     if (sflags & StatusFlag_CreateTexture)
     {
-        const VKit::DescriptorSetLayout &layout2 = Descriptors::GetDescriptorSetLayout<D2>(Shading_Lit);
+        const VKit::DescriptorSetLayout &layout2 = Descriptors::GetDescriptorSetLayout<D2>(DrawPass_Fill);
         VKit::DescriptorSet::Writer writer2{Core::GetDevice(), &layout2};
 
-        const VKit::DescriptorSetLayout &layout3 = Descriptors::GetDescriptorSetLayout<D3>(Shading_Lit);
+        const VKit::DescriptorSetLayout &layout3 = Descriptors::GetDescriptorSetLayout<D3>(DrawPass_Fill);
         VKit::DescriptorSet::Writer writer3{Core::GetDevice(), &layout3};
 
         TKit::StackArray<VkDescriptorImageInfo> imageInfos{};
@@ -1202,13 +1202,13 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 writer3.WriteImage(2, info, tid);
             }
 
-        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Unlit))
+        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(DrawPass_Stencil))
             writer2.Overwrite(set);
-        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Unlit))
+        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(DrawPass_Stencil))
             writer3.Overwrite(set);
-        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
+        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(DrawPass_Fill))
             writer2.Overwrite(set);
-        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Lit))
+        for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(DrawPass_Fill))
             writer3.Overwrite(set);
     }
 
@@ -1328,10 +1328,10 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
     if (!(sflags & StatusFlag_UpdateSampler))
         return Result<>::Ok();
 
-    const VKit::DescriptorSetLayout &layout2 = Descriptors::GetDescriptorSetLayout<D2>(Shading_Lit);
+    const VKit::DescriptorSetLayout &layout2 = Descriptors::GetDescriptorSetLayout<D2>(DrawPass_Fill);
     VKit::DescriptorSet::Writer writer2{Core::GetDevice(), &layout2};
 
-    const VKit::DescriptorSetLayout &layout3 = Descriptors::GetDescriptorSetLayout<D3>(Shading_Lit);
+    const VKit::DescriptorSetLayout &layout3 = Descriptors::GetDescriptorSetLayout<D3>(DrawPass_Fill);
     VKit::DescriptorSet::Writer writer3{Core::GetDevice(), &layout3};
 
     TKit::StackArray<VkDescriptorImageInfo> imageInfos{};
@@ -1368,13 +1368,13 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
             writer3.WriteImage(1, info, sid);
         }
 
-    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Unlit))
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(DrawPass_Stencil))
         writer2.Overwrite(set);
-    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Unlit))
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(DrawPass_Stencil))
         writer3.Overwrite(set);
-    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(Shading_Lit))
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D2>(DrawPass_Fill))
         writer2.Overwrite(set);
-    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(Shading_Lit))
+    for (const VkDescriptorSet set : Renderer::GetDescriptorSets<D3>(DrawPass_Fill))
         writer3.Overwrite(set);
 
     return Result<>::Ok();

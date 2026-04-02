@@ -27,7 +27,7 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<GlyphInstanceDataFill3D, Std430DataLayout> g_Instances;
+StructuredBuffer<GlyphInstanceData3D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -46,8 +46,8 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const GlyphInstanceDataFill3D gdata = g_Instances[instanceIndex];
-    const StaticInstanceDataFill3D data = gdata.Data;
+    const GlyphInstanceData3D gdata = g_Instances[instanceIndex];
+    const StaticInstanceData3D data = gdata.Data;
 
     const f32m4 transform = ComputeTransform3D(data.Basis);
     const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
@@ -68,7 +68,7 @@ VertexOutput mainVS(
     output.MatHandle = data.MatHandle;
     output.SamplerId = GetAssetId(gdata.SamplerHandle);
     output.AtlasId = GetAssetId(gdata.AtlasHandle);
-    output.FragColor = unpackUnorm4x8ToFloat(data.Color);
+    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
     return output;
 }
@@ -92,7 +92,7 @@ DirectionalLights g_DirLights;
 f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
-    if (coverage <= 0.f) // so that transparent parts do not touch depth/stencil buffers
+    if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
     ResourceTable3D resources;
     resources.Materials = g_Materials;

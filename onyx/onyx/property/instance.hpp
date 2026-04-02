@@ -11,12 +11,11 @@ template <> struct StaticInstanceData<D2>
     f32v2 Column0;
     f32v2 Column1;
     f32v2 Column3;
-    u32 BaseColor;
+    u32 FillColor;
+    u32 OutlineColor;
     u32 DepthCounter;
-    union {
-        u32 MatHandle;
-        f32 OutlineWidth;
-    };
+    u32 MatHandle;
+    f32 OutlineWidth;
 };
 
 template <> struct StaticInstanceData<D3>
@@ -24,11 +23,10 @@ template <> struct StaticInstanceData<D3>
     f32v4 Row0;
     f32v4 Row1;
     f32v4 Row2;
-    u32 BaseColor;
-    union {
-        u32 MatHandle;
-        f32 OutlineWidth;
-    };
+    u32 FillColor;
+    u32 OutlineColor;
+    u32 MatHandle;
+    f32 OutlineWidth;
 };
 
 struct ArcData
@@ -209,7 +207,6 @@ enum StencilPass : u8
     StencilPass_DoStencilTestNoFill,
     StencilPass_Count
 };
-
 enum DrawPass : u8
 {
     DrawPass_Fill,
@@ -217,34 +214,26 @@ enum DrawPass : u8
     DrawPass_Count
 };
 
-enum Shading : u8
+enum DrawMode : u8
 {
-    Shading_Unlit,
-    Shading_Lit,
-    Shading_Count
+    DrawMode_Fill,
+    DrawMode_Stencil,
+    DrawMode_FillStencil,
+    DrawMode_Count,
+    DrawMode_None = DrawMode_Count,
 };
 
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
 const char *ToString(StencilPass pass);
 const char *ToString(DrawPass pass);
-const char *ToString(Shading shading);
+const char *ToString(DrawMode mode);
 
-constexpr DrawPass GetDrawMode(const StencilPass pass)
+constexpr DrawPass GetDrawPass(const StencilPass pass)
 {
     if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
         return DrawPass_Fill;
     return DrawPass_Stencil;
-}
-
-constexpr Shading GetShading(const DrawPass pass)
-{
-    return pass == DrawPass_Fill ? Shading_Lit : Shading_Unlit;
-}
-
-constexpr Shading GetShading(const StencilPass pass)
-{
-    return GetShading(GetDrawMode(pass));
 }
 
 struct LightRange
@@ -253,9 +242,9 @@ struct LightRange
     u32 LightCount = 0;
 };
 
-template <Dimension D> struct PushConstantData;
+template <Dimension D> struct FillPushConstantData;
 
-template <> struct PushConstantData<D2>
+template <> struct FillPushConstantData<D2>
 {
     f32m4 ProjectionView;
     TKit::FixedArray<LightRange, LightTypeCount<D2>> LightRanges{};
@@ -263,13 +252,19 @@ template <> struct PushConstantData<D2>
     ViewMask ViewBit;
 };
 
-template <> struct PushConstantData<D3>
+template <> struct FillPushConstantData<D3>
 {
     f32m4 ProjectionView;
     f32v4 ViewPosition;
     TKit::FixedArray<LightRange, LightTypeCount<D3>> LightRanges{};
     u32 AmbientColor;
     ViewMask ViewBit;
+};
+
+struct StencilPushConstantData
+{
+    f32m4 ProjectionView;
+    f32 OutlineMultiplier;
 };
 
 } // namespace Onyx

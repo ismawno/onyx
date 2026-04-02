@@ -20,11 +20,12 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<ParametricInstanceDataStencil3D, Std430DataLayout> g_Instances;
+StructuredBuffer<ParametricInstanceData3D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
     f32m4 ProjectionView;
+    f32 OutlineMultiplier;
 }
 
 [[vk::push_constant]]
@@ -38,8 +39,8 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const ParametricInstanceDataStencil3D pdata = g_Instances[instanceIndex];
-    const StaticInstanceDataStencil3D data = pdata.Data;
+    const ParametricInstanceData3D pdata = g_Instances[instanceIndex];
+    const StaticInstanceData3D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
     const f32v3 pos = GetParametricPosition3D(input.Position, input.Normal, params, input.Region);
@@ -47,7 +48,7 @@ VertexOutput mainVS(
     const f32m4 transform = ComputeTransform3D(data.Basis);
 
     const f32v3 scale = ComputeStencilScale3D(transform);
-    const f32v3 extruded = pos + (normalize(input.Position) * data.OutlineWidth) / scale;
+    const f32v3 extruded = pos + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     VertexOutput output;
 
@@ -55,7 +56,7 @@ VertexOutput mainVS(
     output.LocalPosition = input.Position;
     output.ShapeInfo = u32v2(params.Shape, input.Region);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.Color);
+    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
     return output;
 }
 

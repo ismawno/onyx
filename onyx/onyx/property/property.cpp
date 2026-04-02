@@ -64,18 +64,23 @@ const char *ToString(const DrawPass pass)
     }
 }
 
-const char *ToString(const Shading shading)
+const char *ToString(const DrawMode mode)
 {
-    switch (shading)
+    switch (mode)
     {
-    case Shading_Unlit:
-        return "Shading_Unlit";
-    case Shading_Lit:
-        return "Shading_Lit";
+    case DrawMode_Fill:
+        return "DrawMode_Fill";
+    case DrawMode_Stencil:
+        return "DrawMode_Stencil";
+    case DrawMode_FillStencil:
+        return "DrawMode_FillStencil";
+    case DrawMode_None:
+        return "DrawMode_None";
     default:
         return "Unknown";
     }
 }
+
 const char *ToString(const AssetType atype)
 {
     switch (atype)

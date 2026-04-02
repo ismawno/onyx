@@ -14,11 +14,12 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<CircleInstanceDataStencil3D, Std430DataLayout> g_Instances;
+StructuredBuffer<CircleInstanceData3D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
     f32m4 ProjectionView;
+    f32 OutlineMultiplier;
 }
 
 [[vk::push_constant]]
@@ -45,12 +46,12 @@ VertexOutput mainVS(
     const u32 vertexIndex = vertexId + baseVertex;
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const CircleInstanceDataStencil3D data = g_Instances[instanceIndex];
+    const CircleInstanceData3D data = g_Instances[instanceIndex];
     const f32m4 transform = ComputeTransform3D(data.Data.Basis);
 
     const f32v2 localPos = g_Positions[vertexIndex];
     const f32v2 scale = ComputeStencilScale3D(transform).xy;
-    const f32v2 extruded = localPos + (normalize(localPos) * data.Data.OutlineWidth) / scale;
+    const f32v2 extruded = localPos + (normalize(localPos) * data.Data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     const f32v4 pos = f32v4(extruded, 0.0, 1.0);
 
@@ -65,7 +66,7 @@ VertexOutput mainVS(
 
     output.Fade = f32v2(data.Fade.InnerFade, data.Fade.OuterFade);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.Data.Color);
+    output.FragColor = unpackUnorm4x8ToFloat(data.Data.OutlineColor);
 
     return output;
 }

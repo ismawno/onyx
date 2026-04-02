@@ -25,7 +25,7 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<GlyphInstanceDataFill2D, Std430DataLayout> g_Instances;
+StructuredBuffer<GlyphInstanceData2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -44,8 +44,8 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const GlyphInstanceDataFill2D gdata = g_Instances[instanceIndex];
-    const StaticInstanceDataFill2D data = gdata.Data;
+    const GlyphInstanceData2D gdata = g_Instances[instanceIndex];
+    const StaticInstanceData2D data = gdata.Data;
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
     const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
@@ -59,7 +59,7 @@ VertexOutput mainVS(
 
     output.WorldPosition = worldPos.xy;
     output.MatHandle = data.MatHandle;
-    output.FragColor = unpackUnorm4x8ToFloat(data.Color);
+    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
     return output;
 }
@@ -80,7 +80,7 @@ PointLights2D g_PointLights;
 f32v4 mainFS(const VertexOutput input)
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
-    if (coverage <= 0.f) // so that transparent parts do not touch depth/stencil buffers
+    if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
     ResourceTable2D resources;
     resources.Materials = g_Materials;

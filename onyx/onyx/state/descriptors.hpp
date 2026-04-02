@@ -21,8 +21,8 @@ void Terminate();
 
 const VKit::DescriptorPool &GetDescriptorPool();
 
-const VKit::DescriptorSetLayout &GetUnlitDescriptorSetLayout();
-template <Dimension D> const VKit::DescriptorSetLayout &GetLitDescriptorSetLayout();
-template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorSetLayout(Shading shading);
+const VKit::DescriptorSetLayout &GetStencilDescriptorSetLayout();
+template <Dimension D> const VKit::DescriptorSetLayout &GetFillDescriptorSetLayout();
+template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorSetLayout(DrawPass pass);
 
 } // namespace Onyx::Descriptors

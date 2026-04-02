@@ -41,7 +41,7 @@ ONYX_NO_DISCARD Result<> ReloadPipelines();
 
 template <Dimension D> void UpdateViewMask(const RenderContext<D> *context);
 
-template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(Shading shading);
+template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(DrawPass pass);
 
 void ClearViews(ViewMask viewMask);
 

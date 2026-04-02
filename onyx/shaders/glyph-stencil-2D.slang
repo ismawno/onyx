@@ -21,11 +21,12 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<GlyphInstanceDataStencil2D, Std430DataLayout> g_Instances;
+StructuredBuffer<GlyphInstanceData2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
     f32m4 ProjectionView;
+    f32 OutlineMultiplier;
 }
 
 [[vk::push_constant]]
@@ -39,20 +40,20 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const GlyphInstanceDataStencil2D gdata = g_Instances[instanceIndex];
-    const StaticInstanceDataStencil2D data = gdata.Data;
+    const GlyphInstanceData2D gdata = g_Instances[instanceIndex];
+    const StaticInstanceData2D data = gdata.Data;
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
 
     const f32v2 scale = ComputeStencilScale2D(transform);
-    const f32v2 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth) / scale;
+    const f32v2 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     VertexOutput output;
     output.Position = mul(mul(f32v4(extruded, 0.0, 1.0), transform), g_PushData.ProjectionView);
     output.Position.z = ComputeDepth(data.DepthCounter);
 
     output.AtlasCoord = input.AtlasCoord;
-    output.FragColor = unpackUnorm4x8ToFloat(data.Color);
+    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
     output.SamplerId = GetAssetId(gdata.SamplerHandle);
     output.AtlasId = GetAssetId(gdata.AtlasHandle);
 

@@ -26,7 +26,7 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<ParametricInstanceDataFill2D, Std430DataLayout> g_Instances;
+StructuredBuffer<ParametricInstanceData2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -45,8 +45,8 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const ParametricInstanceDataFill2D pdata = g_Instances[instanceIndex];
-    const StaticInstanceDataFill2D data = pdata.Data;
+    const ParametricInstanceData2D pdata = g_Instances[instanceIndex];
+    const StaticInstanceData2D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
     const f32v2 pos = GetParametricPosition2D(input.Position, params, input.Region);
@@ -64,7 +64,7 @@ VertexOutput mainVS(
     output.LocalPosition = input.Position;
     output.ShapeInfo = u32v2(params.Shape, input.Region);
     output.MatHandle = data.MatHandle;
-    output.FragColor = unpackUnorm4x8ToFloat(data.Color);
+    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
     return output;
 }

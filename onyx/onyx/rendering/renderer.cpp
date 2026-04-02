@@ -46,7 +46,7 @@ struct GraphicsInstanceRange
     VkDeviceSize Size = 0;
     ViewMask ViewMask = 0;
     Asset MeshHandle = NullHandle;
-    StencilPass Pass = StencilPass_Count;
+    DrawMode Draw = DrawMode_None;
     TKit::TierArray<ContextInstanceRange> ContextRanges{};
 
     bool InUseByTransfer() const
@@ -131,7 +131,7 @@ template <Dimension D> struct RendererData
     TKit::FixedArray<InstanceArena, Geometry_Count> InstanceArenas{};
     TKit::FixedArray<LightArena, LightTypeCount<D>> LightArenas{};
     TKit::FixedArray<TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count>, StencilPass_Count> Pipelines{};
-    TKit::FixedArray<TKit::FixedArray<VkDescriptorSet, Geometry_Count>, Shading_Count> Descriptors{};
+    TKit::FixedArray<TKit::FixedArray<VkDescriptorSet, Geometry_Count>, DrawPass_Count> Descriptors{};
 
     bool IsContextRangeClean(const ContextInstanceRange &crange) const
     {
@@ -229,10 +229,10 @@ static void updateDescriptorSet(const VkDescriptorSet set, const u32 binding, co
 template <Dimension D> static void updateInstanceDescriptorSets(const Geometry geo)
 {
     RendererData<D> &rdata = getRendererData<D>();
-    for (u32 i = 0; i < Shading_Count; ++i)
+    for (u32 i = 0; i < DrawPass_Count; ++i)
     {
-        const Shading shading = Shading(i);
-        updateDescriptorSet(rdata.Descriptors[i][geo], 0, Descriptors::GetDescriptorSetLayout<D>(shading),
+        const DrawPass dpass = DrawPass(i);
+        updateDescriptorSet(rdata.Descriptors[i][geo], 0, Descriptors::GetDescriptorSetLayout<D>(dpass),
                             rdata.InstanceArenas[geo].Graphics.Buffer);
     }
 }
@@ -246,8 +246,8 @@ template <Dimension D> static void updateLightDescriptorSets(const LightType lig
 {
     RendererData<D> &rdata = getRendererData<D>();
     for (u32 i = 0; i < Geometry_Count; ++i)
-        updateDescriptorSet(rdata.Descriptors[Shading_Lit][i], lightToBinding(light),
-                            Descriptors::GetDescriptorSetLayout<D>(Shading_Lit),
+        updateDescriptorSet(rdata.Descriptors[DrawPass_Fill][i], lightToBinding(light),
+                            Descriptors::GetDescriptorSetLayout<D>(DrawPass_Fill),
                             rdata.LightArenas[light].Graphics.Buffer);
 }
 
@@ -385,18 +385,18 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
         gpool.Buffer = result.GetValue();
 
         gpool.Ranges.Append(GraphicsInstanceRange{.Size = gpool.Buffer.GetInfo().Size});
-        for (u32 j = 0; j < Shading_Count; ++j)
+        for (u32 j = 0; j < DrawPass_Count; ++j)
         {
-            const Shading shading = Shading(j);
-            const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(shading);
+            const DrawPass dpass = DrawPass(j);
+            const VKit::DescriptorSetLayout &layout = Descriptors::GetDescriptorSetLayout<D>(dpass);
             const auto dresult = Descriptors::GetDescriptorPool().Allocate(layout);
             TKIT_RETURN_ON_ERROR(dresult);
             const VkDescriptorSet set = dresult.GetValue();
             if (Core::CanNameObjects())
             {
                 const auto &device = Core::GetDevice();
-                const std::string name = TKit::Format("onyx-renderer-descriptor-set-{}D-geometry-{}-shading-{}", u8(D),
-                                                      ToString(geo), ToString(shading));
+                const std::string name = TKit::Format("onyx-renderer-descriptor-set-{}D-geometry-{}-pass-{}", u8(D),
+                                                      ToString(geo), ToString(dpass));
                 TKIT_RETURN_IF_FAILED(device.SetObjectName(set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name.c_str()));
             }
 
@@ -574,9 +574,9 @@ template <Dimension D> void UpdateViewMask(const RenderContext<D> *context)
             dl->SetViewMask(vmask);
 }
 
-template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(const Shading shading)
+template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(const DrawPass pass)
 {
-    return getRendererData<D>().Descriptors[shading];
+    return getRendererData<D>().Descriptors[pass];
 }
 
 template <Dimension D> static void clearViews(const ViewMask viewMask)
@@ -842,7 +842,7 @@ static Range *splitRange(const u32 index, TKit::TierArray<Range> &ranges, const 
     {
         range.ViewMask = 0;
         range.MeshHandle = NullHandle;
-        range.Pass = StencilPass_Count;
+        range.Draw = DrawMode_None;
         range.ContextRanges.Clear();
     }
 
@@ -1194,17 +1194,17 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     };
 
     TKit::StackArray<RangePair> ranges{};
-    ranges.Reserve(StencilPass_Count * bcount);
+    ranges.Reserve(DrawMode_Count * bcount);
 
     TKit::StackArray<CopyCommands> copyCmds{};
-    copyCmds.Reserve(StencilPass_Count * u32(Geometry_Count));
+    copyCmds.Reserve(DrawMode_Count * u32(Geometry_Count));
 
     const auto finishTasks = [&] {
         for (const Task &task : tasks)
             tm->WaitUntilFinished(task);
     };
 
-    const auto findInstanceRanges = [&](const u32 pass, const Geometry geo, const Asset handle,
+    const auto findInstanceRanges = [&](const u32 dmode, const Geometry geo, const Asset handle,
                                         const auto getInstanceData) -> Result<> {
         TransferInstancePool &tpool = rdata.InstanceArenas[geo].Transfer;
         GraphicsInstancePool &gpool = rdata.InstanceArenas[geo].Graphics;
@@ -1259,7 +1259,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         grange->MeshHandle = handle;
         grange->ContextRanges = contextRanges;
         grange->ViewMask = viewMask;
-        grange->Pass = StencilPass(pass);
+        grange->Draw = DrawMode(dmode);
         grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
         grange->GraphicsTracker = {};
 
@@ -1274,7 +1274,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         return Result<>::Ok();
     };
 
-    const auto gatherInstanceRanges = [&](const u32 pass, const Geometry geo) -> Result<> {
+    const auto gatherInstanceRanges = [&](const u32 dmode, const Geometry geo) -> Result<> {
         TKIT_PROFILE_NSCOPE("Onyx::Renderer::FindRanges");
         TransferInstancePool &tpool = rdata.InstanceArenas[geo].Transfer;
         GraphicsInstancePool &gpool = rdata.InstanceArenas[geo].Graphics;
@@ -1286,9 +1286,10 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
 
         if (geo == Geometry_Circle)
         {
-            TKIT_RETURN_IF_FAILED(findInstanceRanges(
-                pass, Geometry_Circle, NullHandle,
-                [pass](const RenderContext<D> *ctx) -> const auto & { return ctx->GetInstanceData()[pass].Circles; }));
+            TKIT_RETURN_IF_FAILED(findInstanceRanges(dmode, Geometry_Circle, NullHandle,
+                                                     [dmode](const RenderContext<D> *ctx) -> const auto & {
+                                                         return ctx->GetInstanceData()[dmode].Circles;
+                                                     }));
         }
         else
         {
@@ -1300,9 +1301,9 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
                 for (u32 i = 0; i < mcount; ++i)
                 {
                     TKIT_RETURN_IF_FAILED(
-                        findInstanceRanges(pass, geo, Assets::CreateAssetHandle(atype, i, pid),
-                                           [atype, pass, pid, i](const RenderContext<D> *ctx) -> const auto & {
-                                               return ctx->GetInstanceData()[pass].Meshes[atype][pid][i];
+                        findInstanceRanges(dmode, geo, Assets::CreateAssetHandle(atype, i, pid),
+                                           [atype, dmode, pid, i](const RenderContext<D> *ctx) -> const auto & {
+                                               return ctx->GetInstanceData()[dmode].Meshes[atype][pid][i];
                                            }));
                 }
             }
@@ -1315,12 +1316,12 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         return Result<>::Ok();
     };
 
-    for (u32 pass = 0; pass < StencilPass_Count; ++pass)
+    for (u32 dmode = 0; dmode < DrawMode_Count; ++dmode)
     {
-        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Circle), finishTasks());
-        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Static), finishTasks());
-        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Parametric), finishTasks());
-        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(pass, Geometry_Glyph), finishTasks());
+        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(dmode, Geometry_Circle), finishTasks());
+        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(dmode, Geometry_Static), finishTasks());
+        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(dmode, Geometry_Parametric), finishTasks());
+        TKIT_RETURN_IF_FAILED(gatherInstanceRanges(dmode, Geometry_Glyph), finishTasks());
     }
     for (const RangePair &range : ranges)
     {
@@ -1579,11 +1580,25 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
 
     const auto insertCommand = [&](const AssetType atype, const GraphicsInstanceRange &grange, const u32 fi,
                                    const u32 ic) {
-        if (atype == Asset_PoolCount) // circles sentry
+        u32 pcount = 0;
+        TKit::FixedArray<StencilPass, 2> passes;
+        if (grange.Draw == DrawMode_Fill)
+            passes[pcount++] = StencilPass_NoStencilWriteDoFill;
+        else if (grange.Draw == DrawMode_FillStencil)
         {
-            TKit::TierArray<VkDrawIndirectCommand> &cmds = circleCmds[grange.Pass];
-            cmds.Append(createCircleCommand(fi, ic));
+            passes[pcount++] = StencilPass_DoStencilWriteDoFill;
+            passes[pcount++] = StencilPass_DoStencilTestNoFill;
         }
+        else if (grange.Draw == DrawMode_Stencil)
+        {
+            passes[pcount++] = StencilPass_DoStencilWriteNoFill;
+            passes[pcount++] = StencilPass_DoStencilTestNoFill;
+        }
+        TKIT_ASSERT(pcount != 0, "[ONYX][RENDERER] Pass count should not be zero");
+
+        if (atype == Asset_PoolCount) // circles sentry
+            for (u32 i = 0; i < pcount; ++i)
+                circleCmds[passes[i]].Append(createCircleCommand(fi, ic));
         else
         {
             ONYX_CHECK_ASSET_IS_NOT_NULL(grange.MeshHandle);
@@ -1592,7 +1607,8 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
             ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
 
             const u32 pid = Assets::GetAssetPoolId(grange.MeshHandle);
-            drawCmds[grange.Pass][atype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
+            for (u32 i = 0; i < pcount; ++i)
+                drawCmds[passes[i]][atype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
         }
     };
 
@@ -1695,24 +1711,30 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         for (u32 i = 0; i < StencilPass_Count; ++i)
         {
             const StencilPass pass = StencilPass(i);
-            const Shading shading = GetShading(pass);
+            const DrawPass dpass = GetDrawPass(pass);
 
-            const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(shading);
+            const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(dpass);
 
-            const auto setupState = [graphicsCommand, pass, shading, &device, &playout, &rdata](const Geometry geo) {
-                const VkDescriptorSet set = rdata.Descriptors[shading][geo];
+            const auto setupState = [graphicsCommand, pass, dpass, &device, &playout, &rdata](const Geometry geo) {
+                const VkDescriptorSet set = rdata.Descriptors[dpass][geo];
                 const VKit::GraphicsPipeline &pipeline = rdata.Pipelines[pass][geo];
                 pipeline.Bind(graphicsCommand);
 
                 VKit::DescriptorSet::Bind(device, graphicsCommand, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
             };
 
-            if (shading == Shading_Unlit)
-                table->CmdPushConstants(graphicsCommand, playout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(f32m4),
-                                        &camInfo.ProjectionView);
+            if (dpass == DrawPass_Stencil)
+            {
+                StencilPushConstantData pdata;
+                pdata.ProjectionView = camInfo.ProjectionView;
+                pdata.OutlineMultiplier = pass == StencilPass_DoStencilWriteNoFill ? 0.f : 1.f;
+
+                table->CmdPushConstants(graphicsCommand, playout, VK_SHADER_STAGE_VERTEX_BIT, 0,
+                                        sizeof(StencilPushConstantData), &pdata);
+            }
             else
             {
-                PushConstantData<D> pdata;
+                FillPushConstantData<D> pdata;
                 pdata.ProjectionView = camInfo.ProjectionView;
                 if constexpr (D == D3)
                     pdata.ViewPosition = f32v4{camInfo.ViewPosition, 1.f};
@@ -1721,7 +1743,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                 pdata.AmbientColor = ambientColor;
                 table->CmdPushConstants(graphicsCommand, playout,
                                         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                                        sizeof(PushConstantData<D>), &pdata);
+                                        sizeof(FillPushConstantData<D>), &pdata);
             }
 
             u32 drawCount = circleCmds[pass].GetSize();
@@ -1942,7 +1964,7 @@ template <Dimension D> static void coalesceGraphicsInstanceRanges(GraphicsInstan
                                           "size if there are context ranges left");
             GraphicsInstanceRange ngrange{};
             ngrange.Offset = grange.Offset;
-            ngrange.Pass = grange.Pass;
+            ngrange.Draw = grange.Draw;
             ngrange.MeshHandle = grange.MeshHandle;
 
             // VkDeviceSize leftover = grange.Size;
@@ -2069,7 +2091,7 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
                     if (range.MeshHandle != NullHandle)
                         ImGui::Text("Mesh handle: %u", range.MeshHandle);
 
-                    ImGui::Text("Pass: %s", ToString(range.Pass));
+                    ImGui::Text("Draw mode: %s", ToString(range.Draw));
                     const std::string vmask = TKit::Format("{:032b}", range.ViewMask);
                     ImGui::Text("View mask: %s", vmask.c_str());
                     if (ImGui::TreeNode(&range.ContextRanges, "Context ranges (%u)", range.ContextRanges.GetSize()))
@@ -2148,7 +2170,7 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
         const f32 height = 1.f;
         const f32 separation = 0.1f;
         const auto drawPlot = [&](const u32 bindex, const VkDeviceSize offset, const VkDeviceSize size, const u32 idx,
-                                  const Asset meshHandle = NullHandle, const StencilPass pass = StencilPass_Count) {
+                                  const Asset meshHandle = NullHandle, const DrawMode dmode = DrawMode_None) {
             const ImVec2 mnpix = ImPlot::PlotToPixels(f64(offset), f64(bindex * height + separation));
             const ImVec2 mxpix = ImPlot::PlotToPixels(f64(offset + size), f64((bindex + 1) * height - separation));
 
@@ -2163,11 +2185,11 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
                 {
                     ImGui::BeginTooltip();
                     ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).c_str(), fmts(size).c_str());
-                    if (pass != StencilPass_Count)
+                    if (dmode != DrawMode_None)
                     {
                         ImGui::SameLine();
-                        ImGui::Text("- Mesh handle: %s - Pass: %s", TKit::Format("{:#010x}", meshHandle).c_str(),
-                                    ToString(pass));
+                        ImGui::Text("- Mesh handle: %s - Draw mode: %s", TKit::Format("{:#010x}", meshHandle).c_str(),
+                                    ToString(dmode));
                     }
                     ImGui::EndTooltip();
                 }
@@ -2190,7 +2212,7 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
                     range.InUse()
                         ? 1
                         : (rdata.AreAllContextRangesDirty(range) ? 0 : (rdata.AreAllContextRangesClean(range) ? 2 : 4));
-                drawPlot(1, range.Offset, range.Size, idx, range.MeshHandle, range.Pass);
+                drawPlot(1, range.Offset, range.Size, idx, range.MeshHandle, range.Draw);
                 for (const ContextInstanceRange &crange : range.ContextRanges)
                     drawPlot(0, range.Offset + crange.Offset, crange.Size, rdata.IsContextRangeClean(crange) ? 2 : 3);
             }
@@ -2289,8 +2311,8 @@ template void DisplayMemoryLayout<D2>();
 template void DisplayMemoryLayout<D3>();
 #endif
 
-template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D2>(Shading shading);
-template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D3>(Shading shading);
+template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D2>(DrawPass dpass);
+template const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets<D3>(DrawPass dpass);
 
 template Result<RenderContext<D2> *> CreateContext();
 template Result<RenderContext<D3> *> CreateContext();

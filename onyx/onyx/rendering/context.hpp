@@ -9,13 +9,6 @@
 
 namespace Onyx
 {
-using RenderStateFlags = u8;
-enum RenderStateFlagBit : RenderStateFlags
-{
-    RenderStateFlag_Fill = 1 << 0,
-    RenderStateFlag_Outline = 1 << 1,
-};
-
 template <Dimension D> struct RenderState
 {
     TKIT_REFLECT_DECLARE(RenderState)
@@ -30,14 +23,13 @@ template <Dimension D> struct RenderState
     Asset Material = NullHandle;
     Asset Font = NullHandle;
     Asset FontSampler = NullHandle;
-    RenderStateFlags Flags = RenderStateFlag_Fill;
+    DrawMode Draw = DrawMode_Fill;
 };
 
 } // namespace Onyx
 
 namespace Onyx::Detail
 {
-
 template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 {
     TKIT_NON_COPYABLE(IRenderContext)
@@ -174,20 +166,38 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void Line(Asset staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
     void Axes(Asset staticMesh, const AxesParameters &params = {});
 
-    void Push();
-    void Push(const RenderState<D> &state);
+    void Push(const RenderState<D> &state)
+    {
+        m_StateStack.Append(state);
+        updateState();
+    }
+    void Push()
+    {
+        Push(*m_Current);
+    }
 
-    void Pop();
+    void Pop()
+    {
+        TKIT_ASSERT(m_StateStack.GetSize() > 1, "[ONYX][CONTEXT] For every Push(), there must be a Pop()");
+        m_StateStack.Pop();
+        updateState();
+    }
 
-    void AddFlags(RenderStateFlags flags);
-    void RemoveFlags(RenderStateFlags flags);
-
-    void Fill(bool enable = true);
-    void FillColor(const Color &color);
+    void Fill(const bool enable = true);
+    void FillColor(const Color &color)
+    {
+        m_Current->FillColor = color;
+    }
 
     void Outline(bool enable = true);
-    void OutlineColor(const Color &color);
-    void OutlineWidth(f32 width);
+    void OutlineColor(const Color &color)
+    {
+        m_Current->OutlineColor = color;
+    }
+    void OutlineWidth(const f32 width)
+    {
+        m_Current->OutlineWidth = width;
+    }
 
     void SetAmbientLight(const Color &color)
     {
@@ -301,25 +311,27 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             Meshes{};
     };
 
-    void updateState();
+    void updateState()
+    {
+        m_Current = &m_StateStack.GetBack();
+    }
 
     void resizeBuffer(InstanceDataBuffer &buffer);
     void resizeBufferArrays();
 
-    template <typename F> void resolveStencilPassWithState(F &&draw);
     template <typename T> void addInstanceData(InstanceDataBuffer &buffer, const T &data);
 
-    void addCircleData(const f32m<D> &transform, const CircleParameters &params, StencilPass pass);
-    void addStaticData(Asset mesh, const f32m<D> &transform, StencilPass pass);
-    void addParametricData(Asset mesh, const f32m<D> &transform, const InstanceParameters &params, StencilPass pass);
-    void addGlyphData(std::string_view text, const f32m<D> &transform, const TextParameters &params, StencilPass pass);
-    void addGlyphData(u32 gid, const f32m<D> &transform, StencilPass pass);
+    void addCircleData(const f32m<D> &transform, const CircleParameters &params);
+    void addStaticData(Asset mesh, const f32m<D> &transform);
+    void addParametricData(Asset mesh, const f32m<D> &transform, const InstanceParameters &params);
+    void addGlyphData(std::string_view text, const f32m<D> &transform, const TextParameters &params);
+    void addGlyphData(u32 gid, const f32m<D> &transform);
 #ifdef TKIT_ENABLE_ASSERTS
     void checkMaterial(Asset material);
 #endif
 
     TKit::TierArray<RenderState<D>> m_StateStack{};
-    TKit::FixedArray<InstanceDataArrays, StencilPass_Count> m_InstanceData{};
+    TKit::FixedArray<InstanceDataArrays, DrawMode_Count> m_InstanceData{};
     TKit::TierArray<PointLight<D> *> m_PointLights{};
     Color m_AmbientLight = Color{Color::White, 0.4f};
     u32 m_DepthCounter = 0;

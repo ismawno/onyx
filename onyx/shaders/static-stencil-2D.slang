@@ -14,11 +14,12 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<StaticInstanceDataStencil2D, Std430DataLayout> g_Instances;
+StructuredBuffer<StaticInstanceData2D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
     f32m4 ProjectionView;
+    f32 OutlineMultiplier;
 }
 
 [[vk::push_constant]]
@@ -32,16 +33,16 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const StaticInstanceDataStencil2D data = g_Instances[instanceIndex];
+    const StaticInstanceData2D data = g_Instances[instanceIndex];
     const f32m4 transform = ComputeTransform2D(data.Basis);
 
     const f32v2 scale = ComputeStencilScale2D(transform);
-    const f32v2 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth) / scale;
+    const f32v2 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     VertexOutput output;
     output.Position = mul(mul(f32v4(extruded, 0.0, 1.0), transform), g_PushData.ProjectionView);
     output.Position.z = ComputeDepth(data.DepthCounter);
-    output.FragColor = unpackUnorm4x8ToFloat(data.Color);
+    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
 
     return output;
 }

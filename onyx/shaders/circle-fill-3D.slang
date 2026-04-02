@@ -23,7 +23,7 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<CircleInstanceDataFill3D, Std430DataLayout> g_InstanceBuffer;
+StructuredBuffer<CircleInstanceData3D, Std430DataLayout> g_InstanceBuffer;
 
 struct PushConstants
 {
@@ -65,7 +65,7 @@ VertexOutput mainVS(
     const u32 vertexIndex = vertexId + baseVertex;
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const CircleInstanceDataFill3D data = g_InstanceBuffer[instanceIndex];
+    const CircleInstanceData3D data = g_InstanceBuffer[instanceIndex];
     const f32m4 transform = ComputeTransform3D(data.Data.Basis);
 
     const f32v2 localPos = g_Positions[vertexIndex];
@@ -91,7 +91,7 @@ VertexOutput mainVS(
 
     output.Fade = f32v2(data.Fade.InnerFade, data.Fade.OuterFade);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.Data.Color);
+    output.FragColor = unpackUnorm4x8ToFloat(data.Data.FillColor);
 
     return output;
 }

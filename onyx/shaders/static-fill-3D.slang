@@ -25,7 +25,7 @@ struct VertexOutput
 }
 
 [[vk::binding(0, 0)]]
-StructuredBuffer<StaticInstanceDataFill3D, Std430DataLayout> g_Instances;
+StructuredBuffer<StaticInstanceData3D, Std430DataLayout> g_Instances;
 
 struct PushConstants
 {
@@ -44,7 +44,7 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const StaticInstanceDataFill3D data = g_Instances[instanceIndex];
+    const StaticInstanceData3D data = g_Instances[instanceIndex];
 
     const f32m4 transform = ComputeTransform3D(data.Basis);
     const f32v4 worldPos = mul(f32v4(input.Position, 1.0), transform);
@@ -63,7 +63,7 @@ VertexOutput mainVS(
     output.WorldPosition = worldPos.xyz;
     output.TexCoord = input.TexCoord;
     output.MatHandle = data.MatHandle;
-    output.FragColor = unpackUnorm4x8ToFloat(data.Color);
+    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
     return output;
 }
