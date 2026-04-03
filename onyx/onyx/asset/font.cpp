@@ -120,8 +120,9 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
         const f32v2 texCoordMin{f32(al), tdata.Height - f32(ab)};
         const f32v2 texCoordMax{f32(ar), tdata.Height - f32(at)};
 
-        gdata.Min = quadMin;
-        gdata.Max = quadMax;
+        gdata.Bounds.Min = quadMin;
+        gdata.Bounds.Max = quadMax;
+        gdata.Bounds.Center = 0.5f * (quadMin + quadMax);
 
         gdata.MinTexCoord = texCoordMin / tdata.Width;
         gdata.MaxTexCoord = texCoordMax / tdata.Height;

@@ -31,7 +31,8 @@ struct ShaderData
     }
 };
 
-static TKit::Storage<VKit::PipelineLayout> s_StencilPipLayout{};
+static TKit::Storage<VKit::PipelineLayout> s_StencilPipLayout2{};
+static TKit::Storage<VKit::PipelineLayout> s_StencilPipLayout3{};
 static TKit::Storage<VKit::PipelineLayout> s_FillPipLayout2{};
 static TKit::Storage<VKit::PipelineLayout> s_FillPipLayout3{};
 
@@ -50,23 +51,32 @@ template <Dimension D> ShaderData &getShaders(const DrawPass pass)
 
 ONYX_NO_DISCARD static Result<> createPipelineLayouts()
 {
-    const VKit::DescriptorSetLayout &ulayout = Descriptors::GetStencilDescriptorSetLayout();
+    const VKit::DescriptorSetLayout &slayout2 = Descriptors::GetDescriptorSetLayout<D2>(DrawPass_Stencil);
+    const VKit::DescriptorSetLayout &slayout3 = Descriptors::GetDescriptorSetLayout<D3>(DrawPass_Stencil);
 
-    const VKit::DescriptorSetLayout &llayout2 = Descriptors::GetFillDescriptorSetLayout<D2>();
-    const VKit::DescriptorSetLayout &llayout3 = Descriptors::GetFillDescriptorSetLayout<D3>();
+    const VKit::DescriptorSetLayout &flayout2 = Descriptors::GetDescriptorSetLayout<D2>(DrawPass_Fill);
+    const VKit::DescriptorSetLayout &flayout3 = Descriptors::GetDescriptorSetLayout<D3>(DrawPass_Fill);
 
     const VKit::LogicalDevice &device = Core::GetDevice();
     auto layoutResult = VKit::PipelineLayout::Builder(device)
-                            .AddDescriptorSetLayout(ulayout)
+                            .AddDescriptorSetLayout(slayout2)
                             .AddPushConstantRange<StencilPushConstantData>(VK_SHADER_STAGE_VERTEX_BIT)
                             .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);
-    *s_StencilPipLayout = layoutResult.GetValue();
+    *s_StencilPipLayout2 = layoutResult.GetValue();
+
+    layoutResult = VKit::PipelineLayout::Builder(device)
+                       .AddDescriptorSetLayout(slayout3)
+                       .AddPushConstantRange<StencilPushConstantData>(VK_SHADER_STAGE_VERTEX_BIT)
+                       .Build();
+
+    TKIT_RETURN_ON_ERROR(layoutResult);
+    *s_StencilPipLayout3 = layoutResult.GetValue();
 
     layoutResult =
         VKit::PipelineLayout::Builder(device)
-            .AddDescriptorSetLayout(llayout2)
+            .AddDescriptorSetLayout(flayout2)
             .AddPushConstantRange<FillPushConstantData<D2>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .Build();
 
@@ -75,7 +85,7 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
 
     layoutResult =
         VKit::PipelineLayout::Builder(device)
-            .AddDescriptorSetLayout(llayout3)
+            .AddDescriptorSetLayout(flayout3)
             .AddPushConstantRange<FillPushConstantData<D3>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .Build();
 
@@ -84,7 +94,8 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
 
     if (Core::CanNameObjects())
     {
-        TKIT_RETURN_IF_FAILED(s_StencilPipLayout->SetName("onyx-stencil-pipeline-layout"));
+        TKIT_RETURN_IF_FAILED(s_StencilPipLayout2->SetName("onyx-stencil-pipeline-layout-2D"));
+        TKIT_RETURN_IF_FAILED(s_StencilPipLayout3->SetName("onyx-stencil-pipeline-layout-3D"));
         TKIT_RETURN_IF_FAILED(s_FillPipLayout2->SetName("onyx-fill-pipeline-layout-2D"));
         return s_FillPipLayout3->SetName("onyx-fill-pipeline-layout-3D");
     }
@@ -417,7 +428,8 @@ Result<> ReloadShaders()
 Result<> Initialize()
 {
     TKIT_LOG_INFO("[ONYX][PIPELINES] Initializing");
-    s_StencilPipLayout.Construct();
+    s_StencilPipLayout2.Construct();
+    s_StencilPipLayout3.Construct();
     s_FillPipLayout2.Construct();
     s_FillPipLayout3.Construct();
 
@@ -431,11 +443,13 @@ Result<> Initialize()
 void Terminate()
 {
     destroyShaders();
-    s_StencilPipLayout->Destroy();
+    s_StencilPipLayout2->Destroy();
+    s_StencilPipLayout3->Destroy();
     s_FillPipLayout2->Destroy();
     s_FillPipLayout3->Destroy();
 
-    s_StencilPipLayout.Destruct();
+    s_StencilPipLayout2.Destruct();
+    s_StencilPipLayout3.Destruct();
     s_FillPipLayout2.Destruct();
     s_FillPipLayout3.Destruct();
 
@@ -445,26 +459,12 @@ void Terminate()
     s_StencilShaders3.Destruct();
 }
 
-const VKit::PipelineLayout &GetStencilPipelineLayout()
-{
-    return *s_StencilPipLayout;
-}
-
-template <Dimension D> const VKit::PipelineLayout &GetFillPipelineLayout()
-{
-    if constexpr (D == D2)
-        return *s_FillPipLayout2;
-    else
-        return *s_FillPipLayout3;
-}
 template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(const DrawPass pass)
 {
-    if (pass == DrawPass_Stencil)
-        return *s_StencilPipLayout;
     if constexpr (D == D2)
-        return *s_FillPipLayout2;
+        return pass == DrawPass_Fill ? *s_FillPipLayout2 : *s_StencilPipLayout2;
     else
-        return *s_FillPipLayout3;
+        return pass == DrawPass_Fill ? *s_FillPipLayout3 : *s_StencilPipLayout3;
 }
 
 template <Dimension D>
@@ -632,9 +632,6 @@ Result<VKit::GraphicsPipeline> CreatePipeline(const StencilPass pass, const Geom
             Error_BadInput, TKit::Format("[ONYX][PIPELINES] Unrecognized geometry {}", u8(geo)));
     }
 }
-
-template const VKit::PipelineLayout &GetFillPipelineLayout<D2>();
-template const VKit::PipelineLayout &GetFillPipelineLayout<D3>();
 
 template const VKit::PipelineLayout &GetPipelineLayout<D2>(DrawPass pass);
 template const VKit::PipelineLayout &GetPipelineLayout<D3>(DrawPass pass);

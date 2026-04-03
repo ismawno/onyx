@@ -20,9 +20,6 @@ struct VertexOutput
     f32v4 Position : SV_Position;
 }
 
-[[vk::binding(0, 0)]]
-StructuredBuffer<GlyphInstanceData3D, Std430DataLayout> g_Instances;
-
 struct PushConstants
 {
     f32m4 ProjectionView;
@@ -31,6 +28,12 @@ struct PushConstants
 
 [[vk::push_constant]]
 PushConstants g_PushData;
+
+[[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
+GlyphInstances3D g_Instances;
+
+[[vk::binding(1, 0)]]
+Bounds2D g_Bounds;
 
 [shader("vertex")]
 VertexOutput mainVS(
@@ -41,16 +44,18 @@ VertexOutput mainVS(
     const u32 instanceIndex = instanceId + baseInstance;
 
     const GlyphInstanceData3D gdata = g_Instances[instanceIndex];
-    const StaticInstanceData3D data = gdata.Data;
+    const InstanceData3D data = gdata.Data;
 
     const f32m4 transform = ComputeTransform3D(data.Basis);
+    const f32v2 alignment = ComputeAlignment2D(data.Alignment, gdata.BoundsHandle, g_Bounds);
+    const f32v2 center = GetCenter2D(gdata.BoundsHandle, g_Bounds);
 
     const f32v2 scale = ComputeStencilScale2D(transform);
-    const f32v2 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
+    const f32v2 extruded = input.Position - alignment + (normalize(input.Position - center) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     VertexOutput output;
 
-    output.Position = mul(mul(f32v4(extruded, 1.0), transform), g_PushData.ProjectionView);
+    output.Position = mul(mul(f32v4(extruded, 0.0, 1.0), transform), g_PushData.ProjectionView);
     output.AtlasCoord = input.AtlasCoord;
     output.SamplerId = GetAssetId(gdata.SamplerHandle);
     output.AtlasId = GetAssetId(gdata.AtlasHandle);
@@ -59,15 +64,17 @@ VertexOutput mainVS(
     return output;
 }
 
-[[vk::binding(1, 0)]]
+[[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
 SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 
-[[vk::binding(2, 0)]]
+[[vk::binding(ONYX_TEXTURES_BINDING, 0)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input)
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
+    if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
+        discard;
     return f32v4(input.FragColor.rgb, input.FragColor.a * coverage);
 }

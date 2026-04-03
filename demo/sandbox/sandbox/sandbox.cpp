@@ -162,9 +162,7 @@ template <Dimension D> void SandboxAppLayer::AddDefaultMeshes()
 }
 template <Dimension D> void SandboxAppLayer::AddDefaultMaterial()
 {
-    MaterialPoolId<D> &pool = AddMaterialPool<D>("Default material pool");
-    MaterialId<D> &mid = AddMaterial(pool, "Default material");
-
+    MaterialId<D> &mid = AddMaterial<D>("Default material");
     GetMaterials<D>().DefaultMaterial = mid.Handle;
 }
 
@@ -447,19 +445,11 @@ template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window, co
     data.Shape = CreateShape<D>(data.Geo);
 }
 
-template <Dimension D> MaterialPoolId<D> &SandboxAppLayer::AddMaterialPool(const char *name)
+template <Dimension D> MaterialId<D> &SandboxAppLayer::AddMaterial(const char *name)
 {
     auto &materials = GetMaterials<D>();
-    MaterialPoolId<D> &pool = materials.Pools.Append();
-    pool.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D>(Asset_Material));
-    pool.Name = name ? name : TKit::Format("Material-pool-{:#010x}", pool.Handle);
-    return pool;
-}
-
-template <Dimension D> MaterialId<D> &SandboxAppLayer::AddMaterial(MaterialPoolId<D> &pool, const char *name)
-{
-    MaterialId<D> &mat = pool.Elements.Append();
-    mat.Handle = Assets::CreateMaterial(pool.Handle, mat.Data);
+    MaterialId<D> &mat = materials.Elements.Append();
+    mat.Handle = Assets::CreateMaterial(mat.Data);
     mat.Name = name ? name : TKit::Format("Material-{:#010x}", mat.Handle);
     return mat;
 }
@@ -500,9 +490,8 @@ void SandboxAppLayer::AddFont(FontPoolId &pool, const FontData &data, const char
 template <Dimension D> void SandboxAppLayer::UpdateMaterialData()
 {
     auto &materials = GetMaterials<D>();
-    for (MaterialPoolId<D> &pool : materials.Pools)
-        for (MaterialId<D> &mat : pool.Elements)
-            mat.Data = Assets::GetMaterialData<D>(mat.Handle);
+    for (MaterialId<D> &mat : materials.Elements)
+        mat.Data = Assets::GetMaterialData<D>(mat.Handle);
 }
 
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
@@ -683,7 +672,7 @@ void SandboxWinLayer::RenderImGui()
             RenderContexts<D2>();
             RenderCameras<D2>();
             RenderMeshPools<D2>();
-            RenderMaterialPools<D2>();
+            RenderMaterials<D2>();
             RenderSamplers();
             RenderTextures();
             RenderFontPools();
@@ -697,7 +686,7 @@ void SandboxWinLayer::RenderImGui()
             RenderContexts<D3>();
             RenderCameras<D3>();
             RenderMeshPools<D3>();
-            RenderMaterialPools<D3>();
+            RenderMaterials<D3>();
             RenderSamplers();
             RenderTextures();
             RenderFontPools();
@@ -925,11 +914,6 @@ template <Dimension D> static bool paraMeshNameCombo(const char *name, SandboxAp
     return poolMemberNameCombo(name, appLayer->GetMeshes<D>().ParaPools, mesh);
 }
 
-template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *material)
-{
-    return poolMemberNameCombo(name, appLayer->GetMaterials<D>().Pools, material);
-}
-
 static bool fontNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *font)
 {
     return poolMemberNameCombo(name, appLayer->FontPools, font);
@@ -968,6 +952,10 @@ template <typename T> static bool nameCombo(const char *name, const TKit::TierAr
     return changed;
 }
 
+template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *material)
+{
+    return nameCombo(name, appLayer->GetMaterials<D>().Elements, material);
+}
 static bool texNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *handle)
 {
     return nameCombo(name, appLayer->Textures, handle);
@@ -1091,7 +1079,6 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
         ImGui::DragFloat("Kerning", &shape.TextParams.Kerning, 0.01f);
         ImGui::DragFloat("Line spacing", &shape.TextParams.LineSpacing, 0.01f);
         ImGui::DragFloat("Width", &shape.TextParams.Width, 0.01f);
-        combo("Text alignment", &shape.TextParams.Alignment, "Center\0Left\0Right\0\0");
     }
     ImGui::PopID();
 }
@@ -1263,58 +1250,47 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
     }
 }
 
-template <Dimension D> void SandboxWinLayer::RenderMaterialPools()
+template <Dimension D> void SandboxWinLayer::RenderMaterials()
 {
     if (ImGui::CollapsingHeader("Materials"))
     {
         SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
         auto &materials = appLayer->GetMaterials<D>();
-        if (ImGui::Button("Add pool##Material"))
-            appLayer->AddMaterialPool<D>();
+        if (ImGui::Button("Add material"))
+        {
+            appLayer->AddMaterial<D>();
+            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        }
 
-        EntriesOptions<MaterialPoolId<D>> opts{};
+        EntriesOptions<MaterialId<D>> opts{};
         opts.Selected = &materials.Active;
-        opts.OnSelected = [this](MaterialPoolId<D> &pool) { RenderMaterialPool(pool); };
-        opts.GetName = [](const MaterialPoolId<D> &pool) { return pool.Name; };
-        opts.OnRemoval = [&materials, appLayer](MaterialPoolId<D> &pool) {
-            Assets::DestroyAssetPool<D>(pool.Handle);
+        opts.OnSelected = [this](MaterialId<D> &material) { RenderMaterial(material); };
+        opts.GetName = [](const MaterialId<D> &material) { return material.Name; };
+
+        opts.OnRemoval = [&materials, appLayer](MaterialId<D> &mat) {
+            Assets::DestroyMaterial<D>(mat.Handle);
             auto &contexts = appLayer->GetContexts<D>();
             for (ContextData<D> &ctx : contexts.Contexts)
             {
                 for (Shape<D> &shape : ctx.Shapes)
-                    if (Assets::GetAssetPool(shape.Material) == pool.Handle)
+                    if (shape.Material == mat.Handle)
                         shape.Material = NullAsset;
-                if (Assets::GetAssetPool(ctx.AxesMaterial) == pool.Handle)
+                if (ctx.AxesMaterial == mat.Handle)
                     ctx.AxesMaterial = NullAsset;
-                if (Assets::GetAssetPool(ctx.LightMaterial) == pool.Handle)
+                if (ctx.LightMaterial == mat.Handle)
                     ctx.LightMaterial = NullAsset;
             }
             auto &lattices = appLayer->GetLattices<D>();
             for (LatticeData<D> &lattice : lattices.Lattices)
-                if (Assets::GetAssetPool(lattice.Shape.Material) == pool.Handle)
+                if (lattice.Shape.Material == mat.Handle)
                     lattice.Shape.Material = NullAsset;
-            if (Assets::GetAssetPool(materials.DefaultMaterial) == pool.Handle)
+            if (materials.DefaultMaterial == mat.Handle)
                 materials.DefaultMaterial = NullAsset;
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
         };
-        renderEntries(materials.Pools, opts);
-    }
-}
-template <Dimension D> void SandboxWinLayer::RenderMaterialPool(MaterialPoolId<D> &pool)
-{
-    SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
-    if (ImGui::Button("Add material"))
-    {
-        appLayer->AddMaterial(pool);
-        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
-    }
 
-    EntriesOptions<MaterialId<D>> opts{};
-    opts.Selected = &pool.Active;
-    opts.OnSelected = [this](MaterialId<D> &material) { RenderMaterial(material); };
-    opts.GetName = [](const MaterialId<D> &material) { return material.Name; };
-    opts.RemoveButton = false;
-    renderEntries(pool.Elements, opts);
+        renderEntries(materials.Elements, opts);
+    }
 }
 
 template <Dimension D> void SandboxWinLayer::RenderMaterial(MaterialId<D> &material)
@@ -1539,17 +1515,14 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
     HandleLoadDialog(
         GltfTask,
         [&](const Dialog::Path &path) {
-            auto res = LoadGltfDataFromFile<D>(path.string(), LoadGltfDataFlag_ForceRGBA |
-                                                                  LoadGltfDataFlag_CenterVerticesAroundOrigin);
+            auto res = LoadGltfDataFromFile<D>(path.string(), LoadGltfDataFlag_ForceRGBA);
             VKIT_LOG_RESULT_ERROR(res);
             if (!res)
                 return;
 
-            MaterialPoolId<D> &mtpool = appLayer->AddMaterialPool<D>();
             StatMeshPoolId<D> &mspool = appLayer->AddMeshPool(appLayer->GetMeshes<D>().StatPools);
-
             GltfData<D> &data = res.GetValue();
-            const GltfHandles handles = Assets::CreateGltfAssets(mspool.Handle, mtpool.Handle, data);
+            const GltfHandles handles = Assets::CreateGltfAssets(mspool.Handle, data);
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
 
             for (u32 i = 0; i < handles.StaticMeshes.GetSize(); ++i)
@@ -1566,7 +1539,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
             {
                 const Asset mat = handles.Materials[i];
                 const MaterialData<D> &mdat = data.Materials[i];
-                MaterialId<D> &mid = mtpool.Elements.Append();
+                MaterialId<D> &mid = appLayer->GetMaterials<D>().Elements.Append();
                 mid.Name = TKit::Format("GLTF-Material-{:#010x}", mat);
                 mid.Handle = mat;
                 mid.Data = mdat;
@@ -1593,7 +1566,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
         },
         "Load GLTF file");
     ImGui::SameLine();
-    ImGui::TextDisabled("A new mesh and material pool will be created for each GLTF load");
+    ImGui::TextDisabled("A new mesh pool will be created for each GLTF load");
 }
 
 template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Vertex> &pool)
@@ -1662,8 +1635,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
         }
         else if (meshes.StatMeshToLoad == importedIndex)
             HandleLoadDialog(StatMeshTask, [&](const Dialog::Path &path) {
-                const auto res =
-                    LoadStaticMeshDataFromObjFile<D>(path.string().c_str(), LoadObjDataFlag_CenterVerticesAroundOrigin);
+                const auto res = LoadStaticMeshDataFromObjFile<D>(path.string().c_str());
                 VKIT_LOG_RESULT_ERROR(res);
                 if (!res)
                     return;

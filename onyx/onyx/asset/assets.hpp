@@ -18,6 +18,8 @@ namespace Onyx::Assets
 {
 struct Specs
 {
+    u32 MaxMaterials = 256;
+    u32 MaxBounds = 1024;
     u32 MaxTextures = 1024;
     u32 MaxSamplers = 8;
 };
@@ -33,10 +35,10 @@ Asset CreateTexture(const TextureData &data, CreateTextureFlags flags = 0);
 
 template <Dimension D> Asset CreateMesh(AssetPool pool, const StatMeshData<D> &data);
 template <Dimension D> Asset CreateMesh(AssetPool pool, const ParaMeshData<D> &data);
-template <Dimension D> Asset CreateMaterial(AssetPool pool, const MaterialData<D> &data);
+template <Dimension D> Asset CreateMaterial(const MaterialData<D> &data);
 
 Asset CreateFont(AssetPool pool, const FontData &data);
-template <Dimension D> GltfHandles CreateGltfAssets(AssetPool meshPool, AssetPool materialPool, GltfData<D> &data);
+template <Dimension D> GltfHandles CreateGltfAssets(AssetPool meshPool, GltfData<D> &data);
 
 void UpdateSampler(Asset sampler, const SamplerData &data);
 void UpdateTexture(Asset texture, const TextureData &data, CreateTextureFlags flags = 0);
@@ -53,6 +55,8 @@ void DestroyFontPool(AssetPool pool);
 void DestroySampler(Asset sampler);
 void DestroyTexture(Asset texture);
 
+template <Dimension D> void DestroyMaterial(Asset material);
+
 template <Dimension D> StatMeshData<D> GetStaticMeshData(Asset mesh);
 template <Dimension D> ParaMeshData<D> GetParametricMeshData(Asset mesh);
 template <Dimension D> ParametricShape GetParametricShape(Asset mesh);
@@ -65,13 +69,17 @@ TKit::Span<const u32> GetFontPoolIds();
 const SamplerData &GetSamplerData(Asset sampler);
 const TextureData &GetTextureData(Asset texture);
 const FontData &GetFontData(Asset font);
+
 Asset GetFontAtlas(Asset font);
 const Glyph *GetGlyph(Asset font, u32 codePoint);
 
 template <Dimension D> u32 GetDistinctBatchDrawCount();
 
 template <Dimension D> u32 GetAssetCount(AssetPool pool);
+
 template <Dimension D> MeshDataLayout GetMeshLayout(Asset mesh);
+template <Dimension D> Asset GetMeshBounds(Asset mesh);
+template <Dimension D> const BoundsData<D> &GetBoundsData(Asset bounds);
 
 struct MeshBuffers
 {

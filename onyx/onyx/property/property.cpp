@@ -99,6 +99,8 @@ const char *ToString(const AssetType atype)
         return "Asset_Sampler";
     case Asset_Texture:
         return "Asset_Texture";
+    case Asset_Bounds:
+        return "Asset_Bounds";
     case Asset_Count:
         return "Asset_Count";
     default:

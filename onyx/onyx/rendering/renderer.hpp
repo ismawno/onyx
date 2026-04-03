@@ -41,6 +41,11 @@ ONYX_NO_DISCARD Result<> ReloadPipelines();
 
 template <Dimension D> void UpdateViewMask(const RenderContext<D> *context);
 
+template <Dimension D>
+void WriteBuffer(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, DrawPass pass, u32 dstElement = 0);
+template <Dimension D>
+void WriteImage(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, DrawPass pass, u32 dstElement = 0);
+
 template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(DrawPass pass);
 
 void ClearViews(ViewMask viewMask);

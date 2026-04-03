@@ -111,15 +111,16 @@ enum AssetType : u8
     Asset_StaticMesh,
     Asset_ParametricMesh,
     Asset_GlyphMesh,
-    Asset_Material,
     Asset_Font,
+    Asset_Material,
+    Asset_Bounds,
     Asset_Sampler,
     Asset_Texture,
     Asset_Count,
 
     // not ideal to have them here but idc too much
-    Asset_MeshCount = Asset_Material,
-    Asset_PoolCount = Asset_Sampler
+    Asset_MeshCount = Asset_Font,
+    Asset_PoolCount = Asset_Material
 };
 
 const char *ToString(AssetType atype);

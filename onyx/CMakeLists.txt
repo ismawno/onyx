@@ -122,11 +122,7 @@ if(ONYX_ENABLE_OBJ_LOAD)
   tkit_configure_compile_link_options(tinyobjloader NO_EXCEPTIONS NO_RTTI)
 endif()
 
-if(ONYX_ENABLE_IMAGE_LOAD)
-  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMAGE_LOAD)
-endif()
-
-if(ONYX_ENABLE_GLTF_LOAD)
+if(ONYX_ENABLE_IMAGE_LOAD OR ONYX_ENABLE_GLTF_LOAD)
   FetchContent_Declare(
     tgltf
     GIT_REPOSITORY https://github.com/syoyo/tinygltf.git
@@ -150,7 +146,12 @@ if(ONYX_ENABLE_GLTF_LOAD)
   FetchContent_MakeAvailable(tgltf)
 
   target_link_libraries(onyx PRIVATE tinygltf)
-  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_GLTF_LOAD)
+  if(ONYX_ENABLE_IMAGE_LOAD)
+    target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMAGE_LOAD)
+  endif()
+  if(ONYX_ENABLE_GLTF_LOAD)
+    target_compile_definitions(onyx PUBLIC ONYX_ENABLE_GLTF_LOAD)
+  endif()
   # tkit_configure_compile_link_options(tinygltf NO_EXCEPTIONS NO_RTTI)
 endif()
 

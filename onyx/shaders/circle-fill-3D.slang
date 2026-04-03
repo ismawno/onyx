@@ -22,9 +22,6 @@ struct VertexOutput
     f32v4 Position : SV_Position;
 }
 
-[[vk::binding(0, 0)]]
-StructuredBuffer<CircleInstanceData3D, Std430DataLayout> g_InstanceBuffer;
-
 struct PushConstants
 {
     f32m4 ProjectionView;
@@ -33,7 +30,6 @@ struct PushConstants
 
 [[vk::push_constant]]
 PushConstants g_PushData;
-
 
 static const f32v2 g_Positions[6] =
 {
@@ -55,6 +51,9 @@ static const f32v2 g_TexCoords[6] =
     f32v2(0.0, 0.0)
 };
 
+[[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
+CircleInstances3D g_Instances;
+
 [shader("vertex")]
 VertexOutput mainVS(
     const u32 vertexId : SV_VertexID,
@@ -65,11 +64,14 @@ VertexOutput mainVS(
     const u32 vertexIndex = vertexId + baseVertex;
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const CircleInstanceData3D data = g_InstanceBuffer[instanceIndex];
-    const f32m4 transform = ComputeTransform3D(data.Data.Basis);
+    const CircleInstanceData3D cdata = g_Instances[instanceIndex];
+    const InstanceData3D data = cdata.Data;
+
+    const f32m4 transform = ComputeTransform3D(data.Basis);
+    const f32v2 alignment = ComputeCircleAlignment(data.Alignment);
 
     const f32v2 localPos = g_Positions[vertexIndex];
-    const f32v4 worldPos = mul(f32v4(localPos, 0.0, 1.0), transform);
+    const f32v4 worldPos = mul(f32v4(localPos - alignment, 0.0, 1.0), transform);
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
@@ -83,32 +85,32 @@ VertexOutput mainVS(
 
     output.LocalPosition = localPos;
     output.WorldPosition = worldPos.xyz;
-    output.MatHandle = data.Data.MatHandle;
+    output.MatHandle = data.MatHandle;
 
-    output.Arc.CosSin = f32v4(data.Arc.LowerCos, data.Arc.LowerSin, data.Arc.UpperCos, data.Arc.UpperSin);
-    output.Arc.AngleOverflow = data.Arc.AngleOverflow;
-    output.Arc.Hollowness = data.Arc.Hollowness;
+    output.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
+    output.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
+    output.Arc.Hollowness = cdata.Arc.Hollowness;
 
-    output.Fade = f32v2(data.Fade.InnerFade, data.Fade.OuterFade);
+    output.Fade = f32v2(cdata.Fade.InnerFade, cdata.Fade.OuterFade);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.Data.FillColor);
+    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
     return output;
 }
 
-[[vk::binding(1, 0)]]
+[[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
 SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 
-[[vk::binding(2, 0)]]
+[[vk::binding(ONYX_TEXTURES_BINDING, 0)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
-[[vk::binding(3, 0)]]
-Materials3D g_Materials[ONYX_MAX_ASSET_POOLS];
+[[vk::binding(ONYX_MATERIALS3_BINDING, 0)]]
+Materials3D g_Materials;
 
-[[vk::binding(4, 0)]]
+[[vk::binding(ONYX_PLIGHTS2_BINDING, 0)]]
 PointLights3D g_PointLights;
 
-[[vk::binding(5, 0)]]
+[[vk::binding(ONYX_DLIGHTS_BINDING, 0)]]
 DirectionalLights g_DirLights;
 
 [shader("fragment")]

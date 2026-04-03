@@ -32,7 +32,6 @@ using LoadGltfDataFlags = u8;
 enum LoadGltfDataFlagBit : LoadGltfDataFlags
 {
     LoadGltfDataFlag_ForceRGBA = 1 << 0,
-    LoadGltfDataFlag_CenterVerticesAroundOrigin = 1 << 1,
 };
 template <Dimension D>
 ONYX_NO_DISCARD Result<GltfData<D>> LoadGltfDataFromFile(const std::string &path, LoadGltfDataFlags flags = 0);

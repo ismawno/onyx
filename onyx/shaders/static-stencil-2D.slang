@@ -13,9 +13,6 @@ struct VertexOutput
     f32v4 Position : SV_Position;
 }
 
-[[vk::binding(0, 0)]]
-StructuredBuffer<StaticInstanceData2D, Std430DataLayout> g_Instances;
-
 struct PushConstants
 {
     f32m4 ProjectionView;
@@ -25,6 +22,12 @@ struct PushConstants
 [[vk::push_constant]]
 PushConstants g_PushData;
 
+[[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
+StaticInstances2D g_Instances;
+
+[[vk::binding(ONYX_BOUNDS2_BINDING, 0)]]
+Bounds2D g_Bounds;
+
 [shader("vertex")]
 VertexOutput mainVS(
     const VertexInput input,
@@ -33,11 +36,15 @@ VertexOutput mainVS(
 {
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const StaticInstanceData2D data = g_Instances[instanceIndex];
+    const StaticInstanceData2D sdata = g_Instances[instanceIndex];
+    const InstanceData2D data = sdata.Data;
+
     const f32m4 transform = ComputeTransform2D(data.Basis);
+    const f32v2 alignment = ComputeAlignment2D(data.Alignment, sdata.BoundsHandle, g_Bounds);
+    const f32v2 center = GetCenter2D(sdata.BoundsHandle, g_Bounds);
 
     const f32v2 scale = ComputeStencilScale2D(transform);
-    const f32v2 extruded = input.Position + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
+    const f32v2 extruded = input.Position - alignment + (normalize(input.Position - center) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     VertexOutput output;
     output.Position = mul(mul(f32v4(extruded, 0.0, 1.0), transform), g_PushData.ProjectionView);

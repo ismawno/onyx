@@ -5,8 +5,8 @@
 
 namespace Onyx
 {
-template <Dimension D> struct StaticInstanceData;
-template <> struct StaticInstanceData<D2>
+template <Dimension D> struct InstanceData;
+template <> struct InstanceData<D2>
 {
     f32v2 Column0;
     f32v2 Column1;
@@ -14,19 +14,26 @@ template <> struct StaticInstanceData<D2>
     u32 FillColor;
     u32 OutlineColor;
     u32 DepthCounter;
+    u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
 };
-
-template <> struct StaticInstanceData<D3>
+template <> struct InstanceData<D3>
 {
     f32v4 Row0;
     f32v4 Row1;
     f32v4 Row2;
     u32 FillColor;
     u32 OutlineColor;
+    u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
+};
+
+template <Dimension D> struct StaticInstanceData
+{
+    InstanceData<D> Data;
+    u32 BoundsHandle;
 };
 
 struct ArcData
@@ -46,7 +53,7 @@ struct FadeData
 
 template <Dimension D> struct CircleInstanceData
 {
-    StaticInstanceData<D> Data;
+    InstanceData<D> Data;
     ArcData Arc;
     FadeData Fade;
 };
@@ -105,14 +112,16 @@ union InstanceParameters {
 
 template <Dimension D> struct ParametricInstanceData
 {
-    StaticInstanceData<D> Data;
+    InstanceData<D> Data;
+    u32 BoundsHandle;
     InstanceParameters Parameters;
     ParametricShape Shape;
 };
 
 template <Dimension D> struct GlyphInstanceData
 {
-    StaticInstanceData<D> Data;
+    InstanceData<D> Data;
+    u32 BoundsHandle;
     u32 SamplerHandle;
     u32 AtlasHandle;
 };

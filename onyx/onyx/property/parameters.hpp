@@ -4,6 +4,17 @@
 
 namespace Onyx
 {
+enum Alignment : u8
+{
+    Alignment_Left,
+    Alignment_Center,
+    Alignment_Right,
+    Alignment_Bottom = Alignment_Left,
+    Alignment_Top = Alignment_Right,
+    Alignment_Near = Alignment_Left,
+    Alignment_Far = Alignment_Right,
+};
+
 struct CircleParameters
 {
     TKIT_REFLECT_DECLARE(CircleParameters)
@@ -31,13 +42,6 @@ struct AxesParameters
     f32 Size = 50.f;
 };
 
-enum TextAlignment : u8
-{
-    TextAlignment_Center,
-    TextAlignment_Left,
-    TextAlignment_Right,
-};
-
 struct TextParameters
 {
     TKIT_REFLECT_DECLARE(TextParameters)
@@ -46,6 +50,5 @@ struct TextParameters
     f32 Kerning = 0.f;
     f32 LineSpacing = 0.f;
     f32 Width = 4.f;
-    TextAlignment Alignment = TextAlignment_Left;
 };
 } // namespace Onyx

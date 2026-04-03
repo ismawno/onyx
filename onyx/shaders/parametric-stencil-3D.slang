@@ -19,9 +19,6 @@ struct VertexOutput
     f32v4 Position : SV_Position;
 }
 
-[[vk::binding(0, 0)]]
-StructuredBuffer<ParametricInstanceData3D, Std430DataLayout> g_Instances;
-
 struct PushConstants
 {
     f32m4 ProjectionView;
@@ -30,6 +27,12 @@ struct PushConstants
 
 [[vk::push_constant]]
 PushConstants g_PushData;
+
+[[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
+ParametricInstances3D g_Instances;
+
+[[vk::binding(ONYX_BOUNDS3_BINDING, 0)]]
+Bounds3D g_Bounds;
 
 [shader("vertex")]
 VertexOutput mainVS(
@@ -40,15 +43,16 @@ VertexOutput mainVS(
     const u32 instanceIndex = instanceId + baseInstance;
 
     const ParametricInstanceData3D pdata = g_Instances[instanceIndex];
-    const StaticInstanceData3D data = pdata.Data;
+    const InstanceData3D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
     const f32v3 pos = GetParametricPosition3D(input.Position, input.Normal, params, input.Region);
 
     const f32m4 transform = ComputeTransform3D(data.Basis);
+    const f32v3 alignment = ComputeAlignment3D(data.Alignment, pdata.BoundsHandle, g_Bounds);
 
     const f32v3 scale = ComputeStencilScale3D(transform);
-    const f32v3 extruded = pos + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
+    const f32v3 extruded = pos - alignment + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     VertexOutput output;
 

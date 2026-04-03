@@ -25,9 +25,6 @@ struct VertexOutput
     f32v4 Position : SV_Position;
 }
 
-[[vk::binding(0, 0)]]
-StructuredBuffer<ParametricInstanceData2D, Std430DataLayout> g_Instances;
-
 struct PushConstants
 {
     f32m4 ProjectionView;
@@ -36,6 +33,12 @@ struct PushConstants
 
 [[vk::push_constant]]
 PushConstants g_PushData;
+
+[[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
+ParametricInstances2D g_Instances;
+
+[[vk::binding(ONYX_BOUNDS2_BINDING, 0)]]
+Bounds2D g_Bounds;
 
 [shader("vertex")]
 VertexOutput mainVS(
@@ -46,13 +49,14 @@ VertexOutput mainVS(
     const u32 instanceIndex = instanceId + baseInstance;
 
     const ParametricInstanceData2D pdata = g_Instances[instanceIndex];
-    const StaticInstanceData2D data = pdata.Data;
+    const InstanceData2D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
     const f32v2 pos = GetParametricPosition2D(input.Position, params, input.Region);
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
-    const f32v4 worldPos = mul(f32v4(pos, 0.0, 1.0), transform);
+    const f32v2 alignment = ComputeAlignment2D(data.Alignment, pdata.BoundsHandle, g_Bounds);
+    const f32v4 worldPos = mul(f32v4(pos - alignment, 0.0, 1.0), transform);
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
@@ -69,16 +73,16 @@ VertexOutput mainVS(
     return output;
 }
 
-[[vk::binding(1, 0)]]
+[[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
 SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 
-[[vk::binding(2, 0)]]
+[[vk::binding(ONYX_TEXTURES_BINDING, 0)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
-[[vk::binding(3, 0)]]
-Materials2D g_Materials[ONYX_MAX_ASSET_POOLS];
+[[vk::binding(ONYX_MATERIALS2_BINDING, 0)]]
+Materials2D g_Materials;
 
-[[vk::binding(4, 0)]]
+[[vk::binding(ONYX_PLIGHTS2_BINDING, 0)]]
 PointLights2D g_PointLights;
 
 [shader("fragment")]

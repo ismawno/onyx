@@ -124,15 +124,6 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
 
                 meshData.Vertices.Append(vertex);
             }
-            if (flags & LoadGltfDataFlag_CenterVerticesAroundOrigin)
-            {
-                f32v<D> center{0.f};
-                for (const StatVertex<D> &vx : meshData.Vertices)
-                    center += vx.Position;
-                center /= meshData.Vertices.GetSize();
-                for (StatVertex<D> &vx : meshData.Vertices)
-                    vx.Position -= center;
-            }
 
             const auto &idxAccessor = model.accessors[prim.indices];
             const auto &idxView = model.bufferViews[idxAccessor.bufferView];

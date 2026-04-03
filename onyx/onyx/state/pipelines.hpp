@@ -10,8 +10,6 @@ namespace Onyx::Pipelines
 ONYX_NO_DISCARD Result<> Initialize();
 void Terminate();
 
-const VKit::PipelineLayout &GetStencilPipelineLayout();
-template <Dimension D> const VKit::PipelineLayout &GetFillPipelineLayout();
 template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(DrawPass pass);
 
 ONYX_NO_DISCARD Result<> ReloadShaders();

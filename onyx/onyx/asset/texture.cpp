@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/asset/texture.hpp"
-#include "onyx/vendor/stb_image.hpp"
+#include <stb_image.h>
 
 namespace Onyx
 {

@@ -16,22 +16,45 @@ struct Basis3D
     f32 Basis02, Basis12, Basis22, Basis32;
 }
 
-struct StaticInstanceData2D
+struct InstanceData2D
 {
     Basis2D Basis;
     u32 FillColor;
     u32 OutlineColor;
     u32 DepthCounter;
+    u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
 }
-struct StaticInstanceData3D
+
+struct InstanceData3D
 {
     Basis3D Basis;
     u32 FillColor;
     u32 OutlineColor;
+    u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
+}
+
+struct BoundsData2D
+{
+    f32 Data[6];
+}
+struct BoundsData3D
+{
+    f32 Data[9];
+}
+
+struct StaticInstanceData2D
+{
+    InstanceData2D Data;
+    u32 BoundsHandle;
+}
+struct StaticInstanceData3D
+{
+    InstanceData3D Data;
+    u32 BoundsHandle;
 }
 
 struct ArcData
@@ -59,13 +82,13 @@ struct FadeData
 
 struct CircleInstanceData2D
 {
-    StaticInstanceData2D Data;
+    InstanceData2D Data;
     ArcDataPacked Arc;
     FadeData Fade;
 }
 struct CircleInstanceData3D
 {
-    StaticInstanceData3D Data;
+    InstanceData3D Data;
     ArcDataPacked Arc;
     FadeData Fade;
 }
@@ -112,24 +135,28 @@ struct InstanceParameters
 
 struct ParametricInstanceData2D
 {
-    StaticInstanceData2D Data;
+    InstanceData2D Data;
+    u32 BoundsHandle;
     InstanceParameters Parameters;
 }
 struct ParametricInstanceData3D
 {
-    StaticInstanceData3D Data;
+    InstanceData3D Data;
+    u32 BoundsHandle;
     InstanceParameters Parameters;
 }
 
 struct GlyphInstanceData2D
 {
-    StaticInstanceData2D Data;
+    InstanceData2D Data;
+    u32 BoundsHandle;
     u32 SamplerHandle;
     u32 AtlasHandle;
 }
 struct GlyphInstanceData3D
 {
-    StaticInstanceData3D Data;
+    InstanceData3D Data;
+    u32 BoundsHandle;
     u32 SamplerHandle;
     u32 AtlasHandle;
 }
@@ -169,10 +196,6 @@ struct Material3D
 u32 GetAssetId(const u32 handle)
 {
     return handle & ONYX_ASSET_ID_MASK;
-}
-u32 GetAssetPoolId(const u32 handle)
-{
-    return (handle & ONYX_ASSET_POOL_ID_MASK) >> ONYX_ASSET_POOL_SHIFT;
 }
 
 f32m4 ComputeTransform2D(const Basis2D basis)
@@ -456,6 +479,21 @@ struct DirectionalLight
     ViewMask ViewMask;
 }
 
+typedef StructuredBuffer<StaticInstanceData2D, Std430DataLayout> StaticInstances2D;
+typedef StructuredBuffer<StaticInstanceData3D, Std430DataLayout> StaticInstances3D;
+
+typedef StructuredBuffer<CircleInstanceData2D, Std430DataLayout> CircleInstances2D;
+typedef StructuredBuffer<CircleInstanceData3D, Std430DataLayout> CircleInstances3D;
+
+typedef StructuredBuffer<ParametricInstanceData2D, Std430DataLayout> ParametricInstances2D;
+typedef StructuredBuffer<ParametricInstanceData3D, Std430DataLayout> ParametricInstances3D;
+
+typedef StructuredBuffer<GlyphInstanceData2D, Std430DataLayout> GlyphInstances2D;
+typedef StructuredBuffer<GlyphInstanceData3D, Std430DataLayout> GlyphInstances3D;
+
+typedef StructuredBuffer<BoundsData2D, Std430DataLayout> Bounds2D;
+typedef StructuredBuffer<BoundsData3D, Std430DataLayout> Bounds3D;
+
 typedef StructuredBuffer<PointLight2D, Std430DataLayout> PointLights2D;
 typedef StructuredBuffer<PointLight3D, Std430DataLayout> PointLights3D;
 
@@ -463,6 +501,48 @@ typedef StructuredBuffer<Material2D, Std430DataLayout> Materials2D;
 typedef StructuredBuffer<Material3D, Std430DataLayout> Materials3D;
 
 typedef StructuredBuffer<DirectionalLight, Std430DataLayout> DirectionalLights;
+
+f32v2 GetCenter2D(const u32 handle, const Bounds2D bounds)
+{
+    const BoundsData2D data = bounds[GetAssetId(handle)];
+    return f32v2(data.Data[2], data.Data[3]);
+}
+
+f32v2 ComputeCircleAlignment(const u32 alignment)
+{
+    const f32v2 bounds[9] = {f32v2(-0.5f, -0.5f), f32v2(-0.5f, 0.f), f32v2(-0.5f, 0.5f),
+                             f32v2(0.f, -0.5f),   f32v2(0.f, 0.f),   f32v2(0.f, 0.5f),
+                             f32v2(0.5f, -0.5f),  f32v2(0.5f, 0.f),  f32v2(0.5f, 0.5f)};
+    const u32 al0 = alignment & 0xFF;
+    const u32 al1 = (alignment >> 8) & 0xFF;
+
+    return bounds[al0 * 3 + al1];
+}
+
+f32v2 ComputeAlignment2D(const u32 alignment, const u32 handle, const Bounds2D bounds)
+{
+    const BoundsData2D data = bounds[GetAssetId(handle)];
+
+    const u32 al0 = alignment & 0xFF;
+    const u32 al1 = (alignment >> 8) & 0xFF;
+    return f32v2(data.Data[al0 * 2], data.Data[al1 * 2 + 1]);
+}
+
+f32v3 GetCenter3D(const u32 handle, const Bounds3D bounds)
+{
+    const BoundsData3D data = bounds[GetAssetId(handle)];
+    return f32v3(data.Data[3], data.Data[4], data.Data[5]);
+}
+
+f32v3 ComputeAlignment3D(const u32 alignment, const u32 handle, const Bounds3D bounds)
+{
+    const BoundsData3D data = bounds[GetAssetId(handle)];
+
+    const u32 al0 = alignment & 0xFF;
+    const u32 al1 = (alignment >> 8) & 0xFF;
+    const u32 al2 = (alignment >> 16) & 0xFF;
+    return f32v3(data.Data[al0 * 3], data.Data[al1 * 3 + 1], data.Data[al2 * 3 + 2]);
+}
 
 f32v3 GetLightColor2D(const LightData2D data, const f32v2 worldPosition, const PointLights2D plights)
 {
@@ -488,7 +568,7 @@ f32v3 GetLightColor2D(const LightData2D data, const f32v2 worldPosition, const P
 
 struct ResourceTable2D
 {
-    Materials2D Materials[ONYX_MAX_ASSET_POOLS];
+    Materials2D Materials;
     SamplerState Samplers[ONYX_MAX_SAMPLERS];
     Texture2D Textures[ONYX_MAX_TEXTURES];
     PointLights2D PointLights;
@@ -500,10 +580,8 @@ f32v4 ComputeColor2D(const f32v4 fragColor, const LightData2D light, const u32 m
     if (matId != NullAsset)
     {
         const f32v3 lcolor = GetLightColor2D(light, worldPos, resources.PointLights);
-        const u32 poolId = GetAssetPoolId(matHandle);
 
-        const Material2D mat = resources.Materials[poolId][matId];
-
+        const Material2D mat = resources.Materials[matId];
         const u32 sampId = GetAssetId(mat.Sampler);
         const u32 texId = GetAssetId(mat.Texture);
 
@@ -632,7 +710,7 @@ f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
 
 struct ResourceTable3D
 {
-    Materials3D Materials[ONYX_MAX_ASSET_POOLS];
+    Materials3D Materials;
     SamplerState Samplers[ONYX_MAX_SAMPLERS];
     Texture2D Textures[ONYX_MAX_TEXTURES];
     PointLights3D PointLights;
@@ -644,8 +722,7 @@ f32v4 ComputeColor3D(const f32v4 fragColor, const LightData3D light, const u32 m
     const u32 matId = GetAssetId(matHandle);
     if (matId != NullAsset)
     {
-        const u32 poolId = GetAssetPoolId(matHandle);
-        const Material3D mat = resources.Materials[poolId][matId];
+        const Material3D mat = resources.Materials[matId];
 
         const u32 albedoSamp = GetAssetId(mat.AlbedoSamp);
         const u32 albedoTex = GetAssetId(mat.AlbedoTex);

@@ -151,18 +151,18 @@ template <Dimension D> void checkMaterial(const Asset material)
 #endif
 
 template <Dimension D>
-static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                      const u32 depthCounter)
+static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32m<D> &transform, const u32 depthCounter)
 {
 #ifdef TKIT_ENABLE_ASSERTS
     checkMaterial<D>(state->Material);
 #endif
     if constexpr (D == D2)
     {
-        StaticInstanceData<D2> instanceData{};
+        InstanceData<D2> instanceData{};
         instanceData.Column0 = f32v2{transform[0]};
         instanceData.Column1 = f32v2{transform[1]};
         instanceData.Column3 = f32v2{transform[2]};
+        instanceData.Alignment = u32(state->Alignment[1]) << 8 | u32(state->Alignment[0]);
         instanceData.MatHandle = state->Material;
         instanceData.FillColor = state->FillColor.Pack();
         instanceData.OutlineColor = state->OutlineColor.Pack();
@@ -172,10 +172,12 @@ static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *stat
     }
     else
     {
-        StaticInstanceData<D3> instanceData{};
+        InstanceData<D3> instanceData{};
         instanceData.Row0 = f32v4{transform[0][0], transform[1][0], transform[2][0], transform[3][0]};
         instanceData.Row1 = f32v4{transform[0][1], transform[1][1], transform[2][1], transform[3][1]};
         instanceData.Row2 = f32v4{transform[0][2], transform[1][2], transform[2][2], transform[3][2]};
+        instanceData.Alignment =
+            u32(state->Alignment[2]) << 16 | u32(state->Alignment[1]) << 8 | u32(state->Alignment[0]);
         instanceData.MatHandle = state->Material;
         instanceData.FillColor = state->FillColor.Pack();
         instanceData.OutlineColor = state->OutlineColor.Pack();
@@ -185,11 +187,27 @@ static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *stat
 }
 
 template <Dimension D>
+static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *state, const f32m<D> &transform,
+                                                      const Asset bounds, const u32 depthCounter)
+{
+    StaticInstanceData<D> instanceData;
+    instanceData.Data = createInstanceData(state, transform, depthCounter);
+    instanceData.BoundsHandle = bounds;
+    return instanceData;
+}
+
+template <Dimension D>
 static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *state, const f32m<D> &transform,
                                                       const CircleParameters &params, const u32 depthCounter)
 {
+    // constexpr TKit::FixedArray<f32v2, 9> bounds = {f32v2{-0.5f, -0.5f}, f32v2{-0.5f, 0.f}, f32v2{-0.5f, 0.5f},
+    //                                                f32v2{0.f, -0.5f},   f32v2{0.f, 0.f},   f32v2{0.f, 0.5f},
+    //                                                f32v2{0.5f, -0.5f},  f32v2{0.5f, 0.f},  f32v2{0.5f, 0.5f}};
+    //
+    // const f32v2 &alignment = bounds[state->Alignment[0] * 3 + state->Alignment[1]];
     CircleInstanceData<D> instanceData;
-    instanceData.Data = createStaticInstanceData(state, transform, depthCounter);
+    instanceData.Data = createInstanceData(state, transform, depthCounter);
+
     instanceData.Arc.LowerCos = Math::Cosine(params.LowerAngle);
     instanceData.Arc.LowerSin = Math::Sine(params.LowerAngle);
     instanceData.Arc.UpperCos = Math::Cosine(params.UpperAngle);
@@ -205,11 +223,12 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
 
 template <Dimension D>
 static ParametricInstanceData<D> createParametricInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                              const ParametricShape shape,
+                                                              const Asset bounds, const ParametricShape shape,
                                                               const InstanceParameters &params, const u32 depthCounter)
 {
     ParametricInstanceData<D> instanceData;
-    instanceData.Data = createStaticInstanceData(state, transform, depthCounter);
+    instanceData.Data = createInstanceData(state, transform, depthCounter);
+    instanceData.BoundsHandle = bounds;
     instanceData.Shape = shape;
     instanceData.Parameters = params;
     return instanceData;
@@ -217,10 +236,11 @@ static ParametricInstanceData<D> createParametricInstanceData(const RenderState<
 
 template <Dimension D>
 static GlyphInstanceData<D> createGlyphInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                    const u32 depthCounter)
+                                                    const Asset bounds, const u32 depthCounter)
 {
     GlyphInstanceData<D> instanceData;
-    instanceData.Data = createStaticInstanceData(state, transform, depthCounter);
+    instanceData.Data = createInstanceData(state, transform, depthCounter);
+    instanceData.BoundsHandle = bounds;
     instanceData.AtlasHandle = Assets::GetFontAtlas(state->Font);
     instanceData.SamplerHandle = state->FontSampler;
     return instanceData;
@@ -297,6 +317,24 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
     addInstanceData(buffer, idata);
 }
 
+// template <Dimension D> static f32v<D> computeAlignment(const f32 *bdata, const vec<Alignment, D> &alg)
+// {
+//     f32v<D> alignment;
+//     alignment[0] = bdata[u32(alg[0]) * D];
+//     alignment[1] = bdata[u32(alg[1]) * D + 1];
+//     if constexpr (D == D3)
+//         alignment[2] = bdata[u32(alg[2]) * D3 + 2];
+//     return alignment;
+// }
+//
+// template <Dimension D> static f32v<D> computeAlignment(const Asset mesh, const vec<Alignment, D> &alg)
+// {
+//     const BoundingBox<D> &bounds = Assets::GetMeshBounds<D>(mesh);
+//     const f32 *bdata = bounds.GetData();
+//
+//     return computeAlignment<D>(bdata, alg);
+// }
+
 template <Dimension D> void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform)
 {
     if (m_Current->Draw >= DrawMode_Count)
@@ -304,7 +342,8 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Asset mesh, c
     const u32 pid = Assets::GetAssetPoolId(mesh);
     const u32 mid = Assets::GetAssetId(mesh);
 
-    const StaticInstanceData<D> idata = createStaticInstanceData(m_Current, transform, ++m_DepthCounter);
+    const StaticInstanceData<D> idata =
+        createStaticInstanceData(m_Current, transform, Assets::GetMeshBounds<D>(mesh), ++m_DepthCounter);
     InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Meshes[Asset_StaticMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
@@ -318,8 +357,9 @@ void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &trans
 
     const ParametricShape shape = Assets::GetParametricShape<D>(mesh);
 
-    const ParametricInstanceData<D> idata =
-        createParametricInstanceData(m_Current, transform, shape, params, ++m_DepthCounter);
+    const ParametricInstanceData<D> idata = createParametricInstanceData(
+        m_Current, transform, Assets::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
+
     InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Meshes[Asset_ParametricMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
@@ -330,10 +370,12 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
     if (m_Current->Draw >= DrawMode_Count)
         return;
 
-    ++m_DepthCounter;
     CHECK_HANDLE(m_Current->Font, Asset_Font, D);
     ONYX_CHECK_ASSET_IS_NOT_NULL(m_Current->FontSampler);
     ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(m_Current->FontSampler, Asset_Sampler, D);
+
+    ++m_DepthCounter;
+    const Alignment alg = m_Current->Alignment[0];
 
     const FontData &fdata = Assets::GetFontData(m_Current->Font);
     const u32 size = u32(text.size());
@@ -352,7 +394,7 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
                 width += fdata.GetKerning(text[i - 1], c);
 
             const Glyph *glyph = Assets::GetGlyph(m_Current->Font, c);
-            width += glyph->Data.Advance + params.Kerning;
+            width += glyph->Advance + params.Kerning;
         }
         return width;
     };
@@ -365,22 +407,22 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
         {
             const char c = str[i];
             if (c == '\n')
-                return params.Alignment == TextAlignment_Center ? (0.5f * width) : width;
+                return alg == Alignment_Center ? (0.5f * width) : width;
 
             if (c == ' ')
             {
                 const f32 wwidth = wordWidth(str.substr(i + 1));
                 if (width + wwidth > params.Width)
-                    return params.Alignment == TextAlignment_Center ? (0.5f * width) : width;
+                    return alg == Alignment_Center ? (0.5f * width) : width;
             }
 
             if (i > 0)
                 width += fdata.GetKerning(text[i - 1], c);
 
             const Glyph *glyph = Assets::GetGlyph(m_Current->Font, c);
-            width += glyph->Data.Advance;
+            width += glyph->Advance;
         }
-        return params.Alignment == TextAlignment_Center ? (0.5f * width) : width;
+        return alg == Alignment_Center ? (0.5f * width) : width;
     };
 
     f32v2 pos{0.f};
@@ -396,12 +438,12 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
     };
 
     f32 width = 0.f;
-    if (params.Alignment != TextAlignment_Left)
+    if (alg != Alignment_Left)
         pos[0] = -lineWidth(text);
 
     const f32 yscale = 1.f / (fdata.Ascender - fdata.Descender);
     const auto reset = [&](const std::string_view substr) {
-        pos[0] = params.Alignment == TextAlignment_Left ? 0.f : -lineWidth(substr);
+        pos[0] = alg == Alignment_Left ? 0.f : -lineWidth(substr);
         pos[1] -= fdata.LineHeight * yscale + params.LineSpacing;
         width = 0.f;
     };
@@ -434,19 +476,19 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
         const Glyph *glyph = Assets::GetGlyph(m_Current->Font, c);
 
         updateTransform();
-        addGlyphData(glyph->Id, t);
+        addGlyphData(glyph, t);
 
-        const f32 displacement = glyph->Data.Advance + kerning + params.Kerning;
+        const f32 displacement = glyph->Advance + kerning + params.Kerning;
         pos[0] += displacement;
         width += displacement;
     }
 }
-template <Dimension D> void IRenderContext<D>::addGlyphData(const u32 gid, const f32m<D> &transform)
+template <Dimension D> void IRenderContext<D>::addGlyphData(const Glyph *glyph, const f32m<D> &transform)
 {
     const u32 pid = Assets::GetAssetPoolId(m_Current->Font);
 
-    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Meshes[Asset_GlyphMesh][pid][gid];
+    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, glyph->Bounds, m_DepthCounter);
+    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Meshes[Asset_GlyphMesh][pid][glyph->Id];
     addInstanceData(buffer, idata);
 }
 

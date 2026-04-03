@@ -13,8 +13,8 @@ struct VertexOutput
     f32v4 Position : SV_Position;
 }
 
-[[vk::binding(0, 0)]]
-StructuredBuffer<CircleInstanceData3D, Std430DataLayout> g_Instances;
+[[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
+CircleInstances3D g_Instances;
 
 struct PushConstants
 {
@@ -46,12 +46,15 @@ VertexOutput mainVS(
     const u32 vertexIndex = vertexId + baseVertex;
     const u32 instanceIndex = instanceId + baseInstance;
 
-    const CircleInstanceData3D data = g_Instances[instanceIndex];
-    const f32m4 transform = ComputeTransform3D(data.Data.Basis);
+    const CircleInstanceData3D cdata = g_Instances[instanceIndex];
+    const InstanceData3D data = cdata.Data;
+
+    const f32m4 transform = ComputeTransform3D(data.Basis);
+    const f32v2 alignment = ComputeCircleAlignment(data.Alignment);
 
     const f32v2 localPos = g_Positions[vertexIndex];
     const f32v2 scale = ComputeStencilScale3D(transform).xy;
-    const f32v2 extruded = localPos + (normalize(localPos) * data.Data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
+    const f32v2 extruded = localPos - alignment + (normalize(localPos) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     const f32v4 pos = f32v4(extruded, 0.0, 1.0);
 
@@ -60,13 +63,13 @@ VertexOutput mainVS(
 
     output.LocalPosition = localPos;
 
-    output.Arc.CosSin = f32v4(data.Arc.LowerCos, data.Arc.LowerSin, data.Arc.UpperCos, data.Arc.UpperSin);
-    output.Arc.AngleOverflow = data.Arc.AngleOverflow;
-    output.Arc.Hollowness = data.Arc.Hollowness;
+    output.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
+    output.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
+    output.Arc.Hollowness = cdata.Arc.Hollowness;
 
-    output.Fade = f32v2(data.Fade.InnerFade, data.Fade.OuterFade);
+    output.Fade = f32v2(cdata.Fade.InnerFade, cdata.Fade.OuterFade);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.Data.OutlineColor);
+    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
 
     return output;
 }

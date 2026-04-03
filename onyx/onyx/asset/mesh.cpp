@@ -7,9 +7,53 @@
 
 namespace Onyx
 {
+template <typename Vertex> static void tidyMeshData(MeshData<Vertex> &data, const u32 offset = 0)
+{
+    TKit::StackArray<u32> counts{};
+    counts.Resize(data.Vertices.GetSize(), 0);
+
+    for (const Index i : data.Indices)
+        counts[i - Index(offset)]++;
+    for (u32 i = counts.GetSize() - 1; i < counts.GetSize(); --i)
+        if (counts[i] == 0)
+        {
+            data.Vertices.RemoveOrdered(data.Vertices.begin() + i);
+            for (Index &j : data.Indices)
+                if (j > i)
+                    --j;
+        }
+}
+#ifdef TKIT_ENABLE_ASSERTS
+template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, const u32 offset = 0)
+{
+    Index mx = 0;
+    for (const Index i : data.Indices)
+        if (i > mx)
+            mx = i;
+
+    mx -= Index(offset);
+    TKIT_ASSERT(mx < data.Vertices.GetSize(),
+                "[ONYX][MESH] Index and vertex host data creation is invalid. An index exceeds vertex bounds. Index: "
+                "{}, size: {}",
+                mx, data.Vertices.GetSize());
+    tidyMeshData(data, offset);
+    TKit::StackArray<u32> counts{};
+    counts.Resize(data.Vertices.GetSize(), 0);
+
+    for (const Index i : data.Indices)
+        counts[i - Index(offset)]++;
+    for (const u32 c : counts)
+    {
+        TKIT_ASSERT(c != 0, "[ONYX][MESH] Found unused vertices in a mesh");
+    }
+}
+#    define VALIDATE_MESH_DATA(...) validateMeshData(__VA_ARGS__)
+#else
+#    define VALIDATE_MESH_DATA(...) tidyMeshData(__VA_ARGS__)
+#endif
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template <Dimension D>
-Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path, const LoadObjDataFlags flags)
+
+template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -50,62 +94,10 @@ Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path, const Lo
             }
             data.Indices.Append(uniqueVertices[vertex]);
         }
-    if (flags & LoadObjDataFlag_CenterVerticesAroundOrigin)
-    {
-        f32v<D> center{0.f};
-        for (const StatVertex<D> &vx : data.Vertices)
-            center += vx.Position;
-        center /= data.Vertices.GetSize();
-        for (StatVertex<D> &vx : data.Vertices)
-            vx.Position -= center;
-    }
     return data;
 }
 #endif
-template <typename Vertex> static void removeUnusedVertices(MeshData<Vertex> &data, const u32 offset = 0)
-{
-    TKit::StackArray<u32> counts{};
-    counts.Resize(data.Vertices.GetSize(), 0);
 
-    for (const Index i : data.Indices)
-        counts[i - Index(offset)]++;
-    for (u32 i = counts.GetSize() - 1; i < counts.GetSize(); --i)
-        if (counts[i] == 0)
-        {
-            data.Vertices.RemoveOrdered(data.Vertices.begin() + i);
-            for (Index &j : data.Indices)
-                if (j > i)
-                    --j;
-        }
-}
-#ifdef TKIT_ENABLE_ASSERTS
-template <typename Vertex> static void validateMeshData(MeshData<Vertex> &data, const u32 offset = 0)
-{
-    Index mx = 0;
-    for (const Index i : data.Indices)
-        if (i > mx)
-            mx = i;
-
-    mx -= Index(offset);
-    TKIT_ASSERT(mx < data.Vertices.GetSize(),
-                "[ONYX][MESH] Index and vertex host data creation is invalid. An index exceeds vertex bounds. Index: "
-                "{}, size: {}",
-                mx, data.Vertices.GetSize());
-    removeUnusedVertices(data, offset);
-    TKit::StackArray<u32> counts{};
-    counts.Resize(data.Vertices.GetSize(), 0);
-
-    for (const Index i : data.Indices)
-        counts[i - Index(offset)]++;
-    for (const u32 c : counts)
-    {
-        TKIT_ASSERT(c != 0, "[ONYX][MESH] Found unused vertices in a mesh");
-    }
-}
-#    define VALIDATE_MESH_DATA(...) validateMeshData(__VA_ARGS__)
-#else
-#    define VALIDATE_MESH_DATA(...) removeUnusedVertices(__VA_ARGS__)
-#endif
 template <Dimension D> StatMeshData<D> CreateTriangleMeshData()
 {
     StatMeshData<D> data{};
@@ -1548,7 +1540,7 @@ template ParaMeshData<D2> CreateRoundedQuadMeshData<D2>();
 template ParaMeshData<D3> CreateRoundedQuadMeshData<D3>();
 
 #ifdef ONYX_ENABLE_OBJ_LOAD
-template Result<StatMeshData<D2>> LoadStaticMeshDataFromObjFile<D2>(const char *path, LoadObjDataFlags flags);
-template Result<StatMeshData<D3>> LoadStaticMeshDataFromObjFile<D3>(const char *path, LoadObjDataFlags flags);
+template Result<StatMeshData<D2>> LoadStaticMeshDataFromObjFile<D2>(const char *path);
+template Result<StatMeshData<D3>> LoadStaticMeshDataFromObjFile<D3>(const char *path);
 #endif
 } // namespace Onyx

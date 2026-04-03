@@ -217,38 +217,30 @@ VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo()
     return renderInfo;
 }
 
-static void updateDescriptorSet(const VkDescriptorSet set, const u32 binding, const VKit::DescriptorSetLayout &layout,
-                                const VKit::DeviceBuffer &buffer)
-{
-    VKit::DescriptorSet::Writer writer{Core::GetDevice(), &layout};
-    const VkDescriptorBufferInfo info = buffer.CreateDescriptorInfo();
-    writer.WriteBuffer(binding, info);
-    writer.Overwrite(set);
-}
-
 template <Dimension D> static void updateInstanceDescriptorSets(const Geometry geo)
 {
     RendererData<D> &rdata = getRendererData<D>();
     for (u32 i = 0; i < DrawPass_Count; ++i)
     {
         const DrawPass dpass = DrawPass(i);
-        updateDescriptorSet(rdata.Descriptors[i][geo], 0, Descriptors::GetDescriptorSetLayout<D>(dpass),
-                            rdata.InstanceArenas[geo].Graphics.Buffer);
+        const VkDescriptorSet set = rdata.Descriptors[i][geo];
+        const VkDescriptorBufferInfo info = rdata.InstanceArenas[geo].Graphics.Buffer.CreateDescriptorInfo();
+
+        Descriptors::WriteBuffer<D>(Descriptors::GetInstancesBindingPoint(), set, info, dpass);
     }
 }
 
-static u32 lightToBinding(const LightType light)
+template <Dimension D> static u32 lightToBinding(const LightType light)
 {
-    return light + 4;
+    return light == Light_Point ? Descriptors::GetPointLightsBindingPoint<D>()
+                                : Descriptors::GetDirectionalLightsBindingPoint();
 }
 
 template <Dimension D> static void updateLightDescriptorSets(const LightType light)
 {
     RendererData<D> &rdata = getRendererData<D>();
-    for (u32 i = 0; i < Geometry_Count; ++i)
-        updateDescriptorSet(rdata.Descriptors[DrawPass_Fill][i], lightToBinding(light),
-                            Descriptors::GetDescriptorSetLayout<D>(DrawPass_Fill),
-                            rdata.LightArenas[light].Graphics.Buffer);
+    const VkDescriptorBufferInfo info = rdata.LightArenas[light].Graphics.Buffer.CreateDescriptorInfo();
+    Descriptors::WriteBuffer<D>(lightToBinding<D>(light), rdata.Descriptors[DrawPass_Fill], info, DrawPass_Fill);
 }
 
 static constexpr VKit::DeviceBufferFlags getStageFlags()
@@ -400,7 +392,8 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
                 TKIT_RETURN_IF_FAILED(device.SetObjectName(set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name.c_str()));
             }
 
-            updateDescriptorSet(set, 0, layout, gpool.Buffer);
+            const VkDescriptorBufferInfo info = gpool.Buffer.CreateDescriptorInfo();
+            Descriptors::WriteBuffer<D>(Descriptors::GetInstancesBindingPoint(), set, info, dpass);
             rdata.Descriptors[j][i] = set;
         }
     }
@@ -572,6 +565,21 @@ template <Dimension D> void UpdateViewMask(const RenderContext<D> *context)
     if constexpr (D == D3)
         for (DirectionalLight *dl : context->GetDirectionalLights())
             dl->SetViewMask(vmask);
+}
+
+template <Dimension D>
+void WriteBuffer(const u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, const DrawPass pass,
+                 const u32 dstElement)
+{
+    RendererData<D> &rdata = getRendererData<D>();
+    Descriptors::WriteBuffer<D>(binding, rdata.Descriptors[pass], info, pass, dstElement);
+}
+template <Dimension D>
+void WriteImage(const u32 binding, TKit::Span<const VkDescriptorImageInfo> info, const DrawPass pass,
+                const u32 dstElement)
+{
+    RendererData<D> &rdata = getRendererData<D>();
+    Descriptors::WriteImage<D>(binding, rdata.Descriptors[pass], info, pass, dstElement);
 }
 
 template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(const DrawPass pass)
@@ -2319,5 +2327,15 @@ template Result<RenderContext<D3> *> CreateContext();
 
 template void DestroyContext(RenderContext<D2> *context);
 template void DestroyContext(RenderContext<D3> *context);
+
+template void WriteBuffer<D2>(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, DrawPass pass,
+                              u32 dstElement = 0);
+template void WriteBuffer<D3>(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, DrawPass pass,
+                              u32 dstElement = 0);
+
+template void WriteImage<D2>(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, DrawPass pass,
+                             u32 dstElement = 0);
+template void WriteImage<D3>(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, DrawPass pass,
+                             u32 dstElement = 0);
 
 } // namespace Onyx::Renderer

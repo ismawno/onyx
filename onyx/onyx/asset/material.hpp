@@ -9,6 +9,7 @@ template <Dimension D> struct MaterialData;
 
 template <> struct MaterialData<D2>
 {
+    static constexpr Dimension Dim = D2;
     u32 ColorFactor = 0xFFFFFFFF;
     Asset Sampler = NullHandle;
     Asset Texture = NullHandle;
@@ -26,6 +27,7 @@ enum TextureSlot : u8
 
 template <> struct MaterialData<D3>
 {
+    static constexpr Dimension Dim = D3;
     f32v3 EmissiveFactor{0.f};
     u32 AlbedoFactor = 0xFFFFFFFF;
     f32 MetallicFactor = 0.f;

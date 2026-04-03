@@ -5,6 +5,7 @@
 #include "onyx/asset/handle.hpp"
 #include "onyx/platform/window.hpp"
 #include "onyx/rendering/light.hpp"
+#include "onyx/asset/font.hpp"
 #include "vkit/resource/host_buffer.hpp"
 
 namespace Onyx
@@ -23,6 +24,7 @@ template <Dimension D> struct RenderState
     Asset Material = NullHandle;
     Asset Font = NullHandle;
     Asset FontSampler = NullHandle;
+    vec<Alignment, D> Alignment{Alignment_Center};
     DrawMode Draw = DrawMode_Fill;
 };
 
@@ -39,6 +41,19 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     ~IRenderContext();
 
     void Flush();
+
+    void Align(const Alignment alg)
+    {
+        m_Current->Alignment = vec<Alignment, D>{alg};
+    }
+    void AlignX(const Alignment alg)
+    {
+        m_Current->Alignment[0] = alg;
+    }
+    void AlignY(const Alignment alg)
+    {
+        m_Current->Alignment[1] = alg;
+    }
 
     void Transform(const f32m<D> &transform)
     {
@@ -325,7 +340,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addStaticData(Asset mesh, const f32m<D> &transform);
     void addParametricData(Asset mesh, const f32m<D> &transform, const InstanceParameters &params);
     void addGlyphData(std::string_view text, const f32m<D> &transform, const TextParameters &params);
-    void addGlyphData(u32 gid, const f32m<D> &transform);
+    void addGlyphData(const Glyph *glyph, const f32m<D> &transform);
 #ifdef TKIT_ENABLE_ASSERTS
     void checkMaterial(Asset material);
 #endif
@@ -410,6 +425,11 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
   public:
     using IRenderContext<D3>::IRenderContext;
     using IRenderContext<D3>::Transform;
+
+    void AlignZ(const Alignment alg)
+    {
+        m_Current->Alignment[2] = alg;
+    }
 
     void Transform(const f32v3 &translation, const f32v3 &scale, const f32v3 &rotation)
     {
