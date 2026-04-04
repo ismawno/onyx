@@ -3,6 +3,7 @@
 #include "onyx/resource/resources.hpp"
 #include "onyx/asset/assets.hpp"
 #include "tkit/math/math.hpp"
+#include "tkit/container/stack_array.hpp"
 
 namespace Onyx
 {
@@ -317,24 +318,6 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
     addInstanceData(buffer, idata);
 }
 
-// template <Dimension D> static f32v<D> computeAlignment(const f32 *bdata, const vec<Alignment, D> &alg)
-// {
-//     f32v<D> alignment;
-//     alignment[0] = bdata[u32(alg[0]) * D];
-//     alignment[1] = bdata[u32(alg[1]) * D + 1];
-//     if constexpr (D == D3)
-//         alignment[2] = bdata[u32(alg[2]) * D3 + 2];
-//     return alignment;
-// }
-//
-// template <Dimension D> static f32v<D> computeAlignment(const Asset mesh, const vec<Alignment, D> &alg)
-// {
-//     const BoundingBox<D> &bounds = Assets::GetMeshBounds<D>(mesh);
-//     const f32 *bdata = bounds.GetData();
-//
-//     return computeAlignment<D>(bdata, alg);
-// }
-
 template <Dimension D> void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform)
 {
     if (m_Current->Draw >= DrawMode_Count)
@@ -363,11 +346,25 @@ void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &trans
     InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Meshes[Asset_ParametricMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
+
+struct Character
+{
+    const Glyph *Glyph;
+    f32 Advance;
+};
+
+struct CharLine
+{
+    u32 Start = 0;
+    u32 End = 0;
+    f32 Width = 0.f;
+};
+
 template <Dimension D>
 void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> &transform,
                                      const TextParameters &params)
 {
-    if (m_Current->Draw >= DrawMode_Count)
+    if (m_Current->Draw >= DrawMode_Count || text.empty())
         return;
 
     CHECK_HANDLE(m_Current->Font, Asset_Font, D);
@@ -375,57 +372,74 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
     ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(m_Current->FontSampler, Asset_Sampler, D);
 
     ++m_DepthCounter;
-    const Alignment alg = m_Current->Alignment[0];
+    const Alignment alg0 = m_Current->Alignment[0] == Alignment_None ? Alignment_Left : m_Current->Alignment[0];
+    const Alignment alg1 = m_Current->Alignment[1] == Alignment_None ? Alignment_Top : m_Current->Alignment[1];
 
-    const FontData &fdata = Assets::GetFontData(m_Current->Font);
+    const Asset font = m_Current->Font;
+    const FontData &fdata = Assets::GetFontData(font);
     const u32 size = u32(text.size());
+    const f32 maxWidth = params.Width;
+
     f32m<D> t = transform;
 
-    const auto wordWidth = [&](const std::string_view str) {
-        f32 width = 0.f;
-        const u32 size = u32(str.size());
-        for (u32 i = 0; i < size; ++i)
+    TKit::StackArray<Character> chars{};
+    chars.Reserve(size);
+
+    TKit::StackArray<CharLine> lines{};
+    lines.Reserve(size);
+
+    CharLine line{};
+    u32 wordEnd = 0;
+    f32 wordWidth = 0.f;
+
+    for (u32 i = 0; i < size; ++i)
+    {
+        const char c = text[i];
+        if (c == '\n')
         {
-            const char c = str[i];
-            if (c == '\n' || c == ' ')
-                return width;
-
-            if (i > 0)
-                width += fdata.GetKerning(text[i - 1], c);
-
-            const Glyph *glyph = Assets::GetGlyph(m_Current->Font, c);
-            width += glyph->Advance + params.Kerning;
-        }
-        return width;
-    };
-
-    const auto lineWidth = [&](const std::string_view str) {
-        f32 width = 0.f;
-        const u32 size = u32(str.size());
-
-        for (u32 i = 0; i < size; ++i)
-        {
-            const char c = str[i];
-            if (c == '\n')
-                return alg == Alignment_Center ? (0.5f * width) : width;
-
-            if (c == ' ')
+            if (line.Start < line.End)
             {
-                const f32 wwidth = wordWidth(str.substr(i + 1));
-                if (width + wwidth > params.Width)
-                    return alg == Alignment_Center ? (0.5f * width) : width;
+                lines.Append(line);
+                line.Start = line.End;
+                line.Width = 0.f;
+                wordEnd = line.End;
             }
-
-            if (i > 0)
-                width += fdata.GetKerning(text[i - 1], c);
-
-            const Glyph *glyph = Assets::GetGlyph(m_Current->Font, c);
-            width += glyph->Advance;
+            continue;
         }
-        return alg == Alignment_Center ? (0.5f * width) : width;
-    };
+        if (c == ' ')
+        {
+            wordEnd = line.End + 1;
+            wordWidth = line.Width;
+        }
 
-    f32v2 pos{0.f};
+        f32 advance = 0.f;
+        if (line.Start < line.End)
+            advance = fdata.GetKerning(text[i - 1], c);
+
+        const Glyph *glyph = Assets::GetGlyph(font, c);
+        advance += glyph->Advance + params.Kerning;
+        chars.Append(glyph, advance);
+        ++line.End;
+        line.Width += advance;
+        if (line.Width + advance > maxWidth && line.Start < wordEnd)
+        {
+            lines.Append(line.Start, wordEnd, wordWidth);
+            line.Start = wordEnd;
+            line.Width -= wordWidth;
+        }
+    }
+    if (line.Start < line.End)
+        lines.Append(line);
+
+    f32v2 pos;
+    constexpr f32 factors[3] = {0.f, 0.5f, 1.f};
+    const f32 xfactor = factors[alg0];
+    const f32 yfactor = factors[2 - alg1];
+    const f32 yscale = 1.f / (fdata.Ascender - fdata.Descender);
+
+    const f32 dy = fdata.LineHeight * yscale + params.LineSpacing;
+    pos[1] = yfactor * (f32(lines.GetSize()) - 1.f) * dy - 0.5f * factors[alg1] * dy;
+
     const auto updateTransform = [&] {
         f32v<D + 1> p = transform[D];
         for (u32 i = 0; i < 2; ++i)
@@ -436,51 +450,16 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
             }
         t[D] = p;
     };
-
-    f32 width = 0.f;
-    if (alg != Alignment_Left)
-        pos[0] = -lineWidth(text);
-
-    const f32 yscale = 1.f / (fdata.Ascender - fdata.Descender);
-    const auto reset = [&](const std::string_view substr) {
-        pos[0] = alg == Alignment_Left ? 0.f : -lineWidth(substr);
-        pos[1] -= fdata.LineHeight * yscale + params.LineSpacing;
-        width = 0.f;
-    };
-
-    for (u32 i = 0; i < size; ++i)
+    for (const CharLine &line : lines)
     {
-        const char c = text[i];
-
-        if (c == '\n')
+        pos[0] = -xfactor * line.Width;
+        for (u32 i = line.Start; i < line.End; ++i)
         {
-            reset(text.substr(i + 1));
-            continue;
+            updateTransform();
+            addGlyphData(chars[i].Glyph, t);
+            pos[0] += chars[i].Advance;
         }
-
-        if (c == ' ')
-        {
-            const std::string_view substr = text.substr(i + 1);
-            const f32 wwidth = wordWidth(substr);
-            if (width + wwidth > params.Width)
-            {
-                reset(substr);
-                continue;
-            }
-        }
-
-        f32 kerning = 0.f;
-        if (i > 0)
-            kerning = fdata.GetKerning(text[i - 1], c);
-
-        const Glyph *glyph = Assets::GetGlyph(m_Current->Font, c);
-
-        updateTransform();
-        addGlyphData(glyph, t);
-
-        const f32 displacement = glyph->Advance + kerning + params.Kerning;
-        pos[0] += displacement;
-        width += displacement;
+        pos[1] -= dy;
     }
 }
 template <Dimension D> void IRenderContext<D>::addGlyphData(const Glyph *glyph, const f32m<D> &transform)

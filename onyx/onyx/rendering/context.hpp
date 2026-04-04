@@ -24,7 +24,7 @@ template <Dimension D> struct RenderState
     Asset Material = NullHandle;
     Asset Font = NullHandle;
     Asset FontSampler = NullHandle;
-    vec<Alignment, D> Alignment{Alignment_Center};
+    vec<Alignment, D> Alignment{Alignment_None};
     DrawMode Draw = DrawMode_Fill;
 };
 
@@ -42,6 +42,10 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void Flush();
 
+    void Align(const vec<Alignment, D> &alg)
+    {
+        m_Current->Alignment = alg;
+    }
     void Align(const Alignment alg)
     {
         m_Current->Alignment = vec<Alignment, D>{alg};

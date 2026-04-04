@@ -175,6 +175,7 @@ template <Dimension D> static void setShapeProperties(RenderContext<D> *context,
     context->OutlineWidth(shape.OutlineWidth);
     context->OutlineColor(shape.OutlineColor);
     context->Material(shape.Material);
+    context->Align(shape.Alignment);
 
     context->Font(shape.Font);
 }
@@ -1016,6 +1017,10 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
     ImGui::ColorEdit4("Fill color", shape.FillColor.GetData());
     ImGui::ColorEdit4("Outline color", shape.OutlineColor.GetData());
     ImGui::SliderFloat("Outline width", &shape.OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    combo("X Alignment", &shape.Alignment[0], "Left\0Center\0Right\0None\0\0");
+    combo("Y Alignment", &shape.Alignment[1], "Bottom\0Center\0Top\0None\0\0");
+    if constexpr (D == D3)
+        combo("Z Alignment", &shape.Alignment[2], "Near\0Center\0Far\0None\0\0");
 
     matNameCombo<D>("Material##Shape", appLayer, &shape.Material);
 

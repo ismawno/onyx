@@ -119,6 +119,8 @@ template <Dimension D> struct Shape
     Asset Material = NullHandle;
     Asset Font = NullHandle;
 
+    vec<Alignment, D> Alignment{Alignment_None};
+
     std::string Name{};
     Transform<D> Transform{};
     CircleParameters CircleParams{};

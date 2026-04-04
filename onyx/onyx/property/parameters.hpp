@@ -13,6 +13,7 @@ enum Alignment : u8
     Alignment_Top = Alignment_Right,
     Alignment_Near = Alignment_Left,
     Alignment_Far = Alignment_Right,
+    Alignment_None = 3,
 };
 
 struct CircleParameters
@@ -49,6 +50,6 @@ struct TextParameters
 
     f32 Kerning = 0.f;
     f32 LineSpacing = 0.f;
-    f32 Width = 4.f;
+    f32 Width = 12.f;
 };
 } // namespace Onyx
