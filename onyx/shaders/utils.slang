@@ -594,23 +594,30 @@ f32v4 ComputeColor2D(const f32v4 fragColor, const LightData2D light, const u32 m
     return f32v4(fragColor.rgb, fragColor.a * alpha);
 }
 
-f32 ComputeMTSDFCoverage(const SamplerState samplers[ONYX_MAX_SAMPLERS], const Texture2D textures[ONYX_MAX_TEXTURES], const u32 samplerId, const u32 atlasId, const f32v2 uv)
+f32 ComputeMTSDFCoverage(
+    const SamplerState samplers[ONYX_MAX_SAMPLERS],
+    const Texture2D textures[ONYX_MAX_TEXTURES],
+    const u32 samplerId,
+    const u32 atlasId,
+    const f32v2 uv)
 {
-    // Sample the MTSDF atlas
     const f32v4 mtsdf = textures[atlasId].Sample(samplers[samplerId], uv);
-
-    // Median of RGB channels for MTSDF
+    // MSDF: median of RGB channels — best at high resolution
     const f32 median = max(min(mtsdf.r, mtsdf.g), min(max(mtsdf.r, mtsdf.g), mtsdf.b));
-
-    // Screen-space derivative for adaptive smoothing
-    const f32 smoothing = fwidth(median) * 0.5;
-    const f32 coverage = smoothstep(0.5 - smoothing, 0.5 + smoothing, median);
-
-    // Also use the alpha channel (MTSDF has true SDF in alpha)
-    const f32 alphaCoverage = smoothstep(0.5 - smoothing, 0.5 + smoothing, mtsdf.a);
-    return min(coverage, alphaCoverage);
+    // SDF: alpha channel — best at low resolution / small sizes
+    const f32 sdf = mtsdf.a;
+    // Screen-space pixel size in SDF space.
+    // When this is large, we're zoomed out — prefer the SDF.
+    // When this is small, we're zoomed in — prefer the MSDF.
+    const f32 msdfUnit = fwidth(median);
+    const f32 sdfUnit  = fwidth(sdf);
+    // Blend weight: 0 = full MSDF, 1 = full SDF
+    // As texels get larger on screen (zoomed out), sdfUnit grows → blend toward SDF
+    const f32 blendT = saturate(sdfUnit / (msdfUnit + sdfUnit + 1e-5));
+    const f32 signal    = lerp(median, sdf, blendT);
+    const f32 smoothing = lerp(msdfUnit, sdfUnit, blendT) * 0.5;
+    return smoothstep(0.5 - smoothing, 0.5 + smoothing, signal);
 }
-
 struct MaterialInfo3D
 {
     PointLights3D Points;
