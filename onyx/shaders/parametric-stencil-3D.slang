@@ -31,7 +31,7 @@ PushConstants g_PushData;
 [[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
 ParametricInstances3D g_Instances;
 
-[[vk::binding(ONYX_BOUNDS3_BINDING, 0)]]
+[[vk::binding(ONYX_BOUNDS3_STENCIL_BINDING, 0)]]
 Bounds3D g_Bounds;
 
 [shader("vertex")]

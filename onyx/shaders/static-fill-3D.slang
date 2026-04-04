@@ -36,7 +36,7 @@ PushConstants g_PushData;
 [[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
 StaticInstances3D g_Instances;
 
-[[vk::binding(ONYX_BOUNDS3_BINDING, 0)]]
+[[vk::binding(ONYX_BOUNDS3_FILL_BINDING, 0)]]
 Bounds3D g_Bounds;
 
 [shader("vertex")]
@@ -79,10 +79,10 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 [[vk::binding(ONYX_TEXTURES_BINDING, 0)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
-[[vk::binding(ONYX_MATERIALS3_BINDING, 0)]]
+[[vk::binding(ONYX_MATERIALS_BINDING, 0)]]
 Materials3D g_Materials;
 
-[[vk::binding(ONYX_PLIGHTS2_BINDING, 0)]]
+[[vk::binding(ONYX_PLIGHTS_BINDING, 0)]]
 PointLights3D g_PointLights;
 
 [[vk::binding(ONYX_DLIGHTS_BINDING, 0)]]

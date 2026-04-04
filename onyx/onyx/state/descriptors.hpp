@@ -34,29 +34,32 @@ constexpr u32 GetInstancesBindingPoint()
 {
     return 0;
 }
-template <Dimension D> constexpr u32 GetBoundsBindingPoint()
+template <Dimension D> constexpr u32 GetBoundsBindingPoint(const DrawPass dpass)
 {
-    return D == D2 ? 1 : 4;
+    if constexpr (D == D2)
+        return 3;
+    else
+        return dpass == DrawPass_Fill ? 3 : 4;
 }
 constexpr u32 GetSamplersBindingPoint()
 {
-    return 2;
+    return 1;
 }
 constexpr u32 GetTexturesBindingPoint()
 {
-    return 3;
+    return 2;
 }
-template <Dimension D> constexpr u32 GetMaterialsBindingPoint()
+constexpr u32 GetMaterialsBindingPoint()
 {
-    return D == D2 ? 4 : 5;
+    return 4;
 }
-template <Dimension D> constexpr u32 GetPointLightsBindingPoint()
+constexpr u32 GetPointLightsBindingPoint()
 {
-    return D == D2 ? 5 : 6;
+    return 5;
 }
 constexpr u32 GetDirectionalLightsBindingPoint()
 {
-    return 7;
+    return 6;
 }
 
 } // namespace Onyx::Descriptors

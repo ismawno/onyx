@@ -79,10 +79,10 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 [[vk::binding(ONYX_TEXTURES_BINDING, 0)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
-[[vk::binding(ONYX_MATERIALS2_BINDING, 0)]]
+[[vk::binding(ONYX_MATERIALS_BINDING, 0)]]
 Materials2D g_Materials;
 
-[[vk::binding(ONYX_PLIGHTS2_BINDING, 0)]]
+[[vk::binding(ONYX_PLIGHTS_BINDING, 0)]]
 PointLights2D g_PointLights;
 
 [shader("fragment")]

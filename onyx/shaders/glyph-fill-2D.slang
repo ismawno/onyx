@@ -36,9 +36,6 @@ PushConstants g_PushData;
 [[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
 GlyphInstances2D g_Instances;
 
-[[vk::binding(ONYX_BOUNDS2_BINDING, 0)]]
-Bounds2D g_Bounds;
-
 [shader("vertex")]
 VertexOutput mainVS(
     const VertexInput input,
@@ -51,8 +48,7 @@ VertexOutput mainVS(
     const InstanceData2D data = gdata.Data;
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
-    const f32v2 alignment = ComputeAlignment2D(data.Alignment, gdata.BoundsHandle, g_Bounds);
-    const f32v4 worldPos = mul(f32v4(input.Position - alignment, 0.0, 1.0), transform);
+    const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
 
     VertexOutput output;
     output.Position = mul(worldPos, g_PushData.ProjectionView);
@@ -75,10 +71,10 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 [[vk::binding(ONYX_TEXTURES_BINDING, 0)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
-[[vk::binding(ONYX_MATERIALS2_BINDING, 0)]]
+[[vk::binding(ONYX_MATERIALS_BINDING, 0)]]
 Materials2D g_Materials;
 
-[[vk::binding(ONYX_PLIGHTS2_BINDING, 0)]]
+[[vk::binding(ONYX_PLIGHTS_BINDING, 0)]]
 PointLights2D g_PointLights;
 
 [shader("fragment")]

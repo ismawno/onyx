@@ -190,7 +190,7 @@ template <Dimension D> static void updateMaterialDescriptorSet()
     MaterialAssetData<D> &materials = getData<D>().Materials;
 
     const VkDescriptorBufferInfo binfo = materials.Buffer.CreateDescriptorInfo();
-    Renderer::WriteBuffer<D>(Descriptors::GetMaterialsBindingPoint<D>(), binfo, DrawPass_Fill);
+    Renderer::WriteBuffer<D>(Descriptors::GetMaterialsBindingPoint(), binfo, DrawPass_Fill);
 }
 
 template <Dimension D> static void updateBoundsDescriptorSet()
@@ -198,14 +198,11 @@ template <Dimension D> static void updateBoundsDescriptorSet()
     BoundsAssetData<D> &bounds = getData<D>().BoundingBoxes;
 
     const VkDescriptorBufferInfo binfo = bounds.Buffer.CreateDescriptorInfo();
-    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(), binfo, DrawPass_Fill);
-    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(), binfo, DrawPass_Stencil);
+    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(DrawPass_Fill), binfo, DrawPass_Fill);
+    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(DrawPass_Stencil), binfo, DrawPass_Stencil);
 
     if constexpr (D == D2)
-    {
-        Renderer::WriteBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(), binfo, DrawPass_Fill);
-        Renderer::WriteBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(), binfo, DrawPass_Stencil);
-    }
+        Renderer::WriteBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(DrawPass_Stencil), binfo, DrawPass_Stencil);
 }
 
 template <typename T> ONYX_NO_DISCARD static Result<> initializeHiveAssets(const u32 capacity, HiveAssetData<T> &hive)

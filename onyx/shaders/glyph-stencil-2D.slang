@@ -32,7 +32,7 @@ PushConstants g_PushData;
 [[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
 GlyphInstances2D g_Instances;
 
-[[vk::binding(1, 0)]]
+[[vk::binding(ONYX_BOUNDS2_BINDING, 0)]]
 Bounds2D g_Bounds;
 
 [shader("vertex")]
@@ -47,11 +47,10 @@ VertexOutput mainVS(
     const InstanceData2D data = gdata.Data;
 
     const f32m4 transform = ComputeTransform2D(data.Basis);
-    const f32v2 alignment = ComputeAlignment2D(data.Alignment, gdata.BoundsHandle, g_Bounds);
     const f32v2 center = GetCenter2D(gdata.BoundsHandle, g_Bounds);
 
     const f32v2 scale = ComputeStencilScale2D(transform);
-    const f32v2 extruded = input.Position - alignment + (normalize(input.Position - center) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
+    const f32v2 extruded = input.Position + (normalize(input.Position - center) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     VertexOutput output;
     output.Position = mul(mul(f32v4(extruded, 0.0, 1.0), transform), g_PushData.ProjectionView);

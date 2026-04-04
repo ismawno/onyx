@@ -232,7 +232,7 @@ template <Dimension D> static void updateInstanceDescriptorSets(const Geometry g
 
 template <Dimension D> static u32 lightToBinding(const LightType light)
 {
-    return light == Light_Point ? Descriptors::GetPointLightsBindingPoint<D>()
+    return light == Light_Point ? Descriptors::GetPointLightsBindingPoint()
                                 : Descriptors::GetDirectionalLightsBindingPoint();
 }
 
