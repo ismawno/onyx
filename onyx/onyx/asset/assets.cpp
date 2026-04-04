@@ -800,7 +800,7 @@ template <typename Vertex> static MeshData<Vertex> getMeshData(const Asset handl
     const u32 vend = vstart + minfo.Layout.VertexCount;
 
     const u32 istart = minfo.Layout.IndexStart;
-    const u32 iend = vstart + minfo.Layout.IndexCount;
+    const u32 iend = istart + minfo.Layout.IndexCount;
 
     data.Vertices.Insert(data.Vertices.end(), mpool.Vertices.begin() + vstart, mpool.Vertices.begin() + vend);
     data.Indices.Insert(data.Indices.end(), mpool.Indices.begin() + istart, mpool.Indices.begin() + iend);
