@@ -168,6 +168,17 @@ struct Material2D
     u32 Texture;
 }
 
+[UnscopedEnum]
+enum TextureSlot : u8
+{
+    TextureSlot_Albedo,
+    TextureSlot_MetallicRoughness,
+    TextureSlot_Normal,
+    TextureSlot_Occlusion,
+    TextureSlot_Emissive,
+    TextureSlot_Count,
+};
+
 struct Material3D
 {
     f32 EmissiveFactorX;
@@ -180,17 +191,8 @@ struct Material3D
     f32 OcclusionStrength;
     f32 NormalScale;
 
-    u32 AlbedoSamp;
-    u32 MetallicRoughnessSamp;
-    u32 NormalSamp;
-    u32 OcclusionSamp;
-    u32 EmissiveSamp;
-
-    u32 AlbedoTex;
-    u32 MetallicRoughnessTex;
-    u32 NormalTex;
-    u32 OcclusionTex;
-    u32 EmissiveTex;
+    u32 Samplers[TextureSlot_Count];
+    u32 Textures[TextureSlot_Count];
 }
 
 [UnscopedEnum]
@@ -760,20 +762,17 @@ f32v4 ComputeColor3D(const f32v4 fragColor, const LightData3D light, const u32 m
     {
         const Material3D mat = resources.Materials[matId];
 
-        const u32 albedoSamp = GetAssetId(mat.AlbedoSamp);
-        const u32 albedoTex = GetAssetId(mat.AlbedoTex);
+        const u32 albedoSamp = GetAssetId(mat.Samplers[TextureSlot_Albedo]);
+        const u32 normalSamp = GetAssetId(mat.Samplers[TextureSlot_Normal]);
+        const u32 mrSamp = GetAssetId(mat.Samplers[TextureSlot_MetallicRoughness]);
+        const u32 occSamp = GetAssetId(mat.Samplers[TextureSlot_Occlusion]);
+        const u32 emissiveSamp = GetAssetId(mat.Samplers[TextureSlot_Emissive]);
 
-        const u32 normalSamp = GetAssetId(mat.NormalSamp);
-        const u32 normalTex = GetAssetId(mat.NormalTex);
-
-        const u32 mrSamp = GetAssetId(mat.MetallicRoughnessSamp);
-        const u32 mrTex = GetAssetId(mat.MetallicRoughnessTex);
-
-        const u32 occSamp = GetAssetId(mat.OcclusionSamp);
-        const u32 occTex = GetAssetId(mat.OcclusionTex);
-
-        const u32 emissiveSamp = GetAssetId(mat.EmissiveSamp);
-        const u32 emissiveTex = GetAssetId(mat.EmissiveTex);
+        const u32 albedoTex = GetAssetId(mat.Textures[TextureSlot_Albedo]);
+        const u32 normalTex = GetAssetId(mat.Textures[TextureSlot_Normal]);
+        const u32 mrTex = GetAssetId(mat.Textures[TextureSlot_MetallicRoughness]);
+        const u32 occTex = GetAssetId(mat.Textures[TextureSlot_Occlusion]);
+        const u32 emissiveTex = GetAssetId(mat.Textures[TextureSlot_Emissive]);
 
         MaterialInfo3D info;
         info.Points = resources.PointLights;
