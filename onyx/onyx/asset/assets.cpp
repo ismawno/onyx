@@ -458,13 +458,28 @@ template <Dimension D> static void removeTextureReferences(const Asset handle)
                 materials.Flags |= updateRef(handle);
 }
 
-void DestroyTexture(const Asset handle)
+static void destroyTexture(const Asset handle)
 {
     CHECK_ASSET_HANDLE(handle, Asset_Texture);
 
     s_TextureData->ToDestroy.Append(handle);
     removeTextureReferences<D2>(handle);
     removeTextureReferences<D3>(handle);
+}
+
+void DestroyTexture(const Asset handle)
+{
+#ifdef TKIT_ENABLE_ASSERTS
+    for (const FontPoolData &fpool : s_FontData->Pools)
+        for (const FontDataInfo &finfo : fpool.Meshes)
+        {
+            TKIT_ASSERT(finfo.Atlas != handle,
+                        "[ONYX][ASSETS] Attempting to destroy texture with handle {:#010x}, which is a font atlas "
+                        "managed by an active font!",
+                        handle);
+        }
+#endif
+    destroyTexture(handle);
 }
 
 template <typename Vertex>
@@ -523,7 +538,7 @@ void DestroyFontPool(const AssetPool pool)
 {
     const u32 pid = GetAssetPoolId(pool);
     for (const FontDataInfo &finfo : s_FontData->Pools[pid].Meshes)
-        DestroyTexture(finfo.Atlas);
+        destroyTexture(finfo.Atlas);
     s_FontData->ToDestroy.Append(pool);
 }
 
