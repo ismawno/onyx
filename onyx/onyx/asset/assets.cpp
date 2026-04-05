@@ -903,7 +903,7 @@ Result<> Unlock()
 template <typename T>
 ONYX_NO_DISCARD static Result<bool> uploadFromHost(VKit::DeviceBuffer &buffer, const TKit::Span<const T> data)
 {
-    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading buffer of {:L} bytes to device", data.GetBytes());
+    TKIT_LOG_DEBUG("[ONYX][ASSETS]    Uploading buffer of {:L} bytes to device", data.GetBytes());
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
@@ -928,7 +928,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshes(MeshAsse
 {
     for (const AssetPool pool : meshes.ToDestroy)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying mesh pool with handle {:#010x}", pool);
+        TKIT_LOG_DEBUG("[ONYX][ASSETS]    Destroying mesh pool with handle {:#010x}", pool);
         const u32 pid = GetAssetPoolId(pool);
         MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
         if constexpr (std::is_same_v<Vertex, GlyphVertex>)
@@ -956,7 +956,7 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshes(MeshAsse
 
 template <typename T> ONYX_NO_DISCARD static Result<bool> uploadHiveAssets(HiveAssetData<T> &hive)
 {
-    if (hive.Elements.IsEmpty())
+    if (!(hive.Flags & StatusFlag_Update))
         return false;
 
     TKit::StackArray<T> sparse{};
@@ -965,11 +965,16 @@ template <typename T> ONYX_NO_DISCARD static Result<bool> uploadHiveAssets(HiveA
     for (const u32 id : hive.Elements.GetValidIds())
         sparse[id] = hive.Elements[id];
 
-    return uploadFromHost<T>(hive.Buffer, sparse);
+    const auto result = uploadFromHost<T>(hive.Buffer, sparse);
+    TKIT_RETURN_ON_ERROR(result);
+    hive.Flags = 0;
+    return result;
 }
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterials()
 {
+    TKIT_LOG_DEBUG_IF(getData<D>().Materials.Flags & StatusFlag_Update, "[ONYX][ASSETS] Uploading {}D materials",
+                      u8(D));
     const auto result = uploadHiveAssets(getData<D>().Materials);
     TKIT_RETURN_ON_ERROR(result);
     if (result.GetValue())
@@ -979,6 +984,8 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterials()
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> uploadBounds()
 {
+    TKIT_LOG_DEBUG_IF(getData<D>().BoundingBoxes.Flags & StatusFlag_Update, "[ONYX][ASSETS] Uploading {}D bounds",
+                      u8(D));
     const auto result = uploadHiveAssets(getData<D>().BoundingBoxes);
     TKIT_RETURN_ON_ERROR(result);
     if (result.GetValue())
@@ -987,18 +994,52 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> uploadBounds()
     return Result<>::Ok();
 }
 
+#ifdef TKIT_ENABLE_DEBUG_LOGS
+template <typename Vertex> static bool anyMeshUploads(const MeshAssetData<Vertex> &data)
+{
+    for (const MeshPoolData<Vertex> &mpool : data.Pools)
+        if (mpool.Flags & StatusFlag_Update)
+            return true;
+    return false;
+}
+static bool anyTextureUploads()
+{
+    if (!s_TextureData->ToDestroy.IsEmpty())
+        return true;
+    for (const TextureInfo &tinfo : s_TextureData->Textures)
+        if (tinfo.Flags & StatusFlag_Update)
+            return true;
+    return false;
+}
+static bool anySamplerUploads()
+{
+    if (!s_SamplerData->ToDestroy.IsEmpty())
+        return true;
+    for (const SamplerInfo &sinfo : s_SamplerData->Samplers)
+        if (sinfo.Flags & StatusFlag_Update)
+            return true;
+    return false;
+}
+#endif
+
 template <Dimension D> ONYX_NO_DISCARD static Result<> upload()
 {
+    TKIT_LOG_DEBUG_IF(anyMeshUploads(getData<D>().StaticMeshes), "[ONYX][ASSETS] Uploading {}D static meshes", u8(D));
     TKIT_RETURN_IF_FAILED(uploadMeshes(getData<D>().StaticMeshes));
+
+    TKIT_LOG_DEBUG_IF(anyMeshUploads(getData<D>().ParametricMeshes), "[ONYX][ASSETS] Uploading {}D parametric meshes",
+                      u8(D));
     TKIT_RETURN_IF_FAILED(uploadMeshes(getData<D>().ParametricMeshes));
+
     return uploadMaterials<D>();
 }
 
 ONYX_NO_DISCARD static Result<> uploadTextures()
 {
+    TKIT_LOG_DEBUG_IF(anyTextureUploads(), "[ONYX][ASSETS] Uploading textures");
     for (const Asset handle : s_TextureData->ToDestroy)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying texture with handle {:#010x}", handle);
+        TKIT_LOG_DEBUG("[ONYX][ASSETS]    Destroying texture with handle {:#010x}", handle);
         const u32 tid = GetAssetId(handle);
 
         TextureInfo &tinfo = s_TextureData->Textures[tid];
@@ -1028,7 +1069,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 const TextureData &tdata = tinfo.Data;
 
                 TKIT_LOG_DEBUG(
-                    "[ONYX][ASSETS] Creating new texture (handle={:#010x}) with dimensions {}x{} and {} channels, "
+                    "[ONYX][ASSETS]    Creating new texture (handle={:#010x}) with dimensions {}x{} and {} channels, "
                     "with size {:L} bytes",
                     tinfo.Handle, tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
 
@@ -1075,7 +1116,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 "[ONYX][ASSETS] Size mismatch. Device image reports {:L} bytes while texture data reports {:L} bytes",
                 size, tdata.ComputeSize());
 
-            TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading texture of size {:L} bytes", size);
+            TKIT_LOG_DEBUG("[ONYX][ASSETS]    Uploading texture of size {:L} bytes", size);
 
             auto result =
                 Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, size);
@@ -1157,9 +1198,10 @@ static VkSamplerAddressMode toVulkan(const SamplerWrap wrap)
 
 ONYX_NO_DISCARD static Result<> uploadSamplers()
 {
+    TKIT_LOG_DEBUG_IF(anySamplerUploads(), "[ONYX][ASSETS] Uploading samplers");
     for (const Asset handle : s_SamplerData->ToDestroy)
     {
-        TKIT_LOG_DEBUG("[ONYX][ASSETS] Destroying sampler with handle {:#010x}", handle);
+        TKIT_LOG_DEBUG("[ONYX][ASSETS]    Destroying sampler with handle {:#010x}", handle);
         const u32 sid = GetAssetId(handle);
 
         SamplerInfo &sinfo = s_SamplerData->Samplers[sid];
@@ -1190,7 +1232,7 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
             TKIT_RETURN_ON_ERROR(result);
 
             sinfo.Sampler = result.GetValue();
-            TKIT_LOG_DEBUG("[ONYX][ASSETS] Updating sampler with handle {:#010x}", sinfo.Handle);
+            TKIT_LOG_DEBUG("[ONYX][ASSETS]    Updating sampler with handle {:#010x}", sinfo.Handle);
 
             if (CanNameObjects())
             {
@@ -1224,6 +1266,7 @@ Result<> Upload()
     TKIT_RETURN_IF_FAILED(upload<D3>());
     TKIT_RETURN_IF_FAILED(uploadTextures());
     TKIT_RETURN_IF_FAILED(uploadSamplers());
+    TKIT_LOG_DEBUG_IF(anyMeshUploads(*s_FontData), "[ONYX][ASSETS] Uploading fonts");
     TKIT_RETURN_IF_FAILED(uploadMeshes(*s_FontData));
 
     // these here bc D3 may also request D2 bounds to be removed
