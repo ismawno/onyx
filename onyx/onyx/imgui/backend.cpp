@@ -1375,8 +1375,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
             const std::string tname = TKit::Format("onyx-imgui-texture-id-{:#x}", tex->GetTexID());
             const std::string sname = TKit::Format("onyx-imgui-tex-descriptor-id-{:#x}", tex->GetTexID());
             TKIT_RETURN_IF_FAILED(bckTex->Image.SetName(tname.c_str()));
-            TKIT_RETURN_IF_FAILED(
-                GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.c_str()));
+            TKIT_RETURN_IF_FAILED(GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.c_str()));
         }
         tex->BackendUserData = bckTex;
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{:#x}'", tex->GetTexID());
@@ -1631,7 +1630,7 @@ ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects(const VkPipelineRen
     {
         const auto result = VKit::PipelineLayout::Builder(device)
                                 .AddDescriptorSetLayout(s_RendererData->DescriptorSetLayout)
-                                .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 4 * sizeof(float))
+                                .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 4 * sizeof(f32))
                                 .Build();
         s_RendererData->PipelineLayout = result.GetValue();
     }

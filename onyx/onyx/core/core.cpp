@@ -424,8 +424,10 @@ bool CanNameObjects()
 }
 Result<> DeviceWaitIdle()
 {
+    TKIT_BEGIN_DEBUG_CLOCK();
     TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Initialize?");
     TKIT_RETURN_IF_FAILED(s_Device->WaitIdle());
+    TKIT_END_DEBUG_CLOCK(Milliseconds, "[ONYX][CORE] Waiting for device took {:.2f} milliseconds");
     return Execution::UpdateCompletedQueueTimelines();
 }
 
@@ -558,6 +560,7 @@ Result<> HandleVulkanResult(const VkResult result)
 
 Result<> Initialize(const Specs &specs)
 {
+    TKIT_BEGIN_INFO_CLOCK();
     TKIT_LOG_INFO("[ONYX][CORE] Initializing");
     TKIT_LOG_INFO("[ONYX][CORE] Vulkan headers version: {}.{}.{}", VKIT_EXPAND_VERSION(VK_HEADER_VERSION_COMPLETE));
     if (specs.Locale)
@@ -633,6 +636,7 @@ Result<> Initialize(const Specs &specs)
     TKIT_RETURN_IF_FAILED(ImGuiBackend::Initialize());
 #endif
 
+    TKIT_END_INFO_CLOCK(Seconds, "[ONYX][CORE] Done in {:.2f} seconds");
     return Result<>::Ok();
 }
 

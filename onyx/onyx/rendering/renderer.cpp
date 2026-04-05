@@ -1755,6 +1755,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
             }
 
             u32 drawCount = circleCmds[pass].GetSize();
+            usz size = circleCmds[pass].GetBytes();
             if (drawCount != 0)
             {
                 setupState(Geometry_Circle);
@@ -1763,8 +1764,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
 
                 VKit::DeviceBuffer *dbuffer = dresult.GetValue();
 
-                dbuffer->Write(circleCmds[pass].GetData(),
-                               {.srcOffset = 0, .dstOffset = 0, .size = drawCount * sizeof(VkDrawIndirectCommand)});
+                dbuffer->Write(circleCmds[pass].GetData(), {.srcOffset = 0, .dstOffset = 0, .size = size});
 
                 TKIT_RETURN_IF_FAILED(dbuffer->Flush());
                 table->CmdDrawIndirect(graphicsCommand, *dbuffer, 0, drawCount, sizeof(VkDrawIndirectCommand));
@@ -1781,15 +1781,14 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                     drawCount = cmds.GetSize();
                     if (drawCount == 0)
                         continue;
+                    size = cmds.GetBytes();
 
                     bindMeshBuffers<D>(Assets::CreateAssetPoolHandle(atype, pid), graphicsCommand);
                     const auto dresult = findSuitableIndexedDrawBuffer(drawCount, graphics, graphicsFlightValue);
                     TKIT_RETURN_ON_ERROR(dresult);
 
                     VKit::DeviceBuffer *dbuffer = dresult.GetValue();
-                    dbuffer->Write(
-                        cmds.GetData(),
-                        {.srcOffset = 0, .dstOffset = 0, .size = drawCount * sizeof(VkDrawIndexedIndirectCommand)});
+                    dbuffer->Write(cmds.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = size});
                     TKIT_RETURN_IF_FAILED(dbuffer->Flush());
 
                     table->CmdDrawIndexedIndirect(graphicsCommand, *dbuffer, 0, drawCount,

@@ -10,6 +10,7 @@
 #include "tkit/container/static_hive.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/container/dynamic_array.hpp"
+#include "tkit/profiling/clock.hpp"
 
 namespace Onyx::Assets
 {
@@ -900,24 +901,24 @@ Result<> Unlock()
 }
 
 template <typename T>
-ONYX_NO_DISCARD static Result<bool> uploadFromHost(VKit::DeviceBuffer &buffer, const void *data, const u32 instances)
+ONYX_NO_DISCARD static Result<bool> uploadFromHost(VKit::DeviceBuffer &buffer, const TKit::Span<const T> data)
 {
+    TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading buffer of {:L} bytes to device", data.GetBytes());
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    const auto result = Resources::GrowBufferIfNeeded<T>(buffer, instances);
+    const auto result = Resources::GrowBufferIfNeeded<T>(buffer, data.GetSize());
     TKIT_RETURN_ON_ERROR(result);
 
     TKIT_RETURN_IF_FAILED(
-        buffer.UploadFromHost(pool, *queue, data, {.srcOffset = 0, .dstOffset = 0, .size = instances * sizeof(T)}));
+        buffer.UploadFromHost(pool, *queue, data.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = data.GetBytes()}));
     return result.GetValue();
 }
 
 template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshPool(MeshPoolData<Vertex> &mpool)
 {
-    TKIT_RETURN_IF_FAILED(
-        uploadFromHost<Vertex>(mpool.VertexBuffer, mpool.Vertices.GetData(), mpool.Vertices.GetSize()));
-    TKIT_RETURN_IF_FAILED(uploadFromHost<Vertex>(mpool.IndexBuffer, mpool.Indices.GetData(), mpool.Indices.GetSize()));
+    TKIT_RETURN_IF_FAILED(uploadFromHost<Vertex>(mpool.VertexBuffer, mpool.Vertices));
+    TKIT_RETURN_IF_FAILED(uploadFromHost<Index>(mpool.IndexBuffer, mpool.Indices));
 
     mpool.Flags = 0;
     return Result<>::Ok();
@@ -964,7 +965,7 @@ template <typename T> ONYX_NO_DISCARD static Result<bool> uploadHiveAssets(HiveA
     for (const u32 id : hive.Elements.GetValidIds())
         sparse[id] = hive.Elements[id];
 
-    return uploadFromHost<T>(hive.Buffer, sparse.GetData(), sparse.GetSize());
+    return uploadFromHost<T>(hive.Buffer, sparse);
 }
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterials()
@@ -1028,7 +1029,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
 
                 TKIT_LOG_DEBUG(
                     "[ONYX][ASSETS] Creating new texture (handle={:#010x}) with dimensions {}x{} and {} channels, "
-                    "with size {:L}",
+                    "with size {:L} bytes",
                     tinfo.Handle, tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
 
                 TKIT_ASSERT(!tinfo.Image,
@@ -1074,7 +1075,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 "[ONYX][ASSETS] Size mismatch. Device image reports {:L} bytes while texture data reports {:L} bytes",
                 size, tdata.ComputeSize());
 
-            TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading new texture of size {:L} bytes", size);
+            TKIT_LOG_DEBUG("[ONYX][ASSETS] Uploading texture of size {:L} bytes", size);
 
             auto result =
                 Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, size);
@@ -1212,6 +1213,7 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
 
 Result<> Upload()
 {
+    TKIT_BEGIN_INFO_CLOCK();
     if (s_Flags & AssetsFlag_Locked)
         return Result<>::Error(Error_LockedAssets,
                                "[ONYX][ASSETS] Cannot upload/mutate asset data because it is locked, either by the "
@@ -1229,6 +1231,7 @@ Result<> Upload()
     TKIT_RETURN_IF_FAILED(uploadBounds<D3>());
     s_Flags &= ~AssetsFlag_MustUpload;
     Renderer::FlushAllContexts();
+    TKIT_END_INFO_CLOCK(Milliseconds, "[ONYX][ASSETS] Uploaded assets in {:.2f} milliseconds");
     return Result<>::Ok();
 }
 
