@@ -65,48 +65,6 @@ template <Dimension D> void IRenderContext<D>::Flush()
     ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(handle, atype, dim);                                                       \
     ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(handle, atype, dim);
 
-template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh)
-{
-    CHECK_HANDLE(mesh, Asset_StaticMesh, D);
-    addStaticData(mesh, m_Current->Transform);
-}
-template <Dimension D> void IRenderContext<D>::StaticMesh(const Asset mesh, const f32m<D> &transform)
-{
-    CHECK_HANDLE(mesh, Asset_StaticMesh, D);
-    addStaticData(mesh, transform * m_Current->Transform);
-}
-
-template <Dimension D> void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params)
-{
-    CHECK_HANDLE(mesh, Asset_ParametricMesh, D);
-    addParametricData(mesh, m_Current->Transform, params);
-}
-template <Dimension D>
-void IRenderContext<D>::ParametricMesh(const Asset mesh, const InstanceParameters &params, const f32m<D> &transform)
-{
-    CHECK_HANDLE(mesh, Asset_ParametricMesh, D);
-    addParametricData(mesh, transform * m_Current->Transform, params);
-}
-
-template <Dimension D> void IRenderContext<D>::Circle(const CircleParameters &params)
-{
-    addCircleData(m_Current->Transform, params);
-}
-template <Dimension D> void IRenderContext<D>::Circle(const f32m<D> &transform, const CircleParameters &params)
-{
-    addCircleData(transform * m_Current->Transform, params);
-}
-
-template <Dimension D> void IRenderContext<D>::Text(const std::string_view text, const TextParameters &params)
-{
-    addGlyphData(text, m_Current->Transform, params);
-}
-template <Dimension D>
-void IRenderContext<D>::Text(const std::string_view text, const f32m<D> &transform, const TextParameters &params)
-{
-    addGlyphData(text, transform * m_Current->Transform, params);
-}
-
 #ifdef TKIT_ENABLE_ASSERTS
 template <Dimension D> void checkMaterial(const Asset material)
 {
@@ -322,6 +280,7 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Asset mesh, c
 {
     if (m_Current->Draw >= DrawMode_Count)
         return;
+    CHECK_HANDLE(mesh, Asset_StaticMesh, D);
     const u32 pid = Assets::GetAssetPoolId(mesh);
     const u32 mid = Assets::GetAssetId(mesh);
 
@@ -335,6 +294,7 @@ void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &trans
 {
     if (m_Current->Draw >= DrawMode_Count)
         return;
+    CHECK_HANDLE(mesh, Asset_ParametricMesh, D);
     const u32 pid = Assets::GetAssetPoolId(mesh);
     const u32 mid = Assets::GetAssetId(mesh);
 

@@ -165,11 +165,27 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_Current->FontSampler = sampler;
     }
 
-    void StaticMesh(Asset mesh);
-    void StaticMesh(Asset mesh, const f32m<D> &transform);
+    void StaticMesh(const Asset mesh)
+    {
+        addStaticData(mesh, m_Current->Transform);
+    }
+    void StaticMesh(const Asset mesh, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    {
+        addStaticData(mesh, mode == Transform_Extrinsic ? (transform * m_Current->Transform)
+                                                        : (m_Current->Transform * transform));
+    }
 
-    void ParametricMesh(Asset mesh, const InstanceParameters &params);
-    void ParametricMesh(Asset mesh, const InstanceParameters &params, const f32m<D> &transform);
+    void ParametricMesh(const Asset mesh, const InstanceParameters &params)
+    {
+        addParametricData(mesh, m_Current->Transform, params);
+    }
+    void ParametricMesh(const Asset mesh, const InstanceParameters &params, const f32m<D> &transform,
+                        const TransformMode mode = Transform_Extrinsic)
+    {
+        addParametricData(
+            mesh, mode == Transform_Extrinsic ? (transform * m_Current->Transform) : (m_Current->Transform * transform),
+            params);
+    }
 
     template <typename T> void ParametricMesh(const Asset mesh, const T &params)
     {
@@ -186,27 +202,47 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         else
             static_assert(false, "[ONYX][CONTEXT] Type T is not a valid instance parameters type");
     }
-    template <typename T> void ParametricMesh(const Asset mesh, const T &params, const f32m<D> &transform)
+    template <typename T>
+    void ParametricMesh(const Asset mesh, const T &params, const f32m<D> &transform,
+                        const TransformMode mode = Transform_Extrinsic)
     {
         if constexpr (std::is_same_v<T, StadiumParameters>)
-            ParametricMesh(mesh, InstanceParameters{.Stadium = params}, transform);
+            ParametricMesh(mesh, InstanceParameters{.Stadium = params}, transform, mode);
         else if constexpr (std::is_same_v<T, RoundedQuadParameters>)
-            ParametricMesh(mesh, InstanceParameters{.RoundedQuad = params}, transform);
+            ParametricMesh(mesh, InstanceParameters{.RoundedQuad = params}, transform, mode);
         else if constexpr (D == D3 && std::is_same_v<T, CapsuleParameters>)
-            ParametricMesh(mesh, InstanceParameters{.Capsule = params}, transform);
+            ParametricMesh(mesh, InstanceParameters{.Capsule = params}, transform, mode);
         else if constexpr (D == D3 && std::is_same_v<T, RoundedBoxParameters>)
-            ParametricMesh(mesh, InstanceParameters{.RoundedBox = params}, transform);
+            ParametricMesh(mesh, InstanceParameters{.RoundedBox = params}, transform, mode);
         else if constexpr (D == D3 && std::is_same_v<T, TorusParameters>)
-            ParametricMesh(mesh, InstanceParameters{.Torus = params}, transform);
+            ParametricMesh(mesh, InstanceParameters{.Torus = params}, transform, mode);
         else
             static_assert(false, "[ONYX][CONTEXT] Type T is not a valid instance parameters type");
     }
 
-    void Circle(const CircleParameters &params = {});
-    void Circle(const f32m<D> &transform, const CircleParameters &params = {});
+    void Circle(const CircleParameters &params = {})
+    {
+        addCircleData(m_Current->Transform, params);
+    }
+    void Circle(const f32m<D> &transform, const CircleParameters &params = {},
+                const TransformMode mode = Transform_Extrinsic)
+    {
+        addCircleData(mode == Transform_Extrinsic ? (transform * m_Current->Transform)
+                                                  : (m_Current->Transform * transform),
+                      params);
+    }
 
-    void Text(std::string_view text, const TextParameters &params = {});
-    void Text(std::string_view text, const f32m<D> &transform, const TextParameters &params = {});
+    void Text(std::string_view text, const TextParameters &params = {})
+    {
+        addGlyphData(text, m_Current->Transform, params);
+    }
+    void Text(std::string_view text, const f32m<D> &transform, const TextParameters &params = {},
+              const TransformMode mode = Transform_Extrinsic)
+    {
+        addGlyphData(
+            text, mode == Transform_Extrinsic ? (transform * m_Current->Transform) : (m_Current->Transform * transform),
+            params);
+    }
 
     void Line(Asset staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
     void Axes(Asset staticMesh, const AxesParameters &params = {});
