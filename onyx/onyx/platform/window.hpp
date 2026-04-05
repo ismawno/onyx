@@ -104,6 +104,7 @@ class Window
     void InstallCallbacks();
 
     f32v2 GetScreenMousePosition() const;
+
     bool IsKeyPressed(Key key);
     bool IsKeyReleased(Key key);
 

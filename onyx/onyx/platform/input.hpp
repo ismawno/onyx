@@ -150,10 +150,8 @@ enum Mouse : u8
     Mouse_Count
 };
 
-void PollEvents();
-
 const char *ToString(Key key);
-; // namespace Input
+
 enum EventType : u8
 {
     Event_KeyPressed,
