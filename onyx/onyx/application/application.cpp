@@ -20,7 +20,7 @@ Application::~Application()
 Result<bool> Application::NextTick(TKit::Clock &clock)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Application::NextTick");
-    Input::PollEvents();
+    Platform::PollEvents();
 
     if (m_AppLayer->isUpdateDue())
     {

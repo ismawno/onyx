@@ -97,7 +97,7 @@ template <Dimension D> f32v2 ICamera<D>::WorldToScreen(const f32v<D> &worldPos) 
 
 template <Dimension D> f32v2 ICamera<D>::GetViewportMousePosition() const
 {
-    return ScreenToViewport(Input::GetScreenMousePosition(m_Window));
+    return ScreenToViewport(m_Window->GetScreenMousePosition());
 }
 
 template <Dimension D> void ICamera<D>::SetView(const Onyx::Transform<D> &view)
@@ -117,7 +117,7 @@ template <Dimension D> void ICamera<D>::SetScissor(const ScreenScissor &scissor)
 
 f32v2 Camera<D2>::GetWorldMousePosition() const
 {
-    return ScreenToWorld(Input::GetScreenMousePosition(m_Window));
+    return ScreenToWorld(m_Window->GetScreenMousePosition());
 }
 void Camera<D2>::SetSize(const f32 size)
 {
@@ -127,49 +127,49 @@ void Camera<D2>::SetSize(const f32 size)
 }
 f32v3 Camera<D3>::GetWorldMousePosition(const f32 depth) const
 {
-    return ScreenToWorld(f32v3{Input::GetScreenMousePosition(m_Window), depth});
+    return ScreenToWorld(f32v3{m_Window->GetScreenMousePosition(), depth});
 }
 
 template <Dimension D> void ICamera<D>::ControlMovementWithUserInput(const CameraControls<D> &controls)
 {
     Onyx::Transform<D> &view = m_ProjectionView.View;
     f32v<D> translation{0.f};
-    if (Input::IsKeyPressed(m_Window, controls.Left))
+    if (m_Window->IsKeyPressed(controls.Left))
         translation[0] -= view.Scale[0] * controls.TranslationStep;
-    if (Input::IsKeyPressed(m_Window, controls.Right))
+    if (m_Window->IsKeyPressed(controls.Right))
         translation[0] += view.Scale[0] * controls.TranslationStep;
 
-    if (Input::IsKeyPressed(m_Window, controls.Up))
+    if (m_Window->IsKeyPressed(controls.Up))
         translation[1] += view.Scale[1] * controls.TranslationStep;
-    if (Input::IsKeyPressed(m_Window, controls.Down))
+    if (m_Window->IsKeyPressed(controls.Down))
         translation[1] -= view.Scale[1] * controls.TranslationStep;
 
     if constexpr (D == D2)
     {
-        if (Input::IsKeyPressed(m_Window, controls.RotateLeft))
+        if (m_Window->IsKeyPressed(controls.RotateLeft))
             view.Rotation += controls.RotationStep;
-        if (Input::IsKeyPressed(m_Window, controls.RotateRight))
+        if (m_Window->IsKeyPressed(controls.RotateRight))
             view.Rotation -= controls.RotationStep;
     }
     else
     {
-        if (Input::IsKeyPressed(m_Window, controls.Forward))
+        if (m_Window->IsKeyPressed(controls.Forward))
             translation[2] -= view.Scale[2] * controls.TranslationStep;
-        if (Input::IsKeyPressed(m_Window, controls.Backward))
+        if (m_Window->IsKeyPressed(controls.Backward))
             translation[2] += view.Scale[2] * controls.TranslationStep;
 
-        f32v2 mpos = Input::GetScreenMousePosition(m_Window);
+        f32v2 mpos = m_Window->GetScreenMousePosition();
         mpos[1] = -mpos[1]; // Invert y axis to undo onyx's inversion to GLFW, so that now when applying the
                             // rotation around x axis everything works out
 
-        const bool lookAround = Input::IsKeyPressed(m_Window, controls.ToggleLookAround);
+        const bool lookAround = m_Window->IsKeyPressed(controls.ToggleLookAround);
         const f32v2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : f32v2{0.f};
         m_PrevMousePos = mpos;
 
         f32v3 angles{delta[1], delta[0], 0.f};
-        if (Input::IsKeyPressed(m_Window, controls.RotateLeft))
+        if (m_Window->IsKeyPressed(controls.RotateLeft))
             angles[2] += controls.RotationStep;
-        if (Input::IsKeyPressed(m_Window, controls.RotateRight))
+        if (m_Window->IsKeyPressed(controls.RotateRight))
             angles[2] -= controls.RotationStep;
 
         view.Rotation *= f32q{angles};
@@ -221,7 +221,7 @@ template <Dimension D> void ICamera<D>::ControlMovementWithUserInput(const TKit:
 
 template <Dimension D> void ICamera<D>::ControlScrollWithUserInput(const f32 scaleStep)
 {
-    f32v2 scpos = Input::GetScreenMousePosition(m_Window);
+    f32v2 scpos = m_Window->GetScreenMousePosition();
     scpos[1] = -scpos[1]; // Invert y axis to undo onyx's inversion to GLFW, so that now when applying the
     // rotation around x axis everything works out
 

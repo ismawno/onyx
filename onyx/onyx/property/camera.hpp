@@ -104,26 +104,26 @@ template <> struct CameraControls<D2>
 {
     f32 TranslationStep = 1.f / 60.f;
     f32 RotationStep = 1.f / 60.f;
-    Input::Key Up = Input::Key_W;
-    Input::Key Down = Input::Key_S;
-    Input::Key Left = Input::Key_A;
-    Input::Key Right = Input::Key_D;
-    Input::Key RotateLeft = Input::Key_Q;
-    Input::Key RotateRight = Input::Key_E;
+    Key Up = Key_W;
+    Key Down = Key_S;
+    Key Left = Key_A;
+    Key Right = Key_D;
+    Key RotateLeft = Key_Q;
+    Key RotateRight = Key_E;
 };
 template <> struct CameraControls<D3>
 {
     f32 TranslationStep = 1.f / 60.f;
     f32 RotationStep = 1.f / 60.f;
-    Input::Key Forward = Input::Key_W;
-    Input::Key Backward = Input::Key_S;
-    Input::Key Left = Input::Key_A;
-    Input::Key Right = Input::Key_D;
-    Input::Key Up = Input::Key_Space;
-    Input::Key Down = Input::Key_LeftControl;
-    Input::Key RotateLeft = Input::Key_Q;
-    Input::Key RotateRight = Input::Key_E;
-    Input::Key ToggleLookAround = Input::Key_LeftShift;
+    Key Forward = Key_W;
+    Key Backward = Key_S;
+    Key Left = Key_A;
+    Key Right = Key_D;
+    Key Up = Key_Space;
+    Key Down = Key_LeftControl;
+    Key RotateLeft = Key_Q;
+    Key RotateRight = Key_E;
+    Key ToggleLookAround = Key_LeftShift;
 };
 
 } // namespace Onyx

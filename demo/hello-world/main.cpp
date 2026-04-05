@@ -22,7 +22,7 @@ void WindowExample(const Asset mesh, const u32 nwidows = 1)
 
     while (!windows.IsEmpty())
     {
-        Input::PollEvents();
+        Platform::PollEvents();
         ctx->Flush();
         ctx->FillColor(Color{255u, 255u, 0u});
         ctx->StaticMesh(mesh);

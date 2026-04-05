@@ -101,6 +101,15 @@ class Window
     void RemoveFlags(WindowFlags flags);
     void SetOpacity(f32 opacity);
 
+    void InstallCallbacks();
+
+    f32v2 GetScreenMousePosition() const;
+    bool IsKeyPressed(Key key);
+    bool IsKeyReleased(Key key);
+
+    bool IsMousePressed(Mouse button);
+    bool IsMouseReleased(Mouse button);
+
     VkSurfaceKHR GetSurface() const
     {
         return m_Surface;

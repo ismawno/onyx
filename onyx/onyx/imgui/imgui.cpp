@@ -113,24 +113,24 @@ template <Dimension D> void DisplayCameraControls(const CameraControls<D> &contr
 {
     if constexpr (D == D2)
     {
-        ImGui::BulletText("%s: Up", Input::GetKeyName(controls.Up));
-        ImGui::BulletText("%s: Left", Input::GetKeyName(controls.Left));
-        ImGui::BulletText("%s: Down", Input::GetKeyName(controls.Down));
-        ImGui::BulletText("%s: Right", Input::GetKeyName(controls.Right));
-        ImGui::BulletText("%s: Rotate left", Input::GetKeyName(controls.RotateLeft));
-        ImGui::BulletText("%s: Rotate right", Input::GetKeyName(controls.RotateRight));
+        ImGui::BulletText("%s: Up", ToString(controls.Up));
+        ImGui::BulletText("%s: Left", ToString(controls.Left));
+        ImGui::BulletText("%s: Down", ToString(controls.Down));
+        ImGui::BulletText("%s: Right", ToString(controls.Right));
+        ImGui::BulletText("%s: Rotate left", ToString(controls.RotateLeft));
+        ImGui::BulletText("%s: Rotate right", ToString(controls.RotateRight));
     }
     else
     {
-        ImGui::BulletText("%s: Forward", Input::GetKeyName(controls.Forward));
-        ImGui::BulletText("%s: Left", Input::GetKeyName(controls.Left));
-        ImGui::BulletText("%s: Backward", Input::GetKeyName(controls.Backward));
-        ImGui::BulletText("%s: Right", Input::GetKeyName(controls.Right));
-        ImGui::BulletText("%s: Up", Input::GetKeyName(controls.Up));
-        ImGui::BulletText("%s: Down", Input::GetKeyName(controls.Down));
-        ImGui::BulletText("%s: Look around", Input::GetKeyName(controls.ToggleLookAround));
-        ImGui::BulletText("%s: Rotate left", Input::GetKeyName(controls.RotateLeft));
-        ImGui::BulletText("%s: Rotate right", Input::GetKeyName(controls.RotateRight));
+        ImGui::BulletText("%s: Forward", ToString(controls.Forward));
+        ImGui::BulletText("%s: Left", ToString(controls.Left));
+        ImGui::BulletText("%s: Backward", ToString(controls.Backward));
+        ImGui::BulletText("%s: Right", ToString(controls.Right));
+        ImGui::BulletText("%s: Up", ToString(controls.Up));
+        ImGui::BulletText("%s: Down", ToString(controls.Down));
+        ImGui::BulletText("%s: Look around", ToString(controls.ToggleLookAround));
+        ImGui::BulletText("%s: Rotate left", ToString(controls.RotateLeft));
+        ImGui::BulletText("%s: Rotate right", ToString(controls.RotateRight));
     }
 }
 

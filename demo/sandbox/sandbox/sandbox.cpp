@@ -662,7 +662,7 @@ void SandboxWinLayer::RenderImGui()
             "window is shared. Users interact with the rendering API through rendering contexts.");
         PresentModeEditor(window, EditorFlag_DisplayHelp);
 
-        const f32v2 spos = Input::GetScreenMousePosition(window);
+        const f32v2 spos = window->GetScreenMousePosition();
         ImGui::Text("Screen mouse position: (%.2f, %.2f)", spos[0], spos[1]);
         HelpMarkerSameLine("The screen mouse position is always Math::Normalized to the window size, always ranging "
                            "from -1 to 1 for 'x' and 'y', and from 0 to 1 for 'z'.");
@@ -1852,7 +1852,7 @@ template <Dimension D> void SandboxWinLayer::ProcessEvent(const Event &event)
     Camera<D> *camera = cam.Camera;
     if (event.Type == Event_Scrolled)
     {
-        const f32 factor = Input::IsKeyPressed(GetWindow(), Input::Key_LeftShift) ? 0.05f : 0.005f;
+        const f32 factor = GetWindow()->IsKeyPressed(Key_LeftShift) ? 0.05f : 0.005f;
         camera->ControlScrollWithUserInput(factor * event.ScrollOffset[1]);
     }
 }

@@ -143,7 +143,7 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     }
     glfwSetWindowUserPointer(handle, window);
     if (specs.Flags & WindowFlag_InstallCallbacks)
-        Input::InstallCallbacks(handle);
+        window->InstallCallbacks();
 
     cleanup.Dismiss();
     s_Windows->Append(window);
@@ -178,6 +178,11 @@ void DestroyWindows()
         tier->Destroy(window);
     }
     s_Windows->Clear();
+}
+
+void PollEvents()
+{
+    glfwPollEvents();
 }
 
 } // namespace Onyx::Platform

@@ -6,14 +6,6 @@ struct GLFWwindow;
 
 namespace Onyx
 {
-class Window;
-
-namespace Input
-{
-void PollEvents();
-void InstallCallbacks(GLFWwindow *window);
-void InstallCallbacks(Window *window);
-
 enum Key : u16
 {
     Key_Space,
@@ -158,22 +150,10 @@ enum Mouse : u8
     Mouse_Count
 };
 
-/**
- * @brief Get the current mouse screen position, ranging between -1 and 1.
- *
- */
-f32v2 GetScreenMousePosition(Window *window);
+void PollEvents();
 
-bool IsKeyPressed(Window *window, Key key);
-
-bool IsKeyReleased(Window *window, Key key);
-
-bool IsMouseButtonPressed(Window *window, Mouse button);
-
-bool IsMouseButtonReleased(Window *window, Mouse button);
-
-const char *GetKeyName(Key key);
-}; // namespace Input
+const char *ToString(Key key);
+; // namespace Input
 enum EventType : u8
 {
     Event_KeyPressed,
@@ -203,7 +183,7 @@ struct Event
     struct MouseState
     {
         f32v2 Position{0.f};
-        Input::Mouse Button;
+        Mouse Button;
     };
 
     struct Char
@@ -213,7 +193,7 @@ struct Event
 
     bool Empty = false;
     EventType Type;
-    Input::Key Key;
+    Key Key;
 
     i32v2 WindowPos{0};
     u32v2 WindowSize{0};
