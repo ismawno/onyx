@@ -48,6 +48,7 @@ struct TextParameters
     TKIT_REFLECT_DECLARE(TextParameters)
     TKIT_YAML_SERIALIZE_DECLARE(TextParameters)
 
+    std::function<void(u32, char, f32v2 &)> *CharacterCallback = nullptr;
     f32 Kerning = 0.f;
     f32 LineSpacing = 0.f;
     f32 Width = 12.f;

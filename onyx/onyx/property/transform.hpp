@@ -7,27 +7,6 @@
 
 namespace Onyx
 {
-/**
- * @brief Modify the transform to comply with a specific coordinate system extrinsically.
- *
- * The current coordinate system used by this library is right-handed, with the center of the screen being at the
- * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
- *
- * @param transform The transform to modify.
- */
-void ApplyCoordinateSystemExtrinsic(f32m4 &transform);
-
-/**
- * @brief Modify the transform to comply with a specific coordinate system intrinsically.
- *
- * The current coordinate system used by this library is right-handed, with the center of the screen being at the
- * middle. The X-axis points to the right, the Y-axis points upwards, and the Z-axis points out of the screen.
- *
- * This version of the function is used to apply such coordinate system to the corresponding inverse transform.
- *
- * @param transform The transform to modify.
- */
-void ApplyCoordinateSystemIntrinsic(f32m4 &transform);
 
 enum TransformMode : u8
 {

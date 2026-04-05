@@ -455,6 +455,9 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
         pos[0] = -xfactor * line.Width;
         for (u32 i = line.Start; i < line.End; ++i)
         {
+            if (params.CharacterCallback)
+                (*params.CharacterCallback)(i, text[i], pos);
+
             updateTransform();
             addGlyphData(chars[i].Glyph, t);
             pos[0] += chars[i].Advance;

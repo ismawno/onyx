@@ -785,28 +785,41 @@ template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
     }
     if constexpr (D == D3)
     {
-        i32 perspective = i32(camera.Perspective);
+        i32 perspective = i32(camera.IsPerspective);
+        OrthographicSettings &ort = camera.Orthographic;
+        PerspectiveSettings &pers = camera.Perspective;
         if (ImGui::Combo("Projection", &perspective, "Orthographic\0Perspective\0\0"))
         {
-            camera.Perspective = perspective == 1;
-            if (camera.Perspective)
-                cam->SetPerspectiveProjection(camera.FieldOfView, camera.Near, camera.Far);
+            camera.IsPerspective = perspective == 1;
+            if (camera.IsPerspective)
+                cam->SetPerspectiveProjection(pers.FieldOfView, pers.Near, pers.Far);
             else
-                cam->SetOrthographicProjection();
+                cam->SetOrthographicProjection(ort.Left, ort.Right, ort.Bottom, ort.Top, ort.Near, ort.Far);
         }
 
-        if (camera.Perspective)
+        if (camera.IsPerspective)
         {
-            f32 degs = Math::Degrees(camera.FieldOfView);
+            f32 degs = Math::Degrees(pers.FieldOfView);
 
             bool changed = ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
-            changed |= ImGui::SliderFloat("Near", &camera.Near, 0.1f, 10.f);
-            changed |= ImGui::SliderFloat("Far", &camera.Far, 10.f, 100.f);
+            changed |= ImGui::SliderFloat("Near", &pers.Near, 0.1f, 10.f);
+            changed |= ImGui::SliderFloat("Far", &pers.Far, 10.f, 100.f);
             if (changed)
             {
-                camera.FieldOfView = Math::Radians(degs);
-                cam->SetPerspectiveProjection(camera.FieldOfView, camera.Near, camera.Far);
+                pers.FieldOfView = Math::Radians(degs);
+                cam->SetPerspectiveProjection(pers.FieldOfView, pers.Near, pers.Far);
             }
+        }
+        else
+        {
+            bool changed = ImGui::SliderFloat("Left", &ort.Left, -10.f, -0.01f);
+            changed |= ImGui::SliderFloat("Right", &ort.Right, 0.01f, 10.f);
+            changed |= ImGui::SliderFloat("Bottom", &ort.Bottom, -10.f, -0.01f);
+            changed |= ImGui::SliderFloat("Top", &ort.Top, 0.01f, 10.f);
+            changed |= ImGui::SliderFloat("Near", &ort.Near, -10.f, -0.01f);
+            changed |= ImGui::SliderFloat("Far", &ort.Far, 0.01f, 10.f);
+            if (changed)
+                cam->SetOrthographicProjection(ort.Left, ort.Right, ort.Bottom, ort.Top, ort.Near, ort.Far);
         }
     }
 
@@ -1866,8 +1879,9 @@ template <Dimension D> void SandboxWinLayer::AddCamera()
     data.Camera = camera;
     if constexpr (D == D3)
     {
-        data.Perspective = true;
-        data.Camera->SetPerspectiveProjection(data.FieldOfView, data.Near, data.Far);
+        data.IsPerspective = true;
+        data.Camera->SetPerspectiveProjection(data.Perspective.FieldOfView, data.Perspective.Near,
+                                              data.Perspective.Far);
         Transform<D3> transform{};
         transform.Translation = f32v3{2.f, 0.75f, 2.f};
         transform.Rotation = f32q{Math::Radians(f32v3{-15.f, 45.f, -4.f})};

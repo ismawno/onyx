@@ -21,20 +21,36 @@ enum SandboxFlagBit : SandboxFlags
     SandboxFlag_ContextShouldUpdate = 1 << 4,
 };
 
+struct OrthographicSettings
+{
+    f32 Left = -4.f;
+    f32 Right = 4.f;
+    f32 Bottom = -4.f;
+    f32 Top = 4.f;
+    f32 Near = -8.f;
+    f32 Far = 8.f;
+};
+
+struct PerspectiveSettings
+{
+    f32 FieldOfView = Math::Radians(75.f);
+    f32 Near = 0.1f;
+    f32 Far = 100.f;
+};
+
 template <Dimension D> struct CameraData
 {
     Camera<D> *Camera;
+    OrthographicSettings Orthographic{};
 };
 
 template <> struct CameraData<D3>
 {
     Camera<D3> *Camera;
-    f32 FieldOfView = Math::Radians(75.f);
-    f32 Near = 0.1f;
-    f32 Far = 100.f;
+    OrthographicSettings Orthographic{};
+    PerspectiveSettings Perspective{};
     f32 ZOffset = 0.f;
-
-    bool Perspective = false;
+    bool IsPerspective = false;
 };
 
 template <Dimension D> struct CameraArray

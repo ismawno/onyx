@@ -11,6 +11,13 @@
 
 namespace Onyx
 {
+
+enum CoordinateSystem : u8
+{
+    CoordinateSystem_YUp,
+    CoordinateSystem_YDown,
+};
+
 template <Dimension D> struct CameraInfo;
 
 template <> struct CameraInfo<D2>
@@ -176,6 +183,7 @@ template <Dimension D> class ICamera
     void SetView(const Onyx::Transform<D> &view);
     void SetViewport(const ScreenViewport &viewport);
     void SetScissor(const ScreenScissor &scissor);
+    void SetCoordinateSystem(const CoordinateSystem system);
 
     CameraInfo<D> CreateCameraInfo() const;
 
@@ -189,6 +197,7 @@ template <Dimension D> class ICamera
     ProjectionViewData<D> m_ProjectionView{};
     ScreenViewport m_Viewport{};
     ScreenScissor m_Scissor{};
+    CoordinateSystem m_System = CoordinateSystem_YUp;
 
   private:
     void adaptViewToViewportAspect();
@@ -227,7 +236,12 @@ template <> class Camera<D3> final : public Detail::ICamera<D3>
 
     void SetProjection(const f32m4 &projection);
     void SetPerspectiveProjection(f32 fieldOfView = Math::Radians(75.f), f32 near = 0.1f, f32 far = 100.f);
-    void SetOrthographicProjection();
-    void SetOrthographicProjection(f32 size);
+    void SetOrthographicProjection(f32 left = -0.5f, f32 right = 0.5f, f32 bottom = -0.5f, f32 top = 0.5f,
+                                   f32 near = -0.5f, f32 far = 0.5f);
+    void SetOrthographicProjection(const f32 size)
+    {
+        const f32 sz = 0.5f * size;
+        SetOrthographicProjection(-sz, sz, -sz, sz, -sz, sz);
+    }
 };
 } // namespace Onyx

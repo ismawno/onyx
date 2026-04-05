@@ -5,6 +5,19 @@
 namespace Onyx
 {
 using namespace Detail;
+void applyCoordinateSystemExtrinsic(f32m4 &transform)
+{
+    // Essentially, a rotation around the x axis
+    for (u32 i = 0; i < 4; ++i)
+        for (u32 j = 1; j < 3; ++j)
+            transform[i][j] = -transform[i][j];
+}
+void applyCoordinateSystemIntrinsic(f32m4 &transform)
+{
+    // Essentially, a rotation around the x axis
+    transform[1] = -transform[1];
+    transform[2] = -transform[2];
+}
 
 VkViewport ScreenViewport::AsVulkanViewport(const VkExtent2D &extent) const
 {
@@ -46,7 +59,8 @@ template <Dimension D> f32v<D> ICamera<D>::ViewportToWorld(f32v<D> viewportPos) 
     {
         const f32m3 itransform3 = Math::Inverse(m_ProjectionView.ProjectionView);
         f32m4 itransform = Onyx::Transform<D2>::Promote(itransform3);
-        ApplyCoordinateSystemIntrinsic(itransform);
+        if (m_System == CoordinateSystem_YUp)
+            applyCoordinateSystemIntrinsic(itransform);
         return itransform * f32v4{viewportPos, 0.f, 1.f};
     }
     else
@@ -61,7 +75,8 @@ template <Dimension D> f32v2 ICamera<D>::WorldToViewport(const f32v<D> &worldPos
     if constexpr (D == D2)
     {
         f32m4 transform = Onyx::Transform<D2>::Promote(m_ProjectionView.ProjectionView);
-        ApplyCoordinateSystemExtrinsic(transform);
+        if (m_System == CoordinateSystem_YUp)
+            applyCoordinateSystemExtrinsic(transform);
         f32v2 viewportPos = f32v2{transform * f32v4{worldPos, 0.f, 1.f}};
         viewportPos[1] = -viewportPos[1];
         return viewportPos;
@@ -113,6 +128,11 @@ template <Dimension D> void ICamera<D>::SetViewport(const ScreenViewport &viewpo
 template <Dimension D> void ICamera<D>::SetScissor(const ScreenScissor &scissor)
 {
     m_Scissor = scissor;
+}
+template <Dimension D> void ICamera<D>::SetCoordinateSystem(const CoordinateSystem system)
+{
+    m_System = system;
+    adaptViewToViewportAspect();
 }
 
 f32v2 Camera<D2>::GetWorldMousePosition() const
@@ -199,16 +219,18 @@ void Camera<D3>::SetPerspectiveProjection(const f32 fieldOfView, const f32 near,
     SetProjection(projection);
 }
 
-void Camera<D3>::SetOrthographicProjection()
+void Camera<D3>::SetOrthographicProjection(const f32 left, const f32 right, const f32 bottom, const f32 top,
+                                           const f32 near, const f32 far)
 {
-    SetProjection(f32m4::Identity());
-}
-void Camera<D3>::SetOrthographicProjection(const f32 size)
-{
-    const f32 aspect = m_ProjectionView.View.Scale[0] / m_ProjectionView.View.Scale[0];
-    m_ProjectionView.View.Scale[0] = size * aspect;
-    m_ProjectionView.View.Scale[1] = size;
-    SetProjection(f32m4::Identity());
+    f32m4 projection{0.f};
+    projection[0][0] = 2.f / (right - left);
+    projection[1][1] = 2.f / (top - bottom);
+    projection[2][2] = 1.f / (far - near);
+    projection[3][0] = -(right + left) / (right - left);
+    projection[3][1] = -(top + bottom) / (top - bottom);
+    projection[3][2] = -near / (far - near);
+    projection[3][3] = 1.f;
+    SetProjection(projection);
 }
 
 template <Dimension D> void ICamera<D>::ControlMovementWithUserInput(const TKit::Timespan deltaTime)
@@ -228,7 +250,8 @@ template <Dimension D> void ICamera<D>::ControlScrollWithUserInput(const f32 sca
     if constexpr (D == D2)
     {
         f32m4 transform = Onyx::Transform<D2>::Promote(m_ProjectionView.View.ComputeTransform());
-        ApplyCoordinateSystemIntrinsic(transform);
+        if (m_System == CoordinateSystem_YUp)
+            applyCoordinateSystemIntrinsic(transform);
         const f32v2 mpos = transform * f32v4{scpos, 0.f, 1.f};
         const f32v2 dpos = scaleStep * (mpos - m_ProjectionView.View.Translation);
         m_ProjectionView.View.Translation += dpos;
@@ -262,7 +285,8 @@ template <Dimension D> void ICamera<D>::updateProjectionView()
     else
     {
         f32m4 vmat = m_ProjectionView.View.ComputeInverseTransform();
-        ApplyCoordinateSystemExtrinsic(vmat);
+        if (m_System == CoordinateSystem_YUp)
+            applyCoordinateSystemExtrinsic(vmat);
         m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
     }
 }
@@ -274,7 +298,8 @@ template <Dimension D> CameraInfo<D> ICamera<D>::CreateCameraInfo() const
     if constexpr (D == D2)
     {
         info.ProjectionView = Transform<D2>::Promote(m_ProjectionView.ProjectionView);
-        ApplyCoordinateSystemExtrinsic(info.ProjectionView);
+        if (m_System == CoordinateSystem_YUp)
+            applyCoordinateSystemExtrinsic(info.ProjectionView);
     }
     else
     {

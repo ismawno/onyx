@@ -3,19 +3,6 @@
 
 namespace Onyx
 {
-void ApplyCoordinateSystemExtrinsic(f32m4 &transform)
-{
-    // Essentially, a rotation around the x axis
-    for (u32 i = 0; i < 4; ++i)
-        for (u32 j = 1; j < 3; ++j)
-            transform[i][j] = -transform[i][j];
-}
-void ApplyCoordinateSystemIntrinsic(f32m4 &transform)
-{
-    // Essentially, a rotation around the x axis
-    transform[1] = -transform[1];
-    transform[2] = -transform[2];
-}
 
 template <Dimension D>
 f32m<D> ITransform<D>::ComputeTransform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation)
