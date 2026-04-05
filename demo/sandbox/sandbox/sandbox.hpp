@@ -41,12 +41,13 @@ struct PerspectiveSettings
 template <Dimension D> struct CameraData
 {
     Camera<D> *Camera;
-    OrthographicSettings Orthographic{};
+    CoordinateSystem System = CoordinateSystem_YUp;
 };
 
 template <> struct CameraData<D3>
 {
     Camera<D3> *Camera;
+    CoordinateSystem System = CoordinateSystem_YUp;
     OrthographicSettings Orthographic{};
     PerspectiveSettings Perspective{};
     f32 ZOffset = 0.f;

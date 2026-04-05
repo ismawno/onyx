@@ -729,6 +729,8 @@ template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
     Camera<D> *cam = camera.Camera;
     const f32v2 vpos = cam->GetViewportMousePosition();
     ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos[0], vpos[1]);
+    if (combo("Coordinate system", &camera.System, "Y Up\0Y Down\0\0"))
+        cam->SetCoordinateSystem(camera.System);
 
     if constexpr (D == D2)
     {

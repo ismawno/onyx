@@ -132,7 +132,8 @@ template <Dimension D> void ICamera<D>::SetScissor(const ScreenScissor &scissor)
 template <Dimension D> void ICamera<D>::SetCoordinateSystem(const CoordinateSystem system)
 {
     m_System = system;
-    adaptViewToViewportAspect();
+    if constexpr (D == D3)
+        updateProjectionView();
 }
 
 f32v2 Camera<D2>::GetWorldMousePosition() const
