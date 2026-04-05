@@ -29,6 +29,12 @@ void ApplyCoordinateSystemExtrinsic(f32m4 &transform);
  */
 void ApplyCoordinateSystemIntrinsic(f32m4 &transform);
 
+enum TransformMode : u8
+{
+    Transform_Extrinsic,
+    Transform_Intrinsic,
+};
+
 template <Dimension D> struct ITransform
 {
     /**
@@ -113,56 +119,89 @@ template <Dimension D> struct ITransform
      *
      * Intrinsic transformations are applied relative to the object's local coordinate system.
      */
-    static void TranslateIntrinsic(f32m<D> &transform, u32 axis, f32 translation);
+    static void TranslateIntrinsic(f32m<D> &transform, const u32 axis, const f32 translation)
+    {
+        for (u32 i = 0; i < D; ++i)
+            transform[D][i] += transform[axis][i] * translation;
+    }
 
     /**
      * @brief Applies an intrinsic translation to a transformation matrix.
      *
      * Intrinsic transformations are applied relative to the object's local coordinate system.
      */
-    static void TranslateIntrinsic(f32m<D> &transform, const f32v<D> &translation);
+    static void TranslateIntrinsic(f32m<D> &transform, const f32v<D> &translation)
+    {
+        for (u32 i = 0; i < D; ++i)
+            TranslateIntrinsic(transform, i, translation[i]);
+    }
 
     /**
      * @brief Applies an extrinsic translation to a transformation matrix along a specified axis.
      *
      * Extrinsic transformations are applied relative to the global coordinate system.
      */
-    static void TranslateExtrinsic(f32m<D> &transform, u32 axis, f32 translation);
+    static void TranslateExtrinsic(f32m<D> &transform, const u32 axis, const f32 translation)
+    {
+        transform[D][axis] += translation;
+    }
 
     /**
      * @brief Applies an extrinsic translation to a transformation matrix.
      *
      * Extrinsic transformations are applied relative to the global coordinate system.
      */
-    static void TranslateExtrinsic(f32m<D> &transform, const f32v<D> &translation);
+    static void TranslateExtrinsic(f32m<D> &transform, const f32v<D> &translation)
+    {
+        for (u32 i = 0; i < D; ++i)
+            transform[D][i] += translation[i];
+    }
 
     /**
      * @brief Applies an intrinsic scaling to a transformation matrix along a specified axis.
      *
      * Intrinsic transformations are applied relative to the object's local coordinate system.
      */
-    static void ScaleIntrinsic(f32m<D> &transform, u32 axis, f32 scale);
+    static void ScaleIntrinsic(f32m<D> &transform, const u32 axis, const f32 scale)
+    {
+        for (u32 i = 0; i < D; ++i)
+            transform[axis][i] *= scale;
+    }
 
     /**
      * @brief Applies an intrinsic scaling to a transformation matrix.
      *
      * Intrinsic transformations are applied relative to the object's local coordinate system.
      */
-    static void ScaleIntrinsic(f32m<D> &transform, const f32v<D> &scale);
+    static void ScaleIntrinsic(f32m<D> &transform, const f32v<D> &scale)
+    {
+        for (u32 i = 0; i < D; ++i)
+            for (u32 j = 0; j < D; ++j)
+                transform[i][j] *= scale[i];
+    }
 
     /**
      * @brief Applies an extrinsic scaling to a transformation matrix along a specified axis.
      *
      * Extrinsic transformations are applied relative to the global coordinate system.
      */
-    static void ScaleExtrinsic(f32m<D> &transform, u32 axis, f32 scale);
+    static void ScaleExtrinsic(f32m<D> &transform, const u32 axis, const f32 scale)
+    {
+        for (u32 i = 0; i < D + 1; ++i)
+            transform[i][axis] *= scale;
+    }
 
     /**
      * @brief Applies an extrinsic scaling to a transformation matrix.
      *
      * Extrinsic transformations are applied relative to the global coordinate system.
      */
-    static void ScaleExtrinsic(f32m<D> &transform, const f32v<D> &scale);
+    static void ScaleExtrinsic(f32m<D> &transform, const f32v<D> &scale)
+    {
+        for (u32 i = 0; i < D + 1; ++i)
+            for (u32 j = 0; j < D; ++j)
+                transform[i][j] *= scale[j];
+    }
 
     /**
      * @brief Extracts translation, scale, and rotation components from a transformation matrix.
@@ -256,7 +295,14 @@ template <> struct Transform<D3> : ITransform<D3>
      * @param transform The transformation matrix to modify.
      * @param quaternion The quaternion representing the rotation.
      */
-    static void RotateIntrinsic(f32m4 &transform, const f32q &quaternion);
+    static void RotateIntrinsic(f32m4 &transform, const f32q &quaternion)
+    {
+        const f32m3 rot = ComputeRotationMatrix(quaternion);
+        const f32m3 submat = f32m3{transform} * rot;
+        transform[0] = f32v4{submat[0], 0.f};
+        transform[1] = f32v4{submat[1], 0.f};
+        transform[2] = f32v4{submat[2], 0.f};
+    }
 
     /**
      * @brief Applies an extrinsic rotation using a quaternion to a 3D transformation matrix.
@@ -266,7 +312,12 @@ template <> struct Transform<D3> : ITransform<D3>
      * @param transform The transformation matrix to modify.
      * @param quaternion The quaternion representing the rotation.
      */
-    static void RotateExtrinsic(f32m4 &transform, const f32q &quaternion);
+    static void RotateExtrinsic(f32m4 &transform, const f32q &quaternion)
+    {
+        const f32m3 rot = ComputeRotationMatrix(quaternion);
+        const f32m4x3 submat = rot * f32m4x3{transform};
+        transform = f32m4{f32v4{submat[0], 0.f}, f32v4{submat[1], 0.f}, f32v4{submat[2], 0.f}, f32v4{submat[3], 1.f}};
+    }
 
     static f32m4 ComputeLineTransform(const f32v3 &start, const f32v3 &end, f32 thickness = 1.f);
 

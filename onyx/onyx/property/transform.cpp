@@ -92,51 +92,6 @@ template <Dimension D> f32m<D> ITransform<D>::ComputeInverseReversedTransform() 
     return ComputeInverseReversedTransform(Translation, Scale, Rotation);
 }
 
-template <Dimension D> void ITransform<D>::TranslateIntrinsic(f32m<D> &transform, const u32 axis, const f32 translation)
-{
-    for (u32 i = 0; i < D; ++i)
-        transform[D][i] += transform[axis][i] * translation;
-}
-template <Dimension D> void ITransform<D>::TranslateIntrinsic(f32m<D> &transform, const f32v<D> &translation)
-{
-    for (u32 i = 0; i < D; ++i)
-        TranslateIntrinsic(transform, i, translation[i]);
-}
-
-template <Dimension D> void ITransform<D>::TranslateExtrinsic(f32m<D> &transform, const u32 axis, const f32 translation)
-{
-    transform[D][axis] += translation;
-}
-template <Dimension D> void ITransform<D>::TranslateExtrinsic(f32m<D> &transform, const f32v<D> &translation)
-{
-    for (u32 i = 0; i < D; ++i)
-        transform[D][i] += translation[i];
-}
-
-template <Dimension D> void ITransform<D>::ScaleIntrinsic(f32m<D> &transform, const u32 axis, const f32 scale)
-{
-    for (u32 i = 0; i < D; ++i)
-        transform[axis][i] *= scale;
-}
-template <Dimension D> void ITransform<D>::ScaleIntrinsic(f32m<D> &transform, const f32v<D> &scale)
-{
-    for (u32 i = 0; i < D; ++i)
-        for (u32 j = 0; j < D; ++j)
-            transform[i][j] *= scale[i];
-}
-
-template <Dimension D> void ITransform<D>::ScaleExtrinsic(f32m<D> &transform, const u32 axis, const f32 scale)
-{
-    for (u32 i = 0; i < D + 1; ++i)
-        transform[i][axis] *= scale;
-}
-template <Dimension D> void ITransform<D>::ScaleExtrinsic(f32m<D> &transform, const f32v<D> &scale)
-{
-    for (u32 i = 0; i < D + 1; ++i)
-        for (u32 j = 0; j < D; ++j)
-            transform[i][j] *= scale[j];
-}
-
 void Transform<D2>::RotateIntrinsic(f32m3 &transform, const f32 angle)
 {
     const f32m2 rot = ComputeRotationMatrix(angle);
@@ -206,21 +161,6 @@ void Transform<D3>::RotateZExtrinsic(f32m4 &transform, const f32 angle)
         transform[i][0] = submat[i][0];
         transform[i][1] = submat[i][1];
     }
-}
-
-void Transform<D3>::RotateIntrinsic(f32m4 &transform, const f32q &quaternion)
-{
-    const f32m3 rot = ComputeRotationMatrix(quaternion);
-    const f32m3 submat = f32m3{transform} * rot;
-    transform[0] = f32v4{submat[0], 0.f};
-    transform[1] = f32v4{submat[1], 0.f};
-    transform[2] = f32v4{submat[2], 0.f};
-}
-void Transform<D3>::RotateExtrinsic(f32m4 &transform, const f32q &quaternion)
-{
-    const f32m3 rot = ComputeRotationMatrix(quaternion);
-    const f32m4x3 submat = rot * f32m4x3{transform};
-    transform = f32m4{f32v4{submat[0], 0.f}, f32v4{submat[1], 0.f}, f32v4{submat[2], 0.f}, f32v4{submat[3], 1.f}};
 }
 
 template <Dimension D>

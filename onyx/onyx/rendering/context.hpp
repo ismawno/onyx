@@ -59,23 +59,34 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_Current->Alignment[1] = alg;
     }
 
-    void Transform(const f32m<D> &transform)
+    void ResetTransform()
     {
-        m_Current->Transform = transform * m_Current->Transform;
+        m_Current->Transform = f32m<D>::Identity();
     }
 
-    void Transform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation)
+    void Transform(const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
-        this->Transform(Onyx::Transform<D>::ComputeTransform(translation, scale, rotation));
-    }
-    void Transform(const f32v<D> &translation, const f32 scale, const rot<D> &rotation)
-    {
-        this->Transform(Onyx::Transform<D>::ComputeTransform(translation, f32v<D>{scale}, rotation));
+        m_Current->Transform =
+            mode == Transform_Extrinsic ? (transform * m_Current->Transform) : (m_Current->Transform * transform);
     }
 
-    void Translate(const f32v<D> &translation)
+    void Transform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation,
+                   const TransformMode mode = Transform_Extrinsic)
     {
-        Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, translation);
+        this->Transform(Onyx::Transform<D>::ComputeTransform(translation, scale, rotation), mode);
+    }
+    void Transform(const f32v<D> &translation, const f32 scale, const rot<D> &rotation,
+                   const TransformMode mode = Transform_Extrinsic)
+    {
+        this->Transform(Onyx::Transform<D>::ComputeTransform(translation, f32v<D>{scale}, rotation), mode);
+    }
+
+    void Translate(const f32v<D> &translation, const TransformMode mode = Transform_Extrinsic)
+    {
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, translation);
+        else
+            Onyx::Transform<D>::TranslateIntrinsic(m_Current->Transform, translation);
     }
 
     void SetTranslation(const f32v<D> &translation)
@@ -86,23 +97,32 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             m_Current->Transform[D][2] = translation[2];
     }
 
-    void Scale(const f32v<D> &scale)
+    void Scale(const f32v<D> &scale, const TransformMode mode = Transform_Extrinsic)
     {
-        Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, scale);
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, scale);
+        else
+            Onyx::Transform<D>::ScaleIntrinsic(m_Current->Transform, scale);
     }
-    void Scale(const f32 scale)
+    void Scale(const f32 scale, const TransformMode mode = Transform_Extrinsic)
     {
-        Scale(f32v<D>{scale});
-    }
-
-    void TranslateX(const f32 x)
-    {
-        Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 0, x);
+        Scale(f32v<D>{scale}, mode);
     }
 
-    void TranslateY(const f32 y)
+    void TranslateX(const f32 x, const TransformMode mode = Transform_Extrinsic)
     {
-        Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 1, y);
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 0, x);
+        else
+            Onyx::Transform<D>::TranslateIntrinsic(m_Current->Transform, 0, x);
+    }
+
+    void TranslateY(const f32 y, const TransformMode mode = Transform_Extrinsic)
+    {
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D>::TranslateExtrinsic(m_Current->Transform, 1, y);
+        else
+            Onyx::Transform<D>::TranslateIntrinsic(m_Current->Transform, 1, y);
     }
 
     void SetTranslationX(const f32 x)
@@ -115,14 +135,20 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_Current->Transform[D][1] = y;
     }
 
-    void ScaleX(const f32 x)
+    void ScaleX(const f32 x, const TransformMode mode = Transform_Extrinsic)
     {
-        Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 0, x);
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 0, x);
+        else
+            Onyx::Transform<D>::ScaleIntrinsic(m_Current->Transform, 0, x);
     }
 
-    void ScaleY(const f32 y)
+    void ScaleY(const f32 y, const TransformMode mode = Transform_Extrinsic)
     {
-        Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 1, y);
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D>::ScaleExtrinsic(m_Current->Transform, 1, y);
+        else
+            Onyx::Transform<D>::ScaleIntrinsic(m_Current->Transform, 1, y);
     }
 
     void Material(const Asset material)
@@ -360,67 +386,19 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
 namespace Onyx
 {
-/**
- * @brief The `RenderContext` class is the primary way of communicating with the Onyx API.
- *
- * It is a high-level API that allows the user to draw shapes and meshes in a simple immediate mode
- * fashion. The draw calls are recorded, sent to the gpu and translated to vulkan draw calls when appropiate.
- *
- * All public interface is thread-safe unless the documentation says otherwise. Each thread has a separate state, with
- * support for up to `MaxThreads`. Thread-unsafe methods to synchronize state between threads are available as
- * well. Multi-threaded use is encouraged, as the API was designed with core-friendliness in mind.
- *
- * The following is a set of properties of the `RenderContext` you must take into account when using it:
- *
- * - `RenderContext`s have their own coordinate system, defined by the axes transform that can be found in the context's
- * state and which can be modified through its API to affect the coordinates in which subsequent shapes are drawn. You
- * must take this into account when communicating to other systems unaware of these coordinates, such as cameras. All
- * world related camera methods have an optional parameter where you can specify the axes transform of (potentially) a
- * context, so that you get accurate coordinates when querying for the world mouse position in a `RenderContext`, for
- * instance.
- *
- * - While it is possible to use `RenderContext` in pretty much any callback, it is recommended to use it in the
- * `OnUpdate()` callbacks, if using an application, or inside the body of the while loop if using a simple window. You
- * should also be consistent with which callback you use, and stick to calling the API from that callback only. Failing
- * to do so may result in only some of the things you draw popping on the screen, or worse.
- *
- * - The `RenderContext` is mostly immediate mode. All mutations to its state can be reset with the `Flush()`
- * method, which is recommended to be called at the beginning of each frame in case your scene consists of moving
- * objects. If `Flush()` is not called, the context will keep its state and the device will keep drawing the same
- * geometry every frame. The context will make sure not to re-upload the data to the gpu in case it is to re-use its
- * state.
- *
- * - Windows support multiple `RenderContext` objects, and it is advised to group your objects by frequency of update,
- * and have a `RenderContext` per group. Sending data to the device can be a time consuming operation and a real
- * bottleneck. If your data does not change, use a static `RenderContext` to render it, by calling `Flush()` once and
- * submitting draw commands.
- *
- * - Once recorded and submitted (this step happens automatically once the `RenderContext` sends the data to the
- * device), to re-draw the contents of a `RenderContext` it is necessary to flush it and re-record the commands.
- *
- * - Keep in mind that outlines are affected by the scaling of the shapes they outline. This means you may get weird
- * outlines with scaled shapes, especially if the scaling is not uniform. To avoid this issue when using outlines,
- * always try to modify the shape's dimensions explicitly through function parameters, instead of trying to apply
- * scaling transformations directly. Note that all shapes have a way to set their dimensions directly. That particular
- * way will work well with outlines.
- *
- * - Onyx renderer uses batch rendering to optimize draw calls. This means that in some cases, the order in which shapes
- * are drawn may not be respected.
- *
- * - State changes to the context affect subsequent shapes. Calling `Transform()`, `Scale()` or a similar method will
- * affect all entities drawn from that point on. Transform matrices passed directly when drawing an entity are not
- * persisted.
- *
- */
+
 template <Dimension D> class RenderContext;
 
 template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D2> final : public Detail::IRenderContext<D2>
 {
   public:
     using IRenderContext<D2>::IRenderContext;
-    void Rotate(const f32 angle)
+    void Rotate(const f32 angle, const TransformMode mode = Transform_Extrinsic)
     {
-        Onyx::Transform<D2>::RotateExtrinsic(m_Current->Transform, angle);
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D2>::RotateExtrinsic(m_Current->Transform, angle);
+        else
+            Onyx::Transform<D2>::RotateIntrinsic(m_Current->Transform, angle);
     }
 };
 
@@ -435,57 +413,77 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
         m_Current->Alignment[2] = alg;
     }
 
-    void Transform(const f32v3 &translation, const f32v3 &scale, const f32v3 &rotation)
+    void Transform(const f32v3 &translation, const f32v3 &scale, const f32v3 &rotation,
+                   const TransformMode mode = Transform_Extrinsic)
     {
-        this->Transform(Onyx::Transform<D3>::ComputeTransform(translation, scale, f32q{rotation}));
+        this->Transform(Onyx::Transform<D3>::ComputeTransform(translation, scale, f32q{rotation}), mode);
     }
 
-    void Transform(const f32v3 &translation, f32 scale, const f32v3 &rotation)
+    void Transform(const f32v3 &translation, f32 scale, const f32v3 &rotation,
+                   const TransformMode mode = Transform_Extrinsic)
     {
-        this->Transform(Onyx::Transform<D3>::ComputeTransform(translation, f32v3{scale}, f32q{rotation}));
+        this->Transform(Onyx::Transform<D3>::ComputeTransform(translation, f32v3{scale}, f32q{rotation}), mode);
     }
 
-    void TranslateZ(f32 z)
+    void TranslateZ(const f32 z, const TransformMode mode = Transform_Extrinsic)
     {
-        Onyx::Transform<D3>::TranslateExtrinsic(m_Current->Transform, 2, z);
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D3>::TranslateExtrinsic(m_Current->Transform, 2, z);
+        else
+            Onyx::Transform<D3>::TranslateIntrinsic(m_Current->Transform, 2, z);
     }
 
-    void SetTranslationZ(f32 z)
+    void SetTranslationZ(const f32 z)
     {
         m_Current->Transform[D3][2] = z;
     }
 
-    void ScaleZ(f32 z)
+    void ScaleZ(const f32 z, const TransformMode mode = Transform_Extrinsic)
     {
-        Onyx::Transform<D3>::ScaleExtrinsic(m_Current->Transform, 2, z);
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D3>::ScaleExtrinsic(m_Current->Transform, 2, z);
+        else
+            Onyx::Transform<D3>::ScaleIntrinsic(m_Current->Transform, 2, z);
     }
 
-    void Rotate(const f32q &quaternion)
+    void Rotate(const f32q &quaternion, const TransformMode mode = Transform_Extrinsic)
     {
-        Onyx::Transform<D3>::RotateExtrinsic(m_Current->Transform, quaternion);
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D3>::RotateExtrinsic(m_Current->Transform, quaternion);
+        else
+            Onyx::Transform<D3>::RotateIntrinsic(m_Current->Transform, quaternion);
     }
 
-    void Rotate(const f32v3 &angles)
+    void Rotate(const f32v3 &angles, const TransformMode mode = Transform_Extrinsic)
     {
-        Rotate(f32q(angles));
+        Rotate(f32q(angles), mode);
     }
 
-    void Rotate(f32 angle, const f32v3 &axis)
+    void Rotate(const f32 angle, const f32v3 &axis, const TransformMode mode = Transform_Extrinsic)
     {
-        Rotate(f32q::FromAngleAxis(angle, axis));
+        Rotate(f32q::FromAngleAxis(angle, axis), mode);
     }
 
-    void RotateX(const f32 angle)
+    void RotateX(const f32 angle, const TransformMode mode = Transform_Extrinsic)
     {
-        Rotate(f32v3{angle, 0.f, 0.f});
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D3>::RotateXExtrinsic(m_Current->Transform, angle);
+        else
+            Onyx::Transform<D3>::RotateXIntrinsic(m_Current->Transform, angle);
     }
-    void RotateY(const f32 angle)
+    void RotateY(const f32 angle, const TransformMode mode = Transform_Extrinsic)
     {
-        Rotate(f32v3{0.f, angle, 0.f});
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D3>::RotateYExtrinsic(m_Current->Transform, angle);
+        else
+            Onyx::Transform<D3>::RotateYIntrinsic(m_Current->Transform, angle);
     }
-    void RotateZ(const f32 angle)
+    void RotateZ(const f32 angle, const TransformMode mode = Transform_Extrinsic)
     {
-        Rotate(f32v3{0.f, 0.f, angle});
+        if (mode == Transform_Extrinsic)
+            Onyx::Transform<D3>::RotateZExtrinsic(m_Current->Transform, angle);
+        else
+            Onyx::Transform<D3>::RotateZIntrinsic(m_Current->Transform, angle);
     }
 
     template <typename... LightArgs> DirectionalLight *AddDirectionalLight(LightArgs &&...args)
