@@ -4,6 +4,7 @@ struct VertexInput
 {
     f32v2 Position : POSITION;
     f32v2 AtlasCoord : TEXCOORD0;
+    f32v2 TexCoord : TEXCOORD0;
 }
 
 struct VertexOutput
@@ -13,12 +14,14 @@ struct VertexOutput
     [[vk::location(1)]]
     f32v2 AtlasCoord;
     [[vk::location(2)]]
-    nointerpolation u32 MatHandle;
+    f32v2 TexCoord;
     [[vk::location(3)]]
-    nointerpolation u32 SamplerId;
+    nointerpolation u32 MatHandle;
     [[vk::location(4)]]
-    nointerpolation u32 AtlasId;
+    nointerpolation u32 SamplerId;
     [[vk::location(5)]]
+    nointerpolation u32 AtlasId;
+    [[vk::location(6)]]
     nointerpolation f32v4 FragColor;
 
     f32v4 Position : SV_Position;
@@ -55,6 +58,7 @@ VertexOutput mainVS(
     output.Position.z = ComputeDepth(data.DepthCounter);
 
     output.AtlasCoord = input.AtlasCoord;
+    output.TexCoord = input.TexCoord;
     output.SamplerId = GetAssetId(gdata.SamplerHandle);
     output.AtlasId = GetAssetId(gdata.AtlasHandle);
 
@@ -89,5 +93,5 @@ f32v4 mainFS(const VertexOutput input)
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
 
-    return ComputeColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.AtlasCoord, resources, coverage);
+    return ComputeColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, coverage);
 }

@@ -609,6 +609,8 @@ ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> createGlyphMeshPipeline(
     builder.AddBindingDescription<GlyphVertex>();
     builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, Position));
     builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, AtlasCoord));
+    if (pass != StencilPass_DoStencilWriteNoFill && pass != StencilPass_DoStencilTestNoFill)
+        builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, TexCoord));
 
     return builder.Bake().Build();
 }

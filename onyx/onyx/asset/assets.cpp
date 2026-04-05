@@ -647,10 +647,10 @@ static void buildFontBuffers(const FontData &data, const F1 addGlyph, const F2 a
 
         addGlyph(i, glyph);
 
-        addVertex(min[0], min[1], mnuv[0], mnuv[1]);
-        addVertex(max[0], min[1], mxuv[0], mnuv[1]);
-        addVertex(min[0], max[1], mnuv[0], mxuv[1]);
-        addVertex(max[0], max[1], mxuv[0], mxuv[1]);
+        addVertex(min[0], min[1], mnuv[0], mnuv[1], 0.f, 1.f);
+        addVertex(max[0], min[1], mxuv[0], mnuv[1], 1.f, 1.f);
+        addVertex(min[0], max[1], mnuv[0], mxuv[1], 0.f, 0.f);
+        addVertex(max[0], max[1], mxuv[0], mxuv[1], 1.f, 0.f);
 
         const u32 base = i * 4;
         addIndex(base);
@@ -685,8 +685,8 @@ Asset CreateFont(const AssetPool pool, const FontData &data)
     const auto addGlyph = [&fpool, goffset](const u32 id, const GlyphData &data) {
         fpool.Glyphs.Append(id + goffset, createBounds(data.Bounds), data.Advance);
     };
-    const auto addVertex = [&fpool](const f32 x, const f32 y, const f32 u, const f32 v) {
-        fpool.Vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{u, v}});
+    const auto addVertex = [&fpool](const f32 x, const f32 y, const f32 au, const f32 av, const f32 tu, const f32 tv) {
+        fpool.Vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{au, av}, f32v2{tu, tv}});
     };
 
     const auto addIndex = [&fpool, &finfo](const u32 idx) {
@@ -722,8 +722,9 @@ void UpdateFont(const Asset handle, const FontData &data)
         updateBounds(glyph.Bounds, data.Bounds);
     };
 
-    const auto addVertex = [&fpool, &vidx](const f32 x, const f32 y, const f32 u, const f32 v) {
-        fpool.Vertices[vidx++] = GlyphVertex{f32v2{x, y}, f32v2{u, v}};
+    const auto addVertex = [&fpool, &vidx](const f32 x, const f32 y, const f32 u, const f32 v, const f32 tu,
+                                           const f32 tv) {
+        fpool.Vertices[vidx++] = GlyphVertex{f32v2{x, y}, f32v2{u, v}, f32v2{tu, tv}};
     };
     const auto addIndex = [&fpool, &finfo, &iidx](const u32 idx) {
         fpool.Indices[iidx++] = Index(idx + finfo.Layout.VertexStart);

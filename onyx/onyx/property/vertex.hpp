@@ -134,6 +134,7 @@ struct GlyphVertex
 
     f32v2 Position;
     f32v2 AtlasCoord;
+    f32v2 TexCoord;
 };
 
 } // namespace Onyx
