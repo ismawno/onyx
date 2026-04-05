@@ -260,7 +260,7 @@ ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createTransferInstanceBuffer(
     TKIT_RETURN_ON_ERROR(result);
     VKit::DeviceBuffer &buffer = result.GetValue();
 
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         const std::string name =
             TKit::Format("onyx-renderer-transfer-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
@@ -277,7 +277,7 @@ ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createGraphicsInstanceBuffer(
     TKIT_RETURN_ON_ERROR(result);
     VKit::DeviceBuffer &buffer = result.GetValue();
 
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         const std::string name =
             TKit::Format("onyx-renderer-graphics-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
@@ -294,7 +294,7 @@ ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createTransferLightBuffer(
     TKIT_RETURN_ON_ERROR(result);
     VKit::DeviceBuffer &buffer = result.GetValue();
 
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         const std::string name =
             TKit::Format("onyx-renderer-transfer-light-buffer-{}D-type-{}", u8(D), ToString(light));
@@ -311,7 +311,7 @@ ONYX_NO_DISCARD static Result<VKit::DeviceBuffer> createGraphicsLightBuffer(
     TKIT_RETURN_ON_ERROR(result);
     VKit::DeviceBuffer &buffer = result.GetValue();
 
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         const std::string name =
             TKit::Format("onyx-renderer-graphics-light-buffer-{}D-type-{}", u8(D), ToString(light));
@@ -336,7 +336,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> createPipelines()
             TKIT_RETURN_ON_ERROR(result);
             rdata.Pipelines[pass][geo] = result.GetValue();
 
-            if (Core::CanNameObjects())
+            if (CanNameObjects())
             {
                 const std::string name = TKit::Format("onyx-renderer-pipeline-{}D-pass-{}-geometry-'{}'", u8(D),
                                                       ToString(pass), ToString(geo));
@@ -384,9 +384,9 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
             const auto dresult = Descriptors::GetDescriptorPool().Allocate(layout);
             TKIT_RETURN_ON_ERROR(dresult);
             const VkDescriptorSet set = dresult.GetValue();
-            if (Core::CanNameObjects())
+            if (CanNameObjects())
             {
-                const auto &device = Core::GetDevice();
+                const auto &device = GetDevice();
                 const std::string name = TKit::Format("onyx-renderer-descriptor-set-{}D-geometry-{}-pass-{}", u8(D),
                                                       ToString(geo), ToString(dpass));
                 TKIT_RETURN_IF_FAILED(device.SetObjectName(set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name.c_str()));
@@ -426,7 +426,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize()
 template <Dimension D> static void terminate()
 {
     RendererData<D> &rdata = getRendererData<D>();
-    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
     for (InstanceArena &arena : rdata.InstanceArenas)
     {
         arena.Transfer.Buffer.Destroy();
@@ -537,7 +537,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> reloadPipelines()
 
 Result<> ReloadPipelines()
 {
-    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    TKIT_RETURN_IF_FAILED(DeviceWaitIdle());
     TKIT_RETURN_IF_FAILED(reloadPipelines<D2>());
     return reloadPipelines<D3>();
 }
@@ -794,8 +794,8 @@ ONYX_NO_DISCARD static Result<Range *> handlePoolResize(const VkDeviceSize requi
         waitInfo.pSemaphores = semaphores.GetData();
         waitInfo.pValues = values.GetData();
 
-        const auto &device = Core::GetDevice();
-        const auto table = Core::GetDeviceTable();
+        const auto &device = GetDevice();
+        const auto table = GetDeviceTable();
         VKIT_RETURN_IF_FAILED(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX), Result<Range *>);
     }
 
@@ -1179,7 +1179,7 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     TKit::StackArray<ContextInstanceRange> contextRanges{};
     contextRanges.Reserve(dirtyContexts.GetSize());
 
-    TKit::ITaskManager *tm = Core::GetTaskManager();
+    TKit::ITaskManager *tm = GetTaskManager();
 
     TKit::StackArray<Task> tasks{};
     tasks.Reserve(dirtyContexts.GetSize() * bcount);
@@ -1376,7 +1376,7 @@ Result<TransferSubmitInfo> Transfer(VKit::Queue *tqueue, const VkCommandBuffer c
         info.bufferMemoryBarrierCount = release.GetSize();
         info.pBufferMemoryBarriers = release.GetData();
         info.dependencyFlags = 0;
-        const auto table = Core::GetDeviceTable();
+        const auto table = GetDeviceTable();
         table->CmdPipelineBarrier2KHR(command, &info);
     }
     if (submitInfo)
@@ -1446,7 +1446,7 @@ void ApplyAcquireBarriers(const VkCommandBuffer graphicsCommand)
     gatherAcquireBarriers<D3>(barriers);
     if (!barriers.IsEmpty())
     {
-        const auto table = Core::GetDeviceTable();
+        const auto table = GetDeviceTable();
         VkDependencyInfoKHR info{};
         info.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO_KHR;
         info.bufferMemoryBarrierCount = barriers.GetSize();
@@ -1458,7 +1458,7 @@ void ApplyAcquireBarriers(const VkCommandBuffer graphicsCommand)
 
 template <Dimension D> static void setCameraViewport(const VkCommandBuffer command, const CameraInfo<D> &camera)
 {
-    const auto table = Core::GetDeviceTable();
+    const auto table = GetDeviceTable();
     if (!camera.Transparent)
     {
         const Color &bg = camera.BackgroundColor;
@@ -1567,7 +1567,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
         return Result<>::Ok();
 
     const ViewMask viewBit = vinfo.ViewBit;
-    const auto &device = Core::GetDevice();
+    const auto &device = GetDevice();
 
     RendererData<D> &rdata = getRendererData<D>();
     Color ambient{0.f, 0.f, 0.f, 0.f};
@@ -1712,7 +1712,7 @@ ONYX_NO_DISCARD static Result<> render(const VKit::Queue *graphics, const VkComm
                 }
     }
 
-    const auto table = Core::GetDeviceTable();
+    const auto table = GetDeviceTable();
     for (const CameraInfo<D> &camInfo : camInfos)
     {
         setCameraViewport<D>(graphicsCommand, camInfo);

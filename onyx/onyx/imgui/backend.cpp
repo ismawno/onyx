@@ -1234,7 +1234,7 @@ ONYX_NO_DISCARD static Result<Renderer_ViewportData *> renderer_CreateViewportDa
         TKIT_RETURN_ON_ERROR(result, cleanup());
         buffers.IndexBuffer = result.GetValue();
 
-        if (Core::CanNameObjects())
+        if (CanNameObjects())
         {
             const std::string vbuffer = TKit::Format("onyx-imgui-vbuffer-image-index-{}", i);
             const std::string ibuffer = TKit::Format("onyx-imgui-ibuffer-image-index-{}", i);
@@ -1248,7 +1248,7 @@ ONYX_NO_DISCARD static Result<Renderer_ViewportData *> renderer_CreateViewportDa
 static void renderer_DestroyViewportData(Renderer_ViewportData *data)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
-    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
     for (Renderer_Buffers &buffers : data->Buffers)
     {
         buffers.VertexBuffer.Destroy();
@@ -1271,7 +1271,7 @@ ONYX_NO_DISCARD static Result<> renderer_CreateShaders()
     TKIT_ASSERT(!s_RendererData->VertexShader, "[ONYX][IMGUI] Vertex shader is already initialized");
     TKIT_ASSERT(!s_RendererData->FragmentShader, "[ONYX][IMGUI] Fragment shader is already initialized");
 
-    const auto &device = Core::GetDevice();
+    const auto &device = GetDevice();
 
     auto result = VKit::Shader::Create(device, s_VertexShader, sizeof(s_VertexShader));
     TKIT_RETURN_ON_ERROR(result);
@@ -1286,7 +1286,7 @@ ONYX_NO_DISCARD static Result<> renderer_CreateShaders()
 ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> renderer_CreatePipeline(
     const VkPipelineRenderingCreateInfoKHR &pipInfo)
 {
-    return VKit::GraphicsPipeline::Builder(Core::GetDevice(), s_RendererData->PipelineLayout, pipInfo)
+    return VKit::GraphicsPipeline::Builder(GetDevice(), s_RendererData->PipelineLayout, pipInfo)
         .AddShaderStage(s_RendererData->VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
         .AddShaderStage(s_RendererData->FragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
         .AddBindingDescription<ImDrawVert>()
@@ -1305,7 +1305,7 @@ ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> renderer_CreatePipeline(
 
 ONYX_NO_DISCARD static Result<VkDescriptorSet> renderer_AddTexture(const VKit::DeviceImage &image)
 {
-    const auto &device = Core::GetDevice();
+    const auto &device = GetDevice();
     const auto result = Descriptors::GetDescriptorPool().Allocate(s_RendererData->DescriptorSetLayout);
     TKIT_RETURN_ON_ERROR(result);
 
@@ -1342,8 +1342,8 @@ static void renderer_DestroyTexture(ImTextureData *tex)
 
 ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
 {
-    const auto &device = Core::GetDevice();
-    const VmaAllocator allocator = Core::GetVulkanAllocator();
+    const auto &device = GetDevice();
+    const VmaAllocator allocator = GetVulkanAllocator();
     if (tex->Status == ImTextureStatus_WantCreate)
     {
         // Create and upload new texture to graphics system
@@ -1370,13 +1370,13 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
 
         // Store identifiers
         tex->SetTexID(reinterpret_cast<ImTextureID>(bckTex->Set));
-        if (Core::CanNameObjects())
+        if (CanNameObjects())
         {
             const std::string tname = TKit::Format("onyx-imgui-texture-id-{:#x}", tex->GetTexID());
             const std::string sname = TKit::Format("onyx-imgui-tex-descriptor-id-{:#x}", tex->GetTexID());
             TKIT_RETURN_IF_FAILED(bckTex->Image.SetName(tname.c_str()));
             TKIT_RETURN_IF_FAILED(
-                Core::GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.c_str()));
+                GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.c_str()));
         }
         tex->BackendUserData = bckTex;
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{:#x}'", tex->GetTexID());
@@ -1405,7 +1405,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         TKIT_RETURN_ON_ERROR(result);
 
         VKit::DeviceBuffer &uploadBuffer = result.GetValue();
-        if (Core::CanNameObjects())
+        if (CanNameObjects())
         {
             TKIT_RETURN_IF_FAILED(uploadBuffer.SetName("onyx-imgui-upload-buffer"), uploadBuffer.Destroy());
         }
@@ -1446,7 +1446,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         dep.imageMemoryBarrierCount = 1;
         dep.pImageMemoryBarriers = &imgBarrier;
 
-        const auto table = Core::GetDeviceTable();
+        const auto table = GetDeviceTable();
         table->CmdPipelineBarrier2KHR(cmd, &dep);
         bckTex->Image.SetLayout(imgBarrier.newLayout);
 
@@ -1536,7 +1536,7 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
         buffers.IndexBuffer.BindAsIndexBuffer<ImDrawIdx>(cmd);
     }
 
-    const auto table = Core::GetDeviceTable();
+    const auto table = GetDeviceTable();
     VkViewport viewport;
     viewport.x = 0;
     viewport.y = 0;
@@ -1611,7 +1611,7 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
 
 ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects(const VkPipelineRenderingCreateInfoKHR &pipInfo)
 {
-    const auto &device = Core::GetDevice();
+    const auto &device = GetDevice();
     // Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or
     // 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling.
 
@@ -1644,7 +1644,7 @@ ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects(const VkPipelineRen
         s_RendererData->Pipeline = result.GetValue();
     }
 
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         TKIT_RETURN_IF_FAILED(s_RendererData->Sampler.SetName("onyx-imgui-sampler"));
         TKIT_RETURN_IF_FAILED(s_RendererData->DescriptorSetLayout.SetName("onyx-imgui-descriptor-set-layout"));
@@ -1814,7 +1814,7 @@ Result<> Create(Window *window)
 
 void Destroy()
 {
-    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
     renderer_Shutdown();
     platform_Shutdown();
     ImGui::DestroyPlatformWindows();

@@ -483,7 +483,7 @@ ONYX_NO_DISCARD static Result<AssetPool> createMeshPool(const AssetType atype, M
     mpool.IndexBuffer = ibuffer;
 
     const AssetPool pool = CreateAssetPoolHandle(atype, pid);
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         const std::string vb = TKit::Format("onyx-assets-vertex-buffer-{:#010x}", pool);
         const std::string ib = TKit::Format("onyx-assets-index-buffer-{:#010x}", pool);
@@ -955,6 +955,9 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshes(MeshAsse
 
 template <typename T> ONYX_NO_DISCARD static Result<bool> uploadHiveAssets(HiveAssetData<T> &hive)
 {
+    if (hive.Elements.IsEmpty())
+        return false;
+
     TKit::StackArray<T> sparse{};
     sparse.Resize(hive.Elements.GetIds().GetSize());
 
@@ -1031,7 +1034,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 TKIT_ASSERT(!tinfo.Image,
                             "[ONYX][ASSETS] To create a texture, it is underlying image must not exist yet");
 
-                auto result = VKit::DeviceImage::Builder(Core::GetDevice(), Core::GetVulkanAllocator(),
+                auto result = VKit::DeviceImage::Builder(GetDevice(), GetVulkanAllocator(),
                                                          VkExtent2D{tdata.Width, tdata.Height}, tdata.Format,
                                                          VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled |
                                                              VKit::DeviceImageFlag_Destination)
@@ -1040,7 +1043,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 TKIT_RETURN_ON_ERROR(result);
                 VKit::DeviceImage &img = result.GetValue();
                 tinfo.Image = img;
-                if (Core::CanNameObjects())
+                if (CanNameObjects())
                 {
                     const std::string name = TKit::Format("onyx-assets-texture-image-{:#010x}", tinfo.Handle);
                     TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()), img.Destroy());
@@ -1078,7 +1081,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
             TKIT_RETURN_ON_ERROR(result);
 
             VKit::DeviceBuffer &uploadBuffer = result.GetValue();
-            if (Core::CanNameObjects())
+            if (CanNameObjects())
             {
                 TKIT_RETURN_IF_FAILED(
                     uploadBuffer.SetName(
@@ -1175,7 +1178,7 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
         if (sinfo.Flags & StatusFlag_Update)
         {
             sinfo.Flags &= ~StatusFlag_Update;
-            const auto result = VKit::Sampler::Builder(Core::GetDevice())
+            const auto result = VKit::Sampler::Builder(GetDevice())
                                     .SetMipmapMode(toVulkan(sinfo.Data.Mode))
                                     .SetMinFilter(toVulkan(sinfo.Data.MinFilter))
                                     .SetMagFilter(toVulkan(sinfo.Data.MagFilter))
@@ -1188,7 +1191,7 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
             sinfo.Sampler = result.GetValue();
             TKIT_LOG_DEBUG("[ONYX][ASSETS] Updating sampler with handle {:#010x}", sinfo.Handle);
 
-            if (Core::CanNameObjects())
+            if (CanNameObjects())
             {
                 TKIT_RETURN_IF_FAILED(
                     sinfo.Sampler.SetName(TKit::Format("onyx-assets-sampler-{:#010x}", sinfo.Handle).c_str()),
@@ -1214,7 +1217,7 @@ Result<> Upload()
                                "[ONYX][ASSETS] Cannot upload/mutate asset data because it is locked, either by the "
                                "user or by Onyx. If using the application class, this happens automatically in-between "
                                "frames to avoid having dangling references in command buffers");
-    TKIT_RETURN_IF_FAILED(Core::DeviceWaitIdle());
+    TKIT_RETURN_IF_FAILED(DeviceWaitIdle());
     TKIT_RETURN_IF_FAILED(upload<D2>());
     TKIT_RETURN_IF_FAILED(upload<D3>());
     TKIT_RETURN_IF_FAILED(uploadTextures());

@@ -27,7 +27,7 @@
 #include <filesystem>
 
 using namespace Onyx::Detail;
-namespace Onyx::Core
+namespace Onyx
 {
 static u8 s_PushedAlloc = 0;
 static TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> s_Allocation{};
@@ -47,11 +47,11 @@ static VmaAllocator s_VulkanAllocator = VK_NULL_HANDLE;
 static TKit::Storage<InitCallbacks> s_Callbacks{};
 static const char *s_DumpPath;
 
-#define PUSH_DELETER(code) s_DeletionQueue->Push([] { code; })
+#define PUSH_DELETER(code) s_DeletionQueue->Push([=] { code; })
 #define SUBMIT_DELETION(object) s_DeletionQueue->SubmitForDeletion(object)
 
 ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRequests,
-                                             const Flags flags)
+                                             const InitializationFlags flags)
 {
     for (u32 i = 0; i < VKit::Queue_Count; ++i)
     {
@@ -93,7 +93,7 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
         .RequireExtension("VK_EXT_descriptor_indexing")
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 4, 0);
-    if (flags & Flag_EnableDeviceFaultExtension)
+    if (flags & InitializationFlag_EnableDeviceFaultExtension)
         selector.RequestExtension("VK_EXT_device_fault");
 
     if (s_Callbacks->OnPhysicalDeviceCreation)
@@ -120,7 +120,7 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
         TKIT_LOG_INFO("[ONYX][CORE]     {}", ext);
 #endif
 
-    TKIT_LOG_ERROR_IF((flags & Flag_EnableDeviceFaultExtension) &&
+    TKIT_LOG_ERROR_IF((flags & InitializationFlag_EnableDeviceFaultExtension) &&
                           !s_Physical->IsExtensionEnabled("VK_EXT_device_fault"),
                       "[ONYX][CORE] The device fault extension (VK_EXT_device_fault) could not be enabled");
 
@@ -129,7 +129,8 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     const u32 apiVersion = s_Physical->GetInfo().ApiVersion;
 
     VkPhysicalDeviceFaultFeaturesEXT faultFeatures{};
-    if ((flags & Flag_EnableDeviceFaultExtension) && s_Physical->IsExtensionEnabled("VK_EXT_device_fault"))
+    if ((flags & InitializationFlag_EnableDeviceFaultExtension) &&
+        s_Physical->IsExtensionEnabled("VK_EXT_device_fault"))
     {
         faultFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FAULT_FEATURES_EXT;
 
@@ -226,7 +227,7 @@ ONYX_NO_DISCARD static Result<> createVulkanAllocator()
     return Result<>::Ok();
 }
 
-ONYX_NO_DISCARD static Result<> createInstance(Flags flags)
+ONYX_NO_DISCARD static Result<> createInstance(InitializationFlags flags)
 {
     TKIT_LOG_INFO("[ONYX][CORE] Creating vulkan instance");
     u32 extensionCount;
@@ -239,20 +240,21 @@ ONYX_NO_DISCARD static Result<> createInstance(Flags flags)
         .RequestExtension("VK_KHR_get_physical_device_properties2")
         .RequestExtension("VK_KHR_portability_enumeration");
 
-    const Flags debugFeatFlags = Flag_EnableDeviceAssistedDebugFeature | Flag_EnableBestPracticesDebugFeature |
-                                 Flag_EnableSyncValidationDebugFeature | Flag_EnablePrintfDebugFeature;
+    const InitializationFlags debugFeatFlags =
+        InitializationFlag_EnableDeviceAssistedDebugFeature | InitializationFlag_EnableBestPracticesDebugFeature |
+        InitializationFlag_EnableSyncValidationDebugFeature | InitializationFlag_EnablePrintfDebugFeature;
 
-    const Flags validationFlags = debugFeatFlags | Flag_EnableDebugUtilsExtension;
+    const InitializationFlags validationFlags = debugFeatFlags | InitializationFlag_EnableDebugUtilsExtension;
 
     if (flags & validationFlags)
-        flags |= Flag_EnableValidationLayers;
+        flags |= InitializationFlag_EnableValidationLayers;
 
-    if (flags & Flag_EnableValidationLayers)
+    if (flags & InitializationFlag_EnableValidationLayers)
     {
         TKIT_LOG_INFO("[ONYX][CORE] Validation layers (VK_LAYER_KHRONOS_validation) have been requested");
         builder.RequestLayer("VK_LAYER_KHRONOS_validation");
     }
-    if (flags & Flag_EnableDebugUtilsExtension)
+    if (flags & InitializationFlag_EnableDebugUtilsExtension)
     {
         TKIT_LOG_INFO("[ONYX][CORE] Debug utils extension (VK_EXT_debug_utils) has been requested");
         builder.RequestExtension("VK_EXT_debug_utils");
@@ -261,23 +263,23 @@ ONYX_NO_DISCARD static Result<> createInstance(Flags flags)
     if (flags & debugFeatFlags)
         builder.RequestExtension("VK_EXT_validation_features");
 
-    if (flags & Flag_EnableDeviceAssistedDebugFeature)
+    if (flags & InitializationFlag_EnableDeviceAssistedDebugFeature)
     {
         TKIT_LOG_INFO("[ONYX][CORE] Device assisted debug feature has been requested");
         builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT);
         builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT);
     }
-    if (flags & Flag_EnableBestPracticesDebugFeature)
+    if (flags & InitializationFlag_EnableBestPracticesDebugFeature)
     {
         TKIT_LOG_INFO("[ONYX][CORE] Best practices debug feature has been requested");
         builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT);
     }
-    if (flags & Flag_EnablePrintfDebugFeature)
+    if (flags & InitializationFlag_EnablePrintfDebugFeature)
     {
         TKIT_LOG_INFO("[ONYX][CORE] Printf debug feature has been requested");
         builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT);
     }
-    if (flags & Flag_EnableSyncValidationDebugFeature)
+    if (flags & InitializationFlag_EnableSyncValidationDebugFeature)
     {
         TKIT_LOG_INFO("[ONYX][CORE] Sync validation debug feature has been requested");
         builder.SetValidationFeature(VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT);
@@ -309,10 +311,11 @@ ONYX_NO_DISCARD static Result<> createInstance(Flags flags)
         TKIT_LOG_INFO("[ONYX][CORE]     {}", ext);
 #endif
 
-    TKIT_LOG_ERROR_IF((flags & Flag_EnableValidationLayers) &&
+    TKIT_LOG_ERROR_IF((flags & InitializationFlag_EnableValidationLayers) &&
                           !s_Instance->IsLayerEnabled("VK_LAYER_KHRONOS_validation"),
                       "[ONYX][CORE] Validation layers (VK_LAYER_KHRONOS_validation) could not be enabled");
-    TKIT_LOG_ERROR_IF((flags & Flag_EnableDebugUtilsExtension) && !s_Instance->IsExtensionEnabled("VK_EXT_debug_utils"),
+    TKIT_LOG_ERROR_IF((flags & InitializationFlag_EnableDebugUtilsExtension) &&
+                          !s_Instance->IsExtensionEnabled("VK_EXT_debug_utils"),
                       "[ONYX][CORE] Debug utils extension (VK_EXT_debug_utils) could not be enabled");
     TKIT_LOG_ERROR_IF((flags & debugFeatFlags) && !s_Instance->IsExtensionEnabled("VK_EXT_validation_features"),
                       "[ONYX][CORE] Validation features extension (VK_EXT_validation_features) could not be enabled");
@@ -376,8 +379,12 @@ static void initializeAllocators(const Specs &specs)
     }
 }
 
-void terminateAllocators()
+static void terminateAllocators(const bool resetArenas)
 {
+    if (resetArenas)
+        for (const VKit::Allocation &alloc : s_Allocation)
+            alloc.Arena->Reset();
+
     if (s_PushedAlloc & 4)
         TKit::PopTier();
     if (s_PushedAlloc & 2)
@@ -433,12 +440,6 @@ VKit::DeletionQueue &GetDeletionQueue()
 {
     return *s_DeletionQueue;
 }
-
-} // namespace Onyx::Core
-
-namespace Onyx
-{
-using namespace Core;
 
 static const char *toString(const VkDeviceFaultAddressTypeEXT faultType)
 {
@@ -569,7 +570,7 @@ Result<> Initialize(const Specs &specs)
     s_Callbacks.Construct(specs.Callbacks);
 
     initializeAllocators(specs);
-    PUSH_DELETER(terminateAllocators());
+    PUSH_DELETER(terminateAllocators(specs.Flags & InitializationFlag_ResetArenasOnTermination));
 #ifdef ONYX_FONTCONFIG
     FcInit();
 #endif
@@ -582,7 +583,7 @@ Result<> Initialize(const Specs &specs)
 
     if (specs.TaskManager)
         s_TaskManager = specs.TaskManager;
-    else if (specs.Flags & Flag_DefaultTaskManagerSingleThread)
+    else if (specs.Flags & InitializationFlag_DefaultTaskManagerSingleThread)
     {
         s_DefaultTaskManager.Construct();
         s_TaskManager = s_DefaultTaskManager.Get();
@@ -645,5 +646,31 @@ void Terminate()
     s_Device.Destruct();
     s_Physical.Destruct();
     s_Instance.Destruct();
+}
+
+TKit::ArenaAllocator *GetArena(const u32 threadIndex)
+{
+    return s_Allocation[threadIndex].Arena;
+}
+TKit::StackAllocator *GetStack(const u32 threadIndex)
+{
+    return s_Allocation[threadIndex].Stack;
+}
+TKit::TierAllocator *GetTier(const u32 threadIndex)
+{
+    return s_Allocation[threadIndex].Tier;
+}
+
+void PushArena(const u32 threadIndex)
+{
+    TKit::PushArena(s_Allocation[threadIndex].Arena);
+}
+void PushStack(const u32 threadIndex)
+{
+    TKit::PushStack(s_Allocation[threadIndex].Stack);
+}
+void PushTier(const u32 threadIndex)
+{
+    TKit::PushTier(s_Allocation[threadIndex].Tier);
 }
 } // namespace Onyx

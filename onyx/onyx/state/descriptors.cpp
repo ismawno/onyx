@@ -11,7 +11,7 @@ static TKit::Storage<VKit::DescriptorSetLayout> s_FillDescLayout3{};
 
 ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
 {
-    const VKit::LogicalDevice &device = Core::GetDevice();
+    const VKit::LogicalDevice &device = GetDevice();
     const auto poolResult = VKit::DescriptorPool::Builder(device)
                                 .SetMaxSets(specs.MaxSets)
                                 .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, specs.StorageBufferPoolSize)
@@ -77,7 +77,7 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
 
     *s_FillDescLayout3 = layoutResult.GetValue();
 
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         TKIT_RETURN_IF_FAILED(s_DescriptorPool->SetName("onyx-descriptor-pool"));
         TKIT_RETURN_IF_FAILED(s_StencilDescLayout2->SetName("onyx-stencil-descriptor-set-layout-2D"));
@@ -131,7 +131,7 @@ template <Dimension D>
 void WriteBuffer(const u32 binding, const TKit::Span<const VkDescriptorSet> sets,
                  TKit::Span<const VkDescriptorBufferInfo> info, const DrawPass pass, const u32 dstElement)
 {
-    VKit::DescriptorSet::Writer writer{Core::GetDevice(), &GetDescriptorSetLayout<D>(pass)};
+    VKit::DescriptorSet::Writer writer{GetDevice(), &GetDescriptorSetLayout<D>(pass)};
     writer.WriteBuffer(binding, info, dstElement);
     for (const VkDescriptorSet set : sets)
         writer.Overwrite(set);
@@ -140,7 +140,7 @@ template <Dimension D>
 void WriteImage(const u32 binding, const TKit::Span<const VkDescriptorSet> sets,
                 TKit::Span<const VkDescriptorImageInfo> info, const DrawPass pass, const u32 dstElement)
 {
-    VKit::DescriptorSet::Writer writer{Core::GetDevice(), &GetDescriptorSetLayout<D>(pass)};
+    VKit::DescriptorSet::Writer writer{GetDevice(), &GetDescriptorSetLayout<D>(pass)};
     writer.WriteImage(binding, info, dstElement);
     for (const VkDescriptorSet set : sets)
         writer.Overwrite(set);

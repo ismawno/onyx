@@ -57,7 +57,7 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
     const VKit::DescriptorSetLayout &flayout2 = Descriptors::GetDescriptorSetLayout<D2>(DrawPass_Fill);
     const VKit::DescriptorSetLayout &flayout3 = Descriptors::GetDescriptorSetLayout<D3>(DrawPass_Fill);
 
-    const VKit::LogicalDevice &device = Core::GetDevice();
+    const VKit::LogicalDevice &device = GetDevice();
     auto layoutResult = VKit::PipelineLayout::Builder(device)
                             .AddDescriptorSetLayout(slayout2)
                             .AddPushConstantRange<StencilPushConstantData>(VK_SHADER_STAGE_VERTEX_BIT)
@@ -92,7 +92,7 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
     TKIT_RETURN_ON_ERROR(layoutResult);
     *s_FillPipLayout3 = layoutResult.GetValue();
 
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         TKIT_RETURN_IF_FAILED(s_StencilPipLayout2->SetName("onyx-stencil-pipeline-layout-2D"));
         TKIT_RETURN_IF_FAILED(s_StencilPipLayout3->SetName("onyx-stencil-pipeline-layout-3D"));
@@ -104,7 +104,7 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
 
 static bool isOldMesa()
 {
-    const auto &device = Core::GetDevice();
+    const auto &device = GetDevice();
     const VKit::PhysicalDevice *phys = device.GetInfo().PhysicalDevice;
 
     const VkPhysicalDeviceVulkan12Properties &props = phys->GetInfo().Properties.Vulkan12;
@@ -144,7 +144,7 @@ ONYX_NO_DISCARD static Result<> createShaders()
     }
     else
         compiler.AddIntegerArgument(ShaderArgument_Optimization, 3);
-    if (Core::GetInstance().IsExtensionEnabled("VK_EXT_debug_utils"))
+    if (GetInstance().IsExtensionEnabled("VK_EXT_debug_utils"))
         compiler.AddBooleanArgument(ShaderArgument_DebugInformation);
 
     auto cmpres = compiler.AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders")
@@ -347,7 +347,7 @@ ONYX_NO_DISCARD static Result<> createShaders()
 
     cmp.Destroy();
 
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         TKIT_RETURN_IF_FAILED(s_FillShaders2->CircleVertexShader.SetName("onyx-2D-vertex-shader-circle-fill"));
         TKIT_RETURN_IF_FAILED(s_FillShaders2->CircleFragmentShader.SetName("onyx-2D-fragment-shader-circle-fill"));
@@ -474,7 +474,7 @@ static VKit::GraphicsPipeline::Builder createPipelineBuilder(const StencilPass p
                                                              const VKit::Shader &fragmentShader)
 {
     const DrawPass dpass = GetDrawPass(pass);
-    VKit::GraphicsPipeline::Builder builder{Core::GetDevice(), GetPipelineLayout<D>(dpass), renderInfo};
+    VKit::GraphicsPipeline::Builder builder{GetDevice(), GetPipelineLayout<D>(dpass), renderInfo};
     auto &colorBuilder = builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
                              .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
                              .SetViewportCount(1)

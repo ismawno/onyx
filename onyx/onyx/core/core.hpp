@@ -90,17 +90,18 @@ struct Specs;
 }
 #endif
 
-using Flags = u8;
-enum FlagBit : Flags
+using InitializationFlags = u16;
+enum InitializationFlagBit : InitializationFlags
 {
-    Flag_DefaultTaskManagerSingleThread = 1 << 0,
-    Flag_EnableValidationLayers = 1 << 1,
-    Flag_EnableDebugUtilsExtension = 1 << 2,
-    Flag_EnableDeviceAssistedDebugFeature = 1 << 3,
-    Flag_EnableBestPracticesDebugFeature = 1 << 4,
-    Flag_EnablePrintfDebugFeature = 1 << 5,
-    Flag_EnableSyncValidationDebugFeature = 1 << 6,
-    Flag_EnableDeviceFaultExtension = 1 << 7
+    InitializationFlag_DefaultTaskManagerSingleThread = 1 << 0,
+    InitializationFlag_EnableValidationLayers = 1 << 1,
+    InitializationFlag_EnableDebugUtilsExtension = 1 << 2,
+    InitializationFlag_EnableDeviceAssistedDebugFeature = 1 << 3,
+    InitializationFlag_EnableBestPracticesDebugFeature = 1 << 4,
+    InitializationFlag_EnablePrintfDebugFeature = 1 << 5,
+    InitializationFlag_EnableSyncValidationDebugFeature = 1 << 6,
+    InitializationFlag_EnableDeviceFaultExtension = 1 << 7,
+    InitializationFlag_ResetArenasOnTermination = 1 << 8
 };
 
 struct Specs
@@ -122,12 +123,15 @@ struct Specs
     Platform::Specs *PlatformSpecs = nullptr;
 #ifdef TKIT_ENABLE_ASSERTS
 #    ifdef TKIT_OS_APPLE
-    Flags Flags = Flag_EnableValidationLayers | Flag_EnableDebugUtilsExtension | Flag_EnableBestPracticesDebugFeature |
-                  Flag_EnableSyncValidationDebugFeature | Flag_EnableDeviceFaultExtension;
+    InitializationFlags Flags =
+        InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |
+        InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
+        InitializationFlag_EnableDeviceFaultExtension;
 #    else
-    Flags Flags = Flag_EnableValidationLayers | Flag_EnableDebugUtilsExtension | Flag_EnableBestPracticesDebugFeature |
-                  Flag_EnableSyncValidationDebugFeature | Flag_EnableDeviceAssistedDebugFeature |
-                  Flag_EnableDeviceFaultExtension;
+    InitializationFlags Flags =
+        InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |
+        InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
+        InitializationFlag_EnableDeviceAssistedDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
 #    endif
 #else
     Flags Flags = 0;
@@ -137,10 +141,14 @@ struct Specs
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs = {});
 void Terminate();
 
-} // namespace Onyx
+TKit::ArenaAllocator *GetArena(u32 threadIndex = 0);
+TKit::StackAllocator *GetStack(u32 threadIndex = 0);
+TKit::TierAllocator *GetTier(u32 threadIndex = 0);
 
-namespace Onyx::Core
-{
+void PushArena(u32 threadIndex = 0);
+void PushStack(u32 threadIndex = 0);
+void PushTier(u32 threadIndex = 0);
+
 TKit::ITaskManager *GetTaskManager();
 
 const VKit::Instance &GetInstance();
@@ -156,4 +164,4 @@ ONYX_NO_DISCARD Result<> DeviceWaitIdle();
 VmaAllocator GetVulkanAllocator();
 VKit::DeletionQueue &GetDeletionQueue();
 
-}; // namespace Onyx::Core
+}; // namespace Onyx

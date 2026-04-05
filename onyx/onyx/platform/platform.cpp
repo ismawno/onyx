@@ -95,8 +95,8 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     }
 
     VkSurfaceKHR surface;
-    VKIT_RETURN_IF_FAILED(glfwCreateWindowSurface(Core::GetInstance(), handle, nullptr, &surface), Result<Window *>);
-    cleanup.Push([surface] { Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), surface, nullptr); });
+    VKIT_RETURN_IF_FAILED(glfwCreateWindowSurface(GetInstance(), handle, nullptr, &surface), Result<Window *>);
+    cleanup.Push([surface] { GetInstanceTable()->DestroySurfaceKHR(GetInstance(), surface, nullptr); });
 
     const VkExtent2D extent = Window::getNewExtent(handle);
     auto sresult = Window::createSwapChain(specs.PresentMode, surface, extent);
@@ -134,7 +134,7 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     window->m_ViewBit = allocateViewBit();
     window->m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
     window->UpdateMonitorDeltaTime();
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         TKIT_RETURN_IF_FAILED(window->nameSurface());
         TKIT_RETURN_IF_FAILED(window->nameSwapChain());

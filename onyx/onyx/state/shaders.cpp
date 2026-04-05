@@ -700,7 +700,7 @@ void Terminate()
 
 Result<VKit::Shader> Create(const u32 *spirv, const u32 size)
 {
-    return VKit::Shader::Create(Core::GetDevice(), spirv, size);
+    return VKit::Shader::Create(GetDevice(), spirv, size);
 }
 Result<VKit::Shader> Create(const Spirv &spirv)
 {
@@ -708,6 +708,6 @@ Result<VKit::Shader> Create(const Spirv &spirv)
 }
 Result<VKit::Shader> Create(const std::string_view spirvPath)
 {
-    return VKit::Shader::Create(Core::GetDevice(), spirvPath);
+    return VKit::Shader::Create(GetDevice(), spirvPath);
 }
 } // namespace Onyx::Shaders

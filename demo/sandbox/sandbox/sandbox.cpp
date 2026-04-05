@@ -286,7 +286,7 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
 
 template <Dimension D, typename F> void SandboxAppLayer::DrawLattice(const LatticeData<D> &lattice, F &&fun)
 {
-    TKit::ITaskManager *tm = Core::GetTaskManager();
+    TKit::ITaskManager *tm = GetTaskManager();
     if constexpr (D == D2)
     {
         const u32 size = lattice.Dimensions[0] * lattice.Dimensions[1];
@@ -517,7 +517,7 @@ SandboxWinLayer::~SandboxWinLayer()
     const auto wait = [](TKit::Task<Dialog::Result<Dialog::Path>> &task) {
         if (task)
         {
-            TKit::ITaskManager *tm = Core::GetTaskManager();
+            TKit::ITaskManager *tm = GetTaskManager();
             tm->WaitUntilFinished(task);
         }
     };
@@ -1353,7 +1353,7 @@ void SandboxWinLayer::HandleLoadDialog([[maybe_unused]] TKit::Task<Dialog::Resul
     };
 #    ifndef TKIT_OS_APPLE
     ImGui::BeginDisabled(task && !task.IsFinished());
-    TKit::ITaskManager *tm = Core::GetTaskManager();
+    TKit::ITaskManager *tm = GetTaskManager();
 #    endif
     ImGui::PushID(&load);
     if (ImGui::Button(name))

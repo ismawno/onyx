@@ -208,7 +208,7 @@ VkExtent2D Window::getNewExtent(GLFWwindow *window)
 Result<VKit::SwapChain> Window::createSwapChain(const VkPresentModeKHR presentMode, const VkSurfaceKHR surface,
                                                 const VkExtent2D &windowExtent, const VKit::SwapChain *old)
 {
-    const VKit::LogicalDevice &device = Core::GetDevice();
+    const VKit::LogicalDevice &device = GetDevice();
     return VKit::SwapChain::Builder(&device, surface)
         .RequestSurfaceFormat(Window::SurfaceFormat)
         .RequestPresentMode(presentMode)
@@ -228,11 +228,11 @@ Result<TKit::TierArray<Window::ImageData>> Window::createImageData(VKit::SwapCha
         Window::ImageData data{};
         data.Presentation = &swapChain.GetImage(i);
 
-        const auto iresult = VKit::DeviceImage::Builder(
-                                 Core::GetDevice(), Core::GetVulkanAllocator(), info.Extent, Window::DepthStencilFormat,
-                                 VKit::DeviceImageFlag_DepthAttachment | VKit::DeviceImageFlag_StencilAttachment)
-                                 .WithImageView()
-                                 .Build();
+        const auto iresult =
+            VKit::DeviceImage::Builder(GetDevice(), GetVulkanAllocator(), info.Extent, Window::DepthStencilFormat,
+                                       VKit::DeviceImageFlag_DepthAttachment | VKit::DeviceImageFlag_StencilAttachment)
+                .WithImageView()
+                .Build();
 
         TKIT_RETURN_ON_ERROR(iresult);
         data.DepthStencil = iresult.GetValue();
@@ -251,9 +251,9 @@ void Window::destroyImageData(TKit::TierArray<Window::ImageData> &images)
 Window::~Window()
 {
     Renderer::ClearViews(m_ViewBit);
-    ONYX_CHECK_EXPRESSION(Core::DeviceWaitIdle());
+    ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
 
-    const auto table = Core::GetDeviceTable();
+    const auto table = GetDeviceTable();
     ONYX_CHECK_EXPRESSION(table->QueueWaitIdle(*m_Present));
     destroyImageData(m_Images);
     Execution::DestroyViewSyncData(m_SyncData);
@@ -265,7 +265,7 @@ Window::~Window()
     for (Camera<D3> *camera : m_Cameras3)
         tier->Destroy(camera);
 
-    Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
+    GetInstanceTable()->DestroySurfaceKHR(GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
 }
 
@@ -295,7 +295,7 @@ Result<bool> Window::handlePresentOrAcquireResult(const VkResult result)
 
 Result<> Window::nameSurface()
 {
-    const auto &device = Core::GetDevice();
+    const auto &device = GetDevice();
     const std::string name = TKit::Format("onyx-surface-window-'{}'", GetTitle());
     return device.SetObjectName(m_Surface, VK_OBJECT_TYPE_SURFACE_KHR, name.c_str());
 }
@@ -308,7 +308,7 @@ Result<> Window::nameSwapChain()
 
 Result<> Window::nameSyncData()
 {
-    const auto &device = Core::GetDevice();
+    const auto &device = GetDevice();
     const char *title = GetTitle();
     for (u32 i = 0; i < m_SwapChain.GetImageCount(); ++i)
     {
@@ -352,7 +352,7 @@ Result<> Window::Present()
     presentInfo.pSwapchains = &swapChain;
     presentInfo.pImageIndices = &m_ImageIndex;
 
-    const auto table = Core::GetDeviceTable();
+    const auto table = GetDeviceTable();
     const VkResult result = table->QueuePresentKHR(*m_Present, &presentInfo);
 
     TKIT_RETURN_IF_FAILED(handlePresentOrAcquireResult(result));
@@ -363,8 +363,8 @@ Result<> Window::Present()
 Result<bool> Window::AcquireNextImage(const Timeout timeout)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::AcquireNextImage");
-    const auto table = Core::GetDeviceTable();
-    const auto &device = Core::GetDevice();
+    const auto table = GetDeviceTable();
+    const auto &device = GetDevice();
 
     const u32 idx = (m_ImageAvailableIndex + 1) % m_SyncData.GetSize();
     const Execution::ViewSyncData &sync = m_SyncData[idx];
@@ -415,7 +415,7 @@ Result<> Window::drainWork()
             values.Append(sync.InFlightValue);
         }
 
-    const auto table = Core::GetDeviceTable();
+    const auto table = GetDeviceTable();
     if (!semaphores.IsEmpty())
     {
         VkSemaphoreWaitInfoKHR waitInfo{};
@@ -424,7 +424,7 @@ Result<> Window::drainWork()
         waitInfo.pSemaphores = semaphores.GetData();
         waitInfo.pValues = values.GetData();
 
-        const auto &device = Core::GetDevice();
+        const auto &device = GetDevice();
         VKIT_RETURN_IF_FAILED(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX), Result<>);
     }
 
@@ -451,7 +451,7 @@ Result<> Window::recreateSwapChain()
 
     m_MustRecreateSwapchain = false;
 
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         TKIT_RETURN_IF_FAILED(nameSwapChain());
         TKIT_RETURN_IF_FAILED(nameSyncData());
@@ -470,8 +470,8 @@ Result<> Window::recreateSurface()
     m_SwapChain.Destroy();
     m_SwapChain = VKit::SwapChain{};
 
-    Core::GetInstanceTable()->DestroySurfaceKHR(Core::GetInstance(), m_Surface, nullptr);
-    VKIT_RETURN_IF_FAILED(glfwCreateWindowSurface(Core::GetInstance(), m_Window, nullptr, &m_Surface), Result<>);
+    GetInstanceTable()->DestroySurfaceKHR(GetInstance(), m_Surface, nullptr);
+    VKIT_RETURN_IF_FAILED(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface), Result<>);
 
     TKIT_RETURN_IF_FAILED(createSwapChain(extent));
     TKIT_RETURN_IF_FAILED(recreateResources());
@@ -482,7 +482,7 @@ Result<> Window::recreateSurface()
     PushEvent(event);
 
     m_MustRecreateSwapchain = false;
-    if (Core::CanNameObjects())
+    if (CanNameObjects())
     {
         TKIT_RETURN_IF_FAILED(nameSurface());
         TKIT_RETURN_IF_FAILED(nameSwapChain());
@@ -511,7 +511,7 @@ Result<> Window::recreateResources()
 void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &clearColor)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::BeginRendering");
-    const auto table = Core::GetDeviceTable();
+    const auto table = GetDeviceTable();
 
     VkRenderingAttachmentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
@@ -574,7 +574,7 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
 void Window::EndRendering(const VkCommandBuffer commandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::EndRendering");
-    const auto table = Core::GetDeviceTable();
+    const auto table = GetDeviceTable();
 
     table->CmdEndRenderingKHR(commandBuffer);
     m_Images[m_ImageIndex].Presentation->TransitionLayout2(

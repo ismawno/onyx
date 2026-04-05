@@ -5,7 +5,7 @@ namespace Onyx::Resources
 {
 Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags, const VkDeviceSize size)
 {
-    return VKit::DeviceBuffer::Builder(Core::GetDevice(), Core::GetVulkanAllocator(), flags).SetSize(size).Build();
+    return VKit::DeviceBuffer::Builder(GetDevice(), GetVulkanAllocator(), flags).SetSize(size).Build();
 }
 
 Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const u32 instances, const u32 instanceSize,
