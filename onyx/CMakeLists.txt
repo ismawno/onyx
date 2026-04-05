@@ -12,6 +12,7 @@ set(SOURCES
     onyx/resource/resources.cpp
     onyx/asset/assets.cpp
     onyx/asset/font.cpp
+    onyx/asset/image.cpp
     onyx/asset/mesh.cpp
     onyx/state/pipelines.cpp
     onyx/state/descriptors.cpp
@@ -29,9 +30,6 @@ if(ONYX_ENABLE_IMGUI)
 endif()
 if(ONYX_ENABLE_NFD)
   list(APPEND SOURCES onyx/platform/dialog.cpp)
-endif()
-if(ONYX_ENABLE_IMAGE_LOAD)
-  list(APPEND SOURCES onyx/asset/texture.cpp)
 endif()
 if(ONYX_ENABLE_GLTF_LOAD)
   list(APPEND SOURCES onyx/asset/gltf.cpp)

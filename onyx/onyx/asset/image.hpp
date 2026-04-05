@@ -5,7 +5,16 @@
 
 namespace Onyx
 {
-struct TextureData
+enum ImageOperation : u8
+{
+    ImageOperation_FlipX,
+    ImageOperation_FlipY,
+    ImageOperation_Rotate90CW,
+    ImageOperation_Rotate90CCW,
+    ImageOperation_Rotate180
+};
+
+struct ImageData
 {
     std::byte *Data = nullptr;
     u32 Width = 0;
@@ -17,6 +26,8 @@ struct TextureData
     {
         return Width * Height * VKit::DeviceImage::GetBytesPerPixel(Format);
     }
+
+    void Manipulate(ImageOperation op);
 };
 
 enum ImageComponentType : u8
@@ -40,15 +51,15 @@ enum ImageComponentFormat : u8
 };
 
 #ifdef ONYX_ENABLE_IMAGE_LOAD
-using LoadTextureDataFlags = u8;
-enum LoadTextureDataFlagBit : LoadTextureDataFlags
+using LoadImageDataFlags = u8;
+enum LoadImageDataFlagBit : LoadImageDataFlags
 {
-    LoadTextureDataFlag_AsLinearImage = 1 << 0,
+    LoadImageDataFlag_AsLinearImage = 1 << 0,
 };
 
-ONYX_NO_DISCARD Result<TextureData> LoadTextureDataFromImageFile(
+ONYX_NO_DISCARD Result<ImageData> LoadImageDataFromFile(
     const char *path, const ImageComponentFormat requiredComponents = ImageComponent_Auto,
-    LoadTextureDataFlags flags = 0);
+    LoadImageDataFlags flags = 0);
 #endif
 
 } // namespace Onyx

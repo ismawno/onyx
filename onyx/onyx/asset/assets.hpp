@@ -31,7 +31,7 @@ template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateAssetPool(AssetTy
 ONYX_NO_DISCARD Result<AssetPool> CreateFontPool();
 
 Asset CreateSampler(const SamplerData &data);
-Asset CreateTexture(const TextureData &data, CreateTextureFlags flags = 0);
+Asset CreateTexture(const ImageData &data, CreateTextureFlags flags = 0);
 
 template <Dimension D> Asset CreateMesh(AssetPool pool, const StatMeshData<D> &data);
 template <Dimension D> Asset CreateMesh(AssetPool pool, const ParaMeshData<D> &data);
@@ -41,7 +41,7 @@ Asset CreateFont(AssetPool pool, const FontData &data);
 template <Dimension D> GltfHandles CreateGltfAssets(AssetPool meshPool, GltfData<D> &data);
 
 void UpdateSampler(Asset sampler, const SamplerData &data);
-void UpdateTexture(Asset texture, const TextureData &data, CreateTextureFlags flags = 0);
+void UpdateTexture(Asset texture, const ImageData &data, CreateTextureFlags flags = 0);
 
 template <Dimension D> void UpdateMesh(Asset mesh, const StatMeshData<D> &data);
 template <Dimension D> void UpdateMesh(Asset mesh, const ParaMeshData<D> &data);
@@ -67,7 +67,7 @@ template <Dimension D> TKit::Span<const u32> GetAssetPoolIds(AssetType atype);
 TKit::Span<const u32> GetFontPoolIds();
 
 const SamplerData &GetSamplerData(Asset sampler);
-const TextureData &GetTextureData(Asset texture);
+const ImageData &GetTextureData(Asset texture);
 const FontData &GetFontData(Asset font);
 
 Asset GetFontAtlas(Asset font);

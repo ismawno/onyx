@@ -123,7 +123,7 @@ struct SamplerAssetData
 struct TextureInfo
 {
     VKit::DeviceImage Image{};
-    TextureData Data{};
+    ImageData Data{};
     Asset Handle = NullHandle;
     StatusFlags Flags{};
 };
@@ -365,7 +365,7 @@ template <Dimension D> GltfHandles CreateGltfAssets(const AssetPool meshPool, Gl
     handles.StaticMeshes.Reserve(data.StaticMeshes.GetSize());
     handles.Materials.Reserve(data.Materials.GetSize());
     handles.Samplers.Reserve(data.Samplers.GetSize());
-    handles.Textures.Reserve(data.Textures.GetSize());
+    handles.Textures.Reserve(data.Images.GetSize());
 
     for (const StatMeshData<D> &smesh : data.StaticMeshes)
         handles.StaticMeshes.Append(CreateMesh(meshPool, smesh));
@@ -373,8 +373,8 @@ template <Dimension D> GltfHandles CreateGltfAssets(const AssetPool meshPool, Gl
     for (const SamplerData &sdata : data.Samplers)
         handles.Samplers.Append(CreateSampler(sdata));
 
-    for (const TextureData &tdata : data.Textures)
-        handles.Textures.Append(CreateTexture(tdata));
+    for (const ImageData &idata : data.Images)
+        handles.Textures.Append(CreateTexture(idata));
 
     for (MaterialData<D> &mdata : data.Materials)
     {
@@ -400,7 +400,7 @@ template <Dimension D> GltfHandles CreateGltfAssets(const AssetPool meshPool, Gl
     return handles;
 }
 
-Asset CreateTexture(const TextureData &data, const CreateTextureFlags flags)
+Asset CreateTexture(const ImageData &data, const CreateTextureFlags flags)
 {
     const u32 tid = s_TextureData->Textures.Insert();
     const Asset handle = CreateAssetHandle(Asset_Texture, tid);
@@ -415,7 +415,7 @@ Asset CreateTexture(const TextureData &data, const CreateTextureFlags flags)
     tinfo.Flags = sflags;
     return handle;
 }
-void UpdateTexture(const Asset handle, const TextureData &data, const CreateTextureFlags flags)
+void UpdateTexture(const Asset handle, const ImageData &data, const CreateTextureFlags flags)
 {
     CHECK_ASSET_HANDLE(handle, Asset_Texture);
 
@@ -842,7 +842,7 @@ const SamplerData &GetSamplerData(const Asset handle)
     const u32 sid = GetAssetId(handle);
     return s_SamplerData->Samplers[sid].Data;
 }
-const TextureData &GetTextureData(const Asset handle)
+const ImageData &GetTextureData(const Asset handle)
 {
     CHECK_ASSET_HANDLE(handle, Asset_Texture);
     const u32 tid = GetAssetId(handle);
@@ -1067,18 +1067,18 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
             if (tinfo.Flags & StatusFlag_Create)
             {
                 tinfo.Flags &= ~StatusFlag_Create;
-                const TextureData &tdata = tinfo.Data;
+                const ImageData &idata = tinfo.Data;
 
                 TKIT_LOG_DEBUG(
                     "[ONYX][ASSETS]    Creating new texture (handle={:#010x}) with dimensions {}x{} and {} channels, "
                     "with size {:L} bytes",
-                    tinfo.Handle, tdata.Width, tdata.Height, tdata.Components, tdata.ComputeSize());
+                    tinfo.Handle, idata.Width, idata.Height, idata.Components, idata.ComputeSize());
 
                 TKIT_ASSERT(!tinfo.Image,
                             "[ONYX][ASSETS] To create a texture, it is underlying image must not exist yet");
 
                 auto result = VKit::DeviceImage::Builder(GetDevice(), GetVulkanAllocator(),
-                                                         VkExtent2D{tdata.Width, tdata.Height}, tdata.Format,
+                                                         VkExtent2D{idata.Width, idata.Height}, idata.Format,
                                                          VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled |
                                                              VKit::DeviceImageFlag_Destination)
                                   .WithImageView()
@@ -1108,14 +1108,14 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
         if (tinfo.Flags & StatusFlag_Update)
         {
             tinfo.Flags &= ~StatusFlag_Update;
-            const TextureData &tdata = tinfo.Data;
+            const ImageData &idata = tinfo.Data;
             VKit::DeviceImage &img = tinfo.Image;
 
             const VkDeviceSize size = img.ComputeSize();
             TKIT_ASSERT(
-                size == tdata.ComputeSize(),
+                size == idata.ComputeSize(),
                 "[ONYX][ASSETS] Size mismatch. Device image reports {:L} bytes while texture data reports {:L} bytes",
-                size, tdata.ComputeSize());
+                size, idata.ComputeSize());
 
             TKIT_LOG_DEBUG("[ONYX][ASSETS]    Uploading texture of size {:L} bytes", size);
 
@@ -1131,7 +1131,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                         TKit::Format("onyx-assets-texture-upload-buffer-{:#010x}", tinfo.Handle).c_str()),
                     uploadBuffer.Destroy());
             }
-            uploadBuffer.Write(tdata.Data, {.srcOffset = 0, .dstOffset = 0, .size = size});
+            uploadBuffer.Write(idata.Data, {.srcOffset = 0, .dstOffset = 0, .size = size});
 
             TKIT_RETURN_IF_FAILED(uploadBuffer.Flush(), uploadBuffer.Destroy());
             const auto cmdres = pool.BeginSingleTimeCommands();
@@ -1146,8 +1146,8 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
             copy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2_KHR;
             copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             copy.imageSubresource.layerCount = 1;
-            copy.imageExtent.width = tdata.Width;
-            copy.imageExtent.height = tdata.Height;
+            copy.imageExtent.width = idata.Width;
+            copy.imageExtent.height = idata.Height;
             copy.imageExtent.depth = 1;
 
             img.CopyFromBuffer2(cmd, uploadBuffer, copy);

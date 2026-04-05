@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/core/math.hpp"
-#include "onyx/asset/texture.hpp"
+#include "onyx/asset/image.hpp"
 #include "onyx/asset/mesh.hpp"
 
 namespace Onyx
@@ -40,7 +40,7 @@ struct FontData
     TKit::TierArray<CodePointRange> CodePoints{};
     TKit::TierArray<GlyphData> Glyphs{};
     TKit::TierArray<GlyphKerning> Kerning{};
-    TextureData AtlasData{};
+    ImageData AtlasData{};
     f32 Ascender = 0.f;
     f32 Descender = 0.f;
     f32 LineHeight = 0.f;

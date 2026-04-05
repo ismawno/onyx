@@ -296,23 +296,23 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
     for (u32 i = 0; i < u32(model.images.size()); ++i)
     {
         const auto &image = model.images[i];
-        TextureData tex{};
-        tex.Width = u32(image.width);
-        tex.Height = u32(image.height);
-        tex.Components = u32(image.component);
-        tex.Format = Detail::GetFormat(image.component, getComponentType(image.pixel_type), srgbTexs.contains(i));
+        ImageData img{};
+        img.Width = u32(image.width);
+        img.Height = u32(image.height);
+        img.Components = u32(image.component);
+        img.Format = Detail::GetFormat(image.component, getComponentType(image.pixel_type), srgbTexs.contains(i));
 
-        const usz size = tex.ComputeSize();
-        tex.Data = scast<std::byte *>(TKit::Allocate(size));
+        const usz size = img.ComputeSize();
+        img.Data = scast<std::byte *>(TKit::Allocate(size));
         TKIT_ASSERT(size == image.image.size(),
-                    "[ONYX][GLTF] Texture size mismatch between gltf ({:L}) and computed size based "
+                    "[ONYX][GLTF] Image size mismatch between gltf ({:L}) and computed size based "
                     "on components and "
                     "format ({:L})",
                     image.image.size(), size);
-        TKIT_ASSERT(tex.Data, "[ONYX][GLTF] Failed to allocate texture data of size {:L} bytes", tex.ComputeSize());
+        TKIT_ASSERT(img.Data, "[ONYX][GLTF] Failed to allocate image data of size {:L} bytes", img.ComputeSize());
 
-        TKit::ForwardCopy(tex.Data, image.image.data(), size);
-        data.Textures.Append(tex);
+        TKit::ForwardCopy(img.Data, image.image.data(), size);
+        data.Images.Append(img);
     }
 
     return data;

@@ -5,7 +5,7 @@
 #include "onyx/property/instance.hpp"
 #include "onyx/platform/dialog.hpp"
 #include "onyx/asset/sampler.hpp"
-#include "onyx/asset/texture.hpp"
+#include "onyx/asset/image.hpp"
 #include "onyx/asset/font.hpp"
 #include "onyx/asset/mesh.hpp"
 
@@ -296,7 +296,7 @@ class SandboxAppLayer final : public ApplicationLayer
     template <Dimension D> MaterialId<D> &AddMaterial(const char *name = nullptr);
 
     SamplerId &AddSampler(const char *name = nullptr);
-    void AddTexture(const TextureData &data, const char *name = nullptr);
+    void AddTexture(const ImageData &data, const char *name = nullptr);
 
     void AddFontPool(const char *name = nullptr);
     void AddFont(FontPoolId &pool, const FontData &data, const char *name = nullptr);

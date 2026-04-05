@@ -463,7 +463,7 @@ SamplerId &SandboxAppLayer::AddSampler(const char *name)
     return sampler;
 }
 
-void SandboxAppLayer::AddTexture(const TextureData &data, const char *name)
+void SandboxAppLayer::AddTexture(const ImageData &data, const char *name)
 {
     TextureId &tex = Textures.Append();
     tex.Handle = Assets::CreateTexture(data);
@@ -1446,12 +1446,12 @@ void SandboxWinLayer::RenderTextures()
     {
         SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
         HandleLoadDialog(TexTask, [&](const Dialog::Path &path) {
-            const auto res = LoadTextureDataFromImageFile(path.string().c_str(), ImageComponent_RGBA);
+            const auto res = LoadImageDataFromFile(path.string().c_str(), ImageComponent_RGBA);
             VKIT_LOG_RESULT_ERROR(res);
             if (!res)
                 return;
 
-            const TextureData &data = res.GetValue();
+            const ImageData &data = res.GetValue();
             appLayer->AddTexture(data, path.filename().string().c_str());
             ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
         });

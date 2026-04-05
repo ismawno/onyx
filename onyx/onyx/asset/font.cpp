@@ -84,26 +84,26 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
     generator.generate(glyphs.data(), i32(glyphs.size()));
 
     const msdfgen::BitmapConstRef<u8, 4> bitmap = generator.atlasStorage();
-    TextureData tdata;
-    tdata.Width = u32(bitmap.width);
-    tdata.Height = u32(bitmap.height);
-    tdata.Format = VK_FORMAT_R8G8B8A8_UNORM;
+    ImageData idata;
+    idata.Width = u32(bitmap.width);
+    idata.Height = u32(bitmap.height);
+    idata.Format = VK_FORMAT_R8G8B8A8_UNORM;
 
     TKit::TierArray<u8> flipped{};
-    flipped.Reserve(tdata.Width * tdata.Height * 4);
+    flipped.Reserve(idata.Width * idata.Height * 4);
 
-    for (u32 i = 0; i < tdata.Height; ++i)
+    for (u32 i = 0; i < idata.Height; ++i)
     {
-        const u8 *src = bitmap(0, tdata.Height - i - 1);
-        u8 *dst = flipped.GetData() + i * tdata.Width * 4;
-        TKit::ForwardCopy(dst, src, tdata.Width * 4);
+        const u8 *src = bitmap(0, idata.Height - i - 1);
+        u8 *dst = flipped.GetData() + i * idata.Width * 4;
+        TKit::ForwardCopy(dst, src, idata.Width * 4);
     }
 
-    const usz size = tdata.Width * tdata.Height * 4;
-    tdata.Data = scast<std::byte *>(TKit::Allocate(size));
-    TKit::ForwardCopy(tdata.Data, flipped.GetData(), size);
+    const usz size = idata.Width * idata.Height * 4;
+    idata.Data = scast<std::byte *>(TKit::Allocate(size));
+    TKit::ForwardCopy(idata.Data, flipped.GetData(), size);
 
-    data.AtlasData = tdata;
+    data.AtlasData = idata;
 
     for (const msdf_atlas::GlyphGeometry &glyph : glyphs)
     {
@@ -117,15 +117,15 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
 
         f64 al, ab, ar, at;
         glyph.getQuadAtlasBounds(al, ab, ar, at);
-        const f32v2 texCoordMin{f32(al), tdata.Height - f32(ab)};
-        const f32v2 texCoordMax{f32(ar), tdata.Height - f32(at)};
+        const f32v2 texCoordMin{f32(al), idata.Height - f32(ab)};
+        const f32v2 texCoordMax{f32(ar), idata.Height - f32(at)};
 
         gdata.Bounds.Min = quadMin;
         gdata.Bounds.Max = quadMax;
         gdata.Bounds.Center = 0.5f * (quadMin + quadMax);
 
-        gdata.MinTexCoord = texCoordMin / tdata.Width;
-        gdata.MaxTexCoord = texCoordMax / tdata.Height;
+        gdata.MinTexCoord = texCoordMin / idata.Width;
+        gdata.MaxTexCoord = texCoordMax / idata.Height;
 
         data.Glyphs.Append(gdata);
     }
@@ -144,7 +144,7 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
     msdfgen::FontMetrics metrics;
     msdfgen::getFontMetrics(metrics, font);
 
-    data.AtlasData = tdata;
+    data.AtlasData = idata;
     data.Ascender = f32(metrics.ascenderY);
     data.Descender = f32(metrics.descenderY);
     data.LineHeight = f32(metrics.lineHeight);
