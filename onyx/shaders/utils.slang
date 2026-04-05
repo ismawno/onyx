@@ -223,7 +223,7 @@ f32m4 ComputeTransform2D(const Basis2D basis)
 
 f32 ComputeDepth(const u32 depthCounter)
 {
-    return 1.f - f32(depthCounter) / f32(u16(-1));
+    return max(0.f, 1.f - f32(depthCounter) / f32(1U << 24));
 }
 
 f32m4 ComputeTransform3D(const Basis3D basis)
