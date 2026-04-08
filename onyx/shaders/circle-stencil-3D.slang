@@ -1,4 +1,5 @@
-#include "utils.slang"
+#include "circle.slang"
+
 struct VertexOutput
 {
     [[vk::location(0)]]
@@ -25,16 +26,6 @@ struct PushConstants
 [[vk::push_constant]]
 PushConstants g_PushData;
 
-
-static const f32v2 g_Positions[6] =
-{
-    f32v2(-0.5, -0.5),
-    f32v2( 0.5,  0.5),
-    f32v2(-0.5,  0.5),
-    f32v2(-0.5, -0.5),
-    f32v2( 0.5, -0.5),
-    f32v2( 0.5,  0.5)
-};
 
 [shader("vertex")]
 VertexOutput mainVS(
@@ -66,7 +57,6 @@ VertexOutput mainVS(
     output.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
     output.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
     output.Arc.Hollowness = cdata.Arc.Hollowness;
-
     output.Fade = f32v2(cdata.Fade.InnerFade, cdata.Fade.OuterFade);
 
     output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);

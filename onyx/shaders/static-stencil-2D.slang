@@ -1,4 +1,5 @@
-#include "utils.slang"
+#include "static.slang"
+#include "common.slang"
 
 struct VertexInput
 {

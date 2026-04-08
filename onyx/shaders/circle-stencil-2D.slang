@@ -1,4 +1,4 @@
-#include "utils.slang"
+#include "circle.slang"
 
 struct VertexOutput
 {
@@ -25,16 +25,6 @@ struct PushConstants
 
 [[vk::push_constant]]
 PushConstants g_PushData;
-
-static const f32v2 g_Positions[6] =
-{
-    f32v2(-0.5, -0.5),
-    f32v2( 0.5,  0.5),
-    f32v2(-0.5,  0.5),
-    f32v2(-0.5, -0.5),
-    f32v2( 0.5, -0.5),
-    f32v2( 0.5,  0.5)
-};
 
 [shader("vertex")]
 VertexOutput mainVS(

@@ -1,4 +1,5 @@
-#include "utils.slang"
+#include "circle.slang"
+#include "material.slang"
 
 struct VertexOutput
 {
@@ -28,26 +29,6 @@ struct PushConstants
 
 [[vk::push_constant]]
 PushConstants g_PushData;
-
-static const f32v2 g_Positions[6] =
-{
-    f32v2(-0.5, -0.5),
-    f32v2( 0.5, -0.5),
-    f32v2(-0.5,  0.5),
-    f32v2( 0.5, -0.5),
-    f32v2( 0.5,  0.5),
-    f32v2(-0.5,  0.5),
-};
-
-static const f32v2 g_TexCoords[6] =
-{
-    f32v2(0.0, 1.0),
-    f32v2(1.0, 1.0),
-    f32v2(0.0, 0.0),
-    f32v2(1.0, 1.0),
-    f32v2(1.0, 0.0),
-    f32v2(0.0, 0.0)
-};
 
 [[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
 CircleInstances2D g_Instances;
@@ -114,5 +95,5 @@ f32v4 mainFS(const VertexOutput input)
     resources.Samplers = g_Samplers;
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
-    return ComputeColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, alpha);
+    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, alpha);
 }

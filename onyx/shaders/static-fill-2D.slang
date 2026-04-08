@@ -1,4 +1,5 @@
-#include "utils.slang"
+#include "static.slang"
+#include "material.slang"
 
 struct VertexInput
 {
@@ -83,5 +84,5 @@ f32v4 mainFS(const VertexOutput input)
     resources.Samplers = g_Samplers;
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
-    return ComputeColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f);
+    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f);
 }

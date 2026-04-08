@@ -1,4 +1,5 @@
-#include "utils.slang"
+#include "parametric.slang"
+#include "material.slang"
 
 struct VertexInput
 {
@@ -110,6 +111,6 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
     resources.DirLights = g_DirLights;
-    return ComputeColor3D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f, input.TBN, isFrontFacing);
+    return ComputeMaterialColor3D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f, input.TBN, isFrontFacing);
 }
 
