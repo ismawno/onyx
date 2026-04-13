@@ -31,6 +31,16 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
                 for (InstanceDataBuffer &buffer : pools)
                     buffer.Data.Destroy();
     }
+    TKit::TierAllocator *tier = TKit::GetTier();
+    for (PointLight<D> *pl : m_PointLights)
+        tier->Destroy(pl);
+}
+
+RenderContext<D3>::~RenderContext()
+{
+    TKit::TierAllocator *tier = TKit::GetTier();
+    for (DirectionalLight *dl : m_DirectionalLights)
+        tier->Destroy(dl);
 }
 
 template <Dimension D> void IRenderContext<D>::Flush()
@@ -115,34 +125,22 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
 #ifdef TKIT_ENABLE_ASSERTS
     checkMaterial<D>(state->Material);
 #endif
+    InstanceData<D> instanceData;
+    instanceData.Transform = CreateTransformData<D>(transform);
+    instanceData.MatHandle = state->Material;
+    instanceData.FillColor = state->FillColor.Pack();
+    instanceData.OutlineColor = state->OutlineColor.Pack();
+    instanceData.OutlineWidth = state->OutlineWidth;
     if constexpr (D == D2)
     {
-        InstanceData<D2> instanceData{};
-        instanceData.Column0 = f32v2{transform[0]};
-        instanceData.Column1 = f32v2{transform[1]};
-        instanceData.Column3 = f32v2{transform[2]};
         instanceData.Alignment = u32(state->Alignment[1]) << 8 | u32(state->Alignment[0]);
-        instanceData.MatHandle = state->Material;
-        instanceData.FillColor = state->FillColor.Pack();
-        instanceData.OutlineColor = state->OutlineColor.Pack();
-        instanceData.OutlineWidth = state->OutlineWidth;
         instanceData.DepthCounter = depthCounter;
-        return instanceData;
     }
     else
-    {
-        InstanceData<D3> instanceData{};
-        instanceData.Row0 = f32v4{transform[0][0], transform[1][0], transform[2][0], transform[3][0]};
-        instanceData.Row1 = f32v4{transform[0][1], transform[1][1], transform[2][1], transform[3][1]};
-        instanceData.Row2 = f32v4{transform[0][2], transform[1][2], transform[2][2], transform[3][2]};
         instanceData.Alignment =
             u32(state->Alignment[2]) << 16 | u32(state->Alignment[1]) << 8 | u32(state->Alignment[0]);
-        instanceData.MatHandle = state->Material;
-        instanceData.FillColor = state->FillColor.Pack();
-        instanceData.OutlineColor = state->OutlineColor.Pack();
-        instanceData.OutlineWidth = state->OutlineWidth;
-        return instanceData;
-    }
+
+    return instanceData;
 }
 
 template <Dimension D>
@@ -269,7 +267,7 @@ void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &dat
 
 template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleParameters &params)
 {
-    if (m_Current->Draw >= DrawMode_Count)
+    if (m_Current->Draw >= RenderMode_Count)
         return;
     const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, params, ++m_DepthCounter);
     InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Circles;
@@ -278,7 +276,7 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
 
 template <Dimension D> void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform)
 {
-    if (m_Current->Draw >= DrawMode_Count)
+    if (m_Current->Draw >= RenderMode_Count)
         return;
     CHECK_HANDLE(mesh, Asset_StaticMesh, D);
     const u32 pid = Assets::GetAssetPoolId(mesh);
@@ -292,7 +290,7 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Asset mesh, c
 template <Dimension D>
 void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &transform, const InstanceParameters &params)
 {
-    if (m_Current->Draw >= DrawMode_Count)
+    if (m_Current->Draw >= RenderMode_Count)
         return;
     CHECK_HANDLE(mesh, Asset_ParametricMesh, D);
     const u32 pid = Assets::GetAssetPoolId(mesh);
@@ -324,7 +322,7 @@ template <Dimension D>
 void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> &transform,
                                      const TextParameters &params)
 {
-    if (m_Current->Draw >= DrawMode_Count || text.empty())
+    if (m_Current->Draw >= RenderMode_Count || text.empty())
         return;
 
     CHECK_HANDLE(m_Current->Font, Asset_Font, D);
@@ -513,29 +511,29 @@ template <Dimension D> void IRenderContext<D>::Axes(const Asset mesh, const Axes
 
 template <Dimension D> void IRenderContext<D>::Fill(const bool enable)
 {
-    if (enable && m_Current->Draw == DrawMode_None)
-        m_Current->Draw = DrawMode_Fill;
-    else if (enable && m_Current->Draw == DrawMode_Stencil)
-        m_Current->Draw = DrawMode_FillStencil;
-    else if (!enable && m_Current->Draw == DrawMode_FillStencil)
-        m_Current->Draw = DrawMode_Stencil;
-    else if (!enable && m_Current->Draw == DrawMode_Fill)
-        m_Current->Draw = DrawMode_None;
+    if (enable && m_Current->Draw == RenderMode_None)
+        m_Current->Draw = RenderMode_Fill;
+    else if (enable && m_Current->Draw == RenderMode_Stencil)
+        m_Current->Draw = RenderMode_FillStencil;
+    else if (!enable && m_Current->Draw == RenderMode_FillStencil)
+        m_Current->Draw = RenderMode_Stencil;
+    else if (!enable && m_Current->Draw == RenderMode_Fill)
+        m_Current->Draw = RenderMode_None;
 }
 
 template <Dimension D> void IRenderContext<D>::Outline(const bool enable)
 {
-    if (enable && m_Current->Draw == DrawMode_None)
-        m_Current->Draw = DrawMode_Stencil;
-    else if (enable && m_Current->Draw == DrawMode_Fill)
-        m_Current->Draw = DrawMode_FillStencil;
-    else if (!enable && m_Current->Draw == DrawMode_FillStencil)
-        m_Current->Draw = DrawMode_Fill;
-    else if (!enable && m_Current->Draw == DrawMode_Stencil)
-        m_Current->Draw = DrawMode_None;
+    if (enable && m_Current->Draw == RenderMode_None)
+        m_Current->Draw = RenderMode_Stencil;
+    else if (enable && m_Current->Draw == RenderMode_Fill)
+        m_Current->Draw = RenderMode_FillStencil;
+    else if (!enable && m_Current->Draw == RenderMode_FillStencil)
+        m_Current->Draw = RenderMode_Fill;
+    else if (!enable && m_Current->Draw == RenderMode_Stencil)
+        m_Current->Draw = RenderMode_None;
 }
 
-template <Dimension D> void IRenderContext<D>::RemovePointLight(PointLight<D> *light)
+template <Dimension D> void IRenderContext<D>::DestroyPointLight(PointLight<D> *light)
 {
     for (u32 i = 0; i < m_PointLights.GetSize(); ++i)
         if (m_PointLights[i] == light)
@@ -548,7 +546,7 @@ template <Dimension D> void IRenderContext<D>::RemovePointLight(PointLight<D> *l
     TKIT_FATAL("[ONYX][CONTEXT] Point light '{}' not found", scast<void *>(light));
 }
 
-void RenderContext<D3>::RemoveDirectionalLight(DirectionalLight *light)
+void RenderContext<D3>::DestroyDirectionalLight(DirectionalLight *light)
 {
     for (u32 i = 0; i < m_DirectionalLights.GetSize(); ++i)
         if (m_DirectionalLights[i] == light)
@@ -561,7 +559,7 @@ void RenderContext<D3>::RemoveDirectionalLight(DirectionalLight *light)
     TKIT_FATAL("[ONYX][CONTEXT] Directional light '{}' not found", scast<void *>(light));
 }
 
-template <Dimension D> void IRenderContext<D>::RemoveAllPointLights()
+template <Dimension D> void IRenderContext<D>::DestroyAllPointLights()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     for (PointLight<D> *light : m_PointLights)
@@ -570,7 +568,7 @@ template <Dimension D> void IRenderContext<D>::RemoveAllPointLights()
     m_PointLights.Clear();
 }
 
-void RenderContext<D3>::RemoveAllDirectionalLights()
+void RenderContext<D3>::DestroyAllDirectionalLights()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     for (DirectionalLight *light : m_DirectionalLights)

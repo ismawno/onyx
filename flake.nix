@@ -37,6 +37,7 @@
           vulkan-tools
           vulkan-memory-allocator
           vulkan-validation-layers
+          renderdoc
 
           shader-slang
           glfw

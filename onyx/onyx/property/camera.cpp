@@ -115,6 +115,7 @@ template <Dimension D> f32v2 ICamera<D>::GetViewportMousePosition() const
     return ScreenToViewport(m_Window->GetScreenMousePosition());
 }
 
+// TODO(Isma): Allow view to be set with matrix
 template <Dimension D> void ICamera<D>::SetView(const Onyx::Transform<D> &view)
 {
     m_ProjectionView.View = view;
@@ -207,32 +208,6 @@ void Camera<D3>::SetProjection(const f32m4 &projection)
     m_ProjectionView.Projection = projection;
     updateProjectionView();
 }
-void Camera<D3>::SetPerspectiveProjection(const f32 fieldOfView, const f32 near, const f32 far)
-{
-    f32m4 projection{0.f};
-    const f32 invHalfPov = 1.f / Math::Tangent(0.5f * fieldOfView);
-
-    projection[0][0] = invHalfPov; // Aspect applied in view
-    projection[1][1] = invHalfPov;
-    projection[2][2] = far / (far - near);
-    projection[2][3] = 1.f;
-    projection[3][2] = far * near / (near - far);
-    SetProjection(projection);
-}
-
-void Camera<D3>::SetOrthographicProjection(const f32 left, const f32 right, const f32 bottom, const f32 top,
-                                           const f32 near, const f32 far)
-{
-    f32m4 projection{0.f};
-    projection[0][0] = 2.f / (right - left);
-    projection[1][1] = 2.f / (top - bottom);
-    projection[2][2] = 1.f / (far - near);
-    projection[3][0] = -(right + left) / (right - left);
-    projection[3][1] = -(top + bottom) / (top - bottom);
-    projection[3][2] = -near / (far - near);
-    projection[3][3] = 1.f;
-    SetProjection(projection);
-}
 
 template <Dimension D> void ICamera<D>::ControlMovementWithUserInput(const TKit::Timespan deltaTime)
 {
@@ -318,7 +293,7 @@ f32v3 Camera<D3>::GetViewLookDirection() const
 {
     return Math::Normalize(ScreenToWorld(f32v3{0.f, 0.f, 1.f}));
 }
-f32v3 Camera<D3>::GetMouseRayCastDirection() const
+f32v3 Camera<D3>::GetMouseLookDirection() const
 {
     return Math::Normalize(GetWorldMousePosition(0.25f) - GetWorldMousePosition(0.f));
 }

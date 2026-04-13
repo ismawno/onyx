@@ -4,7 +4,9 @@
 #include "onyx/execution/execution.hpp"
 #include "onyx/property/camera.hpp"
 #include "onyx/property/instance.hpp"
+#include "onyx/rendering/pass.hpp"
 #include "vkit/execution/queue.hpp"
+#include "tkit/container/static_array.hpp"
 
 namespace Onyx
 {
@@ -29,26 +31,46 @@ struct ViewInfo
 
 namespace Onyx::Renderer
 {
-ONYX_NO_DISCARD Result<> Initialize();
+template <Dimension D> struct ShadowSpecs;
+// TODO(Isma): these names should change...
+template <> struct ShadowSpecs<D2>
+{
+    VkFormat OcclusionFormat = VK_FORMAT_R8_UNORM;
+    VkFormat ShadowFormat = VK_FORMAT_R16_SFLOAT;
+    u32 OcclusionResolution = 256;
+    u32 ShadowResolution = 256;
+};
+template <> struct ShadowSpecs<D3>
+{
+    VkFormat ShadowFormat = VK_FORMAT_D32_SFLOAT;
+    TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 1024};
+};
+
+struct Specs
+{
+    ShadowSpecs<D2> Shadows2{};
+    ShadowSpecs<D3> Shadows3{};
+};
+
+ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
-VkPipelineRenderingCreateInfoKHR CreatePipelineRenderingCreateInfo();
+VkPipelineRenderingCreateInfoKHR CreateGeometryPipelineRenderingCreateInfo();
 
 template <Dimension D> ONYX_NO_DISCARD Result<RenderContext<D> *> CreateContext();
 template <Dimension D> void DestroyContext(RenderContext<D> *context);
 void FlushAllContexts();
 ONYX_NO_DISCARD Result<> ReloadPipelines();
 
-template <Dimension D> void UpdateViewMask(const RenderContext<D> *context);
+void AddTarget(const ViewMask vmask);
+void RemoveTarget(const ViewMask vmask);
 
 template <Dimension D>
-void WriteBuffer(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, DrawPass pass, u32 dstElement = 0);
+void WriteBuffer(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
 template <Dimension D>
-void WriteImage(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, DrawPass pass, u32 dstElement = 0);
+void WriteImage(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
 
-template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(DrawPass pass);
-
-void ClearViews(ViewMask viewMask);
+template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(RenderPass pass);
 
 // consider having arrays of semaphores to allow for some flexibility
 
@@ -68,7 +90,7 @@ struct RenderSubmitInfo
 {
     VkCommandBuffer Command = VK_NULL_HANDLE;
     u64 InFlightValue = 0;
-    TKit::FixedArray<VkSemaphoreSubmitInfoKHR, 2> SignalSemaphores{};
+    TKit::StaticArray<VkSemaphoreSubmitInfoKHR, 2> SignalSemaphores{};
     TKit::TierArray<VkSemaphoreSubmitInfoKHR> WaitSemaphores{};
 };
 
@@ -77,9 +99,13 @@ ONYX_NO_DISCARD Result<TransferSubmitInfo> Transfer(VKit::Queue *transfer, VkCom
 ONYX_NO_DISCARD Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool,
                                         TKit::Span<const TransferSubmitInfo> info);
 
+// must be immediately called before rendering all windows (not for all windows, but before rendering any window)
+void PrepareRender();
 void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
 
-ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *graphics, VkCommandBuffer command, const ViewInfo &vinfo);
+ONYX_NO_DISCARD Result<> RenderShadows(VKit::Queue *graphics, VkCommandBuffer command, ViewMask viewBit);
+ONYX_NO_DISCARD Result<RenderSubmitInfo> RenderGeometry(VKit::Queue *graphics, VkCommandBuffer command,
+                                                        const ViewInfo &vinfo);
 ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool,
                                       TKit::Span<const RenderSubmitInfo> info);
 

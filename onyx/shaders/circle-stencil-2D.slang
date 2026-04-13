@@ -39,7 +39,7 @@ VertexOutput mainVS(
     const CircleInstanceData2D cdata = g_Instances[instanceIndex];
     const InstanceData2D data = cdata.Data;
 
-    const f32m4 transform = ComputeTransform2D(data.Basis);
+    const f32m4 transform = ComputeTransform2D(data.Transform);
     const f32v2 alignment = ComputeCircleAlignment(data.Alignment);
 
     const f32v2 localPos = g_Positions[vertexIndex];

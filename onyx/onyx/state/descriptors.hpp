@@ -1,45 +1,48 @@
 #pragma once
 
 #include "onyx/core/core.hpp"
-#include "onyx/property/instance.hpp"
+#include "onyx/rendering/pass.hpp"
 #include "vkit/state/descriptor_pool.hpp"
 
 #define ONYX_MAX_SAMPLERS 8
 #define ONYX_MAX_TEXTURES 1024
+#define ONYX_MAX_TEXTURE_MAPS 16
 
 namespace Onyx::Descriptors
 {
 struct Specs
 {
-    u32 MaxSets = 256;
-    u32 StorageBufferPoolSize = 4096;
-    u32 SamplerPoolSize = 128;
-    u32 SampledImagePoolSize = 16384;
+    u32 MaxSets = 2 << 9;
+    u32 StorageBufferPoolSize = 2 << 13;
+    u32 SamplerPoolSize = 2 << 9;
+    u32 SampledImagePoolSize = 2 << 16;
+    u32 StorageImagePoolSize = 2 << 8;
 };
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
 
 const VKit::DescriptorPool &GetDescriptorPool();
-template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorSetLayout(DrawPass pass);
+template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(RenderPass pass);
+const VKit::DescriptorSetLayout &GetDistanceDescriptorLayout();
 
 template <Dimension D>
 void WriteBuffer(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorBufferInfo> info,
-                 DrawPass pass, u32 dstElement = 0);
+                 RenderPass pass, u32 dstElement = 0);
 
 template <Dimension D>
 void WriteImage(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorImageInfo> info,
-                DrawPass pass, u32 dstElement = 0);
+                RenderPass pass, u32 dstElement = 0);
 
 constexpr u32 GetInstancesBindingPoint()
 {
     return 0;
 }
-template <Dimension D> constexpr u32 GetBoundsBindingPoint(const DrawPass dpass)
+template <Dimension D> constexpr u32 GetBoundsBindingPoint(const RenderPass rpass)
 {
     if constexpr (D == D2)
         return 3;
     else
-        return dpass == DrawPass_Fill ? 3 : 4;
+        return rpass != RenderPass_Stencil ? 3 : 4;
 }
 constexpr u32 GetSamplersBindingPoint()
 {
@@ -59,7 +62,35 @@ constexpr u32 GetPointLightsBindingPoint()
 }
 constexpr u32 GetDirectionalLightsBindingPoint()
 {
+    return 9;
+}
+
+constexpr u32 GetShadowSamplerBindingPoint()
+{
     return 6;
+}
+
+constexpr u32 GetShadowMapsBindingPoint()
+{
+    return 7;
+}
+
+constexpr u32 GetPointMapsBindingPoint()
+{
+    return 7;
+}
+constexpr u32 GetDirectionalMapsBindingPoint()
+{
+    return 8;
+}
+
+constexpr u32 GetOcclusionMapBindingPoint()
+{
+    return 0;
+}
+constexpr u32 GetDistanceMapBindingPoint()
+{
+    return 1;
 }
 
 } // namespace Onyx::Descriptors

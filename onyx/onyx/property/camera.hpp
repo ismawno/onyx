@@ -11,7 +11,6 @@
 
 namespace Onyx
 {
-
 enum CoordinateSystem : u8
 {
     CoordinateSystem_YUp,
@@ -232,12 +231,19 @@ template <> class Camera<D3> final : public Detail::ICamera<D3>
 
     f32v3 GetWorldMousePosition(f32 depth = 0.5f) const;
     f32v3 GetViewLookDirection() const;
-    f32v3 GetMouseRayCastDirection() const;
+    f32v3 GetMouseLookDirection() const;
 
     void SetProjection(const f32m4 &projection);
-    void SetPerspectiveProjection(f32 fieldOfView = Math::Radians(75.f), f32 near = 0.1f, f32 far = 100.f);
-    void SetOrthographicProjection(f32 left = -0.5f, f32 right = 0.5f, f32 bottom = -0.5f, f32 top = 0.5f,
-                                   f32 near = -0.5f, f32 far = 0.5f);
+    void SetPerspectiveProjection(const f32 fieldOfView = Math::Radians(75.f), const f32 near = 0.1f,
+                                  const f32 far = 100.f)
+    {
+        SetProjection(Transform<D3>::Perspective(fieldOfView, near, far));
+    }
+    void SetOrthographicProjection(const f32 left = -0.5f, const f32 right = 0.5f, const f32 bottom = -0.5f,
+                                   const f32 top = 0.5f, const f32 near = -0.5f, const f32 far = 0.5f)
+    {
+        SetProjection(Transform<D3>::Orthographic(left, right, bottom, top, near, far));
+    }
     void SetOrthographicProjection(const f32 size)
     {
         const f32 sz = 0.5f * size;

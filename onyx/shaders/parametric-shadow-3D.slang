@@ -22,7 +22,6 @@ struct VertexOutput
 struct PushConstants
 {
     f32m4 ProjectionView;
-    f32 OutlineMultiplier;
 }
 
 [[vk::push_constant]]
@@ -31,7 +30,7 @@ PushConstants g_PushData;
 [[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
 ParametricInstances3D g_Instances;
 
-[[vk::binding(ONYX_BOUNDS3_STENCIL_BINDING, 0)]]
+[[vk::binding(ONYX_BOUNDS3_BINDING, 0)]]
 Bounds3D g_Bounds;
 
 [shader("vertex")]
@@ -51,12 +50,9 @@ VertexOutput mainVS(
     const f32m4 transform = ComputeTransform3D(data.Transform);
     const f32v3 alignment = ComputeAlignment3D(data.Alignment, pdata.BoundsHandle, g_Bounds);
 
-    const f32v3 scale = ComputeStencilScale3D(transform);
-    const f32v3 extruded = pos - alignment + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
-
     VertexOutput output;
 
-    output.Position = mul(mul(f32v4(extruded, 1.0), transform), g_PushData.ProjectionView);
+    output.Position = mul(mul(f32v4(pos - alignment, 1.0), transform), g_PushData.ProjectionView);
     output.LocalPosition = input.Position;
     output.ShapeInfo = u32v2(params.Shape, input.Region);
 
@@ -65,10 +61,8 @@ VertexOutput mainVS(
 }
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+void mainFS(const VertexOutput input)
 {
     if (!CheckParametricFragment3D(input.LocalPosition, input.ShapeInfo))
         discard;
-
-    return input.FragColor;
 }

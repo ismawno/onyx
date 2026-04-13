@@ -127,6 +127,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         rinfos.Reserve(10 * wlayerCount);
 
         Assets::Lock();
+        Renderer::PrepareRender();
         for (AcquiredWindow &acwin : acqWindows)
         {
             WindowLayer *wlayer = acwin.Layer;

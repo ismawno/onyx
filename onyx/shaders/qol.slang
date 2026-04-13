@@ -18,11 +18,17 @@ typedef float32_t2 f32v2;
 typedef float32_t3 f32v3;
 typedef float32_t4 f32v4;
 
+typedef uint32_t2 u32v2;
+typedef uint32_t3 u32v3;
+typedef uint32_t4 u32v4;
+
+typedef int32_t2 i32v2;
+typedef int32_t3 i32v3;
+typedef int32_t4 i32v4;
+
 typedef float32_t2x2 f32m2;
 typedef float32_t3x3 f32m3;
 typedef float32_t4x4 f32m4;
-
-typedef uint32_t2 u32v2;
 
 typedef u32 ViewMask;
 
@@ -44,7 +50,7 @@ typedef u32 ViewMask;
 #define ONYX_INSTANCES_BINDING 0
 
 #define ONYX_BOUNDS2_BINDING 3
-#define ONYX_BOUNDS3_FILL_BINDING 3
+#define ONYX_BOUNDS3_BINDING 3
 #define ONYX_BOUNDS3_STENCIL_BINDING 4
 
 #define ONYX_SAMPLERS_BINDING 1
@@ -54,8 +60,17 @@ typedef u32 ViewMask;
 #define ONYX_MATERIALS_BINDING 4
 
 #define ONYX_PLIGHTS_BINDING 5
+#define ONYX_DLIGHTS_BINDING 9
 
-#define ONYX_DLIGHTS_BINDING 6
+#define ONYX_SHADOW_SAMPLER_BINDING 6
+#define ONYX_SHADOW_MAPS_BINDING 7
+#define ONYX_POINT_MAPS_BINDING 7
+#define ONYX_DIRECTIONAL_MAPS_BINDING 8
+
+#define ONYX_OCCLUSION_MAP_BINDING 0
+#define ONYX_DISTANCE_MAP_BINDING 1
+
+#define ONYX_MAX_TEXTURE_MAPS 16
 
 static constexpr u32 NullAsset = ONYX_ASSET_ID_MASK;
 

@@ -1,5 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/property/instance.hpp"
+#include "onyx/rendering/pass.hpp"
 #include "onyx/asset/material.hpp"
 
 namespace Onyx
@@ -51,31 +52,33 @@ const char *ToString(const StencilPass pass)
     }
 }
 
-const char *ToString(const DrawPass pass)
+const char *ToString(const RenderPass pass)
 {
     switch (pass)
     {
-    case DrawPass_Fill:
-        return "DrawPass_Fill";
-    case DrawPass_Stencil:
-        return "DrawPass_Stencil";
+    case RenderPass_Fill:
+        return "RenderPass_Fill";
+    case RenderPass_Stencil:
+        return "RenderPass_Stencil";
+    case RenderPass_Shadow:
+        return "RenderPass_Shadow";
     default:
         return "Unknown";
     }
 }
 
-const char *ToString(const DrawMode mode)
+const char *ToString(const RenderMode mode)
 {
     switch (mode)
     {
-    case DrawMode_Fill:
-        return "DrawMode_Fill";
-    case DrawMode_Stencil:
-        return "DrawMode_Stencil";
-    case DrawMode_FillStencil:
-        return "DrawMode_FillStencil";
-    case DrawMode_None:
-        return "DrawMode_None";
+    case RenderMode_Fill:
+        return "RenderMode_Fill";
+    case RenderMode_Stencil:
+        return "RenderMode_Stencil";
+    case RenderMode_FillStencil:
+        return "RenderMode_FillStencil";
+    case RenderMode_None:
+        return "RenderMode_None";
     default:
         return "Unknown";
     }

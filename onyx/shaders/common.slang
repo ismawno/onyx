@@ -2,34 +2,34 @@
 
 #include "qol.slang"
 
-struct Basis2D
+struct Transform2D
 {
-    f32 Basis00, Basis01;
-    f32 Basis10, Basis11;
-    f32 Basis30, Basis31;
+    f32 Elm00, Elm01;
+    f32 Elm10, Elm11;
+    f32 Elm30, Elm31;
 }
 
-struct Basis3D
+struct Transform3D
 {
-    f32 Basis00, Basis10, Basis20, Basis30;
-    f32 Basis01, Basis11, Basis21, Basis31;
-    f32 Basis02, Basis12, Basis22, Basis32;
+    f32 Elm00, Elm10, Elm20, Elm30;
+    f32 Elm01, Elm11, Elm21, Elm31;
+    f32 Elm02, Elm12, Elm22, Elm32;
 }
 
 struct InstanceData2D
 {
-    Basis2D Basis;
+    Transform2D Transform;
     u32 FillColor;
     u32 OutlineColor;
-    u32 DepthCounter;
     u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
+    u32 DepthCounter;
 }
 
 struct InstanceData3D
 {
-    Basis3D Basis;
+    Transform3D Transform;
     u32 FillColor;
     u32 OutlineColor;
     u32 Alignment;
@@ -69,23 +69,23 @@ f32 ComputeDepth(const u32 depthCounter)
     return max(0.f, 1.f - f32(depthCounter) / f32(1U << 24));
 }
 
-f32m4 ComputeTransform2D(const Basis2D basis)
+f32m4 ComputeTransform2D(const Transform2D transform)
 {
     return f32m4(
-        f32v4(basis.Basis00, basis.Basis01, 0.f, 0.f),
-        f32v4(basis.Basis10, basis.Basis11, 0.f, 0.f),
+        f32v4(transform.Elm00, transform.Elm01, 0.f, 0.f),
+        f32v4(transform.Elm10, transform.Elm11, 0.f, 0.f),
         f32v4(0.f,           0.f,           0.f, 0.f),
-        f32v4(basis.Basis30, basis.Basis31, 0.f, 1.f)
+        f32v4(transform.Elm30, transform.Elm31, 0.f, 1.f)
     );
 }
 
-f32m4 ComputeTransform3D(const Basis3D basis)
+f32m4 ComputeTransform3D(const Transform3D transform)
 {
     return f32m4(
-        f32v4(basis.Basis00, basis.Basis01, basis.Basis02, 0.f),
-        f32v4(basis.Basis10, basis.Basis11, basis.Basis12, 0.f),
-        f32v4(basis.Basis20, basis.Basis21, basis.Basis22, 0.f),
-        f32v4(basis.Basis30, basis.Basis31, basis.Basis32, 1.f)
+        f32v4(transform.Elm00, transform.Elm01, transform.Elm02, 0.f),
+        f32v4(transform.Elm10, transform.Elm11, transform.Elm12, 0.f),
+        f32v4(transform.Elm20, transform.Elm21, transform.Elm22, 0.f),
+        f32v4(transform.Elm30, transform.Elm31, transform.Elm32, 1.f)
     );
 }
 f32v2 ComputeStencilScale2D(const f32m4 transform)

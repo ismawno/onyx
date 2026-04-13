@@ -48,7 +48,7 @@ VertexOutput mainVS(
     const CircleInstanceData3D cdata = g_Instances[instanceIndex];
     const InstanceData3D data = cdata.Data;
 
-    const f32m4 transform = ComputeTransform3D(data.Basis);
+    const f32m4 transform = ComputeTransform3D(data.Transform);
     const f32v2 alignment = ComputeCircleAlignment(data.Alignment);
 
     const f32v2 localPos = g_Positions[vertexIndex];
@@ -94,6 +94,15 @@ PointLights3D g_PointLights;
 [[vk::binding(ONYX_DLIGHTS_BINDING, 0)]]
 DirectionalLights g_DirLights;
 
+[[vk::binding(ONYX_SHADOW_SAMPLER_BINDING, 0)]]
+SamplerComparisonState g_ShadowSampler;
+
+[[vk::binding(ONYX_POINT_MAPS_BINDING, 0)]]
+TextureCube g_PointMaps[ONYX_MAX_TEXTURE_MAPS];
+
+[[vk::binding(ONYX_DIRECTIONAL_MAPS_BINDING, 0)]]
+Texture2D g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
+
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
 {
@@ -107,6 +116,9 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
     resources.DirLights = g_DirLights;
+    resources.ShadowSampler = g_ShadowSampler;
+    resources.PointMaps = g_PointMaps;
+    resources.DirectionalMaps = g_DirectionalMaps;
     return ComputeMaterialColor3D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
 }
 

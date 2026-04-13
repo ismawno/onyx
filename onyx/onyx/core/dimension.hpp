@@ -8,5 +8,6 @@ namespace Onyx
 {
 using TKit::D2;
 using TKit::D3;
+using TKit::D_Count;
 using TKit::Dimension;
 } // namespace Onyx

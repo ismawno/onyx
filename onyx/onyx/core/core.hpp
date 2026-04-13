@@ -67,10 +67,6 @@ inline void CheckExpression(const VkResult)
 }
 #endif
 
-namespace Platform
-{
-struct Specs;
-}
 namespace Execution
 {
 struct Specs;
@@ -89,6 +85,14 @@ namespace Shaders
 struct Specs;
 }
 #endif
+namespace Renderer
+{
+struct Specs;
+}
+namespace Platform
+{
+struct Specs;
+}
 
 using InitializationFlags = u16;
 enum InitializationFlagBit : InitializationFlags
@@ -120,6 +124,7 @@ struct Specs
 #ifdef ONYX_ENABLE_SHADER_API
     Shaders::Specs *ShadersSpecs = nullptr;
 #endif
+    Renderer::Specs *RendererSpecs = nullptr;
     Platform::Specs *PlatformSpecs = nullptr;
 #ifdef TKIT_ENABLE_ASSERTS
 #    ifdef TKIT_OS_APPLE
@@ -128,10 +133,14 @@ struct Specs
         InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
         InitializationFlag_EnableDeviceFaultExtension;
 #    else
+    // InitializationFlags Flags =
+    //     InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |
+    //     InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
+    //     InitializationFlag_EnableDeviceAssistedDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
     InitializationFlags Flags =
         InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |
         InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
-        InitializationFlag_EnableDeviceAssistedDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
+        InitializationFlag_EnablePrintfDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
 #    endif
 #else
     Flags Flags = 0;
@@ -157,7 +166,7 @@ const VKit::Vulkan::InstanceTable *GetInstanceTable();
 const VKit::LogicalDevice &GetDevice();
 const VKit::Vulkan::DeviceTable *GetDeviceTable();
 
-bool CanNameObjects();
+bool IsDebugUtilsEnabled();
 
 ONYX_NO_DISCARD Result<> DeviceWaitIdle();
 

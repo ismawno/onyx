@@ -8,16 +8,12 @@ struct VertexInput
 
 struct VertexOutput
 {
-    [[vk::location(0)]]
-    nointerpolation f32v4 FragColor;
-
     f32v4 Position : SV_Position;
 }
 
 struct PushConstants
 {
     f32m4 ProjectionView;
-    f32 OutlineMultiplier;
 }
 
 [[vk::push_constant]]
@@ -42,21 +38,15 @@ VertexOutput mainVS(
 
     const f32m4 transform = ComputeTransform2D(data.Transform);
     const f32v2 alignment = ComputeAlignment2D(data.Alignment, sdata.BoundsHandle, g_Bounds);
-    const f32v2 center = GetCenter2D(sdata.BoundsHandle, g_Bounds);
-
-    const f32v2 scale = ComputeStencilScale2D(transform);
-    const f32v2 extruded = input.Position - alignment + (normalize(input.Position - center) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     VertexOutput output;
-    output.Position = mul(mul(f32v4(extruded, 0.0, 1.0), transform), g_PushData.ProjectionView);
-    output.Position.z = ComputeDepth(data.DepthCounter);
-    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
+    output.Position = mul(mul(f32v4(input.Position - alignment, 0.0, 1.0), transform), g_PushData.ProjectionView);
 
     return output;
 }
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS()
 {
-    return input.FragColor;
+    return f32v4(1.f);
 }

@@ -5,29 +5,58 @@
 
 namespace Onyx
 {
-template <Dimension D> struct InstanceData;
-template <> struct InstanceData<D2>
+template <Dimension D> struct TransformData;
+
+template <> struct TransformData<D2>
 {
     f32v2 Column0;
     f32v2 Column1;
     f32v2 Column3;
-    u32 FillColor;
-    u32 OutlineColor;
-    u32 DepthCounter;
-    u32 Alignment;
-    u32 MatHandle;
-    f32 OutlineWidth;
 };
-template <> struct InstanceData<D3>
+
+template <> struct TransformData<D3>
 {
     f32v4 Row0;
     f32v4 Row1;
     f32v4 Row2;
+};
+
+template <Dimension D> TransformData<D> CreateTransformData(const f32m<D> &transform)
+{
+    TransformData<D> data;
+    if constexpr (D == D2)
+    {
+        data.Column0 = f32v2{transform[0]};
+        data.Column1 = f32v2{transform[1]};
+        data.Column3 = f32v2{transform[2]};
+    }
+    else
+    {
+        data.Row0 = f32v4{transform[0][0], transform[1][0], transform[2][0], transform[3][0]};
+        data.Row1 = f32v4{transform[0][1], transform[1][1], transform[2][1], transform[3][1]};
+        data.Row2 = f32v4{transform[0][2], transform[1][2], transform[2][2], transform[3][2]};
+    }
+    return data;
+}
+
+template <Dimension D> struct InstanceData
+{
+    TransformData<D> Transform;
     u32 FillColor;
     u32 OutlineColor;
     u32 Alignment;
     u32 MatHandle;
     f32 OutlineWidth;
+};
+template <> struct InstanceData<D2>
+{
+    TransformData<D2> Transform;
+    u32 FillColor;
+    u32 OutlineColor;
+    u32 Alignment;
+    u32 MatHandle;
+    f32 OutlineWidth;
+    u32 DepthCounter;
 };
 
 template <Dimension D> struct StaticInstanceData
@@ -146,20 +175,29 @@ enum LightType : u8
     Light_Count
 };
 
+struct Range
+{
+    u32 Offset = 0;
+    u32 Count = 0;
+};
+
 template <Dimension D> struct PointLightData
 {
     f32v<D> Position;
     f32 Intensity;
     f32 Radius;
     u32 Color;
+    u32 ShadowMapOffset;
     ViewMask ViewMask;
 };
 
 struct DirectionalLightData
 {
+    TransformData<D3> ProjectionView;
     f32v3 Direction;
     f32 Intensity;
     u32 Color;
+    u32 ShadowMapOffset;
     ViewMask ViewMask;
 };
 
@@ -183,80 +221,15 @@ template <Dimension D> u32 GetInstanceSize(const Geometry geo)
     }
 }
 
-/**
- * @brief The `StencilPass` enum represents a grouping of pipelines with slightly different settings that all renderers
- * use.
- *
- * To support nice outlines, especially in 3D, the stencil buffer can be used to re-render the same shape
- * slightly scaled only in places where the stencil buffer has not been set. Generally, only two passes would be
- * necessary, but in this implementation four are used.
- *
- * - `StencilPass_NoStencilWriteDoFill`: This pass will render the shape normally and corresponds to a shape being
- * rendered without an outline, thus not writing to the stencil buffer. This is important so that other shapes having
- * outlines can have theirs drawn on top of objects that do not have an outline. This way, an object's outline will
- * always be visible and on top of non-outlined shapes. The corresponding `DrawPass` is `DrawPass_Fill`.
- *
- * - `StencilPass_DoStencilWriteDoFill`: This pass will render the shape normally and write to the stencil buffer, which
- * corresponds to a shape being rendered both filled and with an outline. The corresponding `DrawPass` is
- * `DrawPass_Fill`.
- *
- * - `StencilPass_DoStencilWriteNoFill`: This pass will only write to the stencil buffer and will not render the shape.
- * This step is necessary in case the user wants to render an outline only, without the shape being filled. The
- * corresponding `DrawPass` is `DrawPass_Stencil`.
- *
- * - `StencilPass_DoStencilTestNoFill`: This pass will test the stencil buffer and render the shape only where the
- * stencil buffer is not set. The corresponding `DrawPass` is `DrawPass_Stencil`.
- *
- */
-enum StencilPass : u8
-{
-    StencilPass_NoStencilWriteDoFill,
-    StencilPass_DoStencilWriteDoFill,
-    StencilPass_DoStencilWriteNoFill,
-    StencilPass_DoStencilTestNoFill,
-    StencilPass_Count
-};
-enum DrawPass : u8
-{
-    DrawPass_Fill,
-    DrawPass_Stencil,
-    DrawPass_Count
-};
-
-enum DrawMode : u8
-{
-    DrawMode_Fill,
-    DrawMode_Stencil,
-    DrawMode_FillStencil,
-    DrawMode_Count,
-    DrawMode_None = DrawMode_Count,
-};
-
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
-const char *ToString(StencilPass pass);
-const char *ToString(DrawPass pass);
-const char *ToString(DrawMode mode);
-
-constexpr DrawPass GetDrawPass(const StencilPass pass)
-{
-    if (pass == StencilPass_NoStencilWriteDoFill || pass == StencilPass_DoStencilWriteDoFill)
-        return DrawPass_Fill;
-    return DrawPass_Stencil;
-}
-
-struct LightRange
-{
-    u32 LightOffset = 0;
-    u32 LightCount = 0;
-};
 
 template <Dimension D> struct FillPushConstantData;
 
 template <> struct FillPushConstantData<D2>
 {
     f32m4 ProjectionView;
-    TKit::FixedArray<LightRange, LightTypeCount<D2>> LightRanges{};
+    TKit::FixedArray<Range, LightTypeCount<D2>> LightRanges{};
     u32 AmbientColor;
     ViewMask ViewBit;
 };
@@ -265,7 +238,7 @@ template <> struct FillPushConstantData<D3>
 {
     f32m4 ProjectionView;
     f32v4 ViewPosition;
-    TKit::FixedArray<LightRange, LightTypeCount<D3>> LightRanges{};
+    TKit::FixedArray<Range, LightTypeCount<D3>> LightRanges{};
     u32 AmbientColor;
     ViewMask ViewBit;
 };
@@ -274,6 +247,25 @@ struct StencilPushConstantData
 {
     f32m4 ProjectionView;
     f32 OutlineMultiplier;
+};
+
+template <Dimension D> struct ShadowPushConstantData
+{
+    f32m4 LightProjection;
+};
+template <> struct ShadowPushConstantData<D3>
+{
+    f32m4 LightProjection;
+    f32v3 LightPos;
+    f32 Far;
+};
+
+struct DistancePushConstantData
+{
+    u32 OcclusionMapIndex;
+    u32 OcclusionResolution;
+    u32 ShadowMapIndex;
+    u32 ShadowResolution;
 };
 
 } // namespace Onyx

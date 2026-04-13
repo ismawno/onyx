@@ -191,7 +191,7 @@ template <Dimension D> static void updateMaterialDescriptorSet()
     MaterialAssetData<D> &materials = getData<D>().Materials;
 
     const VkDescriptorBufferInfo binfo = materials.Buffer.CreateDescriptorInfo();
-    Renderer::WriteBuffer<D>(Descriptors::GetMaterialsBindingPoint(), binfo, DrawPass_Fill);
+    Renderer::WriteBuffer<D>(Descriptors::GetMaterialsBindingPoint(), binfo, RenderPass_Fill);
 }
 
 template <Dimension D> static void updateBoundsDescriptorSet()
@@ -199,11 +199,13 @@ template <Dimension D> static void updateBoundsDescriptorSet()
     BoundsAssetData<D> &bounds = getData<D>().BoundingBoxes;
 
     const VkDescriptorBufferInfo binfo = bounds.Buffer.CreateDescriptorInfo();
-    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(DrawPass_Fill), binfo, DrawPass_Fill);
-    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(DrawPass_Stencil), binfo, DrawPass_Stencil);
+    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Fill), binfo, RenderPass_Fill);
+    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Stencil), binfo, RenderPass_Stencil);
+    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Shadow), binfo, RenderPass_Shadow);
 
     if constexpr (D == D2)
-        Renderer::WriteBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(DrawPass_Stencil), binfo, DrawPass_Stencil);
+        Renderer::WriteBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(RenderPass_Stencil), binfo,
+                                  RenderPass_Stencil);
 }
 
 template <typename T> ONYX_NO_DISCARD static Result<> initializeHiveAssets(const u32 capacity, HiveAssetData<T> &hive)
@@ -499,7 +501,7 @@ ONYX_NO_DISCARD static Result<AssetPool> createMeshPool(const AssetType atype, M
     mpool.IndexBuffer = ibuffer;
 
     const AssetPool pool = CreateAssetPoolHandle(atype, pid);
-    if (CanNameObjects())
+    if (IsDebugUtilsEnabled())
     {
         const std::string vb = TKit::Format("onyx-assets-vertex-buffer-{:#010x}", pool);
         const std::string ib = TKit::Format("onyx-assets-index-buffer-{:#010x}", pool);
@@ -1096,12 +1098,12 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                                                          VkExtent2D{idata.Width, idata.Height}, idata.Format,
                                                          VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled |
                                                              VKit::DeviceImageFlag_Destination)
-                                  .WithImageView()
+                                  .AddImageView()
                                   .Build();
                 TKIT_RETURN_ON_ERROR(result);
                 VKit::DeviceImage &img = result.GetValue();
                 tinfo.Image = img;
-                if (CanNameObjects())
+                if (IsDebugUtilsEnabled())
                 {
                     const std::string name = TKit::Format("onyx-assets-texture-image-{:#010x}", tinfo.Handle);
                     TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()), img.Destroy());
@@ -1109,10 +1111,10 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 const u32 tid = GetAssetId(tinfo.Handle);
 
                 const VkDescriptorImageInfo info = img.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                Renderer::WriteImage<D2>(Descriptors::GetTexturesBindingPoint(), info, DrawPass_Fill, tid);
-                Renderer::WriteImage<D2>(Descriptors::GetTexturesBindingPoint(), info, DrawPass_Stencil, tid);
-                Renderer::WriteImage<D3>(Descriptors::GetTexturesBindingPoint(), info, DrawPass_Fill, tid);
-                Renderer::WriteImage<D3>(Descriptors::GetTexturesBindingPoint(), info, DrawPass_Stencil, tid);
+                Renderer::WriteImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Fill, tid);
+                Renderer::WriteImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Stencil, tid);
+                Renderer::WriteImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Fill, tid);
+                Renderer::WriteImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Stencil, tid);
             }
     }
 
@@ -1139,7 +1141,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
             TKIT_RETURN_ON_ERROR(result);
 
             VKit::DeviceBuffer &uploadBuffer = result.GetValue();
-            if (CanNameObjects())
+            if (IsDebugUtilsEnabled())
             {
                 TKIT_RETURN_IF_FAILED(
                     uploadBuffer.SetName(
@@ -1250,7 +1252,7 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
             sinfo.Sampler = result.GetValue();
             TKIT_LOG_DEBUG("[ONYX][ASSETS]    Updating sampler with handle {:#010x}", sinfo.Handle);
 
-            if (CanNameObjects())
+            if (IsDebugUtilsEnabled())
             {
                 TKIT_RETURN_IF_FAILED(
                     sinfo.Sampler.SetName(TKit::Format("onyx-assets-sampler-{:#010x}", sinfo.Handle).c_str()),
@@ -1261,10 +1263,10 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
                 .sampler = sinfo.Sampler, .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
             const u32 sid = GetAssetId(sinfo.Handle);
-            Renderer::WriteImage<D2>(Descriptors::GetSamplersBindingPoint(), info, DrawPass_Fill, sid);
-            Renderer::WriteImage<D2>(Descriptors::GetSamplersBindingPoint(), info, DrawPass_Stencil, sid);
-            Renderer::WriteImage<D3>(Descriptors::GetSamplersBindingPoint(), info, DrawPass_Fill, sid);
-            Renderer::WriteImage<D3>(Descriptors::GetSamplersBindingPoint(), info, DrawPass_Stencil, sid);
+            Renderer::WriteImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Fill, sid);
+            Renderer::WriteImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Stencil, sid);
+            Renderer::WriteImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Fill, sid);
+            Renderer::WriteImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Stencil, sid);
         }
     return Result<>::Ok();
 }

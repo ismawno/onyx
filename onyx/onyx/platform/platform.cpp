@@ -134,7 +134,7 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     window->m_ViewBit = allocateViewBit();
     window->m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
     window->UpdateMonitorDeltaTime();
-    if (CanNameObjects())
+    if (IsDebugUtilsEnabled())
     {
         TKIT_RETURN_IF_FAILED(window->nameSurface());
         TKIT_RETURN_IF_FAILED(window->nameSwapChain());
@@ -163,6 +163,7 @@ static void removeWindow(const Window *window)
 
 void DestroyWindow(Window *window)
 {
+    Renderer::RemoveTarget(window->GetViewBit());
     removeWindow(window);
     deallocateViewBit(window->GetViewBit());
     TKit::TierAllocator *tier = TKit::GetTier();

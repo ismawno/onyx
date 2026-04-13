@@ -50,6 +50,7 @@ void WindowExample(const Asset mesh, const u32 nwidows = 1)
         TKit::StackArray<Renderer::RenderSubmitInfo> rinfos{};
         rinfos.Reserve(windows.GetSize());
         u64 acquireMask = 0;
+        Renderer::PrepareRender();
         for (Window *win : windows)
             if (ONYX_CHECK_EXPRESSION(win->AcquireNextImage(Block)))
             {
@@ -58,11 +59,16 @@ void WindowExample(const Asset mesh, const u32 nwidows = 1)
                 ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(gcmd));
                 Renderer::ApplyAcquireBarriers(gcmd);
 
+                const ViewInfo vinfo = win->CreateViewInfo();
+                ONYX_CHECK_EXPRESSION(Renderer::RenderShadows(gqueue, gcmd, vinfo.ViewBit));
+
                 win->BeginRendering(gcmd);
+
                 const Renderer::RenderSubmitInfo rinfo =
-                    ONYX_CHECK_EXPRESSION(Renderer::Render(gqueue, gcmd, win->CreateViewInfo()));
+                    ONYX_CHECK_EXPRESSION(Renderer::RenderGeometry(gqueue, gcmd, vinfo));
                 win->MarkSubmission(gqueue->GetTimelineSempahore(), rinfo.InFlightValue);
                 rinfos.Append(rinfo);
+
                 win->EndRendering(gcmd);
 
                 ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(gcmd));

@@ -1234,7 +1234,7 @@ ONYX_NO_DISCARD static Result<Renderer_ViewportData *> renderer_CreateViewportDa
         TKIT_RETURN_ON_ERROR(result, cleanup());
         buffers.IndexBuffer = result.GetValue();
 
-        if (CanNameObjects())
+        if (IsDebugUtilsEnabled())
         {
             const std::string vbuffer = TKit::Format("onyx-imgui-vbuffer-image-index-{}", i);
             const std::string ibuffer = TKit::Format("onyx-imgui-ibuffer-image-index-{}", i);
@@ -1313,7 +1313,7 @@ ONYX_NO_DISCARD static Result<VkDescriptorSet> renderer_AddTexture(const VKit::D
 
     VkDescriptorImageInfo info{};
     info.sampler = s_RendererData->Sampler;
-    info.imageView = image.GetImageView();
+    info.imageView = image.GetViews()[0];
     info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     writer.WriteImage(0, info);
 
@@ -1355,7 +1355,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
             VKit::DeviceImage::Builder(
                 device, allocator, VkExtent2D{u32(tex->Width), u32(tex->Height)}, VK_FORMAT_R8G8B8A8_UNORM,
                 VKit::DeviceImageFlag_Sampled | VKit::DeviceImageFlag_Destination | VKit::DeviceImageFlag_Color)
-                .WithImageView()
+                .AddImageView()
                 .Build();
 
         TKIT_RETURN_ON_ERROR(imgresult);
@@ -1370,7 +1370,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
 
         // Store identifiers
         tex->SetTexID(reinterpret_cast<ImTextureID>(bckTex->Set));
-        if (CanNameObjects())
+        if (IsDebugUtilsEnabled())
         {
             const std::string tname = TKit::Format("onyx-imgui-texture-id-{:#x}", tex->GetTexID());
             const std::string sname = TKit::Format("onyx-imgui-tex-descriptor-id-{:#x}", tex->GetTexID());
@@ -1404,7 +1404,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         TKIT_RETURN_ON_ERROR(result);
 
         VKit::DeviceBuffer &uploadBuffer = result.GetValue();
-        if (CanNameObjects())
+        if (IsDebugUtilsEnabled())
         {
             TKIT_RETURN_IF_FAILED(uploadBuffer.SetName("onyx-imgui-upload-buffer"), uploadBuffer.Destroy());
         }
@@ -1643,7 +1643,7 @@ ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects(const VkPipelineRen
         s_RendererData->Pipeline = result.GetValue();
     }
 
-    if (CanNameObjects())
+    if (IsDebugUtilsEnabled())
     {
         TKIT_RETURN_IF_FAILED(s_RendererData->Sampler.SetName("onyx-imgui-sampler"));
         TKIT_RETURN_IF_FAILED(s_RendererData->DescriptorSetLayout.SetName("onyx-imgui-descriptor-set-layout"));
@@ -1842,7 +1842,7 @@ Result<> Initialize()
     s_PlatformData.IsWayland = platform_IsWayland();
 #endif
     s_RendererData.Construct();
-    return renderer_CreateDeviceObjects(Renderer::CreatePipelineRenderingCreateInfo());
+    return renderer_CreateDeviceObjects(Renderer::CreateGeometryPipelineRenderingCreateInfo());
 }
 void Terminate()
 {

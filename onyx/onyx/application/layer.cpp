@@ -32,8 +32,11 @@ Result<Renderer::RenderSubmitInfo> WindowLayer::OnRender(const ExecutionInfo &in
 
 Result<Renderer::RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info)
 {
+    const ViewInfo vinfo = m_Window->CreateViewInfo();
+    TKIT_RETURN_IF_FAILED(Renderer::RenderShadows(info.Queue, info.CommandBuffer, vinfo.ViewBit));
+
     m_Window->BeginRendering(info.CommandBuffer);
-    const auto result = Renderer::Render(info.Queue, info.CommandBuffer, m_Window->CreateViewInfo());
+    const auto result = Renderer::RenderGeometry(info.Queue, info.CommandBuffer, vinfo);
 #ifdef ONYX_ENABLE_IMGUI
     if (checkFlags(WindowLayerFlag_ImGuiEnabled))
     {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "qol.slang"
+#include "common.slang"
 
 typedef StructuredBuffer<PointLight2D, Std430DataLayout> PointLights2D;
 typedef StructuredBuffer<PointLight3D, Std430DataLayout> PointLights3D;
@@ -70,6 +70,7 @@ struct PointLight2D
     f32 Intensity;
     f32 Radius;
     u32 Color;
+    u32 ShadowMapOffset;
     ViewMask ViewMask;
 }
 
@@ -81,6 +82,7 @@ struct PointLight3D
     f32 Intensity;
     f32 Radius;
     u32 Color;
+    u32 ShadowMapOffset;
     ViewMask ViewMask;
 }
 
@@ -92,11 +94,13 @@ struct AmbientLight
 
 struct DirectionalLight
 {
+    Transform3D ProjectionView;
     f32 DirX;
     f32 DirY;
     f32 DirZ;
     f32 Intensity;
     u32 Color;
+    u32 ShadowMapOffset;
     ViewMask ViewMask;
 }
 
@@ -119,6 +123,8 @@ struct ResourceTable2D
     SamplerState Samplers[ONYX_MAX_SAMPLERS];
     Texture2D Textures[ONYX_MAX_TEXTURES];
     PointLights2D PointLights;
+    SamplerState ShadowSampler;
+    Texture1D ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
 }
 
 struct ResourceTable3D
@@ -128,9 +134,14 @@ struct ResourceTable3D
     Texture2D Textures[ONYX_MAX_TEXTURES];
     PointLights3D PointLights;
     DirectionalLights DirLights;
+    SamplerComparisonState ShadowSampler;
+    TextureCube PointMaps[ONYX_MAX_TEXTURE_MAPS];
+    Texture2D DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
 }
 
-f32v3 GetLightColor2D(const LightData2D data, const f32v2 worldPosition, const PointLights2D plights)
+#define PI 3.14159265
+
+f32v3 GetLightColor2D(const LightData2D data, const f32v2 worldPosition, const PointLights2D plights, const ResourceTable2D resources)
 {
     f32v3 diffuseColor = f32v3(0.0);
     const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
@@ -142,11 +153,20 @@ f32v3 GetLightColor2D(const LightData2D data, const f32v2 worldPosition, const P
 
         const f32v2 direction = f32v2(plight.PosX, plight.PosY) - worldPosition;
         const f32 dist = dot(direction, direction);
+
+        const f32 fragDist = length(direction) / plight.Radius;
+        const f32 angle = atan2(direction.y, direction.x);
+        const f32 uv = (angle + PI) / (2.0 * PI);
+
+        const u32 shadowIndex = plight.ShadowMapOffset + countbits(plight.ViewMask & (data.ViewBit - 1));
+        const f32 storedDist = resources.ShadowMaps[shadowIndex].Sample(resources.ShadowSampler, uv).x;
+
         const f32v3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
         const f32 radius = plight.Radius * plight.Radius;
         const f32 attenuation = radius / (dist + radius);
         const f32 intensity = attenuation * plight.Intensity;
-        diffuseColor += intensity * lightColor;
+
+        diffuseColor += intensity * lightColor * f32(fragDist < storedDist);
     }
 
     return ambientColor.xyz * ambientColor.w + diffuseColor;
@@ -157,7 +177,7 @@ f32v4 ComputeMaterialColor2D(const f32v4 fragColor, const LightData2D light, con
     const u32 matId = GetAssetId(matHandle);
     if (matId != NullAsset)
     {
-        const f32v3 lcolor = GetLightColor2D(light, worldPos, resources.PointLights);
+        const f32v3 lcolor = GetLightColor2D(light, worldPos, resources.PointLights, resources);
 
         const Material2D mat = resources.Materials[matId];
         const u32 sampId = GetAssetId(mat.Sampler);
@@ -174,7 +194,7 @@ f32v4 ComputeMaterialColor2D(const f32v4 fragColor, const LightData2D light, con
 
 
 // this is ia generated. im not familiar with lighting techniques
-f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
+f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info, const ResourceTable3D resources)
 {
     const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
     const f32v3 V = normalize(data.ViewPosition.xyz - info.WorldPosition);
@@ -196,9 +216,19 @@ f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
-        const f32v3 L    = f32v3(dlight.DirX, dlight.DirY, dlight.DirZ);
+        const f32v3 L = f32v3(dlight.DirX, dlight.DirY, dlight.DirZ);
         const f32 NdotL = dot(info.Normal, L);
+
         if (NdotL <= 0.0) continue;
+
+        // TODO(Isma): Optimize this
+        // TODO(Isma): Check if the shadow map offset is valid
+        const u32 shadowIndex = dlight.ShadowMapOffset + countbits(dlight.ViewMask & (data.ViewBit - 1));
+        const f32m4 pv = ComputeTransform3D(dlight.ProjectionView);
+        const f32v4 lightSpacePos = mul(f32v4(info.WorldPosition, 1.0), pv);
+        const f32v3 projCoords = lightSpacePos.xyz / lightSpacePos.w;
+        const f32v2 shadowUV = projCoords.xy * 0.5 + 0.5;
+        const f32 shadow = resources.DirectionalMaps[shadowIndex].SampleCmp(resources.ShadowSampler, shadowUV, projCoords.z);
 
         const f32v3 H    = normalize(L + V);
         const f32 NdotV = max(dot(info.Normal, V), 1e-4);
@@ -216,7 +246,7 @@ f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
         const f32v3 diffuse    = diffuseBase / 3.14159265;
         const f32v3 lightColor = unpackUnorm4x8ToFloat(dlight.Color).xyz;
 
-        Lo += (diffuse * (1.0 - F) + specular) * lightColor * dlight.Intensity * NdotL;
+        Lo += (diffuse * (1.0 - F) + specular) * lightColor * dlight.Intensity * NdotL * shadow;
     }
 
     for (u32 i = 0; i < data.PointLightCount; ++i)
@@ -229,6 +259,14 @@ f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
         const f32v3 L    = normalize(dir);
         const f32 NdotL = dot(info.Normal, L);
         if (NdotL <= 0.0) continue;
+
+        // TODO(Isma): Optimize this
+        // TODO(Isma): Check if the shadow map offset is valid
+
+        const f32 currentDepth = min(1.f, length(dir) / plight.Radius);
+        const u32 shadowIndex = plight.ShadowMapOffset + countbits(plight.ViewMask & (data.ViewBit - 1));
+        f32 shadow = resources.PointMaps[shadowIndex].SampleCmp(resources.ShadowSampler, -dir, currentDepth);
+        // shadow = 1.f;
 
         const f32v3 H    = normalize(L + V);
         const f32 NdotV = max(dot(info.Normal, V), 1e-4);
@@ -249,7 +287,7 @@ f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info)
         const f32  atten      = radius / (dirLen + radius);
         const f32v3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
 
-        Lo += (diffuse * (1.0 - F) + specular) * lightColor * atten * plight.Intensity * NdotL;
+        Lo += (diffuse * (1.0 - F) + specular) * lightColor * atten * plight.Intensity * NdotL * shadow;
     }
 
     const f32v3 ambient = ambientColor.xyz * ambientColor.w * diffuseBase * info.Occlusion;
@@ -323,7 +361,7 @@ f32v4 ComputeMaterialColor3D(const f32v4 fragColor, const LightData3D light, con
         if (emissiveSamp != NullAsset && emissiveTex != NullAsset)
             info.Emissive *= resources.Textures[emissiveTex].Sample(resources.Samplers[emissiveSamp], uv).rgb;
 
-        const f32v3 lcolor = GetLightColor3D(light, info);
+        const f32v3 lcolor = GetLightColor3D(light, info, resources);
         return fragColor * f32v4(lcolor, info.Albedo.w * alpha);
     }
 

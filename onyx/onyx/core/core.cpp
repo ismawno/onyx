@@ -157,6 +157,9 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     VKit::DeviceFeatures features{};
     features.Core.drawIndirectFirstInstance = VK_TRUE;
     features.Core.multiDrawIndirect = VK_TRUE;
+    // TODO(Isma): Remove depth bias features!! and all depth bias related!
+    features.Core.depthClamp = VK_TRUE;
+    features.Core.depthBiasClamp = VK_TRUE;
     features.Vulkan11.shaderDrawParameters = VK_TRUE;
     features.Vulkan12.timelineSemaphore = VK_TRUE;
     features.Vulkan12.descriptorBindingPartiallyBound = VK_TRUE;
@@ -207,7 +210,7 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     *s_Device = devres.GetValue();
 
     SUBMIT_DELETION(*s_Device);
-    if (CanNameObjects())
+    if (IsDebugUtilsEnabled())
         return s_Device->SetName("onyx-device");
     return Result<>::Ok();
 }
@@ -418,7 +421,7 @@ const VKit::Vulkan::DeviceTable *GetDeviceTable()
     TKIT_ASSERT(*s_Device, "[ONYX][CORE] Vulkan device is not initialized! Forgot to call Onyx::Initialize?");
     return s_Device->GetInfo().Table;
 };
-bool CanNameObjects()
+bool IsDebugUtilsEnabled()
 {
     return s_Instance->IsExtensionEnabled("VK_EXT_debug_utils");
 }
@@ -580,6 +583,8 @@ Result<> Initialize(const Specs &specs)
 
     VKit::Specs vspecs{};
     vspecs.Allocators = s_Allocation[0];
+    vspecs.LoaderPath = "/nix/store/b1bldnpjpys7np3361plhp2wxcaw9iwr-vulkan-loader-1.4.328.0/lib/libvulkan.so";
+    // vspecs.LoaderPath = specs.VulkanLoaderPath;
 
     PUSH_DELETER(VKit::Terminate());
     TKIT_RETURN_IF_FAILED(VKit::Initialize(vspecs), Terminate());
@@ -626,7 +631,8 @@ Result<> Initialize(const Specs &specs)
     TKIT_RETURN_IF_FAILED(Pipelines::Initialize(), Terminate());
 
     PUSH_DELETER(Renderer::Terminate());
-    TKIT_RETURN_IF_FAILED(Renderer::Initialize(), Terminate());
+    TKIT_RETURN_IF_FAILED(Renderer::Initialize(specs.RendererSpecs ? *specs.RendererSpecs : Renderer::Specs{}),
+                          Terminate());
 
     PUSH_DELETER(Assets::Terminate());
     TKIT_RETURN_IF_FAILED(Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{}));

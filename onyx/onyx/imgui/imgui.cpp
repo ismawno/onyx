@@ -304,27 +304,20 @@ bool DirectionalLightEditor(DirectionalLight &light, const EditorFlags flags)
             "brightness of the light, and the color is the color of the light.");
     ImGui::PushID(&light);
 
-    f32 intensity = light.GetIntensity();
-    if (ImGui::SliderFloat("Intensity", &intensity, 0.f, 1.f))
-    {
-        light.SetIntensity(intensity);
-        changed = true;
-    }
-    f32v3 direction = light.GetDirection();
-    if (ImGui::SliderFloat3("Direction", Math::AsPointer(direction), 0.f, 1.f))
-    {
-        light.SetDirection(direction);
-        changed = true;
-    }
-
-    Color color = light.GetColor();
-    if (ImGui::ColorEdit3("Color", color.GetData()))
-    {
-        light.SetColor(color);
-        changed = true;
-    }
+    DirectionalLightSpecs specs = light.GetSpecs();
+    changed |= ImGui::DragFloat3("Position", Math::AsPointer(specs.Position), 0.f, 1.f);
+    changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(specs.Direction), 0.f, 1.f);
+    changed |= ImGui::SliderFloat("Range", &specs.Range, 0.f, 50.f);
+    changed |= ImGui::SliderFloat("Depth", &specs.Depth, 0.f, 50.f);
+    changed |= ImGui::SliderFloat("Intensity", &specs.Intensity, 0.f, 1.f);
+    changed |= ImGui::ColorEdit3("Color", specs.Tint.GetData());
+    changed |= ImGui::DragFloat("Bias constant", &specs.DepthBias.Constant, 0.01f, 0.f, 10.f);
+    changed |= ImGui::DragFloat("Bias slope", &specs.DepthBias.Slope, 0.01f, 0.f, 10.f);
+    changed |= ImGui::DragFloat("Bias clamp", &specs.DepthBias.Clamp, 0.01f, 0.f, 10.f);
     ImGui::PopID();
 
+    if (changed)
+        light.SetSpecs(specs);
     return changed;
 }
 
@@ -340,44 +333,22 @@ template <Dimension D> bool PointLightEditor(PointLight<D> &light, const EditorF
             "of the light.");
     ImGui::PushID(&light);
 
-    f32 intensity = light.GetIntensity();
-    if (ImGui::SliderFloat("Intensity", &intensity, 0.f, 1.f))
-    {
-        light.SetIntensity(intensity);
-        changed = true;
-    }
+    PointLightSpecs<D> specs = light.GetSpecs();
     if constexpr (D == D2)
-    {
-        f32v2 position = light.GetPosition();
-        if (ImGui::DragFloat2("Position", Math::AsPointer(position), 0.02f))
-        {
-            light.SetPosition(position);
-            changed = true;
-        }
-    }
+        changed |= ImGui::DragFloat2("Position", Math::AsPointer(specs.Position), 0.02f);
     else
     {
-        f32v3 position = light.GetPosition();
-        if (ImGui::DragFloat3("Position", Math::AsPointer(position), 0.02f))
-        {
-            light.SetPosition(position);
-            changed = true;
-        }
+        changed |= ImGui::DragFloat3("Position", Math::AsPointer(specs.Position), 0.02f);
+        changed |= ImGui::DragFloat("Bias constant", &specs.DepthBias.Constant, 0.01f, 0.f, 10.f);
+        changed |= ImGui::DragFloat("Bias slope", &specs.DepthBias.Slope, 0.01f, 0.f, 10.f);
+        changed |= ImGui::DragFloat("Bias clamp", &specs.DepthBias.Clamp, 0.01f, 0.f, 10.f);
     }
-    f32 radius = light.GetRadius();
-    if (ImGui::DragFloat("Radius", &radius, 0.01f, 0.f, TKIT_F32_MAX))
-    {
-        light.SetRadius(radius);
-        changed = true;
-    }
-
-    Color color = light.GetColor();
-    if (ImGui::ColorEdit3("Color", color.GetData()))
-    {
-        light.SetColor(color);
-        changed = true;
-    }
+    changed |= ImGui::DragFloat("Radius", &specs.Radius, 0.01f, 0.f, TKIT_F32_MAX);
+    changed |= ImGui::SliderFloat("Intensity", &specs.Intensity, 0.f, 1.f);
+    changed |= ImGui::ColorEdit3("Color", specs.Tint.GetData());
     ImGui::PopID();
+    if (changed)
+        light.SetSpecs(specs);
     return changed;
 }
 

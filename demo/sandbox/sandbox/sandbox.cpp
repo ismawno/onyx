@@ -214,8 +214,8 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
                 ctx.Context->Material(ctx.LightMaterial);
                 for (const PointLight<D> *pl : ctx.PointLights)
                 {
-                    ctx.Context->SetTranslation(pl->GetPosition());
-                    ctx.Context->FillColor(pl->GetColor());
+                    ctx.Context->SetTranslation(pl->GetSpecs().Position);
+                    ctx.Context->FillColor(pl->GetSpecs().Tint);
                     if constexpr (D == D2)
                         ctx.Context->Circle();
                     else if (!Assets::IsAssetNull(ctx.LightMesh))
@@ -425,7 +425,7 @@ template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
     if constexpr (D == D3)
     {
         data.Flags |= SandboxFlag_DrawAxes;
-        data.DirLights.Append(context->AddDirectionalLight());
+        data.DirLights.Append(context->CreateDirectionalLight());
         data.LightMesh = GetMeshes<D3>().DefaultLightMesh;
     }
     if (window)
@@ -1142,10 +1142,10 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
     {
         const LightType ltype = LightType(context.LightToSpawn);
         if (ltype == Light_Point)
-            context.PointLights.Append(context.Context->AddPointLight());
+            context.PointLights.Append(context.Context->CreatePointLight());
         if constexpr (D == D3)
             if (ltype == Light_Directional)
-                context.DirLights.Append(context.Context->AddDirectionalLight());
+                context.DirLights.Append(context.Context->CreateDirectionalLight());
     }
 
     EntriesOptions<PointLight<D> *> popts{};
@@ -1153,7 +1153,7 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
     popts.EntryName = "Point light";
     popts.Selected = &context.SelectedPointLight;
     popts.OnSelected = [](PointLight<D> *light) { PointLightEditor(*light, EditorFlag_DisplayHelp); };
-    popts.OnRemoval = [&context](PointLight<D> *light) { context.Context->RemovePointLight(light); };
+    popts.OnRemoval = [&context](PointLight<D> *light) { context.Context->DestroyPointLight(light); };
     renderEntries(context.PointLights, popts);
 
     if constexpr (D == D3)
@@ -1163,7 +1163,7 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
         dopts.EntryName = "Directional light";
         dopts.Selected = &context.SelectedDirLight;
         dopts.OnSelected = [](DirectionalLight *light) { DirectionalLightEditor(*light, EditorFlag_DisplayHelp); };
-        dopts.OnRemoval = [&context](DirectionalLight *light) { context.Context->RemoveDirectionalLight(light); };
+        dopts.OnRemoval = [&context](DirectionalLight *light) { context.Context->DestroyDirectionalLight(light); };
         renderEntries(context.DirLights, dopts);
     }
 }

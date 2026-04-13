@@ -47,7 +47,7 @@ VertexOutput mainVS(
     const StaticInstanceData2D sdata = g_Instances[instanceIndex];
     const InstanceData2D data = sdata.Data;
 
-    const f32m4 transform = ComputeTransform2D(data.Basis);
+    const f32m4 transform = ComputeTransform2D(data.Transform);
     const f32v2 alignment = ComputeAlignment2D(data.Alignment, sdata.BoundsHandle, g_Bounds);
     const f32v4 worldPos = mul(f32v4(input.Position - alignment, 0.0, 1.0), transform);
 
@@ -76,6 +76,12 @@ Materials2D g_Materials;
 [[vk::binding(ONYX_PLIGHTS_BINDING, 0)]]
 PointLights2D g_PointLights;
 
+[[vk::binding(ONYX_SHADOW_SAMPLER_BINDING, 0)]]
+SamplerState g_ShadowSampler;
+
+[[vk::binding(ONYX_SHADOW_MAPS_BINDING, 0)]]
+Texture1D g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
+
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input)
 {
@@ -84,5 +90,7 @@ f32v4 mainFS(const VertexOutput input)
     resources.Samplers = g_Samplers;
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
+    resources.ShadowSampler = g_ShadowSampler;
+    resources.ShadowMaps = g_ShadowMaps;
     return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f);
 }

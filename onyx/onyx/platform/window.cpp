@@ -231,7 +231,7 @@ Result<TKit::TierArray<Window::ImageData>> Window::createImageData(VKit::SwapCha
         const auto iresult =
             VKit::DeviceImage::Builder(GetDevice(), GetVulkanAllocator(), info.Extent, Window::DepthStencilFormat,
                                        VKit::DeviceImageFlag_DepthAttachment | VKit::DeviceImageFlag_StencilAttachment)
-                .WithImageView()
+                .AddImageView()
                 .Build();
 
         TKIT_RETURN_ON_ERROR(iresult);
@@ -250,7 +250,6 @@ void Window::destroyImageData(TKit::TierArray<Window::ImageData> &images)
 
 Window::~Window()
 {
-    Renderer::ClearViews(m_ViewBit);
     ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
 
     const auto table = GetDeviceTable();
@@ -451,7 +450,7 @@ Result<> Window::recreateSwapChain()
 
     m_MustRecreateSwapchain = false;
 
-    if (CanNameObjects())
+    if (IsDebugUtilsEnabled())
     {
         TKIT_RETURN_IF_FAILED(nameSwapChain());
         TKIT_RETURN_IF_FAILED(nameSyncData());
@@ -482,7 +481,7 @@ Result<> Window::recreateSurface()
     PushEvent(event);
 
     m_MustRecreateSwapchain = false;
-    if (CanNameObjects())
+    if (IsDebugUtilsEnabled())
     {
         TKIT_RETURN_IF_FAILED(nameSurface());
         TKIT_RETURN_IF_FAILED(nameSwapChain());
@@ -511,11 +510,10 @@ Result<> Window::recreateResources()
 void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &clearColor)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::BeginRendering");
-    const auto table = GetDeviceTable();
 
     VkRenderingAttachmentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    present.imageView = m_Images[m_ImageIndex].Presentation->GetImageView();
+    present.imageView = m_Images[m_ImageIndex].Presentation->GetViews()[0];
     present.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     present.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     present.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -529,7 +527,7 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
 
     VkRenderingAttachmentInfoKHR depth{};
     depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    depth.imageView = m_Images[m_ImageIndex].DepthStencil.GetImageView();
+    depth.imageView = m_Images[m_ImageIndex].DepthStencil.GetViews()[0];
     depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -565,6 +563,7 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
     scissor.offset = {0, 0};
     scissor.extent = extent;
 
+    const auto table = GetDeviceTable();
     table->CmdSetViewport(commandBuffer, 0, 1, &viewport);
     table->CmdSetScissor(commandBuffer, 0, 1, &scissor);
 

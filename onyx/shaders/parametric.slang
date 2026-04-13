@@ -58,6 +58,7 @@ struct ParametricInstanceData3D
     InstanceParameters Parameters;
 }
 
+// TODO(Isma): Take into account alignment!
 f32v2 GetParametricPosition2D(f32v2 pos, const InstanceParameters params, const ParametricRegionFlags region)
 {
     if (params.Shape == ParametricShape_Stadium)

@@ -1,29 +1,19 @@
 #include "glyph.slang"
-#include "material.slang"
 
 struct VertexInput
 {
     f32v2 Position : POSITION;
     f32v2 AtlasCoord : TEXCOORD0;
-    f32v2 TexCoord : TEXCOORD0;
 }
 
 struct VertexOutput
 {
     [[vk::location(0)]]
-    f32v2 WorldPosition;
-    [[vk::location(1)]]
     f32v2 AtlasCoord;
-    [[vk::location(2)]]
-    f32v2 TexCoord;
-    [[vk::location(3)]]
-    nointerpolation u32 MatHandle;
-    [[vk::location(4)]]
+    [[vk::location(1)]]
     nointerpolation u32 SamplerId;
-    [[vk::location(5)]]
+    [[vk::location(2)]]
     nointerpolation u32 AtlasId;
-    [[vk::location(6)]]
-    nointerpolation f32v4 FragColor;
 
     f32v4 Position : SV_Position;
 }
@@ -31,7 +21,6 @@ struct VertexOutput
 struct PushConstants
 {
     f32m4 ProjectionView;
-    LightData2D Light;
 }
 
 [[vk::push_constant]]
@@ -52,20 +41,13 @@ VertexOutput mainVS(
     const InstanceData2D data = gdata.Data;
 
     const f32m4 transform = ComputeTransform2D(data.Transform);
-    const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
 
     VertexOutput output;
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
-    output.Position.z = ComputeDepth(data.DepthCounter);
+    output.Position = mul(mul(f32v4(input.Position, 0.0, 1.0), transform), g_PushData.ProjectionView);
 
     output.AtlasCoord = input.AtlasCoord;
-    output.TexCoord = input.TexCoord;
     output.SamplerId = GetAssetId(gdata.SamplerHandle);
     output.AtlasId = GetAssetId(gdata.AtlasHandle);
-
-    output.WorldPosition = worldPos.xy;
-    output.MatHandle = data.MatHandle;
-    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
     return output;
 }
@@ -76,31 +58,11 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 [[vk::binding(ONYX_TEXTURES_BINDING, 0)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
-[[vk::binding(ONYX_MATERIALS_BINDING, 0)]]
-Materials2D g_Materials;
-
-[[vk::binding(ONYX_PLIGHTS_BINDING, 0)]]
-PointLights2D g_PointLights;
-
-[[vk::binding(ONYX_SHADOW_SAMPLER_BINDING, 0)]]
-SamplerState g_ShadowSampler;
-
-[[vk::binding(ONYX_SHADOW_MAPS_BINDING, 0)]]
-Texture1D g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
-
 [shader("fragment")]
 f32v4 mainFS(const VertexOutput input)
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
     if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
-    ResourceTable2D resources;
-    resources.Materials = g_Materials;
-    resources.Samplers = g_Samplers;
-    resources.Textures = g_Textures;
-    resources.PointLights = g_PointLights;
-    resources.ShadowSampler = g_ShadowSampler;
-    resources.ShadowMaps = g_ShadowMaps;
-
-    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, coverage);
+    return f32v4(1.f, 0.f, 0.f, 0.f);
 }

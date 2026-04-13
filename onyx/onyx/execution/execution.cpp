@@ -43,7 +43,7 @@ ONYX_NO_DISCARD static Result<> createTransientCommandPools()
     }
     else
         *s_Transfer = *s_Graphics;
-    if (CanNameObjects())
+    if (IsDebugUtilsEnabled())
     {
         TKIT_RETURN_IF_FAILED(s_Graphics->SetName("onyx-transient-graphics-command-pool"));
         if (gindex != tindex)
@@ -68,7 +68,7 @@ Result<CommandPool *> FindSuitableCommandPool(const u32 family)
     pool.Pool = result.GetValue();
     pool.Family = family;
     pool.NextCommand = 0;
-    if (CanNameObjects())
+    if (IsDebugUtilsEnabled())
     {
         const std::string name =
             TKit::Format("onyx-ring-command-pool-index-{}-family-{}", s_CommandPools->GetSize() - 1, family);
@@ -141,7 +141,7 @@ Result<> Initialize(const Specs &specs)
         VKIT_RETURN_IF_FAILED(table->CreateSemaphore(device, &info, nullptr, &semaphore), Result<>);
         q->TakeTimelineSemaphoreOwnership(semaphore);
         TKIT_RETURN_IF_FAILED(q->UpdateCompletedTimeline());
-        if (CanNameObjects())
+        if (IsDebugUtilsEnabled())
         {
             const std::string name =
                 TKit::Format("onyx-timeline-semaphore-queue-index-{}-family-{}", i, q->GetFamily());

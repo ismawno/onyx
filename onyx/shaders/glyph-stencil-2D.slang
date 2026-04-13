@@ -46,7 +46,7 @@ VertexOutput mainVS(
     const GlyphInstanceData2D gdata = g_Instances[instanceIndex];
     const InstanceData2D data = gdata.Data;
 
-    const f32m4 transform = ComputeTransform2D(data.Basis);
+    const f32m4 transform = ComputeTransform2D(data.Transform);
     const f32v2 center = GetCenter2D(gdata.BoundsHandle, g_Bounds);
 
     const f32v2 scale = ComputeStencilScale2D(transform);

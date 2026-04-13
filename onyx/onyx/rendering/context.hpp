@@ -25,7 +25,7 @@ template <Dimension D> struct RenderState
     Asset Font = NullHandle;
     Asset FontSampler = NullHandle;
     vec<Alignment, D> Alignment{Alignment_None};
-    DrawMode Draw = DrawMode_Fill;
+    RenderMode Draw = RenderMode_Fill;
 };
 
 } // namespace Onyx
@@ -294,7 +294,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         return m_AmbientLight;
     }
 
-    template <typename... LightArgs> PointLight<D> *AddPointLight(LightArgs &&...args)
+    template <typename... LightArgs> PointLight<D> *CreatePointLight(LightArgs &&...args)
     {
         TKit::TierAllocator *tier = TKit::GetTier();
         PointLight<D> *pl = tier->Create<PointLight<D>>(std::forward<LightArgs>(args)...);
@@ -303,8 +303,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         return pl;
     }
 
-    void RemovePointLight(PointLight<D> *light);
-    void RemoveAllPointLights();
+    void DestroyPointLight(PointLight<D> *light);
+    void DestroyAllPointLights();
 
     const TKit::TierArray<PointLight<D> *> &GetPointLights() const
     {
@@ -343,26 +343,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         return m_Generation > generation;
     }
 
-    void AddTarget(const ViewMask viewMask)
-    {
-        m_ViewMask |= viewMask;
-        Renderer::UpdateViewMask(scast<RenderContext<D> *>(this)); //:(
-    }
-    void RemoveTarget(const ViewMask viewMask)
-    {
-        m_ViewMask &= ~viewMask;
-        Renderer::UpdateViewMask(scast<RenderContext<D> *>(this));
-    }
-
-    void AddTarget(const Window *window)
-    {
-        AddTarget(window->GetViewBit());
-    }
-    void RemoveTarget(const Window *window)
-    {
-        RemoveTarget(window->GetViewBit());
-    }
-
     u32 GetDepthCounter() const
     {
         return m_DepthCounter;
@@ -375,6 +355,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
   protected:
     RenderState<D> *m_Current{};
     ViewMask m_ViewMask = 0;
+    TKit::TierArray<PointLight<D> *> m_PointLights{};
+    u64 m_Generation = 0;
 
   private:
     struct InstanceDataBuffer
@@ -412,11 +394,9 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 #endif
 
     TKit::TierArray<RenderState<D>> m_StateStack{};
-    TKit::FixedArray<InstanceDataArrays, DrawMode_Count> m_InstanceData{};
-    TKit::TierArray<PointLight<D> *> m_PointLights{};
+    TKit::FixedArray<InstanceDataArrays, RenderMode_Count> m_InstanceData{};
     Color m_AmbientLight = Color{Color::White, 0.4f};
     u32 m_DepthCounter = 0;
-    u64 m_Generation = 0;
 };
 } // namespace Onyx::Detail
 
@@ -436,6 +416,30 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D2> final : public
         else
             Onyx::Transform<D2>::RotateIntrinsic(m_Current->Transform, angle);
     }
+
+    void AddTarget(const ViewMask viewMask)
+    {
+        m_ViewMask |= viewMask;
+        for (PointLight<D2> *pl : m_PointLights)
+            pl->SetViewMask(m_ViewMask);
+        ++m_Generation;
+    }
+    void RemoveTarget(const ViewMask viewMask)
+    {
+        m_ViewMask &= ~viewMask;
+        for (PointLight<D2> *pl : m_PointLights)
+            pl->SetViewMask(m_ViewMask);
+        ++m_Generation;
+    }
+
+    void AddTarget(const Window *window)
+    {
+        AddTarget(window->GetViewBit());
+    }
+    void RemoveTarget(const Window *window)
+    {
+        RemoveTarget(window->GetViewBit());
+    }
 };
 
 template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public Detail::IRenderContext<D3>
@@ -443,6 +447,8 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
   public:
     using IRenderContext<D3>::IRenderContext;
     using IRenderContext<D3>::Transform;
+
+    ~RenderContext();
 
     void AlignZ(const Alignment alg)
     {
@@ -522,7 +528,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
             Onyx::Transform<D3>::RotateZIntrinsic(m_Current->Transform, angle);
     }
 
-    template <typename... LightArgs> DirectionalLight *AddDirectionalLight(LightArgs &&...args)
+    template <typename... LightArgs> DirectionalLight *CreateDirectionalLight(LightArgs &&...args)
     {
         TKit::TierAllocator *tier = TKit::GetTier();
         DirectionalLight *dl = tier->Create<DirectionalLight>(std::forward<LightArgs>(args)...);
@@ -531,12 +537,39 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
         return dl;
     }
 
-    void RemoveDirectionalLight(DirectionalLight *light);
-    void RemoveAllDirectionalLights();
+    void DestroyDirectionalLight(DirectionalLight *light);
+    void DestroyAllDirectionalLights();
 
     const TKit::TierArray<DirectionalLight *> &GetDirectionalLights() const
     {
         return m_DirectionalLights;
+    }
+    void AddTarget(const ViewMask viewMask)
+    {
+        m_ViewMask |= viewMask;
+        for (PointLight<D3> *pl : m_PointLights)
+            pl->SetViewMask(m_ViewMask);
+        for (DirectionalLight *dl : m_DirectionalLights)
+            dl->SetViewMask(m_ViewMask);
+        ++m_Generation;
+    }
+    void RemoveTarget(const ViewMask viewMask)
+    {
+        m_ViewMask &= ~viewMask;
+        for (PointLight<D3> *pl : m_PointLights)
+            pl->SetViewMask(m_ViewMask);
+        for (DirectionalLight *dl : m_DirectionalLights)
+            dl->SetViewMask(m_ViewMask);
+        ++m_Generation;
+    }
+
+    void AddTarget(const Window *window)
+    {
+        AddTarget(window->GetViewBit());
+    }
+    void RemoveTarget(const Window *window)
+    {
+        RemoveTarget(window->GetViewBit());
     }
 
   private:

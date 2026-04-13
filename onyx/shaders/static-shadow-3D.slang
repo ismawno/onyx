@@ -9,7 +9,7 @@ struct VertexInput
 struct VertexOutput
 {
     [[vk::location(0)]]
-    nointerpolation f32v4 FragColor;
+    f32v3 WorldPosition;
 
     f32v4 Position : SV_Position;
 }
@@ -17,7 +17,8 @@ struct VertexOutput
 struct PushConstants
 {
     f32m4 ProjectionView;
-    f32 OutlineMultiplier;
+    f32v3 LightPos;
+    f32 Far;
 }
 
 [[vk::push_constant]]
@@ -26,7 +27,7 @@ PushConstants g_PushData;
 [[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
 StaticInstances3D g_Instances;
 
-[[vk::binding(ONYX_BOUNDS3_STENCIL_BINDING, 0)]]
+[[vk::binding(ONYX_BOUNDS3_BINDING, 0)]]
 Bounds3D g_Bounds;
 
 [shader("vertex")]
@@ -42,21 +43,20 @@ VertexOutput mainVS(
 
     const f32m4 transform = ComputeTransform3D(data.Transform);
     const f32v3 alignment = ComputeAlignment3D(data.Alignment, sdata.BoundsHandle, g_Bounds);
-    const f32v3 center = GetCenter3D(sdata.BoundsHandle, g_Bounds);
-
-    const f32v3 scale = ComputeStencilScale3D(transform);
-    const f32v3 extruded = input.Position - alignment + (normalize(input.Position - center) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
     VertexOutput output;
 
-    output.Position = mul(mul(f32v4(extruded, 1.0), transform), g_PushData.ProjectionView);
-
-    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
+    const f32v4 worldPos = mul(f32v4(input.Position - alignment, 1.0), transform);
+    output.Position = mul(worldPos, g_PushData.ProjectionView);
+    output.WorldPosition = worldPos.xyz;
     return output;
 }
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32 mainFS(const VertexOutput input) : SV_Depth
 {
-    return input.FragColor;
+    if (g_PushData.Far > 0.f)
+        return distance(input.WorldPosition, g_PushData.LightPos) / g_PushData.Far;
+    return input.WorldPosition.z;
 }
+
