@@ -460,8 +460,6 @@ static VKit::GraphicsPipeline::Builder createShadowPipelineBuilder(const Geometr
         builder.AddDynamicState(VK_DYNAMIC_STATE_DEPTH_BIAS)
             .EnableDepthTest()
             .EnableDepthWrite()
-            .EnableDepthBias()
-            .EnableDepthClamp()
             .SetCullMode(VK_CULL_MODE_FRONT_BIT);
     }
     if constexpr (D == D2)

@@ -3,7 +3,6 @@
 #    include "onyx/imgui/imgui.hpp"
 #    include "onyx/property/color.hpp"
 #    include "onyx/property/transform.hpp"
-#    include "onyx/rendering/light.hpp"
 #    include "onyx/application/layer.hpp"
 #    include "onyx/platform/input.hpp"
 #    include "onyx/imgui/imgui.hpp"
@@ -293,7 +292,7 @@ void HelpMarkerSameLine(const char *description, const char *icon)
     HelpMarker(description, icon);
 }
 
-bool DirectionalLightEditor(DirectionalLight &light, const EditorFlags flags)
+bool DirectionalLightEditor(DirectionalLightParameters &light, const EditorFlags flags)
 {
     bool changed = false;
     if (flags & EditorFlag_DisplayHelp)
@@ -304,24 +303,18 @@ bool DirectionalLightEditor(DirectionalLight &light, const EditorFlags flags)
             "brightness of the light, and the color is the color of the light.");
     ImGui::PushID(&light);
 
-    DirectionalLightSpecs specs = light.GetSpecs();
-    changed |= ImGui::DragFloat3("Position", Math::AsPointer(specs.Position), 0.f, 1.f);
-    changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(specs.Direction), 0.f, 1.f);
-    changed |= ImGui::SliderFloat("Range", &specs.Range, 0.f, 50.f);
-    changed |= ImGui::SliderFloat("Depth", &specs.Depth, 0.f, 50.f);
-    changed |= ImGui::SliderFloat("Intensity", &specs.Intensity, 0.f, 1.f);
-    changed |= ImGui::ColorEdit3("Color", specs.Tint.GetData());
-    changed |= ImGui::DragFloat("Bias constant", &specs.DepthBias.Constant, 0.01f, 0.f, 10.f);
-    changed |= ImGui::DragFloat("Bias slope", &specs.DepthBias.Slope, 0.01f, 0.f, 10.f);
-    changed |= ImGui::DragFloat("Bias clamp", &specs.DepthBias.Clamp, 0.01f, 0.f, 10.f);
+    changed |= ImGui::DragFloat3("Position", Math::AsPointer(light.Position), 0.02f);
+    changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), 0.f, 1.f);
+    changed |= ImGui::SliderFloat("Range", &light.Range, 0.f, 500.f);
+    changed |= ImGui::SliderFloat("Depth", &light.Depth, 0.f, 500.f);
+    changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
+    changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
+    changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.0001f, 0.f, 1.f, "%.5f");
     ImGui::PopID();
-
-    if (changed)
-        light.SetSpecs(specs);
     return changed;
 }
 
-template <Dimension D> bool PointLightEditor(PointLight<D> &light, const EditorFlags flags)
+template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, const EditorFlags flags)
 {
     bool changed = false;
     if (flags & EditorFlag_DisplayHelp)
@@ -333,27 +326,22 @@ template <Dimension D> bool PointLightEditor(PointLight<D> &light, const EditorF
             "of the light.");
     ImGui::PushID(&light);
 
-    PointLightSpecs<D> specs = light.GetSpecs();
     if constexpr (D == D2)
-        changed |= ImGui::DragFloat2("Position", Math::AsPointer(specs.Position), 0.02f);
+        changed |= ImGui::DragFloat2("Position", Math::AsPointer(light.Position), 0.02f);
     else
     {
-        changed |= ImGui::DragFloat3("Position", Math::AsPointer(specs.Position), 0.02f);
-        changed |= ImGui::DragFloat("Bias constant", &specs.DepthBias.Constant, 0.01f, 0.f, 10.f);
-        changed |= ImGui::DragFloat("Bias slope", &specs.DepthBias.Slope, 0.01f, 0.f, 10.f);
-        changed |= ImGui::DragFloat("Bias clamp", &specs.DepthBias.Clamp, 0.01f, 0.f, 10.f);
+        changed |= ImGui::DragFloat3("Position", Math::AsPointer(light.Position), 0.02f);
+        changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.001f, 0.f, 1.f);
     }
-    changed |= ImGui::DragFloat("Radius", &specs.Radius, 0.01f, 0.f, TKIT_F32_MAX);
-    changed |= ImGui::SliderFloat("Intensity", &specs.Intensity, 0.f, 1.f);
-    changed |= ImGui::ColorEdit3("Color", specs.Tint.GetData());
+    changed |= ImGui::DragFloat("Radius", &light.Radius, 0.01f, 0.f, TKIT_F32_MAX);
+    changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
+    changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
     ImGui::PopID();
-    if (changed)
-        light.SetSpecs(specs);
     return changed;
 }
 
-template bool PointLightEditor<D2>(PointLight<D2> &light, EditorFlags flags);
-template bool PointLightEditor<D3>(PointLight<D3> &light, EditorFlags flags);
+template bool PointLightEditor<D2>(PointLightParameters<D2> &light, EditorFlags flags);
+template bool PointLightEditor<D3>(PointLightParameters<D3> &light, EditorFlags flags);
 
 static const char *presentModeToString(const VkPresentModeKHR mode)
 {

@@ -19,6 +19,7 @@ struct PushConstants
     f32m4 ProjectionView;
     f32v3 LightPos;
     f32 Far;
+    f32 DepthBias;
 }
 
 [[vk::push_constant]]
@@ -56,7 +57,8 @@ VertexOutput mainVS(
 f32 mainFS(const VertexOutput input) : SV_Depth
 {
     if (g_PushData.Far > 0.f)
-        return distance(input.WorldPosition, g_PushData.LightPos) / g_PushData.Far;
-    return input.WorldPosition.z;
+        return distance(input.WorldPosition, g_PushData.LightPos) / g_PushData.Far + g_PushData.DepthBias;
+
+    return input.Position.z + g_PushData.DepthBias;
 }
 

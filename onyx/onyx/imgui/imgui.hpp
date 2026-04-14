@@ -20,8 +20,8 @@ template <Dimension D> struct CameraControls;
 template <Dimension D> struct MaterialData;
 struct SamplerData;
 
-class DirectionalLight;
-template <Dimension D> class PointLight;
+struct DirectionalLightParameters;
+template <Dimension D> struct PointLightParameters;
 
 struct ScreenViewport;
 struct ScreenScissor;
@@ -53,9 +53,9 @@ bool SamplerEditor(SamplerData &data, EditorFlags flags = 0);
 
 bool DeltaTimeEditor(DeltaTime &dt, DeltaInfo &di, const Window *window = nullptr, EditorFlags flags = 0);
 
-bool DirectionalLightEditor(DirectionalLight &light, EditorFlags flags = 0);
+bool DirectionalLightEditor(DirectionalLightParameters &light, EditorFlags flags = 0);
 
-template <Dimension D> bool PointLightEditor(PointLight<D> &light, EditorFlags flags = 0);
+template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, EditorFlags flags = 0);
 
 bool PresentModeEditor(Window *window, EditorFlags flags = 0);
 

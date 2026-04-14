@@ -5,6 +5,7 @@
 
 namespace Onyx
 {
+// TODO(Isma): Maybe move stuff here somewhere else
 template <Dimension D> struct TransformData;
 
 template <> struct TransformData<D2>
@@ -258,6 +259,7 @@ template <> struct ShadowPushConstantData<D3>
     f32m4 LightProjection;
     f32v3 LightPos;
     f32 Far;
+    f32 DepthBias;
 };
 
 struct DistancePushConstantData

@@ -31,16 +31,6 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
                 for (InstanceDataBuffer &buffer : pools)
                     buffer.Data.Destroy();
     }
-    TKit::TierAllocator *tier = TKit::GetTier();
-    for (PointLight<D> *pl : m_PointLights)
-        tier->Destroy(pl);
-}
-
-RenderContext<D3>::~RenderContext()
-{
-    TKit::TierAllocator *tier = TKit::GetTier();
-    for (DirectionalLight *dl : m_DirectionalLights)
-        tier->Destroy(dl);
 }
 
 template <Dimension D> void IRenderContext<D>::Flush()
@@ -67,6 +57,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
     resizeBufferArrays();
     ++m_Generation;
     m_DepthCounter = 0;
+    m_PointLightData.Clear();
 }
 
 #define CHECK_HANDLE(handle, atype, dim)                                                                               \
@@ -432,6 +423,20 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Glyph *glyph, 
     addInstanceData(buffer, idata);
 }
 
+template <Dimension D>
+void IRenderContext<D>::addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params)
+{
+    PointLightParameters<D> &p = m_PointLightData.Append(params);
+    p.Position = f32v<D>{transform * f32v<D + 1>{p.Position, 1.f}};
+}
+
+void RenderContext<D3>::addDirectionalLightData(const f32m4 &transform, const DirectionalLightParameters &params)
+{
+    DirectionalLightParameters &p = m_DirectionalLightData.Append(params);
+    p.Position = f32v3{transform * f32v4{p.Position, 1.f}};
+    p.Direction = f32v3{transform * f32v4{p.Direction, 0.f}};
+}
+
 template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, const f32v<D> &end)
 {
     const f32v<D> delta = end - start;
@@ -531,50 +536,6 @@ template <Dimension D> void IRenderContext<D>::Outline(const bool enable)
         m_Current->Draw = RenderMode_Fill;
     else if (!enable && m_Current->Draw == RenderMode_Stencil)
         m_Current->Draw = RenderMode_None;
-}
-
-template <Dimension D> void IRenderContext<D>::DestroyPointLight(PointLight<D> *light)
-{
-    for (u32 i = 0; i < m_PointLights.GetSize(); ++i)
-        if (m_PointLights[i] == light)
-        {
-            TKit::TierAllocator *tier = TKit::GetTier();
-            tier->Destroy(light);
-            m_PointLights.RemoveUnordered(m_PointLights.begin() + i);
-            return;
-        }
-    TKIT_FATAL("[ONYX][CONTEXT] Point light '{}' not found", scast<void *>(light));
-}
-
-void RenderContext<D3>::DestroyDirectionalLight(DirectionalLight *light)
-{
-    for (u32 i = 0; i < m_DirectionalLights.GetSize(); ++i)
-        if (m_DirectionalLights[i] == light)
-        {
-            TKit::TierAllocator *tier = TKit::GetTier();
-            tier->Destroy(light);
-            m_DirectionalLights.RemoveUnordered(m_DirectionalLights.begin() + i);
-            return;
-        }
-    TKIT_FATAL("[ONYX][CONTEXT] Directional light '{}' not found", scast<void *>(light));
-}
-
-template <Dimension D> void IRenderContext<D>::DestroyAllPointLights()
-{
-    TKit::TierAllocator *tier = TKit::GetTier();
-    for (PointLight<D> *light : m_PointLights)
-        tier->Destroy(light);
-
-    m_PointLights.Clear();
-}
-
-void RenderContext<D3>::DestroyAllDirectionalLights()
-{
-    TKit::TierAllocator *tier = TKit::GetTier();
-    for (DirectionalLight *light : m_DirectionalLights)
-        tier->Destroy(light);
-
-    m_DirectionalLights.Clear();
 }
 
 template class Detail::IRenderContext<D2>;

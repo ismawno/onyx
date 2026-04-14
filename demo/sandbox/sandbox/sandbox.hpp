@@ -154,7 +154,7 @@ template <Dimension D> struct ContextData
 {
     RenderContext<D> *Context;
     TKit::TierArray<Shape<D>> Shapes;
-    TKit::TierArray<PointLight<D> *> PointLights{};
+    TKit::TierArray<PointLightParameters<D>> PointLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
     TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
     f32 AxesThickness = 0.01f;
@@ -175,8 +175,8 @@ template <> struct ContextData<D3>
 {
     RenderContext<D3> *Context;
     TKit::TierArray<Shape<D3>> Shapes;
-    TKit::TierArray<PointLight<D3> *> PointLights{};
-    TKit::TierArray<DirectionalLight *> DirLights{};
+    TKit::TierArray<PointLightParameters<D3>> PointLights{};
+    TKit::TierArray<DirectionalLightParameters> DirLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
     TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
     f32 AxesThickness = 0.01f;

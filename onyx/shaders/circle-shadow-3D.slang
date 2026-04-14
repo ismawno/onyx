@@ -5,6 +5,8 @@ struct VertexOutput
     [[vk::location(0)]]
     f32v2 LocalPosition;
     [[vk::location(1)]]
+    f32v3 WorldPosition;
+    [[vk::location(2)]]
     nointerpolation ArcData Arc;
 
     f32v4 Position : SV_Position;
@@ -16,6 +18,9 @@ CircleInstances3D g_Instances;
 struct PushConstants
 {
     f32m4 ProjectionView;
+    f32v3 LightPos;
+    f32 Far;
+    f32 DepthBias;
 }
 
 [[vk::push_constant]]
@@ -38,11 +43,13 @@ VertexOutput mainVS(
     const f32v2 alignment = ComputeCircleAlignment(data.Alignment);
 
     const f32v2 localPos = g_Positions[vertexIndex];
+    const f32v4 worldPos = mul(f32v4(localPos - alignment, 0.0, 1.0), transform);
 
     VertexOutput output;
-    output.Position = mul(mul(f32v4(localPos - alignment, 0.0, 1.0), transform), g_PushData.ProjectionView);
+    output.Position = mul(worldPos, g_PushData.ProjectionView);
 
     output.LocalPosition = localPos;
+    output.WorldPosition = worldPos.xyz;
 
     output.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
     output.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
@@ -52,8 +59,13 @@ VertexOutput mainVS(
 }
 
 [shader("fragment")]
-void mainFS(const VertexOutput input)
+f32 mainFS(const VertexOutput input) : SV_Depth
 {
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
     if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
+
+    if (g_PushData.Far > 0.f)
+        return distance(input.WorldPosition, g_PushData.LightPos) / g_PushData.Far + g_PushData.DepthBias;
+
+    return input.Position.z + g_PushData.DepthBias;
 }

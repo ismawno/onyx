@@ -11,8 +11,10 @@ struct VertexOutput
     [[vk::location(0)]]
     f32v2 AtlasCoord;
     [[vk::location(1)]]
-    nointerpolation u32 SamplerId;
+    f32v3 WorldPosition;
     [[vk::location(2)]]
+    nointerpolation u32 SamplerId;
+    [[vk::location(3)]]
     nointerpolation u32 AtlasId;
 
     f32v4 Position : SV_Position;
@@ -21,6 +23,9 @@ struct VertexOutput
 struct PushConstants
 {
     f32m4 ProjectionView;
+    f32v3 LightPos;
+    f32 Far;
+    f32 DepthBias;
 }
 
 [[vk::push_constant]]
@@ -44,8 +49,11 @@ VertexOutput mainVS(
 
     VertexOutput output;
 
-    output.Position = mul(mul(f32v4(input.Position, 0.0, 1.0), transform), g_PushData.ProjectionView);
+    const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
+    output.Position = mul(worldPos, g_PushData.ProjectionView);
+
     output.AtlasCoord = input.AtlasCoord;
+    output.WorldPosition = worldPos.xyz;
     output.SamplerId = GetAssetId(gdata.SamplerHandle);
     output.AtlasId = GetAssetId(gdata.AtlasHandle);
 
@@ -59,9 +67,14 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
 [shader("fragment")]
-void mainFS(const VertexOutput input)
+f32 mainFS(const VertexOutput input) : SV_Depth
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
     if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
+
+    if (g_PushData.Far > 0.f)
+        return distance(input.WorldPosition, g_PushData.LightPos) / g_PushData.Far + g_PushData.DepthBias;
+
+    return input.Position.z + g_PushData.DepthBias;
 }

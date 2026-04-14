@@ -83,6 +83,7 @@ f32v2 GetParametricPosition2D(f32v2 pos, const InstanceParameters params, const 
     return pos;
 }
 
+// TODO(Isma): Take into account alignment!
 f32v3 GetParametricPosition3D(f32v3 pos, const f32v3 normal, const InstanceParameters params, const ParametricRegionFlags region)
 {
     if (params.Shape == ParametricShape_Stadium)

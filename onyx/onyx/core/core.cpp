@@ -157,9 +157,6 @@ ONYX_NO_DISCARD static Result<> createDevice(const TKit::FixedArray<u32, VKit::Q
     VKit::DeviceFeatures features{};
     features.Core.drawIndirectFirstInstance = VK_TRUE;
     features.Core.multiDrawIndirect = VK_TRUE;
-    // TODO(Isma): Remove depth bias features!! and all depth bias related!
-    features.Core.depthClamp = VK_TRUE;
-    features.Core.depthBiasClamp = VK_TRUE;
     features.Vulkan11.shaderDrawParameters = VK_TRUE;
     features.Vulkan12.timelineSemaphore = VK_TRUE;
     features.Vulkan12.descriptorBindingPartiallyBound = VK_TRUE;
@@ -243,6 +240,7 @@ ONYX_NO_DISCARD static Result<> createInstance(InitializationFlags flags)
         .RequestExtension("VK_KHR_get_physical_device_properties2")
         .RequestExtension("VK_KHR_portability_enumeration");
 
+    // TODO(Isma): Add extension for debug printf
     const InitializationFlags debugFeatFlags =
         InitializationFlag_EnableDeviceAssistedDebugFeature | InitializationFlag_EnableBestPracticesDebugFeature |
         InitializationFlag_EnableSyncValidationDebugFeature | InitializationFlag_EnablePrintfDebugFeature;

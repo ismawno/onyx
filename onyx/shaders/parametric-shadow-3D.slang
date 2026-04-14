@@ -12,7 +12,7 @@ struct VertexOutput
     [[vk::location(0)]]
     f32v3 LocalPosition;
     [[vk::location(1)]]
-    nointerpolation f32v4 FragColor;
+    f32v3 WorldPosition;
     [[vk::location(2)]]
     nointerpolation u32v2 ShapeInfo;
 
@@ -22,6 +22,9 @@ struct VertexOutput
 struct PushConstants
 {
     f32m4 ProjectionView;
+    f32v3 LightPos;
+    f32 Far;
+    f32 DepthBias;
 }
 
 [[vk::push_constant]]
@@ -52,17 +55,24 @@ VertexOutput mainVS(
 
     VertexOutput output;
 
-    output.Position = mul(mul(f32v4(pos - alignment, 1.0), transform), g_PushData.ProjectionView);
+    const f32v4 worldPos = mul(f32v4(pos - alignment, 1.0), transform);
+
+    output.Position = mul(worldPos, g_PushData.ProjectionView);
+    output.WorldPosition = worldPos.xyz;
     output.LocalPosition = input.Position;
     output.ShapeInfo = u32v2(params.Shape, input.Region);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
     return output;
 }
 
 [shader("fragment")]
-void mainFS(const VertexOutput input)
+f32 mainFS(const VertexOutput input) : SV_Depth
 {
     if (!CheckParametricFragment3D(input.LocalPosition, input.ShapeInfo))
         discard;
+
+    if (g_PushData.Far > 0.f)
+        return distance(input.WorldPosition, g_PushData.LightPos) / g_PushData.Far + g_PushData.DepthBias;
+
+    return input.Position.z + g_PushData.DepthBias;
 }

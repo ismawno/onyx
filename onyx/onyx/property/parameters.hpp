@@ -43,6 +43,40 @@ struct AxesParameters
     f32 Size = 50.f;
 };
 
+template <Dimension D> struct PointLightData;
+struct DirectionalLightData;
+
+template <Dimension D> struct PointLightParameters
+{
+    using InstanceData = PointLightData<D>;
+    f32v<D> Position = f32v<D>{0.f};
+    f32 Radius = 1.f;
+    f32 Intensity = 0.8f;
+    Color Tint = Color::White;
+};
+
+template <> struct PointLightParameters<D3>
+{
+    using InstanceData = PointLightData<D3>;
+    f32v3 Position = f32v3{0.f};
+    Color Tint = Color::White;
+    f32 Radius = 1.f;
+    f32 Intensity = 0.8f;
+    f32 DepthBias = 0.01f;
+};
+
+struct DirectionalLightParameters
+{
+    using InstanceData = DirectionalLightData;
+    f32v3 Position = f32v3{5.f};
+    f32v3 Direction = f32v3{1.f};
+    Color Tint = Color::White;
+    f32 Range = 20.f;
+    f32 Depth = 200.f;
+    f32 Intensity = 0.8f;
+    f32 DepthBias = 0.01f;
+};
+
 struct TextParameters
 {
     TKIT_REFLECT_DECLARE(TextParameters)
