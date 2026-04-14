@@ -186,7 +186,8 @@ template <Dimension D> struct PointLightData
 {
     f32v<D> Position;
     f32 Intensity;
-    f32 Radius;
+    f32 LightRadius;
+    f32 ShadowRadius;
     u32 Color;
     u32 ShadowMapOffset;
     ViewMask ViewMask;
@@ -268,6 +269,7 @@ struct DistancePushConstantData
     u32 OcclusionResolution;
     u32 ShadowMapIndex;
     u32 ShadowResolution;
+    f32 DistanceBias;
 };
 
 } // namespace Onyx

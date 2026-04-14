@@ -1,7 +1,7 @@
 #include "circle.slang"
 #include "material.slang"
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 LocalPosition;
@@ -10,7 +10,7 @@ struct VertexOutput
     [[vk::location(2)]]
     f32v2 WorldPosition;
     [[vk::location(3)]]
-    nointerpolation u32 MatHandle;
+    nointerpolation u32 MatId;
     [[vk::location(4)]]
     nointerpolation ArcData Arc;
     [[vk::location(7)]]
@@ -34,7 +34,7 @@ PushConstants g_PushData;
 CircleInstances2D g_Instances;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const u32 vertexId : SV_VertexID,
     const u32 baseVertex : SV_StartVertexLocation,
     const u32 instanceId : SV_InstanceID,
@@ -52,23 +52,23 @@ VertexOutput mainVS(
     const f32v2 localPos = g_Positions[vertexIndex];
     const f32v4 worldPos = mul(f32v4(localPos - alignment, 0.0, 1.0), transform);
 
-    VertexOutput output;
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
-    output.Position.z = ComputeDepth(data.DepthCounter);
-    output.TexCoord = g_TexCoords[vertexIndex];
+    FragInput finput;
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
+    finput.Position.z = ComputeDepth(data.DepthCounter);
+    finput.TexCoord = g_TexCoords[vertexIndex];
 
-    output.LocalPosition = localPos;
-    output.WorldPosition = worldPos.xy;
-    output.MatHandle = data.MatHandle;
+    finput.LocalPosition = localPos;
+    finput.WorldPosition = worldPos.xy;
+    finput.MatId = GetAssetId(data.MatHandle);
 
-    output.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
-    output.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
-    output.Arc.Hollowness = cdata.Arc.Hollowness;
+    finput.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
+    finput.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
+    finput.Arc.Hollowness = cdata.Arc.Hollowness;
 
-    output.Fade = f32v2(cdata.Fade.InnerFade, cdata.Fade.OuterFade);
-    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
+    finput.Fade = f32v2(cdata.Fade.InnerFade, cdata.Fade.OuterFade);
+    finput.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
-    return output;
+    return finput;
 }
 
 [[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
@@ -90,7 +90,7 @@ SamplerState g_ShadowSampler;
 Texture1D g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS(const FragInput input)
 {
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
     if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
@@ -103,5 +103,5 @@ f32v4 mainFS(const VertexOutput input)
     resources.PointLights = g_PointLights;
     resources.ShadowSampler = g_ShadowSampler;
     resources.ShadowMaps = g_ShadowMaps;
-    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, alpha);
+    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha);
 }

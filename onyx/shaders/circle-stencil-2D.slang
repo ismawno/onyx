@@ -1,6 +1,6 @@
 #include "circle.slang"
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 LocalPosition;
@@ -27,7 +27,7 @@ struct PushConstants
 PushConstants g_PushData;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const u32 vertexId : SV_VertexID,
     const u32 baseVertex : SV_StartVertexLocation,
     const u32 instanceId : SV_InstanceID,
@@ -48,25 +48,25 @@ VertexOutput mainVS(
 
     const f32v4 pos = f32v4(extruded, 0.0, 1.0);
 
-    VertexOutput output;
-    output.Position = mul(mul(pos, transform), g_PushData.ProjectionView);
-    output.Position.z = ComputeDepth(data.DepthCounter);
+    FragInput finput;
+    finput.Position = mul(mul(pos, transform), g_PushData.ProjectionView);
+    finput.Position.z = ComputeDepth(data.DepthCounter);
 
-    output.LocalPosition = localPos;
+    finput.LocalPosition = localPos;
 
-    output.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
-    output.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
-    output.Arc.Hollowness = cdata.Arc.Hollowness;
+    finput.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
+    finput.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
+    finput.Arc.Hollowness = cdata.Arc.Hollowness;
 
-    output.Fade = f32v2(cdata.Fade.InnerFade, cdata.Fade.OuterFade);
+    finput.Fade = f32v2(cdata.Fade.InnerFade, cdata.Fade.OuterFade);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
+    finput.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
 
-    return output;
+    return finput;
 }
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS(const FragInput input)
 {
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
     if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;

@@ -1,14 +1,16 @@
 #include "static.slang"
-#include "common.slang"
+#include "material.slang"
 
 struct VertexInput
 {
     f32v2 Position : POSITION;
 }
 
-struct VertexOutput
+struct FragInput
 {
     f32v4 Position : SV_Position;
+    [[vk::location(0)]]
+    nointerpolation u32 MatId;
 }
 
 struct PushConstants
@@ -26,7 +28,7 @@ StaticInstances2D g_Instances;
 Bounds2D g_Bounds;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -39,14 +41,18 @@ VertexOutput mainVS(
     const f32m4 transform = ComputeTransform2D(data.Transform);
     const f32v2 alignment = ComputeAlignment2D(data.Alignment, sdata.BoundsHandle, g_Bounds);
 
-    VertexOutput output;
-    output.Position = mul(mul(f32v4(input.Position - alignment, 0.0, 1.0), transform), g_PushData.ProjectionView);
+    FragInput finput;
+    finput.Position = mul(mul(f32v4(input.Position - alignment, 0.0, 1.0), transform), g_PushData.ProjectionView);
+    finput.MatId = GetAssetId(data.MatHandle);
 
-    return output;
+    return finput;
 }
 
+[[vk::binding(ONYX_MATERIALS_BINDING, 0)]]
+Materials2D g_Materials;
+
 [shader("fragment")]
-f32v4 mainFS()
+f32v4 mainFS(const FragInput input)
 {
-    return f32v4(1.f);
+    return f32v4(input.MatId != NullAsset && g_Materials[input.MatId].Occluder == 1);
 }

@@ -7,7 +7,7 @@ struct VertexInput
     ParametricRegionFlags Region;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v3 LocalPosition;
@@ -35,7 +35,7 @@ ParametricInstances3D g_Instances;
 Bounds3D g_Bounds;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -46,26 +46,26 @@ VertexOutput mainVS(
     const InstanceData3D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
-    const f32v3 pos = GetParametricPosition3D(input.Position, input.Normal, params, input.Region);
+    const f32v3 alignment = ComputeAlignment3D(data.Alignment, pdata.BoundsHandle, g_Bounds);
+    const f32v3 pos = GetParametricPosition3D(input.Position, input.Normal, params, input.Region, alignment);
 
     const f32m4 transform = ComputeTransform3D(data.Transform);
-    const f32v3 alignment = ComputeAlignment3D(data.Alignment, pdata.BoundsHandle, g_Bounds);
 
     const f32v3 scale = ComputeStencilScale3D(transform);
-    const f32v3 extruded = pos - alignment + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
+    const f32v3 extruded = pos + (normalize(input.Position) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
-    VertexOutput output;
+    FragInput finput;
 
-    output.Position = mul(mul(f32v4(extruded, 1.0), transform), g_PushData.ProjectionView);
-    output.LocalPosition = input.Position;
-    output.ShapeInfo = u32v2(params.Shape, input.Region);
+    finput.Position = mul(mul(f32v4(extruded, 1.0), transform), g_PushData.ProjectionView);
+    finput.LocalPosition = input.Position;
+    finput.ShapeInfo = u32v2(params.Shape, input.Region);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
-    return output;
+    finput.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
+    return finput;
 }
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS(const FragInput input)
 {
     if (!CheckParametricFragment3D(input.LocalPosition, input.ShapeInfo))
         discard;

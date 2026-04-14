@@ -513,7 +513,7 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
 
     VkRenderingAttachmentInfoKHR present{};
     present.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    present.imageView = m_Images[m_ImageIndex].Presentation->GetViews()[0];
+    present.imageView = m_Images[m_ImageIndex].Presentation->GetView();
     present.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     present.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     present.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -527,7 +527,7 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
 
     VkRenderingAttachmentInfoKHR depth{};
     depth.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    depth.imageView = m_Images[m_ImageIndex].DepthStencil.GetViews()[0];
+    depth.imageView = m_Images[m_ImageIndex].DepthStencil.GetView();
     depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;

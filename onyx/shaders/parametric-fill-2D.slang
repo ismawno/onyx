@@ -8,7 +8,7 @@ struct VertexInput
     ParametricRegionFlags Region;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 WorldPosition;
@@ -17,7 +17,7 @@ struct VertexOutput
     [[vk::location(2)]]
     f32v2 TexCoord;
     [[vk::location(3)]]
-    nointerpolation u32 MatHandle;
+    nointerpolation u32 MatId;
     [[vk::location(4)]]
     nointerpolation f32v4 FragColor;
     [[vk::location(5)]]
@@ -42,7 +42,7 @@ ParametricInstances2D g_Instances;
 Bounds2D g_Bounds;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -53,25 +53,25 @@ VertexOutput mainVS(
     const InstanceData2D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
-    const f32v2 pos = GetParametricPosition2D(input.Position, params, input.Region);
+    const f32v2 alignment = ComputeAlignment2D(data.Alignment, pdata.BoundsHandle, g_Bounds);
+    const f32v2 pos = GetParametricPosition2D(input.Position, params, input.Region, alignment);
 
     const f32m4 transform = ComputeTransform2D(data.Transform);
-    const f32v2 alignment = ComputeAlignment2D(data.Alignment, pdata.BoundsHandle, g_Bounds);
-    const f32v4 worldPos = mul(f32v4(pos - alignment, 0.0, 1.0), transform);
+    const f32v4 worldPos = mul(f32v4(pos, 0.0, 1.0), transform);
 
-    VertexOutput output;
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
-    output.Position.z = ComputeDepth(data.DepthCounter);
+    FragInput finput;
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
+    finput.Position.z = ComputeDepth(data.DepthCounter);
 
-    output.TexCoord = input.TexCoord;
+    finput.TexCoord = input.TexCoord;
 
-    output.WorldPosition = worldPos.xy;
-    output.LocalPosition = input.Position;
-    output.ShapeInfo = u32v2(params.Shape, input.Region);
-    output.MatHandle = data.MatHandle;
-    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
+    finput.WorldPosition = worldPos.xy;
+    finput.LocalPosition = input.Position;
+    finput.ShapeInfo = u32v2(params.Shape, input.Region);
+    finput.MatId = data.MatHandle;
+    finput.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
-    return output;
+    return finput;
 }
 
 [[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
@@ -93,7 +93,7 @@ SamplerState g_ShadowSampler;
 Texture1D g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS(const FragInput input)
 {
     if (!CheckParametricFragment2D(input.LocalPosition, input.ShapeInfo))
         discard;
@@ -105,5 +105,5 @@ f32v4 mainFS(const VertexOutput input)
     resources.PointLights = g_PointLights;
     resources.ShadowSampler = g_ShadowSampler;
     resources.ShadowMaps = g_ShadowMaps;
-    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f);
+    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, 1.f);
 }

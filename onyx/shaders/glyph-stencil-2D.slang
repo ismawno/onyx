@@ -6,7 +6,7 @@ struct VertexInput
     f32v2 AtlasCoord : TEXCOORD0;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 AtlasCoord;
@@ -36,7 +36,7 @@ GlyphInstances2D g_Instances;
 Bounds2D g_Bounds;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -52,16 +52,16 @@ VertexOutput mainVS(
     const f32v2 scale = ComputeStencilScale2D(transform);
     const f32v2 extruded = input.Position + (normalize(input.Position - center) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
-    VertexOutput output;
-    output.Position = mul(mul(f32v4(extruded, 0.0, 1.0), transform), g_PushData.ProjectionView);
-    output.Position.z = ComputeDepth(data.DepthCounter);
+    FragInput finput;
+    finput.Position = mul(mul(f32v4(extruded, 0.0, 1.0), transform), g_PushData.ProjectionView);
+    finput.Position.z = ComputeDepth(data.DepthCounter);
 
-    output.AtlasCoord = input.AtlasCoord;
-    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
-    output.SamplerId = GetAssetId(gdata.SamplerHandle);
-    output.AtlasId = GetAssetId(gdata.AtlasHandle);
+    finput.AtlasCoord = input.AtlasCoord;
+    finput.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
+    finput.SamplerId = GetAssetId(gdata.SamplerHandle);
+    finput.AtlasId = GetAssetId(gdata.AtlasHandle);
 
-    return output;
+    return finput;
 }
 
 [[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
@@ -71,7 +71,7 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS(const FragInput input)
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
     if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers

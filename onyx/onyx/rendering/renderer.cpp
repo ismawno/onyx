@@ -225,10 +225,8 @@ template <> struct ShadowData<D3>
 template <Dimension D> struct ContextInfo
 {
     RenderContext<D> *Context = nullptr;
-    // TODO(Isma): Make sure these ranges are freed on destruction of context
     TKit::FixedArray<TKit::TierArray<ShadowMapId>, LightTypeCount<D>> ShadowMapRanges{};
     u64 Generation = 0;
-    // TODO(Isma): Maybe this can be removed once ctx range index goes away;
     u32 Index = 0; // unstable: dont use except for in transfer
 
     bool IsDirty() const
@@ -729,6 +727,12 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context)
             }
             grange.ViewMask = vmask;
         }
+
+    ContextInfo<D> &cinfo = rdata.Contexts[index];
+    ShadowData<D> &sdata = rdata.Shadows;
+    for (const TKit::TierArray<ShadowMapId> &ranges : cinfo.ShadowMapRanges)
+        for (const ShadowMapId id : ranges)
+            sdata.ShadowMapSlots.Remove(id);
 
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(context);
@@ -1235,7 +1239,6 @@ static AssetType getAssetType(const Geometry geo)
     }
 }
 
-// TODO(Isma): Name views
 ONYX_NO_DISCARD static Result<u32> findSuitableOcclusionMap()
 {
     ShadowData<D2> &sdata = s_RendererData2->Shadows;
@@ -1255,17 +1258,23 @@ ONYX_NO_DISCARD static Result<u32> findSuitableOcclusionMap()
     TKIT_RETURN_ON_ERROR(result);
     map.Image = result.GetValue();
     map.Resolution = sdata.OcclusionResolution;
+    if (IsDebugUtilsEnabled())
+    {
+        TKIT_RETURN_IF_FAILED(map.Image.SetName(TKit::Format("onyx-occlusion-map-{}", size).c_str()),
+                              map.Image.Destroy(), sdata.OcclusionMaps.Pop());
+        TKIT_RETURN_IF_FAILED(map.Image.SetViewNames(TKit::Format("onyx-occlusion-map-view-{}", size).c_str()),
+                              sdata.OcclusionMaps.Pop());
+    }
 
     VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetDistanceDescriptorLayout()};
     VkDescriptorImageInfo info{};
-    info.imageView = map.Image.GetViews()[0];
+    info.imageView = map.Image.GetView();
     info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     writer.WriteImage(Descriptors::GetOcclusionMapBindingPoint(), info, size);
+    writer.Overwrite(sdata.DistanceSet);
     return size;
 }
 
-// TODO(Isma): Name views
-// TODO(Isma): Make this return an u32
 template <Dimension D>
 ONYX_NO_DISCARD static Result<Range> findSuitableTextureMapRange(const LightType light, const VkFormat format,
                                                                  const u32 count, const u32 resolution,
@@ -1328,6 +1337,18 @@ ONYX_NO_DISCARD static Result<Range> findSuitableTextureMapRange(const LightType
         map.Image = result.GetValue();
         map.Resolution = resolution;
 
+        if (IsDebugUtilsEnabled())
+        {
+            TKIT_RETURN_IF_FAILED(
+                map.Image.SetName(
+                    TKit::Format("onyx-texture-map-{}D-'{}'-{}", u8(D), ToString(light), writeIndex).c_str()),
+                map.Image.Destroy(), maps.Pop());
+            TKIT_RETURN_IF_FAILED(
+                map.Image.SetViewNames(
+                    TKit::Format("onyx-texture-map-view-{}D-'{}'-{}", u8(D), ToString(light), writeIndex).c_str()),
+                map.Image.Destroy(), maps.Pop());
+        }
+
         VkDescriptorImageInfo info{};
         info.imageView = map.Image.GetViews().GetBack();
         info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1335,8 +1356,10 @@ ONYX_NO_DISCARD static Result<Range> findSuitableTextureMapRange(const LightType
         {
             WriteImage<D>(Descriptors::GetShadowMapsBindingPoint(), info, RenderPass_Fill, writeIndex);
             info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
             VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetDistanceDescriptorLayout()};
             writer.WriteImage(Descriptors::GetDistanceMapBindingPoint(), info, writeIndex);
+            writer.Overwrite(getRendererData<D2>().Shadows.DistanceSet);
         }
         else if (light == Light_Point)
             WriteImage<D>(Descriptors::GetPointMapsBindingPoint(), info, RenderPass_Fill, writeIndex);
@@ -1344,7 +1367,6 @@ ONYX_NO_DISCARD static Result<Range> findSuitableTextureMapRange(const LightType
             WriteImage<D>(Descriptors::GetDirectionalMapsBindingPoint(), info, RenderPass_Fill, writeIndex);
     }
     range.Count = count;
-
     return grabMaps();
 }
 
@@ -1364,7 +1386,8 @@ PointLightData<D> createLightData(const ViewMask vmask, const u32 shadowMapOffse
     PointLightData<D> data;
     data.Position = params.Position;
     data.Intensity = params.Intensity;
-    data.Radius = params.Radius;
+    data.LightRadius = params.LightRadius;
+    data.ShadowRadius = params.ShadowRadius;
     data.Color = params.Tint.Pack();
     data.ViewMask = vmask;
     data.ShadowMapOffset = shadowMapOffset;
@@ -1378,7 +1401,7 @@ DirectionalLightData createLightData(const ViewMask vmask, const u32 shadowMapOf
     const f32 d = params.Depth;
     DirectionalLightData data;
     data.ProjectionView = CreateTransformData<D3>(Transform<D3>::Orthographic(-r, r, -r, r, 0.f, d) *
-                                                  Transform<D3>::LookTowards(params.Position, -params.Direction));
+                                                  Transform<D3>::LookTowards(params.Position, params.Direction));
     data.Direction = params.Direction;
     data.Intensity = params.Intensity;
     data.Color = params.Tint.Pack();
@@ -1970,6 +1993,12 @@ ONYX_NO_DISCARD static Result<VKit::DeviceBuffer *> findSuitableDrawBuffer(TKit:
 
     DrawBuffer &db = buffers.Append();
     db.Buffer = result.GetValue();
+
+    if (IsDebugUtilsEnabled())
+    {
+        TKIT_RETURN_IF_FAILED(db.Buffer.SetName("onyx-draw-buffer"), db.Buffer.Destroy(), buffers.Pop());
+    }
+
     db.Tracker.MarkInUse(graphics, inFlightValue);
     return &db.Buffer;
 }
@@ -2342,7 +2371,7 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
                     if constexpr (std::is_same_v<LightParams, PointLightParameters<D3>>)
                     {
                         pdata.LightPos = data.Position;
-                        pdata.Far = data.Radius;
+                        pdata.Far = data.ShadowRadius;
                     }
                     else
                         pdata.Far = 0.f;
@@ -2369,7 +2398,7 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
                 beginShadowTransitionLayout<D>(cmd, ocmap);
                 if constexpr (std::is_same_v<LightData, PointLightData<D>>)
                 {
-                    const f32 r = data.Radius;
+                    const f32 r = data.ShadowRadius;
                     f32m4 pv = Transform<D3>::Orthographic(-r, r, -r, r, 0.f, 1.f);
                     pv[3][0] -= data.Position[0] * pv[0][0];
                     pv[3][1] -= data.Position[1] * pv[1][1];
@@ -2398,10 +2427,11 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
                 pdata.OcclusionResolution = sdata.OcclusionResolution;
                 pdata.ShadowMapIndex = shindex;
                 pdata.ShadowResolution = sdata.ShadowResolution;
+                pdata.DistanceBias = lights[i].DepthBias;
                 table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(DistancePushConstantData),
                                         &pdata);
 
-                const u32 groupSize = 64;
+                constexpr u32 groupSize = 64;
                 table->CmdDispatch(cmd, (pdata.ShadowResolution + groupSize - 1) / groupSize, 1, 1);
 
                 smap.Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -2416,7 +2446,7 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
                 // TODO(Isma): Try to pseudo optimize this by working out the views?
                 if constexpr (std::is_same_v<LightData, PointLightData<D>>)
                 {
-                    const f32m4 proj = Transform<D3>::Perspective(0.5f * Math::Pi<f32>(), 0.01f, data.Radius);
+                    const f32m4 proj = Transform<D3>::Perspective(0.5f * Math::Pi<f32>(), 0.01f, data.ShadowRadius);
                     const f32v3 &pos = data.Position;
                     constexpr f32v3 faceDir[6] = {
                         f32v3{1.f, 0.f, 0.f},  f32v3{-1.f, 0.f, 0.f}, f32v3{0.f, 1.f, 0.f},

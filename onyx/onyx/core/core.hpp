@@ -133,15 +133,10 @@ struct Specs
         InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
         InitializationFlag_EnableDeviceFaultExtension;
 #    else
-    // TODO(Isma): Revert this
-    //  InitializationFlags Flags =
-    //      InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |
-    //      InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
-    //      InitializationFlag_EnableDeviceAssistedDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
     InitializationFlags Flags =
         InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |
         InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
-        InitializationFlag_EnablePrintfDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
+        InitializationFlag_EnableDeviceAssistedDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
 #    endif
 #else
     Flags Flags = 0;

@@ -1,4 +1,5 @@
 #include "glyph.slang"
+#include "material.slang"
 
 struct VertexInput
 {
@@ -6,13 +7,15 @@ struct VertexInput
     f32v2 AtlasCoord : TEXCOORD0;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 AtlasCoord;
     [[vk::location(1)]]
-    nointerpolation u32 SamplerId;
+    nointerpolation u32 MatId;
     [[vk::location(2)]]
+    nointerpolation u32 SamplerId;
+    [[vk::location(3)]]
     nointerpolation u32 AtlasId;
 
     f32v4 Position : SV_Position;
@@ -30,7 +33,7 @@ PushConstants g_PushData;
 GlyphInstances2D g_Instances;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -42,14 +45,15 @@ VertexOutput mainVS(
 
     const f32m4 transform = ComputeTransform2D(data.Transform);
 
-    VertexOutput output;
-    output.Position = mul(mul(f32v4(input.Position, 0.0, 1.0), transform), g_PushData.ProjectionView);
+    FragInput finput;
+    finput.Position = mul(mul(f32v4(input.Position, 0.0, 1.0), transform), g_PushData.ProjectionView);
+    finput.MatId = GetAssetId(data.MatHandle);
 
-    output.AtlasCoord = input.AtlasCoord;
-    output.SamplerId = GetAssetId(gdata.SamplerHandle);
-    output.AtlasId = GetAssetId(gdata.AtlasHandle);
+    finput.AtlasCoord = input.AtlasCoord;
+    finput.SamplerId = GetAssetId(gdata.SamplerHandle);
+    finput.AtlasId = GetAssetId(gdata.AtlasHandle);
 
-    return output;
+    return finput;
 }
 
 [[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
@@ -58,11 +62,14 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 [[vk::binding(ONYX_TEXTURES_BINDING, 0)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
+[[vk::binding(ONYX_MATERIALS_BINDING, 0)]]
+Materials2D g_Materials;
+
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS(const FragInput input)
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
     if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
-    return f32v4(1.f, 0.f, 0.f, 0.f);
+    return f32v4(input.MatId != NullAsset && g_Materials[input.MatId].Occluder == 1);
 }

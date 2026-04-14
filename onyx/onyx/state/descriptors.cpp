@@ -103,8 +103,9 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
                        .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
                                     VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT) // samplers
                        .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURES,
-                                    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)                 // textures
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // bounds2
+                                    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)                   // textures
+                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)   // bounds2
+                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // materials
                        .Build();
 
     TKIT_RETURN_ON_ERROR(layoutResult);

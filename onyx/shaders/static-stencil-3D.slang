@@ -6,7 +6,7 @@ struct VertexInput
     f32v3 Position : POSITION;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     nointerpolation f32v4 FragColor;
@@ -30,7 +30,7 @@ StaticInstances3D g_Instances;
 Bounds3D g_Bounds;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -47,16 +47,16 @@ VertexOutput mainVS(
     const f32v3 scale = ComputeStencilScale3D(transform);
     const f32v3 extruded = input.Position - alignment + (normalize(input.Position - center) * data.OutlineWidth * g_PushData.OutlineMultiplier) / scale;
 
-    VertexOutput output;
+    FragInput finput;
 
-    output.Position = mul(mul(f32v4(extruded, 1.0), transform), g_PushData.ProjectionView);
+    finput.Position = mul(mul(f32v4(extruded, 1.0), transform), g_PushData.ProjectionView);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
-    return output;
+    finput.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
+    return finput;
 }
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS(const FragInput input)
 {
     return input.FragColor;
 }

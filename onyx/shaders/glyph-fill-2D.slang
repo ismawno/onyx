@@ -8,7 +8,7 @@ struct VertexInput
     f32v2 TexCoord : TEXCOORD0;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 WorldPosition;
@@ -17,7 +17,7 @@ struct VertexOutput
     [[vk::location(2)]]
     f32v2 TexCoord;
     [[vk::location(3)]]
-    nointerpolation u32 MatHandle;
+    nointerpolation u32 MatId;
     [[vk::location(4)]]
     nointerpolation u32 SamplerId;
     [[vk::location(5)]]
@@ -41,7 +41,7 @@ PushConstants g_PushData;
 GlyphInstances2D g_Instances;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -54,20 +54,20 @@ VertexOutput mainVS(
     const f32m4 transform = ComputeTransform2D(data.Transform);
     const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
 
-    VertexOutput output;
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
-    output.Position.z = ComputeDepth(data.DepthCounter);
+    FragInput finput;
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
+    finput.Position.z = ComputeDepth(data.DepthCounter);
 
-    output.AtlasCoord = input.AtlasCoord;
-    output.TexCoord = input.TexCoord;
-    output.SamplerId = GetAssetId(gdata.SamplerHandle);
-    output.AtlasId = GetAssetId(gdata.AtlasHandle);
+    finput.AtlasCoord = input.AtlasCoord;
+    finput.TexCoord = input.TexCoord;
+    finput.SamplerId = GetAssetId(gdata.SamplerHandle);
+    finput.AtlasId = GetAssetId(gdata.AtlasHandle);
 
-    output.WorldPosition = worldPos.xy;
-    output.MatHandle = data.MatHandle;
-    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
+    finput.WorldPosition = worldPos.xy;
+    finput.MatId = GetAssetId(data.MatHandle);
+    finput.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
-    return output;
+    return finput;
 }
 
 [[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
@@ -89,7 +89,7 @@ SamplerState g_ShadowSampler;
 Texture1D g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS(const FragInput input)
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
     if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
@@ -102,5 +102,5 @@ f32v4 mainFS(const VertexOutput input)
     resources.ShadowSampler = g_ShadowSampler;
     resources.ShadowMaps = g_ShadowMaps;
 
-    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, coverage);
+    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, coverage);
 }

@@ -11,6 +11,7 @@ template <> struct MaterialData<D2>
 {
     static constexpr Dimension Dim = D2;
     u32 ColorFactor = 0xFFFFFFFF;
+    u32 Occluder = 0;
     Asset Sampler = NullHandle;
     Asset Texture = NullHandle;
 };

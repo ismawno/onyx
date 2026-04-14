@@ -183,14 +183,12 @@ ONYX_NO_DISCARD static Result<> createShaders()
     TKit::StackArray<std::string> names{};
     names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * 2);
 
-    // TODO(Isma): Range based, remove fragment check
-    for (u32 i = 0; i < geos.GetSize(); ++i)
-        for (u32 j = 0; j < passes.GetSize(); ++j)
-            for (u32 k = 0; k < dims.GetSize(); ++k)
+    for (const std::string &geo : geos)
+        for (const std::string &pass : passes)
+            for (const std::string &dim : dims)
             {
-                const std::string &name = names.Append(geos[i] + "-" + passes[j] + "-" + dims[k]);
+                const std::string &name = names.Append(geo + "-" + pass + "-" + dim);
                 auto &module = compiler.AddModule(name.c_str()).DeclareEntryPoint("mainVS", ShaderStage_Vertex);
-                // if (k == Dim2 || j != RenderPass_Shadow || i != Geometry_Static)
                 module.DeclareEntryPoint("mainFS", ShaderStage_Fragment);
                 module.Load();
             }
@@ -201,28 +199,22 @@ ONYX_NO_DISCARD static Result<> createShaders()
     Shaders::Compilation &cmp = cmpres.GetValue();
 
     u32 idx = 0;
-    const auto createShader = [&](const Geometry geo, ShaderData &data, const bool hasFragment) -> Result<> {
+    const auto createShader = [&](const Geometry geo, ShaderData &data) -> Result<> {
         const std::string &name = names[idx++];
         auto result = cmp.CreateShader("mainVS", name.c_str());
         TKIT_RETURN_ON_ERROR(result);
         data.VertexShaders[geo] = result.GetValue();
 
-        if (hasFragment)
-        {
-            result = cmp.CreateShader("mainFS", name.c_str());
-            TKIT_RETURN_ON_ERROR(result);
-            data.FragmentShaders[geo] = result.GetValue();
-        }
+        result = cmp.CreateShader("mainFS", name.c_str());
+        TKIT_RETURN_ON_ERROR(result);
+        data.FragmentShaders[geo] = result.GetValue();
 
         if (IsDebugUtilsEnabled())
         {
             const std::string v = "onyx-vertex-shader-" + name;
             TKIT_RETURN_IF_FAILED(data.VertexShaders[geo].SetName(v.c_str()));
-            if (hasFragment)
-            {
-                const std::string f = "onyx-fragment-shader-" + name;
-                return data.FragmentShaders[geo].SetName(v.c_str());
-            }
+            const std::string f = "onyx-fragment-shader-" + name;
+            return data.FragmentShaders[geo].SetName(v.c_str());
         }
 
         return Result<>::Ok();
@@ -234,8 +226,8 @@ ONYX_NO_DISCARD static Result<> createShaders()
         for (u32 j = 0; j < passes.GetSize(); ++j)
         {
             const RenderPass rpass = RenderPass(j);
-            TKIT_RETURN_IF_FAILED(createShader(geo, getShaders<D2>(rpass), true), cmp.Destroy());
-            TKIT_RETURN_IF_FAILED(createShader(geo, getShaders<D3>(rpass), true), cmp.Destroy());
+            TKIT_RETURN_IF_FAILED(createShader(geo, getShaders<D2>(rpass)), cmp.Destroy());
+            TKIT_RETURN_IF_FAILED(createShader(geo, getShaders<D3>(rpass)), cmp.Destroy());
         }
     }
 
@@ -449,11 +441,8 @@ static VKit::GraphicsPipeline::Builder createShadowPipelineBuilder(const Geometr
     builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
         .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
         .AddShaderStage(shaders.VertexShaders[geo], VK_SHADER_STAGE_VERTEX_BIT)
+        .AddShaderStage(shaders.FragmentShaders[geo], VK_SHADER_STAGE_FRAGMENT_BIT)
         .SetViewportCount(1);
-
-    // TODO(Isma): Remove this check
-    if (shaders.FragmentShaders[geo])
-        builder.AddShaderStage(shaders.FragmentShaders[geo], VK_SHADER_STAGE_FRAGMENT_BIT);
 
     if constexpr (D == D3)
     {

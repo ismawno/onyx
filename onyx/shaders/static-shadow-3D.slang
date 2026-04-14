@@ -6,7 +6,7 @@ struct VertexInput
     f32v3 Position : POSITION;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v3 WorldPosition;
@@ -32,7 +32,7 @@ StaticInstances3D g_Instances;
 Bounds3D g_Bounds;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -45,16 +45,16 @@ VertexOutput mainVS(
     const f32m4 transform = ComputeTransform3D(data.Transform);
     const f32v3 alignment = ComputeAlignment3D(data.Alignment, sdata.BoundsHandle, g_Bounds);
 
-    VertexOutput output;
+    FragInput finput;
 
     const f32v4 worldPos = mul(f32v4(input.Position - alignment, 1.0), transform);
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
-    output.WorldPosition = worldPos.xyz;
-    return output;
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
+    finput.WorldPosition = worldPos.xyz;
+    return finput;
 }
 
 [shader("fragment")]
-f32 mainFS(const VertexOutput input) : SV_Depth
+f32 mainFS(const FragInput input) : SV_Depth
 {
     if (g_PushData.Far > 0.f)
         return distance(input.WorldPosition, g_PushData.LightPos) / g_PushData.Far + g_PushData.DepthBias;

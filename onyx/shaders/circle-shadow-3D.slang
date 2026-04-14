@@ -1,6 +1,6 @@
 #include "circle.slang"
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 LocalPosition;
@@ -27,7 +27,7 @@ struct PushConstants
 PushConstants g_PushData;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const u32 vertexId : SV_VertexID,
     const u32 baseVertex : SV_StartVertexLocation,
     const u32 instanceId : SV_InstanceID,
@@ -45,21 +45,21 @@ VertexOutput mainVS(
     const f32v2 localPos = g_Positions[vertexIndex];
     const f32v4 worldPos = mul(f32v4(localPos - alignment, 0.0, 1.0), transform);
 
-    VertexOutput output;
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
+    FragInput finput;
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
 
-    output.LocalPosition = localPos;
-    output.WorldPosition = worldPos.xyz;
+    finput.LocalPosition = localPos;
+    finput.WorldPosition = worldPos.xyz;
 
-    output.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
-    output.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
-    output.Arc.Hollowness = cdata.Arc.Hollowness;
+    finput.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
+    finput.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
+    finput.Arc.Hollowness = cdata.Arc.Hollowness;
 
-    return output;
+    return finput;
 }
 
 [shader("fragment")]
-f32 mainFS(const VertexOutput input) : SV_Depth
+f32 mainFS(const FragInput input) : SV_Depth
 {
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
     if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;

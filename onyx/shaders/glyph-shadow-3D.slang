@@ -6,7 +6,7 @@ struct VertexInput
     f32v2 AtlasCoord : TEXCOORD0;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 AtlasCoord;
@@ -35,7 +35,7 @@ PushConstants g_PushData;
 GlyphInstances3D g_Instances;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -47,17 +47,17 @@ VertexOutput mainVS(
 
     const f32m4 transform = ComputeTransform3D(data.Transform);
 
-    VertexOutput output;
+    FragInput finput;
 
     const f32v4 worldPos = mul(f32v4(input.Position, 0.0, 1.0), transform);
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
 
-    output.AtlasCoord = input.AtlasCoord;
-    output.WorldPosition = worldPos.xyz;
-    output.SamplerId = GetAssetId(gdata.SamplerHandle);
-    output.AtlasId = GetAssetId(gdata.AtlasHandle);
+    finput.AtlasCoord = input.AtlasCoord;
+    finput.WorldPosition = worldPos.xyz;
+    finput.SamplerId = GetAssetId(gdata.SamplerHandle);
+    finput.AtlasId = GetAssetId(gdata.AtlasHandle);
 
-    return output;
+    return finput;
 }
 
 [[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
@@ -67,7 +67,7 @@ SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
 [shader("fragment")]
-f32 mainFS(const VertexOutput input) : SV_Depth
+f32 mainFS(const FragInput input) : SV_Depth
 {
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
     if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers

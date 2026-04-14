@@ -1,7 +1,7 @@
 #include "circle.slang"
 #include "material.slang"
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 LocalPosition;
@@ -10,7 +10,7 @@ struct VertexOutput
     [[vk::location(2)]]
     f32v3 WorldPosition;
     [[vk::location(3)]]
-    nointerpolation u32 MatHandle;
+    nointerpolation u32 MatId;
     [[vk::location(4)]]
     nointerpolation ArcData Arc;
     [[vk::location(7)]]
@@ -36,7 +36,7 @@ PushConstants g_PushData;
 CircleInstances3D g_Instances;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const u32 vertexId : SV_VertexID,
     const u32 baseVertex : SV_StartVertexLocation,
     const u32 instanceId : SV_InstanceID,
@@ -54,29 +54,29 @@ VertexOutput mainVS(
     const f32v2 localPos = g_Positions[vertexIndex];
     const f32v4 worldPos = mul(f32v4(localPos - alignment, 0.0, 1.0), transform);
 
-    VertexOutput output;
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
-    output.TexCoord = g_TexCoords[vertexIndex];
+    FragInput finput;
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
+    finput.TexCoord = g_TexCoords[vertexIndex];
 
     const f32m3 normalMatrix = ComputeNormalMatrix(f32m3(transform));
     const f32v3 N = normalize(normalMatrix[2]);
     const f32v3 T = normalize(normalMatrix[0]);
     const f32v3 B = cross(N, T);
-    output.TBN = f32m3(T, B, N);
+    finput.TBN = f32m3(T, B, N);
 
-    output.LocalPosition = localPos;
-    output.WorldPosition = worldPos.xyz;
-    output.MatHandle = data.MatHandle;
+    finput.LocalPosition = localPos;
+    finput.WorldPosition = worldPos.xyz;
+    finput.MatId = GetAssetId(data.MatHandle);
 
-    output.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
-    output.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
-    output.Arc.Hollowness = cdata.Arc.Hollowness;
+    finput.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
+    finput.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
+    finput.Arc.Hollowness = cdata.Arc.Hollowness;
 
-    output.Fade = f32v2(cdata.Fade.InnerFade, cdata.Fade.OuterFade);
+    finput.Fade = f32v2(cdata.Fade.InnerFade, cdata.Fade.OuterFade);
 
-    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
+    finput.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
-    return output;
+    return finput;
 }
 
 [[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
@@ -104,7 +104,7 @@ TextureCube g_PointMaps[ONYX_MAX_TEXTURE_MAPS];
 Texture2D g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
+f32v4 mainFS(const FragInput input, const bool isFrontFacing : SV_IsFrontFace)
 {
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
     if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
@@ -119,6 +119,6 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
     resources.ShadowSampler = g_ShadowSampler;
     resources.PointMaps = g_PointMaps;
     resources.DirectionalMaps = g_DirectionalMaps;
-    return ComputeMaterialColor3D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
+    return ComputeMaterialColor3D(input.FragColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
 }
 

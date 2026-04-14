@@ -7,7 +7,7 @@ struct VertexInput
     ParametricRegionFlags Region;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v3 LocalPosition;
@@ -37,7 +37,7 @@ ParametricInstances3D g_Instances;
 Bounds3D g_Bounds;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -48,25 +48,25 @@ VertexOutput mainVS(
     const InstanceData3D data = pdata.Data;
     const InstanceParameters params = pdata.Parameters;
 
-    const f32v3 pos = GetParametricPosition3D(input.Position, input.Normal, params, input.Region);
+    const f32v3 alignment = ComputeAlignment3D(data.Alignment, pdata.BoundsHandle, g_Bounds);
+    const f32v3 pos = GetParametricPosition3D(input.Position, input.Normal, params, input.Region, alignment);
 
     const f32m4 transform = ComputeTransform3D(data.Transform);
-    const f32v3 alignment = ComputeAlignment3D(data.Alignment, pdata.BoundsHandle, g_Bounds);
 
-    VertexOutput output;
+    FragInput finput;
 
-    const f32v4 worldPos = mul(f32v4(pos - alignment, 1.0), transform);
+    const f32v4 worldPos = mul(f32v4(pos, 1.0), transform);
 
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
-    output.WorldPosition = worldPos.xyz;
-    output.LocalPosition = input.Position;
-    output.ShapeInfo = u32v2(params.Shape, input.Region);
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
+    finput.WorldPosition = worldPos.xyz;
+    finput.LocalPosition = input.Position;
+    finput.ShapeInfo = u32v2(params.Shape, input.Region);
 
-    return output;
+    return finput;
 }
 
 [shader("fragment")]
-f32 mainFS(const VertexOutput input) : SV_Depth
+f32 mainFS(const FragInput input) : SV_Depth
 {
     if (!CheckParametricFragment3D(input.LocalPosition, input.ShapeInfo))
         discard;

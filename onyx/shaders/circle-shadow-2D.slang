@@ -1,10 +1,13 @@
 #include "circle.slang"
+#include "material.slang"
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v2 LocalPosition;
     [[vk::location(1)]]
+    nointerpolation u32 MatId;
+    [[vk::location(2)]]
     nointerpolation ArcData Arc;
 
     f32v4 Position : SV_Position;
@@ -22,7 +25,7 @@ struct PushConstants
 PushConstants g_PushData;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const u32 vertexId : SV_VertexID,
     const u32 baseVertex : SV_StartVertexLocation,
     const u32 instanceId : SV_InstanceID,
@@ -39,23 +42,27 @@ VertexOutput mainVS(
 
     const f32v2 localPos = g_Positions[vertexIndex];
 
-    VertexOutput output;
-    output.Position = mul(mul(f32v4(localPos - alignment, 0.f, 1.f), transform), g_PushData.ProjectionView);
+    FragInput finput;
+    finput.Position = mul(mul(f32v4(localPos - alignment, 0.f, 1.f), transform), g_PushData.ProjectionView);
+    finput.MatId = GetAssetId(data.MatHandle);
 
-    output.LocalPosition = localPos;
+    finput.LocalPosition = localPos;
 
-    output.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
-    output.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
-    output.Arc.Hollowness = cdata.Arc.Hollowness;
+    finput.Arc.CosSin = f32v4(cdata.Arc.LowerCos, cdata.Arc.LowerSin, cdata.Arc.UpperCos, cdata.Arc.UpperSin);
+    finput.Arc.AngleOverflow = cdata.Arc.AngleOverflow;
+    finput.Arc.Hollowness = cdata.Arc.Hollowness;
 
-    return output;
+    return finput;
 }
 
+[[vk::binding(ONYX_MATERIALS_BINDING, 0)]]
+Materials2D g_Materials;
+
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input)
+f32v4 mainFS(const FragInput input)
 {
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
     if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
 
-    return f32v4(1.f);
+    return f32v4(input.MatId != NullAsset && g_Materials[input.MatId].Occluder == 1);
 }

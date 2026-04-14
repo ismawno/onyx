@@ -9,14 +9,14 @@ struct VertexInput
     f32v4 Tangent : TANGENT;
 }
 
-struct VertexOutput
+struct FragInput
 {
     [[vk::location(0)]]
     f32v3 WorldPosition;
     [[vk::location(1)]]
     f32v2 TexCoord;
     [[vk::location(2)]]
-    nointerpolation u32 MatHandle;
+    nointerpolation u32 MatId;
     [[vk::location(3)]]
     f32v4 FragColor;
     [[vk::location(4)]]
@@ -41,7 +41,7 @@ StaticInstances3D g_Instances;
 Bounds3D g_Bounds;
 
 [shader("vertex")]
-VertexOutput mainVS(
+FragInput mainVS(
     const VertexInput input,
     const u32 instanceId : SV_InstanceID,
     const u32 baseInstance : SV_StartInstanceLocation)
@@ -55,8 +55,8 @@ VertexOutput mainVS(
     const f32v3 alignment = ComputeAlignment3D(data.Alignment, sdata.BoundsHandle, g_Bounds);
     const f32v4 worldPos = mul(f32v4(input.Position - alignment, 1.0), transform);
 
-    VertexOutput output;
-    output.Position = mul(worldPos, g_PushData.ProjectionView);
+    FragInput finput;
+    finput.Position = mul(worldPos, g_PushData.ProjectionView);
 
     const f32m3 normalMatrix = ComputeNormalMatrix(f32m3(transform));
 
@@ -64,14 +64,14 @@ VertexOutput mainVS(
     const f32v3 T = normalize(mul(input.Tangent.xyz, normalMatrix));
 
     const f32v3 B = cross(N, T) * input.Tangent.w;
-    output.TBN = f32m3(T, B, N);
+    finput.TBN = f32m3(T, B, N);
 
-    output.WorldPosition = worldPos.xyz;
-    output.TexCoord = input.TexCoord;
-    output.MatHandle = data.MatHandle;
-    output.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
+    finput.WorldPosition = worldPos.xyz;
+    finput.TexCoord = input.TexCoord;
+    finput.MatId = GetAssetId(data.MatHandle);
+    finput.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
-    return output;
+    return finput;
 }
 
 [[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
@@ -99,7 +99,7 @@ TextureCube g_PointMaps[ONYX_MAX_TEXTURE_MAPS];
 Texture2D g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
 
 [shader("fragment")]
-f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace)
+f32v4 mainFS(const FragInput input, const bool isFrontFacing : SV_IsFrontFace)
 {
     ResourceTable3D resources;
     resources.Materials = g_Materials;
@@ -110,6 +110,6 @@ f32v4 mainFS(const VertexOutput input, const bool isFrontFacing : SV_IsFrontFace
     resources.ShadowSampler = g_ShadowSampler;
     resources.PointMaps = g_PointMaps;
     resources.DirectionalMaps = g_DirectionalMaps;
-    return ComputeMaterialColor3D(input.FragColor, g_PushData.Light, input.MatHandle, input.WorldPosition, input.TexCoord, resources, 1.f, input.TBN, isFrontFacing);
+    return ComputeMaterialColor3D(input.FragColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, 1.f, input.TBN, isFrontFacing);
 }
 

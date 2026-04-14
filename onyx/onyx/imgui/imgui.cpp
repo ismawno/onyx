@@ -145,6 +145,14 @@ template <Dimension D> bool MaterialPropertiesEditor(MaterialData<D> &data, cons
     if constexpr (D == D2)
     {
         MaterialData<D2> &d2 = data;
+
+        bool oc = data.Occluder == 1;
+        if (ImGui::Checkbox("Occluder", &oc))
+        {
+            data.Occluder = oc;
+            changed = true;
+        }
+
         Color color = Color::Unpack(d2.ColorFactor);
         if (ImGui::ColorEdit4("Color factor", color.GetData()))
             d2.ColorFactor = color.Pack();
@@ -305,8 +313,8 @@ bool DirectionalLightEditor(DirectionalLightParameters &light, const EditorFlags
 
     changed |= ImGui::DragFloat3("Position", Math::AsPointer(light.Position), 0.02f);
     changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), 0.f, 1.f);
-    changed |= ImGui::SliderFloat("Range", &light.Range, 0.f, 500.f);
-    changed |= ImGui::SliderFloat("Depth", &light.Depth, 0.f, 500.f);
+    changed |= ImGui::DragFloat("Range", &light.Range, 0.01f, 0.f, TKIT_F32_MAX);
+    changed |= ImGui::DragFloat("Depth", &light.Depth, 0.01f, 0.f, TKIT_F32_MAX);
     changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
     changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
     changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.0001f, 0.f, 1.f, "%.5f");
@@ -329,11 +337,11 @@ template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, con
     if constexpr (D == D2)
         changed |= ImGui::DragFloat2("Position", Math::AsPointer(light.Position), 0.02f);
     else
-    {
         changed |= ImGui::DragFloat3("Position", Math::AsPointer(light.Position), 0.02f);
-        changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.001f, 0.f, 1.f);
-    }
-    changed |= ImGui::DragFloat("Radius", &light.Radius, 0.01f, 0.f, TKIT_F32_MAX);
+
+    changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.001f, 0.f, 1.f);
+    changed |= ImGui::DragFloat("Light radius", &light.LightRadius, 0.01f, 0.f, TKIT_F32_MAX);
+    changed |= ImGui::DragFloat("Shadow radius", &light.ShadowRadius, 0.01f, 0.f, TKIT_F32_MAX);
     changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
     changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
     ImGui::PopID();
