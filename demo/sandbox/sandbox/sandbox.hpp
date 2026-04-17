@@ -9,6 +9,8 @@
 #include "onyx/asset/font.hpp"
 #include "onyx/asset/mesh.hpp"
 
+// TODO(Isma): On camera removal, remove view as well
+// TODO(Isma): Add camera combo on existing views
 namespace Onyx
 {
 using SandboxFlags = u32;
@@ -21,42 +23,38 @@ enum SandboxFlagBit : SandboxFlags
     SandboxFlag_ContextShouldUpdate = 1 << 4,
 };
 
-struct OrthographicSettings
-{
-    f32 Left = -4.f;
-    f32 Right = 4.f;
-    f32 Bottom = -4.f;
-    f32 Top = 4.f;
-    f32 Near = -8.f;
-    f32 Far = 8.f;
-};
-
-struct PerspectiveSettings
-{
-    f32 FieldOfView = Math::Radians(75.f);
-    f32 Near = 0.1f;
-    f32 Far = 100.f;
-};
-
 template <Dimension D> struct CameraData
 {
-    Camera<D> *Camera;
-    CoordinateSystem System = CoordinateSystem_YUp;
-};
-
-template <> struct CameraData<D3>
-{
-    Camera<D3> *Camera;
-    CoordinateSystem System = CoordinateSystem_YUp;
-    OrthographicSettings Orthographic{};
-    PerspectiveSettings Perspective{};
-    f32 ZOffset = 0.f;
-    bool IsPerspective = false;
+    std::string Name{};
+    Camera<D> *Camera = nullptr;
+    CameraController<D> *Controller = nullptr;
 };
 
 template <Dimension D> struct CameraArray
 {
     TKit::TierArray<CameraData<D>> Cameras{};
+    u32 Active = 0;
+    u32 CameraIndex = 0;
+};
+
+template <Dimension D> struct ViewData
+{
+    std::string Name{};
+    RenderView<D> *View = nullptr;
+    u32 CameraIndex = 0;
+};
+
+template <> struct ViewData<D3>
+{
+    std::string Name{};
+    RenderView<D3> *View = nullptr;
+    u32 CameraIndex = 0;
+    f32 ZOffset = 0.f;
+};
+
+template <Dimension D> struct ViewArray
+{
+    TKit::TierArray<ViewData<D>> Views{};
     u32 Active = 0;
 };
 
@@ -286,8 +284,8 @@ class SandboxAppLayer final : public ApplicationLayer
 
     template <Dimension D> Shape<D> CreateShape(Geometry geo, Asset mesh = NullHandle);
 
-    template <Dimension D> void AddContext(const Window *window = nullptr);
-    template <Dimension D> void AddLattice(const Window *window = nullptr, const LatticeData<D> &lattice = {});
+    template <Dimension D> void AddContext(const RenderView<D> *view = nullptr);
+    template <Dimension D> void AddLattice(const RenderView<D> *view = nullptr, const LatticeData<D> &lattice = {});
 
     template <typename Vertex>
     MeshPoolId<Vertex> &AddMeshPool(TKit::TierArray<MeshPoolId<Vertex>> &pools, const char *name = nullptr);
@@ -371,6 +369,8 @@ class SandboxWinLayer final : public WindowLayer
     void RenderImGui();
     template <Dimension D> void RenderCameras();
     template <Dimension D> void RenderCamera(CameraData<D> &camera);
+    template <Dimension D> void RenderWindowViews();
+    template <Dimension D> void RenderWindowView(ViewData<D> &view);
     template <Dimension D> void RenderContexts();
     template <Dimension D> void RenderContext(ContextData<D> &context);
     template <Dimension D> void RenderShapePicker(ContextData<D> &context);
@@ -395,7 +395,8 @@ class SandboxWinLayer final : public WindowLayer
 #endif
 
     template <Dimension D> void ProcessEvent(const Event &event);
-    template <Dimension D> void AddCamera();
+    template <Dimension D> RenderView<D> *AddView(const Camera<D> *cam);
+    template <Dimension D> Camera<D> *AddCamera();
 
     template <Dimension D> auto &GetCameras()
     {
@@ -404,9 +405,24 @@ class SandboxWinLayer final : public WindowLayer
         else
             return Cameras3;
     }
+    template <Dimension D> auto &GetViews()
+    {
+        if constexpr (D == D2)
+            return Views2;
+        else
+            return Views3;
+    }
+    template <Dimension D> RenderView<D> *GetMainView()
+    {
+        auto &views = GetViews<D>().Views;
+        return !views.IsEmpty() ? views.GetFront().View : nullptr;
+    }
 
     CameraArray<D2> Cameras2{};
     CameraArray<D3> Cameras3{};
+
+    ViewArray<D2> Views2{};
+    ViewArray<D3> Views3{};
 
     TKit::Task<Dialog::Result<Dialog::Path>> StatMeshTask{};
     TKit::Task<Dialog::Result<Dialog::Path>> TexTask{};

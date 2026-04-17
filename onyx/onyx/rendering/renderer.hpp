@@ -2,8 +2,8 @@
 
 #include "onyx/core/core.hpp"
 #include "onyx/execution/execution.hpp"
-#include "onyx/property/camera.hpp"
 #include "onyx/property/instance.hpp"
+#include "onyx/rendering/view.hpp"
 #include "onyx/rendering/pass.hpp"
 #include "vkit/execution/queue.hpp"
 #include "tkit/container/static_array.hpp"
@@ -11,22 +11,41 @@
 namespace Onyx
 {
 template <Dimension D> class RenderContext;
-struct ViewInfo
+struct RenderTargetInfo
 {
-    TKit::TierArray<CameraInfo<D2>> Cameras2;
-    TKit::TierArray<CameraInfo<D3>> Cameras3;
+    TKit::TierArray<ViewInfo<D2>> Views2;
+    TKit::TierArray<ViewInfo<D3>> Views3;
     VkSemaphore ImageAvailableSemaphore;
     VkSemaphore RenderFinishedSemaphore;
-    ViewMask ViewBit;
+};
 
-    template <Dimension D> const auto &GetCameraInfos() const
+struct TransferSubmitInfo
+{
+    VkCommandBuffer Command = VK_NULL_HANDLE;
+    u64 InFlightValue = 0;
+    VkSemaphoreSubmitInfoKHR SignalSemaphore{};
+
+    operator bool() const
     {
-        if constexpr (D == D2)
-            return Cameras2;
-        else
-            return Cameras3;
+        return Command != VK_NULL_HANDLE;
     }
 };
+
+struct RenderSubmitInfo
+{
+    VkCommandBuffer Command = VK_NULL_HANDLE;
+    u64 InFlightValue = 0;
+    TKit::StaticArray<VkSemaphoreSubmitInfoKHR, 2> SignalSemaphores{};
+    TKit::TierArray<VkSemaphoreSubmitInfoKHR> WaitSemaphores{};
+};
+
+using RenderFlags = u8;
+enum RenderFlagBit : RenderFlags
+{
+    RenderFlag_ImGui = 1 << 0,
+    RenderFlag_Shadows = 1 << 1
+};
+
 } // namespace Onyx
 
 namespace Onyx::Renderer
@@ -74,26 +93,6 @@ template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &
 
 // consider having arrays of semaphores to allow for some flexibility
 
-struct TransferSubmitInfo
-{
-    VkCommandBuffer Command = VK_NULL_HANDLE;
-    u64 InFlightValue = 0;
-    VkSemaphoreSubmitInfoKHR SignalSemaphore{};
-
-    operator bool() const
-    {
-        return Command != VK_NULL_HANDLE;
-    }
-};
-
-struct RenderSubmitInfo
-{
-    VkCommandBuffer Command = VK_NULL_HANDLE;
-    u64 InFlightValue = 0;
-    TKit::StaticArray<VkSemaphoreSubmitInfoKHR, 2> SignalSemaphores{};
-    TKit::TierArray<VkSemaphoreSubmitInfoKHR> WaitSemaphores{};
-};
-
 ONYX_NO_DISCARD Result<TransferSubmitInfo> Transfer(VKit::Queue *transfer, VkCommandBuffer command,
                                                     u32 maxReleaseBarriers = 256);
 ONYX_NO_DISCARD Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool,
@@ -103,9 +102,9 @@ ONYX_NO_DISCARD Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool
 void PrepareRender();
 void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
 
-ONYX_NO_DISCARD Result<> RenderShadows(VKit::Queue *graphics, VkCommandBuffer command, ViewMask viewBit);
-ONYX_NO_DISCARD Result<RenderSubmitInfo> RenderGeometry(VKit::Queue *graphics, VkCommandBuffer command,
-                                                        const ViewInfo &vinfo);
+ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *graphics, VkCommandBuffer command, Window *window,
+                                                RenderFlags flags = 0);
+
 ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool,
                                       TKit::Span<const RenderSubmitInfo> info);
 

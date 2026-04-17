@@ -258,11 +258,12 @@ Window::~Window()
     Execution::DestroyViewSyncData(m_SyncData);
 
     m_SwapChain.Destroy();
+
     TKit::TierAllocator *tier = TKit::GetTier();
-    for (Camera<D2> *camera : m_Cameras2)
-        tier->Destroy(camera);
-    for (Camera<D3> *camera : m_Cameras3)
-        tier->Destroy(camera);
+    for (RenderView<D2> *rv : m_RenderViews2)
+        tier->Destroy(rv);
+    for (RenderView<D3> *rv : m_RenderViews3)
+        tier->Destroy(rv);
 
     GetInstanceTable()->DestroySurfaceKHR(GetInstance(), m_Surface, nullptr);
     glfwDestroyWindow(m_Window);
@@ -442,7 +443,7 @@ Result<> Window::recreateSwapChain()
     old.Destroy();
 
     TKIT_RETURN_IF_FAILED(recreateResources());
-    adaptCamerasToViewportAspect();
+    updateRenderViews();
 
     Event event{};
     event.Type = Event_SwapChainRecreated;
@@ -474,7 +475,7 @@ Result<> Window::recreateSurface()
 
     TKIT_RETURN_IF_FAILED(createSwapChain(extent));
     TKIT_RETURN_IF_FAILED(recreateResources());
-    adaptCamerasToViewportAspect();
+    updateRenderViews();
 
     Event event{};
     event.Type = Event_SwapChainRecreated;
@@ -507,7 +508,7 @@ Result<> Window::recreateResources()
     return Result<>::Ok();
 }
 
-void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &clearColor)
+void Window::BeginRendering(const VkCommandBuffer commandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::BeginRendering");
 
@@ -517,7 +518,7 @@ void Window::BeginRendering(const VkCommandBuffer commandBuffer, const Color &cl
     present.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     present.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     present.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    present.clearValue.color = {{clearColor.rgba[0], clearColor.rgba[1], clearColor.rgba[2], clearColor.rgba[3]}};
+    present.clearValue.color = {{ClearColor.rgba[0], ClearColor.rgba[1], ClearColor.rgba[2], ClearColor.rgba[3]}};
 
     m_Images[m_ImageIndex].Presentation->TransitionLayout2(
         commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -619,12 +620,13 @@ void Window::FlushEvents()
     m_Events.Clear();
 }
 
-void Window::adaptCamerasToViewportAspect()
+void Window::updateRenderViews()
 {
-    for (Camera<D2> *cam : m_Cameras2)
-        cam->adaptViewToViewportAspect();
-    for (Camera<D3> *cam : m_Cameras3)
-        cam->adaptViewToViewportAspect();
+    const VkExtent2D &extent = m_SwapChain.GetInfo().Extent;
+    for (RenderView<D2> *rv : m_RenderViews2)
+        rv->updateExtent(extent);
+    for (RenderView<D3> *rv : m_RenderViews3)
+        rv->updateExtent(extent);
 }
 
 static i32 toGlfw(const Key key)
@@ -1356,20 +1358,20 @@ f32v2 Window::GetScreenMousePosition() const
     return f32v2{2.f * f32(xpos) / dims[0] - 1.f, 1.f - 2.f * f32(ypos) / dims[1]};
 }
 
-bool Window::IsKeyPressed(const Key key)
+bool Window::IsKeyPressed(const Key key) const
 {
     return glfwGetKey(m_Window, toGlfw(key)) == GLFW_PRESS;
 }
-bool Window::IsKeyReleased(const Key key)
+bool Window::IsKeyReleased(const Key key) const
 {
     return glfwGetKey(m_Window, toGlfw(key)) == GLFW_RELEASE;
 }
 
-bool Window::IsMousePressed(const Mouse button)
+bool Window::IsMousePressed(const Mouse button) const
 {
     return glfwGetMouseButton(m_Window, toGlfw(button)) == GLFW_PRESS;
 }
-bool Window::IsMouseReleased(const Mouse button)
+bool Window::IsMouseReleased(const Mouse button) const
 {
     return glfwGetMouseButton(m_Window, toGlfw(button)) == GLFW_RELEASE;
 }

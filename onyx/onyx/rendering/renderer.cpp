@@ -6,6 +6,7 @@
 #include "onyx/execution/execution.hpp"
 #include "onyx/resource/resources.hpp"
 #include "onyx/rendering/context.hpp"
+#include "onyx/platform/window.hpp"
 #include "vkit/resource/device_buffer.hpp"
 #include "vkit/resource/sampler.hpp"
 #include "vkit/state/compute_pipeline.hpp"
@@ -15,6 +16,7 @@
 #include "tkit/profiling/macros.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include <imgui.h>
+#    include "onyx/imgui/backend.hpp"
 #    ifdef ONYX_ENABLE_IMPLOT
 #        include <implot.h>
 #    endif
@@ -1401,7 +1403,7 @@ DirectionalLightData createLightData(const ViewMask vmask, const u32 shadowMapOf
     const f32 d = params.Depth;
     DirectionalLightData data;
     data.ProjectionView = CreateTransformData<D3>(Transform<D3>::Orthographic(-r, r, -r, r, 0.f, d) *
-                                                  Transform<D3>::LookTowards(params.Position, params.Direction));
+                                                  Transform<D3>::LookTowardsMatrix(params.Position, params.Direction));
     data.Direction = params.Direction;
     data.Intensity = params.Intensity;
     data.Color = params.Tint.Pack();
@@ -1941,12 +1943,12 @@ void ApplyAcquireBarriers(const VkCommandBuffer cmd)
     }
 }
 
-template <Dimension D> static void setCameraViewport(const VkCommandBuffer command, const CameraInfo<D> &camera)
+template <Dimension D> static void setRenderView(const VkCommandBuffer command, const ViewInfo<D> &info)
 {
     const auto table = GetDeviceTable();
-    if (!camera.Transparent)
+    if (!info.Transparent)
     {
-        const Color &bg = camera.BackgroundColor;
+        const Color &bg = info.BackgroundColor;
         TKit::FixedArray<VkClearAttachment, D - 1> clearAttachments{};
         clearAttachments[0].colorAttachment = 0;
         clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1959,15 +1961,15 @@ template <Dimension D> static void setCameraViewport(const VkCommandBuffer comma
         }
 
         VkClearRect clearRect{};
-        clearRect.rect.offset = {i32(camera.Viewport.x), i32(camera.Viewport.y)};
-        clearRect.rect.extent = {u32(camera.Viewport.width), u32(camera.Viewport.height)};
+        clearRect.rect.offset = {i32(info.Viewport.x), i32(info.Viewport.y)};
+        clearRect.rect.extent = {u32(info.Viewport.width), u32(info.Viewport.height)};
         clearRect.layerCount = 1;
         clearRect.baseArrayLayer = 0;
 
         table->CmdClearAttachments(command, D - 1, clearAttachments.GetData(), 1, &clearRect);
     }
-    table->CmdSetViewport(command, 0, 1, &camera.Viewport);
-    table->CmdSetScissor(command, 0, 1, &camera.Scissor);
+    table->CmdSetViewport(command, 0, 1, &info.Viewport);
+    table->CmdSetScissor(command, 0, 1, &info.Scissor);
 }
 
 template <typename T>
@@ -2134,8 +2136,9 @@ static void endShadowPass(const VkCommandBuffer cmd)
 
 template <Dimension D, typename F>
 static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, const ViewMask viewBit,
-                            const u64 inFlightValue, TKit::StackArray<Execution::Tracker> &transferTrackers,
-                            const F &insertCommand, const MemoryRangeFlags flags = MemoryRangeFlag_FillStencil)
+                            const u64 inFlightValue, const F &insertCommand,
+                            TKit::StackArray<Execution::Tracker> *transferTrackers = nullptr,
+                            const MemoryRangeFlags flags = MemoryRangeFlag_FillStencil)
 {
     RendererData<D> &rdata = getRendererData<D>();
     GraphicsInstancePool &gpool = rdata.Geometry.Arenas[geo].Graphics;
@@ -2186,11 +2189,11 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
         else if (!found)
             continue;
 
-        if (grange.InUseByTransfer())
+        if (transferTrackers && grange.InUseByTransfer())
         {
             Execution::Tracker &tracker = grange.TransferTracker;
             found = false;
-            for (Execution::Tracker &tr : transferTrackers)
+            for (Execution::Tracker &tr : *transferTrackers)
             {
                 if (tr.Queue == tracker.Queue)
                 {
@@ -2201,7 +2204,7 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
                 }
             }
             if (!found)
-                transferTrackers.Append(tracker);
+                transferTrackers->Append(tracker);
         }
         grange.GraphicsTracker.MarkInUse(graphics, inFlightValue);
     }
@@ -2295,8 +2298,7 @@ template <Dimension D> static f32m4 createTransform(const TransformData<D> &tran
 
 template <Dimension D>
 ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd,
-                                              const ViewMask viewBit, const u64 inFlightValue,
-                                              TKit::StackArray<Execution::Tracker> &transferTrackers)
+                                              const ViewMask viewBit, const u64 inFlightValue)
 {
     RendererData<D> &rdata = getRendererData<D>();
     ShadowData<D> &sdata = rdata.Shadows;
@@ -2353,8 +2355,7 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
             for (u32 i = 0; i < Geometry_Count; ++i)
             {
                 const Geometry geo = Geometry(i);
-                collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, transferTrackers, insertCommand,
-                                   MemoryRangeFlag_Fill);
+                collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, nullptr, MemoryRangeFlag_Fill);
             }
 
             const auto processMap = [&](TextureMap &map, const f32m4 &projView, const u32 viewIndex = 0) -> Result<> {
@@ -2458,7 +2459,7 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
                     };
                     for (u32 i = 0; i < 6; ++i)
                     {
-                        const f32m4 view = Transform<D3>::LookTowards(pos, faceDir[i], faceUp[i]);
+                        const f32m4 view = Transform<D3>::LookTowardsMatrix(pos, faceDir[i], faceUp[i]);
                         TKIT_RETURN_IF_FAILED(processMap(smap, proj * view, i));
                     }
                 }
@@ -2485,29 +2486,11 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
     }
 }
 
-Result<> RenderShadows(VKit::Queue *graphics, const VkCommandBuffer cmd, const ViewMask viewBit)
-{
-    TKIT_PROFILE_NSCOPE("Onyx::Renderer::RenderShadows");
-    const u64 graphicsFlight = graphics->NextTimelineValue();
-
-    TKit::StackArray<Execution::Tracker> transferTrackers{};
-    transferTrackers.Reserve(s_SyncPointCount);
-
-    TKIT_RETURN_IF_FAILED(renderShadows<D2>(graphics, cmd, viewBit, graphicsFlight, transferTrackers));
-    TKIT_RETURN_IF_FAILED(renderShadows<D3>(graphics, cmd, viewBit, graphicsFlight, transferTrackers));
-
-    return Result<>::Ok();
-}
-
 template <Dimension D>
 ONYX_NO_DISCARD static Result<> renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cmd,
-                                               const ViewInfo &vinfo, const u64 inFlightValue,
+                                               const ViewInfo<D> &vinfo, const u64 inFlightValue,
                                                TKit::StackArray<Execution::Tracker> &transferTrackers)
 {
-    const auto &camInfos = vinfo.GetCameraInfos<D>();
-    if (camInfos.IsEmpty())
-        return Result<>::Ok();
-
     const ViewMask viewBit = vinfo.ViewBit;
 
     RendererData<D> &rdata = getRendererData<D>();
@@ -2562,7 +2545,7 @@ ONYX_NO_DISCARD static Result<> renderGeometry(const VKit::Queue *graphics, cons
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
         const Geometry geo = Geometry(i);
-        collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, transferTrackers, insertCommand);
+        collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, &transferTrackers);
     }
 
     LightData<D> &ldata = rdata.Lights;
@@ -2580,53 +2563,53 @@ ONYX_NO_DISCARD static Result<> renderGeometry(const VKit::Queue *graphics, cons
     }
 
     const auto table = GetDeviceTable();
-    for (const CameraInfo<D> &camInfo : camInfos)
+
+    setRenderView<D>(cmd, vinfo);
+    for (u32 i = 0; i < StencilPass_Count; ++i)
     {
-        setCameraViewport<D>(cmd, camInfo);
-        for (u32 i = 0; i < StencilPass_Count; ++i)
+        const StencilPass pass = StencilPass(i);
+        const RenderPass rpass = GetRenderPass(pass);
+        const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(rpass);
+        if (rpass == RenderPass_Stencil)
         {
-            const StencilPass pass = StencilPass(i);
-            const RenderPass rpass = GetRenderPass(pass);
-            const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(rpass);
-            if (rpass == RenderPass_Stencil)
-            {
-                StencilPushConstantData pdata;
-                pdata.ProjectionView = camInfo.ProjectionView;
-                pdata.OutlineMultiplier = pass == StencilPass_DoStencilWriteNoFill ? 0.f : 1.f;
+            StencilPushConstantData pdata;
+            pdata.ProjectionView = vinfo.ProjectionView;
+            pdata.OutlineMultiplier = pass == StencilPass_DoStencilWriteNoFill ? 0.f : 1.f;
 
-                table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(StencilPushConstantData),
-                                        &pdata);
-            }
-            else
-            {
-                FillPushConstantData<D> pdata;
-                pdata.ProjectionView = camInfo.ProjectionView;
-                if constexpr (D == D3)
-                    pdata.ViewPosition = f32v4{camInfo.ViewPosition, 1.f};
-                pdata.LightRanges = ldata.Ranges;
-                pdata.ViewBit = viewBit;
-                pdata.AmbientColor = ambientColor;
-                table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                                        sizeof(FillPushConstantData<D>), &pdata);
-            }
-
-            TKIT_RETURN_IF_FAILED(submitDrawCommands<D>(graphics, inFlightValue, cmd, rpass, playout,
-                                                        rdata.Geometry.Pipelines[pass], circleCmds[pass],
-                                                        meshCmds[pass]));
+            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(StencilPushConstantData),
+                                    &pdata);
         }
+        else
+        {
+            FillPushConstantData<D> pdata;
+            pdata.ProjectionView = vinfo.ProjectionView;
+            if constexpr (D == D3)
+                pdata.ViewPosition = f32v4{vinfo.ViewPosition, 1.f};
+            pdata.LightRanges = ldata.Ranges;
+            pdata.ViewBit = viewBit;
+            pdata.AmbientColor = ambientColor;
+            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                                    sizeof(FillPushConstantData<D>), &pdata);
+        }
+
+        TKIT_RETURN_IF_FAILED(submitDrawCommands<D>(graphics, inFlightValue, cmd, rpass, playout,
+                                                    rdata.Geometry.Pipelines[pass], circleCmds[pass], meshCmds[pass]));
     }
     return Result<>::Ok();
 }
 
-Result<RenderSubmitInfo> RenderGeometry(VKit::Queue *graphics, const VkCommandBuffer command, const ViewInfo &vinfo)
+ONYX_NO_DISCARD Result<RenderSubmitInfo> static renderGeometry(VKit::Queue *graphics, const VkCommandBuffer command,
+                                                               const u64 graphicsFlight, const RenderTargetInfo &tinfo,
+                                                               TKit::StackArray<Execution::Tracker> &transferTrackers)
 {
-    TKIT_PROFILE_NSCOPE("Onyx::Renderer::RenderGeometry");
-    const u64 graphicsFlight = graphics->NextTimelineValue();
-    TKit::StackArray<Execution::Tracker> transferTrackers{};
-    transferTrackers.Reserve(s_SyncPointCount);
-
-    TKIT_RETURN_IF_FAILED(renderGeometry<D3>(graphics, command, vinfo, graphicsFlight, transferTrackers));
-    TKIT_RETURN_IF_FAILED(renderGeometry<D2>(graphics, command, vinfo, graphicsFlight, transferTrackers));
+    for (const ViewInfo<D3> &vinfo : tinfo.Views3)
+    {
+        TKIT_RETURN_IF_FAILED(renderGeometry<D3>(graphics, command, vinfo, graphicsFlight, transferTrackers));
+    }
+    for (const ViewInfo<D2> &vinfo : tinfo.Views2)
+    {
+        TKIT_RETURN_IF_FAILED(renderGeometry<D2>(graphics, command, vinfo, graphicsFlight, transferTrackers));
+    }
 
     RenderSubmitInfo submitInfo{};
     submitInfo.Command = command;
@@ -2635,7 +2618,7 @@ Result<RenderSubmitInfo> RenderGeometry(VKit::Queue *graphics, const VkCommandBu
     VkSemaphoreSubmitInfoKHR &imgInfo = submitInfo.WaitSemaphores.Append();
     imgInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
     imgInfo.pNext = nullptr;
-    imgInfo.semaphore = vinfo.ImageAvailableSemaphore;
+    imgInfo.semaphore = tinfo.ImageAvailableSemaphore;
     imgInfo.deviceIndex = 0;
     imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
 
@@ -2651,7 +2634,7 @@ Result<RenderSubmitInfo> RenderGeometry(VKit::Queue *graphics, const VkCommandBu
     rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
     rendFinInfo.pNext = nullptr;
     rendFinInfo.value = 0;
-    rendFinInfo.semaphore = vinfo.RenderFinishedSemaphore;
+    rendFinInfo.semaphore = tinfo.RenderFinishedSemaphore;
     rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
     rendFinInfo.deviceIndex = 0;
 
@@ -2666,6 +2649,45 @@ Result<RenderSubmitInfo> RenderGeometry(VKit::Queue *graphics, const VkCommandBu
         ttimSemInfo.stageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT_KHR;
     }
     return submitInfo;
+}
+
+Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window *window,
+                                const RenderFlags flags)
+{
+    TKIT_PROFILE_NSCOPE("Onyx::Renderer::Render");
+
+    const u64 graphicsFlight = graphics->NextTimelineValue();
+    if (flags & RenderFlag_Shadows)
+    {
+        const RenderTargetInfo tinfo = window->CreateRenderTargetInfo();
+        for (const ViewInfo<D2> &vinfo : tinfo.Views2)
+        {
+            TKIT_RETURN_IF_FAILED(renderShadows<D2>(graphics, cmd, vinfo.ViewBit, graphicsFlight));
+        }
+        for (const ViewInfo<D3> &vinfo : tinfo.Views3)
+        {
+            TKIT_RETURN_IF_FAILED(renderShadows<D3>(graphics, cmd, vinfo.ViewBit, graphicsFlight));
+        }
+    }
+
+    TKit::StackArray<Execution::Tracker> transferTrackers{};
+    transferTrackers.Reserve(s_SyncPointCount);
+    const RenderTargetInfo tinfo = window->CreateRenderTargetInfo();
+
+    window->BeginRendering(cmd);
+
+    const auto result = renderGeometry(graphics, cmd, graphicsFlight, tinfo, transferTrackers);
+    TKIT_RETURN_ON_ERROR(result, window->EndRendering(cmd));
+#ifdef ONYX_ENABLE_IMGUI
+    if (flags & RenderFlag_ImGui)
+    {
+        ImGui::Render();
+        TKIT_RETURN_IF_FAILED(ImGuiBackend::RenderData(ImGui::GetDrawData(), cmd), window->EndRendering(cmd));
+        TKIT_RETURN_IF_FAILED(ImGuiBackend::UpdatePlatformWindows(), window->EndRendering(cmd));
+    }
+#endif
+    window->EndRendering(cmd);
+    return result;
 }
 
 Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span<const RenderSubmitInfo> info)

@@ -10,14 +10,23 @@ using namespace Onyx;
 
 void WindowExample(const Asset mesh, const u32 nwidows = 1)
 {
+    struct WindowView
+    {
+        Window *Win;
+        RenderView<D2> *View;
+    };
     RenderContext<D2> *ctx = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D2>());
-    TKit::StackArray<Window *> windows{};
+    TKit::StackArray<WindowView> windows{};
     windows.Reserve(nwidows);
+
+    Camera<D2> cam{};
+    cam.OrthoParameters.Size = 5.f;
     for (u32 i = 0; i < nwidows; ++i)
     {
-        Window *win = windows.Append(ONYX_CHECK_EXPRESSION(Platform::CreateWindow()));
-        ctx->AddTarget(win);
-        win->CreateCamera<D2>()->BackgroundColor = Color{0.1f};
+        WindowView &wv = windows.Append();
+        wv.Win = ONYX_CHECK_EXPRESSION(Platform::CreateWindow());
+        wv.View = wv.Win->CreateRenderView(&cam);
+        ctx->AddTarget(wv.View);
     }
 
     while (!windows.IsEmpty())
@@ -41,35 +50,26 @@ void WindowExample(const Asset mesh, const u32 nwidows = 1)
         const VkCommandBuffer tcmd = ONYX_CHECK_EXPRESSION(Execution::Allocate(tpool));
 
         ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(tcmd));
-        const Renderer::TransferSubmitInfo tsinfo = ONYX_CHECK_EXPRESSION(Renderer::Transfer(tqueue, tcmd));
+        const TransferSubmitInfo tsinfo = ONYX_CHECK_EXPRESSION(Renderer::Transfer(tqueue, tcmd));
         ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(tcmd));
 
         if (tsinfo)
             ONYX_CHECK_EXPRESSION(Renderer::SubmitTransfer(tqueue, tpool, tsinfo));
 
-        TKit::StackArray<Renderer::RenderSubmitInfo> rinfos{};
+        TKit::StackArray<RenderSubmitInfo> rinfos{};
         rinfos.Reserve(windows.GetSize());
         u64 acquireMask = 0;
         Renderer::PrepareRender();
-        for (Window *win : windows)
-            if (ONYX_CHECK_EXPRESSION(win->AcquireNextImage(Block)))
+        for (const WindowView &wv : windows)
+            if (ONYX_CHECK_EXPRESSION(wv.Win->AcquireNextImage(Block)))
             {
-                acquireMask |= win->GetViewBit();
+                acquireMask |= wv.View->GetViewBit();
                 const VkCommandBuffer gcmd = ONYX_CHECK_EXPRESSION(Execution::Allocate(gpool));
                 ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(gcmd));
                 Renderer::ApplyAcquireBarriers(gcmd);
 
-                const ViewInfo vinfo = win->CreateViewInfo();
-                ONYX_CHECK_EXPRESSION(Renderer::RenderShadows(gqueue, gcmd, vinfo.ViewBit));
-
-                win->BeginRendering(gcmd);
-
-                const Renderer::RenderSubmitInfo rinfo =
-                    ONYX_CHECK_EXPRESSION(Renderer::RenderGeometry(gqueue, gcmd, vinfo));
-                win->MarkSubmission(gqueue->GetTimelineSempahore(), rinfo.InFlightValue);
+                const RenderSubmitInfo rinfo = ONYX_CHECK_EXPRESSION(Renderer::Render(gqueue, gcmd, wv.Win));
                 rinfos.Append(rinfo);
-
-                win->EndRendering(gcmd);
 
                 ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(gcmd));
             }
@@ -77,14 +77,14 @@ void WindowExample(const Asset mesh, const u32 nwidows = 1)
         if (!rinfos.IsEmpty())
             ONYX_CHECK_EXPRESSION(Renderer::SubmitRender(gqueue, gpool, rinfos));
 
-        for (Window *win : windows)
-            if (win->GetViewBit() & acquireMask)
-                ONYX_CHECK_EXPRESSION(win->Present());
+        for (const WindowView &wv : windows)
+            if (wv.View->GetViewBit() & acquireMask)
+                ONYX_CHECK_EXPRESSION(wv.Win->Present());
 
         for (u32 i = windows.GetSize() - 1; i < windows.GetSize(); --i)
-            if (windows[i]->ShouldClose())
+            if (windows[i].Win->ShouldClose())
             {
-                Platform::DestroyWindow(windows[i]);
+                Platform::DestroyWindow(windows[i].Win);
                 windows.RemoveUnordered(windows.begin() + i);
             }
     }

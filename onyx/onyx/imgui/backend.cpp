@@ -1688,7 +1688,7 @@ ONYX_NO_DISCARD static Result<bool> renderer_AcquireImage(const ImGuiViewport *v
     return result.GetValue();
 }
 
-ONYX_NO_DISCARD static Result<Renderer::RenderSubmitInfo> renderer_RenderWindow(const ImGuiViewport *viewport,
+ONYX_NO_DISCARD static Result<RenderSubmitInfo> renderer_RenderWindow(const ImGuiViewport *viewport,
                                                                                 VKit::Queue *graphics,
                                                                                 VkCommandBuffer cmd)
 {
@@ -1702,7 +1702,7 @@ ONYX_NO_DISCARD static Result<Renderer::RenderSubmitInfo> renderer_RenderWindow(
     TKIT_RETURN_IF_FAILED(renderer_Render(viewport->DrawData, cmd), window->EndRendering(cmd));
     window->EndRendering(cmd);
 
-    Renderer::RenderSubmitInfo submitInfo{};
+    RenderSubmitInfo submitInfo{};
     submitInfo.Command = cmd;
     submitInfo.InFlightValue = graphicsFlight;
 
@@ -1983,7 +1983,7 @@ Result<bool> AcquirePlatformWindowImage(const u32 windowIndex, const Timeout tim
     return renderer_AcquireImage(viewport, timeout);
 }
 
-Result<Renderer::RenderSubmitInfo> RenderPlatformWindow(const u32 windowIndex, VKit::Queue *graphics,
+Result<RenderSubmitInfo> RenderPlatformWindow(const u32 windowIndex, VKit::Queue *graphics,
                                                         const VkCommandBuffer cmd)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();

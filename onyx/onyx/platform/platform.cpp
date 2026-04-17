@@ -6,7 +6,7 @@
 
 namespace Onyx::Platform
 {
-static TKit::Storage<TKit::StaticArray<Window *, ONYX_MAX_WINDOWS>> s_Windows{};
+static TKit::Storage<TKit::StaticArray<Window *, ONYX_MAX_VIEWS>> s_Windows{};
 
 #ifdef TKIT_ENABLE_ERROR_LOGS
 static void glfwErrorCallback(const i32 errorCode, const char *description)
@@ -36,19 +36,6 @@ void Terminate()
     DestroyWindows();
     glfwTerminate();
     s_Windows.Destruct();
-}
-
-static ViewMask s_ViewCache = TKit::Limits<ViewMask>::Max();
-static ViewMask allocateViewBit()
-{
-    const u32 index = u32(std::countr_zero(s_ViewCache));
-    const ViewMask viewBit = 1 << index;
-    s_ViewCache &= ~viewBit;
-    return viewBit;
-}
-static void deallocateViewBit(const ViewMask viewBit)
-{
-    s_ViewCache |= viewBit;
 }
 
 Result<Window *> CreateWindow(const WindowSpecs &specs)
@@ -111,12 +98,6 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
 
     cleanup.Push([&syncData] { Execution::DestroyViewSyncData(syncData); });
 
-    if (s_ViewCache == 0)
-        return Result<>::Error(
-            Error_InitializationFailed,
-            TKit::Format("[ONYX][WINDOW] Maximum amount of windows exceeded. There is a hard limit of {} windows",
-                         8 * sizeof(ViewMask)));
-
     TKit::TierAllocator *tier = TKit::GetTier();
     Window *window = tier->Create<Window>();
 
@@ -131,7 +112,6 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     window->m_Images = std::move(imageData);
     window->m_PresentMode = specs.PresentMode;
     window->m_SyncData = std::move(syncData);
-    window->m_ViewBit = allocateViewBit();
     window->m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
     window->UpdateMonitorDeltaTime();
     if (IsDebugUtilsEnabled())
@@ -163,9 +143,14 @@ static void removeWindow(const Window *window)
 
 void DestroyWindow(Window *window)
 {
-    Renderer::RemoveTarget(window->GetViewBit());
+    ViewMask vmask = 0;
+    for (const RenderView<D2> *rv : window->GetRenderViews<D2>())
+        vmask |= rv->GetViewBit();
+    for (const RenderView<D3> *rv : window->GetRenderViews<D3>())
+        vmask |= rv->GetViewBit();
+
+    Renderer::RemoveTarget(vmask);
     removeWindow(window);
-    deallocateViewBit(window->GetViewBit());
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(window);
 }
@@ -174,10 +159,7 @@ void DestroyWindows()
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     for (Window *window : *s_Windows)
-    {
-        deallocateViewBit(window->GetViewBit());
         tier->Destroy(window);
-    }
     s_Windows->Clear();
 }
 

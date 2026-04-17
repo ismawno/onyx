@@ -24,30 +24,19 @@ WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const Windo
     : WindowLayer(appLayer, window, window->GetMonitorDeltaTime(), specs)
 {
 }
-Result<Renderer::RenderSubmitInfo> WindowLayer::OnRender(const ExecutionInfo &info)
+Result<RenderSubmitInfo> WindowLayer::OnRender(const ExecutionInfo &info)
 {
     OnRender(info.DeltaTime);
     return Render(info);
 }
 
-Result<Renderer::RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info)
+Result<RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info)
 {
-    const ViewInfo vinfo = m_Window->CreateViewInfo();
-    TKIT_RETURN_IF_FAILED(Renderer::RenderShadows(info.Queue, info.CommandBuffer, vinfo.ViewBit));
-
-    m_Window->BeginRendering(info.CommandBuffer);
-    const auto result = Renderer::RenderGeometry(info.Queue, info.CommandBuffer, vinfo);
+    RenderFlags flags = RenderFlag_Shadows;
 #ifdef ONYX_ENABLE_IMGUI
-    if (checkFlags(WindowLayerFlag_ImGuiEnabled))
-    {
-        ImGui::Render();
-        TKIT_RETURN_IF_FAILED(ImGuiBackend::RenderData(ImGui::GetDrawData(), info.CommandBuffer),
-                              m_Window->EndRendering(info.CommandBuffer));
-        TKIT_RETURN_IF_FAILED(ImGuiBackend::UpdatePlatformWindows(), m_Window->EndRendering(info.CommandBuffer));
-    }
+    flags |= RenderFlag_ImGui * checkFlags(WindowLayerFlag_ImGuiEnabled);
 #endif
-    m_Window->EndRendering(info.CommandBuffer);
-    return result;
+    return Renderer::Render(info.Queue, info.CommandBuffer, m_Window, flags);
 }
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -109,12 +98,12 @@ void WindowLayer::shutdownImGui()
 }
 #endif
 
-Result<Renderer::TransferSubmitInfo> ApplicationLayer::OnTransfer(const ExecutionInfo &info)
+Result<TransferSubmitInfo> ApplicationLayer::OnTransfer(const ExecutionInfo &info)
 {
     OnTransfer(info.DeltaTime);
     return Transfer(info);
 }
-Result<Renderer::TransferSubmitInfo> ApplicationLayer::Transfer(const ExecutionInfo &info)
+Result<TransferSubmitInfo> ApplicationLayer::Transfer(const ExecutionInfo &info)
 {
     return Renderer::Transfer(info.Queue, info.CommandBuffer);
 }

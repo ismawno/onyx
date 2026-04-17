@@ -1,5 +1,6 @@
 #pragma once
 
+#include "onyx/property/color.hpp"
 #include "onyx/property/camera.hpp"
 
 namespace Onyx
@@ -25,14 +26,6 @@ struct CircleParameters
     f32 Hollowness = 0.f;
     f32 LowerAngle = 0.f;
     f32 UpperAngle = 2.f * Math::Pi<f32>();
-};
-
-struct CameraParameters
-{
-    TKIT_REFLECT_DECLARE(CameraParameters)
-    TKIT_YAML_SERIALIZE_DECLARE(CameraParameters)
-    ScreenViewport Viewport{};
-    ScreenScissor Scissor{};
 };
 
 struct AxesParameters

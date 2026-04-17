@@ -87,7 +87,11 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *da
         wspecs.Title = "Onyx sandbox window (2D)";
         if (data->Flags & ParseFlag_AddLattice)
             RequestOpenWindow<SandboxWinLayer>(
-                [this, data](const WindowLayer *, Window *window) { AddLattice(window, data->Lattice2); }, wspecs, D2);
+                [this, data](WindowLayer *l, Window *) {
+                    SandboxWinLayer *wlayer = scast<SandboxWinLayer *>(l);
+                    AddLattice(wlayer->GetViews<D2>().Views[0].View, data->Lattice2);
+                },
+                wspecs, D2);
         else
             RequestOpenWindow<SandboxWinLayer>(wspecs, D2);
     }
@@ -98,7 +102,11 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *da
         wspecs.Title = "Onyx sandbox window (3D)";
         if (data->Flags & ParseFlag_AddLattice)
             RequestOpenWindow<SandboxWinLayer>(
-                [this, data](const WindowLayer *, Window *window) { AddLattice(window, data->Lattice3); }, wspecs, D2);
+                [this, data](WindowLayer *l, Window *) {
+                    SandboxWinLayer *wlayer = scast<SandboxWinLayer *>(l);
+                    AddLattice(wlayer->GetViews<D3>().Views[0].View, data->Lattice3);
+                },
+                wspecs, D3);
         else
             RequestOpenWindow<SandboxWinLayer>(wspecs, D3);
     }
@@ -420,7 +428,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
     }
 }
 
-template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
+template <Dimension D> void SandboxAppLayer::AddContext(const RenderView<D> *view)
 {
     RenderContext<D> *context = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D>());
     auto &contexts = GetContexts<D>();
@@ -435,19 +443,19 @@ template <Dimension D> void SandboxAppLayer::AddContext(const Window *window)
         data.DirLights.Append();
         data.LightMesh = GetMeshes<D3>().DefaultLightMesh;
     }
-    if (window)
-        context->AddTarget(window);
+    if (view)
+        context->AddTarget(view);
 }
 
-template <Dimension D> void SandboxAppLayer::AddLattice(const Window *window, const LatticeData<D> &lattice)
+template <Dimension D> void SandboxAppLayer::AddLattice(const RenderView<D> *view, const LatticeData<D> &lattice)
 {
     auto &lattices = GetLattices<D>();
     LatticeData<D> &data = lattices.Lattices.Append(lattice);
     for (u32 i = 0; i < TKit::MaxThreads; ++i)
     {
         RenderContext<D> *ctx = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D>());
-        if (window)
-            ctx->AddTarget(window);
+        if (view)
+            ctx->AddTarget(view);
         data.Contexts[i] = ctx;
     }
     data.Shape = CreateShape<D>(data.Geo);
@@ -508,14 +516,16 @@ SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, con
     SandboxAppLayer *alayer = GetApplicationLayer<SandboxAppLayer>();
     if (dim == D2)
     {
-        AddCamera<D2>();
-        alayer->AddContext<D2>(window);
+        Camera<D2> *cam = AddCamera<D2>();
+        RenderView<D2> *view = AddView(cam);
+        alayer->AddContext<D2>(view);
         TabSelect = 1;
     }
     else
     {
-        AddCamera<D3>();
-        alayer->AddContext<D3>(window);
+        Camera<D3> *cam = AddCamera<D3>();
+        RenderView<D3> *view = AddView(cam);
+        alayer->AddContext<D3>(view);
         TabSelect = 2;
     }
 }
@@ -541,13 +551,13 @@ void SandboxWinLayer::OnRender(const DeltaTime &deltaTime)
     {
         Cameras2.Active = Math::Min(Cameras2.Cameras.GetSize() - 1, Cameras2.Active);
         if (!ImGui::GetIO().WantCaptureKeyboard)
-            Cameras2.Cameras[Cameras2.Active].Camera->ControlMovementWithUserInput(deltaTime.Measured);
+            Cameras2.Cameras[Cameras2.Active].Controller->ControlMovement(deltaTime.Measured);
     }
     if (!Cameras3.Cameras.IsEmpty())
     {
         Cameras3.Active = Math::Min(Cameras3.Cameras.GetSize() - 1, Cameras3.Active);
         if (!ImGui::GetIO().WantCaptureKeyboard)
-            Cameras3.Cameras[Cameras3.Active].Camera->ControlMovementWithUserInput(deltaTime.Measured);
+            Cameras3.Cameras[Cameras3.Active].Controller->ControlMovement(deltaTime.Measured);
     }
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -679,6 +689,7 @@ void SandboxWinLayer::RenderImGui()
         {
             RenderContexts<D2>();
             RenderCameras<D2>();
+            RenderWindowViews<D2>();
             RenderMeshPools<D2>();
             RenderMaterials<D2>();
             RenderSamplers();
@@ -693,6 +704,7 @@ void SandboxWinLayer::RenderImGui()
         {
             RenderContexts<D3>();
             RenderCameras<D3>();
+            RenderWindowViews<D3>();
             RenderMeshPools<D3>();
             RenderMaterials<D3>();
             RenderSamplers();
@@ -713,7 +725,6 @@ template <Dimension D> void SandboxWinLayer::RenderCameras()
 {
     if (ImGui::CollapsingHeader("Cameras"))
     {
-        Window *window = GetWindow();
         auto &cameras = GetCameras<D>();
         if (cameras.Cameras.IsEmpty())
             ImGui::TextDisabled(
@@ -726,7 +737,11 @@ template <Dimension D> void SandboxWinLayer::RenderCameras()
         opts.EntryName = "Camera";
         opts.Selected = &cameras.Active;
         opts.OnSelected = [this](CameraData<D> &camera) { RenderCamera(camera); };
-        opts.OnRemoval = [window](const CameraData<D> &camera) { window->DestroyCamera(camera.Camera); };
+        opts.OnRemoval = [](const CameraData<D> &camera) {
+            TKit::TierAllocator *tier = TKit::GetTier();
+            tier->Destroy(camera.Camera);
+            tier->Destroy(camera.Controller);
+        };
         renderEntries(cameras.Cameras, opts);
     }
 }
@@ -734,52 +749,7 @@ template <Dimension D> void SandboxWinLayer::RenderCameras()
 template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
 {
     Camera<D> *cam = camera.Camera;
-    const f32v2 vpos = cam->GetViewportMousePosition();
-    ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos[0], vpos[1]);
-    if (combo("Coordinate system", &camera.System, "Y Up\0Y Down\0\0"))
-        cam->SetCoordinateSystem(camera.System);
-
-    if constexpr (D == D2)
-    {
-        const f32v2 wpos2 = cam->GetWorldMousePosition();
-        ImGui::Text("World mouse position: (%.2f, %.2f)", wpos2[0], wpos2[1]);
-    }
-    else
-    {
-        ImGui::SliderFloat("Mouse Z offset", &camera.ZOffset, 0.f, 1.f);
-        HelpMarkerSameLine(
-            "In 3D, the world mouse position can be ambiguous because of the extra dimension. This amibiguity needs to "
-            "somehow be resolved. In most use-cases, ray casting is the best approach to fully define this position, "
-            "but because this is a simple demo, the z offset can be manually specified, and is in the range [0, 1] "
-            "(screen coordinates). Note that, if in perspective mode, 0 corresponds to the near plane and 1 to the "
-            "far plane.");
-
-        const f32v3 mpos3 = cam->GetWorldMousePosition(camera.ZOffset);
-        const f32v2 vpos2 = cam->GetViewportMousePosition();
-        ImGui::Text("World mouse position: (%.2f, %.2f, %.2f)", mpos3[0], mpos3[1], mpos3[2]);
-        ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos2[0], vpos2[1]);
-    }
-    HelpMarkerSameLine("The world mouse position has world units, meaning it takes into account the "
-                       "transform of the camera to compute the mouse coordinates. It will not, however, "
-                       "take into account the axes of any render context by default.");
-
-    ImGui::Checkbox("Transparent", &cam->Transparent);
-    if (!cam->Transparent)
-        ImGui::ColorEdit3("Background", cam->BackgroundColor.GetData());
-
-    ImGui::Text("Viewport");
-    ImGui::SameLine();
-    ScreenViewport viewport = cam->GetViewport();
-    if (ViewportEditor(viewport, EditorFlag_DisplayHelp))
-        cam->SetViewport(viewport);
-
-    ImGui::Text("Scissor");
-    ImGui::SameLine();
-    ScreenScissor scissor = cam->GetScissor();
-    if (ScissorEditor(scissor, EditorFlag_DisplayHelp))
-        cam->SetScissor(scissor);
-
-    const Transform<D> &view = cam->GetProjectionViewData().View;
+    const Transform<D> &view = cam->View;
     ImGui::Text("View transform");
     HelpMarkerSameLine(
         "The view transform are the coordinates of the camera, detached from any render context coordinate system.");
@@ -787,48 +757,25 @@ template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
     DisplayTransform(view, EditorFlag_DisplayHelp);
     if constexpr (D == D3)
     {
-        const f32v3 lookDir = cam->GetViewLookDirection();
-        ImGui::Text("Look direction: (%.2f, %.2f, %.2f)", lookDir[0], lookDir[1], lookDir[2]);
-        HelpMarkerSameLine("The look direction is the direction the camera is facing. It is the "
-                           "direction of the camera's 'forward' vector.");
-    }
-    if constexpr (D == D3)
-    {
-        i32 perspective = i32(camera.IsPerspective);
-        OrthographicSettings &ort = camera.Orthographic;
-        PerspectiveSettings &pers = camera.Perspective;
-        if (ImGui::Combo("Projection", &perspective, "Orthographic\0Perspective\0\0"))
-        {
-            camera.IsPerspective = perspective == 1;
-            if (camera.IsPerspective)
-                cam->SetPerspectiveProjection(pers.FieldOfView, pers.Near, pers.Far);
-            else
-                cam->SetOrthographicProjection(ort.Left, ort.Right, ort.Bottom, ort.Top, ort.Near, ort.Far);
-        }
+        combo("Projection", &cam->Mode, "Orthographic\0Perspective\0\0");
+        OrthographicParameters<D3> &ort = cam->OrthoParameters;
+        PerspectiveParameters &pers = cam->PerspParameters;
 
-        if (camera.IsPerspective)
+        if (cam->Mode == CameraMode_Perspective)
         {
             f32 degs = Math::Degrees(pers.FieldOfView);
 
-            bool changed = ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f);
-            changed |= ImGui::SliderFloat("Near", &pers.Near, 0.1f, 10.f);
-            changed |= ImGui::SliderFloat("Far", &pers.Far, 10.f, 100.f);
-            if (changed)
-            {
+            if (ImGui::SliderFloat("Field of view", &degs, 75.f, 90.f))
                 pers.FieldOfView = Math::Radians(degs);
-                cam->SetPerspectiveProjection(pers.FieldOfView, pers.Near, pers.Far);
-            }
+
+            ImGui::SliderFloat("Near", &pers.Near, 0.1f, 10.f);
+            ImGui::SliderFloat("Far", &pers.Far, 10.f, 100.f);
         }
         else
         {
-            bool changed = ImGui::SliderFloat("Left", &ort.Left, -10.f, -0.01f);
-            changed |= ImGui::SliderFloat("Right", &ort.Right, 0.01f, 10.f);
-            changed |= ImGui::SliderFloat("Bottom", &ort.Bottom, -10.f, -0.01f);
-            changed |= ImGui::SliderFloat("Top", &ort.Top, 0.01f, 10.f);
-            changed |= ImGui::SliderFloat("Near", &ort.Near, -10.f, -0.01f);
-            changed |= ImGui::SliderFloat("Far", &ort.Far, 0.01f, 10.f);
-            if (changed)
-                cam->SetOrthographicProjection(ort.Left, ort.Right, ort.Bottom, ort.Top, ort.Near, ort.Far);
+            ImGui::SliderFloat("Size", &ort.Size, -10.f, 10.f);
+            ImGui::SliderFloat("Near", &ort.Near, -10.f, -0.01f);
+            ImGui::SliderFloat("Far", &ort.Far, 0.01f, 10.f);
         }
     }
 
@@ -852,6 +799,85 @@ template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
                        "means that objects get smaller as they move away from the camera, similar as how real life "
                        "vision behaves. This is useful for 3D games or when you want to create a sense of depth in "
                        "your scene. In Onyx, this projection is only available in 3D scenes.");
+}
+
+template <Dimension D>
+static void cameraCombo(const char *name, u32 *index, const TKit::TierArray<CameraData<D>> &cameras)
+{
+    TKit::StackArray<const char *> names{};
+    names.Reserve(cameras.GetSize());
+
+    for (const CameraData<D> &cam : cameras)
+        names.Append(cam.Name.c_str());
+
+    combo(name, index, names);
+}
+
+template <Dimension D> void SandboxWinLayer::RenderWindowViews()
+{
+    if (ImGui::CollapsingHeader("Views"))
+    {
+        auto &views = GetViews<D>();
+        auto &cams = GetCameras<D>();
+
+        cameraCombo("Camera", &cams.CameraIndex, cams.Cameras);
+
+        ImGui::BeginDisabled(cams.CameraIndex >= cams.Cameras.GetSize());
+        if (ImGui::Button("Add view"))
+            AddView(cams.Cameras[cams.CameraIndex].Camera);
+        ImGui::EndDisabled();
+
+        EntriesOptions<ViewData<D>> opts{};
+        opts.EntryName = "View";
+        opts.Selected = &views.Active;
+        opts.OnSelected = [this](ViewData<D> &view) { RenderWindowView(view); };
+        opts.OnRemoval = [this](const ViewData<D> &view) { GetWindow()->DestroyRenderView(view.View); };
+        renderEntries(views.Views, opts);
+    }
+}
+
+template <Dimension D> void SandboxWinLayer::RenderWindowView(ViewData<D> &view)
+{
+    const Window *win = GetWindow();
+    RenderView<D> *v = view.View;
+    const f32v2 mpos = win->GetScreenMousePosition();
+    const f32v2 vpos = v->ScreenToViewport(mpos);
+    ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos[0], vpos[1]);
+    ImGui::Text("Is mouse within this viewport: %s", v->IsWithinViewport(mpos) ? "True" : "False");
+
+    if constexpr (D == D2)
+    {
+        const f32v2 wpos = v->ViewportToWorld(vpos);
+        ImGui::Text("World mouse position: (%.2f, %.2f)", wpos[0], wpos[1]);
+    }
+    else
+    {
+        ImGui::SliderFloat("Mouse Z offset", &view.ZOffset, 0.f, 1.f);
+        HelpMarkerSameLine(
+            "In 3D, the world mouse position can be ambiguous because of the extra dimension. This amibiguity needs to "
+            "somehow be resolved. In most use-cases, ray casting is the best approach to fully define this position, "
+            "but because this is a simple demo, the z offset can be manually specified, and is in the range [0, 1] "
+            "(screen coordinates). Note that, if in perspective mode, 0 corresponds to the near plane and 1 to the "
+            "far plane.");
+
+        const f32v3 wpos = v->ViewportToWorld(f32v3{vpos, view.ZOffset});
+        ImGui::Text("World mouse position: (%.2f, %.2f, %.2f)", wpos[0], wpos[1], wpos[2]);
+    }
+    ImGui::Checkbox("Transparent", &v->Transparent);
+    if (!v->Transparent)
+        ImGui::ColorEdit3("Background", v->BackgroundColor.GetData());
+
+    ImGui::Text("Viewport");
+    ImGui::SameLine();
+    ScreenViewport viewport = v->GetViewport();
+    if (ViewportEditor(viewport, EditorFlag_DisplayHelp))
+        v->SetViewport(viewport);
+
+    ImGui::Text("Scissor");
+    ImGui::SameLine();
+    ScreenScissor scissor = v->GetScissor();
+    if (ScissorEditor(scissor, EditorFlag_DisplayHelp))
+        v->SetScissor(scissor);
 }
 
 template <Dimension D> void SandboxWinLayer::RenderContexts()
@@ -990,17 +1016,27 @@ static bool sampNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *ha
 
 template <Dimension D> void SandboxWinLayer::RenderContext(ContextData<D> &context)
 {
-    const Window *window = GetWindow();
-    const ViewMask viewBit = window->GetViewBit();
-
     ImGui::CheckboxFlags("Continuous update##Context", &context.Flags, SandboxFlag_ContextShouldUpdate);
-    bool targets = viewBit & context.Context->GetViewMask();
-    if (ImGui::Checkbox("Target this window##Context", &targets))
+    if (ImGui::TreeNode("Targets"))
     {
-        if (targets)
-            context.Context->AddTarget(viewBit);
-        else
-            context.Context->RemoveTarget(viewBit);
+        auto &views = GetViews<D>();
+        for (const ViewData<D> &vd : views.Views)
+        {
+            const ViewMask vbit = vd.View->GetViewBit();
+            bool targets = vbit & context.Context->GetViewMask();
+            ImGui::PushID(vbit);
+            if (ImGui::Checkbox("Target: ##Context", &targets))
+            {
+                if (targets)
+                    context.Context->AddTarget(vbit);
+                else
+                    context.Context->RemoveTarget(vbit);
+            }
+            ImGui::PopID();
+            ImGui::SameLine();
+            ImGui::Text("%s", vd.Name.c_str());
+        }
+        ImGui::TreePop();
     }
 
     ImGui::CheckboxFlags("Draw axes", &context.Flags, SandboxFlag_DrawAxes);
@@ -1183,7 +1219,7 @@ template <Dimension D> void SandboxWinLayer::RenderLattices()
         auto &lattices = appLayer->GetLattices<D>();
 
         if (ImGui::Button("Add lattice"))
-            appLayer->AddLattice<D>(GetWindow());
+            appLayer->AddLattice<D>(GetMainView<D>());
 
         EntriesOptions<LatticeData<D>> opts{};
         opts.EntryName = "Lattice";
@@ -1811,20 +1847,27 @@ template <Dimension D> void SandboxWinLayer::RenderRenderer()
 
 template <Dimension D> void SandboxWinLayer::RenderLattice(LatticeData<D> &lattice)
 {
-    const Window *window = GetWindow();
-    const ViewMask viewBit = window->GetViewBit();
-
     ImGui::CheckboxFlags("Continuous update##Lattice", &lattice.Flags, SandboxFlag_ContextShouldUpdate);
-
-    bool targets = viewBit & lattice.Contexts[0]->GetViewMask();
-    if (ImGui::Checkbox("Target this window##Lattice", &targets))
+    if (ImGui::TreeNode("Targets"))
     {
-        if (targets)
-            for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
-                ctx->AddTarget(viewBit);
-        else
-            for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
-                ctx->RemoveTarget(viewBit);
+        auto &views = GetViews<D>();
+        for (const ViewData<D> &vd : views.Views)
+        {
+            const ViewMask vbit = vd.View->GetViewBit();
+            bool targets = vbit & lattice.Contexts[0]->GetViewMask();
+            ImGui::PushID(vbit);
+            if (ImGui::Checkbox("Target this view##Lattice", &targets))
+            {
+                if (targets)
+                    for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
+                        ctx->AddTarget(vbit);
+                else
+                    for (Onyx::RenderContext<D> *ctx : lattice.Contexts)
+                        ctx->RemoveTarget(vbit);
+            }
+            ImGui::PopID();
+        }
+        ImGui::TreePop();
     }
     bool updateShape = combo("Geometry##Lattice", &lattice.Geo, "Circle\0Static mesh\0Parametric mesh\0\0");
     const Geometry geo = lattice.Geo;
@@ -1870,31 +1913,45 @@ template <Dimension D> void SandboxWinLayer::ProcessEvent(const Event &event)
     if (cams.Cameras.IsEmpty())
         return;
 
+    // TODO(Isma): Choose view based on mouse pos
     const CameraData<D> &cam = cams.Cameras[cams.Active];
-    Camera<D> *camera = cam.Camera;
     if (event.Type == Event_Scrolled)
     {
         const f32 factor = GetWindow()->IsKeyPressed(Key_LeftShift) ? 0.05f : 0.005f;
-        camera->ControlScrollWithUserInput(factor * event.ScrollOffset[1]);
+        cam.Controller->ControlScroll(factor * event.ScrollOffset[1], GetMainView<D>());
     }
 }
-template <Dimension D> void SandboxWinLayer::AddCamera()
-{
-    Camera<D> *camera = GetWindow()->CreateCamera<D>();
-    camera->BackgroundColor = Color{0.1f};
 
+template <Dimension D> RenderView<D> *SandboxWinLayer::AddView(const Camera<D> *camera)
+{
+    auto &views = GetViews<D>();
+    Window *win = GetWindow();
+    const u32 size = views.Views.GetSize();
+    ViewData<D> &view = views.Views.Append();
+    view.View = win->CreateRenderView(camera);
+    view.View->BackgroundColor = Color{0.1f};
+    view.Name = TKit::Format("View {}", size);
+
+    return view.View;
+}
+
+template <Dimension D> Camera<D> *SandboxWinLayer::AddCamera()
+{
     auto &cameras = GetCameras<D>();
+
+    const u32 size = cameras.Cameras.GetSize();
     CameraData<D> &data = cameras.Cameras.Append();
-    data.Camera = camera;
+
+    TKit::TierAllocator *tier = TKit::GetTier();
+    data.Camera = tier->Create<Camera<D>>();
+    data.Name = TKit::Format("Camera {}", size);
+    data.Controller = tier->Create<CameraController<D>>(GetWindow(), data.Camera);
+
     if constexpr (D == D3)
     {
-        data.IsPerspective = true;
-        data.Camera->SetPerspectiveProjection(data.Perspective.FieldOfView, data.Perspective.Near,
-                                              data.Perspective.Far);
-        Transform<D3> transform{};
-        transform.Translation = f32v3{2.f, 0.75f, 2.f};
-        transform.Rotation = f32q{Math::Radians(f32v3{-15.f, 45.f, -4.f})};
-        data.Camera->SetView(transform);
+        data.Camera->View.Translation = f32v3{2.f, 0.75f, 2.f};
+        data.Camera->View.Rotation = f32q{Math::Radians(f32v3{-15.f, 45.f, -4.f})};
     }
+    return data.Camera;
 }
 } // namespace Onyx

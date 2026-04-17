@@ -308,8 +308,16 @@ template <> struct Transform<D3> : ITransform<D3>
      */
     static Transform Extract(const f32m4 &transform);
 
+    // small hack, serialization mistakenly parses a field here
+    // TODO(Isma): Properly fix this. It probably is bc of the line split 8 lines from this
+    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
+    TKIT_REFLECT_IGNORE_BEGIN()
     // direction must be normalized
-    static f32m4 LookTowards(const f32v3 &position, const f32v3 &direction, const f32v3 &up = f32v3{0.f, 1.f, 0.f})
+    void LookTowards(const f32v3 &position, const f32v3 &direction, const f32v3 &up = f32v3{0.f, 1.f, 0.f});
+    void LookAt(const f32v3 &position, const f32v3 &target, const f32v3 &up = f32v3{0.f, 1.f, 0.f});
+
+    static f32m4 LookTowardsMatrix(const f32v3 &position, const f32v3 &direction,
+                                   const f32v3 &up = f32v3{0.f, 1.f, 0.f})
     {
         const f32v3 &f = direction;
         const f32v3 r = Normalize(Cross(direction, up));
@@ -331,10 +339,11 @@ template <> struct Transform<D3> : ITransform<D3>
         result[3][2] = -Dot(f, position);
         return result;
     }
-    static f32m4 LookAt(const f32v3 &position, const f32v3 &target, const f32v3 &up = f32v3{0.f, 1.f, 0.f})
+    static f32m4 LookAtMatrix(const f32v3 &position, const f32v3 &target, const f32v3 &up = f32v3{0.f, 1.f, 0.f})
     {
-        return LookTowards(position, Math::Normalize(target - position), up);
+        return LookTowardsMatrix(position, Math::Normalize(target - position), up);
     }
+
     static f32m4 Orthographic(const f32 left, const f32 right, const f32 bottom, const f32 top, const f32 near,
                               const f32 far)
     {
@@ -348,19 +357,31 @@ template <> struct Transform<D3> : ITransform<D3>
         projection[3][3] = 1.f;
         return projection;
     }
+    static f32m4 Orthographic(const f32 size, const f32 aspectRatio, const f32 near, const f32 far)
+    {
+        f32m4 projection{0.f};
+        projection[0][0] = 2.f / (size * aspectRatio);
+        projection[1][1] = 2.f / size;
+        projection[2][2] = 1.f / (far - near);
+        projection[3][2] = -near / (far - near);
+        projection[3][3] = 1.f;
+        return projection;
+    }
     // TODO(Isma): Fix the thing
-    static f32m4 Perspective(const f32 fieldOfView, const f32 near, const f32 far)
+    static f32m4 Perspective(const f32 fieldOfView, const f32 near, const f32 far, const f32 aspectRatio = 1.f)
     {
         f32m4 projection{0.f};
         const f32 invHalfPov = 1.f / Math::Tangent(0.5f * fieldOfView);
 
-        projection[0][0] = invHalfPov; // Aspect applied in view
+        projection[0][0] = invHalfPov / aspectRatio;
         projection[1][1] = invHalfPov;
         projection[2][2] = far / (far - near);
         projection[2][3] = 1.f;
         projection[3][2] = far * near / (near - far);
         return projection;
     }
+    TKIT_REFLECT_IGNORE_END()
+    TKIT_YAML_SERIALIZE_IGNORE_END()
 };
 
 /**
@@ -427,6 +448,26 @@ template <> struct Transform<D2> : ITransform<D2>
      * @return The promoted 3D transform.
      */
     Transform<D3> Promote();
+
+    static f32m3 Orthographic(const f32 left, const f32 right, const f32 bottom, const f32 top)
+    {
+        f32m3 projection{0.f};
+        projection[0][0] = 2.f / (right - left);
+        projection[1][1] = 2.f / (top - bottom);
+        projection[2][0] = -(right + left) / (right - left);
+        projection[2][1] = -(top + bottom) / (top - bottom);
+        projection[2][2] = 1.f;
+        return projection;
+    }
+
+    static f32m3 Orthographic(const f32 size, const f32 aspectRatio)
+    {
+        f32m3 projection{0.f};
+        projection[0][0] = 2.f / (size * aspectRatio);
+        projection[1][1] = 2.f / size;
+        projection[2][2] = 1.f;
+        return projection;
+    }
 };
 
 } // namespace Onyx

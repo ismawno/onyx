@@ -3,8 +3,10 @@
 #include "onyx/core/dimension.hpp"
 #include "onyx/property/instance.hpp"
 #include "onyx/asset/handle.hpp"
-#include "onyx/platform/window.hpp"
 #include "onyx/asset/font.hpp"
+#include "onyx/property/parameters.hpp"
+#include "onyx/rendering/pass.hpp"
+#include "onyx/rendering/view.hpp"
 #include "vkit/resource/host_buffer.hpp"
 
 namespace Onyx
@@ -309,8 +311,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void SetState(const RenderState<D> &state);
 
-    void Render(const Window *window);
-
     const auto &GetInstanceData() const
     {
         return m_InstanceData;
@@ -355,13 +355,13 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         ++m_Generation;
     }
 
-    void AddTarget(const Window *window)
+    void AddTarget(const RenderView<D> *view)
     {
-        AddTarget(window->GetViewBit());
+        AddTarget(view->GetViewBit());
     }
-    void RemoveTarget(const Window *window)
+    void RemoveTarget(const RenderView<D> *view)
     {
-        RemoveTarget(window->GetViewBit());
+        RemoveTarget(view->GetViewBit());
     }
 
   protected:

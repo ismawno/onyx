@@ -8,6 +8,7 @@
 #    include "onyx/imgui/imgui.hpp"
 #    include "onyx/asset/material.hpp"
 #    include "onyx/asset/sampler.hpp"
+#    include "onyx/property/parameters.hpp"
 #    include "tkit/container/stack_array.hpp"
 
 namespace Onyx

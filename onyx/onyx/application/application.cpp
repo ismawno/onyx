@@ -52,7 +52,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd));
         TKIT_RETURN_ON_ERROR(result);
 
-        const Renderer::TransferSubmitInfo &info = result.GetValue();
+        const TransferSubmitInfo &info = result.GetValue();
         if (info)
         {
             TKIT_RETURN_IF_FAILED(Renderer::SubmitTransfer(tqueue, tpool, info));
@@ -123,7 +123,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
         const auto multiViewports = [] { return ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable; };
 #endif
 
-        TKit::StackArray<Renderer::RenderSubmitInfo> rinfos{};
+        TKit::StackArray<RenderSubmitInfo> rinfos{};
         rinfos.Reserve(10 * wlayerCount);
 
         Assets::Lock();
@@ -151,7 +151,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             TKIT_RETURN_IF_FAILED(Execution::EndCommandBuffer(cmd));
             TKIT_RETURN_ON_ERROR(rnres);
 
-            const Renderer::RenderSubmitInfo &rinfo = rnres.GetValue();
+            const RenderSubmitInfo &rinfo = rnres.GetValue();
             wlayer->m_Window->MarkSubmission(gqueue->GetTimelineSempahore(), rinfo.InFlightValue);
 
             rinfos.Append(rinfo);

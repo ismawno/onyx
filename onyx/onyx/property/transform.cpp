@@ -171,6 +171,21 @@ Transform<D3> Transform<D3>::Extract(const f32m4 &ptransform)
     return transform;
 }
 
+void Transform<D3>::LookTowards(const f32v3 &position, const f32v3 &direction, const f32v3 &up)
+{
+    f32m3 rot;
+    const f32v3 &f = direction;
+    const f32v3 r = Normalize(Cross(direction, up));
+    const f32v3 u = Cross(r, direction);
+
+    rot[0] = r;
+    rot[1] = u;
+    rot[2] = f;
+
+    Translation = position;
+    Rotation = f32q::FromMat3(rot);
+}
+
 Transform<D3> Transform<D2>::Promote(const Transform &ptransform)
 {
     Transform<D3> transform;

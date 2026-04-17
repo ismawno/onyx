@@ -8,6 +8,7 @@ set(SOURCES
     onyx/platform/platform.cpp
     onyx/rendering/context.cpp
     onyx/rendering/renderer.cpp
+    onyx/rendering/view.cpp
     onyx/execution/execution.cpp
     onyx/resource/resources.cpp
     onyx/asset/assets.cpp
@@ -272,22 +273,12 @@ if(ONYX_ENABLE_FONT_LOAD)
 endif()
 
 tkit_register_for_yaml_serialization(
-  onyx
-  SOURCES
-  onyx/property/transform.hpp
-  onyx/property/instance.hpp
-  onyx/property/vertex.hpp
-  onyx/property/parameters.hpp
-  onyx/property/camera.hpp)
+  onyx SOURCES onyx/property/transform.hpp onyx/property/instance.hpp
+  onyx/property/vertex.hpp onyx/property/parameters.hpp)
 
 tkit_register_for_reflection(
-  onyx
-  SOURCES
-  onyx/property/transform.hpp
-  onyx/property/instance.hpp
-  onyx/property/vertex.hpp
-  onyx/property/parameters.hpp
-  onyx/property/camera.hpp)
+  onyx SOURCES onyx/property/transform.hpp onyx/property/instance.hpp
+  onyx/property/vertex.hpp onyx/property/parameters.hpp)
 
 if(ONYX_ENABLE_SHADER_API)
   if(DEFINED ENV{VCPKG_ROOT})

@@ -1,304 +1,87 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/property/camera.hpp"
 #include "onyx/platform/window.hpp"
+#include "onyx/rendering/view.hpp"
 
 namespace Onyx
 {
-using namespace Detail;
-void applyCoordinateSystemExtrinsic(f32m4 &transform)
+template <Dimension D> void CameraController<D>::ControlMovement(const f32 translationStep, const f32 rotationStep)
 {
-    // Essentially, a rotation around the x axis
-    for (u32 i = 0; i < 4; ++i)
-        for (u32 j = 1; j < 3; ++j)
-            transform[i][j] = -transform[i][j];
-}
-void applyCoordinateSystemIntrinsic(f32m4 &transform)
-{
-    // Essentially, a rotation around the x axis
-    transform[1] = -transform[1];
-    transform[2] = -transform[2];
-}
-
-VkViewport ScreenViewport::AsVulkanViewport(const VkExtent2D &extent) const
-{
-    VkViewport viewport;
-    viewport.x = 0.5f * (1.f + Min[0]) * extent.width;
-    viewport.y = 0.5f * (1.f - Max[1]) * extent.height;
-    viewport.width = 0.5f * (1.f + Max[0]) * extent.width - viewport.x;
-    viewport.height = 0.5f * (1.f - Min[1]) * extent.height - viewport.y;
-    viewport.minDepth = DepthBounds[0];
-    viewport.maxDepth = DepthBounds[1];
-
-    return viewport;
-}
-
-VkRect2D ScreenScissor::AsVulkanScissor(const VkExtent2D &extent, const ScreenViewport &viewport) const
-{
-    const f32v2 size = viewport.Max - viewport.Min;
-    const f32v2 min = viewport.Min + 0.5f * (1.f + Min) * size;
-    const f32v2 max = viewport.Min + 0.5f * (1.f + Max) * size;
-
-    VkRect2D scissor;
-    scissor.offset.x = i32(0.5f * (1.f + min[0]) * extent.width);
-    scissor.offset.y = i32(0.5f * (1.f - max[1]) * extent.height);
-    scissor.extent.width = u32(0.5f * (1.f + max[0]) * extent.width) - u32(scissor.offset.x);
-    scissor.extent.height = u32(0.5f * (1.f - min[1]) * extent.height) - u32(scissor.offset.y);
-
-    return scissor;
-}
-
-template <Dimension D> f32v2 ICamera<D>::ScreenToViewport(const f32v2 &screenPos) const
-{
-    const f32v2 size = m_Viewport.Max - m_Viewport.Min;
-    return -1.f + 2.f * (screenPos - m_Viewport.Min) / size;
-}
-template <Dimension D> f32v<D> ICamera<D>::ViewportToWorld(f32v<D> viewportPos) const
-{
-    viewportPos[1] = -viewportPos[1]; // Invert y axis to undo onyx's inversion to GLFW
-    if constexpr (D == D2)
-    {
-        const f32m3 itransform3 = Math::Inverse(m_ProjectionView.ProjectionView);
-        f32m4 itransform = Onyx::Transform<D2>::Promote(itransform3);
-        if (m_System == CoordinateSystem_YUp)
-            applyCoordinateSystemIntrinsic(itransform);
-        return itransform * f32v4{viewportPos, 0.f, 1.f};
-    }
-    else
-    {
-        const f32v4 clip = Math::Inverse(m_ProjectionView.ProjectionView) * f32v4{viewportPos, 1.f};
-        return f32v3{clip} / clip[3];
-    }
-}
-
-template <Dimension D> f32v2 ICamera<D>::WorldToViewport(const f32v<D> &worldPos) const
-{
-    if constexpr (D == D2)
-    {
-        f32m4 transform = Onyx::Transform<D2>::Promote(m_ProjectionView.ProjectionView);
-        if (m_System == CoordinateSystem_YUp)
-            applyCoordinateSystemExtrinsic(transform);
-        f32v2 viewportPos = f32v2{transform * f32v4{worldPos, 0.f, 1.f}};
-        viewportPos[1] = -viewportPos[1];
-        return viewportPos;
-    }
-    else
-    {
-        f32v4 clip = m_ProjectionView.ProjectionView * f32v4{worldPos, 1.f};
-        clip[1] = -clip[1];
-        return f32v2{clip} / clip[3];
-    }
-}
-
-template <Dimension D> f32v2 ICamera<D>::ViewportToScreen(const f32v2 &viewportPos) const
-{
-    const f32v2 size = m_Viewport.Max - m_Viewport.Min;
-    return m_Viewport.Min + 0.5f * (1.f + viewportPos) * size;
-}
-
-template <Dimension D> f32v<D> ICamera<D>::ScreenToWorld(const f32v<D> &screenPos) const
-{
-    if constexpr (D == D2)
-        return ViewportToWorld(ScreenToViewport(screenPos));
-    else
-    {
-        const f32 z = screenPos[2];
-        return ViewportToWorld(f32v3{ScreenToViewport(f32v2{screenPos}), z});
-    }
-}
-template <Dimension D> f32v2 ICamera<D>::WorldToScreen(const f32v<D> &worldPos) const
-{
-    return ViewportToScreen(WorldToViewport(worldPos));
-}
-
-template <Dimension D> f32v2 ICamera<D>::GetViewportMousePosition() const
-{
-    return ScreenToViewport(m_Window->GetScreenMousePosition());
-}
-
-// TODO(Isma): Allow view to be set with matrix
-template <Dimension D> void ICamera<D>::SetView(const Onyx::Transform<D> &view)
-{
-    m_ProjectionView.View = view;
-    adaptViewToViewportAspect();
-}
-template <Dimension D> void ICamera<D>::SetViewport(const ScreenViewport &viewport)
-{
-    m_Viewport = viewport;
-    adaptViewToViewportAspect();
-}
-template <Dimension D> void ICamera<D>::SetScissor(const ScreenScissor &scissor)
-{
-    m_Scissor = scissor;
-}
-template <Dimension D> void ICamera<D>::SetCoordinateSystem(const CoordinateSystem system)
-{
-    m_System = system;
-    if constexpr (D == D3)
-        updateProjectionView();
-}
-
-f32v2 Camera<D2>::GetWorldMousePosition() const
-{
-    return ScreenToWorld(m_Window->GetScreenMousePosition());
-}
-void Camera<D2>::SetSize(const f32 size)
-{
-    const f32 aspect = m_ProjectionView.View.Scale[0] / m_ProjectionView.View.Scale[0];
-    m_ProjectionView.View.Scale[0] = size * aspect;
-    m_ProjectionView.View.Scale[1] = size;
-}
-f32v3 Camera<D3>::GetWorldMousePosition(const f32 depth) const
-{
-    return ScreenToWorld(f32v3{m_Window->GetScreenMousePosition(), depth});
-}
-
-template <Dimension D> void ICamera<D>::ControlMovementWithUserInput(const CameraControls<D> &controls)
-{
-    Onyx::Transform<D> &view = m_ProjectionView.View;
+    Onyx::Transform<D> &view = Camera->View;
     f32v<D> translation{0.f};
-    if (m_Window->IsKeyPressed(controls.Left))
-        translation[0] -= view.Scale[0] * controls.TranslationStep;
-    if (m_Window->IsKeyPressed(controls.Right))
-        translation[0] += view.Scale[0] * controls.TranslationStep;
+    if (m_Window->IsKeyPressed(Controls.Left))
+        translation[0] -= view.Scale[0] * translationStep;
+    if (m_Window->IsKeyPressed(Controls.Right))
+        translation[0] += view.Scale[0] * translationStep;
 
-    if (m_Window->IsKeyPressed(controls.Up))
-        translation[1] += view.Scale[1] * controls.TranslationStep;
-    if (m_Window->IsKeyPressed(controls.Down))
-        translation[1] -= view.Scale[1] * controls.TranslationStep;
+    if (m_Window->IsKeyPressed(Controls.Up))
+        translation[1] += view.Scale[1] * translationStep;
+    if (m_Window->IsKeyPressed(Controls.Down))
+        translation[1] -= view.Scale[1] * translationStep;
 
     if constexpr (D == D2)
     {
-        if (m_Window->IsKeyPressed(controls.RotateLeft))
-            view.Rotation += controls.RotationStep;
-        if (m_Window->IsKeyPressed(controls.RotateRight))
-            view.Rotation -= controls.RotationStep;
+        if (m_Window->IsKeyPressed(Controls.RotateLeft))
+            view.Rotation += rotationStep;
+        if (m_Window->IsKeyPressed(Controls.RotateRight))
+            view.Rotation -= rotationStep;
     }
     else
     {
-        if (m_Window->IsKeyPressed(controls.Forward))
-            translation[2] -= view.Scale[2] * controls.TranslationStep;
-        if (m_Window->IsKeyPressed(controls.Backward))
-            translation[2] += view.Scale[2] * controls.TranslationStep;
+        if (m_Window->IsKeyPressed(Controls.Forward))
+            translation[2] -= view.Scale[2] * translationStep;
+        if (m_Window->IsKeyPressed(Controls.Backward))
+            translation[2] += view.Scale[2] * translationStep;
 
         f32v2 mpos = m_Window->GetScreenMousePosition();
         mpos[1] = -mpos[1]; // Invert y axis to undo onyx's inversion to GLFW, so that now when applying the
                             // rotation around x axis everything works out
 
-        const bool lookAround = m_Window->IsKeyPressed(controls.ToggleLookAround);
+        const bool lookAround = m_Window->IsKeyPressed(Controls.ToggleLookAround);
         const f32v2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : f32v2{0.f};
         m_PrevMousePos = mpos;
 
         f32v3 angles{delta[1], delta[0], 0.f};
-        if (m_Window->IsKeyPressed(controls.RotateLeft))
-            angles[2] += controls.RotationStep;
-        if (m_Window->IsKeyPressed(controls.RotateRight))
-            angles[2] -= controls.RotationStep;
+        if (m_Window->IsKeyPressed(Controls.RotateLeft))
+            angles[2] += rotationStep;
+        if (m_Window->IsKeyPressed(Controls.RotateRight))
+            angles[2] -= rotationStep;
 
         view.Rotation *= f32q{angles};
     }
 
     const auto rmat = Onyx::Transform<D>::ComputeRotationMatrix(view.Rotation);
     view.Translation += rmat * translation;
-
-    updateProjectionView();
 }
 
-void Camera<D3>::SetProjection(const f32m4 &projection)
+// sloppy design
+template <Dimension D> void CameraController<D>::ControlScroll(const f32 scaleStep, RenderView<D> *rview)
 {
-    m_ProjectionView.Projection = projection;
-    updateProjectionView();
-}
-
-template <Dimension D> void ICamera<D>::ControlMovementWithUserInput(const TKit::Timespan deltaTime)
-{
-    CameraControls<D> controls{};
-    controls.TranslationStep = deltaTime.AsSeconds();
-    controls.RotationStep = deltaTime.AsSeconds();
-    ControlMovementWithUserInput(controls);
-}
-
-template <Dimension D> void ICamera<D>::ControlScrollWithUserInput(const f32 scaleStep)
-{
-    f32v2 scpos = m_Window->GetScreenMousePosition();
-    scpos[1] = -scpos[1]; // Invert y axis to undo onyx's inversion to GLFW, so that now when applying the
-    // rotation around x axis everything works out
-
-    if constexpr (D == D2)
+    TKIT_ASSERT(!rview || rview->GetCamera() == Camera,
+                "[ONYX][CONTROLLER] If passing a render view, its camera must be the same as the controller's");
+    const f32 factor = 1.f - scaleStep;
+    if constexpr (D == D3)
     {
-        f32m4 transform = Onyx::Transform<D2>::Promote(m_ProjectionView.View.ComputeTransform());
-        if (m_System == CoordinateSystem_YUp)
-            applyCoordinateSystemIntrinsic(transform);
-        const f32v2 mpos = transform * f32v4{scpos, 0.f, 1.f};
-        const f32v2 dpos = scaleStep * (mpos - m_ProjectionView.View.Translation);
-        m_ProjectionView.View.Translation += dpos;
-        m_ProjectionView.View.Scale *= 1.f - scaleStep;
+        if (Camera->Mode == CameraMode_Orthographic)
+            Camera->OrthoParameters.Size *= factor;
+        else
+            Camera->PerspParameters.FieldOfView *= factor;
     }
     else
     {
-        const f32m4 transform = m_ProjectionView.View.ComputeTransform();
-        const f32v3 mpos = transform * f32v4{scpos, 0.f, 1.f};
-        const f32v3 dpos = scaleStep * (mpos - m_ProjectionView.View.Translation);
-        m_ProjectionView.View.Translation += dpos;
-        m_ProjectionView.View.Scale *= 1.f - scaleStep;
-    }
+        Camera->OrthoParameters.Size *= factor;
+        if (rview)
+        {
+            const f32v2 scpos = m_Window->GetScreenMousePosition();
+            const f32v2 wb = rview->ScreenToWorld(scpos);
+            rview->CacheProjectionView();
+            const f32v2 wa = rview->ScreenToWorld(scpos);
 
-    updateProjectionView();
-}
-
-template <Dimension D> void ICamera<D>::adaptViewToViewportAspect()
-{
-    const VkExtent2D &extent = m_Window->GetSwapChain().GetInfo().Extent;
-    const VkViewport viewport = m_Viewport.AsVulkanViewport(extent);
-    const f32 aspect = viewport.width / viewport.height;
-
-    m_ProjectionView.View.Scale[0] = m_ProjectionView.View.Scale[1] * aspect;
-    updateProjectionView();
-}
-template <Dimension D> void ICamera<D>::updateProjectionView()
-{
-    if constexpr (D == D2)
-        m_ProjectionView.ProjectionView = m_ProjectionView.View.ComputeInverseTransform();
-    else
-    {
-        f32m4 vmat = m_ProjectionView.View.ComputeInverseTransform();
-        if (m_System == CoordinateSystem_YUp)
-            applyCoordinateSystemExtrinsic(vmat);
-        m_ProjectionView.ProjectionView = m_ProjectionView.Projection * vmat;
+            Camera->View.Translation += wb - wa;
+        }
     }
 }
 
-template <Dimension D> CameraInfo<D> ICamera<D>::CreateCameraInfo() const
-{
-    const VkExtent2D &extent = m_Window->GetSwapChain().GetInfo().Extent;
-    CameraInfo<D> info;
-    if constexpr (D == D2)
-    {
-        info.ProjectionView = Transform<D2>::Promote(m_ProjectionView.ProjectionView);
-        if (m_System == CoordinateSystem_YUp)
-            applyCoordinateSystemExtrinsic(info.ProjectionView);
-    }
-    else
-    {
-        info.ViewPosition = m_ProjectionView.View.Translation;
-        info.ProjectionView = m_ProjectionView.ProjectionView;
-    }
-    info.BackgroundColor = BackgroundColor;
-    info.Transparent = Transparent;
-    info.Viewport = m_Viewport.AsVulkanViewport(extent);
-    info.Scissor = m_Scissor.AsVulkanScissor(extent, m_Viewport);
-    return info;
-}
-
-f32v3 Camera<D3>::GetViewLookDirection() const
-{
-    return Math::Normalize(ScreenToWorld(f32v3{0.f, 0.f, 1.f}));
-}
-f32v3 Camera<D3>::GetMouseLookDirection() const
-{
-    return Math::Normalize(GetWorldMousePosition(0.25f) - GetWorldMousePosition(0.f));
-}
-
-template class Detail::ICamera<D2>;
-template class Detail::ICamera<D3>;
-
+template class CameraController<D2>;
+template class CameraController<D3>;
 } // namespace Onyx

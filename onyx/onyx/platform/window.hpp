@@ -4,8 +4,6 @@
 #include "onyx/platform/input.hpp"
 #include "onyx/platform/platform.hpp"
 #include "onyx/property/color.hpp"
-#include "onyx/property/camera.hpp"
-#include "onyx/property/parameters.hpp"
 #include "onyx/execution/execution.hpp"
 #include "onyx/rendering/renderer.hpp"
 #include "vkit/presentation/swap_chain.hpp"
@@ -17,6 +15,8 @@ namespace Onyx
 {
 u32 ToFrequency(TKit::Timespan deltaTime);
 TKit::Timespan ToDeltaTime(u32 frameRate);
+
+template <Dimension D> struct Camera;
 
 using Timeout = u64;
 
@@ -48,7 +48,7 @@ class Window
      * `vkBeginRendering()`/`vkEndRendering()` pair may be submitted.
      *
      */
-    void BeginRendering(VkCommandBuffer commandBuffer, const Color &clearColor = Color::Black);
+    void BeginRendering(VkCommandBuffer commandBuffer);
     void EndRendering(VkCommandBuffer commandBuffer);
 
     bool ShouldClose() const;
@@ -105,11 +105,11 @@ class Window
 
     f32v2 GetScreenMousePosition() const;
 
-    bool IsKeyPressed(Key key);
-    bool IsKeyReleased(Key key);
+    bool IsKeyPressed(Key key) const;
+    bool IsKeyReleased(Key key) const;
 
-    bool IsMousePressed(Mouse button);
-    bool IsMouseReleased(Mouse button);
+    bool IsMousePressed(Mouse button) const;
+    bool IsMouseReleased(Mouse button) const;
 
     VkSurfaceKHR GetSurface() const
     {
@@ -142,24 +142,38 @@ class Window
 
     void FlushEvents();
 
-    template <Dimension D> Camera<D> *CreateCamera()
+    template <Dimension D>
+    RenderView<D> *CreateRenderView(const Camera<D> *camera, const ScreenViewport &viewport = {},
+                                    const ScreenScissor &scissor = {})
     {
-        auto &array = getCameraArray<D>();
         TKit::TierAllocator *tier = TKit::GetTier();
-        Camera<D> *camera = tier->Create<Camera<D>>();
-        camera->m_Window = this;
-        camera->adaptViewToViewportAspect();
-
-        array.Append(camera);
-        return camera;
+        RenderView<D> *rv = tier->Create<RenderView<D>>(camera, viewport, scissor);
+        rv->updateExtent(m_SwapChain.GetInfo().Extent);
+        return getRenderViews<D>().Append(rv);
     }
 
-    template <Dimension D> Camera<D> *CreateCamera(const CameraParameters &options)
+    template <Dimension D> void DestroyRenderView(const RenderView<D> *rv)
     {
-        Camera<D> *camera = CreateCamera<D>();
-        camera->SetViewport(options.Viewport);
-        camera->SetScissor(options.Scissor);
-        return camera;
+        TKit::TierArray<RenderView<D> *> &rvs = getRenderViews<D>();
+        for (u32 i = 0; i < rvs.GetSize(); ++i)
+            if (rv == rvs[i])
+            {
+                TKit::TierAllocator *tier = TKit::GetTier();
+                tier->Destroy(rvs[i]);
+                rvs.RemoveOrdered(rvs.begin() + i);
+                return;
+            }
+        TKIT_FATAL("[ONYX][WINDOW] Render view '{}' not found", scast<const void *>(rv));
+    }
+
+    template <Dimension D> RenderView<D> *GetMouseRenderView()
+    {
+        const TKit::TierArray<RenderView<D> *> &rvs = GetRenderViews<D>();
+        const f32v2 mpos = GetScreenMousePosition();
+        for (RenderView<D> *rv : rvs)
+            if (rv->IsWithinViewport(mpos))
+                return rv;
+        return nullptr;
     }
 
     template <Dimension D> void DestroyCamera(const Camera<D> *camera)
@@ -176,21 +190,23 @@ class Window
         TKIT_FATAL("[ONYX][WINDOW] Camera '{}' not found", scast<const void *>(camera));
     }
 
-    template <Dimension D> TKit::TierArray<CameraInfo<D>> GetCameraInfos() const
+    template <Dimension D> TKit::TierArray<ViewInfo<D>> CreateViewInfos() const
     {
-        auto &array = getCameraArray<D>();
-        TKit::TierArray<CameraInfo<D>> cameras;
-        for (const Camera<D> *cam : array)
-            cameras.Append(cam->CreateCameraInfo());
-        return cameras;
+        const TKit::TierArray<RenderView<D> *> &views = GetRenderViews<D>();
+        TKit::TierArray<ViewInfo<D>> infos{};
+        for (RenderView<D> *rv : views)
+        {
+            rv->CacheProjectionView();
+            infos.Append(rv->CreateViewInfo());
+        }
+        return infos;
     }
 
-    ViewInfo CreateViewInfo() const
+    RenderTargetInfo CreateRenderTargetInfo()
     {
-        ViewInfo info;
-        info.ViewBit = m_ViewBit;
-        info.Cameras2 = GetCameraInfos<D2>();
-        info.Cameras3 = GetCameraInfos<D3>();
+        RenderTargetInfo info;
+        info.Views2 = CreateViewInfos<D2>();
+        info.Views3 = CreateViewInfos<D3>();
         info.ImageAvailableSemaphore = GetImageAvailableSemaphore();
         info.RenderFinishedSemaphore = GetRenderFinishedSemaphore();
         return info;
@@ -226,11 +242,6 @@ class Window
         m_PresentMode = presentMode;
     }
 
-    ViewMask GetViewBit() const
-    {
-        return m_ViewBit;
-    }
-
     VkSemaphore GetImageAvailableSemaphore() const
     {
         return m_SyncData[m_ImageAvailableIndex].ImageAvailableSemaphore;
@@ -245,8 +256,18 @@ class Window
         m_SyncData[m_ImageAvailableIndex].InFlightValue = inFlightValue;
     }
 
+    template <Dimension D> const TKit::TierArray<RenderView<D> *> &GetRenderViews() const
+    {
+        if constexpr (D == D2)
+            return m_RenderViews2;
+        else
+            return m_RenderViews3;
+    }
+
+    Color ClearColor = Color::Black;
+
   private:
-    void adaptCamerasToViewportAspect();
+    void updateRenderViews();
 
     ONYX_NO_DISCARD Result<> createSwapChain(const VkExtent2D &windowExtent);
     ONYX_NO_DISCARD Result<> drainWork();
@@ -267,26 +288,18 @@ class Window
     static void destroyImageData(TKit::TierArray<Window::ImageData> &images);
     static VkExtent2D getNewExtent(GLFWwindow *window);
 
-    template <Dimension D> const auto &getCameraArray() const
+    template <Dimension D> TKit::TierArray<RenderView<D> *> &getRenderViews()
     {
         if constexpr (D == D2)
-            return m_Cameras2;
+            return m_RenderViews2;
         else
-            return m_Cameras3;
-    }
-
-    template <Dimension D> auto &getCameraArray()
-    {
-        if constexpr (D == D2)
-            return m_Cameras2;
-        else
-            return m_Cameras3;
+            return m_RenderViews3;
     }
 
     GLFWwindow *m_Window;
 
-    TKit::TierArray<Camera<D2> *> m_Cameras2{};
-    TKit::TierArray<Camera<D3> *> m_Cameras3{};
+    TKit::TierArray<RenderView<D2> *> m_RenderViews2{};
+    TKit::TierArray<RenderView<D3> *> m_RenderViews3{};
 
     TKit::TierArray<Event> m_Events;
     VkSurfaceKHR m_Surface;
@@ -302,7 +315,6 @@ class Window
 
     u32 m_ImageIndex;
     u32 m_ImageAvailableIndex = 0;
-    ViewMask m_ViewBit;
 
     VkPresentModeKHR m_PresentMode;
     bool m_MustRecreateSwapchain = false;
