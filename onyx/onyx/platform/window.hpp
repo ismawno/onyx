@@ -143,7 +143,7 @@ class Window
     void FlushEvents();
 
     template <Dimension D>
-    RenderView<D> *CreateRenderView(const Camera<D> *camera, const ScreenViewport &viewport = {},
+    RenderView<D> *CreateRenderView(Camera<D> *camera, const ScreenViewport &viewport = {},
                                     const ScreenScissor &scissor = {})
     {
         TKit::TierAllocator *tier = TKit::GetTier();
@@ -166,28 +166,16 @@ class Window
         TKIT_FATAL("[ONYX][WINDOW] Render view '{}' not found", scast<const void *>(rv));
     }
 
-    template <Dimension D> RenderView<D> *GetMouseRenderView()
+    template <Dimension D> RenderView<D> *GetMouseRenderView() const
     {
         const TKit::TierArray<RenderView<D> *> &rvs = GetRenderViews<D>();
         const f32v2 mpos = GetScreenMousePosition();
-        for (RenderView<D> *rv : rvs)
-            if (rv->IsWithinViewport(mpos))
-                return rv;
-        return nullptr;
-    }
 
-    template <Dimension D> void DestroyCamera(const Camera<D> *camera)
-    {
-        auto &array = getCameraArray<D>();
-        for (u32 i = 0; i < array.GetSize(); ++i)
-            if (array[i] == camera)
-            {
-                TKit::TierAllocator *tier = TKit::GetTier();
-                tier->Destroy(array[i]);
-                array.RemoveOrdered(array.begin() + i);
-                return;
-            }
-        TKIT_FATAL("[ONYX][WINDOW] Camera '{}' not found", scast<const void *>(camera));
+        for (u32 i = rvs.GetSize() - 1; i < rvs.GetSize(); --i)
+            if (rvs[i]->IsWithinViewport(mpos))
+                return rvs[i];
+
+        return nullptr;
     }
 
     template <Dimension D> TKit::TierArray<ViewInfo<D>> CreateViewInfos() const
@@ -211,6 +199,9 @@ class Window
         info.RenderFinishedSemaphore = GetRenderFinishedSemaphore();
         return info;
     }
+
+    template <Dimension D>
+    void ControlCamera(TKit::Timespan deltaTime, Camera<D> *camera, const CameraControls<D> &controls = {}) const;
 
     ONYX_NO_DISCARD Result<bool> AcquireNextImage(Timeout timeout);
     ONYX_NO_DISCARD Result<> Present();
@@ -315,6 +306,7 @@ class Window
 
     u32 m_ImageIndex;
     u32 m_ImageAvailableIndex = 0;
+    mutable f32v2 m_PrevMousePos{0.f};
 
     VkPresentModeKHR m_PresentMode;
     bool m_MustRecreateSwapchain = false;

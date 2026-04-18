@@ -76,41 +76,4 @@ template <> struct Camera<D3>
     PerspectiveParameters PerspParameters{};
     CameraMode Mode = CameraMode_Perspective;
 };
-
-template <Dimension D> class RenderView;
-
-template <Dimension D> class CameraController
-{
-  public:
-    CameraController(const Window *window, Camera<D> *camera, const CameraControls<D> &controls = {})
-        : Camera(camera), Controls(controls), m_Window(window)
-    {
-    }
-
-    void ControlMovement(f32 translationStep, f32 rotationStep);
-    void ControlMovement(const TKit::Timespan deltaTime)
-    {
-        const f32 step = deltaTime.AsSeconds();
-        ControlMovement(step, step);
-    }
-    void ControlScroll(f32 scaleStep, RenderView<D> *rview = nullptr);
-
-    Camera<D> *Camera;
-    CameraControls<D> Controls;
-
-    const Window *GetWindow() const
-    {
-        return m_Window;
-    }
-    void SetWindow(const Window *window)
-    {
-        m_Window = window;
-        m_PrevMousePos = f32v2{0.f};
-    }
-
-  private:
-    const Window *m_Window;
-    f32v2 m_PrevMousePos{0.f};
-};
-
 } // namespace Onyx

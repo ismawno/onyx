@@ -72,7 +72,7 @@ template <Dimension D> class RenderView
     TKIT_NON_COPYABLE(RenderView)
 
   public:
-    RenderView(const Camera<D> *camera, const ScreenViewport &viewport = {}, const ScreenScissor &scissor = {});
+    RenderView(Camera<D> *camera, const ScreenViewport &viewport = {}, const ScreenScissor &scissor = {});
     ~RenderView();
 
     f32v2 ScreenToViewport(const f32v2 &screenPos) const;
@@ -130,17 +130,17 @@ template <Dimension D> class RenderView
         m_Scissor = sc;
     }
 
-    const Camera<D> *GetCamera() const
+    Camera<D> *GetCamera() const
     {
         return m_Camera;
     }
-    void SetCamera(const Camera<D> *camera)
+    void SetCamera(Camera<D> *camera)
     {
         m_Camera = camera;
         CacheProjectionView();
     }
 
-    void ZoomScroll(const f32v2 &screenPos, f32 step);
+    void ZoomScroll(const f32v<D> &screenPos, f32 step);
 
     ViewInfo<D> CreateViewInfo() const
     {
@@ -170,7 +170,7 @@ template <Dimension D> class RenderView
         m_Extent = extent;
     }
 
-    const Camera<D> *m_Camera;
+    Camera<D> *m_Camera;
     ScreenViewport m_Viewport;
     ScreenScissor m_Scissor;
     ViewMask m_ViewBit;

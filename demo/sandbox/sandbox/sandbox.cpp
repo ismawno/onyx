@@ -547,17 +547,17 @@ SandboxWinLayer::~SandboxWinLayer()
 void SandboxWinLayer::OnRender(const DeltaTime &deltaTime)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Sandbox::OnRender");
-    if (!Cameras2.Cameras.IsEmpty())
+    const Window *win = GetWindow();
+
+    if (!ImGui::GetIO().WantCaptureKeyboard)
     {
-        Cameras2.Active = Math::Min(Cameras2.Cameras.GetSize() - 1, Cameras2.Active);
-        if (!ImGui::GetIO().WantCaptureKeyboard)
-            Cameras2.Cameras[Cameras2.Active].Controller->ControlMovement(deltaTime.Measured);
-    }
-    if (!Cameras3.Cameras.IsEmpty())
-    {
-        Cameras3.Active = Math::Min(Cameras3.Cameras.GetSize() - 1, Cameras3.Active);
-        if (!ImGui::GetIO().WantCaptureKeyboard)
-            Cameras3.Cameras[Cameras3.Active].Controller->ControlMovement(deltaTime.Measured);
+        RenderView<D2> *rv2 = win->GetMouseRenderView<D2>();
+        RenderView<D3> *rv3 = win->GetMouseRenderView<D3>();
+
+        if (rv2)
+            win->ControlCamera(deltaTime.Measured, rv2->GetCamera());
+        if (rv3)
+            win->ControlCamera(deltaTime.Measured, rv3->GetCamera());
     }
 
 #ifdef ONYX_ENABLE_IMGUI
@@ -740,7 +740,6 @@ template <Dimension D> void SandboxWinLayer::RenderCameras()
         opts.OnRemoval = [](const CameraData<D> &camera) {
             TKit::TierAllocator *tier = TKit::GetTier();
             tier->Destroy(camera.Camera);
-            tier->Destroy(camera.Controller);
         };
         renderEntries(cameras.Cameras, opts);
     }
@@ -802,7 +801,7 @@ template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
 }
 
 template <Dimension D>
-static void cameraCombo(const char *name, u32 *index, const TKit::TierArray<CameraData<D>> &cameras)
+static bool cameraCombo(const char *name, u32 *index, const TKit::TierArray<CameraData<D>> &cameras)
 {
     TKit::StackArray<const char *> names{};
     names.Reserve(cameras.GetSize());
@@ -810,7 +809,7 @@ static void cameraCombo(const char *name, u32 *index, const TKit::TierArray<Came
     for (const CameraData<D> &cam : cameras)
         names.Append(cam.Name.c_str());
 
-    combo(name, index, names);
+    return combo(name, index, names);
 }
 
 template <Dimension D> void SandboxWinLayer::RenderWindowViews()
@@ -844,6 +843,10 @@ template <Dimension D> void SandboxWinLayer::RenderWindowView(ViewData<D> &view)
     const f32v2 vpos = v->ScreenToViewport(mpos);
     ImGui::Text("Viewport mouse position: (%.2f, %.2f)", vpos[0], vpos[1]);
     ImGui::Text("Is mouse within this viewport: %s", v->IsWithinViewport(mpos) ? "True" : "False");
+
+    auto &cameras = GetCameras<D>();
+    if (cameraCombo("Camera##View", &view.CameraIndex, cameras.Cameras))
+        view.View->SetCamera(cameras.Cameras[view.CameraIndex].Camera);
 
     if constexpr (D == D2)
     {
@@ -1909,20 +1912,23 @@ template <Dimension D> void SandboxWinLayer::ProcessEvent(const Event &event)
     if (ImGui::GetIO().WantCaptureMouse || ImGui::GetIO().WantCaptureKeyboard)
         return;
 #endif
-    const auto &cams = GetCameras<D>();
-    if (cams.Cameras.IsEmpty())
+    if (event.Type != Event_Scrolled)
         return;
 
-    // TODO(Isma): Choose view based on mouse pos
-    const CameraData<D> &cam = cams.Cameras[cams.Active];
-    if (event.Type == Event_Scrolled)
-    {
-        const f32 factor = GetWindow()->IsKeyPressed(Key_LeftShift) ? 0.05f : 0.005f;
-        cam.Controller->ControlScroll(factor * event.ScrollOffset[1], GetMainView<D>());
-    }
+    const Window *win = GetWindow();
+    RenderView<D> *rv = win->GetMouseRenderView<D>();
+    if (!rv)
+        return;
+
+    const f32 factor = win->IsKeyPressed(Key_LeftShift) ? 0.05f : 0.005f;
+    const f32v2 mpos = win->GetScreenMousePosition();
+    if constexpr (D == D2)
+        rv->ZoomScroll(mpos, factor * event.ScrollOffset[1]);
+    else
+        rv->ZoomScroll(f32v3{mpos, 0.f}, factor * event.ScrollOffset[1]);
 }
 
-template <Dimension D> RenderView<D> *SandboxWinLayer::AddView(const Camera<D> *camera)
+template <Dimension D> RenderView<D> *SandboxWinLayer::AddView(Camera<D> *camera)
 {
     auto &views = GetViews<D>();
     Window *win = GetWindow();
@@ -1945,7 +1951,6 @@ template <Dimension D> Camera<D> *SandboxWinLayer::AddCamera()
     TKit::TierAllocator *tier = TKit::GetTier();
     data.Camera = tier->Create<Camera<D>>();
     data.Name = TKit::Format("Camera {}", size);
-    data.Controller = tier->Create<CameraController<D>>(GetWindow(), data.Camera);
 
     if constexpr (D == D3)
     {

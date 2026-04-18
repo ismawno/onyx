@@ -3,6 +3,7 @@
 #include "onyx/platform/input.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/platform/glfw.hpp"
+#include "onyx/property/camera.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
 
@@ -1375,5 +1376,61 @@ bool Window::IsMouseReleased(const Mouse button) const
 {
     return glfwGetMouseButton(m_Window, toGlfw(button)) == GLFW_RELEASE;
 }
+
+template <Dimension D>
+void Window::ControlCamera(const TKit::Timespan deltaTime, Camera<D> *camera, const CameraControls<D> &controls) const
+{
+    Onyx::Transform<D> &view = camera->View;
+    const f32 step = deltaTime.AsSeconds();
+    f32v<D> translation{0.f};
+    if (IsKeyPressed(controls.Left))
+        translation[0] -= view.Scale[0] * step;
+    if (IsKeyPressed(controls.Right))
+        translation[0] += view.Scale[0] * step;
+
+    if (IsKeyPressed(controls.Up))
+        translation[1] += view.Scale[1] * step;
+    if (IsKeyPressed(controls.Down))
+        translation[1] -= view.Scale[1] * step;
+
+    if constexpr (D == D2)
+    {
+        if (IsKeyPressed(controls.RotateLeft))
+            view.Rotation += step;
+        if (IsKeyPressed(controls.RotateRight))
+            view.Rotation -= step;
+    }
+    else
+    {
+        if (IsKeyPressed(controls.Forward))
+            translation[2] -= view.Scale[2] * step;
+        if (IsKeyPressed(controls.Backward))
+            translation[2] += view.Scale[2] * step;
+
+        f32v2 mpos = GetScreenMousePosition();
+        mpos[1] = -mpos[1]; // Invert y axis to undo onyx's inversion to GLFW, so that now when applying the
+                            // rotation around x axis everything works out
+
+        const bool lookAround = IsKeyPressed(controls.ToggleLookAround);
+        const f32v2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : f32v2{0.f};
+        m_PrevMousePos = mpos;
+
+        f32v3 angles{delta[1], delta[0], 0.f};
+        if (IsKeyPressed(controls.RotateLeft))
+            angles[2] += step;
+        if (IsKeyPressed(controls.RotateRight))
+            angles[2] -= step;
+
+        view.Rotation *= f32q{angles};
+    }
+
+    const auto rmat = Onyx::Transform<D>::ComputeRotationMatrix(view.Rotation);
+    view.Translation += rmat * translation;
+}
+
+template void Window::ControlCamera<D2>(const TKit::Timespan deltaTime, Camera<D2> *camera,
+                                        const CameraControls<D2> &controls) const;
+template void Window::ControlCamera<D3>(const TKit::Timespan deltaTime, Camera<D3> *camera,
+                                        const CameraControls<D3> &controls) const;
 
 } // namespace Onyx

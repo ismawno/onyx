@@ -4,7 +4,6 @@ project(onyx)
 set(SOURCES
     onyx/core/pch.cpp
     onyx/core/core.cpp
-    onyx/property/camera.cpp
     onyx/platform/platform.cpp
     onyx/rendering/context.cpp
     onyx/rendering/renderer.cpp

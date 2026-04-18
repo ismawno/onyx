@@ -63,7 +63,7 @@ VkViewport ScreenViewport::AsVulkanViewport(const VkExtent2D &extent) const
     return viewport;
 }
 template <Dimension D>
-RenderView<D>::RenderView(const Camera<D> *camera, const ScreenViewport &viewport, const ScreenScissor &scissor)
+RenderView<D>::RenderView(Camera<D> *camera, const ScreenViewport &viewport, const ScreenScissor &scissor)
     : m_Camera(camera), m_Viewport(viewport), m_Scissor(scissor)
 {
     m_ViewBit = allocateViewBit();
@@ -146,6 +146,27 @@ template <Dimension D> f32m<D> RenderView<D>::ComputeProjectionView() const
                                : Transform<D3>::Orthographic(oparams.Size, aspect, oparams.Near, oparams.Far);
 
         return proj * view;
+    }
+}
+
+template <Dimension D> void RenderView<D>::ZoomScroll(const f32v<D> &screenPos, const f32 step)
+{
+    const f32 factor = 1.f - step;
+    const auto doZoom = [&] {
+        m_Camera->OrthoParameters.Size *= factor;
+        const f32v<D> wb = ScreenToWorld(screenPos);
+        CacheProjectionView();
+        const f32v<D> wa = ScreenToWorld(screenPos);
+        m_Camera->View.Translation += wb - wa;
+    };
+    if constexpr (D == D2)
+        doZoom();
+    else
+    {
+        if (m_Camera->Mode == CameraMode_Orthographic)
+            doZoom();
+        else
+            m_Camera->PerspParameters.FieldOfView *= factor;
     }
 }
 

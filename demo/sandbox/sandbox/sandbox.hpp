@@ -27,7 +27,6 @@ template <Dimension D> struct CameraData
 {
     std::string Name{};
     Camera<D> *Camera = nullptr;
-    CameraController<D> *Controller = nullptr;
 };
 
 template <Dimension D> struct CameraArray
@@ -395,7 +394,7 @@ class SandboxWinLayer final : public WindowLayer
 #endif
 
     template <Dimension D> void ProcessEvent(const Event &event);
-    template <Dimension D> RenderView<D> *AddView(const Camera<D> *cam);
+    template <Dimension D> RenderView<D> *AddView(Camera<D> *cam);
     template <Dimension D> Camera<D> *AddCamera();
 
     template <Dimension D> auto &GetCameras()
