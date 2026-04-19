@@ -100,7 +100,7 @@ SamplerComparisonState g_ShadowSampler;
 TextureCube g_PointMaps[ONYX_MAX_TEXTURE_MAPS];
 
 [[vk::binding(ONYX_DIRECTIONAL_MAPS_BINDING, 0)]]
-Texture2D g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
+Texture2DArray g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
 
 [shader("fragment")]
 f32v4 mainFS(const FragInput input, const bool isFrontFacing : SV_IsFrontFace)

@@ -184,7 +184,7 @@ class Window
         TKit::TierArray<ViewInfo<D>> infos{};
         for (RenderView<D> *rv : views)
         {
-            rv->CacheProjectionView();
+            rv->CacheMatrices();
             infos.Append(rv->CreateViewInfo());
         }
         return infos;

@@ -68,7 +68,7 @@ FragInput mainVS(
     finput.WorldPosition = worldPos.xy;
     finput.LocalPosition = input.Position;
     finput.ShapeInfo = u32v2(params.Shape, input.Region);
-    finput.MatId = data.MatHandle;
+    finput.MatId = GetAssetId(data.MatHandle);
     finput.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
 
     return finput;

@@ -54,5 +54,7 @@ Materials2D g_Materials;
 [shader("fragment")]
 f32v4 mainFS(const FragInput input)
 {
-    return f32v4(input.MatId != NullAsset && g_Materials[input.MatId].Occluder == 1);
+    if (input.MatId == NullAsset || g_Materials[input.MatId].Occluder == 0)
+        discard;
+    return f32v4(1.f);
 }

@@ -98,6 +98,7 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(con
 }
 #endif
 
+// TODO(Isma): This mesh is so simple, user should be able to pass in the vertices manually
 template <Dimension D> StatMeshData<D> CreateTriangleMeshData()
 {
     StatMeshData<D> data{};
@@ -120,6 +121,8 @@ template <Dimension D> StatMeshData<D> CreateTriangleMeshData()
     VALIDATE_MESH_DATA(data);
     return data;
 }
+
+// TODO(Isma): This mesh is so simple, user should be able to pass in the vertices manually
 template <Dimension D> StatMeshData<D> CreateQuadMeshData()
 {
     StatMeshData<D> data{};

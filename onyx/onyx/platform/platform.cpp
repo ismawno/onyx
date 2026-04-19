@@ -143,13 +143,6 @@ static void removeWindow(const Window *window)
 
 void DestroyWindow(Window *window)
 {
-    ViewMask vmask = 0;
-    for (const RenderView<D2> *rv : window->GetRenderViews<D2>())
-        vmask |= rv->GetViewBit();
-    for (const RenderView<D3> *rv : window->GetRenderViews<D3>())
-        vmask |= rv->GetViewBit();
-
-    Renderer::RemoveTarget(vmask);
     removeWindow(window);
     TKit::TierAllocator *tier = TKit::GetTier();
     tier->Destroy(window);

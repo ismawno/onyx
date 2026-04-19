@@ -219,8 +219,8 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
                 ctx.Context->PointLight(pl);
 
             if constexpr (D == D3)
-                for (const DirectionalLightParameters &dl : ctx.DirLights)
-                    ctx.Context->DirectionalLight(dl);
+                for (const DirParams &dl : ctx.DirLights)
+                    ctx.Context->DirectionalLight(dl.Params);
 
             if (ctx.Flags & SandboxFlag_DrawLights)
             {
@@ -737,7 +737,15 @@ template <Dimension D> void SandboxWinLayer::RenderCameras()
         opts.EntryName = "Camera";
         opts.Selected = &cameras.Active;
         opts.OnSelected = [this](CameraData<D> &camera) { RenderCamera(camera); };
-        opts.OnRemoval = [](const CameraData<D> &camera) {
+        opts.OnRemoval = [this](const CameraData<D> &camera) {
+            auto &views = GetViews<D>();
+            for (u32 i = 0; i < views.Views.GetSize(); ++i)
+                if (views.Views[i].View->GetCamera() == camera.Camera)
+                {
+                    GetWindow()->DestroyRenderView(views.Views[i].View);
+                    views.Views.RemoveOrdered(views.Views.begin() + i);
+                }
+
             TKit::TierAllocator *tier = TKit::GetTier();
             tier->Destroy(camera.Camera);
         };
@@ -772,9 +780,9 @@ template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
         }
         else
         {
-            ImGui::SliderFloat("Size", &ort.Size, -10.f, 10.f);
-            ImGui::SliderFloat("Near", &ort.Near, -10.f, -0.01f);
-            ImGui::SliderFloat("Far", &ort.Far, 0.01f, 10.f);
+            ImGui::SliderFloat("Size", &ort.Size, 0.f, 10.f);
+            ImGui::SliderFloat("Near", &ort.Near, -10.f, 10.f);
+            ImGui::SliderFloat("Far", &ort.Far, -10.f, 10.f);
         }
     }
 
@@ -809,6 +817,27 @@ static bool cameraCombo(const char *name, u32 *index, const TKit::TierArray<Came
     for (const CameraData<D> &cam : cameras)
         names.Append(cam.Name.c_str());
 
+    return combo(name, index, names);
+}
+
+template <Dimension D>
+static bool renderViewCombo(const char *name, u32 *index, const TKit::TierArray<ViewData<D>> &views)
+{
+    TKit::StackArray<const char *> names{};
+    names.Reserve(views.GetSize());
+
+    for (const ViewData<D> &view : views)
+        names.Append(view.Name.c_str());
+
+    if (*index != TKIT_U32_MAX)
+    {
+        if (ImGui::Button("X##RenderView"))
+        {
+            *index = TKIT_U32_MAX;
+            return true;
+        }
+        ImGui::SameLine();
+    }
     return combo(name, index, names);
 }
 
@@ -1203,12 +1232,17 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
 
     if constexpr (D == D3)
     {
-        EntriesOptions<DirectionalLightParameters> dopts{};
+        EntriesOptions<DirParams> dopts{};
         dopts.TreeName = "Directional lights";
         dopts.EntryName = "Directional light";
         dopts.Selected = &context.SelectedDirLight;
-        dopts.OnSelected = [](DirectionalLightParameters &light) {
-            DirectionalLightEditor(light, EditorFlag_DisplayHelp);
+        dopts.OnSelected = [this](DirParams &light) {
+            auto &views = GetViews<D>();
+            if (renderViewCombo("View to fit", &light.RenderViewIndex, views.Views))
+                light.Params.Cascades.View =
+                    light.RenderViewIndex == TKIT_U32_MAX ? nullptr : views.Views[light.RenderViewIndex].View;
+
+            DirectionalLightEditor(light.Params, EditorFlag_DisplayHelp);
         };
         renderEntries(context.DirLights, dopts);
     }

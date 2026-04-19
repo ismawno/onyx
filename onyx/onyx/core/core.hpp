@@ -136,7 +136,7 @@ struct Specs
     InitializationFlags Flags =
         InitializationFlag_EnableValidationLayers | InitializationFlag_EnableDebugUtilsExtension |
         InitializationFlag_EnableBestPracticesDebugFeature | InitializationFlag_EnableSyncValidationDebugFeature |
-        InitializationFlag_EnableDeviceAssistedDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
+        InitializationFlag_EnablePrintfDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
 #    endif
 #else
     Flags Flags = 0;

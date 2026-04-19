@@ -2,6 +2,7 @@
 
 #include "onyx/property/camera.hpp"
 #include "onyx/property/color.hpp"
+#include "onyx/property/instance.hpp"
 
 namespace Onyx
 {
@@ -60,13 +61,13 @@ template <> struct ViewInfo<D3>
     f32m4 ProjectionView;
     Color BackgroundColor;
     f32v3 ViewPosition;
+    f32v3 ViewForward;
     VkViewport Viewport;
     VkRect2D Scissor;
     ViewMask ViewBit;
     bool Transparent;
 };
 
-// TODO(Isma): Remove const camera. Implement zoom scroll
 template <Dimension D> class RenderView
 {
     TKIT_NON_COPYABLE(RenderView)
@@ -92,16 +93,30 @@ template <Dimension D> class RenderView
         return viewportPos[0] > -1.f && viewportPos[0] < 1.f && viewportPos[1] > -1.f && viewportPos[1] < 1.f;
     }
 
-    f32m<D> ComputeProjectionView() const;
-    void CacheProjectionView()
+    f32m<D> ComputeView() const;
+    f32m<D> ComputeProjection() const;
+    f32m<D> ComputeProjectionView() const
+    {
+        return ComputeProjection() * ComputeView();
+    }
+    void CacheMatrices()
     {
         if (m_Mode == ViewMode_Manual)
             return;
-        m_ProjectionView = ComputeProjectionView();
+        m_View = ComputeView();
+        m_Projection = ComputeProjection();
+        m_ProjectionView = m_Projection * m_View;
     }
 
-    // might be stale!!
-    const f32m<D> &GetCachedProjectionView() const
+    const f32m<D> &GetView() const
+    {
+        return m_View;
+    }
+    const f32m<D> &GetProjection() const
+    {
+        return m_Projection;
+    }
+    const f32m<D> &GetProjectionView() const
     {
         return m_ProjectionView;
     }
@@ -123,7 +138,7 @@ template <Dimension D> class RenderView
     void SetViewport(const ScreenViewport &vp)
     {
         m_Viewport = vp;
-        CacheProjectionView();
+        CacheMatrices();
     }
     void SetScissor(const ScreenScissor &sc)
     {
@@ -134,10 +149,11 @@ template <Dimension D> class RenderView
     {
         return m_Camera;
     }
+
     void SetCamera(Camera<D> *camera)
     {
         m_Camera = camera;
-        CacheProjectionView();
+        CacheMatrices();
     }
 
     void ZoomScroll(const f32v<D> &screenPos, f32 step);
@@ -151,6 +167,7 @@ template <Dimension D> class RenderView
         {
             info.ProjectionView = m_ProjectionView;
             info.ViewPosition = m_Camera->View.Translation;
+            info.ViewForward = m_Camera->View.Rotation * f32v3{0.f, 0.f, -1.f};
         }
 
         info.BackgroundColor = BackgroundColor;
@@ -176,6 +193,8 @@ template <Dimension D> class RenderView
     ViewMask m_ViewBit;
 
     VkExtent2D m_Extent{};
+    f32m<D> m_View = f32m<D>::Identity();
+    f32m<D> m_Projection = f32m<D>::Identity();
     f32m<D> m_ProjectionView = f32m<D>::Identity();
     ViewMode m_Mode = ViewMode_Automatic;
 

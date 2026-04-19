@@ -4,13 +4,108 @@
 #include "onyx/property/instance.hpp"
 #include "onyx/asset/handle.hpp"
 #include "onyx/asset/font.hpp"
-#include "onyx/property/parameters.hpp"
 #include "onyx/rendering/pass.hpp"
 #include "onyx/rendering/view.hpp"
 #include "vkit/resource/host_buffer.hpp"
 
 namespace Onyx
 {
+template <Dimension D> struct PointLightParameters
+{
+    using InstanceData = PointLightData<D>;
+    f32v<D> Position = f32v<D>{0.f};
+    Color Tint = Color::White;
+    f32 LightRadius = 1.f;
+    f32 ShadowRadius = 4.f;
+    f32 Intensity = 0.8f;
+    f32 DepthBias = 0.001f;
+    LightFlags Flags = 0;
+};
+
+constexpr TKit::FixedArray<f32, ONYX_MAX_CASCADES> CreateDepthBias(const f32 minBias, const f32 maxBias)
+{
+    const f32 dbias = (maxBias - minBias) / (ONYX_MAX_CASCADES > 1 ? (ONYX_MAX_CASCADES - 1) : ONYX_MAX_CASCADES);
+    TKit::FixedArray<f32, ONYX_MAX_CASCADES> bias;
+    for (u32 i = 0; i < ONYX_MAX_CASCADES; ++i)
+        bias[i] = minBias + dbias * i;
+    return bias;
+}
+
+struct FixedCascadeParameters
+{
+    f32v3 ViewPosition{1.f};
+    f32 MinSize = 6.f;
+    f32 MaxSize = 12.f;
+    // TODO(Isma): Consider having a range for these as well
+    f32 Near = -3.f;
+    f32 Far = 3.f;
+};
+
+struct FittedCascadeParameters
+{
+    f32 ZMul = 3.f;
+};
+
+struct ShadowCascadeParameters
+{
+    const RenderView<D3> *View = nullptr; // if null, will use fixed cascades. if populated, will use fitted
+    TKit::FixedArray<f32, ONYX_MAX_CASCADES> DepthBias = CreateDepthBias(0.001f, 0.007f);
+    FixedCascadeParameters FixedParameters{};
+    FittedCascadeParameters FittedParameters{};
+    f32 Overlap = 0.f;
+    f32 Lambda = 0.8f;
+    u32 Count = ONYX_MAX_CASCADES;
+};
+
+struct DirectionalLightParameters
+{
+    using InstanceData = DirectionalLightData;
+    f32v3 Direction = f32v3{-1.f};
+    Color Tint = Color::White;
+    ShadowCascadeParameters Cascades{};
+    f32 Intensity = 0.8f;
+    LightFlags Flags = 0;
+};
+
+struct TextParameters
+{
+    TKIT_REFLECT_DECLARE(TextParameters)
+    TKIT_YAML_SERIALIZE_DECLARE(TextParameters)
+
+    std::function<void(u32, char, f32v2 &)> *CharacterCallback = nullptr;
+    f32 Kerning = 0.f;
+    f32 LineSpacing = 0.f;
+    f32 Width = 12.f;
+};
+struct AxesParameters
+{
+    TKIT_REFLECT_DECLARE(AxesParameters)
+    TKIT_YAML_SERIALIZE_DECLARE(AxesParameters)
+    f32 Thickness = 0.1f;
+    f32 Size = 50.f;
+};
+struct CircleParameters
+{
+    TKIT_REFLECT_DECLARE(CircleParameters)
+    TKIT_YAML_SERIALIZE_DECLARE(CircleParameters)
+    f32 InnerFade = 0.f;
+    f32 OuterFade = 0.f;
+    f32 Hollowness = 0.f;
+    f32 LowerAngle = 0.f;
+    f32 UpperAngle = 2.f * Math::Pi<f32>();
+};
+enum Alignment : u8
+{
+    Alignment_Left,
+    Alignment_Center,
+    Alignment_Right,
+    Alignment_Bottom = Alignment_Left,
+    Alignment_Top = Alignment_Right,
+    Alignment_Near = Alignment_Left,
+    Alignment_Far = Alignment_Right,
+    Alignment_None = 3,
+};
+
 template <Dimension D> struct RenderState
 {
     TKIT_REFLECT_DECLARE(RenderState)
@@ -523,7 +618,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
 
     void DirectionalLight(const DirectionalLightParameters &params = {})
     {
-        addDirectionalLightData(m_Current->Transform, params);
+        m_DirectionalLightData.Append(params);
     }
 
     const TKit::TierArray<DirectionalLightParameters> &GetDirectionalLightData() const

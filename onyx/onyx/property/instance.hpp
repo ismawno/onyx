@@ -5,7 +5,6 @@
 
 namespace Onyx
 {
-// TODO(Isma): Maybe move stuff here somewhere else
 template <Dimension D> struct TransformData;
 
 template <> struct TransformData<D2>
@@ -176,34 +175,18 @@ enum LightType : u8
     Light_Count
 };
 
+using LightFlags = u32;
+enum LightFlagBit : LightFlags
+{
+    LightFlag_CastsShadows = 1 << 0,
+    LightFlag_PCF = 1 << 1,
+};
+
 struct Range
 {
     u32 Offset = 0;
     u32 Count = 0;
 };
-
-template <Dimension D> struct PointLightData
-{
-    f32v<D> Position;
-    f32 Intensity;
-    f32 LightRadius;
-    f32 ShadowRadius;
-    u32 Color;
-    u32 ShadowMapOffset;
-    ViewMask ViewMask;
-};
-
-struct DirectionalLightData
-{
-    TransformData<D3> ProjectionView;
-    f32v3 Direction;
-    f32 Intensity;
-    u32 Color;
-    u32 ShadowMapOffset;
-    ViewMask ViewMask;
-};
-
-template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 1 : 2;
 
 template <Dimension D> u32 GetInstanceSize(const Geometry geo)
 {
@@ -226,12 +209,42 @@ template <Dimension D> u32 GetInstanceSize(const Geometry geo)
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
 
+template <Dimension D> struct PointLightData
+{
+    f32v<D> Position;
+    f32 Intensity;
+    f32 LightRadius;
+    f32 ShadowRadius;
+    u32 Color;
+    u32 ShadowMapOffset;
+    ViewMask ViewMask;
+    LightFlags Flags;
+};
+
+#define ONYX_MAX_CASCADES 4
+
+struct DirectionalLightData
+{
+    TKit::FixedArray<TransformData<D3>, ONYX_MAX_CASCADES> Cascades;
+    TKit::FixedArray<f32, ONYX_MAX_CASCADES> Splits;
+    f32v3 Direction;
+    f32 Intensity;
+    u32 Color;
+    u32 ShadowMapOffset;
+    u32 CascadeCount;
+    ViewMask ViewMask;
+    LightFlags Flags;
+};
+
+template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 1 : 2;
+
 template <Dimension D> struct FillPushConstantData;
 
 template <> struct FillPushConstantData<D2>
 {
     f32m4 ProjectionView;
     TKit::FixedArray<Range, LightTypeCount<D2>> LightRanges{};
+    f32 TexelSize;
     u32 AmbientColor;
     ViewMask ViewBit;
 };
@@ -239,8 +252,10 @@ template <> struct FillPushConstantData<D2>
 template <> struct FillPushConstantData<D3>
 {
     f32m4 ProjectionView;
-    f32v4 ViewPosition;
+    f32v3 ViewPosition;
+    f32v3 ViewForward;
     TKit::FixedArray<Range, LightTypeCount<D3>> LightRanges{};
+    TKit::FixedArray<f32, LightTypeCount<D3>> TexelSizes{};
     u32 AmbientColor;
     ViewMask ViewBit;
 };

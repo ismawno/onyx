@@ -3,21 +3,20 @@
 
 #include "onyx/platform/input.hpp"
 #include "onyx/property/transform.hpp"
-#include "tkit/profiling/timespan.hpp"
 #include <vulkan/vulkan.h>
 
 namespace Onyx
 {
 template <Dimension D> struct OrthographicParameters
 {
-    f32 Size = 1.f;
+    f32 Size = 5.f;
 };
 
 template <> struct OrthographicParameters<D3>
 {
-    f32 Size = 1.f;
-    f32 Near = 0.f;
-    f32 Far = 1.f;
+    f32 Size = 5.f;
+    f32 Near = -5.f;
+    f32 Far = 5.f;
 };
 
 struct PerspectiveParameters

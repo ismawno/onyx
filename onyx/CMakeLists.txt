@@ -271,13 +271,11 @@ if(ONYX_ENABLE_FONT_LOAD)
   tkit_configure_compile_link_options(msdf-atlas-gen NO_EXCEPTIONS NO_RTTI)
 endif()
 
-tkit_register_for_yaml_serialization(
-  onyx SOURCES onyx/property/transform.hpp onyx/property/instance.hpp
-  onyx/property/vertex.hpp onyx/property/parameters.hpp)
+tkit_register_for_yaml_serialization(onyx SOURCES onyx/property/transform.hpp
+                                     onyx/property/instance.hpp)
 
-tkit_register_for_reflection(
-  onyx SOURCES onyx/property/transform.hpp onyx/property/instance.hpp
-  onyx/property/vertex.hpp onyx/property/parameters.hpp)
+tkit_register_for_reflection(onyx SOURCES onyx/property/transform.hpp
+                             onyx/property/instance.hpp)
 
 if(ONYX_ENABLE_SHADER_API)
   if(DEFINED ENV{VCPKG_ROOT})

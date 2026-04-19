@@ -6,7 +6,7 @@
 
 #define ONYX_MAX_SAMPLERS 8
 #define ONYX_MAX_TEXTURES 1024
-#define ONYX_MAX_TEXTURE_MAPS 16
+#define ONYX_MAX_TEXTURE_MAPS 32
 
 namespace Onyx::Descriptors
 {

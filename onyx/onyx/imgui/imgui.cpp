@@ -8,7 +8,7 @@
 #    include "onyx/imgui/imgui.hpp"
 #    include "onyx/asset/material.hpp"
 #    include "onyx/asset/sampler.hpp"
-#    include "onyx/property/parameters.hpp"
+#    include "onyx/rendering/context.hpp"
 #    include "tkit/container/stack_array.hpp"
 
 namespace Onyx
@@ -312,13 +312,29 @@ bool DirectionalLightEditor(DirectionalLightParameters &light, const EditorFlags
             "brightness of the light, and the color is the color of the light.");
     ImGui::PushID(&light);
 
-    changed |= ImGui::DragFloat3("Position", Math::AsPointer(light.Position), 0.02f);
-    changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), 0.f, 1.f);
-    changed |= ImGui::DragFloat("Range", &light.Range, 0.01f, 0.f, TKIT_F32_MAX);
-    changed |= ImGui::DragFloat("Depth", &light.Depth, 0.01f, 0.f, TKIT_F32_MAX);
+    ShadowCascadeParameters &c = light.Cascades;
+    FixedCascadeParameters &fx = c.FixedParameters;
+    FittedCascadeParameters &ft = c.FittedParameters;
+    changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), -1.f, 1.f);
     changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
+    changed |= ImGui::DragFloat4("Depth bias", light.Cascades.DepthBias.GetData(), 0.0001f, 0.f, 1.f, "%.5f");
+    changed |= ImGui::SliderFloat("Lambda", &c.Lambda, 0.f, 1.f);
+    changed |= ImGui::SliderFloat("Overlap", &c.Overlap, -1.f, 1.f);
+    ImGui::Text("Fixed cascades");
+    changed |= ImGui::DragFloat3("View position", fx.ViewPosition.GetData(), 0.1f);
+    changed |= ImGui::DragFloat("Min size", &fx.MinSize, 0.1f, 0.01f, fx.MaxSize);
+    changed |= ImGui::DragFloat("Max size", &fx.MaxSize, 0.1f, fx.MinSize, TKIT_F32_MAX);
+    changed |= ImGui::DragFloat("Near", &fx.Near, 0.01f, -TKIT_F32_MAX, fx.Far);
+    changed |= ImGui::DragFloat("Far", &fx.Far, 0.1f, fx.Near, TKIT_F32_MAX);
+    ImGui::Text("Fitted cascades");
+    changed |= ImGui::DragFloat("Z Mul", &ft.ZMul, 0.1f, 0.f, TKIT_F32_MAX);
+
+    const u32 mn = 1;
+    const u32 mx = ONYX_MAX_CASCADES;
+    changed |= ImGui::SliderScalar("Cascade count", ImGuiDataType_U32, &c.Count, &mn, &mx);
+    changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastsShadows);
+    changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
     changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
-    changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.0001f, 0.f, 1.f, "%.5f");
     ImGui::PopID();
     return changed;
 }
@@ -344,6 +360,8 @@ template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, con
     changed |= ImGui::DragFloat("Light radius", &light.LightRadius, 0.01f, 0.f, TKIT_F32_MAX);
     changed |= ImGui::DragFloat("Shadow radius", &light.ShadowRadius, 0.01f, 0.f, TKIT_F32_MAX);
     changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
+    changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastsShadows);
+    changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
     changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
     ImGui::PopID();
     return changed;

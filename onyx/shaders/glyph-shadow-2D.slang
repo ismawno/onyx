@@ -71,5 +71,7 @@ f32v4 mainFS(const FragInput input)
     const f32 coverage = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoord);
     if (coverage <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
-    return f32v4(input.MatId != NullAsset && g_Materials[input.MatId].Occluder == 1);
+    if (input.MatId == NullAsset || g_Materials[input.MatId].Occluder == 0)
+        discard;
+    return f32v4(1.f);
 }

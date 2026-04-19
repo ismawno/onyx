@@ -1,6 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/view.hpp"
 #include "onyx/property/transform.hpp"
+#include "onyx/rendering/renderer.hpp"
 
 namespace Onyx
 {
@@ -28,12 +29,6 @@ template <Dimension D> static void applyCoordinateSystemExtrinsic(f32m<D> &trans
     for (u32 i = 0; i < D + 1; ++i)
         for (u32 j = 1; j < D; ++j)
             transform[i][j] = -transform[i][j];
-}
-void applyCoordinateSystemIntrinsic(f32m4 &transform)
-{
-    // Essentially, a rotation around the x axis
-    transform[1] = -transform[1];
-    transform[2] = -transform[2];
 }
 
 VkRect2D ScreenScissor::AsVulkanScissor(const VkExtent2D &extent, const ScreenViewport &viewport) const
@@ -70,6 +65,7 @@ RenderView<D>::RenderView(Camera<D> *camera, const ScreenViewport &viewport, con
 }
 template <Dimension D> RenderView<D>::~RenderView()
 {
+    Renderer::RemoveTarget(m_ViewBit);
     deallocateViewBit(m_ViewBit);
 }
 
@@ -125,27 +121,31 @@ template <Dimension D> f32v<D> RenderView<D>::ScreenToWorld(const f32v<D> &scree
     }
 }
 
-template <Dimension D> f32m<D> RenderView<D>::ComputeProjectionView() const
+template <Dimension D> f32m<D> RenderView<D>::ComputeView() const
 {
     if (m_Mode == ViewMode_Manual)
-        return m_ProjectionView;
-
-    const VkViewport viewport = m_Viewport.AsVulkanViewport(m_Extent);
-    const f32 aspect = viewport.width / viewport.height;
+        return m_View;
 
     f32m<D> view = m_Camera->View.ComputeInverseTransform();
     applyCoordinateSystemExtrinsic<D>(view);
+    return view;
+}
+template <Dimension D> f32m<D> RenderView<D>::ComputeProjection() const
+{
+    if (m_Mode == ViewMode_Manual)
+        return m_View;
+
+    const VkViewport viewport = m_Viewport.AsVulkanViewport(m_Extent);
+    const f32 aspect = viewport.width / viewport.height;
     if constexpr (D == D2)
-        return Transform<D2>::Orthographic(m_Camera->OrthoParameters.Size, aspect) * view;
+        return Transform<D2>::Orthographic(m_Camera->OrthoParameters.Size, aspect);
     else
     {
         const OrthographicParameters<D3> &oparams = m_Camera->OrthoParameters;
         const PerspectiveParameters &pparams = m_Camera->PerspParameters;
-        const f32m4 proj = m_Camera->Mode == CameraMode_Perspective
-                               ? Transform<D3>::Perspective(pparams.FieldOfView, pparams.Near, pparams.Far, aspect)
-                               : Transform<D3>::Orthographic(oparams.Size, aspect, oparams.Near, oparams.Far);
-
-        return proj * view;
+        return m_Camera->Mode == CameraMode_Perspective
+                   ? Transform<D3>::Perspective(pparams.FieldOfView, pparams.Near, pparams.Far, aspect)
+                   : Transform<D3>::Orthographic(oparams.Size, aspect, oparams.Near, oparams.Far);
     }
 }
 
@@ -155,7 +155,7 @@ template <Dimension D> void RenderView<D>::ZoomScroll(const f32v<D> &screenPos, 
     const auto doZoom = [&] {
         m_Camera->OrthoParameters.Size *= factor;
         const f32v<D> wb = ScreenToWorld(screenPos);
-        CacheProjectionView();
+        CacheMatrices();
         const f32v<D> wa = ScreenToWorld(screenPos);
         m_Camera->View.Translation += wb - wa;
     };

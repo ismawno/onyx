@@ -68,6 +68,8 @@ f32v4 mainFS(const FragInput input)
 {
     if (!CheckParametricFragment2D(input.LocalPosition, input.ShapeInfo))
         discard;
+    if (input.MatId == NullAsset || g_Materials[input.MatId].Occluder == 0)
+        discard;
 
-    return f32v4(input.MatId != NullAsset && g_Materials[input.MatId].Occluder == 1);
+    return f32v4(1.f);
 }

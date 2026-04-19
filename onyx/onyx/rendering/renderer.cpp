@@ -1306,20 +1306,21 @@ ONYX_NO_DISCARD static Result<Range> findSuitableTextureMapRange(const LightType
                                                   : (VKit::DeviceImageFlag_Storage | VKit::DeviceImageFlag_Color)) |
                                          VKit::DeviceImageFlag_Sampled;
 
-    u32 writeIndex = maps.GetSize();
-    for (u32 i = range.Count; i < count; ++i, ++writeIndex)
+    for (u32 i = range.Count; i < count; ++i)
     {
         TextureMap &map = maps.Append();
         VKit::DeviceImage::Builder builder{GetDevice(), GetVulkanAllocator(),
                                            VkExtent2D{resolution, D == D3 ? resolution : 1}, format, flags};
-
         if constexpr (D == D2)
-            builder.SetImageType(VK_IMAGE_TYPE_1D);
-
-        if (D == D3 && light == Light_Point)
         {
-            builder.SetArrayLayers(6).SetFlags(VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
-            for (u32 j = 0; j < 6; ++j)
+            builder.SetImageType(VK_IMAGE_TYPE_1D);
+            builder.AddImageView();
+        }
+        else
+        {
+            const u32 lcount = light == Light_Point ? 6 : ONYX_MAX_CASCADES;
+            builder.SetArrayLayers(lcount);
+            for (u32 j = 0; j < lcount; ++j)
             {
                 VkImageSubresourceRange range{};
                 range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -1328,10 +1329,14 @@ ONYX_NO_DISCARD static Result<Range> findSuitableTextureMapRange(const LightType
                 range.levelCount = 1;
                 builder.AddImageView(range);
             }
-            builder.AddImageView(VK_IMAGE_VIEW_TYPE_CUBE);
+            if (light == Light_Point)
+            {
+                builder.SetFlags(VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
+                builder.AddImageView(VK_IMAGE_VIEW_TYPE_CUBE);
+            }
+            else
+                builder.AddImageView(VK_IMAGE_VIEW_TYPE_2D_ARRAY);
         }
-        else
-            builder.AddImageView();
 
         const auto result = builder.Build();
 
@@ -1343,30 +1348,31 @@ ONYX_NO_DISCARD static Result<Range> findSuitableTextureMapRange(const LightType
         {
             TKIT_RETURN_IF_FAILED(
                 map.Image.SetName(
-                    TKit::Format("onyx-texture-map-{}D-'{}'-{}", u8(D), ToString(light), writeIndex).c_str()),
+                    TKit::Format("onyx-texture-map-{}D-'{}'-{}", u8(D), ToString(light), range.Offset + i).c_str()),
                 map.Image.Destroy(), maps.Pop());
-            TKIT_RETURN_IF_FAILED(
-                map.Image.SetViewNames(
-                    TKit::Format("onyx-texture-map-view-{}D-'{}'-{}", u8(D), ToString(light), writeIndex).c_str()),
-                map.Image.Destroy(), maps.Pop());
+            TKIT_RETURN_IF_FAILED(map.Image.SetViewNames(TKit::Format("onyx-texture-map-view-{}D-'{}'-{}", u8(D),
+                                                                      ToString(light), range.Offset + i)
+                                                             .c_str()),
+                                  map.Image.Destroy(), maps.Pop());
         }
 
         VkDescriptorImageInfo info{};
         info.imageView = map.Image.GetViews().GetBack();
         info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        const u32 dstElement = range.Offset + i;
         if constexpr (D == D2)
         {
-            WriteImage<D>(Descriptors::GetShadowMapsBindingPoint(), info, RenderPass_Fill, writeIndex);
+            WriteImage<D>(Descriptors::GetShadowMapsBindingPoint(), info, RenderPass_Fill, dstElement);
             info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
             VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetDistanceDescriptorLayout()};
-            writer.WriteImage(Descriptors::GetDistanceMapBindingPoint(), info, writeIndex);
+            writer.WriteImage(Descriptors::GetDistanceMapBindingPoint(), info, dstElement);
             writer.Overwrite(getRendererData<D2>().Shadows.DistanceSet);
         }
         else if (light == Light_Point)
-            WriteImage<D>(Descriptors::GetPointMapsBindingPoint(), info, RenderPass_Fill, writeIndex);
+            WriteImage<D>(Descriptors::GetPointMapsBindingPoint(), info, RenderPass_Fill, dstElement);
         else
-            WriteImage<D>(Descriptors::GetDirectionalMapsBindingPoint(), info, RenderPass_Fill, writeIndex);
+            WriteImage<D>(Descriptors::GetDirectionalMapsBindingPoint(), info, RenderPass_Fill, dstElement);
     }
     range.Count = count;
     return grabMaps();
@@ -1393,22 +1399,156 @@ PointLightData<D> createLightData(const ViewMask vmask, const u32 shadowMapOffse
     data.Color = params.Tint.Pack();
     data.ViewMask = vmask;
     data.ShadowMapOffset = shadowMapOffset;
+    data.Flags = params.Flags;
     return data;
+}
+
+struct ShadowCascades
+{
+    TKit::FixedArray<f32m4, ONYX_MAX_CASCADES> ProjectionViews;
+    TKit::FixedArray<f32, ONYX_MAX_CASCADES> Splits;
+};
+
+template <typename T> static T cascadeLerp(const T mn, const T mx, const f32 t, const f32 lambda)
+{
+    const T ln = Math::LinearLerp(mn, mx, t);
+    const T lg = Math::LogLerp(mn, mx, t);
+    return Math::LinearLerp(ln, lg, lambda);
+}
+
+static ShadowCascades createCascades(const f32v3 &dir, const u32 count, const f32 lambda, const f32 overlap,
+                                     const FixedCascadeParameters &params)
+{
+    TKIT_ASSERT(count <= ONYX_MAX_CASCADES, "[ONYX] The maximum amount of cascades is {}", ONYX_MAX_CASCADES);
+    ShadowCascades cascades;
+
+    for (u32 i = 0; i < count; ++i)
+    {
+        const f32 t = f32(i + 1) / f32(count);
+
+        const f32 width = cascadeLerp(params.MinSize, params.MaxSize, t, lambda);
+        cascades.ProjectionViews[i] =
+            Transform<D3>::Orthographic(-width, width, -width, width, params.Near, params.Far) *
+            Transform<D3>::LookTowardsMatrix(params.ViewPosition, dir);
+        cascades.Splits[i] = width * (1.f + overlap);
+    }
+    return cascades;
+}
+
+static TKit::FixedArray<f32v4, 8> getCameraCorners(const f32m4 &pv)
+{
+    const f32m4 ipv = Math::Inverse(pv);
+    TKit::FixedArray<f32v4, 8> corners;
+    u32 idx = 0;
+    for (u32 i = 0; i < 2; ++i)
+        for (u32 j = 0; j < 2; ++j)
+            for (u32 k = 0; k < 2; ++k)
+            {
+                const f32v4 norm = f32v4{2.f * i - 1.f, 2.f * j - 1.f, f32(k), 1.f};
+                const f32v4 wpos = ipv * norm;
+                corners[idx++] = wpos / wpos[3];
+            }
+    return corners;
+}
+
+static ShadowCascades createCascades(const f32v3 &dir, const RenderView<D3> *rview, const u32 count, const f32 zmul,
+                                     const f32 lambda, const f32 overlap)
+{
+    const TKit::FixedArray<f32v4, 8> globalCorners = getCameraCorners(rview->GetProjectionView());
+
+    ShadowCascades cascades;
+    f32 cnear;
+    f32 cfar;
+    const Camera<D3> *camera = rview->GetCamera();
+    const CameraMode mode = camera->Mode;
+    if (mode == CameraMode_Perspective)
+    {
+        cnear = camera->PerspParameters.Near;
+        cfar = camera->PerspParameters.Far;
+    }
+    else
+    {
+        cnear = camera->OrthoParameters.Near;
+        cfar = camera->OrthoParameters.Far;
+    }
+    const f32 range = cfar - cnear;
+    f32 split0 = cnear;
+    for (u32 i = 0; i < count; ++i)
+    {
+        const f32 t = f32(i + 1) / count;
+        const f32 split1 = cascadeLerp(cnear, cfar, t, lambda);
+
+        const f32 t0 = (split0 - cnear) / range;
+        const f32 t1 = (split1 - cnear) / range;
+
+        TKit::FixedArray<f32v4, 8> corners;
+        for (u32 j = 0; j < 4; ++j)
+        {
+            corners[2 * j] = Math::LinearLerp(globalCorners[2 * j], globalCorners[2 * j + 1], t0);
+            corners[2 * j + 1] = Math::LinearLerp(globalCorners[2 * j], globalCorners[2 * j + 1], t1);
+        }
+
+        f32v3 center{0.f};
+        for (u32 j = 0; j < 8; ++j)
+            center += f32v3{corners[j]};
+        center /= 8.f;
+
+        f32m4 view = Transform<D3>::LookTowardsMatrix(center, dir);
+        f32v3 min{TKIT_F32_MAX};
+        f32v3 max{TKIT_F32_LOWEST};
+        for (const f32v4 &c : corners)
+        {
+            const f32v3 lc = f32v3{view * c};
+            min = Math::Min(min, lc);
+            max = Math::Max(max, lc);
+        }
+
+        if (min[2] < 0.f)
+            min[2] *= zmul;
+        else
+            min[2] /= zmul;
+
+        if (max[2] < 0.f)
+            max[2] /= zmul;
+        else
+            max[2] *= zmul;
+
+        cascades.ProjectionViews[i] = Transform<D3>::Orthographic(min, max) * view;
+        cascades.Splits[i] = split1 * (1.f + overlap);
+        split0 = split1;
+    }
+    return cascades;
 }
 
 DirectionalLightData createLightData(const ViewMask vmask, const u32 shadowMapOffset,
                                      const DirectionalLightParameters &params)
 {
-    const f32 r = params.Range;
-    const f32 d = params.Depth;
     DirectionalLightData data;
-    data.ProjectionView = CreateTransformData<D3>(Transform<D3>::Orthographic(-r, r, -r, r, 0.f, d) *
-                                                  Transform<D3>::LookTowardsMatrix(params.Position, params.Direction));
-    data.Direction = params.Direction;
+    const f32v3 dir = Math::Normalize(params.Direction);
+    if (params.Flags & LightFlag_CastsShadows)
+    {
+        const ShadowCascadeParameters &c = params.Cascades;
+        TKIT_ASSERT(c.Count != 0,
+                    "[ONYX][RENDERER] If a directional light casts shadows, its cascade count must be greater than 0");
+
+        const ShadowCascades cascades =
+            c.View ? createCascades(dir, c.View, c.Count, c.FittedParameters.ZMul, c.Lambda, c.Overlap)
+                   : createCascades(dir, c.Count, c.Lambda, c.Overlap, c.FixedParameters);
+
+        for (u32 i = 0; i < c.Count; ++i)
+        {
+            data.Cascades[i] = CreateTransformData<D3>(cascades.ProjectionViews[i]);
+            data.Splits[i] = cascades.Splits[i];
+        }
+        data.CascadeCount = c.Count;
+    }
+
+    data.Direction = dir;
     data.Intensity = params.Intensity;
     data.Color = params.Tint.Pack();
     data.ViewMask = vmask;
     data.ShadowMapOffset = shadowMapOffset;
+    data.Flags = params.Flags;
     return data;
 }
 
@@ -1446,19 +1586,19 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
     if constexpr (D == D3)
         linfo[Light_Directional].Reserve(count);
 
-    using LightFlags = u8;
-    enum LightFlagBit : LightFlags
+    using LightUpdateFlags = u8;
+    enum LightUpdateFlagBit : LightUpdateFlags
     {
-        LightFlag_Point = 1 << 0,
-        LightFlag_Directional = 1 << 1,
+        LightUpdateFlag_Point = 1 << 0,
+        LightUpdateFlag_Directional = 1 << 1,
     };
 
-    LightFlags toUpdate = 0;
+    LightUpdateFlags toUpdate = 0;
 
     LightData<D> &ldata = rdata.Lights;
     ldata.Instances.ClearLights();
 
-    ViewMask shadedViews = 0;
+    ViewMask shadowedViews = 0;
 
     ShadowData<D> &sdata = rdata.Shadows;
     for (u32 i = 0; i < contexts.GetSize(); ++i)
@@ -1485,13 +1625,16 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         }
         const auto gatherLights =
             [&]<typename LightParams>(const LightType ltype, const TKit::TierArray<LightParams> &src,
-                                      TKit::TierArray<LightParams> &dst, const LightFlags update) {
+                                      TKit::TierArray<LightParams> &dst, const LightUpdateFlags update) {
                 LightInfo &info = linfo[ltype];
                 TKit::TierArray<ShadowMapId> &ranges = cinfo.ShadowMapRanges[ltype];
 
+                LightFlags flags = 0;
                 for (u32 i = 0; i < src.GetSize(); ++i)
                 {
                     const LightParams &params = src[i];
+                    flags |= params.Flags;
+
                     dst.Append(params);
                     info.Views.Append(vmask);
                     if (isDirty)
@@ -1502,21 +1645,22 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
                     else
                         info.ShadowMapRanges.Append(ranges[i]);
                 }
-                shadedViews |= vmask * !src.IsEmpty();
+                shadowedViews |= vmask * !src.IsEmpty() * (flags & LightFlag_CastsShadows);
                 toUpdate |= update * isDirty * !src.IsEmpty();
             };
 
-        gatherLights(Light_Point, ctx->GetPointLightData(), ldata.Instances.Points.Lights, LightFlag_Point);
+        gatherLights(Light_Point, ctx->GetPointLightData(), ldata.Instances.Points.Lights, LightUpdateFlag_Point);
         if constexpr (D == D3)
             gatherLights(Light_Directional, ctx->GetDirectionalLightData(), ldata.Instances.Directionals.Lights,
-                         LightFlag_Directional);
+                         LightUpdateFlag_Directional);
     }
 
-    if (sdata.DirtyViews & shadedViews)
-        toUpdate |= LightFlag_Point | LightFlag_Directional;
+    if (sdata.DirtyViews & shadowedViews)
+        toUpdate |= LightUpdateFlag_Point | LightUpdateFlag_Directional;
 
-    const auto checkLightCountChange = [&]<typename LightParams>(const LightType ltype, const LightFlags flags,
-                                                                 ContextLights<LightParams> &clights) -> LightFlags {
+    const auto checkLightCountChange =
+        [&]<typename LightParams>(const LightType ltype, const LightUpdateFlags flags,
+                                  ContextLights<LightParams> &clights) -> LightUpdateFlags {
         const u32 ncount = clights.Lights.GetSize();
         u32 &count = ldata.Arenas[ltype].LightCount;
         if (ncount != count)
@@ -1527,9 +1671,9 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         }
         return 0;
     };
-    toUpdate |= checkLightCountChange(Light_Point, LightFlag_Point, ldata.Instances.Points);
+    toUpdate |= checkLightCountChange(Light_Point, LightUpdateFlag_Point, ldata.Instances.Points);
     if constexpr (D == D3)
-        toUpdate |= checkLightCountChange(Light_Directional, LightFlag_Directional, ldata.Instances.Directionals);
+        toUpdate |= checkLightCountChange(Light_Directional, LightUpdateFlag_Directional, ldata.Instances.Directionals);
 
     const auto copyLightRanges = [&]<typename LightParams>(const LightType ltype,
                                                            ContextLights<LightParams> &clights) -> Result<> {
@@ -1563,17 +1707,17 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         for (u32 i = 0; i < clights.Lights.GetSize(); ++i)
         {
             const LightParams &light = clights.Lights[i];
+
             const ViewMask vm = info.Views[i];
             const ShadowMapId shadowId = info.ShadowMapRanges[i];
             Range &range = sdata.ShadowMapSlots[shadowId];
 
-            if (vm & sdata.DirtyViews || range.Count == 0)
+            const u32 count = std::popcount(vm);
+            if (count != 0 && (light.Flags & LightFlag_CastsShadows) && ((vm & sdata.DirtyViews) || range.Count == 0))
             {
-                const u32 views = std::popcount(vm);
-                // TODO(Isma): This should be optional if shadow maps are enabled
-
-                const auto result = findSuitableTextureMapRange<D>(ltype, sdata.ShadowFormat, views, resolution, *maps);
+                const auto result = findSuitableTextureMapRange<D>(ltype, sdata.ShadowFormat, count, resolution, *maps);
                 TKIT_RETURN_ON_ERROR(result);
+
                 range = result.GetValue();
             }
             const u32 shadowOffset = range.Offset;
@@ -1610,13 +1754,13 @@ ONYX_NO_DISCARD static Result<> transfer(VKit::Queue *transfer, const VkCommandB
         return Result<>::Ok();
     };
 
-    if ((toUpdate & LightFlag_Point) && !ldata.Instances.Points.Lights.IsEmpty())
+    if ((toUpdate & LightUpdateFlag_Point) && !ldata.Instances.Points.Lights.IsEmpty())
     {
         TKIT_RETURN_IF_FAILED(copyLightRanges(Light_Point, ldata.Instances.Points));
     }
 
     if constexpr (D == D3)
-        if ((toUpdate & LightFlag_Directional) && !ldata.Instances.Directionals.Lights.IsEmpty())
+        if ((toUpdate & LightUpdateFlag_Directional) && !ldata.Instances.Directionals.Lights.IsEmpty())
         {
             TKIT_RETURN_IF_FAILED(copyLightRanges(Light_Directional, ldata.Instances.Directionals));
         }
@@ -2087,7 +2231,7 @@ static void beginShadowPass(const VkCommandBuffer cmd, TextureMap &map, const u3
 
     VkRenderingAttachmentInfo att{};
     att.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR;
-    att.imageView = map.Image.GetViews()[imageViewIndex];
+    att.imageView = map.Image.GetView(imageViewIndex);
     att.imageLayout = attLayout;
     att.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     att.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -2322,7 +2466,7 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
         {
             const LightData &data = lightData[i];
 
-            if (!(data.ViewMask & viewBit))
+            if (!(data.ViewMask & viewBit) || !(data.Flags & LightFlag_CastsShadows))
                 continue;
 
             const u32 viewIndex = std::popcount(data.ViewMask & (viewBit - 1));
@@ -2373,10 +2517,13 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
                     {
                         pdata.LightPos = data.Position;
                         pdata.Far = data.ShadowRadius;
+                        pdata.DepthBias = lights[i].DepthBias;
                     }
                     else
+                    {
                         pdata.Far = 0.f;
-                    pdata.DepthBias = lights[i].DepthBias;
+                        pdata.DepthBias = lights[i].Cascades.DepthBias[viewIndex];
+                    }
                 }
 
                 table->CmdPushConstants(cmd, playout, flags, 0, sizeof(ShadowPushConstantData<D>), &pdata);
@@ -2464,9 +2611,10 @@ ONYX_NO_DISCARD static Result<> renderShadows(const VKit::Queue *graphics, const
                     }
                 }
                 else
-                {
-                    TKIT_RETURN_IF_FAILED(processMap(smap, createTransform(data.ProjectionView)));
-                }
+                    for (u32 i = 0; i < data.CascadeCount; ++i)
+                    {
+                        TKIT_RETURN_IF_FAILED(processMap(smap, createTransform(data.Cascades[i]), i));
+                    }
                 endShadowTransitionLayout<D>(cmd, smap);
             }
         }
@@ -2565,6 +2713,7 @@ ONYX_NO_DISCARD static Result<> renderGeometry(const VKit::Queue *graphics, cons
     const auto table = GetDeviceTable();
 
     setRenderView<D>(cmd, vinfo);
+    ShadowData<D> &sdata = rdata.Shadows;
     for (u32 i = 0; i < StencilPass_Count; ++i)
     {
         const StencilPass pass = StencilPass(i);
@@ -2583,8 +2732,17 @@ ONYX_NO_DISCARD static Result<> renderGeometry(const VKit::Queue *graphics, cons
         {
             FillPushConstantData<D> pdata;
             pdata.ProjectionView = vinfo.ProjectionView;
+
             if constexpr (D == D3)
-                pdata.ViewPosition = f32v4{vinfo.ViewPosition, 1.f};
+            {
+                pdata.ViewPosition = vinfo.ViewPosition;
+                pdata.ViewForward = vinfo.ViewForward;
+                pdata.TexelSizes[Light_Point] = 1.f / f32(sdata.ShadowResolutions[Light_Point]);
+                pdata.TexelSizes[Light_Directional] = 1.f / f32(sdata.ShadowResolutions[Light_Directional]);
+            }
+            else
+                pdata.TexelSize = 1.f / f32(sdata.ShadowResolution);
+
             pdata.LightRanges = ldata.Ranges;
             pdata.ViewBit = viewBit;
             pdata.AmbientColor = ambientColor;

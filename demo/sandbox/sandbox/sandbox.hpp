@@ -168,12 +168,18 @@ template <Dimension D> struct ContextData
     SandboxFlags Flags = SandboxFlag_DrawLights | SandboxFlag_ContextShouldUpdate;
 };
 
+struct DirParams
+{
+    DirectionalLightParameters Params{};
+    u32 RenderViewIndex = TKIT_U32_MAX;
+};
+
 template <> struct ContextData<D3>
 {
     RenderContext<D3> *Context;
     TKit::TierArray<Shape<D3>> Shapes;
     TKit::TierArray<PointLightParameters<D3>> PointLights{};
-    TKit::TierArray<DirectionalLightParameters> DirLights{};
+    TKit::TierArray<DirParams> DirLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
     TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
     f32 AxesThickness = 0.01f;

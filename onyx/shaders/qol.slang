@@ -70,7 +70,8 @@ typedef u32 ViewMask;
 #define ONYX_OCCLUSION_MAP_BINDING 0
 #define ONYX_DISTANCE_MAP_BINDING 1
 
-#define ONYX_MAX_TEXTURE_MAPS 16
+#define ONYX_MAX_TEXTURE_MAPS 32
+#define ONYX_MAX_CASCADES 4
 
 static constexpr u32 NullAsset = ONYX_ASSET_ID_MASK;
 

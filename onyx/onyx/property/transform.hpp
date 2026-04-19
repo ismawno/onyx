@@ -308,7 +308,7 @@ template <> struct Transform<D3> : ITransform<D3>
      */
     static Transform Extract(const f32m4 &transform);
 
-    // small hack, serialization mistakenly parses a field here
+    // small hack, serialization mistakenly a parameter for a field here
     // TODO(Isma): Properly fix this. It probably is bc of the line split 8 lines from this
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     TKIT_REFLECT_IGNORE_BEGIN()
@@ -323,7 +323,7 @@ template <> struct Transform<D3> : ITransform<D3>
         const f32v3 r = Normalize(Cross(direction, up));
         const f32v3 u = Cross(r, direction);
 
-        f32m4 result{1.f};
+        f32m4 result = f32m4::Identity();
         result[0][0] = r[0];
         result[0][1] = u[0];
         result[0][2] = f[0];
@@ -357,6 +357,10 @@ template <> struct Transform<D3> : ITransform<D3>
         projection[3][3] = 1.f;
         return projection;
     }
+    static f32m4 Orthographic(const f32v3 &min, const f32v3 &max)
+    {
+        return Orthographic(min[0], max[0], min[1], max[1], min[2], max[2]);
+    }
     static f32m4 Orthographic(const f32 size, const f32 aspectRatio, const f32 near, const f32 far)
     {
         f32m4 projection{0.f};
@@ -367,7 +371,6 @@ template <> struct Transform<D3> : ITransform<D3>
         projection[3][3] = 1.f;
         return projection;
     }
-    // TODO(Isma): Fix the thing
     static f32m4 Perspective(const f32 fieldOfView, const f32 near, const f32 far, const f32 aspectRatio = 1.f)
     {
         f32m4 projection{0.f};
@@ -458,6 +461,10 @@ template <> struct Transform<D2> : ITransform<D2>
         projection[2][1] = -(top + bottom) / (top - bottom);
         projection[2][2] = 1.f;
         return projection;
+    }
+    static f32m3 Orthographic(const f32v2 &min, const f32v2 &max)
+    {
+        return Orthographic(min[0], max[0], min[1], max[1]);
     }
 
     static f32m3 Orthographic(const f32 size, const f32 aspectRatio)

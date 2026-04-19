@@ -445,12 +445,7 @@ static VKit::GraphicsPipeline::Builder createShadowPipelineBuilder(const Geometr
         .SetViewportCount(1);
 
     if constexpr (D == D3)
-    {
-        builder.AddDynamicState(VK_DYNAMIC_STATE_DEPTH_BIAS)
-            .EnableDepthTest()
-            .EnableDepthWrite()
-            .SetCullMode(VK_CULL_MODE_FRONT_BIT);
-    }
+        builder.AddDynamicState(VK_DYNAMIC_STATE_DEPTH_BIAS).EnableDepthTest().EnableDepthWrite();
     if constexpr (D == D2)
         builder.BeginColorAttachment().SetColorWriteMask(VK_COLOR_COMPONENT_R_BIT).EndColorAttachment();
 

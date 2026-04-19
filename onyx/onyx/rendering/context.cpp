@@ -430,13 +430,6 @@ void IRenderContext<D>::addPointLightData(const f32m<D> &transform, const PointL
     p.Position = f32v<D>{transform * f32v<D + 1>{p.Position, 1.f}};
 }
 
-void RenderContext<D3>::addDirectionalLightData(const f32m4 &transform, const DirectionalLightParameters &params)
-{
-    DirectionalLightParameters &p = m_DirectionalLightData.Append(params);
-    p.Position = f32v3{transform * f32v4{p.Position, 1.f}};
-    p.Direction = f32v3{transform * f32v4{p.Direction, 0.f}};
-}
-
 template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, const f32v<D> &end)
 {
     const f32v<D> delta = end - start;
