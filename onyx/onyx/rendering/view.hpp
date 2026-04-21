@@ -193,8 +193,8 @@ template <Dimension D> class RenderView
     {
         m_Viewport = vp;
         CacheMatrices();
-        ONYX_CHECK_EXPRESSION(drainWork());
-        ONYX_CHECK_EXPRESSION(recreateFrameBuffers(m_FrameBuffers.GetSize()));
+        drainWork();
+        recreateFrameBuffers(m_FrameBuffers.GetSize());
     }
     void SetScissor(const ScreenScissor &sc)
     {
@@ -243,12 +243,12 @@ template <Dimension D> class RenderView
     Color ClearColor{Color::Black};
 
   private:
-    ONYX_NO_DISCARD Result<TKit::TierArray<FrameBuffer>> createFramebuffers(u32 imageCount);
-    ONYX_NO_DISCARD Result<> recreateFrameBuffers(u32 imageCount);
-    ONYX_NO_DISCARD Result<> nameFramebuffers();
-    ONYX_NO_DISCARD Result<> drainWork();
+    void createFramebuffers(u32 imageCount);
+    void recreateFrameBuffers(u32 imageCount);
+    void nameFramebuffers();
+    void drainWork();
 
-    ONYX_NO_DISCARD Result<> update(const VkExtent2D &parent, const u32 imageCount)
+    void update(const VkExtent2D &parent, const u32 imageCount)
     {
         m_ParentExtent = parent;
         return recreateFrameBuffers(imageCount);

@@ -329,7 +329,7 @@ struct Specs
     bool EnableGlsl = false;
 };
 
-ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
+void Initialize(const Specs &specs);
 void Terminate();
 
 ONYX_NO_DISCARD Result<VKit::Shader> Create(const u32 *spirv, u32 size);

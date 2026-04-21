@@ -16,115 +16,98 @@ static TKit::Storage<DescriptorData> s_DescriptorData{};
 constexpr u32 Dim2 = 0;
 constexpr u32 Dim3 = 1;
 
-ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
+static void createDescriptorData(const Specs &specs)
 {
     const VKit::LogicalDevice &device = GetDevice();
-    const auto poolResult = VKit::DescriptorPool::Builder(device)
-                                .SetMaxSets(specs.MaxSets)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, specs.StorageBufferPoolSize)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_SAMPLER, specs.SamplerPoolSize)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, specs.SampledImagePoolSize)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256)
-                                .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, specs.StorageImagePoolSize)
-                                .Build();
+    s_DescriptorData->Pool =
+        ONYX_CHECK_EXPRESSION(VKit::DescriptorPool::Builder(device)
+                                  .SetMaxSets(specs.MaxSets)
+                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, specs.StorageBufferPoolSize)
+                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_SAMPLER, specs.SamplerPoolSize)
+                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, specs.SampledImagePoolSize)
+                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256)
+                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, specs.StorageImagePoolSize)
+                                  .Build());
 
-    TKIT_RETURN_ON_ERROR(poolResult);
-    s_DescriptorData->Pool = poolResult.GetValue();
+    s_DescriptorData->Layouts[Dim2][RenderPass_Stencil] =
+        ONYX_CHECK_EXPRESSION(VKit::DescriptorSetLayout::Builder(device)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               ONYX_MAX_SAMPLERS, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               ONYX_MAX_TEXTURES, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                                  .Build());
 
-    auto layoutResult =
+    s_DescriptorData->Layouts[Dim3][RenderPass_Stencil] =
+        ONYX_CHECK_EXPRESSION(VKit::DescriptorSetLayout::Builder(device)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               ONYX_MAX_SAMPLERS, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               ONYX_MAX_TEXTURES, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                                  .Build());
+
+    s_DescriptorData->Layouts[Dim2][RenderPass_Fill] = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
-                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT) // samplers
+                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURES,
-                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)                 // textures
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // bounds2
-            .Build();
-
-    TKIT_RETURN_ON_ERROR(layoutResult);
-    s_DescriptorData->Layouts[Dim2][RenderPass_Stencil] = layoutResult.GetValue();
-
-    layoutResult = VKit::DescriptorSetLayout::Builder(device)
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
-                                    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT) // samplers
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURES,
-                                    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)                 // textures
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // bounds2
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // bounds3
-                       .Build();
-
-    TKIT_RETURN_ON_ERROR(layoutResult);
-    s_DescriptorData->Layouts[Dim3][RenderPass_Stencil] = layoutResult.GetValue();
-
-    layoutResult =
-        VKit::DescriptorSetLayout::Builder(device)
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
-            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
-                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT) // samplers
-            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURES,
-                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)                   // textures
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)   // bounds2
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // materials
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // point lights
-            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)        // shadow sampler
+                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURE_MAPS,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
-                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // shadow maps
-            .Build();
+                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT)
+            .Build());
 
-    TKIT_RETURN_ON_ERROR(layoutResult);
-    s_DescriptorData->Layouts[Dim2][RenderPass_Fill] = layoutResult.GetValue();
-
-    layoutResult =
+    s_DescriptorData->Layouts[Dim3][RenderPass_Fill] = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
-                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT) // samplers
+                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURES,
-                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)                   // textures
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)   // bounds3
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // materials
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // point lights
-            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)        // shadow sampler
+                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURE_MAPS,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
-                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // point maps
+                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT)
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURE_MAPS,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
-                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT)   // directional maps
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // dir lights
-            .Build();
+                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .Build());
 
-    TKIT_RETURN_ON_ERROR(layoutResult);
-    s_DescriptorData->Layouts[Dim3][RenderPass_Fill] = layoutResult.GetValue();
+    s_DescriptorData->Layouts[Dim2][RenderPass_Shadow] =
+        ONYX_CHECK_EXPRESSION(VKit::DescriptorSetLayout::Builder(device)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               ONYX_MAX_SAMPLERS, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               ONYX_MAX_TEXTURES, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+                                  .Build());
 
-    layoutResult = VKit::DescriptorSetLayout::Builder(device)
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
-                                    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT) // samplers
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURES,
-                                    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)                   // textures
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)   // bounds2
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // materials
-                       .Build();
+    s_DescriptorData->Layouts[Dim3][RenderPass_Shadow] =
+        ONYX_CHECK_EXPRESSION(VKit::DescriptorSetLayout::Builder(device)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               ONYX_MAX_SAMPLERS, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               ONYX_MAX_TEXTURES, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)
+                                  .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+                                  .Build());
 
-    TKIT_RETURN_ON_ERROR(layoutResult);
-    s_DescriptorData->Layouts[Dim2][RenderPass_Shadow] = layoutResult.GetValue();
-
-    layoutResult = VKit::DescriptorSetLayout::Builder(device)
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
-                                    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT) // samplers
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURES,
-                                    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT)                 // textures
-                       .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // bounds3
-                       .Build();
-
-    TKIT_RETURN_ON_ERROR(layoutResult);
-    s_DescriptorData->Layouts[Dim3][RenderPass_Shadow] = layoutResult.GetValue();
-
-    layoutResult =
+    s_DescriptorData->DistanceLayout = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
             .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, ONYX_MAX_TEXTURE_MAPS,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
@@ -132,44 +115,36 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
             .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, ONYX_MAX_TEXTURE_MAPS,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
                              VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT)
-            .Build();
+            .Build());
 
-    TKIT_RETURN_ON_ERROR(layoutResult);
-    s_DescriptorData->DistanceLayout = layoutResult.GetValue();
-
-    layoutResult =
+    s_DescriptorData->CompositorLayout = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_COLOR_ATTACHMENTS,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
-                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // color attachments
-            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)      // compositor sampler
-            .Build();
-
-    TKIT_RETURN_ON_ERROR(layoutResult);
-    s_DescriptorData->CompositorLayout = layoutResult.GetValue();
+                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .Build());
 
     if (IsDebugUtilsEnabled())
     {
-        TKIT_RETURN_IF_FAILED(s_DescriptorData->Pool.SetName("onyx-descriptor-pool"));
+        ONYX_CHECK_EXPRESSION(s_DescriptorData->Pool.SetName("onyx-descriptor-pool"));
         u32 i = 2;
         for (auto &dims : s_DescriptorData->Layouts)
         {
             u32 j = 0;
             for (auto &renders : dims)
             {
-                TKIT_RETURN_IF_FAILED(renders.SetName(
+                ONYX_CHECK_EXPRESSION(renders.SetName(
                     TKit::Format("onyx-descriptor-set-layout-{}D-{}", i, ToString(RenderPass(j++))).c_str()));
             }
             ++i;
         }
-        TKIT_RETURN_IF_FAILED(s_DescriptorData->CompositorLayout.SetName("onyx-compositor-descriptor-set-layout"));
-        return s_DescriptorData->DistanceLayout.SetName("onyx-distance-descriptor-set-layout");
+        ONYX_CHECK_EXPRESSION(s_DescriptorData->CompositorLayout.SetName("onyx-compositor-descriptor-set-layout"));
+        ONYX_CHECK_EXPRESSION(s_DescriptorData->DistanceLayout.SetName("onyx-distance-descriptor-set-layout"));
     }
-
-    return Result<>::Ok();
 }
 
-Result<> Initialize(const Specs &specs)
+void Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][DESCRIPTORS] Initializing");
     s_DescriptorData.Construct();

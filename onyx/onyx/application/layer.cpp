@@ -13,9 +13,7 @@ WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const TKit:
 {
 #ifdef ONYX_ENABLE_IMGUI
     if (specs.Flags & WindowLayerFlag_ImGuiEnabled)
-    {
-        ONYX_CHECK_EXPRESSION(initializeImGui());
-    }
+        initializeImGui();
 #endif
     m_Delta.Target = window->IsVSync() ? window->GetMonitorDeltaTime() : targetDeltaTime;
     m_Flags = specs.Flags;
@@ -24,13 +22,13 @@ WindowLayer::WindowLayer(ApplicationLayer *appLayer, Window *window, const Windo
     : WindowLayer(appLayer, window, window->GetMonitorDeltaTime(), specs)
 {
 }
-Result<RenderSubmitInfo> WindowLayer::OnRender(const ExecutionInfo &info)
+RenderSubmitInfo WindowLayer::OnRender(const ExecutionInfo &info)
 {
     OnRender(info.DeltaTime);
     return Render(info);
 }
 
-Result<RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info)
+RenderSubmitInfo WindowLayer::Render(const ExecutionInfo &info)
 {
     RenderFlags flags = RenderFlag_Shadows;
 #ifdef ONYX_ENABLE_IMGUI
@@ -40,7 +38,7 @@ Result<RenderSubmitInfo> WindowLayer::Render(const ExecutionInfo &info)
 }
 
 #ifdef ONYX_ENABLE_IMGUI
-Result<> WindowLayer::initializeImGui()
+void WindowLayer::initializeImGui()
 {
     TKIT_ASSERT(!checkFlags(WindowLayerFlag_ImGuiEnabled),
                 "[ONYX][APPLICATION] Trying to initialize ImGui for window '{}' when it is already enabled. If you "
@@ -64,14 +62,13 @@ Result<> WindowLayer::initializeImGui()
     ImPlot::SetCurrentContext(m_ImPlotContext);
 #    endif
 
-    TKIT_RETURN_IF_FAILED(ImGuiBackend::Create(m_Window));
+    ImGuiBackend::Create(m_Window);
     ImGuiIO &io = ImGui::GetIO();
     ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
     io.FontDefault = font;
     ApplyTheme(Theme_Baby);
 
     setFlags(WindowLayerFlag_ImGuiEnabled);
-    return Result<>::Ok();
 }
 void WindowLayer::shutdownImGui()
 {
@@ -98,12 +95,12 @@ void WindowLayer::shutdownImGui()
 }
 #endif
 
-Result<TransferSubmitInfo> ApplicationLayer::OnTransfer(const ExecutionInfo &info)
+TransferSubmitInfo ApplicationLayer::OnTransfer(const ExecutionInfo &info)
 {
     OnTransfer(info.DeltaTime);
     return Transfer(info);
 }
-Result<TransferSubmitInfo> ApplicationLayer::Transfer(const ExecutionInfo &info)
+TransferSubmitInfo ApplicationLayer::Transfer(const ExecutionInfo &info)
 {
     return Renderer::Transfer(info.Queue, info.CommandBuffer);
 }

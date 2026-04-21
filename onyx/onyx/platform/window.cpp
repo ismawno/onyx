@@ -4,6 +4,7 @@
 #include "onyx/core/core.hpp"
 #include "onyx/platform/glfw.hpp"
 #include "onyx/property/camera.hpp"
+#include "onyx/state/descriptors.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
 
@@ -195,79 +196,123 @@ void Window::SetAspect(const u32 numer, const u32 denom)
     glfwSetWindowAspectRatio(m_Window, i32(numer), i32(denom));
 }
 
-VkExtent2D Window::getNewExtent(GLFWwindow *window)
+VkExtent2D Window::getNewExtent()
 {
     i32 w = 0;
     i32 h = 0;
 
     while (w == 0 || h == 0)
-        glfwGetFramebufferSize(window, &w, &h);
+        glfwGetFramebufferSize(m_Window, &w, &h);
 
     return VkExtent2D{u32(w), u32(h)};
 }
 
-Result<VKit::SwapChain> Window::createSwapChain(const VkPresentModeKHR presentMode, const VkSurfaceKHR surface,
-                                                const VkExtent2D &windowExtent, const VKit::SwapChain *old)
-{
-    const VKit::LogicalDevice &device = GetDevice();
-    return VKit::SwapChain::Builder(&device, surface)
-        .RequestSurfaceFormat(Platform::GetSurfaceFormat())
-        .RequestPresentMode(presentMode)
-        .RequestExtent(windowExtent)
-        .RequestImageCount(3)
-        .SetOldSwapChain(old ? *old : VK_NULL_HANDLE)
-        .AddFlags(VKit::SwapChainBuilderFlag_Clipped | VKit::SwapChainBuilderFlag_CreateImageViews)
-        .Build();
-}
-
-// TODO(Isma): Should handle errors better. there are leaks here when something fails
-Result<TKit::TierArray<WindowSyncData>> Window::createSyncData(const u32 imageCount)
+void Window::createSyncData()
 {
     const auto &device = GetDevice();
     const auto table = GetDeviceTable();
 
-    TKit::TierArray<WindowSyncData> syncs{};
-    syncs.Resize(imageCount);
+    const u32 imageCount = m_SwapChain.GetImageCount();
     for (u32 i = 0; i < imageCount; ++i)
     {
         VkSemaphoreCreateInfo semaphoreInfo{};
         semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        syncs[i].Tracker = {};
-        VKIT_RETURN_IF_FAILED(
-            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore), Result<>,
-            destroySyncData(syncs));
-        VKIT_RETURN_IF_FAILED(
-            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore), Result<>,
-            destroySyncData(syncs));
+        WindowSyncData &sync = m_SyncData.Append();
+        sync.Tracker = {};
+        ONYX_CHECK_EXPRESSION(table->CreateSemaphore(device, &semaphoreInfo, nullptr, &sync.ImageAvailableSemaphore));
+        ONYX_CHECK_EXPRESSION(table->CreateSemaphore(device, &semaphoreInfo, nullptr, &sync.RenderFinishedSemaphore));
     }
-    return syncs;
 }
 
-void Window::destroySyncData(const TKit::TierArray<WindowSyncData> &sync)
+void Window::destroySyncData()
 {
     const auto &device = GetDevice();
     const auto table = GetDeviceTable();
-    for (const WindowSyncData &data : sync)
+    for (const WindowSyncData &data : m_SyncData)
     {
         table->DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
         table->DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);
     }
+    m_SyncData.Clear();
 }
 
-TKit::TierArray<VKit::DeviceImage *> Window::extractSwapChainImages(VKit::SwapChain &swapChain)
+void Window::extractSwapChainImages()
 {
-    TKit::TierArray<VKit::DeviceImage *> images{};
-    for (u32 i = 0; i < swapChain.GetImageCount(); ++i)
-        images.Append(&swapChain.GetImage(i));
-    return images;
+    m_Presentation.Clear();
+    for (u32 i = 0; i < m_SwapChain.GetImageCount(); ++i)
+        m_Presentation.Append(&m_SwapChain.GetImage(i));
+}
+
+Window::Window(const WindowSpecs &specs)
+{
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, specs.Flags & WindowFlag_Resizable);
+    glfwWindowHint(GLFW_VISIBLE, specs.Flags & WindowFlag_Visible);
+    glfwWindowHint(GLFW_DECORATED, specs.Flags & WindowFlag_Decorated);
+    glfwWindowHint(GLFW_FOCUSED, specs.Flags & WindowFlag_Focused);
+    glfwWindowHint(GLFW_FLOATING, specs.Flags & WindowFlag_Floating);
+    // glfwWindowHint(GLFW_ICONIFIED, specs.Flags & WindowFlag_Iconified);
+#ifdef ONYX_GLFW_FOCUS_ON_SHOW
+    glfwWindowHint(GLFW_FOCUS_ON_SHOW, specs.Flags & WindowFlag_FocusOnShow);
+#endif
+
+    m_Window = glfwCreateWindow(i32(specs.Dimensions[0]), i32(specs.Dimensions[1]), specs.Title, nullptr, nullptr);
+
+    TKIT_ASSERT(m_Window, "[ONYX][WINDOW] Failed to create window");
+    u32v2 pos;
+    if (specs.Position != i32v2{TKIT_I32_MAX})
+    {
+        TKIT_ASSERT(specs.Position[0] < TKIT_I32_MAX,
+                    "[ONYX][PLATFORM] If component y of the window position is not "
+                    "TKIT_I32_MAX, component x must not be either. Passed position is ({}, {})",
+                    specs.Position[0], specs.Position[1]);
+        TKIT_ASSERT(specs.Position[1] < TKIT_I32_MAX,
+                    "[ONYX][PLATFORM] If component x of the window position is not "
+                    "TKIT_I32_MAX, component y must not be either. Passed position is ({}, {})",
+                    specs.Position[0], specs.Position[1]);
+
+        glfwSetWindowPos(m_Window, specs.Position[0], specs.Position[1]);
+        pos = specs.Position;
+    }
+    else
+    {
+        i32 x, y;
+        glfwGetWindowPos(m_Window, &x, &y);
+        pos = u32v2{x, y};
+    }
+    m_PresentMode = specs.PresentMode;
+    m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
+
+    ONYX_CHECK_EXPRESSION(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface));
+    m_CompositorSet =
+        ONYX_CHECK_EXPRESSION(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetCompositorDescriptorLayout()));
+    Renderer::BindCompositorSampler(m_CompositorSet);
+
+    createSwapChain(getNewExtent());
+    createSyncData();
+    UpdateMonitorDeltaTime();
+    if (IsDebugUtilsEnabled())
+    {
+        const auto &device = GetDevice();
+        ONYX_CHECK_EXPRESSION(
+            device.SetObjectName(m_CompositorSet, VK_OBJECT_TYPE_DESCRIPTOR_SET,
+                                 TKit::Format("onyx-compositor-set-window-'{}'", GetTitle()).c_str()));
+        nameSurface();
+        nameSwapChain();
+        nameSyncData();
+        nameSwapChainImages();
+    }
+    glfwSetWindowUserPointer(m_Window, this);
+    if (specs.Flags & WindowFlag_InstallCallbacks)
+        InstallCallbacks();
 }
 
 Window::~Window()
 {
     // ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
-    ONYX_CHECK_EXPRESSION(drainWork());
-    destroySyncData(m_SyncData);
+    drainWork();
+    destroySyncData();
 
     m_SwapChain.Destroy();
 
@@ -281,44 +326,44 @@ Window::~Window()
     glfwDestroyWindow(m_Window);
 }
 
-Result<bool> Window::handlePresentOrAcquireResult(const VkResult result)
+bool Window::handlePresentOrAcquireResult(const VkResult result)
 {
     TKIT_LOG_DEBUG_IF(result != VK_SUCCESS, "[ONYX][WINDOW] Present() or AcquireNextImage() returned '{}'",
                       VKit::VulkanResultToString(result));
 
     if (result == VK_ERROR_SURFACE_LOST_KHR)
     {
-        TKIT_RETURN_IF_FAILED(recreateSurface());
+        recreateSurface();
         return false;
     }
 
     if (m_MustRecreateSwapchain || result == VK_ERROR_OUT_OF_DATE_KHR ||
         (result == VK_SUBOPTIMAL_KHR && m_TimeSinceResize.GetElapsed().As<TKit::Timespan::Milliseconds, u64>() > 350))
     {
-        TKIT_RETURN_IF_FAILED(recreateSwapChain());
+        recreateSwapChain();
         return false;
     }
     else if (result == VK_SUBOPTIMAL_KHR)
         return true;
 
-    VKIT_RETURN_IF_FAILED(result, Result<bool>);
+    ONYX_CHECK_EXPRESSION(result);
     return true;
 }
 
-Result<> Window::nameSurface()
+void Window::nameSurface()
 {
     const auto &device = GetDevice();
     const std::string name = TKit::Format("onyx-surface-window-'{}'", GetTitle());
-    return device.SetObjectName(m_Surface, VK_OBJECT_TYPE_SURFACE_KHR, name.c_str());
+    ONYX_CHECK_EXPRESSION(device.SetObjectName(m_Surface, VK_OBJECT_TYPE_SURFACE_KHR, name.c_str()));
 }
 
-Result<> Window::nameSwapChain()
+void Window::nameSwapChain()
 {
     const std::string name = TKit::Format("onyx-swapchain-window-'{}'", GetTitle());
-    return m_SwapChain.SetName(name.c_str());
+    ONYX_CHECK_EXPRESSION(m_SwapChain.SetName(name.c_str()));
 }
 
-Result<> Window::nameSyncData()
+void Window::nameSyncData()
 {
     const auto &device = GetDevice();
     const char *title = GetTitle();
@@ -326,26 +371,24 @@ Result<> Window::nameSyncData()
     {
         const std::string rfinish = TKit::Format("onyx-render-finished-semaphore-window-'{}'-image-index-{}", title, i);
         const std::string iavail = TKit::Format("onyx-image-available-semaphore-index-{}-window-'{}'", i, title);
-        TKIT_RETURN_IF_FAILED(
+        ONYX_CHECK_EXPRESSION(
             device.SetObjectName(m_SyncData[i].RenderFinishedSemaphore, VK_OBJECT_TYPE_SEMAPHORE, rfinish.c_str()));
-        TKIT_RETURN_IF_FAILED(
+        ONYX_CHECK_EXPRESSION(
             device.SetObjectName(m_SyncData[i].ImageAvailableSemaphore, VK_OBJECT_TYPE_SEMAPHORE, iavail.c_str()));
     }
-    return Result<>::Ok();
 }
 
-Result<> Window::nameSwapChainImages()
+void Window::nameSwapChainImages()
 {
     const char *title = GetTitle();
     for (u32 i = 0; i < m_SwapChain.GetImageCount(); ++i)
     {
         const std::string pres = TKit::Format("onyx-presentation-image-index-{}-window-'{}'", i, title);
-        TKIT_RETURN_IF_FAILED(m_Presentation[i]->SetName(pres.c_str()));
+        ONYX_CHECK_EXPRESSION(m_Presentation[i]->SetName(pres.c_str()));
     }
-    return Result<>::Ok();
 }
 
-Result<> Window::Present()
+void Window::Present()
 {
     TKIT_PROFILE_NSCOPE("Onyx::FramwScheduler::Present");
 
@@ -365,12 +408,10 @@ Result<> Window::Present()
     const auto table = GetDeviceTable();
     const VkResult result = table->QueuePresentKHR(*m_Present, &presentInfo);
 
-    TKIT_RETURN_IF_FAILED(handlePresentOrAcquireResult(result));
-
-    return Result<>::Ok();
+    handlePresentOrAcquireResult(result);
 }
 
-Result<bool> Window::AcquireNextImage(const Timeout timeout)
+bool Window::AcquireNextImage(const Timeout timeout)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Window::AcquireNextImage");
     const auto table = GetDeviceTable();
@@ -392,7 +433,7 @@ Result<bool> Window::AcquireNextImage(const Timeout timeout)
         if (result == VK_NOT_READY || result == VK_TIMEOUT)
             return false;
 
-        VKIT_RETURN_ON_ERROR(result, Result<>);
+        ONYX_CHECK_EXPRESSION(result);
     }
     const VkResult result = table->AcquireNextImageKHR(device, m_SwapChain, timeout, sync.ImageAvailableSemaphore,
                                                        VK_NULL_HANDLE, &m_ImageIndex);
@@ -409,15 +450,22 @@ Result<bool> Window::AcquireNextImage(const Timeout timeout)
     return false;
 }
 
-Result<> Window::createSwapChain(const VkExtent2D &windowExtent)
+void Window::createSwapChain(const VkExtent2D &windowExtent)
 {
-    const auto result = createSwapChain(m_PresentMode, m_Surface, windowExtent, &m_SwapChain);
-    TKIT_RETURN_ON_ERROR(result);
-    m_SwapChain = result.GetValue();
-    return Result<>::Ok();
+    const auto &device = GetDevice();
+    m_SwapChain = ONYX_CHECK_EXPRESSION(
+        VKit::SwapChain::Builder(&device, m_Surface)
+            .RequestSurfaceFormat(Platform::GetSurfaceFormat())
+            .RequestPresentMode(m_PresentMode)
+            .RequestExtent(windowExtent)
+            .RequestImageCount(3)
+            .SetOldSwapChain(m_SwapChain)
+            .AddFlags(VKit::SwapChainBuilderFlag_Clipped | VKit::SwapChainBuilderFlag_CreateImageViews)
+            .Build());
+    extractSwapChainImages();
 }
 
-Result<> Window::drainWork()
+void Window::drainWork()
 {
     TKit::StackArray<VkSemaphore> semaphores{};
     semaphores.Reserve(m_SyncData.GetSize());
@@ -440,26 +488,25 @@ Result<> Window::drainWork()
         waitInfo.pValues = values.GetData();
 
         const auto &device = GetDevice();
-        VKIT_RETURN_IF_FAILED(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX), Result<>);
+        ONYX_CHECK_EXPRESSION(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
     }
 
-    return m_Present->WaitIdle();
+    ONYX_CHECK_EXPRESSION(m_Present->WaitIdle());
 }
 
-Result<> Window::recreateSwapChain()
+void Window::recreateSwapChain()
 {
     TKIT_LOG_DEBUG("[ONYX][WINDOW] Out of date swap chain. Re-creating swap chain and resources");
 
-    TKIT_RETURN_IF_FAILED(drainWork());
-    const VkExtent2D extent = getNewExtent(m_Window);
+    drainWork();
+    const VkExtent2D extent = getNewExtent();
 
     VKit::SwapChain old = m_SwapChain;
-    TKIT_RETURN_IF_FAILED(createSwapChain(extent));
+    createSwapChain(extent);
     old.Destroy();
 
-    m_Presentation = extractSwapChainImages(m_SwapChain);
-    TKIT_RETURN_IF_FAILED(recreateResources());
-    TKIT_RETURN_IF_FAILED(updateRenderViews());
+    recreateResources();
+    updateRenderViews();
 
     Event event{};
     event.Type = Event_SwapChainRecreated;
@@ -469,29 +516,28 @@ Result<> Window::recreateSwapChain()
 
     if (IsDebugUtilsEnabled())
     {
-        TKIT_RETURN_IF_FAILED(nameSwapChain());
-        TKIT_RETURN_IF_FAILED(nameSyncData());
-        return nameSwapChainImages();
+        nameSwapChain();
+        nameSyncData();
+        nameSwapChainImages();
     }
-    return Result<>::Ok();
 }
 
-Result<> Window::recreateSurface()
+void Window::recreateSurface()
 {
     TKIT_LOG_WARNING("[ONYX][WINDOW] Surface lost... re-creating surface, swap chain and resources");
-    TKIT_RETURN_IF_FAILED(drainWork());
+    drainWork();
 
-    const VkExtent2D extent = getNewExtent(m_Window);
+    const VkExtent2D extent = getNewExtent();
 
     m_SwapChain.Destroy();
     m_SwapChain = VKit::SwapChain{};
 
     GetInstanceTable()->DestroySurfaceKHR(GetInstance(), m_Surface, nullptr);
-    VKIT_RETURN_IF_FAILED(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface), Result<>);
+    ONYX_CHECK_EXPRESSION(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface));
 
-    TKIT_RETURN_IF_FAILED(createSwapChain(extent));
-    TKIT_RETURN_IF_FAILED(recreateResources());
-    TKIT_RETURN_IF_FAILED(updateRenderViews());
+    createSwapChain(extent);
+    recreateResources();
+    updateRenderViews();
 
     Event event{};
     event.Type = Event_SwapChainRecreated;
@@ -500,23 +546,18 @@ Result<> Window::recreateSurface()
     m_MustRecreateSwapchain = false;
     if (IsDebugUtilsEnabled())
     {
-        TKIT_RETURN_IF_FAILED(nameSurface());
-        TKIT_RETURN_IF_FAILED(nameSwapChain());
-        TKIT_RETURN_IF_FAILED(nameSyncData());
-        return nameSwapChainImages();
+        nameSurface();
+        nameSwapChain();
+        nameSyncData();
+        nameSwapChainImages();
     }
-    return Result<>::Ok();
 }
 
-Result<> Window::recreateResources()
+void Window::recreateResources()
 {
-    const auto sresult = createSyncData(m_SwapChain.GetImageCount());
-    TKIT_RETURN_ON_ERROR(sresult);
-    destroySyncData(m_SyncData);
-    m_SyncData = sresult.GetValue();
-
+    destroySyncData();
+    createSyncData();
     m_ImageIndex = 0;
-    return Result<>::Ok();
 }
 
 void Window::BeginRendering(const VkCommandBuffer cmd, const Execution::Tracker &tracker)
@@ -614,8 +655,8 @@ void Window::FlushEvents()
 }
 
 template <Dimension D>
-Result<RenderView<D> *> Window::CreateRenderView(Camera<D> *camera, RenderViewFlags flags,
-                                                 const ScreenViewport &viewport, const ScreenScissor &scissor)
+RenderView<D> *Window::CreateRenderView(Camera<D> *camera, RenderViewFlags flags, const ScreenViewport &viewport,
+                                        const ScreenScissor &scissor)
 {
     TKit::TierHive<RenderView<D> *> &rdata = getRenderViews<D>();
     const u32 offset = rdata.Insert(nullptr);
@@ -624,13 +665,9 @@ Result<RenderView<D> *> Window::CreateRenderView(Camera<D> *camera, RenderViewFl
     RenderView<D> *rv = tier->Create<RenderView<D>>(m_SwapChain.GetInfo().Extent, m_CompositorSet, offset, camera,
                                                     flags, viewport, scissor);
 
-    rdata[offset] = rv;
-
-    const auto result = rv->createFramebuffers(m_SwapChain.GetImageCount());
-    TKIT_RETURN_ON_ERROR(result, tier->Destroy(rv); rdata.Remove(offset));
-    rv->m_FrameBuffers = result.GetValue();
+    rv->createFramebuffers(m_SwapChain.GetImageCount());
     rv->acquireImage(m_ImageIndex);
-
+    rdata[offset] = rv;
     return rv;
 }
 
@@ -643,14 +680,13 @@ template <Dimension D> void Window::DestroyRenderView(RenderView<D> *rv)
     tier->Destroy(rv);
 }
 
-Result<> Window::updateRenderViews()
+void Window::updateRenderViews()
 {
     const VkExtent2D &extent = m_SwapChain.GetInfo().Extent;
     for (RenderView<D2> *rv : m_RenderViews2)
-        TKIT_RETURN_IF_FAILED(rv->update(extent, m_SwapChain.GetImageCount()));
+        rv->update(extent, m_SwapChain.GetImageCount());
     for (RenderView<D3> *rv : m_RenderViews3)
-        TKIT_RETURN_IF_FAILED(rv->update(extent, m_SwapChain.GetImageCount()));
-    return Result<>::Ok();
+        rv->update(extent, m_SwapChain.GetImageCount());
 }
 
 static i32 toGlfw(const Key key)
@@ -1452,13 +1488,11 @@ void Window::ControlCamera(const TKit::Timespan deltaTime, Camera<D> *camera, co
     view.Translation += rmat * translation;
 }
 
-template Result<RenderView<D2> *> Window::CreateRenderView<D2>(Camera<D2> *camera, RenderViewFlags flags,
-                                                               const ScreenViewport &viewport,
-                                                               const ScreenScissor &scissor);
+template RenderView<D2> *Window::CreateRenderView<D2>(Camera<D2> *camera, RenderViewFlags flags,
+                                                      const ScreenViewport &viewport, const ScreenScissor &scissor);
 
-template Result<RenderView<D3> *> Window::CreateRenderView<D3>(Camera<D3> *camera, RenderViewFlags flags,
-                                                               const ScreenViewport &viewport,
-                                                               const ScreenScissor &scissor);
+template RenderView<D3> *Window::CreateRenderView<D3>(Camera<D3> *camera, RenderViewFlags flags,
+                                                      const ScreenViewport &viewport, const ScreenScissor &scissor);
 
 template void Window::DestroyRenderView<D2>(RenderView<D2> *view);
 template void Window::DestroyRenderView<D3>(RenderView<D3> *view);

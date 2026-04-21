@@ -71,15 +71,15 @@ struct Specs
     ShadowSpecs<D3> Shadows3{};
 };
 
-ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
+void Initialize(const Specs &specs);
 void Terminate();
 
 VkPipelineRenderingCreateInfoKHR CreateGeometryPipelineRenderingCreateInfo();
 
-template <Dimension D> ONYX_NO_DISCARD Result<RenderContext<D> *> CreateContext();
+template <Dimension D> RenderContext<D> * CreateContext();
 template <Dimension D> void DestroyContext(RenderContext<D> *context);
 void FlushAllContexts();
-ONYX_NO_DISCARD Result<> ReloadPipelines();
+void ReloadPipelines();
 
 void AddTarget(const ViewMask vmask);
 void RemoveTarget(const ViewMask vmask);
@@ -96,19 +96,19 @@ template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &
 
 // consider having arrays of semaphores to allow for some flexibility
 
-ONYX_NO_DISCARD Result<TransferSubmitInfo> Transfer(VKit::Queue *transfer, VkCommandBuffer command,
+TransferSubmitInfo Transfer(VKit::Queue *transfer, VkCommandBuffer command,
                                                     u32 maxReleaseBarriers = 256);
-ONYX_NO_DISCARD Result<> SubmitTransfer(VKit::Queue *transfer, CommandPool *pool,
+void SubmitTransfer(VKit::Queue *transfer, CommandPool *pool,
                                         TKit::Span<const TransferSubmitInfo> info);
 
 // must be immediately called before rendering all windows (not for all windows, but before rendering any window)
 void PrepareRender();
 void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
 
-ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(VKit::Queue *graphics, VkCommandBuffer command, Window *window,
+RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, Window *window,
                                                 RenderFlags flags = 0);
 
-ONYX_NO_DISCARD Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool,
+void SubmitRender(VKit::Queue *graphics, CommandPool *pool,
                                       TKit::Span<const RenderSubmitInfo> info);
 
 void Coalesce(u32 maxRanges = 512);

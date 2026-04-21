@@ -81,82 +81,70 @@ RenderView<D>::RenderView(const VkExtent2D &extent, const VkDescriptorSet compos
 }
 template <Dimension D> RenderView<D>::~RenderView()
 {
-    ONYX_CHECK_EXPRESSION(drainWork());
+    drainWork();
     destroyFrameBuffers();
 
     Renderer::RemoveTarget(m_ViewBit);
     deallocateViewBit(m_ViewBit);
 }
 
-template <Dimension D> Result<TKit::TierArray<FrameBuffer>> RenderView<D>::createFramebuffers(const u32 imageCount)
+template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCount)
 {
-    TKit::TierArray<FrameBuffer> fbs{};
     const auto &device = GetDevice();
     const VmaAllocator alloc = GetVulkanAllocator();
     const VkExtent2D extent = m_Viewport.AsVulkanExtent(m_ParentExtent);
     for (u32 i = 0; i < imageCount; ++i)
     {
-        FrameBuffer &fb = fbs.Append();
-        auto result = VKit::DeviceImage::Builder(device, alloc, extent, Platform::GetColorFormat(),
-                                                 VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
-                          .AddImageView()
-                          .Build();
+        FrameBuffer &fb = m_FrameBuffers.Append();
+        fb.Color = ONYX_CHECK_EXPRESSION(
+            VKit::DeviceImage::Builder(device, alloc, extent, Platform::GetColorFormat(),
+                                       VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
+                .AddImageView()
+                .Build());
 
-        TKIT_RETURN_ON_ERROR(result);
-        fb.Color = result.GetValue();
         // TODO(Isma): To sample for outlines, this will need _Sampled
-        result =
+        fb.DepthStencil = ONYX_CHECK_EXPRESSION(
             VKit::DeviceImage::Builder(device, alloc, extent, Platform::GetDepthStencilFormat(),
                                        VKit::DeviceImageFlag_DepthAttachment | VKit::DeviceImageFlag_StencilAttachment)
                 .AddImageView()
-                .Build();
-        TKIT_RETURN_ON_ERROR(result);
-        fb.DepthStencil = result.GetValue();
+                .Build());
     }
 
     VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetCompositorDescriptorLayout()};
 
     TKit::StackArray<VkDescriptorImageInfo> infos{};
-    infos.Reserve(fbs.GetSize());
+    infos.Reserve(imageCount);
     for (u32 i = 0; i < imageCount; ++i)
     {
         VkDescriptorImageInfo &info = infos.Append();
         info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        info.imageView = fbs[i].Color.GetView();
+        info.imageView = m_FrameBuffers[i].Color.GetView();
 
         writer.WriteImage(Descriptors::GetCompositorColorAttachmentsBindingPoint(), info, m_Id * imageCount + i);
     }
     writer.Overwrite(m_CompositorSet);
-
-    return fbs;
 }
-template <Dimension D> Result<> RenderView<D>::recreateFrameBuffers(const u32 imageCount)
+template <Dimension D> void RenderView<D>::recreateFrameBuffers(const u32 imageCount)
 {
-    const auto fbs = createFramebuffers(imageCount);
-    TKIT_RETURN_ON_ERROR(fbs);
-
     destroyFrameBuffers();
-    m_FrameBuffers = fbs.GetValue();
+    createFramebuffers(imageCount);
 
     if (IsDebugUtilsEnabled())
         return nameFramebuffers();
-
-    return Result<>::Ok();
 }
-template <Dimension D> Result<> RenderView<D>::nameFramebuffers()
+template <Dimension D> void RenderView<D>::nameFramebuffers()
 {
     for (u32 i = 0; i < m_FrameBuffers.GetSize(); ++i)
     {
         const std::string cname = TKit::Format("onyx-color-attachment-view-{}", i);
         const std::string dname = TKit::Format("onyx-depth-attachment-view-{}", i);
 
-        TKIT_RETURN_IF_FAILED(m_FrameBuffers[i].Color.SetName(cname.c_str()));
-        TKIT_RETURN_IF_FAILED(m_FrameBuffers[i].DepthStencil.SetName(dname.c_str()));
+        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].Color.SetName(cname.c_str()));
+        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].DepthStencil.SetName(dname.c_str()));
     }
-    return Result<>::Ok();
 }
 
-template <Dimension D> Result<> RenderView<D>::drainWork()
+template <Dimension D> void RenderView<D>::drainWork()
 {
     TKit::StackArray<VkSemaphore> semaphores{};
     semaphores.Reserve(m_FrameBuffers.GetSize());
@@ -178,9 +166,8 @@ template <Dimension D> Result<> RenderView<D>::drainWork()
         waitInfo.pValues = values.GetData();
 
         const auto &device = GetDevice();
-        VKIT_RETURN_IF_FAILED(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX), Result<>);
+        ONYX_CHECK_EXPRESSION(table->WaitSemaphoresKHR(device, &waitInfo, TKIT_U64_MAX));
     }
-    return Result<>::Ok();
 }
 
 template <Dimension D> void RenderView<D>::destroyFrameBuffers()
@@ -190,6 +177,7 @@ template <Dimension D> void RenderView<D>::destroyFrameBuffers()
         fb.Color.Destroy();
         fb.DepthStencil.Destroy();
     }
+    m_FrameBuffers.Clear();
 }
 
 template <Dimension D> f32v2 RenderView<D>::ScreenToViewport(const f32v2 &screenPos) const

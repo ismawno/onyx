@@ -18,22 +18,22 @@ class Window;
 
 namespace Onyx::ImGuiBackend
 {
-ONYX_NO_DISCARD Result<> Initialize();
+void Initialize();
 void Terminate();
 
-ONYX_NO_DISCARD Result<> Create(Window *window);
+void Create(Window *window);
 
 void NewFrame();
 
-ONYX_NO_DISCARD Result<> RenderData(ImDrawData *data, VkCommandBuffer commandBuffer);
-ONYX_NO_DISCARD Result<> UpdatePlatformWindows();
+void RenderData(ImDrawData *data, VkCommandBuffer commandBuffer);
+void UpdatePlatformWindows();
 
 u32 GetPlatformWindowCount();
 
-ONYX_NO_DISCARD Result<bool> AcquirePlatformWindowImage(u32 windowIndex, Timeout timeout);
-ONYX_NO_DISCARD Result<RenderSubmitInfo> RenderPlatformWindow(u32 windowIndex, VKit::Queue *graphics,
+bool AcquirePlatformWindowImage(u32 windowIndex, Timeout timeout);
+RenderSubmitInfo RenderPlatformWindow(u32 windowIndex, VKit::Queue *graphics,
                                                                         VkCommandBuffer cmd);
-ONYX_NO_DISCARD Result<> PresentPlatformWindow(u32 windowIndex);
+void PresentPlatformWindow(u32 windowIndex);
 
 void Destroy();
 } // namespace Onyx::ImGuiBackend

@@ -9,11 +9,11 @@ int main(int argc, char **argv)
 {
     TKIT_PROFILE_NOOP();
     const ParseData pdata = ParseArgs(argc, argv);
-    ONYX_CHECK_EXPRESSION(Initialize());
+    Initialize();
     {
         Onyx::Application app{};
         app.SetApplicationLayer<SandboxAppLayer>(&pdata);
-        ONYX_CHECK_EXPRESSION(app.Run());
+        app.Run();
     }
     Terminate();
 }

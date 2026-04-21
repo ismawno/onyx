@@ -206,35 +206,28 @@ template <Dimension D> static void updateBoundsDescriptorSet()
     Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Shadow), binfo, RenderPass_Shadow);
 
     if constexpr (D == D2)
-        Renderer::BindBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(RenderPass_Stencil), binfo,
-                                  RenderPass_Stencil);
+        Renderer::BindBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(RenderPass_Stencil), binfo, RenderPass_Stencil);
 }
 
-template <typename T> ONYX_NO_DISCARD static Result<> initializeHiveAssets(const u32 capacity, HiveAssetData<T> &hive)
+template <typename T> static void initializeHiveAssets(const u32 capacity, HiveAssetData<T> &hive)
 {
     hive.Elements.Reserve(capacity);
-
-    const auto result = Resources::CreateBuffer<T>(Buffer_DeviceStorage);
-    TKIT_RETURN_ON_ERROR(result);
-    hive.Buffer = result.GetValue();
-    return Result<>::Ok();
+    hive.Buffer = Resources::CreateBuffer<T>(Buffer_DeviceStorage);
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> initializeMaterials(const u32 capacity)
+template <Dimension D> static void initializeMaterials(const u32 capacity)
 {
-    TKIT_RETURN_IF_FAILED(initializeHiveAssets(capacity, getData<D>().Materials));
+    initializeHiveAssets(capacity, getData<D>().Materials);
     updateMaterialDescriptorSet<D>();
-    return Result<>::Ok();
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> initializeBounds(const u32 capacity)
+template <Dimension D> static void initializeBounds(const u32 capacity)
 {
-    TKIT_RETURN_IF_FAILED(initializeHiveAssets(capacity, getData<D>().BoundingBoxes));
+    initializeHiveAssets(capacity, getData<D>().BoundingBoxes);
     updateBoundsDescriptorSet<D>();
-    return Result<>::Ok();
 }
 
-Result<> Initialize(const Specs &specs)
+void Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][ASSETS] Initializing");
     s_AssetData2.Construct();
@@ -249,9 +242,9 @@ Result<> Initialize(const Specs &specs)
     s_TextureData->Textures.Reserve(specs.MaxTextures);
     s_TextureData->ToDestroy.Reserve(specs.MaxTextures);
 
-    TKIT_RETURN_IF_FAILED(initializeMaterials<D2>(specs.MaxMaterials));
-    TKIT_RETURN_IF_FAILED(initializeMaterials<D3>(specs.MaxMaterials));
-    TKIT_RETURN_IF_FAILED(initializeBounds<D2>(specs.MaxBounds));
+    initializeMaterials<D2>(specs.MaxMaterials);
+    initializeMaterials<D3>(specs.MaxMaterials);
+    initializeBounds<D2>(specs.MaxBounds);
     return initializeBounds<D3>(specs.MaxBounds);
 }
 
@@ -486,16 +479,10 @@ void DestroyTexture(const Asset handle)
     destroyTexture(handle);
 }
 
-template <typename Vertex>
-ONYX_NO_DISCARD static Result<AssetPool> createMeshPool(const AssetType atype, MeshAssetData<Vertex> &data)
+template <typename Vertex> static AssetPool createMeshPool(const AssetType atype, MeshAssetData<Vertex> &data)
 {
-    auto result = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
-    TKIT_RETURN_ON_ERROR(result);
-    VKit::DeviceBuffer vbuffer = result.GetValue();
-
-    result = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
-    TKIT_RETURN_ON_ERROR(result, vbuffer.Destroy());
-    VKit::DeviceBuffer ibuffer = result.GetValue();
+    VKit::DeviceBuffer vbuffer = Resources::CreateBuffer<Vertex>(Buffer_DeviceVertex);
+    VKit::DeviceBuffer ibuffer = Resources::CreateBuffer<Index>(Buffer_DeviceIndex);
 
     const u32 pid = data.Pools.Insert();
     MeshPoolData<Vertex> &mpool = data.Pools[pid];
@@ -508,19 +495,19 @@ ONYX_NO_DISCARD static Result<AssetPool> createMeshPool(const AssetType atype, M
         const std::string vb = TKit::Format("onyx-assets-vertex-buffer-{:#010x}", pool);
         const std::string ib = TKit::Format("onyx-assets-index-buffer-{:#010x}", pool);
 
-        TKIT_RETURN_IF_FAILED(vbuffer.SetName(vb.c_str()), vbuffer.Destroy(); data.Pools.Remove(pid));
-        TKIT_RETURN_IF_FAILED(ibuffer.SetName(ib.c_str()), ibuffer.Destroy(); data.Pools.Remove(pid));
+        ONYX_CHECK_EXPRESSION(vbuffer.SetName(vb.c_str()));
+        ONYX_CHECK_EXPRESSION(ibuffer.SetName(ib.c_str()));
     }
 
     return pool;
 }
 
-Result<AssetPool> CreateFontPool()
+AssetPool CreateFontPool()
 {
     return createMeshPool(Asset_Font, *s_FontData);
 }
 
-template <Dimension D> Result<AssetPool> CreateAssetPool(const AssetType atype)
+template <Dimension D> AssetPool CreateAssetPool(const AssetType atype)
 {
     switch (atype)
     {
@@ -532,9 +519,8 @@ template <Dimension D> Result<AssetPool> CreateAssetPool(const AssetType atype)
     case Asset_GlyphMesh:
         return CreateFontPool();
     default:
-        return Result<AssetPool>::Error(
-            Error_BadInput,
-            TKit::Format("[ONYX][ASSETS] An asset pool cannot be created for assets of type '{}'", ToString(atype)));
+        TKIT_FATAL("[ONYX][ASSETS] An asset pool cannot be created for assets of type '{}'", ToString(atype));
+        return NullHandle;
     }
 }
 
@@ -911,40 +897,35 @@ void Lock()
 {
     s_Flags |= AssetsFlag_Locked;
 }
-Result<> Unlock()
+void Unlock()
 {
     s_Flags &= ~AssetsFlag_Locked;
     if (s_Flags & AssetsFlag_MustUpload)
         return Upload();
-
-    return Result<>::Ok();
 }
 
-template <typename T>
-ONYX_NO_DISCARD static Result<bool> uploadFromHost(VKit::DeviceBuffer &buffer, const TKit::Span<const T> data)
+template <typename T> static bool uploadFromHost(VKit::DeviceBuffer &buffer, const TKit::Span<const T> data)
 {
     TKIT_LOG_DEBUG("[ONYX][ASSETS]    Uploading buffer of {:L} bytes to device", data.GetBytes());
     VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
     const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-    const auto result = Resources::GrowBufferIfNeeded<T>(buffer, data.GetSize());
-    TKIT_RETURN_ON_ERROR(result);
+    const bool grow = Resources::GrowBufferIfNeeded<T>(buffer, data.GetSize());
 
-    TKIT_RETURN_IF_FAILED(
+    ONYX_CHECK_EXPRESSION(
         buffer.UploadFromHost(pool, *queue, data.GetData(), {.srcOffset = 0, .dstOffset = 0, .size = data.GetBytes()}));
-    return result.GetValue();
+    return grow;
 }
 
-template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshPool(MeshPoolData<Vertex> &mpool)
+template <typename Vertex> static void uploadMeshPool(MeshPoolData<Vertex> &mpool)
 {
-    TKIT_RETURN_IF_FAILED(uploadFromHost<Vertex>(mpool.VertexBuffer, mpool.Vertices));
-    TKIT_RETURN_IF_FAILED(uploadFromHost<Index>(mpool.IndexBuffer, mpool.Indices));
+    uploadFromHost<Vertex>(mpool.VertexBuffer, mpool.Vertices);
+    uploadFromHost<Index>(mpool.IndexBuffer, mpool.Indices);
 
     mpool.Flags = 0;
-    return Result<>::Ok();
 }
 
-template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshes(MeshAssetData<Vertex> &meshes)
+template <typename Vertex> static void uploadMeshes(MeshAssetData<Vertex> &meshes)
 {
     for (const AssetPool pool : meshes.ToDestroy)
     {
@@ -967,14 +948,10 @@ template <typename Vertex> ONYX_NO_DISCARD static Result<> uploadMeshes(MeshAsse
 
     for (MeshPoolData<Vertex> &mpool : meshes.Pools)
         if (mpool.Flags & StatusFlag_Update)
-        {
-            TKIT_RETURN_IF_FAILED(uploadMeshPool(mpool));
-        }
-
-    return Result<>::Ok();
+            uploadMeshPool(mpool);
 }
 
-template <typename T> ONYX_NO_DISCARD static Result<bool> uploadHiveAssets(HiveAssetData<T> &hive)
+template <typename T> static bool uploadHiveAssets(HiveAssetData<T> &hive)
 {
     if (!(hive.Flags & StatusFlag_Update))
         return false;
@@ -985,33 +962,26 @@ template <typename T> ONYX_NO_DISCARD static Result<bool> uploadHiveAssets(HiveA
     for (const u32 id : hive.Elements.GetValidIds())
         sparse[id] = hive.Elements[id];
 
-    const auto result = uploadFromHost<T>(hive.Buffer, sparse);
-    TKIT_RETURN_ON_ERROR(result);
     hive.Flags = 0;
-    return result;
+    return uploadFromHost<T>(hive.Buffer, sparse);
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> uploadMaterials()
+template <Dimension D> static void uploadMaterials()
 {
     TKIT_LOG_DEBUG_IF(getData<D>().Materials.Flags & StatusFlag_Update, "[ONYX][ASSETS] Uploading {}D materials",
                       u8(D));
-    const auto result = uploadHiveAssets(getData<D>().Materials);
-    TKIT_RETURN_ON_ERROR(result);
-    if (result.GetValue())
+
+    if (uploadHiveAssets(getData<D>().Materials))
         updateMaterialDescriptorSet<D>();
-    return Result<>::Ok();
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> uploadBounds()
+template <Dimension D> static void uploadBounds()
 {
     TKIT_LOG_DEBUG_IF(getData<D>().BoundingBoxes.Flags & StatusFlag_Update, "[ONYX][ASSETS] Uploading {}D bounds",
                       u8(D));
-    const auto result = uploadHiveAssets(getData<D>().BoundingBoxes);
-    TKIT_RETURN_ON_ERROR(result);
-    if (result.GetValue())
-        updateBoundsDescriptorSet<D>();
 
-    return Result<>::Ok();
+    if (uploadHiveAssets(getData<D>().BoundingBoxes))
+        updateBoundsDescriptorSet<D>();
 }
 
 #ifdef TKIT_ENABLE_DEBUG_LOGS
@@ -1042,19 +1012,19 @@ static bool anySamplerUploads()
 }
 #endif
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> upload()
+template <Dimension D> static void upload()
 {
     TKIT_LOG_DEBUG_IF(anyMeshUploads(getData<D>().StaticMeshes), "[ONYX][ASSETS] Uploading {}D static meshes", u8(D));
-    TKIT_RETURN_IF_FAILED(uploadMeshes(getData<D>().StaticMeshes));
+    uploadMeshes(getData<D>().StaticMeshes);
 
     TKIT_LOG_DEBUG_IF(anyMeshUploads(getData<D>().ParametricMeshes), "[ONYX][ASSETS] Uploading {}D parametric meshes",
                       u8(D));
-    TKIT_RETURN_IF_FAILED(uploadMeshes(getData<D>().ParametricMeshes));
+    uploadMeshes(getData<D>().ParametricMeshes);
 
     return uploadMaterials<D>();
 }
 
-ONYX_NO_DISCARD static Result<> uploadTextures()
+static void uploadTextures()
 {
     TKIT_LOG_DEBUG_IF(anyTextureUploads(), "[ONYX][ASSETS] Uploading textures");
     for (const Asset handle : s_TextureData->ToDestroy)
@@ -1078,7 +1048,7 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 "[ONYX][ASSETS] If a texture needs to be created, it also needs to be updated");
 
     if (!(sflags & StatusFlag_Update))
-        return Result<>::Ok();
+        return;
 
     if (sflags & StatusFlag_Create)
     {
@@ -1096,23 +1066,22 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 TKIT_ASSERT(!tinfo.Image,
                             "[ONYX][ASSETS] To create a texture, it is underlying image must not exist yet");
 
-                auto result = VKit::DeviceImage::Builder(GetDevice(), GetVulkanAllocator(),
-                                                         VkExtent2D{idata.Width, idata.Height}, idata.Format,
-                                                         VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled |
-                                                             VKit::DeviceImageFlag_Destination)
-                                  .AddImageView()
-                                  .Build();
-                TKIT_RETURN_ON_ERROR(result);
-                VKit::DeviceImage &img = result.GetValue();
-                tinfo.Image = img;
+                tinfo.Image = ONYX_CHECK_EXPRESSION(
+                    VKit::DeviceImage::Builder(
+                        GetDevice(), GetVulkanAllocator(), VkExtent2D{idata.Width, idata.Height}, idata.Format,
+                        VKit::DeviceImageFlag_Color | VKit::DeviceImageFlag_Sampled | VKit::DeviceImageFlag_Destination)
+                        .AddImageView()
+                        .Build());
+
                 if (IsDebugUtilsEnabled())
                 {
                     const std::string name = TKit::Format("onyx-assets-texture-image-{:#010x}", tinfo.Handle);
-                    TKIT_RETURN_IF_FAILED(img.SetName(name.c_str()), img.Destroy());
+                    ONYX_CHECK_EXPRESSION(tinfo.Image.SetName(name.c_str()));
                 }
                 const u32 tid = GetAssetId(tinfo.Handle);
 
-                const VkDescriptorImageInfo info = img.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                const VkDescriptorImageInfo info =
+                    tinfo.Image.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 // TODO(Isma): loop please
                 Renderer::BindImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Fill, tid);
                 Renderer::BindImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Stencil, tid);
@@ -1141,25 +1110,18 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
 
             TKIT_LOG_DEBUG("[ONYX][ASSETS]    Uploading texture of size {:L} bytes", size);
 
-            auto result =
+            VKit::DeviceBuffer uploadBuffer =
                 Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, size);
-            TKIT_RETURN_ON_ERROR(result);
-
-            VKit::DeviceBuffer &uploadBuffer = result.GetValue();
             if (IsDebugUtilsEnabled())
             {
-                TKIT_RETURN_IF_FAILED(
-                    uploadBuffer.SetName(
-                        TKit::Format("onyx-assets-texture-upload-buffer-{:#010x}", tinfo.Handle).c_str()),
-                    uploadBuffer.Destroy());
+                ONYX_CHECK_EXPRESSION(uploadBuffer.SetName(
+                    TKit::Format("onyx-assets-texture-upload-buffer-{:#010x}", tinfo.Handle).c_str()));
             }
             uploadBuffer.Write(idata.Data, {.srcOffset = 0, .dstOffset = 0, .size = size});
 
-            TKIT_RETURN_IF_FAILED(uploadBuffer.Flush(), uploadBuffer.Destroy());
-            const auto cmdres = pool.BeginSingleTimeCommands();
-            TKIT_RETURN_ON_ERROR(cmdres, uploadBuffer.Destroy());
+            ONYX_CHECK_EXPRESSION(uploadBuffer.Flush());
+            const VkCommandBuffer cmd = ONYX_CHECK_EXPRESSION(pool.BeginSingleTimeCommands());
 
-            const VkCommandBuffer cmd = cmdres.GetValue();
             img.TransitionLayout2(
                 cmd, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 {.DstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .DstStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
@@ -1178,10 +1140,9 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
                 cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 {.SrcAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR, .SrcStage = VK_PIPELINE_STAGE_2_TRANSFER_BIT_KHR});
 
-            TKIT_RETURN_IF_FAILED(pool.EndSingleTimeCommands(cmd, queue->GetHandle()), uploadBuffer.Destroy());
+            ONYX_CHECK_EXPRESSION(pool.EndSingleTimeCommands(cmd, queue->GetHandle()));
             uploadBuffer.Destroy();
         }
-    return Result<>::Ok();
 }
 
 static VkSamplerMipmapMode toVulkan(const SamplerMode mode)
@@ -1219,7 +1180,7 @@ static VkSamplerAddressMode toVulkan(const SamplerWrap wrap)
     }
 }
 
-ONYX_NO_DISCARD static Result<> uploadSamplers()
+static void uploadSamplers()
 {
     TKIT_LOG_DEBUG_IF(anySamplerUploads(), "[ONYX][ASSETS] Uploading samplers");
     for (const Asset handle : s_SamplerData->ToDestroy)
@@ -1238,30 +1199,27 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
         sflags |= sinfo.Flags;
 
     if (!(sflags & StatusFlag_Update))
-        return Result<>::Ok();
+        return;
 
     for (SamplerInfo &sinfo : s_SamplerData->Samplers)
         if (sinfo.Flags & StatusFlag_Update)
         {
             sinfo.Flags &= ~StatusFlag_Update;
-            const auto result = VKit::Sampler::Builder(GetDevice())
-                                    .SetMipmapMode(toVulkan(sinfo.Data.Mode))
-                                    .SetMinFilter(toVulkan(sinfo.Data.MinFilter))
-                                    .SetMagFilter(toVulkan(sinfo.Data.MagFilter))
-                                    .SetAddressModeU(toVulkan(sinfo.Data.WrapU))
-                                    .SetAddressModeV(toVulkan(sinfo.Data.WrapV))
-                                    .SetAddressModeW(toVulkan(sinfo.Data.WrapW))
-                                    .Build();
-            TKIT_RETURN_ON_ERROR(result);
+            sinfo.Sampler = ONYX_CHECK_EXPRESSION(VKit::Sampler::Builder(GetDevice())
+                                                      .SetMipmapMode(toVulkan(sinfo.Data.Mode))
+                                                      .SetMinFilter(toVulkan(sinfo.Data.MinFilter))
+                                                      .SetMagFilter(toVulkan(sinfo.Data.MagFilter))
+                                                      .SetAddressModeU(toVulkan(sinfo.Data.WrapU))
+                                                      .SetAddressModeV(toVulkan(sinfo.Data.WrapV))
+                                                      .SetAddressModeW(toVulkan(sinfo.Data.WrapW))
+                                                      .Build());
 
-            sinfo.Sampler = result.GetValue();
             TKIT_LOG_DEBUG("[ONYX][ASSETS]    Updating sampler with handle {:#010x}", sinfo.Handle);
 
             if (IsDebugUtilsEnabled())
             {
-                TKIT_RETURN_IF_FAILED(
-                    sinfo.Sampler.SetName(TKit::Format("onyx-assets-sampler-{:#010x}", sinfo.Handle).c_str()),
-                    sinfo.Sampler.Destroy());
+                ONYX_CHECK_EXPRESSION(
+                    sinfo.Sampler.SetName(TKit::Format("onyx-assets-sampler-{:#010x}", sinfo.Handle).c_str()));
             }
 
             const VkDescriptorImageInfo info = VkDescriptorImageInfo{
@@ -1276,42 +1234,39 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
             Renderer::BindImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Stencil, sid);
             Renderer::BindImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Shadow, sid);
         }
-    return Result<>::Ok();
 }
 
-Result<> Upload()
+void Upload()
 {
     TKIT_BEGIN_INFO_CLOCK();
-    if (s_Flags & AssetsFlag_Locked)
-        return Result<>::Error(Error_LockedAssets,
-                               "[ONYX][ASSETS] Cannot upload/mutate asset data because it is locked, either by the "
-                               "user or by Onyx. If using the application class, this happens automatically in-between "
-                               "frames to avoid having dangling references in command buffers");
-    TKIT_RETURN_IF_FAILED(DeviceWaitIdle());
-    TKIT_RETURN_IF_FAILED(upload<D2>());
-    TKIT_RETURN_IF_FAILED(upload<D3>());
-    TKIT_RETURN_IF_FAILED(uploadTextures());
-    TKIT_RETURN_IF_FAILED(uploadSamplers());
+    TKIT_ASSERT(!(s_Flags & AssetsFlag_Locked),
+                "[ONYX][ASSETS] Cannot upload/mutate asset data because it is locked, either by the "
+                "user or by Onyx. If using the application class, this happens automatically in-between "
+                "frames to avoid having dangling references in command buffers");
+    DeviceWaitIdle();
+    upload<D2>();
+    upload<D3>();
+    uploadTextures();
+    uploadSamplers();
     TKIT_LOG_DEBUG_IF(anyMeshUploads(*s_FontData), "[ONYX][ASSETS] Uploading fonts");
-    TKIT_RETURN_IF_FAILED(uploadMeshes(*s_FontData));
+    uploadMeshes(*s_FontData);
 
     // these here bc D3 may also request D2 bounds to be removed
-    TKIT_RETURN_IF_FAILED(uploadBounds<D2>());
-    TKIT_RETURN_IF_FAILED(uploadBounds<D3>());
+    uploadBounds<D2>();
+    uploadBounds<D3>();
     s_Flags &= ~AssetsFlag_MustUpload;
     Renderer::FlushAllContexts();
     TKIT_END_INFO_CLOCK(Milliseconds, "[ONYX][ASSETS] Uploaded assets in {:.2f} milliseconds");
-    return Result<>::Ok();
 }
 
-Result<bool> RequestUpload()
+bool RequestUpload()
 {
     if (s_Flags & AssetsFlag_Locked)
     {
         s_Flags |= AssetsFlag_MustUpload;
         return false;
     }
-    TKIT_RETURN_IF_FAILED(Upload());
+    Upload();
     return true;
 }
 
@@ -1629,8 +1584,8 @@ template Asset CreateMesh(AssetPool pool, const ParaMeshData<D3> &data);
 template void UpdateMesh(Asset handle, const ParaMeshData<D2> &data);
 template void UpdateMesh(Asset handle, const ParaMeshData<D3> &data);
 
-template Result<AssetPool> CreateAssetPool<D2>(AssetType atype);
-template Result<AssetPool> CreateAssetPool<D3>(AssetType atype);
+template AssetPool CreateAssetPool<D2>(AssetType atype);
+template AssetPool CreateAssetPool<D3>(AssetType atype);
 
 template void DestroyAssetPool<D2>(AssetPool pool);
 template void DestroyAssetPool<D3>(AssetPool pool);

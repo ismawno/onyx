@@ -84,7 +84,7 @@ class WindowLayer
     virtual void OnRender(const DeltaTime &)
     {
     }
-    virtual Result<RenderSubmitInfo> OnRender(const ExecutionInfo &info);
+    virtual RenderSubmitInfo OnRender(const ExecutionInfo &info);
 
     virtual void OnEvent(const Event &)
     {
@@ -146,11 +146,11 @@ class WindowLayer
     }
 
   protected:
-    ONYX_NO_DISCARD Result<RenderSubmitInfo> Render(const ExecutionInfo &info);
+    RenderSubmitInfo Render(const ExecutionInfo &info);
 
   private:
 #ifdef ONYX_ENABLE_IMGUI
-    ONYX_NO_DISCARD Result<> initializeImGui();
+    void initializeImGui();
     void shutdownImGui();
 #endif
 
@@ -237,7 +237,7 @@ class ApplicationLayer
     virtual void OnTransfer(const DeltaTime &)
     {
     }
-    virtual Result<TransferSubmitInfo> OnTransfer(const ExecutionInfo &info);
+    virtual TransferSubmitInfo OnTransfer(const ExecutionInfo &info);
 
     template <std::derived_from<ApplicationLayer> T = ApplicationLayer, typename... LayerArgs>
     void RequestReplaceLayer(LayerArgs... args)
@@ -320,7 +320,7 @@ class ApplicationLayer
     }
 
   protected:
-    ONYX_NO_DISCARD Result<TransferSubmitInfo> Transfer(const ExecutionInfo &info);
+    TransferSubmitInfo Transfer(const ExecutionInfo &info);
 
   private:
     static bool isDue(const TKit::Clock &clock, const DeltaTime &delta)

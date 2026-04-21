@@ -681,17 +681,14 @@ Result<Compilation> Compiler::Compile() const
     return Compilation{sprvs};
 }
 
-Result<> Initialize(const Specs &specs)
+void Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][SHADERS] Initializing");
     SlangGlobalSessionDesc desc{};
     desc.enableGLSL = specs.EnableGlsl;
 
     const SlangResult result = slang::createGlobalSession(&desc, s_Slang.writeRef());
-    if (SLANG_FAILED(result))
-        return Result<>::Error(Error_InitializationFailed, "[ONYX][SHADERS] Slang global session creation failed");
-
-    return Result<>::Ok();
+    TKIT_ASSERT(SLANG_SUCCEEDED(result), "[ONYX][SHADERS] Slang global session creation failed");
 }
 void Terminate()
 {

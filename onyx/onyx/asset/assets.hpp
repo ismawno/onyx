@@ -24,11 +24,11 @@ struct Specs
     u32 MaxSamplers = 8;
 };
 
-ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
+void Initialize(const Specs &specs);
 void Terminate();
 
-template <Dimension D> ONYX_NO_DISCARD Result<AssetPool> CreateAssetPool(AssetType atype);
-ONYX_NO_DISCARD Result<AssetPool> CreateFontPool();
+template <Dimension D> AssetPool CreateAssetPool(AssetType atype);
+AssetPool CreateFontPool();
 
 Asset CreateSampler(const SamplerData &data);
 Asset CreateTexture(const ImageData &data, CreateTextureFlags flags = 0);
@@ -103,10 +103,11 @@ template <Dimension D> bool IsAssetPoolValid(Handle handle, AssetType atype);
 bool IsAssetValid(Asset handle, AssetType atype);
 bool IsAssetPoolValid(Handle handle, AssetType atype);
 
+// TODO(Isma): Expose a way of knowing if assets are locked
 void Lock();
-ONYX_NO_DISCARD Result<> Unlock();
+void Unlock();
 
-ONYX_NO_DISCARD Result<bool> RequestUpload();
-ONYX_NO_DISCARD Result<> Upload();
+bool RequestUpload();
+void Upload();
 
 } // namespace Onyx::Assets

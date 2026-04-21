@@ -696,7 +696,7 @@ static void platform_DestroyViewportData(Platform_ViewportData *vdata)
     tier->Destroy(vdata);
 }
 
-ONYX_NO_DISCARD static Result<> platform_CreateWindow(ImGuiViewport *viewport)
+static void platform_CreateWindow(ImGuiViewport *viewport)
 {
     Platform_ContextData *pdata = platform_GetContextData();
 
@@ -714,10 +714,7 @@ ONYX_NO_DISCARD static Result<> platform_CreateWindow(ImGuiViewport *viewport)
     specs.PresentMode = pdata->Window->GetPresentMode();
     specs.Position = i32v2{viewport->Size.x, viewport->Size.y};
 
-    const auto result = Platform::CreateWindow(specs);
-    TKIT_RETURN_ON_ERROR(result);
-
-    Platform_ViewportData *vdata = platform_CreateViewportData(result.GetValue());
+    Platform_ViewportData *vdata = platform_CreateViewportData(Platform::CreateWindow(specs));
     TKIT_LOG_DEBUG("[ONYX][IMGUI] Creating platform window '{}'", vdata->Window->GetTitle());
 
     viewport->PlatformUserData = vdata;
@@ -738,8 +735,6 @@ ONYX_NO_DISCARD static Result<> platform_CreateWindow(ImGuiViewport *viewport)
     glfwSetWindowCloseCallback(handle, platform_WindowCloseCallback);
     glfwSetWindowPosCallback(handle, platform_WindowPosCallback);
     glfwSetWindowSizeCallback(handle, platform_WindowSizeCallback);
-
-    return Result<>::Ok();
 }
 
 static void platform_DestroyWindow(ImGuiViewport *viewport)
@@ -842,7 +837,7 @@ static void platform_SetWindowOpacity(const ImGuiViewport *viewport, const f32 o
 static void platform_InitMultiViewportSupport()
 {
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
-    pio.Platform_CreateWindow = [](ImGuiViewport *v) { ONYX_CHECK_EXPRESSION(platform_CreateWindow(v)); };
+    pio.Platform_CreateWindow = [](ImGuiViewport *v) { platform_CreateWindow(v); };
     pio.Platform_DestroyWindow = platform_DestroyWindow;
     pio.Platform_ShowWindow = [](ImGuiViewport *v) { platform_ShowWindow(v); };
     pio.Platform_SetWindowPos = [](ImGuiViewport *v, const ImVec2 pos) {
@@ -1208,38 +1203,25 @@ struct Renderer_Texture
     VkDescriptorSet Set;
 };
 
-ONYX_NO_DISCARD static Result<Renderer_ViewportData *> renderer_CreateViewportData(Window *window)
+static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
     Renderer_ViewportData *vdata = tier->Create<Renderer_ViewportData>();
     vdata->Window = window;
-    const auto cleanup = [&] {
-        for (Renderer_Buffers &buffers : vdata->Buffers)
-        {
-            buffers.VertexBuffer.Destroy();
-            buffers.IndexBuffer.Destroy();
-        }
-        tier->Destroy(vdata);
-    };
 
     const u32 imageCount = window->GetSwapChain().GetImageCount();
     for (u32 i = 0; i < imageCount; ++i)
     {
         Renderer_Buffers &buffers = vdata->Buffers.Append();
-        auto result = Resources::CreateBuffer<ImDrawVert>(Buffer_HostVertex);
-        TKIT_RETURN_ON_ERROR(result, cleanup());
-        buffers.VertexBuffer = result.GetValue();
-
-        result = Resources::CreateBuffer<ImDrawIdx>(Buffer_HostIndex);
-        TKIT_RETURN_ON_ERROR(result, cleanup());
-        buffers.IndexBuffer = result.GetValue();
+        buffers.VertexBuffer = Resources::CreateBuffer<ImDrawVert>(Buffer_HostVertex);
+        buffers.IndexBuffer = Resources::CreateBuffer<ImDrawIdx>(Buffer_HostIndex);
 
         if (IsDebugUtilsEnabled())
         {
             const std::string vbuffer = TKit::Format("onyx-imgui-vbuffer-image-index-{}", i);
             const std::string ibuffer = TKit::Format("onyx-imgui-ibuffer-image-index-{}", i);
-            TKIT_RETURN_IF_FAILED(buffers.VertexBuffer.SetName(vbuffer.c_str()));
-            TKIT_RETURN_IF_FAILED(buffers.IndexBuffer.SetName(ibuffer.c_str()));
+            ONYX_CHECK_EXPRESSION(buffers.VertexBuffer.SetName(vbuffer.c_str()));
+            ONYX_CHECK_EXPRESSION(buffers.IndexBuffer.SetName(ibuffer.c_str()));
         }
     }
     return vdata;
@@ -1248,7 +1230,7 @@ ONYX_NO_DISCARD static Result<Renderer_ViewportData *> renderer_CreateViewportDa
 static void renderer_DestroyViewportData(Renderer_ViewportData *data)
 {
     TKit::TierAllocator *tier = TKit::GetTier();
-    ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
+    DeviceWaitIdle();
     for (Renderer_Buffers &buffers : data->Buffers)
     {
         buffers.VertexBuffer.Destroy();
@@ -1266,24 +1248,20 @@ static Renderer_Texture *renderer_GetTexture(const ImTextureData *tex)
     return scast<Renderer_Texture *>(tex->BackendUserData);
 }
 
-ONYX_NO_DISCARD static Result<> renderer_CreateShaders()
+static void renderer_CreateShaders()
 {
     TKIT_ASSERT(!s_RendererData->VertexShader, "[ONYX][IMGUI] Vertex shader is already initialized");
     TKIT_ASSERT(!s_RendererData->FragmentShader, "[ONYX][IMGUI] Fragment shader is already initialized");
 
     const auto &device = GetDevice();
 
-    auto result = VKit::Shader::Create(device, s_VertexShader, sizeof(s_VertexShader));
-    TKIT_RETURN_ON_ERROR(result);
-    s_RendererData->VertexShader = result.GetValue();
-
-    result = VKit::Shader::Create(device, s_FragmentShader, sizeof(s_FragmentShader));
-    TKIT_RETURN_ON_ERROR(result);
-    s_RendererData->FragmentShader = result.GetValue();
-    return Result<>::Ok();
+    s_RendererData->VertexShader =
+        ONYX_CHECK_EXPRESSION(VKit::Shader::Create(device, s_VertexShader, sizeof(s_VertexShader)));
+    s_RendererData->FragmentShader =
+        ONYX_CHECK_EXPRESSION(VKit::Shader::Create(device, s_FragmentShader, sizeof(s_FragmentShader)));
 }
 
-ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> renderer_CreatePipeline()
+static VKit::GraphicsPipeline renderer_CreatePipeline()
 {
     const VkFormat cformat = Platform::GetColorFormat();
     VkPipelineRenderingCreateInfoKHR renderInfo{};
@@ -1293,28 +1271,29 @@ ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> renderer_CreatePipeline()
     renderInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
     renderInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
-    return VKit::GraphicsPipeline::Builder(GetDevice(), s_RendererData->PipelineLayout, renderInfo)
-        .AddShaderStage(s_RendererData->VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
-        .AddShaderStage(s_RendererData->FragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
-        .AddBindingDescription<ImDrawVert>()
-        .AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos))
-        .AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv))
-        .AddAttributeDescription(0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col))
-        .BeginColorAttachment()
-        .EnableBlending()
-        .EndColorAttachment()
-        .SetViewportCount(1)
-        .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-        .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
-        .Bake()
-        .Build();
+    return ONYX_CHECK_EXPRESSION(
+        VKit::GraphicsPipeline::Builder(GetDevice(), s_RendererData->PipelineLayout, renderInfo)
+            .AddShaderStage(s_RendererData->VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
+            .AddShaderStage(s_RendererData->FragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddBindingDescription<ImDrawVert>()
+            .AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, pos))
+            .AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ImDrawVert, uv))
+            .AddAttributeDescription(0, VK_FORMAT_R8G8B8A8_UNORM, offsetof(ImDrawVert, col))
+            .BeginColorAttachment()
+            .EnableBlending()
+            .EndColorAttachment()
+            .SetViewportCount(1)
+            .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+            .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+            .Bake()
+            .Build());
 }
 
-ONYX_NO_DISCARD static Result<VkDescriptorSet> renderer_AddTexture(const VKit::DeviceImage &image)
+static VkDescriptorSet renderer_AddTexture(const VKit::DeviceImage &image)
 {
     const auto &device = GetDevice();
-    const auto result = Descriptors::GetDescriptorPool().Allocate(s_RendererData->DescriptorSetLayout);
-    TKIT_RETURN_ON_ERROR(result);
+    const VkDescriptorSet set =
+        ONYX_CHECK_EXPRESSION(Descriptors::GetDescriptorPool().Allocate(s_RendererData->DescriptorSetLayout));
 
     VKit::DescriptorSet::Writer writer{device, &s_RendererData->DescriptorSetLayout};
 
@@ -1324,9 +1303,8 @@ ONYX_NO_DISCARD static Result<VkDescriptorSet> renderer_AddTexture(const VKit::D
     info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     writer.WriteImage(0, info);
 
-    const VKit::DescriptorSet &set = result.GetValue();
     writer.Overwrite(set);
-    return set.GetHandle();
+    return set;
 }
 
 static void renderer_DestroyTexture(ImTextureData *tex)
@@ -1347,7 +1325,7 @@ static void renderer_DestroyTexture(ImTextureData *tex)
     tex->SetStatus(ImTextureStatus_Destroyed);
 }
 
-ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
+static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
 {
     const auto &device = GetDevice();
     const VmaAllocator allocator = GetVulkanAllocator();
@@ -1358,22 +1336,16 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         TKIT_ASSERT(tex->TexID == ImTextureID_Invalid && !tex->BackendUserData);
         TKIT_ASSERT(tex->Format == ImTextureFormat_RGBA32);
 
-        const auto imgresult =
+        TKit::TierAllocator *tier = TKit::GetTier();
+        Renderer_Texture *bckTex = tier->Create<Renderer_Texture>();
+        bckTex->Image = ONYX_CHECK_EXPRESSION(
             VKit::DeviceImage::Builder(
                 device, allocator, VkExtent2D{u32(tex->Width), u32(tex->Height)}, VK_FORMAT_R8G8B8A8_UNORM,
                 VKit::DeviceImageFlag_Sampled | VKit::DeviceImageFlag_Destination | VKit::DeviceImageFlag_Color)
                 .AddImageView()
-                .Build();
+                .Build());
 
-        TKIT_RETURN_ON_ERROR(imgresult);
-
-        TKit::TierAllocator *tier = TKit::GetTier();
-        Renderer_Texture *bckTex = tier->Create<Renderer_Texture>();
-        bckTex->Image = imgresult.GetValue();
-
-        const auto sresult = renderer_AddTexture(bckTex->Image);
-        TKIT_RETURN_ON_ERROR(sresult);
-        bckTex->Set = sresult.GetValue();
+        bckTex->Set = renderer_AddTexture(bckTex->Image);
 
         // Store identifiers
         tex->SetTexID(reinterpret_cast<ImTextureID>(bckTex->Set));
@@ -1381,8 +1353,8 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
         {
             const std::string tname = TKit::Format("onyx-imgui-texture-id-{:#x}", tex->GetTexID());
             const std::string sname = TKit::Format("onyx-imgui-tex-descriptor-id-{:#x}", tex->GetTexID());
-            TKIT_RETURN_IF_FAILED(bckTex->Image.SetName(tname.c_str()));
-            TKIT_RETURN_IF_FAILED(GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.c_str()));
+            ONYX_CHECK_EXPRESSION(bckTex->Image.SetName(tname.c_str()));
+            ONYX_CHECK_EXPRESSION(GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.c_str()));
         }
         tex->BackendUserData = bckTex;
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{:#x}'", tex->GetTexID());
@@ -1407,26 +1379,22 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
 
         const VkDeviceSize wsize = wupload * tex->BytesPerPixel;
         const VkDeviceSize size = hupload * wsize;
-        auto result = Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, size);
-        TKIT_RETURN_ON_ERROR(result);
 
-        VKit::DeviceBuffer &uploadBuffer = result.GetValue();
+        VKit::DeviceBuffer uploadBuffer =
+            Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, size);
         if (IsDebugUtilsEnabled())
         {
-            TKIT_RETURN_IF_FAILED(uploadBuffer.SetName("onyx-imgui-upload-buffer"), uploadBuffer.Destroy());
+            ONYX_CHECK_EXPRESSION(uploadBuffer.SetName("onyx-imgui-upload-buffer"));
         }
 
         std::byte *mem = scast<std::byte *>(uploadBuffer.GetData());
         for (u32 y = 0; y < hupload; ++y)
             TKit::ForwardCopy(mem + wsize * y, tex->GetPixelsAt(i32(xupload), i32(yupload + y)), wsize);
 
-        TKIT_RETURN_IF_FAILED(uploadBuffer.Flush(), uploadBuffer.Destroy());
+        ONYX_CHECK_EXPRESSION(uploadBuffer.Flush());
 
         VKit::CommandPool &pool = Execution::GetTransientGraphicsPool();
-        const auto cmdres = pool.BeginSingleTimeCommands();
-        TKIT_RETURN_ON_ERROR(cmdres, uploadBuffer.Destroy());
-
-        const VkCommandBuffer cmd = cmdres.GetValue();
+        const VkCommandBuffer cmd = ONYX_CHECK_EXPRESSION(pool.BeginSingleTimeCommands());
 
         VkBufferMemoryBarrier2KHR uploadBarrier{};
         uploadBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2_KHR;
@@ -1475,7 +1443,7 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
                                          .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR});
 
         const VKit::Queue *queue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
-        TKIT_RETURN_IF_FAILED(pool.EndSingleTimeCommands(cmd, queue->GetHandle()), uploadBuffer.Destroy());
+        ONYX_CHECK_EXPRESSION(pool.EndSingleTimeCommands(cmd, queue->GetHandle()));
 
         uploadBuffer.Destroy();
 
@@ -1484,16 +1452,15 @@ ONYX_NO_DISCARD static Result<> renderer_UpdateTexture(ImTextureData *tex, const
 
     if (tex->Status == ImTextureStatus_WantDestroy && u32(tex->UnusedFrames) >= imageCount)
         renderer_DestroyTexture(tex);
-    return Result<>::Ok();
 }
 
-ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
+static void renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
 {
     const f32v2 fb =
         f32v2{ddata->DisplaySize.x * ddata->FramebufferScale.x, ddata->DisplaySize.y * ddata->FramebufferScale.y};
 
     if (fb[0] <= 0.f || fb[1] <= 0.f)
-        return Result<>::Ok();
+        return;
 
     Renderer_ViewportData *vdata = renderer_GetViewportData(ddata->OwnerViewport);
     TKIT_ASSERT(vdata, "[ONYX][IMGUI] Renderer viewport data is null");
@@ -1504,9 +1471,7 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
     if (ddata->Textures)
         for (ImTextureData *tex : *ddata->Textures)
             if (tex->Status != ImTextureStatus_OK)
-            {
-                TKIT_RETURN_IF_FAILED(renderer_UpdateTexture(tex, vdata->Buffers.GetSize()));
-            }
+                renderer_UpdateTexture(tex, vdata->Buffers.GetSize());
 
     s_RendererData->Pipeline.Bind(cmd);
 
@@ -1518,8 +1483,8 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
         const u32 vcount = u32(ddata->TotalVtxCount);
         const u32 icount = u32(ddata->TotalIdxCount);
 
-        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount));
-        TKIT_RETURN_IF_FAILED(Resources::GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount));
+        Resources::GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount);
+        Resources::GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount);
 
         VkDeviceSize voffset = 0;
         VkDeviceSize ioffset = 0;
@@ -1535,8 +1500,8 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
             ioffset += lisize;
         }
 
-        TKIT_RETURN_IF_FAILED(buffers.VertexBuffer.Flush());
-        TKIT_RETURN_IF_FAILED(buffers.IndexBuffer.Flush());
+        ONYX_CHECK_EXPRESSION(buffers.VertexBuffer.Flush());
+        ONYX_CHECK_EXPRESSION(buffers.IndexBuffer.Flush());
 
         buffers.VertexBuffer.BindAsVertexBuffer(cmd);
         buffers.IndexBuffer.BindAsIndexBuffer<ImDrawIdx>(cmd);
@@ -1612,67 +1577,50 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
     scissor.extent.width = u32(fb[0]);
     scissor.extent.height = u32(fb[1]);
     table->CmdSetScissor(cmd, 0, 1, &scissor);
-    return Result<>::Ok();
 }
 
-ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects()
+static void renderer_CreateDeviceObjects()
 {
     const auto &device = GetDevice();
     // Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or
     // 'style.AntiAliasedLinesUseTex = false' to allow point/nearest sampling.
 
-    {
-        const auto result = VKit::Sampler::Builder(device).SetLodRange(-1000.f, 1000.f).Build();
-        s_RendererData->Sampler = result.GetValue();
-    }
+    s_RendererData->Sampler =
+        ONYX_CHECK_EXPRESSION(VKit::Sampler::Builder(device).SetLodRange(-1000.f, 1000.f).Build());
+
+    s_RendererData->DescriptorSetLayout =
+        ONYX_CHECK_EXPRESSION(VKit::DescriptorSetLayout::Builder(device)
+                                  .AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+                                  .Build());
+
+    s_RendererData->PipelineLayout =
+        ONYX_CHECK_EXPRESSION(VKit::PipelineLayout::Builder(device)
+                                  .AddDescriptorSetLayout(s_RendererData->DescriptorSetLayout)
+                                  .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 4 * sizeof(f32))
+                                  .Build());
 
     {
-        const auto result = VKit::DescriptorSetLayout::Builder(device)
-                                .AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-                                .Build();
-        TKIT_RETURN_ON_ERROR(result);
-        s_RendererData->DescriptorSetLayout = result.GetValue();
-    }
-
-    {
-        const auto result = VKit::PipelineLayout::Builder(device)
-                                .AddDescriptorSetLayout(s_RendererData->DescriptorSetLayout)
-                                .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, 4 * sizeof(f32))
-                                .Build();
-        s_RendererData->PipelineLayout = result.GetValue();
-    }
-
-    {
-        TKIT_RETURN_IF_FAILED(renderer_CreateShaders());
-
-        const auto result = renderer_CreatePipeline();
-        TKIT_RETURN_ON_ERROR(result);
-        s_RendererData->Pipeline = result.GetValue();
+        renderer_CreateShaders();
+        s_RendererData->Pipeline = renderer_CreatePipeline();
     }
 
     if (IsDebugUtilsEnabled())
     {
-        TKIT_RETURN_IF_FAILED(s_RendererData->Sampler.SetName("onyx-imgui-sampler"));
-        TKIT_RETURN_IF_FAILED(s_RendererData->DescriptorSetLayout.SetName("onyx-imgui-descriptor-set-layout"));
-        TKIT_RETURN_IF_FAILED(s_RendererData->PipelineLayout.SetName("onyx-imgui-pipeline-layout"));
-        TKIT_RETURN_IF_FAILED(s_RendererData->VertexShader.SetName("onyx-imgui-vertex-shader"));
-        TKIT_RETURN_IF_FAILED(s_RendererData->FragmentShader.SetName("onyx-imgui-fragment-shader"));
-        return s_RendererData->Pipeline.SetName("onyx-imgui-pipeline");
+        ONYX_CHECK_EXPRESSION(s_RendererData->Sampler.SetName("onyx-imgui-sampler"));
+        ONYX_CHECK_EXPRESSION(s_RendererData->DescriptorSetLayout.SetName("onyx-imgui-descriptor-set-layout"));
+        ONYX_CHECK_EXPRESSION(s_RendererData->PipelineLayout.SetName("onyx-imgui-pipeline-layout"));
+        ONYX_CHECK_EXPRESSION(s_RendererData->VertexShader.SetName("onyx-imgui-vertex-shader"));
+        ONYX_CHECK_EXPRESSION(s_RendererData->FragmentShader.SetName("onyx-imgui-fragment-shader"));
+        ONYX_CHECK_EXPRESSION(s_RendererData->Pipeline.SetName("onyx-imgui-pipeline"));
     }
-
-    return Result<>::Ok();
 }
 
-ONYX_NO_DISCARD static Result<> renderer_CreateWindow(ImGuiViewport *viewport)
+static void renderer_CreateWindow(ImGuiViewport *viewport)
 {
     const Platform_ViewportData *pvdata = platform_GetViewportData(viewport);
     TKIT_ASSERT(pvdata && pvdata->Window,
                 "[ONYX][IMGUi] Platform viewport data must be created before renderer viewport data");
-    const auto result = renderer_CreateViewportData(pvdata->Window);
-    TKIT_RETURN_ON_ERROR(result);
-    viewport->RendererUserData = result.GetValue();
-
-    return Result<>::Ok();
+    viewport->RendererUserData = renderer_CreateViewportData(pvdata->Window);
 }
 
 static void renderer_DestroyWindow(ImGuiViewport *viewport)
@@ -1685,18 +1633,14 @@ static void renderer_DestroyWindow(ImGuiViewport *viewport)
     viewport->RendererUserData = nullptr;
 }
 
-ONYX_NO_DISCARD static Result<bool> renderer_AcquireImage(const ImGuiViewport *viewport, const Timeout timeout)
+static bool renderer_AcquireImage(const ImGuiViewport *viewport, const Timeout timeout)
 {
     const Renderer_ViewportData *vdata = renderer_GetViewportData(viewport);
     TKIT_ASSERT(vdata, "[ONYX][IMGUI] Platform viewport data is null");
-
-    const auto result = vdata->Window->AcquireNextImage(timeout);
-    TKIT_RETURN_ON_ERROR(result);
-    return result.GetValue();
+    return vdata->Window->AcquireNextImage(timeout);
 }
 
-ONYX_NO_DISCARD static Result<RenderSubmitInfo> renderer_RenderWindow(const ImGuiViewport *viewport,
-                                                                      VKit::Queue *graphics, VkCommandBuffer cmd)
+static RenderSubmitInfo renderer_RenderWindow(const ImGuiViewport *viewport, VKit::Queue *graphics, VkCommandBuffer cmd)
 {
     const Renderer_ViewportData *vdata = renderer_GetViewportData(viewport);
     TKIT_ASSERT(vdata, "[ONYX][IMGUI] Renderer viewport data is null");
@@ -1709,7 +1653,7 @@ ONYX_NO_DISCARD static Result<RenderSubmitInfo> renderer_RenderWindow(const ImGu
     tracker.InFlightValue = graphicsFlight;
 
     window->BeginRendering(cmd, tracker);
-    TKIT_RETURN_IF_FAILED(renderer_Render(viewport->DrawData, cmd), window->EndRendering(cmd));
+    renderer_Render(viewport->DrawData, cmd);
     window->EndRendering(cmd);
 
     RenderSubmitInfo submitInfo{};
@@ -1744,7 +1688,7 @@ ONYX_NO_DISCARD static Result<RenderSubmitInfo> renderer_RenderWindow(const ImGu
     return submitInfo;
 }
 
-ONYX_NO_DISCARD static Result<> renderer_PresentWindow(const ImGuiViewport *viewport)
+static void renderer_PresentWindow(const ImGuiViewport *viewport)
 {
     const Renderer_ViewportData *vdata = renderer_GetViewportData(viewport);
     TKIT_ASSERT(vdata, "[ONYX][IMGUI] Renderer viewport data is null");
@@ -1755,7 +1699,7 @@ ONYX_NO_DISCARD static Result<> renderer_PresentWindow(const ImGuiViewport *view
 static void renderer_InitMultiViewportSupport()
 {
     ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
-    pio.Renderer_CreateWindow = [](ImGuiViewport *v) { ONYX_CHECK_EXPRESSION(renderer_CreateWindow(v)); };
+    pio.Renderer_CreateWindow = [](ImGuiViewport *v) { renderer_CreateWindow(v); };
     pio.Renderer_DestroyWindow = [](ImGuiViewport *v) { renderer_DestroyWindow(v); };
     // pio.Renderer_RenderWindow = [](ImGuiViewport *v) { ONYX_CHECK_EXPRESSION(renderer_RenderWindow(v)); };
 }
@@ -1773,7 +1717,7 @@ static void renderer_ShutdownMultiViewportSupport()
     }
 }
 
-ONYX_NO_DISCARD static Result<> renderer_Init(Window *window)
+static void renderer_Init(Window *window)
 {
     ImGuiIO &io = ImGui::GetIO();
 
@@ -1781,14 +1725,10 @@ ONYX_NO_DISCARD static Result<> renderer_Init(Window *window)
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures | ImGuiBackendFlags_RendererHasViewports |
                        ImGuiBackendFlags_RendererHasVtxOffset;
 
-    const auto result = renderer_CreateViewportData(window);
-    TKIT_RETURN_ON_ERROR(result);
     ImGuiViewport *mviewport = ImGui::GetMainViewport();
-    mviewport->RendererUserData = result.GetValue();
+    mviewport->RendererUserData = renderer_CreateViewportData(window);
 
     renderer_InitMultiViewportSupport();
-
-    return Result<>::Ok();
 }
 
 static void renderer_Shutdown()
@@ -1815,7 +1755,7 @@ static void renderer_Shutdown()
     pio.ClearRendererHandlers();
 }
 
-Result<> Create(Window *window)
+void Create(Window *window)
 {
     platform_Init(window);
     return renderer_Init(window);
@@ -1823,13 +1763,13 @@ Result<> Create(Window *window)
 
 void Destroy()
 {
-    ONYX_CHECK_EXPRESSION(DeviceWaitIdle());
+    DeviceWaitIdle();
     renderer_Shutdown();
     platform_Shutdown();
     ImGui::DestroyPlatformWindows();
 }
 
-Result<> Initialize()
+void Initialize()
 {
     const GLFWerrorfun perror = glfwSetErrorCallback(nullptr);
     s_PlatformData.MouseCursors[ImGuiMouseCursor_Arrow] = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
@@ -1874,12 +1814,12 @@ void NewFrame()
     ImGui::NewFrame();
 }
 
-Result<> RenderData(ImDrawData *data, const VkCommandBuffer commandBuffer)
+void RenderData(ImDrawData *data, const VkCommandBuffer commandBuffer)
 {
     TKIT_PROFILE_NSCOPE("Onyx::ImGui::RenderData");
     return renderer_Render(data, commandBuffer);
 }
-Result<> UpdatePlatformWindows()
+void UpdatePlatformWindows()
 {
     TKIT_PROFILE_NSCOPE("Onyx::ImGui::UpdateWindows");
     ImGuiContext *ctx = GImGui;
@@ -1889,7 +1829,7 @@ Result<> UpdatePlatformWindows()
     ctx->FrameCountPlatformEnded = ctx->FrameCount;
 
     if (!(ctx->ConfigFlagsCurrFrame & ImGuiConfigFlags_ViewportsEnable))
-        return Result<>::Ok();
+        return;
 
     const u32 size = u32(ctx->Viewports.size());
     for (u32 i = 1; i < size; ++i)
@@ -1918,8 +1858,8 @@ Result<> UpdatePlatformWindows()
         const bool newWindow = !viewport->PlatformWindowCreated;
         if (newWindow)
         {
-            TKIT_RETURN_IF_FAILED(platform_CreateWindow(viewport));
-            TKIT_RETURN_IF_FAILED(renderer_CreateWindow(viewport));
+            platform_CreateWindow(viewport);
+            renderer_CreateWindow(viewport);
             ++ctx->PlatformWindowsCreatedCount;
             viewport->LastNameHash = 0;
 
@@ -1975,7 +1915,6 @@ Result<> UpdatePlatformWindows()
 
         viewport->ClearRequestFlags();
     }
-    return Result<>::Ok();
 }
 
 u32 GetPlatformWindowCount()
@@ -1984,7 +1923,7 @@ u32 GetPlatformWindowCount()
     return u32(pio.Viewports.Size - 1);
 }
 
-Result<bool> AcquirePlatformWindowImage(const u32 windowIndex, const Timeout timeout)
+bool AcquirePlatformWindowImage(const u32 windowIndex, const Timeout timeout)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     ImGuiViewport *viewport = pio.Viewports[windowIndex + 1];
@@ -1993,14 +1932,14 @@ Result<bool> AcquirePlatformWindowImage(const u32 windowIndex, const Timeout tim
     return renderer_AcquireImage(viewport, timeout);
 }
 
-Result<RenderSubmitInfo> RenderPlatformWindow(const u32 windowIndex, VKit::Queue *graphics, const VkCommandBuffer cmd)
+RenderSubmitInfo RenderPlatformWindow(const u32 windowIndex, VKit::Queue *graphics, const VkCommandBuffer cmd)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     ImGuiViewport *viewport = pio.Viewports[windowIndex + 1];
     return renderer_RenderWindow(viewport, graphics, cmd);
 }
 
-Result<> PresentPlatformWindow(const u32 windowIndex)
+void PresentPlatformWindow(const u32 windowIndex)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     ImGuiViewport *viewport = pio.Viewports[windowIndex + 1];

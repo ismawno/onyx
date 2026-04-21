@@ -15,7 +15,7 @@ void WindowExample(const Asset mesh, const u32 nwidows = 1)
         Window *Win;
         RenderView<D2> *View;
     };
-    RenderContext<D2> *ctx = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D2>());
+    RenderContext<D2> *ctx = Renderer::CreateContext<D2>();
     TKit::StackArray<WindowView> windows{};
     windows.Reserve(nwidows);
 
@@ -24,8 +24,8 @@ void WindowExample(const Asset mesh, const u32 nwidows = 1)
     for (u32 i = 0; i < nwidows; ++i)
     {
         WindowView &wv = windows.Append();
-        wv.Win = ONYX_CHECK_EXPRESSION(Platform::CreateWindow());
-        wv.View = ONYX_CHECK_EXPRESSION(wv.Win->CreateRenderView(&cam));
+        wv.Win = Platform::CreateWindow();
+        wv.View = wv.Win->CreateRenderView(&cam);
         ctx->AddTarget(wv.View);
     }
 
@@ -38,48 +38,48 @@ void WindowExample(const Asset mesh, const u32 nwidows = 1)
         ctx->TranslateX(0.5f);
         ctx->Circle();
 
-        ONYX_CHECK_EXPRESSION(Execution::UpdateCompletedQueueTimelines());
+        Execution::UpdateCompletedQueueTimelines();
         // Renderer::Coalesce();
 
         VKit::Queue *tqueue = Execution::FindSuitableQueue(VKit::Queue_Transfer);
         VKit::Queue *gqueue = Execution::FindSuitableQueue(VKit::Queue_Graphics);
 
-        CommandPool *tpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Transfer));
-        CommandPool *gpool = ONYX_CHECK_EXPRESSION(Execution::FindSuitableCommandPool(VKit::Queue_Graphics));
+        CommandPool *tpool = Execution::FindSuitableCommandPool(VKit::Queue_Transfer);
+        CommandPool *gpool = Execution::FindSuitableCommandPool(VKit::Queue_Graphics);
 
-        const VkCommandBuffer tcmd = ONYX_CHECK_EXPRESSION(Execution::Allocate(tpool));
+        const VkCommandBuffer tcmd = Execution::Allocate(tpool);
 
-        ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(tcmd));
-        const TransferSubmitInfo tsinfo = ONYX_CHECK_EXPRESSION(Renderer::Transfer(tqueue, tcmd));
-        ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(tcmd));
+        Execution::BeginCommandBuffer(tcmd);
+        const TransferSubmitInfo tsinfo = Renderer::Transfer(tqueue, tcmd);
+        Execution::EndCommandBuffer(tcmd);
 
         if (tsinfo)
-            ONYX_CHECK_EXPRESSION(Renderer::SubmitTransfer(tqueue, tpool, tsinfo));
+            Renderer::SubmitTransfer(tqueue, tpool, tsinfo);
 
         TKit::StackArray<RenderSubmitInfo> rinfos{};
         rinfos.Reserve(windows.GetSize());
         u64 acquireMask = 0;
         Renderer::PrepareRender();
         for (const WindowView &wv : windows)
-            if (ONYX_CHECK_EXPRESSION(wv.Win->AcquireNextImage(Block)))
+            if (wv.Win->AcquireNextImage(Block))
             {
                 acquireMask |= wv.View->GetViewBit();
-                const VkCommandBuffer gcmd = ONYX_CHECK_EXPRESSION(Execution::Allocate(gpool));
-                ONYX_CHECK_EXPRESSION(Execution::BeginCommandBuffer(gcmd));
+                const VkCommandBuffer gcmd = Execution::Allocate(gpool);
+                Execution::BeginCommandBuffer(gcmd);
                 Renderer::ApplyAcquireBarriers(gcmd);
 
-                const RenderSubmitInfo rinfo = ONYX_CHECK_EXPRESSION(Renderer::Render(gqueue, gcmd, wv.Win));
+                const RenderSubmitInfo rinfo = Renderer::Render(gqueue, gcmd, wv.Win);
                 rinfos.Append(rinfo);
 
-                ONYX_CHECK_EXPRESSION(Execution::EndCommandBuffer(gcmd));
+                Execution::EndCommandBuffer(gcmd);
             }
 
         if (!rinfos.IsEmpty())
-            ONYX_CHECK_EXPRESSION(Renderer::SubmitRender(gqueue, gpool, rinfos));
+            Renderer::SubmitRender(gqueue, gpool, rinfos);
 
         for (const WindowView &wv : windows)
             if (wv.View->GetViewBit() & acquireMask)
-                ONYX_CHECK_EXPRESSION(wv.Win->Present());
+                wv.Win->Present();
 
         for (u32 i = windows.GetSize() - 1; i < windows.GetSize(); --i)
             if (windows[i].Win->ShouldClose())
@@ -113,19 +113,19 @@ void ApplicationExample()
         }
     };
     Application app{};
-    ONYX_CHECK_EXPRESSION(app.OpenWindow<WinLayer>());
-    ONYX_CHECK_EXPRESSION(app.Run());
+    app.OpenWindow<WinLayer>();
+    app.Run();
 }
 
 int main()
 {
-    ONYX_CHECK_EXPRESSION(Initialize());
+    Initialize();
     const StatMeshData<D2> data = CreateQuadMeshData<D2>();
 
-    const AssetPool pool = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D2>(Asset_StaticMesh));
+    const AssetPool pool = Assets::CreateAssetPool<D2>(Asset_StaticMesh);
 
     const Asset mesh = Assets::CreateMesh(pool, data);
-    ONYX_CHECK_EXPRESSION(Assets::Upload());
+    Assets::Upload();
 
     WindowExample(mesh, 1);
     // ApplicationExample();

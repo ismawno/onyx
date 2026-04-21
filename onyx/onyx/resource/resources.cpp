@@ -3,13 +3,13 @@
 
 namespace Onyx::Resources
 {
-Result<VKit::DeviceBuffer> CreateBuffer(const VKit::DeviceBufferFlags flags, const VkDeviceSize size)
+VKit::DeviceBuffer CreateBuffer(const VKit::DeviceBufferFlags flags, const VkDeviceSize size)
 {
-    return VKit::DeviceBuffer::Builder(GetDevice(), GetVulkanAllocator(), flags).SetSize(size).Build();
+    return ONYX_CHECK_EXPRESSION(
+        VKit::DeviceBuffer::Builder(GetDevice(), GetVulkanAllocator(), flags).SetSize(size).Build());
 }
 
-Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const u32 instances, const u32 instanceSize,
-                                const f32 factor)
+bool GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const u32 instances, const u32 instanceSize, const f32 factor)
 {
     const VKit::DeviceBuffer::Info &info = buffer.GetInfo();
     const u32 inst = u32(info.Size / instanceSize);
@@ -17,10 +17,8 @@ Result<bool> GrowBufferIfNeeded(VKit::DeviceBuffer &buffer, const u32 instances,
         return false;
 
     const u32 ninst = GrowCapacity(instances, factor);
-    const auto result = CreateBuffer(info.Flags, ninst * instanceSize);
-    TKIT_RETURN_ON_ERROR(result);
     buffer.Destroy();
-    buffer = result.GetValue();
+    buffer = CreateBuffer(info.Flags, ninst * instanceSize);
     return true;
 }
 

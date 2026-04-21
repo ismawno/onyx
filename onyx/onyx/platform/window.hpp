@@ -35,7 +35,7 @@ class Window
 {
     TKIT_NON_COPYABLE(Window)
   public:
-    Window() = default;
+    Window(const WindowSpecs &specs);
     ~Window();
 
     static Window *FromHandle(GLFWwindow *window);
@@ -139,9 +139,8 @@ class Window
     void FlushEvents();
 
     template <Dimension D>
-    ONYX_NO_DISCARD Result<RenderView<D> *> CreateRenderView(Camera<D> *camera, RenderViewFlags flags = 0,
-                                                             const ScreenViewport &viewport = {},
-                                                             const ScreenScissor &scissor = {});
+    RenderView<D> *CreateRenderView(Camera<D> *camera, RenderViewFlags flags = 0, const ScreenViewport &viewport = {},
+                                    const ScreenScissor &scissor = {});
 
     template <Dimension D> void DestroyRenderView(RenderView<D> *rv);
 
@@ -170,8 +169,8 @@ class Window
     template <Dimension D>
     void ControlCamera(TKit::Timespan deltaTime, Camera<D> *camera, const CameraControls<D> &controls = {}) const;
 
-    ONYX_NO_DISCARD Result<bool> AcquireNextImage(Timeout timeout);
-    ONYX_NO_DISCARD Result<> Present();
+    bool AcquireNextImage(Timeout timeout);
+    void Present();
 
     void RequestSwapchainRecreation()
     {
@@ -220,28 +219,23 @@ class Window
     Color ClearColor = Color::Black;
 
   private:
-    ONYX_NO_DISCARD Result<> updateRenderViews();
+    void updateRenderViews();
+    void extractSwapChainImages();
 
-    ONYX_NO_DISCARD static Result<VKit::SwapChain> createSwapChain(VkPresentModeKHR presentMode, VkSurfaceKHR surface,
-                                                                   const VkExtent2D &windowExtent,
-                                                                   const VKit::SwapChain *old = nullptr);
+    void createSwapChain(const VkExtent2D &windowExtent);
+    void createSyncData();
+    void destroySyncData();
+    void drainWork();
+    void recreateSwapChain();
+    void recreateResources();
+    void recreateSurface();
+    bool handlePresentOrAcquireResult(VkResult result);
+    void nameSurface();
+    void nameSwapChain();
+    void nameSyncData();
+    void nameSwapChainImages();
 
-    ONYX_NO_DISCARD static Result<TKit::TierArray<WindowSyncData>> createSyncData(u32 imageCount);
-    static void destroySyncData(const TKit::TierArray<WindowSyncData> &sync);
-    static TKit::TierArray<VKit::DeviceImage *> extractSwapChainImages(VKit::SwapChain &swapChain);
-
-    ONYX_NO_DISCARD Result<> createSwapChain(const VkExtent2D &windowExtent);
-    ONYX_NO_DISCARD Result<> drainWork();
-    ONYX_NO_DISCARD Result<> recreateSwapChain();
-    ONYX_NO_DISCARD Result<> recreateResources();
-    ONYX_NO_DISCARD Result<> recreateSurface();
-    ONYX_NO_DISCARD Result<bool> handlePresentOrAcquireResult(VkResult result);
-    ONYX_NO_DISCARD Result<> nameSurface();
-    ONYX_NO_DISCARD Result<> nameSwapChain();
-    ONYX_NO_DISCARD Result<> nameSyncData();
-    ONYX_NO_DISCARD Result<> nameSwapChainImages();
-
-    static VkExtent2D getNewExtent(GLFWwindow *window);
+    VkExtent2D getNewExtent();
 
     // TODO(Isma): Implement sort here somehow. rename this to get sorted views
     template <Dimension D> TKit::TierArray<RenderView<D> *> getViews() const
@@ -273,7 +267,7 @@ class Window
     TKit::Timespan m_MonitorDeltaTime{};
     TKit::Clock m_TimeSinceResize{};
 
-    VKit::SwapChain m_SwapChain;
+    VKit::SwapChain m_SwapChain{};
     TKit::TierArray<VKit::DeviceImage *> m_Presentation{};
     TKit::TierArray<WindowSyncData> m_SyncData{};
 
@@ -286,7 +280,5 @@ class Window
 
     VkPresentModeKHR m_PresentMode;
     bool m_MustRecreateSwapchain = false;
-
-    friend Result<Window *> Platform::CreateWindow(const WindowSpecs &);
 };
 } // namespace Onyx

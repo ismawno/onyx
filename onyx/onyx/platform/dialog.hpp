@@ -4,7 +4,7 @@
 #    error "[ONYX] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_NFD"
 #endif
 
-#include "onyx/core/alias.hpp"
+#include "onyx/core/core.hpp"
 #include "tkit/container/tier_array.hpp"
 #include "tkit/container/span.hpp"
 #include "tkit/utils/result.hpp"
@@ -47,10 +47,10 @@ template <typename T> using Result = TKit::Result<T, Status>;
 using Path = fs::path;
 using Paths = TKit::TierArray<Path>;
 
-Result<Path> Save(const Options &options = {});
-Result<Path> OpenFolder(const Options &options = {});
-Result<Path> OpenSingle(const Options &options = {});
-Result<Paths> OpenMultiple(const Options &options = {});
+ONYX_NO_DISCARD Result<Path> Save(const Options &options = {});
+ONYX_NO_DISCARD Result<Path> OpenFolder(const Options &options = {});
+ONYX_NO_DISCARD Result<Path> OpenSingle(const Options &options = {});
+ONYX_NO_DISCARD Result<Paths> OpenMultiple(const Options &options = {});
 const char *GetError();
 void ClearError();
 

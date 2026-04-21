@@ -61,14 +61,14 @@ struct Specs
     VkFormat DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
 };
 
-ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
+void Initialize(const Specs &specs);
 void Terminate();
 
 VkSurfaceFormatKHR GetSurfaceFormat();
 VkFormat GetColorFormat();
 VkFormat GetDepthStencilFormat();
 
-ONYX_NO_DISCARD Result<Window *> CreateWindow(const WindowSpecs &specs = {});
+Window * CreateWindow(const WindowSpecs &specs = {});
 void DestroyWindow(Window *window);
 void DestroyWindows();
 void PollEvents();

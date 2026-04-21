@@ -79,7 +79,7 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *da
 
     DefaultSampler = AddSampler("Default sampler").Handle;
 
-    ONYX_CHECK_EXPRESSION(Assets::Upload());
+    Assets::Upload();
 
     if (data->Flags & ParseFlag_D2)
     {
@@ -126,7 +126,7 @@ MeshPoolId<Vertex> &SandboxAppLayer::AddMeshPool(TKit::TierArray<MeshPoolId<Vert
 {
     constexpr Dimension D = Vertex::Dim;
     MeshPoolId<Vertex> &mid = pool.Append();
-    mid.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateAssetPool<D>(Vertex::Asset));
+    mid.Handle = Assets::CreateAssetPool<D>(Vertex::Asset);
     mid.Name = name ? name : TKit::Format("Mesh-pool-{:#010x}", mid.Handle);
     return mid;
 }
@@ -430,7 +430,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
 
 template <Dimension D> void SandboxAppLayer::AddContext(const RenderView<D> *view)
 {
-    RenderContext<D> *context = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D>());
+    RenderContext<D> *context = Renderer::CreateContext<D>();
     auto &contexts = GetContexts<D>();
     ContextData<D> &data = contexts.Contexts.Append();
     data.Context = context;
@@ -453,7 +453,7 @@ template <Dimension D> void SandboxAppLayer::AddLattice(const RenderView<D> *vie
     LatticeData<D> &data = lattices.Lattices.Append(lattice);
     for (u32 i = 0; i < TKit::MaxThreads; ++i)
     {
-        RenderContext<D> *ctx = ONYX_CHECK_EXPRESSION(Renderer::CreateContext<D>());
+        RenderContext<D> *ctx = Renderer::CreateContext<D>();
         if (view)
             ctx->AddTarget(view);
         data.Contexts[i] = ctx;
@@ -488,7 +488,7 @@ void SandboxAppLayer::AddTexture(const ImageData &data, const char *name)
 void SandboxAppLayer::AddFontPool(const char *name)
 {
     FontPoolId &pool = FontPools.Append();
-    pool.Handle = ONYX_CHECK_EXPRESSION(Assets::CreateFontPool());
+    pool.Handle = Assets::CreateFontPool();
     pool.Name = name ? name : TKit::Format("Font-pool-{:#010x}", pool.Handle);
 }
 
@@ -665,8 +665,8 @@ void SandboxWinLayer::RenderImGui()
 #    endif
         if (ImGui::Button("Reload shaders"))
         {
-            ONYX_CHECK_EXPRESSION(Pipelines::ReloadShaders());
-            ONYX_CHECK_EXPRESSION(Renderer::ReloadPipelines());
+            Pipelines::ReloadShaders();
+            Renderer::ReloadPipelines();
         }
     }
     ImGui::End();
@@ -1312,7 +1312,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
                     if (Assets::GetAssetPool(meshes.DefaultLightMesh) == pool.Handle)
                         meshes.DefaultLightMesh = NullAsset;
 
-                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+                Assets::RequestUpload();
             };
             ImGui::SameLine();
             ImGui::TextDisabled("Removing the default mesh pool may lead to weird behaviour!");
@@ -1340,7 +1340,7 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
                 for (LatticeData<D> &lattice : lattices.Lattices)
                     if (Assets::GetAssetPool(lattice.Shape.Mesh) == pool.Handle)
                         lattice.Shape.Mesh = NullAsset;
-                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+                Assets::RequestUpload();
             };
             renderEntries(meshes.ParaPools, opts);
             ImGui::TreePop();
@@ -1357,7 +1357,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterials()
         if (ImGui::Button("Add material"))
         {
             appLayer->AddMaterial<D>();
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            Assets::RequestUpload();
         }
 
         EntriesOptions<MaterialId<D>> opts{};
@@ -1384,7 +1384,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterials()
                     lattice.Shape.Material = NullAsset;
             if (materials.DefaultMaterial == mat.Handle)
                 materials.DefaultMaterial = NullAsset;
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            Assets::RequestUpload();
         };
 
         renderEntries(materials.Elements, opts);
@@ -1418,7 +1418,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterial(MaterialId<D> &mater
     if (changed)
     {
         Assets::UpdateMaterial(material.Handle, material.Data);
-        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        Assets::RequestUpload();
     }
 }
 
@@ -1487,7 +1487,7 @@ void SandboxWinLayer::RenderSamplers()
         if (ImGui::Button("Create"))
         {
             appLayer->AddSampler();
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            Assets::RequestUpload();
         }
 
         ImGui::TextDisabled(
@@ -1501,7 +1501,7 @@ void SandboxWinLayer::RenderSamplers()
             appLayer->UpdateMaterialData<D3>();
             if (appLayer->DefaultSampler == samp.Handle)
                 appLayer->DefaultSampler = NullHandle;
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            Assets::RequestUpload();
         };
         opts.OnSelected = [this](SamplerId &samp) { RenderSampler(samp); };
         opts.Selected = &appLayer->SelectedSampler;
@@ -1516,7 +1516,7 @@ void SandboxWinLayer::RenderSampler(SamplerId &sampler)
     if (SamplerEditor(sampler.Data, EditorFlag_DisplayHelp))
     {
         Assets::UpdateSampler(sampler.Handle, sampler.Data);
-        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        Assets::RequestUpload();
     }
 }
 
@@ -1533,7 +1533,7 @@ void SandboxWinLayer::RenderTextures()
 
             const ImageData &data = res.GetValue();
             appLayer->AddTexture(data, path.filename().string().c_str());
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            Assets::RequestUpload();
         });
 
         EntriesOptions<TextureId> opts{};
@@ -1547,7 +1547,7 @@ void SandboxWinLayer::RenderTextures()
             Assets::DestroyTexture(tex.Handle);
             appLayer->UpdateMaterialData<D2>();
             appLayer->UpdateMaterialData<D3>();
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            Assets::RequestUpload();
         };
         renderEntries(appLayer->Textures, opts);
     }
@@ -1577,7 +1577,7 @@ void SandboxWinLayer::RenderFontPools()
                 for (Shape<D3> &shape : ctx.Shapes)
                     if (Assets::GetAssetPool(shape.Font) == pool.Handle)
                         shape.Font = NullHandle;
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            Assets::RequestUpload();
         };
         renderEntries(appLayer->FontPools, opts);
     }
@@ -1594,7 +1594,7 @@ void SandboxWinLayer::RenderFontPool(FontPoolId &pool)
 
         const FontData &data = res.GetValue();
         appLayer->AddFont(pool, data, path.filename().string().c_str());
-        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        Assets::RequestUpload();
     });
 
     EntriesOptions<FontId> opts{};
@@ -1621,7 +1621,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
             StatMeshPoolId<D> &mspool = appLayer->AddMeshPool(appLayer->GetMeshes<D>().StatPools);
             GltfData<D> &data = res.GetValue();
             const GltfHandles handles = Assets::CreateGltfAssets(mspool.Handle, data);
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            Assets::RequestUpload();
 
             for (u32 i = 0; i < handles.StaticMeshes.GetSize(); ++i)
             {
@@ -1700,7 +1700,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
             {
                 appLayer->AddMesh(pool, CreateRegularPolygonMeshData<D>(meshes.RegularPolySides),
                                   name[0] ? name : "Regular polygon");
-                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+                Assets::RequestUpload();
             }
         }
         else if (meshes.StatMeshToLoad == 1)
@@ -1728,7 +1728,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
             if (ImGui::Button("Create##Polygon"))
             {
                 appLayer->AddMesh(pool, CreatePolygonMeshData<D>(meshes.PolyVertices), name[0] ? name : "Polygon");
-                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+                Assets::RequestUpload();
             }
         }
         else if (meshes.StatMeshToLoad == importedIndex)
@@ -1740,7 +1740,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
 
                 const StatMeshData<D> &data = res.GetValue();
                 appLayer->AddMesh(pool, data, name[0] ? name : path.filename().string().c_str());
-                ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+                Assets::RequestUpload();
             });
         if constexpr (D == D3)
         {
@@ -1754,7 +1754,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
                 {
                     appLayer->AddMesh(pool, CreateSphereMeshData(meshes.Rings, meshes.Sectors),
                                       name[0] ? name : "Sphere");
-                    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+                    Assets::RequestUpload();
                 }
             }
             else if (meshes.StatMeshToLoad == 3)
@@ -1765,7 +1765,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
                 if (ImGui::Button("Create##Cylinder"))
                 {
                     appLayer->AddMesh(pool, CreateCylinderMeshData(meshes.CylinderSides), name[0] ? name : "Cylinder");
-                    ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+                    Assets::RequestUpload();
                 }
             }
         }
@@ -1795,7 +1795,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
             else if (meshes.ParaMeshToLoad == 2)
                 appLayer->AddMesh(pool, CreateTorusMeshData(meshes.Rings, meshes.Sectors));
 
-            ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+            Assets::RequestUpload();
         }
     }
 }
@@ -1852,7 +1852,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMesh(MeshId<Vertex> &mesh
     if (changed)
     {
         Assets::UpdateMesh(mesh.Handle, mesh.Data);
-        ONYX_CHECK_EXPRESSION(Assets::RequestUpload());
+        Assets::RequestUpload();
     }
 }
 
@@ -1966,7 +1966,7 @@ template <Dimension D> RenderView<D> *SandboxWinLayer::AddView(Camera<D> *camera
     Window *win = GetWindow();
     const u32 size = views.Views.GetSize();
     ViewData<D> &view = views.Views.Append();
-    view.View = ONYX_CHECK_EXPRESSION(win->CreateRenderView(camera, RenderViewFlag_Shadows));
+    view.View = win->CreateRenderView(camera, RenderViewFlag_Shadows);
     view.View->ClearColor = Color{0.1f};
     view.Name = TKit::Format("View {}", size);
 

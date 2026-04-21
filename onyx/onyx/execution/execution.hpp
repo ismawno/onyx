@@ -16,7 +16,7 @@ struct Specs
 {
     u32 MaxCommandPools = 1024;
 };
-ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
+void Initialize(const Specs &specs);
 void Terminate();
 
 struct Tracker
@@ -43,18 +43,18 @@ struct Tracker
     }
 };
 
-ONYX_NO_DISCARD Result<> UpdateCompletedQueueTimelines();
+void UpdateCompletedQueueTimelines();
 
 VKit::Queue *FindSuitableQueue(VKit::QueueType type);
 
-ONYX_NO_DISCARD Result<CommandPool *> FindSuitableCommandPool(u32 family);
-ONYX_NO_DISCARD Result<CommandPool *> FindSuitableCommandPool(VKit::QueueType type);
+CommandPool * FindSuitableCommandPool(u32 family);
+CommandPool * FindSuitableCommandPool(VKit::QueueType type);
 
-ONYX_NO_DISCARD Result<VkCommandBuffer> Allocate(CommandPool *pool);
+VkCommandBuffer Allocate(CommandPool *pool);
 void MarkInUse(CommandPool *pool, const VKit::Queue *queue, u64 inFlightValue);
 
-ONYX_NO_DISCARD Result<> BeginCommandBuffer(VkCommandBuffer commandBuffer);
-ONYX_NO_DISCARD Result<> EndCommandBuffer(VkCommandBuffer commandBuffer);
+void BeginCommandBuffer(VkCommandBuffer commandBuffer);
+void EndCommandBuffer(VkCommandBuffer commandBuffer);
 
 u32 GetFamilyIndex(VKit::QueueType type);
 

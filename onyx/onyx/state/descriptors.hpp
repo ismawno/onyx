@@ -18,7 +18,7 @@ struct Specs
     u32 SampledImagePoolSize = 2 << 16;
     u32 StorageImagePoolSize = 2 << 8;
 };
-ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
+void Initialize(const Specs &specs);
 void Terminate();
 
 const VKit::DescriptorPool &GetDescriptorPool();

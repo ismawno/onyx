@@ -23,6 +23,8 @@ namespace Onyx
 {
 using Task = TKit::Task<void>;
 using enum VKit::ErrorCode;
+// TODO(Isma): Consider creating a separate onyx result, decoupling the error enum from vkit, since now errors happen
+// outside of vulkan stuff
 template <typename T = void> using Result = VKit::Result<T>;
 
 struct InitCallbacks
@@ -33,19 +35,16 @@ struct InitCallbacks
     std::function<void(VKit::AllocatorSpecs &)> OnAllocatorCreation = nullptr;
 };
 
-ONYX_NO_DISCARD Result<> HandleVulkanResult(const VkResult result);
+void HandleVulkanResult(const VkResult result);
 
-template <typename T, typename E> T CheckExpression(TKit::Result<T, E> &&result)
+template <typename T, typename E> auto CheckExpression(TKit::Result<T, E> &&result)
 {
 #ifdef TKIT_ENABLE_ASSERTS
     if (!result)
     {
         const auto &error = result.GetError();
         if (error.GetCode() == Error_VulkanError)
-        {
-            const auto r = HandleVulkanResult(error.GetVulkanResult());
-            VKIT_LOG_RESULT_ERROR(r);
-        }
+            HandleVulkanResult(error.GetVulkanResult());
 
         TKIT_FATAL("{}", error.ToString());
     }
@@ -57,8 +56,7 @@ template <typename T, typename E> T CheckExpression(TKit::Result<T, E> &&result)
 #ifdef TKIT_ENABLE_ASSERTS
 inline void CheckExpression(const VkResult result)
 {
-    const auto res = HandleVulkanResult(result);
-    VKIT_LOG_RESULT_ERROR(res);
+    HandleVulkanResult(result);
     VKIT_CHECK_RESULT(result);
 }
 #else
@@ -143,7 +141,7 @@ struct Specs
 #endif
 };
 
-ONYX_NO_DISCARD Result<> Initialize(const Specs &specs = {});
+void Initialize(const Specs &specs = {});
 void Terminate();
 
 TKit::ArenaAllocator *GetArena(u32 threadIndex = 0);
@@ -164,7 +162,7 @@ const VKit::Vulkan::DeviceTable *GetDeviceTable();
 
 bool IsDebugUtilsEnabled();
 
-ONYX_NO_DISCARD Result<> DeviceWaitIdle();
+void DeviceWaitIdle();
 
 VmaAllocator GetVulkanAllocator();
 VKit::DeletionQueue &GetDeletionQueue();

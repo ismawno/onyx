@@ -23,8 +23,8 @@ class Application
      * @param clock A clock that lets both the API and the user to keep track of the tick time.
      * @return Whether the application must keep running.
      */
-    ONYX_NO_DISCARD Result<bool> NextTick(TKit::Clock &clock);
-    ONYX_NO_DISCARD Result<> Run();
+    bool NextTick(TKit::Clock &clock);
+    void Run();
 
     template <std::derived_from<ApplicationLayer> T = ApplicationLayer, typename... LayerArgs>
     T *SetApplicationLayer(LayerArgs &&...args)
@@ -47,17 +47,14 @@ class Application
     }
 
     template <std::derived_from<WindowLayer> T = WindowLayer, typename... LayerArgs>
-    ONYX_NO_DISCARD Result<T *> OpenWindow(const WindowSpecs &specs, LayerArgs &&...args)
+    T *OpenWindow(const WindowSpecs &specs, LayerArgs &&...args)
     {
-        const auto result = Platform::CreateWindow(specs);
-        TKIT_RETURN_ON_ERROR(result);
-        Window *window = result.GetValue();
+        Window *window = Platform::CreateWindow(specs);
         T *layer = Detail::CreateLayer<WindowLayer, T>(m_AppLayer, window, std::forward<LayerArgs>(args)...);
         m_WindowLayers.Append(layer);
         return layer;
     }
-    template <std::derived_from<WindowLayer> T = WindowLayer, typename... LayerArgs>
-    ONYX_NO_DISCARD Result<T *> OpenWindow(LayerArgs &&...args)
+    template <std::derived_from<WindowLayer> T = WindowLayer, typename... LayerArgs> T *OpenWindow(LayerArgs &&...args)
     {
         const WindowSpecs specs{};
         return OpenWindow<T>(specs, std::forward<LayerArgs>(args)...);
