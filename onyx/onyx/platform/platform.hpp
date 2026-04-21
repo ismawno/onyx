@@ -56,9 +56,17 @@ namespace Onyx::Platform
 struct Specs
 {
     u32 Platform = ONYX_PLATFORM_AUTO;
+    VkSurfaceFormatKHR SurfaceFormat = {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+    VkFormat ColorFormat = VK_FORMAT_B8G8R8A8_UNORM;
+    VkFormat DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
 };
+
 ONYX_NO_DISCARD Result<> Initialize(const Specs &specs);
 void Terminate();
+
+VkSurfaceFormatKHR GetSurfaceFormat();
+VkFormat GetColorFormat();
+VkFormat GetDepthStencilFormat();
 
 ONYX_NO_DISCARD Result<Window *> CreateWindow(const WindowSpecs &specs = {});
 void DestroyWindow(Window *window);

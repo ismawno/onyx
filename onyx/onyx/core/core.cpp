@@ -27,6 +27,8 @@
 #include <filesystem>
 
 using namespace Onyx::Detail;
+// TODO(Isma): Better error handling. if a function cannot keep a sane state after an error, it should not return an
+// error
 namespace Onyx
 {
 static u8 s_PushedAlloc = 0;

@@ -2,6 +2,8 @@
 #include "onyx/platform/platform.hpp"
 #include "onyx/platform/window.hpp"
 #include "onyx/platform/glfw.hpp"
+#include "onyx/state/descriptors.hpp"
+#include "onyx/rendering/renderer.hpp"
 #include "tkit/container/static_array.hpp"
 
 namespace Onyx::Platform
@@ -15,10 +17,18 @@ static void glfwErrorCallback(const i32 errorCode, const char *description)
                    description);
 }
 #endif
+
+static VkSurfaceFormatKHR s_SurfaceFormat;
+static VkFormat s_ColorFormat;
+static VkFormat s_DepthStencilFormat;
+
 Result<> Initialize(const Specs &specs)
 {
     TKIT_LOG_INFO("[ONYX][PLATFORM] Initializing");
     s_Windows.Construct();
+    s_SurfaceFormat = specs.SurfaceFormat;
+    s_ColorFormat = specs.ColorFormat;
+    s_DepthStencilFormat = specs.DepthStencilFormat;
 #ifdef TKIT_ENABLE_ERROR_LOGS
     glfwSetErrorCallback(glfwErrorCallback);
 #endif
@@ -36,6 +46,19 @@ void Terminate()
     DestroyWindows();
     glfwTerminate();
     s_Windows.Destruct();
+}
+
+VkSurfaceFormatKHR GetSurfaceFormat()
+{
+    return s_SurfaceFormat;
+}
+VkFormat GetColorFormat()
+{
+    return s_ColorFormat;
+}
+VkFormat GetDepthStencilFormat()
+{
+    return s_DepthStencilFormat;
 }
 
 Result<Window *> CreateWindow(const WindowSpecs &specs)
@@ -85,6 +108,11 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     VKIT_RETURN_IF_FAILED(glfwCreateWindowSurface(GetInstance(), handle, nullptr, &surface), Result<Window *>);
     cleanup.Push([surface] { GetInstanceTable()->DestroySurfaceKHR(GetInstance(), surface, nullptr); });
 
+    const auto dresult = Descriptors::GetDescriptorPool().Allocate(Descriptors::GetCompositorDescriptorLayout());
+    TKIT_RETURN_ON_ERROR(dresult);
+    const VkDescriptorSet cset = dresult.GetValue();
+    Renderer::BindCompositorSampler(cset);
+
     const VkExtent2D extent = Window::getNewExtent(handle);
     auto sresult = Window::createSwapChain(specs.PresentMode, surface, extent);
     TKIT_RETURN_ON_ERROR(sresult);
@@ -92,40 +120,38 @@ Result<Window *> CreateWindow(const WindowSpecs &specs)
     VKit::SwapChain &schain = sresult.GetValue();
     cleanup.Push([&schain] { schain.Destroy(); });
 
-    auto syresult = Execution::CreateViewSyncData(schain.GetImageCount());
+    auto syresult = Window::createSyncData(schain.GetImageCount());
     TKIT_RETURN_ON_ERROR(syresult);
-    TKit::TierArray<Execution::ViewSyncData> &syncData = syresult.GetValue();
+    TKit::TierArray<WindowSyncData> &syncData = syresult.GetValue();
 
-    cleanup.Push([&syncData] { Execution::DestroyViewSyncData(syncData); });
+    // not needed bc window's destructor already takes care
+    // cleanup.Push([&syncData] { Window::destroySyncData(syncData); });
 
     TKit::TierAllocator *tier = TKit::GetTier();
     Window *window = tier->Create<Window>();
 
+    // this is the most profound desecration of encapsulation ive done lol
+    cleanup.Dismiss();
+    window->m_CompositorSet = cset;
     window->m_Window = handle;
     window->m_Surface = surface;
     window->m_SwapChain = schain;
-
-    auto iresult = Window::createImageData(window->m_SwapChain);
-    TKIT_RETURN_ON_ERROR(iresult);
-    TKit::TierArray<Window::ImageData> &imageData = iresult.GetValue();
-    cleanup.Push([&imageData] { Window::destroyImageData(imageData); });
-    window->m_Images = std::move(imageData);
     window->m_PresentMode = specs.PresentMode;
     window->m_SyncData = std::move(syncData);
     window->m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
     window->UpdateMonitorDeltaTime();
+    window->m_Presentation = window->extractSwapChainImages(window->m_SwapChain);
     if (IsDebugUtilsEnabled())
     {
-        TKIT_RETURN_IF_FAILED(window->nameSurface());
-        TKIT_RETURN_IF_FAILED(window->nameSwapChain());
-        TKIT_RETURN_IF_FAILED(window->nameSyncData());
-        TKIT_RETURN_IF_FAILED(window->nameImageData());
+        TKIT_RETURN_IF_FAILED(window->nameSurface(), tier->Destroy(window));
+        TKIT_RETURN_IF_FAILED(window->nameSwapChain(), tier->Destroy(window));
+        TKIT_RETURN_IF_FAILED(window->nameSyncData(), tier->Destroy(window));
+        TKIT_RETURN_IF_FAILED(window->nameSwapChainImages(), tier->Destroy(window));
     }
     glfwSetWindowUserPointer(handle, window);
     if (specs.Flags & WindowFlag_InstallCallbacks)
         window->InstallCallbacks();
 
-    cleanup.Dismiss();
     s_Windows->Append(window);
     return window;
 }

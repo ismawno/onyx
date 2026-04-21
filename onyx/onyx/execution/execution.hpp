@@ -32,6 +32,10 @@ struct Tracker
     {
         return Queue && Queue->GetTimelineSubmissions() >= InFlightValue;
     }
+    bool InFlight() const
+    {
+        return Submitted() && InUse();
+    }
     void MarkInUse(const VKit::Queue *queue, const u64 inFlightValue)
     {
         Queue = queue;
@@ -58,16 +62,4 @@ bool IsSeparateTransferMode();
 
 VKit::CommandPool &GetTransientGraphicsPool();
 VKit::CommandPool &GetTransientTransferPool();
-
-struct ViewSyncData
-{
-    VkSemaphore ImageAvailableSemaphore;
-    VkSemaphore RenderFinishedSemaphore;
-    VkSemaphore InFlightSubmission;
-    u64 InFlightValue;
-};
-
-ONYX_NO_DISCARD Result<TKit::TierArray<ViewSyncData>> CreateViewSyncData(u32 imageCount);
-void DestroyViewSyncData(TKit::Span<const ViewSyncData> objects);
-
 } // namespace Onyx::Execution

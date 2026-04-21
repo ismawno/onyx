@@ -4,6 +4,7 @@
 #include "onyx/state/shaders.hpp"
 #include "onyx/property/vertex.hpp"
 #include "onyx/state/pipelines.hpp"
+#include "onyx/platform/platform.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/preprocessor/utils.hpp"
 
@@ -32,6 +33,10 @@ struct PipelineData
     TKit::FixedArray<TKit::FixedArray<ShaderData, RenderPass_Count>, D_Count> Shaders{};
     VKit::PipelineLayout DistanceLayout{};
     VKit::Shader DistanceComputeShader{};
+
+    VKit::PipelineLayout CompositorLayout{};
+    VKit::Shader CompositorVertexShader{};
+    VKit::Shader CompositorFragmentShader{};
 };
 
 static TKit::Storage<PipelineData> s_PipelineData{};
@@ -112,6 +117,14 @@ ONYX_NO_DISCARD static Result<> createPipelineLayouts()
     TKIT_RETURN_ON_ERROR(layoutResult);
     s_PipelineData->DistanceLayout = layoutResult.GetValue();
 
+    layoutResult = VKit::PipelineLayout::Builder(device)
+                       .AddDescriptorSetLayout(Descriptors::GetCompositorDescriptorLayout())
+                       .AddPushConstantRange<u32>(VK_SHADER_STAGE_FRAGMENT_BIT)
+                       .Build();
+
+    TKIT_RETURN_ON_ERROR(layoutResult);
+    s_PipelineData->CompositorLayout = layoutResult.GetValue();
+
     if (IsDebugUtilsEnabled())
     {
         u32 i = 2;
@@ -188,12 +201,20 @@ ONYX_NO_DISCARD static Result<> createShaders()
             for (const std::string &dim : dims)
             {
                 const std::string &name = names.Append(geo + "-" + pass + "-" + dim);
-                auto &module = compiler.AddModule(name.c_str()).DeclareEntryPoint("mainVS", ShaderStage_Vertex);
-                module.DeclareEntryPoint("mainFS", ShaderStage_Fragment);
-                module.Load();
+                compiler.AddModule(name.c_str())
+                    .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+                    .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+                    .Load();
             }
 
-    compiler.AddModule("distance").DeclareEntryPoint("main", ShaderStage_Compute).Load();
+    compiler.AddModule("distance")
+        .DeclareEntryPoint("main", ShaderStage_Compute)
+        .Load()
+        .AddModule("compositor")
+        .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+        .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
+        .Load();
+
     auto cmpres = compiler.Compile();
     TKIT_RETURN_ON_ERROR(cmpres);
     Shaders::Compilation &cmp = cmpres.GetValue();
@@ -231,9 +252,17 @@ ONYX_NO_DISCARD static Result<> createShaders()
         }
     }
 
-    const auto result = cmp.CreateShader("main", "distance");
+    auto result = cmp.CreateShader("main", "distance");
     TKIT_RETURN_ON_ERROR(result, cmp.Destroy());
     s_PipelineData->DistanceComputeShader = result.GetValue();
+
+    result = cmp.CreateShader("mainVS", "compositor");
+    TKIT_RETURN_ON_ERROR(result, cmp.Destroy());
+    s_PipelineData->CompositorVertexShader = result.GetValue();
+
+    result = cmp.CreateShader("mainFS", "compositor");
+    TKIT_RETURN_ON_ERROR(result, cmp.Destroy());
+    s_PipelineData->CompositorFragmentShader = result.GetValue();
 
     cmp.Destroy();
     return Result<>::Ok();
@@ -245,6 +274,8 @@ static void destroyShaders()
         for (auto &passes : dims)
             passes.Destroy();
     s_PipelineData->DistanceComputeShader.Destroy();
+    s_PipelineData->CompositorVertexShader.Destroy();
+    s_PipelineData->CompositorFragmentShader.Destroy();
 }
 
 Result<> ReloadShaders()
@@ -267,7 +298,7 @@ void Terminate()
         for (auto &passes : dims)
             passes.Destroy();
     s_PipelineData->DistanceLayout.Destroy();
-    s_PipelineData->DistanceComputeShader.Destroy();
+    s_PipelineData->CompositorLayout.Destroy();
 
     s_PipelineData.Destruct();
 }
@@ -279,6 +310,10 @@ template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(const Rende
 const VKit::PipelineLayout &GetDistancePipelineLayout()
 {
     return s_PipelineData->DistanceLayout;
+}
+const VKit::PipelineLayout &GetCompositorPipelineLayout()
+{
+    return s_PipelineData->CompositorLayout;
 }
 
 template <Dimension D>
@@ -539,6 +574,29 @@ Result<VKit::ComputePipeline> CreateDistancePipeline()
     specs.ComputeShader = s_PipelineData->DistanceComputeShader;
     specs.Layout = s_PipelineData->DistanceLayout;
     return VKit::ComputePipeline::Create(GetDevice(), specs);
+}
+
+Result<VKit::GraphicsPipeline> CreateCompositorPipeline()
+{
+    VkPipelineRenderingCreateInfoKHR rinfo{};
+    const VkFormat format = Platform::GetSurfaceFormat().format;
+    rinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    rinfo.colorAttachmentCount = 1;
+    rinfo.pColorAttachmentFormats = &format;
+    rinfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+    rinfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+    return VKit::GraphicsPipeline::Builder(GetDevice(), s_PipelineData->CompositorLayout, rinfo)
+        .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+        .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+        .SetViewportCount(1)
+        .AddShaderStage(s_PipelineData->CompositorVertexShader, VK_SHADER_STAGE_VERTEX_BIT)
+        .AddShaderStage(s_PipelineData->CompositorFragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
+        .BeginColorAttachment()
+        .DisableBlending()
+        .EndColorAttachment()
+        .Bake()
+        .Build();
 }
 
 template const VKit::PipelineLayout &GetPipelineLayout<D2>(RenderPass pass);

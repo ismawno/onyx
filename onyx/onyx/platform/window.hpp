@@ -8,6 +8,7 @@
 #include "onyx/rendering/renderer.hpp"
 #include "vkit/presentation/swap_chain.hpp"
 #include "tkit/profiling/clock.hpp"
+#include "tkit/container/tier_hive.hpp"
 
 struct GLFWwindow;
 
@@ -23,32 +24,23 @@ using Timeout = u64;
 constexpr Timeout Block = TKIT_U64_MAX;
 constexpr Timeout Poll = 0;
 
+struct WindowSyncData
+{
+    VkSemaphore ImageAvailableSemaphore;
+    VkSemaphore RenderFinishedSemaphore;
+    Execution::Tracker Tracker;
+};
+
 class Window
 {
     TKIT_NON_COPYABLE(Window)
-    struct ImageData
-    {
-        VKit::DeviceImage *Presentation;
-        VKit::DeviceImage DepthStencil;
-    };
-
   public:
-    static constexpr VkSurfaceFormatKHR SurfaceFormat = {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
-    static constexpr VkFormat DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
-
     Window() = default;
     ~Window();
 
     static Window *FromHandle(GLFWwindow *window);
 
-    /**
-     * @brief Begin rendering and recording the frame's command buffer.
-     *
-     * After this call command buffer dependent operations that require to be recorded in a
-     * `vkBeginRendering()`/`vkEndRendering()` pair may be submitted.
-     *
-     */
-    void BeginRendering(VkCommandBuffer commandBuffer);
+    void BeginRendering(VkCommandBuffer commandBuffer, const Execution::Tracker &tracker);
     void EndRendering(VkCommandBuffer commandBuffer);
 
     bool ShouldClose() const;
@@ -115,6 +107,10 @@ class Window
     {
         return m_Surface;
     }
+    VkDescriptorSet GetCompositorSet() const
+    {
+        return m_CompositorSet;
+    }
 
     /**
      * @brief Update the value of the delta time this window is currently in.
@@ -143,32 +139,15 @@ class Window
     void FlushEvents();
 
     template <Dimension D>
-    RenderView<D> *CreateRenderView(Camera<D> *camera, const ScreenViewport &viewport = {},
-                                    const ScreenScissor &scissor = {})
-    {
-        TKit::TierAllocator *tier = TKit::GetTier();
-        RenderView<D> *rv = tier->Create<RenderView<D>>(camera, viewport, scissor);
-        rv->updateExtent(m_SwapChain.GetInfo().Extent);
-        return getRenderViews<D>().Append(rv);
-    }
+    ONYX_NO_DISCARD Result<RenderView<D> *> CreateRenderView(Camera<D> *camera, RenderViewFlags flags = 0,
+                                                             const ScreenViewport &viewport = {},
+                                                             const ScreenScissor &scissor = {});
 
-    template <Dimension D> void DestroyRenderView(const RenderView<D> *rv)
-    {
-        TKit::TierArray<RenderView<D> *> &rvs = getRenderViews<D>();
-        for (u32 i = 0; i < rvs.GetSize(); ++i)
-            if (rv == rvs[i])
-            {
-                TKit::TierAllocator *tier = TKit::GetTier();
-                tier->Destroy(rvs[i]);
-                rvs.RemoveOrdered(rvs.begin() + i);
-                return;
-            }
-        TKIT_FATAL("[ONYX][WINDOW] Render view '{}' not found", scast<const void *>(rv));
-    }
+    template <Dimension D> void DestroyRenderView(RenderView<D> *rv);
 
     template <Dimension D> RenderView<D> *GetMouseRenderView() const
     {
-        const TKit::TierArray<RenderView<D> *> &rvs = GetRenderViews<D>();
+        const TKit::TierArray<RenderView<D> *> &rvs = getViews<D>();
         const f32v2 mpos = GetScreenMousePosition();
 
         for (u32 i = rvs.GetSize() - 1; i < rvs.GetSize(); --i)
@@ -178,23 +157,11 @@ class Window
         return nullptr;
     }
 
-    template <Dimension D> TKit::TierArray<ViewInfo<D>> CreateViewInfos() const
-    {
-        const TKit::TierArray<RenderView<D> *> &views = GetRenderViews<D>();
-        TKit::TierArray<ViewInfo<D>> infos{};
-        for (RenderView<D> *rv : views)
-        {
-            rv->CacheMatrices();
-            infos.Append(rv->CreateViewInfo());
-        }
-        return infos;
-    }
-
     RenderTargetInfo CreateRenderTargetInfo()
     {
         RenderTargetInfo info;
-        info.Views2 = CreateViewInfos<D2>();
-        info.Views3 = CreateViewInfos<D3>();
+        info.Views2 = getViews<D2>();
+        info.Views3 = getViews<D3>();
         info.ImageAvailableSemaphore = GetImageAvailableSemaphore();
         info.RenderFinishedSemaphore = GetRenderFinishedSemaphore();
         return info;
@@ -235,19 +202,14 @@ class Window
 
     VkSemaphore GetImageAvailableSemaphore() const
     {
-        return m_SyncData[m_ImageAvailableIndex].ImageAvailableSemaphore;
+        return m_SyncData[m_SyncIndex].ImageAvailableSemaphore;
     }
     VkSemaphore GetRenderFinishedSemaphore() const
     {
         return m_SyncData[m_ImageIndex].RenderFinishedSemaphore;
     }
-    void MarkSubmission(const VkSemaphore timeline, const u64 inFlightValue)
-    {
-        m_SyncData[m_ImageAvailableIndex].InFlightSubmission = timeline;
-        m_SyncData[m_ImageAvailableIndex].InFlightValue = inFlightValue;
-    }
 
-    template <Dimension D> const TKit::TierArray<RenderView<D> *> &GetRenderViews() const
+    template <Dimension D> const TKit::TierHive<RenderView<D> *> &GetRenderViews() const
     {
         if constexpr (D == D2)
             return m_RenderViews2;
@@ -258,7 +220,15 @@ class Window
     Color ClearColor = Color::Black;
 
   private:
-    void updateRenderViews();
+    ONYX_NO_DISCARD Result<> updateRenderViews();
+
+    ONYX_NO_DISCARD static Result<VKit::SwapChain> createSwapChain(VkPresentModeKHR presentMode, VkSurfaceKHR surface,
+                                                                   const VkExtent2D &windowExtent,
+                                                                   const VKit::SwapChain *old = nullptr);
+
+    ONYX_NO_DISCARD static Result<TKit::TierArray<WindowSyncData>> createSyncData(u32 imageCount);
+    static void destroySyncData(const TKit::TierArray<WindowSyncData> &sync);
+    static TKit::TierArray<VKit::DeviceImage *> extractSwapChainImages(VKit::SwapChain &swapChain);
 
     ONYX_NO_DISCARD Result<> createSwapChain(const VkExtent2D &windowExtent);
     ONYX_NO_DISCARD Result<> drainWork();
@@ -269,17 +239,22 @@ class Window
     ONYX_NO_DISCARD Result<> nameSurface();
     ONYX_NO_DISCARD Result<> nameSwapChain();
     ONYX_NO_DISCARD Result<> nameSyncData();
-    ONYX_NO_DISCARD Result<> nameImageData();
+    ONYX_NO_DISCARD Result<> nameSwapChainImages();
 
-    ONYX_NO_DISCARD static Result<VKit::SwapChain> createSwapChain(VkPresentModeKHR presentMode, VkSurfaceKHR surface,
-                                                                   const VkExtent2D &windowExtent,
-                                                                   const VKit::SwapChain *old = nullptr);
-
-    ONYX_NO_DISCARD static Result<TKit::TierArray<Window::ImageData>> createImageData(VKit::SwapChain &swapChain);
-    static void destroyImageData(TKit::TierArray<Window::ImageData> &images);
     static VkExtent2D getNewExtent(GLFWwindow *window);
 
-    template <Dimension D> TKit::TierArray<RenderView<D> *> &getRenderViews()
+    // TODO(Isma): Implement sort here somehow. rename this to get sorted views
+    template <Dimension D> TKit::TierArray<RenderView<D> *> getViews() const
+    {
+        const TKit::TierHive<RenderView<D> *> &views = GetRenderViews<D>();
+
+        TKit::TierArray<RenderView<D> *> rvs{};
+        for (RenderView<D> *rv : views)
+            rvs.Append(rv);
+        return rvs;
+    }
+
+    template <Dimension D> TKit::TierHive<RenderView<D> *> &getRenderViews()
     {
         if constexpr (D == D2)
             return m_RenderViews2;
@@ -289,8 +264,8 @@ class Window
 
     GLFWwindow *m_Window;
 
-    TKit::TierArray<RenderView<D2> *> m_RenderViews2{};
-    TKit::TierArray<RenderView<D3> *> m_RenderViews3{};
+    TKit::TierHive<RenderView<D2> *> m_RenderViews2{};
+    TKit::TierHive<RenderView<D3> *> m_RenderViews3{};
 
     TKit::TierArray<Event> m_Events;
     VkSurfaceKHR m_Surface;
@@ -299,13 +274,14 @@ class Window
     TKit::Clock m_TimeSinceResize{};
 
     VKit::SwapChain m_SwapChain;
-    TKit::TierArray<ImageData> m_Images{};
-    TKit::TierArray<Execution::ViewSyncData> m_SyncData{};
+    TKit::TierArray<VKit::DeviceImage *> m_Presentation{};
+    TKit::TierArray<WindowSyncData> m_SyncData{};
 
     VKit::Queue *m_Present;
+    VkDescriptorSet m_CompositorSet;
 
     u32 m_ImageIndex;
-    u32 m_ImageAvailableIndex = 0;
+    u32 m_SyncIndex = 0;
     mutable f32v2 m_PrevMousePos{0.f};
 
     VkPresentModeKHR m_PresentMode;

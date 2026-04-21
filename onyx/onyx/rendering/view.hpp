@@ -2,7 +2,8 @@
 
 #include "onyx/property/camera.hpp"
 #include "onyx/property/color.hpp"
-#include "onyx/property/instance.hpp"
+#include "onyx/execution/execution.hpp"
+#include "vkit/resource/device_image.hpp"
 
 namespace Onyx
 {
@@ -22,7 +23,8 @@ struct ScreenViewport
     f32v2 Max{1.f};
     f32v2 DepthBounds{0.f, 1.f};
 
-    VkViewport AsVulkanViewport(const VkExtent2D &extent) const;
+    VkViewport AsVulkanViewport(const VkExtent2D &parent) const;
+    VkExtent2D AsVulkanExtent(const VkExtent2D &parent) const;
 };
 
 /**
@@ -50,22 +52,27 @@ enum ViewMode : u8
 template <Dimension D> struct ViewInfo
 {
     f32m4 ProjectionView;
-    Color BackgroundColor;
-    VkViewport Viewport;
-    VkRect2D Scissor;
     ViewMask ViewBit;
-    bool Transparent;
 };
 template <> struct ViewInfo<D3>
 {
     f32m4 ProjectionView;
-    Color BackgroundColor;
     f32v3 ViewPosition;
     f32v3 ViewForward;
-    VkViewport Viewport;
-    VkRect2D Scissor;
     ViewMask ViewBit;
-    bool Transparent;
+};
+
+struct FrameBuffer
+{
+    Execution::Tracker Tracker{};
+    VKit::DeviceImage Color{};
+    VKit::DeviceImage DepthStencil{};
+};
+
+using RenderViewFlags = u8;
+enum RenderViewFlagBit : RenderViewFlags
+{
+    RenderViewFlag_Shadows = 1 << 0,
 };
 
 template <Dimension D> class RenderView
@@ -73,7 +80,8 @@ template <Dimension D> class RenderView
     TKIT_NON_COPYABLE(RenderView)
 
   public:
-    RenderView(Camera<D> *camera, const ScreenViewport &viewport = {}, const ScreenScissor &scissor = {});
+    RenderView(const VkExtent2D &extent, VkDescriptorSet compositorSet, u32 id, Camera<D> *camera,
+               RenderViewFlags flags = 0, const ScreenViewport &viewport = {}, const ScreenScissor &scissor = {});
     ~RenderView();
 
     f32v2 ScreenToViewport(const f32v2 &screenPos) const;
@@ -86,6 +94,9 @@ template <Dimension D> class RenderView
     {
         return ViewportToScreen(WorldToViewport(worldPos));
     }
+
+    void BeginRendering(VkCommandBuffer cmd, const Execution::Tracker &tracker);
+    void EndRendering(VkCommandBuffer cmd);
 
     bool IsWithinViewport(const f32v2 &screenPos) const
     {
@@ -101,11 +112,21 @@ template <Dimension D> class RenderView
     }
     void CacheMatrices()
     {
-        if (m_Mode == ViewMode_Manual)
-            return;
-        m_View = ComputeView();
-        m_Projection = ComputeProjection();
+        if (m_Mode != ViewMode_Manual)
+        {
+            m_View = ComputeView();
+            m_Projection = ComputeProjection();
+        }
         m_ProjectionView = m_Projection * m_View;
+    }
+
+    RenderViewFlags GetFlags() const
+    {
+        return m_Flags;
+    }
+    void SetFlags(const RenderViewFlags flags)
+    {
+        m_Flags = flags;
     }
 
     const f32m<D> &GetView() const
@@ -119,6 +140,28 @@ template <Dimension D> class RenderView
     const f32m<D> &GetProjectionView() const
     {
         return m_ProjectionView;
+    }
+
+    void SetView(const f32m<D> &view)
+    {
+        m_View = view;
+        m_Mode = ViewMode_Manual;
+        m_ProjectionView = m_Projection * m_View;
+    }
+    void SetProjection(const f32m<D> &proj)
+    {
+        m_Projection = proj;
+        m_Mode = ViewMode_Manual;
+        m_ProjectionView = m_Projection * m_View;
+    }
+
+    u32 GetId() const
+    {
+        return m_Id;
+    }
+    u32 GetDescriptorIndex() const
+    {
+        return m_Id * m_FrameBuffers.GetSize() + m_ImageIndex;
     }
 
     ViewMask GetViewBit() const
@@ -135,10 +178,23 @@ template <Dimension D> class RenderView
         return m_Scissor;
     }
 
+    VkViewport GetVulkanViewport() const
+    {
+        return m_Viewport.AsVulkanViewport(m_ParentExtent);
+    }
+    VkRect2D GetVulkanScissor() const
+    {
+        return m_Scissor.AsVulkanScissor(m_ParentExtent, m_Viewport);
+    }
+
+    // a bit risky to set in certain situations. must make sure no unsubmitted cmd buffer references any of the
+    // framebuffers
     void SetViewport(const ScreenViewport &vp)
     {
         m_Viewport = vp;
         CacheMatrices();
+        ONYX_CHECK_EXPRESSION(drainWork());
+        ONYX_CHECK_EXPRESSION(recreateFrameBuffers(m_FrameBuffers.GetSize()));
     }
     void SetScissor(const ScreenScissor &sc)
     {
@@ -156,6 +212,17 @@ template <Dimension D> class RenderView
         CacheMatrices();
     }
 
+    ViewMode GetMode() const
+    {
+        return m_Mode;
+    }
+    void SetMode(const ViewMode mode)
+    {
+        m_Mode = mode;
+        if (mode == ViewMode_Automatic)
+            CacheMatrices();
+    }
+
     void ZoomScroll(const f32v<D> &screenPos, f32 step);
 
     ViewInfo<D> CreateViewInfo() const
@@ -169,22 +236,28 @@ template <Dimension D> class RenderView
             info.ViewPosition = m_Camera->View.Translation;
             info.ViewForward = m_Camera->View.Rotation * f32v3{0.f, 0.f, -1.f};
         }
-
-        info.BackgroundColor = BackgroundColor;
-        info.Viewport = m_Viewport.AsVulkanViewport(m_Extent);
-        info.Scissor = m_Scissor.AsVulkanScissor(m_Extent, m_Viewport);
         info.ViewBit = m_ViewBit;
-        info.Transparent = Transparent;
         return info;
     }
 
-    Color BackgroundColor{Color::Black};
-    bool Transparent = false;
+    Color ClearColor{Color::Black};
 
   private:
-    void updateExtent(const VkExtent2D &extent)
+    ONYX_NO_DISCARD Result<TKit::TierArray<FrameBuffer>> createFramebuffers(u32 imageCount);
+    ONYX_NO_DISCARD Result<> recreateFrameBuffers(u32 imageCount);
+    ONYX_NO_DISCARD Result<> nameFramebuffers();
+    ONYX_NO_DISCARD Result<> drainWork();
+
+    ONYX_NO_DISCARD Result<> update(const VkExtent2D &parent, const u32 imageCount)
     {
-        m_Extent = extent;
+        m_ParentExtent = parent;
+        return recreateFrameBuffers(imageCount);
+    }
+
+    void destroyFrameBuffers();
+    void acquireImage(const u32 index)
+    {
+        m_ImageIndex = index;
     }
 
     Camera<D> *m_Camera;
@@ -192,11 +265,17 @@ template <Dimension D> class RenderView
     ScreenScissor m_Scissor;
     ViewMask m_ViewBit;
 
-    VkExtent2D m_Extent{};
+    VkExtent2D m_ParentExtent{};
     f32m<D> m_View = f32m<D>::Identity();
     f32m<D> m_Projection = f32m<D>::Identity();
     f32m<D> m_ProjectionView = f32m<D>::Identity();
     ViewMode m_Mode = ViewMode_Automatic;
+
+    TKit::TierArray<FrameBuffer> m_FrameBuffers{};
+    VkDescriptorSet m_CompositorSet;
+    u32 m_Id;
+    u32 m_ImageIndex = TKIT_U32_MAX;
+    RenderViewFlags m_Flags;
 
     friend class Window;
 };

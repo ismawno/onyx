@@ -1283,10 +1283,17 @@ ONYX_NO_DISCARD static Result<> renderer_CreateShaders()
     return Result<>::Ok();
 }
 
-ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> renderer_CreatePipeline(
-    const VkPipelineRenderingCreateInfoKHR &pipInfo)
+ONYX_NO_DISCARD static Result<VKit::GraphicsPipeline> renderer_CreatePipeline()
 {
-    return VKit::GraphicsPipeline::Builder(GetDevice(), s_RendererData->PipelineLayout, pipInfo)
+    const VkFormat cformat = Platform::GetColorFormat();
+    VkPipelineRenderingCreateInfoKHR renderInfo{};
+    renderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachmentFormats = &cformat;
+    renderInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+    renderInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+
+    return VKit::GraphicsPipeline::Builder(GetDevice(), s_RendererData->PipelineLayout, renderInfo)
         .AddShaderStage(s_RendererData->VertexShader, VK_SHADER_STAGE_VERTEX_BIT)
         .AddShaderStage(s_RendererData->FragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
         .AddBindingDescription<ImDrawVert>()
@@ -1608,7 +1615,7 @@ ONYX_NO_DISCARD static Result<> renderer_Render(const ImDrawData *ddata, const V
     return Result<>::Ok();
 }
 
-ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects(const VkPipelineRenderingCreateInfoKHR &pipInfo)
+ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects()
 {
     const auto &device = GetDevice();
     // Bilinear sampling is required by default. Set 'io.Fonts->Flags |= ImFontAtlasFlags_NoBakedLines' or
@@ -1638,7 +1645,7 @@ ONYX_NO_DISCARD static Result<> renderer_CreateDeviceObjects(const VkPipelineRen
     {
         TKIT_RETURN_IF_FAILED(renderer_CreateShaders());
 
-        const auto result = renderer_CreatePipeline(pipInfo);
+        const auto result = renderer_CreatePipeline();
         TKIT_RETURN_ON_ERROR(result);
         s_RendererData->Pipeline = result.GetValue();
     }
@@ -1689,8 +1696,7 @@ ONYX_NO_DISCARD static Result<bool> renderer_AcquireImage(const ImGuiViewport *v
 }
 
 ONYX_NO_DISCARD static Result<RenderSubmitInfo> renderer_RenderWindow(const ImGuiViewport *viewport,
-                                                                                VKit::Queue *graphics,
-                                                                                VkCommandBuffer cmd)
+                                                                      VKit::Queue *graphics, VkCommandBuffer cmd)
 {
     const Renderer_ViewportData *vdata = renderer_GetViewportData(viewport);
     TKIT_ASSERT(vdata, "[ONYX][IMGUI] Renderer viewport data is null");
@@ -1698,7 +1704,11 @@ ONYX_NO_DISCARD static Result<RenderSubmitInfo> renderer_RenderWindow(const ImGu
     Window *window = vdata->Window;
     const u64 graphicsFlight = graphics->NextTimelineValue();
 
-    window->BeginRendering(cmd);
+    Execution::Tracker tracker;
+    tracker.Queue = graphics;
+    tracker.InFlightValue = graphicsFlight;
+
+    window->BeginRendering(cmd, tracker);
     TKIT_RETURN_IF_FAILED(renderer_Render(viewport->DrawData, cmd), window->EndRendering(cmd));
     window->EndRendering(cmd);
 
@@ -1729,7 +1739,7 @@ ONYX_NO_DISCARD static Result<RenderSubmitInfo> renderer_RenderWindow(const ImGu
     imgInfo.deviceIndex = 0;
     imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
 
-    window->MarkSubmission(graphics->GetTimelineSempahore(), graphicsFlight);
+    // window->MarkSubmission(graphics->GetTimelineSempahore(), graphicsFlight);
 
     return submitInfo;
 }
@@ -1842,7 +1852,7 @@ Result<> Initialize()
     s_PlatformData.IsWayland = platform_IsWayland();
 #endif
     s_RendererData.Construct();
-    return renderer_CreateDeviceObjects(Renderer::CreateGeometryPipelineRenderingCreateInfo());
+    return renderer_CreateDeviceObjects();
 }
 void Terminate()
 {
@@ -1983,8 +1993,7 @@ Result<bool> AcquirePlatformWindowImage(const u32 windowIndex, const Timeout tim
     return renderer_AcquireImage(viewport, timeout);
 }
 
-Result<RenderSubmitInfo> RenderPlatformWindow(const u32 windowIndex, VKit::Queue *graphics,
-                                                        const VkCommandBuffer cmd)
+Result<RenderSubmitInfo> RenderPlatformWindow(const u32 windowIndex, VKit::Queue *graphics, const VkCommandBuffer cmd)
 {
     const ImGuiPlatformIO &pio = ImGui::GetPlatformIO();
     ImGuiViewport *viewport = pio.Viewports[windowIndex + 1];

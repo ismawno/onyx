@@ -297,6 +297,9 @@ static TKit::Storage<TKit::TierArray<DrawBuffer>> s_IndexedDrawBuffers{};
 
 static TKit::Storage<RendererData<D2>> s_RendererData2{};
 static TKit::Storage<RendererData<D3>> s_RendererData3{};
+static VKit::GraphicsPipeline s_CompositorPipeline{};
+static VKit::Sampler s_CompositorSampler{};
+
 static u64 s_SyncPointCount = 0;
 
 template <Dimension D> static RendererData<D> &getRendererData()
@@ -321,17 +324,6 @@ template <Dimension D> static u32 getLightSize(const LightType light)
     }
 }
 
-VkPipelineRenderingCreateInfoKHR CreateGeometryPipelineRenderingCreateInfo()
-{
-    VkPipelineRenderingCreateInfoKHR renderInfo{};
-    renderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
-    renderInfo.colorAttachmentCount = 1;
-    renderInfo.pColorAttachmentFormats = &Window::SurfaceFormat.format;
-    renderInfo.depthAttachmentFormat = Window::DepthStencilFormat;
-    renderInfo.stencilAttachmentFormat = Window::DepthStencilFormat;
-    return renderInfo;
-}
-
 template <Dimension D> static void updateInstanceDescriptorSets(const Geometry geo)
 {
     RendererData<D> &rdata = getRendererData<D>();
@@ -341,7 +333,7 @@ template <Dimension D> static void updateInstanceDescriptorSets(const Geometry g
         const VkDescriptorSet set = rdata.Descriptors[i][geo];
         const VkDescriptorBufferInfo info = rdata.Geometry.Arenas[geo].Graphics.Buffer.CreateDescriptorInfo();
 
-        Descriptors::WriteBuffer<D>(Descriptors::GetInstancesBindingPoint(), set, info, rpass);
+        Descriptors::BindBuffer<D>(Descriptors::GetInstancesBindingPoint(), set, info, rpass);
     }
 }
 
@@ -355,7 +347,7 @@ template <Dimension D> static void updateLightDescriptorSets(const LightType lig
 {
     RendererData<D> &rdata = getRendererData<D>();
     const VkDescriptorBufferInfo info = rdata.Lights.Arenas[light].Graphics.Buffer.CreateDescriptorInfo();
-    Descriptors::WriteBuffer<D>(lightToBinding<D>(light), rdata.Descriptors[RenderPass_Fill], info, RenderPass_Fill);
+    Descriptors::BindBuffer<D>(lightToBinding<D>(light), rdata.Descriptors[RenderPass_Fill], info, RenderPass_Fill);
 }
 
 static constexpr VKit::DeviceBufferFlags getStageFlags()
@@ -439,7 +431,15 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> createPipelines()
 {
     RendererData<D> &rdata = getRendererData<D>();
     ShadowData<D> &sdata = rdata.Shadows;
-    const VkPipelineRenderingCreateInfoKHR renderInfo = CreateGeometryPipelineRenderingCreateInfo();
+
+    const VkFormat cformat = Platform::GetColorFormat();
+    VkPipelineRenderingCreateInfoKHR rinfo{};
+    rinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    rinfo.colorAttachmentCount = 1;
+    rinfo.pColorAttachmentFormats = &cformat;
+    rinfo.depthAttachmentFormat = Platform::GetDepthStencilFormat();
+    rinfo.stencilAttachmentFormat = Platform::GetDepthStencilFormat();
+
     for (u32 j = 0; j < Geometry_Count; ++j)
     {
         const Geometry geo = Geometry(j);
@@ -447,7 +447,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> createPipelines()
         {
             const StencilPass pass = StencilPass(i);
 
-            const auto result = Pipelines::CreateGeometryPipeline<D>(pass, geo, renderInfo);
+            const auto result = Pipelines::CreateGeometryPipeline<D>(pass, geo, rinfo);
             TKIT_RETURN_ON_ERROR(result);
             rdata.Geometry.Pipelines[pass][geo] = result.GetValue();
 
@@ -487,6 +487,21 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> createPipelines()
     return Result<>::Ok();
 }
 
+ONYX_NO_DISCARD static Result<> createPipelines()
+{
+    const auto presult = Pipelines::CreateCompositorPipeline();
+    TKIT_RETURN_ON_ERROR(presult);
+    s_CompositorPipeline = presult.GetValue();
+
+    if (IsDebugUtilsEnabled())
+    {
+        TKIT_RETURN_IF_FAILED(s_CompositorPipeline.SetName("onyx-compositor-pipeline"));
+    }
+
+    TKIT_RETURN_IF_FAILED(createPipelines<D2>());
+    return createPipelines<D3>();
+}
+
 template <Dimension D> static void destroyPipelines()
 {
     RendererData<D> &rdata = getRendererData<D>();
@@ -500,6 +515,13 @@ template <Dimension D> static void destroyPipelines()
     }
     if constexpr (D == D2)
         sdata.DistancePipeline.Destroy();
+}
+
+static void destroyPipelines()
+{
+    destroyPipelines<D2>();
+    destroyPipelines<D3>();
+    s_CompositorPipeline.Destroy();
 }
 
 template <Dimension D> ONYX_NO_DISCARD static Result<> initializeLights()
@@ -546,7 +568,7 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initializeShadows(const S
     VkDescriptorImageInfo info{};
     info.sampler = sdata.Sampler;
 
-    WriteImage<D>(Descriptors::GetShadowSamplerBindingPoint(), info, RenderPass_Fill);
+    BindImage<D>(Descriptors::GetShadowSamplerBindingPoint(), info, RenderPass_Fill);
 
     sdata.ShadowFormat = specs.ShadowFormat;
     if constexpr (D == D2)
@@ -607,14 +629,12 @@ template <Dimension D> ONYX_NO_DISCARD static Result<> initialize(const ShadowSp
             }
 
             const VkDescriptorBufferInfo info = gpool.Buffer.CreateDescriptorInfo();
-            Descriptors::WriteBuffer<D>(Descriptors::GetInstancesBindingPoint(), set, info, rpass);
+            Descriptors::BindBuffer<D>(Descriptors::GetInstancesBindingPoint(), set, info, rpass);
             rdata.Descriptors[j][i] = set;
         }
     }
     TKIT_RETURN_IF_FAILED(initializeLights<D>());
-    TKIT_RETURN_IF_FAILED(initializeShadows(shadowSpecs));
-
-    return createPipelines<D>();
+    return initializeShadows(shadowSpecs);
 }
 
 template <Dimension D> static void terminateShadows()
@@ -652,7 +672,6 @@ template <Dimension D> static void terminate()
         arena.Transfer.Buffer.Destroy();
         arena.Graphics.Buffer.Destroy();
     }
-    destroyPipelines<D>();
     terminateShadows<D>();
 
     TKit::TierAllocator *tier = TKit::GetTier();
@@ -667,17 +686,32 @@ Result<> Initialize(const Specs &specs)
     s_IndexedDrawBuffers.Construct();
     s_RendererData2.Construct();
     s_RendererData3.Construct();
+
+    const auto sresult = VKit::Sampler::Builder(GetDevice()).Build();
+    TKIT_RETURN_ON_ERROR(sresult);
+    s_CompositorSampler = sresult.GetValue();
+
+    if (IsDebugUtilsEnabled())
+    {
+        TKIT_RETURN_IF_FAILED(s_CompositorSampler.SetName("onyx-compositor-sampler"));
+    }
+
     TKIT_RETURN_IF_FAILED(initialize<D2>(specs.Shadows2));
-    return initialize<D3>(specs.Shadows3);
+    TKIT_RETURN_IF_FAILED(initialize<D3>(specs.Shadows3));
+    return createPipelines();
 }
 void Terminate()
 {
     terminate<D2>();
     terminate<D3>();
+
+    destroyPipelines();
+
     for (DrawBuffer &buffer : *s_DrawBuffers)
         buffer.Buffer.Destroy();
     for (DrawBuffer &buffer : *s_IndexedDrawBuffers)
         buffer.Buffer.Destroy();
+    s_CompositorSampler.Destroy();
     s_RendererData2.Destruct();
     s_RendererData3.Destruct();
     s_IndexedDrawBuffers.Destruct();
@@ -754,17 +788,11 @@ void FlushAllContexts()
     flushAllContexts<D3>();
 }
 
-template <Dimension D> ONYX_NO_DISCARD static Result<> reloadPipelines()
-{
-    destroyPipelines<D>();
-    return createPipelines<D>();
-}
-
 Result<> ReloadPipelines()
 {
     TKIT_RETURN_IF_FAILED(DeviceWaitIdle());
-    TKIT_RETURN_IF_FAILED(reloadPipelines<D2>());
-    return reloadPipelines<D3>();
+    destroyPipelines();
+    return createPipelines();
 }
 
 template <Dimension D> static void addTarget(const ViewMask vmask)
@@ -792,18 +820,27 @@ void RemoveTarget(const ViewMask vmask)
 }
 
 template <Dimension D>
-void WriteBuffer(const u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, const RenderPass pass,
-                 const u32 dstElement)
-{
-    RendererData<D> &rdata = getRendererData<D>();
-    Descriptors::WriteBuffer<D>(binding, rdata.Descriptors[pass], info, pass, dstElement);
-}
-template <Dimension D>
-void WriteImage(const u32 binding, TKit::Span<const VkDescriptorImageInfo> info, const RenderPass pass,
+void BindBuffer(const u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, const RenderPass pass,
                 const u32 dstElement)
 {
     RendererData<D> &rdata = getRendererData<D>();
-    Descriptors::WriteImage<D>(binding, rdata.Descriptors[pass], info, pass, dstElement);
+    Descriptors::BindBuffer<D>(binding, rdata.Descriptors[pass], info, pass, dstElement);
+}
+template <Dimension D>
+void BindImage(const u32 binding, TKit::Span<const VkDescriptorImageInfo> info, const RenderPass pass,
+               const u32 dstElement)
+{
+    RendererData<D> &rdata = getRendererData<D>();
+    Descriptors::BindImage<D>(binding, rdata.Descriptors[pass], info, pass, dstElement);
+}
+
+void BindCompositorSampler(const VkDescriptorSet set)
+{
+    VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetCompositorDescriptorLayout()};
+    VkDescriptorImageInfo info{};
+    info.sampler = s_CompositorSampler;
+    writer.WriteImage(Descriptors::GetCompositorSamplerBindingPoint(), info);
+    writer.Overwrite(set);
 }
 
 template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(const RenderPass pass)
@@ -973,19 +1010,19 @@ ONYX_NO_DISCARD static Result<Range *> handlePoolResize(const VkDeviceSize requi
     for (const Range &range : ranges)
         if constexpr (std::is_same_v<Range, GraphicsInstanceRange> || std::is_same_v<Range, GraphicsLightRange>)
         {
-            if (range.TransferTracker.Submitted() && range.TransferTracker.InUse())
+            if (range.TransferTracker.InFlight())
             {
                 semaphores.Append(range.TransferTracker.Queue->GetTimelineSempahore());
                 values.Append(range.TransferTracker.InFlightValue);
             }
 
-            if (range.GraphicsTracker.Submitted() && range.GraphicsTracker.InUse())
+            if (range.GraphicsTracker.InFlight())
             {
                 semaphores.Append(range.GraphicsTracker.Queue->GetTimelineSempahore());
                 values.Append(range.GraphicsTracker.InFlightValue);
             }
         }
-        else if (range.Tracker.Submitted() && range.Tracker.InUse())
+        else if (range.Tracker.InFlight())
         {
             semaphores.Append(range.Tracker.Queue->GetTimelineSempahore());
             values.Append(range.Tracker.InFlightValue);
@@ -1362,7 +1399,7 @@ ONYX_NO_DISCARD static Result<Range> findSuitableTextureMapRange(const LightType
         const u32 dstElement = range.Offset + i;
         if constexpr (D == D2)
         {
-            WriteImage<D>(Descriptors::GetShadowMapsBindingPoint(), info, RenderPass_Fill, dstElement);
+            BindImage<D>(Descriptors::GetShadowMapsBindingPoint(), info, RenderPass_Fill, dstElement);
             info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
             VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetDistanceDescriptorLayout()};
@@ -1370,9 +1407,9 @@ ONYX_NO_DISCARD static Result<Range> findSuitableTextureMapRange(const LightType
             writer.Overwrite(getRendererData<D2>().Shadows.DistanceSet);
         }
         else if (light == Light_Point)
-            WriteImage<D>(Descriptors::GetPointMapsBindingPoint(), info, RenderPass_Fill, dstElement);
+            BindImage<D>(Descriptors::GetPointMapsBindingPoint(), info, RenderPass_Fill, dstElement);
         else
-            WriteImage<D>(Descriptors::GetDirectionalMapsBindingPoint(), info, RenderPass_Fill, dstElement);
+            BindImage<D>(Descriptors::GetDirectionalMapsBindingPoint(), info, RenderPass_Fill, dstElement);
     }
     range.Count = count;
     return grabMaps();
@@ -2087,35 +2124,6 @@ void ApplyAcquireBarriers(const VkCommandBuffer cmd)
     }
 }
 
-template <Dimension D> static void setRenderView(const VkCommandBuffer command, const ViewInfo<D> &info)
-{
-    const auto table = GetDeviceTable();
-    if (!info.Transparent)
-    {
-        const Color &bg = info.BackgroundColor;
-        TKit::FixedArray<VkClearAttachment, D - 1> clearAttachments{};
-        clearAttachments[0].colorAttachment = 0;
-        clearAttachments[0].aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        clearAttachments[0].clearValue.color = {{bg.rgba[0], bg.rgba[1], bg.rgba[2], bg.rgba[3]}};
-
-        if constexpr (D == D3)
-        {
-            clearAttachments[1].aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-            clearAttachments[1].clearValue.depthStencil = {1.f, 0};
-        }
-
-        VkClearRect clearRect{};
-        clearRect.rect.offset = {i32(info.Viewport.x), i32(info.Viewport.y)};
-        clearRect.rect.extent = {u32(info.Viewport.width), u32(info.Viewport.height)};
-        clearRect.layerCount = 1;
-        clearRect.baseArrayLayer = 0;
-
-        table->CmdClearAttachments(command, D - 1, clearAttachments.GetData(), 1, &clearRect);
-    }
-    table->CmdSetViewport(command, 0, 1, &info.Viewport);
-    table->CmdSetScissor(command, 0, 1, &info.Scissor);
-}
-
 template <typename T>
 ONYX_NO_DISCARD static Result<VKit::DeviceBuffer *> findSuitableDrawBuffer(TKit::TierArray<DrawBuffer> &buffers,
                                                                            const u32 drawCount,
@@ -2712,7 +2720,6 @@ ONYX_NO_DISCARD static Result<> renderGeometry(const VKit::Queue *graphics, cons
 
     const auto table = GetDeviceTable();
 
-    setRenderView<D>(cmd, vinfo);
     ShadowData<D> &sdata = rdata.Shadows;
     for (u32 i = 0; i < StencilPass_Count; ++i)
     {
@@ -2756,19 +2763,10 @@ ONYX_NO_DISCARD static Result<> renderGeometry(const VKit::Queue *graphics, cons
     return Result<>::Ok();
 }
 
-ONYX_NO_DISCARD Result<RenderSubmitInfo> static renderGeometry(VKit::Queue *graphics, const VkCommandBuffer command,
-                                                               const u64 graphicsFlight, const RenderTargetInfo &tinfo,
-                                                               TKit::StackArray<Execution::Tracker> &transferTrackers)
+static RenderSubmitInfo createRenderSubmitInfo(VKit::Queue *graphics, const VkCommandBuffer command,
+                                               const u64 graphicsFlight, const RenderTargetInfo &tinfo,
+                                               TKit::StackArray<Execution::Tracker> &transferTrackers)
 {
-    for (const ViewInfo<D3> &vinfo : tinfo.Views3)
-    {
-        TKIT_RETURN_IF_FAILED(renderGeometry<D3>(graphics, command, vinfo, graphicsFlight, transferTrackers));
-    }
-    for (const ViewInfo<D2> &vinfo : tinfo.Views2)
-    {
-        TKIT_RETURN_IF_FAILED(renderGeometry<D2>(graphics, command, vinfo, graphicsFlight, transferTrackers));
-    }
-
     RenderSubmitInfo submitInfo{};
     submitInfo.Command = command;
     submitInfo.InFlightValue = graphicsFlight;
@@ -2809,33 +2807,91 @@ ONYX_NO_DISCARD Result<RenderSubmitInfo> static renderGeometry(VKit::Queue *grap
     return submitInfo;
 }
 
+template <Dimension D>
+ONYX_NO_DISCARD static Result<> renderViewShadows(const TKit::TierArray<RenderView<D> *> &views, VKit::Queue *graphics,
+                                                  const VkCommandBuffer cmd, const u64 graphicsFlight)
+{
+    for (const RenderView<D> *rv : views)
+        if (rv->GetFlags() & RenderViewFlag_Shadows)
+        {
+            TKIT_RETURN_IF_FAILED(renderShadows<D>(graphics, cmd, rv->GetViewBit(), graphicsFlight));
+        }
+    return Result<>::Ok();
+}
+
+template <Dimension D>
+ONYX_NO_DISCARD static Result<> renderViewGeometry(const TKit::TierArray<RenderView<D> *> &views, VKit::Queue *graphics,
+                                                   const VkCommandBuffer cmd, const u64 graphicsFlight,
+                                                   TKit::StackArray<Execution::Tracker> &transferTrackers)
+{
+    Execution::Tracker tracker;
+    tracker.Queue = graphics;
+    tracker.InFlightValue = graphicsFlight;
+    for (RenderView<D> *rv : views)
+    {
+        rv->CacheMatrices();
+        rv->BeginRendering(cmd, tracker);
+        TKIT_RETURN_IF_FAILED(renderGeometry<D>(graphics, cmd, rv->CreateViewInfo(), graphicsFlight, transferTrackers));
+        rv->EndRendering(cmd);
+        // TODO(Isma): Will have to add outline pass here + flag check if outlines are enabled for this view
+    }
+    return Result<>::Ok();
+}
+
+template <Dimension D>
+static void renderCompositor(const TKit::TierArray<RenderView<D> *> &views, const VkCommandBuffer cmd,
+                             const VKit::PipelineLayout &playout)
+{
+    const auto table = GetDeviceTable();
+    for (const RenderView<D> *rv : views)
+    {
+        const VkViewport vp = rv->GetVulkanViewport();
+        const VkRect2D sc = rv->GetVulkanScissor();
+        const u32 idx = rv->GetDescriptorIndex();
+
+        table->CmdSetViewport(cmd, 0, 1, &vp);
+        table->CmdSetScissor(cmd, 0, 1, &sc);
+        table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(u32), &idx);
+        table->CmdDraw(cmd, 6, 1, 0, 0);
+    }
+}
+
 Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window *window,
                                 const RenderFlags flags)
 {
     TKIT_PROFILE_NSCOPE("Onyx::Renderer::Render");
 
     const u64 graphicsFlight = graphics->NextTimelineValue();
+    const RenderTargetInfo tinfo = window->CreateRenderTargetInfo();
+
     if (flags & RenderFlag_Shadows)
     {
-        const RenderTargetInfo tinfo = window->CreateRenderTargetInfo();
-        for (const ViewInfo<D2> &vinfo : tinfo.Views2)
-        {
-            TKIT_RETURN_IF_FAILED(renderShadows<D2>(graphics, cmd, vinfo.ViewBit, graphicsFlight));
-        }
-        for (const ViewInfo<D3> &vinfo : tinfo.Views3)
-        {
-            TKIT_RETURN_IF_FAILED(renderShadows<D3>(graphics, cmd, vinfo.ViewBit, graphicsFlight));
-        }
+        TKIT_RETURN_IF_FAILED(renderViewShadows(tinfo.Views2, graphics, cmd, graphicsFlight));
+        TKIT_RETURN_IF_FAILED(renderViewShadows(tinfo.Views3, graphics, cmd, graphicsFlight));
     }
 
     TKit::StackArray<Execution::Tracker> transferTrackers{};
     transferTrackers.Reserve(s_SyncPointCount);
-    const RenderTargetInfo tinfo = window->CreateRenderTargetInfo();
 
-    window->BeginRendering(cmd);
+    // TODO(Isma): Pass here the render flags and & it with the render view flag, and send that flag as push constant to
+    // globally disable shadows
+    TKIT_RETURN_IF_FAILED(renderViewGeometry(tinfo.Views2, graphics, cmd, graphicsFlight, transferTrackers));
+    TKIT_RETURN_IF_FAILED(renderViewGeometry(tinfo.Views3, graphics, cmd, graphicsFlight, transferTrackers));
 
-    const auto result = renderGeometry(graphics, cmd, graphicsFlight, tinfo, transferTrackers);
-    TKIT_RETURN_ON_ERROR(result, window->EndRendering(cmd));
+    Execution::Tracker tracker;
+    tracker.Queue = graphics;
+    tracker.InFlightValue = graphicsFlight;
+    window->BeginRendering(cmd, tracker);
+
+    s_CompositorPipeline.Bind(cmd);
+
+    const VkDescriptorSet set = window->GetCompositorSet();
+    const VKit::PipelineLayout &playout = Pipelines::GetCompositorPipelineLayout();
+    VKit::DescriptorSet::Bind(GetDevice(), cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+
+    renderCompositor(tinfo.Views2, cmd, playout);
+    renderCompositor(tinfo.Views3, cmd, playout);
+
 #ifdef ONYX_ENABLE_IMGUI
     if (flags & RenderFlag_ImGui)
     {
@@ -2844,8 +2900,9 @@ Result<RenderSubmitInfo> Render(VKit::Queue *graphics, const VkCommandBuffer cmd
         TKIT_RETURN_IF_FAILED(ImGuiBackend::UpdatePlatformWindows(), window->EndRendering(cmd));
     }
 #endif
+
     window->EndRendering(cmd);
-    return result;
+    return createRenderSubmitInfo(graphics, cmd, graphicsFlight, tinfo, transferTrackers);
 }
 
 Result<> SubmitRender(VKit::Queue *graphics, CommandPool *pool, const TKit::Span<const RenderSubmitInfo> info)
@@ -3320,14 +3377,12 @@ template Result<RenderContext<D3> *> CreateContext();
 template void DestroyContext(RenderContext<D2> *context);
 template void DestroyContext(RenderContext<D3> *context);
 
-template void WriteBuffer<D2>(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass,
-                              u32 dstElement = 0);
-template void WriteBuffer<D3>(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass,
-                              u32 dstElement = 0);
+template void BindBuffer<D2>(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass,
+                             u32 dstElement);
+template void BindBuffer<D3>(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass,
+                             u32 dstElement);
 
-template void WriteImage<D2>(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass,
-                             u32 dstElement = 0);
-template void WriteImage<D3>(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass,
-                             u32 dstElement = 0);
+template void BindImage<D2>(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement);
+template void BindImage<D3>(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement);
 
 } // namespace Onyx::Renderer

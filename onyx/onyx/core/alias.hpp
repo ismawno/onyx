@@ -4,6 +4,7 @@
 #include "tkit/utils/literals.hpp"
 
 #define ONYX_MAX_VIEWS 32
+#define ONYX_MAX_COLOR_ATTACHMENTS (5 * ONYX_MAX_VIEWS)
 
 namespace Onyx
 {

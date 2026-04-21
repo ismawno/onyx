@@ -25,7 +25,7 @@ void WindowExample(const Asset mesh, const u32 nwidows = 1)
     {
         WindowView &wv = windows.Append();
         wv.Win = ONYX_CHECK_EXPRESSION(Platform::CreateWindow());
-        wv.View = wv.Win->CreateRenderView(&cam);
+        wv.View = ONYX_CHECK_EXPRESSION(wv.Win->CreateRenderView(&cam));
         ctx->AddTarget(wv.View);
     }
 

@@ -152,7 +152,7 @@ Result<bool> Application::NextTick(TKit::Clock &clock)
             TKIT_RETURN_ON_ERROR(rnres);
 
             const RenderSubmitInfo &rinfo = rnres.GetValue();
-            wlayer->m_Window->MarkSubmission(gqueue->GetTimelineSempahore(), rinfo.InFlightValue);
+            // wlayer->m_Window->MarkSubmission(gqueue->GetTimelineSempahore(), rinfo.InFlightValue);
 
             rinfos.Append(rinfo);
 

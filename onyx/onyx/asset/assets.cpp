@@ -191,9 +191,9 @@ template <Dimension D> static void updateMaterialDescriptorSet()
     MaterialAssetData<D> &materials = getData<D>().Materials;
 
     const VkDescriptorBufferInfo binfo = materials.Buffer.CreateDescriptorInfo();
-    Renderer::WriteBuffer<D>(Descriptors::GetMaterialsBindingPoint(), binfo, RenderPass_Fill);
+    Renderer::BindBuffer<D>(Descriptors::GetMaterialsBindingPoint(), binfo, RenderPass_Fill);
     if constexpr (D == D2)
-        Renderer::WriteBuffer<D>(Descriptors::GetMaterialsBindingPoint(), binfo, RenderPass_Shadow);
+        Renderer::BindBuffer<D>(Descriptors::GetMaterialsBindingPoint(), binfo, RenderPass_Shadow);
 }
 
 template <Dimension D> static void updateBoundsDescriptorSet()
@@ -201,12 +201,12 @@ template <Dimension D> static void updateBoundsDescriptorSet()
     BoundsAssetData<D> &bounds = getData<D>().BoundingBoxes;
 
     const VkDescriptorBufferInfo binfo = bounds.Buffer.CreateDescriptorInfo();
-    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Fill), binfo, RenderPass_Fill);
-    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Stencil), binfo, RenderPass_Stencil);
-    Renderer::WriteBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Shadow), binfo, RenderPass_Shadow);
+    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Fill), binfo, RenderPass_Fill);
+    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Stencil), binfo, RenderPass_Stencil);
+    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Shadow), binfo, RenderPass_Shadow);
 
     if constexpr (D == D2)
-        Renderer::WriteBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(RenderPass_Stencil), binfo,
+        Renderer::BindBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(RenderPass_Stencil), binfo,
                                   RenderPass_Stencil);
 }
 
@@ -1114,12 +1114,12 @@ ONYX_NO_DISCARD static Result<> uploadTextures()
 
                 const VkDescriptorImageInfo info = img.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 // TODO(Isma): loop please
-                Renderer::WriteImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Fill, tid);
-                Renderer::WriteImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Stencil, tid);
-                Renderer::WriteImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Shadow, tid);
-                Renderer::WriteImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Fill, tid);
-                Renderer::WriteImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Stencil, tid);
-                Renderer::WriteImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Shadow, tid);
+                Renderer::BindImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Fill, tid);
+                Renderer::BindImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Stencil, tid);
+                Renderer::BindImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Shadow, tid);
+                Renderer::BindImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Fill, tid);
+                Renderer::BindImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Stencil, tid);
+                Renderer::BindImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Shadow, tid);
             }
     }
 
@@ -1269,12 +1269,12 @@ ONYX_NO_DISCARD static Result<> uploadSamplers()
 
             const u32 sid = GetAssetId(sinfo.Handle);
             // TODO(Isma): loop please
-            Renderer::WriteImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Fill, sid);
-            Renderer::WriteImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Stencil, sid);
-            Renderer::WriteImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Shadow, sid);
-            Renderer::WriteImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Fill, sid);
-            Renderer::WriteImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Stencil, sid);
-            Renderer::WriteImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Shadow, sid);
+            Renderer::BindImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Fill, sid);
+            Renderer::BindImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Stencil, sid);
+            Renderer::BindImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Shadow, sid);
+            Renderer::BindImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Fill, sid);
+            Renderer::BindImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Stencil, sid);
+            Renderer::BindImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Shadow, sid);
         }
     return Result<>::Ok();
 }

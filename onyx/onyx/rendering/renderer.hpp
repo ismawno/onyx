@@ -13,8 +13,8 @@ namespace Onyx
 template <Dimension D> class RenderContext;
 struct RenderTargetInfo
 {
-    TKit::TierArray<ViewInfo<D2>> Views2;
-    TKit::TierArray<ViewInfo<D3>> Views3;
+    TKit::TierArray<RenderView<D2> *> Views2;
+    TKit::TierArray<RenderView<D3> *> Views3;
     VkSemaphore ImageAvailableSemaphore;
     VkSemaphore RenderFinishedSemaphore;
 };
@@ -84,10 +84,13 @@ ONYX_NO_DISCARD Result<> ReloadPipelines();
 void AddTarget(const ViewMask vmask);
 void RemoveTarget(const ViewMask vmask);
 
+// TODO(Isma): Add a bit more clearance on what these do. They essentially write into the renderer's descriptor sets
 template <Dimension D>
-void WriteBuffer(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
+void BindBuffer(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
 template <Dimension D>
-void WriteImage(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
+void BindImage(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
+
+void BindCompositorSampler(VkDescriptorSet set);
 
 template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(RenderPass pass);
 

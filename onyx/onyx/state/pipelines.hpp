@@ -14,6 +14,7 @@ void Terminate();
 
 template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(RenderPass pass);
 const VKit::PipelineLayout &GetDistancePipelineLayout();
+const VKit::PipelineLayout &GetCompositorPipelineLayout();
 
 ONYX_NO_DISCARD Result<> ReloadShaders();
 
@@ -24,6 +25,9 @@ ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateGeometryPipeline(
 template <Dimension D>
 ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateShadowPipeline(const Geometry geo, const VkFormat format);
 
+// TODO(Isma): Revisit this name
 ONYX_NO_DISCARD Result<VKit::ComputePipeline> CreateDistancePipeline();
+
+ONYX_NO_DISCARD Result<VKit::GraphicsPipeline> CreateCompositorPipeline();
 
 } // namespace Onyx::Pipelines

@@ -24,14 +24,25 @@ void Terminate();
 const VKit::DescriptorPool &GetDescriptorPool();
 template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(RenderPass pass);
 const VKit::DescriptorSetLayout &GetDistanceDescriptorLayout();
+const VKit::DescriptorSetLayout &GetCompositorDescriptorLayout();
 
 template <Dimension D>
-void WriteBuffer(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorBufferInfo> info,
-                 RenderPass pass, u32 dstElement = 0);
-
-template <Dimension D>
-void WriteImage(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorImageInfo> info,
+void BindBuffer(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorBufferInfo> info,
                 RenderPass pass, u32 dstElement = 0);
+
+template <Dimension D>
+void BindImage(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorImageInfo> info,
+               RenderPass pass, u32 dstElement = 0);
+
+// TODO(Isma): Have to add one for stencil (outlines)
+constexpr u32 GetCompositorColorAttachmentsBindingPoint()
+{
+    return 0;
+}
+constexpr u32 GetCompositorSamplerBindingPoint()
+{
+    return 1;
+}
 
 constexpr u32 GetInstancesBindingPoint()
 {

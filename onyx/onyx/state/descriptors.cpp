@@ -8,6 +8,7 @@ struct DescriptorData
     VKit::DescriptorPool Pool{};
     TKit::FixedArray<TKit::FixedArray<VKit::DescriptorSetLayout, RenderPass_Count>, D_Count> Layouts{};
     VKit::DescriptorSetLayout DistanceLayout{};
+    VKit::DescriptorSetLayout CompositorLayout{};
 };
 
 static TKit::Storage<DescriptorData> s_DescriptorData{};
@@ -136,6 +137,17 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
     TKIT_RETURN_ON_ERROR(layoutResult);
     s_DescriptorData->DistanceLayout = layoutResult.GetValue();
 
+    layoutResult =
+        VKit::DescriptorSetLayout::Builder(device)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_COLOR_ATTACHMENTS,
+                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
+                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // color attachments
+            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)      // compositor sampler
+            .Build();
+
+    TKIT_RETURN_ON_ERROR(layoutResult);
+    s_DescriptorData->CompositorLayout = layoutResult.GetValue();
+
     if (IsDebugUtilsEnabled())
     {
         TKIT_RETURN_IF_FAILED(s_DescriptorData->Pool.SetName("onyx-descriptor-pool"));
@@ -150,6 +162,7 @@ ONYX_NO_DISCARD static Result<> createDescriptorData(const Specs &specs)
             }
             ++i;
         }
+        TKIT_RETURN_IF_FAILED(s_DescriptorData->CompositorLayout.SetName("onyx-compositor-descriptor-set-layout"));
         return s_DescriptorData->DistanceLayout.SetName("onyx-distance-descriptor-set-layout");
     }
 
@@ -170,6 +183,7 @@ void Terminate()
             renders.Destroy();
 
     s_DescriptorData->DistanceLayout.Destroy();
+    s_DescriptorData->CompositorLayout.Destroy();
     s_DescriptorData.Destruct();
 }
 
@@ -186,10 +200,14 @@ const VKit::DescriptorSetLayout &GetDistanceDescriptorLayout()
 {
     return s_DescriptorData->DistanceLayout;
 }
+const VKit::DescriptorSetLayout &GetCompositorDescriptorLayout()
+{
+    return s_DescriptorData->CompositorLayout;
+}
 
 template <Dimension D>
-void WriteBuffer(const u32 binding, const TKit::Span<const VkDescriptorSet> sets,
-                 TKit::Span<const VkDescriptorBufferInfo> info, const RenderPass pass, const u32 dstElement)
+void BindBuffer(const u32 binding, const TKit::Span<const VkDescriptorSet> sets,
+                TKit::Span<const VkDescriptorBufferInfo> info, const RenderPass pass, const u32 dstElement)
 {
     VKit::DescriptorSet::Writer writer{GetDevice(), &GetDescriptorLayout<D>(pass)};
     writer.WriteBuffer(binding, info, dstElement);
@@ -197,8 +215,8 @@ void WriteBuffer(const u32 binding, const TKit::Span<const VkDescriptorSet> sets
         writer.Overwrite(set);
 }
 template <Dimension D>
-void WriteImage(const u32 binding, const TKit::Span<const VkDescriptorSet> sets,
-                TKit::Span<const VkDescriptorImageInfo> info, const RenderPass pass, const u32 dstElement)
+void BindImage(const u32 binding, const TKit::Span<const VkDescriptorSet> sets,
+               TKit::Span<const VkDescriptorImageInfo> info, const RenderPass pass, const u32 dstElement)
 {
     VKit::DescriptorSet::Writer writer{GetDevice(), &GetDescriptorLayout<D>(pass)};
     writer.WriteImage(binding, info, dstElement);
@@ -209,13 +227,13 @@ void WriteImage(const u32 binding, const TKit::Span<const VkDescriptorSet> sets,
 template const VKit::DescriptorSetLayout &GetDescriptorLayout<D2>(RenderPass pass);
 template const VKit::DescriptorSetLayout &GetDescriptorLayout<D3>(RenderPass pass);
 
-template void WriteBuffer<D2>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
-                              TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
-template void WriteBuffer<D3>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
-                              TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
+template void BindBuffer<D2>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
+                             TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
+template void BindBuffer<D3>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
+                             TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
 
-template void WriteImage<D2>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
-                             TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
-template void WriteImage<D3>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
-                             TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
+template void BindImage<D2>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
+                            TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
+template void BindImage<D3>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
+                            TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
 } // namespace Onyx::Descriptors

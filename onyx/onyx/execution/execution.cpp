@@ -217,40 +217,4 @@ VKit::CommandPool &GetTransientTransferPool()
     return *s_Transfer;
 }
 
-Result<TKit::TierArray<ViewSyncData>> CreateViewSyncData(const u32 imageCount)
-{
-    const auto &device = GetDevice();
-    const auto table = device.GetInfo().Table;
-
-    TKit::TierArray<ViewSyncData> syncs{};
-    syncs.Resize(imageCount);
-    for (u32 i = 0; i < imageCount; ++i)
-    {
-        VkSemaphoreCreateInfo semaphoreInfo{};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-        syncs[i].InFlightSubmission = VK_NULL_HANDLE;
-        syncs[i].InFlightValue = 0;
-
-        VKIT_RETURN_IF_FAILED(
-            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].ImageAvailableSemaphore), Result<>,
-            DestroyViewSyncData(syncs));
-        VKIT_RETURN_IF_FAILED(
-            table->CreateSemaphore(device, &semaphoreInfo, nullptr, &syncs[i].RenderFinishedSemaphore), Result<>,
-            DestroyViewSyncData(syncs));
-    }
-    return syncs;
-}
-void DestroyViewSyncData(const TKit::Span<const ViewSyncData> objects)
-{
-    const auto &device = GetDevice();
-    const auto table = device.GetInfo().Table;
-
-    for (const ViewSyncData &data : objects)
-    {
-        table->DestroySemaphore(device, data.ImageAvailableSemaphore, nullptr);
-        table->DestroySemaphore(device, data.RenderFinishedSemaphore, nullptr);
-    }
-}
-
 } // namespace Onyx::Execution

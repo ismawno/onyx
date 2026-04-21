@@ -240,6 +240,7 @@ template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 1 : 2;
 
 template <Dimension D> struct FillPushConstantData;
 
+// TODO(Isma): Add a flag field that allows disabling all shadows at once
 template <> struct FillPushConstantData<D2>
 {
     f32m4 ProjectionView;

@@ -852,7 +852,7 @@ template <Dimension D> void SandboxWinLayer::RenderWindowViews()
 
         ImGui::BeginDisabled(cams.CameraIndex >= cams.Cameras.GetSize());
         if (ImGui::Button("Add view"))
-            AddView(cams.Cameras[cams.CameraIndex].Camera);
+            AddView<D>(cams.Cameras[cams.CameraIndex].Camera);
         ImGui::EndDisabled();
 
         EntriesOptions<ViewData<D>> opts{};
@@ -895,9 +895,7 @@ template <Dimension D> void SandboxWinLayer::RenderWindowView(ViewData<D> &view)
         const f32v3 wpos = v->ViewportToWorld(f32v3{vpos, view.ZOffset});
         ImGui::Text("World mouse position: (%.2f, %.2f, %.2f)", wpos[0], wpos[1], wpos[2]);
     }
-    ImGui::Checkbox("Transparent", &v->Transparent);
-    if (!v->Transparent)
-        ImGui::ColorEdit3("Background", v->BackgroundColor.GetData());
+    ImGui::ColorEdit3("Clear color", v->ClearColor.GetData());
 
     ImGui::Text("Viewport");
     ImGui::SameLine();
@@ -1968,8 +1966,8 @@ template <Dimension D> RenderView<D> *SandboxWinLayer::AddView(Camera<D> *camera
     Window *win = GetWindow();
     const u32 size = views.Views.GetSize();
     ViewData<D> &view = views.Views.Append();
-    view.View = win->CreateRenderView(camera);
-    view.View->BackgroundColor = Color{0.1f};
+    view.View = ONYX_CHECK_EXPRESSION(win->CreateRenderView(camera, RenderViewFlag_Shadows));
+    view.View->ClearColor = Color{0.1f};
     view.Name = TKit::Format("View {}", size);
 
     return view.View;
