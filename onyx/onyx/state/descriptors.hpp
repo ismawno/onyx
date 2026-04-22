@@ -34,7 +34,8 @@ template <Dimension D>
 void BindImage(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorImageInfo> info,
                RenderPass pass, u32 dstElement = 0);
 
-// TODO(Isma): Have to add one for stencil (outlines)
+// these are funcs bc maybe some binding points will depend on dim or pass in the future
+//  TODO(Isma): Have to add one for stencil (outlines)
 constexpr u32 GetCompositorColorAttachmentsBindingPoint()
 {
     return 0;
@@ -48,12 +49,9 @@ constexpr u32 GetInstancesBindingPoint()
 {
     return 0;
 }
-template <Dimension D> constexpr u32 GetBoundsBindingPoint(const RenderPass rpass)
+constexpr u32 GetBoundsBindingPoint()
 {
-    if constexpr (D == D2)
-        return 3;
-    else
-        return rpass != RenderPass_Stencil ? 3 : 4;
+    return 3;
 }
 constexpr u32 GetSamplersBindingPoint()
 {

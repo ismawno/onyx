@@ -201,12 +201,9 @@ template <Dimension D> static void updateBoundsDescriptorSet()
     BoundsAssetData<D> &bounds = getData<D>().BoundingBoxes;
 
     const VkDescriptorBufferInfo binfo = bounds.Buffer.CreateDescriptorInfo();
-    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Fill), binfo, RenderPass_Fill);
-    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Stencil), binfo, RenderPass_Stencil);
-    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint<D>(RenderPass_Shadow), binfo, RenderPass_Shadow);
-
-    if constexpr (D == D2)
-        Renderer::BindBuffer<D3>(Descriptors::GetBoundsBindingPoint<D2>(RenderPass_Stencil), binfo, RenderPass_Stencil);
+    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint(), binfo, RenderPass_Fill);
+    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint(), binfo, RenderPass_Stencil);
+    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint(), binfo, RenderPass_Shadow);
 }
 
 template <typename T> static void initializeHiveAssets(const u32 capacity, HiveAssetData<T> &hive)
