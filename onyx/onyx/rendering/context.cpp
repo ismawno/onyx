@@ -184,11 +184,11 @@ static ParametricInstanceData<D> createParametricInstanceData(const RenderState<
 
 template <Dimension D>
 static GlyphInstanceData<D> createGlyphInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                    const Asset bounds, const u32 depthCounter)
+                                                    const u32 depthCounter)
 {
     GlyphInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
-    instanceData.BoundsHandle = bounds;
+    instanceData.BoundsHandle = NullHandle;
     instanceData.AtlasHandle = Assets::GetFontAtlas(state->Font);
     instanceData.SamplerHandle = state->FontSampler;
     return instanceData;
@@ -418,7 +418,7 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Glyph *glyph, 
 {
     const u32 pid = Assets::GetAssetPoolId(m_Current->Font);
 
-    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, glyph->Bounds, m_DepthCounter);
+    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, m_DepthCounter);
     InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Meshes[Asset_GlyphMesh][pid][glyph->Id];
     addInstanceData(buffer, idata);
 }

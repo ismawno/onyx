@@ -2,13 +2,13 @@
 
 #include "onyx/core/math.hpp"
 #include "onyx/asset/image.hpp"
-#include "onyx/asset/mesh.hpp"
 
 namespace Onyx
 {
 struct GlyphData
 {
-    BoundsData<D2> Bounds{};
+    f32v2 Min{0.f};
+    f32v2 Max{0.f};
     f32v2 MinTexCoord{0.f};
     f32v2 MaxTexCoord{0.f};
     f32 Advance = 0.f;
@@ -23,7 +23,6 @@ struct GlyphKerning
 struct Glyph
 {
     u32 Id;
-    Asset Bounds;
     f32 Advance;
 };
 

@@ -641,8 +641,8 @@ static void buildFontBuffers(const FontData &data, const F1 addGlyph, const F2 a
     for (u32 i = 0; i < data.Glyphs.GetSize(); ++i)
     {
         const GlyphData &glyph = data.Glyphs[i];
-        const f32v2 &min = glyph.Bounds.Min;
-        const f32v2 &max = glyph.Bounds.Max;
+        const f32v2 &min = glyph.Min;
+        const f32v2 &max = glyph.Max;
 
         const f32v2 &mnuv = glyph.MinTexCoord;
         const f32v2 &mxuv = glyph.MaxTexCoord;
@@ -685,7 +685,7 @@ Asset CreateFont(const AssetPool pool, const FontData &data)
 
     const u32 goffset = fpool.Glyphs.GetSize();
     const auto addGlyph = [&fpool, goffset](const u32 id, const GlyphData &data) {
-        fpool.Glyphs.Append(id + goffset, createBounds(data.Bounds), data.Advance);
+        fpool.Glyphs.Append(id + goffset, data.Advance);
     };
     const auto addVertex = [&fpool](const f32 x, const f32 y, const f32 au, const f32 av, const f32 tu, const f32 tv) {
         fpool.Vertices.Append(GlyphVertex{f32v2{x, y}, f32v2{au, av}, f32v2{tu, tv}});
@@ -721,7 +721,6 @@ void UpdateFont(const Asset handle, const FontData &data)
     const auto addGlyph = [&fpool, &gidx](const u32, const GlyphData &data) {
         Glyph &glyph = fpool.Glyphs[gidx++];
         glyph.Advance = data.Advance;
-        updateBounds(glyph.Bounds, data.Bounds);
     };
 
     const auto addVertex = [&fpool, &vidx](const f32 x, const f32 y, const f32 u, const f32 v, const f32 tu,
@@ -929,10 +928,7 @@ template <typename Vertex> static void uploadMeshes(MeshAssetData<Vertex> &meshe
         TKIT_LOG_DEBUG("[ONYX][ASSETS]    Destroying mesh pool with handle {:#010x}", pool);
         const u32 pid = GetAssetPoolId(pool);
         MeshPoolData<Vertex> &mpool = meshes.Pools[pid];
-        if constexpr (std::is_same_v<Vertex, GlyphVertex>)
-            for (const Glyph &glyph : mpool.Glyphs)
-                destroyBounds<D2>(glyph.Bounds);
-        else
+        if constexpr (!std::is_same_v<Vertex, GlyphVertex>)
             for (const MeshDataInfo<Vertex> &minfo : mpool.Meshes)
                 destroyBounds<Vertex::Dim>(minfo.Bounds);
 
