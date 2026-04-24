@@ -30,7 +30,9 @@ RenderSubmitInfo WindowLayer::OnRender(const ExecutionInfo &info)
 
 RenderSubmitInfo WindowLayer::Render(const ExecutionInfo &info)
 {
-    RenderFlags flags = RenderFlag_Shadows;
+    // TODO(Isma): User must be able to set this. Stop using window layer flag for this maybe, and rely on render flags
+    // for imgui?
+    RenderFlags flags = 0;
 #ifdef ONYX_ENABLE_IMGUI
     flags |= RenderFlag_ImGui * checkFlags(WindowLayerFlag_ImGuiEnabled);
 #endif

@@ -8,6 +8,7 @@ struct DescriptorData
     VKit::DescriptorPool Pool{};
     TKit::FixedArray<TKit::FixedArray<VKit::DescriptorSetLayout, RenderPass_Count>, D_Count> Layouts{};
     VKit::DescriptorSetLayout DistanceLayout{};
+    VKit::DescriptorSetLayout PostProcessLayout{};
     VKit::DescriptorSetLayout CompositorLayout{};
 };
 
@@ -18,6 +19,8 @@ constexpr u32 Dim3 = 1;
 
 static void createDescriptorData(const Specs &specs)
 {
+    // TODO(Isma): There are several flags with the unused while pending bit. revisit if those are really necessary
+
     const VKit::LogicalDevice &device = GetDevice();
     s_DescriptorData->Pool =
         ONYX_CHECK_EXPRESSION(VKit::DescriptorPool::Builder(device)
@@ -29,7 +32,7 @@ static void createDescriptorData(const Specs &specs)
                                   .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, specs.StorageImagePoolSize)
                                   .Build());
 
-    s_DescriptorData->Layouts[Dim2][RenderPass_Stencil] = ONYX_CHECK_EXPRESSION(
+    s_DescriptorData->Layouts[Dim2][RenderPass_Flat] = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
             .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
@@ -40,7 +43,7 @@ static void createDescriptorData(const Specs &specs)
             .Build());
 
     // TODO(Isma): Remove bounds2 here and update binding points
-    s_DescriptorData->Layouts[Dim3][RenderPass_Stencil] = ONYX_CHECK_EXPRESSION(
+    s_DescriptorData->Layouts[Dim3][RenderPass_Flat] = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
             .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
@@ -50,7 +53,7 @@ static void createDescriptorData(const Specs &specs)
             .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // bounds3
             .Build());
 
-    s_DescriptorData->Layouts[Dim2][RenderPass_Fill] = ONYX_CHECK_EXPRESSION(
+    s_DescriptorData->Layouts[Dim2][RenderPass_Shaded] = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
             .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
@@ -66,7 +69,7 @@ static void createDescriptorData(const Specs &specs)
                              VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // shadow maps
             .Build());
 
-    s_DescriptorData->Layouts[Dim3][RenderPass_Fill] = ONYX_CHECK_EXPRESSION(
+    s_DescriptorData->Layouts[Dim3][RenderPass_Shaded] = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
             .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // instance
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_SAMPLERS,
@@ -117,12 +120,24 @@ static void createDescriptorData(const Specs &specs)
                              VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // shadow maps
             .Build());
 
-    s_DescriptorData->CompositorLayout = ONYX_CHECK_EXPRESSION(
+    s_DescriptorData->PostProcessLayout = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
-            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_COLOR_ATTACHMENTS,
+            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_ATTACHMENTS,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
                              VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // color attachments
-            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)      // compositor sampler
+            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_ATTACHMENTS,
+                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
+                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // outline attachments
+            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_ATTACHMENTS,
+                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
+                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // stencil attachments
+            .Build());
+
+    s_DescriptorData->CompositorLayout = ONYX_CHECK_EXPRESSION(
+        VKit::DescriptorSetLayout::Builder(device)
+            .AddBinding2(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_ATTACHMENTS,
+                         VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
+                             VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // color attachments
             .Build());
 
     if (IsDebugUtilsEnabled())
@@ -139,8 +154,9 @@ static void createDescriptorData(const Specs &specs)
             }
             ++i;
         }
-        ONYX_CHECK_EXPRESSION(s_DescriptorData->CompositorLayout.SetName("onyx-compositor-descriptor-set-layout"));
         ONYX_CHECK_EXPRESSION(s_DescriptorData->DistanceLayout.SetName("onyx-distance-descriptor-set-layout"));
+        ONYX_CHECK_EXPRESSION(s_DescriptorData->PostProcessLayout.SetName("onyx-post-process-descriptor-set-layout"));
+        ONYX_CHECK_EXPRESSION(s_DescriptorData->CompositorLayout.SetName("onyx-compositor-descriptor-set-layout"));
     }
 }
 
@@ -158,6 +174,7 @@ void Terminate()
             renders.Destroy();
 
     s_DescriptorData->DistanceLayout.Destroy();
+    s_DescriptorData->PostProcessLayout.Destroy();
     s_DescriptorData->CompositorLayout.Destroy();
     s_DescriptorData.Destruct();
 }
@@ -174,6 +191,10 @@ template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(cons
 const VKit::DescriptorSetLayout &GetDistanceDescriptorLayout()
 {
     return s_DescriptorData->DistanceLayout;
+}
+const VKit::DescriptorSetLayout &GetPostProcessDescriptorLayout()
+{
+    return s_DescriptorData->PostProcessLayout;
 }
 const VKit::DescriptorSetLayout &GetCompositorDescriptorLayout()
 {

@@ -176,10 +176,9 @@ template <Dimension D> void SandboxAppLayer::AddDefaultMaterial()
 
 template <Dimension D> static void setShapeProperties(RenderContext<D> *context, const Shape<D> &shape)
 {
-    context->Fill(shape.Flags & SandboxFlag_Fill);
+    context->RenderFlags(shape.Flags);
     context->FillColor(shape.FillColor);
 
-    context->Outline(shape.Flags & SandboxFlag_Outline);
     context->OutlineWidth(shape.OutlineWidth);
     context->OutlineColor(shape.OutlineColor);
     context->Material(shape.Material);
@@ -242,8 +241,7 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
             const auto &meshes = GetMeshes<D>();
             if ((ctx.Flags & SandboxFlag_DrawAxes) && !meshes.StatPools.IsEmpty())
             {
-                ctx.Context->Outline(false);
-                ctx.Context->Fill(true);
+                ctx.Context->RenderFlags(RenderModeFlag_Shaded);
                 ctx.Context->Material(ctx.AxesMaterial);
                 if (!Assets::IsAssetNull(ctx.AxesMesh))
                     ctx.Context->Axes(ctx.AxesMesh, {.Thickness = ctx.AxesThickness});
@@ -1100,11 +1098,11 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
     ImGui::Text("Transform");
     ImGui::SameLine();
     TransformEditor<D>(shape.Transform, EditorFlag_DisplayHelp);
-    ImGui::CheckboxFlags("Fill", &shape.Flags, SandboxFlag_Fill);
-    ImGui::CheckboxFlags("Outline", &shape.Flags, SandboxFlag_Outline);
+    ImGui::CheckboxFlags("Fill", &shape.Flags, RenderModeFlag_Shaded);
+    ImGui::CheckboxFlags("Outline", &shape.Flags, RenderModeFlag_Outlined);
     ImGui::ColorEdit4("Fill color", shape.FillColor.GetData());
     ImGui::ColorEdit4("Outline color", shape.OutlineColor.GetData());
-    ImGui::SliderFloat("Outline width", &shape.OutlineWidth, 0.01f, 0.1f, "%.2f", ImGuiSliderFlags_Logarithmic);
+    ImGui::SliderFloat("Outline width", &shape.OutlineWidth, 0.4f, 1.f, "%.2f", ImGuiSliderFlags_Logarithmic);
     combo("X Alignment", &shape.Alignment[0], "Left\0Center\0Right\0None\0\0");
     combo("Y Alignment", &shape.Alignment[1], "Bottom\0Center\0Top\0None\0\0");
     if constexpr (D == D3)
@@ -1966,7 +1964,8 @@ template <Dimension D> RenderView<D> *SandboxWinLayer::AddView(Camera<D> *camera
     Window *win = GetWindow();
     const u32 size = views.Views.GetSize();
     ViewData<D> &view = views.Views.Append();
-    view.View = win->CreateRenderView(camera, RenderViewFlag_Shadows);
+    view.View =
+        win->CreateRenderView(camera, RenderViewFlag_Shadows | RenderViewFlag_PostProcess | RenderViewFlag_Outlines);
     view.View->ClearColor = Color{0.1f};
     view.Name = TKit::Format("View {}", size);
 

@@ -107,6 +107,10 @@ class Window
     {
         return m_Surface;
     }
+    VkDescriptorSet GetPostProcessSet() const
+    {
+        return m_PostProcessSet;
+    }
     VkDescriptorSet GetCompositorSet() const
     {
         return m_CompositorSet;
@@ -272,6 +276,7 @@ class Window
     TKit::TierArray<WindowSyncData> m_SyncData{};
 
     VKit::Queue *m_Present;
+    VkDescriptorSet m_PostProcessSet;
     VkDescriptorSet m_CompositorSet;
 
     u32 m_ImageIndex;

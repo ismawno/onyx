@@ -43,14 +43,6 @@ struct TransferRange
 
 using TransferInstanceRange = TransferRange;
 
-using MemoryRangeFlags = u8;
-enum MemoryRangeFlagBit : MemoryRangeFlags
-{
-    MemoryRangeFlag_Fill = 1 << 0,
-    MemoryRangeFlag_Stencil = 1 << 1,
-    MemoryRangeFlag_FillStencil = MemoryRangeFlag_Fill | MemoryRangeFlag_Stencil,
-};
-
 struct GraphicsInstanceRange
 {
     Execution::Tracker TransferTracker{};
@@ -60,7 +52,7 @@ struct GraphicsInstanceRange
     VkDeviceSize Size = 0;
     ViewMask ViewMask = 0;
     Asset MeshHandle = NullHandle;
-    MemoryRangeFlags Flags = 0;
+    RenderModeFlags RenderFlags = 0;
     TKit::TierArray<ContextInstanceRange> ContextRanges{};
 
     bool InUseByTransfer() const
@@ -141,7 +133,7 @@ struct LightArena
 struct GeometryData
 {
     TKit::FixedArray<InstanceArena, Geometry_Count> Arenas{};
-    TKit::FixedArray<TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count>, StencilPass_Count> Pipelines{};
+    TKit::FixedArray<TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count>, PipelinePass_Count> Pipelines{};
 };
 
 template <typename LightParams> struct ContextLights
@@ -297,8 +289,9 @@ static TKit::Storage<TKit::TierArray<DrawBuffer>> s_IndexedDrawBuffers{};
 
 static TKit::Storage<RendererData<D2>> s_RendererData2{};
 static TKit::Storage<RendererData<D3>> s_RendererData3{};
+static VKit::GraphicsPipeline s_PostProcessPipeline{};
 static VKit::GraphicsPipeline s_CompositorPipeline{};
-static VKit::Sampler s_CompositorSampler{};
+static VKit::Sampler s_GeneralSampler{};
 
 static u64 s_SyncPointCount = 0;
 
@@ -347,7 +340,7 @@ template <Dimension D> static void updateLightDescriptorSets(const LightType lig
 {
     RendererData<D> &rdata = getRendererData<D>();
     const VkDescriptorBufferInfo info = rdata.Lights.Arenas[light].Graphics.Buffer.CreateDescriptorInfo();
-    Descriptors::BindBuffer<D>(lightToBinding<D>(light), rdata.Descriptors[RenderPass_Fill], info, RenderPass_Fill);
+    Descriptors::BindBuffer<D>(lightToBinding<D>(light), rdata.Descriptors[RenderPass_Shaded], info, RenderPass_Shaded);
 }
 
 static constexpr VKit::DeviceBufferFlags getStageFlags()
@@ -434,10 +427,10 @@ template <Dimension D> static void createPipelines()
     for (u32 j = 0; j < Geometry_Count; ++j)
     {
         const Geometry geo = Geometry(j);
-        for (u32 i = 0; i < StencilPass_Count; ++i)
+        for (u32 i = 0; i < PipelinePass_Count; ++i)
         {
-            const StencilPass pass = StencilPass(i);
-            rdata.Geometry.Pipelines[pass][geo] = Pipelines::CreateGeometryPipeline<D>(pass, geo, rinfo);
+            const PipelinePass pass = PipelinePass(i);
+            rdata.Geometry.Pipelines[pass][geo] = Pipelines::CreateGeometryPipeline<D>(pass, geo);
 
             if (IsDebugUtilsEnabled())
             {
@@ -474,10 +467,12 @@ template <Dimension D> static void createPipelines()
 
 static void createPipelines()
 {
+    s_PostProcessPipeline = Pipelines::CreatePostProcessPipeline();
     s_CompositorPipeline = Pipelines::CreateCompositorPipeline();
 
     if (IsDebugUtilsEnabled())
     {
+        ONYX_CHECK_EXPRESSION(s_PostProcessPipeline.SetName("onyx-post-process-pipeline"));
         ONYX_CHECK_EXPRESSION(s_CompositorPipeline.SetName("onyx-compositor-pipeline"));
     }
 
@@ -491,7 +486,7 @@ template <Dimension D> static void destroyPipelines()
     ShadowData<D> &sdata = rdata.Shadows;
     for (u32 geo = 0; geo < Geometry_Count; ++geo)
     {
-        for (u32 pass = 0; pass < StencilPass_Count; ++pass)
+        for (u32 pass = 0; pass < PipelinePass_Count; ++pass)
             if (rdata.Geometry.Pipelines[pass][geo])
                 rdata.Geometry.Pipelines[pass][geo].Destroy();
         sdata.Pipelines[geo].Destroy();
@@ -504,6 +499,7 @@ static void destroyPipelines()
 {
     destroyPipelines<D2>();
     destroyPipelines<D3>();
+    s_PostProcessPipeline.Destroy();
     s_CompositorPipeline.Destroy();
 }
 
@@ -541,7 +537,7 @@ template <Dimension D> static void initializeShadows(const ShadowSpecs<D> &specs
     VkDescriptorImageInfo info{};
     info.sampler = sdata.Sampler;
 
-    BindImage<D>(Descriptors::GetShadowSamplerBindingPoint(), info, RenderPass_Fill);
+    BindImage<D>(Descriptors::GetShadowSamplerBindingPoint(), info, RenderPass_Shaded);
 
     sdata.ShadowFormat = specs.ShadowFormat;
     if constexpr (D == D2)
@@ -649,11 +645,11 @@ void Initialize(const Specs &specs)
     s_RendererData2.Construct();
     s_RendererData3.Construct();
 
-    s_CompositorSampler = ONYX_CHECK_EXPRESSION(VKit::Sampler::Builder(GetDevice()).Build());
+    s_GeneralSampler = ONYX_CHECK_EXPRESSION(VKit::Sampler::Builder(GetDevice()).Build());
 
     if (IsDebugUtilsEnabled())
     {
-        ONYX_CHECK_EXPRESSION(s_CompositorSampler.SetName("onyx-compositor-sampler"));
+        ONYX_CHECK_EXPRESSION(s_GeneralSampler.SetName("onyx-compositor-sampler"));
     }
 
     initialize<D2>(specs.Shadows2);
@@ -671,7 +667,7 @@ void Terminate()
         buffer.Buffer.Destroy();
     for (DrawBuffer &buffer : *s_IndexedDrawBuffers)
         buffer.Buffer.Destroy();
-    s_CompositorSampler.Destroy();
+    s_GeneralSampler.Destroy();
     s_RendererData2.Destruct();
     s_RendererData3.Destruct();
     s_IndexedDrawBuffers.Destruct();
@@ -794,13 +790,9 @@ void BindImage(const u32 binding, TKit::Span<const VkDescriptorImageInfo> info, 
     Descriptors::BindImage<D>(binding, rdata.Descriptors[pass], info, pass, dstElement);
 }
 
-void BindCompositorSampler(const VkDescriptorSet set)
+const VKit::Sampler &GetGeneralPurposeSampler()
 {
-    VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetCompositorDescriptorLayout()};
-    VkDescriptorImageInfo info{};
-    info.sampler = s_CompositorSampler;
-    writer.WriteImage(Descriptors::GetCompositorSamplerBindingPoint(), info);
-    writer.Overwrite(set);
+    return s_GeneralSampler;
 }
 
 template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(const RenderPass pass)
@@ -1046,7 +1038,7 @@ static Range *splitRange(const u32 index, TKit::TierArray<Range> &ranges, const 
     {
         range.ViewMask = 0;
         range.MeshHandle = NullHandle;
-        range.Flags = 0;
+        range.RenderFlags = 0;
         range.ContextRanges.Clear();
     }
 
@@ -1334,7 +1326,7 @@ static Range findSuitableTextureMapRange(const LightType light, const VkFormat f
         const u32 dstElement = range.Offset + i;
         if constexpr (D == D2)
         {
-            BindImage<D>(Descriptors::GetShadowMapsBindingPoint(), info, RenderPass_Fill, dstElement);
+            BindImage<D>(Descriptors::GetShadowMapsBindingPoint(), info, RenderPass_Shaded, dstElement);
             info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
             VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetDistanceDescriptorLayout()};
@@ -1342,21 +1334,12 @@ static Range findSuitableTextureMapRange(const LightType light, const VkFormat f
             writer.Overwrite(getRendererData<D2>().Shadows.DistanceSet);
         }
         else if (light == Light_Point)
-            BindImage<D>(Descriptors::GetPointMapsBindingPoint(), info, RenderPass_Fill, dstElement);
+            BindImage<D>(Descriptors::GetPointMapsBindingPoint(), info, RenderPass_Shaded, dstElement);
         else
-            BindImage<D>(Descriptors::GetDirectionalMapsBindingPoint(), info, RenderPass_Fill, dstElement);
+            BindImage<D>(Descriptors::GetDirectionalMapsBindingPoint(), info, RenderPass_Shaded, dstElement);
     }
     range.Count = count;
     return grabMaps();
-}
-
-static MemoryRangeFlags rangeFlagsFromMode(const RenderMode rmode)
-{
-    return MemoryRangeFlags(rmode + 1);
-}
-static RenderMode renderModeFromFlags(const MemoryRangeFlags flags)
-{
-    return RenderMode((flags & MemoryRangeFlag_FillStencil) - 1);
 }
 
 template <Dimension D>
@@ -1813,7 +1796,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         grange->MeshHandle = handle;
         grange->ContextRanges = contextRanges;
         grange->ViewMask = viewMask;
-        grange->Flags = rangeFlagsFromMode(RenderMode(rmode));
+        grange->RenderFlags = GetRenderModeFlags(RenderMode(rmode));
         grange->TransferTracker.MarkInUse(transfer, transferFlightValue);
         grange->GraphicsTracker = {};
 
@@ -2184,9 +2167,8 @@ static void endShadowPass(const VkCommandBuffer cmd)
 
 template <Dimension D, typename F>
 static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, const ViewMask viewBit,
-                            const u64 inFlightValue, const F &insertCommand,
-                            TKit::StackArray<Execution::Tracker> *transferTrackers = nullptr,
-                            const MemoryRangeFlags flags = MemoryRangeFlag_FillStencil)
+                            const u64 inFlightValue, const F &insertCommand, const RenderModeFlags flags,
+                            TKit::StackArray<Execution::Tracker> *transferTrackers = nullptr)
 {
     RendererData<D> &rdata = getRendererData<D>();
     GraphicsInstancePool &gpool = rdata.Geometry.Arenas[geo].Graphics;
@@ -2195,7 +2177,7 @@ static void collectDrawInfo(const VKit::Queue *graphics, const Geometry geo, con
 
     for (GraphicsInstanceRange &grange : gpool.Ranges)
     {
-        if (!(grange.ViewMask & viewBit) || !(grange.Flags & flags))
+        if (!(grange.ViewMask & viewBit) || !(grange.RenderFlags & flags))
             continue;
 
         TKIT_ASSERT(!grange.ContextRanges.IsEmpty(),
@@ -2348,166 +2330,166 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
     sdata.DirtyViews &= ~viewBit;
 
     const auto table = GetDeviceTable();
-    const auto processLight = [&]<typename LightParams>(
-                                  const TKit::TierArray<LightParams> &lights,
+    const auto processLight =
+        [&]<typename LightParams>(const TKit::TierArray<LightParams> &lights,
                                   const TKit::TierArray<typename LightParams::InstanceData> lightData,
                                   TextureMapArray &shadowMaps) {
-        using LightData = LightParams::InstanceData;
-        TKIT_ASSERT(
-            lights.GetSize() == lightData.GetSize(),
-            "[ONYX][RENDERER] Light count and light instance data count must match, but former has {} element(s) "
-            "while latter has {}",
-            lights.GetSize(), lightData.GetSize());
+            using LightData = LightParams::InstanceData;
+            TKIT_ASSERT(
+                lights.GetSize() == lightData.GetSize(),
+                "[ONYX][RENDERER] Light count and light instance data count must match, but former has {} element(s) "
+                "while latter has {}",
+                lights.GetSize(), lightData.GetSize());
 
-        for (u32 i = 0; i < lights.GetSize(); ++i)
-        {
-            const LightData &data = lightData[i];
-
-            if (!(data.ViewMask & viewBit) || !(data.Flags & LightFlag_CastsShadows))
-                continue;
-
-            const u32 viewIndex = std::popcount(data.ViewMask & (viewBit - 1));
-            const u32 shindex = data.ShadowMapOffset + viewIndex;
-
-            TextureMap &smap = shadowMaps[shindex];
-            smap.Tracker.MarkInUse(graphics, inFlightValue);
-            smap.Grabbed = false;
-
-            if (!(dirtyViews & viewBit))
-                continue;
-
-            CircleDrawCommands circleCmds{};
-            MeshDrawCommands meshCmds{};
-            const auto insertCommand = [&](const AssetType atype, const GraphicsInstanceRange &grange, const u32 fi,
-                                           const u32 ic) {
-                if (atype == Asset_PoolCount) // circles sentry
-                    circleCmds.Append(createCircleCommand(fi, ic));
-                else
-                {
-                    ONYX_CHECK_ASSET_IS_NOT_NULL(grange.MeshHandle);
-                    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(grange.MeshHandle);
-                    ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
-                    ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
-
-                    const u32 pid = Assets::GetAssetPoolId(grange.MeshHandle);
-                    meshCmds[atype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
-                }
-            };
-            for (u32 i = 0; i < Geometry_Count; ++i)
+            for (u32 i = 0; i < lights.GetSize(); ++i)
             {
-                const Geometry geo = Geometry(i);
-                collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, nullptr, MemoryRangeFlag_Fill);
-            }
+                const LightData &data = lightData[i];
 
-            const auto processMap = [&](TextureMap &map, const f32m4 &projView, const u32 viewIndex = 0) {
-                beginShadowPass<D>(cmd, map, viewIndex);
-                const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(RenderPass_Shadow);
+                if (!(data.ViewMask & viewBit) || !(data.Flags & LightFlag_CastsShadows))
+                    continue;
 
-                ShadowPushConstantData<D> pdata;
-                pdata.LightProjection = projView;
+                const u32 viewIndex = std::popcount(data.ViewMask & (viewBit - 1));
+                const u32 shindex = data.ShadowMapOffset + viewIndex;
 
-                VkShaderStageFlags flags = VK_SHADER_STAGE_VERTEX_BIT;
-                if constexpr (D == D3)
-                {
-                    flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
-                    if constexpr (std::is_same_v<LightParams, PointLightParameters<D3>>)
-                    {
-                        pdata.LightPos = data.Position;
-                        pdata.Far = data.ShadowRadius;
-                        pdata.DepthBias = lights[i].DepthBias;
-                    }
+                TextureMap &smap = shadowMaps[shindex];
+                smap.Tracker.MarkInUse(graphics, inFlightValue);
+                smap.Grabbed = false;
+
+                if (!(dirtyViews & viewBit))
+                    continue;
+
+                CircleDrawCommands circleCmds{};
+                MeshDrawCommands meshCmds{};
+                const auto insertCommand = [&](const AssetType atype, const GraphicsInstanceRange &grange, const u32 fi,
+                                               const u32 ic) {
+                    if (atype == Asset_PoolCount) // circles sentry
+                        circleCmds.Append(createCircleCommand(fi, ic));
                     else
                     {
-                        pdata.Far = 0.f;
-                        pdata.DepthBias = lights[i].Cascades.DepthBias[viewIndex];
+                        ONYX_CHECK_ASSET_IS_NOT_NULL(grange.MeshHandle);
+                        ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(grange.MeshHandle);
+                        ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
+                        ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(grange.MeshHandle, atype, D);
+
+                        const u32 pid = Assets::GetAssetPoolId(grange.MeshHandle);
+                        meshCmds[atype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
                     }
+                };
+                for (u32 i = 0; i < Geometry_Count; ++i)
+                {
+                    const Geometry geo = Geometry(i);
+                    collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, RenderModeFlag_Shaded);
                 }
 
-                table->CmdPushConstants(cmd, playout, flags, 0, sizeof(ShadowPushConstantData<D>), &pdata);
-                submitDrawCommands<D>(graphics, inFlightValue, cmd, RenderPass_Shadow, playout, sdata.Pipelines,
-                                      circleCmds, meshCmds);
+                const auto processMap = [&](TextureMap &map, const f32m4 &projView, const u32 viewIndex = 0) {
+                    beginShadowPass<D>(cmd, map, viewIndex);
+                    const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(RenderPass_Shadow);
 
-                endShadowPass(cmd);
-            };
+                    ShadowPushConstantData<D> pdata;
+                    pdata.LightProjection = projView;
 
-            if constexpr (D == D2)
-            {
-                const u32 ocindex = findSuitableOcclusionMap();
-                TextureMap &ocmap = sdata.OcclusionMaps[ocindex];
-                ocmap.Tracker.MarkInUse(graphics, inFlightValue);
-
-                beginShadowTransitionLayout<D>(cmd, ocmap);
-                if constexpr (std::is_same_v<LightData, PointLightData<D>>)
-                {
-                    const f32 r = data.ShadowRadius;
-                    f32m4 pv = Transform<D3>::Orthographic(-r, r, -r, r, 0.f, 1.f);
-                    pv[3][0] -= data.Position[0] * pv[0][0];
-                    pv[3][1] -= data.Position[1] * pv[1][1];
-                    processMap(ocmap, pv);
-                }
-                else
-                    processMap(ocmap, createTransform(data.ProjectionView));
-                endShadowTransitionLayout<D>(cmd, ocmap);
-
-                smap.Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_GENERAL,
-                                             {.SrcAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                              .DstAccess = VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
-                                              .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
-                                              .DstStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR});
-
-                const VkDescriptorSet set = sdata.DistanceSet;
-
-                sdata.DistancePipeline.Bind(cmd);
-                const VKit::PipelineLayout &playout = Pipelines::GetDistancePipelineLayout();
-                VKit::DescriptorSet::Bind(GetDevice(), cmd, set, VK_PIPELINE_BIND_POINT_COMPUTE, playout);
-
-                DistancePushConstantData pdata;
-                pdata.OcclusionMapIndex = ocindex;
-                pdata.OcclusionResolution = sdata.OcclusionResolution;
-                pdata.ShadowMapIndex = shindex;
-                pdata.ShadowResolution = sdata.ShadowResolution;
-                pdata.DistanceBias = lights[i].DepthBias;
-                table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(DistancePushConstantData),
-                                        &pdata);
-
-                constexpr u32 groupSize = 64;
-                table->CmdDispatch(cmd, (pdata.ShadowResolution + groupSize - 1) / groupSize, 1, 1);
-
-                smap.Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                             {.SrcAccess = VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
-                                              .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
-                                              .SrcStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
-                                              .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR});
-            }
-            else
-            {
-                beginShadowTransitionLayout<D>(cmd, smap);
-                // TODO(Isma): Try to pseudo optimize this by working out the views?
-                if constexpr (std::is_same_v<LightData, PointLightData<D>>)
-                {
-                    const f32m4 proj = Transform<D3>::Perspective(0.5f * Math::Pi<f32>(), 0.01f, data.ShadowRadius);
-                    const f32v3 &pos = data.Position;
-                    constexpr f32v3 faceDir[6] = {
-                        f32v3{1.f, 0.f, 0.f},  f32v3{-1.f, 0.f, 0.f}, f32v3{0.f, 1.f, 0.f},
-                        f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},  f32v3{0.f, 0.f, -1.f},
-                    };
-                    constexpr f32v3 faceUp[6] = {
-                        f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},
-                        f32v3{0.f, 0.f, -1.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f},
-                    };
-                    for (u32 i = 0; i < 6; ++i)
+                    VkShaderStageFlags flags = VK_SHADER_STAGE_VERTEX_BIT;
+                    if constexpr (D == D3)
                     {
-                        const f32m4 view = Transform<D3>::LookTowardsMatrix(pos, faceDir[i], faceUp[i]);
-                        processMap(smap, proj * view, i);
+                        flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
+                        if constexpr (std::is_same_v<LightParams, PointLightParameters<D3>>)
+                        {
+                            pdata.LightPos = data.Position;
+                            pdata.Far = data.ShadowRadius;
+                            pdata.DepthBias = lights[i].DepthBias;
+                        }
+                        else
+                        {
+                            pdata.Far = 0.f;
+                            pdata.DepthBias = lights[i].Cascades.DepthBias[viewIndex];
+                        }
                     }
+
+                    table->CmdPushConstants(cmd, playout, flags, 0, sizeof(ShadowPushConstantData<D>), &pdata);
+                    submitDrawCommands<D>(graphics, inFlightValue, cmd, RenderPass_Shadow, playout, sdata.Pipelines,
+                                          circleCmds, meshCmds);
+
+                    endShadowPass(cmd);
+                };
+
+                if constexpr (D == D2)
+                {
+                    const u32 ocindex = findSuitableOcclusionMap();
+                    TextureMap &ocmap = sdata.OcclusionMaps[ocindex];
+                    ocmap.Tracker.MarkInUse(graphics, inFlightValue);
+
+                    beginShadowTransitionLayout<D>(cmd, ocmap);
+                    if constexpr (std::is_same_v<LightData, PointLightData<D>>)
+                    {
+                        const f32 r = data.ShadowRadius;
+                        f32m4 pv = Transform<D3>::Orthographic(-r, r, -r, r, 0.f, 1.f);
+                        pv[3][0] -= data.Position[0] * pv[0][0];
+                        pv[3][1] -= data.Position[1] * pv[1][1];
+                        processMap(ocmap, pv);
+                    }
+                    else
+                        processMap(ocmap, createTransform(data.ProjectionView));
+                    endShadowTransitionLayout<D>(cmd, ocmap);
+
+                    smap.Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_GENERAL,
+                                                 {.SrcAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                                  .DstAccess = VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
+                                                  .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
+                                                  .DstStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR});
+
+                    const VkDescriptorSet set = sdata.DistanceSet;
+
+                    sdata.DistancePipeline.Bind(cmd);
+                    const VKit::PipelineLayout &playout = Pipelines::GetDistancePipelineLayout();
+                    VKit::DescriptorSet::Bind(GetDevice(), cmd, set, VK_PIPELINE_BIND_POINT_COMPUTE, playout);
+
+                    DistancePushConstantData pdata;
+                    pdata.OcclusionMapIndex = ocindex;
+                    pdata.OcclusionResolution = sdata.OcclusionResolution;
+                    pdata.ShadowMapIndex = shindex;
+                    pdata.ShadowResolution = sdata.ShadowResolution;
+                    pdata.DistanceBias = lights[i].DepthBias;
+                    table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
+                                            sizeof(DistancePushConstantData), &pdata);
+
+                    constexpr u32 groupSize = 64;
+                    table->CmdDispatch(cmd, (pdata.ShadowResolution + groupSize - 1) / groupSize, 1, 1);
+
+                    smap.Image.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                                 {.SrcAccess = VK_ACCESS_2_SHADER_WRITE_BIT_KHR,
+                                                  .DstAccess = VK_ACCESS_2_SHADER_READ_BIT_KHR,
+                                                  .SrcStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR,
+                                                  .DstStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR});
                 }
                 else
-                    for (u32 i = 0; i < data.CascadeCount; ++i)
-                        processMap(smap, createTransform(data.Cascades[i]), i);
-                endShadowTransitionLayout<D>(cmd, smap);
+                {
+                    beginShadowTransitionLayout<D>(cmd, smap);
+                    // TODO(Isma): Try to pseudo optimize this by working out the views?
+                    if constexpr (std::is_same_v<LightData, PointLightData<D>>)
+                    {
+                        const f32m4 proj = Transform<D3>::Perspective(0.5f * Math::Pi<f32>(), 0.01f, data.ShadowRadius);
+                        const f32v3 &pos = data.Position;
+                        constexpr f32v3 faceDir[6] = {
+                            f32v3{1.f, 0.f, 0.f},  f32v3{-1.f, 0.f, 0.f}, f32v3{0.f, 1.f, 0.f},
+                            f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},  f32v3{0.f, 0.f, -1.f},
+                        };
+                        constexpr f32v3 faceUp[6] = {
+                            f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},
+                            f32v3{0.f, 0.f, -1.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f},
+                        };
+                        for (u32 i = 0; i < 6; ++i)
+                        {
+                            const f32m4 view = Transform<D3>::LookTowardsMatrix(pos, faceDir[i], faceUp[i]);
+                            processMap(smap, proj * view, i);
+                        }
+                    }
+                    else
+                        for (u32 i = 0; i < data.CascadeCount; ++i)
+                            processMap(smap, createTransform(data.Cascades[i]), i);
+                    endShadowTransitionLayout<D>(cmd, smap);
+                }
             }
-        }
-    };
+        };
 
     const LightData<D> &ldata = rdata.Lights;
     if constexpr (D == D2)
@@ -2526,6 +2508,7 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
     const ViewMask viewBit = vinfo.ViewBit;
 
     RendererData<D> &rdata = getRendererData<D>();
+    // TODO(Isma): At some point would be good letting the user decide what strategy to use to aggregate ambient
     Color ambient{0.f, 0.f, 0.f, 0.f};
     for (const ContextInfo<D> &info : rdata.Contexts)
         if (info.Context->GetViewMask() & viewBit)
@@ -2535,27 +2518,20 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
         }
     const u32 ambientColor = ambient.Pack();
 
-    TKit::FixedArray<CircleDrawCommands, StencilPass_Count> circleCmds{};
-    TKit::FixedArray<MeshDrawCommands, StencilPass_Count> meshCmds{};
+    TKit::FixedArray<CircleDrawCommands, PipelinePass_Count> circleCmds{};
+    TKit::FixedArray<MeshDrawCommands, PipelinePass_Count> meshCmds{};
 
     const auto insertCommand = [&](const AssetType atype, const GraphicsInstanceRange &grange, const u32 fi,
                                    const u32 ic) {
         u32 pcount = 0;
-        TKit::FixedArray<StencilPass, 2> passes;
-        const RenderMode rmode = renderModeFromFlags(grange.Flags);
-
-        if (rmode == RenderMode_Fill)
-            passes[pcount++] = StencilPass_NoStencilWriteDoFill;
-        else if (rmode == RenderMode_FillStencil)
-        {
-            passes[pcount++] = StencilPass_DoStencilWriteDoFill;
-            passes[pcount++] = StencilPass_DoStencilTestNoFill;
-        }
-        else if (rmode == RenderMode_Stencil)
-        {
-            passes[pcount++] = StencilPass_DoStencilWriteNoFill;
-            passes[pcount++] = StencilPass_DoStencilTestNoFill;
-        }
+        TKit::FixedArray<PipelinePass, 3> passes;
+        const RenderModeFlags rmode = grange.RenderFlags;
+        if (rmode & RenderModeFlag_Shaded)
+            passes[pcount++] = PipelinePass_Shaded;
+        if (rmode & RenderModeFlag_Flat)
+            passes[pcount++] = PipelinePass_Flat;
+        if (rmode & RenderModeFlag_Outlined)
+            passes[pcount++] = PipelinePass_Outlined;
         TKIT_ASSERT(pcount != 0, "[ONYX][RENDERER] Pass count should not be zero");
 
         if (atype == Asset_PoolCount) // circles sentry
@@ -2577,7 +2553,8 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
     for (u32 i = 0; i < Geometry_Count; ++i)
     {
         const Geometry geo = Geometry(i);
-        collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, &transferTrackers);
+        collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand,
+                           RenderModeFlag_Shaded | RenderModeFlag_Outlined | RenderModeFlag_Flat, &transferTrackers);
     }
 
     LightData<D> &ldata = rdata.Lights;
@@ -2597,23 +2574,17 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
     const auto table = GetDeviceTable();
 
     ShadowData<D> &sdata = rdata.Shadows;
-    for (u32 i = 0; i < StencilPass_Count; ++i)
+    for (u32 i = 0; i < PipelinePass_Count; ++i)
     {
-        const StencilPass pass = StencilPass(i);
+        const PipelinePass pass = PipelinePass(i);
         const RenderPass rpass = GetRenderPass(pass);
         const VKit::PipelineLayout &playout = Pipelines::GetPipelineLayout<D>(rpass);
-        if (rpass == RenderPass_Stencil)
-        {
-            StencilPushConstantData pdata;
-            pdata.ProjectionView = vinfo.ProjectionView;
-            pdata.OutlineMultiplier = pass == StencilPass_DoStencilWriteNoFill ? 0.f : 1.f;
-
-            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(StencilPushConstantData),
-                                    &pdata);
-        }
+        if (rpass == RenderPass_Flat)
+            table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FlatPushConstantData),
+                                    &vinfo.ProjectionView);
         else
         {
-            FillPushConstantData<D> pdata;
+            ShadedPushConstantData<D> pdata;
             pdata.ProjectionView = vinfo.ProjectionView;
 
             if constexpr (D == D3)
@@ -2630,7 +2601,7 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
             pdata.ViewBit = viewBit;
             pdata.AmbientColor = ambientColor;
             table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                                    sizeof(FillPushConstantData<D>), &pdata);
+                                    sizeof(ShadedPushConstantData<D>), &pdata);
         }
 
         submitDrawCommands<D>(graphics, inFlightValue, cmd, rpass, playout, rdata.Geometry.Pipelines[pass],
@@ -2683,29 +2654,52 @@ static RenderSubmitInfo createRenderSubmitInfo(VKit::Queue *graphics, const VkCo
 }
 
 template <Dimension D>
-static void renderViewShadows(const TKit::TierArray<RenderView<D> *> &views, VKit::Queue *graphics,
-                              const VkCommandBuffer cmd, const u64 graphicsFlight)
-{
-    for (const RenderView<D> *rv : views)
-        if (rv->GetFlags() & RenderViewFlag_Shadows)
-            renderShadows<D>(graphics, cmd, rv->GetViewBit(), graphicsFlight);
-}
-
-template <Dimension D>
-static void renderViewGeometry(const TKit::TierArray<RenderView<D> *> &views, VKit::Queue *graphics,
-                               const VkCommandBuffer cmd, const u64 graphicsFlight,
-                               TKit::StackArray<Execution::Tracker> &transferTrackers)
+static void renderViews(const TKit::TierArray<RenderView<D> *> &views, const VkDescriptorSet ppSet,
+                        VKit::Queue *graphics, const VkCommandBuffer cmd, const u64 graphicsFlight,
+                        TKit::StackArray<Execution::Tracker> &transferTrackers)
 {
     Execution::Tracker tracker;
     tracker.Queue = graphics;
     tracker.InFlightValue = graphicsFlight;
+
+    RenderViewFlags flags = 0;
     for (RenderView<D> *rv : views)
     {
+        flags |= rv->Flags;
+        if (rv->Flags & RenderViewFlag_Shadows)
+            renderShadows<D>(graphics, cmd, rv->GetViewBit(), graphicsFlight);
+
         rv->CacheMatrices();
         rv->BeginRendering(cmd, tracker);
         renderGeometry<D>(graphics, cmd, rv->CreateViewInfo(), graphicsFlight, transferTrackers);
         rv->EndRendering(cmd);
         // TODO(Isma): Will have to add outline pass here + flag check if outlines are enabled for this view
+    }
+
+    if (flags & RenderViewFlag_PostProcess)
+    {
+        const auto table = GetDeviceTable();
+        const VKit::PipelineLayout &playout = Pipelines::GetPostProcessPipelineLayout();
+        VKit::DescriptorSet::Bind(GetDevice(), cmd, ppSet, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+        for (RenderView<D> *rv : views)
+            if (rv->Flags & RenderViewFlag_PostProcess)
+            {
+                rv->BeginPostProcess(cmd);
+                s_PostProcessPipeline.Bind(cmd);
+
+                PostProcessPushConstantData pdata;
+                pdata.AttachmentIndex = rv->GetDescriptorIndex();
+
+                const VkExtent2D extent = rv->GetExtent();
+                pdata.Extent = u32v2{extent.width, extent.height};
+                pdata.MaxOutlineWidth = rv->MaxOutlineWidth;
+                pdata.Flags = rv->Flags;
+
+                table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                                        sizeof(PostProcessPushConstantData), &pdata);
+                table->CmdDraw(cmd, 6, 1, 0, 0);
+                rv->EndPostProcess(cmd);
+            }
     }
 }
 
@@ -2734,19 +2728,13 @@ RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window
     const u64 graphicsFlight = graphics->NextTimelineValue();
     const RenderTargetInfo tinfo = window->CreateRenderTargetInfo();
 
-    if (flags & RenderFlag_Shadows)
-    {
-        renderViewShadows(tinfo.Views2, graphics, cmd, graphicsFlight);
-        renderViewShadows(tinfo.Views3, graphics, cmd, graphicsFlight);
-    }
-
     TKit::StackArray<Execution::Tracker> transferTrackers{};
     transferTrackers.Reserve(s_SyncPointCount);
 
     // TODO(Isma): Pass here the render flags and & it with the render view flag, and send that flag as push constant to
-    // globally disable shadows
-    renderViewGeometry(tinfo.Views2, graphics, cmd, graphicsFlight, transferTrackers);
-    renderViewGeometry(tinfo.Views3, graphics, cmd, graphicsFlight, transferTrackers);
+    // geometry to globally disable shadows
+    renderViews(tinfo.Views2, window->GetPostProcessSet(), graphics, cmd, graphicsFlight, transferTrackers);
+    renderViews(tinfo.Views3, window->GetPostProcessSet(), graphics, cmd, graphicsFlight, transferTrackers);
 
     Execution::Tracker tracker;
     tracker.Queue = graphics;
@@ -2889,7 +2877,7 @@ template <Dimension D> static void coalesceGraphicsInstanceRanges(GraphicsInstan
                                           "size if there are context ranges left");
             GraphicsInstanceRange ngrange{};
             ngrange.Offset = grange.Offset;
-            ngrange.Flags = grange.Flags;
+            ngrange.RenderFlags = grange.RenderFlags;
             ngrange.MeshHandle = grange.MeshHandle;
 
             // VkDeviceSize leftover = grange.Size;
@@ -3017,7 +3005,7 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
                     if (range.MeshHandle != NullHandle)
                         ImGui::Text("Mesh handle: %u", range.MeshHandle);
 
-                    ImGui::Text("Render mode: %s", ToString(renderModeFromFlags(range.Flags)));
+                    ImGui::Text("Render mode: %s", ToString(GetRenderMode(range.RenderFlags)));
                     const std::string vmask = TKit::Format("{:032b}", range.ViewMask);
                     ImGui::Text("View mask: %s", vmask.c_str());
                     if (ImGui::TreeNode(&range.ContextRanges, "Context ranges (%u)", range.ContextRanges.GetSize()))
@@ -3138,7 +3126,7 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
                     range.InUse()
                         ? 1
                         : (rdata.AreAllContextRangesDirty(range) ? 0 : (rdata.AreAllContextRangesClean(range) ? 2 : 4));
-                drawPlot(1, range.Offset, range.Size, idx, range.MeshHandle, renderModeFromFlags(range.Flags));
+                drawPlot(1, range.Offset, range.Size, idx, range.MeshHandle, GetRenderMode(range.RenderFlags));
                 for (const ContextInstanceRange &crange : range.ContextRanges)
                     drawPlot(0, range.Offset + crange.Offset, crange.Size, rdata.IsContextRangeClean(crange) ? 2 : 3);
             }

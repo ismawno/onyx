@@ -68,7 +68,7 @@ VkSurfaceFormatKHR GetSurfaceFormat();
 VkFormat GetColorFormat();
 VkFormat GetDepthStencilFormat();
 
-Window * CreateWindow(const WindowSpecs &specs = {});
+Window *CreateWindow(const WindowSpecs &specs = {});
 void DestroyWindow(Window *window);
 void DestroyWindows();
 void PollEvents();

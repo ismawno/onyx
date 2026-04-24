@@ -1,10 +1,5 @@
 #include "qol.slang"
 
-struct PushConstants
-{
-    u32 AttachmentIndex;
-}
-
 static const f32v2 g_Positions[6] =
 {
     f32v2(-1.0, -1.0),
@@ -19,7 +14,6 @@ struct FragInput
 {
     [[vk::location(0)]]
     f32v2 TexCoord;
-
     f32v4 Position : SV_Position;
 };
 
@@ -34,18 +28,20 @@ FragInput mainVS(const u32 vertexId : SV_VertexID)
     return finput;
 }
 
+struct PushConstants
+{
+    u32 AttachmentIndex;
+}
+
 [[vk::push_constant]]
 PushConstants g_PushData;
 
 [[vk::binding(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING)]]
-Texture2D g_Attachments[ONYX_MAX_COLOR_ATTACHMENTS];
-
-[[vk::binding(ONYX_COMPOSITOR_SAMPLER_BINDING)]]
-SamplerState g_Sampler;
+Sampler2D g_Attachments[ONYX_MAX_ATTACHMENTS];
 
 [shader("fragment")]
 f32v4 mainFS(const FragInput input)
 {
-    return g_Attachments[g_PushData.AttachmentIndex].Sample(g_Sampler, input.TexCoord);
+    return g_Attachments[g_PushData.AttachmentIndex].Sample(input.TexCoord);
 }
 

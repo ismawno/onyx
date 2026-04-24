@@ -6,6 +6,7 @@
 #include "onyx/rendering/view.hpp"
 #include "onyx/rendering/pass.hpp"
 #include "vkit/execution/queue.hpp"
+#include "vkit/resource/sampler.hpp"
 #include "tkit/container/static_array.hpp"
 
 namespace Onyx
@@ -39,11 +40,11 @@ struct RenderSubmitInfo
     TKit::TierArray<VkSemaphoreSubmitInfoKHR> WaitSemaphores{};
 };
 
+// honestly, apart from imgui, rest can be toggled per view. these may be a bit redundant
 using RenderFlags = u8;
 enum RenderFlagBit : RenderFlags
 {
     RenderFlag_ImGui = 1 << 0,
-    RenderFlag_Shadows = 1 << 1
 };
 
 } // namespace Onyx
@@ -76,7 +77,7 @@ void Terminate();
 
 VkPipelineRenderingCreateInfoKHR CreateGeometryPipelineRenderingCreateInfo();
 
-template <Dimension D> RenderContext<D> * CreateContext();
+template <Dimension D> RenderContext<D> *CreateContext();
 template <Dimension D> void DestroyContext(RenderContext<D> *context);
 void FlushAllContexts();
 void ReloadPipelines();
@@ -90,26 +91,22 @@ void BindBuffer(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, Rend
 template <Dimension D>
 void BindImage(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
 
-void BindCompositorSampler(VkDescriptorSet set);
+const VKit::Sampler &GetGeneralPurposeSampler();
 
 template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(RenderPass pass);
 
 // consider having arrays of semaphores to allow for some flexibility
 
-TransferSubmitInfo Transfer(VKit::Queue *transfer, VkCommandBuffer command,
-                                                    u32 maxReleaseBarriers = 256);
-void SubmitTransfer(VKit::Queue *transfer, CommandPool *pool,
-                                        TKit::Span<const TransferSubmitInfo> info);
+TransferSubmitInfo Transfer(VKit::Queue *transfer, VkCommandBuffer command, u32 maxReleaseBarriers = 256);
+void SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<const TransferSubmitInfo> info);
 
 // must be immediately called before rendering all windows (not for all windows, but before rendering any window)
 void PrepareRender();
 void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
 
-RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, Window *window,
-                                                RenderFlags flags = 0);
+RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, Window *window, RenderFlags flags = 0);
 
-void SubmitRender(VKit::Queue *graphics, CommandPool *pool,
-                                      TKit::Span<const RenderSubmitInfo> info);
+void SubmitRender(VKit::Queue *graphics, CommandPool *pool, TKit::Span<const RenderSubmitInfo> info);
 
 void Coalesce(u32 maxRanges = 512);
 

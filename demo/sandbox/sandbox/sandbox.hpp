@@ -16,11 +16,9 @@ namespace Onyx
 using SandboxFlags = u32;
 enum SandboxFlagBit : SandboxFlags
 {
-    SandboxFlag_Fill = 1 << 0,
-    SandboxFlag_Outline = 1 << 1,
-    SandboxFlag_DrawLights = 1 << 2,
-    SandboxFlag_DrawAxes = 1 << 3,
-    SandboxFlag_ContextShouldUpdate = 1 << 4,
+    SandboxFlag_DrawLights = 1 << 0,
+    SandboxFlag_DrawAxes = 1 << 1,
+    SandboxFlag_ContextShouldUpdate = 1 << 2,
 };
 
 template <Dimension D> struct CameraData
@@ -141,10 +139,10 @@ template <Dimension D> struct Shape
     InstanceParameters Parameters{};
     TextParameters TextParams{};
     std::string Text{};
-    SandboxFlags Flags = SandboxFlag_Fill;
+    u32 Flags = RenderModeFlag_Shaded;
     Color FillColor = Color::White;
     Color OutlineColor = Color::Orange;
-    f32 OutlineWidth = 0.01f;
+    f32 OutlineWidth = 0.4f;
 };
 
 template <Dimension D> struct ContextData

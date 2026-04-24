@@ -147,6 +147,7 @@ static void createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRe
     tsem.timelineSemaphore = VK_TRUE;
 
     VKit::DeviceFeatures features{};
+    features.Core.independentBlend = VK_TRUE;
     features.Core.drawIndirectFirstInstance = VK_TRUE;
     features.Core.multiDrawIndirect = VK_TRUE;
     features.Vulkan11.shaderDrawParameters = VK_TRUE;

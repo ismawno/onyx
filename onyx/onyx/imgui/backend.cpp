@@ -1263,7 +1263,7 @@ static void renderer_CreateShaders()
 
 static VKit::GraphicsPipeline renderer_CreatePipeline()
 {
-    const VkFormat cformat = Platform::GetColorFormat();
+    const VkFormat cformat = Platform::GetSurfaceFormat().format;
     VkPipelineRenderingCreateInfoKHR renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
     renderInfo.colorAttachmentCount = 1;

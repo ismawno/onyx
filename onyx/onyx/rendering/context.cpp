@@ -258,16 +258,16 @@ void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &dat
 
 template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &transform, const CircleParameters &params)
 {
-    if (m_Current->Draw >= RenderMode_Count)
+    if (!m_Current->RenderFlags)
         return;
     const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, params, ++m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Circles;
+    InstanceDataBuffer &buffer = m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Circles;
     addInstanceData(buffer, idata);
 }
 
 template <Dimension D> void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform)
 {
-    if (m_Current->Draw >= RenderMode_Count)
+    if (!m_Current->RenderFlags)
         return;
     CHECK_HANDLE(mesh, Asset_StaticMesh, D);
     const u32 pid = Assets::GetAssetPoolId(mesh);
@@ -275,13 +275,14 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Asset mesh, c
 
     const StaticInstanceData<D> idata =
         createStaticInstanceData(m_Current, transform, Assets::GetMeshBounds<D>(mesh), ++m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Meshes[Asset_StaticMesh][pid][mid];
+    InstanceDataBuffer &buffer =
+        m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Meshes[Asset_StaticMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
 template <Dimension D>
 void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &transform, const InstanceParameters &params)
 {
-    if (m_Current->Draw >= RenderMode_Count)
+    if (!m_Current->RenderFlags)
         return;
     CHECK_HANDLE(mesh, Asset_ParametricMesh, D);
     const u32 pid = Assets::GetAssetPoolId(mesh);
@@ -292,7 +293,8 @@ void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &trans
     const ParametricInstanceData<D> idata = createParametricInstanceData(
         m_Current, transform, Assets::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
 
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Meshes[Asset_ParametricMesh][pid][mid];
+    InstanceDataBuffer &buffer =
+        m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Meshes[Asset_ParametricMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
 
@@ -313,7 +315,7 @@ template <Dimension D>
 void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> &transform,
                                      const TextParameters &params)
 {
-    if (m_Current->Draw >= RenderMode_Count || text.empty())
+    if (!m_Current->RenderFlags || text.empty())
         return;
 
     CHECK_HANDLE(m_Current->Font, Asset_Font, D);
@@ -419,7 +421,8 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Glyph *glyph, 
     const u32 pid = Assets::GetAssetPoolId(m_Current->Font);
 
     const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, m_DepthCounter);
-    InstanceDataBuffer &buffer = m_InstanceData[m_Current->Draw].Meshes[Asset_GlyphMesh][pid][glyph->Id];
+    InstanceDataBuffer &buffer =
+        m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Meshes[Asset_GlyphMesh][pid][glyph->Id];
     addInstanceData(buffer, idata);
 }
 
@@ -505,30 +508,6 @@ template <Dimension D> void IRenderContext<D>::Axes(const Asset mesh, const Axes
         Line(mesh, zBack, zFront, params.Thickness);
         color = oldColor; // A cheap filthy pop
     }
-}
-
-template <Dimension D> void IRenderContext<D>::Fill(const bool enable)
-{
-    if (enable && m_Current->Draw == RenderMode_None)
-        m_Current->Draw = RenderMode_Fill;
-    else if (enable && m_Current->Draw == RenderMode_Stencil)
-        m_Current->Draw = RenderMode_FillStencil;
-    else if (!enable && m_Current->Draw == RenderMode_FillStencil)
-        m_Current->Draw = RenderMode_Stencil;
-    else if (!enable && m_Current->Draw == RenderMode_Fill)
-        m_Current->Draw = RenderMode_None;
-}
-
-template <Dimension D> void IRenderContext<D>::Outline(const bool enable)
-{
-    if (enable && m_Current->Draw == RenderMode_None)
-        m_Current->Draw = RenderMode_Stencil;
-    else if (enable && m_Current->Draw == RenderMode_Fill)
-        m_Current->Draw = RenderMode_FillStencil;
-    else if (!enable && m_Current->Draw == RenderMode_FillStencil)
-        m_Current->Draw = RenderMode_Fill;
-    else if (!enable && m_Current->Draw == RenderMode_Stencil)
-        m_Current->Draw = RenderMode_None;
 }
 
 template class Detail::IRenderContext<D2>;

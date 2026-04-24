@@ -25,6 +25,7 @@ const VKit::DescriptorPool &GetDescriptorPool();
 template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(RenderPass pass);
 const VKit::DescriptorSetLayout &GetDistanceDescriptorLayout();
 const VKit::DescriptorSetLayout &GetCompositorDescriptorLayout();
+const VKit::DescriptorSetLayout &GetPostProcessDescriptorLayout();
 
 template <Dimension D>
 void BindBuffer(u32 binding, TKit::Span<const VkDescriptorSet> sets, TKit::Span<const VkDescriptorBufferInfo> info,
@@ -40,9 +41,17 @@ constexpr u32 GetCompositorColorAttachmentsBindingPoint()
 {
     return 0;
 }
-constexpr u32 GetCompositorSamplerBindingPoint()
+constexpr u32 GetPostProcessColorAttachmentsBindingPoint()
+{
+    return 0;
+}
+constexpr u32 GetPostProcessOutlineAttachmentsBindingPoint()
 {
     return 1;
+}
+constexpr u32 GetPostProcessStencilAttachmentsBindingPoint()
+{
+    return 2;
 }
 
 constexpr u32 GetInstancesBindingPoint()

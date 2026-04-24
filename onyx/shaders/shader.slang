@@ -1,10 +1,10 @@
 #include "qol.slang"
 
-#if defined(ONYX_PASS_FILL) || (defined(ONYX_PASS_SHADOW) && defined(ONYX_DIMENSION_2D))
+#if defined(ONYX_PASS_SHADED) || (defined(ONYX_PASS_SHADOW) && defined(ONYX_DIMENSION_2D))
 #    define ONYX_USES_MATERIAL
 #endif
 
-#if defined(ONYX_PASS_FILL) || (defined(ONYX_PASS_SHADOW) && defined(ONYX_DIMENSION_3D))
+#if defined(ONYX_PASS_SHADED) || (defined(ONYX_PASS_SHADOW) && defined(ONYX_DIMENSION_3D))
 #    define ONYX_USES_WORLD_POS
 #endif
 
@@ -26,14 +26,6 @@
 
 #ifdef ONYX_USES_MATERIAL
 #    include "material.slang"
-#endif
-
-#if defined(ONYX_PASS_SHADOW) && defined(ONYX_DIMENSION_3D)
-#    define FragOutput f32
-#    define FragSuffix : SV_Depth
-#else
-#    define FragOutput f32v4
-#    define FragSuffix
 #endif
 
 #ifdef ONYX_DIMENSION_2D
@@ -115,14 +107,16 @@ struct VertexInput
     f32v2 AtlasCoords : TEXCOORD0;
 #    endif
 
-#    ifdef ONYX_PASS_FILL
+#    ifdef ONYX_PASS_SHADED
     f32v2 TexCoords : TEXCOORD0;
 #    endif
 
 #    if defined(ONYX_DIMENSION_3D) && !defined(ONYX_GEOMETRY_GLYPH)
+#        if defined(ONYX_GEOMETRY_PARAMETRIC) || defined(ONYX_PASS_SHADED)
     f32v3 Normal : NORMAL;
+#        endif
 
-#        ifdef ONYX_PASS_FILL
+#        ifdef ONYX_PASS_SHADED
     f32v4 Tangent : TANGENT;
 #        endif
 
@@ -145,7 +139,7 @@ struct FragInput
     f32v LocalPosition;
 #endif
 
-#ifdef ONYX_PASS_FILL
+#ifdef ONYX_PASS_SHADED
     [[vk::location(1)]]
     f32v2 TexCoords;
 #endif
@@ -180,7 +174,7 @@ struct FragInput
     [[vk::location(8)]]
     nointerpolation ArcData Arc;
 
-#    ifndef ONYX_PASS_SHADOW
+#    ifdef ONYX_PASS_SHADED
     [[vk::location(11)]]
     nointerpolation f32v2 Fade;
 #    endif
@@ -189,24 +183,41 @@ struct FragInput
 
 #ifndef ONYX_PASS_SHADOW
     [[vk::location(12)]]
-    nointerpolation f32v4 FragColor;
+    nointerpolation f32v4 FillColor;
+    [[vk::location(13)]]
+    nointerpolation f32v4 OutlineColor;
+    [[vk::location(14)]]
+    nointerpolation f32 OutlineWidth;
 #endif
 
-#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_FILL)
-    [[vk::location(13)]]
+#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
+    [[vk::location(15)]]
     f32m3 TBN;
 #endif
 
     f32v4 Position : SV_Position;
 }
 
+#ifndef ONYX_PASS_SHADOW
+struct FragOutput
+{
+    f32v4 Fill : SV_Target0;
+    f32v4 Outline : SV_Target1;
+}
+#    define FragSuffix
+#elif defined(ONYX_DIMENSION_3D)
+#    define FragOutput f32
+#    define FragSuffix : SV_Depth
+#else
+#    define FragOutput f32v4
+#    define FragSuffix
+#endif
+
 struct PushConstants
 {
     f32m4 ProjectionView;
-#ifdef ONYX_PASS_FILL
+#ifdef ONYX_PASS_SHADED
     LightData Light;
-#elif defined(ONYX_PASS_STENCIL)
-    f32 OutlineMultiplier;
 #elif defined(ONYX_PASS_SHADOW) && defined(ONYX_DIMENSION_3D)
     f32v3 LightPos;
     f32 Far;
@@ -217,12 +228,12 @@ struct PushConstants
 [[vk::push_constant]]
 PushConstants g_PushData;
 
-[[vk::binding(ONYX_INSTANCES_BINDING, 0)]]
+[[vk::binding(ONYX_INSTANCES_BINDING)]]
 Instances g_Instances;
 
 #ifdef ONYX_USES_BOUNDS
 
-[[vk::binding(ONYX_BOUNDS_BINDING, 0)]]
+[[vk::binding(ONYX_BOUNDS_BINDING)]]
 BoundsArray g_Bounds;
 
 #endif
@@ -284,7 +295,7 @@ FragInput mainVS(
 
 #ifdef ONYX_DIMENSION_2D
     finput.Position.z = ComputeDepth(data.DepthCounter);
-#elif defined(ONYX_PASS_FILL)
+#elif defined(ONYX_PASS_SHADED)
     const f32m3 normalMatrix = ComputeNormalMatrix(f32m3(transform));
 
 #    if defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_GLYPH)
@@ -304,7 +315,7 @@ FragInput mainVS(
     finput.TBN = f32m3(T, B, N);
 #endif
 
-#ifdef ONYX_PASS_FILL
+#ifdef ONYX_PASS_SHADED
 #    ifdef ONYX_GEOMETRY_CIRCLE
     finput.TexCoords = g_TexCoords[vertexIndex];
 #    else
@@ -340,62 +351,61 @@ FragInput mainVS(
     finput.Arc.AngleOverflow = gdata.Arc.AngleOverflow;
     finput.Arc.Hollowness = gdata.Arc.Hollowness;
 
-#    ifndef ONYX_PASS_SHADOW
+#    ifdef ONYX_PASS_SHADED
     finput.Fade = f32v2(gdata.Fade.InnerFade, gdata.Fade.OuterFade);
 #    endif
 
 #endif
 
-#ifdef ONYX_PASS_FILL
-    finput.FragColor = unpackUnorm4x8ToFloat(data.FillColor);
-#elif defined(ONYX_PASS_STENCIL)
-    finput.FragColor = unpackUnorm4x8ToFloat(data.OutlineColor);
+#ifndef ONYX_PASS_SHADOW
+    finput.FillColor = unpackUnorm4x8ToFloat(data.FillColor);
+    finput.OutlineColor = unpackUnorm4x8ToFloat(data.OutlineColor);
+    finput.OutlineWidth = data.OutlineWidth;
 #endif
 
     return finput;
 }
 
-[[vk::binding(ONYX_SAMPLERS_BINDING, 0)]]
+[[vk::binding(ONYX_SAMPLERS_BINDING)]]
 SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 
-[[vk::binding(ONYX_TEXTURES_BINDING, 0)]]
+[[vk::binding(ONYX_TEXTURES_BINDING)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
 #ifdef ONYX_USES_MATERIAL
-[[vk::binding(ONYX_MATERIALS_BINDING, 0)]]
+[[vk::binding(ONYX_MATERIALS_BINDING)]]
 MaterialBuffer g_Materials;
 #endif
 
-#ifdef ONYX_PASS_FILL
-[[vk::binding(ONYX_PLIGHTS_BINDING, 0)]]
+#ifdef ONYX_PASS_SHADED
+[[vk::binding(ONYX_PLIGHTS_BINDING)]]
 PointLightBuffer g_PointLights;
 
 #    ifdef ONYX_DIMENSION_3D
 
-[[vk::binding(ONYX_DLIGHTS_BINDING, 0)]]
+[[vk::binding(ONYX_DLIGHTS_BINDING)]]
 DirectionalLights g_DirLights;
 
-[[vk::binding(ONYX_POINT_MAPS_BINDING, 0)]]
+[[vk::binding(ONYX_POINT_MAPS_BINDING)]]
 TextureCube g_PointMaps[ONYX_MAX_TEXTURE_MAPS];
 
-[[vk::binding(ONYX_DIRECTIONAL_MAPS_BINDING, 0)]]
+[[vk::binding(ONYX_DIRECTIONAL_MAPS_BINDING)]]
 Texture2DArray g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
 
 #    else
 
-[[vk::binding(ONYX_SHADOW_MAPS_BINDING, 0)]]
+[[vk::binding(ONYX_SHADOW_MAPS_BINDING)]]
 Texture1D g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
 
 #    endif
 
-[[vk::binding(ONYX_SHADOW_SAMPLER_BINDING, 0)]]
+[[vk::binding(ONYX_SHADOW_SAMPLER_BINDING)]]
 ShadowSamplerResource g_ShadowSampler;
 
 #endif
 
-
 [shader("fragment")]
-#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_FILL)
+#if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
 
 FragOutput mainFS(const FragInput input, const bool isFrontFacing : SV_IsFrontFace)
 
@@ -418,8 +428,8 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
     if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
 
-#    ifndef ONYX_PASS_SHADOW
-    const f32 alpha = CircleFade(input.FragColor.a, bounds, input.Fade);
+#    ifdef ONYX_PASS_SHADED
+    const f32 alpha = CircleFade(input.FillColor.a, bounds, input.Fade);
 #    endif
 
 #elif defined(ONYX_GEOMETRY_GLYPH)
@@ -427,13 +437,16 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
     if (alpha <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
 
-
-#elif !defined(ONYX_PASS_SHADOW)
+#elif defined(ONYX_PASS_SHADED)
     const f32 alpha = 1.f;
 #endif
 
-#ifdef ONYX_PASS_FILL
+#ifndef ONYX_PASS_SHADOW
+    FragOutput out;
+    out.Outline = f32v4(input.OutlineColor.xyz, input.OutlineWidth);
+#endif
 
+#ifdef ONYX_PASS_SHADED
     ResourceTable resources;
     resources.Materials = g_Materials;
     resources.Samplers = g_Samplers;
@@ -446,12 +459,14 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
     resources.DirLights = g_DirLights;
     resources.PointMaps = g_PointMaps;
     resources.DirectionalMaps = g_DirectionalMaps;
-    return ComputeMaterialColor3D(input.FragColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoords, resources, alpha, input.TBN, isFrontFacing);
+    out.Fill = ComputeMaterialColor3D(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoords, resources, alpha, input.TBN, isFrontFacing);
+    return out;
 
 #    else
 
     resources.ShadowMaps = g_ShadowMaps;
-    return ComputeMaterialColor2D(input.FragColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoords, resources, alpha);
+    out.Fill = ComputeMaterialColor2D(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoords, resources, alpha);
+    return out;
 
 #    endif
 
@@ -472,11 +487,8 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
     return input.Position.z + g_PushData.DepthBias;
 
 #    endif
-
-#elif defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_GLYPH)
-    return f32v4(input.FragColor.rgb, input.FragColor.a * alpha);
 #else
-    return input.FragColor;
+    return out;
 #endif
 }
 

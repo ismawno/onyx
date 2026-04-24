@@ -66,13 +66,17 @@ struct FrameBuffer
 {
     Execution::Tracker Tracker{};
     VKit::DeviceImage Color{};
+    VKit::DeviceImage Outline{};
     VKit::DeviceImage DepthStencil{};
+    VKit::DeviceImage PostProcess{};
 };
 
 using RenderViewFlags = u8;
 enum RenderViewFlagBit : RenderViewFlags
 {
     RenderViewFlag_Shadows = 1 << 0,
+    RenderViewFlag_PostProcess = 1 << 1,
+    RenderViewFlag_Outlines = 1 << 2,
 };
 
 template <Dimension D> class RenderView
@@ -80,8 +84,9 @@ template <Dimension D> class RenderView
     TKIT_NON_COPYABLE(RenderView)
 
   public:
-    RenderView(const VkExtent2D &extent, VkDescriptorSet compositorSet, u32 id, Camera<D> *camera,
-               RenderViewFlags flags = 0, const ScreenViewport &viewport = {}, const ScreenScissor &scissor = {});
+    RenderView(const VkExtent2D &extent, VkDescriptorSet ppSet, VkDescriptorSet compositorSet, u32 id,
+               Camera<D> *camera, RenderViewFlags flags = 0, const ScreenViewport &viewport = {},
+               const ScreenScissor &scissor = {});
     ~RenderView();
 
     f32v2 ScreenToViewport(const f32v2 &screenPos) const;
@@ -97,6 +102,9 @@ template <Dimension D> class RenderView
 
     void BeginRendering(VkCommandBuffer cmd, const Execution::Tracker &tracker);
     void EndRendering(VkCommandBuffer cmd);
+
+    void BeginPostProcess(VkCommandBuffer cmd);
+    void EndPostProcess(VkCommandBuffer cmd);
 
     bool IsWithinViewport(const f32v2 &screenPos) const
     {
@@ -118,15 +126,6 @@ template <Dimension D> class RenderView
             m_Projection = ComputeProjection();
         }
         m_ProjectionView = m_Projection * m_View;
-    }
-
-    RenderViewFlags GetFlags() const
-    {
-        return m_Flags;
-    }
-    void SetFlags(const RenderViewFlags flags)
-    {
-        m_Flags = flags;
     }
 
     const f32m<D> &GetView() const
@@ -176,6 +175,14 @@ template <Dimension D> class RenderView
     const ScreenScissor &GetScissor() const
     {
         return m_Scissor;
+    }
+    const VkExtent2D &GetParentExtent() const
+    {
+        return m_ParentExtent;
+    }
+    VkExtent2D GetExtent() const
+    {
+        return m_Viewport.AsVulkanExtent(m_ParentExtent);
     }
 
     VkViewport GetVulkanViewport() const
@@ -241,6 +248,8 @@ template <Dimension D> class RenderView
     }
 
     Color ClearColor{Color::Black};
+    u32 MaxOutlineWidth = 10;
+    RenderViewFlags Flags;
 
   private:
     void createFramebuffers(u32 imageCount);
@@ -272,10 +281,10 @@ template <Dimension D> class RenderView
     ViewMode m_Mode = ViewMode_Automatic;
 
     TKit::TierArray<FrameBuffer> m_FrameBuffers{};
+    VkDescriptorSet m_PostProcessSet;
     VkDescriptorSet m_CompositorSet;
     u32 m_Id;
     u32 m_ImageIndex = TKIT_U32_MAX;
-    RenderViewFlags m_Flags;
 
     friend class Window;
 };

@@ -238,10 +238,10 @@ struct DirectionalLightData
 
 template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 1 : 2;
 
-template <Dimension D> struct FillPushConstantData;
+template <Dimension D> struct ShadedPushConstantData;
 
 // TODO(Isma): Add a flag field that allows disabling all shadows at once
-template <> struct FillPushConstantData<D2>
+template <> struct ShadedPushConstantData<D2>
 {
     f32m4 ProjectionView;
     TKit::FixedArray<Range, LightTypeCount<D2>> LightRanges{};
@@ -250,7 +250,7 @@ template <> struct FillPushConstantData<D2>
     ViewMask ViewBit;
 };
 
-template <> struct FillPushConstantData<D3>
+template <> struct ShadedPushConstantData<D3>
 {
     f32m4 ProjectionView;
     f32v3 ViewPosition;
@@ -261,10 +261,15 @@ template <> struct FillPushConstantData<D3>
     ViewMask ViewBit;
 };
 
-struct StencilPushConstantData
+using FlatPushConstantData = f32m4;
+using CompositorPushConstantData = u32;
+
+struct PostProcessPushConstantData
 {
-    f32m4 ProjectionView;
-    f32 OutlineMultiplier;
+    u32v2 Extent;
+    u32 AttachmentIndex;
+    u32 MaxOutlineWidth;
+    u32 Flags;
 };
 
 template <Dimension D> struct ShadowPushConstantData

@@ -14,20 +14,18 @@ void Terminate();
 
 template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(RenderPass pass);
 const VKit::PipelineLayout &GetDistancePipelineLayout();
+const VKit::PipelineLayout &GetPostProcessPipelineLayout();
 const VKit::PipelineLayout &GetCompositorPipelineLayout();
 
 void ReloadShaders();
 
-template <Dimension D>
-VKit::GraphicsPipeline CreateGeometryPipeline(
-    StencilPass pass, Geometry geo, const VkPipelineRenderingCreateInfoKHR &renderInfo);
+template <Dimension D> VKit::GraphicsPipeline CreateGeometryPipeline(PipelinePass pass, Geometry geo);
 
-template <Dimension D>
-VKit::GraphicsPipeline CreateShadowPipeline(const Geometry geo, const VkFormat format);
+template <Dimension D> VKit::GraphicsPipeline CreateShadowPipeline(const Geometry geo, const VkFormat format);
 
 // TODO(Isma): Revisit this name
 VKit::ComputePipeline CreateDistancePipeline();
-
+VKit::GraphicsPipeline CreatePostProcessPipeline();
 VKit::GraphicsPipeline CreateCompositorPipeline();
 
 } // namespace Onyx::Pipelines

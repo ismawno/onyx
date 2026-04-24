@@ -34,6 +34,10 @@ struct PipelineData
     VKit::PipelineLayout DistanceLayout{};
     VKit::Shader DistanceComputeShader{};
 
+    VKit::PipelineLayout PostProcessLayout{};
+    VKit::Shader PostProcessVertexShader{};
+    VKit::Shader PostProcessFragmentShader{};
+
     VKit::PipelineLayout CompositorLayout{};
     VKit::Shader CompositorVertexShader{};
     VKit::Shader CompositorFragmentShader{};
@@ -48,50 +52,50 @@ template <Dimension D> ShaderData &getShaders(const RenderPass pass)
 
 static void createPipelineLayouts()
 {
-    const VKit::DescriptorSetLayout &flayout2 = Descriptors::GetDescriptorLayout<D2>(RenderPass_Fill);
-    const VKit::DescriptorSetLayout &flayout3 = Descriptors::GetDescriptorLayout<D3>(RenderPass_Fill);
+    const VKit::DescriptorSetLayout &shaded2 = Descriptors::GetDescriptorLayout<D2>(RenderPass_Shaded);
+    const VKit::DescriptorSetLayout &shaded3 = Descriptors::GetDescriptorLayout<D3>(RenderPass_Shaded);
 
-    const VKit::DescriptorSetLayout &stlayout2 = Descriptors::GetDescriptorLayout<D2>(RenderPass_Stencil);
-    const VKit::DescriptorSetLayout &stlayout3 = Descriptors::GetDescriptorLayout<D3>(RenderPass_Stencil);
+    const VKit::DescriptorSetLayout &flat2 = Descriptors::GetDescriptorLayout<D2>(RenderPass_Flat);
+    const VKit::DescriptorSetLayout &flat3 = Descriptors::GetDescriptorLayout<D3>(RenderPass_Flat);
 
-    const VKit::DescriptorSetLayout &shlayout2 = Descriptors::GetDescriptorLayout<D2>(RenderPass_Shadow);
-    const VKit::DescriptorSetLayout &shlayout3 = Descriptors::GetDescriptorLayout<D3>(RenderPass_Shadow);
+    const VKit::DescriptorSetLayout &shadow2 = Descriptors::GetDescriptorLayout<D2>(RenderPass_Shadow);
+    const VKit::DescriptorSetLayout &shadow3 = Descriptors::GetDescriptorLayout<D3>(RenderPass_Shadow);
 
     const VKit::LogicalDevice &device = GetDevice();
 
-    s_PipelineData->Layouts[Dim2][RenderPass_Fill] = ONYX_CHECK_EXPRESSION(
+    s_PipelineData->Layouts[Dim2][RenderPass_Shaded] = ONYX_CHECK_EXPRESSION(
         VKit::PipelineLayout::Builder(device)
-            .AddDescriptorSetLayout(flayout2)
-            .AddPushConstantRange<FillPushConstantData<D2>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddDescriptorSetLayout(shaded2)
+            .AddPushConstantRange<ShadedPushConstantData<D2>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .Build());
 
-    s_PipelineData->Layouts[Dim3][RenderPass_Fill] = ONYX_CHECK_EXPRESSION(
+    s_PipelineData->Layouts[Dim3][RenderPass_Shaded] = ONYX_CHECK_EXPRESSION(
         VKit::PipelineLayout::Builder(device)
-            .AddDescriptorSetLayout(flayout3)
-            .AddPushConstantRange<FillPushConstantData<D3>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+            .AddDescriptorSetLayout(shaded3)
+            .AddPushConstantRange<ShadedPushConstantData<D3>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .Build());
 
-    s_PipelineData->Layouts[Dim2][RenderPass_Stencil] =
+    s_PipelineData->Layouts[Dim2][RenderPass_Flat] =
         ONYX_CHECK_EXPRESSION(VKit::PipelineLayout::Builder(device)
-                                  .AddDescriptorSetLayout(stlayout2)
-                                  .AddPushConstantRange<StencilPushConstantData>(VK_SHADER_STAGE_VERTEX_BIT)
+                                  .AddDescriptorSetLayout(flat2)
+                                  .AddPushConstantRange<FlatPushConstantData>(VK_SHADER_STAGE_VERTEX_BIT)
                                   .Build());
 
-    s_PipelineData->Layouts[Dim3][RenderPass_Stencil] =
+    s_PipelineData->Layouts[Dim3][RenderPass_Flat] =
         ONYX_CHECK_EXPRESSION(VKit::PipelineLayout::Builder(device)
-                                  .AddDescriptorSetLayout(stlayout3)
-                                  .AddPushConstantRange<StencilPushConstantData>(VK_SHADER_STAGE_VERTEX_BIT)
+                                  .AddDescriptorSetLayout(flat3)
+                                  .AddPushConstantRange<FlatPushConstantData>(VK_SHADER_STAGE_VERTEX_BIT)
                                   .Build());
 
     s_PipelineData->Layouts[Dim2][RenderPass_Shadow] =
         ONYX_CHECK_EXPRESSION(VKit::PipelineLayout::Builder(device)
-                                  .AddDescriptorSetLayout(shlayout2)
+                                  .AddDescriptorSetLayout(shadow2)
                                   .AddPushConstantRange<ShadowPushConstantData<D2>>(VK_SHADER_STAGE_VERTEX_BIT)
                                   .Build());
 
     s_PipelineData->Layouts[Dim3][RenderPass_Shadow] = ONYX_CHECK_EXPRESSION(
         VKit::PipelineLayout::Builder(device)
-            .AddDescriptorSetLayout(shlayout3)
+            .AddDescriptorSetLayout(shadow3)
             .AddPushConstantRange<ShadowPushConstantData<D3>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .Build());
 
@@ -101,10 +105,16 @@ static void createPipelineLayouts()
                                   .AddPushConstantRange<DistancePushConstantData>(VK_SHADER_STAGE_COMPUTE_BIT)
                                   .Build());
 
+    s_PipelineData->PostProcessLayout =
+        ONYX_CHECK_EXPRESSION(VKit::PipelineLayout::Builder(device)
+                                  .AddDescriptorSetLayout(Descriptors::GetPostProcessDescriptorLayout())
+                                  .AddPushConstantRange<PostProcessPushConstantData>(VK_SHADER_STAGE_FRAGMENT_BIT)
+                                  .Build());
+
     s_PipelineData->CompositorLayout =
         ONYX_CHECK_EXPRESSION(VKit::PipelineLayout::Builder(device)
                                   .AddDescriptorSetLayout(Descriptors::GetCompositorDescriptorLayout())
-                                  .AddPushConstantRange<u32>(VK_SHADER_STAGE_FRAGMENT_BIT)
+                                  .AddPushConstantRange<CompositorPushConstantData>(VK_SHADER_STAGE_FRAGMENT_BIT)
                                   .Build());
 
     if (IsDebugUtilsEnabled())
@@ -120,6 +130,9 @@ static void createPipelineLayouts()
             }
             ++i;
         }
+        ONYX_CHECK_EXPRESSION(s_PipelineData->DistanceLayout.SetName("onyx-distance-pipeline-layout"));
+        ONYX_CHECK_EXPRESSION(s_PipelineData->PostProcessLayout.SetName("onyx-post-process-pipeline-layout"));
+        ONYX_CHECK_EXPRESSION(s_PipelineData->CompositorLayout.SetName("onyx-compositor-pipeline-layout"));
     }
 }
 
@@ -171,11 +184,11 @@ static void createShaders()
     compiler.AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders");
 
     const TKit::FixedArray<std::string, Geometry_Count> geos = {"circle", "static", "parametric", "glyph"};
-    const TKit::FixedArray<std::string, RenderPass_Count> passes = {"fill", "stencil", "shadow"};
+    const TKit::FixedArray<std::string, RenderPass_Count> passes = {"shaded", "flat", "shadow"};
     const TKit::FixedArray<std::string, D_Count> dims = {"2D", "3D"};
 
     TKit::StackArray<std::string> names{};
-    names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * 2);
+    names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count));
 
     for (const std::string &geo : geos)
         for (const std::string &pass : passes)
@@ -190,6 +203,10 @@ static void createShaders()
 
     compiler.AddModule("distance")
         .DeclareEntryPoint("main", ShaderStage_Compute)
+        .Load()
+        .AddModule("post-process")
+        .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
+        .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
         .Load()
         .AddModule("compositor")
         .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
@@ -225,6 +242,10 @@ static void createShaders()
     }
 
     s_PipelineData->DistanceComputeShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("main", "distance"));
+
+    s_PipelineData->PostProcessVertexShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("mainVS", "post-process"));
+    s_PipelineData->PostProcessFragmentShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("mainFS", "post-process"));
+
     s_PipelineData->CompositorVertexShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("mainVS", "compositor"));
     s_PipelineData->CompositorFragmentShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("mainFS", "compositor"));
 
@@ -237,6 +258,8 @@ static void destroyShaders()
         for (auto &passes : dims)
             passes.Destroy();
     s_PipelineData->DistanceComputeShader.Destroy();
+    s_PipelineData->PostProcessVertexShader.Destroy();
+    s_PipelineData->PostProcessFragmentShader.Destroy();
     s_PipelineData->CompositorVertexShader.Destroy();
     s_PipelineData->CompositorFragmentShader.Destroy();
 }
@@ -261,6 +284,7 @@ void Terminate()
         for (auto &passes : dims)
             passes.Destroy();
     s_PipelineData->DistanceLayout.Destroy();
+    s_PipelineData->PostProcessLayout.Destroy();
     s_PipelineData->CompositorLayout.Destroy();
 
     s_PipelineData.Destruct();
@@ -274,35 +298,45 @@ const VKit::PipelineLayout &GetDistancePipelineLayout()
 {
     return s_PipelineData->DistanceLayout;
 }
+const VKit::PipelineLayout &GetPostProcessPipelineLayout()
+{
+    return s_PipelineData->PostProcessLayout;
+}
 const VKit::PipelineLayout &GetCompositorPipelineLayout()
 {
     return s_PipelineData->CompositorLayout;
 }
 
 template <Dimension D>
-static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const StencilPass pass, const Geometry geo,
+static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const PipelinePass pass, const Geometry geo,
                                                                      const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
     const RenderPass rpass = GetRenderPass(pass);
     const ShaderData &shaders = getShaders<D>(rpass);
 
+    const VkColorComponentFlags full =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
     VKit::GraphicsPipeline::Builder builder{GetDevice(), GetPipelineLayout<D>(rpass), renderInfo};
-    auto &colorBuilder = builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
-                             .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
-                             .SetViewportCount(1)
-                             .AddShaderStage(shaders.VertexShaders[geo], VK_SHADER_STAGE_VERTEX_BIT)
-                             .AddShaderStage(shaders.FragmentShaders[geo], VK_SHADER_STAGE_FRAGMENT_BIT)
-                             .BeginColorAttachment()
-                             .EnableBlending();
+    builder.AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+        .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+        .SetViewportCount(1)
+        .AddShaderStage(shaders.VertexShaders[geo], VK_SHADER_STAGE_VERTEX_BIT)
+        .AddShaderStage(shaders.FragmentShaders[geo], VK_SHADER_STAGE_FRAGMENT_BIT)
+        .BeginColorAttachment()
+        .EnableBlending()
+        .SetColorWriteMask(pass == PipelinePass_Shaded ? full : 0)
+        .EndColorAttachment()
+        .BeginColorAttachment()
+        .SetColorWriteMask(pass == PipelinePass_Flat || pass == PipelinePass_Outlined ? full : 0)
+        .EndColorAttachment();
 
-    if (D == D2 || rpass == RenderPass_Fill)
+    if (pass == PipelinePass_Shaded)
         builder.EnableDepthTest().EnableDepthWrite();
-    else
-        colorBuilder.DisableBlending();
 
-    const auto stencilFlags = VKit::StencilOperationFlag_Front | VKit::StencilOperationFlag_Back;
-
-    if (pass == StencilPass_DoStencilWriteDoFill || pass == StencilPass_DoStencilWriteNoFill)
+    if (pass == PipelinePass_Outlined)
+    {
+        const auto stencilFlags = VKit::StencilOperationFlag_Front | VKit::StencilOperationFlag_Back;
         builder.EnableStencilTest()
             .SetStencilFailOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
             .SetStencilPassOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
@@ -311,35 +345,20 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Stenc
             .SetStencilCompareMask(0xFF, stencilFlags)
             .SetStencilWriteMask(0xFF, stencilFlags)
             .SetStencilReference(1, stencilFlags);
-    else if (pass == StencilPass_DoStencilTestNoFill)
-    {
-        builder.EnableStencilTest()
-            .DisableDepthWrite()
-            .SetStencilFailOperation(VK_STENCIL_OP_KEEP, stencilFlags)
-            .SetStencilPassOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
-            .SetStencilDepthFailOperation(VK_STENCIL_OP_KEEP, stencilFlags)
-            .SetStencilCompareOperation(VK_COMPARE_OP_NOT_EQUAL, stencilFlags)
-            .SetStencilCompareMask(0xFF, stencilFlags)
-            .SetStencilWriteMask(0, stencilFlags)
-            .SetStencilReference(1, stencilFlags);
     }
-    if (pass == StencilPass_DoStencilWriteNoFill)
-        colorBuilder.SetColorWriteMask(0);
-
-    colorBuilder.EndColorAttachment();
 
     return builder;
 }
 
 template <Dimension D>
-static VKit::GraphicsPipeline createGeometryCirclePipeline(const StencilPass pass,
+static VKit::GraphicsPipeline createGeometryCirclePipeline(const PipelinePass pass,
                                                            const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
     VKit::GraphicsPipeline::Builder builder = createGeometryPipelineBuilder<D>(pass, Geometry_Circle, renderInfo);
     return ONYX_CHECK_EXPRESSION(builder.Bake().Build());
 }
 template <Dimension D>
-static VKit::GraphicsPipeline createGeometryStaticMeshPipeline(const StencilPass pass,
+static VKit::GraphicsPipeline createGeometryStaticMeshPipeline(const PipelinePass pass,
                                                                const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
     VKit::GraphicsPipeline::Builder builder = createGeometryPipelineBuilder<D>(pass, Geometry_Static, renderInfo);
@@ -348,13 +367,13 @@ static VKit::GraphicsPipeline createGeometryStaticMeshPipeline(const StencilPass
     if constexpr (D == D2)
     {
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, Position));
-        if (pass != StencilPass_DoStencilWriteNoFill && pass != StencilPass_DoStencilTestNoFill)
+        if (pass == PipelinePass_Shaded)
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D2>, TexCoord));
     }
     else
     {
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Position));
-        if (pass != StencilPass_DoStencilWriteNoFill && pass != StencilPass_DoStencilTestNoFill)
+        if (pass == PipelinePass_Shaded)
         {
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(StatVertex<D3>, TexCoord));
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(StatVertex<D3>, Normal));
@@ -366,7 +385,7 @@ static VKit::GraphicsPipeline createGeometryStaticMeshPipeline(const StencilPass
 }
 
 template <Dimension D>
-static VKit::GraphicsPipeline createGeometryParametricMeshPipeline(const StencilPass pass,
+static VKit::GraphicsPipeline createGeometryParametricMeshPipeline(const PipelinePass pass,
                                                                    const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
     VKit::GraphicsPipeline::Builder builder = createGeometryPipelineBuilder<D>(pass, Geometry_Parametric, renderInfo);
@@ -375,14 +394,14 @@ static VKit::GraphicsPipeline createGeometryParametricMeshPipeline(const Stencil
     if constexpr (D == D2)
     {
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D2>, Position));
-        if (pass != StencilPass_DoStencilWriteNoFill && pass != StencilPass_DoStencilTestNoFill)
+        if (pass == PipelinePass_Shaded)
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D2>, TexCoord));
         builder.AddAttributeDescription(0, VK_FORMAT_R32_UINT, offsetof(ParaVertex<D2>, Region));
     }
     else
     {
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Position));
-        if (pass != StencilPass_DoStencilWriteNoFill && pass != StencilPass_DoStencilTestNoFill)
+        if (pass == PipelinePass_Shaded)
         {
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(ParaVertex<D3>, TexCoord));
             builder.AddAttributeDescription(0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ParaVertex<D3>, Normal));
@@ -397,33 +416,38 @@ static VKit::GraphicsPipeline createGeometryParametricMeshPipeline(const Stencil
 }
 
 template <Dimension D>
-static VKit::GraphicsPipeline createGeometryGlyphMeshPipeline(const StencilPass pass,
+static VKit::GraphicsPipeline createGeometryGlyphMeshPipeline(const PipelinePass pass,
                                                               const VkPipelineRenderingCreateInfoKHR &renderInfo)
 {
     VKit::GraphicsPipeline::Builder builder = createGeometryPipelineBuilder<D>(pass, Geometry_Glyph, renderInfo);
     builder.AddBindingDescription<GlyphVertex>();
     builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, Position));
     builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, AtlasCoord));
-    if (pass != StencilPass_DoStencilWriteNoFill && pass != StencilPass_DoStencilTestNoFill)
+    if (pass == PipelinePass_Shaded)
         builder.AddAttributeDescription(0, VK_FORMAT_R32G32_SFLOAT, offsetof(GlyphVertex, TexCoord));
 
     return ONYX_CHECK_EXPRESSION(builder.Bake().Build());
 }
 
-template <Dimension D>
-VKit::GraphicsPipeline CreateGeometryPipeline(const StencilPass pass, const Geometry geo,
-                                              const VkPipelineRenderingCreateInfoKHR &renderInfo)
+template <Dimension D> VKit::GraphicsPipeline CreateGeometryPipeline(const PipelinePass pass, const Geometry geo)
 {
+    TKit::FixedArray<VkFormat, 2> formats{Platform::GetColorFormat(), Platform::GetColorFormat()};
+    VkPipelineRenderingCreateInfoKHR rinfo{};
+    rinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    rinfo.colorAttachmentCount = 2;
+    rinfo.pColorAttachmentFormats = formats.GetData();
+    rinfo.depthAttachmentFormat = Platform::GetDepthStencilFormat();
+    rinfo.stencilAttachmentFormat = Platform::GetDepthStencilFormat();
     switch (geo)
     {
     case Geometry_Circle:
-        return createGeometryCirclePipeline<D>(pass, renderInfo);
+        return createGeometryCirclePipeline<D>(pass, rinfo);
     case Geometry_Static:
-        return createGeometryStaticMeshPipeline<D>(pass, renderInfo);
+        return createGeometryStaticMeshPipeline<D>(pass, rinfo);
     case Geometry_Parametric:
-        return createGeometryParametricMeshPipeline<D>(pass, renderInfo);
+        return createGeometryParametricMeshPipeline<D>(pass, rinfo);
     case Geometry_Glyph:
-        return createGeometryGlyphMeshPipeline<D>(pass, renderInfo);
+        return createGeometryGlyphMeshPipeline<D>(pass, rinfo);
     default:
         TKIT_FATAL("[ONYX][PIPELINES] Unrecognized geometry {}", u8(geo));
         return VKit::GraphicsPipeline{};
@@ -535,6 +559,29 @@ VKit::ComputePipeline CreateDistancePipeline()
     return ONYX_CHECK_EXPRESSION(VKit::ComputePipeline::Create(GetDevice(), specs));
 }
 
+VKit::GraphicsPipeline CreatePostProcessPipeline()
+{
+    VkPipelineRenderingCreateInfoKHR rinfo{};
+    const VkFormat format = Platform::GetColorFormat();
+    rinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
+    rinfo.colorAttachmentCount = 1;
+    rinfo.pColorAttachmentFormats = &format;
+    rinfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+    rinfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
+    return ONYX_CHECK_EXPRESSION(
+        VKit::GraphicsPipeline::Builder(GetDevice(), s_PipelineData->PostProcessLayout, rinfo)
+            .AddDynamicState(VK_DYNAMIC_STATE_VIEWPORT)
+            .AddDynamicState(VK_DYNAMIC_STATE_SCISSOR)
+            .SetViewportCount(1)
+            .AddShaderStage(s_PipelineData->PostProcessVertexShader, VK_SHADER_STAGE_VERTEX_BIT)
+            .AddShaderStage(s_PipelineData->PostProcessFragmentShader, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .BeginColorAttachment()
+            .DisableBlending()
+            .EndColorAttachment()
+            .Bake()
+            .Build());
+}
+
 VKit::GraphicsPipeline CreateCompositorPipeline()
 {
     VkPipelineRenderingCreateInfoKHR rinfo{};
@@ -562,10 +609,8 @@ VKit::GraphicsPipeline CreateCompositorPipeline()
 template const VKit::PipelineLayout &GetPipelineLayout<D2>(RenderPass pass);
 template const VKit::PipelineLayout &GetPipelineLayout<D3>(RenderPass pass);
 
-template VKit::GraphicsPipeline CreateGeometryPipeline<D2>(StencilPass pass, Geometry geo,
-                                                           const VkPipelineRenderingCreateInfoKHR &renderInfo);
-template VKit::GraphicsPipeline CreateGeometryPipeline<D3>(StencilPass pass, Geometry geo,
-                                                           const VkPipelineRenderingCreateInfoKHR &renderInfo);
+template VKit::GraphicsPipeline CreateGeometryPipeline<D2>(PipelinePass pass, Geometry geo);
+template VKit::GraphicsPipeline CreateGeometryPipeline<D3>(PipelinePass pass, Geometry geo);
 template VKit::GraphicsPipeline CreateShadowPipeline<D2>(Geometry geo, VkFormat format);
 template VKit::GraphicsPipeline CreateShadowPipeline<D3>(Geometry geo, VkFormat format);
 

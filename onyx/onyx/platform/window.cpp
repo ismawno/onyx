@@ -285,9 +285,10 @@ Window::Window(const WindowSpecs &specs)
     m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
 
     ONYX_CHECK_EXPRESSION(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface));
+    m_PostProcessSet =
+        ONYX_CHECK_EXPRESSION(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetPostProcessDescriptorLayout()));
     m_CompositorSet =
         ONYX_CHECK_EXPRESSION(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetCompositorDescriptorLayout()));
-    Renderer::BindCompositorSampler(m_CompositorSet);
 
     createSwapChain(getNewExtent());
     createSyncData();
@@ -295,6 +296,9 @@ Window::Window(const WindowSpecs &specs)
     if (IsDebugUtilsEnabled())
     {
         const auto &device = GetDevice();
+        ONYX_CHECK_EXPRESSION(
+            device.SetObjectName(m_PostProcessSet, VK_OBJECT_TYPE_DESCRIPTOR_SET,
+                                 TKit::Format("onyx-post-process-set-window-'{}'", GetTitle()).c_str()));
         ONYX_CHECK_EXPRESSION(
             device.SetObjectName(m_CompositorSet, VK_OBJECT_TYPE_DESCRIPTOR_SET,
                                  TKit::Format("onyx-compositor-set-window-'{}'", GetTitle()).c_str()));
@@ -662,8 +666,8 @@ RenderView<D> *Window::CreateRenderView(Camera<D> *camera, RenderViewFlags flags
     const u32 offset = rdata.Insert(nullptr);
 
     TKit::TierAllocator *tier = TKit::GetTier();
-    RenderView<D> *rv = tier->Create<RenderView<D>>(m_SwapChain.GetInfo().Extent, m_CompositorSet, offset, camera,
-                                                    flags, viewport, scissor);
+    RenderView<D> *rv = tier->Create<RenderView<D>>(m_SwapChain.GetInfo().Extent, m_PostProcessSet, m_CompositorSet,
+                                                    offset, camera, flags, viewport, scissor);
 
     rv->createFramebuffers(m_SwapChain.GetImageCount());
     rv->acquireImage(m_ImageIndex);

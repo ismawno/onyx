@@ -121,7 +121,7 @@ template <Dimension D> struct RenderState
     Asset Font = NullHandle;
     Asset FontSampler = NullHandle;
     vec<Alignment, D> Alignment{Alignment_None};
-    RenderMode Draw = RenderMode_Fill;
+    RenderModeFlags RenderFlags = RenderModeFlag_Shaded;
 };
 
 } // namespace Onyx
@@ -360,14 +360,22 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         updateState();
     }
 
-    // TODO(Isma): Create flags for this. Create general method ->Flags()
-    void Fill(const bool enable = true);
+    void RenderFlags(const RenderModeFlags flags)
+    {
+        m_Current->RenderFlags = flags;
+    }
+    void AddRenderFlags(const RenderModeFlags flags)
+    {
+        m_Current->RenderFlags |= flags;
+    }
+    void RemoveRenderFlags(const RenderModeFlags flags)
+    {
+        m_Current->RenderFlags &= ~flags;
+    }
     void FillColor(const Color &color)
     {
         m_Current->FillColor = color;
     }
-
-    void Outline(bool enable = true);
     void OutlineColor(const Color &color)
     {
         m_Current->OutlineColor = color;
