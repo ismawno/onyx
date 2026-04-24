@@ -285,6 +285,7 @@ Window::Window(const WindowSpecs &specs)
     m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
 
     ONYX_CHECK_EXPRESSION(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface));
+    // TODO(Isma): This should be optional. ImGui windows should opt out
     m_PostProcessSet =
         ONYX_CHECK_EXPRESSION(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetPostProcessDescriptorLayout()));
     m_CompositorSet =

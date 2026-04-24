@@ -22,15 +22,15 @@ static void createDescriptorData(const Specs &specs)
     // TODO(Isma): There are several flags with the unused while pending bit. revisit if those are really necessary
 
     const VKit::LogicalDevice &device = GetDevice();
-    s_DescriptorData->Pool =
-        ONYX_CHECK_EXPRESSION(VKit::DescriptorPool::Builder(device)
-                                  .SetMaxSets(specs.MaxSets)
-                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, specs.StorageBufferPoolSize)
-                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_SAMPLER, specs.SamplerPoolSize)
-                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, specs.SampledImagePoolSize)
-                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256)
-                                  .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, specs.StorageImagePoolSize)
-                                  .Build());
+    s_DescriptorData->Pool = ONYX_CHECK_EXPRESSION(
+        VKit::DescriptorPool::Builder(device)
+            .SetMaxSets(specs.MaxSets)
+            .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, specs.StorageBufferPoolSize)
+            .AddPoolSize(VK_DESCRIPTOR_TYPE_SAMPLER, specs.SamplerPoolSize)
+            .AddPoolSize(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, specs.SampledImagePoolSize)
+            .AddPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 256) // TODO(Isma): Remove hardcoded
+            .AddPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, specs.StorageImagePoolSize)
+            .Build());
 
     s_DescriptorData->Layouts[Dim2][RenderPass_Flat] = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
