@@ -90,6 +90,8 @@ struct Color
     const f32 *GetData() const;
     f32 *GetData();
 
+    // TODO(Isma): Implement ToLinear() and ToSrgb()
+
     operator const f32v4 &() const;
     operator const f32v3 &() const;
 
