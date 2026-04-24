@@ -49,6 +49,7 @@ Texture2D g_Outlines[ONYX_MAX_ATTACHMENTS];
 [[vk::binding(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING)]]
 Texture2D<u32> g_Stencil[ONYX_MAX_ATTACHMENTS];
 
+//TODO(Isma): Use samplers
 i32v2 ClampPixels(const i32v2 pixels)
 {
     return clamp(pixels, i32v2(0), i32v2(g_PushData.Extent) - i32v2(1));
@@ -86,8 +87,9 @@ f32v4 mainFS(const FragInput input) : SV_Target
         return LoadColor(center);
 
     const i32 maxWidth = i32(g_PushData.MaxOutlineWidth);
+    const i32 dmaxWidth = i32(maxWidth * 0.707);
 
-    const i32v2 maxOffsets[8] = {i32v2(-maxWidth, 0), i32v2(maxWidth, 0), i32v2(0, -maxWidth), i32v2(0, maxWidth), i32v2(-maxWidth, -maxWidth), i32v2(maxWidth, -maxWidth), i32v2(-maxWidth, maxWidth), i32v2(maxWidth, maxWidth)};
+    const i32v2 maxOffsets[8] = {i32v2(-maxWidth, 0), i32v2(maxWidth, 0), i32v2(0, -maxWidth), i32v2(0, maxWidth), i32v2(-dmaxWidth, -dmaxWidth), i32v2(dmaxWidth, -dmaxWidth), i32v2(-dmaxWidth, dmaxWidth), i32v2(dmaxWidth, dmaxWidth)};
 
     f32v3 outline;
     u32 width = 0;
@@ -108,7 +110,8 @@ f32v4 mainFS(const FragInput input) : SV_Target
     if (width == 0)
         return LoadColor(center);
 
-    const i32v2 offsets[8] = {i32v2(-width, 0), i32v2(width, 0), i32v2(0, -width), i32v2(0, width), i32v2(-width, -width), i32v2(width, -width), i32v2(-width, width), i32v2(width, width)};
+    const i32 dwidth = i32(width * 0.707);
+    const i32v2 offsets[8] = {i32v2(-width, 0), i32v2(width, 0), i32v2(0, -width), i32v2(0, width), i32v2(-dwidth, -dwidth), i32v2(dwidth, -dwidth), i32v2(-dwidth, dwidth), i32v2(dwidth, dwidth)};
 
     for (u32 i = 0; i < 8; ++i)
     {

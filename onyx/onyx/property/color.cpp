@@ -60,6 +60,7 @@ Color::Color(const Color &rgb, const u32 alpha) : rgba(f32v3(rgb.rgba), toFloat(
     TKIT_ASSERT(alpha <= 255, "[ONYX][COLOR] Alpha value must be in the range [0, 255]");
 }
 
+// TODO(Isma): Linearize colors here
 u32 Color::Pack() const
 {
     return r() | g() << 8 | b() << 16 | a() << 24;

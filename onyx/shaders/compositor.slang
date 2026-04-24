@@ -1,5 +1,6 @@
 #include "qol.slang"
 
+// TODO(Isma): switch vertex shaders with pp
 static const f32v2 g_Positions[6] =
 {
     f32v2(-1.0, -1.0),
@@ -42,6 +43,7 @@ Sampler2D g_Attachments[ONYX_MAX_ATTACHMENTS];
 [shader("fragment")]
 f32v4 mainFS(const FragInput input)
 {
+    // TODO(Isma): Use raw load here
     return g_Attachments[g_PushData.AttachmentIndex].Sample(input.TexCoord);
 }
 

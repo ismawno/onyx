@@ -88,6 +88,18 @@ template <Dimension D> RenderView<D>::~RenderView()
     deallocateViewBit(m_ViewBit);
 }
 
+// pass overview
+//
+// input colors -> linearize -> math -> store srgb (format needs srgb) (to color img if pp enabled, if not, this is
+// already pp)
+//
+// input textures -> linearized bc of srgb -> stored as srgb (to color img if pp enabled, if not, this is
+// already pp)
+//
+// pp takes color as srgb -> linearizes by sample -> stores again in srgb to post process image
+//
+// compositor loads raw srgb -> stores to unorm, no srgb conversion. color is already srgb so fine
+// nice!
 template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCount)
 {
     const auto &device = GetDevice();
@@ -134,6 +146,7 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
 
     TKit::StackArray<VkDescriptorImageInfo> infos{};
     infos.Reserve(imageCount * 4);
+    // TODO(Isma): use general purpose sampler here
     for (u32 i = 0; i < imageCount; ++i)
     {
         VkDescriptorImageInfo &color = infos.Append();

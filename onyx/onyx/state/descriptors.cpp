@@ -120,6 +120,7 @@ static void createDescriptorData(const Specs &specs)
                              VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // shadow maps
             .Build());
 
+    // TODO(Isma): This must be combined image sampler
     s_DescriptorData->PostProcessLayout = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_ATTACHMENTS,
@@ -133,6 +134,7 @@ static void createDescriptorData(const Specs &specs)
                              VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // stencil attachments
             .Build());
 
+    // TODO(Isma): This must be sampled image
     s_DescriptorData->CompositorLayout = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
             .AddBinding2(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_ATTACHMENTS,
