@@ -49,7 +49,7 @@ Texture2D g_Outlines[ONYX_MAX_ATTACHMENTS];
 [[vk::binding(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING)]]
 Texture2D<u32> g_Stencil[ONYX_MAX_ATTACHMENTS];
 
-//TODO(Isma): Use samplers
+// TODO(Isma): Use samplers
 i32v2 ClampPixels(const i32v2 pixels)
 {
     return clamp(pixels, i32v2(0), i32v2(g_PushData.Extent) - i32v2(1));
