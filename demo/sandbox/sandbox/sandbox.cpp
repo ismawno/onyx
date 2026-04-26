@@ -760,10 +760,10 @@ template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
         "The view transform are the coordinates of the camera, detached from any render context coordinate system.");
 
     DisplayTransform(view, EditorFlag_DisplayHelp);
+    OrthographicParameters<D> &ort = cam->OrthoParameters;
     if constexpr (D == D3)
     {
         combo("Projection", &cam->Mode, "Orthographic\0Perspective\0\0");
-        OrthographicParameters<D3> &ort = cam->OrthoParameters;
         PerspectiveParameters &pers = cam->PerspParameters;
 
         if (cam->Mode == CameraMode_Perspective)
@@ -783,6 +783,8 @@ template <Dimension D> void SandboxWinLayer::RenderCamera(CameraData<D> &camera)
             ImGui::SliderFloat("Far", &ort.Far, -10.f, 10.f);
         }
     }
+    else
+        ImGui::SliderFloat("Size", &ort.Size, 0.f, 10.f);
 
     ImGui::Text("The camera/view controls are the following:");
     DisplayCameraControls<D>();
