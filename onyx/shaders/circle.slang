@@ -15,7 +15,7 @@ static const f32v2 g_Positions[6] =
     f32v2(-0.5,  0.5),
 };
 
-static const f32v2 g_TexCoords[6] =
+static const f32v2 g_TexCoord[6] =
 {
     f32v2(0.0, 1.0),
     f32v2(1.0, 1.0),

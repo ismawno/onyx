@@ -64,7 +64,6 @@ VkViewport ScreenViewport::AsVulkanViewport(const VkExtent2D &parent) const
 VkExtent2D ScreenViewport::AsVulkanExtent(const VkExtent2D &parent) const
 {
     VkExtent2D ext;
-    // TODO(Isma): If this becomes negative we have a problem
     ext.width = u32(0.5f * parent.width * (Max[0] - Min[0]));
     ext.height = u32(0.5f * parent.height * (Max[1] - Min[1]));
     return ext;
@@ -106,11 +105,15 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
     const VmaAllocator alloc = GetVulkanAllocator();
     const VkExtent2D extent = m_Viewport.AsVulkanExtent(m_ParentExtent);
     const VkFormat cformat = Platform::GetColorFormat();
+    const VkFormat dformat = Platform::GetDepthStencilFormat();
+    const VkFormat sformat = Platform::GetSurfaceFormat().format;
 
     VkImageSubresourceRange stencilRange{};
     stencilRange.aspectMask = VK_IMAGE_ASPECT_STENCIL_BIT;
     stencilRange.levelCount = 1;
     stencilRange.layerCount = 1;
+
+    const TKit::FixedArray<VkFormat, 2> ppFormats{cformat, sformat};
     for (u32 i = 0; i < imageCount; ++i)
     {
         FrameBuffer &fb = m_FrameBuffers.Append();
@@ -126,18 +129,19 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
                 .AddImageView()
                 .Build());
 
-        fb.DepthStencil = ONYX_CHECK_EXPRESSION(
-            VKit::DeviceImage::Builder(device, alloc, extent, Platform::GetDepthStencilFormat(),
-                                       VKit::DeviceImageFlag_DepthAttachment | VKit::DeviceImageFlag_StencilAttachment |
-                                           VKit::DeviceImageFlag_Sampled)
-                .AddImageView()
-                .AddImageView(stencilRange)
-                .Build());
+        fb.DepthStencil = ONYX_CHECK_EXPRESSION(VKit::DeviceImage::Builder(device, alloc, extent, dformat,
+                                                                           VKit::DeviceImageFlag_DepthAttachment |
+                                                                               VKit::DeviceImageFlag_StencilAttachment |
+                                                                               VKit::DeviceImageFlag_Sampled)
+                                                    .AddImageView()
+                                                    .AddImageView(stencilRange)
+                                                    .Build());
 
         fb.PostProcess = ONYX_CHECK_EXPRESSION(
-            VKit::DeviceImage::Builder(device, alloc, extent, cformat,
+            VKit::DeviceImage::Builder(device, alloc, extent, ppFormats,
                                        VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Sampled)
-                .AddImageView()
+                .AddImageView(cformat)
+                .AddImageView(sformat)
                 .Build());
     }
 
@@ -146,13 +150,14 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
 
     TKit::StackArray<VkDescriptorImageInfo> infos{};
     infos.Reserve(imageCount * 4);
-    // TODO(Isma): use general purpose sampler here
     for (u32 i = 0; i < imageCount; ++i)
     {
+        const FrameBuffer &fb = m_FrameBuffers[i];
+
         VkDescriptorImageInfo &color = infos.Append();
         color.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        color.imageView = m_FrameBuffers[i].Color.GetView();
-        color.sampler = VK_NULL_HANDLE;
+        color.imageView = fb.Color.GetView();
+        color.sampler = Renderer::GetGeneralPurposeSampler();
 
         const u32 idx = m_Id * imageCount + i;
 
@@ -160,19 +165,19 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
 
         VkDescriptorImageInfo &outline = infos.Append();
         outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        outline.imageView = m_FrameBuffers[i].Outline.GetView();
-        outline.sampler = VK_NULL_HANDLE;
+        outline.imageView = fb.Outline.GetView();
+        outline.sampler = Renderer::GetGeneralPurposeSampler();
         pp.WriteImage(Descriptors::GetPostProcessOutlineAttachmentsBindingPoint(), outline, idx);
 
         VkDescriptorImageInfo &stencil = infos.Append();
         stencil.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        stencil.imageView = m_FrameBuffers[i].DepthStencil.GetViews().GetBack();
+        stencil.imageView = fb.DepthStencil.GetViews().GetBack();
         stencil.sampler = VK_NULL_HANDLE;
         pp.WriteImage(Descriptors::GetPostProcessStencilAttachmentsBindingPoint(), stencil, idx);
 
         VkDescriptorImageInfo &postProcess = infos.Append();
         postProcess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        postProcess.imageView = m_FrameBuffers[i].PostProcess.GetView();
+        postProcess.imageView = fb.PostProcess.GetView(1);
         postProcess.sampler = Renderer::GetGeneralPurposeSampler();
 
         compositor.WriteImage(Descriptors::GetCompositorColorAttachmentsBindingPoint(), postProcess, idx);
@@ -192,19 +197,20 @@ template <Dimension D> void RenderView<D>::nameFramebuffers()
     for (u32 i = 0; i < m_FrameBuffers.GetSize(); ++i)
     {
         const std::string cname = TKit::Format("onyx-color-attachment-{}", i);
-        const std::string oname = TKit::Format("onyx-depth-attachment-{}", i);
+        const std::string oname = TKit::Format("onyx-outline-attachment-{}", i);
         const std::string dname = TKit::Format("onyx-depth-attachment-{}", i);
-        const std::string pname = TKit::Format("onyx-depth-attachment-{}", i);
+        const std::string pname = TKit::Format("onyx-pp-attachment-{}", i);
 
-        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].Color.SetName(cname.c_str()));
-        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].Outline.SetName(oname.c_str()));
-        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].DepthStencil.SetName(dname.c_str()));
-        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].PostProcess.SetName(pname.c_str()));
+        FrameBuffer &fb = m_FrameBuffers[i];
+        ONYX_CHECK_EXPRESSION(fb.Color.SetName(cname.c_str()));
+        ONYX_CHECK_EXPRESSION(fb.Outline.SetName(oname.c_str()));
+        ONYX_CHECK_EXPRESSION(fb.DepthStencil.SetName(dname.c_str()));
+        ONYX_CHECK_EXPRESSION(fb.PostProcess.SetName(pname.c_str()));
 
-        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].Color.SetViewNames(cname.c_str()));
-        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].Outline.SetViewNames(oname.c_str()));
-        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].DepthStencil.SetViewNames(dname.c_str()));
-        ONYX_CHECK_EXPRESSION(m_FrameBuffers[i].PostProcess.SetViewNames(pname.c_str()));
+        ONYX_CHECK_EXPRESSION(fb.Color.SetViewNames(cname.c_str()));
+        ONYX_CHECK_EXPRESSION(fb.Outline.SetViewNames(oname.c_str()));
+        ONYX_CHECK_EXPRESSION(fb.DepthStencil.SetViewNames(dname.c_str()));
+        ONYX_CHECK_EXPRESSION(fb.PostProcess.SetViewNames(pname.c_str()));
     }
 }
 
@@ -317,7 +323,8 @@ template <Dimension D> void RenderView<D>::BeginRendering(const VkCommandBuffer 
     color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     color.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    color.clearValue.color = {{ClearColor.rgba[0], ClearColor.rgba[1], ClearColor.rgba[2], ClearColor.rgba[3]}};
+    const Color ccolor = ClearColor.ToLinear();
+    color.clearValue.color = {{ccolor.rgba[0], ccolor.rgba[1], ccolor.rgba[2], ccolor.rgba[3]}};
 
     target.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                              {.DstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR,

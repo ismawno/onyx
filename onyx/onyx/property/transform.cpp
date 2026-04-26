@@ -178,7 +178,7 @@ void Transform<D3>::LookTowards(const f32v3 &position, const f32v3 &direction, c
     const f32v3 r = Normalize(Cross(direction, up));
     const f32v3 u = Cross(r, direction);
 
-    // TODO(Isma): Test that this is in fact wrong, and fix it
+    // TODO(Isma): Test that this is in fact wrong, and fix it. These should be in rows
     rot[0] = r;
     rot[1] = u;
     rot[2] = f;

@@ -722,7 +722,7 @@ ParaMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
 // idk how i feel about it. i want onyx to be mine, and this kind of feels dishonest. i dont know why i feel this way
 // for this particular piece of unimportant code. but i guess it is the first time something has been so tedious, i
 // decided to have it automatically generated
-static f32v2 computeRoundedBoxTexCoords(const f32v3 &pos, const f32v3 &normal) noexcept
+static f32v2 computeRoundedBoxTexCoord(const f32v3 &pos, const f32v3 &normal) noexcept
 {
     const f32 ax = Math::Absolute(normal[0]);
     const f32 ay = Math::Absolute(normal[1]);
@@ -753,7 +753,7 @@ static f32v2 computeRoundedBoxTexCoords(const f32v3 &pos, const f32v3 &normal) n
     return f32v2{(lu + 1.f) * 0.5f, (lv + 1.f) * 0.5f};
 }
 
-static f32v2 computeRoundedBoxTexCoords_Forced(const f32v3 &pos, const u32 axis) noexcept
+static f32v2 computeRoundedBoxTexCoord_Forced(const f32v3 &pos, const u32 axis) noexcept
 {
     f32 lu, lv;
     switch (axis)
@@ -847,7 +847,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         else
             normal[2] += 0.5f;
         const f32v3 n = Math::Normalize(normal);
-        const f32v2 uv = computeRoundedBoxTexCoords_Forced(f32v3{x, y, z}, face);
+        const f32v2 uv = computeRoundedBoxTexCoord_Forced(f32v3{x, y, z}, face);
         data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
     };
 
@@ -862,7 +862,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         else
             normal[2] += 0.5f;
         const f32v3 n = Math::Normalize(normal);
-        const f32v2 uv = computeRoundedBoxTexCoords_Forced(f32v3{x, y, z}, face);
+        const f32v2 uv = computeRoundedBoxTexCoord_Forced(f32v3{x, y, z}, face);
         data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
     };
 
@@ -877,7 +877,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         else
             normal[1] += 0.5f;
         const f32v3 n = Math::Normalize(normal);
-        const f32v2 uv = computeRoundedBoxTexCoords_Forced(f32v3{x, y, z}, face);
+        const f32v2 uv = computeRoundedBoxTexCoord_Forced(f32v3{x, y, z}, face);
         data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
     };
 
@@ -889,7 +889,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
             else
                 normal[i] += 0.5f;
         const f32v3 n = Math::Normalize(normal);
-        const f32v2 uv = computeRoundedBoxTexCoords_Forced(f32v3{x, y, z}, face);
+        const f32v2 uv = computeRoundedBoxTexCoord_Forced(f32v3{x, y, z}, face);
         data.Vertices.Append(ParaVertex<D3>{f32v3{x, y, z}, uv, n, getFaceTangent(face), 0});
     };
 
@@ -1451,7 +1451,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
     const StatMeshData<D3> cdata = createBoxMeshData(offset, 1.f);
     for (const StatVertex<D3> &vx : cdata.Vertices)
     {
-        const f32v2 uv = computeRoundedBoxTexCoords(vx.Position, vx.Normal);
+        const f32v2 uv = computeRoundedBoxTexCoord(vx.Position, vx.Normal);
         data.Vertices.Append(ParaVertex<D3>{vx.Position, uv, vx.Normal, vx.Tangent, 0});
     }
     data.Indices.Insert(data.Indices.end(), cdata.Indices.begin(), cdata.Indices.end());

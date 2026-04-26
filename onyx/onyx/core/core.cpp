@@ -85,6 +85,7 @@ static void createDevice(const TKit::FixedArray<u32, VKit::Queue_Count> &queueRe
         .RequireExtension("VK_KHR_timeline_semaphore")
         .RequireExtension("VK_KHR_synchronization2")
         .RequireExtension("VK_KHR_copy_commands2")
+        .RequireExtension("VK_KHR_image_format_list")
         .RequireExtension("VK_EXT_descriptor_indexing")
         .RequireApiVersion(1, 2, 0)
         .RequestApiVersion(1, 4, 0);

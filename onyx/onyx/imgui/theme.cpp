@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/imgui/theme.hpp"
-#include "onyx/core/alias.hpp"
+#include "onyx/property/color.hpp"
 #include "onyx/imgui/imgui.hpp"
 
 namespace Onyx
@@ -351,26 +351,26 @@ static void applyDefaultTheme()
     ImGui::StyleColorsDark();
 }
 
-void ApplyTheme(const Theme theme)
+void ApplyImGuiTheme(const ImGuiTheme theme)
 {
     switch (theme)
     {
-    case Theme_Default:
+    case ImGuiTheme_Default:
         applyDefaultTheme();
         break;
-    case Theme_Baby:
+    case ImGuiTheme_Baby:
         applyBabyTheme();
         break;
-    case Theme_Cinder:
+    case ImGuiTheme_Cinder:
         applyCinderTheme();
         break;
-    case Theme_LedSynthMaster:
+    case ImGuiTheme_LedSynthMaster:
         applyLedSynthMasterTheme();
         break;
-    case Theme_Hazel:
+    case ImGuiTheme_Hazel:
         applyHazelTheme();
         break;
-    case Theme_DougBinks:
+    case ImGuiTheme_DougBinks:
         applyDougBinksTheme();
         break;
     }

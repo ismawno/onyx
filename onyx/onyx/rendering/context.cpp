@@ -119,8 +119,8 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
     InstanceData<D> instanceData;
     instanceData.Transform = CreateTransformData<D>(transform);
     instanceData.MatHandle = state->Material;
-    instanceData.FillColor = state->FillColor.Pack();
-    instanceData.OutlineColor = state->OutlineColor.Pack();
+    instanceData.FillColor = state->FillColor.ToLinear().Pack();
+    instanceData.OutlineColor = state->OutlineColor.ToLinear().Pack();
     instanceData.OutlineWidth = state->OutlineWidth;
     if constexpr (D == D2)
     {

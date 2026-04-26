@@ -9,15 +9,16 @@
 
 namespace Onyx
 {
-enum Theme : u8
+enum ImGuiTheme : u8
 {
-    Theme_Default,
-    Theme_Cinder,
-    Theme_Baby,
-    Theme_DougBinks,
-    Theme_LedSynthMaster,
-    Theme_Hazel
+    ImGuiTheme_Default,
+    ImGuiTheme_Cinder,
+    ImGuiTheme_Baby,
+    ImGuiTheme_DougBinks,
+    ImGuiTheme_LedSynthMaster,
+    ImGuiTheme_Hazel
 };
 
-void ApplyTheme(Theme theme);
+void ApplyImGuiTheme(ImGuiTheme theme);
+void LinearizeImGuiColors();
 } // namespace Onyx

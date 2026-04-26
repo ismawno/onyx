@@ -1338,10 +1338,12 @@ static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
 
         TKit::TierAllocator *tier = TKit::GetTier();
         Renderer_Texture *bckTex = tier->Create<Renderer_Texture>();
+
+        const VkFormat format = VK_FORMAT_R8G8B8A8_UNORM;
         bckTex->Image = ONYX_CHECK_EXPRESSION(
-            VKit::DeviceImage::Builder(
-                device, allocator, VkExtent2D{u32(tex->Width), u32(tex->Height)}, VK_FORMAT_R8G8B8A8_UNORM,
-                VKit::DeviceImageFlag_Sampled | VKit::DeviceImageFlag_Destination | VKit::DeviceImageFlag_Color)
+            VKit::DeviceImage::Builder(device, allocator, VkExtent2D{u32(tex->Width), u32(tex->Height)}, format,
+                                       VKit::DeviceImageFlag_Sampled | VKit::DeviceImageFlag_Destination |
+                                           VKit::DeviceImageFlag_Color)
                 .AddImageView()
                 .Build());
 
@@ -1660,8 +1662,7 @@ static RenderSubmitInfo renderer_RenderWindow(const ImGuiViewport *viewport, VKi
     submitInfo.Command = cmd;
     submitInfo.InFlightValue = graphicsFlight;
 
-    // TODO(Isma): Fix this
-    VkSemaphoreSubmitInfoKHR &gtimSemInfo = submitInfo.SignalSemaphores[0];
+    VkSemaphoreSubmitInfoKHR &gtimSemInfo = submitInfo.SignalSemaphores.Append();
     gtimSemInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
     gtimSemInfo.pNext = nullptr;
     gtimSemInfo.value = graphicsFlight;
@@ -1669,7 +1670,7 @@ static RenderSubmitInfo renderer_RenderWindow(const ImGuiViewport *viewport, VKi
     gtimSemInfo.semaphore = graphics->GetTimelineSempahore();
     gtimSemInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT_KHR;
 
-    VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores[1];
+    VkSemaphoreSubmitInfoKHR &rendFinInfo = submitInfo.SignalSemaphores.Append();
     rendFinInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO_KHR;
     rendFinInfo.pNext = nullptr;
     rendFinInfo.semaphore = window->GetRenderFinishedSemaphore();
@@ -1684,8 +1685,6 @@ static RenderSubmitInfo renderer_RenderWindow(const ImGuiViewport *viewport, VKi
     imgInfo.semaphore = window->GetImageAvailableSemaphore();
     imgInfo.deviceIndex = 0;
     imgInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
-
-    // window->MarkSubmission(graphics->GetTimelineSempahore(), graphicsFlight);
 
     return submitInfo;
 }

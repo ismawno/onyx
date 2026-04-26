@@ -80,12 +80,12 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                 normStride = normView.byteStride ? normView.byteStride / sizeof(f32) : 3;
             }
 
-            const f32 *texcoords = nullptr;
+            const f32 *TexCoord = nullptr;
             if (prim.attributes.contains("TEXCOORD_0"))
             {
                 const auto &uvAccessor = model.accessors[prim.attributes.at("TEXCOORD_0")];
                 const auto &uvView = model.bufferViews[uvAccessor.bufferView];
-                texcoords = rcast<const f32 *>(model.buffers[uvView.buffer].data.data() + uvView.byteOffset +
+                TexCoord = rcast<const f32 *>(model.buffers[uvView.buffer].data.data() + uvView.byteOffset +
                                                uvAccessor.byteOffset);
                 uvStride = uvView.byteStride ? uvView.byteStride / sizeof(f32) : 2;
             }
@@ -118,9 +118,9 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                         for (u32 j = 0; j < 4; ++j)
                             vertex.Tangent[j] = tangents[tanStride * i + j];
                 }
-                if (texcoords)
+                if (TexCoord)
                     for (u32 j = 0; j < 2; ++j)
-                        vertex.TexCoord[j] = texcoords[uvStride * i + j];
+                        vertex.TexCoord[j] = TexCoord[uvStride * i + j];
 
                 meshData.Vertices.Append(vertex);
             }

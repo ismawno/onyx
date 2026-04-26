@@ -108,7 +108,7 @@ struct VertexInput
 #    endif
 
 #    ifdef ONYX_PASS_SHADED
-    f32v2 TexCoords : TEXCOORD0;
+    f32v2 TexCoord : TEXCOORD0;
 #    endif
 
 #    if defined(ONYX_DIMENSION_3D) && !defined(ONYX_GEOMETRY_GLYPH)
@@ -141,7 +141,7 @@ struct FragInput
 
 #ifdef ONYX_PASS_SHADED
     [[vk::location(1)]]
-    f32v2 TexCoords;
+    f32v2 TexCoord;
 #endif
 
 #ifdef ONYX_USES_WORLD_POS
@@ -317,9 +317,9 @@ FragInput mainVS(
 
 #ifdef ONYX_PASS_SHADED
 #    ifdef ONYX_GEOMETRY_CIRCLE
-    finput.TexCoords = g_TexCoords[vertexIndex];
+    finput.TexCoord = g_TexCoord[vertexIndex];
 #    else
-    finput.TexCoords = input.TexCoords;
+    finput.TexCoord = input.TexCoord;
 #    endif
 #endif
 
@@ -459,13 +459,13 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
     resources.DirLights = g_DirLights;
     resources.PointMaps = g_PointMaps;
     resources.DirectionalMaps = g_DirectionalMaps;
-    out.Fill = ComputeMaterialColor3D(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoords, resources, alpha, input.TBN, isFrontFacing);
+    out.Fill = ComputeMaterialColor3D(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
     return out;
 
 #    else
 
     resources.ShadowMaps = g_ShadowMaps;
-    out.Fill = ComputeMaterialColor2D(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoords, resources, alpha);
+    out.Fill = ComputeMaterialColor2D(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha);
     return out;
 
 #    endif

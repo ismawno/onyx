@@ -140,8 +140,8 @@ template <Dimension D> struct Shape
     TextParameters TextParams{};
     std::string Text{};
     u32 Flags = RenderModeFlag_Shaded;
-    Color FillColor = Color::White;
-    Color OutlineColor = Color::Orange;
+    Color FillColor = Color_White;
+    Color OutlineColor = Color_Orange;
     f32 OutlineWidth = 0.4f;
 };
 

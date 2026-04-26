@@ -649,7 +649,7 @@ void Initialize(const Specs &specs)
 
     if (IsDebugUtilsEnabled())
     {
-        ONYX_CHECK_EXPRESSION(s_GeneralSampler.SetName("onyx-compositor-sampler"));
+        ONYX_CHECK_EXPRESSION(s_GeneralSampler.SetName("onyx-general-sampler"));
     }
 
     initialize<D2>(specs.Shadows2);
@@ -1351,7 +1351,7 @@ PointLightData<D> createLightData(const ViewMask vmask, const u32 shadowMapOffse
     data.Intensity = params.Intensity;
     data.LightRadius = params.LightRadius;
     data.ShadowRadius = params.ShadowRadius;
-    data.Color = params.Tint.Pack();
+    data.Color = params.Tint.ToLinear().Pack();
     data.ViewMask = vmask;
     data.ShadowMapOffset = shadowMapOffset;
     data.Flags = params.Flags;
@@ -1500,7 +1500,7 @@ DirectionalLightData createLightData(const ViewMask vmask, const u32 shadowMapOf
 
     data.Direction = dir;
     data.Intensity = params.Intensity;
-    data.Color = params.Tint.Pack();
+    data.Color = params.Tint.ToLinear().Pack();
     data.ViewMask = vmask;
     data.ShadowMapOffset = shadowMapOffset;
     data.Flags = params.Flags;
@@ -2509,14 +2509,14 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
 
     RendererData<D> &rdata = getRendererData<D>();
     // TODO(Isma): At some point would be good letting the user decide what strategy to use to aggregate ambient
-    Color ambient{0.f, 0.f, 0.f, 0.f};
+    Color ambient{0.f, 0.f};
     for (const ContextInfo<D> &info : rdata.Contexts)
         if (info.Context->GetViewMask() & viewBit)
         {
             const Color &a = info.Context->GetAmbientLight();
             ambient.rgba = Math::Max(ambient.rgba, a.rgba);
         }
-    const u32 ambientColor = ambient.Pack();
+    const u32 ambientColor = ambient.ToLinear().Pack();
 
     TKit::FixedArray<CircleDrawCommands, PipelinePass_Count> circleCmds{};
     TKit::FixedArray<MeshDrawCommands, PipelinePass_Count> meshCmds{};
@@ -2673,7 +2673,6 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, const VkD
         rv->BeginRendering(cmd, tracker);
         renderGeometry<D>(graphics, cmd, rv->CreateViewInfo(), graphicsFlight, transferTrackers);
         rv->EndRendering(cmd);
-        // TODO(Isma): Will have to add outline pass here + flag check if outlines are enabled for this view
     }
 
     if (flags & RenderViewFlag_PostProcess)

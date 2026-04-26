@@ -68,7 +68,7 @@ void WindowLayer::initializeImGui()
     ImGuiIO &io = ImGui::GetIO();
     ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
     io.FontDefault = font;
-    ApplyTheme(Theme_Baby);
+    ApplyImGuiTheme(ImGuiTheme_Baby);
 
     setFlags(WindowLayerFlag_ImGuiEnabled);
 }

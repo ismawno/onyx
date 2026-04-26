@@ -1,27 +1,4 @@
-#include "qol.slang"
-
-static const f32v2 g_Positions[6] =
-{
-    f32v2(-1.0, -1.0),
-    f32v2( 1.0, -1.0),
-    f32v2(-1.0,  1.0),
-    f32v2( 1.0, -1.0),
-    f32v2(-1.0,  1.0),
-    f32v2( 1.0,  1.0),
-};
-
-struct FragInput
-{
-    f32v4 Position : SV_Position;
-};
-
-[shader("vertex")]
-FragInput mainVS(const u32 vertexId : SV_VertexID)
-{
-    FragInput finput;
-    finput.Position = f32v4(g_Positions[vertexId], 0.f, 1.f);
-    return finput;
-}
+#include "full-vertex.slang"
 
 [UnscopedEnum]
 enum PostProcessFlagBit : u32
@@ -41,35 +18,17 @@ struct PushConstants
 PushConstants g_PushData;
 
 [[vk::binding(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING)]]
-Texture2D g_Colors[ONYX_MAX_ATTACHMENTS];
+Sampler2D g_Colors[ONYX_MAX_ATTACHMENTS];
 
 [[vk::binding(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING)]]
-Texture2D g_Outlines[ONYX_MAX_ATTACHMENTS];
+Sampler2D g_Outlines[ONYX_MAX_ATTACHMENTS];
 
 [[vk::binding(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING)]]
 Texture2D<u32> g_Stencil[ONYX_MAX_ATTACHMENTS];
 
-// TODO(Isma): Use samplers
 i32v2 ClampPixels(const i32v2 pixels)
 {
     return clamp(pixels, i32v2(0), i32v2(g_PushData.Extent) - i32v2(1));
-}
-
-f32v4 LoadTex(const Texture2D texs[ONYX_MAX_ATTACHMENTS], const i32v2 coords)
-{
-    const u32 idx = g_PushData.AttachmentIndex;
-    const Texture2D tex = texs[idx];
-    return tex.Load(i32v3(ClampPixels(coords), 0));
-}
-
-f32v4 LoadColor(const i32v2 coords)
-{
-    return LoadTex(g_Colors, coords);
-}
-
-f32v4 LoadOutline(const i32v2 coords)
-{
-    return LoadTex(g_Outlines, coords);
 }
 
 u32 LoadStencil(const i32v2 coords)
@@ -83,8 +42,15 @@ u32 LoadStencil(const i32v2 coords)
 f32v4 mainFS(const FragInput input) : SV_Target
 {
     const i32v2 center = i32v2(input.Position.xy);
+    const f32v2 uv = input.TexCoord;
+    const f32v2 extent = f32v2(g_PushData.Extent);
+    const u32 idx = g_PushData.AttachmentIndex;
+
+    const Sampler2D colors = g_Colors[idx];
+    const Sampler2D outlines = g_Outlines[idx];
+
     if (!bool(g_PushData.Flags & PostProcessFlag_Outlines) || LoadStencil(center) != 0)
-        return LoadColor(center);
+        return colors.Sample(uv);
 
     const i32 maxWidth = i32(g_PushData.MaxOutlineWidth);
     const i32 dmaxWidth = i32(maxWidth * 0.707);
@@ -97,10 +63,12 @@ f32v4 mainFS(const FragInput input) : SV_Target
     {
         const i32v2 offset = maxOffsets[i];
         const i32v2 coord = center + offset;
+        const f32v2 offUv = uv + f32v2(offset) / extent;
+
         const u32 stencil = LoadStencil(coord);
         if (stencil != 0)
         {
-            const f32v4 outl = LoadOutline(coord);
+            const f32v4 outl = outlines.Sample(offUv);
             width = u32(outl.a * f32(maxWidth));
             outline = outl.rgb;
             break;
@@ -108,7 +76,7 @@ f32v4 mainFS(const FragInput input) : SV_Target
     }
 
     if (width == 0)
-        return LoadColor(center);
+        return colors.Sample(uv);
 
     const i32 dwidth = i32(width * 0.707);
     const i32v2 offsets[8] = {i32v2(-width, 0), i32v2(width, 0), i32v2(0, -width), i32v2(0, width), i32v2(-dwidth, -dwidth), i32v2(dwidth, -dwidth), i32v2(-dwidth, dwidth), i32v2(dwidth, dwidth)};
@@ -117,10 +85,11 @@ f32v4 mainFS(const FragInput input) : SV_Target
     {
         const i32v2 offset = offsets[i];
         const i32v2 coord = center + offset;
+
         const u32 stencil = LoadStencil(coord);
         if (stencil != 0)
             return f32v4(outline, 1.f);
     }
-    return LoadColor(center);
+    return colors.Sample(uv);
 }
 

@@ -247,7 +247,7 @@ template <Dimension D> class RenderView
         return info;
     }
 
-    Color ClearColor{Color::Black};
+    Color ClearColor{Color_Black};
     u32 MaxOutlineWidth = 10;
     RenderViewFlags Flags;
 

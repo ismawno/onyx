@@ -14,7 +14,7 @@ template <Dimension D> struct PointLightParameters
 {
     using InstanceData = PointLightData<D>;
     f32v<D> Position = f32v<D>{0.f};
-    Color Tint = Color::White;
+    Color Tint = Color_White;
     f32 LightRadius = 1.f;
     f32 ShadowRadius = 4.f;
     f32 Intensity = 0.8f;
@@ -61,7 +61,7 @@ struct DirectionalLightParameters
 {
     using InstanceData = DirectionalLightData;
     f32v3 Direction = f32v3{-1.f};
-    Color Tint = Color::White;
+    Color Tint = Color_White;
     ShadowCascadeParameters Cascades{};
     f32 Intensity = 0.8f;
     LightFlags Flags = 0;
@@ -112,8 +112,8 @@ template <Dimension D> struct RenderState
     TKIT_YAML_SERIALIZE_DECLARE(RenderState)
 
     f32m<D> Transform = f32m<D>::Identity();
-    Color FillColor = Color::White;
-    Color OutlineColor = Color::White;
+    Color FillColor = Color_White;
+    Color OutlineColor = Color_White;
 
     f32 OutlineWidth = 0.1f;
     f32 AmbientIntensity = 0.4f;
@@ -510,7 +510,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     TKit::FixedArray<InstanceDataArrays, RenderMode_Count> m_InstanceData{};
     TKit::TierArray<PointLightParameters<D>> m_PointLightData{};
     u64 m_Generation = 0;
-    Color m_AmbientLight = Color{Color::White, 0.4f};
+    Color m_AmbientLight = Color{Color_White, 0.4f};
     ViewMask m_ViewMask = 0;
     u32 m_DepthCounter = 0;
 };

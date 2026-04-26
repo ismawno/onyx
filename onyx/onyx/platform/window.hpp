@@ -220,7 +220,7 @@ class Window
             return m_RenderViews3;
     }
 
-    Color ClearColor = Color::Black;
+    Color ClearColor = Color_Black;
 
   private:
     void updateRenderViews();

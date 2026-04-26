@@ -6,68 +6,21 @@
 
 namespace Onyx
 {
-static constexpr f32 toFloat(const u32 val)
-{
-    constexpr f32 oneOver255 = 1.f / 255.f;
-    return f32(val) * oneOver255;
-}
 
-Color::Color(const f32 val) : Color(val, val, val, 1.f)
-{
-    TKIT_ASSERT(val <= 1.f && val >= 0.f, "[ONYX][COLOR] Color floating values must be in the range [0, 1]");
-}
-Color::Color(const u32 val) : Color(val, val, val, 255u)
-{
-}
+static const std::unordered_map<std::string, Color *> s_ColorMap{{"red", &Color_Red},
+                                                                 {"green", &Color_Green},
+                                                                 {"blue", &Color_Blue},
+                                                                 {"magenta", &Color_Magenta},
+                                                                 {"cyan", &Color_Cyan},
+                                                                 {"orange", &Color_Orange},
+                                                                 {"yellow", &Color_Yellow},
+                                                                 {"black", &Color_Black},
+                                                                 {"pink", &Color_Pink},
+                                                                 {"purple", &Color_Purple},
+                                                                 {"white", &Color_White},
+                                                                 {"transparent", &Color_Transparent}
 
-Color::Color(const f32v4 &rgba) : rgba(rgba)
-{
-    TKIT_ASSERT(rgba[0] <= 1.f && rgba[0] >= 0.f, "[ONYX][COLOR] Red value must be in the range [0, 1]");
-    TKIT_ASSERT(rgba[1] <= 1.f && rgba[1] >= 0.f, "[ONYX][COLOR] Green value must be in the range [0, 1]");
-    TKIT_ASSERT(rgba[2] <= 1.f && rgba[2] >= 0.f, "[ONYX][COLOR] Blue value must be in the range [0, 1]");
-    TKIT_ASSERT(rgba[3] <= 1.f && rgba[3] >= 0.f, "[ONYX][COLOR] Alpha value must be in the range [0, 1]");
-}
-Color::Color(const f32v3 &rgb, const f32 alpha) : rgba(rgb, alpha)
-{
-    TKIT_ASSERT(rgb[0] <= 1.f && rgb[0] >= 0.f, "[ONYX][COLOR] Red value must be in the range [0, 1]");
-    TKIT_ASSERT(rgb[1] <= 1.f && rgb[1] >= 0.f, "[ONYX][COLOR] Green value must be in the range [0, 1]");
-    TKIT_ASSERT(rgb[2] <= 1.f && rgb[2] >= 0.f, "[ONYX][COLOR] Blue value must be in the range [0, 1]");
-}
-
-Color::Color(const f32 red, const f32 green, const f32 blue, const f32 alpha) : rgba(red, green, blue, alpha)
-{
-    TKIT_ASSERT(red <= 1.f && red >= 0.f, "[ONYX][COLOR] Red value must be in the range [0, 1]");
-    TKIT_ASSERT(green <= 1.f && green >= 0.f, "[ONYX][COLOR] Green value must be in the range [0, 1]");
-    TKIT_ASSERT(blue <= 1.f && blue >= 0.f, "[ONYX][COLOR] Blue value must be in the range [0, 1]");
-    TKIT_ASSERT(alpha <= 1.f && alpha >= 0.f, "[ONYX][COLOR] Alpha value must be in the range [0, 1]");
-}
-Color::Color(const u32 red, const u32 green, const u32 blue, const u32 alpha)
-    : rgba(toFloat(red), toFloat(green), toFloat(blue), toFloat(alpha))
-{
-    TKIT_ASSERT(red < 256, "[ONYX][COLOR] Red value must be in the range [0, 255]");
-    TKIT_ASSERT(green < 256, "[ONYX][COLOR] Green value must be in the range [0, 255]");
-    TKIT_ASSERT(blue < 256, "[ONYX][COLOR] Blue value must be in the range [0, 255]");
-    TKIT_ASSERT(alpha < 256, "[ONYX][COLOR] Alpha value must be in the range [0, 255]");
-}
-
-Color::Color(const Color &rgb, const f32 alpha) : rgba(f32v3(rgb.rgba), alpha)
-{
-    TKIT_ASSERT(alpha <= 1.f && alpha >= 0.f, "[ONYX][COLOR] Alpha value must be in the range [0, 1]");
-}
-
-Color::Color(const Color &rgb, const u32 alpha) : rgba(f32v3(rgb.rgba), toFloat(alpha))
-{
-    TKIT_ASSERT(alpha <= 255, "[ONYX][COLOR] Alpha value must be in the range [0, 255]");
-}
-
-u32 Color::Pack() const
-{
-    return r() | g() << 8 | b() << 16 | a() << 24;
-}
-Color Color::Unpack(const u32 packed)
-{
-    return Color{packed & 0xFF, (packed >> 8) & 0xFF, (packed >> 16) & 0xFF, (packed >> 24) & 0xFF};
-}
+};
 
 template <> u32 Color::ToHexadecimal<u32>(const bool alpha) const
 {
@@ -107,16 +60,7 @@ Color Color::FromHexadecimal(const std::string_view hex)
 Color Color::FromString(const std::string &color)
 {
     TKIT_ASSERT(s_ColorMap.contains(color), "[ONYX][COLOR] Color '{}' not found", color);
-    return s_ColorMap.at(color);
-}
-
-const f32 *Color::GetData() const
-{
-    return Math::AsPointer(rgba);
-}
-f32 *Color::GetData()
-{
-    return Math::AsPointer(rgba);
+    return *s_ColorMap.at(color);
 }
 
 Color::operator const f32v4 &() const
@@ -150,24 +94,6 @@ Color &Color::operator/=(const Color &rhs)
     rgb = Math::Clamp(rgb / rhs.rgb, 0.f, 1.f);
     return *this;
 }
-
-const Color Color::Red{255u, 0u, 0u};
-const Color Color::Green{0u, 255u, 0u};
-const Color Color::Blue{0u, 0u, 255u};
-const Color Color::Magenta{255u, 0u, 255u};
-const Color Color::Cyan{0u, 255u, 255u};
-const Color Color::Orange{255u, 165u, 0u};
-const Color Color::Yellow{255u, 255u, 0u};
-const Color Color::Black{0u};
-const Color Color::Pink{255u, 192u, 203u};
-const Color Color::Purple{191u, 64u, 191u};
-const Color Color::White{255u};
-const Color Color::Transparent{White, 0u};
-
-const std::unordered_map<std::string, Color> Color::s_ColorMap{
-    {"red", Red},   {"green", Green},   {"blue", Blue},     {"magenta", Magenta},
-    {"cyan", Cyan}, {"orange", Orange}, {"yellow", Yellow}, {"black", Black},
-    {"pink", Pink}, {"purple", Purple}, {"white", White},   {"transparent", Transparent}};
 
 Gradient::Gradient(const TKit::Span<const Color> span) : m_Colors(span)
 {

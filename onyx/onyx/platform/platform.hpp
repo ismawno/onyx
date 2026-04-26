@@ -56,8 +56,9 @@ namespace Onyx::Platform
 struct Specs
 {
     u32 Platform = ONYX_PLATFORM_AUTO;
+    // leaving these exposed but not very advisable to change
     VkSurfaceFormatKHR SurfaceFormat = {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
-    VkFormat ColorFormat = VK_FORMAT_B8G8R8A8_UNORM;
+    VkFormat ColorFormat = VK_FORMAT_B8G8R8A8_SRGB;
     VkFormat DepthStencilFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
 };
 
