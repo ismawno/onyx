@@ -7,6 +7,8 @@ struct PushConstants
     u32 ShadowMapIndex;
     u32 ShadowResolution;
     f32 DistanceBias;
+    f32 StartAngle;
+    f32 EndAngle;
 }
 
 [[vk::push_constant]]
@@ -18,8 +20,6 @@ RWTexture2D<f32> g_OcclusionMaps[ONYX_MAX_TEXTURE_MAPS];
 [[vk::binding(ONYX_DISTANCE_MAP_BINDING, 0)]]
 RWTexture1D<f32> g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
 
-#define PI 3.14159265f
-
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void main(const u32v3 id : SV_DispatchThreadID)
@@ -27,7 +27,8 @@ void main(const u32v3 id : SV_DispatchThreadID)
     if (id.x >= g_Push.ShadowResolution)
         return;
 
-    const f32 angle = 2.f * PI * f32(id.x) / f32(g_Push.ShadowResolution);
+    const f32 t = (f32(id.x) + 0.5f) / f32(g_Push.ShadowResolution);
+    const f32 angle = lerp(g_Push.StartAngle, g_Push.EndAngle, t);
 
     const f32v2 dir = f32v2(cos(angle), sin(angle));
 

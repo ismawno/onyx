@@ -20,5 +20,4 @@ enum ImGuiTheme : u8
 };
 
 void ApplyImGuiTheme(ImGuiTheme theme);
-void LinearizeImGuiColors();
 } // namespace Onyx

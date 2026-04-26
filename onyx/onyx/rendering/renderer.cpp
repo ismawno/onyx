@@ -528,9 +528,9 @@ template <Dimension D> static void initializeShadows(const ShadowSpecs<D> &specs
     VKit::Sampler::Builder builder{GetDevice()};
 
     if constexpr (D == D3)
-        builder.SetCompareOp(VK_COMPARE_OP_LESS_OR_EQUAL)
-            .SetAddressModes(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER)
-            .SetBorderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE);
+        builder.SetCompareOp(VK_COMPARE_OP_LESS_OR_EQUAL);
+
+    builder.SetAddressModes(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER).SetBorderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE);
 
     sdata.Sampler = ONYX_CHECK_EXPRESSION(builder.Build());
 
@@ -1347,6 +1347,13 @@ PointLightData<D> createLightData(const ViewMask vmask, const u32 shadowMapOffse
                                   const PointLightParameters<D> &params)
 {
     PointLightData<D> data;
+    if constexpr (D == D2)
+    {
+        data.Direction = f32v2{Math::Cosine(params.Angle), Math::Sine(params.Angle)};
+        data.Angle = params.Angle;
+        data.Decay = params.Decay;
+        data.Extent = params.Extent;
+    }
     data.Position = params.Position;
     data.Intensity = params.Intensity;
     data.LightRadius = params.LightRadius;
@@ -2449,6 +2456,11 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     pdata.ShadowMapIndex = shindex;
                     pdata.ShadowResolution = sdata.ShadowResolution;
                     pdata.DistanceBias = lights[i].DepthBias;
+
+                    const f32 ext = Math::Pi<f32>() * lightData[i].Extent;
+                    const f32 angle = lights[i].Angle;
+                    pdata.StartAngle = angle - ext;
+                    pdata.EndAngle = angle + ext;
                     table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
                                             sizeof(DistancePushConstantData), &pdata);
 

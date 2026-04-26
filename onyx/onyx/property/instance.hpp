@@ -221,6 +221,22 @@ template <Dimension D> struct PointLightData
     LightFlags Flags;
 };
 
+template <> struct PointLightData<D2>
+{
+    f32v2 Position;
+    f32v2 Direction;
+    f32 Intensity;
+    f32 LightRadius;
+    f32 ShadowRadius;
+    f32 Angle;
+    f32 Decay;
+    f32 Extent;
+    u32 Color;
+    u32 ShadowMapOffset;
+    ViewMask ViewMask;
+    LightFlags Flags;
+};
+
 #define ONYX_MAX_CASCADES 4
 
 struct DirectionalLightData
@@ -291,6 +307,8 @@ struct DistancePushConstantData
     u32 ShadowMapIndex;
     u32 ShadowResolution;
     f32 DistanceBias;
+    f32 StartAngle;
+    f32 EndAngle;
 };
 
 } // namespace Onyx

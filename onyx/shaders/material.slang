@@ -98,9 +98,14 @@ struct PointLight2D
 {
     f32 PosX;
     f32 PosY;
+    f32 DirX;
+    f32 DirY;
     f32 Intensity;
     f32 LightRadius;
     f32 ShadowRadius;
+    f32 Angle;
+    f32 Decay;
+    f32 Extent;
     u32 Color;
     u32 ShadowMapOffset;
     ViewMask ViewMask;
@@ -183,21 +188,43 @@ f32v3 GetLightColor2D(const LightData2D data, const f32v2 worldPosition, const P
 {
     f32v3 diffuseColor = f32v3(0.0);
     const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
+    // TODO(Isma): Known artifacts: boundary between shadow and extent cone + boundary of the angle range (-pi, pi) in a shadow. Reproduce using shadows with extreme angles. Suggestion: use <= or >= in the (-pi, pi) remapping?
+
     for (u32 i = 0; i < data.LightRanges[Light_Point].Count; ++i)
     {
         const PointLight2D plight = plights[i + data.LightRanges[Light_Point].Offset];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
-        const f32v2 direction = f32v2(plight.PosX, plight.PosY) - worldPosition;
-        const f32 dist = dot(direction, direction);
+        const f32v2 direction = worldPosition - f32v2(plight.PosX, plight.PosY);
+        const f32v2 lightDir = f32v2(plight.DirX, plight.DirY);
+
+        const f32 dist2 = dot(direction, direction);
+        const f32 dist = sqrt(dist2);
+
+        const f32 alignment = 0.5f * (1.f + dot(direction / dist, lightDir));
+        const f32 thres = 0.5f * (1.f + cos(PI * plight.Extent));
+
+        const f32 contrib = f32(alignment >= thres) * saturate(1.f - plight.Decay * (1.f - alignment) / (1.f - thres));
+        const f32v3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
+
+        const f32 radius = plight.LightRadius * plight.LightRadius;
+        const f32 attenuation = contrib * contrib * radius / (dist2 + radius);
+        const f32 intensity = attenuation * plight.Intensity;
 
         f32 shadow = 0.f;
         if (bool(plight.Flags & LightFlag_CastsShadows))
         {
-            const f32 fragDist = min(length(direction) / plight.ShadowRadius, 1.f);
-            const f32 angle = atan2(direction.y, direction.x);
-            const f32 uv = (angle + PI) / (2.0 * PI);
+            const f32 fragDepth = min(dist / plight.ShadowRadius, 1.f);
+            const f32 ext = PI * plight.Extent;
+
+            const f32 start = plight.Angle - ext;
+            const f32 end = plight.Angle + ext;
+
+            f32 angle = atan2(direction.y, direction.x);
+            angle += 2 * PI * f32(angle < start);
+            angle -= 2 * PI * f32(angle > end);
+            const f32 uv = (angle - start) / (end - start);
 
             const u32 shadowIndex = plight.ShadowMapOffset + countbits(plight.ViewMask & (data.ViewBit - 1));
 
@@ -210,24 +237,19 @@ f32v3 GetLightColor2D(const LightData2D data, const f32v2 worldPosition, const P
                 for (i32 x = -1; x <= 1; ++x)
                 {
                     const f32 offset = x * tsize;
-                    const f32 dist = map.Sample(smp, uv + offset).r;
-                    shadow += f32(fragDist <= dist);
+                    const f32 depth = map.Sample(smp, uv + offset).r;
+                    shadow += f32(fragDepth <= depth);
                 }
                 shadow /= 3.f;
             }
             else
             {
-                const f32 dist = resources.ShadowMaps[shadowIndex].Sample(resources.ShadowSampler, uv).r;
-                shadow = f32(fragDist <= dist);
+                const f32 depth = resources.ShadowMaps[shadowIndex].Sample(resources.ShadowSampler, uv).r;
+                shadow = f32(fragDepth <= depth);
             }
         }
         else
             shadow = 1.f;
-
-        const f32v3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
-        const f32 radius = plight.LightRadius * plight.LightRadius;
-        const f32 attenuation = radius / (dist + radius);
-        const f32 intensity = attenuation * plight.Intensity;
 
         diffuseColor += intensity * lightColor * shadow;
     }
@@ -287,6 +309,22 @@ f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info, const R
 
         if (NdotL <= 0.f) continue;
 
+        const f32v3 H    = normalize(L + V);
+        const f32 NdotV = max(dot(info.Normal, V), 1e-4);
+        const f32 NdotH = max(dot(info.Normal, H), 0.0);
+        const f32 VdotH = max(dot(V, H), 0.0);
+
+        const f32 denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
+        const f32 D     = alpha2 / (3.14159265 * denom * denom);
+        const f32 k     = alpha * 0.5;
+        const f32 G     = (NdotV / (NdotV * (1.0 - k) + k)) *
+                            (NdotL / (NdotL * (1.0 - k) + k));
+        const f32v3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+
+        const f32v3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
+        const f32v3 diffuse    = diffuseBase / 3.14159265;
+        const f32v3 lightColor = unpackUnorm4x8ToFloat(dlight.Color).xyz;
+
         f32 shadow = 0.f;
         if (bool(dlight.Flags & LightFlag_CastsShadows))
         {
@@ -325,22 +363,6 @@ f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info, const R
         else
             shadow = 1.f;
 
-        const f32v3 H    = normalize(L + V);
-        const f32 NdotV = max(dot(info.Normal, V), 1e-4);
-        const f32 NdotH = max(dot(info.Normal, H), 0.0);
-        const f32 VdotH = max(dot(V, H), 0.0);
-
-        const f32 denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
-        const f32 D     = alpha2 / (3.14159265 * denom * denom);
-        const f32 k     = alpha * 0.5;
-        const f32 G     = (NdotV / (NdotV * (1.0 - k) + k)) *
-                            (NdotL / (NdotL * (1.0 - k) + k));
-        const f32v3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
-
-        const f32v3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
-        const f32v3 diffuse    = diffuseBase / 3.14159265;
-        const f32v3 lightColor = unpackUnorm4x8ToFloat(dlight.Color).xyz;
-
         Lo += (diffuse * (1.0 - F) + specular) * lightColor * dlight.Intensity * NdotL * shadow;
     }
 
@@ -356,6 +378,24 @@ f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info, const R
         const f32 NdotL = dot(info.Normal, L);
         if (NdotL <= 0.0) continue;
 
+        const f32v3 H    = normalize(L + V);
+        const f32 NdotV = max(dot(info.Normal, V), 1e-4);
+        const f32 NdotH = max(dot(info.Normal, H), 0.0);
+        const f32 VdotH = max(dot(V, H), 0.0);
+
+        const f32 denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
+        const f32 D     = alpha2 / (3.14159265 * denom * denom);
+        const f32 k     = alpha * 0.5;
+        const f32 G     = (NdotV / (NdotV * (1.0 - k) + k)) *
+                            (NdotL / (NdotL * (1.0 - k) + k));
+        const f32v3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
+
+        const f32v3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
+        const f32v3 diffuse    = diffuseBase / 3.14159265;
+        const f32  radius     = plight.LightRadius * plight.LightRadius;
+        const f32  dirLen     = dot(dir, dir);
+        const f32  atten      = radius / (dirLen + radius);
+        const f32v3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
 
         f32 shadow = 0.f;
         if (bool(plight.Flags & LightFlag_CastsShadows))
@@ -383,24 +423,6 @@ f32v3 GetLightColor3D(const LightData3D data, const MaterialInfo3D info, const R
         else
             shadow = 1.f;
 
-        const f32v3 H    = normalize(L + V);
-        const f32 NdotV = max(dot(info.Normal, V), 1e-4);
-        const f32 NdotH = max(dot(info.Normal, H), 0.0);
-        const f32 VdotH = max(dot(V, H), 0.0);
-
-        const f32 denom = (NdotH * NdotH * (alpha2 - 1.0) + 1.0);
-        const f32 D     = alpha2 / (3.14159265 * denom * denom);
-        const f32 k     = alpha * 0.5;
-        const f32 G     = (NdotV / (NdotV * (1.0 - k) + k)) *
-                            (NdotL / (NdotL * (1.0 - k) + k));
-        const f32v3 F    = F0 + (1.0 - F0) * pow(1.0 - VdotH, 5.0);
-
-        const f32v3 specular   = (D * G * F) / (4.0 * NdotV * NdotL + 1e-4);
-        const f32v3 diffuse    = diffuseBase / 3.14159265;
-        const f32  radius     = plight.LightRadius * plight.LightRadius;
-        const f32  dirLen     = dot(dir, dir);
-        const f32  atten      = radius / (dirLen + radius);
-        const f32v3 lightColor = unpackUnorm4x8ToFloat(plight.Color).xyz;
 
         Lo += (diffuse * (1.0 - F) + specular) * lightColor * atten * plight.Intensity * NdotL * shadow;
     }

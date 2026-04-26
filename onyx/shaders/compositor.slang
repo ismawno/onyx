@@ -1,6 +1,5 @@
 #include "full-vertex.slang"
 
-
 struct PushConstants
 {
     u32 AttachmentIndex;

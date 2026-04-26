@@ -22,6 +22,21 @@ template <Dimension D> struct PointLightParameters
     LightFlags Flags = 0;
 };
 
+template <> struct PointLightParameters<D2>
+{
+    using InstanceData = PointLightData<D2>;
+    f32v2 Position = f32v2{0.f};
+    Color Tint = Color_White;
+    f32 LightRadius = 1.f;
+    f32 ShadowRadius = 4.f;
+    f32 Angle = 0.f;  // from -pi to pi, otherwise shadows wont work
+    f32 Decay = 0.f;  // must be between 0 and 1
+    f32 Extent = 1.f; // must be between 0 and 1
+    f32 Intensity = 0.8f;
+    f32 DepthBias = 0.001f;
+    LightFlags Flags = 0;
+};
+
 constexpr TKit::FixedArray<f32, ONYX_MAX_CASCADES> CreateDepthBias(const f32 minBias, const f32 maxBias)
 {
     const f32 dbias = (maxBias - minBias) / (ONYX_MAX_CASCADES > 1 ? (ONYX_MAX_CASCADES - 1) : ONYX_MAX_CASCADES);

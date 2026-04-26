@@ -359,6 +359,12 @@ template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, con
     changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.001f, 0.f, 1.f);
     changed |= ImGui::DragFloat("Light radius", &light.LightRadius, 0.01f, 0.f, TKIT_F32_MAX);
     changed |= ImGui::DragFloat("Shadow radius", &light.ShadowRadius, 0.01f, 0.f, TKIT_F32_MAX);
+    if constexpr (D == D2)
+    {
+        changed |= ImGui::SliderFloat("Angle", &light.Angle, -Math::Pi<f32>(), Math::Pi<f32>());
+        changed |= ImGui::SliderFloat("Decay", &light.Decay, 0.f, 1.f);
+        changed |= ImGui::SliderFloat("Extent", &light.Extent, 0.f, 1.f);
+    }
     changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
     changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastsShadows);
     changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
