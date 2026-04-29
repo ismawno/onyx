@@ -316,6 +316,7 @@ template <> struct Transform<D3> : ITransform<D3>
     void LookTowards(const f32v3 &position, const f32v3 &direction, const f32v3 &up = f32v3{0.f, 1.f, 0.f});
     void LookAt(const f32v3 &position, const f32v3 &target, const f32v3 &up = f32v3{0.f, 1.f, 0.f});
 
+    // TODO(Isma): Rename this
     static f32m4 LookTowardsMatrix(const f32v3 &position, const f32v3 &direction,
                                    const f32v3 &up = f32v3{0.f, 1.f, 0.f})
     {

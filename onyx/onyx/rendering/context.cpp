@@ -58,6 +58,7 @@ template <Dimension D> void IRenderContext<D>::Flush()
     ++m_Generation;
     m_DepthCounter = 0;
     m_PointLightData.Clear();
+    m_DirectionalLightData.Clear();
 }
 
 #define CHECK_HANDLE(handle, atype, dim)                                                                               \
@@ -161,7 +162,7 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
     instanceData.Arc.UpperCos = Math::Cosine(params.UpperAngle);
     instanceData.Arc.UpperSin = Math::Sine(params.UpperAngle);
 
-    instanceData.Fade.AngleOverflow = Math::Absolute(params.UpperAngle - params.LowerAngle) > Math::Pi<f32>() ? 1 : 0;
+    instanceData.Fade.AngleOverflow = Math::Absolute(params.UpperAngle - params.LowerAngle) > Math::Pi() ? 1 : 0;
     instanceData.Fade.Hollowness = params.Hollowness;
     instanceData.Fade.InnerFade = params.InnerFade;
     instanceData.Fade.OuterFade = params.OuterFade;
@@ -435,18 +436,24 @@ void IRenderContext<D>::addPointLightData(const f32m<D> &transform, const PointL
                     "[ONYX][CONTEXT] Point light decay must be between 0 and 1, but is {}", params.Decay);
         TKIT_ASSERT(params.Extent >= 0.f && params.Extent <= 1.f,
                     "[ONYX][CONTEXT] Point light extent must be between 0 and 1, but is {}", params.Extent);
-        // TKIT_ASSERT(params.Angle >= -Math::Pi<f32>() && params.Angle <= Math::Pi<f32>(),
+        // TKIT_ASSERT(params.Angle >= -Math::Pi() && params.Angle <= Math::Pi(),
         //             "[ONYX][CONTEXT] Point light angle must be between -pi and pi, but is {}", params.Angle);
     }
     PointLightParameters<D> &p = m_PointLightData.Append(params);
     p.Position = f32v<D>{transform * f32v<D + 1>{p.Position, 1.f}};
 }
 
+void RenderContext<D3>::addSpotLightData(const f32m4 &transform, const SpotLightParameters &params)
+{
+    SpotLightParameters &p = m_SpotLightData.Append(params);
+    p.Position = f32v3{transform * f32v4{p.Position, 1.f}};
+}
+
 template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, const f32v<D> &end)
 {
     const f32v<D> delta = end - start;
     if constexpr (D == D2)
-        return Math::AntiTangent(delta[1], delta[0]) - 0.5f * Math::Pi<f32>();
+        return Math::AntiTangent(delta[1], delta[0]) - 0.5f * Math::Pi();
     else
     {
         const f32v3 dir = Math::Normalize(delta);

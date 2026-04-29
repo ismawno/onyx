@@ -1,24 +1,9 @@
 #pragma once
 
 #include "onyx/core/alias.hpp"
+#include "shared/definitions.hpp"
 #include "tkit/utils/limits.hpp"
 #include "tkit/utils/debug.hpp"
-
-#define ONYX_ASSET_TYPE_BITS 3U
-#define ONYX_ASSET_POOL_BITS 8U
-
-#define ONYX_ASSET_TYPE_SHIFT (32U - ONYX_ASSET_TYPE_BITS)
-#define ONYX_ASSET_POOL_SHIFT (32U - ONYX_ASSET_TYPE_BITS - ONYX_ASSET_POOL_BITS)
-
-#define ONYX_ASSET_BITS ONYX_ASSET_POOL_SHIFT
-
-#define ONYX_ASSET_TYPE_MASK (0xFFFFFFFFU << ONYX_ASSET_TYPE_SHIFT)
-#define ONYX_ASSET_POOL_MASK (0xFFFFFFFFU << ONYX_ASSET_POOL_SHIFT)
-#define ONYX_ASSET_POOL_ID_MASK (ONYX_ASSET_POOL_MASK & ~ONYX_ASSET_TYPE_MASK)
-#define ONYX_ASSET_ID_MASK ~ONYX_ASSET_POOL_MASK
-
-#define ONYX_MAX_ASSET_POOLS ((1U << ONYX_ASSET_POOL_BITS) - 1U)
-#define ONYX_MAX_ASSETS ((1U << ONYX_ASSET_BITS) - 1U) // per pool
 
 #ifdef TKIT_ENABLE_ASSERTS
 #    define ONYX_CHECK_HANDLE_HAS_VALID_ASSET_TYPE(hndl)                                                               \

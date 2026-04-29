@@ -58,7 +58,7 @@ struct ParametricInstanceData3D
     InstanceParameters Parameters;
 }
 
-f32v2 GetParametricPosition2D(f32v2 pos, const InstanceParameters params, const ParametricRegionFlags region, const f32v2 alignment)
+f32v2 GetParametricPosition(f32v2 pos, const InstanceParameters params, const ParametricRegionFlags region, const f32v2 alignment)
 {
     if (params.Shape == ParametricShape_Stadium)
     {
@@ -93,7 +93,7 @@ f32v2 GetParametricPosition2D(f32v2 pos, const InstanceParameters params, const 
     return pos;
 }
 
-f32v3 GetParametricPosition3D(f32v3 pos, const f32v3 normal, const InstanceParameters params, const ParametricRegionFlags region, const f32v3 alignment)
+f32v3 GetParametricPosition(f32v3 pos, const f32v3 normal, const InstanceParameters params, const ParametricRegionFlags region, const f32v3 alignment)
 {
     if (params.Shape == ParametricShape_Stadium)
     {
@@ -173,7 +173,7 @@ f32v3 GetParametricPosition3D(f32v3 pos, const f32v3 normal, const InstanceParam
     return pos;
 }
 
-bool CheckParametricFragment2D(f32v2 pos, const u32v2 shapeInfo)
+bool CheckParametricFragment(f32v2 pos, const u32v2 shapeInfo)
 {
     const u32 shape = shapeInfo[0];
     const u32 region = shapeInfo[1];
@@ -195,7 +195,7 @@ bool CheckParametricFragment2D(f32v2 pos, const u32v2 shapeInfo)
     return true;
 }
 
-bool CheckParametricFragment3D(f32v3 pos, const u32v2 shapeInfo)
+bool CheckParametricFragment(f32v3 pos, const u32v2 shapeInfo)
 {
     const u32 shape = shapeInfo[0];
     const u32 region = shapeInfo[1];

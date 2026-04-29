@@ -69,7 +69,7 @@ f32 ComputeDepth(const u32 depthCounter)
     return max(0.f, 1.f - f32(depthCounter) / f32(1U << 24));
 }
 
-f32m4 ComputeTransform2D(const Transform2D transform)
+f32m4 ConstructTransform(const Transform2D transform)
 {
     return f32m4(
         f32v4(transform.Elm00, transform.Elm01, 0.f, 0.f),
@@ -79,7 +79,7 @@ f32m4 ComputeTransform2D(const Transform2D transform)
     );
 }
 
-f32m4 ComputeTransform3D(const Transform3D transform)
+f32m4 ConstructTransform(const Transform3D transform)
 {
     return f32m4(
         f32v4(transform.Elm00, transform.Elm01, transform.Elm02, 0.f),
@@ -88,6 +88,7 @@ f32m4 ComputeTransform3D(const Transform3D transform)
         f32v4(transform.Elm30, transform.Elm31, transform.Elm32, 1.f)
     );
 }
+
 f32v2 ComputeStencilScale2D(const f32m4 transform)
 {
     return f32v2(length(f32v2(transform[0][0], transform[1][0])), length(f32v2(transform[0][1], transform[1][1])));
@@ -116,13 +117,13 @@ f32m3 ComputeNormalMatrix(const f32m3 matrix)
 typedef StructuredBuffer<BoundsData2D, Std430DataLayout> Bounds2D;
 typedef StructuredBuffer<BoundsData3D, Std430DataLayout> Bounds3D;
 
-f32v2 GetCenter2D(const u32 handle, const Bounds2D bounds)
+f32v2 GetCenter(const u32 handle, const Bounds2D bounds)
 {
     const BoundsData2D data = bounds[GetAssetId(handle)];
     return f32v2(data.Data[2], data.Data[3]);
 }
 
-f32v2 ComputeAlignment2D(const u32 alignment, const u32 handle, const Bounds2D bounds)
+f32v2 ComputeAlignment(const u32 alignment, const u32 handle, const Bounds2D bounds)
 {
     const BoundsData2D data = bounds[GetAssetId(handle)];
 
@@ -131,13 +132,13 @@ f32v2 ComputeAlignment2D(const u32 alignment, const u32 handle, const Bounds2D b
     return f32v2(al0 == u32(Alignment_None) ? 0.f : data.Data[al0 * 2], al1 == u32(Alignment_None) ? 0.f : data.Data[al1 * 2 + 1]);
 }
 
-f32v3 GetCenter3D(const u32 handle, const Bounds3D bounds)
+f32v3 GetCenter(const u32 handle, const Bounds3D bounds)
 {
     const BoundsData3D data = bounds[GetAssetId(handle)];
     return f32v3(data.Data[3], data.Data[4], data.Data[5]);
 }
 
-f32v3 ComputeAlignment3D(const u32 alignment, const u32 handle, const Bounds3D bounds)
+f32v3 ComputeAlignment(const u32 alignment, const u32 handle, const Bounds3D bounds)
 {
     const BoundsData3D data = bounds[GetAssetId(handle)];
 

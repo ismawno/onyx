@@ -150,6 +150,7 @@ template <Dimension D> struct ContextData
     RenderContext<D> *Context;
     TKit::TierArray<Shape<D>> Shapes;
     TKit::TierArray<PointLightParameters<D>> PointLights{};
+    TKit::TierArray<DirectionalLightParameters<D>> DirLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
     TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
     f32 AxesThickness = 0.01f;
@@ -161,6 +162,7 @@ template <Dimension D> struct ContextData
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 SelectedShape = 0;
     u32 SelectedPointLight = 0;
+    u32 SelectedDirLight = 0;
     u32 LightToSpawn = 0;
 
     SandboxFlags Flags = SandboxFlag_DrawLights | SandboxFlag_ContextShouldUpdate;
@@ -168,7 +170,7 @@ template <Dimension D> struct ContextData
 
 struct DirParams
 {
-    DirectionalLightParameters Params{};
+    DirectionalLightParameters<D3> Params{};
     u32 RenderViewIndex = TKIT_U32_MAX;
 };
 
@@ -178,6 +180,7 @@ template <> struct ContextData<D3>
     TKit::TierArray<Shape<D3>> Shapes;
     TKit::TierArray<PointLightParameters<D3>> PointLights{};
     TKit::TierArray<DirParams> DirLights{};
+    TKit::TierArray<SpotLightParameters> SpotLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
     TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
     f32 AxesThickness = 0.01f;
@@ -193,6 +196,7 @@ template <> struct ContextData<D3>
     u32 LightToSpawn = 0;
     u32 SelectedPointLight = 0;
     u32 SelectedDirLight = 0;
+    u32 SelectedSpotLight = 0;
 
     SandboxFlags Flags = SandboxFlag_DrawLights | SandboxFlag_ContextShouldUpdate;
 };

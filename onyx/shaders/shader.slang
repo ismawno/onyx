@@ -35,14 +35,10 @@
 #    define InstanceData InstanceData2D
 #    define MaterialBuffer Materials2D
 #    define PointLightBuffer PointLights2D
+#    define DirectionalLightBuffer DirectionalLights2D
 #    define ShadowSamplerResource SamplerState
 #    define ResourceTable ResourceTable2D
 #    define f32v f32v2
-
-#    define ComputeTransform ComputeTransform2D
-#    define ComputeAlignment ComputeAlignment2D
-#    define ComputeStencilScale ComputeStencilScale2D
-#    define CheckParametricFragment CheckParametricFragment2D
 
 #    ifdef ONYX_GEOMETRY_CIRCLE
 #        include "circle.slang"
@@ -69,14 +65,10 @@
 #    define InstanceData InstanceData3D
 #    define MaterialBuffer Materials3D
 #    define PointLightBuffer PointLights3D
+#    define DirectionalLightBuffer DirectionalLights3D
 #    define ShadowSamplerResource SamplerComparisonState
 #    define ResourceTable ResourceTable3D
 #    define f32v f32v3
-
-#    define ComputeTransform ComputeTransform3D
-#    define ComputeAlignment ComputeAlignment3D
-#    define ComputeStencilScale ComputeStencilScale3D
-#    define CheckParametricFragment CheckParametricFragment3D
 
 #    ifdef ONYX_GEOMETRY_CIRCLE
 #        include "circle.slang"
@@ -228,12 +220,12 @@ struct PushConstants
 [[vk::push_constant]]
 PushConstants g_PushData;
 
-[[vk::binding(ONYX_INSTANCES_BINDING)]]
+[[vk::binding(ONYX_INSTANCES_BINDING_POINT)]]
 Instances g_Instances;
 
 #ifdef ONYX_USES_BOUNDS
 
-[[vk::binding(ONYX_BOUNDS_BINDING)]]
+[[vk::binding(ONYX_BOUNDS_BINDING_POINT)]]
 BoundsArray g_Bounds;
 
 #endif
@@ -254,7 +246,7 @@ FragInput mainVS(
     const GeometryInstanceData gdata = g_Instances[instanceIndex];
     const InstanceData data = gdata.Data;
 
-    const f32m4 transform = ComputeTransform(data.Transform);
+    const f32m4 transform = ConstructTransform(data.Transform);
 
 #ifdef ONYX_GEOMETRY_CIRCLE
 
@@ -278,9 +270,9 @@ FragInput mainVS(
 
     const InstanceParameters params = gdata.Parameters;
 #    ifdef ONYX_DIMENSION_2D
-    const f32v2 pos = GetParametricPosition2D(localPos, params, input.Region, alignment);
+    const f32v2 pos = GetParametricPosition(localPos, params, input.Region, alignment);
 #    else
-    const f32v3 pos = GetParametricPosition3D(localPos, input.Normal, params, input.Region, alignment);
+    const f32v3 pos = GetParametricPosition(localPos, input.Normal, params, input.Region, alignment);
 #    endif
 
     const f32v4 shiftedPos = ONYX_VEC4(pos);
@@ -366,40 +358,46 @@ FragInput mainVS(
     return finput;
 }
 
-[[vk::binding(ONYX_SAMPLERS_BINDING)]]
+[[vk::binding(ONYX_SAMPLERS_BINDING_POINT)]]
 SamplerState g_Samplers[ONYX_MAX_SAMPLERS];
 
-[[vk::binding(ONYX_TEXTURES_BINDING)]]
+[[vk::binding(ONYX_TEXTURES_BINDING_POINT)]]
 Texture2D g_Textures[ONYX_MAX_TEXTURES];
 
 #ifdef ONYX_USES_MATERIAL
-[[vk::binding(ONYX_MATERIALS_BINDING)]]
+[[vk::binding(ONYX_MATERIALS_BINDING_POINT)]]
 MaterialBuffer g_Materials;
 #endif
 
 #ifdef ONYX_PASS_SHADED
-[[vk::binding(ONYX_PLIGHTS_BINDING)]]
+[[vk::binding(ONYX_POINT_LIGHTS_BINDING_POINT)]]
 PointLightBuffer g_PointLights;
+
+[[vk::binding(ONYX_DIRECTIONAL_LIGHTS_BINDING_POINT)]]
+DirectionalLightBuffer g_DirLights;
 
 #    ifdef ONYX_DIMENSION_3D
 
-[[vk::binding(ONYX_DLIGHTS_BINDING)]]
-DirectionalLights g_DirLights;
+[[vk::binding(ONYX_SPOT_LIGHTS_BINDING_POINT)]]
+SpotLights g_SpotLights;
 
-[[vk::binding(ONYX_POINT_MAPS_BINDING)]]
+[[vk::binding(ONYX_POINT_MAPS_BINDING_POINT)]]
 TextureCube g_PointMaps[ONYX_MAX_TEXTURE_MAPS];
 
-[[vk::binding(ONYX_DIRECTIONAL_MAPS_BINDING)]]
+[[vk::binding(ONYX_DIRECTIONAL_MAPS_BINDING_POINT)]]
 Texture2DArray g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
+
+[[vk::binding(ONYX_SPOT_MAPS_BINDING_POINT)]]
+Texture2D g_SpotMaps[ONYX_MAX_TEXTURE_MAPS];
 
 #    else
 
-[[vk::binding(ONYX_SHADOW_MAPS_BINDING)]]
+[[vk::binding(ONYX_SHADOW_MAPS_BINDING_POINT)]]
 Texture1D g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
 
 #    endif
 
-[[vk::binding(ONYX_SHADOW_SAMPLER_BINDING)]]
+[[vk::binding(ONYX_SHADOW_SAMPLER_BINDING_POINT)]]
 ShadowSamplerResource g_ShadowSampler;
 
 #endif
@@ -452,20 +450,23 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
     resources.Samplers = g_Samplers;
     resources.Textures = g_Textures;
     resources.PointLights = g_PointLights;
+    resources.DirLights = g_DirLights;
     resources.ShadowSampler = g_ShadowSampler;
 
 #    ifdef ONYX_DIMENSION_3D
 
-    resources.DirLights = g_DirLights;
+    resources.SpLights = g_SpotLights;
     resources.PointMaps = g_PointMaps;
     resources.DirectionalMaps = g_DirectionalMaps;
-    out.Fill = ComputeMaterialColor3D(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
+    resources.SpotMaps = g_SpotMaps;
+
+    out.Fill = ComputeMaterialColor(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
     return out;
 
 #    else
 
     resources.ShadowMaps = g_ShadowMaps;
-    out.Fill = ComputeMaterialColor2D(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha);
+    out.Fill = ComputeMaterialColor(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha);
     return out;
 
 #    endif

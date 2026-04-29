@@ -63,7 +63,7 @@ template <> struct ShadowSpecs<D2>
 template <> struct ShadowSpecs<D3>
 {
     VkFormat ShadowFormat = VK_FORMAT_D32_SFLOAT;
-    TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{1024, 2048};
+    TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{512, 2048, 1024};
 };
 
 struct Specs

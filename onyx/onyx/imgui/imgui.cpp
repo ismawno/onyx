@@ -301,44 +301,6 @@ void HelpMarkerSameLine(const char *description, const char *icon)
     HelpMarker(description, icon);
 }
 
-bool DirectionalLightEditor(DirectionalLightParameters &light, const EditorFlags flags)
-{
-    bool changed = false;
-    if (flags & EditorFlag_DisplayHelp)
-        HelpMarker(
-            "Directional lights are lights that have no position, only a direction. They are used to simulate "
-            "infinite light sources, such as the sun. They have a direction, an intensity, and a color. The "
-            "direction is a Math::Normalized vector that points in the direction of the light, the intensity is the "
-            "brightness of the light, and the color is the color of the light.");
-    ImGui::PushID(&light);
-
-    ShadowCascadeParameters &c = light.Cascades;
-    FixedCascadeParameters &fx = c.FixedParameters;
-    FittedCascadeParameters &ft = c.FittedParameters;
-    changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), -1.f, 1.f);
-    changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
-    changed |= ImGui::DragFloat4("Depth bias", light.Cascades.DepthBias.GetData(), 0.0001f, 0.f, 1.f, "%.5f");
-    changed |= ImGui::SliderFloat("Lambda", &c.Lambda, 0.f, 1.f);
-    changed |= ImGui::SliderFloat("Overlap", &c.Overlap, -1.f, 1.f);
-    ImGui::Text("Fixed cascades");
-    changed |= ImGui::DragFloat3("View position", fx.ViewPosition.GetData(), 0.1f);
-    changed |= ImGui::DragFloat("Min size", &fx.MinSize, 0.1f, 0.01f, fx.MaxSize);
-    changed |= ImGui::DragFloat("Max size", &fx.MaxSize, 0.1f, fx.MinSize, TKIT_F32_MAX);
-    changed |= ImGui::DragFloat("Near", &fx.Near, 0.01f, -TKIT_F32_MAX, fx.Far);
-    changed |= ImGui::DragFloat("Far", &fx.Far, 0.1f, fx.Near, TKIT_F32_MAX);
-    ImGui::Text("Fitted cascades");
-    changed |= ImGui::DragFloat("Z Mul", &ft.ZMul, 0.1f, 0.f, TKIT_F32_MAX);
-
-    const u32 mn = 1;
-    const u32 mx = ONYX_MAX_CASCADES;
-    changed |= ImGui::SliderScalar("Cascade count", ImGuiDataType_U32, &c.Count, &mn, &mx);
-    changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastsShadows);
-    changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
-    changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
-    ImGui::PopID();
-    return changed;
-}
-
 template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, const EditorFlags flags)
 {
     bool changed = false;
@@ -361,12 +323,12 @@ template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, con
     changed |= ImGui::DragFloat("Shadow radius", &light.ShadowRadius, 0.01f, 0.f, TKIT_F32_MAX);
     if constexpr (D == D2)
     {
-        changed |= ImGui::SliderFloat("Angle", &light.Angle, -Math::Pi<f32>(), Math::Pi<f32>());
+        changed |= ImGui::SliderFloat("Angle", &light.Angle, -Math::Pi(), Math::Pi());
         changed |= ImGui::SliderFloat("Decay", &light.Decay, 0.f, 1.f);
         changed |= ImGui::SliderFloat("Extent", &light.Extent, 0.f, 1.f);
     }
     changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
-    changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastsShadows);
+    changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastShadows);
     changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
     changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
     ImGui::PopID();
@@ -375,6 +337,80 @@ template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, con
 
 template bool PointLightEditor<D2>(PointLightParameters<D2> &light, EditorFlags flags);
 template bool PointLightEditor<D3>(PointLightParameters<D3> &light, EditorFlags flags);
+
+template <Dimension D> bool DirectionalLightEditor(DirectionalLightParameters<D> &light, const EditorFlags flags)
+{
+    bool changed = false;
+    if (flags & EditorFlag_DisplayHelp)
+        HelpMarker(
+            "Directional lights are lights that have no position, only a direction. They are used to simulate "
+            "infinite light sources, such as the sun. They have a direction, an intensity, and a color. The "
+            "direction is a Math::Normalized vector that points in the direction of the light, the intensity is the "
+            "brightness of the light, and the color is the color of the light.");
+    ImGui::PushID(&light);
+
+    if constexpr (D == D3)
+    {
+        ShadowCascadeParameters &c = light.Cascades;
+        FixedCascadeParameters &fx = c.FixedParameters;
+        FittedCascadeParameters &ft = c.FittedParameters;
+        changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), -1.f, 1.f);
+        changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
+        // TODO(Isma): This breaks once max cascades is not exactly 4
+        changed |= ImGui::DragFloat4("Depth bias", light.Cascades.DepthBias.GetData(), 0.0001f, 0.f, 1.f, "%.5f");
+        changed |= ImGui::SliderFloat("Lambda", &c.Lambda, 0.f, 1.f);
+        changed |= ImGui::SliderFloat("Overlap", &c.Overlap, -1.f, 1.f);
+        ImGui::Text("Fixed cascades");
+        changed |= ImGui::DragFloat3("View position", Math::AsPointer(fx.ViewPosition), 0.1f);
+        changed |= ImGui::DragFloat("Min size", &fx.MinSize, 0.1f, 0.01f, fx.MaxSize);
+        changed |= ImGui::DragFloat("Max size", &fx.MaxSize, 0.1f, fx.MinSize, TKIT_F32_MAX);
+        changed |= ImGui::DragFloat("Near", &fx.Near, 0.01f, -TKIT_F32_MAX, fx.Far);
+        changed |= ImGui::DragFloat("Far", &fx.Far, 0.1f, fx.Near, TKIT_F32_MAX);
+        ImGui::Text("Fitted cascades");
+        changed |= ImGui::DragFloat("Z Mul", &ft.ZMul, 0.1f, 0.f, TKIT_F32_MAX);
+        const u32 mn = 1;
+        const u32 mx = ONYX_MAX_CASCADES;
+        changed |= ImGui::SliderScalar("Cascade count", ImGuiDataType_U32, &c.Count, &mn, &mx);
+    }
+    else
+    {
+        changed |= ImGui::DragFloat2("Position", Math::AsPointer(light.Position), 0.1f);
+        changed |= ImGui::SliderFloat("Angle", &light.Angle, -Math::Pi(), Math::Pi());
+        changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
+        changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.0001f, 0.f, 1.f, "%.5f");
+        changed |= ImGui::DragFloat("Extent", &light.Extent, 0.01f, 0.f, TKIT_F32_MAX);
+    }
+
+    changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastShadows);
+    changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
+    changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
+    ImGui::PopID();
+    return changed;
+}
+
+template bool DirectionalLightEditor<D2>(DirectionalLightParameters<D2> &light, EditorFlags flags);
+template bool DirectionalLightEditor<D3>(DirectionalLightParameters<D3> &light, EditorFlags flags);
+
+bool SpotLightEditor(SpotLightParameters &light)
+{
+    bool changed = false;
+
+    ImGui::PushID(&light);
+    changed |= ImGui::DragFloat3("Position", Math::AsPointer(light.Position), 0.02f);
+    changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), -1.f, 1.f);
+    changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.0001f, 0.f, 1.f, "%.5f");
+    changed |= ImGui::SliderFloat("Field of view", &light.FieldOfView, Math::Radians(50.f), Math::Radians(90.f));
+    changed |= ImGui::DragFloat("Light range", &light.LightRange, 0.01f, 0.f, TKIT_F32_MAX);
+    changed |= ImGui::DragFloat("Shadow range", &light.ShadowRange, 0.01f, 0.f, TKIT_F32_MAX);
+    changed |= ImGui::SliderFloat("Decay", &light.Decay, 0.f, 1.f);
+    changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
+    changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastShadows);
+    changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
+    changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
+    ImGui::PopID();
+
+    return changed;
+}
 
 static const char *presentModeToString(const VkPresentModeKHR mode)
 {

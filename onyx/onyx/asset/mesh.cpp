@@ -167,7 +167,7 @@ static StatMeshData<D> createRegularPolygon(const u32 sides, const f32v<D> &vert
     const auto addIndex = [&data, indexOffset](const u32 index) { data.Indices.Append(Index(index + indexOffset)); };
 
     addVertex(f32v<D>{0.f}, f32v2{0.5f});
-    const f32 angle = 2.f * Math::Pi<f32>() / sides;
+    const f32 angle = 2.f * Math::Pi() / sides;
     for (u32 i = 0; i < sides; ++i)
     {
         const f32 c = 0.5f * Math::Cosine(i * angle);
@@ -338,7 +338,7 @@ StatMeshData<D3> CreateSphereMeshData(u32 rings, const u32 sectors)
     for (u32 i = 1; i < rings - 1; ++i)
     {
         const f32 v = f32(i) / rings;
-        const f32 phi = v * Math::Pi<f32>();
+        const f32 phi = v * Math::Pi();
 
         const f32 pc = Math::Cosine(phi);
         const f32 ps = Math::Sine(phi);
@@ -347,7 +347,7 @@ StatMeshData<D3> CreateSphereMeshData(u32 rings, const u32 sectors)
         for (u32 j = 0; j < sectors; ++j)
         {
             const f32 u = f32(j) / sectors;
-            const f32 th = 2.f * u * Math::Pi<f32>();
+            const f32 th = 2.f * u * Math::Pi();
 
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
@@ -405,7 +405,7 @@ StatMeshData<D3> CreateCylinderMeshData(const u32 sides)
     const u32 offset = left.Vertices.GetSize() + right.Vertices.GetSize();
     const auto addIndex = [&data, offset](const u32 index) { data.Indices.Append(Index(index + offset)); };
 
-    const f32 angle = 2.f * Math::Pi<f32>() / sides;
+    const f32 angle = 2.f * Math::Pi() / sides;
     for (u32 i = 0; i < sides; ++i)
     {
         const f32 cc = Math::Cosine(i * angle);
@@ -603,7 +603,7 @@ ParaMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
     for (u32 i = 1; i < halfRings + 1; ++i)
     {
         const f32 v = f32(i) / rings;
-        const f32 phi = v * Math::Pi<f32>();
+        const f32 phi = v * Math::Pi();
 
         const f32 pc = Math::Cosine(phi);
         const f32 ps = Math::Sine(phi);
@@ -613,7 +613,7 @@ ParaMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
         for (u32 j = 0; j < sectors; ++j)
         {
             const f32 u = f32(j) / sectors;
-            const f32 th = 2.f * u * Math::Pi<f32>();
+            const f32 th = 2.f * u * Math::Pi();
 
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
@@ -638,7 +638,7 @@ ParaMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
     for (u32 i = halfRings; i < rings - 1; ++i)
     {
         const f32 v = f32(i) / rings;
-        const f32 phi = v * Math::Pi<f32>();
+        const f32 phi = v * Math::Pi();
 
         const f32 pc = Math::Cosine(phi);
         const f32 ps = Math::Sine(phi);
@@ -648,7 +648,7 @@ ParaMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
         for (u32 j = 0; j < sectors; ++j)
         {
             const f32 u = f32(j) / sectors;
-            const f32 th = 2.f * u * Math::Pi<f32>();
+            const f32 th = 2.f * u * Math::Pi();
 
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
@@ -683,7 +683,7 @@ ParaMeshData<D3> CreateCapsuleMeshData(u32 rings, const u32 sectors)
         addSphereIndex(rings, j);
     }
 
-    const f32 angle = 2.f * Math::Pi<f32>() / sectors;
+    const f32 angle = 2.f * Math::Pi() / sectors;
     for (u32 j = 0; j < sectors; ++j)
     {
         const f32 cc = Math::Cosine(j * angle);
@@ -914,14 +914,14 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
 
         const auto computeUpperVertex = [&](const u32 i, const u32 j) -> f32v3 {
             const f32 v = f32(i) / rings;
-            const f32 phi = v * Math::Pi<f32>();
+            const f32 phi = v * Math::Pi();
             const f32 pc = Math::Cosine(phi);
             const f32 ps = Math::Sine(phi);
             const f32 tx = Math::Map(ps, 0.f, 1.f, mnx, mxx);
             const f32 y = Math::Map(pc, 0.f, 1.f, 0.5f, 1.f);
             const f32 tz = Math::Map(ps, 0.f, 1.f, mnz, mxz);
             const f32 u = f32(j) / sectors;
-            const f32 th = 2.f * u * Math::Pi<f32>();
+            const f32 th = 2.f * u * Math::Pi();
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
             const f32 x = Math::Map(ps * tc, ps, 0.f, tx, sx * 0.5f);
@@ -931,14 +931,14 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
 
         const auto computeLowerVertex = [&](const u32 i, const u32 j) -> f32v3 {
             const f32 v = f32(i) / rings;
-            const f32 phi = v * Math::Pi<f32>();
+            const f32 phi = v * Math::Pi();
             const f32 pc = Math::Cosine(phi);
             const f32 ps = Math::Sine(phi);
             const f32 tx = Math::Map(ps, 0.f, 1.f, mnx, mxx);
             const f32 y = Math::Map(pc, 0.f, -1.f, -0.5f, -1.f);
             const f32 tz = Math::Map(ps, 0.f, 1.f, mnz, mxz);
             const f32 u = f32(j) / sectors;
-            const f32 th = 2.f * u * Math::Pi<f32>();
+            const f32 th = 2.f * u * Math::Pi();
             const f32 tc = Math::Cosine(th);
             const f32 ts = Math::Sine(th);
             const f32 x = Math::Map(ps * tc, ps, 0.f, tx, sx * 0.5f);
@@ -1179,7 +1179,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
 
         offset = data.Vertices.GetSize();
         {
-            const f32 angle = 2.f * Math::Pi<f32>() / sectors;
+            const f32 angle = 2.f * Math::Pi() / sectors;
             const u32 halfQuart = quartSectors / 2;
 
             // Determine which faces this edge bridges
@@ -1275,7 +1275,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
 
         const f32 mnz = 0.5f * sz;
         const f32 mxz = sz;
-        const f32 angle = 2.f * Math::Pi<f32>() / whole;
+        const f32 angle = 2.f * Math::Pi() / whole;
 
         const u32 halfPart = part / 2;
 
@@ -1358,7 +1358,7 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         const f32 mny = 0.5f * sy;
         const f32 mxy = sy;
 
-        const f32 angle = 2.f * Math::Pi<f32>() / whole;
+        const f32 angle = 2.f * Math::Pi() / whole;
 
         const u32 halfPart = part / 2;
 
@@ -1477,14 +1477,14 @@ ParaMeshData<D3> CreateTorusMeshData(const u32 rings, const u32 sectors)
     for (u32 i = 0; i <= rings; ++i)
     {
         const f32 u = f32(i) / rings;
-        const f32 theta = 2.f * u * Math::Pi<f32>(); // major angle
+        const f32 theta = 2.f * u * Math::Pi(); // major angle
         const f32 ct = Math::Cosine(theta);
         const f32 st = Math::Sine(theta);
 
         for (u32 j = 0; j <= sectors; ++j)
         {
             const f32 v = f32(j) / sectors;
-            const f32 phi = 2.f * v * Math::Pi<f32>(); // minor angle
+            const f32 phi = 2.f * v * Math::Pi(); // minor angle
             const f32 cp = Math::Cosine(phi);
             const f32 sp = Math::Sine(phi);
 

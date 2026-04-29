@@ -72,12 +72,41 @@ struct ShadowCascadeParameters
     u32 Count = ONYX_MAX_CASCADES;
 };
 
-struct DirectionalLightParameters
+template <Dimension D> struct DirectionalLightParameters;
+
+template <> struct DirectionalLightParameters<D2>
 {
-    using InstanceData = DirectionalLightData;
+    using InstanceData = DirectionalLightData<D2>;
+    f32v2 Position = f32v2{0.f};
+    Color Tint = Color_White;
+    f32 Angle = 0.f;
+    f32 DepthBias = 0.001f;
+    f32 Extent = 10.f; // setting this to the view's camera size is the best approach
+    f32 Intensity = 0.8f;
+    LightFlags Flags = 0;
+};
+
+template <> struct DirectionalLightParameters<D3>
+{
+    using InstanceData = DirectionalLightData<D3>;
     f32v3 Direction = f32v3{-1.f};
     Color Tint = Color_White;
     ShadowCascadeParameters Cascades{};
+    f32 Intensity = 0.8f;
+    LightFlags Flags = 0;
+};
+
+struct SpotLightParameters
+{
+    using InstanceData = SpotLightData;
+    f32v3 Position{0.f};
+    f32v3 Direction{-1.f, 0.f, 0.f};
+    Color Tint = Color_White;
+    f32 DepthBias = 0.001f;
+    f32 FieldOfView = Math::Radians(75.f);
+    f32 LightRange = 5.f;
+    f32 ShadowRange = 20.f;
+    f32 Decay = 0.f;
     f32 Intensity = 0.8f;
     LightFlags Flags = 0;
 };
@@ -107,7 +136,7 @@ struct CircleParameters
     f32 OuterFade = 0.f;
     f32 Hollowness = 0.f;
     f32 LowerAngle = 0.f;
-    f32 UpperAngle = 2.f * Math::Pi<f32>();
+    f32 UpperAngle = 2.f * Math::Pi();
 };
 enum Alignment : u8
 {
@@ -417,6 +446,10 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         addPointLightData(m_Current->Transform, params);
     }
+    void DirectionalLight(const DirectionalLightParameters<D> &params = {})
+    {
+        m_DirectionalLightData.Append(params);
+    }
 
     const RenderState<D> &GetState() const
     {
@@ -433,9 +466,14 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         return m_InstanceData;
     }
+
     const TKit::TierArray<PointLightParameters<D>> &GetPointLightData() const
     {
         return m_PointLightData;
+    }
+    const TKit::TierArray<DirectionalLightParameters<D>> &GetDirectionalLightData() const
+    {
+        return m_DirectionalLightData;
     }
 
     ViewMask GetViewMask() const
@@ -523,7 +561,10 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     TKit::TierArray<RenderState<D>> m_StateStack{};
     TKit::FixedArray<InstanceDataArrays, RenderMode_Count> m_InstanceData{};
+
     TKit::TierArray<PointLightParameters<D>> m_PointLightData{};
+    TKit::TierArray<DirectionalLightParameters<D>> m_DirectionalLightData{};
+
     u64 m_Generation = 0;
     Color m_AmbientLight = Color{Color_White, 0.4f};
     ViewMask m_ViewMask = 0;
@@ -558,7 +599,7 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
     void Flush()
     {
         Detail::IRenderContext<D3>::Flush();
-        m_DirectionalLightData.Clear();
+        m_SpotLightData.Clear();
     }
 
     void AlignZ(const Alignment alg)
@@ -639,19 +680,19 @@ template <> class alignas(TKIT_CACHE_LINE_SIZE) RenderContext<D3> final : public
             Onyx::Transform<D3>::RotateZIntrinsic(m_Current->Transform, angle);
     }
 
-    void DirectionalLight(const DirectionalLightParameters &params = {})
+    void SpotLight(const SpotLightParameters &params = {})
     {
-        m_DirectionalLightData.Append(params);
+        addSpotLightData(m_Current->Transform, params);
     }
 
-    const TKit::TierArray<DirectionalLightParameters> &GetDirectionalLightData() const
+    const TKit::TierArray<SpotLightParameters> &GetSpotLightData() const
     {
-        return m_DirectionalLightData;
+        return m_SpotLightData;
     }
 
   private:
-    void addDirectionalLightData(const f32m4 &transform, const DirectionalLightParameters &params);
+    void addSpotLightData(const f32m4 &transform, const SpotLightParameters &params);
 
-    TKit::TierArray<DirectionalLightParameters> m_DirectionalLightData{};
+    TKit::TierArray<SpotLightParameters> m_SpotLightData{};
 };
 } // namespace Onyx

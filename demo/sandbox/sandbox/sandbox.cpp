@@ -218,8 +218,15 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
                 ctx.Context->PointLight(pl);
 
             if constexpr (D == D3)
+            {
                 for (const DirParams &dl : ctx.DirLights)
                     ctx.Context->DirectionalLight(dl.Params);
+                for (const SpotLightParameters &sl : ctx.SpotLights)
+                    ctx.Context->SpotLight(sl);
+            }
+            else
+                for (const DirectionalLightParameters<D2> &dl : ctx.DirLights)
+                    ctx.Context->DirectionalLight(dl);
 
             if (ctx.Flags & SandboxFlag_DrawLights)
             {
@@ -1208,17 +1215,19 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
         context.Context->SetAmbientLight(ambient);
 
     if constexpr (D == D2)
-        combo("Light type", &context.LightToSpawn, "Point\0\0");
-    else
         combo("Light type", &context.LightToSpawn, "Point\0Directional\0\0");
+    else
+        combo("Light type", &context.LightToSpawn, "Point\0Directional\0Spot\0\0");
     if (ImGui::Button("Spawn##Light"))
     {
         const LightType ltype = LightType(context.LightToSpawn);
         if (ltype == Light_Point)
             context.PointLights.Append();
+        if (ltype == Light_Directional)
+            context.DirLights.Append();
         if constexpr (D == D3)
-            if (ltype == Light_Directional)
-                context.DirLights.Append();
+            if (ltype == Light_Spot)
+                context.SpotLights.Append();
     }
 
     EntriesOptions<PointLightParameters<D>> popts{};
@@ -1241,6 +1250,24 @@ template <Dimension D> void SandboxWinLayer::RenderLightPicker(ContextData<D> &c
                     light.RenderViewIndex == TKIT_U32_MAX ? nullptr : views.Views[light.RenderViewIndex].View;
 
             DirectionalLightEditor(light.Params, EditorFlag_DisplayHelp);
+        };
+        renderEntries(context.DirLights, dopts);
+
+        EntriesOptions<SpotLightParameters> sopts{};
+        sopts.TreeName = "Spot lights";
+        sopts.EntryName = "Spot light";
+        sopts.Selected = &context.SelectedSpotLight;
+        sopts.OnSelected = [](SpotLightParameters &light) { SpotLightEditor(light); };
+        renderEntries(context.SpotLights, sopts);
+    }
+    else
+    {
+        EntriesOptions<DirectionalLightParameters<D>> dopts{};
+        dopts.TreeName = "Directional lights";
+        dopts.EntryName = "Directional light";
+        dopts.Selected = &context.SelectedDirLight;
+        dopts.OnSelected = [](DirectionalLightParameters<D> &light) {
+            DirectionalLightEditor(light, EditorFlag_DisplayHelp);
         };
         renderEntries(context.DirLights, dopts);
     }

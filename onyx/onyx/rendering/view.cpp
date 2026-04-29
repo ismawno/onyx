@@ -3,6 +3,7 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/platform/platform.hpp"
 #include "onyx/state/descriptors.hpp"
+#include "shared/definitions.hpp"
 #include "vkit/state/descriptor_set.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
@@ -161,26 +162,26 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
 
         const u32 idx = m_Id * imageCount + i;
 
-        pp.WriteImage(Descriptors::GetPostProcessColorAttachmentsBindingPoint(), color, idx);
+        pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, idx);
 
         VkDescriptorImageInfo &outline = infos.Append();
         outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         outline.imageView = fb.Outline.GetView();
         outline.sampler = Renderer::GetGeneralPurposeSampler();
-        pp.WriteImage(Descriptors::GetPostProcessOutlineAttachmentsBindingPoint(), outline, idx);
+        pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, idx);
 
         VkDescriptorImageInfo &stencil = infos.Append();
         stencil.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         stencil.imageView = fb.DepthStencil.GetViews().GetBack();
         stencil.sampler = VK_NULL_HANDLE;
-        pp.WriteImage(Descriptors::GetPostProcessStencilAttachmentsBindingPoint(), stencil, idx);
+        pp.WriteImage(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil, idx);
 
         VkDescriptorImageInfo &postProcess = infos.Append();
         postProcess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         postProcess.imageView = fb.PostProcess.GetView(1);
         postProcess.sampler = Renderer::GetGeneralPurposeSampler();
 
-        compositor.WriteImage(Descriptors::GetCompositorColorAttachmentsBindingPoint(), postProcess, idx);
+        compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, postProcess, idx);
     }
     pp.Overwrite(m_PostProcessSet);
     compositor.Overwrite(m_CompositorSet);

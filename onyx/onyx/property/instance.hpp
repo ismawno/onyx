@@ -172,13 +172,14 @@ enum LightType : u8
 {
     Light_Point,
     Light_Directional,
+    Light_Spot,
     Light_Count
 };
 
 using LightFlags = u32;
 enum LightFlagBit : LightFlags
 {
-    LightFlag_CastsShadows = 1 << 0,
+    LightFlag_CastShadows = 1 << 0,
     LightFlag_PCF = 1 << 1,
 };
 
@@ -239,7 +240,20 @@ template <> struct PointLightData<D2>
 
 #define ONYX_MAX_CASCADES 4
 
-struct DirectionalLightData
+template <Dimension D> struct DirectionalLightData;
+template <> struct DirectionalLightData<D2>
+{
+    TransformData<D2> ProjectionView;
+    f32v2 Position;
+    f32v2 Direction;
+    f32 Intensity;
+    u32 Color;
+    u32 ShadowMapOffset;
+    ViewMask ViewMask;
+    LightFlags Flags;
+};
+
+template <> struct DirectionalLightData<D3>
 {
     TKit::FixedArray<TransformData<D3>, ONYX_MAX_CASCADES> Cascades;
     TKit::FixedArray<f32, ONYX_MAX_CASCADES> Splits;
@@ -252,7 +266,22 @@ struct DirectionalLightData
     LightFlags Flags;
 };
 
-template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 1 : 2;
+struct SpotLightData
+{
+    f32m4 ProjectionView;
+    f32v3 Position;
+    f32v3 Direction;
+    f32 CosHalfPov;
+    f32 LightRange;
+    f32 Decay;
+    f32 Intensity;
+    u32 Color;
+    u32 ShadowMapOffset;
+    ViewMask ViewMask;
+    LightFlags Flags;
+};
+
+template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 2 : 3;
 
 template <Dimension D> struct ShadedPushConstantData;
 
@@ -302,13 +331,17 @@ template <> struct ShadowPushConstantData<D3>
 
 struct DistancePushConstantData
 {
+    // Points
+    f32 StartAngle;
+    f32 EndAngle;
+
+    u32 Mode;
+
     u32 OcclusionMapIndex;
     u32 OcclusionResolution;
     u32 ShadowMapIndex;
     u32 ShadowResolution;
     f32 DistanceBias;
-    f32 StartAngle;
-    f32 EndAngle;
 };
 
 } // namespace Onyx

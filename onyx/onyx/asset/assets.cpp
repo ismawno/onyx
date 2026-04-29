@@ -191,9 +191,9 @@ template <Dimension D> static void updateMaterialDescriptorSet()
     MaterialAssetData<D> &materials = getData<D>().Materials;
 
     const VkDescriptorBufferInfo binfo = materials.Buffer.CreateDescriptorInfo();
-    Renderer::BindBuffer<D>(Descriptors::GetMaterialsBindingPoint(), binfo, RenderPass_Shaded);
+    Renderer::BindBuffer<D>(ONYX_MATERIALS_BINDING_POINT, binfo, RenderPass_Shaded);
     if constexpr (D == D2)
-        Renderer::BindBuffer<D>(Descriptors::GetMaterialsBindingPoint(), binfo, RenderPass_Shadow);
+        Renderer::BindBuffer<D>(ONYX_MATERIALS_BINDING_POINT, binfo, RenderPass_Shadow);
 }
 
 template <Dimension D> static void updateBoundsDescriptorSet()
@@ -201,9 +201,9 @@ template <Dimension D> static void updateBoundsDescriptorSet()
     BoundsAssetData<D> &bounds = getData<D>().BoundingBoxes;
 
     const VkDescriptorBufferInfo binfo = bounds.Buffer.CreateDescriptorInfo();
-    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint(), binfo, RenderPass_Shaded);
-    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint(), binfo, RenderPass_Flat);
-    Renderer::BindBuffer<D>(Descriptors::GetBoundsBindingPoint(), binfo, RenderPass_Shadow);
+    Renderer::BindBuffer<D>(ONYX_BOUNDS_BINDING_POINT, binfo, RenderPass_Shaded);
+    Renderer::BindBuffer<D>(ONYX_BOUNDS_BINDING_POINT, binfo, RenderPass_Flat);
+    Renderer::BindBuffer<D>(ONYX_BOUNDS_BINDING_POINT, binfo, RenderPass_Shadow);
 }
 
 template <typename T> static void initializeHiveAssets(const u32 capacity, HiveAssetData<T> &hive)
@@ -1076,12 +1076,12 @@ static void uploadTextures()
                 const VkDescriptorImageInfo info =
                     tinfo.Image.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
                 // TODO(Isma): loop please
-                Renderer::BindImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Shaded, tid);
-                Renderer::BindImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Flat, tid);
-                Renderer::BindImage<D2>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Shadow, tid);
-                Renderer::BindImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Shaded, tid);
-                Renderer::BindImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Flat, tid);
-                Renderer::BindImage<D3>(Descriptors::GetTexturesBindingPoint(), info, RenderPass_Shadow, tid);
+                Renderer::BindImage<D2>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shaded, tid);
+                Renderer::BindImage<D2>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Flat, tid);
+                Renderer::BindImage<D2>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shadow, tid);
+                Renderer::BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shaded, tid);
+                Renderer::BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Flat, tid);
+                Renderer::BindImage<D3>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shadow, tid);
             }
     }
 
@@ -1220,12 +1220,12 @@ static void uploadSamplers()
 
             const u32 sid = GetAssetId(sinfo.Handle);
             // TODO(Isma): loop please
-            Renderer::BindImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Shaded, sid);
-            Renderer::BindImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Flat, sid);
-            Renderer::BindImage<D2>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Shadow, sid);
-            Renderer::BindImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Shaded, sid);
-            Renderer::BindImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Flat, sid);
-            Renderer::BindImage<D3>(Descriptors::GetSamplersBindingPoint(), info, RenderPass_Shadow, sid);
+            Renderer::BindImage<D2>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shaded, sid);
+            Renderer::BindImage<D2>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Flat, sid);
+            Renderer::BindImage<D2>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shadow, sid);
+            Renderer::BindImage<D3>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shaded, sid);
+            Renderer::BindImage<D3>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Flat, sid);
+            Renderer::BindImage<D3>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shadow, sid);
         }
 }
 
