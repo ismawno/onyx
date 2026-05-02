@@ -1,7 +1,7 @@
 #pragma once
 
 #include "onyx/core/alias.hpp"
-#include "shared/definitions.hpp"
+#include "onyx/core/definitions.hpp"
 #include "tkit/utils/limits.hpp"
 #include "tkit/utils/debug.hpp"
 

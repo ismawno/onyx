@@ -3,7 +3,7 @@
 #include "onyx/rendering/renderer.hpp"
 #include "onyx/platform/platform.hpp"
 #include "onyx/state/descriptors.hpp"
-#include "shared/definitions.hpp"
+#include "onyx/core/definitions.hpp"
 #include "vkit/state/descriptor_set.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"

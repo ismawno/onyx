@@ -305,13 +305,19 @@ template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 2 : 3;
 
 template <Dimension D> struct ShadedPushConstantData;
 
-// TODO(Isma): Add a flag field that allows disabling all shadows at once
+using ShadedFlags = u32;
+enum ShadedFlagBit : ShadedFlags
+{
+    ShadedFlag_Shadows = 1 << 0,
+};
+
 template <> struct ShadedPushConstantData<D2>
 {
     f32m4 ProjectionView;
     TKit::FixedArray<u32, LightTypeCount<D2>> LightRanges{};
-    f32 TexelSize;
+    TKit::FixedArray<f32, LightTypeCount<D2>> TexelSizes{};
     u32 AmbientColor;
+    ShadedFlags Flags;
     ViewMask ViewBit;
 };
 
@@ -323,6 +329,7 @@ template <> struct ShadedPushConstantData<D3>
     TKit::FixedArray<u32, LightTypeCount<D3>> LightRanges{};
     TKit::FixedArray<f32, LightTypeCount<D3>> TexelSizes{};
     u32 AmbientColor;
+    ShadedFlags Flags;
     ViewMask ViewBit;
 };
 

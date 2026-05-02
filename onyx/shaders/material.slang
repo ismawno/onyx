@@ -58,11 +58,20 @@ enum LightType : u8
     Light_Count3D = 3,
 };
 
+typedef u32 ShadedFlags;
+
+[UnscopedEnum]
+enum ShadedFlagBit : ShadedFlags
+{
+    ShadedFlag_Shadows = 1 << 0,
+};
+
 struct LightData2D
 {
     u32 LightRanges[Light_Count2D];
-    f32 TexelSize;
+    f32 TexelSizes[Light_Count2D];
     u32 AmbientColor;
+    ShadedFlags Flags;
     ViewMask ViewBit;
 }
 
@@ -80,6 +89,7 @@ struct LightData3D
     f32 TexelSizes[Light_Count3D];
 
     u32 AmbientColor;
+    ShadedFlags Flags;
     ViewMask ViewBit;
 }
 
@@ -346,7 +356,7 @@ LightRange GetRange(const u32 range)
     return r;
 }
 
-f32v3 GetLightColor(const LightData2D data, const f32v2 worldPosition, const ResourceTable2D resources)
+f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const ResourceTable2D resources)
 {
     f32v3 diffuseColor = f32v3(0.0);
     const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
@@ -376,7 +386,7 @@ f32v3 GetLightColor(const LightData2D data, const f32v2 worldPosition, const Res
         const f32 intensity = attenuation * plight.Intensity;
 
         f32 shadow = 1.f;
-        if (bool(plight.Flags & LightFlag_CastShadows))
+        if (bool(data.Flags & ShadedFlag_Shadows) && bool(plight.Flags & LightFlag_CastShadows))
         {
             const f32 fragDepth = min(dist / plight.ShadowRadius, 1.f);
             const f32 ext = PI * plight.Extent;
@@ -397,7 +407,7 @@ f32v3 GetLightColor(const LightData2D data, const f32v2 worldPosition, const Res
             if (bool(plight.Flags & LightFlag_PCSS))
             {
                 const SamplerState smp = resources.ShadowSampler;
-                const f32 tsize = data.TexelSize;
+                const f32 tsize = data.TexelSizes[Light_Point];
                 const f32 far = plight.ShadowRadius;
 
                 const f32 txPerWorld = 0.5f / far;
@@ -432,7 +442,7 @@ f32v3 GetLightColor(const LightData2D data, const f32v2 worldPosition, const Res
             }
             else if (bool(plight.Flags & LightFlag_PCF))
             {
-                const f32 tsize = data.TexelSize;
+                const f32 tsize = data.TexelSizes[Light_Point];
                 shadow = 0.f;
                 for (u32 i = 0; i < POISSON_LINE_SAMPLES; ++i)
                 {
@@ -465,7 +475,7 @@ f32v3 GetLightColor(const LightData2D data, const f32v2 worldPosition, const Res
         const f32 intensity = atten * dlight.Intensity;
 
         f32 shadow = 1.f;
-        if (bool(dlight.Flags & LightFlag_CastShadows))
+        if (bool(data.Flags & ShadedFlag_Shadows) && bool(dlight.Flags & LightFlag_CastShadows))
         {
             const f32m3 pv = ConstructReducedTransform(dlight.ProjectionView);
             const f32v2 projCoords = mul(f32v3(worldPosition, 1.f), pv).xy;
@@ -482,7 +492,7 @@ f32v3 GetLightColor(const LightData2D data, const f32v2 worldPosition, const Res
             if (bool(dlight.Flags & LightFlag_PCSS))
             {
                 const SamplerState smp = resources.ShadowSampler;
-                const f32 tsize = data.TexelSize;
+                const f32 tsize = data.TexelSizes[Light_Directional];
                 const f32 tn = dlight.TanAngleSize;
                 const f32 txPerWorld = 0.5f / dlight.LightExtent;
                 const f32 searchRadius = max(fragDepth * dlight.ShadowExtent * tn * txPerWorld, tsize);
@@ -514,7 +524,7 @@ f32v3 GetLightColor(const LightData2D data, const f32v2 worldPosition, const Res
             }
             else if (bool(dlight.Flags & LightFlag_PCF))
             {
-                const f32 tsize = data.TexelSize;
+                const f32 tsize = data.TexelSizes[Light_Directional];
                 shadow = 0.f;
                 for (u32 i = 0; i < POISSON_LINE_SAMPLES; ++i)
                 {
@@ -567,7 +577,7 @@ f32m3 ComputePointLightTBN(const f32v3 ndir)
 }
 
 // pbr is ai generated
-f32v3 GetLightColor(const LightData3D data, const MaterialInfo3D info, const ResourceTable3D resources)
+f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const ResourceTable3D resources)
 {
     const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
 
@@ -608,7 +618,7 @@ f32v3 GetLightColor(const LightData3D data, const MaterialInfo3D info, const Res
         const f32 intensity = attenuation * plight.Intensity;
 
         f32 shadow = 1.f;
-        if (bool(plight.Flags & LightFlag_CastShadows))
+        if (bool(data.Flags & ShadedFlag_Shadows) && bool(plight.Flags & LightFlag_CastShadows))
         {
             const f32 z = min(1.f, dist / plight.ShadowRadius);
             const u32 shadowIndex = plight.ShadowMapOffset + countbits(plight.ViewMask & (data.ViewBit - 1));
@@ -705,7 +715,7 @@ f32v3 GetLightColor(const LightData3D data, const MaterialInfo3D info, const Res
         const f32 intensity = dlight.Intensity * atten;
 
         f32 shadow = 1.f;
-        if (bool(dlight.Flags & LightFlag_CastShadows) && dlight.CascadeEnable != 0)
+        if (bool(data.Flags & ShadedFlag_Shadows) && bool(dlight.Flags & LightFlag_CastShadows) && dlight.CascadeEnable != 0)
         {
             u32 cindex = dlight.CascadeCount - 1;
             for (u32 j = 0; j < dlight.CascadeCount; ++j)
@@ -805,7 +815,7 @@ f32v3 GetLightColor(const LightData3D data, const MaterialInfo3D info, const Res
         const f32 intensity = attenuation * slight.Intensity;
 
         f32 shadow = 1.f;
-        if (bool(slight.Flags & LightFlag_CastShadows))
+        if (bool(data.Flags & ShadedFlag_Shadows) && bool(slight.Flags & LightFlag_CastShadows))
         {
             const u32 shadowIndex = slight.ShadowMapOffset + countbits(slight.ViewMask & (data.ViewBit - 1));
             const f32m4 pv = ConstructPerspectiveTransform(slight.ProjectionView);
@@ -883,7 +893,7 @@ f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData2D light, const
     if (matId == NullAsset)
         return f32v4(fragColor.rgb, fragColor.a * alpha);
 
-    const f32v3 lcolor = GetLightColor(light, worldPos, resources);
+    const f32v3 lcolor = ComputeLightColor(light, worldPos, resources);
 
     const Material2D mat = resources.Materials[matId];
     const u32 sampId = GetAssetId(mat.Sampler);
@@ -960,6 +970,6 @@ f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData3D light, const
     if (emissiveSamp != NullAsset && emissiveTex != NullAsset)
         info.Emissive *= resources.Textures[emissiveTex].Sample(resources.Samplers[emissiveSamp], uv).rgb;
 
-    const f32v3 lcolor = GetLightColor(light, info, resources);
+    const f32v3 lcolor = ComputeLightColor(light, info, resources);
     return fragColor * f32v4(lcolor, info.Albedo.w * alpha);
 }

@@ -1,6 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/state/descriptors.hpp"
-#include "shared/definitions.hpp"
+#include "onyx/core/definitions.hpp"
 
 namespace Onyx::Descriptors
 {

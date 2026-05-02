@@ -32,7 +32,7 @@ typedef float32_t4x4 f32m4;
 
 typedef u32 ViewMask;
 
-#include "../shared/definitions.hpp"
+#include "../onyx/core/definitions.hpp"
 
 static constexpr u32 NullAsset = ONYX_ASSET_ID_MASK;
 

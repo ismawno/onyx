@@ -183,8 +183,6 @@ struct TextureMap
 {
     Execution::Tracker Tracker{};
     VKit::DeviceImage Image{};
-    u32 Resolution = TKIT_U32_MAX;
-    bool Grabbed = false;
 };
 
 using TextureMapArray = TKit::StaticArray<TextureMap, ONYX_MAX_TEXTURE_MAPS>;
@@ -197,10 +195,11 @@ template <> struct ShadowData<D2>
     VKit::Sampler CompareSampler{};
     TKit::TierHive<Range> ShadowMapSlots{};
 
+    TKit::FixedArray<TextureMapArray, LightTypeCount<D2>> ShadowMaps{};
+    TKit::FixedArray<u32, LightTypeCount<D2>> ShadowResolutions{};
+
     TextureMapArray OcclusionMaps{};
-    TextureMapArray ShadowMaps{};
     u32 OcclusionResolution = 0;
-    u32 ShadowResolution = 0;
 
     TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count> Pipelines{}; // occlusion pipelines
     VKit::ComputePipeline DistancePipeline{};
@@ -218,9 +217,7 @@ template <> struct ShadowData<D3>
     VKit::Sampler CompareSampler{};
     TKit::TierHive<Range> ShadowMapSlots{};
 
-    TextureMapArray PointMaps{};
-    TextureMapArray DirectionalMaps{};
-    TextureMapArray SpotMaps{};
+    TKit::FixedArray<TextureMapArray, LightTypeCount<D2>> ShadowMaps{};
     TKit::FixedArray<u32, LightTypeCount<D3>> ShadowResolutions{};
 
     TKit::FixedArray<VKit::GraphicsPipeline, Geometry_Count> Pipelines{};
@@ -575,13 +572,12 @@ template <Dimension D> static void initializeShadows(const ShadowSpecs<D> &specs
     if constexpr (D == D2)
     {
         sdata.OcclusionFormat = specs.OcclusionFormat;
-        sdata.ShadowResolution = specs.ShadowResolution;
         sdata.OcclusionResolution = specs.OcclusionResolution;
         sdata.DistanceSet = ONYX_CHECK_EXPRESSION(
             Descriptors::GetDescriptorPool().Allocate(Descriptors::GetDistanceDescriptorLayout()));
     }
-    else
-        sdata.ShadowResolutions = specs.ShadowResolutions;
+
+    sdata.ShadowResolutions = specs.ShadowResolutions;
 }
 
 template <Dimension D> static void initialize(const ShadowSpecs<D> &shadowSpecs)
@@ -626,22 +622,12 @@ template <Dimension D> static void terminateShadows()
     ShadowData<D> &sdata = getRendererData<D>().Shadows;
     sdata.Sampler.Destroy();
     sdata.CompareSampler.Destroy();
+    for (auto &maps : sdata.ShadowMaps)
+        for (auto &map : maps)
+            map.Image.Destroy();
     if constexpr (D == D2)
-    {
         for (auto &map : sdata.OcclusionMaps)
             map.Image.Destroy();
-        for (auto &map : sdata.ShadowMaps)
-            map.Image.Destroy();
-    }
-    else
-    {
-        for (auto &map : sdata.PointMaps)
-            map.Image.Destroy();
-        for (auto &map : sdata.DirectionalMaps)
-            map.Image.Destroy();
-        for (auto &map : sdata.SpotMaps)
-            map.Image.Destroy();
-    }
 }
 
 template <Dimension D> static void terminate()
@@ -1261,7 +1247,6 @@ static u32 findSuitableOcclusionMap()
             sdata.OcclusionFormat, VKit::DeviceImageFlag_ColorAttachment | VKit::DeviceImageFlag_Storage)
             .AddImageView()
             .Build());
-    map.Resolution = sdata.OcclusionResolution;
 
     if (IsDebugUtilsEnabled())
     {
@@ -1279,27 +1264,24 @@ static u32 findSuitableOcclusionMap()
 }
 
 template <Dimension D>
-static Range findSuitableTextureMapRange(const LightType light, const VkFormat format, const u32 count,
-                                         const u32 resolution, TextureMapArray &maps)
+static Range findSuitableTextureMapRange(const LightType light, const VkFormat format, const u32 count)
 {
+    ShadowData<D> &sdata = getRendererData<D>().Shadows;
+    const u32 resolution = sdata.ShadowResolutions[light];
+    TextureMapArray &maps = sdata.ShadowMaps[light];
+
     Range range{};
-    const auto grabMaps = [&] {
-        for (u32 i = 0; i < range.Count; ++i)
-            maps[i + range.Offset].Grabbed = true;
-        return range;
-    };
     for (u32 i = 0; i < maps.GetSize(); ++i)
     {
         const TextureMap &map = maps[i];
-        TKIT_ASSERT(map.Resolution == resolution, "[ONYX][RENDERER] Resolution mismatch between texture maps");
         ++range.Count;
-        if (map.Tracker.InUse() || map.Grabbed)
+        if (map.Tracker.InUse())
         {
             range.Offset = i + 1;
             range.Count = 0;
         }
         if (range.Count == count)
-            return grabMaps();
+            return range;
     }
 
     const VKit::DeviceImageFlags flags = (D == D3 ? VKit::DeviceImageFlag_DepthAttachment
@@ -1343,8 +1325,6 @@ static Range findSuitableTextureMapRange(const LightType light, const VkFormat f
         }
 
         map.Image = ONYX_CHECK_EXPRESSION(builder.Build());
-        map.Resolution = resolution;
-
         if (IsDebugUtilsEnabled())
         {
             ONYX_CHECK_EXPRESSION(map.Image.SetName(
@@ -1374,7 +1354,7 @@ static Range findSuitableTextureMapRange(const LightType light, const VkFormat f
         }
     }
     range.Count = count;
-    return grabMaps();
+    return range;
 }
 
 template <Dimension D>
@@ -1776,24 +1756,6 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
         using LightData = typename LightParams::InstanceData;
         const VkDeviceSize requiredMem = sizeof(LightData) * clights.Lights.GetSize();
 
-        TextureMapArray *maps;
-        u32 resolution;
-        if constexpr (D == D2)
-        {
-            maps = &sdata.ShadowMaps;
-            resolution = sdata.ShadowResolution;
-        }
-        else
-        {
-            resolution = sdata.ShadowResolutions[ltype];
-            if constexpr (std::is_same_v<LightParams, DirectionalLightParameters<D>>)
-                maps = &sdata.DirectionalMaps;
-            else if constexpr (std::is_same_v<LightParams, SpotLightParameters>)
-                maps = &sdata.SpotMaps;
-            else
-                maps = &sdata.PointMaps;
-        }
-
         const LightInfo &info = linfo[ltype];
         for (u32 i = 0; i < clights.Lights.GetSize(); ++i)
         {
@@ -1805,7 +1767,7 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
 
             const u32 count = std::popcount(vm);
             if (count != 0 && (light.Flags & LightFlag_CastShadows) && ((vm & sdata.DirtyViews) || range.Count == 0))
-                range = findSuitableTextureMapRange<D>(ltype, sdata.ShadowFormat, count, resolution, *maps);
+                range = findSuitableTextureMapRange<D>(ltype, sdata.ShadowFormat, count);
 
             const u32 shadowOffset = range.Offset;
             clights.Data.Append(createLightData(vm, shadowOffset, light));
@@ -2471,9 +2433,8 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
 
     const auto table = GetDeviceTable();
     const auto processLight =
-        [&]<typename LightParams>(const TKit::TierArray<LightParams> &lights,
-                                  const TKit::TierArray<typename LightParams::InstanceData> lightData,
-                                  TextureMapArray &shadowMaps) {
+        [&]<typename LightParams>(const LightType ltype, const TKit::TierArray<LightParams> &lights,
+                                  const TKit::TierArray<typename LightParams::InstanceData> lightData) {
             using LightData = LightParams::InstanceData;
             TKIT_ASSERT(
                 lights.GetSize() == lightData.GetSize(),
@@ -2500,9 +2461,9 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                 const u32 viewIndex = std::popcount(data.ViewMask & (viewBit - 1));
                 const u32 shindex = data.ShadowMapOffset + viewIndex;
 
+                TextureMapArray &shadowMaps = sdata.ShadowMaps[ltype];
                 TextureMap &smap = shadowMaps[shindex];
                 smap.Tracker.MarkInUse(graphics, inFlightValue);
-                smap.Grabbed = false;
 
                 if (!(dirtyViews & viewBit))
                     continue;
@@ -2598,7 +2559,7 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     pdata.OcclusionMapIndex = ocindex;
                     pdata.OcclusionResolution = sdata.OcclusionResolution;
                     pdata.ShadowMapIndex = shindex;
-                    pdata.ShadowResolution = sdata.ShadowResolution;
+                    pdata.ShadowResolution = sdata.ShadowResolutions[ltype];
                     pdata.DistanceBias = params.DepthBias;
 
                     if constexpr (isPoint)
@@ -2662,22 +2623,16 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
         };
 
     const LightData<D> &ldata = rdata.Lights;
-    if constexpr (D == D2)
-    {
-        processLight(ldata.Instances.Points.Lights, ldata.Instances.Points.Data, sdata.ShadowMaps);
-        processLight(ldata.Instances.Directionals.Lights, ldata.Instances.Directionals.Data, sdata.ShadowMaps);
-    }
-    else
-    {
-        processLight(ldata.Instances.Points.Lights, ldata.Instances.Points.Data, sdata.PointMaps);
-        processLight(ldata.Instances.Directionals.Lights, ldata.Instances.Directionals.Data, sdata.DirectionalMaps);
-        processLight(ldata.Instances.Spots.Lights, ldata.Instances.Spots.Data, sdata.SpotMaps);
-    }
+    processLight(Light_Point, ldata.Instances.Points.Lights, ldata.Instances.Points.Data);
+    processLight(Light_Directional, ldata.Instances.Directionals.Lights, ldata.Instances.Directionals.Data);
+    if constexpr (D == D3)
+        processLight(Light_Spot, ldata.Instances.Spots.Lights, ldata.Instances.Spots.Data);
 }
 
 template <Dimension D>
 static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cmd, const ViewInfo<D> &vinfo,
-                           const u64 inFlightValue, TKit::StackArray<Execution::Tracker> &transferTrackers)
+                           const u64 inFlightValue, TKit::StackArray<Execution::Tracker> &transferTrackers,
+                           const bool shadows)
 {
     const ViewMask viewBit = vinfo.ViewBit;
 
@@ -2760,20 +2715,19 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
         {
             ShadedPushConstantData<D> pdata;
             pdata.ProjectionView = vinfo.ProjectionView;
+            pdata.Flags = ShadedFlag_Shadows * shadows;
+
+            for (u32 i = 0; i < LightTypeCount<D>; ++i)
+            {
+                pdata.TexelSizes[i] = 1.f / f32(sdata.ShadowResolutions[i]);
+                pdata.LightRanges[i] = (ldata.Ranges[i].Offset << 16) | ldata.Ranges[i].Count;
+            }
 
             if constexpr (D == D3)
             {
                 pdata.ViewPosition = vinfo.ViewPosition;
                 pdata.ViewForward = vinfo.ViewForward;
-                pdata.TexelSizes[Light_Point] = 1.f / f32(sdata.ShadowResolutions[Light_Point]);
-                pdata.TexelSizes[Light_Directional] = 1.f / f32(sdata.ShadowResolutions[Light_Directional]);
-                pdata.TexelSizes[Light_Spot] = 1.f / f32(sdata.ShadowResolutions[Light_Spot]);
             }
-            else
-                pdata.TexelSize = 1.f / f32(sdata.ShadowResolution);
-
-            for (u32 i = 0; i < LightTypeCount<D>; ++i)
-                pdata.LightRanges[i] = (ldata.Ranges[i].Offset << 16) | ldata.Ranges[i].Count;
 
             pdata.ViewBit = viewBit;
             pdata.AmbientColor = ambientColor;
@@ -2848,7 +2802,8 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, const VkD
 
         rv->CacheMatrices();
         rv->BeginRendering(cmd, tracker);
-        renderGeometry<D>(graphics, cmd, rv->CreateViewInfo(), graphicsFlight, transferTrackers);
+        renderGeometry<D>(graphics, cmd, rv->CreateViewInfo(), graphicsFlight, transferTrackers,
+                          rv->Flags & RenderViewFlag_Shadows);
         rv->EndRendering(cmd);
     }
 
