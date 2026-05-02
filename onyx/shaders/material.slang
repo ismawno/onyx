@@ -198,6 +198,7 @@ struct DirectionalLight3D
     u32 Color;
     u32 ShadowMapOffset;
     u32 CascadeCount;
+    u32 CascadeEnable;
 
     ViewMask ViewMask;
     LightFlags Flags;
@@ -692,7 +693,7 @@ f32v3 GetLightColor(const LightData3D data, const MaterialInfo3D info, const Res
         const f32 intensity = dlight.Intensity * atten;
 
         f32 shadow = 1.f;
-        if (bool(dlight.Flags & LightFlag_CastShadows))
+        if (bool(dlight.Flags & LightFlag_CastShadows) && dlight.CascadeEnable != 0)
         {
             u32 cindex = dlight.CascadeCount - 1;
             for (u32 j = 0; j < dlight.CascadeCount; ++j)
@@ -702,65 +703,68 @@ f32v3 GetLightColor(const LightData3D data, const MaterialInfo3D info, const Res
                     break;
                 }
 
-            const CascadeData cdata = dlight.Cascades[cindex];
-            const u32 shadowIndex = dlight.ShadowMapOffset + countbits(dlight.ViewMask & (data.ViewBit - 1));
-            const f32m4 pv = ConstructTransform(cdata.ProjectionView);
-
-            const f32v3 projCoords = mul(f32v4(info.WorldPosition, 1.0), pv).xyz;
-            const f32v2 shadowUV = projCoords.xy * 0.5 + 0.5;
-
-            const Texture2DArray<f32> maps = resources.DirectionalMaps[shadowIndex];
-            const SamplerComparisonState csmp = resources.ShadowCompareSampler;
-            const f32 z = saturate(projCoords.z);
-
-            if (bool(dlight.Flags & LightFlag_PCSS))
+            if (bool((1 << cindex) & dlight.CascadeEnable))
             {
-                const SamplerState smp = resources.ShadowSampler;
-                const f32 tsize = data.TexelSizes[Light_Directional];
+                const CascadeData cdata = dlight.Cascades[cindex];
+                const u32 shadowIndex = dlight.ShadowMapOffset + countbits(dlight.ViewMask & (data.ViewBit - 1));
+                const f32m4 pv = ConstructTransform(cdata.ProjectionView);
 
-                const f32 tn = dlight.TanAngleSize;
-                const f32v2 txPerWorld = f32v2(cdata.ShadowInvSizeX, cdata.ShadowInvSizeY);
-                const f32v2 searchRadius = max(z * cdata.DepthRange * tn * txPerWorld, f32v2(tsize));
+                const f32v3 projCoords = mul(f32v4(info.WorldPosition, 1.0), pv).xyz;
+                const f32v2 shadowUV = projCoords.xy * 0.5 + 0.5;
 
-                u32 count = 0;
-                f32 blockerDepth = 0.f;
-                for (u32 i = 0; i < POISSON_DISK_SAMPLES; ++i)
+                const Texture2DArray<f32> maps = resources.DirectionalMaps[shadowIndex];
+                const SamplerComparisonState csmp = resources.ShadowCompareSampler;
+                const f32 z = saturate(projCoords.z);
+
+                if (bool(dlight.Flags & LightFlag_PCSS))
                 {
-                    const f32v2 offset = poissonDisk[i] * searchRadius;
-                    const f32 depth = maps.Sample(smp, f32v3(shadowUV + offset, cindex));
-                    if (depth < z)
+                    const SamplerState smp = resources.ShadowSampler;
+                    const f32 tsize = data.TexelSizes[Light_Directional];
+
+                    const f32 tn = dlight.TanAngleSize;
+                    const f32v2 txPerWorld = f32v2(cdata.ShadowInvSizeX, cdata.ShadowInvSizeY);
+                    const f32v2 searchRadius = max(z * cdata.DepthRange * tn * txPerWorld, f32v2(tsize));
+
+                    u32 count = 0;
+                    f32 blockerDepth = 0.f;
+                    for (u32 i = 0; i < POISSON_DISK_SAMPLES; ++i)
                     {
-                        ++count;
-                        blockerDepth += depth;
+                        const f32v2 offset = poissonDisk[i] * searchRadius;
+                        const f32 depth = maps.Sample(smp, f32v3(shadowUV + offset, cindex));
+                        if (depth < z)
+                        {
+                            ++count;
+                            blockerDepth += depth;
+                        }
+                    }
+                    if (count != 0)
+                    {
+                        blockerDepth /= count;
+                        // const f32 penumbra = dlight.LightSize * (z - blockerDepth) / blockerDepth;
+                        const f32v2 penumbra = tn * (z - blockerDepth) * cdata.DepthRange * txPerWorld;
+                        shadow = 0.f;
+                        for (u32 i = 0; i < POISSON_DISK_SAMPLES; ++i)
+                        {
+                            const f32v2 offset = poissonDisk[i] * penumbra;
+                            shadow += maps.SampleCmp(csmp, f32v3(shadowUV + offset, cindex), z);
+                        }
+                        shadow /= POISSON_DISK_SAMPLES;
                     }
                 }
-                if (count != 0)
+                else if (bool(dlight.Flags & LightFlag_PCF))
                 {
-                    blockerDepth /= count;
-                    // const f32 penumbra = dlight.LightSize * (z - blockerDepth) / blockerDepth;
-                    const f32v2 penumbra = tn * (z - blockerDepth) * cdata.DepthRange * txPerWorld;
+                    const f32 tsize = data.TexelSizes[Light_Directional];
                     shadow = 0.f;
                     for (u32 i = 0; i < POISSON_DISK_SAMPLES; ++i)
                     {
-                        const f32v2 offset = poissonDisk[i] * penumbra;
+                        const f32v2 offset = poissonDisk[i] * tsize;
                         shadow += maps.SampleCmp(csmp, f32v3(shadowUV + offset, cindex), z);
                     }
                     shadow /= POISSON_DISK_SAMPLES;
                 }
+                else
+                    shadow = maps.SampleCmp(csmp, f32v3(shadowUV, cindex), z);
             }
-            else if (bool(dlight.Flags & LightFlag_PCF))
-            {
-                const f32 tsize = data.TexelSizes[Light_Directional];
-                shadow = 0.f;
-                for (u32 i = 0; i < POISSON_DISK_SAMPLES; ++i)
-                {
-                    const f32v2 offset = poissonDisk[i] * tsize;
-                    shadow += maps.SampleCmp(csmp, f32v3(shadowUV + offset, cindex), z);
-                }
-                shadow /= POISSON_DISK_SAMPLES;
-            }
-            else
-                shadow = maps.SampleCmp(csmp, f32v3(shadowUV, cindex), z);
         }
         Lo += contrib * intensity * shadow;
     }

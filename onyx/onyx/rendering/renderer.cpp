@@ -1445,8 +1445,10 @@ static TKit::FixedArray<f32v4, 8> getCameraCorners(const f32m4 &pv)
 }
 
 static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32v3 &dir, const RenderView<D3> *rview,
+                                                                       const f32v3 &offset, const f32v2 &extent,
                                                                        const u32 count, const f32 zmul,
-                                                                       const f32 lambda, const f32 overlap)
+                                                                       const f32 lambda, const f32 overlap,
+                                                                       u32 &enableFlags)
 {
     const TKit::FixedArray<f32v4, 8> globalCorners = getCameraCorners(rview->GetProjectionView());
 
@@ -1467,6 +1469,7 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
     }
     const f32 range = cfar - cnear;
     f32 split0 = cnear;
+    enableFlags = 0;
     for (u32 i = 0; i < count; ++i)
     {
         CascadeData &c = cascades[i];
@@ -1499,6 +1502,21 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
             max = Math::Max(max, lc);
         }
 
+        const f32v2 ofview = f32v2{view * f32v4{offset, 1.f}};
+        const f32v2 cmin = ofview - extent;
+        const f32v2 cmax = ofview + extent;
+
+        min[0] = Math::Max(min[0], cmin[0]);
+        min[1] = Math::Max(min[1], cmin[1]);
+
+        max[0] = Math::Min(max[0], cmax[0]);
+        max[1] = Math::Min(max[1], cmax[1]);
+
+        if (min[0] >= max[0] || min[1] >= max[1])
+            continue;
+
+        enableFlags |= 1 << i;
+
         if (min[2] < 0.f)
             min[2] *= zmul;
         else
@@ -1530,22 +1548,7 @@ DirectionalLightData<D> createLightData(const ViewMask vmask, const u32 shadowMa
     if constexpr (D == D3)
     {
         const f32v<D> dir = Math::Normalize(params.Direction);
-        if (params.Flags & LightFlag_CastShadows)
-        {
-            const ShadowCascadeParameters &c = params.Cascades;
-            TKIT_ASSERT(
-                c.Count != 0,
-                "[ONYX][RENDERER] If a directional light casts shadows, its cascade count must be greater than 0");
-
-            const TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> cascades =
-                c.View ? createCascades(dir, c.View, c.Count, c.FittedParameters.ZMul, c.Lambda, c.Overlap)
-                       : createCascades(dir, c.Count, c.Lambda, c.Overlap, c.FixedParameters);
-
-            data.Cascades = cascades;
-            data.CascadeCount = c.Count;
-        }
-        data.Direction = dir;
-        const f32v3 up = dir[1] < 0.99f ? f32v3{0.f, 1.f, 0.f} : f32v3{1.f, 0.f, 0.f};
+        const f32v3 up = Math::Absolute(dir[1]) < 0.99f ? f32v3{0.f, 1.f, 0.f} : f32v3{1.f, 0.f, 0.f};
         const f32v3 t1 = Math::Normalize(Math::Cross(up, dir));
         const f32v3 t2 = Math::Cross(dir, t1);
 
@@ -1553,6 +1556,24 @@ DirectionalLightData<D> createLightData(const ViewMask vmask, const u32 shadowMa
         data.Extent = params.Extent;
         data.PlaneVec1 = t1;
         data.PlaneVec2 = t2;
+
+        if (params.Flags & LightFlag_CastShadows)
+        {
+            const ShadowCascadeParameters &c = params.Cascades;
+            TKIT_ASSERT(
+                c.Count != 0,
+                "[ONYX][RENDERER] If a directional light casts shadows, its cascade count must be greater than 0");
+
+            data.CascadeEnable = (1 << ONYX_MAX_CASCADES) - 1;
+            const TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> cascades =
+                c.View ? createCascades(dir, c.View, data.Offset, params.Extent, c.Count, c.FittedParameters.ZMul,
+                                        c.Lambda, c.Overlap, data.CascadeEnable)
+                       : createCascades(dir, c.Count, c.Lambda, c.Overlap, c.FixedParameters);
+
+            data.Cascades = cascades;
+            data.CascadeCount = c.Count;
+        }
+        data.Direction = dir;
     }
     else
     {
@@ -2459,8 +2480,15 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
             {
                 const LightData &data = lightData[i];
 
+                constexpr bool isPoint = std::is_same_v<LightParams, PointLightParameters<D>>;
+                constexpr bool isDir = std::is_same_v<LightParams, DirectionalLightParameters<D>>;
+                constexpr bool isSpot = std::is_same_v<LightParams, SpotLightParameters>;
+
                 if (!(data.ViewMask & viewBit) || !(data.Flags & LightFlag_CastShadows))
                     continue;
+                if constexpr (D == D3 && isDir)
+                    if (data.CascadeEnable == 0)
+                        continue;
 
                 const LightParams &params = lights[i];
 
@@ -2496,10 +2524,6 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     const Geometry geo = Geometry(i);
                     collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, RenderModeFlag_Shaded);
                 }
-
-                constexpr bool isPoint = std::is_same_v<LightParams, PointLightParameters<D>>;
-                constexpr bool isDir = std::is_same_v<LightParams, DirectionalLightParameters<D>>;
-                constexpr bool isSpot = std::is_same_v<LightParams, SpotLightParameters>;
 
                 const auto processMap = [&](TextureMap &map, const f32m4 &projView, const u32 viewIndex = 0) {
                     beginShadowPass<D>(cmd, map, viewIndex);
@@ -2620,8 +2644,11 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                         }
                     }
                     else if constexpr (isDir)
+                    {
                         for (u32 i = 0; i < data.CascadeCount; ++i)
-                            processMap(smap, createTransform(data.Cascades[i].ProjectionView), i);
+                            if ((1 << i) & data.CascadeEnable)
+                                processMap(smap, createTransform(data.Cascades[i].ProjectionView), i);
+                    }
                     else
                         processMap(smap, data.ProjectionView);
                     endShadowTransitionLayout<D>(cmd, smap);
