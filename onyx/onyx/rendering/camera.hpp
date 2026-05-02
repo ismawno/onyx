@@ -1,5 +1,4 @@
 #pragma once
-// TODO(Isma): Move file to rendering
 
 #include "onyx/platform/input.hpp"
 #include "onyx/property/transform.hpp"

@@ -3,7 +3,7 @@
 #include "onyx/platform/input.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/platform/glfw.hpp"
-#include "onyx/property/camera.hpp"
+#include "onyx/rendering/camera.hpp"
 #include "onyx/state/descriptors.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"

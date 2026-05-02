@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/property/camera.hpp"
+#include "onyx/rendering/camera.hpp"
 #include "onyx/property/color.hpp"
 #include "onyx/execution/execution.hpp"
 #include "vkit/resource/device_image.hpp"
