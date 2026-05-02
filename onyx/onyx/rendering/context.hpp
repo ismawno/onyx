@@ -10,11 +10,13 @@
 
 namespace Onyx
 {
-template <Dimension D> struct PointLightParameters
+template <Dimension D> struct PointLightParameters;
+template <> struct PointLightParameters<D3>
 {
-    using InstanceData = PointLightData<D>;
-    f32v<D> Position = f32v<D>{0.f};
+    using InstanceData = PointLightData<D3>;
+    f32v3 Position = f32v3{0.f};
     Color Tint = Color_White;
+    f32 LightSize = 0.01f;
     f32 LightRadius = 1.f;
     f32 ShadowRadius = 4.f;
     f32 Intensity = 0.8f;
@@ -27,6 +29,7 @@ template <> struct PointLightParameters<D2>
     using InstanceData = PointLightData<D2>;
     f32v2 Position = f32v2{0.f};
     Color Tint = Color_White;
+    f32 LightSize = 0.01f;
     f32 LightRadius = 1.f;
     f32 ShadowRadius = 4.f;
     f32 Angle = 0.f;  // from -pi to pi, otherwise shadows wont work
@@ -77,11 +80,15 @@ template <Dimension D> struct DirectionalLightParameters;
 template <> struct DirectionalLightParameters<D2>
 {
     using InstanceData = DirectionalLightData<D2>;
-    f32v2 Position = f32v2{0.f};
     Color Tint = Color_White;
+    f32 LightOffset = 0.f;   // offsets the ray along the normal direction
+    f32 LightExtent = 10.f;  // extends the light along the normal direction
+    f32 ShadowOffset = 0.f;  // offsets the shadow along the light's direction
+    f32 ShadowExtent = 10.f; // extends the shadow range along the light's direction
+    f32 Decay = 0.f;
     f32 Angle = 0.f;
+    f32 AngleSize = 0.f;
     f32 DepthBias = 0.001f;
-    f32 Extent = 10.f; // setting this to the view's camera size is the best approach
     f32 Intensity = 0.8f;
     LightFlags Flags = 0;
 };
@@ -90,8 +97,12 @@ template <> struct DirectionalLightParameters<D3>
 {
     using InstanceData = DirectionalLightData<D3>;
     f32v3 Direction = f32v3{-1.f};
+    f32v2 Offset = f32v2{0.f};
+    f32v2 Extent = f32v2{100.f};
     Color Tint = Color_White;
     ShadowCascadeParameters Cascades{};
+    f32 Decay = 0.f;
+    f32 AngleSize = 0.f;
     f32 Intensity = 0.8f;
     LightFlags Flags = 0;
 };
@@ -102,6 +113,7 @@ struct SpotLightParameters
     f32v3 Position{0.f};
     f32v3 Direction{-1.f, 0.f, 0.f};
     Color Tint = Color_White;
+    f32 LightSize = 0.04f;
     f32 DepthBias = 0.001f;
     f32 FieldOfView = Math::Radians(75.f);
     f32 LightRange = 5.f;

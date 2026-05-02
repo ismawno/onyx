@@ -536,6 +536,17 @@ SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, con
 }
 SandboxWinLayer::~SandboxWinLayer()
 {
+    SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+    Window *win = GetWindow();
+    for (ContextData<D3> &cdata : appLayer->Contexts3.Contexts)
+        for (DirParams &dp : cdata.DirLights)
+            for (const RenderView<D3> *rv : win->GetRenderViews<D3>())
+                if (dp.Params.Cascades.View == rv)
+                {
+                    dp.RenderViewIndex = TKIT_U32_MAX;
+                    dp.Params.Cascades.View = nullptr;
+                }
+
     const auto wait = [](TKit::Task<Dialog::Result<Dialog::Path>> &task) {
         if (task)
         {

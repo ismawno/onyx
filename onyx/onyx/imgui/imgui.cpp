@@ -321,6 +321,7 @@ template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, con
     changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.001f, 0.f, 1.f);
     changed |= ImGui::DragFloat("Light radius", &light.LightRadius, 0.01f, 0.f, TKIT_F32_MAX);
     changed |= ImGui::DragFloat("Shadow radius", &light.ShadowRadius, 0.01f, 0.f, TKIT_F32_MAX);
+    changed |= ImGui::DragFloat("Light size", &light.LightSize, 0.01f, 0.f, TKIT_F32_MAX);
     if constexpr (D == D2)
     {
         changed |= ImGui::SliderFloat("Angle", &light.Angle, -Math::Pi(), Math::Pi());
@@ -330,6 +331,7 @@ template <Dimension D> bool PointLightEditor(PointLightParameters<D> &light, con
     changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
     changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastShadows);
     changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
+    changed |= ImGui::CheckboxFlags("PCSS", &light.Flags, LightFlag_PCSS);
     changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
     ImGui::PopID();
     return changed;
@@ -356,6 +358,10 @@ template <Dimension D> bool DirectionalLightEditor(DirectionalLightParameters<D>
         FittedCascadeParameters &ft = c.FittedParameters;
         changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), -1.f, 1.f);
         changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
+        changed |= ImGui::SliderFloat("Angle size", &light.AngleSize, 0.f, 0.1f, "%.6f");
+        changed |= ImGui::SliderFloat("Decay", &light.Decay, 0.f, 1.f);
+        changed |= ImGui::DragFloat2("Offset", Math::AsPointer(light.Offset), 0.1f);
+        changed |= ImGui::DragFloat2("Extent", Math::AsPointer(light.Extent), 0.1f, 0.f, TKIT_F32_MAX);
         // TODO(Isma): This breaks once max cascades is not exactly 4
         changed |= ImGui::DragFloat4("Depth bias", light.Cascades.DepthBias.GetData(), 0.0001f, 0.f, 1.f, "%.5f");
         changed |= ImGui::SliderFloat("Lambda", &c.Lambda, 0.f, 1.f);
@@ -374,15 +380,20 @@ template <Dimension D> bool DirectionalLightEditor(DirectionalLightParameters<D>
     }
     else
     {
-        changed |= ImGui::DragFloat2("Position", Math::AsPointer(light.Position), 0.1f);
+        changed |= ImGui::DragFloat("Light offset", &light.LightOffset, 0.1f);
+        changed |= ImGui::DragFloat("Light extent", &light.LightExtent, 0.1f, 0.f, TKIT_F32_MAX);
+        changed |= ImGui::DragFloat("Shadow offset", &light.ShadowOffset, 0.1f);
+        changed |= ImGui::DragFloat("Shadow extent", &light.ShadowExtent, 0.1f, 0.f, TKIT_F32_MAX);
+        changed |= ImGui::SliderFloat("Decay", &light.Decay, 0.f, 1.f);
         changed |= ImGui::SliderFloat("Angle", &light.Angle, -Math::Pi(), Math::Pi());
+        changed |= ImGui::SliderFloat("Angle size", &light.AngleSize, 0.f, 0.1f, "%.6f");
         changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
         changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.0001f, 0.f, 1.f, "%.5f");
-        changed |= ImGui::DragFloat("Extent", &light.Extent, 0.01f, 0.f, TKIT_F32_MAX);
     }
 
     changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastShadows);
     changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
+    changed |= ImGui::CheckboxFlags("PCSS", &light.Flags, LightFlag_PCSS);
     changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
     ImGui::PopID();
     return changed;
@@ -399,6 +410,7 @@ bool SpotLightEditor(SpotLightParameters &light)
     changed |= ImGui::DragFloat3("Position", Math::AsPointer(light.Position), 0.02f);
     changed |= ImGui::SliderFloat3("Direction", Math::AsPointer(light.Direction), -1.f, 1.f);
     changed |= ImGui::DragFloat("Depth bias", &light.DepthBias, 0.0001f, 0.f, 1.f, "%.5f");
+    changed |= ImGui::DragFloat("Light size", &light.LightSize, 0.01f, 0.f, TKIT_F32_MAX);
     changed |= ImGui::SliderFloat("Field of view", &light.FieldOfView, Math::Radians(50.f), Math::Radians(90.f));
     changed |= ImGui::DragFloat("Light range", &light.LightRange, 0.01f, 0.f, TKIT_F32_MAX);
     changed |= ImGui::DragFloat("Shadow range", &light.ShadowRange, 0.01f, 0.f, TKIT_F32_MAX);
@@ -406,6 +418,7 @@ bool SpotLightEditor(SpotLightParameters &light)
     changed |= ImGui::SliderFloat("Intensity", &light.Intensity, 0.f, 1.f);
     changed |= ImGui::CheckboxFlags("Casts shadows", &light.Flags, LightFlag_CastShadows);
     changed |= ImGui::CheckboxFlags("PCF", &light.Flags, LightFlag_PCF);
+    changed |= ImGui::CheckboxFlags("PCSS", &light.Flags, LightFlag_PCSS);
     changed |= ImGui::ColorEdit3("Color", light.Tint.GetData());
     ImGui::PopID();
 

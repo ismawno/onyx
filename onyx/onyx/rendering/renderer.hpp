@@ -56,7 +56,7 @@ template <Dimension D> struct ShadowSpecs;
 template <> struct ShadowSpecs<D2>
 {
     VkFormat OcclusionFormat = VK_FORMAT_R8_UNORM;
-    VkFormat ShadowFormat = VK_FORMAT_R16_SFLOAT;
+    VkFormat ShadowFormat = VK_FORMAT_D16_UNORM;
     u32 OcclusionResolution = 1024;
     u32 ShadowResolution = 1024;
 };

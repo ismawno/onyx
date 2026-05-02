@@ -382,23 +382,27 @@ DirectionalLightBuffer g_DirLights;
 SpotLights g_SpotLights;
 
 [[vk::binding(ONYX_POINT_MAPS_BINDING_POINT)]]
-TextureCube g_PointMaps[ONYX_MAX_TEXTURE_MAPS];
+TextureCube<f32> g_PointMaps[ONYX_MAX_TEXTURE_MAPS];
 
 [[vk::binding(ONYX_DIRECTIONAL_MAPS_BINDING_POINT)]]
-Texture2DArray g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
+Texture2DArray<f32> g_DirectionalMaps[ONYX_MAX_TEXTURE_MAPS];
 
 [[vk::binding(ONYX_SPOT_MAPS_BINDING_POINT)]]
-Texture2D g_SpotMaps[ONYX_MAX_TEXTURE_MAPS];
+Texture2D<f32> g_SpotMaps[ONYX_MAX_TEXTURE_MAPS];
+
 
 #    else
 
 [[vk::binding(ONYX_SHADOW_MAPS_BINDING_POINT)]]
-Texture1D g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
+Texture1D<f32> g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
 
 #    endif
 
 [[vk::binding(ONYX_SHADOW_SAMPLER_BINDING_POINT)]]
-ShadowSamplerResource g_ShadowSampler;
+SamplerState g_ShadowSampler;
+
+[[vk::binding(ONYX_SHADOW_COMPARE_SAMPLER_BINDING_POINT)]]
+SamplerComparisonState g_ShadowCompareSampler;
 
 #endif
 
@@ -452,6 +456,7 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
     resources.PointLights = g_PointLights;
     resources.DirLights = g_DirLights;
     resources.ShadowSampler = g_ShadowSampler;
+    resources.ShadowCompareSampler = g_ShadowCompareSampler;
 
 #    ifdef ONYX_DIMENSION_3D
 

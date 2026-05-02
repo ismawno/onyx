@@ -189,6 +189,7 @@ template <Dimension D> struct ShadowData;
 template <> struct ShadowData<D2>
 {
     VKit::Sampler Sampler{};
+    VKit::Sampler CompareSampler{};
     TKit::TierHive<Range> ShadowMapSlots{};
 
     TextureMapArray OcclusionMaps{};
@@ -209,6 +210,7 @@ using ShadowMapId = u32;
 template <> struct ShadowData<D3>
 {
     VKit::Sampler Sampler{};
+    VKit::Sampler CompareSampler{};
     TKit::TierHive<Range> ShadowMapSlots{};
 
     TextureMapArray PointMaps{};
@@ -544,17 +546,25 @@ template <Dimension D> static void initializeShadows(const ShadowSpecs<D> &specs
     ShadowData<D> &sdata = getRendererData<D>().Shadows;
     VKit::Sampler::Builder builder{GetDevice()};
 
-    if constexpr (D == D3)
-        builder.SetCompareOp(VK_COMPARE_OP_LESS_OR_EQUAL);
-
     builder.SetAddressModes(VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER).SetBorderColor(VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE);
-
-    sdata.Sampler = ONYX_CHECK_EXPRESSION(builder.Build());
-
     VkDescriptorImageInfo info{};
+    sdata.Sampler = ONYX_CHECK_EXPRESSION(builder.Build());
     info.sampler = sdata.Sampler;
-
     BindImage<D>(ONYX_SHADOW_SAMPLER_BINDING_POINT, info, RenderPass_Shaded);
+
+    builder.SetCompareOp(VK_COMPARE_OP_LESS_OR_EQUAL);
+    sdata.CompareSampler = ONYX_CHECK_EXPRESSION(builder.Build());
+
+    info.sampler = sdata.CompareSampler;
+    BindImage<D>(ONYX_SHADOW_COMPARE_SAMPLER_BINDING_POINT, info, RenderPass_Shaded);
+
+    if (IsDebugUtilsEnabled())
+    {
+        const std::string name = TKit::Format("onyx-renderer-shadow-sampler-{}D", u8(D));
+        const std::string cname = TKit::Format("onyx-renderer-shadow-compare-sampler-{}D", u8(D));
+        ONYX_CHECK_EXPRESSION(sdata.Sampler.SetName(name.c_str()));
+        ONYX_CHECK_EXPRESSION(sdata.CompareSampler.SetName(cname.c_str()));
+    }
 
     sdata.ShadowFormat = specs.ShadowFormat;
     if constexpr (D == D2)
@@ -567,12 +577,6 @@ template <Dimension D> static void initializeShadows(const ShadowSpecs<D> &specs
     }
     else
         sdata.ShadowResolutions = specs.ShadowResolutions;
-
-    if (IsDebugUtilsEnabled())
-    {
-        const std::string name = TKit::Format("onyx-renderer-shadow-sampler-{}D", u8(D));
-        ONYX_CHECK_EXPRESSION(sdata.Sampler.SetName(name.c_str()));
-    }
 }
 
 template <Dimension D> static void initialize(const ShadowSpecs<D> &shadowSpecs)
@@ -616,6 +620,7 @@ template <Dimension D> static void terminateShadows()
 {
     ShadowData<D> &sdata = getRendererData<D>().Shadows;
     sdata.Sampler.Destroy();
+    sdata.CompareSampler.Destroy();
     if constexpr (D == D2)
     {
         for (auto &map : sdata.OcclusionMaps)
@@ -1293,7 +1298,7 @@ static Range findSuitableTextureMapRange(const LightType light, const VkFormat f
     }
 
     const VKit::DeviceImageFlags flags = (D == D3 ? VKit::DeviceImageFlag_DepthAttachment
-                                                  : (VKit::DeviceImageFlag_Storage | VKit::DeviceImageFlag_Color)) |
+                                                  : (VKit::DeviceImageFlag_Storage | VKit::DeviceImageFlag_Depth)) |
                                          VKit::DeviceImageFlag_Sampled;
 
     for (u32 i = range.Count; i < count; ++i)
@@ -1379,6 +1384,7 @@ PointLightData<D> createLightData(const ViewMask vmask, const u32 shadowMapOffse
         data.Decay = params.Decay;
         data.Extent = params.Extent;
     }
+    data.LightSize = params.LightSize;
     data.Position = params.Position;
     data.Intensity = params.Intensity;
     data.LightRadius = params.LightRadius;
@@ -1390,12 +1396,6 @@ PointLightData<D> createLightData(const ViewMask vmask, const u32 shadowMapOffse
     return data;
 }
 
-struct ShadowCascades
-{
-    TKit::FixedArray<f32m4, ONYX_MAX_CASCADES> ProjectionViews;
-    TKit::FixedArray<f32, ONYX_MAX_CASCADES> Splits;
-};
-
 template <typename T> static T cascadeLerp(const T mn, const T mx, const f32 t, const f32 lambda)
 {
     const T ln = Math::LinearLerp(mn, mx, t);
@@ -1403,21 +1403,27 @@ template <typename T> static T cascadeLerp(const T mn, const T mx, const f32 t, 
     return Math::LinearLerp(ln, lg, lambda);
 }
 
-static ShadowCascades createCascades(const f32v3 &dir, const u32 count, const f32 lambda, const f32 overlap,
-                                     const FixedCascadeParameters &params)
+static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32v3 &dir, const u32 count,
+                                                                       const f32 lambda, const f32 overlap,
+                                                                       const FixedCascadeParameters &params)
 {
     TKIT_ASSERT(count <= ONYX_MAX_CASCADES, "[ONYX] The maximum amount of cascades is {}", ONYX_MAX_CASCADES);
-    ShadowCascades cascades;
+    TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> cascades;
 
     for (u32 i = 0; i < count; ++i)
     {
+        CascadeData &c = cascades[i];
         const f32 t = f32(i + 1) / f32(count);
 
         const f32 width = cascadeLerp(params.MinSize, params.MaxSize, t, lambda);
-        cascades.ProjectionViews[i] =
-            Transform<D3>::Orthographic(-width, width, -width, width, params.Near, params.Far) *
-            Transform<D3>::LookTowardsMatrix(params.ViewPosition, dir);
-        cascades.Splits[i] = width * (1.f + overlap);
+
+        const f32m4 proj = Transform<D3>::Orthographic(-width, width, -width, width, params.Near, params.Far);
+        const f32m4 view = Transform<D3>::LookTowardsMatrix(params.ViewPosition, dir);
+        c.ProjectionView = CreateTransformData<D3>(proj * view);
+
+        c.InvSize = 0.5f * f32v2{proj[0][0], proj[1][1]};
+        c.DepthRange = params.Far - params.Near;
+        c.Split = width * (1.f + overlap);
     }
     return cascades;
 }
@@ -1438,12 +1444,13 @@ static TKit::FixedArray<f32v4, 8> getCameraCorners(const f32m4 &pv)
     return corners;
 }
 
-static ShadowCascades createCascades(const f32v3 &dir, const RenderView<D3> *rview, const u32 count, const f32 zmul,
-                                     const f32 lambda, const f32 overlap)
+static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32v3 &dir, const RenderView<D3> *rview,
+                                                                       const u32 count, const f32 zmul,
+                                                                       const f32 lambda, const f32 overlap)
 {
     const TKit::FixedArray<f32v4, 8> globalCorners = getCameraCorners(rview->GetProjectionView());
 
-    ShadowCascades cascades;
+    TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> cascades;
     f32 cnear;
     f32 cfar;
     const Camera<D3> *camera = rview->GetCamera();
@@ -1462,6 +1469,8 @@ static ShadowCascades createCascades(const f32v3 &dir, const RenderView<D3> *rvi
     f32 split0 = cnear;
     for (u32 i = 0; i < count; ++i)
     {
+        CascadeData &c = cascades[i];
+
         const f32 t = f32(i + 1) / count;
         const f32 split1 = cascadeLerp(cnear, cfar, t, lambda);
 
@@ -1480,7 +1489,7 @@ static ShadowCascades createCascades(const f32v3 &dir, const RenderView<D3> *rvi
             center += f32v3{corners[j]};
         center /= 8.f;
 
-        f32m4 view = Transform<D3>::LookTowardsMatrix(center, dir);
+        const f32m4 view = Transform<D3>::LookTowardsMatrix(center, dir);
         f32v3 min{TKIT_F32_MAX};
         f32v3 max{TKIT_F32_LOWEST};
         for (const f32v4 &c : corners)
@@ -1500,8 +1509,13 @@ static ShadowCascades createCascades(const f32v3 &dir, const RenderView<D3> *rvi
         else
             max[2] *= zmul;
 
-        cascades.ProjectionViews[i] = Transform<D3>::Orthographic(min, max) * view;
-        cascades.Splits[i] = split1 * (1.f + overlap);
+        const f32m4 proj = Transform<D3>::Orthographic(min, max);
+        c.ProjectionView = CreateTransformData<D3>(proj * view);
+
+        c.InvSize = 0.5f * f32v2{proj[0][0], proj[1][1]};
+        c.DepthRange = max[2] - min[2];
+        c.Split = split1 * (1.f + overlap);
+
         split0 = split1;
     }
     return cascades;
@@ -1523,31 +1537,44 @@ DirectionalLightData<D> createLightData(const ViewMask vmask, const u32 shadowMa
                 c.Count != 0,
                 "[ONYX][RENDERER] If a directional light casts shadows, its cascade count must be greater than 0");
 
-            const ShadowCascades cascades =
+            const TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> cascades =
                 c.View ? createCascades(dir, c.View, c.Count, c.FittedParameters.ZMul, c.Lambda, c.Overlap)
                        : createCascades(dir, c.Count, c.Lambda, c.Overlap, c.FixedParameters);
 
-            for (u32 i = 0; i < c.Count; ++i)
-            {
-                data.Cascades[i] = CreateTransformData<D3>(cascades.ProjectionViews[i]);
-                data.Splits[i] = cascades.Splits[i];
-            }
+            data.Cascades = cascades;
             data.CascadeCount = c.Count;
         }
         data.Direction = dir;
+        const f32v3 up = dir[1] < 0.99f ? f32v3{0.f, 1.f, 0.f} : f32v3{1.f, 0.f, 0.f};
+        const f32v3 t1 = Math::Normalize(Math::Cross(up, dir));
+        const f32v3 t2 = Math::Cross(dir, t1);
+
+        data.Offset = params.Offset[0] * t1 + params.Offset[1] * t2;
+        data.Extent = params.Extent;
+        data.PlaneVec1 = t1;
+        data.PlaneVec2 = t2;
     }
     else
     {
-        const f32 r = params.Extent;
+        const f32v2 dir = f32v2{Math::Cosine(params.Angle), Math::Sine(params.Angle)};
+        const f32v2 normal = f32v2{-dir[1], dir[0]};
+        const f32v2 pos = params.ShadowOffset * dir + params.LightOffset * normal;
 
-        const f32m3 orth = Transform<D2>::Orthographic(-r, r, -r, r);
-        const f32m3 view = Transform<D2>::ComputeInverseTransform(params.Position, f32v2{1.f}, params.Angle);
+        const f32 le = params.LightExtent;
+        const f32 se = params.ShadowExtent;
+
+        const f32m3 orth = Transform<D2>::Orthographic(-se, se, -le, le);
+        const f32m3 view = Transform<D2>::ComputeInverseTransform(pos, f32v2{1.f}, params.Angle);
 
         data.ProjectionView = CreateTransformData<D2>(orth * view);
-        data.Position = params.Position;
-        data.Direction = f32v2{Math::Cosine(params.Angle), Math::Sine(params.Angle)};
+        data.Direction = dir;
+        data.LightOffset = params.LightOffset;
+        data.LightExtent = le;
+        data.ShadowExtent = se;
     }
 
+    data.Decay = params.Decay;
+    data.TanAngleSize = Math::Tangent(params.AngleSize);
     data.Intensity = params.Intensity;
     data.Color = params.Tint.ToLinear().Pack();
     data.ViewMask = vmask;
@@ -1559,11 +1586,22 @@ DirectionalLightData<D> createLightData(const ViewMask vmask, const u32 shadowMa
 SpotLightData createLightData(const ViewMask vmask, const u32 shadowMapOffset, const SpotLightParameters &params)
 {
     SpotLightData data;
-    const f32m4 proj = Transform<D3>::Perspective(params.FieldOfView, 0.05f * params.ShadowRange, params.ShadowRange);
-    const f32m4 view = Transform<D3>::LookTowardsMatrix(params.Position, params.Direction);
-    data.ProjectionView = proj * view;
-    data.Position = params.Position;
     data.Direction = Math::Normalize(params.Direction);
+
+    const f32 near = ONYX_SPOT_LIGHT_NEAR_RANGE_FACTOR * params.ShadowRange;
+    const f32 far = params.ShadowRange;
+
+    data.Near = near;
+    data.Far = far;
+
+    const f32m4 proj = Transform<D3>::Perspective(params.FieldOfView, near, far);
+    const f32m4 view = Transform<D3>::LookTowardsMatrix(params.Position, data.Direction);
+
+    data.ProjectionView = proj * view;
+    data.ShadowInvSize = 0.5f * Math::Absolute(f32v2{proj[0][0], proj[1][1]});
+
+    data.Position = params.Position;
+    data.LightSize = params.LightSize;
     data.CosHalfPov = Math::Cosine(0.5f * params.FieldOfView);
     data.LightRange = params.LightRange;
     data.Decay = params.Decay;
@@ -2563,8 +2601,10 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                     // TODO(Isma): Try to pseudo optimize this by working out the views?
                     if constexpr (isPoint)
                     {
-                        const f32m4 proj = Transform<D3>::Perspective(0.5f * Math::Pi(), 0.01f, data.ShadowRadius);
-                        const f32v3 &pos = data.Position;
+                        const f32 near = ONYX_POINT_LIGHT_NEAR_RADIUS_FACTOR * data.ShadowRadius;
+                        const f32 far = data.ShadowRadius;
+                        const f32m4 proj = Transform<D3>::Perspective(0.5f * Math::Pi(), near, far);
+
                         constexpr f32v3 faceDir[6] = {
                             f32v3{1.f, 0.f, 0.f},  f32v3{-1.f, 0.f, 0.f}, f32v3{0.f, 1.f, 0.f},
                             f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},  f32v3{0.f, 0.f, -1.f},
@@ -2575,13 +2615,13 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                         };
                         for (u32 i = 0; i < 6; ++i)
                         {
-                            const f32m4 view = Transform<D3>::LookTowardsMatrix(pos, faceDir[i], faceUp[i]);
+                            const f32m4 view = Transform<D3>::LookTowardsMatrix(data.Position, faceDir[i], faceUp[i]);
                             processMap(smap, proj * view, i);
                         }
                     }
                     else if constexpr (isDir)
                         for (u32 i = 0; i < data.CascadeCount; ++i)
-                            processMap(smap, createTransform(data.Cascades[i]), i);
+                            processMap(smap, createTransform(data.Cascades[i].ProjectionView), i);
                     else
                         processMap(smap, data.ProjectionView);
                     endShadowTransitionLayout<D>(cmd, smap);

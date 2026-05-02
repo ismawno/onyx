@@ -181,6 +181,7 @@ enum LightFlagBit : LightFlags
 {
     LightFlag_CastShadows = 1 << 0,
     LightFlag_PCF = 1 << 1,
+    LightFlag_PCSS = 1 << 2,
 };
 
 struct Range
@@ -210,9 +211,11 @@ template <Dimension D> u32 GetInstanceSize(const Geometry geo)
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
 
-template <Dimension D> struct PointLightData
+template <Dimension D> struct PointLightData;
+template <> struct PointLightData<D3>
 {
-    f32v<D> Position;
+    f32v3 Position;
+    f32 LightSize;
     f32 Intensity;
     f32 LightRadius;
     f32 ShadowRadius;
@@ -226,6 +229,7 @@ template <> struct PointLightData<D2>
 {
     f32v2 Position;
     f32v2 Direction;
+    f32 LightSize;
     f32 Intensity;
     f32 LightRadius;
     f32 ShadowRadius;
@@ -244,8 +248,12 @@ template <Dimension D> struct DirectionalLightData;
 template <> struct DirectionalLightData<D2>
 {
     TransformData<D2> ProjectionView;
-    f32v2 Position;
     f32v2 Direction;
+    f32 LightOffset;
+    f32 LightExtent;
+    f32 ShadowExtent;
+    f32 Decay;
+    f32 TanAngleSize;
     f32 Intensity;
     u32 Color;
     u32 ShadowMapOffset;
@@ -253,11 +261,24 @@ template <> struct DirectionalLightData<D2>
     LightFlags Flags;
 };
 
+struct CascadeData
+{
+    TransformData<D3> ProjectionView;
+    f32v2 InvSize;
+    f32 DepthRange;
+    f32 Split;
+};
+
 template <> struct DirectionalLightData<D3>
 {
-    TKit::FixedArray<TransformData<D3>, ONYX_MAX_CASCADES> Cascades;
-    TKit::FixedArray<f32, ONYX_MAX_CASCADES> Splits;
+    TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> Cascades;
     f32v3 Direction;
+    f32v3 Offset;
+    f32v2 Extent;
+    f32v3 PlaneVec1;
+    f32v3 PlaneVec2;
+    f32 Decay;
+    f32 TanAngleSize;
     f32 Intensity;
     u32 Color;
     u32 ShadowMapOffset;
@@ -271,6 +292,10 @@ struct SpotLightData
     f32m4 ProjectionView;
     f32v3 Position;
     f32v3 Direction;
+    f32v2 ShadowInvSize;
+    f32 Near;
+    f32 Far;
+    f32 LightSize;
     f32 CosHalfPov;
     f32 LightRange;
     f32 Decay;
