@@ -58,15 +58,9 @@ enum LightType : u8
     Light_Count3D = 3,
 };
 
-struct Range
-{
-    u32 Offset = 0;
-    u32 Count = 0;
-};
-
 struct LightData2D
 {
-    Range LightRanges[Light_Count2D];
+    u32 LightRanges[Light_Count2D];
     f32 TexelSize;
     u32 AmbientColor;
     ViewMask ViewBit;
@@ -82,7 +76,7 @@ struct LightData3D
     f32 ViewForwardY;
     f32 ViewForwardZ;
 
-    Range LightRanges[Light_Count3D];
+    u32 LightRanges[Light_Count3D];
     f32 TexelSizes[Light_Count3D];
 
     u32 AmbientColor;
@@ -338,15 +332,30 @@ static const f32 poissonLine[POISSON_LINE_SAMPLES] = {
     -0.932, -0.687, -0.451, -0.178, 0.094, 0.358, 0.612, 0.876,
 };
 
+struct LightRange
+{
+    u32 Offset;
+    u32 Count;
+};
+
+LightRange GetRange(const u32 range)
+{
+    LightRange r;
+    r.Offset = range >> 16;
+    r.Count = range & 0xFFFF;
+    return r;
+}
+
 f32v3 GetLightColor(const LightData2D data, const f32v2 worldPosition, const ResourceTable2D resources)
 {
     f32v3 diffuseColor = f32v3(0.0);
     const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
     // TODO(Isma): Known artifacts: boundary between shadow and extent cone + boundary of the angle range (-pi, pi) in a shadow. Reproduce using shadows with extreme angles. Suggestion: use <= or >= in the (-pi, pi) remapping?
 
-    for (u32 i = 0; i < data.LightRanges[Light_Point].Count; ++i)
+    const LightRange prg = GetRange(data.LightRanges[Light_Point]);
+    for (u32 i = 0; i < prg.Count; ++i)
     {
-        const PointLight2D plight = resources.PointLights[i + data.LightRanges[Light_Point].Offset];
+        const PointLight2D plight = resources.PointLights[i + prg.Offset];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
@@ -439,9 +448,10 @@ f32v3 GetLightColor(const LightData2D data, const f32v2 worldPosition, const Res
         diffuseColor += intensity * lightColor * shadow;
     }
 
-    for (u32 i = 0; i < data.LightRanges[Light_Directional].Count; ++i)
+    const LightRange drg = GetRange(data.LightRanges[Light_Directional]);
+    for (u32 i = 0; i < drg.Count; ++i)
     {
-        const DirectionalLight2D dlight = resources.DirLights[i + data.LightRanges[Light_Directional].Offset];
+        const DirectionalLight2D dlight = resources.DirLights[i + drg.Offset];
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
@@ -579,9 +589,10 @@ f32v3 GetLightColor(const LightData3D data, const MaterialInfo3D info, const Res
 
     f32v3 Lo = f32v3(0.0);
 
-    for (u32 i = 0; i < data.LightRanges[Light_Point].Count; ++i)
+    const LightRange prg = GetRange(data.LightRanges[Light_Point]);
+    for (u32 i = 0; i < prg.Count; ++i)
     {
-        const PointLight3D plight = resources.PointLights[i + data.LightRanges[Light_Point].Offset];
+        const PointLight3D plight = resources.PointLights[i + prg.Offset];
         if (!bool(plight.ViewMask & data.ViewBit))
             continue;
 
@@ -668,9 +679,10 @@ f32v3 GetLightColor(const LightData3D data, const MaterialInfo3D info, const Res
         Lo += contrib * intensity * shadow;
     }
 
-    for (u32 i = 0; i < data.LightRanges[Light_Directional].Count; ++i)
+    const LightRange drg = GetRange(data.LightRanges[Light_Directional]);
+    for (u32 i = 0; i < drg.Count; ++i)
     {
-        const DirectionalLight3D dlight = resources.DirLights[i + data.LightRanges[Light_Directional].Offset];
+        const DirectionalLight3D dlight = resources.DirLights[i + drg.Offset];
         if (!bool(dlight.ViewMask & data.ViewBit))
             continue;
 
@@ -769,9 +781,10 @@ f32v3 GetLightColor(const LightData3D data, const MaterialInfo3D info, const Res
         Lo += contrib * intensity * shadow;
     }
 
-    for (u32 i = 0; i < data.LightRanges[Light_Spot].Count; ++i)
+    const LightRange srg = GetRange(data.LightRanges[Light_Spot]);
+    for (u32 i = 0; i < srg.Count; ++i)
     {
-        const SpotLight slight = resources.SpLights[i + data.LightRanges[Light_Spot].Offset];
+        const SpotLight slight = resources.SpLights[i + srg.Offset];
         if (!bool(slight.ViewMask & data.ViewBit))
             continue;
 

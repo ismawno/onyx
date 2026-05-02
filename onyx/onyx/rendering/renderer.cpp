@@ -25,6 +25,11 @@
 namespace Onyx::Renderer
 {
 using namespace Detail;
+struct Range
+{
+    u32 Offset = 0;
+    u32 Count = 0;
+};
 struct ContextInstanceRange
 {
     VkDeviceSize Offset = 0;
@@ -2767,7 +2772,9 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
             else
                 pdata.TexelSize = 1.f / f32(sdata.ShadowResolution);
 
-            pdata.LightRanges = ldata.Ranges;
+            for (u32 i = 0; i < LightTypeCount<D>; ++i)
+                pdata.LightRanges[i] = (ldata.Ranges[i].Offset << 16) | ldata.Ranges[i].Count;
+
             pdata.ViewBit = viewBit;
             pdata.AmbientColor = ambientColor;
             table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,

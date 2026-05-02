@@ -184,12 +184,6 @@ enum LightFlagBit : LightFlags
     LightFlag_PCSS = 1 << 2,
 };
 
-struct Range
-{
-    u32 Offset = 0;
-    u32 Count = 0;
-};
-
 template <Dimension D> u32 GetInstanceSize(const Geometry geo)
 {
     switch (geo)
@@ -315,7 +309,7 @@ template <Dimension D> struct ShadedPushConstantData;
 template <> struct ShadedPushConstantData<D2>
 {
     f32m4 ProjectionView;
-    TKit::FixedArray<Range, LightTypeCount<D2>> LightRanges{};
+    TKit::FixedArray<u32, LightTypeCount<D2>> LightRanges{};
     f32 TexelSize;
     u32 AmbientColor;
     ViewMask ViewBit;
@@ -326,7 +320,7 @@ template <> struct ShadedPushConstantData<D3>
     f32m4 ProjectionView;
     f32v3 ViewPosition;
     f32v3 ViewForward;
-    TKit::FixedArray<Range, LightTypeCount<D3>> LightRanges{};
+    TKit::FixedArray<u32, LightTypeCount<D3>> LightRanges{};
     TKit::FixedArray<f32, LightTypeCount<D3>> TexelSizes{};
     u32 AmbientColor;
     ViewMask ViewBit;
