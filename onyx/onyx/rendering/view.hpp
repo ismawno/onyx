@@ -241,7 +241,7 @@ template <Dimension D> class RenderView
         {
             info.ProjectionView = m_ProjectionView;
             info.ViewPosition = m_Camera->View.Translation;
-            info.ViewForward = m_Camera->View.Rotation * f32v3{0.f, 0.f, -1.f};
+            info.ViewForward = Math::Normalize(m_Camera->View.Rotation) * f32v3{0.f, 0.f, -1.f};
         }
         info.ViewBit = m_ViewBit;
         return info;
@@ -249,6 +249,7 @@ template <Dimension D> class RenderView
 
     Color ClearColor{Color_Black};
     u32 MaxOutlineWidth = 10;
+    u32 Layer = 0;
     RenderViewFlags Flags;
 
   private:

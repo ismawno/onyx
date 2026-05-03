@@ -148,9 +148,18 @@ class Window
 
     template <Dimension D> void DestroyRenderView(RenderView<D> *rv);
 
+    template <Dimension D> void BringToTop(RenderView<D> *rv)
+    {
+        rv->Layer = m_LayerIncrease++;
+    }
+    template <Dimension D> void BringToBottom(RenderView<D> *rv)
+    {
+        rv->Layer = --m_LayerDecrease;
+    }
+
     template <Dimension D> RenderView<D> *GetMouseRenderView() const
     {
-        const TKit::TierArray<RenderView<D> *> &rvs = getViews<D>();
+        const TKit::TierArray<RenderView<D> *> &rvs = getSortedViews<D>();
         const f32v2 mpos = GetScreenMousePosition();
 
         for (u32 i = rvs.GetSize() - 1; i < rvs.GetSize(); --i)
@@ -163,8 +172,8 @@ class Window
     RenderTargetInfo CreateRenderTargetInfo()
     {
         RenderTargetInfo info;
-        info.Views2 = getViews<D2>();
-        info.Views3 = getViews<D3>();
+        info.Views2 = getSortedViews<D2>();
+        info.Views3 = getSortedViews<D3>();
         info.ImageAvailableSemaphore = GetImageAvailableSemaphore();
         info.RenderFinishedSemaphore = GetRenderFinishedSemaphore();
         return info;
@@ -242,13 +251,16 @@ class Window
     VkExtent2D getNewExtent();
 
     // TODO(Isma): Implement sort here somehow. rename this to get sorted views
-    template <Dimension D> TKit::TierArray<RenderView<D> *> getViews() const
+    template <Dimension D> TKit::TierArray<RenderView<D> *> getSortedViews() const
     {
         const TKit::TierHive<RenderView<D> *> &views = GetRenderViews<D>();
 
         TKit::TierArray<RenderView<D> *> rvs{};
         for (RenderView<D> *rv : views)
             rvs.Append(rv);
+
+        std::sort(rvs.begin(), rvs.end(),
+                  [](const RenderView<D> *rv1, const RenderView<D> *rv2) { return rv1->Layer < rv2->Layer; });
         return rvs;
     }
 
@@ -281,6 +293,8 @@ class Window
 
     u32 m_ImageIndex;
     u32 m_SyncIndex = 0;
+    u32 m_LayerIncrease = TKIT_U32_MAX / 2;
+    u32 m_LayerDecrease = TKIT_U32_MAX / 2;
     mutable f32v2 m_PrevMousePos{0.f};
 
     VkPresentModeKHR m_PresentMode;

@@ -8,7 +8,7 @@ struct DescriptorData
 {
     VKit::DescriptorPool Pool{};
     TKit::FixedArray<TKit::FixedArray<VKit::DescriptorSetLayout, RenderPass_Count>, D_Count> Layouts{};
-    VKit::DescriptorSetLayout DistanceLayout{};
+    VKit::DescriptorSetLayout RayMarchLayout{};
     VKit::DescriptorSetLayout PostProcessLayout{};
     VKit::DescriptorSetLayout CompositorLayout{};
 };
@@ -66,7 +66,8 @@ static void createDescriptorData(const Specs &specs)
             .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT) // dir lights
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)        // shadow sampler
             .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)        // shadow compare sampler
-            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT, ONYX_MAX_TEXTURE_MAPS,
+            .AddBinding2(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT,
+                         ONYX_MAX_SHADOW_OCCLUSION_MAP_SIZE,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
                              VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // shadow maps
             .Build());
@@ -117,12 +118,14 @@ static void createDescriptorData(const Specs &specs)
             .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT) // bounds3
             .Build());
 
-    s_DescriptorData->DistanceLayout = ONYX_CHECK_EXPRESSION(
+    s_DescriptorData->RayMarchLayout = ONYX_CHECK_EXPRESSION(
         VKit::DescriptorSetLayout::Builder(device)
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, ONYX_MAX_TEXTURE_MAPS,
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+                         ONYX_MAX_SHADOW_OCCLUSION_MAP_SIZE,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
                              VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // occlusion maps
-            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT, ONYX_MAX_TEXTURE_MAPS,
+            .AddBinding2(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT,
+                         ONYX_MAX_SHADOW_OCCLUSION_MAP_SIZE,
                          VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
                              VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT) // shadow maps
             .Build());
@@ -161,7 +164,7 @@ static void createDescriptorData(const Specs &specs)
             }
             ++i;
         }
-        ONYX_CHECK_EXPRESSION(s_DescriptorData->DistanceLayout.SetName("onyx-distance-descriptor-set-layout"));
+        ONYX_CHECK_EXPRESSION(s_DescriptorData->RayMarchLayout.SetName("onyx-ray-march-descriptor-set-layout"));
         ONYX_CHECK_EXPRESSION(s_DescriptorData->PostProcessLayout.SetName("onyx-post-process-descriptor-set-layout"));
         ONYX_CHECK_EXPRESSION(s_DescriptorData->CompositorLayout.SetName("onyx-compositor-descriptor-set-layout"));
     }
@@ -180,7 +183,7 @@ void Terminate()
         for (auto &renders : dims)
             renders.Destroy();
 
-    s_DescriptorData->DistanceLayout.Destroy();
+    s_DescriptorData->RayMarchLayout.Destroy();
     s_DescriptorData->PostProcessLayout.Destroy();
     s_DescriptorData->CompositorLayout.Destroy();
     s_DescriptorData.Destruct();
@@ -195,9 +198,9 @@ template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(cons
 {
     return s_DescriptorData->Layouts[D - 2][pass];
 }
-const VKit::DescriptorSetLayout &GetDistanceDescriptorLayout()
+const VKit::DescriptorSetLayout &GetRayMarchDescriptorLayout()
 {
-    return s_DescriptorData->DistanceLayout;
+    return s_DescriptorData->RayMarchLayout;
 }
 const VKit::DescriptorSetLayout &GetPostProcessDescriptorLayout()
 {

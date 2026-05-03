@@ -259,7 +259,7 @@ FragInput mainVS(
     const f32v alignment = ComputeAlignment(data.Alignment, gdata.BoundsHandle, g_Bounds);
 #    else
 
-    //TODO(Isma): Maybe avoid this zero sub?
+    // NOTE(Isma): Maybe avoid this zero sub?
 
     const f32v alignment = f32v(0.f);
 #    endif
@@ -394,7 +394,7 @@ Texture2D<f32> g_SpotMaps[ONYX_MAX_TEXTURE_MAPS];
 #    else
 
 [[vk::binding(ONYX_SHADOW_MAPS_BINDING_POINT)]]
-Texture1D<f32> g_ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
+Texture1D<f32> g_ShadowMaps[ONYX_MAX_SHADOW_OCCLUSION_MAP_SIZE];
 
 #    endif
 

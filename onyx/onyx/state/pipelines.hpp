@@ -13,7 +13,7 @@ void Initialize();
 void Terminate();
 
 template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(RenderPass pass);
-const VKit::PipelineLayout &GetDistancePipelineLayout();
+const VKit::PipelineLayout &GetRayMarchPipelineLayout();
 const VKit::PipelineLayout &GetPostProcessPipelineLayout();
 const VKit::PipelineLayout &GetCompositorPipelineLayout();
 
@@ -23,8 +23,7 @@ template <Dimension D> VKit::GraphicsPipeline CreateGeometryPipeline(PipelinePas
 
 template <Dimension D> VKit::GraphicsPipeline CreateShadowPipeline(const Geometry geo, const VkFormat format);
 
-// TODO(Isma): Revisit this name
-VKit::ComputePipeline CreateDistancePipeline();
+VKit::ComputePipeline CreateRayMarchPipeline();
 VKit::GraphicsPipeline CreatePostProcessPipeline();
 VKit::GraphicsPipeline CreateCompositorPipeline();
 

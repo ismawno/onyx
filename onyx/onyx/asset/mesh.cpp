@@ -98,22 +98,21 @@ template <Dimension D> Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(con
 }
 #endif
 
-// TODO(Isma): This mesh is so simple, user should be able to pass in the vertices manually
-template <Dimension D> StatMeshData<D> CreateTriangleMeshData()
+template <Dimension D> StatMeshData<D> CreateTriangleMeshData(const f32v2 &left, const f32v2 &right, const f32v2 &top)
 {
     StatMeshData<D> data{};
-    const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v) {
+    const auto addVertex = [&data](const f32v2 &pos, const f32 u, const f32 v) {
         if constexpr (D == D2)
-            data.Vertices.Append(StatVertex<D2>{f32v2{x, y}, f32v2{u, v}});
+            data.Vertices.Append(StatVertex<D2>{pos, f32v2{u, v}});
         else
             data.Vertices.Append(
-                StatVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
+                StatVertex<D3>{f32v3{pos, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    addVertex(0.f, 0.5f, 0.5f, 1.f);
-    addVertex(-0.433013f, -0.25f, 0.f, 0.f);
-    addVertex(0.433013f, -0.25f, 1.f, 0.f);
+    addVertex(top, 0.5f, 1.f);
+    addVertex(left, 0.f, 0.f);
+    addVertex(right, 1.f, 0.f);
 
     addIndex(0);
     addIndex(1);
@@ -122,23 +121,23 @@ template <Dimension D> StatMeshData<D> CreateTriangleMeshData()
     return data;
 }
 
-// TODO(Isma): This mesh is so simple, user should be able to pass in the vertices manually
-template <Dimension D> StatMeshData<D> CreateQuadMeshData()
+template <Dimension D>
+StatMeshData<D> CreateQuadMeshData(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr)
 {
     StatMeshData<D> data{};
-    const auto addVertex = [&data](const f32 x, const f32 y, const f32 u, const f32 v) {
+    const auto addVertex = [&data](const f32v2 &pos, const f32 u, const f32 v) {
         if constexpr (D == D2)
-            data.Vertices.Append(StatVertex<D2>{f32v2{x, y}, f32v2{u, v}});
+            data.Vertices.Append(StatVertex<D2>{pos, f32v2{u, v}});
         else
             data.Vertices.Append(
-                StatVertex<D3>{f32v3{x, y, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
+                StatVertex<D3>{f32v3{pos, 0.f}, f32v2{u, v}, f32v3{0.f, 0.f, 1.f}, f32v4{1.f, 0.f, 0.f, 1.f}});
     };
     const auto addIndex = [&data](const u32 index) { data.Indices.Append(Index(index)); };
 
-    addVertex(-0.5f, -0.5f, 0.f, 1.f);
-    addVertex(0.5f, -0.5f, 1.f, 1.f);
-    addVertex(-0.5f, 0.5f, 0.f, 0.f);
-    addVertex(0.5f, 0.5f, 1.f, 0.f);
+    addVertex(bl, 0.f, 1.f);
+    addVertex(br, 1.f, 1.f);
+    addVertex(tl, 0.f, 0.f);
+    addVertex(tr, 1.f, 0.f);
 
     addIndex(0);
     addIndex(1);
@@ -1524,11 +1523,11 @@ ParaMeshData<D3> CreateTorusMeshData(const u32 rings, const u32 sectors)
     VALIDATE_MESH_DATA(data);
     return data;
 }
-template StatMeshData<D2> CreateTriangleMeshData<D2>();
-template StatMeshData<D3> CreateTriangleMeshData<D3>();
+template StatMeshData<D2> CreateTriangleMeshData<D2>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
+template StatMeshData<D3> CreateTriangleMeshData<D3>(const f32v2 &left, const f32v2 &right, const f32v2 &top);
 
-template StatMeshData<D2> CreateQuadMeshData<D2>();
-template StatMeshData<D3> CreateQuadMeshData<D3>();
+template StatMeshData<D2> CreateQuadMeshData<D2>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
+template StatMeshData<D3> CreateQuadMeshData<D3>(const f32v2 &bl, const f32v2 &br, const f32v2 &tl, const f32v2 &tr);
 
 template StatMeshData<D2> CreateRegularPolygonMeshData<D2>(u32);
 template StatMeshData<D3> CreateRegularPolygonMeshData<D3>(u32);

@@ -285,11 +285,13 @@ Window::Window(const WindowSpecs &specs)
     m_Present = Execution::FindSuitableQueue(VKit::Queue_Present);
 
     ONYX_CHECK_EXPRESSION(glfwCreateWindowSurface(GetInstance(), m_Window, nullptr, &m_Surface));
-    // TODO(Isma): This should be optional. ImGui windows should opt out
-    m_PostProcessSet =
-        ONYX_CHECK_EXPRESSION(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetPostProcessDescriptorLayout()));
-    m_CompositorSet =
-        ONYX_CHECK_EXPRESSION(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetCompositorDescriptorLayout()));
+    if (specs.Flags & WindowFlag_HasRenderViews)
+    {
+        m_PostProcessSet = ONYX_CHECK_EXPRESSION(
+            Descriptors::GetDescriptorPool().Allocate(Descriptors::GetPostProcessDescriptorLayout()));
+        m_CompositorSet = ONYX_CHECK_EXPRESSION(
+            Descriptors::GetDescriptorPool().Allocate(Descriptors::GetCompositorDescriptorLayout()));
+    }
 
     createSwapChain(getNewExtent());
     createSyncData();
@@ -297,12 +299,15 @@ Window::Window(const WindowSpecs &specs)
     if (IsDebugUtilsEnabled())
     {
         const auto &device = GetDevice();
-        ONYX_CHECK_EXPRESSION(
-            device.SetObjectName(m_PostProcessSet, VK_OBJECT_TYPE_DESCRIPTOR_SET,
-                                 TKit::Format("onyx-post-process-set-window-'{}'", GetTitle()).c_str()));
-        ONYX_CHECK_EXPRESSION(
-            device.SetObjectName(m_CompositorSet, VK_OBJECT_TYPE_DESCRIPTOR_SET,
-                                 TKit::Format("onyx-compositor-set-window-'{}'", GetTitle()).c_str()));
+        if (specs.Flags & WindowFlag_HasRenderViews)
+        {
+            ONYX_CHECK_EXPRESSION(
+                device.SetObjectName(m_PostProcessSet, VK_OBJECT_TYPE_DESCRIPTOR_SET,
+                                     TKit::Format("onyx-post-process-set-window-'{}'", GetTitle()).c_str()));
+            ONYX_CHECK_EXPRESSION(
+                device.SetObjectName(m_CompositorSet, VK_OBJECT_TYPE_DESCRIPTOR_SET,
+                                     TKit::Format("onyx-compositor-set-window-'{}'", GetTitle()).c_str()));
+        }
         nameSurface();
         nameSwapChain();
         nameSyncData();
@@ -663,13 +668,15 @@ template <Dimension D>
 RenderView<D> *Window::CreateRenderView(Camera<D> *camera, RenderViewFlags flags, const ScreenViewport &viewport,
                                         const ScreenScissor &scissor)
 {
+    TKIT_ASSERT(m_PostProcessSet && m_CompositorSet, "[ONYX][WINDOW] The window must be created with the flag "
+                                                     "WindowFlag_HasRenderViews to allow render view creation");
     TKit::TierHive<RenderView<D> *> &rdata = getRenderViews<D>();
     const u32 offset = rdata.Insert(nullptr);
 
     TKit::TierAllocator *tier = TKit::GetTier();
     RenderView<D> *rv = tier->Create<RenderView<D>>(m_SwapChain.GetInfo().Extent, m_PostProcessSet, m_CompositorSet,
                                                     offset, camera, flags, viewport, scissor);
-
+    rv->Layer = m_LayerIncrease++;
     rv->createFramebuffers(m_SwapChain.GetImageCount());
     rv->acquireImage(m_ImageIndex);
     rdata[offset] = rv;
@@ -1441,7 +1448,6 @@ bool Window::IsMouseReleased(const Mouse button) const
     return glfwGetMouseButton(m_Window, toGlfw(button)) == GLFW_RELEASE;
 }
 
-// TODO(Isma): Use LookTowards
 template <Dimension D>
 void Window::ControlCamera(const TKit::Timespan deltaTime, Camera<D> *camera, const CameraControls<D> &controls) const
 {

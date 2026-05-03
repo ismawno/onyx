@@ -47,8 +47,14 @@ struct MeshDataLayout
 template <Dimension D> ONYX_NO_DISCARD Result<StatMeshData<D>> LoadStaticMeshDataFromObjFile(const char *path);
 #endif
 
-template <Dimension D> StatMeshData<D> CreateTriangleMeshData();
-template <Dimension D> StatMeshData<D> CreateQuadMeshData();
+template <Dimension D>
+StatMeshData<D> CreateTriangleMeshData(const f32v2 &left = f32v2{-0.433013f, -0.25f},
+                                       const f32v2 &right = f32v2{0.433013f, -0.25f},
+                                       const f32v2 &top = f32v2{0.f, 0.5f});
+
+template <Dimension D>
+StatMeshData<D> CreateQuadMeshData(const f32v2 &bl = f32v2{-0.5f}, const f32v2 &br = f32v2{0.5f, -0.5f},
+                                   const f32v2 &tl = f32v2{-0.5f, 0.5f}, const f32v2 &tr = f32v2{0.5f});
 template <Dimension D> StatMeshData<D> CreateRegularPolygonMeshData(u32 sides);
 template <Dimension D> StatMeshData<D> CreatePolygonMeshData(TKit::Span<const f32v2> vertices);
 

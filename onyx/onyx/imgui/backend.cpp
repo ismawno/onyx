@@ -1675,7 +1675,6 @@ static RenderSubmitInfo renderer_RenderWindow(const ImGuiViewport *viewport, VKi
     rendFinInfo.pNext = nullptr;
     rendFinInfo.semaphore = window->GetRenderFinishedSemaphore();
     rendFinInfo.value = 0;
-    // TODO(Isma): Is this right? check on renderer as well
     rendFinInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR;
     rendFinInfo.deviceIndex = 0;
 

@@ -30,6 +30,8 @@ const char *ToString(const LightType light)
         return "Light_Point";
     case Light_Directional:
         return "Light_Directional";
+    case Light_Spot:
+        return "Light_Spot";
     default:
         return "Unknown";
     }

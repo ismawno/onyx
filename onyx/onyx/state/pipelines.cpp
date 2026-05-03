@@ -31,8 +31,8 @@ struct PipelineData
 {
     TKit::FixedArray<TKit::FixedArray<VKit::PipelineLayout, RenderPass_Count>, D_Count> Layouts{};
     TKit::FixedArray<TKit::FixedArray<ShaderData, RenderPass_Count>, D_Count> Shaders{};
-    VKit::PipelineLayout DistanceLayout{};
-    VKit::Shader DistanceComputeShader{};
+    VKit::PipelineLayout RayMarchLayout{};
+    VKit::Shader RayMarchComputeShader{};
 
     VKit::PipelineLayout PostProcessLayout{};
     VKit::Shader PostProcessVertexShader{};
@@ -99,10 +99,10 @@ static void createPipelineLayouts()
             .AddPushConstantRange<ShadowPushConstantData<D3>>(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
             .Build());
 
-    s_PipelineData->DistanceLayout =
+    s_PipelineData->RayMarchLayout =
         ONYX_CHECK_EXPRESSION(VKit::PipelineLayout::Builder(device)
-                                  .AddDescriptorSetLayout(Descriptors::GetDistanceDescriptorLayout())
-                                  .AddPushConstantRange<DistancePushConstantData>(VK_SHADER_STAGE_COMPUTE_BIT)
+                                  .AddDescriptorSetLayout(Descriptors::GetRayMarchDescriptorLayout())
+                                  .AddPushConstantRange<RayMarchPushConstantData>(VK_SHADER_STAGE_COMPUTE_BIT)
                                   .Build());
 
     s_PipelineData->PostProcessLayout =
@@ -130,7 +130,7 @@ static void createPipelineLayouts()
             }
             ++i;
         }
-        ONYX_CHECK_EXPRESSION(s_PipelineData->DistanceLayout.SetName("onyx-distance-pipeline-layout"));
+        ONYX_CHECK_EXPRESSION(s_PipelineData->RayMarchLayout.SetName("onyx-ray-march-pipeline-layout"));
         ONYX_CHECK_EXPRESSION(s_PipelineData->PostProcessLayout.SetName("onyx-post-process-pipeline-layout"));
         ONYX_CHECK_EXPRESSION(s_PipelineData->CompositorLayout.SetName("onyx-compositor-pipeline-layout"));
     }
@@ -201,7 +201,7 @@ static void createShaders()
                     .Load();
             }
 
-    compiler.AddModule("distance")
+    compiler.AddModule("ray-march")
         .DeclareEntryPoint("main", ShaderStage_Compute)
         .Load()
         .AddModule("post-process")
@@ -241,7 +241,7 @@ static void createShaders()
         }
     }
 
-    s_PipelineData->DistanceComputeShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("main", "distance"));
+    s_PipelineData->RayMarchComputeShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("main", "ray-march"));
 
     s_PipelineData->PostProcessVertexShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("mainVS", "post-process"));
     s_PipelineData->PostProcessFragmentShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("mainFS", "post-process"));
@@ -257,7 +257,7 @@ static void destroyShaders()
     for (auto &dims : s_PipelineData->Shaders)
         for (auto &passes : dims)
             passes.Destroy();
-    s_PipelineData->DistanceComputeShader.Destroy();
+    s_PipelineData->RayMarchComputeShader.Destroy();
     s_PipelineData->PostProcessVertexShader.Destroy();
     s_PipelineData->PostProcessFragmentShader.Destroy();
     s_PipelineData->CompositorVertexShader.Destroy();
@@ -283,7 +283,7 @@ void Terminate()
     for (auto &dims : s_PipelineData->Layouts)
         for (auto &passes : dims)
             passes.Destroy();
-    s_PipelineData->DistanceLayout.Destroy();
+    s_PipelineData->RayMarchLayout.Destroy();
     s_PipelineData->PostProcessLayout.Destroy();
     s_PipelineData->CompositorLayout.Destroy();
 
@@ -294,9 +294,9 @@ template <Dimension D> const VKit::PipelineLayout &GetPipelineLayout(const Rende
 {
     return s_PipelineData->Layouts[D - 2][pass];
 }
-const VKit::PipelineLayout &GetDistancePipelineLayout()
+const VKit::PipelineLayout &GetRayMarchPipelineLayout()
 {
-    return s_PipelineData->DistanceLayout;
+    return s_PipelineData->RayMarchLayout;
 }
 const VKit::PipelineLayout &GetPostProcessPipelineLayout()
 {
@@ -551,11 +551,11 @@ template <Dimension D> VKit::GraphicsPipeline CreateShadowPipeline(const Geometr
     }
 }
 
-VKit::ComputePipeline CreateDistancePipeline()
+VKit::ComputePipeline CreateRayMarchPipeline()
 {
     VKit::ComputePipelineSpecs specs{};
-    specs.ComputeShader = s_PipelineData->DistanceComputeShader;
-    specs.Layout = s_PipelineData->DistanceLayout;
+    specs.ComputeShader = s_PipelineData->RayMarchComputeShader;
+    specs.Layout = s_PipelineData->RayMarchLayout;
     return ONYX_CHECK_EXPRESSION(VKit::ComputePipeline::Create(GetDevice(), specs));
 }
 

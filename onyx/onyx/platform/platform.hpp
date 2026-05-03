@@ -37,6 +37,7 @@ enum WindowFlagBit : WindowFlags
     WindowFlag_FocusOnShow = 1 << 5,
     WindowFlag_Iconified = 1 << 6,
     WindowFlag_InstallCallbacks = 1 << 7,
+    WindowFlag_HasRenderViews = 1 << 8,
 };
 
 struct WindowSpecs
@@ -46,7 +47,7 @@ struct WindowSpecs
     u32v2 Dimensions{800, 600};
     VkPresentModeKHR PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
     WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused |
-                        WindowFlag_InstallCallbacks;
+                        WindowFlag_InstallCallbacks | WindowFlag_HasRenderViews;
 };
 
 } // namespace Onyx

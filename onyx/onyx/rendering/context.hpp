@@ -54,7 +54,6 @@ struct FixedCascadeParameters
     f32v3 ViewPosition{1.f};
     f32 MinSize = 6.f;
     f32 MaxSize = 12.f;
-    // TODO(Isma): Consider having a range for these as well
     f32 Near = -3.f;
     f32 Far = 3.f;
 };

@@ -52,11 +52,10 @@ enum RenderFlagBit : RenderFlags
 namespace Onyx::Renderer
 {
 template <Dimension D> struct ShadowSpecs;
-// TODO(Isma): these names should change...
 template <> struct ShadowSpecs<D2>
 {
     VkFormat OcclusionFormat = VK_FORMAT_R8_UNORM;
-    VkFormat ShadowFormat = VK_FORMAT_D16_UNORM;
+    VkFormat ShadowFormat = VK_FORMAT_D32_SFLOAT;
     u32 OcclusionResolution = 1024;
     TKit::FixedArray<u32, LightTypeCount<D2>> ShadowResolutions{1024, 1024};
 };
@@ -91,13 +90,14 @@ void BindBuffer(u32 binding, TKit::Span<const VkDescriptorBufferInfo> info, Rend
 template <Dimension D>
 void BindImage(u32 binding, TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
 
-const VKit::Sampler &GetGeneralPurposeSampler();
+const VKit::Sampler &GetNearSampler();
 
 template <Dimension D> const TKit::FixedArray<VkDescriptorSet, Geometry_Count> &GetDescriptorSets(RenderPass pass);
 
 // consider having arrays of semaphores to allow for some flexibility
 
-TransferSubmitInfo Transfer(VKit::Queue *transfer, VkCommandBuffer command, u32 maxReleaseBarriers = 256);
+TransferSubmitInfo Transfer(VKit::Queue *transfer, VkCommandBuffer command, u32 maxLights = 1024,
+                            u32 maxReleaseBarriers = 256);
 void SubmitTransfer(VKit::Queue *transfer, CommandPool *pool, TKit::Span<const TransferSubmitInfo> info);
 
 // must be immediately called before rendering all windows (not for all windows, but before rendering any window)

@@ -899,6 +899,10 @@ void Unlock()
     if (s_Flags & AssetsFlag_MustUpload)
         return Upload();
 }
+bool AreLocked()
+{
+    return s_Flags & AssetsFlag_Locked;
+}
 
 template <typename T> static bool uploadFromHost(VKit::DeviceBuffer &buffer, const TKit::Span<const T> data)
 {
@@ -1075,7 +1079,7 @@ static void uploadTextures()
 
                 const VkDescriptorImageInfo info =
                     tinfo.Image.CreateDescriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-                // TODO(Isma): loop please
+
                 Renderer::BindImage<D2>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shaded, tid);
                 Renderer::BindImage<D2>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Flat, tid);
                 Renderer::BindImage<D2>(ONYX_TEXTURES_BINDING_POINT, info, RenderPass_Shadow, tid);
@@ -1219,7 +1223,6 @@ static void uploadSamplers()
                 .sampler = sinfo.Sampler, .imageView = VK_NULL_HANDLE, .imageLayout = VK_IMAGE_LAYOUT_UNDEFINED};
 
             const u32 sid = GetAssetId(sinfo.Handle);
-            // TODO(Isma): loop please
             Renderer::BindImage<D2>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shaded, sid);
             Renderer::BindImage<D2>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Flat, sid);
             Renderer::BindImage<D2>(ONYX_SAMPLERS_BINDING_POINT, info, RenderPass_Shadow, sid);

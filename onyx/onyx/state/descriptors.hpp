@@ -20,7 +20,7 @@ void Terminate();
 
 const VKit::DescriptorPool &GetDescriptorPool();
 template <Dimension D> const VKit::DescriptorSetLayout &GetDescriptorLayout(RenderPass pass);
-const VKit::DescriptorSetLayout &GetDistanceDescriptorLayout();
+const VKit::DescriptorSetLayout &GetRayMarchDescriptorLayout();
 const VKit::DescriptorSetLayout &GetCompositorDescriptorLayout();
 const VKit::DescriptorSetLayout &GetPostProcessDescriptorLayout();
 

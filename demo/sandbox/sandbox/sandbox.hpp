@@ -9,8 +9,6 @@
 #include "onyx/asset/font.hpp"
 #include "onyx/asset/mesh.hpp"
 
-// TODO(Isma): On camera removal, remove view as well
-// TODO(Isma): Add camera combo on existing views
 namespace Onyx
 {
 using SandboxFlags = u32;

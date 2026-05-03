@@ -10,7 +10,7 @@
 
 namespace Onyx
 {
-// TODO(Isma): Consider having 2D and 3D view sets
+// NOTE(Isma): Consider having 2D and 3D view sets
 static ViewMask s_ViewCache = TKit::Limits<ViewMask>::Max();
 static ViewMask allocateViewBit()
 {
@@ -158,7 +158,7 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
         VkDescriptorImageInfo &color = infos.Append();
         color.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         color.imageView = fb.Color.GetView();
-        color.sampler = Renderer::GetGeneralPurposeSampler();
+        color.sampler = Renderer::GetNearSampler();
 
         const u32 idx = m_Id * imageCount + i;
 
@@ -167,7 +167,7 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
         VkDescriptorImageInfo &outline = infos.Append();
         outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         outline.imageView = fb.Outline.GetView();
-        outline.sampler = Renderer::GetGeneralPurposeSampler();
+        outline.sampler = Renderer::GetNearSampler();
         pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, idx);
 
         VkDescriptorImageInfo &stencil = infos.Append();
@@ -179,7 +179,7 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
         VkDescriptorImageInfo &postProcess = infos.Append();
         postProcess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         postProcess.imageView = fb.PostProcess.GetView(1);
-        postProcess.sampler = Renderer::GetGeneralPurposeSampler();
+        postProcess.sampler = Renderer::GetNearSampler();
 
         compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, postProcess, idx);
     }

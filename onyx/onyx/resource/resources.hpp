@@ -2,7 +2,6 @@
 
 #include "onyx/core/core.hpp"
 #include "onyx/resource/buffer.hpp"
-#include "onyx/core/core.hpp"
 
 namespace Onyx::Resources
 {

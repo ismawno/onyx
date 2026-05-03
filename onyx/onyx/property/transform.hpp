@@ -308,17 +308,26 @@ template <> struct Transform<D3> : ITransform<D3>
      */
     static Transform Extract(const f32m4 &transform);
 
-    // small hack, serialization mistakenly a parameter for a field here
+    // small hack, serialization mistakenly interprets a parameter as a field here
     // TODO(Isma): Properly fix this. It probably is bc of the line split 8 lines from this
-    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
-    TKIT_REFLECT_IGNORE_BEGIN()
+    // UPDATE: seems it doesnt happen anymore bc of different indentation/formatting. still, worth a look
+    // TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
+    // TKIT_REFLECT_IGNORE_BEGIN()
     // direction must be normalized
-    void LookTowards(const f32v3 &position, const f32v3 &direction, const f32v3 &up = f32v3{0.f, 1.f, 0.f});
-    void LookAt(const f32v3 &position, const f32v3 &target, const f32v3 &up = f32v3{0.f, 1.f, 0.f});
 
-    // TODO(Isma): Rename this
-    static f32m4 LookTowardsMatrix(const f32v3 &position, const f32v3 &direction,
-                                   const f32v3 &up = f32v3{0.f, 1.f, 0.f})
+    static f32m2x3 CreateOrthogonalBase(const f32v3 &direction, const f32v3 &up)
+    {
+        const f32v3 t1 = Math::Normalize(Math::Cross(up, direction));
+        const f32v3 t2 = Math::Cross(direction, t1);
+        return f32m2x3{t1, t2};
+    }
+    static f32m2x3 CreateOrthogonalBase(const f32v3 &direction)
+    {
+        const f32v3 up = direction[1] < 0.99f ? f32v3{0.f, 1.f, 0.f} : f32v3{1.f, 0.f, 0.f};
+        return CreateOrthogonalBase(direction, up);
+    }
+
+    static f32m4 LookTowards(const f32v3 &position, const f32v3 &direction, const f32v3 &up = f32v3{0.f, 1.f, 0.f})
     {
         const f32v3 &f = direction;
         const f32v3 r = Normalize(Cross(direction, up));
@@ -340,9 +349,9 @@ template <> struct Transform<D3> : ITransform<D3>
         result[3][2] = -Dot(f, position);
         return result;
     }
-    static f32m4 LookAtMatrix(const f32v3 &position, const f32v3 &target, const f32v3 &up = f32v3{0.f, 1.f, 0.f})
+    static f32m4 LookAt(const f32v3 &position, const f32v3 &target, const f32v3 &up = f32v3{0.f, 1.f, 0.f})
     {
-        return LookTowardsMatrix(position, Math::Normalize(target - position), up);
+        return LookTowards(position, Math::Normalize(target - position), up);
     }
 
     static f32m4 Orthographic(const f32 left, const f32 right, const f32 bottom, const f32 top, const f32 near,
@@ -384,8 +393,9 @@ template <> struct Transform<D3> : ITransform<D3>
         projection[3][2] = far * near / (near - far);
         return projection;
     }
-    TKIT_REFLECT_IGNORE_END()
-    TKIT_YAML_SERIALIZE_IGNORE_END()
+
+    // TKIT_REFLECT_IGNORE_END()
+    // TKIT_YAML_SERIALIZE_IGNORE_END()
 };
 
 /**

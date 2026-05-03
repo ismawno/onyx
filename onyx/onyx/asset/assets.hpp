@@ -103,9 +103,9 @@ template <Dimension D> bool IsAssetPoolValid(Handle handle, AssetType atype);
 bool IsAssetValid(Asset handle, AssetType atype);
 bool IsAssetPoolValid(Handle handle, AssetType atype);
 
-// TODO(Isma): Expose a way of knowing if assets are locked
 void Lock();
 void Unlock();
+bool AreLocked();
 
 bool RequestUpload();
 void Upload();

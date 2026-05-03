@@ -30,6 +30,8 @@ typedef float32_t2x2 f32m2;
 typedef float32_t3x3 f32m3;
 typedef float32_t4x4 f32m4;
 
+typedef float32_t2x3 f32m2x3;
+
 typedef u32 ViewMask;
 
 #include "../onyx/core/definitions.hpp"

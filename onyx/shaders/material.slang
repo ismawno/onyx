@@ -274,7 +274,7 @@ struct ResourceTable2D
 
     SamplerState ShadowSampler;
     SamplerComparisonState ShadowCompareSampler;
-    Texture1D<f32> ShadowMaps[ONYX_MAX_TEXTURE_MAPS];
+    Texture1D<f32> ShadowMaps[ONYX_MAX_SHADOW_OCCLUSION_MAP_SIZE];
 }
 
 struct ResourceTable3D
@@ -356,11 +356,12 @@ LightRange GetRange(const u32 range)
     return r;
 }
 
+#define ONYX_MAX_SEARCH_RADIUS_TEXELS 16.f
+
 f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const ResourceTable2D resources)
 {
     f32v3 diffuseColor = f32v3(0.0);
     const f32v4 ambientColor = unpackUnorm4x8ToFloat(data.AmbientColor);
-    // TODO(Isma): Known artifacts: boundary between shadow and extent cone + boundary of the angle range (-pi, pi) in a shadow. Reproduce using shadows with extreme angles. Suggestion: use <= or >= in the (-pi, pi) remapping?
 
     const LightRange prg = GetRange(data.LightRanges[Light_Point]);
     for (u32 i = 0; i < prg.Count; ++i)
@@ -413,7 +414,7 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
                 const f32 txPerWorld = 0.5f / far;
                 const f32 near = ONYX_POINT_LIGHT_NEAR_RADIUS_FACTOR * far;
 
-                const f32 searchRadius = max(plight.LightSize * (dist - near) * txPerWorld / near, tsize);
+                const f32 searchRadius = clamp(plight.LightSize * (dist - near) * txPerWorld / near, tsize, ONYX_MAX_SEARCH_RADIUS_TEXELS * tsize);
 
                 u32 count = 0;
                 f32 blockerDepth = 0.f;
@@ -495,7 +496,7 @@ f32v3 ComputeLightColor(const LightData2D data, const f32v2 worldPosition, const
                 const f32 tsize = data.TexelSizes[Light_Directional];
                 const f32 tn = dlight.TanAngleSize;
                 const f32 txPerWorld = 0.5f / dlight.LightExtent;
-                const f32 searchRadius = max(fragDepth * dlight.ShadowExtent * tn * txPerWorld, tsize);
+                const f32 searchRadius = clamp(fragDepth * dlight.ShadowExtent * tn * txPerWorld, tsize, ONYX_MAX_SEARCH_RADIUS_TEXELS * tsize);
 
                 u32 count = 0;
                 f32 blockerDepth = 0.f;
@@ -568,12 +569,12 @@ f32v3 ComputeLightContribution(const MaterialInfo3D info, const f32v3 L, const f
     return (diffuse * (1.f - F) + specular) * NdotL * lightColor;
 }
 
-f32m3 ComputePointLightTBN(const f32v3 ndir)
+f32m2x3 ComputeOrthonormalBase(const f32v3 ndir)
 {
     const f32v3 up = abs(ndir.y) < 0.99 ? f32v3(0.f, 1.f, 0.f) : f32v3(1.f, 0.f, 0.f);
     const f32v3 t1 = normalize(cross(up, ndir));
     const f32v3 t2 = cross(ndir, t1);
-    return f32m3(up, t1, t2);
+    return f32m2x3(t1, t2);
 }
 
 // pbr is ai generated
@@ -633,12 +634,11 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
                 const f32 near = ONYX_POINT_LIGHT_NEAR_RADIUS_FACTOR * far;
 
                 const f32 tsize = data.TexelSizes[Light_Point];
-                // TODO(Isma): Consider clamping instead of only a lower bound (for all lights)
-                const f32 searchAngle = max((dist - near) * plight.LightSize / (near * dist), tsize);
+                const f32 searchAngle = clamp((dist - near) * plight.LightSize / (near * dist), tsize, ONYX_MAX_SEARCH_RADIUS_TEXELS * tsize);
 
-                const f32m3 TBN = ComputePointLightTBN(ndir);
-                const f32v3 t1 = TBN[1];
-                const f32v3 t2 = TBN[2];
+                const f32m2x3 orth = ComputeOrthonormalBase(ndir);
+                const f32v3 t1 = orth[0];
+                const f32v3 t2 = orth[1];
 
                 u32 count = 0;
                 f32 blockerDepth = 0.f;
@@ -670,9 +670,9 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
             else if (bool(plight.Flags & LightFlag_PCF))
             {
                 const f32 tsize = data.TexelSizes[Light_Point];
-                const f32m3 TBN = ComputePointLightTBN(ndir);
-                const f32v3 t1 = TBN[1];
-                const f32v3 t2 = TBN[2];
+                const f32m2x3 orth = ComputeOrthonormalBase(ndir);
+                const f32v3 t1 = orth[0];
+                const f32v3 t2 = orth[1];
                 shadow = 0.f;
                 for (u32 i = 0; i < POISSON_DISK_SAMPLES; ++i)
                 {
@@ -745,7 +745,7 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
 
                     const f32 tn = dlight.TanAngleSize;
                     const f32v2 txPerWorld = f32v2(cdata.ShadowInvSizeX, cdata.ShadowInvSizeY);
-                    const f32v2 searchRadius = max(z * cdata.DepthRange * tn * txPerWorld, f32v2(tsize));
+                    const f32v2 searchRadius = clamp(z * cdata.DepthRange * tn * txPerWorld, f32v2(tsize), f32v2(ONYX_MAX_SEARCH_RADIUS_TEXELS * tsize));
 
                     u32 count = 0;
                     f32 blockerDepth = 0.f;
@@ -838,7 +838,7 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
                 const f32 zv = f * n / (f - z * (f - n));
 
                 const f32v2 txPerWorld = f32v2(slight.ShadowInvSizeX, slight.ShadowInvSizeY) / zv;
-                const f32v2 searchRadius = max(slight.LightSize * txPerWorld * (zv - n) / n, f32v2(tsize));
+                const f32v2 searchRadius = clamp(slight.LightSize * txPerWorld * (zv - n) / n, f32v2(tsize), f32v2(ONYX_MAX_SEARCH_RADIUS_TEXELS * tsize));
 
                 u32 count = 0;
                 f32 blockerDepth = 0.f;

@@ -356,7 +356,7 @@ template <> struct ShadowPushConstantData<D3>
     f32 DepthBias;
 };
 
-struct DistancePushConstantData
+struct RayMarchPushConstantData
 {
     // Points
     f32 StartAngle;
