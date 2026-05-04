@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/asset/handle.hpp"
+#include "onyx/resource/handle.hpp"
 #include "onyx/core/math.hpp"
 
 namespace Onyx
@@ -12,8 +12,8 @@ template <> struct MaterialData<D2>
     static constexpr Dimension Dim = D2;
     u32 ColorFactor = 0xFFFFFFFF;
     u32 Occluder = 0;
-    Asset Sampler = NullHandle;
-    Asset Texture = NullHandle;
+    Resource Sampler = NullHandle;
+    Resource Texture = NullHandle;
 };
 
 enum TextureSlot : u8
@@ -36,8 +36,8 @@ template <> struct MaterialData<D3>
     f32 OcclusionStrength = 1.f;
     f32 NormalScale = 1.f;
 
-    TKit::FixedArray<Asset, TextureSlot_Count> Samplers{NullHandle, NullHandle, NullHandle, NullHandle, NullHandle};
-    TKit::FixedArray<Asset, TextureSlot_Count> Textures{NullHandle, NullHandle, NullHandle, NullHandle, NullHandle};
+    TKit::FixedArray<Resource, TextureSlot_Count> Samplers{NullHandle, NullHandle, NullHandle, NullHandle, NullHandle};
+    TKit::FixedArray<Resource, TextureSlot_Count> Textures{NullHandle, NullHandle, NullHandle, NullHandle, NullHandle};
 };
 
 const char *ToString(TextureSlot slot);

@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/asset/image.hpp"
+#include "onyx/resource/image.hpp"
 #ifdef ONYX_ENABLE_IMAGE_LOAD
 #    include <stb_image.h>
 #endif

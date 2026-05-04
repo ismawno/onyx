@@ -1213,8 +1213,8 @@ static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
     for (u32 i = 0; i < imageCount; ++i)
     {
         Renderer_Buffers &buffers = vdata->Buffers.Append();
-        buffers.VertexBuffer = Resources::CreateBuffer<ImDrawVert>(Buffer_HostVertex);
-        buffers.IndexBuffer = Resources::CreateBuffer<ImDrawIdx>(Buffer_HostIndex);
+        buffers.VertexBuffer = Onyx::CreateBuffer<ImDrawVert>(Buffer_HostVertex);
+        buffers.IndexBuffer = Onyx::CreateBuffer<ImDrawIdx>(Buffer_HostIndex);
 
         if (IsDebugUtilsEnabled())
         {
@@ -1383,7 +1383,7 @@ static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
         const VkDeviceSize size = hupload * wsize;
 
         VKit::DeviceBuffer uploadBuffer =
-            Resources::CreateBuffer(VKit::DeviceBufferFlag_Staging | VKit::DeviceBufferFlag_HostMapped, size);
+            Onyx::CreateBuffer(DeviceBufferFlag_Staging | DeviceBufferFlag_HostMapped, size);
         if (IsDebugUtilsEnabled())
         {
             ONYX_CHECK_EXPRESSION(uploadBuffer.SetName("onyx-imgui-upload-buffer"));
@@ -1485,8 +1485,8 @@ static void renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
         const u32 vcount = u32(ddata->TotalVtxCount);
         const u32 icount = u32(ddata->TotalIdxCount);
 
-        Resources::GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount);
-        Resources::GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount);
+        GrowBufferIfNeeded<ImDrawVert>(buffers.VertexBuffer, vcount);
+        GrowBufferIfNeeded<ImDrawIdx>(buffers.IndexBuffer, icount);
 
         VkDeviceSize voffset = 0;
         VkDeviceSize ioffset = 0;

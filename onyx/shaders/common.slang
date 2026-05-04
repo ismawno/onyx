@@ -59,9 +59,9 @@ enum Alignment : u8
     Alignment_None = 3,
 };
 
-u32 GetAssetId(const u32 handle)
+u32 GetResourceId(const u32 handle)
 {
-    return handle & ONYX_ASSET_ID_MASK;
+    return handle & ONYX_RESOURCE_ID_MASK;
 }
 
 f32 ComputeDepth(const u32 depthCounter)
@@ -119,13 +119,13 @@ typedef StructuredBuffer<BoundsData3D, Std430DataLayout> Bounds3D;
 
 f32v2 GetCenter(const u32 handle, const Bounds2D bounds)
 {
-    const BoundsData2D data = bounds[GetAssetId(handle)];
+    const BoundsData2D data = bounds[GetResourceId(handle)];
     return f32v2(data.Data[2], data.Data[3]);
 }
 
 f32v2 ComputeAlignment(const u32 alignment, const u32 handle, const Bounds2D bounds)
 {
-    const BoundsData2D data = bounds[GetAssetId(handle)];
+    const BoundsData2D data = bounds[GetResourceId(handle)];
 
     const u32 al0 = alignment & 0xFF;
     const u32 al1 = (alignment >> 8) & 0xFF;
@@ -134,13 +134,13 @@ f32v2 ComputeAlignment(const u32 alignment, const u32 handle, const Bounds2D bou
 
 f32v3 GetCenter(const u32 handle, const Bounds3D bounds)
 {
-    const BoundsData3D data = bounds[GetAssetId(handle)];
+    const BoundsData3D data = bounds[GetResourceId(handle)];
     return f32v3(data.Data[3], data.Data[4], data.Data[5]);
 }
 
 f32v3 ComputeAlignment(const u32 alignment, const u32 handle, const Bounds3D bounds)
 {
-    const BoundsData3D data = bounds[GetAssetId(handle)];
+    const BoundsData3D data = bounds[GetResourceId(handle)];
 
     const u32 al0 = alignment & 0xFF;
     const u32 al1 = (alignment >> 8) & 0xFF;

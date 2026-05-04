@@ -890,16 +890,16 @@ f32v3 ComputeLightColor(const LightData3D data, const MaterialInfo3D info, const
 
 f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData2D light, const u32 matId, const f32v2 worldPos, const f32v2 uv, const ResourceTable2D resources, const f32 alpha)
 {
-    if (matId == NullAsset)
+    if (matId == NullResource)
         return f32v4(fragColor.rgb, fragColor.a * alpha);
 
     const f32v3 lcolor = ComputeLightColor(light, worldPos, resources);
 
     const Material2D mat = resources.Materials[matId];
-    const u32 sampId = GetAssetId(mat.Sampler);
-    const u32 texId = GetAssetId(mat.Texture);
+    const u32 sampId = GetResourceId(mat.Sampler);
+    const u32 texId = GetResourceId(mat.Texture);
 
-    if (sampId == NullAsset || texId == NullAsset)
+    if (sampId == NullResource || texId == NullResource)
         return fragColor * unpackUnorm4x8ToFloat(mat.ColorFactor) * f32v4(lcolor, alpha);
 
     const f32v4 tex = resources.Textures[texId].Sample(resources.Samplers[sampId], uv);
@@ -908,22 +908,22 @@ f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData2D light, const
 
 f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData3D light, const u32 matId, const f32v3 worldPos, const f32v2 uv, const ResourceTable3D resources, const f32 alpha, const f32m3 TBN, const bool isFrontFacing)
 {
-    if (matId == NullAsset)
+    if (matId == NullResource)
         return f32v4(fragColor.rgb, fragColor.a * alpha);
 
     const Material3D mat = resources.Materials[matId];
 
-    const u32 albedoSamp = GetAssetId(mat.Samplers[TextureSlot_Albedo]);
-    const u32 normalSamp = GetAssetId(mat.Samplers[TextureSlot_Normal]);
-    const u32 mrSamp = GetAssetId(mat.Samplers[TextureSlot_MetallicRoughness]);
-    const u32 occSamp = GetAssetId(mat.Samplers[TextureSlot_Occlusion]);
-    const u32 emissiveSamp = GetAssetId(mat.Samplers[TextureSlot_Emissive]);
+    const u32 albedoSamp = GetResourceId(mat.Samplers[TextureSlot_Albedo]);
+    const u32 normalSamp = GetResourceId(mat.Samplers[TextureSlot_Normal]);
+    const u32 mrSamp = GetResourceId(mat.Samplers[TextureSlot_MetallicRoughness]);
+    const u32 occSamp = GetResourceId(mat.Samplers[TextureSlot_Occlusion]);
+    const u32 emissiveSamp = GetResourceId(mat.Samplers[TextureSlot_Emissive]);
 
-    const u32 albedoTex = GetAssetId(mat.Textures[TextureSlot_Albedo]);
-    const u32 normalTex = GetAssetId(mat.Textures[TextureSlot_Normal]);
-    const u32 mrTex = GetAssetId(mat.Textures[TextureSlot_MetallicRoughness]);
-    const u32 occTex = GetAssetId(mat.Textures[TextureSlot_Occlusion]);
-    const u32 emissiveTex = GetAssetId(mat.Textures[TextureSlot_Emissive]);
+    const u32 albedoTex = GetResourceId(mat.Textures[TextureSlot_Albedo]);
+    const u32 normalTex = GetResourceId(mat.Textures[TextureSlot_Normal]);
+    const u32 mrTex = GetResourceId(mat.Textures[TextureSlot_MetallicRoughness]);
+    const u32 occTex = GetResourceId(mat.Textures[TextureSlot_Occlusion]);
+    const u32 emissiveTex = GetResourceId(mat.Textures[TextureSlot_Emissive]);
 
     MaterialInfo3D info;
     info.Albedo = unpackUnorm4x8ToFloat(mat.AlbedoFactor);
@@ -934,11 +934,11 @@ f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData3D light, const
     info.Occlusion = 1.0;
 
     // Albedo
-    if (albedoSamp != NullAsset && albedoTex != NullAsset)
+    if (albedoSamp != NullResource && albedoTex != NullResource)
         info.Albedo *= resources.Textures[albedoTex].Sample(resources.Samplers[albedoSamp], uv);
 
     // Normal map
-    if (normalSamp != NullAsset && normalTex != NullAsset)
+    if (normalSamp != NullResource && normalTex != NullResource)
     {
         f32v3 sampledNormal = resources.Textures[normalTex].Sample(resources.Samplers[normalSamp], uv).xyz;
         sampledNormal = sampledNormal * 2.0 - 1.0; // unpack from [0,1] to [-1,1]
@@ -952,7 +952,7 @@ f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData3D light, const
         info.Normal = -info.Normal;
 
     // Metallic/Roughness (glTF convention: G = roughness, B = metallic)
-    if (mrSamp != NullAsset && mrTex != NullAsset)
+    if (mrSamp != NullResource && mrTex != NullResource)
     {
         const f32v4 mr = resources.Textures[mrTex].Sample(resources.Samplers[mrSamp], uv);
         info.Roughness *= mr.g;
@@ -960,14 +960,14 @@ f32v4 ComputeMaterialColor(const f32v4 fragColor, const LightData3D light, const
     }
 
     // Occlusion (R channel)
-    if (occSamp != NullAsset && occTex != NullAsset)
+    if (occSamp != NullResource && occTex != NullResource)
     {
         const f32 sampledOcclusion = resources.Textures[occTex].Sample(resources.Samplers[occSamp], uv).r;
         info.Occlusion = 1.0 + mat.OcclusionStrength * (sampledOcclusion - 1.0);
     }
 
     // Emissive
-    if (emissiveSamp != NullAsset && emissiveTex != NullAsset)
+    if (emissiveSamp != NullResource && emissiveTex != NullResource)
         info.Emissive *= resources.Textures[emissiveTex].Sample(resources.Samplers[emissiveSamp], uv).rgb;
 
     const f32v3 lcolor = ComputeLightColor(light, info, resources);

@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/asset/gltf.hpp"
+#include "onyx/resource/gltf.hpp"
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_CLANG_WARNING_IGNORE("-Wdeprecated-literal-operator")
 TKIT_CLANG_WARNING_IGNORE("-Wmissing-field-initializers")
@@ -172,8 +172,8 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
             const i32 texIdx = pbr.baseColorTexture.index;
             if (texIdx >= 0)
             {
-                matData.Sampler = Asset(model.textures[texIdx].sampler);
-                matData.Texture = Asset(model.textures[texIdx].source);
+                matData.Sampler = Resource(model.textures[texIdx].sampler);
+                matData.Texture = Resource(model.textures[texIdx].source);
             }
 
             data.Materials.Append(matData);
@@ -201,36 +201,36 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
             const i32 albedoIdx = pbr.baseColorTexture.index;
             if (albedoIdx >= 0)
             {
-                matData.Samplers[TextureSlot_Albedo] = Asset(model.textures[albedoIdx].sampler);
-                matData.Textures[TextureSlot_Albedo] = Asset(model.textures[albedoIdx].source);
+                matData.Samplers[TextureSlot_Albedo] = Resource(model.textures[albedoIdx].sampler);
+                matData.Textures[TextureSlot_Albedo] = Resource(model.textures[albedoIdx].source);
             }
 
             const i32 mrIdx = pbr.metallicRoughnessTexture.index;
             if (mrIdx >= 0)
             {
-                matData.Samplers[TextureSlot_MetallicRoughness] = Asset(model.textures[mrIdx].sampler);
-                matData.Textures[TextureSlot_MetallicRoughness] = Asset(model.textures[mrIdx].source);
+                matData.Samplers[TextureSlot_MetallicRoughness] = Resource(model.textures[mrIdx].sampler);
+                matData.Textures[TextureSlot_MetallicRoughness] = Resource(model.textures[mrIdx].source);
             }
 
             const i32 normalIdx = mat.normalTexture.index;
             if (normalIdx >= 0)
             {
-                matData.Samplers[TextureSlot_Normal] = Asset(model.textures[normalIdx].sampler);
-                matData.Textures[TextureSlot_Normal] = Asset(model.textures[normalIdx].source);
+                matData.Samplers[TextureSlot_Normal] = Resource(model.textures[normalIdx].sampler);
+                matData.Textures[TextureSlot_Normal] = Resource(model.textures[normalIdx].source);
             }
 
             const i32 occlusionIdx = mat.occlusionTexture.index;
             if (occlusionIdx >= 0)
             {
-                matData.Samplers[TextureSlot_Occlusion] = Asset(model.textures[occlusionIdx].sampler);
-                matData.Textures[TextureSlot_Occlusion] = Asset(model.textures[occlusionIdx].source);
+                matData.Samplers[TextureSlot_Occlusion] = Resource(model.textures[occlusionIdx].sampler);
+                matData.Textures[TextureSlot_Occlusion] = Resource(model.textures[occlusionIdx].source);
             }
 
             const i32 emissiveIdx = mat.emissiveTexture.index;
             if (emissiveIdx >= 0)
             {
-                matData.Samplers[TextureSlot_Emissive] = Asset(model.textures[emissiveIdx].sampler);
-                matData.Textures[TextureSlot_Emissive] = Asset(model.textures[emissiveIdx].source);
+                matData.Samplers[TextureSlot_Emissive] = Resource(model.textures[emissiveIdx].sampler);
+                matData.Textures[TextureSlot_Emissive] = Resource(model.textures[emissiveIdx].source);
             }
 
             data.Materials.Append(matData);

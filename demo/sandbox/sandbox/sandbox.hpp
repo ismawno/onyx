@@ -4,10 +4,10 @@
 #include "onyx/rendering/context.hpp"
 #include "onyx/property/instance.hpp"
 #include "onyx/platform/dialog.hpp"
-#include "onyx/asset/sampler.hpp"
-#include "onyx/asset/image.hpp"
-#include "onyx/asset/font.hpp"
-#include "onyx/asset/mesh.hpp"
+#include "onyx/resource/sampler.hpp"
+#include "onyx/resource/image.hpp"
+#include "onyx/resource/font.hpp"
+#include "onyx/resource/mesh.hpp"
 
 namespace Onyx
 {
@@ -56,14 +56,14 @@ template <Dimension D> struct ViewArray
 template <typename Vertex> struct MeshId
 {
     std::string Name{};
-    Asset Handle = NullHandle;
+    Resource Handle = NullHandle;
     MeshData<Vertex> Data{};
 };
 
 template <typename Vertex> struct MeshPoolId
 {
     std::string Name{};
-    AssetPool Handle = NullHandle;
+    ResourcePool Handle = NullHandle;
     TKit::TierArray<MeshId<Vertex>> Elements{};
     u32 Active = 0;
 };
@@ -87,7 +87,7 @@ template <Dimension D> struct MeshPoolArray
     TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
     f32v2 VertexToAdd{0.f};
 
-    Asset DefaultAxesMesh = NullHandle;
+    Resource DefaultAxesMesh = NullHandle;
 };
 
 template <> struct MeshPoolArray<D3>
@@ -103,8 +103,8 @@ template <> struct MeshPoolArray<D3>
     TKit::TierArray<f32v2> PolyVertices{{f32v2{-1.f, -0.5f}, f32v2{1.f, -0.5f}, f32v2{0.f, 1.f}}};
     f32v2 VertexToAdd{0.f};
 
-    Asset DefaultAxesMesh = NullHandle;
-    Asset DefaultLightMesh = NullHandle;
+    Resource DefaultAxesMesh = NullHandle;
+    Resource DefaultLightMesh = NullHandle;
 
     u32 Rings = 32;
     u32 Sectors = 64;
@@ -125,9 +125,9 @@ enum StaticMeshType : u8
 template <Dimension D> struct Shape
 {
     Geometry Geo = Geometry_Count;
-    Asset Mesh = NullHandle;
-    Asset Material = NullHandle;
-    Asset Font = NullHandle;
+    Resource Mesh = NullHandle;
+    Resource Material = NullHandle;
+    Resource Font = NullHandle;
 
     vec<Alignment, D> Alignment{Alignment_None};
 
@@ -150,12 +150,12 @@ template <Dimension D> struct ContextData
     TKit::TierArray<PointLightParameters<D>> PointLights{};
     TKit::TierArray<DirectionalLightParameters<D>> DirLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
-    TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
+    TKit::FixedArray<Resource, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
     f32 AxesThickness = 0.01f;
 
-    Asset AxesMesh = NullHandle;
-    Asset AxesMaterial = NullHandle;
-    Asset LightMaterial = NullHandle;
+    Resource AxesMesh = NullHandle;
+    Resource AxesMaterial = NullHandle;
+    Resource LightMaterial = NullHandle;
 
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 SelectedShape = 0;
@@ -180,15 +180,15 @@ template <> struct ContextData<D3>
     TKit::TierArray<DirParams> DirLights{};
     TKit::TierArray<SpotLightParameters> SpotLights{};
     Geometry GeometryToSpawn = Geometry_Circle;
-    TKit::FixedArray<Asset, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
+    TKit::FixedArray<Resource, Geometry_Count> MeshToSpawn{NullHandle, NullHandle, NullHandle};
     f32 AxesThickness = 0.01f;
 
     u32 SelectedShape = 0;
 
-    Asset AxesMesh = NullHandle;
-    Asset AxesMaterial = NullHandle;
-    Asset LightMaterial = NullHandle;
-    Asset LightMesh = NullHandle;
+    Resource AxesMesh = NullHandle;
+    Resource AxesMaterial = NullHandle;
+    Resource LightMaterial = NullHandle;
+    Resource LightMesh = NullHandle;
 
     f32v4 Ambient = f32v4{1.f, 1.f, 1.f, 0.4f};
     u32 LightToSpawn = 0;
@@ -217,10 +217,10 @@ template <Dimension D> struct LatticeData
     f32 Separation = 1.5f;
     Geometry Geo = Geometry_Circle;
     TKIT_YAML_SERIALIZE_GROUP_BEGIN("StatMesh", "--deserialize-as StaticMeshType")
-    Asset StatMesh = 0;
+    Resource StatMesh = 0;
     TKIT_YAML_SERIALIZE_GROUP_END()
     TKIT_YAML_SERIALIZE_GROUP_BEGIN("ParaMesh", "--deserialize-as ParametricShape")
-    Asset ParaMesh = 0;
+    Resource ParaMesh = 0;
     TKIT_YAML_SERIALIZE_GROUP_END()
     u32 Threads = 1;
     TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
@@ -231,7 +231,7 @@ template <Dimension D> struct LatticeData
 template <Dimension D> struct MaterialId
 {
     std::string Name{};
-    Asset Handle = NullHandle;
+    Resource Handle = NullHandle;
     MaterialData<D> Data{};
 };
 
@@ -239,32 +239,33 @@ template <Dimension D> struct MaterialArray
 {
     TKit::TierArray<MaterialId<D>> Elements{};
     u32 Active = 0;
-    Asset DefaultMaterial = NullHandle;
+    Resource DefaultMaterial = NullHandle;
 };
 
 struct SamplerId
 {
     std::string Name{};
-    Asset Handle = NullHandle;
+    Resource Handle = NullHandle;
     SamplerData Data{};
 };
 
 struct TextureId
 {
     std::string Name{};
-    Asset Handle = NullHandle;
+    Resource Image = NullHandle;
+    Resource Handle = NullHandle;
 };
 
 struct FontId
 {
     std::string Name{};
-    Asset Handle = NullHandle;
+    Resource Handle = NullHandle;
 };
 
 struct FontPoolId
 {
     std::string Name{};
-    AssetPool Handle = NullHandle;
+    ResourcePool Handle = NullHandle;
     TKit::TierArray<FontId> Elements{};
     u32 Active = 0;
 };
@@ -287,7 +288,7 @@ class SandboxAppLayer final : public ApplicationLayer
     template <Dimension D> void DrawLattices();
     template <Dimension D, typename F> void DrawLattice(const LatticeData<D> &lattice, F &&fun);
 
-    template <Dimension D> Shape<D> CreateShape(Geometry geo, Asset mesh = NullHandle);
+    template <Dimension D> Shape<D> CreateShape(Geometry geo, Resource mesh = NullHandle);
 
     template <Dimension D> void AddContext(const RenderView<D> *view = nullptr);
     template <Dimension D> void AddLattice(const RenderView<D> *view = nullptr, const LatticeData<D> &lattice = {});
@@ -358,7 +359,7 @@ class SandboxAppLayer final : public ApplicationLayer
     u32 SelectedSampler = 0;
     u32 SelectedTexture = 0;
     u32 SelectedFontPool = 0;
-    Asset DefaultSampler = NullHandle;
+    Resource DefaultSampler = NullHandle;
 };
 
 class SandboxWinLayer final : public WindowLayer

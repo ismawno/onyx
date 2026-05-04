@@ -1,5 +1,5 @@
 #include "sandbox/sandbox.hpp"
-#include "onyx/asset/assets.hpp"
+#include "onyx/resource/resources.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include "onyx/imgui/imgui.hpp"
 #    include <misc/cpp/imgui_stdlib.h>
@@ -79,7 +79,7 @@ SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *da
 
     DefaultSampler = AddSampler("Default sampler").Handle;
 
-    Assets::Upload();
+    Resources::Sync(SyncFlag_All);
 
     if (data->Flags & ParseFlag_D2)
     {
@@ -126,7 +126,7 @@ MeshPoolId<Vertex> &SandboxAppLayer::AddMeshPool(TKit::TierArray<MeshPoolId<Vert
 {
     constexpr Dimension D = Vertex::Dim;
     MeshPoolId<Vertex> &mid = pool.Append();
-    mid.Handle = Assets::CreateAssetPool<D>(Vertex::Asset);
+    mid.Handle = Resources::CreateResourcePool<D>(Vertex::Resource);
     mid.Name = name ? name : TKit::Format("Mesh-pool-{:#010x}", mid.Handle);
     return mid;
 }
@@ -134,7 +134,7 @@ MeshPoolId<Vertex> &SandboxAppLayer::AddMeshPool(TKit::TierArray<MeshPoolId<Vert
 template <typename Vertex>
 MeshId<Vertex> &SandboxAppLayer::AddMesh(MeshPoolId<Vertex> &pool, const MeshData<Vertex> &data, const char *name)
 {
-    const Asset mesh = Assets::CreateMesh(pool.Handle, data);
+    const Resource mesh = Resources::RegisterMesh(pool.Handle, data);
     MeshId<Vertex> &mid = pool.Elements.Append();
     mid.Handle = mesh;
     mid.Data = data;
@@ -194,7 +194,7 @@ template <Dimension D> static void drawShape(RenderContext<D> *context, const Sh
         context->StaticMesh(shape.Mesh, shape.Transform.ComputeTransform());
     else if (shape.Geo == Geometry_Parametric)
         context->ParametricMesh(shape.Mesh, shape.Parameters, shape.Transform.ComputeTransform());
-    else if (shape.Geo == Geometry_Glyph && !Assets::IsAssetNull(context->GetState().Font))
+    else if (shape.Geo == Geometry_Glyph && !Resources::IsResourceNull(context->GetState().Font))
         context->Text(shape.Text, shape.Transform.ComputeTransform(), shape.TextParams);
 }
 
@@ -208,7 +208,7 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
             ctx.Context->FontSampler(DefaultSampler);
             ctx.Context->Push();
             for (const Shape<D> &shape : ctx.Shapes)
-                if (shape.Geo != Geometry_Glyph || !Assets::IsAssetNull(DefaultSampler))
+                if (shape.Geo != Geometry_Glyph || !Resources::IsResourceNull(DefaultSampler))
                 {
                     setShapeProperties(ctx.Context, shape);
                     drawShape(ctx.Context, shape);
@@ -239,7 +239,7 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
                     ctx.Context->FillColor(pl.Tint);
                     if constexpr (D == D2)
                         ctx.Context->Circle();
-                    else if (!Assets::IsAssetNull(ctx.LightMesh))
+                    else if (!Resources::IsResourceNull(ctx.LightMesh))
                         ctx.Context->StaticMesh(ctx.LightMesh);
                 }
                 ctx.Context->Pop();
@@ -250,7 +250,7 @@ template <Dimension D> void SandboxAppLayer::DrawShapes()
             {
                 ctx.Context->RenderFlags(RenderModeFlag_Shaded);
                 ctx.Context->Material(ctx.AxesMaterial);
-                if (!Assets::IsAssetNull(ctx.AxesMesh))
+                if (!Resources::IsResourceNull(ctx.AxesMesh))
                     ctx.Context->Axes(ctx.AxesMesh, {.Thickness = ctx.AxesThickness});
             }
         }
@@ -274,8 +274,8 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
                 break;
             }
             case Geometry_Static: {
-                const Asset mesh = lattice.Shape.Mesh;
-                if (!Assets::IsAssetNull(mesh))
+                const Resource mesh = lattice.Shape.Mesh;
+                if (!Resources::IsResourceNull(mesh))
                     DrawLattice(lattice, [mesh](const f32v<D> &pos, RenderContext<D> *context) {
                         context->SetTranslation(pos);
                         context->StaticMesh(mesh);
@@ -287,8 +287,8 @@ template <Dimension D> void SandboxAppLayer::DrawLattices()
             }
             case Geometry_Parametric: {
                 const Shape<D> shape = lattice.Shape;
-                const Asset mesh = shape.Mesh;
-                if (!Assets::IsAssetNull(mesh))
+                const Resource mesh = shape.Mesh;
+                if (!Resources::IsResourceNull(mesh))
                     DrawLattice(lattice, [mesh, shape](const f32v<D> &pos, RenderContext<D> *context) {
                         context->SetTranslation(pos);
                         context->ParametricMesh(mesh, shape.Parameters);
@@ -382,7 +382,7 @@ template <Dimension D, typename F> void SandboxAppLayer::DrawLattice(const Latti
 }
 
 template <typename Vertex>
-static std::string getName(const Asset mesh, const TKit::TierArray<MeshPoolId<Vertex>> &pools)
+static std::string getName(const Resource mesh, const TKit::TierArray<MeshPoolId<Vertex>> &pools)
 {
     for (const MeshPoolId<Vertex> &pool : pools)
         for (const MeshId<Vertex> &mid : pool.Elements)
@@ -391,7 +391,7 @@ static std::string getName(const Asset mesh, const TKit::TierArray<MeshPoolId<Ve
     return "Unknown";
 }
 
-template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo, const Asset mesh)
+template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo, const Resource mesh)
 {
     Shape<D> shape{};
     shape.Geo = geo;
@@ -411,7 +411,7 @@ template <Dimension D> Shape<D> SandboxAppLayer::CreateShape(const Geometry geo,
     }
     case Geometry_Parametric: {
         shape.Name = getName(mesh, meshes.ParaPools);
-        const ParametricShape stype = Assets::GetParametricShape<D>(mesh);
+        const ParametricShape stype = Resources::GetParametricShape<D>(mesh);
         if (stype == ParametricShape_Stadium)
             shape.Parameters.Stadium = StadiumParameters{1.f, 0.5f};
         else if (stype == ParametricShape_RoundedQuad)
@@ -470,7 +470,7 @@ template <Dimension D> MaterialId<D> &SandboxAppLayer::AddMaterial(const char *n
 {
     auto &materials = GetMaterials<D>();
     MaterialId<D> &mat = materials.Elements.Append();
-    mat.Handle = Assets::CreateMaterial(mat.Data);
+    mat.Handle = Resources::RegisterMaterial(mat.Data);
     mat.Name = name ? name : TKit::Format("Material-{:#010x}", mat.Handle);
     return mat;
 }
@@ -478,7 +478,7 @@ template <Dimension D> MaterialId<D> &SandboxAppLayer::AddMaterial(const char *n
 SamplerId &SandboxAppLayer::AddSampler(const char *name)
 {
     SamplerId &sampler = Samplers.Append();
-    sampler.Handle = Assets::CreateSampler(sampler.Data);
+    sampler.Handle = Resources::CreateSampler(sampler.Data);
     sampler.Name = name ? name : TKit::Format("Sampler-{:#010x}", sampler.Handle);
     return sampler;
 }
@@ -486,25 +486,26 @@ SamplerId &SandboxAppLayer::AddSampler(const char *name)
 void SandboxAppLayer::AddTexture(const ImageData &data, const char *name)
 {
     TextureId &tex = Textures.Append();
-    tex.Handle = Assets::CreateTexture(data);
+    tex.Image = Resources::CreateImage(data);
+    tex.Handle = Resources::CreateTexture(tex.Image);
     tex.Name = name ? name : TKit::Format("Texture-{:#010x}", tex.Handle);
 }
 
 void SandboxAppLayer::AddFontPool(const char *name)
 {
     FontPoolId &pool = FontPools.Append();
-    pool.Handle = Assets::CreateFontPool();
+    pool.Handle = Resources::CreateFontPool();
     pool.Name = name ? name : TKit::Format("Font-pool-{:#010x}", pool.Handle);
 }
 
 void SandboxAppLayer::AddFont(FontPoolId &pool, const FontData &data, const char *name)
 {
     FontId &font = pool.Elements.Append();
-    font.Handle = Assets::CreateFont(pool.Handle, data);
+    font.Handle = Resources::RegisterFont(pool.Handle, data);
     font.Name = name ? name : TKit::Format("Font-{:#010x}", font.Handle);
 
     TextureId &tex = Textures.Append();
-    tex.Handle = Assets::GetFontAtlas(font.Handle);
+    tex.Handle = Resources::GetFontAtlas(font.Handle);
     tex.Name = TKit::Format("Font-atlas-{:#010x}", tex.Handle);
 }
 
@@ -512,7 +513,7 @@ template <Dimension D> void SandboxAppLayer::UpdateMaterialData()
 {
     auto &materials = GetMaterials<D>();
     for (MaterialId<D> &mat : materials.Elements)
-        mat.Data = Assets::GetMaterialData<D>(mat.Handle);
+        mat.Data = Resources::GetMaterialData<D>(mat.Handle);
 }
 
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
@@ -952,7 +953,7 @@ template <Dimension D> void SandboxWinLayer::RenderContexts()
 }
 
 template <typename T>
-static bool poolMemberNameCombo(const char *name, const TKit::TierArray<T> &container, Asset *handle)
+static bool poolMemberNameCombo(const char *name, const TKit::TierArray<T> &container, Resource *handle)
 {
     ImGui::PushID(handle);
     TKit::StackArray<const char *> names{};
@@ -975,7 +976,7 @@ static bool poolMemberNameCombo(const char *name, const TKit::TierArray<T> &cont
         }
 
     bool changed = false;
-    if (!Assets::IsAssetNull(*handle))
+    if (!Resources::IsResourceNull(*handle))
     {
         changed |= ImGui::Button("X");
         if (changed)
@@ -1002,21 +1003,21 @@ static bool poolMemberNameCombo(const char *name, const TKit::TierArray<T> &cont
     return changed;
 }
 
-template <Dimension D> static bool statMeshNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *mesh)
+template <Dimension D> static bool statMeshNameCombo(const char *name, SandboxAppLayer *appLayer, Resource *mesh)
 {
     return poolMemberNameCombo(name, appLayer->GetMeshes<D>().StatPools, mesh);
 }
-template <Dimension D> static bool paraMeshNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *mesh)
+template <Dimension D> static bool paraMeshNameCombo(const char *name, SandboxAppLayer *appLayer, Resource *mesh)
 {
     return poolMemberNameCombo(name, appLayer->GetMeshes<D>().ParaPools, mesh);
 }
 
-static bool fontNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *font)
+static bool fontNameCombo(const char *name, SandboxAppLayer *appLayer, Resource *font)
 {
     return poolMemberNameCombo(name, appLayer->FontPools, font);
 }
 
-template <typename T> static bool nameCombo(const char *name, const TKit::TierArray<T> &container, Asset *handle)
+template <typename T> static bool nameCombo(const char *name, const TKit::TierArray<T> &container, Resource *handle)
 {
     ImGui::PushID(handle);
     TKit::StackArray<const char *> names{};
@@ -1030,7 +1031,7 @@ template <typename T> static bool nameCombo(const char *name, const TKit::TierAr
             idx = i;
     }
     bool changed = false;
-    if (!Assets::IsAssetNull(*handle))
+    if (!Resources::IsResourceNull(*handle))
     {
         changed |= ImGui::Button("X");
         if (changed)
@@ -1049,15 +1050,15 @@ template <typename T> static bool nameCombo(const char *name, const TKit::TierAr
     return changed;
 }
 
-template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *material)
+template <Dimension D> static bool matNameCombo(const char *name, SandboxAppLayer *appLayer, Resource *material)
 {
     return nameCombo(name, appLayer->GetMaterials<D>().Elements, material);
 }
-static bool texNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *handle)
+static bool texNameCombo(const char *name, SandboxAppLayer *appLayer, Resource *handle)
 {
     return nameCombo(name, appLayer->Textures, handle);
 }
-static bool sampNameCombo(const char *name, SandboxAppLayer *appLayer, Asset *handle)
+static bool sampNameCombo(const char *name, SandboxAppLayer *appLayer, Resource *handle)
 {
     return nameCombo(name, appLayer->Samplers, handle);
 }
@@ -1140,7 +1141,7 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
     }
     else if (shape.Geo == Geometry_Parametric)
     {
-        const ParametricShape stype = Assets::GetParametricShape<D>(shape.Mesh);
+        const ParametricShape stype = Resources::GetParametricShape<D>(shape.Mesh);
         switch (stype)
         {
         case ParametricShape_Stadium: {
@@ -1183,7 +1184,7 @@ template <Dimension D> static void editShape(Shape<D> &shape, SandboxAppLayer *a
     else if (shape.Geo == Geometry_Glyph)
     {
         fontNameCombo("Font", appLayer, &shape.Font);
-        ImGui::BeginDisabled(Assets::IsAssetNull(shape.Font));
+        ImGui::BeginDisabled(Resources::IsResourceNull(shape.Font));
         ImGui::InputText("Text", &shape.Text);
         ImGui::EndDisabled();
 
@@ -1206,7 +1207,7 @@ template <Dimension D> void SandboxWinLayer::RenderShapePicker(ContextData<D> &c
     else if (geo == Geometry_Parametric)
         paraMeshNameCombo<D>("Shape##Picker", appLayer, &context.MeshToSpawn[geo]);
 
-    ImGui::BeginDisabled(geo != Geometry_Circle && Assets::IsAssetNull(context.MeshToSpawn[geo]));
+    ImGui::BeginDisabled(geo != Geometry_Circle && Resources::IsResourceNull(context.MeshToSpawn[geo]));
     if (ImGui::Button("Spawn##Shape"))
         context.Shapes.Append(appLayer->CreateShape<D>(geo, context.MeshToSpawn[geo]));
     ImGui::EndDisabled();
@@ -1322,35 +1323,35 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
             opts.OnSelected = [this](StatMeshPoolId<D> &pool) { RenderMeshPool(pool); };
             opts.GetName = [](const StatMeshPoolId<D> &pool) { return pool.Name; };
             opts.OnRemoval = [&meshes, appLayer](const StatMeshPoolId<D> &pool) {
-                Assets::DestroyAssetPool<D>(pool.Handle);
+                Resources::DestroyResourcePool<D>(pool.Handle);
                 auto &contexts = appLayer->GetContexts<D>();
                 for (ContextData<D> &ctx : contexts.Contexts)
                 {
                     for (u32 i = ctx.Shapes.GetSize() - 1; i < ctx.Shapes.GetSize(); --i)
-                        if (Assets::GetAssetPool(ctx.Shapes[i].Mesh) == pool.Handle)
+                        if (Resources::GetResourcePool(ctx.Shapes[i].Mesh) == pool.Handle)
                             ctx.Shapes.RemoveOrdered(ctx.Shapes.begin() + i);
-                    if (Assets::GetAssetPool(ctx.AxesMesh) == pool.Handle)
-                        ctx.AxesMesh = NullAsset;
+                    if (Resources::GetResourcePool(ctx.AxesMesh) == pool.Handle)
+                        ctx.AxesMesh = NullResource;
 
                     if constexpr (D == D3)
-                        if (Assets::GetAssetPool(ctx.LightMesh) == pool.Handle)
-                            ctx.LightMesh = NullAsset;
+                        if (Resources::GetResourcePool(ctx.LightMesh) == pool.Handle)
+                            ctx.LightMesh = NullResource;
                 }
                 auto &lattices = appLayer->GetLattices<D>();
                 for (LatticeData<D> &lattice : lattices.Lattices)
                 {
-                    if (Assets::GetAssetPool(lattice.StatMesh) == pool.Handle)
-                        lattice.StatMesh = NullAsset;
-                    if (Assets::GetAssetPool(lattice.Shape.Mesh) == pool.Handle)
-                        lattice.Shape.Mesh = NullAsset;
+                    if (Resources::GetResourcePool(lattice.StatMesh) == pool.Handle)
+                        lattice.StatMesh = NullResource;
+                    if (Resources::GetResourcePool(lattice.Shape.Mesh) == pool.Handle)
+                        lattice.Shape.Mesh = NullResource;
                 }
-                if (Assets::GetAssetPool(meshes.DefaultAxesMesh) == pool.Handle)
-                    meshes.DefaultAxesMesh = NullAsset;
+                if (Resources::GetResourcePool(meshes.DefaultAxesMesh) == pool.Handle)
+                    meshes.DefaultAxesMesh = NullResource;
                 if constexpr (D == D3)
-                    if (Assets::GetAssetPool(meshes.DefaultLightMesh) == pool.Handle)
-                        meshes.DefaultLightMesh = NullAsset;
+                    if (Resources::GetResourcePool(meshes.DefaultLightMesh) == pool.Handle)
+                        meshes.DefaultLightMesh = NullResource;
 
-                Assets::RequestUpload();
+                Resources::RequestSync(SyncFlag_All);
             };
             ImGui::SameLine();
             ImGui::TextDisabled("Removing the default mesh pool may lead to weird behaviour!");
@@ -1367,18 +1368,18 @@ template <Dimension D> void SandboxWinLayer::RenderMeshPools()
             opts.OnSelected = [this](ParaMeshPoolId<D> &pool) { RenderMeshPool(pool); };
             opts.GetName = [](const ParaMeshPoolId<D> &pool) { return pool.Name; };
             opts.OnRemoval = [appLayer](const ParaMeshPoolId<D> &pool) {
-                Assets::DestroyAssetPool<D>(pool.Handle);
+                Resources::DestroyResourcePool<D>(pool.Handle);
                 auto &contexts = appLayer->GetContexts<D>();
                 for (ContextData<D> &ctx : contexts.Contexts)
                     for (u32 i = ctx.Shapes.GetSize() - 1; i < ctx.Shapes.GetSize(); --i)
-                        if (Assets::GetAssetPool(ctx.Shapes[i].Mesh) == pool.Handle)
+                        if (Resources::GetResourcePool(ctx.Shapes[i].Mesh) == pool.Handle)
                             ctx.Shapes.RemoveOrdered(ctx.Shapes.begin() + i);
 
                 auto &lattices = appLayer->GetLattices<D>();
                 for (LatticeData<D> &lattice : lattices.Lattices)
-                    if (Assets::GetAssetPool(lattice.Shape.Mesh) == pool.Handle)
-                        lattice.Shape.Mesh = NullAsset;
-                Assets::RequestUpload();
+                    if (Resources::GetResourcePool(lattice.Shape.Mesh) == pool.Handle)
+                        lattice.Shape.Mesh = NullResource;
+                Resources::RequestSync(SyncFlag_All);
             };
             renderEntries(meshes.ParaPools, opts);
             ImGui::TreePop();
@@ -1395,7 +1396,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterials()
         if (ImGui::Button("Add material"))
         {
             appLayer->AddMaterial<D>();
-            Assets::RequestUpload();
+            Resources::RequestSync(SyncFlag_All);
         }
 
         EntriesOptions<MaterialId<D>> opts{};
@@ -1404,25 +1405,25 @@ template <Dimension D> void SandboxWinLayer::RenderMaterials()
         opts.GetName = [](const MaterialId<D> &material) { return material.Name; };
 
         opts.OnRemoval = [&materials, appLayer](MaterialId<D> &mat) {
-            Assets::DestroyMaterial<D>(mat.Handle);
+            Resources::DestroyMaterial<D>(mat.Handle);
             auto &contexts = appLayer->GetContexts<D>();
             for (ContextData<D> &ctx : contexts.Contexts)
             {
                 for (Shape<D> &shape : ctx.Shapes)
                     if (shape.Material == mat.Handle)
-                        shape.Material = NullAsset;
+                        shape.Material = NullResource;
                 if (ctx.AxesMaterial == mat.Handle)
-                    ctx.AxesMaterial = NullAsset;
+                    ctx.AxesMaterial = NullResource;
                 if (ctx.LightMaterial == mat.Handle)
-                    ctx.LightMaterial = NullAsset;
+                    ctx.LightMaterial = NullResource;
             }
             auto &lattices = appLayer->GetLattices<D>();
             for (LatticeData<D> &lattice : lattices.Lattices)
                 if (lattice.Shape.Material == mat.Handle)
-                    lattice.Shape.Material = NullAsset;
+                    lattice.Shape.Material = NullResource;
             if (materials.DefaultMaterial == mat.Handle)
-                materials.DefaultMaterial = NullAsset;
-            Assets::RequestUpload();
+                materials.DefaultMaterial = NullResource;
+            Resources::RequestSync(SyncFlag_All);
         };
 
         renderEntries(materials.Elements, opts);
@@ -1455,8 +1456,8 @@ template <Dimension D> void SandboxWinLayer::RenderMaterial(MaterialId<D> &mater
     }
     if (changed)
     {
-        Assets::UpdateMaterial(material.Handle, material.Data);
-        Assets::RequestUpload();
+        Resources::UpdateMaterial(material.Handle, material.Data);
+        Resources::RequestSync(SyncFlag_All);
     }
 }
 
@@ -1525,7 +1526,7 @@ void SandboxWinLayer::RenderSamplers()
         if (ImGui::Button("Create"))
         {
             appLayer->AddSampler();
-            Assets::RequestUpload();
+            Resources::RequestSync(SyncFlag_All);
         }
 
         ImGui::TextDisabled(
@@ -1534,12 +1535,12 @@ void SandboxWinLayer::RenderSamplers()
         EntriesOptions<SamplerId> opts{};
         opts.GetName = [](const SamplerId &samp) { return samp.Name; };
         opts.OnRemoval = [appLayer](SamplerId &samp) {
-            Assets::DestroySampler(samp.Handle);
+            Resources::DestroySampler(samp.Handle);
             appLayer->UpdateMaterialData<D2>();
             appLayer->UpdateMaterialData<D3>();
             if (appLayer->DefaultSampler == samp.Handle)
                 appLayer->DefaultSampler = NullHandle;
-            Assets::RequestUpload();
+            Resources::RequestSync(SyncFlag_All);
         };
         opts.OnSelected = [this](SamplerId &samp) { RenderSampler(samp); };
         opts.Selected = &appLayer->SelectedSampler;
@@ -1553,8 +1554,9 @@ void SandboxWinLayer::RenderSampler(SamplerId &sampler)
     ImGui::Text("Sampler handle: %s", TKit::Format("{:#010x}", sampler.Handle).c_str());
     if (SamplerEditor(sampler.Data, EditorFlag_DisplayHelp))
     {
-        Assets::UpdateSampler(sampler.Handle, sampler.Data);
-        Assets::RequestUpload();
+        Resources::ReleaseSampler(sampler.Handle);
+        sampler.Handle = Resources::CreateSampler(sampler.Data);
+        Resources::RequestSync(SyncFlag_All);
     }
 }
 
@@ -1571,7 +1573,7 @@ void SandboxWinLayer::RenderTextures()
 
             const ImageData &data = res.GetValue();
             appLayer->AddTexture(data, path.filename().string().c_str());
-            Assets::RequestUpload();
+            Resources::RequestSync(SyncFlag_All);
         });
 
         EntriesOptions<TextureId> opts{};
@@ -1582,10 +1584,10 @@ void SandboxWinLayer::RenderTextures()
 
         opts.Selected = &appLayer->SelectedTexture;
         opts.OnRemoval = [appLayer](TextureId &tex) {
-            Assets::DestroyTexture(tex.Handle);
+            Resources::DestroyTexture(tex.Handle);
             appLayer->UpdateMaterialData<D2>();
             appLayer->UpdateMaterialData<D3>();
-            Assets::RequestUpload();
+            Resources::RequestSync(SyncFlag_All);
         };
         renderEntries(appLayer->Textures, opts);
     }
@@ -1604,18 +1606,18 @@ void SandboxWinLayer::RenderFontPools()
         opts.OnSelected = [this](FontPoolId &pool) { RenderFontPool(pool); };
         opts.GetName = [](const FontPoolId &pool) { return pool.Name; };
         opts.OnRemoval = [appLayer](FontPoolId &pool) {
-            Assets::DestroyFontPool(pool.Handle);
+            Resources::DestroyFontPool(pool.Handle);
             auto &ctx2 = appLayer->GetContexts<D2>();
             for (ContextData<D2> &ctx : ctx2.Contexts)
                 for (Shape<D2> &shape : ctx.Shapes)
-                    if (Assets::GetAssetPool(shape.Font) == pool.Handle)
+                    if (Resources::GetResourcePool(shape.Font) == pool.Handle)
                         shape.Font = NullHandle;
             auto &ctx3 = appLayer->GetContexts<D3>();
             for (ContextData<D3> &ctx : ctx3.Contexts)
                 for (Shape<D3> &shape : ctx.Shapes)
-                    if (Assets::GetAssetPool(shape.Font) == pool.Handle)
+                    if (Resources::GetResourcePool(shape.Font) == pool.Handle)
                         shape.Font = NullHandle;
-            Assets::RequestUpload();
+            Resources::RequestSync(SyncFlag_All);
         };
         renderEntries(appLayer->FontPools, opts);
     }
@@ -1632,7 +1634,7 @@ void SandboxWinLayer::RenderFontPool(FontPoolId &pool)
 
         const FontData &data = res.GetValue();
         appLayer->AddFont(pool, data, path.filename().string().c_str());
-        Assets::RequestUpload();
+        Resources::RequestSync(SyncFlag_All);
     });
 
     EntriesOptions<FontId> opts{};
@@ -1658,12 +1660,12 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
 
             StatMeshPoolId<D> &mspool = appLayer->AddMeshPool(appLayer->GetMeshes<D>().StatPools);
             GltfData<D> &data = res.GetValue();
-            const GltfHandles handles = Assets::CreateGltfAssets(mspool.Handle, data);
-            Assets::RequestUpload();
+            const GltfHandles handles = Resources::RegisterGltfResources(mspool.Handle, data);
+            Resources::RequestSync(SyncFlag_All);
 
             for (u32 i = 0; i < handles.StaticMeshes.GetSize(); ++i)
             {
-                const Asset mesh = handles.StaticMeshes[i];
+                const Resource mesh = handles.StaticMeshes[i];
                 const StatMeshData<D> &mdat = data.StaticMeshes[i];
                 StatMeshId<D> &mid = mspool.Elements.Append();
                 mid.Name = TKit::Format("GLTF-Mesh-{:#010x}", mesh);
@@ -1673,7 +1675,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
 
             for (u32 i = 0; i < handles.Materials.GetSize(); ++i)
             {
-                const Asset mat = handles.Materials[i];
+                const Resource mat = handles.Materials[i];
                 const MaterialData<D> &mdat = data.Materials[i];
                 MaterialId<D> &mid = appLayer->GetMaterials<D>().Elements.Append();
                 mid.Name = TKit::Format("GLTF-Material-{:#010x}", mat);
@@ -1684,7 +1686,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
             auto &samplers = appLayer->Samplers;
             for (u32 i = 0; i < handles.Samplers.GetSize(); ++i)
             {
-                const Asset samp = handles.Samplers[i];
+                const Resource samp = handles.Samplers[i];
                 const SamplerData &sdata = data.Samplers[i];
                 SamplerId &sid = samplers.Append();
                 sid.Name = TKit::Format("GLTF-Sampler-{:#010x}", samp);
@@ -1693,7 +1695,7 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
             }
 
             auto &textures = appLayer->Textures;
-            for (const Asset tex : handles.Textures)
+            for (const Resource tex : handles.Textures)
             {
                 TextureId &tid = textures.Append();
                 tid.Name = TKit::Format("GLTF-Texture-{:#010x}", tex);
@@ -1738,7 +1740,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
             {
                 appLayer->AddMesh(pool, CreateRegularPolygonMeshData<D>(meshes.RegularPolySides),
                                   name[0] ? name : "Regular polygon");
-                Assets::RequestUpload();
+                Resources::RequestSync(SyncFlag_All);
             }
         }
         else if (meshes.StatMeshToLoad == 1)
@@ -1766,7 +1768,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
             if (ImGui::Button("Create##Polygon"))
             {
                 appLayer->AddMesh(pool, CreatePolygonMeshData<D>(meshes.PolyVertices), name[0] ? name : "Polygon");
-                Assets::RequestUpload();
+                Resources::RequestSync(SyncFlag_All);
             }
         }
         else if (meshes.StatMeshToLoad == importedIndex)
@@ -1778,7 +1780,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
 
                 const StatMeshData<D> &data = res.GetValue();
                 appLayer->AddMesh(pool, data, name[0] ? name : path.filename().string().c_str());
-                Assets::RequestUpload();
+                Resources::RequestSync(SyncFlag_All);
             });
         if constexpr (D == D3)
         {
@@ -1792,7 +1794,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
                 {
                     appLayer->AddMesh(pool, CreateSphereMeshData(meshes.Rings, meshes.Sectors),
                                       name[0] ? name : "Sphere");
-                    Assets::RequestUpload();
+                    Resources::RequestSync(SyncFlag_All);
                 }
             }
             else if (meshes.StatMeshToLoad == 3)
@@ -1803,7 +1805,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
                 if (ImGui::Button("Create##Cylinder"))
                 {
                     appLayer->AddMesh(pool, CreateCylinderMeshData(meshes.CylinderSides), name[0] ? name : "Cylinder");
-                    Assets::RequestUpload();
+                    Resources::RequestSync(SyncFlag_All);
                 }
             }
         }
@@ -1833,7 +1835,7 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
             else if (meshes.ParaMeshToLoad == 2)
                 appLayer->AddMesh(pool, CreateTorusMeshData(meshes.Rings, meshes.Sectors));
 
-            Assets::RequestUpload();
+            Resources::RequestSync(SyncFlag_All);
         }
     }
 }
@@ -1889,8 +1891,8 @@ template <typename Vertex> void SandboxWinLayer::RenderMesh(MeshId<Vertex> &mesh
     }
     if (changed)
     {
-        Assets::UpdateMesh(mesh.Handle, mesh.Data);
-        Assets::RequestUpload();
+        Resources::UpdateMesh(mesh.Handle, mesh.Data);
+        Resources::RequestSync(SyncFlag_All);
     }
 }
 

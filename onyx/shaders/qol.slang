@@ -36,6 +36,6 @@ typedef u32 ViewMask;
 
 #include "../onyx/core/definitions.hpp"
 
-static constexpr u32 NullAsset = ONYX_ASSET_ID_MASK;
+static constexpr u32 NullResource = ONYX_RESOURCE_ID_MASK;
 
 

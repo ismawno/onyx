@@ -317,8 +317,8 @@ FragInput mainVS(
 
 #ifdef ONYX_GEOMETRY_GLYPH
     finput.AtlasCoords = input.AtlasCoords;
-    finput.SamplerId = GetAssetId(gdata.SamplerHandle);
-    finput.AtlasId = GetAssetId(gdata.AtlasHandle);
+    finput.SamplerId = GetResourceId(gdata.SamplerHandle);
+    finput.AtlasId = GetResourceId(gdata.AtlasHandle);
 #endif
 
 #if defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_PARAMETRIC)
@@ -334,7 +334,7 @@ FragInput mainVS(
 #endif
 
 #ifdef ONYX_USES_MATERIAL
-    finput.MatId = GetAssetId(data.MatHandle);
+    finput.MatId = GetResourceId(data.MatHandle);
 #endif
 
 #ifdef ONYX_GEOMETRY_CIRCLE
@@ -480,7 +480,7 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
 
 #    ifdef ONYX_DIMENSION_2D
 
-    if (input.MatId == NullAsset || g_Materials[input.MatId].Occluder == 0)
+    if (input.MatId == NullResource || g_Materials[input.MatId].Occluder == 0)
         discard;
 
     return f32v4(1.f);

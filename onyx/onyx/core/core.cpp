@@ -10,7 +10,7 @@
 #endif
 #include "onyx/state/descriptors.hpp"
 #include "onyx/execution/execution.hpp"
-#include "onyx/asset/assets.hpp"
+#include "onyx/resource/resources.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include "onyx/imgui/backend.hpp"
 #endif
@@ -611,8 +611,8 @@ void Initialize(const Specs &specs)
     PUSH_DELETER(Renderer::Terminate());
     Renderer::Initialize(specs.RendererSpecs ? *specs.RendererSpecs : Renderer::Specs{});
 
-    PUSH_DELETER(Assets::Terminate());
-    Assets::Initialize(specs.AssetSpecs ? *specs.AssetSpecs : Assets::Specs{});
+    PUSH_DELETER(Resources::Terminate());
+    Resources::Initialize(specs.ResourceSpecs ? *specs.ResourceSpecs : Resources::Specs{});
 
 #ifdef ONYX_ENABLE_IMGUI
     PUSH_DELETER(ImGuiBackend::Terminate());

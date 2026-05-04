@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/property/instance.hpp"
 #include "onyx/rendering/pass.hpp"
-#include "onyx/asset/material.hpp"
+#include "onyx/resource/material.hpp"
 
 namespace Onyx
 {
@@ -87,28 +87,32 @@ const char *ToString(const PipelinePass pass)
     }
 }
 
-const char *ToString(const AssetType atype)
+const char *ToString(const ResourceType atype)
 {
     switch (atype)
     {
-    case Asset_StaticMesh:
-        return "Asset_StaticMesh";
-    case Asset_ParametricMesh:
-        return "Asset_ParametricMesh";
-    case Asset_GlyphMesh:
-        return "Asset_GlyphMesh";
-    case Asset_Material:
-        return "Asset_Material";
-    case Asset_Font:
-        return "Asset_Font";
-    case Asset_Sampler:
-        return "Asset_Sampler";
-    case Asset_Texture:
-        return "Asset_Texture";
-    case Asset_Bounds:
-        return "Asset_Bounds";
-    case Asset_Count:
-        return "Asset_Count";
+    case Resource_StaticMesh:
+        return "Resource_StaticMesh";
+    case Resource_ParametricMesh:
+        return "Resource_ParametricMesh";
+    case Resource_GlyphMesh:
+        return "Resource_GlyphMesh";
+    case Resource_Material:
+        return "Resource_Material";
+    case Resource_Font:
+        return "Resource_Font";
+    case Resource_Sampler:
+        return "Resource_Sampler";
+    case Resource_Texture:
+        return "Resource_Texture";
+    case Resource_Bounds:
+        return "Resource_Bounds";
+    case Resource_Buffer:
+        return "Resource_Buffer";
+    case Resource_Image:
+        return "Resource_Image";
+    case Resource_Count:
+        return "Resource_Count";
     default:
         return "Unknown";
     }

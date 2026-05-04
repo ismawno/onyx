@@ -2,8 +2,8 @@
 
 #include "onyx/core/dimension.hpp"
 #include "onyx/property/instance.hpp"
-#include "onyx/asset/handle.hpp"
-#include "onyx/asset/font.hpp"
+#include "onyx/resource/handle.hpp"
+#include "onyx/resource/font.hpp"
 #include "onyx/rendering/pass.hpp"
 #include "onyx/rendering/view.hpp"
 #include "vkit/resource/host_buffer.hpp"
@@ -172,9 +172,9 @@ template <Dimension D> struct RenderState
 
     f32 OutlineWidth = 0.1f;
     f32 AmbientIntensity = 0.4f;
-    Asset Material = NullHandle;
-    Asset Font = NullHandle;
-    Asset FontSampler = NullHandle;
+    Resource Material = NullHandle;
+    Resource Font = NullHandle;
+    Resource FontSampler = NullHandle;
     vec<Alignment, D> Alignment{Alignment_None};
     RenderModeFlags RenderFlags = RenderModeFlag_Shaded;
 };
@@ -302,35 +302,35 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             Onyx::Transform<D>::ScaleIntrinsic(m_Current->Transform, 1, y);
     }
 
-    void Material(const Asset material)
+    void Material(const Resource material)
     {
         m_Current->Material = material;
     }
 
-    void Font(const Asset font)
+    void Font(const Resource font)
     {
         m_Current->Font = font;
     }
-    void FontSampler(const Asset sampler)
+    void FontSampler(const Resource sampler)
     {
         m_Current->FontSampler = sampler;
     }
 
-    void StaticMesh(const Asset mesh)
+    void StaticMesh(const Resource mesh)
     {
         addStaticData(mesh, m_Current->Transform);
     }
-    void StaticMesh(const Asset mesh, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
+    void StaticMesh(const Resource mesh, const f32m<D> &transform, const TransformMode mode = Transform_Extrinsic)
     {
         addStaticData(mesh, mode == Transform_Extrinsic ? (transform * m_Current->Transform)
                                                         : (m_Current->Transform * transform));
     }
 
-    void ParametricMesh(const Asset mesh, const InstanceParameters &params)
+    void ParametricMesh(const Resource mesh, const InstanceParameters &params)
     {
         addParametricData(mesh, m_Current->Transform, params);
     }
-    void ParametricMesh(const Asset mesh, const InstanceParameters &params, const f32m<D> &transform,
+    void ParametricMesh(const Resource mesh, const InstanceParameters &params, const f32m<D> &transform,
                         const TransformMode mode = Transform_Extrinsic)
     {
         addParametricData(
@@ -338,7 +338,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             params);
     }
 
-    template <typename T> void ParametricMesh(const Asset mesh, const T &params)
+    template <typename T> void ParametricMesh(const Resource mesh, const T &params)
     {
         if constexpr (std::is_same_v<T, StadiumParameters>)
             ParametricMesh(mesh, InstanceParameters{.Stadium = params});
@@ -354,7 +354,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             static_assert(false, "[ONYX][CONTEXT] Type T is not a valid instance parameters type");
     }
     template <typename T>
-    void ParametricMesh(const Asset mesh, const T &params, const f32m<D> &transform,
+    void ParametricMesh(const Resource mesh, const T &params, const f32m<D> &transform,
                         const TransformMode mode = Transform_Extrinsic)
     {
         if constexpr (std::is_same_v<T, StadiumParameters>)
@@ -395,8 +395,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             params);
     }
 
-    void Line(Asset staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
-    void Axes(Asset staticMesh, const AxesParameters &params = {});
+    void Line(Resource staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
+    void Axes(Resource staticMesh, const AxesParameters &params = {});
 
     void Push(const RenderState<D> &state)
     {
@@ -546,7 +546,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     struct InstanceDataArrays
     {
         InstanceDataBuffer Circles{};
-        TKit::FixedArray<TKit::FixedArray<TKit::TierArray<InstanceDataBuffer>, ONYX_MAX_ASSET_POOLS>, Asset_MeshCount>
+        TKit::FixedArray<TKit::FixedArray<TKit::TierArray<InstanceDataBuffer>, ONYX_MAX_RESOURCE_POOLS>,
+                         Resource_MeshCount>
             Meshes{};
     };
 
@@ -561,13 +562,13 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     template <typename T> void addInstanceData(InstanceDataBuffer &buffer, const T &data);
 
     void addCircleData(const f32m<D> &transform, const CircleParameters &params);
-    void addStaticData(Asset mesh, const f32m<D> &transform);
-    void addParametricData(Asset mesh, const f32m<D> &transform, const InstanceParameters &params);
+    void addStaticData(Resource mesh, const f32m<D> &transform);
+    void addParametricData(Resource mesh, const f32m<D> &transform, const InstanceParameters &params);
     void addGlyphData(std::string_view text, const f32m<D> &transform, const TextParameters &params);
     void addGlyphData(const Glyph *glyph, const f32m<D> &transform);
     void addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params);
 #ifdef TKIT_ENABLE_ASSERTS
-    void checkMaterial(Asset material);
+    void checkMaterial(Resource material);
 #endif
 
     TKit::TierArray<RenderState<D>> m_StateStack{};

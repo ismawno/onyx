@@ -1,5 +1,5 @@
 #include "onyx/core/pch.hpp"
-#include "onyx/asset/mesh.hpp"
+#include "onyx/resource/mesh.hpp"
 #include "tkit/container/stack_array.hpp"
 #ifdef ONYX_ENABLE_OBJ_LOAD
 #    include <tiny_obj_loader.h>

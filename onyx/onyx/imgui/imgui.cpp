@@ -6,8 +6,8 @@
 #    include "onyx/application/layer.hpp"
 #    include "onyx/platform/input.hpp"
 #    include "onyx/imgui/imgui.hpp"
-#    include "onyx/asset/material.hpp"
-#    include "onyx/asset/sampler.hpp"
+#    include "onyx/resource/material.hpp"
+#    include "onyx/resource/sampler.hpp"
 #    include "onyx/rendering/context.hpp"
 #    include "tkit/container/stack_array.hpp"
 

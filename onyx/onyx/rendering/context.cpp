@@ -1,7 +1,7 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/rendering/context.hpp"
 #include "onyx/resource/resources.hpp"
-#include "onyx/asset/assets.hpp"
+#include "onyx/resource/resources.hpp"
 #include "tkit/math/math.hpp"
 #include "tkit/container/stack_array.hpp"
 
@@ -43,10 +43,10 @@ template <Dimension D> void IRenderContext<D>::Flush()
     for (InstanceDataArrays &instanceData : m_InstanceData)
     {
         instanceData.Circles.Instances = 0;
-        for (u32 j = 0; j < Asset_MeshCount; ++j)
+        for (u32 j = 0; j < Resource_MeshCount; ++j)
         {
-            const AssetType atype = AssetType(j);
-            const TKit::Span<const u32> poolIds = Assets::GetAssetPoolIds<D>(atype);
+            const ResourceType atype = ResourceType(j);
+            const TKit::Span<const u32> poolIds = Resources::GetResourcePoolIds<D>(atype);
 
             auto &ipools = instanceData.Meshes[j];
             for (const u32 pid : poolIds)
@@ -62,29 +62,31 @@ template <Dimension D> void IRenderContext<D>::Flush()
 }
 
 #define CHECK_HANDLE(handle, atype, dim)                                                                               \
-    ONYX_CHECK_ASSET_IS_NOT_NULL(handle);                                                                              \
-    ONYX_CHECK_ASSET_POOL_IS_NOT_NULL(handle);                                                                         \
-    ONYX_CHECK_ASSET_POOL_IS_VALID_WITH_DIM(handle, atype, dim);                                                       \
-    ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(handle, atype, dim);
+    ONYX_CHECK_RESOURCE_IS_NOT_NULL(handle);                                                                           \
+    ONYX_CHECK_RESOURCE_POOL_IS_NOT_NULL(handle);                                                                      \
+    ONYX_CHECK_RESOURCE_POOL_IS_VALID_WITH_DIM(handle, atype, dim);                                                    \
+    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(handle, atype, dim);
 
 #ifdef TKIT_ENABLE_ASSERTS
-template <Dimension D> void checkMaterial(const Asset material)
+template <Dimension D> void checkMaterial(const Resource material)
 {
-    TKIT_ASSERT(Assets::IsAssetNull(material) || Assets::IsAssetValid<D>(material, Asset_Material),
+    TKIT_ASSERT(Resources::IsResourceNull(material) || Resources::IsResourceValid<D>(material, Resource_Material),
                 "[ONYX][CONTEX] The material handle {:#010x} is invalid and is not an explicit null material",
                 material);
-    if (!Assets::IsAssetNull(material))
+    if (!Resources::IsResourceNull(material))
     {
-        const MaterialData<D> &data = Assets::GetMaterialData<D>(material);
+        const MaterialData<D> &data = Resources::GetMaterialData<D>(material);
         if constexpr (D == D2)
         {
             TKIT_ASSERT(
-                Assets::IsAssetNull(data.Sampler) || Assets::IsAssetValid<D>(data.Sampler, Asset_Sampler),
+                Resources::IsResourceNull(data.Sampler) ||
+                    Resources::IsResourceValid<D>(data.Sampler, Resource_Sampler),
                 "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} is invalid and is not "
                 "an explicit null sampler",
                 data.Sampler, material);
             TKIT_ASSERT(
-                Assets::IsAssetNull(data.Texture) || Assets::IsAssetValid<D>(data.Texture, Asset_Texture),
+                Resources::IsResourceNull(data.Texture) ||
+                    Resources::IsResourceValid<D>(data.Texture, Resource_Texture),
                 "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} is invalid and is not "
                 "an explicit null texture",
                 data.Texture, material);
@@ -93,15 +95,17 @@ template <Dimension D> void checkMaterial(const Asset material)
             for (u32 i = 0; i < TextureSlot_Count; ++i)
             {
                 const TextureSlot slot = TextureSlot(i);
-                const Asset sampler = data.Samplers[i];
-                const Asset texture = data.Textures[i];
+                const Resource sampler = data.Samplers[i];
+                const Resource texture = data.Textures[i];
 
-                TKIT_ASSERT(Assets::IsAssetNull(sampler) || Assets::IsAssetValid<D>(sampler, Asset_Sampler),
+                TKIT_ASSERT(Resources::IsResourceNull(sampler) ||
+                                Resources::IsResourceValid<D>(sampler, Resource_Sampler),
                             "[ONYX][CONTEXT] The sampler handle {:#010x} from the material handle {:#010x} at texture "
                             "slot '{}' is "
                             "invalid and is not an explicit null sampler",
                             sampler, material, ToString(slot));
-                TKIT_ASSERT(Assets::IsAssetNull(texture) || Assets::IsAssetValid<D>(texture, Asset_Texture),
+                TKIT_ASSERT(Resources::IsResourceNull(texture) ||
+                                Resources::IsResourceValid<D>(texture, Resource_Texture),
                             "[ONYX][CONTEXT] The texture handle {:#010x} from the material handle {:#010x} at texture "
                             "slot '{}' is "
                             "invalid and is not an explicit null texture",
@@ -137,7 +141,7 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
 
 template <Dimension D>
 static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                      const Asset bounds, const u32 depthCounter)
+                                                      const Resource bounds, const u32 depthCounter)
 {
     StaticInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
@@ -172,7 +176,7 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
 
 template <Dimension D>
 static ParametricInstanceData<D> createParametricInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                              const Asset bounds, const ParametricShape shape,
+                                                              const Resource bounds, const ParametricShape shape,
                                                               const InstanceParameters &params, const u32 depthCounter)
 {
     ParametricInstanceData<D> instanceData;
@@ -190,7 +194,7 @@ static GlyphInstanceData<D> createGlyphInstanceData(const RenderState<D> *state,
     GlyphInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
     instanceData.BoundsHandle = NullHandle;
-    instanceData.AtlasHandle = Assets::GetFontAtlas(state->Font);
+    instanceData.AtlasHandle = Resources::GetFontAtlas(state->Font);
     instanceData.SamplerHandle = state->FontSampler;
     return instanceData;
 }
@@ -199,42 +203,42 @@ template <Dimension D> void IRenderContext<D>::resizeBuffer(InstanceDataBuffer &
 {
     if (buffer.Instances > buffer.Capacity)
     {
-        const u32 ninst = Resources::GrowCapacity(buffer.Instances);
+        const u32 ninst = GrowCapacity(buffer.Instances);
         buffer.Data.Resize(ninst * buffer.InstanceSize);
         buffer.Capacity = ninst;
     }
 }
 
-static Geometry getGeometry(const AssetType atype)
+static Geometry getGeometry(const ResourceType atype)
 {
     switch (atype)
     {
-    case Asset_StaticMesh:
+    case Resource_StaticMesh:
         return Geometry_Static;
-    case Asset_ParametricMesh:
+    case Resource_ParametricMesh:
         return Geometry_Parametric;
-    case Asset_GlyphMesh:
+    case Resource_GlyphMesh:
         return Geometry_Glyph;
     default:
         return Geometry_Count;
-        TKIT_FATAL("[ONYX][RENDERER] The asset type '{}' does not have a geometry associated", ToString(atype));
+        TKIT_FATAL("[ONYX][RENDERER] The resource type '{}' does not have a geometry associated", ToString(atype));
     }
 }
 
 template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
 {
     for (InstanceDataArrays &instanceData : m_InstanceData)
-        for (u32 j = 0; j < Asset_MeshCount; ++j)
+        for (u32 j = 0; j < Resource_MeshCount; ++j)
         {
-            const AssetType atype = AssetType(j);
-            const auto poolIds = Assets::GetAssetPoolIds<D>(atype);
+            const ResourceType atype = ResourceType(j);
+            const auto poolIds = Resources::GetResourcePoolIds<D>(atype);
 
             auto &ipools = instanceData.Meshes[j];
             for (const u32 pid : poolIds)
             {
                 auto &buffers = ipools[pid];
                 const u32 count = buffers.GetSize();
-                const u32 ncount = Assets::GetAssetCount<D>(Assets::CreateAssetPoolHandle(atype, pid));
+                const u32 ncount = Resources::GetResourceCount<D>(Resources::CreateResourcePoolHandle(atype, pid));
                 for (u32 k = count; k < ncount; ++k)
                 {
                     InstanceDataBuffer &buffer = buffers.Append();
@@ -266,36 +270,37 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
     addInstanceData(buffer, idata);
 }
 
-template <Dimension D> void IRenderContext<D>::addStaticData(const Asset mesh, const f32m<D> &transform)
+template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh, const f32m<D> &transform)
 {
     if (!m_Current->RenderFlags)
         return;
-    CHECK_HANDLE(mesh, Asset_StaticMesh, D);
-    const u32 pid = Assets::GetAssetPoolId(mesh);
-    const u32 mid = Assets::GetAssetId(mesh);
+    CHECK_HANDLE(mesh, Resource_StaticMesh, D);
+    const u32 pid = Resources::GetResourcePoolId(mesh);
+    const u32 mid = Resources::GetResourceId(mesh);
 
     const StaticInstanceData<D> idata =
-        createStaticInstanceData(m_Current, transform, Assets::GetMeshBounds<D>(mesh), ++m_DepthCounter);
+        createStaticInstanceData(m_Current, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
     InstanceDataBuffer &buffer =
-        m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Meshes[Asset_StaticMesh][pid][mid];
+        m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Meshes[Resource_StaticMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
 template <Dimension D>
-void IRenderContext<D>::addParametricData(const Asset mesh, const f32m<D> &transform, const InstanceParameters &params)
+void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &transform,
+                                          const InstanceParameters &params)
 {
     if (!m_Current->RenderFlags)
         return;
-    CHECK_HANDLE(mesh, Asset_ParametricMesh, D);
-    const u32 pid = Assets::GetAssetPoolId(mesh);
-    const u32 mid = Assets::GetAssetId(mesh);
+    CHECK_HANDLE(mesh, Resource_ParametricMesh, D);
+    const u32 pid = Resources::GetResourcePoolId(mesh);
+    const u32 mid = Resources::GetResourceId(mesh);
 
-    const ParametricShape shape = Assets::GetParametricShape<D>(mesh);
+    const ParametricShape shape = Resources::GetParametricShape<D>(mesh);
 
     const ParametricInstanceData<D> idata = createParametricInstanceData(
-        m_Current, transform, Assets::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
+        m_Current, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
 
     InstanceDataBuffer &buffer =
-        m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Meshes[Asset_ParametricMesh][pid][mid];
+        m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Meshes[Resource_ParametricMesh][pid][mid];
     addInstanceData(buffer, idata);
 }
 
@@ -319,16 +324,16 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
     if (!m_Current->RenderFlags || text.empty())
         return;
 
-    CHECK_HANDLE(m_Current->Font, Asset_Font, D);
-    ONYX_CHECK_ASSET_IS_NOT_NULL(m_Current->FontSampler);
-    ONYX_CHECK_ASSET_IS_VALID_WITH_DIM(m_Current->FontSampler, Asset_Sampler, D);
+    CHECK_HANDLE(m_Current->Font, Resource_Font, D);
+    ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_Current->FontSampler);
+    ONYX_CHECK_RESOURCE_IS_VALID_WITH_DIM(m_Current->FontSampler, Resource_Sampler, D);
 
     ++m_DepthCounter;
     const Alignment alg0 = m_Current->Alignment[0] == Alignment_None ? Alignment_Left : m_Current->Alignment[0];
     const Alignment alg1 = m_Current->Alignment[1] == Alignment_None ? Alignment_Top : m_Current->Alignment[1];
 
-    const Asset font = m_Current->Font;
-    const FontData &fdata = Assets::GetFontData(font);
+    const Resource font = m_Current->Font;
+    const FontData &fdata = Resources::GetFontData(font);
     const u32 size = u32(text.size());
     const f32 maxWidth = params.Width;
 
@@ -368,7 +373,7 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
         if (line.Start < line.End)
             advance = fdata.GetKerning(text[i - 1], c);
 
-        const Glyph *glyph = Assets::GetGlyph(font, c);
+        const Glyph *glyph = Resources::GetGlyph(font, c);
         advance += glyph->Advance + params.Kerning;
         chars.Append(glyph, advance);
         ++line.End;
@@ -419,11 +424,11 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
 }
 template <Dimension D> void IRenderContext<D>::addGlyphData(const Glyph *glyph, const f32m<D> &transform)
 {
-    const u32 pid = Assets::GetAssetPoolId(m_Current->Font);
+    const u32 pid = Resources::GetResourcePoolId(m_Current->Font);
 
     const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, m_DepthCounter);
     InstanceDataBuffer &buffer =
-        m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Meshes[Asset_GlyphMesh][pid][glyph->Id];
+        m_InstanceData[GetRenderMode(m_Current->RenderFlags)].Meshes[Resource_GlyphMesh][pid][glyph->Id];
     addInstanceData(buffer, idata);
 }
 
@@ -467,7 +472,7 @@ template <Dimension D> static rot<D> computeLineRotation(const f32v<D> &start, c
     }
 }
 template <Dimension D>
-void IRenderContext<D>::Line(const Asset mesh, const f32v<D> &start, const f32v<D> &end, const f32 thickness)
+void IRenderContext<D>::Line(const Resource mesh, const f32v<D> &start, const f32v<D> &end, const f32 thickness)
 {
     const f32v<D> delta = end - start;
 
@@ -482,7 +487,7 @@ void IRenderContext<D>::Line(const Asset mesh, const f32v<D> &start, const f32v<
 
     addStaticData(mesh, transform);
 }
-template <Dimension D> void IRenderContext<D>::Axes(const Asset mesh, const AxesParameters &params)
+template <Dimension D> void IRenderContext<D>::Axes(const Resource mesh, const AxesParameters &params)
 {
     if constexpr (D == D2)
     {

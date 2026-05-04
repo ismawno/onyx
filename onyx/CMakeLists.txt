@@ -10,10 +10,9 @@ set(SOURCES
     onyx/rendering/view.cpp
     onyx/execution/execution.cpp
     onyx/resource/resources.cpp
-    onyx/asset/assets.cpp
-    onyx/asset/font.cpp
-    onyx/asset/image.cpp
-    onyx/asset/mesh.cpp
+    onyx/resource/font.cpp
+    onyx/resource/image.cpp
+    onyx/resource/mesh.cpp
     onyx/state/pipelines.cpp
     onyx/state/descriptors.cpp
     onyx/property/color.cpp
@@ -32,7 +31,7 @@ if(ONYX_ENABLE_NFD)
   list(APPEND SOURCES onyx/platform/dialog.cpp)
 endif()
 if(ONYX_ENABLE_GLTF_LOAD)
-  list(APPEND SOURCES onyx/asset/gltf.cpp)
+  list(APPEND SOURCES onyx/resource/gltf.cpp)
 endif()
 if(ONYX_ENABLE_SHADER_API)
   list(APPEND SOURCES onyx/state/shaders.cpp)

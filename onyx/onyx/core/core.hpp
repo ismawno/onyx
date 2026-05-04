@@ -69,7 +69,7 @@ namespace Execution
 {
 struct Specs;
 }
-namespace Assets
+namespace Resources
 {
 struct Specs;
 }
@@ -117,7 +117,7 @@ struct Specs
     TKit::FixedArray<VKit::Allocation, TKit::MaxThreads> Allocators{};
     InitCallbacks Callbacks{};
     Execution::Specs *ExecutionSpecs = nullptr;
-    Assets::Specs *AssetSpecs = nullptr;
+    Resources::Specs *ResourceSpecs = nullptr;
     Descriptors::Specs *DescriptorSpecs = nullptr;
 #ifdef ONYX_ENABLE_SHADER_API
     Shaders::Specs *ShadersSpecs = nullptr;

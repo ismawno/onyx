@@ -1,14 +1,14 @@
 #include "onyx/application/application.hpp"
 #include "onyx/imgui/imgui.hpp"
 #include "onyx/rendering/renderer.hpp"
-#include "onyx/asset/assets.hpp"
+#include "onyx/resource/resources.hpp"
 #include "onyx/rendering/context.hpp"
 #include "onyx/core/core.hpp"
 #include "tkit/container/stack_array.hpp"
 
 using namespace Onyx;
 
-void WindowExample(const Asset mesh, const u32 nwidows = 1)
+void WindowExample(const Resource mesh, const u32 nwidows = 1)
 {
     struct WindowView
     {
@@ -122,10 +122,10 @@ int main()
     Initialize();
     const StatMeshData<D2> data = CreateQuadMeshData<D2>();
 
-    const AssetPool pool = Assets::CreateAssetPool<D2>(Asset_StaticMesh);
+    const ResourcePool pool = Resources::CreateResourcePool<D2>(Resource_StaticMesh);
 
-    const Asset mesh = Assets::CreateMesh(pool, data);
-    Assets::Upload();
+    const Resource mesh = Resources::RegisterMesh(pool, data);
+    Resources::Sync(SyncFlag_All);
 
     WindowExample(mesh, 1);
     // ApplicationExample();
