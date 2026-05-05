@@ -2467,9 +2467,9 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                         meshCmds[atype][pid].Append(createCommand<D>(grange.MeshHandle, fi, ic));
                     }
                 };
-                for (u32 i = 0; i < Geometry_Count; ++i)
+                for (u32 j = 0; j < Geometry_Count; ++j)
                 {
-                    const Geometry geo = Geometry(i);
+                    const Geometry geo = Geometry(j);
                     collectDrawInfo<D>(graphics, geo, viewBit, inFlightValue, insertCommand, RenderModeFlag_Shaded);
                 }
 
@@ -2585,17 +2585,17 @@ static void renderShadows(const VKit::Queue *graphics, const VkCommandBuffer cmd
                             f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, 0.f, 1.f},
                             f32v3{0.f, 0.f, -1.f}, f32v3{0.f, -1.f, 0.f}, f32v3{0.f, -1.f, 0.f},
                         };
-                        for (u32 i = 0; i < 6; ++i)
+                        for (u32 j = 0; j < 6; ++j)
                         {
-                            const f32m4 view = Transform<D3>::LookTowards(data.Position, faceDir[i], faceUp[i]);
-                            processMap(smap, proj * view, i);
+                            const f32m4 view = Transform<D3>::LookTowards(data.Position, faceDir[j], faceUp[j]);
+                            processMap(smap, proj * view, j);
                         }
                     }
                     else if constexpr (isDir)
                     {
-                        for (u32 i = 0; i < data.CascadeCount; ++i)
-                            if ((1 << i) & data.CascadeEnable)
-                                processMap(smap, createTransform(data.Cascades[i].ProjectionView), i);
+                        for (u32 j = 0; j < data.CascadeCount; ++j)
+                            if ((1 << j) & data.CascadeEnable)
+                                processMap(smap, createTransform(data.Cascades[j].ProjectionView), j);
                     }
                     else
                         processMap(smap, data.ProjectionView);
@@ -2699,10 +2699,10 @@ static void renderGeometry(const VKit::Queue *graphics, const VkCommandBuffer cm
             pdata.ProjectionView = vinfo.ProjectionView;
             pdata.Flags = ShadedFlag_Shadows * shadows;
 
-            for (u32 i = 0; i < LightTypeCount<D>; ++i)
+            for (u32 j = 0; j < LightTypeCount<D>; ++j)
             {
-                pdata.TexelSizes[i] = 1.f / f32(sdata.ShadowResolutions[i]);
-                pdata.LightRanges[i] = (ldata.Ranges[i].Offset << 16) | ldata.Ranges[i].Count;
+                pdata.TexelSizes[j] = 1.f / f32(sdata.ShadowResolutions[j]);
+                pdata.LightRanges[j] = (ldata.Ranges[j].Offset << 16) | ldata.Ranges[j].Count;
             }
 
             if constexpr (D == D3)
