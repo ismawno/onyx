@@ -44,7 +44,9 @@ struct RenderSubmitInfo
 using RenderFlags = u8;
 enum RenderFlagBit : RenderFlags
 {
+#ifdef ONYX_ENABLE_IMGUI
     RenderFlag_ImGui = 1 << 0,
+#endif
 };
 
 } // namespace Onyx
@@ -81,6 +83,7 @@ template <Dimension D> void DestroyContext(RenderContext<D> *context);
 void FlushAllContexts();
 void ReloadPipelines();
 
+// TODO(Isma): Remove this. will not be necessary, onyx.hpp handles it
 void AddTarget(const ViewMask vmask);
 void RemoveTarget(const ViewMask vmask);
 
@@ -107,7 +110,6 @@ void ApplyAcquireBarriers(VkCommandBuffer graphicsCommand);
 RenderSubmitInfo Render(VKit::Queue *graphics, VkCommandBuffer command, Window *window, RenderFlags flags = 0);
 
 void SubmitRender(VKit::Queue *graphics, CommandPool *pool, TKit::Span<const RenderSubmitInfo> info);
-
 void Coalesce(u32 maxRanges = 512);
 
 #ifdef ONYX_ENABLE_IMGUI

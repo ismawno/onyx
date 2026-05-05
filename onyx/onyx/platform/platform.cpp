@@ -1,6 +1,5 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/platform/platform.hpp"
-#include "onyx/platform/window.hpp"
 #include "onyx/platform/glfw.hpp"
 #include "tkit/container/static_array.hpp"
 

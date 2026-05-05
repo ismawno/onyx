@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 project(onyx)
 
 set(SOURCES
+    onyx/onyx.cpp
     onyx/core/pch.cpp
     onyx/core/core.cpp
     onyx/platform/platform.cpp

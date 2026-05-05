@@ -1,5 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/platform/window.hpp"
+#include "onyx/platform/platform.hpp"
 #include "onyx/platform/input.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/platform/glfw.hpp"

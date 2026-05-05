@@ -6,7 +6,7 @@
 #include "onyx/execution/execution.hpp"
 #include "onyx/resource/resources.hpp"
 #include "onyx/rendering/context.hpp"
-#include "onyx/platform/window.hpp"
+#include "onyx/platform/platform.hpp"
 #include "vkit/resource/device_buffer.hpp"
 #include "vkit/resource/sampler.hpp"
 #include "vkit/state/compute_pipeline.hpp"

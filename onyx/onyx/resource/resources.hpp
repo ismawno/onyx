@@ -144,6 +144,9 @@ bool IsResourceValid(Resource handle, ResourceType atype);
 bool IsResourcePoolValid(ResourcePool handle, ResourceType atype);
 
 void Sync(SyncFlags flags);
+
+// NOTE(Isma): Only here for "legacy" reasons, legacy meaning to enable support for the app api
+// TODO(Isma): Remove this when app api disappears
 bool RequestSync(SyncFlags flags);
 
 void LockSync();

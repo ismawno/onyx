@@ -1,5 +1,6 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/core/core.hpp"
+#include "onyx/onyx.hpp"
 #include "onyx/platform/glfw.hpp"
 #include "onyx/platform/platform.hpp"
 #include "onyx/state/pipelines.hpp"
@@ -618,6 +619,9 @@ void Initialize(const Specs &specs)
     PUSH_DELETER(ImGuiBackend::Terminate());
     ImGuiBackend::Initialize();
 #endif
+
+    PUSH_DELETER(TerminateApi());
+    InitializeApi();
 
     TKIT_END_INFO_CLOCK(Seconds, "[ONYX][CORE] Done in {:.2f} seconds");
 }

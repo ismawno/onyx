@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onyx/application/layer.hpp"
+#include "onyx/platform/platform.hpp"
 
 namespace Onyx
 {

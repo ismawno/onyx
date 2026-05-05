@@ -7,8 +7,9 @@
 
 namespace Onyx
 {
+// TODO(Isma): Unhide this? completely unnecessary
 struct CommandPool;
-}
+} // namespace Onyx
 
 namespace Onyx::Execution
 {
@@ -47,8 +48,8 @@ void UpdateCompletedQueueTimelines();
 
 VKit::Queue *FindSuitableQueue(VKit::QueueType type);
 
-CommandPool * FindSuitableCommandPool(u32 family);
-CommandPool * FindSuitableCommandPool(VKit::QueueType type);
+CommandPool *FindSuitableCommandPool(u32 family);
+CommandPool *FindSuitableCommandPool(VKit::QueueType type);
 
 VkCommandBuffer Allocate(CommandPool *pool);
 void MarkInUse(CommandPool *pool, const VKit::Queue *queue, u64 inFlightValue);

@@ -84,6 +84,7 @@ template <Dimension D> RenderView<D>::~RenderView()
     drainWork();
     destroyFrameBuffers();
 
+    // TODO(Isma): Remove this!! This is responsibility of onyx.hpp, should not be in destructor
     Renderer::RemoveTarget(m_ViewBit);
     deallocateViewBit(m_ViewBit);
 }
