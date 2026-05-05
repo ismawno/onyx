@@ -234,12 +234,12 @@ template const VKit::DescriptorSetLayout &GetDescriptorLayout<D2>(RenderPass pas
 template const VKit::DescriptorSetLayout &GetDescriptorLayout<D3>(RenderPass pass);
 
 template void BindBuffer<D2>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
-                             TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
+                             TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement);
 template void BindBuffer<D3>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
-                             TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement = 0);
+                             TKit::Span<const VkDescriptorBufferInfo> info, RenderPass pass, u32 dstElement);
 
 template void BindImage<D2>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
-                            TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
+                            TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement);
 template void BindImage<D3>(u32 binding, TKit::Span<const VkDescriptorSet> sets,
-                            TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement = 0);
+                            TKit::Span<const VkDescriptorImageInfo> info, RenderPass pass, u32 dstElement);
 } // namespace Onyx::Descriptors

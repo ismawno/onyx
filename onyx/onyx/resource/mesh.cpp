@@ -1179,7 +1179,6 @@ ParaMeshData<D3> CreateRoundedBoxMeshData(u32 rings, const u32 sectors)
         offset = data.Vertices.GetSize();
         {
             const f32 angle = 2.f * Math::Pi() / sectors;
-            const u32 halfQuart = quartSectors / 2;
 
             // Determine which faces this edge bridges
             // addEdge02 sweeps from the Z-aligned face toward the X-aligned face
