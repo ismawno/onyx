@@ -8,6 +8,7 @@ TKIT_CLANG_WARNING_IGNORE("-Wunused-function")
 TKIT_GCC_WARNING_IGNORE("-Wint-in-bool-context")
 TKIT_GCC_WARNING_IGNORE("-Wunused-function")
 TKIT_MSVC_WARNING_IGNORE(4458)
+TKIT_MSVC_WARNING_IGNORE(4505)
 #    define MSDFGEN_PUBLIC
 #    include <msdf-atlas-gen/msdf-atlas-gen.h>
 TKIT_COMPILER_WARNING_IGNORE_POP()

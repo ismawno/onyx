@@ -59,6 +59,8 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
 
             StatMeshData<D> meshData{};
 
+            TKIT_COMPILER_WARNING_IGNORE_PUSH()
+            TKIT_MSVC_WARNING_IGNORE(4701)
             u32 posStride;
             u32 normStride;
             u32 uvStride;
@@ -80,13 +82,13 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                 normStride = normView.byteStride ? u32(normView.byteStride) / sizeof(f32) : 3;
             }
 
-            const f32 *TexCoord = nullptr;
+            const f32 *uvs = nullptr;
             if (prim.attributes.contains("TEXCOORD_0"))
             {
                 const auto &uvAccessor = model.accessors[prim.attributes.at("TEXCOORD_0")];
                 const auto &uvView = model.bufferViews[uvAccessor.bufferView];
-                TexCoord = rcast<const f32 *>(model.buffers[uvView.buffer].data.data() + uvView.byteOffset +
-                                              uvAccessor.byteOffset);
+                uvs = rcast<const f32 *>(model.buffers[uvView.buffer].data.data() + uvView.byteOffset +
+                                         uvAccessor.byteOffset);
                 uvStride = uvView.byteStride ? u32(uvView.byteStride) / sizeof(f32) : 2;
             }
 
@@ -118,9 +120,9 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                         for (u32 j = 0; j < 4; ++j)
                             vertex.Tangent[j] = tangents[tanStride * i + j];
                 }
-                if (TexCoord)
+                if (uvs)
                     for (u32 j = 0; j < 2; ++j)
-                        vertex.TexCoord[j] = TexCoord[uvStride * i + j];
+                        vertex.TexCoord[j] = uvs[uvStride * i + j];
 
                 meshData.Vertices.Append(vertex);
             }
@@ -145,6 +147,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                 }
             }
             data.StaticMeshes.Append(meshData);
+            TKIT_COMPILER_WARNING_IGNORE_POP()
         }
     }
 
