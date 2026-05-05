@@ -59,12 +59,10 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
 
             StatMeshData<D> meshData{};
 
-            TKIT_COMPILER_WARNING_IGNORE_PUSH()
-            TKIT_MSVC_WARNING_IGNORE(4701)
-            u32 posStride;
-            u32 normStride;
-            u32 uvStride;
-            u32 tanStride;
+            u32 posStride = TKIT_U32_MAX;
+            u32 normStride = TKIT_U32_MAX;
+            u32 uvStride = TKIT_U32_MAX;
+            u32 tanStride = TKIT_U32_MAX;
 
             const auto &posAccessor = model.accessors[posAccessorIdx];
             const auto &posView = model.bufferViews[posAccessor.bufferView];
@@ -147,7 +145,6 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                 }
             }
             data.StaticMeshes.Append(meshData);
-            TKIT_COMPILER_WARNING_IGNORE_POP()
         }
     }
 
