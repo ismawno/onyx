@@ -1314,12 +1314,12 @@ static Range findSuitableTextureMapRange(const LightType light, const VkFormat f
             builder.SetArrayLayers(lcount);
             for (u32 j = 0; j < lcount; ++j)
             {
-                VkImageSubresourceRange range{};
-                range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-                range.baseArrayLayer = j;
-                range.layerCount = 1;
-                range.levelCount = 1;
-                builder.AddImageView(range);
+                VkImageSubresourceRange rg{};
+                rg.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+                rg.baseArrayLayer = j;
+                rg.layerCount = 1;
+                rg.levelCount = 1;
+                builder.AddImageView(rg);
             }
             if (light == Light_Point)
             {
