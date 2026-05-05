@@ -71,13 +71,24 @@ VkExtent2D ScreenViewport::AsVulkanExtent(const VkExtent2D &parent) const
 }
 
 template <Dimension D>
-RenderView<D>::RenderView(const VkExtent2D &extent, const VkDescriptorSet ppSet, const VkDescriptorSet compositorSet,
-                          const u32 id, Camera<D> *camera, const RenderViewFlags flags, const ScreenViewport &viewport,
-                          const ScreenScissor &scissor)
-    : Flags(flags), m_Camera(camera), m_Viewport(viewport), m_Scissor(scissor), m_ParentExtent(extent),
-      m_PostProcessSet(ppSet), m_CompositorSet(compositorSet), m_Id(id)
+RenderView<D>::RenderView(const VkExtent2D &extent, Camera<D> *camera, const RenderViewFlags flags,
+                          const ScreenViewport &viewport, const ScreenScissor &scissor)
+    : Flags(flags), m_Camera(camera), m_Viewport(viewport), m_Scissor(scissor), m_ParentExtent(extent)
+
 {
     m_ViewBit = allocateViewBit();
+    m_PostProcessSet =
+        ONYX_CHECK_EXPRESSION(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetPostProcessDescriptorLayout()));
+    m_CompositorSet =
+        ONYX_CHECK_EXPRESSION(Descriptors::GetDescriptorPool().Allocate(Descriptors::GetCompositorDescriptorLayout()));
+    if (IsDebugUtilsEnabled())
+    {
+        const auto &device = GetDevice();
+        ONYX_CHECK_EXPRESSION(
+            device.SetObjectName(m_PostProcessSet, VK_OBJECT_TYPE_DESCRIPTOR_SET, "onyx-post-process-set-window"));
+        ONYX_CHECK_EXPRESSION(
+            device.SetObjectName(m_CompositorSet, VK_OBJECT_TYPE_DESCRIPTOR_SET, "onyx-compositor-set-window"));
+    }
 }
 template <Dimension D> RenderView<D>::~RenderView()
 {
@@ -161,28 +172,26 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
         color.imageView = fb.Color.GetView();
         color.sampler = Renderer::GetNearSampler();
 
-        const u32 idx = m_Id * imageCount + i;
-
-        pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, idx);
+        pp.WriteImage(ONYX_POST_PROCESS_COLOR_ATTACHMENTS_BINDING, color, i);
 
         VkDescriptorImageInfo &outline = infos.Append();
         outline.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         outline.imageView = fb.Outline.GetView();
         outline.sampler = Renderer::GetNearSampler();
-        pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, idx);
+        pp.WriteImage(ONYX_POST_PROCESS_OUTLINE_ATTACHMENTS_BINDING, outline, i);
 
         VkDescriptorImageInfo &stencil = infos.Append();
         stencil.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         stencil.imageView = fb.DepthStencil.GetViews().GetBack();
         stencil.sampler = VK_NULL_HANDLE;
-        pp.WriteImage(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil, idx);
+        pp.WriteImage(ONYX_POST_PROCESS_STENCIL_ATTACHMENTS_BINDING, stencil, i);
 
         VkDescriptorImageInfo &postProcess = infos.Append();
         postProcess.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         postProcess.imageView = fb.PostProcess.GetView(1);
         postProcess.sampler = Renderer::GetNearSampler();
 
-        compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, postProcess, idx);
+        compositor.WriteImage(ONYX_COMPOSITOR_COLOR_ATTACHMENTS_BINDING, postProcess, i);
     }
     pp.Overwrite(m_PostProcessSet);
     compositor.Overwrite(m_CompositorSet);

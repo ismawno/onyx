@@ -84,9 +84,8 @@ template <Dimension D> class RenderView
     TKIT_NON_COPYABLE(RenderView)
 
   public:
-    RenderView(const VkExtent2D &extent, VkDescriptorSet ppSet, VkDescriptorSet compositorSet, u32 id,
-               Camera<D> *camera, RenderViewFlags flags = 0, const ScreenViewport &viewport = {},
-               const ScreenScissor &scissor = {});
+    RenderView(const VkExtent2D &extent, Camera<D> *camera, RenderViewFlags flags = 0,
+               const ScreenViewport &viewport = {}, const ScreenScissor &scissor = {});
     ~RenderView();
 
     f32v2 ScreenToViewport(const f32v2 &screenPos) const;
@@ -152,15 +151,6 @@ template <Dimension D> class RenderView
         m_Projection = proj;
         m_Mode = ViewMode_Manual;
         m_ProjectionView = m_Projection * m_View;
-    }
-
-    u32 GetId() const
-    {
-        return m_Id;
-    }
-    u32 GetDescriptorIndex() const
-    {
-        return m_Id * m_FrameBuffers.GetSize() + m_ImageIndex;
     }
 
     ViewMask GetViewBit() const
@@ -230,6 +220,20 @@ template <Dimension D> class RenderView
             CacheMatrices();
     }
 
+    VkDescriptorSet GetPostProcessSet() const
+    {
+        return m_PostProcessSet;
+    }
+    VkDescriptorSet GetCompositorSet() const
+    {
+        return m_CompositorSet;
+    }
+
+    u32 GetImageIndex() const
+    {
+        return m_ImageIndex;
+    }
+
     void ZoomScroll(const f32v<D> &screenPos, f32 step);
 
     ViewInfo<D> CreateViewInfo() const
@@ -284,7 +288,6 @@ template <Dimension D> class RenderView
     TKit::TierArray<FrameBuffer> m_FrameBuffers{};
     VkDescriptorSet m_PostProcessSet;
     VkDescriptorSet m_CompositorSet;
-    u32 m_Id;
     u32 m_ImageIndex = TKIT_U32_MAX;
 
     friend class Window;

@@ -2767,9 +2767,8 @@ static RenderSubmitInfo createRenderSubmitInfo(VKit::Queue *graphics, const VkCo
 }
 
 template <Dimension D>
-static void renderViews(const TKit::TierArray<RenderView<D> *> &views, const VkDescriptorSet ppSet,
-                        VKit::Queue *graphics, const VkCommandBuffer cmd, const u64 graphicsFlight,
-                        TKit::StackArray<Execution::Tracker> &transferTrackers)
+static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Queue *graphics, const VkCommandBuffer cmd,
+                        const u64 graphicsFlight, TKit::StackArray<Execution::Tracker> &transferTrackers)
 {
     Execution::Tracker tracker;
     tracker.Queue = graphics;
@@ -2791,17 +2790,20 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, const VkD
 
     if (flags & RenderViewFlag_PostProcess)
     {
+        const auto &device = GetDevice();
         const auto table = GetDeviceTable();
         const VKit::PipelineLayout &playout = Pipelines::GetPostProcessPipelineLayout();
-        VKit::DescriptorSet::Bind(GetDevice(), cmd, ppSet, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
         for (RenderView<D> *rv : views)
             if (rv->Flags & RenderViewFlag_PostProcess)
             {
                 rv->BeginPostProcess(cmd);
                 s_PostProcessPipeline.Bind(cmd);
 
+                const VkDescriptorSet set = rv->GetPostProcessSet();
+                VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+
                 PostProcessPushConstantData pdata;
-                pdata.AttachmentIndex = rv->GetDescriptorIndex();
+                pdata.AttachmentIndex = rv->GetImageIndex();
 
                 TKIT_ASSERT(pdata.AttachmentIndex < ONYX_MAX_ATTACHMENTS,
                             "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})",
@@ -2824,12 +2826,16 @@ template <Dimension D>
 static void renderCompositor(const TKit::TierArray<RenderView<D> *> &views, const VkCommandBuffer cmd,
                              const VKit::PipelineLayout &playout)
 {
+    const auto &device = GetDevice();
     const auto table = GetDeviceTable();
     for (const RenderView<D> *rv : views)
     {
+        const VkDescriptorSet set = rv->GetCompositorSet();
+        VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
+
         const VkViewport vp = rv->GetVulkanViewport();
         const VkRect2D sc = rv->GetVulkanScissor();
-        const u32 idx = rv->GetDescriptorIndex();
+        const u32 idx = rv->GetImageIndex();
 
         table->CmdSetViewport(cmd, 0, 1, &vp);
         table->CmdSetScissor(cmd, 0, 1, &sc);
@@ -2848,8 +2854,8 @@ RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window
     TKit::StackArray<Execution::Tracker> transferTrackers{};
     transferTrackers.Reserve(s_SyncPointCount);
 
-    renderViews(tinfo.Views2, window->GetPostProcessSet(), graphics, cmd, graphicsFlight, transferTrackers);
-    renderViews(tinfo.Views3, window->GetPostProcessSet(), graphics, cmd, graphicsFlight, transferTrackers);
+    renderViews(tinfo.Views2, graphics, cmd, graphicsFlight, transferTrackers);
+    renderViews(tinfo.Views3, graphics, cmd, graphicsFlight, transferTrackers);
 
     Execution::Tracker tracker;
     tracker.Queue = graphics;
@@ -2858,10 +2864,7 @@ RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window
 
     s_CompositorPipeline.Bind(cmd);
 
-    const VkDescriptorSet set = window->GetCompositorSet();
     const VKit::PipelineLayout &playout = Pipelines::GetCompositorPipelineLayout();
-    VKit::DescriptorSet::Bind(GetDevice(), cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
-
     renderCompositor(tinfo.Views2, cmd, playout);
     renderCompositor(tinfo.Views3, cmd, playout);
 

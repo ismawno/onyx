@@ -7,7 +7,6 @@
 #include "onyx/rendering/renderer.hpp"
 #include "vkit/presentation/swap_chain.hpp"
 #include "tkit/profiling/clock.hpp"
-#include "tkit/container/tier_hive.hpp"
 
 struct GLFWwindow;
 
@@ -41,7 +40,6 @@ enum WindowFlagBit : WindowFlags
     WindowFlag_FocusOnShow = 1 << 5,
     WindowFlag_Iconified = 1 << 6,
     WindowFlag_InstallCallbacks = 1 << 7,
-    WindowFlag_HasRenderViews = 1 << 8,
 };
 
 struct WindowSpecs
@@ -51,7 +49,7 @@ struct WindowSpecs
     u32v2 Dimensions{800, 600};
     VkPresentModeKHR PresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
     WindowFlags Flags = WindowFlag_Resizable | WindowFlag_Visible | WindowFlag_Decorated | WindowFlag_Focused |
-                        WindowFlag_InstallCallbacks | WindowFlag_HasRenderViews;
+                        WindowFlag_InstallCallbacks;
 };
 
 class Window
@@ -129,14 +127,6 @@ class Window
     VkSurfaceKHR GetSurface() const
     {
         return m_Surface;
-    }
-    VkDescriptorSet GetPostProcessSet() const
-    {
-        return m_PostProcessSet;
-    }
-    VkDescriptorSet GetCompositorSet() const
-    {
-        return m_CompositorSet;
     }
 
     /**
@@ -244,7 +234,7 @@ class Window
         return m_SyncData[m_ImageIndex].RenderFinishedSemaphore;
     }
 
-    template <Dimension D> const TKit::TierHive<RenderView<D> *> &GetRenderViews() const
+    template <Dimension D> const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &GetRenderViews() const
     {
         if constexpr (D == D2)
             return m_RenderViews2;
@@ -274,20 +264,15 @@ class Window
     VkExtent2D getNewExtent();
 
     // TODO(Isma): Implement sort here somehow. rename this to get sorted views
-    template <Dimension D> TKit::TierArray<RenderView<D> *> getSortedViews() const
+    template <Dimension D> TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> getSortedViews() const
     {
-        const TKit::TierHive<RenderView<D> *> &views = GetRenderViews<D>();
-
-        TKit::TierArray<RenderView<D> *> rvs{};
-        for (RenderView<D> *rv : views)
-            rvs.Append(rv);
-
-        std::sort(rvs.begin(), rvs.end(),
+        TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> views = GetRenderViews<D>();
+        std::sort(views.begin(), views.end(),
                   [](const RenderView<D> *rv1, const RenderView<D> *rv2) { return rv1->Layer < rv2->Layer; });
-        return rvs;
+        return views;
     }
 
-    template <Dimension D> TKit::TierHive<RenderView<D> *> &getRenderViews()
+    template <Dimension D> TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &getRenderViews()
     {
         if constexpr (D == D2)
             return m_RenderViews2;
@@ -297,8 +282,8 @@ class Window
 
     GLFWwindow *m_Window;
 
-    TKit::TierHive<RenderView<D2> *> m_RenderViews2{};
-    TKit::TierHive<RenderView<D3> *> m_RenderViews3{};
+    TKit::StaticArray<RenderView<D2> *, ONYX_MAX_VIEWS> m_RenderViews2{};
+    TKit::StaticArray<RenderView<D3> *, ONYX_MAX_VIEWS> m_RenderViews3{};
 
     TKit::TierArray<Event> m_Events;
     VkSurfaceKHR m_Surface;
@@ -311,8 +296,6 @@ class Window
     TKit::TierArray<WindowSyncData> m_SyncData{};
 
     VKit::Queue *m_Present;
-    VkDescriptorSet m_PostProcessSet;
-    VkDescriptorSet m_CompositorSet;
 
     u32 m_ImageIndex;
     u32 m_SyncIndex = 0;
