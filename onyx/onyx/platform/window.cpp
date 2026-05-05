@@ -672,6 +672,7 @@ template <Dimension D> void Window::DestroyRenderView(RenderView<D> *rv)
             TKit::TierAllocator *tier = TKit::GetTier();
             tier->Destroy(rv);
             views.RemoveUnordered(views.begin() + i);
+            return;
         }
     TKIT_FATAL("[ONYX][WINDOW] Render view to destroy not found");
 }
