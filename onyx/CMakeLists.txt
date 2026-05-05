@@ -39,7 +39,7 @@ if(ONYX_ENABLE_SHADER_API)
 endif()
 
 add_library(onyx STATIC ${SOURCES})
-target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.8.x\")
+target_compile_definitions(onyx PUBLIC ONYX_VERSION=\"v0.9.x\")
 
 include(FetchContent)
 FetchContent_Declare(
