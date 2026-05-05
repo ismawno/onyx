@@ -69,7 +69,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
             const auto &posBuf = model.buffers[posView.buffer];
             const f32 *positions = rcast<const f32 *>(posBuf.data.data() + posView.byteOffset + posAccessor.byteOffset);
 
-            posStride = posView.byteStride ? posView.byteStride / sizeof(f32) : 3;
+            posStride = posView.byteStride ? u32(posView.byteStride) / sizeof(f32) : 3;
             const f32 *normals = nullptr;
             if (prim.attributes.contains("NORMAL"))
             {
@@ -77,7 +77,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                 const auto &normView = model.bufferViews[normAccessor.bufferView];
                 normals = rcast<const f32 *>(model.buffers[normView.buffer].data.data() + normView.byteOffset +
                                              normAccessor.byteOffset);
-                normStride = normView.byteStride ? normView.byteStride / sizeof(f32) : 3;
+                normStride = normView.byteStride ? u32(normView.byteStride) / sizeof(f32) : 3;
             }
 
             const f32 *TexCoord = nullptr;
@@ -87,7 +87,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                 const auto &uvView = model.bufferViews[uvAccessor.bufferView];
                 TexCoord = rcast<const f32 *>(model.buffers[uvView.buffer].data.data() + uvView.byteOffset +
                                               uvAccessor.byteOffset);
-                uvStride = uvView.byteStride ? uvView.byteStride / sizeof(f32) : 2;
+                uvStride = uvView.byteStride ? u32(uvView.byteStride) / sizeof(f32) : 2;
             }
 
             const f32 *tangents = nullptr;
@@ -99,7 +99,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                     const auto &tanView = model.bufferViews[tanAccessor.bufferView];
                     tangents = rcast<const f32 *>(model.buffers[tanView.buffer].data.data() + tanView.byteOffset +
                                                   tanAccessor.byteOffset);
-                    tanStride = tanView.byteStride ? tanView.byteStride / sizeof(f32) : 4;
+                    tanStride = tanView.byteStride ? u32(tanView.byteStride) / sizeof(f32) : 4;
                 }
             }
 
@@ -169,11 +169,10 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
             const u8 a = u8(color[3] * 255.f);
             matData.ColorFactor = (a << 24) | (b << 16) | (g << 8) | r; // ABGR packed
 
-            const i32 texIdx = pbr.baseColorTexture.index;
-            if (texIdx >= 0)
+            if (albedoIdx >= 0)
             {
-                matData.Sampler = Resource(model.textures[texIdx].sampler);
-                matData.Texture = Resource(model.textures[texIdx].source);
+                matData.Sampler = Resource(model.textures[albedoIdx].sampler);
+                matData.Texture = Resource(model.textures[albedoIdx].source);
             }
 
             data.Materials.Append(matData);
@@ -198,7 +197,6 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
             const auto &emissive = mat.emissiveFactor;
             matData.EmissiveFactor = f32v3{f32(emissive[0]), f32(emissive[1]), f32(emissive[2])};
 
-            const i32 albedoIdx = pbr.baseColorTexture.index;
             if (albedoIdx >= 0)
             {
                 matData.Samplers[TextureSlot_Albedo] = Resource(model.textures[albedoIdx].sampler);
@@ -226,7 +224,6 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                 matData.Textures[TextureSlot_Occlusion] = Resource(model.textures[occlusionIdx].source);
             }
 
-            const i32 emissiveIdx = mat.emissiveTexture.index;
             if (emissiveIdx >= 0)
             {
                 matData.Samplers[TextureSlot_Emissive] = Resource(model.textures[emissiveIdx].sampler);

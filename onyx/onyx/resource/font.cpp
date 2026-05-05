@@ -7,6 +7,7 @@ TKIT_CLANG_WARNING_IGNORE("-Wint-in-bool-context")
 TKIT_CLANG_WARNING_IGNORE("-Wunused-function")
 TKIT_GCC_WARNING_IGNORE("-Wint-in-bool-context")
 TKIT_GCC_WARNING_IGNORE("-Wunused-function")
+TKIT_MSVC_WARNING_IGNORE(4458)
 #    define MSDFGEN_PUBLIC
 #    include <msdf-atlas-gen/msdf-atlas-gen.h>
 TKIT_COMPILER_WARNING_IGNORE_POP()
@@ -62,7 +63,7 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
     packer.setMiterLimit(1.0);
     packer.setInnerPixelPadding(msdf_atlas::Padding{opts.Padding});
     packer.setScale(opts.EmSize);
-    TKIT_CHECK_RETURNS(packer.pack(glyphs.data(), glyphs.size()), 0,
+    TKIT_CHECK_RETURNS(packer.pack(glyphs.data(), i32(glyphs.size())), 0,
                        "[ONYX][FONT] Atlas packer did not pack all the glyphs!");
 
     i32 w;
