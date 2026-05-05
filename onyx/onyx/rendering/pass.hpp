@@ -9,15 +9,15 @@ using RenderModeFlags = u8;
 enum RenderModeFlagBit : RenderModeFlags
 {
     RenderModeFlag_None = 0,
-    RenderModeFlag_Shaded = 1 << 0,
     RenderModeFlag_Flat = 1 << 1,
+    RenderModeFlag_Shaded = 1 << 0,
     RenderModeFlag_Outlined = 1 << 2,
 };
 
 enum RenderMode : u8
 {
-    RenderMode_Shaded,
     RenderMode_Flat,
+    RenderMode_Shaded,
     RenderMode_Outlined,
     RenderMode_ShadedOutlined,
     RenderMode_FlatOutlined,
@@ -27,16 +27,16 @@ enum RenderMode : u8
 
 enum PipelinePass : u8
 {
-    PipelinePass_Shaded,
     PipelinePass_Flat,
+    PipelinePass_Shaded,
     PipelinePass_Outlined,
     PipelinePass_Count,
 };
 
 enum RenderPass : u8
 {
-    RenderPass_Shaded,
     RenderPass_Flat,
+    RenderPass_Shaded,
     RenderPass_Shadow,
     RenderPass_Count
 };

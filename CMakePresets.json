@@ -58,15 +58,15 @@
         "VULKIT_ENABLE_RENDER_PASS": "OFF",
         "VULKIT_ENABLE_SWAP_CHAIN": "ON",
 
-        "ONYX_BUILD_DEMOS": "ON",
-        "ONYX_ENABLE_IMGUI": "ON",
-        "ONYX_ENABLE_IMPLOT": "ON",
-        "ONYX_ENABLE_NFD": "ON",
-        "ONYX_ENABLE_OBJ_LOAD": "ON",
-        "ONYX_ENABLE_IMAGE_LOAD": "ON",
-        "ONYX_ENABLE_GLTF_LOAD": "ON",
-        "ONYX_ENABLE_FONT_LOAD": "ON",
-        "ONYX_ENABLE_SHADER_API": "ON"
+        "ONYX_BUILD_DEMOS": "OFF",
+        "ONYX_ENABLE_IMGUI": "OFF",
+        "ONYX_ENABLE_IMPLOT": "OFF",
+        "ONYX_ENABLE_NFD": "OFF",
+        "ONYX_ENABLE_OBJ_LOAD": "OFF",
+        "ONYX_ENABLE_IMAGE_LOAD": "OFF",
+        "ONYX_ENABLE_GLTF_LOAD": "OFF",
+        "ONYX_ENABLE_FONT_LOAD": "OFF",
+        "ONYX_ENABLE_SHADER_API": "OFF"
       }
     },
     {

@@ -4,7 +4,6 @@
 #include "onyx/platform/glfw.hpp"
 #include "onyx/platform/platform.hpp"
 #include "onyx/state/pipelines.hpp"
-#include "onyx/state/shaders.hpp"
 #include "onyx/rendering/renderer.hpp"
 #ifdef ONYX_ENABLE_SHADER_API
 #    include "onyx/state/shaders.hpp"

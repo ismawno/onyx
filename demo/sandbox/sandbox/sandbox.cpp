@@ -1472,6 +1472,7 @@ template <Dimension D> void SandboxWinLayer::RenderMaterial(MaterialId<D> &mater
     }
 }
 
+#    ifdef ONYX_ENABLE_NFD
 template <typename F>
 void SandboxWinLayer::HandleLoadDialog([[maybe_unused]] TKit::Task<Dialog::Result<Dialog::Path>> &task, const F load,
                                        const char *name)
@@ -1494,27 +1495,27 @@ void SandboxWinLayer::HandleLoadDialog([[maybe_unused]] TKit::Task<Dialog::Resul
         }
         }
     };
-#    ifndef TKIT_OS_APPLE
+#        ifndef TKIT_OS_APPLE
     ImGui::BeginDisabled(task && !task.IsFinished());
     TKit::ITaskManager *tm = GetTaskManager();
-#    endif
+#        endif
     ImGui::PushID(&load);
     if (ImGui::Button(name))
     {
         const auto openDialog = [this]() { return Dialog::OpenSingle({.Window = GetWindow()->GetHandle()}); };
-#    ifndef TKIT_OS_APPLE
+#        ifndef TKIT_OS_APPLE
         task.Reset();
         task = openDialog;
         tm->SubmitTask(&task);
-#    else
+#        else
         const auto result = openDialog();
         if (result)
             load(result.GetValue());
         else
             handleError(result.GetError());
-#    endif
+#        endif
     }
-#    ifndef TKIT_OS_APPLE
+#        ifndef TKIT_OS_APPLE
     ImGui::EndDisabled();
     if (task && task.IsFinished())
     {
@@ -1525,9 +1526,10 @@ void SandboxWinLayer::HandleLoadDialog([[maybe_unused]] TKit::Task<Dialog::Resul
             handleError(result.GetError());
         task = nullptr;
     }
-#    endif
+#        endif
     ImGui::PopID();
 }
+#    endif
 
 void SandboxWinLayer::RenderSamplers()
 {

@@ -1,11 +1,16 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/state/pipelines.hpp"
 #include "onyx/state/descriptors.hpp"
-#include "onyx/state/shaders.hpp"
+#ifdef ONYX_ENABLE_SHADER_API
+#    include "onyx/state/shaders.hpp"
+#    include "tkit/container/stack_array.hpp"
+#else
+#    include "vkit/state/shader.hpp"
+#    include "onyx/spirv.hpp"
+#endif
 #include "onyx/property/vertex.hpp"
 #include "onyx/state/pipelines.hpp"
 #include "onyx/platform/platform.hpp"
-#include "tkit/container/stack_array.hpp"
 #include "tkit/preprocessor/utils.hpp"
 
 namespace Onyx::Pipelines
@@ -136,6 +141,7 @@ static void createPipelineLayouts()
     }
 }
 
+#ifdef ONYX_ENABLE_SHADER_API
 static bool isOldMesa()
 {
     const auto &device = GetDevice();
@@ -149,13 +155,13 @@ static bool isOldMesa()
     u32 minor;
     u32 patch;
 
-#ifdef TKIT_COMPILER_MSVC
+#    ifdef TKIT_COMPILER_MSVC
     if (sscanf_s(props.driverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
         return false;
-#else
+#    else
     if (std::sscanf(props.driverInfo, "Mesa %u.%u.%u", &major, &minor, &patch) != 3)
         return false;
-#endif
+#    endif
 
     if (major > 25)
         return false;
@@ -165,9 +171,32 @@ static bool isOldMesa()
         return false;
     return true;
 }
+#else
+static VKit::Shader shaderFromBinary(const u32 idx)
+{
+    return ONYX_CHECK_EXPRESSION(
+        VKit::Shader::Create(GetDevice(), rcast<const u32 *>(g_ShaderBinaries[idx].Data), g_ShaderBinaries[idx].Size));
+}
+static void compileFromBinary(const Geometry geo, const u32 start, const u32 end)
+{
+    const u32 count = end - start;
+    for (u32 i = 0; i < count / 2; ++i)
+    {
+        const u32 j = 2 * i;
+        const u32 idx = start + j;
+        const u32 rpass = j / 4;
+        const u32 dim = (j / 2) % 2;
+
+        TKIT_ASSERT(idx + 1 < Shader_Count);
+        s_PipelineData->Shaders[dim][rpass].FragmentShaders[geo] = shaderFromBinary(idx);
+        s_PipelineData->Shaders[dim][rpass].VertexShaders[geo] = shaderFromBinary(idx + 1);
+    }
+}
+#endif
 
 static void createShaders()
 {
+#ifdef ONYX_ENABLE_SHADER_API
     const bool oldMesa = isOldMesa();
     Shaders::Compiler compiler{};
     if (oldMesa)
@@ -250,6 +279,20 @@ static void createShaders()
     s_PipelineData->CompositorFragmentShader = ONYX_CHECK_EXPRESSION(cmp.CreateShader("mainFS", "compositor"));
 
     cmp.Destroy();
+#else
+    compileFromBinary(Geometry_Circle, Shader_CircleFlat2DFrag, Shader_CircleShadow3DVert + 1);
+    compileFromBinary(Geometry_Glyph, Shader_GlyphFlat2DFrag, Shader_GlyphShadow3DVert + 1);
+    compileFromBinary(Geometry_Parametric, Shader_ParametricFlat2DFrag, Shader_ParametricShadow3DVert + 1);
+    compileFromBinary(Geometry_Static, Shader_StaticFlat2DFrag, Shader_Count);
+
+    s_PipelineData->RayMarchComputeShader = shaderFromBinary(Shader_RayMarch);
+
+    s_PipelineData->PostProcessFragmentShader = shaderFromBinary(Shader_PostProcessFrag);
+    s_PipelineData->PostProcessVertexShader = shaderFromBinary(Shader_PostProcessVert);
+
+    s_PipelineData->CompositorFragmentShader = shaderFromBinary(Shader_CompositorFrag);
+    s_PipelineData->CompositorVertexShader = shaderFromBinary(Shader_CompositorVert);
+#endif
 }
 
 static void destroyShaders()
