@@ -317,6 +317,8 @@ static VkSamplerMipmapMode toVulkan(const SamplerMode mode)
         return VK_SAMPLER_MIPMAP_MODE_LINEAR;
     case SamplerMode_Nearest:
         return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    default:
+        return VK_SAMPLER_MIPMAP_MODE_MAX_ENUM;
     }
 }
 static VkFilter toVulkan(const SamplerFilter filter)
@@ -329,6 +331,8 @@ static VkFilter toVulkan(const SamplerFilter filter)
         return VK_FILTER_NEAREST;
     case SamplerFilter_Cubic:
         return VK_FILTER_CUBIC_EXT;
+    default:
+        return VK_FILTER_MAX_ENUM;
     }
 }
 static VkSamplerAddressMode toVulkan(const SamplerWrap wrap)
@@ -341,6 +345,8 @@ static VkSamplerAddressMode toVulkan(const SamplerWrap wrap)
         return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     case SamplerWrap_MirroredRepeat:
         return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    default:
+        return VK_SAMPLER_ADDRESS_MODE_MAX_ENUM;
     }
 }
 

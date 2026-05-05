@@ -3323,7 +3323,9 @@ template <Dimension D> void DisplayMemoryLayout()
         {
             displayRanges<D>("Transfer", arena.Transfer);
             displayRanges<D>("Graphics", arena.Graphics);
+#    ifdef ONYX_ENABLE_IMPLOT
             plotRanges<D>(arena.Transfer, arena.Graphics);
+#    endif
             ImGui::TreePop();
             ImGui::Spacing();
         }
@@ -3336,7 +3338,9 @@ template <Dimension D> void DisplayMemoryLayout()
         {
             displayRanges<D>("Transfer", arena.Transfer);
             displayRanges<D>("Graphics", arena.Graphics, arena.Generation);
+#    ifdef ONYX_ENABLE_IMPLOT
             plotRanges<D>(arena.Transfer, arena.Graphics, arena.Generation);
+#    endif
             ImGui::TreePop();
             ImGui::Spacing();
         }

@@ -220,8 +220,8 @@ static Geometry getGeometry(const ResourceType atype)
     case Resource_GlyphMesh:
         return Geometry_Glyph;
     default:
-        return Geometry_Count;
         TKIT_FATAL("[ONYX][RENDERER] The resource type '{}' does not have a geometry associated", ToString(atype));
+        return Geometry_Count;
     }
 }
 
