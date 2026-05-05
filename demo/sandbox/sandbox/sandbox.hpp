@@ -3,7 +3,9 @@
 #include "onyx/application/layer.hpp"
 #include "onyx/rendering/context.hpp"
 #include "onyx/property/instance.hpp"
-#include "onyx/platform/dialog.hpp"
+#ifdef ONYX_ENABLE_NFD
+#    include "onyx/platform/dialog.hpp"
+#endif
 #include "onyx/resource/sampler.hpp"
 #include "onyx/resource/image.hpp"
 #include "onyx/resource/font.hpp"
@@ -397,8 +399,10 @@ class SandboxWinLayer final : public WindowLayer
     template <Dimension D> void RenderGltf();
     template <Dimension D> void RenderRenderer();
 
+#    ifdef ONYX_ENABLE_NFD
     template <typename F>
     void HandleLoadDialog(TKit::Task<Dialog::Result<Dialog::Path>> &task, F load, const char *name = "Load##Dialog");
+#    endif
 #endif
 
     template <Dimension D> void ProcessEvent(const Event &event);
@@ -431,10 +435,12 @@ class SandboxWinLayer final : public WindowLayer
     ViewArray<D2> Views2{};
     ViewArray<D3> Views3{};
 
+#ifdef ONYX_ENABLE_NFD
     TKit::Task<Dialog::Result<Dialog::Path>> StatMeshTask{};
     TKit::Task<Dialog::Result<Dialog::Path>> TexTask{};
     TKit::Task<Dialog::Result<Dialog::Path>> FontTask{};
     TKit::Task<Dialog::Result<Dialog::Path>> GltfTask{};
+#endif
 
     bool CreatePoolOnLoad = true;
 #ifdef ONYX_ENABLE_IMGUI

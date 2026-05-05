@@ -555,6 +555,7 @@ SandboxWinLayer::~SandboxWinLayer()
                     dp.Params.Cascades.View = nullptr;
                 }
 
+#ifdef ONYX_ENABLE_NFD
     const auto wait = [](TKit::Task<Dialog::Result<Dialog::Path>> &task) {
         if (task)
         {
@@ -566,6 +567,7 @@ SandboxWinLayer::~SandboxWinLayer()
     wait(TexTask);
     wait(FontTask);
     wait(GltfTask);
+#endif
 }
 
 void SandboxWinLayer::OnRender(const DeltaTime &deltaTime)
@@ -686,7 +688,7 @@ void SandboxWinLayer::RenderImGui()
 
         ImGui::TextLinkOpenURL("My GitHub", "https://github.com/ismawno");
         ImGui::Checkbox("Toggle ImGui demo window", &ImGuiDemoWindow);
-#    ifdef ONYX_ENABLE_IMPLOT
+#    if defined(ONYX_ENABLE_IMPLOT) && defined(ONYX_ENABLE_NFD)
         ImGui::Checkbox("Toggle ImPlot demo window", &ImPlotDemoWindow);
 #    endif
         if (ImGui::Button("Reload shaders"))
@@ -1574,6 +1576,7 @@ void SandboxWinLayer::RenderTextures()
     if (ImGui::CollapsingHeader("Textures"))
     {
         SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+#    if defined(ONYX_ENABLE_IMAGE_LOAD) && defined(ONYX_ENABLE_NFD)
         HandleLoadDialog(TexTask, [&](const Dialog::Path &path) {
             const auto res = LoadImageDataFromFile(path.string().c_str(), ImageComponent_RGBA);
             VKIT_LOG_RESULT_ERROR(res);
@@ -1584,6 +1587,10 @@ void SandboxWinLayer::RenderTextures()
             appLayer->AddTexture(data, path.filename().string().c_str());
             Resources::RequestSync(SyncFlag_All);
         });
+#    else
+        ImGui::TextDisabled(
+            "Image loading must be enabled to use this feature as well as NFD! (set ONYX_ENABLE_IMAGE_LOAD)");
+#    endif
 
         EntriesOptions<TextureId> opts{};
         opts.GetName = [](const TextureId &tex) { return tex.Name; };
@@ -1635,6 +1642,7 @@ void SandboxWinLayer::RenderFontPools()
 void SandboxWinLayer::RenderFontPool(FontPoolId &pool)
 {
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
+#    if defined(ONYX_ENABLE_FONT_LOAD) && defined(ONYX_ENABLE_NFD)
     HandleLoadDialog(FontTask, [&](const Dialog::Path &path) {
         const auto res = LoadFontDataFromFile(path.string().c_str());
         VKIT_LOG_RESULT_ERROR(res);
@@ -1645,6 +1653,9 @@ void SandboxWinLayer::RenderFontPool(FontPoolId &pool)
         appLayer->AddFont(pool, data, path.filename().string().c_str());
         Resources::RequestSync(SyncFlag_All);
     });
+#    else
+    ImGui::TextDisabled("Font loading must be enabled to use this feature as well as NFD! (set ONYX_ENABLE_FONT_LOAD)");
+#    endif
 
     EntriesOptions<FontId> opts{};
     opts.GetName = [](const FontId &font) { return font.Name; };
@@ -1658,6 +1669,7 @@ void SandboxWinLayer::RenderFontPool(FontPoolId &pool)
 
 template <Dimension D> void SandboxWinLayer::RenderGltf()
 {
+#    if defined(ONYX_ENABLE_GLTF_LOAD) && defined(ONYX_ENABLE_NFD)
     SandboxAppLayer *appLayer = GetApplicationLayer<SandboxAppLayer>();
     HandleLoadDialog(
         GltfTask,
@@ -1714,6 +1726,9 @@ template <Dimension D> void SandboxWinLayer::RenderGltf()
         "Load GLTF file");
     ImGui::SameLine();
     ImGui::TextDisabled("A new mesh pool will be created for each GLTF load");
+#    else
+    ImGui::TextDisabled("GLTF loading must be enabled to use this feature as well as NFD! (set ONYX_ENABLE_GLTF_LOAD)");
+#    endif
 }
 
 template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Vertex> &pool)
@@ -1781,6 +1796,8 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
             }
         }
         else if (meshes.StatMeshToLoad == importedIndex)
+        {
+#    if defined(ONYX_ENABLE_OBJ_LOAD) && defined(ONYX_ENABLE_NFD)
             HandleLoadDialog(StatMeshTask, [&](const Dialog::Path &path) {
                 const auto res = LoadStaticMeshDataFromObjFile<D>(path.string().c_str());
                 VKIT_LOG_RESULT_ERROR(res);
@@ -1791,6 +1808,11 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
                 appLayer->AddMesh(pool, data, name[0] ? name : path.filename().string().c_str());
                 Resources::RequestSync(SyncFlag_All);
             });
+#    else
+            ImGui::TextDisabled(
+                "Obj loading must be enabled to use this feature as well as NFD! (set ONYX_ENABLE_OBJ_LOAD)");
+#    endif
+        }
         if constexpr (D == D3)
         {
             if (meshes.StatMeshToLoad == 2)
@@ -1823,7 +1845,8 @@ template <typename Vertex> void SandboxWinLayer::RenderMeshPool(MeshPoolId<Verte
             "have been created with a different coordinate "
             "system or unit scaling values. In Onyx, shapes with unit transforms are supposed to be centered "
             "around "
-            "zero with a cartesian coordinate system and size (from end to end) of one. That is why you may apply a "
+            "zero with a cartesian coordinate system and size (from end to end) of one. That is why you may "
+            "apply a "
             "transform before loading a specific mesh.");
     }
     else if constexpr (std::is_same_v<Vertex, ParaVertex<D3>>)

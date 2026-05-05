@@ -57,13 +57,16 @@ enum LoadImageDataFlagBit : LoadImageDataFlags
     LoadImageDataFlag_AsLinearImage = 1 << 0,
 };
 
-ONYX_NO_DISCARD Result<ImageData> LoadImageDataFromFile(
-    const char *path, const ImageComponentFormat requiredComponents = ImageComponent_Auto,
-    LoadImageDataFlags flags = 0);
+ONYX_NO_DISCARD Result<ImageData> LoadImageDataFromFile(const char *path,
+                                                        ImageComponentFormat requiredComponents = ImageComponent_Auto,
+                                                        LoadImageDataFlags flags = 0);
+ONYX_NO_DISCARD Result<ImageData> LoadImageDataFromMemory(const std::byte *memory, u32 size,
+                                                          ImageComponentFormat requiredComponents = ImageComponent_Auto,
+                                                          LoadImageDataFlags flags = 0);
 #endif
-
 } // namespace Onyx
 
+// TODO(Isma): Move this to private
 namespace Onyx::Detail
 {
 VkFormat GetFormat(const u32 components, ImageComponentType type, bool rgb);

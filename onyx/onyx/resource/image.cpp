@@ -101,8 +101,16 @@ void ImageData::Manipulate(const ImageOperation op)
 }
 
 #ifdef ONYX_ENABLE_IMAGE_LOAD
-Result<ImageData> LoadImageDataFromFile(const char *path, const ImageComponentFormat requiredComponents,
-                                        const LoadImageDataFlags flags)
+struct ImageArgs
+{
+    ImageComponentFormat RequiredComponents;
+    LoadImageDataFlags Flags;
+    const char *Path = nullptr;
+    const std::byte *Memory = nullptr;
+    const u32 Size = 0;
+};
+
+ONYX_NO_DISCARD static Result<ImageData> load(const ImageArgs &args)
 {
     ImageData data{};
     i32 w;
@@ -112,20 +120,46 @@ Result<ImageData> LoadImageDataFromFile(const char *path, const ImageComponentFo
     ImageComponentType type;
     void *img = nullptr;
 
-    if (stbi_is_hdr(path))
+    const ImageComponentFormat requiredComponents = args.RequiredComponents;
+    const LoadImageDataFlags flags = args.Flags;
+    if (args.Path)
     {
-        type = ImageComponent_Float;
-        img = stbi_loadf(path, &w, &h, &c, i32(requiredComponents));
-    }
-    else if (stbi_is_16_bit(path))
-    {
-        type = ImageComponent_UnsignedShort;
-        img = stbi_load_16(path, &w, &h, &c, i32(requiredComponents));
+        const char *path = args.Path;
+        if (stbi_is_hdr(path))
+        {
+            type = ImageComponent_Float;
+            img = stbi_loadf(path, &w, &h, &c, i32(requiredComponents));
+        }
+        else if (stbi_is_16_bit(path))
+        {
+            type = ImageComponent_UnsignedShort;
+            img = stbi_load_16(path, &w, &h, &c, i32(requiredComponents));
+        }
+        else
+        {
+            type = ImageComponent_UnsignedByte;
+            img = stbi_load(path, &w, &h, &c, i32(requiredComponents));
+        }
     }
     else
     {
-        type = ImageComponent_UnsignedByte;
-        img = stbi_load(path, &w, &h, &c, i32(requiredComponents));
+        const stbi_uc *mem = rcast<const stbi_uc *>(args.Memory);
+        const i32 len = i32(args.Size);
+        if (stbi_is_hdr_from_memory(mem, len))
+        {
+            type = ImageComponent_Float;
+            img = stbi_loadf_from_memory(mem, len, &w, &h, &c, i32(requiredComponents));
+        }
+        else if (stbi_is_16_bit_from_memory(mem, len))
+        {
+            type = ImageComponent_UnsignedShort;
+            img = stbi_load_16_from_memory(mem, len, &w, &h, &c, i32(requiredComponents));
+        }
+        else
+        {
+            type = ImageComponent_UnsignedByte;
+            img = stbi_load_from_memory(mem, len, &w, &h, &c, i32(requiredComponents));
+        }
     }
 
     if (!img)
@@ -136,13 +170,24 @@ Result<ImageData> LoadImageDataFromFile(const char *path, const ImageComponentFo
     data.Height = u32(h);
     data.Components = requiredComponents > 0 ? requiredComponents : u32(c);
     data.Format = Detail::GetFormat(i32(data.Components), type, !(flags & LoadImageDataFlag_AsLinearImage));
-    const usz size = data.ComputeSize();
+    const usz sz = data.ComputeSize();
 
-    data.Data = scast<std::byte *>(TKit::Allocate(size));
-    TKIT_ASSERT(data.Data, "[ONYX][IMAGE] Failed to allocate image data with size {:L} bytes", size);
-    TKit::ForwardCopy(data.Data, img, size);
+    data.Data = scast<std::byte *>(TKit::Allocate(sz));
+    TKIT_ASSERT(data.Data, "[ONYX][IMAGE] Failed to allocate image data with size {:L} bytes", sz);
+    TKit::ForwardCopy(data.Data, img, sz);
     stbi_image_free(img);
     return data;
+}
+
+Result<ImageData> LoadImageDataFromFile(const char *path, const ImageComponentFormat requiredComponents,
+                                        const LoadImageDataFlags flags)
+{
+    return load({.RequiredComponents = requiredComponents, .Flags = flags, .Path = path});
+}
+Result<ImageData> LoadImageDataFromMemory(const std::byte *memory, const u32 size,
+                                          const ImageComponentFormat requiredComponents, const LoadImageDataFlags flags)
+{
+    return load({.RequiredComponents = requiredComponents, .Flags = flags, .Memory = memory, .Size = size});
 }
 #endif
 } // namespace Onyx

@@ -86,7 +86,7 @@ template <Dimension D> Result<GltfData<D>> LoadGltfDataFromFile(const std::strin
                 const auto &uvAccessor = model.accessors[prim.attributes.at("TEXCOORD_0")];
                 const auto &uvView = model.bufferViews[uvAccessor.bufferView];
                 TexCoord = rcast<const f32 *>(model.buffers[uvView.buffer].data.data() + uvView.byteOffset +
-                                               uvAccessor.byteOffset);
+                                              uvAccessor.byteOffset);
                 uvStride = uvView.byteStride ? uvView.byteStride / sizeof(f32) : 2;
             }
 
