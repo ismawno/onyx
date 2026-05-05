@@ -628,23 +628,16 @@ static Resource createHiveResource(const ResourceType atype, const T &data, Hive
     return CreateResourceHandle(atype, hive.Elements.Insert(data));
 }
 
-template <typename T>
-static void updateHiveResource(const ResourceType atype, const Resource handle, const T &data,
-                               HiveResourceData<T> &hive)
+template <typename T> static void updateHiveResource(const Resource handle, const T &data, HiveResourceData<T> &hive)
 {
-    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, atype, T::Dim);
     const u32 aid = GetResourceId(handle);
-
     hive.Elements[aid] = data;
     hive.Flags = StatusFlag_NeedsSync;
 }
 
-template <typename T>
-static void destroyHiveResource(const ResourceType atype, const Resource handle, HiveResourceData<T> &hive)
+template <typename T> static void destroyHiveResource(const Resource handle, HiveResourceData<T> &hive)
 {
-    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, atype, T::Dim);
     const u32 aid = GetResourceId(handle);
-
     hive.Elements.Remove(aid);
 }
 
@@ -655,12 +648,14 @@ template <Dimension D> static u32 createBounds(const BoundsData<D> &data)
 
 template <Dimension D> static void updateBounds(const Resource handle, const BoundsData<D> &data)
 {
-    updateHiveResource(Resource_Bounds, handle, data, getData<D>().BoundingBoxes);
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Bounds, D);
+    updateHiveResource(handle, data, getData<D>().BoundingBoxes);
 }
 
 template <Dimension D> static void destroyBounds(const Resource handle)
 {
-    destroyHiveResource(Resource_Bounds, handle, getData<D>().BoundingBoxes);
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Bounds, D);
+    destroyHiveResource(handle, getData<D>().BoundingBoxes);
 }
 
 template <typename Vertex>
@@ -738,7 +733,8 @@ template <Dimension D> Resource RegisterMaterial(const MaterialData<D> &data)
 
 template <Dimension D> void UpdateMaterial(const Resource handle, const MaterialData<D> &data)
 {
-    updateHiveResource(Resource_Material, handle, data, getData<D>().Materials);
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Material, D);
+    updateHiveResource(handle, data, getData<D>().Materials);
 }
 
 template <Dimension D> void UpdateMesh(const Resource handle, const StatMeshData<D> &data)
@@ -1038,7 +1034,8 @@ template <Dimension D> const MaterialData<D> &GetMaterialData(const Resource han
 
 template <Dimension D> void DestroyMaterial(const Resource handle)
 {
-    destroyHiveResource(Resource_Material, handle, getData<D>().Materials);
+    CHECK_RESOURCE_HANDLE_WITH_DIM(handle, Resource_Material, D);
+    destroyHiveResource(handle, getData<D>().Materials);
 }
 
 const FontData &GetFontData(const Resource handle)

@@ -213,7 +213,7 @@ static void createShaders()
     compiler.AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders");
 
     const TKit::FixedArray<std::string, Geometry_Count> geos = {"circle", "static", "parametric", "glyph"};
-    const TKit::FixedArray<std::string, RenderPass_Count> passes = {"shaded", "flat", "shadow"};
+    const TKit::FixedArray<std::string, RenderPass_Count> passes = {"flat", "shaded", "shadow"};
     const TKit::FixedArray<std::string, D_Count> dims = {"2D", "3D"};
 
     TKit::StackArray<std::string> names{};

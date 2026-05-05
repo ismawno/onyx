@@ -137,7 +137,7 @@ struct Specs
         InitializationFlag_EnablePrintfDebugFeature | InitializationFlag_EnableDeviceFaultExtension;
 #    endif
 #else
-    Flags Flags = 0;
+    InitializationFlags Flags = 0;
 #endif
 };
 

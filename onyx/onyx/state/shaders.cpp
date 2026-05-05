@@ -689,6 +689,7 @@ void Initialize(const Specs &specs)
 
     const SlangResult result = slang::createGlobalSession(&desc, s_Slang.writeRef());
     TKIT_ASSERT(SLANG_SUCCEEDED(result), "[ONYX][SHADERS] Slang global session creation failed");
+    TKIT_UNUSED(result);
 }
 void Terminate()
 {

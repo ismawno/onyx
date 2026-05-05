@@ -55,6 +55,7 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
     }
     const u32 count = u32(fgeo.loadCharset(font, opts.FontScale, chset));
     TKIT_LOG_DEBUG("[ONYX][FONT] Loaded {}/{} glyphs", count, chset.size());
+    TKIT_UNUSED(count);
 
     msdf_atlas::TightAtlasPacker packer{};
     packer.setPixelRange(opts.SDFRange);
