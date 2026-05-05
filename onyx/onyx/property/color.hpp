@@ -47,40 +47,39 @@ namespace Onyx
 {
 struct Color
 {
-    constexpr Color(const f32v4 &rgba) : rgba(rgba)
+    Color(const f32v4 &rgba) : rgba(rgba)
     {
         CHECK_RGBA(rgba);
     }
 
-    constexpr Color(const f32v3 &rgb, const f32 alpha = 1.f) : rgba(rgb, alpha)
+    Color(const f32v3 &rgb, const f32 alpha = 1.f) : rgba(rgb, alpha)
     {
         CHECK_RGBA(rgba);
     }
 
-    constexpr Color(const f32 rgb = 1.f, const f32 alpha = 1.f) : Color(rgb, rgb, rgb, alpha)
+    Color(const f32 rgb = 1.f, const f32 alpha = 1.f) : Color(rgb, rgb, rgb, alpha)
     {
     }
-    constexpr Color(const u32 rgb, const u32 alpha = 255) : Color(rgb, rgb, rgb, alpha)
+    Color(const u32 rgb, const u32 alpha = 255) : Color(rgb, rgb, rgb, alpha)
     {
     }
 
-    constexpr Color(const f32 red, const f32 green, const f32 blue, const f32 alpha = 1.f)
-        : rgba(red, green, blue, alpha)
+    Color(const f32 red, const f32 green, const f32 blue, const f32 alpha = 1.f) : rgba(red, green, blue, alpha)
     {
         CHECK_RGBA(rgba);
     }
-    constexpr Color(const u32 red, const u32 green, const u32 blue, const u32 alpha = 255)
+    Color(const u32 red, const u32 green, const u32 blue, const u32 alpha = 255)
         : rgba(Detail::FromType(red), Detail::FromType(green), Detail::FromType(blue), Detail::FromType(alpha))
     {
         CHECK_RGBA(rgba);
     }
 
-    constexpr Color(const Color &rgb, const f32 alpha) : rgba(rgb.rgb, alpha)
+    Color(const Color &rgb, const f32 alpha) : rgba(rgb.rgb, alpha)
     {
         CHECK_RGBA(rgba);
     }
 
-    constexpr Color(const Color &rgb, const u32 alpha) : rgba(rgb.rgb, Detail::FromType(alpha))
+    Color(const Color &rgb, const u32 alpha) : rgba(rgb.rgb, Detail::FromType(alpha))
     {
         CHECK_RGBA(rgba);
     }
