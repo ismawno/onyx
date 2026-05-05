@@ -302,9 +302,9 @@ void Render(const RenderInfo &info)
                 }
             }
 #endif
-            const RenderSubmitInfo info = Renderer::Render(gqueue, cmd, wdata->Window, flags);
+            const RenderSubmitInfo rinfo = Renderer::Render(gqueue, cmd, wdata->Window, flags);
             Execution::EndCommandBuffer(cmd);
-            rinfos.Append(info);
+            rinfos.Append(rinfo);
 
 #ifdef ONYX_ENABLE_IMGUI
             if (wdata->ImContext && multiViewports())

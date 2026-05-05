@@ -1489,9 +1489,9 @@ static TKit::FixedArray<CascadeData, ONYX_MAX_CASCADES> createCascades(const f32
         const f32m4 view = Transform<D3>::LookTowards(center, dir);
         f32v3 min{TKIT_F32_MAX};
         f32v3 max{TKIT_F32_LOWEST};
-        for (const f32v4 &c : corners)
+        for (const f32v4 &cr : corners)
         {
-            const f32v3 lc = f32v3{view * c};
+            const f32v3 lc = f32v3{view * cr};
             min = Math::Min(min, lc);
             max = Math::Max(max, lc);
         }
@@ -1744,8 +1744,8 @@ static void transfer(VKit::Queue *transfer, const VkCommandBuffer command, Trans
                 const Range range = findSuitableTextureMapRange<D>(ltype, sdata.ShadowFormat, count);
                 // this is a small hack: shadow maps wont ever be used by the transfer queue, but this way we prevent
                 // lights from taking the same shadow map this run
-                for (u32 i = 0; i < range.Count; ++i)
-                    sdata.ShadowMaps[ltype][i + range.Offset].Tracker.MarkInUse(transfer, transferFlightValue);
+                for (u32 j = 0; j < range.Count; ++j)
+                    sdata.ShadowMaps[ltype][j + range.Offset].Tracker.MarkInUse(transfer, transferFlightValue);
 
                 shadowOffset = computeShadowMapDescriptorIndex<D>(ltype, range.Offset);
             }

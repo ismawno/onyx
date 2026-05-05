@@ -407,10 +407,10 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
             }
         t[D] = p;
     };
-    for (const CharLine &line : lines)
+    for (const CharLine &ln : lines)
     {
-        pos[0] = -xfactor * line.Width;
-        for (u32 i = line.Start; i < line.End; ++i)
+        pos[0] = -xfactor * ln.Width;
+        for (u32 i = ln.Start; i < ln.End; ++i)
         {
             if (params.CharacterCallback)
                 (*params.CharacterCallback)(i, text[i], pos);

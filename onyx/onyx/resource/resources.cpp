@@ -417,8 +417,8 @@ template <Dimension D> static void removeSamplerReferences(const Resource handle
         if constexpr (D == D2)
             materials.Flags |= updateRef(mat.Sampler);
         else
-            for (Resource &handle : mat.Samplers)
-                materials.Flags |= updateRef(handle);
+            for (Resource &h : mat.Samplers)
+                materials.Flags |= updateRef(h);
 }
 
 void DestroySampler(const Resource handle)
@@ -591,8 +591,8 @@ template <Dimension D> static void removeTextureReferences(const Resource handle
         if constexpr (D == D2)
             materials.Flags |= updateRef(mat.Texture);
         else
-            for (Resource &handle : mat.Textures)
-                materials.Flags |= updateRef(handle);
+            for (Resource &h : mat.Textures)
+                materials.Flags |= updateRef(h);
 }
 
 static void destroyTexture(const Resource handle)
