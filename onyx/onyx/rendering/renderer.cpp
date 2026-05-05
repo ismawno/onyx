@@ -2868,6 +2868,8 @@ RenderSubmitInfo Render(VKit::Queue *graphics, const VkCommandBuffer cmd, Window
         ImGuiBackend::RenderData(ImGui::GetDrawData(), cmd);
         ImGuiBackend::UpdatePlatformWindows();
     }
+#else
+    TKIT_UNUSED(flags);
 #endif
 
     window->EndRendering(cmd);

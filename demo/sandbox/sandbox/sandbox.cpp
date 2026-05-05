@@ -14,6 +14,7 @@
 
 namespace Onyx
 {
+#ifdef ONYX_ENABLE_IMGUI
 template <typename T> struct EntriesOptions
 {
     const char *TreeName = nullptr;
@@ -68,6 +69,7 @@ template <typename C, typename T> static void renderEntries(C &entries, const En
             ImGui::TreePop();
     }
 }
+#endif
 
 SandboxAppLayer::SandboxAppLayer(const WindowLayers *layers, const ParseData *data) : ApplicationLayer(layers)
 {
@@ -515,9 +517,14 @@ template <Dimension D> void SandboxAppLayer::UpdateMaterialData()
     for (MaterialId<D> &mat : materials.Elements)
         mat.Data = Resources::GetMaterialData<D>(mat.Handle);
 }
+#ifdef ONYX_ENABLE_IMGUI
+#    define FLAGS WindowLayerFlag_ImGuiEnabled
+#else
+#    define FLAGS 0
+#endif
 
 SandboxWinLayer::SandboxWinLayer(ApplicationLayer *appLayer, Window *window, const Dimension dim)
-    : WindowLayer(appLayer, window, {.Flags = WindowLayerFlag_ImGuiEnabled})
+    : WindowLayer(appLayer, window, {.Flags = FLAGS})
 {
     SandboxAppLayer *alayer = GetApplicationLayer<SandboxAppLayer>();
     if (dim == D2)
@@ -566,7 +573,9 @@ void SandboxWinLayer::OnRender(const DeltaTime &deltaTime)
     TKIT_PROFILE_NSCOPE("Onyx::Sandbox::OnRender");
     const Window *win = GetWindow();
 
+#ifdef ONYX_ENABLE_IMGUI
     if (!ImGui::GetIO().WantCaptureKeyboard)
+#endif
     {
         RenderView<D2> *rv2 = win->GetMouseRenderView<D2>();
         RenderView<D3> *rv3 = win->GetMouseRenderView<D3>();

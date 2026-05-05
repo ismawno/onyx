@@ -1,6 +1,8 @@
 #include "onyx/core/pch.hpp"
 #include "onyx/application/application.hpp"
-#include "onyx/imgui/backend.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include "onyx/imgui/backend.hpp"
+#endif
 #include "onyx/resource/resources.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
@@ -225,9 +227,7 @@ bool Application::NextTick(TKit::Clock &clock)
         if (layer->checkFlags(WindowLayerFlag_RequestDisableImGui))
             layer->shutdownImGui();
         if (layer->checkFlags(WindowLayerFlag_RequestEnableImGui))
-        {
             layer->initializeImGui();
-        }
         layer->clearFlags(WindowLayerFlag_RequestEnableImGui | WindowLayerFlag_RequestDisableImGui);
 #endif
         if (layer->m_Replacement)

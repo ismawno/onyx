@@ -8,6 +8,7 @@
 #include "onyx/resource/image.hpp"
 #include "onyx/resource/font.hpp"
 #include "onyx/resource/mesh.hpp"
+#include "onyx/resource/material.hpp"
 
 namespace Onyx
 {
