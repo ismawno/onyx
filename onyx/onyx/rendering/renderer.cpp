@@ -2803,6 +2803,10 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, const VkD
                 PostProcessPushConstantData pdata;
                 pdata.AttachmentIndex = rv->GetDescriptorIndex();
 
+                TKIT_ASSERT(pdata.AttachmentIndex < ONYX_MAX_ATTACHMENTS,
+                            "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})",
+                            pdata.AttachmentIndex, ONYX_MAX_ATTACHMENTS);
+
                 const VkExtent2D extent = rv->GetExtent();
                 pdata.Extent = u32v2{extent.width, extent.height};
                 pdata.MaxOutlineWidth = rv->MaxOutlineWidth;
