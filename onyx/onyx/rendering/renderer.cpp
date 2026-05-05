@@ -1218,8 +1218,8 @@ static ResourceType getResourceType(const Geometry geo)
     case Geometry_Glyph:
         return Resource_GlyphMesh;
     default:
-        return Resource_Count;
         TKIT_FATAL("[ONYX][RENDERER] The geometry '{}' does not have a resource type associated", ToString(geo));
+        return Resource_Count;
     }
 }
 
