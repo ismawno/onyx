@@ -1,0 +1,491 @@
+#pragma once
+
+#include "onyx/core/math.hpp"
+#include "onyx/core/dimension.hpp"
+#include "tkit/reflection/reflect.hpp"
+#include "tkit/serialization/yaml/serialize.hpp"
+
+namespace Onyx
+{
+
+enum TransformMode : u8
+{
+    Transform_Extrinsic,
+    Transform_Intrinsic,
+};
+
+template <Dimension D> struct ITransform
+{
+    /**
+     * @brief Compute a transformation matrix from translation, scale, and rotation.
+     *
+     * The order of transformations is scale -> rotate -> translate.
+     */
+    static f32m<D> ComputeTransform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation);
+
+    /**
+     * @brief Compute a reversed transformation matrix from translation, scale, and rotation.
+     *
+     * The order of transformations is translate -> rotate -> scale, hence the reverse.
+     */
+    static f32m<D> ComputeReversedTransform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation);
+
+    /**
+     * @brief Compute an inversed transformation matrix.
+     *
+     */
+    static f32m<D> ComputeInverseTransform(const f32v<D> &translation, const f32v<D> &scale, const rot<D> &rotation);
+
+    /**
+     * @brief Compute an inversed and reversed transformation matrix.
+     *
+     */
+    static f32m<D> ComputeInverseReversedTransform(const f32v<D> &translation, const f32v<D> &scale,
+                                                   const rot<D> &rotation);
+
+    static auto ComputeRotationMatrix(const rot<D> &rotation)
+    {
+        if constexpr (D == D2)
+        {
+            const f32 c = Math::Cosine(rotation);
+            const f32 s = Math::Sine(rotation);
+            return f32m2{c, s, -s, c};
+        }
+        else
+            return Math::ToMat3(rotation);
+    }
+
+    /**
+     * @brief Compute an inversed rotation matrix.
+     *
+     */
+    static auto ComputeInverseRotationMatrix(const rot<D> &rotation)
+    {
+        if constexpr (D == D2)
+            return ComputeRotationMatrix(-rotation);
+        else
+            return Math::ToMat3(Math::Conjugate(rotation));
+    }
+
+    /**
+     * @brief Compute the transformation matrix using the current object's translation, scale, and rotation.
+     *
+     * The order of transformations is scale -> rotate -> translate.
+     */
+    f32m<D> ComputeTransform() const;
+
+    /**
+     * @brief Compute the reversed transformation matrix using the current object's translation, scale, and rotation.
+     *
+     * The order of transformations is translate -> rotate -> scale, hence the reverse.
+     */
+    f32m<D> ComputeReversedTransform() const;
+
+    /**
+     * @brief Compute the inverse of the transformation matrix using the current object's parameters.
+     *
+     */
+    f32m<D> ComputeInverseTransform() const;
+
+    /**
+     * @brief Compute the inverse of the axes transformation matrix using the current object's parameters.
+     *
+     */
+    f32m<D> ComputeInverseReversedTransform() const;
+
+    /**
+     * @brief Applies an intrinsic translation to a transformation matrix along a specified axis.
+     *
+     * Intrinsic transformations are applied relative to the object's local coordinate system.
+     */
+    static void TranslateIntrinsic(f32m<D> &transform, const u32 axis, const f32 translation)
+    {
+        for (u32 i = 0; i < D; ++i)
+            transform[D][i] += transform[axis][i] * translation;
+    }
+
+    /**
+     * @brief Applies an intrinsic translation to a transformation matrix.
+     *
+     * Intrinsic transformations are applied relative to the object's local coordinate system.
+     */
+    static void TranslateIntrinsic(f32m<D> &transform, const f32v<D> &translation)
+    {
+        for (u32 i = 0; i < D; ++i)
+            TranslateIntrinsic(transform, i, translation[i]);
+    }
+
+    /**
+     * @brief Applies an extrinsic translation to a transformation matrix along a specified axis.
+     *
+     * Extrinsic transformations are applied relative to the global coordinate system.
+     */
+    static void TranslateExtrinsic(f32m<D> &transform, const u32 axis, const f32 translation)
+    {
+        transform[D][axis] += translation;
+    }
+
+    /**
+     * @brief Applies an extrinsic translation to a transformation matrix.
+     *
+     * Extrinsic transformations are applied relative to the global coordinate system.
+     */
+    static void TranslateExtrinsic(f32m<D> &transform, const f32v<D> &translation)
+    {
+        for (u32 i = 0; i < D; ++i)
+            transform[D][i] += translation[i];
+    }
+
+    /**
+     * @brief Applies an intrinsic scaling to a transformation matrix along a specified axis.
+     *
+     * Intrinsic transformations are applied relative to the object's local coordinate system.
+     */
+    static void ScaleIntrinsic(f32m<D> &transform, const u32 axis, const f32 scale)
+    {
+        for (u32 i = 0; i < D; ++i)
+            transform[axis][i] *= scale;
+    }
+
+    /**
+     * @brief Applies an intrinsic scaling to a transformation matrix.
+     *
+     * Intrinsic transformations are applied relative to the object's local coordinate system.
+     */
+    static void ScaleIntrinsic(f32m<D> &transform, const f32v<D> &scale)
+    {
+        for (u32 i = 0; i < D; ++i)
+            for (u32 j = 0; j < D; ++j)
+                transform[i][j] *= scale[i];
+    }
+
+    /**
+     * @brief Applies an extrinsic scaling to a transformation matrix along a specified axis.
+     *
+     * Extrinsic transformations are applied relative to the global coordinate system.
+     */
+    static void ScaleExtrinsic(f32m<D> &transform, const u32 axis, const f32 scale)
+    {
+        for (u32 i = 0; i < D + 1; ++i)
+            transform[i][axis] *= scale;
+    }
+
+    /**
+     * @brief Applies an extrinsic scaling to a transformation matrix.
+     *
+     * Extrinsic transformations are applied relative to the global coordinate system.
+     */
+    static void ScaleExtrinsic(f32m<D> &transform, const f32v<D> &scale)
+    {
+        for (u32 i = 0; i < D + 1; ++i)
+            for (u32 j = 0; j < D; ++j)
+                transform[i][j] *= scale[j];
+    }
+
+    /**
+     * @brief Extracts translation, scale, and rotation components from a transformation matrix.
+     *
+     */
+    static void Extract(const f32m<D> &transform, f32v<D> *translation, f32v<D> *scale, rot<D> *rotation);
+
+    /**
+     * @brief Extracts the translation component from a transformation matrix.
+     *
+     */
+    static f32v<D> ExtractTranslation(const f32m<D> &transform);
+
+    /**
+     * @brief Extracts the scale component from a transformation matrix.
+     *
+     */
+    static f32v<D> ExtractScale(const f32m<D> &transform);
+
+    /**
+     * @brief Extracts the rotation component from a transformation matrix.
+     *
+     */
+    static rot<D> ExtractRotation(const f32m<D> &transform);
+
+    f32v<D> Translation{0.f};
+    f32v<D> Scale{1.f};
+    rot<D> Rotation = RotType<D>::Identity;
+};
+
+template <Dimension D> struct Transform;
+
+/**
+ * @brief Specialization of Transform for 3D transformations.
+ *
+ * Provides additional methods specific to 3D transformations.
+ */
+template <> struct Transform<D3> : ITransform<D3>
+{
+    TKIT_REFLECT_DECLARE(Transform, ITransform<D3>)
+    TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D3>)
+    using ITransform<D3>::Extract;
+
+    /**
+     * @brief Applies an intrinsic rotation around the X-axis to a 3D transformation matrix.
+     *
+     * Intrinsic rotations are applied relative to the object's local coordinate system.
+     */
+    static void RotateXIntrinsic(f32m4 &transform, f32 angle);
+
+    /**
+     * @brief Applies an intrinsic rotation around the Y-axis to a 3D transformation matrix.
+     *
+     * Intrinsic rotations are applied relative to the object's local coordinate system.
+     */
+    static void RotateYIntrinsic(f32m4 &transform, f32 angle);
+
+    /**
+     * @brief Applies an intrinsic rotation around the Z-axis to a 3D transformation matrix.
+     *
+     * Intrinsic rotations are applied relative to the object's local coordinate system.
+     */
+    static void RotateZIntrinsic(f32m4 &transform, f32 angle);
+
+    /**
+     * @brief Applies an extrinsic rotation around the X-axis to a 3D transformation matrix.
+     *
+     * Extrinsic rotations are applied relative to the global coordinate system.
+     */
+    static void RotateXExtrinsic(f32m4 &transform, f32 angle);
+
+    /**
+     * @brief Applies an extrinsic rotation around the Y-axis to a 3D transformation matrix.
+     *
+     * Extrinsic rotations are applied relative to the global coordinate system.
+     */
+    static void RotateYExtrinsic(f32m4 &transform, f32 angle);
+
+    /**
+     * @brief Applies an extrinsic rotation around the Z-axis to a 3D transformation matrix.
+     *
+     * Extrinsic rotations are applied relative to the global coordinate system.
+     */
+    static void RotateZExtrinsic(f32m4 &transform, f32 angle);
+
+    /**
+     * @brief Applies an intrinsic rotation using a quaternion to a 3D transformation matrix.
+     *
+     * Intrinsic rotations are applied relative to the object's local coordinate system.
+     *
+     * @param transform The transformation matrix to modify.
+     * @param quaternion The quaternion representing the rotation.
+     */
+    static void RotateIntrinsic(f32m4 &transform, const f32q &quaternion)
+    {
+        const f32m3 rot = ComputeRotationMatrix(quaternion);
+        const f32m3 submat = f32m3{transform} * rot;
+        transform[0] = f32v4{submat[0], 0.f};
+        transform[1] = f32v4{submat[1], 0.f};
+        transform[2] = f32v4{submat[2], 0.f};
+    }
+
+    /**
+     * @brief Applies an extrinsic rotation using a quaternion to a 3D transformation matrix.
+     *
+     * Extrinsic rotations are applied relative to the global coordinate system.
+     *
+     * @param transform The transformation matrix to modify.
+     * @param quaternion The quaternion representing the rotation.
+     */
+    static void RotateExtrinsic(f32m4 &transform, const f32q &quaternion)
+    {
+        const f32m3 rot = ComputeRotationMatrix(quaternion);
+        const f32m4x3 submat = rot * f32m4x3{transform};
+        transform = f32m4{f32v4{submat[0], 0.f}, f32v4{submat[1], 0.f}, f32v4{submat[2], 0.f}, f32v4{submat[3], 1.f}};
+    }
+
+    static f32m4 ComputeLineTransform(const f32v3 &start, const f32v3 &end, f32 thickness = 1.f);
+
+    /**
+     * @brief Extracts a 3D Transform object from a transformation matrix.
+     *
+     * @param transform The transformation matrix.
+     * @return The extracted Transform object.
+     */
+    static Transform Extract(const f32m4 &transform);
+
+    // small hack, serialization mistakenly interprets a parameter as a field here
+    // TODO(Isma): Properly fix this. It probably is bc of the line split 8 lines from this
+    // UPDATE: seems it doesnt happen anymore bc of different indentation/formatting. still, worth a look
+    // TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
+    // TKIT_REFLECT_IGNORE_BEGIN()
+    // direction must be normalized
+
+    static f32m2x3 CreateOrthogonalBase(const f32v3 &direction, const f32v3 &up)
+    {
+        const f32v3 t1 = Math::Normalize(Math::Cross(up, direction));
+        const f32v3 t2 = Math::Cross(direction, t1);
+        return f32m2x3{t1, t2};
+    }
+    static f32m2x3 CreateOrthogonalBase(const f32v3 &direction)
+    {
+        const f32v3 up = direction[1] < 0.99f ? f32v3{0.f, 1.f, 0.f} : f32v3{1.f, 0.f, 0.f};
+        return CreateOrthogonalBase(direction, up);
+    }
+
+    static f32m4 LookTowards(const f32v3 &position, const f32v3 &direction, const f32v3 &up = f32v3{0.f, 1.f, 0.f})
+    {
+        const f32v3 &f = direction;
+        const f32v3 r = Normalize(Cross(direction, up));
+        const f32v3 u = Cross(r, direction);
+
+        f32m4 result = f32m4::Identity();
+        result[0][0] = r[0];
+        result[0][1] = u[0];
+        result[0][2] = f[0];
+        result[1][0] = r[1];
+        result[1][1] = u[1];
+        result[1][2] = f[1];
+        result[2][0] = r[2];
+        result[2][1] = u[2];
+        result[2][2] = f[2];
+
+        result[3][0] = -Dot(r, position);
+        result[3][1] = -Dot(u, position);
+        result[3][2] = -Dot(f, position);
+        return result;
+    }
+    static f32m4 LookAt(const f32v3 &position, const f32v3 &target, const f32v3 &up = f32v3{0.f, 1.f, 0.f})
+    {
+        return LookTowards(position, Math::Normalize(target - position), up);
+    }
+
+    static f32m4 Orthographic(const f32 left, const f32 right, const f32 bottom, const f32 top, const f32 near,
+                              const f32 far)
+    {
+        f32m4 projection{0.f};
+        projection[0][0] = 2.f / (right - left);
+        projection[1][1] = 2.f / (top - bottom);
+        projection[2][2] = 1.f / (far - near);
+        projection[3][0] = -(right + left) / (right - left);
+        projection[3][1] = -(top + bottom) / (top - bottom);
+        projection[3][2] = -near / (far - near);
+        projection[3][3] = 1.f;
+        return projection;
+    }
+    static f32m4 Orthographic(const f32v3 &min, const f32v3 &max)
+    {
+        return Orthographic(min[0], max[0], min[1], max[1], min[2], max[2]);
+    }
+    static f32m4 Orthographic(const f32 size, const f32 aspectRatio, const f32 near, const f32 far)
+    {
+        f32m4 projection{0.f};
+        projection[0][0] = 2.f / (size * aspectRatio);
+        projection[1][1] = 2.f / size;
+        projection[2][2] = 1.f / (far - near);
+        projection[3][2] = -near / (far - near);
+        projection[3][3] = 1.f;
+        return projection;
+    }
+    static f32m4 Perspective(const f32 fieldOfView, const f32 near, const f32 far, const f32 aspectRatio = 1.f)
+    {
+        f32m4 projection{0.f};
+        const f32 invHalfPov = 1.f / Math::Tangent(0.5f * fieldOfView);
+
+        projection[0][0] = invHalfPov / aspectRatio;
+        projection[1][1] = invHalfPov;
+        projection[2][2] = far / (far - near);
+        projection[2][3] = 1.f;
+        projection[3][2] = far * near / (near - far);
+        return projection;
+    }
+
+    // TKIT_REFLECT_IGNORE_END()
+    // TKIT_YAML_SERIALIZE_IGNORE_END()
+};
+
+/**
+ * @brief Specialization of Transform for 2D transformations.
+ *
+ * Provides additional methods specific to 2D transformations.
+ */
+template <> struct Transform<D2> : ITransform<D2>
+{
+    TKIT_REFLECT_DECLARE(Transform, ITransform<D2>)
+    TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D2>)
+    using ITransform<D2>::Extract;
+
+    /**
+     * @brief Applies an intrinsic rotation to a 2D transformation matrix.
+     *
+     * Intrinsic rotations are applied relative to the object's local coordinate system.
+     */
+    static void RotateIntrinsic(f32m3 &transform, f32 angle);
+
+    /**
+     * @brief Applies an extrinsic rotation to a 2D transformation matrix.
+     *
+     * Extrinsic rotations are applied relative to the global coordinate system.
+     */
+    static void RotateExtrinsic(f32m3 &transform, f32 angle);
+
+    /**
+     * @brief Extracts a 2D Transform object from a transformation matrix.
+     *
+     * @param transform The transformation matrix.
+     * @return The extracted Transform object.
+     */
+    static Transform Extract(const f32m3 &transform);
+
+    /**
+     * @brief Promote a 2D transform to an equivalent 3D transform.
+     *
+     * This function takes a 2D transform and promotes it to a 3D transform by adding a Z-axis component set to the
+     * identity.
+     *
+     * @param transform The 2D transform to promote.
+     * @return The promoted 3D transform.
+     */
+    static Transform<D3> Promote(const Transform &transform);
+
+    /**
+     * @brief Promote a 2D transform to an equivalent 3D transform.
+     *
+     * This function takes a 2D transform and promotes it to a 3D transform by adding a Z-axis component set to the
+     * identity.
+     *
+     * @param transform The 2D transform to promote.
+     * @return The promoted 3D transform.
+     */
+    static f32m4 Promote(const f32m3 &transform);
+
+    /**
+     * @brief Promote a 2D transform to an equivalent 3D transform.
+     *
+     * This function promotes a 2D transform into a 3D transform by adding a Z-axis component set to the
+     * identity.
+     *
+     * @return The promoted 3D transform.
+     */
+    Transform<D3> Promote();
+
+    static f32m3 Orthographic(const f32 left, const f32 right, const f32 bottom, const f32 top)
+    {
+        f32m3 projection{0.f};
+        projection[0][0] = 2.f / (right - left);
+        projection[1][1] = 2.f / (top - bottom);
+        projection[2][0] = -(right + left) / (right - left);
+        projection[2][1] = -(top + bottom) / (top - bottom);
+        projection[2][2] = 1.f;
+        return projection;
+    }
+    static f32m3 Orthographic(const f32v2 &min, const f32v2 &max)
+    {
+        return Orthographic(min[0], max[0], min[1], max[1]);
+    }
+
+    static f32m3 Orthographic(const f32 size, const f32 aspectRatio)
+    {
+        f32m3 projection{0.f};
+        projection[0][0] = 2.f / (size * aspectRatio);
+        projection[1][1] = 2.f / size;
+        projection[2][2] = 1.f;
+        return projection;
+    }
+};
+
+} // namespace Onyx

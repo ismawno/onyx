@@ -4,7 +4,7 @@
 #    include "onyx/imgui/imgui.hpp"
 #    include <misc/cpp/imgui_stdlib.h>
 #endif
-#include "onyx/state/pipelines.hpp"
+#include "pipelines.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "tkit/container/stack_array.hpp"
 #include "tkit/multiprocessing/topology.hpp"

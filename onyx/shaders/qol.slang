@@ -34,7 +34,7 @@ typedef float32_t2x3 f32m2x3;
 
 typedef u32 ViewMask;
 
-#include "../onyx/core/definitions.hpp"
+#include "../include/onyx/core/definitions.hpp"
 
 static constexpr u32 NullResource = ONYX_RESOURCE_ID_MASK;
 

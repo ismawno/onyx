@@ -1,11 +1,10 @@
-#ifdef ONYX_ENABLE_IMGUI
-#    include "onyx/imgui/imgui.hpp"
-#endif
-#include "onyx/rendering/renderer.hpp"
 #include "onyx/resource/resources.hpp"
 #include "onyx/rendering/context.hpp"
 #include "onyx/core/core.hpp"
 #include "onyx/onyx.hpp"
+#ifdef ONYX_ENABLE_IMGUI
+#    include <imgui.h>
+#endif
 
 using namespace Onyx;
 

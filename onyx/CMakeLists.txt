@@ -2,40 +2,36 @@ cmake_minimum_required(VERSION 3.16)
 project(onyx)
 
 set(SOURCES
-    onyx/onyx.cpp
-    onyx/core/pch.cpp
-    onyx/core/core.cpp
-    onyx/platform/platform.cpp
-    onyx/rendering/context.cpp
-    onyx/rendering/renderer.cpp
-    onyx/rendering/view.cpp
-    onyx/execution/execution.cpp
-    onyx/resource/resources.cpp
-    onyx/resource/font.cpp
-    onyx/resource/image.cpp
-    onyx/resource/mesh.cpp
-    onyx/state/pipelines.cpp
-    onyx/state/descriptors.cpp
-    onyx/property/color.cpp
-    onyx/property/transform.cpp
-    onyx/property/property.cpp
-    onyx/application/application.cpp
-    onyx/application/layer.cpp
-    onyx/platform/window.cpp
-    onyx/platform/input.cpp)
+    source/onyx.cpp
+    source/pch.cpp
+    source/core.cpp
+    source/platform.cpp
+    source/context.cpp
+    source/renderer.cpp
+    source/view.cpp
+    source/execution.cpp
+    source/resources.cpp
+    source/font.cpp
+    source/image.cpp
+    source/mesh.cpp
+    source/pipelines.cpp
+    source/descriptors.cpp
+    source/color.cpp
+    source/transform.cpp
+    source/conversion.cpp
+    source/window.cpp)
 
 if(ONYX_ENABLE_IMGUI)
-  list(APPEND SOURCES onyx/imgui/imgui.cpp onyx/imgui/theme.cpp
-       onyx/imgui/backend.cpp)
+  list(APPEND SOURCES source/theme.cpp source/imgui_backend.cpp)
 endif()
 if(ONYX_ENABLE_NFD)
-  list(APPEND SOURCES onyx/platform/dialog.cpp)
+  list(APPEND SOURCES source/dialog.cpp)
 endif()
 if(ONYX_ENABLE_GLTF_LOAD)
-  list(APPEND SOURCES onyx/resource/gltf.cpp)
+  list(APPEND SOURCES source/gltf.cpp)
 endif()
 if(ONYX_ENABLE_SHADER_API)
-  list(APPEND SOURCES onyx/state/shaders.cpp)
+  list(APPEND SOURCES source/shaders.cpp)
 endif()
 
 add_library(onyx STATIC ${SOURCES})
@@ -278,11 +274,9 @@ if(ONYX_ENABLE_FONT_LOAD)
   tkit_configure_compile_link_options(msdf-atlas-gen NO_EXCEPTIONS NO_RTTI)
 endif()
 
-tkit_register_for_yaml_serialization(onyx SOURCES onyx/property/transform.hpp
-                                     onyx/property/instance.hpp)
-
-tkit_register_for_reflection(onyx SOURCES onyx/property/transform.hpp
-                             onyx/property/instance.hpp)
+tkit_register_for_yaml_serialization(onyx SOURCES
+                                     include/onyx/property/transform.hpp)
+tkit_register_for_reflection(onyx SOURCES include/onyx/property/transform.hpp)
 
 if(ONYX_ENABLE_SHADER_API)
   if(DEFINED ENV{VCPKG_ROOT})
@@ -381,11 +375,9 @@ if(ONYX_ENABLE_IMGUI)
 
   find_package(Vulkan QUIET)
   target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR})
-  if(VULKAN_FOUND)
-    target_include_directories(imgui PUBLIC ${Vulkan_INCLUDE_DIRS})
-  else()
-    target_link_libraries(imgui PUBLIC Vulkan::Headers)
-  endif()
+  # if(VULKAN_FOUND) target_include_directories(imgui PUBLIC
+  # ${Vulkan_INCLUDE_DIRS}) else() target_link_libraries(imgui PUBLIC
+  # Vulkan::Headers) endif()
   target_link_libraries(imgui PRIVATE glfw)
   target_compile_definitions(imgui PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
   target_compile_definitions(
@@ -440,11 +432,14 @@ if(ONYX_ENABLE_NFD)
   target_link_libraries(onyx PRIVATE nfd)
 endif()
 
-target_link_libraries(onyx PUBLIC toolkit vulkit)
-target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(
+  onyx
+  PUBLIC toolkit
+  PRIVATE vulkit)
+target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_precompile_headers(onyx PRIVATE
-                          ${CMAKE_CURRENT_SOURCE_DIR}/onyx/core/pch.hpp)
+                          ${CMAKE_CURRENT_SOURCE_DIR}/source/pch.hpp)
 target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 tkit_default_configure(onyx)

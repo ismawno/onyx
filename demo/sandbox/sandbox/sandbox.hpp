@@ -2,7 +2,7 @@
 
 #include "onyx/application/layer.hpp"
 #include "onyx/rendering/context.hpp"
-#include "onyx/property/instance.hpp"
+#include "instance.hpp"
 #ifdef ONYX_ENABLE_NFD
 #    include "onyx/platform/dialog.hpp"
 #endif
