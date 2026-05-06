@@ -48,42 +48,9 @@ template <Dimension D> static void applyCoordinateSystemExtrinsic(f32m<D> &trans
             transform[i][j] = -transform[i][j];
 }
 
-Scissor ScreenScissor::AsScissor(const u32v2 &parent, const ScreenViewport &viewport) const
-{
-    const f32v2 size = viewport.Max - viewport.Min;
-    const f32v2 min = viewport.Min + 0.5f * (1.f + Min) * size;
-    const f32v2 max = viewport.Min + 0.5f * (1.f + Max) * size;
-
-    Scissor scissor;
-    scissor.Offset[0] = i32(0.5f * (1.f + min[0]) * parent[0]);
-    scissor.Offset[1] = i32(0.5f * (1.f - max[1]) * parent[1]);
-    scissor.Extent[0] = u32(0.5f * (1.f + max[0]) * parent[0]) - u32(scissor.Offset[0]);
-    scissor.Extent[1] = u32(0.5f * (1.f - min[1]) * parent[1]) - u32(scissor.Offset[1]);
-
-    return scissor;
-}
-Viewport ScreenViewport::AsViewport(const u32v2 &parent) const
-{
-    Viewport viewport;
-    viewport.Position[0] = 0.5f * (1.f + Min[0]) * parent[0];
-    viewport.Position[1] = 0.5f * (1.f - Max[1]) * parent[1];
-    viewport.Dimensions[0] = 0.5f * (1.f + Max[0]) * parent[0] - viewport.Position[0];
-    viewport.Dimensions[1] = 0.5f * (1.f - Min[1]) * parent[1] - viewport.Position[1];
-    viewport.Depth[0] = Depth[0];
-    viewport.Depth[1] = Depth[1];
-
-    return viewport;
-}
-
-u32v2 ScreenViewport::AsExtent(const u32v2 &parent) const
-{
-    return u32v2{0.5f * f32v2(parent) * (Max - Min)};
-}
-
 template <Dimension D>
-RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderViewFlags flags,
-                          const ScreenViewport &viewport, const ScreenScissor &scissor)
-    : Flags(flags), m_Camera(camera), m_Viewport(viewport), m_Scissor(scissor), m_ParentExtent(extent)
+RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderViewFlags flags)
+    : m_Camera(camera), m_ParentExtent(extent), m_Flags(flags)
 
 {
     m_ViewBit = allocateViewBit();
@@ -99,6 +66,9 @@ RenderView<D>::RenderView(const u32v2 &extent, Camera<D> *camera, const RenderVi
         ONYX_CHECK_VKIT_RESULT(
             device.SetObjectName(m_CompositorSet, VK_OBJECT_TYPE_DESCRIPTOR_SET, "onyx-compositor-set-window"));
     }
+
+    SetNormalizedViewport(Viewport{});
+    SetNormalizedScissor(Scissor{});
 }
 template <Dimension D> RenderView<D>::~RenderView()
 {
@@ -126,7 +96,7 @@ template <Dimension D> void RenderView<D>::createFramebuffers(const u32 imageCou
 {
     const auto &device = GetDevice();
     const VmaAllocator alloc = GetVulkanAllocator();
-    const VkExtent2D extent = AsVulkanExtent(m_Viewport.AsExtent(m_ParentExtent));
+    const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
     const VkFormat cformat = Platform::GetColorFormat();
     const VkFormat dformat = Platform::GetDepthStencilFormat();
     const VkFormat sformat = Platform::GetSurfaceFormat().format;
@@ -279,19 +249,32 @@ template <Dimension D> void RenderView<D>::destroyFrameBuffers()
 
 template <Dimension D> f32v2 RenderView<D>::ScreenToViewport(const f32v2 &screenPos) const
 {
-    const f32v2 size = m_Viewport.Max - m_Viewport.Min;
-    return -1.f + 2.f * (screenPos - m_Viewport.Min) / size;
+    const f32v2 dif = screenPos - m_Viewport.Position;
+    if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
+        return dif / (m_Viewport.Extent - m_Viewport.Position);
+    return dif;
+}
+template <Dimension D> f32v2 RenderView<D>::ViewportToScreen(const f32v2 &viewportPos) const
+{
+    if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
+        return viewportPos * (m_Viewport.Extent - m_Viewport.Position) + m_Viewport.Position;
+    return viewportPos + m_Viewport.Position;
 }
 
-template <Dimension D> f32v<D> RenderView<D>::ViewportToWorld(f32v<D> viewportPos) const
+template <Dimension D> f32v<D> RenderView<D>::ViewportToWorld(const f32v<D> &viewportPos) const
 {
-    viewportPos[1] = -viewportPos[1]; // Invert y axis to undo onyx's inversion to GLFW
     const f32m<D> pv = Math::Inverse(m_ProjectionView);
+    const f32v2 remapped = 2.f * ((m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
+                                      ? f32v2{viewportPos}
+                                      : (f32v2{viewportPos} / f32v2{m_ParentExtent})) -
+                           1.f;
+
     if constexpr (D == D2)
-        return pv * f32v3{viewportPos, 1.f};
+        return pv * f32v3{remapped, 1.f};
     else
     {
-        const f32v4 clip = pv * f32v4{viewportPos, 1.f};
+        const f32v3 rm = f32v3{remapped, viewportPos[2]};
+        const f32v4 clip = pv * f32v4{rm, 1.f};
         return f32v3{clip} / clip[3];
     }
 }
@@ -300,32 +283,16 @@ template <Dimension D> f32v2 RenderView<D>::WorldToViewport(const f32v<D> &world
 {
     if constexpr (D == D2)
     {
-        f32v2 viewportPos = f32v2{m_ProjectionView * f32v3{worldPos, 1.f}};
-        viewportPos[1] = -viewportPos[1];
-        return viewportPos;
+        const f32v2 ndc = f32v2{m_ProjectionView * f32v3{worldPos, 1.f}};
+        const f32v2 vpos = 0.5f * (ndc + 1.f);
+        return (m_Flags & RenderViewFlag_NormalizedViewportCoordinates) ? vpos : (vpos * f32v2{m_ParentExtent});
     }
     else
     {
-        f32v4 clip = m_ProjectionView * f32v4{worldPos, 1.f};
-        clip[1] = -clip[1];
-        return f32v3{clip} / clip[3];
-    }
-}
-
-template <Dimension D> f32v2 RenderView<D>::ViewportToScreen(const f32v2 &viewportPos) const
-{
-    const f32v2 size = m_Viewport.Max - m_Viewport.Min;
-    return m_Viewport.Min + 0.5f * (1.f + viewportPos) * size;
-}
-
-template <Dimension D> f32v<D> RenderView<D>::ScreenToWorld(const f32v<D> &screenPos) const
-{
-    if constexpr (D == D2)
-        return ViewportToWorld(ScreenToViewport(screenPos));
-    else
-    {
-        const f32 z = screenPos[2];
-        return ViewportToWorld(f32v3{ScreenToViewport(f32v2{screenPos}), z});
+        const f32v4 clip = m_ProjectionView * f32v4{worldPos, 1.f};
+        const f32v2 ndc = f32v2{clip} / clip[3];
+        const f32v2 vpos = 0.5f * (ndc + 1.f);
+        return (m_Flags & RenderViewFlag_NormalizedViewportCoordinates) ? vpos : (vpos * f32v2{m_ParentExtent});
     }
 }
 
@@ -337,8 +304,8 @@ template <Dimension D> void RenderView<D>::BeginRendering(const VkCommandBuffer 
     fb->Tracker = tracker;
 
     TKit::FixedArray<VkRenderingAttachmentInfoKHR, 2> atts{};
-    const bool isIntermediate = Flags & RenderViewFlag_PostProcess;
-    const bool hasOutlines = Flags & RenderViewFlag_Outlines;
+    const bool isIntermediate = m_Flags & RenderViewFlag_PostProcess;
+    const bool hasOutlines = m_Flags & RenderViewFlag_Outlines;
 
     VKit::DeviceImage &target = isIntermediate ? fb->Color : fb->PostProcess;
 
@@ -389,7 +356,7 @@ template <Dimension D> void RenderView<D>::BeginRendering(const VkCommandBuffer 
                                         .DstStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR});
 
     const VkRenderingAttachmentInfoKHR stencil = depth;
-    const VkExtent2D extent = AsVulkanExtent(m_Viewport.AsExtent(m_ParentExtent));
+    const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
 
     VkRenderingInfoKHR renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
@@ -429,8 +396,8 @@ template <Dimension D> void RenderView<D>::EndRendering(const VkCommandBuffer cm
     table->CmdEndRenderingKHR(cmd);
     FrameBuffer *fb = m_FrameBuffers[m_ImageIndex];
 
-    const bool isIntermediate = Flags & RenderViewFlag_PostProcess;
-    const bool hasOutlines = Flags & RenderViewFlag_Outlines;
+    const bool isIntermediate = m_Flags & RenderViewFlag_PostProcess;
+    const bool hasOutlines = m_Flags & RenderViewFlag_Outlines;
 
     VKit::DeviceImage &img = isIntermediate ? fb->Color : fb->PostProcess;
     img.TransitionLayout2(cmd, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -482,7 +449,7 @@ template <Dimension D> void RenderView<D>::BeginPostProcess(const VkCommandBuffe
                                        .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
                                        .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
 
-    const VkExtent2D extent = AsVulkanExtent(m_Viewport.AsExtent(m_ParentExtent));
+    const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
 
     VkRenderingInfoKHR renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
@@ -530,7 +497,7 @@ template <Dimension D> void RenderView<D>::EndPostProcess(const VkCommandBuffer 
 
 template <Dimension D> f32m<D> RenderView<D>::ComputeView() const
 {
-    if (m_Mode == ViewMode_Manual)
+    if (m_Flags & RenderViewFlag_ManualProjectionView)
         return m_View;
 
     f32m<D> view = m_Camera->View.ComputeInverseTransform();
@@ -539,11 +506,12 @@ template <Dimension D> f32m<D> RenderView<D>::ComputeView() const
 }
 template <Dimension D> f32m<D> RenderView<D>::ComputeProjection() const
 {
-    if (m_Mode == ViewMode_Manual)
-        return m_View;
+    if (m_Flags & RenderViewFlag_ManualProjectionView)
+        return m_Projection;
 
-    const VkViewport viewport = AsVulkanViewport(m_Viewport.AsViewport(m_ParentExtent));
-    const f32 aspect = viewport.width / viewport.height;
+    const Viewport viewport = GetAbsoluteViewport();
+    const f32 aspect = viewport.Extent[0] / viewport.Extent[1];
+
     if constexpr (D == D2)
         return Transform<D2>::Orthographic(m_Camera->OrthoParameters.Size, aspect);
     else

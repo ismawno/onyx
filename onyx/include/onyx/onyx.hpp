@@ -23,6 +23,11 @@ struct OpenWindowSpecs
 Window *OpenWindow(const OpenWindowSpecs &specs = {});
 void CloseWindow(Window *window);
 
+TKit::Timespan GetDeltaTime(const Window *win);
+TKit::Timespan GetTargetDeltaTime(const Window *win);
+
+void SetTargetDeltaTime(Window *win, TKit::Timespan target);
+
 #ifdef ONYX_ENABLE_IMGUI
 bool CanRenderImGui(Window *window);
 #endif

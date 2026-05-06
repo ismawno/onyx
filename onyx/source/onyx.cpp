@@ -135,6 +135,19 @@ static u32 getWindowIndex(const Window *window)
     return TKIT_U32_MAX;
 }
 
+TKit::Timespan GetDeltaTime(const Window *win)
+{
+    return s_Data->Windows[getWindowIndex(win)].DeltaTime;
+}
+TKit::Timespan GetTargetDeltaTime(const Window *win)
+{
+    return s_Data->Windows[getWindowIndex(win)].DeltaTarget;
+}
+void SetTargetDeltaTime(Window *win, const TKit::Timespan target)
+{
+    s_Data->Windows[getWindowIndex(win)].DeltaTarget = target;
+}
+
 static void cleanupWindowData(WindowData &wdata)
 {
 #ifdef ONYX_ENABLE_IMGUI

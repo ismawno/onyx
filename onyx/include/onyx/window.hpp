@@ -130,7 +130,8 @@ class Window
 
     void InstallCallbacks();
 
-    f32v2 GetScreenMousePosition() const;
+    f32v2 GetNormalizedMousePosition() const;
+    f32v2 GetAbsoluteMousePosition() const;
 
     bool IsKeyPressed(Key key) const;
     bool IsKeyReleased(Key key) const;
@@ -169,9 +170,7 @@ class Window
 
     void FlushEvents();
 
-    template <Dimension D>
-    RenderView<D> *CreateRenderView(Camera<D> *camera, RenderViewFlags flags = 0, const ScreenViewport &viewport = {},
-                                    const ScreenScissor &scissor = {});
+    template <Dimension D> RenderView<D> *CreateRenderView(Camera<D> *camera, RenderViewFlags flags = 0);
 
     template <Dimension D> void DestroyRenderView(RenderView<D> *rv);
 
@@ -187,7 +186,7 @@ class Window
     template <Dimension D> RenderView<D> *GetMouseRenderView() const
     {
         const TKit::TierArray<RenderView<D> *> &rvs = getSortedViews<D>();
-        const f32v2 mpos = GetScreenMousePosition();
+        const f32v2 mpos = GetNormalizedMousePosition();
 
         for (u32 i = rvs.GetSize() - 1; i < rvs.GetSize(); --i)
             if (rvs[i]->IsWithinViewport(mpos))

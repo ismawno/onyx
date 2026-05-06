@@ -2782,14 +2782,14 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
     RenderViewFlags flags = 0;
     for (RenderView<D> *rv : views)
     {
-        flags |= rv->Flags;
-        if (rv->Flags & RenderViewFlag_Shadows)
+        flags |= rv->GetFlags();
+        if (rv->GetFlags() & RenderViewFlag_Shadows)
             renderShadows<D>(graphics, cmd, rv->GetViewBit(), graphicsFlight);
 
         rv->CacheMatrices();
         rv->BeginRendering(cmd, tracker);
         renderGeometry<D>(graphics, cmd, rv->CreateViewInfo(), graphicsFlight, transferTrackers,
-                          rv->Flags & RenderViewFlag_Shadows);
+                          rv->GetFlags() & RenderViewFlag_Shadows);
         rv->EndRendering(cmd);
     }
 
@@ -2799,7 +2799,7 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
         const auto table = GetDeviceTable();
         const VKit::PipelineLayout &playout = Pipelines::GetPostProcessPipelineLayout();
         for (RenderView<D> *rv : views)
-            if (rv->Flags & RenderViewFlag_PostProcess)
+            if (rv->GetFlags() & RenderViewFlag_PostProcess)
             {
                 rv->BeginPostProcess(cmd);
                 s_PostProcessPipeline.Bind(cmd);
@@ -2814,10 +2814,9 @@ static void renderViews(const TKit::TierArray<RenderView<D> *> &views, VKit::Que
                             "[ONYX][RENDERER] The maximum amount of attachments has been exceeded ({} >= {})",
                             pdata.AttachmentIndex, ONYX_MAX_ATTACHMENTS);
 
-                const VkExtent2D extent = AsVulkanExtent(rv->GetExtent());
-                pdata.Extent = u32v2{extent.width, extent.height};
+                pdata.Extent = rv->GetRenderExtent();
                 pdata.MaxOutlineWidth = rv->MaxOutlineWidth;
-                pdata.Flags = rv->Flags;
+                pdata.Flags = rv->GetFlags();
 
                 table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
                                         sizeof(PostProcessPushConstantData), &pdata);
@@ -2838,8 +2837,8 @@ static void renderCompositor(const TKit::TierArray<RenderView<D> *> &views, cons
         const VkDescriptorSet set = rv->GetCompositorSet();
         VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
 
-        const VkViewport vp = AsVulkanViewport(rv->GetViewport());
-        const VkRect2D sc = AsVulkanScissor(rv->GetScissor());
+        const VkViewport vp = AsVulkanViewport(rv->GetAbsoluteViewport());
+        const VkRect2D sc = AsVulkanScissor(rv->GetAbsoluteScissor());
         const u32 idx = rv->GetImageIndex();
 
         table->CmdSetViewport(cmd, 0, 1, &vp);

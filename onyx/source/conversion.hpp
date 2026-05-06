@@ -23,12 +23,14 @@ constexpr VkExtent2D AsVulkanExtent(const u32v2 &extent)
 
 constexpr VkViewport AsVulkanViewport(const Viewport &vp)
 {
-    return {vp.Position[0], vp.Position[1], vp.Dimensions[0], vp.Dimensions[1], vp.Depth[0], vp.Depth[1]};
+    return {vp.Position[0], vp.Position[1], vp.Extent[0], vp.Extent[1], vp.Depth[0], vp.Depth[1]};
 }
 
 constexpr VkRect2D AsVulkanScissor(const Scissor &sc)
 {
-    return {{sc.Offset[0], sc.Offset[1]}, {sc.Extent[0], sc.Extent[1]}};
+    const i32v2 pos = i32v2{sc.Position};
+    const u32v2 ext = u32v2{sc.Extent};
+    return {{pos[0], pos[1]}, {ext[0], ext[1]}};
 }
 constexpr RenderPass GetRenderPass(const PipelinePass mode)
 {

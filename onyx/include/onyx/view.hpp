@@ -18,52 +18,14 @@ namespace Onyx
 struct Viewport
 {
     f32v2 Position{0.f};
-    f32v2 Dimensions{0.f};
-    f32v2 Depth{0.f};
+    f32v2 Extent{1.f};
+    f32v2 Depth{0.f, 1.f};
 };
 
 struct Scissor
 {
-    i32v2 Offset{0};
-    u32v2 Extent{0};
-};
-
-/**
- * @brief The `ScreenViewport` struct holds screen viewport dimensions.
- *
- * It is represented as an axis-aligned rectangle with the `Min` and `Max` coordinates ranging from -1 to 1. The
- * `DepthBounds` are normalized, ranging from 0 to 1. The default values are set to cover the entire screen.
- */
-struct ScreenViewport
-{
-    // TODO(Isma): Horrible choice of coordinates. Change this ASAP!!
-    f32v2 Min{-1.f};
-    f32v2 Max{1.f};
-    f32v2 Depth{0.f, 1.f};
-
-    Viewport AsViewport(const u32v2 &parent) const;
-    u32v2 AsExtent(const u32v2 &parent) const;
-};
-
-/**
- * @brief The `ScreenScissor` struct holds screen scissor dimensions relative to a viewport.
- *
- * It is represented as an axis-aligned rectangle with the `Min` and `Max` coordinates ranging from -1 to 1. The default
- * values are set to cover the entire screen.
- */
-struct ScreenScissor
-{
-    // TODO(Isma): Horrible choice of coordinates. Change this ASAP!!
-    f32v2 Min{-1.f};
-    f32v2 Max{1.f};
-
-    Scissor AsScissor(const u32v2 &extent, const ScreenViewport &viewport) const;
-};
-
-enum ViewMode : u8
-{
-    ViewMode_Automatic,
-    ViewMode_Manual
+    f32v2 Position{0.f};
+    f32v2 Extent{1.f};
 };
 
 template <Dimension D> struct ViewInfo
@@ -85,6 +47,10 @@ enum RenderViewFlagBit : RenderViewFlags
     RenderViewFlag_Shadows = 1 << 0,
     RenderViewFlag_PostProcess = 1 << 1,
     RenderViewFlag_Outlines = 1 << 2,
+    RenderViewFlag_ManualProjectionView = 1 << 3,
+    RenderViewFlag_NormalizedViewportCoordinates = 1 << 4,
+    RenderViewFlag_NormalizedScissorCoordinates = 1 << 5,
+    RenderViewFlag_DynamicViewport = 1 << 6,
 };
 
 struct FrameBuffer;
@@ -94,16 +60,26 @@ template <Dimension D> class RenderView
     TKIT_NON_COPYABLE(RenderView)
 
   public:
-    RenderView(const u32v2 &extent, Camera<D> *camera, RenderViewFlags flags = 0, const ScreenViewport &viewport = {},
-               const ScreenScissor &scissor = {});
+    RenderView(const u32v2 &extent, Camera<D> *camera, RenderViewFlags flags = 0);
     ~RenderView();
 
+    // depending on flags, these will expect and return normalized or absolute coordinates!
     f32v2 ScreenToViewport(const f32v2 &screenPos) const;
-    f32v<D> ViewportToWorld(f32v<D> viewportPos) const;
+    f32v2 ViewportToScreen(const f32v2 &viewportPos) const;
+
+    f32v<D> ViewportToWorld(const f32v<D> &viewportPos) const;
     f32v2 WorldToViewport(const f32v<D> &worldPos) const;
 
-    f32v2 ViewportToScreen(const f32v2 &viewportPos) const;
-    f32v<D> ScreenToWorld(const f32v<D> &screenPos) const;
+    f32v<D> ScreenToWorld(const f32v<D> &screenPos) const
+    {
+        if constexpr (D == D2)
+            return ViewportToWorld(ScreenToViewport(screenPos));
+        else
+        {
+            const f32 z = screenPos[2];
+            return ViewportToWorld(f32v3{ScreenToViewport(f32v2{screenPos}), z});
+        }
+    }
     f32v2 WorldToScreen(const f32v<D> &worldPos) const
     {
         return ViewportToScreen(WorldToViewport(worldPos));
@@ -129,7 +105,7 @@ template <Dimension D> class RenderView
     }
     void CacheMatrices()
     {
-        if (m_Mode != ViewMode_Manual)
+        if (!(m_Flags & RenderViewFlag_ManualProjectionView))
         {
             m_View = ComputeView();
             m_Projection = ComputeProjection();
@@ -150,16 +126,34 @@ template <Dimension D> class RenderView
         return m_ProjectionView;
     }
 
+    RenderViewFlags GetFlags() const
+    {
+        return m_Flags;
+    }
+    void SetFlags(const RenderViewFlags flags)
+    {
+        CacheMatrices();
+        m_Flags = flags;
+    }
+    void AddFlags(const RenderViewFlags flags)
+    {
+        SetFlags(m_Flags | flags);
+    }
+    void RemoveFlags(const RenderViewFlags flags)
+    {
+        SetFlags(m_Flags & ~flags);
+    }
+
     void SetView(const f32m<D> &view)
     {
         m_View = view;
-        m_Mode = ViewMode_Manual;
+        m_Flags |= RenderViewFlag_ManualProjectionView;
         m_ProjectionView = m_Projection * m_View;
     }
     void SetProjection(const f32m<D> &proj)
     {
         m_Projection = proj;
-        m_Mode = ViewMode_Manual;
+        m_Flags |= RenderViewFlag_ManualProjectionView;
         m_ProjectionView = m_Projection * m_View;
     }
 
@@ -168,44 +162,90 @@ template <Dimension D> class RenderView
         return m_ViewBit;
     }
 
-    const ScreenViewport &GetScreenViewport() const
+    Viewport GetNormalizedViewport() const
     {
+        if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
+            return m_Viewport;
+        return asNormalizedViewport();
+    }
+    Viewport GetAbsoluteViewport() const
+    {
+        if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
+            return asAbsoluteViewport();
         return m_Viewport;
     }
-    const ScreenScissor &GetScreenScissor() const
+
+    void SetNormalizedViewport(const Viewport &vp)
     {
+        const f32v2 ip = 1.f / f32v2{m_ParentExtent};
+        m_Viewport.Position = Math::Clamp(vp.Position, ip, f32v2{1.f});
+        m_Viewport.Extent = Math::Clamp(vp.Extent, ip, f32v2{1.f});
+
+        if (!(m_Flags & RenderViewFlag_NormalizedViewportCoordinates))
+            m_Viewport = asAbsoluteViewport();
+
+        CacheMatrices();
+        if (!(m_Flags & RenderViewFlag_DynamicViewport))
+        {
+            drainWork();
+            recreateFrameBuffers(m_FrameBuffers.GetSize());
+        }
+    }
+    void SetAbsoluteViewport(const Viewport &vp)
+    {
+        m_Viewport.Position = Math::Clamp(vp.Position, f32v2{1.f}, f32v2{m_ParentExtent});
+        m_Viewport.Extent = Math::Clamp(vp.Extent, f32v2{1.f}, f32v2{m_ParentExtent});
+
+        if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
+            m_Viewport = asNormalizedViewport();
+
+        CacheMatrices();
+        if (!(m_Flags & RenderViewFlag_DynamicViewport))
+        {
+            drainWork();
+            recreateFrameBuffers(m_FrameBuffers.GetSize());
+        }
+    }
+
+    Scissor GetNormalizedScissor() const
+    {
+        if (m_Flags & RenderViewFlag_NormalizedScissorCoordinates)
+            return m_Scissor;
+        return asNormalizedScissor();
+    }
+    Scissor GetAbsoluteScissor() const
+    {
+        if (m_Flags & RenderViewFlag_NormalizedScissorCoordinates)
+            return asAbsoluteScissor();
         return m_Scissor;
     }
-    const u32v2 &GetParentExtent() const
+
+    void SetNormalizedScissor(const Scissor &sc)
     {
-        return m_ParentExtent;
+        const f32v2 ip = 1.f / f32v2{m_ParentExtent};
+        m_Scissor.Position = Math::Clamp(sc.Position, ip, f32v2{1.f});
+        m_Scissor.Extent = Math::Clamp(sc.Extent, ip, f32v2{1.f});
+
+        if (!(m_Flags & RenderViewFlag_NormalizedScissorCoordinates))
+            m_Scissor = asAbsoluteScissor();
+    }
+    void SetAbsoluteScissor(const Scissor &sc)
+    {
+        m_Scissor.Position = Math::Clamp(sc.Position, f32v2{1.f}, f32v2{m_ParentExtent});
+        m_Scissor.Extent = Math::Clamp(sc.Extent, f32v2{1.f}, f32v2{m_ParentExtent});
+
+        if (m_Flags & RenderViewFlag_NormalizedScissorCoordinates)
+            m_Scissor = asNormalizedScissor();
     }
 
-    u32v2 GetExtent() const
+    u32v2 GetRenderExtent() const
     {
-        return m_Viewport.AsExtent(m_ParentExtent);
-    }
-    Viewport GetViewport() const
-    {
-        return m_Viewport.AsViewport(m_ParentExtent);
-    }
-    Scissor GetScissor() const
-    {
-        return m_Scissor.AsScissor(m_ParentExtent, m_Viewport);
-    }
+        if (m_Flags & RenderViewFlag_DynamicViewport)
+            return m_ParentExtent;
 
-    // a bit risky to set in certain situations. must make sure no unsubmitted cmd buffer references any of the
-    // framebuffers
-    void SetViewport(const ScreenViewport &vp)
-    {
-        m_Viewport = vp;
-        CacheMatrices();
-        drainWork();
-        recreateFrameBuffers(m_FrameBuffers.GetSize());
-    }
-    void SetScissor(const ScreenScissor &sc)
-    {
-        m_Scissor = sc;
+        if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
+            return u32v2(asAbsoluteViewport().Extent);
+        return u32v2(m_Viewport.Extent);
     }
 
     Camera<D> *GetCamera() const
@@ -217,17 +257,6 @@ template <Dimension D> class RenderView
     {
         m_Camera = camera;
         CacheMatrices();
-    }
-
-    ViewMode GetMode() const
-    {
-        return m_Mode;
-    }
-    void SetMode(const ViewMode mode)
-    {
-        m_Mode = mode;
-        if (mode == ViewMode_Automatic)
-            CacheMatrices();
     }
 
     VkDescriptorSet GetPostProcessSet() const
@@ -264,13 +293,42 @@ template <Dimension D> class RenderView
     Color ClearColor{Color_Black};
     u32 MaxOutlineWidth = 10;
     u32 Layer = 0;
-    RenderViewFlags Flags;
 
   private:
     void createFramebuffers(u32 imageCount);
     void recreateFrameBuffers(u32 imageCount);
     void nameFramebuffers();
     void drainWork();
+
+    Viewport asNormalizedViewport() const
+    {
+        const f32v2 extent = f32v2{m_ParentExtent};
+        const f32v2 pos = m_Viewport.Position / extent;
+        const f32v2 ext = m_Viewport.Extent / extent;
+        return {pos, ext, m_Viewport.Depth};
+    }
+    Scissor asNormalizedScissor() const
+    {
+        const f32v2 extent = f32v2{m_ParentExtent};
+        const f32v2 pos = m_Scissor.Position / extent;
+        const f32v2 ext = m_Scissor.Extent / extent;
+        return {pos, ext};
+    }
+
+    Viewport asAbsoluteViewport() const
+    {
+        const f32v2 extent = f32v2{m_ParentExtent};
+        const f32v2 pos = m_Viewport.Position * extent;
+        const f32v2 ext = m_Viewport.Extent * extent;
+        return {pos, ext, m_Viewport.Depth};
+    }
+    Scissor asAbsoluteScissor() const
+    {
+        const f32v2 extent = f32v2{m_ParentExtent};
+        const f32v2 pos = m_Scissor.Position * extent;
+        const f32v2 ext = m_Scissor.Extent * extent;
+        return {pos, ext};
+    }
 
     void update(const u32v2 &parentExtent, const u32 imageCount)
     {
@@ -285,20 +343,20 @@ template <Dimension D> class RenderView
     }
 
     Camera<D> *m_Camera;
-    ScreenViewport m_Viewport;
-    ScreenScissor m_Scissor;
+    Viewport m_Viewport;
+    Scissor m_Scissor;
     ViewMask m_ViewBit;
 
     u32v2 m_ParentExtent{};
     f32m<D> m_View = f32m<D>::Identity();
     f32m<D> m_Projection = f32m<D>::Identity();
     f32m<D> m_ProjectionView = f32m<D>::Identity();
-    ViewMode m_Mode = ViewMode_Automatic;
 
     TKit::TierArray<FrameBuffer *> m_FrameBuffers{};
     VkDescriptorSet m_PostProcessSet;
     VkDescriptorSet m_CompositorSet;
     u32 m_ImageIndex = TKIT_U32_MAX;
+    RenderViewFlags m_Flags = 0;
 
     friend class Window;
 };

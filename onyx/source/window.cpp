@@ -696,16 +696,13 @@ void Window::FlushEvents()
     m_Events.Clear();
 }
 
-template <Dimension D>
-RenderView<D> *Window::CreateRenderView(Camera<D> *camera, RenderViewFlags flags, const ScreenViewport &viewport,
-                                        const ScreenScissor &scissor)
+template <Dimension D> RenderView<D> *Window::CreateRenderView(Camera<D> *camera, RenderViewFlags flags)
 {
     TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &views = getRenderViews<D>();
 
     TKit::TierAllocator *tier = TKit::GetTier();
     const VkExtent2D extent = m_SwapChain->GetInfo().Extent;
-    RenderView<D> *rv =
-        tier->Create<RenderView<D>>(u32v2{extent.width, extent.height}, camera, flags, viewport, scissor);
+    RenderView<D> *rv = tier->Create<RenderView<D>>(u32v2{extent.width, extent.height}, camera, flags);
     views.Append(rv);
 
     rv->Layer = m_LayerIncrease++;
@@ -1460,12 +1457,15 @@ void Window::InstallCallbacks()
     installCallbacks(m_Window);
 }
 
-f32v2 Window::GetScreenMousePosition() const
+f32v2 Window::GetAbsoluteMousePosition() const
 {
     f64 xpos, ypos;
     glfwGetCursorPos(m_Window, &xpos, &ypos);
-    const f32v2 dims = GetScreenDimensions();
-    return f32v2{2.f * f32(xpos) / dims[0] - 1.f, 1.f - 2.f * f32(ypos) / dims[1]};
+    return f32v2{f32(xpos), f32(ypos)};
+}
+f32v2 Window::GetNormalizedMousePosition() const
+{
+    return GetAbsoluteMousePosition() / f32v2(GetScreenDimensions());
 }
 
 bool Window::IsKeyPressed(const Key key) const
@@ -1516,9 +1516,7 @@ void Window::ControlCamera(const TKit::Timespan deltaTime, Camera<D> *camera, co
         if (IsKeyPressed(controls.Backward))
             translation[2] += view.Scale[2] * step;
 
-        f32v2 mpos = GetScreenMousePosition();
-        mpos[1] = -mpos[1]; // Invert y axis to undo onyx's inversion to GLFW, so that now when applying the
-                            // rotation around x axis everything works out
+        const f32v2 mpos = GetNormalizedMousePosition();
 
         const bool lookAround = IsKeyPressed(controls.ToggleLookAround);
         const f32v2 delta = lookAround ? 3.f * (m_PrevMousePos - mpos) : f32v2{0.f};
@@ -1537,11 +1535,9 @@ void Window::ControlCamera(const TKit::Timespan deltaTime, Camera<D> *camera, co
     view.Translation += rmat * translation;
 }
 
-template RenderView<D2> *Window::CreateRenderView<D2>(Camera<D2> *camera, RenderViewFlags flags,
-                                                      const ScreenViewport &viewport, const ScreenScissor &scissor);
+template RenderView<D2> *Window::CreateRenderView<D2>(Camera<D2> *camera, RenderViewFlags flags);
 
-template RenderView<D3> *Window::CreateRenderView<D3>(Camera<D3> *camera, RenderViewFlags flags,
-                                                      const ScreenViewport &viewport, const ScreenScissor &scissor);
+template RenderView<D3> *Window::CreateRenderView<D3>(Camera<D3> *camera, RenderViewFlags flags);
 
 template void Window::DestroyRenderView<D2>(RenderView<D2> *view);
 template void Window::DestroyRenderView<D3>(RenderView<D3> *view);

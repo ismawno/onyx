@@ -27,25 +27,42 @@ int main()
 
     Camera<D2> cam{};
     cam.OrthoParameters.Size = 5.f;
-    RenderView<D2> *view = win->CreateRenderView<D2>(&cam);
+    RenderView<D2> *view = win->CreateRenderView<D2>(
+        &cam, RenderViewFlag_NormalizedViewportCoordinates | RenderViewFlag_NormalizedScissorCoordinates |
+                  RenderViewFlag_DynamicViewport | RenderViewFlag_Outlines | RenderViewFlag_PostProcess);
 
     ctx->AddTarget(view);
 
     while (Running())
     {
         ctx->Flush();
-        ctx->FillColor(Color{255u, 255u, 0u});
+        ctx->AddRenderFlags(RenderModeFlag_Outlined);
+        ctx->OutlineColor(Color_Orange);
+        ctx->OutlineWidth(1.f);
+        ctx->FillColor(Color_Blue);
         ctx->StaticMesh(mesh);
         ctx->TranslateX(0.5f);
         ctx->Circle();
 
+        win->ControlCamera(GetDeltaTime(win), &cam);
+
 #ifdef ONYX_ENABLE_IMGUI
         if (CanRenderImGui(win))
         {
+            const f32v2 npos = win->GetNormalizedMousePosition();
+            const f32v2 apos = win->GetAbsoluteMousePosition();
+            const f32v2 wpos = view->ScreenToWorld(npos);
+
             ImGui::Begin("This is a test");
-            ImGui::Text("This is some text");
+            ImGui::Text("Normalized mouse: (%.2f, %.2f)", npos[0], npos[1]);
+            ImGui::Text("Absolute mouse: (%.0f, %.0f)", apos[0], apos[1]);
+            ImGui::Text("World mouse: (%.2f, %.2f)", wpos[0], wpos[1]);
             ImGui::End();
-            ImGui::ShowDemoWindow();
+
+            // Viewport vp{};
+            // vp.Position = npos;
+            // vp.Extent = 1.f - 2.f * npos;
+            // view->SetNormalizedViewport(vp);
         }
 #endif
 
