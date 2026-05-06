@@ -66,7 +66,7 @@
         "ONYX_ENABLE_IMAGE_LOAD": "ON",
         "ONYX_ENABLE_GLTF_LOAD": "ON",
         "ONYX_ENABLE_FONT_LOAD": "ON",
-        "ONYX_ENABLE_SHADER_API": "ON"
+        "ONYX_ENABLE_SHADER_API": "OFF"
       }
     },
     {

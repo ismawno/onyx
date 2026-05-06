@@ -2,7 +2,6 @@
 
 #include "onyx/platform/input.hpp"
 #include "onyx/property/transform.hpp"
-#include <vulkan/vulkan.h>
 
 namespace Onyx
 {

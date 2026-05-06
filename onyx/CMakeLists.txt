@@ -373,17 +373,8 @@ if(ONYX_ENABLE_IMGUI)
 
   add_library(imgui STATIC ${IMGUI_SOURCES})
 
-  find_package(Vulkan QUIET)
   target_include_directories(imgui PUBLIC ${imgui_SOURCE_DIR})
-  # if(VULKAN_FOUND) target_include_directories(imgui PUBLIC
-  # ${Vulkan_INCLUDE_DIRS}) else() target_link_libraries(imgui PUBLIC
-  # Vulkan::Headers) endif()
-  target_link_libraries(imgui PRIVATE glfw)
-  target_compile_definitions(imgui PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES)
-  target_compile_definitions(
-    onyx
-    PUBLIC ONYX_ENABLE_IMGUI
-    PRIVATE ONYX_IMGUI_DISABLE_X11)
+  target_compile_definitions(onyx PUBLIC ONYX_ENABLE_IMGUI)
   target_link_libraries(onyx PUBLIC imgui)
 
   tkit_configure_compile_link_options(imgui NO_EXCEPTIONS NO_RTTI)

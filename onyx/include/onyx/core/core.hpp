@@ -8,9 +8,16 @@
 #define ONYX_NO_DISCARD [[nodiscard]]
 #define ONYX_CHECK_RESULT(expression) Onyx::CheckResult(expression);
 
-#define ONYX_DECLARE_VK_HANDLE(name)                                                                                   \
+#define ONYX_DECLARE_DISPATCHABLE_VK_HANDLE(name)                                                                      \
     struct name##_T;                                                                                                   \
     using name = name##_T *;
+
+#if defined(__LP64__) || defined(_WIN64) || defined(__x86_64__) || defined(_M_X64) || defined(__ia64) ||               \
+    defined(_M_IA64) || defined(__aarch64__) || defined(__powerpc64__)
+#    define ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE ONYX_DECLARE_DISPATCHABLE_VK_HANDLE
+#else
+#    define ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(name) using name = u64;
+#endif
 
 // This file handles the lifetime of global data the Onyx library needs, such as the Vulkan instance and device. To
 // properly cleanup resources, ensure the Terminate function is called at the end of your program, and that no ONYX

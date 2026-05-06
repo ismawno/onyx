@@ -1,7 +1,12 @@
 #pragma once
 
+#include "onyx/core/core.hpp"
 #include "onyx/rendering/camera.hpp"
 #include "onyx/property/color.hpp"
+
+ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(VkDescriptorSet)
+ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(VkSemaphore)
+ONYX_DECLARE_DISPATCHABLE_VK_HANDLE(VkCommandBuffer)
 
 namespace Onyx::Execution
 {

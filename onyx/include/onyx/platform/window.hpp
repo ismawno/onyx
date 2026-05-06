@@ -8,8 +8,7 @@
 #include "tkit/profiling/clock.hpp"
 #include "tkit/container/static_array.hpp"
 
-ONYX_DECLARE_VK_HANDLE(VkSurfaceKHR)
-ONYX_DECLARE_VK_HANDLE(VkSemaphore)
+ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(VkSurfaceKHR)
 
 struct GLFWwindow;
 
@@ -257,7 +256,7 @@ class Window
     void recreateSwapChain();
     void recreateResources();
     void recreateSurface();
-    bool handlePresentOrAcquireResult(VkResult result);
+    bool handlePresentOrAcquireResult(const u32 result);
     void nameSurface();
     void nameSwapChain();
     void nameSyncData();

@@ -336,8 +336,9 @@ Window::~Window()
     glfwDestroyWindow(m_Window);
 }
 
-bool Window::handlePresentOrAcquireResult(const VkResult result)
+bool Window::handlePresentOrAcquireResult(const u32 r)
 {
+    const VkResult result = VkResult(r);
     TKIT_LOG_DEBUG_IF(result != VK_SUCCESS, "[ONYX][WINDOW] Present() or AcquireNextImage() returned '{}'",
                       VKit::VulkanResultToString(result));
 

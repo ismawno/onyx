@@ -4,7 +4,7 @@ set -e
 
 SHADER_DIR="onyx/shaders"
 BIN_DIR="$SHADER_DIR/bin"
-OUTPUT="onyx/onyx/spirv.hpp"
+OUTPUT="onyx/source/spirv.hpp"
 
 mkdir -p "$BIN_DIR"
 

@@ -11,6 +11,7 @@
 #include "execution.hpp"
 #include "platform.hpp"
 #include "vkit/resource/device_buffer.hpp"
+#include "vkit/resource/device_image.hpp"
 #include "vkit/resource/sampler.hpp"
 #include "vkit/state/compute_pipeline.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"

@@ -286,13 +286,13 @@ Resource CreateBuffer(const VKit::DeviceBuffer::Builder &builder)
     const u32 bid = s_Buffers->Resources.Insert(ONYX_CHECK_VKIT_RESULT(builder.Build()));
     return CreateResourceHandle(Resource_Buffer, bid);
 }
-const VKit::DeviceBuffer &GetBuffer(const Resource handle)
-{
-    CHECK_RESOURCE_HANDLE(handle, Resource_Buffer);
-
-    const u32 bid = GetResourceId(handle);
-    return s_Buffers->Resources[bid];
-}
+// static const VKit::DeviceBuffer &getBuffer(const Resource handle)
+// {
+//     CHECK_RESOURCE_HANDLE(handle, Resource_Buffer);
+//
+//     const u32 bid = GetResourceId(handle);
+//     return s_Buffers->Resources[bid];
+// }
 void DestroyBuffer(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Buffer);
@@ -444,11 +444,6 @@ void ReleaseSampler(const Resource handle)
     s_Samplers->ToDestroy.Append(handle);
 }
 
-const VKit::Sampler &GetSampler(const Resource handle)
-{
-    return getSampler(handle);
-}
-
 static ImageInfo &getImage(const Resource handle)
 {
     CHECK_RESOURCE_HANDLE(handle, Resource_Image);
@@ -542,12 +537,7 @@ void ReleaseImage(const Resource handle)
     s_Images->ToDestroy.Append(handle);
 }
 
-const VKit::DeviceImage &GetImage(const Resource handle)
-{
-    return getImage(handle).Image;
-}
-
-Resource CreateTexture(const Resource handle, const VkImageView imageView)
+static Resource createTexture(const Resource handle, const VkImageView imageView)
 {
     const u32 tid = s_Textures->Insert();
     Texture &tex = s_Textures->At(tid);
@@ -577,7 +567,7 @@ Resource CreateTexture(const Resource handle, const u32 viewIndex)
     VKit::DeviceImage &img = getImage(handle).Image;
     const VkImageView view =
         viewIndex == TKIT_U32_MAX ? ONYX_CHECK_VKIT_RESULT(img.AddImageView()) : img.GetView(viewIndex);
-    return CreateTexture(handle, view);
+    return createTexture(handle, view);
 }
 
 template <Dimension D> static void removeTextureReferences(const Resource handle)

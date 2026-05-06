@@ -7,7 +7,6 @@
 #include "onyx/resource/gltf.hpp"
 #include "onyx/resource/font.hpp"
 #include "onyx/resource/material.hpp"
-#include <vulkan/vulkan.h>
 
 namespace Onyx
 {
@@ -38,8 +37,6 @@ void ReleaseSampler(Resource sampler);
 Resource CreateImage(const ImageData &data);
 void DestroyImage(Resource image);
 void ReleaseImage(Resource image);
-
-Resource CreateTexture(Resource image, VkImageView imageView);
 
 // TODO(Isma): Add options for the texture: mips, array layers, etc
 Resource CreateTexture(Resource image, u32 viewIndex = TKIT_U32_MAX);
