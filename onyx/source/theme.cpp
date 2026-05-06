@@ -1,5 +1,5 @@
 #include "pch.hpp"
-#include "onyx/theme.hpp"
+#include "onyx/imgui_theme.hpp"
 #include <imgui.h>
 
 namespace Onyx

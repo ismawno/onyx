@@ -2,6 +2,7 @@
 
 #include "onyx/alias.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
+#include "tkit/utils/limits.hpp"
 #include "tkit/container/fixed_array.hpp"
 #include "tkit/utils/result.hpp"
 

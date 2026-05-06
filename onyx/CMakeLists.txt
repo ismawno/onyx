@@ -274,10 +274,6 @@ if(ONYX_ENABLE_FONT_LOAD)
   tkit_configure_compile_link_options(msdf-atlas-gen NO_EXCEPTIONS NO_RTTI)
 endif()
 
-tkit_register_for_yaml_serialization(onyx SOURCES
-                                     include/onyx/transform.hpp)
-tkit_register_for_reflection(onyx SOURCES include/onyx/transform.hpp)
-
 if(ONYX_ENABLE_SHADER_API)
   if(DEFINED ENV{VCPKG_ROOT})
     include($ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)

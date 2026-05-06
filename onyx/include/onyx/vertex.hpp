@@ -18,16 +18,9 @@ template <Dimension D> struct StatVertex;
 
 template <> struct StatVertex<D2>
 {
-    TKIT_REFLECT_DECLARE(StatVertex)
-    TKIT_YAML_SERIALIZE_DECLARE(StatVertex)
-
-    TKIT_REFLECT_IGNORE_BEGIN()
-    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Geometry Geo = Geometry_Static;
     static constexpr ResourceType Resource = Resource_StaticMesh;
     static constexpr Dimension Dim = D2;
-    TKIT_YAML_SERIALIZE_IGNORE_END()
-    TKIT_REFLECT_IGNORE_END()
 
     f32v2 Position;
     f32v2 TexCoord;
@@ -40,16 +33,9 @@ template <> struct StatVertex<D2>
 
 template <> struct StatVertex<D3>
 {
-    TKIT_REFLECT_DECLARE(StatVertex)
-    TKIT_YAML_SERIALIZE_DECLARE(StatVertex)
-
-    TKIT_REFLECT_IGNORE_BEGIN()
-    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Geometry Geo = Geometry_Static;
     static constexpr ResourceType Resource = Resource_StaticMesh;
     static constexpr Dimension Dim = D3;
-    TKIT_YAML_SERIALIZE_IGNORE_END()
-    TKIT_REFLECT_IGNORE_END()
 
     f32v3 Position;
     f32v2 TexCoord;
@@ -85,16 +71,9 @@ enum CapsuleRegion : ParametricRegionFlags
 template <Dimension D> struct ParaVertex;
 template <> struct ParaVertex<D2>
 {
-    TKIT_REFLECT_DECLARE(ParaVertex)
-    TKIT_YAML_SERIALIZE_DECLARE(ParaVertex)
-
-    TKIT_REFLECT_IGNORE_BEGIN()
-    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Geometry Geo = Geometry_Parametric;
     static constexpr ResourceType Resource = Resource_ParametricMesh;
     static constexpr Dimension Dim = D2;
-    TKIT_YAML_SERIALIZE_IGNORE_END()
-    TKIT_REFLECT_IGNORE_END()
 
     f32v2 Position;
     f32v2 TexCoord;
@@ -103,16 +82,9 @@ template <> struct ParaVertex<D2>
 
 template <> struct ParaVertex<D3>
 {
-    TKIT_REFLECT_DECLARE(ParaVertex)
-    TKIT_YAML_SERIALIZE_DECLARE(ParaVertex)
-
-    TKIT_REFLECT_IGNORE_BEGIN()
-    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Geometry Geo = Geometry_Parametric;
     static constexpr ResourceType Resource = Resource_ParametricMesh;
     static constexpr Dimension Dim = D3;
-    TKIT_YAML_SERIALIZE_IGNORE_END()
-    TKIT_REFLECT_IGNORE_END()
 
     f32v3 Position;
     f32v2 TexCoord;
@@ -123,15 +95,8 @@ template <> struct ParaVertex<D3>
 
 struct GlyphVertex
 {
-    TKIT_REFLECT_DECLARE(GlyphVertex)
-    TKIT_YAML_SERIALIZE_DECLARE(GlyphVertex)
-
-    TKIT_REFLECT_IGNORE_BEGIN()
-    TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
     static constexpr Geometry Geo = Geometry_Glyph;
     static constexpr ResourceType Resource = Resource_Font;
-    TKIT_YAML_SERIALIZE_IGNORE_END()
-    TKIT_REFLECT_IGNORE_END()
 
     f32v2 Position;
     f32v2 AtlasCoord;

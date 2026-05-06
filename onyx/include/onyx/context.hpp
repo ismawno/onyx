@@ -127,9 +127,6 @@ struct SpotLightParameters
 
 struct TextParameters
 {
-    TKIT_REFLECT_DECLARE(TextParameters)
-    TKIT_YAML_SERIALIZE_DECLARE(TextParameters)
-
     std::function<void(u32, char, f32v2 &)> *CharacterCallback = nullptr;
     f32 Kerning = 0.f;
     f32 LineSpacing = 0.f;
@@ -137,15 +134,11 @@ struct TextParameters
 };
 struct AxesParameters
 {
-    TKIT_REFLECT_DECLARE(AxesParameters)
-    TKIT_YAML_SERIALIZE_DECLARE(AxesParameters)
     f32 Thickness = 0.1f;
     f32 Size = 50.f;
 };
 struct CircleParameters
 {
-    TKIT_REFLECT_DECLARE(CircleParameters)
-    TKIT_YAML_SERIALIZE_DECLARE(CircleParameters)
     f32 InnerFade = 0.f;
     f32 OuterFade = 0.f;
     f32 Hollowness = 0.f;
@@ -166,8 +159,6 @@ enum Alignment : u8
 
 template <Dimension D> struct RenderState
 {
-    TKIT_REFLECT_DECLARE(RenderState)
-    TKIT_YAML_SERIALIZE_DECLARE(RenderState)
 
     f32m<D> Transform = f32m<D>::Identity();
     Color FillColor = Color_White;

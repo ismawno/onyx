@@ -3,7 +3,7 @@
 #include "platform.hpp"
 #include "renderer.hpp"
 #ifdef ONYX_ENABLE_IMGUI
-#    include "onyx/theme.hpp"
+#    include "onyx/imgui_theme.hpp"
 #    include "imgui_backend.hpp"
 #    include <imgui.h>
 #    ifdef ONYX_ENABLE_IMPLOT

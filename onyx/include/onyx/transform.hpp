@@ -219,8 +219,6 @@ template <Dimension D> struct Transform;
  */
 template <> struct Transform<D3> : ITransform<D3>
 {
-    TKIT_REFLECT_DECLARE(Transform, ITransform<D3>)
-    TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D3>)
     using ITransform<D3>::Extract;
 
     /**
@@ -307,13 +305,6 @@ template <> struct Transform<D3> : ITransform<D3>
      */
     static Transform Extract(const f32m4 &transform);
 
-    // small hack, serialization mistakenly interprets a parameter as a field here
-    // TODO(Isma): Properly fix this. It probably is bc of the line split 8 lines from this
-    // UPDATE: seems it doesnt happen anymore bc of different indentation/formatting. still, worth a look
-    // TKIT_YAML_SERIALIZE_IGNORE_BEGIN()
-    // TKIT_REFLECT_IGNORE_BEGIN()
-    // direction must be normalized
-
     static f32m2x3 CreateOrthogonalBase(const f32v3 &direction, const f32v3 &up)
     {
         const f32v3 t1 = Math::Normalize(Math::Cross(up, direction));
@@ -392,9 +383,6 @@ template <> struct Transform<D3> : ITransform<D3>
         projection[3][2] = far * near / (near - far);
         return projection;
     }
-
-    // TKIT_REFLECT_IGNORE_END()
-    // TKIT_YAML_SERIALIZE_IGNORE_END()
 };
 
 /**
@@ -404,8 +392,6 @@ template <> struct Transform<D3> : ITransform<D3>
  */
 template <> struct Transform<D2> : ITransform<D2>
 {
-    TKIT_REFLECT_DECLARE(Transform, ITransform<D2>)
-    TKIT_YAML_SERIALIZE_DECLARE(Transform, ITransform<D2>)
     using ITransform<D2>::Extract;
 
     /**

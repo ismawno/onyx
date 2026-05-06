@@ -36,8 +36,6 @@ struct Scissor
  */
 struct ScreenViewport
 {
-    TKIT_REFLECT_DECLARE(ScreenViewport)
-    TKIT_YAML_SERIALIZE_DECLARE(ScreenViewport)
     // TODO(Isma): Horrible choice of coordinates. Change this ASAP!!
     f32v2 Min{-1.f};
     f32v2 Max{1.f};
@@ -55,8 +53,6 @@ struct ScreenViewport
  */
 struct ScreenScissor
 {
-    TKIT_REFLECT_DECLARE(ScreenScissor)
-    TKIT_YAML_SERIALIZE_DECLARE(ScreenScissor)
     // TODO(Isma): Horrible choice of coordinates. Change this ASAP!!
     f32v2 Min{-1.f};
     f32v2 Max{1.f};
