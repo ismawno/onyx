@@ -176,5 +176,8 @@ void PushArena(u32 threadIndex = 0);
 void PushStack(u32 threadIndex = 0);
 void PushTier(u32 threadIndex = 0);
 
+// for Pop, you use TKit::Pop.
+// NOTE(Isma): Should implement Pop for consistency
+
 TKit::ITaskManager *GetTaskManager();
 }; // namespace Onyx

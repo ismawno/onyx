@@ -7,7 +7,6 @@
 
 namespace Onyx
 {
-
 enum TransformMode : u8
 {
     Transform_Extrinsic,

@@ -6,6 +6,7 @@ namespace Onyx::Platform
 {
 void Initialize(const Specs &specs);
 void Terminate();
+void PollEvents();
 
 constexpr VkSurfaceFormatKHR GetSurfaceFormat()
 {
