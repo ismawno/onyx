@@ -1,6 +1,6 @@
 #include "pch.hpp"
-#include "onyx/rendering/context.hpp"
-#include "onyx/resource/resources.hpp"
+#include "onyx/context.hpp"
+#include "onyx/resources.hpp"
 #include "instance.hpp"
 #include "buffer.hpp"
 #include "tkit/math/math.hpp"

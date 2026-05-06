@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/alias.hpp"
+#include "onyx/alias.hpp"
 #include "tkit/multiprocessing/task_manager.hpp"
 #include "tkit/container/fixed_array.hpp"
 #include "tkit/utils/result.hpp"

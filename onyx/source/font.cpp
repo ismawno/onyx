@@ -1,5 +1,5 @@
 #include "pch.hpp"
-#include "onyx/resource/font.hpp"
+#include "onyx/font.hpp"
 
 #ifdef ONYX_ENABLE_FONT_LOAD
 TKIT_COMPILER_WARNING_IGNORE_PUSH()

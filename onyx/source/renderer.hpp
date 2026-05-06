@@ -1,7 +1,7 @@
 #pragma once
 
-#include "onyx/core/core.hpp"
-#include "onyx/platform/window.hpp"
+#include "onyx/core.hpp"
+#include "onyx/window.hpp"
 #include "execution.hpp"
 #include "instance.hpp"
 #include "pass.hpp"

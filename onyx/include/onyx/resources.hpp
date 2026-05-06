@@ -1,12 +1,12 @@
 #pragma once
 
-#include "onyx/resource/handle.hpp"
-#include "onyx/resource/image.hpp"
-#include "onyx/resource/sampler.hpp"
-#include "onyx/resource/mesh.hpp"
-#include "onyx/resource/gltf.hpp"
-#include "onyx/resource/font.hpp"
-#include "onyx/resource/material.hpp"
+#include "onyx/handle.hpp"
+#include "onyx/image.hpp"
+#include "onyx/sampler.hpp"
+#include "onyx/mesh.hpp"
+#include "onyx/gltf.hpp"
+#include "onyx/font.hpp"
+#include "onyx/material.hpp"
 
 namespace Onyx
 {

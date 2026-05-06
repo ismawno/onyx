@@ -1,7 +1,7 @@
 #pragma once
 
-#include "onyx/core/core.hpp"
-#include "onyx/property/vertex.hpp"
+#include "onyx/core.hpp"
+#include "onyx/vertex.hpp"
 #include "tkit/container/dynamic_array.hpp"
 #include "tkit/container/span.hpp"
 

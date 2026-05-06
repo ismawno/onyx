@@ -1,5 +1,5 @@
 #include "pch.hpp"
-#include "onyx/core/specs.hpp"
+#include "onyx/specs.hpp"
 #include "platform.hpp"
 #include "glfw.hpp"
 #include "tkit/container/static_array.hpp"

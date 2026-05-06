@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/platform/window.hpp"
+#include "onyx/window.hpp"
 #include "tkit/math/tensor.hpp"
 
 namespace Onyx::Platform

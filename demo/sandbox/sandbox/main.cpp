@@ -1,4 +1,4 @@
-#include "onyx/application/application.hpp"
+#include "onyx/application.hpp"
 #include "tkit/profiling/macros.hpp"
 #include "sandbox/sandbox.hpp"
 #include "sandbox/argparse.hpp"

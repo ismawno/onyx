@@ -4,7 +4,7 @@
 #    error "[ONYX] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_NFD"
 #endif
 
-#include "onyx/core/core.hpp"
+#include "onyx/core.hpp"
 #include "tkit/container/tier_array.hpp"
 #include "tkit/container/span.hpp"
 #include "tkit/utils/result.hpp"

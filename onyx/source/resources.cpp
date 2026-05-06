@@ -1,5 +1,5 @@
 #include "pch.hpp"
-#include "onyx/core/specs.hpp"
+#include "onyx/specs.hpp"
 #include "resources.hpp"
 #include "conversion.hpp"
 #include "renderer.hpp"

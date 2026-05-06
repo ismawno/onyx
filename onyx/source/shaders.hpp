@@ -6,7 +6,7 @@
 
 // NOTE(Isma): At some point we ll want to expose it for custom user pipelines
 
-#include "onyx/core/core.hpp"
+#include "onyx/core.hpp"
 #include "vkit/state/shader.hpp"
 
 namespace Onyx

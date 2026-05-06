@@ -1,9 +1,9 @@
 #pragma once
 
-#include "onyx/core/math.hpp"
-#include "onyx/core/dimension.hpp"
-#include "onyx/resource/handle.hpp"
-#include "onyx/property/instance.hpp"
+#include "onyx/math.hpp"
+#include "onyx/dimension.hpp"
+#include "onyx/handle.hpp"
+#include "onyx/instance.hpp"
 #include "tkit/reflection/reflect.hpp"
 #include "tkit/serialization/yaml/serialize.hpp"
 #include "tkit/utils/hash.hpp"

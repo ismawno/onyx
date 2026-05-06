@@ -1,11 +1,11 @@
 #pragma once
 
-#include "onyx/core/dimension.hpp"
-#include "onyx/property/instance.hpp"
-#include "onyx/resource/handle.hpp"
-#include "onyx/resource/font.hpp"
-#include "onyx/rendering/pass.hpp"
-#include "onyx/rendering/view.hpp"
+#include "onyx/dimension.hpp"
+#include "onyx/instance.hpp"
+#include "onyx/handle.hpp"
+#include "onyx/font.hpp"
+#include "onyx/pass.hpp"
+#include "onyx/view.hpp"
 
 namespace Onyx
 {

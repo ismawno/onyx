@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/platform/platform.hpp"
+#include "onyx/platform.hpp"
 
 namespace Onyx::Platform
 {

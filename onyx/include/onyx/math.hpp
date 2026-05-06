@@ -1,7 +1,7 @@
 #pragma once
 
-#include "onyx/core/dimension.hpp"
-#include "onyx/core/alias.hpp"
+#include "onyx/dimension.hpp"
+#include "onyx/alias.hpp"
 #include "tkit/math/quaternion.hpp"
 
 namespace Onyx

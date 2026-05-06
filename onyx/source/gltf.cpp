@@ -1,5 +1,5 @@
 #include "pch.hpp"
-#include "onyx/resource/gltf.hpp"
+#include "onyx/gltf.hpp"
 #include "conversion.hpp"
 TKIT_COMPILER_WARNING_IGNORE_PUSH()
 TKIT_CLANG_WARNING_IGNORE("-Wdeprecated-literal-operator")

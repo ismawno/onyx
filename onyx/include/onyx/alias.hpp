@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/definitions.hpp"
+#include "onyx/definitions.hpp"
 #include "tkit/utils/alias.hpp"
 #include "tkit/utils/literals.hpp"
 

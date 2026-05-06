@@ -1,7 +1,7 @@
 #include "pch.hpp"
-#include "onyx/resource/material.hpp"
-#include "onyx/platform/input.hpp"
-#include "onyx/platform/window.hpp"
+#include "onyx/material.hpp"
+#include "onyx/input.hpp"
+#include "onyx/window.hpp"
 #include "conversion.hpp"
 #include "pass.hpp"
 

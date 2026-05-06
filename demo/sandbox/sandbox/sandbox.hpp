@@ -1,16 +1,16 @@
 #pragma once
 
-#include "onyx/application/layer.hpp"
-#include "onyx/rendering/context.hpp"
+#include "onyx/layer.hpp"
+#include "onyx/context.hpp"
 #include "instance.hpp"
 #ifdef ONYX_ENABLE_NFD
-#    include "onyx/platform/dialog.hpp"
+#    include "onyx/dialog.hpp"
 #endif
-#include "onyx/resource/sampler.hpp"
-#include "onyx/resource/image.hpp"
-#include "onyx/resource/font.hpp"
-#include "onyx/resource/mesh.hpp"
-#include "onyx/resource/material.hpp"
+#include "onyx/sampler.hpp"
+#include "onyx/image.hpp"
+#include "onyx/font.hpp"
+#include "onyx/mesh.hpp"
+#include "onyx/material.hpp"
 
 namespace Onyx
 {

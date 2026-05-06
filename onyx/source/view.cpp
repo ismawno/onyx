@@ -1,6 +1,6 @@
 #include "pch.hpp"
-#include "onyx/rendering/view.hpp"
-#include "onyx/core/definitions.hpp"
+#include "onyx/view.hpp"
+#include "onyx/definitions.hpp"
 #include "renderer.hpp"
 #include "conversion.hpp"
 #include "platform.hpp"

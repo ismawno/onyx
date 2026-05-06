@@ -1,7 +1,7 @@
 #include "sandbox/sandbox.hpp"
-#include "onyx/resource/resources.hpp"
+#include "onyx/resources.hpp"
 #ifdef ONYX_ENABLE_IMGUI
-#    include "onyx/imgui/imgui.hpp"
+#    include "onyx/imgui.hpp"
 #    include <misc/cpp/imgui_stdlib.h>
 #endif
 #include "pipelines.hpp"

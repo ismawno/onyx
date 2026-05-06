@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/property/instance.hpp"
+#include "onyx/instance.hpp"
 #include "pass.hpp"
 #include "vkit/state/graphics_pipeline.hpp"
 #include "vkit/state/compute_pipeline.hpp"

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "onyx/core/math.hpp"
-#include "onyx/resource/image.hpp"
+#include "onyx/math.hpp"
+#include "onyx/image.hpp"
 
 namespace Onyx
 {

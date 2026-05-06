@@ -1,5 +1,5 @@
 #include "pch.hpp"
-#include "onyx/resource/image.hpp"
+#include "onyx/image.hpp"
 #include "conversion.hpp"
 #include "vkit/resource/device_image.hpp"
 #ifdef ONYX_ENABLE_IMAGE_LOAD

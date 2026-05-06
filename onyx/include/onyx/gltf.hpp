@@ -1,9 +1,9 @@
 #pragma once
 
-#include "onyx/resource/mesh.hpp"
-#include "onyx/resource/material.hpp"
-#include "onyx/resource/sampler.hpp"
-#include "onyx/resource/image.hpp"
+#include "onyx/mesh.hpp"
+#include "onyx/material.hpp"
+#include "onyx/sampler.hpp"
+#include "onyx/image.hpp"
 #include "tkit/container/tier_array.hpp"
 
 namespace Onyx

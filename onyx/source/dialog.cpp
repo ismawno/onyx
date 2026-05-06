@@ -1,5 +1,5 @@
 #include "pch.hpp"
-#include "onyx/platform/dialog.hpp"
+#include "onyx/dialog.hpp"
 #include "tkit/container/stack_array.hpp"
 #include <nfd.h>
 #ifdef TKIT_OS_APPLE

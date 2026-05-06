@@ -1,8 +1,8 @@
 #pragma once
 
-#include "onyx/property/instance.hpp"
-#include "onyx/rendering/view.hpp"
-#include "onyx/resource/image.hpp"
+#include "onyx/instance.hpp"
+#include "onyx/view.hpp"
+#include "onyx/image.hpp"
 #include "pass.hpp"
 #include "tkit/utils/debug.hpp"
 

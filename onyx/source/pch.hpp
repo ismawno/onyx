@@ -28,4 +28,4 @@
 #include <filesystem>
 #include <vulkan/vulkan.h>
 #include "vkit/memory/allocator.hpp"
-#include "onyx/core/math.hpp"
+#include "onyx/math.hpp"

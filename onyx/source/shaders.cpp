@@ -1,5 +1,5 @@
 #include "pch.hpp"
-#include "onyx/core/specs.hpp"
+#include "onyx/specs.hpp"
 #include "core.hpp"
 #include "shaders.hpp"
 #include "tkit/preprocessor/utils.hpp"

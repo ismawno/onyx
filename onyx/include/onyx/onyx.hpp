@@ -1,7 +1,7 @@
 #pragma once
 
-#include "onyx/platform/window.hpp"
-#include "onyx/rendering/context.hpp"
+#include "onyx/window.hpp"
+#include "onyx/context.hpp"
 
 namespace Onyx
 {

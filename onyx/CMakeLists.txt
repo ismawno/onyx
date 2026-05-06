@@ -275,8 +275,8 @@ if(ONYX_ENABLE_FONT_LOAD)
 endif()
 
 tkit_register_for_yaml_serialization(onyx SOURCES
-                                     include/onyx/property/transform.hpp)
-tkit_register_for_reflection(onyx SOURCES include/onyx/property/transform.hpp)
+                                     include/onyx/transform.hpp)
+tkit_register_for_reflection(onyx SOURCES include/onyx/transform.hpp)
 
 if(ONYX_ENABLE_SHADER_API)
   if(DEFINED ENV{VCPKG_ROOT})

@@ -11,7 +11,7 @@
 #    include "vkit/state/shader.hpp"
 #    include "spirv.hpp"
 #endif
-#include "onyx/property/vertex.hpp"
+#include "onyx/vertex.hpp"
 #include "platform.hpp"
 #include "tkit/preprocessor/utils.hpp"
 

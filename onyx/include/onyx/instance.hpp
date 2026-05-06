@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/dimension.hpp"
+#include "onyx/dimension.hpp"
 
 // NOTE(Isma): At some point ill have to handle user wanting to explicitly submit instance data buffers from gpu
 // (without any cpu detours)

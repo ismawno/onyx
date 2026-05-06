@@ -1,6 +1,6 @@
-#include "onyx/resource/resources.hpp"
-#include "onyx/rendering/context.hpp"
-#include "onyx/core/core.hpp"
+#include "onyx/resources.hpp"
+#include "onyx/context.hpp"
+#include "onyx/core.hpp"
 #include "onyx/onyx.hpp"
 #ifdef ONYX_ENABLE_IMGUI
 #    include <imgui.h>

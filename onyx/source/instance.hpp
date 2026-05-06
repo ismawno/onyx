@@ -1,8 +1,8 @@
 #pragma once
 
-#include "onyx/property/instance.hpp"
-#include "onyx/core/math.hpp"
-#include "onyx/resource/handle.hpp"
+#include "onyx/instance.hpp"
+#include "onyx/math.hpp"
+#include "onyx/handle.hpp"
 #include "vkit/resource/host_buffer.hpp"
 
 namespace Onyx

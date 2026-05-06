@@ -1,7 +1,7 @@
 #pragma once
 
-#include "onyx/core/alias.hpp"
-#include "onyx/core/core.hpp"
+#include "onyx/alias.hpp"
+#include "onyx/core.hpp"
 #include "vkit/execution/command_pool.hpp"
 #include "vkit/execution/queue.hpp"
 

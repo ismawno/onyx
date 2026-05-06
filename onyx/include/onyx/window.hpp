@@ -1,10 +1,10 @@
 #pragma once
 
-#include "onyx/core/dimension.hpp"
-#include "onyx/platform/input.hpp"
-#include "onyx/property/color.hpp"
-#include "onyx/rendering/view.hpp"
-#include "onyx/core/core.hpp"
+#include "onyx/dimension.hpp"
+#include "onyx/input.hpp"
+#include "onyx/color.hpp"
+#include "onyx/view.hpp"
+#include "onyx/core.hpp"
 #include "tkit/profiling/clock.hpp"
 #include "tkit/container/static_array.hpp"
 

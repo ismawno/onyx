@@ -1,7 +1,7 @@
 #pragma once
 
-#include "onyx/platform/input.hpp"
-#include "onyx/property/transform.hpp"
+#include "onyx/input.hpp"
+#include "onyx/transform.hpp"
 
 namespace Onyx
 {

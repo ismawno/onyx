@@ -5,8 +5,8 @@
         "[ONYX][IMGUI] To include this file, the corresponding feature must be enabled in CMake with ONYX_ENABLE_IMGUI"
 #endif
 
-#include "onyx/core/core.hpp"
-#include "onyx/platform/window.hpp"
+#include "onyx/core.hpp"
+#include "onyx/window.hpp"
 #include "renderer.hpp"
 #include <imgui.h>
 #include <vulkan/vulkan.h>

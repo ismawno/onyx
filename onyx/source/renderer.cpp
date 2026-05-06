@@ -1,6 +1,6 @@
 #include "pch.hpp"
-#include "onyx/core/specs.hpp"
-#include "onyx/rendering/context.hpp"
+#include "onyx/specs.hpp"
+#include "onyx/context.hpp"
 #include "core.hpp"
 #include "buffer.hpp"
 #include "resources.hpp"

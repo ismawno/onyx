@@ -1,7 +1,7 @@
 #pragma once
-#include "onyx/core/alias.hpp"
-#include "onyx/property/instance.hpp"
-#include "onyx/resource/image.hpp"
+#include "onyx/alias.hpp"
+#include "onyx/instance.hpp"
+#include "onyx/image.hpp"
 
 #define ONYX_PLATFORM_ANY 0x00060000
 #define ONYX_PLATFORM_WIN32 0x00060001

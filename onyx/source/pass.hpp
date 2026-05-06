@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/rendering/pass.hpp"
+#include "onyx/pass.hpp"
 
 namespace Onyx
 {

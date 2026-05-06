@@ -1,6 +1,6 @@
 #include "pch.hpp"
-#include "onyx/core/definitions.hpp"
-#include "onyx/core/specs.hpp"
+#include "onyx/definitions.hpp"
+#include "onyx/specs.hpp"
 #include "descriptors.hpp"
 #include "conversion.hpp"
 #include "core.hpp"

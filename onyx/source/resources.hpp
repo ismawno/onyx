@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/resource/resources.hpp"
+#include "onyx/resources.hpp"
 #include "vkit/resource/device_buffer.hpp"
 
 namespace Onyx::Resources

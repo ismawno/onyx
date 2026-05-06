@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/core.hpp"
+#include "onyx/core.hpp"
 
 namespace Onyx
 {

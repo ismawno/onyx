@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/core.hpp"
+#include "onyx/core.hpp"
 #include "pass.hpp"
 #include "vkit/state/descriptor_pool.hpp"
 

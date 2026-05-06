@@ -1,6 +1,6 @@
 #pragma once
 
-#include "onyx/core/math.hpp"
+#include "onyx/math.hpp"
 
 struct GLFWwindow;
 
