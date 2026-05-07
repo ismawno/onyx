@@ -206,6 +206,20 @@ template <Dimension D> class RenderView
             recreateFrameBuffers(m_FrameBuffers.GetSize());
         }
     }
+    void SetNormalizedViewportPosition(const f32v2 &pos)
+    {
+        const f32v2 ip = 1.f / f32v2{m_ParentExtent};
+        m_Viewport.Position = Math::Clamp(pos, ip, f32v2{1.f});
+        if (!(m_Flags & RenderViewFlag_NormalizedViewportCoordinates))
+            m_Viewport = asAbsoluteViewport();
+    }
+    void SetAbsoluteViewportPosition(const f32v2 &pos)
+    {
+        m_Viewport.Position = Math::Clamp(pos, f32v2{1.f}, f32v2{m_ParentExtent});
+
+        if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
+            m_Viewport = asNormalizedViewport();
+    }
 
     Scissor GetNormalizedScissor() const
     {
