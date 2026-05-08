@@ -136,7 +136,13 @@ template <Dimension D> class RenderView
     void SetFlags(const RenderViewFlags flags)
     {
         CacheMatrices();
+        const RenderViewFlags f = m_Flags;
         m_Flags = flags;
+        if ((flags & RenderViewFlag_DynamicViewport) != (f & RenderViewFlag_DynamicViewport))
+        {
+            drainWork();
+            recreateFrameBuffers(m_FrameBuffers.GetSize());
+        }
     }
     void AddFlags(const RenderViewFlags flags)
     {
