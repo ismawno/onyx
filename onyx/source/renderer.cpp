@@ -2837,12 +2837,26 @@ static void renderCompositor(const TKit::TierArray<RenderView<D> *> &views, cons
         const VkDescriptorSet set = rv->GetCompositorSet();
         VKit::DescriptorSet::Bind(device, cmd, set, VK_PIPELINE_BIND_POINT_GRAPHICS, playout);
 
-        const VkViewport vp = AsVulkanViewport(rv->GetAbsoluteViewport());
-        const VkRect2D sc = AsVulkanScissor(rv->GetAbsoluteScissor());
+        // TODO(Isma): Here, you must get the scissor normalized wrt viewport, re-normalize to screen with the viewport
+        // coordinates, and multiply by the parent extent
+        const Viewport vp = rv->GetAbsoluteViewport();
+        const Viewport nvp = rv->GetNormalizedViewport();
+        const f32v2 pext = f32v2{rv->GetParentExtent()};
+
+        // the +2 here adds a very small offset that prevents some (rounding??) error that causes a bit of undefined
+        // texture to be rendered, clipped from the view's attachment
+        const f32 padding = 2.f;
+        Scissor sc = rv->GetNormalizedScissor();
+        sc.Position = (sc.Position * nvp.Extent + nvp.Position) * (pext + padding);
+        sc.Extent *= nvp.Extent * (pext - padding);
+
+        const VkRect2D scissor = AsVulkanScissor(sc);
+
+        const VkViewport viewport = AsVulkanViewport(vp);
         const u32 idx = rv->GetImageIndex();
 
-        table->CmdSetViewport(cmd, 0, 1, &vp);
-        table->CmdSetScissor(cmd, 0, 1, &sc);
+        table->CmdSetViewport(cmd, 0, 1, &viewport);
+        table->CmdSetScissor(cmd, 0, 1, &scissor);
         table->CmdPushConstants(cmd, playout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(u32), &idx);
         table->CmdDraw(cmd, 6, 1, 0, 0);
     }

@@ -251,13 +251,13 @@ template <Dimension D> f32v2 RenderView<D>::ScreenToViewport(const f32v2 &screen
 {
     const f32v2 dif = screenPos - m_Viewport.Position;
     if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-        return dif / (m_Viewport.Extent - m_Viewport.Position);
+        return dif / m_Viewport.Extent;
     return dif;
 }
 template <Dimension D> f32v2 RenderView<D>::ViewportToScreen(const f32v2 &viewportPos) const
 {
     if (m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
-        return viewportPos * (m_Viewport.Extent - m_Viewport.Position) + m_Viewport.Position;
+        return viewportPos * m_Viewport.Extent + m_Viewport.Position;
     return viewportPos + m_Viewport.Position;
 }
 
@@ -266,7 +266,7 @@ template <Dimension D> f32v<D> RenderView<D>::ViewportToWorld(const f32v<D> &vie
     const f32m<D> pv = Math::Inverse(m_ProjectionView);
     const f32v2 remapped = 2.f * ((m_Flags & RenderViewFlag_NormalizedViewportCoordinates)
                                       ? f32v2{viewportPos}
-                                      : (f32v2{viewportPos} / f32v2{m_ParentExtent})) -
+                                      : (f32v2{viewportPos} / f32v2{m_Viewport.Extent})) -
                            1.f;
 
     if constexpr (D == D2)
@@ -277,6 +277,15 @@ template <Dimension D> f32v<D> RenderView<D>::ViewportToWorld(const f32v<D> &vie
         const f32v4 clip = pv * f32v4{rm, 1.f};
         return f32v3{clip} / clip[3];
     }
+}
+
+template <Dimension D> static VkRect2D getScissor(const RenderView<D> *view, const u32v2 &ext)
+{
+    const f32v2 fext = f32v2{ext};
+    Scissor sc = view->GetNormalizedScissor();
+    sc.Position *= fext;
+    sc.Extent *= fext;
+    return AsVulkanScissor(sc);
 }
 
 template <Dimension D> f32v2 RenderView<D>::WorldToViewport(const f32v<D> &worldPos) const
@@ -356,7 +365,8 @@ template <Dimension D> void RenderView<D>::BeginRendering(const VkCommandBuffer 
                                         .DstStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT_KHR});
 
     const VkRenderingAttachmentInfoKHR stencil = depth;
-    const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
+    const u32v2 ext = GetRenderExtent();
+    const VkExtent2D extent = AsVulkanExtent(ext);
 
     VkRenderingInfoKHR renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
@@ -367,7 +377,7 @@ template <Dimension D> void RenderView<D>::BeginRendering(const VkCommandBuffer 
     renderInfo.pDepthAttachment = &depth;
     renderInfo.pStencilAttachment = &stencil;
 
-    VkViewport viewport{};
+    VkViewport viewport;
     viewport.x = 0.f;
     viewport.y = 0.f;
     viewport.width = f32(extent.width);
@@ -375,12 +385,9 @@ template <Dimension D> void RenderView<D>::BeginRendering(const VkCommandBuffer 
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
 
-    VkRect2D scissor{};
-    scissor.offset = {0, 0};
-    scissor.extent = extent;
+    const VkRect2D scissor = getScissor(this, ext);
 
     const auto table = GetDeviceTable();
-
     table->CmdSetViewport(cmd, 0, 1, &viewport);
     table->CmdSetScissor(cmd, 0, 1, &scissor);
 
@@ -449,7 +456,8 @@ template <Dimension D> void RenderView<D>::BeginPostProcess(const VkCommandBuffe
                                        .SrcStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT_KHR,
                                        .DstStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR});
 
-    const VkExtent2D extent = AsVulkanExtent(GetRenderExtent());
+    const u32v2 ext = GetRenderExtent();
+    const VkExtent2D extent = AsVulkanExtent(ext);
 
     VkRenderingInfoKHR renderInfo{};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO_KHR;
@@ -466,9 +474,7 @@ template <Dimension D> void RenderView<D>::BeginPostProcess(const VkCommandBuffe
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
 
-    VkRect2D scissor{};
-    scissor.offset = {0, 0};
-    scissor.extent = extent;
+    const VkRect2D scissor = getScissor(this, ext);
 
     const auto table = GetDeviceTable();
 

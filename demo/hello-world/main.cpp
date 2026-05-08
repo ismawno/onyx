@@ -27,12 +27,13 @@ int main()
 
     Camera<D2> cam{};
     cam.OrthoParameters.Size = 5.f;
-    RenderView<D2> *view = win->CreateRenderView<D2>(
-        &cam, RenderViewFlag_NormalizedViewportCoordinates | RenderViewFlag_NormalizedScissorCoordinates |
-                  RenderViewFlag_DynamicViewport | RenderViewFlag_Outlines | RenderViewFlag_PostProcess);
+    const RenderViewFlags f = RenderViewFlag_Outlines | RenderViewFlag_PostProcess;
+    const bool norm = f & RenderViewFlag_NormalizedCoordinates;
+    RenderView<D2> *view = win->CreateRenderView<D2>(&cam, f);
 
     ctx->AddTarget(view);
 
+    SetTargetDeltaTime(win, TKit::Timespan::FromSeconds(1.f / 240.f));
     while (Running())
     {
         ctx->Flush();
@@ -51,18 +52,41 @@ int main()
         {
             const f32v2 npos = win->GetNormalizedMousePosition();
             const f32v2 apos = win->GetAbsoluteMousePosition();
-            const f32v2 wpos = view->ScreenToWorld(npos);
+            const f32v2 wpos = view->ScreenToWorld(norm ? npos : apos);
+            const f32v2 vpos = view->ScreenToViewport(norm ? npos : apos);
+            const f32 dt = GetDeltaTime(win).AsMilliseconds();
 
             ImGui::Begin("This is a test");
+            ImGui::Text("Delta time: %.2f", dt);
             ImGui::Text("Normalized mouse: (%.2f, %.2f)", npos[0], npos[1]);
             ImGui::Text("Absolute mouse: (%.0f, %.0f)", apos[0], apos[1]);
+
             ImGui::Text("World mouse: (%.2f, %.2f)", wpos[0], wpos[1]);
+            ImGui::Text("Viewport mouse: (%.2f, %.2f)", vpos[0], vpos[1]);
             ImGui::End();
 
-            // Viewport vp{};
-            // vp.Position = npos;
-            // vp.Extent = 1.f - 2.f * npos;
-            // view->SetNormalizedViewport(vp);
+            if (win->IsMousePressed(Mouse_Button2))
+            {
+                Scissor sc{};
+                sc.Position = vpos;
+                if (norm)
+                {
+                    sc.Extent = 1.f - vpos;
+                    view->SetNormalizedScissor(sc);
+                }
+                else
+                {
+                    sc.Extent = f32v2{view->GetExtent()} - vpos;
+                    view->SetAbsoluteScissor(sc);
+                }
+            }
+            else if (win->IsMousePressed(Mouse_Button1))
+            {
+                Viewport vp{};
+                vp.Position = apos;
+                vp.Extent = f32v2{view->GetParentExtent()} - apos;
+                view->SetAbsoluteViewport(vp);
+            }
         }
 #endif
 
