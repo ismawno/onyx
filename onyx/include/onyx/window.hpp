@@ -8,7 +8,7 @@
 #include "tkit/profiling/clock.hpp"
 #include "tkit/container/static_array.hpp"
 
-ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(VkSurfaceKHR)
+ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(SurfaceKHR)
 
 struct GLFWwindow;
 
@@ -75,8 +75,8 @@ class Window
 
     static Window *FromHandle(GLFWwindow *window);
 
-    void BeginRendering(VkCommandBuffer commandBuffer, const Execution::Tracker &tracker);
-    void EndRendering(VkCommandBuffer commandBuffer);
+    void BeginRendering(Onyx_CommandBuffer commandBuffer, const Execution::Tracker &tracker);
+    void EndRendering(Onyx_CommandBuffer commandBuffer);
 
     bool ShouldClose() const;
 
@@ -139,7 +139,7 @@ class Window
     bool IsMousePressed(Mouse button) const;
     bool IsMouseReleased(Mouse button) const;
 
-    VkSurfaceKHR GetSurface() const
+    Onyx_SurfaceKHR GetSurface() const
     {
         return m_Surface;
     }
@@ -231,8 +231,8 @@ class Window
         m_PresentMode = presentMode;
     }
 
-    VkSemaphore GetImageAvailableSemaphore() const;
-    VkSemaphore GetRenderFinishedSemaphore() const;
+    Onyx_Semaphore GetImageAvailableSemaphore() const;
+    Onyx_Semaphore GetRenderFinishedSemaphore() const;
 
     template <Dimension D> const TKit::StaticArray<RenderView<D> *, ONYX_MAX_VIEWS> &GetRenderViews() const
     {
@@ -286,7 +286,7 @@ class Window
     TKit::StaticArray<RenderView<D3> *, ONYX_MAX_VIEWS> m_RenderViews3{};
 
     TKit::TierArray<Event> m_Events;
-    VkSurfaceKHR m_Surface;
+    Onyx_SurfaceKHR m_Surface;
 
     TKit::Timespan m_MonitorDeltaTime{};
     TKit::Clock m_TimeSinceResize{};

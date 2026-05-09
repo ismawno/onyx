@@ -4,9 +4,9 @@
 #include "onyx/camera.hpp"
 #include "onyx/color.hpp"
 
-ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(VkDescriptorSet)
-ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(VkSemaphore)
-ONYX_DECLARE_DISPATCHABLE_VK_HANDLE(VkCommandBuffer)
+ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(DescriptorSet)
+ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(Semaphore)
+ONYX_DECLARE_DISPATCHABLE_VK_HANDLE(CommandBuffer)
 
 namespace Onyx::Execution
 {
@@ -88,11 +88,11 @@ template <Dimension D> class RenderView
         return ViewportToScreen(WorldToViewport(worldPos));
     }
 
-    void BeginRendering(VkCommandBuffer cmd, const Execution::Tracker &tracker);
-    void EndRendering(VkCommandBuffer cmd);
+    void BeginRendering(Onyx_CommandBuffer cmd, const Execution::Tracker &tracker);
+    void EndRendering(Onyx_CommandBuffer cmd);
 
-    void BeginPostProcess(VkCommandBuffer cmd);
-    void EndPostProcess(VkCommandBuffer cmd);
+    void BeginPostProcess(Onyx_CommandBuffer cmd);
+    void EndPostProcess(Onyx_CommandBuffer cmd);
 
     bool IsWithinViewport(const f32v2 &screenPos) const
     {
@@ -289,11 +289,11 @@ template <Dimension D> class RenderView
         CacheMatrices();
     }
 
-    VkDescriptorSet GetPostProcessSet() const
+    Onyx_DescriptorSet GetPostProcessSet() const
     {
         return m_PostProcessSet;
     }
-    VkDescriptorSet GetCompositorSet() const
+    Onyx_DescriptorSet GetCompositorSet() const
     {
         return m_CompositorSet;
     }
@@ -384,8 +384,8 @@ template <Dimension D> class RenderView
     f32m<D> m_ProjectionView = f32m<D>::Identity();
 
     TKit::TierArray<FrameBuffer *> m_FrameBuffers{};
-    VkDescriptorSet m_PostProcessSet;
-    VkDescriptorSet m_CompositorSet;
+    Onyx_DescriptorSet m_PostProcessSet;
+    Onyx_DescriptorSet m_CompositorSet;
     u32 m_ImageIndex = TKIT_U32_MAX;
     RenderViewFlags m_Flags = 0;
 
@@ -396,8 +396,8 @@ struct RenderTargetInfo
 {
     TKit::TierArray<RenderView<D2> *> Views2;
     TKit::TierArray<RenderView<D3> *> Views3;
-    VkSemaphore ImageAvailableSemaphore;
-    VkSemaphore RenderFinishedSemaphore;
+    Onyx_Semaphore ImageAvailableSemaphore;
+    Onyx_Semaphore RenderFinishedSemaphore;
 };
 
 } // namespace Onyx
