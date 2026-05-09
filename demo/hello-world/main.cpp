@@ -27,7 +27,8 @@ int main()
 
     Camera<D2> cam{};
     cam.OrthoParameters.Size = 5.f;
-    const RenderViewFlags f = RenderViewFlag_Outlines | RenderViewFlag_PostProcess;
+    const RenderViewFlags f =
+        RenderViewFlag_Outlines | RenderViewFlag_PostProcess | RenderViewFlag_NormalizedCoordinates;
     const bool norm = f & RenderViewFlag_NormalizedCoordinates;
     RenderView<D2> *view = win->CreateRenderView<D2>(&cam, f);
 
@@ -36,14 +37,21 @@ int main()
     SetTargetDeltaTime(win, TKit::Timespan::FromSeconds(1.f / 240.f));
     while (Running())
     {
+        const f32v2 mpos = view->ScreenToWorld(win->GetNormalizedMousePosition());
         ctx->Flush();
-        ctx->AddRenderFlags(RenderModeFlag_Outlined);
-        ctx->OutlineColor(Color_Orange);
-        ctx->OutlineWidth(1.f);
+        ctx->FillColor(Color_Green);
+        ctx->StaticMesh(mesh);
         ctx->FillColor(Color_Blue);
+        const bool lshift = win->IsKeyPressed(Key_LeftShift);
+        ctx->Rotate(0.3f);
+        if (lshift)
+            ctx->BeginClip(ctx->WorldToLocal(mpos), f32v2{1.f});
+        ctx->Scale(1.5f);
         ctx->StaticMesh(mesh);
         ctx->TranslateX(0.5f);
         ctx->Circle();
+        if (lshift)
+            ctx->EndClip();
 
         win->ControlCamera(GetDeltaTime(win), &cam);
 

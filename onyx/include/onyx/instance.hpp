@@ -98,6 +98,20 @@ enum LightFlagBit : LightFlags
 
 template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 2 : 3;
 
+template <Dimension D> struct WorldRect
+{
+    f32v<D> Min;
+    f32v<D> Edge0;
+    f32v<D> Edge1;
+};
+template <> struct WorldRect<D3>
+{
+    f32v3 Min;
+    f32v3 Edge0;
+    f32v3 Edge1;
+    f32v3 Edge2;
+};
+
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
 

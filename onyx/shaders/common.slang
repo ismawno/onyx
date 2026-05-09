@@ -16,9 +16,24 @@ struct Transform3D
     f32 Elm02, Elm12, Elm22, Elm32;
 }
 
+struct WorldRect2D
+{
+    f32 Min[2];
+    f32 Edge0[2];
+    f32 Edge1[2];
+}
+struct WorldRect3D
+{
+    f32 Min[3];
+    f32 Edge0[3];
+    f32 Edge1[3];
+    f32 Edge2[3];
+}
+
 struct InstanceData2D
 {
     Transform2D Transform;
+    WorldRect2D Rect;
     u32 FillColor;
     u32 OutlineColor;
     u32 Alignment;
@@ -30,6 +45,7 @@ struct InstanceData2D
 struct InstanceData3D
 {
     Transform3D Transform;
+    WorldRect3D Rect;
     u32 FillColor;
     u32 OutlineColor;
     u32 Alignment;
@@ -58,6 +74,51 @@ enum Alignment : u8
     Alignment_Far = Alignment_Right,
     Alignment_None = 3,
 };
+
+#define TKIT_F32_LOWEST -340282346638528859811704183484516925440.000000
+
+bool CheckWorldClip(const f32v2 worldPos, const WorldRect2D rect)
+{
+    if (rect.Min[0] == TKIT_F32_LOWEST)
+        return true;
+
+    const f32v2 mn = f32v2(rect.Min[0], rect.Min[1]);
+    const f32v2 edg0 = f32v2(rect.Edge0[0], rect.Edge0[1]);
+    const f32v2 edg1 = f32v2(rect.Edge1[0], rect.Edge1[1]);
+
+    const f32v2 dif = worldPos - mn;
+
+    const f32 d0 = dot(dif, edg0);
+    const f32 d1 = dot(dif, edg1);
+
+    const f32 e0 = dot(edg0, edg0);
+    const f32 e1 = dot(edg1, edg1);
+
+    return d0 > 0.f && d0 < e0 && d1 > 0.f && d1 < e1;
+}
+
+bool CheckWorldClip(const f32v3 worldPos, const WorldRect3D rect)
+{
+    if (rect.Min[0] == TKIT_F32_LOWEST)
+        return true;
+
+    const f32v3 mn = f32v3(rect.Min[0], rect.Min[1], rect.Min[2]);
+    const f32v3 edg0 = f32v3(rect.Edge0[0], rect.Edge0[1], rect.Edge0[2]);
+    const f32v3 edg1 = f32v3(rect.Edge1[0], rect.Edge1[1], rect.Edge1[2]);
+    const f32v3 edg2 = f32v3(rect.Edge2[0], rect.Edge2[1], rect.Edge2[2]);
+
+    const f32v3 dif = worldPos - mn;
+
+    const f32 d0 = dot(dif, edg0);
+    const f32 d1 = dot(dif, edg1);
+    const f32 d2 = dot(dif, edg2);
+
+    const f32 e0 = dot(edg0, edg0);
+    const f32 e1 = dot(edg1, edg1);
+    const f32 e2 = dot(edg2, edg2);
+
+    return d0 > 0.f && d0 < e0 && d1 > 0.f && d1 < e1 && d2 > 0.f && d2 < e2;
+}
 
 u32 GetResourceId(const u32 handle)
 {

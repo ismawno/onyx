@@ -157,9 +157,8 @@ enum Alignment : u8
     Alignment_None = 3,
 };
 
-template <Dimension D> struct RenderState
+template <Dimension D> struct ContextState
 {
-
     f32m<D> Transform = f32m<D>::Identity();
     Color FillColor = Color_White;
     Color OutlineColor = Color_White;
@@ -171,6 +170,24 @@ template <Dimension D> struct RenderState
     Resource FontSampler = NullHandle;
     vec<Alignment, D> Alignment{Alignment_None};
     RenderModeFlags RenderFlags = RenderModeFlag_Shaded;
+};
+
+template <Dimension D> struct ClipRect
+{
+    f32v<D> Min;
+    f32v<D> Max;
+
+    void Union(const ClipRect<D> &other)
+    {
+        Min = Math::Max(Min, other.Min);
+        Max = Math::Min(Max, other.Max);
+    }
+};
+
+template <Dimension D> struct RectPair
+{
+    ClipRect<D> Clip;
+    WorldRect<D> World;
 };
 
 struct InstanceDataArrays;
@@ -391,7 +408,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void Line(Resource staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
     void Axes(Resource staticMesh, const AxesParameters &params = {});
 
-    void Push(const RenderState<D> &state)
+    void Push(const ContextState<D> &state)
     {
         m_StateStack.Append(state);
         updateState();
@@ -400,11 +417,42 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         Push(*m_Current);
     }
+    void PushClear()
+    {
+        Push(ContextState<D>{});
+    }
+
+    void BeginClip(ClipRect<D> rect)
+    {
+        TKIT_ASSERT(!m_ClipStack.IsEmpty(), "[ONYX][CONTEXT] For every BeginClip(), there must be a EndClip()");
+        const RectPair<D> &parent = m_ClipStack.GetBack();
+
+        rect.Union(parent.Clip);
+        m_ClipStack.Append(rect, computeWorldRect(rect));
+    }
+    void BeginClip(const f32v<D> &position, const f32v<D> &extent)
+    {
+        BeginClip(ClipRect<D>{position, position + extent});
+    }
+    void EndClip()
+    {
+        m_ClipStack.Pop();
+        TKIT_ASSERT(!m_ClipStack.IsEmpty(), "[ONYX][CONTEXT] For every BeginClip(), there must be a EndClip()");
+    }
+
+    f32v<D> WorldToLocal(const f32v<D> &world)
+    {
+        return f32v<D>{Math::Inverse(m_Current->Transform) * f32v<D + 1>{world, 1.f}};
+    }
+    f32v<D> LocalToWorld(const f32v<D> &local)
+    {
+        return f32v<D>{m_Current->Transform * f32v<D + 1>{local, 1.f}};
+    }
 
     void Pop()
     {
-        TKIT_ASSERT(m_StateStack.GetSize() > 1, "[ONYX][CONTEXT] For every Push(), there must be a Pop()");
         m_StateStack.Pop();
+        TKIT_ASSERT(!m_StateStack.IsEmpty(), "[ONYX][CONTEXT] For every Push(), there must be a Pop()");
         updateState();
     }
 
@@ -455,16 +503,16 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         m_DirectionalLightData.Append(params);
     }
 
-    const RenderState<D> &GetState() const
+    const ContextState<D> &GetState() const
     {
         return *m_Current;
     }
-    RenderState<D> &GetState()
+    ContextState<D> &GetState()
     {
         return *m_Current;
     }
 
-    void SetState(const RenderState<D> &state);
+    void SetState(const ContextState<D> &state);
 
     const auto &GetInstanceData() const
     {
@@ -525,7 +573,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     }
 
   protected:
-    RenderState<D> *m_Current{};
+    ContextState<D> *m_Current{};
 
   private:
     void updateState()
@@ -535,6 +583,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 
     void resizeBuffer(InstanceDataBuffer &buffer);
     void resizeBufferArrays();
+    WorldRect<D> computeWorldRect(const ClipRect<D> &clip);
 
     template <typename T> void addInstanceData(InstanceDataBuffer &buffer, const T &data);
 
@@ -548,7 +597,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void checkMaterial(Resource material);
 #endif
 
-    TKit::TierArray<RenderState<D>> m_StateStack{};
+    TKit::TierArray<ContextState<D>> m_StateStack{};
+    TKit::TierArray<RectPair<D>> m_ClipStack{};
     TKit::FixedArray<InstanceDataArrays *, RenderMode_Count> m_InstanceData{};
 
     TKit::TierArray<PointLightParameters<D>> m_PointLightData{};

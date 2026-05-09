@@ -4,10 +4,6 @@
 #    define ONYX_USES_MATERIAL
 #endif
 
-#if defined(ONYX_PASS_SHADED) || (defined(ONYX_PASS_SHADOW) && defined(ONYX_DIMENSION_3D))
-#    define ONYX_USES_WORLD_POS
-#endif
-
 #if !defined(ONYX_GEOMETRY_CIRCLE) && !defined(ONYX_GEOMETRY_GLYPH)
 #   define ONYX_USES_BOUNDS
 #endif
@@ -38,6 +34,7 @@
 #    define DirectionalLightBuffer DirectionalLights2D
 #    define ShadowSamplerResource SamplerState
 #    define ResourceTable ResourceTable2D
+#    define WorldRect WorldRect2D
 #    define f32v f32v2
 
 #    ifdef ONYX_GEOMETRY_CIRCLE
@@ -68,6 +65,7 @@
 #    define DirectionalLightBuffer DirectionalLights3D
 #    define ShadowSamplerResource SamplerComparisonState
 #    define ResourceTable ResourceTable3D
+#    define WorldRect WorldRect3D
 #    define f32v f32v3
 
 #    ifdef ONYX_GEOMETRY_CIRCLE
@@ -136,54 +134,24 @@ struct FragInput
     f32v2 TexCoord;
 #endif
 
-#ifdef ONYX_USES_WORLD_POS
     [[vk::location(2)]]
     f32v WorldPosition;
-#endif
 
-#ifdef ONYX_USES_MATERIAL
     [[vk::location(3)]]
-    nointerpolation u32 MatId;
-#endif
+    nointerpolation u32 InstanceIndex;
 
 #ifdef ONYX_GEOMETRY_GLYPH
     [[vk::location(4)]]
     f32v2 AtlasCoords;
-
-    [[vk::location(5)]]
-    nointerpolation u32 SamplerId;
-
-    [[vk::location(6)]]
-    nointerpolation u32 AtlasId;
 #endif
 
 #ifdef ONYX_GEOMETRY_PARAMETRIC
-    [[vk::location(7)]]
+    [[vk::location(5)]]
     nointerpolation u32v2 ShapeInfo;
 #endif
 
-#ifdef ONYX_GEOMETRY_CIRCLE
-    [[vk::location(8)]]
-    nointerpolation ArcData Arc;
-
-#    ifdef ONYX_PASS_SHADED
-    [[vk::location(11)]]
-    nointerpolation f32v2 Fade;
-#    endif
-
-#endif
-
-#ifndef ONYX_PASS_SHADOW
-    [[vk::location(12)]]
-    nointerpolation f32v4 FillColor;
-    [[vk::location(13)]]
-    nointerpolation f32v4 OutlineColor;
-    [[vk::location(14)]]
-    nointerpolation f32 OutlineWidth;
-#endif
-
 #if defined(ONYX_DIMENSION_3D) && defined(ONYX_PASS_SHADED)
-    [[vk::location(15)]]
+    [[vk::location(6)]]
     f32m3 TBN;
 #endif
 
@@ -317,8 +285,6 @@ FragInput mainVS(
 
 #ifdef ONYX_GEOMETRY_GLYPH
     finput.AtlasCoords = input.AtlasCoords;
-    finput.SamplerId = GetResourceId(gdata.SamplerHandle);
-    finput.AtlasId = GetResourceId(gdata.AtlasHandle);
 #endif
 
 #if defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_PARAMETRIC)
@@ -329,31 +295,8 @@ FragInput mainVS(
     finput.ShapeInfo = u32v2(params.Shape, input.Region);
 #endif
 
-#ifdef ONYX_USES_WORLD_POS
     finput.WorldPosition = ONYX_VEC(worldPos);
-#endif
-
-#ifdef ONYX_USES_MATERIAL
-    finput.MatId = GetResourceId(data.MatHandle);
-#endif
-
-#ifdef ONYX_GEOMETRY_CIRCLE
-
-    finput.Arc.CosSin = f32v4(gdata.Arc.LowerCos, gdata.Arc.LowerSin, gdata.Arc.UpperCos, gdata.Arc.UpperSin);
-    finput.Arc.AngleOverflow = gdata.Arc.AngleOverflow;
-    finput.Arc.Hollowness = gdata.Arc.Hollowness;
-
-#    ifdef ONYX_PASS_SHADED
-    finput.Fade = f32v2(gdata.Fade.InnerFade, gdata.Fade.OuterFade);
-#    endif
-
-#endif
-
-#ifndef ONYX_PASS_SHADOW
-    finput.FillColor = unpackUnorm4x8ToFloat(data.FillColor);
-    finput.OutlineColor = unpackUnorm4x8ToFloat(data.OutlineColor);
-    finput.OutlineWidth = data.OutlineWidth;
-#endif
+    finput.InstanceIndex = instanceIndex;
 
     return finput;
 }
@@ -419,23 +362,41 @@ FragOutput mainFS(const FragInput input) FragSuffix
 
 {
 
+    const GeometryInstanceData gdata = g_Instances[input.InstanceIndex];
+    const InstanceData data = gdata.Data;
+
+    const WorldRect rect = data.Rect;
+    if (!CheckWorldClip(input.WorldPosition, rect))
+        discard;
+
 #ifdef ONYX_GEOMETRY_PARAMETRIC
 
-if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
-    discard;
+    if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
+        discard;
 
+#endif
+#ifndef ONYX_PASS_SHADOW
+    const f32v4 fill = unpackUnorm4x8ToFloat(data.FillColor);
+    const f32v4 outline = unpackUnorm4x8ToFloat(data.OutlineColor);
+    const f32 outlineWidth = data.OutlineWidth;
+#endif
+
+#ifdef ONYX_USES_MATERIAL
+    const u32 mid = GetResourceId(data.MatHandle);
 #endif
 
 #ifdef ONYX_GEOMETRY_CIRCLE
-    const CircleBounds bounds = GetCircleBounds(input.LocalPosition, input.Arc.Hollowness);
-    if (!CheckOutsideCircle(bounds, input.LocalPosition, input.Arc)) discard;
+    const CircleBounds bounds = GetCircleBounds(input.LocalPosition, gdata.Arc.Hollowness);
+    if (!CheckOutsideCircle(bounds, input.LocalPosition, gdata.Arc)) discard;
 
 #    ifdef ONYX_PASS_SHADED
-    const f32 alpha = CircleFade(input.FillColor.a, bounds, input.Fade);
+    const f32 alpha = CircleFade(fill.a, bounds, gdata.Fade);
 #    endif
 
 #elif defined(ONYX_GEOMETRY_GLYPH)
-    const f32 alpha = ComputeMTSDFCoverage(g_Samplers, g_Textures, input.SamplerId, input.AtlasId, input.AtlasCoords);
+    const u32 samplerId = GetResourceId(gdata.SamplerHandle);
+    const u32 atlasId = GetResourceId(gdata.AtlasHandle);
+    const f32 alpha = ComputeMTSDFCoverage(g_Samplers, g_Textures, samplerId, atlasId, input.AtlasCoords);
     if (alpha <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
 
@@ -445,7 +406,7 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
 
 #ifndef ONYX_PASS_SHADOW
     FragOutput out;
-    out.Outline = f32v4(input.OutlineColor.xyz, input.OutlineWidth);
+    out.Outline = f32v4(outline.xyz, outlineWidth);
 #endif
 
 #ifdef ONYX_PASS_SHADED
@@ -465,13 +426,13 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
     resources.DirectionalMaps = g_DirectionalMaps;
     resources.SpotMaps = g_SpotMaps;
 
-    out.Fill = ComputeMaterialColor(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
+    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mid, input.WorldPosition, input.TexCoord, resources, alpha, input.TBN, isFrontFacing);
     return out;
 
 #    else
 
     resources.ShadowMaps = g_ShadowMaps;
-    out.Fill = ComputeMaterialColor(input.FillColor, g_PushData.Light, input.MatId, input.WorldPosition, input.TexCoord, resources, alpha);
+    out.Fill = ComputeMaterialColor(fill, g_PushData.Light, mid, input.WorldPosition, input.TexCoord, resources, alpha);
     return out;
 
 #    endif
@@ -480,7 +441,7 @@ if (!CheckParametricFragment(input.LocalPosition, input.ShapeInfo))
 
 #    ifdef ONYX_DIMENSION_2D
 
-    if (input.MatId == NullResource || g_Materials[input.MatId].Occluder == 0)
+    if (mid == NullResource || g_Materials[mid].Occluder == 0)
         discard;
 
     return f32v4(1.f);

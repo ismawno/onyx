@@ -41,9 +41,12 @@ template <Dimension D> TransformData<D> CreateTransformData(const f32m<D> &trans
     return data;
 }
 
+// having world rect per instance is a bit painful. bloats instance data a lot, but i really could not find a better
+// alternative due to how contexts are designed to be independent and its data being read only once recorded
 template <Dimension D> struct InstanceData
 {
     TransformData<D> Transform;
+    WorldRect<D> Rect;
     u32 FillColor;
     u32 OutlineColor;
     u32 Alignment;
@@ -53,6 +56,7 @@ template <Dimension D> struct InstanceData
 template <> struct InstanceData<D2>
 {
     TransformData<D2> Transform;
+    WorldRect<D2> Rect;
     u32 FillColor;
     u32 OutlineColor;
     u32 Alignment;

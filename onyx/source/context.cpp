@@ -13,6 +13,10 @@ using namespace Detail;
 template <Dimension D> IRenderContext<D>::IRenderContext()
 {
     m_Current = &m_StateStack.Append();
+
+    ClipRect<D> crect{f32v<D>{TKIT_F32_LOWEST}, f32v<D>{TKIT_F32_MAX}};
+    m_ClipStack.Append(crect, computeWorldRect(crect));
+
     TKit::TierAllocator *tier = GetTier();
     for (u32 i = 0; i < RenderMode_Count; ++i)
     {
@@ -41,10 +45,12 @@ template <Dimension D> IRenderContext<D>::~IRenderContext()
 
 template <Dimension D> void IRenderContext<D>::Flush()
 {
+    TKIT_ASSERT(m_ClipStack.GetSize() == 1,
+                "[ONYX][CONTEXT] Mismatched BeginClip() call found. For every BeginClip(), there must be a EndClip()");
     TKIT_ASSERT(m_StateStack.GetSize() == 1,
                 "[ONYX][CONTEXT] Mismatched Push() call found. For every Push(), there must be a Pop()");
 
-    m_StateStack[0] = RenderState<D>{};
+    m_StateStack[0] = ContextState<D>{};
     m_Current = &m_StateStack.GetFront();
     for (InstanceDataArrays *instanceData : m_InstanceData)
     {
@@ -122,13 +128,15 @@ template <Dimension D> void checkMaterial(const Resource material)
 #endif
 
 template <Dimension D>
-static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32m<D> &transform, const u32 depthCounter)
+static InstanceData<D> createInstanceData(const ContextState<D> *state, const f32m<D> &transform,
+                                          const WorldRect<D> &rect, const u32 depthCounter)
 {
 #ifdef TKIT_ENABLE_ASSERTS
     checkMaterial<D>(state->Material);
 #endif
     InstanceData<D> instanceData;
     instanceData.Transform = CreateTransformData<D>(transform);
+    instanceData.Rect = rect;
     instanceData.MatHandle = state->Material;
     instanceData.FillColor = state->FillColor.ToLinear().Pack();
     instanceData.OutlineColor = state->OutlineColor.ToLinear().Pack();
@@ -146,18 +154,20 @@ static InstanceData<D> createInstanceData(const RenderState<D> *state, const f32
 }
 
 template <Dimension D>
-static StaticInstanceData<D> createStaticInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                      const Resource bounds, const u32 depthCounter)
+static StaticInstanceData<D> createStaticInstanceData(const ContextState<D> *state, const f32m<D> &transform,
+                                                      const Resource bounds, const WorldRect<D> &rect,
+                                                      const u32 depthCounter)
 {
     StaticInstanceData<D> instanceData;
-    instanceData.Data = createInstanceData(state, transform, depthCounter);
+    instanceData.Data = createInstanceData(state, transform, rect, depthCounter);
     instanceData.BoundsHandle = bounds;
     return instanceData;
 }
 
 template <Dimension D>
-static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                      const CircleParameters &params, const u32 depthCounter)
+static CircleInstanceData<D> createCircleInstanceData(const ContextState<D> *state, const f32m<D> &transform,
+                                                      const CircleParameters &params, const WorldRect<D> &rect,
+                                                      const u32 depthCounter)
 {
     // constexpr TKit::FixedArray<f32v2, 9> bounds = {f32v2{-0.5f, -0.5f}, f32v2{-0.5f, 0.f}, f32v2{-0.5f, 0.5f},
     //                                                f32v2{0.f, -0.5f},   f32v2{0.f, 0.f},   f32v2{0.f, 0.5f},
@@ -165,7 +175,7 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
     //
     // const f32v2 &alignment = bounds[state->Alignment[0] * 3 + state->Alignment[1]];
     CircleInstanceData<D> instanceData;
-    instanceData.Data = createInstanceData(state, transform, depthCounter);
+    instanceData.Data = createInstanceData(state, transform, rect, depthCounter);
 
     instanceData.Arc.LowerCos = Math::Cosine(params.LowerAngle);
     instanceData.Arc.LowerSin = Math::Sine(params.LowerAngle);
@@ -181,12 +191,13 @@ static CircleInstanceData<D> createCircleInstanceData(const RenderState<D> *stat
 }
 
 template <Dimension D>
-static ParametricInstanceData<D> createParametricInstanceData(const RenderState<D> *state, const f32m<D> &transform,
+static ParametricInstanceData<D> createParametricInstanceData(const ContextState<D> *state, const f32m<D> &transform,
                                                               const Resource bounds, const ParametricShape shape,
-                                                              const InstanceParameters &params, const u32 depthCounter)
+                                                              const InstanceParameters &params,
+                                                              const WorldRect<D> &rect, const u32 depthCounter)
 {
     ParametricInstanceData<D> instanceData;
-    instanceData.Data = createInstanceData(state, transform, depthCounter);
+    instanceData.Data = createInstanceData(state, transform, rect, depthCounter);
     instanceData.BoundsHandle = bounds;
     instanceData.Shape = shape;
     instanceData.Parameters = params;
@@ -194,11 +205,11 @@ static ParametricInstanceData<D> createParametricInstanceData(const RenderState<
 }
 
 template <Dimension D>
-static GlyphInstanceData<D> createGlyphInstanceData(const RenderState<D> *state, const f32m<D> &transform,
-                                                    const u32 depthCounter)
+static GlyphInstanceData<D> createGlyphInstanceData(const ContextState<D> *state, const f32m<D> &transform,
+                                                    const WorldRect<D> &rect, const u32 depthCounter)
 {
     GlyphInstanceData<D> instanceData;
-    instanceData.Data = createInstanceData(state, transform, depthCounter);
+    instanceData.Data = createInstanceData(state, transform, rect, depthCounter);
     instanceData.BoundsHandle = NullHandle;
     instanceData.AtlasHandle = Resources::GetFontAtlas(state->Font);
     instanceData.SamplerHandle = state->FontSampler;
@@ -258,6 +269,48 @@ template <Dimension D> void IRenderContext<D>::resizeBufferArrays()
         }
 }
 
+template <Dimension D> WorldRect<D> IRenderContext<D>::computeWorldRect(const ClipRect<D> &clip)
+{
+    WorldRect<D> wrect;
+    if (clip.Min[0] == TKIT_F32_LOWEST)
+    {
+        wrect.Min[0] = TKIT_F32_LOWEST;
+        return wrect;
+    }
+    if constexpr (D == D2)
+    {
+        const f32m3 &t = m_Current->Transform;
+        const f32v2 &mn = clip.Min;
+        const f32v2 &mx = clip.Max;
+
+        const f32v2 corner = f32v2{t * f32v3{mn[0], mx[1], 1.f}};
+        const f32v2 wmn = f32v2{t * f32v3{mn, 1.f}};
+        const f32v2 wmx = f32v2{t * f32v3{mx, 1.f}};
+
+        wrect.Min = wmn;
+        wrect.Edge0 = corner - wmn;
+        wrect.Edge1 = wmx - corner;
+    }
+    else
+    {
+        const f32m4 &t = m_Current->Transform;
+        const f32v3 &mn = clip.Min;
+        const f32v3 &mx = clip.Max;
+
+        const f32v3 corner0 = f32v3{t * f32v4{mn[0], mx[1], mn[2], 1.f}};
+        const f32v3 corner1 = f32v3{t * f32v4{mx[0], mx[1], mn[2], 1.f}};
+        const f32v3 wmn = f32v3{t * f32v4{mn, 1.f}};
+        const f32v3 wmx = f32v3{t * f32v4{mx, 1.f}};
+
+        wrect.Min = wmn;
+        wrect.Edge0 = corner0 - wmn;
+        wrect.Edge1 = corner1 - corner0;
+        wrect.Edge2 = wmx - corner1;
+    }
+
+    return wrect;
+}
+
 template <Dimension D>
 template <typename T>
 void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &data)
@@ -271,7 +324,8 @@ template <Dimension D> void IRenderContext<D>::addCircleData(const f32m<D> &tran
 {
     if (!m_Current->RenderFlags)
         return;
-    const CircleInstanceData<D> idata = createCircleInstanceData(m_Current, transform, params, ++m_DepthCounter);
+    const CircleInstanceData<D> idata =
+        createCircleInstanceData(m_Current, transform, params, m_ClipStack.GetBack().World, ++m_DepthCounter);
     InstanceDataBuffer &buffer = m_InstanceData[GetRenderMode(m_Current->RenderFlags)]->Circles;
     addInstanceData(buffer, idata);
 }
@@ -284,8 +338,8 @@ template <Dimension D> void IRenderContext<D>::addStaticData(const Resource mesh
     const u32 pid = Resources::GetResourcePoolId(mesh);
     const u32 mid = Resources::GetResourceId(mesh);
 
-    const StaticInstanceData<D> idata =
-        createStaticInstanceData(m_Current, transform, Resources::GetMeshBounds<D>(mesh), ++m_DepthCounter);
+    const StaticInstanceData<D> idata = createStaticInstanceData(
+        m_Current, transform, Resources::GetMeshBounds<D>(mesh), m_ClipStack.GetBack().World, ++m_DepthCounter);
     InstanceDataBuffer &buffer =
         m_InstanceData[GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_StaticMesh][pid][mid];
     addInstanceData(buffer, idata);
@@ -302,8 +356,9 @@ void IRenderContext<D>::addParametricData(const Resource mesh, const f32m<D> &tr
 
     const ParametricShape shape = Resources::GetParametricShape<D>(mesh);
 
-    const ParametricInstanceData<D> idata = createParametricInstanceData(
-        m_Current, transform, Resources::GetMeshBounds<D>(mesh), shape, params, ++m_DepthCounter);
+    const ParametricInstanceData<D> idata =
+        createParametricInstanceData(m_Current, transform, Resources::GetMeshBounds<D>(mesh), shape, params,
+                                     m_ClipStack.GetBack().World, ++m_DepthCounter);
 
     InstanceDataBuffer &buffer =
         m_InstanceData[GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_ParametricMesh][pid][mid];
@@ -432,7 +487,8 @@ template <Dimension D> void IRenderContext<D>::addGlyphData(const Glyph *glyph, 
 {
     const u32 pid = Resources::GetResourcePoolId(m_Current->Font);
 
-    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, m_DepthCounter);
+    const GlyphInstanceData<D> idata =
+        createGlyphInstanceData(m_Current, transform, m_ClipStack.GetBack().World, m_DepthCounter);
     InstanceDataBuffer &buffer =
         m_InstanceData[GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_GlyphMesh][pid][glyph->Id];
     addInstanceData(buffer, idata);

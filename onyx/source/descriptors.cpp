@@ -51,7 +51,7 @@ static void createDescriptorData(const Specs &specs)
 
     s_DescriptorData->Layouts[Dim2][RenderPass_Flat] =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
-                                   .AddBinding2(buffer, vertex) // instance
+                                   .AddBinding2(buffer, vertex | fragment) // instance
                                    .AddBinding2(sampler, fragment, ONYX_MAX_SAMPLERS,
                                                 pbound | bindUnused) // samplers
                                    .AddBinding2(sampledImage, fragment, ONYX_MAX_TEXTURES,
@@ -61,7 +61,7 @@ static void createDescriptorData(const Specs &specs)
 
     s_DescriptorData->Layouts[Dim3][RenderPass_Flat] =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
-                                   .AddBinding2(buffer, vertex) // instance
+                                   .AddBinding2(buffer, vertex | fragment) // instance
                                    .AddBinding2(sampler, fragment, ONYX_MAX_SAMPLERS,
                                                 pbound | bindUnused) // samplers
                                    .AddBinding2(sampledImage, fragment, ONYX_MAX_TEXTURES,
@@ -71,7 +71,7 @@ static void createDescriptorData(const Specs &specs)
 
     s_DescriptorData->Layouts[Dim2][RenderPass_Shaded] =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
-                                   .AddBinding2(buffer, vertex) // instance
+                                   .AddBinding2(buffer, vertex | fragment) // instance
                                    .AddBinding2(sampler, fragment, ONYX_MAX_SAMPLERS,
                                                 pbound | bindUnused) // samplers
                                    .AddBinding2(sampledImage, fragment, ONYX_MAX_TEXTURES,
@@ -88,7 +88,7 @@ static void createDescriptorData(const Specs &specs)
 
     s_DescriptorData->Layouts[Dim3][RenderPass_Shaded] =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
-                                   .AddBinding2(buffer, vertex) // instance
+                                   .AddBinding2(buffer, vertex | fragment) // instance
                                    .AddBinding2(sampler, fragment, ONYX_MAX_SAMPLERS,
                                                 pbound | bindUnused) // samplers
                                    .AddBinding2(sampledImage, fragment, ONYX_MAX_TEXTURES,
@@ -110,7 +110,7 @@ static void createDescriptorData(const Specs &specs)
 
     s_DescriptorData->Layouts[Dim2][RenderPass_Shadow] =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
-                                   .AddBinding2(buffer, vertex) // instance
+                                   .AddBinding2(buffer, vertex | fragment) // instance
                                    .AddBinding2(sampler, fragment, ONYX_MAX_SAMPLERS,
                                                 pbound | bindUnused) // samplers
                                    .AddBinding2(sampledImage, fragment, ONYX_MAX_TEXTURES,
@@ -121,7 +121,7 @@ static void createDescriptorData(const Specs &specs)
 
     s_DescriptorData->Layouts[Dim3][RenderPass_Shadow] =
         ONYX_CHECK_VKIT_RESULT(VKit::DescriptorSetLayout::Builder(device)
-                                   .AddBinding2(buffer, vertex) // instance
+                                   .AddBinding2(buffer, vertex | fragment) // instance
                                    .AddBinding2(sampler, fragment, ONYX_MAX_SAMPLERS,
                                                 pbound | bindUnused) // samplers
                                    .AddBinding2(sampledImage, fragment, ONYX_MAX_TEXTURES,

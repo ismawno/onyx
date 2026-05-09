@@ -27,13 +27,6 @@ static const f32v2 g_TexCoord[6] =
 
 struct ArcData
 {
-    f32v4 CosSin;
-    u32 AngleOverflow;
-    f32 Hollowness;
-}
-
-struct ArcDataPacked
-{
     f32 LowerCos;
     f32 LowerSin;
     f32 UpperCos;
@@ -51,13 +44,13 @@ struct FadeData
 struct CircleInstanceData2D
 {
     InstanceData2D Data;
-    ArcDataPacked Arc;
+    ArcData Arc;
     FadeData Fade;
 }
 struct CircleInstanceData3D
 {
     InstanceData3D Data;
-    ArcDataPacked Arc;
+    ArcData Arc;
     FadeData Fade;
 }
 
@@ -80,8 +73,8 @@ bool CheckOutsideCircle(const CircleBounds bounds, const f32v2 localPosition, co
     if (bounds.Radius > 1.f || bounds.Radius < bounds.Hollowness)
         return false;
 
-    const f32 crs1 = localPosition.x * arc.CosSin[1] - localPosition.y * arc.CosSin[0];
-    const f32 crs2 = localPosition.x * arc.CosSin[3] - localPosition.y * arc.CosSin[2];
+    const f32 crs1 = localPosition.x * arc.LowerSin - localPosition.y * arc.LowerCos;
+    const f32 crs2 = localPosition.x * arc.UpperSin - localPosition.y * arc.UpperCos;
 
     if (arc.AngleOverflow == 1)
     {
@@ -96,10 +89,10 @@ bool CheckOutsideCircle(const CircleBounds bounds, const f32v2 localPosition, co
     return true;
 }
 
-f32 CircleFade(f32 alpha, const CircleBounds bounds, const f32v2 fade)
+f32 CircleFade(f32 alpha, const CircleBounds bounds, const FadeData fade)
 {
-    const f32 innerFade = fade[0] * fade[0];
-    const f32 outerFade = 1.0 - fade[1] * fade[1];
+    const f32 innerFade = fade.InnerFade * fade.InnerFade;
+    const f32 outerFade = 1.0 - fade.OuterFade * fade.OuterFade;
     const f32 shiftLen = (bounds.Radius - bounds.Hollowness) / (1.0 - bounds.Hollowness);
 
     if (shiftLen < innerFade)
