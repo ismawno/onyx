@@ -4,7 +4,7 @@
 #include "core.hpp"
 #include "descriptors.hpp"
 #include "instance.hpp"
-#ifdef ONYX_ENABLE_SHADER_API
+#ifdef ONYX_COMPILE_SHADERS_ON_EXEC
 #    include "shaders.hpp"
 #    include "tkit/container/stack_array.hpp"
 #else
@@ -198,7 +198,7 @@ static void compileFromBinary(const Geometry geo, const u32 start, const u32 end
 
 static void createShaders()
 {
-#ifdef ONYX_ENABLE_SHADER_API
+#ifdef ONYX_COMPILE_SHADERS_ON_EXEC
     const bool oldMesa = isOldMesa();
     Shaders::Compiler compiler{};
     if (oldMesa)
@@ -212,7 +212,7 @@ static void createShaders()
     if (IsDebugUtilsEnabled())
         compiler.AddBooleanArgument(ShaderArgument_DebugInformation);
 
-    compiler.AddSearchPath(ONYX_ROOT_PATH "/onyx/shaders");
+    compiler.AddSearchPath(ONYX_SHADERS_PATH);
 
     const TKit::FixedArray<std::string, Geometry_Count> geos = {"circle", "static", "parametric", "glyph"};
     const TKit::FixedArray<std::string, RenderPass_Count> passes = {"flat", "shaded", "shadow"};

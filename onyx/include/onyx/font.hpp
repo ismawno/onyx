@@ -58,5 +58,10 @@ struct FontLoadOptions
     f32 EmSize = 40.f;
 };
 ONYX_NO_DISCARD Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &opts = {});
+ONYX_NO_DISCARD Result<FontData> LoadFontDataFromMemory(const std::byte *memory, u32 size,
+                                                        const FontLoadOptions &opts = {});
+#    ifdef ONYX_INCLUDE_DEFAULT_FONT
+ONYX_NO_DISCARD Result<FontData> LoadDefaultFont(const FontLoadOptions &opts = {});
+#    endif
 #endif
 } // namespace Onyx

@@ -12,27 +12,17 @@ TKIT_MSVC_WARNING_IGNORE(4505)
 #    define MSDFGEN_PUBLIC
 #    include <msdf-atlas-gen/msdf-atlas-gen.h>
 TKIT_COMPILER_WARNING_IGNORE_POP()
+#    ifdef ONYX_INCLUDE_DEFAULT_FONT
+#        include "font.hpp"
+#    endif
 #endif
 
 namespace Onyx
 {
 #ifdef ONYX_ENABLE_FONT_LOAD
-Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &opts)
+ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, msdfgen::FontHandle *font,
+                                                 const FontLoadOptions &opts)
 {
-    msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
-    if (!ft)
-        return Result<>::Error(Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
-
-    msdfgen::FontHandle *font = msdfgen::loadFont(ft, path);
-    if (!font)
-    {
-        msdfgen::deinitializeFreetype(ft);
-        return Result<FontData>::Error(
-            Error_Unknown,
-            TKit::Format(
-                "[ONYX][FONT] Failed to load font at {} because of an unknown reason (msdfgen does not expose why)",
-                path));
-    }
     const TKit::Span<const CodePointRange> ranges = opts.CharSets;
 
     std::vector<msdf_atlas::GlyphGeometry> glyphs;
@@ -155,6 +145,55 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
     msdfgen::deinitializeFreetype(ft);
     return data;
 }
+Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &opts)
+{
+    msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
+    if (!ft)
+        return Result<>::Error(Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
+
+    msdfgen::FontHandle *font = msdfgen::loadFont(ft, path);
+    if (!font)
+    {
+        msdfgen::deinitializeFreetype(ft);
+        return Result<FontData>::Error(
+            Error_Unknown, TKit::Format("[ONYX][FONT] Failed to load font at {} because of an unknown reason", path));
+    }
+    return loadFont(ft, font, opts);
+}
+
+Result<FontData> LoadFontDataFromMemory(const std::byte *memory, const u32 size, const FontLoadOptions &opts)
+{
+    msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
+    if (!ft)
+        return Result<>::Error(Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
+
+    msdfgen::FontHandle *font = msdfgen::loadFontData(ft, rcast<const unsigned char *>(memory), i32(size));
+    if (!font)
+    {
+        msdfgen::deinitializeFreetype(ft);
+        return Result<FontData>::Error(Error_Unknown,
+                                       "[ONYX][FONT] Failed to load font at {} because of an unknown reason");
+    }
+    return loadFont(ft, font, opts);
+}
+#    ifdef ONYX_INCLUDE_DEFAULT_FONT
+Result<FontData> LoadDefaultFont(const FontLoadOptions &opts)
+{
+    msdfgen::FreetypeHandle *ft = msdfgen::initializeFreetype();
+    if (!ft)
+        return Result<>::Error(Error_LoadFailed, "[ONYX][FONT] Failed to initialize FreeType");
+
+    msdfgen::FontHandle *font =
+        msdfgen::loadFontData(ft, Inter_VariableFont_opsz_wght_ttf, i32(Inter_VariableFont_opsz_wght_ttf_len));
+    if (!font)
+    {
+        msdfgen::deinitializeFreetype(ft);
+        return Result<FontData>::Error(Error_Unknown,
+                                       "[ONYX][FONT] Failed to load font at {} because of an unknown reason");
+    }
+    return loadFont(ft, font, opts);
+}
+#    endif
 #endif
 
 f32 FontData::GetKerning(const u32 code0, const u32 code1) const

@@ -3,7 +3,6 @@
 #include "platform.hpp"
 #include "renderer.hpp"
 #ifdef ONYX_ENABLE_IMGUI
-#    include "onyx/imgui_theme.hpp"
 #    include "imgui_backend.hpp"
 #    include <imgui.h>
 #    ifdef ONYX_ENABLE_IMPLOT
@@ -95,10 +94,6 @@ static void initializeImGui(WindowData &wdata)
 #    endif
 
     ImGuiBackend::Create(wdata.Window);
-    ImGuiIO &io = ImGui::GetIO();
-    ImFont *font = io.Fonts->AddFontFromFileTTF(ONYX_ROOT_PATH "/onyx/fonts/OpenSans-Regular.ttf", 16.f);
-    io.FontDefault = font;
-    ApplyImGuiTheme(ImGuiTheme_Baby);
 }
 static void shutdownImGui(WindowData &wdata)
 {

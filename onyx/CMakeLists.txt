@@ -22,7 +22,7 @@ set(SOURCES
     source/window.cpp)
 
 if(ONYX_ENABLE_IMGUI)
-  list(APPEND SOURCES source/theme.cpp source/imgui_backend.cpp)
+  list(APPEND SOURCES source/imgui_theme.cpp source/imgui_backend.cpp)
 endif()
 if(ONYX_ENABLE_NFD)
   list(APPEND SOURCES source/dialog.cpp)
@@ -155,6 +155,9 @@ if(ONYX_ENABLE_FONT_LOAD)
     message(STATUS "ONYX - FreeType found")
     target_link_libraries(onyx PRIVATE Freetype::Freetype)
     target_compile_definitions(onyx PUBLIC ONYX_ENABLE_FONT_LOAD)
+    if(ONYX_INCLUDE_DEFAULT_FONT)
+      target_compile_definitions(onyx PUBLIC ONYX_INCLUDE_DEFAULT_FONT)
+    endif()
   else()
     message(STATUS "ONYX - FreeType not found. Fetching source...")
     FetchContent_Declare(
@@ -189,6 +192,11 @@ if(ONYX_ENABLE_FONT_LOAD)
     FetchContent_MakeAvailable(ft)
     target_link_libraries(onyx PRIVATE freetype)
     target_compile_definitions(onyx PUBLIC ONYX_ENABLE_FONT_LOAD)
+
+    if(ONYX_INCLUDE_DEFAULT_FONT)
+      target_compile_definitions(onyx PUBLIC ONYX_INCLUDE_DEFAULT_FONT)
+    endif()
+
     tkit_configure_compile_link_options(freetype NO_EXCEPTIONS NO_RTTI)
 
     if(NOT TARGET Freetype::Freetype)
@@ -345,6 +353,11 @@ if(ONYX_ENABLE_SHADER_API)
     target_link_libraries(onyx PRIVATE slang)
   endif()
   target_compile_definitions(onyx PUBLIC ONYX_ENABLE_SHADER_API)
+  if(ONYX_COMPILE_SHADERS_ON_EXEC)
+    target_compile_definitions(
+      onyx PUBLIC ONYX_COMPILE_SHADERS_ON_EXEC
+                  ONYX_SHADERS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/shaders")
+  endif()
 endif()
 
 # IMGUI ###
@@ -427,7 +440,6 @@ target_include_directories(onyx PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_precompile_headers(onyx PRIVATE
                           ${CMAKE_CURRENT_SOURCE_DIR}/source/pch.hpp)
-target_compile_definitions(onyx PUBLIC ONYX_ROOT_PATH="${ONYX_ROOT_PATH}")
 
 tkit_default_configure(onyx)
 
