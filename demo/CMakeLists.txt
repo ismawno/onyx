@@ -1,9 +1,21 @@
 cmake_minimum_required(VERSION 3.16)
 project(onyx-demo)
 
-# if(NOT ONYX_ENABLE_IMGUI) message( WARNING "ONYX - Demos rely heavily on
-# ImGui. They will work without it, but the experience will be very limited.
-# Enable it by setting ONYX_ENABLE_IMGUI to ON" ) endif()
+add_executable(onyx-hello-world hello_world.cpp)
 
-# add_subdirectory(sandbox)
-add_subdirectory(hello-world)
+tkit_default_configure(onyx-hello-world)
+
+target_link_libraries(onyx-hello-world PRIVATE onyx)
+
+if(ONYX_INCLUDE_DEFAULT_FONT)
+  add_executable(onyx-text text.cpp)
+
+  tkit_default_configure(onyx-text)
+  target_link_libraries(onyx-text PRIVATE onyx)
+endif()
+if(ONYX_ENABLE_IMGUI)
+  add_executable(onyx-imgui imgui.cpp)
+
+  tkit_default_configure(onyx-imgui)
+  target_link_libraries(onyx-imgui PRIVATE onyx)
+endif()

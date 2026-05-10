@@ -30,7 +30,7 @@ namespace Onyx::Resources
 void DestroyBuffer(Resource buffer);
 void ReleaseBuffer(Resource buffer);
 
-Resource CreateSampler(const SamplerData &data);
+Resource CreateSampler(const SamplerData &data = {});
 void DestroySampler(Resource sampler);
 void ReleaseSampler(Resource sampler);
 
