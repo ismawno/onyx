@@ -57,7 +57,6 @@
         "VULKIT_ENABLE_DEVICE_IMAGE": "ON",
         "VULKIT_ENABLE_RENDER_PASS": "OFF",
         "VULKIT_ENABLE_SWAP_CHAIN": "ON",
-
         "ONYX_BUILD_DEMOS": "OFF",
         "ONYX_ENABLE_IMGUI": "OFF",
         "ONYX_ENABLE_IMPLOT": "OFF",
@@ -66,7 +65,9 @@
         "ONYX_ENABLE_IMAGE_LOAD": "OFF",
         "ONYX_ENABLE_GLTF_LOAD": "OFF",
         "ONYX_ENABLE_FONT_LOAD": "OFF",
-        "ONYX_ENABLE_SHADER_API": "OFF"
+        "ONYX_ENABLE_SHADER_API": "OFF",
+        "ONYX_INCLUDE_DEFAULT_FONT": "OFF",
+        "ONYX_COMPILE_SHADERS_ON_EXEC": "OFF"
       }
     },
     {
