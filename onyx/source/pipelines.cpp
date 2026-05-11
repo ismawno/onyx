@@ -376,7 +376,7 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
         .SetColorWriteMask(pass == PipelinePass_Outlined ? full : 0)
         .EndColorAttachment();
 
-    if (pass == PipelinePass_Shaded)
+    if (pass == PipelinePass_Shaded || pass == PipelinePass_Flat)
         builder.EnableDepthTest().EnableDepthWrite();
 
     if (pass == PipelinePass_Outlined)
