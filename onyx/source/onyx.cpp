@@ -20,6 +20,7 @@ struct WindowData
     TKit::Clock Clock{};
     TKit::Timespan DeltaTarget{};
     TKit::Timespan DeltaTime{};
+    TKit::Timespan DeltaError{};
 #ifdef ONYX_ENABLE_IMGUI
     ImGuiContext *ImContext = nullptr;
 #    ifdef ONYX_ENABLE_IMPLOT
@@ -30,11 +31,14 @@ struct WindowData
 
     bool IsDue() const
     {
-        return Clock.GetElapsed() >= DeltaTarget;
+        return Clock.GetElapsed() >= DeltaTarget - DeltaError;
     }
     void MarkTick()
     {
         DeltaTime = Clock.Restart();
+        const f32 smoothness = 0.5f;
+        const TKit::Timespan error = DeltaTime - DeltaTarget;
+        DeltaError = smoothness * DeltaError + (1.f - smoothness) * error;
     }
 };
 
@@ -208,6 +212,8 @@ template <Dimension D> void DestroyRenderContex(RenderContext<D> *ctx)
 
 bool Running()
 {
+    // a bit weird to have it here, but it works
+    Platform::PollEvents();
     return !s_Data->Windows.IsEmpty();
 }
 void Quit()
@@ -246,7 +252,6 @@ void Render(const RenderInfo &info)
     //                 "[ONYX] Cannot specify imgui in render flags. That specific flag will be handled internally");
     // #endif
 
-    Platform::PollEvents();
     Execution::UpdateCompletedQueueTimelines();
 
     struct AcquiredWindow
@@ -371,7 +376,9 @@ void Render(const RenderInfo &info)
 
     if (!s_Data->Windows.IsEmpty())
     {
-        const auto computeSleep = [](WindowData &wdata) { return wdata.DeltaTarget - wdata.Clock.GetElapsed(); };
+        const auto computeSleep = [](WindowData &wdata) {
+            return wdata.DeltaTarget - wdata.Clock.GetElapsed() - wdata.DeltaError;
+        };
         TKit::Timespan sleep = computeSleep(s_Data->Windows[0]);
         for (u32 i = 1; i < s_Data->Windows.GetSize(); ++i)
         {
@@ -379,6 +386,7 @@ void Render(const RenderInfo &info)
             if (s < sleep)
                 sleep = s;
         }
+        if (sleep > TKit::Timespan{})
         {
             TKIT_PROFILE_NSCOPE("Onyx::Application::Sleep");
             TKit::Timespan::Sleep(sleep);

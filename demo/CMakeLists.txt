@@ -2,10 +2,13 @@ cmake_minimum_required(VERSION 3.16)
 project(onyx-demo)
 
 add_executable(onyx-hello-world hello_world.cpp)
+add_executable(onyx-layout layout.cpp)
 
 tkit_default_configure(onyx-hello-world)
+tkit_default_configure(onyx-layout)
 
 target_link_libraries(onyx-hello-world PRIVATE onyx)
+target_link_libraries(onyx-layout PRIVATE onyx)
 
 if(ONYX_INCLUDE_DEFAULT_FONT)
   add_executable(onyx-text text.cpp)

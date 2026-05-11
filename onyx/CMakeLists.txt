@@ -18,6 +18,7 @@ set(SOURCES
     source/descriptors.cpp
     source/color.cpp
     source/transform.cpp
+    source/ui.cpp
     source/conversion.cpp
     source/window.cpp)
 

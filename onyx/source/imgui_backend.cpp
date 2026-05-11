@@ -418,7 +418,7 @@ static void platform_CursorPosCallback(GLFWwindow *window, f64 x, f64 y)
     }
 
     io.AddMousePosEvent(f32(x), f32(y));
-    pdata->LastValidMousePos = f32v2(f32(x), f32(y));
+    pdata->LastValidMousePos = f32v2{f32(x), f32(y)};
 }
 
 // Workaround: X11 seems to send spurious Leave/Enter events which would make us lose our position,
@@ -1535,8 +1535,8 @@ static void renderer_Render(const ImDrawData *ddata, const VkCommandBuffer cmd)
     table->CmdPushConstants(cmd, s_RendererData->PipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstant),
                             &pc);
 
-    const f32v2 clipOff = f32v2{ddata->DisplayPos.x, ddata->DisplayPos.y};
-    const f32v2 clipScale = f32v2{ddata->FramebufferScale.x, ddata->FramebufferScale.y};
+    const f32v2 clipOff = {ddata->DisplayPos.x, ddata->DisplayPos.y};
+    const f32v2 clipScale = {ddata->FramebufferScale.x, ddata->FramebufferScale.y};
 
     VkDescriptorSet lastSet = VK_NULL_HANDLE;
 

@@ -6,6 +6,7 @@
 #include "onyx/font.hpp"
 #include "onyx/pass.hpp"
 #include "onyx/view.hpp"
+#include "onyx/ui.hpp"
 
 namespace Onyx
 {
@@ -145,32 +146,6 @@ struct CircleParameters
     f32 LowerAngle = 0.f;
     f32 UpperAngle = 2.f * Math::Pi();
 };
-enum Alignment : u8
-{
-    Alignment_Left,
-    Alignment_Center,
-    Alignment_Right,
-    Alignment_Bottom = Alignment_Left,
-    Alignment_Top = Alignment_Right,
-    Alignment_Near = Alignment_Left,
-    Alignment_Far = Alignment_Right,
-    Alignment_None = 3,
-};
-
-template <Dimension D> struct ContextState
-{
-    f32m<D> Transform = f32m<D>::Identity();
-    Color FillColor = Color_White;
-    Color OutlineColor = Color_White;
-
-    f32 OutlineWidth = 0.1f;
-    f32 AmbientIntensity = 0.4f;
-    Resource Material = NullHandle;
-    Resource Font = NullHandle;
-    Resource FontSampler = NullHandle;
-    vec<Alignment, D> Alignment{Alignment_None};
-    RenderModeFlags RenderFlags = RenderModeFlag_Shaded;
-};
 
 template <Dimension D> struct ClipRect
 {
@@ -188,6 +163,22 @@ template <Dimension D> struct RectPair
 {
     ClipRect<D> Clip;
     WorldRect<D> World;
+};
+
+template <Dimension D> struct ContextState
+{
+    f32m<D> Transform = f32m<D>::Identity();
+    Color FillColor = Color_White;
+    Color OutlineColor = Color_White;
+    WorldRect<D> Rect{};
+
+    f32 OutlineWidth = 0.1f;
+    f32 AmbientIntensity = 0.4f;
+    Resource Material = NullHandle;
+    Resource Font = NullHandle;
+    Resource FontSampler = NullHandle;
+    vec<Alignment, D> Alignment{Alignment_None};
+    RenderModeFlags RenderFlags = RenderModeFlag_Shaded;
 };
 
 struct InstanceDataArrays;
@@ -405,6 +396,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
             params);
     }
 
+    void UserInterfaceLayout(const Layout &layout);
+
     void Line(Resource staticMesh, const f32v<D> &start, const f32v<D> &end, f32 thickness = 0.1f);
     void Axes(Resource staticMesh, const AxesParameters &params = {});
 
@@ -422,22 +415,22 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
         Push(ContextState<D>{});
     }
 
-    void BeginClip(ClipRect<D> rect)
+    void Clip(const ClipRect<D> &rect)
     {
-        TKIT_ASSERT(!m_ClipStack.IsEmpty(), "[ONYX][CONTEXT] For every BeginClip(), there must be a EndClip()");
-        const RectPair<D> &parent = m_ClipStack.GetBack();
-
-        rect.Union(parent.Clip);
-        m_ClipStack.Append(rect, computeWorldRect(rect));
+        m_Current->Rect = computeWorldRect(rect);
     }
-    void BeginClip(const f32v<D> &position, const f32v<D> &extent)
+    void Clip(const f32v<D> &position, const f32v<D> &extent)
     {
-        BeginClip(ClipRect<D>{position, position + extent});
+        Clip(ClipRect<D>{position, position + extent});
     }
-    void EndClip()
+    void Clip(const f32v<D> &extent)
     {
-        m_ClipStack.Pop();
-        TKIT_ASSERT(!m_ClipStack.IsEmpty(), "[ONYX][CONTEXT] For every BeginClip(), there must be a EndClip()");
+        Clip(ClipRect<D>{f32v<D>{0.f}, extent});
+    }
+    void NoClip()
+    {
+        ClipRect<D> crect{f32v<D>{TKIT_F32_LOWEST}, f32v<D>{TKIT_F32_MAX}};
+        m_Current->Rect = computeWorldRect(crect);
     }
 
     f32v<D> WorldToLocal(const f32v<D> &world)
@@ -598,7 +591,6 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
 #endif
 
     TKit::TierArray<ContextState<D>> m_StateStack{};
-    TKit::TierArray<RectPair<D>> m_ClipStack{};
     TKit::FixedArray<InstanceDataArrays *, RenderMode_Count> m_InstanceData{};
 
     TKit::TierArray<PointLightParameters<D>> m_PointLightData{};

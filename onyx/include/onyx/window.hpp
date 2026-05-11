@@ -7,7 +7,6 @@
 #include "onyx/core.hpp"
 #include "tkit/profiling/clock.hpp"
 #include "tkit/container/static_array.hpp"
-#include "tkit/container/tier_array.hpp"
 
 ONYX_DECLARE_NON_DISPATCHABLE_VK_HANDLE(SurfaceKHR)
 

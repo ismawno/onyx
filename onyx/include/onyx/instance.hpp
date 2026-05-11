@@ -112,6 +112,19 @@ template <> struct WorldRect<D3>
     f32v3 Edge2;
 };
 
+// TODO(Isma): Define alignment name that works for all dimensions
+enum Alignment : u8
+{
+    Alignment_Left,
+    Alignment_Center,
+    Alignment_Right,
+    Alignment_Bottom = Alignment_Left,
+    Alignment_Top = Alignment_Right,
+    Alignment_Near = Alignment_Left,
+    Alignment_Far = Alignment_Right,
+    Alignment_None = 3,
+};
+
 const char *ToString(Geometry geo);
 const char *ToString(LightType light);
 
