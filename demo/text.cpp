@@ -18,7 +18,7 @@ int main()
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
 
-    Onyx::Window *win = Onyx::OpenWindow();
+    Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 
     Onyx::Camera<D2> cam{};
     cam.OrthoParameters.Size = 15.f;
@@ -26,8 +26,6 @@ int main()
     Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
 
     ctx->AddTarget(view);
-
-    Onyx::SetTargetDeltaTime(win, TKit::Timespan::FromSeconds(1.f / 60.f));
 
     while (Onyx::Running())
     {

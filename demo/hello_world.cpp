@@ -17,7 +17,7 @@ int main()
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
 
-    Onyx::Window *win = Onyx::OpenWindow();
+    Onyx::Window *win = Onyx::OpenWindow({.Window = {.PresentMode = Onyx::PresentMode_VSync}});
 
     Onyx::Camera<D2> cam{};
 
@@ -25,7 +25,6 @@ int main()
 
     ctx->AddTarget(view);
 
-    Onyx::SetTargetDeltaTime(win, TKit::Timespan::FromSeconds(1.f / 60.f));
     f32 time = 0.f;
     while (Onyx::Running())
     {
