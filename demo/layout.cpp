@@ -119,6 +119,7 @@ int main()
             if (!ImGui::GetIO().WantCaptureKeyboard)
                 win->ControlCamera(dt, &cam);
             ctx->Flush();
+            ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
             DrawPanels(layout, root, panels);
             layout.Compile();
             ctx->UserInterfaceLayout(layout);

@@ -104,7 +104,7 @@ class Layout
 
   private:
     void fitPass(u32 axis);
-    void growPass();
+    void growShrinkPass(u32 axis);
     void positionPass();
 
     TKit::TierArray<LayoutElement> m_Elements{};

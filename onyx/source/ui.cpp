@@ -1,13 +1,11 @@
 #include "pch.hpp"
 #include "onyx/ui.hpp"
+#include "tkit/container/stack_array.hpp"
 
 namespace Onyx
 {
 void Layout::BeginPanel(const PanelParameters &params)
 {
-    TKIT_ASSERT(params.Sizing[0].Type != LayoutSizing_Grow && params.Sizing[1].Type != LayoutSizing_Grow,
-                "[ONYX][LAYOUT] The root element of a layout cannot have a grow sizing");
-
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
 
@@ -60,40 +58,105 @@ void Layout::fitPass(const u32 axis)
             continue;
 
         const LayoutDirection dir = parent.Direction;
+        f32 &psize = parent.Size[axis];
         for (const u32 c : parent.Children)
         {
             const LayoutElement &child = m_Elements[c];
+            const f32 csize = child.Size[axis];
             TKIT_ASSERT(child.Parent != TKIT_U32_MAX, "[ONYX][LAYOUT] Only the root node can have no parent");
             if (dir == axis)
-                parent.Size[axis] += child.Size[axis];
+                psize += csize;
             else
-                parent.Size[axis] = Math::Max(parent.Size[axis], child.Size[axis]);
+                psize = Math::Max(psize, csize);
         }
 
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
-        parent.Size[axis] += padding;
+        psize += padding;
         if (dir == axis)
         {
             const f32 childGap = parent.ChildGap * (parent.Children.GetSize() - 1);
-            parent.Size[axis] += childGap;
+            psize += childGap;
         }
     }
 }
 
-// void Layout::growPass()
-// {
-//     for (const u32 p : m_Breadth)
-//     {
-//         const LayoutElement &parent = m_Elements[p];
-//         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
-//
-//         const LayoutDirection dir = parent.Direction;
-//         for (u32 axis = 0; axis < 2; ++axis)
-//         {
-//             f32 remainingSize = parent.Size[axis];
-//         }
-//     }
-// }
+void Layout::growShrinkPass(const u32 axis)
+{
+    for (const u32 p : m_Breadth)
+    {
+        const LayoutElement &parent = m_Elements[p];
+        TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
+
+        const LayoutDirection dir = parent.Direction;
+        const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
+        f32 remainingSize = parent.Size[axis] - padding;
+        if (dir == axis)
+        {
+            remainingSize -= parent.ChildGap * (parent.Children.GetSize() - 1);
+            TKit::StackArray<u32> toGrow{};
+            toGrow.Reserve(m_Elements.GetSize());
+
+            for (const u32 c : parent.Children)
+            {
+                const LayoutElement &child = m_Elements[c];
+                const f32 csize = child.Size[axis];
+                remainingSize -= csize;
+                if (child.Sizing[axis] == LayoutSizing_Grow && csize < child.MaxSize[axis])
+                    toGrow.Append(c);
+            }
+
+            while (!toGrow.IsEmpty() && remainingSize > 0.f)
+            {
+                f32 smallest = TKIT_F32_MAX;
+                f32 secSmallest = TKIT_F32_MAX;
+                f32 toAdd = remainingSize;
+                for (const u32 c : toGrow)
+                {
+                    const LayoutElement &child = m_Elements[c];
+                    const f32 csize = child.Size[axis];
+                    if (smallest > csize)
+                        smallest = csize;
+                    else if (smallest < csize)
+                    {
+                        secSmallest = Math::Min(secSmallest, csize);
+                        toAdd = secSmallest - smallest;
+                    }
+                }
+
+                toAdd = Math::Min(toAdd, remainingSize / toGrow.GetSize());
+                for (u32 i = toGrow.GetSize() - 1; i < toGrow.GetSize(); --i)
+                {
+                    const u32 c = toGrow[i];
+                    LayoutElement &child = m_Elements[c];
+                    f32 &csize = child.Size[axis];
+                    if (!TKit::Approximately(csize, smallest))
+                        continue;
+
+                    const f32 msize = child.MaxSize[axis];
+                    if (csize + toAdd >= child.MaxSize[axis])
+                    {
+                        remainingSize -= msize - csize;
+                        csize = msize;
+                        toGrow.RemoveUnordered(toGrow.begin() + i);
+                    }
+                    else
+                    {
+                        csize += toAdd;
+                        remainingSize -= toAdd;
+                    }
+                }
+            }
+        }
+        else
+            for (const u32 c : parent.Children)
+            {
+                LayoutElement &child = m_Elements[c];
+                f32 &csize = child.Size[axis];
+                if (child.Sizing[axis] == LayoutSizing_Grow)
+                    csize = Math::Min(csize + remainingSize, child.MaxSize[axis]);
+            }
+    }
+}
 
 void Layout::positionPass()
 {
@@ -162,20 +225,22 @@ void Layout::positionPass()
             for (const u32 c : parent.Children)
             {
                 LayoutElement &child = m_Elements[c];
+
                 const f32 csize = child.Size[axis];
+                f32 &cpos = child.Position[axis];
                 if (calg == Alignment_Center)
                 {
                     if (dir == axis)
-                        child.Position[axis] += poffset + 0.5f * (dir == LayoutDirection_Horizontal ? csize : -csize);
+                        cpos += poffset + 0.5f * (dir == LayoutDirection_Horizontal ? csize : -csize);
                     else if (salg == Alignment_Left)
-                        child.Position[axis] += poffset + 0.5f * psize;
+                        cpos += poffset + 0.5f * psize;
                     else if (salg == Alignment_Right)
-                        child.Position[axis] += poffset - 0.5f * psize;
+                        cpos += poffset - 0.5f * psize;
                     else
-                        child.Position[axis] += poffset;
+                        cpos += poffset;
                 }
                 else
-                    child.Position[axis] += poffset;
+                    cpos += poffset;
 
                 if (dir == axis)
                 {
@@ -196,6 +261,8 @@ void Layout::Compile()
     m_ElementInfo.Clear();
     fitPass(0);
     fitPass(1);
+    growShrinkPass(0);
+    growShrinkPass(1);
     positionPass();
     for (const LayoutElement &elm : m_Elements)
     {
