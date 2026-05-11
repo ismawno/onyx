@@ -370,10 +370,10 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
         .AddShaderStage(shaders.FragmentShaders[geo], VK_SHADER_STAGE_FRAGMENT_BIT)
         .BeginColorAttachment()
         .EnableBlending()
-        .SetColorWriteMask(pass == PipelinePass_Shaded ? full : 0)
+        .SetColorWriteMask(pass == PipelinePass_Shaded || pass == PipelinePass_Flat ? full : 0)
         .EndColorAttachment()
         .BeginColorAttachment()
-        .SetColorWriteMask(pass == PipelinePass_Flat || pass == PipelinePass_Outlined ? full : 0)
+        .SetColorWriteMask(pass == PipelinePass_Outlined ? full : 0)
         .EndColorAttachment();
 
     if (pass == PipelinePass_Shaded)
