@@ -3,6 +3,8 @@
 #include "onyx/alias.hpp"
 #include "onyx/math.hpp"
 #include "tkit/container/span.hpp"
+#define TKIT_DEFAULT_STRING_TIER
+#include "tkit/container/string.hpp"
 #include "tkit/utils/debug.hpp"
 
 namespace Onyx::Detail
