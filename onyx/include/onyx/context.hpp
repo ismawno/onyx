@@ -131,7 +131,7 @@ struct TextParameters
     std::function<void(u32, char, f32v2 &)> *CharacterCallback = nullptr;
     f32 Kerning = 0.f;
     f32 LineSpacing = 0.f;
-    f32 Width = 12.f;
+    f32 MaxWidth = TKIT_F32_MAX;
 };
 struct AxesParameters
 {
@@ -585,7 +585,8 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addStaticData(Resource mesh, const f32m<D> &transform);
     void addParametricData(Resource mesh, const f32m<D> &transform, const InstanceParameters &params);
     void addGlyphData(TKit::StringView text, const f32m<D> &transform, const TextParameters &params);
-    void addGlyphData(const Glyph *glyph, const f32m<D> &transform);
+    void addGlyphData(TKit::StringView text, const f32m<D> &transform);
+    void addGlyphData(const Glyph *glyph, f32 unitRange, const f32m<D> &transform);
     void addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params);
 #ifdef TKIT_ENABLE_ASSERTS
     void checkMaterial(Resource material);

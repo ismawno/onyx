@@ -103,8 +103,9 @@ f32 Window::GetOpacity() const
 #ifdef ONYX_GLFW_WINDOW_OPACITY
     return glfwGetWindowOpacity(m_Window);
 #else
-    TKIT_FATAL("[ONYX][WINDOW] To query opacity, GLFW 3.3 or greater is required. Use CanQueryOpacity() to check if "
-               "the feature is available");
+    TKIT_LOG_ERROR(
+        "[ONYX][WINDOW] To query opacity, GLFW 3.3 or greater is required. Use CanQueryOpacity() to check if "
+        "the feature is available");
     return 0.f;
 #endif
 }
@@ -113,8 +114,9 @@ void Window::SetOpacity(const f32 opacity)
 #ifdef ONYX_GLFW_WINDOW_OPACITY
     glfwSetWindowOpacity(m_Window, opacity);
 #else
-    TKIT_FATAL("[ONYX][WINDOW] To query opacity, GLFW 3.3 or greater is required. Use CanQueryOpacity() to check if "
-               "the feature is available");
+    TKIT_LOG_ERROR(
+        "[ONYX][WINDOW] To query opacity, GLFW 3.3 or greater is required. Use CanQueryOpacity() to check if "
+        "the feature is available");
 #endif
 }
 
@@ -480,8 +482,8 @@ static VkPresentModeKHR asVulkanPresentMode(const PresentMode mode)
     case PresentMode_VSync:
         return VK_PRESENT_MODE_FIFO_KHR;
     default:
-        TKIT_FATAL("[ONYX][WINDOW] Unknown present mode '{}'", u8(mode));
-        return VK_PRESENT_MODE_MAX_ENUM_KHR;
+        TKIT_LOG_ERROR("[ONYX][WINDOW] Unknown present mode '{}'. Using FIFO as fallback", u8(mode));
+        return VK_PRESENT_MODE_FIFO_KHR;
     }
 }
 

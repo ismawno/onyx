@@ -906,7 +906,15 @@ Resource RegisterFont(const ResourcePool pool, const FontData &data)
     const u32 fid = fpool.Meshes.GetSize();
     FontDataInfo &finfo = fpool.Meshes.Append();
     finfo.Data = data;
-    finfo.AtlasImage = CreateImage(finfo.Data.AtlasData);
+
+    const ImageData &adata = finfo.Data.AtlasData;
+    TKIT_LOG_WARNING_IF(
+        adata.Width != adata.Height,
+        "[ONYX][RESOURCES] Atlas dimensions are not uniform (w = {} != {} = h). May cause a slight decrease in "
+        "quality, as the unit range factor is computed taking only one dimension into account",
+        adata.Width, adata.Height);
+
+    finfo.AtlasImage = CreateImage(adata);
     finfo.AtlasTexture = CreateTexture(finfo.AtlasImage);
 
     const u32 gsize = data.Glyphs.GetSize();
@@ -1061,17 +1069,10 @@ const Glyph *GetGlyph(const Resource handle, const u32 codePoint)
     const FontDataInfo &finfo = fpool.Meshes[fid];
     const u32 gstart = finfo.Layout.VertexStart / 4;
 
-    const TKit::TierArray<CodePointRange> &ranges = finfo.Data.CodePoints;
-    u32 csize = 0;
-    for (const CodePointRange &range : ranges)
-    {
-        if (codePoint >= range.First && codePoint <= range.Last)
-            return &fpool.Glyphs[gstart + codePoint - range.First + csize];
-        csize += range.Last - range.First + 1;
-    }
-
-    TKIT_FATAL("[ONYX][RESOURCES] The code point '{}' was not found", codePoint);
-    return nullptr;
+    const u32 idx = finfo.Data.GetGlyphDataIndex(codePoint);
+    if (idx == TKIT_U32_MAX)
+        return nullptr;
+    return &fpool.Glyphs[gstart + idx];
 }
 
 template <typename Vertex> static MeshDataLayout getMeshLayout(const Resource handle, MeshResourceData<Vertex> &meshes)

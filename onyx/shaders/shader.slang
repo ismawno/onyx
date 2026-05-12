@@ -396,7 +396,7 @@ FragOutput mainFS(const FragInput input) FragSuffix
 #elif defined(ONYX_GEOMETRY_GLYPH)
     const u32 samplerId = GetResourceId(gdata.SamplerHandle);
     const u32 atlasId = GetResourceId(gdata.AtlasHandle);
-    const f32 alpha = ComputeMTSDFCoverage(g_Samplers, g_Textures, samplerId, atlasId, input.AtlasCoords);
+    const f32 alpha = ComputeMTSDFCoverage(g_Samplers, g_Textures, samplerId, atlasId, gdata.UnitRange, input.AtlasCoords);
     if (alpha <= 0.01f) // so that transparent parts do not touch depth/stencil buffers
         discard;
 

@@ -49,7 +49,9 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
     TKIT_LOG_DEBUG("[ONYX][FONT] Loaded {}/{} glyphs", count, chset.size());
     TKIT_UNUSED(count);
 
+    const i32 dim = i32(opts.AtlasDimensions);
     msdf_atlas::TightAtlasPacker packer{};
+    packer.setDimensions(dim, dim);
     packer.setPixelRange(opts.SDFRange);
     packer.setMiterLimit(1.0);
     packer.setInnerPixelPadding(msdf_atlas::Padding{opts.Padding});
@@ -57,17 +59,13 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
     TKIT_CHECK_RETURNS(packer.pack(glyphs.data(), i32(glyphs.size())), 0,
                        "[ONYX][FONT] Atlas packer did not pack all the glyphs!");
 
-    i32 w;
-    i32 h;
-    packer.getDimensions(w, h);
-
     u64 seed = 0;
     for (msdf_atlas::GlyphGeometry &glyph : glyphs)
         glyph.edgeColoring(&msdfgen::edgeColoringInkTrap, opts.MaxCornerAngle, seed++);
 
     msdf_atlas::ImmediateAtlasGenerator<f32, 4, msdf_atlas::mtsdfGenerator,
                                         msdf_atlas::BitmapAtlasStorage<msdf_atlas::byte, 4>>
-        generator{w, h};
+        generator{dim, dim};
 
     msdf_atlas::GeneratorAttributes att;
     att.config.overlapSupport = true;
@@ -116,8 +114,9 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
         gdata.Min = quadMin;
         gdata.Max = quadMax;
 
-        gdata.MinTexCoord = texCoordMin / idata.Width;
-        gdata.MaxTexCoord = texCoordMax / idata.Height;
+        const f32v2 atlasSize{f32(idata.Width), f32(idata.Height)};
+        gdata.MinTexCoord = texCoordMin / atlasSize;
+        gdata.MaxTexCoord = texCoordMax / atlasSize;
 
         data.Glyphs.Append(gdata);
     }
@@ -140,6 +139,7 @@ ONYX_NO_DISCARD static Result<FontData> loadFont(msdfgen::FreetypeHandle *ft, ms
     data.Ascender = f32(metrics.ascenderY);
     data.Descender = f32(metrics.descenderY);
     data.LineHeight = f32(metrics.lineHeight);
+    data.UnitRange = opts.SDFRange / f32(dim);
 
     msdfgen::destroyFont(font);
     msdfgen::deinitializeFreetype(ft);
@@ -197,6 +197,18 @@ Result<FontData> LoadDefaultFont(const FontLoadOptions &opts)
 #    endif
 #endif
 
+u32 FontData::GetGlyphDataIndex(const u32 code) const
+{
+    u32 csize = 0;
+    for (const CodePointRange &range : CodePoints)
+    {
+        if (code >= range.First && code <= range.Last)
+            return code - range.First + csize;
+        csize += range.Last - range.First + 1;
+    }
+    return TKIT_U32_MAX;
+}
+
 f32 FontData::GetKerning(const u32 code0, const u32 code1) const
 {
     const u64 key = u64(code0) << 32 | u64(code1);
@@ -207,4 +219,89 @@ f32 FontData::GetKerning(const u32 code0, const u32 code1) const
     return 0.0f;
 }
 
+f32 FontData::ComputeTextSize(const TKit::StringView text) const
+{
+    f32 size = 0.f;
+    for (u32 i = 0; i < text.GetSize(); ++i)
+    {
+        const char c = text[i];
+        if (c == '\n')
+            continue;
+
+        const u32 idx = GetGlyphDataIndex(c);
+        if (idx == TKIT_U32_MAX)
+        {
+            TKIT_LOG_ERROR("[ONYX][FONT] The character {} was not found as an available code point", c);
+            continue;
+        }
+
+        if (i != 0)
+            size += GetKerning(text[i - 1], c);
+
+        size += Glyphs[idx].Advance;
+    }
+    return size;
+}
+
+f32 FontData::ComputeTextMinimumSize(const TKit::StringView text) const
+{
+    f32 size = 0.f;
+    u32 start = 0;
+    u32 end = 0;
+    for (u32 i = 0; i < text.GetSize();)
+    {
+        const char c = text[i];
+        if (c == '\n' || c == ' ')
+        {
+            end = i;
+            size = Math::Max(size, ComputeTextSize(text.SubString(start, end)));
+            start = end;
+        }
+    }
+    if (start < end)
+        size = Math::Max(size, ComputeTextSize(text.SubString(start, end)));
+    return size;
+}
+
+TKit::String FontData::WrapText(const TKit::StringView text, const f32 maxWidth) const
+{
+    TKit::String wrapped;
+    wrapped.Reserve(text.GetSize());
+
+    u32 lastSpace = TKIT_U32_MAX;
+    f32 size = 0.f;
+
+    for (u32 i = 0; i < text.GetSize(); ++i)
+    {
+        const char c = text[i];
+        wrapped.Append(c);
+
+        if (c == '\n')
+        {
+            size = 0.f;
+            continue;
+        }
+        if (c == ' ')
+            lastSpace = i;
+
+        const u32 idx = GetGlyphDataIndex(c);
+        if (idx == TKIT_U32_MAX)
+        {
+            TKIT_LOG_ERROR("[ONYX][FONT] The character {} was not found as an available code point", c);
+            continue;
+        }
+
+        if (i != 0)
+            size += GetKerning(text[i - 1], c);
+
+        size += Glyphs[idx].Advance;
+        if (size >= maxWidth && lastSpace != TKIT_U32_MAX)
+        {
+            wrapped[lastSpace] = '\n';
+            lastSpace = TKIT_U32_MAX;
+            size = 0.f;
+        }
+    }
+    return wrapped;
+}
 } // namespace Onyx

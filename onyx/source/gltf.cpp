@@ -30,7 +30,7 @@ static ImageComponentType getComponentType(const i32 pixelType)
     case TINYGLTF_COMPONENT_TYPE_FLOAT:
         return ImageComponent_Float;
     default:
-        TKIT_FATAL("[ONYX][GLTF] Unrecognized component type {}", pixelType);
+        TKIT_LOG_ERROR("[ONYX][GLTF] Unrecognized component type {}. Using UnsignedByte", pixelType);
         return ImageComponent_UnsignedByte;
     }
 }

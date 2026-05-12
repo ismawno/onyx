@@ -11,6 +11,7 @@ struct GlyphInstanceData2D
     u32 BoundsHandle;
     u32 SamplerHandle;
     u32 AtlasHandle;
+    f32 UnitRange;
 }
 struct GlyphInstanceData3D
 {
@@ -18,6 +19,7 @@ struct GlyphInstanceData3D
     u32 BoundsHandle;
     u32 SamplerHandle;
     u32 AtlasHandle;
+    f32 UnitRange;
 }
 
 // this is ai generated
@@ -26,6 +28,7 @@ f32 ComputeMTSDFCoverage(
     const Texture2D textures[ONYX_MAX_TEXTURES],
     const u32 samplerId,
     const u32 atlasId,
+    const f32 unitRange,
     const f32v2 uv)
 {
     const f32v4 mtsdf = textures[atlasId].Sample(samplers[samplerId], uv);
@@ -35,9 +38,7 @@ f32 ComputeMTSDFCoverage(
     // SDF: alpha channel — stable at low resolution / small sizes
     const f32 sdf = mtsdf.a;
 
-    // Screen-space pixel range: how many screen pixels cover one distance-field unit.
-    // unitRange = pxRange / texSize = 4.0 / 512.0 ≈ 0.0078125
-    const f32v2 screenTexSize = f32v2(0.0078125) / fwidth(uv);
+    const f32v2 screenTexSize = unitRange / fwidth(uv);
     const f32 screenPxRange = max(0.5 * dot(screenTexSize, f32v2(1.0)), 1.0);
 
     // Blend weight: 0 = full MSDF, 1 = full SDF.
@@ -50,7 +51,7 @@ f32 ComputeMTSDFCoverage(
 
     // Smoothing: 1 / screenPxRange gives a half-pixel AA band,
     // clamped so glyphs stay readable at very small sizes.
-    const f32 smoothing = clamp(0.5 / screenPxRange, 0.005, 0.30);
+    const f32 smoothing = clamp(0.5 / screenPxRange, 0.0, 0.30);
 
     return smoothstep(0.5 - smoothing, 0.5 + smoothing, signal);
 }
