@@ -101,9 +101,6 @@ int main()
 
     ctx->AddTarget(view);
 
-    // Onyx::SetTargetDeltaTime(win, TKit::Timespan::FromSeconds(1.f / 60.f));
-    Onyx::Layout layout{square, roundedSquare};
-
     {
         Onyx::Layout layout{square, roundedSquare};
         PanelInfo root{};
