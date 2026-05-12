@@ -135,9 +135,9 @@ struct Color
     template <typename T> T ToHexadecimal(bool alpha = true) const;
 
     static Color FromHexadecimal(u32 hex, bool alpha = true);
-    static Color FromHexadecimal(std::string_view hex);
+    static Color FromHexadecimal(TKit::StringView hex);
 
-    static Color FromString(const std::string &color);
+    static Color FromString(const TKit::String &color);
 
     const f32 *GetData() const
     {

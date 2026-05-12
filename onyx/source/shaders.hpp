@@ -7,6 +7,7 @@
 // NOTE(Isma): At some point we ll want to expose it for custom user pipelines
 
 #include "onyx/core.hpp"
+#include "onyx/specs.hpp"
 #include "vkit/state/shader.hpp"
 
 namespace Onyx
@@ -331,6 +332,6 @@ void Terminate();
 
 ONYX_NO_DISCARD Result<VKit::Shader> Create(const u32 *spirv, u32 size);
 ONYX_NO_DISCARD Result<VKit::Shader> Create(const Spirv &spirv);
-ONYX_NO_DISCARD Result<VKit::Shader> Create(std::string_view spirvPath);
+ONYX_NO_DISCARD Result<VKit::Shader> Create(TKit::StringView spirvPath);
 
 } // namespace Onyx::Shaders

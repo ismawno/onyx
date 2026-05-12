@@ -189,21 +189,21 @@ template <Dimension D> void RenderView<D>::nameFramebuffers()
 {
     for (u32 i = 0; i < m_FrameBuffers.GetSize(); ++i)
     {
-        const std::string cname = TKit::Format("onyx-color-attachment-{}", i);
-        const std::string oname = TKit::Format("onyx-outline-attachment-{}", i);
-        const std::string dname = TKit::Format("onyx-depth-attachment-{}", i);
-        const std::string pname = TKit::Format("onyx-pp-attachment-{}", i);
+        const TKit::StackString cname = TKit::StackString::Format("onyx-color-attachment-{}", i);
+        const TKit::StackString oname = TKit::StackString::Format("onyx-outline-attachment-{}", i);
+        const TKit::StackString dname = TKit::StackString::Format("onyx-depth-attachment-{}", i);
+        const TKit::StackString pname = TKit::StackString::Format("onyx-pp-attachment-{}", i);
 
         FrameBuffer *fb = m_FrameBuffers[i];
-        ONYX_CHECK_VKIT_RESULT(fb->Color.SetName(cname.c_str()));
-        ONYX_CHECK_VKIT_RESULT(fb->Outline.SetName(oname.c_str()));
-        ONYX_CHECK_VKIT_RESULT(fb->DepthStencil.SetName(dname.c_str()));
-        ONYX_CHECK_VKIT_RESULT(fb->PostProcess.SetName(pname.c_str()));
+        ONYX_CHECK_VKIT_RESULT(fb->Color.SetName(cname.GetData()));
+        ONYX_CHECK_VKIT_RESULT(fb->Outline.SetName(oname.GetData()));
+        ONYX_CHECK_VKIT_RESULT(fb->DepthStencil.SetName(dname.GetData()));
+        ONYX_CHECK_VKIT_RESULT(fb->PostProcess.SetName(pname.GetData()));
 
-        ONYX_CHECK_VKIT_RESULT(fb->Color.SetViewNames(cname.c_str()));
-        ONYX_CHECK_VKIT_RESULT(fb->Outline.SetViewNames(oname.c_str()));
-        ONYX_CHECK_VKIT_RESULT(fb->DepthStencil.SetViewNames(dname.c_str()));
-        ONYX_CHECK_VKIT_RESULT(fb->PostProcess.SetViewNames(pname.c_str()));
+        ONYX_CHECK_VKIT_RESULT(fb->Color.SetViewNames(cname.GetData()));
+        ONYX_CHECK_VKIT_RESULT(fb->Outline.SetViewNames(oname.GetData()));
+        ONYX_CHECK_VKIT_RESULT(fb->DepthStencil.SetViewNames(dname.GetData()));
+        ONYX_CHECK_VKIT_RESULT(fb->PostProcess.SetViewNames(pname.GetData()));
     }
 }
 

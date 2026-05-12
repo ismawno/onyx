@@ -378,7 +378,8 @@ static void bindSampler(const Resource handle)
     VKit::Sampler &sampler = getSampler(handle);
     if (IsDebugUtilsEnabled())
     {
-        ONYX_CHECK_VKIT_RESULT(sampler.SetName(TKit::Format("onyx-resources-sampler-{:#010x}", handle).c_str()));
+        ONYX_CHECK_VKIT_RESULT(
+            sampler.SetName(TKit::StackString::Format("onyx-resources-sampler-{:#010x}", handle).GetData()));
     }
 
     const VkDescriptorImageInfo info = VkDescriptorImageInfo{
@@ -484,10 +485,10 @@ Resource CreateImage(const ImageData &data)
 
     if (IsDebugUtilsEnabled())
     {
-        const std::string name = TKit::Format("onyx-resources-image-{:#010x}", handle);
-        ONYX_CHECK_VKIT_RESULT(img.Image.SetName(name.c_str()));
-        ONYX_CHECK_VKIT_RESULT(
-            uploadBuffer.SetName(TKit::Format("onyx-resources-texture-upload-buffer-{:#010x}", handle).c_str()));
+        const TKit::StackString name = TKit::StackString::Format("onyx-resources-image-{:#010x}", handle);
+        ONYX_CHECK_VKIT_RESULT(img.Image.SetName(name.GetData()));
+        ONYX_CHECK_VKIT_RESULT(uploadBuffer.SetName(
+            TKit::StackString::Format("onyx-resources-texture-upload-buffer-{:#010x}", handle).GetData()));
     }
 
     uploadBuffer.Write(data.Data, {.srcOffset = 0, .dstOffset = 0, .size = size});
@@ -754,11 +755,11 @@ template <typename Vertex> static ResourcePool createMeshPool(const ResourceType
     const ResourcePool pool = CreateResourcePoolHandle(atype, pid);
     if (IsDebugUtilsEnabled())
     {
-        const std::string vb = TKit::Format("onyx-resources-vertex-buffer-{:#010x}", pool);
-        const std::string ib = TKit::Format("onyx-resources-index-buffer-{:#010x}", pool);
+        const TKit::StackString vb = TKit::StackString::Format("onyx-resources-vertex-buffer-{:#010x}", pool);
+        const TKit::StackString ib = TKit::StackString::Format("onyx-resources-index-buffer-{:#010x}", pool);
 
-        ONYX_CHECK_VKIT_RESULT(vbuffer.SetName(vb.c_str()));
-        ONYX_CHECK_VKIT_RESULT(ibuffer.SetName(ib.c_str()));
+        ONYX_CHECK_VKIT_RESULT(vbuffer.SetName(vb.GetData()));
+        ONYX_CHECK_VKIT_RESULT(ibuffer.SetName(ib.GetData()));
     }
 
     return pool;

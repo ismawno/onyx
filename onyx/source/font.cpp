@@ -156,7 +156,8 @@ Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &o
     {
         msdfgen::deinitializeFreetype(ft);
         return Result<FontData>::Error(
-            Error_Unknown, TKit::Format("[ONYX][FONT] Failed to load font at {} because of an unknown reason", path));
+            Error_Unknown,
+            TKit::String::Format("[ONYX][FONT] Failed to load font at {} because of an unknown reason", path));
     }
     return loadFont(ft, font, opts);
 }

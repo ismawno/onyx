@@ -2,6 +2,7 @@
 #include "onyx/specs.hpp"
 #include "execution.hpp"
 #include "core.hpp"
+#include "tkit/container/stack_array.hpp"
 
 namespace Onyx
 {
@@ -63,9 +64,9 @@ CommandPool *FindSuitableCommandPool(const u32 family)
     pool.NextCommand = 0;
     if (IsDebugUtilsEnabled())
     {
-        const std::string name =
-            TKit::Format("onyx-ring-command-pool-index-{}-family-{}", s_CommandPools->GetSize() - 1, family);
-        ONYX_CHECK_VKIT_RESULT(pool.Pool.SetName(name.c_str()));
+        const TKit::StackString name = TKit::StackString::Format("onyx-ring-command-pool-index-{}-family-{}",
+                                                                 s_CommandPools->GetSize() - 1, family);
+        ONYX_CHECK_VKIT_RESULT(pool.Pool.SetName(name.GetData()));
     }
     return &pool;
 }
@@ -132,9 +133,9 @@ void Initialize(const Specs &specs)
         ONYX_CHECK_VKIT_RESULT(q->UpdateCompletedTimeline());
         if (IsDebugUtilsEnabled())
         {
-            const std::string name =
-                TKit::Format("onyx-timeline-semaphore-queue-index-{}-family-{}", i, q->GetFamily());
-            ONYX_CHECK_VKIT_RESULT(device.SetObjectName(semaphore, VK_OBJECT_TYPE_SEMAPHORE, name.c_str()));
+            const TKit::StackString name =
+                TKit::StackString::Format("onyx-timeline-semaphore-queue-index-{}-family-{}", i, q->GetFamily());
+            ONYX_CHECK_VKIT_RESULT(device.SetObjectName(semaphore, VK_OBJECT_TYPE_SEMAPHORE, name.GetData()));
         }
     }
 #ifdef TKIT_ENABLE_INFO_LOGS

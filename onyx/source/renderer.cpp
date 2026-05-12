@@ -378,9 +378,9 @@ static VKit::DeviceBuffer createTransferInstanceBuffer(const Geometry geo,
 
     if (IsDebugUtilsEnabled())
     {
-        const std::string name =
-            TKit::Format("onyx-renderer-transfer-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.c_str()));
+        const TKit::StackString name =
+            TKit::StackString::Format("onyx-renderer-transfer-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
+        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.GetData()));
     }
     return buffer;
 }
@@ -392,9 +392,9 @@ static VKit::DeviceBuffer createGraphicsInstanceBuffer(const Geometry geo,
     VKit::DeviceBuffer buffer = Onyx::CreateBuffer(getDeviceLocalFlags(), instances * GetInstanceSize<D>(geo));
     if (IsDebugUtilsEnabled())
     {
-        const std::string name =
-            TKit::Format("onyx-renderer-graphics-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.c_str()));
+        const TKit::StackString name =
+            TKit::StackString::Format("onyx-renderer-graphics-instance-buffer-{}D-geometry-{}", u8(D), ToString(geo));
+        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.GetData()));
     }
     return buffer;
 }
@@ -407,9 +407,9 @@ static VKit::DeviceBuffer createTransferLightBuffer(const LightType light,
 
     if (IsDebugUtilsEnabled())
     {
-        const std::string name =
-            TKit::Format("onyx-renderer-transfer-light-buffer-{}D-type-{}", u8(D), ToString(light));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.c_str()));
+        const TKit::StackString name =
+            TKit::StackString::Format("onyx-renderer-transfer-light-buffer-{}D-type-{}", u8(D), ToString(light));
+        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.GetData()));
     }
     return buffer;
 }
@@ -421,9 +421,9 @@ static VKit::DeviceBuffer createGraphicsLightBuffer(const LightType light,
     VKit::DeviceBuffer buffer = Onyx::CreateBuffer(Buffer_DeviceStorage, instances * getLightSize<D>(light));
     if (IsDebugUtilsEnabled())
     {
-        const std::string name =
-            TKit::Format("onyx-renderer-graphics-light-buffer-{}D-type-{}", u8(D), ToString(light));
-        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.c_str()));
+        const TKit::StackString name =
+            TKit::StackString::Format("onyx-renderer-graphics-light-buffer-{}D-type-{}", u8(D), ToString(light));
+        ONYX_CHECK_VKIT_RESULT(buffer.SetName(name.GetData()));
     }
     return buffer;
 }
@@ -451,9 +451,9 @@ template <Dimension D> static void createPipelines()
 
             if (IsDebugUtilsEnabled())
             {
-                const std::string name = TKit::Format("onyx-renderer-geometry-pipeline-{}D-pass-{}-geometry-'{}'",
-                                                      u8(D), ToString(pass), ToString(geo));
-                ONYX_CHECK_VKIT_RESULT(rdata.Geometry.Pipelines[pass][geo].SetName(name.c_str()));
+                const TKit::StackString name = TKit::StackString::Format(
+                    "onyx-renderer-geometry-pipeline-{}D-pass-{}-geometry-'{}'", u8(D), ToString(pass), ToString(geo));
+                ONYX_CHECK_VKIT_RESULT(rdata.Geometry.Pipelines[pass][geo].SetName(name.GetData()));
             }
         }
 
@@ -466,9 +466,9 @@ template <Dimension D> static void createPipelines()
         sdata.Pipelines[geo] = Pipelines::CreateShadowPipeline<D>(geo, format);
         if (IsDebugUtilsEnabled())
         {
-            const std::string name =
-                TKit::Format("onyx-renderer-shadow-pipeline-{}D-geometry-'{}'", u8(D), ToString(geo));
-            ONYX_CHECK_VKIT_RESULT(sdata.Pipelines[geo].SetName(name.c_str()));
+            const TKit::StackString name =
+                TKit::StackString::Format("onyx-renderer-shadow-pipeline-{}D-geometry-'{}'", u8(D), ToString(geo));
+            ONYX_CHECK_VKIT_RESULT(sdata.Pipelines[geo].SetName(name.GetData()));
         }
     }
 
@@ -585,9 +585,9 @@ template <Dimension D> static void initialize(const ShadowSpecs<D> &shadowSpecs)
             if (IsDebugUtilsEnabled())
             {
                 const auto &device = GetDevice();
-                const std::string name = TKit::Format("onyx-renderer-descriptor-set-{}D-geometry-{}-pass-{}", u8(D),
-                                                      ToString(geo), ToString(rpass));
-                ONYX_CHECK_VKIT_RESULT(device.SetObjectName(set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name.c_str()));
+                const TKit::StackString name = TKit::StackString::Format(
+                    "onyx-renderer-descriptor-set-{}D-geometry-{}-pass-{}", u8(D), ToString(geo), ToString(rpass));
+                ONYX_CHECK_VKIT_RESULT(device.SetObjectName(set, VK_OBJECT_TYPE_DESCRIPTOR_SET, name.GetData()));
             }
 
             const VkDescriptorBufferInfo info = gpool.Buffer.CreateDescriptorInfo();
@@ -1245,8 +1245,9 @@ static u32 findSuitableOcclusionMap()
 
     if (IsDebugUtilsEnabled())
     {
-        ONYX_CHECK_VKIT_RESULT(map.Image.SetName(TKit::Format("onyx-occlusion-map-{}", size).c_str()));
-        ONYX_CHECK_VKIT_RESULT(map.Image.SetViewNames(TKit::Format("onyx-occlusion-map-view-{}", size).c_str()));
+        ONYX_CHECK_VKIT_RESULT(map.Image.SetName(TKit::StackString::Format("onyx-occlusion-map-{}", size).GetData()));
+        ONYX_CHECK_VKIT_RESULT(
+            map.Image.SetViewNames(TKit::StackString::Format("onyx-occlusion-map-view-{}", size).GetData()));
     }
 
     VKit::DescriptorSet::Writer writer{GetDevice(), &Descriptors::GetRayMarchDescriptorLayout()};
@@ -1340,9 +1341,11 @@ static Range findSuitableTextureMapRange(const LightType light, const VkFormat f
         if (IsDebugUtilsEnabled())
         {
             ONYX_CHECK_VKIT_RESULT(map.Image.SetName(
-                TKit::Format("onyx-texture-map-{}D-'{}'-{}", u8(D), ToString(light), range.Offset + i).c_str()));
+                TKit::StackString::Format("onyx-texture-map-{}D-'{}'-{}", u8(D), ToString(light), range.Offset + i)
+                    .GetData()));
             ONYX_CHECK_VKIT_RESULT(map.Image.SetViewNames(
-                TKit::Format("onyx-texture-map-view-{}D-'{}'-{}", u8(D), ToString(light), range.Offset + i).c_str()));
+                TKit::StackString::Format("onyx-texture-map-view-{}D-'{}'-{}", u8(D), ToString(light), range.Offset + i)
+                    .GetData()));
         }
 
         VkDescriptorImageInfo info{};
@@ -3109,34 +3112,39 @@ template <Dimension D, typename Range>
 static void displayRanges(const char *name, const Pool<Range> &pool, const u64 generation = 0)
 {
     const RendererData<D> &rdata = getRendererData<D>();
-    const auto fmts = [](const VkDeviceSize bytes) -> std::string {
+    // NOTE(Isma): Using stack strings as return values may be a bit dangerous. RVO may save us here, but its an
+    // unreliable solution
+    const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
         if (bytes > 1_gib)
-            return TKit::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
+            return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
         if (bytes > 1_mib)
-            return TKit::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
+            return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
         if (bytes > 1_kib)
-            return TKit::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
-        return TKit::Format("{:L} b", bytes);
+            return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
+        return TKit::StackString::Format("{:L} b", bytes);
     };
 
-    const auto fmtb = [](const VkDeviceSize bytes) -> std::string { return TKit::Format("{:L} b", bytes); };
+    const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
+        return TKit::StackString::Format("{:L} b", bytes);
+    };
 
     if (ImGui::TreeNode(&pool, "%s pool ranges (%u)", name, pool.Ranges.GetSize()))
     {
-        ImGui::Text("Buffer size: %s", fmts(pool.Buffer.GetInfo().Size).c_str());
+        ImGui::Text("Buffer size: %s", fmts(pool.Buffer.GetInfo().Size).GetData());
         for (const Range &range : pool.Ranges)
             if constexpr (std::is_same_v<Range, TransferInstanceRange> || std::is_same_v<Range, TransferLightRange>)
-                ImGui::Text("%s (%s): %s - %s", range.Tracker.InUse() ? "IN-USE" : "FREE", fmts(range.Size).c_str(),
-                            fmtb(range.Offset).c_str(), fmtb(range.Offset + range.Size).c_str());
+                ImGui::Text("%s (%s): %s - %s", range.Tracker.InUse() ? "IN-USE" : "FREE", fmts(range.Size).GetData(),
+                            fmtb(range.Offset).GetData(), fmtb(range.Offset + range.Size).GetData());
             else if constexpr (std::is_same_v<Range, GraphicsInstanceRange>)
             {
-                if (ImGui::TreeNode(
-                        &range, "%s (%s): %s - %s",
-                        range.InUse() ? "IN-USE"
-                                      : (rdata.AreAllContextRangesDirty(range)
-                                             ? "FREE"
-                                             : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
-                        fmts(range.Size).c_str(), fmtb(range.Offset).c_str(), fmtb(range.Offset + range.Size).c_str()))
+                if (ImGui::TreeNode(&range, "%s (%s): %s - %s",
+                                    range.InUse()
+                                        ? "IN-USE"
+                                        : (rdata.AreAllContextRangesDirty(range)
+                                               ? "FREE"
+                                               : (rdata.AreAllContextRangesClean(range) ? "CLEAN" : "FRAGMENTED")),
+                                    fmts(range.Size).GetData(), fmtb(range.Offset).GetData(),
+                                    fmtb(range.Offset + range.Size).GetData()))
                 {
                     ImGui::Text("In use by transfer queue: %s", range.TransferTracker.InUse() ? "YES" : "NO");
                     ImGui::Text("In use by graphics queue: %s", range.GraphicsTracker.InUse() ? "YES" : "NO");
@@ -3145,15 +3153,15 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
 
                     if (range.RenderFlags != 0)
                         ImGui::Text("Render mode: %s", ToString(GetRenderMode(range.RenderFlags)));
-                    const std::string vmask = TKit::Format("{:032b}", range.ViewMask);
-                    ImGui::Text("View mask: %s", vmask.c_str());
+                    const TKit::StackString vmask = TKit::StackString::Format("{:032b}", range.ViewMask);
+                    ImGui::Text("View mask: %s", vmask.GetData());
                     if (ImGui::TreeNode(&range.ContextRanges, "Context ranges (%u)", range.ContextRanges.GetSize()))
                     {
                         for (const ContextInstanceRange &crange : range.ContextRanges)
                             if (ImGui::TreeNode(&crange, "%s (%s): %s - %s",
                                                 rdata.IsContextRangeClean(crange) ? "CLEAN" : "DIRTY",
-                                                fmts(crange.Size).c_str(), fmtb(crange.Offset).c_str(),
-                                                fmtb(crange.Offset + crange.Size).c_str()))
+                                                fmts(crange.Size).GetData(), fmtb(crange.Offset).GetData(),
+                                                fmtb(crange.Offset + crange.Size).GetData()))
                             {
                                 if (crange.ContextIndex != TKIT_U32_MAX)
                                 {
@@ -3167,8 +3175,8 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
                                 else
                                     ImGui::Text("Context index: None");
 
-                                const std::string cvmask = TKit::Format("{:032b}", crange.ViewMask);
-                                ImGui::Text("View mask: %s", cvmask.c_str());
+                                const TKit::StackString cvmask = TKit::StackString::Format("{:032b}", crange.ViewMask);
+                                ImGui::Text("View mask: %s", cvmask.GetData());
                                 ImGui::TreePop();
                                 ImGui::Spacing();
                             }
@@ -3180,9 +3188,10 @@ static void displayRanges(const char *name, const Pool<Range> &pool, const u64 g
                 }
             }
             else
-                ImGui::Text(
-                    "%s (%s): %s - %s", range.InUse() ? "IN-USE" : (range.Generation == generation ? "CLEAN" : "FREE"),
-                    fmts(range.Size).c_str(), fmtb(range.Offset).c_str(), fmtb(range.Offset + range.Size).c_str());
+                ImGui::Text("%s (%s): %s - %s",
+                            range.InUse() ? "IN-USE" : (range.Generation == generation ? "CLEAN" : "FREE"),
+                            fmts(range.Size).GetData(), fmtb(range.Offset).GetData(),
+                            fmtb(range.Offset + range.Size).GetData());
         ImGui::TreePop();
         ImGui::Spacing();
     }
@@ -3193,17 +3202,19 @@ template <Dimension D, typename TRange, typename GRange>
 static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, const u64 generation = 0)
 {
     const RendererData<D> &rdata = getRendererData<D>();
-    const auto fmts = [](const VkDeviceSize bytes) -> std::string {
+    const auto fmts = [](const VkDeviceSize bytes) -> TKit::StackString {
         if (bytes > 1_gib)
-            return TKit::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
+            return TKit::StackString::Format("{:.2f} gib", f32(bytes) / f32(1_gib));
         if (bytes > 1_mib)
-            return TKit::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
+            return TKit::StackString::Format("{:.2f} mib", f32(bytes) / f32(1_mib));
         if (bytes > 1_kib)
-            return TKit::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
-        return TKit::Format("{:L} b", bytes);
+            return TKit::StackString::Format("{:.2f} kib", f32(bytes) / f32(1_kib));
+        return TKit::StackString::Format("{:L} b", bytes);
     };
 
-    const auto fmtb = [](const VkDeviceSize bytes) -> std::string { return TKit::Format("{:L} b", bytes); };
+    const auto fmtb = [](const VkDeviceSize bytes) -> TKit::StackString {
+        return TKit::StackString::Format("{:L} b", bytes);
+    };
     const VkDeviceSize maxSize = Math::Max(tpool.Buffer.GetInfo().Size, gpool.Buffer.GetInfo().Size);
     constexpr u32 top = 2 + std::is_same_v<GRange, GraphicsInstanceRange>;
     ImPlot::SetNextAxesLimits(0.0, f64(maxSize), -1, top, ImGuiCond_Always);
@@ -3237,12 +3248,12 @@ static void plotRanges(const Pool<TRange> &tpool, const Pool<GRange> &gpool, con
                 if (mouse.x >= offset && mouse.x <= offset + size && mouse.y >= bindex && mouse.y <= bindex + 1.0)
                 {
                     ImGui::BeginTooltip();
-                    ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).c_str(), fmts(size).c_str());
+                    ImGui::Text("%s - Offset: %s - Size: %s", lbl, fmtb(offset).GetData(), fmts(size).GetData());
                     if (rmode != RenderMode_None)
                     {
                         ImGui::SameLine();
-                        ImGui::Text("- Mesh handle: %s - Render mode: %s", TKit::Format("{:#010x}", meshHandle).c_str(),
-                                    ToString(rmode));
+                        ImGui::Text("- Mesh handle: %s - Render mode: %s",
+                                    TKit::StackString::Format("{:#010x}", meshHandle).GetData(), ToString(rmode));
                     }
                     ImGui::EndTooltip();
                 }

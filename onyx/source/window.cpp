@@ -364,14 +364,14 @@ bool Window::handlePresentOrAcquireResult(const u32 r)
 void Window::nameSurface()
 {
     const auto &device = GetDevice();
-    const std::string name = TKit::Format("onyx-surface-window-'{}'", GetTitle());
-    ONYX_CHECK_VKIT_RESULT(device.SetObjectName(m_Surface, VK_OBJECT_TYPE_SURFACE_KHR, name.c_str()));
+    const TKit::StackString name = TKit::StackString::Format("onyx-surface-window-'{}'", GetTitle());
+    ONYX_CHECK_VKIT_RESULT(device.SetObjectName(m_Surface, VK_OBJECT_TYPE_SURFACE_KHR, name.GetData()));
 }
 
 void Window::nameSwapChain()
 {
-    const std::string name = TKit::Format("onyx-swapchain-window-'{}'", GetTitle());
-    ONYX_CHECK_VKIT_RESULT(m_SwapChain->SetName(name.c_str()));
+    const TKit::StackString name = TKit::StackString::Format("onyx-swapchain-window-'{}'", GetTitle());
+    ONYX_CHECK_VKIT_RESULT(m_SwapChain->SetName(name.GetData()));
 }
 
 void Window::nameSyncData()
@@ -380,12 +380,14 @@ void Window::nameSyncData()
     const char *title = GetTitle();
     for (u32 i = 0; i < m_SwapChain->GetImageCount(); ++i)
     {
-        const std::string rfinish = TKit::Format("onyx-render-finished-semaphore-window-'{}'-image-index-{}", title, i);
-        const std::string iavail = TKit::Format("onyx-image-available-semaphore-index-{}-window-'{}'", i, title);
+        const TKit::StackString rfinish =
+            TKit::StackString::Format("onyx-render-finished-semaphore-window-'{}'-image-index-{}", title, i);
+        const TKit::StackString iavail =
+            TKit::StackString::Format("onyx-image-available-semaphore-index-{}-window-'{}'", i, title);
         ONYX_CHECK_VKIT_RESULT(
-            device.SetObjectName(m_SyncData[i]->RenderFinishedSemaphore, VK_OBJECT_TYPE_SEMAPHORE, rfinish.c_str()));
+            device.SetObjectName(m_SyncData[i]->RenderFinishedSemaphore, VK_OBJECT_TYPE_SEMAPHORE, rfinish.GetData()));
         ONYX_CHECK_VKIT_RESULT(
-            device.SetObjectName(m_SyncData[i]->ImageAvailableSemaphore, VK_OBJECT_TYPE_SEMAPHORE, iavail.c_str()));
+            device.SetObjectName(m_SyncData[i]->ImageAvailableSemaphore, VK_OBJECT_TYPE_SEMAPHORE, iavail.GetData()));
     }
 }
 
@@ -394,8 +396,9 @@ void Window::nameSwapChainImages()
     const char *title = GetTitle();
     for (u32 i = 0; i < m_SwapChain->GetImageCount(); ++i)
     {
-        const std::string pres = TKit::Format("onyx-presentation-image-index-{}-window-'{}'", i, title);
-        ONYX_CHECK_VKIT_RESULT(m_Presentation[i]->SetName(pres.c_str()));
+        const TKit::StackString pres =
+            TKit::StackString::Format("onyx-presentation-image-index-{}-window-'{}'", i, title);
+        ONYX_CHECK_VKIT_RESULT(m_Presentation[i]->SetName(pres.GetData()));
     }
 }
 

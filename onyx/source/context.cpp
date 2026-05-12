@@ -370,10 +370,10 @@ struct CharLine
 };
 
 template <Dimension D>
-void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> &transform,
+void IRenderContext<D>::addGlyphData(const TKit::StringView text, const f32m<D> &transform,
                                      const TextParameters &params)
 {
-    if (!m_Current->RenderFlags || text.empty())
+    if (!m_Current->RenderFlags || text.IsEmpty())
         return;
 
     CHECK_HANDLE(m_Current->Font, Resource_Font, D);
@@ -386,7 +386,7 @@ void IRenderContext<D>::addGlyphData(const std::string_view text, const f32m<D> 
 
     const Resource font = m_Current->Font;
     const FontData &fdata = Resources::GetFontData(font);
-    const u32 size = u32(text.size());
+    const u32 size = text.GetSize();
     const f32 maxWidth = params.Width;
 
     f32m<D> t = transform;

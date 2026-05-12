@@ -384,11 +384,11 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
                       params);
     }
 
-    void Text(std::string_view text, const TextParameters &params = {})
+    void Text(const TKit::StringView text, const TextParameters &params = {})
     {
         addGlyphData(text, m_Current->Transform, params);
     }
-    void Text(std::string_view text, const f32m<D> &transform, const TextParameters &params = {},
+    void Text(const TKit::StringView text, const f32m<D> &transform, const TextParameters &params = {},
               const TransformMode mode = Transform_Extrinsic)
     {
         addGlyphData(
@@ -583,7 +583,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addCircleData(const f32m<D> &transform, const CircleParameters &params);
     void addStaticData(Resource mesh, const f32m<D> &transform);
     void addParametricData(Resource mesh, const f32m<D> &transform, const InstanceParameters &params);
-    void addGlyphData(std::string_view text, const f32m<D> &transform, const TextParameters &params);
+    void addGlyphData(TKit::StringView text, const f32m<D> &transform, const TextParameters &params);
     void addGlyphData(const Glyph *glyph, const f32m<D> &transform);
     void addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params);
 #ifdef TKIT_ENABLE_ASSERTS

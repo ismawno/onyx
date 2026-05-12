@@ -12,6 +12,7 @@
 #include "vkit/state/graphics_pipeline.hpp"
 #include "vkit/state/shader.hpp"
 #include "tkit/profiling/macros.hpp"
+#include "tkit/container/stack_array.hpp"
 #include "tkit/utils/debug.hpp"
 #include <imgui_internal.h>
 
@@ -1219,10 +1220,10 @@ static Renderer_ViewportData *renderer_CreateViewportData(Window *window)
 
         if (IsDebugUtilsEnabled())
         {
-            const std::string vbuffer = TKit::Format("onyx-imgui-vbuffer-image-index-{}", i);
-            const std::string ibuffer = TKit::Format("onyx-imgui-ibuffer-image-index-{}", i);
-            ONYX_CHECK_VKIT_RESULT(buffers.VertexBuffer.SetName(vbuffer.c_str()));
-            ONYX_CHECK_VKIT_RESULT(buffers.IndexBuffer.SetName(ibuffer.c_str()));
+            const TKit::StackString vbuffer = TKit::StackString::Format("onyx-imgui-vbuffer-image-index-{}", i);
+            const TKit::StackString ibuffer = TKit::StackString::Format("onyx-imgui-ibuffer-image-index-{}", i);
+            ONYX_CHECK_VKIT_RESULT(buffers.VertexBuffer.SetName(vbuffer.GetData()));
+            ONYX_CHECK_VKIT_RESULT(buffers.IndexBuffer.SetName(ibuffer.GetData()));
         }
     }
     return vdata;
@@ -1354,11 +1355,12 @@ static void renderer_UpdateTexture(ImTextureData *tex, const u32 imageCount)
         tex->SetTexID(reinterpret_cast<ImTextureID>(bckTex->Set));
         if (IsDebugUtilsEnabled())
         {
-            const std::string tname = TKit::Format("onyx-imgui-texture-id-{:#x}", tex->GetTexID());
-            const std::string sname = TKit::Format("onyx-imgui-tex-descriptor-id-{:#x}", tex->GetTexID());
-            ONYX_CHECK_VKIT_RESULT(bckTex->Image.SetName(tname.c_str()));
+            const TKit::StackString tname = TKit::StackString::Format("onyx-imgui-texture-id-{:#x}", tex->GetTexID());
+            const TKit::StackString sname =
+                TKit::StackString::Format("onyx-imgui-tex-descriptor-id-{:#x}", tex->GetTexID());
+            ONYX_CHECK_VKIT_RESULT(bckTex->Image.SetName(tname.GetData()));
             ONYX_CHECK_VKIT_RESULT(
-                GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.c_str()));
+                GetDevice().SetObjectName(bckTex->Set, VK_OBJECT_TYPE_DESCRIPTOR_SET, sname.GetData()));
         }
         tex->BackendUserData = bckTex;
         TKIT_LOG_DEBUG("[ONYX][IMGUI] Created new texture with id '{:#x}'", tex->GetTexID());

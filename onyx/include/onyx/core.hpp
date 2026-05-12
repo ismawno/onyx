@@ -5,6 +5,8 @@
 #include "tkit/utils/limits.hpp"
 #include "tkit/container/fixed_array.hpp"
 #include "tkit/utils/result.hpp"
+#define TKIT_DEFAULT_STRING_TIER
+#include "tkit/container/string.hpp"
 
 #define ONYX_NO_DISCARD [[nodiscard]]
 #define ONYX_CHECK_RESULT(expression) Onyx::CheckResult(expression);
@@ -41,7 +43,7 @@ class Error
 {
   public:
     Error() = default;
-    Error(const ErrorCode code, const std::string &message) : m_FormattedMessage(message), m_ErrorCode(code)
+    Error(const ErrorCode code, const TKit::String &message) : m_FormattedMessage(message), m_ErrorCode(code)
     {
     }
     Error(const ErrorCode code, const char *message) : m_CheapMessage(message), m_ErrorCode(code)
@@ -51,8 +53,8 @@ class Error
     {
     }
 
-    std::string ToString() const;
-    std::string GetMessage() const
+    TKit::String ToString() const;
+    TKit::String GetMessage() const
     {
         return m_CheapMessage ? m_CheapMessage : m_FormattedMessage;
     }
@@ -63,7 +65,7 @@ class Error
     }
 
     const char *m_CheapMessage = nullptr;
-    std::string m_FormattedMessage{};
+    TKit::String m_FormattedMessage{};
     ErrorCode m_ErrorCode = Error_Unknown;
 };
 

@@ -2,8 +2,9 @@
 #include "onyx/definitions.hpp"
 #include "onyx/specs.hpp"
 #include "descriptors.hpp"
-#include "conversion.hpp"
 #include "core.hpp"
+#include "conversion.hpp"
+#include "tkit/container/stack_array.hpp"
 
 namespace Onyx::Descriptors
 {
@@ -163,7 +164,8 @@ static void createDescriptorData(const Specs &specs)
             for (auto &renders : dims)
             {
                 ONYX_CHECK_VKIT_RESULT(renders.SetName(
-                    TKit::Format("onyx-descriptor-set-layout-{}D-{}", i, ToString(RenderPass(j++))).c_str()));
+                    TKit::StackString::Format("onyx-descriptor-set-layout-{}D-{}", i, ToString(RenderPass(j++)))
+                        .GetData()));
             }
             ++i;
         }

@@ -6,7 +6,6 @@
 #include "instance.hpp"
 #ifdef ONYX_COMPILE_SHADERS_ON_EXEC
 #    include "shaders.hpp"
-#    include "tkit/container/stack_array.hpp"
 #else
 #    include "vkit/state/shader.hpp"
 #    include "spirv.hpp"
@@ -14,6 +13,7 @@
 #include "onyx/vertex.hpp"
 #include "platform.hpp"
 #include "tkit/preprocessor/utils.hpp"
+#include "tkit/container/stack_array.hpp"
 
 namespace Onyx::Pipelines
 {
@@ -132,8 +132,8 @@ static void createPipelineLayouts()
             u32 j = 0;
             for (auto &passes : dims)
             {
-                ONYX_CHECK_VKIT_RESULT(
-                    passes.SetName(TKit::Format("onyx-pipeline-layout-{}D-{}", i, ToString(RenderPass(j++))).c_str()));
+                ONYX_CHECK_VKIT_RESULT(passes.SetName(
+                    TKit::StackString::Format("onyx-pipeline-layout-{}D-{}", i, ToString(RenderPass(j++))).GetData()));
             }
             ++i;
         }
@@ -214,19 +214,19 @@ static void createShaders()
 
     compiler.AddSearchPath(ONYX_SHADERS_PATH);
 
-    const TKit::FixedArray<std::string, Geometry_Count> geos = {"circle", "static", "parametric", "glyph"};
-    const TKit::FixedArray<std::string, RenderPass_Count> passes = {"flat", "shaded", "shadow"};
-    const TKit::FixedArray<std::string, D_Count> dims = {"2D", "3D"};
+    const TKit::FixedArray<TKit::String, Geometry_Count> geos = {"circle", "static", "parametric", "glyph"};
+    const TKit::FixedArray<TKit::String, RenderPass_Count> passes = {"flat", "shaded", "shadow"};
+    const TKit::FixedArray<TKit::String, D_Count> dims = {"2D", "3D"};
 
-    TKit::StackArray<std::string> names{};
+    TKit::StackArray<TKit::String> names{};
     names.Reserve(u32(Geometry_Count) * u32(RenderPass_Count) * u32(D_Count));
 
-    for (const std::string &geo : geos)
-        for (const std::string &pass : passes)
-            for (const std::string &dim : dims)
+    for (const TKit::String &geo : geos)
+        for (const TKit::String &pass : passes)
+            for (const TKit::String &dim : dims)
             {
-                const std::string &name = names.Append(geo + "-" + pass + "-" + dim);
-                compiler.AddModule(name.c_str())
+                const TKit::String &name = names.Append(geo + "-" + pass + "-" + dim);
+                compiler.AddModule(name.GetData())
                     .DeclareEntryPoint("mainVS", ShaderStage_Vertex)
                     .DeclareEntryPoint("mainFS", ShaderStage_Fragment)
                     .Load();
@@ -248,16 +248,16 @@ static void createShaders()
 
     u32 idx = 0;
     const auto createShader = [&](const Geometry geo, ShaderData &data) {
-        const std::string &name = names[idx++];
-        data.VertexShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainVS", name.c_str()));
-        data.FragmentShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainFS", name.c_str()));
+        const TKit::String &name = names[idx++];
+        data.VertexShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainVS", name.GetData()));
+        data.FragmentShaders[geo] = ONYX_CHECK_RESULT(cmp.CreateShader("mainFS", name.GetData()));
 
         if (IsDebugUtilsEnabled())
         {
-            const std::string v = "onyx-vertex-shader-" + name;
-            const std::string f = "onyx-fragment-shader-" + name;
-            ONYX_CHECK_VKIT_RESULT(data.VertexShaders[geo].SetName(v.c_str()));
-            ONYX_CHECK_VKIT_RESULT(data.FragmentShaders[geo].SetName(v.c_str()));
+            const TKit::String v = "onyx-vertex-shader-" + name;
+            const TKit::String f = "onyx-fragment-shader-" + name;
+            ONYX_CHECK_VKIT_RESULT(data.VertexShaders[geo].SetName(v.GetData()));
+            ONYX_CHECK_VKIT_RESULT(data.FragmentShaders[geo].SetName(v.GetData()));
         }
     };
 

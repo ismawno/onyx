@@ -7,21 +7,6 @@
 namespace Onyx
 {
 
-static const std::unordered_map<std::string, Color *> s_ColorMap{{"red", &Color_Red},
-                                                                 {"green", &Color_Green},
-                                                                 {"blue", &Color_Blue},
-                                                                 {"magenta", &Color_Magenta},
-                                                                 {"cyan", &Color_Cyan},
-                                                                 {"orange", &Color_Orange},
-                                                                 {"yellow", &Color_Yellow},
-                                                                 {"black", &Color_Black},
-                                                                 {"pink", &Color_Pink},
-                                                                 {"purple", &Color_Purple},
-                                                                 {"white", &Color_White},
-                                                                 {"transparent", &Color_Transparent}
-
-};
-
 template <> u32 Color::ToHexadecimal<u32>(const bool alpha) const
 {
     if (alpha)
@@ -40,6 +25,17 @@ template <> std::string Color::ToHexadecimal<std::string>(const bool alpha) cons
 
     return hex;
 }
+template <> TKit::String Color::ToHexadecimal<TKit::String>(const bool alpha) const
+{
+    std::stringstream ss;
+    ss << std::hex << ToHexadecimal<u32>(alpha);
+    TKit::String hex = ss.view();
+    const u32 size = alpha ? 8 : 6;
+    while (hex.GetSize() < size)
+        hex = "0" + hex;
+
+    return hex;
+}
 
 Color Color::FromHexadecimal(const u32 hex, const bool alpha)
 {
@@ -47,18 +43,32 @@ Color Color::FromHexadecimal(const u32 hex, const bool alpha)
         return {hex >> 24, (hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF};
     return {hex >> 16, (hex >> 8) & 0xFF, hex & 0xFF};
 }
-Color Color::FromHexadecimal(const std::string_view hex)
+Color Color::FromHexadecimal(const TKit::StringView hex)
 {
-    TKIT_ASSERT(hex.size() == 6 || hex.size() == 8, "[ONYX][COLOR] Invalid hexadecimal color");
+    TKIT_ASSERT(hex.GetSize() == 6 || hex.GetSize() == 8, "[ONYX][COLOR] Invalid hexadecimal color");
     u32 val;
     std::stringstream ss;
     ss << std::hex << hex;
     ss >> val;
-    return FromHexadecimal(val, hex.size() == 8);
+    return FromHexadecimal(val, hex.GetSize() == 8);
 }
 
-Color Color::FromString(const std::string &color)
+Color Color::FromString(const TKit::String &color)
 {
+    static const std::unordered_map<TKit::String, Color *> s_ColorMap{{"red", &Color_Red},
+                                                                      {"green", &Color_Green},
+                                                                      {"blue", &Color_Blue},
+                                                                      {"magenta", &Color_Magenta},
+                                                                      {"cyan", &Color_Cyan},
+                                                                      {"orange", &Color_Orange},
+                                                                      {"yellow", &Color_Yellow},
+                                                                      {"black", &Color_Black},
+                                                                      {"pink", &Color_Pink},
+                                                                      {"purple", &Color_Purple},
+                                                                      {"white", &Color_White},
+                                                                      {"transparent", &Color_Transparent}
+
+    };
     TKIT_ASSERT(s_ColorMap.contains(color), "[ONYX][COLOR] Color '{}' not found", color);
     return *s_ColorMap.at(color);
 }

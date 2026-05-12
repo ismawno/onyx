@@ -102,16 +102,17 @@ Result<const Spirv *> Compilation::GetSpirv(const char *entryPoint, const char *
             if (index != TKIT_U32_MAX)
                 return Result<>::Error(
                     Error_EntryPointNotFound,
-                    TKit::Format("[ONYX][SHADERS] Found multiple endpoints named '{}'. If you have endpoints with the "
-                                 "same name, the "
-                                 "module name, the stage or both must be provided as well to resolve the ambiguity",
-                                 entryPoint));
+                    TKit::String::Format(
+                        "[ONYX][SHADERS] Found multiple endpoints named '{}'. If you have endpoints with the "
+                        "same name, the "
+                        "module name, the stage or both must be provided as well to resolve the ambiguity",
+                        entryPoint));
             index = i;
         }
     }
     if (index == TKIT_U32_MAX)
         return Result<>::Error(Error_EntryPointNotFound,
-                               TKit::Format("Entry point named '{}' was not found", entryPoint));
+                               TKit::String::Format("Entry point named '{}' was not found", entryPoint));
     return &m_CompiledSpirv[index];
 }
 Result<const Spirv *> Compilation::GetSpirv(const char *entryPoint, const ShaderStage stage, const char *module) const
@@ -128,15 +129,17 @@ Result<const Spirv *> Compilation::GetSpirv(const char *entryPoint, const Shader
             if (index != TKIT_U32_MAX)
                 return Result<>::Error(
                     Error_EntryPointNotFound,
-                    TKit::Format("Found multiple endpoints named '{}'. If you have endpoints with the same name, the "
-                                 "module name, the stage or both must be provided as well to resolve the ambiguity",
-                                 entryPoint));
+                    TKit::String::Format(
+                        "Found multiple endpoints named '{}'. If you have endpoints with the same name, the "
+                        "module name, the stage or both must be provided as well to resolve the ambiguity",
+                        entryPoint));
             index = i;
         }
     }
     if (index == TKIT_U32_MAX)
-        return Result<>::Error(Error_EntryPointNotFound,
-                               TKit::Format("[ONYX][SHADERS] Entry point named '{}' was not found", entryPoint));
+        return Result<>::Error(
+            Error_EntryPointNotFound,
+            TKit::String::Format("[ONYX][SHADERS] Entry point named '{}' was not found", entryPoint));
     return &m_CompiledSpirv[index];
 }
 Result<const Spirv *> Compilation::GetSpirv(const char *entryPoint, const char *module, const ShaderStage stage) const
@@ -492,14 +495,14 @@ static slang::CompilerOptionName getArgumentName(const ShaderArgumentName arg)
     return SO::CountOf;
 }
 
-static std::string getDiagnostics(slang::IBlob *diagnostics)
+static TKit::String getDiagnostics(slang::IBlob *diagnostics)
 {
     if (!diagnostics)
         return "No diagnostics available";
 
     const char *text = scast<const char *>(diagnostics->getBufferPointer());
     const size_t size = diagnostics->getBufferSize();
-    const std::string message{text, size};
+    const TKit::String message{text, size};
     return message;
 }
 
@@ -577,8 +580,8 @@ Result<Compilation> Compiler::Compile() const
 
         if (!module)
             return Result<>::Error(Error_ShaderCompilationFailed,
-                                   TKit::Format("[ONYX][SHADERS] Failed to load shader module '{}': {}", munit.m_Name,
-                                                getDiagnostics(diagnostics)));
+                                   TKit::String::Format("[ONYX][SHADERS] Failed to load shader module '{}': {}",
+                                                        munit.m_Name, getDiagnostics(diagnostics)));
 
         components.Append(module);
         TKIT_LOG_WARNING_IF(diagnostics, "[ONYX][SHADERS] Shader module '{}' loaded with the following diagnostics: {}",
@@ -593,8 +596,8 @@ Result<Compilation> Compiler::Compile() const
             if (SLANG_FAILED(result))
                 return Result<>::Error(
                     Error_ShaderCompilationFailed,
-                    TKit::Format("[ONYX][SHADERS] Failed to check entry point '{}' from module '{}': {}", ep.Name,
-                                 munit.m_Name, getDiagnostics(diagnostics)));
+                    TKit::String::Format("[ONYX][SHADERS] Failed to check entry point '{}' from module '{}': {}",
+                                         ep.Name, munit.m_Name, getDiagnostics(diagnostics)));
 
             TKIT_LOG_WARNING_IF(
                 diagnostics,
@@ -614,8 +617,8 @@ Result<Compilation> Compiler::Compile() const
         if (SLANG_FAILED(result))
             return Result<>::Error(
                 Error_ShaderCompilationFailed,
-                TKit::Format("[ONYX][SHADERS] Failed to create composite component type for module '{}': {}",
-                             munit.m_Name, getDiagnostics(diagnostics)));
+                TKit::String::Format("[ONYX][SHADERS] Failed to create composite component type for module '{}': {}",
+                                     munit.m_Name, getDiagnostics(diagnostics)));
 
         TKIT_LOG_WARNING_IF(
             diagnostics,
@@ -625,9 +628,10 @@ Result<Compilation> Compiler::Compile() const
         slang::IComponentType *linkedProgram;
         result = program->link(&linkedProgram, diagnostics.writeRef());
         if (SLANG_FAILED(result))
-            return Result<>::Error(Error_ShaderCompilationFailed,
-                                   TKit::Format("[ONYX][SHADERS] Failed to link final program for module '{}': {}",
-                                                munit.m_Name, getDiagnostics(diagnostics)));
+            return Result<>::Error(
+                Error_ShaderCompilationFailed,
+                TKit::String::Format("[ONYX][SHADERS] Failed to link final program for module '{}': {}", munit.m_Name,
+                                     getDiagnostics(diagnostics)));
 
         TKIT_LOG_WARNING_IF(diagnostics,
                             "[ONYX][SHADERS] Linked final program for module '{}' with the following diagnostics: {}",
@@ -655,7 +659,7 @@ Result<Compilation> Compiler::Compile() const
             if (SLANG_FAILED(result))
                 return Result<>::Error(
                     Error_ShaderCompilationFailed,
-                    TKit::Format(
+                    TKit::String::Format(
                         "[ONYX][SHADERS] Failed to retrieve final code from entry point '{}' and module '{}': {}",
                         ep.Name, munit.m_Name, getDiagnostics(diagnostics)));
 
@@ -705,7 +709,7 @@ Result<VKit::Shader> Create(const Spirv &spirv)
 {
     return Create(spirv.Data, spirv.Size);
 }
-Result<VKit::Shader> Create(const std::string_view spirvPath)
+Result<VKit::Shader> Create(const TKit::StringView spirvPath)
 {
     return VKit::Shader::Create(GetDevice(), spirvPath);
 }
