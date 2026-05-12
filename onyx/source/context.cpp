@@ -305,6 +305,35 @@ template <Dimension D> WorldRect<D> IRenderContext<D>::computeWorldRect(const Cl
 }
 
 template <Dimension D>
+ClipRect<D> IRenderContext<D>::computeClipRect(const f32v<D> &position, const f32v<D> &dimensions)
+{
+    f32v<D> mn;
+    f32v<D> mx;
+    for (u32 i = 0; i < D; ++i)
+    {
+        const Alignment alg = m_Current->Alignment[i];
+        const f32 p = position[i];
+        const f32 d = dimensions[i];
+        if (alg == Alignment_Left)
+        {
+            mn[i] = p;
+            mx[i] = p + d;
+        }
+        else if (alg == Alignment_Center)
+        {
+            mn[i] = p - 0.5f * d;
+            mx[i] = p + 0.5f * d;
+        }
+        else
+        {
+            mn[i] = p - d;
+            mx[i] = p;
+        }
+    }
+    return ClipRect<D>{mn, mx};
+}
+
+template <Dimension D>
 template <typename T>
 void IRenderContext<D>::addInstanceData(InstanceDataBuffer &buffer, const T &data)
 {

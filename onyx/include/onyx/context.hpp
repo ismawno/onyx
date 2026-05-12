@@ -419,13 +419,13 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         m_Current->Rect = computeWorldRect(rect);
     }
-    void Clip(const f32v<D> &position, const f32v<D> &extent)
+    void Clip(const f32v<D> &position, const f32v<D> &dimensions)
     {
-        Clip(ClipRect<D>{position, position + extent});
+        Clip(computeClipRect(position, dimensions));
     }
-    void Clip(const f32v<D> &extent)
+    void Clip(const f32v<D> &dimensions)
     {
-        Clip(ClipRect<D>{f32v<D>{0.f}, extent});
+        Clip(computeClipRect(f32v<D>{0.f}, dimensions));
     }
     void NoClip()
     {
@@ -577,6 +577,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void resizeBuffer(InstanceDataBuffer &buffer);
     void resizeBufferArrays();
     WorldRect<D> computeWorldRect(const ClipRect<D> &clip);
+    ClipRect<D> computeClipRect(const f32v<D> &position, const f32v<D> &dimensions);
 
     template <typename T> void addInstanceData(InstanceDataBuffer &buffer, const T &data);
 
