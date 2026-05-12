@@ -43,8 +43,13 @@ struct FontData
     f32 Ascender = 0.f;
     f32 Descender = 0.f;
     f32 LineHeight = 0.f;
+    f32 UnitRange = 0.f;
 
+    u32 GetGlyphDataIndex(u32 code) const;
     f32 GetKerning(u32 code0, u32 code1) const;
+    f32 ComputeTextSize(TKit::StringView text) const;
+    f32 ComputeTextMinimumSize(TKit::StringView text) const;
+    TKit::String WrapText(TKit::StringView text, f32 maxWidth) const;
 };
 
 #ifdef ONYX_ENABLE_FONT_LOAD
@@ -56,6 +61,7 @@ struct FontLoadOptions
     f32 FontScale = 1.f;
     f32 MaxCornerAngle = 3.f;
     f32 EmSize = 40.f;
+    u32 AtlasDimensions = 512;
 };
 ONYX_NO_DISCARD Result<FontData> LoadFontDataFromFile(const char *path, const FontLoadOptions &opts = {});
 ONYX_NO_DISCARD Result<FontData> LoadFontDataFromMemory(const std::byte *memory, u32 size,

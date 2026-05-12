@@ -199,13 +199,14 @@ static ParametricInstanceData<D> createParametricInstanceData(const ContextState
 
 template <Dimension D>
 static GlyphInstanceData<D> createGlyphInstanceData(const ContextState<D> *state, const f32m<D> &transform,
-                                                    const u32 depthCounter)
+                                                    const f32 unitRange, const u32 depthCounter)
 {
     GlyphInstanceData<D> instanceData;
     instanceData.Data = createInstanceData(state, transform, depthCounter);
     instanceData.BoundsHandle = NullHandle;
     instanceData.AtlasHandle = Resources::GetFontAtlas(state->Font);
     instanceData.SamplerHandle = state->FontSampler;
+    instanceData.UnitRange = unitRange;
     return instanceData;
 }
 
@@ -399,8 +400,7 @@ struct CharLine
 };
 
 template <Dimension D>
-void IRenderContext<D>::addGlyphData(const TKit::StringView text, const f32m<D> &transform,
-                                     const TextParameters &params)
+void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &transform, const TextParameters &params)
 {
     if (!m_Current->RenderFlags || text.IsEmpty())
         return;
@@ -415,8 +415,15 @@ void IRenderContext<D>::addGlyphData(const TKit::StringView text, const f32m<D> 
 
     const Resource font = m_Current->Font;
     const FontData &fdata = Resources::GetFontData(font);
+
+    TKit::String wrapped;
+    if (params.MaxWidth != TKIT_F32_MAX)
+    {
+        wrapped = fdata.WrapText(text, params.MaxWidth);
+        text = wrapped;
+    }
+
     const u32 size = text.GetSize();
-    const f32 maxWidth = params.Width;
 
     f32m<D> t = transform;
 
@@ -427,9 +434,6 @@ void IRenderContext<D>::addGlyphData(const TKit::StringView text, const f32m<D> 
     lines.Reserve(size);
 
     CharLine line{};
-    u32 wordEnd = 0;
-    f32 wordWidth = 0.f;
-
     for (u32 i = 0; i < size; ++i)
     {
         const char c = text[i];
@@ -440,31 +444,25 @@ void IRenderContext<D>::addGlyphData(const TKit::StringView text, const f32m<D> 
                 lines.Append(line);
                 line.Start = line.End;
                 line.Width = 0.f;
-                wordEnd = line.End;
             }
             continue;
         }
-        if (c == ' ')
+        const Glyph *glyph = Resources::GetGlyph(font, c);
+        if (!glyph)
         {
-            wordEnd = line.End + 1;
-            wordWidth = line.Width;
+            TKIT_LOG_ERROR("[ONYX][CONTEXT] The character {} was not found as an available code point", c);
+            continue;
         }
 
         f32 advance = 0.f;
         if (line.Start < line.End)
             advance = fdata.GetKerning(text[i - 1], c);
 
-        const Glyph *glyph = Resources::GetGlyph(font, c);
         advance += glyph->Advance + params.Kerning;
         chars.Append(glyph, advance);
+
         ++line.End;
         line.Width += advance;
-        if (line.Width + advance > maxWidth && line.Start < wordEnd)
-        {
-            lines.Append(line.Start, wordEnd, wordWidth);
-            line.Start = wordEnd;
-            line.Width -= wordWidth;
-        }
     }
     if (line.Start < line.End)
         lines.Append(line);
@@ -497,17 +495,18 @@ void IRenderContext<D>::addGlyphData(const TKit::StringView text, const f32m<D> 
                 (*params.CharacterCallback)(i, text[i], pos);
 
             updateTransform();
-            addGlyphData(chars[i].Glyph, t);
+            addGlyphData(chars[i].Glyph, fdata.UnitRange, t);
             pos[0] += chars[i].Advance;
         }
         pos[1] -= dy;
     }
 }
-template <Dimension D> void IRenderContext<D>::addGlyphData(const Glyph *glyph, const f32m<D> &transform)
+template <Dimension D>
+void IRenderContext<D>::addGlyphData(const Glyph *glyph, const f32 unitRange, const f32m<D> &transform)
 {
     const u32 pid = Resources::GetResourcePoolId(m_Current->Font);
 
-    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, m_DepthCounter);
+    const GlyphInstanceData<D> idata = createGlyphInstanceData(m_Current, transform, unitRange, m_DepthCounter);
     InstanceDataBuffer &buffer =
         m_InstanceData[GetRenderMode(m_Current->RenderFlags)]->Meshes[Resource_GlyphMesh][pid][glyph->Id];
     addInstanceData(buffer, idata);

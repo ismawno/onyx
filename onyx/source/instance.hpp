@@ -92,6 +92,7 @@ template <Dimension D> struct GlyphInstanceData
     u32 BoundsHandle;
     u32 SamplerHandle;
     u32 AtlasHandle;
+    f32 UnitRange;
 };
 
 template <Dimension D> u32 GetInstanceSize(const Geometry geo)
