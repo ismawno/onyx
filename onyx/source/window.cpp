@@ -214,7 +214,10 @@ u32v2 Window::getNewExtent()
     i32 h = 0;
 
     while (w == 0 || h == 0)
+    {
+        glfwPollEvents();
         glfwGetFramebufferSize(m_Window, &w, &h);
+    }
 
     return u32v2{u32(w), u32(h)};
 }
