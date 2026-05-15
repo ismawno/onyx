@@ -96,6 +96,7 @@ struct LayoutElementInfo
 };
 
 // TODO(Isma): Add offsets
+// TODO(Isma): Clamp corner radius
 // TODO(Isma): Add floating panels
 // TODO(Isma): Add clip mode
 // TODO(Isma): Implement ids and hashing

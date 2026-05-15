@@ -34,12 +34,12 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
     for (u32 i = 0; i < 2; ++i)
     {
         current.Size[i] = params.Sizing[i].Type == LayoutSizing_Fixed ? params.Sizing[i].Size : 0.f;
+        current.Sizing[i] = params.Sizing[i].Type;
         current.MaxSize[i] = params.Sizing[i].Max;
         current.MinSize[i] = params.Sizing[i].Min;
-        if (current.MinSize[i] > current.Size[i])
-            current.Size[i] = current.MinSize[i];
-
-        current.Sizing[i] = params.Sizing[i].Type;
+        // bc fits get clamped in the fit pass
+        if (current.Sizing[i] != LayoutSizing_Fit)
+            current.Size[i] = Math::Clamp(current.Size[i], current.MinSize[i], current.MaxSize[i]);
     }
     current.Padding = params.Padding;
     current.CornerRadius = params.CornerRadius;
@@ -66,14 +66,15 @@ void Layout::Text(const TKit::StringView text, const LayoutTextParameters &param
 
     const u32 p = m_Stack.IsEmpty() ? TKIT_U32_MAX : m_Stack.GetBack();
     TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A text element cannot be a root ui element");
+    current.Parent = p;
 
     LayoutElement &parent = m_Elements[current.Parent];
     if (parent.Children.IsEmpty())
         m_Breadth.Append(current.Parent);
-
     parent.Children.Append(c);
-    current.SelfOffset = params.Offset;
     current.SelfAlignment = parent.ChildAlignment;
+
+    current.SelfOffset = params.Offset;
     current.Color = params.Color;
     current.Text = TKit::String{text.GetData(), text.GetSize()};
     current.Font = params.Font == NullHandle ? m_Font : params.Font;
@@ -102,25 +103,38 @@ void Layout::fitPass(const u32 axis)
 
         const LayoutDirection dir = parent.Direction;
         f32 &psize = parent.Size[axis];
+
+        f32 childMinSizeTotal = 0.f;
+
+        f32 &pmnsize = parent.MinSize[axis];
+        const f32 pmxsize = parent.MaxSize[axis];
         for (const u32 c : parent.Children)
         {
             const LayoutElement &child = m_Elements[c];
             const f32 csize = child.Size[axis];
+            const f32 cmnsize = child.MinSize[axis];
+
             TKIT_ASSERT(child.Parent != TKIT_U32_MAX, "[ONYX][LAYOUT] Only the root node can have no parent");
             if (dir == axis)
+            {
                 psize += csize;
+                childMinSizeTotal += cmnsize;
+            }
             else
+            {
                 psize = Math::Max(psize, csize);
+                childMinSizeTotal = Math::Max(childMinSizeTotal, cmnsize);
+            }
         }
+        pmnsize = Math::Max(pmnsize, childMinSizeTotal);
 
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
         psize += padding;
+
         if (dir == axis)
-        {
-            const f32 childGap = parent.ChildGap * (parent.Children.GetSize() - 1);
-            psize += childGap;
-        }
-        parent.MinSize[axis] = psize;
+            psize += parent.ChildGap * (parent.Children.GetSize() - 1);
+
+        psize = Math::Clamp(psize, pmnsize, pmxsize);
     }
 }
 
@@ -147,15 +161,22 @@ void Layout::growShrinkPass(const u32 axis)
                 const LayoutElement &child = m_Elements[c];
                 const f32 csize = child.Size[axis];
                 remainingSize -= csize;
-                if (child.Type == LayoutElement_Panel && child.Sizing[axis] == LayoutSizing_Grow &&
-                    csize < child.MaxSize[axis])
+
+                const bool isPanel = child.Type == LayoutElement_Panel;
+                const bool isText = child.Type == LayoutElement_Text;
+                const bool isGrow = child.Sizing[axis] == LayoutSizing_Grow;
+                const bool isFit = child.Sizing[axis] == LayoutSizing_Fit;
+                const bool isWrapped = isText && child.TextMode == TextMode_Wrapped;
+                const bool canGrow = csize < child.MaxSize[axis];
+                const bool canShrink = csize > child.MinSize[axis];
+
+                if (isPanel && isGrow && canGrow)
                     toGrow.Append(c);
-                if (child.Type == LayoutElement_Text && child.TextMode == TextMode_Wrapped &&
-                    csize > child.MinSize[axis])
+                if ((isWrapped || isFit) && canShrink)
                     toShrink.Append(c);
             }
 
-            while (!toGrow.IsEmpty() && remainingSize > 0.f)
+            while (!toGrow.IsEmpty() && remainingSize > TKIT_F32_EPSILON)
             {
                 f32 smallest = TKIT_F32_MAX;
                 f32 secSmallest = TKIT_F32_MAX;
@@ -197,7 +218,7 @@ void Layout::growShrinkPass(const u32 axis)
                 }
             }
             // NOTE(Isma): This and top part could be merged
-            while (!toShrink.IsEmpty() && remainingSize < 0.f)
+            while (!toShrink.IsEmpty() && remainingSize < -TKIT_F32_EPSILON)
             {
                 f32 biggest = 0.f;
                 f32 secBiggest = 0.f;
@@ -216,7 +237,7 @@ void Layout::growShrinkPass(const u32 axis)
                 }
 
                 toRemove = Math::Min(toRemove, -remainingSize / toShrink.GetSize());
-                for (u32 i = 0; i < toShrink.GetSize(); --i)
+                for (u32 i = toShrink.GetSize() - 1; i < toShrink.GetSize(); --i)
                 {
                     const u32 c = toShrink[i];
                     LayoutElement &child = m_Elements[c];
@@ -320,7 +341,7 @@ void Layout::positionPass()
             else
             {
                 if (calg == Alignment_Left)
-                    poffset += 0.5f * psize + p0;
+                    poffset += p0 - 0.5f * psize;
                 else if (calg == Alignment_Right)
                     poffset += 0.5f * psize - p1;
                 else if (dir == axis)
@@ -385,7 +406,7 @@ void Layout::Compile()
             info.Text = elm.Text;
             info.Size = f32v2{elm.FontSize};
         }
-        else if (elm.CornerRadius == 0.f)
+        else if (TKit::ApproachesZero(elm.CornerRadius))
         {
             info.Geo = Geometry_Static;
             info.Handle = m_Square;

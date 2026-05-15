@@ -76,7 +76,6 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
         }
         ImGui::PopID();
     }
-
     else
     {
         Onyx::LayoutTextParameters &p = info.TextParams;

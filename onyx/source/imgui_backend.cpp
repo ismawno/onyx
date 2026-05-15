@@ -645,7 +645,7 @@ static void platform_UpdateMonitors()
         }
 #endif
         const f32 scale = platform_GetContentScaleForMonitor(monitors[n]);
-        if (scale == 0.f)
+        if (TKit::ApproachesZero(scale))
             continue;
         monitor.DpiScale = scale;
         monitor.PlatformHandle = scast<void *>(monitors[n]); // [...] GLFW doc states: "guaranteed to be valid
