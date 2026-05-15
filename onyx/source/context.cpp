@@ -315,20 +315,20 @@ ClipRect<D> IRenderContext<D>::computeClipRect(const f32v<D> &position, const f3
         const Alignment alg = m_Current->Alignment[i];
         const f32 p = position[i];
         const f32 d = dimensions[i];
-        if (alg == Alignment_Left)
+        if (alg == Alignment_Canonical)
         {
             mn[i] = p;
             mx[i] = p + d;
         }
-        else if (alg == Alignment_Center)
-        {
-            mn[i] = p - 0.5f * d;
-            mx[i] = p + 0.5f * d;
-        }
-        else
+        else if (alg == Alignment_Mirrored)
         {
             mn[i] = p - d;
             mx[i] = p;
+        }
+        else
+        {
+            mn[i] = p - 0.5f * d;
+            mx[i] = p + 0.5f * d;
         }
     }
     return ClipRect<D>{mn, mx};
@@ -552,13 +552,27 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
         else
             Scale(f32v3{info.Size, 1.f}, Transform_Intrinsic);
     };
-
     for (const LayoutElementInfo &info : layout.GetElementsInfo())
     {
         Push();
         FillColor(info.Color);
         AlignX(info.Alignment[0]);
         AlignY(info.Alignment[1]);
+
+        ClipRect<D> rect;
+        if constexpr (D == D2)
+        {
+            rect.Min = info.ClipMin;
+            rect.Max = info.ClipMax;
+        }
+        else
+        {
+            // NOTE(Isma): Hmm a bit random that 0.1f
+            rect.Min = f32v3{info.ClipMin, -0.1f};
+            rect.Max = f32v3{info.ClipMax, 0.1f};
+        }
+        Clip(rect);
+
         switch (info.Geo)
         {
         case Geometry_Circle:

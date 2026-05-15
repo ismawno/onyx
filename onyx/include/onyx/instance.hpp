@@ -98,6 +98,21 @@ enum LightFlagBit : LightFlags
 
 template <Dimension D> constexpr u32 LightTypeCount = D == D2 ? 2 : 3;
 
+// TODO(Isma): Define alignment name that works for all dimensions
+enum Alignment : u8
+{
+    Alignment_Canonical,
+    Alignment_Center,
+    Alignment_Mirrored,
+    Alignment_Left = Alignment_Canonical,
+    Alignment_Right = Alignment_Mirrored,
+    Alignment_Bottom = Alignment_Canonical,
+    Alignment_Top = Alignment_Mirrored,
+    Alignment_Near = Alignment_Canonical,
+    Alignment_Far = Alignment_Mirrored,
+    Alignment_None = 3,
+};
+
 template <Dimension D> struct WorldRect
 {
     f32v<D> Min;
@@ -110,19 +125,6 @@ template <> struct WorldRect<D3>
     f32v3 Edge0;
     f32v3 Edge1;
     f32v3 Edge2;
-};
-
-// TODO(Isma): Define alignment name that works for all dimensions
-enum Alignment : u8
-{
-    Alignment_Left,
-    Alignment_Center,
-    Alignment_Right,
-    Alignment_Bottom = Alignment_Left,
-    Alignment_Top = Alignment_Right,
-    Alignment_Near = Alignment_Left,
-    Alignment_Far = Alignment_Right,
-    Alignment_None = 3,
 };
 
 const char *ToString(Geometry geo);

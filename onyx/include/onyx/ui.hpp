@@ -86,6 +86,12 @@ enum LayoutTextMode : u8
     TextMode_Wrapped
 };
 
+enum LayoutOverflowMode : u8
+{
+    LayoutOverflow_Spill,
+    LayoutOverflow_Clip,
+};
+
 struct LayoutElement
 {
     LayoutShape Shape;
@@ -93,6 +99,8 @@ struct LayoutElement
     f32v2 Size;
     f32v2 MinSize;
     f32v2 MaxSize;
+    f32v2 ClipMin;
+    f32v2 ClipMax;
     f32v2 ChildOffset;
     f32v2 SelfOffset;
     vec2<LayoutSizingType> Sizing;
@@ -114,6 +122,8 @@ struct LayoutElement
     LayoutDirection Direction;
     LayoutElementType Type;
     LayoutTextMode TextMode;
+    LayoutOverflowMode SelfOverflow;
+    LayoutOverflowMode ChildOverflow;
 };
 
 struct LayoutElementInfo
@@ -121,6 +131,8 @@ struct LayoutElementInfo
     TKit::String Text;
     f32v2 Position;
     f32v2 Size;
+    f32v2 ClipMin;
+    f32v2 ClipMax;
     f32 Radius;
     Color Color;
     Resource Handle;
@@ -129,7 +141,6 @@ struct LayoutElementInfo
     LayoutShapeType ShapeType;
 };
 
-// TODO(Isma): Add clip mode
 // TODO(Isma): Add outlines
 // TODO(Isma): Add materials
 // TODO(Isma): Add floating panels
@@ -138,9 +149,12 @@ struct LayoutPanelParameters
 {
     Color Color = Color_Transparent;
     LayoutDirection Direction = LayoutDirection_Horizontal;
-    vec2<Alignment> Alignment{Alignment_Bottom};
+    vec2<Alignment> Alignment{Alignment_Canonical};
     vec2<LayoutSizing> Sizing{LayoutSizing::Fit()};
     LayoutShape Shape = LayoutShape::Rectangle();
+    // NOTE(Isma): Could add overflow mode override per-children (as in a ChildOverflow and SelfOverflow parameters).
+    // Skipping for now
+    LayoutOverflowMode Overflow = LayoutOverflow_Clip;
     f32v2 ChildOffset{0.f};
     f32v2 SelfOffset{0.f};
     f32v4 Padding{0.f};

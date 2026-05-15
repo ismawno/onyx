@@ -62,6 +62,10 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
             p.Padding = p.Padding[0];
 
         ImGui::DragFloat("Child gap", &p.ChildGap, 0.01f, 0.f, TKIT_F32_MAX);
+        ImGui::DragFloat2("Child offset", p.ChildOffset.GetData(), 0.01f);
+        ImGui::DragFloat2("Self offset", p.SelfOffset.GetData(), 0.01f);
+
+        Combo("Overflow", &p.Overflow, "Spill\0Clip\0\0");
         Combo("Shape", &p.Shape.Type, "Circle\0Rectangle\0Rounded rectangle\0\0");
         ImGui::DragFloat("Radius", &p.Shape.Radius, 0.01f, 0.f, TKIT_F32_MAX);
         if (ImGui::Button("Add child"))

@@ -21,9 +21,14 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
             m_Breadth.Append(current.Parent);
         parent.Children.Append(c);
         current.SelfAlignment = parent.ChildAlignment;
+        current.SelfOverflow = parent.ChildOverflow;
     }
     else
+    {
         current.SelfAlignment = params.Alignment;
+        current.ClipMin = f32v2{TKIT_F32_LOWEST};
+        current.ClipMax = f32v2{TKIT_F32_MAX};
+    }
 
     current.ChildOffset = params.ChildOffset;
     current.SelfOffset = params.SelfOffset;
@@ -31,6 +36,7 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
     current.Color = params.Color;
     current.Direction = params.Direction;
     current.ChildAlignment = params.Alignment;
+    current.ChildOverflow = params.Overflow;
     current.Shape = params.Shape;
 
     if (current.Shape.Type != LayoutShape_Circle && current.Shape.Handle == NullHandle)
@@ -91,6 +97,7 @@ void Layout::Text(const TKit::StringView text, const LayoutTextParameters &param
         m_Breadth.Append(current.Parent);
     parent.Children.Append(c);
     current.SelfAlignment = parent.ChildAlignment;
+    current.SelfOverflow = parent.ChildOverflow;
 
     current.SelfOffset = params.Offset;
     current.Color = params.Color;
@@ -314,10 +321,9 @@ void Layout::positionPass()
         const LayoutDirection dir = parent.Direction;
 
         const f32 cgap = parent.ChildGap;
+
         for (u32 axis = 0; axis < 2; ++axis)
         {
-            const f32 psize = parent.Size[axis];
-            const f32 ppos = parent.Position[axis] + parent.ChildOffset[axis];
 
             const auto computeChildSize = [this, &parent, axis, cgap, dir] {
                 f32 totalChildSize = 0.f;
@@ -326,30 +332,45 @@ void Layout::positionPass()
                 totalChildSize += cgap * (parent.Children.GetSize() - 1);
                 return dir == LayoutDirection_Horizontal ? -totalChildSize : totalChildSize;
             };
+
+            const f32 psize = parent.Size[axis];
+            const f32 ppos = parent.Position[axis];
+            const f32 coffset = parent.ChildOffset[axis];
+
             const Alignment salg = parent.SelfAlignment[axis];
             const Alignment calg = parent.ChildAlignment[axis];
 
             const f32 p0 = parent.Padding[2 * axis];
             const f32 p1 = parent.Padding[2 * axis + 1];
 
-            f32 poffset = ppos;
+            const f32 clmn = parent.ClipMin[axis];
+            const f32 clmx = parent.ClipMax[axis];
+
+            f32 pmn;
+            f32 pmx;
+
+            f32 poffset = ppos + coffset;
             // haha lots of ifs
-            if (salg == Alignment_Left)
+            if (salg == Alignment_Canonical)
             {
-                if (calg == Alignment_Left)
+                pmn = ppos;
+                pmx = ppos + psize;
+                if (calg == Alignment_Canonical)
                     poffset += p0;
-                else if (calg == Alignment_Right)
+                else if (calg == Alignment_Mirrored)
                     poffset += psize - p1;
                 else if (dir == axis)
                     poffset += 0.5f * (computeChildSize() + psize) + p0 - p1;
                 else
                     poffset += p0 - p1;
             }
-            else if (salg == Alignment_Right)
+            else if (salg == Alignment_Mirrored)
             {
-                if (calg == Alignment_Left)
+                pmn = ppos - psize;
+                pmx = ppos;
+                if (calg == Alignment_Canonical)
                     poffset += p0 - psize;
-                else if (calg == Alignment_Right)
+                else if (calg == Alignment_Mirrored)
                     poffset -= p1;
                 else if (dir == axis)
                     poffset += 0.5f * (computeChildSize() - psize) + p0 - p1;
@@ -358,9 +379,11 @@ void Layout::positionPass()
             }
             else
             {
-                if (calg == Alignment_Left)
+                pmn = ppos - 0.5f * psize;
+                pmx = ppos + 0.5f * psize;
+                if (calg == Alignment_Canonical)
                     poffset += p0 - 0.5f * psize;
-                else if (calg == Alignment_Right)
+                else if (calg == Alignment_Mirrored)
                     poffset += 0.5f * psize - p1;
                 else if (dir == axis)
                     poffset += 0.5f * computeChildSize() + p0 - p1;
@@ -372,22 +395,34 @@ void Layout::positionPass()
             {
                 LayoutElement &child = m_Elements[c];
 
+                if (parent.ChildOverflow == LayoutOverflow_Clip)
+                {
+                    child.ClipMin[axis] = Math::Max(pmn, clmn);
+                    child.ClipMax[axis] = Math::Min(pmx, clmx);
+                }
+                else
+                {
+                    child.ClipMin[axis] = clmn;
+                    child.ClipMax[axis] = clmx;
+                }
+
                 const f32 csize = child.Size[axis];
                 f32 &cpos = child.Position[axis];
+
                 cpos += poffset + child.SelfOffset[axis];
                 if (calg == Alignment_Center)
                 {
                     if (dir == axis)
                         cpos += 0.5f * (dir == LayoutDirection_Horizontal ? csize : -csize);
-                    else if (salg == Alignment_Left)
+                    else if (salg == Alignment_Canonical)
                         cpos += 0.5f * psize;
-                    else if (salg == Alignment_Right)
+                    else if (salg == Alignment_Mirrored)
                         cpos -= 0.5f * psize;
                 }
 
                 if (dir == axis)
                 {
-                    if (calg == Alignment_Left || (calg == Alignment_Center && dir == LayoutDirection_Horizontal))
+                    if (calg == Alignment_Canonical || (calg == Alignment_Center && dir == LayoutDirection_Horizontal))
                         poffset += csize + cgap;
                     else
                         poffset -= csize + cgap;
@@ -410,13 +445,17 @@ void Layout::Compile()
     positionPass();
     for (const LayoutElement &elm : m_Elements)
     {
-        if (TKit::ApproachesZero(elm.Color.rgba[3]) || TKit::ApproachesZero(elm.Size[0]) ||
-            TKit::ApproachesZero(elm.Size[1]))
+        if (TKit::ApproachesZero(elm.Color.rgba[3]) ||
+            (elm.Type != LayoutElement_Text &&
+             (TKit::ApproachesZero(elm.Size[0]) || TKit::ApproachesZero(elm.Size[1]))))
             continue;
+
         LayoutElementInfo &info = m_ElementInfo.Append();
         info.Color = elm.Color;
         info.Position = elm.Position;
         info.Alignment = elm.SelfAlignment;
+        info.ClipMin = elm.ClipMin;
+        info.ClipMax = elm.ClipMax;
         if (elm.Type == LayoutElement_Text)
         {
             info.Geo = Geometry_Glyph;
@@ -459,5 +498,4 @@ void Layout::Compile()
     m_Breadth.Clear();
     m_ReversedBreadth.Clear();
 }
-
 } // namespace Onyx
