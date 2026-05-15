@@ -42,6 +42,58 @@ struct LayoutSizing
     }
 };
 
+enum LayoutShapeType : u8
+{
+    LayoutShape_Circle,
+    LayoutShape_Triangle,
+    LayoutShape_Rectangle,
+    LayoutShape_Stadium,
+    LayoutShape_RoundedRectangle
+};
+
+struct LayoutShape
+{
+    Resource Handle;
+    f32 Rotation;
+    f32 Radius;
+    LayoutShapeType Type;
+
+    static constexpr LayoutShape Circle(const Resource handle = NullHandle)
+    {
+        return {handle, 0.f, 0.f, LayoutShape_Circle};
+    }
+    static constexpr LayoutShape Triangle(const Resource handle = NullHandle)
+    {
+        return {handle, 0.f, 0.f, LayoutShape_Triangle};
+    }
+    static constexpr LayoutShape Triangle(const f32 rotation, const Resource handle = NullHandle)
+    {
+        return {handle, rotation, 0.f, LayoutShape_Triangle};
+    }
+    static constexpr LayoutShape Rectangle(const Resource handle = NullHandle)
+    {
+        return {handle, 0.f, 0.f, LayoutShape_Rectangle};
+    }
+    static constexpr LayoutShape Rectangle(const f32 radius, const Resource handle = NullHandle)
+    {
+        return {handle, 0.f, radius,
+                TKit::ApproachesZero(radius) ? LayoutShape_Rectangle : LayoutShape_RoundedRectangle};
+    }
+    static constexpr LayoutShape Rectangle(const f32 radius, const f32 rotation, const Resource handle = NullHandle)
+    {
+        return {handle, rotation, radius,
+                TKit::ApproachesZero(radius) ? LayoutShape_Rectangle : LayoutShape_RoundedRectangle};
+    }
+    static constexpr LayoutShape Stadium(const Resource handle = NullHandle)
+    {
+        return {handle, 0.f, 0.f, LayoutShape_Stadium};
+    }
+    static constexpr LayoutShape Stadium(const f32 rotation, const Resource handle = NullHandle)
+    {
+        return {handle, rotation, 0.f, LayoutShape_Stadium};
+    }
+};
+
 enum LayoutElementType : u8
 {
     LayoutElement_Panel,
@@ -56,6 +108,7 @@ enum LayoutTextMode : u8
 
 struct LayoutElement
 {
+    LayoutShape Shape;
     f32v2 Position{0.f};
     f32v2 Size;
     f32v2 MinSize;
@@ -86,35 +139,32 @@ struct LayoutElement
 struct LayoutElementInfo
 {
     TKit::String Text;
+    LayoutShapeType ShapeType;
     f32v2 Position;
     f32v2 Size;
     f32 Radius;
+    f32 Rotation;
     Color Color;
     Resource Handle;
     Geometry Geo;
     vec2<Alignment> Alignment;
 };
 
-// TODO(Isma): Add offsets
-// TODO(Isma): Clamp corner radius
 // TODO(Isma): Add floating panels
 // TODO(Isma): Add clip mode
-// TODO(Isma): Implement ids and hashing
 // TODO(Isma): Add outlines
-// TODO(Isma): Allow other shapes (triangles) and stadiums. Add parametric shape enum. Substitute corner radius by a
-// LayoutShape param, similar to LayoutSizing, with a type and a resource (if null, take defaults). Create LayoutSpecs,
-// with all to null, and call the resources DefaultBlabla
+// TODO(Isma): Implement ids and hashing
 struct LayoutPanelParameters
 {
     Color Color = Color_Transparent;
     LayoutDirection Direction = LayoutDirection_Horizontal;
     vec2<Alignment> Alignment{Alignment_Bottom};
     vec2<LayoutSizing> Sizing{LayoutSizing::Fit()};
+    LayoutShape Shape = LayoutShape::Rectangle();
     f32v2 ChildOffset{0.f};
     f32v2 SelfOffset{0.f};
     f32v4 Padding{0.f};
     f32 ChildGap = 0.f;
-    f32 CornerRadius = 0.f;
 };
 
 struct LayoutTextParameters
@@ -126,11 +176,18 @@ struct LayoutTextParameters
     Resource Font = NullHandle;
 };
 
+struct LayoutSpecs
+{
+    Resource TriangleMesh = NullHandle;
+    Resource RectangleMesh = NullHandle;
+    Resource StadiumMesh = NullHandle;
+    Resource RoundedRectangleMesh = NullHandle;
+};
+
 class Layout
 {
   public:
-    Layout(const Resource square, const Resource roundedSquare, const Resource font = NullHandle)
-        : m_Square(square), m_RoundedSquare(roundedSquare), m_Font(font)
+    Layout(const LayoutSpecs &specs = {}) : m_Specs(specs)
     {
     }
 
@@ -158,8 +215,6 @@ class Layout
     TKit::TierArray<u32> m_ReversedBreadth{};
     TKit::TierArray<LayoutElementInfo> m_ElementInfo{};
 
-    Resource m_Square;
-    Resource m_RoundedSquare;
-    Resource m_Font;
+    LayoutSpecs m_Specs{};
 };
 } // namespace Onyx

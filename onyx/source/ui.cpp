@@ -31,6 +31,31 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
     current.Color = params.Color;
     current.Direction = params.Direction;
     current.ChildAlignment = params.Alignment;
+    current.Shape = params.Shape;
+
+    if (current.Shape.Handle == NullHandle)
+    {
+        Resource handle = NullHandle;
+        switch (params.Shape.Type)
+        {
+        case LayoutShape_Triangle:
+            handle = m_Specs.TriangleMesh;
+            break;
+        case LayoutShape_Rectangle:
+            handle = m_Specs.RectangleMesh;
+            break;
+        case LayoutShape_Stadium:
+            handle = m_Specs.StadiumMesh;
+            break;
+        case LayoutShape_RoundedRectangle:
+            handle = m_Specs.RoundedRectangleMesh;
+            break;
+        default:
+            break;
+        }
+        current.Shape.Handle = handle;
+    }
+
     for (u32 i = 0; i < 2; ++i)
     {
         current.Size[i] = params.Sizing[i].Type == LayoutSizing_Fixed ? params.Sizing[i].Size : 0.f;
@@ -42,7 +67,6 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
             current.Size[i] = Math::Clamp(current.Size[i], current.MinSize[i], current.MaxSize[i]);
     }
     current.Padding = params.Padding;
-    current.CornerRadius = params.CornerRadius;
 }
 
 void Layout::EndPanel()
@@ -406,18 +430,31 @@ void Layout::Compile()
             info.Text = elm.Text;
             info.Size = f32v2{elm.FontSize};
         }
-        else if (TKit::ApproachesZero(elm.CornerRadius))
-        {
-            info.Geo = Geometry_Static;
-            info.Handle = m_Square;
-            info.Size = elm.Size;
-        }
         else
         {
-            info.Geo = Geometry_Parametric;
-            info.Handle = m_RoundedSquare;
-            info.Size = elm.Size - 2.f * elm.CornerRadius;
-            info.Radius = elm.CornerRadius;
+            info.ShapeType = elm.Shape.Type;
+            info.Rotation = elm.Shape.Rotation;
+            info.Handle = elm.Shape.Handle;
+            switch (elm.Shape.Type)
+            {
+            case LayoutShape_Circle:
+                info.Geo = Geometry_Circle;
+            case LayoutShape_Triangle:
+            case LayoutShape_Rectangle:
+                info.Geo = Geometry_Static;
+                break;
+            case LayoutShape_Stadium:
+                info.Geo = Geometry_Parametric;
+                info.Radius = elm.Shape.Radius;
+                info.Size[0] = elm.Size[0]; // radius is x size
+                info.Size[1] = Math::Max(0.f, elm.Size[1] - 2.f * elm.Size[0]);
+                break;
+            case LayoutShape_RoundedRectangle:
+                info.Geo = Geometry_Parametric;
+                info.Radius = elm.Shape.Radius;
+                info.Size = Math::Max(f32v2{0.f}, elm.Size - 2.f * elm.Shape.Radius);
+                break;
+            }
         }
     }
 
