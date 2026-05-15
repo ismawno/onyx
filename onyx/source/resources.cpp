@@ -1311,12 +1311,12 @@ template <Dimension D> MeshBuffers GetMeshBuffers(const ResourcePool pool)
 template <Dimension D> bool IsResourceValid(const Resource handle, const ResourceType atype)
 {
     const u32 itype = GetResourceTypeAsInteger(handle);
-    if (itype >= Resource_Count || itype != atype)
+    if (itype >= Resource_Count || (itype != atype && atype != Resource_None))
         return false;
 
     const u32 aid = GetResourceId(handle);
     const u32 pid = GetResourcePoolId(handle);
-    switch (atype)
+    switch (itype)
     {
     case Resource_StaticMesh:
         return IsResourcePoolValid<D>(handle, Resource_StaticMesh) &&
@@ -1349,11 +1349,11 @@ template <Dimension D> bool IsResourceValid(const Resource handle, const Resourc
 template <Dimension D> bool IsResourcePoolValid(const Handle handle, const ResourceType atype)
 {
     const u32 itype = GetResourceTypeAsInteger(handle);
-    if (itype >= Resource_PoolCount || itype != atype)
+    if (itype >= Resource_PoolCount || (itype != atype && atype != Resource_None))
         return false;
 
     const u32 pid = GetResourcePoolId(handle);
-    switch (atype)
+    switch (itype)
     {
     case Resource_StaticMesh:
         return getData<D>().StaticMeshes.Pools.Contains(pid);

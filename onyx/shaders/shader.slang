@@ -389,9 +389,9 @@ FragOutput mainFS(const FragInput input) FragSuffix
     const CircleBounds bounds = GetCircleBounds(input.LocalPosition, gdata.Arc.Hollowness);
     if (!CheckOutsideCircle(bounds, input.LocalPosition, gdata.Arc)) discard;
 
-#ifndef ONYX_PASS_SHADOW
-    const f32 alpha = CircleFade(fill.a, bounds, gdata.Fade);
-#endif
+    #ifndef ONYX_PASS_SHADOW
+        const f32 alpha = CircleFade(fill.a, bounds, gdata.Fade);
+    #endif
 
 #elif defined(ONYX_GEOMETRY_GLYPH)
     const u32 samplerId = GetResourceId(gdata.SamplerHandle);
@@ -455,7 +455,7 @@ FragOutput mainFS(const FragInput input) FragSuffix
 
 #    endif
 #else
-#    ifdef ONYX_GEOMETRY_CIRCLE
+#    if defined(ONYX_GEOMETRY_CIRCLE) || defined(ONYX_GEOMETRY_GLYPH)
     out.Fill = f32v4(fill.rgb, alpha);
 #    else
     out.Fill = fill;

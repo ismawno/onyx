@@ -1,17 +1,20 @@
 #include "pch.hpp"
 #include "onyx/ui.hpp"
+#include "onyx/resources.hpp"
 #include "tkit/container/stack_array.hpp"
 
 namespace Onyx
 {
-void Layout::BeginPanel(const PanelParameters &params)
+void Layout::BeginPanel(const LayoutPanelParameters &params)
 {
     const u32 c = m_Elements.GetSize();
     LayoutElement &current = m_Elements.Append();
+    current.Type = LayoutElement_Panel;
 
-    current.Parent = m_Stack.IsEmpty() ? TKIT_U32_MAX : m_Stack.GetBack();
+    const u32 p = m_Stack.IsEmpty() ? TKIT_U32_MAX : m_Stack.GetBack();
+    current.Parent = p;
     m_Stack.Append(c);
-    if (current.Parent != TKIT_U32_MAX)
+    if (p != TKIT_U32_MAX)
     {
         LayoutElement &parent = m_Elements[current.Parent];
         if (parent.Children.IsEmpty())
@@ -22,6 +25,8 @@ void Layout::BeginPanel(const PanelParameters &params)
     else
         current.SelfAlignment = params.Alignment;
 
+    current.ChildOffset = params.ChildOffset;
+    current.SelfOffset = params.SelfOffset;
     current.ChildGap = params.ChildGap;
     current.Color = params.Color;
     current.Direction = params.Direction;
@@ -31,6 +36,9 @@ void Layout::BeginPanel(const PanelParameters &params)
         current.Size[i] = params.Sizing[i].Type == LayoutSizing_Fixed ? params.Sizing[i].Size : 0.f;
         current.MaxSize[i] = params.Sizing[i].Max;
         current.MinSize[i] = params.Sizing[i].Min;
+        if (current.MinSize[i] > current.Size[i])
+            current.Size[i] = current.MinSize[i];
+
         current.Sizing[i] = params.Sizing[i].Type;
     }
     current.Padding = params.Padding;
@@ -48,13 +56,48 @@ void Layout::EndPanel()
     m_Stack.Pop();
 }
 
+void Layout::Text(const TKit::StringView text, const LayoutTextParameters &params)
+{
+    if (text.IsEmpty())
+        return;
+    const u32 c = m_Elements.GetSize();
+    LayoutElement &current = m_Elements.Append();
+    current.Type = LayoutElement_Text;
+
+    const u32 p = m_Stack.IsEmpty() ? TKIT_U32_MAX : m_Stack.GetBack();
+    TKIT_ASSERT(p != TKIT_U32_MAX, "[ONYX][LAYOUT] A text element cannot be a root ui element");
+
+    LayoutElement &parent = m_Elements[current.Parent];
+    if (parent.Children.IsEmpty())
+        m_Breadth.Append(current.Parent);
+
+    parent.Children.Append(c);
+    current.SelfOffset = params.Offset;
+    current.SelfAlignment = parent.ChildAlignment;
+    current.Color = params.Color;
+    current.Text = TKit::String{text.GetData(), text.GetSize()};
+    current.Font = params.Font == NullHandle ? m_Font : params.Font;
+    current.TextMode = params.Mode;
+
+    const FontData &fdata = Resources::GetFontData(current.Font);
+
+    const f32 fs = params.FontSize;
+    current.FontSize = fs;
+    current.Size = fs * fdata.ComputeTextSize(text);
+
+    current.MinSize[0] = 0.f; // fs * fdata.ComputeTextMinimumWidth(text);
+    current.MinSize[1] = 0.f;
+
+    current.MaxSize = f32v2{TKIT_F32_MAX};
+}
+
 void Layout::fitPass(const u32 axis)
 {
     for (const u32 p : m_ReversedBreadth)
     {
         LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
-        if (parent.Sizing[axis] != LayoutSizing_Fit)
+        if (parent.Type != LayoutElement_Panel || parent.Sizing[axis] != LayoutSizing_Fit)
             continue;
 
         const LayoutDirection dir = parent.Direction;
@@ -77,6 +120,7 @@ void Layout::fitPass(const u32 axis)
             const f32 childGap = parent.ChildGap * (parent.Children.GetSize() - 1);
             psize += childGap;
         }
+        parent.MinSize[axis] = psize;
     }
 }
 
@@ -95,14 +139,20 @@ void Layout::growShrinkPass(const u32 axis)
             remainingSize -= parent.ChildGap * (parent.Children.GetSize() - 1);
             TKit::StackArray<u32> toGrow{};
             toGrow.Reserve(m_Elements.GetSize());
+            TKit::StackArray<u32> toShrink{};
+            toShrink.Reserve(m_Elements.GetSize());
 
             for (const u32 c : parent.Children)
             {
                 const LayoutElement &child = m_Elements[c];
                 const f32 csize = child.Size[axis];
                 remainingSize -= csize;
-                if (child.Sizing[axis] == LayoutSizing_Grow && csize < child.MaxSize[axis])
+                if (child.Type == LayoutElement_Panel && child.Sizing[axis] == LayoutSizing_Grow &&
+                    csize < child.MaxSize[axis])
                     toGrow.Append(c);
+                if (child.Type == LayoutElement_Text && child.TextMode == TextMode_Wrapped &&
+                    csize > child.MinSize[axis])
+                    toShrink.Append(c);
             }
 
             while (!toGrow.IsEmpty() && remainingSize > 0.f)
@@ -133,7 +183,7 @@ void Layout::growShrinkPass(const u32 axis)
                         continue;
 
                     const f32 msize = child.MaxSize[axis];
-                    if (csize + toAdd >= child.MaxSize[axis])
+                    if (csize + toAdd >= msize)
                     {
                         remainingSize -= msize - csize;
                         csize = msize;
@@ -146,16 +196,73 @@ void Layout::growShrinkPass(const u32 axis)
                     }
                 }
             }
+            // NOTE(Isma): This and top part could be merged
+            while (!toShrink.IsEmpty() && remainingSize < 0.f)
+            {
+                f32 biggest = 0.f;
+                f32 secBiggest = 0.f;
+                f32 toRemove = -remainingSize;
+                for (const u32 c : toShrink)
+                {
+                    const LayoutElement &child = m_Elements[c];
+                    const f32 csize = child.Size[axis];
+                    if (biggest < csize)
+                        biggest = csize;
+                    else if (biggest > csize)
+                    {
+                        secBiggest = Math::Max(secBiggest, csize);
+                        toRemove = biggest - secBiggest;
+                    }
+                }
+
+                toRemove = Math::Min(toRemove, -remainingSize / toShrink.GetSize());
+                for (u32 i = 0; i < toShrink.GetSize(); --i)
+                {
+                    const u32 c = toShrink[i];
+                    LayoutElement &child = m_Elements[c];
+                    f32 &csize = child.Size[axis];
+                    if (!TKit::Approximately(csize, biggest))
+                        continue;
+
+                    const f32 msize = child.MinSize[axis];
+                    if (csize - toRemove <= msize)
+                    {
+                        remainingSize += csize - msize;
+                        csize = msize;
+                        toShrink.RemoveUnordered(toShrink.begin() + i);
+                    }
+                    else
+                    {
+                        csize -= toRemove;
+                        remainingSize += toRemove;
+                    }
+                }
+            }
         }
         else
             for (const u32 c : parent.Children)
             {
                 LayoutElement &child = m_Elements[c];
                 f32 &csize = child.Size[axis];
-                if (child.Sizing[axis] == LayoutSizing_Grow)
-                    csize = Math::Min(csize + remainingSize, child.MaxSize[axis]);
+                const f32 mxsize = child.MaxSize[axis];
+                const f32 mnsize = child.MinSize[axis];
+                if ((child.Type == LayoutElement_Panel && child.Sizing[axis] == LayoutSizing_Grow) ||
+                    (axis == 0 && child.Type == LayoutElement_Text))
+                    csize = Math::Clamp(remainingSize, mnsize, mxsize);
             }
     }
+}
+
+void Layout::wrapText()
+{
+    for (LayoutElement &elm : m_Elements)
+        if (elm.Type == LayoutElement_Text && elm.TextMode == TextMode_Wrapped)
+        {
+            const FontData &fdata = Resources::GetFontData(elm.Font);
+            const f32 fs = elm.FontSize;
+            elm.Text = fdata.WrapText(elm.Text, (elm.Size[0] + 0.01f) / fs);
+            elm.Size[1] = fs * fdata.ComputeTextHeight(elm.Text);
+        }
 }
 
 void Layout::positionPass()
@@ -171,7 +278,7 @@ void Layout::positionPass()
         for (u32 axis = 0; axis < 2; ++axis)
         {
             const f32 psize = parent.Size[axis];
-            const f32 ppos = parent.Position[axis];
+            const f32 ppos = parent.Position[axis] + parent.ChildOffset[axis];
 
             const auto computeChildSize = [this, &parent, axis, cgap, dir] {
                 f32 totalChildSize = 0.f;
@@ -186,40 +293,40 @@ void Layout::positionPass()
             const f32 p0 = parent.Padding[2 * axis];
             const f32 p1 = parent.Padding[2 * axis + 1];
 
-            f32 poffset = 0.f;
+            f32 poffset = ppos;
             // haha lots of ifs
             if (salg == Alignment_Left)
             {
                 if (calg == Alignment_Left)
-                    poffset = ppos + p0;
+                    poffset += p0;
                 else if (calg == Alignment_Right)
-                    poffset = ppos + psize - p1;
+                    poffset += psize - p1;
                 else if (dir == axis)
-                    poffset = ppos + 0.5f * (computeChildSize() + psize) + p0 - p1;
+                    poffset += 0.5f * (computeChildSize() + psize) + p0 - p1;
                 else
-                    poffset = ppos + p0 - p1;
+                    poffset += p0 - p1;
             }
             else if (salg == Alignment_Right)
             {
                 if (calg == Alignment_Left)
-                    poffset = ppos - psize + p0;
+                    poffset += p0 - psize;
                 else if (calg == Alignment_Right)
-                    poffset = ppos - p1;
+                    poffset -= p1;
                 else if (dir == axis)
-                    poffset = ppos + 0.5f * (computeChildSize() - psize) + p0 - p1;
+                    poffset += 0.5f * (computeChildSize() - psize) + p0 - p1;
                 else
-                    poffset = ppos + p0 - p1;
+                    poffset += p0 - p1;
             }
             else
             {
                 if (calg == Alignment_Left)
-                    poffset = ppos + 0.5f * psize + p0;
+                    poffset += 0.5f * psize + p0;
                 else if (calg == Alignment_Right)
-                    poffset = ppos + 0.5f * psize - p1;
+                    poffset += 0.5f * psize - p1;
                 else if (dir == axis)
-                    poffset = ppos + 0.5f * computeChildSize() + p0 - p1;
+                    poffset += 0.5f * computeChildSize() + p0 - p1;
                 else
-                    poffset = ppos + p0 - p1;
+                    poffset += p0 - p1;
             }
 
             for (const u32 c : parent.Children)
@@ -228,19 +335,16 @@ void Layout::positionPass()
 
                 const f32 csize = child.Size[axis];
                 f32 &cpos = child.Position[axis];
+                cpos += poffset + child.SelfOffset[axis];
                 if (calg == Alignment_Center)
                 {
                     if (dir == axis)
-                        cpos += poffset + 0.5f * (dir == LayoutDirection_Horizontal ? csize : -csize);
+                        cpos += 0.5f * (dir == LayoutDirection_Horizontal ? csize : -csize);
                     else if (salg == Alignment_Left)
-                        cpos += poffset + 0.5f * psize;
+                        cpos += 0.5f * psize;
                     else if (salg == Alignment_Right)
-                        cpos += poffset - 0.5f * psize;
-                    else
-                        cpos += poffset;
+                        cpos -= 0.5f * psize;
                 }
-                else
-                    cpos += poffset;
 
                 if (dir == axis)
                 {
@@ -260,29 +364,39 @@ void Layout::Compile()
                 m_Stack.GetSize());
     m_ElementInfo.Clear();
     fitPass(0);
-    fitPass(1);
     growShrinkPass(0);
+    wrapText();
+    fitPass(1);
     growShrinkPass(1);
     positionPass();
     for (const LayoutElement &elm : m_Elements)
     {
-        if (elm.Color.rgba[3] == 0.f)
+        if (TKit::ApproachesZero(elm.Color.rgba[3]) || TKit::ApproachesZero(elm.Size[0]) ||
+            TKit::ApproachesZero(elm.Size[1]))
             continue;
         LayoutElementInfo &info = m_ElementInfo.Append();
         info.Color = elm.Color;
         info.Position = elm.Position;
-        info.Size = elm.Size - 2.f * elm.CornerRadius;
-        info.Radius = elm.CornerRadius;
         info.Alignment = elm.SelfAlignment;
-        if (elm.CornerRadius == 0.f)
+        if (elm.Type == LayoutElement_Text)
+        {
+            info.Geo = Geometry_Glyph;
+            info.Handle = elm.Font;
+            info.Text = elm.Text;
+            info.Size = f32v2{elm.FontSize};
+        }
+        else if (elm.CornerRadius == 0.f)
         {
             info.Geo = Geometry_Static;
             info.Handle = m_Square;
+            info.Size = elm.Size;
         }
         else
         {
             info.Geo = Geometry_Parametric;
             info.Handle = m_RoundedSquare;
+            info.Size = elm.Size - 2.f * elm.CornerRadius;
+            info.Radius = elm.CornerRadius;
         }
     }
 

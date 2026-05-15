@@ -219,14 +219,22 @@ f32 FontData::GetKerning(const u32 code0, const u32 code1) const
     return 0.0f;
 }
 
-f32 FontData::ComputeTextSize(const TKit::StringView text) const
+f32v2 FontData::ComputeTextSize(const TKit::StringView text) const
 {
-    f32 size = 0.f;
+    const f32 lheight = GetLineHeight();
+    u32 nlcount = 1;
+    f32 width = 0.f;
+    f32 lastWidth = 0.f;
     for (u32 i = 0; i < text.GetSize(); ++i)
     {
         const char c = text[i];
         if (c == '\n')
+        {
+            ++nlcount;
+            lastWidth = Math::Max(width, lastWidth);
+            width = 0.f;
             continue;
+        }
 
         const u32 idx = GetGlyphDataIndex(c);
         if (idx == TKIT_U32_MAX)
@@ -236,30 +244,40 @@ f32 FontData::ComputeTextSize(const TKit::StringView text) const
         }
 
         if (i != 0)
-            size += GetKerning(text[i - 1], c);
+            width += GetKerning(text[i - 1], c);
 
-        size += Glyphs[idx].Advance;
+        width += Glyphs[idx].Advance;
     }
-    return size;
+    return f32v2{Math::Max(width, lastWidth), nlcount * lheight};
 }
 
-f32 FontData::ComputeTextMinimumSize(const TKit::StringView text) const
+f32 FontData::ComputeTextHeight(const TKit::StringView text) const
+{
+    const f32 lheight = GetLineHeight();
+    u32 nlcount = 1;
+    for (const char c : text)
+        if (c == '\n')
+            ++nlcount;
+    return nlcount * lheight;
+}
+
+f32 FontData::ComputeTextMinimumWidth(const TKit::StringView text) const
 {
     f32 size = 0.f;
     u32 start = 0;
     u32 end = 0;
-    for (u32 i = 0; i < text.GetSize();)
+    for (u32 i = 0; i < text.GetSize(); ++i)
     {
         const char c = text[i];
         if (c == '\n' || c == ' ')
         {
             end = i;
-            size = Math::Max(size, ComputeTextSize(text.SubString(start, end)));
+            size = Math::Max(size, ComputeTextWidth(text.SubString(start, end)));
             start = end;
         }
     }
     if (start < end)
-        size = Math::Max(size, ComputeTextSize(text.SubString(start, end)));
+        size = Math::Max(size, ComputeTextWidth(text.SubString(start, end)));
     return size;
 }
 
@@ -268,8 +286,9 @@ TKit::String FontData::WrapText(const TKit::StringView text, const f32 maxWidth)
     TKit::String wrapped;
     wrapped.Reserve(text.GetSize());
 
-    u32 lastSpace = TKIT_U32_MAX;
     f32 size = 0.f;
+    f32 lastSize = 0.f;
+    u32 lastSpace = TKIT_U32_MAX;
 
     for (u32 i = 0; i < text.GetSize(); ++i)
     {
@@ -282,7 +301,10 @@ TKit::String FontData::WrapText(const TKit::StringView text, const f32 maxWidth)
             continue;
         }
         if (c == ' ')
+        {
             lastSpace = i;
+            lastSize = size;
+        }
 
         const u32 idx = GetGlyphDataIndex(c);
         if (idx == TKIT_U32_MAX)
@@ -295,11 +317,11 @@ TKit::String FontData::WrapText(const TKit::StringView text, const f32 maxWidth)
             size += GetKerning(text[i - 1], c);
 
         size += Glyphs[idx].Advance;
-        if (size >= maxWidth && lastSpace != TKIT_U32_MAX)
+        if (size > maxWidth && lastSpace != TKIT_U32_MAX)
         {
             wrapped[lastSpace] = '\n';
             lastSpace = TKIT_U32_MAX;
-            size = 0.f;
+            size -= lastSize;
         }
     }
     return wrapped;

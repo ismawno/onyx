@@ -91,11 +91,11 @@ u32 GetGlyphCount(ResourcePool pool);
 MeshDataLayout GetFontLayout(Resource font);
 MeshDataLayout GetGlyphLayout(Resource glyph);
 
-template <Dimension D> bool IsResourceValid(Resource handle, ResourceType atype);
-template <Dimension D> bool IsResourcePoolValid(Handle handle, ResourceType atype);
+template <Dimension D> bool IsResourceValid(Resource handle, ResourceType atype = Resource_None);
+template <Dimension D> bool IsResourcePoolValid(Handle handle, ResourceType atype = Resource_None);
 
-bool IsResourceValid(Resource handle, ResourceType atype);
-bool IsResourcePoolValid(ResourcePool handle, ResourceType atype);
+bool IsResourceValid(Resource handle, ResourceType atype = Resource_None);
+bool IsResourcePoolValid(ResourcePool handle, ResourceType atype = Resource_None);
 
 void Sync(SyncFlags flags);
 

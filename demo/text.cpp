@@ -31,6 +31,7 @@ int main()
     {
         win->ControlCamera(Onyx::GetDeltaTime(win), &cam);
         ctx->Flush();
+        ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
 
         ctx->FontSampler(sampler);
         ctx->Font(font);

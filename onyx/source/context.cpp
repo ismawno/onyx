@@ -400,10 +400,15 @@ struct CharLine
 };
 
 template <Dimension D>
-void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &transform, const TextParameters &params)
+void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &transform,
+                                     const ContextTextParameters &params)
 {
     if (!m_Current->RenderFlags || text.IsEmpty())
         return;
+
+    TKIT_ASSERT(
+        m_Current->FontSampler != NullHandle,
+        "[ONYX][CONTEXT] To draw text, a valid font sampler must be provided first with the FontSampler() method");
 
     CHECK_HANDLE(m_Current->Font, Resource_Font, D);
     ONYX_CHECK_RESOURCE_IS_NOT_NULL(m_Current->FontSampler);
@@ -471,9 +476,8 @@ void IRenderContext<D>::addGlyphData(TKit::StringView text, const f32m<D> &trans
     constexpr f32 factors[3] = {0.f, 0.5f, 1.f};
     const f32 xfactor = factors[alg0];
     const f32 yfactor = factors[2 - alg1];
-    const f32 yscale = 1.f / (fdata.Ascender - fdata.Descender);
 
-    const f32 dy = fdata.LineHeight * yscale + params.LineSpacing;
+    const f32 dy = fdata.GetLineHeight() + params.LineSpacing;
     pos[1] = yfactor * (f32(lines.GetSize()) - 1.f) * dy - 0.5f * factors[alg1] * dy;
 
     const auto updateTransform = [&] {
@@ -573,6 +577,14 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
             translate(info);
             ParametricMesh(info.Handle,
                            RoundedQuadParameters{.Width = info.Size[0], .Height = info.Size[1], .Radius = info.Radius});
+            break;
+
+        case Geometry_Glyph:
+            translate(info);
+            scale(info);
+
+            Font(info.Handle);
+            Text(info.Text);
             break;
 
         default:

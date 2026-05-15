@@ -110,7 +110,8 @@ enum ResourceType : u8
 
     // not ideal to have them here but idc too much
     Resource_MeshCount = Resource_Font,
-    Resource_PoolCount = Resource_Material
+    Resource_PoolCount = Resource_Material,
+    Resource_None = Resource_Count
 };
 
 const char *ToString(ResourceType atype);

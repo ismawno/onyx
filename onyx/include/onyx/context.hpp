@@ -126,7 +126,7 @@ struct SpotLightParameters
     LightFlags Flags = 0;
 };
 
-struct TextParameters
+struct ContextTextParameters
 {
     std::function<void(u32, char, f32v2 &)> *CharacterCallback = nullptr;
     f32 Kerning = 0.f;
@@ -384,11 +384,11 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
                       params);
     }
 
-    void Text(const TKit::StringView text, const TextParameters &params = {})
+    void Text(const TKit::StringView text, const ContextTextParameters &params = {})
     {
         addGlyphData(text, m_Current->Transform, params);
     }
-    void Text(const TKit::StringView text, const f32m<D> &transform, const TextParameters &params = {},
+    void Text(const TKit::StringView text, const f32m<D> &transform, const ContextTextParameters &params = {},
               const TransformMode mode = Transform_Extrinsic)
     {
         addGlyphData(
@@ -584,7 +584,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     void addCircleData(const f32m<D> &transform, const CircleParameters &params);
     void addStaticData(Resource mesh, const f32m<D> &transform);
     void addParametricData(Resource mesh, const f32m<D> &transform, const InstanceParameters &params);
-    void addGlyphData(TKit::StringView text, const f32m<D> &transform, const TextParameters &params);
+    void addGlyphData(TKit::StringView text, const f32m<D> &transform, const ContextTextParameters &params);
     void addGlyphData(TKit::StringView text, const f32m<D> &transform);
     void addGlyphData(const Glyph *glyph, f32 unitRange, const f32m<D> &transform);
     void addPointLightData(const f32m<D> &transform, const PointLightParameters<D> &params);

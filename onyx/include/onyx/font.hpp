@@ -47,8 +47,19 @@ struct FontData
 
     u32 GetGlyphDataIndex(u32 code) const;
     f32 GetKerning(u32 code0, u32 code1) const;
-    f32 ComputeTextSize(TKit::StringView text) const;
-    f32 ComputeTextMinimumSize(TKit::StringView text) const;
+
+    f32v2 ComputeTextSize(TKit::StringView text) const;
+    f32 ComputeTextWidth(TKit::StringView text) const
+    {
+        return ComputeTextSize(text)[0];
+    }
+    f32 ComputeTextHeight(TKit::StringView text) const;
+
+    f32 ComputeTextMinimumWidth(TKit::StringView text) const;
+    f32 GetLineHeight() const
+    {
+        return LineHeight / (Ascender - Descender);
+    }
     TKit::String WrapText(TKit::StringView text, f32 maxWidth) const;
 };
 
