@@ -62,7 +62,8 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
             p.Padding = p.Padding[0];
 
         ImGui::DragFloat("Child gap", &p.ChildGap, 0.01f, 0.f, TKIT_F32_MAX);
-        ImGui::DragFloat("Corner radius", &p.CornerRadius, 0.01f, 0.f, TKIT_F32_MAX);
+        Combo("Shape", &p.Shape.Type, "Circle\0Rectangle\0Rounded rectangle\0\0");
+        ImGui::DragFloat("Radius", &p.Shape.Radius, 0.01f, 0.f, TKIT_F32_MAX);
         if (ImGui::Button("Add child"))
         {
             info.Children.Append(panels.GetSize());
@@ -71,7 +72,10 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
         if (ImGui::TreeNode("Children"))
         {
             for (const u32 c : info.Children)
+            {
+                ImGui::Text("----");
                 EditPanel(panels[c], panels);
+            }
             ImGui::TreePop();
         }
         ImGui::PopID();
@@ -106,18 +110,19 @@ void DrawPanels(Onyx::Layout &layout, const PanelInfo &info, const TKit::StackAr
 int main()
 {
     Onyx::Initialize();
-    const Onyx::StatMeshData<D2> sqData = Onyx::CreateQuadMeshData<D2>();
-    const Onyx::ParaMeshData<D2> rData = Onyx::CreateRoundedQuadMeshData<D2>();
+    const Onyx::StatMeshData<D2> qdata = Onyx::CreateQuadMeshData<D2>();
+    const Onyx::ParaMeshData<D2> rqdata = Onyx::CreateRoundedQuadMeshData<D2>();
     const Onyx::FontData fdata = ONYX_CHECK_RESULT(Onyx::LoadDefaultFont());
 
     const Onyx::ResourcePool spool = Onyx::Resources::CreateResourcePool<D2>(Onyx::Resource_StaticMesh);
     const Onyx::ResourcePool ppool = Onyx::Resources::CreateResourcePool<D2>(Onyx::Resource_ParametricMesh);
     const Onyx::ResourcePool fpool = Onyx::Resources::CreateFontPool();
 
-    const Onyx::Resource square = Onyx::Resources::RegisterMesh(spool, sqData);
-    const Onyx::Resource roundedSquare = Onyx::Resources::RegisterMesh(ppool, rData);
+    const Onyx::Resource quad = Onyx::Resources::RegisterMesh(spool, qdata);
+    const Onyx::Resource roundedSquare = Onyx::Resources::RegisterMesh(ppool, rqdata);
     const Onyx::Resource sampler = Onyx::Resources::CreateSampler();
     const Onyx::Resource font = Onyx::Resources::RegisterFont(fpool, fdata);
+
     Onyx::Resources::Sync(Onyx::SyncFlag_StaticMeshes | Onyx::SyncFlag_ParametricMeshes | Onyx::SyncFlag_Fonts);
 
     Onyx::RenderContext<D2> *ctx = Onyx::CreateRenderContext<D2>();
@@ -132,7 +137,11 @@ int main()
     ctx->AddTarget(view);
 
     {
-        Onyx::Layout layout{square, roundedSquare, font};
+        Onyx::LayoutSpecs spc;
+        spc.RectangleMesh = quad;
+        spc.RoundedRectangleMesh = roundedSquare;
+        spc.Font = font;
+        Onyx::Layout layout{spc};
         PanelInfo root{};
         root.PanelParams.Sizing = Onyx::LayoutSizing::Fixed(2.f);
 

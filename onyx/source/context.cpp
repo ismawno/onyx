@@ -575,8 +575,11 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
 
         case Geometry_Parametric:
             translate(info);
-            ParametricMesh(info.Handle,
-                           RoundedQuadParameters{.Width = info.Size[0], .Height = info.Size[1], .Radius = info.Radius});
+            if (info.ShapeType == LayoutShape_RoundedRectangle)
+                ParametricMesh(info.Handle, RoundedQuadParameters{
+                                                .Width = info.Size[0], .Height = info.Size[1], .Radius = info.Radius});
+            else
+                ParametricMesh(info.Handle, StadiumParameters{.Height = info.Size[1], .Radius = info.Size[0]});
             break;
 
         case Geometry_Glyph:

@@ -45,52 +45,32 @@ struct LayoutSizing
 enum LayoutShapeType : u8
 {
     LayoutShape_Circle,
-    LayoutShape_Triangle,
     LayoutShape_Rectangle,
-    LayoutShape_Stadium,
-    LayoutShape_RoundedRectangle
+    LayoutShape_RoundedRectangle,
+    LayoutShape_Custom
 };
 
 struct LayoutShape
 {
     Resource Handle;
-    f32 Rotation;
     f32 Radius;
     LayoutShapeType Type;
 
-    static constexpr LayoutShape Circle(const Resource handle = NullHandle)
+    static constexpr LayoutShape Circle()
     {
-        return {handle, 0.f, 0.f, LayoutShape_Circle};
-    }
-    static constexpr LayoutShape Triangle(const Resource handle = NullHandle)
-    {
-        return {handle, 0.f, 0.f, LayoutShape_Triangle};
-    }
-    static constexpr LayoutShape Triangle(const f32 rotation, const Resource handle = NullHandle)
-    {
-        return {handle, rotation, 0.f, LayoutShape_Triangle};
+        return {NullHandle, 0.f, LayoutShape_Circle};
     }
     static constexpr LayoutShape Rectangle(const Resource handle = NullHandle)
     {
-        return {handle, 0.f, 0.f, LayoutShape_Rectangle};
+        return {handle, 0.f, LayoutShape_Rectangle};
     }
     static constexpr LayoutShape Rectangle(const f32 radius, const Resource handle = NullHandle)
     {
-        return {handle, 0.f, radius,
-                TKit::ApproachesZero(radius) ? LayoutShape_Rectangle : LayoutShape_RoundedRectangle};
+        return {handle, radius, TKit::ApproachesZero(radius) ? LayoutShape_Rectangle : LayoutShape_RoundedRectangle};
     }
-    static constexpr LayoutShape Rectangle(const f32 radius, const f32 rotation, const Resource handle = NullHandle)
+    static constexpr LayoutShape Custom(const Resource handle)
     {
-        return {handle, rotation, radius,
-                TKit::ApproachesZero(radius) ? LayoutShape_Rectangle : LayoutShape_RoundedRectangle};
-    }
-    static constexpr LayoutShape Stadium(const Resource handle = NullHandle)
-    {
-        return {handle, 0.f, 0.f, LayoutShape_Stadium};
-    }
-    static constexpr LayoutShape Stadium(const f32 rotation, const Resource handle = NullHandle)
-    {
-        return {handle, rotation, 0.f, LayoutShape_Stadium};
+        return {handle, 0.f, LayoutShape_Custom};
     }
 };
 
@@ -139,20 +119,20 @@ struct LayoutElement
 struct LayoutElementInfo
 {
     TKit::String Text;
-    LayoutShapeType ShapeType;
     f32v2 Position;
     f32v2 Size;
     f32 Radius;
-    f32 Rotation;
     Color Color;
     Resource Handle;
     Geometry Geo;
     vec2<Alignment> Alignment;
+    LayoutShapeType ShapeType;
 };
 
-// TODO(Isma): Add floating panels
 // TODO(Isma): Add clip mode
 // TODO(Isma): Add outlines
+// TODO(Isma): Add materials
+// TODO(Isma): Add floating panels
 // TODO(Isma): Implement ids and hashing
 struct LayoutPanelParameters
 {
@@ -178,10 +158,9 @@ struct LayoutTextParameters
 
 struct LayoutSpecs
 {
-    Resource TriangleMesh = NullHandle;
     Resource RectangleMesh = NullHandle;
-    Resource StadiumMesh = NullHandle;
     Resource RoundedRectangleMesh = NullHandle;
+    Resource Font = NullHandle;
 };
 
 class Layout
