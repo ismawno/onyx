@@ -42,6 +42,9 @@ void ReleaseImage(Resource image);
 Resource CreateTexture(Resource image, u32 viewIndex = TKIT_U32_MAX);
 void DestroyTexture(Resource texture);
 
+// TODO(Isma): Create a utility function that registers and loads all default resources. Create internally a struct with
+// default resources to be used by contexts. Contexts refresh default resources every flush, so the sync flush will
+// naturally refresh all defaults
 template <Dimension D> Resource RegisterMesh(ResourcePool pool, const StatMeshData<D> &data);
 template <Dimension D> Resource RegisterMesh(ResourcePool pool, const ParaMeshData<D> &data);
 template <Dimension D> Resource RegisterMaterial(const MaterialData<D> &data);

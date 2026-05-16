@@ -3,6 +3,7 @@
 #include "onyx/handle.hpp"
 #include "onyx/color.hpp"
 #include "onyx/instance.hpp"
+#include "onyx/pass.hpp"
 #include "tkit/container/tier_array.hpp"
 
 namespace Onyx
@@ -17,8 +18,16 @@ enum LayoutSizingType : u8
 
 enum LayoutDirection : u8
 {
-    LayoutDirection_Horizontal,
-    LayoutDirection_Vertical,
+    LayoutDirection_LeftToRight,
+    LayoutDirection_RightToLeft,
+    LayoutDirection_BottomToTop,
+    LayoutDirection_TopToBottom,
+};
+
+enum LayoutAxis : u8
+{
+    LayoutAxis_Horizontal,
+    LayoutAxis_Vertical
 };
 
 struct LayoutSizing
@@ -109,14 +118,17 @@ struct LayoutElement
 
     u32 Parent;
     Resource Font;
+    Resource Material;
     TKit::String Text;
     TKit::TierArray<u32> Children{};
 
     f32 CornerRadius;
     f32 ChildGap;
     f32 FontSize;
+    f32 OutlineWidth;
 
-    Color Color;
+    Color FillColor;
+    Color OutlineColor;
     vec2<Alignment> SelfAlignment{Alignment_Bottom};
     vec2<Alignment> ChildAlignment{Alignment_Bottom};
     LayoutDirection Direction;
@@ -133,25 +145,29 @@ struct LayoutElementInfo
     f32v2 Size;
     f32v2 ClipMin;
     f32v2 ClipMax;
+    Color FillColor;
+    Color OutlineColor;
     f32 Radius;
-    Color Color;
+    f32 OutlineWidth;
     Resource Handle;
+    Resource Material;
     Geometry Geo;
     vec2<Alignment> Alignment;
     LayoutShapeType ShapeType;
+    RenderModeFlags RenderFlags;
 };
 
-// TODO(Isma): Add outlines
-// TODO(Isma): Add materials
 // TODO(Isma): Add floating panels
 // TODO(Isma): Implement ids and hashing
 struct LayoutPanelParameters
 {
-    Color Color = Color_Transparent;
-    LayoutDirection Direction = LayoutDirection_Horizontal;
+    Color FillColor = Color_Transparent;
+    Color OutlineColor = Color_White;
+    LayoutDirection Direction = LayoutDirection_LeftToRight;
     vec2<Alignment> Alignment{Alignment_Canonical};
     vec2<LayoutSizing> Sizing{LayoutSizing::Fit()};
     LayoutShape Shape = LayoutShape::Rectangle();
+    Resource Material = NullHandle;
     // NOTE(Isma): Could add overflow mode override per-children (as in a ChildOverflow and SelfOverflow parameters).
     // Skipping for now
     LayoutOverflowMode Overflow = LayoutOverflow_Clip;
@@ -159,15 +175,19 @@ struct LayoutPanelParameters
     f32v2 SelfOffset{0.f};
     f32v4 Padding{0.f};
     f32 ChildGap = 0.f;
+    f32 OutlineWidth = 0.f;
 };
 
 struct LayoutTextParameters
 {
-    Color Color = Color_White;
+    Color FillColor = Color_White;
+    Color OutlineColor = Color_Transparent;
     LayoutTextMode Mode = TextMode_Unbounded;
     f32 FontSize = 1.f;
+    f32 OutlineWidth = 0.25f;
     f32v2 Offset{0.f};
     Resource Font = NullHandle;
+    Resource Material = NullHandle;
 };
 
 struct LayoutSpecs
@@ -197,10 +217,14 @@ class Layout
     }
 
   private:
-    void fitPass(u32 axis);
-    void growShrinkPass(u32 axis);
+    void fitPass(LayoutAxis axis);
+    void growShrinkPass(LayoutAxis axis);
     void wrapText();
     void positionPass();
+    LayoutAxis getAxis(const LayoutDirection dir)
+    {
+        return LayoutAxis(dir >> 1);
+    }
 
     TKit::TierArray<LayoutElement> m_Elements{};
     TKit::TierArray<u32> m_Stack{};

@@ -383,13 +383,13 @@ static VKit::GraphicsPipeline::Builder createGeometryPipelineBuilder(const Pipel
     {
         const auto stencilFlags = VKit::StencilOperationFlag_Front | VKit::StencilOperationFlag_Back;
         builder.EnableStencilTest()
-            .SetStencilFailOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
-            .SetStencilPassOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
-            .SetStencilDepthFailOperation(VK_STENCIL_OP_REPLACE, stencilFlags)
+            .SetStencilFailOperation(VK_STENCIL_OP_KEEP, stencilFlags) // irrelevant
+            .SetStencilPassOperation(VK_STENCIL_OP_INCREMENT_AND_CLAMP, stencilFlags)
+            .SetStencilDepthFailOperation(VK_STENCIL_OP_KEEP, stencilFlags)
             .SetStencilCompareOperation(VK_COMPARE_OP_ALWAYS, stencilFlags)
             .SetStencilCompareMask(0xFF, stencilFlags)
             .SetStencilWriteMask(0xFF, stencilFlags)
-            .SetStencilReference(1, stencilFlags);
+            .SetStencilReference(0, stencilFlags); // irrelevant
     }
 
     return builder;

@@ -465,6 +465,7 @@ template <Dimension D> class alignas(TKIT_CACHE_LINE_SIZE) IRenderContext
     {
         m_Current->FillColor = color;
     }
+    // there is no support for alpha channel in outlines
     void OutlineColor(const Color &color)
     {
         m_Current->OutlineColor = color;

@@ -540,11 +540,18 @@ void RenderContext<D3>::addSpotLightData(const f32m4 &transform, const SpotLight
 
 template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout &layout)
 {
-    const auto translate = [this](const LayoutElementInfo &info) {
+    u32 depth = 0;
+    const auto translate = [this, &depth](const LayoutElementInfo &info) {
         if constexpr (D == D2)
+        {
+            TKIT_UNUSED(depth);
             Translate(info.Position, Transform_Intrinsic);
+        }
         else
-            Translate(f32v3{info.Position, 0.f}, Transform_Intrinsic);
+        {
+            const f32 z = 1.f - f32(++depth) / f32(1U << 24);
+            Translate(f32v3{info.Position, z}, Transform_Intrinsic);
+        }
     };
     const auto scale = [this](const LayoutElementInfo &info) {
         if constexpr (D == D2)
@@ -555,7 +562,11 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
     for (const LayoutElementInfo &info : layout.GetElementsInfo())
     {
         Push();
-        FillColor(info.Color);
+        RenderFlags(info.RenderFlags);
+        Material(info.Material);
+        FillColor(info.FillColor);
+        OutlineColor(info.OutlineColor);
+        OutlineWidth(info.OutlineWidth);
         AlignX(info.Alignment[0]);
         AlignY(info.Alignment[1]);
 
@@ -567,9 +578,9 @@ template <Dimension D> void IRenderContext<D>::UserInterfaceLayout(const Layout 
         }
         else
         {
-            // NOTE(Isma): Hmm a bit random that 0.1f
-            rect.Min = f32v3{info.ClipMin, -0.1f};
-            rect.Max = f32v3{info.ClipMax, 0.1f};
+            // NOTE(Isma): A reasonably large number to not clip in the z axis
+            rect.Min = f32v3{info.ClipMin, -1e8};
+            rect.Max = f32v3{info.ClipMax, 1e8};
         }
         Clip(rect);
 

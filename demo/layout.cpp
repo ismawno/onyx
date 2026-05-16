@@ -22,7 +22,7 @@ template <typename T> bool Combo(const char *label, T *index, const char *items)
 
 struct PanelInfo
 {
-    Onyx::LayoutPanelParameters PanelParams{.Color = Onyx::Color_White, .Sizing = Onyx::LayoutSizing::Fixed(1.f)};
+    Onyx::LayoutPanelParameters PanelParams{.FillColor = Onyx::Color_White, .Sizing = Onyx::LayoutSizing::Fixed(1.f)};
     Onyx::LayoutTextParameters TextParams{.FontSize = 0.1f};
     Onyx::LayoutElementType Type = Onyx::LayoutElement_Panel;
     std::string Text;
@@ -37,8 +37,10 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
     {
         Onyx::LayoutPanelParameters &p = info.PanelParams;
         ImGui::PushID(&p);
-        ImGui::ColorEdit4("Color", p.Color.GetData());
-        Combo("Layout direction", &p.Direction, "Horizontal\0Vertical\0\0");
+        ImGui::ColorEdit4("Fill color", p.FillColor.GetData());
+        ImGui::ColorEdit4("Outline color", p.OutlineColor.GetData());
+        ImGui::SliderFloat("Outline width", &p.OutlineWidth, 0.f, 1.f);
+        Combo("Layout direction", &p.Direction, "Left to right\0Right to left\0Bottom to top\0Top to bottom\0");
 
         ImGui::Spacing();
         Combo("X Alignment", &p.Alignment[0], "Left\0Center\0Right\0\0");
@@ -88,7 +90,9 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
     {
         Onyx::LayoutTextParameters &p = info.TextParams;
         ImGui::PushID(&p);
-        ImGui::ColorEdit4("Color", p.Color.GetData());
+        ImGui::ColorEdit4("Fill color", p.FillColor.GetData());
+        ImGui::ColorEdit4("Outline color", p.OutlineColor.GetData());
+        ImGui::SliderFloat("Outline width", &p.OutlineWidth, 0.f, 1.f);
         Combo("Text mode", &p.Mode, "Unbound\0Wrapped\0\0");
         ImGui::DragFloat("Font size", &p.FontSize, 0.01f, 0.f, TKIT_F32_MAX);
 
@@ -136,7 +140,9 @@ int main()
 
     Onyx::Camera<D2> cam{};
     cam.OrthoParameters.Size = 5.f;
-    Onyx::RenderView<D2> *view = win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates);
+    Onyx::RenderView<D2> *view =
+        win->CreateRenderView<D2>(&cam, Onyx::RenderViewFlag_NormalizedCoordinates | Onyx::RenderViewFlag_PostProcess |
+                                            Onyx::RenderViewFlag_Outlines);
 
     ctx->AddTarget(view);
 
@@ -159,8 +165,8 @@ int main()
             if (!ImGui::GetIO().WantCaptureKeyboard)
                 win->ControlCamera(dt, &cam);
             ctx->Flush();
-            ctx->RenderFlags(Onyx::RenderModeFlag_Flat);
             ctx->FontSampler(sampler);
+            ctx->RenderFlags(Onyx::RenderModeFlag_Flat | Onyx::RenderModeFlag_Outlined);
 
             DrawPanels(layout, root, panels);
             layout.Compile();

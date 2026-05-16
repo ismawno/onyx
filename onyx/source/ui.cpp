@@ -33,7 +33,10 @@ void Layout::BeginPanel(const LayoutPanelParameters &params)
     current.ChildOffset = params.ChildOffset;
     current.SelfOffset = params.SelfOffset;
     current.ChildGap = params.ChildGap;
-    current.Color = params.Color;
+    current.Material = params.Material;
+    current.FillColor = params.FillColor;
+    current.OutlineColor = params.OutlineColor;
+    current.OutlineWidth = params.OutlineWidth;
     current.Direction = params.Direction;
     current.ChildAlignment = params.Alignment;
     current.ChildOverflow = params.Overflow;
@@ -100,9 +103,12 @@ void Layout::Text(const TKit::StringView text, const LayoutTextParameters &param
     current.SelfOverflow = parent.ChildOverflow;
 
     current.SelfOffset = params.Offset;
-    current.Color = params.Color;
+    current.FillColor = params.FillColor;
+    current.OutlineColor = params.OutlineColor;
+    current.OutlineWidth = params.OutlineWidth;
     current.Text = TKit::String{text.GetData(), text.GetSize()};
     current.Font = params.Font == NullHandle ? m_Specs.Font : params.Font;
+    current.Material = params.Material;
     current.TextMode = params.Mode;
 
     const FontData &fdata = Resources::GetFontData(current.Font);
@@ -117,7 +123,7 @@ void Layout::Text(const TKit::StringView text, const LayoutTextParameters &param
     current.MaxSize = f32v2{TKIT_F32_MAX};
 }
 
-void Layout::fitPass(const u32 axis)
+void Layout::fitPass(const LayoutAxis axis)
 {
     for (const u32 p : m_ReversedBreadth)
     {
@@ -125,8 +131,8 @@ void Layout::fitPass(const u32 axis)
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
         if (parent.Type != LayoutElement_Panel || parent.Sizing[axis] != LayoutSizing_Fit)
             continue;
+        const LayoutAxis paxis = getAxis(parent.Direction);
 
-        const LayoutDirection dir = parent.Direction;
         f32 &psize = parent.Size[axis];
 
         f32 childMinSizeTotal = 0.f;
@@ -140,7 +146,7 @@ void Layout::fitPass(const u32 axis)
             const f32 cmnsize = child.MinSize[axis];
 
             TKIT_ASSERT(child.Parent != TKIT_U32_MAX, "[ONYX][LAYOUT] Only the root node can have no parent");
-            if (dir == axis)
+            if (paxis == axis)
             {
                 psize += csize;
                 childMinSizeTotal += cmnsize;
@@ -156,24 +162,24 @@ void Layout::fitPass(const u32 axis)
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
         psize += padding;
 
-        if (dir == axis)
+        if (paxis == axis)
             psize += parent.ChildGap * (parent.Children.GetSize() - 1);
 
         psize = Math::Clamp(psize, pmnsize, pmxsize);
     }
 }
 
-void Layout::growShrinkPass(const u32 axis)
+void Layout::growShrinkPass(const LayoutAxis axis)
 {
     for (const u32 p : m_Breadth)
     {
         const LayoutElement &parent = m_Elements[p];
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
 
-        const LayoutDirection dir = parent.Direction;
+        const LayoutAxis paxis = getAxis(parent.Direction);
         const f32 padding = parent.Padding[2 * axis] + parent.Padding[2 * axis + 1];
         f32 remainingSize = parent.Size[axis] - padding;
-        if (dir == axis)
+        if (paxis == axis)
         {
             remainingSize -= parent.ChildGap * (parent.Children.GetSize() - 1);
             TKit::StackArray<u32> toGrow{};
@@ -319,18 +325,17 @@ void Layout::positionPass()
         TKIT_ASSERT(!parent.Children.IsEmpty(), "[ONYX][LAYOUT] Only non-leaf nodes allowed in traversal");
 
         const LayoutDirection dir = parent.Direction;
-
+        const LayoutAxis paxis = getAxis(dir);
         const f32 cgap = parent.ChildGap;
 
         for (u32 axis = 0; axis < 2; ++axis)
         {
-
-            const auto computeChildSize = [this, &parent, axis, cgap, dir] {
+            const auto computeChildSize = [this, &parent, axis, cgap] {
                 f32 totalChildSize = 0.f;
                 for (const u32 c : parent.Children)
                     totalChildSize += m_Elements[c].Size[axis];
                 totalChildSize += cgap * (parent.Children.GetSize() - 1);
-                return dir == LayoutDirection_Horizontal ? -totalChildSize : totalChildSize;
+                return totalChildSize;
             };
 
             const f32 psize = parent.Size[axis];
@@ -359,7 +364,7 @@ void Layout::positionPass()
                     poffset += p0;
                 else if (calg == Alignment_Mirrored)
                     poffset += psize - p1;
-                else if (dir == axis)
+                else if (paxis == axis)
                     poffset += 0.5f * (computeChildSize() + psize) + p0 - p1;
                 else
                     poffset += p0 - p1;
@@ -372,7 +377,7 @@ void Layout::positionPass()
                     poffset += p0 - psize;
                 else if (calg == Alignment_Mirrored)
                     poffset -= p1;
-                else if (dir == axis)
+                else if (paxis == axis)
                     poffset += 0.5f * (computeChildSize() - psize) + p0 - p1;
                 else
                     poffset += p0 - p1;
@@ -385,14 +390,13 @@ void Layout::positionPass()
                     poffset += p0 - 0.5f * psize;
                 else if (calg == Alignment_Mirrored)
                     poffset += 0.5f * psize - p1;
-                else if (dir == axis)
+                else if (paxis == axis)
                     poffset += 0.5f * computeChildSize() + p0 - p1;
                 else
                     poffset += p0 - p1;
             }
 
-            for (const u32 c : parent.Children)
-            {
+            const auto processChildren = [&](const u32 c) {
                 LayoutElement &child = m_Elements[c];
 
                 if (parent.ChildOverflow == LayoutOverflow_Clip)
@@ -412,22 +416,32 @@ void Layout::positionPass()
                 cpos += poffset + child.SelfOffset[axis];
                 if (calg == Alignment_Center)
                 {
-                    if (dir == axis)
-                        cpos += 0.5f * (dir == LayoutDirection_Horizontal ? csize : -csize);
+                    if (paxis == axis)
+                        cpos -= 0.5f * csize;
                     else if (salg == Alignment_Canonical)
                         cpos += 0.5f * psize;
                     else if (salg == Alignment_Mirrored)
                         cpos -= 0.5f * psize;
                 }
 
-                if (dir == axis)
+                if (paxis == axis)
                 {
-                    if (calg == Alignment_Canonical || (calg == Alignment_Center && dir == LayoutDirection_Horizontal))
+                    if (calg == Alignment_Canonical)
                         poffset += csize + cgap;
                     else
                         poffset -= csize + cgap;
                 }
-            }
+            };
+
+            const bool isCanonical = salg == Alignment_Canonical;
+            const bool naturalDir = dir == LayoutDirection_LeftToRight || dir == LayoutDirection_BottomToTop;
+
+            if ((isCanonical && naturalDir) || (!isCanonical && !naturalDir))
+                for (const u32 c : parent.Children)
+                    processChildren(c);
+            else
+                for (u32 i = parent.Children.GetSize() - 1; i < parent.Children.GetSize(); --i)
+                    processChildren(parent.Children[i]);
         }
     }
 }
@@ -437,26 +451,42 @@ void Layout::Compile()
     TKIT_ASSERT(m_Stack.IsEmpty(), "[ONYX][LAYOUT] Trying to compile a layout that has {} open nodes!",
                 m_Stack.GetSize());
     m_ElementInfo.Clear();
-    fitPass(0);
-    growShrinkPass(0);
+    fitPass(LayoutAxis_Horizontal);
+    growShrinkPass(LayoutAxis_Horizontal);
     wrapText();
-    fitPass(1);
-    growShrinkPass(1);
+    fitPass(LayoutAxis_Vertical);
+    growShrinkPass(LayoutAxis_Vertical);
     positionPass();
     for (const LayoutElement &elm : m_Elements)
     {
-        if (TKit::ApproachesZero(elm.Color.rgba[3]) ||
-            (elm.Type != LayoutElement_Text &&
-             (TKit::ApproachesZero(elm.Size[0]) || TKit::ApproachesZero(elm.Size[1]))))
+        const bool fill = !TKit::ApproachesZero(elm.FillColor.rgba[3]);
+        const bool outline = !TKit::ApproachesZero(elm.OutlineWidth);
+        const bool text = elm.Type == LayoutElement_Text;
+        const bool sized = !TKit::ApproachesZero(elm.Size[0]) && !TKit::ApproachesZero(elm.Size[1]);
+
+        if ((!fill && !outline) || (!text && !sized))
             continue;
 
         LayoutElementInfo &info = m_ElementInfo.Append();
-        info.Color = elm.Color;
+        info.Material = elm.Material;
+        info.RenderFlags = 0;
+        if (fill)
+        {
+            info.RenderFlags |= elm.Material == NullHandle ? RenderModeFlag_Flat : RenderModeFlag_Shaded;
+            info.FillColor = elm.FillColor;
+        }
+        if (outline)
+        {
+            info.RenderFlags |= RenderModeFlag_Outlined;
+            info.OutlineColor = elm.OutlineColor;
+            info.OutlineWidth = elm.OutlineWidth;
+        }
+
         info.Position = elm.Position;
         info.Alignment = elm.SelfAlignment;
         info.ClipMin = elm.ClipMin;
         info.ClipMax = elm.ClipMax;
-        if (elm.Type == LayoutElement_Text)
+        if (text)
         {
             info.Geo = Geometry_Glyph;
             info.Handle = elm.Font;

@@ -41,16 +41,20 @@ u32 LoadStencil(const i32v2 coords)
 [shader("fragment")]
 f32v4 mainFS(const FragInput input) : SV_Target
 {
-    const i32v2 center = i32v2(input.Position.xy);
     const f32v2 uv = input.TexCoord;
-    const f32v2 extent = f32v2(g_PushData.Extent);
     const u32 idx = g_PushData.AttachmentIndex;
 
     const Sampler2D colors = g_Colors[idx];
+
+    if (!bool(g_PushData.Flags & PostProcessFlag_Outlines))
+        return colors.Sample(uv);
+
     const Sampler2D outlines = g_Outlines[idx];
 
-    if (!bool(g_PushData.Flags & PostProcessFlag_Outlines) || LoadStencil(center) != 0)
-        return colors.Sample(uv);
+    const i32v2 center = i32v2(input.Position.xy);
+    const f32v2 extent = f32v2(g_PushData.Extent);
+
+    const u32 cstencil = LoadStencil(center);
 
     const i32 maxWidth = i32(g_PushData.MaxOutlineWidth);
     const i32 dmaxWidth = i32(maxWidth * 0.707);
@@ -66,7 +70,7 @@ f32v4 mainFS(const FragInput input) : SV_Target
         const f32v2 offUv = uv + f32v2(offset) / extent;
 
         const u32 stencil = LoadStencil(coord);
-        if (stencil != 0)
+        if (stencil > cstencil)
         {
             const f32v4 outl = outlines.Sample(offUv);
             width = u32(outl.a * f32(maxWidth));
@@ -87,7 +91,7 @@ f32v4 mainFS(const FragInput input) : SV_Target
         const i32v2 coord = center + offset;
 
         const u32 stencil = LoadStencil(coord);
-        if (stencil != 0)
+        if (stencil > cstencil)
             return f32v4(outline, 1.f);
     }
     return colors.Sample(uv);
