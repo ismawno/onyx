@@ -22,7 +22,8 @@ template <typename T> bool Combo(const char *label, T *index, const char *items)
 
 struct PanelInfo
 {
-    Onyx::LayoutPanelParameters PanelParams{.FillColor = Onyx::Color_White, .Sizing = Onyx::LayoutSizing::Fixed(1.f)};
+    Onyx::LayoutPanelParameters PanelParams{.FillColor = Onyx::Color_White,
+                                            .Sizing = Onyx::LayoutSizing::Absolute(1.f)};
     Onyx::LayoutTextParameters TextParams{.FontSize = 0.1f};
     Onyx::LayoutElementType Type = Onyx::LayoutElement_Panel;
     std::string Text;
@@ -32,29 +33,38 @@ struct PanelInfo
 void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
 {
     ImGui::PushID(&info);
-    Combo("Type", &info.Type, "Panel\0Text\0\0");
-    if (info.Type == Onyx::LayoutElement_Panel)
+    Combo("Type", &info.Type, "Panel\0Floating\0Text\0\0");
+    if (info.Type == Onyx::LayoutElement_Panel || info.Type == Onyx::LayoutElement_Floating)
     {
         Onyx::LayoutPanelParameters &p = info.PanelParams;
         ImGui::PushID(&p);
+        if (info.Type == Onyx::LayoutElement_Floating)
+        {
+            p.Floating.Enable = true;
+            Combo("X Attachment", &p.Floating.Attachment[0], "Left\0Right\0\0");
+            Combo("Y Attachment", &p.Floating.Attachment[1], "Bottom\0Top\0\0");
+        }
+        else
+            p.Floating.Enable = false;
+
         ImGui::ColorEdit4("Fill color", p.FillColor.GetData());
         ImGui::ColorEdit4("Outline color", p.OutlineColor.GetData());
         ImGui::SliderFloat("Outline width", &p.OutlineWidth, 0.f, 1.f);
-        Combo("Layout direction", &p.Direction, "Left to right\0Right to left\0Bottom to top\0Top to bottom\0");
+        Combo("Layout direction", &p.Direction, "Left to right\0Right to left\0Bottom to top\0Top to bottom\0\0");
 
         ImGui::Spacing();
         Combo("X Alignment", &p.Alignment[0], "Left\0Center\0Right\0\0");
         Combo("Y Alignment", &p.Alignment[1], "Bottom\0Center\0Top\0\0");
 
         ImGui::Spacing();
-        Combo("X Sizing", &p.Sizing[0].Type, "Fixed\0Fit\0Grow\0\0");
-        if (p.Sizing[0].Type == Onyx::LayoutSizing_Fixed)
+        Combo("X Sizing", &p.Sizing[0].Type, "Absolute\0Normalized\0Fit\0Grow\0\0");
+        if (p.Sizing[0].Type == Onyx::LayoutSizing_Absolute || p.Sizing[0].Type == Onyx::LayoutSizing_Normalized)
             ImGui::DragFloat("X Size", &p.Sizing[0].Size, 0.05f, 0.f, TKIT_F32_MAX);
         else
             ImGui::DragFloat2("X Limits", &p.Sizing[0].Min, 0.05f, 0.f, TKIT_F32_MAX);
 
-        Combo("Y Sizing", &p.Sizing[1].Type, "Fixed\0Fit\0Grow\0\0");
-        if (p.Sizing[1].Type == Onyx::LayoutSizing_Fixed)
+        Combo("Y Sizing", &p.Sizing[1].Type, "Absolute\0Normalized\0Fit\0Grow\0\0");
+        if (p.Sizing[1].Type == Onyx::LayoutSizing_Absolute || p.Sizing[1].Type == Onyx::LayoutSizing_Normalized)
             ImGui::DragFloat("Y Size", &p.Sizing[1].Size, 0.05f, 0.f, TKIT_F32_MAX);
         else
             ImGui::DragFloat2("Y Limits", &p.Sizing[1].Min, 0.05f, 0.f, TKIT_F32_MAX);
@@ -64,8 +74,16 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
             p.Padding = p.Padding[0];
 
         ImGui::DragFloat("Child gap", &p.ChildGap, 0.01f, 0.f, TKIT_F32_MAX);
-        ImGui::DragFloat2("Child offset", p.ChildOffset.GetData(), 0.01f);
-        ImGui::DragFloat2("Self offset", p.SelfOffset.GetData(), 0.01f);
+
+        Combo("X Child offset type", &p.ChildOffset[0].Type, "Absolute\0Normalized\0Relative\0\0");
+        ImGui::DragFloat("X Child offset", &p.ChildOffset[0].Offset, 0.01f);
+        Combo("Y Child offset type", &p.ChildOffset[1].Type, "Absolute\0Normalized\0Relative\0\0");
+        ImGui::DragFloat("Y Child offset", &p.ChildOffset[1].Offset, 0.01f);
+
+        Combo("X Self offset type", &p.SelfOffset[0].Type, "Absolute\0Normalized\0Relative\0\0");
+        ImGui::DragFloat("X Self offset", &p.SelfOffset[0].Offset, 0.01f);
+        Combo("Y Self offset type", &p.SelfOffset[1].Type, "Absolute\0Normalized\0Relative\0\0");
+        ImGui::DragFloat("Y Self offset", &p.SelfOffset[1].Offset, 0.01f);
 
         Combo("Overflow", &p.Overflow, "Spill\0Clip\0\0");
         Combo("Shape", &p.Shape.Type, "Circle\0Rectangle\0Rounded rectangle\0\0");
@@ -104,7 +122,7 @@ void EditPanel(PanelInfo &info, TKit::StackArray<PanelInfo> &panels)
 
 void DrawPanels(Onyx::Layout &layout, const PanelInfo &info, const TKit::StackArray<PanelInfo> panels)
 {
-    if (info.Type == Onyx::LayoutElement_Panel)
+    if (info.Type == Onyx::LayoutElement_Panel || info.Type == Onyx::LayoutElement_Floating)
     {
         layout.BeginPanel(info.PanelParams);
         for (const u32 c : info.Children)
@@ -153,7 +171,7 @@ int main()
         spc.Font = font;
         Onyx::Layout layout{spc};
         PanelInfo root{};
-        root.PanelParams.Sizing = Onyx::LayoutSizing::Fixed(2.f);
+        root.PanelParams.Sizing = Onyx::LayoutSizing::Absolute(2.f);
 
         TKit::StackArray<PanelInfo> panels{};
         panels.Reserve(64);

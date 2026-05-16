@@ -8,14 +8,6 @@
 
 namespace Onyx
 {
-enum LayoutSizingType : u8
-{
-    LayoutSizing_Fixed,
-    LayoutSizing_Fit,
-    LayoutSizing_Grow,
-    LayoutSizing_None,
-};
-
 enum LayoutDirection : u8
 {
     LayoutDirection_LeftToRight,
@@ -30,6 +22,13 @@ enum LayoutAxis : u8
     LayoutAxis_Vertical
 };
 
+enum LayoutSizingType : u8
+{
+    LayoutSizing_Absolute,
+    LayoutSizing_Normalized,
+    LayoutSizing_Fit,
+    LayoutSizing_Grow,
+};
 struct LayoutSizing
 {
     f32 Size;
@@ -37,9 +36,13 @@ struct LayoutSizing
     f32 Max;
     LayoutSizingType Type;
 
-    static constexpr LayoutSizing Fixed(const f32 size)
+    static constexpr LayoutSizing Absolute(const f32 size)
     {
-        return {size, 0.f, TKIT_F32_MAX, LayoutSizing_Fixed};
+        return {size, 0.f, TKIT_F32_MAX, LayoutSizing_Absolute};
+    }
+    static constexpr LayoutSizing Normalized(const f32 size)
+    {
+        return {size, 0.f, TKIT_F32_MAX, LayoutSizing_Normalized};
     }
     static constexpr LayoutSizing Fit(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
@@ -48,6 +51,28 @@ struct LayoutSizing
     static constexpr LayoutSizing Grow(const f32 min = 0.f, const f32 max = TKIT_F32_MAX)
     {
         return {0.f, min, max, LayoutSizing_Grow};
+    }
+};
+
+enum LayoutOffsetType : u8
+{
+    LayoutOffset_Absolute,
+    LayoutOffset_Normalized,
+    LayoutOffset_Relative
+};
+
+struct LayoutOffset
+{
+    f32 Offset;
+    LayoutOffsetType Type;
+
+    static constexpr LayoutOffset Absolute(const f32 offset)
+    {
+        return {offset, LayoutOffset_Absolute};
+    }
+    static constexpr LayoutOffset Normalized(const f32 offset)
+    {
+        return {offset, LayoutOffset_Normalized};
     }
 };
 
@@ -86,6 +111,7 @@ struct LayoutShape
 enum LayoutElementType : u8
 {
     LayoutElement_Panel,
+    LayoutElement_Floating,
     LayoutElement_Text
 };
 
@@ -101,6 +127,23 @@ enum LayoutOverflowMode : u8
     LayoutOverflow_Clip,
 };
 
+enum LayoutAttachment : u8
+{
+    LayoutAttachment_Canonical,
+    LayoutAttachment_Mirrored,
+    LayoutAttachment_Center,
+    LayoutAttachment_Left = LayoutAttachment_Canonical,
+    LayoutAttachment_Right = LayoutAttachment_Mirrored,
+    LayoutAttachment_Bottom = LayoutAttachment_Canonical,
+    LayoutAttachment_Top = LayoutAttachment_Mirrored,
+};
+
+struct LayoutFloatingParameters
+{
+    bool Enable = false;
+    vec2<LayoutAttachment> Attachment{LayoutAttachment_Canonical};
+};
+
 struct LayoutElement
 {
     LayoutShape Shape;
@@ -112,7 +155,11 @@ struct LayoutElement
     f32v2 ClipMax;
     f32v2 ChildOffset;
     f32v2 SelfOffset;
+
     vec2<LayoutSizingType> Sizing;
+    vec2<LayoutOffsetType> ChildOffsetType;
+    vec2<LayoutOffsetType> SelfOffsetType;
+    vec2<LayoutAttachment> FloatAttachment{LayoutAttachment_Canonical};
 
     f32v4 Padding;
 
@@ -157,6 +204,7 @@ struct LayoutElementInfo
     RenderModeFlags RenderFlags;
 };
 
+// TODO(Isma): Add normalized sizing
 // TODO(Isma): Add floating panels
 // TODO(Isma): Implement ids and hashing
 struct LayoutPanelParameters
@@ -164,15 +212,18 @@ struct LayoutPanelParameters
     Color FillColor = Color_Transparent;
     Color OutlineColor = Color_White;
     LayoutDirection Direction = LayoutDirection_LeftToRight;
+
     vec2<Alignment> Alignment{Alignment_Canonical};
     vec2<LayoutSizing> Sizing{LayoutSizing::Fit()};
+    vec2<LayoutOffset> ChildOffset{LayoutOffset::Absolute(0.f)};
+    vec2<LayoutOffset> SelfOffset{LayoutOffset::Absolute(0.f)};
+
     LayoutShape Shape = LayoutShape::Rectangle();
+    LayoutFloatingParameters Floating{};
     Resource Material = NullHandle;
     // NOTE(Isma): Could add overflow mode override per-children (as in a ChildOverflow and SelfOverflow parameters).
     // Skipping for now
     LayoutOverflowMode Overflow = LayoutOverflow_Clip;
-    f32v2 ChildOffset{0.f};
-    f32v2 SelfOffset{0.f};
     f32v4 Padding{0.f};
     f32 ChildGap = 0.f;
     f32 OutlineWidth = 0.f;
@@ -184,8 +235,8 @@ struct LayoutTextParameters
     Color OutlineColor = Color_Transparent;
     LayoutTextMode Mode = TextMode_Unbounded;
     f32 FontSize = 1.f;
-    f32 OutlineWidth = 0.25f;
-    f32v2 Offset{0.f};
+    f32 OutlineWidth = 0.f;
+    vec2<LayoutOffset> Offset{LayoutOffset::Absolute(0.f)};
     Resource Font = NullHandle;
     Resource Material = NullHandle;
 };
@@ -218,6 +269,7 @@ class Layout
 
   private:
     void fitPass(LayoutAxis axis);
+    void normPass(LayoutAxis axis);
     void growShrinkPass(LayoutAxis axis);
     void wrapText();
     void positionPass();
