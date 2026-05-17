@@ -29,7 +29,7 @@ template <typename T> auto CheckVKitError(TKit::Result<T, VKit::Error> &&result)
     }
 #endif
     if constexpr (!std::same_as<T, void>)
-        return result.GetValue();
+        return *result;
 }
 
 #ifdef TKIT_ENABLE_ASSERTS
