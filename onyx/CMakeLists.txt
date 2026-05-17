@@ -18,7 +18,7 @@ set(SOURCES
     source/descriptors.cpp
     source/color.cpp
     source/transform.cpp
-    source/ui.cpp
+    source/layout.cpp
     source/conversion.cpp
     source/window.cpp)
 

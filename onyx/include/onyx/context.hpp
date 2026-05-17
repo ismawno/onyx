@@ -6,7 +6,7 @@
 #include "onyx/font.hpp"
 #include "onyx/pass.hpp"
 #include "onyx/view.hpp"
-#include "onyx/ui.hpp"
+#include "onyx/layout.hpp"
 
 namespace Onyx
 {
